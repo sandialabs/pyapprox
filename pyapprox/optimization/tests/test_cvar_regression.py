@@ -98,6 +98,7 @@ class TestCVARRegression(unittest.TestCase):
         self.help_check_smooth_conditional_value_at_risk_composition_gradient(
             smoother_type, eps, alpha, nsamples, nvars)
 
+
 if __name__ == "__main__":
     cvar_regression_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestCVARRegression)

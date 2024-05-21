@@ -35,7 +35,11 @@ class JointVariable(ABC):
         raise NotImplementedError()
 
     def __str__(self):
-        return "JointVariable"
+        return "{0}".format(self.__class__.__name__)
+
+    def __repr__(self):
+        return self.__str__()
+
 
 
 class IndependentMarginalsVariable(JointVariable):
@@ -271,9 +275,6 @@ class IndependentMarginalsVariable(JointVariable):
                 string += "\n"
         return string
 
-    def __repr__(self):
-        return self.__str__()
-
     def is_bounded_continuous_variable(self):
         """
         Are all 1D variables are continuous and bounded.
@@ -485,3 +486,48 @@ class DesignVariable(object):
             The number of independent 1D variables
         """
         return len(self.bounds.lb)
+
+
+class FiniteSamplesVariable(JointVariable):
+    def __init__(self, samples, randomness="replacement", weights=None):
+        self._samples = samples.copy()
+        self._nvars = samples.shape[0]
+        self._weights = weights
+        randomness_names = ["none", "replacement"]
+        if randomness not in randomness_names:
+            raise ValueError(
+                "randomness must be one of {0}".format(randomness_names))
+        self._randomness = randomness
+        self._sample_cnt = 0
+        if randomness == "replacement" and weights is not None:
+            raise ValueError(
+                "weights must be none when randomly sampling with replacement")
+
+    def _rvs_deterministic(self, nsamples):
+        if self._sample_cnt+nsamples > self._samples.shape[1]:
+            msg = "Too many samples requested when randomness is None. "
+            msg += f"self._sample+cnt_nsamples={self._sample_cnt+nsamples}"
+            msg += f" but only {self._samples.shape[1]} samples available"
+            msg += " This can be overidden by reseting self._sample_cnt=0"
+            raise ValueError(msg)
+        indices = np.arange(
+            self._sample_cnt, self._sample_cnt+nsamples, dtype=int)
+        self._sample_cnt += nsamples
+        return self._samples[:, indices], indices
+
+    def _rvs(self, nsamples):
+        if self._randomness == "none":
+            return self._rvs_deterministic(nsamples)
+
+        indices = np.random.choice(
+            np.arange(self._samples.shape[1]), nsamples,
+            p=self._weights, replace=True)
+        return self._samples[:, indices], indices
+
+    def rvs(self, nsamples):
+        """
+        Randomly sample with replacement from all available samples
+        if weights is None uniform weights are applied to each sample
+        otherwise sample according to weights
+        """
+        return self._rvs(nsamples)[0]

@@ -589,6 +589,7 @@ class TestMOMC(unittest.TestCase):
     def _check_bootstrap_estimator(self, est_name, target_cost):
         qoi_idx = [0, 1]
         model_idx = [0, 1, 2]
+        ntrials = 1e3
         # model_idx = [0, 1]
         funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
@@ -604,29 +605,89 @@ class TestMOMC(unittest.TestCase):
             est = get_estimator("cv", stat, costs, lowfi_stats=means[1:])
         else:
             est = get_estimator(est_name, stat, costs)
-        est.allocate_samples(target_cost)
-        print(est)
+        est.allocate_samples(
+            target_cost, {"scaling": 1., "maxiter": 200,
+                          "init_guess": {"disp": True, "maxiter": 100,
+                                         "lower_bound": 1e-3}})
 
         samples_per_model = est.generate_samples_per_model(model.variable.rvs)
         values_per_model = [
             f(samples) for f, samples in zip(funs, samples_per_model)]
 
-        bootstrap_stats, bootstrap_cov = est.bootstrap(
-            values_per_model, 1e3)
-        # print(bootstrap_stats, means[0])
-        # print(bootstrap_stats-means[0])
-        # print(bootstrap_cov, "CB")
+        bootstrap_values_mean, bootstrap_values_cov = est.bootstrap(
+            values_per_model, ntrials)
+        # print(bootstrap_values_mean, bootstrap_values_cov, "I")
+        # print(bootstrap_values_mean-means[0])
+        # print(bootstrap_values_cov, "CB")
         # print(est._optimized_covariance, "C")
-        assert np.allclose(bootstrap_stats, means[0], atol=1e-3, rtol=1e-2)
-        assert np.allclose(bootstrap_cov, est._optimized_covariance,
+        assert np.allclose(
+            bootstrap_values_mean, means[0], atol=1e-3, rtol=1e-2)
+        assert np.allclose(bootstrap_values_cov, est._optimized_covariance,
                            atol=1e-3, rtol=1e-2)
+
+        if est_name == "mc":
+            return
+
+        # just test that these functions pass
+        # stat_name = "mean"
+        stat_name = "mean_variance"
+        stat = multioutput_stats[stat_name](nqoi)
+        npilot_samples = 20
+        pilot_samples = model.variable.rvs(npilot_samples)
+        pilot_values_per_model = [fun(pilot_samples) for fun in funs]
+        stat.set_pilot_quantities(*stat.compute_pilot_quantities(
+            pilot_values_per_model))
+
+        if est_name == "cv":
+            lfcovs = []
+            lb, ub = 0, 0
+            for ii in range(1, len(cov)):
+                ub += nqoi
+                lfcovs.append(cov[lb:ub, lb:ub])
+                lb = ub
+            if stat_name == "mean":
+                lowfi_stats = means[1:]
+            elif stat_name == "variance":
+                lowfi_stats = lfcovs.flatten()
+            else:
+                lowfi_stats = [
+                    np.hstack((m, cov.flatten()))
+                    for m, cov in zip(means[1:], lfcovs)]
+            est = get_estimator(
+                "cv", stat, costs, lowfi_stats=lowfi_stats)
+        else:
+            est = get_estimator(est_name, stat, costs)
+        est.allocate_samples(
+            target_cost, {"scaling": 1., "maxiter": 200,
+                          "init_guess": {"disp": True, "maxiter": 100,
+                                         "lower_bound": 1e-3}})
+        print(est)
+        samples_per_model = est.generate_samples_per_model(model.variable.rvs)
+        values_per_model = [
+            f(samples) for f, samples in zip(funs, samples_per_model)]
+
+        (bootstrap_values_mean, bootstrap_values_cov, bootstrap_weights_mean,
+         bootstrap_weights_cov) = est.bootstrap(
+             values_per_model, ntrials, mode="values_weights",
+             pilot_values=pilot_values_per_model)
+        # print(bootstrap_values_mean, bootstrap_values_cov, "J")
+        # print(bootstrap_weights_mean, bootstrap_weights_cov)
+
+        (bootstrap_values_mean, bootstrap_values_cov, bootstrap_weights_mean,
+         bootstrap_weights_cov) = est.bootstrap(
+             values_per_model, ntrials, mode="weights",
+             pilot_values=pilot_values_per_model)
+        # print(bootstrap_values_mean, bootstrap_values_cov, "K")
+        # print(bootstrap_weights_mean, bootstrap_weights_cov)
 
     def test_bootstrap_estimator(self):
         test_cases = [
-            ["mc", 1000], ["cv", 42], ["mfmc", 100], ["gmf", 100],
+            ["mc", 1000], ["cv", 42], ["mfmc", 10000],
+            ["gmf", 10000],
             ["grd", 10000], ["gis", 10000]]
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
             print(test_case)
+            np.random.seed(1)
             self._check_bootstrap_estimator(*test_case)
 
     def test_polynomial_ensemeble(self):

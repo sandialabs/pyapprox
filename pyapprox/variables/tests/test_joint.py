@@ -5,8 +5,7 @@ from scipy import stats
 from pyapprox.util.utilities import lists_of_arrays_equal
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable, GaussCopulaVariable,
-    define_iid_random_variable
-)
+    define_iid_random_variable, FiniteSamplesVariable)
 from pyapprox.variables.nataf import correlation_to_covariance
 
 
@@ -84,6 +83,32 @@ class TestJoint(unittest.TestCase):
         true_x_covariance = correlation_to_covariance(
             x_correlation, [m.std() for m in marginals])
         assert np.allclose(true_x_covariance, x_sample_covariance, atol=1e-2)
+
+    def test_archived_data_model(self):
+        nvars, nsamples = 2, 100
+        samples = np.random.normal(0, 1, (nvars, nsamples))
+
+        model = FiniteSamplesVariable(samples, randomness="none")
+        valid_samples, II = model._rvs(nsamples)
+        assert np.allclose(II, np.arange(nsamples))
+        assert np.allclose(valid_samples, samples[:, II])
+
+        # check error thrown if too many samples are requested
+        # with randomnes=None
+        self.assertRaises(ValueError, model.rvs, nsamples)
+
+        # check repeated calling of deterministic rvs
+        model = FiniteSamplesVariable(samples, randomness="none")
+        valid_samples = model.rvs(nsamples//2)
+        valid_samples, II = model._rvs(2)
+        assert np.allclose(II, np.arange(nsamples//2, nsamples//2+2))
+
+        # check repeated calling of rvs replacement passes when
+        # more than existing samples are requested
+        model = FiniteSamplesVariable(samples, randomness="replacement")
+        assert nsamples % 2 == 0
+        valid_samples1, II = model._rvs(nsamples//2)
+        valid_samples0, JJ = model._rvs(nsamples)
 
 
 if __name__ == "__main__":

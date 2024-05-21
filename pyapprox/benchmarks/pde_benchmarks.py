@@ -15,7 +15,7 @@ from pyapprox.pde.autopde.mesh import (
 )
 from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.variables.transforms import ConfigureVariableTransformation
-from pyapprox.pde.karhunen_loeve_expansion import MeshKLE
+from pyapprox.pde.karhunen_loeve_expansion import MeshKLE, TorchKLEWrapper
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array, MultiIndexModel, ModelEnsemble)
 
@@ -341,11 +341,10 @@ def _setup_advection_diffusion_benchmark(
     vel_fun = partial(constant_vel_fun, vel_vec)
 
     if kle_args is None:
-        kle = MeshKLE(
-            mesh.mesh_pts, use_log=True, use_torch=True,
-            mean_field=kle_mean_field)
-        kle.compute_basis(
-            length_scale, sigma=sigma, nterms=nvars)
+        npkle = MeshKLE(
+            mesh.mesh_pts, length_scale, sigma=sigma, nterms=nvars,
+            use_log=True, mean_field=kle_mean_field)
+        kle = TorchKLEWrapper(npkle)
     else:
         kle = InterpolatedMeshKLE(kle_args[0], kle_args[1], mesh)
 
@@ -378,9 +377,9 @@ class InterpolatedMeshKLE(MeshKLE):
         self._kle = kle
         self._mesh = mesh
 
-        self.matern_nu = self._kle.matern_nu
-        self.nterms = self._kle.nterms
-        self.lenscale = self._kle.lenscale
+        self.matern_nu = self._kle._matern_nu
+        self.nterms = self._kle._nterms
+        self.lenscale = self._kle._lenscale
 
         self._basis_mat = self._kle_mesh._get_lagrange_basis_mat(
             self._kle_mesh._canonical_mesh_pts_1d,
@@ -395,15 +394,18 @@ class InterpolatedMeshKLE(MeshKLE):
         return interp_vals
 
     def __call__(self, coef):
-        use_log = self._kle.use_log
-        self._kle.use_log = False
+        assert isinstance(self._kle, TorchKLEWrapper)
+        # use_log = self._kle._use_log
+        use_log = self._kle._kle._use_log
+        self._kle._kle._use_log = False
         vals = self._kle(coef)
         interp_vals = self._fast_interpolate(vals, self._mesh.mesh_pts)
         mean_field = self._fast_interpolate(
-            self._kle.mean_field[:, None], self._mesh.mesh_pts)
+            torch.as_tensor(self._kle._mean_field[:, None], dtype=torch.double),
+            self._mesh.mesh_pts)
         if use_log:
-            interp_vals = np.exp(mean_field+interp_vals)
-        self._kle.use_log = use_log
+            interp_vals = torch.exp(mean_field+interp_vals)
+        self._kle._kle._use_log = use_log
         return interp_vals
 
 

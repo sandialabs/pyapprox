@@ -68,7 +68,8 @@ class SteadyStatePDE():
     def __init__(self, physics):
         self.physics = physics
 
-    def solve(self, init_guess=None, store_data=True, clear_data=True, **newton_kwargs):
+    def solve(self, init_guess=None, store_data=True, clear_data=True,
+              **newton_kwargs):
         SteadyStatePDE._pre_solve(self.physics, store_data, clear_data)
         if init_guess is None:
             init_guess = torch.ones(

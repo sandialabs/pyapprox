@@ -679,20 +679,24 @@ class AbstractTwoDDomainDecomposition(AbstractDomainDecomposition):
             pts.append(self._interfaces[ii]._mesh_pts())
         return np.hstack(pts)
 
+    def _in_subdomain(self, samples, ii, eps, eps_l):
+        mesh = self._subdomain_models[ii].physics.mesh
+        canonical_samples = mesh._map_samples_to_canonical_domain(
+            samples)
+        lb0, ub0, lb1, ub1 = mesh._canonical_domain_bounds
+
+        return np.where(
+            (canonical_samples[0, :] >= lb0-eps_l) &
+            (canonical_samples[0, :] <= ub0+eps) &
+            (canonical_samples[1, :] >= lb1-eps_l) &
+            (canonical_samples[1, :] <= ub1+eps))[0]
+
     def _in_subdomains(self, samples):
         masks = []
         for ii in range(self._nsubdomains):
-            mesh = self._subdomain_models[ii].physics.mesh
-            canonical_samples = mesh._map_samples_to_canonical_domain(
-                samples)
-            lb0, ub0, lb1, ub1 = mesh._canonical_domain_bounds
-
             eps, eps_l = 1e-12, 1e-12
-            masks.append(np.where(
-                    (canonical_samples[0, :] >= lb0-eps_l) &
-                    (canonical_samples[0, :] <= ub0+eps) &
-                    (canonical_samples[1, :] >= lb1-eps_l) &
-                    (canonical_samples[1, :] <= ub1+eps))[0])
+            mask = self._in_subdomain(samples, ii, eps, eps_l)
+            masks.append(mask)
         return masks
 
     @staticmethod

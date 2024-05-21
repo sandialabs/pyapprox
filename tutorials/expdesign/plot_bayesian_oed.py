@@ -51,56 +51,56 @@ mpl.rcParams['text.latex.preamble'] = (
 #%%
 #Setup prior and noise variables
 
-# # prior_rvs = [stats.beta(2, 2, loc=-1, scale=2)]
+prior_rvs = [stats.beta(2, 2, loc=-1, scale=2)]
 # prior_rvs = [stats.norm(0.0, 0.25)]
-# prior_variable = IndependentMarginalsVariable(prior_rvs)
-# noise_std = 0.5
-# noise_rv = stats.norm(0, noise_std)
-
-# def obs_fun(design, params):
-#     assert design.ndim == 2 and params.ndim == 2
-#     assert design.shape[0] == 1 and params.shape[0] == 1
-#     power = 2
-#     # when lb, ub = 0, 1
-#     # vals = (((params[0]*2-1)+design[0])**power)[:, None]
-#     # when lb, ub = -1, 1
-#     vals = ((params[0]+0.5*design[0])**power)[:, None]
-#     # vals = ((1 + params[0]*design[0])**power)[:, None]
-#     return vals
-
-
-# def qoi_fun(pred, params):
-#     assert pred.ndim == 2 and params.ndim == 2
-#     assert pred.shape[0] == 1 and params.shape[0] == 1
-#     # keep values in [0, 1] so can keep qq the sa
-#     # power = 2
-#     # vals = np.exp(((1+params.T*(pred[0]+1.1))**power))
-#     # vals = np.exp(3-30/8*params.T*(1.01+pred[0])+pred[0]**4*35/8)
-#     factor = (2+np.cos(2*np.pi*pred[0]))
-#     vals = np.exp(params.T)*factor
-#     return vals
-
-
-#prior_rvs = [stats.norm(0.0, 0.25) for ii in range(2)]
-prior_rvs = [stats.beta(2, 2, loc=-1, scale=2) for ii in range(2)]
 prior_variable = IndependentMarginalsVariable(prior_rvs)
-noise_std = 0.25
+noise_std = 0.5
 noise_rv = stats.norm(0, noise_std)
-
 
 def obs_fun(design, params):
     assert design.ndim == 2 and params.ndim == 2
-    assert design.shape[0] == 1
-    nparams = params.shape[0]
-    # vals = params[0][:, None]+(
-    #     (design.T**np.arange(1, nparams+1)[None, :]) @ params).T
-    vals = ((((design.T**np.arange(nparams)[None, :]) @ params).T)+0.5*design)**2
+    assert design.shape[0] == 1 and params.shape[0] == 1
+    power = 2
+    # when lb, ub = 0, 1
+    # vals = (((params[0]*2-1)+design[0])**power)[:, None]
+    # when lb, ub = -1, 1
+    vals = ((params[0]+0.5*design[0])**power)[:, None]
+    # vals = ((1 + params[0]*design[0])**power)[:, None]
     return vals
 
 
 def qoi_fun(pred, params):
-    vals = np.exp(obs_fun(pred, params))
+    assert pred.ndim == 2 and params.ndim == 2
+    assert pred.shape[0] == 1 and params.shape[0] == 1
+    # keep values in [0, 1] so can keep qq the sa
+    # power = 2
+    # vals = np.exp(((1+params.T*(pred[0]+1.1))**power))
+    # vals = np.exp(3-30/8*params.T*(1.01+pred[0])+pred[0]**4*35/8)
+    factor = (2+np.cos(2*np.pi*pred[0]))
+    vals = np.exp(params.T)*factor
     return vals
+
+
+# #prior_rvs = [stats.norm(0.0, 0.25) for ii in range(2)]
+# prior_rvs = [stats.beta(2, 2, loc=-1, scale=2) for ii in range(2)]
+# prior_variable = IndependentMarginalsVariable(prior_rvs)
+# noise_std = 0.25
+# noise_rv = stats.norm(0, noise_std)
+
+
+# def obs_fun(design, params):
+#     assert design.ndim == 2 and params.ndim == 2
+#     assert design.shape[0] == 1
+#     nparams = params.shape[0]
+#     # vals = params[0][:, None]+(
+#     #     (design.T**np.arange(1, nparams+1)[None, :]) @ params).T
+#     vals = ((((design.T**np.arange(nparams)[None, :]) @ params).T)+0.5*design)**2
+#     return vals
+
+
+# def qoi_fun(pred, params):
+#     vals = np.exp(obs_fun(pred, params))
+#     return vals
 
 
 #%%
@@ -163,8 +163,8 @@ def plot_data_surface_ribbons(design_pts, design_symbs, ax):
     ax.set_xlabel(mathrm_label("Parameter")+r" $\theta$")
 
 
-# design_pts = [np.array([[-1]]), np.array([[0.5]]), np.array([[1]])]
-design_pts = [np.array([[0.25]]), np.array([[0.5]]), np.array([[1]])]
+design_pts = [np.array([[-1]]), np.array([[0.5]]), np.array([[1]])]
+# design_pts = [np.array([[0.25]]), np.array([[0.5]]), np.array([[1]])]
 design_symbs = [r"\xi", r"\xi^\prime", r"\xi^\dagger"]
 
 if prior_variable.num_vars() == 1:
@@ -354,7 +354,8 @@ def posterior_pdf(loglike, prior_pdf, evidence, x):
         loglike(np.atleast_2d(x))[0, 0])*prior_pdf(x)/evidence
 
 
-def get_posterior_weights(design_pt, prior_noise_quad_xx, noise_std, prior_quad_xx,
+def get_posterior_weights(design_pt, prior_noise_quad_xx,
+                          noise_std, prior_quad_xx,
                           prior_quad_ww, qoi_fun, ii):
     loglike = get_loglike(prior_noise_quad_xx, design_pt, noise_std, ii)
     like_vals = np.exp(loglike(prior_quad_xx)[:, 0])
@@ -566,13 +567,12 @@ prior_noise_quad_data = integrate(
 
 deviations_filename = (
     f"oed-workflow-deviations-{levels}-{nonlinear_qoi}-{npred_pts}.npz")
-if not os.path.exists(deviations_filename):
+if True: #not os.path.exists(deviations_filename):
     print(f"Creating {deviations_filename}")
     deviations = []
     for ii, design_pt in enumerate(design_pts):
         deviations_ii = []
         for jj, pred_pt in enumerate(pred_pts.T):
-            print(ii, jj, "@@@")
             deviations_ii.append(compute_deviations(
                 design_pt, prior_noise_quad_data, noise_std,
                 prior_quad_xx, prior_quad_ww,

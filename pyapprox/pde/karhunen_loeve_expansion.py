@@ -1,4 +1,5 @@
-import scipy
+from abc import ABC, abstractmethod
+
 from scipy.linalg import eigh
 from scipy.spatial.distance import pdist, squareform
 import numpy as np
@@ -188,7 +189,7 @@ class KLE1D(object):
         self.sigma2 = kle_opts['sigma2']      # \sigma_Y^2 in paper
         self.corr_len = kle_opts['corr_len']  # \nu in paper
         self.num_vars = kle_opts['num_vars']
-        self.use_log = kle_opts.get('use_log', True)
+        self._use_log = kle_opts.get('use_log', True)
         self.dom_len = kle_opts["dom_len"]
 
         self.basis_vals = None
@@ -209,7 +210,7 @@ class KLE1D(object):
         vals = evaluate_exponential_kle(
             self.mean_field, self.corr_len, self.sigma2, self.dom_len, mesh,
             sample, self.basis_vals, self.eig_vals)
-        if self.use_log:
+        if self._use_log:
             return np.exp(vals)
         else:
             return vals
@@ -261,7 +262,79 @@ def nobile_diffusivity(eigenvectors, corr_len, samples):
     return field
 
 
-class MeshKLE(object):
+class AbstractKLE(ABC):
+    def __init__(self, mean_field=0, use_log=False,
+                 quad_weights=None, nterms=None):
+        self._use_log = use_log
+        self._quad_weights = quad_weights
+        if quad_weights is not None:
+            assert quad_weights.ndim == 1
+        self._set_mean_field(mean_field)
+        self._set_nterms(nterms)
+        self._compute_basis()
+
+    def _set_mean_field(self, mean_field):
+        self._mean_field = mean_field
+
+    def _set_nterms(self, nterms):
+        self._nterms = nterms
+
+    @abstractmethod
+    def _compute_kernel_matrix(self):
+        raise NotImplementedError
+
+    def _compute_basis(self):
+        """
+        Compute the KLE basis
+
+        Parameters
+        ----------
+        num_nterms : integer
+            The number of KLE modes. If None then compute all modes
+        """
+        K = self._compute_kernel_matrix()
+        if self._quad_weights is None:
+            eig_vals, eig_vecs = eigh(
+                K, turbo=False,
+                subset_by_index=(K.shape[0]-self._nterms, K.shape[0]-1))
+        else:
+            # see https://etheses.lse.ac.uk/2950/1/U615901.pdf
+            # page 42
+            sqrt_weights = np.sqrt(self._quad_weights)
+            sym_eig_vals, sym_eig_vecs = eigh(
+                sqrt_weights[:, None]*K*sqrt_weights, turbo=False,
+                subset_by_index=(K.shape[0]-self._nterms, K.shape[0]-1))
+            eig_vecs = 1/sqrt_weights[:, None]*sym_eig_vecs
+            eig_vals = sym_eig_vals
+        eig_vecs = adjust_sign_eig(eig_vecs)
+        II = np.argsort(eig_vals)[::-1][:self._nterms]
+        assert np.all(eig_vals[II] > 0), eig_vals[II]
+        self._sqrt_eig_vals = np.sqrt(eig_vals[II])
+        self._eig_vecs = eig_vecs[:, II]
+
+    def __call__(self, coef):
+        """
+        Evaluate the expansion
+
+        Parameters
+        ----------
+        coef : np.ndarray (nterms, nsamples)
+            The coefficients of the KLE basis
+        """
+        assert coef.ndim == 2
+        assert coef.shape[0] == self._nterms
+        if self._use_log:
+            return np.exp(self._mean_field[:, None]+self._eig_vecs.dot(coef))
+        return self._mean_field[:, None] + self._eig_vecs.dot(coef)
+
+    def __repr__(self):
+        if self._nterms is None:
+            return "{0}()".format(
+                self.__class__.__name__)
+        return "{0}(nterms={1})".format(self.__class__.__name__, self._nterms)
+
+
+class MeshKLE(AbstractKLE):
     """
     Compute a Karhunen Loeve expansion of a covariance function.
 
@@ -278,126 +351,104 @@ class MeshKLE(object):
         False - return k(x)
     """
 
-    def __init__(self, mesh_coords, mean_field=0, use_log=False,
-                 matern_nu=np.inf, use_torch=False, quad_weights=None):
-        assert mesh_coords.shape[0] <= 2
-        self.mesh_coords = mesh_coords
-        self.use_log = use_log
-        self.use_torch = use_torch
-        self.quad_weights = quad_weights
-        if quad_weights is not None:
-            assert quad_weights.ndim == 1
+    def __init__(self, mesh_coords, length_scale, sigma=1., mean_field=0,
+                 use_log=False, matern_nu=np.inf, quad_weights=None,
+                 nterms=None, use_torch=False):
+        self._set_mesh_coordinates(mesh_coords)
+        self._matern_nu = matern_nu
+        self._set_lenscale(length_scale)
+        self._sigma = sigma
+        super().__init__(mean_field, use_log, quad_weights, nterms)
+        # normalize the basis
+        self._eig_vecs *= sigma*self._sqrt_eig_vals
 
+    def _set_mean_field(self, mean_field):
         if np.isscalar(mean_field):
-            mean_field = np.ones(self.mesh_coords.shape[1])*mean_field
-        if use_torch:
-            import torch
-            mean_field = torch.as_tensor(mean_field, dtype=torch.double)
-        assert mean_field.shape[0] == self.mesh_coords.shape[1]
-        self.mean_field = mean_field
-        self.matern_nu = matern_nu
+            mean_field = np.ones(self._mesh_coords.shape[1])*mean_field
+        super()._set_mean_field(mean_field)
 
-        self.nterms = None
-        self.lenscale = None
+    def _set_nterms(self, nterms):
+        if nterms is None:
+            nterms = self._mesh_coords.shape[1]
+        assert nterms <= self._mesh_coords.shape[1]
+        self._nterms = nterms
 
-    def compute_kernel_matrix(self, length_scale):
-        if self.matern_nu == np.inf:
-            dists = pdist(self.mesh_coords.T / length_scale,
+    def _set_mesh_coordinates(self, mesh_coords):
+        assert mesh_coords.shape[0] <= 2
+        self._mesh_coords = mesh_coords
+
+    def _set_lenscale(self, length_scale):
+        length_scale = np.atleast_1d(length_scale)
+        if length_scale.shape[0] == 1:
+            length_scale = np.full(self._mesh_coords.shape[0], length_scale[0])
+        assert length_scale.shape[0] == self._mesh_coords.shape[0]
+        self._lenscale = length_scale
+
+    def _compute_kernel_matrix(self):
+        if self._matern_nu == np.inf:
+            dists = pdist(self._mesh_coords.T / self._lenscale,
                           metric='sqeuclidean')
             K = squareform(np.exp(-.5 * dists))
             np.fill_diagonal(K, 1)
             return K
 
-        dists = pdist(self.mesh_coords.T / length_scale, metric='euclidean')
-        if self.matern_nu == 0.5:
+        dists = pdist(self._mesh_coords.T / self._lenscale, metric='euclidean')
+        if self._matern_nu == 0.5:
             K = squareform(np.exp(-dists))
-        elif self.matern_nu == 1.5:
+        elif self._matern_nu == 1.5:
             dists = np.sqrt(3)*dists
             K = squareform((1+dists)*np.exp(-dists))
-        elif self.matern_nu == 2.5:
+        elif self._matern_nu == 2.5:
             K = squareform((1+dists+dists**2/3)*np.exp(-dists))
         np.fill_diagonal(K, 1)
         return K
 
-    def compute_basis(self, length_scale, sigma=1, nterms=None):
-        """
-        Compute the KLE basis
+    def __repr__(self):
+        if self._nterms is None:
+            return "{0}(nterms={1}, mu={2})".format(
+                self.___class__.__name__, self._nterms, self._matern_nu)
+        return "{0}(mu={1}, nterms={2}, lenscale={3}, sigma={4})".format(
+            self.__class__.__name__, self._nterms, self._matern_nu,
+            self._lenscale, self._sigma)
 
-        Parameters
-        ----------
-        length_scale : double
-            The length scale of the covariance kernel
 
-        sigma : double
-            The standard deviation of the random field
-
-        num_nterms : integer
-            The number of KLE modes. If None then compute all modes
-        """
-        if nterms is None:
-            nterms = self.mesh_coords.shape[1]
-        assert nterms <= self.mesh_coords.shape[1]
-        self.nterms = nterms
-
-        length_scale = np.atleast_1d(length_scale)
-        if length_scale.shape[0] == 1:
-            length_scale = np.full(self.mesh_coords.shape[0], length_scale[0])
-        assert length_scale.shape[0] == self.mesh_coords.shape[0]
-        self.lenscale = length_scale
-
-        K = self.compute_kernel_matrix(length_scale)
-        if self.quad_weights is None:
-            eig_vals, eig_vecs = eigh(
-                K, turbo=False,
-                subset_by_index=(K.shape[0]-nterms, K.shape[0]-1))
-        else:
-            # see https://etheses.lse.ac.uk/2950/1/U615901.pdf
-            # page 42
-            sqrt_weights = np.sqrt(self.quad_weights)
-            sym_eig_vals, sym_eig_vecs = eigh(
-                sqrt_weights[:, None]*K*sqrt_weights, turbo=False,
-                subset_by_index=(K.shape[0]-nterms, K.shape[0]-1))
-            eig_vecs = 1/sqrt_weights[:, None]*sym_eig_vecs
-            eig_vals = sym_eig_vals
-        eig_vecs = adjust_sign_eig(eig_vecs)
-        II = np.argsort(eig_vals)[::-1][:self.nterms]
-        assert np.all(eig_vals[II] > 0)
-        self.sqrt_eig_vals = np.sqrt(eig_vals[II])
-        self.eig_vecs = eig_vecs[:, II]
-
-        # normalize the basis
-        self.eig_vecs *= sigma*self.sqrt_eig_vals
+class TorchKLEWrapper(AbstractKLE):
+    def __init__(self, kle):
+        import torch
+        self._kle = kle
+        for attr in self._kle.__dict__.keys():
+            setattr(self, attr, self._kle.__dict__[attr])
 
     def __call__(self, coef):
-        """
-        Evaluate the expansion
-
-        Parameters
-        ----------
-        coef : np.ndarray (nterms, nsamples)
-            The coefficients of the KLE basis
-        """
-        assert coef.ndim == 2
-        assert coef.shape[0] == self.nterms
-        if self.use_log:
-            if not self.use_torch:
-                return np.exp(self.mean_field[:, None]+self.eig_vecs.dot(coef))
-            import torch
-            return torch.exp(
-                self.mean_field[:, None] +
-                torch.linalg.multi_dot((torch.as_tensor(self.eig_vecs), coef)))
-        if not self.use_torch:
-            return self.mean_field[:, None] + self.eig_vecs.dot(coef)
         import torch
-        return (self.mean_field[:, None] +
-                torch.linalg.multi_dot((torch.as_tensor(self.eig_vecs), coef)))
+        return torch.as_tensor(self._kle(coef), dtype=torch.double)
 
     def __repr__(self):
-        if self.nterms is None:
-            return "{0}(mu={1})".format(
-                self.__class__.__name__, self.matern_nu)
-        return "{0}(mu={1}, nvars={2}, lenscale={3})".format(
-            self.__class__.__name__, self.matern_nu, self.nterms, self.lenscale)
+        return "TorchWrapper({0})".format(self._kle.__repr__())
+
+
+class DataDrivenKLE(AbstractKLE):
+    def __init__(self, field_samples, mean_field=0,
+                 use_log=False, nterms=None):
+        self._field_samples = field_samples
+        super().__init__(mean_field, use_log, None, nterms)
+
+    def _set_mean_field(self, mean_field):
+        if np.isscalar(mean_field):
+            mean_field = np.ones(self._field_samples.shape[0])*mean_field
+        super()._set_mean_field(mean_field)
+
+    def _set_nterms(self, nterms):
+        if nterms is None:
+            nterms = self._field_samples.shape[0]
+        assert nterms <= self._field_samples.shape[0]
+        self._nterms = nterms
+
+    def _set_mesh_coordinaets(self, mesh_coords):
+        self._mesh_coords = None
+
+    def _compute_kernel_matrix(self):
+        return np.cov(self._field_samples, rowvar=True, ddof=1)
 
 
 def multivariate_chain_rule(jac_yu, jac_ux):

@@ -49,7 +49,7 @@ class GenzFunction(object):
         if not return_grad:
             return result
         grad = -self._c*np.sin(tmp)
-        return grad
+        return result, grad
 
     def _product_peak(self, samples, return_grad):
         result = 1/np.prod(

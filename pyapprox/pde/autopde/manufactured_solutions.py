@@ -1,8 +1,6 @@
 from functools import partial
-import numpy as np
 import sympy as sp
 
-from pyapprox.pde.autopde.solvers import Function
 from pyapprox.pde.autopde.sympy_utils import (
     _evaluate_sp_lambda, _evaluate_list_of_sp_lambda,
     _evaluate_transient_sp_lambda, _evaluate_list_of_transient_sp_lambda)
@@ -638,3 +636,53 @@ def setup_linear_elasticity_manufactured_solution(
     print(f"forc = {forc_expr}")
 
     return disp_fun, lambda_fun, mu_fun, forc_fun, flux_funs
+
+
+def setup_burgers_manufactured_solution(
+        sol_string, viscosity_string, transient):
+    """
+    du/dt+u*du/dx=v*d^2u/dx^2
+    """
+    sp_x, sp_t = sp.symbols(['x', 't'])
+    if transient:
+        all_symbs = (sp_x, sp_t)
+    else:
+        all_symbs = (sp_x,)
+    sol_expr = sp.sympify(sol_string)
+    sol_lambda = sp.lambdify(all_symbs, sol_expr, "numpy")
+    if transient:
+        sol_fun = partial(_evaluate_transient_sp_lambda, sol_lambda)
+    else:
+        sol_fun = partial(_evaluate_sp_lambda, sol_lambda)
+
+    viscosity_expr = sp.sympify(viscosity_string)
+    viscosity_lambda = sp.lambdify((sp_x,), viscosity_expr, "numpy")
+    viscosity_fun = partial(_evaluate_sp_lambda, viscosity_lambda)
+
+    diffusion_expr = viscosity_expr*sol_expr.diff(sp_x, 2)
+    advection_expr = sol_expr*sol_expr.diff(sp_x, 1)
+
+    # du/dt + advec - diff = forc
+    forc_expr = advection_expr-diffusion_expr
+    if transient:
+        forc_expr += sol_expr.diff(sp_t, 1)
+    forc_lambda = sp.lambdify(all_symbs, forc_expr, "numpy")
+    if transient:
+        forc_fun = partial(_evaluate_transient_sp_lambda, forc_lambda)
+    else:
+        forc_fun = partial(_evaluate_sp_lambda, forc_lambda)
+
+    flux_exprs = [viscosity_expr*sol_expr.diff(sp_x, 1)]
+    flux_lambdas = [
+        sp.lambdify(all_symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
+    if transient:
+        flux_funs = partial(
+            _evaluate_list_of_transient_sp_lambda, flux_lambdas)
+    else:
+        flux_funs = partial(_evaluate_list_of_sp_lambda, flux_lambdas)
+
+    print("solu", sol_expr)
+    print("viscosity", viscosity_expr)
+    print("forc", forc_expr)
+
+    return sol_fun, viscosity_fun, forc_fun, flux_funs

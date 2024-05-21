@@ -26,7 +26,11 @@ def _enforce_dirichlet_scalar_boundary_conditions(
     """
     u_prev is none indicates that newtons method is calling enforce boundaries
     In this case linear_vec represents the residual and so contributions
-    to residual must be added accordingly
+    to residual must be added accordingly.
+
+    Note:
+    bilinear_mat(aka jacobian) is not changed here. It is changed when calling
+    condense
     """
     # define Dirichlet boundary basis
     D_bases = [
@@ -66,12 +70,14 @@ def _enforce_scalar_robin_neumann_boundary_conditions(
         for key in R_bndry_conds.keys()]
     for b, key in zip(R_bases, R_bndry_conds.keys()):
         fun, alpha = R_bndry_conds[key]
+        # robin is assumed to take the form -flux = alpha*u + fun(x)
         bilinear_mat += asm(BilinearForm(_robin), b, alpha=alpha)
         if u_prev is not None:
             # when u_prev is not None. then linear vec represents the residual
             # and so robin contribution to mass term must be reflected in res
             linear_vec -= asm(
                 LinearForm(_robin_prev_sol), b, alpha=alpha, u_prev=u_prev)
+        # add contribution of robin boundary to forcing
         linear_vec += asm(LinearForm(_forcing), b, forc=b.interpolate(
             b.project(fun)))
     # see https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html
@@ -473,6 +479,12 @@ class LinearAdvectionDiffusionReaction(Physics):
             forc_fun: Callable[[np.ndarray],  np.ndarray],
             vel_fun: Optional[Callable[[np.ndarray],  np.ndarray]] = None,
             react_fun: Optional[Callable[[np.ndarray],  np.ndarray]] = None):
+        """
+        Linear advection diffusion reaction physics.
+
+        Warning: do not wrap in SteadyStatePDE solver
+        To compute solution just run physics.init_guess()
+        """
 
         self.diff_fun = diff_fun
         self.vel_fun = vel_fun
@@ -771,3 +783,93 @@ class BiLaplacianPrior():
             samples[:, ii] = solve(
                 *condense(bilinear_mat, rhs, x=D_vals, D=D_dofs))
         return samples
+
+
+class BurgersResidual():
+    def __init__(self, forc_fun, viscosity_fun):
+        # for use with direct solvers, i.e. not in residual form,
+        # typically used for computing initial guess for newton solve
+        self._forc_fun = forc_fun
+        self._viscosity_fun = viscosity_fun
+        self.__name__ = self.__class__.__name__
+
+    def _advection_term(self, u, v):
+        du = u.grad[0]
+        return v*u*du
+
+    def linear_form(self, v, w):
+        forc = self._forc_fun(w.x)
+        viscosity = self._viscosity_fun(w.x)
+        return (forc * v - dot(viscosity*grad(w.u_prev), grad(v)) -
+                self._advection_term(w.u_prev, v)
+                )
+
+    def bilinear_form(self, u, v, w):
+        # quasilinear burgers form derived from conservative form
+        # u_t + (u(x)^2/2)_x
+        # using the chain rule
+        # g(u(x))=u(x)^2/2 : g(y) = y^2/2 dg/dy = y
+        # dg/dx = dg/du(u(x))du(x)/dx = u(x)du(x)/dx
+        viscosity = self._viscosity_fun(w.x)
+        return (dot(viscosity * grad(u), grad(v)) +
+                v*w.u_prev*u.grad[0] +
+                v*u*w.u_prev.grad[0]
+                )
+
+
+class Burgers(Physics):
+    def __init__(
+            self,
+            mesh: Mesh,
+            element: Element,
+            basis: Basis,
+            bndry_conds: List,
+            viscosity_fun: Callable[[np.ndarray],  np.ndarray],
+            forc_fun: Callable[[np.ndarray],  np.ndarray]):
+        self.viscosity_fun = viscosity_fun
+        self.forc_fun = forc_fun
+        super().__init__(mesh, element, basis, bndry_conds)
+
+    def _set_funs(self) -> List:
+        return [self.viscosity_fun, self.forc_fun]
+
+    def raw_assemble(self, sol: np.ndarray = None) -> Tuple[
+            spmatrix,
+            Union[np.ndarray, spmatrix]]:
+        residual = BurgersResidual(self.forc_fun, self.viscosity_fun)
+        u_prev_interp = self.basis.interpolate(sol)
+        bilinear_mat = asm(
+            BilinearForm(residual.bilinear_form), self.basis,
+            u_prev=u_prev_interp)
+        linear_vec = asm(
+            LinearForm(residual.linear_form), self.basis, u_prev=u_prev_interp)
+        bilinear_mat, linear_vec = (
+            _enforce_scalar_robin_neumann_boundary_conditions(
+                self.mesh, self.element, bilinear_mat, linear_vec,
+                *self.bndry_conds[1:], sol))
+        return bilinear_mat, linear_vec
+
+    def apply_dirichlet_boundary_conditions(
+            self,
+            sol: np.ndarray,
+            bilinear_mat: spmatrix,
+            linear_vec: Union[np.ndarray, spmatrix]) -> Tuple[
+                spmatrix,
+                Union[np.ndarray, spmatrix],
+                np.ndarray,
+                np.ndarray]:
+        D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
+            self.mesh, self.element, self.basis, bilinear_mat, linear_vec,
+            self.bndry_conds[0], sol)
+        return bilinear_mat, linear_vec, D_vals, D_dofs
+
+    def _unit_vel_fun(self, x, *args):
+        return x*0+1
+
+    def init_guess(self) -> np.ndarray:
+        bilinear_mat, linear_vec, D_vals, D_dofs = (
+            _assemble_advection_diffusion_reaction(
+                self.viscosity_fun, self.forc_fun, [None, None], [None, None],
+                self._unit_vel_fun,
+                self.bndry_conds, self.mesh, self.element, self.basis))
+        return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))

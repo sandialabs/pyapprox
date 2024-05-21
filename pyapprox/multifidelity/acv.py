@@ -1,4 +1,5 @@
 import warnings
+import copy
 from abc import abstractmethod
 from functools import partial
 
@@ -253,7 +254,7 @@ class MCEstimator():
         samples_per_model : list[np.ndarray] (1)
             List with one entry np.ndarray (nvars, nsamples_per_model[0])
         """
-        return [rvs(self._rounded_nsamples_per_model)]
+        return [rvs(self._rounded_nsamples_per_model[0])]
 
     def __call__(self, values):
         if not isinstance(values, np.ndarray):
@@ -553,7 +554,7 @@ class CVEstimator(MCEstimator):
             self._rounded_nsamples_per_model[0])
         return rep
 
-    def bootstrap(self, values_per_model, nbootstraps=1000):
+    def bootstrap_deprecated(self, values_per_model, nbootstraps=1000):
         r"""
         Approximate the variance of the estimator using
         bootstraping. The accuracy of bootstapping depends on the number
@@ -584,6 +585,53 @@ class CVEstimator(MCEstimator):
         bootstrap_mean = estimator_vals.mean(axis=0)
         bootstrap_covar = np.cov(estimator_vals, rowvar=False, ddof=1)
         return bootstrap_mean, bootstrap_covar
+
+    def bootstrap(self, values_per_model, nbootstraps=1000,
+                  mode="values", pilot_values=None):
+        modes = ["values", "values_weights", "weights"]
+        if mode not in modes:
+            raise ValueError("mode must be in {0}".format(modes))
+        if pilot_values is not None and mode not in modes[1:]:
+            raise ValueError(
+                "pilot_values given by mode not in {0}".format(modes[1:]))
+        bootstrap_vals = (mode in modes[:2])
+        bootstrap_weights = (mode in modes[1:])
+        nbootstraps = int(nbootstraps)
+        estimator_vals = []
+        if bootstrap_weights:
+            npilot_samples = pilot_values[0].shape[0]
+            self_stat = copy.deepcopy(self._stat)
+            weights_list = []
+        for kk in range(nbootstraps):
+            if bootstrap_weights:
+                indices = np.random.choice(
+                    np.arange(npilot_samples, dtype=int),
+                    size=npilot_samples, replace=True)
+                boostrap_pilot_values = [
+                    vals[indices] for vals in pilot_values]
+                self._stat.set_pilot_quantities(
+                    *self._stat.compute_pilot_quantities(
+                        boostrap_pilot_values))
+                CF, cf = self._get_discrepancy_covariances(
+                    self._rounded_npartition_samples)
+                weights = self._weights(CF, cf)
+                weights_list.append(weights.flatten())
+            else:
+                weights = self._optimized_weights
+            estimator_vals.append(self._estimate(
+                values_per_model, weights, bootstrap=bootstrap_vals).flatten())
+        estimator_vals = np.array(estimator_vals)
+        bootstrap_values_mean = estimator_vals.mean(axis=0)
+        bootstrap_values_covar = np.cov(estimator_vals, rowvar=False, ddof=1)
+        if bootstrap_weights:
+            self._stat = self_stat
+            weights_list = np.asarray(weights_list)
+            bootstrap_weights_mean = weights_list.mean(axis=0)
+            bootstrap_weights_covar = np.cov(
+                weights_list, rowvar=False, ddof=1)
+            return (bootstrap_values_mean, bootstrap_values_covar,
+                    bootstrap_weights_mean, bootstrap_weights_covar)
+        return (bootstrap_values_mean, bootstrap_values_covar)
 
 
 class ACVEstimator(CVEstimator):
@@ -987,6 +1035,7 @@ class ACVEstimator(CVEstimator):
         # default guess is to use nedler mead
         init_guess = optim_opts_copy.pop(
             "init_guess", {"disp": False, "maxiter": 500})
+        lower_bound = optim_opts_copy.pop("lower_bound", 1e-10)
         optim_method = optim_opts_copy.pop("method", "SLSQP")
         if optim_method != "SLSQP" and optim_method != "trust-constr":
             raise ValueError(f"{optim_method} not supported")
@@ -1005,7 +1054,7 @@ class ACVEstimator(CVEstimator):
         # lower and upper bounds can cause some edge cases to
         # not solve reliably
         bounds = Bounds(
-            np.zeros(nunknowns)+1e-10, np.full((nunknowns), np.inf),
+            np.zeros(nunknowns)+lower_bound, np.full((nunknowns), np.inf),
             keep_feasible=True)
 
         return_grad = True
@@ -1015,10 +1064,17 @@ class ACVEstimator(CVEstimator):
             if isinstance(init_guess, dict):
                 # get rough initial guess from global optimizer
                 default_init_guess = asarray(np.full((self._nmodels-1,), 1.))
+                # sometimes nelder-mead has trouble when lower-bound is close
+                # to zero. It finds a solution but then gradient solve may
+                # fail so allow user to pass in lower-bound
+                nm_lower_bound = init_guess.get("lower_bound", 1e-3)
+                nm_bounds = Bounds(
+                    np.zeros(nunknowns)+nm_lower_bound,
+                    np.full((nunknowns), np.inf), keep_feasible=True)
                 opt = minimize(
                     partial(self._objective, target_cost, return_grad=False),
                     default_init_guess, method="nelder-mead", jac=False,
-                    bounds=bounds, constraints=cons, options=init_guess)
+                    bounds=nm_bounds, constraints=cons, options=init_guess)
                 init_guess = opt.x
             if init_guess.shape[0] != self._nmodels-1:
                 raise ValueError(

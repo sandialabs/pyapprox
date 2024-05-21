@@ -47,12 +47,6 @@ def define_beam_random_variables():
     E = stats.norm(loc=2.9e7, scale=np.sqrt(1.45e6)**2)
     R = stats.norm(loc=40000, scale=np.sqrt(2000)**2)
 
-    # increased total variance contribution from E
-    # X = stats.norm(loc=500,scale=np.sqrt(100)**2/10)
-    # Y = stats.norm(loc=1000,scale=np.sqrt(100)**2/10)
-    # E = stats.norm(loc=2.9e7,scale=np.sqrt(1.45e6)**2)
-    # R = stats.norm(loc=40000,scale=np.sqrt(2000)**2/10)
-
     from scipy.optimize import Bounds
     design_bounds = Bounds([1, 1], [4, 4])
     design_variable = DesignVariable(design_bounds)
@@ -70,49 +64,41 @@ def cantilever_beam_objective(samples):
 
 def cantilever_beam_objective_grad(samples):
     X, Y, E, R, w, t = samples
-    grad = np.empty((samples.shape[1], 2))
-    grad[:, 0] = t
-    grad[:, 1] = w
+    grad = np.zeros((samples.shape[1], 6))
+    grad[:, 4] = t
+    grad[:, 5] = w
     return grad
 
 
-def cantilever_beam_constraints(samples):
-    values = np.hstack([beam_constraint_I(samples),
-                        beam_constraint_II(samples)])
-    return values
-
-
-def cantilever_beam_constraints_jacobian(samples):
-    jac = np.vstack(
-        [beam_constraint_I_design_jac(samples),
-         beam_constraint_II_design_jac(samples)])
-    return jac
-
-
-def beam_constraint_I(samples):
+def beam_stress_constraint(samples):
     """
     Desired behavior is when constraint is less than 0
     """
     X, Y, E, R, w, t = samples
     L = 100                  # length of beam
-    vals = 1-6*L/(w*t)*(X/w+Y/t)/R  # scaled version
-    return -vals[:, np.newaxis]
+    # vals = 1-6*L*(X/(w**2*t)+X/(t*w**2))/R  # scaled version
+    vals = 1-6*L/(w*t)*(X/w+Y/t)/R  # factored scaled version
+    return vals[:, np.newaxis]
 
 
-def beam_constraint_I_design_jac(samples):
+def beam_stress_constraint_jac(samples):
     """
     Jacobian with respect to the design variables
     Desired behavior is when constraint is less than 0
     """
     X, Y, E, R, w, t = samples
     L = 100
-    grad = np.empty((samples.shape[1], 2))
-    grad[:, 0] = (L*(12*t*X+6*w*Y))/(R*t**2*w**3)
-    grad[:, 1] = (L*(6*t*X+12*w*Y))/(R*t**3*w**2)
-    return -grad
+    grad = np.empty((samples.shape[1], 6))
+    grad[:, 0] = -6*L/(R*t*w**2)
+    grad[:, 1] = -6*L/(R*t**2*w)
+    grad[:, 2] = 0*E
+    grad[:, 3] = 6*L*(t*X+w*Y)/(R**2*t**2*w**2)
+    grad[:, 4] = (6*L*(2*t*X+w*Y))/(R*t**2*w**3)
+    grad[:, 5] = (6*L*(t*X+2*w*Y))/(R*t**3*w**2)
+    return grad
 
 
-def beam_constraint_II(samples):
+def beam_displacement_constraint(samples):
     """
     Desired behavior is when constraint is less than 0
     """
@@ -120,22 +106,51 @@ def beam_constraint_II(samples):
     L, D0 = 100, 2.2535
     # scaled version
     vals = 1-4*L**3/(E*w*t)*np.sqrt(X**2/w**4+Y**2/t**4)/D0
-    return -vals[:, np.newaxis]
+    return vals[:, np.newaxis]
 
 
-def beam_constraint_II_design_jac(samples):
+def beam_displacement_constraint_jac(samples):
     """
     Jacobian with respect to the design variables
     Desired behavior is when constraint is less than 0
     """
     X, Y, E, R, w, t = samples
     L, D0 = 100, 2.2535
-    grad = np.empty((samples.shape[1], 2))
-    grad[:, 0] = (4*L**3*(3*t**4*X**2+w**4*Y**2)) /\
-        (D0*t**3*w**4*E*np.sqrt(t**4*X**2+w**4*Y**2))
-    grad[:, 1] = (4*L**3*(t**4*X**2+3*w**4*Y**2)) /\
-        (D0*t**4*w**3*E*np.sqrt(t**4*X**2+w**4*Y**2))
-    return -grad
+    grad = np.empty((samples.shape[1], 6))
+    grad[:, 0] = -4*L**3*X/(D0*E*t*w**5*np.sqrt(X**2/w**4+Y**2/t**4))
+    grad[:, 1] = -4*L**3*Y/(D0*E*t**5*w*np.sqrt(X**2/w**4+Y**2/t**4))
+    grad[:, 2] = 4*L**3*np.sqrt(X**2/w**4+Y**2/t**4)/(D0*E**2*t*w)
+    grad[:, 3] = 0*R
+    grad[:, 4] = (4*L**3*(3*t**4*X**2+w**4*Y**2))/(
+        D0*E*t**5*w**6*np.sqrt(X**2/w**4+Y**2/t**4))
+    grad[:, 5] = (4*L**3*(t**4*X**2+3*w**4*Y**2))/(
+        D0*E*t**6*w**5*np.sqrt(X**2/w**4+Y**2/t**4))
+    return grad
+
+
+def cantilever_beam_constraints(samples):
+    values = np.hstack([beam_stress_constraint(samples),
+                        beam_displacement_constraint(samples)])
+    return values
+
+
+def cantilever_beam_constraints_jacobian(samples):
+    assert samples.shape[1]
+    jac = np.vstack(
+        [beam_stress_constraint_jac(samples),
+         beam_displacement_constraint_jac(samples)])
+    return jac
+
+
+def cantilever_beam_objective_and_constraints(samples):
+    return np.hstack((cantilever_beam_objective(samples),
+                      cantilever_beam_constraints(samples)))
+
+
+def cantilever_beam_objective_and_constraints_jacobian(samples):
+    assert samples.shape[1]
+    return np.vstack((cantilever_beam_objective_grad(samples),
+                      cantilever_beam_constraints_jacobian(samples)))
 
 
 def define_piston_random_variables():

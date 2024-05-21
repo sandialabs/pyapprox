@@ -139,7 +139,7 @@ def sq_dists_3d(XX, YY, a=1, b=0, active_indices=None):
     try:
         from pyapprox.cython.utilities import sq_dists_3d_pyx
         return sq_dists_3d_pyx(XX, YY, active_indices, a, b)
-    except(ImportError, ModuleNotFoundError) as e:
+    except (ImportError, ModuleNotFoundError) as e:
         msg = 'sq_dists_3d extension failed'
         trace_error_with_msg(msg, e)
 
@@ -222,7 +222,7 @@ def sq_dists_3d_prereduced(XX, YY, a=1, b=0, active_indices=None):
     try:
         from pyapprox.cython.utilities import sq_dists_3d_prereduced_pyx
         return sq_dists_3d_prereduced_pyx(XX, YY, active_indices, a, b)
-    except(ImportError, ModuleNotFoundError) as e:
+    except (ImportError, ModuleNotFoundError) as e:
         msg = 'sq_dists_3d_prereduced extension failed'
         trace_error_with_msg(msg, e)
 
@@ -412,7 +412,6 @@ def _compute_expected_kl_utility_monte_carlo(
     utility : float
         The expected utility
     """
-
     outer_log_likelihood_vals, evidences = _compute_evidences(
          out_pred_obs, in_pred_obs, in_weights, out_weights,
          active_indices, noise_samples, noise_std)
@@ -563,15 +562,15 @@ def _compute_negative_expected_deviation_monte_carlo(
         out_pred_obs, in_pred_obs, in_weights, out_weights,
         in_pred_qois, deviation_fun, pred_risk_fun, data_risk_fun,
         noise_samples, noise_std, active_indices, return_all):
-    nout_samples = out_pred_obs.shape[0]
-
     out_obs = out_pred_obs[:, active_indices].copy()
-    # print(out_obs.shape, active_indices.shape, noise_samples.shape)
     out_obs += noise_samples[:, :active_indices.shape[0]]
     deviations, evidences = deviation_fun(
         out_obs, in_pred_obs, in_weights, active_indices, noise_std,
         in_pred_qois)
-    # deviation.shape = [nout_quad, nprediction_candidates]
+    assert np.all(np.isfinite(evidences))
+    assert np.all(np.isfinite(deviations)), deviations
+    assert np.all(evidences > 0)
+    # deviations.shape = [nout_quad, nprediction_candidates]
     # evidences.shape = [nout_quad, 1]
 
     # expectation taken with respect to observations
@@ -867,17 +866,22 @@ class AbstractBayesianOED(ABC):
     def populate(self):
         raise NotImplementedError()
 
-    def update_design(self, return_all=False, nnew=1):
+    def update_design(self, return_all=False, nnew=1, with_replacement=True):
         if not hasattr(self, "out_pred_obs"):
             raise ValueError("Must call self.populate before creating designs")
         if self.collected_design_indices is None:
             self.collected_design_indices = np.zeros((0), dtype=int)
-        if self.collected_design_indices.shape[0]+nnew > self.max_ncollected_obs:
+        if (self.collected_design_indices.shape[0]+nnew >
+                self.max_ncollected_obs):
             msg = "To many new design points requested. Decrease nnew and/or "
-            msg += "increase self.max_ncollected_obs"
+            msg += "increase self.max_ncollected_obs. "
+            msg += "Current number of design pts {0}".format(
+                self.collected_design_indices.shape[0])
+            msg += " and asked for {0} more but max allowed is {1}".format(
+                nnew, self.max_ncollected_obs)
             raise ValueError(msg)
         utility_vals, selected_indices, results = self.select_design(
-            self.collected_design_indices, nnew, return_all)
+            self.collected_design_indices, nnew, return_all, with_replacement)
 
         self.collected_design_indices = np.hstack(
             (self.collected_design_indices, selected_indices)).astype(int)
@@ -961,7 +965,8 @@ class AbstractBayesianOED(ABC):
         # return self._compute_utilities_parallel(
         #     ncandidates, collected_design_indices, return_all)
 
-    def select_design(self, collected_design_indices, nnew, return_all):
+    def select_design(self, collected_design_indices, nnew, return_all,
+                      with_replacement=True, new_indices=None):
         """
         Update an experimental design.
 
@@ -985,8 +990,21 @@ class AbstractBayesianOED(ABC):
             Dictionary of useful data used to compute expected utility
             At a minimum it has the keys ["utilties", "evidences", "weights"]
         """
-        new_indices = np.asarray(list(itertools.combinations_with_replacement(
-            np.arange(self.ndesign_candidates), nnew)))
+        if new_indices is None:
+            if with_replacement:
+                new_indices = np.asarray(
+                    list(itertools.combinations_with_replacement(
+                        np.arange(self.ndesign_candidates), nnew)))
+                print("No. total {0} pt designs: {1}".format(
+                    nnew, new_indices.shape[0]))
+            else:
+                new_indices = np.asarray(
+                    list(itertools.combinations(
+                        np.delete(np.arange(self.ndesign_candidates),
+                                  collected_design_indices), nnew)))
+                print("No. total {0} pt designs: {1}".format(
+                    nnew, new_indices.shape[0]))
+        print(new_indices.dtype, new_indices.shape)
         utility_vals, results = self.compute_utilities(
             self.ndesign_candidates, collected_design_indices, new_indices,
             return_all)
@@ -1164,7 +1182,8 @@ def deviation_worker_fun(arg):
         results[ii] = _compute_negative_expected_deviation_monte_carlo(
             out_pred_obs,  in_pred_obs,  in_weights, out_weights,
             in_pred_qois,  deviation_fun, pred_risk_fun,
-            data_risk_fun, noise_samples, noise_std, active_indices, return_all)
+            data_risk_fun, noise_samples, noise_std, active_indices,
+            return_all)
         utility_vals[ii] = results[ii]["utility_val"]
         ii += 1
     print("Worker Took", time.time()-t0, indices[0], indices[-1])
@@ -1245,8 +1264,11 @@ def _posterior_push_fwd_variance_deviation(qoi_vals, nin_samples, weights):
 
 @njit(cache=True)
 def _posterior_push_fwd_standard_deviation(qoi_vals, nin_samples, weights):
-    deviations = np.sqrt(_posterior_push_fwd_variance_deviation(
-        qoi_vals, nin_samples, weights))
+    tmp = _posterior_push_fwd_variance_deviation(
+        qoi_vals, nin_samples, weights)
+    tmp = np.maximum(0, tmp) # hack
+    # assert np.all(tmp >= 0), (tmp.min(), weights)
+    deviations = np.sqrt(tmp)
     return deviations
 
 
@@ -1578,6 +1600,7 @@ class BayesianBatchDeviationOED(AbstractBayesianOED):
         # qoi fun deafult is None so that same api can be used for KL based OED
         # which does not require qoi_fun
         if not callable(qoi_fun):
+            print(qoi_fun)
             raise ValueError("qoi_fun must be a callable function")
         if not callable(deviation_fun):
             raise ValueError("deviation_fun must be a callable function")
@@ -2465,5 +2488,6 @@ def get_bayesian_oed_optimizer(
         out_quad_opts, in_quad_opts, nprocs=nprocs, **kwargs)
     oed.populate()
     if pre_collected_design_indices is not None:
-        oed.set_collected_design_indices(np.asarray(pre_collected_design_indices))
+        oed.set_collected_design_indices(
+            np.asarray(pre_collected_design_indices))
     return oed

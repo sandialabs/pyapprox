@@ -106,9 +106,9 @@ print(inv_benchmark)
 #%%
 #The following plots the modes of the KLE
 fig, axs = plt.subplots(
-    1, inv_benchmark.KLE.nterms, figsize=(8*inv_benchmark.KLE.nterms, 6))
-for ii in range(inv_benchmark.KLE.nterms):
-    inv_benchmark.mesh.plot(inv_benchmark.KLE.eig_vecs[:, ii:ii+1], 50,
+    1, inv_benchmark.KLE._nterms, figsize=(8*inv_benchmark.KLE._nterms, 6))
+for ii in range(inv_benchmark.KLE._nterms):
+    inv_benchmark.mesh.plot(inv_benchmark.KLE._eig_vecs[:, ii:ii+1], 50,
                             ax=axs[ii])
 
 #%%

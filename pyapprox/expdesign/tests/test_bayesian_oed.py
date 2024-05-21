@@ -1,44 +1,37 @@
 import unittest
 import copy
+import itertools
+from functools import partial
+
 import numpy as np
 from scipy import stats
-from functools import partial
 from scipy.special import erfinv
-import itertools
 
 from pyapprox.expdesign.bayesian_oed import (
     gaussian_loglike_fun, d_optimal_utility, oed_variance_deviation,
     get_posterior_2d_interpolant_from_oed_data, oed_entropic_deviation,
     oed_prediction_average, get_data_risk_fun,
-    get_deviation_fun, extract_independent_noise_cov,
+    extract_independent_noise_cov,
     sequential_oed_synthetic_observation_process,
     gaussian_noise_fun, get_bayesian_oed_optimizer, OEDQOIDeviation)
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.orthopoly.quadrature import gauss_hermite_pts_wts_1D
 from pyapprox.bayes.laplace import (
-    laplace_posterior_approximation_for_linear_models
-)
+    laplace_posterior_approximation_for_linear_models)
 from pyapprox.variables.risk import (
     conditional_value_at_risk, lognormal_variance,
     lognormal_cvar_deviation, gaussian_cvar, lognormal_kl_divergence,
     gaussian_kl_divergence, lognormal_cvar, lognormal_mean,
-    conditional_value_at_risk_vectorized
-)
+    conditional_value_at_risk_vectorized)
 from pyapprox.variables.tests.test_risk_measures import (
-    get_lognormal_example_exact_quantities
-)
+    get_lognormal_example_exact_quantities)
 from pyapprox.bayes.laplace import laplace_evidence
-from pyapprox.variables.transforms import (
-    AffineTransform
-)
 from pyapprox.util.utilities import (
-    cartesian_product, outer_product
-)
+    cartesian_product, outer_product)
 from pyapprox.surrogates.interp.tensorprod import (
     piecewise_univariate_linear_quad_rule)
 from pyapprox.variables.algebra import (
-    weighted_sum_dependent_gaussian_variables
-)
+    weighted_sum_dependent_gaussian_variables)
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.surrogates.interp.monomial import monomial_basis_matrix
 
@@ -124,7 +117,9 @@ def expected_kl_divergence_gaussian_inference(
         The inverse of the covariance of the prior
 
     post_cov : np.ndarray (nvars, nvars)
-        The covariance of the posterior
+        The covariance of the posterior. It is independent of the data
+        and thus a single matrix can be passed for all data when computing
+        the average
 
     nu_vec : np.ndarray (nvars, 1)
         The mean of the posterior mean

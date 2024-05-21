@@ -4,6 +4,7 @@ import numpy as np
 from scipy import stats
 from scipy.optimize import OptimizeResult
 
+from pyapprox.interface.model import ModelFromCallable
 from pyapprox.benchmarks.sensitivity_benchmarks import (
     get_sobol_g_function_statistics, get_ishigami_funciton_statistics,
     oakley_function, oakley_function_statistics, sobol_g_function,
@@ -14,6 +15,8 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     rosenbrock_function_mean, cantilever_beam_constraints_jacobian,
     cantilever_beam_constraints, cantilever_beam_objective,
     cantilever_beam_objective_grad, define_beam_random_variables,
+    cantilever_beam_objective_and_constraints,
+    cantilever_beam_objective_and_constraints_jacobian,
     define_piston_random_variables, piston_function,
     define_wing_weight_random_variables, wing_weight_function,
     wing_weight_gradient, define_chemical_reaction_random_variables,
@@ -367,8 +370,11 @@ def setup_rosenbrock_function(nvars):
     univariate_variables = [stats.uniform(-2, 4)]*nvars
     variable = IndependentMarginalsVariable(univariate_variables)
 
+    model = ModelFromCallable(
+        rosenbrock_function, rosenbrock_function_jacobian,
+        apply_hessian=rosenbrock_function_hessian_prod)
     benchmark = Benchmark(
-        {'fun': rosenbrock_function, 'jac': rosenbrock_function_jacobian,
+        {'fun': model, 'jac': rosenbrock_function_jacobian,
          'hessp': rosenbrock_function_hessian_prod, 'variable': variable,
          'mean': rosenbrock_function_mean(nvars)})
     benchmark.update({'loglike': lambda x: -benchmark['fun'](x),
@@ -482,11 +488,11 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Quadratic decay (qudratic)
 
-    .. math:: \hat{c}_d = \frac{1}{(D + 1)^2}
+    .. math:: \hat{c}_d = \frac{1}{(d + 1)^2}
 
     Quartic decay (quartic)
 
-    .. math:: \hat{c}_d = \frac{1}{(D + 1)^4}
+    .. math:: \hat{c}_d = \frac{1}{(d + 1)^4}
 
     Exponential decay (exp)
 
@@ -494,7 +500,7 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
     Squared-exponential decay (sqexp)
 
-    .. math:: \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D}\right)}
+    .. math:: \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D^2}\right)}
 
     Here :math:`c_\mathrm{min}` is argument that sets the minimum value of :math:`c_D`.
 
@@ -522,14 +528,20 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
 
 def setup_cantilever_beam_benchmark():
+    objective_model = ModelFromCallable(
+        cantilever_beam_objective, cantilever_beam_objective_grad)
+    constraints_model = ModelFromCallable(
+            cantilever_beam_constraints, cantilever_beam_constraints_jacobian)
+    all_model = ModelFromCallable(
+        cantilever_beam_objective_and_constraints,
+        cantilever_beam_objective_and_constraints_jacobian)
     variable, design_variable = define_beam_random_variables()
-    attributes = {'fun': cantilever_beam_objective,
-                  'jac': cantilever_beam_objective_grad,
-                  'constraint_fun': cantilever_beam_constraints,
-                  'constraint_jac': cantilever_beam_constraints_jacobian,
+    attributes = {'fun': all_model,
+                  'jac': all_model.jacobian,
                   'variable': variable,
                   'design_variable': design_variable,
-                  'design_var_indices': np.array([4, 5])}
+                  'design_var_indices': np.array([4, 5]),
+                  'funs': [objective_model, constraints_model]}
     return Benchmark(attributes)
 
 
