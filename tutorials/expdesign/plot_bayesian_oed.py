@@ -4,7 +4,6 @@ Bayesian Optimal Experimental Design
 """
 #%%
 #Load modules
-import os
 from functools import partial
 from multiprocessing import Pool
 
@@ -40,13 +39,6 @@ def vertical_subplots(nx):
 
 horizontal = True
 subplots = horizontal_subplots
-
-#%%
-#Configure latex for plotting
-import matplotlib as mpl
-mpl.rcParams['text.usetex'] = True  # use latex for all text handling
-mpl.rcParams['text.latex.preamble'] = (
-    r'\usepackage{siunitx}\usepackage{amsmath}\usepackage{amssymb}')
 
 #%%
 #Setup prior and noise variables
@@ -165,7 +157,7 @@ def plot_data_surface_ribbons(design_pts, design_symbs, ax):
 
 design_pts = [np.array([[-1]]), np.array([[0.5]]), np.array([[1]])]
 # design_pts = [np.array([[0.25]]), np.array([[0.5]]), np.array([[1]])]
-design_symbs = [r"\xi", r"\xi^\prime", r"\xi^\dagger"]
+design_symbs = [r"\xi_1", r"\xi_2", r"\xi_3"]
 
 if prior_variable.num_vars() == 1:
     ax_ribbon = create_3d_axis()

@@ -15,7 +15,7 @@ def exponential_kle_eigenvalues(sigma2, corr_len, omega):
 def exponential_kle_basis(x, corr_len, sigma2, dom_len, omega):
     r"""
     Basis for the kernel K(x,y)=\sigma^2\exp(-|x-y|/l)
-
+ab
     Parameters
     ----------
     x : np.ndarray (num_spatial_locations)
@@ -425,6 +425,11 @@ class TorchKLEWrapper(AbstractKLE):
 
     def __repr__(self):
         return "TorchWrapper({0})".format(self._kle.__repr__())
+
+    def _compute_kernel_matrix(self):
+        import torch
+        return torch.as_tensor(
+            self.kle._compute_kernel_matrix(), dtype=torch.double)
 
 
 class DataDrivenKLE(AbstractKLE):
