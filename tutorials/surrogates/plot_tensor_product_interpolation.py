@@ -66,24 +66,26 @@ from pyapprox.surrogates.interp.tensorprod import (
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 from pyapprox.surrogates.interp.tensorprod import (
     UnivariatePiecewiseQuadraticBasis, UnivariateLagrangeBasis,
-    TensorProductInterpolant, TensorProductBasis)
+    TensorProductInterpolant, TensorProductInterpolatingBasis)
 
 nnodes_1d = [5, 9]
 nodes_1d = [-np.cos(np.arange(nnodes)*np.pi/(nnodes-1))
             for nnodes in nnodes_1d]
 nodes = cartesian_product(nodes_1d)
 lagrange_basis_1d = UnivariateLagrangeBasis()
-tp_lagrange_basis = TensorProductBasis([lagrange_basis_1d]*2)
+tp_lagrange_basis = TensorProductInterpolatingBasis([lagrange_basis_1d]*2)
 
 fig = plt.figure(figsize=(2*8, 6))
 ax = fig.add_subplot(1, 2, 1, projection='3d')
 ii, jj = 1, 3
-tp_lagrange_basis.plot_single_basis(ax, nodes_1d, ii, jj, nodes)
+tp_lagrange_basis.plot_single_basis(
+    ax, [n[None, :] for n in nodes_1d], ii, jj, nodes)
 
 ax = fig.add_subplot(1, 2, 2, projection='3d')
 level = 2
 ii, jj = 2, 4
-tp_lagrange_basis.plot_single_basis(ax, nodes_1d, ii, jj, nodes)
+tp_lagrange_basis.plot_single_basis(
+    ax, [n[None, :] for n in nodes_1d], ii, jj, nodes)
 
 #%%
 #To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function :math:`f_\ai` evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function
@@ -97,7 +99,7 @@ def fun(z): return (np.cos(2*np.pi*z[0, :]) *
 
 lagrange_interpolant = TensorProductInterpolant([lagrange_basis_1d]*2)
 values = fun(nodes)
-lagrange_interpolant.fit(nodes_1d, values)
+lagrange_interpolant.fit([n[None, :] for n in nodes_1d], values)
 
 
 marker_color = 'k'
@@ -173,12 +175,14 @@ fig = plt.figure(figsize=(2*8, 6))
 nnodes_1d = [5, 5]
 nodes_1d = [np.linspace(-1, 1, nnodes) for nnodes in nnodes_1d]
 nodes = cartesian_product(nodes_1d)
-tp_quadratic_basis = TensorProductBasis(
+tp_quadratic_basis = TensorProductInterpolatingBasis(
     [UnivariatePiecewiseQuadraticBasis()]*2)
 ax = fig.add_subplot(1, 2, 1, projection='3d')
-tp_quadratic_basis.plot_single_basis(ax, nodes_1d, 2, 2, nodes)
+tp_quadratic_basis.plot_single_basis(
+    ax, [n[None, :] for n in nodes_1d], 2, 2, nodes)
 ax = fig.add_subplot(1, 2, 2, projection='3d')
-tp_quadratic_basis.plot_single_basis(ax, nodes_1d, 0, 1, nodes)
+tp_quadratic_basis.plot_single_basis(
+    ax, [n[None, :] for n in nodes_1d], 0, 1, nodes)
 
 #%%
 #The following compares the convergence of Lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.

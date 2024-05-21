@@ -1,9 +1,10 @@
 import unittest
-import numpy as np
 import glob
 import os
 import multiprocessing
 import tempfile
+
+import numpy as np
 
 from pyapprox.interface.wrappers import (
     ActiveSetVariableModel, PoolModel, DataFunctionModel,

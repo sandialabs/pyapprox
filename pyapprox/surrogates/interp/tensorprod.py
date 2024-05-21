@@ -4,8 +4,7 @@ from abc import ABC, abstractmethod
 
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.utilities import (
-    cartesian_product, get_tensor_product_quadrature_rule
-)
+    cartesian_product, get_tensor_product_quadrature_rule, outer_product)
 from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_poly_indices_to_quad_rule_indices,
     clenshaw_curtis_rule_growth)
@@ -214,6 +213,8 @@ def irregular_piecewise_left_constant_basis(nodes, xx):
     assert xx.ndim == 1
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
+    if nnodes == 1:
+        return np.ones((xx.shape[0], nnodes))
     vals = np.zeros((xx.shape[0], nnodes-1))
     for ii in range(nnodes-1):
         xl = nodes[ii]
@@ -229,6 +230,8 @@ def irregular_piecewise_right_constant_basis(nodes, xx):
     assert xx.ndim == 1
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
+    if nnodes == 1:
+        return np.ones((xx.shape[0], nnodes))
     vals = np.zeros((xx.shape[0], nnodes-1))
     for ii in range(1, nnodes):
         xr = nodes[ii]
@@ -244,6 +247,8 @@ def irregular_piecewise_midpoint_constant_basis(nodes, xx):
     assert xx.ndim == 1
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
+    if nnodes == 1:
+        return np.ones((xx.shape[0], nnodes))
     vals = np.zeros((xx.shape[0], nnodes-1))
     for ii in range(nnodes-1):
         xl = nodes[ii]
@@ -262,6 +267,8 @@ def irregular_piecewise_linear_basis(nodes, xx):
     assert xx.ndim == 1
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
+    if nnodes == 1:
+        return np.ones((xx.shape[0], nnodes))
     vals = np.zeros((xx.shape[0], nnodes))
     for ii in range(nnodes):
         xm = nodes[ii]
@@ -279,6 +286,9 @@ def irregular_piecewise_linear_basis(nodes, xx):
 def irregular_piecewise_linear_quadrature_weights(nodes):
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
+    if nnodes == 1:
+        raise ValueError(
+            "Cant compute weights from single point without bounds")
     weights = np.zeros((nnodes,))
     for ii in range(nnodes):
         xm = nodes[ii]
@@ -296,6 +306,8 @@ def irregular_piecewise_quadratic_basis(nodes, xx):
     # nodes are not equidistant
     assert xx.ndim == 1
     nnodes = nodes.shape[0]
+    if nnodes == 1:
+        return np.ones((xx.shape[0], nnodes))
     if nodes.ndim != 1 or nnodes % 2 != 1:
         raise ValueError("nodes has the wrong shape")
     vals = np.zeros((xx.shape[0], nnodes))
@@ -320,8 +332,11 @@ def irregular_piecewise_quadratic_basis(nodes, xx):
 def irregular_piecewise_quadratic_quadrature_weights(nodes):
     # nodes are not equidistant
     nnodes = nodes.shape[0]
+    if nnodes == 1:
+        raise ValueError(
+            "Cant compute weights from single point without bounds")
     if nodes.ndim != 1 or nnodes % 2 != 1:
-        raise ValueError("nodes has the wrong shape")
+        raise ValueError("nodes has the wrong shape, it must be an odd number")
     weights = np.zeros((nnodes,))
     for ii in range(nnodes):
         if ii % 2 == 1:
@@ -342,6 +357,8 @@ def irregular_piecewise_cubic_basis(nodes, xx):
     # nodes are not equidistant
     assert xx.ndim == 1
     nnodes = nodes.shape[0]
+    if nnodes == 1:
+        return np.ones((xx.shape[0], nnodes))
     if (nodes.ndim != 1 or nnodes < 4 or (nnodes-4) % 3 != 0):
         raise ValueError("nodes has the wrong shape")
     vals = np.zeros((xx.shape[0], nnodes))
@@ -377,6 +394,9 @@ def irregular_piecewise_cubic_quadrature_weights(nodes):
     # degree n exactly when n is odd, and up to degree n + 1 exactly when
     # n is even.
     nnodes = nodes.shape[0]
+    if nnodes == 1:
+        raise ValueError(
+            "Cant compute weights from single point without bounds")
     if (nodes.ndim != 1 or nnodes < 4 or (nnodes-4) % 3 != 0):
         raise ValueError(f"nodes has the wrong shape {nnodes}")
     weights = np.zeros((nnodes,))
@@ -400,97 +420,163 @@ def irregular_piecewise_cubic_quadrature_weights(nodes):
     return weights
 
 
-class UnivariateInterpolatingBasis(ABC):
+class UnivariateBasis(ABC):
     @abstractmethod
-    def __call__(self, nodes, samples):
+    def _evaluate(samples):
         raise NotImplementedError
 
-    def quadrature_weights(self, nodes):
+    def _check_samples(self, samples):
+        if samples.ndim != 2 or samples.shape[0] != 1:
+            raise ValueError("samples must be a 2D row vector")
+
+    def __call__(self, samples):
+        self._check_samples(samples)
+        vals = self._evaluate(samples)
+        if vals.ndim != 2 or vals.shape[0] != samples.shape[1]:
+            raise ValueError("returned values must be a 2D array")
+        return vals
+
+    def _quadrature_rule(self):
+        raise NotImplementedError
+
+    def quadrature_rule(self):
+        samples, weights = self._quadrature_rule()
+        if weights.ndim != 2 or weights.shape[1] != 1:
+            raise ValueError("weights must be a 2D column vector")
+        self._check_samples(samples)
+        return samples, weights
+
+    def integrate(self, vals):
+        weights = self.quadrature_rule()[1]
+        if vals.ndim != 2 or vals.ndim != weights.shape[0]:
+            raise ValueError("vals and weights are inconsistent")
+        return (weights[:, None]*vals).sum()
+
+    @abstractmethod
+    def nterms(self):
         raise NotImplementedError
 
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
-    def integrate(self, nodes, vals):
-        weights = self.quadrature_weights(nodes)
-        return (weights[:, None]*vals).sum()
+
+class UnivariateInterpolatingBasis(UnivariateBasis):
+    def __init__(self):
+        self._nodes = None
+
+    def set_nodes(self, nodes):
+        if nodes.ndim != 2 or nodes.shape[0] != 1:
+            print(nodes)
+            raise ValueError("nodes must be a 2D row vector")
+        self._nodes = nodes
+
+    @abstractmethod
+    def _evaluate_from_nodes(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _quadrature_rule_from_nodes(self):
+        raise NotImplementedError
+
+    def _evaluate(self, samples):
+        if self._nodes is None:
+            raise RuntimeError("must call set_nodes")
+        return self._evaluate_from_nodes(self._nodes, samples)
+
+    def _quadrature_rule(self):
+        return self._quadrature_rule_from_nodes(self._nodes)
+
+    def nterms(self):
+        return self._nodes.shape[1]
+
+    def __repr__(self):
+        if self._nodes is None:
+            return "{0}".format(self.__class__.__name__)
+        return "{0}(nnodes={1})".format(
+            self.__class__.__name__, self.nterms())
 
 
 class UnivariatePiecewiseLeftConstantBasis(UnivariateInterpolatingBasis):
     @staticmethod
-    def __call__(nodes, samples):
-        return irregular_piecewise_left_constant_basis(nodes, samples)
+    def _evaluate_from_nodes(nodes, samples):
+        return irregular_piecewise_left_constant_basis(nodes[0], samples[0])
 
     @staticmethod
-    def quadrature_weights(nodes):
-        # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
-        return np.diff(nodes)
+    def _quadrature_rule_from_nodes(nodes):
+        return nodes[:, :-1], np.diff(nodes[0])[:, None]
 
-    def integrate(self, nodes, vals):
-        weights = self.quadrature_weights(nodes)
-        return (weights[:, None]*vals[:-1]).sum()
+    def nterms(self):
+        return self._nodes.shape[1]-1
 
 
 class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
     @staticmethod
-    def __call__(nodes, samples):
-        return irregular_piecewise_right_constant_basis(nodes, samples)
+    def _evaluate_from_nodes(nodes, samples):
+        return irregular_piecewise_right_constant_basis(nodes[0], samples[0])
 
     @staticmethod
-    def quadrature_weights(nodes):
+    def _quadrature_rule_from_nodes(nodes):
         # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
-        return np.diff(nodes)
+        return nodes[:, 1:], np.diff(nodes[0])[:, None]
 
-    def integrate(self, nodes, vals):
-        weights = self.quadrature_weights(nodes)
-        return (weights[:, None]*vals[1:]).sum()
+    def nterms(self):
+        return self._nodes.shape[1]-1
 
 
 class UnivariatePiecewiseMidPointConstantBasis(UnivariateInterpolatingBasis):
     @staticmethod
-    def __call__(nodes, samples):
-        return irregular_piecewise_midpoint_constant_basis(nodes, samples)
+    def _evaluate_from_nodes(nodes, samples):
+        return irregular_piecewise_midpoint_constant_basis(
+            nodes[0], samples[0])
 
     @staticmethod
-    def quadrature_weights(nodes):
-        # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
-        return np.diff(nodes)
+    def _quadrature_rule_from_nodes(nodes):
+        return (nodes[:, 1:]+nodes[:, :-1])/2, np.diff(nodes[0])[:, None]
+
+    def nterms(self):
+        return self._nodes.shape[1]-1
 
 
 class UnivariatePiecewiseLinearBasis(UnivariateInterpolatingBasis):
     @staticmethod
-    def __call__(nodes, samples):
-        return irregular_piecewise_linear_basis(nodes, samples)
+    def _evaluate_from_nodes(nodes, samples):
+        return irregular_piecewise_linear_basis(nodes[0], samples[0])
 
     @staticmethod
-    def quadrature_weights(nodes):
-        return irregular_piecewise_linear_quadrature_weights(nodes)
+    def _quadrature_rule_from_nodes(nodes):
+        return nodes, irregular_piecewise_linear_quadrature_weights(
+            nodes[0])[:, None]
 
 
 class UnivariatePiecewiseQuadraticBasis(UnivariateInterpolatingBasis):
     @staticmethod
-    def __call__(nodes, samples):
-        return irregular_piecewise_quadratic_basis(nodes, samples)
+    def _evaluate_from_nodes(nodes, samples):
+        return irregular_piecewise_quadratic_basis(nodes[0], samples[0])
 
     @staticmethod
-    def quadrature_weights(nodes):
-        return irregular_piecewise_quadratic_quadrature_weights(nodes)
+    def _quadrature_rule_from_nodes(nodes):
+        return nodes, irregular_piecewise_quadratic_quadrature_weights(
+            nodes[0])[:, None]
 
 
 class UnivariatePiecewiseCubicBasis(UnivariateInterpolatingBasis):
     @staticmethod
-    def __call__(nodes, samples):
-        return irregular_piecewise_cubic_basis(nodes, samples)
+    def _evaluate_from_nodes(nodes, samples):
+        return irregular_piecewise_cubic_basis(nodes[0], samples[0])
 
     @staticmethod
-    def quadrature_weights(nodes):
-        return irregular_piecewise_cubic_quadrature_weights(nodes)
+    def _quadrature_rule_from_nodes(nodes):
+        return nodes, irregular_piecewise_cubic_quadrature_weights(
+            nodes[0])[:, None]
 
 
 class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
     @staticmethod
-    def __call__(nodes, samples):
-        return univariate_lagrange_polynomial(nodes, samples)
+    def _evaluate_from_nodes(nodes, samples):
+        return univariate_lagrange_polynomial(nodes[0], samples[0])
+
+    def _quadrature_rule_from_nodes(self):
+        raise NotImplementedError()
 
 
 def get_univariate_interpolation_basis(basis_type):
@@ -507,11 +593,96 @@ def get_univariate_interpolation_basis(basis_type):
 class TensorProductBasis():
     def __init__(self, bases_1d):
         self._bases_1d = bases_1d
+        self._nvars = len(bases_1d)
 
-    def __call__(self, nodes_1d, samples):
+    def _eval(self, samples):
+        nvars, nsamples = samples.shape
+        if nvars != self._nvars:
+            raise ValueError(
+                "samples not consistent with number of dimensions")
         # assumes each array in nodes_1d is in ascending order
-        nvars = len(nodes_1d)
-        nnodes_1d = np.array([n.shape[0] for n in nodes_1d])
+        basis_vals_1d_list = [
+            self._bases_1d[dd](samples[dd:dd+1]) for dd in range(self._nvars)]
+        nterms_1d = [v.shape[1] for v in basis_vals_1d_list]
+        indices = cartesian_product([np.arange(N) for N in nterms_1d])
+        basis_vals_1d = np.empty(
+            (nvars, np.max(nterms_1d), samples.shape[1]),
+            dtype=np.float64)
+        for ii in range(nvars):
+            basis_vals_1d[ii][:nterms_1d[ii]] = basis_vals_1d_list[ii].T
+        temp1 = basis_vals_1d.reshape(
+            (self._nvars*basis_vals_1d.shape[1], nsamples))
+        nvars, num_indices = indices.shape
+        temp1 = basis_vals_1d.reshape(
+            (nvars*basis_vals_1d.shape[1], nsamples))
+        temp2 = temp1[indices.ravel()+np.repeat(
+            np.arange(nvars)*basis_vals_1d.shape[1], num_indices), :].reshape(
+                nvars, num_indices, nsamples)
+        basis_vals = np.prod(temp2, axis=0).T
+
+        return basis_vals
+
+    def __call__(self, samples):
+        return self._eval(samples)
+
+    def nterms(self):
+        return np.prod([basis.nterms() for basis in self._bases_1d])
+
+    def _plot_single_basis(
+            self, ax, ii, jj, nterms_1d,
+            plot_limits, num_pts_1d, surface_cmap, contour_cmap):
+        from pyapprox.util.visualization import (
+            get_meshgrid_samples, plot_surface)
+        X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d)
+        idx = jj*nterms_1d[0]+ii
+        basis_vals = self._eval(pts)
+        Z = basis_vals[:, idx].reshape(X.shape)
+        if surface_cmap is not None:
+            plot_surface(X, Y, Z, ax, axis_labels=None, limit_state=None,
+                         alpha=0.3, cmap=surface_cmap, zorder=3,
+                         plot_axes=False)
+        if contour_cmap is not None:
+            num_contour_levels = 30
+            offset = -(Z.max()-Z.min())/2
+            ax.contourf(
+                X, Y, Z, zdir='z', offset=offset,
+                levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
+                cmap=contour_cmap, zorder=-1)
+        return offset, idx, nterms_1d, X, Y
+
+    def plot_single_basis(
+            self, ax, ii, jj,
+            plot_limits=[-1, 1, -1, 1],
+            num_pts_1d=101, surface_cmap="coolwarm",
+            contour_cmap="gray"):
+        # evaluate 1D basis functions once to get number of basis functions
+        sample = np.array(plot_limits).reshape(2, 2).T[:, :1].T
+        nterms_1d = [basis(sample).shape[1] for basis in self._bases_1d]
+        self._plot_single_basis(
+            ax, ii, jj, nterms_1d,
+            plot_limits, num_pts_1d, surface_cmap, contour_cmap)
+
+    def quadrature_rule(self):
+        samples_1d, weights_1d = [], []
+        for basis in self._bases_1d:
+            xx, ww = basis.quadrature_rule()
+            samples_1d.append(xx[0])
+            weights_1d.append(ww[:, 0])
+        samples = cartesian_product(samples_1d)
+        weights = outer_product(weights_1d)[:, None]
+        return samples, weights
+
+
+class TensorProductInterpolatingBasis(TensorProductBasis):
+    def set_1d_nodes(self, nodes_1d):
+        self._nodes_1d = nodes_1d
+        for basis, nodes in zip(self._bases_1d, self._nodes_1d):
+            basis.set_nodes(nodes)
+
+    def _eval(self, samples):
+        # assumes each array in nodes_1d is in ascending order
+        nvars = len(self._nodes_1d)
+        nnodes_1d = np.array([n.shape[1] for n in self._nodes_1d])
         active_vars = np.arange(nvars)[nnodes_1d > 1]
         nactive_vars = active_vars.shape[0]
         if nactive_vars == 0:
@@ -523,8 +694,9 @@ class TensorProductBasis():
             (nactive_vars, nnodes_1d_max, nsamples), dtype=np.float64)
         for dd in range(nactive_vars):
             idx = active_vars[dd]
-            basis_vals_1d[dd, :nnodes_1d_active[dd], :] = self._bases_1d[idx](
-                nodes_1d[idx], samples[idx, :]).T
+            basis_vals_1d[dd, :nnodes_1d_active[dd], :] = (
+                self._bases_1d[idx]._evaluate_from_nodes(
+                    self._nodes_1d[idx], samples[idx:idx+1, :]).T)
 
         temp1 = basis_vals_1d.reshape(
             (nactive_vars*basis_vals_1d.shape[1], nsamples))
@@ -536,29 +708,16 @@ class TensorProductBasis():
         basis_vals = np.prod(temp2, axis=0).T
         return basis_vals
 
-    def _single_basis_fun(self, nodes_1d, idx, xx):
-        return self(nodes_1d, xx)[:, idx]
-
-    def plot_single_basis(self, ax, nodes_1d, ii, jj, nodes=None,
-                          plot_limits=[-1, 1, -1, 1],
-                          num_pts_1d=101, surface_cmap="coolwarm",
-                          contour_cmap="gray"):
-        from pyapprox.util.visualization import (
-            get_meshgrid_function_data, plot_surface)
-        idx = jj*nodes_1d[0].shape[0]+ii
-        single_basis_fun = partial(self._single_basis_fun, nodes_1d, idx)
-        X, Y, Z = get_meshgrid_function_data(
-            single_basis_fun, plot_limits, num_pts_1d)
-        if surface_cmap is not None:
-            plot_surface(X, Y, Z, ax, axis_labels=None, limit_state=None,
-                         alpha=0.3, cmap=surface_cmap, zorder=3, plot_axes=False)
-        if contour_cmap is not None:
-            num_contour_levels = 30
-            offset = -(Z.max()-Z.min())/2
-            ax.contourf(
-                X, Y, Z, zdir='z', offset=offset,
-                levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
-                cmap=contour_cmap, zorder=-1)
+    def plot_single_basis(
+            self, ax, nodes_1d, ii, jj, nodes=None,
+            plot_limits=[-1, 1, -1, 1],
+            num_pts_1d=101, surface_cmap="coolwarm",
+            contour_cmap="gray"):
+        nterms_1d = [nodes.shape[1] for nodes in nodes_1d]
+        self.set_1d_nodes(nodes_1d)
+        offset, idx, nterms_1d, X, Y = super()._plot_single_basis(
+            ax, ii, jj, nterms_1d,
+            plot_limits, num_pts_1d,  surface_cmap, contour_cmap)
 
         if nodes is None:
             return
@@ -568,34 +727,38 @@ class TensorProductBasis():
 
         x = np.linspace(-1, 1, 100)
         y = nodes[1, idx]*np.ones((x.shape[0]))
-        z = single_basis_fun(np.vstack((x[None, :], y[None, :])))
+        z = self._eval(np.vstack((x[None, :], y[None, :])))[:, idx]
         ax.plot(x, Y.max()*np.ones((x.shape[0])), z, '-r')
-        ax.plot(nodes_1d[0], Y.max()*np.ones(
-            (nodes_1d[0].shape[0])), np.zeros(nodes_1d[0].shape[0]), 'or')
+        ax.plot(nodes_1d[0][0], Y.max()*np.ones(
+            (nterms_1d[0])), np.zeros(nterms_1d[0]), 'or')
 
         y = np.linspace(-1, 1, 100)
         x = nodes[0, idx]*np.ones((y.shape[0]))
-        z = single_basis_fun(np.vstack((x[None, :], y[None, :])))
+        z = self._eval(np.vstack((x[None, :], y[None, :])))[:, idx]
         ax.plot(X.min()*np.ones((x.shape[0])), y, z, '-r')
         ax.plot(X.min()*np.ones(
-            (nodes_1d[1].shape[0])), nodes_1d[1],
-                np.zeros(nodes_1d[1].shape[0]), 'or')
+            (nterms_1d[1])), nodes_1d[1][0],
+                np.zeros(nterms_1d[1]), 'or')
 
 
 class TensorProductInterpolant():
     def __init__(self, bases_1d):
-        self.basis = TensorProductBasis(bases_1d)
+        for basis in bases_1d:
+            if not isinstance(basis, UnivariateInterpolatingBasis):
+                raise ValueError(
+                    "basis not derived from UnivariateInterpolatingBasis")
+        self._basis = TensorProductInterpolatingBasis(bases_1d)
 
         self._nodes_1d = None
         self._nnodes_1d = None
         self._values = None
 
     def tensor_product_grid(self, nodes_1d):
-        return cartesian_product(nodes_1d)
+        return cartesian_product([n[0] for n in nodes_1d])
 
     def fit(self, nodes_1d, values):
-        self._nodes_1d = nodes_1d
-        self._nnodes = np.prod([n.shape[0] for n in nodes_1d])
+        self._basis.set_1d_nodes(nodes_1d)
+        self._nnodes = np.prod([n.shape[1] for n in nodes_1d])
         if values.shape[0] != self._nnodes:
             raise ValueError("nodes_1d and values are inconsistent")
         if values.ndim == 1:
@@ -603,7 +766,7 @@ class TensorProductInterpolant():
         self._values = values
 
     def __call__(self, samples):
-        basis_mat = self.basis(self._nodes_1d, samples)
+        basis_mat = self._basis(samples)
         return basis_mat @ self._values
 
     def __repr__(self):

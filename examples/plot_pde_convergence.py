@@ -65,7 +65,7 @@ def true_value(samples):
     return 2/3*samples.T
 
 #%%
-#We must also define the permissible values of the configuration variables that define the number of points :math:`n_1, n_2` in the quadrature rule. Here set :math:`n_1=2^{j+1}+1` and :math:`n_2=2^{k+1}+1` where :math:`j,k=0\ldots,9`. Now construct a `ConfigureVariableTransformation` that can map :math:`j,k` to  :math:`n_1, n_2` and back. 
+#We must also define the permissible values of the configuration variables that define the number of points :math:`n_1, n_2` in the quadrature rule. Here set :math:`n_1=2^{j+1}+1` and :math:`n_2=2^{k+1}+1` where :math:`j,k=0\ldots,9`. Now construct a `ConfigureVariableTransformation` that can map :math:`j,k` to  :math:`n_1, n_2` and back.
 
 
 config_values = [2**np.arange(1, 11)+1, 2**np.arange(1, 11)+1]
@@ -140,8 +140,7 @@ ani = generate_animation(
     model._fwd_solver.physics.mesh, sols, times,
     filename=None, maxn_frames=100, duration=2)
 import matplotlib.animation as animation
-ani.save('ad-sol.gif', writer=animation.ImageMagickFileWriter(),
-         dpi=100)
+ani.save('ad-sol.gif', dpi=100)
 
 #%%
 #Now perform a convgernce study

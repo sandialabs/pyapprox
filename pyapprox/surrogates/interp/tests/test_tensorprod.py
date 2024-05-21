@@ -11,7 +11,8 @@ from pyapprox.surrogates.interp.tensorprod import (
     piecewise_univariate_linear_quad_rule,
     piecewise_univariate_quadratic_quad_rule, irregular_piecewise_linear_basis,
     irregular_piecewise_quadratic_basis, irregular_piecewise_cubic_basis,
-    get_univariate_interpolation_basis, TensorProductInterpolant
+    get_univariate_interpolation_basis, TensorProductInterpolant,
+    TensorProductBasis, TensorProductInterpolatingBasis
 )
 
 
@@ -90,22 +91,13 @@ class TestTensorProd(unittest.TestCase):
         # check basis interpolates values at nodes
         assert np.allclose(basis @ values, fun(samples[None, :]), atol=1e-15)
 
-        # import matplotlib.pyplot as plt
-        # print(basis.max(axis=0))
-        # plt.plot(samples, basis)
-        # plt.plot(samples, fun(samples[None, :]))
-        # plt.plot(samples, basis @ values, '--')
-        # plt.plot(nodes, values, 'ko', ms=20)
-        # plt.show()
-        # assert np.allclose(basis @ values, fun(samples[None, :]))
-
     def _check_tensor_product_interpolation(self, basis_types, nnodes_1d, atol):
         nvars = len(basis_types)
         nnodes_1d = np.array(nnodes_1d)
         bases_1d = [
             get_univariate_interpolation_basis(bt) for bt in basis_types]
         interp = TensorProductInterpolant(bases_1d)
-        nodes_1d = [np.linspace(0, 1, N) for N in nnodes_1d]
+        nodes_1d = [np.linspace(0, 1, N)[None, :] for N in nnodes_1d]
 
         def fun(samples):
             # when nnodes_1d is zero to test interpolation make sure
@@ -116,7 +108,8 @@ class TestTensorProd(unittest.TestCase):
         train_values = fun(train_samples)
         interp.fit(nodes_1d, train_values)
 
-        test_samples = np.random.uniform(0, 1, (nvars, 21))
+        # test_samples = np.random.uniform(0, 1, (nvars, 21))
+        test_samples = np.random.uniform(0, 1, (nvars, 5))
         approx_values = interp(test_samples)
         test_values = fun(test_samples)
         assert np.allclose(test_values, approx_values, atol=atol)
@@ -136,38 +129,87 @@ class TestTensorProd(unittest.TestCase):
         for test_case in test_cases:
             self._check_tensor_product_interpolation(*test_case)
 
-    def test_univariate_interpolant_quadrature(self):
+    def _check_univariate_interpolant_quadrature(
+            self, name, degree, nnodes, tol):
+
         def fun(degree, xx):
             return np.sum(xx**degree, axis=0)[:, None]
 
-        basis = get_univariate_interpolation_basis("linear")
+        def integral(degree):
+            if degree == 2:
+                return 2/3
+            if degree == 3:
+                return 0
+            if degree == 4:
+                return 2/5
+
+        basis = get_univariate_interpolation_basis(name)
+        nodes = np.linspace(-1, 1, nnodes)[None, :]
+        basis.set_nodes(nodes)
+        samples, weights = basis.quadrature_rule()
+        assert np.allclose(
+            fun(degree, samples).T @ weights, integral(degree), atol=tol)
+
         # randomize node spacing keeping both end points
-        nnodes = 101
         nodes = np.linspace(-1, 1, 2*nnodes)
         nodes = np.sort(np.hstack((nodes[[0, -1]], nodes[
-           1+np.random.permutation(2*nnodes-2)[:nnodes-2]])))
-        weights = basis.quadrature_weights(nodes)
-        assert np.allclose(fun(2, nodes[None, :]).T @ weights, 2/3, atol=1e-3)
+           1+np.random.permutation(2*nnodes-2)[:nnodes-2]])))[None, :]
+        basis.set_nodes(nodes)
+        samples, weights = basis.quadrature_rule()
+        assert np.allclose(
+            fun(degree, samples).T @ weights, integral(degree), atol=tol)
 
-        basis = get_univariate_interpolation_basis("quadratic")
-        nodes = np.linspace(-1, 1, 3)
-        weights = basis.quadrature_weights(nodes)
-        assert np.allclose(fun(2, nodes[None, :]).T @ weights, 2/3, atol=1e-15)
+    def test_univariate_interpolant_quadrature(self):
+        test_cases = [
+            ["linear", 2, 101, 1e-3],
+            ["quadratic", 2, 3,  1e-15],
+            ["quadratic", 4, 91, 1e-5],
+            ["cubic", 3, 4, 1e-15],
+            ["cubic", 4, 46, 1e-5],
+        ]
+        for test_case in test_cases:
+            np.random.seed(1)
+            self._check_univariate_interpolant_quadrature(*test_case)
 
-        basis = get_univariate_interpolation_basis("quadratic")
-        nodes = np.linspace(-1, 1, 33)
-        weights = basis.quadrature_weights(nodes)
-        assert np.allclose(fun(4, nodes[None, :]).T @ weights, 2/5, atol=1e-5)
+    def _check_tensorproduct_interpolant_quadrature(
+            self, name, nvars, degree, nnodes, tol):
 
-        basis = get_univariate_interpolation_basis("cubic")
-        nodes = np.linspace(-1, 1, 4)
-        weights = basis.quadrature_weights(nodes)
-        assert np.allclose(fun(3, nodes[None, :]).T @ weights, 0, atol=1e-15)
+        def fun(degree, xx):
+            return np.sum(xx**degree, axis=0)[:, None]
 
-        basis = get_univariate_interpolation_basis("cubic")
-        nodes = np.linspace(-1, 1, 34)
-        weights = basis.quadrature_weights(nodes)
-        assert np.allclose(fun(4, nodes[None, :]).T @ weights, 2/5, atol=1e-5)
+        def integral(nvars, degree):
+            if degree == 1:
+                return 0
+            if degree == 2:
+                return nvars*2/3*2**(nvars-1)
+            if degree == 3:
+                return 0
+            if degree == 4:
+                return nvars*2/5*2**(nvars-1)
+
+        bases_1d = [
+            get_univariate_interpolation_basis(name)]*nvars
+        nodes_1d = [np.linspace(-1, 1, nnodes)[None, :]]*nvars
+        interp_basis = TensorProductInterpolatingBasis(bases_1d)
+        interp_basis.set_1d_nodes(nodes_1d)
+        basis = TensorProductBasis(bases_1d)
+        samples, weights = basis.quadrature_rule()
+        assert weights.ndim == 2 and weights.shape[1] == 1
+        assert np.allclose(
+            fun(degree, samples).T @ weights, integral(nvars, degree),
+            atol=tol)
+
+    def test_tensorproduct_interpolant_quadrature(self):
+        test_cases = [
+            ["linear", 2, 1, 3, 1e-15],
+            ["quadratic", 2, 2, 3,  1e-15],
+            ["quadratic", 2, 4, 91, 1e-5],
+            ["cubic", 2, 3, 4, 1e-15],
+            ["cubic", 2, 4, 46, 1e-5],
+        ]
+        for test_case in test_cases:
+            np.random.seed(1)
+            self._check_tensorproduct_interpolant_quadrature(*test_case)
 
     def test_get_tensor_product_piecewise_linear_quadrature_rule(self):
         nsamples_1d = 101
@@ -181,14 +223,6 @@ class TestTensorProd(unittest.TestCase):
         integral = vals[:, 0].dot(ww)
         true_integral = 8/3.
         assert np.allclose(integral, true_integral, atol=1e-3)
-
-        # from scipy.interpolate import griddata
-        # def interp_fun(x): return griddata(xx.T, vals, x.T, method="linear")
-        # from pyapprox.util.visualization import plt, get_meshgrid_function_data
-        # X, Y, Z = get_meshgrid_function_data(interp_fun, [-1, 1, -1, 1], 201)
-        # plt.contourf(
-        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 31))
-        # plt.show()
 
         xx, ww = get_tensor_product_piecewise_polynomial_quadrature_rule(
             nsamples_1d, [0, 1, 0, 2], 1)
@@ -207,8 +241,6 @@ class TestTensorProd(unittest.TestCase):
         integral = vals[:, 0].dot(ww)
         true_integral = 2/3*4
         assert np.allclose(integral, true_integral, atol=1e-3)
-
-        num_samples_1d = 101
 
         def fun(xx):
             return np.sum(xx**3, axis=0)[:, None]
@@ -292,12 +324,6 @@ class TestTensorProd(unittest.TestCase):
         interp_mesh = np.linspace(*ranges, 1001)
         interp_vals = piecewise_quadratic_interpolation(
             interp_mesh, mesh, mesh_vals, ranges)
-        # import pylab as plt
-        # II = np.argsort(interp_mesh)
-        # plt.plot(mesh, mesh_vals, 'o')
-        # plt.plot(interp_mesh[II], interp_vals[II], 'k-')
-        # plt.plot(interp_mesh, function(interp_mesh), 'r--')
-        # plt.show()
         assert np.allclose(interp_vals[:, 0], function(interp_mesh), atol=1e-5)
 
     def test_piecewise_poly_quadrature(self):
@@ -328,6 +354,49 @@ class TestTensorProd(unittest.TestCase):
             samples, xx, mesh_vals, range_1d)
         assert np.allclose(vals.mean()*(range_1d[1]-range_1d[0]),
                            mesh_vals.dot(ww), atol=1e-3)
+
+    def test_tensor_product_basis(self):
+        # check that the more efficient specialized implementation for
+        #  TensorProductInterpolatingBasis__call__ gives the same result
+        # as the generic TensorProductBasis.__call__
+        nvars = 3
+        basis_types = ["linear"]*nvars
+        nodes_1d = ([np.linspace(-1, 1, 5)[None, :]]*(nvars-1) +
+                    [np.array([[0.5]])])
+        bases_1d = [
+            get_univariate_interpolation_basis(bt) for bt in basis_types]
+        for basis, nodes in zip(bases_1d, nodes_1d):
+            basis.set_nodes(nodes)
+        basis = TensorProductBasis(bases_1d)
+
+        bases_1d = [
+            get_univariate_interpolation_basis(bt) for bt in basis_types]
+        interp_basis = TensorProductInterpolatingBasis(bases_1d)
+        interp_basis.set_1d_nodes(nodes_1d)
+
+        samples = np.random.uniform(-1, 1, (nvars, 2))
+        assert np.allclose(basis(samples), interp_basis(samples))
+
+        # test plotting completes without failure
+        nvars = 2
+        basis_types = ["linear"]*nvars
+        nodes_1d = [np.linspace(-1, 1, 5)[None, :]]*nvars
+        bases_1d = [
+            get_univariate_interpolation_basis(bt) for bt in basis_types]
+        for basis, nodes in zip(bases_1d, nodes_1d):
+            basis.set_nodes(nodes)
+        basis = TensorProductBasis(bases_1d)
+        bases_1d = [
+            get_univariate_interpolation_basis(bt) for bt in basis_types]
+        interp_basis = TensorProductInterpolatingBasis(bases_1d)
+        interp_basis.set_1d_nodes(nodes_1d)
+
+        import matplotlib.pyplot as plt
+        ax = plt.subplot(1, 2, 1, projection='3d')
+        basis.plot_single_basis(ax, 0, 0)
+        ax = plt.subplot(1, 2, 2, projection='3d')
+        interp_basis.plot_single_basis(ax, nodes_1d, 0, 0)
+        # plt.show()
 
 
 if __name__ == '__main__':

@@ -61,18 +61,20 @@ from pyapprox.surrogates.interp.tensorprod import (
 
 #The following code compares polynomial and piecewise polynomial univariate basis functions.
 nnodes = 5
-samples = np.linspace(-1, 1, 201)
+samples = np.linspace(-1, 1, 201)[None, :]
 ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
-cheby_nodes = np.cos(np.arange(nnodes)*np.pi/(nnodes-1))
+cheby_nodes = np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
 lagrange_basis = UnivariateLagrangeBasis()
-lagrange_basis_vals = lagrange_basis(cheby_nodes, samples)
-ax[0].plot(samples, lagrange_basis_vals)
-ax[0].plot(cheby_nodes, cheby_nodes*0, 'ko')
-equidistant_nodes = np.linspace(-1, 1, nnodes)
+lagrange_basis.set_nodes(cheby_nodes)
+lagrange_basis_vals = lagrange_basis(samples)
+ax[0].plot(samples[0], lagrange_basis_vals)
+ax[0].plot(cheby_nodes[0], cheby_nodes[0]*0, 'ko')
+equidistant_nodes = np.linspace(-1, 1, nnodes)[None, :]
 quadratic_basis = UnivariatePiecewiseQuadraticBasis()
-piecewise_basis_vals = quadratic_basis(equidistant_nodes, samples)
-_ = ax[1].plot(samples, piecewise_basis_vals)
-_ = ax[1].plot(equidistant_nodes, equidistant_nodes*0, 'ko')
+quadratic_basis.set_nodes(equidistant_nodes)
+piecewise_basis_vals = quadratic_basis(samples)
+_ = ax[1].plot(samples[0], piecewise_basis_vals)
+_ = ax[1].plot(equidistant_nodes[0], equidistant_nodes[0]*0, 'ko')
 
 #%%
 #Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.
@@ -90,17 +92,17 @@ def fun(samples):
 lagrange_interpolant = TensorProductInterpolant([lagrange_basis])
 quadratic_interpolant = TensorProductInterpolant([quadratic_basis])
 axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
-[ax.plot(samples, fun(samples[None, :])) for ax in axs]
-cheby_nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))
-values = fun(cheby_nodes[None, :])
+[ax.plot(samples[0], fun(samples)) for ax in axs]
+cheby_nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
+values = fun(cheby_nodes)
 lagrange_interpolant.fit([cheby_nodes], values)
-equidistant_nodes = np.linspace(-1, 1, nnodes)
-values = fun(equidistant_nodes[None, :])
+equidistant_nodes = np.linspace(-1, 1, nnodes)[None, :]
+values = fun(equidistant_nodes)
 quadratic_interpolant.fit([equidistant_nodes], values)
-axs[0].plot(samples, lagrange_interpolant(samples[None, :]), ':')
-axs[0].plot(cheby_nodes, values, 'o')
-axs[1].plot(samples, quadratic_interpolant(samples[None, :]), '--')
-_ = axs[1].plot(equidistant_nodes, values, 's')
+axs[0].plot(samples[0], lagrange_interpolant(samples), ':')
+axs[0].plot(cheby_nodes[0], values, 'o')
+axs[1].plot(samples[0], quadratic_interpolant(samples), '--')
+_ = axs[1].plot(equidistant_nodes[0], values, 's')
 
 #%%
 #The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.
@@ -109,16 +111,16 @@ _ = axs[1].plot(equidistant_nodes, values, 's')
 #Now lets see how the error changes as we increase the number of nodes
 
 axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
-[ax.plot(samples, fun(samples[None, :])) for ax in axs]
+[ax.plot(samples[0], fun(samples)) for ax in axs]
 for nnodes in [3, 5, 9, 17]:
-    nodes = np.cos(np.arange(nnodes)*np.pi/(nnodes-1))
-    values = fun(nodes[None, :])
+    nodes = np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
+    values = fun(nodes)
     lagrange_interpolant.fit([nodes], values)
-    nodes = np.linspace(-1, 1, nnodes)
-    values = fun(nodes[None, :])
+    nodes = np.linspace(-1, 1, nnodes)[None, :]
+    values = fun(nodes)
     quadratic_interpolant.fit([nodes], values)
-    axs[0].plot(samples, lagrange_interpolant(samples[None, :]), ':')
-    _ = axs[1].plot(samples, quadratic_interpolant(samples[None, :]), '--')
+    axs[0].plot(samples[0], lagrange_interpolant(samples), ':')
+    _ = axs[1].plot(samples[0], quadratic_interpolant(samples), '--')
 
 
 #%%
@@ -151,12 +153,12 @@ ntrain_samples = 7
 xx = gauss_jacobi_pts_wts_1D(ntrain_samples, alpha_poly, beta_poly)[0]
 train_samples = cartesian_product([(xx+1)/2]*nvars)
 train_values = benchmark.fun(train_samples)
-interp.fit(train_samples, train_values)
+interp.fit([(xx[None, :]+1)/2]*nvars, train_values)
 
 opt_xx = gauss_jacobi_pts_wts_1D(ntrain_samples, beta_stat-1, alpha_stat-1)[0]
 opt_train_samples = cartesian_product([(opt_xx+1)/2]*nvars)
 opt_train_values = benchmark.fun(opt_train_samples)
-opt_interp.fit(opt_train_samples, opt_train_values)
+opt_interp.fit([(opt_xx[None, :]+1)/2]*nvars, opt_train_values)
 
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
@@ -233,7 +235,7 @@ for alpha_poly in alpha_polys:
         nodes_1d = [(xx+1)/2]*nvars
         train_samples = cartesian_product(nodes_1d)
         train_values = benchmark.fun(train_samples)
-        interp.fit(nodes_1d, train_values)
+        interp.fit([(xx[None, :]+1)/2]*nvars, train_values)
         l2_error = compute_L2_error(
             interp, validation_samples, validation_values)
         results.append(l2_error)

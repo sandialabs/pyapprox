@@ -334,8 +334,7 @@ import matplotlib.animation as animation
 ani = animation.FuncAnimation(
     fig, animate, interval=500,
     frames=len(adaptive_callback.sparse_grids), repeat_delay=1000)
-ani.save("adaptive_sparse_grid.gif", dpi=100,
-         writer=animation.ImageMagickFileWriter())
+ani.save("adaptive_sparse_grid.gif", dpi=100)
 
 #%%
 #References

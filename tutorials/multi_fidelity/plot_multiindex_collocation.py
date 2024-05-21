@@ -183,7 +183,7 @@ _ = ax.set_xlabel(r"$z$")
 #----------
 #The the algorithm that adapts the sparse grid index set :math:`\mathcal{I}` to the importance of each variable be modified for use with multi-index collocation [JEGG2019]_. The algorithm is highly effective as it balances the interpolation error due to using a finite number of training points with the cost of evaluating the models of varying accuracy.
 #
-#Lets build a multi-level sparse grid 
+#Lets build a multi-level sparse grid
 import copy
 from pyapprox.surrogates.interp.adaptive_sparse_grid import (
     plot_adaptive_sparse_grid_2d)
@@ -263,8 +263,7 @@ import matplotlib.animation as animation
 ani = animation.FuncAnimation(
     fig, animate, interval=500,
     frames=len(adaptive_callback.sparse_grids), repeat_delay=1000)
-ani.save("adaptive_misc.gif", dpi=100,
-         writer=animation.ImageMagickFileWriter())
+ani.save("adaptive_misc.gif", dpi=100)
 
 #%%
 #The lower fidelity models are evaluated more until they can no longer reduce the error in the sparse grid. At this point the interpolation error of the low-fidelity models is dominated by the bias in the exact low-fidelity models. Changing the cost_function will change how many samples are used to evaluate each model.

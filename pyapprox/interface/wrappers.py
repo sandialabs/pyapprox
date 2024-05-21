@@ -1,18 +1,18 @@
 import time
-import numpy as np
 import subprocess
 import os
 import glob
-from functools import partial
-from multiprocessing import Pool
 import pickle
 import copy
-# from tqdm import tqdm
+from functools import partial
+from multiprocessing import Pool
+
+import numpy as np
 
 from pyapprox.util.utilities import (
-    get_all_sample_combinations, hash_array, cartesian_product
-)
+    get_all_sample_combinations, hash_array, cartesian_product)
 from pyapprox.util.sys_utilities import has_kwarg
+from pyapprox.interface.model import Model
 
 
 def evaluate_1darray_function_on_2d_array(
@@ -86,15 +86,6 @@ def evaluate_1darray_function_on_2d_array(
     if num_qoi == 1:
         return values, np.vstack(grads)
     return values, grads
-
-
-class PyFunction(object):
-    def __init__(self, function):
-        self.function = function
-
-    def __call__(self, samples, opts=dict()):
-        return evaluate_1darray_function_on_2d_array(
-            self.function, samples, opts)
 
 
 def run_shell_command(shell_command, opts={}):
