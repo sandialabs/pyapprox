@@ -262,7 +262,8 @@ class PredictionOEDObjective(KLOEDObjective):
 
     def __call__(self, design_weights):
         evidences = self._log_evidence._evidence(design_weights)
-        deviations = 
+        deviations = None
+
 
 class WeightsConstraintModel(Model):
     def __init__(self):
