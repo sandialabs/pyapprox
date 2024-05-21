@@ -99,7 +99,7 @@ def __evaluate_orthonormal_polynomial_1d(x, nmax, ab):
     return p
 
 
-# @njit(cache=True)
+@njit(cache=True)
 def __evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     r"""
     Evaluate the univariate orthonormal polynomials and its s-derivatives
