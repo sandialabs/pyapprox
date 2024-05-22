@@ -72,6 +72,7 @@ setuptools.setup(
     },
     ext_modules=extensions,
     license='MIT',
+    package_dir={'': ''},
 )
 
 #TODO see https://pytest-cov.readthedocs.io/en/latest/config.html

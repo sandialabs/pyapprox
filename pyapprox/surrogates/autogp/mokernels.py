@@ -1,14 +1,7 @@
 from abc import abstractmethod
 import numpy as np
 
-from pyapprox.surrogates.autogp.kernels import Kernel
-from pyapprox.surrogates.autogp._torch_wrappers import (
-    full, asarray, hstack, vstack, cholesky, solve_triangular, multidot,
-    cos, to_numpy, atleast1d, repeat, empty, log)
-from pyapprox.surrogates.autogp.hyperparameter import (
-    HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
-from pyapprox.surrogates.autogp.transforms import (
-    SphericalCorrelationTransform)
+from pyapprox.surrogates.kernels._kernels import Kernel, SphericalCovariance
 
 
 class MultiOutputKernel(Kernel):
@@ -20,6 +13,11 @@ class MultiOutputKernel(Kernel):
 
         self.nsamples_per_output_0 = None
         self.nsamples_per_output_1 = None
+
+        # make linear algebra functions accessible via product_kernel._la_
+        for attr in dir(kernels[0]):
+            if len(attr) >= 4 and attr[:4] == "_la_":
+                setattr(self, attr, getattr(self.kernels[0], attr))
 
     @abstractmethod
     def _scale_block(self, samples_per_output_ii, ii,
@@ -45,8 +43,8 @@ class MultiOutputKernel(Kernel):
         if not block_format:
             if nonzero:
                 return block
-            return full((samples_per_output_ii.shape[1],
-                         samples_per_output_jj.shape[1]), 0.)
+            return self._la_full((samples_per_output_ii.shape[1],
+                                  samples_per_output_jj.shape[1]), 0.)
         if nonzero:
             return block
         return None
@@ -59,7 +57,7 @@ class MultiOutputKernel(Kernel):
             only return upper-traingular blocks, and set lower-triangular
             blocks to None
         """
-        samples_0 = [asarray(s) for s in samples_0]
+        samples_0 = [s for s in samples_0]
         if samples_1 is None:
             samples_1 = samples_0
             symmetric = True
@@ -81,12 +79,13 @@ class MultiOutputKernel(Kernel):
                     samples_0[idx0], idx0, samples_1[idx1], idx1,
                     block_format, symmetric)
         if not block_format:
-            rows = [hstack(matrix_blocks[ii]) for ii in range(noutputs_0)]
-            return vstack(rows)
+            rows = [self._la_hstack(matrix_blocks[ii])
+                    for ii in range(noutputs_0)]
+            return self._la_vstack(rows)
         return matrix_blocks
 
     def diag(self, samples_0):
-        samples_0 = [asarray(s) for s in samples_0]
+        # samples_0 = [asarray(s) for s in samples_0]
         nsamples_0 = np.asarray([s.shape[1] for s in samples_0])
         active_outputs_0 = np.where(nsamples_0 > 0)[0]
         noutputs_0 = active_outputs_0.shape[0]
@@ -99,7 +98,7 @@ class MultiOutputKernel(Kernel):
                 if diag_iikk is not None:
                     diag_ii += diag_iikk
             diags.append(diag_ii)
-        return hstack(diags)
+        return self._la_hstack(diags)
 
     def __repr__(self):
         if self.nsamples_per_output_0 is None:
@@ -149,25 +148,6 @@ class SpatiallyScaledMultiOutputKernel(MultiOutputKernel):
         return None
 
 
-def _block_cholesky(L_A, L_A_inv_B, B, D, return_blocks):
-    schur_comp = D-multidot((L_A_inv_B.T, L_A_inv_B))
-    L_S = cholesky(schur_comp)
-    chol_blocks = [L_A, L_A_inv_B.T, L_S]
-    if return_blocks:
-        return chol_blocks
-    return vstack([
-        hstack([chol_blocks[0], 0*L_A_inv_B]),
-        hstack([chol_blocks[1], chol_blocks[2]])])
-
-
-def block_cholesky(blocks, return_blocks=False):
-    A, B = blocks[0]
-    D = blocks[1][1]
-    L_A = cholesky(A)
-    L_A_inv_B = solve_triangular(L_A, B)
-    return _block_cholesky(L_A, L_A_inv_B, B, D, return_blocks)
-
-
 class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
     def _validate_kernels_and_scalings(self, kernels, scalings):
         if len(scalings) != len(kernels)-1:
@@ -180,40 +160,42 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         if ii == self.noutputs-1:
             if kk < self.noutputs-1:
                 return self.scalings[kk](samples)
-            return full((samples.shape[1], 1), 1.)
+            return self._la_full((samples.shape[1], 1), 1.)
         if ii == kk:
-            return full((samples.shape[1], 1), 1.)
+            return self._la_full((samples.shape[1], 1), 1.)
         return None
 
     @staticmethod
-    def _cholesky(noutputs, blocks, block_format=False):
+    def _cholesky(noutputs, blocks, block_format=False, la=None):
         chol_blocks = []
         L_A_inv_B_list = []
         for ii in range(noutputs-1):
             row = [None for ii in range(noutputs)]
             for jj in range(noutputs):
                 if jj == ii:
-                    row[ii] = cholesky(blocks[ii][ii])
+                    row[ii] = la._la_cholesky(blocks[ii][ii])
                 elif not block_format:
-                    row[jj] = full(
+                    row[jj] = la._la_full(
                         (blocks[ii][ii].shape[0],
                          blocks[jj][noutputs-1].shape[0]), 0.)
             chol_blocks.append(row)
-            L_A_inv_B_list.append(solve_triangular(row[ii], blocks[ii][-1]))
-        B = vstack([blocks[jj][-1] for jj in range(noutputs-1)]).T
+            L_A_inv_B_list.append(
+                la._la_solve_triangular(row[ii], blocks[ii][-1]))
+        B = la._la_vstack([blocks[jj][-1] for jj in range(noutputs-1)]).T
         D = blocks[-1][-1]
-        L_A_inv_B = vstack(L_A_inv_B_list)
+        L_A_inv_B = la._la_vstack(L_A_inv_B_list)
         if not block_format:
-            L_A = vstack([hstack(row[:-1]) for row in chol_blocks])
-            return _block_cholesky(
+            L_A = la._la_vstack(
+                [la._la_hstack(row[:-1]) for row in chol_blocks])
+            return la._la_block_cholesky_engine(
                 L_A, L_A_inv_B, B, D, block_format)
-        return _block_cholesky(
+        return la._la_block_cholesky_engine(
                 chol_blocks, L_A_inv_B, B, D, block_format)
 
     @staticmethod
-    def _cholesky_blocks_to_dense(A, C, D):
+    def _cholesky_blocks_to_dense(A, C, D, la):
         shape = sum([A[ii][ii].shape[0] for ii in range(len(A))])
-        L = np.zeros((shape+C.shape[0], shape+D.shape[1]))
+        L = la._la_full((shape+C.shape[0], shape+D.shape[1]), 0.)
         cnt = 0
         for ii in range(len(A)):
             L[cnt:cnt+A[ii][ii].shape[0], cnt:cnt+A[ii][ii].shape[0]] = (
@@ -224,53 +206,54 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         return L
 
     @staticmethod
-    def _logdet(A, C, D):
+    def _logdet(A, C, D, la):
         log_det = 0
         for ii, row in enumerate(A):
-            log_det += 2*log(row[ii].diag()).sum()
-        log_det += 2*log(D.diag()).sum()
+            log_det += 2*la._la_log(la._la_get_diagonal(row[ii])).sum()
+        log_det += 2*la._la_log(la._la_get_diagonal(D)).sum()
         return log_det
 
     @staticmethod
-    def _lower_solve_triangular(A, C, D, values):
+    def _lower_solve_triangular(A, C, D, values, la):
         # Solve Lx=y when L is the cholesky factor
         # of a peer kernel
         coefs = []
         cnt = 0
         for ii, row in enumerate(A):
             coefs.append(
-                solve_triangular(
-                    row[ii], values[cnt:cnt+row[ii].shape[0]], upper=False))
+                la._la_solve_triangular(
+                    row[ii], values[cnt:cnt+row[ii].shape[0]], lower=True))
             cnt += row[ii].shape[0]
-        coefs = vstack(coefs)
-        coefs = vstack(
-            (coefs, solve_triangular(D,  values[cnt:]-C@coefs, upper=False)))
+        coefs = la._la_vstack(coefs)
+        coefs = la._la_vstack(
+            (coefs, la._la_solve_triangular(
+                D,  values[cnt:]-C@coefs, lower=True)))
         return coefs
 
     @staticmethod
-    def _upper_solve_triangular(A, C, D, values):
+    def _upper_solve_triangular(A, C, D, values, la):
         # Solve L^Tx=y when L is the cholesky factor
         # of a peer kernel.
         # A, C, D all are from lower-triangular factor L (not L^T)
         # so must take transpose of all blocks
         idx1 = values.shape[0]
         idx0 = idx1 - D.shape[1]
-        coefs = [solve_triangular(D.T, values[idx0:idx1], upper=True)]
+        coefs = [la._la_solve_triangular(D.T, values[idx0:idx1], lower=False)]
         for ii, row in reversed(list(enumerate(A))):
             idx1 = idx0
             idx0 -= row[ii].shape[1]
             C_sub = C[:, idx0:idx1]
             coefs = (
-                [solve_triangular(
+                [la._la_solve_triangular(
                     row[ii].T, values[idx0:idx1]-C_sub.T @ coefs[-1],
-                    upper=True)] + coefs)
-        coefs = vstack(coefs)
+                    lower=False)] + coefs)
+        coefs = la._la_vstack(coefs)
         return coefs
 
     @staticmethod
-    def _cholesky_solve(A, C, D, values):
-        gamma = MultiPeerKernel._lower_solve_triangular(A, C, D, values)
-        return MultiPeerKernel._upper_solve_triangular(A, C, D, gamma)
+    def _cholesky_solve(A, C, D, values, la):
+        gamma = MultiPeerKernel._lower_solve_triangular(A, C, D, values, la)
+        return MultiPeerKernel._upper_solve_triangular(A, C, D, gamma, la)
 
 
 class MultiLevelKernel(SpatiallyScaledMultiOutputKernel):
@@ -283,7 +266,7 @@ class MultiLevelKernel(SpatiallyScaledMultiOutputKernel):
 
     def _get_kernel_combination_matrix_entry(self, samples, ii, kk):
         if ii == kk:
-            return full((samples.shape[1], 1), 1.)
+            return self._la_full((samples.shape[1], 1), 1.)
         if ii < kk:
             return None
         val = self.scalings[kk](samples)
@@ -339,7 +322,7 @@ class LMCKernel(MultiOutputKernel):
         """
         hyp_values = self.output_kernels[kk].hyp_list.get_values()
         psi = self.output_kernels[kk]._trans.map_theta_to_spherical(hyp_values)
-        return cos(psi[1:, 1])
+        return self._la_cos(psi[1:, 1])
 
 
 class ICMKernel(LMCKernel):
@@ -348,126 +331,6 @@ class ICMKernel(LMCKernel):
     """
     def __init__(self, latent_kernel, output_kernel, noutputs):
         super().__init__([latent_kernel], [output_kernel], noutputs)
-
-
-class CombinedHyperParameter(HyperParameter):
-    # Some times it is more intuitive for the user to pass to seperate
-    # hyperparameters but the code requires them to be treated
-    # as a single hyperparameter, e.g. when set_active_opt_params
-    # that requires both user hyperparameters must trigger an action
-    # like updating of an internal variable not common to all hyperparameter
-    # classes
-    def __init__(self, hyper_params: list):
-        self.hyper_params = hyper_params
-        self.bounds = vstack([hyp.bounds for hyp in self.hyper_params])
-
-    def nvars(self):
-        return sum([hyp.nvars() for hyp in self.hyper_params])
-
-    def nactive_vars(self):
-        return sum([hyp.nactive_vars() for hyp in self.hyper_params])
-
-    def set_active_opt_params(self, active_params):
-        cnt = 0
-        for hyp in self.hyper_params:
-            hyp.set_active_opt_params(
-                active_params[cnt:cnt+hyp.nactive_vars()])
-            cnt += hyp.nactive_vars()
-
-    def get_active_opt_params(self):
-        return hstack(
-            [hyp.get_active_opt_params() for hyp in self.hyper_params])
-
-    def get_active_opt_bounds(self):
-        return vstack(
-            [hyp.get_active_opt_bounds() for hyp in self.hyper_params])
-
-    def get_values(self):
-        return hstack([hyp.get_values() for hyp in self.hyper_params])
-
-    def set_values(self, values):
-        cnt = 0
-        for hyp in self.hyper_params:
-            hyp.set_values(values[cnt:cnt+hyp.nvars()])
-            cnt += hyp.nvars()
-
-
-class SphericalCovarianceHyperParameter(CombinedHyperParameter):
-    def __init__(self, hyper_params: list):
-        super().__init__(hyper_params)
-        self.cov_matrix = None
-        self.name = "spherical_covariance"
-        self.transform = IdentityHyperParameterTransform()
-        noutputs = hyper_params[0].nvars()
-        self._trans = SphericalCorrelationTransform(noutputs)
-        self._set_covariance_matrix()
-
-    def _set_covariance_matrix(self):
-        L = self._trans.map_to_cholesky(self.get_values())
-        self.cov_matrix = L@L.T
-
-    def set_active_opt_params(self, active_params):
-        super().set_active_opt_params(active_params)
-        self._set_covariance_matrix()
-
-    def __repr__(self):
-        return "{0}(name={1}, nvars={2}, transform={3}, nactive={4})".format(
-            self.__class__.__name__, self.name, self.nvars(), self.transform,
-            self.nactive_vars())
-
-
-class SphericalCovariance():
-    def __init__(self, noutputs, radii=1, radii_bounds=[1e-1, 1],
-                 angles=np.pi/2, angle_bounds=[0, np.pi],
-                 radii_transform=IdentityHyperParameterTransform(),
-                 angle_transform=IdentityHyperParameterTransform()):
-        # Angle bounds close to zero can create zero on the digaonal
-        # E.g. for speherical coordinates sin(0) = 0
-        self.noutputs = noutputs
-        self._trans = SphericalCorrelationTransform(self.noutputs)
-        self._validate_bounds(radii_bounds, angle_bounds)
-        self._radii = HyperParameter(
-            "radii", self.noutputs, radii, radii_bounds, radii_transform)
-        self._angles = HyperParameter(
-            "angles", self._trans.ntheta-self.noutputs, angles, angle_bounds,
-            angle_transform)
-        self.hyp_list = HyperParameterList([SphericalCovarianceHyperParameter(
-            [self._radii, self._angles])])
-
-    def _validate_bounds(self, radii_bounds, angle_bounds):
-        bounds = asarray(self._trans.get_spherical_bounds())
-        # all theoretical radii_bounds are the same so just check one
-        radii_bounds = atleast1d(radii_bounds)
-        if radii_bounds.shape[0] == 2:
-            radii_bounds = repeat(radii_bounds, self.noutputs)
-        radii_bounds = radii_bounds.reshape((radii_bounds.shape[0]//2, 2))
-        if (np.any(to_numpy(radii_bounds[:, 0] < bounds[:self.noutputs, 0])) or
-                np.any(to_numpy(
-                    radii_bounds[:, 1] > bounds[:self.noutputs, 1]))):
-            raise ValueError("radii bounds are inconsistent")
-        # all theoretical angle_bounds are the same so just check one
-        angle_bounds = atleast1d(angle_bounds)
-        if angle_bounds.shape[0] == 2:
-            angle_bounds = repeat(
-                angle_bounds, self._trans.ntheta-self.noutputs)
-        angle_bounds = angle_bounds.reshape((angle_bounds.shape[0]//2, 2))
-        if (np.any(to_numpy(angle_bounds[:, 0] < bounds[self.noutputs:, 0])) or
-                np.any(to_numpy(
-                    angle_bounds[:, 1] > bounds[self.noutputs:, 1]))):
-            raise ValueError("angle bounds are inconsistent")
-
-    def get_covariance_matrix(self):
-        return self.hyp_list.hyper_params[0].cov_matrix
-
-    def __call__(self, ii, jj):
-        # chol factor must be recomputed each time even if hyp_values have not
-        # changed otherwise gradient graph becomes inconsistent
-        return self.hyp_list.hyper_params[0].cov_matrix[ii, jj]
-
-    def __repr__(self):
-        return "{0}(radii={1}, angles={2} cov={3})".format(
-            self.__class__.__name__, self._radii, self._angles,
-            self.get_covariance_matrix().detach().numpy())
 
 
 class CollaborativeKernel(LMCKernel):
