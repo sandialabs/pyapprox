@@ -94,6 +94,17 @@ example_filenames_in_order = [
     'plot_multiindex_collocation.py',
     'plot_multifidelity_gp.py',
     'plot_gaussian_mfnets.py',
+    # SciML
+    'plot_derive_certann.py',
+    'plot_fourier_transform.py',
+    'plot_derive_dct.py',
+    'plot_dct_properties.py',
+    'plot_neural_operator_cases.py',
+    'plot_greens_functions.py',
+    'plot_kernels.py',
+    'plot_learning_greens_functions.py',
+    'plot_wave_equation.py',
+    'plot_neural_network_backprop.py',
 ]
 
 example_dirs = ['../../tutorials', '../../examples']
