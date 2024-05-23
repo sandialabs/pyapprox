@@ -293,7 +293,8 @@ class SingleSampleModel(Model):
 
 class ModelFromCallable(SingleSampleModel):
     def __init__(self, function, jacobian=None, apply_jacobian=None,
-                 apply_hessian=None, hessian=None, sample_ndim=2, values_ndim=2):
+                 apply_hessian=None, hessian=None, sample_ndim=2,
+                 values_ndim=2):
         """
         Parameters
         ----------

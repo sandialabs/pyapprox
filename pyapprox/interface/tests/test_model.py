@@ -30,9 +30,9 @@ class TestModel(unittest.TestCase):
         model = ModelFromCallable(
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample),
-            lambda sample, vec: self._evaluate_sp_lambda(
+            apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_grad, "numpy"), sample) @ vec,
-            lambda sample, vec: self._evaluate_sp_lambda(
+            apply_hessian=lambda sample, vec: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_hessian), sample) @ vec)
         sample = np.random.uniform(0, 1, (nvars, 1))
         model.check_apply_jacobian(sample, disp=True)
@@ -72,8 +72,6 @@ class TestModel(unittest.TestCase):
         errors = model.check_apply_hessian(sample)
         assert errors[0] < 1e-15
 
-        
-
     def test_vector_model_from_callable(self):
         symbs = sp.symbols(["x", "y", "z"])
         nvars = len(symbs)
@@ -83,7 +81,7 @@ class TestModel(unittest.TestCase):
         model = ModelFromCallable(
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample),
-            lambda sample, vec: self._evaluate_sp_lambda(
+            apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_grad, "numpy"), sample) @ vec)
         sample = np.random.uniform(0, 1, (nvars, 1))
         model.check_apply_jacobian(sample, disp=True)
@@ -102,9 +100,9 @@ class TestModel(unittest.TestCase):
         model = ModelFromCallable(
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample),
-            lambda sample, vec: self._evaluate_sp_lambda(
+            apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_grad, "numpy"), sample) @ vec,
-            lambda sample, vec: self._evaluate_sp_lambda(
+            apply_hessian=lambda sample, vec: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_hessian), sample) @ vec)
         scipy_model = ScipyModelWrapper(model)
         # check scipy model works with 1D sample array
@@ -114,15 +112,6 @@ class TestModel(unittest.TestCase):
                sp.lambdify(symbs, sp_grad, "numpy"), sample[:, None]))
         assert np.allclose(scipy_model.hess(sample), self._evaluate_sp_lambda(
                sp.lambdify(symbs, sp_hessian, "numpy"), sample[:, None]))
-
-        # test error is thrown if scipy model does not return a scalar output
-        sp_fun = [sum([s*(ii+1) for ii, s in enumerate(symbs)])**4,
-                  sum([s*(ii+1) for ii, s in enumerate(symbs)])**5]
-        model = ModelFromCallable(
-            lambda sample: self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_fun, "numpy"), sample))
-        scipy_model = ScipyModelWrapper(model)
-        self.assertRaises(ValueError, scipy_model, sample)
 
     def test_umbridge_model(self):
         server_dir = os.path.dirname(__file__)

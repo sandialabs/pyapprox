@@ -615,7 +615,7 @@ class CVEstimator(MCEstimator):
                 CF, cf = self._get_discrepancy_covariances(
                     self._rounded_npartition_samples)
                 weights = self._weights(CF, cf)
-                weights_list.append(weights.flatten())
+                weights_list.append(weights.flatten().numpy())
             else:
                 weights = self._optimized_weights
             estimator_vals.append(self._estimate(

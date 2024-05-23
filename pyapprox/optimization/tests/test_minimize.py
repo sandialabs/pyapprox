@@ -218,7 +218,7 @@ class TestMinimize(unittest.TestCase):
         basis = UnivariatePiecewiseQuadraticBasis()
         nodes = np.linspace(*stats.norm(0, 1).interval(1-1e-6), nsamples)
         print(nodes)
-        weights = basis.quadrature_weights(nodes)
+        weights = basis._quadrature_rule_from_nodes(nodes[None, :])[1][:, 0]
         weights = (weights*stats.norm(0, 1).pdf(nodes))[:, None]
         samples = np.vstack([nodes[None, :], nodes[None, :]*sigma2+mu2])
         stat = SampleAverageConditionalValueAtRisk([0.5, 0.85], eps=1e-3)
