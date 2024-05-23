@@ -1,11 +1,11 @@
 name: Build and Test Using Pip
 
 on:
-  #push:
+  # push:
   # branches: [master, devel]
   # branches: [master]
   pull_request:
-    branches: [devel]  
+    branches: [devel]
 
   workflow_dispatch:
 
