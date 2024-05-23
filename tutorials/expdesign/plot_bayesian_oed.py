@@ -291,6 +291,7 @@ cvar_p1 = 0.9
 cvar_p2 = 0.2
 data_markers = ["X", "s", "o"]
 data_latex_markers = [r"\times", r"\square", r"\circ"]
+data_latex_markers = [r"A", r"B", r"C"]
 joint_prior_noise_variable = IndependentMarginalsVariable(
     prior_rvs + [noise_rv])
 if prior_variable.num_vars() == 1:
