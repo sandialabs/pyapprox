@@ -127,6 +127,11 @@ class TorchLinAlgMixin(LinAlgMixin):
             return torch.any(mat)
         return torch.any(mat, dim=axis)
 
+    def _la_all(self, mat: torch.Tensor, axis=None) -> torch.Tensor:
+        if axis is None:
+            return torch.all(mat)
+        return torch.all(mat, dim=axis)
+
     def _la_kron(self, Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return torch.kron(Amat, Bmat)
 
@@ -151,3 +156,21 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     def _la_abs(self, mat: torch.Tensor) -> torch.Tensor:
         return torch.absolute(mat)
+
+    def _la_to_numpy(self, mat: torch.Tensor):
+        return mat.numpy()
+
+    def _la_argsort(self, mat: torch.Tensor, axis=-1) -> torch.Tensor:
+        return torch.argsort(mat, dim=axis)
+
+    def _la_sort(self, mat: torch.Tensor, axis=-1) -> torch.Tensor:
+        return torch.sort(mat, dim=axis)
+
+    def _la_flip(self, mat: torch.Tensor, axis=None) -> torch.Tensor:
+        if axis is None:
+            axis = (0,)
+        return torch.flip(mat, dims=axis)
+
+    def _la_allclose(self, Amat: torch.Tensor, Bmat: torch.Tensor,
+                     **kwargs) -> bool:
+        return torch.allclose(Amat, Bmat, **kwargs)

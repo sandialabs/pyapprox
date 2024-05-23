@@ -294,22 +294,32 @@ class AbstractKLE(ABC):
         """
         K = self._compute_kernel_matrix()
         if self._quad_weights is None:
+            # always compute eigenvalue decomposition using scipy because
+            # it can be used to only compute subset of eigenvectors
+            # then we cast these back to correct linalg type. The downside
+            # is that we cannot use autograd on quantities used to consturct K.
+            # but the need for this is unlikely
             eig_vals, eig_vecs = eigh(
-                K, turbo=False,
+                self._la_to_numpy(K), turbo=False,
                 subset_by_index=(K.shape[0]-self._nterms, K.shape[0]-1))
+            eig_vals = self._la_atleast1d(eig_vals)
+            eig_vecs = self._la_atleast2d(eig_vecs)
         else:
             # see https://etheses.lse.ac.uk/2950/1/U615901.pdf
             # page 42
-            sqrt_weights = np.sqrt(self._quad_weights)
+            sqrt_weights = self._la_sqrt(self._quad_weights)
             sym_eig_vals, sym_eig_vecs = eigh(
-                sqrt_weights[:, None]*K*sqrt_weights, turbo=False,
+                self._la_to_numpy(sqrt_weights[:, None]*K*sqrt_weights),
                 subset_by_index=(K.shape[0]-self._nterms, K.shape[0]-1))
+            sym_eig_vals = self._la_atleast1d(sym_eig_vals)
+            sym_eig_vecs = self._la_atleast2d(sym_eig_vecs)
             eig_vecs = 1/sqrt_weights[:, None]*sym_eig_vecs
             eig_vals = sym_eig_vals
         eig_vecs = adjust_sign_eig(eig_vecs)
-        II = np.argsort(eig_vals)[::-1][:self._nterms]
-        assert np.all(eig_vals[II] > 0), eig_vals[II]
-        self._sqrt_eig_vals = np.sqrt(eig_vals[II])
+        # II = self._la_argsort(eig_vals)[::-1][:self._nterms]
+        II = self._la_flip(self._la_argsort(eig_vals))[:self._nterms]
+        assert self._la_all(eig_vals[II] > 0), eig_vals[II]
+        self._sqrt_eig_vals = self._la_sqrt(eig_vals[II])
         self._eig_vecs = eig_vecs[:, II]
 
     def __call__(self, coef):
@@ -324,8 +334,9 @@ class AbstractKLE(ABC):
         assert coef.ndim == 2
         assert coef.shape[0] == self._nterms
         if self._use_log:
-            return np.exp(self._mean_field[:, None]+self._eig_vecs.dot(coef))
-        return self._mean_field[:, None] + self._eig_vecs.dot(coef)
+            return self._la_exp(
+                self._mean_field[:, None] + self._eig_vecs@coef)
+        return self._mean_field[:, None] + self._eig_vecs@coef
 
     def __repr__(self):
         if self._nterms is None:
@@ -364,7 +375,8 @@ class MeshKLE(AbstractKLE):
 
     def _set_mean_field(self, mean_field):
         if np.isscalar(mean_field):
-            mean_field = np.ones(self._mesh_coords.shape[1])*mean_field
+            mean_field = self._la_full(
+                (self._mesh_coords.shape[1],), 1)*mean_field
         super()._set_mean_field(mean_field)
 
     def _set_nterms(self, nterms):
@@ -378,21 +390,24 @@ class MeshKLE(AbstractKLE):
         self._mesh_coords = mesh_coords
 
     def _set_lenscale(self, length_scale):
-        length_scale = np.atleast_1d(length_scale)
+        length_scale = self._la_atleast1d(length_scale)
         if length_scale.shape[0] == 1:
-            length_scale = np.full(self._mesh_coords.shape[0], length_scale[0])
+            length_scale = self._la_full(
+                (self._mesh_coords.shape[0],), length_scale[0])
         assert length_scale.shape[0] == self._mesh_coords.shape[0]
         self._lenscale = length_scale
 
     def _compute_kernel_matrix(self):
         if self._matern_nu == np.inf:
-            dists = pdist(self._mesh_coords.T / self._lenscale,
-                          metric='sqeuclidean')
+            dists = pdist(
+                self._la_to_numpy(self._mesh_coords.T / self._lenscale),
+                metric='sqeuclidean')
             K = squareform(np.exp(-.5 * dists))
             np.fill_diagonal(K, 1)
-            return K
+            return self._la_atleast2d(K)
 
-        dists = pdist(self._mesh_coords.T / self._lenscale, metric='euclidean')
+        dists = pdist(self._la_to_numpy(
+            self._mesh_coords.T / self._lenscale), metric='euclidean')
         if self._matern_nu == 0.5:
             K = squareform(np.exp(-dists))
         elif self._matern_nu == 1.5:
@@ -401,7 +416,7 @@ class MeshKLE(AbstractKLE):
         elif self._matern_nu == 2.5:
             K = squareform((1+dists+dists**2/3)*np.exp(-dists))
         np.fill_diagonal(K, 1)
-        return K
+        return self._la_atleast2d(K)
 
     def __repr__(self):
         if self._nterms is None:
@@ -412,26 +427,6 @@ class MeshKLE(AbstractKLE):
             self._lenscale, self._sigma)
 
 
-class TorchKLEWrapper(AbstractKLE):
-    def __init__(self, kle):
-        import torch
-        self._kle = kle
-        for attr in self._kle.__dict__.keys():
-            setattr(self, attr, self._kle.__dict__[attr])
-
-    def __call__(self, coef):
-        import torch
-        return torch.as_tensor(self._kle(coef), dtype=torch.double)
-
-    def __repr__(self):
-        return "TorchWrapper({0})".format(self._kle.__repr__())
-
-    def _compute_kernel_matrix(self):
-        import torch
-        return torch.as_tensor(
-            self.kle._compute_kernel_matrix(), dtype=torch.double)
-
-
 class DataDrivenKLE(AbstractKLE):
     def __init__(self, field_samples, mean_field=0,
                  use_log=False, nterms=None):
@@ -440,7 +435,8 @@ class DataDrivenKLE(AbstractKLE):
 
     def _set_mean_field(self, mean_field):
         if np.isscalar(mean_field):
-            mean_field = np.ones(self._field_samples.shape[0])*mean_field
+            mean_field = self._la_full(
+                (self._field_samples.shape[0],), 1)*mean_field
         super()._set_mean_field(mean_field)
 
     def _set_nterms(self, nterms):
@@ -453,7 +449,7 @@ class DataDrivenKLE(AbstractKLE):
         self._mesh_coords = None
 
     def _compute_kernel_matrix(self):
-        return np.cov(self._field_samples, rowvar=True, ddof=1)
+        return self._la_cov(self._field_samples, rowvar=True, ddof=1)
 
 
 def multivariate_chain_rule(jac_yu, jac_ux):

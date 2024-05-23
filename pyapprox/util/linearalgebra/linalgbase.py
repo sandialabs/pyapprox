@@ -193,7 +193,12 @@ class LinAlgMixin(ABC):
 
     @abstractmethod
     def _la_any(self, mat, axis=None):
-        """Find which elements of a matrix evaluates to True."""
+        """Find if any element of a matrix evaluates to True."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def _la_all(self, mat, axis=None):
+        """Find if all elements of a matrix evaluate to True."""
         raise NotImplementedError
 
     @abstractmethod
@@ -221,6 +226,26 @@ class LinAlgMixin(ABC):
 
     def _la_abs(self, mat):
         """Compute the absolte values of each entry in a matrix"""
+        raise NotImplementedError
+
+    def _la_to_numpy(self, mat):
+        """Compute the matrix to a np.ndarray."""
+        raise NotImplementedError
+
+    def _la_argsort(self, mat, axis=-1):
+        """Compute the indices that sort a matrix in ascending order."""
+        raise NotImplementedError
+
+    def _la_sort(self, mat, axis=-1):
+        """Return the matrix sorted in ascending order."""
+        raise NotImplementedError
+
+    def _la_flip(self, mat, axis=None):
+        "Reverse the order of the elements in a matrix."
+        raise NotImplementedError
+
+    def _la_allclose(self, Amat, Bmat, **kwargs):
+        "Check if two matries are close"
         raise NotImplementedError
 
     def _la_detach(self, mat):

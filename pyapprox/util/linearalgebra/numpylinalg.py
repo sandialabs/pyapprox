@@ -120,6 +120,9 @@ class NumpyLinAlgMixin(LinAlgMixin):
     def _la_any(self, mat: np.ndarray, axis=None) -> np.ndarray:
         return np.any(mat, axis=axis)
 
+    def _la_all(self, mat: np.ndarray, axis=None) -> np.ndarray:
+        return np.all(mat, axis=axis)
+
     def _la_kron(self, Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
         return np.kron(Amat, Bmat)
 
@@ -138,3 +141,19 @@ class NumpyLinAlgMixin(LinAlgMixin):
 
     def _la_abs(self, mat: np.ndarray) -> np.ndarray:
         return np.absolute(mat)
+
+    def _la_to_numpy(self, mat: np.ndarray) -> np.ndarray:
+        return mat
+
+    def _la_argsort(self, mat: np.ndarray, axis=-1) -> np.ndarray:
+        return np.argsort(mat, axis=axis)
+
+    def _la_sort(self, mat: np.ndarray, axis=-1) -> np.ndarray:
+        return np.sort(mat, axis=axis)
+
+    def _la_flip(self, mat, axis=None):
+        return np.flip(mat, axis=axis)
+
+    def _la_allclose(self, Amat: np.ndarray, Bmat: np.ndarray,
+                     **kwargs) -> bool:
+        return np.allclose(Amat, Bmat, **kwargs)

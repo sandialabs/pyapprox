@@ -331,7 +331,7 @@ class TestMultiOutputKernels(unittest.TestCase):
         L_true = np.linalg.cholesky(kmat)
 
         blocks = kernel(samples_per_output, block_format=True)
-        L = kernel._cholesky(noutputs, blocks, block_format=False)
+        L = kernel._cholesky(noutputs, blocks, block_format=False, la=kernel)
         assert np.allclose(L, L_true)
 
         L_blocks = kernel._cholesky(noutputs, blocks, block_format=True)

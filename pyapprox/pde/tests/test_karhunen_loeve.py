@@ -2,9 +2,14 @@ import unittest
 
 import numpy as np
 
-from pyapprox.pde.karhunen_loeve_expansion import (
-    multivariate_chain_rule, MeshKLE, compute_kle_gradient_from_mesh_gradient,
-    KLE1D, DataDrivenKLE)
+from pyapprox.pde.kle._kle import (
+    multivariate_chain_rule, compute_kle_gradient_from_mesh_gradient, KLE1D)
+
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.pde.kle.numpykle import NumpyMeshKLE, NumpyDataDrivenKLE
+
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.pde.kle.torchkle import TorchMeshKLE, TorchDataDrivenKLE
 from pyapprox.util.utilities import approx_jacobian
 
 
@@ -56,7 +61,7 @@ class TestKLE(unittest.TestCase):
         kle_mean = mesh[0, :]+2
 
         for use_log in [False, True]:
-            kle = MeshKLE(
+            kle = NumpyMeshKLE(
                 mesh, length_scale, mean_field=kle_mean, use_log=use_log,
                 sigma=sigma, nterms=nvars)
 
@@ -97,8 +102,8 @@ class TestKLE(unittest.TestCase):
         mesh_coords = (mesh_coords+1)/2*dom_len+lb
         quad_weights *= (ub-lb)/2
         mesh_coords = mesh_coords[None, :]
-        kle = MeshKLE(mesh_coords, len_scale, sigma=sigma, nterms=nterms,
-                      matern_nu=0.5, quad_weights=quad_weights)
+        kle = NumpyMeshKLE(mesh_coords, len_scale, sigma=sigma, nterms=nterms,
+                           matern_nu=0.5, quad_weights=quad_weights)
 
         opts = {"mean_field": 0, "sigma2": sigma, "corr_len": len_scale,
                 "num_vars": int(kle._nterms), "use_log": False,
@@ -149,7 +154,7 @@ class TestKLE(unittest.TestCase):
         mesh_coords = (mesh_coords+1)/2*dom_len+lb
         quad_weights *= (ub-lb)/2
         mesh_coords = mesh_coords[None, :]
-        kle = MeshKLE(
+        kle = NumpyMeshKLE(
             mesh_coords, len_scale, sigma=sigma, nterms=nterms,
             matern_nu=0.5, quad_weights=quad_weights)
 
@@ -163,7 +168,7 @@ class TestKLE(unittest.TestCase):
         quad_weights1 *= (ub1-lb1)/2
         mesh_coords1 = mesh_coords1[None, :]
 
-        kle1 = MeshKLE(
+        kle1 = NumpyMeshKLE(
             mesh_coords1, len_scale, sigma=sigma, nterms=nterms,
             matern_nu=0.5, quad_weights=quad_weights1)
 
@@ -208,7 +213,7 @@ class TestKLE(unittest.TestCase):
         quad_weights *= (ub-lb)/2
         mesh_coords = mesh_coords[None, :]
         quad_weights = None
-        kle = MeshKLE(mesh_coords, len_scale, sigma=sigma, nterms=nterms,
+        kle = NumpyMeshKLE(mesh_coords, len_scale, sigma=sigma, nterms=nterms,
                       matern_nu=0.5, quad_weights=quad_weights)
 
         # quad_rule = clenshaw_curtis_pts_wts_1D
@@ -237,7 +242,7 @@ class TestKLE(unittest.TestCase):
         # assert np.allclose(mesh_coords, mesh_coords_mix)
         # assert np.allclose(quad_weights, quad_weights_mix)
 
-        kle_mix = MeshKLE(
+        kle_mix = NumpyMeshKLE(
             mesh_coords_mix, len_scale, sigma=sigma, nterms=nterms,
             matern_nu=0.5, quad_weights=quad_weights_mix)
 
@@ -253,13 +258,15 @@ class TestKLE(unittest.TestCase):
         # plt.plot(mesh_coords_mix[0, :], eig_vecs_mix, 'r--s')
         # plt.show()
 
-    def test_data_driven_kle(self):
+    def _check_data_driven_kle(self, MeshKLE, DataDrivenKLE, la):
         level = 10
         nterms = 3
         len_scale, sigma = 1, 1
         from pyapprox.surrogates.orthopoly.quadrature import (
             clenshaw_curtis_pts_wts_1D)
         mesh_coords, quad_weights = clenshaw_curtis_pts_wts_1D(level)
+        mesh_coords = la._la_atleast1d(mesh_coords)
+        quad_weights = la._la_atleast1d(quad_weights)
         quad_weights *= 2   # remove pdf of uniform variable
         # map to [lb, ub]
         lb, ub = 0, 2
@@ -272,12 +279,19 @@ class TestKLE(unittest.TestCase):
                       matern_nu=0.5, quad_weights=quad_weights)
 
         nsamples = 10000
-        samples = np.random.normal(0., 1., (nterms, nsamples))
+        samples = la._la_atleast2d(
+            np.random.normal(0., 1., (nterms, nsamples)))
         kle_realizations = kle(samples)
 
         # TODO: pass in optiional quadrature weights
         kle_data = DataDrivenKLE(kle_realizations, nterms=nterms)
         print(kle_data._sqrt_eig_vals, kle._sqrt_eig_vals)
+
+    def test_data_driven_kle(self):
+        test_cases = [[NumpyMeshKLE, NumpyDataDrivenKLE, NumpyLinAlgMixin()],
+                      [TorchMeshKLE, TorchDataDrivenKLE, TorchLinAlgMixin()]]
+        for case in test_cases:
+            self._check_data_driven_kle(*case)
 
 
 if __name__ == "__main__":
