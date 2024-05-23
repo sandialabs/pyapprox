@@ -1047,7 +1047,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         opt_problem = NonLinearAlphabetOptimalDesign('D', local_design_factors)
         mu = opt_problem.solve_nonlinear_minimax(
             parameter_samples, design_samples[np.newaxis, :],
-            {'iprint': 1, 'ftol': 1e-8})
+            {'iprint': 1, 'ftol': 1e-6, 'disp': True})
         II = np.where(mu > 1e-5)[0]
         # given largest theta_2=1 then optimal design will be at 1/3,1
         # with masses=0.5

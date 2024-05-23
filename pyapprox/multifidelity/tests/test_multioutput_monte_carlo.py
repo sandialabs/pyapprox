@@ -495,7 +495,8 @@ class TestMOMC(unittest.TestCase):
         target_cost = 10
         est._save_candidate_estimators = True
         np.set_printoptions(linewidth=1000)
-        est.allocate_samples(target_cost, {"verbosity": 1, "nprocs": 1})
+        est.allocate_samples(
+            target_cost, {"verbosity": 1, "nprocs": 1, "scaling": 1.})
 
         criteria = np.array(
             [e[0]._optimized_criteria for e in est._candidate_estimators])
