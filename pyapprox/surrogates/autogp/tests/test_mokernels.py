@@ -334,20 +334,21 @@ class TestMultiOutputKernels(unittest.TestCase):
         L = kernel._cholesky(noutputs, blocks, block_format=False, la=kernel)
         assert np.allclose(L, L_true)
 
-        L_blocks = kernel._cholesky(noutputs, blocks, block_format=True)
-        L = kernel._cholesky_blocks_to_dense(*L_blocks)
+        L_blocks = kernel._cholesky(
+            noutputs, blocks, block_format=True, la=kernel)
+        L = kernel._cholesky_blocks_to_dense(*L_blocks, la=kernel)
         assert np.allclose(L, L_true)
         assert np.allclose(
-            kernel._logdet(*L_blocks), np.linalg.slogdet(kmat)[1])
+            kernel._logdet(*L_blocks, la=kernel), np.linalg.slogdet(kmat)[1])
         values = np.random.normal(0, 1, (L.shape[1], 1))
         assert np.allclose(
-            kernel._lower_solve_triangular(*L_blocks, values),
+            kernel._lower_solve_triangular(*L_blocks, values, la=kernel),
             scipy.linalg.solve_triangular(L, values, lower=True))
         assert np.allclose(
-            kernel._upper_solve_triangular(*L_blocks, values),
+            kernel._upper_solve_triangular(*L_blocks, values, la=kernel),
             scipy.linalg.solve_triangular(L.T, values, lower=False))
         assert np.allclose(
-            kernel._cholesky_solve(*L_blocks, values),
+            kernel._cholesky_solve(*L_blocks, values, la=kernel),
             np.linalg.inv(kmat) @ values)
 
     def test_block_cholesky(self):

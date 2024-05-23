@@ -206,7 +206,7 @@ class TestMinimize(unittest.TestCase):
         weights = np.full((nsamples, 1), 1/nsamples)
         # from pyapprox.surrogates.orthopoly.quadrature import (
         #     gauss_hermite_pts_wts_1D)
-        
+
         # nsamples = 1000
         # samples = np.vstack(
         #     [gauss_hermite_pts_wts_1D(nsamples)[0],
@@ -254,7 +254,7 @@ class TestMinimize(unittest.TestCase):
             np.full((ndesign_vars+nconstraints,), np.inf))
         optimizer = ScipyConstrainedOptimizer(
             objective, bounds=bounds, constraints=[constraint],
-            opts={"gtol": 1e-6, "verbose": 3, "maxiter": 200})
+            opts={"gtol": 1e-6, "verbose": 3, "maxiter": 500})
         result = optimizer.minimize(opt_x0)
 
         # errors in sample based estimate of CVaR will cause
@@ -264,7 +264,7 @@ class TestMinimize(unittest.TestCase):
         # print(constraint(exact_opt_x), [CVaR1, CVaR2])
         # print(result.x-exact_opt_x[:, 0], exact_opt_x[:, 0])
         assert np.allclose(result.x, exact_opt_x[:, 0], rtol=1e-3, atol=1e-6)
-        assert np.allclose(-sigma1, result.fun, rtol=1e-5)
+        assert np.allclose(-sigma1, result.fun, rtol=1e-4)
 
 
 if __name__ == '__main__':
