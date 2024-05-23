@@ -1,9 +1,9 @@
 name: Build Docs Using Conda
 
 on:
-    # push:
-    # branches: [master, devel]
-    # branches: [master]
+  # push:
+  # branches: [master]
+  # branches: [master, devel]
   pull_request:
     branches: [devel]
 
