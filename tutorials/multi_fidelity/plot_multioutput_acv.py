@@ -28,12 +28,12 @@ _ = mf.plot_correlation_matrix(
     mf.get_correlation_from_covariance(cov), ax=ax, model_names=labels,
     label_fontsize=20)
 
-target_cost = 10
+target_cost = 30
 stat = mf.multioutput_stats["mean"](benchmark.nqoi)
 stat.set_pilot_quantities(cov)
 est = mf.get_estimator("gmf", stat, costs)
 est.allocate_samples(
-    target_cost, {"scaling": 1.,
+    target_cost, {"scaling": 5.,
                   "init_guess": {"disp": True, "maxiter": 100,
                                  "lower_bound": 1e-3}})
 
