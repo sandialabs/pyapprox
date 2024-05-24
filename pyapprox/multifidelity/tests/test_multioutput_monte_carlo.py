@@ -496,8 +496,8 @@ class TestMOMC(unittest.TestCase):
         est._save_candidate_estimators = True
         np.set_printoptions(linewidth=1000)
         est.allocate_samples(
-            target_cost, {"verbosity": 1, "nprocs": 1, "scaling": 5.,
-                          "init_guess": {"disp": True, "maxiter": 100,
+            target_cost, {"verbosity": 1, "nprocs": 1, "scaling": 1,
+                          "init_guess": {"disp": True, "maxiter": 300,
                                          "lower_bound": 1e-3}})
 
         criteria = np.array(

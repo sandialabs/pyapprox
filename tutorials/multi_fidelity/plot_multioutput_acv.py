@@ -33,8 +33,8 @@ stat = mf.multioutput_stats["mean"](benchmark.nqoi)
 stat.set_pilot_quantities(cov)
 est = mf.get_estimator("gmf", stat, costs)
 est.allocate_samples(
-    target_cost, {"scaling": 5.,
-                  "init_guess": {"disp": True, "maxiter": 100,
+    target_cost, {"scaling": 1.,
+                  "init_guess": {"disp": True, "maxiter": 300,
                                  "lower_bound": 1e-3}})
 
 # get covariance of just first qoi
