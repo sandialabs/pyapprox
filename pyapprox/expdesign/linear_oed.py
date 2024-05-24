@@ -470,7 +470,6 @@ def doptimality_criterion(homog_outer_prods, design_factors,
     M0, M1 = get_M0_and_M1_matrices(
         homog_outer_prods, design_prob_measure, noise_multiplier,
         regression_type)
-    print(M1, "#!@, M1", np.linalg.cond(M1))
     M1_inv = np.linalg.inv(M1)
     if noise_multiplier is not None:
         gamma = M0.dot(M1_inv)

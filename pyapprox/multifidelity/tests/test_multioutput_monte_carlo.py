@@ -496,7 +496,9 @@ class TestMOMC(unittest.TestCase):
         est._save_candidate_estimators = True
         np.set_printoptions(linewidth=1000)
         est.allocate_samples(
-            target_cost, {"verbosity": 1, "nprocs": 1, "scaling": 1.})
+            target_cost, {"verbosity": 1, "nprocs": 1, "scaling": 1.,
+                          "init_guess": {"disp": True, "maxiter": 100,
+                                         "lower_bound": 1e-3}})
 
         criteria = np.array(
             [e[0]._optimized_criteria for e in est._candidate_estimators])
@@ -525,7 +527,9 @@ class TestMOMC(unittest.TestCase):
         stat = multioutput_stats["mean_variance"](len(qoi_idx))
         stat.set_pilot_quantities(cov, W, B)
         est = get_estimator("gmf", stat, costs)
-        est.allocate_samples(target_cost)
+        est.allocate_samples(target_cost,
+                             {"init_guess": {"disp": True, "maxiter": 100,
+                                             "lower_bound": 1e-3}})
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
                 funs, model.variable, est, ntrials, max_eval_concurrency, True)
