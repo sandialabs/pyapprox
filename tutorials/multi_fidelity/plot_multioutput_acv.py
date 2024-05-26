@@ -35,7 +35,7 @@ est = mf.get_estimator("gmf", stat, costs)
 est.allocate_samples(
     target_cost, {"scaling": 1.,
                   "init_guess": {"disp": True, "maxiter": 300,
-                                 "lower_bound": 1e-3}})
+                                 "lower_bound": 1e-10}})
 
 # get covariance of just first qoi
 qoi_idx = [0]

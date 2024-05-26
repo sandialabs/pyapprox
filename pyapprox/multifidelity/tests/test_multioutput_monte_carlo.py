@@ -498,7 +498,7 @@ class TestMOMC(unittest.TestCase):
         est.allocate_samples(
             target_cost, {"verbosity": 1, "nprocs": 1, "scaling": 1,
                           "init_guess": {"disp": True, "maxiter": 300,
-                                         "lower_bound": 1e-3}})
+                                         "lower_bound": 1e-10}})
 
         criteria = np.array(
             [e[0]._optimized_criteria for e in est._candidate_estimators])
