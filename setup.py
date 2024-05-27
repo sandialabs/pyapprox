@@ -50,6 +50,7 @@ setuptools.setup(
     include_dirs=[np.get_include()],
     setup_requires=['numpy >= 1.16.4', 'Cython', 'scipy >= 1.0.0'],
     install_requires=[
+        'setuptools',
         'numpy >= 1.16.4',
         'matplotlib',
         'scipy >= 1.0.0',
