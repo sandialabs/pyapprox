@@ -291,6 +291,7 @@ cvar_p1 = 0.9
 cvar_p2 = 0.2
 data_markers = ["X", "s", "o"]
 data_latex_markers = [r"\times", r"\square", r"\circ"]
+data_latex_markers = [r"A", r"B", r"C"]
 joint_prior_noise_variable = IndependentMarginalsVariable(
     prior_rvs + [noise_rv])
 if prior_variable.num_vars() == 1:
@@ -595,8 +596,8 @@ dev_idx = 3  # 3 corresponds to KL
 def interpolate_deviation(nsamples_1d, basis_type, quad_data, deviations,
                           samples):
     # assumes same samples for each dimension
-    abscissa_1d = [quad_data[0][0, :nsamples_1d[0]],
-                   quad_data[0][1, ::nsamples_1d[0]]]
+    abscissa_1d = [quad_data[0][:1, :nsamples_1d[0]],
+                   quad_data[0][1:2, ::nsamples_1d[0]]]
     assert deviations.ndim == 1
     interp = TensorProductInterpolant(
         [get_univariate_interpolation_basis(basis_type) for ii in range(2)])
@@ -829,6 +830,7 @@ def plot_risk_prediction_deviation_surface(
     xx = np.linspace(pred_pts[0, 0], pred_pts[0, -1], 101)[None, :]
     interp = TensorProductInterpolant(
         [get_univariate_interpolation_basis(basis_type)])
+    pred_pts = [p[None, :] for p in pred_pts]
     interp.fit(pred_pts, expected_deviations)
     vals = interp(xx)
     ax.plot(xx[0], vals)
@@ -841,7 +843,6 @@ for ii, design_pt in enumerate(design_pts):
         prior_noise_quad_data, deviations[ii, ..., dev_idx],
         joint_qmc_xx, joint_qmc_ww, deviation_symbs[dev_idx], design_symbs[ii],
         axs[ii], basis_type, nsamples_1d, pred_wts, pred_pts)
-plt.show()
 
 
 #%%
@@ -889,5 +890,3 @@ axs_kl_pred_pdf.legend()
 axs_kl_pred_pdf.set_xlabel(mathrm_label("Divergence") + r" $\phi$")
 if savefigs:
     fig_kl_pred_pdf.savefig("oed-workflow-kl-pred-div-pdfs.pdf")
-
-plt.show()

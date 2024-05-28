@@ -293,7 +293,8 @@ class SingleSampleModel(Model):
 
 class ModelFromCallable(SingleSampleModel):
     def __init__(self, function, jacobian=None, apply_jacobian=None,
-                 apply_hessian=None, hessian=None, sample_ndim=2, values_ndim=2):
+                 apply_hessian=None, hessian=None, sample_ndim=2,
+                 values_ndim=2):
         """
         Parameters
         ----------
@@ -662,7 +663,16 @@ class ActiveSetVariableModel(Model):
         assert np.all(self._active_var_indices < self._nvars)
         self._inactive_var_indices = np.delete(
             np.arange(self._nvars), active_var_indices)
+        if base_model is None:
+            base_model = function
         self._base_model = base_model
+
+        self._jacobian_implemented = self._base_model._jacobian_implemented
+        self._apply_jacobian_implemented = (
+            self._base_model._apply_jacobian_implemented)
+        self._hessian_implemented = self._base_model._hessian_implemented
+        self._apply_hessian_implemented = (
+            self._base_model._apply_hessian_implemented)
 
     @staticmethod
     def _expand_samples_from_indices(reduced_samples, active_var_indices,

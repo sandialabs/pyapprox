@@ -1,31 +1,25 @@
-from torch.distributions import MultivariateNormal
 from typing import Tuple
+
 from scipy import stats
 import numpy as np
+#TODO remove torch and switch to LinAlgMixin
 
 from pyapprox.expdesign.low_discrepancy_sequences import halton_sequence
 from pyapprox.variables.transforms import IndependentMarginalsVariable
-
-from pyapprox.surrogates.autogp._torch_wrappers import (
-    inv, eye, multidot, trace, sqrt, cholesky, solve_triangular, asarray,
-    log, repeat)
-from pyapprox.surrogates.autogp.hyperparameter import (
-    HyperParameter, HyperParameterList, IdentityHyperParameterTransform,
-    LogHyperParameterTransform)
 from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
-from pyapprox.surrogates.autogp._torch_wrappers import (
-    diag, full)
-from pyapprox.surrogates.autogp.kernels import Kernel, SumKernel
+from pyapprox.surrogates.kernels._kernels import Kernel, SumKernel
 
 
 def _log_prob_gaussian_with_noisy_nystrom_covariance(
-        noise_std, L_UU, K_XU, values):
+        noise_std, L_UU, K_XU, values, la):
     N, M = K_XU.shape
-    Delta = solve_triangular(L_UU, K_XU.T)/noise_std
-    Omega = eye(M) + Delta@Delta.T
-    L_Omega = cholesky(Omega)
-    log_det = 2*log(L_Omega.diag()).sum()+2*N*log(noise_std)
-    gamma = solve_triangular(L_Omega, Delta @ values)
+    Delta = la._la_solve_triangular(L_UU, K_XU.T)/noise_std
+    Omega = la._la_eye(M) + Delta@Delta.T
+    L_Omega = la._la_cholesky(Omega)
+    log_det = (2*la._la_log(la._la_get_diagonal(L_Omega)).sum() +
+               2*N*la._la_log(la._la_atleast1d(
+                   noise_std)))
+    gamma = la._la_solve_triangular(L_Omega, Delta @ values)
     log_pdf = -0.5*(N*np.log(2*np.pi)+log_det+(values.T@values -
                     gamma.T@gamma)/noise_std**2)
     return log_pdf
@@ -33,7 +27,7 @@ def _log_prob_gaussian_with_noisy_nystrom_covariance(
 # see Alvarez Efficient Multioutput Gaussian Processes through Variational Inducing Kernels for details how to generaize from noise covariance sigma^2I to \Sigma
 
 
-class InducingSamples():
+class InducingSamples:
     def __init__(self, nvars, ninducing_samples, inducing_variable=None,
                  inducing_samples=None, inducing_sample_bounds=None,
                  noise=None):
@@ -44,16 +38,17 @@ class InducingSamples():
         (self.inducing_variable, self.init_inducing_samples,
          inducing_sample_bounds) = self._init_inducing_samples(
              inducing_variable, inducing_samples, inducing_sample_bounds)
-        self._inducing_samples = HyperParameter(
+        self._inducing_samples = self._HyperParameter(
             "inducing_samples", self.nvars*self.ninducing_samples,
             self.init_inducing_samples.flatten(),
             inducing_sample_bounds.flatten(),
-            IdentityHyperParameterTransform())
+            self._IdentityHyperParameterTransform())
         if noise is None:
-            noise = HyperParameter(
-                'noise', 1, 1e-2, (1e-15, 1e3), LogHyperParameterTransform())
+            noise = self._HyperParameter(
+                'noise', 1, 1e-2, (1e-15, 1e3),
+                self._LogHyperParameterTransform())
         self._noise = noise
-        self.hyp_list = HyperParameterList(
+        self.hyp_list = self._HyperParameterList(
             [self._noise, self._inducing_samples])
 
     def _init_inducing_samples(self, inducing_variable, inducing_samples,
@@ -74,11 +69,11 @@ class InducingSamples():
             inducing_sample_bounds = inducing_variable.get_statistics(
                 "interval", 1.)
         else:
-            inducing_sample_bounds = asarray(inducing_sample_bounds)
+            inducing_sample_bounds = inducing_sample_bounds
             if inducing_sample_bounds.ndim == 1:
                 if inducing_sample_bounds.shape[0] != 2:
                     raise ValueError(msg)
-                inducing_sample_bounds = repeat(
+                inducing_sample_bounds = self._la_repeat(
                     inducing_sample_bounds, self.ninducing_samples).reshape(
                         self.ninducing_samples, 2)
         if (inducing_sample_bounds.shape !=
@@ -108,14 +103,15 @@ class InducingGaussianProcess(ExactGaussianProcess):
     larger than the “actual” noise in a way that is proportional to the
     inaccuracy of the approximation
     """
-    def __init__(self, nvars: int,
-                 kernel: Kernel,
-                 inducing_samples: InducingSamples,
-                 kernel_reg: float = 0,
-                 var_trans=None,
-                 values_trans=None):
-        super().__init__(nvars, kernel, kernel_reg, var_trans,
-                         values_trans)
+    def __init__(self,
+                 nvars,
+                 kernel,
+                 inducing_samples,
+                 var_trans,
+                 values_trans,
+                 kernel_reg):
+        super().__init__(nvars, kernel, var_trans, values_trans, None,
+                         kernel_reg)
 
         if isinstance(kernel, SumKernel):
             # TODO check that sumkernel is return when using
@@ -137,7 +133,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
     def _K_UU(self) -> Tuple:
         inducing_samples = self.inducing_samples.get_samples()
         kmat = self.kernel(inducing_samples, inducing_samples)
-        kmat = kmat + eye(kmat.shape[0])*float(self.kernel_reg)
+        kmat = kmat + self._la_eye(kmat.shape[0])*float(self.kernel_reg)
         return kmat
 
     def _training_kernel_matrix(self):
@@ -172,14 +168,15 @@ class InducingGaussianProcess(ExactGaussianProcess):
         K_UU = self._K_UU()
         # if the following line throws a ValueError it is likely
         # because self.noise is to small. If so adjust noise bounds
-        L_UU = cholesky(K_UU)
+        L_UU = self._la_cholesky(K_UU)
         mll = _log_prob_gaussian_with_noisy_nystrom_covariance(
-            noise_std, L_UU, K_XU, self.canonical_train_values)
+            noise_std, L_UU, K_XU, self.canonical_train_values, self)
         # add a regularization term to regularize variance noting that
         # trace of matrix sum is sum of traces
         K_XX_diag = self.kernel.diag(self.canonical_train_samples)
-        tmp = solve_triangular(L_UU, K_XU.T)
-        K_tilde_trace = K_XX_diag.sum() - trace(multidot((tmp.T, tmp)))
+        tmp = self._la_solve_triangular(L_UU, K_XU.T)
+        K_tilde_trace = K_XX_diag.sum() - self._la_trace(
+            self._la_multidot((tmp.T, tmp)))
         mll -= 1/(2*noise_std**2) * K_tilde_trace
         return -mll
 
@@ -188,18 +185,19 @@ class InducingGaussianProcess(ExactGaussianProcess):
         K_XU = self._K_XU()
         K_UU = self._K_UU()
 
-        K_UU_inv = inv(K_UU)
+        K_UU_inv = self._la_inv(K_UU)
         # Titsias 2009 Equation (6) B = Kuu_inv*A(Kuu_inv)
         # A is s Equation (11) in Vanderwilk 2020
         # which depends on \Sigma defined below Equation (10) Titsias
         # which we call Lambda below
-        Lambda = K_UU_inv + multidot((
+        Lambda = K_UU_inv + self._la_multidot((
             K_UU_inv, K_XU.T, K_XU, K_UU_inv/noise_std**2))
-        Lambda_inv = inv(Lambda)
-        m = multidot((Lambda_inv, K_UU_inv, K_XU.T,
-                      self.canonical_train_values.squeeze()/noise_std**2))
+        Lambda_inv = self._la_inv(Lambda)
+        m = self._la_multidot((
+            Lambda_inv, K_UU_inv, K_XU.T,
+            self.canonical_train_values.squeeze()/noise_std**2))
 
-        #TODO replace lamnda inv with use of cholesky factors
+        # TODO replace lamnda inv with use of cholesky factors
 
         K_ZU = self.kernel(
             Z, self.inducing_samples.get_samples())
@@ -207,14 +205,16 @@ class InducingGaussianProcess(ExactGaussianProcess):
 
         # Equation (6) in Titsias 2009 or
         # Equation (11) in Vanderwilk 2020
-        mu = multidot((K_ZU, K_UU_inv, m))
+        mu = self._la_multidot((K_ZU, K_UU_inv, m))
 
         if not return_std:
             return mu
 
         # The following is from Equation (6) in Titsias 2009 and
         # Equation (11) in Vanderwilk 2020 where Lambda^{-1} = S
-        sigma = (K_ZZ - multidot((K_ZU, K_UU_inv, K_ZU.T)) +
-                 multidot((K_ZU, K_UU_inv, Lambda_inv, K_UU_inv, K_ZU.T)))
-        return mu[:, None],  sqrt(diag(sigma))[:, None]
+        sigma = (K_ZZ - self._la_multidot((K_ZU, K_UU_inv, K_ZU.T)) +
+                 self._la_multidot(
+                     (K_ZU, K_UU_inv, Lambda_inv, K_UU_inv, K_ZU.T)))
+        return mu[:, None],  self._la_sqrt(
+            self._la_get_diagonal(sigma))[:, None]
         # return mu[:, None],  (diag(sigma))[:, None]

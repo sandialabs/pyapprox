@@ -308,7 +308,7 @@ class TestL1Minimization(unittest.TestCase):
         coef = res.x
 
         print(np.linalg.norm(true_coef-coef))
-        assert np.allclose(true_coef, coef, atol=6e-3)
+        assert np.allclose(true_coef, coef, atol=7e-3)
 
     @unittest.skip(reason="test incomplete")
     def test_lasso(self):

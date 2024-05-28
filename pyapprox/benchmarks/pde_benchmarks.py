@@ -15,7 +15,7 @@ from pyapprox.pde.autopde.mesh import (
 )
 from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.variables.transforms import ConfigureVariableTransformation
-from pyapprox.pde.karhunen_loeve_expansion import MeshKLE, TorchKLEWrapper
+from pyapprox.pde.kle.torchkle import TorchMeshKLE, TorchInterpolatedMeshKLE
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array, MultiIndexModel, ModelEnsemble)
 
@@ -96,12 +96,12 @@ def loglike_functional_dqdp(obs, obs_indices, noise_std, sol, params):
 def raw_advection_diffusion_reaction_kle_dRdp(kle, residual, sol, param_vals):
     mesh = residual.mesh
     dmats = [residual.mesh._dmat(dd) for dd in range(mesh.nphys_vars)]
-    if kle.use_log:
+    if kle._use_log:
         # compute gradient of diffusivity with respect to KLE coeff
         assert param_vals.ndim == 1
         kle_vals = kle(param_vals[:, None])
         assert kle_vals.ndim == 2
-        dkdp = kle_vals*kle.eig_vecs
+        dkdp = kle_vals*kle._eig_vecs
     else:
         dkdp = kle.eig_vecs
     Du = [torch.linalg.multi_dot((dmats[dd], sol))
@@ -123,9 +123,9 @@ def advection_diffusion_reaction_kle_dRdp(
         elif bndry_cond[1] == "R":
             mesh_pts_idx = mesh._bndry_slice(mesh.mesh_pts, idx, 1)
             normal_vals = mesh._bndrys[ii].normals(mesh_pts_idx)
-            if kle.use_log:
+            if kle._use_log:
                 kle_vals = kle(param_vals[:, None])
-                dkdp = kle_vals*kle.eig_vecs
+                dkdp = kle_vals*kle._eig_vecs
             else:
                 dkdp = torch.as_tensor(kle.eig_vecs)
             flux_vals = [
@@ -206,7 +206,7 @@ class AdvectionDiffusionReactionKLEModel():
     def _set_random_sample(self, sample):
         self._fwd_solver.physics._diff_fun = partial(
             self._fast_interpolate,
-            self._kle(sample[:, None]))
+            self._kle(self._kle._la_atleast2d(sample[:, None])))
 
     def _eval(self, sample, return_grad=False):
         sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
@@ -341,12 +341,12 @@ def _setup_advection_diffusion_benchmark(
     vel_fun = partial(constant_vel_fun, vel_vec)
 
     if kle_args is None:
-        npkle = MeshKLE(
+        kle = TorchMeshKLE(
             mesh.mesh_pts, length_scale, sigma=sigma, nterms=nvars,
             use_log=True, mean_field=kle_mean_field)
-        kle = TorchKLEWrapper(npkle)
+        # kle = TorchKLEWrapper(npkle)
     else:
-        kle = InterpolatedMeshKLE(kle_args[0], kle_args[1], mesh)
+        kle = TorchInterpolatedMeshKLE(kle_args[0], kle_args[1], mesh)
 
     if time_scenario is None:
         forc_fun = partial(gauss_forc_fun, amp, scale, loc)
@@ -370,43 +370,6 @@ def _setup_advection_diffusion_benchmark(
 
     return model, variable
 
-
-class InterpolatedMeshKLE(MeshKLE):
-    def __init__(self, kle_mesh, kle, mesh):
-        self._kle_mesh = kle_mesh
-        self._kle = kle
-        self._mesh = mesh
-
-        self.matern_nu = self._kle._matern_nu
-        self.nterms = self._kle._nterms
-        self.lenscale = self._kle._lenscale
-
-        self._basis_mat = self._kle_mesh._get_lagrange_basis_mat(
-            self._kle_mesh._canonical_mesh_pts_1d,
-            mesh._map_samples_to_canonical_domain(self._mesh.mesh_pts))
-
-    def _fast_interpolate(self, values, xx):
-        assert xx.shape[1] == self._mesh.mesh_pts.shape[1]
-        assert np.allclose(xx, self._mesh.mesh_pts)
-        interp_vals = torch.linalg.multi_dot((self._basis_mat, values))
-        # assert np.allclose(
-        #     interp_vals, self._kle_mesh.interpolate(values, xx))
-        return interp_vals
-
-    def __call__(self, coef):
-        assert isinstance(self._kle, TorchKLEWrapper)
-        # use_log = self._kle._use_log
-        use_log = self._kle._kle._use_log
-        self._kle._kle._use_log = False
-        vals = self._kle(coef)
-        interp_vals = self._fast_interpolate(vals, self._mesh.mesh_pts)
-        mean_field = self._fast_interpolate(
-            torch.as_tensor(self._kle._mean_field[:, None], dtype=torch.double),
-            self._mesh.mesh_pts)
-        if use_log:
-            interp_vals = torch.exp(mean_field+interp_vals)
-        self._kle._kle._use_log = use_log
-        return interp_vals
 
 
 def _setup_inverse_advection_diffusion_benchmark(

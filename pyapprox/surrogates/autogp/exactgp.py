@@ -1,40 +1,27 @@
+from abc import ABC, abstractmethod
 from typing import Tuple
+import warnings
+
 import numpy as np
 import torch
 import scipy
-import warnings
 
-from pyapprox.variables.transforms import IdentityTransformation
-from pyapprox.surrogates.autogp._torch_wrappers import (
-    diag, full, cholesky, cholesky_solve, log, solve_triangular, einsum,
-    multidot, array, asarray, sqrt, eye, vstack)
-from pyapprox.surrogates.autogp.kernels import Kernel, Monomial
-from pyapprox.surrogates.autogp.transforms import (
-    StandardDeviationValuesTransform)
 from pyapprox.surrogates.autogp.mokernels import MultiPeerKernel
 
 
-class ExactGaussianProcess():
+class ExactGaussianProcess(ABC):
     def __init__(self,
-                 nvars: int,
-                 kernel: Kernel,
-                 kernel_reg: float = 0,
-                 var_trans=None,
-                 values_trans=None,
-                 mean: Monomial = None):
+                 nvars,
+                 kernel,
+                 var_trans,
+                 values_trans,
+                 mean,
+                 kernel_reg):
         self.kernel = kernel
         self.mean = mean
         self.kernel_reg = kernel_reg
-        if var_trans is None:
-            self.var_trans = IdentityTransformation(nvars)
-        else:
-            self.var_trans = var_trans
-        if self.var_trans.num_vars() != nvars:
-            raise ValueError("var_trans and nvars are inconsistent")
-        if values_trans is None:
-            self.values_trans = StandardDeviationValuesTransform()
-        else:
-            self.values_trans = values_trans
+        self.var_trans = var_trans
+        self.values_trans = values_trans
 
         self._coef = None
         self._coef_args = None
@@ -55,14 +42,14 @@ class ExactGaussianProcess():
         # kmat[np.diag_indices_from(kmat)] += self.kernel_reg
         # This also does not work
         # kmat += diag(full((kmat.shape[0], 1), float(self.kernel_reg)))
-        kmat = kmat + eye(kmat.shape[0])*float(self.kernel_reg)
+        kmat = kmat + self._la_eye(kmat.shape[0])*float(self.kernel_reg)
         return kmat
 
     def _factor_training_kernel_matrix(self):
         # can be specialized
         kmat = self._training_kernel_matrix()
         try:
-            return (cholesky(kmat), )
+            return (self._la_cholesky(kmat), )
         except:
             return None, kmat
 
@@ -70,28 +57,28 @@ class ExactGaussianProcess():
         # can be specialized when _factor_training_kernel_matrix is specialized
         diff = (self.canonical_train_values -
                 self._canonical_mean(self.canonical_train_samples))
-        return cholesky_solve(args[0], diff)
+        return self._la_cholesky_solve(args[0], diff)
 
     def _Linv_y(self, *args):
         diff = (self.canonical_train_values -
                 self._canonical_mean(self.canonical_train_samples))
-        return solve_triangular(args[0], diff)
+        return self._la_solve_triangular(args[0], diff)
 
     def _log_determinant(self, coef_res: Tuple) -> float:
         # can be specialized when _factor_training_kernel_matrix is specialized
         chol_factor = coef_res[0]
-        return 2*log(diag(chol_factor)).sum()
+        return 2*self._la_log(self._la_get_diagonal(chol_factor)).sum()
 
     def _canonical_posterior_pointwise_variance(
             self, canonical_samples, kmat_pred):
         # can be specialized when _factor_training_kernel_matrix is specialized
-        tmp = solve_triangular(self._coef_args[0], kmat_pred.T)
-        update = einsum("ji,ji->i", tmp, tmp)
+        tmp = self._la_solve_triangular(self._coef_args[0], kmat_pred.T)
+        update = self._la_einsum("ji,ji->i", tmp, tmp)
         return (self.kernel.diag(canonical_samples) - update)[:, None]
 
     def _canonical_mean(self, canonical_samples):
         if self.mean is None:
-            return full((canonical_samples.shape[1], 1), 0.)
+            return self._la_full((canonical_samples.shape[1], 1), 0.)
         return self.mean(canonical_samples)
 
     def _neg_log_likelihood_with_hyperparameter_mean(self) -> float:
@@ -99,11 +86,12 @@ class ExactGaussianProcess():
         # but cannot be used if assuming a prior on the coefficients
         coef_args = self._factor_training_kernel_matrix()
         if coef_args[0] is None:
+            print(coef_args)
             return coef_args[1][0, 0]*0+np.inf
         Linv_y = self._Linv_y(*coef_args)
         nsamples = self.canonical_train_values.shape[0]
         return 0.5 * (
-            multidot((Linv_y.T, Linv_y)) +
+            self._la_multidot((Linv_y.T, Linv_y)) +
             self._log_determinant(coef_args) +
             nsamples*np.log(2*np.pi)
         ).sum(axis=1)
@@ -129,27 +117,9 @@ class ExactGaussianProcess():
         return self._neg_log_likelihood_with_hyperparameter_mean()
         # return self._neg_log_likelihood_with_uncertain_mean()
 
+    @abstractmethod
     def _fit_objective(self, active_opt_params_np):
-        # this is only pplace where torch should be called explicitly
-        # as we are using its functionality to compute the gradient of their
-        # negative log likelihood. We could replace this with a grad
-        # computed analytically
-        active_opt_params = torch.tensor(
-            active_opt_params_np, dtype=torch.double, requires_grad=True)
-        nll = self._neg_log_likelihood(active_opt_params)
-        nll.backward()
-        val = nll.item()
-        # copy is needed because zero_ is called
-        nll_grad = active_opt_params.grad.detach().numpy().copy()
-        active_opt_params.grad.zero_()
-        # must set requires grad to False after gradient is computed
-        # otherwise when evaluate_posterior will fail because it will
-        # still think the hyper_params require grad. Extra copies could be
-        # avoided by doing this after fit is complete. However then fit
-        # needs to know when torch is being used
-        for hyp in self.hyp_list.hyper_params:
-            hyp.detach()
-        return val, nll_grad
+        raise NotImplementedError
 
     def _local_optimize(self, init_active_opt_params_np, bounds):
         method = "L-BFGS-B"
@@ -183,17 +153,17 @@ class ExactGaussianProcess():
                 best_idx = ii
                 best_obj = results[-1].fun
         self.hyp_list.set_active_opt_params(
-            asarray(results[best_idx].x))
+            self._la_atleast1d(results[best_idx].x))
 
-    def set_training_data(self, train_samples: array, train_values: array):
+    def set_training_data(self, train_samples, train_values):
         self.train_samples = train_samples
         self.train_values = train_values
-        self.canonical_train_samples = asarray(
+        self.canonical_train_samples = (
             self._map_samples_to_canonical(train_samples))
-        self.canonical_train_values = asarray(
+        self.canonical_train_values = (
             self.values_trans.map_to_canonical(train_values))
 
-    def fit(self, train_samples: array, train_values: array, **kwargs):
+    def fit(self, train_samples, train_values, **kwargs):
         self.set_training_data(train_samples, train_values)
         self._global_optimize(**kwargs)
 
@@ -203,7 +173,7 @@ class ExactGaussianProcess():
         if not return_std:
             return mean
         return mean, self.values_trans.map_stdev_from_canonical(
-            sqrt(self.kernel.diag(samples)))
+            self._la_sqrt(self.kernel.diag(samples)))
 
     def _map_samples_to_canonical(self, samples):
         return self.var_trans.map_to_canonical(samples)
@@ -218,8 +188,8 @@ class ExactGaussianProcess():
         canonical_samples = self._map_samples_to_canonical(samples)
         kmat_pred = self.kernel(
             canonical_samples, self.canonical_train_samples)
-        canonical_mean = self._canonical_mean(canonical_samples) + multidot((
-            kmat_pred, self._coef))
+        canonical_mean = (self._canonical_mean(canonical_samples) +
+                          self._la_multidot((kmat_pred, self._coef)))
         mean = self.values_trans.map_from_canonical(canonical_mean)
         if not return_std:
             return mean
@@ -307,10 +277,9 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         self.train_samples = train_samples
         self.train_values = train_values
         self.canonical_train_samples = [
-            asarray(s) for s in self._map_samples_to_canonical(train_samples)]
-        self.canonical_train_values = vstack(
-            [asarray(self.values_trans.map_to_canonical(v))
-             for v in train_values])
+            s for s in self._map_samples_to_canonical(train_samples)]
+        self.canonical_train_values = self._la_vstack(
+            [self.values_trans.map_to_canonical(v) for v in train_values])
 
     def _map_samples_to_canonical(self, samples):
         return [self.var_trans.map_to_canonical(s) for s in samples]
@@ -318,7 +287,8 @@ class MOExactGaussianProcess(ExactGaussianProcess):
     def _canonical_mean(self, canonical_samples):
         if self.mean is not None:
             raise ValueError("Non-zero mean not supported for mulitoutput")
-        return full((sum([s.shape[1] for s in canonical_samples]), 1), 0.)
+        return self._la_full(
+            (sum([s.shape[1] for s in canonical_samples]), 1), 0.)
 
     def plot_1d(self, ax, bounds, output_id, npts_1d=101, nstdevs=2,
                 plt_kwargs={}, fill_kwargs={'alpha': 0.3}, prior_kwargs=None,
@@ -356,11 +326,11 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
         # can be specialized when _factor_training_kernel_matrix is specialized
         diff = (self.canonical_train_values -
                 self._canonical_mean(self.canonical_train_samples))
-        return MultiPeerKernel._cholesky_solve(*args, diff)
+        return MultiPeerKernel._cholesky_solve(*args, diff, self)
 
     def _log_determinant(self, coef_res: Tuple) -> float:
         # can be specialized when _factor_training_kernel_matrix is specialized
-        return MultiPeerKernel._logdet(*coef_res)
+        return MultiPeerKernel._logdet(*coef_res, self)
 
     def _training_kernel_matrix(self) -> Tuple:
         # must only pass in X and not Y to kernel otherwise if noise kernel
@@ -369,11 +339,13 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
         for ii in range(len(blocks)):
             blocks[ii][ii] = (
                 blocks[ii][ii] +
-                eye(blocks[ii][ii].shape[0])*float(self.kernel_reg))
+                self._la_eye(blocks[ii][ii].shape[0])*float(self.kernel_reg))
         return blocks
 
     def _factor_training_kernel_matrix(self):
         blocks = self._training_kernel_matrix()
+        return MultiPeerKernel._cholesky(
+                len(blocks[0]), blocks, block_format=True, la=self)
         try:
             return MultiPeerKernel._cholesky(
                 len(blocks[0]), blocks, block_format=True)
@@ -383,27 +355,27 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
     def _Linv_y(self, *args):
         diff = (self.canonical_train_values -
                 self._canonical_mean(self.canonical_train_samples))
-        return MultiPeerKernel._lower_solve_triangular(*args, diff)
+        return MultiPeerKernel._lower_solve_triangular(*args, diff, self)
 
     def _canonical_posterior_pointwise_variance(
             self, canonical_samples, kmat_pred):
         # can be specialized when _factor_training_kernel_matrix is specialized
         tmp = MultiPeerKernel._lower_solve_triangular(
-            *self._coef_args, kmat_pred.T)
-        update = einsum("ji,ji->i", tmp, tmp)
+            *self._coef_args, kmat_pred.T, self)
+        update = self._la_einsum("ji,ji->i", tmp, tmp)
         return (self.kernel.diag(canonical_samples) - update)[:, None]
 
 
 class MOICMPeerExactGaussianProcess(MOExactGaussianProcess):
     def __init__(self,
-                 nvars: int,
-                 kernel: Kernel,
+                 nvars,
+                 kernel,
                  output_kernel,
-                 kernel_reg: float = 0,
-                 var_trans=None,
-                 values_trans=None):
+                 var_trans,
+                 values_trans,
+                 kernel_reg):
         super().__init__(
-            nvars, kernel, kernel_reg, var_trans, values_trans, None)
+            nvars, kernel, var_trans, values_trans, None, kernel_reg)
         self.output_kernel = output_kernel
 
     @staticmethod
@@ -443,6 +415,7 @@ class MOICMPeerExactGaussianProcess(MOExactGaussianProcess):
         return icm_cons
 
     def _local_optimize(self, init_active_opt_params_np, bounds):
+        # TODO use new optimization classes
         method = "trust-constr"
         # method = "slsqp"
         if method == "trust-constr":
