@@ -5,7 +5,6 @@ cimport cython
 
 fused_type = cython.fused_type(cython.numeric, np.float64_t)
 
-ctypedef np.int_t int_t
 ctypedef np.int64_t int64_t
 
 @cython.cdivision(True)     # Deactivate division by zero checking
@@ -54,6 +53,7 @@ cdef sub2ind_pyx(int [:] sizes, int [:] multi_index):
         scalar_index += shift * multi_index[ii]
         shift *= sizes[ii]
     return scalar_index
+
 
 @cython.cdivision(True)     # Deactivate division by zero checking
 @cython.boundscheck(False)  # Deactivate bounds checking
@@ -225,7 +225,7 @@ cpdef outer_product_pyx(input_sets, fused_type element):
 @cython.cdivision(True)     # Deactivate division by zero checking
 @cython.boundscheck(False)  # Deactivate bounds checking
 @cython.wraparound(False)   # Deactivate negative indexing.
-def halton_sequence_pyx(int64_t[:] primes, int_t index1, int_t index2):
+def halton_sequence_pyx(int64_t[:] primes, int64_t index1, int64_t index2):
     cdef:
         Py_ssize_t ii, kk
         int64_t summand
