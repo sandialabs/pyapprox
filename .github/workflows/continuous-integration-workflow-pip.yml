@@ -40,7 +40,7 @@ jobs:
           python -m pip install --upgrade pip
       - name: Setup PyApprox
         run: |
-          pip install -e .
+          python -m pip install -e .
       - name: Test PyApprox
         run: |
           pytest -s --cov-report term --cov=pyapprox

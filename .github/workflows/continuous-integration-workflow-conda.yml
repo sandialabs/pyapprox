@@ -45,7 +45,7 @@ jobs:
       - name: Setup PyApprox
         shell: bash -l {0}
         run: |
-          pip install -e .
+          python -m pip install -e .
       - name: Test PyApprox
         shell: bash -l {0}
         run: |
