@@ -56,7 +56,7 @@ setuptools.setup(
         'scipy >= 1.0.0',
         'Cython',
         'sympy',
-        'torch',
+        'torch<=2.2.0',
         'scikit-learn',
         'coverage>=6.4',
         'pytest-cov',

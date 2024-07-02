@@ -5,10 +5,8 @@ import numpy as np
 
 from pyapprox.util.utilities import cartesian_product, outer_product
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.variables.transforms import _map_hypercube_samples
 from pyapprox.surrogates.interp.barycentric_interpolation import (
-    compute_barycentric_weights_1d, barycentric_interpolation_1d
-)
+    compute_barycentric_weights_1d, barycentric_interpolation_1d)
 from pyapprox.util.visualization import plt, get_meshgrid_samples
 from pyapprox.pde.autopde.mesh_transforms import ScaleAndTranslationTransform
 
@@ -23,16 +21,16 @@ def full_fun_axis_1(fill_val, xx, oned=True):
 
 def chebyshev_derivative_matrix(order):
     if order == 0:
-        pts = np.array([1], float)
-        derivative_matrix = np.array([0], float)
+        pts = np.array([1], dtype=float)
+        derivative_matrix = np.array([0], dtype=float)
     else:
         # this is reverse order used by matlab cheb function
         pts = -np.cos(np.linspace(0., np.pi, order+1))
-        scalars = np.ones((order+1), float)
+        scalars = np.ones((order+1), dtype=float)
         scalars[0] = 2.
         scalars[order] = 2.
         scalars[1:order+1:2] *= -1
-        derivative_matrix = np.empty((order+1, order+1), float)
+        derivative_matrix = np.empty((order+1, order+1), dtype=float)
         for ii in range(order+1):
             row_sum = 0.
             for jj in range(order+1):
@@ -114,7 +112,7 @@ def fourier_basis(order, samples):
     npts = (order+1)
     h = 2*np.pi/npts
     pts = h*np.arange(1, npts+1)
-    II = np.where(samples==2*np.pi)[0]
+    II = np.where(samples == 2*np.pi)[0]
     samples[II] = 0
     xx = samples[:, None]-pts[None, :]
     vals = np.sin(np.pi*xx/h)/(2*np.pi/h*np.tan(xx/2))
@@ -223,7 +221,7 @@ def kronecker_product_2d(matrix1, matrix2):
     assert matrix1.ndim == 2
     block_num_rows = matrix1.shape[0]
     matrix_num_rows = block_num_rows**2
-    matrix = np.empty((matrix_num_rows, matrix_num_rows), float)
+    matrix = np.empty((matrix_num_rows, matrix_num_rows), dtype=float)
 
     # loop through blocks
     start_col = 0
@@ -440,16 +438,33 @@ class CanonicalCollocationMesh():
             compute_barycentric_weights_1d(xx) for xx in canonical_mesh_pts_1d]
 
         if self.nphys_vars == 1:
-            canonical_deriv_mats = [canonical_deriv_mats_1d[0]]
+            canonical_deriv_mats = [
+                torch.as_tensor(
+                    canonical_deriv_mats_1d[0], dtype=torch.double)]
         else:
             # assumes that 2d-mesh_pts varies in x1 faster than x2,
             # e.g. points are
             # [[x11,x21],[x12,x21],[x13,x12],[x11,x22],[x12,x22],...]
+
+            # The following fails with PyTorch 2.3.0
+            # I thought it may have been caused by converting numpy to tensor
+            # but this code suggests it is not that explicitly.
+            # What is confusing is this works in ipython as standalone code
+            # For now setting setup to only use pytorch<=2.2
+            # mat1 = torch.eye(31, dtype=torch.double)
+            # mat2 = torch.ones((31, 31), dtype=torch.double)
+            # C = torch.kron(mat1, mat2)
+            # print("A", C.shape)
             canonical_deriv_mats = [
-                np.kron(np.eye(self._orders[1]+1), canonical_deriv_mats_1d[0]),
-                np.kron(canonical_deriv_mats_1d[1], np.eye(self._orders[0]+1))]
-        canonical_deriv_mats = [torch.as_tensor(mat, dtype=torch.double)
-                                for mat in canonical_deriv_mats]
+                torch.kron(
+                    torch.eye(self._orders[1]+1, dtype=torch.double),
+                    torch.as_tensor(canonical_deriv_mats_1d[0],
+                                    dtype=torch.double)),
+                torch.kron(
+                    torch.as_tensor(canonical_deriv_mats_1d[1],
+                                    dtype=torch.double),
+                    torch.eye(self._orders[0]+1, dtype=torch.double))]
+
         canonical_mesh_pts = cartesian_product(canonical_mesh_pts_1d)
 
         return (canonical_mesh_pts_1d, canonical_deriv_mats_1d,

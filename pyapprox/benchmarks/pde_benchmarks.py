@@ -319,7 +319,6 @@ def _setup_advection_diffusion_benchmark(
         kle_mean_field=0.):
     variable = IndependentMarginalsVariable([stats.norm(0, 1)]*nvars)
     orders = np.asarray(orders, dtype=int)
-
     domain_bounds = [0, 1, 0, 1]
     mesh = CartesianProductCollocationMesh(domain_bounds, orders)
     # bndry_conds = [
