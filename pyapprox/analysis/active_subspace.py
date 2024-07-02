@@ -436,7 +436,7 @@ def sort_2d_vertices_by_polar_angle(vertices):
     # sort by polar angle
     sorted_vertices = np.array(
         sorted(vertices.T,
-               key=lambda p: np.atan2(p[1]-cent[1], p[0]-cent[0]))).T
+               key=lambda p: np.arctan2(p[1]-cent[1], p[0]-cent[0]))).T
     return sorted_vertices
 
 
