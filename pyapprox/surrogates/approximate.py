@@ -46,7 +46,7 @@ from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
 from pyapprox.surrogates.neural_networks import NeuralNetwork
-
+from pyapprox.surrogates.polychaos.bf_boosting import fit_pce_with_bf_boosting, fit_pce_with_sketch
 
 class ApproximateResult(OptimizeResult):
     pass
@@ -267,7 +267,9 @@ def adaptive_approximate_sparse_grid(
 def adaptive_approximate_polynomial_chaos(
         fun, variable, method="leja", options={}):
     methods = {"leja": adaptive_approximate_polynomial_chaos_leja,
-               "induced": adaptive_approximate_polynomial_chaos_induced}
+               "induced": adaptive_approximate_polynomial_chaos_induced,
+               "sketched": adaptive_approximate_polynomial_chaos_sketched,
+               "bf_boosted": adaptive_approximate_polynomial_chaos_bf_boosted}
     # "random": adaptive_approximate_polynomial_chaos_random}
 
     if method not in methods:
@@ -457,6 +459,133 @@ def adaptive_approximate_polynomial_chaos_induced(
     pce.build(callback)
     return ApproximateResult({'approx': pce})
 
+def adaptive_approximate_polynomial_chaos_sketched(
+        fun, variables, 
+        degree=None, samples=None, no_samp=None,
+        sketch_sz=None, sketch_type="leverage_score"):
+    r"""
+    Compute a Polynomial Chaos Expansion of a function based upon
+    sketched LSQ solve of the basis matrix and RHS
+
+    Parameters
+    ----------
+    fun : callable
+        The function to be minimized
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,nqoi)
+
+    variables : IndependentMarginalsVariable
+        A set of independent univariate random variables
+
+    degree: Maximum Degree of the polynomial basis 
+
+    samples: Samples that we will evaluate the RHS an pce at
+    
+    no_samp: (if samples is not provided) we will sample this many samples from the variables
+
+    sketch_sz: Number of rows sketched 
+
+    sketch_type: Defines the choice of sketcher the following are available
+        "qr": QRSketcher
+        "uniform": UniformSketcher
+        "leverage_score": LeverageScoreSketcher
+    
+    Returns
+    -------
+    result : :class:`pyapprox.surrogates.approximate.ApproximateResult`
+         Result object with the following attributes
+
+    approx: :class:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion`
+        The PCE approximation
+    """
+    assert degree is not None, "Must set maximum degree of polynomial basis "
+    assert samples is not None or no_samp is not None, "Must provide samples or number of samples"
+    assert sketch_sz is not None, "Must set the number of rows to be sketched"
+
+    var_trans = AffineTransform(variables)
+    poly_opts = define_poly_options_from_variable_transformation(var_trans)
+    if samples is None: samples = variables.rvs(no_samp)
+    pce = PolynomialChaosExpansion()
+    pce.configure(poly_opts)
+    # TODO: extend to other types of indices
+    indices = compute_hyperbolic_indices( pce.num_vars(), degree)
+    pce.set_indices(indices)
+    pce.basis_matrix(samples)
+    pce = fit_pce_with_sketch(pce, fun, samples, sketch_sz, sketch_type)
+
+    return ApproximateResult({'approx': pce})
+
+def adaptive_approximate_polynomial_chaos_bf_boosted(
+        model_ensemble, variables, 
+        degree=None, samples=None, no_samp=None,
+        sketch_sz=None, no_trials=None, 
+        sketch_type="leverage_score"):
+    r"""
+    Compute a Polynomial Chaos Expansion of a function based on the algorithm 
+    presented in https://arxiv.org/abs/2209.05705 where low and high fidelity models
+    is present, but the high fidelity data is expensive to compute. The two models are
+    correlated, so with probabilistic guarantees, an optimal row sketch for the low fidelity 
+    model is close to an optimal row sketch for the high fidelity model
+
+        Parameters
+        ----------
+        model_ensemble : ModelEnsemble
+            An instance of the ModelEnsemble class in pyapprox.wrappers with both a 'hi'
+            and 'lo' named models corresponding to high/low fidelity models respectively
+
+            ``model_ensemble.evaluate_at_separated_samples(z,'low') -> np.ndarray``
+            ``model_ensemble.evaluate_at_separated_samples(z,'hi') -> np.ndarray``
+
+            where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+            output is a 2D np.ndarray with shape (nsamples,nqoi)
+
+        variables : IndependentMarginalsVariable
+            A set of independent univariate random variables
+
+        degree: Maximum degree of the polynomial basis 
+
+        samples: Samples that we will evaluate the RHS an pce at
+    
+        no_samp: (if samples is not provided) we will sample this many samples from the variables
+
+        sketch_sz: Number of rows sketched 
+
+        no_trials: Number of trials used when sketching low fidelity data
+
+        sketch_type: Defines the choice of sketcher the following are available
+            "uniform": UniformBifiBooster
+            "leverage_score": LeverageScoreBifiBooster
+
+        Returns
+        -------
+        result : :class:`pyapprox.surrogates.approximate.ApproximateResult`
+            Result object with the following attributes
+
+        approx: :class:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion`
+            The PCE approximation
+    """
+    assert degree is not None, "Must set maximum degree of polynomial basis "
+    assert samples is not None or no_samp is not None, "Must provide samples or number of samples"
+    assert sketch_sz is not None, "Must set the number of rows to be sketched"
+    assert no_trials is not None, "Must set the number of trials for low fidelity sketching"
+
+    var_trans = AffineTransform(variables)
+    poly_opts = define_poly_options_from_variable_transformation(var_trans)
+    # for comparison pass in the 
+    if samples is None: samples = variables.rvs(no_samp)
+
+    pce = PolynomialChaosExpansion()
+    pce.configure(poly_opts)
+    # TODO: extend to other types of indices
+    indices = compute_hyperbolic_indices(pce.num_vars(), degree)
+    pce.set_indices(indices)
+    pce.basis_matrix(samples)
+    pce = fit_pce_with_bf_boosting(pce, model_ensemble, samples, sketch_sz, no_trials, sketch_type)
+
+    return ApproximateResult({'approx': pce})
 
 def adaptive_approximate_polynomial_chaos_leja(
         fun, variables,
@@ -947,7 +1076,6 @@ def approximate_neural_network(train_samples, train_vals,
     network.fit(train_samples, train_vals, x0, verbose=verbosity,
                 opts=optimizer_opts)
     return ApproximateResult({'approx': network})
-
 
 def approximate(train_samples, train_vals, method, options=None):
     r"""
@@ -1625,7 +1753,7 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
     return pce, best_cv_score, best_reg_param
 
 
-def approximate_fixed_pce(pce, train_samples, train_vals, indices,
+def approximate_fixed_pce(pce, train_samples, train_vals, indices=None,
                           verbose=1, solver_type='lasso',
                           linear_solver_options={}):
     r"""
@@ -1670,6 +1798,7 @@ def approximate_fixed_pce(pce, train_samples, train_vals, indices,
     coefs = []
     if type(linear_solver_options) == dict:
         linear_solver_options = [linear_solver_options]*nqoi
+    assert indices is not None, 'indices must be specified for fixed pce'
     if type(indices) == np.ndarray:
         indices = [indices.copy() for ii in range(nqoi)]
     unique_indices = []
