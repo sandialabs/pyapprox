@@ -97,6 +97,7 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.isnan(mat)
 
     def _la_atleast1d(self, val, dtype=torch.double) -> torch.Tensor:
+        print(val)
         return torch.atleast_1d(
             torch.as_tensor(val, dtype=dtype))
 

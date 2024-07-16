@@ -43,11 +43,11 @@ jobs:
       - name: Setup PyApprox
         shell: bash -l {0}
         run: |
-          pip install -e . --no-build-isolation
+          python -m pip install -e . --no-build-isolation
       - name: Setup PyApprox Documentation
         shell: bash -l {0}
         run: |
-          pip install -e .[docs]
+          python -m pip install -e .[docs]
       - name: Create PyApprox Documentation
         shell: bash -l {0}
         run: |

@@ -202,7 +202,7 @@ class TestActiveSubspace(unittest.TestCase):
                                  (3*a**4+3*b**4+10*b**2*c**2+3*c**4+10*a**2*(b**2+c**2))/15.])
         moments = moments[sorted_idx]
         # ignore dummy values until I compute them analytically
-        II = np.where(true_moments != np.Inf)[0]
+        II = np.where(true_moments != np.inf)[0]
         assert np.allclose(moments[II], true_moments[II])
 
     def test_moments_of_active_subspace_II(self):

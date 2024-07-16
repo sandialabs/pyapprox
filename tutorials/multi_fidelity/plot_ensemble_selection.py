@@ -111,8 +111,7 @@ est_labels = ["{0}".format(est_dict[nmodels_list[ii]][best_est_indices[ii]][1])
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 _ = multifidelity.plot_estimator_variance_reductions(
     best_ests, est_labels, ax)
-ax.set_xlabel(mathrm_label("Low fidelity models"))
-plt.show()
+_ = ax.set_xlabel(mathrm_label("Low fidelity models"))
 
 #%%
 #Find the best estimator
@@ -156,5 +155,4 @@ est_labels = [
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 _ = multifidelity.plot_estimator_variance_reductions(
     best_ests, est_labels, ax)
-ax.set_xlabel(mathrm_label("Estimator types"))
-plt.show()
+_ = ax.set_xlabel(mathrm_label("Estimator types"))

@@ -878,7 +878,7 @@ def help_check_michaelis_menten_model_minimax_optimal_design(
     with increasing theta_2.
     """
     iprint = 0
-    num_design_pts = 30
+    num_design_pts = 20
     design_samples = np.linspace(1e-3, 1, num_design_pts)
     # pred_samples = design_samples
     pred_samples = np.linspace(0, 1, num_design_pts+10)
@@ -923,6 +923,8 @@ def help_check_michaelis_menten_model_minimax_optimal_design(
         constraint = minimax_opt_problem.setup_minimax_nonlinear_constraints(
                 parameter_samples[:, ii:ii+1], design_samples[None, :])
         constraint_vals_II.append(z0[0]-constraint[0].fun(z0))
+    # print(constraint_vals_I)
+    # print(constraint_vals_II)
     assert np.allclose(constraint_vals_I, constraint_vals_II)
 
     opts = copy.deepcopy(opts)

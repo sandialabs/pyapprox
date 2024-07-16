@@ -300,7 +300,7 @@ class AbstractKLE(ABC):
             # is that we cannot use autograd on quantities used to consturct K.
             # but the need for this is unlikely
             eig_vals, eig_vecs = eigh(
-                self._la_to_numpy(K), turbo=False,
+                self._la_to_numpy(K),  # turbo=False,
                 subset_by_index=(K.shape[0]-self._nterms, K.shape[0]-1))
             eig_vals = self._la_atleast1d(eig_vals)
             eig_vecs = self._la_atleast2d(eig_vecs)
