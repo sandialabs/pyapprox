@@ -1,9 +1,11 @@
 name: Build and Test Using Pip
 
 on:
-  push:
-    # branches: [master, devel]
-    branches: [master]
+  # push:
+  # branches: [master, devel]
+  # branches: [master]
+  pull_request:
+    branches: [devel]
 
   workflow_dispatch:
 
@@ -15,13 +17,13 @@ on:
 
 jobs:
   pyapprox_unit_tests:
-    name: Setup Pyapprox dependencies with pip
+    name: Test pip-based build
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest]
-        python-version: [3.8, 3.9, '3.10', '3.11']
+        python-version: [3.9, '3.10', '3.11']
         # exclude:
         #  # stalls on github actions
         #  - os: ubuntu-latest
@@ -38,7 +40,7 @@ jobs:
           python -m pip install --upgrade pip
       - name: Setup PyApprox
         run: |
-          pip install -e .
+          python -m pip install -e .
       - name: Test PyApprox
         run: |
           pytest -s --cov-report term --cov=pyapprox

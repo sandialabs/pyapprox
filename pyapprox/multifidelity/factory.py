@@ -555,7 +555,7 @@ class SingleQoiAndStatComparisonCriteria(ComparisonCriteria):
         if self._stat_type != "mean" and isinstance(
                 est._stat, MultiOutputMeanAndVariance):
             return (
-                est_covariance[est.nqoi+self._qoi_idx,
+                est_covariance[est._nqoi+self._qoi_idx,
                                est._nqoi+self._qoi_idx])
         elif (isinstance(
                 est._stat, (MultiOutputVariance, MultiOutputMean)) or
@@ -570,7 +570,7 @@ class SingleQoiAndStatComparisonCriteria(ComparisonCriteria):
 
 def compute_variance_reductions(optimized_estimators,
                                 criteria=ComparisonCriteria("det"),
-                                nhf_samples=None):
+                                nhf_samples=None, pilot_cost=None):
     """
     Compute the variance reduction (relative to single model MC) for a
     list of optimized estimtors.
@@ -597,6 +597,11 @@ def compute_variance_reductions(optimized_estimators,
         evaluations that produce a estimator cost equal to the optimized
         target cost of the estimator is used. Usually, nhf_samples should be
         set to None.
+
+    pilot_cost : float
+        The cost of running the pilot study. if not None this is used to
+        determine the number of high-fidelity samples used by a single
+        fidelity MC study that does not need a pilot
     """
     var_red, est_criterias, sf_criterias = [], [], []
     optimized_estimators = optimized_estimators.copy()
@@ -606,7 +611,16 @@ def compute_variance_reductions(optimized_estimators,
         est_criteria = criteria(est._covariance_from_npartition_samples(
             est._rounded_npartition_samples), est)
         if nhf_samples is None:
-            nhf_samples = int(est._rounded_target_cost/est._costs[0])
+            if pilot_cost is None:
+                nhf_samples = int(est._rounded_target_cost/est._costs[0])
+            else:
+                nhf_samples = int(
+                    (est._rounded_target_cost+pilot_cost)/est._costs[0])
+        else:
+            if pilot_cost is not None:
+                msg = "pilot cost was specified even though nhf_samples was "
+                msg += "not None"
+                raise ValueError(msg)
         sf_criteria = criteria(
             est._stat.high_fidelity_estimator_covariance(
                 nhf_samples), est)

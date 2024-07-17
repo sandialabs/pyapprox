@@ -1,9 +1,11 @@
 name: Build and Test Using Conda
 
 on:
-  push:
-    # branches: [master, devel]
-    branches: [master]
+  # push:
+  # branches: [master, devel]
+  # branches: [master]
+  pull_request:
+    branches: [devel]
 
   workflow_dispatch:
 
@@ -15,21 +17,14 @@ on:
 
 jobs:
   pyapprox_unit_tests:
-    name: Setup Pyapprox dependencies with conda
+    name: Setup conda-based build
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # os: [ubuntu-latest]
-        # pin to python-3.7.16 because github actions has a bug with _bz2 on
-        # ubunutu for 3.7.17
         # quotes needed around two-digit versions
-        python-version: [3.8, 3.9, '3.10', '3.11']
+        python-version: [3.9, '3.10', '3.11']
         os: [ubuntu-latest, macos-latest]
-        # python-version: [3.7, 3.8] #3.8 currently fails due to numpy error
-        # solely experienced when using github actions ValueError:
-        # numpy.ndarray size changed, may indicate binary incompatibility.
-        # Expected 96 from C header, got 88 from PyObject
 
     steps:
       - uses: actions/checkout@v4
@@ -38,11 +33,9 @@ jobs:
         with:
           activate-environment: pyapprox-base
           python-version: ${{ matrix.python-version }}
-          # channels: defaults,conda-forge
           channels: defaults
           environment-file: environment.yml
           auto-update-conda: true
-          # use-only-tar-bz2: true
           auto-activate-base: false
       - name: Conda list
         shell: bash -l {0}  # - l {0} is needed to activate created env
@@ -52,7 +45,7 @@ jobs:
       - name: Setup PyApprox
         shell: bash -l {0}
         run: |
-          pip install -e .
+          python -m pip install -e .
       - name: Test PyApprox
         shell: bash -l {0}
         run: |

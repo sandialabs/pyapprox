@@ -887,7 +887,7 @@ class TestMultifidelityGaussianProcess(unittest.TestCase):
         train_values = [f(x) for f, x in zip(models, train_samples)]
 
         gp = MultifidelityGaussianProcess(
-            kernel, alpha=1e-10, n_restarts_optimizer=0)
+            kernel, alpha=1e-10, n_restarts_optimizer=3)
         gp.set_data(train_samples, train_values)
         # print(gp.kernel.nsamples_per_model)
 

@@ -5,8 +5,6 @@ from scipy.special import comb as nchoosek
 from pyapprox.util.utilities import cartesian_product
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.sys_utilities import trace_error_with_msg
-from pyapprox.util.visualization import (
-    get_meshgrid_function_data, create_3d_axis, mpl, plot_surface)
 
 
 def compute_barycentric_weights_1d(samples, interval_length=None,
@@ -101,7 +99,8 @@ def barycentric_interpolation_1d(abscissa, weights, vals, eval_samples):
     with warnings.catch_warnings():
         # avoid division by zero warning
         warnings.simplefilter("ignore")
-        return _barycentric_interpolation_1d(abscissa, weights, vals, eval_samples)
+        return _barycentric_interpolation_1d(
+            abscissa, weights, vals, eval_samples)
 
 
 def barycentric_lagrange_interpolation_precompute(

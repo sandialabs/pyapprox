@@ -164,7 +164,10 @@ class TimeIntegratorUpdate(ABC):
         raise NotImplementedError
 
     def integrate(self, times, sols):
-        return self._basis.integrate(times, sols)
+        self._basis.set_nodes(times[None, :])
+        quad_weights = self._basis.quadrature_rule()[1]
+        active_indices = self._basis._active_node_indices_for_quadrature()
+        return (quad_weights*sols[active_indices].sum(axis=0))
 
 
 class ImplicitTimeIntegratorUpdate(TimeIntegratorUpdate):

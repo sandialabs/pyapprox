@@ -446,12 +446,6 @@ class UnivariateBasis(ABC):
         self._check_samples(samples)
         return samples, weights
 
-    def integrate(self, vals):
-        weights = self.quadrature_rule()[1]
-        if vals.ndim != 2 or vals.ndim != weights.shape[0]:
-            raise ValueError("vals and weights are inconsistent")
-        return (weights[:, None]*vals).sum()
-
     @abstractmethod
     def nterms(self):
         raise NotImplementedError
@@ -471,11 +465,11 @@ class UnivariateInterpolatingBasis(UnivariateBasis):
         self._nodes = nodes
 
     @abstractmethod
-    def _evaluate_from_nodes(self):
+    def _evaluate_from_nodes(self, nodes):
         raise NotImplementedError
 
     @abstractmethod
-    def _quadrature_rule_from_nodes(self):
+    def _quadrature_rule_from_nodes(self, nodes):
         raise NotImplementedError
 
     def _evaluate(self, samples):
@@ -495,6 +489,9 @@ class UnivariateInterpolatingBasis(UnivariateBasis):
         return "{0}(nnodes={1})".format(
             self.__class__.__name__, self.nterms())
 
+    def _active_node_indices_for_quadrature(self):
+        return np.arange(self.nterms())
+
 
 class UnivariatePiecewiseLeftConstantBasis(UnivariateInterpolatingBasis):
     @staticmethod
@@ -507,6 +504,9 @@ class UnivariatePiecewiseLeftConstantBasis(UnivariateInterpolatingBasis):
 
     def nterms(self):
         return self._nodes.shape[1]-1
+
+    def _active_node_indices_for_quadrature(self):
+        return np.arange(self.nterms()-1)
 
 
 class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
@@ -522,6 +522,9 @@ class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
     def nterms(self):
         return self._nodes.shape[1]-1
 
+    def _active_node_indices_for_quadrature(self):
+        return np.arange(1, self.nterms())
+
 
 class UnivariatePiecewiseMidPointConstantBasis(UnivariateInterpolatingBasis):
     @staticmethod
@@ -535,6 +538,9 @@ class UnivariatePiecewiseMidPointConstantBasis(UnivariateInterpolatingBasis):
 
     def nterms(self):
         return self._nodes.shape[1]-1
+
+    def _active_node_indices_for_quadrature(self):
+        raise ValueError("Quadrature points do not coincide with nodes")
 
 
 class UnivariatePiecewiseLinearBasis(UnivariateInterpolatingBasis):

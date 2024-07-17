@@ -22,7 +22,7 @@ from pyapprox.pde.galerkin.solvers import SteadyStatePDE as FEMSteadyStatePDE
 from skfem.visuals.matplotlib import plot, plt
 from skfem import MeshQuad, Functional
 from pyapprox.pde.galerkin.meshes import init_gappy
-from pyapprox.pde.karhunen_loeve_expansion import MeshKLE
+from pyapprox.pde.kle.torchkle import TorchMeshKLE
 
 
 def full_fun_axis_0(fill_val, xx, oned=True):
@@ -832,7 +832,7 @@ class TurbineBladeModel():
         self._common_mesh_pts_dict = common_matrix_rows(mesh_pts.T)
         unique_indices = np.array(
             [item[0] for key, item in self._common_mesh_pts_dict.items()])
-        kle = MeshKLE(mesh_pts[:, unique_indices], use_log=True)
+        kle = TorchMeshKLE(mesh_pts[:, unique_indices], use_log=True)
         kle.compute_basis(length_scale, sigma, nterms)
         return kle, mesh_pts
 
