@@ -184,6 +184,7 @@ class TestIntegralOperators(unittest.TestCase):
         b = tw.asarray(np.random.normal(0, 1, (N1, 1)))
         XX = tw.asarray(np.random.normal(0, 1, (N0, 20)))
         YY = W @ XX + b
+        XX, YY = XX[:, None, :], YY[:, None, :]
         ctn = CERTANN(N0, [Layer([DenseAffineIntegralOperator(N0, N1)])],
                       [IdentityActivation()])
         ctn.fit(XX, YY, tol=1e-14)
@@ -210,6 +211,7 @@ class TestIntegralOperators(unittest.TestCase):
         W = iop._weights_biases.get_values()[:-N1].reshape(iop._noutputs,
                                                            iop._ninputs)
         YY = W @ XX + b
+        XX, YY = XX[:, None, :], YY[:, None, :]
         assert np.allclose(iop._integrate(XX), YY), 'Quadrature error'
         assert np.allclose(iop._hyp_list.nactive_vars(), N0*N1), ('Dimension '
                'mismatch')

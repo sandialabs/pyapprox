@@ -191,7 +191,7 @@ class DenseAffineIntegralOperator(IntegralOperator):
             return einsum('ijkl,jlm->ikm', W, y_k_samples) + b[..., None]
         else:
             # handle separately for speed
-            return W[..., 0, 0] @ y_k_samples[..., 0, :] + b
+            return (W[..., 0, 0] @ y_k_samples[..., 0, :] + b)[..., None, :]
 
 
 class DenseAffineIntegralOperatorFixedBias(DenseAffineIntegralOperator):
