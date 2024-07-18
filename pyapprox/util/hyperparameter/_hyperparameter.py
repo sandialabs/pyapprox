@@ -47,7 +47,7 @@ class HyperParameter:
         if self._values.shape[0] != self.nvars():
             raise ValueError(
                 "values shape {0} inconsistent with nvars {1}".format(
-                    self._values.shape, self._nvars()))
+                    self._values.shape, self.nvars()))
         self.bounds = self._la_atleast1d(bounds)
         if self.bounds.shape[0] == 2:
             self.bounds = self._la_repeat(self.bounds, self.nvars())

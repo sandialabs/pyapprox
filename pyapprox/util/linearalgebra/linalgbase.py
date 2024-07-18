@@ -281,3 +281,11 @@ class LinAlgMixin(ABC):
         stdev_inv = 1/self._la_sqrt(self._la_get_diagonal(cov))
         cor = stdev_inv[None, :]*cov*stdev_inv[:, None]
         return cor
+
+    def _la_lstsq(self, Amat, Bmat):
+        """Solve the linear system Ax=b."""
+        raise NotImplementedError()
+
+    def _la_argmax(array):
+        """Return the index of the maximum value in an array."""
+        raise NotImplementedError()

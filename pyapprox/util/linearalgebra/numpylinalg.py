@@ -157,3 +157,9 @@ class NumpyLinAlgMixin(LinAlgMixin):
     def _la_allclose(self, Amat: np.ndarray, Bmat: np.ndarray,
                      **kwargs) -> bool:
         return np.allclose(Amat, Bmat, **kwargs)
+
+    def _la_lstsq(self, Amat, Bmat):
+        return np.linalg.lstsq(Amat, Bmat, rcond=None)[0]
+
+    def _la_argmax(self, array):
+        return np.argmax(array)

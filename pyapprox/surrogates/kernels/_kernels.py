@@ -4,6 +4,8 @@ from pyapprox.util.hyperparameter._hyperparameter import CombinedHyperParameter
 
 
 class Kernel(ABC):
+    """The base class for any kernel."""
+    
     def diag(self, X1):
         """Return the diagonal of the kernel matrix."""
         return self._la_get_diagonal(self(X1))

@@ -175,3 +175,9 @@ class TorchLinAlgMixin(LinAlgMixin):
     def _la_allclose(self, Amat: torch.Tensor, Bmat: torch.Tensor,
                      **kwargs) -> bool:
         return torch.allclose(Amat, Bmat, **kwargs)
+
+    def _la_lstsq(self, Amat, Bmat):
+        return torch.linalg.lstsq(Amat, Bmat, rcond=None)[0]
+
+    def _la_argmax(self, array):
+        return torch.argmax(array)
