@@ -572,7 +572,6 @@ def cholesky_inverse(L):
     rhs = np.eye(L.shape[0])
     L_inv = solve_triangular(L, rhs, lower=True)
     return L_inv
-    
 
 
 def update_cholesky_factorization(L_11, A_12, A_22):

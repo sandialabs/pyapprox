@@ -1,4 +1,5 @@
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
+from pyapprox.util.hyperparameter._hyperparameter import HyperParameter
 
 
 class Monomial():
@@ -8,8 +9,8 @@ class Monomial():
         self.degree = degree
         self.indices = compute_hyperbolic_indices(self.nvars(), self.degree)
         self.nterms = self.indices.shape[1]
-        self._coef = self._HyperParameter(
-            name, self.nterms, coefs, coef_bounds, transform)
+        self._coef = HyperParameter(
+            name, self.nterms, coefs, coef_bounds, transform, backend=self)
         self.hyp_list = self._HyperParameterList([self._coef])
 
     def nvars(self):

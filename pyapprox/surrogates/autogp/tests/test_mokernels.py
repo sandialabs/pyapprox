@@ -169,16 +169,17 @@ class TestMultiOutputKernels(unittest.TestCase):
     def _check_coregionalization_kernel(
             self, noutputs, MaternKernel, SphericalCovariance):
         nvars = 1
-        nsamples_per_output_0 = np.arange(2, 2+noutputs)[::-1]
         latent_kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars)
+        nsamples_per_output_0 = latent_kernel._la_array(
+            np.arange(2, 2+noutputs)[::-1].copy(), dtype=int)
         radii = latent_kernel._la_arange(1, noutputs+1)
         radii_bounds = [0.1, 10]
         angles = np.pi/4
         output_kernel = SphericalCovariance(
             noutputs, radii, radii_bounds, angles=angles)
         kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
-        base_training_samples = np.random.uniform(
-            -1, 1, (nvars, nsamples_per_output_0[0]))
+        base_training_samples = latent_kernel._la_array(np.random.uniform(
+            -1, 1, (nvars, nsamples_per_output_0[0])))
         # samples must be nested for tests to work
         samples_per_output = [
             latent_kernel._la_atleast2d(base_training_samples[:, :nsamples])
@@ -359,6 +360,4 @@ class TestMultiOutputKernels(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    multioutput_kernels_test_suite = (
-        unittest.TestLoader().loadTestsFromTestCase(TestMultiOutputKernels))
-    unittest.TextTestRunner(verbosity=2).run(multioutput_kernels_test_suite)
+    unittest.main()

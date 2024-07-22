@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
 import math
-from pyapprox.util.hyperparameter._hyperparameter import CombinedHyperParameter
+from pyapprox.util.hyperparameter._hyperparameter import (
+    CombinedHyperParameter, HyperParameter, HyperParameterList,
+    IdentityHyperParameterTransform, LogHyperParameterTransform)
+from pyapprox.util.transforms._transforms import SphericalCorrelationTransform
 
 
 class Kernel(ABC):
     """The base class for any kernel."""
-    
+
     def diag(self, X1):
         """Return the diagonal of the kernel matrix."""
         return self._la_get_diagonal(self(X1))
@@ -79,14 +82,15 @@ class SumKernel(CompositionKernel):
 
 class MaternKernel(Kernel):
     def __init__(self, nu: float,
-                 lenscale, lenscale_bounds, nvars: int,
-                 transform):
+                 lenscale, lenscale_bounds, nvars: int):
         """The matern kernel for varying levels of smoothness."""
         self._nvars = nvars
         self.nu = nu
-        self._lenscale = self._HyperParameter(
-            "lenscale", nvars, lenscale, lenscale_bounds, transform)
-        self.hyp_list = self._HyperParameterList([self._lenscale])
+        transform = LogHyperParameterTransform(backend=self)
+        self._lenscale = HyperParameter(
+            "lenscale", nvars, lenscale, lenscale_bounds, transform,
+            backend=self)
+        self.hyp_list = HyperParameterList([self._lenscale])
 
     def diag(self, X1):
         return self._la_full((X1.shape[1],), 1)
@@ -117,12 +121,14 @@ class MaternKernel(Kernel):
 
 
 class ConstantKernel(Kernel):
-    def __init__(self, constant, transform, constant_bounds=None):
+    def __init__(self, constant, constant_bounds=None, transform=None):
+        if transform is None:
+            transform = IdentityHyperParameterTransform(backend=self)
         if constant_bounds is None:
             constant_bounds = [-self._la_inf(), self._la_inf()]
-        self._const = self._HyperParameter(
-            "const", 1, constant, constant_bounds, transform)
-        self.hyp_list = self._HyperParameterList([self._const])
+        self._const = HyperParameter(
+            "const", 1, constant, constant_bounds, transform, backend=self)
+        self.hyp_list = HyperParameterList([self._const])
 
     def diag(self, X1):
         return self._la_full((X1.shape[1],), self.hyp_list.get_values()[0])
@@ -138,10 +144,11 @@ class ConstantKernel(Kernel):
 
 
 class GaussianNoiseKernel(Kernel):
-    def __init__(self, constant, transform, constant_bounds=None):
-        self._const = self._HyperParameter(
-            "const", 1, constant, constant_bounds, transform)
-        self.hyp_list = self._HyperParameterList([self._const])
+    def __init__(self, constant, constant_bounds=None):
+        self._const = HyperParameter(
+            "const", 1, constant, constant_bounds,
+            LogHyperParameterTransform(backend=self), backend=self)
+        self.hyp_list = HyperParameterList([self._const])
 
     def diag(self, X):
         return self._la_full((X.shape[1],), self.hyp_list.get_values()[0])
@@ -161,13 +168,15 @@ class PeriodicMaternKernel(MaternKernel):
                  period,
                  period_bounds,
                  lenscale,
-                 lenscale_bounds,
-                 lenscale_transform,
-                 period_transform):
+                 lenscale_bounds):
+        
+        lenscale_transform = LogHyperParameterTransform(backend=self),
+        period_transform = LogHyperParameterTransform(backend=self)
         super().__init__(nu, lenscale, lenscale_bounds, 1, lenscale_transform)
-        self._period = self._HyperParameter(
-            "period", 1, lenscale, lenscale_bounds, period_transform)
-        self.hyp_list += self._HyperParameterList([self._period])
+        self._period = HyperParameter(
+            "period", 1, lenscale, lenscale_bounds, period_transform,
+            backend=self)
+        self.hyp_list += HyperParameterList([self._period])
 
     def __call__(self, X, Y=None):
         if Y is None:
@@ -192,10 +201,10 @@ class HilbertSchmidtKernel(Kernel):
         self._basis = basis
         self._nterms = basis.nterms()**2
         self._normalize = normalize
-        self._weights = self._HyperParameter(
+        self._weights = HyperParameter(
             "weights", self._nterms, weights, weight_bounds,
-            transform)
-        self.hyp_list = self._HyperParameterList([self._weights])
+            transform, backend=self)
+        self.hyp_list = HyperParameterList([self._weights])
 
     def _get_weights(self):
         return self._la_reshape(
@@ -220,9 +229,9 @@ class SphericalCovarianceHyperParameter(CombinedHyperParameter):
         super().__init__(hyper_params)
         self.cov_matrix = None
         self.name = "spherical_covariance"
-        self.transform = self._IdentityHyperParameterTransform()
+        self.transform = IdentityHyperParameterTransform(backend=self)
         noutputs = hyper_params[0].nvars()
-        self._trans = self._SphericalCorrelationTransform(noutputs)
+        self._trans = SphericalCorrelationTransform(noutputs, backend=self)
         self._set_covariance_matrix()
 
     def _set_covariance_matrix(self):
@@ -240,22 +249,30 @@ class SphericalCovarianceHyperParameter(CombinedHyperParameter):
 
 
 class SphericalCovariance:
-    def __init__(self, noutputs, radii_transform, angle_transform,
+    def __init__(self, noutputs, radii_transform=None, angle_transform=None,
                  radii=1, radii_bounds=[1e-1, 1],
                  angles=math.pi/2, angle_bounds=[0, math.pi]):
         # Angle bounds close to zero can create zero on the digaonal
         # E.g. for speherical coordinates sin(0) = 0
+        if radii_transform is None:
+            radii_transform = IdentityHyperParameterTransform(
+                backend=self)
+        if angle_transform is None:
+            angle_transform = IdentityHyperParameterTransform(
+                backend=self)
+
         self.noutputs = noutputs
-        self._trans = self._SphericalCorrelationTransform(self.noutputs)
+        self._trans = SphericalCorrelationTransform(
+            self.noutputs, backend=self)
         self._validate_bounds(radii_bounds, angle_bounds)
-        self._radii = self._HyperParameter(
-            "radii", self.noutputs, radii, radii_bounds, radii_transform)
-        self._angles = self._HyperParameter(
+        self._radii = HyperParameter(
+            "radii", self.noutputs, radii, radii_bounds, radii_transform,
+            backend=self)
+        self._angles = HyperParameter(
             "angles", self._trans.ntheta-self.noutputs, angles, angle_bounds,
-            angle_transform)
-        self.hyp_list = self._HyperParameterList(
-            [self._SphericalCovarianceHyperParameter(
-                [self._radii, self._angles])])
+            angle_transform, backend=self)
+        self.hyp_list = HyperParameterList(
+            [SphericalCovarianceHyperParameter([self._radii, self._angles])])
 
     def _validate_bounds(self, radii_bounds, angle_bounds):
         bounds = self._trans.get_spherical_bounds()

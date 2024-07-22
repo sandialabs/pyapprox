@@ -9,8 +9,8 @@ class TorchLinAlgMixin(LinAlgMixin):
     def _la_dot(self, Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return Amat @ Bmat
 
-    def _la_eye(self, nrows: int) -> torch.Tensor:
-        return torch.eye(nrows)
+    def _la_eye(self, nrows: int, dtype=torch.double) -> torch.Tensor:
+        return torch.eye(nrows, dtype=dtype)
 
     def _la_inv(self, matrix: torch.Tensor) -> torch.Tensor:
         return torch.linalg.inv(matrix)
@@ -62,6 +62,9 @@ class TorchLinAlgMixin(LinAlgMixin):
     def _la_vstack(self, arrays) -> torch.Tensor:
         return torch.vstack(arrays)
 
+    def _la_stack(self, arrays, axis=0) -> torch.Tensor:
+        return torch.stack(arrays, dim=axis)
+
     def _la_dstack(self, arrays) -> torch.Tensor:
         return torch.dstack(arrays)
 
@@ -93,11 +96,13 @@ class TorchLinAlgMixin(LinAlgMixin):
     def _la_get_diagonal(self, mat: torch.Tensor) -> torch.Tensor:
         return torch.diagonal(mat)
 
+    def _la_diag(self, array, k=0):
+        return torch.diag(array, diagonal=k)
+
     def _la_isnan(self, mat) -> torch.Tensor:
         return torch.isnan(mat)
 
     def _la_atleast1d(self, val, dtype=torch.double) -> torch.Tensor:
-        print(val)
         return torch.atleast_1d(
             torch.as_tensor(val, dtype=dtype))
 
@@ -181,3 +186,29 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     def _la_argmax(self, array):
         return torch.argmax(array)
+
+    def _la_max(self, array, axis=None):
+        # torch returns both max and indices
+        return torch.max(array, dim=axis)[0]
+
+    def _la_min(self, array, axis=None):
+        # torch returns both min and indices
+        return torch.min(array, dim=axis)[0]
+
+    def _la_block(self, blocks):
+        return torch.cat([torch.cat(row, dim=1) for row in blocks], dim=0)
+
+    def _la_sum(self, matrix, axis=None):
+        return torch.sum(matrix, dim=axis)
+
+    def _la_count_nonzero(self, matrix, axis=None):
+        return torch.count_nonzero(matrix, dim=axis)
+
+    def _la_array(self, array, dtype=torch.double):
+        return torch.as_tensor(array, dtype=dtype)
+
+    def _la_eigh(self, matrix):
+        return torch.linalg.eigh(matrix)
+
+    def _la_isfinite(self, matrix):
+        return torch.isfinite(matrix)

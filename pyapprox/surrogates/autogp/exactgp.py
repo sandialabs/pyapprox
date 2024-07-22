@@ -6,17 +6,22 @@ import numpy as np
 import torch
 import scipy
 
+from pyapprox.interface.model import Model
 from pyapprox.surrogates.autogp.mokernels import MultiPeerKernel
+from pyapprox.surrogates.bases._basisexp import BasisExpansion
+from pyapprox.surrogates.kernels._kernels import Kernel
+from pyapprox.util.transforms._transforms import Transform
 
 
-class ExactGaussianProcess(ABC):
+class ExactGaussianProcess(Model):
     def __init__(self,
-                 nvars,
-                 kernel,
-                 var_trans,
-                 values_trans,
-                 mean,
-                 kernel_reg):
+                 nvars: int,
+                 kernel: Kernel,
+                 var_trans: Transform,
+                 values_trans: Transform,
+                 mean: BasisExpansion,
+                 kernel_reg: float):
+        super().__init__()
         self.kernel = kernel
         self.mean = mean
         self.kernel_reg = kernel_reg

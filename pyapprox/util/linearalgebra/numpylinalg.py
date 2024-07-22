@@ -10,8 +10,8 @@ class NumpyLinAlgMixin(LinAlgMixin):
     def _la_dot(self, Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
         return np.dot(Amat, Bmat)
 
-    def _la_eye(self, nrows: int) -> np.ndarray:
-        return np.eye(nrows)
+    def _la_eye(self, nrows: int, dtype=float) -> np.ndarray:
+        return np.eye(nrows, dtype=dtype)
 
     def _la_inv(self, matrix: np.ndarray) -> np.ndarray:
         return np.linalg.inv(matrix)
@@ -55,7 +55,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.linalg.multi_dot(matrix_list)
 
     def _la_prod(self, matrix_list: np.ndarray, axis=None) -> np.ndarray:
-        return np.prod(matrix_list, dim=axis)
+        return np.prod(matrix_list, axis=axis)
 
     def _la_hstack(self, arrays) -> np.ndarray:
         return np.hstack(arrays)
@@ -63,10 +63,13 @@ class NumpyLinAlgMixin(LinAlgMixin):
     def _la_vstack(self, arrays) -> np.ndarray:
         return np.vstack(arrays)
 
+    def _la_stack(self, arrays, axis=0) -> np.ndarray:
+        return np.stack(arrays, axis=axis)
+
     def _la_dstack(self, arrays) -> np.ndarray:
         return np.dstack(arrays)
 
-    def _la_arange(self, *args) -> np.ndarray:
+    def _la_arange(self, *args, **kwargs) -> np.ndarray:
         return np.arange(*args)
 
     def _la_linspace(self, *args):
@@ -92,6 +95,9 @@ class NumpyLinAlgMixin(LinAlgMixin):
 
     def _la_get_diagonal(self, mat: np.ndarray) -> np.ndarray:
         return np.diagonal(mat)
+
+    def _la_diag(self, array, k=0):
+        return np.diag(array, k=k)
 
     def _la_isnan(self, mat: np.ndarray) -> np.ndarray:
         return np.isnan(mat)
@@ -163,3 +169,27 @@ class NumpyLinAlgMixin(LinAlgMixin):
 
     def _la_argmax(self, array):
         return np.argmax(array)
+
+    def _la_max(self, array, axis=None):
+        return np.max(array, axis=axis)
+
+    def _la_min(self, array, axis=None):
+        return np.min(array, axis=axis)
+
+    def _la_block(self, blocks):
+        return np.block(blocks)
+
+    def _la_sum(self, matrix, axis=None):
+        return np.sum(matrix, axis=axis)
+
+    def _la_count_nonzero(self, matrix, axis=None):
+        return np.count_nonzero(matrix, axis=axis)
+
+    def _la_array(self, array, dtype=float):
+        return np.array(array, dtype=dtype)
+
+    def _la_eigh(self, matrix):
+        return np.linalg.eigh(matrix)
+
+    def _la_isfinite(self, matrix):
+        return np.isfinite(matrix)

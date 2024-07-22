@@ -21,12 +21,12 @@ class TorchGPFitMixin:
         # todo change to follow call and jacobian api used by new optimize
         # classes
 
-        # this is only pplace where torch should be called explicitly
+        # this is only place where torch should be called explicitly
         # as we are using its functionality to compute the gradient of their
         # negative log likelihood. We could replace this with a grad
         # computed analytically
-        active_opt_params = torch.tensor(
-            active_opt_params_np, dtype=torch.double, requires_grad=True)
+        active_opt_params = torch.as_tensor(
+            active_opt_params_np, dtype=torch.double).requires_grad_(True)
         nll = self._neg_log_likelihood(active_opt_params)
         nll.backward()
         val = nll.item()

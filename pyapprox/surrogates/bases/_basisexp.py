@@ -1,28 +1,45 @@
-from abc import ABC, abstractmethod
+import copy
 
-from pyapprox.surrogates.bases._basis import Basis
+from pyapprox.interface.model import Model
+from pyapprox.surrogates.bases._basis import (
+    Basis, OrthonormalPolynomialBasis, MonomialBasis)
 from pyapprox.surrogates.bases._linearsystemsolvers import (
     LinearSystemSolver)
+from pyapprox.util.hyperparameter._hyperparameter import (
+    HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
+from pyapprox.surrogates.interp.manipulate_polynomials import add_polynomials
+from pyapprox.surrogates.polychaos.gpc import (
+    multiply_multivariate_orthonormal_polynomial_expansions)
 
 
-class BasisExpansion(ABC):
+class BasisExpansion(Model):
     """The base class for any linear basis expansion for multiple
        quantities of interest (QoI)."""
 
-    def __init__(self, basis : Basis, solver: LinearSystemSolver,
+    def __init__(self, basis: Basis, solver: LinearSystemSolver,
                  nqoi=1, coef_bounds=None):
-        self.basis = basis
+        # todo make model accept backend and pass in through with call to super
+        super().__init__()
+        self._bkd = basis._bkd
+        # self._bkd._la_set_attributes(self)
+        self._jacobian_implemented = basis._jacobian_implemented
+
+        self.basis = self._parse_basis(basis)
         self._solver = solver
-        self._nqoi = nqoi
-        init_coef = self._la_full((self.basis.nterms()*self.nqoi()), 0.)
-        self._coef = self._HyperParameter(
-            "coef", self.basis.nterms()*nqoi, init_coef,
-            self._parse_coef_bounds(coef_bounds), self._transform)
-        self.hyp_list = self._HyperParameterList([self._coef])
+        self._nqoi = int(nqoi)
+        init_coef = self._bkd._la_full((self.basis.nterms()*self.nqoi(), ), 0.)
+        self._transform = IdentityHyperParameterTransform(backend=self._bkd)
+        self._coef = HyperParameter(
+            "coef", self.basis.nterms()*self._nqoi, init_coef,
+            self._parse_coef_bounds(coef_bounds), None, backend=self._bkd)
+        self.hyp_list = HyperParameterList([self._coef])
+
+    def _parse_basis(self, basis):
+        return basis
 
     def _parse_coef_bounds(self, coef_bounds):
         if coef_bounds is None:
-            return [-self._la_inf(), self._la_inf()]
+            return [-self._bkd._la_inf(), self._bkd._la_inf()]
         return coef_bounds
 
     def nqoi(self):
@@ -30,6 +47,18 @@ class BasisExpansion(ABC):
         Return the number of quantities of interest (QoI).
         """
         return self._nqoi
+
+    def nterms(self):
+        """
+        Return the number of terms in the expansion.
+        """
+        return self.basis.nterms()
+
+    def nvars(self):
+        """
+        Return the number of inputs to the basis.
+        """
+        return self.basis.nvars()
 
     def set_coefficients(self, coef):
         """
@@ -80,10 +109,265 @@ class BasisExpansion(ABC):
         """Fit the expansion by finding the optimal coefficients. """
         if samples.shape[1] != values.shape[0]:
             raise ValueError(
-                "Number of cols of samples {0} does not match number of rows of values".format(samples.shape[1], values.shape[0]))
+                ("Number of cols of samples {0} does not match" +
+                 "number of rows of values").format(
+                     samples.shape[1], values.shape[0]))
         if values.shape[1] != self.nqoi():
             raise ValueError(
                 "Number of cols {0} in values does not match nqoi {1}".format(
                     values.shape[1], self.nqoi()))
         coef = self._solver.solve(self.basis(samples), values)
         self.set_coefficients(coef)
+
+
+class MonomialExpansion(BasisExpansion):
+    def _parse_basis(self, basis):
+        if not isinstance(basis, MonomialBasis):
+            raise ValueError("basis must be a MonomialBasis")
+        return basis
+
+    def _group_like_terms(self, coeffs, indices):
+        if coeffs.ndim == 1:
+            coeffs = coeffs[:, None]
+
+        unique_indices, repeated_idx = self._bkd_la_unique(
+            indices, axis=1, return_inverse=True)
+
+        nunique_indices = unique_indices.shape[1]
+        unique_coeff = self._bkd._la_full(
+            (nunique_indices, coeffs.shape[1]), 0.)
+        for ii in range(repeated_idx.shape[0]):
+            unique_coeff[repeated_idx[ii]] += coeffs[ii]
+        return unique_indices, unique_coeff
+
+    def _add_polynomials(self, indices_list, coeffs_list):
+        """
+        Add many polynomials together.
+
+        Example:
+            p1 = x1**2+x2+x3, p2 = x2**2+2*x3
+            p3 = p1+p2
+
+           return the degrees of each term in the the polynomial
+
+           p3 = x1**2+x2+3*x3+x2**2
+
+           [2, 1, 1, 2]
+
+           and the coefficients of each of these terms
+
+           [1., 1., 3., 1.]
+
+
+        Parameters
+        ----------
+        indices_list : list [np.ndarray (num_vars,num_indices_i)]
+            List of polynomial indices. indices_i may be different for each
+            polynomial
+
+        coeffs_list : list [np.ndarray (num_indices_i,num_qoi)]
+            List of polynomial coefficients. indices_i may be different for
+            each polynomial. num_qoi must be the same for each list element.
+
+        Returns
+        -------
+        indices: np.ndarray (num_vars,num_terms)
+            the polynomial indices of the polynomial obtained from
+            summing the polynomials. This will be the union of the indices
+            of the input polynomials
+
+        coeffs: np.ndarray (num_terms,num_qoi)
+            the polynomial coefficients of the polynomial obtained from
+            summing the polynomials
+        """
+        num_polynomials = len(indices_list)
+        assert num_polynomials == len(coeffs_list)
+        all_coeffs = self._bkd._la_vstack(coeffs_list)
+        all_indices = self._bkd._la_hstack(indices_list)
+        return self._group_like_terms(all_coeffs, all_indices)
+
+    def __add__(self, other):
+        indices_list = [self.indices, other.indices]
+        coefs_list = [self.coefficients, other.coefficients]
+        indices, coefs = add_polynomials(indices_list, coefs_list)
+        poly = copy.deepcopy(self)
+        poly.basis.set_indices(indices)
+        poly.set_coefficients(coefs)
+        return poly
+
+    def __sub__(self, other):
+        indices_list = [self.indices, other.indices]
+        coefs_list = [self.coefficients, -other.coefficients]
+        indices, coefs = add_polynomials(indices_list, coefs_list)
+        poly = copy.deepcopy(self)
+        poly.basis.set_indices(indices)
+        poly.set_coefficients(coefs)
+        return poly
+
+    def _multiply_monomials(self, indices1, coefs1, indices2, coefs2):
+        nvars = indices1.shape[0]
+        nindices1 = indices1.shape[1]
+        nindices2 = indices2.shape[1]
+        nqoi = coefs1.shape[1]
+        assert nindices1 == coefs1.shape[0]
+        assert nindices2 == coefs2.shape[0]
+        assert nvars == indices2.shape[0]
+        assert nqoi == coefs2.shape[1]
+
+        indices_dict = dict()
+        max_nindices = nindices1*nindices2
+        indices = self._bkd._la_full((nvars, max_nindices), 0., dtype=int)
+        coefs = self._bkd._la_full((max_nindices, nqoi), 0.)
+        kk = 0
+        for ii in range(nindices1):
+            index1 = indices1[:, ii]
+            coef1 = coefs1[ii]
+            for jj in range(nindices2):
+                index = index1+indices2[:, jj]
+                # hash_array does not work with jit
+                # key = hash_array(index)
+                # so use a polynomial hash
+                key = 0
+                for dd in range(index.shape[0]):
+                    key = 31*key + int(index[dd])
+                coef = coef1*coefs2[jj]
+                if key in indices_dict:
+                    coefs[indices_dict[key]] += coef
+                else:
+                    indices_dict[key] = kk
+                    indices[:, kk] = index
+                    coefs[kk] = coef
+                    kk += 1
+        indices = indices[:, :kk]
+        coefs = coefs[:kk]
+        return indices, coefs
+
+    def __mul__(self, other):
+        if self.nterms() > other.nterms():
+            poly1 = self
+            poly2 = other
+        else:
+            poly1 = other
+            poly2 = self
+        indices, coefs = self._multiply_monomials(
+            poly1.basis.get_indices(), poly1.get_coefficients(),
+            poly2.basis.get_indices(), poly2.get_coefficients())
+        poly = copy.deepcopy(self)
+        poly.basis.set_indices(indices)
+        poly.set_coefficients(coefs)
+        return poly
+
+    def __pow__(self, order):
+        poly = copy.deepcopy(self)
+        if order == 0:
+            poly.basis.set_indices(
+                self._bkd._la_full([self.nvars(), 1], 0., dtype=int))
+            poly.set_coefficients(
+                self._bkd._la_full([1, self.nqoi()], 1.))
+            return poly
+
+        poly = copy.deepcopy(self)
+        for ii in range(2, order+1):
+            poly = poly*self
+        return poly
+
+
+class PolynomialChaosExpansion(MonomialExpansion):
+    def _parse_basis(self, basis):
+        if not isinstance(basis, OrthonormalPolynomialBasis):
+            raise ValueError("basis must be an OrthonormalPolynomialBasis")
+        return basis
+
+    def mean(self):
+        """
+        Compute the mean of the polynomial chaos expansion
+
+        Returns
+        -------
+        mean : array (nqoi)
+            The mean of each quantitity of interest
+        """
+        return self.coefficients[0, :]
+
+    def variance(self):
+        """
+        Compute the variance of the polynomial chaos expansion
+
+        Returns
+        -------
+        var : array (nqoi)
+            The variance of each quantitity of interest
+        """
+
+        var = self._bkd._la_sum(self.coefficients[1:, :]**2, axis=0)
+        return var
+
+    def covariance(self):
+        """
+        Compute the covariance between each quantity of interest of the
+        polynomial chaos expansion
+
+        Returns
+        -------
+        covar : array (nqoi)
+            The covariance between each quantitity of interest
+        """
+        covar = self.coefficients[1:, :].T @ self.coefficients[1:, :]
+        return covar
+
+    def _compute_product_coeffs_1d(
+            self, poly, max_degrees1, max_degrees2):
+        product_coefs_1d = []
+        for ii, poly in enumerate(self.basis._polys_1d):
+            max_degree1 = max_degrees1[ii]
+            max_degree2 = max_degrees2[ii]
+            assert max_degree1 >= max_degree2
+            max_degree = max_degree1+max_degree2
+            nquad_points = max_degree+1
+
+            poly.set_recursion_coefficients(nquad_points)
+            x_quad, w_quad = poly.gauss_quadrature_rule(nquad_points)
+            w_quad = w_quad[:, None]
+
+            # evaluate the orthonormal basis at the quadrature points. This can
+            # be computed once for all degrees up to the maximum degree
+            ortho_basis_matrix = poly(x_quad, max_degree)
+
+            # compute coefficients of orthonormal basis using pseudo
+            # spectral projection
+            product_coefs_1d.append([])
+            for d1 in range(max_degree1+1):
+                for d2 in range(min(d1+1, max_degree2+1)):
+                    product_vals = (ortho_basis_matrix[:, d1] *
+                                    ortho_basis_matrix[:, d2])
+                    coefs = (w_quad.T @ (
+                        product_vals[:, None] *
+                        ortho_basis_matrix[:, :d1+d2+1])).T
+                    product_coefs_1d[-1].append(coefs)
+        return product_coefs_1d
+
+    def __mul__(self, other):
+        if self.basis.nterms() > other.nterms():
+            poly1 = self
+            poly2 = other
+        else:
+            poly1 = other
+            poly2 = self
+        poly1 = copy.deepcopy(poly1)
+        poly2 = copy.deepcopy(poly2)
+        max_degrees1 = self._bkd._la_max(poly1.basis.get_indices(), axis=1)
+        max_degrees2 = self._bkd._la_max(poly2.basis.get_indices(), axis=1)
+        product_coefs_1d = self._compute_product_coeffs_1d(
+            poly1, max_degrees1, max_degrees2)
+
+        indices, coefs = \
+            multiply_multivariate_orthonormal_polynomial_expansions(
+                product_coefs_1d, poly1.basis.get_indices(),
+                poly1.get_coefficients(),
+                poly2.basis.get_indices(), poly2.get_coefficients(),
+                backend=self._bkd)
+
+        poly = copy.deepcopy(self)
+        poly.basis.set_indices(indices)
+        poly.set_coefficients(coefs)
+        return poly

@@ -3,9 +3,6 @@ import math
 import torch
 
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.util.hyperparameter.torchhyperparameter import (
-    TorchIdentityHyperParameterTransform, TorchLogHyperParameterTransform,
-    TorchHyperParameter, TorchHyperParameterList)
 from pyapprox.surrogates.kernels._kernels import (
     MaternKernel, ConstantKernel, GaussianNoiseKernel, PeriodicMaternKernel,
     SphericalCovariance, SphericalCovarianceHyperParameter)
@@ -27,40 +24,20 @@ class TorchAutogradMixin:
 
 class TorchConstantKernel(
         ConstantKernel, TorchAutogradMixin, TorchLinAlgMixin):
-    def __init__(self, constant, constant_bounds=None,
-                 transform=TorchIdentityHyperParameterTransform()):
-        self._HyperParameter = TorchHyperParameter
-        self._HyperParameterList = TorchHyperParameterList
-        super().__init__(constant, transform, constant_bounds)
+    pass
 
 
 class TorchGaussianNoiseKernel(
         GaussianNoiseKernel, TorchAutogradMixin, TorchLinAlgMixin):
-    def __init__(self, constant, constant_bounds=None):
-        self._HyperParameter = TorchHyperParameter
-        self._HyperParameterList = TorchHyperParameterList
-        super().__init__(
-            constant, TorchLogHyperParameterTransform(), constant_bounds)
+    pass
 
 
 class TorchMaternKernel(MaternKernel, TorchAutogradMixin, TorchLinAlgMixin):
-    def __init__(self, nu: float,
-                 lenscale, lenscale_bounds, nvars: int):
-        self._HyperParameter = TorchHyperParameter
-        self._HyperParameterList = TorchHyperParameterList
-        super().__init__(nu, lenscale, lenscale_bounds, nvars,
-                         TorchLogHyperParameterTransform())
+    pass
 
 
 class TorchPeriodicMaternKernel(PeriodicMaternKernel, TorchLinAlgMixin):
-    def __init__(self, nu: float, period, period_bounds,
-                 lenscale, lenscale_bounds):
-        self._HyperParameter = TorchHyperParameter
-        self._HyperParameterList = TorchHyperParameterList
-        super().__init__(
-            nu, period, period_bounds, lenscale, lenscale_bounds,
-            TorchLogHyperParameterTransform(),
-            TorchLogHyperParameterTransform())
+    pass
 
 
 class TorchSphericalCovarianceHyperParameter(
@@ -68,8 +45,6 @@ class TorchSphericalCovarianceHyperParameter(
     def __init__(self, hyper_params):
         self._SphericalCorrelationTransform = (
             TorchSphericalCorrelationTransform)
-        self._IdentityHyperParameterTransform = (
-            TorchIdentityHyperParameterTransform)
         super().__init__(hyper_params)
 
 
@@ -77,15 +52,9 @@ class TorchSphericalCovariance(SphericalCovariance, TorchLinAlgMixin):
     def __init__(self, noutputs,
                  radii=1, radii_bounds=[1e-1, 1],
                  angles=math.pi/2, angle_bounds=[0, math.pi],
-                 radii_transform=TorchIdentityHyperParameterTransform(),
-                 angle_transform=TorchIdentityHyperParameterTransform()):
+                 radii_transform=None,
+                 angle_transform=None):
         self._SphericalCorrelationTransform = (
             TorchSphericalCorrelationTransform)
-        self._HyperParameter = TorchHyperParameter
-        self._HyperParameterList = TorchHyperParameterList
-        self._SphericalCovarianceHyperParameter = (
-            TorchSphericalCovarianceHyperParameter)
-        self._IdentityHyperParameterTransform = (
-            TorchIdentityHyperParameterTransform)
         super().__init__(noutputs, radii_transform, angle_transform,
                          radii, radii_bounds, angles, angle_bounds)
