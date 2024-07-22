@@ -1,4 +1,5 @@
 import copy
+import numpy as np
 
 from pyapprox.interface.model import Model
 from pyapprox.surrogates.bases._basis import (
@@ -161,22 +162,22 @@ class MonomialExpansion(BasisExpansion):
 
         Parameters
         ----------
-        indices_list : list [np.ndarray (num_vars,num_indices_i)]
+        indices_list : list [array (num_vars,num_indices_i)]
             List of polynomial indices. indices_i may be different for each
             polynomial
 
-        coeffs_list : list [np.ndarray (num_indices_i,num_qoi)]
+        coeffs_list : list [array (num_indices_i,num_qoi)]
             List of polynomial coefficients. indices_i may be different for
             each polynomial. num_qoi must be the same for each list element.
 
         Returns
         -------
-        indices: np.ndarray (num_vars,num_terms)
+        indices: array (num_vars,num_terms)
             the polynomial indices of the polynomial obtained from
             summing the polynomials. This will be the union of the indices
             of the input polynomials
 
-        coeffs: np.ndarray (num_terms,num_qoi)
+        coeffs: array (num_terms,num_qoi)
             the polynomial coefficients of the polynomial obtained from
             summing the polynomials
         """
@@ -371,3 +372,33 @@ class PolynomialChaosExpansion(MonomialExpansion):
         poly.basis.set_indices(indices)
         poly.set_coefficients(coefs)
         return poly
+
+    def marginalize(self, inactive_idx, center=True):
+        inactive_idx = self._bkd._la_array(inactive_idx, dtype=int)
+        if self.basis.get_indices() is None:
+            raise ValueError("PCE cannot be marginalizd as no indices are set")
+        if self.get_coefficients() is None:
+            raise ValueError(
+                "PCE cannot be marginalizd as no coeffocients are set")
+        active_idx = self._bkd._la_array(
+            np.setdiff1d(np.arange(self.nvars()),
+                         self._bkd._la_to_numpy(inactive_idx)), dtype=int)
+        marginalized_polys_1d = [
+            copy.deepcopy(self.basis._polys_1d[ii]) for ii in active_idx]
+        marginalized_basis = OrthonormalPolynomialBasis(marginalized_polys_1d)
+        marginalized_array_indices = []
+        for ii, index in enumerate(self.basis.get_indices().T):
+            if ((self._bkd._la_sum(index) == 0 and center is False) or
+                    self._bkd._la_any(index[active_idx]) and
+                    (not self._bkd._la_any(index[inactive_idx] > 0))):
+                marginalized_array_indices.append(ii)
+        marginalized_basis.set_indices(
+            self.basis.get_indices()[
+                np.ix_(self._bkd._la_to_numpy(active_idx),
+                       np.array(marginalized_array_indices))])
+        marginalized_pce = PolynomialChaosExpansion(
+            marginalized_basis, solver=self._solver, nqoi=self.nqoi())
+        marginalized_pce.set_coefficients(
+            self._bkd._la_copy(
+                self.get_coefficients()[marginalized_array_indices, :]))
+        return marginalized_pce
