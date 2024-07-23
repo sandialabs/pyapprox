@@ -147,11 +147,13 @@ class ConstantKernel(Kernel):
         if constant_bounds is None:
             constant_bounds = [-self._bkd._la_inf(), self._bkd._la_inf()]
         self._const = HyperParameter(
-            "const", 1, constant, constant_bounds, transform, backend=self._bkd)
+            "const", 1, constant, constant_bounds, transform,
+            backend=self._bkd)
         self.hyp_list = HyperParameterList([self._const])
 
     def diag(self, X1):
-        return self._bkd._la_full((X1.shape[1],), self.hyp_list.get_values()[0])
+        return self._bkd._la_full(
+            (X1.shape[1],), self.hyp_list.get_values()[0])
 
     def __call__(self, X1, X2=None):
         if X2 is None:
@@ -159,7 +161,10 @@ class ConstantKernel(Kernel):
         # full does not work when const value requires grad
         # return full((X1.shape[1], X2.shape[1]), self._const.get_values()[0])
         const = self._bkd._la_empty((X1.shape[1], X2.shape[1]))
-        const[:] = self._const.get_values()[0]
+        # const[:] = self._const.get_values()[0]
+        const = self._bkd._la_up(
+            const, self._bkd._la_arange(X1.shape[1], dtype=int),
+            self._const.get_values()[0], axis=0)
         return const
 
 
@@ -191,9 +196,8 @@ class PeriodicMaternKernel(MaternKernel):
                  lenscale,
                  lenscale_bounds,
                  backend=None):
-        lenscale_transform = LogHyperParameterTransform(backend=backend),
-        period_transform = LogHyperParameterTransform(backend=backend)
         super().__init__(nu, lenscale, lenscale_bounds, 1, backend=backend)
+        period_transform = LogHyperParameterTransform(backend=self._bkd)
         self._period = HyperParameter(
             "period", 1, lenscale, lenscale_bounds, period_transform,
             backend=self._bkd)

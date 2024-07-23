@@ -5,7 +5,7 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-# from pyapprox.util.linearalgebra.jaxlinalg import JaxLinAlgMixin
+from pyapprox.util.linearalgebra.jaxlinalg import JaxLinAlgMixin
 from pyapprox.surrogates.kernels._kernels import (
     ConstantKernel, MaternKernel, PeriodicMaternKernel,
     GaussianNoiseKernel)
@@ -111,13 +111,13 @@ class TestTorchKernels(
         return True
 
 
-# class TestJaxKernels(
-#         unittest.TestCase, TestKernels):
-#     def get_backend(self):
-#         return JaxLinAlgMixin()
+class TestJaxKernels(
+        unittest.TestCase, TestKernels):
+    def get_backend(self):
+        return JaxLinAlgMixin()
 
-#     def jacobian_implemented(self):
-#         return True
+    def jacobian_implemented(self):
+        return True
 
 
 if __name__ == "__main__":

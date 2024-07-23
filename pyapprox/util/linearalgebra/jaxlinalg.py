@@ -1,12 +1,11 @@
 from typing import List
 
-import numpy as np
-import scipy
+import jax.numpy as np
 
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin
 
 
-class NumpyLinAlgMixin(LinAlgMixin):
+class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_dot(Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
         return np.dot(Amat, Bmat)
@@ -26,12 +25,12 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_cholesky_solve(chol: np.ndarray, bvec: np.ndarray,
                            lower: bool = True) -> np.ndarray:
-        return scipy.linalg.cho_solve((chol, lower), bvec)
+        return np.linalg.cho_solve((chol, lower), bvec)
 
     @staticmethod
     def _la_solve_triangular(Amat: np.ndarray, bvec: np.ndarray,
                              lower: bool = True) -> np.ndarray:
-        return scipy.linalg.solve_triangular(Amat, bvec, lower=lower)
+        return np.linalg.solve_triangular(Amat, bvec, lower=lower)
 
     @staticmethod
     def _la_full(*args, dtype=float):
@@ -115,7 +114,8 @@ class NumpyLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def _la_cdist(Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
-        return scipy.spatial.distance.cdist(Amat, Bmat, metric="euclidean")
+        # return np.spatial.distance.cdist(Amat, Bmat, metric="euclidean")
+        return np.sqrt(np.sum((Amat[:, None] - Bmat[None, :])**2, -1))
 
     @staticmethod
     def _la_einsum(*args) -> np.ndarray:
@@ -270,9 +270,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_up(matrix, indices, submatrix, axis=0):
         if axis == 0:
-            matrix[indices] = submatrix
-            return matrix
+            return matrix.at[indices].set(submatrix)
         if axis == 1:
-            matrix[:, indices] = submatrix
-            return matrix
+            return matrix.at[:, indices].set(submatrix)
         raise ValueError("axis must be <= 1")

@@ -555,5 +555,10 @@ class LinAlgMixin(ABC):
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
-    def _la_jacobian(self, fun, inputs, active_opt_params):
+    def _la_jacobian(self, fun, inputs, set_params, active_opt_params):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _la_up(matrix, indices, submatrix, axis=0):
         raise NotImplementedError

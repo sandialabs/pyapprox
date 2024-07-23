@@ -96,8 +96,11 @@ class HyperParameter:
         # "a leaf Variable that requires grad is being used in an in-place
         # operation is not thrown
         self._values = self._bkd._la_copy(self._values)
-        self._values[self._active_indices] = self.transform.from_opt_space(
-            active_params)
+        # self._values[self._active_indices] = self.transform.from_opt_space(
+        #    active_params)
+        self._values = self._bkd._la_up(
+            self._values, self._active_indices, self.transform.from_opt_space(
+                active_params), axis=0)
 
     def get_active_opt_params(self):
         """Get the values of the active parameters in the optimization space.

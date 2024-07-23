@@ -302,3 +302,13 @@ class TorchLinAlgMixin(LinAlgMixin):
         self._inputs = inputs
         return torch.autograd.functional.jacobian(
             self._la_autograd_fun, params)
+
+    @staticmethod
+    def _la_up(matrix, indices, submatrix, axis=0):
+        if axis == 0:
+            matrix[indices] = submatrix
+            return matrix
+        if axis == 1:
+            matrix[:, indices] = submatrix
+            return matrix
+        raise ValueError("axis must be <= 1")
