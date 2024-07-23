@@ -44,6 +44,16 @@ class LinAlgMixin(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def _la_zeros(self, *args, dtype=None):
+        """Return a matrix with all values set to zero"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def _la_ones(self, *args, dtype=None):
+        """Return a matrix with all values set to one"""
+        raise NotImplementedError
+
+    @abstractmethod
     def _la_empty(self, *args):
         """Return a matrix with uniitialized values"""
         raise NotImplementedError
@@ -456,4 +466,8 @@ class LinAlgMixin(ABC):
 
     @abstractmethod
     def _la_isfinite(self, matrix):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _la_cond(self, matrix):
         raise NotImplementedError

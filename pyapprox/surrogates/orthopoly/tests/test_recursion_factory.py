@@ -218,7 +218,7 @@ class TestRecursionFactory(unittest.TestCase):
         a = 3
         rho = a-1
         degree = 5
-        ab = laguerre_recurrence(rho, degree+1, probability=True)
+        ab = laguerre_recurrence(degree+1, rho, probability=True)
         print(ab)
         var = stats.gamma(a)
 
@@ -233,7 +233,7 @@ class TestRecursionFactory(unittest.TestCase):
         assert np.allclose(ab_numeric, ab)
 
         var = stats.expon()
-        ab = laguerre_recurrence(0, degree+1, probability=True)
+        ab = laguerre_recurrence(degree+1, 0, probability=True)
         ab_numeric = get_recursion_coefficients_from_variable(
             var, degree+1, opts)
         assert np.allclose(ab_numeric, ab)

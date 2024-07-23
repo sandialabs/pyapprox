@@ -1,15 +1,14 @@
 import unittest
-import copy
 
 import numpy as np
 
 from pyapprox.surrogates.orthopoly.recursion_factory import (
     LegendrePolynomial1D)
-from pyapprox.surrogates.bases._basis import (
+from pyapprox.surrogates.bases.basis import (
     MonomialBasis, OrthonormalPolynomialBasis)
-from pyapprox.surrogates.bases._basisexp import (
+from pyapprox.surrogates.bases.basisexp import (
     MonomialExpansion, PolynomialChaosExpansion)
-from pyapprox.surrogates.bases._linearsystemsolvers import (
+from pyapprox.surrogates.bases.linearsystemsolvers import (
     LstSqSolver, OMPSolver)
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin

@@ -105,8 +105,10 @@ class SphericalCorrelationTransform(Transform):
         super().__init__(backend)
         self.noutputs = noutputs
         self.ntheta = (self.noutputs*(self.noutputs+1))//2
-        self._theta_indices = self._bkd._la_full((self.ntheta, 2), -1, dtype=int)
-        self._theta_indices[:self.noutputs, 0] = self._bkd._la_arange(self.noutputs)
+        self._theta_indices = self._bkd._la_full(
+            (self.ntheta, 2), -1, dtype=int)
+        self._theta_indices[:self.noutputs, 0] = self._bkd._la_arange(
+            self.noutputs)
         self._theta_indices[:self.noutputs, 1] = 0
         for ii in range(1, noutputs):
             for jj in range(1, ii+1):
@@ -133,7 +135,8 @@ class SphericalCorrelationTransform(Transform):
             bounds = self._bkd._la_vstack((bounds, other_bounds))
             return bounds
 
-        return self._bkd._la_atleast2d([[-inf, inf] for ii in range(self.theta)])
+        return self._bkd._la_atleast2d(
+            [[-inf, inf] for ii in range(self.theta)])
 
     def map_cholesky_to_spherical(self, L):
         psi = self._bkd._la_empty(L.shape)

@@ -30,6 +30,12 @@ class NumpyLinAlgMixin(LinAlgMixin):
     def _la_full(self, *args, dtype=float):
         return np.full(*args, dtype=dtype)
 
+    def _la_zeros(self, *args, dtype=float):
+        return np.zeros(*args, dtype=dtype)
+
+    def _la_ones(self, *args, dtype=float):
+        return np.ones(*args, dtype=dtype)
+
     def _la_empty(self, *args, dtype=float):
         return np.empty(*args, dtype=dtype)
 
@@ -193,3 +199,6 @@ class NumpyLinAlgMixin(LinAlgMixin):
 
     def _la_isfinite(self, matrix):
         return np.isfinite(matrix)
+
+    def _la_cond(self, matrix):
+        return np.linalg.cond(matrix)

@@ -251,7 +251,7 @@ class TestQuadrature(unittest.TestCase):
         true_mean = a
         true_variance = a
 
-        ab = laguerre_recurrence(rho, N)
+        ab = laguerre_recurrence(N, rho)
         print(ab)
         x, w = gauss_quadrature(ab, N)
 

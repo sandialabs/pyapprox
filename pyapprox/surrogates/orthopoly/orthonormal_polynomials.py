@@ -2,6 +2,7 @@ import numpy as np
 
 from pyapprox.util.pya_numba import njit, gammaln_float64
 from pyapprox.variables.marginals import get_distribution_info
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
@@ -165,7 +166,7 @@ def __evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     return result
 
 
-def gauss_quadrature(recursion_coeffs, N):
+def gauss_quadrature(recursion_coeffs, N, prob=True):
     r"""Computes Gauss quadrature from recurrence coefficients
 
        x,w = gauss_quadrature(recursion_coeffs,N)
@@ -199,23 +200,25 @@ def gauss_quadrature(recursion_coeffs, N):
     J = np.diag(a[:N], 0)+np.diag(b[1:N], 1)+np.diag(b[1:N], -1)
     x, eigvecs = np.linalg.eigh(J)
 
-    w = b[0]*eigvecs[0, :]**2
-
-    # w = evaluate_orthonormal_polynomial_1d(x, N-1, recursion_coeffs)
-    # w = 1./np.sum(w**2, axis=1)
+    if prob:
+        w = b[0]*eigvecs[0, :]**2
+    else:
+        w = evaluate_orthonormal_polynomial_1d(x, N-1, recursion_coeffs)
+        w = 1./np.sum(w**2, axis=1)
 
     w[~np.isfinite(w)] = 0.
     return x, w
 
 
-def convert_orthonormal_polynomials_to_monomials_1d(ab, nmax):
+def convert_orthonormal_polynomials_to_monomials_1d(
+        ab, nmax, bkd=NumpyLinAlgMixin()):
     r"""
     Get the monomial expansion of each orthonormal basis up to a given
     degree.
 
     Parameters
     ----------
-    ab : np.ndarray (num_recursion_coeffs,2)
+    ab : array (num_recursion_coeffs,2)
        The recursion coefficients
 
     nmax : integer
@@ -223,18 +226,18 @@ def convert_orthonormal_polynomials_to_monomials_1d(ab, nmax):
 
     Returns
     -------
-    monomial_coefs : np.ndarray (nmax+1,nmax+1)
+    monomial_coefs : array (nmax+1,nmax+1)
         The coefficients of :math:`x^i, i=0,...,N` for each orthonormal basis
         :math:`p_j` Each row is the coefficients of a single basis :math:`p_j`.
     """
     assert nmax < ab.shape[0]
 
-    monomial_coefs = np.zeros((nmax+1, nmax+1))
+    monomial_coefs = bkd._la_zeros((nmax+1, nmax+1))
 
     monomial_coefs[0, 0] = 1/ab[0, 1]
 
     if nmax > 0:
-        monomial_coefs[1, :2] = np.array(
+        monomial_coefs[1, :2] = bkd._la_array(
             [-ab[0, 0], 1])*monomial_coefs[0, 0]/ab[1, 1]
 
     for jj in range(2, nmax+1):
@@ -245,7 +248,8 @@ def convert_orthonormal_polynomials_to_monomials_1d(ab, nmax):
     return monomial_coefs
 
 
-def evaluate_three_term_recurrence_polynomial_1d(abc, nmax, x):
+def evaluate_three_term_recurrence_polynomial_1d(
+        abc, nmax, x, bkd=NumpyLinAlgMixin()):
     r"""
     Evaluate an orthogonal polynomial three recursion coefficient formulation
 
@@ -253,23 +257,23 @@ def evaluate_three_term_recurrence_polynomial_1d(abc, nmax, x):
 
     Parameters
     ----------
-    abc : np.ndarray (num_recursion_coeffs,3)
+    abc :  array (num_recursion_coeffs,3)
        The recursion coefficients
 
     nmax : integer
        The maximum degree of the polynomials to be evaluated (N+1)
 
-    x : np.ndarray (num_samples)
+    x :  darray (num_samples)
        The samples at which to evaluate the polynomials
 
     Returns
     -------
-    p : np.ndarray (num_samples, num_indices)
+    p :  bkd._la_ndarray (num_samples, num_indices)
        The values of the polynomials at the samples
     """
     assert nmax < abc.shape[0]
 
-    p = np.zeros((x.shape[0], nmax+1), dtype=float)
+    p = bkd._la_zeros((x.shape[0], nmax+1), dtype=float)
 
     p[:, 0] = abc[0, 0]
 

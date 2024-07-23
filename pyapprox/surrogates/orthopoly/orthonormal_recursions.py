@@ -362,7 +362,7 @@ def convert_orthonormal_recurence_to_three_term_recurence(recursion_coefs):
     return abc
 
 
-def laguerre_recurrence(rho, N, probability=True):
+def laguerre_recurrence(N, rho, probability=True):
     r"""
     Compute the recursion coefficients of Laguerre polynomials which are
     orthonormal with respect to the Gamma random variables with PDF

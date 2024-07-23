@@ -29,6 +29,12 @@ class TorchLinAlgMixin(LinAlgMixin):
     def _la_full(self, *args, dtype=torch.double):
         return torch.full(*args, dtype=dtype)
 
+    def _la_zeros(self, *args, dtype=float):
+        return torch.zeros(*args, dtype=dtype)
+
+    def _la_ones(self, *args, dtype=float):
+        return torch.ones(*args, dtype=dtype)
+
     def _la_empty(self, *args, dtype=torch.double):
         return torch.empty(*args, dtype=dtype)
 
@@ -212,3 +218,6 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     def _la_isfinite(self, matrix):
         return torch.isfinite(matrix)
+
+    def _la_cond(self, matrix):
+        return torch.linalg.cond(matrix)

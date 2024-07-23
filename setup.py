@@ -68,7 +68,9 @@ setuptools.setup(
     ],
     extras_require={
         'docs': ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
-                 'sphinx-gallery', 'jupyter']
+                 'sphinx-gallery', 'jupyter'],
+        # yapf 0.40.2 has bug that prevents its use with elpy
+        'lint' : ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8"]
     },
     ext_modules=extensions,
     license='MIT',

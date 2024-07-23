@@ -8,6 +8,7 @@ class Basis(ABC):
     """
     The base class for any multivariate Basis.
     """
+
     def __init__(self, backend: LinAlgMixin):
         if backend is None:
             backend = NumpyLinAlgMixin()
@@ -142,6 +143,7 @@ class MultiIndexBasis(Basis):
 
 class MonomialBasis(MultiIndexBasis):
     """Multivariate monomial basis."""
+
     def _univariate_monomial_basis_matrix(self, max_level, samples):
         assert samples.ndim == 1
         basis_matrix = samples[:, None]**self._bkd._la_arange(

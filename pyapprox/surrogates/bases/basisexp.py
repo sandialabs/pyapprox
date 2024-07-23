@@ -2,11 +2,11 @@ import copy
 import numpy as np
 
 from pyapprox.interface.model import Model
-from pyapprox.surrogates.bases._basis import (
+from pyapprox.surrogates.bases.basis import (
     Basis, OrthonormalPolynomialBasis, MonomialBasis)
-from pyapprox.surrogates.bases._linearsystemsolvers import (
+from pyapprox.surrogates.bases.linearsystemsolvers import (
     LinearSystemSolver)
-from pyapprox.util.hyperparameter._hyperparameter import (
+from pyapprox.util.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
 from pyapprox.surrogates.interp.manipulate_polynomials import add_polynomials
 from pyapprox.surrogates.polychaos.gpc import (

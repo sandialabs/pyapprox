@@ -1,228 +1,187 @@
 import unittest
 import numpy as np
-from scipy.stats import binom, hypergeom, poisson
+from scipy import stats
 import scipy.special as sp
 
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
-    evaluate_orthonormal_polynomial_1d, gauss_quadrature,
-    evaluate_orthonormal_polynomial_deriv_1d,
+    evaluate_orthonormal_polynomial_1d,
     evaluate_three_term_recurrence_polynomial_1d,
     convert_orthonormal_polynomials_to_monomials_1d,
-    convert_orthonormal_expansion_to_monomial_expansion_1d
-)
-from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
-    jacobi_recurrence, hermite_recurrence, krawtchouk_recurrence,
-    discrete_chebyshev_recurrence, hahn_recurrence, charlier_recurrence,
-    laguerre_recurrence
-)
-from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
-    convert_orthonormal_recurence_to_three_term_recurence
-)
+    convert_orthonormal_expansion_to_monomial_expansion_1d)
 from pyapprox.surrogates.interp.monomial import (
-    univariate_monomial_basis_matrix, evaluate_monomial
-)
+    univariate_monomial_basis_matrix, evaluate_monomial)
 from pyapprox.variables.marginals import float_rv_discrete
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.surrogates.orthopoly.poly import (
+    LegendrePolynomial1D, JacobiPolynomial1D, HermitePolynomial1D,
+    KrawtchoukPolynomial1D, HahnPolynomial1D, DiscreteChebyshevPolynomial1D,
+    CharlierPolynomial1D, LaguerrePolynomial1D)
 
 
 class TestOrthonormalPolynomials1D(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    def test_orthonormality_legendre_polynomial(self):
-        alpha = 0.
-        beta = 0.
+    def get_backend(self):
+        return NumpyLinAlgMixin()
+
+    def _check_orthonormal_poly(self, poly):
+        bkd = self.get_backend()
         degree = 3
-        probability_measure = True
+        poly.set_recursion_coefficients(degree+1)
+        quad_x, quad_w = poly.gauss_quadrature_rule(degree+1)
+        vals = poly(quad_x, degree)
+        # test orthogonality
+        exact_moments = bkd._la_full((degree+1,), 0.)
+        exact_moments[0] = 1.0
+        assert bkd._la_allclose(vals.T @ quad_w, exact_moments)
+        # test orthonormality
+        assert bkd._la_allclose((vals.T*quad_w) @ vals, bkd._la_eye(degree+1))
 
-        ab = jacobi_recurrence(
-            degree+1, alpha=alpha, beta=beta, probability=probability_measure)
+    def test_legendre_poly_1d(self):
+        bkd = self.get_backend()
+        poly = LegendrePolynomial1D(backend=bkd)
+        self._check_orthonormal_poly(poly)
 
-        x, w = np.polynomial.legendre.leggauss(degree+1)
+        # check quadrature rule is computed correctly
+        degree = 3
+        quad_x, quad_w = np.polynomial.legendre.leggauss(degree+1)
         # make weights have probablity weight function w=1/2
-        w /= 2.0
-        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        # test orthogonality
-        exact_moments = np.zeros((degree+1))
-        exact_moments[0] = 1.0
-        assert np.allclose(np.dot(p.T, w), exact_moments)
-        # test orthonormality
-        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
+        quad_x = bkd._la_array(quad_x)
+        quad_w = bkd._la_array(quad_w/2.0)
+        pquad_x, pquad_w = poly.gauss_quadrature_rule(degree+1)
+        assert bkd._la_allclose(pquad_x, quad_x)
+        assert bkd._la_allclose(pquad_w, quad_w)
 
-        assert np.allclose(
-            evaluate_orthonormal_polynomial_deriv_1d(x, degree, ab, 0), p)
-
-    def test_orthonormality_asymetric_jacobi_polynomial(self):
-        from scipy.stats import beta as beta_rv
-        alpha = 4.
-        beta = 1.
-        degree = 3
-        probability_measure = True
-
-        ab = jacobi_recurrence(
-            degree+1, alpha=alpha, beta=beta, probability=probability_measure)
-
-        x, w = np.polynomial.legendre.leggauss(10*degree)
-        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        w *= beta_rv.pdf((x+1.)/2., a=beta+1, b=alpha+1)/2.
-
-        # test orthogonality
-        exact_moments = np.zeros((degree+1))
-        exact_moments[0] = 1.0
-        assert np.allclose(np.dot(p.T, w), exact_moments)
-        # test orthonormality
-        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
-
-        assert np.allclose(
-            evaluate_orthonormal_polynomial_deriv_1d(x, degree, ab, 0), p)
-
-    def test_derivatives_of_legendre_polynomial(self):
-        alpha = 0.
-        beta = 0.
-        degree = 3
-        probability_measure = True
+        x = quad_x
         deriv_order = 2
-
-        ab = jacobi_recurrence(
-            degree+1, alpha=alpha, beta=beta, probability=probability_measure)
-        x, w = np.polynomial.legendre.leggauss(degree+1)
-        pd = evaluate_orthonormal_polynomial_deriv_1d(
-            x, degree, ab, deriv_order)
-
-        pd_exact = [np.asarray(
+        derivs = poly.derivatives(x, degree, deriv_order, return_all=True)
+        derivs_exact = [bkd._la_array(
             [1+0.*x, x, 0.5*(3.*x**2-1), 0.5*(5.*x**3-3.*x)]).T]
-        pd_exact.append(np.asarray([0.*x, 1.0+0.*x, 3.*x, 7.5*x**2-1.5]).T)
-        pd_exact.append(np.asarray([0.*x, 0.*x, 3.+0.*x, 15*x]).T)
-        pd_exact = np.asarray(pd_exact)/np.sqrt(1./(2*np.arange(degree+1)+1))
+        derivs_exact.append(
+            bkd._la_array([0.*x, 1.0+0.*x, 3.*x, 7.5*x**2-1.5]).T)
+        derivs_exact.append(bkd._la_array([0.*x, 0.*x, 3.+0.*x, 15*x]).T)
+        derivs_exact = bkd._la_array(derivs_exact)/bkd._la_sqrt(
+            1./(2*bkd._la_arange(degree+1)+1))
         for ii in range(deriv_order+1):
-            assert np.allclose(
-                pd[:, ii*(degree+1):(ii+1)*(degree+1)], pd_exact[ii])
+            assert bkd._la_allclose(
+                derivs[:, ii*(degree+1):(ii+1)*(degree+1)], derivs_exact[ii])
 
-    def test_orthonormality_physicists_hermite_polynomial(self):
-        rho = 0.
+    def test_continuous_askey_polys(self):
+        bkd = self.get_backend()
+        polys = [JacobiPolynomial1D(4, 1, backend=bkd),
+                 HermitePolynomial1D(backend=bkd),
+                 LaguerrePolynomial1D(2, backend=bkd)]
+        for poly in polys:
+            self._check_orthonormal_poly(poly)
+
+        # check hermite quadrature rule
+        degree = 4
+        quad_x, quad_w = np.polynomial.hermite.hermgauss(degree+1)
+        # transform rule to probablity weight
+        # function w=1/sqrt(2*PI)exp(-x^2/2)
+        quad_x = bkd._la_array(quad_x*bkd._la_sqrt(2.0))
+        quad_w = bkd._la_array(quad_w/bkd._la_sqrt(np.pi))
+        poly = HermitePolynomial1D(backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
+        pquad_x, pquad_w = poly.gauss_quadrature_rule(degree+1)
+        assert bkd._la_allclose(pquad_x, quad_x)
+        assert bkd._la_allclose(pquad_w, quad_w)
+        assert bkd._la_allclose(
+            (pquad_x**degree) @ pquad_w, sp.factorial2(degree-1))
+
+        # check hermite evaluation
         degree = 2
-        probability_measure = False
+        x = quad_x
+        vals = poly(quad_x, degree)
+        vals_exact = bkd._la_array(
+            [1+0.*x, x, x**2-1]).T/bkd._la_sqrt(
+                sp.factorial(bkd._la_arange(degree+1)))
+        assert bkd._la_allclose(vals, vals_exact)
 
-        ab = hermite_recurrence(
-            degree+1, rho, probability=probability_measure)
-        x, w = np.polynomial.hermite.hermgauss(degree+1)
+        # check jacobi quadrature rule
+        degree = 4
+        poly = JacobiPolynomial1D(4, 1, backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
+        pquad_x, pquad_w = poly.gauss_quadrature_rule(degree+1)
+        true_moments = [1., -3./7., 2./7., -4./21., 1./7.]
+        for ii in range(degree+1):
+            assert bkd._la_allclose(
+                (pquad_x**ii) @ pquad_w, true_moments[ii])
 
-        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        p_exact = np.asarray([1+0.*x, 2*x, 4.*x**2-2]).T/np.sqrt(
-            sp.factorial(np.arange(degree+1))*np.sqrt(np.pi)*2**np.arange(
-                degree+1))
+        degree = 2
+        rho = 2
+        poly = LaguerrePolynomial1D(rho, backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
+        x = stats.gamma(rho+1).rvs(int(1e3))
+        vals = poly(x, degree)
 
-        assert np.allclose(p, p_exact)
+        vals_exact = bkd._la_array(
+            [1+0.*x, -(-x+rho+1),
+             0.5*x**2-x*(rho+2)+(rho+1)*(rho+2)/2]).T[:, :degree+1]
+        vals_exact /= bkd._la_sqrt(
+            sp.gamma(bkd._la_arange(degree+1)+rho+1)/sp.factorial(
+                bkd._la_arange(degree+1))/sp.gamma(rho+1))
+        assert bkd._la_allclose(vals, vals_exact)
+
+    def test_physicists_hermite_polynomial(self):
+        bkd = self.get_backend()
+        degree = 2
+        poly = HermitePolynomial1D(prob_meas=False, backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
+        quad_x, quad_w = np.polynomial.hermite.hermgauss(degree+1)
+        quad_x = bkd._la_array(quad_x)
+        quad_w = bkd._la_array(quad_w)
+        pquad_x, pquad_w = poly.gauss_quadrature_rule(degree+1)
+        assert bkd._la_allclose(pquad_x, quad_x)
+        assert bkd._la_allclose(pquad_w, quad_w)
+
+        x = quad_x
+        vals = poly(x, degree)
+        vals_exact = bkd._la_array([1+0.*x, 2*x, 4.*x**2-2]).T/bkd._la_sqrt(
+            sp.factorial(bkd._la_arange(degree+1))*bkd._la_sqrt(
+                np.pi)*2**bkd._la_arange(degree+1))
+        assert bkd._la_allclose(vals, vals_exact)
 
         # test orthogonality
-        exact_moments = np.zeros((degree+1))
+        exact_moments = bkd._la_full((degree+1), 0.)
         # basis is orthonormal so integration of constant basis will be
         # non-zero but will not integrate to 1.0
         exact_moments[0] = np.pi**0.25
-        assert np.allclose(np.dot(p.T, w), exact_moments)
+        assert bkd._la_allclose(vals.T @ quad_w, exact_moments)
         # test orthonormality
-        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
-
-    def test_orthonormality_probabilists_hermite_polynomial(self):
-        rho = 0.
-        degree = 2
-        probability_measure = True
-        ab = hermite_recurrence(
-            degree+1, rho, probability=probability_measure)
-
-        x, w = np.polynomial.hermite.hermgauss(degree+1)
-        # transform rule to probablity weight
-        # function w=1/sqrt(2*PI)exp(-x^2/2)
-        x *= np.sqrt(2.0)
-        w /= np.sqrt(np.pi)
-        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-
-        # Note if using pecos the following is done (i.e. ptFactpr=sqrt(2)),
-        # but if I switch to using orthonormal recursion, used here, in Pecos
-        # then I will need to set ptFactor=1.0 as done implicitly above
-        p_exact = np.asarray(
-            [1+0.*x, x, x**2-1]).T/np.sqrt(sp.factorial(np.arange(degree+1)))
-        assert np.allclose(p, p_exact)
-
-        # test orthogonality
-        exact_moments = np.zeros((degree+1))
-        exact_moments[0] = 1.0
-        assert np.allclose(np.dot(p.T, w), exact_moments)
-        # test orthonormality
-        print(np.allclose(np.dot(p.T*w, p), np.eye(degree+1)))
-        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
-
-    def test_gauss_quadrature(self):
-        degree = 4
-        alpha = 0.
-        beta = 0.
-        ab = jacobi_recurrence(
-            degree+1, alpha=alpha, beta=beta, probability=True)
-
-        x, w = gauss_quadrature(ab, degree+1)
-        for ii in range(degree+1):
-            if ii % 2 == 0:
-                assert np.allclose(np.dot(x**ii, w), 1./(ii+1.))
-            else:
-                assert np.allclose(np.dot(x**ii, w), 0.)
-
-        x_np, w_np = np.polynomial.legendre.leggauss(degree+1)
-        assert np.allclose(x_np, x)
-        assert np.allclose(w_np/2, w)
-
-        degree = 4
-        alpha = 4.
-        beta = 1.
-        ab = jacobi_recurrence(
-            degree+1, alpha=alpha, beta=beta, probability=True)
-
-        x, w = gauss_quadrature(ab, degree+1)
-
-        true_moments = [1., -3./7., 2./7., -4./21., 1./7.]
-        for ii in range(degree+1):
-            assert np.allclose(np.dot(x**ii, w), true_moments[ii])
-
-        degree = 4
-        rho = 0.
-        ab = hermite_recurrence(
-            degree+1, rho, probability=True)
-        x, w = gauss_quadrature(ab, degree+1)
-        from scipy.special import factorial2
-        assert np.allclose(np.dot(x**degree, w), factorial2(degree-1))
-
-        x_sp, w_sp = sp.roots_hermitenorm(degree+1)
-        w_sp /= np.sqrt(2*np.pi)
-        assert np.allclose(x_sp, x)
-        assert np.allclose(w_sp, w)
+        assert bkd._la_allclose((vals.T*quad_w) @ vals, bkd._la_eye(degree+1))
 
     def test_krawtchouk_binomial(self):
+        bkd = self.get_backend()
         degree = 4
         num_trials = 10
         prob_success = 0.5
-        ab = krawtchouk_recurrence(
-            degree+1, num_trials, prob_success)
-        x, w = gauss_quadrature(ab, degree+1)
+        poly = KrawtchoukPolynomial1D(num_trials, prob_success, backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
+        quad_x, quad_w = poly.gauss_quadrature_rule(degree+1)
 
-        probability_mesh = np.arange(0, num_trials+1, dtype=float)
-        probability_masses = binom.pmf(
-            probability_mesh, num_trials, prob_success)
+        probability_mesh = bkd._la_arange(0, num_trials+1, dtype=float)
+        probability_masses = bkd._la_array(stats.binom.pmf(
+            probability_mesh, num_trials, prob_success))
 
-        basis_mat = evaluate_orthonormal_polynomial_1d(
-            probability_mesh, degree, ab)
-        assert np.allclose(
-            (basis_mat*probability_masses[:, None]).T.dot(basis_mat),
-            np.eye(basis_mat.shape[1]))
+        basis_mat = poly(probability_mesh, degree)
+        assert bkd._la_allclose(
+            (basis_mat*probability_masses[:, None]).T @ basis_mat,
+            bkd._la_eye(basis_mat.shape[1]))
 
-        coef = np.random.uniform(-1, 1, (degree+1))
+        coef = bkd._la_array(np.random.uniform(-1, 1, (degree+1)))
         basis_matrix_at_pm = univariate_monomial_basis_matrix(
-            degree, probability_mesh)
-        vals_at_pm = basis_matrix_at_pm.dot(coef)
-        basis_matrix_at_gauss = univariate_monomial_basis_matrix(degree, x)
-        vals_at_gauss = basis_matrix_at_gauss.dot(coef)
+            degree, probability_mesh, bkd=bkd)
+        vals_at_pm = basis_matrix_at_pm @ coef
+        basis_matrix_at_gauss = univariate_monomial_basis_matrix(
+            degree, quad_x, bkd=bkd)
+        vals_at_gauss = basis_matrix_at_gauss @ coef
 
-        true_mean = vals_at_pm.dot(probability_masses)
-        quadrature_mean = vals_at_gauss.dot(w)
+        true_mean = vals_at_pm @ probability_masses
+        quadrature_mean = vals_at_gauss @ quad_w
         # print (true_mean, quadrature_mean)
-        assert np.allclose(true_mean, quadrature_mean)
+        assert bkd._la_allclose(true_mean, quadrature_mean)
 
     def test_hahn_hypergeometric(self):
         """
@@ -230,59 +189,64 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         the probability of finding a given number of dogs if we choose at
         random 12 of the 20 animals.
         """
+        bkd = self.get_backend()
         degree = 4
         M, n, N = 20, 7, 12
         apoly, bpoly = -(n+1), -M-1+n
-        ab = hahn_recurrence(
-            degree+1, N, apoly, bpoly)
-        x, w = gauss_quadrature(ab, degree+1)
+        poly = HahnPolynomial1D(N, apoly, bpoly, backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
+        quad_x, quad_w = poly.gauss_quadrature_rule(degree+1)
 
-        rv = hypergeom(M, n, N)
+        rv = stats.hypergeom(M, n, N)
         true_mean = rv.mean()
-        quadrature_mean = x.dot(w)
-        assert np.allclose(true_mean, quadrature_mean)
+        quadrature_mean = quad_x @ quad_w
+        assert bkd._la_allclose(true_mean, quadrature_mean)
 
-        x = np.arange(0, n+1)
-        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        w = rv.pmf(x)
-        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
+        quad_x = bkd._la_arange(0, n+1)
+        vals = poly(quad_x, degree)
+        quad_w = rv.pmf(quad_x)
+        assert bkd._la_allclose((vals.T*quad_w) @ vals, bkd._la_eye(degree+1))
 
     def test_discrete_chebyshev(self):
+        bkd = self.get_backend()
         N, degree = 100, 5
-        xk, pk = np.arange(N), np.ones(N)/N
+        xk, pk = bkd._la_arange(N), bkd._la_ones(N)/N
         rv = float_rv_discrete(name='discrete_chebyshev', values=(xk, pk))
-        ab = discrete_chebyshev_recurrence(degree+1, N)
-        p = evaluate_orthonormal_polynomial_1d(xk, degree, ab)
-        w = rv.pmf(xk)
-        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
+        poly = DiscreteChebyshevPolynomial1D(N, backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
+        vals = poly(xk, degree)
+        quad_w = rv.pmf(xk)
+        assert bkd._la_allclose((vals.T*quad_w) @ vals, bkd._la_eye(degree+1))
 
     def test_charlier(self):
         # Note as rate gets smaller the number of terms that can be accurately
         # computed will decrease because the problem gets more ill conditioned.
         # This is caused because the number of masses with significant weights
         # gets smaller as rate does
+        bkd = self.get_backend()
         degree, rate = 5, 2
-        rv = poisson(rate)
-        ab = charlier_recurrence(degree+1, rate)
+        rv = stats.poisson(rate)
+        poly = CharlierPolynomial1D(rate)
+        poly.set_recursion_coefficients(degree+1)
         lb, ub = rv.interval(1-np.finfo(float).eps)
-        x = np.linspace(lb, ub, int(ub-lb+1))
-        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        w = rv.pmf(x)
-        # print(np.absolute(np.dot(p.T*w,p)-np.eye(degree+1)).max())
-        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1), atol=1e-7)
+        xk = bkd._la_linspace(lb, ub, int(ub-lb+1))
+        vals = poly(xk, degree)
+        quad_w = rv.pmf(xk)
+        assert bkd._la_allclose(
+            bkd._la_dot(vals.T*quad_w, vals), bkd._la_eye(degree+1), atol=1e-7)
 
     def test_convert_orthonormal_recurence_to_three_term_recurence(self):
-        rho = 0.
+        bkd = self.get_backend()
         degree = 2
-        probability_measure = True
-        ab = hermite_recurrence(
-            degree+1, rho, probability=probability_measure)
-        abc = convert_orthonormal_recurence_to_three_term_recurence(ab)
+        poly = HermitePolynomial1D()
+        poly.set_recursion_coefficients(degree+1)
+        abc = poly._three_term_recurence()
 
-        x = np.linspace(-3, 3, 101)
-        p_2term = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        p_3term = evaluate_three_term_recurrence_polynomial_1d(abc, degree, x)
-        assert np.allclose(p_2term, p_3term)
+        x = bkd._la_linspace(-3, 3, 101)
+        p_2term = poly(x, degree)
+        p_3term = evaluate_three_term_recurrence_polynomial_1d(
+            abc, degree, x, bkd=bkd)
+        assert bkd._la_allclose(p_2term, p_3term)
 
     def test_convert_orthonormal_polynomials_to_monomials_1d(self):
         """
@@ -294,54 +258,53 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         3    [0,-3/d,0,1/d]  1/d*((x-0)*(x**2-1)/c-c*x)=
                              1/(c*d)*(x**3-x-c**2*x)=(x**3-3*x)/(c*d),d=sqrt(3)
         """
-        rho = 0.
+        bkd = self.get_backend()
         degree = 10
-        probability_measure = True
-        ab = hermite_recurrence(
-            degree+1, rho, probability=probability_measure)
-
+        poly = HermitePolynomial1D(backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
         basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
-            ab, 4)
+            poly._rcoefs, 4, bkd=bkd)
 
-        true_basis_mono_coefs = np.zeros((5, 5))
+        true_basis_mono_coefs = bkd._la_zeros((5, 5))
         true_basis_mono_coefs[0, 0] = 1
         true_basis_mono_coefs[1, 1] = 1
-        true_basis_mono_coefs[2, [0, 2]] = -1/np.sqrt(2), 1/np.sqrt(2)
-        true_basis_mono_coefs[3, [1, 3]] = -3/np.sqrt(6), 1/np.sqrt(6)
-        true_basis_mono_coefs[4, [0, 2, 4]] = np.array([3, -6, 1])/np.sqrt(24)
+        true_basis_mono_coefs[2, [0, 2]] = (
+            -1/bkd._la_sqrt(2), 1/bkd._la_sqrt(2))
+        true_basis_mono_coefs[3, [1, 3]] = (
+            -3/bkd._la_sqrt(6), 1/bkd._la_sqrt(6))
+        true_basis_mono_coefs[4, [0, 2, 4]] = bkd._la_array(
+            [3, -6, 1])/bkd._la_sqrt(24)
 
-        assert np.allclose(basis_mono_coefs, true_basis_mono_coefs)
+        assert bkd._la_allclose(basis_mono_coefs, true_basis_mono_coefs)
 
-        coefs = np.ones(degree+1)
+        coefs = bkd._la_ones(degree+1)
         basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
-            ab, degree)
-        mono_coefs = np.sum(basis_mono_coefs*coefs, axis=0)
+            poly._rcoefs, degree)
+        mono_coefs = bkd._la_sum(basis_mono_coefs*coefs, axis=0)
 
-        x = np.linspace(-3, 3, 5)
-        p_ortho = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        ortho_vals = p_ortho.dot(coefs)
+        x = bkd._la_linspace(-3, 3, 5)
+        p_ortho = poly(x, degree)
+        ortho_vals = p_ortho @ coefs
 
         mono_vals = evaluate_monomial(
-            np.arange(degree+1)[np.newaxis, :], mono_coefs,
-            x[np.newaxis, :])[:, 0]
-        assert np.allclose(ortho_vals, mono_vals)
+            bkd._la_arange(degree+1)[None, :], mono_coefs,
+            x[None, :])[:, 0]
+        assert bkd._la_allclose(ortho_vals, mono_vals)
 
     def test_convert_monomials_to_orthonormal_polynomials_1d(self):
-        rho = 0.
+        bkd = self.get_backend()
         degree = 10
-        probability_measure = True
-        ab = hermite_recurrence(
-            degree+1, rho, probability=probability_measure)
-
+        poly = HermitePolynomial1D(backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
         basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
-            ab, degree)
+            poly._rcoefs, degree)
 
-        x = np.random.normal(0, 1, (100))
-        print('Cond number', np.linalg.cond(basis_mono_coefs))
-        basis_ortho_coefs = np.linalg.inv(basis_mono_coefs)
-        ortho_basis_matrix = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        mono_basis_matrix = x[:, None]**np.arange(degree+1)[None, :]
-        assert np.allclose(
+        x = bkd._la_array(np.random.normal(0, 1, (100)))
+        print('Cond number', bkd._la_cond(basis_mono_coefs))
+        basis_ortho_coefs = bkd._la_inv(basis_mono_coefs)
+        ortho_basis_matrix = poly(x, degree)
+        mono_basis_matrix = x[:, None]**bkd._la_arange(degree+1)[None, :]
+        assert bkd._la_allclose(
             mono_basis_matrix, ortho_basis_matrix.dot(basis_ortho_coefs.T))
 
     def test_convert_orthonormal_expansion_to_monomial_expansion_1d(self):
@@ -354,45 +317,16 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         i.e. normal with mean zero and unit variance, is
         f2 = lambda x: x.T**3
         """
+        bkd = self.get_backend()
         degree = 4
         mu, sigma = 1, 2
-        ortho_coef = np.array([0, 3, 0, np.sqrt(6)])
-        ab = hermite_recurrence(degree+1, 0, True)
+        ortho_coef = bkd._la_array([0, 3, 0, bkd._la_sqrt(6)])
+        poly = HermitePolynomial1D(backend=bkd)
+        poly.set_recursion_coefficients(degree+1)
         mono_coefs = convert_orthonormal_expansion_to_monomial_expansion_1d(
-            ortho_coef, ab, mu, sigma)
-        true_mono_coefs = np.array([-mu**3, 3*mu**2, -3*mu, 1])/sigma**3
-        assert np.allclose(mono_coefs, true_mono_coefs)
-
-    def test_orthonormality_laguerre_polynomial(self):
-        a = 3
-        rho = a-1
-        degree = 2
-        probability_measure = True
-        ab = laguerre_recurrence(
-            rho, degree+1, probability=probability_measure)
-        print(ab)
-        from scipy import stats
-        x = stats.gamma(a).rvs(int(1e6))
-        w = np.ones(x.shape[0])/x.shape[0]
-        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-
-        p_exact = np.asarray(
-            [1+0.*x, -(-x+rho+1),
-             0.5*x**2-x*(rho+2)+(rho+1)*(rho+2)/2]).T[:, :degree+1]
-        p_exact /= np.sqrt(sp.gamma(np.arange(degree+1)+rho+1)/sp.factorial(
-            np.arange(degree+1))/sp.gamma(rho+1))
-        #print(p_exact.T.dot(w), 'p')
-        #print(np.dot(p_exact.T*w, p_exact)-np.eye(degree+1))
-        assert np.allclose(p, p_exact)
-
-        # test orthogonality
-        exact_moments = np.zeros((degree+1))
-        exact_moments[0] = 1.0
-        #print(np.dot(p.T, w)-exact_moments)
-        assert np.allclose(np.dot(p.T, w), exact_moments, atol=2e-3)
-        # test orthonormality
-        # print(np.dot(p.T*w, p)-np.eye(degree+1))
-        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1), atol=2e-2)
+            ortho_coef, poly._rcoefs, mu, sigma)
+        true_mono_coefs = bkd._la_array([-mu**3, 3*mu**2, -3*mu, 1])/sigma**3
+        assert bkd._la_allclose(mono_coefs, true_mono_coefs)
 
 
 if __name__ == "__main__":

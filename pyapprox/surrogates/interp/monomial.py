@@ -1,15 +1,15 @@
 import numpy as np
 from scipy.special import factorial
 
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.surrogates.interp.manipulate_polynomials import (
-    multiply_multivariate_polynomials
-)
+    multiply_multivariate_polynomials)
 
 
-def univariate_monomial_basis_matrix(max_level, samples):
+def univariate_monomial_basis_matrix(max_level, samples, bkd=NumpyLinAlgMixin()):
     assert samples.ndim == 1
-    basis_matrix = samples[:, np.newaxis]**np.arange(
-        max_level+1)[np.newaxis, :]
+    basis_matrix = samples[:, None]**bkd._la_arange(
+        max_level+1)[None, :]
     return basis_matrix
 
 
