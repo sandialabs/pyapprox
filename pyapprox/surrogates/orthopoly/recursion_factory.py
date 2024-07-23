@@ -213,3 +213,61 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
 
 #     msg = f"Variable name {var_name} not in {askey_variable_names}"
 #     raise ValueError(msg)
+
+
+from pyapprox.surrogates.orthopoly.poly import OrthonormalPolynomial1D
+class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
+    def __init__(self, samples, weights, ortho_tol=1e-8, truncation_tol=0,
+                 backend=None):
+        """Compure recurrence coefficients from samples."""
+        super().__init__(backend)
+        self._samples = samples
+        self._weights = weights
+        self._ortho_tol = ortho_tol
+        self._truncation_tol = truncation_tol
+
+    def _get_recursion_coefficients(self, ncoefs):
+        return get_numerically_generated_recursion_coefficients_from_samples(
+            self._bkd._la_to_numpy(self._samples),
+            self._bkd._la_to_numpy(self._weights), ncoefs, self._ortho_tol,
+            self._truncation_tol)
+
+
+class NumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
+    def __init__(self, marginal, quad_opts={}, integrate_fun=None,
+                 backend=None):
+        """Compure recurrence coefficients from a known PDF
+        using predictor corrector method."""
+        super().__init__(backend)
+        # Get version var.pdf without error checking which runs much faster
+        self._pdf, self._loc, self._scale, self._can_lb, self._can_ub = (
+            self._parse_marginal(marginal))
+        self._marginal = marginal
+        self._quad_opts = self._parse_quad_opts(quad_opts, integrate_fun)
+
+    def _parse_marginal(self, marginal):
+        pdf = get_pdf(marginal)
+        loc, scale = transform_scale_parameters(marginal)
+        lb, ub = marginal.interval(1)
+        if (is_bounded_continuous_variable(marginal) or
+                is_bounded_discrete_variable(marginal)):
+            can_lb, can_ub = -1, 1
+        elif is_continuous_variable(marginal):
+            can_lb = (lb-loc)/scale
+            can_ub = (ub-loc)/scale
+        return pdf, loc, scale, can_lb, can_ub
+
+    def _parse_quad_opts(self, quad_opts, integrate_fun):
+        if not isinstance(quad_opts, dict):
+            raise ValueError("quad_opts must be a dictionary")
+        if integrate_fun is not None:
+            quad_opts["integrate_fun"] = integrate_fun
+        return quad_opts
+
+    def _canonical_pdf(self, x):
+        return self._pdf(x*self._scale+self._loc)*self._scale
+
+    def _get_recursion_coefficients(self, ncoefs):
+        return predictor_corrector_known_pdf(
+            ncoefs, self._can_lb, self._can_ub, self._canonical_pdf,
+            self._quad_opts)

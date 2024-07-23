@@ -5,15 +5,12 @@ import scipy
 from functools import partial
 
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
-    evaluate_orthonormal_polynomial_1d, gauss_quadrature
-)
+    evaluate_orthonormal_polynomial_1d, gauss_quadrature)
 from pyapprox.util.utilities import (
     cartesian_product, outer_product,
-    integrate_using_univariate_gauss_legendre_quadrature_unbounded
-)
+    integrate_using_univariate_gauss_legendre_quadrature_unbounded)
 from pyapprox.variables.marginals import (
-    transform_scale_parameters, is_bounded_continuous_variable
-)
+    transform_scale_parameters, is_bounded_continuous_variable)
 
 
 def stieltjes(nodes, weights, N):
@@ -85,7 +82,7 @@ def lanczos(nodes, weights, N, prob_tol=0):
         raise ValueError(msg)
     nnodes = nodes.shape[0]
     assert N <= nnodes
-    assert(nnodes == weights.shape[0])
+    assert (nnodes == weights.shape[0])
     alpha, beta = np.zeros(N), np.zeros(N)
     vec = np.zeros(nnodes+1)
     vec[0] = 1

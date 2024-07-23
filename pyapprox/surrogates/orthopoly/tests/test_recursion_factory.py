@@ -8,7 +8,7 @@ from numpy.polynomial.legendre import leggauss
 from pyapprox.variables.marginals import (
     get_probability_masses, float_rv_discrete, transform_scale_parameters)
 from pyapprox.surrogates.orthopoly.recursion_factory import (
-    get_recursion_coefficients_from_variable)
+    get_recursion_coefficients_from_variable, NumericOrthonormalPolynomial1D)
 from pyapprox.surrogates.orthopoly.numeric_orthonormal_recursions import (
     ortho_polynomial_grammian_bounded_continuous_variable,
     native_recursion_integrate_fun)
@@ -16,11 +16,15 @@ from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d)
 from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
     laguerre_recurrence)
-
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.surrogates.orthopoly.poly import LaguerrePolynomial1D
 
 class TestRecursionFactory(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
+
+    def get_backend(self):
+        return NumpyLinAlgMixin()
 
     def test_get_recursion_coefficients_from_variable_discrete(self):
         degree = 4
@@ -215,28 +219,29 @@ class TestRecursionFactory(unittest.TestCase):
             # plt.show()
 
     def test_special_cases(self):
+        bkd = self.get_backend()
         a = 3
         rho = a-1
         degree = 5
-        ab = laguerre_recurrence(degree+1, rho, probability=True)
-        print(ab)
-        var = stats.gamma(a)
+        poly = LaguerrePolynomial1D(rho)
+        poly.set_recursion_coefficients(degree+1)
+        marginal = stats.gamma(a)
 
         tol = 1e-8
         quad_opts = {"epsrel": tol, "epsabs": tol, "limit": 100}
-        opts = {"numeric": True, "quad_options": quad_opts}
-        ab_numeric = get_recursion_coefficients_from_variable(
-            var, degree+1, opts)
-
+        num_poly = NumericOrthonormalPolynomial1D(marginal, quad_opts)
+        num_poly.set_recursion_coefficients(degree+1)
         # The last coefficient of ab[:, 0] is never used so it is not computed
         # by the numerical routine
-        assert np.allclose(ab_numeric, ab)
+        assert bkd._la_allclose(num_poly._rcoefs, poly._rcoefs)
 
-        var = stats.expon()
-        ab = laguerre_recurrence(degree+1, 0, probability=True)
-        ab_numeric = get_recursion_coefficients_from_variable(
-            var, degree+1, opts)
-        assert np.allclose(ab_numeric, ab)
+        rho = 0
+        marginal = stats.expon()
+        poly = LaguerrePolynomial1D(rho)
+        poly.set_recursion_coefficients(degree+1)
+        num_poly = NumericOrthonormalPolynomial1D(marginal, quad_opts)
+        num_poly.set_recursion_coefficients(degree+1)
+        assert bkd._la_allclose(num_poly._rcoefs, poly._rcoefs)
 
 
 if __name__ == "__main__":
