@@ -6,218 +6,299 @@ from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin
 
 
 class TorchLinAlgMixin(LinAlgMixin):
-    def _la_dot(self, Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
+    def __init__(self):
+        # needed for autograd
+        self._inputs = None
+    
+    @staticmethod
+    def _la_dot(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return Amat @ Bmat
 
-    def _la_eye(self, nrows: int, dtype=torch.double) -> torch.Tensor:
+    @staticmethod
+    def _la_eye(nrows: int, dtype=torch.double) -> torch.Tensor:
         return torch.eye(nrows, dtype=dtype)
 
-    def _la_inv(self, matrix: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_inv(matrix: torch.Tensor) -> torch.Tensor:
         return torch.linalg.inv(matrix)
 
-    def _la_cholesky(self, matrix: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_cholesky(matrix: torch.Tensor) -> torch.Tensor:
         return torch.linalg.cholesky(matrix)
 
-    def _la_cholesky_solve(self, chol: torch.Tensor, bvec: torch.Tensor,
+    @staticmethod
+    def _la_cholesky_solve(chol: torch.Tensor, bvec: torch.Tensor,
                            lower: bool = True) -> torch.Tensor:
         return torch.cholesky_solve(bvec, chol, upper=(not lower))
 
-    def _la_solve_triangular(self, Amat: torch.Tensor, bvec: torch.Tensor,
+    @staticmethod
+    def _la_solve_triangular(Amat: torch.Tensor, bvec: torch.Tensor,
                              lower: bool = True) -> torch.Tensor:
         return torch.linalg.solve_triangular(Amat, bvec, upper=(not lower))
 
-    def _la_full(self, *args, dtype=torch.double):
+    @staticmethod
+    def _la_full(*args, dtype=torch.double):
         return torch.full(*args, dtype=dtype)
 
-    def _la_zeros(self, *args, dtype=float):
+    @staticmethod
+    def _la_zeros(*args, dtype=float):
         return torch.zeros(*args, dtype=dtype)
 
-    def _la_ones(self, *args, dtype=float):
+    @staticmethod
+    def _la_ones(*args, dtype=float):
         return torch.ones(*args, dtype=dtype)
 
-    def _la_empty(self, *args, dtype=torch.double):
+    @staticmethod
+    def _la_empty(*args, dtype=torch.double):
         return torch.empty(*args, dtype=dtype)
 
-    def _la_exp(self, matrix: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_exp(matrix: torch.Tensor) -> torch.Tensor:
         return torch.exp(matrix)
 
-    def _la_sqrt(self, matrix: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_sqrt(matrix: torch.Tensor) -> torch.Tensor:
         return torch.sqrt(matrix)
 
-    def _la_cos(self, matrix: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_cos(matrix: torch.Tensor) -> torch.Tensor:
         return torch.cos(matrix)
 
-    def _la_arccos(self, matrix: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_arccos(matrix: torch.Tensor) -> torch.Tensor:
         return torch.arccos(matrix)
 
-    def _la_sin(self, matrix: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_sin(matrix: torch.Tensor) -> torch.Tensor:
         return torch.sin(matrix)
 
-    def _la_log(self, matrix: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_log(matrix: torch.Tensor) -> torch.Tensor:
         return torch.log(matrix)
 
-    def _la_multidot(self, matrix_list: List[torch.Tensor]) -> torch.Tensor:
+    @staticmethod
+    def _la_multidot(matrix_list: List[torch.Tensor]) -> torch.Tensor:
         return torch.linalg.multi_dot(matrix_list)
 
-    def _la_prod(self, matrix_list: torch.Tensor, axis=None) -> torch.Tensor:
+    @staticmethod
+    def _la_prod(matrix_list: torch.Tensor, axis=None) -> torch.Tensor:
         return torch.prod(matrix_list, dim=axis)
 
-    def _la_hstack(self, arrays) -> torch.Tensor:
+    @staticmethod
+    def _la_hstack(arrays) -> torch.Tensor:
         return torch.hstack(arrays)
 
-    def _la_vstack(self, arrays) -> torch.Tensor:
+    @staticmethod
+    def _la_vstack(arrays) -> torch.Tensor:
         return torch.vstack(arrays)
 
-    def _la_stack(self, arrays, axis=0) -> torch.Tensor:
+    @staticmethod
+    def _la_stack(arrays, axis=0) -> torch.Tensor:
         return torch.stack(arrays, dim=axis)
 
-    def _la_dstack(self, arrays) -> torch.Tensor:
+    @staticmethod
+    def _la_dstack(arrays) -> torch.Tensor:
         return torch.dstack(arrays)
 
-    def _la_arange(self, *args, dtype=torch.double) -> torch.Tensor:
+    @staticmethod
+    def _la_arange(*args, dtype=torch.double) -> torch.Tensor:
         return torch.arange(*args, dtype=dtype)
 
-    def _la_linspace(self, *args, dtype=torch.double):
+    @staticmethod
+    def _la_linspace(*args, dtype=torch.double):
         return torch.linspace(*args, dtype=dtype)
 
-    def _la_ndim(self, mat: torch.Tensor) -> int:
+    @staticmethod
+    def _la_ndim(mat: torch.Tensor) -> int:
         return mat.ndim
 
-    def _la_repeat(self, mat: torch.Tensor, nreps: int) -> torch.Tensor:
+    @staticmethod
+    def _la_repeat(mat: torch.Tensor, nreps: int) -> torch.Tensor:
         return mat.repeat(nreps)
 
-    def _la_cdist(self, Amat: torch.tensor,
+    @staticmethod
+    def _la_cdist(Amat: torch.tensor,
                   Bmat: torch.tensor) -> torch.Tensor:
         return torch.cdist(Amat, Bmat, p=2)
 
-    def _la_einsum(self, *args) -> torch.Tensor:
+    @staticmethod
+    def _la_einsum(*args) -> torch.Tensor:
         return torch.einsum(*args)
 
-    def _la_trace(self, mat: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_trace(mat: torch.Tensor) -> torch.Tensor:
         return torch.trace(mat)
 
-    def _la_copy(self, mat: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_copy(mat: torch.Tensor) -> torch.Tensor:
         return mat.clone()
 
-    def _la_get_diagonal(self, mat: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_get_diagonal(mat: torch.Tensor) -> torch.Tensor:
         return torch.diagonal(mat)
 
-    def _la_diag(self, array, k=0):
+    @staticmethod
+    def _la_diag(array, k=0):
         return torch.diag(array, diagonal=k)
 
-    def _la_isnan(self, mat) -> torch.Tensor:
+    @staticmethod
+    def _la_isnan(mat) -> torch.Tensor:
         return torch.isnan(mat)
 
-    def _la_atleast1d(self, val, dtype=torch.double) -> torch.Tensor:
+    @staticmethod
+    def _la_atleast1d(val, dtype=torch.double) -> torch.Tensor:
         return torch.atleast_1d(
             torch.as_tensor(val, dtype=dtype))
 
-    def _la_atleast2d(self, val, dtype=torch.double) -> torch.Tensor:
+    @staticmethod
+    def _la_atleast2d(val, dtype=torch.double) -> torch.Tensor:
         return torch.atleast_2d(
             torch.as_tensor(val, dtype=dtype))
 
-    def _la_reshape(self, mat: torch.Tensor, newshape) -> torch.Tensor:
+    @staticmethod
+    def _la_reshape(mat: torch.Tensor, newshape) -> torch.Tensor:
         return torch.reshape(mat, newshape)
 
-    def _la_where(self, cond: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_where(cond: torch.Tensor) -> torch.Tensor:
         return torch.where(cond)
 
-    def _la_detach(self, mat: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_detach(mat: torch.Tensor) -> torch.Tensor:
         return mat.detach()
 
-    def _la_tointeger(self, mat: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_tointeger(mat: torch.Tensor) -> torch.Tensor:
         return mat.int()
 
-    def _la_inf(self):
+    @staticmethod
+    def _la_inf():
         return torch.inf
 
-    def _la_norm(self, mat: torch.Tensor, axis=None) -> torch.Tensor:
+    @staticmethod
+    def _la_norm(mat: torch.Tensor, axis=None) -> torch.Tensor:
         return torch.linalg.norm(mat, dim=axis)
 
-    def _la_any(self, mat: torch.Tensor, axis=None) -> torch.Tensor:
+    @staticmethod
+    def _la_any(mat: torch.Tensor, axis=None) -> torch.Tensor:
         if axis is None:
             return torch.any(mat)
         return torch.any(mat, dim=axis)
 
-    def _la_all(self, mat: torch.Tensor, axis=None) -> torch.Tensor:
+    @staticmethod
+    def _la_all(mat: torch.Tensor, axis=None) -> torch.Tensor:
         if axis is None:
             return torch.all(mat)
         return torch.all(mat, dim=axis)
 
-    def _la_kron(self, Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_kron(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return torch.kron(Amat, Bmat)
 
-    def _la_slogdet(self, Amat: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_slogdet(Amat: torch.Tensor) -> torch.Tensor:
         return torch.linalg.slogdet(Amat)
 
-    def _la_mean(self, mat: torch.Tensor, axis: int = None) -> torch.Tensor:
+    @staticmethod
+    def _la_mean(mat: torch.Tensor, axis: int = None) -> torch.Tensor:
         if axis is None:
             return torch.mean(mat)
         return torch.mean(mat, dim=axis)
 
-    def _la_std(self, mat: torch.Tensor, axis: int = None,
+    @staticmethod
+    def _la_std(mat: torch.Tensor, axis: int = None,
                 ddof: int = 0) -> torch.Tensor:
         if axis is None:
             return torch.std(mat, correction=ddof)
         return torch.std(mat, dim=axis, correction=ddof)
 
-    def _la_cov(self, mat: torch.Tensor, ddof=0, rowvar=True) -> torch.Tensor:
+    @staticmethod
+    def _la_cov(mat: torch.Tensor, ddof=0, rowvar=True) -> torch.Tensor:
         if rowvar:
             return torch.cov(mat, correction=ddof)
         return torch.cov(mat.T, correction=ddof)
 
-    def _la_abs(self, mat: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _la_abs(mat: torch.Tensor) -> torch.Tensor:
         return torch.absolute(mat)
 
-    def _la_to_numpy(self, mat: torch.Tensor):
+    @staticmethod
+    def _la_to_numpy(mat: torch.Tensor):
         return mat.numpy()
 
-    def _la_argsort(self, mat: torch.Tensor, axis=-1) -> torch.Tensor:
+    @staticmethod
+    def _la_argsort(mat: torch.Tensor, axis=-1) -> torch.Tensor:
         return torch.argsort(mat, dim=axis)
 
-    def _la_sort(self, mat: torch.Tensor, axis=-1) -> torch.Tensor:
+    @staticmethod
+    def _la_sort(mat: torch.Tensor, axis=-1) -> torch.Tensor:
         return torch.sort(mat, dim=axis)
 
-    def _la_flip(self, mat: torch.Tensor, axis=None) -> torch.Tensor:
+    @staticmethod
+    def _la_flip(mat: torch.Tensor, axis=None) -> torch.Tensor:
         if axis is None:
             axis = (0,)
         return torch.flip(mat, dims=axis)
 
-    def _la_allclose(self, Amat: torch.Tensor, Bmat: torch.Tensor,
+    @staticmethod
+    def _la_allclose(Amat: torch.Tensor, Bmat: torch.Tensor,
                      **kwargs) -> bool:
         return torch.allclose(Amat, Bmat, **kwargs)
 
-    def _la_lstsq(self, Amat, Bmat):
+    @staticmethod
+    def _la_lstsq(Amat, Bmat):
         return torch.linalg.lstsq(Amat, Bmat, rcond=None)[0]
 
-    def _la_argmax(self, array):
+    @staticmethod
+    def _la_argmax(array):
         return torch.argmax(array)
 
-    def _la_max(self, array, axis=None):
+    @staticmethod
+    def _la_max(array, axis=None):
         # torch returns both max and indices
         return torch.max(array, dim=axis)[0]
 
-    def _la_min(self, array, axis=None):
+    @staticmethod
+    def _la_min(array, axis=None):
         # torch returns both min and indices
         return torch.min(array, dim=axis)[0]
 
-    def _la_block(self, blocks):
+    @staticmethod
+    def _la_block(blocks):
         return torch.cat([torch.cat(row, dim=1) for row in blocks], dim=0)
 
-    def _la_sum(self, matrix, axis=None):
+    @staticmethod
+    def _la_sum(matrix, axis=None):
         return torch.sum(matrix, dim=axis)
 
-    def _la_count_nonzero(self, matrix, axis=None):
+    @staticmethod
+    def _la_count_nonzero(matrix, axis=None):
         return torch.count_nonzero(matrix, dim=axis)
 
-    def _la_array(self, array, dtype=torch.double):
+    @staticmethod
+    def _la_array(array, dtype=torch.double):
         return torch.as_tensor(array, dtype=dtype)
 
-    def _la_eigh(self, matrix):
+    @staticmethod
+    def _la_eigh(matrix):
         return torch.linalg.eigh(matrix)
 
-    def _la_isfinite(self, matrix):
+    @staticmethod
+    def _la_isfinite(matrix):
         return torch.isfinite(matrix)
 
-    def _la_cond(self, matrix):
+    @staticmethod
+    def _la_cond(matrix):
         return torch.linalg.cond(matrix)
+
+    def _la_autograd_fun(self, active_params_opt):
+        active_params_opt.requires_grad = True
+        self._set_params(active_params_opt)
+        return self._fun(self._inputs)
+
+    def _la_jacobian(self, fun, inputs, set_params, params):
+        self._fun = fun
+        self._set_params = set_params
+        self._inputs = inputs
+        return torch.autograd.functional.jacobian(
+            self._la_autograd_fun, params)

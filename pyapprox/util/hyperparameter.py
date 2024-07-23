@@ -32,10 +32,10 @@ class IdentityHyperParameterTransform(HyperParameterTransform):
 
 class LogHyperParameterTransform(HyperParameterTransform):
     def to_opt_space(self, params):
-        return self._la_log(params)
+        return self._bkd._la_log(params)
 
     def from_opt_space(self, params):
-        return self._la_exp(params)
+        return self._bkd._la_exp(params)
 
 
 class HyperParameter:

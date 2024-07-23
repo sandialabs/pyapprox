@@ -21,6 +21,8 @@ class BasisExpansion(Model):
                  nqoi=1, coef_bounds=None):
         # todo make model accept backend and pass in through with call to super
         super().__init__()
+        if type(basis._bkd) is not type(solver._bkd):
+            raise ValueError("Basis and solver must have the same backend.")
         self._bkd = basis._bkd
         # self._bkd._la_set_attributes(self)
         self._jacobian_implemented = basis._jacobian_implemented

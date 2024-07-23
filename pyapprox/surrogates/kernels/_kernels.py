@@ -1,17 +1,25 @@
 from abc import ABC, abstractmethod
 import math
-from pyapprox.util.hyperparameter._hyperparameter import (
+
+from pyapprox.util.linearalgebra.numpylinalg import (
+    LinAlgMixin, NumpyLinAlgMixin)
+from pyapprox.util.hyperparameter import (
     CombinedHyperParameter, HyperParameter, HyperParameterList,
     IdentityHyperParameterTransform, LogHyperParameterTransform)
-from pyapprox.util.transforms._transforms import SphericalCorrelationTransform
+from pyapprox.util.transforms import SphericalCorrelationTransform
 
 
 class Kernel(ABC):
     """The base class for any kernel."""
 
+    def __init__(self, backend: LinAlgMixin):
+        if backend is None:
+            backend = NumpyLinAlgMixin()
+        self._bkd = backend
+
     def diag(self, X1):
         """Return the diagonal of the kernel matrix."""
-        return self._la_get_diagonal(self(X1))
+        return self._bkd._la_get_diagonal(self(X1))
 
     @abstractmethod
     def __call__(self, X1, X2=None):
@@ -27,12 +35,20 @@ class Kernel(ABC):
         return "{0}({1}, la={2})".format(
             self.__class__.__name__, self.hyp_list._short_repr(), self._la)
 
+    def jacobian(self, samples):
+        return self._bkd._la_jacobian(
+            self, samples, self.hyp_list.set_active_opt_params,
+            self.hyp_list.get_active_opt_params())
+
 
 class CompositionKernel(Kernel):
     def __init__(self, kernel1, kernel2):
         self.kernel1 = kernel1
         self.kernel2 = kernel2
         self.hyp_list = kernel1.hyp_list+kernel2.hyp_list
+        if type(kernel1._bkd) is not type(kernel2._bkd):
+            raise ValueError("Kernels must have the same backend.")
+        self._bkd = kernel1._bkd
 
         # make linear algebra functions accessible via product_kernel._la_
         for attr in dir(kernel1):
@@ -60,7 +76,7 @@ class ProductKernel(CompositionKernel):
         Kmat2 = self.kernel2(X)
         jac1 = self.kernel1.jacobian(X)
         jac2 = self.kernel2.jacobian(X)
-        return self._la_dstack(
+        return self._bkd._la_dstack(
             [jac1*Kmat2[..., None], jac2*Kmat1[..., None]])
 
 
@@ -77,35 +93,37 @@ class SumKernel(CompositionKernel):
     def jacobian(self, X):
         jac1 = self.kernel1.jacobian(X)
         jac2 = self.kernel2.jacobian(X)
-        return self._la_dstack([jac1, jac2])
+        return self._bkd._la_dstack([jac1, jac2])
 
 
 class MaternKernel(Kernel):
     def __init__(self, nu: float,
-                 lenscale, lenscale_bounds, nvars: int):
+                 lenscale, lenscale_bounds, nvars: int,
+                 backend: LinAlgMixin = None):
         """The matern kernel for varying levels of smoothness."""
+        super().__init__(backend)
         self._nvars = nvars
         self.nu = nu
-        transform = LogHyperParameterTransform(backend=self)
+        transform = LogHyperParameterTransform(backend=self._bkd)
         self._lenscale = HyperParameter(
             "lenscale", nvars, lenscale, lenscale_bounds, transform,
-            backend=self)
+            backend=self._bkd)
         self.hyp_list = HyperParameterList([self._lenscale])
 
     def diag(self, X1):
-        return self._la_full((X1.shape[1],), 1)
+        return self._bkd._la_full((X1.shape[1],), 1)
 
     def _eval_distance_form(self, distances):
-        if self.nu == self._la_inf():
-            return self._la_exp(-(distances**2)/2.)
+        if self.nu == self._bkd._la_inf():
+            return self._bkd._la_exp(-(distances**2)/2.)
         if self.nu == 5/2:
-            tmp = self._la_sqrt(5)*distances
-            return (1.0+tmp+tmp**2/3.)*self._la_exp(-tmp)
+            tmp = self._bkd._la_sqrt(5)*distances
+            return (1.0+tmp+tmp**2/3.)*self._bkd._la_exp(-tmp)
         if self.nu == 3/2:
-            tmp = self._la_sqrt(3)*distances
-            return (1.+tmp)*self._la_exp(-tmp)
+            tmp = self._bkd._la_sqrt(3)*distances
+            return (1.+tmp)*self._bkd._la_exp(-tmp)
         if self.nu == 1/2:
-            return self._la_exp(-distances)
+            return self._bkd._la_exp(-distances)
         raise ValueError("Matern kernel with nu={0} not supported".format(
             self.nu))
 
@@ -113,7 +131,7 @@ class MaternKernel(Kernel):
         lenscale = self._lenscale.get_values()
         if X2 is None:
             X2 = X1
-        distances = self._la_cdist(X1.T/lenscale, X2.T/lenscale)
+        distances = self._bkd._la_cdist(X1.T/lenscale, X2.T/lenscale)
         return self._eval_distance_form(distances)
 
     def nvars(self):
@@ -121,44 +139,47 @@ class MaternKernel(Kernel):
 
 
 class ConstantKernel(Kernel):
-    def __init__(self, constant, constant_bounds=None, transform=None):
+    def __init__(self, constant, constant_bounds=None, transform=None,
+                 backend=None):
+        super().__init__(backend)
         if transform is None:
-            transform = IdentityHyperParameterTransform(backend=self)
+            transform = IdentityHyperParameterTransform(backend=self._bkd)
         if constant_bounds is None:
-            constant_bounds = [-self._la_inf(), self._la_inf()]
+            constant_bounds = [-self._bkd._la_inf(), self._bkd._la_inf()]
         self._const = HyperParameter(
-            "const", 1, constant, constant_bounds, transform, backend=self)
+            "const", 1, constant, constant_bounds, transform, backend=self._bkd)
         self.hyp_list = HyperParameterList([self._const])
 
     def diag(self, X1):
-        return self._la_full((X1.shape[1],), self.hyp_list.get_values()[0])
+        return self._bkd._la_full((X1.shape[1],), self.hyp_list.get_values()[0])
 
     def __call__(self, X1, X2=None):
         if X2 is None:
             X2 = X1
         # full does not work when const value requires grad
         # return full((X1.shape[1], X2.shape[1]), self._const.get_values()[0])
-        const = self._la_empty((X1.shape[1], X2.shape[1]))
+        const = self._bkd._la_empty((X1.shape[1], X2.shape[1]))
         const[:] = self._const.get_values()[0]
         return const
 
 
 class GaussianNoiseKernel(Kernel):
-    def __init__(self, constant, constant_bounds=None):
+    def __init__(self, constant, constant_bounds=None, backend=None):
+        super().__init__(backend)
         self._const = HyperParameter(
             "const", 1, constant, constant_bounds,
-            LogHyperParameterTransform(backend=self), backend=self)
+            LogHyperParameterTransform(backend=self._bkd), backend=self._bkd)
         self.hyp_list = HyperParameterList([self._const])
 
     def diag(self, X):
-        return self._la_full((X.shape[1],), self.hyp_list.get_values()[0])
+        return self._bkd._la_full((X.shape[1],), self.hyp_list.get_values()[0])
 
     def __call__(self, X, Y=None):
         if Y is None:
-            return self._const.get_values()[0]*self._la_eye(X.shape[1])
+            return self._const.get_values()[0]*self._bkd._la_eye(X.shape[1])
         # full does not work when const value requires grad
         # return full((X.shape[1], Y.shape[1]), self._const.get_values()[0])
-        const = self._la_full((X.shape[1], Y.shape[1]), 0.)
+        const = self._bkd._la_full((X.shape[1], Y.shape[1]), 0.)
         return const
 
 
@@ -168,14 +189,14 @@ class PeriodicMaternKernel(MaternKernel):
                  period,
                  period_bounds,
                  lenscale,
-                 lenscale_bounds):
-        
-        lenscale_transform = LogHyperParameterTransform(backend=self),
-        period_transform = LogHyperParameterTransform(backend=self)
-        super().__init__(nu, lenscale, lenscale_bounds, 1, lenscale_transform)
+                 lenscale_bounds,
+                 backend=None):
+        lenscale_transform = LogHyperParameterTransform(backend=backend),
+        period_transform = LogHyperParameterTransform(backend=backend)
+        super().__init__(nu, lenscale, lenscale_bounds, 1, backend=backend)
         self._period = HyperParameter(
             "period", 1, lenscale, lenscale_bounds, period_transform,
-            backend=self)
+            backend=self._bkd)
         self.hyp_list += HyperParameterList([self._period])
 
     def __call__(self, X, Y=None):
@@ -183,7 +204,7 @@ class PeriodicMaternKernel(MaternKernel):
             Y = X
         lenscale = self._lenscale.get_values()
         period = self._period.get_values()
-        distances = self._la_cdist(X.T/period, Y.T/period)/lenscale
+        distances = self._bkd._la_cdist(X.T/period, Y.T/period)/lenscale
         return super()._eval_distance_form(distances)
 
     def diag(self, X):
@@ -197,17 +218,18 @@ class HilbertSchmidtKernel(Kernel):
                  weight_bounds,
                  transform,
                  normalize: bool = False):
+        super().__init__(basis._bkd)
         self._nvars = basis.nvars()
         self._basis = basis
         self._nterms = basis.nterms()**2
         self._normalize = normalize
         self._weights = HyperParameter(
             "weights", self._nterms, weights, weight_bounds,
-            transform, backend=self)
+            transform, backend=self._bkd)
         self.hyp_list = HyperParameterList([self._weights])
 
     def _get_weights(self):
-        return self._la_reshape(
+        return self._bkd._la_reshape(
             self._weights.get_values(),
             (self._basis.nterms(), self._basis.nterms()))
 
@@ -218,8 +240,8 @@ class HilbertSchmidtKernel(Kernel):
         X1basis_mat = self._basis(X1)
         X2basis_mat = self._basis(X2)
         if self._normalize:
-            X1basis_mat /= self._la_norm(X1basis_mat, axis=1)[:, None]
-            X2basis_mat /= self._la_norm(X2basis_mat, axis=1)[:, None]
+            X1basis_mat /= self._bkd._la_norm(X1basis_mat, axis=1)[:, None]
+            X2basis_mat /= self._bkd._la_norm(X2basis_mat, axis=1)[:, None]
         K = (X1basis_mat @ weights) @ X2basis_mat.T
         return K
 
@@ -229,9 +251,10 @@ class SphericalCovarianceHyperParameter(CombinedHyperParameter):
         super().__init__(hyper_params)
         self.cov_matrix = None
         self.name = "spherical_covariance"
-        self.transform = IdentityHyperParameterTransform(backend=self)
+        self.transform = IdentityHyperParameterTransform(backend=self._bkd)
         noutputs = hyper_params[0].nvars()
-        self._trans = SphericalCorrelationTransform(noutputs, backend=self)
+        self._trans = SphericalCorrelationTransform(
+            noutputs, backend=self._bkd)
         self._set_covariance_matrix()
 
     def _set_covariance_matrix(self):
@@ -256,42 +279,44 @@ class SphericalCovariance:
         # E.g. for speherical coordinates sin(0) = 0
         if radii_transform is None:
             radii_transform = IdentityHyperParameterTransform(
-                backend=self)
+                backend=self._bkd)
         if angle_transform is None:
             angle_transform = IdentityHyperParameterTransform(
-                backend=self)
+                backend=self._bkd)
 
         self.noutputs = noutputs
         self._trans = SphericalCorrelationTransform(
-            self.noutputs, backend=self)
+            self.noutputs, backend=self._bkd)
         self._validate_bounds(radii_bounds, angle_bounds)
         self._radii = HyperParameter(
             "radii", self.noutputs, radii, radii_bounds, radii_transform,
-            backend=self)
+            backend=self._bkd)
         self._angles = HyperParameter(
             "angles", self._trans.ntheta-self.noutputs, angles, angle_bounds,
-            angle_transform, backend=self)
+            angle_transform, backend=self._bkd)
         self.hyp_list = HyperParameterList(
             [SphericalCovarianceHyperParameter([self._radii, self._angles])])
 
     def _validate_bounds(self, radii_bounds, angle_bounds):
         bounds = self._trans.get_spherical_bounds()
         # all theoretical radii_bounds are the same so just check one
-        radii_bounds = self._la_atleast1d(radii_bounds)
+        radii_bounds = self._bkd._la_atleast1d(radii_bounds)
         if radii_bounds.shape[0] == 2:
-            radii_bounds = self._la_repeat(radii_bounds, self.noutputs)
+            radii_bounds = self._bkd._la_repeat(radii_bounds, self.noutputs)
         radii_bounds = radii_bounds.reshape((radii_bounds.shape[0]//2, 2))
-        if (self._la_any(radii_bounds[:, 0] < bounds[:self.noutputs, 0]) or
-                self._la_any(radii_bounds[:, 1] > bounds[:self.noutputs, 1])):
+        if (self._bkd._la_any(radii_bounds[:, 0] < bounds[:self.noutputs, 0]) or
+                self._bkd._la_any(radii_bounds[:, 1] >
+                                 bounds[:self.noutputs, 1])):
             raise ValueError("radii bounds are inconsistent")
         # all theoretical angle_bounds are the same so just check one
-        angle_bounds = self._la_atleast1d(angle_bounds)
+        angle_bounds = self._bkd._la_atleast1d(angle_bounds)
         if angle_bounds.shape[0] == 2:
-            angle_bounds = self._la_repeat(
+            angle_bounds = self._bkd._la_repeat(
                 angle_bounds, self._trans.ntheta-self.noutputs)
         angle_bounds = angle_bounds.reshape((angle_bounds.shape[0]//2, 2))
-        if (self._la_any(angle_bounds[:, 0] < bounds[self.noutputs:, 0]) or
-                self._la_any(angle_bounds[:, 1] > bounds[self.noutputs:, 1])):
+        if (self._bkd._la_any(angle_bounds[:, 0] < bounds[self.noutputs:, 0]) or
+                self._bkd._la_any(angle_bounds[:, 1] >
+                                 bounds[self.noutputs:, 1])):
             raise ValueError("angle bounds are inconsistent")
 
     def get_covariance_matrix(self):

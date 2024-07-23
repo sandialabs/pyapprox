@@ -5,25 +5,11 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.kernels.numpykernels import (
-    NumpyConstantKernel, NumpyMaternKernel, NumpyPeriodicMaternKernel,
-    NumpyGaussianNoiseKernel)
-from pyapprox.surrogates.kernels.torchkernels import (
-    TorchMaternKernel, TorchPeriodicMaternKernel,
-    TorchConstantKernel, TorchGaussianNoiseKernel)
-
-
-def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps),
-                       backend=NumpyLinAlgMixin()):
-    fval = f(x0)
-    jacobian = backend._la_full(
-        (fval.shape[0], fval.shape[1], x0.shape[0]), 0.)
-    for ii in range(len(x0)):
-        dx = backend._la_full((x0.shape[0],), 0.)
-        dx[ii] = epsilon
-        fval_perturbed = f(x0+dx)
-        jacobian[..., ii] = (fval_perturbed - fval) / epsilon
-    return jacobian
+# from pyapprox.util.linearalgebra.jaxlinalg import JaxLinAlgMixin
+from pyapprox.surrogates.kernels._kernels import (
+    ConstantKernel, MaternKernel, PeriodicMaternKernel,
+    GaussianNoiseKernel)
+from pyapprox.util.utilities import approx_jacobian_3D
 
 
 class TestKernels:
@@ -31,50 +17,50 @@ class TestKernels:
         np.random.seed(1)
 
     def test_kernels(self):
-        (MaternKernel, ConstantKernel, GaussianNoiseKernel,
-         PeriodicMaternKernel) = self.get_kernels()
-        kernel_inf = MaternKernel(np.inf, 1.0, [1e-1, 1], 2)
-        values = kernel_inf._la_atleast1d([0.5, 0.5])
-        kernel_inf.hyp_list.set_active_opt_params(kernel_inf._la_log(values))
-        assert self._la_allclose(kernel_inf.hyp_list.get_values(), values)
+        bkd = self.get_backend()
+        kernel_inf = MaternKernel(np.inf, 1.0, [1e-1, 1], 2, backend=bkd)
+        values = bkd._la_atleast1d([0.5, 0.5])
+        kernel_inf.hyp_list.set_active_opt_params(bkd._la_log(values))
+        assert bkd._la_allclose(kernel_inf.hyp_list.get_values(), values)
 
         nsamples1, nsamples2 = 5, 3
-        X = self._la_array(np.random.normal(0, 1, (2, nsamples1)))
-        Y = self._la_array(np.random.normal(0, 1, (2, nsamples2)))
-        assert self._la_allclose(
-            kernel_inf.diag(X), kernel_inf._la_get_diagonal(kernel_inf(X, X)))
+        X = bkd._la_array(np.random.normal(0, 1, (2, nsamples1)))
+        Y = bkd._la_array(np.random.normal(0, 1, (2, nsamples2)))
+        assert bkd._la_allclose(
+            kernel_inf.diag(X), bkd._la_get_diagonal(kernel_inf(X, X)))
 
         const0 = 2.0
-        kernel_prod = kernel_inf*ConstantKernel(const0)
-        assert self._la_allclose(
+        kernel_prod = kernel_inf*ConstantKernel(const0, backend=bkd)
+        assert bkd._la_allclose(
             kernel_prod.diag(X), const0*kernel_inf.diag(X))
-        assert self._la_allclose(
+        assert bkd._la_allclose(
             kernel_prod.diag(X),
-            kernel_inf._la_get_diagonal(kernel_prod(X, X)))
-        assert self._la_allclose(kernel_prod(X, Y), const0*kernel_inf(X, Y))
+            bkd._la_get_diagonal(kernel_prod(X, X)))
+        assert bkd._la_allclose(kernel_prod(X, Y), const0*kernel_inf(X, Y))
 
         const1 = 3.0
-        kernel_sum = kernel_prod+ConstantKernel(const1)
-        assert self._la_allclose(
+        kernel_sum = kernel_prod+ConstantKernel(const1, backend=bkd)
+        assert bkd._la_allclose(
             kernel_sum.diag(X), const0*kernel_inf.diag(X)+const1)
-        assert self._la_allclose(
-            kernel_sum.diag(X), kernel_prod._la_get_diagonal(kernel_sum(X, X)))
-        assert self._la_allclose(
+        assert bkd._la_allclose(
+            kernel_sum.diag(X), bkd._la_get_diagonal(kernel_sum(X, X)))
+        assert bkd._la_allclose(
             kernel_sum(X, Y), const0*kernel_inf(X, Y)+const1)
 
         kernel_periodic = PeriodicMaternKernel(
-            0.5, 1.0, [1e-1, 1], 1, [1e-1, 1])
-        values = kernel_periodic._la_atleast1d([0.5, 0.5])
+            0.5, 1.0, [1e-1, 1], 1, [1e-1, 1], backend=bkd)
+        values = bkd._la_atleast1d([0.5, 0.5])
         kernel_periodic.hyp_list.set_active_opt_params(
-            kernel_periodic._la_log(values))
-        assert self._la_allclose(kernel_periodic.hyp_list.get_values(), values)
-        assert self._la_allclose(
-            kernel_periodic.diag(X), kernel_periodic._la_get_diagonal(
+            bkd._la_log(values))
+        assert bkd._la_allclose(kernel_periodic.hyp_list.get_values(), values)
+        assert bkd._la_allclose(
+            kernel_periodic.diag(X), bkd._la_get_diagonal(
                 kernel_periodic(X, X)))
 
     def _check_kernel_jacobian(self, kernel, nsamples):
+        bkd = kernel._bkd
         kernel_copy = copy.deepcopy(kernel)
-        X = self._la_array(
+        X = bkd._la_array(
             np.random.uniform(-1, 1, (kernel.nvars(), nsamples)))
         jacobian = kernel.jacobian(X)
         for hyp in kernel.hyp_list.hyper_params:
@@ -83,50 +69,55 @@ class TestKernels:
         def fun(active_params_opt):
             kernel_copy.hyp_list.set_active_opt_params(active_params_opt)
             return kernel_copy(X)
-        assert self._la_allclose(
+        assert bkd._la_allclose(
             jacobian,
             approx_jacobian_3D(
-                fun, kernel_copy.hyp_list.get_active_opt_params(),
-                backend=self))
+                fun, kernel_copy.hyp_list.get_active_opt_params(), bkd=bkd))
 
     def test_kernel_jacobian(self):
-        (MaternKernel, ConstantKernel, GaussianNoiseKernel,
-         PeriodicMaternKernel) = self.get_kernels()
         if not self.jacobian_implemented():
             return
+        bkd = self.get_backend()
         nvars, nsamples = 2, 3
-        kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars)
+        kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
         self._check_kernel_jacobian(kernel, nsamples)
 
         const = 1
-        kernel = (ConstantKernel(const) *
-                  MaternKernel(np.inf, 1.0, [1e-1, 1], nvars))
+        kernel = (ConstantKernel(const, backend=bkd) *
+                  MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd))
         self._check_kernel_jacobian(kernel, nsamples)
         const = 1
         kernel = (
-            MaternKernel(np.inf, 1.0, [1e-1, 1], nvars) +
-            GaussianNoiseKernel(1, [1e-2, 10]))
+            MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd) +
+            GaussianNoiseKernel(1, [1e-2, 10], backend=bkd))
         self._check_kernel_jacobian(kernel, nsamples)
 
 
 class TestNumpyKernels(
-        unittest.TestCase, TestKernels, NumpyLinAlgMixin):
-    def get_kernels(self):
-        return (NumpyMaternKernel, NumpyConstantKernel,
-                NumpyGaussianNoiseKernel, NumpyPeriodicMaternKernel)
+        unittest.TestCase, TestKernels):
+    def get_backend(self):
+        return NumpyLinAlgMixin()
 
     def jacobian_implemented(self):
         return False
 
 
 class TestTorchKernels(
-        unittest.TestCase, TestKernels, TorchLinAlgMixin):
-    def get_kernels(self):
-        return (TorchMaternKernel, TorchConstantKernel,
-                TorchGaussianNoiseKernel, TorchPeriodicMaternKernel)
+        unittest.TestCase, TestKernels):
+    def get_backend(self):
+        return TorchLinAlgMixin()
 
     def jacobian_implemented(self):
         return True
+
+
+# class TestJaxKernels(
+#         unittest.TestCase, TestKernels):
+#     def get_backend(self):
+#         return JaxLinAlgMixin()
+
+#     def jacobian_implemented(self):
+#         return True
 
 
 if __name__ == "__main__":

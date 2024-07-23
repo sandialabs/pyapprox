@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from pyapprox.surrogates.orthopoly.recursion_factory import (
+from pyapprox.surrogates.orthopoly.poly import (
     LegendrePolynomial1D)
 from pyapprox.surrogates.bases.basis import (
     MonomialBasis, OrthonormalPolynomialBasis)
@@ -34,7 +34,7 @@ class TestMonomialBasis:
 
     def _check_jacobian(self, nvars, nterms_1d):
         bkd = self.get_backend()
-        basis = MonomialBasis(self)
+        basis = MonomialBasis(backend=bkd)
         indices = bkd._la_cartesian_product(
             [bkd._la_arange(nterms_1d, dtype=int)]*nvars)
         basis.set_indices(indices)
@@ -62,7 +62,7 @@ class TestMonomialBasis:
     def _check_fit_monomial_expansion(self, nvars, solver, nqoi):
         bkd = self.get_backend()
         nterms_1d = 3
-        basis = MonomialBasis(backend=self.get_backend())
+        basis = MonomialBasis(backend=bkd)
         indices = bkd._la_cartesian_product(
             [bkd._la_arange(nterms_1d, dtype=int)]*nvars)
         basis.set_indices(indices)
@@ -107,7 +107,7 @@ class TestMonomialBasis:
     def test_legendre_basis(self):
         bkd = self.get_backend()
         nvars, degree = 2, 2
-        bases_1d = [LegendrePolynomial1D(backend=self.get_backend())]*nvars
+        bases_1d = [LegendrePolynomial1D(backend=bkd)]*nvars
         basis = OrthonormalPolynomialBasis(bases_1d)
         basis.set_indices(
             bkd._la_array([[0, 0], [1, 0], [0, 1], [2, 0], [1, 1], [0, 2]]).T)
@@ -137,7 +137,7 @@ class TestMonomialBasis:
     def test_legendre_poly_1d(self):
         bkd = self.get_backend()
         degree = 3
-        poly = LegendrePolynomial1D(backend=self.get_backend())
+        poly = LegendrePolynomial1D(backend=bkd)
         poly.set_recursion_coefficients(degree+1)
         quad_x, quad_w = np.polynomial.legendre.leggauss(degree+1)
         # make weights have probablity weight function w=1/2
@@ -241,7 +241,7 @@ class TestMonomialBasis:
 
 
 class TestNumpyMonomialBasis(
-        unittest.TestCase, TestMonomialBasis, NumpyLinAlgMixin):
+        unittest.TestCase, TestMonomialBasis):
     def setUp(self):
         np.random.seed(1)
 
@@ -250,7 +250,7 @@ class TestNumpyMonomialBasis(
 
 
 class TestTorchMonomialBasis(
-        unittest.TestCase, TestMonomialBasis, TorchLinAlgMixin):
+        unittest.TestCase, TestMonomialBasis):
     def setUp(self):
         np.random.seed(1)
 

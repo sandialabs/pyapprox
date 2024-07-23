@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.sys_utilities import hash_array
 from pyapprox.util.sys_utilities import has_kwarg
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 def sub2ind(sizes, multi_index):
@@ -161,50 +162,6 @@ def cartesian_product(input_sets, elem_size=1):
     out = np.asarray(out).T[::-1, :]
     return out
 
-    # try:
-    #     from pyapprox.cython.utilities import cartesian_product_pyx
-    #     # # fused type does not work for np.in32, np.float32, np.int64
-    #     # # so envoke cython cast
-    #     # if np.issubdtype(input_sets[0][0],np.signedinteger):
-    #     #     return cartesian_product_pyx(input_sets,1,elem_size)
-    #     # if np.issubdtype(input_sets[0][0],np.floating):
-    #     #     return cartesian_product_pyx(input_sets,1.,elem_size)
-    #     # else:
-    #     #     return cartesian_product_pyx(
-    #     #         input_sets,input_sets[0][0],elem_size)
-    #     # always convert to float then cast back
-    #     cast_input_sets = [np.asarray(s, dtype=float) for s in input_sets]
-    #     out = cartesian_product_pyx(cast_input_sets, 1., elem_size)
-    #     out = np.asarray(out, dtype=input_sets[0].dtype)
-    #     return out
-    # except:
-    #     print('cartesian_product extension failed')
-
-    # num_elems = 1
-    # num_sets = len(input_sets)
-    # sizes = np.empty((num_sets), dtype=int)
-    # for ii in range(num_sets):
-    #     sizes[ii] = input_sets[ii].shape[0]/elem_size
-    #     num_elems *= sizes[ii]
-    # # try:
-    # #    from pyapprox.weave import c_cartesian_product
-    # #    # note c_cartesian_product takes_num_elems as last arg and cython
-    # #    # takes elem_size
-    # #    return c_cartesian_product(input_sets, elem_size, sizes, num_elems)
-    # # except:
-    # #    print ('cartesian_product extension failed')
-
-    # result = np.empty(
-    #     (num_sets*elem_size, num_elems), dtype=type(input_sets[0][0]))
-    # for ii in range(num_elems):
-    #     multi_index = ind2sub(sizes, ii, num_elems)
-    #     for jj in range(num_sets):
-    #         for kk in range(elem_size):
-    #             result[jj*elem_size+kk, ii] =\
-    #                 input_sets[jj][multi_index[jj]*elem_size+kk]
-    # return result
-
-
 def outer_product(input_sets, axis=0):
     r"""
     Construct the outer product of an arbitary number of sets.
@@ -230,41 +187,6 @@ def outer_product(input_sets, axis=0):
     """
     out = cartesian_product(input_sets)
     return np.prod(out, axis=axis)
-
-    # try:
-    #     from pyapprox.cython.utilities import outer_product_pyx
-    #     # fused type does not work for np.in32, np.float32, np.int64
-    #     # so envoke cython cast
-    #     if np.issubdtype(input_sets[0][0], np.signedinteger):
-    #         return outer_product_pyx(input_sets, 1)
-    #     if np.issubdtype(input_sets[0][0], np.floating):
-    #         return outer_product_pyx(input_sets, 1.)
-    #     else:
-    #         return outer_product_pyx(input_sets, input_sets[0][0])
-    # except ImportError:
-    #     print('outer_product extension failed')
-
-    # num_elems = 1
-    # num_sets = len(input_sets)
-    # sizes = np.empty((num_sets), dtype=int)
-    # for ii in range(num_sets):
-    #     sizes[ii] = len(input_sets[ii])
-    #     num_elems *= sizes[ii]
-
-    # # try:
-    # #     from pyapprox.weave import c_outer_product
-    # #     return c_outer_product(input_sets)
-    # # except:
-    # #     print ('outer_product extension failed')
-
-    # result = np.empty((num_elems), dtype=type(input_sets[0][0]))
-    # for ii in range(num_elems):
-    #     result[ii] = 1.0
-    #     multi_index = ind2sub(sizes, ii, num_elems)
-    #     for jj in range(num_sets):
-    #         result[ii] *= input_sets[jj][multi_index[jj]]
-
-    # return result
 
 
 def unique_matrix_row_indices(matrix):
@@ -918,15 +840,16 @@ def flatten_2D_list(list_2d):
     return [item for sub in list_2d for item in sub]
 
 
-def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
-    x0 = np.asfarray(x)
+def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps),
+                    bkd=NumpyLinAlgMixin()):
+    x0 = bkd._la_array(x)
     assert x0.ndim == 1 or x0.shape[1] == 1
-    f0 = np.atleast_1d(func(*((x0,)+args)))
+    f0 = bkd._la_atleast1d(func(*((x0,)+args)))
     if f0.ndim == 2:
         assert f0.shape[1] == 1
         f0 = f0[:, 0]
-    jac = np.zeros([len(x0), len(f0)])
-    dx = np.zeros(x0.shape)
+    jac = bkd._la_zeros([len(x0), len(f0)])
+    dx = bkd._la_zeros(x0.shape)
     for i in range(len(x0)):
         dx[i] = epsilon
         f1 = func(*((x0+dx,)+args))
@@ -935,8 +858,20 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
             f1 = f1[:, 0]
         jac[i] = (f1 - f0)/epsilon
         dx[i] = 0.0
+    return jac.T
 
-    return jac.transpose()
+
+def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps),
+                       bkd=NumpyLinAlgMixin()):
+    fval = f(x0)
+    jacobian = bkd._la_full(
+        (fval.shape[0], fval.shape[1], x0.shape[0]), 0.)
+    for ii in range(len(x0)):
+        dx = bkd._la_full((x0.shape[0],), 0.)
+        dx[ii] = epsilon
+        fval_perturbed = f(x0+dx)
+        jacobian[..., ii] = (fval_perturbed - fval) / epsilon
+    return jacobian
 
 
 def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
