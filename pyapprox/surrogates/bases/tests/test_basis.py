@@ -31,7 +31,7 @@ class TestMonomialBasis:
 
     def _check_basis(self, nvars, nterms_1d):
         bkd = self.get_backend()
-        basis = MonomialBasis(backend=self.get_backend())
+        basis = MonomialBasis(backend=bkd)
         basis.set_indices(
             bkd._la_cartesian_product(
                 [bkd._la_arange(nterms_1d, dtype=int)] * nvars
@@ -302,4 +302,4 @@ class TestJaxMonomialBasis(TestMonomialBasis, unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

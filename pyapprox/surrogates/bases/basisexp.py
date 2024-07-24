@@ -17,7 +17,7 @@ class BasisExpansion(Model):
     """The base class for any linear basis expansion for multiple
        quantities of interest (QoI)."""
 
-    def __init__(self, basis: Basis, solver: LinearSystemSolver,
+    def __init__(self, basis: Basis, solver: LinearSystemSolver = None,
                  nqoi=1, coef_bounds=None):
         # todo make model accept backend and pass in through with call to super
         super().__init__()

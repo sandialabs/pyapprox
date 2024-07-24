@@ -286,19 +286,25 @@ def evaluate_three_term_recurrence_polynomial_1d(
     return p
 
 
-def shift_momomial_expansion(coef, shift, scale):
+def shift_momomial_expansion(coef, shift, scale, bkd=NumpyLinAlgMixin()):
     assert coef.ndim == 1
-    shifted_coef = np.zeros_like(coef)
+    shifted_coef = bkd._la_zeros(coef.shape[0])
     shifted_coef[0] = coef[0]
     nterms = coef.shape[0]
     for ii in range(1, nterms):
-        temp = np.polynomial.polynomial.polypow([1, -shift], ii)
-        shifted_coef[:ii+1] += coef[ii]*temp[::-1]/scale**ii
+        temp = bkd._la_array(
+            np.polynomial.polynomial.polypow([1, -shift], ii))
+        shifted_coef[:ii+1] += coef[ii]*bkd._la_flip(temp)/scale**ii
     return shifted_coef
 
 
-def convert_orthonormal_expansion_to_monomial_expansion_1d(ortho_coef, ab,
-                                                           shift, scale):
+def convert_orthonormal_expansion_to_monomial_expansion_1d(
+        ortho_coef,
+        ab,
+        shift,
+        scale,
+        bkd=NumpyLinAlgMixin(),
+):
     r"""
     Convert a univariate orthonormal polynomial expansion
 
@@ -332,13 +338,13 @@ def convert_orthonormal_expansion_to_monomial_expansion_1d(ortho_coef, ab,
     assert ortho_coef.ndim == 1
     # get monomial expansion of each orthonormal basis
     basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
-        ab, ortho_coef.shape[0]-1)
+        ab, ortho_coef.shape[0]-1, bkd=bkd)
     # scale each monomial coefficient by the corresponding orthonormal
     # expansion coefficients and collect terms
-    mono_coefs = np.sum(basis_mono_coefs.T*ortho_coef, axis=1)
+    mono_coefs = bkd._la_sum(basis_mono_coefs.T*ortho_coef, axis=1)
     # the orthonormal basis is defined on canonical domain so
     # shift to desired domain
-    mono_coefs = shift_momomial_expansion(mono_coefs, shift, scale)
+    mono_coefs = shift_momomial_expansion(mono_coefs, shift, scale, bkd=bkd)
     return mono_coefs
 
 
