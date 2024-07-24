@@ -17,6 +17,9 @@ class Kernel(ABC):
             backend = NumpyLinAlgMixin()
         self._bkd = backend
 
+        # used when computing a Jacobian
+        self._samples = None
+
     def diag(self, X1):
         """Return the diagonal of the kernel matrix."""
         return self._bkd._la_get_diagonal(self(X1))
@@ -32,13 +35,18 @@ class Kernel(ABC):
         return SumKernel(self, kernel)
 
     def __repr__(self):
-        return "{0}({1}, la={2})".format(
-            self.__class__.__name__, self.hyp_list._short_repr(), self._la)
+        return "{0}({1}, bkd={2})".format(
+            self.__class__.__name__, self.hyp_list._short_repr(), self._bkd)
+
+    def _params_eval(self, active_opt_params):
+        # define function that evaluates the kernel for different parameters
+        self.hyp_list.set_active_opt_params(active_opt_params)
+        return self(self._samples)
 
     def jacobian(self, samples):
+        self._samples = samples
         return self._bkd._la_jacobian(
-            self, samples, self.hyp_list.set_active_opt_params,
-            self.hyp_list.get_active_opt_params())
+            self._params_eval, self.hyp_list.get_active_opt_params())
 
 
 class CompositionKernel(Kernel):

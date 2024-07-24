@@ -9,7 +9,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     def __init__(self):
         # needed for autograd
         self._inputs = None
-    
+
     @staticmethod
     def _la_dot(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return Amat @ Bmat
@@ -291,17 +291,16 @@ class TorchLinAlgMixin(LinAlgMixin):
     def _la_cond(matrix):
         return torch.linalg.cond(matrix)
 
-    def _la_autograd_fun(self, active_params_opt):
-        active_params_opt.requires_grad = True
-        self._set_params(active_params_opt)
-        return self._fun(self._inputs)
+    def _la_jacobian(self, fun, params):
+        return torch.autograd.functional.jacobian(fun, params)
 
-    def _la_jacobian(self, fun, inputs, set_params, params):
-        self._fun = fun
-        self._set_params = set_params
-        self._inputs = inputs
-        return torch.autograd.functional.jacobian(
-            self._la_autograd_fun, params)
+    def _la_grad(self, fun, params):
+        params.requires_grad = True
+        val = fun(params)
+        val.backward()
+        grad = self._la_copy(params.grad)
+        params.grad.zero_()
+        return val, grad
 
     @staticmethod
     def _la_up(matrix, indices, submatrix, axis=0):

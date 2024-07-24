@@ -2,18 +2,13 @@ import torch
 
 from pyapprox.surrogates.kernels._kernels import Kernel
 from pyapprox.surrogates.autogp.trends import Monomial
-from pyapprox.util.transforms._transforms import Transform
+from pyapprox.util.transforms import Transform
 from pyapprox.surrogates.autogp.exactgp import (
     ExactGaussianProcess, MOExactGaussianProcess, MOPeerExactGaussianProcess,
     MOICMPeerExactGaussianProcess)
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.util.transforms.torchtransforms import (
-    TorchIdentityTransform, TorchStandardDeviationTransform)
 from pyapprox.surrogates.autogp.variationalgp import (
     InducingSamples, InducingGaussianProcess)
-from pyapprox.util.hyperparameter.torchhyperparameter import (
-    TorchHyperParameter, TorchHyperParameterList,
-    TorchIdentityHyperParameterTransform, TorchLogHyperParameterTransform)
 
 
 class TorchGPFitMixin:
@@ -51,9 +46,8 @@ class TorchExactGaussianProcess(
     def __init__(self,
                  nvars: int,
                  kernel: Kernel,
-                 var_trans: Transform = TorchIdentityTransform(),
-                 values_trans: Transform = TorchStandardDeviationTransform(
-                     trans=True),
+                 var_trans: Transform = None,
+                 values_trans: Transform = None,
                  mean: Monomial = None,
                  kernel_reg: float = 0):
         super().__init__(nvars, kernel, var_trans, values_trans,
@@ -68,9 +62,8 @@ class TorchMOExactGaussianProcess(
     def __init__(self,
                  nvars: int,
                  kernel: Kernel = None,
-                 var_trans: Transform = TorchIdentityTransform(),
-                 values_trans: Transform = TorchStandardDeviationTransform(
-                     trans=True),
+                 var_trans: Transform = None,
+                 values_trans: Transform = None,
                  kernel_reg: float = 0):
         super().__init__(nvars, kernel, var_trans, values_trans,
                          None, kernel_reg)
@@ -84,9 +77,8 @@ class TorchMOPeerExactGaussianProcess(
     def __init__(self,
                  nvars: int,
                  kernel: Kernel,
-                 var_trans: Transform = TorchIdentityTransform(),
-                 values_trans: Transform = TorchStandardDeviationTransform(
-                     trans=True),
+                 var_trans: Transform = None,
+                 values_trans: Transform = None,
                  kernel_reg: float = 0):
         super().__init__(nvars, kernel, var_trans, values_trans,
                          None, kernel_reg)
@@ -101,9 +93,8 @@ class TorchMOICMPeerExactGaussianProcess(
                  nvars: int,
                  kernel: Kernel,
                  output_kernel: Kernel,
-                 var_trans: Transform = TorchIdentityTransform(),
-                 values_trans: Transform = TorchStandardDeviationTransform(
-                     trans=True),
+                 var_trans: Transform = None,
+                 values_trans: Transform = None,
                  kernel_reg: float = 0):
         super().__init__(nvars, kernel, output_kernel, var_trans, values_trans,
                          kernel_reg)
@@ -130,7 +121,7 @@ class TorchInducingGaussianProcess(
                  kernel,
                  inducing_samples,
                  kernel_reg=0,
-                 var_trans=TorchIdentityTransform(),
-                 values_trans=TorchStandardDeviationTransform(trans=True)):
+                 var_trans=None,
+                 values_trans=None):
         super().__init__(nvars, kernel, inducing_samples,
                          var_trans, values_trans, kernel_reg)

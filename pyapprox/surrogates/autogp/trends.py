@@ -1,5 +1,5 @@
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
-from pyapprox.util.hyperparameter._hyperparameter import HyperParameter
+from pyapprox.util.hyperparameter import HyperParameter
 
 
 class Monomial():

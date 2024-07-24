@@ -287,15 +287,8 @@ class JaxLinAlgMixin(LinAlgMixin):
             return matrix.at[..., indices].set(submatrix)
         raise ValueError("axis must be in (0, 1, -1)")
 
-    def _la_autograd_fun(self, active_params_opt):
-        self._set_params(active_params_opt)
-        return self._fun(self._inputs)
-
-    def _la_jacobian(self, fun, inputs, set_params, params):
-        self._fun = fun
-        self._set_params = set_params
-        self._inputs = inputs
-        return jax.jacfwd(self._la_autograd_fun)(params)
+    def _la_jacobian(self, fun, params):
+        return jax.jacfwd(fun)(params)
 
     @staticmethod
     def _la_moveaxis(array, source, destination):
