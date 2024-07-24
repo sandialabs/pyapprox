@@ -275,4 +275,10 @@ class NumpyLinAlgMixin(LinAlgMixin):
         if axis == 1:
             matrix[:, indices] = submatrix
             return matrix
-        raise ValueError("axis must be <= 1")
+        if axis == -1:
+            matrix[..., indices] = submatrix
+        raise ValueError("axis must be in (0, 1, -1)")
+
+    @staticmethod
+    def _la_moveaxis(array, source, destination):
+        return np.moveaxis(array, source, destination)

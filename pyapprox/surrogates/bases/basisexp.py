@@ -21,7 +21,7 @@ class BasisExpansion(Model):
                  nqoi=1, coef_bounds=None):
         # todo make model accept backend and pass in through with call to super
         super().__init__()
-        if type(basis._bkd) is not type(solver._bkd):
+        if solver is not None and (type(basis._bkd) is not type(solver._bkd)):
             raise ValueError("Basis and solver must have the same backend.")
         self._bkd = basis._bkd
         # self._bkd._la_set_attributes(self)
@@ -218,9 +218,7 @@ class MonomialExpansion(BasisExpansion):
         assert nqoi == coefs2.shape[1]
 
         indices_dict = dict()
-        max_nindices = nindices1*nindices2
-        indices = self._bkd._la_full((nvars, max_nindices), 0., dtype=int)
-        coefs = self._bkd._la_full((max_nindices, nqoi), 0.)
+        indices, coefs = [], []
         kk = 0
         for ii in range(nindices1):
             index1 = indices1[:, ii]
@@ -238,11 +236,11 @@ class MonomialExpansion(BasisExpansion):
                     coefs[indices_dict[key]] += coef
                 else:
                     indices_dict[key] = kk
-                    indices[:, kk] = index
-                    coefs[kk] = coef
+                    indices.append(index)
+                    coefs.append(coef)
                     kk += 1
-        indices = indices[:, :kk]
-        coefs = coefs[:kk]
+        indices = self._bkd._la_stack(indices, axis=1)
+        coefs = self._bkd._la_stack(coefs, axis=0)
         return indices, coefs
 
     def __mul__(self, other):

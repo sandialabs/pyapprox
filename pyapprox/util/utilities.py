@@ -861,6 +861,20 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps),
     return jac.T
 
 
+# Does not work with Jax
+# def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps),
+#                        bkd=NumpyLinAlgMixin()):
+#     fval = f(x0)
+#     jacobian = bkd._la_full(
+#         (fval.shape[0], fval.shape[1], x0.shape[0]), 0.)
+#     for ii in range(len(x0)):
+#         dx = bkd._la_full((x0.shape[0],), 0.)
+#         dx[ii] = epsilon
+#         fval_perturbed = f(x0+dx)
+#         jacobian[..., ii] = (fval_perturbed - fval) / epsilon
+#     return jacobian
+
+
 def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps),
                        bkd=NumpyLinAlgMixin()):
     fval = f(x0)
@@ -868,9 +882,10 @@ def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps),
         (fval.shape[0], fval.shape[1], x0.shape[0]), 0.)
     for ii in range(len(x0)):
         dx = bkd._la_full((x0.shape[0],), 0.)
-        dx[ii] = epsilon
+        dx = bkd._la_up(dx, ii, epsilon)
         fval_perturbed = f(x0+dx)
-        jacobian[..., ii] = (fval_perturbed - fval) / epsilon
+        jacobian = bkd._la_up(
+            jacobian, ii, (fval_perturbed - fval) / epsilon, axis=-1)
     return jacobian
 
 

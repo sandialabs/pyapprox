@@ -55,20 +55,19 @@ class OrthonormalPolynomial1D(ABC):
                     nmax, "exceeds number of rcoefs {0}".format(
                         self._rcoefs.shape[0])))
 
-        # must be initialized to zero
-        vals = self._bkd._la_full((samples.shape[0], nmax+1), 0.)
+        nsamples = samples.shape[0]
 
-        vals[:, 0] = 1.0/self._rcoefs[0, 1]
+        vals = [self._bkd._la_full((nsamples, ), 1.0/self._rcoefs[0, 1])]
 
         if nmax > 0:
-            vals[:, 1] = 1/self._rcoefs[1, 1] * (
-                (samples - self._rcoefs[0, 0])*vals[:, 0])
+            vals.append(1/self._rcoefs[1, 1] * (
+                (samples - self._rcoefs[0, 0])*vals[0]))
 
         for jj in range(2, nmax+1):
-            vals[:, jj] = 1.0/self._rcoefs[jj, 1]*(
-                (samples-self._rcoefs[jj-1, 0])*vals[:, jj-1] -
-                self._rcoefs[jj-1, 1]*vals[:, jj-2])
-        return vals
+            vals.append(1.0/self._rcoefs[jj, 1]*(
+                (samples-self._rcoefs[jj-1, 0])*vals[jj-1] -
+                self._rcoefs[jj-1, 1]*vals[jj-2]))
+        return self._bkd._la_stack(vals, axis=1)
 
     def derivatives(self, samples, nmax, order, return_all=False):
         """
@@ -151,7 +150,7 @@ class OrthonormalPolynomial1D(ABC):
         else:
             w = self(x, npoints-1)
             w = 1./self._bkd._la_sum(w**2, axis=1)
-        w[~self._bkd._la_isfinite(w)] = 0.
+        # w[~self._bkd._la_isfinite(w)] = 0.
         return x, w
 
     def __call__(self, samples, nmax):

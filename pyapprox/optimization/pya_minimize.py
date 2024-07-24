@@ -3,6 +3,7 @@ from scipy.optimize import minimize as scipy_minimize
 import scipy
 
 from pyapprox.util.sys_utilities import package_available
+
 if package_available("ROL"):
     has_ROL = True
     from pyapprox.optimization._rol_minimize import rol_minimize
@@ -10,85 +11,142 @@ else:
     has_ROL = False
 
 
-def pyapprox_minimize(fun, x0, args=(), method='rol-trust-constr', jac=None,
-                      hess=None, hessp=None, bounds=None, constraints=(),
-                      tol=None, callback=None, options={}, x_grad=None):
+def pyapprox_minimize(
+    fun,
+    x0,
+    args=(),
+    method="rol-trust-constr",
+    jac=None,
+    hess=None,
+    hessp=None,
+    bounds=None,
+    constraints=(),
+    tol=None,
+    callback=None,
+    options={},
+    x_grad=None,
+):
     options = options.copy()
-    if x_grad is not None and 'rol' not in method:
+    if x_grad is not None and "rol" not in method:
         # Fix this limitation
         msg = f"Method {method} does not currently support gradient checking"
         # raise Exception(msg)
         print(msg)
 
-    if 'rol' in method and has_ROL:
+    if "rol" in method and has_ROL:
         if callback is not None:
-            raise ValueError(f'Method {method} cannot use callbacks')
+            raise ValueError(f"Method {method} cannot use callbacks")
         if args != ():
-            raise ValueError(f'Method {method} cannot use args')
-        rol_methods = {'rol-trust-constr': None}
+            raise ValueError(f"Method {method} cannot use args")
+        rol_methods = {"rol-trust-constr": None}
         if method in rol_methods:
             rol_method = rol_methods[method]
         else:
             raise ValueError(f"Method {method} not found")
         return rol_minimize(
-            fun, x0, rol_method, jac, hess, hessp, bounds, constraints, tol,
-            options, x_grad)
+            fun,
+            x0,
+            rol_method,
+            jac,
+            hess,
+            hessp,
+            bounds,
+            constraints,
+            tol,
+            options,
+            x_grad,
+        )
 
     x0 = x0.squeeze()  # scipy only takes 1D np.ndarrays
     x0 = np.atleast_1d(x0)  # change scalars to np.ndarrays
     assert x0.ndim <= 1
-    if method == 'rol-trust-constr' and not has_ROL:
-        print('ROL requested by not available switching to scipy.minimize')
-        method = 'trust-constr'
+    if method == "rol-trust-constr" and not has_ROL:
+        print("ROL requested by not available switching to scipy.minimize")
+        method = "trust-constr"
 
-    if method == 'trust-constr':
-        if 'ctol' in options:
-            del options['ctol']
+    if method == "trust-constr":
+        if "ctol" in options:
+            del options["ctol"]
         return scipy_minimize(
-            fun, x0, args, method, jac, hess, hessp, bounds, constraints, tol,
-            callback, options)
-    elif method == 'slsqp':
+            fun,
+            x0,
+            args,
+            method,
+            jac,
+            hess,
+            hessp,
+            bounds,
+            constraints,
+            tol,
+            callback,
+            options,
+        )
+    elif method == "slsqp":
         hess, hessp = None, None
-        if 'ctol' in options:
-            del options['ctol']
-        if 'gtol' in options:
-            ftol = options['gtol']
-            del options['gtol']
-        options['ftol'] = ftol
-        if 'verbose' in options:
-            verbose = options['verbose']
-            options['disp'] = verbose
-            del options['verbose']
+        if "ctol" in options:
+            del options["ctol"]
+        if "gtol" in options:
+            ftol = options["gtol"]
+            del options["gtol"]
+        options["ftol"] = ftol
+        if "verbose" in options:
+            verbose = options["verbose"]
+            options["disp"] = verbose
+            del options["verbose"]
         return scipy_minimize(
-            fun, x0, args, method, jac, hess, hessp, bounds, constraints, tol,
-            callback, options)
+            fun,
+            x0,
+            args,
+            method,
+            jac,
+            hess,
+            hessp,
+            bounds,
+            constraints,
+            tol,
+            callback,
+            options,
+        )
 
     raise ValueError(f"Method {method} was not found")
 
+
 from abc import ABC, abstractmethod
-from pyapprox.interface.model import (
-    Model, ScipyModelWrapper, ActiveSetVariableModel)
+from pyapprox.interface.model import Model, ScipyModelWrapper, ActiveSetVariableModel
 from scipy.optimize import Bounds, NonlinearConstraint, LinearConstraint
 
 
 class Constraint(Model):
     def __init__(self, model, bounds, keep_feasible=False):
         if not isinstance(model, Model):
-            raise ValueError("objective must be an instance of {0}".format(
-                "pyapprox.interface.model.Model"))
+            raise ValueError(
+                "objective must be an instance of {0}".format(
+                    "pyapprox.interface.model.Model"
+                )
+            )
         self._model = model
-        if (not isinstance(bounds, np.ndarray) or bounds.ndim != 2
-                or bounds.shape[1] != 2):
+        if (
+            not isinstance(bounds, np.ndarray)
+            or bounds.ndim != 2
+            or bounds.shape[1] != 2
+        ):
             raise ValueError("bounds must be 2D np.ndarray with two columns")
         self._bounds = bounds
         self._keep_feasible = keep_feasible
         self._update_attributes()
 
     def _update_attributes(self):
-        for attr in ["_apply_jacobian_implemented", "_jacobian_implemented",
-                     "_jacobian_implemented", "_hessian_implemented",
-                     "_apply_hessian_implemented", "jacobian",
-                     "apply_jacobian", "apply_hessian", "hessian"]:
+        for attr in [
+            "_apply_jacobian_implemented",
+            "_jacobian_implemented",
+            "_jacobian_implemented",
+            "_hessian_implemented",
+            "_apply_hessian_implemented",
+            "jacobian",
+            "apply_jacobian",
+            "apply_hessian",
+            "hessian",
+        ]:
             setattr(self, attr, getattr(self._model, attr))
 
     def _check_sample(self, sample):
@@ -106,12 +164,14 @@ class Constraint(Model):
 class Optimizer(ABC):
     def __init__(self, objective, bounds=None, opts={}):
         if not isinstance(objective, Model):
-            raise ValueError("objective must be an instance of {0}".format(
-                "pyapprox.interface.model.Model"))
+            raise ValueError(
+                "objective must be an instance of {0}".format(
+                    "pyapprox.interface.model.Model"
+                )
+            )
         self._objective = objective
         if bounds is not None and not isinstance(bounds, Bounds):
-            raise ValueError(
-                "bounds must be an instance of scipy.minimize.Bounds")
+            raise ValueError("bounds must be an instance of scipy.minimize.Bounds")
         self._bounds = bounds
         self._opts = self._parse_options(opts)
 
@@ -127,12 +187,15 @@ class ConstrainedOptimizer(Optimizer):
     def __init__(self, objective, constraints=[], bounds=None, opts={}):
         super().__init__(objective, bounds, opts)
         for con in constraints:
-            if (not isinstance(con, Constraint) and
-                    not isinstance(con, LinearConstraint)):
+            if not isinstance(con, Constraint) and not isinstance(
+                con, LinearConstraint
+            ):
                 raise ValueError(
                     "constraint must be an instance of {0} or {1}".format(
                         "pyapprox.optimize.pya_minimize.Constraint",
-                        "scipy.optimize.LinearConstraint"))
+                        "scipy.optimize.LinearConstraint",
+                    )
+                )
         self._constraints = self._convert_constraints(constraints)
 
     def _convert_constraints(self, constraints):
@@ -148,12 +211,13 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
                 continue
             con = ScipyModelWrapper(_con)
             jac = con.jac if con._jacobian_implemented else "2-point"
-            if (con._apply_hessian_implemented or con._hessian_implemented):
+            if con._apply_hessian_implemented or con._hessian_implemented:
                 hess = con.hessp
             else:
                 hess = scipy.optimize._hessian_update_strategy.BFGS()
             scipy_con = NonlinearConstraint(
-                con, *_con._bounds.T, jac, hess, _con._keep_feasible)
+                con, *_con._bounds.T, jac, hess, _con._keep_feasible
+            )
             scipy_constraints.append(scipy_con)
         return scipy_constraints
 
@@ -161,22 +225,25 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
         opts = self._opts.copy()
         nvars = init_guess.shape[0]
         if self._bounds is None:
-            bounds = Bounds(
-                np.full((nvars,), -np.inf), np.full((nvars,), np.inf))
+            bounds = Bounds(np.full((nvars,), -np.inf), np.full((nvars,), np.inf))
         else:
             bounds = self._bounds
         objective = ScipyModelWrapper(self._objective)
-        jac = (objective.jac if objective._jacobian_implemented else None)
-        if (objective._apply_hessian_implemented or
-                objective._hessian_implemented):
+        jac = objective.jac if objective._jacobian_implemented else None
+        if objective._apply_hessian_implemented or objective._hessian_implemented:
             hessp = objective.hessp
         else:
             hessp = None
         result = scipy_minimize(
-            objective, init_guess[:, 0],
+            objective,
+            init_guess[:, 0],
             method=opts.pop("method", "trust-constr"),
-            jac=jac, hessp=hessp, bounds=bounds,
-            constraints=self._constraints, options=self._opts)
+            jac=jac,
+            hessp=hessp,
+            bounds=bounds,
+            constraints=self._constraints,
+            options=self._opts,
+        )
         return result
 
 
@@ -216,25 +283,23 @@ class SampleAverageVariance(SampleAverageStat):
 
     def _diff(self, values, weights):
         mean = self._mean_stat(values, weights).T
-        return (values-mean[:, 0]).T
+        return (values - mean[:, 0]).T
 
     def __call__(self, values, weights):
         # values.shape (nsamples, ncontraints)
-        return (self._diff(values, weights)**2 @ weights).T
+        return (self._diff(values, weights) ** 2 @ weights).T
 
     def jacobian(self, values, jac_values, weights):
         # jac_values.shape (nsamples, ncontraints, ndesign_vars)
-        mean_jac = self._mean_stat.jacobian(
-            values, jac_values, weights)[None, :]
-        tmp = (jac_values - mean_jac)
-        tmp = 2*self._diff(values, weights).T[..., None]*tmp
+        mean_jac = self._mean_stat.jacobian(values, jac_values, weights)[None, :]
+        tmp = jac_values - mean_jac
+        tmp = 2 * self._diff(values, weights).T[..., None] * tmp
         return np.einsum("ijk,i->jk", tmp, weights[:, 0])
 
     def apply_jacobian(self, values, jv_values, weights):
-        mean_jv = self._mean_stat.apply_jacobian(
-            values, jv_values, weights)
-        tmp = (jv_values - mean_jv)
-        tmp = 2*self._diff(values, weights).T*tmp[..., 0]
+        mean_jv = self._mean_stat.apply_jacobian(values, jv_values, weights)
+        tmp = jv_values - mean_jv
+        tmp = 2 * self._diff(values, weights).T * tmp[..., 0]
         return np.einsum("ij,i->j", tmp, weights[:, 0])
 
 
@@ -245,14 +310,14 @@ class SampleAverageStdev(SampleAverageVariance):
     def jacobian(self, values, jac_values, weights):
         variance_jac = super().jacobian(values, jac_values, weights)
         # d/dx y^{1/2} = 0.5y^{-1/2}
-        tmp = 1/(2*np.sqrt(super().__call__(values, weights).T))
-        return tmp*variance_jac
+        tmp = 1 / (2 * np.sqrt(super().__call__(values, weights).T))
+        return tmp * variance_jac
 
     def apply_jacobian(self, values, jac_values, weights):
         variance_jv = super().apply_jacobian(values, jac_values, weights)
         # d/dx y^{1/2} = 0.5y^{-1/2}
-        tmp = 1/(2*np.sqrt(super().__call__(values, weights).T))
-        return tmp*variance_jv[:, None]
+        tmp = 1 / (2 * np.sqrt(super().__call__(values, weights).T))
+        return tmp * variance_jv[:, None]
 
 
 class SampleAverageMeanPlusStdev(SampleAverageStat):
@@ -262,20 +327,21 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
         self._safety_factor = safety_factor
 
     def __call__(self, values, weights):
-        return (self._mean_stat(values, weights) +
-                self._safety_factor*self._stdev_stat(values, weights))
+        return self._mean_stat(
+            values, weights
+        ) + self._safety_factor * self._stdev_stat(values, weights)
 
     def jacobian(self, values, jac_values, weights):
-        return (
-            self._mean_stat.jacobian(values, jac_values, weights) +
-            self._safety_factor*self._stdev_stat.jacobian(
-                values, jac_values, weights))
+        return self._mean_stat.jacobian(
+            values, jac_values, weights
+        ) + self._safety_factor * self._stdev_stat.jacobian(values, jac_values, weights)
 
     def apply_jacobian(self, values, jv_values, weights):
-        return (
-            self._mean_stat.apply_jacobian(values, jv_values, weights) +
-            self._safety_factor*self._stdev_stat.apply_jacobian(
-                values, jv_values, weights))
+        return self._mean_stat.apply_jacobian(
+            values, jv_values, weights
+        ) + self._safety_factor * self._stdev_stat.apply_jacobian(
+            values, jv_values, weights
+        )
 
 
 class SampleAverageEntropicRisk(SampleAverageStat):
@@ -284,25 +350,35 @@ class SampleAverageEntropicRisk(SampleAverageStat):
 
     def __call__(self, values, weights):
         # values (nsamples, noutputs)
-        return np.log(np.exp(self._alpha*values.T) @ weights).T/self._alpha
+        return np.log(np.exp(self._alpha * values.T) @ weights).T / self._alpha
 
     def jacobian(self, values, jac_values, weights):
         # jac_values (nsamples, noutputs, nvars)
-        exp_values = np.exp(self._alpha*values)
+        exp_values = np.exp(self._alpha * values)
         tmp = exp_values.T @ weights
-        jac = 1/tmp * np.einsum(
-            "ijk,i->jk", (exp_values[..., None]*jac_values), weights[:, 0])
+        jac = (
+            1
+            / tmp
+            * np.einsum(
+                "ijk,i->jk", (exp_values[..., None] * jac_values), weights[:, 0]
+            )
+        )
         return jac
 
     def apply_jacobian(self, values, jv_values, weights):
-        exp_values = np.exp(self._alpha*values)
+        exp_values = np.exp(self._alpha * values)
         tmp = exp_values.T @ weights
-        jv = 1/tmp * np.einsum(
-            "ij,i->j", (exp_values*jv_values[..., 0]), weights[:, 0])[:, None]
+        jv = (
+            1
+            / tmp
+            * np.einsum("ij,i->j", (exp_values * jv_values[..., 0]), weights[:, 0])[
+                :, None
+            ]
+        )
         return jv
 
 
-class SmoothLogBasedMaxFunction():
+class SmoothLogBasedMaxFunction:
     def __init__(self, eps, threshold=None):
         super().__init__()
         self._eps = eps
@@ -318,11 +394,11 @@ class SmoothLogBasedMaxFunction():
     def __call__(self, samples):
         self._check_samples(samples)
         x = samples
-        x_div_eps = x/self._eps
+        x_div_eps = x / self._eps
         # avoid overflow
         vals = np.zeros_like(x)
         II = np.where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
-        vals[II] = x[II]+self._eps*np.log(1+np.exp(-x_div_eps[II]))
+        vals[II] = x[II] + self._eps * np.log(1 + np.exp(-x_div_eps[II]))
         J = np.where(x_div_eps >= self._thresh)
         vals[J] = x[J]
         return vals
@@ -334,12 +410,12 @@ class SmoothLogBasedMaxFunction():
         # is just a diagonal matrix
         self._check_samples(samples)
         x = samples
-        x_div_eps = x/self._eps
+        x_div_eps = x / self._eps
         # Avoid overflow.
         II = np.where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
         jac = np.zeros((x_div_eps.shape))
-        jac[II] = 1./(1+np.exp(-x_div_eps[II]))
-        jac[x_div_eps >= self._thresh] = 1.
+        jac[II] = 1.0 / (1 + np.exp(-x_div_eps[II]))
+        jac[x_div_eps >= self._thresh] = 1.0
         return jac[..., None]
 
 
@@ -354,7 +430,8 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
         t = np.atleast_1d(t)
         if t.shape[0] != self._alpha.shape[0]:
             msg = "VaR shape {0} and alpha shape {1} are inconsitent".format(
-                t.shape, self._alpha.shape)
+                t.shape, self._alpha.shape
+            )
             raise ValueError(msg)
         if t.ndim != 1:
             raise ValueError("t must be a 1D array")
@@ -363,22 +440,32 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
     def __call__(self, values, weights):
         if values.shape[1] != self._t.shape[0]:
             raise ValueError("must specify a VaR for each QoI")
-        return self._t+(self._max(values-self._t).T@weights).T/(1-self._alpha)
+        return self._t + (self._max(values - self._t).T @ weights).T / (1 - self._alpha)
 
     def jacobian(self, values, jac_values, weights):
         # grad withe respect to parameters of x
-        max_jac = self._max.jacobians(values-self._t)
-        param_jac = np.einsum(
-            "ijk,i->jk", (max_jac * jac_values), weights[:, 0])/(
-                1-self._alpha[:, None])
-        t_jac = 1-np.einsum("ij,i->j", max_jac[..., 0], weights[:, 0])/(
-            1-self._alpha)
+        max_jac = self._max.jacobians(values - self._t)
+        param_jac = np.einsum("ijk,i->jk", (max_jac * jac_values), weights[:, 0]) / (
+            1 - self._alpha[:, None]
+        )
+        t_jac = 1 - np.einsum("ij,i->j", max_jac[..., 0], weights[:, 0]) / (
+            1 - self._alpha
+        )
         return np.hstack((param_jac, np.diag(t_jac)))
 
 
 class SampleAverageConstraint(Constraint):
-    def __init__(self, model, samples, weights, stat, design_bounds,
-                 nvars, design_indices, keep_feasible=False):
+    def __init__(
+        self,
+        model,
+        samples,
+        weights,
+        stat,
+        design_bounds,
+        nvars,
+        design_indices,
+        keep_feasible=False,
+    ):
         super().__init__(model, design_bounds, keep_feasible)
         if samples.ndim != 2 or weights.ndim != 2 or weights.shape[1] != 1:
             raise ValueError("shapes of samples and/or weights are incorrect")
@@ -392,15 +479,16 @@ class SampleAverageConstraint(Constraint):
         self._random_indices = np.delete(np.arange(nvars), design_indices)
         # warning self._joint_samples must be recomputed if self._samples
         # is changed.
-        self._joint_samples = (
-            ActiveSetVariableModel._expand_samples_from_indices(
-                self._samples, self._random_indices, self._design_indices,
-                np.zeros((design_indices.shape[0], 1))))
+        self._joint_samples = ActiveSetVariableModel._expand_samples_from_indices(
+            self._samples,
+            self._random_indices,
+            self._design_indices,
+            np.zeros((design_indices.shape[0], 1)),
+        )
 
     def _update_attributes(self):
         self._jacobian_implemented = self._model._jacobian_implemented
-        self._apply_jacobian_implemented = (
-            self._model._apply_jacobian_implemented)
+        self._apply_jacobian_implemented = self._model._apply_jacobian_implemented
         self._hessian_implemented = False
         self._apply_hessian_implemented = False
 
@@ -411,7 +499,8 @@ class SampleAverageConstraint(Constraint):
         #     self._samples, self._random_indices, self._design_indices,
         #     design_sample)
         self._joint_samples[self._design_indices, :] = np.repeat(
-            design_sample, self._samples.shape[1], axis=1)
+            design_sample, self._samples.shape[1], axis=1
+        )
         return self._joint_samples
 
     def __call__(self, design_sample):
@@ -427,9 +516,12 @@ class SampleAverageConstraint(Constraint):
         # adjoint methods that compute model values to then
         # compute jacobian
         values = self._model(samples)
-        jac_values = np.array([
-            self._model.jacobian(sample[:, None])[:, self._design_indices]
-            for sample in samples.T])
+        jac_values = np.array(
+            [
+                self._model.jacobian(sample[:, None])[:, self._design_indices]
+                for sample in samples.T
+            ]
+        )
         return self._stat.jacobian(values, jac_values, self._weights)
 
     def _apply_jacobian(self, design_sample, vec):
@@ -440,33 +532,54 @@ class SampleAverageConstraint(Constraint):
         expanded_vec[self._design_indices] = vec
         values = self._model(samples)
         jv_values = np.array(
-            [self._model._apply_jacobian(sample[:, None], expanded_vec)
-             for sample in samples.T])
+            [
+                self._model._apply_jacobian(sample[:, None], expanded_vec)
+                for sample in samples.T
+            ]
+        )
         return self._stat.apply_jacobian(values, jv_values, self._weights)
 
     def __repr__(self):
         return "{0}(model={1}, stat={2})".format(
-            self.__class__.__name__, self._model, self._stat)
+            self.__class__.__name__, self._model, self._stat
+        )
 
 
 class CVaRSampleAverageConstraint(SampleAverageConstraint):
-    def __init__(self, model, samples, weights, stat, design_bounds,
-                 nvars, design_indices, keep_feasible=False):
+    def __init__(
+        self,
+        model,
+        samples,
+        weights,
+        stat,
+        design_bounds,
+        nvars,
+        design_indices,
+        keep_feasible=False,
+    ):
         if not isinstance(stat, SampleAverageConditionalValueAtRisk):
             msg = "stat not instance of SampleAverageConditionalValueAtRisk"
             raise ValueError(msg)
         self._nconstraints = stat._alpha.shape[0]
-        super().__init__(model, samples, weights, stat, design_bounds,
-                         nvars, design_indices, keep_feasible)
+        super().__init__(
+            model,
+            samples,
+            weights,
+            stat,
+            design_bounds,
+            nvars,
+            design_indices,
+            keep_feasible,
+        )
 
     def __call__(self, design_sample):
         # assumes avar variable t is at the end of design_sample
-        self._stat.set_value_at_risk(design_sample[-self._nconstraints:, 0])
-        return super().__call__(design_sample[:-self._nconstraints])
+        self._stat.set_value_at_risk(design_sample[-self._nconstraints :, 0])
+        return super().__call__(design_sample[: -self._nconstraints])
 
     def _jacobian(self, design_sample):
-        self._stat.set_value_at_risk(design_sample[-self._nconstraints:, 0])
-        jac = super()._jacobian(design_sample[:-self._nconstraints])
+        self._stat.set_value_at_risk(design_sample[-self._nconstraints :, 0])
+        jac = super()._jacobian(design_sample[: -self._nconstraints])
         return jac
 
 
@@ -479,26 +592,25 @@ class ObjectiveWithCVaRConstraints(Model):
 
     Assumes samples consist of vstack(random_vars, t)
     """
+
     def __init__(self, model, ncvar_constraints):
         super().__init__()
         self._model = model
         self._ncvar_constraints = ncvar_constraints
         self._jacobian_implemented = self._model._jacobian_implemented
-        self._apply_jacobian_implemented = (
-            self._model._apply_jacobian_implemented)
+        self._apply_jacobian_implemented = self._model._apply_jacobian_implemented
 
     def __call__(self, design_samples):
-        return self._model(design_samples[:-self._ncvar_constraints])
+        return self._model(design_samples[: -self._ncvar_constraints])
 
     def _apply_jacobian(self, design_sample, vec):
         return self._model.apply_jacobian(
-            design_sample[:-self._ncvar_constraints],
-            vec[:-self._ncvar_constraints])
+            design_sample[: -self._ncvar_constraints], vec[: -self._ncvar_constraints]
+        )
 
     def _jacobian(self, design_sample):
-        jac = self._model.jacobian(design_sample[:-self._ncvar_constraints])
-        return np.hstack(
-            (jac, np.zeros((jac.shape[0], self._ncvar_constraints))))
+        jac = self._model.jacobian(design_sample[: -self._ncvar_constraints])
+        return np.hstack((jac, np.zeros((jac.shape[0], self._ncvar_constraints))))
 
 
 def approx_jacobian(func, x, epsilon=np.sqrt(np.finfo(float).eps)):
@@ -511,10 +623,10 @@ def approx_jacobian(func, x, epsilon=np.sqrt(np.finfo(float).eps)):
     dx = np.zeros(x0.shape)
     for ii in range(len(x0)):
         dx[ii] = epsilon
-        f1 = np.atleast_2d(func(x0+dx))
+        f1 = np.atleast_2d(func(x0 + dx))
         assert f1.shape[0] == 1
         f1 = f1[0, :]
-        jac[:, ii] = (f1 - f0)/epsilon
+        jac[:, ii] = (f1 - f0) / epsilon
         dx[ii] = 0.0
     return jac
 

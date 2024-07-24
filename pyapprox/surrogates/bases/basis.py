@@ -109,21 +109,18 @@ class MultiIndexBasis(Basis):
         raise NotImplementedError
 
     def __call__(self, samples):
-        nsamples = samples.shape[1]
         basis_vals_1d = self._basis_vals_1d(samples)
-        basis_matrix = self._bkd._la_empty((nsamples, self.nterms()))
-        basis_matrix[:nsamples, :] = basis_vals_1d[0][:, self._indices[0, :]]
+        basis_matrix = basis_vals_1d[0][:, self._indices[0, :]]
         for dd in range(1, self.nvars()):
-            basis_matrix[:nsamples, :] *= (
-                basis_vals_1d[dd][:, self._indices[dd, :]])
+            basis_matrix *= basis_vals_1d[dd][:, self._indices[dd, :]]
         return basis_matrix
 
     def jacobian(self, samples):
-        nsamples = samples.shape[1]
         basis_vals_1d = self._basis_vals_1d(samples)
         deriv_vals_1d = self._basis_derivs_1d(samples)
-        jac = self._bkd._la_empty((nsamples, self.nterms(), self.nvars()))
+        jac = []
         for ii in range(self.nterms()):
+            inner_jac = []
             index = self._indices[:, ii]
             for jj in range(self.nvars()):
                 # derivative in jj direction
@@ -133,7 +130,9 @@ class MultiIndexBasis(Basis):
                 for dd in range(self.nvars()):
                     if dd != jj:
                         basis_vals *= basis_vals_1d[dd][:, index[dd]]
-                jac[:, ii, jj] = basis_vals
+                inner_jac.append(basis_vals)
+            jac.append(self._bkd._la_stack(inner_jac, axis=0))
+        jac = self._bkd._la_moveaxis(self._bkd._la_stack(jac, axis=0), -1, 0)
         return jac
 
     def __repr__(self):

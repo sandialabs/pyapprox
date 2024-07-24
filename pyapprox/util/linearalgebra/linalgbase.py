@@ -336,32 +336,32 @@ class LinAlgMixin(ABC):
         Override for backends that support automatic differentiation."""
         return mat
 
-    @staticmethod
-    def _la_block_cholesky_engine(L_A, L_A_inv_B, B, D, return_blocks):
-        schur_comp = D-LinAlgMixin._la_multidot((L_A_inv_B.T, L_A_inv_B))
-        L_S = LinAlgMixin._la_cholesky(schur_comp)
+    @classmethod
+    def _la_block_cholesky_engine(cls, L_A, L_A_inv_B, B, D, return_blocks):
+        schur_comp = D-cls._la_multidot((L_A_inv_B.T, L_A_inv_B))
+        L_S = cls._la_cholesky(schur_comp)
         chol_blocks = [L_A, L_A_inv_B.T, L_S]
         if return_blocks:
             return chol_blocks
-        return LinAlgMixin._la_vstack([
-            LinAlgMixin._la_hstack([chol_blocks[0], 0*L_A_inv_B]),
-            LinAlgMixin._la_hstack([chol_blocks[1], chol_blocks[2]])])
+        return cls._la_vstack([
+            cls._la_hstack([chol_blocks[0], 0*L_A_inv_B]),
+            cls._la_hstack([chol_blocks[1], chol_blocks[2]])])
 
-    @staticmethod
-    def _la_block_cholesky(blocks, return_blocks=False):
+    @classmethod
+    def _la_block_cholesky(cls, blocks, return_blocks=False):
         A, B = blocks[0]
         D = blocks[1][1]
-        L_A = LinAlgMixin._la_cholesky(A)
-        L_A_inv_B = LinAlgMixin._la_solve_triangular(L_A, B)
-        return LinAlgMixin._la_block_cholesky_engine(
+        L_A = cls._la_cholesky(A)
+        L_A_inv_B = cls._la_solve_triangular(L_A, B)
+        return cls._la_block_cholesky_engine(
             L_A, L_A_inv_B, B, D, return_blocks)
 
-    @staticmethod
-    def _la_get_correlation_from_covariance(cov):
+    @classmethod
+    def _la_get_correlation_from_covariance(cls, cov):
         r"""
         Compute the correlation matrix from a covariance matrix
         """
-        stdev_inv = 1/LinAlgMixin._la_sqrt(LinAlgMixin._la_get_diagonal(cov))
+        stdev_inv = 1/cls._la_sqrt(cls._la_get_diagonal(cov))
         cor = stdev_inv[None, :]*cov*stdev_inv[:, None]
         return cor
 
@@ -395,8 +395,8 @@ class LinAlgMixin(ABC):
         """Assemble 2d-array from nested lists of blocks."""
         raise NotImplementedError
 
-    @staticmethod
-    def _la_update_cholesky_factorization(L_11, A_12, A_22):
+    @classmethod
+    def _la_update_cholesky_factorization(cls, L_11, A_12, A_22):
         r"""
         Update a Cholesky factorization.
 
@@ -422,18 +422,18 @@ class LinAlgMixin(ABC):
             L_{22}L_{22}^T = A_{22}-L_{12}^TL_{12}
         """
         if L_11 is None:
-            return LinAlgMixin._la_cholesky(A_22)
+            return cls._la_cholesky(A_22)
 
         nrows, ncols = A_12.shape
         if (A_22.shape != (ncols, ncols) or L_11.shape != (nrows, nrows)):
             raise ValueError(
                 "A_12 shape {0} and/or A_22 shape {1} insconsistent".format(
                     A_12.shape, A_22.shape))
-        L_12 = LinAlgMixin._la_solve_triangular(L_11, A_12, lower=True)
-        L_22 = LinAlgMixin._la_cholesky(
-            A_22 - LinAlgMixin._la_dot(L_12.T, L_12))
-        L = LinAlgMixin._la_block(
-            [[L_11, LinAlgMixin._la_full((nrows, ncols), 0.)], [L_12.T, L_22]])
+        L_12 = cls._la_solve_triangular(L_11, A_12, lower=True)
+        L_22 = cls._la_cholesky(
+            A_22 - cls._la_dot(L_12.T, L_12))
+        L = cls._la_block(
+            [[L_11, cls._la_full((nrows, ncols), 0.)], [L_12.T, L_22]])
         return L
 
     @staticmethod
@@ -454,8 +454,8 @@ class LinAlgMixin(ABC):
         """Covert an array to native format."""
         raise NotImplementedError
 
-    @staticmethod
-    def _la_cartesian_product(input_sets, elem_size=1):
+    @classmethod
+    def _la_cartesian_product(cls, input_sets, elem_size=1):
         r"""
         Compute the cartesian product of an arbitray number of sets.
 
@@ -483,11 +483,11 @@ class LinAlgMixin(ABC):
         # ::-1 reverse order to be backwards compatiable with old
         # function below
         for r in itertools.product(*input_sets[::-1]):
-            out.append(LinAlgMixin._la_array(r, dtype=r[0].dtype))
-        return LinAlgMixin._la_flip(LinAlgMixin._la_stack(out, axis=1))
+            out.append(cls._la_array(r, dtype=r[0].dtype))
+        return cls._la_flip(cls._la_stack(out, axis=1))
 
-    @staticmethod
-    def _la_outer_product(input_sets, axis=0):
+    @classmethod
+    def _la_outer_product(cls, input_sets, axis=0):
         r"""
         Construct the outer product of an arbitary number of sets.
 
@@ -510,11 +510,11 @@ class LinAlgMixin(ABC):
            The outer product of the sets.
            result.dtype will be set to the first entry of the first input_set
         """
-        out = LinAlgMixin._la_cartesian_product(input_sets)
-        return LinAlgMixin._la_prod(out, axis=axis)
+        out = cls._la_cartesian_product(input_sets)
+        return cls._la_prod(out, axis=axis)
 
-    @staticmethod
-    def get_all_sample_combinations(samples1, samples2):
+    @classmethod
+    def get_all_sample_combinations(cls, samples1, samples2):
         r"""
         For two sample sets of different random variables
         loop over all combinations
@@ -534,8 +534,8 @@ class LinAlgMixin(ABC):
         """
         samples = []
         for r in itertools.product(*[samples1.T, samples2.T]):
-            samples.append(LinAlgMixin._la_hstack(r))
-        return LinAlgMixin._la_array(samples).T
+            samples.append(cls._la_hstack(r))
+        return cls._la_array(samples).T
 
     @staticmethod
     @abstractmethod
@@ -561,4 +561,8 @@ class LinAlgMixin(ABC):
     @staticmethod
     @abstractmethod
     def _la_up(matrix, indices, submatrix, axis=0):
+        raise NotImplementedError
+
+    @staticmethod
+    def _la_moveaxis(array, source, destination):
         raise NotImplementedError

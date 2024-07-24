@@ -720,7 +720,9 @@ def compute_multivariate_orthonormal_basis_product(
         product_coefs = product_coefs[II]
         product_indices = backend._la_full(
             (num_vars, active_product_indices.shape[1]), 0., dtype=int)
-        product_indices[active_vars] = active_product_indices
+        # product_indices[active_vars] = active_product_indices
+        product_indices = backend._la_up(
+            product_indices, active_vars, active_product_indices)
     else:
         product_coefs = backend._la_full((1, 1), 1.)
         product_indices = backend._la_full([num_vars, 1], 0., dtype=int)

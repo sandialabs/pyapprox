@@ -58,3 +58,6 @@ lint = ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8"]
 
     [tool.coverage.report]
     skip_empty = true
+
+[tool.black]
+line-length=79

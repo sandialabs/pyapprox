@@ -1,8 +1,13 @@
 from typing import List
 
+import jax
 import jax.numpy as np
 
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin
+
+
+# jac treats float as float32 unless the following is set to True
+jax.config.update("jax_enable_x64", True)
 
 
 class JaxLinAlgMixin(LinAlgMixin):
@@ -23,14 +28,16 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.linalg.cholesky(matrix)
 
     @staticmethod
-    def _la_cholesky_solve(chol: np.ndarray, bvec: np.ndarray,
-                           lower: bool = True) -> np.ndarray:
-        return np.linalg.cho_solve((chol, lower), bvec)
+    def _la_cholesky_solve(
+        chol: np.ndarray, bvec: np.ndarray, lower: bool = True
+    ) -> np.ndarray:
+        return jax.scipy.linalg.cho_solve((chol, lower), bvec)
 
     @staticmethod
-    def _la_solve_triangular(Amat: np.ndarray, bvec: np.ndarray,
-                             lower: bool = True) -> np.ndarray:
-        return np.linalg.solve_triangular(Amat, bvec, lower=lower)
+    def _la_solve_triangular(
+        Amat: np.ndarray, bvec: np.ndarray, lower: bool = True
+    ) -> np.ndarray:
+        return jax.scipy.linalg.solve_triangular(Amat, bvec, lower=lower)
 
     @staticmethod
     def _la_full(*args, dtype=float):
@@ -113,9 +120,14 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.tile(mat, nreps)
 
     @staticmethod
-    def _la_cdist(Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
+    def _la_cdist(Amat: np.ndarray, Bmat: np.ndarray, eps=1e-14) -> np.ndarray:
+        # jax has no cdist function
         # return np.spatial.distance.cdist(Amat, Bmat, metric="euclidean")
-        return np.sqrt(np.sum((Amat[:, None] - Bmat[None, :])**2, -1))
+        sq_dists = np.sum((Amat[:, None] - Bmat[None, :]) ** 2, -1)
+        # jac returns nan of gradient when sq_dists is zero
+        # so apply a clipping. This is not perfect but I dont know another
+        # solution
+        return np.where(sq_dists < eps, 1e-36, np.sqrt(sq_dists))
 
     @staticmethod
     def _la_einsum(*args) -> np.ndarray:
@@ -143,11 +155,11 @@ class JaxLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def _la_atleast1d(val, dtype=float) -> np.ndarray:
-        return np.atleast_1d(val).astype(dtype)
+        return np.atleast_1d(np.asarray(val)).astype(dtype)
 
     @staticmethod
     def _la_atleast2d(val, dtype=float) -> np.ndarray:
-        return np.atleast_2d(val).astype(dtype)
+        return np.atleast_2d(np.asarray(val)).astype(dtype)
 
     @staticmethod
     def _la_reshape(mat: np.ndarray, newshape) -> np.ndarray:
@@ -190,8 +202,7 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.mean(mat, axis=axis)
 
     @staticmethod
-    def _la_std(mat: np.ndarray, axis: int = None,
-                ddof: int = 0) -> np.ndarray:
+    def _la_std(mat: np.ndarray, axis: int = None, ddof: int = 0) -> np.ndarray:
         return np.std(mat, axis=axis, ddof=ddof)
 
     @staticmethod
@@ -219,8 +230,7 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.flip(mat, axis=axis)
 
     @staticmethod
-    def _la_allclose(Amat: np.ndarray, Bmat: np.ndarray,
-                     **kwargs) -> bool:
+    def _la_allclose(Amat: np.ndarray, Bmat: np.ndarray, **kwargs) -> bool:
         return np.allclose(Amat, Bmat, **kwargs)
 
     @staticmethod
@@ -273,4 +283,20 @@ class JaxLinAlgMixin(LinAlgMixin):
             return matrix.at[indices].set(submatrix)
         if axis == 1:
             return matrix.at[:, indices].set(submatrix)
-        raise ValueError("axis must be <= 1")
+        if axis == -1:
+            return matrix.at[..., indices].set(submatrix)
+        raise ValueError("axis must be in (0, 1, -1)")
+
+    def _la_autograd_fun(self, active_params_opt):
+        self._set_params(active_params_opt)
+        return self._fun(self._inputs)
+
+    def _la_jacobian(self, fun, inputs, set_params, params):
+        self._fun = fun
+        self._set_params = set_params
+        self._inputs = inputs
+        return jax.jacfwd(self._la_autograd_fun)(params)
+
+    @staticmethod
+    def _la_moveaxis(array, source, destination):
+        return np.moveaxis(array, source, destination)
