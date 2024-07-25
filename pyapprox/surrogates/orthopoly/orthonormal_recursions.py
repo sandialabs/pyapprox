@@ -312,7 +312,7 @@ def discrete_chebyshev_recurrence(N, Ntrials):
     ab : np.ndarray (N,2)
         The recursion coefficients of the N orthonormal polynomials
     """
-    assert(N <= Ntrials)
+    assert N <= Ntrials
 
     if N < 1:
         return np.ones((0, 2))

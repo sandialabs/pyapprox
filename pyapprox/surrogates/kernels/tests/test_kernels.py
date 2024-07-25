@@ -5,7 +5,7 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.kernels._kernels import (
+from pyapprox.surrogates.kernels import (
     ConstantKernel,
     MaternKernel,
     PeriodicMaternKernel,
@@ -142,4 +142,4 @@ class TestJaxKernels(TestKernels, unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbsoity=2)

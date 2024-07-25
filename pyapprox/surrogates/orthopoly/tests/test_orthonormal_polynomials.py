@@ -24,6 +24,8 @@ from pyapprox.surrogates.orthopoly.poly import (
     DiscreteChebyshevPolynomial1D,
     CharlierPolynomial1D,
     LaguerrePolynomial1D,
+    Chebyshev1stKindPolynomial1D,
+    Chebyshev2ndKindPolynomial1D,
 )
 from pyapprox.surrogates.bases.basis import MonomialBasis
 from pyapprox.surrogates.bases.basisexp import MonomialExpansion
@@ -56,6 +58,41 @@ class TestOrthonormalPolynomials1D:
         assert bkd._la_allclose(
             (vals.T * quad_w) @ vals, bkd._la_eye(degree + 1)
         )
+
+    def test_chebyshev_poly_1d(self):
+        degree = 4
+        bkd = self.get_backend()
+        poly = Chebyshev1stKindPolynomial1D(backend=bkd)
+        poly.set_recursion_coefficients(degree + 1)        
+        # polys are not orhtonormal only orthogonal so cannot use:
+        # self._check_orthonormal_poly(poly)
+        quad_x, quad_w = sp.roots_chebyt(degree+1, mu=False)
+        quad_x = bkd._la_array(quad_x)
+        quad_w = bkd._la_array(quad_w)
+        pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
+        assert bkd._la_allclose(pquad_x, quad_x)
+        assert bkd._la_allclose(pquad_w, quad_w)
+        vals_exact = bkd._la_stack(
+            [sp.eval_chebyt(ii, quad_x) for ii in range(degree+1)], axis=1
+        )
+        vals = poly(pquad_x, degree)
+        assert bkd._la_allclose(vals, vals_exact)
+
+        poly = Chebyshev2ndKindPolynomial1D(backend=bkd)
+        poly.set_recursion_coefficients(degree + 1)
+        # polys are not orhtonormal only orthogonal so cannot use:
+        # self._check_orthonormal_poly(poly)
+        quad_x, quad_w = sp.roots_chebyu(degree+1, mu=False)
+        quad_x = bkd._la_array(quad_x)
+        quad_w = bkd._la_array(quad_w)
+        pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
+        assert bkd._la_allclose(pquad_x, quad_x)
+        assert bkd._la_allclose(pquad_w, quad_w)
+        vals_exact = bkd._la_stack(
+            [sp.eval_chebyu(ii, quad_x) for ii in range(degree+1)], axis=1
+        )
+        vals = poly(pquad_x, degree)
+        assert bkd._la_allclose(vals, vals_exact)
 
     def test_legendre_poly_1d(self):
         bkd = self.get_backend()
@@ -413,21 +450,21 @@ class TestOrthonormalPolynomials1D:
         assert bkd._la_allclose(mono_coefs, true_mono_coefs)
 
 
-class TestNumpyTestOrthonormalPolynomials1D(
+class TestNumpyOrthonormalPolynomials1D(
     TestOrthonormalPolynomials1D, unittest.TestCase
 ):
     def get_backend(self):
         return NumpyLinAlgMixin()
 
 
-class TestTorchTestOrthonormalPolynomials1D(
+class TestTorchOrthonormalPolynomials1D(
     TestOrthonormalPolynomials1D, unittest.TestCase
 ):
     def get_backend(self):
         return TorchLinAlgMixin()
 
 
-class TestJaxTestOrthonormalPolynomials1D(
+class TestJaxOrthonormalPolynomials1D(
     TestOrthonormalPolynomials1D, unittest.TestCase
 ):
     def setUp(self):

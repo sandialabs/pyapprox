@@ -1,3 +1,4 @@
+import math
 from abc import ABC, abstractmethod
 from warnings import warn
 
@@ -177,6 +178,7 @@ class OrthonormalPolynomial1D(ABC):
         if self._prob_meas:
             w = b[0] * eigvecs[0, :] ** 2
         else:
+            print("A")
             w = self(x, npoints - 1)
             w = 1.0 / self._bkd._la_sum(w**2, axis=1)
         # w[~self._bkd._la_isfinite(w)] = 0.
@@ -333,3 +335,43 @@ class LaguerrePolynomial1D(OrthonormalPolynomial1D):
 
     def _get_recursion_coefficients(self, ncoefs):
         return laguerre_recurrence(ncoefs, self._rho)
+
+
+class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D):
+    def __init__(self, backend=None):
+        super().__init__(-0.5, -0.5, backend=backend)
+        self._prob_meas = True
+
+    def _get_recursion_coefficients(self, ncoefs):
+        rcoefs = jacobi_recurrence(
+            ncoefs,
+            alpha=self._alpha,
+            beta=self._beta,
+            probability=self._prob_meas,
+        )
+        return rcoefs
+
+    def __call__(self, samples, nmax):
+        vals = super().__call__(samples, nmax)
+        vals[:, 1:] /= 2**0.5
+        return vals
+
+    def gauss_quadrature_rule(self, npoints):
+        quad_x, quad_w = super().gauss_quadrature_rule(npoints)
+        return quad_x, quad_w*math.pi
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
+
+class Chebyshev2ndKindPolynomial1D(JacobiPolynomial1D):
+    def __init__(self, backend=None):
+        super().__init__(0.5, 0.5, backend=backend)
+        self._prob_meas = True
+
+    def gauss_quadrature_rule(self, npoints):
+        quad_x, quad_w = super().gauss_quadrature_rule(npoints)
+        return quad_x, quad_w*math.pi/2
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)

@@ -15,7 +15,8 @@ from pyapprox.pde.autopde.mesh import (
 )
 from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.variables.transforms import ConfigureVariableTransformation
-from pyapprox.pde.kle.torchkle import TorchMeshKLE, TorchInterpolatedMeshKLE
+from pyapprox.pde.kle._kle import MeshKLE, InterpolatedMeshKLE
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array, MultiIndexModel, ModelEnsemble)
 
@@ -340,12 +341,12 @@ def _setup_advection_diffusion_benchmark(
     vel_fun = partial(constant_vel_fun, vel_vec)
 
     if kle_args is None:
-        kle = TorchMeshKLE(
+        kle = MeshKLE(
             mesh.mesh_pts, length_scale, sigma=sigma, nterms=nvars,
-            use_log=True, mean_field=kle_mean_field)
-        # kle = TorchKLEWrapper(npkle)
+            use_log=True, mean_field=kle_mean_field, backend=TorchLinAlgMixin())
     else:
-        kle = TorchInterpolatedMeshKLE(kle_args[0], kle_args[1], mesh)
+        kle = InterpolatedMeshKLE(
+            kle_args[0], kle_args[1], mesh)
 
     if time_scenario is None:
         forc_fun = partial(gauss_forc_fun, amp, scale, loc)

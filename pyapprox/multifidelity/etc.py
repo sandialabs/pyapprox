@@ -3,7 +3,7 @@ from functools import partial
 import numpy as np
 
 from pyapprox.multifidelity.groupacv import MLBLUEEstimator, get_model_subsets
-from pyapprox.surrogates.autogp._torch_wrappers import asarray
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.stats import MultiOutputMean
 
 
@@ -287,12 +287,12 @@ class AETCBLUE():
         best_subset_costs = self._costs[best_subset+1]
         best_subset_groups = get_model_subsets(best_subset.shape[0])
         # print(best_subset_groups)
-        best_subset_group_costs = asarray([
+        best_subset_group_costs = TorchLinAlgMixin._la_asarray([
             best_subset_costs[group].sum() for group in best_subset_groups])
 
         # recorrect for solving exploitation with unit exploit budget
-        best_nsamples_per_subset = asarray(best_allocation)
-        rounded_best_nsamples_per_subset = asarray(
+        best_nsamples_per_subset = TorchLinAlgMixin._la_asarray(best_allocation)
+        rounded_best_nsamples_per_subset = TorchLinAlgMixin._la_asarray(
             np.floor(best_nsamples_per_subset))
         best_blue_variance = best_k2/best_exploit_budget
 

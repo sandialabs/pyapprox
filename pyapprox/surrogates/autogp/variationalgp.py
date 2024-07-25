@@ -19,7 +19,7 @@ from pyapprox.util.transforms import Transform
 from pyapprox.expdesign.low_discrepancy_sequences import halton_sequence
 from pyapprox.variables.transforms import IndependentMarginalsVariable
 from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
-from pyapprox.surrogates.kernels._kernels import SumKernel, Kernel
+from pyapprox.surrogates.kernels.kernels import SumKernel, Kernel
 
 
 def _log_prob_gaussian_with_noisy_nystrom_covariance(

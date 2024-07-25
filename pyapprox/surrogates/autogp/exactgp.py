@@ -9,7 +9,7 @@ import scipy
 from pyapprox.interface.model import Model
 from pyapprox.surrogates.autogp.mokernels import MultiPeerKernel
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
-from pyapprox.surrogates.kernels._kernels import Kernel
+from pyapprox.surrogates.kernels.kernels import Kernel
 from pyapprox.util.transforms import Transform, IdentityTransform
 
 

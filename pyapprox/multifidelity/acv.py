@@ -19,7 +19,7 @@ from pyapprox.multifidelity._optim import (
     _get_sample_allocation_matrix_mlmc,
     _get_sample_allocation_matrix_mfmc,
     _get_acv_recursion_indices)
-from pyapprox.surrogates.autogp._torch_wrappers import asarray
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 
 def _combine_acv_values(reorder_allocation_mat, npartition_samples,
@@ -1063,7 +1063,8 @@ class ACVEstimator(CVEstimator):
             warnings.simplefilter("ignore")
             if isinstance(init_guess, dict):
                 # get rough initial guess from global optimizer
-                default_init_guess = asarray(np.full((self._nmodels-1,), 1.))
+                default_init_guess = TorchLinAlgMixin._la_asarray(
+                    np.full((self._nmodels-1,), 1.))
                 # sometimes nelder-mead has trouble when lower-bound is close
                 # to zero. It finds a solution but then gradient solve may
                 # fail so allow user to pass in lower-bound
@@ -1191,7 +1192,7 @@ class ACVEstimator(CVEstimator):
 
     def _estimator_cost(self, npartition_samples):
         nsamples_per_model = self._compute_nsamples_per_model(
-            asarray(npartition_samples))
+            TorchLinAlgMixin._la_asarray(npartition_samples))
         return (nsamples_per_model*self._costs.numpy()).sum()
 
     def _set_optimized_params(self, partition_ratios, target_cost):

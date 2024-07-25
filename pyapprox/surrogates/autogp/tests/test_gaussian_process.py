@@ -12,7 +12,7 @@ from pyapprox.util.hyperparameter import (
     LogHyperParameterTransform,
     HyperParameter,
 )
-from pyapprox.surrogates.kernels._kernels import (
+from pyapprox.surrogates.kernels import (
     MaternKernel,
     ConstantKernel,
     GaussianNoiseKernel,

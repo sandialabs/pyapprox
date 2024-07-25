@@ -11,8 +11,7 @@ from pyapprox.multifidelity.groupacv import (
     _get_allocation_matrix_is, _get_allocation_matrix_nested, _nest_subsets,
     _cvx_available, MLBLUEEstimator)
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.autogp._torch_wrappers import (
-    arange, full)
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.factory import multioutput_stats
 
 
@@ -48,7 +47,7 @@ class TestGroupACV(unittest.TestCase):
 
     def _check_separate_samples(self, est):
         NN = 2
-        npartition_samples = full((est.nsubsets,), NN)
+        npartition_samples = TorchLinAlgMixin._la_full((est.nsubsets,), NN)
         est._set_optimized_params(npartition_samples)
 
         samples_per_model = est.generate_samples_per_model(
@@ -84,7 +83,7 @@ class TestGroupACV(unittest.TestCase):
         stat = multioutput_stats["mean"](1)
         stat.set_pilot_quantities(cov)
         est = GroupACVEstimator(stat, costs)
-        npartition_samples = arange(2., 2+est.nsubsets)
+        npartition_samples = TorchLinAlgMixin._la_arange(2., 2+est.nsubsets)
         assert np.allclose(
             est._compute_nsamples_per_model(npartition_samples),
             np.array([21, 23, 25]))
@@ -96,7 +95,7 @@ class TestGroupACV(unittest.TestCase):
 
         est = GroupACVEstimator(
             stat, costs, est_type="nested")
-        npartition_samples = arange(2., 2+est.nsubsets)
+        npartition_samples = TorchLinAlgMixin._la_arange(2., 2+est.nsubsets)
         assert np.allclose(
             est._compute_nsamples_per_model(npartition_samples),
             np.array([9, 20, 27]))
@@ -136,7 +135,7 @@ class TestGroupACV(unittest.TestCase):
         stat.set_pilot_quantities(cov)
         est = GroupACVEstimator(stat, costs, est_type=group_type,
                                 asketch=asketch)
-        npartition_samples = arange(2., 2+est.nsubsets)
+        npartition_samples = TorchLinAlgMixin._la_arange(2., 2+est.nsubsets)
         est._set_optimized_params(
             npartition_samples)
         est_var = est._covariance_from_npartition_samples(

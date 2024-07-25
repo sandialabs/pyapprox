@@ -12,9 +12,7 @@ except ImportError:
     _cvx_available = False
 
 
-from pyapprox.surrogates.autogp._torch_wrappers import (
-    full, multidot, pinv, solve, hstack, vstack, asarray,
-    eye, log, einsum, floor, copy)
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.stats import MultiOutputMean
 
 
@@ -55,7 +53,7 @@ def get_model_subsets(nmodels, max_subset_nmodels=None):
 def _get_allocation_matrix_is(subsets):
     nsubsets = len(subsets)
     npartitions = nsubsets
-    allocation_mat = full(
+    allocation_mat = TorchLinAlgMixin._la_full(
         (nsubsets, npartitions), 0., dtype=torch.double)
     for ii, subset in enumerate(subsets):
         allocation_mat[ii, ii] = 1.0
@@ -66,7 +64,7 @@ def _get_allocation_matrix_nested(subsets):
     # nest partitions according to order of subsets
     nsubsets = len(subsets)
     npartitions = nsubsets
-    allocation_mat = full(
+    allocation_mat = TorchLinAlgMixin._la_full(
         (nsubsets, npartitions), 0., dtype=torch.double)
     for ii, subset in enumerate(subsets):
         allocation_mat[ii, :ii+1] = 1.0
@@ -102,9 +100,10 @@ def _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch):
         raise ValueError("asketch has the wrong shape")
 
     # TODO instead of applyint R matrices just collect correct rows and columns
-    beta = multidot((
-        pinv(Sigma), R.T,
-        solve(multidot((R, pinv(Sigma), R.T))+reg_mat, asketch[:, 0])))
+    beta = TorchLinAlgMixin._la_multidot((
+        TorchLinAlgMixin._la_pinv(Sigma), R.T,
+        TorchLinAlgMixin._la_solve(TorchLinAlgMixin._la_multidot(
+            (R, TorchLinAlgMixin._la_pinv(Sigma), R.T))+reg_mat, asketch[:, 0])))
     return beta
 
 
@@ -113,8 +112,9 @@ def _grouped_acv_variance(nmodels, Sigma, subsets, R, reg, asketch):
     if asketch.shape != (nmodels, 1):
         raise ValueError("asketch has the wrong shape")
 
-    reg_mat = eye(nmodels)*reg
-    return asketch.T @ pinv(multidot((R, pinv(Sigma), R.T))+reg_mat) @ asketch
+    reg_mat = TorchLinAlgMixin._la_eye(nmodels)*reg
+    return asketch.T @ TorchLinAlgMixin._la_pinv(
+        TorchLinAlgMixin._la_multidot((R, TorchLinAlgMixin._la_pinv(Sigma), R.T))+reg_mat) @ asketch
 
 
 def _grouped_acv_estimate(
@@ -137,7 +137,7 @@ def _grouped_acv_sigma_block(
         nsamples_subset1, cov):
     nsubset0 = len(subset0)
     nsubset1 = len(subset1)
-    block = full((nsubset0, nsubset1), 0.)
+    block = TorchLinAlgMixin._la_full((nsubset0, nsubset1), 0.)
     if (nsamples_subset0*nsamples_subset1) == 0:
         return block
     block = cov[np.ix_(subset0, subset1)]*nsamples_intersect/(
@@ -159,7 +159,7 @@ def _grouped_acv_sigma(
                 subset0, subset1, nsamples_intersect[ii, jj],
                 N_ii, N_jj, cov)
             Sigma[jj][ii] = Sigma[ii][jj].T
-    Sigma = vstack([hstack(row) for row in Sigma])
+    Sigma = TorchLinAlgMixin._la_vstack([TorchLinAlgMixin._la_hstack(row) for row in Sigma])
     return Sigma
 
 
@@ -181,10 +181,10 @@ class GroupACVEstimator():
         self.partitions_per_model = self._get_partitions_per_model()
         self.partitions_intersect = (
             self._get_subset_intersecting_partitions())
-        self.R = hstack(
-            [asarray(_restriction_matrix(self.nmodels, subset).T)
+        self.R = TorchLinAlgMixin._la_hstack(
+            [TorchLinAlgMixin._la_array(_restriction_matrix(self.nmodels, subset).T)
              for ii, subset in enumerate(self.subsets)])
-        self._costs = asarray(costs)
+        self._costs = TorchLinAlgMixin._la_array(costs)
         self.subset_costs = self._get_model_subset_costs(
             self.subsets, self._costs)
 
@@ -229,14 +229,15 @@ class GroupACVEstimator():
     def _get_partitions_per_model(self):
         # assume npartitions = nsubsets
         npartitions = self.allocation_mat.shape[1]
-        partitions_per_model = full((self.nmodels, npartitions), 0.)
+        partitions_per_model = TorchLinAlgMixin._la_full(
+            (self.nmodels, npartitions), 0.)
         for ii, subset in enumerate(self.subsets):
             partitions_per_model[
                 np.ix_(subset, self.allocation_mat[ii] == 1)] = 1
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples):
-        nsamples_per_model = einsum(
+        nsamples_per_model = TorchLinAlgMixin._la_einsum(
             "ji,i->j", self.partitions_per_model, npartition_samples)
         return nsamples_per_model
 
@@ -247,7 +248,7 @@ class GroupACVEstimator():
     def _get_subset_intersecting_partitions(self):
         amat = self.allocation_mat
         npartitions = self.allocation_mat.shape[1]
-        partition_intersect = full(
+        partition_intersect = TorchLinAlgMixin._la_full(
             (self.nsubsets, self.nsubsets, npartitions), 0.)
         for ii, subset_ii in enumerate(self.subsets):
             for jj, subset_jj in enumerate(self.subsets):
@@ -262,7 +263,7 @@ class GroupACVEstimator():
         Note the number of samples per subset is simply the diagonal of this
         matrix
         """
-        return einsum(
+        return TorchLinAlgMixin._la_einsum(
             "ijk,k->ij", self.partitions_intersect, npartition_samples)
 
     def _sigma(self, npartition_samples):
@@ -400,13 +401,13 @@ class GroupACVEstimator():
         # get the number of samples per model when 1 sample is in each
         # partition
         nsamples_per_model = self._compute_nsamples_per_model(
-            full((self.npartitions,), 1.))
+            TorchLinAlgMixin._la_full((self.npartitions,), 1.))
         # nsamples_per_model[0] = max(0, min_nhf_samples)
         cost = (nsamples_per_model*self._costs).sum()
 
         # the total number of samples per partition is then target_cost/cost
         # we take the floor to make sure we do not exceed the target cost
-        return full(
+        return TorchLinAlgMixin._la_full(
             (self.npartitions,), np.floor(target_cost/cost))
 
     def _update_init_guess(self, init_guess, constraints, options, bounds):
@@ -434,7 +435,7 @@ class GroupACVEstimator():
 
     def _set_optimized_params(self, npartition_samples, round_nsamples=True):
         if round_nsamples:
-            rounded_npartition_samples = floor(npartition_samples)
+            rounded_npartition_samples = TorchLinAlgMixin._la_floor(npartition_samples)
         else:
             rounded_npartition_samples = npartition_samples
         self._set_optimized_params_base(
@@ -454,9 +455,9 @@ class GroupACVEstimator():
 
     def _validate_asketch(self, asketch):
         if asketch is None:
-            asketch = full((self.nmodels, 1), 0)
+            asketch = TorchLinAlgMixin._la_full((self.nmodels, 1), 0)
             asketch[0] = 1.0
-        asketch = asarray(asketch)
+        asketch = TorchLinAlgMixin._la_array(asketch)
         if asketch.shape[0] != self._costs.shape[0]:
             raise ValueError("aksetch has the wrong shape")
         if asketch.ndim == 1:
@@ -512,7 +513,7 @@ class GroupACVEstimator():
             print(res)
             raise RuntimeError(msg)
 
-        self._set_optimized_params(asarray(res["x"]), round_nsamples)
+        self._set_optimized_params(TorchLinAlgMixin._la_array(res["x"]), round_nsamples)
 
     @staticmethod
     def _get_partition_splits(npartition_samples):
@@ -796,7 +797,7 @@ class MLBLUEEstimator(GroupACVEstimator):
             res = self._minimize_cvxpy(
                 target_cost, min_nhf_samples, min_nlf_samples)
             return self._set_optimized_params(
-                asarray(res["x"]), round_nsamples)
+                TorchLinAlgMixin._la_array(res["x"]), round_nsamples)
         # TODO
         # when running mlblue with trust-constr make sure to compute
         # contraint jacobians and activate them
@@ -806,10 +807,10 @@ class MLBLUEEstimator(GroupACVEstimator):
             init_guess, min_nhf_samples, min_nlf_samples, optim_options_copy)
 
     def estimate_all_means(self, values_per_subset):
-        asketch = copy(self._asketch)
+        asketch = TorchLinAlgMixin._la_copy(self._asketch)
         means = np.empty(self.nmodels)
         for ii in range(self.nmodels):
-            self._asketch = full((self.nmodels), 0.)
+            self._asketch = TorchLinAlgMixin._la_full((self.nmodels), 0.)
             self._asketch[ii] = 1.0
             means[ii] = self._estimate(values_per_subset)
         self._asketch = asketch
