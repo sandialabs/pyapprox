@@ -24,6 +24,14 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.linalg.inv(matrix)
 
     @staticmethod
+    def _la_pinv(matrix: np.ndarray) -> np.ndarray:
+        return np.linalg.pinv(matrix)
+
+    @staticmethod
+    def _la_solve(Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
+        return np.linalg.solve(Amat, Bmat)
+
+    @staticmethod
     def _la_cholesky(matrix: np.ndarray) -> np.ndarray:
         return np.linalg.cholesky(matrix)
 
@@ -287,9 +295,22 @@ class JaxLinAlgMixin(LinAlgMixin):
             return matrix.at[..., indices].set(submatrix)
         raise ValueError("axis must be in (0, 1, -1)")
 
-    def _la_jacobian(self, fun, params):
+    @staticmethod
+    def _la_jacobian(fun, params):
+        return jax.jacfwd(fun)(params)
+
+    @staticmethod
+    def _la_grad(self, fun, params):
         return jax.jacfwd(fun)(params)
 
     @staticmethod
     def _la_moveaxis(array, source, destination):
         return np.moveaxis(array, source, destination)
+
+    @staticmethod
+    def _la_floor(array):
+        return np.floor(array)
+
+    @staticmethod
+    def _la_asarray(array, dtype=float):
+        return np.asarray(array, dtype=dtype)

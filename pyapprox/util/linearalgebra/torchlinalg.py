@@ -23,6 +23,14 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.linalg.inv(matrix)
 
     @staticmethod
+    def _la_pinv(matrix: torch.Tensor) -> torch.Tensor:
+        return torch.linalg.pinv(matrix)
+
+    @staticmethod
+    def _la_solve(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
+        return torch.linalg.solve(Amat, Bmat)
+
+    @staticmethod
     def _la_cholesky(matrix: torch.Tensor) -> torch.Tensor:
         return torch.linalg.cholesky(matrix)
 
@@ -291,9 +299,11 @@ class TorchLinAlgMixin(LinAlgMixin):
     def _la_cond(matrix):
         return torch.linalg.cond(matrix)
 
+    @staticmethod
     def _la_jacobian(self, fun, params):
         return torch.autograd.functional.jacobian(fun, params)
 
+    @staticmethod
     def _la_grad(self, fun, params):
         params.requires_grad = True
         val = fun(params)
@@ -318,3 +328,11 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_moveaxis(array, source, destination):
         return torch.moveaxis(array, source, destination)
+
+    @staticmethod
+    def _la_floor(array):
+        return torch.floor(array)
+
+    @staticmethod
+    def _la_asarray(array, dtype=torch.double):
+        return torch.as_tensor(array, dtype=dtype)

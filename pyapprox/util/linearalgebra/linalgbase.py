@@ -27,6 +27,17 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def _la_pinv(mat):
+        """Compute the pseudo inverse of a matrix."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _la_solve(Amat, Bmat):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def _la_cholesky(mat):
         """Compute the cholesky factorization of a matrix."""
         raise NotImplementedError
@@ -555,7 +566,12 @@ class LinAlgMixin(ABC):
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
-    def _la_jacobian(self, fun, inputs, set_params, active_opt_params):
+    @staticmethod
+    def _la_jacobian(fun, params):
+        raise NotImplementedError
+
+    @staticmethod
+    def _la_grad(fun, params):
         raise NotImplementedError
 
     @staticmethod
@@ -565,4 +581,12 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     def _la_moveaxis(array, source, destination):
+        raise NotImplementedError
+
+    @staticmethod
+    def _la_floor(array):
+        raise NotImplementedError
+
+    @staticmethod
+    def _la_asarray(array):
         raise NotImplementedError

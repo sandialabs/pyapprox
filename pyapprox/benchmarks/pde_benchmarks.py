@@ -207,7 +207,7 @@ class AdvectionDiffusionReactionKLEModel():
     def _set_random_sample(self, sample):
         self._fwd_solver.physics._diff_fun = partial(
             self._fast_interpolate,
-            self._kle(self._kle._la_atleast2d(sample[:, None])))
+            self._kle(self._kle._bkd._la_atleast2d(sample[:, None])))
 
     def _eval(self, sample, return_grad=False):
         sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)

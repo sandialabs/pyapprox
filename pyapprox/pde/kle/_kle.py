@@ -566,7 +566,7 @@ class InterpolatedMeshKLE(MeshKLE):
     def _fast_interpolate(self, values, xx):
         assert xx.shape[1] == self._mesh.mesh_pts.shape[1]
         assert np.allclose(xx, self._mesh.mesh_pts)
-        interp_vals = self._la_multidot((self._basis_mat, values))
+        interp_vals = self._bkd._la_multidot((self._basis_mat, values))
         return interp_vals
 
     def __call__(self, coef):
@@ -577,6 +577,6 @@ class InterpolatedMeshKLE(MeshKLE):
         mean_field = self._fast_interpolate(
             self._kle._mean_field[:, None], self._mesh.mesh_pts)
         if use_log:
-            interp_vals = self._la_exp(mean_field+interp_vals)
+            interp_vals = self._bkd._la_exp(mean_field+interp_vals)
         self._kle._use_log = use_log
         return interp_vals

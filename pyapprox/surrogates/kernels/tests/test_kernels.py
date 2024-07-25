@@ -3,7 +3,7 @@ import copy
 
 import numpy as np
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixinp
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.kernels import (
     ConstantKernel,
@@ -142,4 +142,4 @@ class TestJaxKernels(TestKernels, unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main(verbsoity=2)
+    unittest.main(verbosity=2)

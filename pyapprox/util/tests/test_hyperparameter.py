@@ -1,28 +1,27 @@
 import unittest
 import numpy as np
 
-from pyapprox.util.hyperparameter.numpyhyperparameter import (
-    NumpyLogHyperParameterTransform, NumpyIdentityHyperParameterTransform,
-    NumpyHyperParameter, NumpyHyperParameterList)
-from pyapprox.util.hyperparameter.torchhyperparameter import (
-    TorchLogHyperParameterTransform, TorchIdentityHyperParameterTransform,
-    TorchHyperParameter, TorchHyperParameterList)
+from pyapprox.util.hyperparameter import (
+    LogHyperParameterTransform, IdentityHyperParameterTransform,
+    HyperParameter, HyperParameterList)
+
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 
-class TestHyperParameter(unittest.TestCase):
+class TestHyperParameter:
     def setUp(self):
         np.random.seed(1)
 
-    def _check_hyperparameter(
-            self, LogHyperParameterTransform, IdentityHyperParameterTransform,
-            HyperParameter, HyperParameterList):
-        transform_0 = LogHyperParameterTransform()
+    def test_hyperparameter(self):
+        bkd = self.get_backend()
+        transform_0 = LogHyperParameterTransform(backend=bkd)
         hyp_0 = HyperParameter("P0", 3, 1, [0.01, 2], transform_0)
         assert np.allclose(
             hyp_0.get_active_opt_bounds(), np.log(
                 np.array([[0.01, 2], [0.01, 2], [0.01, 2]])))
 
-        transform_1 = IdentityHyperParameterTransform()
+        transform_1 = IdentityHyperParameterTransform(backend=bkd)
         hyp_1 = HyperParameter(
             "P1", 2, -0.5, [-1, 6, -np.nan, np.nan], transform_1)
         hyp_list_0 = HyperParameterList([hyp_0, hyp_1])
@@ -44,20 +43,16 @@ class TestHyperParameter(unittest.TestCase):
                 np.array([[-3, 3]]),
             )))
 
-    def test_hyperparameter(self):
-        test_cases = [
-            [NumpyLogHyperParameterTransform,
-             NumpyIdentityHyperParameterTransform, NumpyHyperParameter,
-             NumpyHyperParameterList],
-            [TorchLogHyperParameterTransform,
-             TorchIdentityHyperParameterTransform, TorchHyperParameter,
-             TorchHyperParameterList],
-        ]
-        for case in test_cases:
-            self._check_hyperparameter(*case)
+
+class TestNumpyHyperParameter(TestHyperParameter, unittest.TestCase):
+    def get_backend(self):
+        return NumpyLinAlgMixin()
+
+
+class TestTorchHyperParameter(TestHyperParameter, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin()
 
 
 if __name__ == "__main__":
-    hyperparameter_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestHyperParameter)
-    unittest.TextTestRunner(verbosity=2).run(hyperparameter_test_suite)
+    unittest.main(verbosity=2)
