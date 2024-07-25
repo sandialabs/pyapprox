@@ -148,7 +148,7 @@ class ExactGaussianProcess(Model):
         return np.random.uniform(bounds[:, 0], bounds[:, 1])
 
     def _global_optimize(self, max_nglobal_opt_iters=1):
-        bounds = self.hyp_list.get_active_opt_bounds().numpy()
+        bounds = self._bkd._la_to_numpy(self.hyp_list.get_active_opt_bounds())
         if len(bounds) == 0:
             return
         results = []
@@ -340,11 +340,11 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
         # can be specialized when _factor_training_kernel_matrix is specialized
         diff = (self.canonical_train_values -
                 self._canonical_trend(self.canonical_train_samples))
-        return MultiPeerKernel._cholesky_solve(*args, diff, self)
+        return MultiPeerKernel._cholesky_solve(*args, diff, self._bkd)
 
     def _log_determinant(self, coef_res: Tuple) -> float:
         # can be specialized when _factor_training_kernel_matrix is specialized
-        return MultiPeerKernel._logdet(*coef_res, self)
+        return MultiPeerKernel._logdet(*coef_res, self._bkd)
 
     def _training_kernel_matrix(self) -> Tuple:
         # must only pass in X and not Y to kernel otherwise if noise kernel
@@ -359,35 +359,35 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
     def _factor_training_kernel_matrix(self):
         blocks = self._training_kernel_matrix()
         return MultiPeerKernel._cholesky(
-                len(blocks[0]), blocks, block_format=True, la=self)
-        try:
-            return MultiPeerKernel._cholesky(
-                len(blocks[0]), blocks, block_format=True)
-        except:
-            return None, blocks[0][0][0]
+                len(blocks[0]), blocks, self._bkd, block_format=True)
+        # try:
+        #     return MultiPeerKernel._cholesky(
+        #         len(blocks[0]), blocks, self._bkd, block_format=True)
+        # except:
+        #     return None, blocks[0][0][0]
 
     def _Linv_y(self, *args):
         diff = (self.canonical_train_values -
                 self._canonical_trend(self.canonical_train_samples))
-        return MultiPeerKernel._lower_solve_triangular(*args, diff, self)
+        return MultiPeerKernel._lower_solve_triangular(*args, diff, self._bkd)
 
     def _canonical_posterior_pointwise_variance(
             self, canonical_samples, kmat_pred):
         # can be specialized when _factor_training_kernel_matrix is specialized
         tmp = MultiPeerKernel._lower_solve_triangular(
-            *self._coef_args, kmat_pred.T, self)
+            *self._coef_args, kmat_pred.T, self._bkd)
         update = self._bkd._la_einsum("ji,ji->i", tmp, tmp)
         return (self.kernel.diag(canonical_samples) - update)[:, None]
 
 
 class MOICMPeerExactGaussianProcess(MOExactGaussianProcess):
     def __init__(self,
-                 nvars,
-                 kernel,
-                 output_kernel,
-                 var_trans,
-                 values_trans,
-                 kernel_reg):
+                 nvars: int,
+                 kernel: Kernel,
+                 output_kernel: Kernel,
+                 var_trans: Transform = None,
+                 values_trans: Transform = None,
+                 kernel_reg: float = 0):
         super().__init__(
             nvars, kernel, var_trans, values_trans, None, kernel_reg)
         self.output_kernel = output_kernel

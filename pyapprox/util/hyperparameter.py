@@ -21,7 +21,7 @@ class HyperParameterTransform(ABC):
         raise NotImplementedError
 
     def __repr__(self):
-        return "{0}".format(self.__class__.__name__)
+        return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
 
 
 class IdentityHyperParameterTransform(HyperParameterTransform):
@@ -52,12 +52,17 @@ class HyperParameter:
     ):
         """A possibly vector-valued hyper-parameter to be used with
         optimization."""
-        if backend is None:
+        if backend is None and transform is None:
             backend = NumpyLinAlgMixin()
+        elif backend is None:
+            backend = transform._bkd
         self._bkd = backend
 
         if transform is None:
             transform = IdentityHyperParameterTransform(self._bkd)
+        else:
+            if type(transform._bkd) is not type(backend):
+                raise ValueError("transform._bkd must be the same as backend")
         self.transform = transform
 
         self.name = name

@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 
 from pyapprox.util.linearalgebra.numpylinalg import (
-    LinAlgMixin, NumpyLinAlgMixin)
+    LinAlgMixin,
+    NumpyLinAlgMixin,
+)
 
 
 class Basis(ABC):
@@ -69,9 +71,11 @@ class Basis(ABC):
 class MultiIndexBasis(Basis):
     """Multivariate basis defined by multi-indices."""
 
-    def __init__(self, backend=None):
+    def __init__(self, indices=None, backend: LinAlgMixin = None):
         super().__init__(backend)
         self._indices = None
+        if indices is not None:
+            self.set_indices(indices)
         self._jacobian_implemented = True
 
     def set_indices(self, indices):
@@ -125,7 +129,8 @@ class MultiIndexBasis(Basis):
             for jj in range(self.nvars()):
                 # derivative in jj direction
                 basis_vals = self._bkd._la_copy(
-                    deriv_vals_1d[jj][:, index[jj]])
+                    deriv_vals_1d[jj][:, index[jj]]
+                )
                 # basis values in other directions
                 for dd in range(self.nvars()):
                     if dd != jj:
@@ -137,7 +142,8 @@ class MultiIndexBasis(Basis):
 
     def __repr__(self):
         return "{0}(nvars={1}, nterms={2})".format(
-            self.__class__.__name__, self.nvars(), self.nterms())
+            self.__class__.__name__, self.nvars(), self.nterms()
+        )
 
 
 class MonomialBasis(MultiIndexBasis):
@@ -145,28 +151,31 @@ class MonomialBasis(MultiIndexBasis):
 
     def _univariate_monomial_basis_matrix(self, max_level, samples):
         assert samples.ndim == 1
-        basis_matrix = samples[:, None]**self._bkd._la_arange(
-            max_level+1)[None, :]
+        basis_matrix = (
+            samples[:, None] ** self._bkd._la_arange(max_level + 1)[None, :]
+        )
         return basis_matrix
 
     def _basis_vals_1d(self, samples):
         return [
             self._univariate_monomial_basis_matrix(
-                self._indices[dd, :].max(), samples[dd, :])
-            for dd in range(self.nvars())]
+                self._indices[dd, :].max(), samples[dd, :]
+            )
+            for dd in range(self.nvars())
+        ]
 
     def _basis_derivs_1d(self, samples):
         basis_vals_1d = self._basis_vals_1d(samples)
         deriv_vals_1d = []
         for jj in range(len(basis_vals_1d)):
-            derivs = [
-                self._bkd._la_full((basis_vals_1d[jj].shape[0], 1), 0.)]
+            derivs = [self._bkd._la_full((basis_vals_1d[jj].shape[0], 1), 0.0)]
             if basis_vals_1d[jj].shape[0] > 1:
                 derivs.append(
-                    self._bkd._la_full((basis_vals_1d[jj].shape[0], 1), 1.))
+                    self._bkd._la_full((basis_vals_1d[jj].shape[0], 1), 1.0)
+                )
             if basis_vals_1d[jj].shape[0] > 2:
                 consts = self._bkd._la_arange(2, len(basis_vals_1d[jj]))
-                derivs.append(basis_vals_1d[jj][:, 1:-1]*consts)
+                derivs.append(basis_vals_1d[jj][:, 1:-1] * consts)
             deriv_vals_1d.append(self._bkd._la_hstack(derivs))
         return deriv_vals_1d
 
@@ -189,12 +198,14 @@ class OrthonormalPolynomialBasis(MultiIndexBasis):
     def _basis_vals_1d(self, samples):
         return [
             poly(samples[dd, :], self._indices[dd, :].max())
-            for dd, poly in enumerate(self._polys_1d)]
+            for dd, poly in enumerate(self._polys_1d)
+        ]
 
     def _basis_derivs_1d(self, samples):
         return [
             poly.derivatives(samples[dd, :], self._indices[dd, :].max(), 1)
-            for dd, poly in enumerate(self._polys_1d)]
+            for dd, poly in enumerate(self._polys_1d)
+        ]
 
     def _update_recursion_coefficients(self, ncoefs_per_poly):
         for ii, poly in enumerate(self._polys_1d):
@@ -204,7 +215,10 @@ class OrthonormalPolynomialBasis(MultiIndexBasis):
         if indices.shape[0] != len(self._polys_1d):
             raise ValueError(
                 "indices.shape[0] {0} doesnt match len(polys_1d) {1}".format(
-                    indices.shape[0], len(self._polys_1d)))
+                    indices.shape[0], len(self._polys_1d)
+                )
+            )
         super().set_indices(indices)
         self._update_recursion_coefficients(
-            self._bkd._la_max(self._indices, axis=1)+1)
+            self._bkd._la_max(self._indices, axis=1) + 1
+        )

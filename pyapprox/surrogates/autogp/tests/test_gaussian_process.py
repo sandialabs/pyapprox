@@ -16,23 +16,23 @@ from pyapprox.surrogates.kernels._kernels import (
     MaternKernel,
     ConstantKernel,
     GaussianNoiseKernel,
+    SphericalCovariance,
 )
-from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
+from pyapprox.surrogates.autogp.exactgp import (
+    ExactGaussianProcess,
+    MOExactGaussianProcess,
+    MOPeerExactGaussianProcess,
+    MOICMPeerExactGaussianProcess,
+)
 from pyapprox.surrogates.autogp.mokernels import (
     ICMKernel,
     MultiPeerKernel,
     CollaborativeKernel,
 )
-from pyapprox.surrogates.autogp.torchgp import (
-    TorchExactGaussianProcess,
-    TorchInducingGaussianProcess,
-    TorchInducingSamples,
-    TorchMOExactGaussianProcess,
-    TorchMOPeerExactGaussianProcess,
-    TorchMOICMPeerExactGaussianProcess,
-)
 from pyapprox.surrogates.autogp.variationalgp import (
     _log_prob_gaussian_with_noisy_nystrom_covariance,
+    InducingSamples,
+    InducingGaussianProcess,
 )
 from pyapprox.util.transforms import (
     IdentityTransform,
@@ -171,7 +171,7 @@ class TestGaussianProcess:
     def setUp(self):
         np.random.seed(1)
 
-    def _check_exact_gp_training(self, trend, values_trans, constant, noise):
+    def _check_exact_gp_training(self, trend, values_trans, constant):
         bkd = self.get_backend()
         nvars = 1
 
@@ -199,14 +199,9 @@ class TestGaussianProcess:
             )
             kernel = constant_kernel * kernel
 
-        if noise:
-            noise_kernel = GaussianNoiseKernel(0.1, (1e-3, 1e1), backend=bkd)
-            kernel = kernel + noise_kernel
-
         gp = ExactGaussianProcess(
             nvars, kernel, trend=trend, values_trans=values_trans
         )
-        print(gp)
 
         def fun(xx):
             return (xx**2).sum(axis=0)[:, None]
@@ -252,10 +247,8 @@ class TestGaussianProcess:
             [False, True, False],
             [True, True, False],
         ]
-        torch_classes = [TorchExactGaussianProcess]
         for test_case in test_cases:
-            print(test_case)
-            self._check_exact_gp_training(*(test_case + torch_classes))
+            self._check_exact_gp_training(*test_case)
 
     def test_compare_with_deprecated_gp(self):
         bkd = self.get_backend()
@@ -308,8 +301,6 @@ class TestGaussianProcess:
 
         pyagp = GaussianProcess(pyakernel, alpha=0.0)
         pyagp.fit(train_samples, train_values)
-        # print(gp)
-        # print(pyagp)
 
         ntest_samples = 5
         test_samples = bkd._la_array(
@@ -346,14 +337,15 @@ class TestGaussianProcess:
             (1e-6, 1),
             LogHyperParameterTransform(backend=bkd),
         )
-        inducing_samples = TorchInducingSamples(
+        inducing_samples = InducingSamples(
             nvars,
             ninducing_samples,
             inducing_samples=inducing_samples,
             noise=noise,
+            backend=bkd,
         )
         values_trans = IdentityTransform(backend=bkd)
-        gp = TorchInducingGaussianProcess(
+        gp = InducingGaussianProcess(
             nvars,
             kernel,
             inducing_samples,
@@ -370,7 +362,7 @@ class TestGaussianProcess:
         gp.set_training_data(train_samples, train_values)
         # bounds = gp.hyp_list.get_active_opt_bounds().numpy()
         # x0 = gp._get_random_optimizer_initial_guess(bounds)
-        x0 = gp.hyp_list.get_active_opt_params()
+        x0 = bkd._la_to_numpy(gp.hyp_list.get_active_opt_params())
         errors = check_gradients(
             lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None], disp=False
         )
@@ -403,11 +395,12 @@ class TestGaussianProcess:
         assert np.allclose(gp_mu, test_vals, atol=6e-3)
 
     def test_variational_gp_collapse_to_exact_gp(self):
+        bkd = self.get_backend()
         nvars = 1
         ntrain_samples = 6
         noise_var = 1e-8
-        kernel = TorchMaternKernel(np.inf, 1, [1e-1, 1], nvars)
-        values_trans = TorchIdentityTransform()
+        kernel = MaternKernel(np.inf, 1, [1e-1, 1], nvars, backend=bkd)
+        values_trans = IdentityTransform()
 
         def fun(xx):
             return (xx**2).sum(axis=0)[:, None]
@@ -418,10 +411,11 @@ class TestGaussianProcess:
         ntest_samples = 6
         test_samples = np.random.uniform(-1, 1, (nvars, ntest_samples))
 
-        exact_gp = TorchExactGaussianProcess(
+        exact_gp = ExactGaussianProcess(
             nvars,
-            kernel + TorchGaussianNoiseKernel(noise_var, [np.nan, np.nan]),
-            mean=None,
+            kernel
+            + GaussianNoiseKernel(noise_var, [np.nan, np.nan], backend=bkd),
+            trend=None,
             values_trans=values_trans,
             kernel_reg=0,
         )
@@ -433,24 +427,25 @@ class TestGaussianProcess:
         ninducing_samples = ntrain_samples
         # fix hyperparameters so they are not changed from exact_gp
         # or setting provided if not found in exact_gp
-        noise = TorchHyperParameter(
+        noise = HyperParameter(
             "noise_std",
             1,
             np.sqrt(noise_var),
             [np.nan, np.nan],
-            TorchLogHyperParameterTransform(),
+            LogHyperParameterTransform(backend=bkd),
         )
-        inducing_samples = TorchInducingSamples(
+        inducing_samples = InducingSamples(
             nvars,
             ninducing_samples,
             inducing_samples=inducing_samples,
             inducing_sample_bounds=bkd._la_atleast1d([np.nan, np.nan]),
             noise=noise,
+            backend=bkd,
         )
-        values_trans = TorchIdentityTransform()
+        values_trans = IdentityTransform(backend=bkd)
         # use correlation length learnt by exact gp
         vi_kernel = kernel
-        vi_gp = TorchInducingGaussianProcess(
+        vi_gp = InducingGaussianProcess(
             nvars,
             vi_kernel,
             inducing_samples,
@@ -468,6 +463,7 @@ class TestGaussianProcess:
         assert np.allclose(vi_gp_std, exact_gp_std, atol=5e-5)
 
     def test_icm_gp(self):
+        bkd = self.get_backend()
         nvars, noutputs = 1, 2
 
         def fun0(xx):
@@ -482,13 +478,16 @@ class TestGaussianProcess:
 
         radii, radii_bounds = np.arange(1, noutputs + 1), [1, 10]
         angles = np.pi / 4
-        latent_kernel = TorchMaternKernel(np.inf, 0.5, [1e-1, 2], nvars)
-        output_kernel = TorchSphericalCovariance(
+        latent_kernel = MaternKernel(
+            np.inf, 0.5, [1e-1, 2], nvars, backend=bkd
+        )
+        output_kernel = SphericalCovariance(
             noutputs,
-            radii,
-            radii_bounds,
+            radii=radii,
+            radii_bounds=radii_bounds,
             angles=angles,
             angle_bounds=[0, np.pi],
+            backend=bkd,
         )
 
         kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
@@ -503,10 +502,10 @@ class TestGaussianProcess:
             fun(samples) for fun, samples in zip(funs, samples_per_output)
         ]
 
-        gp = TorchMOExactGaussianProcess(
+        gp = MOExactGaussianProcess(
             nvars,
             kernel,
-            values_trans=TorchIdentityTransform(),
+            values_trans=IdentityTransform(),
             kernel_reg=1e-8,
         )
         gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=3)
@@ -516,12 +515,12 @@ class TestGaussianProcess:
         # correlation, but for this case it can
         cov_matrix = output_kernel.get_covariance_matrix()
         corr_matrix = bkd._la_get_correlation_from_covariance(cov_matrix)
-        samples = kernel._la_atleast2d(np.random.uniform(-1, 1, (1, 101)))
-        values = kernel._la_hstack([fun(samples) for fun in funs])
+        samples = bkd._la_atleast2d(np.random.uniform(-1, 1, (1, 101)))
+        values = bkd._la_hstack([fun(samples) for fun in funs])
         assert np.allclose(
             corr_matrix,
-            kernel._la_get_correlation_from_covariance(
-                kernel._la_cov(values.T, ddof=1)
+            bkd._la_get_correlation_from_covariance(
+                bkd._la_cov(values.T, ddof=1)
             ),
             atol=1e-2,
         )
@@ -539,35 +538,39 @@ class TestGaussianProcess:
         # plt.show()
 
     def test_peer_gaussian_process(self):
+        bkd = self.get_backend()
         nvars, noutputs = 1, 4
         degree = 0
         kernels = [
-            TorchMaternKernel(np.inf, 1.0, [1e-1, 1], nvars)
+            MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
             for ii in range(noutputs)
         ]
+        scaling_indices = bkd._la_arange(degree + 1, dtype=int)[None, :]
         scalings = [
-            TorchMonomial(nvars, degree, 1, [-1, 2], name=f"scaling{ii}")
+            BasisExpansion(
+                MonomialBasis(scaling_indices, backend=bkd), None, 1, [-1, 2]
+            )
             for ii in range(noutputs - 1)
         ]
         kernel = MultiPeerKernel(kernels, scalings)
 
         def peer_fun(delta, xx):
-            return np.cos(2 * np.pi * xx.T + delta)
+            return bkd._la_cos(2 * np.pi * xx.T + delta)
 
         def target_fun(peer_funs, xx):
             # return (
             #     np.hstack([f(xx) for f in peer_funs]).sum(axis=1)[:, None] +
             #     np.exp(-xx.T**2*2))
-            return np.cos(2 * np.pi * xx.T)
+            return bkd._la_cos(2 * np.pi * xx.T)
 
-        peer_deltas = np.linspace(0, 1, noutputs - 1)
+        peer_deltas = bkd._la_linspace(0, 1, noutputs - 1)
         peer_funs = [partial(peer_fun, delta) for delta in peer_deltas]
         funs = peer_funs + [partial(target_fun, peer_funs)]
 
         # nsamples_per_output = np.array([5 for ii in range(noutputs-1)]+[4])*2
         nsamples_per_output = np.array([7 for ii in range(noutputs - 1)] + [5])
         samples_per_output = [
-            kernel._la_atleast2d(np.random.uniform(-1, 1, (nvars, nsamples)))
+            bkd._la_atleast2d(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output
         ]
 
@@ -575,8 +578,11 @@ class TestGaussianProcess:
             fun(samples) for fun, samples in zip(funs, samples_per_output)
         ]
 
-        gp = TorchMOExactGaussianProcess(
-            nvars, kernel, values_trans=TorchIdentityTransform(), kernel_reg=0
+        gp = MOExactGaussianProcess(
+            nvars,
+            kernel,
+            values_trans=IdentityTransform(backend=bkd),
+            kernel_reg=0,
         )
         gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=3)
 
@@ -592,21 +598,22 @@ class TestGaussianProcess:
 
         # check that when using hyperparameters found by dense GP the PeerGP
         # return the same likelihood value and prediction mean and std. dev.
-        peer_gp = TorchMOPeerExactGaussianProcess(
-            nvars, kernel, values_trans=TorchIdentityTransform(), kernel_reg=0
+        peer_gp = MOPeerExactGaussianProcess(
+            nvars, kernel, values_trans=IdentityTransform(), kernel_reg=0
         )
         peer_gp.set_training_data(samples_per_output, values_per_output)
         assert np.allclose(
-            gp._neg_log_likelihood_with_hyperparameter_mean(),
-            peer_gp._neg_log_likelihood_with_hyperparameter_mean(),
+            gp._neg_log_likelihood_with_hyperparameter_trend(),
+            peer_gp._neg_log_likelihood_with_hyperparameter_trend(),
         )
-        xx = kernel._la_linspace(-1, 1, 31)[None, :]
+        xx = bkd._la_linspace(-1, 1, 31)[None, :]
         gp_mean, gp_std = gp([xx] * noutputs, return_std=True)
         peer_gp_mean, peer_gp_std = peer_gp([xx] * noutputs, return_std=True)
         assert np.allclose(peer_gp_mean, gp_mean)
         assert np.allclose(peer_gp_std, gp_std)
 
     def test_icm_peer_gp(self):
+        bkd = self.get_backend()
         nvars, noutputs = 1, 4
 
         def peer_fun(delta, xx):
@@ -619,20 +626,23 @@ class TestGaussianProcess:
             return np.cos(2 * np.pi * xx.T)
 
         # radii, radii_bounds = np.ones(noutputs), [1, 10]
-        radii, radii_bounds = kernel._la_arange(1, 1 + noutputs), [1, 10]
+        radii, radii_bounds = bkd._la_arange(1, 1 + noutputs), [1, 10]
         angles = np.pi / 2
-        latent_kernel = TorchMaternKernel(np.inf, 0.5, [1e-1, 2], nvars)
-        output_kernel = TorchSphericalCovariance(
+        latent_kernel = MaternKernel(
+            np.inf, 0.5, [1e-1, 2], nvars, backend=bkd
+        )
+        output_kernel = SphericalCovariance(
             noutputs,
-            radii,
-            radii_bounds,
+            radii=radii,
+            radii_bounds=radii_bounds,
             angles=angles,
             angle_bounds=[0, np.pi],
+            backend=bkd,
         )
 
         kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
 
-        peer_deltas = kernel._la_linspace(0.2, 1, noutputs - 1)
+        peer_deltas = bkd._la_linspace(0.2, 1, noutputs - 1)
         peer_funs = [partial(peer_fun, delta) for delta in peer_deltas]
         funs = peer_funs + [partial(target_fun, peer_funs)]
 
@@ -640,7 +650,7 @@ class TestGaussianProcess:
         # nsamples_per_output = np.array([5 for ii in range(noutputs-1)]+[4])*2
         # nsamples_per_output = np.array([3 for ii in range(noutputs-1)]+[2])
         samples_per_output = [
-            kernel._la_atleast2d(np.random.uniform(-1, 1, (nvars, nsamples)))
+            bkd._la_atleast2d(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output
         ]
 
@@ -648,30 +658,29 @@ class TestGaussianProcess:
             fun(samples) for fun, samples in zip(funs, samples_per_output)
         ]
 
-        gp = TorchMOICMPeerExactGaussianProcess(
+        gp = MOICMPeerExactGaussianProcess(
             nvars,
             kernel,
             output_kernel,
-            values_trans=TorchIdentityTransform(),
+            values_trans=IdentityTransform(),
             kernel_reg=0,
         )
         gp_params = gp.hyp_list.get_active_opt_params()
 
         from pyapprox.util.utilities import check_gradients
 
-        bounds = gp.hyp_list.get_active_opt_bounds().numpy()
+        bounds = bkd._la_to_numpy(gp.hyp_list.get_active_opt_bounds())
         x0 = np.random.uniform(bounds[:, 0], bounds[:, 1])
         icm_cons = gp._get_constraints(noutputs)
         errors = check_gradients(
             lambda x: icm_cons[0]["fun"](x[:, 0], *icm_cons[0]["args"]),
             lambda x: icm_cons[0]["jac"](x[:, 0], *icm_cons[0]["args"]),
             x0[:, None],
-            disp=True,
+            disp=False,
         )
         assert errors.min() / errors.max() < 1e-6
         # reset values to good guess
         gp.hyp_list.set_active_opt_params(gp_params)
-        print(output_kernel)
 
         gp.set_training_data(samples_per_output, values_per_output)
         x0 = gp.hyp_list.get_active_opt_params().numpy()
@@ -683,10 +692,9 @@ class TestGaussianProcess:
 
         gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=3)
         cov_matrix = output_kernel.get_covariance_matrix()
-        print(cov_matrix)
         for ii in range(2, noutputs):
             for jj in range(1, ii):
-                kernel._la_abs(cov_matrix[ii, jj]) < 1e-10
+                bkd._la_abs(cov_matrix[ii, jj]) < 1e-10
 
         # import matplotlib.pyplot as plt
         # axs = plt.subplots(
@@ -699,26 +707,32 @@ class TestGaussianProcess:
         # plt.show()
 
     def test_collaborative_gp(self):
+        bkd = self.get_backend()
         nvars, noutputs = 1, 4
 
-        radii, radii_bounds = np.ones(noutputs), [1, 2]
+        radii, radii_bounds = bkd._la_ones(noutputs), [1, 2]
         angles = np.pi / 4
-        latent_kernel = TorchMaternKernel(np.inf, 0.5, [1e-1, 2], nvars)
-        output_kernel = TorchSphericalCovariance(
+        latent_kernel = MaternKernel(
+            np.inf, 0.5, [1e-1, 2], nvars, backend=bkd
+        )
+        output_kernel = SphericalCovariance(
             noutputs,
-            radii,
-            radii_bounds,
+            radii=radii,
+            radii_bounds=radii_bounds,
             angles=angles,
             angle_bounds=[0, np.pi],
+            backend=bkd,
         )
 
         output_kernels = [output_kernel]
         latent_kernels = [latent_kernel]
         discrepancy_kernels = [
-            TorchConstantKernel(
-                0.1, (1e-1, 1), transform=TorchLogHyperParameterTransform()
+            ConstantKernel(
+                0.1,
+                (1e-1, 1),
+                transform=LogHyperParameterTransform(backend=bkd),
             )
-            * TorchMaternKernel(np.inf, 1.0, [1e-1, 1], nvars)
+            * MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
             for ii in range(noutputs)
         ]
         co_kernel = CollaborativeKernel(
@@ -726,15 +740,15 @@ class TestGaussianProcess:
         )
 
         def peer_fun(delta, xx):
-            return latent_kernel._la_cos(2 * np.pi * xx.T + delta)
+            return bkd._la_cos(2 * np.pi * xx.T + delta)
 
         def target_fun(peer_funs, xx):
-            return latent_kernel._la_hstack([f(xx) for f in peer_funs]).sum(
-                axis=1
-            )[:, None] + latent_kernel._la_exp(-xx.T**2 * 2)
+            return bkd._la_hstack([f(xx) for f in peer_funs]).sum(axis=1)[
+                :, None
+            ] + bkd._la_exp(-xx.T**2 * 2)
             # return np.cos(2*np.pi*xx.T)
 
-        peer_deltas = np.linspace(0.2, 1, noutputs - 1)
+        peer_deltas = bkd._la_linspace(0.2, 1, noutputs - 1)
         peer_funs = [partial(peer_fun, delta) for delta in peer_deltas]
         funs = peer_funs + [partial(target_fun, peer_funs)]
 
@@ -742,9 +756,7 @@ class TestGaussianProcess:
         # nsamples_per_output = np.array([5 for ii in range(noutputs-1)]+[4])*2
         # nsamples_per_output = np.array([3 for ii in range(noutputs-1)]+[2])
         samples_per_output = [
-            latent_kernel._la_atleast2d(
-                np.random.uniform(-1, 1, (nvars, nsamples))
-            )
+            bkd._la_atleast2d(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output
         ]
 
@@ -752,18 +764,18 @@ class TestGaussianProcess:
             fun(samples) for fun, samples in zip(funs, samples_per_output)
         ]
 
-        gp = TorchMOExactGaussianProcess(
+        gp = MOExactGaussianProcess(
             nvars,
             co_kernel,
-            values_trans=TorchIdentityTransform(),
+            values_trans=IdentityTransform(backend=bkd),
             kernel_reg=0,
         )
         gp_params = gp.hyp_list.get_active_opt_params()
 
         gp.set_training_data(samples_per_output, values_per_output)
-        x0 = gp.hyp_list.get_active_opt_params().numpy()
+        x0 = bkd._la_to_numpy(gp.hyp_list.get_active_opt_params())
         errors = check_gradients(
-            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None], disp=True
+            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None], disp=False
         )
         gp.hyp_list.set_active_opt_params(gp_params)
         assert errors.min() / errors.max() < 1e-6
@@ -775,7 +787,6 @@ class TestGaussianProcess:
         # todo change initial guess to always be feasiable
         gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=1)
         cov_matrix = output_kernel.get_covariance_matrix()
-        print(cov_matrix)
         for ii in range(2, noutputs):
             for jj in range(1, ii):
                 assert True  # np.abs(cov_matrix[ii, jj]) < 1e-10
