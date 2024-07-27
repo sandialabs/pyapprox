@@ -3,7 +3,7 @@ import copy
 
 import numpy as np
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixinp
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.kernels import (
     ConstantKernel,
