@@ -390,6 +390,12 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def _la_argmin(array):
+        """Return the index of the minimum value in an array."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def _la_max(array, axis=None):
         """Return the maximum value in an array."""
         raise NotImplementedError
@@ -433,7 +439,7 @@ class LinAlgMixin(ABC):
             L_{22}L_{22}^T = A_{22}-L_{12}^TL_{12}
         """
         if L_11 is None:
-            return cls._la_cholesky(A_22)
+            return cls._la_cholesky(A_22), True
 
         nrows, ncols = A_12.shape
         if (A_22.shape != (ncols, ncols) or L_11.shape != (nrows, nrows)):
@@ -441,11 +447,14 @@ class LinAlgMixin(ABC):
                 "A_12 shape {0} and/or A_22 shape {1} insconsistent".format(
                     A_12.shape, A_22.shape))
         L_12 = cls._la_solve_triangular(L_11, A_12, lower=True)
-        L_22 = cls._la_cholesky(
-            A_22 - cls._la_dot(L_12.T, L_12))
+        try:
+            L_22 = cls._la_cholesky(
+                A_22 - cls._la_dot(L_12.T, L_12))
+        except:
+            return L_11, False
         L = cls._la_block(
             [[L_11, cls._la_full((nrows, ncols), 0.)], [L_12.T, L_22]])
-        return L
+        return L, True
 
     @staticmethod
     @abstractmethod
@@ -580,13 +589,26 @@ class LinAlgMixin(ABC):
         raise NotImplementedError
 
     @staticmethod
+    @abstractmethod
     def _la_moveaxis(array, source, destination):
         raise NotImplementedError
 
     @staticmethod
+    @abstractmethod
     def _la_floor(array):
         raise NotImplementedError
 
     @staticmethod
+    @abstractmethod
     def _la_asarray(array):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _la_unique(array, **kwargs):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _la_delete(array, obj, axis=None):
         raise NotImplementedError

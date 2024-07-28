@@ -1,3 +1,4 @@
+import math
 from warnings import warn
 from functools import partial
 
@@ -507,7 +508,9 @@ def split_dataset(samples, values, ndata1):
     return samples1, samples2, values1, values2
 
 
-def leave_one_out_lsq_cross_validation(basis_mat, values, alpha=0, coef=None):
+def leave_one_out_lsq_cross_validation(
+        basis_mat, values, alpha=0, coef=None, bkd=NumpyLinAlgMixin()
+):
     """
     let :math:`x_i` be the ith row of :math:`X` and let
     :math:`\beta=(X^\top X)^{-1}X^\top y` such that the residuals
@@ -525,33 +528,36 @@ def leave_one_out_lsq_cross_validation(basis_mat, values, alpha=0, coef=None):
     """
     assert values.ndim == 2
     assert basis_mat.shape[0] > basis_mat.shape[1]+2
-    gram_mat = basis_mat.T.dot(basis_mat)
-    gram_mat += alpha*np.eye(gram_mat.shape[0])
-    H_mat = basis_mat.dot(np.linalg.inv(gram_mat).dot(basis_mat.T))
-    H_diag = np.diag(H_mat)
+    gram_mat = basis_mat.T @ basis_mat
+    gram_mat += alpha*bkd._la_eye(gram_mat.shape[0])
+    H_mat = basis_mat @ (bkd._la_inv(gram_mat) @ basis_mat.T)
+    H_diag = bkd._la_diag(H_mat)
     if coef is None:
-        coef = np.linalg.lstsq(
-            gram_mat, basis_mat.T.dot(values), rcond=None)[0]
+        coef = bkd._la_lstsq(gram_mat, basis_mat.T @ values)
     assert coef.ndim == 2
-    residuals = basis_mat.dot(coef) - values
+    residuals = basis_mat @ coef - values
     cv_errors = residuals / (1-H_diag[:, None])
-    cv_score = np.sqrt(np.sum(cv_errors**2, axis=0)/basis_mat.shape[0])
+    cv_score = bkd._la_sqrt(
+        bkd._la_sum(cv_errors**2, axis=0)/basis_mat.shape[0]
+    )
     return cv_errors, cv_score, coef
 
 
-def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices,
-                                        alpha=0, coef=None):
+def leave_many_out_lsq_cross_validation(
+        basis_mat, values, fold_sample_indices, alpha=0, coef=None,
+        bkd=NumpyLinAlgMixin()
+):
     nfolds = len(fold_sample_indices)
     nsamples = basis_mat.shape[0]
     cv_errors = []
     cv_score = 0
-    gram_mat = basis_mat.T.dot(basis_mat)
-    gram_mat += alpha*np.eye(gram_mat.shape[0])
+    gram_mat = basis_mat.T @ basis_mat
+    gram_mat += alpha*bkd._la_eye(gram_mat.shape[0])
     if coef is None:
-        coef = np.linalg.lstsq(
-            gram_mat, basis_mat.T.dot(values), rcond=None)[0]
-    residuals = basis_mat.dot(coef) - values
-    gram_mat_inv = np.linalg.inv(gram_mat)
+        coef = bkd._la_lstsq(
+            gram_mat, basis_mat.T @ values)
+    residuals = basis_mat @ coef - values
+    gram_mat_inv = bkd._la_inv(gram_mat)
     for kk in range(nfolds):
         indices_kk = fold_sample_indices[kk]
         nvalidation_samples_kk = indices_kk.shape[0]
@@ -559,30 +565,34 @@ def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices,
         basis_mat_kk = basis_mat[indices_kk, :]
         residuals_kk = residuals[indices_kk, :]
 
-        H_mat = np.eye(nvalidation_samples_kk) - basis_mat_kk.dot(
-            gram_mat_inv.dot(basis_mat_kk.T))
+        H_mat = bkd._la_eye(nvalidation_samples_kk) - basis_mat_kk @ (
+            gram_mat_inv @ basis_mat_kk.T)
         # print('gram_mat cond number', np.linalg.cond(gram_mat))
         # print('H_mat cond number', np.linalg.cond(H_mat))
-        H_mat_inv = np.linalg.inv(H_mat)
-        cv_errors.append(H_mat_inv.dot(residuals_kk))
-        cv_score += np.sum(cv_errors[-1]**2, axis=0)
-    return cv_errors, np.sqrt(cv_score/basis_mat.shape[0]), coef
+        H_mat_inv = bkd._la_inv(H_mat)
+        cv_errors.append(H_mat_inv @ residuals_kk)
+        cv_score += bkd._la_sum(cv_errors[-1]**2, axis=0)
+    return cv_errors, math.sqrt(cv_score/basis_mat.shape[0]), coef
 
 
-def get_random_k_fold_sample_indices(nsamples, nfolds, random=True):
-    sample_indices = np.arange(nsamples)
+def get_random_k_fold_sample_indices(
+        nsamples, nfolds, random=True, bkd=NumpyLinAlgMixin()
+):
+    sample_indices = bkd._la_arange(nsamples, dtype=int)
     if random is True:
-        sample_indices = np.random.permutation(sample_indices)
-    fold_sample_indices = [np.empty(0, dtype=int) for kk in range(nfolds)]
+        sample_indices = bkd._la_asarray(np.random.permutation(sample_indices), dtype=int)
+
+    fold_sample_indices = [bkd._la_empty(0, dtype=int) for kk in range(nfolds)]
     nn = 0
     while nn < nsamples:
         for jj in range(nfolds):
-            fold_sample_indices[jj] = np.append(
-                fold_sample_indices[jj], sample_indices[nn])
+            fold_sample_indices[jj] = bkd._la_hstack([
+                fold_sample_indices[jj], sample_indices[nn]])
             nn += 1
             if nn >= nsamples:
                 break
-    assert np.unique(np.hstack(fold_sample_indices)).shape[0] == nsamples
+    if bkd._la_unique(bkd._la_hstack(fold_sample_indices)).shape[0] != nsamples:
+        raise RuntimeError()
     return fold_sample_indices
 
 

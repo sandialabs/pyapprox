@@ -32,11 +32,7 @@ class TestMonomialBasis:
     def _check_basis(self, nvars, nterms_1d):
         bkd = self.get_backend()
         basis = MonomialBasis(backend=bkd)
-        basis.set_indices(
-            bkd._la_cartesian_product(
-                [bkd._la_arange(nterms_1d, dtype=int)] * nvars
-            )
-        )
+        basis.set_tensor_product_indices([nterms_1d]*nvars)
         samples = bkd._la_array(np.random.uniform(-1, 1, (nvars, 4)))
         basis_mat = basis(samples)
         for ii, index in enumerate(basis._indices.T):

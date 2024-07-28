@@ -1,4 +1,6 @@
+from abc import ABC, abstractmethod
 import copy
+
 import numpy as np
 
 from pyapprox.interface.model import Model
@@ -13,7 +15,14 @@ from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions)
 
 
-class BasisExpansion(Model):
+# TODO move to higher level
+class Regressor(ABC):
+    @abstractmethod
+    def fit(self, train_samples, train_values):
+        raise NotImplementedError
+
+
+class BasisExpansion(Model, Regressor):
     """The base class for any linear basis expansion for multiple
        quantities of interest (QoI)."""
 
@@ -21,24 +30,22 @@ class BasisExpansion(Model):
                  nqoi=1, coef_bounds=None):
         # todo make model accept backend and pass in through with call to super
         super().__init__()
+        self._nqoi = int(nqoi)
+        self.set_basis(basis, coef_bounds)
         if solver is not None and (type(basis._bkd) is not type(solver._bkd)):
             raise ValueError("Basis and solver must have the same backend.")
-        self._bkd = basis._bkd
-        # self._bkd._la_set_attributes(self)
         self._jacobian_implemented = basis._jacobian_implemented
-
-        self.basis = self._parse_basis(basis)
         self._solver = solver
-        self._nqoi = int(nqoi)
+
+    def set_basis(self, basis, coef_bounds=None):
+        self.basis = basis
+        self._bkd = self.basis._bkd
         init_coef = self._bkd._la_full((self.basis.nterms()*self.nqoi(), ), 0.)
         self._transform = IdentityHyperParameterTransform(backend=self._bkd)
         self._coef = HyperParameter(
             "coef", self.basis.nterms()*self._nqoi, init_coef,
             self._parse_coef_bounds(coef_bounds), None, backend=self._bkd)
         self.hyp_list = HyperParameterList([self._coef])
-
-    def _parse_basis(self, basis):
-        return basis
 
     def _parse_coef_bounds(self, coef_bounds):
         if coef_bounds is None:

@@ -4,6 +4,9 @@ from pyapprox.util.linearalgebra.numpylinalg import (
     LinAlgMixin,
     NumpyLinAlgMixin,
 )
+from pyapprox.surrogates.interp.indexing import (
+    compute_hyperbolic_indices_itertools,
+)
 
 
 class Basis(ABC):
@@ -77,6 +80,20 @@ class MultiIndexBasis(Basis):
         if indices is not None:
             self.set_indices(indices)
         self._jacobian_implemented = True
+
+    def set_hyperbolic_indices(self, nvars, degree, pnorm):
+        indices = self._bkd._la_asarray(
+            compute_hyperbolic_indices_itertools(nvars, degree, pnorm),
+            dtype=int,
+        )
+        self.set_indices(indices)
+
+    def set_tensor_product_indices(self, degrees):
+        self.set_indices(
+            self._bkd._la_cartesian_product(
+                [self._bkd._la_arange(degree) for degree in degrees]
+            )
+        )
 
     def set_indices(self, indices):
         """
@@ -183,17 +200,22 @@ class MonomialBasis(MultiIndexBasis):
 class OrthonormalPolynomialBasis(MultiIndexBasis):
     """Multivariate orthogonal polynomial basis."""
 
-    def __init__(self, polys_1d):
+    def __init__(self, polys_1d, indices=None):
         """
         Parameters
         ----------
         """
-        super().__init__(polys_1d[0]._bkd)
+        super().__init__(indices, polys_1d[0]._bkd)
         self._polys_1d = polys_1d
 
         self._max_degree = None
         self._recursion_coefs = None
         self._basis_type_var_indices = None
+
+    def nvars(self):
+        # use polys_1d so do not have to set indices to determine nvars
+        # like is done for base class
+        return len(self._polys_1d)
 
     def _basis_vals_1d(self, samples):
         return [

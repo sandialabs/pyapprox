@@ -240,6 +240,10 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.argmax(array)
 
     @staticmethod
+    def _la_argmin(array):
+        return np.argmin(array)
+
+    @staticmethod
     def _la_max(array, axis=None):
         return np.max(array, axis=axis)
 
@@ -298,3 +302,11 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_asarray(array, dtype=float):
         return np.asarray(array, dtype=dtype)
+
+    @staticmethod
+    def _la_unique(array, **kwargs):
+        return np.unique(array, **kwargs)
+
+    @staticmethod
+    def _la_delete(array, obj, axis=None):
+        return np.delete(array, obj, axis=axis)

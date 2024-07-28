@@ -262,6 +262,10 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.argmax(array)
 
     @staticmethod
+    def _la_argmin(array):
+        return torch.argmin(array)
+
+    @staticmethod
     def _la_max(array, axis=None):
         # torch returns both max and indices
         return torch.max(array, dim=axis)[0]
@@ -336,3 +340,21 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_asarray(array, dtype=torch.double):
         return torch.as_tensor(array, dtype=dtype)
+
+    @staticmethod
+    def _la_unique(array, **kwargs):
+        return torch.unique(array, **kwargs)
+
+    @staticmethod
+    def _la_delete(array, obj, axis=None):
+        mask = __class__._la_ones(array.shape[axis], dtype=bool)
+        mask[obj] = False
+        if axis is None:
+            axis = 0
+        if axis == 0:
+            return array[mask]
+        if axis == 1:
+            return array[:, mask]
+        if axis == -1:
+            return array[..., mask]
+        raise NotImplementedError("axis must be in (0, 1, -1)")
