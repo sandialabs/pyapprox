@@ -81,17 +81,17 @@ class MultiIndexBasis(Basis):
             self.set_indices(indices)
         self._jacobian_implemented = True
 
-    def set_hyperbolic_indices(self, nvars, degree, pnorm):
+    def set_hyperbolic_indices(self, nvars, nterms, pnorm):
         indices = self._bkd._la_asarray(
-            compute_hyperbolic_indices_itertools(nvars, degree, pnorm),
+            compute_hyperbolic_indices_itertools(nvars, nterms, pnorm),
             dtype=int,
         )
         self.set_indices(indices)
 
-    def set_tensor_product_indices(self, degrees):
+    def set_tensor_product_indices(self, nterms):
         self.set_indices(
             self._bkd._la_cartesian_product(
-                [self._bkd._la_arange(degree) for degree in degrees]
+                [self._bkd._la_arange(nt) for nt in nterms]
             )
         )
 
@@ -130,6 +130,9 @@ class MultiIndexBasis(Basis):
         raise NotImplementedError
 
     def __call__(self, samples):
+        if samples.shape[0] != self.nvars():
+            raise ValueError("samples must have nrows={0}".format(
+                self.nvars()))
         basis_vals_1d = self._basis_vals_1d(samples)
         basis_matrix = basis_vals_1d[0][:, self._indices[0, :]]
         for dd in range(1, self.nvars()):

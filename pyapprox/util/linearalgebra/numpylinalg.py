@@ -310,3 +310,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_delete(array, obj, axis=None):
         return np.delete(array, obj, axis=axis)
+
+    @staticmethod
+    def _la_jacobian_implemented() -> bool:
+        return False

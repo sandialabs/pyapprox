@@ -612,3 +612,8 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def _la_delete(array, obj, axis=None):
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _la_jacobian_implemented() -> bool:
+        raise NotImplementedError

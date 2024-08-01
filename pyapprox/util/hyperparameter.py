@@ -79,6 +79,9 @@ class HyperParameter:
                     self._values.shape, self.nvars()
                 )
             )
+        self.set_bounds(bounds)
+
+    def set_bounds(self, bounds):
         self.bounds = self._bkd._la_atleast1d(bounds)
         if self.bounds.shape[0] == 2:
             self.bounds = self._bkd._la_repeat(self.bounds, self.nvars())
@@ -134,10 +137,14 @@ class HyperParameter:
         return self.transform.to_opt_space(self._values[self._active_indices])
 
     def get_active_opt_bounds(self):
-        """Set the bounds of the active parameters in the optimization space."""
+        """Get the bounds of the active parameters in the optimization space."""
         return self.transform.to_opt_space(
             self.bounds[self._active_indices, :]
         )
+
+    def get_bounds(self):
+        """Get the bounds of the parameters in the user space."""
+        return self.bounds.flatten()
 
     def get_values(self):
         """Get the values of the parameters in the user space."""
@@ -196,6 +203,13 @@ class HyperParameterList:
             )
             cnt += hyp.nactive_vars()
 
+    def nvars(self):
+        """Return the total number of hyperparameters (active and inactive)."""
+        cnt = 0
+        for hyp in self.hyper_params:
+            cnt += hyp.nvars()
+        return cnt
+
     def nactive_vars(self):
         """Return the number of active (to be optinized) hyperparameters."""
         cnt = 0
@@ -215,11 +229,25 @@ class HyperParameterList:
             [hyp.get_active_opt_bounds() for hyp in self.hyper_params]
         )
 
+    def get_bounds(self):
+        """Get the flattned bounds of the parameters in the user space."""
+        # bounds are flat because flat array is passed to set_bounds
+        return self._bkd._la_hstack(
+            [hyp.get_bounds() for hyp in self.hyper_params]
+        )
+
+
     def get_values(self):
         """Get the values of the parameters in the user space."""
         return self._bkd._la_hstack(
             [hyp.get_values() for hyp in self.hyper_params]
         )
+
+    def set_values(self, values):
+        cnt = 0
+        for hyp in self.hyper_params:
+            hyp.set_values(values[cnt : cnt + hyp.nvars()])
+            cnt += hyp.nvars()
 
     def __add__(self, hyp_list):
         # self.__class__ must be because of the use of mixin with derived
@@ -244,6 +272,21 @@ class HyperParameterList:
             + ",\n\t\t   ".join(map("{0}".format, self.hyper_params))
             + ")"
         )
+
+    def set_bounds(self, bounds):
+        # used to turn params inactive to active or vice-versa
+        bounds = self._bkd._la_atleast1d(bounds)
+        if bounds.shape[0] == 2:
+            bounds = self._bkd._la_repeat(bounds, self.nvars())
+        if bounds.shape[0] != 2 * self.nvars():
+            msg = "bounds shape {0} inconsistent with 2*nvars={1}".format(
+                bounds.shape, 2 * self.nvars()
+            )
+            raise ValueError(msg)
+        cnt = 0
+        for hyp in self.hyper_params:
+            hyp.set_bounds(bounds[cnt : cnt + 2*hyp.nvars()])
+            cnt += 2*hyp.nvars()
 
 
 class CombinedHyperParameter(HyperParameter):
@@ -274,6 +317,23 @@ class CombinedHyperParameter(HyperParameter):
             )
             cnt += hyp.nactive_vars()
 
+    def set_bounds(self, bounds):
+        # used to turn params inactive to active or vice-versa
+        bounds = self._bkd._la_atleast1d(bounds)
+        if bounds.shape[0] == 2:
+            bounds = self._bkd._la_repeat(bounds, self.nvars())
+        if bounds.shape[0] != 2 * self.nvars():
+            msg = "bounds shape {0} inconsistent with 2*nvars={1}".format(
+                self.bounds.shape, 2 * self.nvars()
+            )
+            raise ValueError(msg)
+        
+        cnt = 0
+        for hyp in self.hyper_params:
+            hyp.set_bounds(bounds[cnt : cnt + hyp.nvars()])
+            cnt += hyp.nvars()
+        
+
     def get_active_opt_params(self):
         return self._bkd._la_hstack(
             [hyp.get_active_opt_params() for hyp in self.hyper_params]
@@ -282,6 +342,11 @@ class CombinedHyperParameter(HyperParameter):
     def get_active_opt_bounds(self):
         return self._bkd._la_vstack(
             [hyp.get_active_opt_bounds() for hyp in self.hyper_params]
+        )
+
+    def get_bounds(self):
+        return self._bkd._la_vstack(
+            [hyp.get_bounds() for hyp in self.hyper_params]
         )
 
     def get_values(self):

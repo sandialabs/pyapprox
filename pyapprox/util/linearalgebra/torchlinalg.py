@@ -304,15 +304,15 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.linalg.cond(matrix)
 
     @staticmethod
-    def _la_jacobian(self, fun, params):
+    def _la_jacobian(fun, params):
         return torch.autograd.functional.jacobian(fun, params)
 
     @staticmethod
-    def _la_grad(self, fun, params):
+    def _la_grad(fun, params):
         params.requires_grad = True
         val = fun(params)
         val.backward()
-        grad = self._la_copy(params.grad)
+        grad = __class__._la_copy(params.grad)
         params.grad.zero_()
         return val, grad
 
@@ -358,3 +358,7 @@ class TorchLinAlgMixin(LinAlgMixin):
         if axis == -1:
             return array[..., mask]
         raise NotImplementedError("axis must be in (0, 1, -1)")
+
+    @staticmethod
+    def _la_jacobian_implemented() -> bool:
+        return True
