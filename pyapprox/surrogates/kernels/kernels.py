@@ -121,6 +121,7 @@ class MaternKernel(Kernel):
         lenscale,
         lenscale_bounds,
         nvars: int,
+        fixed: bool = False,
         backend: LinAlgMixin = None,
     ):
         """The matern kernel for varying levels of smoothness."""
@@ -134,6 +135,7 @@ class MaternKernel(Kernel):
             lenscale,
             lenscale_bounds,
             transform,
+            fixed=fixed,
             backend=self._bkd,
         )
         self.hyp_list = HyperParameterList([self._lenscale])
@@ -169,7 +171,7 @@ class MaternKernel(Kernel):
 
 class ConstantKernel(Kernel):
     def __init__(
-        self, constant, constant_bounds=None, transform=None, backend=None
+        self, constant, constant_bounds=None, transform=None, fixed=False, backend=None
     ):
         if backend is None and transform is not None:
             backend = transform._bkd
@@ -179,7 +181,7 @@ class ConstantKernel(Kernel):
         if constant_bounds is None:
             constant_bounds = [-self._bkd._la_inf(), self._bkd._la_inf()]
         self._const = HyperParameter(
-            "const", 1, constant, constant_bounds, transform, backend=self._bkd
+            "const", 1, constant, constant_bounds, transform, fixed=fixed, backend=self._bkd
         )
         self.hyp_list = HyperParameterList([self._const])
 
@@ -205,7 +207,7 @@ class ConstantKernel(Kernel):
 
 
 class GaussianNoiseKernel(Kernel):
-    def __init__(self, constant, constant_bounds=None, backend=None):
+    def __init__(self, constant, constant_bounds=None, fixed=False, backend=None):
         super().__init__(backend)
         self._const = HyperParameter(
             "const",
@@ -213,6 +215,7 @@ class GaussianNoiseKernel(Kernel):
             constant,
             constant_bounds,
             LogHyperParameterTransform(backend=self._bkd),
+            fixed=fixed,
             backend=self._bkd,
         )
         self.hyp_list = HyperParameterList([self._const])

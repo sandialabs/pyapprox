@@ -1,9 +1,6 @@
 import copy
 from abc import ABC, abstractmethod
 
-# import numpy for np.nan
-import numpy as np 
-
 from pyapprox.surrogates.bases.basis import MonomialBasis
 from pyapprox.surrogates.bases.basisexp import Regressor, BasisExpansion, MonomialExpansion
 
@@ -72,14 +69,14 @@ class FunctionTrain(Regressor):
     def _core_jacobian_ad(self, samples, core_id):
         """Compute Jacobian with automatic differentiation."""
         self._samples = samples
-        hyplist_bounds = self._bkd._la_copy(self.hyp_list.get_bounds())
+        active_indices = self.hyp_list.get_active_indices()
         for ii in range(self.nvars()):
             if ii != core_id:
-                self._cores[ii].hyp_list.set_bounds([np.nan, np.nan])
+                self._cores[ii].hyp_list.set_all_inactive()
         jac = self._bkd._la_jacobian(
             self._core_params_eval, self.hyp_list.get_active_opt_params()
         )
-        self.hyp_list.set_bounds(hyplist_bounds)
+        self.hyp_list.set_active_indices(active_indices)
         # create list of jacobians for each qoi
         # jac will be of shape (nsamples, nqoi, ntotal_core_active_parameters)
         # so if using basis expansion with same expansion for each core and nqoi = 1
@@ -213,11 +210,11 @@ class AdditiveFunctionTrain(FunctionTrain):
     def _init_constant_fun(self, fill_value, nqoi):
         constant_basis = MonomialBasis(backend=self._bkd)
         constant_basis.set_hyperbolic_indices(1, 0, 1.)
-        # set coef_bounds to [np.nan, np.nan] so these coefficients are set as
-        # inactive
         fun = MonomialExpansion(
-            constant_basis, coef_bounds=[np.nan, np.nan], nqoi=nqoi
+            constant_basis, coef_bounds=[fill_value, fill_value], nqoi=nqoi
         )
+        # set as inactive so they cannot be changed during optimization
+        fun.hyp_list.set_all_inactive()
         fun.set_coefficients(self._bkd._la_full((1, nqoi), fill_value))
         return fun
 

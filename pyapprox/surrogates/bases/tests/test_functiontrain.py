@@ -38,13 +38,14 @@ class TestFunctionTrain:
         train_values = sum(univariate_vals)
         assert np.allclose(train_values, ft_vals)
 
-        ft.hyp_list.set_bounds([-np.inf,np.inf])
+        ft.hyp_list.set_all_active()
         jac_ans =  [
             ft._core_jacobian(train_samples, ii) for ii in range(ft.nvars())
         ]
         if bkd._la_jacobian_implemented():
             for ii in range(ft.nvars()):
                 for qq in range(ft.nqoi()):
+                    print(ii)
                     assert np.allclose(
                         ft._core_jacobian_ad(train_samples, ii)[qq], jac_ans[ii][qq], atol=1e-14
                 )
@@ -56,6 +57,7 @@ class TestFunctionTrain:
         params = bkd._la_asarray(np.random.normal(0, 1, (ft.hyp_list.nactive_vars(),)))
         ft.hyp_list.set_values(params)
 
+        ft.hyp_list.set_all_active()
         solver = AlternatingLeastSquaresSolver(verbosity=2)
         solver.solve(ft, train_samples, train_values)
         ft_vals = ft(train_samples)

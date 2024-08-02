@@ -257,11 +257,11 @@ class TestGaussianProcess:
         sigma = 1
         lenscale = 0.5
         kernel = ConstantKernel(
-            sigma, [np.nan, np.nan], backend=bkd
+            sigma, [0.01, 1], fixed=True, backend=bkd
         ) * MaternKernel(
-            np.inf, lenscale, [np.nan, np.nan], nvars, backend=bkd
+            np.inf, lenscale, [lenscale, lenscale], nvars, backend=bkd
         ) + GaussianNoiseKernel(
-            noise, [np.nan, np.nan], backend=bkd
+            noise, [0.02, 2], fixed=True, backend=bkd
         )
 
         gp = ExactGaussianProcess(nvars, kernel)
@@ -414,7 +414,7 @@ class TestGaussianProcess:
         exact_gp = ExactGaussianProcess(
             nvars,
             kernel
-            + GaussianNoiseKernel(noise_var, [np.nan, np.nan], backend=bkd),
+            + GaussianNoiseKernel(noise_var, [0.1, 1], fixed=True, backend=bkd),
             trend=None,
             values_trans=values_trans,
             kernel_reg=0,
@@ -431,17 +431,19 @@ class TestGaussianProcess:
             "noise_std",
             1,
             np.sqrt(noise_var),
-            [np.nan, np.nan],
+            [0.1, 1],
             LogHyperParameterTransform(backend=bkd),
+            fixed=True,
         )
         inducing_samples = InducingSamples(
             nvars,
             ninducing_samples,
             inducing_samples=inducing_samples,
-            inducing_sample_bounds=bkd._la_atleast1d([np.nan, np.nan]),
+            inducing_sample_bounds=bkd._la_atleast1d([-1, 1]),
             noise=noise,
             backend=bkd,
         )
+        inducing_samples.hyp_list.set_all_inactive()
         values_trans = IdentityTransform(backend=bkd)
         # use correlation length learnt by exact gp
         vi_kernel = kernel

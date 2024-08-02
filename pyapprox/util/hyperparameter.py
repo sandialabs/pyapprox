@@ -48,6 +48,7 @@ class HyperParameter:
         values,
         bounds,
         transform: HyperParameterTransform = None,
+        fixed: bool = False,
         backend: LinAlgMixin = None,
     ):
         """A possibly vector-valued hyper-parameter to be used with
@@ -79,7 +80,31 @@ class HyperParameter:
                     self._values.shape, self.nvars()
                 )
             )
+        if fixed:
+            self.set_all_inactive()
+        else:
+            self.set_all_active()
         self.set_bounds(bounds)
+
+    def set_active_indices(self, indices):
+        if indices.shape[0] == 0:
+            self._active_indices = indices
+            return
+        
+        if max(indices) >= self.nvars():
+            raise ValueError("indices exceed nvars")
+        if min(indices) < 0:
+            raise ValueError("Ensure indices >= 0")
+        self._active_indices = indices
+
+    def get_active_indices(self):
+        return self._active_indices
+
+    def set_all_inactive(self):
+        self.set_active_indices(self._bkd._la_zeros((0, ), dtype=int))
+
+    def set_all_active(self):
+        self.set_active_indices(self._bkd._la_arange(self.nvars(), dtype=int))
 
     def set_bounds(self, bounds):
         self.bounds = self._bkd._la_atleast1d(bounds)
@@ -92,21 +117,6 @@ class HyperParameter:
             raise ValueError(msg)
         self.bounds = self._bkd._la_reshape(
             self.bounds, (self.bounds.shape[0] // 2, 2)
-        )
-        if (
-            self._bkd._la_where(
-                (self._values < self.bounds[:, 0])
-                | (self._values > self.bounds[:, 1])
-            )[0].shape[0]
-            > 0
-        ):
-            raise ValueError("values outside bounds")
-        self._active_indices = self._bkd._la_tointeger(
-            self._bkd._la_atleast1d(
-                self._bkd._la_arange(self.nvars())[
-                    ~self._bkd._la_isnan(self.bounds[:, 0])
-                ]
-            )
         )
 
     def nvars(self):
@@ -236,12 +246,35 @@ class HyperParameterList:
             [hyp.get_bounds() for hyp in self.hyper_params]
         )
 
-
     def get_values(self):
         """Get the values of the parameters in the user space."""
         return self._bkd._la_hstack(
             [hyp.get_values() for hyp in self.hyper_params]
         )
+
+    def get_active_indices(self):
+        cnt = 0
+        active_indices = []
+        for hyp in self.hyper_params:
+            active_indices.append(hyp.get_active_indices()+cnt)
+            cnt += hyp.nvars()
+        return self._bkd._la_hstack(active_indices)
+
+    def set_active_indices(self, active_indices):
+        cnt = 0
+        for hyp in self.hyper_params:
+            hyp_indices = self._bkd._la_where(
+                (active_indices>=cnt)&(active_indices<cnt+hyp.nvars()))[0]
+            hyp.set_active_indices(active_indices[hyp_indices]-cnt)
+            cnt += hyp.nvars()
+
+    def set_all_inactive(self):
+        for hyp in self.hyper_params:
+            hyp.set_all_inactive()
+
+    def set_all_active(self):
+        for hyp in self.hyper_params:
+            hyp.set_all_active()
 
     def set_values(self, values):
         cnt = 0
