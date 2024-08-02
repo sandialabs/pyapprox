@@ -1,4 +1,5 @@
 import copy
+from abc import ABC, abstractmethod
 
 # import numpy for np.nan
 import numpy as np 
@@ -247,13 +248,28 @@ class AdditiveFunctionTrain(FunctionTrain):
                     "backends of univariate functions are not consistent"
                 )
 
-class AlternatingLeastSquaresSolver:
+class TensorTrainSolver(ABC):
+    @abstractmethod
+    def solve(self, ft, samples, values):
+        raise NotImplementedError
+    
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
+
+class AlternatingLeastSquaresSolver(TensorTrainSolver):
     def __init__(self, tol=1e-4, maxiters=10, verbosity=0):
         self._tol = tol
         self._maxiters = maxiters
         self._verbosity = verbosity
         self._bkd = None
+        self._train_samples = None
+        self._train_values = None
 
+    def __repr__(self):
+        return "{0}(tol={1}, maxiters={2}, verbosity={3})".format(
+            self.__class__.__name__, self._tol, self._maxiters, self._verbosity)
+            
     def _solve_core(self, ft, samples, values, core_id):
         core = ft._cores[core_id]
         jac = ft._core_jacobian(samples, core_id)
@@ -276,7 +292,6 @@ class AlternatingLeastSquaresSolver:
         while True:
             for ii in range(ft.nvars()):
                 coefs = self._solve_core(ft, samples, values, ii)
-                print(coefs)
                 ft._cores[ii].hyp_list.set_active_opt_params(coefs)
             it += 1
             if it >= self._maxiters:
@@ -291,7 +306,45 @@ class AlternatingLeastSquaresSolver:
                     print(f"Terminating: tolerance {self._tol} reached")
                 break
 
-    def __repr__(self):
-        return "{0}(tol={1}, maxiters={2}, verbosity={3})".format(
-            self.__class__.__name__, self._tol, self._maxiters, self._verbosity
+
+class NonlinearLeastSquaresSolver(TensorTrainSolver):
+    def __init__(self, optimizer):
+        self._optimizer = optimizer
+        self._bkd = self._optimizer._bkd
+        self._ft = None
+
+    def _RMSE_loss(self, active_opt_params):
+        self._ft.hyp_list.set_active_opt_params(active_opt_params)
+        return self._bkd._la_mean(
+            self._bkd._la_norm((self._ft(self._train_samples)-self._train_values), axis=1)
         )
+
+    def _fit_objective(self, active_opt_params):
+        val, grad = self._bkd._la_grad(self._RMSE_loss, active_opt_params)
+        for hyp in self._ft.hyp_list.hyper_params:
+            self._bkd._la_detach(hyp)
+        return self._bkd._la_detach(val), self._bkd._la_detach(grad)
+
+    def solve(self, ft, train_samples, train_values, init_iterate=None):
+        self._ft = ft
+        if not self._bkd._la_jacobian_implemented():
+            # todo implement gradients via custom backprop
+            # only requires slight modification of _core_jacobian
+            # to be more efficient by storing certain info
+            # when sweeping through the cores
+            raise NotImplementedError(
+                "Backend must support auto differentiaion.")
+        self._train_samples = train_samples
+        self._train_values = train_values
+        self._optimizer.set_bounds(self._ft.hyp_list.get_active_opt_bounds())
+        self._optimizer.set_objective_function(self._fit_objective)
+        if init_iterate is None:
+            init_iterate = self._optimizer._get_random_optimizer_initial_guess()
+        res = self._optimizer.optimize(init_iterate)
+        active_opt_params = res.x
+        ft.hyp_list.set_active_opt_params(active_opt_params)
+        
+    def __repr__(self):
+        return "{0}(optimizer={1})".format(self.__class__.__name__, self._optimizer)
+    
+

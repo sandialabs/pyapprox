@@ -8,7 +8,8 @@ from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.bases.basis import MonomialBasis
 from pyapprox.surrogates.bases.basisexp import MonomialExpansion
 from pyapprox.surrogates.bases.functiontrain import (
-    AdditiveFunctionTrain, AlternatingLeastSquaresSolver)
+    AdditiveFunctionTrain, AlternatingLeastSquaresSolver, NonlinearLeastSquaresSolver
+)
 
 
 class TestFunctionTrain:
@@ -17,7 +18,7 @@ class TestFunctionTrain:
         
     def test_additive_function_train(self):
         nvars = 3
-        ntrain_samples = 5
+        ntrain_samples = 30
         bkd = self.get_backend()
         train_samples = bkd._la_asarray(
             np.random.uniform(-1, 1, (nvars, ntrain_samples)))
@@ -29,7 +30,9 @@ class TestFunctionTrain:
         basisexp = MonomialExpansion(basis, solver=None, nqoi=nqoi)
         univariate_funs = [copy.deepcopy(basisexp) for ii in range(nvars)]
         ft = AdditiveFunctionTrain(univariate_funs, nqoi)
-        ft.hyp_list.set_active_opt_params(bkd._la_full((ft.hyp_list.nactive_vars(),), 1.))
+        true_active_opt_params = bkd._la_full((ft.hyp_list.nactive_vars(),), 1.)
+        ft.hyp_list.set_active_opt_params(true_active_opt_params)
+        true_params = ft.hyp_list.get_values()
         ft_vals = ft(train_samples)
         univariate_vals = [fun(train_samples[ii:ii+1]) for ii, fun in enumerate(univariate_funs)]
         train_values = sum(univariate_vals)
@@ -55,6 +58,24 @@ class TestFunctionTrain:
 
         solver = AlternatingLeastSquaresSolver(verbosity=2)
         solver.solve(ft, train_samples, train_values)
+        ft_vals = ft(train_samples)
+        assert np.allclose(train_values, ft_vals)
+
+        if not bkd._la_jacobian_implemented():
+            return
+        from pyapprox.surrogates.bases.optimizers import ScipyLBFGSB, MultiStartOptimizer
+        optimizer = ScipyLBFGSB(backend=bkd)
+        optimizer.set_options(gtol=1e-8, ftol=1e-12, maxiter=1000)
+        optimizer.set_verbosity(0)
+        ms_optimizer = MultiStartOptimizer(optimizer, ncandidates=1)
+        print(ft.hyp_list.get_values())
+        # need to set bounds to be small because initial guess effects optimization
+        ft.hyp_list.set_bounds([-15, 15])
+        ms_optimizer.set_verbosity(2)
+        solver = NonlinearLeastSquaresSolver(ms_optimizer)
+        solver.solve(ft, train_samples, train_values)
+        ft_vals = ft(train_samples)
+        assert np.allclose(train_values, ft_vals)
 
 
 class TestNumpyFunctionTrain(TestFunctionTrain, unittest.TestCase):
