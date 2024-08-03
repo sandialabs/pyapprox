@@ -117,6 +117,10 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.linspace(*args, dtype=dtype)
 
     @staticmethod
+    def _la_logspace(*args, dtype=torch.double):
+        return torch.logspace(*args, dtype=dtype)
+
+    @staticmethod
     def _la_ndim(mat: torch.Tensor) -> int:
         return mat.ndim
 

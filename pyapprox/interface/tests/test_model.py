@@ -297,3 +297,7 @@ if __name__ == "__main__":
     model_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestModel)
     unittest.TextTestRunner(verbosity=2).run(model_test_suite)
+
+
+# Note if port is not closed properly look for PID using
+# lsof -i -P -n | grep 4242

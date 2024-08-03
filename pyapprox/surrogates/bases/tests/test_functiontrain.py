@@ -18,7 +18,7 @@ class TestFunctionTrain:
         
     def test_additive_function_train(self):
         nvars = 3
-        ntrain_samples = 30
+        ntrain_samples = 50
         bkd = self.get_backend()
         train_samples = bkd._la_asarray(
             np.random.uniform(-1, 1, (nvars, ntrain_samples)))
@@ -36,7 +36,7 @@ class TestFunctionTrain:
         ft_vals = ft(train_samples)
         univariate_vals = [fun(train_samples[ii:ii+1]) for ii, fun in enumerate(univariate_funs)]
         train_values = sum(univariate_vals)
-        assert np.allclose(train_values, ft_vals)
+        assert bkd._la_allclose(train_values, ft_vals)
 
         ft.hyp_list.set_all_active()
         jac_ans =  [
@@ -45,8 +45,7 @@ class TestFunctionTrain:
         if bkd._la_jacobian_implemented():
             for ii in range(ft.nvars()):
                 for qq in range(ft.nqoi()):
-                    print(ii)
-                    assert np.allclose(
+                    assert bkd._la_allclose(
                         ft._core_jacobian_ad(train_samples, ii)[qq], jac_ans[ii][qq], atol=1e-14
                 )
         # else: skip autograd test as backend does not support it
@@ -61,7 +60,7 @@ class TestFunctionTrain:
         solver = AlternatingLeastSquaresSolver(verbosity=2)
         solver.solve(ft, train_samples, train_values)
         ft_vals = ft(train_samples)
-        assert np.allclose(train_values, ft_vals)
+        assert bkd._la_.allclose(train_values, ft_vals)
 
         if not bkd._la_jacobian_implemented():
             return
@@ -77,7 +76,10 @@ class TestFunctionTrain:
         solver = NonlinearLeastSquaresSolver(ms_optimizer)
         solver.solve(ft, train_samples, train_values)
         ft_vals = ft(train_samples)
-        assert np.allclose(train_values, ft_vals)
+        print("FINDER")
+        print(train_values, ft_values)
+        print(train_values-ft_values)
+        assert bkd._la_allclose(train_values, ft_vals)
 
 
 class TestNumpyFunctionTrain(TestFunctionTrain, unittest.TestCase):

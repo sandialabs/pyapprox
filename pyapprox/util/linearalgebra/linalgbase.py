@@ -165,6 +165,12 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def _la_logspace(*args):
+        """Return equidistant values within a given interval in logspace."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def _la_ndim(mat) -> int:
         """Return the dimension of the tensor."""
         raise NotImplementedError

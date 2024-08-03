@@ -114,6 +114,10 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.linspace(*args)
 
     @staticmethod
+    def _la_logspace(*args):
+        return np.logspace(*args)
+
+    @staticmethod
     def _la_ndim(mat: np.ndarray) -> int:
         return mat.ndim
 

@@ -3,6 +3,7 @@ from scipy.optimize import minimize as scipy_minimize
 import scipy
 
 from pyapprox.util.sys_utilities import package_available
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 if package_available("ROL"):
     has_ROL = True
@@ -117,7 +118,8 @@ from scipy.optimize import Bounds, NonlinearConstraint, LinearConstraint
 
 
 class Constraint(Model):
-    def __init__(self, model, bounds, keep_feasible=False):
+    def __init__(self, model, bounds, keep_feasible=False, backend=NumpyLinAlgMixin()):
+        super().__init__(backend)
         if not isinstance(model, Model):
             raise ValueError(
                 "objective must be an instance of {0}".format(
@@ -249,6 +251,9 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
 
 # TODO consider merging with multifidelity.stat
 class SampleAverageStat(ABC):
+    def __init__(self, backend=NumpyLinAlgMixin()):
+        self._bkd = backend
+    
     @abstractmethod
     def __call__(self, values, weights):
         raise NotImplementedError
@@ -270,7 +275,7 @@ class SampleAverageMean(SampleAverageStat):
 
     def jacobian(self, values, jac_values, weights):
         # jac_values.shape (nsamples, ncontraints, ndesign_vars)
-        return np.einsum("ijk,i->jk", jac_values, weights[:, 0])
+        return self._bkd._la_einsum("ijk,i->jk", jac_values, weights[:, 0])
 
     def apply_jacobian(self, values, jv_values, weights):
         # jac_values.shape (nsamples, ncontraints)
@@ -278,7 +283,8 @@ class SampleAverageMean(SampleAverageStat):
 
 
 class SampleAverageVariance(SampleAverageStat):
-    def __init__(self):
+    def __init__(self, backend=NumpyLinAlgMixin()):
+        super().__init__(backend=backend)
         self._mean_stat = SampleAverageMean()
 
     def _diff(self, values, weights):
@@ -294,29 +300,29 @@ class SampleAverageVariance(SampleAverageStat):
         mean_jac = self._mean_stat.jacobian(values, jac_values, weights)[None, :]
         tmp = jac_values - mean_jac
         tmp = 2 * self._diff(values, weights).T[..., None] * tmp
-        return np.einsum("ijk,i->jk", tmp, weights[:, 0])
+        return self._bkd._la_einsum("ijk,i->jk", tmp, weights[:, 0])
 
     def apply_jacobian(self, values, jv_values, weights):
         mean_jv = self._mean_stat.apply_jacobian(values, jv_values, weights)
         tmp = jv_values - mean_jv
         tmp = 2 * self._diff(values, weights).T * tmp[..., 0]
-        return np.einsum("ij,i->j", tmp, weights[:, 0])
+        return self._bkd._la_einsum("ij,i->j", tmp, weights[:, 0])
 
 
 class SampleAverageStdev(SampleAverageVariance):
     def __call__(self, samples, weights):
-        return np.sqrt(super().__call__(samples, weights))
+        return self._bkd._la_sqrt(super().__call__(samples, weights))
 
     def jacobian(self, values, jac_values, weights):
         variance_jac = super().jacobian(values, jac_values, weights)
         # d/dx y^{1/2} = 0.5y^{-1/2}
-        tmp = 1 / (2 * np.sqrt(super().__call__(values, weights).T))
+        tmp = 1 / (2 * self._bkd._la_sqrt(super().__call__(values, weights).T))
         return tmp * variance_jac
 
     def apply_jacobian(self, values, jac_values, weights):
         variance_jv = super().apply_jacobian(values, jac_values, weights)
         # d/dx y^{1/2} = 0.5y^{-1/2}
-        tmp = 1 / (2 * np.sqrt(super().__call__(values, weights).T))
+        tmp = 1 / (2 * self._bkd._la_sqrt(super().__call__(values, weights).T))
         return tmp * variance_jv[:, None]
 
 
@@ -345,33 +351,34 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
 
 
 class SampleAverageEntropicRisk(SampleAverageStat):
-    def __init__(self, alpha):
+    def __init__(self, alpha, backend=NumpyLinAlgMixin()):
+        super().__init__(backend)
         self._alpha = alpha
 
     def __call__(self, values, weights):
         # values (nsamples, noutputs)
-        return np.log(np.exp(self._alpha * values.T) @ weights).T / self._alpha
+        return self._bkd._la_log(self._bkd._la_exp(self._alpha * values.T) @ weights).T / self._alpha
 
     def jacobian(self, values, jac_values, weights):
         # jac_values (nsamples, noutputs, nvars)
-        exp_values = np.exp(self._alpha * values)
+        exp_values = self._bkd._la_exp(self._alpha * values)
         tmp = exp_values.T @ weights
         jac = (
             1
             / tmp
-            * np.einsum(
+            * self._bkd._la_einsum(
                 "ijk,i->jk", (exp_values[..., None] * jac_values), weights[:, 0]
             )
         )
         return jac
 
     def apply_jacobian(self, values, jv_values, weights):
-        exp_values = np.exp(self._alpha * values)
+        exp_values = self._bkd._la_exp(self._alpha * values)
         tmp = exp_values.T @ weights
         jv = (
             1
             / tmp
-            * np.einsum("ij,i->j", (exp_values * jv_values[..., 0]), weights[:, 0])[
+            * self._bkd._la_einsum("ij,i->j", (exp_values * jv_values[..., 0]), weights[:, 0])[
                 :, None
             ]
         )
@@ -379,8 +386,8 @@ class SampleAverageEntropicRisk(SampleAverageStat):
 
 
 class SmoothLogBasedMaxFunction:
-    def __init__(self, eps, threshold=None):
-        super().__init__()
+    def __init__(self, eps, threshold=None, backend=NumpyLinAlgMixin()):
+        self._bkd = backend
         self._eps = eps
         if threshold is None:
             threshold = 1e2
@@ -396,10 +403,10 @@ class SmoothLogBasedMaxFunction:
         x = samples
         x_div_eps = x / self._eps
         # avoid overflow
-        vals = np.zeros_like(x)
-        II = np.where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
-        vals[II] = x[II] + self._eps * np.log(1 + np.exp(-x_div_eps[II]))
-        J = np.where(x_div_eps >= self._thresh)
+        vals = self._bkd._la_zeros(x.shape)
+        II = self._bkd._la_where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
+        vals[II] = x[II] + self._eps * self._bkd._la_log(1 + self._bkd._la_exp(-x_div_eps[II]))
+        J = self._bkd._la_where(x_div_eps >= self._thresh)
         vals[J] = x[J]
         return vals
 
@@ -412,22 +419,23 @@ class SmoothLogBasedMaxFunction:
         x = samples
         x_div_eps = x / self._eps
         # Avoid overflow.
-        II = np.where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
-        jac = np.zeros((x_div_eps.shape))
-        jac[II] = 1.0 / (1 + np.exp(-x_div_eps[II]))
+        II = self._bkd._la_where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
+        jac = self._bkd._la_zeros((x_div_eps.shape))
+        jac[II] = 1.0 / (1 + self._bkd._la_exp(-x_div_eps[II]))
         jac[x_div_eps >= self._thresh] = 1.0
         return jac[..., None]
 
 
 class SampleAverageConditionalValueAtRisk(SampleAverageStat):
-    def __init__(self, alpha, eps=1e-2):
-        alpha = np.atleast_1d(alpha)
+    def __init__(self, alpha, eps=1e-2, backend=NumpyLinAlgMixin()):
+        super().__init__(backend)
+        alpha = self._bkd._la_atleast1d(alpha)
         self._alpha = alpha
-        self._max = SmoothLogBasedMaxFunction(eps)
+        self._max = SmoothLogBasedMaxFunction(eps, backend=self._bkd)
         self._t = None
 
     def set_value_at_risk(self, t):
-        t = np.atleast_1d(t)
+        t = self._bkd._la_atleast1d(t)
         if t.shape[0] != self._alpha.shape[0]:
             msg = "VaR shape {0} and alpha shape {1} are inconsitent".format(
                 t.shape, self._alpha.shape
@@ -445,13 +453,13 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
     def jacobian(self, values, jac_values, weights):
         # grad withe respect to parameters of x
         max_jac = self._max.jacobians(values - self._t)
-        param_jac = np.einsum("ijk,i->jk", (max_jac * jac_values), weights[:, 0]) / (
+        param_jac = self._bkd._la_einsum("ijk,i->jk", (max_jac * jac_values), weights[:, 0]) / (
             1 - self._alpha[:, None]
         )
-        t_jac = 1 - np.einsum("ij,i->j", max_jac[..., 0], weights[:, 0]) / (
+        t_jac = 1 - self._bkd._la_einsum("ij,i->j", max_jac[..., 0], weights[:, 0]) / (
             1 - self._alpha
         )
-        return np.hstack((param_jac, np.diag(t_jac)))
+        return self._bkd._la_hstack((param_jac, self._bkd._la_diag(t_jac)))
 
 
 class SampleAverageConstraint(Constraint):
@@ -465,8 +473,9 @@ class SampleAverageConstraint(Constraint):
         nvars,
         design_indices,
         keep_feasible=False,
+        backend=NumpyLinAlgMixin()
     ):
-        super().__init__(model, design_bounds, keep_feasible)
+        super().__init__(model, design_bounds, keep_feasible, backend=backend)
         if samples.ndim != 2 or weights.ndim != 2 or weights.shape[1] != 1:
             raise ValueError("shapes of samples and/or weights are incorrect")
         if samples.shape[1] != weights.shape[0]:
@@ -476,14 +485,14 @@ class SampleAverageConstraint(Constraint):
         self._stat = stat
         self._nvars = nvars
         self._design_indices = design_indices
-        self._random_indices = np.delete(np.arange(nvars), design_indices)
+        self._random_indices = self._bkd._la_delete(self._bkd._la_arange(nvars, dtype=int), design_indices)
         # warning self._joint_samples must be recomputed if self._samples
         # is changed.
         self._joint_samples = ActiveSetVariableModel._expand_samples_from_indices(
             self._samples,
             self._random_indices,
             self._design_indices,
-            np.zeros((design_indices.shape[0], 1)),
+            self._bkd._la_zeros((design_indices.shape[0], 1)),
         )
 
     def _update_attributes(self):
@@ -498,8 +507,8 @@ class SampleAverageConstraint(Constraint):
         # return ActiveSetVariableModel._expand_samples_from_indices(
         #     self._samples, self._random_indices, self._design_indices,
         #     design_sample)
-        self._joint_samples[self._design_indices, :] = np.repeat(
-            design_sample, self._samples.shape[1], axis=1
+        self._joint_samples[self._design_indices, :] = self._bkd._la_asarray(
+            np.repeat(design_sample, self._samples.shape[1], axis=1)
         )
         return self._joint_samples
 
@@ -516,7 +525,7 @@ class SampleAverageConstraint(Constraint):
         # adjoint methods that compute model values to then
         # compute jacobian
         values = self._model(samples)
-        jac_values = np.array(
+        jac_values = self._bkd._la_array(
             [
                 self._model.jacobian(sample[:, None])[:, self._design_indices]
                 for sample in samples.T
@@ -528,10 +537,10 @@ class SampleAverageConstraint(Constraint):
         samples = self._random_samples_at_design_sample(design_sample)
         # todo take advantage of model prallelism to compute
         # multiple apply_jacs
-        expanded_vec = np.zeros((self._nvars, 1))
+        expanded_vec = self._bkd._la_zeros((self._nvars, 1))
         expanded_vec[self._design_indices] = vec
         values = self._model(samples)
-        jv_values = np.array(
+        jv_values = self._bkd._la_array(
             [
                 self._model._apply_jacobian(sample[:, None], expanded_vec)
                 for sample in samples.T
@@ -610,7 +619,7 @@ class ObjectiveWithCVaRConstraints(Model):
 
     def _jacobian(self, design_sample):
         jac = self._model.jacobian(design_sample[: -self._ncvar_constraints])
-        return np.hstack((jac, np.zeros((jac.shape[0], self._ncvar_constraints))))
+        return self._bkd._la_hstack((jac, self._bkd._la_zeros((jac.shape[0], self._ncvar_constraints))))
 
 
 def approx_jacobian(func, x, epsilon=np.sqrt(np.finfo(float).eps)):
