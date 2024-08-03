@@ -23,7 +23,7 @@ class TestFunctionTrain:
         train_samples = bkd._la_asarray(
             np.random.uniform(-1, 1, (nvars, ntrain_samples)))
 
-        nterms = 2
+        nterms = 3
         nqoi = 2
         basis = MonomialBasis(backend=bkd)
         basis.set_tensor_product_indices([nterms])
@@ -57,28 +57,24 @@ class TestFunctionTrain:
         ft.hyp_list.set_values(params)
 
         ft.hyp_list.set_all_active()
-        solver = AlternatingLeastSquaresSolver(verbosity=2)
+        solver = AlternatingLeastSquaresSolver(tol=1e-8, verbosity=0)
         solver.solve(ft, train_samples, train_values)
         ft_vals = ft(train_samples)
-        assert bkd._la_.allclose(train_values, ft_vals)
+        assert bkd._la_allclose(train_values, ft_vals)
 
         if not bkd._la_jacobian_implemented():
             return
         from pyapprox.surrogates.bases.optimizers import ScipyLBFGSB, MultiStartOptimizer
         optimizer = ScipyLBFGSB(backend=bkd)
-        optimizer.set_options(gtol=1e-8, ftol=1e-12, maxiter=1000)
-        optimizer.set_verbosity(0)
+        optimizer.set_options(gtol=1e-8, ftol=1e-12, maxiter=10000)
+        optimizer.set_verbosity(2)
         ms_optimizer = MultiStartOptimizer(optimizer, ncandidates=1)
-        print(ft.hyp_list.get_values())
         # need to set bounds to be small because initial guess effects optimization
-        ft.hyp_list.set_bounds([-15, 15])
+        ft.hyp_list.set_bounds([-2, 2])
         ms_optimizer.set_verbosity(2)
         solver = NonlinearLeastSquaresSolver(ms_optimizer)
         solver.solve(ft, train_samples, train_values)
         ft_vals = ft(train_samples)
-        print("FINDER")
-        print(train_values, ft_values)
-        print(train_values-ft_values)
         assert bkd._la_allclose(train_values, ft_vals)
 
 
