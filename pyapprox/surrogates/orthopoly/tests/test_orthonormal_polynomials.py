@@ -173,7 +173,7 @@ class TestOrthonormalPolynomials1D:
         vals = poly(quad_x, degree)
         vals_exact = bkd._la_stack(
             [1 + 0.0 * x, x, x**2 - 1], axis=1
-        ) / bkd._la_sqrt(sp.factorial(bkd._la_arange(degree + 1)))
+        ) / bkd._la_sqrt(bkd._la_asarray(sp.factorial(np.arange(degree + 1))))
         assert bkd._la_allclose(vals, vals_exact)
 
         # check jacobi quadrature rule
@@ -228,10 +228,10 @@ class TestOrthonormalPolynomials1D:
         vals = poly(x, degree)
         vals_exact = bkd._la_stack(
             [1 + 0.0 * x, 2 * x, 4.0 * x**2 - 2], axis=1
-        ) / bkd._la_sqrt(
-            sp.factorial(bkd._la_arange(degree + 1))
+        ) / bkd._la_sqrt(bkd._la_asarray(
+            sp.factorial(np.arange(degree + 1))
             * np.sqrt(np.pi)
-            * 2 ** bkd._la_arange(degree + 1)
+            * 2 ** np.arange(degree + 1))
         )
         assert bkd._la_allclose(vals, vals_exact)
 

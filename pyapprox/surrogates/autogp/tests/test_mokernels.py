@@ -21,7 +21,7 @@ from pyapprox.surrogates.autogp.mokernels import (
 from pyapprox.util.sys_utilities import package_available
 
 
-class TestMultiOutputKernels(unittest.TestCase):
+class TestMultiOutputKernels:
     def setUp(self):
         np.random.seed(1)
 

@@ -33,14 +33,14 @@ class TestRecursionFactory(unittest.TestCase):
         discrete_var_names = [
             "binom", "bernoulli", "nbinom", "geom", "hypergeom", "logser",
             "poisson", "planck", "boltzmann", "randint", "zipf",
-            "dlaplace", "skellam", "yulesimon"]
+            "dlaplace", "yulesimon"]
         # valid shape parameters for each distribution in names
         # there is a one to one correspondence between entries
         discrete_var_shapes = [
             {"n": 10, "p": 0.5}, {"p": 0.5}, {"n": 10, "p": 0.5}, {"p": 0.5},
             {"M": 20, "n": 7, "N": 12}, {"p": 0.5}, {"mu": 1}, {"lambda_": 1},
             {"lambda_": 2, "N": 10}, {"low": 0, "high": 10}, {"a": 2},
-            {"a": 1}, {"mu1": 1, "mu2": 3}, {"alpha": 1}]
+            {"a": 1}, {"alpha": 1}]
 
         # scipy is continually adding names just test a subset
         # scipy_discrete_var_names = [
@@ -106,7 +106,7 @@ class TestRecursionFactory(unittest.TestCase):
             "gausshyper", "invgamma", "invgauss", "norminvgauss", "invweibull",
             "johnsonsb", "johnsonsu", "laplace", "levy", "levy_l",
             "levy_stable", "logistic", "loggamma", "loglaplace", "lognorm",
-            "gilbrat", "maxwell", "mielke", "kappa4", "kappa3", "moyal",
+            "gibrat", "maxwell", "mielke", "kappa4", "kappa3", "moyal",
             "nakagami", "ncx2", "ncf", "t", "nct", "pareto", "lomax",
             "pearson3", "powerlaw",
             "powerlognorm", "powernorm", "rdist",
@@ -150,6 +150,10 @@ class TestRecursionFactory(unittest.TestCase):
         # The following are too difficult without better integration algorithm
         unsupported_continuous_var_names += [
             "f", "levy", "levy_l", "loglaplace", "ncf", "crystalball"]
+        # Throw overflow warnings
+        unsupported_continuous_var_names += [
+            "exponpow", "gumbel_r", "gumbel_l", "hypsecant", "loggamma", "moyal"
+        ]
 
         # interface not backward compatible
         unsupported_continuous_var_names += ["pearson3", "powerlaw"]

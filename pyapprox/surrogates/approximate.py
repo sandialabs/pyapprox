@@ -1034,7 +1034,7 @@ class LinearLeastSquaresCV(LinearModel):
         cv_scores = [r[1] for r in results]
         ii_best_alpha = np.argmin(cv_scores)
 
-        self.cv_score_ = cv_scores[ii_best_alpha][0]
+        self.cv_score_ = cv_scores[ii_best_alpha]
         self.alpha_ = self.alphas[ii_best_alpha]
         self.coef_ = results[ii_best_alpha][2]
         # Do not current support fit_intercept = True
@@ -1153,7 +1153,9 @@ def extract_best_regularization_parameters(res):
 
 def extract_cross_validation_score(linear_model):
     if hasattr(linear_model, 'cv_score_'):
-        return linear_model.cv_score_
+        if isinstance(linear_model.cv_score_, float):
+            return linear_model.cv_score_
+        return linear_model.cv_score_[0]
     elif hasattr(linear_model, 'mse_path_'):
         return np.sqrt(linear_model.mse_path_.mean(axis=-1).min())
     else:
