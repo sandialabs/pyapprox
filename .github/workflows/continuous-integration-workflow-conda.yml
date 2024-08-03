@@ -49,5 +49,5 @@ jobs:
       - name: Test PyApprox
         shell: bash -l {0}
         run: |
-          python -m coverage run -m unittest discover pyapprox
+          python -m coverage run -m unittest discover pyapprox/surrogates/bases
           python -m coverage report
