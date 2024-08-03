@@ -364,9 +364,13 @@ class ModelFromCallable(SingleSampleModel):
 class ScipyModelWrapper:
     def __init__(self, model):
         """
-        Create a API that takes a sample as a 1D array and returns
-        a scalar
+        Create a API that takes a sample as a 1D np.ndarray and returns
+        the objects needed by scipy optimizers. E.g. 
+        jac will return np.ndarray
+        even when model accepts and returns arrays associated with a
+        different backend
         """
+        self._bkd = model._bkd
         if not issubclass(model.__class__, Model):
             raise ValueError("model must be derived from Model")
         self._model = model
@@ -380,30 +384,35 @@ class ScipyModelWrapper:
             raise ValueError(
                 "sample must be a 1D array but has shape {0}".format(
                     sample.shape))
+        return self._bkd._la_asarray(sample)
 
     def __call__(self, sample):
-        self._check_sample(sample)
+        sample = self._check_sample(sample)
         vals = self._model(sample[:, None])
         if vals.shape[0] == 1:
             return vals[0]
-        return vals
+        return self._bkd._la_to_numpy(vals)
 
     def jac(self, sample):
-        self._check_sample(sample)
+        sample = self._check_sample(sample)
         jac = self._model.jacobian(sample[:, None])
         if jac.shape[0] == 1:
             return jac[0]
-        return jac
+        return self._bkd._la_to_numpy(jac)
 
     def hess(self, sample):
-        self._check_sample(sample)
-        return self._model.hessian(sample[:, None])
+        sample = self._check_sample(sample)
+        return self._bkd._la_to_numpy(self._model.hessian(sample[:, None]))
 
     def hessp(self, sample, vec):
-        self._check_sample(sample)
+        sample = self._check_sample(sample)
         if (vec.ndim != 1):
             raise ValueError("vec must be 1D array")
-        return self._model.apply_hessian(sample[:, None], vec[:, None])
+        return self._bkd._la_to_numpy(
+            self._model.apply_hessian(
+                sample[:, None], self._bkd._la_asarray(vec[:, None])
+            )
+        )
 
     def __repr__(self):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)

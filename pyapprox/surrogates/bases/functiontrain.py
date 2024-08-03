@@ -330,7 +330,7 @@ class NonlinearLeastSquaresSolver(TensorTrainSolver):
             # to be more efficient by storing certain info
             # when sweeping through the cores
             raise NotImplementedError(
-                "Backend must support auto differentiaion.")
+                "Backend must support auto differentiation.")
         self._train_samples = train_samples
         self._train_values = train_values
         self._optimizer.set_bounds(self._ft.hyp_list.get_active_opt_bounds())

@@ -453,6 +453,8 @@ class LinAlgMixin(ABC):
                 "A_12 shape {0} and/or A_22 shape {1} insconsistent".format(
                     A_12.shape, A_22.shape))
         L_12 = cls._la_solve_triangular(L_11, A_12, lower=True)
+        if A_22.shape[0] == 1 and A_22 - cls._la_dot(L_12.T, L_12) < 1e-12:
+            return L_11, False
         try:
             L_22 = cls._la_cholesky(
                 A_22 - cls._la_dot(L_12.T, L_12))
