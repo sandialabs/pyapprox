@@ -43,5 +43,5 @@ jobs:
           python -m pip install -e .
       - name: Test PyApprox
         run: |
-          python -m coverage run -m unittest discover pyapprox/surrogates/bases
+          python -m coverage run -m unittest discover pyapprox
           python -m coverage report
