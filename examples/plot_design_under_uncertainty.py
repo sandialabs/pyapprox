@@ -119,15 +119,15 @@ from pyapprox.util.visualization import get_meshgrid_function_data
 import matplotlib.cm as cm
 X, Y, Z_o = get_meshgrid_function_data(
     objective_model,
-    np.hstack([benchmark.design_variable.bounds.lb[:, None],
-               benchmark.design_variable.bounds.ub[:, None]]).flatten(), 101)
+    np.hstack([benchmark.design_variable.bounds[:, :1],
+               benchmark.design_variable.bounds[:, 1:2]]).flatten(), 101)
 im = plt.contourf(X, Y, Z_o, levels=40, cmap="coolwarm")
 plt.colorbar(im)
 for ii in range(2):
     X, Y, Z_c = get_meshgrid_function_data(
         constraint_model,
-        np.hstack([benchmark.design_variable.bounds.lb[:, None],
-                   benchmark.design_variable.bounds.ub[:, None]]).flatten(),
+        np.hstack([benchmark.design_variable.bounds[:, :1],
+                   benchmark.design_variable.bounds[:, 1:2]]).flatten(),
         301, qoi=ii)
     II = np.where(Z_c < 0)
     JJ = np.where(Z_c >= 0)

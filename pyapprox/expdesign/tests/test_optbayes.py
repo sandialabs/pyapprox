@@ -19,7 +19,7 @@ from pyapprox.expdesign.tests.test_bayesian_oed import (
     expected_kl_divergence_gaussian_inference,
     posterior_mean_data_stats, gaussian_kl_divergence)
 from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer, Bounds, LinearConstraint,
+    ScipyConstrainedOptimizer, LinearConstraint,
     SampleAverageMean, SampleAverageMeanPlusStdev,
     SampleAverageEntropicRisk)
 
@@ -181,8 +181,8 @@ class TestBayesOED(unittest.TestCase):
             noise_cov_diag, outer_pred_obs, outer_pred_weights,
             noise_samples, inner_pred_obs, inner_pred_weights)
 
-        bounds = Bounds(
-            np.zeros((nobs,)), np.ones((nobs,)), keep_feasible=True)
+        bounds = np.stack(
+            (np.zeros((nobs,)), np.ones((nobs,))), axis=1)
 
         nfinal_obs = 1
         dopt_objective = DOptimalLinearModelObjective(
@@ -281,8 +281,8 @@ class TestBayesOED(unittest.TestCase):
             noise_samples, inner_pred_obs, inner_pred_weights,
             noise_stat=noise_stat)
 
-        bounds = Bounds(
-            np.zeros((nobs,)), np.ones((nobs,)), keep_feasible=True)
+        bounds = np.stack(
+            (np.zeros((nobs,)), np.ones((nobs,))), axis=1)
 
         nfinal_obs = 1
         constraint = LinearConstraint(
@@ -349,8 +349,8 @@ class TestBayesOED(unittest.TestCase):
             noise_samples, inner_pred_obs, inner_pred_weights,
             noise_stat=noise_stat)
 
-        bounds = Bounds(
-            np.zeros((nobs,)), np.ones((nobs,)), keep_feasible=True)
+        bounds = np.stack(
+            (np.zeros((nobs,)), np.ones((nobs,))), axis=1)
 
         nfinal_obs = 1
         constraint = LinearConstraint(

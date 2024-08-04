@@ -474,6 +474,8 @@ class DesignVariable(object):
         bounds : array_like
             Lower and upper bounds for each variable [lb0,ub0, lb1, ub1, ...]
         """
+        if bounds.ndim != 2 or bounds.shape[1] != 2:
+            raise ValueError("bounds must be 2d array with two columns")
         self.bounds = bounds
 
     def num_vars(self):
@@ -485,7 +487,7 @@ class DesignVariable(object):
         nvars : integer
             The number of independent 1D variables
         """
-        return len(self.bounds.lb)
+        return self.bounds.shape[0]
 
 
 class FiniteSamplesVariable(JointVariable):

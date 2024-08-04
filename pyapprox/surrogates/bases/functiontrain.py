@@ -1,8 +1,10 @@
 import copy
 from abc import ABC, abstractmethod
 
+from pyapprox.interface.model import ModelFromCallable
 from pyapprox.surrogates.bases.basis import MonomialBasis
 from pyapprox.surrogates.bases.basisexp import Regressor, BasisExpansion, MonomialExpansion
+from pyapprox.optimization.pya_minimize import MultiStartOptimizer
 
 
 class FunctionTrainCore:
@@ -305,25 +307,28 @@ class AlternatingLeastSquaresSolver(TensorTrainSolver):
 
 
 class NonlinearLeastSquaresSolver(TensorTrainSolver):
-    def __init__(self, optimizer):
+    def __init__(self, optimizer : MultiStartOptimizer):
+        if not isinstance(optimizer, MultiStartOptimizer):
+            raise ValueError("Optimizer must be derived from Optimizer")
         self._optimizer = optimizer
-        self._bkd = self._optimizer._bkd
         self._ft = None
 
     def _RMSE_loss(self, active_opt_params):
-        self._ft.hyp_list.set_active_opt_params(active_opt_params)
-        return self._bkd._la_mean(
-            self._bkd._la_norm((self._ft(self._train_samples)-self._train_values), axis=1)
+        self._ft.hyp_list.set_active_opt_params(active_opt_params[:, 0])
+        return self._bkd._la_atleast2d(self._bkd._la_mean(
+            self._bkd._la_norm((self._ft(self._train_samples)-self._train_values), axis=1))
         )
 
-    def _fit_objective(self, active_opt_params):
+    def _RMSE_jacobian(self, active_opt_params):
         val, grad = self._bkd._la_grad(self._RMSE_loss, active_opt_params)
         for hyp in self._ft.hyp_list.hyper_params:
             self._bkd._la_detach(hyp)
-        return self._bkd._la_detach(val), self._bkd._la_detach(grad)
+        return self._bkd._la_detach(grad).T
+        
 
     def solve(self, ft, train_samples, train_values, init_iterate=None):
         self._ft = ft
+        self._bkd = self._ft._bkd
         if not self._bkd._la_jacobian_implemented():
             # todo implement gradients via custom backprop
             # only requires slight modification of _core_jacobian
@@ -334,11 +339,16 @@ class NonlinearLeastSquaresSolver(TensorTrainSolver):
         self._train_samples = train_samples
         self._train_values = train_values
         self._optimizer.set_bounds(self._ft.hyp_list.get_active_opt_bounds())
-        self._optimizer.set_objective_function(self._fit_objective)
+        objective =  ModelFromCallable(
+            self._RMSE_loss, self._RMSE_jacobian, backend=self._ft._bkd
+        )
+        self._optimizer.set_objective_function(objective)
         if init_iterate is None:
-            init_iterate = self._optimizer._get_random_optimizer_initial_guess()
-        res = self._optimizer.optimize(init_iterate)
-        active_opt_params = res.x
+            init_iterate = self._optimizer._initial_interate_gen()
+        # objective.check_apply_jacobian(init_iterate, disp=True)
+        # objective.check_apply_jacobian(gen(), disp=True)
+        res = self._optimizer.minimize(init_iterate)
+        active_opt_params = res.x[:, 0]
         ft.hyp_list.set_active_opt_params(active_opt_params)
         
     def __repr__(self):

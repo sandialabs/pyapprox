@@ -30,7 +30,7 @@ class TestMinimize(unittest.TestCase):
 
         # check that constraints are handled correctly
         nvars = 2
-        bounds = Bounds(np.full((nvars,), -2), np.full((nvars,), 2))
+        bounds = np.stack((np.full((nvars,), -2), np.full((nvars,), 2)), axis=1)
         benchmark = setup_benchmark("rosenbrock", nvars=nvars)
         optimizer = ScipyConstrainedOptimizer(benchmark.fun, bounds=bounds)
         result = optimizer.minimize(benchmark.variable.get_statistics("mean"))
@@ -69,12 +69,12 @@ class TestMinimize(unittest.TestCase):
         print(constraint_bounds.shape)
         constraint = Constraint(constraint_model, constraint_bounds)
 
-        bounds = Bounds(np.full((nvars,), 0), np.full((nvars,), np.inf))
+        bounds = np.stack((np.full((nvars,), 0), np.full((nvars,), np.inf)), axis=1)
         optimizer = ScipyConstrainedOptimizer(
             objective, bounds=bounds, constraints=[constraint],
-            opts={"gtol": 1e-10, "verbose": 3})
+            opts={"gtol": 1e-10, "verbose": 0})
         result = optimizer.minimize(np.array([2, 0])[:, None])
-        assert np.allclose(result.x, np.array([1.4, 1.7]))
+        assert np.allclose(result.x[:, 0], np.array([1.4, 1.7]))
 
     def test_sample_average_constraints(self):
         benchmark = setup_benchmark('cantilever_beam')
@@ -249,9 +249,9 @@ class TestMinimize(unittest.TestCase):
         # assert np.allclose(
         #    constraint(exact_opt_x)[0, :], [CVaR1, CVaR2], rtol=5e-3)
 
-        bounds = Bounds(
-            np.hstack(([0], np.full((nconstraints,), -np.inf))),
-            np.full((ndesign_vars+nconstraints,), np.inf))
+        bounds = np.stack(
+            (np.hstack(([0], np.full((nconstraints,), -np.inf))),
+            np.full((ndesign_vars+nconstraints,), np.inf)), axis=1)
         optimizer = ScipyConstrainedOptimizer(
             objective, bounds=bounds, constraints=[constraint],
             opts={"gtol": 3e-6, "verbose": 3, "maxiter": 500})
@@ -260,13 +260,13 @@ class TestMinimize(unittest.TestCase):
         # errors in sample based estimate of CVaR will cause
         # optimal solution to be biased.
         assert np.allclose(
-            constraint(result.x[:, None]), [CVaR1, CVaR2], rtol=1e-2)
+            constraint(result.x), [CVaR1, CVaR2], rtol=1e-2)
         # print(constraint(exact_opt_x), [CVaR1, CVaR2])
         # print(result.x-exact_opt_x[:, 0], exact_opt_x[:, 0])
 
         # TODO: on ubuntu reducing gtol causes minimize not to converge
         # ideally find reason and dencrease rtol and atol below
-        assert np.allclose(result.x, exact_opt_x[:, 0], rtol=2e-3, atol=1e-5)
+        assert np.allclose(result.x, exact_opt_x, rtol=2e-3, atol=1e-5)
         assert np.allclose(-sigma1, result.fun, rtol=1e-4)
 
 

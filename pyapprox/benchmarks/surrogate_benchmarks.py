@@ -47,8 +47,7 @@ def define_beam_random_variables():
     E = stats.norm(loc=2.9e7, scale=np.sqrt(1.45e6)**2)
     R = stats.norm(loc=40000, scale=np.sqrt(2000)**2)
 
-    from scipy.optimize import Bounds
-    design_bounds = Bounds([1, 1], [4, 4])
+    design_bounds = np.stack([[1, 1], [4, 4]], axis=1)
     design_variable = DesignVariable(design_bounds)
 
     variable = IndependentMarginalsVariable([X, Y, E, R])

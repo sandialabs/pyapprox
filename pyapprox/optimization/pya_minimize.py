@@ -117,6 +117,46 @@ from pyapprox.interface.model import Model, ScipyModelWrapper, ActiveSetVariable
 from scipy.optimize import Bounds, NonlinearConstraint, LinearConstraint
 
 
+class OptimizationResult(dict):
+    """
+    The optimization result returned by optimizers. must contain at least
+    the iterate and objective function value at the minima,
+    which can be accessed via res.x and res.fun, respectively.
+    """
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError as e:
+            raise AttributeError(name) from e
+
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+    def __dir__(self):
+        return list(self.keys())
+
+    def __repr__(self):
+        return self.__class__.__name__ + (
+            "(\n\t x={0}, \n\t fun={1}, \n\t attr={2})".format(
+                self.x, self.fun, list(self.keys())))
+
+
+class ScipyOptimizationResult(OptimizationResult):
+    def __init__(self, scipy_result, bkd):
+        """
+        Parameters
+        ----------
+        scipy_result : :py:class:`scipy.optimize.OptimizeResult`
+            The result returned by scipy.minimize
+        """
+        super().__init__()
+        for key, item in scipy_result.items():
+            if isinstance(item, np.ndarray):
+                self[key] = bkd._la_asarray(item)
+            else:
+                self[key] = item
+
+
 class Constraint(Model):
     def __init__(self, model, bounds, keep_feasible=False, backend=NumpyLinAlgMixin()):
         super().__init__(backend)
@@ -163,31 +203,216 @@ class Constraint(Model):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
 
 
+class OptimizerIterateGenerator(ABC):
+    def __init__(self, backend):
+        self._bkd = backend
+    
+    @abstractmethod
+    def __call__(self):
+        raise NotImplementedError
+
+
+class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
+    def __init__(self, nvars, backend=NumpyLinAlgMixin()):
+        super().__init__(backend)
+        self._bounds = None
+        self._nvars = nvars
+        self._numeric_upper_bound = 100
+
+    def set_bounds(self, bounds):
+        bounds = self._bkd._la_atleast1d(bounds)
+        if bounds.shape[0] == 2:
+            bounds = self._bkd._la_reshape(
+                self._bkd._la_repeat(bounds, self._nvars), (self._nvars, 2)
+            )
+        print(bounds)
+        if bounds.ndim != 2 or bounds.shape[1] != 2:
+            raise ValueError("Bounds has the wrong shape")
+        self._bounds = bounds
+
+    def set_numeric_upper_bound(self, ub):
+        self._numeric_upper_bound = ub
+    
+    def __call__(self):
+        if self._bounds is None:
+            raise RuntimeError(
+                "must call set_bounds to generate random initial guess"
+            )
+        # convert bounds to numpy to use numpy random number generator
+        bounds = self._bkd._la_to_numpy(self._bounds)
+        bounds[bounds == -np.inf] = -self._numeric_upper_bound
+        bounds[bounds == np.inf] = self._numeric_upper_bound
+        return self._bkd._la_asarray(
+            np.random.uniform(bounds[:, 0], bounds[:, 1]))[:, None]
+
+
 class Optimizer(ABC):
-    def __init__(self, objective, bounds=None, opts={}):
+    def __init__(self, objective=None, bounds=None, opts={}):
+        self._bkd = None
+        self._verbosity = 0
+        self._objective = None
+        self._bounds = None
+
+        self.set_objective_function(objective)
+        self.set_bounds(bounds)
+        self.set_options(**opts)
+
+    def set_options(self, **opts):
+        self._opts = opts
+
+    @abstractmethod
+    def _minimize(self, iterate):
+        raise NotImplementedError
+
+    def minimize(self, iterate):
+        """
+        Minimize the objective function.
+
+        Parameters
+        ----------
+        iterate : array
+             The initial guess used to start the optimizer
+
+        Returns
+        -------
+        res : :py:class:`~pyapprox.sciml.OptimizationResult`
+             The optimization result.
+        """
+        if self._objective is None:
+            raise RuntimeError("Must call set_objective_function")
+        result = self._minimize(iterate)
+        if not isinstance(result, OptimizationResult):
+            raise RuntimeError("{0}.minimize did not return OptimizationResult")
+        return result
+
+    def set_bounds(self, bounds):
+        """
+        Set the bounds of the design variables.
+
+        Parameters
+        ----------
+        bounds : array (ndesign_vars, 2)
+            The upper and lower bounds of each design variable
+        """
+        if bounds is not None and (bounds.ndim != 2 or bounds.shape[1] != 2):
+            raise ValueError("Bounds has the wrong shape")
+        self._bounds = bounds
+
+    def set_objective_function(self, objective):
+        """
+        Set the objective function.
+
+        Parameters
+        ----------
+        objective_fun : callable
+            Function that returns both the function value and gradient at an
+            iterate with signature
+
+            `objective_fun(x) -> (val, grad)`
+
+            where `x` and `val` are 1D arrays with shape (ndesign_vars,) and
+            `val` is a float.
+        """
+        if objective is None:
+            return
         if not isinstance(objective, Model):
             raise ValueError(
                 "objective must be an instance of {0}".format(
                     "pyapprox.interface.model.Model"
                 )
             )
+        self._bkd = objective._bkd
         self._objective = objective
-        if bounds is not None and not isinstance(bounds, Bounds):
-            raise ValueError("bounds must be an instance of scipy.minimize.Bounds")
-        self._bounds = bounds
-        self._opts = self._parse_options(opts)
 
-    def _parse_options(self, opts):
-        return opts
+    def set_verbosity(self, verbosity):
+        """
+        Set the verbosity.
 
-    @abstractmethod
-    def minimize(self, init_guess):
-        raise NotImplementedError
+        Parameters
+        ----------
+        verbosity_flag : int, default 0
+            0 = no output
+            1 = final iteration
+            2 = each iteration
+            3 = each iteration, plus details
+        """
+        self._verbosity = verbosity
+
+    def _is_iterate_within_bounds(self, iterate):
+        if self._bounds is None:
+            return True
+        # convert bounds to numpy to use np.logical
+        bounds = self._bkd._la_to_numpy(self._bounds)
+        iterate = self._bkd._la_to_numpy(iterate)
+        return np.logical_and(
+            iterate >= bounds[:, 0],
+            iterate <= bounds[:, 1]).all()
+
+    def __repr__(self):
+        return "{0}(verbosity={1})".format(self.__class__.__name__, self._verbosity)
+
+
+class MultiStartOptimizer(Optimizer):
+    def __init__(self, optimizer, ncandidates=1):
+        """
+        Find the smallest local optima associated with a set of
+        initial guesses.
+
+        Parameters
+        ----------
+        optimizer : :py:class:`~pyapprox.sciml.Optimizer`
+            Optimizer to find each local minima
+
+        ncandidates : int
+            Number of initial guesses used to comptue local optima
+        """
+        self._ncandidates = ncandidates
+        self._optimizer = optimizer
+        self._bounds = None
+        self._initial_interate_gen = None
+        super().__init__(objective=optimizer._objective)
+
+    def set_bounds(self, bounds):
+        super().set_bounds(bounds)
+        self._optimizer.set_bounds(bounds)
+
+    def set_initial_iterate_generator(self, gen):
+        if not isinstance(gen, OptimizerIterateGenerator):
+            raise ValueError("gen is not an OptimizerIterateGenerator.")
+        self._initial_interate_gen = gen
+        
+    def set_objective_function(self, objective):
+        self._optimizer.set_objective_function(objective)
+        super().set_objective_function(objective)
+
+    def _minimize(self, x0_global, **kwargs):
+        if self._initial_interate_gen is None:
+            raise ValueError("Must call set_initial_iterate_generator")
+        best_res = self._optimizer.minimize(x0_global)
+        if self._verbosity > 1:
+                print("it {1}: best objective {1}".format(0, best_res.fun))
+        for ii in range(1, self._ncandidates):
+            res = self._optimizer.minimize(self._initial_interate_gen(), **kwargs)
+            if res.fun < best_res.fun:
+                best_res = res
+            if self._verbosity > 1:
+                print("it {0}: best objective {1}".format(ii+1, best_res.fun))
+        if self._verbosity > 0:
+            print("{0}\n\t {1}".format(self, best_res))
+        return best_res
+
+    def __repr__(self):
+        return "{0}(optimizer={1}, ncandidates={2})".format(
+            self.__class__.__name__, self._optimizer, self._ncandidates
+        )
 
 
 class ConstrainedOptimizer(Optimizer):
-    def __init__(self, objective, constraints=[], bounds=None, opts={}):
+    def __init__(self, objective=None, constraints=[], bounds=None, opts={}):
         super().__init__(objective, bounds, opts)
+        self.set_constraints(constraints)
+
+    def set_constraints(self, constraints):
         for con in constraints:
             if not isinstance(con, Constraint) and not isinstance(
                 con, LinearConstraint
@@ -223,11 +448,13 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             scipy_constraints.append(scipy_con)
         return scipy_constraints
 
-    def minimize(self, init_guess):
+    def _minimize(self, init_guess):
         opts = self._opts.copy()
         nvars = init_guess.shape[0]
         if self._bounds is None:
-            bounds = Bounds(np.full((nvars,), -np.inf), np.full((nvars,), np.inf))
+            bounds = Bounds(
+                np.full((nvars,), -np.inf), np.full((nvars,), np.inf)
+            )
         else:
             bounds = self._bounds
         objective = ScipyModelWrapper(self._objective)
@@ -236,16 +463,34 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             hessp = objective.hessp
         else:
             hessp = None
-        result = scipy_minimize(
+
+        method = opts.pop("method", "trust-constr")
+        if method == "L-BFGS-B":
+            if self._verbosity < 3:
+                self._opts['iprint'] = self._verbosity-1
+            else:
+                self._opts['iprint'] = 200
+        elif method == "trust-constr":
+            self._opts["verbose"] = self._verbosity
+        elif method == "slsqp":
+            if self._verbosity > 0:
+                self._opts["disp"]=True
+                self._opts["iprint"] = self._verbosity
+            
+        scipy_result = scipy_minimize(
             objective,
             init_guess[:, 0],
-            method=opts.pop("method", "trust-constr"),
+            method=method,
             jac=jac,
             hessp=hessp,
             bounds=bounds,
             constraints=self._constraints,
             options=self._opts,
         )
+        scipy_result.x = scipy_result.x[:, None]
+        result = ScipyOptimizationResult(scipy_result, self._bkd)
+        if self._verbosity > 1:
+            print(result)
         return result
 
 

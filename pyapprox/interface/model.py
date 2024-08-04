@@ -90,10 +90,11 @@ class Model(ABC):
             raise NotImplementedError(
                 "_jacobian and _apply_jacobian of {0} are not implemented".format(self))
         self._check_sample_shape(sample)
-        if self._jacobian_implemented:
-            return self._jacobian(sample)
-        actions = []
         nvars = sample.shape[0]
+        if self._jacobian_implemented:
+            jac = self._jacobian(sample)
+            return jac
+        actions = []
         for ii in range(nvars):
             vec = self._bkd._la_zeros((nvars, 1))
             vec[ii] = 1.0
@@ -218,7 +219,7 @@ class Model(ABC):
                 print(row_format.format(
                     fd_eps[ii], self._bkd._la_norm(directional_grad),
                     self._bkd._la_norm(fd_directional_grad), errors[ii]))
-        return np.array(errors)
+        return self._bkd._la_asarray(errors)
 
     def check_apply_jacobian(self, sample, fd_eps=None, direction=None,
                              relative=True, disp=False):

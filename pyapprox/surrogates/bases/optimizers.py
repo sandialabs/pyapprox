@@ -104,17 +104,6 @@ class Optimizer(ABC):
         """
         self._verbosity = verbosity
 
-    def set_tolerance(self, tol):
-        """
-        Set the tolerance that will be passed to the optimizer.
-
-        Parameters
-        ----------
-        tol : float
-            Tolerance (see specific optimizer documentation for details)
-        """
-        self._tol = tol
-
     def _get_random_optimizer_initial_guess(self):
         if self._bounds is None:
             raise RuntimeError("must call set_bounds")

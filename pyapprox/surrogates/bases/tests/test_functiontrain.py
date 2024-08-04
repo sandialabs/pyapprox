@@ -10,6 +10,9 @@ from pyapprox.surrogates.bases.basisexp import MonomialExpansion
 from pyapprox.surrogates.bases.functiontrain import (
     AdditiveFunctionTrain, AlternatingLeastSquaresSolver, NonlinearLeastSquaresSolver
 )
+from pyapprox.optimization.pya_minimize import (
+    ScipyConstrainedOptimizer, MultiStartOptimizer, RandomUniformOptimzerIterateGenerator
+)
 
 
 class TestFunctionTrain:
@@ -64,13 +67,14 @@ class TestFunctionTrain:
 
         if not bkd._la_jacobian_implemented():
             return
-        from pyapprox.surrogates.bases.optimizers import ScipyLBFGSB, MultiStartOptimizer
-        optimizer = ScipyLBFGSB(backend=bkd)
-        optimizer.set_options(gtol=1e-8, ftol=1e-12, maxiter=10000)
+        optimizer = ScipyConstrainedOptimizer()
+        optimizer.set_options(gtol=1e-8, ftol=1e-12, maxiter=1000, method="L-BFGS-B")
         optimizer.set_verbosity(2)
         ms_optimizer = MultiStartOptimizer(optimizer, ncandidates=1)
+        iterate_gen = RandomUniformOptimzerIterateGenerator(ft.hyp_list.nactive_vars())
         # need to set bounds to be small because initial guess effects optimization
-        ft.hyp_list.set_bounds([-2, 2])
+        iterate_gen.set_bounds([-2, 2])
+        ms_optimizer.set_initial_iterate_generator(iterate_gen)
         ms_optimizer.set_verbosity(2)
         solver = NonlinearLeastSquaresSolver(ms_optimizer)
         solver.solve(ft, train_samples, train_values)
@@ -90,3 +94,4 @@ class TestTorchFunctionTrain(TestFunctionTrain, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+    
