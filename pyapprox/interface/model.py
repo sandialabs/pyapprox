@@ -732,7 +732,7 @@ class ActiveSetVariableModel(Model):
         # matvec product  so they do not contribute to sum
         expanded_vec = self._bkd._la_zeros((self._nvars, 1))
         expanded_vec[self._active_var_indices] = vec
-        return self._model.apply_jacobian(samples, expanded_vec)
+        return self._model.apply_hessian(samples, expanded_vec)
 
     def nactive_vars(self):
         return len(self._active_var_indices)
