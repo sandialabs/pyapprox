@@ -268,12 +268,14 @@ class PeriodicMaternKernel(MaternKernel):
 
 class HilbertSchmidtKernel(Kernel):
     def __init__(
-        self, basis, weights, weight_bounds, transform, normalize: bool = False
+        self, basis1, basis2, weights, weight_bounds, transform=None,
+        normalize: bool = False
     ):
-        super().__init__(basis._bkd)
-        self._nvars = basis.nvars()
-        self._basis = basis
-        self._nterms = basis.nterms() ** 2
+        super().__init__(basis1._bkd)
+        self._nvars = basis1.nvars()
+        self._basis1 = basis1
+        self._basis2 = basis2
+        self._nterms = basis1.nterms() * basis2.nterms()
         self._normalize = normalize
         self._weights = HyperParameter(
             "weights",
@@ -288,19 +290,19 @@ class HilbertSchmidtKernel(Kernel):
     def _get_weights(self):
         return self._bkd._la_reshape(
             self._weights.get_values(),
-            (self._basis.nterms(), self._basis.nterms()),
+            (self._basis1.nterms(), self._basis2.nterms()),
         )
 
     def __call__(self, X1, X2=None):
         weights = self._get_weights()
         if X2 is None:
             X2 = X1
-        X1basis_mat = self._basis(X1)
-        X2basis_mat = self._basis(X2)
+        X1basis_mat = self._basis1(X1)
+        X2basis_mat = self._basis2(X2)
         if self._normalize:
             X1basis_mat /= self._bkd._la_norm(X1basis_mat, axis=1)[:, None]
             X2basis_mat /= self._bkd._la_norm(X2basis_mat, axis=1)[:, None]
-        K = (X1basis_mat @ weights) @ X2basis_mat.T
+        K = (X1basis_mat @ weights) @ (X2basis_mat.T)
         return K
 
 

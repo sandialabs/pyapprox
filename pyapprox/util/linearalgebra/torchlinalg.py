@@ -85,6 +85,10 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.log(matrix)
 
     @staticmethod
+    def _la_log10(matrix: torch.Tensor) -> torch.Tensor:
+        return torch.log10(matrix)
+
+    @staticmethod
     def _la_multidot(matrix_list: List[torch.Tensor]) -> torch.Tensor:
         return torch.linalg.multi_dot(matrix_list)
 
@@ -366,3 +370,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_jacobian_implemented() -> bool:
         return True
+
+    @staticmethod
+    def _la_meshgrid(*arrays, indexing="xy"):
+        return torch.meshgrid(*arrays, indexing=indexing)

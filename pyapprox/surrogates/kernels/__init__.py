@@ -5,6 +5,7 @@ from pyapprox.surrogates.kernels.kernels import (
     PeriodicMaternKernel,
     SphericalCovarianceHyperParameter,
     SphericalCovariance,
+    HilbertSchmidtKernel,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "PeriodicMaternKernel",
     "SphericalCovarianceHyperParameter",
     "SphericalCovariance",
+    "HilbertSchmidtKernel",
 ]

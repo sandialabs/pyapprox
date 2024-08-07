@@ -90,7 +90,7 @@ class HyperParameter:
         if indices.shape[0] == 0:
             self._active_indices = indices
             return
-        
+
         if max(indices) >= self.nvars():
             raise ValueError("indices exceed nvars")
         if min(indices) < 0:
@@ -162,6 +162,8 @@ class HyperParameter:
 
     def set_values(self, values):
         """Set the values of the parameters in the user space."""
+        if values.ndim != 1:
+            raise ValueError("values must be 1D")
         self._values = values
 
     def _short_repr(self):
@@ -360,12 +362,12 @@ class CombinedHyperParameter(HyperParameter):
                 self.bounds.shape, 2 * self.nvars()
             )
             raise ValueError(msg)
-        
+
         cnt = 0
         for hyp in self.hyper_params:
             hyp.set_bounds(bounds[cnt : cnt + hyp.nvars()])
             cnt += hyp.nvars()
-        
+
 
     def get_active_opt_params(self):
         return self._bkd._la_hstack(

@@ -203,32 +203,40 @@ def plot_3d_indices_latex(
                         tikz_dir, show, remove_all_files)
 
 
-def get_meshgrid_samples(plot_limits, num_pts_1d, logspace=False):
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+def get_meshgrid_samples(
+        plot_limits, num_pts_1d, logspace=False, bkd=NumpyLinAlgMixin()
+):
     """
     Generate meshgrid samples.
     """
     if isinstance(num_pts_1d, int):
         num_pts_1d = [num_pts_1d]*2
     if not logspace:
-        x = np.linspace(plot_limits[0], plot_limits[1], num_pts_1d[0])
-        y = np.linspace(plot_limits[2], plot_limits[3], num_pts_1d[1])
+        x = bkd._la_linspace(plot_limits[0], plot_limits[1], num_pts_1d[0])
+        y = bkd._la_linspace(plot_limits[2], plot_limits[3], num_pts_1d[1])
     else:
-        x = np.logspace(
-            np.log10(plot_limits[0]), np.log10(plot_limits[1]), num_pts_1d[0])
-        y = np.logspace(
-            np.log10(plot_limits[2]), np.log10(plot_limits[3]), num_pts_1d[1])
+        x = bkd._la_logspace(
+            bkd._la_log10(plot_limits[0]), bkd._la_log10(plot_limits[1]),
+            num_pts_1d[0]
+        )
+        y = bkd._la_logspace(
+            bkd._la_log10(
+                plot_limits[2]), bkd._la_log10(plot_limits[3]),
+            num_pts_1d[1]
+        )
 
     # X, Y =  meshgrid (x,y) same as
     # X = cartesian_product([x, y])[0].reshape((ny, nx)
     # Y = cartesian_product([x, y])[1].reshape((ny, nx)
-    X, Y = np.meshgrid(x, y)
-    pts = np.vstack((X.reshape((1, X.shape[0]*X.shape[1])),
-                     Y.reshape((1, Y.shape[0]*Y.shape[1]))))
+    X, Y = bkd._la_meshgrid(x, y)
+    pts = bkd._la_vstack((X.reshape((1, X.shape[0]*X.shape[1])),
+                          Y.reshape((1, Y.shape[0]*Y.shape[1]))))
     return X, Y, pts
 
 
 def get_meshgrid_function_data(function, plot_limits, num_pts_1d, qoi=0,
-                               logspace=False):
+                               logspace=False, bkd=NumpyLinAlgMixin()):
     """
     Generate data from a function in the format needed for plotting.
     Samples are generated between specified lower and upper bounds
@@ -263,11 +271,13 @@ def get_meshgrid_function_data(function, plot_limits, num_pts_1d, qoi=0,
     Z : np.ndarray of size (num_pts_1d,num_pts_1d)
         The function values at each sample
     """
-    X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
+    X, Y, pts = get_meshgrid_samples(
+        plot_limits, num_pts_1d, logspace, bkd=bkd
+    )
     Z = function(pts)
     if (Z.ndim == 2):
         Z = Z[:, qoi]
-    Z = np.reshape(Z, (X.shape[0], X.shape[1]))
+    Z = bkd._la_reshape(Z, (X.shape[0], X.shape[1]))
     return X, Y, Z
 
 

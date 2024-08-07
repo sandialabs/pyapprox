@@ -88,6 +88,10 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.log(matrix)
 
     @staticmethod
+    def _la_log10(matrix: np.ndarray) -> np.ndarray:
+        return np.log10(matrix)
+
+    @staticmethod
     def _la_multidot(matrix_list: List[np.ndarray]) -> np.ndarray:
         return np.linalg.multi_dot(matrix_list)
 
@@ -334,3 +338,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_jacobian_implemented() -> bool:
         return True
+
+    @staticmethod
+    def _la_meshgrid(*arrays, indexing="xy"):
+        return np.meshgrid(*arrays, indexing=indexing)

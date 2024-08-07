@@ -117,6 +117,12 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def _la_log10(matrix):
+        """Apply log base 10 element wise to a matrix."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def _la_multidot(matrix_list):
         """Compute the dot product of multiple matrices."""
         raise NotImplementedError
@@ -624,4 +630,9 @@ class LinAlgMixin(ABC):
     @staticmethod
     @abstractmethod
     def _la_jacobian_implemented() -> bool:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _la_meshgrid(*args, **kwargs):
         raise NotImplementedError
