@@ -15,14 +15,59 @@ from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions)
 
 
-# TODO move to higher level
-class Regressor(ABC):
+# TODO moove Regressor and LossFunctions to higher level
+class RegressorMixin(ABC):
     @abstractmethod
     def fit(self, train_samples, train_values):
         raise NotImplementedError
 
+    @staticmethod
+    def _check_training_data(train_samples, train_values):
+        if train_samples.shape[1] != train_values.shape[0]:
+            raise ValueError(
+                (
+                    "Number of cols of samples {0} does not match"
+                    + "number of rows of values"
+                ).format(train_samples.shape[1], train_values.shape[0])
+            )
 
-class BasisExpansion(Model, Regressor):
+
+class LossFunction(Model):
+    def __init__(self):
+        super().__init__()
+        self._bkd = None
+        self._model = None
+
+    def set_model(self, model):
+        self._bkd = model._bkd
+        self._model = model
+
+
+class RMSELoss(Model):
+    def __init__(self):
+        super().__init__()
+        self._jacobian_implemented = True
+
+    def __call__(self, active_opt_params):
+        self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
+        return self._bkd._la_atleast2d(
+            self._bkd._la_mean(
+                self._bkd._la_norm(
+                    (self._model(self._train_samples) - self._train_values),
+                    axis=1,
+                )
+            )
+        )
+
+    def _jacobian(self, active_opt_params):
+        val, grad = self._bkd._la_grad(self._call__, active_opt_params)
+        # todo move detach to linalgmixin if needed
+        for hyp in self._model.hyp_list.hyper_params:
+            self._bkd._la_detach(hyp)
+        return self._bkd._la_detach(grad).T
+
+
+class BasisExpansion(Model, RegressorMixin):
     """The base class for any linear basis expansion for multiple
        quantities of interest (QoI)."""
 

@@ -3,7 +3,11 @@ from abc import ABC, abstractmethod
 
 from pyapprox.interface.model import ModelFromCallable
 from pyapprox.surrogates.bases.basis import MonomialBasis
-from pyapprox.surrogates.bases.basisexp import Regressor, BasisExpansion, MonomialExpansion
+from pyapprox.surrogates.bases.basisexp import (
+    RegressorMixin,
+    BasisExpansion,
+    MonomialExpansion,
+)
 from pyapprox.optimization.pya_minimize import MultiStartOptimizer
 
 
@@ -15,7 +19,7 @@ class FunctionTrainCore:
         self.hyp_list = sum(
             [bexp.hyp_list for bexps in self._basisexps for bexp in bexps]
         )
-        
+
     def __call__(self, samples):
         values = []
         for ii in range(self._ranks[0]):
@@ -39,24 +43,29 @@ class HomogeneousFunctionTrainCore(FunctionTrainCore):
         )
 
 
-class FunctionTrain(Regressor):
+class FunctionTrain(RegressorMixin):
     def __init__(self, cores, nqoi=1):
         if cores[0]._ranks[0] != 1:
             raise ValueError(
                 "First rank of first core must be 1 but was {0}".format(
-                    cores[0]._ranks[0]))
+                    cores[0]._ranks[0]
+                )
+            )
         if cores[-1]._ranks[1] != 1:
             raise ValueError(
                 "Second rank of last core must be 1 but was {0}".format(
-                    cores[-1]._ranks[1]))
-        for ii in range(len(cores)-1):
-            if cores[ii]._ranks[-1] != cores[ii+1]._ranks[0]:
+                    cores[-1]._ranks[1]
+                )
+            )
+        for ii in range(len(cores) - 1):
+            if cores[ii]._ranks[-1] != cores[ii + 1]._ranks[0]:
                 raise ValueError("The inner core ranks do not match")
         self._cores = cores
         self.hyp_list = sum([core.hyp_list for core in self._cores])
         self._bkd = self.hyp_list._bkd
         self._nqoi = nqoi
         self._samples = None
+        self._solver = None
 
     def nvars(self):
         return len(self._cores)
@@ -81,33 +90,41 @@ class FunctionTrain(Regressor):
         self.hyp_list.set_active_indices(active_indices)
         # create list of jacobians for each qoi
         # jac will be of shape (nsamples, nqoi, ntotal_core_active_parameters)
-        # so if using basis expansion with same expansion for each core and nqoi = 1
-        # jac[:, 0, :] will be basis matrix B=basexp.basis_matrix(samples)
-        # If nqoi = 2, jac[:, 0, :] will be [B[:, 0], 0, B[:, 1], 0, ..., B[:, P], 0]
+        # so if using basis expansion with same expansion for each core and
+        # nqoi = 1 jac[:, 0, :] will be basis matrix
+        # B=basexp.basis_matrix(samples)
+        # If nqoi = 2, jac[:, 0, :] will be
+        # [B[:, 0], 0, B[:, 1], 0, ..., B[:, P], 0]
         # where P=basisexp.nterms()
         # to get grad with respect to just coefficients of the qth qoi
         # and qoi = q use jac[:, q, q::nqoi]
-        jac = [jac[:, qq, qq::self.nqoi()] for qq in range(self.nqoi())]
+        jac = [jac[:, qq, qq :: self.nqoi()] for qq in range(self.nqoi())]
         return jac
 
     def _eval_left_cores(self, core_id, samples):
         if core_id < 1 or core_id >= self.nvars():
             raise ValueError(
-                "Ensure 0 < core_id < nvars. core_id={0}".format(core_id))
+                "Ensure 0 < core_id < nvars. core_id={0}".format(core_id)
+            )
         values = self._cores[0](samples[:1])
         for ii in range(1, core_id):
-            c = self._cores[ii](samples[ii:ii+1])
             values = self._bkd._la_einsum(
-                "ijkl, jmkl->imkl", values, self._cores[ii](samples[ii:ii+1]))
+                "ijkl, jmkl->imkl",
+                values,
+                self._cores[ii](samples[ii : ii + 1]),
+            )
         return values
 
     def _eval_right_cores(self, core_id, samples):
-        if core_id >= self.nvars()-1 or core_id < 0:
+        if core_id >= self.nvars() - 1 or core_id < 0:
             raise ValueError("Ensure 0 <= core_id < nvars-1")
-        values = self._cores[core_id+1](samples[core_id+1:core_id+2])
-        for ii in range(core_id+2, self.nvars()):
+        values = self._cores[core_id + 1](samples[core_id + 1 : core_id + 2])
+        for ii in range(core_id + 2, self.nvars()):
             values = self._bkd._la_einsum(
-                "ijkl, jmkl->imkl", values, self._cores[ii](samples[ii:ii+1]))
+                "ijkl, jmkl->imkl",
+                values,
+                self._cores[ii](samples[ii : ii + 1]),
+            )
         return values
 
     def _core_function_jacobians(self, core_id, samples):
@@ -116,7 +133,11 @@ class FunctionTrain(Regressor):
         for ii in range(core._ranks[0]):
             jacs.append([])
             for jj in range(core._ranks[1]):
-                jacs[-1].append(core._basisexps[ii][jj].basis(samples[core_id:core_id+1]))
+                jacs[-1].append(
+                    core._basisexps[ii][jj].basis(
+                        samples[core_id : core_id + 1]
+                    )
+                )
         return jacs
 
     def _core_jacobian(self, samples, core_id):
@@ -128,10 +149,10 @@ class FunctionTrain(Regressor):
         # as right core product will continually need to be updated
         if core_id == 0:
             return self._first_core_jacobian(samples)
-        if core_id < self.nvars()-1 :
+        if core_id < self.nvars() - 1:
             return self._interior_core_jacobian(samples, core_id)
         return self._final_core_jacobian(samples)
-        
+
     def _first_core_jacobian(self, samples):
         core = self._cores[0]
         fun_jacs = self._core_function_jacobians(0, samples)
@@ -140,7 +161,7 @@ class FunctionTrain(Regressor):
         for qq in range(self.nqoi()):
             jac = []
             for jj in range(core._ranks[1]):
-                jac.append(Rmat[jj, 0, :, qq:qq+1]*fun_jacs[0][jj])
+                jac.append(Rmat[jj, 0, :, qq : qq + 1] * fun_jacs[0][jj])
             jacs.append(self._bkd._la_hstack(jac))
         return jacs
 
@@ -150,8 +171,8 @@ class FunctionTrain(Regressor):
         fun_jacs = self._core_function_jacobians(core_id, samples)
         Rmat = self._eval_right_cores(core_id, samples)
         jacs = []
-        #E.g. for core fun [0, 0]
-        
+        # E.g. for core fun [0, 0]
+
         # [A11, A12][G11, 0][B11] = [A12 G11, 0][B11] = [A12 G11 B11]
         #           [0,   0][B21]               [B21]
         # [A11, A12][0, G12][B11] = [0, A11 G11][B11] = [A11 G11 B12]
@@ -160,19 +181,22 @@ class FunctionTrain(Regressor):
             jac = []
             for ii in range(core._ranks[0]):
                 for jj in range(core._ranks[1]):
-                    jac.append((Lmat[0, ii, :, qq]*Rmat[jj, 0, :, qq])[:, None]*fun_jacs[ii][jj])
+                    jac.append(
+                        (Lmat[0, ii, :, qq] * Rmat[jj, 0, :, qq])[:, None]
+                        * fun_jacs[ii][jj]
+                    )
             jacs.append(self._bkd._la_hstack(jac))
         return jacs
 
     def _final_core_jacobian(self, samples):
-        core = self._cores[self.nvars()-1]
-        Lmat = self._eval_left_cores(self.nvars()-1, samples)
-        fun_jacs = self._core_function_jacobians(self.nvars()-1, samples)
+        core = self._cores[self.nvars() - 1]
+        Lmat = self._eval_left_cores(self.nvars() - 1, samples)
+        fun_jacs = self._core_function_jacobians(self.nvars() - 1, samples)
         jacs = []
         for qq in range(self.nqoi()):
             jac = []
             for ii in range(core._ranks[0]):
-                jac.append(Lmat[0, ii, :, qq:qq+1]*fun_jacs[ii][0])
+                jac.append(Lmat[0, ii, :, qq : qq + 1] * fun_jacs[ii][0])
             jacs.append(self._bkd._la_hstack(jac))
         return jacs
 
@@ -180,21 +204,31 @@ class FunctionTrain(Regressor):
         values = self._cores[0](samples[:1])
         for ii in range(1, self.nvars()):
             values = self._bkd._la_einsum(
-                "ijkl, jmkl->imkl", values, self._cores[ii](samples[ii:ii+1]))
+                "ijkl, jmkl->imkl",
+                values,
+                self._cores[ii](samples[ii : ii + 1]),
+            )
         return values[0, 0]
 
+    def set_solver(self, solver):
+        if not isinstance(solver, TensorTrainSolver):
+            raise ValueError("solver must be instance of TensorTrainSolver")
+        self._solver = solver
+
     def fit(self, train_samples, train_values):
-        """Fit the expansion by finding the optimal coefficients. """
-        if samples.shape[1] != values.shape[0]:
-            raise ValueError(
-                ("Number of cols of samples {0} does not match" +
-                 "number of rows of values").format(
-                     samples.shape[1], values.shape[0]))
-        active_active_opt_params = self._solver.solve(self, values)
-        self.hyp_list.set_active_opt_params()
-        
+        """Fit the expansion by finding the optimal coefficients."""
+        self._check_training_data(train_samples, train_values)
+        if self._solver is None:
+            raise RuntimeError("must call set_solver")
+
+        active_opt_params = self._solver.solve(self, train_values)
+        self.hyp_list.set_active_opt_params(active_opt_params)
+
     def __repr__(self):
-        return "{0}(\n\t{1}\n)".format(self.__class__.__name__, ",\n\t".join([f"{core}" for core in self._cores]))
+        return "{0}(\n\t{1}\n)".format(
+            self.__class__.__name__,
+            ",\n\t".join([f"{core}" for core in self._cores]),
+        )
 
 
 class AdditiveFunctionTrain(FunctionTrain):
@@ -203,7 +237,7 @@ class AdditiveFunctionTrain(FunctionTrain):
     #                      |f_i, 1|
     # last dth core is | 1 |
     #                  |f_d|
-    def __init__(self, univariate_funs : list[BasisExpansion], nqoi: int):
+    def __init__(self, univariate_funs: list[BasisExpansion], nqoi: int):
         self._bkd = univariate_funs[0]._bkd
         self._check_univariate_functions(univariate_funs)
         cores = self._init_cores(univariate_funs, nqoi)
@@ -211,7 +245,7 @@ class AdditiveFunctionTrain(FunctionTrain):
 
     def _init_constant_fun(self, fill_value, nqoi):
         constant_basis = MonomialBasis(backend=self._bkd)
-        constant_basis.set_hyperbolic_indices(1, 0, 1.)
+        constant_basis.set_hyperbolic_indices(1, 0, 1.0)
         fun = MonomialExpansion(
             constant_basis, coef_bounds=[fill_value, fill_value], nqoi=nqoi
         )
@@ -222,18 +256,33 @@ class AdditiveFunctionTrain(FunctionTrain):
 
     def _init_cores(self, univariate_funs, nqoi):
         nvars = len(univariate_funs)
-        cores = [FunctionTrainCore([[univariate_funs[0], self._init_constant_fun(1., nqoi)]])]
-        for ii in range(1, nvars-1):
+        cores = [
+            FunctionTrainCore(
+                [[univariate_funs[0], self._init_constant_fun(1.0, nqoi)]]
+            )
+        ]
+        for ii in range(1, nvars - 1):
             cores.append(
                 FunctionTrainCore(
                     [
-                        [self._init_constant_fun(1., nqoi), self._init_constant_fun(0., nqoi)],
-                        [univariate_funs[ii], self._init_constant_fun(1., nqoi)],
+                        [
+                            self._init_constant_fun(1.0, nqoi),
+                            self._init_constant_fun(0.0, nqoi),
+                        ],
+                        [
+                            univariate_funs[ii],
+                            self._init_constant_fun(1.0, nqoi),
+                        ],
                     ]
                 )
             )
         cores.append(
-            FunctionTrainCore([[self._init_constant_fun(1., nqoi)], [univariate_funs[nvars-1]]])
+            FunctionTrainCore(
+                [
+                    [self._init_constant_fun(1.0, nqoi)],
+                    [univariate_funs[nvars - 1]],
+                ]
+            )
         )
         return cores
 
@@ -241,17 +290,20 @@ class AdditiveFunctionTrain(FunctionTrain):
         nvars = len(univariate_funs)
         for ii in range(nvars):
             if not isinstance(univariate_funs[ii], BasisExpansion):
-                raise ValueError("univariate function must be a BasisExpansion")
+                raise ValueError(
+                    "univariate function must be a BasisExpansion"
+                )
             if type(self._bkd) is not type(univariate_funs[ii]._bkd):
                 raise ValueError(
                     "backends of univariate functions are not consistent"
                 )
 
+
 class TensorTrainSolver(ABC):
     @abstractmethod
     def solve(self, ft, samples, values):
         raise NotImplementedError
-    
+
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
@@ -267,14 +319,14 @@ class AlternatingLeastSquaresSolver(TensorTrainSolver):
 
     def __repr__(self):
         return "{0}(tol={1}, maxiters={2}, verbosity={3})".format(
-            self.__class__.__name__, self._tol, self._maxiters, self._verbosity)
-            
+            self.__class__.__name__, self._tol, self._maxiters, self._verbosity
+        )
+
     def _solve_core(self, ft, samples, values, core_id):
-        core = ft._cores[core_id]
         jac = ft._core_jacobian(samples, core_id)
         coefs = []
         for qq in range(ft.nqoi()):
-           coefs.append(self._bkd._la_lstsq(jac[qq], values[:, qq:qq+1]))
+            coefs.append(self._bkd._la_lstsq(jac[qq], values[:, qq : qq + 1]))
         return self._bkd._la_hstack(coefs).flatten()
 
     def solve(self, ft, samples, values):
@@ -282,8 +334,12 @@ class AlternatingLeastSquaresSolver(TensorTrainSolver):
         if ft.hyp_list.nvars() != ft.hyp_list.nactive_vars():
             raise ValueError(
                 "{0} only works if all hyperparameters are active but {1}".format(
-                    self, "nvars {0} != nactive_vars {1}".format(
-                        ft.hyp_list.nvars(), ft.hyp_list.nactive_vars())))
+                    self,
+                    "nvars {0} != nactive_vars {1}".format(
+                        ft.hyp_list.nvars(), ft.hyp_list.nactive_vars()
+                    ),
+                )
+            )
         if self._verbosity > 0:
             print(self)
             print(ft)
@@ -297,7 +353,9 @@ class AlternatingLeastSquaresSolver(TensorTrainSolver):
                 if self._verbosity > 0:
                     print(f"Terminating: maxiters {self._maxiters} reached")
                 break
-            loss = ft._bkd._la_mean(ft._bkd._la_norm(ft(samples)-values, axis=1))
+            loss = ft._bkd._la_mean(
+                ft._bkd._la_norm(ft(samples) - values, axis=1)
+            )
             if self._verbosity > 1:
                 print("it {0}: \t loss {1}".format(it, loss))
             if loss < self._tol:
@@ -307,7 +365,7 @@ class AlternatingLeastSquaresSolver(TensorTrainSolver):
 
 
 class NonlinearLeastSquaresSolver(TensorTrainSolver):
-    def __init__(self, optimizer : MultiStartOptimizer):
+    def __init__(self, optimizer: MultiStartOptimizer):
         if not isinstance(optimizer, MultiStartOptimizer):
             raise ValueError("Optimizer must be derived from Optimizer")
         self._optimizer = optimizer
@@ -315,8 +373,13 @@ class NonlinearLeastSquaresSolver(TensorTrainSolver):
 
     def _RMSE_loss(self, active_opt_params):
         self._ft.hyp_list.set_active_opt_params(active_opt_params[:, 0])
-        return self._bkd._la_atleast2d(self._bkd._la_mean(
-            self._bkd._la_norm((self._ft(self._train_samples)-self._train_values), axis=1))
+        return self._bkd._la_atleast2d(
+            self._bkd._la_mean(
+                self._bkd._la_norm(
+                    (self._ft(self._train_samples) - self._train_values),
+                    axis=1,
+                )
+            )
         )
 
     def _RMSE_jacobian(self, active_opt_params):
@@ -324,7 +387,6 @@ class NonlinearLeastSquaresSolver(TensorTrainSolver):
         for hyp in self._ft.hyp_list.hyper_params:
             self._bkd._la_detach(hyp)
         return self._bkd._la_detach(grad).T
-        
 
     def solve(self, ft, train_samples, train_values, init_iterate=None):
         self._ft = ft
@@ -335,11 +397,12 @@ class NonlinearLeastSquaresSolver(TensorTrainSolver):
             # to be more efficient by storing certain info
             # when sweeping through the cores
             raise NotImplementedError(
-                "Backend must support auto differentiation.")
+                "Backend must support auto differentiation."
+            )
         self._train_samples = train_samples
         self._train_values = train_values
         self._optimizer.set_bounds(self._ft.hyp_list.get_active_opt_bounds())
-        objective =  ModelFromCallable(
+        objective = ModelFromCallable(
             self._RMSE_loss, self._RMSE_jacobian, backend=self._ft._bkd
         )
         self._optimizer.set_objective_function(objective)
@@ -350,8 +413,8 @@ class NonlinearLeastSquaresSolver(TensorTrainSolver):
         res = self._optimizer.minimize(init_iterate)
         active_opt_params = res.x[:, 0]
         ft.hyp_list.set_active_opt_params(active_opt_params)
-        
-    def __repr__(self):
-        return "{0}(optimizer={1})".format(self.__class__.__name__, self._optimizer)
-    
 
+    def __repr__(self):
+        return "{0}(optimizer={1})".format(
+            self.__class__.__name__, self._optimizer
+        )
