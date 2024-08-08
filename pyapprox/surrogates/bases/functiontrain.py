@@ -3,12 +3,11 @@ import copy
 # from pyapprox.interface.model import ModelFromCallable
 from pyapprox.surrogates.bases.basis import MonomialBasis
 from pyapprox.surrogates.bases.basisexp import (
-    RegressorMixin,
     BasisExpansion,
     MonomialExpansion,
-    LossFunction,
-    RMSELoss,
 )
+from pyapprox.surrogates.loss import LossFunction, RMSELoss
+from pyapprox.surrogates.regressor import Regressor
 from pyapprox.optimization.pya_minimize import (
     Optimizer, MultiStartOptimizer, OptimizationResult
 )
@@ -46,7 +45,7 @@ class HomogeneousFunctionTrainCore(FunctionTrainCore):
         )
 
 
-class FunctionTrain(RegressorMixin):
+class FunctionTrain(Regressor):
     def __init__(self, cores, nqoi=1):
         if cores[0]._ranks[0] != 1:
             raise ValueError(

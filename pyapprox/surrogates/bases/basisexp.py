@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 import copy
 
 import numpy as np
@@ -13,83 +12,10 @@ from pyapprox.util.hyperparameter import (
 from pyapprox.surrogates.interp.manipulate_polynomials import add_polynomials
 from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions)
+from pyapprox.surrogates.regressor import Regressor
 
 
-# TODO moove Regressor and LossFunctions to higher level
-class RegressorMixin(ABC):
-    @abstractmethod
-    def fit(self, train_samples, train_values):
-        raise NotImplementedError
-
-    @staticmethod
-    def _check_training_data(train_samples, train_values):
-        if train_samples.shape[1] != train_values.shape[0]:
-            raise ValueError(
-                (
-                    "Number of cols of samples {0} does not match"
-                    + "number of rows of values"
-                ).format(train_samples.shape[1], train_values.shape[0])
-            )
-        return train_samples, train_values
-
-
-class LossFunction(Model):
-    def __init__(self):
-        super().__init__()
-        self._bkd = None
-        self._model = None
-
-    def set_model(self, model):
-        self._bkd = model._bkd
-        self._model = model
-        # TODO check if analytical jacobian available and use
-        # with chain rule to compute grad of objective but for
-        # now assume that autograd must be used
-        if not self._bkd._la_jacobian_implemented():
-            # todo implement gradients via custom backprop
-            # only requires slight modification of _core_jacobian
-            # to be more efficient by storing certain info
-            # when sweeping through the cores
-            raise NotImplementedError(
-                "Backend must support auto differentiation."
-            )
-
-    def _check_model(self, model):
-        if (
-            not hasattr(model, "_train_samples") or
-            model._train_samples is None
-        ):
-            raise ValueError("model must have attribute _train_samples")
-        if not hasattr(model, "_train_values") or model._train_values is None:
-            raise ValueError("model must have attribute _train_values")
-
-
-class RMSELoss(LossFunction):
-    def __init__(self):
-        super().__init__()
-        self._jacobian_implemented = True
-
-    def __call__(self, active_opt_params):
-        self._check_model(self._model)
-        self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
-        return self._bkd._la_atleast2d(
-            self._bkd._la_mean(
-                self._bkd._la_norm(
-                    (self._model(self._model._train_samples) - self._model._train_values),
-                    axis=1,
-                )
-            )
-        )
-
-    def _jacobian(self, active_opt_params):
-        val, grad = self._bkd._la_grad(self.__call__, active_opt_params)
-        # todo move detach to linalgmixin if needed
-        for hyp in self._model.hyp_list.hyper_params:
-            self._bkd._la_detach(hyp)
-        return self._bkd._la_detach(grad).T
-
-
-class BasisExpansion(Model, RegressorMixin):
+class BasisExpansion(Regressor):
     """The base class for any linear basis expansion for multiple
        quantities of interest (QoI)."""
 

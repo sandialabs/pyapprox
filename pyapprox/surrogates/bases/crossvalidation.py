@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 import itertools
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+
 from pyapprox.util.utilities import get_random_k_fold_sample_indices
-from pyapprox.surrogates.bases.basisexp import Regressor, BasisExpansion
+from pyapprox.surrogates.regressor import Regressor
+from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.surrogates.bases.linearsystemsolvers import OMPSolver
 
 
