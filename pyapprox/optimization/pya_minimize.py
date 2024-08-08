@@ -206,7 +206,7 @@ class Constraint(Model):
 class OptimizerIterateGenerator(ABC):
     def __init__(self, backend):
         self._bkd = backend
-    
+
     @abstractmethod
     def __call__(self):
         raise NotImplementedError
@@ -225,14 +225,13 @@ class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
             bounds = self._bkd._la_reshape(
                 self._bkd._la_repeat(bounds, self._nvars), (self._nvars, 2)
             )
-        print(bounds)
         if bounds.ndim != 2 or bounds.shape[1] != 2:
             raise ValueError("Bounds has the wrong shape")
         self._bounds = bounds
 
     def set_numeric_upper_bound(self, ub):
         self._numeric_upper_bound = ub
-    
+
     def __call__(self):
         if self._bounds is None:
             raise RuntimeError(
@@ -253,8 +252,10 @@ class Optimizer(ABC):
         self._objective = None
         self._bounds = None
 
-        self.set_objective_function(objective)
-        self.set_bounds(bounds)
+        if objective is not None:
+            self.set_objective_function(objective)
+        if bounds is not None:
+            self.set_bounds(bounds)
         self.set_options(**opts)
 
     def set_options(self, **opts):
@@ -280,9 +281,13 @@ class Optimizer(ABC):
         """
         if self._objective is None:
             raise RuntimeError("Must call set_objective_function")
+        if iterate.ndim != 2 or iterate.shape[1] != 1:
+            raise ValueError("iterate must be a 2D array with one column.")
         result = self._minimize(iterate)
         if not isinstance(result, OptimizationResult):
-            raise RuntimeError("{0}.minimize did not return OptimizationResult")
+            raise RuntimeError(
+                "{0}.minimize did not return OptimizationResult".format(self)
+            )
         return result
 
     def set_bounds(self, bounds):
@@ -294,7 +299,7 @@ class Optimizer(ABC):
         bounds : array (ndesign_vars, 2)
             The upper and lower bounds of each design variable
         """
-        if bounds is not None and (bounds.ndim != 2 or bounds.shape[1] != 2):
+        if (bounds.ndim != 2 or bounds.shape[1] != 2):
             raise ValueError("Bounds has the wrong shape")
         self._bounds = bounds
 
@@ -313,8 +318,6 @@ class Optimizer(ABC):
             where `x` and `val` are 1D arrays with shape (ndesign_vars,) and
             `val` is a float.
         """
-        if objective is None:
-            return
         if not isinstance(objective, Model):
             raise ValueError(
                 "objective must be an instance of {0}".format(
@@ -349,7 +352,9 @@ class Optimizer(ABC):
             iterate <= bounds[:, 1]).all()
 
     def __repr__(self):
-        return "{0}(verbosity={1})".format(self.__class__.__name__, self._verbosity)
+        return "{0}(verbosity={1})".format(
+            self.__class__.__name__, self._verbosity
+        )
 
 
 class MultiStartOptimizer(Optimizer):
@@ -380,7 +385,7 @@ class MultiStartOptimizer(Optimizer):
         if not isinstance(gen, OptimizerIterateGenerator):
             raise ValueError("gen is not an OptimizerIterateGenerator.")
         self._initial_interate_gen = gen
-        
+
     def set_objective_function(self, objective):
         self._optimizer.set_objective_function(objective)
         super().set_objective_function(objective)
@@ -390,9 +395,11 @@ class MultiStartOptimizer(Optimizer):
             raise ValueError("Must call set_initial_iterate_generator")
         best_res = self._optimizer.minimize(x0_global)
         if self._verbosity > 1:
-                print("it {1}: best objective {1}".format(0, best_res.fun))
+            print("it {0}: best objective {1}".format(0, best_res.fun))
         for ii in range(1, self._ncandidates):
-            res = self._optimizer.minimize(self._initial_interate_gen(), **kwargs)
+            res = self._optimizer.minimize(
+                self._initial_interate_gen(), **kwargs
+            )
             if res.fun < best_res.fun:
                 best_res = res
             if self._verbosity > 1:
@@ -476,7 +483,7 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             if self._verbosity > 0:
                 self._opts["disp"]=True
                 self._opts["iprint"] = self._verbosity
-            
+
         scipy_result = scipy_minimize(
             objective,
             init_guess[:, 0],
@@ -498,7 +505,7 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
 class SampleAverageStat(ABC):
     def __init__(self, backend=NumpyLinAlgMixin()):
         self._bkd = backend
-    
+
     @abstractmethod
     def __call__(self, values, weights):
         raise NotImplementedError

@@ -1,14 +1,17 @@
 import copy
-from abc import ABC, abstractmethod
 
-from pyapprox.interface.model import ModelFromCallable
+# from pyapprox.interface.model import ModelFromCallable
 from pyapprox.surrogates.bases.basis import MonomialBasis
 from pyapprox.surrogates.bases.basisexp import (
     RegressorMixin,
     BasisExpansion,
     MonomialExpansion,
+    LossFunction,
+    RMSELoss,
 )
-from pyapprox.optimization.pya_minimize import MultiStartOptimizer
+from pyapprox.optimization.pya_minimize import (
+    Optimizer, MultiStartOptimizer, OptimizationResult
+)
 
 
 class FunctionTrainCore:
@@ -210,18 +213,36 @@ class FunctionTrain(RegressorMixin):
             )
         return values[0, 0]
 
-    def set_solver(self, solver):
-        if not isinstance(solver, TensorTrainSolver):
-            raise ValueError("solver must be instance of TensorTrainSolver")
-        self._solver = solver
+    def set_loss(self, loss: LossFunction):
+        if not isinstance(loss, LossFunction):
+            raise ValueError(
+                "loss {0} must be instance of LossFunction".format(loss)
+            )
+        self._loss = loss
+        self._loss.set_model(self)
+        self._optimizer.set_objective_function(loss)
+        self._optimizer.set_bounds(self.hyp_list.get_active_opt_bounds())
 
-    def fit(self, train_samples, train_values):
+    def set_optimizer(self, optimizer: MultiStartOptimizer):
+        if not isinstance(optimizer, MultiStartOptimizer):
+            raise ValueError(
+                "optimizer {0} must be instance of MultiStartOptimizer".format(
+                    optimizer
+                )
+            )
+        self._optimizer = optimizer
+
+    def fit(self, train_samples, train_values, init_iterate=None):
         """Fit the expansion by finding the optimal coefficients."""
-        self._check_training_data(train_samples, train_values)
-        if self._solver is None:
-            raise RuntimeError("must call set_solver")
-
-        active_opt_params = self._solver.solve(self, train_values)
+        self._train_samples, self._train_values = self._check_training_data(
+            train_samples, train_values
+        )
+        if self._optimizer is None:
+            raise RuntimeError("must call set_optimizer")
+        if init_iterate is None:
+            init_iterate = self._optimizer._initial_interate_gen()
+        res = self._optimizer.minimize(init_iterate)
+        active_opt_params = res.x[:, 0]
         self.hyp_list.set_active_opt_params(active_opt_params)
 
     def __repr__(self):
@@ -299,43 +320,59 @@ class AdditiveFunctionTrain(FunctionTrain):
                 )
 
 
-class TensorTrainSolver(ABC):
-    @abstractmethod
-    def solve(self, ft, samples, values):
-        raise NotImplementedError
+class FunctionTrainAlternatingLstSqLoss(RMSELoss):
+    def __init__(self):
+        super().__init__()
+        self._jacobian_implemented = False
 
-    def __repr__(self):
-        return "{0}".format(self.__class__.__name__)
+    def set_model(self, model):
+        self._bkd = model._bkd
+        self._model = model
+
+    def _jacobian(self, samples):
+        raise NotImplementedError(
+            "AlternatingLstSqOptimizer will never call _jacobian")
 
 
-class AlternatingLeastSquaresSolver(TensorTrainSolver):
+class AlternatingLstSqOptimizer(Optimizer):
     def __init__(self, tol=1e-4, maxiters=10, verbosity=0):
         self._tol = tol
         self._maxiters = maxiters
         self._verbosity = verbosity
         self._bkd = None
-        self._train_samples = None
-        self._train_values = None
+        self._objective = None
 
     def __repr__(self):
         return "{0}(tol={1}, maxiters={2}, verbosity={3})".format(
             self.__class__.__name__, self._tol, self._maxiters, self._verbosity
         )
 
-    def _solve_core(self, ft, samples, values, core_id):
+    def set_objective_function(self, objective):
+        if not isinstance(objective, FunctionTrainAlternatingLstSqLoss):
+            raise ValueError(
+                "objective must be instance of AlternatingLstSqLoss"
+            )
+        super().set_objective_function(objective)
+
+    def _solve_core(self, samples, values, core_id):
+        ft = self._objective._model
         jac = ft._core_jacobian(samples, core_id)
         coefs = []
         for qq in range(ft.nqoi()):
             coefs.append(self._bkd._la_lstsq(jac[qq], values[:, qq : qq + 1]))
         return self._bkd._la_hstack(coefs).flatten()
 
-    def solve(self, ft, samples, values):
+    def _minimize(self, iterate):
+        ft = self._objective._model
+        ft.hyp_list.set_active_opt_params(iterate[:, 0])
+        samples = ft._train_samples
+        values = ft._train_values
         self._bkd = ft._bkd
         if ft.hyp_list.nvars() != ft.hyp_list.nactive_vars():
             raise ValueError(
-                "{0} only works if all hyperparameters are active but {1}".format(
+                "{0} only works if all hyperparameters are active {1}".format(
                     self,
-                    "nvars {0} != nactive_vars {1}".format(
+                    "but nvars {0} != nactive_vars {1}".format(
                         ft.hyp_list.nvars(), ft.hyp_list.nactive_vars()
                     ),
                 )
@@ -346,7 +383,7 @@ class AlternatingLeastSquaresSolver(TensorTrainSolver):
         it = 0
         while True:
             for ii in range(ft.nvars()):
-                coefs = self._solve_core(ft, samples, values, ii)
+                coefs = self._solve_core(samples, values, ii)
                 ft._cores[ii].hyp_list.set_active_opt_params(coefs)
             it += 1
             if it >= self._maxiters:
@@ -362,59 +399,10 @@ class AlternatingLeastSquaresSolver(TensorTrainSolver):
                 if self._verbosity > 0:
                     print(f"Terminating: tolerance {self._tol} reached")
                 break
-
-
-class NonlinearLeastSquaresSolver(TensorTrainSolver):
-    def __init__(self, optimizer: MultiStartOptimizer):
-        if not isinstance(optimizer, MultiStartOptimizer):
-            raise ValueError("Optimizer must be derived from Optimizer")
-        self._optimizer = optimizer
-        self._ft = None
-
-    def _RMSE_loss(self, active_opt_params):
-        self._ft.hyp_list.set_active_opt_params(active_opt_params[:, 0])
-        return self._bkd._la_atleast2d(
-            self._bkd._la_mean(
-                self._bkd._la_norm(
-                    (self._ft(self._train_samples) - self._train_values),
-                    axis=1,
-                )
-            )
-        )
-
-    def _RMSE_jacobian(self, active_opt_params):
-        val, grad = self._bkd._la_grad(self._RMSE_loss, active_opt_params)
-        for hyp in self._ft.hyp_list.hyper_params:
-            self._bkd._la_detach(hyp)
-        return self._bkd._la_detach(grad).T
-
-    def solve(self, ft, train_samples, train_values, init_iterate=None):
-        self._ft = ft
-        self._bkd = self._ft._bkd
-        if not self._bkd._la_jacobian_implemented():
-            # todo implement gradients via custom backprop
-            # only requires slight modification of _core_jacobian
-            # to be more efficient by storing certain info
-            # when sweeping through the cores
-            raise NotImplementedError(
-                "Backend must support auto differentiation."
-            )
-        self._train_samples = train_samples
-        self._train_values = train_values
-        self._optimizer.set_bounds(self._ft.hyp_list.get_active_opt_bounds())
-        objective = ModelFromCallable(
-            self._RMSE_loss, self._RMSE_jacobian, backend=self._ft._bkd
-        )
-        self._optimizer.set_objective_function(objective)
-        if init_iterate is None:
-            init_iterate = self._optimizer._initial_interate_gen()
-        # objective.check_apply_jacobian(init_iterate, disp=True)
-        # objective.check_apply_jacobian(gen(), disp=True)
-        res = self._optimizer.minimize(init_iterate)
-        active_opt_params = res.x[:, 0]
-        ft.hyp_list.set_active_opt_params(active_opt_params)
-
-    def __repr__(self):
-        return "{0}(optimizer={1})".format(
-            self.__class__.__name__, self._optimizer
-        )
+        result = OptimizationResult()
+        result.x = ft.hyp_list.get_active_opt_params()[:, None]
+        result.fun = self._objective(result.x)
+        result.niters = it
+        if self._verbosity > 0:
+            print(result)
+        return result
