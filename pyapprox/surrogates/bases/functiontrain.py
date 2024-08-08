@@ -7,7 +7,7 @@ from pyapprox.surrogates.bases.basisexp import (
     MonomialExpansion,
 )
 from pyapprox.surrogates.loss import LossFunction, RMSELoss
-from pyapprox.surrogates.regressor import Regressor
+from pyapprox.surrogates.regressor import OptimizedRegressor
 from pyapprox.optimization.pya_minimize import (
     Optimizer, MultiStartOptimizer, OptimizationResult
 )
@@ -45,7 +45,7 @@ class HomogeneousFunctionTrainCore(FunctionTrainCore):
         )
 
 
-class FunctionTrain(Regressor):
+class FunctionTrain(OptimizedRegressor):
     def __init__(self, cores, nqoi=1):
         if cores[0]._ranks[0] != 1:
             raise ValueError(
@@ -67,7 +67,6 @@ class FunctionTrain(Regressor):
         self._bkd = self.hyp_list._bkd
         self._nqoi = nqoi
         self._samples = None
-        self._solver = None
 
     def nvars(self):
         return len(self._cores)
