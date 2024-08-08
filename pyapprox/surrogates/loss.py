@@ -24,12 +24,12 @@ class LossFunction(Model):
 
     def _check_model(self, model):
         if (
-            not hasattr(model, "_train_samples") or
-            model._train_samples is None
+            not hasattr(model, "_ctrain_samples") or
+            model._ctrain_samples is None
         ):
-            raise ValueError("model must have attribute _train_samples")
-        if not hasattr(model, "_train_values") or model._train_values is None:
-            raise ValueError("model must have attribute _train_values")
+            raise ValueError("model must have attribute _ctrain_samples")
+        if not hasattr(model, "_ctrain_values") or model._ctrain_values is None:
+            raise ValueError("model must have attribute _ctrain_values")
 
 
 class RMSELoss(LossFunction):
@@ -43,7 +43,10 @@ class RMSELoss(LossFunction):
         return self._bkd._la_atleast2d(
             self._bkd._la_mean(
                 self._bkd._la_norm(
-                    (self._model(self._model._train_samples) - self._model._train_values),
+                    (
+                        self._model(self._model._ctrain_samples) -
+                        self._model._ctrain_values
+                    ),
                     axis=1,
                 )
             )

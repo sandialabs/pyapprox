@@ -342,3 +342,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_meshgrid(*arrays, indexing="xy"):
         return np.meshgrid(*arrays, indexing=indexing)
+
+    @staticmethod
+    def _la_tanh(array):
+        raise np.tanh(array)

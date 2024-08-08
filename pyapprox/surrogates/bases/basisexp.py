@@ -2,7 +2,6 @@ import copy
 
 import numpy as np
 
-from pyapprox.interface.model import Model
 from pyapprox.surrogates.bases.basis import (
     Basis, OrthonormalPolynomialBasis, MonomialBasis)
 from pyapprox.surrogates.bases.linearsystemsolvers import (
@@ -108,18 +107,17 @@ class BasisExpansion(Regressor):
         return "{0}(basis={1}, nqoi={2})".format(
             self.__class__.__name__, self.basis, self.nqoi())
 
-    def fit(self, samples, values):
+    def _fit(self, iterate):
         """Fit the expansion by finding the optimal coefficients. """
-        if samples.shape[1] != values.shape[0]:
-            raise ValueError(
-                ("Number of cols of samples {0} does not match" +
-                 "number of rows of values").format(
-                     samples.shape[1], values.shape[0]))
-        if values.shape[1] != self.nqoi():
+        if iterate is not None:
+            raise ValueError("iterate will be ignored set to None")
+        if self._ctrain_values.shape[1] != self.nqoi():
             raise ValueError(
                 "Number of cols {0} in values does not match nqoi {1}".format(
-                    values.shape[1], self.nqoi()))
-        coef = self._solver.solve(self.basis(samples), values)
+                    self._ctrain_values.shape[1], self.nqoi()))
+        coef = self._solver.solve(
+            self.basis(self._ctrain_samples), self._ctrain_values
+        )
         self.set_coefficients(coef)
 
 

@@ -47,6 +47,7 @@ class HomogeneousFunctionTrainCore(FunctionTrainCore):
 
 class FunctionTrain(OptimizedRegressor):
     def __init__(self, cores, nqoi=1):
+        super().__init__(cores[0]._bkd)
         if cores[0]._ranks[0] != 1:
             raise ValueError(
                 "First rank of first core must be 1 but was {0}".format(
@@ -230,11 +231,8 @@ class FunctionTrain(OptimizedRegressor):
             )
         self._optimizer = optimizer
 
-    def fit(self, train_samples, train_values, init_iterate=None):
+    def _fit(self, init_iterate):
         """Fit the expansion by finding the optimal coefficients."""
-        self._train_samples, self._train_values = self._check_training_data(
-            train_samples, train_values
-        )
         if self._optimizer is None:
             raise RuntimeError("must call set_optimizer")
         if init_iterate is None:
@@ -360,12 +358,16 @@ class AlternatingLstSqOptimizer(Optimizer):
             coefs.append(self._bkd._la_lstsq(jac[qq], values[:, qq : qq + 1]))
         return self._bkd._la_hstack(coefs).flatten()
 
-    def _minimize(self, iterate):
-        ft = self._objective._model
-        ft.hyp_list.set_active_opt_params(iterate[:, 0])
-        samples = ft._train_samples
-        values = ft._train_values
-        self._bkd = ft._bkd
+    def _create_result(self, ft, it):
+        result = OptimizationResult()
+        result.x = ft.hyp_list.get_active_opt_params()[:, None]
+        result.fun = self._objective(result.x)
+        result.niters = it
+        if self._verbosity > 0:
+            print(result)
+        return result
+
+    def _check_active_opt_params(self, ft):
         if ft.hyp_list.nvars() != ft.hyp_list.nactive_vars():
             raise ValueError(
                 "{0} only works if all hyperparameters are active {1}".format(
@@ -375,6 +377,14 @@ class AlternatingLstSqOptimizer(Optimizer):
                     ),
                 )
             )
+
+    def _minimize(self, iterate):
+        ft = self._objective._model
+        ft.hyp_list.set_active_opt_params(iterate[:, 0])
+        samples = ft._ctrain_samples
+        values = ft._ctrain_values
+        self._bkd = ft._bkd
+        self._check_active_opt_params(ft)
         if self._verbosity > 0:
             print(self)
             print(ft)
@@ -388,8 +398,8 @@ class AlternatingLstSqOptimizer(Optimizer):
                 if self._verbosity > 0:
                     print(f"Terminating: maxiters {self._maxiters} reached")
                 break
-            loss = ft._bkd._la_mean(
-                ft._bkd._la_norm(ft(samples) - values, axis=1)
+            loss = self._objective(
+                ft.hyp_list.get_active_opt_params()[:, None]
             )
             if self._verbosity > 1:
                 print("it {0}: \t loss {1}".format(it, loss))
@@ -397,10 +407,5 @@ class AlternatingLstSqOptimizer(Optimizer):
                 if self._verbosity > 0:
                     print(f"Terminating: tolerance {self._tol} reached")
                 break
-        result = OptimizationResult()
-        result.x = ft.hyp_list.get_active_opt_params()[:, None]
-        result.fun = self._objective(result.x)
-        result.niters = it
-        if self._verbosity > 0:
-            print(result)
+        result = self._create_result(ft, it)
         return result

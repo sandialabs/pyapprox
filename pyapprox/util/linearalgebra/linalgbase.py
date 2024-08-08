@@ -636,3 +636,8 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def _la_meshgrid(*args, **kwargs):
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _la_tanh(array):
+        raise NotImplementedError

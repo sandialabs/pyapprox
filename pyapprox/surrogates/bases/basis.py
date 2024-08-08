@@ -203,6 +203,13 @@ class MonomialBasis(MultiIndexBasis):
 class OrthonormalPolynomialBasis(MultiIndexBasis):
     """Multivariate orthogonal polynomial basis."""
 
+    # TODO: consider adding transform to OthogonalPolyBasis as
+    # regressor should not have to know about constraints on
+    # poly for instance Legendre samples must be in [-1, 1].
+    # The regressor could apply another transform on top of this
+    # but only for consistency with other regressors as
+    # a second transform would not be necessary if poly
+    # had its own.
     def __init__(self, polys_1d, indices=None):
         """
         Parameters

@@ -16,6 +16,11 @@ from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
 )
 
 
+# todo derive this from univariatebasis in surrogates.interp.tensor_prod
+# this will require updating orthogonalpolybasis to pass in
+# 2D row vectors rather than 1D arrays
+# move univariatebasis from surrogates.interp.tensor_prod to its own file
+# TODO all new classes should accept values as array (nqoi, nsamples)
 class OrthonormalPolynomial1D(ABC):
     def __init__(self, backend):
         self._rcoefs = None

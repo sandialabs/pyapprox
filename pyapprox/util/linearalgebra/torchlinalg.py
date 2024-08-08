@@ -374,3 +374,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_meshgrid(*arrays, indexing="xy"):
         return torch.meshgrid(*arrays, indexing=indexing)
+
+    @staticmethod
+    def _la_tanh(array):
+        raise torch.tanh(array)
