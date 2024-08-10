@@ -54,16 +54,17 @@ A proof of this lemma can be found `here <https://eng.libretexts.org/Workbench/M
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.surrogates.interp.tensorprod import (
-    UnivariatePiecewiseQuadraticBasis, UnivariateLagrangeBasis,
-    TensorProductInterpolant)
+from pyapprox.surrogates.bases.univariate import (
+    UnivariatePiecewiseQuadraticBasis, UnivariateLagrangeBasis)
+from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 
 
 #The following code compares polynomial and piecewise polynomial univariate basis functions.
 nnodes = 5
 samples = np.linspace(-1, 1, 201)[None, :]
 ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
-cheby_nodes = np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
+cheby_nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
 lagrange_basis = UnivariateLagrangeBasis()
 lagrange_basis.set_nodes(cheby_nodes)
 lagrange_basis_vals = lagrange_basis(samples)
@@ -89,20 +90,24 @@ def fun(samples):
     return yy[:, None]
 
 
-lagrange_interpolant = TensorProductInterpolant([lagrange_basis])
-quadratic_interpolant = TensorProductInterpolant([quadratic_basis])
+lagrange_interpolant = TensorProductInterpolant(
+    TensorProductInterpolatingBasis([lagrange_basis]))
+quadratic_interpolant = TensorProductInterpolant(
+    TensorProductInterpolatingBasis([quadratic_basis]))
 axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
 [ax.plot(samples[0], fun(samples)) for ax in axs]
 cheby_nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
-values = fun(cheby_nodes)
-lagrange_interpolant.fit([cheby_nodes], values)
+cheby_values = fun(cheby_nodes)
+lagrange_interpolant._basis.set_1d_nodes([cheby_nodes])
+lagrange_interpolant.fit(cheby_values)
 equidistant_nodes = np.linspace(-1, 1, nnodes)[None, :]
-values = fun(equidistant_nodes)
-quadratic_interpolant.fit([equidistant_nodes], values)
+equidistant_values = fun(equidistant_nodes)
+quadratic_interpolant._basis.set_1d_nodes([equidistant_nodes])
+quadratic_interpolant.fit(equidistant_values)
 axs[0].plot(samples[0], lagrange_interpolant(samples), ':')
-axs[0].plot(cheby_nodes[0], values, 'o')
+axs[0].plot(cheby_nodes[0], cheby_values, 'o')
 axs[1].plot(samples[0], quadratic_interpolant(samples), '--')
-_ = axs[1].plot(equidistant_nodes[0], values, 's')
+_ = axs[1].plot(equidistant_nodes[0], equidistant_values, 's')
 
 #%%
 #The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.
@@ -113,12 +118,14 @@ _ = axs[1].plot(equidistant_nodes[0], values, 's')
 axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
 [ax.plot(samples[0], fun(samples)) for ax in axs]
 for nnodes in [3, 5, 9, 17]:
-    nodes = np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
+    nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
     values = fun(nodes)
-    lagrange_interpolant.fit([nodes], values)
+    lagrange_interpolant._basis.set_1d_nodes([nodes])
+    lagrange_interpolant.fit(values)
     nodes = np.linspace(-1, 1, nnodes)[None, :]
     values = fun(nodes)
-    quadratic_interpolant.fit([nodes], values)
+    quadratic_interpolant._basis.set_1d_nodes([nodes])
+    quadratic_interpolant.fit(values)
     axs[0].plot(samples[0], lagrange_interpolant(samples), ':')
     _ = axs[1].plot(samples[0], quadratic_interpolant(samples), '--')
 
@@ -126,14 +133,13 @@ for nnodes in [3, 5, 9, 17]:
 #%%
 #Probability aware interpolation for UQ
 #--------------------------------------
-#When interpolants are used for UQ we do not need the approximation to be accurate everywhere but rather only in regions of high-probability. First lets see what happens when we approximate a function using an interpolant that targets accuracy with respect to a dominating measure :math:`\nu` when really needed an approximation that targets accuracy with respect to a different measure :math:`w`.
+#When interpolants are used for UQ we do not need the approximation to be accurate everywhere but rather only in regions of high-probability. First lets see what happens when we approximate a function using an interpolant that targets accuracy with respect to a dominating measure :math:`\nu` when really needed an approximation that targets accuracy with respect to a different measure :math:`w` [XJD2013]_
 
 from scipy import stats
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.benchmarks import setup_benchmark
 from pyapprox.surrogates.orthopoly.quadrature import (
     gauss_jacobi_pts_wts_1D)
-from pyapprox.util.utilities import cartesian_product
 
 nvars = 1
 c = np.array([20])
@@ -145,20 +151,24 @@ alpha_stat, beta_stat = 11, 11
 true_rv = IndependentMarginalsVariable(
     [stats.beta(a=alpha_stat, b=beta_stat)]*nvars)
 
-interp = TensorProductInterpolant([lagrange_basis]*nvars)
-opt_interp = TensorProductInterpolant([lagrange_basis]*nvars)
-
 alpha_poly, beta_poly = 0, 0
 ntrain_samples = 7
 xx = gauss_jacobi_pts_wts_1D(ntrain_samples, alpha_poly, beta_poly)[0]
-train_samples = cartesian_product([(xx+1)/2]*nvars)
-train_values = benchmark.fun(train_samples)
-interp.fit([(xx[None, :]+1)/2]*nvars, train_values)
-
 opt_xx = gauss_jacobi_pts_wts_1D(ntrain_samples, beta_stat-1, alpha_stat-1)[0]
-opt_train_samples = cartesian_product([(opt_xx+1)/2]*nvars)
+
+interp = TensorProductInterpolant(
+    TensorProductInterpolatingBasis([lagrange_basis]))
+interp._basis.set_1d_nodes([(xx[None, :]+1)/2])
+opt_interp = TensorProductInterpolant(
+    TensorProductInterpolatingBasis([lagrange_basis]))
+opt_interp._basis.set_1d_nodes([(opt_xx[None, :]+1)/2])
+train_samples = interp._basis.tensor_product_grid()
+train_values = benchmark.fun(train_samples)
+interp.fit(train_values)
+
+opt_train_samples = opt_interp._basis.tensor_product_grid()
 opt_train_values = benchmark.fun(opt_train_samples)
-opt_interp.fit([(opt_xx[None, :]+1)/2]*nvars, opt_train_values)
+opt_interp.fit(opt_train_values)
 
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
@@ -182,69 +192,10 @@ ax.fill_between(
     label=r'$%s(z)$' % pbwt)
 ax.set_xlabel(r'$M$', fontsize=24)
 _ = ax.legend(fontsize=18, loc="upper right")
+plt.show()
 
 #%%
 #As you can see the approximation that targets the uniform norm is "more accurate" on average over the domain, but the interpolant that directly targets accuracy with respect to the desired Beta distribution is more accurate in the regions of non-negligible probability.
-
-#%%
-#Now lets looks at how the accuracy changes with the "distance" between the dominating and target measures. This demonstrates the numerical impact of the main theorem in [XJD2013]_.
-
-
-def compute_density_ratio_beta(num, true_rv, alpha_stat_2, beta_stat_2):
-    beta_rv2 = IndependentMarginalsVariable(
-        [stats.beta(a=alpha_stat_2, b=beta_stat_2)]*nvars)
-    print(beta_rv2, true_rv)
-    xx = np.random.uniform(0, 1, (nvars, 100000))
-    density_ratio = true_rv.pdf(xx)/beta_rv2.pdf(xx)
-    II = np.where(np.isnan(density_ratio))[0]
-    assert II.shape[0] == 0
-    return density_ratio.max()
-
-
-def compute_L2_error(interp, validation_samples, validation_values):
-    nvalidation_samples = validation_values.shape[0]
-    approx_vals = interp(validation_samples)
-    l2_error = np.linalg.norm(validation_values-approx_vals)/np.sqrt(
-        nvalidation_samples)
-    return l2_error
-
-
-nvars = 3
-c = np.array([20, 20, 20])
-w = np.array([0, 0, 0])
-benchmark = setup_benchmark(
-    "genz", test_name="oscillatory", nvars=nvars, coeff=[c, w])
-true_rv = IndependentMarginalsVariable(
-    [stats.beta(a=alpha_stat, b=beta_stat)]*nvars)
-
-nvalidation_samples = 1000
-validation_samples = true_rv.rvs(nvalidation_samples)
-validation_values = benchmark.fun(validation_samples)
-interp = TensorProductInterpolant([lagrange_basis]*nvars)
-
-alpha_polys = np.arange(0., 11., 2.)
-ntrain_samples_list = np.arange(2, 20, 2)
-ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-for alpha_poly in alpha_polys:
-    beta_poly = alpha_poly
-    density_ratio = compute_density_ratio_beta(
-        nvars, true_rv, beta_poly+1, alpha_poly+1)
-    results = []
-    for ntrain_samples in ntrain_samples_list:
-        xx = gauss_jacobi_pts_wts_1D(ntrain_samples, alpha_poly, beta_poly)[0]
-        nodes_1d = [(xx+1)/2]*nvars
-        train_samples = cartesian_product(nodes_1d)
-        train_values = benchmark.fun(train_samples)
-        interp.fit([(xx[None, :]+1)/2]*nvars, train_values)
-        l2_error = compute_L2_error(
-            interp, validation_samples, validation_values)
-        results.append(l2_error)
-    ax.semilogy(ntrain_samples_list, results,
-                label="{0:1.2f}".format(density_ratio))
-
-ax.set_xlabel(r'$M$', fontsize=24)
-ax.set_ylabel(r'$\| f-f_M^\nu\|_{L^2_%s}$' % pbwt, fontsize=24)
-_ = ax.legend(ncol=2)
 
 #%%
 #References

@@ -330,3 +330,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_tanh(array):
         raise np.tanh(array)
+
+    @staticmethod
+    def _la_diff(array):
+        return np.diff(array)

@@ -3,7 +3,8 @@ import copy
 import numpy as np
 
 from pyapprox.surrogates.bases.basis import (
-    Basis, OrthonormalPolynomialBasis, MonomialBasis)
+    Basis, OrthonormalPolynomialBasis, MultiIndexBasis,
+    TensorProductInterpolatingBasis)
 from pyapprox.surrogates.bases.linearsystemsolvers import (
     LinearSystemSolver)
 from pyapprox.util.hyperparameter import (
@@ -12,6 +13,7 @@ from pyapprox.surrogates.interp.manipulate_polynomials import add_polynomials
 from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions)
 from pyapprox.surrogates.regressor import Regressor
+from pyapprox.surrogates.bases.univariate import Monomial1D
 
 
 class BasisExpansion(Regressor):
@@ -123,8 +125,13 @@ class BasisExpansion(Regressor):
 
 class MonomialExpansion(BasisExpansion):
     def _parse_basis(self, basis):
-        if not isinstance(basis, MonomialBasis):
-            raise ValueError("basis must be a MonomialBasis")
+        if not isinstance(basis, MultiIndexBasis):
+            raise ValueError("basis must be a MultiIndexBasis")
+        for basis_1d in basis._bases_1d:
+            if not isinstance(basis_1d, Monomial1D):
+                raise ValueError(
+                    "each 1d basis bust be instance of Monomial1D"
+                )
         return basis
 
     def _group_like_terms(self, coeffs, indices):
@@ -273,6 +280,8 @@ class MonomialExpansion(BasisExpansion):
 
 class PolynomialChaosExpansion(MonomialExpansion):
     def _parse_basis(self, basis):
+        if not isinstance(basis, MultiIndexBasis):
+            raise ValueError("basis must be a MultiIndexBasis")
         if not isinstance(basis, OrthonormalPolynomialBasis):
             raise ValueError("basis must be an OrthonormalPolynomialBasis")
         return basis
@@ -317,20 +326,20 @@ class PolynomialChaosExpansion(MonomialExpansion):
     def _compute_product_coeffs_1d(
             self, poly, max_degrees1, max_degrees2):
         product_coefs_1d = []
-        for ii, poly in enumerate(self.basis._polys_1d):
+        for ii, poly in enumerate(self.basis._bases_1d):
             max_degree1 = max_degrees1[ii]
             max_degree2 = max_degrees2[ii]
             assert max_degree1 >= max_degree2
             max_degree = max_degree1+max_degree2
             nquad_points = max_degree+1
 
-            poly.set_recursion_coefficients(nquad_points)
+            poly.set_nterms(nquad_points)
             x_quad, w_quad = poly.gauss_quadrature_rule(nquad_points)
-            w_quad = w_quad[:, None]
+            w_quad = w_quad
 
             # evaluate the orthonormal basis at the quadrature points. This can
             # be computed once for all degrees up to the maximum degree
-            ortho_basis_matrix = poly(x_quad, max_degree)
+            ortho_basis_matrix = poly(x_quad)
 
             # compute coefficients of orthonormal basis using pseudo
             # spectral projection
@@ -382,7 +391,7 @@ class PolynomialChaosExpansion(MonomialExpansion):
             np.setdiff1d(np.arange(self.nvars()),
                          self._bkd._la_to_numpy(inactive_idx)), dtype=int)
         marginalized_polys_1d = [
-            copy.deepcopy(self.basis._polys_1d[ii]) for ii in active_idx]
+            copy.deepcopy(self.basis._bases_1d[ii]) for ii in active_idx]
         marginalized_basis = OrthonormalPolynomialBasis(marginalized_polys_1d)
         marginalized_array_indices = []
         for ii, index in enumerate(self.basis.get_indices().T):
@@ -400,3 +409,35 @@ class PolynomialChaosExpansion(MonomialExpansion):
             self._bkd._la_copy(
                 self.get_coefficients()[marginalized_array_indices, :]))
         return marginalized_pce
+
+
+class TensorProductInterpolant:
+    def __init__(self, basis: TensorProductInterpolatingBasis):
+        if not isinstance(basis, TensorProductInterpolatingBasis):
+            raise ValueError(
+                "{0} is not an instance of {1}".format(
+                    basis, "TensorProductInterpolatingBasis"
+                )
+            )
+        self._basis = basis
+        self._bkd = basis._bkd
+
+    def fit(self, values):
+        # fit does not have samples like most surrogates because the samples
+        # are predetermined by self._basis
+        if values.shape[0] != self._basis.nterms():
+            raise ValueError("nodes_1d and values are inconsistent")
+        if values.ndim != 2:
+            raise ValueError("values must be a 2d array")
+        self._values = values
+
+    def __call__(self, samples):
+        basis_mat = self._basis(samples)
+        return basis_mat @ self._values
+
+    def __repr__(self):
+        return "{0}(basis={1})".format(self.__class__.__name__, self._basis)
+
+    def integrate(self):
+        quad_weights = self._basis.quadrature_rule()[1]
+        return (self._values.T @ quad_weights)[:, 0]

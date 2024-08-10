@@ -4,7 +4,6 @@ from warnings import warn
 
 from scipy.special import gammaln
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
     jacobi_recurrence,
     hermite_recurrence,
@@ -14,6 +13,7 @@ from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
     discrete_chebyshev_recurrence,
     laguerre_recurrence,
 )
+from pyapprox.surrogates.bases.univariate import UnivariateBasis
 
 
 # todo derive this from univariatebasis in surrogates.interp.tensor_prod
@@ -21,12 +21,10 @@ from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
 # 2D row vectors rather than 1D arrays
 # move univariatebasis from surrogates.interp.tensor_prod to its own file
 # TODO all new classes should accept values as array (nqoi, nsamples)
-class OrthonormalPolynomial1D(ABC):
+class OrthonormalPolynomial1D(UnivariateBasis):
     def __init__(self, backend):
+        super().__init__(backend)
         self._rcoefs = None
-        if backend is None:
-            backend = NumpyLinAlgMixin()
-        self._bkd = backend
         self._prob_meas = True
 
     def _ncoefs(self):
@@ -38,12 +36,15 @@ class OrthonormalPolynomial1D(ABC):
     def _get_recursion_coefficients(self, ncoefs):
         raise NotImplementedError
 
-    def set_recursion_coefficients(self, ncoefs):
+    def set_nterms(self, nterms):
         """Compute and set the recursion coefficients of the polynomial."""
-        if self._rcoefs is None or self._ncoefs() < ncoefs:
+        if self._rcoefs is None or self._ncoefs() < nterms:
             self._rcoefs = self._bkd._la_array(
-                self._get_recursion_coefficients(ncoefs)
+                self._get_recursion_coefficients(nterms)
             )
+
+    def nterms(self):
+        return self._rcoefs.shape[0]
 
     def _opts_equal(self, other):
         return True
@@ -58,31 +59,24 @@ class OrthonormalPolynomial1D(ABC):
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
-    def _values(self, samples, nmax):
+    def _values(self, samples):
         if self._rcoefs is None:
             raise ValueError("Must set recursion coefficients.")
-        if nmax >= self._rcoefs.shape[0]:
-            raise ValueError(
-                "The number of polynomial terms requested {0} {1}".format(
-                    nmax,
-                    "exceeds number of rcoefs {0}".format(
-                        self._rcoefs.shape[0]
-                    ),
-                )
-            )
-
+        # samples passed in is 2D array with shape [1, nsamples]
+        # so squeeze to 1D array
+        samples = samples[0]
         nsamples = samples.shape[0]
 
         vals = [self._bkd._la_full((nsamples,), 1.0 / self._rcoefs[0, 1])]
 
-        if nmax > 0:
+        if self.nterms() > 1:
             vals.append(
                 1
                 / self._rcoefs[1, 1]
                 * ((samples - self._rcoefs[0, 0]) * vals[0])
             )
 
-        for jj in range(2, nmax + 1):
+        for jj in range(2, self.nterms()):
             vals.append(
                 1.0
                 / self._rcoefs[jj, 1]
@@ -93,7 +87,7 @@ class OrthonormalPolynomial1D(ABC):
             )
         return self._bkd._la_stack(vals, axis=1)
 
-    def derivatives(self, samples, nmax, order, return_all=False):
+    def _derivatives(self, samples, order, return_all=False):
         """
         Compute the first n dervivatives of the polynomial.
         """
@@ -101,9 +95,14 @@ class OrthonormalPolynomial1D(ABC):
             raise ValueError(
                 "derivative order {0} must be greater than zero".format(order)
             )
-        vals = self._values(samples, nmax)
+        vals = self._values(samples)
+
+        # samples passed in is 2D array with shape [1, nsamples]
+        # so squeeze to 1D array
+        samples = samples[0]
         nsamples = samples.shape[0]
-        nindices = nmax + 1
+
+        nindices = self.nterms()
         a = self._rcoefs[:, 0]
         b = self._rcoefs[:, 1]
 
@@ -183,14 +182,10 @@ class OrthonormalPolynomial1D(ABC):
         if self._prob_meas:
             w = b[0] * eigvecs[0, :] ** 2
         else:
-            print("A")
-            w = self(x, npoints - 1)
+            w = self(x[None, :], npoints - 1)
             w = 1.0 / self._bkd._la_sum(w**2, axis=1)
         # w[~self._bkd._la_isfinite(w)] = 0.
-        return x, w
-
-    def __call__(self, samples, nmax):
-        return self._values(samples, nmax)
+        return x[None, :], w[:, None]
 
     def _three_term_recurence(self):
         r"""

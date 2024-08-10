@@ -1,7 +1,8 @@
 import copy
 
 # from pyapprox.interface.model import ModelFromCallable
-from pyapprox.surrogates.bases.basis import MonomialBasis
+from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import (
     BasisExpansion,
     MonomialExpansion,
@@ -261,8 +262,8 @@ class AdditiveFunctionTrain(FunctionTrain):
         super().__init__(cores, nqoi)
 
     def _init_constant_fun(self, fill_value, nqoi):
-        constant_basis = MonomialBasis(backend=self._bkd)
-        constant_basis.set_hyperbolic_indices(1, 0, 1.0)
+        constant_basis = MultiIndexBasis([Monomial1D(backend=self._bkd)])
+        constant_basis.set_hyperbolic_indices(0, 1.0)
         fun = MonomialExpansion(
             constant_basis, coef_bounds=[fill_value, fill_value], nqoi=nqoi
         )

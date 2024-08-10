@@ -110,3 +110,32 @@ class OptimizedRegressor(Regressor):
         res = self._optimizer.minimize(iterate)
         active_opt_params = res.x[:, 0]
         self.hyp_list.set_active_opt_params(active_opt_params)
+
+
+def QuadratureRule(ABC):
+    @abstractmethod
+    def __call__(self):
+        raise NotImplementedError
+
+
+def TensorProductQuadratureRule(QuadratureRule):
+    def __init__(self, basis):
+        if not isinstance(basis, TensorProductBasis):
+            raise ValueError("basis must be instance of MultiIndexBasis")
+        self._basis = basis
+        self._bkd = basis._bkd
+        self._samples = None
+        self._weights = None
+        self._compute_rule()
+
+    def _compute_rule(self):
+        samples_1d, weights_1d = [], []
+        for dd in range(self._basis.nvars()):
+            xx, ww = self._basis.univariate_quadrature(dd)
+            samples_1d.append(xx)
+            weights_1d.append(ww)
+        self._samples = self._bkd._la_cartesian_product(samples_1d)
+        self._weights = self._bkd._la_outer_product(weights_1d)
+
+    def __call__(self):
+        return self._samples, self._weights

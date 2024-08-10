@@ -5,7 +5,8 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.basis import MonomialBasis
+from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import MonomialExpansion
 from pyapprox.surrogates.loss import RMSELoss
 from pyapprox.surrogates.bases.functiontrain import (
@@ -34,7 +35,7 @@ class TestFunctionTrain:
 
         nterms = 3
         nqoi = 2
-        basis = MonomialBasis(backend=bkd)
+        basis = MultiIndexBasis([Monomial1D(backend=bkd)])
         basis.set_tensor_product_indices([nterms])
         basisexp = MonomialExpansion(basis, solver=None, nqoi=nqoi)
         univariate_funs = [copy.deepcopy(basisexp) for ii in range(nvars)]

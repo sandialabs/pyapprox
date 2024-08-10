@@ -3,13 +3,18 @@ import unittest
 import numpy as np
 
 from pyapprox.surrogates.orthopoly.poly import LegendrePolynomial1D
+from pyapprox.surrogates.bases.univariate import (
+    Monomial1D, get_univariate_interpolation_basis
+)
 from pyapprox.surrogates.bases.basis import (
-    MonomialBasis,
+    MultiIndexBasis,
     OrthonormalPolynomialBasis,
+    TensorProductInterpolatingBasis,
 )
 from pyapprox.surrogates.bases.basisexp import (
     MonomialExpansion,
     PolynomialChaosExpansion,
+    TensorProductInterpolant,
 )
 from pyapprox.surrogates.bases.linearsystemsolvers import (
     LstSqSolver,
@@ -25,13 +30,13 @@ if package_available("jax"):
     from pyapprox.util.linearalgebra.jaxlinalg import JaxLinAlgMixin
 
 
-class TestMonomialBasis:
+class TestBasis:
     def setUp(self):
         np.random.seed(1)
 
-    def _check_basis(self, nvars, nterms_1d):
+    def _check_monomial_basis(self, nvars, nterms_1d):
         bkd = self.get_backend()
-        basis = MonomialBasis(backend=bkd)
+        basis = MultiIndexBasis([Monomial1D(backend=bkd) for ii in range(nvars)])
         basis.set_tensor_product_indices([nterms_1d]*nvars)
         samples = bkd._la_array(np.random.uniform(-1, 1, (nvars, 4)))
         basis_mat = basis(samples)
@@ -40,28 +45,24 @@ class TestMonomialBasis:
                 basis_mat[:, ii], bkd._la_prod(samples.T**index, axis=1)
             )
 
-    def test_basis(self):
+    def test_monomial_basis(self):
         test_cases = [[1, 4], [2, 4], [3, 4]]
         for test_case in test_cases:
-            self._check_basis(*test_case)
+            self._check_monomial_basis(*test_case)
 
-    def _check_jacobian(self, nvars, nterms_1d):
+    def _check_monomial_jacobian(self, nvars, nterms_1d):
         bkd = self.get_backend()
-        basis = MonomialBasis(backend=bkd)
-        indices = bkd._la_cartesian_product(
-            [bkd._la_arange(nterms_1d, dtype=int)] * nvars
-        )
-        basis.set_indices(indices)
+        basis = MultiIndexBasis([Monomial1D(backend=bkd) for ii in range(nvars)])
+        basis.set_tensor_product_indices([nterms_1d]*nvars)
         samples = bkd._la_array(np.random.uniform(-1, 1, (nvars, 4)))
-        # samples = bkd._la_array([[-1, 1], [1, 0.5], [0.5, 0.5], [0.5, 1]]).T
         jac = basis.jacobian(samples)
-        # assert False
         derivs = bkd._la_stack(
             [samples * 0, samples * 0 + 1]
             + [ii * samples ** (ii - 1) for ii in range(2, nterms_1d)]
         )
+        indices = basis.get_indices()
         for ii in range(indices.shape[1]):
-            for dd in range(nvars):
+            for dd in range(basis.nvars()):
                 index = bkd._la_copy(indices[:, ii : ii + 1])
                 # evaluate basis that has constant in direction of derivative
                 index = bkd._la_up(index, dd, 0)
@@ -71,20 +72,17 @@ class TestMonomialBasis:
                 )
                 assert bkd._la_allclose(deriv_dd, jac[:, ii, dd])
 
-    def test_jacobian(self):
+    def test_monomial_jacobian(self):
         test_cases = [[1, 4], [2, 4], [3, 4]]
         for test_case in test_cases:
             # print(test_case)
-            self._check_jacobian(*test_case)
+            self._check_monomial_jacobian(*test_case)
 
     def _check_fit_monomial_expansion(self, nvars, solver, nqoi):
         bkd = self.get_backend()
         nterms_1d = 3
-        basis = MonomialBasis(backend=bkd)
-        indices = bkd._la_cartesian_product(
-            [bkd._la_arange(nterms_1d, dtype=int)] * nvars
-        )
-        basis.set_indices(indices)
+        basis = MultiIndexBasis([Monomial1D(backend=bkd) for ii in range(nvars)])
+        basis.set_tensor_product_indices([nterms_1d] * nvars)
         basisexp = MonomialExpansion(basis, solver=solver, nqoi=nqoi)
         ntrain_samples = 2 * basis.nterms()
         train_samples = bkd._la_cos(
@@ -134,7 +132,8 @@ class TestMonomialBasis:
     def test_orthonormal_polynomial_basis(self):
         bkd = self.get_backend()
         nvars, degree = 2, 2
-        bases_1d = [LegendrePolynomial1D(backend=bkd)] * nvars
+        bases_1d = [LegendrePolynomial1D(backend=bkd) for ii in range(nvars)]
+        basis = OrthonormalPolynomialBasis(bases_1d)
         basis = OrthonormalPolynomialBasis(bases_1d)
         basis.set_indices(
             bkd._la_array([[0, 0], [1, 0], [0, 1], [2, 0], [1, 1], [0, 2]]).T
@@ -197,16 +196,14 @@ class TestMonomialBasis:
 
     def _check_multiply_monomial_expansion(self, nvars, nterms_1d, nqoi):
         bkd = self.get_backend()
-        basis1 = MonomialBasis(backend=bkd)
-        indices1 = bkd._la_cartesian_product(
-            [bkd._la_arange(nterms_1d, dtype=int)] * nvars
+        basis1 = MultiIndexBasis(
+            [Monomial1D(backend=bkd) for ii in range(nvars)]
         )
-        basis2 = MonomialBasis(backend=bkd)
-        indices2 = bkd._la_cartesian_product(
-            [bkd._la_arange(nterms_1d + 1, dtype=int)] * nvars
+        basis1.set_tensor_product_indices([nterms_1d]*nvars)
+        basis2 = MultiIndexBasis(
+            [Monomial1D(backend=bkd) for ii in range(nvars)]
         )
-        basis1.set_indices(indices1)
-        basis2.set_indices(indices2)
+        basis2.set_tensor_product_indices([nterms_1d]*nvars)
         bexp1 = MonomialExpansion(basis1, solver=None, nqoi=nqoi)
         bexp2 = MonomialExpansion(basis2, solver=None, nqoi=nqoi)
         self._check_multiply_expansion(bexp1, bexp2, nqoi)
@@ -218,17 +215,11 @@ class TestMonomialBasis:
 
     def _check_multiply_pce(self, nvars, nterms_1d, nqoi):
         bkd = self.get_backend()
-        polys_1d = [LegendrePolynomial1D(bkd)] * nvars
+        polys_1d = [LegendrePolynomial1D(bkd) for ii in range(nvars)]
         basis1 = OrthonormalPolynomialBasis(polys_1d)
-        indices1 = bkd._la_cartesian_product(
-            [bkd._la_arange(nterms_1d, dtype=int)] * nvars
-        )
+        basis1.set_tensor_product_indices([nterms_1d]*nvars)
         basis2 = OrthonormalPolynomialBasis(polys_1d)
-        indices2 = bkd._la_cartesian_product(
-            [bkd._la_arange(nterms_1d + 1, dtype=int)] * nvars
-        )
-        basis1.set_indices(indices1)
-        basis2.set_indices(indices2)
+        basis2.set_tensor_product_indices([nterms_1d+1]*nvars)
         bexp1 = PolynomialChaosExpansion(basis1, solver=None, nqoi=nqoi)
         bexp2 = PolynomialChaosExpansion(basis2, solver=None, nqoi=nqoi)
         self._check_multiply_expansion(bexp1, bexp2, nqoi)
@@ -241,12 +232,9 @@ class TestMonomialBasis:
     def test_marginalize_pce(self):
         nvars, nqoi, nterms_1d = 4, 2, 3
         bkd = self.get_backend()
-        polys_1d = [LegendrePolynomial1D(bkd)] * nvars
+        polys_1d = [LegendrePolynomial1D(bkd) for ii in range(nvars)]
         basis = OrthonormalPolynomialBasis(polys_1d)
-        indices = bkd._la_cartesian_product(
-            [bkd._la_arange(nterms_1d, dtype=int)] * nvars
-        )
-        basis.set_indices(indices)
+        basis.set_tensor_product_indices([nterms_1d]*nvars)
         pce = PolynomialChaosExpansion(basis, solver=None, nqoi=nqoi)
         coef = bkd._la_arange(pce.nterms() * nqoi).reshape(
             (pce.nterms(), nqoi)
@@ -276,22 +264,107 @@ class TestMonomialBasis:
             mpce.get_coefficients(), pce.get_coefficients()[indices]
         )
 
+    def _check_tensor_product_interpolation(self, basis_types, nnodes_1d, atol):
+        bkd = self.get_backend()
+        nvars = len(basis_types)
+        nnodes_1d = np.array(nnodes_1d)
+        bases_1d = [
+            get_univariate_interpolation_basis(bt, backend=bkd)
+            for bt in basis_types
+        ]
+        basis = TensorProductInterpolatingBasis(bases_1d)
+        interp = TensorProductInterpolant(basis)
+        basis.set_1d_nodes([bkd._la_linspace(0, 1, N)[None, :] for N in nnodes_1d])
 
-class TestNumpyMonomialBasis(TestMonomialBasis, unittest.TestCase):
+        def fun(samples):
+            # when nnodes_1d is zero to test interpolation make sure
+            # function is constant in that direction
+            return bkd._la_sum(samples[nnodes_1d > 1]**3, axis=0)[:, None]
+
+        train_samples = basis.tensor_product_grid()
+        train_values = fun(train_samples)
+        interp.fit(train_values)
+
+        test_samples = bkd._la_asarray(np.random.uniform(0, 1, (nvars, 5)))
+        approx_values = interp(test_samples)
+        test_values = fun(test_samples)
+        assert bkd._la_allclose(test_values, approx_values, atol=atol)
+
+    def test_tensor_product_interpolation(self):
+        test_cases = [
+            [["linear", "linear"], [41, 43], 1e-3],
+            [["quadratic", "quadratic"], [41, 43], 1e-5],
+            [["cubic", "cubic"], [40, 40], 1e-15],
+            [["lagrange", "lagrange"], [4, 5], 1e-15],
+            [["linear", "quadratic"], [41, 43], 1e-3],
+            [["linear", "quadratic", "lagrange"], [41, 23, 4], 1e-3],
+            [["cubic", "quadratic", "lagrange"], [25, 23, 4], 1e-4],
+            # Following tests use of active vars when nnodes_1d[ii] = 0
+            [["linear", "quadratic", "lagrange"], [1, 23, 4], 1e-4],
+        ]
+        for test_case in test_cases:
+            self._check_tensor_product_interpolation(*test_case)
+
+    def _check_tensorproduct_interpolant_quadrature(
+            self, name, nvars, degree, nnodes, tol):
+        bkd = self.get_backend()
+
+        def fun(degree, xx):
+            return bkd._la_sum(xx**degree, axis=0)[:, None]
+
+        def integral(nvars, degree):
+            if degree == 1:
+                return 0
+            if degree == 2:
+                return nvars*2/3*2**(nvars-1)
+            if degree == 3:
+                return 0
+            if degree == 4:
+                return nvars*2/5*2**(nvars-1)
+
+        bases_1d = [
+            get_univariate_interpolation_basis(name, backend=bkd)
+            for ii in range(nvars)
+        ]
+        nodes_1d = [
+            bkd._la_linspace(-1, 1, nnodes)[None, :] for ii in range(nvars)
+        ]
+        interp_basis = TensorProductInterpolatingBasis(bases_1d)
+        interp_basis.set_1d_nodes(nodes_1d)
+        samples, weights = interp_basis.quadrature_rule()
+        assert weights.ndim == 2 and weights.shape[1] == 1
+        assert np.allclose(
+            fun(degree, samples).T @ weights, integral(nvars, degree),
+            atol=tol)
+
+    def test_tensorproduct_interpolant_quadrature(self):
+        test_cases = [
+            ["linear", 2, 1, 3, 1e-15],
+            ["quadratic", 2, 2, 3,  1e-15],
+            ["quadratic", 2, 4, 91, 1e-5],
+            ["cubic", 2, 3, 4, 1e-15],
+            ["cubic", 2, 4, 46, 1e-5],
+        ]
+        for test_case in test_cases:
+            np.random.seed(1)
+            self._check_tensorproduct_interpolant_quadrature(*test_case)
+
+
+class TestNumpyBasis(TestBasis, unittest.TestCase):
     def get_backend(self):
         return NumpyLinAlgMixin()
 
 
-class TestTorchMonomialBasis(TestMonomialBasis, unittest.TestCase):
+class TestTorchBasis(TestBasis, unittest.TestCase):
     def get_backend(self):
         return TorchLinAlgMixin()
 
 
-class TestJaxMonomialBasis(TestMonomialBasis, unittest.TestCase):
+class TestJaxBasis(TestBasis, unittest.TestCase):
     def setUp(self):
         if not package_available("jax"):
             self.skipTest("jax not available")
-        TestMonomialBasis.setUp(self)
+        TestBasis.setUp(self)
 
     def get_backend(self):
         return JaxLinAlgMixin()

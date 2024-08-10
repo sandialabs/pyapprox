@@ -6,7 +6,8 @@ from scipy import stats
 from torch.distributions import MultivariateNormal as TorchMultivariateNormal
 
 from pyapprox.util.utilities import check_gradients
-from pyapprox.surrogates.bases.basis import MonomialBasis
+from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.util.hyperparameter import (
     LogHyperParameterTransform,
@@ -181,7 +182,9 @@ class TestGaussianProcess:
             values_trans = StandardDeviationTransform(trans=True, backend=bkd)
 
         if trend:
-            basis = MonomialBasis(backend=bkd)
+            basis = MultiIndexBasis(
+                [Monomial1D(backend=bkd) for ii in range(nvars)]
+            )
             basis.set_indices(bkd._la_arange(3, dtype=int)[None, :])
             trend = BasisExpansion(basis, None, 1.0, (-1e3, 1e3))
         else:
@@ -550,7 +553,13 @@ class TestGaussianProcess:
         scaling_indices = bkd._la_arange(degree + 1, dtype=int)[None, :]
         scalings = [
             BasisExpansion(
-                MonomialBasis(scaling_indices, backend=bkd), None, 1, [-1, 2]
+                MultiIndexBasis(
+                    [Monomial1D(backend=bkd) for ii in range(nvars)],
+                    indices=scaling_indices,
+                ),
+                None,
+                1,
+                [-1, 2],
             )
             for ii in range(noutputs - 1)
         ]

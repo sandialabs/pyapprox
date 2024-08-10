@@ -271,6 +271,7 @@ def evaluate_three_term_recurrence_polynomial_1d(
     p :  bkd._la_ndarray (num_samples, num_indices)
        The values of the polynomials at the samples
     """
+    assert x.ndim == 1
     assert nmax < abc.shape[0]
 
     p = bkd._la_zeros((x.shape[0], nmax+1), dtype=float)

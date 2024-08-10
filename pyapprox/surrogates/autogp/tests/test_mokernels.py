@@ -4,7 +4,8 @@ import scipy
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.basis import MonomialBasis
+from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.surrogates.kernels import (
     MaternKernel,
@@ -30,7 +31,10 @@ class TestMultiOutputKernels:
             [bkd._la_arange(degree + 1, dtype=int)] * nvars
         )
         bexp = BasisExpansion(
-            MonomialBasis(scaling_indices, backend=bkd),
+            MultiIndexBasis(
+                [Monomial1D(backend=bkd) for ii in range(nvars)],
+                indices=scaling_indices
+            ),
             None,
             1,
             bounds,

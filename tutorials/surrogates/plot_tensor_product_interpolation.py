@@ -50,7 +50,9 @@ Here we will use the nested Clenshaw-Curtis points
 to define the univariate Lagrange polynomials. The number of points :math:`m(l)` of this rule grows exponentially with the level :math:`l`, specifically
 :math:`m(0)=1` and :math:`m(l)=2^{l}+1` for :math:`l\geq1`. The univariate Clenshaw-Curtis points, the tensor-product grid :math:`\mathcal{Z}_{\boldsymbol{\beta}}`, and two multivariate Lagrange polynomials with their corresponding univariate Lagrange polynomials are shown below for :math:`\boldsymbol{\beta}=(2,2)`.
 """
+from functools import partial
 import numpy as np
+
 from pyapprox.util.utilities import cartesian_product
 from pyapprox.util.visualization import get_meshgrid_function_data, plt
 from pyapprox.util.utilities import get_tensor_product_quadrature_rule
@@ -58,34 +60,35 @@ from pyapprox.surrogates.orthopoly.quadrature import clenshaw_curtis_pts_wts_1D
 from pyapprox.surrogates.approximate import adaptive_approximate
 from pyapprox.surrogates.interp.adaptive_sparse_grid import (
     tensor_product_refinement_indicator)
-from functools import partial
 from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth)
 from pyapprox.surrogates.interp.tensorprod import (
     canonical_univariate_piecewise_polynomial_quad_rule)
 from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.surrogates.interp.tensorprod import (
-    UnivariatePiecewiseQuadraticBasis, UnivariateLagrangeBasis,
-    TensorProductInterpolant, TensorProductInterpolatingBasis)
+from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.bases.univariate import (
+    UnivariateLagrangeBasis, UnivariatePiecewiseQuadraticBasis
+)
+from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
+
 
 nnodes_1d = [5, 9]
-nodes_1d = [-np.cos(np.arange(nnodes)*np.pi/(nnodes-1))
+nodes_1d = [-np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
             for nnodes in nnodes_1d]
-nodes = cartesian_product(nodes_1d)
-lagrange_basis_1d = UnivariateLagrangeBasis()
-tp_lagrange_basis = TensorProductInterpolatingBasis([lagrange_basis_1d]*2)
+tp_lagrange_basis = TensorProductInterpolatingBasis(
+    [UnivariateLagrangeBasis() for ii in range(2)]
+)
+tp_lagrange_basis.set_1d_nodes(nodes_1d)
 
 fig = plt.figure(figsize=(2*8, 6))
 ax = fig.add_subplot(1, 2, 1, projection='3d')
 ii, jj = 1, 3
-tp_lagrange_basis.plot_single_basis(
-    ax, [n[None, :] for n in nodes_1d], ii, jj, nodes)
+tp_lagrange_basis.plot_single_basis(ax, ii, jj)
 
 ax = fig.add_subplot(1, 2, 2, projection='3d')
 level = 2
 ii, jj = 2, 4
-tp_lagrange_basis.plot_single_basis(
-    ax, [n[None, :] for n in nodes_1d], ii, jj, nodes)
+tp_lagrange_basis.plot_single_basis(ax, ii, jj)
 
 #%%
 #To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function :math:`f_\ai` evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function
@@ -97,9 +100,10 @@ def fun(z): return (np.cos(2*np.pi*z[0, :]) *
                     np.cos(2*np.pi*z[1, :]))[:, np.newaxis]
 
 
-lagrange_interpolant = TensorProductInterpolant([lagrange_basis_1d]*2)
-values = fun(nodes)
-lagrange_interpolant.fit([n[None, :] for n in nodes_1d], values)
+lagrange_interpolant = TensorProductInterpolant(tp_lagrange_basis)
+nodes = tp_lagrange_basis.tensor_product_grid()
+values = fun(tp_lagrange_basis.tensor_product_grid())
+lagrange_interpolant.fit(values)
 
 
 marker_color = 'k'
@@ -173,48 +177,47 @@ print('Monte Carlo surrogate mean', mc_mean)
 #The following plots two piecewise-quadratic basis functions in 2D
 fig = plt.figure(figsize=(2*8, 6))
 nnodes_1d = [5, 5]
-nodes_1d = [np.linspace(-1, 1, nnodes) for nnodes in nnodes_1d]
+nodes_1d = [np.linspace(-1, 1, nnodes)[None, :] for nnodes in nnodes_1d]
 nodes = cartesian_product(nodes_1d)
 tp_quadratic_basis = TensorProductInterpolatingBasis(
-    [UnivariatePiecewiseQuadraticBasis()]*2)
+    [UnivariatePiecewiseQuadraticBasis() for ii in range(2)])
+tp_quadratic_basis.set_1d_nodes(nodes_1d)
 ax = fig.add_subplot(1, 2, 1, projection='3d')
 tp_quadratic_basis.plot_single_basis(
-    ax, [n[None, :] for n in nodes_1d], 2, 2, nodes)
+    ax, 2, 2, plot_nodes=True)
 ax = fig.add_subplot(1, 2, 2, projection='3d')
 tp_quadratic_basis.plot_single_basis(
-    ax, [n[None, :] for n in nodes_1d], 0, 1, nodes)
+    ax, 0, 1, plot_nodes=True)
 
 #%%
 #The following compares the convergence of Lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.
 #
 #First define wrappers to build the tensor product interpolants
 
-def build_lagrange_tp(max_level_1d):
-    univariate_quad_rule_info = [
-        clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth,
-        None, None]
-    return adaptive_approximate(
-        benchmark.fun, benchmark.variable, "sparse_grid",
-        {"refinement_indicator": tensor_product_refinement_indicator,
-         "max_level_1d": max_level_1d,
-         "univariate_quad_rule_info": univariate_quad_rule_info,
-         "max_nsamples": np.inf}).approx
+def build_tp(get_nodes, get_basis, max_level_1d, fun):
+    bases_1d = [get_basis() for ii in range(nvars)]
+    basis = TensorProductInterpolatingBasis(bases_1d)
+    basis.set_1d_nodes([get_nodes(max_level_1d) for ii in range(nvars)])
+    interp = TensorProductInterpolant(basis)
+    values = fun(basis.tensor_product_grid())
+    interp.fit(values)
+    return interp
 
 
-def build_piecewise_tp(max_level_1d):
-    basis_type = "quadratic"
-    # basis_type = "linear"
-    univariate_quad_rule_info = [
-        partial(canonical_univariate_piecewise_polynomial_quad_rule,
-                basis_type),
-        clenshaw_curtis_rule_growth, None, None]
-    return adaptive_approximate(
-        benchmark.fun, benchmark.variable, "sparse_grid",
-        {"refinement_indicator": tensor_product_refinement_indicator,
-         "max_level_1d": max_level_1d,
-         "univariate_quad_rule_info": univariate_quad_rule_info,
-         "basis_type": basis_type, "max_nsamples": np.inf}).approx
+def get_lagrange_basis():
+    basis = UnivariateLagrangeBasis()
+    basis.set_bounds([0, 1])
+    return basis
 
+
+build_lagrange_tp = partial(
+    build_tp,
+    lambda lev: (clenshaw_curtis_in_polynomial_order(lev)[0][None, :]+1)/2,
+    get_lagrange_basis)
+build_piecewise_tp = partial(
+    build_tp,
+    lambda lev: np.linspace(0, 1, clenshaw_curtis_rule_growth(lev))[None, :],
+    lambda : UnivariatePiecewiseQuadraticBasis())
 
 #%%
 #Load a benchmark
@@ -232,16 +235,16 @@ piecewise_data = []
 lagrange_data = []
 for level in range(1, 7):   # nvars = 2
 # for level in range(1, 4):  # nvars = 3
-    ltp = build_lagrange_tp(level)
+    ltp = build_lagrange_tp(level, benchmark.fun)
     lvalues = ltp(validation_samples)
     lerror = np.linalg.norm(validation_values-lvalues)/np.linalg.norm(
         validation_values)
-    lagrange_data.append([ltp.samples.shape[1], lerror])
-    ptp = build_piecewise_tp(level)
+    lagrange_data.append([ltp._basis.nterms(), lerror])
+    ptp = build_piecewise_tp(level, benchmark.fun)
     pvalues = ptp(validation_samples)
     perror = np.linalg.norm(validation_values-pvalues)/np.linalg.norm(
         validation_values)
-    piecewise_data.append([ptp.samples.shape[1], perror])
+    piecewise_data.append([ptp._basis.nterms(), perror])
 lagrange_data = np.array(lagrange_data).T
 piecewise_data = np.array(piecewise_data).T
 
@@ -265,18 +268,22 @@ benchmark = setup_benchmark("genz", nvars=nvars, test_name="oscillatory")
 piecewise_data = []
 lagrange_data = []
 for level in range(1, 7):   # nvars = 2
-    ltp = build_lagrange_tp(level)
-    lvalues = ltp.moments()[0, 0]
+    ltp = build_lagrange_tp(level, benchmark.fun)
+    # lvalues = ltp.moments()[0, 0]
+    lvalues = ltp.integrate()
     lerror = np.linalg.norm(benchmark.mean-lvalues)/np.linalg.norm(
-        benchmark.mean)
-    lagrange_data.append([ltp.samples.shape[1], lerror])
-    ptp = build_piecewise_tp(level)
-    pvalues = ptp.moments()[0, 0]
+       benchmark.mean)
+    # make machine zero 1e-16 for plotting
+    lerror = max(lerror, 1e-16)
+    lagrange_data.append([ltp._basis.nterms(), lerror])
+    ptp = build_piecewise_tp(level, benchmark.fun)
+    pvalues = ptp.integrate()
     perror = np.linalg.norm(benchmark.mean-pvalues)/np.linalg.norm(
         benchmark.mean)
-    piecewise_data.append([ptp.samples.shape[1], perror])
+    piecewise_data.append([ptp._basis.nterms(), perror])
 lagrange_data = np.array(lagrange_data).T
 piecewise_data = np.array(piecewise_data).T
+print(lagrange_data)
 
 ax = plt.subplots()[1]
 ax.loglog(*lagrange_data, '-o', label='Lagrange')
@@ -285,6 +292,82 @@ work = piecewise_data[0][1:3]
 ax.loglog(work, work**(-1.0), ':', label='linear rate')
 ax.loglog(work, work**(-2.0), ':', label='quadratic rate')
 _ = ax.legend()
+
+
+#%%
+#Following on from the univariate interpolation tutorial, lets now look at how the accuracy changes with the "distance" between the dominating and target measures. This demonstrates the numerical impact of the main theorem in [XJD2013]_.
+
+from scipy import stats
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.benchmarks import setup_benchmark
+from pyapprox.surrogates.orthopoly.quadrature import (
+    gauss_jacobi_pts_wts_1D)
+
+
+
+def compute_density_ratio_beta(num, true_rv, alpha_stat_2, beta_stat_2):
+    beta_rv2 = IndependentMarginalsVariable(
+        [stats.beta(a=alpha_stat_2, b=beta_stat_2)]*nvars)
+    print(beta_rv2, true_rv)
+    xx = np.random.uniform(0, 1, (nvars, 100000))
+    density_ratio = true_rv.pdf(xx)/beta_rv2.pdf(xx)
+    II = np.where(np.isnan(density_ratio))[0]
+    assert II.shape[0] == 0
+    return density_ratio.max()
+
+
+def compute_L2_error(interp, validation_samples, validation_values):
+    nvalidation_samples = validation_values.shape[0]
+    approx_vals = interp(validation_samples)
+    l2_error = np.linalg.norm(validation_values-approx_vals)/np.sqrt(
+        nvalidation_samples)
+    return l2_error
+
+
+nvars = 3
+alpha_stat, beta_stat = 11, 11
+c = np.array([20, 20, 20])
+w = np.array([0, 0, 0])
+benchmark = setup_benchmark(
+    "genz", test_name="oscillatory", nvars=nvars, coeff=[c, w])
+true_rv = IndependentMarginalsVariable(
+    [stats.beta(a=alpha_stat, b=beta_stat)]*nvars)
+
+nvalidation_samples = 1000
+validation_samples = true_rv.rvs(nvalidation_samples)
+validation_values = benchmark.fun(validation_samples)
+interp = TensorProductInterpolant(
+    TensorProductInterpolatingBasis(
+        [UnivariateLagrangeBasis() for ii in range(nvars)]
+    )
+)
+
+
+alpha_polys = np.arange(0., 11., 2.)
+ntrain_samples_list = np.arange(2, 20, 2)
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+for alpha_poly in alpha_polys:
+    beta_poly = alpha_poly
+    density_ratio = compute_density_ratio_beta(
+        nvars, true_rv, beta_poly+1, alpha_poly+1)
+    results = []
+    for ntrain_samples in ntrain_samples_list:
+        xx = gauss_jacobi_pts_wts_1D(ntrain_samples, alpha_poly, beta_poly)[0][None, :]
+        nodes_1d = [(xx+1)/2]*nvars
+        interp._basis.set_1d_nodes(nodes_1d)
+        train_samples = interp._basis.tensor_product_grid()
+        train_values = benchmark.fun(train_samples)
+        interp.fit(train_values)
+        l2_error = compute_L2_error(
+            interp, validation_samples, validation_values)
+        results.append(l2_error)
+    ax.semilogy(ntrain_samples_list, results,
+                label="{0:1.2f}".format(density_ratio))
+
+pbwt = r"\pi"
+ax.set_xlabel(r'$M$', fontsize=24)
+ax.set_ylabel(r'$\| f-f_M^\nu\|_{L^2_%s}$' % pbwt, fontsize=24)
+_ = ax.legend(ncol=2)
 
 #%%
 #References
@@ -297,3 +380,5 @@ _ = ax.legend()
 #.. [BGAN2004] `H. Bungartz and M. Griebel. Sparse Grids. Acta Numerica, 13, 147-269, 2004. <http://dx.doi.org/10.1017/S0962492904000182>`_
 #
 #.. [SFIJNME2017] `C Soize and C. Farhat. A nonparametric probabilistic approach for quantifying uncertainties in low-dimensional and high-dimensional nonlinear models. International Journal for Numerical Methods in Engineering, 109(6), 837-888, 2017. <https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.5312>`_
+#
+# .. [XJD2013] `Chen Xiaoxiao, Park Eun-Jae, Xiu Dongbin. A flexible numerical approach for quantification of epistemic uncertainty. J. Comput. Phys., 240 (2013), pp. 211-224 <https://doi.org/10.1016/j.jcp.2013.01.018>`_

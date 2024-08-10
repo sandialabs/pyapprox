@@ -518,7 +518,7 @@ class LinAlgMixin(ABC):
         # function below
         for r in itertools.product(*input_sets[::-1]):
             out.append(cls._la_array(r, dtype=r[0].dtype))
-        return cls._la_flip(cls._la_stack(out, axis=1))
+        return cls._la_flip(cls._la_stack(out, axis=1), axis=(0,))
 
     @classmethod
     def _la_outer_product(cls, input_sets, axis=0):
@@ -640,4 +640,9 @@ class LinAlgMixin(ABC):
     @staticmethod
     @abstractmethod
     def _la_tanh(array):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _la_diff(array):
         raise NotImplementedError

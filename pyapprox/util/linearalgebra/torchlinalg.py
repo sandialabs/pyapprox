@@ -94,6 +94,8 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def _la_prod(matrix_list: torch.Tensor, axis=None) -> torch.Tensor:
+        if axis is None:
+            return torch.prod(matrix_list)
         return torch.prod(matrix_list, dim=axis)
 
     @staticmethod
@@ -248,7 +250,7 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def _la_sort(mat: torch.Tensor, axis=-1) -> torch.Tensor:
-        return torch.sort(mat, dim=axis)
+        return torch.sort(mat, dim=axis)[0]
 
     @staticmethod
     def _la_flip(mat: torch.Tensor, axis=None) -> torch.Tensor:
@@ -378,3 +380,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_tanh(array):
         raise torch.tanh(array)
+
+    @staticmethod
+    def _la_diff(array):
+        return torch.diff(array)
