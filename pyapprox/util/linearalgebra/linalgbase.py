@@ -513,6 +513,8 @@ class LinAlgMixin(ABC):
             where sizes[ii] = len(input_sets[ii]), ii=0,..,num_sets-1.
             result.dtype will be set to the first entry of the first input_set
         """
+        if len(input_sets) == 1:
+            return cls._la_stack(input_sets, axis=0)
         out = []
         # ::-1 reverse order to be backwards compatiable with old
         # function below

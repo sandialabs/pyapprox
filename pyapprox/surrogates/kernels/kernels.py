@@ -287,21 +287,41 @@ class HilbertSchmidtKernel(Kernel):
         )
         self.hyp_list = HyperParameterList([self._weights])
 
+        self._X1, self._X2 = None, None
+        self._X1basis_mat, self._X2basis_mat = None, None
+
     def _get_weights(self):
         return self._bkd._la_reshape(
             self._weights.get_values(),
             (self._basis1.nterms(), self._basis2.nterms()),
         )
 
+    def _get_basis_matrices(self, X1, X2):
+        if self._X1 is not None and self._bkd._la_allclose(self._X1, X2, atol=1e-15):
+            X1basis_mat = self._X1basis_mat
+        else:
+            X1basis_mat = self._basis1(X1)
+            if self._normalize:
+                X1basis_mat /= self._bkd._la_norm(X1basis_mat, axis=1)[:, None]
+            self._X1 = self._bkd._la_copy(X1)
+            self._X1basis_mat = self._bkd._la_copy(X1basis_mat)
+        if self._X2 is not None and self._bkd._la_allclose(self._X2, X2, atol=1e-15):
+            X2basis_mat = self._X2basis_mat
+        else:
+            X2basis_mat = self._basis2(X2)
+            if self._normalize:
+                X2basis_mat /= self._bkd._la_norm(X2basis_mat, axis=1)[:, None]
+            self._X2 = self._bkd._la_copy(X2)
+            self._X2basis_mat = self._bkd._la_copy(X2basis_mat)
+        return X1basis_mat, X2basis_mat
+
+        
+
     def __call__(self, X1, X2=None):
         weights = self._get_weights()
         if X2 is None:
             X2 = X1
-        X1basis_mat = self._basis1(X1)
-        X2basis_mat = self._basis2(X2)
-        if self._normalize:
-            X1basis_mat /= self._bkd._la_norm(X1basis_mat, axis=1)[:, None]
-            X2basis_mat /= self._bkd._la_norm(X2basis_mat, axis=1)[:, None]
+        X1basis_mat, X2basis_mat = self._get_basis_matrices(X1, X2)
         K = (X1basis_mat @ weights) @ (X2basis_mat.T)
         return K
 
