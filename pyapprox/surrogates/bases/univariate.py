@@ -40,9 +40,11 @@ class UnivariateBasis(ABC):
 
     def quadrature_rule(self):
         samples, weights = self._quadrature_rule()
+        self._check_samples(samples)
         if weights.ndim != 2 or weights.shape[1] != 1:
             raise ValueError("weights must be a 2D column vector")
-        self._check_samples(samples)
+        if samples.shape[1] != weights.shape[0]:
+            raise ValueError("number of samples and weights are different")
         return samples, weights
 
     def __repr__(self):
@@ -88,15 +90,27 @@ class Monomial1D(UnivariateBasis):
 
 
 class UnivariateInterpolatingBasis(UnivariateBasis):
-    def __init__(self, backend=NumpyLinAlgMixin()):
+    def __init__(self, bounds, backend=NumpyLinAlgMixin()):
         super().__init__(backend)
         self._nodes = None
+        self._quad_samples = None
+        self._quad_weights = None
+        self._bounds = None
+        self.set_bounds(bounds)
+
+    def set_bounds(self, bounds):
+        """Set the bounds of the quadrature rule"""
+        if len(bounds) != 2:
+            raise ValueError("must specifiy an upper and lower bound")
+        self._bounds = bounds
 
     def set_nodes(self, nodes):
         if nodes.ndim != 2 or nodes.shape[0] != 1:
-            print(nodes)
             raise ValueError("nodes must be a 2D row vector")
         self._nodes = nodes
+        self._quad_samples, self._quad_weights = (
+            self._quadrature_rule_from_nodes(self._nodes)
+        )
 
     @abstractmethod
     def _evaluate_from_nodes(self, nodes):
@@ -112,7 +126,7 @@ class UnivariateInterpolatingBasis(UnivariateBasis):
         return self._evaluate_from_nodes(self._nodes, samples)
 
     def _quadrature_rule(self):
-        return self._quadrature_rule_from_nodes(self._nodes)
+        return self._quad_samples, self._quad_weights
 
     def nterms(self):
         return self._nodes.shape[1]
@@ -120,8 +134,9 @@ class UnivariateInterpolatingBasis(UnivariateBasis):
     def __repr__(self):
         if self._nodes is None:
             return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
-        return "{0}(nnodes={1}, bkd={2})".format(
-            self.__class__.__name__, self.nterms(), self._bkd
+        return "{0}(nterms={1}, nnodes={2}, bkd={3})".format(
+            self.__class__.__name__, self.nterms(), self._nodes.shape[1],
+            self._bkd
         )
 
     def _active_node_indices_for_quadrature(self):
@@ -475,23 +490,20 @@ def univariate_lagrange_polynomial(abscissa, samples, bkd=NumpyLinAlgMixin()):
     assert abscissa.ndim == 1
     assert samples.ndim == 1
     nabscissa = abscissa.shape[0]
-    values = bkd._la_ones((samples.shape[0], nabscissa))
-    # idx is needed for bkd_la_up until I can find a better way to pass in :
-    idx = bkd._la_arange(samples.shape[0], dtype=int)
+    denoms = abscissa[:, None]-abscissa[None, :]
+    numers = samples[:, None]-abscissa[None, :]
+    # values = bkd._la_empty((samples.shape[0], nabscissa))
+    values = []
     for ii in range(nabscissa):
-        x_ii = abscissa[ii]
-        for jj in range(nabscissa):
-            if ii == jj:
-                continue
-            # values[:, ii] *= (samples - abscissa[jj])/(x_ii-abscissa[jj])
-            values = bkd._la_up(
-                values,
-                (idx, ii),
-                values[:, ii]
-                * (samples - abscissa[jj])
-                / (x_ii - abscissa[jj]),
-            )
-    return values
+        # l_j(x) = prod_{i!=j} (x-x_i)/(x_j-x_i)
+        denom = bkd._la_prod(denoms[ii, :ii])*bkd._la_prod(denoms[ii, ii+1:])
+        # denom = bkd._la_prod(bkd._la_delete(denoms[ii], ii))
+        # numer = bkd._la_prod(bkd._la_delete(numers, ii, axis=1), axis=1)
+        numer = bkd._la_prod(numers[:, :ii], axis=1)*bkd._la_prod(numers[:, ii+1:], axis=1)
+        # values[:, ii] = numer/denom
+        values.append(numer/denom)
+    return bkd._la_stack(values, axis=1)
+    # return values
 
 
 class UnivariatePiecewiseLeftConstantBasis(UnivariateInterpolatingBasis):
@@ -553,6 +565,8 @@ class UnivariatePiecewiseLinearBasis(UnivariateInterpolatingBasis):
         )
 
     def _quadrature_rule_from_nodes(self, nodes):
+        if nodes.shape[1] == 1:
+            return self._nodes, self._bounds[1]-self._bounds[0]
         return (
             nodes,
             irregular_piecewise_linear_quadrature_weights(nodes[0], self._bkd)[
@@ -568,6 +582,8 @@ class UnivariatePiecewiseQuadraticBasis(UnivariateInterpolatingBasis):
         )
 
     def _quadrature_rule_from_nodes(self, nodes):
+        if nodes.shape[1] == 1:
+            return self._nodes, self._bounds[1]-self._bounds[0]
         return (
             nodes,
             irregular_piecewise_quadratic_quadrature_weights(
@@ -581,6 +597,8 @@ class UnivariatePiecewiseCubicBasis(UnivariateInterpolatingBasis):
         return irregular_piecewise_cubic_basis(nodes[0], samples[0], self._bkd)
 
     def _quadrature_rule_from_nodes(self, nodes):
+        if nodes.shape[1] == 1:
+            return self._nodes, self._bounds[1]-self._bounds[0]
         return (
             nodes,
             irregular_piecewise_cubic_quadrature_weights(nodes[0], self._bkd)[
@@ -590,18 +608,8 @@ class UnivariatePiecewiseCubicBasis(UnivariateInterpolatingBasis):
 
 
 class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
-    def __init__(self, backend=NumpyLinAlgMixin()):
-        super().__init__(backend)
-        self._bounds = None
-
     def _evaluate_from_nodes(self, nodes, samples):
         return univariate_lagrange_polynomial(nodes[0], samples[0], self._bkd)
-
-    def set_bounds(self, bounds):
-        """Set the bounds of the quadrature rule"""
-        if len(bounds) != 2:
-            raise ValueError("must specifiy an upper and lower bound")
-        self._bounds = bounds
 
     def _quadrature_rule_from_nodes(self, nodes):
         """Compute quadrature assuming a constant weight over self._bounds"""
@@ -624,8 +632,11 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
         )
 
 
-def get_univariate_interpolation_basis(basis_type, backend=NumpyLinAlgMixin()):
+def get_univariate_interpolation_basis(basis_type, bounds, backend=NumpyLinAlgMixin()):
     basis_dict = {
+        "leftconst": UnivariatePiecewiseLeftConstantBasis,
+        "rightconst": UnivariatePiecewiseRightConstantBasis,
+        "midconst": UnivariatePiecewiseMidPointConstantBasis,
         "linear": UnivariatePiecewiseLinearBasis,
         "quadratic": UnivariatePiecewiseQuadraticBasis,
         "cubic": UnivariatePiecewiseCubicBasis,
@@ -637,4 +648,4 @@ def get_univariate_interpolation_basis(basis_type, backend=NumpyLinAlgMixin()):
                 basis_type, list(basis_dict.keys())
             )
         )
-    return basis_dict[basis_type](backend)
+    return basis_dict[basis_type](bounds, backend)

@@ -266,15 +266,17 @@ class TestBasis:
 
     def _check_tensor_product_interpolation(self, basis_types, nnodes_1d, atol):
         bkd = self.get_backend()
+        bounds = [0, 1]
         nvars = len(basis_types)
         nnodes_1d = np.array(nnodes_1d)
         bases_1d = [
-            get_univariate_interpolation_basis(bt, backend=bkd)
+            get_univariate_interpolation_basis(bt, bounds, backend=bkd)
             for bt in basis_types
         ]
         basis = TensorProductInterpolatingBasis(bases_1d)
         interp = TensorProductInterpolant(basis)
-        basis.set_1d_nodes([bkd._la_linspace(0, 1, N)[None, :] for N in nnodes_1d])
+        basis.set_1d_nodes(
+            [bkd._la_linspace(0, 1, N)[None, :] for N in nnodes_1d])
 
         def fun(samples):
             # when nnodes_1d is zero to test interpolation make sure
@@ -308,6 +310,7 @@ class TestBasis:
     def _check_tensorproduct_interpolant_quadrature(
             self, name, nvars, degree, nnodes, tol):
         bkd = self.get_backend()
+        bounds = [-1, 1]
 
         def fun(degree, xx):
             return bkd._la_sum(xx**degree, axis=0)[:, None]
@@ -323,11 +326,11 @@ class TestBasis:
                 return nvars*2/5*2**(nvars-1)
 
         bases_1d = [
-            get_univariate_interpolation_basis(name, backend=bkd)
+            get_univariate_interpolation_basis(name, bounds, backend=bkd)
             for ii in range(nvars)
         ]
         nodes_1d = [
-            bkd._la_linspace(-1, 1, nnodes)[None, :] for ii in range(nvars)
+            bkd._la_linspace(*bounds, nnodes)[None, :] for ii in range(nvars)
         ]
         interp_basis = TensorProductInterpolatingBasis(bases_1d)
         interp_basis.set_1d_nodes(nodes_1d)
@@ -372,3 +375,4 @@ class TestJaxBasis(TestBasis, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+    

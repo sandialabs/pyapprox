@@ -62,16 +62,17 @@ from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 
 #The following code compares polynomial and piecewise polynomial univariate basis functions.
 nnodes = 5
-samples = np.linspace(-1, 1, 201)[None, :]
+bounds = [-1, 1]
+samples = np.linspace(*bounds, 201)[None, :]
 ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
 cheby_nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
-lagrange_basis = UnivariateLagrangeBasis()
+lagrange_basis = UnivariateLagrangeBasis(bounds)
 lagrange_basis.set_nodes(cheby_nodes)
 lagrange_basis_vals = lagrange_basis(samples)
 ax[0].plot(samples[0], lagrange_basis_vals)
 ax[0].plot(cheby_nodes[0], cheby_nodes[0]*0, 'ko')
-equidistant_nodes = np.linspace(-1, 1, nnodes)[None, :]
-quadratic_basis = UnivariatePiecewiseQuadraticBasis()
+equidistant_nodes = np.linspace(*bounds, nnodes)[None, :]
+quadratic_basis = UnivariatePiecewiseQuadraticBasis(bounds)
 quadratic_basis.set_nodes(equidistant_nodes)
 piecewise_basis_vals = quadratic_basis(samples)
 _ = ax[1].plot(samples[0], piecewise_basis_vals)
@@ -100,7 +101,7 @@ cheby_nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
 cheby_values = fun(cheby_nodes)
 lagrange_interpolant._basis.set_1d_nodes([cheby_nodes])
 lagrange_interpolant.fit(cheby_values)
-equidistant_nodes = np.linspace(-1, 1, nnodes)[None, :]
+equidistant_nodes = np.linspace(*bounds, nnodes)[None, :]
 equidistant_values = fun(equidistant_nodes)
 quadratic_interpolant._basis.set_1d_nodes([equidistant_nodes])
 quadratic_interpolant.fit(equidistant_values)
@@ -122,7 +123,7 @@ for nnodes in [3, 5, 9, 17]:
     values = fun(nodes)
     lagrange_interpolant._basis.set_1d_nodes([nodes])
     lagrange_interpolant.fit(values)
-    nodes = np.linspace(-1, 1, nnodes)[None, :]
+    nodes = np.linspace(*bounds, nnodes)[None, :]
     values = fun(nodes)
     quadratic_interpolant._basis.set_1d_nodes([nodes])
     quadratic_interpolant.fit(values)
@@ -192,7 +193,6 @@ ax.fill_between(
     label=r'$%s(z)$' % pbwt)
 ax.set_xlabel(r'$M$', fontsize=24)
 _ = ax.legend(fontsize=18, loc="upper right")
-plt.show()
 
 #%%
 #As you can see the approximation that targets the uniform norm is "more accurate" on average over the domain, but the interpolant that directly targets accuracy with respect to the desired Beta distribution is more accurate in the regions of non-negligible probability.

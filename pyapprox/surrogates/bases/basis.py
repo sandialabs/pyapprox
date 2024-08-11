@@ -250,7 +250,9 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
     def set_1d_nodes(self, nodes_1d):
         for basis, nodes in zip(self._bases_1d, nodes_1d):
             basis.set_nodes(nodes)
-        self.set_tensor_product_indices([nodes.shape[1] for nodes in nodes_1d])
+        self.set_tensor_product_indices(
+            [basis.nterms() for basis in self._bases_1d]
+        )
 
     def _update_nterms(self, nterms):
         pass

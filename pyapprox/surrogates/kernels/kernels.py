@@ -305,6 +305,12 @@ class HilbertSchmidtKernel(Kernel):
         K = (X1basis_mat @ weights) @ (X2basis_mat.T)
         return K
 
+    def __repr__(self):
+        return "{0}({1}, inbasis={2}, outbasis={3}, bkd={4})".format(
+            self.__class__.__name__, self.hyp_list._short_repr(),
+            self._basis2, self._basis1, self._bkd
+        )
+
 
 class SphericalCovarianceHyperParameter(CombinedHyperParameter):
     def __init__(self, hyper_params: list):

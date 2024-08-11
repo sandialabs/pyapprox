@@ -137,8 +137,8 @@ class OptimizationResult(dict):
 
     def __repr__(self):
         return self.__class__.__name__ + (
-            "(\n\t x={0}, \n\t fun={1}, \n\t attr={2})".format(
-                self.x, self.fun, list(self.keys())))
+            "(\n\t x[:, 0]={0}, \n\t fun={1}, \n\t attr={2})".format(
+                self.x[:, 0], self.fun, list(self.keys())))
 
 
 class ScipyOptimizationResult(OptimizationResult):
@@ -397,9 +397,8 @@ class MultiStartOptimizer(Optimizer):
         if self._verbosity > 1:
             print("it {0}: best objective {1}".format(0, best_res.fun))
         for ii in range(1, self._ncandidates):
-            res = self._optimizer.minimize(
-                self._initial_interate_gen(), **kwargs
-            )
+            iterate = self._initial_interate_gen()
+            res = self._optimizer.minimize(iterate, **kwargs)
             if res.fun < best_res.fun:
                 best_res = res
             if self._verbosity > 1:

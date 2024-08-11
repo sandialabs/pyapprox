@@ -345,7 +345,7 @@ class JaxLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def _la_tanh(array):
-        raise np.tanh(array)
+        return np.tanh(array)
 
     @staticmethod
     def _la_diff(array):

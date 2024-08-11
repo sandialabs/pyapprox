@@ -73,10 +73,11 @@ from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 
 
 nnodes_1d = [5, 9]
+bounds = [-1, 1]
 nodes_1d = [-np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
             for nnodes in nnodes_1d]
 tp_lagrange_basis = TensorProductInterpolatingBasis(
-    [UnivariateLagrangeBasis() for ii in range(2)]
+    [UnivariateLagrangeBasis(bounds) for ii in range(2)]
 )
 tp_lagrange_basis.set_1d_nodes(nodes_1d)
 
@@ -177,10 +178,10 @@ print('Monte Carlo surrogate mean', mc_mean)
 #The following plots two piecewise-quadratic basis functions in 2D
 fig = plt.figure(figsize=(2*8, 6))
 nnodes_1d = [5, 5]
-nodes_1d = [np.linspace(-1, 1, nnodes)[None, :] for nnodes in nnodes_1d]
+nodes_1d = [np.linspace(*bounds, nnodes)[None, :] for nnodes in nnodes_1d]
 nodes = cartesian_product(nodes_1d)
 tp_quadratic_basis = TensorProductInterpolatingBasis(
-    [UnivariatePiecewiseQuadraticBasis() for ii in range(2)])
+    [UnivariatePiecewiseQuadraticBasis(bounds) for ii in range(2)])
 tp_quadratic_basis.set_1d_nodes(nodes_1d)
 ax = fig.add_subplot(1, 2, 1, projection='3d')
 tp_quadratic_basis.plot_single_basis(
@@ -205,8 +206,7 @@ def build_tp(get_nodes, get_basis, max_level_1d, fun):
 
 
 def get_lagrange_basis():
-    basis = UnivariateLagrangeBasis()
-    basis.set_bounds([0, 1])
+    basis = UnivariateLagrangeBasis([0, 1])
     return basis
 
 
@@ -217,7 +217,7 @@ build_lagrange_tp = partial(
 build_piecewise_tp = partial(
     build_tp,
     lambda lev: np.linspace(0, 1, clenshaw_curtis_rule_growth(lev))[None, :],
-    lambda : UnivariatePiecewiseQuadraticBasis())
+    lambda : UnivariatePiecewiseQuadraticBasis([0, 1]))
 
 #%%
 #Load a benchmark
@@ -338,7 +338,7 @@ validation_samples = true_rv.rvs(nvalidation_samples)
 validation_values = benchmark.fun(validation_samples)
 interp = TensorProductInterpolant(
     TensorProductInterpolatingBasis(
-        [UnivariateLagrangeBasis() for ii in range(nvars)]
+        [UnivariateLagrangeBasis([0, 1]) for ii in range(nvars)]
     )
 )
 

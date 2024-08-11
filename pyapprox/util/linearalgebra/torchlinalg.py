@@ -357,10 +357,10 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def _la_delete(array, obj, axis=None):
-        mask = __class__._la_ones(array.shape[axis], dtype=bool)
-        mask[obj] = False
         if axis is None:
             axis = 0
+        mask = __class__._la_ones(array.shape[axis], dtype=bool)
+        mask[obj] = False
         if axis == 0:
             return array[mask]
         if axis == 1:
@@ -379,7 +379,7 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def _la_tanh(array):
-        raise torch.tanh(array)
+        return torch.tanh(array)
 
     @staticmethod
     def _la_diff(array):
