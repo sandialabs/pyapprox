@@ -117,7 +117,7 @@ class JaxLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def _la_arange(*args, **kwargs) -> np.ndarray:
-        return np.arange(*args)
+        return np.arange(*args, **kwargs)
 
     @staticmethod
     def _la_linspace(*args):

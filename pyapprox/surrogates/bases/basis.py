@@ -4,9 +4,7 @@ from pyapprox.util.linearalgebra.numpylinalg import (
     LinAlgMixin,
     NumpyLinAlgMixin,
 )
-from pyapprox.surrogates.interp.indexing import (
-    compute_hyperbolic_indices_itertools,
-)
+from pyapprox.surrogates.bases.multiindex import compute_hyperbolic_indices
 from pyapprox.surrogates.bases.univariate import UnivariateInterpolatingBasis
 from pyapprox.surrogates.orthopoly.poly import OrthonormalPolynomial1D
 
@@ -95,7 +93,7 @@ class MultiIndexBasis(Basis):
 
     def set_hyperbolic_indices(self, nterms, pnorm):
         indices = self._bkd._la_asarray(
-            compute_hyperbolic_indices_itertools(self.nvars(), nterms, pnorm),
+            compute_hyperbolic_indices(self.nvars(), nterms, pnorm),
             dtype=int,
         )
         self.set_indices(indices)
