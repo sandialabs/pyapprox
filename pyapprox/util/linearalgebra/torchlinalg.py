@@ -115,8 +115,8 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.dstack(arrays)
 
     @staticmethod
-    def _la_arange(*args, dtype=torch.double) -> torch.Tensor:
-        return torch.arange(*args, dtype=dtype)
+    def _la_arange(*args, **kwargs) -> torch.Tensor:
+        return torch.arange(*args, **kwargs)
 
     @staticmethod
     def _la_linspace(*args, dtype=torch.double):
@@ -277,11 +277,15 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def _la_max(array, axis=None):
+        if axis is None:
+            return torch.max(array)
         # torch returns both max and indices
         return torch.max(array, dim=axis)[0]
 
     @staticmethod
     def _la_min(array, axis=None):
+        if axis is None:
+            return torch.min(array)
         # torch returns both min and indices
         return torch.min(array, dim=axis)[0]
 
@@ -384,3 +388,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_diff(array):
         return torch.diff(array)
+
+    @staticmethod
+    def _la_int():
+        return torch.int64

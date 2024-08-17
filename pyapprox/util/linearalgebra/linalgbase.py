@@ -648,3 +648,8 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def _la_diff(array):
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _la_int():
+        raise NotImplementedError

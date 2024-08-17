@@ -166,10 +166,10 @@ def charlier_recurrence(N, a):
     if N < 1:
         return np.ones((0, 2))
 
-    ab = np.zeros((N+1, 2))
+    ab = np.zeros((N, 2))
     ab[0, 0] = a
     ab[0, 1] = 1
-    for i in range(1, N+1):
+    for i in range(1, N):
         ab[i, 0] = a + i
         ab[i, 1] = a * i
 
@@ -205,7 +205,7 @@ def krawtchouk_recurrence(Nterms, Ntrials, p):
         The recursion coefficients of the Nterms orthonormal polynomials
     """
 
-    assert(Nterms <= Ntrials)
+    assert (Nterms <= Ntrials)
     assert p > 0 and p < 1
 
     if Nterms < 1:

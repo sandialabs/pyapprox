@@ -9,7 +9,9 @@ from pyapprox.surrogates.bases.univariate import (
     irregular_piecewise_linear_basis,
     irregular_piecewise_quadratic_basis,
     irregular_piecewise_cubic_basis,
-    get_univariate_interpolation_basis,
+    setup_univariate_piecewise_polynomial_basis,
+    ClenshawCurtisQuadratureRule,
+    UnivariateLagrangeBasis,
 )
 
 
@@ -28,7 +30,9 @@ class TestUnivariateBasis:
         # creat nodes with random spacing
         nodes = bkd._la_linspace(lb, ub, nnodes * 2)
         # fmt: off
-        perm = bkd._la_asarray(np.random.permutation(2*nnodes-2), dtype=int)[:nnodes-2]
+        perm = bkd._la_asarray(
+            np.random.permutation(2*nnodes-2), dtype=int
+        )[:nnodes-2]
         nodes = bkd._la_sort(bkd._la_hstack((nodes[[0, -1]], nodes[1+perm])))
         # fmt: on
 
@@ -58,7 +62,9 @@ class TestUnivariateBasis:
         # create nodes with random spacing
         nodes = bkd._la_linspace(lb, ub, nnodes * 2)
         # fmt: off
-        perm = bkd._la_asarray(np.random.permutation(2*nnodes-2), dtype=int)[:nnodes-2]
+        perm = bkd._la_asarray(
+            np.random.permutation(2*nnodes-2), dtype=int
+        )[:nnodes-2]
         nodes = bkd._la_sort(bkd._la_hstack((nodes[[0, -1]], nodes[1+perm])))
         # fmt: on
 
@@ -102,7 +108,7 @@ class TestUnivariateBasis:
             basis @ values, fun(samples[None, :]), atol=1e-15
         )
 
-    def _check_univariate_interpolant_quadrature(
+    def _check_univariate_piecewise_polynomial_quadrature(
         self, name, degree, nnodes, tol
     ):
         bkd = self.get_backend()
@@ -118,8 +124,10 @@ class TestUnivariateBasis:
             if degree == 4:
                 return 2 / 5
 
-        basis = get_univariate_interpolation_basis(name, backend=bkd)
-        nodes = bkd._la_linspace(-1, 1, nnodes)[None, :]
+        bounds = [-1, 1]
+        basis = setup_univariate_piecewise_polynomial_basis(
+            name, bounds, backend=bkd)
+        nodes = bkd._la_linspace(*bounds, nnodes)[None, :]
         basis.set_nodes(nodes)
         samples, weights = basis.quadrature_rule()
         assert np.allclose(
@@ -127,10 +135,14 @@ class TestUnivariateBasis:
         )
 
         # randomize node spacing keeping both end points
-        nodes = bkd._la_linspace(-1, 1, 2 * nnodes)
+        nodes = bkd._la_linspace(*bounds, 2 * nnodes)
         # fmt: off
-        perm = bkd._la_asarray(np.random.permutation(2*nnodes-2), dtype=int)[:nnodes-2]
-        nodes = bkd._la_sort(bkd._la_hstack((nodes[[0, -1]], nodes[1+perm])))[None, :]
+        perm = bkd._la_asarray(
+            np.random.permutation(2*nnodes-2), dtype=int
+        )[:nnodes-2]
+        nodes = bkd._la_sort(
+            bkd._la_hstack((nodes[[0, -1]], nodes[1+perm]))
+        )[None, :]
         # fmt: on
         basis.set_nodes(nodes)
         samples, weights = basis.quadrature_rule()
@@ -138,7 +150,7 @@ class TestUnivariateBasis:
             fun(degree, samples).T @ weights, integral(degree), atol=tol
         )
 
-    def test_univariate_interpolant_quadrature(self):
+    def test_univariate_piecewise_polynomial_quadrature(self):
         test_cases = [
             ["linear", 2, 101, 1e-3],
             ["quadratic", 2, 3, 1e-15],
@@ -148,7 +160,31 @@ class TestUnivariateBasis:
         ]
         for test_case in test_cases:
             np.random.seed(1)
-            self._check_univariate_interpolant_quadrature(*test_case)
+            self._check_univariate_piecewise_polynomial_quadrature(*test_case)
+
+    def test_univariate_lagrange_basis_quadrature(self):
+        nterms = 5
+        bkd = self.get_backend()
+        basis = UnivariateLagrangeBasis(
+            ClenshawCurtisQuadratureRule(backend=bkd), nterms
+        )
+
+        def fun(degree, xx):
+            return bkd._la_sum(xx**degree, axis=0)[:, None]
+
+        def integral(degree):
+            if degree == 2:
+                return 1 / 3
+            if degree == 3:
+                return 0
+            if degree == 4:
+                return 1 / 5
+
+        samples, weights = basis.quadrature_rule()
+        degree = nterms-1
+        assert np.allclose(
+            fun(degree, samples).T @ weights, integral(degree)
+        )
 
 
 class TestNumpyUnivariateBasis(TestUnivariateBasis, unittest.TestCase):

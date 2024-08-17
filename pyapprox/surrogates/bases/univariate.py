@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
+import math
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.surrogates.orthopoly.quadrature import (
+    clenshaw_curtis_in_polynomial_order
+)
 
 
 class UnivariateBasis(ABC):
@@ -90,57 +94,20 @@ class Monomial1D(UnivariateBasis):
 
 
 class UnivariateInterpolatingBasis(UnivariateBasis):
-    def __init__(self, bounds, backend=NumpyLinAlgMixin()):
+    def __init__(self, backend=NumpyLinAlgMixin()):
         super().__init__(backend)
-        self._nodes = None
         self._quad_samples = None
         self._quad_weights = None
-        self._bounds = None
-        self.set_bounds(bounds)
-
-    def set_bounds(self, bounds):
-        """Set the bounds of the quadrature rule"""
-        if len(bounds) != 2:
-            raise ValueError("must specifiy an upper and lower bound")
-        self._bounds = bounds
-
-    def set_nodes(self, nodes):
-        if nodes.ndim != 2 or nodes.shape[0] != 1:
-            raise ValueError("nodes must be a 2D row vector")
-        self._nodes = nodes
-        self._quad_samples, self._quad_weights = (
-            self._quadrature_rule_from_nodes(self._nodes)
-        )
-
-    @abstractmethod
-    def _evaluate_from_nodes(self, nodes):
-        raise NotImplementedError
-
-    @abstractmethod
-    def _quadrature_rule_from_nodes(self, nodes):
-        raise NotImplementedError
-
-    def _values(self, samples):
-        if self._nodes is None:
-            raise RuntimeError("must call set_nodes")
-        return self._evaluate_from_nodes(self._nodes, samples)
-
-    def _quadrature_rule(self):
-        return self._quad_samples, self._quad_weights
 
     def nterms(self):
-        return self._nodes.shape[1]
+        return self._quad_samples.shape[1]
 
     def __repr__(self):
-        if self._nodes is None:
+        if self._quad_samples is None:
             return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
-        return "{0}(nterms={1}, nnodes={2}, bkd={3})".format(
-            self.__class__.__name__, self.nterms(), self._nodes.shape[1],
-            self._bkd
+        return "{0}(nterms={1}, bkd={2})".format(
+            self.__class__.__name__, self.nterms(), self._bkd
         )
-
-    def _active_node_indices_for_quadrature(self):
-        return self._bkd._la_arange(self.nterms())
 
 
 def irregular_piecewise_left_constant_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
@@ -506,7 +473,72 @@ def univariate_lagrange_polynomial(abscissa, samples, bkd=NumpyLinAlgMixin()):
     # return values
 
 
-class UnivariatePiecewiseLeftConstantBasis(UnivariateInterpolatingBasis):
+class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
+    def __init__(self, bounds, backend=NumpyLinAlgMixin()):
+        super().__init__(backend)
+        # nodes may be different than quad_samples
+        # e.g. when using piecwise constant basis
+        self._nodes = None
+        self._bounds = None
+        self.set_bounds(bounds)
+
+    @abstractmethod
+    def _evaluate_from_nodes(self, nodes):
+        raise NotImplementedError
+
+    def _values(self, samples):
+        if self._nodes is None:
+            raise RuntimeError("must call set_nodes")
+        return self._evaluate_from_nodes(self._nodes, samples)
+
+    def set_bounds(self, bounds):
+        """Set the bounds of the quadrature rule"""
+        if len(bounds) != 2:
+            raise ValueError("must specifiy an upper and lower bound")
+        self._bounds = bounds
+
+    @abstractmethod
+    def _quadrature_rule_from_nodes(self, nodes):
+        raise NotImplementedError
+
+    def _quadrature_rule(self):
+        return self._quad_samples, self._quad_weights
+
+    def set_nodes(self, nodes):
+        if nodes.ndim != 2 or nodes.shape[0] != 1:
+            raise ValueError("nodes must be a 2D row vector")
+        self._nodes = nodes
+        self._quad_samples, self._quad_weights = (
+            self._quadrature_rule_from_nodes(self._nodes)
+        )
+
+    def _active_node_indices_for_quadrature(self):
+        # used in time_integration.py
+        return self._bkd._la_arange(self.nterms())
+
+    def __repr__(self):
+        if self._quad_samples is None:
+            return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
+        return "{0}(nterms={1}, nnodes={2}, bkd={3})".format(
+            self.__class__.__name__, self.nterms(), self._nodes.shape[1],
+            self._bkd
+        )
+
+    def set_nterms(self, nterms):
+        """Set equidistant nodes"""
+        self.set_nodes(self._bkd._la_linspace(*self._bounds, nterms)[None, :])
+
+
+class UnivariatePiecewiseConstantBasis(UnivariateInterpolatingBasis):
+    def set_nterms(self, nterms):
+        # need to use nterms + 1 because nterms = nnodes-1 for piecewise
+        # constant basis
+        self.set_nodes(
+            self._bkd._la_linspace(*self._bounds, nterms+1)[None, :]
+        )
+
+
+class UnivariatePiecewiseLeftConstantBasis(UnivariatePiecewiseConstantBasis):
     def _evaluate_from_nodes(self, nodes, samples):
         return irregular_piecewise_left_constant_basis(
             nodes[0], samples[0], self._bkd
@@ -522,7 +554,7 @@ class UnivariatePiecewiseLeftConstantBasis(UnivariateInterpolatingBasis):
         return self._bkd._la_arange(self.nterms() - 1)
 
 
-class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
+class UnivariatePiecewiseRightConstantBasis(UnivariatePiecewiseConstantBasis):
     def _evaluate_from_nodes(self, nodes, samples):
         return irregular_piecewise_right_constant_basis(
             nodes[0], samples[0], self._bkd
@@ -539,7 +571,9 @@ class UnivariatePiecewiseRightConstantBasis(UnivariateInterpolatingBasis):
         return self._bkd._la_arange(1, self.nterms())
 
 
-class UnivariatePiecewiseMidPointConstantBasis(UnivariateInterpolatingBasis):
+class UnivariatePiecewiseMidPointConstantBasis(
+        UnivariatePiecewiseConstantBasis
+):
     def _evaluate_from_nodes(self, nodes, samples):
         return irregular_piecewise_midpoint_constant_basis(
             nodes[0], samples[0], self._bkd
@@ -558,7 +592,7 @@ class UnivariatePiecewiseMidPointConstantBasis(UnivariateInterpolatingBasis):
         raise ValueError("Quadrature points do not coincide with nodes")
 
 
-class UnivariatePiecewiseLinearBasis(UnivariateInterpolatingBasis):
+class UnivariatePiecewiseLinearBasis(UnivariatePiecewisePolynomialBasis):
     def _evaluate_from_nodes(self, nodes, samples):
         return irregular_piecewise_linear_basis(
             nodes[0], samples[0], self._bkd
@@ -575,7 +609,7 @@ class UnivariatePiecewiseLinearBasis(UnivariateInterpolatingBasis):
         )
 
 
-class UnivariatePiecewiseQuadraticBasis(UnivariateInterpolatingBasis):
+class UnivariatePiecewiseQuadraticBasis(UnivariatePiecewisePolynomialBasis):
     def _evaluate_from_nodes(self, nodes, samples):
         return irregular_piecewise_quadratic_basis(
             nodes[0], samples[0], self._bkd
@@ -592,7 +626,7 @@ class UnivariatePiecewiseQuadraticBasis(UnivariateInterpolatingBasis):
         )
 
 
-class UnivariatePiecewiseCubicBasis(UnivariateInterpolatingBasis):
+class UnivariatePiecewiseCubicBasis(UnivariatePiecewisePolynomialBasis):
     def _evaluate_from_nodes(self, nodes, samples):
         return irregular_piecewise_cubic_basis(nodes[0], samples[0], self._bkd)
 
@@ -607,32 +641,85 @@ class UnivariatePiecewiseCubicBasis(UnivariateInterpolatingBasis):
         )
 
 
-class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
-    def _evaluate_from_nodes(self, nodes, samples):
-        return univariate_lagrange_polynomial(nodes[0], samples[0], self._bkd)
+class UnivariateQuadratureRule(ABC):
+    def __init__(self, backend=None, store=False):
+        """
+        Parameters
+        ----------
+        store : bool
+            Store all quadrature rules computed. This is useful
+            if repetedly calling the quadrature rule and
+            the cost of computing the quadrature rule is nontrivial
+        """
+        if backend is None:
+            backend = NumpyLinAlgMixin()
+        self._bkd = backend
+        self._store = store
+        self._quad_samples = dict()
+        self._quad_weights = dict
 
-    def _quadrature_rule_from_nodes(self, nodes):
-        """Compute quadrature assuming a constant weight over self._bounds"""
-        if self._bounds is None:
-            raise ValueError("must call set_bounds")
-        # return Gauss-Legendre quadrature rule for weight function 1 on [-1,1]
-        # todo allowing user to pass in quadrature rule.
-        import numpy as np
-        xx, ww = np.polynomial.legendre.leggauss(nodes.shape[1])
-        # scale to user domain
-        scale = (self._bounds[1]-self._bounds[0])
-        xx = (xx+1)/2*scale+self._bounds[0]
-        ww = ww/2*scale
-        # now integrate lagrange basis functions
-        vals = self(self._bkd._la_asarray(xx)[None, :])
-        weights = (vals.T @ ww)
+    @abstractmethod
+    def _quad_rule(self, nnodes):
+        raise NotImplementedError
+
+    def __call__(self, nnodes):
+        if self._store and nnodes in self._quad_samples:
+            return self._quad_samples[nnodes], self._quad_weights[nnodes]
+        quad_samples, quad_weights = self._quad_rule(nnodes)
+        if self._store:
+            self._quad_samples[nnodes] = quad_samples
+            self._quad_weights[nnodes] = quad_weights
+        return quad_samples, quad_weights
+
+    def __repr__(self):
+        return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
+
+
+def _is_power_of_two(integer):
+    return (integer & (integer-1) == 0) and integer != 0
+
+
+class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
+    """Integrates functions on [-1, 1] with weight function 1/2
+    """
+    def _quad_rule(self, nnodes):
+        # rule requires nnodes = 2**l + 1 for l=1,2,3
+        # so check n=nnodes-1 is a power of 2
+        if nnodes == 1:
+            level = 0
+        else:
+            if not _is_power_of_two(nnodes-1):
+                raise ValueError("nnodes-1 must be a power of 2")
+            level = int(round(math.log(nnodes-1, 2), 0))
+        quad_samples, quad_weights = clenshaw_curtis_in_polynomial_order(
+            level, False
+        )
         return (
-            nodes,
-            self._bkd._la_asarray(weights)[:, None],
+            self._bkd._la_asarray(quad_samples)[None, :],
+            self._bkd._la_asarray(quad_weights)[:, None]
         )
 
 
-def get_univariate_interpolation_basis(basis_type, bounds, backend=NumpyLinAlgMixin()):
+class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
+    def __init__(self, quadrature_rule, nterms, backend=NumpyLinAlgMixin()):
+        super().__init__(backend)
+        self._quad_rule = quadrature_rule
+        self.set_nterms(nterms)
+
+    def set_nterms(self, nterms):
+        self._quad_samples, self._quad_weights = self._quad_rule(nterms)
+
+    def _values(self, samples):
+        return univariate_lagrange_polynomial(
+            self._quad_samples, samples[0], self._bkd)
+
+    def _quadrature_rule(self):
+        return self._quad_samples, self._quad_weights
+
+
+def setup_univariate_piecewise_polynomial_basis(
+        basis_type, bounds, backend=NumpyLinAlgMixin()
+):
     basis_dict = {
         "leftconst": UnivariatePiecewiseLeftConstantBasis,
         "rightconst": UnivariatePiecewiseRightConstantBasis,
@@ -640,7 +727,6 @@ def get_univariate_interpolation_basis(basis_type, bounds, backend=NumpyLinAlgMi
         "linear": UnivariatePiecewiseLinearBasis,
         "quadratic": UnivariatePiecewiseQuadraticBasis,
         "cubic": UnivariatePiecewiseCubicBasis,
-        "lagrange": UnivariateLagrangeBasis,
     }
     if basis_type not in basis_dict:
         raise ValueError(

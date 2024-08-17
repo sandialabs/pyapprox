@@ -350,3 +350,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def _la_diff(array):
         return np.diff(array)
+
+    @staticmethod
+    def _la_int():
+        return int

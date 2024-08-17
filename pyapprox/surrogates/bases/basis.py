@@ -6,7 +6,7 @@ from pyapprox.util.linearalgebra.numpylinalg import (
 )
 from pyapprox.surrogates.bases.multiindex import compute_hyperbolic_indices
 from pyapprox.surrogates.bases.univariate import UnivariateInterpolatingBasis
-from pyapprox.surrogates.orthopoly.poly import OrthonormalPolynomial1D
+from pyapprox.surrogates.bases.orthopoly import OrthonormalPolynomial1D
 
 from pyapprox.util.visualization import get_meshgrid_samples, plot_surface
 

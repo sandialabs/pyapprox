@@ -13,7 +13,21 @@ from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
     discrete_chebyshev_recurrence,
     laguerre_recurrence,
 )
-from pyapprox.surrogates.bases.univariate import UnivariateBasis
+from pyapprox.surrogates.orthopoly.recursion_factory import (
+    predictor_corrector_known_pdf,
+    get_numerically_generated_recursion_coefficients_from_samples,
+)
+from pyapprox.surrogates.bases.univariate import (
+    UnivariateBasis, UnivariateQuadratureRule
+)
+from pyapprox.variables.marginals import (
+    get_distribution_info, get_pdf,
+    transform_scale_parameters,
+    is_continuous_variable,
+    is_bounded_continuous_variable,
+    is_bounded_discrete_variable,
+    get_probability_masses,
+)
 
 
 # todo derive this from univariatebasis in surrogates.interp.tensor_prod
@@ -39,11 +53,16 @@ class OrthonormalPolynomial1D(UnivariateBasis):
     def set_nterms(self, nterms):
         """Compute and set the recursion coefficients of the polynomial."""
         if self._rcoefs is None or self._ncoefs() < nterms:
+            # TODO implement increment of recursion coefficients
             self._rcoefs = self._bkd._la_array(
                 self._get_recursion_coefficients(nterms)
             )
+        elif self._rcoefs is not None or self._ncoefs() >= nterms:
+            self._rcoefs = self._rcoefs[:nterms, :]
 
     def nterms(self):
+        if self._rcoefs is None:
+            return 0
         return self._rcoefs.shape[0]
 
     def _opts_equal(self, other):
@@ -57,7 +76,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         )
 
     def __repr__(self):
-        return "{0}".format(self.__class__.__name__)
+        return "{0}(nterms={1})".format(self.__class__.__name__, self.nterms())
 
     def _values(self, samples):
         if self._rcoefs is None:
@@ -143,6 +162,9 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         Computes N Gauss quadrature nodes (x) and weights (w) from
         standard orthonormal recurrence coefficients.
 
+        Unlike __call__, gauss quadrature rule can be called
+        with npoints <= nterms
+
         Parameters
         ----------
         npoints : integer
@@ -182,7 +204,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         if self._prob_meas:
             w = b[0] * eigvecs[0, :] ** 2
         else:
-            w = self(x[None, :], npoints - 1)
+            w = self(x[None, :])[:, :npoints]
             w = 1.0 / self._bkd._la_sum(w**2, axis=1)
         # w[~self._bkd._la_isfinite(w)] = 0.
         return x[None, :], w[:, None]
@@ -230,8 +252,8 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D):
         return self._alpha == other._alpha and self._beta == other._beta
 
     def __repr__(self):
-        return "{0}(alpha={1}, beta={2})".format(
-            self.__class__.__name__, self._alpha, self._beta
+        return "{0}(alpha={1}, beta={2}, nterms={3})".format(
+            self.__class__.__name__, self._alpha, self._beta, self.nterms()
         )
 
 
@@ -240,7 +262,7 @@ class LegendrePolynomial1D(JacobiPolynomial1D):
         super().__init__(0.0, 0.0, backend=backend)
 
     def __repr__(self):
-        return "{0}".format(self.__class__.__name__)
+        return "{0}(nterms={1})".format(self.__class__.__name__, self.nterms())
 
 
 class HermitePolynomial1D(OrthonormalPolynomial1D):
@@ -275,8 +297,8 @@ class KrawtchoukPolynomial1D(OrthonormalPolynomial1D):
         return self._n == other._n and self._p == other._p
 
     def __repr__(self):
-        return "{0}(n={1}, p={2})".format(
-            self.__class__.__name__, self._n, self._p
+        return "{0}(n={1}, p={2}, nterms={3})".format(
+            self.__class__.__name__, self._n, self._p, self.nterms()
         )
 
 
@@ -305,8 +327,9 @@ class HahnPolynomial1D(OrthonormalPolynomial1D):
         )
 
     def __repr__(self):
-        return "{0}(N={1}, alpha={2}, beta={3})".format(
-            self.__class__.__name__, self._N, self._alpha, self._beta
+        return "{0}(N={1}, alpha={2}, beta={3}, nterms={4})".format(
+            self.__class__.__name__, self._N, self._alpha, self._beta,
+            self.nterms()
         )
 
 
@@ -351,8 +374,8 @@ class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D):
         )
         return rcoefs
 
-    def __call__(self, samples, nmax):
-        vals = super().__call__(samples, nmax)
+    def __call__(self, samples):
+        vals = super().__call__(samples)
         vals[:, 1:] /= 2**0.5
         return vals
 
@@ -361,7 +384,7 @@ class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D):
         return quad_x, quad_w*math.pi
 
     def __repr__(self):
-        return "{0}".format(self.__class__.__name__)
+        return "{0}(nterms={1})".format(self.__class__.__name__, self.nterms())
 
 
 class Chebyshev2ndKindPolynomial1D(JacobiPolynomial1D):
@@ -374,4 +397,125 @@ class Chebyshev2ndKindPolynomial1D(JacobiPolynomial1D):
         return quad_x, quad_w*math.pi/2
 
     def __repr__(self):
-        return "{0}".format(self.__class__.__name__)
+        return "{0}(nterms={1})".format(self.__class__.__name__, self.nterms())
+
+
+class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
+    def __init__(self, samples, weights, ortho_tol=1e-8, truncation_tol=0,
+                 backend=None):
+        """Compure recurrence coefficients from samples."""
+        super().__init__(backend)
+        self._samples = samples
+        self._weights = weights
+        self._ortho_tol = ortho_tol
+        self._truncation_tol = truncation_tol
+
+    def _get_recursion_coefficients(self, ncoefs):
+        return get_numerically_generated_recursion_coefficients_from_samples(
+            self._bkd._la_to_numpy(self._samples),
+            self._bkd._la_to_numpy(self._weights), ncoefs, self._ortho_tol,
+            self._truncation_tol)
+
+
+class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
+    def __init__(self, marginal, quad_opts={}, integrate_fun=None,
+                 backend=None):
+        """Compure recurrence coefficients from a known PDF
+        using predictor corrector method."""
+        super().__init__(backend)
+        # Get version var.pdf without error checking which runs much faster
+        self._pdf, self._loc, self._scale, self._can_lb, self._can_ub = (
+            self._parse_marginal(marginal))
+        self._marginal = marginal
+        self._quad_opts = self._parse_quad_opts(quad_opts, integrate_fun)
+
+    def _parse_marginal(self, marginal):
+        pdf = get_pdf(marginal)
+        loc, scale = transform_scale_parameters(marginal)
+        lb, ub = marginal.interval(1)
+        if is_bounded_continuous_variable(marginal):
+            can_lb, can_ub = -1, 1
+        elif is_continuous_variable(marginal):
+            can_lb = (lb-loc)/scale
+            can_ub = (ub-loc)/scale
+        else:
+            raise ValueError("variable must be a continuous variable")
+        return pdf, loc, scale, can_lb, can_ub
+
+    def _parse_quad_opts(self, quad_opts, integrate_fun):
+        if not isinstance(quad_opts, dict):
+            raise ValueError("quad_opts must be a dictionary")
+        if integrate_fun is not None:
+            quad_opts["integrate_fun"] = integrate_fun
+        return quad_opts
+
+    def _canonical_pdf(self, x):
+        return self._pdf(x*self._scale+self._loc)*self._scale
+
+    def _get_recursion_coefficients(self, ncoefs):
+        return predictor_corrector_known_pdf(
+            ncoefs, self._can_lb, self._can_ub, self._canonical_pdf,
+            self._quad_opts)
+
+
+def setup_univariate_orthogonal_polynomial_from_marginal(
+        marginal, opts=None, backend=None
+):
+    var_name, scales, shapes = get_distribution_info(marginal)
+
+    # Askey polynomials that do not need scale or shape
+    simple_askey_polys = {
+        "uniform": LegendrePolynomial1D,
+        "norm": HermitePolynomial1D,
+    }
+    if var_name in simple_askey_polys:
+        return simple_askey_polys[var_name](backend=backend)
+
+    # Other Askey polynomials
+    # Ignore binom (KrawtchoukPolynomial1D) and hypergeom (HahnPolynomial1D)
+    # because these polynomials are not defined on [-1, 1] which is assumed
+    # to be the canonical domain of bounded marginals
+    if var_name == "beta":
+        return JacobiPolynomial1D(
+            shapes["b"]-1, shapes["a"]-1, backend=backend
+        )
+
+    if var_name == "poisson":
+        return CharlierPolynomial1D(*shapes, backend=backend)
+
+    # Other continuous marginals
+    if (
+            is_continuous_variable(marginal) and
+            var_name != "continuous_rv_sample"
+    ):
+        if opts is None:
+            opts = {"epsrel": 1e-8, "epsabs": 1e-8, "limit": 100}
+        return ContinuousNumericOrthonormalPolynomial1D(
+            marginal, opts
+        )
+
+    # other discrete marginals
+    if opts is None:
+        opts = {"otol": 1e-8, "ptol": 1e-8}
+    if hasattr(shapes, "xk"):
+        xk, pk = shapes["xk"], shapes["pk"]
+    else:
+        xk, pk = get_probability_masses(
+            marginal, opts["ptol"])
+
+    loc, scale = transform_scale_parameters(marginal)
+    xk = (xk-loc)/scale
+    return DiscreteNumericOrthonormalPolynomial1D(xk, pk, opts["otol"])
+
+
+class GaussQuadratureRule(UnivariateQuadratureRule):
+    def __init__(self, marginal, opts=None, backend=None, store=False):
+        super().__init__(backend, store)
+        self._poly = setup_univariate_orthogonal_polynomial_from_marginal(
+            marginal, opts=opts, backend=backend
+        )
+
+    def _quad_rule(self, nnodes):
+        if self._poly.nterms() < nnodes:
+            self._poly.set_nterms(nnodes)
+        return self._poly.gauss_quadrature_rule(nnodes)

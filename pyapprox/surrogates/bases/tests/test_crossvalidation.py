@@ -4,7 +4,7 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 #vfrom pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.orthopoly.poly import LegendrePolynomial1D
+from pyapprox.surrogates.bases.orthopoly import LegendrePolynomial1D
 from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
 from pyapprox.surrogates.bases.linearsystemsolvers import (

@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from pyapprox.surrogates.orthopoly.poly import LegendrePolynomial1D
+from pyapprox.surrogates.bases.orthopoly import LegendrePolynomial1D
 from pyapprox.surrogates.bases.univariate import (
     Monomial1D, get_univariate_interpolation_basis
 )
@@ -264,7 +264,9 @@ class TestBasis:
             mpce.get_coefficients(), pce.get_coefficients()[indices]
         )
 
-    def _check_tensor_product_interpolation(self, basis_types, nnodes_1d, atol):
+    def _check_tensor_product_interpolation(
+            self, basis_types, nnodes_1d, atol
+    ):
         bkd = self.get_backend()
         bounds = [0, 1]
         nvars = len(basis_types)
