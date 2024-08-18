@@ -109,6 +109,10 @@ class UnivariateInterpolatingBasis(UnivariateBasis):
             self.__class__.__name__, self.nterms(), self._bkd
         )
 
+    @abstractmethod
+    def _semideep_copy(self):
+        raise NotImplementedError
+
 
 def irregular_piecewise_left_constant_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
     # abscissa are not equidistant
@@ -482,6 +486,16 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         self._bounds = None
         self.set_bounds(bounds)
 
+    def _copy(self):
+        other = self.__class__(self._bounds, self._bkd)
+        # need to copy nodes or changing nodes in one basis
+        # may change it in anotehr unintentionally
+        other.set_nodes(self._bkd._la_copy(self._nodes))
+        return other
+
+    def _semideep_copy(self):
+        return self._copy()
+
     @abstractmethod
     def _evaluate_from_nodes(self, nodes):
         raise NotImplementedError
@@ -656,7 +670,7 @@ class UnivariateQuadratureRule(ABC):
         self._bkd = backend
         self._store = store
         self._quad_samples = dict()
-        self._quad_weights = dict
+        self._quad_weights = dict()
 
     @abstractmethod
     def _quad_rule(self, nnodes):
@@ -711,10 +725,15 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
 
     def _values(self, samples):
         return univariate_lagrange_polynomial(
-            self._quad_samples, samples[0], self._bkd)
+            self._quad_samples[0], samples[0], self._bkd)
 
     def _quadrature_rule(self):
         return self._quad_samples, self._quad_weights
+
+    def _semideep_copy(self):
+        # do not copy quadrature rule as it may be used in multiple
+        # dimensions of a tensor product and subspaces in a sparse grid
+        return UnivariateLagrangeBasis(self._quad_rule, self.nterms())
 
 
 def setup_univariate_piecewise_polynomial_basis(

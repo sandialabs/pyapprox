@@ -4,7 +4,7 @@ import numpy as np
 
 from pyapprox.surrogates.bases.orthopoly import LegendrePolynomial1D
 from pyapprox.surrogates.bases.univariate import (
-    Monomial1D, get_univariate_interpolation_basis
+    Monomial1D, setup_univariate_piecewise_polynomial_basis
 )
 from pyapprox.surrogates.bases.basis import (
     MultiIndexBasis,
@@ -272,7 +272,9 @@ class TestBasis:
         nvars = len(basis_types)
         nnodes_1d = np.array(nnodes_1d)
         bases_1d = [
-            get_univariate_interpolation_basis(bt, bounds, backend=bkd)
+            setup_univariate_piecewise_polynomial_basis(
+                bt, bounds, backend=bkd
+            )
             for bt in basis_types
         ]
         basis = TensorProductInterpolatingBasis(bases_1d)
@@ -299,12 +301,14 @@ class TestBasis:
             [["linear", "linear"], [41, 43], 1e-3],
             [["quadratic", "quadratic"], [41, 43], 1e-5],
             [["cubic", "cubic"], [40, 40], 1e-15],
-            [["lagrange", "lagrange"], [4, 5], 1e-15],
             [["linear", "quadratic"], [41, 43], 1e-3],
-            [["linear", "quadratic", "lagrange"], [41, 23, 4], 1e-3],
-            [["cubic", "quadratic", "lagrange"], [25, 23, 4], 1e-4],
+            # todo add lagrange once most common lagrange quadrature
+            # combos have been added to setup_univariate_interpolating_basis
+            # [["lagrange", "lagrange"], [4, 5], 1e-15],
+            # [["linear", "quadratic", "lagrange"], [41, 23, 4], 1e-3],
+            # [["cubic", "quadratic", "lagrange"], [25, 23, 4], 1e-4],
             # Following tests use of active vars when nnodes_1d[ii] = 0
-            [["linear", "quadratic", "lagrange"], [1, 23, 4], 1e-4],
+            # [["linear", "quadratic", "lagrange"], [1, 23, 4], 1e-4],
         ]
         for test_case in test_cases:
             self._check_tensor_product_interpolation(*test_case)
@@ -328,7 +332,9 @@ class TestBasis:
                 return nvars*2/5*2**(nvars-1)
 
         bases_1d = [
-            get_univariate_interpolation_basis(name, bounds, backend=bkd)
+            setup_univariate_piecewise_polynomial_basis(
+                name, bounds, backend=bkd
+            )
             for ii in range(nvars)
         ]
         nodes_1d = [

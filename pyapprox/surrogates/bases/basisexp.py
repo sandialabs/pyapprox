@@ -2,9 +2,6 @@ import copy
 
 import numpy as np
 
-from pyapprox.surrogates.bases.orthopoly import (
-    setup_univariate_orthogonal_polynomial_from_marginal
-)
 from pyapprox.surrogates.bases.basis import (
     Basis, OrthonormalPolynomialBasis, MultiIndexBasis,
     TensorProductInterpolatingBasis)
@@ -16,11 +13,7 @@ from pyapprox.surrogates.interp.manipulate_polynomials import add_polynomials
 from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions)
 from pyapprox.surrogates.regressor import Regressor
-from pyapprox.surrogates.bases.univariate import (
-    Monomial1D,  setup_univariate_piecewise_polynomial_basis
-)
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.variables.joint import get_truncated_ranges
+from pyapprox.surrogates.bases.univariate import Monomial1D
 
 
 class BasisExpansion(Regressor):
@@ -419,6 +412,8 @@ class PolynomialChaosExpansion(MonomialExpansion):
 
 
 class TensorProductInterpolant:
+    # TODO make tensor product interpolant derive from regressor
+    # or create InterpolantBases class that has fit that just takes values
     def __init__(self, basis: TensorProductInterpolatingBasis):
         if not isinstance(basis, TensorProductInterpolatingBasis):
             raise ValueError(
@@ -448,80 +443,3 @@ class TensorProductInterpolant:
     def integrate(self):
         quad_weights = self._basis.quadrature_rule()[1]
         return (self._values.T @ quad_weights)[:, 0]
-
-
-class TensorProductInterpolantFactory:
-    """Set up most used tensor product interpolants."""
-    def __init__(self, variable, basis_types, variable_bounds=None,
-                 backend=NumpyLinAlgMixin()):
-        self._bkd = backend
-        self._variable = variable
-        self._marginals = self._variable.marginals()
-        if variable_bounds is None:
-            variable_bounds = get_truncated_ranges(self._variable)
-        if len(variable_bounds) != 2*self._variable.nvars():
-            raise ValueError("length of basis_types does not match 2*nvars")
-        self._variable_bounds = variable_bounds
-        if isinstance(basis_types, str):
-            basis_types = [basis_types]*self._variable.nvars()
-        if len(basis_types) != self._variable.nvars():
-            raise ValueError("length of basis_types does not match nvars")
-        self._basis_types = basis_types
-
-    def get_univariate_nodes(self, dim_id, nnodes_1d):
-        piecewise_basis_types = [
-            "leftconst",
-            "rightconst",
-            "midconst",
-            "linear",
-            "quadratic",
-            "cubic",
-        ]
-        if self._basis_types[dim_id] in piecewise_basis_types:
-            return self._bkd._la_linspace(0, 1, nnodes_1d)[None, :]
-
-        if "lagrange" not in self._basis_types[dim_id]:
-            raise ValueError(
-                "{0} is not implemented".format(self._basis_types[dim_id])
-            )
-            if self._univariate_polys[dim_id] is None:
-                poly = setup_univariate_orthogonal_polynomial_from_marginal(
-                    self._marginals[dim_id], opts=None, backend=None
-                )
-            if poly.nterms() < nnodes_1d:
-                poly.set_nterms(nnodes_1d)
-            if nnodes_1d not in self._univariate_samples[dim_id]:
-                if self._basis_types[dim_id] == "lagrange-gauss":
-                    quad_x, quad_w = poly.gauss_quadrature_rule(nnodes_1d)
-                elif self._basis_types[dim_id] == "lagrange-leja":
-                    raise NotImplementedError(
-                        "This will be implemented shortly"
-                    )
-                else:
-                    raise ValueError(
-                        "{0} is not implemented".format(
-                            self._basis_types[dim_id]
-                        )
-                    )
-                self._univariate_samples[dim_id][nnodes_1d] = quad_x
-                self._univariate_quad_weights[dim_id][nnodes_1d] = quad_w
-
-    def set_nunivariate_nodes(self, nnodes_1d):
-        self._univariate_samples = [
-            self._bkd._la_linspace(0, 1, N)[None, :] for N in nnodes_1d
-        ]
-
-    def __call__(self, nnodes_1d):
-        # TODO if all are lagrange interpolants then use fast tensor product
-        # barycentric interpolation
-        bases_1d = [
-             setup_univariate_piecewise_polynomial_basis(
-                bt, bounds, backend=self._bkd)
-            for bt, bounds in zip(self.basis_types, self._variable_bounds)
-        ]
-        basis = TensorProductInterpolatingBasis(bases_1d)
-        self.get_univariate_nodes(dim_id, nnodes_1d)
-        basis.set_1d_nodes(
-            [self._get_u for N in nnodes_1d]
-        )
-        return TensorProductInterpolant(basis)

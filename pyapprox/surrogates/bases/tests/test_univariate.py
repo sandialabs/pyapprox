@@ -150,6 +150,12 @@ class TestUnivariateBasis:
             fun(degree, samples).T @ weights, integral(degree), atol=tol
         )
 
+        # test semideep copy
+        other = basis._semideep_copy()
+        # check pointer to quad_rule is unchanged
+        assert other != basis
+
+
     def test_univariate_piecewise_polynomial_quadrature(self):
         test_cases = [
             ["linear", 2, 101, 1e-3],
@@ -185,6 +191,12 @@ class TestUnivariateBasis:
         assert np.allclose(
             fun(degree, samples).T @ weights, integral(degree)
         )
+
+        # test semideep copy
+        other = basis._semideep_copy()
+        # check pointer to quad_rule is unchanged
+        assert other._quad_rule == basis._quad_rule
+        assert other != basis
 
 
 class TestNumpyUnivariateBasis(TestUnivariateBasis, unittest.TestCase):

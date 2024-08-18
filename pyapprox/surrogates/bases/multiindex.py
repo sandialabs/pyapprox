@@ -444,6 +444,9 @@ class IsotropicSGIndexGenerator(IndexGenerator):
     def get_subspace_indices(self):
         return self._gen.get_indices()
 
+    def nsubspace_indices(self):
+        return self._gen.nindices()
+
     def step(self):
         """Increment max_level by 1"""
         self._gen.step()

@@ -107,7 +107,7 @@ class MultiIndexBasis(Basis):
             )
         )
 
-    def _update_nterms(self, nterms_per_1d_basis):
+    def set_nterms(self, nterms_per_1d_basis):
         for ii, basis_1d in enumerate(self._bases_1d):
             basis_1d.set_nterms(nterms_per_1d_basis[ii])
 
@@ -129,7 +129,7 @@ class MultiIndexBasis(Basis):
                 )
             )
         self._indices = self._bkd._la_array(indices, dtype=int)
-        self._update_nterms(self._bkd._la_max(self._indices, axis=1)+1)
+        self.set_nterms(self._bkd._la_max(self._indices, axis=1)+1)
 
     def get_indices(self):
         """Return the indices defining the basis terms."""
@@ -239,11 +239,10 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
     def tensor_product_grid(self):
         nodes_1d = []
         for basis in self._bases_1d:
-            if basis._nodes is None:
-                raise RuntimeError("must call set_1d_nodes")
-            nodes_1d.append(basis._nodes[0])
-        return self._bkd._la_cartesian_product(
-            nodes_1d)
+            if basis._quad_samples is None:
+                raise RuntimeError("must define quad_samples")
+            nodes_1d.append(basis._quad_samples[0])
+        return self._bkd._la_cartesian_product(nodes_1d)
 
     def set_1d_nodes(self, nodes_1d):
         for basis, nodes in zip(self._bases_1d, nodes_1d):
@@ -251,9 +250,6 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         self.set_tensor_product_indices(
             [basis.nterms() for basis in self._bases_1d]
         )
-
-    def _update_nterms(self, nterms):
-        pass
 
     def nterms(self):
         return self._bkd._la_prod(
@@ -335,3 +331,10 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         if plot_nodes is None:
             return
         self._plot_nodes(ax, offset, X, Y, idx, nterms_1d)
+
+    def _semideep_copy(self):
+        # this function can be dangerous so should be used with caution
+        # when not wanting to copy all internal data
+        return TensorProductInterpolatingBasis(
+            [basis._semideep_copy() for basis in self._bases_1d]
+        )
