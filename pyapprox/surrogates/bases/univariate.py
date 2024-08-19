@@ -1,17 +1,24 @@
 from abc import ABC, abstractmethod
 import math
 
+import numpy as np
+import scipy
+
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_in_polynomial_order
 )
+from pyapprox.util.transforms import IdentityTransform
 
 
 class UnivariateBasis(ABC):
-    def __init__(self, backend):
+    def __init__(self, trans, backend):
         if backend is None:
             backend = NumpyLinAlgMixin()
         self._bkd = backend
+        if trans is None:
+            trans = IdentityTransform(backend=self._bkd)
+        self._trans = trans
 
     @abstractmethod
     def _values(samples):
@@ -58,8 +65,8 @@ class UnivariateBasis(ABC):
 class Monomial1D(UnivariateBasis):
     """Univariate monomial basis."""
 
-    def __init__(self, nterms=None, backend=NumpyLinAlgMixin()):
-        super().__init__(backend)
+    def __init__(self, nterms=None, trans=None, backend=None):
+        super().__init__(trans, backend)
         self._nterms = None
         if nterms is not None:
             self.set_nterms(nterms)
@@ -94,8 +101,8 @@ class Monomial1D(UnivariateBasis):
 
 
 class UnivariateInterpolatingBasis(UnivariateBasis):
-    def __init__(self, backend=NumpyLinAlgMixin()):
-        super().__init__(backend)
+    def __init__(self, trans=None, backend=None):
+        super().__init__(trans, backend)
         self._quad_samples = None
         self._quad_weights = None
 
@@ -478,8 +485,8 @@ def univariate_lagrange_polynomial(abscissa, samples, bkd=NumpyLinAlgMixin()):
 
 
 class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
-    def __init__(self, bounds, backend=NumpyLinAlgMixin()):
-        super().__init__(backend)
+    def __init__(self, bounds, trans=None, backend=None):
+        super().__init__(trans, backend)
         # nodes may be different than quad_samples
         # e.g. when using piecwise constant basis
         self._nodes = None
@@ -694,8 +701,12 @@ def _is_power_of_two(integer):
 
 
 class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
-    """Integrates functions on [-1, 1] with weight function 1/2
+    """Integrates functions on [-1, 1] with weight function 1/2 or 1.
     """
+    def __init__(self, prob_measure=True, backend=None, store=False):
+        super().__init__(backend=None, store=store)
+        self._prob_measure = prob_measure
+
     def _quad_rule(self, nnodes):
         # rule requires nnodes = 2**l + 1 for l=1,2,3
         # so check n=nnodes-1 is a power of 2
@@ -708,6 +719,8 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
         quad_samples, quad_weights = clenshaw_curtis_in_polynomial_order(
             level, False
         )
+        if not self._prob_measure:
+            quad_weights *= 2
         return (
             self._bkd._la_asarray(quad_samples)[None, :],
             self._bkd._la_asarray(quad_weights)[:, None]
@@ -737,7 +750,7 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
 
 
 def setup_univariate_piecewise_polynomial_basis(
-        basis_type, bounds, backend=NumpyLinAlgMixin()
+        basis_type, bounds, trans=None, backend=None,
 ):
     basis_dict = {
         "leftconst": UnivariatePiecewiseLeftConstantBasis,
@@ -753,4 +766,204 @@ def setup_univariate_piecewise_polynomial_basis(
                 basis_type, list(basis_dict.keys())
             )
         )
-    return basis_dict[basis_type](bounds, backend)
+    return basis_dict[basis_type](bounds, trans, backend)
+
+
+class UnivariateIntegrator(ABC):
+    def __init__(self, backend):
+        self._integrand = None
+        if backend is None:
+            backend = NumpyLinAlgMixin()
+        self._bkd = backend
+
+    def set_integrand(self, integrand):
+        self._integrand = integrand
+
+    def set_options(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def __call__(self):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
+
+class ScipyUnivariateIntegrator(UnivariateIntegrator):
+    def __init__(self, backend=None):
+        super().__init__(backend)
+
+        self._kwargs = {}
+        self._bounds = None
+        self._result = None
+
+    def set_options(self, **kwargs):
+        self._kwargs = kwargs
+
+    def set_bounds(self, bounds):
+        if len(bounds) != 2:
+            raise ValueError("bounds must be an interable with two elements")
+        self._bounds = bounds
+
+    def _scipy_integrand(self, sample):
+        val = self._integrand(self._bkd._la_atleast2d(sample))
+        if val.ndim != 2:
+            raise RuntimeError("integrand must return 2D array with 1 element")
+        return self._bkd._la_to_numpy(val)[0, 0]
+
+    def __call__(self):
+        result = scipy.integrate.quad(
+            self._scipy_integrand, *self._bounds, **self._kwargs
+        )
+        self._result = result
+        return result[0]
+
+
+class UnivariateUnboundedIntegrator(UnivariateIntegrator):
+    """
+    Compute unbounded integrals by moving left and right from origin.
+    Assume that integral decays towards +/- infinity. And that once integral
+    over a sub interval drops below tolerance it will not increase again if
+    we keep moving in same direction.
+    """
+    def __init__(self, quad_rule, backend=None):
+        super().__init__(backend)
+        self._bounds = None
+        self._inteval_size = None
+        self._verbosity = None
+        self._nquad_samples = None
+        self._adaptive = None
+        self._atol = None
+        self._rtol = None
+        self._maxiters = None
+        self.set_options()
+        self._quad_rule = quad_rule
+
+    def set_options(
+            self, interval_size=2, nquad_samples=50, verbosity=0,
+            adaptive=True, atol=1e-8, rtol=1e-8, maxiters=1000,
+            maxinner_iters=10
+    ):
+        if interval_size <= 0:
+            raise ValueError("Interval size must be positive")
+        self._interval_size = interval_size
+        self._verbosity = verbosity
+        self._nquad_samples = nquad_samples
+        self._adaptive = adaptive
+        self._atol = atol
+        self._rtol = rtol
+        self._maxiters = maxiters
+        self._maxinner_iters = maxinner_iters
+
+    def set_bounds(self, bounds):
+        if len(bounds) != 2:
+            raise ValueError("bounds must be an interable with two elements")
+        self._bounds = bounds
+        if np.isfinite(bounds[0]) and np.isfinite(bounds[1]):
+            raise ValueError(
+                "Do not use this integrator for bounded integrals"
+            )
+
+    def _initial_interval_bounds(self):
+        lb, ub = self._bounds
+        if np.isfinite(lb) and not np.isfinite(ub):
+            return lb, lb+self._interval_size
+        elif not np.isfinite(lb) and np.isfinite(ub):
+            return ub-self._interval_size, ub
+        return -self._interval_size/2, self._interval_size/2
+
+    def _integrate_interval(self, lb, ub, nquad_samples):
+        can_quad_x, can_quad_w = self._quad_rule(nquad_samples)
+        quad_x = (can_quad_x+1)/2*(ub-lb)+lb
+        quad_w = can_quad_w*(ub-lb)/2
+        return self._integrand(quad_x).T @ quad_w[:, 0]
+
+    def _adaptive_integrate_interval(self, lb, ub):
+        nquad_samples = self._nquad_samples
+        integral = self._integrate_interval(lb, ub, nquad_samples)
+        if not self._adaptive:
+            return integral
+        it = 1
+        while True:
+            nquad_samples = (nquad_samples-1)*2+1
+            prev_integral = integral
+            integral = self._integrate_interval(lb, ub, nquad_samples)
+            it += 1
+            diff = self._bkd._la_abs(prev_integral-integral)
+            if self._bkd._la_all(
+                    diff < self._rtol*self._bkd._la_abs(integral)+self._atol
+            ):
+                break
+            if it >= self._maxinner_iters:
+                break
+        return integral
+
+    def _left_integrate(self, lb, ub):
+        integral = 0
+        prev_integral = np.inf
+        it = 0
+        while (
+                self._bkd._la_any(
+                    self._bkd._la_abs(integral-prev_integral) >=
+                    self._rtol*self._bkd._la_abs(prev_integral)+self._atol
+                )
+                and lb >= self._bounds[0]
+                and it < self._maxiters
+        ):
+            result = self._adaptive_integrate_interval(lb, ub)
+            if it == 0:
+                prev_integral = integral
+            else:
+                prev_integral = self._bkd._la_copy(integral)
+            integral += result
+            ub = lb
+            lb -= self._interval_size
+            it += 1
+        if self._verbosity > 0:
+            print(
+                "nleft iters={0}, error={1}".format(
+                    it, self._bkd._la_abs(integral-prev_integral)
+                )
+            )
+        return integral
+
+    def _right_integrate(self, lb, ub):
+        integral = 0
+        prev_integral = np.inf
+        it = 0
+        while (
+                self._bkd._la_any(
+                    self._bkd._la_abs(integral-prev_integral) >=
+                    self._rtol*self._bkd._la_abs(prev_integral)+self._atol
+                )
+                and ub <= self._bounds[1]
+                and it < self._maxiters
+        ):
+            result = self._adaptive_integrate_interval(lb, ub)
+            if it == 0:
+                prev_integral = integral
+            else:
+                prev_integral = self._bkd._la_copy(integral)
+            integral += result
+            lb = ub
+            ub += self._interval_size
+            it += 1
+
+        if self._verbosity > 0:
+            print(
+                "nright iters={0}, error={1}".format(
+                    it, self._bkd._la_abs(integral-prev_integral)
+                )
+            )
+        return integral
+
+    def __call__(self):
+        # compute left integral
+        lb, ub = self._initial_interval_bounds()
+        left_integral = self._left_integrate(lb, ub)
+        right_integral = self._right_integrate(ub, ub+self._interval_size)
+        integral = left_integral + right_integral
+        if integral.shape[0] == 1:
+            return integral[0]
+        return integral

@@ -26,9 +26,11 @@ from pyapprox.surrogates.bases.orthopoly import (
     DiscreteNumericOrthonormalPolynomial1D,
     GaussQuadratureRule,
     AffineMarginalTransform,
+    setup_univariate_orthogonal_polynomial_from_marginal,
 )
 from pyapprox.surrogates.bases.univariate import (
-    Monomial1D, UnivariateLagrangeBasis
+    Monomial1D, UnivariateLagrangeBasis, ScipyUnivariateIntegrator,
+    UnivariateUnboundedIntegrator, ClenshawCurtisQuadratureRule
 )
 from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import MonomialExpansion
@@ -52,6 +54,7 @@ class TestOrthonormalPolynomials1D:
         exact_moments[0] = 1.0
         assert bkd._la_allclose(vals.T @ quad_w, exact_moments)
         # test orthonormality
+        print((vals.T * quad_w[:, 0]) @ vals, bkd._la_eye(degree + 1))
         assert bkd._la_allclose(
             (vals.T * quad_w[:, 0]) @ vals, bkd._la_eye(degree + 1)
         )
@@ -453,14 +456,12 @@ class TestOrthonormalPolynomials1D:
         a = 3
         rho = a-1
         degree = 5
-        poly = LaguerrePolynomial1D(rho)
+        poly = LaguerrePolynomial1D(rho, backend=bkd)
         poly.set_nterms(degree+1)
         marginal = stats.gamma(a)
 
-        tol = 1e-8
-        quad_opts = {"epsrel": tol, "epsabs": tol, "limit": 100}
         num_poly = ContinuousNumericOrthonormalPolynomial1D(
-            marginal, quad_opts
+            marginal, backend=bkd
         )
         num_poly.set_nterms(degree+1)
         # The last coefficient of ab[:, 0] is never used so it is not computed
@@ -469,17 +470,19 @@ class TestOrthonormalPolynomials1D:
 
         rho = 0
         marginal = stats.expon()
-        poly = LaguerrePolynomial1D(rho)
+        poly = LaguerrePolynomial1D(rho, backend=bkd)
         poly.set_nterms(degree+1)
+        # check ability to pass in integrator
+        integrator = ScipyUnivariateIntegrator(backend=bkd)
         num_poly = ContinuousNumericOrthonormalPolynomial1D(
-            marginal, quad_opts
+            marginal, integrator, backend=bkd
         )
         num_poly.set_nterms(degree+1)
         assert bkd._la_allclose(num_poly._rcoefs, poly._rcoefs)
 
     def test_discrete_numeric_orthonormal_polynomial(self):
         bkd = self.get_backend()
-        degree, rate = 5, 2
+        degree, rate = 5, 3
         rv = stats.poisson(rate)
         lb, ub = rv.interval(1 - np.finfo(float).eps)
         nmasses = int(ub - lb + 1)
@@ -492,7 +495,7 @@ class TestOrthonormalPolynomials1D:
 
         tol = 1e-8
         num_poly = DiscreteNumericOrthonormalPolynomial1D(
-            xk[0, :], pk[:, 0], tol,
+            xk, pk, tol, backend=bkd
         )
         num_poly.set_nterms(degree+1)
         # The last coefficient of ab[-1, 0] is never used so it is not computed
@@ -549,6 +552,174 @@ class TestOrthonormalPolynomials1D:
         # test error thown when samples outside bounded domain
         samples = bkd._la_asarray(np.random.uniform(0, 2, (1, nsamples)))
         self.assertRaises(ValueError, trans.map_to_canonical, samples)
+
+    def test_setup_discrete_univariate_orthopoly_from_marginal(self):
+        # fmt: off
+        discrete_var_names = [
+            "binom", "bernoulli", "nbinom", "geom", "hypergeom", "logser",
+            "poisson", "planck", "boltzmann", "randint", "zipf",
+            "dlaplace", "yulesimon"]
+        # valid shape parameters for each distribution in names
+        # there is a one to one correspondence between entries
+        discrete_var_shapes = [
+            {"n": 10, "p": 0.5}, {"p": 0.5}, {"n": 10, "p": 0.5}, {"p": 0.5},
+            {"M": 20, "n": 7, "N": 12}, {"p": 0.5}, {"mu": 1}, {"lambda_": 1},
+            {"lambda_": 2, "N": 10}, {"low": 0, "high": 10}, {"a": 2},
+            {"a": 1}, {"alpha": 1}]
+        # fmt: on
+
+        # do not support :
+        #    yulesimon as there is a bug when interval is called
+        #       from a frozen variable
+        #    bernoulli which only has two masses
+        #    zipf unusual distribution and difficult to compute basis
+        unsupported_discrete_var_names = ["bernoulli", "yulesimon", "zipf"]
+        for name in unsupported_discrete_var_names:
+            ii = discrete_var_names.index(name)
+            del discrete_var_names[ii]
+            del discrete_var_shapes[ii]
+
+        for name, shapes in zip(discrete_var_names, discrete_var_shapes):
+            marginal = getattr(stats, name)(**shapes)
+            opts = {"ptol": 2e-8}
+            poly = setup_univariate_orthogonal_polynomial_from_marginal(
+                marginal, opts=opts)
+            self._check_orthonormal_poly(poly)
+
+    def test_setup_continuous_univariate_orthopoly_from_marginal(self):
+        # fmt: off
+        bkd = self.get_backend()
+        continuous_marginal_names = [
+            "ksone", "kstwobign", "norm", "alpha", "anglit", "arcsine", "beta",
+            "betaprime", "bradford", "burr", "burr12", "fisk", "cauchy", "chi",
+            "chi2", "cosine", "dgamma", "dweibull", "expon", "exponnorm",
+            "exponweib", "exponpow", "fatiguelife", "foldcauchy", "f",
+            "foldnorm", "weibull_min", "weibull_max", "frechet_r", "frechet_l",
+            "genlogistic", "genpareto", "genexpon", "genextreme", "gamma",
+            "erlang", "gengamma", "genhalflogistic", "gompertz", "gumbel_r",
+            "gumbel_l", "halfcauchy", "halflogistic", "halfnorm", "hypsecant",
+            "gausshyper", "invgamma", "invgauss", "norminvgauss", "invweibull",
+            "johnsonsb", "johnsonsu", "laplace", "levy", "levy_l",
+            "levy_stable", "logistic", "loggamma", "loglaplace", "lognorm",
+            "gibrat", "maxwell", "mielke", "kappa4", "kappa3", "moyal",
+            "nakagami", "ncx2", "ncf", "t", "nct", "pareto", "lomax",
+            "pearson3", "powerlaw",
+            "powerlognorm", "powernorm", "rdist",
+            "rayleigh", "reciprocal", "rice", "recipinvgauss", "semicircular",
+            "skewnorm", "trapezoid", "triang", "truncexpon", "truncnorm",
+            "tukeylambda", "uniform", "vonmises", "vonmises_line", "wald",
+            "wrapcauchy", "gennorm", "halfgennorm", "crystalball", "argus"]
+
+        continuous_marginal_shapes = [
+            {"n": int(1e3)}, {}, {}, {"a": 1}, {}, {}, {"a": 2, "b": 3},
+            {"a": 2, "b": 3}, {"c": 2}, {"c": 2, "d": 1},
+            {"c": 2, "d": 1}, {"c": 3}, {}, {"df": 10}, {"df": 10},
+            {}, {"a": 3}, {"c": 3}, {}, {"K": 2}, {"a": 2, "c": 3}, {"b": 3},
+            {"c": 3}, {"c": 3}, {"dfn": 1, "dfd": 1}, {"c": 1}, {"c": 1},
+            {"c": 1}, {"c": 1}, {"c": 1}, {"c": 1}, {"c": 1},
+            {"a": 2, "b": 3, "c": 1}, {"c": 1}, {"a": 2}, {"a": 2},
+            {"a": 2, "c": 1}, {"c": 1}, {"c": 1}, {}, {}, {}, {}, {}, {},
+            {"a": 2, "b": 3, "c": 1, "z": 1}, {"a": 1}, {"mu": 1},
+            {"a": 2, "b": 1}, {"c": 1}, {"a": 2, "b": 1}, {"a": 2, "b": 1},
+            {}, {}, {}, {"alpha": 1, "beta": 1}, {}, {"c": 1}, {"c": 1},
+            {"s": 1}, {}, {}, {"k": 1, "s": 1}, {"h": 1, "k": 1}, {"a": 1}, {},
+            {"nu": 1}, {"df": 10, "nc": 1}, {"dfn": 10, "dfd": 10, "nc": 1},
+            {"df": 10}, {"df": 10, "nc": 1}, {"b": 2}, {"c": 2}, {"skew": 2},
+            {"a": 1}, {"c": 2, "s": 1}, {"c": 2}, {"c": 2}, {},
+            {"a": 2, "b": 3}, {"b": 2}, {"mu": 2}, {}, {"a": 1},
+            {"c": 0, "d": 1}, {"c": 1}, {"b": 2}, {"a": 2, "b": 3}, {"lam": 2},
+            {}, {"kappa": 2}, {"kappa": 2}, {}, {"c": 0.5}, {"beta": 2},
+            {"beta": 2}, {"beta": 2, "m": 2}, {"chi": 1}]
+        # fmt: on
+
+        # scipy is continually adding names just test a subset
+        scipy_continuous_marginal_names = [
+            n for n in stats._continuous_distns._distn_names]
+
+        # do not support :
+        #    levy_stable as there is a bug when interval is called
+        #       from a frozen variable
+        #    vonmises a circular distribution
+        unsupported_continuous_marginal_names = [
+            name for name in ["levy_stable", "vonmises"]
+            if name in scipy_continuous_marginal_names]
+        # Throw overflow warnings
+        # fmt: off
+        unsupported_continuous_marginal_names += [
+            "exponpow", "gumbel_r", "gumbel_l", "hypsecant",
+            "loggamma", "moyal"
+        ]
+        # fmt: on
+
+        # interface not compatible
+        unsupported_continuous_marginal_names += ["powerlaw", "ncf"]
+
+        # ill conditioned matrix when computing gauss quadrature rule
+        # or inaccurate quadrature rule
+        # need to find improved quadrature rule
+        # fmt: off
+        unsupported_continuous_marginal_names += [
+            "alpha", "cauchy", "foldcauchy", "fisk", "burr12", "f",
+            "genpareto", "halfcauchy", "invgamma", "invweibull", "levy",
+            "levy_l", "loglaplace", "mielke", "kappa3", "crystalball"]
+        # fmt: on
+
+        unsupported_continuous_marginal_names += [
+            n for n in continuous_marginal_names
+            if n not in scipy_continuous_marginal_names]
+
+        for name in unsupported_continuous_marginal_names:
+            ii = continuous_marginal_names.index(name)
+            del continuous_marginal_names[ii]
+            del continuous_marginal_shapes[ii]
+
+        # The following variables have fat tails and cause
+        # scipy.integrate.quad to fail. Use custom integrator for these
+        # fmt: off
+        fat_tail_continuous_marginal_names = [
+            "betaprime", "burr", "burr12", "fisk", "cauchy",
+            "foldcauchy", "f", "genpareto", "halfcauchy", "invgamma",
+            "invweibull", "levy", "levy_l", "loglaplace", "mielke",
+            "kappa3", "ncf", "pareto", "lomax", "pearson3", "crystalball"]
+        # fmt: on
+
+        # test distributions that can use ScipyUnivariateIntegrator
+        # for name, shapes in zip(
+        #         continuous_marginal_names, continuous_marginal_shapes
+        # ):
+        #     if name in fat_tail_continuous_marginal_names:
+        #         continue
+        #     marginal = getattr(stats, name)(**shapes)
+        #     poly = setup_univariate_orthogonal_polynomial_from_marginal(
+        #         marginal)
+        #     print(name)
+        #     self._check_orthonormal_poly(poly)
+
+        # test fat-tailed distributions that cannot use
+        # ScipyUnivariateIntegrator
+        for name, shapes in zip(
+                continuous_marginal_names, continuous_marginal_shapes
+        ):
+            if name not in fat_tail_continuous_marginal_names:
+                continue
+            print(name)
+            marginal = getattr(stats, name)(**shapes)
+            quad_rule = ClenshawCurtisQuadratureRule(
+                prob_measure=False, backend=bkd, store=True)
+            integrator = UnivariateUnboundedIntegrator(quad_rule, backend=bkd)
+            integrator.set_options(
+                nquad_samples=2**3+1,
+                maxiters=1000,
+                maxinner_iters=10,
+                interval_size=2,
+                atol=1e-12,
+                rtol=1e-12,
+            )
+            integrator.set_bounds(marginal.interval(1))
+            opts = {"integrator": integrator}
+            poly = setup_univariate_orthogonal_polynomial_from_marginal(
+                marginal, opts=opts)
+            self._check_orthonormal_poly(poly)
 
 
 class TestNumpyOrthonormalPolynomials1D(

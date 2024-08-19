@@ -190,7 +190,7 @@ def transform_scale_parameters(var):
 
     scale_dict = get_distribution_info(var)[1]
     # copy is essential here because code below modifies scale
-    loc, scale = scale_dict["loc"].copy(), scale_dict["scale"].copy()
+    loc, scale = scale_dict["loc"].copy()[0], scale_dict["scale"].copy()[0]
     return loc, scale
 
 

@@ -117,7 +117,7 @@ def get_numerically_generated_recursion_coefficients_from_samples(
 
 def predictor_corrector_known_pdf(nterms, lb, ub, pdf, opts={}):
     if "quad_options" not in opts:
-        tol = opts.get("orthonormality_tol", 1e-8)
+        tol = opts.get("otol", 1e-8)
         quad_options = {'epsrel': tol, 'epsabs': tol}
     else:
         quad_options = opts["quad_options"]

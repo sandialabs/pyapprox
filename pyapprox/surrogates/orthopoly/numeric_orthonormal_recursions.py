@@ -76,7 +76,8 @@ def lanczos(nodes, weights, N, prob_tol=0):
     '''
     # assert weights define a probability measure. This function
     # can be applied to non-probability measures but I do not use this way
-    if abs(weights.sum()-1) > prob_tol+4e-15:
+    if abs(weights.sum()-1) > max(prob_tol, 4e-15):
+        print(prob_tol)
         msg = f"weights sum is {weights.sum()} and so does not define "
         msg += f"a probability measure. Diff : {weights.sum()-1}"
         raise ValueError(msg)
@@ -418,7 +419,8 @@ def predictor_corrector(nterms, measure, lb, ub, quad_options={}):
 
     # for probablity measures the following will always be one, but
     # this is not true for other measures
-    ab[0, 1] = np.sqrt(integrate(measure))
+    print(measure)
+    ab[0, 1] = np.sqrt(integrate(lambda x: measure(x)[0]))
 
     for ii in range(1, nterms+1):
         # predict
@@ -431,9 +433,9 @@ def predictor_corrector(nterms, measure, lb, ub, quad_options={}):
         def integrand(measure, x):
             pvals = evaluate_orthonormal_polynomial_1d(
                 np.atleast_1d(x), ii, ab)
-            return (measure(x)*pvals[:, ii]*pvals[:, ii-1])
+            return (measure(x)*pvals[:, ii]*pvals[:, ii-1])[0]
 
-        G_ii_iim1 = integrate(partial(integrand, measure))
+        G_ii_iim1 = integrate(partial(integrand, lambda x: measure(x)[0]))
         ab[ii-1, 0] += ab[ii-1, 1] * G_ii_iim1
 
         def integrand(measure, x):
@@ -441,9 +443,9 @@ def predictor_corrector(nterms, measure, lb, ub, quad_options={}):
             # This is the desired behavior
             pvals = evaluate_orthonormal_polynomial_1d(
                 np.atleast_1d(x), ii, ab)
-            return measure(x)*pvals[:, ii]**2
+            return (measure(x)*pvals[:, ii]**2)[0]
 
-        G_ii_ii = integrate(partial(integrand, measure))
+        G_ii_ii = integrate(partial(integrand, lambda x: measure(x)[0]))
         ab[ii, 1] *= np.sqrt(G_ii_ii)
 
     return ab[:nterms, :]
