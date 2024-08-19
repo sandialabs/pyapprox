@@ -19,9 +19,6 @@ class Transform(ABC):
     def map_to_canonical(self, values):
         raise NotImplementedError
 
-    def map_stdev_from_canonical(self, canonical_stdevs):
-        raise NotImplementedError
-
     def __repr__(self):
         return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
 

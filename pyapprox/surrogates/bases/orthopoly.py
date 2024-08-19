@@ -1,5 +1,5 @@
 import math
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from warnings import warn
 
 from scipy.special import gammaln
@@ -25,9 +25,9 @@ from pyapprox.variables.marginals import (
     transform_scale_parameters,
     is_continuous_variable,
     is_bounded_continuous_variable,
-    is_bounded_discrete_variable,
     get_probability_masses,
 )
+from pyapprox.util.transforms import Transform
 
 
 # todo derive this from univariatebasis in surrogates.interp.tensor_prod
@@ -519,3 +519,39 @@ class GaussQuadratureRule(UnivariateQuadratureRule):
         if self._poly.nterms() < nnodes:
             self._poly.set_nterms(nnodes)
         return self._poly.gauss_quadrature_rule(nnodes)
+
+
+class AffineMarginalTransform(Transform):
+    def __init__(self, marginal, enforce_bounds=False, backend=None):
+        super().__init__(backend)
+        self._marginal = marginal
+        self._enforce_bounds = enforce_bounds
+
+        self._loc, self._scale = transform_scale_parameters(self._marginal)
+
+    def _check_bounds(self, user_samples):
+        if (
+                not self._enforce_bounds
+                or not is_bounded_continuous_variable(self._marginal)
+        ):
+            return
+
+        bounds = [self._loc-self._scale, self._loc+self._scale]
+        if (
+                self._bkd._la_any(user_samples < bounds[0]) or
+                self._bkd._la_any(user_samples > bounds[1])
+        ):
+            raise ValueError(f'Sample outside the bounds {bounds}')
+
+    def map_from_canonical(self, canonical_samples):
+        return canonical_samples*self._scale+self._loc
+
+    def map_to_canonical(self, user_samples):
+        self._check_bounds(user_samples)
+        return (user_samples-self._loc)/self._scale
+
+    def derivatives_to_canonical(self, user_derivs, order=1):
+        return user_derivs * self._scale**order
+
+    def derivatives_from_canonical(self, canonical_derivs, order=1):
+        return canonical_derivs / self._scale**order

@@ -25,6 +25,7 @@ from pyapprox.surrogates.bases.orthopoly import (
     ContinuousNumericOrthonormalPolynomial1D,
     DiscreteNumericOrthonormalPolynomial1D,
     GaussQuadratureRule,
+    AffineMarginalTransform,
 )
 from pyapprox.surrogates.bases.univariate import (
     Monomial1D, UnivariateLagrangeBasis
@@ -521,6 +522,33 @@ class TestOrthonormalPolynomials1D:
         assert np.allclose(
             fun(degree, samples).T @ weights, integral(degree)
         )
+
+    def test_affine_variable_transformation(self):
+        bkd = self.get_backend()
+        nsamples = 10
+        marginal = stats.uniform(0, 1)
+        trans = AffineMarginalTransform(
+            marginal, enforce_bounds=True, backend=bkd
+        )
+        samples = bkd._la_asarray(np.random.uniform(0, 1, (1, nsamples)))
+        lb, ub = marginal.interval(1)
+        canonical_samples = trans.map_to_canonical(samples)
+        assert bkd._la_allclose(canonical_samples, (samples+lb)/(ub-lb)*2-1)
+        assert bkd._la_allclose(
+            trans.map_from_canonical(canonical_samples),
+            samples
+        )
+        derivs = bkd._la_stack([2*samples, 3*samples**2], axis=0)
+        canonical_derivs = trans.derivatives_to_canonical(derivs)
+        assert bkd._la_allclose(canonical_derivs, (ub-lb)*derivs/2)
+        assert bkd._la_allclose(
+            trans.derivatives_from_canonical(canonical_derivs),
+            derivs
+        )
+
+        # test error thown when samples outside bounded domain
+        samples = bkd._la_asarray(np.random.uniform(0, 2, (1, nsamples)))
+        self.assertRaises(ValueError, trans.map_to_canonical, samples)
 
 
 class TestNumpyOrthonormalPolynomials1D(
