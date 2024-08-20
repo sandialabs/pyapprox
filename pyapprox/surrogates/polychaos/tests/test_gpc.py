@@ -1064,7 +1064,6 @@ class TestGPC(unittest.TestCase):
         assert np.allclose(values[:, 0], np.prod(samples**2, axis=0)*1/9)
 
 
-
 if __name__ == "__main__":
     gpc_test_suite = unittest.TestLoader().loadTestsFromTestCase(TestGPC)
     unittest.TextTestRunner(verbosity=2).run(gpc_test_suite)

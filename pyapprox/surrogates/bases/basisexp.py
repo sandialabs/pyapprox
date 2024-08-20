@@ -213,23 +213,33 @@ class MonomialExpansion(BasisExpansion):
         all_indices = self._bkd._la_hstack(indices_list)
         return self._group_like_terms(all_coeffs, all_indices)
 
-    def __add__(self, other):
-        indices_list = [self.indices, other.indices]
-        coefs_list = [self.coefficients, other.coefficients]
+    def _signed_add(self, other, other_sign):
+        indices_list = [self.basis.get_indices(), other.basis.get_indices()]
+        coefs_list = [
+            self.get_coefficients(), other_sign*other.get_coefficients()
+        ]
         indices, coefs = add_polynomials(indices_list, coefs_list)
         poly = copy.deepcopy(self)
         poly.basis.set_indices(indices)
         poly.set_coefficients(coefs)
         return poly
 
-    def __sub__(self, other):
-        indices_list = [self.indices, other.indices]
-        coefs_list = [self.coefficients, -other.coefficients]
-        indices, coefs = add_polynomials(indices_list, coefs_list)
+    def __add__(self, other):
+        if isinstance(other, float) or isinstance(other, int):
+            return self._add_constant(other)
+        return self._signed_add(other, 1.)
+
+    def _add_constant(self, other):
         poly = copy.deepcopy(self)
-        poly.basis.set_indices(indices)
+        coefs = self.get_coefficients()
+        coefs[self._constant_basis_coefficient_idx()] += other
         poly.set_coefficients(coefs)
         return poly
+
+    def __sub__(self, other):
+        if isinstance(other, float) or isinstance(other, int):
+            return self._add_constant(other)
+        return self._signed_add(other, -1.)
 
     def _multiply_monomials(self, indices1, coefs1, indices2, coefs2):
         nvars = indices1.shape[0]
@@ -267,12 +277,17 @@ class MonomialExpansion(BasisExpansion):
         coefs = self._bkd._la_stack(coefs, axis=0)
         return indices, coefs
 
-    def __mul__(self, other):
-        if self.nterms() > other.nterms():
-            poly1 = self
-            poly2 = other
+    def _mul_constant(self, other):
+        poly = copy.deepcopy(self)
+        poly.set_coefficients(self.get_coefficients()*other)
+        return poly
+
+    def _mul(self, first, second):
+        if self.nterms() > second.nterms():
+            poly1 = first
+            poly2 = second
         else:
-            poly1 = other
+            poly1 = second
             poly2 = self
         indices, coefs = self._multiply_monomials(
             poly1.basis.get_indices(), poly1.get_coefficients(),
@@ -281,6 +296,16 @@ class MonomialExpansion(BasisExpansion):
         poly.basis.set_indices(indices)
         poly.set_coefficients(coefs)
         return poly
+
+    def __mul__(self, other):
+        if isinstance(other, float) or isinstance(other, int):
+            return self._mul_constant(other)
+        return self._mul(self, other)
+
+    def __rmul__(self, other):
+        if isinstance(other, float) or isinstance(other, int):
+            return self._mul_constant(other)
+        return self._mul(self, other)
 
     def __pow__(self, order):
         poly = copy.deepcopy(self)
@@ -295,6 +320,12 @@ class MonomialExpansion(BasisExpansion):
         for ii in range(2, order+1):
             poly = poly*self
         return poly
+        
+    def _constant_basis_coefficient_idx(self):
+        return self._bkd._la_where(
+            ~self._bkd._la_any(self.basis.get_indices(), axis=0)
+        )[0]
+
 
 
 class PolynomialChaosExpansion(MonomialExpansion):
@@ -314,7 +345,9 @@ class PolynomialChaosExpansion(MonomialExpansion):
         mean : array (nqoi)
             The mean of each quantitity of interest
         """
-        return self.coefficients[0, :]
+        return (
+            self.get_coefficients()[self._constant_basis_coefficient_idx(), :]
+        )
 
     def variance(self):
         """
@@ -325,9 +358,8 @@ class PolynomialChaosExpansion(MonomialExpansion):
         var : array (nqoi)
             The variance of each quantitity of interest
         """
-
-        var = self._bkd._la_sum(self.coefficients[1:, :]**2, axis=0)
-        return var
+        coefs = self.get_coefficients()
+        return self._bkd._la_sum(coefs**2, axis=0) - self.mean()**2
 
     def covariance(self):
         """
@@ -373,7 +405,7 @@ class PolynomialChaosExpansion(MonomialExpansion):
                     product_coefs_1d[-1].append(coefs)
         return product_coefs_1d
 
-    def __mul__(self, other):
+    def _mul(self, other):
         if self.basis.nterms() > other.nterms():
             poly1 = self
             poly2 = other

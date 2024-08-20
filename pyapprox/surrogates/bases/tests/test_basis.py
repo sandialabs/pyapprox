@@ -2,6 +2,7 @@ import unittest
 
 from scipy import stats
 import numpy as np
+import sympy as sp
 
 from pyapprox.surrogates.bases.orthopoly import (
     LegendrePolynomial1D,
@@ -29,6 +30,7 @@ from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.interp.indexing import sort_indices_lexiographically
 from pyapprox.util.sys_utilities import package_available
 from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.density import beta_pdf_on_ab, gaussian_pdf
 
 
 if package_available("jax"):
@@ -41,7 +43,9 @@ class TestBasis:
 
     def _check_monomial_basis(self, nvars, nterms_1d):
         bkd = self.get_backend()
-        basis = MultiIndexBasis([Monomial1D(backend=bkd) for ii in range(nvars)])
+        basis = MultiIndexBasis(
+            [Monomial1D(backend=bkd) for ii in range(nvars)]
+        )
         basis.set_tensor_product_indices([nterms_1d]*nvars)
         samples = bkd._la_array(np.random.uniform(-1, 1, (nvars, 4)))
         basis_mat = basis(samples)
@@ -57,7 +61,9 @@ class TestBasis:
 
     def _check_monomial_jacobian(self, nvars, nterms_1d):
         bkd = self.get_backend()
-        basis = MultiIndexBasis([Monomial1D(backend=bkd) for ii in range(nvars)])
+        basis = MultiIndexBasis(
+            [Monomial1D(backend=bkd) for ii in range(nvars)]
+        )
         basis.set_tensor_product_indices([nterms_1d]*nvars)
         samples = bkd._la_array(np.random.uniform(-1, 1, (nvars, 4)))
         jac = basis.jacobian(samples)
@@ -86,7 +92,9 @@ class TestBasis:
     def _check_fit_monomial_expansion(self, nvars, solver, nqoi):
         bkd = self.get_backend()
         nterms_1d = 3
-        basis = MultiIndexBasis([Monomial1D(backend=bkd) for ii in range(nvars)])
+        basis = MultiIndexBasis(
+            [Monomial1D(backend=bkd) for ii in range(nvars)]
+        )
         basis.set_tensor_product_indices([nterms_1d] * nvars)
         basisexp = MonomialExpansion(basis, solver=solver, nqoi=nqoi)
         ntrain_samples = 2 * basis.nterms()
@@ -180,10 +188,10 @@ class TestBasis:
 
     def _check_multiply_expansion(self, bexp1, bexp2, nqoi):
         bkd = self.get_backend()
-        coef1 = bkd._la_arange(bexp1.nterms() * nqoi).reshape(
+        coef1 = bkd._la_arange(bexp1.nterms() * nqoi, dtype=float).reshape(
             (bexp1.nterms(), nqoi)
         )
-        coef2 = bkd._la_arange(bexp2.nterms() * nqoi).reshape(
+        coef2 = bkd._la_arange(bexp2.nterms() * nqoi, dtype=float).reshape(
             (bexp2.nterms(), nqoi)
         )
         bexp1.set_coefficients(coef1)
@@ -220,7 +228,7 @@ class TestBasis:
 
     def _check_multiply_pce(self, nvars, nterms_1d, nqoi):
         bkd = self.get_backend()
-        polys_1d = [LegendrePolynomial1D(bkd) for ii in range(nvars)]
+        polys_1d = [LegendrePolynomial1D(backend=bkd) for ii in range(nvars)]
         basis1 = OrthonormalPolynomialBasis(polys_1d)
         basis1.set_tensor_product_indices([nterms_1d]*nvars)
         basis2 = OrthonormalPolynomialBasis(polys_1d)
@@ -234,10 +242,49 @@ class TestBasis:
         for test_case in test_cases:
             self._check_multiply_pce(*test_case)
 
+    def _check_add_expansion(self, bexp1, bexp2, nqoi):
+        bkd = self.get_backend()
+        coef1 = bkd._la_arange(bexp1.nterms() * nqoi, dtype=float).reshape(
+            (bexp1.nterms(), nqoi)
+        )
+        coef2 = bkd._la_arange(bexp2.nterms() * nqoi, dtype=float).reshape(
+            (bexp2.nterms(), nqoi)
+        )
+        bexp1.set_coefficients(coef1)
+        bexp2.set_coefficients(coef2)
+
+        bexp3 = bexp1 + bexp2
+        samples = bkd._la_array(np.random.uniform(-1, 1, (bexp1.nvars(), 101)))
+        assert bkd._la_allclose(
+            bexp3(samples), bexp1(samples) + bexp2(samples)
+        )
+
+        bexp4 = 2*bexp1 - bexp2*3 + 1
+        samples = bkd._la_array(np.random.uniform(-1, 1, (bexp1.nvars(), 101)))
+        assert bkd._la_allclose(
+            bexp4(samples), 2*bexp1(samples) - bexp2(samples)*3 + 1
+        )
+
+    def _check_add_pce(self, nvars, nterms_1d, nqoi):
+        bkd = self.get_backend()
+        polys_1d = [LegendrePolynomial1D(backend=bkd) for ii in range(nvars)]
+        basis1 = OrthonormalPolynomialBasis(polys_1d)
+        basis1.set_tensor_product_indices([nterms_1d]*nvars)
+        basis2 = OrthonormalPolynomialBasis(polys_1d)
+        basis2.set_tensor_product_indices([nterms_1d+1]*nvars)
+        bexp1 = PolynomialChaosExpansion(basis1, solver=None, nqoi=nqoi)
+        bexp2 = PolynomialChaosExpansion(basis2, solver=None, nqoi=nqoi)
+        self._check_add_expansion(bexp1, bexp2, nqoi)
+
+    def test_add_pce(self):
+        test_cases = [[1, 3, 2], [2, 3, 2]]
+        for test_case in test_cases:
+            self._check_add_pce(*test_case)
+
     def test_marginalize_pce(self):
         nvars, nqoi, nterms_1d = 4, 2, 3
         bkd = self.get_backend()
-        polys_1d = [LegendrePolynomial1D(bkd) for ii in range(nvars)]
+        polys_1d = [LegendrePolynomial1D(backend=bkd) for ii in range(nvars)]
         basis = OrthonormalPolynomialBasis(polys_1d)
         basis.set_tensor_product_indices([nterms_1d]*nvars)
         pce = PolynomialChaosExpansion(basis, solver=None, nqoi=nqoi)
@@ -444,6 +491,62 @@ class TestBasis:
             fun.hessian(test_samples[:, :1]),
             bexp.hessian(test_samples[:, :1])
         )
+
+    def test_pce_moments(self):
+        alpha_stat, beta_stat, lb, ub = 2, 2, -3, 1
+        bkd = self.get_backend()
+        marginals = [
+            stats.norm(0, 1), stats.beta(alpha_stat, beta_stat, lb, ub-lb)
+        ]
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        bases_1d = [
+            setup_univariate_orthogonal_polynomial_from_marginal(
+                marginal, backend=bkd
+            )
+            for marginal in marginals
+        ]
+        nterms_1d = 3
+        basis = OrthonormalPolynomialBasis(bases_1d)
+        basis.set_tensor_product_indices(
+            [nterms_1d]*variable.num_vars()
+        )
+        nqoi = 1
+        bexp = PolynomialChaosExpansion(
+            basis, solver=LstSqSolver(backend=bkd), nqoi=nqoi
+        )
+
+        def fun(sample):
+            return (
+                bkd._la_sum(sample**2, axis=0) +
+                bkd._la_prod(sample, axis=0)
+            )[:, None]
+
+        ntrain_samples = 20
+        train_samples = variable.rvs(ntrain_samples)
+        train_values = fun(train_samples)
+        bexp.fit(train_samples, train_values)
+        ntest_samples = 10
+        test_samples = variable.rvs(ntest_samples)
+        assert bkd._la_allclose(fun(test_samples), bexp(test_samples))
+
+        # compute integral exactly with sympy
+        x, y = sp.Symbol('x'), sp.Symbol('y')
+        wfun_x = gaussian_pdf(0, 1, x, sp)
+        wfun_y = beta_pdf_on_ab(alpha_stat, beta_stat, lb, ub, y)
+        exact_mean = float(
+            sp.integrate(
+                wfun_x*wfun_y*(x**2+y**2+x*y),
+                (x, -sp.oo, sp.oo), (y, lb, ub)
+            )
+        )
+        exact_variance = float(
+            sp.integrate(
+                wfun_x*wfun_y*(x**2+y**2+x*y)**2,
+                (x, -sp.oo, sp.oo), (y, lb, ub)
+            )
+        ) - exact_mean**2
+        assert np.allclose(exact_mean, bexp.mean())
+        assert np.allclose(exact_variance, bexp.variance())
 
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):
