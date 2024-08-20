@@ -16,7 +16,7 @@ class Basis(ABC):
 
     def __init__(self, backend: LinAlgMixin):
         if backend is None:
-            backend = NumpyLinAlgMixin()
+            backend = NumpyLinAlgMixin
         self._bkd = backend
         self._jacobian_implemented = False
 
@@ -93,7 +93,7 @@ class MultiIndexBasis(Basis):
         self._hessian_implemented = True
 
     def set_hyperbolic_indices(self, level, pnorm):
-        indices = self._bkd._la_asarray(
+        indices = self._bkd.asarray(
             compute_hyperbolic_indices(self.nvars(), level, pnorm),
             dtype=int,
         )
@@ -103,8 +103,8 @@ class MultiIndexBasis(Basis):
         if len(nterms) != self.nvars():
             raise ValueError("must specify nterms for each dimension")
         self.set_indices(
-            self._bkd._la_cartesian_product(
-                [self._bkd._la_arange(nt) for nt in nterms]
+            self._bkd.cartesian_product(
+                [self._bkd.arange(nt) for nt in nterms]
             )
         )
 
@@ -129,8 +129,8 @@ class MultiIndexBasis(Basis):
                     indices.shape[0], len(self._bases_1d)
                 )
             )
-        self._indices = self._bkd._la_array(indices, dtype=int)
-        self.set_nterms(self._bkd._la_max(self._indices, axis=1)+1)
+        self._indices = self._bkd.array(indices, dtype=int)
+        self.set_nterms(self._bkd.max(self._indices, axis=1)+1)
 
     def get_indices(self):
         """Return the indices defining the basis terms."""
@@ -178,7 +178,7 @@ class MultiIndexBasis(Basis):
                 if kk != dd:
                     jac_dd *= basis_vals_1d[kk][:, self._indices[kk, :]]
             jac.append(jac_dd)
-        return self._bkd._la_moveaxis(self._bkd._la_stack(jac, axis=0), 0, -1)
+        return self._bkd.moveaxis(self._bkd.stack(jac, axis=0), 0, -1)
 
     def hessian(self, samples):
         basis_vals_1d = self._basis_vals_1d(samples)
@@ -202,9 +202,9 @@ class MultiIndexBasis(Basis):
                     hess_dk *= basis_vals_1d[ll][:, self._indices[ll, :]]
                 hess[dd][kk] = hess_dk
                 hess[kk][dd] = hess_dk
-        hess = self._bkd._la_stack(
+        hess = self._bkd.stack(
             [
-                self._bkd._la_stack(hess[dd], axis=-1)
+                self._bkd.stack(hess[dd], axis=-1)
                 for dd in range(self.nvars())
             ],
             axis=-1
@@ -242,7 +242,7 @@ class OrthonormalPolynomialBasis(MultiIndexBasis):
         requested.
         """
         return self._bases_1d[poly_id].gauss_quadrature_rule(
-            self._bkd._la_max(self._indices[poly_id])+1
+            self._bkd.max(self._indices[poly_id])+1
         )
 
 
@@ -266,7 +266,7 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
             if basis._quad_samples is None:
                 raise RuntimeError("must define quad_samples")
             nodes_1d.append(basis._quad_samples[0])
-        return self._bkd._la_cartesian_product(nodes_1d)
+        return self._bkd.cartesian_product(nodes_1d)
 
     def set_1d_nodes(self, nodes_1d):
         for basis, nodes in zip(self._bases_1d, nodes_1d):
@@ -276,8 +276,8 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         )
 
     def nterms(self):
-        return self._bkd._la_prod(
-            self._bkd._la_array(
+        return self._bkd.prod(
+            self._bkd.array(
                 [basis.nterms() for basis in self._bases_1d],
                 dtype=int),
         )
@@ -288,8 +288,8 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
             xx, ww = basis.quadrature_rule()
             samples_1d.append(xx[0])
             weights_1d.append(ww[:, 0])
-        samples = self._bkd._la_cartesian_product(samples_1d)
-        weights = self._bkd._la_outer_product(weights_1d)[:, None]
+        samples = self._bkd.cartesian_product(samples_1d)
+        weights = self._bkd.outer_product(weights_1d)[:, None]
         return samples, weights
 
     def _plot_single_basis(
@@ -300,7 +300,7 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         )
         idx = jj*nterms_1d[0]+ii
         basis_vals = self(pts)
-        Z = self._bkd._la_reshape(basis_vals[:, idx], X.shape)
+        Z = self._bkd.reshape(basis_vals[:, idx], X.shape)
         if surface_cmap is not None:
             plot_surface(X, Y, Z, ax, axis_labels=None, limit_state=None,
                          alpha=0.3, cmap=surface_cmap, zorder=3,
@@ -310,7 +310,7 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
             offset = -(Z.max()-Z.min())/2
             ax.contourf(
                 X, Y, Z, zdir='z', offset=offset,
-                levels=self._bkd._la_linspace(
+                levels=self._bkd.linspace(
                     Z.min(), Z.max(), num_contour_levels
                 ),
                 cmap=contour_cmap, zorder=-1)
@@ -320,23 +320,23 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         nodes = self.tensor_product_grid()
         nodes_1d = [basis._nodes for basis in self._bases_1d]
         ax.plot(nodes[0, :], nodes[1, :],
-                offset*self._bkd._la_ones(nodes.shape[1]), 'o',
+                offset*self._bkd.ones(nodes.shape[1]), 'o',
                 zorder=100, color='b')
 
-        x = self._bkd._la_linspace(-1, 1, 100)
-        y = nodes[1, idx]*self._bkd._la_ones((x.shape[0],))
-        z = self(self._bkd._la_vstack((x[None, :], y[None, :])))[:, idx]
-        ax.plot(x, Y.max()*self._bkd._la_ones((x.shape[0],)), z, '-r')
-        ax.plot(nodes_1d[0][0], Y.max()*self._bkd._la_ones(
-            (nterms_1d[0],)), self._bkd._la_zeros(nterms_1d[0],), 'or')
+        x = self._bkd.linspace(-1, 1, 100)
+        y = nodes[1, idx]*self._bkd.ones((x.shape[0],))
+        z = self(self._bkd.vstack((x[None, :], y[None, :])))[:, idx]
+        ax.plot(x, Y.max()*self._bkd.ones((x.shape[0],)), z, '-r')
+        ax.plot(nodes_1d[0][0], Y.max()*self._bkd.ones(
+            (nterms_1d[0],)), self._bkd.zeros(nterms_1d[0],), 'or')
 
-        y = self._bkd._la_linspace(-1, 1, 100)
-        x = nodes[0, idx]*self._bkd._la_ones((y.shape[0],))
-        z = self(self._bkd._la_vstack((x[None, :], y[None, :])))[:, idx]
-        ax.plot(X.min()*self._bkd._la_ones((x.shape[0],)), y, z, '-r')
-        ax.plot(X.min()*self._bkd._la_ones(
+        y = self._bkd.linspace(-1, 1, 100)
+        x = nodes[0, idx]*self._bkd.ones((y.shape[0],))
+        z = self(self._bkd.vstack((x[None, :], y[None, :])))[:, idx]
+        ax.plot(X.min()*self._bkd.ones((x.shape[0],)), y, z, '-r')
+        ax.plot(X.min()*self._bkd.ones(
             (nterms_1d[1],)), nodes_1d[1][0],
-                self._bkd._la_zeros(nterms_1d[1],), 'or')
+                self._bkd.zeros(nterms_1d[1],), 'or')
 
     def plot_single_basis(
             self, ax, ii, jj,
@@ -345,8 +345,8 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
             contour_cmap="gray",
             plot_nodes=False):
         # evaluate 1D basis functions once to get number of basis functions
-        sample = self._bkd._la_reshape(
-            self._bkd._la_asarray(plot_limits), (2, 2)
+        sample = self._bkd.reshape(
+            self._bkd.asarray(plot_limits), (2, 2)
         ).T[:, :1].T
         nterms_1d = [basis(sample).shape[1] for basis in self._bases_1d]
         offset, idx, nterms_1d, X, Y = self._plot_single_basis(

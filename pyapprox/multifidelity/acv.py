@@ -1063,7 +1063,7 @@ class ACVEstimator(CVEstimator):
             warnings.simplefilter("ignore")
             if isinstance(init_guess, dict):
                 # get rough initial guess from global optimizer
-                default_init_guess = TorchLinAlgMixin._la_asarray(
+                default_init_guess = TorchLinAlgMixin.asarray(
                     np.full((self._nmodels-1,), 1.))
                 # sometimes nelder-mead has trouble when lower-bound is close
                 # to zero. It finds a solution but then gradient solve may
@@ -1192,7 +1192,7 @@ class ACVEstimator(CVEstimator):
 
     def _estimator_cost(self, npartition_samples):
         nsamples_per_model = self._compute_nsamples_per_model(
-            TorchLinAlgMixin._la_asarray(npartition_samples))
+            TorchLinAlgMixin.asarray(npartition_samples))
         return (nsamples_per_model*self._costs.numpy()).sum()
 
     def _set_optimized_params(self, partition_ratios, target_cost):

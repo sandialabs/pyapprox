@@ -14,7 +14,7 @@ from pyapprox.util.transforms import IdentityTransform
 class UnivariateBasis(ABC):
     def __init__(self, trans, backend):
         if backend is None:
-            backend = NumpyLinAlgMixin()
+            backend = NumpyLinAlgMixin
         self._bkd = backend
         if trans is None:
             trans = IdentityTransform(backend=self._bkd)
@@ -78,23 +78,23 @@ class Monomial1D(UnivariateBasis):
         return self._nterms
 
     def _values(self, samples):
-        basis_matrix = samples.T ** self._bkd._la_arange(self._nterms)[None, :]
+        basis_matrix = samples.T ** self._bkd.arange(self._nterms)[None, :]
         return basis_matrix
 
     def _derivatives(self, samples, order):
-        powers = self._bkd._la_hstack(
+        powers = self._bkd.hstack(
             (
-                self._bkd._la_zeros((order,)),
-                self._bkd._la_arange(self._nterms - order),
+                self._bkd.zeros((order,)),
+                self._bkd.arange(self._nterms - order),
             )
         )
         # 1 x x^2 x^3  x^4 vals
         # 0 1 2x  3x^2 4x^3 1st derivs
         # 0 0 2   6x   12x^2  2nd derivs
-        consts = self._bkd._la_hstack(
+        consts = self._bkd.hstack(
             (
-                self._bkd._la_zeros((order,)),
-                order * self._bkd._la_arange(1, self._nterms - order + 1),
+                self._bkd.zeros((order,)),
+                order * self._bkd.arange(1, self._nterms - order + 1),
             )
         )
         return (samples.T ** powers[None, :]) * consts
@@ -121,86 +121,86 @@ class UnivariateInterpolatingBasis(UnivariateBasis):
         raise NotImplementedError
 
 
-def irregular_piecewise_left_constant_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
+def irregular_piecewise_left_constant_basis(nodes, xx, bkd=NumpyLinAlgMixin):
     # abscissa are not equidistant
     assert xx.ndim == 1
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
     if nnodes == 1:
-        return bkd._la_full((xx.shape[0], nnodes), 1.0)
-    vals = bkd._la_zeros((xx.shape[0], nnodes - 1))
+        return bkd.full((xx.shape[0], nnodes), 1.0)
+    vals = bkd.zeros((xx.shape[0], nnodes - 1))
     for ii in range(nnodes - 1):
         xl = nodes[ii]
         xr = nodes[ii + 1]
-        II = bkd._la_where((xx >= xl) & (xx < xr))[0]
-        vals[II, ii] = bkd._la_full((II.shape[0],), 1.0, dtype=float)
+        II = bkd.where((xx >= xl) & (xx < xr))[0]
+        vals[II, ii] = bkd.full((II.shape[0],), 1.0, dtype=float)
     return vals
 
 
 def irregular_piecewise_right_constant_basis(
-    nodes, xx, bkd=NumpyLinAlgMixin()
+    nodes, xx, bkd=NumpyLinAlgMixin
 ):
     # abscissa are not equidistant
     assert xx.ndim == 1
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
     if nnodes == 1:
-        return bkd._la_ones((xx.shape[0], nnodes))
-    vals = bkd._la_zeros((xx.shape[0], nnodes - 1))
+        return bkd.ones((xx.shape[0], nnodes))
+    vals = bkd.zeros((xx.shape[0], nnodes - 1))
     for ii in range(1, nnodes):
         xr = nodes[ii]
         xl = nodes[ii - 1]
-        II = bkd._la_where((xx > xl) & (xx <= xr))[0]
-        vals[II, ii] = bkd._la_ones((II.shape[0],), dtype=float)
+        II = bkd.where((xx > xl) & (xx <= xr))[0]
+        vals[II, ii] = bkd.ones((II.shape[0],), dtype=float)
     return vals
 
 
 def irregular_piecewise_midpoint_constant_basis(
-    nodes, xx, bkd=NumpyLinAlgMixin()
+    nodes, xx, bkd=NumpyLinAlgMixin
 ):
     # abscissa are not equidistant
     assert xx.ndim == 1
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
     if nnodes == 1:
-        return bkd._la_ones((xx.shape[0], nnodes))
-    vals = bkd._la_zeros((xx.shape[0], nnodes - 1))
+        return bkd.ones((xx.shape[0], nnodes))
+    vals = bkd.zeros((xx.shape[0], nnodes - 1))
     for ii in range(nnodes - 1):
         xl = nodes[ii]
         xr = nodes[ii + 1]
         if ii < nnodes - 1:
-            II = bkd._la_where((xx >= xl) & (xx < xr))[0]
+            II = bkd.where((xx >= xl) & (xx < xr))[0]
         else:
-            II = bkd._la_where((xx >= xl) & (xx <= xr))[0]
-        vals[II, ii] = bkd._la_ones((II.shape[0],), dtype=float)
+            II = bkd.where((xx >= xl) & (xx <= xr))[0]
+        vals[II, ii] = bkd.ones((II.shape[0],), dtype=float)
     return vals
 
 
-def irregular_piecewise_linear_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
+def irregular_piecewise_linear_basis(nodes, xx, bkd=NumpyLinAlgMixin):
     # abscissa are not equidistant
     assert xx.ndim == 1
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
     if nnodes == 1:
-        return bkd._la_ones((xx.shape[0], nnodes))
-    vals = bkd._la_zeros((xx.shape[0], nnodes))
+        return bkd.ones((xx.shape[0], nnodes))
+    vals = bkd.zeros((xx.shape[0], nnodes))
     for ii in range(nnodes):
         xm = nodes[ii]
         if ii > 0:
             xl = nodes[ii - 1]
-            II = bkd._la_where((xx >= xl) & (xx <= xm))[0]
+            II = bkd.where((xx >= xl) & (xx <= xm))[0]
             # vals[II, ii] = (xx[II] - xl) / (xm - xl)
-            vals = bkd._la_up(vals, (II, ii), (xx[II] - xl) / (xm - xl))
+            vals = bkd.up(vals, (II, ii), (xx[II] - xl) / (xm - xl))
         if ii < nnodes - 1:
             xr = nodes[ii + 1]
-            JJ = bkd._la_where((xx >= xm) & (xx <= xr))[0]
+            JJ = bkd.where((xx >= xm) & (xx <= xr))[0]
             # vals[JJ, ii] = (xr - xx[JJ]) / (xr - xm)
-            vals = bkd._la_up(vals, (JJ, ii), (xr - xx[JJ]) / (xr - xm))
+            vals = bkd.up(vals, (JJ, ii), (xr - xx[JJ]) / (xr - xm))
     return vals
 
 
 def irregular_piecewise_linear_quadrature_weights(
-    nodes, bkd=NumpyLinAlgMixin()
+    nodes, bkd=NumpyLinAlgMixin
 ):
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
@@ -208,8 +208,8 @@ def irregular_piecewise_linear_quadrature_weights(
         raise ValueError(
             "Cant compute weights from single point without bounds"
         )
-    # weights = bkd._la_zeros((nnodes,))
-    # use list so not to have to use bkd._la_up below. Since we are using
+    # weights = bkd.zeros((nnodes,))
+    # use list so not to have to use bkd.up below. Since we are using
     # python loop here speed is not going to be much different
     weights = [0.0 for ii in range(nnodes)]
     for ii in range(nnodes):
@@ -217,31 +217,31 @@ def irregular_piecewise_linear_quadrature_weights(
         if ii > 0:
             xl = nodes[ii - 1]
             weights[ii] += 0.5 * (xm - xl)
-            # weights = bkd._la_up(weights, ii, weights[ii] + 0.5 * (xm - xl))
+            # weights = bkd.up(weights, ii, weights[ii] + 0.5 * (xm - xl))
         if ii < nnodes - 1:
             xr = nodes[ii + 1]
             weights[ii] += 0.5 * (xr - xm)
-            # weights = bkd._la_up(weights, ii, weights[ii] + 0.5 * (xr - xm))
-    return bkd._la_asarray(weights)
+            # weights = bkd.up(weights, ii, weights[ii] + 0.5 * (xr - xm))
+    return bkd.asarray(weights)
 
 
-def irregular_piecewise_quadratic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
+def irregular_piecewise_quadratic_basis(nodes, xx, bkd=NumpyLinAlgMixin):
     # nodes are not equidistant
     assert xx.ndim == 1
     nnodes = nodes.shape[0]
     if nnodes == 1:
-        return bkd._la_ones((xx.shape[0], nnodes))
+        return bkd.ones((xx.shape[0], nnodes))
     if nodes.ndim != 1 or nnodes % 2 != 1:
         raise ValueError("nodes has the wrong shape")
-    vals = bkd._la_zeros((xx.shape[0], nnodes))
+    vals = bkd.zeros((xx.shape[0], nnodes))
     for ii in range(nnodes):
         if ii % 2 == 1:
             xl, xm, xr = nodes[ii - 1 : ii + 2]
-            II = bkd._la_where((xx >= xl) & (xx <= xr))[0]
+            II = bkd.where((xx >= xl) & (xx <= xr))[0]
             # vals[II, ii] = (
             #     (xx[II] - xl) / (xm - xl) * (xx[II] - xr) / (xm - xr)
             # )
-            vals = bkd._la_up(
+            vals = bkd.up(
                 vals,
                 (II, ii),
                 (xx[II] - xl) / (xm - xl) * (xx[II] - xr) / (xm - xr),
@@ -249,22 +249,22 @@ def irregular_piecewise_quadratic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
             continue
         if ii < nnodes - 2:
             xl, xm, xr = nodes[ii : ii + 3]
-            II = bkd._la_where((xx >= xl) & (xx <= xr))[0]
+            II = bkd.where((xx >= xl) & (xx <= xr))[0]
             # vals[II, ii] = (
             #     (xx[II] - xm) / (xl - xm) * (xx[II] - xr) / (xl - xr)
             # )
-            vals = bkd._la_up(
+            vals = bkd.up(
                 vals,
                 (II, ii),
                 (xx[II] - xm) / (xl - xm) * (xx[II] - xr) / (xl - xr),
             )
         if ii > 1:
             xl, xm, xr = nodes[ii - 2 : ii + 1]
-            II = bkd._la_where((xx >= xl) & (xx <= xr))[0]
+            II = bkd.where((xx >= xl) & (xx <= xr))[0]
             # vals[II, ii] = (
             #     (xx[II] - xl) / (xr - xl) * (xx[II] - xm) / (xr - xm)
             # )
-            vals = bkd._la_up(
+            vals = bkd.up(
                 vals,
                 (II, ii),
                 (xx[II] - xl) / (xr - xl) * (xx[II] - xm) / (xr - xm),
@@ -273,7 +273,7 @@ def irregular_piecewise_quadratic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
 
 
 def irregular_piecewise_quadratic_quadrature_weights(
-    nodes, bkd=NumpyLinAlgMixin()
+    nodes, bkd=NumpyLinAlgMixin
 ):
     # nodes are not equidistant
     nnodes = nodes.shape[0]
@@ -283,44 +283,44 @@ def irregular_piecewise_quadratic_quadrature_weights(
         )
     if nodes.ndim != 1 or nnodes % 2 != 1:
         raise ValueError("nodes has the wrong shape, it must be an odd number")
-    # weights = bkd._la_zeros((nnodes,))
+    # weights = bkd.zeros((nnodes,))
     weights = [0.0 for ii in range(nnodes)]
     for ii in range(nnodes):
         if ii % 2 == 1:
             xl, xm, xr = nodes[ii - 1 : ii + 2]
             weights[ii] = (xl - xr) ** 3 / (6 * (xm - xl) * (xm - xr))
-            # weights = bkd._la_up(weights, ii, (xl - xr) ** 3 / (6 * (xm - xl) * (xm - xr)))
+            # weights = bkd.up(weights, ii, (xl - xr) ** 3 / (6 * (xm - xl) * (xm - xr)))
             continue
         if ii < nnodes - 2:
             xl, xm, xr = nodes[ii : ii + 3]
             weights[ii] += ((xr - xl) * (2 * xl - 3 * xm + xr)) / (
                 6 * (xl - xm)
             )
-            # weights = bkd._la_up(weights, ii, weights[ii]+((xr - xl) * (2 * xl - 3 * xm + xr)) / (
+            # weights = bkd.up(weights, ii, weights[ii]+((xr - xl) * (2 * xl - 3 * xm + xr)) / (
             #     6 * (xl - xm)))
         if ii > 1:
             xl, xm, xr = nodes[ii - 2 : ii + 1]
             weights[ii] += ((xl - xr) * (xl - 3 * xm + 2 * xr)) / (
                 6 * (xm - xr)
             )
-            # weights = bkd._la_up(weights, ii, weights[ii]+((xl - xr) * (xl - 3 * xm + 2 * xr)) / (
+            # weights = bkd.up(weights, ii, weights[ii]+((xl - xr) * (xl - 3 * xm + 2 * xr)) / (
             #          6 * (xm - xr)))
-    return bkd._la_asarray(weights)
+    return bkd.asarray(weights)
 
 
-def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
+def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin):
     # nodes are not equidistant
     assert xx.ndim == 1
     nnodes = nodes.shape[0]
     if nnodes == 1:
-        return bkd._la_ones((xx.shape[0], nnodes))
+        return bkd.ones((xx.shape[0], nnodes))
     if nodes.ndim != 1 or nnodes < 4 or (nnodes - 4) % 3 != 0:
         raise ValueError("nodes has the wrong shape")
-    vals = bkd._la_zeros((xx.shape[0], nnodes))
+    vals = bkd.zeros((xx.shape[0], nnodes))
     for ii in range(nnodes):
         if ii % 3 == 1:
             x1, x2, x3, x4 = nodes[ii - 1 : ii + 3]
-            II = bkd._la_where((xx >= x1) & (xx <= x4))[0]
+            II = bkd.where((xx >= x1) & (xx <= x4))[0]
             # vals[II, ii] = (
             #     (xx[II] - x1)
             #     / (x2 - x1)
@@ -329,7 +329,7 @@ def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
             #     * (xx[II] - x4)
             #     / (x2 - x4)
             # )
-            vals = bkd._la_up(
+            vals = bkd.up(
                 vals,
                 (II, ii),
                 (xx[II] - x1)
@@ -342,7 +342,7 @@ def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
             continue
         if ii % 3 == 2:
             x1, x2, x3, x4 = nodes[ii - 2 : ii + 2]
-            II = bkd._la_where((xx >= x1) & (xx <= x4))[0]
+            II = bkd.where((xx >= x1) & (xx <= x4))[0]
             # vals[II, ii] = (
             #     (xx[II] - x1)
             #     / (x3 - x1)
@@ -351,7 +351,7 @@ def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
             #     * (xx[II] - x4)
             #     / (x3 - x4)
             # )
-            vals = bkd._la_up(
+            vals = bkd.up(
                 vals,
                 (II, ii),
                 (xx[II] - x1)
@@ -364,7 +364,7 @@ def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
             continue
         if ii % 3 == 0 and ii < nnodes - 3:
             x1, x2, x3, x4 = nodes[ii : ii + 4]
-            II = bkd._la_where((xx >= x1) & (xx <= x4))[0]
+            II = bkd.where((xx >= x1) & (xx <= x4))[0]
             # vals[II, ii] = (
             #     (xx[II] - x2)
             #     / (x1 - x2)
@@ -373,7 +373,7 @@ def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
             #     * (xx[II] - x4)
             #     / (x1 - x4)
             # )
-            vals = bkd._la_up(
+            vals = bkd.up(
                 vals,
                 (II, ii),
                 (xx[II] - x2)
@@ -385,7 +385,7 @@ def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
             )
         if ii % 3 == 0 and ii >= 3:
             x1, x2, x3, x4 = nodes[ii - 3 : ii + 1]
-            II = bkd._la_where((xx >= x1) & (xx <= x4))[0]
+            II = bkd.where((xx >= x1) & (xx <= x4))[0]
             # vals[II, ii] = (
             #     (xx[II] - x1)
             #     / (x4 - x1)
@@ -394,7 +394,7 @@ def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
             #     * (xx[II] - x3)
             #     / (x4 - x3)
             # )
-            vals = bkd._la_up(
+            vals = bkd.up(
                 vals,
                 (II, ii),
                 (xx[II] - x1)
@@ -408,7 +408,7 @@ def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin()):
 
 
 def irregular_piecewise_cubic_quadrature_weights(
-    nodes, bkd=NumpyLinAlgMixin()
+    nodes, bkd=NumpyLinAlgMixin
 ):
     # An interpolating quadrature with n + 1 nodes that are symmetrically
     # placed around the center of the interval will integrate polynomials up to
@@ -421,7 +421,7 @@ def irregular_piecewise_cubic_quadrature_weights(
         )
     if nodes.ndim != 1 or nnodes < 4 or (nnodes - 4) % 3 != 0:
         raise ValueError(f"nodes has the wrong shape {nnodes}")
-    # weights = bkd._la_zeros((nnodes,))
+    # weights = bkd.zeros((nnodes,))
     weights = [0.0 for ii in range(nnodes)]
     for ii in range(nnodes):
         if ii % 3 == 1:
@@ -461,26 +461,26 @@ def irregular_piecewise_cubic_quadrature_weights(
                     + 3 * d**2
                 )
             ) / (12 * (b - d) * (-c + d))
-    return bkd._la_asarray(weights)
+    return bkd.asarray(weights)
 
 
-def univariate_lagrange_polynomial(abscissa, samples, bkd=NumpyLinAlgMixin()):
+def univariate_lagrange_polynomial(abscissa, samples, bkd=NumpyLinAlgMixin):
     assert abscissa.ndim == 1
     assert samples.ndim == 1
     nabscissa = abscissa.shape[0]
     denoms = abscissa[:, None]-abscissa[None, :]
     numers = samples[:, None]-abscissa[None, :]
-    # values = bkd._la_empty((samples.shape[0], nabscissa))
+    # values = bkd.empty((samples.shape[0], nabscissa))
     values = []
     for ii in range(nabscissa):
         # l_j(x) = prod_{i!=j} (x-x_i)/(x_j-x_i)
-        denom = bkd._la_prod(denoms[ii, :ii])*bkd._la_prod(denoms[ii, ii+1:])
-        # denom = bkd._la_prod(bkd._la_delete(denoms[ii], ii))
-        # numer = bkd._la_prod(bkd._la_delete(numers, ii, axis=1), axis=1)
-        numer = bkd._la_prod(numers[:, :ii], axis=1)*bkd._la_prod(numers[:, ii+1:], axis=1)
+        denom = bkd.prod(denoms[ii, :ii])*bkd.prod(denoms[ii, ii+1:])
+        # denom = bkd.prod(bkd.delete(denoms[ii], ii))
+        # numer = bkd.prod(bkd.delete(numers, ii, axis=1), axis=1)
+        numer = bkd.prod(numers[:, :ii], axis=1)*bkd.prod(numers[:, ii+1:], axis=1)
         # values[:, ii] = numer/denom
         values.append(numer/denom)
-    return bkd._la_stack(values, axis=1)
+    return bkd.stack(values, axis=1)
     # return values
 
 
@@ -497,7 +497,7 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         other = self.__class__(self._bounds, self._bkd)
         # need to copy nodes or changing nodes in one basis
         # may change it in anotehr unintentionally
-        other.set_nodes(self._bkd._la_copy(self._nodes))
+        other.set_nodes(self._bkd.copy(self._nodes))
         return other
 
     def _semideep_copy(self):
@@ -535,7 +535,7 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
 
     def _active_node_indices_for_quadrature(self):
         # used in time_integration.py
-        return self._bkd._la_arange(self.nterms())
+        return self._bkd.arange(self.nterms())
 
     def __repr__(self):
         if self._quad_samples is None:
@@ -547,7 +547,7 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
 
     def set_nterms(self, nterms):
         """Set equidistant nodes"""
-        self.set_nodes(self._bkd._la_linspace(*self._bounds, nterms)[None, :])
+        self.set_nodes(self._bkd.linspace(*self._bounds, nterms)[None, :])
 
 
 class UnivariatePiecewiseConstantBasis(UnivariateInterpolatingBasis):
@@ -555,7 +555,7 @@ class UnivariatePiecewiseConstantBasis(UnivariateInterpolatingBasis):
         # need to use nterms + 1 because nterms = nnodes-1 for piecewise
         # constant basis
         self.set_nodes(
-            self._bkd._la_linspace(*self._bounds, nterms+1)[None, :]
+            self._bkd.linspace(*self._bounds, nterms+1)[None, :]
         )
 
 
@@ -566,13 +566,13 @@ class UnivariatePiecewiseLeftConstantBasis(UnivariatePiecewiseConstantBasis):
         )
 
     def _quadrature_rule_from_nodes(self, nodes):
-        return nodes[:, :-1], self._bkd._la_diff(nodes[0])[:, None]
+        return nodes[:, :-1], self._bkd.diff(nodes[0])[:, None]
 
     def nterms(self):
         return self._nodes.shape[1] - 1
 
     def _active_node_indices_for_quadrature(self):
-        return self._bkd._la_arange(self.nterms() - 1)
+        return self._bkd.arange(self.nterms() - 1)
 
 
 class UnivariatePiecewiseRightConstantBasis(UnivariatePiecewiseConstantBasis):
@@ -583,13 +583,13 @@ class UnivariatePiecewiseRightConstantBasis(UnivariatePiecewiseConstantBasis):
 
     def _quadrature_rule_from_nodes(self, nodes):
         # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
-        return nodes[:, 1:], self._bkd._la_diff(nodes[0])[:, None]
+        return nodes[:, 1:], self._bkd.diff(nodes[0])[:, None]
 
     def nterms(self):
         return self._nodes.shape[1] - 1
 
     def _active_node_indices_for_quadrature(self):
-        return self._bkd._la_arange(1, self.nterms())
+        return self._bkd.arange(1, self.nterms())
 
 
 class UnivariatePiecewiseMidPointConstantBasis(
@@ -603,7 +603,7 @@ class UnivariatePiecewiseMidPointConstantBasis(
     def _quadrature_rule_from_nodes(self, nodes):
         return (
             (nodes[:, 1:] + nodes[:, :-1]) / 2,
-            self._bkd._la_diff(nodes[0])[:, None],
+            self._bkd.diff(nodes[0])[:, None],
         )
 
     def nterms(self):
@@ -673,7 +673,7 @@ class UnivariateQuadratureRule(ABC):
             the cost of computing the quadrature rule is nontrivial
         """
         if backend is None:
-            backend = NumpyLinAlgMixin()
+            backend = NumpyLinAlgMixin
         self._bkd = backend
         self._store = store
         self._quad_samples = dict()
@@ -704,7 +704,7 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
     """Integrates functions on [-1, 1] with weight function 1/2 or 1.
     """
     def __init__(self, prob_measure=True, backend=None, store=False):
-        super().__init__(backend=None, store=store)
+        super().__init__(backend=backend, store=store)
         self._prob_measure = prob_measure
 
     def _quad_rule(self, nnodes):
@@ -722,13 +722,13 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
         if not self._prob_measure:
             quad_weights *= 2
         return (
-            self._bkd._la_asarray(quad_samples)[None, :],
-            self._bkd._la_asarray(quad_weights)[:, None]
+            self._bkd.asarray(quad_samples)[None, :],
+            self._bkd.asarray(quad_weights)[:, None]
         )
 
 
 class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
-    def __init__(self, quadrature_rule, nterms, backend=NumpyLinAlgMixin()):
+    def __init__(self, quadrature_rule, nterms, backend=NumpyLinAlgMixin):
         super().__init__(backend)
         self._quad_rule = quadrature_rule
         self.set_nterms(nterms)
@@ -773,7 +773,7 @@ class UnivariateIntegrator(ABC):
     def __init__(self, backend):
         self._integrand = None
         if backend is None:
-            backend = NumpyLinAlgMixin()
+            backend = NumpyLinAlgMixin
         self._bkd = backend
 
     def set_integrand(self, integrand):
@@ -807,10 +807,10 @@ class ScipyUnivariateIntegrator(UnivariateIntegrator):
         self._bounds = bounds
 
     def _scipy_integrand(self, sample):
-        val = self._integrand(self._bkd._la_atleast2d(sample))
+        val = self._integrand(self._bkd.atleast2d(sample))
         if val.ndim != 2:
             raise RuntimeError("integrand must return 2D array with 1 element")
-        return self._bkd._la_to_numpy(val)[0, 0]
+        return self._bkd.to_numpy(val)[0, 0]
 
     def __call__(self):
         result = scipy.integrate.quad(
@@ -826,6 +826,10 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
     Assume that integral decays towards +/- infinity. And that once integral
     over a sub interval drops below tolerance it will not increase again if
     we keep moving in same direction.
+
+    Warning: Do not use this if your integrand is expensive. This
+    algorithm priortizes speed with vectorization over minimizing the
+    number of calls to the integrand
     """
     def __init__(self, quad_rule, backend=None):
         super().__init__(backend)
@@ -838,6 +842,8 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         self._rtol = None
         self._maxiters = None
         self.set_options()
+        if not self._bkd.bkd_equal(self._bkd, quad_rule._bkd):
+            raise ValueError("quad_rule backend does not match mine")
         self._quad_rule = quad_rule
 
     def set_options(
@@ -890,9 +896,11 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
             prev_integral = integral
             integral = self._integrate_interval(lb, ub, nquad_samples)
             it += 1
-            diff = self._bkd._la_abs(prev_integral-integral)
-            if self._bkd._la_all(
-                    diff < self._rtol*self._bkd._la_abs(integral)+self._atol
+            diff = self._bkd.abs(self._bkd.atleast1d(prev_integral-integral))
+            if self._bkd.all(
+                    diff < self._rtol*self._bkd.abs(
+                        self._bkd.atleast1d(integral)
+                    )+self._atol
             ):
                 break
             if it >= self._maxinner_iters:
@@ -904,9 +912,11 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         prev_integral = np.inf
         it = 0
         while (
-                self._bkd._la_any(
-                    self._bkd._la_abs(integral-prev_integral) >=
-                    self._rtol*self._bkd._la_abs(prev_integral)+self._atol
+                self._bkd.any(
+                    self._bkd.abs(self._bkd.atleast1d(integral-prev_integral))
+                    >= self._rtol*self._bkd.abs(
+                        self._bkd.atleast1d(prev_integral)
+                    )+self._atol
                 )
                 and lb >= self._bounds[0]
                 and it < self._maxiters
@@ -915,7 +925,7 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
             if it == 0:
                 prev_integral = integral
             else:
-                prev_integral = self._bkd._la_copy(integral)
+                prev_integral = self._bkd.copy(integral)
             integral += result
             ub = lb
             lb -= self._interval_size
@@ -923,7 +933,9 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         if self._verbosity > 0:
             print(
                 "nleft iters={0}, error={1}".format(
-                    it, self._bkd._la_abs(integral-prev_integral)
+                    it, self._bkd.abs(
+                        self._bkd.atleast1d(integral-prev_integral)
+                    )
                 )
             )
         return integral
@@ -933,9 +945,11 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         prev_integral = np.inf
         it = 0
         while (
-                self._bkd._la_any(
-                    self._bkd._la_abs(integral-prev_integral) >=
-                    self._rtol*self._bkd._la_abs(prev_integral)+self._atol
+                self._bkd.any(
+                    self._bkd.abs(self._bkd.atleast1d(integral-prev_integral))
+                    >= self._rtol*self._bkd.abs(
+                        self._bkd.atleast1d(prev_integral)
+                    )+self._atol
                 )
                 and ub <= self._bounds[1]
                 and it < self._maxiters
@@ -944,7 +958,7 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
             if it == 0:
                 prev_integral = integral
             else:
-                prev_integral = self._bkd._la_copy(integral)
+                prev_integral = self._bkd.copy(integral)
             integral += result
             lb = ub
             ub += self._interval_size
@@ -953,7 +967,9 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         if self._verbosity > 0:
             print(
                 "nright iters={0}, error={1}".format(
-                    it, self._bkd._la_abs(integral-prev_integral)
+                    it, self._bkd.abs(
+                        self._bkd.atleast1d(integral-prev_integral)
+                    )
                 )
             )
         return integral

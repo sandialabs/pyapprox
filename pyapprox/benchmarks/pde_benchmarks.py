@@ -207,7 +207,7 @@ class AdvectionDiffusionReactionKLEModel():
     def _set_random_sample(self, sample):
         self._fwd_solver.physics._diff_fun = partial(
             self._fast_interpolate,
-            self._kle(self._kle._bkd._la_atleast2d(sample[:, None])))
+            self._kle(self._kle._bkd.atleast2d(sample[:, None])))
 
     def _eval(self, sample, return_grad=False):
         sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
@@ -343,7 +343,7 @@ def _setup_advection_diffusion_benchmark(
     if kle_args is None:
         kle = MeshKLE(
             mesh.mesh_pts, length_scale, sigma=sigma, nterms=nvars,
-            use_log=True, mean_field=kle_mean_field, backend=TorchLinAlgMixin())
+            use_log=True, mean_field=kle_mean_field, backend=TorchLinAlgMixin)
     else:
         kle = InterpolatedMeshKLE(
             kle_args[0], kle_args[1], mesh)

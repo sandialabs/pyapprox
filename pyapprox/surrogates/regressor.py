@@ -9,7 +9,7 @@ from pyapprox.util.transforms import Transform, IdentityTransform
 
 
 class Regressor(Model):
-    def __init__(self, backend=NumpyLinAlgMixin()):
+    def __init__(self, backend=NumpyLinAlgMixin):
         super().__init__(backend)
         self._in_trans = IdentityTransform()
         self._out_trans = IdentityTransform()
@@ -78,7 +78,7 @@ class Regressor(Model):
 
 
 class OptimizedRegressor(Regressor):
-    def __init__(self, backend=NumpyLinAlgMixin()):
+    def __init__(self, backend=NumpyLinAlgMixin):
         super().__init__(backend)
         self._loss = None
         self._optimizer = None
@@ -134,8 +134,8 @@ def TensorProductQuadratureRule(QuadratureRule):
             xx, ww = self._basis.univariate_quadrature(dd)
             samples_1d.append(xx)
             weights_1d.append(ww)
-        self._samples = self._bkd._la_cartesian_product(samples_1d)
-        self._weights = self._bkd._la_outer_product(weights_1d)
+        self._samples = self._bkd.cartesian_product(samples_1d)
+        self._weights = self._bkd.outer_product(weights_1d)
 
     def __call__(self):
         return self._samples, self._weights

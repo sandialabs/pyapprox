@@ -26,7 +26,7 @@ class Model(ABC):
     _apply_jacobian_implemented, _apply_hessian_implemented
     to True
     """
-    def __init__(self, backend=NumpyLinAlgMixin()):
+    def __init__(self, backend=NumpyLinAlgMixin):
         self._bkd = backend
         self._apply_jacobian_implemented = False
         self._jacobian_implemented = False
@@ -96,7 +96,7 @@ class Model(ABC):
             return jac
         actions = []
         for ii in range(nvars):
-            vec = self._bkd._la_zeros((nvars, 1))
+            vec = self._bkd.zeros((nvars, 1))
             vec[ii] = 1.0
             actions.append(self._apply_jacobian(sample, vec))
         return np.hstack(actions)
@@ -175,7 +175,7 @@ class Model(ABC):
         actions = []
         nvars = sample.shape[0]
         for ii in range(nvars):
-            vec = self._bkd._la_zeros((nvars, 1))
+            vec = self._bkd.zeros((nvars, 1))
             vec[ii] = 1.0
             actions.append(self._apply_hessian(sample, vec))
         return np.hstack(actions)
@@ -189,12 +189,12 @@ class Model(ABC):
             raise ValueError(
                 "sample with shape {0} must be 2D array".format(sample.shape))
         if fd_eps is None:
-            fd_eps = self._bkd._la_flip(self._bkd._la_logspace(-13, 0, 14))
+            fd_eps = self._bkd.flip(self._bkd.logspace(-13, 0, 14))
         if direction is None:
             nvars = sample.shape[0]
             direction = np.random.normal(0, 1, (nvars, 1))
             direction /= np.linalg.norm(direction)
-            direction = self._bkd._la_asarray(direction)
+            direction = self._bkd.asarray(direction)
 
         row_format = "{:<12} {:<25} {:<25} {:<25}"
         headers = [
@@ -207,19 +207,19 @@ class Model(ABC):
         val = fun(sample)
         directional_grad = apply_fun(sample, direction)
         for ii in range(fd_eps.shape[0]):
-            sample_perturbed = self._bkd._la_copy(sample)+fd_eps[ii]*direction
+            sample_perturbed = self._bkd.copy(sample)+fd_eps[ii]*direction
             perturbed_val = fun(sample_perturbed)
             fd_directional_grad = (perturbed_val-val)/fd_eps[ii]
-            errors.append(self._bkd._la_norm(
+            errors.append(self._bkd.norm(
                 fd_directional_grad.reshape(directional_grad.shape) -
                 directional_grad))
             if relative:
-                errors[-1] /= self._bkd._la_norm(directional_grad)
+                errors[-1] /= self._bkd.norm(directional_grad)
             if disp:
                 print(row_format.format(
-                    fd_eps[ii], self._bkd._la_norm(directional_grad),
-                    self._bkd._la_norm(fd_directional_grad), errors[ii]))
-        return self._bkd._la_asarray(errors)
+                    fd_eps[ii], self._bkd.norm(directional_grad),
+                    self._bkd.norm(fd_directional_grad), errors[ii]))
+        return self._bkd.asarray(errors)
 
     def check_apply_jacobian(self, sample, fd_eps=None, direction=None,
                              relative=True, disp=False):
@@ -250,8 +250,8 @@ class Model(ABC):
         nvars = sample.shape[0]
         val = self(sample)
         nqoi = val.shape[1]
-        jac = self._bkd._la_zeros([nqoi, nvars])
-        dx = self._bkd._la_zeros((nvars, 1))
+        jac = self._bkd.zeros([nqoi, nvars])
+        dx = self._bkd.zeros((nvars, 1))
         for ii in range(nvars):
             dx[ii] = eps
             val_perturbed = self(sample+dx)
@@ -288,7 +288,7 @@ class SingleSampleModel(Model):
                 values_0.shape)
             raise ValueError(msg)
         nqoi = values_0.shape[1]
-        values = self._bkd._la_empty((nsamples, nqoi), dtype=float)
+        values = self._bkd.empty((nsamples, nqoi), dtype=float)
         values[0, :] = values_0
         for ii in range(1, nsamples):
             values[ii, :] = self._evaluate(samples[:, ii:ii+1])
@@ -298,7 +298,7 @@ class SingleSampleModel(Model):
 class ModelFromCallable(SingleSampleModel):
     def __init__(self, function, jacobian=None, apply_jacobian=None,
                  apply_hessian=None, hessian=None, sample_ndim=2,
-                 values_ndim=2, backend=NumpyLinAlgMixin()):
+                 values_ndim=2, backend=NumpyLinAlgMixin):
         """
         Parameters
         ----------
@@ -385,33 +385,33 @@ class ScipyModelWrapper:
             raise ValueError(
                 "sample must be a 1D array but has shape {0}".format(
                     sample.shape))
-        return self._bkd._la_asarray(sample)
+        return self._bkd.asarray(sample)
 
     def __call__(self, sample):
         sample = self._check_sample(sample)
         vals = self._model(sample[:, None])
         if vals.shape[0] == 1:
             return vals[0]
-        return self._bkd._la_to_numpy(vals)
+        return self._bkd.to_numpy(vals)
 
     def jac(self, sample):
         sample = self._check_sample(sample)
         jac = self._model.jacobian(sample[:, None])
         if jac.shape[0] == 1:
             return jac[0]
-        return self._bkd._la_to_numpy(jac)
+        return self._bkd.to_numpy(jac)
 
     def hess(self, sample):
         sample = self._check_sample(sample)
-        return self._bkd._la_to_numpy(self._model.hessian(sample[:, None]))
+        return self._bkd.to_numpy(self._model.hessian(sample[:, None]))
 
     def hessp(self, sample, vec):
         sample = self._check_sample(sample)
         if (vec.ndim != 1):
             raise ValueError("vec must be 1D array")
-        return self._bkd._la_to_numpy(
+        return self._bkd.to_numpy(
             self._model.apply_hessian(
-                sample[:, None], self._bkd._la_asarray(vec[:, None])
+                sample[:, None], self._bkd.asarray(vec[:, None])
             )
         )
 
@@ -420,7 +420,7 @@ class ScipyModelWrapper:
 
 
 class UmbridgeModelWrapper(Model):
-    def __init__(self, umb_model, config={}, nprocs=1, backend=NumpyLinAlgMixin()):
+    def __init__(self, umb_model, config={}, nprocs=1, backend=NumpyLinAlgMixin):
         """
         Evaluate an umbridge model at multiple samples
 
@@ -458,7 +458,7 @@ class UmbridgeModelWrapper(Model):
         # sens is vector v and applies a constant to each sublist of outputs
         # we want jacobian so set sens to [1]
         parameters = self._check_sample(sample)
-        return self._bkd._la_asarray(self._model.gradient(
+        return self._bkd.asarray(self._model.gradient(
             0, 0, parameters, [1.], config=self._config)).T
 
     def _apply_jacobian(self, sample, vec):
@@ -498,8 +498,8 @@ class UmbridgeModelWrapper(Model):
 
     def __call__(self, samples):
         if self._nprocs > 1:
-            return self._bkd._la_asarray(self._evaluate_parallel(samples))
-        return self._bkd._la_array(self._evaluate_serial(samples))
+            return self._bkd.asarray(self._evaluate_parallel(samples))
+        return self._bkd.array(self._evaluate_serial(samples))
 
     @staticmethod
     def start_server(
@@ -532,7 +532,7 @@ class UmbridgeModelWrapper(Model):
 
 class UmbridgeIOModelWrapper(UmbridgeModelWrapper):
     def __init__(self, umb_model, config={}, nprocs=1,
-                 outdir_basename="modelresults", backend=NumpyLinAlgMixin()):
+                 outdir_basename="modelresults", backend=NumpyLinAlgMixin):
         """
         Evaluate an umbridge model that wraps models that require
         creation of separate directories for each model run to enable
@@ -551,7 +551,7 @@ class UmbridgeIOModelWrapper(UmbridgeModelWrapper):
 
 class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
     def __init__(self, umb_model, model_configs={}, nprocs=1,
-                 outdir_basename="modelresults", backend=NumpyLinAlgMixin()):
+                 outdir_basename="modelresults", backend=NumpyLinAlgMixin):
         """
         Evaluate an umbridge model with multiple configs that wraps models
         that require
@@ -577,7 +577,7 @@ class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
 
 class IOModel(SingleSampleModel):
     def __init__(self, infilenames, outdir_basename=None, save="no",
-                 datafilename=None, backend=NumpyLinAlgMixin()):
+                 datafilename=None, backend=NumpyLinAlgMixin):
         """
         Base class for models that require loading and or writing of files
         """
@@ -663,20 +663,20 @@ class ActiveSetVariableModel(Model):
     """
 
     def __init__(self, function, nvars, inactive_var_values,
-                 active_var_indices, base_model=None, backend=NumpyLinAlgMixin()):
+                 active_var_indices, base_model=None, backend=NumpyLinAlgMixin):
         super().__init__(backend=backend)
         # nvars can de determined from inputs but making it
         # necessary allows for better error checking
         self._model = function
         assert inactive_var_values.ndim == 2
-        self._inactive_var_values = self._bkd._la_asarray(inactive_var_values, dtype=int)
-        self._active_var_indices = self._bkd._la_asarray(active_var_indices, dtype=int)
+        self._inactive_var_values = self._bkd.asarray(inactive_var_values, dtype=int)
+        self._active_var_indices = self._bkd.asarray(active_var_indices, dtype=int)
         assert self._active_var_indices.shape[0] + \
             self._inactive_var_values.shape[0] == nvars
         self._nvars = nvars
-        assert self._bkd._la_all(self._active_var_indices < self._nvars)
-        self._inactive_var_indices = self._bkd._la_delete(
-            self._bkd._la_arange(self._nvars, dtype=int), active_var_indices)
+        assert self._bkd.all(self._active_var_indices < self._nvars)
+        self._inactive_var_indices = self._bkd.delete(
+            self._bkd.arange(self._nvars, dtype=int), active_var_indices)
         if base_model is None:
             base_model = function
         self._base_model = base_model
@@ -692,11 +692,11 @@ class ActiveSetVariableModel(Model):
     def _expand_samples_from_indices(reduced_samples, active_var_indices,
                                      inactive_var_indices,
                                      inactive_var_values,
-                                     bkd=NumpyLinAlgMixin()):
+                                     bkd=NumpyLinAlgMixin):
         assert reduced_samples.ndim == 2
         raw_samples = get_all_sample_combinations(
             inactive_var_values, reduced_samples)
-        samples = bkd._la_empty(raw_samples.shape)
+        samples = bkd.empty(raw_samples.shape)
         samples[inactive_var_indices, :] = (
             raw_samples[:inactive_var_indices.shape[0]])
         samples[active_var_indices, :] = (
@@ -722,7 +722,7 @@ class ActiveSetVariableModel(Model):
         samples = self._expand_samples(reduced_samples)
         # set inactive entries of vec to zero when peforming
         # matvec product so they do not contribute to sum
-        expanded_vec = self._bkd._la_zeros((self._nvars, 1))
+        expanded_vec = self._bkd.zeros((self._nvars, 1))
         expanded_vec[self._active_var_indices] = vec
         return self._model.apply_jacobian(samples, expanded_vec)
 
@@ -730,7 +730,7 @@ class ActiveSetVariableModel(Model):
         samples = self._expand_samples(reduced_samples)
         # set inactive entries of vec to zero when peforming
         # matvec product  so they do not contribute to sum
-        expanded_vec = self._bkd._la_zeros((self._nvars, 1))
+        expanded_vec = self._bkd.zeros((self._nvars, 1))
         expanded_vec[self._active_var_indices] = vec
         return self._model.apply_hessian(samples, expanded_vec)
 

@@ -23,22 +23,22 @@ class TestMultiIndex:
         bkd = self.get_backend()
         nvars, pnorm, level = 2, 1, 2
         gen = HyperbolicIndexGenerator(nvars, level, pnorm, backend=bkd)
-        indices = bkd._la_asarray(
+        indices = bkd.asarray(
             [[0, 0], [1, 0], [0, 1], [2, 0], [1, 1], [0, 2]],
             dtype=int
         ).T
-        assert bkd._la_allclose(gen.get_indices(), indices)
-        assert bkd._la_allclose(
+        assert bkd.allclose(gen.get_indices(), indices)
+        assert bkd.allclose(
             compute_hyperbolic_indices(nvars, level, pnorm, bkd),
             indices
         )
 
-        on_margin = bkd._la_array(
+        on_margin = bkd.array(
             [gen._index_on_margin(index) for index in indices.T], dtype=bool
         )
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             on_margin,
-            bkd._la_array([False, False, False, True, True, True], dtype=bool)
+            bkd.array([False, False, False, True, True, True], dtype=bool)
         )
 
         gen.step()
@@ -52,7 +52,7 @@ class TestMultiIndex:
         gen.set_selected_indices(indices[:, :-3])
         assert gen.nselected_indices() == 3
         assert gen.ncandidate_indices() == 3
-        assert bkd._la_allclose(gen.get_indices(), indices)
+        assert bkd.allclose(gen.get_indices(), indices)
 
         self.assertRaises(
             ValueError, gen.set_selected_indices, indices[:, -3:]
@@ -60,7 +60,7 @@ class TestMultiIndex:
 
         nvars, pnorm, level = 3, 1, 4
         gen = HyperbolicIndexGenerator(nvars, level, pnorm, backend=bkd)
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             sort_indices_lexiographically(gen.get_indices()),
             sort_indices_lexiographically(
                 compute_hyperbolic_indices(nvars, level, pnorm, bkd)
@@ -69,7 +69,7 @@ class TestMultiIndex:
 
         nvars, pnorm, level = 3, 0.4, 4
         gen = HyperbolicIndexGenerator(nvars, level, pnorm, backend=bkd)
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             sort_indices_lexiographically(gen.get_indices()),
             sort_indices_lexiographically(
                 compute_hyperbolic_indices(nvars, level, pnorm, bkd)
@@ -82,10 +82,10 @@ class TestMultiIndex:
         gen = IsotropicSGIndexGenerator(
             nvars, level, DoublePlusOneIndexGrowthRule(), backend=bkd
         )
-        indices = bkd._la_array(
+        indices = bkd.array(
             [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [1, 0], [2, 0], [3, 0],
              [4, 0], [1, 1], [1, 2], [2, 1], [2, 2]], dtype=int).T
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             sort_indices_lexiographically(gen.get_indices()),
             sort_indices_lexiographically(indices)
         )
@@ -108,7 +108,7 @@ class TestMultiIndex:
             nvars, level, LinearGrowthRule(1, 1), backend=bkd
         )
         gen2 = HyperbolicIndexGenerator(nvars, level, 1., backend=bkd)
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             sort_indices_lexiographically(gen1.get_indices()),
             sort_indices_lexiographically(gen2.get_indices())
         )
@@ -116,12 +116,12 @@ class TestMultiIndex:
 
 class TestNumpyMultiIndex(TestMultiIndex, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin()
+        return NumpyLinAlgMixin
 
 
 class TestTorchMultiIndex(TestMultiIndex, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin()
+        return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

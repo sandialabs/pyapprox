@@ -64,7 +64,7 @@ class IndependentMarginalsVariable(JointVariable):
             unique_variables,
             unique_variable_indices=None,
             variable_labels=None,
-            backend=NumpyLinAlgMixin(),
+            backend=NumpyLinAlgMixin,
     ):
         """
         Constructor method
@@ -148,11 +148,11 @@ class IndependentMarginalsVariable(JointVariable):
         for ii in range(self.nunique_vars):
             var = self.unique_variables[ii]
             indices = self.unique_variable_indices[ii]
-            stats_ii = self._bkd._la_atleast1d(getattr(var, function_name)(
+            stats_ii = self._bkd.atleast1d(getattr(var, function_name)(
                 *args, **kwargs))
             assert stats_ii.ndim == 1
             if ii == 0:
-                stats = self._bkd._la_empty(
+                stats = self._bkd.empty(
                     (self.num_vars(), stats_ii.shape[0])
                 )
             stats[indices] = stats_ii
@@ -181,12 +181,12 @@ class IndependentMarginalsVariable(JointVariable):
             var = self.unique_variables[ii]
             indices = self.unique_variable_indices[ii]
             for jj in indices:
-                stats_jj = self._bkd._la_atleast1d(
+                stats_jj = self._bkd.atleast1d(
                     getattr(var, function_name)(x[jj, :])
                 )
                 assert stats_jj.ndim == 1
                 if stats is None:
-                    stats = self._bkd._la_empty(
+                    stats = self._bkd.empty(
                         (self.num_vars(), stats_jj.shape[0])
                     )
                 stats[jj] = stats_jj
@@ -213,10 +213,10 @@ class IndependentMarginalsVariable(JointVariable):
         assert x.shape[0] == self.num_vars()
         if log is False:
             marginal_vals = self.evaluate("pdf", x)
-            return self._bkd._la_prod(marginal_vals, axis=0)[:, None]
+            return self._bkd.prod(marginal_vals, axis=0)[:, None]
 
         marginal_vals = self.evaluate("logpdf", x)
-        return self._bkd._la_sum(marginal_vals, axis=0)[:, None]
+        return self._bkd.sum(marginal_vals, axis=0)[:, None]
 
     def _evaluate(self, function_name, x):
         """
@@ -244,11 +244,11 @@ class IndependentMarginalsVariable(JointVariable):
             var = self.unique_variables[ii]
             indices = self.unique_variable_indices[ii]
             for jj in indices:
-                stats_jj = self._bkd._la_atleast1d(
+                stats_jj = self._bkd.atleast1d(
                     getattr(var.dist, function_name)(x[jj, :]))
                 assert stats_jj.ndim == 1
                 if stats is None:
-                    stats = self._bkd._la_empty(
+                    stats = self._bkd.empty(
                         (self.num_vars(), stats_jj.shape[0])
                     )
                 stats[jj] = stats_jj
@@ -257,10 +257,10 @@ class IndependentMarginalsVariable(JointVariable):
     def _pdf(self, x, log=False):
         if not log:
             marginal_vals = self._evaluate("_pdf", x)
-            return self._bkd._la_prod(marginal_vals, axis=0)[:, None]
+            return self._bkd.prod(marginal_vals, axis=0)[:, None]
 
         marginal_vals = self._evaluate("_logpdf", x)
-        return self._bkd._la_sum(marginal_vals, axis=0)[:, None]
+        return self._bkd.sum(marginal_vals, axis=0)[:, None]
 
     def __str__(self):
         variable_labels = self.variable_labels
@@ -319,7 +319,7 @@ class IndependentMarginalsVariable(JointVariable):
             Independent samples from the target distribution
         """
         num_samples = int(num_samples)
-        samples = self._bkd._la_empty(
+        samples = self._bkd.empty(
             (self.num_vars(), num_samples), dtype=float
         )
         if random_states is not None:
@@ -329,11 +329,17 @@ class IndependentMarginalsVariable(JointVariable):
         for ii in range(self.nunique_vars):
             var = self.unique_variables[ii]
             indices = self.unique_variable_indices[ii]
-            samples[indices, :] = self._bkd._la_asarray(
-                var.rvs(
-                    size=(indices.shape[0], num_samples),
-                    random_state=random_states[ii]
-                )
+            # samples[indices, :] = self._bkd.asarray(
+            samples = self._bkd.up(
+                samples,
+                indices,
+                self._bkd.asarray(
+                    var.rvs(
+                        size=(indices.shape[0], num_samples),
+                        random_state=random_states[ii]
+                    )
+                ),
+                axis=0,
             )
         return samples
 

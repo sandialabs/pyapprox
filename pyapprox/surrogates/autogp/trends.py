@@ -18,7 +18,7 @@ class Monomial():
 
     def _univariate_monomial_basis_matrix(self, max_level, samples):
         assert samples.ndim == 1
-        basis_matrix = samples[:, None]**self._la_arange(max_level+1)[None, :]
+        basis_matrix = samples[:, None]**self.arange(max_level+1)[None, :]
         return basis_matrix
 
     def _monomial_basis_matrix(self, indices, samples):
@@ -27,7 +27,7 @@ class Monomial():
         num_samples = samples.shape[1]
 
         deriv_order = 0
-        basis_matrix = self._la_empty(
+        basis_matrix = self.empty(
             ((1+deriv_order*num_vars)*num_samples, num_indices))
         basis_vals_1d = [self._univariate_monomial_basis_matrix(
             indices[0, :].max(), samples[0, :])]
@@ -44,7 +44,7 @@ class Monomial():
 
     def __call__(self, samples):
         if self.degree == 0:
-            vals = self._la_empty((samples.shape[1], 1))
+            vals = self.empty((samples.shape[1], 1))
             vals[:] = self._coef.get_values()
             return vals
         basis_mat = self.basis_matrix(samples)

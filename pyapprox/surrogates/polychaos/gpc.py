@@ -692,14 +692,14 @@ def compute_product_coeffs_1d_for_each_variable(
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 def compute_multivariate_orthonormal_basis_product(
         product_coefs_1d, poly_index_ii, poly_index_jj, max_degrees1,
-        max_degrees2, tol=2*np.finfo(float).eps, backend=NumpyLinAlgMixin()):
+        max_degrees2, tol=2*np.finfo(float).eps, backend=NumpyLinAlgMixin):
     """
     Compute the product of two multivariate orthonormal bases and re-express
     as an expansion using the orthonormal basis.
     """
     num_vars = poly_index_ii.shape[0]
     poly_index = poly_index_ii+poly_index_jj
-    active_vars = backend._la_where(poly_index > 0)[0]
+    active_vars = backend.where(poly_index > 0)[0]
     if active_vars.shape[0] > 0:
         coefs_1d = []
         for dd in active_vars:
@@ -711,28 +711,28 @@ def compute_multivariate_orthonormal_basis_product(
             kk = flattened_rectangular_lower_triangular_matrix_index(
                 pii, pjj, max_degrees1[dd]+1, max_degrees2[dd]+1)
             coefs_1d.append(product_coefs_1d[dd][kk][:, 0])
-        indices_1d = [backend._la_arange(poly_index[dd]+1, dtype=int)
+        indices_1d = [backend.arange(poly_index[dd]+1, dtype=int)
                       for dd in active_vars]
-        product_coefs = backend._la_outer_product(coefs_1d)[:, None]
-        active_product_indices = backend._la_cartesian_product(indices_1d)
-        II = backend._la_where(backend._la_abs(product_coefs) > tol)[0]
+        product_coefs = backend.outer_product(coefs_1d)[:, None]
+        active_product_indices = backend.cartesian_product(indices_1d)
+        II = backend.where(backend.abs(product_coefs) > tol)[0]
         active_product_indices = active_product_indices[:, II]
         product_coefs = product_coefs[II]
-        product_indices = backend._la_full(
+        product_indices = backend.full(
             (num_vars, active_product_indices.shape[1]), 0., dtype=int)
         # product_indices[active_vars] = active_product_indices
-        product_indices = backend._la_up(
+        product_indices = backend.up(
             product_indices, active_vars, active_product_indices)
     else:
-        product_coefs = backend._la_full((1, 1), 1.)
-        product_indices = backend._la_full([num_vars, 1], 0., dtype=int)
+        product_coefs = backend.full((1, 1), 1.)
+        product_indices = backend.full([num_vars, 1], 0., dtype=int)
 
     return product_indices, product_coefs
 
 
 def multiply_multivariate_orthonormal_polynomial_expansions(
         product_coefs_1d, poly_indices1, poly_coefficients1, poly_indices2,
-        poly_coefficients2, backend=NumpyLinAlgMixin()):
+        poly_coefficients2, backend=NumpyLinAlgMixin):
     num_indices1 = poly_indices1.shape[1]
     num_indices2 = poly_indices2.shape[1]
     assert num_indices2 <= num_indices1
@@ -740,8 +740,8 @@ def multiply_multivariate_orthonormal_polynomial_expansions(
     assert poly_coefficients2.shape[0] == num_indices2
 
     # following assumes the max degrees were used to create product_coefs_1d
-    max_degrees1 = backend._la_max(poly_indices1, axis=1)
-    max_degrees2 = backend._la_max(poly_indices2, axis=1)
+    max_degrees1 = backend.max(poly_indices1, axis=1)
+    max_degrees2 = backend.max(poly_indices2, axis=1)
     basis_coefs, basis_indices = [], []
     for ii in range(num_indices1):
         poly_index_ii = poly_indices1[:, ii]

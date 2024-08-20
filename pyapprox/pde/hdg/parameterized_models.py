@@ -834,7 +834,7 @@ class TurbineBladeModel():
         unique_indices = np.array(
             [item[0] for key, item in self._common_mesh_pts_dict.items()])
         kle = MeshKLE(mesh_pts[:, unique_indices], use_log=True,
-                      backend=TorchLinAlgMixin())
+                      backend=TorchLinAlgMixin)
         kle.compute_basis(length_scale, sigma, nterms)
         return kle, mesh_pts
 

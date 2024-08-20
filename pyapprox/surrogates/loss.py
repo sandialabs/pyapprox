@@ -13,7 +13,7 @@ class LossFunction(Model):
         # TODO check if analytical jacobian available and use
         # with chain rule to compute grad of objective but for
         # now assume that autograd must be used
-        if not self._bkd._la_jacobian_implemented():
+        if not self._bkd.jacobian_implemented():
             # todo implement gradients via custom backprop
             # only requires slight modification of _core_jacobian
             # to be more efficient by storing certain info
@@ -40,9 +40,9 @@ class RMSELoss(LossFunction):
     def __call__(self, active_opt_params):
         self._check_model(self._model)
         self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
-        return self._bkd._la_atleast2d(
-            self._bkd._la_mean(
-                self._bkd._la_norm(
+        return self._bkd.atleast2d(
+            self._bkd.mean(
+                self._bkd.norm(
                     (
                         self._model(self._model._ctrain_samples) -
                         self._model._ctrain_values
@@ -53,8 +53,8 @@ class RMSELoss(LossFunction):
         )
 
     def _jacobian(self, active_opt_params):
-        val, grad = self._bkd._la_grad(self.__call__, active_opt_params)
+        val, grad = self._bkd.grad(self.__call__, active_opt_params)
         # todo move detach to linalgmixin if needed
         for hyp in self._model.hyp_list.hyper_params:
-            self._bkd._la_detach(hyp)
-        return self._bkd._la_detach(grad).T
+            self._bkd.detach(hyp)
+        return self._bkd.detach(grad).T

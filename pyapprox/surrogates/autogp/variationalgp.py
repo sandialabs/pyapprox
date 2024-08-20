@@ -26,13 +26,13 @@ def _log_prob_gaussian_with_noisy_nystrom_covariance(
     noise_std, L_UU, K_XU, values, bkd
 ):
     N, M = K_XU.shape
-    Delta = bkd._la_solve_triangular(L_UU, K_XU.T) / noise_std
-    Omega = bkd._la_eye(M) + Delta @ Delta.T
-    L_Omega = bkd._la_cholesky(Omega)
-    log_det = 2 * bkd._la_log(
-        bkd._la_get_diagonal(L_Omega)
-    ).sum() + 2 * N * bkd._la_log(bkd._la_atleast1d(noise_std))
-    gamma = bkd._la_solve_triangular(L_Omega, Delta @ values)
+    Delta = bkd.solve_triangular(L_UU, K_XU.T) / noise_std
+    Omega = bkd.eye(M) + Delta @ Delta.T
+    L_Omega = bkd.cholesky(Omega)
+    log_det = 2 * bkd.log(
+        bkd.get_diagonal(L_Omega)
+    ).sum() + 2 * N * bkd.log(bkd.atleast1d(noise_std))
+    gamma = bkd.solve_triangular(L_Omega, Delta @ values)
     log_pdf = -0.5 * (
         N * np.log(2 * np.pi)
         + log_det
@@ -53,7 +53,7 @@ class InducingSamples:
         inducing_samples=None,
         inducing_sample_bounds=None,
         noise: float = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin(),
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         # inducing bounds and inducing samples must be in the canonical gp
         # space e.g. the one defined by gp.var_trans
@@ -113,7 +113,7 @@ class InducingSamples:
             if inducing_sample_bounds.ndim == 1:
                 if inducing_sample_bounds.shape[0] != 2:
                     raise ValueError(msg)
-                inducing_sample_bounds = self._bkd._la_repeat(
+                inducing_sample_bounds = self._bkd.repeat(
                     inducing_sample_bounds, self.ninducing_samples
                 ).reshape(self.ninducing_samples, 2)
         if inducing_sample_bounds.shape != (
@@ -181,7 +181,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
     def _K_UU(self) -> Tuple:
         inducing_samples = self.inducing_samples.get_samples()
         kmat = self.kernel(inducing_samples, inducing_samples)
-        kmat = kmat + self._bkd._la_eye(kmat.shape[0]) * float(self.kernel_reg)
+        kmat = kmat + self._bkd.eye(kmat.shape[0]) * float(self.kernel_reg)
         return kmat
 
     def _training_kernel_matrix(self):
@@ -218,16 +218,16 @@ class InducingGaussianProcess(ExactGaussianProcess):
         K_UU = self._K_UU()
         # if the following line throws a ValueError it is likely
         # because self.noise is to small. If so adjust noise bounds
-        L_UU = self._bkd._la_cholesky(K_UU)
+        L_UU = self._bkd.cholesky(K_UU)
         mll = _log_prob_gaussian_with_noisy_nystrom_covariance(
             noise_std, L_UU, K_XU, self.canonical_train_values, self._bkd
         )
         # add a regularization term to regularize variance noting that
         # trace of matrix sum is sum of traces
         K_XX_diag = self.kernel.diag(self.canonical_train_samples)
-        tmp = self._bkd._la_solve_triangular(L_UU, K_XU.T)
-        K_tilde_trace = K_XX_diag.sum() - self._bkd._la_trace(
-            self._bkd._la_multidot((tmp.T, tmp))
+        tmp = self._bkd.solve_triangular(L_UU, K_XU.T)
+        K_tilde_trace = K_XX_diag.sum() - self._bkd.trace(
+            self._bkd.multidot((tmp.T, tmp))
         )
         mll -= 1 / (2 * noise_std**2) * K_tilde_trace
         return -mll
@@ -237,16 +237,16 @@ class InducingGaussianProcess(ExactGaussianProcess):
         K_XU = self._K_XU()
         K_UU = self._K_UU()
 
-        K_UU_inv = self._bkd._la_inv(K_UU)
+        K_UU_inv = self._bkd.inv(K_UU)
         # Titsias 2009 Equation (6) B = Kuu_inv*A(Kuu_inv)
         # A is s Equation (11) in Vanderwilk 2020
         # which depends on \Sigma defined below Equation (10) Titsias
         # which we call Lambda below
-        Lambda = K_UU_inv + self._bkd._la_multidot(
+        Lambda = K_UU_inv + self._bkd.multidot(
             (K_UU_inv, K_XU.T, K_XU, K_UU_inv / noise_std**2)
         )
-        Lambda_inv = self._bkd._la_inv(Lambda)
-        m = self._bkd._la_multidot(
+        Lambda_inv = self._bkd.inv(Lambda)
+        m = self._bkd.multidot(
             (
                 Lambda_inv,
                 K_UU_inv,
@@ -262,7 +262,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
 
         # Equation (6) in Titsias 2009 or
         # Equation (11) in Vanderwilk 2020
-        mu = self._bkd._la_multidot((K_ZU, K_UU_inv, m))
+        mu = self._bkd.multidot((K_ZU, K_UU_inv, m))
 
         if not return_std:
             return mu
@@ -271,13 +271,13 @@ class InducingGaussianProcess(ExactGaussianProcess):
         # Equation (11) in Vanderwilk 2020 where Lambda^{-1} = S
         sigma = (
             K_ZZ
-            - self._bkd._la_multidot((K_ZU, K_UU_inv, K_ZU.T))
-            + self._bkd._la_multidot(
+            - self._bkd.multidot((K_ZU, K_UU_inv, K_ZU.T))
+            + self._bkd.multidot(
                 (K_ZU, K_UU_inv, Lambda_inv, K_UU_inv, K_ZU.T)
             )
         )
         return (
             mu[:, None],
-            self._bkd._la_sqrt(self._bkd._la_get_diagonal(sigma))[:, None],
+            self._bkd.sqrt(self._bkd.get_diagonal(sigma))[:, None],
         )
         # return mu[:, None],  (diag(sigma))[:, None]

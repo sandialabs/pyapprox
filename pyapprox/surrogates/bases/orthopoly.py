@@ -38,7 +38,7 @@ def _evaluate_orthonormal_polynomial_1d(rcoefs, bkd, samples):
     nsamples = samples.shape[0]
     nterms = rcoefs.shape[0]
 
-    vals = [bkd._la_full((nsamples,), 1.0 / rcoefs[0, 1])]
+    vals = [bkd.full((nsamples,), 1.0 / rcoefs[0, 1])]
 
     if nterms > 1:
         vals.append(1 / rcoefs[1, 1] * ((samples - rcoefs[0, 0]) * vals[0]))
@@ -52,7 +52,7 @@ def _evaluate_orthonormal_polynomial_1d(rcoefs, bkd, samples):
                 - rcoefs[jj - 1, 1] * vals[jj - 2]
             )
         )
-    return bkd._la_stack(vals, axis=1)
+    return bkd.stack(vals, axis=1)
 
 
 class OrthonormalPolynomial1D(UnivariateBasis):
@@ -81,7 +81,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         """Compute and set the recursion coefficients of the polynomial."""
         if self._rcoefs is None or self._ncoefs() < nterms:
             # TODO implement increment of recursion coefficients
-            self._rcoefs = self._bkd._la_array(
+            self._rcoefs = self._bkd.array(
                 self._get_recursion_coefficients(nterms)
             )
         elif self._rcoefs is not None or self._ncoefs() >= nterms:
@@ -132,39 +132,43 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         a = self._rcoefs[:, 0]
         b = self._rcoefs[:, 1]
 
-        result = self._bkd._la_empty((nsamples, nindices * (order + 1)))
-        result[:, :nindices] = vals
+        result = [vals]
+        vals = vals.T
         for _order in range(1, order + 1):
-            derivs = self._bkd._la_full((nsamples, nindices), 0.0)
-            for jj in range(_order, nindices):
-                if jj == _order:
-                    # use following expression to avoid overflow issues when
-                    # computing oveflow
-                    derivs[:, jj] = self._bkd._la_exp(
+            can_derivs = []
+            for jj in range(_order):
+                can_derivs.append(self._bkd.full((nsamples,), 0.0))
+            # use following expression to avoid overflow issues when
+            # computing oveflow
+            can_derivs.append(
+                self._bkd.full(
+                    (nsamples,),
+                    self._bkd.exp(
                         gammaln(_order + 1)
                         - 0.5
-                        * self._bkd._la_sum(
-                            self._bkd._la_log(b[: jj + 1] ** 2)
+                        * self._bkd.sum(
+                            self._bkd.log(b[: _order + 1] ** 2)
                         )
                     )
-                else:
-                    derivs[:, jj] = (
-                        (samples - a[jj - 1]) * derivs[:, jj - 1]
-                        - b[jj - 1] * derivs[:, jj - 2]
-                        + _order * vals[:, jj - 1]
-                    )
-                    derivs[:, jj] *= 1.0 / b[jj]
-            vals = derivs
-            result[:, _order * nindices : (_order + 1) * nindices] = derivs
-            result[:, _order * nindices : (_order + 1) * nindices] = (
-                self._trans.derivatives_from_canonical(
-                    result[:, _order * nindices : (_order + 1) * nindices],
-                    _order
                 )
             )
+            for jj in range(_order+1, nindices):
+                can_derivs.append(
+                    (
+                        (samples - a[jj - 1]) * can_derivs[jj - 1]
+                        - b[jj - 1] * can_derivs[jj - 2]
+                        + _order * vals[jj - 1]
+                    ) / b[jj]
+                )
+            derivs = self._trans.derivatives_from_canonical(
+                 self._bkd.stack(can_derivs, axis=1), _order
+            )
+            vals = can_derivs
+            result.append(derivs)
+
         if return_all:
-            return result
-        return result[:, order * nindices :]
+            return self._bkd.hstack(result)
+        return result[-1]
 
     def _canonical_gauss_quadrature_rule(self, npoints):
         if self._rcoefs is None:
@@ -184,18 +188,18 @@ class OrthonormalPolynomial1D(UnivariateBasis):
 
         # Form Jacobi matrix
         J = (
-            self._bkd._la_diag(a[:npoints], 0)
-            + self._bkd._la_diag(b[1:npoints], 1)
-            + self._bkd._la_diag(b[1:npoints], -1)
+            self._bkd.diag(a[:npoints], 0)
+            + self._bkd.diag(b[1:npoints], 1)
+            + self._bkd.diag(b[1:npoints], -1)
         )
 
-        x, eigvecs = self._bkd._la_eigh(J)
+        x, eigvecs = self._bkd.eigh(J)
         if self._prob_meas:
             w = b[0] * eigvecs[0, :] ** 2
         else:
             w = self(x[None, :])[:, :npoints]
-            w = 1.0 / self._bkd._la_sum(w**2, axis=1)
-        # w[~self._bkd._la_isfinite(w)] = 0.
+            w = 1.0 / self._bkd.sum(w**2, axis=1)
+        # w[~self._bkd.isfinite(w)] = 0.
         return x[None, :], w[:, None]
 
     def gauss_quadrature_rule(self, npoints):
@@ -243,7 +247,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
            :math:`\tilde{a}_n,\tilde{b}_n,\tilde{c}_n`
         """
 
-        abc = self._bkd._la_zeros((self._ncoefs(), 3))
+        abc = self._bkd.zeros((self._ncoefs(), 3))
         abc[:, 0] = 1.0 / self._rcoefs[:, 1]
         abc[1:, 1] = self._rcoefs[:-1, 0] / self._rcoefs[1:, 1]
         abc[1:, 2] = self._rcoefs[:-1, 1] / self._rcoefs[1:, 1]
@@ -449,18 +453,18 @@ class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
         nnodes = self._samples.shape[1]
         if nterms > nnodes:
             raise ValueError("Too many coefficients requested")
-        alpha = self._bkd._la_zeros((nterms,))
-        beta = self._bkd._la_zeros((nterms,))
-        vec = self._bkd._la_zeros((nnodes + 1,))
+        alpha = self._bkd.zeros((nterms,))
+        beta = self._bkd.zeros((nterms,))
+        vec = self._bkd.zeros((nnodes + 1,))
         vec[0] = 1
-        qii = self._bkd._la_zeros((nnodes + 1, nnodes + 1))
+        qii = self._bkd.zeros((nnodes + 1, nnodes + 1))
         qii[:, 0] = vec
-        sqrt_w = self._bkd._la_sqrt(self._weights[:, 0])
+        sqrt_w = self._bkd.sqrt(self._weights[:, 0])
         northogonalization_steps = 2
         for ii in range(nterms):
-            z = self._bkd._la_hstack(
+            z = self._bkd.hstack(
                 [
-                    vec[0] + self._bkd._la_sum(sqrt_w * vec[1 : nnodes + 1]),
+                    vec[0] + self._bkd.sum(sqrt_w * vec[1 : nnodes + 1]),
                     sqrt_w * vec[0] + self._samples[0] * vec[1 : nnodes + 1],
                 ]
             )
@@ -470,24 +474,24 @@ class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
 
             for jj in range(northogonalization_steps):
                 z -= qii[:, : ii + 1] @ (qii[:, : ii + 1].T @ z)
-
+                
             if ii < nterms:
-                znorm = self._bkd._la_norm(z)
+                znorm = self._bkd.norm(z)
                 # beta[ii] = znorm**2 assume we want probability measure so
                 # no need to square here then take sqrt later
                 beta[ii] = znorm
                 vec = z / znorm
                 qii[:, ii + 1] = vec
-        return self._bkd._la_stack((alpha, beta), axis=1)
+        return self._bkd.stack((alpha, beta), axis=1)
 
     def _check_orthonormality(self, rcoefs):
         poly_vals = _evaluate_orthonormal_polynomial_1d(
             rcoefs, self._bkd, self._samples
         )
-        error = self._bkd._la_max(
-            self._bkd._la_abs(
+        error = self._bkd.max(
+            self._bkd.abs(
                 (poly_vals.T * self._weights[:, 0]) @ poly_vals
-                - self._bkd._la_eye(poly_vals.shape[1])
+                - self._bkd.eye(poly_vals.shape[1])
             )
         )
         if error > self._ortho_tol:
@@ -513,7 +517,7 @@ class PredictorCorrector:
         self._idx = None
         self._ab = None
         if backend is None:
-            backend = NumpyLinAlgMixin()
+            backend = NumpyLinAlgMixin
         self._bkd = backend
 
     def set_measure(self, measure):
@@ -538,7 +542,7 @@ class PredictorCorrector:
         return (self._measure(x)[:, 0] * pvals[:, self._idx] ** 2)[:, None]
 
     def __call__(self, nterms):
-        ab = self._bkd._la_zeros((nterms + 1, 2))
+        ab = self._bkd.zeros((nterms + 1, 2))
 
         self._integrator.set_integrand(self._integrand_0)
         ab[0, 1] = math.sqrt(self._integrator())
@@ -580,6 +584,8 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
             raise ValueError(
                 "integrator must be an instance of UnivariateIntegrator"
             )
+        if not integrator._bkd.bkd_equal(integrator._bkd, self._bkd):
+            raise ValueError("integrator._bkd does not match self._bkd")
         integrator.set_bounds([self._can_lb, self._can_ub])
         self._rcoefs_gen.set_integrator(integrator)
         self._rcoefs_gen.set_measure(self._canonical_pdf)
@@ -606,9 +612,9 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
 
     def _canonical_pdf(self, x):
         # pdf is from scipy so x must be converted to one d array
-        return (self._pdf(x[0] * self._scale + self._loc) * self._scale)[
-            :, None
-        ]
+        return self._bkd.asarray(
+            self._pdf(x[0] * self._scale + self._loc) * self._scale
+        )[:, None]
 
     def _get_recursion_coefficients(self, ncoefs):
         return self._rcoefs_gen(ncoefs)
@@ -663,8 +669,8 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
     loc, scale = transform_scale_parameters(marginal)
     xk = (xk - loc) / scale
     return DiscreteNumericOrthonormalPolynomial1D(
-        xk[None, :],
-        pk[:, None],
+        backend.asarray(xk[None, :]),
+        backend.asarray(pk[:, None]),
         opts.get("otol", 1e-8),
         opts.get("ptol", 1e-8),
         backend=backend
@@ -699,7 +705,7 @@ class AffineMarginalTransform(Transform):
             return
 
         bounds = [self._loc - self._scale, self._loc + self._scale]
-        if self._bkd._la_any(user_samples < bounds[0]) or self._bkd._la_any(
+        if self._bkd.any(user_samples < bounds[0]) or self._bkd.any(
             user_samples > bounds[1]
         ):
             print(user_samples)

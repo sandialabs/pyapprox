@@ -4,7 +4,7 @@ from scipy import stats
 import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-# from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.bases.univariate import (
     irregular_piecewise_linear_basis,
     irregular_piecewise_quadratic_basis,
@@ -26,88 +26,88 @@ class TestUnivariateBasis:
         bkd = self.get_backend()
 
         def fun(xx):
-            return bkd._la_sum(xx**2, axis=0)[:, None]
+            return bkd.sum(xx**2, axis=0)[:, None]
 
         nnodes = 11
         lb, ub = 0, 1
         # creat nodes with random spacing
-        nodes = bkd._la_linspace(lb, ub, nnodes * 2)
+        nodes = bkd.linspace(lb, ub, nnodes * 2)
         # fmt: off
-        perm = bkd._la_asarray(
+        perm = bkd.asarray(
             np.random.permutation(2*nnodes-2), dtype=int
         )[:nnodes-2]
-        nodes = bkd._la_sort(bkd._la_hstack((nodes[[0, -1]], nodes[1+perm])))
+        nodes = bkd.sort(bkd.hstack((nodes[[0, -1]], nodes[1+perm])))
         # fmt: on
 
         # check basis interpolates values at nodes
         samples = nodes
         values = fun(nodes[None, :])
         basis = irregular_piecewise_linear_basis(nodes, samples, bkd=bkd)
-        assert bkd._la_allclose(basis @ values, fun(samples[None, :]))
+        assert bkd.allclose(basis @ values, fun(samples[None, :]))
 
         # check basis accuracy is high with large nnodes
         nsamples = 31
         nnodes = 41
-        nodes = bkd._la_linspace(lb, ub, nnodes)
-        samples = bkd._la_asarray(np.random.uniform(lb, ub, (nsamples)))
+        nodes = bkd.linspace(lb, ub, nnodes)
+        samples = bkd.asarray(np.random.uniform(lb, ub, (nsamples)))
         values = fun(nodes[None, :])
         basis = irregular_piecewise_linear_basis(nodes, samples, bkd=bkd)
         # check basis interpolates values at nodes
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             basis @ values, fun(samples[None, :]), atol=2e-4
         )
 
         def fun(xx):
-            return bkd._la_sum(xx**3, axis=0)[:, None]
+            return bkd.sum(xx**3, axis=0)[:, None]
 
         nnodes = 3
         lb, ub = 0, 1
         # create nodes with random spacing
-        nodes = bkd._la_linspace(lb, ub, nnodes * 2)
+        nodes = bkd.linspace(lb, ub, nnodes * 2)
         # fmt: off
-        perm = bkd._la_asarray(
+        perm = bkd.asarray(
             np.random.permutation(2*nnodes-2), dtype=int
         )[:nnodes-2]
-        nodes = bkd._la_sort(bkd._la_hstack((nodes[[0, -1]], nodes[1+perm])))
+        nodes = bkd.sort(bkd.hstack((nodes[[0, -1]], nodes[1+perm])))
         # fmt: on
 
         # check basis interpolates values at nodes
         samples = nodes
         values = fun(nodes[None, :])
         basis = irregular_piecewise_quadratic_basis(nodes, samples, bkd=bkd)
-        assert bkd._la_allclose(basis @ values, fun(samples[None, :]))
+        assert bkd.allclose(basis @ values, fun(samples[None, :]))
 
         # check basis accuracy is high with large nnodes
         nsamples = 31
         nnodes = 41
-        nodes = bkd._la_linspace(lb, ub, nnodes)
-        samples = bkd._la_asarray(np.random.uniform(lb, ub, (nsamples)))
+        nodes = bkd.linspace(lb, ub, nnodes)
+        samples = bkd.asarray(np.random.uniform(lb, ub, (nsamples)))
         values = fun(nodes[None, :])
         basis = irregular_piecewise_quadratic_basis(nodes, samples, bkd=bkd)
         # check basis interpolates values at nodes
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             basis @ values, fun(samples[None, :]), atol=1e-5
         )
 
         nnodes = 10
-        nodes = bkd._la_linspace(lb, ub, nnodes * 2)
+        nodes = bkd.linspace(lb, ub, nnodes * 2)
         # fmt: off
-        perm = bkd._la_asarray(np.random.permutation(2*nnodes-2), dtype=int)[:nnodes-2]
-        nodes = bkd._la_sort(bkd._la_hstack((nodes[[0, -1]], nodes[1+perm])))
+        perm = bkd.asarray(np.random.permutation(2*nnodes-2), dtype=int)[:nnodes-2]
+        nodes = bkd.sort(bkd.hstack((nodes[[0, -1]], nodes[1+perm])))
         # fmt: on
         basis = irregular_piecewise_cubic_basis(nodes, nodes, bkd=bkd)
         values = fun(nodes[None, :])
-        assert bkd._la_allclose(basis @ values, fun(nodes[None, :]))
+        assert bkd.allclose(basis @ values, fun(nodes[None, :]))
 
         # check basis accuracy is high with large nnodes
         nsamples = 31
         nnodes = 34
-        nodes = bkd._la_linspace(lb, ub, nnodes)
-        samples = bkd._la_asarray(np.random.uniform(lb, ub, (nsamples)))
+        nodes = bkd.linspace(lb, ub, nnodes)
+        samples = bkd.asarray(np.random.uniform(lb, ub, (nsamples)))
         values = fun(nodes[None, :])
         basis = irregular_piecewise_cubic_basis(nodes, samples, bkd=bkd)
         # check basis interpolates values at nodes
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             basis @ values, fun(samples[None, :]), atol=1e-15
         )
 
@@ -117,7 +117,7 @@ class TestUnivariateBasis:
         bkd = self.get_backend()
 
         def fun(degree, xx):
-            return bkd._la_sum(xx**degree, axis=0)[:, None]
+            return bkd.sum(xx**degree, axis=0)[:, None]
 
         def integral(degree):
             if degree == 2:
@@ -130,7 +130,7 @@ class TestUnivariateBasis:
         bounds = [-1, 1]
         basis = setup_univariate_piecewise_polynomial_basis(
             name, bounds, backend=bkd)
-        nodes = bkd._la_linspace(*bounds, nnodes)[None, :]
+        nodes = bkd.linspace(*bounds, nnodes)[None, :]
         basis.set_nodes(nodes)
         samples, weights = basis.quadrature_rule()
         assert np.allclose(
@@ -138,13 +138,13 @@ class TestUnivariateBasis:
         )
 
         # randomize node spacing keeping both end points
-        nodes = bkd._la_linspace(*bounds, 2 * nnodes)
+        nodes = bkd.linspace(*bounds, 2 * nnodes)
         # fmt: off
-        perm = bkd._la_asarray(
+        perm = bkd.asarray(
             np.random.permutation(2*nnodes-2), dtype=int
         )[:nnodes-2]
-        nodes = bkd._la_sort(
-            bkd._la_hstack((nodes[[0, -1]], nodes[1+perm]))
+        nodes = bkd.sort(
+            bkd.hstack((nodes[[0, -1]], nodes[1+perm]))
         )[None, :]
         # fmt: on
         basis.set_nodes(nodes)
@@ -178,7 +178,7 @@ class TestUnivariateBasis:
         )
 
         def fun(degree, xx):
-            return bkd._la_sum(xx**degree, axis=0)[:, None]
+            return bkd.sum(xx**degree, axis=0)[:, None]
 
         def integral(degree):
             if degree == 2:
@@ -206,7 +206,7 @@ class TestUnivariateBasis:
         integrator = ScipyUnivariateIntegrator(backend=bkd)
         integrator.set_bounds(bounds)
         integrand = ModelFromCallable(
-            lambda x: bkd._la_cos(x[0])[:, None], backend=bkd
+            lambda x: bkd.cos(x[0])[:, None], backend=bkd
         )
         integrator.set_integrand(integrand)
         # use np to compare floats
@@ -223,8 +223,8 @@ class TestUnivariateBasis:
         marginal = stats.norm(0, 1)
 
         def integrand(sample):
-            np_sample = bkd._la_to_numpy(sample)
-            val = bkd._la_asarray(
+            np_sample = bkd.to_numpy(sample)
+            val = bkd.asarray(
                 np_sample[0]**2*marginal.pdf(np_sample[0])
             )[:, None]
             return val
@@ -240,10 +240,10 @@ class TestUnivariateBasis:
         marginal1 = stats.norm(0, 2)
         marginal2 = stats.expon(1)
         def integrand(sample):
-            np_sample = bkd._la_to_numpy(sample)
-            val1 = bkd._la_asarray(np_sample[0]**2*marginal1.pdf(np_sample[0]))
-            val2 = bkd._la_asarray(np_sample[0]**2*marginal2.pdf(np_sample[0]))
-            return bkd._la_stack([val1, val2], axis=1)
+            np_sample = bkd.to_numpy(sample)
+            val1 = bkd.asarray(np_sample[0]**2*marginal1.pdf(np_sample[0]))
+            val2 = bkd.asarray(np_sample[0]**2*marginal2.pdf(np_sample[0]))
+            return bkd.stack([val1, val2], axis=1)
         quad_rule = ClenshawCurtisQuadratureRule(
             prob_measure=False, backend=bkd, store=True)
         integrator = UnivariateUnboundedIntegrator(quad_rule, backend=bkd)
@@ -267,12 +267,12 @@ class TestUnivariateBasis:
 
 class TestNumpyUnivariateBasis(TestUnivariateBasis, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin()
+        return NumpyLinAlgMixin
 
 
-# class TestTorchUnivariateBasis(TestUnivariateBasis, unittest.TestCase):
-#     def get_backend(self):
-#         return TorchLinAlgMixin()
+class TestTorchUnivariateBasis(TestUnivariateBasis, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

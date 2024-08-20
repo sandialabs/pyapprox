@@ -125,17 +125,17 @@ class KFoldCrossValidation(CrossValidation):
             self.regressor.fit(
                 self._train_samples[:, indices], self._train_values[indices]
             )
-            test_samples = self._bkd._la_delete(
+            test_samples = self._bkd.delete(
                 self._train_samples, indices, axis=1
             )
-            test_values = self._bkd._la_delete(
+            test_values = self._bkd.delete(
                 self._train_values, indices, axis=0
             )
             fold_residuals.append(self.regressor(test_samples) - test_values)
-            sum_sq_residuals += self._bkd._la_sum(
+            sum_sq_residuals += self._bkd.sum(
                 fold_residuals[-1] ** 2, axis=0
             )
-        cv_score = self._bkd._la_sqrt(
+        cv_score = self._bkd.sqrt(
             sum_sq_residuals / self._ntrain_samples    
         )
         return cv_score
@@ -163,8 +163,8 @@ class CrossValidationStructureSearch:
                 self._cross_validator.regressor, structure_params
             )
             results.append((self._cross_validator.run(), structure_params))
-        best_idx = self._bkd._la_argmin(
-            self._bkd._la_asarray([result[0] for result in results])
+        best_idx = self._bkd.argmin(
+            self._bkd.asarray([result[0] for result in results])
         )
         return results[best_idx][1], results, best_idx
 

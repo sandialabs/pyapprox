@@ -509,7 +509,7 @@ def split_dataset(samples, values, ndata1):
 
 
 def leave_one_out_lsq_cross_validation(
-        basis_mat, values, alpha=0, coef=None, bkd=NumpyLinAlgMixin()
+        basis_mat, values, alpha=0, coef=None, bkd=NumpyLinAlgMixin
 ):
     """
     let :math:`x_i` be the ith row of :math:`X` and let
@@ -529,35 +529,35 @@ def leave_one_out_lsq_cross_validation(
     assert values.ndim == 2
     assert basis_mat.shape[0] > basis_mat.shape[1]+2
     gram_mat = basis_mat.T @ basis_mat
-    gram_mat += alpha*bkd._la_eye(gram_mat.shape[0])
-    H_mat = basis_mat @ (bkd._la_inv(gram_mat) @ basis_mat.T)
-    H_diag = bkd._la_diag(H_mat)
+    gram_mat += alpha*bkd.eye(gram_mat.shape[0])
+    H_mat = basis_mat @ (bkd.inv(gram_mat) @ basis_mat.T)
+    H_diag = bkd.diag(H_mat)
     if coef is None:
-        coef = bkd._la_lstsq(gram_mat, basis_mat.T @ values)
+        coef = bkd.lstsq(gram_mat, basis_mat.T @ values)
     assert coef.ndim == 2
     residuals = basis_mat @ coef - values
     cv_errors = residuals / (1-H_diag[:, None])
-    cv_score = bkd._la_sqrt(
-        bkd._la_sum(cv_errors**2, axis=0)/basis_mat.shape[0]
+    cv_score = bkd.sqrt(
+        bkd.sum(cv_errors**2, axis=0)/basis_mat.shape[0]
     )
     return cv_errors, cv_score, coef
 
 
 def leave_many_out_lsq_cross_validation(
         basis_mat, values, fold_sample_indices, alpha=0, coef=None,
-        bkd=NumpyLinAlgMixin()
+        bkd=NumpyLinAlgMixin
 ):
     nfolds = len(fold_sample_indices)
     nsamples = basis_mat.shape[0]
     cv_errors = []
     cv_score = 0
     gram_mat = basis_mat.T @ basis_mat
-    gram_mat += alpha*bkd._la_eye(gram_mat.shape[0])
+    gram_mat += alpha*bkd.eye(gram_mat.shape[0])
     if coef is None:
-        coef = bkd._la_lstsq(
+        coef = bkd.lstsq(
             gram_mat, basis_mat.T @ values)
     residuals = basis_mat @ coef - values
-    gram_mat_inv = bkd._la_inv(gram_mat)
+    gram_mat_inv = bkd.inv(gram_mat)
     for kk in range(nfolds):
         indices_kk = fold_sample_indices[kk]
         nvalidation_samples_kk = indices_kk.shape[0]
@@ -565,33 +565,33 @@ def leave_many_out_lsq_cross_validation(
         basis_mat_kk = basis_mat[indices_kk, :]
         residuals_kk = residuals[indices_kk, :]
 
-        H_mat = bkd._la_eye(nvalidation_samples_kk) - basis_mat_kk @ (
+        H_mat = bkd.eye(nvalidation_samples_kk) - basis_mat_kk @ (
             gram_mat_inv @ basis_mat_kk.T)
         # print('gram_mat cond number', np.linalg.cond(gram_mat))
         # print('H_mat cond number', np.linalg.cond(H_mat))
-        H_mat_inv = bkd._la_inv(H_mat)
+        H_mat_inv = bkd.inv(H_mat)
         cv_errors.append(H_mat_inv @ residuals_kk)
-        cv_score += bkd._la_sum(cv_errors[-1]**2, axis=0)
+        cv_score += bkd.sum(cv_errors[-1]**2, axis=0)
     return cv_errors, math.sqrt(cv_score/basis_mat.shape[0]), coef
 
 
 def get_random_k_fold_sample_indices(
-        nsamples, nfolds, random=True, bkd=NumpyLinAlgMixin()
+        nsamples, nfolds, random=True, bkd=NumpyLinAlgMixin
 ):
-    sample_indices = bkd._la_arange(nsamples, dtype=int)
+    sample_indices = bkd.arange(nsamples, dtype=int)
     if random is True:
-        sample_indices = bkd._la_asarray(np.random.permutation(sample_indices), dtype=int)
+        sample_indices = bkd.asarray(np.random.permutation(sample_indices), dtype=int)
 
-    fold_sample_indices = [bkd._la_empty(0, dtype=int) for kk in range(nfolds)]
+    fold_sample_indices = [bkd.empty(0, dtype=int) for kk in range(nfolds)]
     nn = 0
     while nn < nsamples:
         for jj in range(nfolds):
-            fold_sample_indices[jj] = bkd._la_hstack([
+            fold_sample_indices[jj] = bkd.hstack([
                 fold_sample_indices[jj], sample_indices[nn]])
             nn += 1
             if nn >= nsamples:
                 break
-    if bkd._la_unique(bkd._la_hstack(fold_sample_indices)).shape[0] != nsamples:
+    if bkd.unique(bkd.hstack(fold_sample_indices)).shape[0] != nsamples:
         raise RuntimeError()
     return fold_sample_indices
 
@@ -851,15 +851,15 @@ def flatten_2D_list(list_2d):
 
 
 def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps),
-                    bkd=NumpyLinAlgMixin()):
-    x0 = bkd._la_array(x)
+                    bkd=NumpyLinAlgMixin):
+    x0 = bkd.array(x)
     assert x0.ndim == 1 or x0.shape[1] == 1
-    f0 = bkd._la_atleast1d(func(*((x0,)+args)))
+    f0 = bkd.atleast1d(func(*((x0,)+args)))
     if f0.ndim == 2:
         assert f0.shape[1] == 1
         f0 = f0[:, 0]
-    jac = bkd._la_zeros([len(x0), len(f0)])
-    dx = bkd._la_zeros(x0.shape)
+    jac = bkd.zeros([len(x0), len(f0)])
+    dx = bkd.zeros(x0.shape)
     for i in range(len(x0)):
         dx[i] = epsilon
         f1 = func(*((x0+dx,)+args))
@@ -873,12 +873,12 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps),
 
 # Does not work with Jax
 # def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps),
-#                        bkd=NumpyLinAlgMixin()):
+#                        bkd=NumpyLinAlgMixin):
 #     fval = f(x0)
-#     jacobian = bkd._la_full(
+#     jacobian = bkd.full(
 #         (fval.shape[0], fval.shape[1], x0.shape[0]), 0.)
 #     for ii in range(len(x0)):
-#         dx = bkd._la_full((x0.shape[0],), 0.)
+#         dx = bkd.full((x0.shape[0],), 0.)
 #         dx[ii] = epsilon
 #         fval_perturbed = f(x0+dx)
 #         jacobian[..., ii] = (fval_perturbed - fval) / epsilon
@@ -886,15 +886,15 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps),
 
 
 def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps),
-                       bkd=NumpyLinAlgMixin()):
+                       bkd=NumpyLinAlgMixin):
     fval = f(x0)
-    jacobian = bkd._la_full(
+    jacobian = bkd.full(
         (fval.shape[0], fval.shape[1], x0.shape[0]), 0.)
     for ii in range(len(x0)):
-        dx = bkd._la_full((x0.shape[0],), 0.)
-        dx = bkd._la_up(dx, ii, epsilon)
+        dx = bkd.full((x0.shape[0],), 0.)
+        dx = bkd.up(dx, ii, epsilon)
         fval_perturbed = f(x0+dx)
-        jacobian = bkd._la_up(
+        jacobian = bkd.up(
             jacobian, ii, (fval_perturbed - fval) / epsilon, axis=-1)
     return jacobian
 

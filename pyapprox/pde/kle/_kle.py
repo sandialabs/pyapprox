@@ -265,7 +265,7 @@ def nobile_diffusivity(eigenvectors, corr_len, samples):
 
 class AbstractKLE(ABC):
     def __init__(self, mean_field=0, use_log=False,
-                 quad_weights=None, nterms=None, backend=NumpyLinAlgMixin()):
+                 quad_weights=None, nterms=None, backend=NumpyLinAlgMixin):
         self._bkd = backend
         self._use_log = use_log
         self._quad_weights = quad_weights
@@ -302,26 +302,26 @@ class AbstractKLE(ABC):
             # is that we cannot use autograd on quantities used to consturct K.
             # but the need for this is unlikely
             eig_vals, eig_vecs = eigh(
-                self._bkd._la_to_numpy(K),  # turbo=False,
+                self._bkd.to_numpy(K),  # turbo=False,
                 subset_by_index=(K.shape[0]-self._nterms, K.shape[0]-1))
-            eig_vals = self._bkd._la_atleast1d(eig_vals)
-            eig_vecs = self._bkd._la_atleast2d(eig_vecs)
+            eig_vals = self._bkd.atleast1d(eig_vals)
+            eig_vecs = self._bkd.atleast2d(eig_vecs)
         else:
             # see https://etheses.lse.ac.uk/2950/1/U615901.pdf
             # page 42
-            sqrt_weights = self._bkd._la_sqrt(self._quad_weights)
+            sqrt_weights = self._bkd.sqrt(self._quad_weights)
             sym_eig_vals, sym_eig_vecs = eigh(
-                self._bkd._la_to_numpy(sqrt_weights[:, None]*K*sqrt_weights),
+                self._bkd.to_numpy(sqrt_weights[:, None]*K*sqrt_weights),
                 subset_by_index=(K.shape[0]-self._nterms, K.shape[0]-1))
-            sym_eig_vals = self._bkd._la_atleast1d(sym_eig_vals)
-            sym_eig_vecs = self._bkd._la_atleast2d(sym_eig_vecs)
+            sym_eig_vals = self._bkd.atleast1d(sym_eig_vals)
+            sym_eig_vecs = self._bkd.atleast2d(sym_eig_vecs)
             eig_vecs = 1/sqrt_weights[:, None]*sym_eig_vecs
             eig_vals = sym_eig_vals
         eig_vecs = adjust_sign_eig(eig_vecs)
-        # II = self._bkd._la_argsort(eig_vals)[::-1][:self._nterms]
-        II = self._bkd._la_flip(self._bkd._la_argsort(eig_vals))[:self._nterms]
-        assert self._bkd._la_all(eig_vals[II] > 0), eig_vals[II]
-        self._sqrt_eig_vals = self._bkd._la_sqrt(eig_vals[II])
+        # II = self._bkd.argsort(eig_vals)[::-1][:self._nterms]
+        II = self._bkd.flip(self._bkd.argsort(eig_vals))[:self._nterms]
+        assert self._bkd.all(eig_vals[II] > 0), eig_vals[II]
+        self._sqrt_eig_vals = self._bkd.sqrt(eig_vals[II])
         self._eig_vecs = eig_vecs[:, II]
 
     def __call__(self, coef):
@@ -336,7 +336,7 @@ class AbstractKLE(ABC):
         assert coef.ndim == 2
         assert coef.shape[0] == self._nterms
         if self._use_log:
-            return self._bkd._la_exp(
+            return self._bkd.exp(
                 self._mean_field[:, None] + self._eig_vecs@coef)
         return self._mean_field[:, None] + self._eig_vecs@coef
 
@@ -366,7 +366,7 @@ class MeshKLE(AbstractKLE):
 
     def __init__(self, mesh_coords, length_scale, sigma=1., mean_field=0,
                  use_log=False, matern_nu=np.inf, quad_weights=None,
-                 nterms=None, use_torch=False, backend=NumpyLinAlgMixin()):
+                 nterms=None, use_torch=False, backend=NumpyLinAlgMixin):
         self._bkd = backend
         self._set_mesh_coordinates(mesh_coords)
         self._matern_nu = matern_nu
@@ -380,7 +380,7 @@ class MeshKLE(AbstractKLE):
 
     def _set_mean_field(self, mean_field):
         if np.isscalar(mean_field):
-            mean_field = self._bkd._la_full(
+            mean_field = self._bkd.full(
                 (self._mesh_coords.shape[1],), 1)*mean_field
         super()._set_mean_field(mean_field)
 
@@ -395,9 +395,9 @@ class MeshKLE(AbstractKLE):
         self._mesh_coords = mesh_coords
 
     def _set_lenscale(self, length_scale):
-        length_scale = self._bkd._la_atleast1d(length_scale)
+        length_scale = self._bkd.atleast1d(length_scale)
         if length_scale.shape[0] == 1:
-            length_scale = self._bkd._la_full(
+            length_scale = self._bkd.full(
                 (self._mesh_coords.shape[0],), length_scale[0])
         assert length_scale.shape[0] == self._mesh_coords.shape[0]
         self._lenscale = length_scale
@@ -405,13 +405,13 @@ class MeshKLE(AbstractKLE):
     def _compute_kernel_matrix(self):
         if self._matern_nu == np.inf:
             dists = pdist(
-                self._bkd._la_to_numpy(self._mesh_coords.T / self._lenscale),
+                self._bkd.to_numpy(self._mesh_coords.T / self._lenscale),
                 metric='sqeuclidean')
             K = squareform(np.exp(-.5 * dists))
             np.fill_diagonal(K, 1)
-            return self._bkd._la_atleast2d(K)
+            return self._bkd.atleast2d(K)
 
-        dists = pdist(self._bkd._la_to_numpy(
+        dists = pdist(self._bkd.to_numpy(
             self._mesh_coords.T / self._lenscale), metric='euclidean')
         if self._matern_nu == 0.5:
             K = squareform(np.exp(-dists))
@@ -421,7 +421,7 @@ class MeshKLE(AbstractKLE):
         elif self._matern_nu == 2.5:
             K = squareform((1+dists+dists**2/3)*np.exp(-dists))
         np.fill_diagonal(K, 1)
-        return self._bkd._la_atleast2d(K)
+        return self._bkd.atleast2d(K)
 
     def __repr__(self):
         if self._nterms is None:
@@ -434,7 +434,7 @@ class MeshKLE(AbstractKLE):
 
 class DataDrivenKLE(AbstractKLE):
     def __init__(self, field_samples, mean_field=0,
-                 use_log=False, nterms=None, backend=NumpyLinAlgMixin()):
+                 use_log=False, nterms=None, backend=NumpyLinAlgMixin):
         self._field_samples = field_samples
         super().__init__(
             mean_field, use_log, None, nterms, backend=backend
@@ -442,7 +442,7 @@ class DataDrivenKLE(AbstractKLE):
 
     def _set_mean_field(self, mean_field):
         if np.isscalar(mean_field):
-            mean_field = self._bkd._la_full(
+            mean_field = self._bkd.full(
                 (self._field_samples.shape[0],), 1)*mean_field
         super()._set_mean_field(mean_field)
 
@@ -456,7 +456,7 @@ class DataDrivenKLE(AbstractKLE):
         self._mesh_coords = None
 
     def _compute_kernel_matrix(self):
-        return self._bkd._la_cov(self._field_samples, rowvar=True, ddof=1)
+        return self._bkd.cov(self._field_samples, rowvar=True, ddof=1)
 
 
 def multivariate_chain_rule(jac_yu, jac_ux):
@@ -566,7 +566,7 @@ class InterpolatedMeshKLE(MeshKLE):
     def _fast_interpolate(self, values, xx):
         assert xx.shape[1] == self._mesh.mesh_pts.shape[1]
         assert np.allclose(xx, self._mesh.mesh_pts)
-        interp_vals = self._bkd._la_multidot((self._basis_mat, values))
+        interp_vals = self._bkd.multidot((self._basis_mat, values))
         return interp_vals
 
     def __call__(self, coef):
@@ -577,6 +577,6 @@ class InterpolatedMeshKLE(MeshKLE):
         mean_field = self._fast_interpolate(
             self._kle._mean_field[:, None], self._mesh.mesh_pts)
         if use_log:
-            interp_vals = self._bkd._la_exp(mean_field+interp_vals)
+            interp_vals = self._bkd.exp(mean_field+interp_vals)
         self._kle._use_log = use_log
         return interp_vals

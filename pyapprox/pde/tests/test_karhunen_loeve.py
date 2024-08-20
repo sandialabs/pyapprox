@@ -59,7 +59,7 @@ class TestKLE():
         bkd = self.get_backend()
         nvars, sigma = 2, 3
         length_scale = 1
-        mesh = bkd._la_linspace(0., 1., 11)[None, :]
+        mesh = bkd.linspace(0., 1., 11)[None, :]
         kle_mean = mesh[0, :]+2
 
         for use_log in [False, True]:
@@ -70,7 +70,7 @@ class TestKLE():
             def scalar_function_of_field(field):
                 return field[:, 0] @ field[:, 0]
 
-            sample = bkd._la_array(np.random.normal(0., 1., (nvars, 1)))
+            sample = bkd.array(np.random.normal(0., 1., (nvars, 1)))
             kle_vals = kle(sample)
 
             mesh_gradient = kle_vals.T*2
@@ -96,8 +96,8 @@ class TestKLE():
         nterms = 3
         len_scale, sigma = 1, 1
         mesh_coords, quad_weights = clenshaw_curtis_pts_wts_1D(level)
-        mesh_coords = bkd._la_array(mesh_coords)
-        quad_weights = bkd._la_array(quad_weights)
+        mesh_coords = bkd.array(mesh_coords)
+        quad_weights = bkd.array(quad_weights)
         quad_weights *= 2   # remove pdf of uniform variable
         # map to [lb, ub]
         lb, ub = 0, 2
@@ -123,9 +123,9 @@ class TestKLE():
 
         # Check basis is orthonormal
         assert np.allclose(
-            bkd._la_sum(
+            bkd.sum(
                 quad_weights[:, None]*kle_exact.basis_vals**2, axis=0), 1.0)
-        exact_basis_vals = bkd._la_array(kle_exact.basis_vals)
+        exact_basis_vals = bkd.array(kle_exact.basis_vals)
         assert np.allclose(exact_basis_vals.T @ (
             quad_weights[:, None]*exact_basis_vals), np.eye(nterms),
                            atol=1e-6)
@@ -271,8 +271,8 @@ class TestKLE():
         from pyapprox.surrogates.orthopoly.quadrature import (
             clenshaw_curtis_pts_wts_1D)
         mesh_coords, quad_weights = clenshaw_curtis_pts_wts_1D(level)
-        mesh_coords = bkd._la_atleast1d(mesh_coords)
-        quad_weights = bkd._la_atleast1d(quad_weights)
+        mesh_coords = bkd.atleast1d(mesh_coords)
+        quad_weights = bkd.atleast1d(quad_weights)
         quad_weights *= 2   # remove pdf of uniform variable
         # map to [lb, ub]
         lb, ub = 0, 2
@@ -285,7 +285,7 @@ class TestKLE():
                       matern_nu=0.5, quad_weights=quad_weights, backend=bkd)
 
         nsamples = 10000
-        samples = bkd._la_atleast2d(
+        samples = bkd.atleast2d(
             np.random.normal(0., 1., (nterms, nsamples)))
         kle_realizations = kle(samples)
 
@@ -296,12 +296,12 @@ class TestKLE():
 
 class TestNumpyKLE(TestKLE, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin()
+        return NumpyLinAlgMixin
 
 
 class TestTorchKKLE(TestKLE, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin()
+        return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

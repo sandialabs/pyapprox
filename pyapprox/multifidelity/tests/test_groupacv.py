@@ -15,19 +15,20 @@ from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.factory import multioutput_stats
 
 
-class TestGroupACV(unittest.TestCase):
+class TestGroupACV:
     def setUp(self):
         np.random.seed(1)
 
     def test_allocation_mat(self):
+        bkd = self.get_backend()
         nmodels = 3
-        subsets = get_model_subsets(nmodels)
-        allocation_mat = _get_allocation_matrix_is(subsets)
+        subsets = get_model_subsets(nmodels, bkd)
+        allocation_mat = _get_allocation_matrix_is(subsets, bkd)
         assert np.allclose(allocation_mat, np.eye(len(subsets)))
 
         # remove subset 0
-        subsets = get_model_subsets(nmodels)[1:]
-        subsets = _nest_subsets(subsets, nmodels)[0]
+        subsets = get_model_subsets(nmodels, bkd)[1:]
+        subsets = _nest_subsets(subsets, nmodels, bkd)[0]
         print(subsets)
         idx = sorted(
             list(range(len(subsets))),
@@ -35,7 +36,7 @@ class TestGroupACV(unittest.TestCase):
             reverse=True)
         subsets = [subsets[ii] for ii in idx]
         nsubsets = len(subsets)
-        allocation_mat = _get_allocation_matrix_nested(subsets)
+        allocation_mat = _get_allocation_matrix_nested(subsets, bkd)
         assert np.allclose(
             allocation_mat, np.tril(np.ones((nsubsets, nsubsets))))
 
@@ -46,8 +47,9 @@ class TestGroupACV(unittest.TestCase):
         # plt.savefig("groupacvnested.pdf")
 
     def _check_separate_samples(self, est):
+        bkd = self.get_backend()
         NN = 2
-        npartition_samples = TorchLinAlgMixin._la_full((est.nsubsets,), NN)
+        npartition_samples = bkd.full((est.nsubsets,), NN)
         est._set_optimized_params(npartition_samples)
 
         samples_per_model = est.generate_samples_per_model(
@@ -59,34 +61,35 @@ class TestGroupACV(unittest.TestCase):
             (ii+1)*s.T for ii, s in enumerate(samples_per_model)]
         values_per_subset = est._separate_values_per_model(values_per_model)
 
-        test_samples = np.arange(
+        test_samples = bkd.arange(
             est._rounded_npartition_samples.sum())[None, :]
         test_values = [(ii+1)*test_samples.T for ii in range(est.nmodels)]
         for ii in range(est.nsubsets):
-            active_partitions = np.where(est.allocation_mat[ii] == 1)[0]
-            indices = np.arange(test_samples.shape[1], dtype=int).reshape(
+            active_partitions = bkd.where(est.allocation_mat[ii] == 1)[0]
+            indices = bkd.arange(test_samples.shape[1], dtype=int).reshape(
                 est.npartitions, NN)[active_partitions].flatten()
             assert np.allclose(
                 values_per_subset[ii].shape,
                 (est._nintersect_samples(npartition_samples)[ii][ii],
                  len(est.subsets[ii])))
             for jj, s in enumerate(est.subsets[ii]):
-                assert np.allclose(
+                assert bkd.allclose(
                     values_per_subset[ii][:,  jj], test_values[s][indices, 0])
 
     def test_nsamples_per_model(self):
+        bkd = self.get_backend()
         nmodels = 3
-        cov = np.random.normal(0, 1, (nmodels, nmodels))
+        cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        costs = np.arange(nmodels, 0, -1)
+        costs = bkd.arange(nmodels, 0, -1)
 
         stat = multioutput_stats["mean"](1)
         stat.set_pilot_quantities(cov)
         est = GroupACVEstimator(stat, costs)
-        npartition_samples = TorchLinAlgMixin._la_arange(2., 2+est.nsubsets)
-        assert np.allclose(
+        npartition_samples = bkd.arange(2., 2+est.nsubsets, dtype=float)
+        assert bkd.allclose(
             est._compute_nsamples_per_model(npartition_samples),
-            np.array([21, 23, 25]))
+            bkd.array([21, 23, 25]))
         assert np.allclose(
             est._estimator_cost(npartition_samples), 21*3+23*2+25*1)
         assert np.allclose(est._nintersect_samples(npartition_samples),
@@ -95,7 +98,7 @@ class TestGroupACV(unittest.TestCase):
 
         est = GroupACVEstimator(
             stat, costs, est_type="nested")
-        npartition_samples = TorchLinAlgMixin._la_arange(2., 2+est.nsubsets)
+        npartition_samples = TorchLinAlgMixin.arange(2., 2+est.nsubsets)
         assert np.allclose(
             est._compute_nsamples_per_model(npartition_samples),
             np.array([9, 20, 27]))
@@ -135,7 +138,7 @@ class TestGroupACV(unittest.TestCase):
         stat.set_pilot_quantities(cov)
         est = GroupACVEstimator(stat, costs, est_type=group_type,
                                 asketch=asketch)
-        npartition_samples = TorchLinAlgMixin._la_arange(2., 2+est.nsubsets)
+        npartition_samples = TorchLinAlgMixin.arange(2., 2+est.nsubsets)
         est._set_optimized_params(
             npartition_samples)
         est_var = est._covariance_from_npartition_samples(
@@ -396,7 +399,10 @@ class TestGroupACV(unittest.TestCase):
                 self._check_insert_pilot_samples(*test_case, seed)
 
 
-if __name__ == '__main__':
-    gacv_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestGroupACV)
-    unittest.TextTestRunner(verbosity=2).run(gacv_test_suite)
+class TestTorchBasis(TestGroupACV, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

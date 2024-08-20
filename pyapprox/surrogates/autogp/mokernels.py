@@ -60,7 +60,7 @@ class MultiOutputKernel(Kernel):
         if not block_format:
             if nonzero:
                 return block
-            return self._bkd._la_full(
+            return self._bkd.full(
                 (
                     samples_per_output_ii.shape[1],
                     samples_per_output_jj.shape[1],
@@ -108,10 +108,10 @@ class MultiOutputKernel(Kernel):
                 )
         if not block_format:
             rows = [
-                self._bkd._la_hstack(matrix_blocks[ii])
+                self._bkd.hstack(matrix_blocks[ii])
                 for ii in range(noutputs_0)
             ]
-            return self._bkd._la_vstack(rows)
+            return self._bkd.vstack(rows)
         return matrix_blocks
 
     def diag(self, samples_0):
@@ -128,7 +128,7 @@ class MultiOutputKernel(Kernel):
                 if diag_iikk is not None:
                     diag_ii += diag_iikk
             diags.append(diag_ii)
-        return self._bkd._la_hstack(diags)
+        return self._bkd.hstack(diags)
 
     def __repr__(self):
         if self.nsamples_per_output_0 is None:
@@ -206,9 +206,9 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         if ii == self.noutputs - 1:
             if kk < self.noutputs - 1:
                 return self.scalings[kk](samples)
-            return self._bkd._la_full((samples.shape[1], 1), 1.0)
+            return self._bkd.full((samples.shape[1], 1), 1.0)
         if ii == kk:
-            return self._bkd._la_full((samples.shape[1], 1), 1.0)
+            return self._bkd.full((samples.shape[1], 1), 1.0)
         return None
 
     @staticmethod
@@ -219,9 +219,9 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
             row = [None for ii in range(noutputs)]
             for jj in range(noutputs):
                 if jj == ii:
-                    row[ii] = bkd._la_cholesky(blocks[ii][ii])
+                    row[ii] = bkd.cholesky(blocks[ii][ii])
                 elif not block_format:
-                    row[jj] = bkd._la_full(
+                    row[jj] = bkd.full(
                         (
                             blocks[ii][ii].shape[0],
                             blocks[jj][noutputs - 1].shape[0],
@@ -230,26 +230,26 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
                     )
             chol_blocks.append(row)
             L_A_inv_B_list.append(
-                bkd._la_solve_triangular(row[ii], blocks[ii][-1])
+                bkd.solve_triangular(row[ii], blocks[ii][-1])
             )
-        B = bkd._la_vstack([blocks[jj][-1] for jj in range(noutputs - 1)]).T
+        B = bkd.vstack([blocks[jj][-1] for jj in range(noutputs - 1)]).T
         D = blocks[-1][-1]
-        L_A_inv_B = bkd._la_vstack(L_A_inv_B_list)
+        L_A_inv_B = bkd.vstack(L_A_inv_B_list)
         if not block_format:
-            L_A = bkd._la_vstack(
-                [bkd._la_hstack(row[:-1]) for row in chol_blocks]
+            L_A = bkd.vstack(
+                [bkd.hstack(row[:-1]) for row in chol_blocks]
             )
-            return bkd._la_block_cholesky_engine(
+            return bkd.block_cholesky_engine(
                 L_A, L_A_inv_B, B, D, block_format
             )
-        return bkd._la_block_cholesky_engine(
+        return bkd.block_cholesky_engine(
             chol_blocks, L_A_inv_B, B, D, block_format
         )
 
     @staticmethod
     def _cholesky_blocks_to_dense(A, C, D, bkd):
         shape = sum([A[ii][ii].shape[0] for ii in range(len(A))])
-        L = bkd._la_full((shape + C.shape[0], shape + D.shape[1]), 0.0)
+        L = bkd.full((shape + C.shape[0], shape + D.shape[1]), 0.0)
         cnt = 0
         for ii in range(len(A)):
             L[
@@ -264,8 +264,8 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
     def _logdet(A, C, D, bkd):
         log_det = 0
         for ii, row in enumerate(A):
-            log_det += 2 * bkd._la_log(bkd._la_get_diagonal(row[ii])).sum()
-        log_det += 2 * bkd._la_log(bkd._la_get_diagonal(D)).sum()
+            log_det += 2 * bkd.log(bkd.get_diagonal(row[ii])).sum()
+        log_det += 2 * bkd.log(bkd.get_diagonal(D)).sum()
         return log_det
 
     @staticmethod
@@ -276,16 +276,16 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         cnt = 0
         for ii, row in enumerate(A):
             coefs.append(
-                bkd._la_solve_triangular(
+                bkd.solve_triangular(
                     row[ii], values[cnt : cnt + row[ii].shape[0]], lower=True
                 )
             )
             cnt += row[ii].shape[0]
-        coefs = bkd._la_vstack(coefs)
-        coefs = bkd._la_vstack(
+        coefs = bkd.vstack(coefs)
+        coefs = bkd.vstack(
             (
                 coefs,
-                bkd._la_solve_triangular(
+                bkd.solve_triangular(
                     D, values[cnt:] - C @ coefs, lower=True
                 ),
             )
@@ -300,19 +300,19 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         # so must take transpose of all blocks
         idx1 = values.shape[0]
         idx0 = idx1 - D.shape[1]
-        coefs = [bkd._la_solve_triangular(D.T, values[idx0:idx1], lower=False)]
+        coefs = [bkd.solve_triangular(D.T, values[idx0:idx1], lower=False)]
         for ii, row in reversed(list(enumerate(A))):
             idx1 = idx0
             idx0 -= row[ii].shape[1]
             C_sub = C[:, idx0:idx1]
             coefs = [
-                bkd._la_solve_triangular(
+                bkd.solve_triangular(
                     row[ii].T,
                     values[idx0:idx1] - C_sub.T @ coefs[-1],
                     lower=False,
                 )
             ] + coefs
-        coefs = bkd._la_vstack(coefs)
+        coefs = bkd.vstack(coefs)
         return coefs
 
     @staticmethod
@@ -332,7 +332,7 @@ class MultiLevelKernel(SpatiallyScaledMultiOutputKernel):
 
     def _get_kernel_combination_matrix_entry(self, samples, ii, kk):
         if ii == kk:
-            return self._bkd._la_full((samples.shape[1], 1), 1.0)
+            return self._bkd.full((samples.shape[1], 1), 1.0)
         if ii < kk:
             return None
         val = self.scalings[kk](samples)
@@ -399,7 +399,7 @@ class LMCKernel(MultiOutputKernel):
         """
         hyp_values = self.output_kernels[kk].hyp_list.get_values()
         psi = self.output_kernels[kk]._trans.map_theta_to_spherical(hyp_values)
-        return self._bkd._la_cos(psi[1:, 1])
+        return self._bkd.cos(psi[1:, 1])
 
 
 class ICMKernel(LMCKernel):
@@ -468,7 +468,7 @@ class CollaborativeKernel(LMCKernel):
 
 
 def _recursive_latent_coefs(scaling_vals, noutputs, level, bkd):
-    val = bkd._la_zeros(noutputs)
+    val = bkd.zeros(noutputs)
     val[level] = 1.0
     if level == 0:
         return val
@@ -483,4 +483,4 @@ def _get_recursive_scaling_matrix(scaling_vals, noutputs, bkd):
         _recursive_latent_coefs(scaling_vals, noutputs, ll, bkd)[None, :]
         for ll in range(noutputs)
     ]
-    return bkd._la_vstack(rows)
+    return bkd.vstack(rows)

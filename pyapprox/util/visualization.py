@@ -205,7 +205,7 @@ def plot_3d_indices_latex(
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 def get_meshgrid_samples(
-        plot_limits, num_pts_1d, logspace=False, bkd=NumpyLinAlgMixin()
+        plot_limits, num_pts_1d, logspace=False, bkd=NumpyLinAlgMixin
 ):
     """
     Generate meshgrid samples.
@@ -213,30 +213,30 @@ def get_meshgrid_samples(
     if isinstance(num_pts_1d, int):
         num_pts_1d = [num_pts_1d]*2
     if not logspace:
-        x = bkd._la_linspace(plot_limits[0], plot_limits[1], num_pts_1d[0])
-        y = bkd._la_linspace(plot_limits[2], plot_limits[3], num_pts_1d[1])
+        x = bkd.linspace(plot_limits[0], plot_limits[1], num_pts_1d[0])
+        y = bkd.linspace(plot_limits[2], plot_limits[3], num_pts_1d[1])
     else:
-        x = bkd._la_logspace(
-            bkd._la_log10(plot_limits[0]), bkd._la_log10(plot_limits[1]),
+        x = bkd.logspace(
+            bkd.log10(plot_limits[0]), bkd.log10(plot_limits[1]),
             num_pts_1d[0]
         )
-        y = bkd._la_logspace(
-            bkd._la_log10(
-                plot_limits[2]), bkd._la_log10(plot_limits[3]),
+        y = bkd.logspace(
+            bkd.log10(
+                plot_limits[2]), bkd.log10(plot_limits[3]),
             num_pts_1d[1]
         )
 
     # X, Y =  meshgrid (x,y) same as
     # X = cartesian_product([x, y])[0].reshape((ny, nx)
     # Y = cartesian_product([x, y])[1].reshape((ny, nx)
-    X, Y = bkd._la_meshgrid(x, y)
-    pts = bkd._la_vstack((X.reshape((1, X.shape[0]*X.shape[1])),
+    X, Y = bkd.meshgrid(x, y)
+    pts = bkd.vstack((X.reshape((1, X.shape[0]*X.shape[1])),
                           Y.reshape((1, Y.shape[0]*Y.shape[1]))))
     return X, Y, pts
 
 
 def get_meshgrid_function_data(function, plot_limits, num_pts_1d, qoi=0,
-                               logspace=False, bkd=NumpyLinAlgMixin()):
+                               logspace=False, bkd=NumpyLinAlgMixin):
     """
     Generate data from a function in the format needed for plotting.
     Samples are generated between specified lower and upper bounds
@@ -277,7 +277,7 @@ def get_meshgrid_function_data(function, plot_limits, num_pts_1d, qoi=0,
     Z = function(pts)
     if (Z.ndim == 2):
         Z = Z[:, qoi]
-    Z = bkd._la_reshape(Z, (X.shape[0], X.shape[1]))
+    Z = bkd.reshape(Z, (X.shape[0], X.shape[1]))
     return X, Y, Z
 
 

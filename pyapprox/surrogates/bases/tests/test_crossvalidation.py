@@ -31,17 +31,17 @@ class TestCrossValidation:
         polys_1d = [LegendrePolynomial1D(backend=bkd) for dd in range(nvars)]
         basis = OrthonormalPolynomialBasis(polys_1d)
         basis.set_indices(
-            bkd._la_asarray(compute_hyperbolic_indices(basis.nvars(), degree))
+            bkd.asarray(compute_hyperbolic_indices(basis.nvars(), degree))
         )
         pce = PolynomialChaosExpansion(
             basis, solver=LstSqSolver(backend=bkd), nqoi=1
         )
 
         def fun(samples):
-            return bkd._la_sum(samples**2, axis=0)[:, None]
+            return bkd.sum(samples**2, axis=0)[:, None]
 
         ntrain_samples = basis.nterms() * 5
-        train_samples = bkd._la_asarray(
+        train_samples = bkd.asarray(
             np.random.uniform(-1, 1, (nvars, ntrain_samples))
         )
         train_values = fun(train_samples)
@@ -64,9 +64,9 @@ class TestCrossValidation:
         )
 
         def fun(samples):
-            return bkd._la_sum(samples**3, axis=0)[:, None]
+            return bkd.sum(samples**3, axis=0)[:, None]
 
-        train_samples = bkd._la_asarray(
+        train_samples = bkd.asarray(
             np.random.uniform(-1, 1, (nvars, ntrain_samples))
         )
         train_values = fun(train_samples)
@@ -92,12 +92,12 @@ class TestCrossValidation:
 
 class TestNumpyCrossValidation(TestCrossValidation, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin()
+        return NumpyLinAlgMixin
 
 
 # class TestTorchCrossValidation(TestCrossValidation, unittest.TestCase):
 #     def get_backend(self):
-#         return TorchLinAlgMixin()
+#         return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

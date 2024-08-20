@@ -224,7 +224,7 @@ def set_difference(indices1, indices2):
 
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-def argsort_indices_leixographically(indices, backend=NumpyLinAlgMixin()):
+def argsort_indices_leixographically(indices, backend=NumpyLinAlgMixin):
     r"""
     Argort a set of indices lexiographically. Sort by SUM of columns then
     break ties by value of first index then use the next index to break tie
@@ -248,11 +248,11 @@ def argsort_indices_leixographically(indices, backend=NumpyLinAlgMixin()):
     sorted_idx = sorted(
         list(range(len(tuple_indices))),
         key=lambda x: (sum(tuple_indices[x]), tuple_indices[x]))
-    return backend._la_array(sorted_idx, dtype=int)
+    return backend.array(sorted_idx, dtype=int)
 
 
 def argsort_indices_lexiographically_by_row(
-        indices, backend=NumpyLinAlgMixin()):
+        indices, backend=NumpyLinAlgMixin):
     r"""
     Argort a set of indices lexiographically.  Sort by sum of columns by
     value of first row. Break ties by value of first row then use the next
@@ -276,7 +276,7 @@ def argsort_indices_lexiographically_by_row(
     sorted_idx = sorted(
         list(range(len(tuple_indices))),
         key=lambda x: tuple_indices[x])
-    return backend._la_array(sorted_idx, dtype=int)
+    return backend.array(sorted_idx, dtype=int)
 
 
 def sort_indices_lexiographically(indices):

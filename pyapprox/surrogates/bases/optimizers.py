@@ -42,7 +42,7 @@ class ScipyOptimizationResult(OptimizationResult):
         super().__init__()
         for key, item in scipy_result.items():
             if isinstance(item, np.ndarray):
-                self[key] = bkd._la_asarray(item)
+                self[key] = bkd.asarray(item)
             else:
                 self[key] = item
 
@@ -108,16 +108,16 @@ class Optimizer(ABC):
         if self._bounds is None:
             raise RuntimeError("must call set_bounds")
         # convert bounds to numpy to use numpy random number generator
-        bounds = self._bkd._la_to_numpy(self._bounds)
+        bounds = self._bkd.to_numpy(self._bounds)
         bounds[bounds == -np.inf] = -self._numeric_upper_bound
         bounds[bounds == np.inf] = self._numeric_upper_bound
-        return self._bkd._la_asarray(
+        return self._bkd.asarray(
             np.random.uniform(bounds[:, 0], bounds[:, 1]))
 
     def _is_iterate_within_bounds(self, iterate):
         # convert bounds to np.logical
-        bounds = self._bkd._la_to_numpy(self._bounds)
-        iterate = self._bkd._la_to_numpy(iterate)
+        bounds = self._bkd.to_numpy(self._bounds)
+        iterate = self._bkd.to_numpy(iterate)
         return np.logical_and(
             iterate >= bounds[:, 0],
             iterate <= bounds[:, 1]).all()
@@ -151,7 +151,7 @@ class Optimizer(ABC):
 
 
 class ScipyLBFGSB(Optimizer):
-    def __init__(self, backend=NumpyLinAlgMixin()):
+    def __init__(self, backend=NumpyLinAlgMixin):
         """
         Use Scipy's L-BGFGS-B to optimize an objective function
         """
@@ -159,8 +159,8 @@ class ScipyLBFGSB(Optimizer):
         self._options = {}
 
     def _np_objective_fun_wrapper(self, iterate):
-        val, grad = self._objective_fun(self._bkd._la_asarray(iterate))
-        return val, self._bkd._la_to_numpy(grad)
+        val, grad = self._objective_fun(self._bkd.asarray(iterate))
+        return val, self._bkd.to_numpy(grad)
 
     def set_options(self, **options):
         """
@@ -190,8 +190,8 @@ class ScipyLBFGSB(Optimizer):
             self._options['iprint'] = 200
 
         scipy_res = scipy.optimize.minimize(
-            self._np_objective_fun_wrapper, self._bkd._la_to_numpy(iterate), method='L-BFGS-B',
-            jac=True, bounds=self._bkd._la_to_numpy(self._bounds), options=self._options)
+            self._np_objective_fun_wrapper, self._bkd.to_numpy(iterate), method='L-BFGS-B',
+            jac=True, bounds=self._bkd.to_numpy(self._bounds), options=self._options)
 
         result = ScipyOptimizationResult(scipy_res, self._bkd)
         

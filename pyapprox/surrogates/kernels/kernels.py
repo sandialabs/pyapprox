@@ -21,7 +21,7 @@ class Kernel(ABC):
 
     def __init__(self, backend: LinAlgMixin):
         if backend is None:
-            backend = NumpyLinAlgMixin()
+            backend = NumpyLinAlgMixin
         self._bkd = backend
 
         # used when computing a Jacobian
@@ -29,7 +29,7 @@ class Kernel(ABC):
 
     def diag(self, X1):
         """Return the diagonal of the kernel matrix."""
-        return self._bkd._la_get_diagonal(self(X1))
+        return self._bkd.get_diagonal(self(X1))
 
     @abstractmethod
     def __call__(self, X1, X2=None):
@@ -53,7 +53,7 @@ class Kernel(ABC):
 
     def jacobian(self, samples):
         self._samples = samples
-        return self._bkd._la_jacobian(
+        return self._bkd.jacobian(
             self._params_eval, self.hyp_list.get_active_opt_params()
         )
 
@@ -63,14 +63,9 @@ class CompositionKernel(Kernel):
         self.kernel1 = kernel1
         self.kernel2 = kernel2
         self.hyp_list = kernel1.hyp_list + kernel2.hyp_list
-        if type(kernel1._bkd) is not type(kernel2._bkd):
+        if not kernel1._bkd.bkd_equal(kernel1._bkd, kernel2._bkd):
             raise ValueError("Kernels must have the same backend.")
         self._bkd = kernel1._bkd
-
-        # make linear algebra functions accessible via product_kernel._la_
-        for attr in dir(kernel1):
-            if len(attr) >= 4 and attr[:4] == "_la_":
-                setattr(self, attr, getattr(self.kernel1, attr))
 
     def nvars(self):
         if hasattr(self.kernel1, "nvars"):
@@ -93,7 +88,7 @@ class ProductKernel(CompositionKernel):
         Kmat2 = self.kernel2(X)
         jac1 = self.kernel1.jacobian(X)
         jac2 = self.kernel2.jacobian(X)
-        return self._bkd._la_dstack(
+        return self._bkd.dstack(
             [jac1 * Kmat2[..., None], jac2 * Kmat1[..., None]]
         )
 
@@ -111,7 +106,7 @@ class SumKernel(CompositionKernel):
     def jacobian(self, X):
         jac1 = self.kernel1.jacobian(X)
         jac2 = self.kernel2.jacobian(X)
-        return self._bkd._la_dstack([jac1, jac2])
+        return self._bkd.dstack([jac1, jac2])
 
 
 class MaternKernel(Kernel):
@@ -141,19 +136,19 @@ class MaternKernel(Kernel):
         self.hyp_list = HyperParameterList([self._lenscale])
 
     def diag(self, X1):
-        return self._bkd._la_full((X1.shape[1],), 1)
+        return self._bkd.full((X1.shape[1],), 1)
 
     def _eval_distance_form(self, distances):
-        if self.nu == self._bkd._la_inf():
-            return self._bkd._la_exp(-(distances**2) / 2.0)
+        if self.nu == self._bkd.inf():
+            return self._bkd.exp(-(distances**2) / 2.0)
         if self.nu == 5 / 2:
-            tmp = self._bkd._la_sqrt(5) * distances
-            return (1.0 + tmp + tmp**2 / 3.0) * self._bkd._la_exp(-tmp)
+            tmp = self._bkd.sqrt(5) * distances
+            return (1.0 + tmp + tmp**2 / 3.0) * self._bkd.exp(-tmp)
         if self.nu == 3 / 2:
-            tmp = self._bkd._la_sqrt(3) * distances
-            return (1.0 + tmp) * self._bkd._la_exp(-tmp)
+            tmp = self._bkd.sqrt(3) * distances
+            return (1.0 + tmp) * self._bkd.exp(-tmp)
         if self.nu == 1 / 2:
-            return self._bkd._la_exp(-distances)
+            return self._bkd.exp(-distances)
         raise ValueError(
             "Matern kernel with nu={0} not supported".format(self.nu)
         )
@@ -162,7 +157,7 @@ class MaternKernel(Kernel):
         lenscale = self._lenscale.get_values()
         if X2 is None:
             X2 = X1
-        distances = self._bkd._la_cdist(X1.T / lenscale, X2.T / lenscale)
+        distances = self._bkd.cdist(X1.T / lenscale, X2.T / lenscale)
         return self._eval_distance_form(distances)
 
     def nvars(self):
@@ -179,14 +174,14 @@ class ConstantKernel(Kernel):
         if transform is None:
             transform = IdentityHyperParameterTransform(backend=self._bkd)
         if constant_bounds is None:
-            constant_bounds = [-self._bkd._la_inf(), self._bkd._la_inf()]
+            constant_bounds = [-self._bkd.inf(), self._bkd.inf()]
         self._const = HyperParameter(
             "const", 1, constant, constant_bounds, transform, fixed=fixed, backend=self._bkd
         )
         self.hyp_list = HyperParameterList([self._const])
 
     def diag(self, X1):
-        return self._bkd._la_full(
+        return self._bkd.full(
             (X1.shape[1],), self.hyp_list.get_values()[0]
         )
 
@@ -195,11 +190,11 @@ class ConstantKernel(Kernel):
             X2 = X1
         # full does not work when const value requires grad
         # return full((X1.shape[1], X2.shape[1]), self._const.get_values()[0])
-        const = self._bkd._la_empty((X1.shape[1], X2.shape[1]))
+        const = self._bkd.empty((X1.shape[1], X2.shape[1]))
         # const[:] = self._const.get_values()[0]
-        const = self._bkd._la_up(
+        const = self._bkd.up(
             const,
-            self._bkd._la_arange(X1.shape[1], dtype=int),
+            self._bkd.arange(X1.shape[1], dtype=int),
             self._const.get_values()[0],
             axis=0,
         )
@@ -221,14 +216,14 @@ class GaussianNoiseKernel(Kernel):
         self.hyp_list = HyperParameterList([self._const])
 
     def diag(self, X):
-        return self._bkd._la_full((X.shape[1],), self.hyp_list.get_values()[0])
+        return self._bkd.full((X.shape[1],), self.hyp_list.get_values()[0])
 
     def __call__(self, X, Y=None):
         if Y is None:
-            return self._const.get_values()[0] * self._bkd._la_eye(X.shape[1])
+            return self._const.get_values()[0] * self._bkd.eye(X.shape[1])
         # full does not work when const value requires grad
         # return full((X.shape[1], Y.shape[1]), self._const.get_values()[0])
-        const = self._bkd._la_full((X.shape[1], Y.shape[1]), 0.0)
+        const = self._bkd.full((X.shape[1], Y.shape[1]), 0.0)
         return const
 
 
@@ -259,7 +254,7 @@ class PeriodicMaternKernel(MaternKernel):
             Y = X
         lenscale = self._lenscale.get_values()
         period = self._period.get_values()
-        distances = self._bkd._la_cdist(X.T / period, Y.T / period) / lenscale
+        distances = self._bkd.cdist(X.T / period, Y.T / period) / lenscale
         return super()._eval_distance_form(distances)
 
     def diag(self, X):
@@ -291,28 +286,28 @@ class HilbertSchmidtKernel(Kernel):
         self._X1basis_mat, self._X2basis_mat = None, None
 
     def _get_weights(self):
-        return self._bkd._la_reshape(
+        return self._bkd.reshape(
             self._weights.get_values(),
             (self._basis1.nterms(), self._basis2.nterms()),
         )
 
     def _get_basis_matrices(self, X1, X2):
-        if self._X1 is not None and self._bkd._la_allclose(self._X1, X2, atol=1e-15):
+        if self._X1 is not None and self._bkd.allclose(self._X1, X2, atol=1e-15):
             X1basis_mat = self._X1basis_mat
         else:
             X1basis_mat = self._basis1(X1)
             if self._normalize:
-                X1basis_mat /= self._bkd._la_norm(X1basis_mat, axis=1)[:, None]
-            self._X1 = self._bkd._la_copy(X1)
-            self._X1basis_mat = self._bkd._la_copy(X1basis_mat)
-        if self._X2 is not None and self._bkd._la_allclose(self._X2, X2, atol=1e-15):
+                X1basis_mat /= self._bkd.norm(X1basis_mat, axis=1)[:, None]
+            self._X1 = self._bkd.copy(X1)
+            self._X1basis_mat = self._bkd.copy(X1basis_mat)
+        if self._X2 is not None and self._bkd.allclose(self._X2, X2, atol=1e-15):
             X2basis_mat = self._X2basis_mat
         else:
             X2basis_mat = self._basis2(X2)
             if self._normalize:
-                X2basis_mat /= self._bkd._la_norm(X2basis_mat, axis=1)[:, None]
-            self._X2 = self._bkd._la_copy(X2)
-            self._X2basis_mat = self._bkd._la_copy(X2basis_mat)
+                X2basis_mat /= self._bkd.norm(X2basis_mat, axis=1)[:, None]
+            self._X2 = self._bkd.copy(X2)
+            self._X2basis_mat = self._bkd.copy(X2basis_mat)
         return X1basis_mat, X2basis_mat
 
         
@@ -380,7 +375,7 @@ class SphericalCovariance:
             elif angle_transform is not None:
                 backend = angle_transform._bkd
             else:
-                backend = NumpyLinAlgMixin()
+                backend = NumpyLinAlgMixin
 
         self._bkd = backend
 
@@ -423,26 +418,26 @@ class SphericalCovariance:
     def _validate_bounds(self, radii_bounds, angle_bounds):
         bounds = self._trans.get_spherical_bounds()
         # all theoretical radii_bounds are the same so just check one
-        radii_bounds = self._bkd._la_atleast1d(radii_bounds)
+        radii_bounds = self._bkd.atleast1d(radii_bounds)
         if radii_bounds.shape[0] == 2:
-            radii_bounds = self._bkd._la_repeat(radii_bounds, self.noutputs)
+            radii_bounds = self._bkd.repeat(radii_bounds, self.noutputs)
         radii_bounds = radii_bounds.reshape((radii_bounds.shape[0] // 2, 2))
-        if self._bkd._la_any(
+        if self._bkd.any(
             radii_bounds[:, 0] < bounds[: self.noutputs, 0]
-        ) or self._bkd._la_any(
+        ) or self._bkd.any(
             radii_bounds[:, 1] > bounds[: self.noutputs, 1]
         ):
             raise ValueError("radii bounds are inconsistent")
         # all theoretical angle_bounds are the same so just check one
-        angle_bounds = self._bkd._la_atleast1d(angle_bounds)
+        angle_bounds = self._bkd.atleast1d(angle_bounds)
         if angle_bounds.shape[0] == 2:
-            angle_bounds = self._bkd._la_repeat(
+            angle_bounds = self._bkd.repeat(
                 angle_bounds, self._trans.ntheta - self.noutputs
             )
         angle_bounds = angle_bounds.reshape((angle_bounds.shape[0] // 2, 2))
-        if self._bkd._la_any(
+        if self._bkd.any(
             angle_bounds[:, 0] < bounds[self.noutputs :, 0]
-        ) or self._bkd._la_any(
+        ) or self._bkd.any(
             angle_bounds[:, 1] > bounds[self.noutputs :, 1]
         ):
             raise ValueError("angle bounds are inconsistent")

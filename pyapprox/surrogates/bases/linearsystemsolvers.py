@@ -12,7 +12,7 @@ class LinearSystemSolver(ABC):
 
     def __init__(self, backend: LinAlgMixin = None):
         if backend is None:
-            backend = NumpyLinAlgMixin()
+            backend = NumpyLinAlgMixin
         self._bkd = backend
 
     @abstractmethod
@@ -50,7 +50,7 @@ class LstSqSolver(LinearSystemSolver):
 
     def solve(self, Amat, Bmat):
         """Return the least squares solution."""
-        return self._bkd._la_lstsq(Amat, Bmat)
+        return self._bkd.lstsq(Amat, Bmat)
 
 
 class OMPSolver(LinearSystemSolver):
@@ -87,7 +87,7 @@ class OMPSolver(LinearSystemSolver):
         return False
 
     def _update_coef_naive(self):
-        sparse_coef = self._bkd._la_lstsq(
+        sparse_coef = self._bkd.lstsq(
             self._Amat[:, self._active_indices], self._bvec
         )
         return sparse_coef
@@ -95,16 +95,16 @@ class OMPSolver(LinearSystemSolver):
     def _update_coef(self):
         Amat_sparse = self._Amat[:, self._active_indices]
         col = self._Amat[:, self._active_indices[-1]][:, None]
-        cholfactor, passed = self._bkd._la_update_cholesky_factorization(
+        cholfactor, passed = self._bkd.update_cholesky_factorization(
             self._cholfactor,
-            self._bkd._la_dot(Amat_sparse[:, :-1].T, col),
-            self._bkd._la_dot(col.T, col),
+            self._bkd.dot(Amat_sparse[:, :-1].T, col),
+            self._bkd.dot(col.T, col),
         )
         if not passed:
             return None
         self._cholfactor = cholfactor
-        return self._bkd._la_cholesky_solve(
-            self._cholfactor, self._bkd._la_dot(Amat_sparse.T, self._bvec)
+        return self._bkd.cholesky_solve(
+            self._cholfactor, self._bkd.dot(Amat_sparse.T, self._bvec)
         )
 
     def _termination_message(self, flag):
@@ -136,26 +136,26 @@ class OMPSolver(LinearSystemSolver):
 
         self._Amat = Amat
         self._bvec = bvec
-        self._active_indices = self._bkd._la_empty((0), dtype=int)
+        self._active_indices = self._bkd.empty((0), dtype=int)
         self._cholfactor = None
 
-        correlation = self._bkd._la_dot(self._Amat.T, self._bvec)
+        correlation = self._bkd.dot(self._Amat.T, self._bvec)
         nindices = self._Amat.shape[1]
-        inactive_indices_mask = self._bkd._la_atleast1d(
+        inactive_indices_mask = self._bkd.atleast1d(
             [True] * nindices, dtype=bool
         )
-        bnorm = self._bkd._la_norm(self._bvec)
+        bnorm = self._bkd.norm(self._bvec)
 
         if self._max_nonzeros > nindices:
             max_nonzeros = nindices
         else:
             max_nonzeros = self._max_nonzeros
 
-        resid = self._bkd._la_copy(self._bvec)
+        resid = self._bkd.copy(self._bvec)
         if self._verbosity > 1:
             print(("sparsity".center(8), "index".center(5), "||r||".center(9)))
         while True:
-            residnorm = self._bkd._la_norm(resid)
+            residnorm = self._bkd.norm(resid)
             if self._verbosity > 1:
                 if self._active_indices.shape[0] > 0:
                     print(
@@ -171,21 +171,21 @@ class OMPSolver(LinearSystemSolver):
             ):
                 break
 
-            inactive_indices = self._bkd._la_arange(nindices, dtype=int)[
+            inactive_indices = self._bkd.arange(nindices, dtype=int)[
                 inactive_indices_mask
             ]
-            best_inactive_index = self._bkd._la_argmax(
-                self._bkd._la_abs(correlation[inactive_indices, 0])
+            best_inactive_index = self._bkd.argmax(
+                self._bkd.abs(correlation[inactive_indices, 0])
             )
             best_index = inactive_indices[best_inactive_index]
-            self._active_indices = self._bkd._la_hstack(
+            self._active_indices = self._bkd.hstack(
                 (
                     self._active_indices,
-                    self._bkd._la_array([best_index], dtype=int),
+                    self._bkd.array([best_index], dtype=int),
                 )
             )
             # inactive_indices_mask[best_index] = False
-            inactive_indices_mask = self._bkd._la_up(
+            inactive_indices_mask = self._bkd.up(
                 inactive_indices_mask, best_index, False
             )
             result = self._update_coef()
@@ -196,15 +196,15 @@ class OMPSolver(LinearSystemSolver):
                 self._active_indices = self._active_indices[:-1]
                 break
             sparse_coef = result
-            resid = self._bvec - self._bkd._la_dot(
+            resid = self._bvec - self._bkd.dot(
                 self._Amat[:, self._active_indices], sparse_coef
             )
-            correlation = self._bkd._la_dot(self._Amat.T, resid)
+            correlation = self._bkd.dot(self._Amat.T, resid)
 
         self._print_termination_message(self._termination_flag)
-        coef = self._bkd._la_full((self._Amat.shape[1], 1), 0.0)
+        coef = self._bkd.full((self._Amat.shape[1], 1), 0.0)
         # coef[self._active_indices] = sparse_coef
-        coef = self._bkd._la_up(coef, self._active_indices, sparse_coef)
+        coef = self._bkd.up(coef, self._active_indices, sparse_coef)
         return coef
 
     def __repr__(self):

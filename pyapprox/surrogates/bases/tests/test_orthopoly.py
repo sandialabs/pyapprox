@@ -40,7 +40,7 @@ class TestOrthonormalPolynomials1D:
         np.random.seed(1)
 
     def get_backend(self):
-        return NumpyLinAlgMixin()
+        return NumpyLinAlgMixin
 
     def _check_orthonormal_poly(self, poly):
         bkd = self.get_backend()
@@ -49,12 +49,12 @@ class TestOrthonormalPolynomials1D:
         quad_x, quad_w = poly.gauss_quadrature_rule(degree + 1)
         vals = poly(quad_x)
         # test orthogonality
-        exact_moments = bkd._la_full((degree + 1, 1), 0.0)
+        exact_moments = bkd.full((degree + 1, 1), 0.0)
         exact_moments[0] = 1.0
-        assert bkd._la_allclose(vals.T @ quad_w, exact_moments)
+        assert bkd.allclose(vals.T @ quad_w, exact_moments)
         # test orthonormality
-        assert bkd._la_allclose(
-            (vals.T * quad_w[:, 0]) @ vals, bkd._la_eye(degree + 1)
+        assert bkd.allclose(
+            (vals.T * quad_w[:, 0]) @ vals, bkd.eye(degree + 1)
         )
 
     def test_chebyshev_poly_1d(self):
@@ -65,32 +65,32 @@ class TestOrthonormalPolynomials1D:
         # polys are not orhtonormal only orthogonal so cannot use:
         # self._check_orthonormal_poly(poly)
         quad_x, quad_w = sp.roots_chebyt(degree+1, mu=False)
-        quad_x = bkd._la_array(quad_x)
-        quad_w = bkd._la_array(quad_w)
+        quad_x = bkd.array(quad_x)
+        quad_w = bkd.array(quad_w)
         pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
-        assert bkd._la_allclose(pquad_x, quad_x)
-        assert bkd._la_allclose(pquad_w, quad_w)
-        vals_exact = bkd._la_stack(
+        assert bkd.allclose(pquad_x, quad_x)
+        assert bkd.allclose(pquad_w, quad_w)
+        vals_exact = bkd.stack(
             [sp.eval_chebyt(ii, quad_x) for ii in range(degree+1)], axis=1
         )
         vals = poly(pquad_x)
-        assert bkd._la_allclose(vals, vals_exact)
+        assert bkd.allclose(vals, vals_exact)
 
         poly = Chebyshev2ndKindPolynomial1D(backend=bkd)
         poly.set_nterms(degree + 1)
         # polys are not orhtonormal only orthogonal so cannot use:
         # self._check_orthonormal_poly(poly)
         quad_x, quad_w = sp.roots_chebyu(degree+1, mu=False)
-        quad_x = bkd._la_array(quad_x)[None, :]
-        quad_w = bkd._la_array(quad_w)[:, None]
+        quad_x = bkd.array(quad_x)[None, :]
+        quad_w = bkd.array(quad_w)[:, None]
         pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
-        assert bkd._la_allclose(pquad_x, quad_x)
-        assert bkd._la_allclose(pquad_w, quad_w)
-        vals_exact = bkd._la_stack(
+        assert bkd.allclose(pquad_x, quad_x)
+        assert bkd.allclose(pquad_w, quad_w)
+        vals_exact = bkd.stack(
             [sp.eval_chebyu(ii, quad_x[0]) for ii in range(degree+1)], axis=1
         )
         vals = poly(pquad_x)
-        assert bkd._la_allclose(vals, vals_exact)
+        assert bkd.allclose(vals, vals_exact)
 
     def test_legendre_poly_1d(self):
         bkd = self.get_backend()
@@ -101,18 +101,18 @@ class TestOrthonormalPolynomials1D:
         degree = 3
         quad_x, quad_w = np.polynomial.legendre.leggauss(degree + 1)
         # make weights have probablity weight function w=1/2
-        quad_x = bkd._la_array(quad_x)[None, :]
-        quad_w = bkd._la_array(quad_w / 2.0)[:, None]
+        quad_x = bkd.array(quad_x)[None, :]
+        quad_w = bkd.array(quad_w / 2.0)[:, None]
         pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
-        assert bkd._la_allclose(pquad_x, quad_x)
-        assert bkd._la_allclose(pquad_w, quad_w)
+        assert bkd.allclose(pquad_x, quad_x)
+        assert bkd.allclose(pquad_w, quad_w)
 
         deriv_order = 2
         derivs = poly._derivatives(quad_x, deriv_order, return_all=True)
         # squeeze when computing derivaties exactly
         x = quad_x[0]
         derivs_exact = [
-            bkd._la_stack(
+            bkd.stack(
                 [
                     1 + 0.0 * x,
                     x,
@@ -123,18 +123,18 @@ class TestOrthonormalPolynomials1D:
             )
         ]
         derivs_exact.append(
-            bkd._la_stack(
+            bkd.stack(
                 [0.0 * x, 1.0 + 0.0 * x, 3.0 * x, 7.5 * x**2 - 1.5], axis=1
             )
         )
         derivs_exact.append(
-            bkd._la_stack([0.0 * x, 0.0 * x, 3.0 + 0.0 * x, 15 * x], axis=1)
+            bkd.stack([0.0 * x, 0.0 * x, 3.0 + 0.0 * x, 15 * x], axis=1)
         )
-        derivs_exact = bkd._la_stack(derivs_exact, axis=0) / bkd._la_sqrt(
-            1.0 / (2 * bkd._la_arange(degree + 1) + 1)
+        derivs_exact = bkd.stack(derivs_exact, axis=0) / bkd.sqrt(
+            1.0 / (2 * bkd.arange(degree + 1) + 1)
         )
         for ii in range(deriv_order + 1):
-            assert bkd._la_allclose(
+            assert bkd.allclose(
                 derivs[:, ii * (degree + 1) : (ii + 1) * (degree + 1)],
                 derivs_exact[ii],
             )
@@ -154,16 +154,16 @@ class TestOrthonormalPolynomials1D:
         quad_x, quad_w = np.polynomial.hermite.hermgauss(degree + 1)
         # transform rule to probablity weight
         # function w=1/sqrt(2*PI)exp(-x^2/2)
-        quad_x = bkd._la_array(quad_x * np.sqrt(2.0))[None, :]
-        quad_w = bkd._la_array(quad_w / np.sqrt(np.pi))[:, None]
+        quad_x = bkd.array(quad_x * np.sqrt(2.0))[None, :]
+        quad_w = bkd.array(quad_w / np.sqrt(np.pi))[:, None]
         poly = HermitePolynomial1D(backend=bkd)
         poly.set_nterms(degree + 1)
         pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
-        assert bkd._la_allclose(pquad_x, quad_x)
-        assert bkd._la_allclose(pquad_w, quad_w)
-        assert bkd._la_allclose(
+        assert bkd.allclose(pquad_x, quad_x)
+        assert bkd.allclose(pquad_w, quad_w)
+        assert bkd.allclose(
             (pquad_x**degree) @ pquad_w,
-            bkd._la_array(sp.factorial2(degree - 1)),
+            bkd.array(sp.factorial2(degree - 1)),
         )
 
         # check hermite evaluation
@@ -172,21 +172,21 @@ class TestOrthonormalPolynomials1D:
         vals = poly(quad_x)
         # squeeze when computing values exactly
         x = quad_x[0]
-        vals_exact = bkd._la_stack(
+        vals_exact = bkd.stack(
             [1 + 0.0 * x, x, x**2 - 1], axis=1
-        ) / bkd._la_sqrt(bkd._la_asarray(sp.factorial(np.arange(degree + 1))))
-        assert bkd._la_allclose(vals, vals_exact)
+        ) / bkd.sqrt(bkd.asarray(sp.factorial(np.arange(degree + 1))))
+        assert bkd.allclose(vals, vals_exact)
 
         # check jacobi quadrature rule
         degree = 4
         poly = JacobiPolynomial1D(4, 1, backend=bkd)
         poly.set_nterms(degree + 1)
         pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
-        true_moments = bkd._la_array(
+        true_moments = bkd.array(
             [1.0, -3.0 / 7.0, 2.0 / 7.0, -4.0 / 21.0, 1.0 / 7.0]
         )
         for ii in range(degree + 1):
-            assert bkd._la_allclose(
+            assert bkd.allclose(
                 (pquad_x**ii) @ pquad_w, true_moments[ii]
             )
 
@@ -195,10 +195,10 @@ class TestOrthonormalPolynomials1D:
         poly = LaguerrePolynomial1D(rho, backend=bkd)
         poly.set_nterms(degree + 1)
         np_x = stats.gamma(rho + 1).rvs(int(1e3))
-        x = bkd._la_array(np_x)
+        x = bkd.array(np_x)
         vals = poly(x[None, :])
 
-        vals_exact = bkd._la_stack(
+        vals_exact = bkd.stack(
             [
                 1 + 0.0 * x,
                 -(-x + rho + 1),
@@ -206,12 +206,12 @@ class TestOrthonormalPolynomials1D:
             ],
             axis=1,
         )[:, : degree + 1]
-        vals_exact /= bkd._la_sqrt(
-            sp.gamma(bkd._la_arange(degree + 1) + rho + 1)
-            / sp.factorial(bkd._la_arange(degree + 1))
+        vals_exact /= bkd.sqrt(
+            sp.gamma(bkd.arange(degree + 1) + rho + 1)
+            / sp.factorial(bkd.arange(degree + 1))
             / sp.gamma(rho + 1)
         )
-        assert bkd._la_allclose(vals, vals_exact)
+        assert bkd.allclose(vals, vals_exact)
 
     def test_physicists_hermite_polynomial(self):
         bkd = self.get_backend()
@@ -219,33 +219,33 @@ class TestOrthonormalPolynomials1D:
         poly = HermitePolynomial1D(prob_meas=False, backend=bkd)
         poly.set_nterms(degree + 1)
         quad_x, quad_w = np.polynomial.hermite.hermgauss(degree + 1)
-        quad_x = bkd._la_array(quad_x)[None, :]
-        quad_w = bkd._la_array(quad_w)[:, None]
+        quad_x = bkd.array(quad_x)[None, :]
+        quad_w = bkd.array(quad_w)[:, None]
         pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
-        assert bkd._la_allclose(pquad_x, quad_x)
-        assert bkd._la_allclose(pquad_w, quad_w)
+        assert bkd.allclose(pquad_x, quad_x)
+        assert bkd.allclose(pquad_w, quad_w)
 
         # squeeze when computing values exactly
         x = quad_x[0]
         vals = poly(quad_x)
-        vals_exact = bkd._la_stack(
+        vals_exact = bkd.stack(
             [1 + 0.0 * x, 2 * x, 4.0 * x**2 - 2], axis=1
-        ) / bkd._la_sqrt(bkd._la_asarray(
+        ) / bkd.sqrt(bkd.asarray(
             sp.factorial(np.arange(degree + 1))
             * np.sqrt(np.pi)
             * 2 ** np.arange(degree + 1))
         )
-        assert bkd._la_allclose(vals, vals_exact)
+        assert bkd.allclose(vals, vals_exact)
 
         # test orthogonality
-        exact_moments = bkd._la_full((degree + 1, 1), 0.0)
+        exact_moments = bkd.full((degree + 1, 1), 0.0)
         # basis is orthonormal so integration of constant basis will be
         # non-zero but will not integrate to 1.0
         exact_moments[0] = np.pi**0.25
-        assert bkd._la_allclose(vals.T @ quad_w, exact_moments)
+        assert bkd.allclose(vals.T @ quad_w, exact_moments)
         # test orthonormality
-        assert bkd._la_allclose(
-            (vals.T * quad_w[:, 0]) @ vals, bkd._la_eye(degree + 1)
+        assert bkd.allclose(
+            (vals.T * quad_w[:, 0]) @ vals, bkd.eye(degree + 1)
         )
 
     def test_krawtchouk_binomial(self):
@@ -259,19 +259,19 @@ class TestOrthonormalPolynomials1D:
         poly.set_nterms(degree + 1)
         quad_x, quad_w = poly.gauss_quadrature_rule(degree + 1)
 
-        probability_mesh = bkd._la_arange(
+        probability_mesh = bkd.arange(
             0, num_trials + 1, dtype=float)[None, :]
-        probability_masses = bkd._la_array(
+        probability_masses = bkd.array(
             stats.binom.pmf(probability_mesh[0], num_trials, prob_success)
         )[:, None]
 
         basis_mat = poly(probability_mesh)
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             (basis_mat * probability_masses).T @ basis_mat,
-            bkd._la_eye(basis_mat.shape[1]),
+            bkd.eye(basis_mat.shape[1]),
         )
 
-        coef = bkd._la_array(np.random.uniform(-1, 1, (degree + 1)))
+        coef = bkd.array(np.random.uniform(-1, 1, (degree + 1)))
         monomial = Monomial1D(backend=bkd)
         monomial.set_nterms(degree + 1)
         basis_matrix_at_pm = monomial(probability_mesh)
@@ -281,7 +281,7 @@ class TestOrthonormalPolynomials1D:
 
         true_mean = vals_at_pm @ probability_masses
         quadrature_mean = vals_at_gauss @ quad_w
-        assert bkd._la_allclose(true_mean, quadrature_mean)
+        assert bkd.allclose(true_mean, quadrature_mean)
 
     def test_hahn_hypergeometric(self):
         """
@@ -298,15 +298,15 @@ class TestOrthonormalPolynomials1D:
         quad_x, quad_w = poly.gauss_quadrature_rule(degree + 1)
 
         rv = stats.hypergeom(M, n, N)
-        true_mean = bkd._la_array(rv.mean())
+        true_mean = bkd.array(rv.mean())
         quadrature_mean = quad_x @ quad_w
-        assert bkd._la_allclose(true_mean, quadrature_mean)
+        assert bkd.allclose(true_mean, quadrature_mean)
 
-        quad_x = bkd._la_arange(0, n + 1)[None, :]
+        quad_x = bkd.arange(0, n + 1)[None, :]
         vals = poly(quad_x)
         quad_w = rv.pmf(quad_x[0])[:, None]
-        assert bkd._la_allclose(
-            (vals.T * quad_w[:, 0]) @ vals, bkd._la_eye(degree + 1)
+        assert bkd.allclose(
+            (vals.T * quad_w[:, 0]) @ vals, bkd.eye(degree + 1)
         )
 
     def test_discrete_chebyshev(self):
@@ -318,10 +318,10 @@ class TestOrthonormalPolynomials1D:
         )
         poly = DiscreteChebyshevPolynomial1D(N, backend=bkd)
         poly.set_nterms(degree + 1)
-        vals = poly(bkd._la_array(np_xk)[None, :])
+        vals = poly(bkd.array(np_xk)[None, :])
         quad_w = rv.pmf(np_xk)[:, None]
-        assert bkd._la_allclose(
-            (vals.T * quad_w[:, 0]) @ vals, bkd._la_eye(degree + 1)
+        assert bkd.allclose(
+            (vals.T * quad_w[:, 0]) @ vals, bkd.eye(degree + 1)
         )
 
     def test_charlier(self):
@@ -336,11 +336,11 @@ class TestOrthonormalPolynomials1D:
         poly.set_nterms(degree + 1)
         lb, ub = rv.interval(1 - np.finfo(float).eps)
         np_xk = np.linspace(lb, ub, int(ub - lb + 1))
-        vals = poly(bkd._la_array(np_xk)[None, :])
-        quad_w = bkd._la_array(rv.pmf(np_xk))[:, None]
-        assert bkd._la_allclose(
-            bkd._la_dot(vals.T * quad_w[:, 0], vals),
-            bkd._la_eye(degree + 1),
+        vals = poly(bkd.array(np_xk)[None, :])
+        quad_w = bkd.array(rv.pmf(np_xk))[:, None]
+        assert bkd.allclose(
+            bkd.dot(vals.T * quad_w[:, 0], vals),
+            bkd.eye(degree + 1),
             atol=1e-7,
         )
 
@@ -351,12 +351,12 @@ class TestOrthonormalPolynomials1D:
         poly.set_nterms(degree + 1)
         abc = poly._three_term_recurence()
 
-        x = bkd._la_linspace(-3, 3, 101)[None, :]
+        x = bkd.linspace(-3, 3, 101)[None, :]
         p_2term = poly(x)
         p_3term = evaluate_three_term_recurrence_polynomial_1d(
             abc, degree, x[0], bkd=bkd
         )
-        assert bkd._la_allclose(p_2term, p_3term)
+        assert bkd.allclose(p_2term, p_3term)
 
     def test_convert_orthonormal_polynomials_to_monomials_1d(self):
         """
@@ -376,37 +376,37 @@ class TestOrthonormalPolynomials1D:
             poly._rcoefs, 4, bkd=bkd
         )
 
-        true_basis_mono_coefs = bkd._la_zeros((5, 5))
+        true_basis_mono_coefs = bkd.zeros((5, 5))
         true_basis_mono_coefs[0, 0] = 1
         true_basis_mono_coefs[1, 1] = 1
-        true_basis_mono_coefs[2, [0, 2]] = bkd._la_array(
+        true_basis_mono_coefs[2, [0, 2]] = bkd.array(
             [-1 / np.sqrt(2), 1 / np.sqrt(2)]
         )
-        true_basis_mono_coefs[3, [1, 3]] = bkd._la_array(
+        true_basis_mono_coefs[3, [1, 3]] = bkd.array(
             [-3 / np.sqrt(6), 1 / np.sqrt(6)]
         )
-        true_basis_mono_coefs[4, [0, 2, 4]] = bkd._la_array(
+        true_basis_mono_coefs[4, [0, 2, 4]] = bkd.array(
             [3, -6, 1]
         ) / np.sqrt(24)
 
-        assert bkd._la_allclose(basis_mono_coefs, true_basis_mono_coefs)
+        assert bkd.allclose(basis_mono_coefs, true_basis_mono_coefs)
 
-        coefs = bkd._la_ones(degree + 1)
+        coefs = bkd.ones(degree + 1)
         basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
             poly._rcoefs, degree, bkd=bkd
         )
-        mono_coefs = bkd._la_sum(basis_mono_coefs * coefs, axis=0)[:, None]
+        mono_coefs = bkd.sum(basis_mono_coefs * coefs, axis=0)[:, None]
 
-        x = bkd._la_linspace(-3, 3, 5)[None, :]
+        x = bkd.linspace(-3, 3, 5)[None, :]
         p_ortho = poly(x)
         ortho_vals = p_ortho @ coefs
 
         basis = MultiIndexBasis([Monomial1D(backend=bkd)])
-        basis.set_indices(bkd._la_arange(degree + 1)[None, :])
+        basis.set_indices(bkd.arange(degree + 1)[None, :])
         mono = MonomialExpansion(basis, nqoi=mono_coefs.shape[1])
         mono.set_coefficients(mono_coefs)
         mono_vals = mono(x)[:, 0]
-        assert bkd._la_allclose(ortho_vals, mono_vals)
+        assert bkd.allclose(ortho_vals, mono_vals)
 
     def test_convert_monomials_to_orthonormal_polynomials_1d(self):
         bkd = self.get_backend()
@@ -417,11 +417,11 @@ class TestOrthonormalPolynomials1D:
             poly._rcoefs, degree, bkd=bkd
         )
 
-        x = bkd._la_array(np.random.normal(0, 1, (1, 100)))
-        basis_ortho_coefs = bkd._la_inv(basis_mono_coefs)
+        x = bkd.array(np.random.normal(0, 1, (1, 100)))
+        basis_ortho_coefs = bkd.inv(basis_mono_coefs)
         ortho_basis_matrix = poly(x)
-        mono_basis_matrix = x.T ** bkd._la_arange(degree + 1)[None, :]
-        assert bkd._la_allclose(
+        mono_basis_matrix = x.T ** bkd.arange(degree + 1)[None, :]
+        assert bkd.allclose(
             mono_basis_matrix, ortho_basis_matrix @ basis_ortho_coefs.T
         )
 
@@ -440,7 +440,7 @@ class TestOrthonormalPolynomials1D:
         num_poly.set_nterms(degree+1)
         # The last coefficient of ab[:, 0] is never used so it is not computed
         # by the numerical routine
-        assert bkd._la_allclose(num_poly._rcoefs, poly._rcoefs)
+        assert bkd.allclose(num_poly._rcoefs, poly._rcoefs)
 
         rho = 0
         marginal = stats.expon()
@@ -452,7 +452,7 @@ class TestOrthonormalPolynomials1D:
             marginal, integrator, backend=bkd
         )
         num_poly.set_nterms(degree+1)
-        assert bkd._la_allclose(num_poly._rcoefs, poly._rcoefs)
+        assert bkd.allclose(num_poly._rcoefs, poly._rcoefs)
 
     def test_discrete_numeric_orthonormal_polynomial(self):
         bkd = self.get_backend()
@@ -461,8 +461,8 @@ class TestOrthonormalPolynomials1D:
         lb, ub = rv.interval(1 - np.finfo(float).eps)
         nmasses = int(ub - lb + 1)
         np_xk = np.linspace(lb, ub, nmasses)
-        xk = bkd._la_asarray(np_xk)[None, :]
-        pk = bkd._la_array(rv.pmf(np_xk))[:, None]
+        xk = bkd.asarray(np_xk)[None, :]
+        pk = bkd.array(rv.pmf(np_xk))[:, None]
 
         poly = CharlierPolynomial1D(rate, backend=bkd)
         poly.set_nterms(degree + 1)
@@ -474,7 +474,7 @@ class TestOrthonormalPolynomials1D:
         num_poly.set_nterms(degree+1)
         # The last coefficient of ab[-1, 0] is never used so it is not computed
         # by the numerical routine
-        assert bkd._la_allclose(num_poly._rcoefs[:-1, :], poly._rcoefs[:-1, :])
+        assert bkd.allclose(num_poly._rcoefs[:-1, :], poly._rcoefs[:-1, :])
 
     def test_univariate_lagrange_basis_gauss_quadrature(self):
         nterms = 5
@@ -484,7 +484,7 @@ class TestOrthonormalPolynomials1D:
             GaussQuadratureRule(marginal, backend=bkd), nterms)
 
         def fun(degree, xx):
-            return bkd._la_sum(xx**degree, axis=0)[:, None]
+            return bkd.sum(xx**degree, axis=0)[:, None]
 
         def integral(degree):
             if degree == 2:
@@ -507,27 +507,28 @@ class TestOrthonormalPolynomials1D:
         trans = AffineMarginalTransform(
             marginal, enforce_bounds=True, backend=bkd
         )
-        samples = bkd._la_asarray(np.random.uniform(0, 1, (1, nsamples)))
+        samples = bkd.asarray(np.random.uniform(0, 1, (1, nsamples)))
         lb, ub = marginal.interval(1)
         canonical_samples = trans.map_to_canonical(samples)
-        assert bkd._la_allclose(canonical_samples, (samples+lb)/(ub-lb)*2-1)
-        assert bkd._la_allclose(
+        assert bkd.allclose(canonical_samples, (samples+lb)/(ub-lb)*2-1)
+        assert bkd.allclose(
             trans.map_from_canonical(canonical_samples),
             samples
         )
-        derivs = bkd._la_stack([2*samples, 3*samples**2], axis=0)
+        derivs = bkd.stack([2*samples, 3*samples**2], axis=0)
         canonical_derivs = trans.derivatives_to_canonical(derivs)
-        assert bkd._la_allclose(canonical_derivs, (ub-lb)*derivs/2)
-        assert bkd._la_allclose(
+        assert bkd.allclose(canonical_derivs, (ub-lb)*derivs/2)
+        assert bkd.allclose(
             trans.derivatives_from_canonical(canonical_derivs),
             derivs
         )
 
         # test error thown when samples outside bounded domain
-        samples = bkd._la_asarray(np.random.uniform(0, 2, (1, nsamples)))
+        samples = bkd.asarray(np.random.uniform(0, 2, (1, nsamples)))
         self.assertRaises(ValueError, trans.map_to_canonical, samples)
 
     def test_setup_discrete_univariate_orthopoly_from_marginal(self):
+        bkd = self.get_backend()
         # fmt: off
         discrete_var_names = [
             "binom", "bernoulli", "nbinom", "geom", "hypergeom", "logser",
@@ -557,7 +558,7 @@ class TestOrthonormalPolynomials1D:
             marginal = getattr(stats, name)(**shapes)
             opts = {"ptol": 2e-8}
             poly = setup_univariate_orthogonal_polynomial_from_marginal(
-                marginal, opts=opts)
+                marginal, opts=opts, backend=bkd)
             self._check_orthonormal_poly(poly)
 
     def test_setup_continuous_univariate_orthopoly_from_marginal(self):
@@ -665,7 +666,7 @@ class TestOrthonormalPolynomials1D:
                 continue
             marginal = getattr(stats, name)(**shapes)
             poly = setup_univariate_orthogonal_polynomial_from_marginal(
-                marginal)
+                marginal, backend=bkd)
             self._check_orthonormal_poly(poly)
 
         # test fat-tailed distributions that cannot use
@@ -690,7 +691,7 @@ class TestOrthonormalPolynomials1D:
             integrator.set_bounds(marginal.interval(1))
             opts = {"integrator": integrator}
             poly = setup_univariate_orthogonal_polynomial_from_marginal(
-                marginal, opts=opts)
+                marginal, opts=opts, backend=bkd)
             self._check_orthonormal_poly(poly)
 
 
@@ -698,14 +699,14 @@ class TestNumpyOrthonormalPolynomials1D(
     TestOrthonormalPolynomials1D, unittest.TestCase
 ):
     def get_backend(self):
-        return NumpyLinAlgMixin()
+        return NumpyLinAlgMixin
 
 
 class TestTorchOrthonormalPolynomials1D(
     TestOrthonormalPolynomials1D, unittest.TestCase
 ):
     def get_backend(self):
-        return TorchLinAlgMixin()
+        return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

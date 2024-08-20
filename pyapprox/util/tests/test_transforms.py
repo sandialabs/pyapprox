@@ -19,16 +19,16 @@ class TestTransforms:
         bkd = self.get_backend()
         nsamples = 10
         trans = NSphereCoordinateTransform(backend=bkd)
-        psi = bkd._la_vstack(
+        psi = bkd.vstack(
             (
-                bkd._la_array(np.random.uniform(1, 2, (1, nsamples))),
-                bkd._la_array(
+                bkd.array(np.random.uniform(1, 2, (1, nsamples))),
+                bkd.array(
                     np.random.uniform(0, np.pi, (nvars - 2, nsamples))
                 ),
-                bkd._la_array(np.random.uniform(0, 2 * np.pi, (1, nsamples))),
+                bkd.array(np.random.uniform(0, 2 * np.pi, (1, nsamples))),
             )
         )
-        samples = trans.map_from_nsphere(bkd._la_atleast2d(psi))
+        samples = trans.map_from_nsphere(bkd.atleast2d(psi))
         psi_recovered = trans.map_to_nsphere(samples)
         assert np.allclose(psi_recovered, psi, rtol=1e-12)
 
@@ -44,10 +44,10 @@ class TestTransforms:
 
         # if radius is made to small it can create errors in
         # transform to/from spherical coordinates
-        theta = bkd._la_hstack(
+        theta = bkd.hstack(
             (
-                bkd._la_array(np.random.uniform(0, 10, (trans.noutputs))),
-                bkd._la_array(
+                bkd.array(np.random.uniform(0, 10, (trans.noutputs))),
+                bkd.array(
                     np.random.uniform(
                         0, np.pi, (trans.ntheta - trans.noutputs)
                     )
@@ -55,11 +55,11 @@ class TestTransforms:
             )
         )
 
-        psi = trans.map_theta_to_spherical(bkd._la_atleast1d(theta))
+        psi = trans.map_theta_to_spherical(bkd.atleast1d(theta))
         theta_recovered = trans.map_spherical_to_theta(psi)
         assert np.allclose(theta, theta_recovered, rtol=1e-12)
 
-        L = trans.map_to_cholesky(bkd._la_array(theta))
+        L = trans.map_to_cholesky(bkd.array(theta))
         theta_recovered = trans.map_from_cholesky(L)
         assert np.allclose(theta, theta_recovered, rtol=1e-12)
 
@@ -69,9 +69,9 @@ class TestTransforms:
         noutputs = 3
         trans = SphericalCorrelationTransform(noutputs, backend=bkd)
         trans._unconstrained = True
-        L = bkd._la_atleast2d([[1, 0, 0], [1, 2, 0], [1, 2, 3]])
-        theta_recovered = trans.map_from_cholesky(bkd._la_atleast2d(L))
-        theta = bkd._la_atleast1d(
+        L = bkd.atleast2d([[1, 0, 0], [1, 2, 0], [1, 2, 3]])
+        theta_recovered = trans.map_from_cholesky(bkd.atleast2d(L))
+        theta = bkd.atleast1d(
             [0, np.log(5) / 2, np.log(14) / 2, -0.608, -0.348, -0.787]
         )
         # answer is only reported to 3 decimals
@@ -84,12 +84,12 @@ class TestTransforms:
 
 class TestNumpyTransforms(TestTransforms, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin()
+        return NumpyLinAlgMixin
 
 
 class TestTorchTransforms(TestTransforms, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin()
+        return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

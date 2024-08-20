@@ -6,9 +6,9 @@ from pyapprox.surrogates.interp.manipulate_polynomials import (
     multiply_multivariate_polynomials)
 
 
-def univariate_monomial_basis_matrix(max_level, samples, bkd=NumpyLinAlgMixin()):
+def univariate_monomial_basis_matrix(max_level, samples, bkd=NumpyLinAlgMixin):
     assert samples.ndim == 1
-    basis_matrix = samples[:, None]**bkd._la_arange(
+    basis_matrix = samples[:, None]**bkd.arange(
         max_level+1)[None, :]
     return basis_matrix
 

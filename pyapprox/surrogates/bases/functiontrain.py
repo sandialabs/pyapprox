@@ -29,8 +29,8 @@ class FunctionTrainCore:
             values.append([])
             for jj in range(self._ranks[1]):
                 values[-1].append(self._basisexps[ii][jj](samples))
-            values[-1] = self._bkd._la_stack(values[-1], axis=0)
-        return self._bkd._la_stack(values, axis=0)
+            values[-1] = self._bkd.stack(values[-1], axis=0)
+        return self._bkd.stack(values, axis=0)
 
     def __repr__(self):
         return "{0}(ranks={1})".format(self.__class__.__name__, self._ranks)
@@ -87,7 +87,7 @@ class FunctionTrain(OptimizedRegressor):
         for ii in range(self.nvars()):
             if ii != core_id:
                 self._cores[ii].hyp_list.set_all_inactive()
-        jac = self._bkd._la_jacobian(
+        jac = self._bkd.jacobian(
             self._core_params_eval, self.hyp_list.get_active_opt_params()
         )
         self.hyp_list.set_active_indices(active_indices)
@@ -111,7 +111,7 @@ class FunctionTrain(OptimizedRegressor):
             )
         values = self._cores[0](samples[:1])
         for ii in range(1, core_id):
-            values = self._bkd._la_einsum(
+            values = self._bkd.einsum(
                 "ijkl, jmkl->imkl",
                 values,
                 self._cores[ii](samples[ii : ii + 1]),
@@ -123,7 +123,7 @@ class FunctionTrain(OptimizedRegressor):
             raise ValueError("Ensure 0 <= core_id < nvars-1")
         values = self._cores[core_id + 1](samples[core_id + 1 : core_id + 2])
         for ii in range(core_id + 2, self.nvars()):
-            values = self._bkd._la_einsum(
+            values = self._bkd.einsum(
                 "ijkl, jmkl->imkl",
                 values,
                 self._cores[ii](samples[ii : ii + 1]),
@@ -165,7 +165,7 @@ class FunctionTrain(OptimizedRegressor):
             jac = []
             for jj in range(core._ranks[1]):
                 jac.append(Rmat[jj, 0, :, qq : qq + 1] * fun_jacs[0][jj])
-            jacs.append(self._bkd._la_hstack(jac))
+            jacs.append(self._bkd.hstack(jac))
         return jacs
 
     def _interior_core_jacobian(self, samples, core_id):
@@ -188,7 +188,7 @@ class FunctionTrain(OptimizedRegressor):
                         (Lmat[0, ii, :, qq] * Rmat[jj, 0, :, qq])[:, None]
                         * fun_jacs[ii][jj]
                     )
-            jacs.append(self._bkd._la_hstack(jac))
+            jacs.append(self._bkd.hstack(jac))
         return jacs
 
     def _final_core_jacobian(self, samples):
@@ -200,13 +200,13 @@ class FunctionTrain(OptimizedRegressor):
             jac = []
             for ii in range(core._ranks[0]):
                 jac.append(Lmat[0, ii, :, qq : qq + 1] * fun_jacs[ii][0])
-            jacs.append(self._bkd._la_hstack(jac))
+            jacs.append(self._bkd.hstack(jac))
         return jacs
 
     def __call__(self, samples):
         values = self._cores[0](samples[:1])
         for ii in range(1, self.nvars()):
-            values = self._bkd._la_einsum(
+            values = self._bkd.einsum(
                 "ijkl, jmkl->imkl",
                 values,
                 self._cores[ii](samples[ii : ii + 1]),
@@ -269,7 +269,7 @@ class AdditiveFunctionTrain(FunctionTrain):
         )
         # set as inactive so they cannot be changed during optimization
         fun.hyp_list.set_all_inactive()
-        fun.set_coefficients(self._bkd._la_full((1, nqoi), fill_value))
+        fun.set_coefficients(self._bkd.full((1, nqoi), fill_value))
         return fun
 
     def _init_cores(self, univariate_funs, nqoi):
@@ -356,8 +356,8 @@ class AlternatingLstSqOptimizer(Optimizer):
         jac = ft._core_jacobian(samples, core_id)
         coefs = []
         for qq in range(ft.nqoi()):
-            coefs.append(self._bkd._la_lstsq(jac[qq], values[:, qq : qq + 1]))
-        return self._bkd._la_hstack(coefs).flatten()
+            coefs.append(self._bkd.lstsq(jac[qq], values[:, qq : qq + 1]))
+        return self._bkd.hstack(coefs).flatten()
 
     def _create_result(self, ft, it):
         result = OptimizationResult()

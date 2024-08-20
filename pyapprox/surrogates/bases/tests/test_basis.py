@@ -7,6 +7,7 @@ import sympy as sp
 from pyapprox.surrogates.bases.orthopoly import (
     LegendrePolynomial1D,
     setup_univariate_orthogonal_polynomial_from_marginal,
+    AffineMarginalTransform,
 )
 from pyapprox.surrogates.bases.univariate import (
     Monomial1D, setup_univariate_piecewise_polynomial_basis
@@ -47,11 +48,11 @@ class TestBasis:
             [Monomial1D(backend=bkd) for ii in range(nvars)]
         )
         basis.set_tensor_product_indices([nterms_1d]*nvars)
-        samples = bkd._la_array(np.random.uniform(-1, 1, (nvars, 4)))
+        samples = bkd.array(np.random.uniform(-1, 1, (nvars, 4)))
         basis_mat = basis(samples)
         for ii, index in enumerate(basis._indices.T):
             assert np.allclose(
-                basis_mat[:, ii], bkd._la_prod(samples.T**index, axis=1)
+                basis_mat[:, ii], bkd.prod(samples.T**index, axis=1)
             )
 
     def test_monomial_basis(self):
@@ -65,23 +66,23 @@ class TestBasis:
             [Monomial1D(backend=bkd) for ii in range(nvars)]
         )
         basis.set_tensor_product_indices([nterms_1d]*nvars)
-        samples = bkd._la_array(np.random.uniform(-1, 1, (nvars, 4)))
+        samples = bkd.array(np.random.uniform(-1, 1, (nvars, 4)))
         jac = basis.jacobian(samples)
-        derivs = bkd._la_stack(
+        derivs = bkd.stack(
             [samples * 0, samples * 0 + 1]
             + [ii * samples ** (ii - 1) for ii in range(2, nterms_1d)]
         )
         indices = basis.get_indices()
         for ii in range(indices.shape[1]):
             for dd in range(basis.nvars()):
-                index = bkd._la_copy(indices[:, ii : ii + 1])
+                index = bkd.copy(indices[:, ii : ii + 1])
                 # evaluate basis that has constant in direction of derivative
-                index = bkd._la_up(index, dd, 0)
+                index = bkd.up(index, dd, 0)
                 basis.set_indices(index)
-                deriv_dd = derivs[indices[dd, ii], dd, :] * bkd._la_prod(
+                deriv_dd = derivs[indices[dd, ii], dd, :] * bkd.prod(
                     basis(samples), axis=1
                 )
-                assert bkd._la_allclose(deriv_dd, jac[:, ii, dd])
+                assert bkd.allclose(deriv_dd, jac[:, ii, dd])
 
     def test_monomial_jacobian(self):
         test_cases = [[1, 4], [2, 4], [3, 4]]
@@ -98,36 +99,36 @@ class TestBasis:
         basis.set_tensor_product_indices([nterms_1d] * nvars)
         basisexp = MonomialExpansion(basis, solver=solver, nqoi=nqoi)
         ntrain_samples = 2 * basis.nterms()
-        train_samples = bkd._la_cos(
-            bkd._la_array(np.random.uniform(0, np.pi, (nvars, ntrain_samples)))
+        train_samples = bkd.cos(
+            bkd.array(np.random.uniform(0, np.pi, (nvars, ntrain_samples)))
         )
 
         # Attempt to recover coefficients of additive function
         def fun(samples):
-            values = bkd._la_sum(samples**2 + samples, axis=0)[:, None] + 1.0
+            values = bkd.sum(samples**2 + samples, axis=0)[:, None] + 1.0
             # Create 2 QoI
-            return bkd._la_hstack([(ii + 1) * values for ii in range(nqoi)])
+            return bkd.hstack([(ii + 1) * values for ii in range(nqoi)])
 
         train_values = fun(train_samples)
         basisexp.fit(train_samples, train_values)
         coef = basisexp.get_coefficients()
-        nonzero_indices = bkd._la_hstack(
+        nonzero_indices = bkd.hstack(
             (
-                bkd._la_where(
-                    bkd._la_count_nonzero(basis._indices, axis=0) == 0
+                bkd.where(
+                    bkd.count_nonzero(basis._indices, axis=0) == 0
                 )[0],
-                bkd._la_where(
-                    bkd._la_count_nonzero(basis._indices, axis=0) == 1
+                bkd.where(
+                    bkd.count_nonzero(basis._indices, axis=0) == 1
                 )[0],
             )
         )
-        true_coef = bkd._la_full((basis.nterms(), basisexp.nqoi()), 0)
+        true_coef = bkd.full((basis.nterms(), basisexp.nqoi()), 0)
         for ii in range(nqoi):
             # true_coef[nonzero_indices, ii] = ii+1
-            true_coef = bkd._la_up(true_coef, (nonzero_indices, ii), ii + 1)
-        assert bkd._la_allclose(coef, true_coef)
-        samples = bkd._la_atleast2d(np.random.uniform(-1, 1, (nvars, 1000)))
-        assert bkd._la_allclose(basisexp(samples), fun(samples))
+            true_coef = bkd.up(true_coef, (nonzero_indices, ii), ii + 1)
+        assert bkd.allclose(coef, true_coef)
+        samples = bkd.atleast2d(np.random.uniform(-1, 1, (nvars, 1000)))
+        assert bkd.allclose(basisexp(samples), fun(samples))
 
     def test_fit_monomial_expansion(self):
         bkd = self.get_backend()
@@ -145,34 +146,39 @@ class TestBasis:
     def test_orthonormal_polynomial_basis(self):
         bkd = self.get_backend()
         nvars, degree = 2, 2
-        bases_1d = [LegendrePolynomial1D(backend=bkd) for ii in range(nvars)]
+        trans = AffineMarginalTransform(
+            stats.uniform(-1, 2), enforce_bounds=True, backend=bkd)
+        bases_1d = [
+            LegendrePolynomial1D(trans=trans, backend=bkd)
+            for ii in range(nvars)
+        ]
         basis = OrthonormalPolynomialBasis(bases_1d)
         basis = OrthonormalPolynomialBasis(bases_1d)
         basis.set_indices(
-            bkd._la_array([[0, 0], [1, 0], [0, 1], [2, 0], [1, 1], [0, 2]]).T
+            bkd.array([[0, 0], [1, 0], [0, 1], [2, 0], [1, 1], [0, 2]]).T
         )
-        samples = bkd._la_array(np.random.uniform(-1, 1, (nvars, 101)))
+        samples = bkd.array(np.random.uniform(-1, 1, (nvars, 101)))
         basis_mat = basis(samples)
         exact_basis_vals_1d = []
         exact_basis_derivs_1d = []
         for dd in range(nvars):
             x = samples[dd, :]
             exact_basis_vals_1d.append(
-                bkd._la_stack(
+                bkd.stack(
                     [1 + 0.0 * x, x, 0.5 * (3.0 * x**2 - 1)], axis=0
                 ).T
             )
             exact_basis_derivs_1d.append(
-                bkd._la_stack([0.0 * x, 1.0 + 0.0 * x, 3.0 * x], axis=0).T
+                bkd.stack([0.0 * x, 1.0 + 0.0 * x, 3.0 * x], axis=0).T
             )
-            exact_basis_vals_1d[-1] /= bkd._la_sqrt(
-                1.0 / (2 * bkd._la_arange(degree + 1) + 1)
+            exact_basis_vals_1d[-1] /= bkd.sqrt(
+                1.0 / (2 * bkd.arange(degree + 1) + 1)
             )
-            exact_basis_derivs_1d[-1] /= bkd._la_sqrt(
-                1.0 / (2 * bkd._la_arange(degree + 1) + 1)
+            exact_basis_derivs_1d[-1] /= bkd.sqrt(
+                1.0 / (2 * bkd.arange(degree + 1) + 1)
             )
 
-        exact_basis_mat = bkd._la_stack(
+        exact_basis_mat = bkd.stack(
             [
                 exact_basis_vals_1d[0][:, 0],
                 exact_basis_vals_1d[0][:, 1],
@@ -184,28 +190,28 @@ class TestBasis:
             axis=0,
         ).T
 
-        assert bkd._la_allclose(basis_mat, exact_basis_mat)
+        assert bkd.allclose(basis_mat, exact_basis_mat)
 
     def _check_multiply_expansion(self, bexp1, bexp2, nqoi):
         bkd = self.get_backend()
-        coef1 = bkd._la_arange(bexp1.nterms() * nqoi, dtype=float).reshape(
+        coef1 = bkd.arange(bexp1.nterms() * nqoi, dtype=float).reshape(
             (bexp1.nterms(), nqoi)
         )
-        coef2 = bkd._la_arange(bexp2.nterms() * nqoi, dtype=float).reshape(
+        coef2 = bkd.arange(bexp2.nterms() * nqoi, dtype=float).reshape(
             (bexp2.nterms(), nqoi)
         )
         bexp1.set_coefficients(coef1)
         bexp2.set_coefficients(coef2)
 
         bexp3 = bexp1 * bexp2
-        samples = bkd._la_array(np.random.uniform(-1, 1, (bexp1.nvars(), 101)))
-        assert bkd._la_allclose(
+        samples = bkd.array(np.random.uniform(-1, 1, (bexp1.nvars(), 101)))
+        assert bkd.allclose(
             bexp3(samples), bexp1(samples) * bexp2(samples)
         )
 
         for order in range(4):
             bexp = bexp1**order
-            assert bkd._la_allclose(bexp(samples), bexp1(samples) ** order)
+            assert bkd.allclose(bexp(samples), bexp1(samples) ** order)
 
     def _check_multiply_monomial_expansion(self, nvars, nterms_1d, nqoi):
         bkd = self.get_backend()
@@ -228,7 +234,12 @@ class TestBasis:
 
     def _check_multiply_pce(self, nvars, nterms_1d, nqoi):
         bkd = self.get_backend()
-        polys_1d = [LegendrePolynomial1D(backend=bkd) for ii in range(nvars)]
+        trans = AffineMarginalTransform(
+            stats.uniform(-1, 2), enforce_bounds=True, backend=bkd)
+        polys_1d = [
+            LegendrePolynomial1D(trans=trans, backend=bkd)
+            for ii in range(nvars)
+        ]
         basis1 = OrthonormalPolynomialBasis(polys_1d)
         basis1.set_tensor_product_indices([nterms_1d]*nvars)
         basis2 = OrthonormalPolynomialBasis(polys_1d)
@@ -244,30 +255,35 @@ class TestBasis:
 
     def _check_add_expansion(self, bexp1, bexp2, nqoi):
         bkd = self.get_backend()
-        coef1 = bkd._la_arange(bexp1.nterms() * nqoi, dtype=float).reshape(
+        coef1 = bkd.arange(bexp1.nterms() * nqoi, dtype=float).reshape(
             (bexp1.nterms(), nqoi)
         )
-        coef2 = bkd._la_arange(bexp2.nterms() * nqoi, dtype=float).reshape(
+        coef2 = bkd.arange(bexp2.nterms() * nqoi, dtype=float).reshape(
             (bexp2.nterms(), nqoi)
         )
         bexp1.set_coefficients(coef1)
         bexp2.set_coefficients(coef2)
 
         bexp3 = bexp1 + bexp2
-        samples = bkd._la_array(np.random.uniform(-1, 1, (bexp1.nvars(), 101)))
-        assert bkd._la_allclose(
+        samples = bkd.array(np.random.uniform(-1, 1, (bexp1.nvars(), 101)))
+        assert bkd.allclose(
             bexp3(samples), bexp1(samples) + bexp2(samples)
         )
 
         bexp4 = 2*bexp1 - bexp2*3 + 1
-        samples = bkd._la_array(np.random.uniform(-1, 1, (bexp1.nvars(), 101)))
-        assert bkd._la_allclose(
+        samples = bkd.array(np.random.uniform(-1, 1, (bexp1.nvars(), 101)))
+        assert bkd.allclose(
             bexp4(samples), 2*bexp1(samples) - bexp2(samples)*3 + 1
         )
 
     def _check_add_pce(self, nvars, nterms_1d, nqoi):
         bkd = self.get_backend()
-        polys_1d = [LegendrePolynomial1D(backend=bkd) for ii in range(nvars)]
+        trans = AffineMarginalTransform(
+            stats.uniform(-1, 2), enforce_bounds=True, backend=bkd)
+        polys_1d = [
+            LegendrePolynomial1D(trans=trans, backend=bkd)
+            for ii in range(nvars)
+        ]
         basis1 = OrthonormalPolynomialBasis(polys_1d)
         basis1.set_tensor_product_indices([nterms_1d]*nvars)
         basis2 = OrthonormalPolynomialBasis(polys_1d)
@@ -284,35 +300,40 @@ class TestBasis:
     def test_marginalize_pce(self):
         nvars, nqoi, nterms_1d = 4, 2, 3
         bkd = self.get_backend()
-        polys_1d = [LegendrePolynomial1D(backend=bkd) for ii in range(nvars)]
+        trans = AffineMarginalTransform(
+            stats.uniform(-1, 2), enforce_bounds=True, backend=bkd)
+        polys_1d = [
+            LegendrePolynomial1D(trans=trans, backend=bkd)
+            for ii in range(nvars)
+        ]
         basis = OrthonormalPolynomialBasis(polys_1d)
         basis.set_tensor_product_indices([nterms_1d]*nvars)
         pce = PolynomialChaosExpansion(basis, solver=None, nqoi=nqoi)
-        coef = bkd._la_arange(pce.nterms() * nqoi).reshape(
+        coef = bkd.arange(pce.nterms() * nqoi).reshape(
             (pce.nterms(), nqoi)
         )
         pce.set_coefficients(coef)
-        inactive_idx = bkd._la_arange(nvars, dtype=int)[::2]
+        inactive_idx = bkd.arange(nvars, dtype=int)[::2]
         mpce = pce.marginalize(inactive_idx)
         assert mpce.nterms() == (nterms_1d) ** (nvars - len(inactive_idx)) - 1
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             sort_indices_lexiographically(mpce.basis.get_indices()),
             # delete first index which corresponds to constant term
             sort_indices_lexiographically(
-                bkd._la_cartesian_product(
-                    [bkd._la_arange(nterms_1d, dtype=int)] * mpce.nvars()
+                bkd.cartesian_product(
+                    [bkd.arange(nterms_1d, dtype=int)] * mpce.nvars()
                 )
             )[:, 1:],
         )
-        indices = bkd._la_all(
+        indices = bkd.all(
             pce.basis.get_indices()[inactive_idx] == 0, axis=0
         )
         # delete first index which corresponds to constant term
-        # indices[bkd._la_all(pce.basis.get_indices() == 0, axis=0)] = False
-        indices = bkd._la_up(
-            indices, bkd._la_all(pce.basis.get_indices() == 0, axis=0), False
+        # indices[bkd.all(pce.basis.get_indices() == 0, axis=0)] = False
+        indices = bkd.up(
+            indices, bkd.all(pce.basis.get_indices() == 0, axis=0), False
         )
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             mpce.get_coefficients(), pce.get_coefficients()[indices]
         )
 
@@ -332,21 +353,21 @@ class TestBasis:
         basis = TensorProductInterpolatingBasis(bases_1d)
         interp = TensorProductInterpolant(basis)
         basis.set_1d_nodes(
-            [bkd._la_linspace(0, 1, N)[None, :] for N in nnodes_1d])
+            [bkd.linspace(0, 1, N)[None, :] for N in nnodes_1d])
 
         def fun(samples):
             # when nnodes_1d is zero to test interpolation make sure
             # function is constant in that direction
-            return bkd._la_sum(samples[nnodes_1d > 1]**3, axis=0)[:, None]
+            return bkd.sum(samples[nnodes_1d > 1]**3, axis=0)[:, None]
 
         train_samples = basis.tensor_product_grid()
         train_values = fun(train_samples)
         interp.fit(train_values)
 
-        test_samples = bkd._la_asarray(np.random.uniform(0, 1, (nvars, 5)))
+        test_samples = bkd.asarray(np.random.uniform(0, 1, (nvars, 5)))
         approx_values = interp(test_samples)
         test_values = fun(test_samples)
-        assert bkd._la_allclose(test_values, approx_values, atol=atol)
+        assert bkd.allclose(test_values, approx_values, atol=atol)
 
     def test_tensor_product_interpolation(self):
         test_cases = [
@@ -371,7 +392,7 @@ class TestBasis:
         bounds = [-1, 1]
 
         def fun(degree, xx):
-            return bkd._la_sum(xx**degree, axis=0)[:, None]
+            return bkd.sum(xx**degree, axis=0)[:, None]
 
         def integral(nvars, degree):
             if degree == 1:
@@ -390,7 +411,7 @@ class TestBasis:
             for ii in range(nvars)
         ]
         nodes_1d = [
-            bkd._la_linspace(*bounds, nnodes)[None, :] for ii in range(nvars)
+            bkd.linspace(*bounds, nnodes)[None, :] for ii in range(nvars)
         ]
         interp_basis = TensorProductInterpolatingBasis(bases_1d)
         interp_basis.set_1d_nodes(nodes_1d)
@@ -435,29 +456,29 @@ class TestBasis:
 
         def fun(sample):
             return (
-                bkd._la_sum(sample**2, axis=0) +
-                bkd._la_prod(sample, axis=0)
+                bkd.sum(sample**2, axis=0) +
+                bkd.prod(sample, axis=0)
             )[:, None]
 
         def jac(sample):
-            return 2*sample.T+bkd._la_flip(sample).T
+            return 2*sample.T+bkd.flip(sample).T
 
         def hess(sample):
-            return bkd._la_array([[2., 1.], [1., 2.]])
+            return bkd.array([[2., 1.], [1., 2.]])
 
         train_samples = variable.rvs(ntrain_samples)
         train_values = fun(train_samples)
         bexp.fit(train_samples, train_values)
         ntest_samples = 10
         test_samples = variable.rvs(ntest_samples)
-        assert bkd._la_allclose(fun(test_samples), bexp(test_samples))
+        assert bkd.allclose(fun(test_samples), bexp(test_samples))
 
-        test_samples = bkd._la_array([[1, 1]]).T
-        assert bkd._la_allclose(
+        test_samples = bkd.array([[1, 1]]).T
+        assert bkd.allclose(
             jac(test_samples[:, :1]),
             bexp.jacobian(test_samples[:, :1])[0]
         )
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             hess(test_samples[:, :1]),
             bexp.hessian(test_samples[:, :1])[0, ..., 0]
         )
@@ -473,7 +494,7 @@ class TestBasis:
         )
         fun = MonomialExpansion(monomial_basis, nqoi=nqoi)
         fun.set_coefficients(
-            bkd._la_array(np.random.normal(0, 1, (fun.nterms(), nqoi)))
+            bkd.array(np.random.normal(0, 1, (fun.nterms(), nqoi)))
         )
 
         train_samples = variable.rvs(ntrain_samples)
@@ -483,11 +504,11 @@ class TestBasis:
         )
         bexp.fit(train_samples, train_values)
 
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             fun.jacobian(test_samples[:, :1]),
             bexp.jacobian(test_samples[:, :1])
         )
-        assert bkd._la_allclose(
+        assert bkd.allclose(
             fun.hessian(test_samples[:, :1]),
             bexp.hessian(test_samples[:, :1])
         )
@@ -517,8 +538,8 @@ class TestBasis:
 
         def fun(sample):
             return (
-                bkd._la_sum(sample**2, axis=0) +
-                bkd._la_prod(sample, axis=0)
+                bkd.sum(sample**2, axis=0) +
+                bkd.prod(sample, axis=0)
             )[:, None]
 
         ntrain_samples = 20
@@ -527,7 +548,7 @@ class TestBasis:
         bexp.fit(train_samples, train_values)
         ntest_samples = 10
         test_samples = variable.rvs(ntest_samples)
-        assert bkd._la_allclose(fun(test_samples), bexp(test_samples))
+        assert bkd.allclose(fun(test_samples), bexp(test_samples))
 
         # compute integral exactly with sympy
         x, y = sp.Symbol('x'), sp.Symbol('y')
@@ -566,24 +587,24 @@ class TestBasis:
         nqoi = 3
         pce = PolynomialChaosExpansion(basis, solver=None, nqoi=nqoi)
         pce.set_coefficients(
-            bkd._la_array(np.random.normal(0, 1, (pce.nterms(), nqoi)))
+            bkd.array(np.random.normal(0, 1, (pce.nterms(), nqoi)))
         )
 
         mon = pce.to_monomial_expansion()
 
         ntrain_samples = 10
         test_samples = variable.rvs(ntrain_samples)
-        assert bkd._la_allclose(mon(test_samples), pce(test_samples))
+        assert bkd.allclose(mon(test_samples), pce(test_samples))
 
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin()
+        return NumpyLinAlgMixin
 
 
 class TestTorchBasis(TestBasis, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin()
+        return TorchLinAlgMixin
 
 
 class TestJaxBasis(TestBasis, unittest.TestCase):
@@ -593,7 +614,7 @@ class TestJaxBasis(TestBasis, unittest.TestCase):
         TestBasis.setUp(self)
 
     def get_backend(self):
-        return JaxLinAlgMixin()
+        return JaxLinAlgMixin
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@ class BasisExpansion(Regressor):
         self.set_basis(basis, coef_bounds)
         if (
                 solver is not None
-                and not isinstance(basis._bkd, type(solver._bkd))
+                and not basis._bkd.bkd_equal(solver._bkd, basis._bkd)
         ):
             raise ValueError("Basis and solver must have the same backend.")
         self._jacobian_implemented = basis._jacobian_implemented
@@ -42,7 +42,7 @@ class BasisExpansion(Regressor):
     def set_basis(self, basis, coef_bounds=None):
         self.basis = basis
         self._bkd = self.basis._bkd
-        init_coef = self._bkd._la_full((self.basis.nterms()*self.nqoi(), ), 0.)
+        init_coef = self._bkd.full((self.basis.nterms()*self.nqoi(), ), 0.)
         self._transform = IdentityHyperParameterTransform(backend=self._bkd)
         self._coef = HyperParameter(
             "coef", self.basis.nterms()*self._nqoi, init_coef,
@@ -51,7 +51,7 @@ class BasisExpansion(Regressor):
 
     def _parse_coef_bounds(self, coef_bounds):
         if coef_bounds is None:
-            return [-self._bkd._la_inf(), self._bkd._la_inf()]
+            return [-self._bkd.inf(), self._bkd.inf()]
         return coef_bounds
 
     def nqoi(self):
@@ -114,7 +114,7 @@ class BasisExpansion(Regressor):
         return self.basis(samples) @ self.get_coefficients()
 
     def _jacobian(self, samples):
-        return self._bkd._la_einsum(
+        return self._bkd.einsum(
             "ijk, jl->ikl",
             self.basis.jacobian(samples),
             self.get_coefficients()
@@ -124,7 +124,7 @@ class BasisExpansion(Regressor):
         hess = self.basis.hessian(samples)
         # hess shape is (nsamples, nterms, nvars, nvars)
         # coef shape is (nterms, nqoi)
-        return self._bkd._la_einsum(
+        return self._bkd.einsum(
              "ijkl, jm->iklm", hess, self.get_coefficients()
         )
 
@@ -161,11 +161,11 @@ class MonomialExpansion(BasisExpansion):
         if coeffs.ndim == 1:
             coeffs = coeffs[:, None]
 
-        unique_indices, repeated_idx = self._bkd_la_unique(
+        unique_indices, repeated_idx = self._bk.unique(
             indices, axis=1, return_inverse=True)
 
         nunique_indices = unique_indices.shape[1]
-        unique_coeff = self._bkd._la_full(
+        unique_coeff = self._bkd.full(
             (nunique_indices, coeffs.shape[1]), 0.)
         for ii in range(repeated_idx.shape[0]):
             unique_coeff[repeated_idx[ii]] += coeffs[ii]
@@ -213,8 +213,8 @@ class MonomialExpansion(BasisExpansion):
         """
         num_polynomials = len(indices_list)
         assert num_polynomials == len(coeffs_list)
-        all_coeffs = self._bkd._la_vstack(coeffs_list)
-        all_indices = self._bkd._la_hstack(indices_list)
+        all_coeffs = self._bkd.vstack(coeffs_list)
+        all_indices = self._bkd.hstack(indices_list)
         return self._group_like_terms(all_coeffs, all_indices)
 
     def _signed_add(self, other, other_sign):
@@ -277,8 +277,8 @@ class MonomialExpansion(BasisExpansion):
                     indices.append(index)
                     coefs.append(coef)
                     kk += 1
-        indices = self._bkd._la_stack(indices, axis=1)
-        coefs = self._bkd._la_stack(coefs, axis=0)
+        indices = self._bkd.stack(indices, axis=1)
+        coefs = self._bkd.stack(coefs, axis=0)
         return indices, coefs
 
     def _mul_constant(self, other):
@@ -315,9 +315,9 @@ class MonomialExpansion(BasisExpansion):
         poly = copy.deepcopy(self)
         if order == 0:
             poly.basis.set_indices(
-                self._bkd._la_full([self.nvars(), 1], 0., dtype=int))
+                self._bkd.full([self.nvars(), 1], 0., dtype=int))
             poly.set_coefficients(
-                self._bkd._la_full([1, self.nqoi()], 1.))
+                self._bkd.full([1, self.nqoi()], 1.))
             return poly
 
         poly = copy.deepcopy(self)
@@ -326,8 +326,8 @@ class MonomialExpansion(BasisExpansion):
         return poly
 
     def _constant_basis_coefficient_idx(self):
-        return self._bkd._la_where(
-            ~self._bkd._la_any(self.basis.get_indices(), axis=0)
+        return self._bkd.where(
+            ~self._bkd.any(self.basis.get_indices(), axis=0)
         )[0]
 
 
@@ -362,7 +362,7 @@ class PolynomialChaosExpansion(MonomialExpansion):
             The variance of each quantitity of interest
         """
         coefs = self.get_coefficients()
-        return self._bkd._la_sum(coefs**2, axis=0) - self.mean()**2
+        return self._bkd.sum(coefs**2, axis=0) - self.mean()**2
 
     def covariance(self):
         """
@@ -417,8 +417,8 @@ class PolynomialChaosExpansion(MonomialExpansion):
             poly2 = self
         poly1 = copy.deepcopy(poly1)
         poly2 = copy.deepcopy(poly2)
-        max_degrees1 = self._bkd._la_max(poly1.basis.get_indices(), axis=1)
-        max_degrees2 = self._bkd._la_max(poly2.basis.get_indices(), axis=1)
+        max_degrees1 = self._bkd.max(poly1.basis.get_indices(), axis=1)
+        max_degrees2 = self._bkd.max(poly2.basis.get_indices(), axis=1)
         product_coefs_1d = self._compute_product_coeffs_1d(
             poly1, max_degrees1, max_degrees2)
 
@@ -435,32 +435,32 @@ class PolynomialChaosExpansion(MonomialExpansion):
         return poly
 
     def marginalize(self, inactive_idx, center=True):
-        inactive_idx = self._bkd._la_array(inactive_idx, dtype=int)
+        inactive_idx = self._bkd.array(inactive_idx, dtype=int)
         if self.basis.get_indices() is None:
             raise ValueError("PCE cannot be marginalizd as no indices are set")
         if self.get_coefficients() is None:
             raise ValueError(
                 "PCE cannot be marginalizd as no coeffocients are set")
-        active_idx = self._bkd._la_array(
+        active_idx = self._bkd.array(
             np.setdiff1d(np.arange(self.nvars()),
-                         self._bkd._la_to_numpy(inactive_idx)), dtype=int)
+                         self._bkd.to_numpy(inactive_idx)), dtype=int)
         marginalized_polys_1d = [
             copy.deepcopy(self.basis._bases_1d[ii]) for ii in active_idx]
         marginalized_basis = OrthonormalPolynomialBasis(marginalized_polys_1d)
         marginalized_array_indices = []
         for ii, index in enumerate(self.basis.get_indices().T):
-            if ((self._bkd._la_sum(index) == 0 and center is False) or
-                    self._bkd._la_any(index[active_idx]) and
-                    (not self._bkd._la_any(index[inactive_idx] > 0))):
+            if ((self._bkd.sum(index) == 0 and center is False) or
+                    self._bkd.any(index[active_idx]) and
+                    (not self._bkd.any(index[inactive_idx] > 0))):
                 marginalized_array_indices.append(ii)
         marginalized_basis.set_indices(
             self.basis.get_indices()[
-                np.ix_(self._bkd._la_to_numpy(active_idx),
+                np.ix_(self._bkd.to_numpy(active_idx),
                        np.array(marginalized_array_indices))])
         marginalized_pce = PolynomialChaosExpansion(
             marginalized_basis, solver=self._solver, nqoi=self.nqoi())
         marginalized_pce.set_coefficients(
-            self._bkd._la_copy(
+            self._bkd.copy(
                 self.get_coefficients()[marginalized_array_indices, :]))
         return marginalized_pce
 
@@ -469,9 +469,12 @@ class PolynomialChaosExpansion(MonomialExpansion):
             raise NotImplementedError("Only supported for nvars==1")
 
         basis = MultiIndexBasis([Monomial1D(backend=self._bkd)])
-        basis.set_indices(self._bkd._la_arange(self.nterms())[None, :])
-        basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
-            self.basis._bases_1d[0]._rcoefs, self.nterms()-1, bkd=self._bkd
+        basis.set_indices(self._bkd.arange(self.nterms())[None, :])
+        basis_mono_coefs = self._bkd.array(
+            convert_orthonormal_polynomials_to_monomials_1d(
+                self._bkd.to_numpy(self.basis._bases_1d[0]._rcoefs),
+                self.nterms()-1,
+            )
         )
         mono_coefs = basis_mono_coefs.T @ self.get_coefficients()
         mono_coefs = shift_momomial_expansion(

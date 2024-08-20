@@ -52,14 +52,14 @@ class ExactGaussianProcess(Model):
         # kmat[np.diag_indices_from(kmat)] += self.kernel_reg
         # This also does not work
         # kmat += diag(full((kmat.shape[0], 1), float(self.kernel_reg)))
-        kmat = kmat + self._bkd._la_eye(kmat.shape[0])*float(self.kernel_reg)
+        kmat = kmat + self._bkd.eye(kmat.shape[0])*float(self.kernel_reg)
         return kmat
 
     def _factor_training_kernel_matrix(self):
         # can be specialized
         kmat = self._training_kernel_matrix()
         try:
-            return (self._bkd._la_cholesky(kmat), )
+            return (self._bkd.cholesky(kmat), )
         except:
             return None, kmat
 
@@ -67,28 +67,28 @@ class ExactGaussianProcess(Model):
         # can be specialized when _factor_training_kernel_matrix is specialized
         diff = (self.canonical_train_values -
                 self._canonical_trend(self.canonical_train_samples))
-        return self._bkd._la_cholesky_solve(args[0], diff)
+        return self._bkd.cholesky_solve(args[0], diff)
 
     def _Linv_y(self, *args):
         diff = (self.canonical_train_values -
                 self._canonical_trend(self.canonical_train_samples))
-        return self._bkd._la_solve_triangular(args[0], diff)
+        return self._bkd.solve_triangular(args[0], diff)
 
     def _log_determinant(self, coef_res: Tuple) -> float:
         # can be specialized when _factor_training_kernel_matrix is specialized
         chol_factor = coef_res[0]
-        return 2*self._bkd._la_log(self._bkd._la_get_diagonal(chol_factor)).sum()
+        return 2*self._bkd.log(self._bkd.get_diagonal(chol_factor)).sum()
 
     def _canonical_posterior_pointwise_variance(
             self, canonical_samples, kmat_pred):
         # can be specialized when _factor_training_kernel_matrix is specialized
-        tmp = self._bkd._la_solve_triangular(self._coef_args[0], kmat_pred.T)
-        update = self._bkd._la_einsum("ji,ji->i", tmp, tmp)
+        tmp = self._bkd.solve_triangular(self._coef_args[0], kmat_pred.T)
+        update = self._bkd.einsum("ji,ji->i", tmp, tmp)
         return (self.kernel.diag(canonical_samples) - update)[:, None]
 
     def _canonical_trend(self, canonical_samples):
         if self.trend is None:
-            return self._bkd._la_full((canonical_samples.shape[1], 1), 0.)
+            return self._bkd.full((canonical_samples.shape[1], 1), 0.)
         return self.trend(canonical_samples)
 
     def _neg_log_likelihood_with_hyperparameter_trend(self) -> float:
@@ -100,7 +100,7 @@ class ExactGaussianProcess(Model):
         Linv_y = self._Linv_y(*coef_args)
         nsamples = self.canonical_train_values.shape[0]
         return 0.5 * (
-            self._bkd._la_multidot((Linv_y.T, Linv_y)) +
+            self._bkd.multidot((Linv_y.T, Linv_y)) +
             self._log_determinant(coef_args) +
             nsamples*np.log(2*np.pi)
         ).sum(axis=1)
@@ -127,14 +127,14 @@ class ExactGaussianProcess(Model):
         # return self._neg_log_likelihood_with_uncertain_trend()
 
     def _fit_objective(self, active_opt_params_np):
-        val, grad = self._bkd._la_grad(
-            self._neg_log_likelihood, self._bkd._la_array(active_opt_params_np)
+        val, grad = self._bkd.grad(
+            self._neg_log_likelihood, self._bkd.array(active_opt_params_np)
         )
         for hyp in self.hyp_list.hyper_params:
-            self._bkd._la_detach(hyp)
+            self._bkd.detach(hyp)
         return (
-            self._bkd._la_to_numpy(self._bkd._la_detach(val)),
-            self._bkd._la_to_numpy(self._bkd._la_detach(grad))
+            self._bkd.to_numpy(self._bkd.detach(val)),
+            self._bkd.to_numpy(self._bkd.detach(grad))
         )
 
     def _local_optimize(self, init_active_opt_params_np, bounds):
@@ -148,7 +148,7 @@ class ExactGaussianProcess(Model):
         return np.random.uniform(bounds[:, 0], bounds[:, 1])
 
     def _global_optimize(self, max_nglobal_opt_iters=1):
-        bounds = self._bkd._la_to_numpy(self.hyp_list.get_active_opt_bounds())
+        bounds = self._bkd.to_numpy(self.hyp_list.get_active_opt_bounds())
         if len(bounds) == 0:
             return
         results = []
@@ -167,7 +167,7 @@ class ExactGaussianProcess(Model):
                 best_idx = ii
                 best_obj = results[-1].fun
         self.hyp_list.set_active_opt_params(
-            self._bkd._la_atleast1d(results[best_idx].x))
+            self._bkd.atleast1d(results[best_idx].x))
 
     def set_training_data(self, train_samples, train_values):
         self.train_samples = train_samples
@@ -187,7 +187,7 @@ class ExactGaussianProcess(Model):
         if not return_std:
             return trend
         return trend, self.values_trans.map_stdev_from_canonical(
-            self._bkd._la_sqrt(self.kernel.diag(samples)))
+            self._bkd.sqrt(self.kernel.diag(samples)))
 
     def _map_samples_to_canonical(self, samples):
         return self.var_trans.map_to_canonical(samples)
@@ -203,7 +203,7 @@ class ExactGaussianProcess(Model):
         kmat_pred = self.kernel(
             canonical_samples, self.canonical_train_samples)
         canonical_trend = (self._canonical_trend(canonical_samples) +
-                           self._bkd._la_multidot((kmat_pred, self._coef)))
+                           self._bkd.multidot((kmat_pred, self._coef)))
         trend = self.values_trans.map_from_canonical(canonical_trend)
         if not return_std:
             return trend
@@ -292,7 +292,7 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         self.train_values = train_values
         self.canonical_train_samples = [
             s for s in self._map_samples_to_canonical(train_samples)]
-        self.canonical_train_values = self._bkd._la_vstack(
+        self.canonical_train_values = self._bkd.vstack(
             [self.values_trans.map_to_canonical(v) for v in train_values])
 
     def _map_samples_to_canonical(self, samples):
@@ -301,7 +301,7 @@ class MOExactGaussianProcess(ExactGaussianProcess):
     def _canonical_trend(self, canonical_samples):
         if self.trend is not None:
             raise ValueError("Non-zero trend not supported for mulitoutput")
-        return self._bkd._la_full(
+        return self._bkd.full(
             (sum([s.shape[1] for s in canonical_samples]), 1), 0.)
 
     def plot_1d(self, ax, bounds, output_id, npts_1d=101, nstdevs=2,
@@ -353,7 +353,7 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
         for ii in range(len(blocks)):
             blocks[ii][ii] = (
                 blocks[ii][ii] +
-                self._bkd._la_eye(blocks[ii][ii].shape[0])*float(self.kernel_reg))
+                self._bkd.eye(blocks[ii][ii].shape[0])*float(self.kernel_reg))
         return blocks
 
     def _factor_training_kernel_matrix(self):
@@ -376,7 +376,7 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
         # can be specialized when _factor_training_kernel_matrix is specialized
         tmp = MultiPeerKernel._lower_solve_triangular(
             *self._coef_args, kmat_pred.T, self._bkd)
-        update = self._bkd._la_einsum("ji,ji->i", tmp, tmp)
+        update = self._bkd.einsum("ji,ji->i", tmp, tmp)
         return (self.kernel.diag(canonical_samples) - update)[:, None]
 
 
