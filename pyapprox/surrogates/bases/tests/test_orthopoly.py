@@ -6,7 +6,6 @@ import scipy.special as sp
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     evaluate_three_term_recurrence_polynomial_1d,
     convert_orthonormal_polynomials_to_monomials_1d,
-    convert_orthonormal_expansion_to_monomial_expansion_1d,
 )
 from pyapprox.variables.marginals import float_rv_discrete
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -54,7 +53,6 @@ class TestOrthonormalPolynomials1D:
         exact_moments[0] = 1.0
         assert bkd._la_allclose(vals.T @ quad_w, exact_moments)
         # test orthonormality
-        print((vals.T * quad_w[:, 0]) @ vals, bkd._la_eye(degree + 1))
         assert bkd._la_allclose(
             (vals.T * quad_w[:, 0]) @ vals, bkd._la_eye(degree + 1)
         )
@@ -427,30 +425,6 @@ class TestOrthonormalPolynomials1D:
             mono_basis_matrix, ortho_basis_matrix @ basis_ortho_coefs.T
         )
 
-    def test_convert_orthonormal_expansion_to_monomial_expansion_1d(self):
-        """
-        Approximate function
-        f1 = lambda x: ((x-mu)/sigma)**3 using hermite polynomials tailored for
-        normal random variable with mean mu and variance sigma**2
-
-        The function defined on canonical domain of the hermite polynomials,
-        i.e. normal with mean zero and unit variance, is
-        f2 = lambda x: x.T**3
-        """
-        bkd = self.get_backend()
-        degree = 4
-        mu, sigma = 1, 2
-        ortho_coef = bkd._la_array([0, 3, 0, np.sqrt(6)])
-        poly = HermitePolynomial1D(backend=bkd)
-        poly.set_nterms(degree + 1)
-        mono_coefs = convert_orthonormal_expansion_to_monomial_expansion_1d(
-            ortho_coef, poly._rcoefs, mu, sigma, bkd=bkd
-        )
-        true_mono_coefs = (
-            bkd._la_array([-(mu**3), 3 * mu**2, -3 * mu, 1]) / sigma**3
-        )
-        assert bkd._la_allclose(mono_coefs, true_mono_coefs)
-
     def test_continuous_numeric_orthonormal_polynomial(self):
         bkd = self.get_backend()
         a = 3
@@ -684,16 +658,15 @@ class TestOrthonormalPolynomials1D:
         # fmt: on
 
         # test distributions that can use ScipyUnivariateIntegrator
-        # for name, shapes in zip(
-        #         continuous_marginal_names, continuous_marginal_shapes
-        # ):
-        #     if name in fat_tail_continuous_marginal_names:
-        #         continue
-        #     marginal = getattr(stats, name)(**shapes)
-        #     poly = setup_univariate_orthogonal_polynomial_from_marginal(
-        #         marginal)
-        #     print(name)
-        #     self._check_orthonormal_poly(poly)
+        for name, shapes in zip(
+                continuous_marginal_names, continuous_marginal_shapes
+        ):
+            if name in fat_tail_continuous_marginal_names:
+                continue
+            marginal = getattr(stats, name)(**shapes)
+            poly = setup_univariate_orthogonal_polynomial_from_marginal(
+                marginal)
+            self._check_orthonormal_poly(poly)
 
         # test fat-tailed distributions that cannot use
         # ScipyUnivariateIntegrator
@@ -702,7 +675,6 @@ class TestOrthonormalPolynomials1D:
         ):
             if name not in fat_tail_continuous_marginal_names:
                 continue
-            print(name)
             marginal = getattr(stats, name)(**shapes)
             quad_rule = ClenshawCurtisQuadratureRule(
                 prob_measure=False, backend=bkd, store=True)

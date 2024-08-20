@@ -548,6 +548,33 @@ class TestBasis:
         assert np.allclose(exact_mean, bexp.mean())
         assert np.allclose(exact_variance, bexp.variance())
 
+    def test_pce_to_monomial(self):
+        bkd = self.get_backend()
+        marginals = [stats.uniform(0, 1)]
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        bases_1d = [
+            setup_univariate_orthogonal_polynomial_from_marginal(
+                marginal, backend=bkd
+            )
+            for marginal in marginals
+        ]
+        nterms_1d = 3
+        basis = OrthonormalPolynomialBasis(bases_1d)
+        basis.set_tensor_product_indices(
+            [nterms_1d]*variable.num_vars()
+        )
+        nqoi = 3
+        pce = PolynomialChaosExpansion(basis, solver=None, nqoi=nqoi)
+        pce.set_coefficients(
+            bkd._la_array(np.random.normal(0, 1, (pce.nterms(), nqoi)))
+        )
+
+        mon = pce.to_monomial_expansion()
+
+        ntrain_samples = 10
+        test_samples = variable.rvs(ntrain_samples)
+        assert bkd._la_allclose(mon(test_samples), pce(test_samples))
+
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):
     def get_backend(self):

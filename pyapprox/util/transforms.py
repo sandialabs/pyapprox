@@ -30,8 +30,11 @@ class IdentityTransform(Transform):
     def map_to_canonical(self, values):
         return values
 
-    def map_stdev_from_canonical(self, canonical_stdevs):
-        return canonical_stdevs
+    def derivatives_from_canonical(self, canonical_derivs, order=1):
+        return canonical_derivs
+
+    def derivatives_to_canonical(self, derivs, order=1):
+        return derivs
 
 
 class StandardDeviationTransform(Transform):

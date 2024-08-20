@@ -27,7 +27,7 @@ from pyapprox.variables.marginals import (
     is_bounded_continuous_variable,
     get_probability_masses,
 )
-from pyapprox.util.transforms import Transform
+from pyapprox.util.transforms import Transform, IdentityTransform
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
@@ -58,12 +58,19 @@ def _evaluate_orthonormal_polynomial_1d(rcoefs, bkd, samples):
 class OrthonormalPolynomial1D(UnivariateBasis):
     def __init__(self, trans, backend):
         super().__init__(trans, backend)
+        if isinstance(self._trans, IdentityTransform):
+            msg = (
+                "No transformation was set. Proceed with caution. "
+                "User is responsible for ensuring samples are in "
+                "canonical domain of the polynomial."
+            )
+            warn(msg, UserWarning)
         self._rcoefs = None
         self._prob_meas = True
 
     def _ncoefs(self):
         if self._rcoefs is None:
-            raise ValueError("recrusion_coefs have not been set")
+            raise ValueError("recursion_coefs have not been set")
         return self._rcoefs.shape[0]
 
     @abstractmethod
@@ -159,30 +166,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
             return result
         return result[:, order * nindices :]
 
-    def gauss_quadrature_rule(self, npoints):
-        r"""Computes Gauss quadrature from recurrence coefficients
-
-        x, w = gauss_quadrature(npoints)
-
-        Computes N Gauss quadrature nodes (x) and weights (w) from
-        standard orthonormal recurrence coefficients.
-
-        Unlike __call__, gauss quadrature rule can be called
-        with npoints <= nterms
-
-        Parameters
-        ----------
-        npoints : integer
-           Then number of quadrature points
-
-        Returns
-        -------
-        x : array (npoints)
-           The quadrature points
-
-        w : array (npoints)
-           The quadrature weights
-        """
+    def _canonical_gauss_quadrature_rule(self, npoints):
         if self._rcoefs is None:
             raise ValueError(
                 "{0}: Must set recursion coefficients".format(self)
@@ -213,6 +197,33 @@ class OrthonormalPolynomial1D(UnivariateBasis):
             w = 1.0 / self._bkd._la_sum(w**2, axis=1)
         # w[~self._bkd._la_isfinite(w)] = 0.
         return x[None, :], w[:, None]
+
+    def gauss_quadrature_rule(self, npoints):
+        r"""Computes Gauss quadrature from recurrence coefficients
+
+        x, w = gauss_quadrature(npoints)
+
+        Computes N Gauss quadrature nodes (x) and weights (w) from
+        standard orthonormal recurrence coefficients.
+
+        Unlike __call__, gauss quadrature rule can be called
+        with npoints <= nterms
+
+        Parameters
+        ----------
+        npoints : integer
+           Then number of quadrature points
+
+        Returns
+        -------
+        x : array (npoints)
+           The quadrature points
+
+        w : array (npoints)
+           The quadrature weights
+        """
+        can_quad_x, can_quad_w = self._canonical_gauss_quadrature_rule(npoints)
+        return self._trans.map_from_canonical(can_quad_x), can_quad_w
 
     def _three_term_recurence(self):
         r"""
@@ -656,7 +667,6 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
         pk[:, None],
         opts.get("otol", 1e-8),
         opts.get("ptol", 1e-8),
-        trans=trans,
         backend=backend
     )
 
@@ -692,6 +702,7 @@ class AffineMarginalTransform(Transform):
         if self._bkd._la_any(user_samples < bounds[0]) or self._bkd._la_any(
             user_samples > bounds[1]
         ):
+            print(user_samples)
             raise ValueError(f"Sample outside the bounds {bounds}")
 
     def map_from_canonical(self, canonical_samples):

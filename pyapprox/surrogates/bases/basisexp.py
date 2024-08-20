@@ -14,6 +14,10 @@ from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions)
 from pyapprox.surrogates.regressor import Regressor
 from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
+    convert_orthonormal_polynomials_to_monomials_1d,
+    shift_momomial_expansion,
+)
 
 
 class BasisExpansion(Regressor):
@@ -282,12 +286,12 @@ class MonomialExpansion(BasisExpansion):
         poly.set_coefficients(self.get_coefficients()*other)
         return poly
 
-    def _mul(self, first, second):
-        if self.nterms() > second.nterms():
-            poly1 = first
-            poly2 = second
+    def _mul(self, other):
+        if self.nterms() > other.nterms():
+            poly1 = self
+            poly2 = other
         else:
-            poly1 = second
+            poly1 = other
             poly2 = self
         indices, coefs = self._multiply_monomials(
             poly1.basis.get_indices(), poly1.get_coefficients(),
@@ -300,12 +304,12 @@ class MonomialExpansion(BasisExpansion):
     def __mul__(self, other):
         if isinstance(other, float) or isinstance(other, int):
             return self._mul_constant(other)
-        return self._mul(self, other)
+        return self._mul(other)
 
     def __rmul__(self, other):
         if isinstance(other, float) or isinstance(other, int):
             return self._mul_constant(other)
-        return self._mul(self, other)
+        return self._mul(other)
 
     def __pow__(self, order):
         poly = copy.deepcopy(self)
@@ -320,12 +324,11 @@ class MonomialExpansion(BasisExpansion):
         for ii in range(2, order+1):
             poly = poly*self
         return poly
-        
+
     def _constant_basis_coefficient_idx(self):
         return self._bkd._la_where(
             ~self._bkd._la_any(self.basis.get_indices(), axis=0)
         )[0]
-
 
 
 class PolynomialChaosExpansion(MonomialExpansion):
@@ -460,6 +463,26 @@ class PolynomialChaosExpansion(MonomialExpansion):
             self._bkd._la_copy(
                 self.get_coefficients()[marginalized_array_indices, :]))
         return marginalized_pce
+
+    def to_monomial_expansion(self):
+        if self.nvars() > 1:
+            raise NotImplementedError("Only supported for nvars==1")
+
+        basis = MultiIndexBasis([Monomial1D(backend=self._bkd)])
+        basis.set_indices(self._bkd._la_arange(self.nterms())[None, :])
+        basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
+            self.basis._bases_1d[0]._rcoefs, self.nterms()-1, bkd=self._bkd
+        )
+        mono_coefs = basis_mono_coefs.T @ self.get_coefficients()
+        mono_coefs = shift_momomial_expansion(
+            mono_coefs,
+            self.basis._bases_1d[0]._trans._loc,
+            self.basis._bases_1d[0]._trans._scale,
+            bkd=self._bkd
+        )
+        mono = MonomialExpansion(basis, nqoi=mono_coefs.shape[1])
+        mono.set_coefficients(mono_coefs)
+        return mono
 
 
 class TensorProductInterpolant:

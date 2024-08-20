@@ -288,13 +288,12 @@ def evaluate_three_term_recurrence_polynomial_1d(
 
 
 def shift_momomial_expansion(coef, shift, scale, bkd=NumpyLinAlgMixin()):
-    assert coef.ndim == 1
-    shifted_coef = bkd._la_zeros(coef.shape[0])
+    shifted_coef = bkd._la_zeros(coef.shape)
     shifted_coef[0] = coef[0]
     nterms = coef.shape[0]
     for ii in range(1, nterms):
         temp = bkd._la_array(
-            np.polynomial.polynomial.polypow([1, -shift], ii))
+            np.polynomial.polynomial.polypow([1, -shift], ii))[:, None]
         shifted_coef[:ii+1] += coef[ii]*bkd._la_flip(temp)/scale**ii
     return shifted_coef
 
