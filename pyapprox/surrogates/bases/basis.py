@@ -92,9 +92,9 @@ class MultiIndexBasis(Basis):
         self._jacobian_implemented = True
         self._hessian_implemented = True
 
-    def set_hyperbolic_indices(self, nterms, pnorm):
+    def set_hyperbolic_indices(self, level, pnorm):
         indices = self._bkd._la_asarray(
-            compute_hyperbolic_indices(self.nvars(), nterms, pnorm),
+            compute_hyperbolic_indices(self.nvars(), level, pnorm),
             dtype=int,
         )
         self.set_indices(indices)

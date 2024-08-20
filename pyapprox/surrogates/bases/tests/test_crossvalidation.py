@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-#vfrom pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+# from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.bases.orthopoly import LegendrePolynomial1D
 from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
@@ -28,7 +28,7 @@ class TestCrossValidation:
     def _check_pce_cv(self, nvars):
         bkd = self.get_backend()
         degree = 2
-        polys_1d = [LegendrePolynomial1D(bkd)] * nvars
+        polys_1d = [LegendrePolynomial1D(backend=bkd) for dd in range(nvars)]
         basis = OrthonormalPolynomialBasis(polys_1d)
         basis.set_indices(
             bkd._la_asarray(compute_hyperbolic_indices(basis.nvars(), degree))
@@ -56,11 +56,9 @@ class TestCrossValidation:
     def _check_pce_cv_search(self, nvars, ntrain_samples):
         bkd = self.get_backend()
         degree = 3
-        polys_1d = [LegendrePolynomial1D(bkd)] * nvars
+        polys_1d = [LegendrePolynomial1D(backend=bkd) for dd in range(nvars)]
         basis = OrthonormalPolynomialBasis(polys_1d)
-        basis.set_indices(
-            bkd._la_asarray(compute_hyperbolic_indices(basis.nvars(), degree))
-        )
+        basis.set_hyperbolic_indices(degree, 1.)
         pce = PolynomialChaosExpansion(
             basis, solver=OMPSolver(backend=bkd, verbosity=2, rtol=0), nqoi=1
         )
@@ -72,10 +70,6 @@ class TestCrossValidation:
             np.random.uniform(-1, 1, (nvars, ntrain_samples))
         )
         train_values = fun(train_samples)
-
-        #pce.fit(train_samples, train_values)
-        #print(pce.get_coefficients())
-        #assert False
 
         kcv = KFoldCrossValidation(train_samples, train_values, pce)
         search1 = PolynomialDegreeIterator([1, 2, 3], [0.1, 1.0])

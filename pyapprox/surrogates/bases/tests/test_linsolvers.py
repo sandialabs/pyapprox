@@ -25,11 +25,9 @@ class TestLinearSolvers:
         assert solver._termination_flag == 1
 
         # Test exit when columns are not independent
-        print("FINDER")
-        solver = OMPSolver(max_nonzeros=np.inf, rtol=0, backend=bkd, verbosity=2)
+        solver = OMPSolver(max_nonzeros=np.inf, rtol=0, backend=bkd)
         Cmat = bkd._la_hstack((Amat, Amat[:, 2:3]))
         omp_coefs = solver.solve(Cmat, Bmat)
-        print(omp_coefs[:-1], coefs)
         assert bkd._la_allclose(omp_coefs[:-1], coefs)
         assert bkd._la_allclose(omp_coefs[-1, 0], bkd._la_zeros(2,))
         assert solver._termination_flag == 2

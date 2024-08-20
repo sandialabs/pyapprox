@@ -42,11 +42,9 @@ class PolynomialDegreeIterator(StructureParameterIterator):
     ):
         degree = structure_params[0]
         pnorm = structure_params[1]
-        indices = regressor.basis.set_hyperbolic_indices(
-            regressor.nvars(), degree, pnorm
-        )
-        # need to call regressor.set_basis to make sure hyperparameter list is updated
-        # correctly
+        regressor.basis.set_hyperbolic_indices(degree, pnorm)
+        # need to call regressor.set_basis to make sure hyperparameter
+        # list is updated correctly
         regressor.set_basis(regressor.basis)
 
 
