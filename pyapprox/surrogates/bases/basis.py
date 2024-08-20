@@ -90,6 +90,7 @@ class MultiIndexBasis(Basis):
         if indices is not None:
             self.set_indices(indices)
         self._jacobian_implemented = True
+        self._hessian_implemented = True
 
     def set_hyperbolic_indices(self, nterms, pnorm):
         indices = self._bkd._la_asarray(
@@ -137,7 +138,7 @@ class MultiIndexBasis(Basis):
 
     def nterms(self):
         if self._indices is None:
-            raise ValueError("indices have not been set")
+            return 0
         return self._indices.shape[1]
 
     def nvars(self):
@@ -150,9 +151,9 @@ class MultiIndexBasis(Basis):
             poly(samples[dd:dd+1, :]) for dd, poly in enumerate(self._bases_1d)
         ]
 
-    def _basis_derivs_1d(self, samples):
+    def _basis_derivs_1d(self, samples, order):
         return [
-            poly.derivatives(samples[dd:dd+1, :], 1)
+            poly.derivatives(samples[dd:dd+1, :], order)
             for dd, poly in enumerate(self._bases_1d)
         ]
 
@@ -167,25 +168,48 @@ class MultiIndexBasis(Basis):
         return basis_matrix
 
     def jacobian(self, samples):
+        # return jac with shape (nsamples, nterms, nvars)
         basis_vals_1d = self._basis_vals_1d(samples)
-        deriv_vals_1d = self._basis_derivs_1d(samples)
+        basis_derivs_1d = self._basis_derivs_1d(samples, 1)
         jac = []
-        for ii in range(self.nterms()):
-            inner_jac = []
-            index = self._indices[:, ii]
-            for jj in range(self.nvars()):
-                # derivative in jj direction
-                basis_vals = self._bkd._la_copy(
-                    deriv_vals_1d[jj][:, index[jj]]
-                )
-                # basis values in other directions
-                for dd in range(self.nvars()):
-                    if dd != jj:
-                        basis_vals *= basis_vals_1d[dd][:, index[dd]]
-                inner_jac.append(basis_vals)
-            jac.append(self._bkd._la_stack(inner_jac, axis=0))
-        jac = self._bkd._la_moveaxis(self._bkd._la_stack(jac, axis=0), -1, 0)
-        return jac
+        for dd in range(self.nvars()):
+            jac_dd = basis_derivs_1d[dd][:, self._indices[dd, :]]
+            for kk in range(self.nvars()):
+                if kk != dd:
+                    jac_dd *= basis_vals_1d[kk][:, self._indices[kk, :]]
+            jac.append(jac_dd)
+        return self._bkd._la_moveaxis(self._bkd._la_stack(jac, axis=0), 0, -1)
+
+    def hessian(self, samples):
+        basis_vals_1d = self._basis_vals_1d(samples)
+        # todo allow basis derivs to return vals and derivs of all
+        # order so bases like orthopoly do not recompute data
+        fir_derivs_1d = self._basis_derivs_1d(samples, 1)
+        sec_derivs_1d = self._basis_derivs_1d(samples, 2)
+        hess = [
+            [[] for kk in range(self.nvars())] for dd in range(self.nvars())
+        ]
+        for dd in range(self.nvars()):
+            for kk in range(dd, self.nvars()):
+                if kk == dd:
+                    hess_dk = sec_derivs_1d[kk][:, self._indices[kk, :]]
+                else:
+                    hess_dk = fir_derivs_1d[dd][:, self._indices[dd, :]]
+                    hess_dk *= fir_derivs_1d[kk][:, self._indices[kk, :]]
+                for ll in range(self.nvars()):
+                    if ll == kk or ll == dd:
+                        continue
+                    hess_dk *= basis_vals_1d[ll][:, self._indices[ll, :]]
+                hess[dd][kk] = hess_dk
+                hess[kk][dd] = hess_dk
+        hess = self._bkd._la_stack(
+            [
+                self._bkd._la_stack(hess[dd], axis=-1)
+                for dd in range(self.nvars())
+            ],
+            axis=-1
+        )
+        return hess  
 
     def __repr__(self):
         return "{0}(nvars={1}, nterms={2})".format(

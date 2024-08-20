@@ -1,8 +1,12 @@
 import unittest
 
+from scipy import stats
 import numpy as np
 
-from pyapprox.surrogates.bases.orthopoly import LegendrePolynomial1D
+from pyapprox.surrogates.bases.orthopoly import (
+    LegendrePolynomial1D,
+    setup_univariate_orthogonal_polynomial_from_marginal,
+)
 from pyapprox.surrogates.bases.univariate import (
     Monomial1D, setup_univariate_piecewise_polynomial_basis
 )
@@ -24,6 +28,7 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.interp.indexing import sort_indices_lexiographically
 from pyapprox.util.sys_utilities import package_available
+from pyapprox.variables.joint import IndependentMarginalsVariable
 
 
 if package_available("jax"):
@@ -360,6 +365,86 @@ class TestBasis:
             np.random.seed(1)
             self._check_tensorproduct_interpolant_quadrature(*test_case)
 
+    def test_orthpoly_with_transformation(self):
+        bkd = self.get_backend()
+        marginals = [stats.uniform(0, 1), stats.uniform(-2, 3)]
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        bases_1d = [
+            setup_univariate_orthogonal_polynomial_from_marginal(
+                marginal, backend=bkd
+            )
+            for marginal in marginals
+        ]
+        nterms_1d = 3
+        basis = OrthonormalPolynomialBasis(bases_1d)
+        basis.set_tensor_product_indices(
+            [nterms_1d]*variable.num_vars()
+        )
+        nqoi = 1
+        bexp = PolynomialChaosExpansion(
+            basis, solver=LstSqSolver(backend=bkd), nqoi=nqoi
+        )
+        ntrain_samples = 20
+
+        def fun(sample):
+            return (
+                bkd._la_sum(sample**2, axis=0) +
+                bkd._la_prod(sample, axis=0)
+            )[:, None]
+
+        def jac(sample):
+            return 2*sample.T+bkd._la_flip(sample).T
+
+        def hess(sample):
+            return bkd._la_array([[2., 1.], [1., 2.]])
+
+        train_samples = variable.rvs(ntrain_samples)
+        train_values = fun(train_samples)
+        bexp.fit(train_samples, train_values)
+        ntest_samples = 10
+        test_samples = variable.rvs(ntest_samples)
+        assert bkd._la_allclose(fun(test_samples), bexp(test_samples))
+
+        test_samples = bkd._la_array([[1, 1]]).T
+        assert bkd._la_allclose(
+            jac(test_samples[:, :1]),
+            bexp.jacobian(test_samples[:, :1])[0]
+        )
+        assert bkd._la_allclose(
+            hess(test_samples[:, :1]),
+            bexp.hessian(test_samples[:, :1])[0, ..., 0]
+        )
+
+        # the following checks that transform of orthonormal basis
+        # computes derivatives correctly
+        nqoi = 2
+        monomial_basis = MultiIndexBasis(
+            [Monomial1D(backend=bkd) for ii in range(variable.num_vars())]
+        )
+        monomial_basis.set_tensor_product_indices(
+            [nterms_1d]*variable.num_vars()
+        )
+        fun = MonomialExpansion(monomial_basis, nqoi=nqoi)
+        fun.set_coefficients(
+            bkd._la_array(np.random.normal(0, 1, (fun.nterms(), nqoi)))
+        )
+
+        train_samples = variable.rvs(ntrain_samples)
+        train_values = fun(train_samples)
+        bexp = PolynomialChaosExpansion(
+            basis, solver=LstSqSolver(backend=bkd), nqoi=nqoi
+        )
+        bexp.fit(train_samples, train_values)
+
+        assert bkd._la_allclose(
+            fun.jacobian(test_samples[:, :1]),
+            bexp.jacobian(test_samples[:, :1])
+        )
+        assert bkd._la_allclose(
+            fun.hessian(test_samples[:, :1]),
+            bexp.hessian(test_samples[:, :1])
+        )
+
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):
     def get_backend(self):
@@ -383,4 +468,3 @@ class TestJaxBasis(TestBasis, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-    

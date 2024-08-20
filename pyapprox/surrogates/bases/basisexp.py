@@ -26,9 +26,13 @@ class BasisExpansion(Regressor):
         super().__init__()
         self._nqoi = int(nqoi)
         self.set_basis(basis, coef_bounds)
-        if solver is not None and (type(basis._bkd) is not type(solver._bkd)):
+        if (
+                solver is not None
+                and not isinstance(basis._bkd, type(solver._bkd))
+        ):
             raise ValueError("Basis and solver must have the same backend.")
         self._jacobian_implemented = basis._jacobian_implemented
+        self._hessian_implemented = basis._hessian_implemented
         self._solver = solver
 
     def set_basis(self, basis, coef_bounds=None):
@@ -75,7 +79,7 @@ class BasisExpansion(Regressor):
         """
         if coef.ndim != 2 or coef.shape != (self.basis.nterms(), self.nqoi()):
             raise ValueError(
-                "coef shape {0} is must be {1}".format(
+                "coef shape is {0} but must be {1}".format(
                     coef.shape, (self.basis.nterms(), self.nqoi())))
         self._coef.set_values(coef.flatten())
 
@@ -104,6 +108,21 @@ class BasisExpansion(Regressor):
             The values of the expansion for each QoI and sample
         """
         return self.basis(samples) @ self.get_coefficients()
+
+    def _jacobian(self, samples):
+        return self._bkd._la_einsum(
+            "ijk, jl->ikl",
+            self.basis.jacobian(samples),
+            self.get_coefficients()
+        )
+
+    def _hessian(self, samples):
+        hess = self.basis.hessian(samples)
+        # hess shape is (nsamples, nterms, nvars, nvars)
+        # coef shape is (nterms, nqoi)
+        return self._bkd._la_einsum(
+             "ijkl, jm->iklm", hess, self.get_coefficients()
+        )
 
     def __repr__(self):
         return "{0}(basis={1}, nqoi={2})".format(

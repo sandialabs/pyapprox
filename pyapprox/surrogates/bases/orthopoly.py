@@ -99,17 +99,18 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         return "{0}(nterms={1})".format(self.__class__.__name__, self.nterms())
 
     def _values(self, samples):
+        can_samples = self._trans.map_to_canonical(samples)
         if self._rcoefs is None:
             raise ValueError("Must set recursion coefficients.")
         return _evaluate_orthonormal_polynomial_1d(
-            self._rcoefs, self._bkd, samples
+            self._rcoefs, self._bkd, can_samples
         )
 
     def _derivatives(self, samples, order, return_all=False):
         """
         Compute the first n dervivatives of the polynomial.
         """
-        if order < 2:
+        if order < 0:
             raise ValueError(
                 "derivative order {0} must be greater than zero".format(order)
             )
@@ -148,7 +149,12 @@ class OrthonormalPolynomial1D(UnivariateBasis):
                     derivs[:, jj] *= 1.0 / b[jj]
             vals = derivs
             result[:, _order * nindices : (_order + 1) * nindices] = derivs
-
+            result[:, _order * nindices : (_order + 1) * nindices] = (
+                self._trans.derivatives_from_canonical(
+                    result[:, _order * nindices : (_order + 1) * nindices],
+                    _order
+                )
+            )
         if return_all:
             return result
         return result[:, order * nindices :]
@@ -598,9 +604,13 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
 
 
 def setup_univariate_orthogonal_polynomial_from_marginal(
-    marginal, opts={}, backend=None
+        marginal, opts={}, backend=None
 ):
     var_name, scales, shapes = get_distribution_info(marginal)
+
+    trans = AffineMarginalTransform(
+        marginal, enforce_bounds=True, backend=backend
+    )
 
     # Askey polynomials that do not need scale or shape
     simple_askey_polys = {
@@ -608,7 +618,7 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
         "norm": HermitePolynomial1D,
     }
     if var_name in simple_askey_polys:
-        return simple_askey_polys[var_name](backend=backend)
+        return simple_askey_polys[var_name](trans=trans, backend=backend)
 
     # Other Askey polynomials
     # Ignore binom (KrawtchoukPolynomial1D) and hypergeom (HahnPolynomial1D)
@@ -616,16 +626,19 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
     # to be the canonical domain of bounded marginals
     if var_name == "beta":
         return JacobiPolynomial1D(
-            shapes["b"] - 1, shapes["a"] - 1, backend=backend
+            shapes["b"] - 1, shapes["a"] - 1, trans=trans, backend=backend
         )
 
     if var_name == "poisson":
-        return CharlierPolynomial1D(shapes["mu"], backend=backend)
+        return CharlierPolynomial1D(shapes["mu"], trans=trans, backend=backend)
 
     # Other continuous marginals
     if is_continuous_variable(marginal) and var_name != "continuous_rv_sample":
         return ContinuousNumericOrthonormalPolynomial1D(
-            marginal, opts.get("integrator", None), backend=backend
+            marginal,
+            opts.get("integrator", None),
+            trans=trans,
+            backend=backend,
         )
 
     # other discrete marginals
@@ -642,7 +655,9 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
         xk[None, :],
         pk[:, None],
         opts.get("otol", 1e-8),
-        opts.get("ptol", 1e-8)
+        opts.get("ptol", 1e-8),
+        trans=trans,
+        backend=backend
     )
 
 
