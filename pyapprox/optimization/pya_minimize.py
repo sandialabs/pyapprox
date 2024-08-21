@@ -915,15 +915,19 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
     def __call__(self, values, weights):
         if values.shape[1] != self._t.shape[0]:
             raise ValueError("must specify a VaR for each QoI")
-        return self._t + (self._max(values - self._t).T @ weights).T / (1 - self._alpha)
+        return self._t + (self._max(values - self._t).T @ weights).T / (
+            1 - self._alpha
+        )
 
     def jacobian(self, values, jac_values, weights):
         # grad withe respect to parameters of x
         max_jac = self._max.jacobians(values - self._t)
-        param_jac = self._bkd.einsum("ijk,i->jk", (max_jac * jac_values), weights[:, 0]) / (
+        param_jac = self._bkd.einsum(
+            "ijk,i->jk", (max_jac * jac_values), weights[:, 0]) / (
             1 - self._alpha[:, None]
         )
-        t_jac = 1 - self._bkd.einsum("ij,i->j", max_jac[..., 0], weights[:, 0]) / (
+        t_jac = 1 - self._bkd.einsum(
+            "ij,i->j", max_jac[..., 0], weights[:, 0]) / (
             1 - self._alpha
         )
         return self._bkd.hstack((param_jac, self._bkd.diag(t_jac)))
@@ -1076,8 +1080,14 @@ class CVaRSampleAverageConstraint(SampleAverageConstraint):
             design_indices,
             keep_feasible,
         )
+        # even if model has apply jacobian sample_average_constraint does not
+        # so turn off. If it is True then use of jacobian to compute
+        # jacobian apply will fail due to passing around VaR
+        self._apply_jacobian_implemented = False
 
     def __call__(self, design_sample):
+        # have to ovewrite call instead of just defining values
+        # to avoid error check that will not work here
         # assumes avar variable t is at the end of design_sample
         self._stat.set_value_at_risk(design_sample[-self._nconstraints :, 0])
         return super().__call__(design_sample[: -self._nconstraints])
@@ -1101,21 +1111,50 @@ class ObjectiveWithCVaRConstraints(Model):
     def __init__(self, model, ncvar_constraints):
         super().__init__()
         self._model = model
+        if model.nqoi() != 1:
+            raise ValueError("objective can only have one QoI")
         self._ncvar_constraints = ncvar_constraints
         self._jacobian_implemented = self._model._jacobian_implemented
-        self._apply_jacobian_implemented = self._model._apply_jacobian_implemented
+        self._apply_jacobian_implemented = (
+            self._model._apply_jacobian_implemented
+        )
+        # until sampleaveragecvar.jacobian is implemented turn
+        # off objective hessian
+        # self._hessian_implemented = self._model._hessian_implemented
 
-    def __call__(self, design_samples):
+    def nqoi(self):
+        return self._model.nqoi()
+
+    def _values(self, design_samples):
         return self._model(design_samples[: -self._ncvar_constraints])
 
     def _apply_jacobian(self, design_sample, vec):
         return self._model.apply_jacobian(
-            design_sample[: -self._ncvar_constraints], vec[: -self._ncvar_constraints]
+            design_sample[: -self._ncvar_constraints],
+            vec[: -self._ncvar_constraints]
         )
 
     def _jacobian(self, design_sample):
         jac = self._model.jacobian(design_sample[: -self._ncvar_constraints])
-        return self._bkd.hstack((jac, self._bkd.zeros((jac.shape[0], self._ncvar_constraints))))
+        return self._bkd.hstack(
+            (jac, self._bkd.zeros((jac.shape[0], self._ncvar_constraints)))
+        )
+
+    def _hessian(self, design_sample):
+        model_hess = self._model.hessian(
+            design_sample[: -self._ncvar_constraints]
+        )
+        nvars = model_hess.shape[-1]
+        hess = self._bkd.zeros(
+            (self.nqoi(),
+             nvars+self._ncvar_constraints,
+             nvars+self._ncvar_constraints,
+             )
+        )
+        idx = np.ix_(self._bkd.arange(nvars), self._bkd.arange(nvars))
+        hess[:, idx[0], idx[1]] = model_hess
+        # hess[:, :nvars, :nvars] = model_hess
+        return hess
 
 
 def approx_jacobian(func, x, epsilon=np.sqrt(np.finfo(float).eps)):
