@@ -14,6 +14,8 @@ except ImportError:
 
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.stats import MultiOutputMean
+from pyapprox.interface.model import Model
+from pyapprox.optimization.pya_minimize import Constraint
 
 
 def get_model_subsets(nmodels, bkd, max_subset_nmodels=None):
@@ -85,7 +87,7 @@ def _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch, bkd):
     reg : float
         Regularization parameter to stabilize matrix inversion
     """
-    reg_mat = self._bkd.identity(nmodels)*reg
+    reg_mat = bkd.eye(nmodels)*reg
     if asketch.shape != (nmodels, 1):
         raise ValueError("asketch has the wrong shape")
 
@@ -98,7 +100,7 @@ def _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch, bkd):
 
 
 def _grouped_acv_variance(nmodels, Sigma, subsets, R, reg, asketch, bkd):
-    reg_mat = self._bkd.identity(nmodels)*reg
+    reg_mat = bkd.eye(nmodels)*reg
     if asketch.shape != (nmodels, 1):
         raise ValueError("asketch has the wrong shape")
 
@@ -108,9 +110,9 @@ def _grouped_acv_variance(nmodels, Sigma, subsets, R, reg, asketch, bkd):
 
 
 def _grouped_acv_estimate(
-        nmodels, Sigma, reg, subsets, subset_values, R, asketch):
+        nmodels, Sigma, reg, subsets, subset_values, R, asketch, bkd):
     nsubsets = len(subsets)
-    beta = _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch)
+    beta = _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch, bkd)
     ll, mm = 0, 0
     acv_mean = 0
     for kk in range(nsubsets):
@@ -130,7 +132,7 @@ def _grouped_acv_sigma_block(
     block = bkd.full((nsubset0, nsubset1), 0.)
     if (nsamples_subset0*nsamples_subset1) == 0:
         return block
-    block = cov[self._bkd.ix_(subset0, subset1)]*nsamples_intersect/(
+    block = cov[np.ix_(subset0, subset1)]*nsamples_intersect/(
                 nsamples_subset0*nsamples_subset1)
     return block
 
@@ -142,12 +144,12 @@ def _grouped_acv_sigma(
     for ii, subset0 in enumerate(subsets):
         N_ii = nsamples_intersect[ii, ii]
         Sigma[ii][ii] = _grouped_acv_sigma_block(
-            subset0, subset0, N_ii, N_ii, N_ii, cov)
+            subset0, subset0, N_ii, N_ii, N_ii, cov, bkd)
         for jj, subset1 in enumerate(subsets[:ii]):
             N_jj = nsamples_intersect[jj, jj]
             Sigma[ii][jj] = _grouped_acv_sigma_block(
                 subset0, subset1, nsamples_intersect[ii, jj],
-                N_ii, N_jj, cov)
+                N_ii, N_jj, cov, bkd)
             Sigma[jj][ii] = Sigma[ii][jj].T
     Sigma = bkd.vstack([bkd.hstack(row) for row in Sigma])
     return Sigma
@@ -189,12 +191,16 @@ class GroupACVEstimator:
         self._optimized_criteria = None
         self._asketch = self._validate_asketch(asketch)
 
+        self._newobjective = GroupACVObjective()
+        self._newobjective.set_estimator(self)
+        
         if est_type == "is":
             self._obj_jac = True
         else:
             # hack because currently autogradients do not works so must
             # use finite difference
             self._obj_jac = False
+            
 
     def nmodels(self):
         return self._nmodels
@@ -220,11 +226,12 @@ class GroupACVEstimator:
         if est_type == "is":
             get_allocation_mat = _get_allocation_matrix_is
         elif est_type == "nested":
+            zero = self._bkd.zeros((1,), dtype=int)
             for ii, subset in enumerate(subsets):
-                if self._bkd.allclose(subset, [0]):
+                if self._bkd.allclose(subset, zero):
                     del subsets[ii]
                     break
-            subsets = _nest_subsets(subsets, self.nmodels())[0]
+            subsets = _nest_subsets(subsets, self.nmodels(), self._bkd)[0]
             get_allocation_mat = _get_allocation_matrix_nested
         else:
             raise ValueError(
@@ -235,14 +242,14 @@ class GroupACVEstimator:
         # assume npartitions = nsubsets
         npartitions = self.allocation_mat.shape[1]
         partitions_per_model = self._bkd.full(
-            (self.nmodels(), npartitions), 0.)
+            (self.nmodels(), npartitions), 0.
+        )
         for ii, subset in enumerate(self.subsets):
             partitions_per_model[
                 np.ix_(subset, self.allocation_mat[ii] == 1)] = 1
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples):
-        print(self.partitions_per_model, npartition_samples)
         nsamples_per_model = self._bkd.einsum(
             "ji,i->j", self.partitions_per_model, npartition_samples)
         return nsamples_per_model
@@ -275,12 +282,12 @@ class GroupACVEstimator:
     def _sigma(self, npartition_samples):
         return _grouped_acv_sigma(
             self.nmodels(), self._nintersect_samples(npartition_samples),
-            self._cov, self.subsets)
+            self._cov, self.subsets, self._bkd)
 
     def _covariance_from_npartition_samples(self, npartition_samples):
         return _grouped_acv_variance(
             self.nmodels(), self._sigma(npartition_samples), self.subsets,
-            self.R, self._reg_blue, self._asketch)
+            self.R, self._reg_blue, self._asketch, self._bkd)
 
     def _objective(self, npartition_samples_np, return_grad=True):
         npartition_samples = torch.as_tensor(
@@ -439,6 +446,9 @@ class GroupACVEstimator:
             self._rounded_npartition_samples).item()
 
     def _set_optimized_params(self, npartition_samples, round_nsamples=True):
+        # expected scalar type Double but found Float error can occur
+        # with torch if npartition samples is not torch.double need to
+        # think of a check that works for all backends
         if round_nsamples:
             rounded_npartition_samples = self._bkd.floor(npartition_samples)
         else:
@@ -500,7 +510,7 @@ class GroupACVEstimator:
                     constraint_reg)
                 init_guess = self._update_init_guess(
                     init_guess, nelder_mead_constraints, init_opts, bounds)
-        init_guess = self._bkd.maximum(init_guess, self._npartition_samples_lb)
+        init_guess = self._bkd.max(init_guess, self._npartition_samples_lb)
         method = optim_options_copy.pop("method", "trust-constr")
         # import warnings
         # warnings.filterwarnings("error")
@@ -527,7 +537,7 @@ class GroupACVEstimator:
         """
         splits = self._bkd.hstack(
             (
-                self._bkd.zeros((1,)),
+                self._bkd.zeros((1,), dtype=int),
                 self._bkd.cumsum(npartition_samples, dtype=int)
             )
         )
@@ -540,7 +550,9 @@ class GroupACVEstimator:
         samples = rvs(ntotal_independent_samples)
         samples_per_model = []
         for ii in range(self.nmodels()):
-            active_partitions = self._bkd.where(self.partitions_per_model[ii])[0]
+            active_partitions = self._bkd.where(
+                self.partitions_per_model[ii]
+            )[0]
             samples_per_model.append(self._bkd.hstack([
                 samples[:, partition_splits[idx]:partition_splits[idx+1]]
                 for idx in active_partitions]))
@@ -569,13 +581,15 @@ class GroupACVEstimator:
             self._rounded_npartition_samples)
         splits_per_model = []
         for ii in range(self.nmodels()):
-            active_partitions = self._bkd.where(self.partitions_per_model[ii])[0]
+            active_partitions = self._bkd.where(
+                self.partitions_per_model[ii]
+            )[0]
             splits = self._bkd.full((self.npartitions, 2), -1, dtype=int)
             lb, ub = 0, 0
             for ii, idx in enumerate(active_partitions):
                 ub += partition_splits[idx+1]-partition_splits[idx]
-                splits[idx] = [lb, ub]
-                lb = ub
+                splits[idx] = self._bkd.array([lb, ub])
+                lb = self._bkd.copy(ub)
             splits_per_model.append(splits)
         return splits_per_model
 
@@ -609,8 +623,8 @@ class GroupACVEstimator:
 
     def _estimate(self, values_per_subset):
         return _grouped_acv_estimate(
-            self.nmodels(), self._optimized_sigma, self._reg_blue, self.subsets,
-            values_per_subset, self.R, self._asketch)
+            self.nmodels(), self._optimized_sigma, self._reg_blue,
+            self.subsets, values_per_subset, self.R, self._asketch, self._bkd)
 
     def __call__(self, values_per_model):
         values_per_subset = self._separate_values_per_model(values_per_model)
@@ -822,6 +836,76 @@ class MLBLUEEstimator(GroupACVEstimator):
         self._asketch = asketch
         return means
 
+
+class GroupACVObjective(Model):
+    def __init__(self):
+        super().__init__()
+        self._est = None
+        self._bkd = None
+
+    def set_estimator(self, estimator):
+        self._est = estimator
+        self._bkd = self._est._bkd
+        self._jacobian_implemented = self._bkd.jacobian_implemented()
+
+    def __call__(self, npartition_samples):
+        return self._est._covariance_from_npartition_samples(
+            npartition_samples[:, 0]
+        )
+
+    def _jacobian(self, npartition_samples):
+        return self._bkd.grad(
+            self._est._covariance_from_npartition_samples,
+            npartition_samples[:, 0],
+        )[1]
+
+
+class GroupACVConstraint(Constraint):
+    def __init__(self, bounds, keep_feasible=False):
+        super().__init__(bounds, keep_feasible)
+        self._est = None
+        # self._jacobian_implemented = self. jacobian_implemented()
+
+    def set_estimator(self, estimator):
+        self._est = estimator
+        self._bkd = self._est._bkd
+
+
+class GroupACVCostContstraint(GroupACVConstraint):
+    def __init__(
+            self, target_cost, min_nhf_samples, bounds, keep_feasible=False
+    ):
+        if bounds.shape[0] != 2:
+            # the number of columns is checked with call to super().__init__
+            raise ValueError("Bounds must have shape (2, 2)")
+        super().__init__(bounds, keep_feasible)
+        self._target_cost = target_cost
+        self._min_nhf_samples = min_nhf_samples
+        self._jacobian_implemented = True
+        self._apply_hessian_implemented = True
+
+    def __call__(self, npartition_samples):
+        return self._bkd.array(
+            [
+                self._target_cost-self._est._estimator_cost(
+                    npartition_samples[:, 0]
+                ),
+                self._est._nhf_samples(
+                    npartition_samples[:, 0]
+                ) - self._min_nhf_samples
+            ]
+        )[None, :]
+
+    def _jacobian(self, npartition_samples):
+        return self._bkd.vstack(
+            (
+                -(self._est._costs[None, :] @ self._est.partitions_per_model),
+                self._est.partitions_per_model[0][None, :]
+            )
+        )
+
+    def _apply_hessian(self, npartition_samples, vec):
+        return self._bkd.zeros((npartition_samples.shape[0], 2))
 
 #cvxpy requires cmake
 #on osx with M1 chip install via

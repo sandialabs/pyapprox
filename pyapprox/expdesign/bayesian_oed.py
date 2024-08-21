@@ -25,7 +25,7 @@ from pyapprox.surrogates.polychaos.gpc import (
 from pyapprox.surrogates.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d,
     multivariate_barycentric_lagrange_interpolation)
-from pyapprox.surrogates.integrate import integrate
+# from pyapprox.surrogates.integrate import integrate # need to replace with new code
 
 
 def gaussian_loglike_fun_broadcast(

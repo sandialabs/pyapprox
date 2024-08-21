@@ -28,6 +28,7 @@ class TestModel(unittest.TestCase):
         sp_grad = [sp_fun.diff(x) for x in symbs]
         sp_hessian = [[sp_fun.diff(x).diff(y) for x in symbs] for y in symbs]
         model = ModelFromCallable(
+            1,
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample),
             apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
@@ -50,6 +51,7 @@ class TestModel(unittest.TestCase):
     def test_scalar_model_from_callable_1D_sample(self):
         # check jacobian with 1D samples
         model = ModelFromCallable(
+            1,
             lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
             jacobian=lambda x: np.array([2*(x[0] - 1), 2*(x[1] - 2.5)]),
             sample_ndim=1, values_ndim=0)
@@ -59,6 +61,7 @@ class TestModel(unittest.TestCase):
 
         # check apply_jacobian and apply_hessian with 1D samples
         model = ModelFromCallable(
+            1,
             lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
             jacobian=lambda x: np.array([2*(x[0] - 1), 2*(x[1] - 2.5)]),
             apply_jacobian=lambda x, v: 2*(x[0] - 1)*v[0]+2*(x[1] - 2.5)*v[1],
@@ -72,24 +75,71 @@ class TestModel(unittest.TestCase):
         errors = model.check_apply_hessian(sample)
         assert errors[0] < 1e-15
 
+        # test hessian is created corectly from apply_hessian
+        assert np.allclose(model.hessian(sample), np.diag([2, 2])[None, :])
+
     def test_vector_model_from_callable(self):
         symbs = sp.symbols(["x", "y", "z"])
         nvars = len(symbs)
         sp_fun = [sum([s*(ii+1) for ii, s in enumerate(symbs)])**4,
                   sum([s*(ii+1) for ii, s in enumerate(symbs)])**5]
         sp_grad = [[fun.diff(x) for x in symbs] for fun in sp_fun]
-        model = ModelFromCallable(
-            lambda sample: self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_fun, "numpy"), sample),
-            apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_grad, "numpy"), sample) @ vec)
+        sp_hess = [
+            [[fun.diff(_x).diff(_y) for _x in symbs] for _y in symbs]
+            for fun in sp_fun
+        ]
         sample = np.random.uniform(0, 1, (nvars, 1))
-        model.check_apply_jacobian(sample, disp=True)
+
+        def hessian(sample):
+            return self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_hess, "numpy"), sample)
+
+        def apply_weighted_hessian(sample, vec, weights):
+            hess = hessian(sample)
+            return np.sum(weights[..., None]*hess, axis=0) @ vec
+        model = ModelFromCallable(
+            2,
+            lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_fun, "numpy"), sample
+            ),
+            jacobian=lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_grad, "numpy"), sample
+            ),
+            apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_grad, "numpy"), sample
+            ) @ vec,
+            hessian=hessian,
+            apply_weighted_hessian=apply_weighted_hessian,
+        )
+        sample = np.random.uniform(0, 1, (nvars, 1))
+        errors = model.check_apply_jacobian(sample)
+        # turn off apply_jacobian to check that it can be reconstructed
+        # from jacobian
+        model._apply_jacobian_implemented = False
+        errors = model.check_apply_jacobian(sample, disp=True)
+
+        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.1
+        model._apply_jacobian_implemented = True
+        model._jacobian_implemented = False
         # check full jacobian is computed correctly from apply_jacobian
         # when jacobian() is not provided
         assert np.allclose(
            model.jacobian(sample), self._evaluate_sp_lambda(
                sp.lambdify(symbs, sp_grad, "numpy"), sample))
+
+        errors = model.check_apply_hessian(
+            sample, weights=np.ones((model.nqoi(), 1)), disp=True
+        )
+        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.3
+        # turn off apply_weighted_hessian to check that it can be reconstructed
+        # from hessian
+        model._apply_weighted_hessian_implemented = False
+        errors = model.check_apply_hessian(
+            sample, weights=np.ones((model.nqoi(), 1)), disp=True
+        )
+
+        # check full hessian is correct
+        assert np.allclose(model.hessian(sample), hessian(sample))
 
     def test_scipy_wrapper(self):
         symbs = sp.symbols(["x", "y", "z"])
@@ -98,6 +148,7 @@ class TestModel(unittest.TestCase):
         sp_grad = [sp_fun.diff(x) for x in symbs]
         sp_hessian = [[sp_fun.diff(x).diff(y) for x in symbs] for y in symbs]
         model = ModelFromCallable(
+            1,
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample),
             apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
@@ -148,7 +199,7 @@ class TestModel(unittest.TestCase):
         test_values = np.array([vec @ sample for sample in samples.T])
 
         # test when temp work directories are used
-        model = TestIOModel(infilenames)
+        model = TestIOModel(1, infilenames)
         values = model(samples)
         assert np.allclose(values, test_values)
 
@@ -157,7 +208,7 @@ class TestModel(unittest.TestCase):
         outdir_basename = outtmpdir.name
         datafilename = "data.npz"
         model = TestIOModel(
-            infilenames, outdir_basename, save="full",
+            1, infilenames, outdir_basename, save="full",
             datafilename=datafilename)
         values = model(samples)
         assert np.allclose(values, test_values)
@@ -175,7 +226,7 @@ class TestModel(unittest.TestCase):
         outtmpdir = tempfile.TemporaryDirectory()
         outdir_basename = outtmpdir.name
         datafilename = "data.npz"
-        model = TestIOModel(infilenames, outdir_basename, save="limited",
+        model = TestIOModel(1, infilenames, outdir_basename, save="limited",
                             datafilename=datafilename)
         values = model(samples)
         assert np.allclose(values, test_values)
@@ -215,7 +266,7 @@ class UMBModel(umbridge.Model):
 
     def __call__(self, parameters, config):
         model = TestIOModel(
-            config["infilenames"], config["outdir_basename"],
+            1, config["infilenames"], config["outdir_basename"],
             save=config["save"], datafilename=config["datafilename"])
         return [model(np.array(parameters).T)[0].tolist()]
 

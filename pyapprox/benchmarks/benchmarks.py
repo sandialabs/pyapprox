@@ -11,12 +11,10 @@ from pyapprox.benchmarks.sensitivity_benchmarks import (
     ishigami_function, ishigami_function_jacobian, ishigami_function_hessian)
 from pyapprox.benchmarks.surrogate_benchmarks import (
     rosenbrock_function,
-    rosenbrock_function_jacobian, rosenbrock_function_hessian_prod,
-    rosenbrock_function_mean, cantilever_beam_constraints_jacobian,
-    cantilever_beam_constraints, cantilever_beam_objective,
-    cantilever_beam_objective_grad, define_beam_random_variables,
-    cantilever_beam_objective_and_constraints,
-    cantilever_beam_objective_and_constraints_jacobian,
+    rosenbrock_function_jacobian,
+    rosenbrock_function_hessian_prod,
+    rosenbrock_function_mean,
+    define_beam_random_variables,
     define_piston_random_variables, piston_function,
     define_wing_weight_random_variables, wing_weight_function,
     wing_weight_gradient, define_chemical_reaction_random_variables,
@@ -24,7 +22,11 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     RandomOscillator, piston_function_gradient, CoupledSprings,
     define_coupled_springs_random_variables, HastingsEcology,
     define_nondim_hastings_ecology_random_variables,
-    ParameterizedNonlinearModel)
+    ParameterizedNonlinearModel,
+    CantileverBeamModel,
+    CantileverBeamObjectiveModel,
+    CantileverBeamConstraintsModel,
+)
 from pyapprox.benchmarks.genz import GenzFunction
 from pyapprox.benchmarks.multifidelity_benchmarks import (
     PolynomialModelEnsemble, TunableModelEnsemble, ShortColumnModelEnsemble,
@@ -371,7 +373,7 @@ def setup_rosenbrock_function(nvars):
     variable = IndependentMarginalsVariable(univariate_variables)
 
     model = ModelFromCallable(
-        rosenbrock_function, rosenbrock_function_jacobian,
+        1, rosenbrock_function, rosenbrock_function_jacobian,
         apply_hessian=rosenbrock_function_hessian_prod)
     benchmark = Benchmark(
         {'fun': model, 'jac': rosenbrock_function_jacobian,
@@ -528,13 +530,9 @@ def setup_genz_function(nvars, test_name, coeff_type=None, w=0.25, c_factor=1,
 
 
 def setup_cantilever_beam_benchmark():
-    objective_model = ModelFromCallable(
-        cantilever_beam_objective, cantilever_beam_objective_grad)
-    constraints_model = ModelFromCallable(
-            cantilever_beam_constraints, cantilever_beam_constraints_jacobian)
-    all_model = ModelFromCallable(
-        cantilever_beam_objective_and_constraints,
-        cantilever_beam_objective_and_constraints_jacobian)
+    objective_model = CantileverBeamObjectiveModel()
+    constraints_model = CantileverBeamConstraintsModel()
+    all_model = CantileverBeamModel()
     variable, design_variable = define_beam_random_variables()
     attributes = {'fun': all_model,
                   'jac': all_model.jacobian,

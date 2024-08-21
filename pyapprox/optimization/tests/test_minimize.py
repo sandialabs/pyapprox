@@ -4,7 +4,7 @@ import numpy as np
 from scipy import stats
 
 from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer, Bounds, Constraint,
+    ScipyConstrainedOptimizer, Bounds, ConstraintFromModel,
     SampleAverageMean, SampleAverageVariance, SampleAverageStdev,
     SampleAverageMeanPlusStdev, SampleAverageEntropicRisk,
     SampleAverageConstraint,
@@ -13,7 +13,7 @@ from pyapprox.optimization.pya_minimize import (
 from pyapprox.benchmarks import setup_benchmark
 from pyapprox.interface.model import ModelFromCallable
 from pyapprox.variables.risk import gaussian_cvar
-from pyapprox.interface.model import Model, ModelFromCallable
+from pyapprox.interface.model import Model
 
 
 class TestMinimize(unittest.TestCase):
@@ -30,7 +30,9 @@ class TestMinimize(unittest.TestCase):
 
         # check that constraints are handled correctly
         nvars = 2
-        bounds = np.stack((np.full((nvars,), -2), np.full((nvars,), 2)), axis=1)
+        bounds = np.stack(
+            (np.full((nvars,), -2), np.full((nvars,), 2)), axis=1
+        )
         benchmark = setup_benchmark("rosenbrock", nvars=nvars)
         optimizer = ScipyConstrainedOptimizer(benchmark.fun, bounds=bounds)
         result = optimizer.minimize(benchmark.variable.get_statistics("mean"))
@@ -38,19 +40,21 @@ class TestMinimize(unittest.TestCase):
 
         # check apply_jacobian and apply_hessian with 1D samples
         objective = ModelFromCallable(
+            1,
             lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
             jacobian=lambda x: np.array([2*(x[0] - 1), 2*(x[1] - 2.5)]),
             apply_jacobian=lambda x, v: 2*(x[0] - 1)*v[0]+2*(x[1] - 2.5)*v[1],
             # apply_hessian=lambda x, v: np.array(np.diag([2, 2])) @ v,
-            hessian=lambda x: np.array(np.diag([2, 2])),
+            hessian=lambda x: np.array(np.diag([2, 2]))[None, :],
             sample_ndim=1, values_ndim=0)
         sample = np.array([2, 0])[:, None]
-        errors = objective.check_apply_jacobian(sample, disp=True)
+        errors = objective.check_apply_jacobian(sample)
         assert errors.min()/errors.max() < 1e-6
-        errors = objective.check_apply_hessian(sample, disp=True)
+        errors = objective.check_apply_hessian(sample, relative=False)
         assert errors[0] < 1e-15
 
         constraint_model = ModelFromCallable(
+            3,
             lambda x:  np.array(
                 [x[0]-2*x[1]+2, -x[0]-2*x[1]+6, -x[0]+2*x[1]+2]),
             lambda x: np.array(
@@ -60,16 +64,17 @@ class TestMinimize(unittest.TestCase):
             # given a vector of shape (m)
             apply_hessian=lambda x, v: np.zeros((2, 2)),
             sample_ndim=1, values_ndim=1)
-        errors = constraint_model.check_apply_jacobian(sample, disp=True)
+        errors = constraint_model.check_apply_jacobian(sample)
         # jacobian is constant so check first finite difference is exact
         assert errors[0] < 1e-15
 
         constraint_bounds = np.hstack(
             [np.full((3, 1), 0), np.full((3, 1), np.inf)])
-        print(constraint_bounds.shape)
-        constraint = Constraint(constraint_model, constraint_bounds)
+        constraint = ConstraintFromModel(constraint_model, constraint_bounds)
 
-        bounds = np.stack((np.full((nvars,), 0), np.full((nvars,), np.inf)), axis=1)
+        bounds = np.stack(
+            (np.full((nvars,), 0), np.full((nvars,), np.inf)), axis=1
+        )
         optimizer = ScipyConstrainedOptimizer(
             objective, bounds=bounds, constraints=[constraint],
             opts={"gtol": 1e-10, "verbose": 0})
@@ -80,48 +85,42 @@ class TestMinimize(unittest.TestCase):
         benchmark = setup_benchmark('cantilever_beam')
         constraint_model = benchmark.funs[1]
 
-        # test jacobian
-        nsamples = 10000
+        # test jacobian and hessian
+        nsamples = 1000
         samples = benchmark.variable.rvs(nsamples)
         weights = np.full((nsamples, 1), 1/nsamples)
-        for stat in [SampleAverageMean(), SampleAverageVariance(),
-                     SampleAverageStdev(), SampleAverageMeanPlusStdev(2),
-                     SampleAverageEntropicRisk(0.5)]:
+        for stat in [
+                SampleAverageMean(),
+                SampleAverageVariance(),
+                SampleAverageStdev(),
+                SampleAverageMeanPlusStdev(2),
+                SampleAverageEntropicRisk(0.5)
+        ]:
             constraint_bounds = np.hstack(
                 [np.zeros((2, 1)), np.full((2, 1), np.inf)])
             constraint = SampleAverageConstraint(
-                constraint_model, samples, weights, stat, constraint_bounds,
+                constraint_model,
+                samples, weights,
+                stat,
+                constraint_bounds,
                 benchmark.variable.num_vars() +
                 benchmark.design_variable.num_vars(),
-                benchmark.design_var_indices)
+                benchmark.design_var_indices
+            )
             design_sample = np.array([3, 3])[:, None]
             assert constraint(design_sample).shape == (1, 2)
             errors = constraint.check_apply_jacobian(design_sample)
             # print(errors.min()/errors.max())
-            assert errors.min()/errors.max() < 1.3e-6
+            assert errors.min()/errors.max() < 1.3e-6 and errors.max() > 0.2
 
-        # test apply_jacobian
-        constraint_model._apply_jacobian_implemented = True
-        constraint_model._apply_jacobian = (
-            lambda x, v: constraint_model.jacobian(x) @ v)
-
-        nsamples = 1000
-        samples = benchmark.variable.rvs(nsamples)
-        weights = np.full((nsamples, 1), 1/nsamples)
-        for stat in [SampleAverageMean(), SampleAverageVariance(),
-                     SampleAverageStdev(), SampleAverageMeanPlusStdev(2),
-                     SampleAverageEntropicRisk(0.5)]:
-            constraint_bounds = np.hstack(
-                [np.zeros((2, 1)), np.full((2, 1), np.inf)])
-            constraint = SampleAverageConstraint(
-                constraint_model, samples, weights, stat, constraint_bounds,
-                benchmark.variable.num_vars() +
-                benchmark.design_variable.num_vars(),
-                benchmark.design_var_indices)
-            design_sample = np.array([3, 3])[:, None]
-            errors = constraint.check_apply_jacobian(design_sample)
-            # print(errors.min()/errors.max(), stat)
-            assert errors.min()/errors.max() < 1.3e-6
+            if not stat._hessian_implemented:
+                continue
+            # assert False
+            errors = constraint.check_apply_hessian(
+                design_sample,
+                weights=np.ones((constraint.nqoi(), 1)), disp=True
+            )
+            assert errors.min()/errors.max() < 1.3e-6 and errors.max() > 0.2
 
     def test_conditional_value_at_risk_gradients(self):
         benchmark = setup_benchmark('cantilever_beam')
@@ -251,7 +250,7 @@ class TestMinimize(unittest.TestCase):
 
         bounds = np.stack(
             (np.hstack(([0], np.full((nconstraints,), -np.inf))),
-            np.full((ndesign_vars+nconstraints,), np.inf)), axis=1)
+             np.full((ndesign_vars+nconstraints,), np.inf)), axis=1)
         optimizer = ScipyConstrainedOptimizer(
             objective, bounds=bounds, constraints=[constraint],
             opts={"gtol": 3e-6, "verbose": 3, "maxiter": 500})

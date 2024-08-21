@@ -36,12 +36,12 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def cholesky_solve(chol: torch.Tensor, bvec: torch.Tensor,
-                           lower: bool = True) -> torch.Tensor:
+                       lower: bool = True) -> torch.Tensor:
         return torch.cholesky_solve(bvec, chol, upper=(not lower))
 
     @staticmethod
     def solve_triangular(Amat: torch.Tensor, bvec: torch.Tensor,
-                             lower: bool = True) -> torch.Tensor:
+                         lower: bool = True) -> torch.Tensor:
         return torch.linalg.solve_triangular(Amat, bvec, upper=(not lower))
 
     @staticmethod
@@ -136,7 +136,7 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def cdist(Amat: torch.tensor,
-                  Bmat: torch.tensor) -> torch.Tensor:
+              Bmat: torch.tensor) -> torch.Tensor:
         return torch.cdist(Amat, Bmat, p=2)
 
     @staticmethod

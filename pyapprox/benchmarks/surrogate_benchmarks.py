@@ -2,6 +2,7 @@ from scipy import stats
 import numpy as np
 from scipy.optimize import rosen, rosen_der, rosen_hess_prod
 from scipy import integrate
+import sympy as sp
 
 from pyapprox.util.pya_numba import njit
 from pyapprox.variables.joint import (
@@ -10,6 +11,7 @@ from pyapprox.variables.joint import (
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
+from pyapprox.interface.model import SingleSampleModel
 
 
 def rosenbrock_function(samples):
@@ -32,7 +34,6 @@ def rosenbrock_function_mean(nvars):
     """
     assert nvars % 2 == 0
     lb, ub = -2, 2
-    import sympy as sp
     x, y = sp.Symbol('x'), sp.Symbol('y')
     exact_mean = nvars/2*float(
         sp.integrate(
@@ -54,102 +55,71 @@ def define_beam_random_variables():
     return variable, design_variable
 
 
-def cantilever_beam_objective(samples):
-    X, Y, E, R, w, t = samples
-    values = np.empty((samples.shape[1], 1))
-    values[:, 0] = w*t
-    return values
+class CantileverBeamModel(SingleSampleModel):
+    def __init__(self):
+        super().__init__()
+        self._jacobian_implemented = True
+        self._hessian_implemented = True
+        self._apply_jacobian_implemented = True
+        symbs = sp.symbols(["X", "Y", "E", "R", "w", "t"])
+        X, Y, E, R, w, t = symbs
+        L, D0 = 100, 2.2535
+        sp_fun = [
+            w*t,
+            1-6*L/(w*t)*(X/w+Y/t)/R,
+            1-4*L**3/(E*w*t)*sp.sqrt(X**2/w**4+Y**2/t**4)/D0
+        ]
+        sp_grad = [[fun.diff(x) for x in symbs] for fun in sp_fun]
+        sp_hess = [
+            [[fun.diff(_x).diff(_y) for _x in symbs] for _y in symbs]
+            for fun in sp_fun
+        ]
+        self._lam_fun = sp.lambdify(symbs, sp_fun, "numpy")
+        self._lam_jac = sp.lambdify(symbs, sp_grad, "numpy")
+        self._lam_hess = sp.lambdify(symbs, sp_hess, "numpy")
+
+    def nqoi(self):
+        return 2
+
+    def _evaluate_sp_lambda(self, sp_lambda, sample):
+        assert sample.ndim == 2 and sample.shape[1] == 1
+        vals = np.atleast_2d(sp_lambda(*sample[:, 0]))
+        return vals
+
+    def _evaluate(self, sample):
+        return self._evaluate_sp_lambda(self._lam_fun, sample)
+
+    def _jacobian(self, sample):
+        return self._evaluate_sp_lambda(self._lam_jac, sample)
+
+    def _apply_jacobian(self, sample, vec):
+        return self.jacobian(sample) @ vec
+
+    def _hessian(self, sample):
+        return self._evaluate_sp_lambda(self._lam_hess, sample)
 
 
-def cantilever_beam_objective_grad(samples):
-    X, Y, E, R, w, t = samples
-    grad = np.zeros((samples.shape[1], 6))
-    grad[:, 4] = t
-    grad[:, 5] = w
-    return grad
+class CantileverBeamObjectiveModel(CantileverBeamModel):
+    def _evaluate(self, sample):
+        return super()._evaluate(sample)[:, :1]
+
+    def _jacobian(self, sample):
+        return super()._jacobian(sample)[:1, :]
+
+    def _hessian(self, sample):
+        assert False
+        return super()._hessian(sample)[:1, ...].copy()
 
 
-def beam_stress_constraint(samples):
-    """
-    Desired behavior is when constraint is less than 0
-    """
-    X, Y, E, R, w, t = samples
-    L = 100                  # length of beam
-    # vals = 1-6*L*(X/(w**2*t)+X/(t*w**2))/R  # scaled version
-    vals = 1-6*L/(w*t)*(X/w+Y/t)/R  # factored scaled version
-    return vals[:, np.newaxis]
+class CantileverBeamConstraintsModel(CantileverBeamModel):
+    def _evaluate(self, sample):
+        return super()._evaluate(sample)[:, 1:]
 
+    def _jacobian(self, sample):
+        return super()._jacobian(sample)[1:, :]
 
-def beam_stress_constraint_jac(samples):
-    """
-    Jacobian with respect to the design variables
-    Desired behavior is when constraint is less than 0
-    """
-    X, Y, E, R, w, t = samples
-    L = 100
-    grad = np.empty((samples.shape[1], 6))
-    grad[:, 0] = -6*L/(R*t*w**2)
-    grad[:, 1] = -6*L/(R*t**2*w)
-    grad[:, 2] = 0*E
-    grad[:, 3] = 6*L*(t*X+w*Y)/(R**2*t**2*w**2)
-    grad[:, 4] = (6*L*(2*t*X+w*Y))/(R*t**2*w**3)
-    grad[:, 5] = (6*L*(t*X+2*w*Y))/(R*t**3*w**2)
-    return grad
-
-
-def beam_displacement_constraint(samples):
-    """
-    Desired behavior is when constraint is less than 0
-    """
-    X, Y, E, R, w, t = samples
-    L, D0 = 100, 2.2535
-    # scaled version
-    vals = 1-4*L**3/(E*w*t)*np.sqrt(X**2/w**4+Y**2/t**4)/D0
-    return vals[:, np.newaxis]
-
-
-def beam_displacement_constraint_jac(samples):
-    """
-    Jacobian with respect to the design variables
-    Desired behavior is when constraint is less than 0
-    """
-    X, Y, E, R, w, t = samples
-    L, D0 = 100, 2.2535
-    grad = np.empty((samples.shape[1], 6))
-    grad[:, 0] = -4*L**3*X/(D0*E*t*w**5*np.sqrt(X**2/w**4+Y**2/t**4))
-    grad[:, 1] = -4*L**3*Y/(D0*E*t**5*w*np.sqrt(X**2/w**4+Y**2/t**4))
-    grad[:, 2] = 4*L**3*np.sqrt(X**2/w**4+Y**2/t**4)/(D0*E**2*t*w)
-    grad[:, 3] = 0*R
-    grad[:, 4] = (4*L**3*(3*t**4*X**2+w**4*Y**2))/(
-        D0*E*t**5*w**6*np.sqrt(X**2/w**4+Y**2/t**4))
-    grad[:, 5] = (4*L**3*(t**4*X**2+3*w**4*Y**2))/(
-        D0*E*t**6*w**5*np.sqrt(X**2/w**4+Y**2/t**4))
-    return grad
-
-
-def cantilever_beam_constraints(samples):
-    values = np.hstack([beam_stress_constraint(samples),
-                        beam_displacement_constraint(samples)])
-    return values
-
-
-def cantilever_beam_constraints_jacobian(samples):
-    assert samples.shape[1]
-    jac = np.vstack(
-        [beam_stress_constraint_jac(samples),
-         beam_displacement_constraint_jac(samples)])
-    return jac
-
-
-def cantilever_beam_objective_and_constraints(samples):
-    return np.hstack((cantilever_beam_objective(samples),
-                      cantilever_beam_constraints(samples)))
-
-
-def cantilever_beam_objective_and_constraints_jacobian(samples):
-    assert samples.shape[1]
-    return np.vstack((cantilever_beam_objective_grad(samples),
-                      cantilever_beam_constraints_jacobian(samples)))
+    def _hessian(self, sample):
+        return super()._hessian(sample)[1:, ...].copy()
 
 
 def define_piston_random_variables():
