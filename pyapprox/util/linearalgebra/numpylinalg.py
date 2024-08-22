@@ -324,6 +324,10 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return False
 
     @staticmethod
+    def hessian_implemented() -> bool:
+        return False
+
+    @staticmethod
     def meshgrid(*arrays, indexing="xy"):
         return np.meshgrid(*arrays, indexing=indexing)
 

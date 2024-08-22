@@ -331,6 +331,10 @@ class TorchLinAlgMixin(LinAlgMixin):
         return val, grad
 
     @staticmethod
+    def hessian(fun, params):
+        return torch.autograd.functional.hessian(fun, params)
+
+    @staticmethod
     def up(matrix, indices, submatrix, axis=0):
         if axis == 0:
             matrix[indices] = submatrix
@@ -375,6 +379,10 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def jacobian_implemented() -> bool:
+        return True
+
+    @staticmethod
+    def hessian_implemented() -> bool:
         return True
 
     @staticmethod

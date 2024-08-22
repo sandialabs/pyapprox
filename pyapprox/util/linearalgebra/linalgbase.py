@@ -603,6 +603,10 @@ class LinAlgMixin(ABC):
         raise NotImplementedError
 
     @staticmethod
+    def hessian(fun, params):
+        raise NotImplementedError
+
+    @staticmethod
     @abstractmethod
     def up(matrix, indices, submatrix, axis=0):
         raise NotImplementedError
@@ -635,6 +639,11 @@ class LinAlgMixin(ABC):
     @staticmethod
     @abstractmethod
     def jacobian_implemented() -> bool:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def hessian_implemented() -> bool:
         raise NotImplementedError
 
     @staticmethod

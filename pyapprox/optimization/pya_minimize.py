@@ -428,9 +428,12 @@ class MultiStartOptimizer(Optimizer):
 class ConstrainedOptimizer(Optimizer):
     def __init__(self, objective=None, constraints=[], bounds=None, opts={}):
         super().__init__(objective, bounds, opts)
+        self._raw_constraints = None
+        self._constraints = constraints
         self.set_constraints(constraints)
 
     def set_constraints(self, constraints):
+        self._raw_constraints = constraints
         for con in constraints:
             if not isinstance(con, Constraint) and not isinstance(
                 con, LinearConstraint
@@ -456,11 +459,8 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
                 continue
             con = ScipyModelWrapper(_con)
             jac = con.jac if con._jacobian_implemented else "2-point"
-            if (
-                    con._apply_weighted_hessian_implemented
-                    or con._hessian_implemented
-            ):
-                hess = con.hessp
+            if (con._hessian_implemented):
+                hess = con.weighted_hess
             else:
                 hess = scipy.optimize._hessian_update_strategy.BFGS()
             scipy_con = NonlinearConstraint(
@@ -478,6 +478,7 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             )
         else:
             bounds = self._bounds
+
         objective = ScipyModelWrapper(self._objective)
         jac = objective.jac if objective._jacobian_implemented else None
         if (
@@ -1118,7 +1119,7 @@ class ObjectiveWithCVaRConstraints(Model):
         self._apply_jacobian_implemented = (
             self._model._apply_jacobian_implemented
         )
-        # until sampleaveragecvar.jacobian is implemented turn
+        # until sampleaveragecvar.hessian is implemented turn
         # off objective hessian
         # self._hessian_implemented = self._model._hessian_implemented
 

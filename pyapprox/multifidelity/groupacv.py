@@ -3,19 +3,11 @@ from itertools import combinations
 
 import torch
 import numpy as np
-from scipy.optimize import minimize, LinearConstraint, Bounds
-
-try:
-    import cvxpy
-    _cvx_available = True
-except ImportError:
-    _cvx_available = False
-
 
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.stats import MultiOutputMean
 from pyapprox.interface.model import Model
-from pyapprox.optimization.pya_minimize import Constraint
+from pyapprox.optimization.pya_minimize import Constraint, ConstrainedOptimizer
 
 
 def get_model_subsets(nmodels, bkd, max_subset_nmodels=None):
@@ -99,16 +91,6 @@ def _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch, bkd):
     return beta
 
 
-def _grouped_acv_variance(nmodels, Sigma, subsets, R, reg, asketch, bkd):
-    reg_mat = bkd.eye(nmodels)*reg
-    if asketch.shape != (nmodels, 1):
-        raise ValueError("asketch has the wrong shape")
-
-    reg_mat = bkd.eye(nmodels)*reg
-    return asketch.T @ bkd.pinv(
-        bkd.multidot((R, bkd.pinv(Sigma), R.T))+reg_mat) @ asketch
-
-
 def _grouped_acv_estimate(
         nmodels, Sigma, reg, subsets, subset_values, R, asketch, bkd):
     nsubsets = len(subsets)
@@ -167,40 +149,27 @@ class GroupACVEstimator:
                 "MLBLUE currently only suppots estimation of means")
         self._stat = stat
 
-        self.subsets, self.allocation_mat = self._set_subsets(
+        self._subsets, self.allocation_mat = self._set_subsets(
             subsets, est_type)
-        self.nsubsets = len(self.subsets)
         self.npartitions = self.allocation_mat.shape[1]
-        self.partitions_per_model = self._get_partitions_per_model()
-        self.partitions_intersect = (
+        self._partitions_per_model = self._get_partitions_per_model()
+        self._partitions_intersect = (
             self._get_subset_intersecting_partitions())
-        self.R = self._bkd.hstack(
+        self._R = self._bkd.hstack(
             [
                 self._restriction_matrix(self.nmodels(), subset).T
-                for ii, subset in enumerate(self.subsets)
+                for ii, subset in enumerate(self._subsets)
             ]
         )
-        self.subset_costs = self._get_model_subset_costs(
-            self.subsets, self._costs)
-
         # set npatition_samples above small constant,
         # otherwise gradient will not be defined.
         self._npartition_samples_lb = 0  # 1e-5
-
-        self._npartitions = self.nsubsets  # TODO replace .nsubsets everywhere
         self._optimized_criteria = None
         self._asketch = self._validate_asketch(asketch)
+        self._objective = None
 
-        self._newobjective = GroupACVObjective()
-        self._newobjective.set_estimator(self)
-        
-        if est_type == "is":
-            self._obj_jac = True
-        else:
-            # hack because currently autogradients do not works so must
-            # use finite difference
-            self._obj_jac = False
-            
+    def nsubsets(self):
+        return len(self._subsets)
 
     def nmodels(self):
         return self._nmodels
@@ -244,14 +213,14 @@ class GroupACVEstimator:
         partitions_per_model = self._bkd.full(
             (self.nmodels(), npartitions), 0.
         )
-        for ii, subset in enumerate(self.subsets):
+        for ii, subset in enumerate(self._subsets):
             partitions_per_model[
                 np.ix_(subset, self.allocation_mat[ii] == 1)] = 1
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples):
         nsamples_per_model = self._bkd.einsum(
-            "ji,i->j", self.partitions_per_model, npartition_samples)
+            "ji,i->j", self._partitions_per_model, npartition_samples)
         return nsamples_per_model
 
     def _estimator_cost(self, npartition_samples):
@@ -262,9 +231,9 @@ class GroupACVEstimator:
         amat = self.allocation_mat
         npartitions = self.allocation_mat.shape[1]
         partition_intersect = self._bkd.full(
-            (self.nsubsets, self.nsubsets, npartitions), 0.)
-        for ii, subset_ii in enumerate(self.subsets):
-            for jj, subset_jj in enumerate(self.subsets):
+            (self.nsubsets(), self.nsubsets(), npartitions), 0.)
+        for ii, subset_ii in enumerate(self._subsets):
+            for jj, subset_jj in enumerate(self._subsets):
                 # partitions are shared when sum of allocation entry is 2
                 partition_intersect[ii, jj, amat[ii]+amat[jj] == 2] = 1.
         return partition_intersect
@@ -277,86 +246,39 @@ class GroupACVEstimator:
         matrix
         """
         return self._bkd.einsum(
-            "ijk,k->ij", self.partitions_intersect, npartition_samples)
+            "ijk,k->ij", self._partitions_intersect, npartition_samples)
 
     def _sigma(self, npartition_samples):
         return _grouped_acv_sigma(
             self.nmodels(), self._nintersect_samples(npartition_samples),
-            self._cov, self.subsets, self._bkd)
+            self._cov, self._subsets, self._bkd)
+
+    def _psi_matrix_from_sigma(self, Sigma):
+        # TODO instead of applyint R matrices just collect correct rows and columns
+        reg_mat = self._bkd.eye(self.nmodels())*self._reg_blue
+        return self._bkd.multidot(
+             (self._R, self._bkd.pinv(Sigma), self._R.T))+reg_mat
+
+    def _psi_matrix(self, npartition_samples):
+        Sigma = self._sigma(npartition_samples)
+        return self._psi_matrix_from_sigma(Sigma)
 
     def _covariance_from_npartition_samples(self, npartition_samples):
-        return _grouped_acv_variance(
-            self.nmodels(), self._sigma(npartition_samples), self.subsets,
-            self.R, self._reg_blue, self._asketch, self._bkd)
-
-    def _objective(self, npartition_samples_np, return_grad=True):
-        npartition_samples = torch.as_tensor(
-            npartition_samples_np.copy(), dtype=torch.double)
-        if return_grad:
-            npartition_samples.requires_grad = True
-        est_var = self._covariance_from_npartition_samples(
-            npartition_samples)
-        # talking log of objective seems to make scipy strugle to minimize
-        val = est_var
-        if not return_grad:
-            return val.item()
-        val.backward()
-        grad = npartition_samples.grad.detach().numpy().copy()
-        npartition_samples.grad.zero_()
-        return val.item(), grad
+        if self._asketch.shape != (self.nmodels(), 1):
+            raise ValueError("asketch has the wrong shape")
+        psi_inv = self._bkd.pinv(self._psi_matrix(npartition_samples))
+        return self._bkd.multidot(
+            (self._asketch.T, psi_inv, self._asketch)
+        )
 
     def _get_model_subset_costs(self, subsets, costs):
         subset_costs = self._bkd.array(
             [costs[subset].sum() for subset in subsets])
         return subset_costs
 
-    def _cost_constraint(
-            self, npartition_samples_np, target_cost, return_grad=False):
-        # because this is a constraint it must only return grad or val
-        # not both unlike usual PyApprox convention
-        npartition_samples = torch.as_tensor(
-            npartition_samples_np, dtype=torch.double)
-        if return_grad:
-            npartition_samples.requires_grad = True
-        val = (target_cost-self._estimator_cost(npartition_samples))
-        if not return_grad:
-            return val.item()
-        raise NotImplementedError(
-            "This feature has been deprecated use self._cost_constraint_jac")
-        # val.backward()
-        # grad = npartition_samples.grad.detach().numpy().copy()
-        # npartition_samples.grad.zero_()
-        # assert np.allclose(
-        #     grad,
-        #     self._cost_constraint_jac(npartition_samples_np, target_cost))
-        # return grad
-
-    def _nhf_samples(self, npartition_samples):
-        return (self.partitions_per_model[0]*npartition_samples).sum()
-
-    def _nhf_samples_constraint(self, npartition_samples, min_nhf_samples):
-        return self._nhf_samples(npartition_samples)-min_nhf_samples
-
-    def _nhf_samples_constraint_jac(self, npartition_samples, min_nhf_samples):
-        return self.partitions_per_model[0]
-
-    def _cost_constraint_jac(self, npartition_samples_np, target_cost):
-        return -(self._costs[None, :] @ self.partitions_per_model).numpy()
-
-    def _validate_target_cost_min_nhf_samples(
-            self, target_cost, min_nhf_samples):
-        lb = min_nhf_samples*self._costs[0]
-        ub = target_cost
-        if ub < lb:
-            msg = "target_cost {0} and cost of min_nhf_samples {1} ".format(
-                target_cost, lb)
-            msg += "are inconsistent"
-            raise ValueError(msg)
-        return lb, ub
-
     def _nelder_mead_min_nlf_samples_constraint(
             self, x, min_nlf_samples, ii):
-        return (self.partitions_per_model[ii].numpy()*x).sum()-min_nlf_samples
+        return (self._partitions_per_model[ii].numpy()*x).sum()-min_nlf_samples
 
     def _get_nelder_mead_constraints(self, target_cost, min_nhf_samples,
                                      min_nlf_samples, constraint_reg=0):
@@ -377,35 +299,15 @@ class GroupACVEstimator:
                      'args': [min_nlf_samples, ii, ]}]
         return cons
 
-    def _get_constraints(self, target_cost, min_nhf_samples,
-                         min_nlf_samples, constraint_reg=0):
-        keep_feasible = False
-        lb, ub = self._validate_target_cost_min_nhf_samples(
-            target_cost, min_nhf_samples)
-        cons = [LinearConstraint(
-            (self._costs[None, :]@self.partitions_per_model).numpy(),
-            lb=lb, ub=ub, keep_feasible=keep_feasible)]
-        cons += [LinearConstraint(
-            self.partitions_per_model[0].numpy(), lb=min_nhf_samples,
-            keep_feasible=keep_feasible)]
-        if min_nlf_samples is not None:
-            assert len(min_nlf_samples) == self.nmodels()-1
-            for ii in range(1, self.nmodels()):
-                cons += [LinearConstraint(
-                    self.partitions_per_model[ii].numpy(),
-                    lb=min_nlf_samples[ii-1],
-                    keep_feasible=keep_feasible)]
-        return cons
-
-    def _constrained_objective(self, cons, x):
-        # used for gradient free optimizers
-        lamda = 1e8
-        cons_term = 0
-        for con in cons:
-            c_val = con["fun"](x, *con["args"])
-            if c_val < 0:
-                cons_term -= c_val * lamda
-        return self._objective(x, return_grad=False) + cons_term
+    # def _constrained_objective(self, cons, x):
+    #     # used for gradient free optimizers
+    #     lamda = 1e8
+    #     cons_term = 0
+    #     for con in cons:
+    #         c_val = con["fun"](x, *con["args"])
+    #         if c_val < 0:
+    #             cons_term -= c_val * lamda
+    #     return self._objective(x, return_grad=False) + cons_term
 
     def _init_guess(self, target_cost):
         # start with the same number of samples per partition
@@ -421,18 +323,6 @@ class GroupACVEstimator:
         # we take the floor to make sure we do not exceed the target cost
         return self._bkd.full(
             (self.npartitions,), self._bkd.floor(target_cost/cost))
-
-    def _update_init_guess(self, init_guess, constraints, options, bounds):
-        method = "nelder-mead"
-        # options["xatol"] = 1e-6
-        # options["fatol"] = 1e-6
-        # options["maxfev"] = 100 * len(init_guess)
-        obj = partial(self._constrained_objective, constraints)
-        res = minimize(
-            obj, init_guess, jac=False,
-            method=method, constraints=None, options=options,
-            bounds=self._get_bounds(*bounds))
-        return res.x
 
     def _set_optimized_params_base(self, rounded_npartition_samples,
                                    rounded_nsamples_per_model,
@@ -458,16 +348,6 @@ class GroupACVEstimator:
             self._compute_nsamples_per_model(rounded_npartition_samples),
             self._estimator_cost(rounded_npartition_samples))
 
-    def _get_bounds(self, lb, ub):
-        # better to use bounds because they are never violated
-        # but enforcing bounds as constraints means bounds can be violated
-        # bounds = [(0, np.inf) for ii in range(self.npartitions)]
-        # optimizer has trouble when ub in np.inf
-        bounds = Bounds(self._bkd.zeros((self.npartitions,))+lb,
-                        self._bkd.full((self.npartitions,), ub),
-                        keep_feasible=True)
-        return bounds
-
     def _validate_asketch(self, asketch):
         if asketch is None:
             asketch = self._bkd.full((self.nmodels(), 1), 0)
@@ -479,11 +359,15 @@ class GroupACVEstimator:
             asketch = asketch[:, None]
         return asketch
 
-    def allocate_samples(self, target_cost,
-                         constraint_reg=0, round_nsamples=True,
-                         init_guess=None,
-                         min_nhf_samples=1, min_nlf_samples=None,
-                         optim_options={}):
+    def set_optimizer(self, optimizer):
+        if not isinstance(optimizer, GroupACVOptimizer):
+            raise ValueError("optimizer must be instance of GroupACVOptimizer")
+        self._optimizer = optimizer
+
+    def allocate_samples(
+            self, target_cost, min_nhf_samples=1, round_nsamples=True,
+            iterate=None,
+    ):
         """
         Parameters
         ----------
@@ -496,39 +380,15 @@ class GroupACVEstimator:
             is rounded the rounded nhf_samples may be less than desired. It
             will be close though
         """
-        obj = partial(self._objective, return_grad=self._obj_jac)
-        constraints = self._get_constraints(
-            target_cost, min_nhf_samples, min_nlf_samples, constraint_reg)
-        optim_options_copy = optim_options.copy()
-        bounds = optim_options_copy.pop("bounds", [1e-8, 1e10])
-        if init_guess is None:
-            init_guess = self._init_guess(target_cost)
-            init_opts = optim_options_copy.pop("init_guess", {})
-            if isinstance(init_opts, dict):
-                nelder_mead_constraints = self._get_nelder_mead_constraints(
-                    target_cost, min_nhf_samples, min_nlf_samples,
-                    constraint_reg)
-                init_guess = self._update_init_guess(
-                    init_guess, nelder_mead_constraints, init_opts, bounds)
-        init_guess = self._bkd.max(init_guess, self._npartition_samples_lb)
-        method = optim_options_copy.pop("method", "trust-constr")
-        # import warnings
-        # warnings.filterwarnings("error")
-        res = minimize(
-            obj, init_guess, jac=self._obj_jac,
-            method=method, constraints=constraints,
-            options=optim_options_copy,
-            bounds=self._get_bounds(*bounds))
-        if not res.success or self._bkd.any(res["x"] < 0):
-            # second condition is needed, even though bounds should enforce,
-            # positivity, because somtimes trust-constr does not enforce
-            # bounds and I am not sure why
-            msg = "optimization not successful"
-            print(msg)
-            print(res)
-            raise RuntimeError(msg)
+        if self._optimizer is None:
+            raise RuntimeError("must call set_optimizer")
+        self._optimizer.set_budget(target_cost, min_nhf_samples)
+        result = self._optimizer.minimize(iterate)
 
-        self._set_optimized_params(self._bkd.array(res["x"]), round_nsamples)
+        if not result.success or self._bkd.any(result.x < 0):
+            raise RuntimeError("optimization not successful")
+
+        self._set_optimized_params(result.x[:, 0], round_nsamples)
 
     def _get_partition_splits(self, npartition_samples):
         """
@@ -551,7 +411,7 @@ class GroupACVEstimator:
         samples_per_model = []
         for ii in range(self.nmodels()):
             active_partitions = self._bkd.where(
-                self.partitions_per_model[ii]
+                self._partitions_per_model[ii]
             )[0]
             samples_per_model.append(self._bkd.hstack([
                 samples[:, partition_splits[idx]:partition_splits[idx+1]]
@@ -559,14 +419,14 @@ class GroupACVEstimator:
         if npilot_samples == 0:
             return samples_per_model
 
-        if (self.partitions_per_model[0] *
+        if (self._partitions_per_model[0] *
                 self._rounded_npartition_samples).max() < npilot_samples:
             msg = "Insert pilot samples currently only supported when only"
             msg += " the largest subset of those containing the "
             msg += "high-fidelity model can fit all pilot samples. "
             msg += "npilot = {0} != {1}".format(
                 npilot_samples,
-                (self.partitions_per_model[0] *
+                (self._partitions_per_model[0] *
                  self._rounded_npartition_samples).max())
             raise ValueError(msg)
         return self._remove_pilot_samples(
@@ -582,7 +442,7 @@ class GroupACVEstimator:
         splits_per_model = []
         for ii in range(self.nmodels()):
             active_partitions = self._bkd.where(
-                self.partitions_per_model[ii]
+                self._partitions_per_model[ii]
             )[0]
             splits = self._bkd.full((self.npartitions, 2), -1, dtype=int)
             lb, ub = 0, 0
@@ -609,7 +469,7 @@ class GroupACVEstimator:
                 raise ValueError(msg)
 
         values_per_subset = []
-        for ii, subset in enumerate(self.subsets):
+        for ii, subset in enumerate(self._subsets):
             values = []
             active_partitions = self._bkd.where(self.allocation_mat[ii])[0]
             for model_id in subset:
@@ -621,10 +481,24 @@ class GroupACVEstimator:
             values_per_subset.append(self._bkd.hstack(values))
         return values_per_subset
 
+    def _grouped_acv_beta(self, sigma):
+        psi_matrix = self._psi_matrix_from_sigma(sigma)
+        beta = self._bkd.multidot((
+            self._bkd.pinv(sigma), self._R.T,
+            self._bkd.solve(psi_matrix, self._asketch[:, 0])))
+        return beta
+
     def _estimate(self, values_per_subset):
-        return _grouped_acv_estimate(
-            self.nmodels(), self._optimized_sigma, self._reg_blue,
-            self.subsets, values_per_subset, self.R, self._asketch, self._bkd)
+        beta = self._grouped_acv_beta(self._optimized_sigma)
+        ll, mm = 0, 0
+        acv_mean = 0
+        for kk in range(self.nsubsets()):
+            mm += len(self._subsets[kk])
+            if values_per_subset[kk].shape[0] > 0:
+                subset_mean = values_per_subset[kk].mean(axis=0)
+                acv_mean += (beta[ll:mm]) @ subset_mean
+            ll = mm
+        return acv_mean
 
     def __call__(self, values_per_model):
         values_per_subset = self._separate_values_per_model(values_per_model)
@@ -641,11 +515,13 @@ class GroupACVEstimator:
         return sample_splits, removed_split
 
     def _remove_pilot_samples(self, npilot_samples, samples_per_model):
-        active_hf_subsets = self._bkd.where(self.partitions_per_model[0] == 1)[0]
+        active_hf_subsets = self._bkd.where(
+            self._partitions_per_model[0] == 1
+        )[0]
         partition_id = active_hf_subsets[self._bkd.argmax(
             self._rounded_npartition_samples[active_hf_subsets])]
         removed_samples = None
-        for model_id in self.subsets[partition_id]:
+        for model_id in self._subsets[partition_id]:
             if (npilot_samples >
                     self._rounded_npartition_samples[partition_id]):
                 msg = "Too many pilot values {0}+>{1}".format(
@@ -669,12 +545,12 @@ class GroupACVEstimator:
             samples_per_model[model_id] = self._bkd.hstack(
                 [samples_per_model[model_id][:, splits[idx, 0]: splits[idx, 1]]
                  for idx in self._bkd.where(
-                         self.partitions_per_model[model_id] == 1)[0]])
+                         self._partitions_per_model[model_id] == 1)[0]])
         return samples_per_model, removed_samples
 
     def insert_pilot_values(self, pilot_values, values_per_model):
         npilot_values = pilot_values[0].shape[0]
-        if (self.partitions_per_model[0] *
+        if (self._partitions_per_model[0] *
                 self._rounded_npartition_samples).max() < npilot_values:
             msg = "Insert pilot samples currently only supported when only"
             msg += " the largest subset of those containing the "
@@ -682,10 +558,12 @@ class GroupACVEstimator:
             raise ValueError(msg)
 
         new_values_per_model = [v.copy() for v in values_per_model]
-        active_hf_subsets = self._bkd.where(self.partitions_per_model[0] == 1)[0]
+        active_hf_subsets = self._bkd.where(
+            self._partitions_per_model[0] == 1
+        )[0]
         partition_id = active_hf_subsets[self._bkd.argmax(
             self._rounded_npartition_samples[active_hf_subsets])]
-        for model_id in self.subsets[partition_id]:
+        for model_id in self._subsets[partition_id]:
             npilot_values = pilot_values[model_id].shape[0]
             if npilot_values != pilot_values[0].shape[0]:
                 msg = "Must have the same number of pilot values "
@@ -733,98 +611,20 @@ class MLBLUEEstimator(GroupACVEstimator):
 
     def _compute_psi_blocks(self):
         submats = []
-        for ii, subset in enumerate(self.subsets):
+        for ii, subset in enumerate(self._subsets):
             R = self._restriction_matrix(self.nmodels(), subset)
-            submat = self._bkd.multi_dot((
+            submat = self._bkd.multidot((
                 R.T,
                 self._bkd.pinv(self._cov[np.ix_(subset, subset)]),
                 R))
             submats.append(submat)
         return submats
 
-    def _psi_matrix(self, npartition_samples_np):
-        psi = self._bkd.identity(self.nmodels())*self._reg_blue
-        psi += (self._psi_blocks_flat @ npartition_samples_np).reshape(
+    def _psi_matrix(self, npartition_samples):
+        psi = self._bkd.eye(self.nmodels())*self._reg_blue
+        psi += (self._psi_blocks_flat @ npartition_samples).reshape(
             (self.nmodels(), self.nmodels()))
         return psi
-
-    def _objective(self, npartition_samples_np, return_grad=True):
-        # leverage block diagonal structure to compute gradients efficiently
-        psi = self._psi_matrix(npartition_samples_np)
-        try:
-            psi_inv = self._bkd.inv(psi)
-        except:
-            # sometimes nelder mead tries values that violate constraints
-            # so return large value here
-            assert not return_grad
-            return 9e16
-        variance = self._bkd.multi_dot(
-            (self._asketch.T, psi_inv, self._asketch))
-        if not return_grad:
-            return variance
-        aT_psi_inv = self._asketch.T.numpy().dot(psi_inv)
-        grad = self._bkd.array(
-            [-self._bkd.multi_dot((aT_psi_inv, smat, aT_psi_inv.T))[0, 0]
-             for smat in self._psi_blocks])
-        return variance, grad
-
-    def _cvxpy_psi(self, nsps_cvxpy):
-        Psi = self._psi_blocks_flat@nsps_cvxpy
-        Psi = cvxpy.reshape(Psi, (self.nmodels(), self.nmodels()))
-        return Psi
-
-    def _cvxpy_spd_constraint(self, nsps_cvxpy, t_cvxpy):
-        Psi = self._cvxpy_psi(nsps_cvxpy)
-        mat = cvxpy.bmat(
-            [[Psi, self._asketch],
-             [self._asketch.T, cvxpy.reshape(t_cvxpy, (1, 1))]])
-        return mat
-
-    def _minimize_cvxpy(self, target_cost, min_nhf_samples, min_nlf_samples):
-        # use notation from https://www.cvxpy.org/examples/basic/sdp.html
-
-        t_cvxpy = cvxpy.Variable(nonneg=True)
-        nsps_cvxpy = cvxpy.Variable(self.nsubsets, nonneg=True)
-        obj = cvxpy.Minimize(t_cvxpy)
-        self._validate_target_cost_min_nhf_samples(
-            target_cost, min_nhf_samples)
-        constraints = [self.subset_costs@nsps_cvxpy <= target_cost]
-        constraints += [
-            self.partitions_per_model[0]@nsps_cvxpy >= min_nhf_samples]
-        if min_nlf_samples is not None:
-            constraints += [
-                self.partitions_per_model[ii+1]@nsps_cvxpy >=
-                min_nlf_samples[ii] for ii in range(self.nmodels()-1)]
-        constraints += [self._cvxpy_spd_constraint(
-            nsps_cvxpy, t_cvxpy) >> 0]
-        prob = cvxpy.Problem(obj, constraints)
-        prob.solve(verbose=0, solver="CVXOPT")
-        res = dict([("x",  nsps_cvxpy.value), ("fun", t_cvxpy.value)])
-        if res["fun"] is None:
-            raise RuntimeError("solver did not converge")
-        return res
-
-    def allocate_samples(self, target_cost,
-                         constraint_reg=0, round_nsamples=True,
-                         init_guess=None, min_nhf_samples=1,
-                         min_nlf_samples=None, optim_options={}):
-        optim_options_copy = optim_options.copy()
-        method = optim_options_copy.get(
-            "method", "cvxpy" if _cvx_available else "trust-constr")
-        if method == "cvxpy":
-            if not _cvx_available:
-                raise ImportError("must install cvxpy")
-            res = self._minimize_cvxpy(
-                target_cost, min_nhf_samples, min_nlf_samples)
-            return self._set_optimized_params(
-                self._bkd.array(res["x"]), round_nsamples)
-        # TODO
-        # when running mlblue with trust-constr make sure to compute
-        # contraint jacobians and activate them
-        # TODO put all keyword args into optim_options
-        return super().allocate_samples(
-            target_cost, constraint_reg, round_nsamples,
-            init_guess, min_nhf_samples, min_nlf_samples, optim_options_copy)
 
     def estimate_all_means(self, values_per_subset):
         asketch = self._bkd.copy(self._asketch)
@@ -843,12 +643,16 @@ class GroupACVObjective(Model):
         self._est = None
         self._bkd = None
 
+    def nqoi(self):
+        return 1
+
     def set_estimator(self, estimator):
         self._est = estimator
         self._bkd = self._est._bkd
         self._jacobian_implemented = self._bkd.jacobian_implemented()
+        self._hessian_implemented = self._bkd.hessian_implemented()
 
-    def __call__(self, npartition_samples):
+    def _values(self, npartition_samples):
         return self._est._covariance_from_npartition_samples(
             npartition_samples[:, 0]
         )
@@ -858,6 +662,12 @@ class GroupACVObjective(Model):
             self._est._covariance_from_npartition_samples,
             npartition_samples[:, 0],
         )[1]
+
+    def _hessian(self, npartition_samples):
+        return self._bkd.hessian(
+            self._est._covariance_from_npartition_samples,
+            npartition_samples[:, 0],
+        )[None, ...]
 
 
 class GroupACVConstraint(Constraint):
@@ -872,26 +682,44 @@ class GroupACVConstraint(Constraint):
 
 
 class GroupACVCostContstraint(GroupACVConstraint):
-    def __init__(
-            self, target_cost, min_nhf_samples, bounds, keep_feasible=False
-    ):
-        if bounds.shape[0] != 2:
+    def __init__(self, bounds, keep_feasible=False):
+        if bounds.shape[0] != self.nqoi():
             # the number of columns is checked with call to super().__init__
             raise ValueError("Bounds must have shape (2, 2)")
         super().__init__(bounds, keep_feasible)
+        self._target_cost = None
+        self._min_nhf_samples = None
+        self._jacobian_implemented = True
+        self._hessian_implemented = True
+
+    def set_budget(self, target_cost, min_nhf_samples):
         self._target_cost = target_cost
         self._min_nhf_samples = min_nhf_samples
-        self._jacobian_implemented = True
-        self._apply_hessian_implemented = True
+        self._validate_target_cost_min_nhf_samples()
 
-    def __call__(self, npartition_samples):
+    def _validate_target_cost_min_nhf_samples(self):
+        lb = self._min_nhf_samples*self._est._costs[0]
+        ub = self._target_cost
+        if ub < lb:
+            msg = "target_cost {0} & cost of min_nhf_samples {1} ".format(
+                self._target_cost, lb
+            )
+            msg += "are inconsistent"
+            raise ValueError(msg)
+        self._bounds[0, 0] = max(lb, 0)
+        self._bounds[0, 1] = min(ub, np.inf)
+
+    def nqoi(self):
+        return 2
+
+    def _values(self, npartition_samples):
         return self._bkd.array(
             [
                 self._target_cost-self._est._estimator_cost(
                     npartition_samples[:, 0]
                 ),
-                self._est._nhf_samples(
-                    npartition_samples[:, 0]
+                self._bkd.sum(
+                    self._est._partitions_per_model[0]*npartition_samples[:, 0]
                 ) - self._min_nhf_samples
             ]
         )[None, :]
@@ -899,13 +727,137 @@ class GroupACVCostContstraint(GroupACVConstraint):
     def _jacobian(self, npartition_samples):
         return self._bkd.vstack(
             (
-                -(self._est._costs[None, :] @ self._est.partitions_per_model),
-                self._est.partitions_per_model[0][None, :]
+                -(self._est._costs[None, :] @ self._est._partitions_per_model),
+                self._est._partitions_per_model[0][None, :]
             )
         )
 
-    def _apply_hessian(self, npartition_samples, vec):
-        return self._bkd.zeros((npartition_samples.shape[0], 2))
+    def _hessian(self, npartition_samples):
+        return self._bkd.zeros(
+            (
+                self.nqoi(),
+                npartition_samples.shape[0],
+                npartition_samples.shape[0]
+             )
+        )
+
+
+from abc import ABC, abstractmethod
+from pyapprox.optimization.pya_minimize import OptimizationResult
+class GroupACVOptimizer(ABC):
+    def __init__(self):
+        self._target_cost = None
+        self._min_nhf_samples = None
+        self._est = None
+        self._bkd = None
+
+    def set_budget(self, target_cost, min_nhf_samples=1):
+        self._target_cost = target_cost
+        self._min_nhf_samples = min_nhf_samples
+
+    def set_estimator(self, est):
+        self._est = est
+        self._bkd = self._est._bkd
+
+    @abstractmethod
+    def _minimize(self, iterate):
+        raise NotImplementedError
+
+    def minimize(self, iterate):
+        result = self._minimize(iterate)
+        if not isinstance(result, OptimizationResult):
+            raise RuntimeError(
+                "{0}.minimize did not return OptimizationResult".format(self)
+            )
+        return result
+
+
+class GroupACVGradientOptimizer(GroupACVOptimizer):
+    def __init__(self, optimizer):
+        super().__init__()
+        if not isinstance(optimizer, ConstrainedOptimizer):
+            raise ValueError(
+                "optimizer must be an instance of ConstrainedOptimizer"
+            )
+        self._optimizer = optimizer
+        self._constraint = None
+
+    def _minimize(self, iterate):
+        return self._optimizer.minimize(iterate)
+
+    def set_budget(self, target_cost, min_nhf_samples=1):
+        super().set_budget(target_cost, min_nhf_samples)
+        self._constraint.set_budget(target_cost, min_nhf_samples)
+
+    def set_estimator(self, est):
+        super().set_estimator(est)
+        objective = GroupACVObjective()
+        objective.set_estimator(self._est)
+        self._optimizer.set_objective_function(objective)
+        self._constraint = GroupACVCostContstraint(
+            bounds=self._bkd.array([[0, np.inf], [0, np.inf]])
+        )
+        self._constraint.set_estimator(self._est)
+        self._optimizer.set_constraints([self._constraint])
+        self._optimizer.set_bounds(
+            self._bkd.reshape(
+                self._bkd.repeat(
+                    self._bkd.array([0, np.inf]), self._est.npartitions),
+                (self._est.npartitions, 2)
+            )
+        )
+
+
+class MLBLUESPDOptimizer(GroupACVOptimizer):
+    def __init__(self):
+        try:
+            import cvxpy
+        except ImportError:
+            raise ValueError(
+                "MLBLUESPDOptimizer can only be used when optinal dependency"
+                "cvxpy is installed")
+        self._cvxpy = cvxpy
+
+        super().__init__()
+        self._min_nlf_samples = None
+
+    def _cvxpy_psi(self, nsps_cvxpy):
+        Psi = self._est._psi_blocks_flat@nsps_cvxpy
+        Psi = self._cvxpy.reshape(Psi, (self._est.nmodels(), self._est.nmodels()))
+        return Psi
+
+    def _cvxpy_spd_constraint(self, nsps_cvxpy, t_cvxpy):
+        Psi = self._cvxpy_psi(nsps_cvxpy)
+        mat = self._cvxpy.bmat(
+            [[Psi, self._est._asketch],
+             [self._est._asketch.T, self._cvxpy.reshape(t_cvxpy, (1, 1))]])
+        return mat
+
+    def _minimize(self):
+        t_cvxpy = self._cvxpy.Variable(nonneg=True)
+        nsps_cvxpy = self._cvxpy.Variable(self.nsubsets(), nonneg=True)
+        obj = self._cvxpy.Minimize(t_cvxpy)
+        subset_costs = self._est._get_model_subset_costs(
+            self._est._subsets, self._est._costs)
+        constraints = [subset_costs@nsps_cvxpy <= self._target_cost]
+        constraints += [
+            self._est._partitions_per_model[0]@nsps_cvxpy
+            >= self._min_nhf_samples
+        ]
+        if self._min_nlf_samples is not None:
+            constraints += [
+                self._est._partitions_per_model[ii+1]@nsps_cvxpy >=
+                self._min_nlf_samples[ii] for ii in range(self.nmodels()-1)]
+        constraints += [self._cvxpy_spd_constraint(
+            nsps_cvxpy, t_cvxpy) >> 0]
+        prob = self._cvxpy.Problem(obj, constraints)
+        prob.solve(verbose=0, solver="CVXOPT")
+        if t_cvxpy.value is None:
+            raise RuntimeError("solver did not converge")
+        result = OptimizationResult(
+            {"x": nsps_cvxpy.value, "fun": t_cvxpy.value}
+        )
+        return result
 
 #cvxpy requires cmake
 #on osx with M1 chip install via

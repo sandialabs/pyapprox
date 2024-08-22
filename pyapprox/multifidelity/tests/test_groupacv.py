@@ -9,10 +9,12 @@ from pyapprox.util.utilities import (
 from pyapprox.multifidelity.groupacv import (
     get_model_subsets, GroupACVEstimator,
     _get_allocation_matrix_is, _get_allocation_matrix_nested, _nest_subsets,
-    _cvx_available, MLBLUEEstimator)
+    MLBLUEEstimator, GroupACVGradientOptimizer)
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.factory import multioutput_stats
+from pyapprox.optimization.pya_minimize import ScipyConstrainedOptimizer
+from pyapprox.util.sys_utilities import package_available
 
 
 class TestGroupACV:
@@ -173,7 +175,7 @@ class TestGroupACV:
         mc_group_cov = np.cov(subset_means, ddof=1, rowvar=False)
         Sigma = est._sigma(est._rounded_npartition_samples)
         atol, rtol = 4e-3, 2e-2
-        np.set_printoptions(linewidth=1000, precision=4)
+        # np.set_printoptions(linewidth=1000, precision=4)
         # print(np.diag(mc_group_cov))
         # print(np.diag(Sigma.numpy()))
         # print(np.diag(mc_group_cov)-np.diag(Sigma.numpy()))
@@ -202,7 +204,7 @@ class TestGroupACV:
             print(test_case)
             self._check_mean_estimator_variance(*test_case)
 
-    def _check_mlblue_objective(self, nmodels, min_nhf_samples):
+    def _check_gradient_optimization(self, nmodels, min_nhf_samples):
         # check specialized mlblue objective is consitent with
         # more general groupacv estimator when computing a single mean
         bkd = self.get_backend()
@@ -219,74 +221,56 @@ class TestGroupACV:
         # todo move all member variables private and add functions to access
         # iterate = bkd.full((gest.npartitions, 1), 1.)
         iterate = gest._init_guess(target_cost)[:, None]
-        errors = gest._newobjective.check_apply_jacobian(iterate)
         # assert bkd.min(errors)/bkd.max(errors) < 1e-6 and errors[0] > 0.2
 
-        from pyapprox.optimization.pya_minimize import ScipyConstrainedOptimizer
-        from pyapprox.multifidelity.groupacv import GroupACVCostContstraint
-        opt = ScipyConstrainedOptimizer()
-        opt.set_objective_function(gest._newobjective)
-        constraint = GroupACVCostContstraint(
-            target_cost,
-            min_nhf_samples,
-            bounds=bkd.array([[0, np.inf], [0, np.inf]])
-        )
-        constraint.set_estimator(gest)
-        opt.set_constraints([constraint])
-        errors = constraint.check_apply_jacobian(iterate)
+        opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        opt.set_estimator(gest)
+        opt.set_budget(target_cost)
+        errors = opt._optimizer._objective.check_apply_jacobian(iterate)
+        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.1
+        errors = opt._optimizer._objective.check_apply_hessian(iterate)
+        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.1
+        errors = opt._constraint.check_apply_jacobian(iterate)
         # constraints are linear so jacobian will be exact with largest
         # finite difference size, so check just the first entry of errors
-        print(errors)
-        assert errors[0] < 2e-15
-        errors = constraint.check_apply_hessian(iterate, relative=False)
-        assert errors[0] < 1e-15
-
-        result = opt.minimize(iterate)
-        print(result)
-        
-
-        gest.allocate_samples(
-            target_cost,
-            optim_options={"disp": False, "maxiter": 1000,
-                           "method": "slsqp"},
-            min_nhf_samples=min_nhf_samples, round_nsamples=False)
-        print(gest._rounded_npartition_samples)
-        assert gest._nhf_samples(
-            gest._rounded_npartition_samples) >= min_nhf_samples
+        assert errors[0] < 1e-12
+        weights = bkd.ones((opt._constraint.nqoi(), 1))
+        errors = opt._constraint.check_apply_hessian(
+            iterate, weights=weights, relative=False
+        )
+        assert errors[0] < 1e-12
 
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
-        mlest.allocate_samples(
-            target_cost, optim_options={"method": "slsqp"},
-            min_nhf_samples=min_nhf_samples)
-        assert mlest._nhf_samples(
-            mlest._rounded_npartition_samples) >= min_nhf_samples
-        assert np.allclose(mlest._covariance_from_npartition_samples(
-            gest._rounded_npartition_samples),
-                           gest._covariance_from_npartition_samples(
-                               gest._rounded_npartition_samples))
+        opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        opt.set_estimator(mlest)
+        opt.set_budget(target_cost)
+        errors = opt._optimizer._objective.check_apply_jacobian(iterate)
+        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.1
+        errors = opt._optimizer._objective.check_apply_hessian(iterate)
+        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.1
 
-        init_guess = mlest._init_guess(target_cost).numpy()
-        # init_guess = np.array([99., 1e-2, 1e-2])
-        errors = check_gradients(
-            lambda x: gest._objective(x[:, 0], True), True,
-            init_guess[:, None],
-            disp=False)
-        assert errors.min()/errors.max() < 1e-6 and errors[0] < 1
+        gest.set_optimizer(opt)
+        gest.allocate_samples(target_cost, min_nhf_samples, iterate=iterate)
+        mlest.set_optimizer(opt)
+        mlest.allocate_samples(target_cost, min_nhf_samples, iterate=iterate)
+        assert np.allclose(
+            mlest._covariance_from_npartition_samples(
+                gest._rounded_npartition_samples
+            ),
+            gest._covariance_from_npartition_samples(
+                gest._rounded_npartition_samples)
+        )
 
-        # the answers will be different because group acv optimization
-        # currently uses finite differences
-        print(gest._optimized_criteria, mlest._optimized_criteria)
-        assert np.allclose(gest._optimized_criteria,
-                           mlest._optimized_criteria, rtol=5e-3)
+        # todo test mlblue with subsets that result in mfmc allocation
+        # and compare optimzed answer with analytic answer
 
-    def test_mlblue_objective(self):
+    def test_gradient_optimization(self):
         test_cases = [
             [2, 1], [3, 1], [4, 1], [3, 10],
         ]
         for test_case in test_cases:
             np.random.seed(1)
-            print(test_case)
-            self._check_mlblue_objective(*test_case)
+            self._check_gradient_optimization(*test_case)
 
     def _check_mlblue_spd(self, nmodels, min_nhf_samples):
         bkd = self.get_backend()
@@ -316,7 +300,7 @@ class TestGroupACV:
         assert np.allclose(gest._optimized_criteria,
                            mlest._optimized_criteria, rtol=1e-3)
 
-    @unittest.skipIf(not _cvx_available, "cvxpy not installed")
+    @unittest.skipIf(not package_available("cvxpy"), "cvxpy not installed")
     def test_mlblue_spd(self):
         test_cases = [
             [2, 1], [3, 1], [4, 1], [3, 10],

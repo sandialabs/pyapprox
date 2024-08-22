@@ -118,7 +118,7 @@ class TestMinimize(unittest.TestCase):
             # assert False
             errors = constraint.check_apply_hessian(
                 design_sample,
-                weights=np.ones((constraint.nqoi(), 1)), disp=True
+                weights=np.ones((constraint.nqoi(), 1))
             )
             assert errors.min()/errors.max() < 1.3e-6 and errors.max() > 0.2
 
@@ -146,7 +146,7 @@ class TestMinimize(unittest.TestCase):
             )
             design_sample = np.array([3, 3, 1, 1])[:, None]
             assert constraint(design_sample).shape == (1, 2)
-            errors = constraint.check_apply_jacobian(design_sample, disp=True)
+            errors = constraint.check_apply_jacobian(design_sample)
             # print(errors.min()/errors.max())
             assert errors.min()/errors.max() < 1.3e-6
 
@@ -189,7 +189,7 @@ class TestMinimize(unittest.TestCase):
         constraint_model = CustomModel(nrandom_vars)
         constraint_x0 = np.arange(2, nrandom_vars+ndesign_vars+2)[:, None]
         errors = constraint_model.check_apply_jacobian(
-            constraint_x0, disp=True)
+            constraint_x0)
         assert errors.min()/errors.max() < 1e-6
 
         # objective model is just a function of design variables
@@ -203,11 +203,11 @@ class TestMinimize(unittest.TestCase):
             hessian=lambda x: np.zeros((1, 1, 1))
         )
         errors = objective_model.check_apply_jacobian(
-            design_x0, disp=True)
+            design_x0)
         assert errors.min()/errors.max() < 1e-6
 
         errors = objective_model.check_apply_hessian(
-            design_x0, disp=True, relative=False)
+            design_x0, relative=False)
         assert errors.max() < 1e-15
 
         assert mu1 == 0
@@ -272,7 +272,7 @@ class TestMinimize(unittest.TestCase):
              np.full((ndesign_vars+nconstraints,), np.inf)), axis=1)
         optimizer = ScipyConstrainedOptimizer(
             objective, bounds=bounds, constraints=[constraint],
-            opts={"gtol": 3e-6, "verbose": 3, "maxiter": 3000, "disp":True})
+            opts={"gtol": 3e-6, "verbose": 3, "maxiter": 3000})
         result = optimizer.minimize(opt_x0)
 
         # errors in sample based estimate of CVaR will cause
@@ -284,9 +284,9 @@ class TestMinimize(unittest.TestCase):
 
         # TODO: on ubuntu reducing gtol causes minimize not to converge
         # ideally find reason and dencrease rtol and atol below
-        print(result.x-exact_opt_x)
+         #print(result.x-exact_opt_x)
         assert np.allclose(result.x, exact_opt_x, rtol=2e-3, atol=1e-3)
-        print(-sigma1-result.fun)
+        # print(-sigma1-result.fun)
         assert np.allclose(-sigma1, result.fun, rtol=1e-4)
 
 

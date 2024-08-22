@@ -562,7 +562,6 @@ class ScipyModelWrapper:
                 "_jacobian_implemented",
                 "_hessian_implemented",
                 "_apply_hessian_implemented",
-                "_apply_weighted_hessian_implemented",
         ]:
             setattr(self, attr, self._model.__dict__[attr])
 
@@ -601,16 +600,9 @@ class ScipyModelWrapper:
             )
         )
 
-    def lagrange_hessp(self, sample, weights):
-        sample = self._check_sample(sample)
-        self._model._check_weights(weights)
-        return self._bkd.to_numpy(
-            self._model.apply_hessian(
-                sample[:, None],
-                vec=None,
-                weights=self._bkd.asarray(weights[:, None]),
-            )
-        )
+    def weighted_hess(self, sample, weights):
+        hess = self._model.hessian(sample[:, None])
+        return np.einsum("i,ijk->jk", weights, self._bkd.to_numpy(hess))
 
     def __repr__(self):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
