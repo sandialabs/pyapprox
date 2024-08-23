@@ -1,4 +1,4 @@
-from functools import partial
+from abc import ABC, abstractmethod
 from itertools import combinations
 
 import torch
@@ -7,7 +7,10 @@ import numpy as np
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.stats import MultiOutputMean
 from pyapprox.interface.model import Model
-from pyapprox.optimization.pya_minimize import Constraint, ConstrainedOptimizer
+from pyapprox.optimization.pya_minimize import (
+    Constraint, ConstrainedOptimizer, OptimizationResult, ChainedOptimizer,
+    Optimizer
+)
 
 
 def get_model_subsets(nmodels, bkd, max_subset_nmodels=None):
@@ -149,9 +152,9 @@ class GroupACVEstimator:
                 "MLBLUE currently only suppots estimation of means")
         self._stat = stat
 
-        self._subsets, self.allocation_mat = self._set_subsets(
+        self._subsets, self._allocation_mat = self._set_subsets(
             subsets, est_type)
-        self.npartitions = self.allocation_mat.shape[1]
+        self._npartitions = self._allocation_mat.shape[1]
         self._partitions_per_model = self._get_partitions_per_model()
         self._partitions_intersect = (
             self._get_subset_intersecting_partitions())
@@ -170,6 +173,9 @@ class GroupACVEstimator:
 
     def nsubsets(self):
         return len(self._subsets)
+
+    def npartitions(self):
+        return self._npartitions
 
     def nmodels(self):
         return self._nmodels
@@ -209,13 +215,13 @@ class GroupACVEstimator:
 
     def _get_partitions_per_model(self):
         # assume npartitions = nsubsets
-        npartitions = self.allocation_mat.shape[1]
+        npartitions = self._allocation_mat.shape[1]
         partitions_per_model = self._bkd.full(
             (self.nmodels(), npartitions), 0.
         )
         for ii, subset in enumerate(self._subsets):
             partitions_per_model[
-                np.ix_(subset, self.allocation_mat[ii] == 1)] = 1
+                np.ix_(subset, self._allocation_mat[ii] == 1)] = 1
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples):
@@ -228,8 +234,8 @@ class GroupACVEstimator:
             self._costs*self._compute_nsamples_per_model(npartition_samples))
 
     def _get_subset_intersecting_partitions(self):
-        amat = self.allocation_mat
-        npartitions = self.allocation_mat.shape[1]
+        amat = self._allocation_mat
+        npartitions = self._allocation_mat.shape[1]
         partition_intersect = self._bkd.full(
             (self.nsubsets(), self.nsubsets(), npartitions), 0.)
         for ii, subset_ii in enumerate(self._subsets):
@@ -299,30 +305,20 @@ class GroupACVEstimator:
                      'args': [min_nlf_samples, ii, ]}]
         return cons
 
-    # def _constrained_objective(self, cons, x):
-    #     # used for gradient free optimizers
-    #     lamda = 1e8
-    #     cons_term = 0
-    #     for con in cons:
-    #         c_val = con["fun"](x, *con["args"])
-    #         if c_val < 0:
-    #             cons_term -= c_val * lamda
-    #     return self._objective(x, return_grad=False) + cons_term
-
     def _init_guess(self, target_cost):
         # start with the same number of samples per partition
 
         # get the number of samples per model when 1 sample is in each
         # partition
         nsamples_per_model = self._compute_nsamples_per_model(
-            self._bkd.full((self.npartitions,), 1.))
+            self._bkd.full((self.npartitions(),), 1.))
         # nsamples_per_model[0] = max(0, min_nhf_samples)
         cost = (nsamples_per_model*self._costs).sum()
 
         # the total number of samples per partition is then target_cost/cost
         # we take the floor to make sure we do not exceed the target cost
         return self._bkd.full(
-            (self.npartitions,), self._bkd.floor(target_cost/cost))
+            (self.npartitions(),), self._bkd.floor(target_cost/cost))
 
     def _set_optimized_params_base(self, rounded_npartition_samples,
                                    rounded_nsamples_per_model,
@@ -360,8 +356,14 @@ class GroupACVEstimator:
         return asketch
 
     def set_optimizer(self, optimizer):
-        if not isinstance(optimizer, GroupACVOptimizer):
-            raise ValueError("optimizer must be instance of GroupACVOptimizer")
+        if (
+                not isinstance(optimizer, GroupACVOptimizer)
+                and not isinstance(optimizer, ChainedACVOptimizer)
+        ):
+            raise ValueError(
+                "optimizer must be instance of GroupACVOptimizer"
+                "or ChainedACVOptimizer"
+            )
         self._optimizer = optimizer
 
     def allocate_samples(
@@ -444,7 +446,7 @@ class GroupACVEstimator:
             active_partitions = self._bkd.where(
                 self._partitions_per_model[ii]
             )[0]
-            splits = self._bkd.full((self.npartitions, 2), -1, dtype=int)
+            splits = self._bkd.full((self.npartitions(), 2), -1, dtype=int)
             lb, ub = 0, 0
             for ii, idx in enumerate(active_partitions):
                 ub += partition_splits[idx+1]-partition_splits[idx]
@@ -471,7 +473,7 @@ class GroupACVEstimator:
         values_per_subset = []
         for ii, subset in enumerate(self._subsets):
             values = []
-            active_partitions = self._bkd.where(self.allocation_mat[ii])[0]
+            active_partitions = self._bkd.where(self._allocation_mat[ii])[0]
             for model_id in subset:
                 splits = self._opt_sample_splits[model_id]
                 values.append(self._bkd.vstack([
@@ -509,7 +511,7 @@ class GroupACVEstimator:
         """ return splits that occur when removing N samples of
         a partition of a given model"""
         lb, ub = self._opt_sample_splits[model_id][partition_id]
-        sample_splits = self._opt_sample_splits[model_id].copy()
+        sample_splits = self._bkd.copy(self._opt_sample_splits[model_id])
         sample_splits[partition_id][0] = (lb+nsamples_to_reduce)
         removed_split = lb, lb+nsamples_to_reduce
         return sample_splits, removed_split
@@ -557,7 +559,7 @@ class GroupACVEstimator:
             msg += "high-fidelity model can fit all pilot samples"
             raise ValueError(msg)
 
-        new_values_per_model = [v.copy() for v in values_per_model]
+        new_values_per_model = [self._bkd.copy(v) for v in values_per_model]
         active_hf_subsets = self._bkd.where(
             self._partitions_per_model[0] == 1
         )[0]
@@ -671,7 +673,7 @@ class GroupACVObjective(Model):
 
 
 class GroupACVConstraint(Constraint):
-    def __init__(self, bounds, keep_feasible=False):
+    def __init__(self, bounds, keep_feasible=True):
         super().__init__(bounds, keep_feasible)
         self._est = None
         # self._jacobian_implemented = self. jacobian_implemented()
@@ -682,7 +684,7 @@ class GroupACVConstraint(Constraint):
 
 
 class GroupACVCostContstraint(GroupACVConstraint):
-    def __init__(self, bounds, keep_feasible=False):
+    def __init__(self, bounds, keep_feasible=True):
         if bounds.shape[0] != self.nqoi():
             # the number of columns is checked with call to super().__init__
             raise ValueError("Bounds must have shape (2, 2)")
@@ -706,8 +708,6 @@ class GroupACVCostContstraint(GroupACVConstraint):
             )
             msg += "are inconsistent"
             raise ValueError(msg)
-        self._bounds[0, 0] = max(lb, 0)
-        self._bounds[0, 1] = min(ub, np.inf)
 
     def nqoi(self):
         return 2
@@ -742,14 +742,12 @@ class GroupACVCostContstraint(GroupACVConstraint):
         )
 
 
-from abc import ABC, abstractmethod
-from pyapprox.optimization.pya_minimize import OptimizationResult
-class GroupACVOptimizer(ABC):
+class GroupACVOptimizer(Optimizer):
     def __init__(self):
+        super().__init__()
         self._target_cost = None
         self._min_nhf_samples = None
         self._est = None
-        self._bkd = None
 
     def set_budget(self, target_cost, min_nhf_samples=1):
         self._target_cost = target_cost
@@ -802,8 +800,8 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         self._optimizer.set_bounds(
             self._bkd.reshape(
                 self._bkd.repeat(
-                    self._bkd.array([0, np.inf]), self._est.npartitions),
-                (self._est.npartitions, 2)
+                    self._bkd.array([0, np.inf]), self._est.npartitions()),
+                (self._est.npartitions(), 2)
             )
         )
 
@@ -823,7 +821,9 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
 
     def _cvxpy_psi(self, nsps_cvxpy):
         Psi = self._est._psi_blocks_flat@nsps_cvxpy
-        Psi = self._cvxpy.reshape(Psi, (self._est.nmodels(), self._est.nmodels()))
+        Psi = self._cvxpy.reshape(
+            Psi, (self._est.nmodels(), self._est.nmodels())
+        )
         return Psi
 
     def _cvxpy_spd_constraint(self, nsps_cvxpy, t_cvxpy):
@@ -833,9 +833,11 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
              [self._est._asketch.T, self._cvxpy.reshape(t_cvxpy, (1, 1))]])
         return mat
 
-    def _minimize(self):
+    def _minimize(self, iterate):
+        if iterate is not None:
+            raise ValueError("iterate must be None")
         t_cvxpy = self._cvxpy.Variable(nonneg=True)
-        nsps_cvxpy = self._cvxpy.Variable(self.nsubsets(), nonneg=True)
+        nsps_cvxpy = self._cvxpy.Variable(self._est.nsubsets(), nonneg=True)
         obj = self._cvxpy.Minimize(t_cvxpy)
         subset_costs = self._est._get_model_subset_costs(
             self._est._subsets, self._est._costs)
@@ -855,9 +857,30 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
         if t_cvxpy.value is None:
             raise RuntimeError("solver did not converge")
         result = OptimizationResult(
-            {"x": nsps_cvxpy.value, "fun": t_cvxpy.value}
+            {
+                "x": self._bkd.array(nsps_cvxpy.value)[:, None],
+                "fun": t_cvxpy.value,
+                "success": True,
+            }
         )
         return result
+
+
+class ChainedACVOptimizer(ChainedOptimizer):
+    def __init__(self, optimizer1, optimizer2):
+        if not isinstance(optimizer1, GroupACVOptimizer):
+            raise ValueError(
+                "optimizer1 must be an instance of GroupACVOptimizer"
+            )
+        if not isinstance(optimizer2, GroupACVOptimizer):
+            raise ValueError(
+                "optimizer2 must be an instance of GroupACVOptimizer"
+            )
+        super().__init__(optimizer1, optimizer2)
+
+    def set_budget(self, target_cost, min_nhf_samples):
+        self._optimizer1.set_budget(target_cost, min_nhf_samples)
+        self._optimizer2.set_budget(target_cost, min_nhf_samples)
 
 #cvxpy requires cmake
 #on osx with M1 chip install via

@@ -10,7 +10,7 @@ from pyapprox.surrogates.bases.basisexp import (
 from pyapprox.surrogates.loss import LossFunction, RMSELoss
 from pyapprox.surrogates.regressor import OptimizedRegressor
 from pyapprox.optimization.pya_minimize import (
-    Optimizer, MultiStartOptimizer, OptimizationResult
+    OptimizerWithObjective, MultiStartOptimizer, OptimizationResult
 )
 
 
@@ -203,7 +203,7 @@ class FunctionTrain(OptimizedRegressor):
             jacs.append(self._bkd.hstack(jac))
         return jacs
 
-    def __call__(self, samples):
+    def _values(self, samples):
         values = self._cores[0](samples[:1])
         for ii in range(1, self.nvars()):
             values = self._bkd.einsum(
@@ -331,7 +331,7 @@ class FunctionTrainAlternatingLstSqLoss(RMSELoss):
             "AlternatingLstSqOptimizer will never call _jacobian")
 
 
-class AlternatingLstSqOptimizer(Optimizer):
+class AlternatingLstSqOptimizer(OptimizerWithObjective):
     def __init__(self, tol=1e-4, maxiters=10, verbosity=0):
         self._tol = tol
         self._maxiters = maxiters

@@ -456,20 +456,6 @@ class CVEstimator(MCEstimator):
     def _weights(self, CF, cf):
         return -torch.linalg.multi_dot(
             (torch.linalg.pinv(CF), cf.T)).T
-        # try:
-        #     direct solve is usually not a good idea because of ill
-        #     conditioning which can be larges especially for mean_variance
-        #
-        #     return -torch.linalg.solve(CF, cf.T).T
-        # except (torch._C._LinAlgError):
-        #     return -torch.linalg.multi_dot(
-        #         (torch.linalg.pinv(CF), cf.T)).T
-        # try:
-        #     weights = -torch.linalg.multi_dot(
-        #         (torch.linalg.pinv(CF), cf.T))
-        # except (np.linalg.LinAlgError, RuntimeError):
-        #     weights = torch.ones(cf.T.shape, dtype=torch.double)*1e16
-        # return weights.T
 
     @staticmethod
     def _covariance_non_optimal_weights(

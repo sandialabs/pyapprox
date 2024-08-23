@@ -258,16 +258,9 @@ class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
 
 
 class Optimizer(ABC):
-    def __init__(self, objective=None, bounds=None, opts={}):
+    def __init__(self, opts={}):
         self._bkd = None
         self._verbosity = 0
-        self._objective = None
-        self._bounds = None
-
-        if objective is not None:
-            self.set_objective_function(objective)
-        if bounds is not None:
-            self.set_bounds(bounds)
         self.set_options(**opts)
 
     def set_options(self, **opts):
@@ -291,8 +284,6 @@ class Optimizer(ABC):
         res : :py:class:`~pyapprox.sciml.OptimizationResult`
              The optimization result.
         """
-        if self._objective is None:
-            raise RuntimeError("Must call set_objective_function")
         if iterate.ndim != 2 or iterate.shape[1] != 1:
             raise ValueError("iterate must be a 2D array with one column.")
         result = self._minimize(iterate)
@@ -301,6 +292,59 @@ class Optimizer(ABC):
                 "{0}.minimize did not return OptimizationResult".format(self)
             )
         return result
+
+    def set_verbosity(self, verbosity):
+        """
+        Set the verbosity.
+
+        Parameters
+        ----------
+        verbosity_flag : int, default 0
+            0 = no output
+            1 = final iteration
+            2 = each iteration
+            3 = each iteration, plus details
+        """
+        self._verbosity = verbosity
+
+    def __repr__(self):
+        return "{0}(verbosity={1})".format(
+            self.__class__.__name__, self._verbosity
+        )
+
+
+class OptimizerWithObjective(Optimizer):
+    def __init__(self, objective=None, bounds=None, opts={}):
+        super().__init__(opts)
+        self._objective = None
+        self._bounds = None
+
+        if objective is not None:
+            self.set_objective_function(objective)
+        if bounds is not None:
+            self.set_bounds(bounds)
+        self.set_options(**opts)
+
+    def set_options(self, **opts):
+        self._opts = opts
+
+    def minimize(self, iterate):
+        """
+        Minimize the objective function.
+
+        Parameters
+        ----------
+        iterate : array
+             The initial guess used to start the optimizer
+
+        Returns
+        -------
+        res : :py:class:`~pyapprox.sciml.OptimizationResult`
+             The optimization result.
+        """
+        if self._objective is None:
+            raise RuntimeError("Must call set_objective_function")
+        return super().minimize(iterate)
 
     def set_bounds(self, bounds):
         """
@@ -339,20 +383,6 @@ class Optimizer(ABC):
         self._bkd = objective._bkd
         self._objective = objective
 
-    def set_verbosity(self, verbosity):
-        """
-        Set the verbosity.
-
-        Parameters
-        ----------
-        verbosity_flag : int, default 0
-            0 = no output
-            1 = final iteration
-            2 = each iteration
-            3 = each iteration, plus details
-        """
-        self._verbosity = verbosity
-
     def _is_iterate_within_bounds(self, iterate):
         if self._bounds is None:
             return True
@@ -363,13 +393,8 @@ class Optimizer(ABC):
             iterate >= bounds[:, 0],
             iterate <= bounds[:, 1]).all()
 
-    def __repr__(self):
-        return "{0}(verbosity={1})".format(
-            self.__class__.__name__, self._verbosity
-        )
 
-
-class MultiStartOptimizer(Optimizer):
+class MultiStartOptimizer(OptimizerWithObjective):
     def __init__(self, optimizer, ncandidates=1):
         """
         Find the smallest local optima associated with a set of
@@ -425,7 +450,7 @@ class MultiStartOptimizer(Optimizer):
         )
 
 
-class ConstrainedOptimizer(Optimizer):
+class ConstrainedOptimizer(OptimizerWithObjective):
     def __init__(self, objective=None, constraints=[], bounds=None, opts={}):
         super().__init__(objective, bounds, opts)
         self._raw_constraints = None
@@ -469,15 +494,17 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             scipy_constraints.append(scipy_con)
         return scipy_constraints
 
+    def _get_bounds(self, nvars):
+        if self._bounds is None:
+            return Bounds(
+                np.full((nvars,), -np.inf), np.full((nvars,), np.inf)
+            )
+        return self._bounds
+
     def _minimize(self, init_guess):
         opts = self._opts.copy()
         nvars = init_guess.shape[0]
-        if self._bounds is None:
-            bounds = Bounds(
-                np.full((nvars,), -np.inf), np.full((nvars,), np.inf)
-            )
-        else:
-            bounds = self._bounds
+        bounds = self._get_bounds(nvars)
 
         objective = ScipyModelWrapper(self._objective)
         jac = objective.jac if objective._jacobian_implemented else None
@@ -517,6 +544,84 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
         if self._verbosity > 1:
             print(result)
         return result
+
+
+class ConstraintPenalizedObjective(Model):
+    def __init__(self, unconstrained_objective, constraints):
+        super().__init__(self)
+        self._bkd = unconstrained_objective._bkd
+        self._unconstrained_objective = unconstrained_objective
+        self._constraints = constraints
+        self._penalty = None
+
+    def nqoi(self):
+        return 1
+
+    def set_penalty(self, penalty):
+        self._penalty = penalty
+
+    def _values(self, samples):
+        cons_term = 0
+        for con in self._constraints:
+            con_vals = con(samples)
+            for con_val in con_vals.T:
+                if con_val < 0:
+                    # if constraint violated add a penalty
+                    cons_term += -con_val * self._penalty
+        return self._unconstrained_objective(samples) + cons_term
+
+
+class ScipyConstrainedNelderMeadOptimizer(ScipyConstrainedOptimizer):
+    def __init__(self, objective=None, constraints=[], bounds=None, opts={}):
+        super().__init__(objective, constraints, bounds, opts)
+        self._penalty = None
+
+    def _minimize(self, iterate):
+        opts = self._opts.copy()
+        nvars = iterate.shape[0]
+        bounds = self._get_bounds(nvars)
+        constrained_objective = ConstraintPenalizedObjective(
+            self._objective, self._raw_constraints
+        )
+        constrained_objective.set_penalty(opts.pop("penalty", 1e8))
+        objective = ScipyModelWrapper(constrained_objective)
+
+        scipy_result = scipy_minimize(
+            objective,
+            iterate[:, 0],
+            method="Nelder-Mead",
+            bounds=bounds,
+            options=self._opts,
+        )
+        scipy_result.x = scipy_result.x[:, None]
+        result = ScipyOptimizationResult(scipy_result, self._bkd)
+        if self._verbosity > 1:
+            print(result)
+        return result
+
+
+class ChainedOptimizer(Optimizer):
+    def __init__(self, optimizer1, optimizer2):
+        super().__init__()
+        if not isinstance(optimizer1, Optimizer):
+            raise ValueError(
+                "optimizer1 {0} must be an instance of Optimizer".format(
+                    optimizer1
+                )
+            )
+        if not isinstance(optimizer2, Optimizer):
+            raise ValueError(
+                "optimizer2 {0} must be an instance of Optimizer".format(
+                    optimizer2
+                )
+            )
+        self._optimizer1 = optimizer1
+        self._optimizer2 = optimizer2
+
+    def _minimize(self, iterate):
+        result1 = self._optimizer1.minimize(iterate)
+        result2 = self._optimizer2.minimize(result1.x)
+        return result2
 
 
 # TODO consider merging with multifidelity.stat

@@ -7,6 +7,9 @@ class LossFunction(Model):
         self._bkd = None
         self._model = None
 
+    def nqoi(self):
+        return 1
+
     def set_model(self, model):
         self._bkd = model._bkd
         self._model = model
@@ -28,7 +31,10 @@ class LossFunction(Model):
             model._ctrain_samples is None
         ):
             raise ValueError("model must have attribute _ctrain_samples")
-        if not hasattr(model, "_ctrain_values") or model._ctrain_values is None:
+        if (
+                not hasattr(model, "_ctrain_values")
+                or model._ctrain_values is None
+        ):
             raise ValueError("model must have attribute _ctrain_values")
 
 
@@ -37,7 +43,7 @@ class RMSELoss(LossFunction):
         super().__init__()
         self._jacobian_implemented = True
 
-    def __call__(self, active_opt_params):
+    def _values(self, active_opt_params):
         self._check_model(self._model)
         self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
         return self._bkd.atleast2d(

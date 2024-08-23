@@ -99,7 +99,7 @@ class BasisExpansion(Regressor):
         return self._coef.get_values().reshape(
             self.basis.nterms(), self.nqoi())
 
-    def __call__(self, samples):
+    def _values(self, samples):
         """
         Evaluate the expansion at a set of samples.
 
