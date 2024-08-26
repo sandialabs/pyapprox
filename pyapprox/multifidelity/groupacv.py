@@ -5,7 +5,7 @@ import torch
 import numpy as np
 
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.multifidelity.stats import MultiOutputMean
+from pyapprox.multifidelity.stats import MultiOutputMean, MultiOutputVariance
 from pyapprox.interface.model import Model
 from pyapprox.optimization.pya_minimize import (
     Constraint, ConstrainedOptimizer, OptimizationResult, ChainedOptimizer,
@@ -69,74 +69,40 @@ def _nest_subsets(subsets, nmodels, bkd):
     return [subsets[ii] for ii in idx], bkd.array(idx)
 
 
-def _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch, bkd):
-    """
-    Parameters
-    ----------
-    nmodels: integer
-        The total number of models including the highest fidelity
-
-    Sigma : array (nestimators, nestimators)
-        The covariance between all estimators
-
-    reg : float
-        Regularization parameter to stabilize matrix inversion
-    """
-    reg_mat = bkd.eye(nmodels)*reg
-    if asketch.shape != (nmodels, 1):
-        raise ValueError("asketch has the wrong shape")
-
-    # TODO instead of applyint R matrices just collect correct rows and columns
-    beta = bkd.multidot((
-        bkd.pinv(Sigma), R.T,
-        bkd.solve(bkd.multidot(
-            (R, bkd.pinv(Sigma), R.T))+reg_mat, asketch[:, 0])))
-    return beta
-
-
-def _grouped_acv_estimate(
-        nmodels, Sigma, reg, subsets, subset_values, R, asketch, bkd):
-    nsubsets = len(subsets)
-    beta = _grouped_acv_beta(nmodels, Sigma, subsets, R, reg, asketch, bkd)
-    ll, mm = 0, 0
-    acv_mean = 0
-    for kk in range(nsubsets):
-        mm += len(subsets[kk])
-        if subset_values[kk].shape[0] > 0:
-            subset_mean = subset_values[kk].mean(axis=0)
-            acv_mean += (beta[ll:mm]) @ subset_mean
-        ll = mm
-    return acv_mean
-
-
 def _grouped_acv_sigma_block(
         subset0, subset1, nsamples_intersect, nsamples_subset0,
-        nsamples_subset1, cov, bkd):
+        nsamples_subset1, stat):
     nsubset0 = len(subset0)
     nsubset1 = len(subset1)
-    block = bkd.full((nsubset0, nsubset1), 0.)
+    block = stat._bkd.full((nsubset0, nsubset1), 0.)
     if (nsamples_subset0*nsamples_subset1) == 0:
         return block
-    block = cov[np.ix_(subset0, subset1)]*nsamples_intersect/(
-                nsamples_subset0*nsamples_subset1)
+    if (
+            nsamples_subset0 < stat.min_nsamples()
+            or nsamples_subset1 < stat.min_nsamples()
+    ):
+        return block
+    block = stat._group_acv_sigma_block(
+        subset0, subset1, nsamples_intersect, nsamples_subset0,
+        nsamples_subset1)
     return block
 
 
 def _grouped_acv_sigma(
-        nmodels, nsamples_intersect, cov, subsets, bkd):
+        nmodels, nsamples_intersect, subsets, stat):
     nsubsets = len(subsets)
     Sigma = [[None for jj in range(nsubsets)] for ii in range(nsubsets)]
     for ii, subset0 in enumerate(subsets):
         N_ii = nsamples_intersect[ii, ii]
         Sigma[ii][ii] = _grouped_acv_sigma_block(
-            subset0, subset0, N_ii, N_ii, N_ii, cov, bkd)
+            subset0, subset0, N_ii, N_ii, N_ii, stat)
         for jj, subset1 in enumerate(subsets[:ii]):
             N_jj = nsamples_intersect[jj, jj]
             Sigma[ii][jj] = _grouped_acv_sigma_block(
                 subset0, subset1, nsamples_intersect[ii, jj],
-                N_ii, N_jj, cov, bkd)
+                N_ii, N_jj, stat)
             Sigma[jj][ii] = Sigma[ii][jj].T
-    Sigma = bkd.vstack([bkd.hstack(row) for row in Sigma])
+    Sigma = stat._bkd.vstack([stat._bkd.hstack(row) for row in Sigma])
     return Sigma
 
 
@@ -144,12 +110,19 @@ class GroupACVEstimator:
     def __init__(self, stat, costs, reg_blue=0, subsets=None,
                  est_type="is", asketch=None, backend=TorchLinAlgMixin):
         self._bkd = backend
-        self._cov, self._costs = self._check_cov(stat._cov, costs)
+        # self._cov, self._costs = self._check_cov(stat._cov, costs)
+        self._costs = self._bkd.array(costs)
         self._nmodels = len(costs)
         self._reg_blue = reg_blue
-        if not isinstance(stat, MultiOutputMean):
+        if (
+                not isinstance(stat, MultiOutputMean)
+                and not isinstance(stat, MultiOutputVariance)
+        ):
             raise ValueError(
-                "MLBLUE currently only suppots estimation of means")
+                "GroupACV only suppots estimation of mean or variance"
+            )
+        if stat.nqoi() != 1:
+            raise ValueError("GroupACV only supports nqoi=1")
         self._stat = stat
 
         self._subsets, self._allocation_mat = self._set_subsets(
@@ -225,6 +198,7 @@ class GroupACVEstimator:
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples):
+        print(npartition_samples, self._partitions_per_model)
         nsamples_per_model = self._bkd.einsum(
             "ji,i->j", self._partitions_per_model, npartition_samples)
         return nsamples_per_model
@@ -257,7 +231,7 @@ class GroupACVEstimator:
     def _sigma(self, npartition_samples):
         return _grouped_acv_sigma(
             self.nmodels(), self._nintersect_samples(npartition_samples),
-            self._cov, self._subsets, self._bkd)
+            self._subsets, self._stat)
 
     def _psi_matrix_from_sigma(self, Sigma):
         # TODO instead of applyint R matrices just collect correct rows and columns
@@ -384,7 +358,8 @@ class GroupACVEstimator:
         """
         if self._optimizer is None:
             raise RuntimeError("must call set_optimizer")
-        self._optimizer.set_budget(target_cost, min_nhf_samples)
+        self._optimizer.set_budget(
+            target_cost, max(self._stat.min_nsamples(), min_nhf_samples))
         result = self._optimizer.minimize(iterate)
 
         if not result.success or self._bkd.any(result.x < 0):
@@ -493,14 +468,14 @@ class GroupACVEstimator:
     def _estimate(self, values_per_subset):
         beta = self._grouped_acv_beta(self._optimized_sigma)
         ll, mm = 0, 0
-        acv_mean = 0
+        acv_stat = 0
         for kk in range(self.nsubsets()):
             mm += len(self._subsets[kk])
             if values_per_subset[kk].shape[0] > 0:
-                subset_mean = values_per_subset[kk].mean(axis=0)
-                acv_mean += (beta[ll:mm]) @ subset_mean
+                subset_stat = self._stat.sample_estimate(values_per_subset[kk])
+                acv_stat += (beta[ll:mm]) @ subset_stat
             ll = mm
-        return acv_mean
+        return acv_stat
 
     def __call__(self, values_per_model):
         values_per_subset = self._separate_values_per_model(values_per_model)
@@ -617,7 +592,7 @@ class MLBLUEEstimator(GroupACVEstimator):
             R = self._restriction_matrix(self.nmodels(), subset)
             submat = self._bkd.multidot((
                 R.T,
-                self._bkd.pinv(self._cov[np.ix_(subset, subset)]),
+                self._bkd.pinv(self._stat._cov[np.ix_(subset, subset)]),
                 R))
             submats.append(submat)
         return submats

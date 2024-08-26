@@ -39,9 +39,6 @@ class TestOrthonormalPolynomials1D:
     def setUp(self):
         np.random.seed(1)
 
-    def get_backend(self):
-        return NumpyLinAlgMixin
-
     def _check_orthonormal_poly(self, poly):
         bkd = self.get_backend()
         degree = 3

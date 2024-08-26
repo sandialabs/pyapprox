@@ -2,6 +2,8 @@ import numpy as np
 import torch
 from abc import ABC, abstractmethod
 
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+
 
 def torch_2x2_block(blocks):
     return torch.vstack(
@@ -421,6 +423,21 @@ def _nqoi_nqoisq_subproblem(B, nmodels, nqoi, model_idx, qoi_idx):
 
 
 class MultiOutputStatistic(ABC):
+    def __init__(self, nqoi, backend=None):
+        """
+        Parameters
+        ----------
+        nqoi : integer
+            The number of quantities of interest (QoI) that each model returns
+        """
+        self._nqoi = nqoi
+        if backend is None:
+            backend = NumpyLinAlgMixin
+        self._bkd = backend
+
+    def nqoi(self):
+        return self._nqoi
+
     @abstractmethod
     def sample_estimate(self, values):
         raise NotImplementedError
@@ -453,30 +470,34 @@ class MultiOutputStatistic(ABC):
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
+    @abstractmethod
+    def min_nsamples(self):
+        """Min number of samples to compute the statistic"""
+        raise NotImplementedError
+
+    def _group_acv_sigma_block(
+            self, subset0, subset1, nsamples_intersect, nsamples_subset0,
+            nsamples_subset1
+    ):
+        raise NotImplementedError
+
 
 class MultiOutputMean(MultiOutputStatistic):
-    def __init__(self, nqoi):
-        """
-        Parameters
-        ----------
-        nqoi : integer
-            The number of quantities of interest (QoI) that each model returns
-        """
-        self._nqoi = nqoi
-
+    def __init__(self, nqoi, backend=None):
+        super().__init__(nqoi, backend)
         self._nmodels = None
         self._cov = None
 
     def sample_estimate(self, values):
-        return np.mean(values, axis=0)
+        return self._bkd.mean(values, axis=0)
 
     def high_fidelity_estimator_covariance(self, nhf_samples):
         return self._cov[:self._nqoi, :self._nqoi]/nhf_samples
 
     @staticmethod
-    def compute_pilot_quantities(pilot_values):
-        pilot_values = np.hstack(pilot_values)
-        return (np.cov(pilot_values, rowvar=False, ddof=1), )
+    def compute_pilot_quantities(pilot_values, bkd=NumpyLinAlgMixin):
+        pilot_values = bkd.hstack(pilot_values)
+        return (bkd.cov(pilot_values, rowvar=False, ddof=1), )
 
     def set_pilot_quantities(self, cov):
         self._cov = torch.as_tensor(cov, dtype=torch.double)
@@ -503,15 +524,26 @@ class MultiOutputMean(MultiOutputStatistic):
     def get_pilot_quantities_subset(
             self, nmodels, nqoi, model_idx, qoi_idx=None):
         if qoi_idx is None:
-            qoi_idx = np.arange(nqoi)
+            qoi_idx = self._bkd.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
             self._cov, nmodels, nqoi, model_idx, qoi_idx)
         return (cov_sub, )
 
+    def min_nsamples(self):
+        return 1
+
+    def _group_acv_sigma_block(
+            self, subset0, subset1, nsamples_intersect, nsamples_subset0,
+            nsamples_subset1
+    ):
+        return self._cov[np.ix_(subset0, subset1)]*nsamples_intersect/(
+            nsamples_subset0*nsamples_subset1
+        )
+
 
 class MultiOutputVariance(MultiOutputStatistic):
-    def __init__(self, nqoi):
-        self._nqoi = nqoi
+    def __init__(self, nqoi, backend=None):
+        super().__init__(nqoi, backend)
 
         self._nmodels = None
         self._cov = None
@@ -519,7 +551,7 @@ class MultiOutputVariance(MultiOutputStatistic):
         self._V = None
 
     def sample_estimate(self, values):
-        return np.cov(values.T, ddof=1).flatten()
+        return self._bkd.cov(values.T, ddof=1).flatten()
 
     def high_fidelity_estimator_covariance(self, nhf_samples):
         return _covariance_of_variance_estimator(
@@ -527,10 +559,10 @@ class MultiOutputVariance(MultiOutputStatistic):
             self._V[:self._nqoi**2, :self._nqoi**2], nhf_samples)
 
     @staticmethod
-    def compute_pilot_quantities(pilot_values):
+    def compute_pilot_quantities(pilot_values, bkd=NumpyLinAlgMixin):
         nmodels = len(pilot_values)
-        pilot_values = np.hstack(pilot_values)
-        cov = np.cov(pilot_values, rowvar=False, ddof=1)
+        pilot_values = bkd.hstack(pilot_values)
+        cov = bkd.cov(pilot_values, rowvar=False, ddof=1)
         return cov, _get_W_from_pilot(pilot_values, nmodels)
 
     def set_pilot_quantities(self, cov, W):
@@ -577,17 +609,35 @@ class MultiOutputVariance(MultiOutputStatistic):
     def get_pilot_quantities_subset(
             self, nmodels, nqoi, model_idx, qoi_idx=None):
         if qoi_idx is None:
-            qoi_idx = np.arange(nqoi)
+            qoi_idx = self._bkd.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
             self._cov, nmodels, nqoi, model_idx, qoi_idx)
         W_sub = _nqoisq_nqoisq_subproblem(
             self._W, nmodels, nqoi, model_idx, qoi_idx)
         return cov_sub, W_sub
 
+    def min_nsamples(self):
+        return 1
+
+    def _group_acv_sigma_block(
+            self, subset0, subset1, nsamples_intersect, nsamples_subset0,
+            nsamples_subset1
+    ):
+        block = self._V[np.ix_(subset0, subset1)]*(
+            nsamples_intersect*(nsamples_intersect-1)
+        ) / (
+            (nsamples_subset0*(nsamples_subset0-1))
+            * (nsamples_subset1*(nsamples_subset1-1))
+        ) + (
+            self._W[np.ix_(subset0, subset1)]
+            * nsamples_intersect/(nsamples_subset0*nsamples_subset1)
+        )
+        return block
+
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
-    def __init__(self, nqoi):
-        self._nqoi = nqoi
+    def __init__(self, nqoi, backend=None):
+        super().__init__(nqoi, backend)
 
         self._nmodels = None
         self._cov = None
@@ -596,8 +646,12 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         self._B = None
 
     def sample_estimate(self, values):
-        return np.hstack([np.mean(values, axis=0),
-                          np.cov(values.T, ddof=1).flatten()])
+        return self._bkd.hstack(
+            [
+                self._bkd.mean(values, axis=0),
+                self._bkd.cov(values.T, ddof=1).flatten()
+            ]
+        )
 
     def high_fidelity_estimator_covariance(self, nhf_samples):
         block_11 = self._cov[:self._nqoi, :self._nqoi]/nhf_samples
@@ -610,10 +664,10 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
              [block_12.T, block_22]])
 
     @staticmethod
-    def compute_pilot_quantities(pilot_values):
+    def compute_pilot_quantities(pilot_values, bkd=NumpyLinAlgMixin):
         nmodels = len(pilot_values)
-        pilot_values = np.hstack(pilot_values)
-        cov = np.cov(pilot_values, rowvar=False, ddof=1)
+        pilot_values = bkd.hstack(pilot_values)
+        cov = bkd.cov(pilot_values, rowvar=False, ddof=1)
         W = _get_W_from_pilot(pilot_values, nmodels)
         B = _get_B_from_pilot(pilot_values, nmodels)
         return cov, W, B
@@ -668,7 +722,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
     def get_pilot_quantities_subset(
             self, nmodels, nqoi, model_idx, qoi_idx=None):
         if qoi_idx is None:
-            qoi_idx = np.arange(nqoi)
+            qoi_idx = self._bkd.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
             self._cov, nmodels, nqoi, model_idx, qoi_idx)
         W_sub = _nqoisq_nqoisq_subproblem(
@@ -676,3 +730,6 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         B_sub = _nqoi_nqoisq_subproblem(
             self._B, nmodels, nqoi, model_idx, qoi_idx)
         return cov_sub, W_sub, B_sub
+
+    def min_nsamples(self):
+        return 1
