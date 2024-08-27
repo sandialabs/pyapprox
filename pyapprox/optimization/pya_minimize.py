@@ -497,9 +497,13 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
     def _get_bounds(self, nvars):
         if self._bounds is None:
             return Bounds(
-                np.full((nvars,), -np.inf), np.full((nvars,), np.inf)
+                np.full((nvars,), -np.inf),
+                np.full((nvars,), np.inf),
+                keep_feasible=True,
             )
-        return self._bounds
+        return Bounds(
+            self._bounds[:, 0], self._bounds[:, 1], keep_feasible=True
+        )
 
     def _minimize(self, init_guess):
         opts = self._opts.copy()
@@ -522,6 +526,10 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
                 self._opts['iprint'] = self._verbosity-1
             else:
                 self._opts['iprint'] = 200
+            if len(self._raw_constraints) > 0:
+                raise ValueError(
+                    "{0} cannot be used with constraints".format(method)
+                )
         elif method == "trust-constr":
             self._opts["verbose"] = self._verbosity
         elif method == "slsqp":
@@ -537,7 +545,7 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             hessp=hessp,
             bounds=bounds,
             constraints=self._constraints,
-            options=self._opts,
+            options=opts,
         )
         scipy_result.x = scipy_result.x[:, None]
         result = ScipyOptimizationResult(scipy_result, self._bkd)
