@@ -7,7 +7,12 @@ import matplotlib.pyplot as plt
 from pyapprox.interface.model import Model
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.marginals import get_pdf, get_distribution_info
-from pyapprox.optimization.pya_minimize import Optimizer
+from pyapprox.optimization.pya_minimize import (
+    Optimizer, ScipyConstrainedOptimizer
+)
+from pyapprox.surrogates.bases.orthopoly import (
+    setup_univariate_orthogonal_polynomial_from_marginal
+)
 from pyapprox.util.visualization import get_meshgrid_function_data
 
 
@@ -67,7 +72,7 @@ class GaussianMarginal(ScipyMarginal):
         sigma = self._scales["scale"][0]
         return (
             self._marginal_pdf(samples[0]) * (mu - samples[0]) / sigma**2
-        )[:, None]
+        )[None, :]
 
 
 class BetaMarginal(ScipyMarginal):
@@ -117,25 +122,28 @@ class UniformMarginal(BetaMarginal):
         )
 
 
-def canonical_pdf_jacobian_from_marginal(marginal):
-    name, scales, shapes = get_distribution_info(marginal)
+def _custom_marginal_from_scipy_marginal(scipy_marginal, backend=None):
+    name = scipy_marginal.dist.name
     marginals = {
         "uniform": UniformMarginal,
         "beta": BetaMarginal,
-        "gaussian": GaussianMarginal,
+        "norm": GaussianMarginal,
     }
     if name not in marginals:
         raise ValueError("{0} not supported".format(name))
-    return marginals[name]()
+    return marginals[name](scipy_marginal, backend)
 
 
 class LejaObjective(Model):
-    def __init__(self, poly):
+    def __init__(self, marginal, poly):
         super().__init__(backend=poly._bkd)
         self._poly = poly
         self._coef = None
         self._jacobian_implemented = True
         self._sequence = None
+        self._marginal = None
+        self._set_marginal(marginal)
+        self._bounds = self._marginal.interval(1)
 
     def nqoi(self):
         return 1
@@ -157,9 +165,8 @@ class LejaObjective(Model):
     def _compute_weights_jacobian(self, samples):
         raise NotImplementedError
 
-    @abstractmethod
-    def _plot_bounds(self, samples):
-        raise NotImplementedError
+    def _plot_bounds(self):
+        return self._marginal.interval(1-1e-3)
 
     def __repr__(self):
         return "{0}()".format(self.__class__.__name__)
@@ -169,17 +176,17 @@ class LejaObjective(Model):
         basis_vals = self._poly(self._sequence)
         self._basis_mat = basis_vals[:, :-1]
         self._basis_vec = basis_vals[:, -1:]
-        self._set_coefficients()
 
     def set_sequence(self, sequence):
         if sequence.ndim != 2 or sequence.shape[0] != 1:
             raise ValueError("sequence must be a 2d array row vector")
         self._sequence = sequence
+        self._set_reused_data()
         self._weights = self._compute_weights(self._sequence)
         self._weights_jac = self._compute_weights_jacobian(self._sequence)
         if self._weights.ndim != 2 or self._weights.shape[1] != 1:
             raise ValueError("weights must be a 2d array column vector")
-        self._set_reused_data()
+        self._set_coefficients()
 
     def _set_coefficients(self):
         sqrt_weights = self._bkd.sqrt(self._weights)
@@ -214,7 +221,7 @@ class LejaObjective(Model):
             residual**2 * weight_jac + 2 * weight * residual * residual_jac,
             axis=1,
         )
-        return -jac
+        return -jac[None, :]
 
     def plot(self, ax):
         ax.plot(self.sequence()[0], self.sequence()[0]*0, 'o')
@@ -271,7 +278,6 @@ class TwoPointLejaObjective(LejaObjective):
         basis_vals = self._poly(self._sequence)
         self._basis_mat = basis_vals[:, :-self._nopt_vars()]
         self._basis_vec = basis_vals[:, -self._nopt_vars():]
-        self._set_coefficients()
 
     def _values(self, samples):
         if samples.shape[0] != 2:
@@ -350,21 +356,43 @@ class TwoPointLejaObjective(LejaObjective):
 
 
 class PDFLejaObjectiveMixin:
-    def __init__(self, marginal, poly):
-        super().__init__(poly)
-        if not isinstance(marginal, Marginal):
+    def _set_marginal(self, marginal):
+        custom_marginal = _custom_marginal_from_scipy_marginal(marginal)
+        if not isinstance(custom_marginal, Marginal):
             raise ValueError("marginal must be an instance of Marginal")
         self._marginal = marginal
-        self._bounds = marginal._marginal.interval(1)
+        self._custom_marginal = custom_marginal
 
     def _compute_weights(self, samples):
-        return self._marginal.pdf(samples)
+        return self._custom_marginal.pdf(samples)
 
     def _compute_weights_jacobian(self, samples):
-        return self._marginal.pdf_jacobian(samples)
+        return self._custom_marginal.pdf_jacobian(samples)
 
-    def _plot_bounds(self):
-        return self._marginal._marginal.interval(1-1e-3)
+
+class ChristoffelLejaObjectiveMixin:
+    def _set_marginal(self, marginal):
+        self._marginal = marginal
+
+    def _christoffel_fun(self, basis_mat):
+        return self._bkd.sum(basis_mat**2, axis=1)[:, None]/self.nsamples()
+
+    def _compute_weights(self, samples):
+        basis_mat = self._poly(samples)[:, :-self._nopt_vars()]
+        return 1/self._christoffel_fun(basis_mat)
+
+    def _compute_weights_jacobian(self, sample):
+        vals = self._poly._derivatives(sample, order=1, return_all=True)
+        # basis_mat.shape = (nsamples, len(sequence))
+        basis_mat = vals[:, : self._poly.nterms()][:, :-self._nopt_vars()]
+        # basis_mat.shape = (nsamples, 2)
+        basis_jac = vals[:, self._poly.nterms() :][:, :-self._nopt_vars()]
+        christoffel_jac = 2/self.nsamples()*self._bkd.sum(
+            basis_mat*basis_jac, axis=1
+        )[None, :]
+        # chain rule g(x) = christoffel_fun(x)
+        # d/dx 1/g(x) = -g'(x)/(g(x))
+        return (-1/self._christoffel_fun(basis_mat).T**2*christoffel_jac)
 
 
 class OnePointPDFLejaObjective(PDFLejaObjectiveMixin, LejaObjective):
@@ -372,6 +400,18 @@ class OnePointPDFLejaObjective(PDFLejaObjectiveMixin, LejaObjective):
 
 
 class TwoPointPDFLejaObjective(PDFLejaObjectiveMixin, TwoPointLejaObjective):
+    pass
+
+
+class OnePointChristoffelLejaObjective(
+        ChristoffelLejaObjectiveMixin, LejaObjective
+):
+    pass
+
+
+class TwoPointChristoffelLejaObjective(
+        ChristoffelLejaObjectiveMixin, TwoPointLejaObjective
+):
     pass
 
 
@@ -438,4 +478,23 @@ class LejaSequence:
         return quad_weights
 
     def __repr__(self):
-        return "{0}(nsamples={1})".format(self.__class__.__name__, self.nsamples())
+        return "{0}(nsamples={1})".format(
+            self.__class__.__name__, self.nsamples()
+        )
+
+
+def setup_univariate_leja_sequence(
+        marginal, objective_class, optimizer=None, init_sequence=None,
+        backend=NumpyLinAlgMixin):
+    if optimizer is None:
+        optimizer = ScipyConstrainedOptimizer()
+        optimizer.set_options(
+            gtol=1e-8, maxiter=1000, method="trust-constr"
+        )
+    if init_sequence is None:
+        init_sequence = backend.array([[marginal.mean()]])
+    poly = setup_univariate_orthogonal_polynomial_from_marginal(
+        marginal, backend=backend)
+    obj = objective_class(marginal, poly)
+    obj.set_sequence(init_sequence)
+    return LejaSequence(obj, optimizer)
