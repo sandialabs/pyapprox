@@ -2,11 +2,13 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from scipy import stats, special
+import matplotlib.pyplot as plt
 
 from pyapprox.interface.model import Model
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.marginals import get_pdf, get_distribution_info
 from pyapprox.optimization.pya_minimize import Optimizer
+from pyapprox.util.visualization import get_meshgrid_function_data
 
 
 class Marginal(ABC):
@@ -138,6 +140,9 @@ class LejaObjective(Model):
     def nqoi(self):
         return 1
 
+    def _nopt_vars(self):
+        return 1
+
     def nsamples(self):
         return self._sequence.shape[1]
 
@@ -159,6 +164,13 @@ class LejaObjective(Model):
     def __repr__(self):
         return "{0}()".format(self.__class__.__name__)
 
+    def _set_reused_data(self):
+        self._poly.set_nterms(self.nsamples() + 1)
+        basis_vals = self._poly(self._sequence)
+        self._basis_mat = basis_vals[:, :-1]
+        self._basis_vec = basis_vals[:, -1:]
+        self._set_coefficients()
+
     def set_sequence(self, sequence):
         if sequence.ndim != 2 or sequence.shape[0] != 1:
             raise ValueError("sequence must be a 2d array row vector")
@@ -167,16 +179,13 @@ class LejaObjective(Model):
         self._weights_jac = self._compute_weights_jacobian(self._sequence)
         if self._weights.ndim != 2 or self._weights.shape[1] != 1:
             raise ValueError("weights must be a 2d array column vector")
-        self._poly.set_nterms(self.nsamples() + 1)
-        basis_vals = self._poly(self._sequence)
-        self._basis_mat = basis_vals[:, :-1]
-        self._basis_vec = basis_vals[:, -1:]
-        self._set_coefficients()
+        self._set_reused_data()
 
     def _set_coefficients(self):
+        sqrt_weights = self._bkd.sqrt(self._weights)
         self._coef = self._bkd.lstsq(
-            self._weights * self._basis_mat,
-            self._weights * self._basis_vec,
+            sqrt_weights * self._basis_mat,
+            sqrt_weights * self._basis_vec,
         )
 
     def _values(self, samples):
@@ -207,8 +216,140 @@ class LejaObjective(Model):
         )
         return -jac
 
+    def plot(self, ax):
+        ax.plot(self.sequence()[0], self.sequence()[0]*0, 'o')
+        plot_samples = self._bkd.linspace(*self._plot_bounds(), 101)[None, :]
+        ax.plot(plot_samples[0], self(plot_samples))
 
-class PDFLejaObjective(LejaObjective):
+    def _initial_iterates(self):
+        eps = 1e-6  # must be larger than optimization tolerance
+        bounds = self._bounds
+        intervals = np.sort(self._sequence)
+        if (
+                np.isfinite(bounds[0])
+                and (self._bkd.min(self._sequence) > bounds[0]+eps)
+        ):
+            intervals = np.hstack(([[bounds[0]]], intervals))
+        if (
+                np.isfinite(bounds[1])
+                and (self._bkd.max(self._sequence) < bounds[1]-eps)
+        ):
+            intervals = np.hstack((intervals, [[bounds[1]]]))
+        if not np.isfinite(bounds[0]):
+            intervals = np.hstack(
+                (
+                    [[min(1.1*self._bkd.min(self._sequence), -0.1)]],
+                    intervals)
+            )
+        if not np.isfinite(bounds[1]):
+            intervals = np.hstack(
+                (
+                    intervals,
+                    [[max(1.1*self._bkd.max(self._sequence), 0.1)]]
+                )
+            )
+        iterates = intervals[:, :-1]+np.diff(intervals)/2.0
+        # put intervals in form useful for bounding 1d optimization problems
+        intervals = [intervals[0, ii] for ii in range(intervals.shape[1])]
+        if not np.isfinite(bounds[0]):
+            intervals[0] = -np.inf
+        if not np.isfinite(bounds[1]):
+            intervals[-1] = np.inf
+
+        bounds = []
+        for jj in range(iterates.shape[1]):
+            bounds.append(self._bkd.array([[intervals[jj], intervals[jj+1]]]))
+        return iterates, bounds
+
+
+class TwoPointLejaObjective(LejaObjective):
+    def _nopt_vars(self):
+        return 2
+
+    def _set_reused_data(self):
+        self._poly.set_nterms(self.nsamples() + self._nopt_vars())
+        basis_vals = self._poly(self._sequence)
+        self._basis_mat = basis_vals[:, :-self._nopt_vars()]
+        self._basis_vec = basis_vals[:, -self._nopt_vars():]
+        self._set_coefficients()
+
+    def _values(self, samples):
+        if samples.shape[0] != 2:
+            raise ValueError("samples must be a 2d array with two rows")
+        nsamples = samples.shape[1]
+        # first row of samples is multiple values of first iterate
+        # second row of samples is multiple values of second iterate
+        flat_samples = self._bkd.reshape(
+            samples, (1, nsamples*self._nopt_vars())
+        )
+        basis_vals = self._poly(flat_samples)
+        basis_mat = basis_vals[:, :-self._nopt_vars()]
+        new_basis = basis_vals[:, -self._nopt_vars():]
+        sqrt_weights = self._bkd.sqrt(self._compute_weights(flat_samples))
+        pvals = basis_mat @ self._coef
+        residuals = sqrt_weights*(new_basis - pvals)
+        return -(
+            residuals[:nsamples, 0]*residuals[nsamples:, 1]
+            - residuals[:nsamples, 1]*residuals[nsamples:, 0]
+        )[:, None]**2
+
+    def _jacobian(self, sample):
+        flat_sample = self._bkd.reshape(sample, (1, self._nopt_vars()))
+        vals = self._poly._derivatives(flat_sample, order=1, return_all=True)
+        basis_vals = vals[:, : self._poly.nterms()]
+        basis_jac = vals[:, self._poly.nterms() :]
+        bvals = basis_vals[:, -self._nopt_vars():]
+        pvals = basis_vals[:, :-self._nopt_vars()] @ self._coef
+        bderivs = basis_jac[:, -self._nopt_vars():]
+        pderivs = basis_jac[:, :-self._nopt_vars()] @ self._coef
+        sqrt_weights = self._bkd.sqrt(self._compute_weights(flat_sample))
+        weights_jac = self._compute_weights_jacobian(flat_sample)
+        sqrt_weights_jac = weights_jac/(2*sqrt_weights[:, 0])
+        residuals = sqrt_weights*(bvals - pvals)
+        residuals_jac = (
+            sqrt_weights*(bderivs - pderivs)
+            + sqrt_weights_jac.T*(bvals - pvals)
+        )
+        determinant_jac = self._bkd.stack(
+            (residuals_jac[:1, 0]*residuals[1:2, 1]
+             - residuals_jac[:1, 1]*residuals[1:2, 0],
+             residuals[:1, 0]*residuals_jac[1:2, 1]
+             - residuals[:1, 1]*residuals_jac[1:2, 0],
+             ),
+            axis=1,
+        )
+        determinant = (
+            residuals[:1, 0]*residuals[1:, 1]
+            - residuals[:1, 1]*residuals[1:, 0])
+        return -2*determinant*determinant_jac
+
+    def plot(self, ax):
+        ax.plot(self.sequence()[0], self.sequence()[0], 'o')
+        X, Y, Z = get_meshgrid_function_data(
+            self.__call__,
+            self._plot_bounds()+self._plot_bounds(),
+            51,
+            bkd=self._bkd
+        )
+        ncontour_levels = 20
+        im = ax.contourf(
+            X, Y, Z,
+            levels=self._bkd.linspace(Z.min(), Z.max(), ncontour_levels))
+        plt.colorbar(im, ax=ax)
+
+    def _initial_iterates(self):
+        iterates_1d, bounds_1d = super()._initial_iterates()
+        iterates, bounds = [], []
+        for ii in range(iterates_1d.shape[1]):
+            for jj in range(ii+1, iterates_1d.shape[1]):
+                iterates.append(
+                    np.vstack((iterates_1d[:, ii], iterates_1d[:, jj]))
+                )
+                bounds.append(np.vstack((bounds_1d[ii], bounds_1d[jj])))
+        return np.hstack(iterates), bounds
+
+
+class PDFLejaObjectiveMixin:
     def __init__(self, marginal, poly):
         super().__init__(poly)
         if not isinstance(marginal, Marginal):
@@ -224,6 +365,14 @@ class PDFLejaObjective(LejaObjective):
 
     def _plot_bounds(self):
         return self._marginal._marginal.interval(1-1e-3)
+
+
+class OnePointPDFLejaObjective(PDFLejaObjectiveMixin, LejaObjective):
+    pass
+
+
+class TwoPointPDFLejaObjective(PDFLejaObjectiveMixin, TwoPointLejaObjective):
+    pass
 
 
 class LejaSequence:
@@ -242,17 +391,17 @@ class LejaSequence:
         self._optimizer.set_objective_function(self._obj)
 
     def _step(self):
-        iterates, intervals = self._initial_iterates()
+        iterates, bounds = self._obj._initial_iterates()
         results = []
         for jj in range(iterates.shape[1]):
-            bounds = self._bkd.array([[intervals[jj], intervals[jj+1]]])
-            self._optimizer.set_bounds(bounds)
+            self._optimizer.set_bounds(bounds[jj])
             results.append(self._optimizer.minimize(iterates[:, jj:jj+1]))
         best_idx = self._bkd.argmin(
             self._bkd.array([res.fun for res in results])
         )
-        best_sample = results[best_idx].x
-        sequence = self._bkd.hstack((self._obj.sequence(), best_sample))
+        chosen_samples = self._bkd.reshape(
+            results[best_idx].x, (1, results[best_idx].x.shape[0]))
+        sequence = self._bkd.hstack((self._obj.sequence(), chosen_samples))
         self._obj.set_sequence(sequence)
 
     def step(self, nsamples):
@@ -261,44 +410,13 @@ class LejaSequence:
                 "nsamples {0} must be >= size of current sequence {1}".format(
                     nsamples, self.nsamples())
             )
+        if ((nsamples-self.nsamples()) % self._obj._nopt_vars()) != 0:
+            raise ValueError(
+                "extra samples requested must be divisisible by {0}".format(
+                    self._obj._nopt_vars())
+            )
         while self.nsamples() < nsamples:
             self._step()
-
-    def _initial_iterates(self):
-        eps = 1e-6  # must be larger than optimization tolerance
-        bounds = self._obj._bounds
-        intervals = np.sort(self._obj._sequence)
-        if (
-                np.isfinite(bounds[0])
-                and (self._bkd.min(self._obj._sequence) > bounds[0]+eps)
-        ):
-            intervals = np.hstack(([[bounds[0]]], intervals))
-        if (
-                np.isfinite(bounds[1])
-                and (self._bkd.max(self._obj._sequence) < bounds[1]-eps)
-        ):
-            intervals = np.hstack((intervals, [[bounds[1]]]))
-        if not np.isfinite(bounds[0]):
-            intervals = np.hstack(
-                (
-                    [[min(1.1*self._bkd.min(self._obj._sequence), -0.1)]],
-                    intervals)
-            )
-        if not np.isfinite(bounds[1]):
-            intervals = np.hstack(
-                (
-                    intervals,
-                    [[max(1.1*self._bkd.max(self._obj._sequence), 0.1)]]
-                )
-            )
-        initial_guesses = intervals[:, :-1]+np.diff(intervals)/2.0
-        # put intervals in form useful for bounding 1d optimization problems
-        intervals = [intervals[0, ii] for ii in range(intervals.shape[1])]
-        if not np.isfinite(bounds[0]):
-            intervals[0] = -np.inf
-        if not np.isfinite(bounds[1]):
-            intervals[-1] = np.inf
-        return initial_guesses, intervals
 
     def sequence(self):
         return self._bkd.copy(self._obj.sequence())
@@ -307,18 +425,17 @@ class LejaSequence:
         return self._obj.nsamples()
 
     def plot(self, ax):
-        ax.plot(self.sequence()[0], self.sequence()[0]*0, 'o')
-        plot_samples = self._bkd.linspace(
-            *self._obj._plot_bounds(), 101
-        )[None, :]
-        ax.plot(plot_samples[0], self._obj(plot_samples))
+        return self._obj.plot(ax)
 
     def quadrature_weights(self, sequence):
         sqrt_weights = self._bkd.sqrt(self._obj._compute_weights(sequence))
         # ignore last basis which exists for when new points
         # are added to sequence
-        basis_mat = self._obj._poly(sequence)[:, :-1]
+        basis_mat = self._obj._poly(sequence)[:, :-self._obj._nopt_vars()]
         basis_mat_inv = self._bkd.inv(sqrt_weights*basis_mat)
         # make sure to adjust weights to account for preconditioning
         quad_weights = (basis_mat_inv[0, :]*sqrt_weights[:, 0])[:, None]
         return quad_weights
+
+    def __repr__(self):
+        return "{0}(nsamples={1})".format(self.__class__.__name__, self.nsamples())

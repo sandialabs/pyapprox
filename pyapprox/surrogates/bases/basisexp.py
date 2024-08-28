@@ -113,20 +113,27 @@ class BasisExpansion(Regressor):
         """
         return self.basis(samples) @ self.get_coefficients()
 
-    def _jacobian(self, samples):
+    def _many_jacobian(self, samples):
+        # jacobian shape (nsamples, nqoi, nvars)
         return self._bkd.einsum(
-            "ijk, jl->ikl",
+            "ijk, jl->ilk",
             self.basis.jacobian(samples),
             self.get_coefficients()
         )
 
-    def _hessian(self, samples):
+    def _jacobian(self, sample):
+        return self._many_jacobian(sample)[0]
+
+    def _many_hessian(self, samples):
         hess = self.basis.hessian(samples)
         # hess shape is (nsamples, nterms, nvars, nvars)
         # coef shape is (nterms, nqoi)
         return self._bkd.einsum(
-             "ijkl, jm->iklm", hess, self.get_coefficients()
+            "ijkl, jm->imkl", hess, self.get_coefficients()
         )
+
+    def _hessian(self, sample):
+        return self._many_hessian(sample)[0]
 
     def __repr__(self):
         return "{0}(basis={1}, nqoi={2})".format(

@@ -473,14 +473,14 @@ class TestBasis:
         test_samples = variable.rvs(ntest_samples)
         assert bkd.allclose(fun(test_samples), bexp(test_samples))
 
-        test_samples = bkd.array([[1, 1]]).T
+        test_samples = bkd.array([[.5, 1]]).T
         assert bkd.allclose(
             jac(test_samples[:, :1]),
-            bexp.jacobian(test_samples[:, :1])[0]
+            bexp.jacobian(test_samples[:, :1])
         )
         assert bkd.allclose(
             hess(test_samples[:, :1]),
-            bexp.hessian(test_samples[:, :1])[0, ..., 0]
+            bexp.hessian(test_samples[:, :1])[0]
         )
 
         # the following checks that transform of orthonormal basis

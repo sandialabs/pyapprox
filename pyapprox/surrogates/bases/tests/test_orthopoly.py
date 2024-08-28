@@ -500,11 +500,13 @@ class TestOrthonormalPolynomials1D:
     def test_affine_variable_transformation(self):
         bkd = self.get_backend()
         nsamples = 10
-        marginal = stats.uniform(0, 1)
+        lb, ub = 0, 3
+        # marginal = stats.uniform(0, 1)
+        marginal = stats.uniform(lb, ub-lb)
         trans = AffineMarginalTransform(
             marginal, enforce_bounds=True, backend=bkd
         )
-        samples = bkd.asarray(np.random.uniform(0, 1, (1, nsamples)))
+        samples = bkd.asarray(np.random.uniform(lb, ub, (1, nsamples)))
         lb, ub = marginal.interval(1)
         canonical_samples = trans.map_to_canonical(samples)
         assert bkd.allclose(canonical_samples, (samples+lb)/(ub-lb)*2-1)
@@ -521,7 +523,7 @@ class TestOrthonormalPolynomials1D:
         )
 
         # test error thown when samples outside bounded domain
-        samples = bkd.asarray(np.random.uniform(0, 2, (1, nsamples)))
+        samples = bkd.asarray(np.random.uniform(ub, ub+1, (1, nsamples)))
         self.assertRaises(ValueError, trans.map_to_canonical, samples)
 
     def test_setup_discrete_univariate_orthopoly_from_marginal(self):

@@ -231,7 +231,7 @@ def get_meshgrid_samples(
     # Y = cartesian_product([x, y])[1].reshape((ny, nx)
     X, Y = bkd.meshgrid(x, y)
     pts = bkd.vstack((X.reshape((1, X.shape[0]*X.shape[1])),
-                          Y.reshape((1, Y.shape[0]*Y.shape[1]))))
+                      Y.reshape((1, Y.shape[0]*Y.shape[1]))))
     return X, Y, pts
 
 

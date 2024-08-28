@@ -102,6 +102,12 @@ class Model(ABC):
     def _jacobian(self, sample):
         raise NotImplementedError
 
+    def _check_jacobian_shape(self, jac, sample):
+        if jac.shape != (self.nqoi(), sample.shape[0]):
+            raise RuntimeError(
+                "Joacbian returned by _jacobian has the wrong shape"
+            )
+
     def jacobian(self, sample):
         """
         Evaluate the jacobian of the model at a sample.
@@ -125,6 +131,7 @@ class Model(ABC):
         nvars = sample.shape[0]
         if self._jacobian_implemented:
             jac = self._jacobian(sample)
+            self._check_jacobian_shape(jac, sample)
             return jac
         actions = []
         for ii in range(nvars):
@@ -205,6 +212,12 @@ class Model(ABC):
     def _hessian(self, sample):
         raise NotImplementedError
 
+    def _check_hessian_shape(self, hess, sample):
+        if hess.shape != (self.nqoi(), sample.shape[0], sample.shape[0]):
+            raise RuntimeError(
+                "Hessian returned by _hessian has the wrong shape"
+            )
+
     def hessian(self, sample):
         """
         Evaluate the hessian of the model at a sample.
@@ -233,10 +246,7 @@ class Model(ABC):
         self._check_sample_shape(sample)
         if self._hessian_implemented:
             hess = self._hessian(sample)
-            if hess.shape != (self.nqoi(), sample.shape[0], sample.shape[0]):
-                raise RuntimeError(
-                    "Hessian returned by _hessian has the wrong shape"
-                )
+            self._check_hessian_shape(hess, sample)
             return hess
         actions = []
         nvars = sample.shape[0]

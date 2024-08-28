@@ -122,11 +122,12 @@ class OrthonormalPolynomial1D(UnivariateBasis):
                 "derivative order {0} must be greater than zero".format(order)
             )
         vals = self._values(samples)
+        can_samples = self._trans.map_to_canonical(samples)
 
         # samples passed in is 2D array with shape [1, nsamples]
         # so squeeze to 1D array
-        samples = samples[0]
-        nsamples = samples.shape[0]
+        can_samples = can_samples[0]
+        nsamples = can_samples.shape[0]
 
         nindices = self.nterms()
         a = self._rcoefs[:, 0]
@@ -155,7 +156,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
             for jj in range(_order+1, nindices):
                 can_derivs.append(
                     (
-                        (samples - a[jj - 1]) * can_derivs[jj - 1]
+                        (can_samples - a[jj - 1]) * can_derivs[jj - 1]
                         - b[jj - 1] * can_derivs[jj - 2]
                         + _order * vals[jj - 1]
                     ) / b[jj]
@@ -723,3 +724,8 @@ class AffineMarginalTransform(Transform):
 
     def derivatives_from_canonical(self, canonical_derivs, order=1):
         return canonical_derivs / self._scale**order
+
+    def __repr__(self):
+        return "{0}(loc={1}, scale={2})".format(
+            self.__class__.__name__, self._loc,  self._scale
+        )
