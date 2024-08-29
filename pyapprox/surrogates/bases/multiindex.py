@@ -215,6 +215,10 @@ class IterativeIndexGenerator(IndexGenerator):
         self._verbosity = verbosity
 
     def set_admissibility_function(self, fun):
+        if not isinstance(fun, AdmissibilityCriteria):
+            raise ValueError(
+                "fun must be an instance of AdmissibilityCriteria"
+            )
         self._admis_fun = fun
 
     def _get_forward_neighbor(self, index, dim_id):
@@ -250,11 +254,11 @@ class IterativeIndexGenerator(IndexGenerator):
                     self._admis_fun(neighbor_index)
             ):
                 new_cand_indices.append(neighbor_index)
-                if self._verbosity > 2:
+                if self._verbosity > 1:
                     msg = f"Adding candidate index {neighbor_index}"
                     print(msg)
             else:
-                if self._verbosity > 2:
+                if self._verbosity > 1:
                     msg = f"Index {neighbor_index} is not admissible"
                     print(msg)
         if len(new_cand_indices) > 0:
@@ -262,7 +266,7 @@ class IterativeIndexGenerator(IndexGenerator):
         return self._bkd.zeros((self.nvars(), 0))
 
     def refine_index(self, index):
-        if self._verbosity > 2:
+        if self._verbosity > 0:
             print(f"Refining index {index}")
         key = self._hash_index(index)
         self._sel_indices_dict[key] = self._cand_indices_dict[key]
@@ -305,10 +309,6 @@ class IterativeIndexGenerator(IndexGenerator):
             self.ncandidate_indices()
         )
 
-    # @abstractmethod
-    # def step(self):
-    #     raise NotImplementedError()
-
     def step(self):
         self._indices = self._bkd.hstack(
             (self._indices, self._get_candidate_indices())
@@ -317,6 +317,9 @@ class IterativeIndexGenerator(IndexGenerator):
             self._sel_indices_dict[key] = item
         for key in list(self._cand_indices_dict.keys()):
             del self._cand_indices_dict[key]
+
+    def _get_indices(self):
+        return self._indices
 
 
 class AdmissibilityCriteria(ABC):

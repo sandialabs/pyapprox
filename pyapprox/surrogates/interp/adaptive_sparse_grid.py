@@ -53,6 +53,8 @@ class mypriorityqueue():
         heapq.heappush(self.list, item)
 
     def get(self):
+        # return smallest item in the queue. Tthe first entry in the tuple
+        # is used for comparison
         item = heapq.heappop(self.list)
         return item
 
