@@ -14,6 +14,7 @@ from pyapprox.surrogates.bases.univariate import (
     UnivariateLagrangeBasis,
     ScipyUnivariateIntegrator,
     UnivariateUnboundedIntegrator,
+    UnivariatePiecewisePolynomialNodeGenerator,
 )
 from pyapprox.interface.model import ModelFromCallable
 
@@ -112,7 +113,7 @@ class TestUnivariateBasis:
         )
 
     def _check_univariate_piecewise_polynomial_quadrature(
-        self, name, degree, nnodes, tol
+        self, name, degree, nterms, tol
     ):
         bkd = self.get_backend()
 
@@ -130,24 +131,26 @@ class TestUnivariateBasis:
         bounds = [-1, 1]
         basis = setup_univariate_piecewise_polynomial_basis(
             name, bounds, backend=bkd)
-        nodes = bkd.linspace(*bounds, nnodes)[None, :]
-        basis.set_nodes(nodes)
+        basis.set_nterms(nterms)
         samples, weights = basis.quadrature_rule()
         assert np.allclose(
             fun(degree, samples).T @ weights, integral(degree), atol=tol
         )
 
-        # randomize node spacing keeping both end points
-        nodes = bkd.linspace(*bounds, 2 * nnodes)
-        # fmt: off
-        perm = bkd.asarray(
-            np.random.permutation(2*nnodes-2), dtype=int
-        )[:nnodes-2]
-        nodes = bkd.sort(
-            bkd.hstack((nodes[[0, -1]], nodes[1+perm]))
-        )[None, :]
-        # fmt: on
-        basis.set_nodes(nodes)
+        class CustomNodeGenerator(UnivariatePiecewisePolynomialNodeGenerator):
+            def __call__(self, nnodes):
+                # randomize node spacing keeping both end points
+                nodes = self._bkd.linspace(*bounds, 2 * nnodes)
+                # fmt: off
+                perm = self._bkd.asarray(
+                    np.random.permutation(2*nnodes-2), dtype=int
+                )[:nnodes-2]
+                return self._bkd.sort(
+                    self._bkd.hstack((nodes[[0, -1]], nodes[1+perm]))
+                )[None, :]
+                # fmt: on
+
+        basis.set_nterms(nterms)
         samples, weights = basis.quadrature_rule()
         assert np.allclose(
             fun(degree, samples).T @ weights, integral(degree), atol=tol
@@ -206,7 +209,7 @@ class TestUnivariateBasis:
         integrator = ScipyUnivariateIntegrator(backend=bkd)
         integrator.set_bounds(bounds)
         integrand = ModelFromCallable(
-            lambda x: bkd.cos(x[0])[:, None], backend=bkd
+            1, lambda x: bkd.cos(x[0])[:, None], backend=bkd
         )
         integrator.set_integrand(integrand)
         # use np to compare floats

@@ -53,33 +53,28 @@ to define the univariate Lagrange polynomials. The number of points :math:`m(l)`
 from functools import partial
 import numpy as np
 
-from pyapprox.util.utilities import cartesian_product
 from pyapprox.util.visualization import get_meshgrid_function_data, plt
-from pyapprox.util.utilities import get_tensor_product_quadrature_rule
-from pyapprox.surrogates.orthopoly.quadrature import clenshaw_curtis_pts_wts_1D
-from pyapprox.surrogates.approximate import adaptive_approximate
-from pyapprox.surrogates.interp.adaptive_sparse_grid import (
-    tensor_product_refinement_indicator)
-from pyapprox.surrogates.orthopoly.quadrature import (
-    clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth)
-from pyapprox.surrogates.interp.tensorprod import (
-    canonical_univariate_piecewise_polynomial_quad_rule)
 from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
-from pyapprox.surrogates.bases.univariate import (
-    UnivariateLagrangeBasis, UnivariatePiecewiseQuadraticBasis
+from pyapprox.surrogates.bases.basis import (
+    TensorProductInterpolatingBasis, TensorProductQuadratureRule
 )
+from pyapprox.surrogates.bases.univariate import (
+    UnivariateLagrangeBasis,
+    UnivariatePiecewiseQuadraticBasis,
+    ClenshawCurtisQuadratureRule,
+)
+from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
 from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
+from pyapprox.surrogates.bases.multiindex import DoublePlusOneIndexGrowthRule
 
 
 nnodes_1d = [5, 9]
 bounds = [-1, 1]
-nodes_1d = [-np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
-            for nnodes in nnodes_1d]
+quad_rule = ClenshawCurtisQuadratureRule(store=True, bounds=bounds)
 tp_lagrange_basis = TensorProductInterpolatingBasis(
-    [UnivariateLagrangeBasis(bounds) for ii in range(2)]
+    [UnivariateLagrangeBasis(quad_rule) for ii in range(2)]
 )
-tp_lagrange_basis.set_1d_nodes(nodes_1d)
+tp_lagrange_basis.set_tensor_product_indices(nnodes_1d)
 
 fig = plt.figure(figsize=(2*8, 6))
 ax = fig.add_subplot(1, 2, 1, projection='3d')
@@ -157,8 +152,12 @@ cset = axs.contourf(
 #.. math:: v_{\V{j}}=\prod_{i=1}^d\int_{\rvdom_i}{\phi_{i,j_i}(\rv_i)}\,dw(\rv_i),
 #
 #which can be computed analytically.
-x, w = get_tensor_product_quadrature_rule(level, 2, clenshaw_curtis_pts_wts_1D)
-surrogate_mean = fun(x)[:, 0].dot(w)
+
+quad_rule = TensorProductQuadratureRule(
+    2, ClenshawCurtisQuadratureRule(bounds=[-1, 1])
+)
+quad_samples, quad_weights = quad_rule(np.array([2**level+1]*2))
+surrogate_mean = fun(quad_samples).T @ (quad_weights)
 print('Quadrature mean', surrogate_mean)
 #%%
 #Here we have recomptued the values of :math:`f` at the interpolation samples, but in practice we sould just re-use the values collected when building the interpolant.
@@ -178,27 +177,25 @@ print('Monte Carlo surrogate mean', mc_mean)
 #The following plots two piecewise-quadratic basis functions in 2D
 fig = plt.figure(figsize=(2*8, 6))
 nnodes_1d = [5, 5]
-nodes_1d = [np.linspace(*bounds, nnodes)[None, :] for nnodes in nnodes_1d]
-nodes = cartesian_product(nodes_1d)
 tp_quadratic_basis = TensorProductInterpolatingBasis(
     [UnivariatePiecewiseQuadraticBasis(bounds) for ii in range(2)])
-tp_quadratic_basis.set_1d_nodes(nodes_1d)
+tp_quadratic_basis.set_tensor_product_indices(nnodes_1d)
 ax = fig.add_subplot(1, 2, 1, projection='3d')
-tp_quadratic_basis.plot_single_basis(
-    ax, 2, 2, plot_nodes=True)
+tp_quadratic_basis.plot_single_basis(ax, 2, 2, plot_nodes=True)
 ax = fig.add_subplot(1, 2, 2, projection='3d')
-tp_quadratic_basis.plot_single_basis(
-    ax, 0, 1, plot_nodes=True)
+tp_quadratic_basis.plot_single_basis(ax, 0, 1, plot_nodes=True)
 
 #%%
 #The following compares the convergence of Lagrange and picewise polynomial tensor product interpolants. Change the benchmark to see the effect of smoothness on the approximation accuracy.
 #
 #First define wrappers to build the tensor product interpolants
 
-def build_tp(get_nodes, get_basis, max_level_1d, fun):
+def build_tp(get_basis, max_level_1d, fun):
     bases_1d = [get_basis() for ii in range(nvars)]
     basis = TensorProductInterpolatingBasis(bases_1d)
-    basis.set_1d_nodes([get_nodes(max_level_1d) for ii in range(nvars)])
+    basis.set_tensor_product_indices(
+        [DoublePlusOneIndexGrowthRule()(max_level_1d) for ii in range(nvars)]
+    )
     interp = TensorProductInterpolant(basis)
     values = fun(basis.tensor_product_grid())
     interp.fit(values)
@@ -206,18 +203,14 @@ def build_tp(get_nodes, get_basis, max_level_1d, fun):
 
 
 def get_lagrange_basis():
-    basis = UnivariateLagrangeBasis([0, 1])
-    return basis
+    return UnivariateLagrangeBasis(
+        ClenshawCurtisQuadratureRule(store=True, bounds=[0, 1])
+    )
 
+build_lagrange_tp = partial(build_tp, get_lagrange_basis)
 
-build_lagrange_tp = partial(
-    build_tp,
-    lambda lev: (clenshaw_curtis_in_polynomial_order(lev)[0][None, :]+1)/2,
-    get_lagrange_basis)
 build_piecewise_tp = partial(
-    build_tp,
-    lambda lev: np.linspace(0, 1, clenshaw_curtis_rule_growth(lev))[None, :],
-    lambda : UnivariatePiecewiseQuadraticBasis([0, 1]))
+    build_tp, lambda : UnivariatePiecewiseQuadraticBasis([0, 1]))
 
 #%%
 #Load a benchmark
@@ -300,9 +293,6 @@ _ = ax.legend()
 from scipy import stats
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.surrogates.orthopoly.quadrature import (
-    gauss_jacobi_pts_wts_1D)
-
 
 
 def compute_density_ratio_beta(num, true_rv, alpha_stat_2, beta_stat_2):
@@ -336,25 +326,25 @@ true_rv = IndependentMarginalsVariable(
 nvalidation_samples = 1000
 validation_samples = true_rv.rvs(nvalidation_samples)
 validation_values = benchmark.fun(validation_samples)
-interp = TensorProductInterpolant(
-    TensorProductInterpolatingBasis(
-        [UnivariateLagrangeBasis([0, 1]) for ii in range(nvars)]
-    )
-)
 
 
-alpha_polys = np.arange(0., 11., 2.)
+alpha_stats = np.arange(1., 12., 2.)
 ntrain_samples_list = np.arange(2, 20, 2)
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-for alpha_poly in alpha_polys:
-    beta_poly = alpha_poly
+for alpha_stat in alpha_stats:
+    beta_stat = alpha_stat
     density_ratio = compute_density_ratio_beta(
-        nvars, true_rv, beta_poly+1, alpha_poly+1)
+        nvars, true_rv, alpha_stat, beta_stat)
+    interp = TensorProductInterpolant(
+        TensorProductInterpolatingBasis(
+            [UnivariateLagrangeBasis(
+                GaussQuadratureRule(stats.beta(alpha_stat, beta_stat)))
+             for ii in range(nvars)]
+        )
+    )
     results = []
     for ntrain_samples in ntrain_samples_list:
-        xx = gauss_jacobi_pts_wts_1D(ntrain_samples, alpha_poly, beta_poly)[0][None, :]
-        nodes_1d = [(xx+1)/2]*nvars
-        interp._basis.set_1d_nodes(nodes_1d)
+        interp._basis.set_tensor_product_indices([ntrain_samples]*nvars)
         train_samples = interp._basis.tensor_product_grid()
         train_values = benchmark.fun(train_samples)
         interp.fit(train_values)

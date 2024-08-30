@@ -159,7 +159,7 @@ class IterativeIndexGenerator(IndexGenerator):
                 return False
         return True
 
-    def _get_candidate_indices(self):
+    def _find_candidate_indices(self):
         # generate candidate indices from selected indices
         cand_indices = []
         idx = self.nselected_indices()
@@ -199,7 +199,7 @@ class IterativeIndexGenerator(IndexGenerator):
         if not self._indices_are_downward_closed(self._indices):
             raise ValueError("selected indices were not downward closed")
 
-        cand_indices = self._get_candidate_indices()
+        cand_indices = self._find_candidate_indices()
         self._indices = self._bkd.hstack((self._indices, cand_indices))
 
     def _indices_are_downward_closed(self, indices):
@@ -311,7 +311,7 @@ class IterativeIndexGenerator(IndexGenerator):
 
     def step(self):
         self._indices = self._bkd.hstack(
-            (self._indices, self._get_candidate_indices())
+            (self._indices, self._find_candidate_indices())
         )
         for key, item in self._cand_indices_dict.items():
             self._sel_indices_dict[key] = item

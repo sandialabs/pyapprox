@@ -5,7 +5,9 @@ from pyapprox.util.linearalgebra.numpylinalg import (
     NumpyLinAlgMixin,
 )
 from pyapprox.surrogates.bases.multiindex import compute_hyperbolic_indices
-from pyapprox.surrogates.bases.univariate import UnivariateInterpolatingBasis
+from pyapprox.surrogates.bases.univariate import (
+    UnivariateInterpolatingBasis, UnivariateQuadratureRule
+)
 from pyapprox.surrogates.bases.orthopoly import OrthonormalPolynomial1D
 
 from pyapprox.util.visualization import get_meshgrid_samples, plot_surface
@@ -108,7 +110,7 @@ class MultiIndexBasis(Basis):
             )
         )
 
-    def set_nterms(self, nterms_per_1d_basis):
+    def _set_nterms(self, nterms_per_1d_basis):
         for ii, basis_1d in enumerate(self._bases_1d):
             basis_1d.set_nterms(nterms_per_1d_basis[ii])
 
@@ -130,7 +132,7 @@ class MultiIndexBasis(Basis):
                 )
             )
         self._indices = self._bkd.array(indices, dtype=int)
-        self.set_nterms(self._bkd.max(self._indices, axis=1)+1)
+        self._set_nterms(self._bkd.max(self._indices, axis=1)+1)
 
     def get_indices(self):
         """Return the indices defining the basis terms."""
@@ -268,13 +270,6 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
             nodes_1d.append(basis._quad_samples[0])
         return self._bkd.cartesian_product(nodes_1d)
 
-    def set_1d_nodes(self, nodes_1d):
-        for basis, nodes in zip(self._bases_1d, nodes_1d):
-            basis.set_nodes(nodes)
-        self.set_tensor_product_indices(
-            [basis.nterms() for basis in self._bases_1d]
-        )
-
     def nterms(self):
         return self._bkd.prod(
             self._bkd.array(
@@ -318,7 +313,7 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
 
     def _plot_nodes(self, ax, offset, X, Y, idx, nterms_1d):
         nodes = self.tensor_product_grid()
-        nodes_1d = [basis._nodes for basis in self._bases_1d]
+        nodes_1d = [basis.quadrature_rule()[0] for basis in self._bases_1d]
         ax.plot(nodes[0, :], nodes[1, :],
                 offset*self._bkd.ones(nodes.shape[1]), 'o',
                 zorder=100, color='b')
@@ -362,3 +357,50 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         return TensorProductInterpolatingBasis(
             [basis._semideep_copy() for basis in self._bases_1d]
         )
+
+
+class TensorProductQuadratureRule:
+    def __init__(self, nvars, univariate_quad_rules, store=False):
+        if isinstance(univariate_quad_rules, UnivariateQuadratureRule):
+            univariate_quad_rules = [univariate_quad_rules]*nvars
+        if len(univariate_quad_rules) != nvars:
+            raise ValueError(
+                "must specify a single quadrature rule or"
+                " one for each dimension"
+            )
+        for quad_rule in univariate_quad_rules:
+            if not isinstance(quad_rule, UnivariateQuadratureRule):
+                raise ValueError(
+                    "quad rule must be an instance of UnivariateQuadratureRule"
+                )
+        self._nvars = nvars
+        self._bkd = univariate_quad_rules[0]._bkd
+        self._univariate_quad_rules = univariate_quad_rules
+        self._store = store
+        self._quad_samples = dict()
+        self._quad_weights = dict()
+
+    def nvars(self):
+        return self._nvars
+
+    def __call__(self, nnodes_1d):
+        if len(nnodes_1d) != self.nvars():
+            raise ValueError("must specify nnodes for each dimension")
+        np_array = self._bkd.to_numpy(nnodes_1d)
+        key = hash(np_array.tobytes())
+        if self._store and key in self._quad_samples:
+            return self._quad_samples[key], self._quad_weights[key]
+        samples_1d, weights_1d = [], []
+        for quad_rule, nnodes in zip(self._univariate_quad_rules, nnodes_1d):
+            xx, ww = quad_rule(int(nnodes))
+            samples_1d.append(xx[0])
+            weights_1d.append(ww[:, 0])
+        samples = self._bkd.cartesian_product(samples_1d)
+        weights = self._bkd.outer_product(weights_1d)[:, None]
+        if self._store:
+            self._quad_samples[nnodes] = samples
+            self._quad_weights[nnodes] = weights
+        return samples, weights
+
+    def __repr__(self):
+        return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)

@@ -475,7 +475,7 @@ class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
 
             for jj in range(northogonalization_steps):
                 z -= qii[:, : ii + 1] @ (qii[:, : ii + 1].T @ z)
-                
+
             if ii < nterms:
                 znorm = self._bkd.norm(z)
                 # beta[ii] = znorm**2 assume we want probability measure so

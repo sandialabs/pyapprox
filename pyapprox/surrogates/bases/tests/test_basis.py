@@ -8,6 +8,7 @@ from pyapprox.surrogates.bases.orthopoly import (
     LegendrePolynomial1D,
     setup_univariate_orthogonal_polynomial_from_marginal,
     AffineMarginalTransform,
+    GaussQuadratureRule,
 )
 from pyapprox.surrogates.bases.univariate import (
     Monomial1D, setup_univariate_piecewise_polynomial_basis
@@ -16,6 +17,7 @@ from pyapprox.surrogates.bases.basis import (
     MultiIndexBasis,
     OrthonormalPolynomialBasis,
     TensorProductInterpolatingBasis,
+    TensorProductQuadratureRule
 )
 from pyapprox.surrogates.bases.basisexp import (
     MonomialExpansion,
@@ -352,8 +354,7 @@ class TestBasis:
         ]
         basis = TensorProductInterpolatingBasis(bases_1d)
         interp = TensorProductInterpolant(basis)
-        basis.set_1d_nodes(
-            [bkd.linspace(0, 1, N)[None, :] for N in nnodes_1d])
+        basis.set_tensor_product_indices(nnodes_1d)
 
         def fun(samples):
             # when nnodes_1d is zero to test interpolation make sure
@@ -410,11 +411,8 @@ class TestBasis:
             )
             for ii in range(nvars)
         ]
-        nodes_1d = [
-            bkd.linspace(*bounds, nnodes)[None, :] for ii in range(nvars)
-        ]
         interp_basis = TensorProductInterpolatingBasis(bases_1d)
-        interp_basis.set_1d_nodes(nodes_1d)
+        interp_basis.set_tensor_product_indices([nnodes]*nvars)
         samples, weights = interp_basis.quadrature_rule()
         assert weights.ndim == 2 and weights.shape[1] == 1
         assert np.allclose(
@@ -595,6 +593,37 @@ class TestBasis:
         ntrain_samples = 10
         test_samples = variable.rvs(ntrain_samples)
         assert bkd.allclose(mon(test_samples), pce(test_samples))
+
+    def tensor_product_quadrature_rule(self):
+        bkd = self.get_backend()
+        nvars = 2
+        alpha_stat, beta_stat, lb, ub = 2, 2, -3, 1
+        marginals = [
+            stats.norm(0, 1), stats.beta(alpha_stat, beta_stat, lb, ub-lb)
+        ]
+        quad_rule = TensorProductQuadratureRule(
+            nvars, [GaussQuadratureRule(marginal) for marginal in marginals]
+        )
+
+        def fun(sample):
+            return (
+                bkd.sum(sample**2, axis=0) +
+                bkd.prod(sample, axis=0)
+            )[:, None]
+
+        quad_samples, quad_weights = quad_rule(bkd.array([3, 3]))
+
+        # compute integral exactly with sympy
+        x, y = sp.Symbol('x'), sp.Symbol('y')
+        wfun_x = gaussian_pdf(0, 1, x, sp)
+        wfun_y = beta_pdf_on_ab(alpha_stat, beta_stat, lb, ub, y)
+        exact_mean = float(
+            sp.integrate(
+                wfun_x*wfun_y*(x**2+y**2+x*y),
+                (x, -sp.oo, sp.oo), (y, lb, ub)
+            )
+        )
+        assert np.allclose(fun(quad_samples).T @ quad_weights, exact_mean)
 
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):

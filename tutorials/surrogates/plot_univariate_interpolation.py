@@ -55,7 +55,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.surrogates.bases.univariate import (
-    UnivariatePiecewiseQuadraticBasis, UnivariateLagrangeBasis)
+    UnivariatePiecewiseQuadraticBasis,
+    UnivariateLagrangeBasis,
+    ClenshawCurtisQuadratureRule,
+)
 from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
 from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 
@@ -65,15 +68,16 @@ nnodes = 5
 bounds = [-1, 1]
 samples = np.linspace(*bounds, 201)[None, :]
 ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
-cheby_nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
-lagrange_basis = UnivariateLagrangeBasis(bounds)
-lagrange_basis.set_nodes(cheby_nodes)
+quad_rule = ClenshawCurtisQuadratureRule(store=True, bounds=bounds)
+lagrange_basis = UnivariateLagrangeBasis(quad_rule)
+lagrange_basis.set_nterms(nnodes)
 lagrange_basis_vals = lagrange_basis(samples)
 ax[0].plot(samples[0], lagrange_basis_vals)
+cheby_nodes = lagrange_basis.quadrature_rule()[0]
 ax[0].plot(cheby_nodes[0], cheby_nodes[0]*0, 'ko')
-equidistant_nodes = np.linspace(*bounds, nnodes)[None, :]
 quadratic_basis = UnivariatePiecewiseQuadraticBasis(bounds)
-quadratic_basis.set_nodes(equidistant_nodes)
+quadratic_basis.set_nterms(nnodes)
+equidistant_nodes = quadratic_basis.quadrature_rule()[0]
 piecewise_basis_vals = quadratic_basis(samples)
 _ = ax[1].plot(samples[0], piecewise_basis_vals)
 _ = ax[1].plot(equidistant_nodes[0], equidistant_nodes[0]*0, 'ko')
@@ -97,13 +101,13 @@ quadratic_interpolant = TensorProductInterpolant(
     TensorProductInterpolatingBasis([quadratic_basis]))
 axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
 [ax.plot(samples[0], fun(samples)) for ax in axs]
-cheby_nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
+lagrange_interpolant._basis.set_tensor_product_indices([nnodes])
+cheby_nodes = lagrange_interpolant._basis.tensor_product_grid()
 cheby_values = fun(cheby_nodes)
-lagrange_interpolant._basis.set_1d_nodes([cheby_nodes])
 lagrange_interpolant.fit(cheby_values)
-equidistant_nodes = np.linspace(*bounds, nnodes)[None, :]
+quadratic_interpolant._basis.set_tensor_product_indices([nnodes])
+equidistant_nodes = lagrange_interpolant._basis.tensor_product_grid()
 equidistant_values = fun(equidistant_nodes)
-quadratic_interpolant._basis.set_1d_nodes([equidistant_nodes])
 quadratic_interpolant.fit(equidistant_values)
 axs[0].plot(samples[0], lagrange_interpolant(samples), ':')
 axs[0].plot(cheby_nodes[0], cheby_values, 'o')
@@ -119,17 +123,16 @@ _ = axs[1].plot(equidistant_nodes[0], equidistant_values, 's')
 axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
 [ax.plot(samples[0], fun(samples)) for ax in axs]
 for nnodes in [3, 5, 9, 17]:
-    nodes = -np.cos(np.arange(nnodes)*np.pi/(nnodes-1))[None, :]
-    values = fun(nodes)
-    lagrange_interpolant._basis.set_1d_nodes([nodes])
-    lagrange_interpolant.fit(values)
-    nodes = np.linspace(*bounds, nnodes)[None, :]
-    values = fun(nodes)
-    quadratic_interpolant._basis.set_1d_nodes([nodes])
-    quadratic_interpolant.fit(values)
+    lagrange_interpolant._basis.set_tensor_product_indices([nnodes])
+    cheby_nodes = lagrange_interpolant._basis.tensor_product_grid()
+    cheby_values = fun(cheby_nodes)
+    lagrange_interpolant.fit(cheby_values)
+    quadratic_interpolant._basis.set_tensor_product_indices([nnodes])
+    equidistant_nodes = lagrange_interpolant._basis.tensor_product_grid()
+    equidistant_values = fun(equidistant_nodes)
+    quadratic_interpolant.fit(equidistant_values)
     axs[0].plot(samples[0], lagrange_interpolant(samples), ':')
     _ = axs[1].plot(samples[0], quadratic_interpolant(samples), '--')
-
 
 #%%
 #Probability aware interpolation for UQ
@@ -138,9 +141,8 @@ for nnodes in [3, 5, 9, 17]:
 
 from scipy import stats
 from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
 from pyapprox.benchmarks import setup_benchmark
-from pyapprox.surrogates.orthopoly.quadrature import (
-    gauss_jacobi_pts_wts_1D)
 
 nvars = 1
 c = np.array([20])
@@ -154,18 +156,19 @@ true_rv = IndependentMarginalsVariable(
 
 alpha_poly, beta_poly = 0, 0
 ntrain_samples = 7
-xx = gauss_jacobi_pts_wts_1D(ntrain_samples, alpha_poly, beta_poly)[0]
-opt_xx = gauss_jacobi_pts_wts_1D(ntrain_samples, beta_stat-1, alpha_stat-1)[0]
-
-interp = TensorProductInterpolant(
-    TensorProductInterpolatingBasis([lagrange_basis]))
-interp._basis.set_1d_nodes([(xx[None, :]+1)/2])
+uniform_quad_rule = GaussQuadratureRule(stats.uniform(0, 1))
+opt_quad_rule = GaussQuadratureRule(stats.beta(alpha_stat, beta_stat, 0, 1))
+uniform_lagrange_basis = UnivariateLagrangeBasis(uniform_quad_rule)
+opt_lagrange_basis = UnivariateLagrangeBasis(opt_quad_rule)
+uniform_interp = TensorProductInterpolant(
+    TensorProductInterpolatingBasis([uniform_lagrange_basis]))
+uniform_interp._basis.set_tensor_product_indices([ntrain_samples-1])
 opt_interp = TensorProductInterpolant(
-    TensorProductInterpolatingBasis([lagrange_basis]))
-opt_interp._basis.set_1d_nodes([(opt_xx[None, :]+1)/2])
-train_samples = interp._basis.tensor_product_grid()
+    TensorProductInterpolatingBasis([opt_lagrange_basis]))
+opt_interp._basis.set_tensor_product_indices([ntrain_samples-1])
+train_samples = uniform_interp._basis.tensor_product_grid()
 train_values = benchmark.fun(train_samples)
-interp.fit(train_values)
+uniform_interp.fit(train_values)
 
 opt_train_samples = opt_interp._basis.tensor_product_grid()
 opt_train_values = benchmark.fun(opt_train_samples)
@@ -177,7 +180,7 @@ plot_xx = np.linspace(0, 1, 101)
 true_vals = benchmark.fun(plot_xx[None, :])
 pbwt = r"\pi"
 ax.plot(plot_xx, true_vals, '-r', label=r'$f(z)$')
-ax.plot(plot_xx, interp(plot_xx[None, :]), ':k', label=r'$f_M^\nu$')
+ax.plot(plot_xx, uniform_interp(plot_xx[None, :]), ':k', label=r'$f_M^\nu$')
 ax.plot(train_samples[0], train_values[:, 0], 'ko', ms=10,
         label=r'$\mathcal{Z}_{M}^{\nu}$')
 ax.plot(plot_xx, opt_interp(plot_xx[None, :]), '--b', label=r'$f_M^%s$' % pbwt)
