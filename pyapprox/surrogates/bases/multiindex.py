@@ -178,7 +178,6 @@ class IterativeIndexGenerator(IndexGenerator):
     def set_selected_indices(self, selected_indices):
         self._sel_indices_dict = dict()
         self._cand_indices_dict = dict()
-        self._indices = self._bkd.zeros((self.nvars(), 0))
 
         if selected_indices.dtype != self._bkd.int():
             raise RuntimeError("selected_indices must be integers")
@@ -207,7 +206,10 @@ class IterativeIndexGenerator(IndexGenerator):
             for dim_id in range(self.nvars()):
                 if index[dim_id] > 0:
                     neighbor = self._get_backward_neighbor(index, dim_id)
-                    if self._hash_index(neighbor) not in self._sel_indices_dict:
+                    if (
+                            self._hash_index(neighbor)
+                            not in self._sel_indices_dict
+                    ):
                         return False
         return True
 
@@ -239,7 +241,10 @@ class IterativeIndexGenerator(IndexGenerator):
         for dim_id in range(self.nvars()):
             if index[dim_id] > 0:
                 neighbor_index = self._get_backward_neighbor(index, dim_id)
-                if self._hash_index(neighbor_index) not in self._sel_indices_dict:
+                if (
+                        self._hash_index(neighbor_index)
+                        not in self._sel_indices_dict
+                ):
                     return False
         return True
 
@@ -410,6 +415,7 @@ class BasisIndexGenerator:
         self._bkd = self._subspace_gen._bkd
         self._subspace_indices = None
         self._basis_indices = None
+        self._hash_index = self._subspace_gen._hash_index
 
         if isinstance(growth_rules, IndexGrowthRule):
             growth_rules = [growth_rules]*self.nvars()
@@ -446,10 +452,12 @@ class BasisIndexGenerator:
             self._bkd.arange(n_1d, dtype=int) for n_1d in nbasis_1d]
         return self._bkd.cartesian_product(basis_indices_1d)
 
-    def _get_basis_indices(self):
+    def _get_basis_indices(self, return_all=False):
         subspace_indices = self._subspace_gen.get_indices()
         basis_indices = []
         basis_indices_set = set()
+        basis_subspace_idx = []
+        idx = 0
         for subspace_index in subspace_indices.T:
             # All unique basis indices can be found using subspace indices
             # on the margin, so avoid extra work by ignoring other subspaces
@@ -459,11 +467,16 @@ class BasisIndexGenerator:
                 )
                 # get basis indices not already collected
                 for basis_index in subspace_basis_indices.T:
-                    key = self._subspace_gen._hash_index(basis_index)
+                    key = self._hash_index(basis_index)
                     if key not in basis_indices_set:
                         basis_indices_set.add(key)
                         basis_indices.append(basis_index)
-        return self._bkd.stack(basis_indices, axis=1)
+                        basis_subspace_idx.append(idx)
+            idx += 1
+        basis_indices = self._bkd.stack(basis_indices, axis=1)
+        if not return_all:
+            return basis_indices
+        return basis_indices, basis_subspace_idx
 
     def _subspace_indices_changed(self):
         subspace_indices = self._subspace_gen.get_indices()

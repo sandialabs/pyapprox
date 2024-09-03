@@ -496,15 +496,25 @@ class UnivariatePiecewisePolynomialNodeGenerator(ABC):
     def set_bounds(self, bounds):
         self._bounds = bounds
 
-    @abstractmethod
     def __call__(self, nnodes):
+        if self._bounds is None:
+            raise ValueError("must call set_bounds")
+        nodes = self._nodes(nnodes)
+        if nodes.ndim != 2 or nodes.shape[0] != 1:
+            raise RuntimeError(
+                "nodes returned does must be a 2D row vector"
+            )
+        return nodes
+
+    @abstractmethod
+    def _nodes(self, nnodes):
         raise NotImplementedError
 
 
 class UnivariateEquidistantNodeGenerator(
         UnivariatePiecewisePolynomialNodeGenerator
 ):
-    def __call__(self, nnodes):
+    def _nodes(self, nnodes):
         return self._bkd.linspace(*self._bounds, nnodes)[None, :]
 
 
@@ -512,9 +522,16 @@ class DydadicEquidistantNodeGenerator(
         UnivariatePiecewisePolynomialNodeGenerator
 ):
     # useful for adaptive interpolation
-    def __call__(self, nnodes):
+    def _nodes(self, nnodes):
+        if nnodes == 1:
+            level = 0
+            return self._bkd.array(
+                [[(self._bounds[0]+self._bounds[1])/2]]
+            )
+
         if not _is_power_of_two(nnodes-1):
             raise ValueError("nnodes-1 must be a power of 2")
+
         level = int(round(math.log(nnodes-1, 2), 0))
         idx = clenshaw_curtis_poly_indices_to_quad_rule_indices(level)
         return self._bkd.linspace(*self._bounds, nnodes)[None, idx]
@@ -525,6 +542,17 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         super().__init__(trans, backend)
         if node_gen is None:
             node_gen = UnivariateEquidistantNodeGenerator(self._bkd)
+
+        self._node_gen = None
+        # nodes may be different than quad_samples
+        # e.g. when using piecwise constant basis
+        self._nodes = None
+        self._bounds = None
+
+        self.set_node_generator(node_gen)
+        self.set_bounds(bounds)
+
+    def set_node_generator(self, node_gen):
         if not isinstance(
                 node_gen, UnivariatePiecewisePolynomialNodeGenerator
         ):
@@ -533,11 +561,12 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
                     "UnivariatePiecewisePolynomialNodeGenerator")
             )
         self._node_gen = node_gen
-        # nodes may be different than quad_samples
-        # e.g. when using piecwise constant basis
-        self._nodes = None
-        self._bounds = None
-        self.set_bounds(bounds)
+        if self._bounds is not None:
+            # self.set_bounds calls self._node_gen.set_bounds()
+            # but this will be ignored when reseting node_gen here.
+            raise RuntimeError(
+                "Do not set bounds before setting generator"
+            )
 
     def _copy(self):
         other = self.__class__(
@@ -750,7 +779,9 @@ def _is_power_of_two(integer):
 class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
     """Integrates functions on [-1, 1] with weight function 1/2 or 1.
     """
-    def __init__(self, prob_measure=True, bounds=None, backend=None, store=False):
+    def __init__(
+            self, prob_measure=True, bounds=None, backend=None, store=False
+    ):
         super().__init__(backend=backend, store=store)
         self._prob_measure = prob_measure
 
@@ -779,7 +810,11 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
         length = (self._bounds[1]-self._bounds[0])
         quad_samples = (quad_samples+1)/2*length + self._bounds[0]
         if not self._prob_measure:
-            quad_weights *= 2*length
+            # taking quadweights for Lebesque measure on [-1, 1] to [a,b]
+            # requires multiplying weights by (b-a)/2 but clenshaw curtis
+            # weights are for uniform measure 1/2 on [-1,1] so only
+            # need to multiply by (b-a)
+            quad_weights *= length
 
         return (
             self._bkd.asarray(quad_samples)[None, :],

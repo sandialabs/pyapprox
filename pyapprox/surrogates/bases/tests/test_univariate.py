@@ -137,10 +137,11 @@ class TestUnivariateBasis:
             fun(degree, samples).T @ weights, integral(degree), atol=tol
         )
 
+        # test basis on gird with variable spacing
         class CustomNodeGenerator(UnivariatePiecewisePolynomialNodeGenerator):
-            def __call__(self, nnodes):
+            def _nodes(self, nnodes):
                 # randomize node spacing keeping both end points
-                nodes = self._bkd.linspace(*bounds, 2 * nnodes)
+                nodes = self._bkd.linspace(*self._bounds, 2 * nnodes)
                 # fmt: off
                 perm = self._bkd.asarray(
                     np.random.permutation(2*nnodes-2), dtype=int
@@ -150,6 +151,10 @@ class TestUnivariateBasis:
                 )[None, :]
                 # fmt: on
 
+        basis = setup_univariate_piecewise_polynomial_basis(
+            name, bounds, backend=bkd,
+            node_gen=CustomNodeGenerator(backend=bkd)
+        )
         basis.set_nterms(nterms)
         samples, weights = basis.quadrature_rule()
         assert np.allclose(
@@ -177,7 +182,7 @@ class TestUnivariateBasis:
         nterms = 5
         bkd = self.get_backend()
         basis = UnivariateLagrangeBasis(
-            ClenshawCurtisQuadratureRule(backend=bkd), nterms
+            ClenshawCurtisQuadratureRule(backend=bkd, bounds=[-1, 1]), nterms
         )
 
         def fun(degree, xx):
@@ -232,7 +237,7 @@ class TestUnivariateBasis:
             )[:, None]
             return val
         quad_rule = ClenshawCurtisQuadratureRule(
-            prob_measure=False, backend=bkd, store=True)
+            prob_measure=False, backend=bkd, store=True, bounds=[-1, 1])
         integrator = UnivariateUnboundedIntegrator(quad_rule, backend=bkd)
         integrator.set_options(nquad_samples=2**3+1, maxiters=1000)
         integrator.set_bounds(marginal.interval(1))
@@ -242,13 +247,14 @@ class TestUnivariateBasis:
         # multiple qoi
         marginal1 = stats.norm(0, 2)
         marginal2 = stats.expon(1)
+
         def integrand(sample):
             np_sample = bkd.to_numpy(sample)
             val1 = bkd.asarray(np_sample[0]**2*marginal1.pdf(np_sample[0]))
             val2 = bkd.asarray(np_sample[0]**2*marginal2.pdf(np_sample[0]))
             return bkd.stack([val1, val2], axis=1)
         quad_rule = ClenshawCurtisQuadratureRule(
-            prob_measure=False, backend=bkd, store=True)
+            prob_measure=False, backend=bkd, store=True, bounds=[-1, 1])
         integrator = UnivariateUnboundedIntegrator(quad_rule, backend=bkd)
         integrator.set_options(
             nquad_samples=2**3+1,
