@@ -6,6 +6,7 @@ from pyapprox.surrogates.loss import LossFunction
 from pyapprox.optimization.pya_minimize import MultiStartOptimizer
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.transforms import Transform, IdentityTransform
+from pyapprox.util.visualization import get_meshgrid_samples, plot_surface
 
 
 class Regressor(Model):
@@ -75,6 +76,35 @@ class Regressor(Model):
 
     def __call__(self, samples):
         return self._out_trans.map_from_canonical(super().__call__(samples))
+
+    def _plot_surface_1d(self, ax, qoi, plot_limits, npts_1d):
+        plot_xx = self._bkd.linspace(*plot_limits, npts_1d[0])[None, :]
+        ax.plot(plot_xx[0], self.__call__(plot_xx))
+
+    def _plot_surface_2d(self, ax, qoi, plot_limits, npts_1d):
+        X, Y, pts = get_meshgrid_samples(
+            plot_limits, npts_1d, bkd=self._bkd
+        )
+        vals = self.__call__(pts)
+        Z = self._bkd.reshape(vals[:, qoi], X.shape)
+        plot_surface(X, Y, Z, ax)
+
+    def plot_surface(self, ax, plot_limits, qoi=0, npts_1d=51):
+        if self.nvars() > 3:
+            raise RuntimeError("Cannot plot indices when nvars >= 3.")
+
+        if not isinstance(npts_1d, list):
+            npts_1d = [npts_1d]*self.nvars()
+
+        if len(npts_1d) != self.nvars():
+            raise ValueError("npts_1d must be a list")
+
+        plot_surface_funs = {
+            1: self._plot_surface_1d,
+            2: self._plot_surface_2d,
+        }
+        plot_surface_funs[self.nvars()](ax, qoi, plot_limits, npts_1d)
+
 
 
 class OptimizedRegressor(Regressor):

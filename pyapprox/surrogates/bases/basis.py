@@ -339,6 +339,8 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
             num_pts_1d=101, surface_cmap="coolwarm",
             contour_cmap="gray",
             plot_nodes=False):
+        if self.nvars() != 2:
+            raise ValueError("Can only be used when nvars == 2")
         # evaluate 1D basis functions once to get number of basis functions
         sample = self._bkd.reshape(
             self._bkd.asarray(plot_limits), (2, 2)
@@ -350,6 +352,12 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         if plot_nodes is None:
             return
         self._plot_nodes(ax, offset, X, Y, idx, nterms_1d)
+
+    def plot_basis_1d(self, ax, plot_limits):
+        if self.nvars() != 1:
+            raise ValueError("Can only be used when nvars == 2")
+        plot_xx = self._bkd.linspace(*plot_limits, 101)[None, :]
+        ax.plot(plot_xx[0], self.__call__(plot_xx), 'k--')
 
     def _semideep_copy(self):
         # this function can be dangerous so should be used with caution
