@@ -347,3 +347,15 @@ class NumpyLinAlgMixin(LinAlgMixin):
     def cumsum(array, axis=0, **kwargs):
         assert axis is not None
         return np.cumsum(array, axis=axis, **kwargs)
+
+    @staticmethod
+    def complex_dtype():
+        return complex
+
+    @staticmethod
+    def real(array):
+        return np.real(array)
+    
+    @staticmethod
+    def imag(array):
+        return np.imag(array)

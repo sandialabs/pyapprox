@@ -17,12 +17,16 @@ from pyapprox.surrogates.bases.basis import (
     MultiIndexBasis,
     OrthonormalPolynomialBasis,
     TensorProductInterpolatingBasis,
-    TensorProductQuadratureRule
+    TensorProductQuadratureRule,
+    TrigonometricBasis,
+    FourierBasis,
 )
 from pyapprox.surrogates.bases.basisexp import (
     MonomialExpansion,
     PolynomialChaosExpansion,
     TensorProductInterpolant,
+    TrigonometricExpansion,
+    FourierExpansion,
 )
 from pyapprox.surrogates.bases.linearsystemsolvers import (
     LstSqSolver,
@@ -624,6 +628,68 @@ class TestBasis:
             )
         )
         assert np.allclose(fun(quad_samples).T @ quad_weights, exact_mean)
+
+    def test_trigonometric_polynomial(self):
+        bkd = self.get_backend()
+        bounds = [-np.pi, np.pi]
+        nterms = 5
+        trig_basis = TrigonometricBasis(bounds, backend=bkd)
+        trig_basis.set_indices(bkd.arange(nterms)[None, :])
+        trig_exp = TrigonometricExpansion(trig_basis)
+
+        def fun(xx):
+            return 1-4*bkd.cos(xx.T)+6*bkd.sin(2*xx.T)
+
+        trig_coefs = bkd.array([1., -4., 0., 0., 6])[:, None]
+        trig_exp.set_coefficients(trig_coefs)
+
+        test_samples = bkd.linspace(*bounds, 11)[None, :]
+        np.set_printoptions(linewidth=1000)
+        assert bkd.allclose(trig_exp(test_samples), fun(test_samples))
+
+        invfbasis = FourierBasis(bounds, inverse=True, backend=bkd)
+        invfbasis.set_indices(bkd.arange(nterms)[None, :])
+        invf_exp = FourierExpansion(invfbasis)
+        fourier_coefs = invf_exp.fourier_coefficients_from_trig_coefficients(
+            trig_coefs
+        )
+        assert bkd.allclose(
+            fourier_coefs,
+            bkd.array([3j, -2, 1, -2, -3j], dtype=bkd.complex_dtype())[:, None]
+        )
+
+        recovered_trig_coefs = (
+            trig_exp.trig_coefficients_from_fourier_coefficients(
+                fourier_coefs
+            )
+        )
+        assert bkd.allclose(recovered_trig_coefs, trig_coefs)
+
+        fbasis = FourierBasis(bounds, inverse=False, backend=bkd)
+        fbasis.set_indices(bkd.arange(nterms)[None, :])
+        fexp = FourierExpansion(fbasis)
+        quad_samples = fexp.quadrature_samples()
+        vals = fun(quad_samples)
+        fcoefs = fexp.compute_coefficients(vals)
+        assert bkd.allclose(fcoefs, fourier_coefs)
+
+        # Compare coefficients computed with quadrature to those computed using
+        # fft
+        if not bkd.bkd_equal(bkd, NumpyLinAlgMixin):
+            return
+
+        # numpy fft defined for samples on [0, 2*pi] so shift quad_samples
+        # to that interval then swap left and right halves of transform to
+        # recover fourier coefs computedon [-pi, pi]
+        fft_coefs = np.fft.fft(
+            fun(quad_samples+np.pi)[:, 0], norm="forward")[:, None]
+        fcoefs = bkd.vstack(
+            (fft_coefs[fbasis._bases_1d[0]._Kmax+1:],
+             fft_coefs[:fbasis._bases_1d[0]._Kmax+1])
+        )
+        assert bkd.allclose(fcoefs, fourier_coefs)
+
+        raise NotImplementedError("must change fourierbasis1d and trigonometricpolynomial1D to return basis that is nested. i.e. trig basis returns const + sin and cos for k=1 then sin and cos for k=2 etc. Similarly for fourier return c_0 then c_{-1} c{1} c{-2} c{2} etc. This will make them consistent with other pyapprox bases but not consistent with typical math formulation. Perhaps allow user to request either ordering use pyapprox by default")
 
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):

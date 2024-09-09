@@ -287,12 +287,12 @@ class TestCombination:
             ):
                 idx.append(sg._basis_gen._basis_indices_dict[key][0])
                 print(basis_index)
-        sg.plot_grid(plt.figure().gca())
-        plt.show()
-        
         assert bkd.allclose(
             sg.train_values()[idx], bkd.zeros((len(idx), sg.nqoi()))
         )
+        sg.plot_grid(plt.figure().gca())
+
+
 
 
 class TestNumpyCombination(TestCombination, unittest.TestCase):

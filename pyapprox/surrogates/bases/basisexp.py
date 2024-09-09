@@ -3,10 +3,16 @@ import copy
 import numpy as np
 
 from pyapprox.surrogates.bases.basis import (
-    Basis, OrthonormalPolynomialBasis, MultiIndexBasis,
-    TensorProductInterpolatingBasis)
+    Basis,
+    OrthonormalPolynomialBasis,
+    MultiIndexBasis,
+    TensorProductInterpolatingBasis,
+    TrigonometricBasis,
+    FourierBasis
+)
 from pyapprox.surrogates.bases.linearsystemsolvers import (
-    LinearSystemSolver)
+    LinearSystemSolver
+)
 from pyapprox.util.hyperparameter import (
     HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
 from pyapprox.surrogates.interp.manipulate_polynomials import add_polynomials
@@ -527,3 +533,75 @@ class TensorProductInterpolant:
     def integrate(self):
         quad_weights = self._basis.quadrature_rule()[1]
         return (self._values.T @ quad_weights)[:, 0]
+
+
+class TrigonometricExpansion(BasisExpansion):
+    def set_basis(self, basis, coef_bounds=None):
+        if not isinstance(basis, TrigonometricBasis):
+            raise ValueError(
+                "basis must be an instance of TrigonometricBasis"
+            )
+        super().set_basis(basis, coef_bounds)
+
+    def trig_coefficients_from_fourier_coefficients(
+            self, fourier_coefs, real_function=True
+    ):
+        r"""
+        Derive using eulers formula
+
+        .. math::
+             \cos(kx) = 1/2(e^{ikx}+e^{-ikx}), \sin(kx) = 1/(2i)(e^{ikx}-e^{-ikx}) = i/2(e^{-ikx}-e^{ikx})
+
+        so
+        .. math::
+
+            p(x) &= a_0/2 + \sum_{k=1}^K a_k \cos(kx) + b_k \sin(kx)\\
+                 &= a_0/2 + \sum_{k=1}^K a_k/2(e^{ikx}+e^{-ikx}) + ib_k/2(e^{-ikx}-e^{ikx})\\
+                 &= a_0/2 + \sum_{k=1}^K 1/2(a_k-ib_k)e^{ikx} + (1/2)(a_k+ib_k)e^{-ikx}\\
+                 &= \sum_{k=-K}^K c_k e^{ikx}
+
+        where :math:`c_{-k} = 1/2(a_k+ib_k), c_k = 1/2(a_k-ib_k)`.
+        Conversely :math:`a_k = c_k+c_{-k}, b_k = i(c_k-c_{-k})`
+        """
+        if fourier_coefs.ndim != 2:
+            raise ValueError("fourier_coefs must be a 2d array")
+        # a_k =  c_{-k} + c_k
+        Kmax = (self.nterms()-1)//2
+        cmk = self._bkd.flip(fourier_coefs[:Kmax])
+        cos_coefs = (cmk + fourier_coefs[Kmax+1:])
+        # b_k =  i (c_k-c_{-k} )
+        sin_coefs = 1j*(fourier_coefs[Kmax+1:] - cmk)
+        coefs = self._bkd.vstack(
+            (fourier_coefs[Kmax:Kmax+1], cos_coefs, sin_coefs)
+        )
+        if real_function:
+            return self._bkd.real(coefs)
+        return coefs
+
+
+class FourierExpansion(BasisExpansion):
+    def set_basis(self, basis, coef_bounds=None):
+        if not isinstance(basis, FourierBasis):
+            raise ValueError(
+                "basis must be an instance of FourierBasis"
+            )
+        super().set_basis(basis, coef_bounds)
+
+    def fourier_coefficients_from_trig_coefficients(self, trig_coefs):
+        if trig_coefs.ndim != 2:
+            raise ValueError("trig_coefs must be a 2d array")
+        const_coefs = trig_coefs[:1]
+        Kmax = self.basis._bases_1d[0]._Kmax
+        cos_coefs = trig_coefs[1:Kmax+1]
+        sin_coefs = trig_coefs[Kmax+1:]
+        left_coefs = self._bkd.flip((cos_coefs + 1j*sin_coefs)/2., axis=0)
+        right_coefs = (cos_coefs - 1j*sin_coefs)/2.
+        return self._bkd.vstack((left_coefs, const_coefs, right_coefs))
+
+    def quadrature_samples(self):
+        bounds = self.basis._bases_1d[0]._bounds
+        return self._bkd.linspace(*bounds, self.nterms()+1)[None, :-1]
+
+    def compute_coefficients(self, values):
+        quad_samples = self.quadrature_samples()
+        return (self.basis(quad_samples))@values/self.nterms()

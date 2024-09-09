@@ -128,7 +128,7 @@ class TransientPDE():
     def solve(self, init_sol, init_time, final_time, verbosity=0,
               store_data=True, clear_data=True, newton_kwargs={}):
         # advise against setting clear_data = False
-        # todo perhaps make hdg schme use derived clas from this oned
+        # todo perhaps make hdg scheme use derived class from this one
         # that requires clear data = False so user cannot do the wrong thing
         self.physics.mesh._flux_islinear = self.physics._flux_islinear
         SteadyStatePDE._pre_solve(self.physics, store_data, clear_data)

@@ -675,3 +675,18 @@ class LinAlgMixin(ABC):
     def bkd_equal(bkd1, bkd2):
         # has to be a comparison that does not require instantiating class
         return bkd1.__name__ == bkd2.__name__
+
+    @staticmethod
+    @abstractmethod
+    def complex_dtype():
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def real(array):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def imag(array):
+        raise NotImplementedError

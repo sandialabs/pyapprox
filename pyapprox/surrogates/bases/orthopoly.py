@@ -729,3 +729,67 @@ class AffineMarginalTransform(Transform):
         return "{0}(loc={1}, scale={2})".format(
             self.__class__.__name__, self._loc,  self._scale
         )
+
+
+class TrigonometricPolynomial1D(UnivariateBasis):
+    r"""
+    :math:`p(x) = a_0 + \sum_{k=1}^K a_k \cos(kx) + b_k \sin(kx)`
+
+    .. math::
+        a_0 &= 1\(2\pi) \int_{-\pi}^\pi f(x)dx\\
+        a_k &= 1\pi \int_{-\pi}^\pi f(x)cos(kx)dx\\
+        b_k &= 1\pi \int_{-\pi}^\pi f(x)cos(kx)dx
+    """
+    def __init__(self, bounds, backend=None):
+        super().__init__(None, backend)
+        self._half_indices = None
+        self._bounds = bounds
+        self._jacobian_implemented = False
+        self._hessian_implemented = False
+
+    def set_nterms(self, nterms):
+        if nterms % 2 != 1:
+            raise ValueError("nterms bust be an odd number")
+        # half_indices is k in a_0 + \sum_{k=1}^K a_k \cos(kx) + b_k \sin(kx)
+        self._half_indices = self._bkd.arange(1, (nterms-1)//2+1)[None, :]
+
+    def nterms(self):
+        return self._half_indices.shape[1] * 2 + 1
+
+    def _values(self, samples):
+        return self._bkd.hstack(
+            (
+                self._bkd.ones((samples.shape[1], 1)),
+                self._bkd.cos(samples.T*self._half_indices),
+                self._bkd.sin(samples.T*self._half_indices)
+            )
+        )
+
+
+class FourierBasis1D(UnivariateBasis):
+    # p(x) = sum_{k=-K}^K c_k e^{ikx}
+    def __init__(self, bounds, inverse=True, backend=None):
+        super().__init__(None, backend)
+        self._Kmax = None
+        self._jacobian_implemented = False
+        self._hessian_implemented = False
+        self._bounds = bounds
+        if inverse:
+            # compute basis to evaluate function from fourier coefs
+            self._const = 1j
+        else:
+            # compute basis needed to compute fourier coefs with quadrature
+            self._const = -1j
+
+    def set_nterms(self, nterms):
+        if nterms % 2 != 1:
+            raise ValueError("nterms bust be an odd number")
+        # half_indices is k in a_0 + \sum_{k=1}^K a_k \cos(kx) + b_k \sin(kx)
+        self._Kmax = (nterms-1)//2
+
+    def nterms(self):
+        return self._Kmax * 2 + 1
+
+    def _values(self, samples):
+        return self._bkd.exp(self._const*self._bkd.arange(
+            -self._Kmax, self._Kmax+1)[:, None]*samples)

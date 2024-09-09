@@ -12,7 +12,8 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_shallow_shelf_manufactured_solution,
     setup_first_order_stokes_ice_manufactured_solution,
     setup_two_species_advection_diffusion_reaction_manufactured_solution,
-    setup_linear_elasticity_manufactured_solution
+    setup_linear_elasticity_manufactured_solution,
+    setup_burgers_manufactured_solution
 )
 from pyapprox.pde.autopde.mesh import (
     CartesianProductCollocationMesh,
@@ -29,7 +30,7 @@ from pyapprox.pde.autopde.physics import (
     LinearIncompressibleStokes, ShallowIce, EulerBernoulliBeam,
     Helmholtz, ShallowWaterWave, ShallowShelfVelocities,
     ShallowShelf, FirstOrderStokesIce, MultiSpeciesAdvectionDiffusionReaction,
-    LinearElasticity
+    LinearElasticity, Burgers1D
 )
 from pyapprox.pde.autopde.mesh_transforms import (
     ScaleAndTranslationTransform, PolarTransform,
@@ -1567,6 +1568,61 @@ class TestAutoPDE(unittest.TestCase):
         ]
         for test_case in test_cases:
             self._check_linear_elasticity(*test_case)
+
+    def _check_burgers(
+            self, domain_bounds, orders, sol_string, visc_string, bndry_types,
+            tableau_name
+    ):
+        sol_fun, visc_fun, forc_fun, flux_funs = (
+            setup_burgers_manufactured_solution(sol_string, visc_string, True)
+        )
+
+        visc_fun = Function(visc_fun)
+        forc_fun = TransientFunction(forc_fun)
+        sol_fun = TransientFunction(sol_fun)
+        nphys_vars = len(orders)
+
+        bndry_conds = _get_boundary_funs(
+            nphys_vars, bndry_types, sol_fun, flux_funs)
+        mesh = CartesianProductCollocationMesh(domain_bounds, orders, ["C"])
+
+        deltat = 0.125
+        final_time = deltat*2
+        solver = TransientPDE(
+            Burgers1D(mesh, bndry_conds, visc_fun, forc_fun), deltat, tableau_name)
+        sol_fun.set_time(0)
+        init_sol = sol_fun(mesh.mesh_pts)
+        sols, times = solver.solve(
+           init_sol, 0, final_time, newton_kwargs={"tol": 1e-8})
+
+        times = [0, deltat, 2*deltat]
+        for ii, time in enumerate(times):
+            sol_fun.set_time(time)
+            # xx = np.linspace(-1, 1, 101)[None, :]
+            # import matplotlib.pyplot as plt
+            # plt.plot(xx[0], sol_fun(xx))
+            # plt.show()
+            # continue
+            exact_sol_t = sol_fun(solver.physics.mesh.mesh_pts).numpy()
+            model_sol_t = sols[:, ii:ii+1].numpy()
+            
+            print(exact_sol_t)
+            print(model_sol_t, 'm')
+            L2_error = np.sqrt(
+                solver.physics.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            factor = np.sqrt(
+                solver.physics.mesh.integrate(exact_sol_t**2))
+            print(time, L2_error, 1e-8*factor)
+            assert L2_error < 1e-8*factor
+
+    def test_burgers(self):
+        test_cases = [
+            [[-1, 1], [15], "cos(pi*x)*(1+t)", "1", ["P", "P"], "im_beuler1"],
+            [[-1, 1], [15], "cos(pi*x)*(1+t)**2", "2+x", ["P", "P"], "im_crank2"],
+        ]
+        for test_case in test_cases:
+            print(test_case)
+            self._check_burgers(*test_case)
 
 
 if __name__ == "__main__":

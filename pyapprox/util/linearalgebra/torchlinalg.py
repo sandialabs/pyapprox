@@ -405,3 +405,15 @@ class TorchLinAlgMixin(LinAlgMixin):
     def cumsum(array, axis=0, **kwargs):
         assert axis is not None
         return array.cumsum(dim=axis, **kwargs)
+
+    @staticmethod
+    def complex_dtype():
+        return torch.cdouble
+
+    @staticmethod
+    def real(array):
+        return array.real
+
+    @staticmethod
+    def imag(array):
+        return array.imag

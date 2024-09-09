@@ -8,7 +8,11 @@ from pyapprox.surrogates.bases.multiindex import compute_hyperbolic_indices
 from pyapprox.surrogates.bases.univariate import (
     UnivariateInterpolatingBasis, UnivariateQuadratureRule
 )
-from pyapprox.surrogates.bases.orthopoly import OrthonormalPolynomial1D
+from pyapprox.surrogates.bases.orthopoly import (
+    OrthonormalPolynomial1D,
+    TrigonometricPolynomial1D,
+    FourierBasis1D,
+)
 
 from pyapprox.util.visualization import get_meshgrid_samples, plot_surface
 
@@ -412,3 +416,17 @@ class TensorProductQuadratureRule:
 
     def __repr__(self):
         return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
+
+
+class TrigonometricBasis(MultiIndexBasis):
+    def __init__(self, bounds, indices=None, backend=None):
+        super().__init__([TrigonometricPolynomial1D(bounds, backend)])
+        self._jacobian_implemented = False
+        self._hessian_implemented = False
+
+
+class FourierBasis(MultiIndexBasis):
+    def __init__(self, bounds, inverse=True, indices=None, backend=None):
+        super().__init__([FourierBasis1D(bounds, inverse, backend)])
+        self._jacobian_implemented = False
+        self._hessian_implemented = False

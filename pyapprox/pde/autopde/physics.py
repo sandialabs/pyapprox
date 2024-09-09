@@ -1,11 +1,12 @@
-import torch
 import itertools
 from abc import ABC, abstractmethod
-from torch.linalg import multi_dot
-from pyapprox.pde.autopde.mesh import VectorMesh
 from functools import partial
 
-from pyapprox.pde.autopde.solvers import TransientFunction
+import torch
+from torch.linalg import multi_dot
+
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.pde.autopde.mesh import VectorMesh
 
 
 class AbstractSpectralCollocationPhysics(ABC):
@@ -93,6 +94,28 @@ class AbstractSpectralCollocationPhysics(ABC):
 
     def _linear_solve(self, jac, residual):
         return torch.linalg.solve(jac, residual)
+
+
+class Burgers1D(AbstractSpectralCollocationPhysics):
+    def __init__(self, mesh, bndry_conds, visc_fun, forc_fun):
+        super().__init__(mesh, bndry_conds)
+        self._visc_fun = visc_fun
+        self._forc_fun = forc_fun
+        self._funs = [self._visc_fun, self._forc_fun]
+        self._bkd = TorchLinAlgMixin
+
+    def _raw_residual(self, sol):
+        # TODO make functions return shape required by residual and not
+        # make user make 2D array 1D here (goes for all other physics too)
+        residual = (
+            self._visc_fun(self.mesh.mesh_pts)[:, 0]
+            * self._bkd.multidot(
+                (self.mesh._dmats[0], self.mesh._dmats[0], sol)
+            )
+            - sol*self._bkd.multidot((self.mesh._dmats[0], sol))
+            + self._forc_fun(self.mesh.mesh_pts)[:, 0]
+        )
+        return residual, None
 
 
 class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
@@ -361,14 +384,10 @@ class IncompressibleNavierStokes(AbstractSpectralCollocationPhysics):
 
     def _raw_jacobian(self, sol):
         split_sols = self.mesh.split_quantities(sol)
-        vel_sols = torch.hstack([s[:, None] for s in split_sols[:-1]])
-        vel_forc_vals = self._vel_forc_fun(self.mesh._meshes[0].mesh_pts)
         jac = [[0 for jj in range(self.mesh.nphys_vars+1)]
                for ii in range(len(split_sols))]
         # assumes x and y velocity meshes are the same
         vel_dmats = self.mesh._meshes[0]._dmats
-        #[self.mesh._meshes[0]._dmat(dd)
-        #for dd in range(self.mesh.nphys_vars)]
         for dd in range(self.mesh.nphys_vars):
             for ii in range(self.mesh.nphys_vars):
                 dmat = vel_dmats[ii] # self.mesh._meshes[dd]._dmat(ii)
