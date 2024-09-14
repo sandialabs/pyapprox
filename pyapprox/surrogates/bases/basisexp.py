@@ -604,4 +604,4 @@ class FourierExpansion(BasisExpansion):
 
     def compute_coefficients(self, values):
         quad_samples = self.quadrature_samples()
-        return (self.basis(quad_samples))@values/self.nterms()
+        return (self.basis(quad_samples).T)@values/self.nterms()

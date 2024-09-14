@@ -791,5 +791,5 @@ class FourierBasis1D(UnivariateBasis):
         return self._Kmax * 2 + 1
 
     def _values(self, samples):
-        return self._bkd.exp(self._const*self._bkd.arange(
-            -self._Kmax, self._Kmax+1)[:, None]*samples)
+        return self._bkd.exp(self._const*samples.T*self._bkd.arange(
+            -self._Kmax, self._Kmax+1)[None, :])

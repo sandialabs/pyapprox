@@ -673,6 +673,12 @@ class TestBasis:
         fcoefs = fexp.compute_coefficients(vals)
         assert bkd.allclose(fcoefs, fourier_coefs)
 
+        # check that coefficients computed using quadrature creates
+        # expansion that interpolates the function values at those samples
+        invf_exp.set_coefficients(fcoefs)
+        assert bkd.allclose(invf_exp(quad_samples), vals)
+        assert bkd.allclose(trig_exp(quad_samples), vals)
+
         # Compare coefficients computed with quadrature to those computed using
         # fft
         if not bkd.bkd_equal(bkd, NumpyLinAlgMixin):
@@ -689,7 +695,7 @@ class TestBasis:
         )
         assert bkd.allclose(fcoefs, fourier_coefs)
 
-        raise NotImplementedError("must change fourierbasis1d and trigonometricpolynomial1D to return basis that is nested. i.e. trig basis returns const + sin and cos for k=1 then sin and cos for k=2 etc. Similarly for fourier return c_0 then c_{-1} c{1} c{-2} c{2} etc. This will make them consistent with other pyapprox bases but not consistent with typical math formulation. Perhaps allow user to request either ordering use pyapprox by default")
+        raise NotImplementedError("must change fourierbasis1d and trigonometricpolynomial1D to return basis that is nested. i.e. trig basis returns const + sin and cos for k=1 then sin and cos for k=2 etc. Similarly for fourier return c_0 then c_{-1} c{1} c{-2} c{2} etc. This will make them consistent with other pyapprox bases but not consistent with typical math formulation. Perhaps allow user to request either ordering use pyapprox by default. Also consider moving fourier and trig basies to univariateinterpolating bases")
 
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):

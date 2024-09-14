@@ -215,7 +215,7 @@ class MultiIndexBasis(Basis):
             ],
             axis=-1
         )
-        return hess  
+        return hess
 
     def __repr__(self):
         return "{0}(nvars={1}, nterms={2})".format(
@@ -371,8 +371,27 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         )
 
 
-class TensorProductQuadratureRule:
+class QuadratureRule(ABC):
+    def __init__(self, backend):
+        if backend is None:
+            backend = NumpyLinAlgMixin
+        self._bkd = backend
+
+    @abstractmethod
+    def nvars(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def __call__(self):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
+
+
+class TensorProductQuadratureRule(QuadratureRule):
     def __init__(self, nvars, univariate_quad_rules, store=False):
+        super().__init__(univariate_quad_rules[0]._bkd)
         if isinstance(univariate_quad_rules, UnivariateQuadratureRule):
             univariate_quad_rules = [univariate_quad_rules]*nvars
         if len(univariate_quad_rules) != nvars:
@@ -386,7 +405,6 @@ class TensorProductQuadratureRule:
                     "quad rule must be an instance of UnivariateQuadratureRule"
                 )
         self._nvars = nvars
-        self._bkd = univariate_quad_rules[0]._bkd
         self._univariate_quad_rules = univariate_quad_rules
         self._store = store
         self._quad_samples = dict()
@@ -414,8 +432,15 @@ class TensorProductQuadratureRule:
             self._quad_weights[nnodes] = weights
         return samples, weights
 
-    def __repr__(self):
-        return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
+
+class FixedTensorProductQuadratureRule(TensorProductQuadratureRule):
+    def __init__(self, nvars, univariate_quad_rules, nnodes_1d):
+        super().__init__(nvars, univariate_quad_rules, store=True)
+        self._nnodes_1d = nnodes_1d
+
+    # TODO fix class inheritance to either require arguments to call or no args
+    def __call__(self):
+        return super().__call__(self._nnodes_1d)
 
 
 class TrigonometricBasis(MultiIndexBasis):
