@@ -386,7 +386,9 @@ class QuadratureRule(ABC):
         raise NotImplementedError
 
     def __repr__(self):
-        return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
+        return "{0}(bkd={1})".format(
+            self.__class__.__name__, self._bkd.__name__
+        )
 
 
 class TensorProductQuadratureRule(QuadratureRule):

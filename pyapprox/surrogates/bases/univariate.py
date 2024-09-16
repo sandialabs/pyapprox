@@ -773,7 +773,9 @@ class UnivariateQuadratureRule(ABC):
         return quad_samples, quad_weights
 
     def __repr__(self):
-        return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
+        return "{0}(bkd={1})".format(
+            self.__class__.__name__, self._bkd.__name__
+        )
 
 
 def _is_power_of_two(integer):

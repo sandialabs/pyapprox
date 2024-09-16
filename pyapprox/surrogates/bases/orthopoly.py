@@ -690,6 +690,11 @@ class GaussQuadratureRule(UnivariateQuadratureRule):
             self._poly.set_nterms(nnodes)
         return self._poly.gauss_quadrature_rule(nnodes)
 
+    def __repr__(self):
+        return "{0}(poly={1}, bkd={2})".format(
+            self.__class__.__name__, self._poly, self._bkd.__name__
+        )
+
 
 class AffineMarginalTransform(Transform):
     def __init__(self, marginal, enforce_bounds=False, backend=None):

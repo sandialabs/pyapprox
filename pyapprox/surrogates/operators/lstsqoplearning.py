@@ -1,4 +1,6 @@
-from pyapprox.surrogates.bases.basis import Basis, QuadratureRule
+from pyapprox.surrogates.bases.basis import (
+    Basis, QuadratureRule, MultiIndexBasis
+)
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
 
 
@@ -105,10 +107,9 @@ class MultiLinearOperatorBasis:
                     "ijk,j->ik",
                     fun_values[ii].T[..., None] * basis_mat,
                     quad_weights[:, 0],
-                )
+                ).T
             )
-            print(coefs[-1].shape, fun_values[ii].shape)
-        return self._bkd.stack(coefs, axis=-1)
+        return self._bkd.vstack(coefs)
 
     def _in_coef_from_in_fun_values(self, in_fun_values):
         return self._coef_from_fun_values(
@@ -120,21 +121,24 @@ class MultiLinearOperatorBasis:
             out_fun_values, self._out_bases, self._out_quad_rules)
 
     def _basis_values_from_in_coef(self, in_coef, out_samples):
-        # coef_basis_mat (ninput_fun_samples, ncoef_terms)
+        # coef_basis_mat (nin_fun_samples, ncoef_terms)
         coef_basis_mat = self._coef_basis(in_coef)
-        out_basis_mats = [
-            self.out_bases[ii](out_samples[ii])
-            for ii in range(self.nout_functions())
-        ]
+        nin_samples = in_coef.shape[1]
+        # loop over output functions one at a time
+        basis_mats = []
         for ii in range(self.nout_functions()):
-            # out_basis_mat (nout_samples, nout_terms)
-            out_basis_mats.append()
             # outerproduct of inner and outer basis functions
-            # basis_mat (nout_samples, ninsamples, nout_terms, ncoef_terms)
-            basis_mat = self._bkd.enisum(
-                "ij,kl->ijkl", out_basis_mat, coef_basis_mat.T
+            # out_basis_mat (nout_samples, nout_terms_i)
+            out_basis_mat = self._out_basis_exps[ii].basis(out_samples[ii])
+            # basis_mat (nout_samples, nin_fun_samples, nout_terms,ncoef_terms)
+            basis_mat = self._bkd.einsum(
+                "ij,kl->ikjl", out_basis_mat, coef_basis_mat
             )
             # basis_mat (nout_samples, ninsamples, nout_terms*ncoef_terms)
+            nout_samples = out_basis_mat.shape[0]
+            nbasis_terms = (
+                self._out_basis_exps[ii].nterms() * self._coef_basis.nterms()
+            )
             basis_mat = self._bkd.reshape(
                 basis_mat, (nout_samples, nin_samples, nbasis_terms)
             )
@@ -156,4 +160,5 @@ class MultiLinearOperatorBasis:
                 "samples must be specified for each output function"
             )
         in_coef = self._in_coef_from_in_fun_values(in_fun_values)
-        self._basis_values_from_in_coef(in_coef, out_samples)
+        print(in_coef.shape)
+        return self._basis_values_from_in_coef(in_coef, out_samples)
