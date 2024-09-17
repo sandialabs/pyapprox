@@ -1,7 +1,16 @@
-from pyapprox.surrogates.bases.basis import (
-    Basis, QuadratureRule, MultiIndexBasis
-)
+import itertools
+
+from pyapprox.surrogates.bases.basis import Basis, QuadratureRule
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
+from pyapprox.surrogates.bases.orthopoly import (
+    GaussQuadratureRule,
+    setup_univariate_orthogonal_polynomial_from_marginal
+)
+from pyapprox.surrogates.bases.basis import (
+    OrthonormalPolynomialBasis,
+    FixedTensorProductQuadratureRule,
+)
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 class MultiLinearOperatorBasis:
@@ -11,23 +20,21 @@ class MultiLinearOperatorBasis:
         in_bases,
         in_quad_rules,
         nout_functions,
-        out_basis_exps,
+        out_bases,
         out_quad_rules,
-        coef_basis,
     ):
         self._bkd = in_bases[0]._bkd
-        self._check_input_bases(nin_functions, in_bases, in_quad_rules)
-        self._check_output_basis_epansions(
-            nout_functions, out_basis_exps, out_quad_rules
-        )
-        self._check_coef_basis(coef_basis)
+        self._check_bases(nin_functions, in_bases, in_quad_rules)
+        self._check_bases(nout_functions, out_bases, out_quad_rules)
         self._nin_functions = nin_functions
         self._in_bases = in_bases
         self._in_quad_rules = in_quad_rules
         self._nout_functions = nout_functions
-        self._out_basis_exps = out_basis_exps
+        self._out_bases = out_bases
         self._out_quad_rules = out_quad_rules
-        self._coef_basis = coef_basis
+        self._jacobian_implemented = False
+        self._hessian_implemented = False
+        self._coef_basis = None
 
     def _check_quadrature_rules(self, quad_rules, nfunctions):
         if len(quad_rules) != nfunctions:
@@ -40,34 +47,17 @@ class MultiLinearOperatorBasis:
             if not self._bkd.bkd_equal(self._bkd, quad_rule._bkd):
                 raise ValueError("backends are not consistent")
 
-    def _check_input_bases(self, nin_functions, in_bases, in_quad_rules):
-        if len(in_bases) != nin_functions:
+    def _check_bases(self, nfunctions, bases, quad_rules):
+        if len(bases) != nfunctions:
             raise ValueError(
                 "A basis must be specified for each input function"
             )
-        for basis in in_bases:
+        for basis in bases:
             if not isinstance(basis, Basis):
                 ValueError("basis must be an instance of Basis")
             if not self._bkd.bkd_equal(self._bkd, basis._bkd):
                 raise ValueError("backends are not consistent")
-        self._check_quadrature_rules(in_quad_rules, nin_functions)
-
-    def _check_output_basis_epansions(
-        self, nout_functions, out_basis_exps, out_quad_rules
-    ):
-        if len(out_basis_exps) != nout_functions:
-            raise ValueError(
-                "One basis expansion must be specified for each output "
-                "function"
-            )
-        for bexp in out_basis_exps:
-            if not isinstance(bexp, BasisExpansion):
-                ValueError(
-                    "basis expansion must be an instance of BasisExpansion"
-                )
-            if not self._bkd.bkd_equal(self._bkd, bexp._bkd):
-                raise ValueError("backends are not consistent")
-        self._check_quadrature_rules(out_quad_rules, nout_functions)
+        self._check_quadrature_rules(quad_rules, nfunctions)
 
     def _check_coef_basis(self, coef_basis):
         if not self._bkd.bkd_equal(self._bkd, coef_basis._bkd):
@@ -84,9 +74,13 @@ class MultiLinearOperatorBasis:
     def nterms(self):
         return self._coef_basis.nterms() * self._bkd.prod(
             self._bkd.array(
-                [bexp.basis.nterms() for bexp in self._out_basis_exps]
+                [basis.nterms() for basis in self._out_bases], dtype=int
             )
         )
+
+    def set_coefficient_basis(self, coef_basis):
+        self._check_coef_basis(coef_basis)
+        self._coef_basis = coef_basis
 
     def _coef_from_fun_values(self, fun_values, bases, quad_rules):
         coefs = []
@@ -129,7 +123,7 @@ class MultiLinearOperatorBasis:
         for ii in range(self.nout_functions()):
             # outerproduct of inner and outer basis functions
             # out_basis_mat (nout_samples, nout_terms_i)
-            out_basis_mat = self._out_basis_exps[ii].basis(out_samples[ii])
+            out_basis_mat = self._out_bases[ii](out_samples[ii])
             # basis_mat (nout_samples, nin_fun_samples, nout_terms,ncoef_terms)
             basis_mat = self._bkd.einsum(
                 "ij,kl->ikjl", out_basis_mat, coef_basis_mat
@@ -137,7 +131,7 @@ class MultiLinearOperatorBasis:
             # basis_mat (nout_samples, ninsamples, nout_terms*ncoef_terms)
             nout_samples = out_basis_mat.shape[0]
             nbasis_terms = (
-                self._out_basis_exps[ii].nterms() * self._coef_basis.nterms()
+                self._out_bases[ii].nterms() * self._coef_basis.nterms()
             )
             basis_mat = self._bkd.reshape(
                 basis_mat, (nout_samples, nin_samples, nbasis_terms)
@@ -155,10 +149,137 @@ class MultiLinearOperatorBasis:
         out_samples : List [array (nvars_i, nsamples_i)]
             The samples at which to query each output function
         """
+        if self._coef_basis is None:
+            raise ValueError("must call set_coefficient_basis")
         if len(out_samples) != self.nout_functions():
             raise ValueError(
                 "samples must be specified for each output function"
             )
         in_coef = self._in_coef_from_in_fun_values(in_fun_values)
-        print(in_coef.shape)
         return self._basis_values_from_in_coef(in_coef, out_samples)
+
+
+class OrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
+    def __init__(
+            self,
+            marginals_per_infun,
+            nterms_1d_per_infun,
+            marginals_per_outfun,
+            nterms_1d_per_outfun,
+            backend=None,
+    ):
+        if backend is None:
+            backend = NumpyLinAlgMixin
+        self._bkd = backend
+        nin_functions = len(marginals_per_infun)
+        nout_functions = len(marginals_per_outfun)
+        in_bases = self._setup_function_domain_bases(
+            marginals_per_infun, nterms_1d_per_infun
+        )
+        in_quad_rules = self._setup_function_domain_quadrature_rules(
+            marginals_per_infun, nterms_1d_per_infun)
+        out_bases = self._setup_function_domain_bases(
+            marginals_per_outfun, nterms_1d_per_outfun
+        )
+        out_quad_rules = self._setup_function_domain_quadrature_rules(
+            marginals_per_outfun, nterms_1d_per_outfun
+        )
+        super().__init__(
+            nin_functions,
+            in_bases,
+            in_quad_rules,
+            nout_functions,
+            out_bases,
+            out_quad_rules,
+        )
+
+    def _setup_ortho_basis(self, marginals, nterms_1d=None):
+        polys_1d = [
+            setup_univariate_orthogonal_polynomial_from_marginal(
+                marginal, backend=self._bkd
+            )
+            for marginal in marginals
+        ]
+        basis = OrthonormalPolynomialBasis(polys_1d)
+        if nterms_1d is not None:
+            basis.set_tensor_product_indices(nterms_1d)
+        return basis
+
+    def _setup_function_domain_bases(
+            self, marginals_per_fun, nterms_1d_per_fun
+    ):
+        return [
+            self._setup_ortho_basis(marginals, nterms_1d)
+            for marginals, nterms_1d in zip(
+                    marginals_per_fun, nterms_1d_per_fun
+            )
+        ]
+
+    def _setup_function_domain_quadrature_rules(
+            self, marginals_per_fun, nterms_1d_per_fun):
+        nfuns = len(marginals_per_fun)
+        quad_rules = [
+            FixedTensorProductQuadratureRule(
+                len(marginals_per_fun[ii]),
+                [
+                    GaussQuadratureRule(marginal)
+                    for marginal in marginals_per_fun[ii]
+                ],
+                2*self._bkd.array(nterms_1d_per_fun[ii], dtype=int),
+            )
+            for ii in range(nfuns)
+        ]
+        return quad_rules
+
+    def ncoefficients_per_input_function(self):
+        return [basis.nterms() for basis in self._in_bases]
+
+    def set_basis(self, coef_marginals_per_infun):
+        coef_basis = self._setup_ortho_basis(
+            itertools.chain(*coef_marginals_per_infun)
+        )
+        super().set_coefficient_basis(coef_basis)
+
+    def set_coefficient_basis_indices(self, indices):
+        self._coef_basis.set_indices(indices)
+
+
+class MultiLinearOperatorExpansion(BasisExpansion):
+    def _parse_basis(self, basis):
+        if not isinstance(basis, MultiLinearOperatorBasis):
+            raise ValueError("basis must be a MultiLinearOperatorBasis")
+        return basis
+
+    def _set_training_data(self, train_samples, train_values):
+        self._ctrain_samples = train_samples
+        self._ctrain_values = train_values
+
+    def _fit(self, iterate):
+        """Fit the expansion by finding the optimal coefficients. """
+        if iterate is not None:
+            raise ValueError("iterate will be ignored set to None")
+        out_fun_coefs = self.basis._out_coef_from_out_fun_values(
+            self._ctrain_values
+        )
+        in_fun_coefs = self.basis._in_coef_from_in_fun_values(
+            self._ctrain_samples
+        )
+        coef_mat = self.basis._coef_basis(in_fun_coefs)
+        ntrain_samples = out_fun_coefs.shape[1]
+        # TODO add weights to grammian and rhs construction
+        grammian = coef_mat.T @ coef_mat / ntrain_samples
+        rhs = self._bkd.sum(
+            self._bkd.einsum(
+                "ij,jk->jki", out_fun_coefs, coef_mat
+            ),
+            axis=0
+        )/ntrain_samples
+        coef = self._solver.solve(grammian, rhs).T.flatten()[:, None]
+        self.set_coefficients(coef)
+
+    def __call__(self, in_fun_values, out_samples):
+        basis_mat = self.basis(in_fun_values, out_samples)
+        # for now assume only one output function
+        assert len(out_samples) == 1
+        basis_mat = basis_mat[0]
+        return basis_mat @ self.get_coefficients()[..., 0]
