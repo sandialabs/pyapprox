@@ -51,6 +51,8 @@ class TestMeshTransforms(unittest.TestCase):
         # multiply 1D weights by 2 to get them to remove PDF of uniform
         # variable on [-1, 1]
         orth_weights = outer_product([q[1]*2 for q in quad_rules])
+        print(orth_samples.shape)
+        print(orth_weights.shape)
         weights = transform.modify_quadrature_weights(orth_samples, orth_weights)
         integral = fun(transform.map_from_orthogonal(orth_samples)).dot(weights)
         print(integral, exact_integral)
@@ -211,6 +213,7 @@ class TestMeshTransforms(unittest.TestCase):
             width = np.sqrt(foci**2*np.cosh(r)**2)
             height = np.sqrt(width**2-foci**2)
             # y = np.sqrt((1-line[0]**2/width**2)*height**2)
+            print(bndry_id, line)
             dydx = -height*line[0]/(
                 width**2*np.sqrt(1-line[0]**2/width**2))
             active_var = int((bndry_id) > 1)

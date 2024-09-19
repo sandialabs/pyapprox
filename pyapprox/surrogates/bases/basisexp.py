@@ -566,7 +566,8 @@ class TrigonometricExpansion(BasisExpansion):
         if fourier_coefs.ndim != 2:
             raise ValueError("fourier_coefs must be a 2d array")
         # a_k =  c_{-k} + c_k
-        Kmax = (self.nterms()-1)//2
+        nterms = fourier_coefs.shape[0]
+        Kmax = (nterms-1)//2
         cmk = self._bkd.flip(fourier_coefs[:Kmax])
         cos_coefs = (cmk + fourier_coefs[Kmax+1:])
         # b_k =  i (c_k-c_{-k} )
@@ -577,6 +578,11 @@ class TrigonometricExpansion(BasisExpansion):
         if real_function:
             return self._bkd.real(coefs)
         return coefs
+
+    def quadrature_samples(self):
+        bounds = self.basis._bases_1d[0]._bounds
+        return self._bkd.linspace(
+            *bounds, self.nterms()+1)[None, :-1]
 
 
 class FourierExpansion(BasisExpansion):
@@ -594,13 +600,15 @@ class FourierExpansion(BasisExpansion):
         Kmax = self.basis._bases_1d[0]._Kmax
         cos_coefs = trig_coefs[1:Kmax+1]
         sin_coefs = trig_coefs[Kmax+1:]
-        left_coefs = self._bkd.flip((cos_coefs + 1j*sin_coefs)/2., axis=0)
+        left_coefs = self._bkd.flip((cos_coefs + 1j*sin_coefs)/2., axis=(0,))
         right_coefs = (cos_coefs - 1j*sin_coefs)/2.
         return self._bkd.vstack((left_coefs, const_coefs, right_coefs))
 
     def quadrature_samples(self):
         bounds = self.basis._bases_1d[0]._bounds
-        return self._bkd.linspace(*bounds, self.nterms()+1)[None, :-1]
+        return self._bkd.linspace(
+            *bounds, self.nterms()+1, dtype=self._bkd.complex_dtype()
+        )[None, :-1]
 
     def compute_coefficients(self, values):
         quad_samples = self.quadrature_samples()

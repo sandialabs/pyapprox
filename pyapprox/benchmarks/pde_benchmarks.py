@@ -4,10 +4,11 @@ from scipy import stats
 import numpy as np
 
 from pyapprox.pde.autopde.solvers import (
-    SteadyStatePDE, SteadyStateAdjointPDE, TransientPDE, TransientFunction
+    SteadyStatePDE, SteadyStateAdjointPDE, TransientPDE, TransientFunction,
+    Function
 )
 from pyapprox.pde.autopde.physics import (
-    AdvectionDiffusionReaction
+    AdvectionDiffusionReaction, Burgers1D
 )
 from pyapprox.pde.autopde.mesh import (
     full_fun_axis_1, CartesianProductCollocationMesh,
@@ -15,10 +16,12 @@ from pyapprox.pde.autopde.mesh import (
 )
 from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.variables.transforms import ConfigureVariableTransformation
-from pyapprox.pde.kle._kle import MeshKLE, InterpolatedMeshKLE
+from pyapprox.pde.kle.kle import MeshKLE, InterpolatedMeshKLE
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array, MultiIndexModel, ModelEnsemble)
+from pyapprox.interface.model import SingleSampleModel
+from pyapprox.pde.kle.kle import PeriodicReiszGaussianRandomField
 
 
 def constant_vel_fun(vels, xx):
@@ -489,3 +492,49 @@ def _setup_multi_index_advection_diffusion_benchmark(
         multi_index_model._model_ensemble.functions[::-1])
     return (multi_index_model, variable, config_var_trans,
             model_ensemble)
+
+
+class Burgers1DParameterizedModel(SingleSampleModel):
+    def __init__(self):
+        super().__init__()
+        sigma, tau, gamma, neigs = 7**2, 7, 2.5, 1024//2
+        domain_bounds = [0, 1]
+        self._orders = [1024//2]
+        self._rand_field = PeriodicReiszGaussianRandomField(
+            sigma, tau, gamma, neigs, domain_bounds, backend=TorchLinAlgMixin
+        )
+        mesh = CartesianProductCollocationMesh(
+            domain_bounds, self._orders, ["C"]
+        )
+        bndry_conds = [[None, "P"], [None, "P"]]
+        visc_fun = Function(partial(full_fun_axis_1, 0.1, oned=False))
+        forc_fun = Function(partial(full_fun_axis_1, 0.0, oned=False))
+        tableau_name = "im_beuler1"
+        tableau_name = "im_crank2"
+        deltat = 1/200
+        self._final_time = 1.0
+        self._fwd_solver = TransientPDE(
+            Burgers1D(mesh, bndry_conds, visc_fun, forc_fun),
+            deltat,
+            tableau_name
+        )
+        self._rand_field.set_domain_samples(
+            self._fwd_solver.physics._bkd.asarray(mesh.mesh_pts)
+        )
+
+    def nqoi(self):
+        return self._orders[0]+1
+
+    def initial_condition(self, samples):
+        return self._rand_field.values(
+            self._fwd_solver.physics._bkd.asarray(samples)
+        )
+
+    def simulate(self, sample):
+        init_sol = self.initial_condition(sample)
+        sols, times = self._fwd_solver.solve(
+           init_sol, 0., self._final_time, newton_kwargs={"tol": 1e-8})
+        return sols, times
+
+    def _evaluate(self, sample):
+        return self.simulate(sample)[0][:, -1:].T

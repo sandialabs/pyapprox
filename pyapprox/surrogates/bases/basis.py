@@ -438,7 +438,7 @@ class TensorProductQuadratureRule(QuadratureRule):
 class FixedTensorProductQuadratureRule(TensorProductQuadratureRule):
     def __init__(self, nvars, univariate_quad_rules, nnodes_1d):
         super().__init__(nvars, univariate_quad_rules, store=True)
-        self._nnodes_1d = nnodes_1d
+        self._nnodes_1d = self._bkd.asarray(nnodes_1d)
 
     # TODO fix class inheritance to either require arguments to call or no args
     def __call__(self):

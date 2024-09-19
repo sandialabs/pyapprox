@@ -108,8 +108,46 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def tan(matrix):
+        """Apply tan element wise to a matrix."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def arctan(matrix):
+        """Apply arctan element wise to a matrix."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def sin(matrix):
         """Apply sin element wise to a matrix."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def arcsin(matrix):
+        """Apply arcasin element wise to a matrix."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def cosh(matrix):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def sinh(matrix):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def arccosh(matrix):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def arcsinh(matrix):
         raise NotImplementedError
 
     @staticmethod
@@ -168,7 +206,7 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def linspace(*args):
+    def linspace(*args, **kwargs):
         """Return equidistant values within a given interval."""
         raise NotImplementedError
 

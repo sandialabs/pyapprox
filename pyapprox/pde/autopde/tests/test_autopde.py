@@ -30,7 +30,7 @@ from pyapprox.pde.autopde.physics import (
     LinearIncompressibleStokes, ShallowIce, EulerBernoulliBeam,
     Helmholtz, ShallowWaterWave, ShallowShelfVelocities,
     ShallowShelf, FirstOrderStokesIce, MultiSpeciesAdvectionDiffusionReaction,
-    LinearElasticity, Burgers1D
+    LinearElasticity, Burgers1D, Burgers1DAuto
 )
 from pyapprox.pde.autopde.mesh_transforms import (
     ScaleAndTranslationTransform, PolarTransform,
@@ -1589,9 +1589,22 @@ class TestAutoPDE(unittest.TestCase):
         deltat = 0.125
         final_time = deltat*2
         solver = TransientPDE(
-            Burgers1D(mesh, bndry_conds, visc_fun, forc_fun), deltat, tableau_name)
+            Burgers1D(
+                mesh, bndry_conds, visc_fun, forc_fun), deltat, tableau_name
+        )
+
         sol_fun.set_time(0)
         init_sol = sol_fun(mesh.mesh_pts)
+
+        phys_auto = Burgers1DAuto(mesh, bndry_conds, visc_fun, forc_fun)
+        phys_fast = Burgers1D(mesh, bndry_conds, visc_fun, forc_fun)
+        forc_fun.set_time(0)
+        res, jac = phys_fast._raw_residual(init_sol[:, 0])
+        jac_auto = torch.autograd.functional.jacobian(
+            lambda s: phys_auto._raw_residual(s)[0],
+            init_sol[:, 0].clone().requires_grad_(True), strict=True).numpy()
+        assert np.allclose(jac_auto, jac)
+        
         sols, times = solver.solve(
            init_sol, 0, final_time, newton_kwargs={"tol": 1e-8})
 
@@ -1605,14 +1618,14 @@ class TestAutoPDE(unittest.TestCase):
             # continue
             exact_sol_t = sol_fun(solver.physics.mesh.mesh_pts).numpy()
             model_sol_t = sols[:, ii:ii+1].numpy()
-            
-            print(exact_sol_t)
-            print(model_sol_t, 'm')
+
+            #print(exact_sol_t)
+            #print(model_sol_t, 'm')
             L2_error = np.sqrt(
                 solver.physics.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(
                 solver.physics.mesh.integrate(exact_sol_t**2))
-            print(time, L2_error, 1e-8*factor)
+            #print(time, L2_error, 1e-8*factor)
             assert L2_error < 1e-8*factor
 
     def test_burgers(self):

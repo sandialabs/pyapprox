@@ -3,6 +3,7 @@ from abc import abstractmethod
 from warnings import warn
 
 from scipy.special import gammaln
+from scipy import stats
 
 from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
     jacobi_recurrence,
@@ -27,7 +28,9 @@ from pyapprox.variables.marginals import (
     is_bounded_continuous_variable,
     get_probability_masses,
 )
-from pyapprox.util.transforms import Transform, IdentityTransform
+from pyapprox.util.transforms import (
+    UnivariateAffineTransform, IdentityTransform
+)
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
@@ -696,46 +699,39 @@ class GaussQuadratureRule(UnivariateQuadratureRule):
         )
 
 
-class AffineMarginalTransform(Transform):
-    def __init__(self, marginal, enforce_bounds=False, backend=None):
-        super().__init__(backend)
-        self._marginal = marginal
-        self._enforce_bounds = enforce_bounds
+class GaussLegendreQuadratureRule(GaussQuadratureRule):
+    """
+    Gauss Quadrature rule for Lebesque integration
+    (not uniform probability measure)
+    """
+    def __init__(self, bounds, backend=None, store=False):
+        self._bounds = bounds
+        marginal = stats.uniform(bounds[0], bounds[1]-bounds[0])
+        super().__init__(marginal, opts=None, backend=backend, store=store)
 
-        self._loc, self._scale = transform_scale_parameters(self._marginal)
+    def _quad_rule(self, nnodes):
+        if self._poly.nterms() < nnodes:
+            self._poly.set_nterms(nnodes)
+        quad_x, quad_w = self._poly.gauss_quadrature_rule(nnodes)
+        return quad_x, quad_w*(self._bounds[1]-self._bounds[0])
+
+
+class AffineMarginalTransform(UnivariateAffineTransform):
+    def __init__(self, marginal, enforce_bounds=False, backend=None):
+        super().__init__(
+            *transform_scale_parameters(marginal),
+            enforce_bounds,
+            backend
+        )
+        self._marginal = marginal
 
     def _check_bounds(self, user_samples):
-        if not self._enforce_bounds or not is_bounded_continuous_variable(
-            self._marginal
-        ):
+        if not is_bounded_continuous_variable(self._marginal):
             return
-
-        bounds = [self._loc - self._scale, self._loc + self._scale]
-        if self._bkd.any(user_samples < bounds[0]) or self._bkd.any(
-            user_samples > bounds[1]
-        ):
-            print(user_samples)
-            raise ValueError(f"Sample outside the bounds {bounds}")
-
-    def map_from_canonical(self, canonical_samples):
-        return canonical_samples * self._scale + self._loc
-
-    def map_to_canonical(self, user_samples):
-        self._check_bounds(user_samples)
-        return (user_samples - self._loc) / self._scale
-
-    def derivatives_to_canonical(self, user_derivs, order=1):
-        return user_derivs * self._scale**order
-
-    def derivatives_from_canonical(self, canonical_derivs, order=1):
-        return canonical_derivs / self._scale**order
-
-    def __repr__(self):
-        return "{0}(loc={1}, scale={2})".format(
-            self.__class__.__name__, self._loc,  self._scale
-        )
+        super()._check_bounds(user_samples)
 
 
+# Note may need to change fourierbasis1d and trigonometricpolynomial1D to return basis that is nested. i.e. trig basis returns const + sin and cos for k=1 then sin and cos for k=2 etc. Similarly for fourier return c_0 then c_{-1} c{1} c{-2} c{2} etc. This will make them consistent with other pyapprox bases but not consistent with typical math formulation. Perhaps allow user to request either ordering use pyapprox by default. Also consider moving fourier and trig basies to univariateinterpolating bases#
 class TrigonometricPolynomial1D(UnivariateBasis):
     r"""
     :math:`p(x) = a_0 + \sum_{k=1}^K a_k \cos(kx) + b_k \sin(kx)`
@@ -747,10 +743,21 @@ class TrigonometricPolynomial1D(UnivariateBasis):
     """
     def __init__(self, bounds, backend=None):
         super().__init__(None, backend)
+        self._bounds = None
+        self._trans = None
+        self.set_bounds(bounds)
         self._half_indices = None
-        self._bounds = bounds
         self._jacobian_implemented = False
         self._hessian_implemented = False
+
+    def set_bounds(self, bounds):
+        # canonical domain is [-pi, pi]
+        self._bounds = bounds
+        loc = sum(bounds)/2
+        scale = (bounds[1]-bounds[0])/(2*math.pi)
+        self._trans = UnivariateAffineTransform(
+            loc, scale, enforce_bounds=False, backend=self._bkd
+        )
 
     def set_nterms(self, nterms):
         if nterms % 2 != 1:
@@ -762,11 +769,12 @@ class TrigonometricPolynomial1D(UnivariateBasis):
         return self._half_indices.shape[1] * 2 + 1
 
     def _values(self, samples):
+        can_samples = self._trans.map_to_canonical(samples)
         return self._bkd.hstack(
             (
-                self._bkd.ones((samples.shape[1], 1)),
-                self._bkd.cos(samples.T*self._half_indices),
-                self._bkd.sin(samples.T*self._half_indices)
+                self._bkd.ones((can_samples.shape[1], 1)),
+                self._bkd.cos(can_samples.T*self._half_indices),
+                self._bkd.sin(can_samples.T*self._half_indices)
             )
         )
 
@@ -775,16 +783,27 @@ class FourierBasis1D(UnivariateBasis):
     # p(x) = sum_{k=-K}^K c_k e^{ikx}
     def __init__(self, bounds, inverse=True, backend=None):
         super().__init__(None, backend)
+        self._bounds = None
+        self._trans = None
         self._Kmax = None
         self._jacobian_implemented = False
         self._hessian_implemented = False
-        self._bounds = bounds
+        self.set_bounds(bounds)
         if inverse:
             # compute basis to evaluate function from fourier coefs
             self._const = 1j
         else:
             # compute basis needed to compute fourier coefs with quadrature
             self._const = -1j
+
+    def set_bounds(self, bounds):
+        # canonical domain is [-pi, pi]
+        self._bounds = bounds
+        loc = sum(bounds)/2
+        scale = (bounds[1]-bounds[0])/(2*math.pi)
+        self._trans = UnivariateAffineTransform(
+            loc, scale, enforce_bounds=False, backend=self._bkd
+        )
 
     def set_nterms(self, nterms):
         if nterms % 2 != 1:
@@ -796,5 +815,6 @@ class FourierBasis1D(UnivariateBasis):
         return self._Kmax * 2 + 1
 
     def _values(self, samples):
-        return self._bkd.exp(self._const*samples.T*self._bkd.arange(
+        can_samples = self._trans.map_to_canonical(samples)
+        return self._bkd.exp(self._const*can_samples.T*self._bkd.arange(
             -self._Kmax, self._Kmax+1)[None, :])

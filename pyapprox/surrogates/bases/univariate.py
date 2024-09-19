@@ -591,7 +591,9 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         idx = self._bkd.argsort(self._nodes[0])
         vals = self._evaluate_from_nodes(self._nodes[:, idx], samples)
         inverse_idx = self._bkd.empty(self._nodes.shape[1], dtype=int)
-        inverse_idx[idx] = self._bkd.arange(self._nodes.shape[1])
+        inverse_idx = self._bkd.up(
+            inverse_idx, idx, self._bkd.arange(self._nodes.shape[1])
+        )
         return vals[:, inverse_idx]
 
     def set_bounds(self, bounds):

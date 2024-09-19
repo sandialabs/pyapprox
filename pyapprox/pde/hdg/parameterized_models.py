@@ -23,7 +23,7 @@ from skfem.visuals.matplotlib import plot, plt
 from skfem import MeshQuad, Functional
 from pyapprox.pde.galerkin.meshes import init_gappy
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.pde.kle._kle import MeshKLE
+from pyapprox.pde.kle.kle import MeshKLE
 
 
 def full_fun_axis_0(fill_val, xx, oned=True):

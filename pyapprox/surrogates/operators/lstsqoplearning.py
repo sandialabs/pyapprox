@@ -95,6 +95,7 @@ class MultiLinearOperatorBasis:
             ):
                 raise ValueError("Function values must be a 2D array")
             quad_samples, quad_weights = quad_rules[ii]()
+            print(quad_samples)
             basis_mat = bases[ii](quad_samples)
             coefs.append(
                 self._bkd.einsum(
@@ -274,6 +275,7 @@ class MultiLinearOperatorExpansion(BasisExpansion):
             ),
             axis=0
         )/ntrain_samples
+        # print(self._bkd.cond(grammian), "COND NO")
         coef = self._solver.solve(grammian, rhs).T.flatten()[:, None]
         self.set_coefficients(coef)
 

@@ -130,6 +130,20 @@ def chebyshev_second_derivative_matrix(degree):
     return pts, derivative_matrix
 
 
+#TODO replace these function with new interpolating basis classes
+def lagrange_polynomial_matrix_1d(eval_samples, abscissa):
+    nabscissa = abscissa.shape[0]
+    samples_diff = eval_samples[:, None]-abscissa[None, :]
+    abscissa_diff = abscissa[:, None]-abscissa[None, :]
+    basis_vals = np.ones((eval_samples.shape[0], nabscissa))
+    for ii in range(nabscissa):
+        indices = np.delete(np.arange(nabscissa), ii)
+        numer = samples_diff[:, indices].prod(axis=1)
+        denom = abscissa_diff[ii, indices].prod(axis=0)
+        basis_vals[:, ii] = numer/denom
+    return basis_vals
+
+
 def lagrange_polynomial_derivative_matrix_1d(eval_samples, abscissa):
     nabscissa = abscissa.shape[0]
     samples_diff = eval_samples[:, None]-abscissa[None, :]
@@ -303,7 +317,9 @@ class Transformed2DMeshBoundary(Canonical2DMeshBoundary):
         self._active_var = int(self._bndry_index < 2)
         self._inactive_var = int(self._bndry_index >= 2)
         self._pts = -np.cos(np.linspace(0., np.pi, order+1))[None, :]
-        self._bary_weights = compute_barycentric_weights_1d(self._pts[0, :])
+        self._bary_weights = compute_barycentric_weights_1d(
+            self._pts[0, :], interval_length=2
+        )
 
     def normals(self, samples):
         if self._normal_fun is None:
@@ -435,7 +451,9 @@ class CanonicalCollocationMesh():
             canonical_deriv_mats_1d.append(der_mat)
 
         canonical_mesh_pts_1d_baryc_weights = [
-            compute_barycentric_weights_1d(xx) for xx in canonical_mesh_pts_1d]
+            compute_barycentric_weights_1d(xx, interval_length=2)
+            for xx in canonical_mesh_pts_1d
+        ]
 
         if self.nphys_vars == 1:
             canonical_deriv_mats = [
@@ -475,7 +493,7 @@ class CanonicalCollocationMesh():
         if self.nphys_vars == 1:
             return [Canonical1DMeshBoundary(name) for name in ["left", "right"]]
         return [Canonical2DMeshBoundary(name, self._orders[int(ii < 2)])
-            for ii, name in enumerate(["left", "right", "bottom", "top"])]
+                for ii, name in enumerate(["left", "right", "bottom", "top"])]
 
     def _determine_boundary_indices(self):
         bndry_indices = [[] for ii in range(2*self.nphys_vars)]
@@ -510,8 +528,8 @@ class CanonicalCollocationMesh():
     def _get_lagrange_basis_mat(self, canonical_abscissa_1d,
                                 canonical_eval_samples):
         if self.nphys_vars == 1:
-            return torch.as_tensor(lagrange_polynomial_derivative_matrix_1d(
-                canonical_eval_samples[0, :], canonical_abscissa_1d[0])[1],
+            return torch.as_tensor(lagrange_polynomial_matrix_1d(
+                canonical_eval_samples[0, :], canonical_abscissa_1d[0]),
                                    dtype=torch.double)
         return torch.as_tensor(lagrange_polynomial_basis_matrix_2d(
             canonical_eval_samples, canonical_abscissa_1d), dtype=torch.double)
@@ -536,7 +554,7 @@ class CanonicalCollocationMesh():
             values = values.detach().numpy()
             basis_vals = [
                 fourier_basis(o, s)
-            for o, s in zip(self._orders, canonical_eval_samples)]
+                for o, s in zip(self._orders, canonical_eval_samples)]
         if self.nphys_vars == 1:
             return basis_vals[0].dot(values)
         return (basis_vals[0]*basis_vals[1]).dot(values)
@@ -1063,7 +1081,9 @@ class CanonicalInteriorCollocationMesh(CanonicalCollocationMesh):
         canonical_mesh_pts_1d = [
             -np.cos(np.linspace(0, np.pi, o+1))[1:-1] for o in self._orders]
         canonical_mesh_pts_1d_baryc_weights = [
-            compute_barycentric_weights_1d(xx) for xx in canonical_mesh_pts_1d]
+            compute_barycentric_weights_1d(xx, interval_length=2)
+            for xx in canonical_mesh_pts_1d
+        ]
         canonical_deriv_mats, canonical_mesh_pts = (
             self._form_canonical_deriv_matrices(canonical_mesh_pts_1d))
         canonical_deriv_mats = [

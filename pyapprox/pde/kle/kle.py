@@ -7,6 +7,10 @@ from scipy.optimize import brenth
 
 from pyapprox.util.linalg import adjust_sign_eig
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.variables.joint import JointVariable
+from pyapprox.surrogates.bases.basis import TrigonometricBasis
+from pyapprox.surrogates.bases.basisexp import TrigonometricExpansion
+
 
 
 def exponential_kle_eigenvalues(sigma2, corr_len, omega):
@@ -580,3 +584,74 @@ class InterpolatedMeshKLE(MeshKLE):
             interp_vals = self._bkd.exp(mean_field+interp_vals)
         self._kle._use_log = use_log
         return interp_vals
+
+
+class PeriodicReiszGaussianRandomField(JointVariable):
+    def __init__(
+        self, sigma, tau, gamma, neigs, bounds, backend=NumpyLinAlgMixin
+    ):
+        self._bkd = backend
+        self._sigma = sigma
+        self._tau = tau
+        self._gamma = gamma
+        self._bounds = bounds
+
+        self._nvars = None
+        self._neigs = None
+        self._eigs = None
+        self._trig_exp = None
+        self._domain_samples = None
+
+        self.set_neigs(neigs)
+
+    def nvars(self):
+        return self._nvars
+
+    def set_neigs(self, neigs):
+        self._neigs = neigs
+        self._eigs = (
+            np.sqrt(2)
+            * (
+                np.abs(self._sigma)
+                * (
+                    (2 * np.pi * self._bkd.arange(1, self._neigs + 1)) ** 2
+                    + self._tau**2
+                )
+                ** (-self._gamma / 2)
+            )[:, None]
+        )
+        nterms = self._neigs * 2 + 1
+        trig_basis = TrigonometricBasis(self._bounds, backend=self._bkd)
+        trig_basis.set_indices(self._bkd.arange(nterms)[None, :])
+        self._trig_exp = TrigonometricExpansion(trig_basis)
+
+    def set_domain_samples(self, domain_samples):
+        self._domain_samples = domain_samples
+        self._nvars = domain_samples.shape[1]
+
+    def values(self, samples):
+        if (
+            samples.shape[0] != self._trig_exp.nterms() - 1
+            or samples.ndim != 2
+        ):
+            raise ValueError(
+                "samples has the wrong shape of {0}".format(samples.shape)
+            )
+        if self._domain_samples is None:
+            raise ValueError("Must call set_domain_samples")
+        alpha = self._eigs * samples[: samples.shape[0] // 2]
+        beta = self._eigs * samples[samples.shape[0] // 2 :]
+        trig_coefs = self._bkd.vstack(
+            (self._bkd.zeros((1, samples.shape[1])), alpha, beta)
+        )
+        self._trig_exp._nqoi = trig_coefs.shape[1]
+        self._trig_exp.set_coefficients(trig_coefs)
+        shift = (self._bounds[1] - self._bounds[0]) / 2
+        return self._trig_exp(self._domain_samples - shift)
+
+    def rvs(self, nsamples):
+        return self.values(
+            self._bkd.asarray(
+                np.random.normal(0, 1, (2 * self._neigs, nsamples))
+            )
+        )

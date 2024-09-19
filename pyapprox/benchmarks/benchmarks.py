@@ -36,7 +36,8 @@ from pyapprox.interface.wrappers import (
     TimerModel, PoolModel, WorkTrackingModel)
 from pyapprox.benchmarks.pde_benchmarks import (
     _setup_inverse_advection_diffusion_benchmark,
-    _setup_multi_index_advection_diffusion_benchmark
+    _setup_multi_index_advection_diffusion_benchmark,
+    Burgers1DParameterizedModel
 )
 
 
@@ -1102,6 +1103,27 @@ def setup_advection_diffusion_kle_inversion_benchmark(
     return Benchmark(attributes)
 
 
+def setup_1d_burgers(max_eval_concurrency=1):
+    """
+    Example from
+    "Fourier Neural Operator for Parametric Partial Differential Equations."
+    More details given "A comprehensive and fair comparison of two neural
+    operators (with practical extensions) based on FAIR data"
+    """
+    base_model = Burgers1DParameterizedModel()
+    timer_model = TimerModel(base_model, base_model)
+    pool_model = PoolModel(
+        timer_model, max_eval_concurrency, base_model=base_model)
+    model = WorkTrackingModel(
+        pool_model, base_model, enforce_timer_model=False
+    )
+    variable = IndependentMarginalsVariable(
+        [stats.norm(0, 1)]*(2*base_model._rand_field._neigs)
+    )
+    attributes = {'model': model, 'variable': variable}
+    return Benchmark(attributes)
+
+
 _benchmarks = {
     'sobol_g': setup_sobol_g_function,
     'ishigami': setup_ishigami_function,
@@ -1123,7 +1145,9 @@ _benchmarks = {
     'tunable_model_ensemble': setup_tunable_model_ensemble,
     'multioutput_model_ensemble': setup_multioutput_model_ensemble,
     'short_column_ensemble': setup_short_column_ensemble,
-    "parameterized_nonlinear_model": setup_parameterized_nonlinear_model}
+    "parameterized_nonlinear_model": setup_parameterized_nonlinear_model,
+    "burgers_1d": setup_1d_burgers,
+}
 
 
 def setup_benchmark(name, **kwargs):

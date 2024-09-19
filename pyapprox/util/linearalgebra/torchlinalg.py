@@ -35,6 +35,10 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.linalg.cholesky(matrix)
 
     @staticmethod
+    def det(matrix: torch.Tensor):
+        return torch.linalg.det(matrix)
+
+    @staticmethod
     def cholesky_solve(chol: torch.Tensor, bvec: torch.Tensor,
                        lower: bool = True) -> torch.Tensor:
         return torch.cholesky_solve(bvec, chol, upper=(not lower))
@@ -77,8 +81,36 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.arccos(matrix)
 
     @staticmethod
+    def tan(matrix: torch.Tensor) -> torch.Tensor:
+        return torch.tan(matrix)
+
+    @staticmethod
+    def arctan(matrix: torch.Tensor) -> torch.Tensor:
+        return torch.arctan(matrix)
+
+    @staticmethod
     def sin(matrix: torch.Tensor) -> torch.Tensor:
         return torch.sin(matrix)
+
+    @staticmethod
+    def arcsin(matrix: torch.Tensor) -> torch.Tensor:
+        return torch.arcsin(matrix)
+
+    @staticmethod
+    def cosh(matrix: torch.Tensor) -> torch.Tensor:
+        return torch.cosh(matrix)
+
+    @staticmethod
+    def sinh(matrix: torch.Tensor) -> torch.Tensor:
+        return torch.sinh(matrix)
+
+    @staticmethod
+    def arccosh(matrix: torch.Tensor) -> torch.Tensor:
+        return torch.arccosh(matrix)
+
+    @staticmethod
+    def arcsinh(matrix: torch.Tensor) -> torch.Tensor:
+        return torch.arcsinh(matrix)
 
     @staticmethod
     def log(matrix: torch.Tensor) -> torch.Tensor:
@@ -260,7 +292,7 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def allclose(Amat: torch.Tensor, Bmat: torch.Tensor,
-                     **kwargs) -> bool:
+                 **kwargs) -> bool:
         return torch.allclose(Amat, Bmat, **kwargs)
 
     @staticmethod

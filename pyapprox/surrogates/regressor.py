@@ -106,7 +106,6 @@ class Regressor(Model):
         plot_surface_funs[self.nvars()](ax, qoi, plot_limits, npts_1d)
 
 
-
 class OptimizedRegressor(Regressor):
     def __init__(self, backend=NumpyLinAlgMixin):
         super().__init__(backend)

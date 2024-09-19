@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from pyapprox.pde.kle._kle import (
+from pyapprox.pde.kle.kle import (
     multivariate_chain_rule, compute_kle_gradient_from_mesh_gradient, KLE1D,
     MeshKLE, DataDrivenKLE)
 

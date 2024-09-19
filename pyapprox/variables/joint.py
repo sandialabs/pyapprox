@@ -19,18 +19,18 @@ class JointVariable(ABC):
     """
 
     @abstractmethod
-    def rvs(self, num_samples):
+    def rvs(self, nsamples):
         """
         Generate samples from a random variable.
 
         Parameters
         ----------
-        num_samples : integer
+        nsamples : integer
             The number of samples to generate
 
         Returns
         -------
-        samples : np.ndarray (num_vars, num_samples)
+        samples : np.ndarray (nvars, nsamples)
             Independent samples from the target distribution
         """
         raise NotImplementedError()

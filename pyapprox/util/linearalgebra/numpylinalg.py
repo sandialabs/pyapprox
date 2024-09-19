@@ -32,13 +32,17 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.linalg.cholesky(matrix)
 
     @staticmethod
+    def det(matrix: np.ndarray):
+        return np.linalg.det(matrix)
+
+    @staticmethod
     def cholesky_solve(chol: np.ndarray, bvec: np.ndarray,
-                           lower: bool = True) -> np.ndarray:
+                       lower: bool = True) -> np.ndarray:
         return scipy.linalg.cho_solve((chol, lower), bvec)
 
     @staticmethod
     def solve_triangular(Amat: np.ndarray, bvec: np.ndarray,
-                             lower: bool = True) -> np.ndarray:
+                         lower: bool = True) -> np.ndarray:
         return scipy.linalg.solve_triangular(Amat, bvec, lower=lower)
 
     @staticmethod
@@ -74,8 +78,36 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.arccos(matrix)
 
     @staticmethod
+    def tan(matrix: np.ndarray) -> np.ndarray:
+        return np.tan(matrix)
+
+    @staticmethod
+    def arctan(matrix: np.ndarray) -> np.ndarray:
+        return np.arctan(matrix)
+
+    @staticmethod
     def sin(matrix: np.ndarray) -> np.ndarray:
         return np.sin(matrix)
+
+    @staticmethod
+    def arcsin(matrix: np.ndarray) -> np.ndarray:
+        return np.arcsin(matrix)
+
+    @staticmethod
+    def cosh(matrix: np.ndarray) -> np.ndarray:
+        return np.cosh(matrix)
+
+    @staticmethod
+    def sinh(matrix: np.ndarray) -> np.ndarray:
+        return np.sinh(matrix)
+
+    @staticmethod
+    def arccosh(matrix: np.ndarray) -> np.ndarray:
+        return np.arccosh(matrix)
+
+    @staticmethod
+    def arcsinh(matrix: np.ndarray) -> np.ndarray:
+        return np.arcsinh(matrix)
 
     @staticmethod
     def log(matrix: np.ndarray) -> np.ndarray:
@@ -114,8 +146,8 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.arange(*args, **kwargs)
 
     @staticmethod
-    def linspace(*args):
-        return np.linspace(*args)
+    def linspace(*args, **kwargs):
+        return np.linspace(*args, **kwargs)
 
     @staticmethod
     def logspace(*args):
@@ -355,7 +387,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def real(array):
         return np.real(array)
-    
+
     @staticmethod
     def imag(array):
         return np.imag(array)

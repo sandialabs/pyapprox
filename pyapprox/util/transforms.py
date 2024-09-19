@@ -209,3 +209,51 @@ class SphericalCorrelationTransform(Transform):
 
     def map_from_canonical(self, canonical_samples):
         return self._map_to_cholesky(canonical_samples)
+
+
+class UnivariateAffineTransform(Transform):
+    def __init__(self, loc, scale, enforce_bounds=False, backend=None):
+        super().__init__(backend)
+        self._loc = loc
+        self._scale = scale
+        self._enforce_bounds = enforce_bounds
+        # consider passing in bounds optionally. If provided
+        # then check bounds is called. Better than determining
+        # bounds from loc, scale which assumes can domain is [-1, 1]
+
+    def _check_bounds(self, user_samples):
+        if not self._enforce_bounds:
+            return
+
+        bounds = [self._loc - self._scale, self._loc + self._scale]
+        if self._bkd.any(user_samples < bounds[0]) or self._bkd.any(
+            user_samples > bounds[1]
+        ):
+            print(user_samples)
+            raise ValueError(f"Sample outside the bounds {bounds}")
+
+    def map_from_canonical(self, canonical_samples):
+        return canonical_samples * self._scale + self._loc
+
+    def map_to_canonical(self, user_samples):
+        self._check_bounds(user_samples)
+        return (user_samples - self._loc) / self._scale
+
+    def derivatives_to_canonical(self, user_derivs, order=1):
+        return user_derivs * self._scale**order
+
+    def derivatives_from_canonical(self, canonical_derivs, order=1):
+        return canonical_derivs / self._scale**order
+
+    def __repr__(self):
+        return "{0}(loc={1}, scale={2})".format(
+            self.__class__.__name__, self._loc,  self._scale
+        )
+
+
+class UnivariateBoundedAffineTransform(UnivariateAffineTransform):
+    def __init__(self, bounds, enforce_bounds=False, backend=None):
+        super().__init__(
+            bounds[0], bounds[1]-bounds[0], enforce_bounds, backend
+        )
+        self._bounds = bounds

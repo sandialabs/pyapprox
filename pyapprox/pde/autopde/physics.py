@@ -96,7 +96,7 @@ class AbstractSpectralCollocationPhysics(ABC):
         return torch.linalg.solve(jac, residual)
 
 
-class Burgers1D(AbstractSpectralCollocationPhysics):
+class Burgers1DAuto(AbstractSpectralCollocationPhysics):
     def __init__(self, mesh, bndry_conds, visc_fun, forc_fun):
         super().__init__(mesh, bndry_conds)
         self._visc_fun = visc_fun
@@ -107,6 +107,8 @@ class Burgers1D(AbstractSpectralCollocationPhysics):
     def _raw_residual(self, sol):
         # TODO make functions return shape required by residual and not
         # make user make 2D array 1D here (goes for all other physics too)
+        if sol.ndim != 1:
+            raise ValueError("sol must be 1D array")
         residual = (
             self._visc_fun(self.mesh.mesh_pts)[:, 0]
             * self._bkd.multidot(
@@ -116,6 +118,27 @@ class Burgers1D(AbstractSpectralCollocationPhysics):
             + self._forc_fun(self.mesh.mesh_pts)[:, 0]
         )
         return residual, None
+
+
+class Burgers1D(Burgers1DAuto):
+    def __init__(self, mesh, bndry_conds, visc_fun, forc_fun):
+        super().__init__(mesh, bndry_conds, visc_fun, forc_fun)
+        self.auto_jac = False
+        visc_vals = self._visc_fun(self.mesh.mesh_pts)
+        self._diff_jac = multi_dot(
+            (visc_vals*self.mesh._dmats[0], self.mesh._dmats[0])
+        )
+
+    def _raw_residual(self, sol):
+        residual = super()._raw_residual(sol)[0]
+        return residual, self._raw_jacobian(sol)
+
+    def _raw_jacobian(self, sol):
+        jac = self._diff_jac - (
+            self._bkd.diag(self.mesh._dmats[0] @ sol)
+            + sol[:, None] * self.mesh._dmats[0]
+        )
+        return jac
 
 
 class AdvectionDiffusionReaction(AbstractSpectralCollocationPhysics):
