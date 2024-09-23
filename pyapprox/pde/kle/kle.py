@@ -337,6 +337,7 @@ class AbstractKLE(ABC):
         coef : np.ndarray (nterms, nsamples)
             The coefficients of the KLE basis
         """
+        print(coef.shape)
         assert coef.ndim == 2
         assert coef.shape[0] == self._nterms
         if self._use_log:

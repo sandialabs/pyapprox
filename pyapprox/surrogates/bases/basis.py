@@ -391,6 +391,23 @@ class QuadratureRule(ABC):
         )
 
 
+class QuadratureRuleFromData(QuadratureRule):
+    def __init__(self, quadx, quadw, backend=NumpyLinAlgMixin):
+        super().__init__(backend)
+        if quadw.ndim != 2 or quadw.shape[1] != 1:
+            raise ValueError("quadw must be a 2D array column vector")
+        if quadx.shape[1] != quadw.shape[0]:
+            raise ValueError("quadx and quadw shapes are inconsistent")
+        self._quadx = self._bkd.array(quadx)
+        self._quadw = self._bkd.array(quadw)
+
+    def nvars(self):
+        return self._quadx.shape[0]
+
+    def __call__(self):
+        return self._quadx, self._quadw
+
+
 class TensorProductQuadratureRule(QuadratureRule):
     def __init__(self, nvars, univariate_quad_rules, store=False):
         super().__init__(univariate_quad_rules[0]._bkd)

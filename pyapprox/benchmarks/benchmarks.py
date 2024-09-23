@@ -37,7 +37,7 @@ from pyapprox.interface.wrappers import (
 from pyapprox.benchmarks.pde_benchmarks import (
     _setup_inverse_advection_diffusion_benchmark,
     _setup_multi_index_advection_diffusion_benchmark,
-    Burgers1DParameterizedModel
+    Burgers1DParameterizedModel, DarcyKLE2DModel,
 )
 
 
@@ -1124,6 +1124,21 @@ def setup_1d_burgers(max_eval_concurrency=1):
     return Benchmark(attributes)
 
 
+def setup_darcy_kle_2d(max_eval_concurrency=1):
+    base_model = DarcyKLE2DModel()
+    timer_model = TimerModel(base_model, base_model)
+    pool_model = PoolModel(
+        timer_model, max_eval_concurrency, base_model=base_model)
+    model = WorkTrackingModel(
+        pool_model, base_model, enforce_timer_model=False
+    )
+    variable = IndependentMarginalsVariable(
+        [stats.norm(0, 1)]*(base_model._kle._nterms)
+    )
+    attributes = {'model': model, 'variable': variable}
+    return Benchmark(attributes)
+
+
 _benchmarks = {
     'sobol_g': setup_sobol_g_function,
     'ishigami': setup_ishigami_function,
@@ -1147,6 +1162,7 @@ _benchmarks = {
     'short_column_ensemble': setup_short_column_ensemble,
     "parameterized_nonlinear_model": setup_parameterized_nonlinear_model,
     "burgers_1d": setup_1d_burgers,
+    "darcy_kle_2d": setup_darcy_kle_2d,
 }
 
 

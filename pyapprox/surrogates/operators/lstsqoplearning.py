@@ -37,6 +37,7 @@ class MultiLinearOperatorBasis:
         self._coef_basis = None
 
     def _check_quadrature_rules(self, quad_rules, nfunctions):
+        print(len(quad_rules))
         if len(quad_rules) != nfunctions:
             raise ValueError(
                 "A quadrature rule must be specified for each function"
@@ -95,7 +96,6 @@ class MultiLinearOperatorBasis:
             ):
                 raise ValueError("Function values must be a 2D array")
             quad_samples, quad_weights = quad_rules[ii]()
-            print(quad_samples)
             basis_mat = bases[ii](quad_samples)
             coefs.append(
                 self._bkd.einsum(
@@ -167,6 +167,8 @@ class OrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
             nterms_1d_per_infun,
             marginals_per_outfun,
             nterms_1d_per_outfun,
+            in_quad_rules=None,
+            out_quad_rules=None,
             backend=None,
     ):
         if backend is None:
@@ -177,14 +179,16 @@ class OrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
         in_bases = self._setup_function_domain_bases(
             marginals_per_infun, nterms_1d_per_infun
         )
-        in_quad_rules = self._setup_function_domain_quadrature_rules(
-            marginals_per_infun, nterms_1d_per_infun)
         out_bases = self._setup_function_domain_bases(
             marginals_per_outfun, nterms_1d_per_outfun
         )
-        out_quad_rules = self._setup_function_domain_quadrature_rules(
-            marginals_per_outfun, nterms_1d_per_outfun
-        )
+        if in_quad_rules is None:
+            in_quad_rules = self._setup_function_domain_quadrature_rules(
+                marginals_per_infun, nterms_1d_per_infun)
+        if out_quad_rules is None:
+            out_quad_rules = self._setup_function_domain_quadrature_rules(
+                marginals_per_outfun, nterms_1d_per_outfun
+            )
         super().__init__(
             nin_functions,
             in_bases,
@@ -284,4 +288,4 @@ class MultiLinearOperatorExpansion(BasisExpansion):
         # for now assume only one output function
         assert len(out_samples) == 1
         basis_mat = basis_mat[0]
-        return basis_mat @ self.get_coefficients()[..., 0]
+        return [basis_mat @ self.get_coefficients()[..., 0]]

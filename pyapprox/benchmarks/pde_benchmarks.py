@@ -216,6 +216,7 @@ class AdvectionDiffusionReactionKLEModel():
         sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
         self._set_random_sample(sample_copy)
         sol = self._fwd_solver.solve(**self._newton_kwargs)
+        print(sol.shape, self._fwd_solver.physics.mesh.mesh_pts.shape)
         qoi = self._functional(sol, sample_copy).numpy()
         if not return_grad:
             return qoi
@@ -499,7 +500,8 @@ class Burgers1DParameterizedModel(SingleSampleModel):
         super().__init__()
         sigma, tau, gamma, neigs = 7**2, 7, 2.5, 1024//2
         domain_bounds = [0, 1]
-        self._orders = [1024//2]
+        # self._orders = [1024//2]
+        self._orders = [1024//8]
         self._rand_field = PeriodicReiszGaussianRandomField(
             sigma, tau, gamma, neigs, domain_bounds, backend=TorchLinAlgMixin
         )
@@ -509,7 +511,7 @@ class Burgers1DParameterizedModel(SingleSampleModel):
         bndry_conds = [[None, "P"], [None, "P"]]
         visc_fun = Function(partial(full_fun_axis_1, 0.1, oned=False))
         forc_fun = Function(partial(full_fun_axis_1, 0.0, oned=False))
-        tableau_name = "im_beuler1"
+        # tableau_name = "im_beuler1"
         tableau_name = "im_crank2"
         deltat = 1/200
         self._final_time = 1.0
@@ -538,3 +540,41 @@ class Burgers1DParameterizedModel(SingleSampleModel):
 
     def _evaluate(self, sample):
         return self.simulate(sample)[0][:, -1:].T
+
+
+class DarcyKLE2DModel(SingleSampleModel):
+    def __init__(self):
+        super().__init__()
+        lenscales = self._bkd.array([0.25, 0.25])
+        self._orders = [16, 16]
+        domain_bounds = [0, 1, 0, 1]
+        mesh = CartesianProductCollocationMesh(
+            domain_bounds, self._orders, ["C", "C"]
+        )
+        bndry_conds = [
+            [partial(full_fun_axis_1, 0., oned=False), "D"],
+            [partial(full_fun_axis_1, 0., oned=False), "D"],
+            [partial(full_fun_axis_1, 0., oned=False), "D"],
+            [partial(full_fun_axis_1, 0., oned=False), "D"],
+        ]
+        self._kle = MeshKLE(
+            mesh.mesh_pts, lenscales, sigma=1., nterms=100,
+            use_log=True, mean_field=0., backend=TorchLinAlgMixin
+        )
+        forc_fun = partial(full_fun_axis_1, 0., oned=False)
+        vel_fun = partial(constant_vel_fun,  [0., 0.])
+        react_funs = None
+        self._model = AdvectionDiffusionReactionKLEModel(
+            mesh, bndry_conds, self._kle, vel_fun, react_funs, forc_fun,
+            self._sol_functional)
+
+    # TODO make DarcyKLE2D derive from AdvectionDiffusionReactionKLEModel
+    # but remove __cal__ form the latter class
+    def _sol_functional(self, sol, params):
+        return sol[None, :]
+
+    def nqoi(self):
+        return (self._orders[0]+1)*(self._orders[1]+1)
+
+    def _evaluate(self, sample):
+        return self._model._eval(sample[:, 0])
