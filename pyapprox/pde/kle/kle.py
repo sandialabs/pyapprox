@@ -303,7 +303,7 @@ class AbstractKLE(ABC):
             # always compute eigenvalue decomposition using scipy because
             # it can be used to only compute subset of eigenvectors
             # then we cast these back to correct linalg type. The downside
-            # is that we cannot use autograd on quantities used to consturct K.
+            # is that we cannot use autograd on quantities used to construct K.
             # but the need for this is unlikely
             eig_vals, eig_vecs = eigh(
                 self._bkd.to_numpy(K),  # turbo=False,
@@ -322,9 +322,8 @@ class AbstractKLE(ABC):
             eig_vecs = 1/sqrt_weights[:, None]*sym_eig_vecs
             eig_vals = sym_eig_vals
         eig_vecs = adjust_sign_eig(eig_vecs)
-        # II = self._bkd.argsort(eig_vals)[::-1][:self._nterms]
         II = self._bkd.flip(self._bkd.argsort(eig_vals))[:self._nterms]
-        assert self._bkd.all(eig_vals[II] > 0), eig_vals[II]
+        assert self._bkd.all(eig_vals[II] > 0), (eig_vals[II], self._bkd.where(eig_vals[II]<=0)[0])
         self._sqrt_eig_vals = self._bkd.sqrt(eig_vals[II])
         self._eig_vecs = eig_vecs[:, II]
 
@@ -337,7 +336,6 @@ class AbstractKLE(ABC):
         coef : np.ndarray (nterms, nsamples)
             The coefficients of the KLE basis
         """
-        print(coef.shape)
         assert coef.ndim == 2
         assert coef.shape[0] == self._nterms
         if self._use_log:

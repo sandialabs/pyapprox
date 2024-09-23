@@ -77,7 +77,7 @@ class TestLstSqOpLearning:
         op_basis.set_coefficient_basis_indices(indices)
         return op_basis, nterms_1d_per_infun
 
-    def test_multi_linear_operator_basis(self):
+    def test_multilinear_operator_basis(self):
         bkd = self.get_backend()
         nphys_vars, nin_funs, nout_funs = 1, 2, 1
         nin_terms_1d, nout_terms_1d = 2, 3
@@ -199,10 +199,10 @@ class TestLstSqOpLearning:
             out_coef_samples[1, :] += (
                 out_coef_samples[0, :] * out_coef_samples[1, :]
             )
-        out_coef_samples[0, :] += 1
-        out_funs = copy.deepcopy(in_funs)
-        out_fun_values = _evaluate_basis_expansion_functions(
-            out_funs, out_coef_samples)
+            out_coef_samples[0, :] += 1
+            out_funs = copy.deepcopy(in_funs)
+            out_fun_values = _evaluate_basis_expansion_functions(
+                out_funs, out_coef_samples)
 
         solver = LstSqSolver()
         op_exp = MultiLinearOperatorExpansion(op_basis, solver=solver)
@@ -220,7 +220,7 @@ class TestLstSqOpLearning:
         test_out_fun_values = [
             vals[:, :ntest_samples] for vals in test_out_fun_values
         ]
-        ax.plot(plot_xx[0], op_exp(test_in_fun_values, [plot_xx]))
+        ax.plot(plot_xx[0], op_exp(test_in_fun_values, [plot_xx])[0])
         ax.plot(plot_xx[0], test_out_fun_values[0], '--')
         # print(op_exp.basis.nterms())
         assert bkd.allclose(

@@ -128,6 +128,8 @@ def adjust_sign_eig(U):
        singular vector always being positive.
     """
     s = np.sign(U[0, :])
+    II = np.where(s == 0)[0]
+    s[II] = 1.0
     U *= s
     return U
 

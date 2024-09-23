@@ -216,7 +216,6 @@ class AdvectionDiffusionReactionKLEModel():
         sample_copy = torch.as_tensor(sample.copy(), dtype=torch.double)
         self._set_random_sample(sample_copy)
         sol = self._fwd_solver.solve(**self._newton_kwargs)
-        print(sol.shape, self._fwd_solver.physics.mesh.mesh_pts.shape)
         qoi = self._functional(sol, sample_copy).numpy()
         if not return_grad:
             return qoi
@@ -500,8 +499,8 @@ class Burgers1DParameterizedModel(SingleSampleModel):
         super().__init__()
         sigma, tau, gamma, neigs = 7**2, 7, 2.5, 1024//2
         domain_bounds = [0, 1]
-        # self._orders = [1024//2]
-        self._orders = [1024//8]
+        self._orders = [1024//2]
+        # self._orders = [1024//8]
         self._rand_field = PeriodicReiszGaussianRandomField(
             sigma, tau, gamma, neigs, domain_bounds, backend=TorchLinAlgMixin
         )
@@ -561,7 +560,7 @@ class DarcyKLE2DModel(SingleSampleModel):
             mesh.mesh_pts, lenscales, sigma=1., nterms=100,
             use_log=True, mean_field=0., backend=TorchLinAlgMixin
         )
-        forc_fun = partial(full_fun_axis_1, 0., oned=False)
+        forc_fun = partial(full_fun_axis_1, 1., oned=False)
         vel_fun = partial(constant_vel_fun,  [0., 0.])
         react_funs = None
         self._model = AdvectionDiffusionReactionKLEModel(

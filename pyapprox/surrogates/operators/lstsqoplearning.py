@@ -37,7 +37,6 @@ class MultiLinearOperatorBasis:
         self._coef_basis = None
 
     def _check_quadrature_rules(self, quad_rules, nfunctions):
-        print(len(quad_rules))
         if len(quad_rules) != nfunctions:
             raise ValueError(
                 "A quadrature rule must be specified for each function"
@@ -125,18 +124,32 @@ class MultiLinearOperatorBasis:
             # outerproduct of inner and outer basis functions
             # out_basis_mat (nout_samples, nout_terms_i)
             out_basis_mat = self._out_bases[ii](out_samples[ii])
-            # basis_mat (nout_samples, nin_fun_samples, nout_terms,ncoef_terms)
-            basis_mat = self._bkd.einsum(
-                "ij,kl->ikjl", out_basis_mat, coef_basis_mat
-            )
-            # basis_mat (nout_samples, ninsamples, nout_terms*ncoef_terms)
+            # basis_mat (nout_samples, nin_fun_samples, nout_terms, ncoef_terms)
             nout_samples = out_basis_mat.shape[0]
             nbasis_terms = (
                 self._out_bases[ii].nterms() * self._coef_basis.nterms()
             )
-            basis_mat = self._bkd.reshape(
-                basis_mat, (nout_samples, nin_samples, nbasis_terms)
+            # basis_mat1 = self._bkd.einsum(
+            #     "ij,kl->ikjl", out_basis_mat, coef_basis_mat
+            # )
+            # # basis_mat (nout_samples, ninsamples, nout_terms*ncoef_terms)
+            # basis_mat1 = self._bkd.reshape(
+            #     basis_mat1, (nout_samples, nin_samples, nbasis_terms)
+            # )
+            basis_mat = self._bkd.zeros(
+                (nout_samples, nin_samples, nbasis_terms)
             )
+            cnt = 0
+            # eisnum above can runs out of memory, so loop over outer basis
+            for jj in range(out_basis_mat.shape[1]):
+                print(jj)
+                basis_mat[..., cnt:cnt+self._coef_basis.nterms()] = (
+                    self._bkd.einsum(
+                        "i,kl->ikl", out_basis_mat[:, jj], coef_basis_mat
+                    )
+                )
+                cnt += self._coef_basis.nterms()
+            # assert self._bkd.allclose(basis_mat, basis_mat1)
             basis_mats.append(basis_mat)
         return basis_mats
 
@@ -273,12 +286,16 @@ class MultiLinearOperatorExpansion(BasisExpansion):
         ntrain_samples = out_fun_coefs.shape[1]
         # TODO add weights to grammian and rhs construction
         grammian = coef_mat.T @ coef_mat / ntrain_samples
-        rhs = self._bkd.sum(
-            self._bkd.einsum(
-                "ij,jk->jki", out_fun_coefs, coef_mat
-            ),
-            axis=0
+        # rhs1 = self._bkd.sum(
+        #     self._bkd.einsum(
+        #         "ij,jk->jki", out_fun_coefs, coef_mat
+        #     ),
+        #     axis=0
+        # )/ntrain_samples
+        rhs = self._bkd.einsum(
+            "ij,jk->ki", out_fun_coefs, coef_mat
         )/ntrain_samples
+        # assert self._bkd.allclose(rhs, rhs1)
         # print(self._bkd.cond(grammian), "COND NO")
         coef = self._solver.solve(grammian, rhs).T.flatten()[:, None]
         self.set_coefficients(coef)
