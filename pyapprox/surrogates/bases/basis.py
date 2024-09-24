@@ -27,7 +27,7 @@ class Basis(ABC):
         self._jacobian_implemented = False
 
     @abstractmethod
-    def nterms():
+    def nterms(self):
         """
         Return the number of basis functions.
         """

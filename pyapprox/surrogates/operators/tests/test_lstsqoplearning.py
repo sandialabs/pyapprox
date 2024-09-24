@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.operators.lstsqoplearning import (
-    OrthoPolyMultiLinearOperatorBasis, MultiLinearOperatorExpansion
+    TensorOrthoPolyMultiLinearOperatorBasis, MultiLinearOperatorExpansion
 )
 from pyapprox.surrogates.bases.basis import (
     FixedTensorProductQuadratureRule
@@ -58,10 +58,10 @@ class TestLstSqOpLearning:
         bkd = self.get_backend()
         nterms_1d_per_infun = [[nin_terms_1d]*nphys_vars]*nin_funs
 
-        op_basis = OrthoPolyMultiLinearOperatorBasis(
+        op_basis = TensorOrthoPolyMultiLinearOperatorBasis(
             [[phys_marginal]*nphys_vars]*nin_funs,
-            nterms_1d_per_infun,
             [[phys_marginal]*nphys_vars]*nout_funs,
+            [[nin_terms_1d]*nphys_vars]*nin_funs,
             [[nout_terms_1d]*nphys_vars]*nout_funs,
         )
         ncoefs_per_infun = op_basis.ncoefficients_per_input_function()

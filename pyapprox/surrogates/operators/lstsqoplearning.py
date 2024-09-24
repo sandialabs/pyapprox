@@ -11,16 +11,17 @@ from pyapprox.surrogates.bases.basis import (
     FixedTensorProductQuadratureRule,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.pde.kle.kle import DataDrivenKLE
 
 
 class MultiLinearOperatorBasis:
     def __init__(
         self,
         nin_functions,
-        in_bases,
-        in_quad_rules,
         nout_functions,
+        in_bases,
         out_bases,
+        in_quad_rules,
         out_quad_rules,
     ):
         self._bkd = in_bases[0]._bkd
@@ -142,7 +143,6 @@ class MultiLinearOperatorBasis:
             cnt = 0
             # eisnum above can runs out of memory, so loop over outer basis
             for jj in range(out_basis_mat.shape[1]):
-                print(jj)
                 basis_mat[..., cnt:cnt+self._coef_basis.nterms()] = (
                     self._bkd.einsum(
                         "i,kl->ikl", out_basis_mat[:, jj], coef_basis_mat
@@ -172,13 +172,19 @@ class MultiLinearOperatorBasis:
         in_coef = self._in_coef_from_in_fun_values(in_fun_values)
         return self._basis_values_from_in_coef(in_coef, out_samples)
 
+    def ncoefficients_per_input_function(self):
+        return [basis.nterms() for basis in self._in_bases]
 
-class OrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
+    def set_coefficient_basis_indices(self, indices):
+        self._coef_basis.set_indices(indices)
+
+
+class TensorOrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
     def __init__(
             self,
             marginals_per_infun,
-            nterms_1d_per_infun,
             marginals_per_outfun,
+            nterms_1d_per_infun,
             nterms_1d_per_outfun,
             in_quad_rules=None,
             out_quad_rules=None,
@@ -204,10 +210,10 @@ class OrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
             )
         super().__init__(
             nin_functions,
-            in_bases,
-            in_quad_rules,
             nout_functions,
+            in_bases,
             out_bases,
+            in_quad_rules,
             out_quad_rules,
         )
 
@@ -249,18 +255,11 @@ class OrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
         ]
         return quad_rules
 
-    def ncoefficients_per_input_function(self):
-        return [basis.nterms() for basis in self._in_bases]
-
     def set_basis(self, coef_marginals_per_infun):
         coef_basis = self._setup_ortho_basis(
             itertools.chain(*coef_marginals_per_infun)
         )
         super().set_coefficient_basis(coef_basis)
-
-    def set_coefficient_basis_indices(self, indices):
-        self._coef_basis.set_indices(indices)
-
 
 class MultiLinearOperatorExpansion(BasisExpansion):
     def _parse_basis(self, basis):
@@ -296,7 +295,8 @@ class MultiLinearOperatorExpansion(BasisExpansion):
             "ij,jk->ki", out_fun_coefs, coef_mat
         )/ntrain_samples
         # assert self._bkd.allclose(rhs, rhs1)
-        # print(self._bkd.cond(grammian), "COND NO")
+        print(self._bkd.cond(grammian), "COND NO")
+        print(grammian[:5, :5])
         coef = self._solver.solve(grammian, rhs).T.flatten()[:, None]
         self.set_coefficients(coef)
 
@@ -306,3 +306,216 @@ class MultiLinearOperatorExpansion(BasisExpansion):
         assert len(out_samples) == 1
         basis_mat = basis_mat[0]
         return [basis_mat @ self.get_coefficients()[..., 0]]
+
+
+class PCABasisFromExpansion(Basis):
+    def __init__(self, basis_exp: BasisExpansion, sqrt_eig_vals, nterms: int):
+        super().__init__(basis_exp._bkd)
+        if not isinstance(basis_exp, BasisExpansion):
+            raise ValueError("basis_exp must be an instance of BasisExpansion")
+        self._bexp = basis_exp
+        self._sqrt_eig_vals = sqrt_eig_vals
+        self.set_nterms(nterms)
+
+    def set_nterms(self, nterms):
+        if nterms > self._bexp.nterms():
+            raise ValueError("nterms requrested greater than allowable")
+        self._nterms = nterms
+
+    def nterms(self):
+        return self._nterms
+
+    def nvars(self):
+        return self._bexp.nvars()
+
+    def __call__(self, samples):
+        return self._bexp(samples)[:, :self._nterms]
+
+
+class PCAMultiLinearOperatorBasis(MultiLinearOperatorBasis):
+    """
+    Use PCA to construct orthonormal bases for the input and output functions.
+    Assume that functions are defined on tensor-product domains and the
+    same orthonormal polynomial can be used in each dimension of the function
+    domain to approximate the PCA modes.
+    """
+    def __init__(
+            self,
+            in_representing_bases,
+            out_representing_bases,
+            in_quad_rules,
+            out_quad_rules,
+            infun_values_at_quadx,
+            outfun_values_at_quadx,
+            nin_pca_modes_max,
+            nout_pca_modes_max,
+            nin_pca_modes,
+            nout_pca_modes,
+    ):
+        """
+        in_representing_bases : list(Basis)
+            Bases used to represent the PCA modes of the input functions
+
+        out_representing_bases : list(Basis)
+            Bases used to represent the PCA modes of the output functions
+
+        nin_pca_modes_max : list(int)
+            The max number of PCA modes to represent each input function.
+            Less terms can be used by calling set_nin_pca_modes
+
+        nout_pca_modes_max : list(int)
+            The max number of PCA modes to represent each output function.
+            Less terms can be used by calling set_nout_pca_modes
+
+        nin_pca_modes : list(int)
+            The number of PCA modes to represent each input function.
+
+        nout_pca_modes : list(int)
+            The number of PCA modes to represent each output function.
+        """
+        self._bkd = in_quad_rules[0]._bkd
+        nin_pca_modes_max = self._bkd.atleast1d(nin_pca_modes_max, dtype=int)
+        nout_pca_modes_max = self._bkd.atleast1d(nout_pca_modes_max, dtype=int)
+        if nin_pca_modes_max.shape[0] != len(in_representing_bases):
+            raise ValueError(
+                "must specify the number of PCA modes for each input function"
+            )
+        if nout_pca_modes_max.shape[0] != len(out_representing_bases):
+            raise ValueError(
+                "must specify the number of PCA modes for each output function"
+            )
+        nin_pca_modes = self._bkd.atleast1d(nin_pca_modes, dtype=int)
+        nout_pca_modes = self._bkd.atleast1d(nout_pca_modes, dtype=int)
+        if nin_pca_modes.shape[0] != len(in_representing_bases):
+            raise ValueError(
+                "must specify the number of PCA modes for each input function"
+            )
+        if nout_pca_modes.shape[0] != len(out_representing_bases):
+            raise ValueError(
+                "must specify the number of PCA modes for each output function"
+            )
+
+        in_bases = self._get_pca_bases(
+            infun_values_at_quadx,
+            nin_pca_modes_max,
+            nin_pca_modes,
+            in_quad_rules,
+            in_representing_bases
+        )
+        out_bases = self._get_pca_bases(
+            outfun_values_at_quadx,
+            nout_pca_modes_max,
+            nout_pca_modes,
+            out_quad_rules,
+            out_representing_bases
+        )
+        super().__init__(
+            len(in_quad_rules),
+            len(out_quad_rules),
+            in_bases,
+            out_bases,
+            in_quad_rules,
+            out_quad_rules,
+        )
+
+    def _get_pca_basis(
+            self, fun_values_at_quadx, npca_modes_max, npca_modes, quad_rule, basis
+    ):
+        kle = DataDrivenKLE(
+            fun_values_at_quadx,
+            nterms=npca_modes_max,
+            quad_weights=quad_rule()[1][:, 0]
+        )
+        basis_mat = basis(quad_rule()[0])
+        basis_coef = self._bkd.einsum(
+            "ij,ik->jk", quad_rule()[1]*basis_mat, kle._eig_vecs
+        )
+        bexp = BasisExpansion(basis, nqoi=npca_modes_max)
+        bexp.set_coefficients(basis_coef)
+        eigvecs = PCABasisFromExpansion(bexp, kle._sqrt_eig_vals, npca_modes)
+        return eigvecs
+
+    def _get_pca_bases(
+            self, fun_values_at_quadx, npca_modes_max_per_fun, npca_modes_per_fun,  quad_rules, bases
+    ):
+        return [
+            self._get_pca_basis(
+                fun_values_at_quadx[ii],
+                npca_modes_max_per_fun[ii],
+                npca_modes_per_fun[ii],
+                quad_rules[ii],
+                bases[ii],
+            )
+            for ii in range(len(fun_values_at_quadx))
+        ]
+
+    def set_basis(self, coef_marginals_per_infun):
+        coef_basis = self._setup_ortho_basis(
+            itertools.chain(*coef_marginals_per_infun)
+        )
+        super().set_coefficient_basis(coef_basis)
+
+
+class PCATensorOrthoPolyMultiLinearOperatorBasis(PCAMultiLinearOperatorBasis):
+    """
+    Use PCA to construct orthonormal bases for the input and output functions.
+    Assume that functions are defined on tensor-product domains and the
+    same orthonormal polynomial can be used in each dimension of the function
+    domain to approximate the PCA modes.
+    """
+    def __init__(
+            self,
+            marginals_per_infun,
+            marginals_per_outfun,
+            nterms_1d_per_infun,
+            nterms_1d_per_outfun,
+            in_quad_rules,
+            out_quad_rules,
+            infun_values_at_quadx,
+            outfun_values_at_quadx,
+            nin_pca_modes_max,
+            nout_pca_modes_max,
+            nin_pca_modes,
+            nout_pca_modes,
+    ):
+        self._bkd = in_quad_rules[0]._bkd
+        inrep_bases = self._setup_function_domain_bases(
+            marginals_per_infun, nterms_1d_per_infun
+        )
+        outrep_bases = self._setup_function_domain_bases(
+            marginals_per_outfun, nterms_1d_per_outfun
+        )
+        super().__init__(
+            inrep_bases,
+            outrep_bases,
+            in_quad_rules,
+            out_quad_rules,
+            infun_values_at_quadx,
+            outfun_values_at_quadx,
+            nin_pca_modes_max,
+            nout_pca_modes_max,
+            nin_pca_modes,
+            nout_pca_modes,
+        )
+
+    def _setup_ortho_basis(self, marginals, nterms_1d=None):
+        polys_1d = [
+            setup_univariate_orthogonal_polynomial_from_marginal(
+                marginal, backend=self._bkd
+            )
+            for marginal in marginals
+        ]
+        basis = OrthonormalPolynomialBasis(polys_1d)
+        if nterms_1d is not None:
+            basis.set_tensor_product_indices(nterms_1d)
+        return basis
+
+    def _setup_function_domain_bases(
+            self, marginals_per_fun, nterms_1d_per_fun
+    ):
+        return [
+            self._setup_ortho_basis(marginals, nterms_1d)
+            for marginals, nterms_1d in zip(
+                    marginals_per_fun, nterms_1d_per_fun
+            )
+        ]

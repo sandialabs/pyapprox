@@ -440,7 +440,9 @@ class MeshKLE(AbstractKLE):
 class DataDrivenKLE(AbstractKLE):
     def __init__(
             self, field_samples, mean_field=0,
-            use_log=False, nterms=None, quad_weights=None, backend=NumpyLinAlgMixin):
+            use_log=False, nterms=None, quad_weights=None,
+            backend=NumpyLinAlgMixin
+    ):
         self._field_samples = field_samples
         super().__init__(
             mean_field, use_log, quad_weights, nterms, backend=backend
