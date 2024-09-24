@@ -176,7 +176,9 @@ class IterativeIndexGenerator(IndexGenerator):
                     self._cand_indices_dict[key] = idx
                     cand_indices.append(index)
                     idx += 1
-        return self._bkd.stack(cand_indices, axis=1)
+        if len(cand_indices) > 0:
+            return self._bkd.stack(cand_indices, axis=1)
+        return self._bkd.zeros((index.shape[0], 0), dtype=int)
 
     def set_selected_indices(self, selected_indices):
         self._sel_indices_dict = dict()
@@ -337,8 +339,11 @@ class AdmissibilityCriteria(ABC):
 
 
 class MaxLevelAdmissibilityCriteria(AdmissibilityCriteria):
-    def __init__(self, max_level, pnorm, backend=None):
+    def __init__(
+            self, max_level, pnorm, max_1d_levels, levels=None, backend=None
+    ):
         self._max_level = max_level
+        self._max_1d_levels = max_1d_levels
         self._pnorm = pnorm
         if backend is None:
             backend = NumpyLinAlgMixin
@@ -350,16 +355,32 @@ class MaxLevelAdmissibilityCriteria(AdmissibilityCriteria):
         )
 
     def __call__(self, index):
-        if self._indices_norm(index) <= self._max_level:
-            return True
-        return False
+        if self._indices_norm(index) > self._max_level:
+            return False
+        if (
+                self._max_1d_levels is not None
+                and self._bkd.any(index > self._max_1d_levels)
+        ):
+            return False
+        if (
+                self._max_1d_levels is not None and 
+                self._bkd.where(
+                    index[index > 0] == self._max_1d_levels[index > 0]
+                )[0].shape[0] > 1
+        ):
+            return False
+        return True
 
 
 class HyperbolicIndexGenerator(IterativeIndexGenerator):
-    def __init__(self, nvars, max_level, pnorm, backend=NumpyLinAlgMixin):
+    def __init__(
+            self, nvars, max_level, pnorm, max_1d_levels=None,
+            backend=NumpyLinAlgMixin):
         super().__init__(nvars, backend=backend)
         self.set_admissibility_function(
-            MaxLevelAdmissibilityCriteria(max_level, pnorm, backend)
+            MaxLevelAdmissibilityCriteria(
+                max_level, pnorm, max_1d_levels, backend
+            )
         )
 
     def _compute_indices(self):

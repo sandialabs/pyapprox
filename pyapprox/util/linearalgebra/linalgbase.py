@@ -455,6 +455,18 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def maximum(array1, array2):
+        """Return the elementwise maximum values of two arrays."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def minimum(array1, array2):
+        """Return the elementwise minimum values of two arrays."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def min(array, axis=None):
         """Return the minimum value in an array."""
         raise NotImplementedError
@@ -732,4 +744,9 @@ class LinAlgMixin(ABC):
     @staticmethod
     @abstractmethod
     def imag(array):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def round(array):
         raise NotImplementedError

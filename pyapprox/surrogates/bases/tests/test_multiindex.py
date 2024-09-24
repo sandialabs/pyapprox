@@ -76,6 +76,19 @@ class TestMultiIndex:
             ),
         )
 
+        nvars, pnorm, level, max_1d_levels = 2, 1, 2, [1, 2]
+        gen = HyperbolicIndexGenerator(
+            nvars, level, pnorm, max_1d_levels, backend=bkd
+        )
+        assert bkd.allclose(
+            sort_indices_lexiographically(gen.get_indices()),
+            sort_indices_lexiographically(
+                bkd.array(
+                    [[0, 0], [1, 0], [0, 1], [0, 2], [1, 1]]
+                ).T,
+            )
+        )
+
     def test_isotropic_sg_index_generator(self):
         bkd = self.get_backend()
         nvars, level = 2, 2

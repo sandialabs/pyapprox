@@ -288,6 +288,14 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.max(array, axis=axis)
 
     @staticmethod
+    def maximum(array1, array2):
+        return np.maximum(array1, array2)
+
+    @staticmethod
+    def minimum(array1, array2):
+        return np.minimum(array1, array2)
+
+    @staticmethod
     def min(array, axis=None):
         return np.min(array, axis=axis)
 
@@ -397,3 +405,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def imag(array):
         return np.imag(array)
+
+    @staticmethod
+    def round(array):
+        return np.round(array)

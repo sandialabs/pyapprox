@@ -315,6 +315,14 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.max(array, dim=axis)[0]
 
     @staticmethod
+    def maximum(array1, array2):
+        return torch.maximum(array1, array2)
+
+    @staticmethod
+    def minimum(array1, array2):
+        return torch.minimum(array1, array2)
+
+    @staticmethod
     def min(array, axis=None):
         if axis is None:
             return torch.min(array)
@@ -453,3 +461,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def imag(array):
         return array.imag
+
+    @staticmethod
+    def round(array):
+        return torch.round(array)

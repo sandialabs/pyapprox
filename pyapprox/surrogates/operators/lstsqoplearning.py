@@ -295,8 +295,7 @@ class MultiLinearOperatorExpansion(BasisExpansion):
             "ij,jk->ki", out_fun_coefs, coef_mat
         )/ntrain_samples
         # assert self._bkd.allclose(rhs, rhs1)
-        print(self._bkd.cond(grammian), "COND NO")
-        print(grammian[:5, :5])
+        print("COND NO", self._bkd.cond(grammian), "NO. COEFS", grammian.shape[0])
         coef = self._solver.solve(grammian, rhs).T.flatten()[:, None]
         self.set_coefficients(coef)
 
