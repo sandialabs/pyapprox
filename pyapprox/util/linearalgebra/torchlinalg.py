@@ -342,6 +342,10 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.linalg.eigh(matrix)
 
     @staticmethod
+    def svd(matrix, full_matrices=True):
+        return torch.linalg.svd(matrix, full_matrices=full_matrices)
+
+    @staticmethod
     def isfinite(matrix):
         return torch.isfinite(matrix)
 

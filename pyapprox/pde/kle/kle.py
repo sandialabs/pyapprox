@@ -323,7 +323,9 @@ class AbstractKLE(ABC):
             eig_vals = sym_eig_vals
         eig_vecs = adjust_sign_eig(eig_vecs)
         II = self._bkd.flip(self._bkd.argsort(eig_vals))[:self._nterms]
-        assert self._bkd.all(eig_vals[II] > 0), (eig_vals[II], self._bkd.where(eig_vals[II]<=0)[0])
+        assert self._bkd.all(eig_vals[II] > 0), (
+            eig_vals[II], self._bkd.where(eig_vals[II] <= 0)[0]
+        )
         self._sqrt_eig_vals = self._bkd.sqrt(eig_vals[II])
         self._eig_vecs = eig_vecs[:, II]
 
@@ -436,11 +438,12 @@ class MeshKLE(AbstractKLE):
 
 
 class DataDrivenKLE(AbstractKLE):
-    def __init__(self, field_samples, mean_field=0,
-                 use_log=False, nterms=None, backend=NumpyLinAlgMixin):
+    def __init__(
+            self, field_samples, mean_field=0,
+            use_log=False, nterms=None, quad_weights=None, backend=NumpyLinAlgMixin):
         self._field_samples = field_samples
         super().__init__(
-            mean_field, use_log, None, nterms, backend=backend
+            mean_field, use_log, quad_weights, nterms, backend=backend
         )
 
     def _set_mean_field(self, mean_field):
@@ -455,11 +458,38 @@ class DataDrivenKLE(AbstractKLE):
         assert nterms <= self._field_samples.shape[0]
         self._nterms = nterms
 
-    def _set_mesh_coordinaets(self, mesh_coords):
+    def _set_mesh_coordinates(self, mesh_coords):
         self._mesh_coords = None
 
     def _compute_kernel_matrix(self):
         return self._bkd.cov(self._field_samples, rowvar=True, ddof=1)
+
+    def _compute_basis(self):
+        # C = A^T A
+        # A = USV^T
+        # C = VSU^TUSV = VS^2V^T
+        # So eigen value equations are CV = VS^2V^TV = VS^2
+        # Thus V are eignevectors of Eig(C)
+        # and S^2 are Eigvals
+        # Principal components are AV = USV^TV = US
+
+        # Use SVD here because it is more accurate than computing covariance
+        # then taking eigdecomp. The latter approach loses precision due to
+        # rounding errors
+        if self._quad_weights is None:
+            field_samples = self._field_samples
+        else:
+            sqrt_weights = self._bkd.sqrt(self._quad_weights)
+            field_samples = sqrt_weights[:, None]*self._field_samples
+        U, S, Vh = self._bkd.svd(field_samples)
+        self._eig_vecs = adjust_sign_eig(U[:, :self._nterms])
+        if self._quad_weights is not None:
+            self._eig_vecs = 1/sqrt_weights[:, None]*self._eig_vecs
+        # divide S by sqrt(1/(n-1)) to be consistent with computing covariance
+        # of C=A^TA/(n-1) then taking eigdecomp
+        self._sqrt_eig_vals = S[:self._nterms]/np.sqrt(
+            self._field_samples.shape[1]-1
+        )
 
 
 def multivariate_chain_rule(jac_yu, jac_ux):

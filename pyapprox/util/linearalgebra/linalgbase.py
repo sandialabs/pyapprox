@@ -621,6 +621,11 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def svd(matrix):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def isfinite(matrix):
         raise NotImplementedError
 

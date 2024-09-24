@@ -322,6 +322,12 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.linalg.eigh(matrix)
 
     @staticmethod
+    def svd(matrix, full_matrices=True):
+        return np.linalg.svd(
+            matrix, compute_uv=True, full_matrices=full_matrices
+        )
+
+    @staticmethod
     def isfinite(matrix):
         return np.isfinite(matrix)
 
