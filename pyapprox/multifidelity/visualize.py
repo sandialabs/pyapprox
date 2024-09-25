@@ -187,6 +187,6 @@ def plot_estimator_sample_allocation_comparison(
     ax.set_xlabel(mathrm_label("Target cost"))
     # / $N_\alpha$')
     ax.set_ylabel(
-        mathrm_label("Precentage of target cost"))
+        mathrm_label("Percentage of target cost"))
     if legendloc is not None:
         ax.legend(loc=legendloc)

@@ -318,7 +318,9 @@ class PCABasisFromExpansion(Basis):
 
     def set_nterms(self, nterms):
         if nterms > self._bexp.nterms():
-            raise ValueError("nterms requrested greater than allowable")
+            raise ValueError(
+                "nterms {0} requrested greater than allowable {1}".format(
+                    nterms, self._bexp.nterms()))
         self._nterms = nterms
 
     def nterms(self):
