@@ -120,10 +120,10 @@ class TestLstSqOpLearning:
                 BasisExpansionFunction(bexp, op_basis._in_quad_rules[ii]()[0])
             )
 
-        in_fun_values = _evaluate_basis_expansion_functions(in_funs, in_coefs)
+        infun_values = _evaluate_basis_expansion_functions(in_funs, in_coefs)
 
-        recovered_in_coefs = op_basis._in_coef_from_in_fun_values(
-            in_fun_values
+        recovered_in_coefs = op_basis._in_coef_from_infun_values(
+            infun_values
         )
         assert bkd.allclose(
             recovered_in_coefs, in_coefs, rtol=1e-14, atol=1e-14
@@ -143,7 +143,7 @@ class TestLstSqOpLearning:
         )
         in_coef_quad_samples, in_coef_quad_weights = coef_quad_rule()
 
-        in_fun_values = _evaluate_basis_expansion_functions(
+        infun_values = _evaluate_basis_expansion_functions(
             in_funs, in_coef_quad_samples
         )
 
@@ -153,7 +153,7 @@ class TestLstSqOpLearning:
         out_weights = [
             quad_rule()[1] for quad_rule in op_basis._out_quad_rules
         ]
-        basis_mats = op_basis(in_fun_values, out_samples)
+        basis_mats = op_basis(infun_values, out_samples)
         for basis_mat, weights in zip(basis_mats, out_weights):
             np.set_printoptions(linewidth=1000)
             tmp = np.einsum(
@@ -191,7 +191,7 @@ class TestLstSqOpLearning:
         # in_coef_weights = bkd.full((nmc_samples, 1), 1/nmc_samples)
 
         # test only works when nin_terms_1d == nout_terms_1d
-        in_fun_values = _evaluate_basis_expansion_functions(
+        infun_values = _evaluate_basis_expansion_functions(
             in_funs, in_coef_samples
         )
         out_coef_samples = bkd.copy(in_coef_samples)
@@ -206,12 +206,12 @@ class TestLstSqOpLearning:
 
         solver = LstSqSolver()
         op_exp = MultiLinearOperatorExpansion(op_basis, solver=solver)
-        op_exp.fit(in_fun_values, out_fun_values)
+        op_exp.fit(infun_values, out_fun_values)
         ntest_samples = 3
         plot_xx = bkd.linspace(-1, 1, 11)[None, :]
         ax = plt.figure().gca()
-        test_in_fun_values = [
-            vals[:, :ntest_samples] for vals in in_fun_values
+        test_infun_values = [
+            vals[:, :ntest_samples] for vals in infun_values
         ]
         [out_fun.set_domain_points(plot_xx) for out_fun in out_funs]
         test_out_fun_values = _evaluate_basis_expansion_functions(
@@ -220,11 +220,11 @@ class TestLstSqOpLearning:
         test_out_fun_values = [
             vals[:, :ntest_samples] for vals in test_out_fun_values
         ]
-        ax.plot(plot_xx[0], op_exp(test_in_fun_values, [plot_xx])[0])
+        ax.plot(plot_xx[0], op_exp(test_infun_values, [plot_xx])[0])
         ax.plot(plot_xx[0], test_out_fun_values[0], '--')
         # print(op_exp.basis.nterms())
         assert bkd.allclose(
-            op_exp(test_in_fun_values, [plot_xx]), test_out_fun_values[0]
+            op_exp(test_infun_values, [plot_xx]), test_out_fun_values[0]
         )
         # plt.show()
 
