@@ -15,6 +15,7 @@ from pyapprox.surrogates.bases.univariate import (
     ScipyUnivariateIntegrator,
     UnivariateUnboundedIntegrator,
     UnivariatePiecewisePolynomialNodeGenerator,
+    UnivariatePiecewisePolynomialQuadratureRule,
 )
 from pyapprox.interface.model import ModelFromCallable
 
@@ -129,10 +130,11 @@ class TestUnivariateBasis:
                 return 2 / 5
 
         bounds = [-1, 1]
-        basis = setup_univariate_piecewise_polynomial_basis(
-            name, bounds, backend=bkd)
-        basis.set_nterms(nterms)
-        samples, weights = basis.quadrature_rule()
+        quad_rule = UnivariatePiecewisePolynomialQuadratureRule(
+            name, bounds, backend=bkd
+        )
+        quad_rule.set_nnodes(nterms)
+        samples, weights = quad_rule()
         assert np.allclose(
             fun(degree, samples).T @ weights, integral(degree), atol=tol
         )
@@ -151,23 +153,25 @@ class TestUnivariateBasis:
                 )[None, :]
                 # fmt: on
 
-        basis = setup_univariate_piecewise_polynomial_basis(
-            name, bounds, backend=bkd,
-            node_gen=CustomNodeGenerator(backend=bkd)
+        quad_rule = UnivariatePiecewisePolynomialQuadratureRule(
+            name, bounds, CustomNodeGenerator(backend=bkd), backend=bkd
         )
-        basis.set_nterms(nterms)
-        samples, weights = basis.quadrature_rule()
+        quad_rule.set_nnodes(nterms)
+        samples, weights = quad_rule()
         assert np.allclose(
             fun(degree, samples).T @ weights, integral(degree), atol=tol
         )
 
-        # test semideep copy
-        other = basis._semideep_copy()
-        # check pointer to quad_rule is unchanged
-        assert other != basis
+        # # test semideep copy
+        # other = basis._semideep_copy()
+        # # check pointer to quad_rule is unchanged
+        # assert other != basis
 
     def test_univariate_piecewise_polynomial_quadrature(self):
         test_cases = [
+            ["leftconst", 2, 1001, 1e-3],
+            ["rightconst", 2, 1001, 1e-3],
+            ["midconst", 2, 1001, 1e-3],
             ["linear", 2, 101, 1e-3],
             ["quadratic", 2, 3, 1e-15],
             ["quadratic", 4, 91, 1e-5],

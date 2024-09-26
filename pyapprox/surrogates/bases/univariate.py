@@ -545,7 +545,7 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
 
         self._node_gen = None
         # nodes may be different than quad_samples
-        # e.g. when using piecwise constant basis
+        # e.g. when using piecewise constant basis
         self._nodes = None
         self._bounds = None
 
@@ -634,7 +634,7 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         self._set_nodes(self._node_gen(nterms))
 
 
-class UnivariatePiecewiseConstantBasis(UnivariateInterpolatingBasis):
+class UnivariatePiecewiseConstantBasis(UnivariatePiecewisePolynomialBasis):
     def set_nterms(self, nterms):
         # need to use nterms + 1 because nterms = nnodes-1 for piecewise
         # constant basis
@@ -703,7 +703,10 @@ class UnivariatePiecewiseLinearBasis(UnivariatePiecewisePolynomialBasis):
 
     def _quadrature_rule_from_nodes(self, nodes):
         if nodes.shape[1] == 1:
-            return self._nodes, self._bounds[1]-self._bounds[0]
+            return (
+                self._nodes,
+                self._bkd.full((1, 1), self._bounds[1]-self._bounds[0])
+            )
         return (
             nodes,
             irregular_piecewise_linear_quadrature_weights(nodes[0], self._bkd)[
@@ -720,7 +723,10 @@ class UnivariatePiecewiseQuadraticBasis(UnivariatePiecewisePolynomialBasis):
 
     def _quadrature_rule_from_nodes(self, nodes):
         if nodes.shape[1] == 1:
-            return self._nodes, self._bounds[1]-self._bounds[0]
+            return (
+                self._nodes,
+                self._bkd.full((1, 1), self._bounds[1]-self._bounds[0])
+            )
         return (
             nodes,
             irregular_piecewise_quadratic_quadrature_weights(
@@ -735,7 +741,10 @@ class UnivariatePiecewiseCubicBasis(UnivariatePiecewisePolynomialBasis):
 
     def _quadrature_rule_from_nodes(self, nodes):
         if nodes.shape[1] == 1:
-            return self._nodes, self._bounds[1]-self._bounds[0]
+            return (
+                self._nodes,
+                self._bkd.full((1, 1), self._bounds[1]-self._bounds[0])
+            )
         return (
             nodes,
             irregular_piecewise_cubic_quadrature_weights(nodes[0], self._bkd)[
@@ -760,12 +769,22 @@ class UnivariateQuadratureRule(ABC):
         self._store = store
         self._quad_samples = dict()
         self._quad_weights = dict()
+        self._nnodes = None
+
+    def set_nnodes(self, nnodes):
+        self._nnodes = nnodes
 
     @abstractmethod
     def _quad_rule(self, nnodes):
         raise NotImplementedError
 
-    def __call__(self, nnodes):
+    def __call__(self, nnodes=None):
+        if nnodes is None:
+            if self._nnodes is None:
+                raise ValueError(
+                    "If nnodes is None must first call set_nnodes"
+                )
+            nnodes = self._nnodes
         if self._store and nnodes in self._quad_samples:
             return self._quad_samples[nnodes], self._quad_weights[nnodes]
         quad_samples, quad_weights = self._quad_rule(nnodes)
@@ -828,6 +847,20 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
             self._bkd.asarray(quad_samples)[None, :],
             self._bkd.asarray(quad_weights)[:, None]
         )
+
+
+class UnivariatePiecewisePolynomialQuadratureRule(UnivariateQuadratureRule):
+    def __init__(
+            self, basis_type, bounds=None, node_gen=None, backend=None, store=False
+    ):
+        super().__init__(backend=backend, store=store)
+        self._basis = setup_univariate_piecewise_polynomial_basis(
+            basis_type, bounds, node_gen, None, backend
+        )
+
+    def _quad_rule(self, nnodes):
+        self._basis.set_nterms(nnodes)
+        return self._basis.quadrature_rule()
 
 
 class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
