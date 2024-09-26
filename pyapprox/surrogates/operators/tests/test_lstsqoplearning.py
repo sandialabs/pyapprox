@@ -65,7 +65,7 @@ class TestLstSqOpLearning:
             [[nout_terms_1d]*nphys_vars]*nout_funs,
         )
         ncoefs_per_infun = op_basis.ncoefficients_per_input_function()
-        op_basis.set_basis(
+        op_basis.set_coefficient_basis(
             [[coef_marginal]*ncoefs for ncoefs in ncoefs_per_infun]
         )
         indices = bkd.cartesian_product(

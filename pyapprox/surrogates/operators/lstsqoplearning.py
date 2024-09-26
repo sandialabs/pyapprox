@@ -26,17 +26,22 @@ class MultiLinearOperatorBasis:
         out_quad_rules,
     ):
         self._bkd = in_bases[0]._bkd
-        self._check_bases(nin_functions, in_bases, in_quad_rules)
-        self._check_bases(nout_functions, out_bases, out_quad_rules)
         self._nin_functions = nin_functions
-        self._in_bases = in_bases
-        self._in_quad_rules = in_quad_rules
         self._nout_functions = nout_functions
-        self._out_bases = out_bases
+        self._in_quad_rules = in_quad_rules
         self._out_quad_rules = out_quad_rules
+        self.set_bases(in_bases, out_bases)
 
         self._jacobian_implemented = False
         self._hessian_implemented = False
+
+    def set_bases(self, in_bases, out_bases):
+        self._check_bases(self._nin_functions, in_bases, self._in_quad_rules)
+        self._check_bases(
+            self._nout_functions, out_bases, self._out_quad_rules
+        )
+        self._in_bases = in_bases
+        self._out_bases = out_bases
 
     def _check_quadrature_rules(self, quad_rules, nfunctions):
         if len(quad_rules) != nfunctions:
@@ -197,30 +202,39 @@ class TensorOrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
         if backend is None:
             backend = NumpyLinAlgMixin
         self._bkd = backend
-        nin_functions = len(marginals_per_infun)
-        nout_functions = len(marginals_per_outfun)
-        in_bases = self._setup_function_domain_bases(
-            marginals_per_infun, nterms_1d_per_infun
-        )
-        out_bases = self._setup_function_domain_bases(
-            marginals_per_outfun, nterms_1d_per_outfun
+        self._marginals_per_infun = marginals_per_infun
+        self._marginals_per_outfun = marginals_per_outfun
+        self._nterms_1d_per_infun = nterms_1d_per_infun
+        self._nterms_1d_per_outfun = nterms_1d_per_outfun
+        in_bases, out_bases = self.setup_bases(
+            self._nterms_1d_per_infun, self._nterms_1d_per_outfun
         )
         if in_quad_rules is None:
-            in_quad_rules = self._setup_function_domain_quadrature_rules(
-                marginals_per_infun, nterms_1d_per_infun
+            in_quad_rules = self.setup_function_domain_quadrature_rules(
+                marginals_per_infun, nterms_1d_per_infun, self._bkd
             )
         if out_quad_rules is None:
-            out_quad_rules = self._setup_function_domain_quadrature_rules(
-                marginals_per_outfun, nterms_1d_per_outfun
+            out_quad_rules = self.setup_function_domain_quadrature_rules(
+                marginals_per_outfun, nterms_1d_per_outfun, self._bkd
             )
         super().__init__(
-            nin_functions,
-            nout_functions,
+            len(marginals_per_infun),
+            len(marginals_per_outfun),
             in_bases,
             out_bases,
             in_quad_rules,
             out_quad_rules,
         )
+
+    def setup_bases(
+            self, nterms_1d_per_infun, nterms_1d_per_outfun):
+        in_bases = self._setup_function_domain_bases(
+            self._marginals_per_infun, nterms_1d_per_infun
+        )
+        out_bases = self._setup_function_domain_bases(
+            self._marginals_per_outfun, nterms_1d_per_outfun
+        )
+        return in_bases, out_bases
 
     def _setup_ortho_basis(self, marginals, nterms_1d=None):
         polys_1d = [
@@ -244,8 +258,9 @@ class TensorOrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
             )
         ]
 
-    def _setup_function_domain_quadrature_rules(
-        self, marginals_per_fun, nterms_1d_per_fun
+    @staticmethod
+    def setup_function_domain_quadrature_rules(
+        marginals_per_fun, nterms_1d_per_fun, bkd
     ):
         nfuns = len(marginals_per_fun)
         quad_rules = [
@@ -255,13 +270,13 @@ class TensorOrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
                     GaussQuadratureRule(marginal)
                     for marginal in marginals_per_fun[ii]
                 ],
-                2 * self._bkd.array(nterms_1d_per_fun[ii], dtype=int),
+                2 * bkd.array(nterms_1d_per_fun[ii], dtype=int),
             )
             for ii in range(nfuns)
         ]
         return quad_rules
 
-    def set_basis(self, coef_marginals_per_infun):
+    def set_coefficient_basis(self, coef_marginals_per_infun):
         coef_basis = self._setup_ortho_basis(
             itertools.chain(*coef_marginals_per_infun)
         )
@@ -414,20 +429,6 @@ class PCAMultiLinearOperatorBasis(MultiLinearOperatorBasis):
 
         out_representing_bases : list(Basis)
             Bases used to represent the PCA modes of the output functions
-
-        nin_pca_modes_max : list(int)
-            The max number of PCA modes to represent each input function.
-            Less terms can be used by calling set_nin_pca_modes
-
-        nout_pca_modes_max : list(int)
-            The max number of PCA modes to represent each output function.
-            Less terms can be used by calling set_nout_pca_modes
-
-        nin_pca_modes : list(int)
-            The number of PCA modes to represent each input function.
-
-        nout_pca_modes : list(int)
-            The number of PCA modes to represent each output function.
         """
         self._bkd = in_quad_rules[0]._bkd
         in_bases = self._setup_pca_bases(
@@ -453,7 +454,7 @@ class PCAMultiLinearOperatorBasis(MultiLinearOperatorBasis):
             for ii in range(len(quad_rules))
         ]
 
-    def set_basis(self, coef_marginals_per_infun):
+    def set_coefficient_basis(self, coef_marginals_per_infun):
         coef_basis = self._setup_ortho_basis(
             itertools.chain(*coef_marginals_per_infun)
         )
@@ -564,4 +565,4 @@ class PCATensorOrthoPolyMultiLinearOperatorBasis(PCAMultiLinearOperatorBasis):
                     * self._in_bases[ii]._sqrt_eig_vals[jj],
                 )
                 coef_marginals[-1].append(marginal)
-        self.set_basis(coef_marginals)
+        self.set_coefficient_basis(coef_marginals)
