@@ -124,9 +124,11 @@ def _plot_allocation_matrix(allocation_mat, npartition_samples, ax,
     ax.yaxis.set_tick_params(length=0)
 
 
-def _autolabel(ax, rects, model_labels):
+def _autolabel(ax, rects, model_labels, vert_shifts=None):
     # Attach a text label in each bar in *rects*
-    for rect, label in zip(rects, model_labels):
+    if vert_shifts is None:
+        vert_shifts = list(range(len(rects)))
+    for rect, label, vshift in zip(rects, model_labels, vert_shifts):
         try:
             rect = rect[0]
         except TypeError:
@@ -134,6 +136,6 @@ def _autolabel(ax, rects, model_labels):
         ax.annotate(label,
                     xy=(rect.get_x() + rect.get_width()/2,
                         rect.get_y() + rect.get_height()/2),
-                    xytext=(0, -10),  # 3 points vertical offset
+                    xytext=(0, -10+vshift),  # 3 points vertical offset
                     textcoords="offset points",
                     ha='center', va='bottom')
