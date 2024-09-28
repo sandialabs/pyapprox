@@ -497,10 +497,14 @@ def _setup_multi_index_advection_diffusion_benchmark(
 class Burgers1DParameterizedModel(SingleSampleModel):
     def __init__(self):
         super().__init__()
+        # settings from FNO paper. I cannot replicate this until
+        # I improve the conditioning of my PDE solver
+        # sigma, tau, gamma, neigs = 7**2, 7, 2.5, 1024//2
+        # self._orders = [1024]
         sigma, tau, gamma, neigs = 7**2, 7, 2.5, 1024//2
-        domain_bounds = [0, 1]
         self._orders = [1024//2]
-        # self._orders = [1024//8]
+
+        domain_bounds = [0, 1]
         self._rand_field = PeriodicReiszGaussianRandomField(
             sigma, tau, gamma, neigs, domain_bounds, backend=TorchLinAlgMixin
         )

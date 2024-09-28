@@ -7,6 +7,11 @@ from mpl_toolkits.mplot3d import Axes3D
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
+def hash_index(array, bkd):
+    np_array = bkd.to_numpy(array)
+    return hash(np_array.tobytes())
+
+
 def _unique_values_per_row(a):
     N = a.max()+1
     a_offs = a + np.arange(a.shape[0])[:, None]*N

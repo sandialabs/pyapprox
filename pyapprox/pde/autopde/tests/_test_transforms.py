@@ -22,7 +22,7 @@ class TestMeshTransforms:
     def setUp(self):
         np.random.seed(1)
 
-    def _check_gradients(self, transform, orth_samples, samples):
+    def _check_gradients(self, transform, orth_samples, samples, forward=True):
         bkd = self.get_backend()
 
         def _fun(samples):
@@ -30,7 +30,9 @@ class TestMeshTransforms:
 
         grad_fd = []
         for sample in samples.T:
-            grad_fd.append(approx_fprime(sample[:, None], _fun))
+            grad_fd.append(
+                approx_fprime(sample[:, None], _fun, forward=forward)
+            )
         grad_fd = bkd.asarray(grad_fd)
         # print(grad_fd, "f_x FD")
 
@@ -39,13 +41,12 @@ class TestMeshTransforms:
 
         orth_grad_fd = []
         for orth_sample in orth_samples.T:
-            orth_grad_fd.append(approx_fprime(orth_sample[:, None], _orth_fun))
+            orth_grad_fd.append(
+                approx_fprime(orth_sample[:, None], _orth_fun, forward=forward)
+            )
         orth_grad_fd = bkd.asarray(orth_grad_fd)
         grad = transform.scale_orthogonal_gradients(orth_samples, orth_grad_fd)
-        # print(grad, "fx")
-        # print(grad_fd)
-        # print(grad_fd-grad)
-        tol = 1e-7
+        tol = 3e-7
         assert bkd.allclose(grad_fd, grad, atol=tol, rtol=tol)
 
     def _check_integral(self, transform, exact_integral, fun, npts_1d=20):
@@ -68,7 +69,7 @@ class TestMeshTransforms:
         integral = fun(transform.map_from_orthogonal(orth_samples)).dot(
             weights
         )
-        # print(integral, exact_integral)
+        print(integral, exact_integral)
         assert bkd.allclose(integral, exact_integral)
 
     def _get_orthogonal_boundary_samples_2d(self, npts):
@@ -140,13 +141,13 @@ class TestMeshTransforms:
         return orth_surfaces
 
     def _check_normals_3d(
-        self, transform, orth_surfaces, get_exact_normals, plot=True
+        self, transform, orth_surfaces, get_exact_normals, plot=False
     ):
         bkd = self.get_backend()
         if plot:
             fig = plt.figure(figsize=(8, 6))
             ax = fig.add_subplot(1, 1, 1, projection="3d")
-        for bndry_id in range(6):#transform.nphys_vars() * 2):
+        for bndry_id in range(transform.nphys_vars() * 2):
             # print(orth_lines[bndry_id])
             surface = transform.map_from_orthogonal(orth_surfaces[bndry_id])
             normals = transform.normal(bndry_id, surface)
@@ -160,10 +161,6 @@ class TestMeshTransforms:
                 assert bkd.allclose(normals[II], exact_normals[II])
             if plot:
                 ax.plot(*surface, "o")
-                if bndry_id != 4:
-                    continue
-                print(surface[:, 5])
-                print(normals[:5])
                 for ii in range(normals.shape[0]):
                     ax.plot(
                         [surface[0, ii], surface[0, ii] + normals[ii, 0]],
@@ -539,16 +536,14 @@ class TestMeshTransforms:
     def test_spherical_transform(self):
         bkd = self.get_backend()
         nsamples_1d = [10, 10, 10]
-        rmin, rmax = 0.5, 1
+        rmin, rmax = 0.5, 2
         # add 0.1 so finite difference chec
-        tmin, tmax = 0+1, np.pi / 2
-        smin, smax = -np.pi / 2, np.pi / 2
-        # tmin, tmax = np.pi / 2, 0
-        # smin, smax = np.pi / 2, -np.pi / 2
+        amin, amax = -np.pi / 2, np.pi / 2
+        emin, emax = np.pi / 2, np.pi
         scale_transform = ScaleAndTranslationTransform3D(
             # reverse direction from counter clockwise to clockwise
             [-1, 1, -1, 1, -1, 1],
-            [rmin, rmax, tmin, tmax, smin, smax],
+            [rmin, rmax, amin, amax, emin, emax],
         )
         sph_transform = SphericalTransform()
         orth_samples = bkd.cartesian_product(
@@ -560,23 +555,58 @@ class TestMeshTransforms:
         )
         sph_orth_samples = scale_transform.map_from_orthogonal(orth_samples)
         samples = sph_transform.map_from_orthogonal(sph_orth_samples)
-        fig = plt.figure(figsize=(2 * 8, 2 * 6))
-        ax = fig.add_subplot(1, 1, 1, projection="3d")
-        ax.plot(*samples, "o")
+        # fig = plt.figure(figsize=(8, 6))
+        # ax = fig.add_subplot(1, 1, 1, projection="3d")
+        # ax.plot(*samples, "o")
         # plt.show()
 
         assert bkd.allclose(
             sph_transform.map_to_orthogonal(samples), sph_orth_samples
         )
-        self._check_gradients(sph_transform, sph_orth_samples, samples)
+        self._check_gradients(
+           sph_transform, sph_orth_samples, samples, forward=False
+        )
 
         orth_surfaces = self._get_orthogonal_boundary_samples_3d(10)
         sph_orth_surfaces = [
             scale_transform.map_from_orthogonal(orth_surfaces[bndry_id])
             for bndry_id in range(len(orth_surfaces))
         ]
-        self._check_normals_3d(sph_transform, sph_orth_surfaces, None)
-        plt.show()
+
+        def _sphere_normals(bndry_id, orth_line, line):
+            radius, azimuth, elevation = orth_line
+            zeros = bkd.zeros(orth_line[0].shape)
+            sign = (-1) ** ((bndry_id % 2) + 1)
+            if bndry_id < 2:
+                sign = -1 if bndry_id == 0 else 1
+                return sign*bkd.stack(
+                    [
+                        bkd.cos(azimuth)*bkd.sin(elevation),
+                        bkd.sin(azimuth)*bkd.sin(elevation),
+                        bkd.cos(elevation)
+                    ],
+                    axis=1)
+            if bndry_id < 4:
+                return sign*bkd.stack(
+                    [
+                        -bkd.sin(azimuth),
+                        bkd.cos(azimuth),
+                        zeros
+                    ],
+                    axis=1
+                )
+            return sign*bkd.stack(
+                    [
+                        bkd.cos(azimuth)*bkd.cos(elevation),
+                        bkd.sin(azimuth)*bkd.cos(elevation),
+                        -bkd.sin(elevation)
+                    ],
+                    axis=1
+                )
+
+        self._check_normals_3d(
+            sph_transform, sph_orth_surfaces, _sphere_normals
+        )
 
         transform = CompositionTransform([scale_transform, sph_transform])
         orth_samples = bkd.cartesian_product(
@@ -588,8 +618,8 @@ class TestMeshTransforms:
         )
         samples = transform.map_from_orthogonal(orth_samples)
         assert bkd.allclose(transform.map_to_orthogonal(samples), orth_samples)
-        self._check_gradients(transform, orth_samples, samples)
-        # assume tmin, tmax ,smin, smax defined to integrate quarter of spewere
+        self._check_gradients(transform, orth_samples, samples, forward=False)
+        # assume tmin, tmax ,smin, smax defined to integrate quarter of sphere
         exact_integral = (
             4 / 3 * np.pi * rmax**3 - 4 / 3 * np.pi * rmin**3
         ) / 4

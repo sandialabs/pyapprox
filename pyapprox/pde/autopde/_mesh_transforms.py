@@ -520,14 +520,14 @@ class CompositionTransform(OrthogonalCoordinateTransform):
 
 class SphericalTransform(OrthogonalCoordinateTransform3D):
     def map_from_orthogonal(self, orth_samples):
-        if orth_samples[2].min() < -np.pi or orth_samples[2].max() > np.pi:
-            raise ValueError("phi must be in [-pi, pi]")
-        if orth_samples[1].max() > np.pi or orth_samples[1].min() <= 0:
-            raise ValueError("theta must be in [0, pi]")
         if orth_samples[0].min() < 0:
-            raise ValueError("r must be in [0, np.inf]")
+            raise ValueError("radius must be in [0, np.inf]")
+        if orth_samples[1].min() < -np.pi or orth_samples[1].max() >= np.pi:
+            raise ValueError("azimuth must be in [-pi, pi]")
+        if orth_samples[2].max() > np.pi or orth_samples[2].min() < 0:
+            raise ValueError("elevation must be in [0, pi]")
         # r, theta, phi = orth_samples
-        r, elevation, azimuth = orth_samples
+        r, azimuth, elevation = orth_samples
         x = r * self._bkd.sin(elevation) * self._bkd.cos(azimuth)
         y = r * self._bkd.sin(elevation) * self._bkd.sin(azimuth)
         z = r * self._bkd.cos(elevation)
@@ -539,12 +539,12 @@ class SphericalTransform(OrthogonalCoordinateTransform3D):
         r = self._bkd.sqrt(x**2 + y**2 + z**2)
         elevation = self._bkd.arccos(z / r)
         azimuth = np.arctan2(y, x)
-        orth_samples = self._bkd.stack([r, elevation, azimuth], axis=0)
+        orth_samples = self._bkd.stack([r, azimuth, elevation], axis=0)
         return orth_samples
 
     def scale_factors(self, orth_samples):
         nsamples = orth_samples.shape[1]
-        r, elevation, azimuth = orth_samples
+        r, azimuth, elevation = orth_samples
         return self._bkd.stack(
             [
                 self._bkd.ones((nsamples,)),
@@ -555,15 +555,15 @@ class SphericalTransform(OrthogonalCoordinateTransform3D):
         )
 
     def determinants(self, orth_samples):
-        r, elevation, azimuth = orth_samples
+        r, azimuth, elevation = orth_samples
         return r**2 * self._bkd.sin(elevation)
 
     def unit_curvelinear_basis(self, orth_samples):
-        r, elevation, azimuth = orth_samples
-        r, elevation, azimuth = (
+        r, azimuth, elevation = orth_samples
+        r, azimuth, elevation = (
             r[:, None],
-            elevation[:, None],
             azimuth[:, None],
+            elevation[:, None],
         )
         cos_az = self._bkd.cos(azimuth)
         sin_az = self._bkd.sin(azimuth)
@@ -571,13 +571,13 @@ class SphericalTransform(OrthogonalCoordinateTransform3D):
         sin_el = self._bkd.sin(elevation)
         basis = self._bkd.dstack(
             [
-                # first basis
+                # first basis (radius)
                 self._bkd.hstack([cos_az * sin_el, sin_az * sin_el, cos_el])[
                     ..., None
                 ],
-                # second basis
+                # second basis (azimuth)
                 self._bkd.hstack([-sin_az, cos_az, 0 * r])[..., None],
-                # third basis
+                # third basis (elevation)
                 self._bkd.hstack([cos_az * cos_el, sin_az * cos_el, -sin_el])[
                     ..., None
                 ],

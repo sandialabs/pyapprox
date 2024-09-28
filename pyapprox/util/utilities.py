@@ -371,7 +371,7 @@ def get_first_n_primes(n):
     return np.asarray(primes)
 
 
-def approx_fprime(x, func, eps=np.sqrt(np.finfo(float).eps)):
+def approx_fprime(x, func, eps=np.sqrt(np.finfo(float).eps), forward=True):
     r"""Approx the gradient of a vector valued function at a single
     sample using finite_difference
     """
@@ -384,7 +384,10 @@ def approx_fprime(x, func, eps=np.sqrt(np.finfo(float).eps)):
     assert func_at_x.ndim < 2
     for ii in range(nvars):
         x_plus_eps = x.copy()
-        x_plus_eps[ii] += eps
+        if forward:
+            x_plus_eps[ii] += eps
+        else:
+            x_plus_eps[ii] -= eps
         fprime.append((func(x_plus_eps).squeeze()-func_at_x)/eps)
     return np.array(fprime)
 
