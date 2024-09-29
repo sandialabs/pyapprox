@@ -69,7 +69,7 @@ class TestMeshTransforms:
         integral = fun(transform.map_from_orthogonal(orth_samples)).dot(
             weights
         )
-        print(integral, exact_integral)
+        # print(integral, exact_integral)
         assert bkd.allclose(integral, exact_integral)
 
     def _get_orthogonal_boundary_samples_2d(self, npts):
@@ -311,20 +311,15 @@ class TestMeshTransforms:
         self._check_gradients(polar_transform, polar_orth_samples, samples)
 
         def _circle_normals(bndry_id, orth_line, line):
-            r, theta = orth_line
-            y = bkd.sqrt(r**2 - line[0] ** 2)
-            dydx = -line[0] / y
-            active_var = int(bndry_id > 1)
-            exact_normals = bkd.ones((line.shape[1], 2))
+            radius, azimuth = orth_line
+            sign = (-1) ** ((bndry_id % 2) + 1)
             if bndry_id < 2:
-                exact_normals[theta < 0, :] = -1
-            else:
-                exact_normals *= -1
-                exact_normals[theta < 0, :] = 1
-            exact_normals[:, active_var] = -dydx
-            exact_normals /= np.linalg.norm(exact_normals, axis=1)[:, None]
-            exact_normals *= (-1) ** ((bndry_id + 1) % 2)
-            return exact_normals
+                return sign*bkd.stack(
+                    [bkd.cos(azimuth), bkd.sin(azimuth)],
+                    axis=1)
+            return sign*bkd.stack(
+                    [-bkd.sin(azimuth), bkd.cos(azimuth)],
+                    axis=1)
 
         orth_lines = self._get_orthogonal_boundary_samples_2d(30)
         polar_orth_lines = [

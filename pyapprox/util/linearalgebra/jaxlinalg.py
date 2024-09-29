@@ -168,6 +168,10 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.tile(mat, nreps)
 
     @staticmethod
+    def tile(mat: np.ndarray, nreps) -> np.ndarray:
+        return np.tile(mat, nreps)
+
+    @staticmethod
     def cdist(Amat: np.ndarray, Bmat: np.ndarray, eps=1e-14) -> np.ndarray:
         # jax has no cdist function
         # return np.spatial.distance.cdist(Amat, Bmat, metric="euclidean")

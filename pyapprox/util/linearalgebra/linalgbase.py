@@ -230,6 +230,12 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def tile(mat, nreps):
+        "Construct an array by repeating A the number of times given by reps."
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def cdist(Amat, Bmat):
         """
         Return cthe euclidean distance between elements of two matrices.

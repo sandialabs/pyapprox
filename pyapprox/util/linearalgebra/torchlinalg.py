@@ -167,6 +167,10 @@ class TorchLinAlgMixin(LinAlgMixin):
         return mat.repeat(nreps)
 
     @staticmethod
+    def tile(mat: torch.Tensor, nreps) -> torch.Tensor:
+        return torch.tile(mat, nreps)
+
+    @staticmethod
     def cdist(Amat: torch.tensor,
               Bmat: torch.tensor) -> torch.Tensor:
         return torch.cdist(Amat, Bmat, p=2)

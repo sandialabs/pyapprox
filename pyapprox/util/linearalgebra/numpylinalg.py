@@ -162,6 +162,10 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.tile(mat, nreps)
 
     @staticmethod
+    def tile(mat: np.ndarray, nreps) -> np.ndarray:
+        return np.tile(mat, nreps)
+
+    @staticmethod
     def cdist(Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
         return scipy.spatial.distance.cdist(Amat, Bmat, metric="euclidean")
 
