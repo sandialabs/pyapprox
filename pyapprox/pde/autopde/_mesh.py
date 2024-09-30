@@ -53,6 +53,9 @@ class OrthogonalCoordinateMesh(ABC):
     def mesh_pts(self):
         return self._mesh_pts
 
+    def nmesh_pts(self):
+        return self._mesh_pts.shape[1]
+
     def _set_boundary_indices(self):
         self._bndry_indices = [[] for ii in range(2 * self.nphys_vars())]
         for ii in range(2 * self.nphys_vars()):
@@ -164,10 +167,85 @@ class OrthogonalCoordinateMeshBoundary2D(OrthogonalCoordinateMeshBoundary):
             self._bkd.abs(self._inactive_coord - orth_samples[dd, :])
             < self._tol
         )[0]
-        # To avoid corners appear twice. Remove second reference to corners
+        # Avoid corners appearing twice. Remove second reference to corners
         # from top and bottom boundaries
         if self._bndry_index in ["bottom", "top"]:
             indices = indices[1:-1]
+        return indices
+
+
+class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
+    def __init__(
+        self,
+        bndry_name: str,
+        order: int,
+        tol: float = 1e-15,
+        bkd: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(tol, bkd)
+        self._bndry_index = {
+            "left": 0, "right": 1, "front": 2, "back": 3, "bottom": 4, "top": 5}[
+            bndry_name
+        ]
+        self._orth_normal = self._bkd.asarray(
+            [
+                [-1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, -1.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, -1.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )[self._bndry_index]
+        self._order = order
+        self._active_orth_bounds = self._bkd.asarray([-1.0, 1.0])
+        self._inactive_orth_coord = {
+            "left": -1.0,
+            "right": 1.0,
+            "front": -1.0,
+            "back": 1.0,
+            "bottom": -1.0,
+            "top": 1.0,
+        }[bndry_name]
+
+    def orth_normals(self, samples):
+        return self._bkd.tile(
+            self._orth_normal[:, None], (1, samples.shape[1])
+        ).T
+
+    def orth_quadrature_rule(self):
+        active_quad = [
+            GaussLegendreQuadratureRule(self._active_orth_bounds[0:2]),
+            GaussLegendreQuadratureRule(self._active_orth_bounds[2:4])
+        ]
+        active_quadx0, active_quadw0 = active_quad[0](self._orders[0]+3)
+        active_quadx1, active_quadw1 = active_quad[1](self._orders[1]+3)
+        active_quadw = self._bkd.outer_product(
+            [active_quadw0[:, 0], active_quadw1[:, 0]]
+        )
+        inactive_quadx = self._bkd.array([self._inactive_coord])
+        if self._bndry_index < 2:
+            # x boundaries
+            xlist = [inactive_quadx, active_quadx0, active_quadx1]
+        elif self._bndry_index < 4:
+            # y boundaries
+            xlist = [active_quadx0, inactive_quadx, active_quadx1]
+        else:
+            # z boundaries
+            xlist = [active_quadx0, active_quadx1, inactive_quadx]
+        xquad = self._bkd.cartesian_product(xlist)
+        return xquad, active_quadw
+
+    def orth_samples_on_boundary(self, orth_samples):
+        dd = int(self._bndry_index >= 2)
+        indices = self._bkd.where(
+            self._bkd.abs(self._inactive_coord - orth_samples[dd, :])
+            < self._tol
+        )[0]
+        # To avoid points on edge lines appearing twice.
+        # Remove second reference to edge lines
+        # from top and bottom boundaries
+        raise NotImplementedError("TODO")
         return indices
 
 
@@ -186,12 +264,20 @@ class OrthogonalCoordinateMesh1DMixin(OrthogonalCoordinateMesh):
             for name in ["left", "right"]
         ]
 
-
 class OrthogonalCoordinateMesh2DMixin:
     def _set_boundaries(self):
         self._bndrys = [
             OrthogonalCoordinateMeshBoundary2D(name)
             for name in ["left", "right", "bottom", "top"]
+        ]
+
+
+class OrthogonalCoordinateMesh3DMixin:
+    def _set_boundaries(self):
+        self._bndrys = [
+            OrthogonalCoordinateMeshBoundary3D(name)
+            # bounaries are in x, then y then z
+            for name in ["left", "right", "front", "back", "bottom", "top"]
         ]
 
 
