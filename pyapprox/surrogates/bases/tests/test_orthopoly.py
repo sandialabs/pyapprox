@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 from scipy import stats
 import scipy.special as sp
+import sympy
 
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     evaluate_three_term_recurrence_polynomial_1d,
@@ -26,6 +27,8 @@ from pyapprox.surrogates.bases.orthopoly import (
     GaussQuadratureRule,
     AffineMarginalTransform,
     setup_univariate_orthogonal_polynomial_from_marginal,
+    Chebyshev1stKindGaussLobattoQuadratureRule,
+    Chebyshev2ndKindGaussLobattoQuadratureRule,
 )
 from pyapprox.surrogates.bases.univariate import (
     Monomial1D, UnivariateLagrangeBasis, ScipyUnivariateIntegrator,
@@ -692,6 +695,40 @@ class TestOrthonormalPolynomials1D:
             poly = setup_univariate_orthogonal_polynomial_from_marginal(
                 marginal, opts=opts, backend=bkd)
             self._check_orthonormal_poly(poly)
+
+    def test_chebyshev_gauss_lobatto_quadrature(self):
+        bkd = self.get_backend()
+        bounds = [-1, 1]
+
+        bounds = [-1, 1]
+        quad_rule = Chebyshev1stKindGaussLobattoQuadratureRule(
+            bounds, backend=bkd
+        )
+        quadx, quadw = quad_rule(5)
+
+        sp_x = sympy.Symbol('x')
+        wfun = 1/sympy.sqrt(1-sp_x**2)
+
+        def fun(x):
+            return x**2
+        exact_mean = bkd.array([float(
+            sympy.integrate(wfun*fun(sp_x), (sp_x, bounds[0], bounds[1]))
+        )])
+        assert bkd.allclose(fun(quadx) @ quadw, exact_mean)
+
+        quad_rule = Chebyshev2ndKindGaussLobattoQuadratureRule(
+            bounds, backend=bkd
+        )
+        quadx, quadw = quad_rule(5)
+        sp_x = sympy.Symbol('x')
+        wfun = (1-sp_x**2)**0.5
+
+        def fun(x):
+            return x**2
+        exact_mean = bkd.array([float(
+            sympy.integrate(wfun*fun(sp_x), (sp_x, bounds[0], bounds[1]))
+        )])
+        assert bkd.allclose(fun(quadx) @ quadw, exact_mean)
 
 
 class TestNumpyOrthonormalPolynomials1D(

@@ -277,7 +277,6 @@ class TestUnivariateBasis:
             ]
         )
 
-
 class TestNumpyUnivariateBasis(TestUnivariateBasis, unittest.TestCase):
     def get_backend(self):
         return NumpyLinAlgMixin

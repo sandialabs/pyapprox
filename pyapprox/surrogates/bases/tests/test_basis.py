@@ -9,9 +9,12 @@ from pyapprox.surrogates.bases.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
     AffineMarginalTransform,
     GaussQuadratureRule,
+    setup_lagrange_basis,
+    Chebyshev1stKindGaussLobattoQuadratureRule,
 )
 from pyapprox.surrogates.bases.univariate import (
-    Monomial1D, setup_univariate_piecewise_polynomial_basis
+    Monomial1D,
+    setup_univariate_piecewise_polynomial_basis,
 )
 from pyapprox.surrogates.bases.basis import (
     MultiIndexBasis,
@@ -343,7 +346,7 @@ class TestBasis:
             mpce.get_coefficients(), pce.get_coefficients()[indices]
         )
 
-    def _check_tensor_product_interpolation(
+    def _check_tensor_product_piecewise_polynomial_interpolation(
             self, basis_types, nnodes_1d, atol
     ):
         bkd = self.get_backend()
@@ -374,22 +377,63 @@ class TestBasis:
         test_values = fun(test_samples)
         assert bkd.allclose(test_values, approx_values, atol=atol)
 
-    def test_tensor_product_interpolation(self):
+    def test_tensor_product_piecewise_polynomial_interpolation(self):
         test_cases = [
             [["linear", "linear"], [41, 43], 1e-3],
             [["quadratic", "quadratic"], [41, 43], 1e-5],
             [["cubic", "cubic"], [40, 40], 1e-15],
             [["linear", "quadratic"], [41, 43], 1e-3],
-            # todo add lagrange once most common lagrange quadrature
-            # combos have been added to setup_univariate_interpolating_basis
-            # [["lagrange", "lagrange"], [4, 5], 1e-15],
-            # [["linear", "quadratic", "lagrange"], [41, 23, 4], 1e-3],
-            # [["cubic", "quadratic", "lagrange"], [25, 23, 4], 1e-4],
-            # Following tests use of active vars when nnodes_1d[ii] = 0
-            # [["linear", "quadratic", "lagrange"], [1, 23, 4], 1e-4],
         ]
         for test_case in test_cases:
-            self._check_tensor_product_interpolation(*test_case)
+            self._check_tensor_product_piecewise_polynomial_interpolation(
+                *test_case
+            )
+            
+    def _check_tensor_product_lagrange_interpolation(
+            self, basis_types, nnodes_1d, quad_rule, bounds
+    ):
+        bkd = self.get_backend()
+        nvars = len(basis_types)
+        nnodes_1d = np.array(nnodes_1d)
+        bases_1d = [
+            setup_lagrange_basis(bt, quad_rule, bounds) for bt in basis_types
+        ]
+        bases_1d[0].set_nterms(5)
+        print(bases_1d[0]._bary_weights, 'w')
+        print(bases_1d[0]._quad_samples)
+        basis = TensorProductInterpolatingBasis(bases_1d)
+        interp = TensorProductInterpolant(basis)
+        basis.set_tensor_product_indices(nnodes_1d)
+
+        assert bkd.allclose(
+            bases_1d[0](bases_1d[0].quadrature_rule()[0]),
+            bkd.eye(bases_1d[0].nterms())
+        )
+
+        def fun(samples):
+            # when nnodes_1d is zero to test interpolation make sure
+            # function is constant in that direction
+            return bkd.sum(samples[nnodes_1d > 1]**3, axis=0)[:, None]
+
+        train_samples = basis.tensor_product_grid()
+        train_values = fun(train_samples)
+        interp.fit(train_values)
+
+        test_samples = bkd.asarray(np.random.uniform(0, 1, (nvars, 5)))
+        approx_values = interp(test_samples)
+        test_values = fun(test_samples)
+        assert bkd.allclose(test_values, approx_values, atol=1e-15)
+
+    def test_tensor_product_lagrange_interpolation(self):
+        # quad_rule = GaussQuadratureRule(stats.uniform(0, 1))
+        quad_rule = Chebyshev1stKindGaussLobattoQuadratureRule([-1, 1])
+        test_cases = [
+            # [["lagrange", "lagrange"], [4, 5], quad_rule, None],
+            [["barycentric", "barycentric"], [4, 4], quad_rule, None],
+            [["chebyhsev1", "chebyhsev1"], [4, 4], None, [-1, 1]],
+        ]
+        for test_case in test_cases:
+            self._check_tensor_product_lagrange_interpolation(*test_case)
 
     def _check_tensorproduct_interpolant_quadrature(
             self, name, nvars, degree, nnodes, tol):

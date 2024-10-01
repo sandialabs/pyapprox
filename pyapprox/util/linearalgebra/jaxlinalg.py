@@ -301,7 +301,8 @@ class JaxLinAlgMixin(LinAlgMixin):
     def max(array, axis=None):
         return np.max(array, axis=axis)
 
-    @staticmethod maximum(array1, array2):
+    @staticmethod
+    def maximum(array1, array2):
         return np.maximum(array1, array2)
 
     @staticmethod

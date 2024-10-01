@@ -1,14 +1,18 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 import math
 
-
-from pyapprox.surrogates.bases.basis import Basis
+from pyapprox.surrogates.bases.univariate import UnivariateLagrangeBasis
+from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 from pyapprox.pde.autopde._mesh import (
     OrthogonalCoordinateMesh, ChebyshevCollocationMesh
 )
+from pyapprox.surrogates.bases.orthopoly import (
+    ChebyshevGaussLobattoQuadratureRule
+)
 
 
-class OrthogonalCoordinateCollocationBasis(Basis):
+class OrthogonalCoordinateCollocationBasis(ABC):
     def __init_(self, mesh: OrthogonalCoordinateMesh):
         if not isinstance(mesh,  OrthogonalCoordinateMesh):
             raise ValueError(
@@ -16,17 +20,22 @@ class OrthogonalCoordinateCollocationBasis(Basis):
                 "OrthogonalCoordinateMesh"
             )
         self.mesh = mesh
-        self._form_orth_derivative_matrices()
+        self._set_derivative_matrices()
 
-    def _form_orth_derivative_matrices(self):
+    def _set_derivative_matrices(self):
         orth_deriv_mats_1d = [
-            self._form_1d_orth_derivative_matrices(self.mesh._npts_1d)
+            self._form_1d_orth_derivative_matrix(self.mesh._npts_1d)
             for npts in self._npts_1d
         ]
-        return self.mesh._derivative_matrices(orth_deriv_mats_1d)
+        orth_deriv_mats = self._form_orth_derivative_matrices(orth_deriv_mats_1d)
+        curvelinear_basis = self._transform.curvelinar_basis(self._orth_mesh_pts)
+        self._deriv_mats = [
+            curvelinear_basis[:, dd, ii:ii+1]*self._canonical_deriv_mats[ii]
+            for ii in range(self.nphys_vars())
+        ]
 
     @abstractmethod
-    def _form_1d_orth_derivative_matrices(self):
+    def _form_1d_orth_derivative_matrix(self):
         raise NotImplementedError
 
     @abstractmethod
@@ -47,6 +56,12 @@ class OrthogonalCoordinateCollocationBasis(Basis):
         new_orth_samples = self.trans.map_to_orthogonal(new_samples)
         return self._interpolate(values_at_mesh, new_orth_samples)
 
+    def __call__(self):
+        raise NotImplementedError("use interpolate")
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
 
 class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
     def __init__(
@@ -60,8 +75,18 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
             )
         super().__init__(mesh._bkd)
         self._mesh = mesh
+        # quadrule only used to define mesh of UnivariateLagrangeBasis
+        quad_rule_1d = ChebyshevGaussLobattoQuadratureRule(
+            backend=self._bkd, store=True
+        )
+        bases_1d = [
+            UnivariateLagrangeBasis(quad_rule_1d)
+            for dd in range(self.mesh.nphys_vars())
+        ]
+        basis = TensorProductInterpolatingBasis(bases_1d)
+        self._bexp = TensorProductInterpolant(basis)
 
-    def _orth_derivative_1d_matrix(self, order):
+    def _form_1d_orth_derivative_matrix(self, order):
         if order == 0:
             pts = self._bkd.array([1], dtype=float)
             derivative_matrix = self._bkd.array([0], dtype=float)
@@ -126,7 +151,7 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
             deriv /= 2
         return deriv
 
-    def _second_derivative_1d_matrix(self, degree):
+    def _form_1d_orth_second_derivative_matrix(self, degree):
         # this is reverse order used in book
         pts = -self._bkd.cos(self._bkd.linspace(0., math.pi, degree+1))
         derivative_matrix = self._bkd.empty((degree+1, degree+1))
@@ -138,17 +163,29 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
                     )
         return pts, derivative_matrix
 
+    def _interpolate(self, values_at_mesh, new_samples):
+        self._bexp.fit(values_at_mesh)
+        return self._bexp(values_at_mesh, new_samples)
+
+    @abstractmethod
+    def nabla(self):
+        return self._
+
+    @abstractmethod
+    def laplace(self):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}(mesh={1})".format(self.__class__.__name__, self.mesh)
+
 
 class OrthogonalCoordinateBasis1DMixin:
-    def derivative_matrices(self, orth_deriv_mats_1d):
+    def _form_orth_derivative_matrices(self, orth_deriv_mats_1d):
         return [self._bkd.copy(orth_deriv_mats_1d[0])]
-
-    def _interpolate(self):
-        pass
 
 
 class OrthogonalCoordinateBasis2DMixin:
-    def derivative_matrices(self, orth_deriv_mats_1d):
+    def _form_orth_derivative_matrices(self, orth_deriv_mats_1d):
         # assumes that 2d-mesh_pts varies in x1 faster than x2,
         # e.g. points are
         # [[x11,x21],[x12,x21],[x13,x12],[x11,x22],[x12,x22],...]
@@ -173,7 +210,7 @@ class OrthogonalCoordinateBasis2DMixin:
 
 
 class OrthogonalCoordinateBasis3DMixin:
-    def derivative_matrices(self, orth_deriv_mats_1d):
+    def _form_orth_derivative_matrices(self, orth_deriv_mats_1d):
         # assumes that 2d-mesh_pts varies in x1 faster than x2,
         # which is faster than x3
         # TODO Need to check this is correct. I just derived it
@@ -197,3 +234,21 @@ class OrthogonalCoordinateBasis3DMixin:
             self._bkd.eye(self._npts_1d[0])
         )
         return [Dx, Dy, Dz]
+
+
+class ChebyshevCollocationBasis1D(
+        ChebyshevCollocationBasis, OrthogonalCoordinateBasis1DMixin
+):
+    pass
+
+
+class ChebyshevCollocationBasis2D(
+        ChebyshevCollocationBasis, OrthogonalCoordinateBasis2DMixin
+):
+    pass
+
+
+class ChebyshevCollocationBasis3D(
+        ChebyshevCollocationBasis, OrthogonalCoordinateBasis3DMixin
+):
+    pass

@@ -42,6 +42,7 @@ class OrthogonalCoordinateMesh(ABC):
         return self._nphys_vars
 
     def _set_orthogonal_mesh_pts(self, npts_1d):
+        self._npts_1d = npts_1d
         self._orth_mesh_pts_1d = [
             self._univariate_orthogonal_mesh_pts(self._npts_1d[ii])
             for ii in range(self.nphys_vars())
@@ -66,12 +67,15 @@ class OrthogonalCoordinateMesh(ABC):
     def boundary_indices(self):
         return self._bndry_indices
 
+    def __repr__(self):
+        return "{0}(nphys_vars={1}, npts_1d={2}, npts={3})".format(
+            self.__class__.__name__,
+            self.nphys_vars(),
+            self._npts_1d,
+            self.nmesh_pts()
+        )
 
-class ChebyshevCollocationMesh(OrthogonalCoordinateMesh):
-    def _univariate_orthogonal_mesh_pts(self, npts):
-        return -self._bkd.cos(self._bkd.linspace(0.0, math.pi, npts))
-
-
+9
 class OrthogonalCoordinateMeshBoundary(ABC):
     def __init__(
         self,
@@ -279,6 +283,11 @@ class OrthogonalCoordinateMesh3DMixin:
             # bounaries are in x, then y then z
             for name in ["left", "right", "front", "back", "bottom", "top"]
         ]
+
+
+class ChebyshevCollocationMesh(OrthogonalCoordinateMesh):
+    def _univariate_orthogonal_mesh_pts(self, npts):
+        return -self._bkd.cos(self._bkd.linspace(0.0, math.pi, npts))
 
 
 class ChebyshevCollocationMesh1D(

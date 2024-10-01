@@ -257,7 +257,9 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
     def __init__(self, bases_1d):
         for basis in bases_1d:
             if not isinstance(basis, UnivariateInterpolatingBasis):
-                raise ValueError("basis must be instance of Basis1D")
+                raise ValueError(
+                    "basis: {0}, must be instance of Basis1D".format(basis)
+                )
         super().__init__(bases_1d)
         self._nodes_1d = None
 

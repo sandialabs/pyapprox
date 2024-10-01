@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import math
-from warnings import warn
+import warnings
+
 
 import numpy as np
 import scipy
@@ -113,9 +114,11 @@ class UnivariateInterpolatingBasis(UnivariateBasis):
 
     def __repr__(self):
         if self._quad_samples is None:
-            return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
+            return "{0}(bkd={1})".format(
+                self.__class__.__name__, self._bkd.__name__
+            )
         return "{0}(nterms={1}, bkd={2})".format(
-            self.__class__.__name__, self.nterms(), self._bkd
+            self.__class__.__name__, self.nterms(), self._bkd.__name__
         )
 
     @abstractmethod
@@ -139,9 +142,7 @@ def irregular_piecewise_left_constant_basis(nodes, xx, bkd=NumpyLinAlgMixin):
     return vals
 
 
-def irregular_piecewise_right_constant_basis(
-    nodes, xx, bkd=NumpyLinAlgMixin
-):
+def irregular_piecewise_right_constant_basis(nodes, xx, bkd=NumpyLinAlgMixin):
     # abscissa are not equidistant
     assert xx.ndim == 1
     assert nodes.ndim == 1
@@ -201,9 +202,7 @@ def irregular_piecewise_linear_basis(nodes, xx, bkd=NumpyLinAlgMixin):
     return vals
 
 
-def irregular_piecewise_linear_quadrature_weights(
-    nodes, bkd=NumpyLinAlgMixin
-):
+def irregular_piecewise_linear_quadrature_weights(nodes, bkd=NumpyLinAlgMixin):
     assert nodes.ndim == 1
     nnodes = nodes.shape[0]
     if nnodes == 1:
@@ -409,9 +408,7 @@ def irregular_piecewise_cubic_basis(nodes, xx, bkd=NumpyLinAlgMixin):
     return vals
 
 
-def irregular_piecewise_cubic_quadrature_weights(
-    nodes, bkd=NumpyLinAlgMixin
-):
+def irregular_piecewise_cubic_quadrature_weights(nodes, bkd=NumpyLinAlgMixin):
     # An interpolating quadrature with n + 1 nodes that are symmetrically
     # placed around the center of the interval will integrate polynomials up to
     # degree n exactly when n is odd, and up to degree n + 1 exactly when
@@ -470,18 +467,20 @@ def univariate_lagrange_polynomial(abscissa, samples, bkd=NumpyLinAlgMixin):
     assert abscissa.ndim == 1
     assert samples.ndim == 1
     nabscissa = abscissa.shape[0]
-    denoms = abscissa[:, None]-abscissa[None, :]
-    numers = samples[:, None]-abscissa[None, :]
+    denoms = abscissa[:, None] - abscissa[None, :]
+    numers = samples[:, None] - abscissa[None, :]
     # values = bkd.empty((samples.shape[0], nabscissa))
     values = []
     for ii in range(nabscissa):
         # l_j(x) = prod_{i!=j} (x-x_i)/(x_j-x_i)
-        denom = bkd.prod(denoms[ii, :ii])*bkd.prod(denoms[ii, ii+1:])
+        denom = bkd.prod(denoms[ii, :ii]) * bkd.prod(denoms[ii, ii + 1 :])
         # denom = bkd.prod(bkd.delete(denoms[ii], ii))
         # numer = bkd.prod(bkd.delete(numers, ii, axis=1), axis=1)
-        numer = bkd.prod(numers[:, :ii], axis=1)*bkd.prod(numers[:, ii+1:], axis=1)
+        numer = bkd.prod(numers[:, :ii], axis=1) * bkd.prod(
+            numers[:, ii + 1 :], axis=1
+        )
         # values[:, ii] = numer/denom
-        values.append(numer/denom)
+        values.append(numer / denom)
     return bkd.stack(values, axis=1)
     # return values
 
@@ -501,9 +500,7 @@ class UnivariatePiecewisePolynomialNodeGenerator(ABC):
             raise ValueError("must call set_bounds")
         nodes = self._nodes(nnodes)
         if nodes.ndim != 2 or nodes.shape[0] != 1:
-            raise RuntimeError(
-                "nodes returned does must be a 2D row vector"
-            )
+            raise RuntimeError("nodes returned does must be a 2D row vector")
         return nodes
 
     @abstractmethod
@@ -512,27 +509,25 @@ class UnivariatePiecewisePolynomialNodeGenerator(ABC):
 
 
 class UnivariateEquidistantNodeGenerator(
-        UnivariatePiecewisePolynomialNodeGenerator
+    UnivariatePiecewisePolynomialNodeGenerator
 ):
     def _nodes(self, nnodes):
         return self._bkd.linspace(*self._bounds, nnodes)[None, :]
 
 
 class DydadicEquidistantNodeGenerator(
-        UnivariatePiecewisePolynomialNodeGenerator
+    UnivariatePiecewisePolynomialNodeGenerator
 ):
     # useful for adaptive interpolation
     def _nodes(self, nnodes):
         if nnodes == 1:
             level = 0
-            return self._bkd.array(
-                [[(self._bounds[0]+self._bounds[1])/2]]
-            )
+            return self._bkd.array([[(self._bounds[0] + self._bounds[1]) / 2]])
 
-        if not _is_power_of_two(nnodes-1):
+        if not _is_power_of_two(nnodes - 1):
             raise ValueError("nnodes-1 must be a power of 2")
 
-        level = int(round(math.log(nnodes-1, 2), 0))
+        level = int(round(math.log(nnodes - 1, 2), 0))
         idx = clenshaw_curtis_poly_indices_to_quad_rule_indices(level)
         return self._bkd.linspace(*self._bounds, nnodes)[None, idx]
 
@@ -554,19 +549,18 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
 
     def set_node_generator(self, node_gen):
         if not isinstance(
-                node_gen, UnivariatePiecewisePolynomialNodeGenerator
+            node_gen, UnivariatePiecewisePolynomialNodeGenerator
         ):
             raise ValueError(
                 "node_gen must be an instance of {0}".format(
-                    "UnivariatePiecewisePolynomialNodeGenerator")
+                    "UnivariatePiecewisePolynomialNodeGenerator"
+                )
             )
         self._node_gen = node_gen
         if self._bounds is not None:
             # self.set_bounds calls self._node_gen.set_bounds()
             # but this will be ignored when reseting node_gen here.
-            raise RuntimeError(
-                "Do not set bounds before setting generator"
-            )
+            raise RuntimeError("Do not set bounds before setting generator")
 
     def _copy(self):
         other = self.__class__(
@@ -626,8 +620,10 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         if self._quad_samples is None:
             return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
         return "{0}(nterms={1}, nnodes={2}, bkd={3})".format(
-            self.__class__.__name__, self.nterms(), self._nodes.shape[1],
-            self._bkd
+            self.__class__.__name__,
+            self.nterms(),
+            self._nodes.shape[1],
+            self._bkd,
         )
 
     def set_nterms(self, nterms):
@@ -638,7 +634,7 @@ class UnivariatePiecewiseConstantBasis(UnivariatePiecewisePolynomialBasis):
     def set_nterms(self, nterms):
         # need to use nterms + 1 because nterms = nnodes-1 for piecewise
         # constant basis
-        self._set_nodes(self._node_gen(nterms+1))
+        self._set_nodes(self._node_gen(nterms + 1))
 
 
 class UnivariatePiecewiseLeftConstantBasis(UnivariatePiecewiseConstantBasis):
@@ -675,7 +671,7 @@ class UnivariatePiecewiseRightConstantBasis(UnivariatePiecewiseConstantBasis):
 
 
 class UnivariatePiecewiseMidPointConstantBasis(
-        UnivariatePiecewiseConstantBasis
+    UnivariatePiecewiseConstantBasis
 ):
     def _evaluate_from_nodes(self, nodes, samples):
         return irregular_piecewise_midpoint_constant_basis(
@@ -705,7 +701,7 @@ class UnivariatePiecewiseLinearBasis(UnivariatePiecewisePolynomialBasis):
         if nodes.shape[1] == 1:
             return (
                 self._nodes,
-                self._bkd.full((1, 1), self._bounds[1]-self._bounds[0])
+                self._bkd.full((1, 1), self._bounds[1] - self._bounds[0]),
             )
         return (
             nodes,
@@ -725,7 +721,7 @@ class UnivariatePiecewiseQuadraticBasis(UnivariatePiecewisePolynomialBasis):
         if nodes.shape[1] == 1:
             return (
                 self._nodes,
-                self._bkd.full((1, 1), self._bounds[1]-self._bounds[0])
+                self._bkd.full((1, 1), self._bounds[1] - self._bounds[0]),
             )
         return (
             nodes,
@@ -743,7 +739,7 @@ class UnivariatePiecewiseCubicBasis(UnivariatePiecewisePolynomialBasis):
         if nodes.shape[1] == 1:
             return (
                 self._nodes,
-                self._bkd.full((1, 1), self._bounds[1]-self._bounds[0])
+                self._bkd.full((1, 1), self._bounds[1] - self._bounds[0]),
             )
         return (
             nodes,
@@ -800,14 +796,14 @@ class UnivariateQuadratureRule(ABC):
 
 
 def _is_power_of_two(integer):
-    return (integer & (integer-1) == 0) and integer != 0
+    return (integer & (integer - 1) == 0) and integer != 0
 
 
 class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
-    """Integrates functions on [-1, 1] with weight function 1/2 or 1.
-    """
+    """Integrates functions on [-1, 1] with weight function 1/2 or 1."""
+
     def __init__(
-            self, prob_measure=True, bounds=None, backend=None, store=False
+        self, prob_measure=True, bounds=None, backend=None, store=False
     ):
         super().__init__(backend=backend, store=store)
         self._prob_measure = prob_measure
@@ -818,7 +814,7 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
                 "User is responsible for ensuring samples are in "
                 "canonical domain of the polynomial."
             )
-            warn(msg, UserWarning)
+            warnings.warn(msg, UserWarning)
             bounds = [-1, 1]
         self._bounds = bounds
 
@@ -828,14 +824,14 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
         if nnodes == 1:
             level = 0
         else:
-            if not _is_power_of_two(nnodes-1):
+            if not _is_power_of_two(nnodes - 1):
                 raise ValueError("nnodes-1 must be a power of 2")
-            level = int(round(math.log(nnodes-1, 2), 0))
+            level = int(round(math.log(nnodes - 1, 2), 0))
         quad_samples, quad_weights = clenshaw_curtis_in_polynomial_order(
             level, False
         )
-        length = (self._bounds[1]-self._bounds[0])
-        quad_samples = (quad_samples+1)/2*length + self._bounds[0]
+        length = self._bounds[1] - self._bounds[0]
+        quad_samples = (quad_samples + 1) / 2 * length + self._bounds[0]
         if not self._prob_measure:
             # taking quadweights for Lebesque measure on [-1, 1] to [a,b]
             # requires multiplying weights by (b-a)/2 but clenshaw curtis
@@ -845,13 +841,13 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
 
         return (
             self._bkd.asarray(quad_samples)[None, :],
-            self._bkd.asarray(quad_weights)[:, None]
+            self._bkd.asarray(quad_weights)[:, None],
         )
 
 
 class UnivariatePiecewisePolynomialQuadratureRule(UnivariateQuadratureRule):
     def __init__(
-            self, basis_type, bounds=None, node_gen=None, backend=None, store=False
+        self, basis_type, bounds=None, node_gen=None, backend=None, store=False
     ):
         super().__init__(backend=backend, store=store)
         self._basis = setup_univariate_piecewise_polynomial_basis(
@@ -864,8 +860,8 @@ class UnivariatePiecewisePolynomialQuadratureRule(UnivariateQuadratureRule):
 
 
 class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
-    def __init__(self, quadrature_rule, nterms=None, backend=NumpyLinAlgMixin):
-        super().__init__(backend)
+    def __init__(self, quadrature_rule, nterms=None):
+        super().__init__(quadrature_rule._bkd)
         self._quad_rule = quadrature_rule
         if nterms is not None:
             self.set_nterms(nterms)
@@ -875,7 +871,8 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
 
     def _values(self, samples):
         return univariate_lagrange_polynomial(
-            self._quad_samples[0], samples[0], self._bkd)
+            self._quad_samples[0], samples[0], self._bkd
+        )
 
     def _quadrature_rule(self):
         return self._quad_samples, self._quad_weights
@@ -886,8 +883,87 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
         return UnivariateLagrangeBasis(self._quad_rule, self.nterms())
 
 
+class UnivariateBarycentricLagrangeBasis(UnivariateLagrangeBasis):
+    def set_nterms(self, nterms, interval_length=None):
+        super().set_nterms(nterms)
+        self._interval_length = interval_length
+        self._set_barycentric_weights()
+
+    def _set_barycentric_weights(self):
+        """
+        Return barycentric weights for a sequence of samples. e.g. of sequence
+        x0, x1, x2 where order represents the order in which the samples are
+        added to the interpolant.
+
+        E.g. using 3 points
+        compites [1/((x0-x2)(x0-x1)),1/((x1-x2)(x1-x0)),1/((x2-x1)(x2-x0))]
+
+        Note
+        ----
+        If length of interval [a,b]=4C then weights will grow or decay
+        exponentially at C^{-n} where n is number of points causing overflow
+        or underflow.
+
+        To minimize this effect multiply each x_j-x_k by C^{-1}. This has effect
+        of rescaling all weights by C^n. In rare situations where n is so large
+        randomize or use Leja ordering of the samples before computing weights.
+        See Barycentric Lagrange Interpolation by
+        Jean-Paul Berrut and Lloyd N. Trefethen 2004
+        """
+        if self._interval_length is None:
+            scaling_factor = 1.0
+        else:
+            scaling_factor = self._interval_length / 4.0
+
+        C_inv = 1.0 / scaling_factor
+        samples = self._quad_samples[0]
+        nsamples = samples.shape[0]
+
+        weights = self._bkd.empty((nsamples, nsamples), dtype=float)
+        weights[0, 0] = 1.0
+        # TODO speed up by using same concept as in lagrange polynomial
+        for jj in range(1, nsamples):
+            weights[jj, :jj] = (
+                C_inv * (samples[:jj] - samples[jj]) * weights[jj - 1, :jj]
+            )
+            weights[jj, jj] = self._bkd.prod(
+                C_inv * (samples[jj] - samples[:jj])
+            )
+            weights[jj - 1, :jj] = 1.0 / weights[jj - 1, :jj]
+
+        weights[nsamples - 1, :nsamples] = (
+            1.0 / weights[nsamples - 1, :nsamples]
+        )
+
+        if not self._bkd.all(np.isfinite(weights)):
+            raise RuntimeError(
+                "Samples are ill conditioned. set or change scale factor"
+            )
+        # todo consider storing all elements of result and updating
+        # if necessary
+        self._bary_weights = weights[nsamples-1]
+
+    def _values(self, eval_samples):
+        with warnings.catch_warnings():
+            # ignore division by zero warning thrown when computing basis
+            # at an interpolation point. It is faster to ignore then
+            # only compute basis values at interpolation points
+            warnings.simplefilter("ignore")
+            diff = eval_samples.T-self._quad_samples
+            diff_inv = 1/diff
+            # factor = self._bkd.prod(diff, axis=1)
+            factor = 1/self._bkd.sum(diff_inv * self._bary_weights, axis=1)
+            basis_mat = factor[:, None] * (diff_inv * self._bary_weights)
+            basis_mat[self._bkd.where(diff == 0)] = 1.
+        return basis_mat
+
+
 def setup_univariate_piecewise_polynomial_basis(
-        basis_type, bounds, node_gen=None, trans=None, backend=None,
+    basis_type,
+    bounds,
+    node_gen=None,
+    trans=None,
+    backend=None,
 ):
     basis_dict = {
         "leftconst": UnivariatePiecewiseLeftConstantBasis,
@@ -968,6 +1044,7 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
     algorithm priortizes speed with vectorization over minimizing the
     number of calls to the integrand
     """
+
     def __init__(self, quad_rule, backend=None):
         super().__init__(backend)
         self._bounds = None
@@ -984,9 +1061,15 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         self._quad_rule = quad_rule
 
     def set_options(
-            self, interval_size=2, nquad_samples=50, verbosity=0,
-            adaptive=True, atol=1e-8, rtol=1e-8, maxiters=1000,
-            maxinner_iters=10
+        self,
+        interval_size=2,
+        nquad_samples=50,
+        verbosity=0,
+        adaptive=True,
+        atol=1e-8,
+        rtol=1e-8,
+        maxiters=1000,
+        maxinner_iters=10,
     ):
         if interval_size <= 0:
             raise ValueError("Interval size must be positive")
@@ -1011,15 +1094,15 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
     def _initial_interval_bounds(self):
         lb, ub = self._bounds
         if np.isfinite(lb) and not np.isfinite(ub):
-            return lb, lb+self._interval_size
+            return lb, lb + self._interval_size
         elif not np.isfinite(lb) and np.isfinite(ub):
-            return ub-self._interval_size, ub
-        return -self._interval_size/2, self._interval_size/2
+            return ub - self._interval_size, ub
+        return -self._interval_size / 2, self._interval_size / 2
 
     def _integrate_interval(self, lb, ub, nquad_samples):
         can_quad_x, can_quad_w = self._quad_rule(nquad_samples)
-        quad_x = (can_quad_x+1)/2*(ub-lb)+lb
-        quad_w = can_quad_w*(ub-lb)/2
+        quad_x = (can_quad_x + 1) / 2 * (ub - lb) + lb
+        quad_w = can_quad_w * (ub - lb) / 2
         return self._integrand(quad_x).T @ quad_w[:, 0]
 
     def _adaptive_integrate_interval(self, lb, ub):
@@ -1029,15 +1112,15 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
             return integral
         it = 1
         while True:
-            nquad_samples = (nquad_samples-1)*2+1
+            nquad_samples = (nquad_samples - 1) * 2 + 1
             prev_integral = integral
             integral = self._integrate_interval(lb, ub, nquad_samples)
             it += 1
-            diff = self._bkd.abs(self._bkd.atleast1d(prev_integral-integral))
+            diff = self._bkd.abs(self._bkd.atleast1d(prev_integral - integral))
             if self._bkd.all(
-                    diff < self._rtol*self._bkd.abs(
-                        self._bkd.atleast1d(integral)
-                    )+self._atol
+                diff
+                < self._rtol * self._bkd.abs(self._bkd.atleast1d(integral))
+                + self._atol
             ):
                 break
             if it >= self._maxinner_iters:
@@ -1049,14 +1132,14 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         prev_integral = np.inf
         it = 0
         while (
-                self._bkd.any(
-                    self._bkd.abs(self._bkd.atleast1d(integral-prev_integral))
-                    >= self._rtol*self._bkd.abs(
-                        self._bkd.atleast1d(prev_integral)
-                    )+self._atol
-                )
-                and lb >= self._bounds[0]
-                and it < self._maxiters
+            self._bkd.any(
+                self._bkd.abs(self._bkd.atleast1d(integral - prev_integral))
+                >= self._rtol
+                * self._bkd.abs(self._bkd.atleast1d(prev_integral))
+                + self._atol
+            )
+            and lb >= self._bounds[0]
+            and it < self._maxiters
         ):
             result = self._adaptive_integrate_interval(lb, ub)
             if it == 0:
@@ -1070,9 +1153,10 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         if self._verbosity > 0:
             print(
                 "nleft iters={0}, error={1}".format(
-                    it, self._bkd.abs(
-                        self._bkd.atleast1d(integral-prev_integral)
-                    )
+                    it,
+                    self._bkd.abs(
+                        self._bkd.atleast1d(integral - prev_integral)
+                    ),
                 )
             )
         return integral
@@ -1082,14 +1166,14 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         prev_integral = np.inf
         it = 0
         while (
-                self._bkd.any(
-                    self._bkd.abs(self._bkd.atleast1d(integral-prev_integral))
-                    >= self._rtol*self._bkd.abs(
-                        self._bkd.atleast1d(prev_integral)
-                    )+self._atol
-                )
-                and ub <= self._bounds[1]
-                and it < self._maxiters
+            self._bkd.any(
+                self._bkd.abs(self._bkd.atleast1d(integral - prev_integral))
+                >= self._rtol
+                * self._bkd.abs(self._bkd.atleast1d(prev_integral))
+                + self._atol
+            )
+            and ub <= self._bounds[1]
+            and it < self._maxiters
         ):
             result = self._adaptive_integrate_interval(lb, ub)
             if it == 0:
@@ -1104,9 +1188,10 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         if self._verbosity > 0:
             print(
                 "nright iters={0}, error={1}".format(
-                    it, self._bkd.abs(
-                        self._bkd.atleast1d(integral-prev_integral)
-                    )
+                    it,
+                    self._bkd.abs(
+                        self._bkd.atleast1d(integral - prev_integral)
+                    ),
                 )
             )
         return integral
@@ -1115,7 +1200,7 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         # compute left integral
         lb, ub = self._initial_interval_bounds()
         left_integral = self._left_integrate(lb, ub)
-        right_integral = self._right_integrate(ub, ub+self._interval_size)
+        right_integral = self._right_integrate(ub, ub + self._interval_size)
         integral = left_integral + right_integral
         if integral.shape[0] == 1:
             return integral[0]
