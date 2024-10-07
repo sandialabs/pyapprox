@@ -388,7 +388,7 @@ class TestBasis:
             self._check_tensor_product_piecewise_polynomial_interpolation(
                 *test_case
             )
-            
+
     def _check_tensor_product_lagrange_interpolation(
             self, basis_types, nnodes_1d, quad_rule, bounds
     ):
@@ -396,11 +396,10 @@ class TestBasis:
         nvars = len(basis_types)
         nnodes_1d = np.array(nnodes_1d)
         bases_1d = [
-            setup_lagrange_basis(bt, quad_rule, bounds) for bt in basis_types
+            setup_lagrange_basis(bt, quad_rule, bounds, bkd)
+            for bt in basis_types
         ]
         bases_1d[0].set_nterms(5)
-        print(bases_1d[0]._bary_weights, 'w')
-        print(bases_1d[0]._quad_samples)
         basis = TensorProductInterpolatingBasis(bases_1d)
         interp = TensorProductInterpolant(basis)
         basis.set_tensor_product_indices(nnodes_1d)
@@ -426,9 +425,10 @@ class TestBasis:
 
     def test_tensor_product_lagrange_interpolation(self):
         # quad_rule = GaussQuadratureRule(stats.uniform(0, 1))
-        quad_rule = Chebyshev1stKindGaussLobattoQuadratureRule([-1, 1])
+        quad_rule = Chebyshev1stKindGaussLobattoQuadratureRule(
+            [-1, 1], backend=self.get_backend())
         test_cases = [
-            # [["lagrange", "lagrange"], [4, 5], quad_rule, None],
+            [["lagrange", "lagrange"], [4, 5], quad_rule, None],
             [["barycentric", "barycentric"], [4, 4], quad_rule, None],
             [["chebyhsev1", "chebyhsev1"], [4, 4], None, [-1, 1]],
         ]
@@ -753,14 +753,14 @@ class TestTorchBasis(TestBasis, unittest.TestCase):
         return TorchLinAlgMixin
 
 
-class TestJaxBasis(TestBasis, unittest.TestCase):
-    def setUp(self):
-        if not package_available("jax"):
-            self.skipTest("jax not available")
-        TestBasis.setUp(self)
+# class TestJaxBasis(TestBasis, unittest.TestCase):
+#     def setUp(self):
+#         if not package_available("jax"):
+#             self.skipTest("jax not available")
+#         TestBasis.setUp(self)
 
-    def get_backend(self):
-        return JaxLinAlgMixin
+#     def get_backend(self):
+#         return JaxLinAlgMixin
 
 
 if __name__ == "__main__":

@@ -861,7 +861,7 @@ class UnivariatePiecewisePolynomialQuadratureRule(UnivariateQuadratureRule):
 
 class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
     def __init__(self, quadrature_rule, nterms=None):
-        super().__init__(quadrature_rule._bkd)
+        super().__init__(backend=quadrature_rule._bkd)
         self._quad_rule = quadrature_rule
         if nterms is not None:
             self.set_nterms(nterms)

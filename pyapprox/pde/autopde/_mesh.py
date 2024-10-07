@@ -59,6 +59,7 @@ class OrthogonalCoordinateMesh(ABC):
 
     def _set_boundary_indices(self):
         self._bndry_indices = [[] for ii in range(2 * self.nphys_vars())]
+        print(self._bndrys)
         for ii in range(2 * self.nphys_vars()):
             self._bndry_indices[ii] = self._bndrys[
                 ii
@@ -75,13 +76,15 @@ class OrthogonalCoordinateMesh(ABC):
             self.nmesh_pts()
         )
 
-9
+
 class OrthogonalCoordinateMeshBoundary(ABC):
     def __init__(
         self,
+        bndry_name: str,
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
+        self._bndy_name = bndry_name
         self._bkd = bkd
         self._tol = tol
 
@@ -97,6 +100,9 @@ class OrthogonalCoordinateMeshBoundary(ABC):
     def orth_samples_on_boundary(self):
         raise NotImplementedError
 
+    def __repr__(self):
+        return "{0}(name={1})".format(self.__class__.__name__, self._bndy_name)
+
 
 class OrthogonalCoordinateMeshBoundary1D(OrthogonalCoordinateMeshBoundary):
     def __init__(
@@ -105,7 +111,7 @@ class OrthogonalCoordinateMeshBoundary1D(OrthogonalCoordinateMeshBoundary):
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(tol, bkd)
+        super().__init__(bndry_name, tol, bkd)
         self._bndry_index = {"left": 0, "right": 1}[bndry_name]
         self._orth_normal = self._bkd.asarray([[-1.0], [1.0]])[
             self._bndry_index
@@ -129,18 +135,18 @@ class OrthogonalCoordinateMeshBoundary2D(OrthogonalCoordinateMeshBoundary):
     def __init__(
         self,
         bndry_name: str,
-        order: int,
+        npts: int,
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(tol, bkd)
+        super().__init__(bndry_name, tol, bkd)
         self._bndry_index = {"left": 0, "right": 1, "bottom": 2, "top": 3}[
             bndry_name
         ]
         self._orth_normal = self._bkd.asarray(
             [[-1.0, 0.0], [1.0, 0.0], [0.0, -1.0], [0.0, 1.0]]
         )[self._bndry_index]
-        self._order = order
+        self._npts = npts
         self._active_orth_bounds = self._bkd.asarray([-1.0, 1.0])
         self._inactive_orth_coord = {
             "left": -1.0,
@@ -155,20 +161,22 @@ class OrthogonalCoordinateMeshBoundary2D(OrthogonalCoordinateMeshBoundary):
         ).T
 
     def orth_quadrature_rule(self):
-        nsamples = self._order + 3
-        active_quad = GaussLegendreQuadratureRule(self._active_orth_bounds)
-        active_quadx, active_quadw = active_quad(nsamples)
-        inactive_quadx = self._bkd.array([self._inactive_coord])
-        xlist = [None, None]
-        xlist[int(self._bndry_index < 2)] = active_quadx[0, :]
-        xlist[int(self._bndry_index >= 2)] = inactive_quadx
-        xquad = self._bkd.cartesian_product(xlist)
-        return xquad, active_quadw
+        nsamples = self._npts + 2
+        active_orth_quad = GaussLegendreQuadratureRule(
+            self._active_orth_bounds
+        )
+        active_orth_quadx, active_orth_quadw = active_orth_quad(nsamples)
+        inactive_orth_quadx = self._bkd.array([self._inactive_orth_coord])
+        orth_xlist = [None, None]
+        orth_xlist[int(self._bndry_index < 2)] = active_orth_quadx[0, :]
+        orth_xlist[int(self._bndry_index >= 2)] = inactive_orth_quadx
+        orth_xquad = self._bkd.cartesian_product(orth_xlist)
+        return orth_xquad, active_orth_quadw
 
     def orth_samples_on_boundary(self, orth_samples):
         dd = int(self._bndry_index >= 2)
         indices = self._bkd.where(
-            self._bkd.abs(self._inactive_coord - orth_samples[dd, :])
+            self._bkd.abs(self._inactive_orth_coord - orth_samples[dd, :])
             < self._tol
         )[0]
         # Avoid corners appearing twice. Remove second reference to corners
@@ -182,15 +190,14 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
     def __init__(
         self,
         bndry_name: str,
-        order: int,
+        npts: int,
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(tol, bkd)
+        super().__init__(bndry_name, tol, bkd)
         self._bndry_index = {
-            "left": 0, "right": 1, "front": 2, "back": 3, "bottom": 4, "top": 5}[
-            bndry_name
-        ]
+            "left": 0, "right": 1, "front": 2, "back": 3, "bottom": 4, "top": 5
+        }[bndry_name]
         self._orth_normal = self._bkd.asarray(
             [
                 [-1.0, 0.0, 0.0],
@@ -201,7 +208,7 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
                 [0.0, 0.0, 1.0],
             ]
         )[self._bndry_index]
-        self._order = order
+        self._npts = npts
         self._active_orth_bounds = self._bkd.asarray([-1.0, 1.0])
         self._inactive_orth_coord = {
             "left": -1.0,
@@ -222,21 +229,25 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
             GaussLegendreQuadratureRule(self._active_orth_bounds[0:2]),
             GaussLegendreQuadratureRule(self._active_orth_bounds[2:4])
         ]
-        active_quadx0, active_quadw0 = active_quad[0](self._orders[0]+3)
-        active_quadx1, active_quadw1 = active_quad[1](self._orders[1]+3)
+        if self._bndry_index < 2:
+            # x boundaries
+            jdx, idx0, idx1 = 0, 1, 2
+        elif self._bndry_index < 4:
+            # y boundaries
+            jdx, idx0, idx1 = 1, 0, 2
+        else:
+            # z boundaries
+            jdx, idx0, idx1 = 2, 0, 1
+        active_quadx0, active_quadw0 = active_quad[0](self._npts[idx0]+2)
+        active_quadx1, active_quadw1 = active_quad[1](self._npts[idx1]+2)
         active_quadw = self._bkd.outer_product(
             [active_quadw0[:, 0], active_quadw1[:, 0]]
         )
         inactive_quadx = self._bkd.array([self._inactive_coord])
-        if self._bndry_index < 2:
-            # x boundaries
-            xlist = [inactive_quadx, active_quadx0, active_quadx1]
-        elif self._bndry_index < 4:
-            # y boundaries
-            xlist = [active_quadx0, inactive_quadx, active_quadx1]
-        else:
-            # z boundaries
-            xlist = [active_quadx0, active_quadx1, inactive_quadx]
+        xlist = [None, None, None]
+        xlist[jdx] = inactive_quadx
+        xlist[idx0] = active_quadx0
+        xlist[idx1] = active_quadx1
         xquad = self._bkd.cartesian_product(xlist)
         return xquad, active_quadw
 
@@ -268,11 +279,12 @@ class OrthogonalCoordinateMesh1DMixin(OrthogonalCoordinateMesh):
             for name in ["left", "right"]
         ]
 
+
 class OrthogonalCoordinateMesh2DMixin:
     def _set_boundaries(self):
         self._bndrys = [
-            OrthogonalCoordinateMeshBoundary2D(name)
-            for name in ["left", "right", "bottom", "top"]
+            OrthogonalCoordinateMeshBoundary2D(name, self._npts_1d[ii < 2])
+            for ii, name in enumerate(["left", "right", "bottom", "top"])
         ]
 
 
@@ -297,6 +309,6 @@ class ChebyshevCollocationMesh1D(
 
 
 class ChebyshevCollocationMesh2D(
-    ChebyshevCollocationMesh, OrthogonalCoordinateMesh2DMixin
+        OrthogonalCoordinateMesh2DMixin, ChebyshevCollocationMesh,
 ):
     pass

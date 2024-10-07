@@ -816,9 +816,11 @@ class UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis(
     UnivariateBarycentricLagrangeBasis
 ):
     # TODO: not sure if I have the naming of first and second correct.
-    def __init__(self, bounds, nterms=None):
+    def __init__(self, bounds, nterms=None, backend=NumpyLinAlgMixin):
         super().__init__(
-            Chebyshev1stKindGaussLobattoQuadratureRule(bounds), nterms
+            Chebyshev1stKindGaussLobattoQuadratureRule(
+                bounds, backend=backend
+            ), nterms
         )
 
     def _set_barycentric_weights(self):
@@ -939,6 +941,7 @@ def setup_lagrange_basis(
     basis_type,
     quadrature_rule=None,
     bounds=None,
+    backend=NumpyLinAlgMixin,
 ):
     if bounds is None and quadrature_rule is None:
         raise ValueError("must specify either bounds or quadrature_rule")
@@ -974,4 +977,4 @@ def setup_lagrange_basis(
 
     if bounds is None:
         raise ValueError("{0} requires bounds".format(basis_type))
-    return basis_dict_from_bounds[basis_type](bounds)
+    return basis_dict_from_bounds[basis_type](bounds, backend=backend)

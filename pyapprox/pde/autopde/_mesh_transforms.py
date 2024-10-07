@@ -65,14 +65,14 @@ class OrthogonalCoordinateTransform(ABC):
             samples,
         )
 
-    def curvelinear_basis(self, orth_samples):
+    def gradient_factors(self, orth_samples):
         unit_basis = self.unit_curvelinear_basis(orth_samples)
         scale_factors = self.scale_factors(orth_samples)
         basis = unit_basis / scale_factors[:, None, :]
         return basis
 
     def scale_orthogonal_gradients(self, orth_samples, orth_grads):
-        basis = self.curvelinear_basis(orth_samples)
+        basis = self.gradient_factors(orth_samples)
         return self._bkd.einsum("ijk,ik->ij", basis, orth_grads)
 
     def modify_quadrature_weights(self, orth_samples, orth_weights):
@@ -89,10 +89,15 @@ class ScaleAndTranslationTransformMixIn:
     def __init__(self, orthog_ranges, ranges, backend=NumpyLinAlgMixin):
         super().__init__(backend)
         # if following not satisfied it will mess up how normals are computed
-        if self._bkd.any(orthog_ranges[1::2] <= orthog_ranges[::2]):
+        if self._bkd.any(
+                self._bkd.array(orthog_ranges[1::2])
+                <= self._bkd.array(orthog_ranges[::2])
+        ):
             msg = f"orthog_ranges {orthog_ranges} must be increasing"
             raise ValueError(msg)
-        if self._bkd.any(ranges[1::2] <= ranges[::2]):
+        if self._bkd.any(
+                self._bkd.array(ranges[1::2]) <= self._bkd.array(ranges[::2])
+        ):
             msg = f"ranges {ranges} must be increasing"
             raise ValueError(msg)
         self._orthog_ranges = self._bkd.asarray(orthog_ranges)
@@ -232,20 +237,6 @@ class PolarTransform(OrthogonalCoordinateTransform2D):
         nsamples = orth_samples.shape[1]
         r = orth_samples[0]
         return self._bkd.stack((self._bkd.ones((nsamples,)), r), axis=1)
-
-    def curvelinear_basis(self, orth_samples):
-        # this is A^{-1} in my notes
-        r, theta = orth_samples
-        r, theta = r[:, None], theta[:, None]
-        cos_t = self._bkd.cos(theta)
-        sin_t = self._bkd.sin(theta)
-        basis = self._bkd.dstack(
-            [
-                self._bkd.hstack([cos_t, sin_t])[..., None],  # first basis
-                self._bkd.hstack([-sin_t / r, cos_t / r])[..., None],
-            ]
-        )  # second basis
-        return basis
 
     def determinants(self, orth_samples):
         r = orth_samples[0]
@@ -458,13 +449,13 @@ class CompositionTransform(OrthogonalCoordinateTransform):
         basis = self._bkd.einsum("ijk,ikl->ijl", basis1, basis2)
         return basis
 
-    def curvelinear_basis(self, orth_samples):
-        basis = self._transforms[0].curvelinear_basis(orth_samples)
+    def gradient_factors(self, orth_samples):
+        basis = self._transforms[0].gradient_factors(orth_samples)
         for ii, transform in enumerate(self._transforms[1:]):
             orth_samples = self._transforms[ii].map_from_orthogonal(
                 orth_samples
             )
-            new_basis = transform.curvelinear_basis(orth_samples)
+            new_basis = transform.gradient_factors(orth_samples)
             basis = self._basis_product(new_basis, basis)
         return basis
 
