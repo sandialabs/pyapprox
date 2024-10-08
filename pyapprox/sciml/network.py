@@ -38,12 +38,7 @@ class CERTANN():
         optimizer : Optimizer
             An opimizer used to fit the network.
         """
-        if hasattr(nvars, '__iter__') and all(type(n) == int for n in nvars):
-            self._nvars = tuple(nvars)  # dimension of input samples
-        elif type(nvars) == int:
-            self._nvars = (nvars,)
-        else:
-            raise ValueError('nvars must be int or tuple of ints')
+        self._nvars = nvars  # dimension of input samples
         # for layer in layers:
         #     if not isinstance(layer, Layer):
         #         raise ValueError("Layer type provided is not supported")
@@ -51,8 +46,6 @@ class CERTANN():
             self._layers = [layers]  # list of kernels for each layer
         else:
             self._layers = layers
-        for layer in layers:
-            layer._set_nvars(self._nvars)
         self._nlayers = len(self._layers)
         if callable(activations):
             activations = [activations for nn in range(self._nlayers)]
@@ -75,11 +68,8 @@ class CERTANN():
         self._hyp_list = sum([layer._hyp_list for layer in self._layers])
         self._loss_str = loss
 
-    def _correct_input_shape(self, input_samples):
-        return all(n == m for (n, m) in zip(input_samples.shape, self._nvars))
-
     def _forward(self, input_samples):
-        if not self._correct_input_shape(input_samples):
+        if input_samples.shape[0] != self._nvars:
             raise ValueError("input_samples has the wrong shape")
         y_samples = copy(input_samples)
         for kk in range(self._nlayers):
@@ -138,7 +128,7 @@ class CERTANN():
         return val, nll_grad
 
     def _set_training_data(self, train_samples: array, train_values: array):
-        if not self._correct_input_shape(train_samples):
+        if train_samples.shape[0] != self._nvars:
             raise ValueError("train_samples has the wrong shape {0}".format(
                 train_samples.shape))
         if train_samples.shape[-1] != train_values.shape[-1]:
