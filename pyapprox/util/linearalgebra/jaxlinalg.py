@@ -449,3 +449,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def double_type():
         return float
+    
+    @staticmethod
+    def gammaln(mat: np.ndarray) -> np.ndarray:
+        return jax.scipy.special.gammaln(mat)

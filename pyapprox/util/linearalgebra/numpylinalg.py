@@ -433,3 +433,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def double_type():
         return float
+
+    @staticmethod
+    def gammaln(mat: np.ndarray) -> np.ndarray:
+        return scipy.special.gammaln(mat)

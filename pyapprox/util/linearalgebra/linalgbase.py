@@ -792,3 +792,8 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def double_type():
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def gammaln(array):
+        raise NotImplementedError

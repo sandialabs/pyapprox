@@ -151,7 +151,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
                 self._bkd.full(
                     (nsamples,),
                     self._bkd.exp(
-                        sp.gammaln(_order + 1)
+                        self._bkd.gammaln(self._bkd.asarray(_order + 1))
                         - 0.5
                         * self._bkd.sum(self._bkd.log(b[: _order + 1] ** 2))
                     ),
@@ -308,9 +308,10 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D):
         # and undo setting it to 1 if self._prob_meas is True
         rcoefs[0, 1] = math.exp(
             (self._alpha + self._beta + 1.0) * math.log(2.0)
-            + sp.gammaln(self._alpha + 1.0)
-            + sp.gammaln(self._beta + 1.0)
-            - sp.gammaln(self._alpha + self._beta + 2.0)
+            + self._bkd.gammaln(self._bkd.asarray(self._alpha) + 1.0)
+            + self._bkd.gammaln(self._bkd.asarray(self._beta) + 1.0)
+            - self._bkd.gammaln(self._bkd.asarray(self._alpha + self._beta)
+                                + 2.0)
         )
         rcoefs[npoints - 1, 0] = (self._alpha - self._beta) / (
             2 * N + self._alpha + self._beta + 2
