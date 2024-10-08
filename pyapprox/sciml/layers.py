@@ -2,7 +2,7 @@
 Defines :py:class:`Layer` class.
 '''
 
-from pyapprox.sciml._integraloperators import IntegralOperator
+from pyapprox.sciml.integraloperators import IntegralOperator
 
 
 class Layer():
@@ -20,10 +20,10 @@ class Layer():
             Integral operators that define the Layer instance
         '''
         if (isinstance(integralops, list) and
-            all(IntegralOperator in op.__class__.__mro__
+            all(issubclass(op.__class__, IntegralOperator)
                 for op in integralops)):
             self._integralops = integralops
-        elif IntegralOperator in integralops.__class__.__mro__:
+        elif issubclass(integralops.__class__, IntegralOperator):
             self._integralops = [integralops]
         else:
             raise ValueError(
@@ -55,8 +55,3 @@ class Layer():
     def __repr__(self):
         return "{0}({1})".format(
             self.__class__.__name__, self._hyp_list._short_repr())
-
-    def _set_nvars(self, nvars):
-        for op in self._integralops:
-            op._set_nvars(nvars)
-        self._hyp_list = sum([op._hyp_list for op in self._integralops])
