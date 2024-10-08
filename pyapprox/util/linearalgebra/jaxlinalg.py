@@ -441,3 +441,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def flatten(array: np.ndarray):
         return array.flatten()
+
+    @staticmethod
+    def gammaln(mat: np.ndarray) -> np.ndarray:
+        return jax.scipy.special.gammaln(mat)
