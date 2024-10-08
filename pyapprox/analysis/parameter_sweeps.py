@@ -290,25 +290,25 @@ def plot_parameter_sweep_single_qoi(active_samples, vals, num_sweeps,
         lb = active_samples[i, :].min()
         ub = active_samples[i, :].max()
         y = (active_samples[i, :]-lb)/(ub-lb)*2-1.
-        sweep_label = label_opts.get('sweep_label', r'$\mathrm{Sweep}$')
+        sweep_label = label_opts.get('sweep_label', 'Sweep')
         axs.plot(y, vals[i*num_samples_per_sweep:(i+1)*num_samples_per_sweep],
                  markers[i], lw=2, label=sweep_label+r' $%d$' % i,
                  color=colors[i], alpha=alpha)
     try:
         if 'title' in label_opts:
             axs.title(label_opts['title'])
-        xlabel = label_opts.get('xlabel',  r"$\mathrm{Sweep\;variable}$")
+        xlabel = label_opts.get('xlabel',  "Sweep variable")
         if xlabel is not None:
             axs.set_xlabel(xlabel)
-        axs.ylabel(label_opts.get('ylabel', r"$\mathrm{Function\;value}$"))
+        axs.ylabel(label_opts.get('ylabel', "Function value"))
     except:
         # needed if axs is of type  subplot
         if 'title' in label_opts:
             axs.set_title(label_opts['title'])
-        xlabel = label_opts.get('xlabel', r"$\mathrm{Sweep\;variable}$")
+        xlabel = label_opts.get('xlabel', "Sweep variable$")
         if xlabel is not None:
             axs.set_xlabel(xlabel)
-        axs.set_ylabel(label_opts.get('ylabel', r"$\mathrm{Function\;value}$"))
+        axs.set_ylabel(label_opts.get('ylabel', r"Function value"))
     axs.legend(loc=0, numpoints=1)
 
 
@@ -337,7 +337,7 @@ def plot_parameter_sweeps(active_samples, vals, fig_basename=None,
     for j in range(len(qoi_indices)):
         label_opts = axes_label_opts[j]
         if 'title' not in label_opts:
-            label_opts['title'] = r"$\mathrm{QoI\;%d}$" % qoi_indices[j]
+            label_opts['title'] = "QoI %d" % qoi_indices[j]
         plot_parameter_sweep_single_qoi(
             active_samples, vals[:, j], num_sweeps, num_samples_per_sweep,
             label_opts, axs[j], markers, colors, alpha)
