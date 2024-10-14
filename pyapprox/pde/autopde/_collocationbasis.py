@@ -1,15 +1,22 @@
 from abc import ABC, abstractmethod
 import math
+from typing import Union
+import textwrap
 
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
 from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 from pyapprox.pde.autopde._mesh import (
-    OrthogonalCoordinateMesh, ChebyshevCollocationMesh
+    OrthogonalCoordinateMesh,
+    ChebyshevCollocationMesh,
+    OrthogonalCoordinateMeshBoundary,
 )
+from pyapprox.pde.autopde.newton import NewtonResidual
 from pyapprox.surrogates.bases.orthopoly import (
     UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis
 )
+from pyapprox.util.linearalgebra.linalg import qr_solve
+from pyapprox.util.linearalgebra.linalgbase import Array
 
 
 class OrthogonalCoordinateCollocationBasis(ABC):
@@ -173,7 +180,10 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
         return self._bexp(new_samples)
 
     def __repr__(self):
-        return "{0}(mesh={1})".format(self.__class__.__name__, self.mesh)
+        return "{0}(\n{1}\n)".format(
+            self.__class__.__name__,
+            textwrap.indent("mesh="+str(self.mesh), prefix="    ")
+        )
 
 
 class OrthogonalCoordinateBasis1DMixin:
@@ -251,7 +261,7 @@ class ChebyshevCollocationBasis3D(
     pass
 
 
-class CollocationFunction(ABC):
+class Function(ABC):
     def __init__(
             self, basis: OrthogonalCoordinateCollocationBasis,
             values_at_mesh=None,
@@ -297,7 +307,10 @@ class CollocationFunction(ABC):
         raise NotImplementedError
 
     def __repr__(self):
-        return "{0}(basis={1})".format(self.__class__.__name__, self.basis)
+        return "{0}(\n{1}\n)".format(
+            self.__class__.__name__,
+            textwrap.indent("basis="+str(self.basis), prefix="    ")
+        )
 
     def _plot_1d(self, ax, nplot_pts_1d, **kwargs):
         plot_samples = self._bkd.linspace(
@@ -321,9 +334,14 @@ class CollocationFunction(ABC):
             return self._plot_2d(ax, npts_1d, **kwargs)
 
 
-class MatrixCollocationFunction(CollocationFunction):
+class MatrixFunction(Function):
     def __init__(
-            self, basis, nrows, ncols, values_at_mesh=None, jac=None,
+            self,
+            basis: OrthogonalCoordinateCollocationBasis,
+            nrows: int,
+            ncols: int,
+            values_at_mesh: Array = None,
+            jac: Union[Array, str] = None,
     ):
         self._nrows = nrows
         self._ncols = ncols
@@ -336,7 +354,7 @@ class MatrixCollocationFunction(CollocationFunction):
         """
         Parameters
         ----------
-        values_at_mesh : array (nrows, ncols, nmesh_pts)
+        values_at_mesh : Array (nrows, ncols, nmesh_pts)
             The values of each function at the mesh points
         """
         if (
@@ -371,31 +389,9 @@ class MatrixCollocationFunction(CollocationFunction):
         """
         Parameters
         ----------
-        jac : array (nrows, ncols, nmesh_pts, nmesh_pts)
+        jac : Array (nrows, ncols, nmesh_pts, nmesh_pts)
             The jacobian of each function at the mesh points
         """
-        if isinstance(jac, str) and jac == "identity":
-            self._fun_type = "solution"
-            jac = self._bkd.stack(
-                [
-                    self._bkd.stack(
-                        [
-                            self._bkd.eye(self.nmesh_pts())
-                            for jj in range(self._ncols)
-                        ],
-                        axis=0
-                    )
-                    for ii in range(self._nrows)
-                ],
-                axis=0
-            )
-        elif isinstance(jac, str) and jac == "zero":
-            self._fun_type = "solution_independent"
-            jac = self._bkd.zeros(self.jacobian_shape())
-        elif isinstance(jac, str):
-            raise ValueError("jac str can only be identity or zero")
-
-        self._fun_type = "operator"
         if (jac.shape != self.jacobian_shape()):
             raise ValueError(
                 "jac shape {0} should be {1}".format(
@@ -411,7 +407,7 @@ class MatrixCollocationFunction(CollocationFunction):
     def dot(self, other):
         values = self.get_values()
         other_values = self.get_values()
-        return MatrixCollocationFunction(
+        return MatrixFunction(
             values._nrows,
             other_values._ncols,
             self._bkd.einsum("ijk,jkl->ilk", values, other_values),
@@ -425,24 +421,36 @@ class MatrixCollocationFunction(CollocationFunction):
                 "function"
             )
         values = self.get_values() * other.get_values()
+        # values = self._bkd.copy(other.get_values())
         # use product rule
         jac = (
             other.get_jacobian() * self.get_values()[..., None]
             + other.get_values()[..., None] * self.get_jacobian()
         )
-        return MatrixCollocationFunction(
+        return MatrixFunction(
             other.basis, other._nrows, other._ncols, values, jac
         )
 
     def __add__(self, other):
         if self.jacobian_shape() != other.jacobian_shape():
             raise ValueError("self and other have different shapes")
-        return MatrixCollocationFunction(
+        return MatrixFunction(
             self.basis,
             self._nrows,
             self._ncols,
             self.get_values()+other.get_values(),
             self.get_jacobian()+other.get_jacobian(),
+        )
+
+    def __sub__(self, other):
+        if self.jacobian_shape() != other.jacobian_shape():
+            raise ValueError("self and other have different shapes")
+        return MatrixFunction(
+            self.basis,
+            self._nrows,
+            self._ncols,
+            self.get_values()-other.get_values(),
+            self.get_jacobian()-other.get_jacobian(),
         )
 
     def __call__(self, eval_samples):
@@ -458,16 +466,45 @@ class MatrixCollocationFunction(CollocationFunction):
         )
 
 
-class ScalarCollocationFunction(MatrixCollocationFunction):
+class VectorFunction(MatrixFunction):
     def __init__(
-            self, basis, values_at_mesh=None, jac=None,
+            self,
+            basis: OrthogonalCoordinateCollocationBasis,
+            nrows: int,
+            values_at_mesh: Array = None,
+            jac: Union[Array, str] = None,
+    ):
+        super().__init__(basis, nrows, 1, values_at_mesh, jac)
+
+    def set_values(self, values_at_mesh: Array):
+        # This class is to just make initialization of vector function more
+        # intuitive. So set_jacobian is not overidden because this is typically
+        # called in a manner that is hidden from the user
+        if (
+                values_at_mesh.ndim != 2
+                or values_at_mesh.shape != (
+                    self.basis.mesh.nmesh_pts(), self._nrows
+                )
+        ):
+            raise ValueError(
+                "values_at_mesh shape {0} should be {1}".format(
+                    values_at_mesh.shape,
+                    (self.basis.mesh.nmesh_pts(), self._nrows)
+                )
+            )
+        super().set_values(values_at_mesh[None, None, :])
+
+
+class ScalarFunction(MatrixFunction):
+    def __init__(
+            self,
+            basis: OrthogonalCoordinateCollocationBasis,
+            values_at_mesh: Array = None,
+            jac: Union[Array, str] = None,
     ):
         super().__init__(basis, 1, 1, values_at_mesh, jac)
 
-    def shape(self):
-        return [1,]
-
-    def set_values(self, values_at_mesh):
+    def set_values(self, values_at_mesh: Array):
         if (
                 values_at_mesh.ndim != 1
                 or values_at_mesh.shape != (self.basis.mesh.nmesh_pts(),)
@@ -478,46 +515,38 @@ class ScalarCollocationFunction(MatrixCollocationFunction):
             )
         super().set_values(values_at_mesh[None, None, :])
 
-    def set_jacobian(self, jac):
-        """
-        Parameters
-        ----------
-        jac : array or str
-            "zero" - corresponds to all entries of jacobian being equal to zero
-            "identity"  - corresponds to the jacobian being the diagonal matrix
-            otherwise - array (nmesh_pts, nmesh_pts)
-        """
-        if isinstance(jac, str):
-            return super().set_jacobian(jac)
-
-        if (
-                jac.shape
-                != (self.basis.mesh.nmesh_pts(), self.basis.mesh.nmesh_pts())
-        ):
-            raise ValueError(
-                "jac shape {0} should be {1}".format(
-                    jac.shape,
-                    (self.basis.mesh.nmesh_pts(), self.basis.mesh.nmesh_pts())
-                )
-            )
-        super().set_jacobian(jac[None, None, :, :])
-
-    def __call__(self, eval_samples):
-        return super().__call__(eval_samples)
 
 
-class CollocationOperator(ABC):
+class ImutableMixin:
+    def _initial_jacobian(self):
+        return self._bkd.zeros(self.jacobian_shape())
+
+
+class ImutableScalarFunction(ImutableMixin, ScalarFunction):
+    pass
+
+
+class FunctionFromCallableMixin:
+    def _setup(self, fun: callable):
+        self._fun = fun
+        self.set_values(self._fun(self.basis.mesh.mesh_pts()))
+        self.set_jacobian(self._initial_jacobian())
+
+
+
+
+class Operator(ABC):
     @abstractmethod
-    def _values(self, fun: CollocationFunction):
+    def _values(self, fun: Function):
         raise NotImplementedError
 
     @abstractmethod
-    def _jacobian(self, fun: CollocationFunction):
+    def _jacobian(self, fun: Function):
         raise NotImplementedError
 
-    def __call__(self, fun: CollocationFunction):
+    def __call__(self, fun: Function):
         values = self._values(fun)
-        return MatrixCollocationFunction(
+        return MatrixFunction(
             fun.basis,
             values.shape[0],
             values.shape[1],
@@ -526,7 +555,7 @@ class CollocationOperator(ABC):
         )
 
 
-class ScalarCollocationOperatorFromCallable(CollocationOperator):
+class ScalarOperatorFromCallable(Operator):
     def __init__(self, op_values_fun, op_jac_fun):
         self._op_values_fun = op_values_fun
         self._op_jac_fun = op_jac_fun
@@ -548,54 +577,288 @@ class ScalarCollocationOperatorFromCallable(CollocationOperator):
         return jac
 
 
-class Physics(ABC):
-    def __init__(self):
-        self._nonlinear_res_implemented = False
+class BoundaryFunction(ABC):
+    def __init__(self, mesh_bndry: OrthogonalCoordinateMeshBoundary):
+        if not isinstance(mesh_bndry, OrthogonalCoordinateMeshBoundary):
+            raise ValueError(
+                "mesh_bndry must be an instance of "
+                "OrthogonalCoordinateMeshBoundary"
+            )
+        self._mesh_bndry = mesh_bndry
+        self._bkd = self._mesh_bndry._bkd
 
     @abstractmethod
-    def _linear_residual(self, sol: CollocationFunction):
+    def apply_to_residual(self, sol: Array, res_array: Array):
         raise NotImplementedError
 
-    def linear_residual(self, sol: CollocationFunction):
-        # Only compute linear jacobian once.
-        # This is useful for transient problems
-        if hasattr(self, "_linear_jac"):
-            return self._linear_jac @ sol, self._linear_jac
-        vals, jac = self._linear_residual(sol)
-        self._linear_jac = jac
-        return vals, jac
+    @abstractmethod
+    def apply_to_jacobian(self, sol: Array, jac: Array):
+        raise NotImplementedError
 
-    def nonlinear_residual(self, sol: CollocationFunction):
-        return 0
+    def _bndry_slice(self, vec, idx, axis):
+        # avoid copying data
+        if len(idx) == 1:
+            if axis == 0:
+                return vec[idx]
+            return vec[:, idx]
 
-    def residual(self, sol: CollocationFunction):
-        res_values, res_jac = self.linear_residual(sol)
-        if not self._nonlinear_res_implemented:
-            return res_values, res_jac
-        nonlinear_res_values, nonlinear_res_jac = self.nonlinear_residual(sol)
-        return (
-            res_values + nonlinear_res_values,
-            res_jac + nonlinear_res_jac
+        stride = idx[1]-idx[0]
+        if axis == 0:
+            return vec[idx[0]:idx[-1]+1:stride]
+        return vec[:, idx[0]:idx[-1]+1:stride]
+
+    @abstractmethod
+    def __call__(self):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}(bndry={1})".format(
+            self.__class__.__name__, self._mesh_bndry
         )
 
 
-class LinearDiffusionEquation(Physics):
+class DirichletBoundary(BoundaryFunction):
+    def apply_to_residual(self, sol: Array, res: Array):
+        idx = self._mesh_bndry._bndry_idx
+        bndry_vals = self._bkd.flatten(
+            self(self._mesh_bndry._bndry_mesh_pts)
+        )
+        res[idx] = self._bndry_slice(sol, idx, 0)-bndry_vals
+        return res
+
+    def apply_to_jacobian(self, sol: Array, jac: Array):
+        idx = self._mesh_bndry._bndry_idx
+        jac[idx, ] = 0.
+        jac[idx, idx] = 1.
+        return jac
+
+
+class DirichletBoundaryFromFunction(DirichletBoundary):
     def __init__(
-            self, forcing: CollocationFunction, diffusion: CollocationFunction
+            self, mesh_bndry: OrthogonalCoordinateMeshBoundary, fun: Function
     ):
-        super().__init__()
+        super().__init__(mesh_bndry)
+        if not isinstance(fun, Function):
+            raise ValueError("fun must be an instance of Function")
+        self._fun = fun
+
+    def __call__(self, bndry_mesh_pts):
+        return self._fun(bndry_mesh_pts)
+
+
+class SolutionMixin:
+    def _initial_jacobian(self):
+        return self._bkd.stack(
+                [
+                    self._bkd.stack(
+                        [
+                            self._bkd.eye(self.nmesh_pts())
+                            for jj in range(self._ncols)
+                        ],
+                        axis=0
+                    )
+                    for ii in range(self._nrows)
+                ],
+                axis=0
+            )
+
+
+class ScalarSolution(SolutionMixin, ScalarFunction):
+    pass
+
+
+class ImutableScalarFunctionFromCallable(
+        ImutableScalarFunction, FunctionFromCallableMixin
+):
+    """Scalar function that does not depend on the solution of a PDE"""
+    def __init__(
+            self,
+            basis: OrthogonalCoordinateCollocationBasis,
+            fun: callable,
+    ):
+        ScalarFunction.__init__(self, basis)
+        self._setup(fun)
+
+
+class ScalarSolutionFromCallable(
+        ScalarSolution, FunctionFromCallableMixin
+):
+    """Scalar solution of a PDE"""
+    def __init__(
+            self,
+            basis: OrthogonalCoordinateCollocationBasis,
+            fun: callable,
+    ):
+        ScalarSolution.__init__(self, basis)
+        self._setup(fun)
+
+
+class TransientFunctionFromCallableMixin:
+    def _check_time_set(self):
+        if not hasattr(self, "_time"):
+            raise ValueError(
+                "Must call set_time before evaluating the function"
+            )
+
+    def set_time(self, time):
+        self._time = time
+
+    def get_time(self):
+        self._check_time_set()
+        return self._time
+
+    def _eval(self, mesh_pts):
+        self._check_time_set()
+        return self._fun(mesh_pts, time=self._time)
+
+
+class Physics(NewtonResidual):
+    def __init__(self, basis: OrthogonalCoordinateCollocationBasis):
+        super().__init__(basis._bkd)
+        if not isinstance(basis, OrthogonalCoordinateCollocationBasis):
+            raise ValueError(
+                "basis must be an instance of "
+                "OrthogonalCoordinateCollocationBasis"
+            )
+        self.basis = basis
+
+    def set_boundaries(self, bndrys: list[BoundaryFunction]):
+        if len(bndrys) != len(self.basis.mesh._bndrys):
+            raise ValueError("Must set all boundaries")
+        self._bndrys = bndrys
+
+    def apply_boundary_conditions_to_residual(
+            self, sol_array: Array, res_array: Array
+    ):
+        for bndry in self._bndrys:
+            res_array = bndry.apply_to_residual(sol_array, res_array)
+        return res_array
+
+    def apply_boundary_conditions_to_jacobian(
+            self, sol_array: Array, jac: Array
+    ):
+        for bndry in self._bndrys:
+            res_array = bndry.apply_to_jacobian(sol_array, jac)
+        return res_array
+
+    @abstractmethod
+    def residual(self, sol: Function):
+        raise NotImplementedError
+
+    def _residual_function_from_solution_array(self, sol_array: Array):
+        self._bkd.assert_isarray(self._bkd, sol_array)
+        sol = self._separate_solutions(sol_array)
+        return self.residual(sol)
+
+    def _residual_array_and_jacobian_from_solution_array(
+            self, sol_array: Array
+    ):
+        res = self._residual_function_from_solution_array(sol_array)
+        res_array = self._bkd.flatten(res.get_values())
+        jac = res.get_jacobian()
+        jac = self._bkd.reshape(
+            jac, (jac.shape[0]*jac.shape[2], jac.shape[3])
+        )
+        return res_array, jac
+
+    def _residual_array_from_solution_array(self, sol_array: Array):
+        # TODO add option to matrix function that stops jacobian being computed
+        # when computing residual. useful for explicit time stepping
+        # and linear problems where jacobian does not depend on time or
+        # on uncertain parameters of PDE
+        return self._residual_array_and_jacobian_from_solution_array(
+            sol_array
+        )[0]
+
+    @abstractmethod
+    def _separate_solutions(self, array):
+        raise NotImplementedError
+
+    def separate_solutions(self, sol_array: Array):
+        sol = self._separate_solutions(sol_array)
+        if not isinstance(sol, SolutionMixin) or not isinstance(sol, Function):
+            raise RuntimeError(
+                "sol must be derived from SolutionMixin and Function"
+            )
+        return sol
+
+    def __call__(self, sol_array: Array):
+        res_array, jac = self._residual_array_and_jacobian_from_solution_array(
+            sol_array
+        )
+        self._jac = jac
+        return self.apply_boundary_conditions_to_residual(sol_array, res_array)
+
+    def jacobian(self, sol_array: Array):
+        # assumes jac called after __call__
+        return self.apply_boundary_conditions_to_jacobian(
+            sol_array, self._jac)
+
+    def linsolve(self, sol_array: Array, res_array: Array):
+        self._bkd.assert_isarray(self._bkd, sol_array)
+        self._bkd.assert_isarray(self._bkd, res_array)
+        return self._linsolve(sol_array, res_array)
+
+
+class LinearPhysicsMixin:
+    #TODO add option of prefactoring jacobian
+    #def _linsolve(self, sol_array: Array, res_array: Array):
+    #    return qr_solve(self._Q, self._R, res_array, bkd=self._bkd)
+
+    def _linsolve(self, sol_array: Array, res_array: Array):
+        return self._bkd.solve(self.jacobian(sol_array), res_array)
+
+    def _residual_from_array(self, sol_array: Array):
+        # Only compute linear jacobian once.
+        # This is useful for transient problems or for steady state
+        # parameterized PDEs with jacobians that are not dependent on
+        # the uncertain parameters
+        if hasattr(self, "_linear_jac"):
+            return self._linear_jac @ sol_array
+        return self._linear_residual_from_function().get_values()
+
+
+class NonLinearPhysicsMixin:
+    def _linsolve(self, sol_array: Array, res_array: Array):
+        return self._bkd.solve(self.jacobian(sol_array), res_array)
+
+
+class ScalarPhysicsMixin:
+    def _separate_solutions(self, array: Array):
+        sol = ScalarSolution(self.basis)
+        sol.set_values(array)
+        sol.set_jacobian(sol._initial_jacobian())
+        return sol
+
+
+class LinearDiffusionEquation(LinearPhysicsMixin, ScalarPhysicsMixin, Physics):
+    def __init__(
+            self,
+            forcing: ImutableScalarFunction,
+            diffusion: ImutableScalarFunction,
+    ):
+        if not isinstance(forcing, ImutableScalarFunction):
+            raise ValueError(
+                "forcing must be an instance of ImutableScalarFunction"
+            )
+        if not isinstance(diffusion, ImutableScalarFunction):
+            raise ValueError(
+                "diffusion must be an instance of ImutableScalarFunction"
+            )
+        super().__init__(forcing.basis)
         self._forcing = forcing
         self._diffusion = diffusion
 
-    def _linear_residual(self, sol: CollocationFunction):
-        res = div(self._diffusion*nabla(sol)) + self._forcing
-        return res.get_values(), res.get_jacobian()
+    def residual(self, sol: ScalarFunction):
+        if not isinstance(sol, ScalarSolution):
+            raise ValueError("sol must be an instance of ScalarFunction")
+        return div(self._diffusion*nabla(sol)) + self._forcing
 
 
 # nabla f(u) = [D_1f_1,    0  ], d/du (nabla f(u)) = [D_1f_1'(u),     0     ]
 #            = [  0   , D_2f_2]                      [   0      , D_2 f'(u) ]
 # where f'(u) = d/du f(u)
-def nabla(fun: CollocationFunction):
+def nabla(fun: Function):
     """Gradient of a scalar valued function"""
     funvalues = fun.get_values()[0, 0]
     fun_jac = fun.get_jacobian()
@@ -614,13 +877,13 @@ def nabla(fun: CollocationFunction):
         ],
         axis=0
     )
-    return MatrixCollocationFunction(
+    return MatrixFunction(
         fun.basis, fun.nphys_vars(), 1, grad_vals, grad_jacs
     )
 
 
 # div f = [D_1 f_1(u) + D_2f_2(u)],  (div f)' = [D_1f'_1(u) + D_2f'_2(u)]
-def div(fun: MatrixCollocationFunction):
+def div(fun: MatrixFunction):
     """Divergence of a vector valued function."""
     if fun._ncols != 1:
         raise ValueError("Fun must be a vector valued function")
@@ -632,24 +895,25 @@ def div(fun: MatrixCollocationFunction):
     div_vals = fun._bkd.sum(
         fun._bkd.einsum("ijk,ik->ij", dmats, fun_values), axis=0
     )
-    print(div_vals.shape)
     # dmats: (nrows, n, n)
     # fun_jacs : (nrows, n, n)
     div_jac = fun._bkd.sum(
         fun._bkd.einsum("ijk,ikm->ijm", dmats, fun_jacs), axis=0
     )
-    return ScalarCollocationFunction(fun.basis, div_vals, div_jac)
+    return MatrixFunction(
+        fun.basis, 1, 1, div_vals[None, None, :], div_jac[None, None, ...]
+    )
 
 
 # div (nabla f)  = [D_1, D_2][D_1f_1,    0  ] = [D_1D_1f_1,    0     ]
 #                            [  0   , D_2f_2] = [  0      , D_2D_2f_2]
 # d/du (nabla f(u)) = [D_1D_1f_1'(u),     0        ]
 #                     [   0      ,    D_2D_2 f'(u) ]
-def laplace(fun: ScalarCollocationFunction):
+def laplace(fun : MatrixFunction):
     """Laplacian of a scalar valued function"""
     return div(nabla(fun))
 
 
-def fdotgradf(fun: ScalarCollocationFunction):
+def fdotgradf(fun: MatrixFunction):
     r"""(f \cdot nabla f)f of a vector-valued function f"""
     pass

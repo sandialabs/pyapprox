@@ -1,6 +1,7 @@
 from functools import partial
 import sympy as sp
 
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.autopde.sympy_utils import (
     _evaluate_sp_lambda, _evaluate_list_of_sp_lambda,
     _evaluate_transient_sp_lambda, _evaluate_list_of_transient_sp_lambda)
@@ -8,10 +9,10 @@ from pyapprox.pde.autopde.sympy_utils import (
 
 def setup_advection_diffusion_reaction_manufactured_solution(
         sol_string, linear_diff_string, vel_strings, react_fun,
-        transient=False, nonlinear_diff_fun=None):
+        transient=False, nonlinear_diff_fun=None, bkd=NumpyLinAlgMixin):
     nphys_vars = len(vel_strings)
-    sp_x, sp_y = sp.symbols(['x', 'y'])
-    symbs = (sp_x, sp_y)[:nphys_vars]
+    sp_x, sp_y, sp_z = sp.symbols(['x', 'y', 'z'])
+    symbs = (sp_x, sp_y, sp_z)[:nphys_vars]
     all_symbs = symbs
     if transient:
         # These manufacture solutions assume
@@ -20,13 +21,13 @@ def setup_advection_diffusion_reaction_manufactured_solution(
     sol_expr = sp.sympify(sol_string)
     sol_lambda = sp.lambdify(all_symbs, sol_expr, "numpy")
     if transient:
-        sol_fun = partial(_evaluate_transient_sp_lambda, sol_lambda)
+        sol_fun = partial(_evaluate_transient_sp_lambda, sol_lambda, bkd=bkd)
     else:
-        sol_fun = partial(_evaluate_sp_lambda, sol_lambda)
+        sol_fun = partial(_evaluate_sp_lambda, sol_lambda, bkd=bkd)
 
     linear_diff_expr = sp.sympify(linear_diff_string)
     linear_diff_lambda = sp.lambdify(symbs, linear_diff_expr, "numpy")
-    linear_diff_fun = partial(_evaluate_sp_lambda, linear_diff_lambda)
+    linear_diff_fun = partial(_evaluate_sp_lambda, linear_diff_lambda, bkd=bkd)
 
     if nonlinear_diff_fun is not None:
         diff_expr = nonlinear_diff_fun(linear_diff_expr, sol_expr)
@@ -38,7 +39,9 @@ def setup_advection_diffusion_reaction_manufactured_solution(
     vel_exprs = [sp.sympify(vel_string) for vel_string in vel_strings]
     vel_lambdas = [
         sp.lambdify(symbs, vel_expr, "numpy") for vel_expr in vel_exprs]
-    vel_fun = partial(_evaluate_list_of_sp_lambda, vel_lambdas, as_list=False)
+    vel_fun = partial(
+        _evaluate_list_of_sp_lambda, vel_lambdas, as_list=False, bkd=bkd
+    )
     advection_expr = sum(
         [vel_expr*sol_expr.diff(symb, 1)
          for vel_expr, symb in zip(vel_exprs, symbs)])
@@ -61,9 +64,9 @@ def setup_advection_diffusion_reaction_manufactured_solution(
 
     forc_lambda = sp.lambdify(all_symbs, forc_expr, "numpy")
     if transient:
-        forc_fun = partial(_evaluate_transient_sp_lambda, forc_lambda)
+        forc_fun = partial(_evaluate_transient_sp_lambda, forc_lambda, bkd=bkd)
     else:
-        forc_fun = partial(_evaluate_sp_lambda, forc_lambda)
+        forc_fun = partial(_evaluate_sp_lambda, forc_lambda, bkd=bkd)
 
     # following is true definition of flux
     # flux_exprs = [diff_expr*sol_expr.diff(symb, 1) for symb in symbs]
@@ -73,9 +76,10 @@ def setup_advection_diffusion_reaction_manufactured_solution(
         sp.lambdify(all_symbs, flux_expr, "numpy") for flux_expr in flux_exprs]
     if transient:
         flux_funs = partial(
-            _evaluate_list_of_transient_sp_lambda, flux_lambdas)
+            _evaluate_list_of_transient_sp_lambda, flux_lambdas, bkd=bkd
+        )
     else:
-        flux_funs = partial(_evaluate_list_of_sp_lambda, flux_lambdas)
+        flux_funs = partial(_evaluate_list_of_sp_lambda, flux_lambdas, bkd=bkd)
 
     print("solu", sol_expr)
     print("diff", diff_expr)

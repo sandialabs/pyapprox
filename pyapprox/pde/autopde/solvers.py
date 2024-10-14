@@ -1,5 +1,4 @@
 import torch
-import copy
 from abc import ABC, abstractmethod
 from functools import partial
 import numpy as np

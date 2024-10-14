@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+# from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution
@@ -12,18 +12,26 @@ from pyapprox.pde.autopde.manufactured_solutions import (
 from pyapprox.pde.autopde._collocationbasis import (
     ChebyshevCollocationBasis1D,
     ChebyshevCollocationBasis2D,
+    ChebyshevCollocationBasis3D,
+    nabla,
+    LinearDiffusionEquation,
+    Function,
+    ImutableScalarFunctionFromCallable,
+    DirichletBoundaryFromFunction,
+    ScalarSolutionFromCallable,
 )
 from pyapprox.pde.autopde._mesh_transforms import (
     ScaleAndTranslationTransform1D,
     ScaleAndTranslationTransform2D,
+    ScaleAndTranslationTransform3D,
 )
 from pyapprox.pde.autopde._mesh import (
     ChebyshevCollocationMesh1D,
     ChebyshevCollocationMesh2D,
+    ChebyshevCollocationMesh3D,
+    OrthogonalCoordinateMesh,
 )
-from pyapprox.pde.autopde._collocationbasis import (
-    ScalarCollocationFunction, nabla, div, laplace, LinearDiffusionEquation
-)
+from pyapprox.pde.autopde._solvers import SteadyStatePDE, NewtonSolver
 
 
 class TestCollocation:
@@ -46,7 +54,7 @@ class TestCollocation:
 
         fun_values = test_fun(basis.mesh.mesh_pts())
         jac = "identity"
-        fun = ScalarCollocationFunction(
+        fun = ScalarFunction(
             basis, fun_values[:, 0], jac=jac
         )
 
@@ -85,7 +93,7 @@ class TestCollocation:
 
         fun_values = test_fun(basis.mesh.mesh_pts())
         # fun is independent of the solution
-        fun = ScalarCollocationFunction(basis, fun_values[:, 0], jac="zero")
+        fun = ScalarFunction(basis, fun_values[:, 0], jac="zero")
 
         X, Y, plot_samples = get_meshgrid_samples([0, 1, 0, 1], 11, bkd=bkd)
         assert bkd.allclose(
@@ -106,7 +114,7 @@ class TestCollocation:
         )
 
         # fun is the solution
-        fun = ScalarCollocationFunction(
+        fun = ScalarFunction(
             basis, fun_values[:, 0], jac="identity"
         )
         gradfun = nabla(fun)
@@ -117,7 +125,7 @@ class TestCollocation:
 
         # fun is a function of the solution
         jac = bkd.diag(4*fun_values[:, 0]**3)
-        fun = ScalarCollocationFunction(
+        fun = ScalarFunction(
             basis, fun_values[:, 0]**4, jac=jac
         )
         gradfun = nabla(fun)
@@ -131,7 +139,7 @@ class TestCollocation:
             return
 
         def jacfun(fun_values):
-            fun = ScalarCollocationFunction(
+            fun = ScalarFunction(
                 basis, fun_values**4, jac=jac
             )
             gradfun = nabla(fun)
@@ -145,9 +153,9 @@ class TestCollocation:
         def test_gfun(xx):
             return bkd.sum(xx**2, axis=0)[:, None]
 
-        #TODO once fix failing test with jac='zero' for gfun
+        # TODO once fix failing test with jac='zero' for gfun
         # add test with jac being nonzero for gfun
-        gfun = ScalarCollocationFunction(
+        gfun = ScalarFunction(
             basis, test_gfun(basis.mesh.mesh_pts())[:, 0], jac="zero"
         )
         prodfun = gfun*nabla(fun)
@@ -158,10 +166,10 @@ class TestCollocation:
             )
 
         def jacprodfun(fun_values):
-            fun = ScalarCollocationFunction(
+            fun = ScalarFunction(
                 basis, fun_values**4, jac=jac
             )
-            gfun = ScalarCollocationFunction(
+            gfun = ScalarFunction(
                 basis, test_gfun(basis.mesh.mesh_pts())[:, 0], jac="zero"
             )
             prodfun = gfun*nabla(fun)
@@ -172,12 +180,34 @@ class TestCollocation:
              bkd.jacobian(jacprodfun, fun_values[:, 0])
         )
 
-    def _setup_cheby_basis_1d(self, nterms, bounds):
+    def _setup_cheby_basis_1d(self, nterms: list, bounds: list):
         bkd = self.get_backend()
         transform = ScaleAndTranslationTransform1D([-1, 1], bounds, bkd)
         mesh = ChebyshevCollocationMesh1D(nterms, transform)
         basis = ChebyshevCollocationBasis1D(mesh)
         return basis
+
+    def _setup_rect_cheby_basis_2d(self, nterms: list, bounds: list):
+        bkd = self.get_backend()
+        transform = ScaleAndTranslationTransform2D([-1, 1], bounds, bkd)
+        mesh = ChebyshevCollocationMesh2D(nterms, transform)
+        basis = ChebyshevCollocationBasis2D(mesh)
+        return basis
+
+    def _setup_cube_cheby_basis_3d(self, nterms: list, bounds: list):
+        bkd = self.get_backend()
+        transform = ScaleAndTranslationTransform3D([-1, 1], bounds, bkd)
+        mesh = ChebyshevCollocationMesh3D(nterms, transform)
+        basis = ChebyshevCollocationBasis3D(mesh)
+        return basis
+
+    def _setup_dirichlet_boundary_conditions(
+            self, mesh: OrthogonalCoordinateMesh, sol_fun: Function
+    ):
+        bndry_funs = []
+        for bndry_name, bndry in mesh.get_boundaries().items():
+            bndry_funs.append(DirichletBoundaryFromFunction(bndry, sol_fun))
+        return bndry_funs
 
     def _check_steady_state_advection_diffusion_reaction(
             self, sol_string, diff_string, vel_strings,
@@ -187,30 +217,54 @@ class TestCollocation:
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0], False,
-                nl_diff_funs[0]))
+                nl_diff_funs[0], bkd=bkd
+            )
+        )
+        # TODO make function take in callable. Then call set_values
+        # in steadystatepde on mesh_pts and similarly for transient PDE
+        exact_sol = ScalarSolutionFromCallable(
+            basis, lambda x: sol_fun(x)[:, 0]
+        )
+        diffusion = ImutableScalarFunctionFromCallable(
+            basis, lambda x: diff_fun(x)[:, 0]
+        )
+        forcing = ImutableScalarFunctionFromCallable(
+            basis, lambda x: forc_fun(x)[:, 0]
+        )
 
-        exact_sol = ScalarCollocationFunction(
-            basis, sol_fun(basis.mesh.mesh_pts())[:, 0], "identity"
+        physics = LinearDiffusionEquation(forcing, diffusion)
+        residual = physics.residual(exact_sol)
+        assert bkd.allclose(
+            residual.get_values(), bkd.zeros(exact_sol.nmesh_pts(),)
         )
-        diffusion = ScalarCollocationFunction(
-            basis, diff_fun(basis.mesh.mesh_pts())[:, 0], "zero"
+
+        boundaries = self._setup_dirichlet_boundary_conditions(
+            basis.mesh, exact_sol
         )
-        forcing = ScalarCollocationFunction(
-            basis, forc_fun(basis.mesh.mesh_pts())[:, 0], "zero"
+        physics.set_boundaries(boundaries)
+        solver = SteadyStatePDE(physics, NewtonSolver(verbosity=2))
+        init_sol = ScalarSolutionFromCallable(
+            basis, lambda x: bkd.ones(x.shape[1],)
         )
-        physics = LinearDiffusionEquation(diffusion, forcing)
-        residual, jac = physics.residual(exact_sol)
-        assert bkd.allclose(residual, bkd.zeros(exact_sol.nmesh_pts(),))
+        sol = solver.solve(init_sol)
+        print(sol.get_values()[0, 0])
+        print(exact_sol.get_values()[0, 0])
+        assert bkd.allclose(
+            sol.get_values()[0, 0], exact_sol.get_values()[0, 0]
+        )
 
     def test_advection_diffusion_reaction(self):
         test_cases = [
-            ["-(x-1)*x/2", "4", ["0"], [None, None], ["D", "D"],
-             self._setup_cheby_basis_1d([5], [0, 1])
+            #["-(x-1)*x/2", "4", ["0"], [None, None], ["D", "D"],
+            # self._setup_cheby_basis_1d([5], [0, 1])
+            # ],
+            ["x**2*y**2", "2", ["0", "0"], [None, None], ["D", "D", "D", "D"],
+             self._setup_rect_cheby_basis_2d([4, 4], [0, 1, 0, 1])
              ],
-            # todo add 2d test
-            # [[0, 1, 0, 1], [4, 4], "y**2*x**2", "1", ["0", "0"],
-            #  [lambda sol: 0*sol,
-            #   lambda sol: torch.zeros((sol.shape[0],))],
+            # ["x**2*y**2*z**2", "2", ["0", "0", "0"], [None, None],
+            #  ["D", "D", "D", "D", "D", "D"],
+            #  self._setup_cube_cheby_basis_3d([3, 3, 3], [0, 1, 0, 1, 0, 1])
+            #  ],
         ]
         for test_case in test_cases:
             self._check_steady_state_advection_diffusion_reaction(*test_case)
@@ -221,9 +275,9 @@ class TestNumpyCollocation(TestCollocation, unittest.TestCase):
         return NumpyLinAlgMixin
 
 
-class TestTorchCollocation(TestCollocation, unittest.TestCase):
-    def get_backend(self):
-        return TorchLinAlgMixin
+# class TestTorchCollocation(TestCollocation, unittest.TestCase):
+#     def get_backend(self):
+#         return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

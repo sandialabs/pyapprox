@@ -58,22 +58,20 @@ class OrthogonalCoordinateMesh(ABC):
         return self._mesh_pts.shape[1]
 
     def _set_boundary_indices(self):
-        self._bndry_indices = [[] for ii in range(2 * self.nphys_vars())]
-        print(self._bndrys)
-        for ii in range(2 * self.nphys_vars()):
-            self._bndry_indices[ii] = self._bndrys[
-                ii
-            ].orth_samples_on_boundary(self._orth_mesh_pts)
+        for name, bndry in self._bndrys.items():
+            bndry.set_orth_mesh_pts_boundary_idx(self._orth_mesh_pts)
+            bndry.set_mesh_pts_on_boundary(self._mesh_pts)
 
-    def boundary_indices(self):
-        return self._bndry_indices
+    def get_boundaries(self):
+        return self._bndrys
 
     def __repr__(self):
-        return "{0}(nphys_vars={1}, npts_1d={2}, npts={3})".format(
+        return "{0}(nphys_vars={1}, npts_1d={2}, npts={3}, bndrys={4})".format(
             self.__class__.__name__,
             self.nphys_vars(),
             self._npts_1d,
-            self.nmesh_pts()
+            self.nmesh_pts(),
+            list(self._bndrys.keys()),
         )
 
 
@@ -84,7 +82,7 @@ class OrthogonalCoordinateMeshBoundary(ABC):
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        self._bndy_name = bndry_name
+        self._bndry_name = bndry_name
         self._bkd = bkd
         self._tol = tol
 
@@ -97,11 +95,19 @@ class OrthogonalCoordinateMeshBoundary(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def orth_samples_on_boundary(self):
+    def _orth_samples_on_boundary(self):
         raise NotImplementedError
 
+    def set_orth_mesh_pts_boundary_idx(self, orth_mesh_pts):
+        self._bndry_idx = self._orth_samples_on_boundary(orth_mesh_pts)
+
+    def set_mesh_pts_on_boundary(self, mesh_pts):
+        self._bndry_mesh_pts = mesh_pts[:, self._bndry_idx]
+
     def __repr__(self):
-        return "{0}(name={1})".format(self.__class__.__name__, self._bndy_name)
+        return "{0}(name={1})".format(
+            self.__class__.__name__, self._bndry_name
+        )
 
 
 class OrthogonalCoordinateMeshBoundary1D(OrthogonalCoordinateMeshBoundary):
@@ -124,7 +130,7 @@ class OrthogonalCoordinateMeshBoundary1D(OrthogonalCoordinateMeshBoundary):
     def orth_quadrature_rule(self):
         return self._bkd.ones((1, 1)), self._bkd.ones((1, 1))
 
-    def orth_samples_on_boundary(self, orth_samples):
+    def _orth_samples_on_boundary(self, orth_samples):
         return self._bkd.where(
             self._bkd.abs(self._inactive_orth_coord - orth_samples[0, :])
             < self._tol
@@ -173,7 +179,7 @@ class OrthogonalCoordinateMeshBoundary2D(OrthogonalCoordinateMeshBoundary):
         orth_xquad = self._bkd.cartesian_product(orth_xlist)
         return orth_xquad, active_orth_quadw
 
-    def orth_samples_on_boundary(self, orth_samples):
+    def _orth_samples_on_boundary(self, orth_samples):
         dd = int(self._bndry_index >= 2)
         indices = self._bkd.where(
             self._bkd.abs(self._inactive_orth_coord - orth_samples[dd, :])
@@ -190,7 +196,7 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
     def __init__(
         self,
         bndry_name: str,
-        npts: int,
+        npts_1d: int,
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
@@ -208,7 +214,7 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
                 [0.0, 0.0, 1.0],
             ]
         )[self._bndry_index]
-        self._npts = npts
+        self._npts_1d = npts_1d
         self._active_orth_bounds = self._bkd.asarray([-1.0, 1.0])
         self._inactive_orth_coord = {
             "left": -1.0,
@@ -238,8 +244,8 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
         else:
             # z boundaries
             jdx, idx0, idx1 = 2, 0, 1
-        active_quadx0, active_quadw0 = active_quad[0](self._npts[idx0]+2)
-        active_quadx1, active_quadw1 = active_quad[1](self._npts[idx1]+2)
+        active_quadx0, active_quadw0 = active_quad[0](self._npts_1d[idx0]+2)
+        active_quadx1, active_quadw1 = active_quad[1](self._npts_1d[idx1]+2)
         active_quadw = self._bkd.outer_product(
             [active_quadw0[:, 0], active_quadw1[:, 0]]
         )
@@ -251,7 +257,7 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
         xquad = self._bkd.cartesian_product(xlist)
         return xquad, active_quadw
 
-    def orth_samples_on_boundary(self, orth_samples):
+    def _orth_samples_on_boundary(self, orth_samples):
         dd = int(self._bndry_index >= 2)
         indices = self._bkd.where(
             self._bkd.abs(self._inactive_coord - orth_samples[dd, :])
@@ -274,27 +280,29 @@ class OrthogonalCoordinateMesh1DMixin(OrthogonalCoordinateMesh):
         super().__init__(npts_1d, transform)
 
     def _set_boundaries(self):
-        self._bndrys = [
-            OrthogonalCoordinateMeshBoundary1D(name)
+        self._bndrys = {
+            name: OrthogonalCoordinateMeshBoundary1D(name)
             for name in ["left", "right"]
-        ]
+        }
 
 
 class OrthogonalCoordinateMesh2DMixin:
     def _set_boundaries(self):
-        self._bndrys = [
-            OrthogonalCoordinateMeshBoundary2D(name, self._npts_1d[ii < 2])
+        self._bndrys = {
+            name: OrthogonalCoordinateMeshBoundary2D(
+                name, self._npts_1d[ii < 2]
+            )
             for ii, name in enumerate(["left", "right", "bottom", "top"])
-        ]
+        }
 
 
 class OrthogonalCoordinateMesh3DMixin:
     def _set_boundaries(self):
-        self._bndrys = [
-            OrthogonalCoordinateMeshBoundary3D(name)
+        self._bndrys = {
+            name: OrthogonalCoordinateMeshBoundary3D(name, self._npts_1d)
             # bounaries are in x, then y then z
             for name in ["left", "right", "front", "back", "bottom", "top"]
-        ]
+        }
 
 
 class ChebyshevCollocationMesh(OrthogonalCoordinateMesh):
@@ -310,5 +318,11 @@ class ChebyshevCollocationMesh1D(
 
 class ChebyshevCollocationMesh2D(
         OrthogonalCoordinateMesh2DMixin, ChebyshevCollocationMesh,
+):
+    pass
+
+
+class ChebyshevCollocationMesh3D(
+        OrthogonalCoordinateMesh3DMixin, ChebyshevCollocationMesh,
 ):
     pass

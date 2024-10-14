@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 import itertools
+from typing import TypeVar
+
+Array = TypeVar('Array')
 
 
 class LinAlgMixin(ABC):
@@ -46,9 +49,15 @@ class LinAlgMixin(ABC):
         raise NotImplementedError
 
     @staticmethod
+    @abstractmethod
     def cholesky_solve(chol, bvec, lower: bool = True):
         """Solve the linear equation A x = b for x,
         using the cholesky factorization of A."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def qr(mat, mode="complete"):
         raise NotImplementedError
 
     @staticmethod
@@ -744,6 +753,11 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def array_type():
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def real(array):
         raise NotImplementedError
 
@@ -755,4 +769,15 @@ class LinAlgMixin(ABC):
     @staticmethod
     @abstractmethod
     def round(array):
+        raise NotImplementedError
+
+    def assert_isarray(cls, array: Array):
+        if not isinstance(array, cls.array_type()):
+            raise ValueError(
+                "array must be an instance of {0}".format(cls.array_type())
+            )
+
+    @staticmethod
+    @abstractmethod
+    def flatten(array: Array):
         raise NotImplementedError

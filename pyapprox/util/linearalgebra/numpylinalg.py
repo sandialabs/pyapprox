@@ -41,6 +41,10 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return scipy.linalg.cho_solve((chol, lower), bvec)
 
     @staticmethod
+    def qr(mat: np.ndarray, mode="complete"):
+        return np.linalg.qr(mat, mode=mode)
+
+    @staticmethod
     def solve_triangular(Amat: np.ndarray, bvec: np.ndarray,
                          lower: bool = True) -> np.ndarray:
         return scipy.linalg.solve_triangular(Amat, bvec, lower=lower)
@@ -403,6 +407,10 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return complex
 
     @staticmethod
+    def array_type():
+        return np.ndarray
+
+    @staticmethod
     def real(array):
         return np.real(array)
 
@@ -413,3 +421,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def round(array):
         return np.round(array)
+
+    @staticmethod
+    def flatten(array: np.ndarray):
+        return array.flatten()
