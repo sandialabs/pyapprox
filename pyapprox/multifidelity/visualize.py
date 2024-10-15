@@ -109,7 +109,7 @@ def plot_estimator_variance_reductions(optimized_estimators,
 
 def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
                             format_string='{:1.3f}', cmap="jet", nqoi=1,
-                            label_fontsize=16):
+                            label_fontsize=16, colorbarlabel=None):
     """
     Plot a correlation matrix
 
@@ -125,7 +125,9 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
         if format_string is not None:
             ax.text(j, i, format_string.format(z), ha='center', va='center',
                     fontsize=12, color='w')
-    plt.colorbar(im, ax=ax)
+    cbar = plt.colorbar(im, ax=ax)
+    if colorbarlabel is not None:
+        cbar.set_label(colorbarlabel, rotation=270, labelpad=25)
     if model_names is None:
         nmodels = corr_matrix.shape[0]
         model_names = [r"$f_{%d}$" % ii for ii in range(nmodels)]

@@ -224,20 +224,21 @@ def map_from_canonical_gaussian(stdnormal_samples, mean,
         The generated correlated samples
 
     """
-    if covariance_chol_factor is None and covariance_sqrt is None:
+    assert mean.ndim == 1
+    if covariance_chol_factor is not None and covariance_sqrt is not None:
         raise Exception('cannot specify both covariance_chol_factor and sqrt')
 
     if covariance_chol_factor is None and covariance_sqrt is None:
         correlated_samples = stdnormal_samples
-    elif covariance_sqrt is None:
+        return mean[:, None]+correlated_samples
+
+    if covariance_sqrt is None:
         if covariance_chol_factor.ndim == 2:
             def covariance_sqrt(x): return np.dot(covariance_chol_factor, x)
         else:
             def covariance_sqrt(x): return (x.T*covariance_chol_factor).T
 
     correlated_samples = covariance_sqrt(stdnormal_samples)
-
-    assert mean.ndim == 1
     return mean[:, np.newaxis]+correlated_samples
 
 

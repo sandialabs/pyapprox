@@ -207,7 +207,7 @@ def get_hypercube_parameter_sweeps_samples(
 def get_gaussian_parameter_sweeps_samples(
         mean, covariance=None, covariance_sqrt=None,
         sweep_radius=1, num_samples_per_sweep=50, num_sweeps=1,
-        sweep_rotation_matrix=None):
+        sweep_rotation_matrix=None, num_vars=None):
     """
     Get the samples of parameter sweeps through random directions of a
     zero-mean multivariate Gaussian
@@ -255,7 +255,8 @@ def get_gaussian_parameter_sweeps_samples(
         z = sweep_radius  # number of standard deviations
         return np.asarray([-z, z])
 
-    num_vars = mean.shape[0]
+    if num_vars is None:
+        num_vars = mean.shape[0]
     samples, active_samples, W = get_parameter_sweeps_samples(
         num_vars, get_gaussian_sweep_bounds, num_samples_per_sweep, num_sweeps,
         random_samples=False, sweep_rotation_matrix=sweep_rotation_matrix)
