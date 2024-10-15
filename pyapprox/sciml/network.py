@@ -1,14 +1,12 @@
 import pickle
 
-from pyapprox.sciml.util._torch_wrappers import (
-    asarray, array, randperm, cumsum, ones, copy, sqrt)
-from pyapprox.sciml.transforms import IdentityValuesTransform
-from pyapprox.sciml.optimizers import LBFGSB
+from pyapprox.surrogates.bases.optimizers import ScipyLBFGSB
 from pyapprox.sciml.integraloperators import (
     DenseAffineIntegralOperator, DenseAffineIntegralOperatorFixedBias,
     FourierConvolutionOperator)
 from pyapprox.sciml.activations import (IdentityActivation, TanhActivation)
 from pyapprox.sciml.layers import Layer
+from pyapprox.util.transforms import IdentityTransform
 
 
 class CERTANN():
@@ -38,12 +36,7 @@ class CERTANN():
         optimizer : Optimizer
             An opimizer used to fit the network.
         """
-        if hasattr(nvars, '__iter__') and all(type(n) == int for n in nvars):
-            self._nvars = tuple(nvars)  # dimension of input samples
-        elif type(nvars) == int:
-            self._nvars = (nvars,)
-        else:
-            raise ValueError('nvars must be int or tuple of ints')
+        self._nvars = nvars  # dimension of input samples
         # for layer in layers:
         #     if not isinstance(layer, Layer):
         #         raise ValueError("Layer type provided is not supported")
@@ -51,37 +44,33 @@ class CERTANN():
             self._layers = [layers]  # list of kernels for each layer
         else:
             self._layers = layers
-        for layer in layers:
-            layer._set_nvars(self._nvars)
         self._nlayers = len(self._layers)
+        self._bkd = self._layers[0]._bkd
         if callable(activations):
             activations = [activations for nn in range(self._nlayers)]
         if len(activations) != self._nlayers:
             raise ValueError("incorrect number of activations provided")
         self._activations = activations  # activation functions for each layer
         if optimizer is None:
-            optimizer = LBFGSB()
+            optimizer = ScipyLBFGSB()
         self._optimizer = optimizer
 
         if var_trans is None:
-            self._var_trans = IdentityValuesTransform()
+            self._var_trans = IdentityTransform()
         else:
             self._var_trans = var_trans
         if values_trans is None:
-            self._values_trans = IdentityValuesTransform()
+            self._values_trans = IdentityTransform()
         else:
             self._values_trans = values_trans
 
         self._hyp_list = sum([layer._hyp_list for layer in self._layers])
         self._loss_str = loss
 
-    def _correct_input_shape(self, input_samples):
-        return all(n == m for (n, m) in zip(input_samples.shape, self._nvars))
-
     def _forward(self, input_samples):
-        if not self._correct_input_shape(input_samples):
+        if input_samples.shape[0] != self._nvars:
             raise ValueError("input_samples has the wrong shape")
-        y_samples = copy(input_samples)
+        y_samples = self._bkd.copy(input_samples)
         for kk in range(self._nlayers):
             u_samples = self._layers[kk](y_samples)
             y_samples = self._activations[kk](u_samples)
@@ -89,13 +78,14 @@ class CERTANN():
 
     def _loss(self, batches=1, batch_index=0):
         ntrain_samples = self._canonical_train_samples.shape[-1]
-        batch_sizes = ones((batches+1,)) * int(ntrain_samples / batches)
+        batch_sizes = (self._bkd.ones((batches+1,)) *
+                       int(ntrain_samples / batches))
         batch_sizes[0] = 0
         batch_sizes[1:(ntrain_samples % batches)] += 1
-        batch_arr = cumsum(batch_sizes, dim=0)
+        batch_arr = self._bkd.cumsum(batch_sizes, axis=0)
 
         if batch_index == 0:    # shuffle at beginning of epoch
-            shuffle = randperm(ntrain_samples)
+            shuffle = self._bkd.randperm(ntrain_samples)
             self._canonical_train_samples = (
                 self._canonical_train_samples[..., shuffle])
             self._canonical_train_values = (
@@ -114,13 +104,13 @@ class CERTANN():
                     dim=list(range(batch_approx_values.ndim-1))) / (
                     (batch_canonical_values**2).sum(
                      dim=list(range(batch_approx_values.ndim-1))))
-            return sqrt(diff).mean()
+            return self._bkd.sqrt(diff).mean()
         else:
             raise ValueError("Supported losses are 'mse' and 'rel_rmse'")
 
     def _fit_objective(self, active_opt_params_np, batches=1, batch_index=0):
-        active_opt_params = asarray(
-            active_opt_params_np, requires_grad=True)
+        active_opt_params = self._bkd.asarray(active_opt_params_np)
+        active_opt_params.requires_grad = True
         self._hyp_list.set_active_opt_params(active_opt_params)
         nll = self._loss(batches=batches, batch_index=batch_index)
         nll.backward()
@@ -137,8 +127,8 @@ class CERTANN():
             hyp.detach()
         return val, nll_grad
 
-    def _set_training_data(self, train_samples: array, train_values: array):
-        if not self._correct_input_shape(train_samples):
+    def _set_training_data(self, train_samples, train_values):
+        if train_samples.shape[0] != self._nvars:
             raise ValueError("train_samples has the wrong shape {0}".format(
                 train_samples.shape))
         if train_samples.shape[-1] != train_values.shape[-1]:
@@ -147,13 +137,12 @@ class CERTANN():
 
         self.train_samples = train_samples
         self.train_values = train_values
-        self._canonical_train_samples = asarray(
+        self._canonical_train_samples = self._bkd.asarray(
             self._var_trans.map_to_canonical(train_samples))
-        self._canonical_train_values = asarray(
+        self._canonical_train_values = self._bkd.asarray(
             self._values_trans.map_to_canonical(train_values))
 
-    def fit(self, train_samples: array, train_values: array, verbosity=0,
-            tol=1e-5):
+    def fit(self, train_samples, train_values, verbosity=0, tol=1e-5):
         self._set_training_data(train_samples, train_values)
         self._optimizer.set_objective_function(self._fit_objective)
         self._optimizer.set_bounds(self._hyp_list.get_active_opt_bounds())
@@ -161,7 +150,7 @@ class CERTANN():
         self._optimizer.set_tolerance(tol)
         res = self._optimizer.optimize(self._hyp_list.get_active_opt_params())
         self._res = res
-        self._hyp_list.set_active_opt_params(res.x)
+        self._hyp_list.set_active_opt_params(self._bkd.asarray(res.x))
 
     def save_model(self, filename):
         '''
@@ -170,7 +159,7 @@ class CERTANN():
         pickle.dump(self, open(filename, 'wb'))
 
     def __call__(self, input_samples):
-        return self._forward(asarray(input_samples))
+        return self._forward(self._bkd.asarray(input_samples))
 
     def __repr__(self):
         return "{0}({1})".format(

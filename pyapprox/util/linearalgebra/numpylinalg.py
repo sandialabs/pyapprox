@@ -425,3 +425,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def flatten(array: np.ndarray):
         return array.flatten()
+
+    @staticmethod
+    def gammaln(mat: np.ndarray) -> np.ndarray:
+        return scipy.special.gammaln(mat)
