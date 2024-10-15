@@ -30,6 +30,7 @@ class Layer():
                 'integralops must be IntegralOperator, or list '
                 'thereof')
         self._hyp_list = sum([op._hyp_list for op in self._integralops])
+        self._bkd = self._integralops[0]._bkd
 
     def _combine(self, v1, v2):
         """

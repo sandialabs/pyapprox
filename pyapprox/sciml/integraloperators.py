@@ -1,11 +1,9 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from pyapprox.sciml.util._torch_wrappers import (
-    empty, inf, vstack, flip, cos, arange, diag, zeros, pi, sqrt, cfloat, conj,
-    fft, ifft, fftshift, ifftshift, meshgrid, ones, einsum, permute, tril)
-from pyapprox.sciml.util.hyperparameter import (
-    HyperParameter, HyperParameterList, IdentityHyperParameterTransform)
-from pyapprox.sciml.util import fct
+from pyapprox.util.hyperparameter import (
+    HyperParameter, HyperParameterList, HyperParameterTransform,
+    IdentityHyperParameterTransform)
+from pyapprox.sciml.util import LinAlgMixin, TorchLinAlgMixin, FCT
 
 
 class IntegralOperator(ABC):
@@ -47,6 +45,7 @@ class EmbeddingOperator(IntegralOperator):
                 'integralops must be IntegralOperator, or list '
                 'thereof')
         self._hyp_list = sum([iop._hyp_list for iop in self._integralops])
+        self._bkd = self._hyp_list._bkd
 
         # ensure proper setup
         assert len(self._integralops) == self._channel_out
@@ -61,18 +60,23 @@ class EmbeddingOperator(IntegralOperator):
         if self._nx is None:
             self._format_nx(y_k_samples.shape[:-2])
 
-        out = zeros(*self._nx, self._channel_out, y_k_samples.shape[-1])
+        out = self._bkd.zeros((*self._nx, self._channel_out,
+                              y_k_samples.shape[-1]))
         for k in range(self._channel_out):
             out[..., k, :] = self._integralops[k](y_k_samples)[..., 0, :]
         return out
 
 
 class AffineProjectionOperator(IntegralOperator):
-    def __init__(self, channel_in: int, v0=None, nx=None):
+    def __init__(self, channel_in: int, v0=None, nx=None,
+                 transform: HyperParameterTransform
+                 = IdentityHyperParameterTransform,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
         self._channel_in = channel_in
         self._channel_out = 1
         self._format_nx(nx)
         self._nvars_mat = self._channel_in + 1
+        self._bkd = backend
         affine_weights = np.ones(self._nvars_mat)
         if v0 is not None:
             affine_weights[:] = np.copy(v0)
@@ -81,7 +85,7 @@ class AffineProjectionOperator(IntegralOperator):
         self._affine_weights = HyperParameter(
             'affine_weights', self._nvars_mat, affine_weights,
             np.tile([-np.inf, np.inf], self._nvars_mat),
-            IdentityHyperParameterTransform())
+            transform(backend=self._bkd))
         self._hyp_list = HyperParameterList([self._affine_weights])
         self._format_nx(nx)
 
@@ -90,14 +94,16 @@ class AffineProjectionOperator(IntegralOperator):
             raise ValueError('y_k_samples must have shape (n_x, d_c, n_train)')
         if self._nx is None:
             self._format_nx(y_k_samples.shape[:-2])
-        out = einsum('i,...ik->...k', self._hyp_list.get_values()[:-1],
-                     y_k_samples) + self._hyp_list.get_values()[-1]
+        out = self._bkd.einsum('i,...ik->...k',
+                               self._hyp_list.get_values()[:-1],
+                               y_k_samples) + self._hyp_list.get_values()[-1]
         return out[..., None, :]
 
 
 class KernelIntegralOperator(IntegralOperator):
     def __init__(self, kernels, quad_rule_k, quad_rule_kp1, channel_in=1,
-                 channel_out=1):
+                 channel_out=1, backend: LinAlgMixin = TorchLinAlgMixin):
+        self._bkd = backend
         if not hasattr(kernels, '__iter__'):
             self._kernels = channel_in*[kernels]
             self._hyp_list = kernels.hyp_list
@@ -114,22 +120,25 @@ class KernelIntegralOperator(IntegralOperator):
 
     def _integrate(self, y_k_samples):
         # Apply matvec to each channel in parallel
-        z_k_samples, w_k = self._quad_rule_k.get_samples_weights()
-        z_kp1_samples = self._quad_rule_kp1.get_samples_weights()[0]
-        self._WK_mat = zeros(z_kp1_samples.shape[1], z_k_samples.shape[1],
-                             len(self._kernels))
+        z_k_samples, w_k = self._quad_rule_k()
+        z_kp1_samples = self._quad_rule_kp1()[0]
+        self._WK_mat = self._bkd.zeros((z_kp1_samples.shape[1],
+                                        z_k_samples.shape[1],
+                                        len(self._kernels)))
         for k in range(len(self._kernels)):
             self._WK_mat[..., k] = (
                 self._kernels[k](z_kp1_samples, z_k_samples) * w_k[:, 0])
 
-        u_samples = einsum('ijk,jk...->ik...', self._WK_mat.double(),
-                           y_k_samples.double())
+        u_samples = self._bkd.einsum('ijk,jk...->ik...', self._WK_mat.double(),
+                                     y_k_samples.double())
         return u_samples
 
 
 class DenseAffineIntegralOperator(IntegralOperator):
     def __init__(self, ninputs: int, noutputs: int, v0=None, channel_in=1,
-                 channel_out=1):
+                 channel_out=1, transform: HyperParameterTransform
+                 = IdentityHyperParameterTransform,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
         r"""
         Implements the usual fully connected layer of an MLP:
 
@@ -152,12 +161,12 @@ class DenseAffineIntegralOperator(IntegralOperator):
         self._b_size = self._noutputs*self._channel_out
         self._nvars_mat = (self._noutputs * self._channel_out * (
                            self._ninputs * self._channel_in + 1))
-
+        self._bkd = backend
         weights_biases = self._default_values(v0)
         bounds = self._default_bounds()
         self._weights_biases = HyperParameter(
             "weights_biases", self._nvars_mat, weights_biases, bounds,
-            IdentityHyperParameterTransform())
+            transform(backend=self._bkd))
 
         self._hyp_list = HyperParameterList([self._weights_biases])
 
@@ -188,7 +197,8 @@ class DenseAffineIntegralOperator(IntegralOperator):
         b = (self._weights_biases.get_values()[-self._b_size:].reshape(
              self._noutputs, self._channel_out))
         if self._channel_in > 1 or self._channel_out > 1:
-            return einsum('ijkl,jlm->ikm', W, y_k_samples) + b[..., None]
+            return (self._bkd.einsum('ijkl,jlm->ikm', W, y_k_samples)
+                    + b[..., None])
         else:
             # handle separately for speed
             return (W[..., 0, 0] @ y_k_samples[..., 0, :] + b)[..., None, :]
@@ -196,8 +206,11 @@ class DenseAffineIntegralOperator(IntegralOperator):
 
 class DenseAffineIntegralOperatorFixedBias(DenseAffineIntegralOperator):
     def __init__(self, ninputs: int, noutputs: int, v0=None, channel_in=1,
-                 channel_out=1):
-        super().__init__(ninputs, noutputs, v0, channel_in, channel_out)
+                 channel_out=1, transform: HyperParameterTransform
+                 = IdentityHyperParameterTransform,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
+        super().__init__(ninputs, noutputs, v0, channel_in, channel_out,
+                         transform, backend)
 
     def _default_values(self, v0):
         weights_biases = super()._default_values(v0)
@@ -212,7 +225,10 @@ class DenseAffineIntegralOperatorFixedBias(DenseAffineIntegralOperator):
 
 
 class DenseAffinePointwiseOperator(IntegralOperator):
-    def __init__(self, v0=None, channel_in=1, channel_out=1):
+    def __init__(self, v0=None, channel_in=1, channel_out=1,
+                 transform: HyperParameterTransform
+                 = IdentityHyperParameterTransform,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
         r"""
         Implements a pointwise lifting/projection:
 
@@ -234,12 +250,13 @@ class DenseAffinePointwiseOperator(IntegralOperator):
         self._channel_out = channel_out
         self._b_size = self._channel_out
         self._nvars_mat = (self._channel_out * (self._channel_in + 1))
+        self._bkd = backend
 
         weights_biases = self._default_values(v0)
         bounds = self._default_bounds()
         self._weights_biases = HyperParameter(
             "weights_biases_ptwise", self._nvars_mat, weights_biases, bounds,
-            IdentityHyperParameterTransform())
+            transform(backend=self._bkd))
 
         self._hyp_list = HyperParameterList([self._weights_biases])
 
@@ -266,12 +283,16 @@ class DenseAffinePointwiseOperator(IntegralOperator):
         W = (self._weights_biases.get_values()[:-self._b_size].reshape(
              self._channel_out, self._channel_in))
         b = self._weights_biases.get_values()[-self._b_size:]
-        return einsum('ij,...jk->...ik', W, y_k_samples) + b[None, ..., None]
+        return (self._bkd.einsum('ij,...jk->...ik', W, y_k_samples) +
+                b[None, ..., None])
 
 
 class DenseAffinePointwiseOperatorFixedBias(DenseAffinePointwiseOperator):
-    def __init__(self, v0=None, channel_in=1, channel_out=1):
-        super().__init__(v0, channel_in, channel_out)
+    def __init__(self, v0=None, channel_in=1, channel_out=1,
+                 transform: HyperParameterTransform
+                 = IdentityHyperParameterTransform,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
+        super().__init__(v0, channel_in, channel_out, transform, backend)
 
     def _default_values(self, v0):
         weights_biases = super()._default_values(v0)
@@ -286,12 +307,13 @@ class DenseAffinePointwiseOperatorFixedBias(DenseAffinePointwiseOperator):
 
 
 class Reshape(IntegralOperator):
-    def __init__(self, output_shape):
+    def __init__(self, output_shape, backend: LinAlgMixin = TorchLinAlgMixin):
         if not hasattr(output_shape, '__iter__'):
             raise ValueError('output_shape must be iterable')
+        self._bkd = backend
         self._hyps = HyperParameter(
             "reshape", 0, np.asarray([]), np.asarray([np.nan, np.nan]),
-            IdentityHyperParameterTransform())
+            IdentityHyperParameterTransform(backend=self._bkd))
         self._hyp_list = HyperParameterList([self._hyps])
         self._output_shape = output_shape
 
@@ -301,7 +323,8 @@ class Reshape(IntegralOperator):
 
 
 class BaseFourierOperator(IntegralOperator):
-    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1):
+    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
         self._kmax = kmax
         self._format_nx(nx)
         self._d = 1 if self._nx is None else len(self._nx)
@@ -309,6 +332,7 @@ class BaseFourierOperator(IntegralOperator):
         self._channel_out = channel_out
         self._num_freqs = (self._kmax+1)**self._d
         self._num_coefs = (2*self._kmax+1)**self._d
+        self._bkd = backend
 
     def _integrate(self, y_k_samples):
         channel_implicit = False
@@ -342,32 +366,40 @@ class BaseFourierOperator(IntegralOperator):
         ntrain = y_k_samples.shape[-1]
 
         # Project onto modes -kmax, ..., 0, ..., kmax
-        fft_y = fft(y_k_samples.reshape((*self._nx, self._channel_in, ntrain)),
-                    axis=list(range(self._d)))
+        fft_y = self._bkd.fft(y_k_samples.reshape((*self._nx, self._channel_in,
+                                                   ntrain)))
 
-        fftshift_y = fftshift(fft_y, axis=list(range(self._d)))
+        fftshift_y = self._bkd.fftshift(fft_y)
         freq_slices = [slice(n-self._kmax, n+self._kmax+1) for n in nyquist]
-        fftshift_y_proj = fftshift_y[freq_slices]
+        fftshift_y_proj = self._bkd.get_slices(fftshift_y, freq_slices)
 
         R, summation_str = self._form_operator()
 
         # Do convolution and lift into original spatial resolution
-        conv_shift = einsum(summation_str, R,
-                            fftshift_y_proj.reshape(self._num_coefs,
-                                                    self._channel_in, ntrain))
+        conv_shift = self._bkd.einsum(summation_str, R,
+                                      fftshift_y_proj.reshape(self._num_coefs,
+                                                              self._channel_in,
+                                                              ntrain))
         conv_shift = conv_shift.reshape(*fftshift_y_proj.shape[:-2],
                                         self._channel_out, ntrain)
-        conv_shift_lift = zeros((*fft_y.shape[:-2], self._channel_out, ntrain),
-                                dtype=cfloat)
-        conv_shift_lift[freq_slices] = conv_shift
-        conv_lift = ifftshift(conv_shift_lift, axis=list(range(self._d)))
-        res = ifft(conv_lift, axis=list(range(self._d))).real
+        conv_shift_lift = self._bkd.zeros((*fft_y.shape[:-2],
+                                           self._channel_out, ntrain),
+                                          dtype=self._bkd.cfloat())
+        if self._bkd == TorchLinAlgMixin:
+            conv_shift_lift[freq_slices] = conv_shift
+        else:
+            conv_shift_lift[*freq_slices] = conv_shift
+        conv_lift = self._bkd.ifftshift(conv_shift_lift)
+        res = self._bkd.ifft(conv_lift).real
         return res.reshape(output_shape)
 
 
 class FourierHSOperator(BaseFourierOperator):
     def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1,
-                 channel_coupling='full'):
+                 channel_coupling='full',
+                 transform: HyperParameterTransform
+                 = IdentityHyperParameterTransform,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
         """
         Dense coupling in space (non-radial kernel). Not tested for spatial
         dimension > 1
@@ -396,7 +428,7 @@ class FourierHSOperator(BaseFourierOperator):
         """
 
         super().__init__(kmax=kmax, nx=nx, v0=v0, channel_in=channel_in,
-                         channel_out=channel_out)
+                         channel_out=channel_out, backend=backend)
 
         if channel_coupling.lower() not in ['full', 'diag']:
             raise ValueError("channel_coupling must be 'full' or 'diag'")
@@ -407,21 +439,25 @@ class FourierHSOperator(BaseFourierOperator):
         self._channel_factor = (self._channel_in*self._channel_out
                                 if self._channel_coupling == 'full' else
                                 self._channel_in)
-        v = empty(((2*self._num_freqs**2-1) * self._channel_factor,)).numpy()
+        v = self._bkd.empty(((2*self._num_freqs**2-1) * self._channel_factor,))
+        v = self._bkd.to_numpy(v)
         v[:] = 0.0 if v0 is None else np.copy(v0)
         self._R = HyperParameter(
-            'FourierHS_Operator', v.size, v, [-inf, inf],
-            IdentityHyperParameterTransform())
+            'FourierHS_Operator', v.size, v,
+            [-self._bkd.inf(), self._bkd.inf()],
+            transform(backend=self._bkd))
         self._hyp_list = HyperParameterList([self._R])
 
     def _form_operator(self):
         v_float = self._hyp_list.get_values()
         if self._channel_coupling == 'full':
-            v = zeros((self._num_coefs, self._num_coefs, self._channel_out,
-                       self._channel_in), dtype=cfloat)
+            v = self._bkd.zeros((self._num_coefs, self._num_coefs,
+                                 self._channel_out, self._channel_in),
+                                dtype=self._bkd.cfloat())
         else:
-            v = zeros((self._num_coefs, self._num_coefs, self._channel_out),
-                      dtype=cfloat)
+            v = self._bkd.zeros((self._num_coefs, self._num_coefs,
+                                 self._channel_out),
+                                dtype=self._bkd.cfloat())
 
         # With channel_in = channel_out = 1, we need
         #
@@ -448,12 +484,12 @@ class FourierHSOperator(BaseFourierOperator):
 
         # Take Hermitian transpose in first two dimensions; torch operates on
         # last two dimensions by default
-        v = permute(v, list(range(v.ndim-1, -1, -1)))
-        A = v + tril(v, diagonal=-1).mH
-        Atilde = tril(flip(A, dims=[-2]), diagonal=-1)
-        Atilde = conj(flip(Atilde, dims=[-1]))
+        v = self._bkd.transpose(v)
+        A = v + self._bkd.tril(v, k=-1).mH
+        Atilde = self._bkd.tril(self._bkd.flip(A, axis=(-2,)), k=-1)
+        Atilde = self._bkd.flip(Atilde, axis=(-1,)).conj()
         R = A + Atilde
-        R = permute(R, list(range(R.ndim-1, -1, -1)))
+        R = self._bkd.transpose(R)
         summation_str = ('ijkl,jlm->ikm' if self._channel_coupling == 'full'
                          else 'ijk,jkm->ikm')
         return (R, summation_str)
@@ -461,7 +497,10 @@ class FourierHSOperator(BaseFourierOperator):
 
 class FourierConvolutionOperator(BaseFourierOperator):
     def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1,
-                 channel_coupling='full'):
+                 channel_coupling='full',
+                 transform: HyperParameterTransform
+                 = IdentityHyperParameterTransform,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
         """
         Diagonal coupling in space (radial/convolutional kernel).
 
@@ -489,7 +528,7 @@ class FourierConvolutionOperator(BaseFourierOperator):
         """
 
         super().__init__(kmax=kmax, nx=nx, v0=v0, channel_in=channel_in,
-                         channel_out=channel_out)
+                         channel_out=channel_out, backend=backend)
 
         if channel_coupling.lower() not in ['full', 'diag']:
             raise ValueError("channel_coupling must be 'full' or 'diag'")
@@ -500,20 +539,22 @@ class FourierConvolutionOperator(BaseFourierOperator):
         self._channel_factor = (self._channel_in*self._channel_out
                                 if self._channel_coupling == 'full' else
                                 self._channel_in)
-        v = empty((self._num_coefs * self._channel_factor,)).numpy()
+        v = self._bkd.zeros((self._num_coefs * self._channel_factor,))
+        v = self._bkd.to_numpy(v)
         v[:] = 0.0 if v0 is None else np.copy(v0)
         self._R = HyperParameter(
-            'FourierConv_Operator', v.size, v, [-inf, inf],
-            IdentityHyperParameterTransform())
+            'FourierConv_Operator', v.size, v,
+            [-self._bkd.inf(), self._bkd.inf()],
+            transform(backend=self._bkd))
         self._hyp_list = HyperParameterList([self._R])
 
     def _form_operator(self):
         if self._channel_coupling == 'full':
-            v = zeros(((1+self._num_coefs)//2, self._channel_out,
-                       self._channel_in), dtype=cfloat)
+            v = self._bkd.zeros(((1+self._num_coefs)//2, self._channel_out,
+                                self._channel_in), dtype=self._bkd.cfloat())
         else:
-            v = zeros(((1+self._num_coefs)//2, self._channel_out),
-                      dtype=cfloat)
+            v = self._bkd.zeros(((1+self._num_coefs)//2, self._channel_out),
+                                dtype=self._bkd.cfloat())
 
         # Use symmetry c_{-n} = c_n, 1 <= n <= kmax
         v_float = self._hyp_list.get_values()
@@ -524,51 +565,57 @@ class FourierConvolutionOperator(BaseFourierOperator):
         v.imag[1:, ...].flatten()[:] = v_float[real_imag_cutoff:]
 
         # R[n, d_c, d_c] = c_n,   -kmax <= n <= kmax
-        R = vstack([flip(conj(v[1:, ...]), dims=[0]), v])
+        R = self._bkd.vstack([self._bkd.flip(v[1:, ...].conj(), axis=(0,)), v])
         summation_str = ('ikl,ilm->ikm' if self._channel_coupling == 'full'
                          else 'ik,ikm->ikm')
         return (R, summation_str)
 
 
 class ChebyshevConvolutionOperator(IntegralOperator):
-    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1):
+    def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1,
+                 transform: HyperParameterTransform
+                 = IdentityHyperParameterTransform,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
         # maximum retained degree
         self._kmax = kmax
         self._format_nx(nx)
         self._d = 1 if self._nx is None else len(self._nx)
         self._channel_in = channel_in
         self._channel_out = channel_out
+        self._bkd = backend
 
         # 1 entry for each mode between 0 and kmax
-        v = empty((channel_in * channel_out *
-                  (self._kmax+1)**self._d,)).numpy()
+        v = self._bkd.zeros((channel_in * channel_out *
+                             (self._kmax+1)**self._d,))
+        v = self._bkd.to_numpy(v)
         v[:] = 0.0 if v0 is None else np.copy(v0)
         self._R = HyperParameter(
-            'Chebyshev_R', v.size, v, [-inf, inf],
-            IdentityHyperParameterTransform())
+            'Chebyshev_R', v.size, v, [-self._bkd.inf(), self._bkd.inf()],
+            transform(backend=self._bkd))
         self._hyp_list = HyperParameterList([self._R])
         self._N_tot = None
         self._W_tot_R = None
         self._W_tot_ifct = None
+        self._fct = FCT(backend=self._bkd)
 
     def _precompute_weights(self):
         w_arr = []
         w_arr_ifct = []
         N_tot = 1
         for s in self._nx:
-            w = fct.make_weights(self._kmax+1)
+            w = self._fct.make_weights(self._kmax+1)
             w[-1] += (self._kmax != s-1)    # adjust final element
             w_arr.append(w)
 
-            w_ifct = fct.make_weights(s)
+            w_ifct = self._fct.make_weights(s)
             w_arr_ifct.append(w_ifct)
 
             N_tot *= 2*(s-1)
 
-        W = meshgrid(*w_arr, indexing='ij')
-        W_ifct = meshgrid(*w_arr_ifct, indexing='ij')
-        W_tot = ones(W[0].shape)
-        W_tot_ifct = ones(W_ifct[0].shape)
+        W = self._bkd.meshgrid(*w_arr, indexing='ij')
+        W_ifct = self._bkd.meshgrid(*w_arr_ifct, indexing='ij')
+        W_tot = self._bkd.ones(W[0].shape)
+        W_tot_ifct = self._bkd.ones(W_ifct[0].shape)
         for k in range(self._d):
             W_tot *= W[k]
             W_tot_ifct *= W_ifct[k]
@@ -610,31 +657,40 @@ class ChebyshevConvolutionOperator(IntegralOperator):
                 f'{kmax_lim}')
 
         # Project onto T_0, ..., T_{kmax}
-        fct_y = fct.fct(y_k_samples.reshape((*self._nx, self._channel_in,
-                                             ntrain)))
+        fct_y = self._fct.fct(y_k_samples.reshape((*self._nx, self._channel_in,
+                                                   ntrain)))
         deg_slices = [slice(self._kmax+1) for k in self._nx]
-        fct_y_proj = fct_y[deg_slices]
+        fct_y_proj = self._bkd.get_slices(fct_y, deg_slices)
 
         # Construct convolution factor R; keep books on weights
         if self._W_tot_R is None:
             self._precompute_weights()
         P = self._N_tot / self._W_tot_R
-        fct_y_proj_precond = einsum('...,...jk->...jk', P, fct_y_proj)
+        fct_y_proj_precond = self._bkd.einsum('...,...jk->...jk', P,
+                                              fct_y_proj)
         R = self._hyp_list.get_values().reshape(*fct_y_proj.shape[:-2],
                                                 self._channel_out,
                                                 self._channel_in)
 
         # Do convolution and lift into original spatial resolution
-        r_conv_y = einsum('...jk,...kl->...jl', R, fct_y_proj_precond)
-        conv_lift = zeros((*self._nx, self._channel_out, fct_y.shape[-1]))
-        conv_lift[deg_slices] = r_conv_y
-        res = fct.ifct(conv_lift, W_tot=self._W_tot_ifct)
+        r_conv_y = self._bkd.einsum('...jk,...kl->...jl', R,
+                                    fct_y_proj_precond)
+        conv_lift = self._bkd.zeros((*self._nx, self._channel_out,
+                                     fct_y.shape[-1]))
+        if self._bkd == TorchLinAlgMixin:
+            conv_lift[deg_slices] = r_conv_y.real
+        else:
+            conv_lift[*deg_slices] = r_conv_y.real
+        res = self._fct.ifct(conv_lift, W_tot=self._W_tot_ifct)
         return res.reshape(output_shape)
 
 
 class ChebyshevIntegralOperator(IntegralOperator):
     def __init__(self, kmax, shape=None, v0=None, nonzero_inds=None,
-                 chol=False):
+                 chol=False,
+                 transform: HyperParameterTransform
+                 = IdentityHyperParameterTransform,
+                 backend: LinAlgMixin = TorchLinAlgMixin):
         r"""
         Compute
 
@@ -649,21 +705,26 @@ class ChebyshevIntegralOperator(IntegralOperator):
         # maximum retained degree
         self._kmax = kmax
 
+        self._bkd = backend
+        self._fct = FCT(backend=self._bkd)
+
         # A must be symmetric since K(x,z) = K(z,x), so only store the upper
         # triangle
         if nonzero_inds is None:
             # Upper triangle of symmetric matrix (row-major order)
-            v = empty(((self._kmax+1)*(self._kmax+2)//2, )).numpy()
+            v = self._bkd.zeros(((self._kmax+1)*(self._kmax+2)//2, ))
+            v = self._bkd.to_numpy(v)
         else:
             # Sparse symmetric matrix, nonzero entries of upper triangle
-            v = empty((nonzero_inds.shape[0], )).numpy()
+            v = self._bkd.zeros((nonzero_inds.shape[0], ))
+            v = self._bkd.to_numpy(v)
         if chol:
             v[:] = 1.0 if v0 is None else np.copy(v0)
         else:
             v[:] = 0.0 if v0 is None else np.copy(v0)
         self._A = HyperParameter(
-            'Chebyshev_A', v.size, v, [-inf, inf],
-            IdentityHyperParameterTransform())
+            'Chebyshev_A', v.size, v, [-self._bkd.inf(), self._bkd.inf()],
+            transform(backend=self._bkd))
         self._hyp_list = HyperParameterList([self._A])
         self._nonzero_inds = nonzero_inds
         self._chol = chol
@@ -674,10 +735,10 @@ class ChebyshevIntegralOperator(IntegralOperator):
         if self._nonzero_inds is None:
             cheb_U = v
         else:
-            cheb_U = zeros(((self._kmax+1)*(self._kmax+2)//2, ))
+            cheb_U = self._bkd.zeros(((self._kmax+1)*(self._kmax+2)//2, ))
             for i in range(self._nonzero_inds.shape[0]):
                 cheb_U[self._nonzero_inds[i]] = v[i]
-        U = zeros((self._kmax+1, self._kmax+1))
+        U = self._bkd.zeros((self._kmax+1, self._kmax+1))
         diag_idx = range(self._kmax+1)
         c = 0
         for k in diag_idx:
@@ -688,20 +749,24 @@ class ChebyshevIntegralOperator(IntegralOperator):
             A[diag_idx, diag_idx] = U[diag_idx, diag_idx]
 
         n = y_k_samples.shape[0]
-        z_k_samples = cos(pi*arange(n)/(n-1))
-        Phi = fct.chebyshev_poly_basis(z_k_samples, self._kmax+1)
+        pi = self._bkd.arccos(-self._bkd.ones(1))[0]
+        z_k_samples = self._bkd.cos(pi*self._bkd.arange(n)/(n-1))
+        Phi = self._fct.chebyshev_poly_basis(z_k_samples, self._kmax+1)
+        fct_y_proj = self._fct.fct(y_k_samples)[:self._kmax+1, 0, :]
 
         # factor[n] = \int_{-1}^1 (T_n(x))^2 w(x) dx
-        factor = zeros((self._kmax+1,))
+        factor = self._bkd.zeros((self._kmax+1,))
         factor[0] = pi
         factor[1:] = pi/2
-        fct_y = diag(factor) @ fct.fct(y_k_samples)[:self._kmax+1, :]
+        fct_y_precond = self._bkd.diag(factor) @ fct_y_proj
 
         # define weighting function w and avoid singularity
-        w = 1.0 / (1e-14+sqrt(1-z_k_samples**2))
+        w = 1.0 / (1e-14 + self._bkd.sqrt(1-z_k_samples**2))
         w[0] = (w[1] + (z_k_samples[2] - z_k_samples[1]) / (z_k_samples[0]
                 - z_k_samples[1]) * (w[2] - w[1]))
         w[-1] = w[0]
         if not self._chol:
-            return diag(w) @ Phi.T @ (A @ fct_y)
-        return diag(w) @ Phi.T @ (U.T @ (U @ fct_y))
+            out = self._bkd.diag(w) @ Phi.T @ (A @ fct_y_precond)
+        else:
+            out = self._bkd.diag(w) @ Phi.T @ (U.T @ (U @ fct_y_precond))
+        return out.reshape(y_k_samples.shape)
