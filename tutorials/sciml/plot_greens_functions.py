@@ -48,12 +48,12 @@ function and compares the result against the exact solution.
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.sciml.greensfunctions import (
+from pyapprox.surrogates.kernels.greensfunctions import (
     HomogeneousLaplace1DGreensKernel, GreensFunctionSolver,
     HeatEquation1DGreensKernel, ActiveGreensKernel, Helmholtz1DGreensKernel,
     DrivenHarmonicOscillatorGreensKernel, WaveEquation1DGreensKernel)
-from pyapprox.sciml.quadrature import (
-    Fixed1DTrapezoidIOQuadRule, Transformed1DQuadRule)
+from pyapprox.surrogates.bases.orthopoly import GaussLegendreQuadratureRule
+from pyapprox.sciml.util import NumpyLinAlgMixin
 
 np.random.seed(1)
 
@@ -61,8 +61,9 @@ kappa = 0.1
 nquad = 100
 greens_fun = HomogeneousLaplace1DGreensKernel(kappa, [1e-3, 1])
 bounds = [0, 1]
-quad_rule = Transformed1DQuadRule(
-    Fixed1DTrapezoidIOQuadRule(nquad), bounds)
+backend = NumpyLinAlgMixin
+quad_rule = GaussLegendreQuadratureRule(bounds=bounds, backend=backend)
+quad_rule.set_nnodes(nquad)
 greens_solver = GreensFunctionSolver(greens_fun, quad_rule)
 
 
