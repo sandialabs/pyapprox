@@ -80,11 +80,11 @@ class HyperParameter:
                     self._values.shape, self.nvars()
                 )
             )
+        self.set_bounds(bounds)
         if fixed:
             self.set_all_inactive()
         else:
             self.set_all_active()
-        self.set_bounds(bounds)
 
     def set_active_indices(self, indices):
         if indices.shape[0] == 0:
@@ -104,7 +104,10 @@ class HyperParameter:
         self.set_active_indices(self._bkd.zeros((0, ), dtype=int))
 
     def set_all_active(self):
-        self.set_active_indices(self._bkd.arange(self.nvars(), dtype=int))
+        frozen_indices = self._bkd.isnan(self.bounds[:, 0])
+        self.set_active_indices(
+            self._bkd.arange(self.nvars(), dtype=int)[~frozen_indices]
+        )
 
     def set_bounds(self, bounds):
         self.bounds = self._bkd.atleast1d(bounds)
