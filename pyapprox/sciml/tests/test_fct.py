@@ -1,78 +1,88 @@
 import unittest
-import numpy as np
-from pyapprox.sciml.util import fct
-from pyapprox.sciml.util._torch_wrappers import asarray, hstack, flip
+from pyapprox.sciml.util import FCT, NumpyLinAlgMixin
 
 
 class TestFCT(unittest.TestCase):
     def setUp(self):
-        np.random.seed(1)
+        self._bkd = NumpyLinAlgMixin
+        self._bkd.random_seed(1)
+        self.fct = FCT(backend=self._bkd)
 
     def test_fct_1d(self):
         n = 20
-        pts = asarray(np.cos(np.pi*np.arange(0, n+1)/n))
-        values = asarray(np.cos(2*np.pi*3.0*pts+0.5))
-        w = 2*np.ones(n+1)
+        fct = FCT(backend=self._bkd)
+        pi = self._bkd.arccos(-1)
+        pts = self._bkd.cos(pi * self._bkd.arange(0, n+1)/n)
+        values = self._bkd.cos(2*pi*3.0*pts + 0.5)
+        w = 2*self._bkd.ones(n+1)
         w[0] = 1
         w[-1] = 1
 
         basis_mat = fct.chebyshev_poly_basis(pts, n+1).T
-        lstsq_coef = np.linalg.lstsq(
-            basis_mat.numpy(), values.numpy(), rcond=None)[0]
+        lstsq_coef = self._bkd.lstsq(basis_mat, values)
 
         # Test forward Chebyshev transform
         coef = fct.fct(values)
-        assert np.allclose(coef.numpy(), lstsq_coef), 'Error: Forward DCT-1D'
+        assert self._bkd.allclose(coef, lstsq_coef), 'Error: Forward DCT-1D'
 
         # Test inverse Chebyshev transform
         recovered_values = fct.ifct(coef)
-        assert np.allclose(values.numpy(), recovered_values.numpy()), (
+        assert self._bkd.allclose(values, recovered_values), (
                'Error: Inverse DCT-1D')
 
         # Test batch Chebyshev transform
-        batch_values = asarray(np.random.normal(0, 1, (n+1, 2)))
+        batch_values = self._bkd.normal(0, 1, (n+1, 2))
         batch_coefs = fct.fct(batch_values)
-        assert np.allclose(batch_values, fct.ifct(batch_coefs)), ('Error: '
-               'Batch inverse DCT')
-        assert np.allclose(fct.fct(batch_values[:, 0]), batch_coefs[:, 0]), (
+        assert self._bkd.allclose(batch_values, fct.ifct(batch_coefs)), (
+               'Error: Batch inverse DCT')
+        assert self._bkd.allclose(fct.fct(batch_values[:, 0]),
+                                  batch_coefs[:, 0]), (
                'Error: Batch DCT')
 
         # Sanity check for circular convolution function
-        u = asarray(np.random.normal(0, 1, (n+1,)))
-        v = asarray(np.random.normal(0, 1, (n+1,)))
-        assert np.allclose(
-            np.fft.fft(fct.circ_conv(u, v)), np.fft.fft(u)*np.fft.fft(v)), (
-                'Error: Violation of Fourier Convolution Theorem')
-        assert np.allclose(np.fft.ifft(fct.circ_conv(u, v)),
-                           (n+1)*np.fft.ifft(u)*np.fft.ifft(v)), ('Error: '
-               'Violation of Inverse Fourier Convolution Theorem')
+        u = self._bkd.normal(0, 1, (n+1, 1, 1))
+        v = self._bkd.normal(0, 1, (n+1, 1, 1))
+        assert self._bkd.allclose(
+            self._bkd.fft(fct.circ_conv(u, v)),
+            self._bkd.fft(u)*self._bkd.fft(v)), (
+            'Error: Violation of Fourier Convolution Theorem')
+        assert self._bkd.allclose(self._bkd.ifft(fct.circ_conv(u, v)),
+                                  (n+1)*self._bkd.ifft(u)*self._bkd.ifft(v)), (
+                   'Error: Violation of Inverse Fourier Convolution Theorem')
 
         # Test forward Chebyshev convolution property
-        u_tconv_v = fct.circ_conv(hstack([u, flip(u[1:-1], dims=[0])]),
-                                  hstack([v, flip(v[1:-1], dims=[0])]))[:n+1]
-        assert np.allclose(fct.fct(u_tconv_v), fct.fct(u)*fct.fct(v)*2*n/w), (
+        u = u.flatten()
+        v = v.flatten()
+        u_tconv_v = fct.circ_conv(
+                        self._bkd.hstack([u, self._bkd.flip(u[1:-1], axis=0)]),
+                        self._bkd.hstack([v, self._bkd.flip(v[1:-1], axis=0)])
+                    )[:n+1]
+        assert self._bkd.allclose(fct.fct(u_tconv_v),
+                                  fct.fct(u)*fct.fct(v)*2*n/w), (
                'Error: Forward Chebyshev convolution')
 
         # Test inverse Chebyshev convolution property
-        assert np.allclose(fct.ifct(asarray(w)*u_tconv_v),
-                           fct.ifct(asarray(w)*u)*fct.ifct(asarray(w)*v)), (
+        assert self._bkd.allclose(fct.ifct(w*u_tconv_v),
+                                  fct.ifct(w*u)*fct.ifct(w*v)), (
                'Error: Inverse Chebyshev convolution')
 
     def test_fct_multidim(self):
         # interpolation in 2D
         n = 20
-        pts = np.cos(np.pi*np.arange(0, n+1)/n)
-        (X, Y) = np.meshgrid(pts, pts)
-        Z = np.cos(2*np.pi*3.0*X+0.5)*Y**2
+        pi = self._bkd.arccos(-1)
+        pts = self._bkd.cos(pi*self._bkd.arange(0, n+1)/n)
+        (X, Y) = self._bkd.meshgrid(pts, pts)
+        Z = self._bkd.cos(2*pi*3.0*X + 0.5)*Y**2
 
         # Solve least-squares problem for coefficients
-        basis_mat = fct.chebyshev_poly_basis(asarray(pts), n+1).T.numpy()
-        Phi = np.kron(basis_mat, basis_mat)
-        lstsq_coef = np.linalg.lstsq(Phi, Z.flatten(), rcond=None)[0]
+        basis_mat = self.fct.chebyshev_poly_basis(pts, n+1).T
+        Phi = self._bkd.kron(basis_mat, basis_mat)
+        lstsq_coef = self._bkd.lstsq(Phi, Z.flatten())
 
         # Use FCT (extra dimensions for channels and realizations)
-        coef = fct.fct(asarray(Z)[..., None, None])[..., 0, 0].flatten()
-        assert np.allclose(coef, lstsq_coef), 'Error: 2D-DCT != Vandermonde'
+        coef = self.fct.fct(Z[..., None, None])[..., 0, 0].flatten()
+        assert self._bkd.allclose(coef, lstsq_coef), (
+            'Error: 2D-DCT != Vandermonde')
 
         # tensor sizes
         n1, n2, n3, n4 = 17, 5, 9, 3
@@ -80,60 +90,66 @@ class TestFCT(unittest.TestCase):
         d_c = 1
 
         # 2D
-        x = asarray(np.random.rand(n1, n2, d_c, ntrain))
-        out = x.clone()
+        x = self._bkd.normal(0, 1, (n1, n2, d_c, ntrain))
+        out = self._bkd.copy(x)
         for i in range(x.shape[0]):
-            out[i, :, :] = fct.fct(out[i, :, :, :])
+            out[i, :, :] = self.fct.fct(out[i, :, :, :])
 
         for j in range(x.shape[1]):
-            out[:, j, :] = fct.fct(out[:, j, :, :])
+            out[:, j, :] = self.fct.fct(out[:, j, :, :])
 
-        assert np.allclose(out, fct.fct(x)), 'Error: Forward DCT, 2D'
-        assert np.allclose(fct.ifct(fct.fct(x)), x), 'Error: Inverse DCT, 2D'
+        assert self._bkd.allclose(out, self.fct.fct(x)), (
+            'Error: Forward DCT, 2D')
+        assert self._bkd.allclose(self.fct.ifct(self.fct.fct(x)), x), (
+            'Error: Inverse DCT, 2D')
 
         # 3D
-        x = asarray(np.random.rand(n1, n2, n3, d_c, ntrain))
-        out = x.clone()
+        x = self._bkd.normal(0, 1, (n1, n2, n3, d_c, ntrain))
+        out = self._bkd.copy(x)
         for i in range(x.shape[0]):
             for j in range(x.shape[1]):
-                out[i, j, :, :] = fct.fct(out[i, j, :, :, :])
+                out[i, j, :, :] = self.fct.fct(out[i, j, :, :, :])
 
         for i in range(x.shape[0]):
             for j in range(x.shape[2]):
-                out[i, :, j, :] = fct.fct(out[i, :, j, :, :])
+                out[i, :, j, :] = self.fct.fct(out[i, :, j, :, :])
 
         for i in range(x.shape[1]):
             for j in range(x.shape[2]):
-                out[:, i, j, :] = fct.fct(out[:, i, j, :, :])
+                out[:, i, j, :] = self.fct.fct(out[:, i, j, :, :])
 
-        assert np.allclose(out, fct.fct(x)), 'Error: Forward DCT, 3D'
-        assert np.allclose(fct.ifct(fct.fct(x)), x), 'Error: Inverse DCT, 3D'
+        assert self._bkd.allclose(out, self.fct.fct(x)), (
+            'Error: Forward DCT, 3D')
+        assert self._bkd.allclose(self.fct.ifct(self.fct.fct(x)), x), (
+            'Error: Inverse DCT, 3D')
 
         # 4D
-        x = asarray(np.random.rand(n1, n2, n3, n4, d_c, ntrain))
-        out = x.clone()
+        x = self._bkd.normal(0, 1, (n1, n2, n3, n4, d_c, ntrain))
+        out = self._bkd.copy(x)
         for i in range(x.shape[0]):
             for j in range(x.shape[1]):
                 for k in range(x.shape[2]):
-                    out[i, j, k, :, :] = fct.fct(out[i, j, k, :, :, :])
+                    out[i, j, k, :, :] = self.fct.fct(out[i, j, k, :, :, :])
 
         for i in range(x.shape[0]):
             for j in range(x.shape[1]):
                 for k in range(x.shape[3]):
-                    out[i, j, :, k, :] = fct.fct(out[i, j, :, k, :, :])
+                    out[i, j, :, k, :] = self.fct.fct(out[i, j, :, k, :, :])
 
         for i in range(x.shape[0]):
             for j in range(x.shape[2]):
                 for k in range(x.shape[3]):
-                    out[i, :, j, k, :] = fct.fct(out[i, :, j, k, :, :])
+                    out[i, :, j, k, :] = self.fct.fct(out[i, :, j, k, :, :])
 
         for i in range(x.shape[1]):
             for j in range(x.shape[2]):
                 for k in range(x.shape[3]):
-                    out[:, i, j, k, :] = fct.fct(out[:, i, j, k, :, :])
+                    out[:, i, j, k, :] = self.fct.fct(out[:, i, j, k, :, :])
 
-        assert np.allclose(out, fct.fct(x)), 'Error: Forward DCT, 4D'
-        assert np.allclose(fct.ifct(fct.fct(x)), x), 'Error: Inverse DCT, 4D'
+        assert self._bkd.allclose(out, self.fct.fct(x)), (
+            'Error: Forward DCT, 4D')
+        assert self._bkd.allclose(self.fct.ifct(self.fct.fct(x)), x), (
+            'Error: Inverse DCT, 4D')
 
 
 if __name__ == '__main__':
