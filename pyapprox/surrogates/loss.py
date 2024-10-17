@@ -6,6 +6,7 @@ class LossFunction(Model):
         super().__init__()
         self._bkd = None
         self._model = None
+        self._jacobian_implemented = True
 
     def nqoi(self):
         return 1
@@ -37,13 +38,19 @@ class LossFunction(Model):
         ):
             raise ValueError("model must have attribute _ctrain_values")
 
-
-class RMSELoss(LossFunction):
-    def __init__(self):
-        super().__init__()
-        self._jacobian_implemented = True
+    def _jacobian(self, active_opt_params):
+        val, grad = self._bkd.grad(self._loss_values, active_opt_params)
+        # todo move detach to linalgmixin if needed
+        for hyp in self._model.hyp_list.hyper_params:
+            self._bkd.detach(hyp)
+        return self._bkd.detach(grad).T
 
     def _values(self, active_opt_params):
+        return self._bkd.detach(self._loss_values(active_opt_params))
+
+
+class RMSELoss(LossFunction):
+    def _loss_values(self, active_opt_params):
         self._check_model(self._model)
         self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
         return self._bkd.atleast2d(
@@ -57,10 +64,3 @@ class RMSELoss(LossFunction):
                 )
             )
         )
-
-    def _jacobian(self, active_opt_params):
-        val, grad = self._bkd.grad(self.__call__, active_opt_params)
-        # todo move detach to linalgmixin if needed
-        for hyp in self._model.hyp_list.hyper_params:
-            self._bkd.detach(hyp)
-        return self._bkd.detach(grad).T

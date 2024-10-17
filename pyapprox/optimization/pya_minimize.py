@@ -223,6 +223,9 @@ class OptimizerIterateGenerator(ABC):
     def __call__(self):
         raise NotImplementedError
 
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
 
 class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
     def __init__(self, nvars, backend=NumpyLinAlgMixin):
@@ -547,7 +550,9 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             constraints=self._constraints,
             options=opts,
         )
-        scipy_result.x = scipy_result.x[:, None]
+        # use copy to avoid warning:
+        # The given NumPy array is not writable ...
+        scipy_result.x = np.copy(scipy_result.x[:, None])
         result = ScipyOptimizationResult(scipy_result, self._bkd)
         if self._verbosity > 1:
             print(result)

@@ -15,7 +15,6 @@ from pyapprox.util.linearalgebra.numpylinalg import (
     NumpyLinAlgMixin,
     LinAlgMixin,
 )
-from pyapprox.util.transforms import Transform
 from pyapprox.expdesign.low_discrepancy_sequences import halton_sequence
 from pyapprox.variables.transforms import IndependentMarginalsVariable
 from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
@@ -153,13 +152,9 @@ class InducingGaussianProcess(ExactGaussianProcess):
         nvars: int,
         kernel: Kernel,
         inducing_samples,
-        var_trans: Transform = None,
-        values_trans: Transform = None,
         kernel_reg: float = 0,
     ):
-        super().__init__(
-            nvars, kernel, var_trans, values_trans, None, kernel_reg
-        )
+        super().__init__(nvars, kernel, None, kernel_reg)
         if isinstance(kernel, SumKernel):
             # TODO check that sumkernel is return when using
             # constantkernel*kernel + white_noise
@@ -171,10 +166,11 @@ class InducingGaussianProcess(ExactGaussianProcess):
 
         self.inducing_samples = inducing_samples
         self.hyp_list += self.inducing_samples.hyp_list
+        self.set_optimizer()
 
     def _K_XU(self) -> Tuple:
         kmat = self.kernel(
-            self.canonical_train_samples, self.inducing_samples.get_samples()
+            self._ctrain_samples, self.inducing_samples.get_samples()
         )
         return kmat
 
@@ -187,29 +183,10 @@ class InducingGaussianProcess(ExactGaussianProcess):
     def _training_kernel_matrix(self):
         # there is no need for K_XX to be regularized because it is not
         # inverted. K_UU must be regularized
-        # return self.kernel(self.canonical_train_samples)
+        # return self.kernel(self._ctrain_samples)
         msg = "This function should never be called because we only need "
         msg += "the diagonal of the training matrix"
         raise RuntimeError(msg)
-
-    def _get_random_optimizer_initial_guess(self, bounds):
-        # do not randomize guess for inducing samples as they need to be well
-        # spaced
-        guess = np.random.uniform(bounds[:, 0], bounds[:, 1])
-        if self.hyp_list.hyper_params[-1].name != "inducing_samples":
-            msg = "This funct6ion assumes inducing samples is the last"
-            msg += "hyperparameter"
-            raise RuntimeError(msg)
-        hyp = self.hyp_list.hyper_params[-1]
-        init_samples = self.inducing_samples.init_inducing_samples.flatten()
-        active_opt_inducing_samples = hyp.transform.to_opt_space(
-            init_samples[hyp._active_indices]
-        )
-        if active_opt_inducing_samples.shape[0] > 0:
-            guess[-active_opt_inducing_samples.shape[0] :] = (
-                active_opt_inducing_samples
-            )
-        return guess
 
     def _neg_log_likelihood(self, active_opt_params):
         self.hyp_list.set_active_opt_params(active_opt_params)
@@ -220,17 +197,17 @@ class InducingGaussianProcess(ExactGaussianProcess):
         # because self.noise is to small. If so adjust noise bounds
         L_UU = self._bkd.cholesky(K_UU)
         mll = _log_prob_gaussian_with_noisy_nystrom_covariance(
-            noise_std, L_UU, K_XU, self.canonical_train_values, self._bkd
+            noise_std, L_UU, K_XU, self._ctrain_values, self._bkd
         )
         # add a regularization term to regularize variance noting that
         # trace of matrix sum is sum of traces
-        K_XX_diag = self.kernel.diag(self.canonical_train_samples)
+        K_XX_diag = self.kernel.diag(self._ctrain_samples)
         tmp = self._bkd.solve_triangular(L_UU, K_XU.T)
         K_tilde_trace = K_XX_diag.sum() - self._bkd.trace(
             self._bkd.multidot((tmp.T, tmp))
         )
         mll -= 1 / (2 * noise_std**2) * K_tilde_trace
-        return -mll
+        return -mll[:, 0]
 
     def _evaluate_posterior(self, Z, return_std):
         noise_std = self.inducing_samples.get_noise()
@@ -251,7 +228,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
                 Lambda_inv,
                 K_UU_inv,
                 K_XU.T,
-                self.canonical_train_values.squeeze() / noise_std**2,
+                self._ctrain_values.squeeze() / noise_std**2,
             )
         )
 

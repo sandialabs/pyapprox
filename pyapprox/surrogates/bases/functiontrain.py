@@ -213,35 +213,6 @@ class FunctionTrain(OptimizedRegressor):
             )
         return values[0, 0]
 
-    def set_loss(self, loss: LossFunction):
-        if not isinstance(loss, LossFunction):
-            raise ValueError(
-                "loss {0} must be instance of LossFunction".format(loss)
-            )
-        self._loss = loss
-        self._loss.set_model(self)
-        self._optimizer.set_objective_function(loss)
-        self._optimizer.set_bounds(self.hyp_list.get_active_opt_bounds())
-
-    def set_optimizer(self, optimizer: MultiStartOptimizer):
-        if not isinstance(optimizer, MultiStartOptimizer):
-            raise ValueError(
-                "optimizer {0} must be instance of MultiStartOptimizer".format(
-                    optimizer
-                )
-            )
-        self._optimizer = optimizer
-
-    def _fit(self, init_iterate):
-        """Fit the expansion by finding the optimal coefficients."""
-        if self._optimizer is None:
-            raise RuntimeError("must call set_optimizer")
-        if init_iterate is None:
-            init_iterate = self._optimizer._initial_interate_gen()
-        res = self._optimizer.minimize(init_iterate)
-        active_opt_params = res.x[:, 0]
-        self.hyp_list.set_active_opt_params(active_opt_params)
-
     def __repr__(self):
         return "{0}(\n\t{1}\n)".format(
             self.__class__.__name__,

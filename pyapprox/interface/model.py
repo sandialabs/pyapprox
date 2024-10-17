@@ -583,7 +583,9 @@ class ScipyModelWrapper:
         return self._bkd.asarray(sample)
 
     def __call__(self, sample):
-        sample = self._check_sample(sample)
+        # use copy to avoid warning:
+        # The given NumPy array is not writable ...
+        sample = self._check_sample(np.copy(sample))
         vals = self._model(sample[:, None])
         if vals.shape[0] == 1:
             return vals[0]

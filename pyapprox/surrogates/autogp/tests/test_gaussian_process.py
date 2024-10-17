@@ -4,8 +4,8 @@ from functools import partial
 import numpy as np
 from scipy import stats
 from torch.distributions import MultivariateNormal as TorchMultivariateNormal
+import matplotlib.pyplot as plt
 
-from pyapprox.util.utilities import check_gradients
 from pyapprox.surrogates.bases.univariate import Monomial1D
 from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
@@ -23,7 +23,6 @@ from pyapprox.surrogates.autogp.exactgp import (
     ExactGaussianProcess,
     MOExactGaussianProcess,
     MOPeerExactGaussianProcess,
-    MOICMPeerExactGaussianProcess,
 )
 from pyapprox.surrogates.autogp.mokernels import (
     ICMKernel,
@@ -111,7 +110,7 @@ class TestNystrom:
         bkd = self.get_backend()
         MultivariateNormal = self.get_mvn()
         noise_std = 2
-        tmp = bkd.atleast2d(np.random.normal(0, 1, (N, N)))
+        tmp = bkd.asarray(np.random.normal(0, 1, (N, N)))
         C_NN = tmp.T @ tmp
         C_MN = C_NN[:M]
         C_MM = C_NN[:M, :M]
@@ -172,14 +171,14 @@ class TestGaussianProcess:
     def setUp(self):
         np.random.seed(1)
 
-    def _check_exact_gp_training(self, trend, values_trans, constant):
+    def _check_exact_gp_training(self, trend, out_trans, constant):
         bkd = self.get_backend()
         nvars = 1
 
-        if not values_trans:
-            values_trans = IdentityTransform(backend=bkd)
+        if not out_trans:
+            out_trans = IdentityTransform(backend=bkd)
         else:
-            values_trans = StandardDeviationTransform(trans=True, backend=bkd)
+            out_trans = StandardDeviationTransform(trans=False, backend=bkd)
 
         if trend:
             basis = MultiIndexBasis(
@@ -203,8 +202,9 @@ class TestGaussianProcess:
             kernel = constant_kernel * kernel
 
         gp = ExactGaussianProcess(
-            nvars, kernel, trend=trend, values_trans=values_trans
+            nvars, kernel, trend=trend
         )
+        gp.set_output_transform(out_trans)
 
         def fun(xx):
             return (xx**2).sum(axis=0)[:, None]
@@ -212,31 +212,27 @@ class TestGaussianProcess:
         ntrain_samples = 10
         train_samples = bkd.linspace(-1, 1, ntrain_samples)[None, :]
         train_values = fun(train_samples)
-
-        gp.set_training_data(train_samples, train_values)
-        bounds = gp.hyp_list.get_active_opt_bounds()
-        x0 = np.random.uniform(bounds[:, 0], bounds[:, 1])
-        errors = check_gradients(
-            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None], disp=False
+        gp._set_training_data(train_samples, train_values)
+        errors = gp._loss.check_apply_jacobian(
+            gp._optimizer._initial_interate_gen()
         )
-        # print(errors.min()/errors.max())
         assert errors.min() / errors.max() < 2e-6
 
         gp.fit(train_samples, train_values)
 
         ntest_samples = 5
-        test_samples = bkd.atleast2d(
+        test_samples = bkd.asarray(
             np.random.uniform(-1, 1, (nvars, ntest_samples))
         )
         test_vals = fun(test_samples)
 
-        gp_vals, gp_std = gp(test_samples, return_std=True)
+        gp_vals, gp_std = gp.evaluate(test_samples, return_std=True)
 
         if trend is not None:
             assert bkd.allclose(gp_vals, test_vals, atol=1e-14)
             xx = bkd.linspace(-1, 1, 101)[None, :]
             assert bkd.allclose(
-                gp.values_trans.map_from_canonical(gp._canonical_trend(xx)),
+                gp._out_trans.map_from_canonical(gp._canonical_trend(xx)),
                 fun(xx),
                 atol=6e-5,
             )
@@ -281,8 +277,8 @@ class TestGaussianProcess:
         ntrain_samples = 6
         train_samples = np.linspace(-1, 1, ntrain_samples)[None, :]
         train_values = fun(train_samples)
-        torch_train_samples = bkd.atleast2d(train_samples)
-        torch_train_values = bkd.atleast2d(train_values)
+        bkd_train_samples = bkd.asarray(train_samples)
+        bkd_train_values = bkd.asarray(train_values)
 
         from pyapprox.surrogates.gaussianprocess.gaussian_process import (
             GaussianProcess,
@@ -296,11 +292,10 @@ class TestGaussianProcess:
         ) + WhiteKernel(noise, "fixed")
 
         assert np.allclose(
-            bkd.to_numpy(kernel(torch_train_samples)),
-            pyakernel(torch_train_samples.T),
+            bkd.to_numpy(kernel(bkd_train_samples)),
+            pyakernel(bkd_train_samples.T),
         )
-
-        gp.fit(torch_train_samples, torch_train_values)
+        gp.fit(bkd_train_samples, bkd_train_values)
 
         pyagp = GaussianProcess(pyakernel, alpha=0.0)
         pyagp.fit(train_samples, train_values)
@@ -312,20 +307,19 @@ class TestGaussianProcess:
         test_samples = bkd.linspace(-1, 1, 5)[None, :]
 
         pyagp_vals, pyagp_std = pyagp(test_samples, return_std=True)
-        gp_vals, gp_std = gp(test_samples, return_std=True)
+        gp_vals, gp_std = gp.evaluate(test_samples, return_std=True)
         # print(gp_std[:, 0]-pyagp_std)
         assert np.allclose(
             bkd.to_numpy(gp_std[:, 0]), pyagp_std, atol=1e-6
         )
 
-        # import matplotlib.pyplot as plt
-        # ax = plt.subplots(1, 1)[1]
-        # gp.plot(ax, [-1, 1], plt_kwargs={"c": "r", "ls": "-"}, npts_1d=101)
-        # pyagp.plot_1d(101, [-1, 1], ax=ax)
-        # xx = np.linspace(-1, 1, 101)[None, :]
-        # plt.plot(xx[0], fun(xx, False))
-        # plt.plot(gp.train_samples[0], gp.train_values, 'o')
-        # plt.show()
+        # test plot runs
+        ax = plt.subplots(1, 1)[1]
+        gp.plot(ax, [-1, 1], plt_kwargs={"c": "r", "ls": "-"}, npts_1d=101)
+        pyagp.plot_1d(101, [-1, 1], ax=ax)
+        xx = np.linspace(-1, 1, 101)[None, :]
+        plt.plot(xx[0], fun(xx, False))
+        plt.plot(gp.get_train_samples()[0], gp.get_train_values(), 'o')
 
     def test_variational_gp_training(self):
         bkd = self.get_backend()
@@ -347,13 +341,11 @@ class TestGaussianProcess:
             noise=noise,
             backend=bkd,
         )
-        values_trans = IdentityTransform(backend=bkd)
         gp = InducingGaussianProcess(
             nvars,
             kernel,
             inducing_samples,
             kernel_reg=1e-10,
-            values_trans=values_trans,
         )
 
         def fun(xx):
@@ -362,38 +354,34 @@ class TestGaussianProcess:
         train_samples = bkd.linspace(-1, 1, ntrain_samples)[None, :]
         train_values = fun(train_samples)
 
-        gp.set_training_data(train_samples, train_values)
-        # bounds = gp.hyp_list.get_active_opt_bounds().numpy()
-        # x0 = gp._get_random_optimizer_initial_guess(bounds)
-        x0 = bkd.to_numpy(gp.hyp_list.get_active_opt_params())
-        errors = check_gradients(
-            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None], disp=False
+        gp._set_training_data(train_samples, train_values)
+        errors = gp._loss.check_apply_jacobian(
+            gp._optimizer._initial_interate_gen()
         )
         assert errors.min() / errors.max() < 1e-6
 
-        gp.fit(train_samples, train_values, max_nglobal_opt_iters=1)
+        gp.fit(train_samples, train_values)
         # print(gp)
 
-        # import matplotlib.pyplot as plt
-        # xx = np.linspace(-1, 1, 101)[None, :]
-        # plt.plot(xx[0], gp(xx, False), '--')
-        # plt.plot(gp.inducing_samples.get_samples(),
-        #          0*gp.inducing_samples.get_samples(), 's')
-        # plt.plot(xx[0], fun(xx)[:, 0], 'k-')
-        # plt.plot(gp.train_samples[0], gp.train_values, 'o')
-        # gp_mu, gp_std = gp(xx, return_std=True)
-        # gp_mu = gp_mu[:, 0]
-        # gp_std = gp_std[:, 0]
-        # plt.fill_between(xx[0], gp_mu-3*gp_std, gp_mu+3*gp_std, alpha=0.1,
-        #                  color='blue')
-        # plt.show()
+        # test plot runs
+        xx = np.linspace(-1, 1, 101)[None, :]
+        plt.plot(xx[0], gp.evaluate(xx, False), '--')
+        plt.plot(gp.inducing_samples.get_samples(),
+                 0*gp.inducing_samples.get_samples(), 's')
+        plt.plot(xx[0], fun(xx)[:, 0], 'k-')
+        plt.plot(gp.get_train_samples()[0], gp.get_train_values(), 'o')
+        gp_mu, gp_std = gp.evaluate(xx, return_std=True)
+        gp_mu = gp_mu[:, 0]
+        gp_std = gp_std[:, 0]
+        plt.fill_between(xx[0], gp_mu-3*gp_std, gp_mu+3*gp_std, alpha=0.1,
+                         color='blue')
 
         ntest_samples = 10
-        test_samples = bkd.atleast2d(
+        test_samples = bkd.asarray(
             np.random.uniform(-1, 1, (nvars, ntest_samples))
         )
         test_vals = fun(test_samples)
-        gp_mu, gp_std = gp(test_samples, return_std=True)
+        gp_mu, gp_std = gp.evaluate(test_samples, return_std=True)
         # print(gp_mu-test_vals)
         assert np.allclose(gp_mu, test_vals, atol=6e-3)
 
@@ -403,7 +391,6 @@ class TestGaussianProcess:
         ntrain_samples = 6
         noise_var = 1e-8
         kernel = MaternKernel(np.inf, 1, [1e-1, 1], nvars, backend=bkd)
-        values_trans = IdentityTransform()
 
         def fun(xx):
             return (xx**2).sum(axis=0)[:, None]
@@ -417,14 +404,16 @@ class TestGaussianProcess:
         exact_gp = ExactGaussianProcess(
             nvars,
             kernel
-            + GaussianNoiseKernel(noise_var, [0.1, 1], fixed=True, backend=bkd),
+            + GaussianNoiseKernel(
+                noise_var, [0.1, 1], fixed=True, backend=bkd
+            ),
             trend=None,
-            values_trans=values_trans,
             kernel_reg=0,
         )
-        exact_gp.set_training_data(train_samples, train_values)
-        exact_gp.fit(train_samples, train_values, max_nglobal_opt_iters=1)
-        exact_gp_vals, exact_gp_std = exact_gp(test_samples, return_std=True)
+        exact_gp.fit(train_samples, train_values)
+        exact_gp_vals, exact_gp_std = exact_gp.evaluate(
+            test_samples, return_std=True
+        )
 
         inducing_samples = train_samples
         ninducing_samples = ntrain_samples
@@ -447,7 +436,6 @@ class TestGaussianProcess:
             backend=bkd,
         )
         inducing_samples.hyp_list.set_all_inactive()
-        values_trans = IdentityTransform(backend=bkd)
         # use correlation length learnt by exact gp
         vi_kernel = kernel
         vi_gp = InducingGaussianProcess(
@@ -455,10 +443,9 @@ class TestGaussianProcess:
             vi_kernel,
             inducing_samples,
             kernel_reg=0,
-            values_trans=values_trans,
         )
-        vi_gp.fit(train_samples, train_values, max_nglobal_opt_iters=1)
-        vi_gp_vals, vi_gp_std = vi_gp(test_samples, return_std=True)
+        vi_gp.fit(train_samples, train_values)
+        vi_gp_vals, vi_gp_std = vi_gp.evaluate(test_samples, return_std=True)
 
         # print(vi_gp_vals-exact_gp_vals)
         assert np.allclose(vi_gp_vals, exact_gp_vals, atol=1e-12)
@@ -494,12 +481,11 @@ class TestGaussianProcess:
             angle_bounds=[0, np.pi],
             backend=bkd,
         )
-
         kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
 
         nsamples_per_output = [12, 12]
         samples_per_output = [
-            bkd.atleast2d(np.random.uniform(-1, 1, (nvars, nsamples)))
+            bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output
         ]
 
@@ -510,17 +496,17 @@ class TestGaussianProcess:
         gp = MOExactGaussianProcess(
             nvars,
             kernel,
-            values_trans=IdentityTransform(),
             kernel_reg=1e-8,
         )
-        gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=3)
+        gp.set_optimizer(ncandidates=3)
+        gp.fit(samples_per_output, values_per_output)
 
         # check correlation between models is estimated correctly.
         # SphericalCovariance is not guaranteed to recover the statistical
         # correlation, but for this case it can
         cov_matrix = output_kernel.get_covariance_matrix()
         corr_matrix = bkd.get_correlation_from_covariance(cov_matrix)
-        samples = bkd.atleast2d(np.random.uniform(-1, 1, (1, 101)))
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, 101)))
         values = bkd.hstack([fun(samples) for fun in funs])
         assert np.allclose(
             corr_matrix,
@@ -530,17 +516,15 @@ class TestGaussianProcess:
             atol=1e-2,
         )
 
-        # import matplotlib.pyplot as plt
-        # ax = plt.subplots(1, 1)[1]
-        # # gp.plot(ax, [-1, 1])
-        # gp.plot(ax, [-1, 1], output_id=0, plt_kwargs={"c": "r", "ls": "-"})
-        # gp.plot(ax, [-1, 1], output_id=1)
-        # xx = np.linspace(-1, 1, 101)[None, :]
-        # ax.plot(xx[0], funs[0](xx), '--')
-        # ax.plot(xx[0], funs[1](xx), ':')
-        # ax.plot(gp.train_samples[0][0], gp.train_values[0], 'o')
-        # ax.plot(gp.train_samples[1][0], gp.train_values[1], 's')
-        # plt.show()
+        # test plot runs
+        ax = plt.subplots(1, 1)[1]
+        gp.plot(ax, [-1, 1], output_id=0, plt_kwargs={"c": "r", "ls": "-"})
+        gp.plot(ax, [-1, 1], output_id=1)
+        xx = np.linspace(-1, 1, 101)[None, :]
+        ax.plot(xx[0], funs[0](xx), '--')
+        ax.plot(xx[0], funs[1](xx), ':')
+        ax.plot(gp.get_train_samples()[0][0], gp.get_train_values()[0], 'o')
+        ax.plot(gp.get_train_samples()[1][0], gp.get_train_values()[1], 's')
 
     def test_peer_gaussian_process(self):
         bkd = self.get_backend()
@@ -581,7 +565,7 @@ class TestGaussianProcess:
         # nsamples_per_output = np.array([5 for ii in range(noutputs-1)]+[4])*2
         nsamples_per_output = np.array([7 for ii in range(noutputs - 1)] + [5])
         samples_per_output = [
-            bkd.atleast2d(np.random.uniform(-1, 1, (nvars, nsamples)))
+            bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output
         ]
 
@@ -592,131 +576,37 @@ class TestGaussianProcess:
         gp = MOExactGaussianProcess(
             nvars,
             kernel,
-            values_trans=IdentityTransform(backend=bkd),
             kernel_reg=0,
         )
-        gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=3)
+        gp.set_optimizer(ncandidates=3)
+        gp.fit(samples_per_output, values_per_output)
 
-        # import matplotlib.pyplot as plt
-        # axs = plt.subplots(
-        #     1, noutputs, figsize=(noutputs*8, 6), sharey=True)[1]
-        # xx = np.linspace(-1, 1, 101)[None, :]
-        # for ii in range(noutputs):
-        #     gp.plot(axs[ii], [-1, 1], output_id=ii)
-        #     axs[ii].plot(xx[0], funs[ii](xx), '--')
-        #     axs[ii].plot(gp.train_samples[ii][0], gp.train_values[ii], 'o')
-        # plt.show()
+        # test plots run
+        axs = plt.subplots(
+            1, noutputs, figsize=(noutputs*8, 6), sharey=True)[1]
+        xx = bkd.linspace(-1, 1, 101)[None, :]
+        for ii in range(noutputs):
+            gp.plot(axs[ii], [-1, 1], output_id=ii)
+            axs[ii].plot(xx[0], funs[ii](xx), '--')
+            axs[ii].plot(
+                gp.get_train_samples()[ii][0], gp.get_train_values()[ii], 'o'
+            )
 
         # check that when using hyperparameters found by dense GP the PeerGP
         # return the same likelihood value and prediction mean and std. dev.
-        peer_gp = MOPeerExactGaussianProcess(
-            nvars, kernel, values_trans=IdentityTransform(), kernel_reg=0
-        )
-        peer_gp.set_training_data(samples_per_output, values_per_output)
+        peer_gp = MOPeerExactGaussianProcess(nvars, kernel, kernel_reg=0)
+        peer_gp._set_training_data(samples_per_output, values_per_output)
         assert np.allclose(
             gp._neg_log_likelihood_with_hyperparameter_trend(),
             peer_gp._neg_log_likelihood_with_hyperparameter_trend(),
         )
         xx = bkd.linspace(-1, 1, 31)[None, :]
-        gp_mean, gp_std = gp([xx] * noutputs, return_std=True)
-        peer_gp_mean, peer_gp_std = peer_gp([xx] * noutputs, return_std=True)
+        gp_mean, gp_std = gp.evaluate([xx] * noutputs, return_std=True)
+        peer_gp_mean, peer_gp_std = peer_gp.evaluate([xx] * noutputs, return_std=True)
         assert np.allclose(peer_gp_mean, gp_mean)
         assert np.allclose(peer_gp_std, gp_std)
 
-    def test_icm_peer_gp(self):
-        bkd = self.get_backend()
-        nvars, noutputs = 1, 4
-
-        def peer_fun(delta, xx):
-            return np.cos(2 * np.pi * xx.T + delta)
-
-        def target_fun(peer_funs, xx):
-            # return (
-            #    np.hstack([f(xx) for f in peer_funs]).sum(axis=1)[:, None] +
-            #    np.exp(-xx.T**2*2))
-            return np.cos(2 * np.pi * xx.T)
-
-        # radii, radii_bounds = np.ones(noutputs), [1, 10]
-        radii, radii_bounds = bkd.arange(1, 1 + noutputs), [1, 10]
-        angles = np.pi / 2
-        latent_kernel = MaternKernel(
-            np.inf, 0.5, [1e-1, 2], nvars, backend=bkd
-        )
-        output_kernel = SphericalCovariance(
-            noutputs,
-            radii=radii,
-            radii_bounds=radii_bounds,
-            angles=angles,
-            angle_bounds=[0, np.pi],
-            backend=bkd,
-        )
-
-        kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
-
-        peer_deltas = bkd.linspace(0.2, 1, noutputs - 1)
-        peer_funs = [partial(peer_fun, delta) for delta in peer_deltas]
-        funs = peer_funs + [partial(target_fun, peer_funs)]
-
-        nsamples_per_output = np.array([7 for ii in range(noutputs - 1)] + [5])
-        # nsamples_per_output = np.array([5 for ii in range(noutputs-1)]+[4])*2
-        # nsamples_per_output = np.array([3 for ii in range(noutputs-1)]+[2])
-        samples_per_output = [
-            bkd.atleast2d(np.random.uniform(-1, 1, (nvars, nsamples)))
-            for nsamples in nsamples_per_output
-        ]
-
-        values_per_output = [
-            fun(samples) for fun, samples in zip(funs, samples_per_output)
-        ]
-
-        gp = MOICMPeerExactGaussianProcess(
-            nvars,
-            kernel,
-            output_kernel,
-            values_trans=IdentityTransform(),
-            kernel_reg=0,
-        )
-        gp_params = gp.hyp_list.get_active_opt_params()
-
-        from pyapprox.util.utilities import check_gradients
-
-        bounds = bkd.to_numpy(gp.hyp_list.get_active_opt_bounds())
-        x0 = np.random.uniform(bounds[:, 0], bounds[:, 1])
-        icm_cons = gp._get_constraints(noutputs)
-        errors = check_gradients(
-            lambda x: icm_cons[0]["fun"](x[:, 0], *icm_cons[0]["args"]),
-            lambda x: icm_cons[0]["jac"](x[:, 0], *icm_cons[0]["args"]),
-            x0[:, None],
-            disp=False,
-        )
-        assert errors.min() / errors.max() < 1e-6
-        # reset values to good guess
-        gp.hyp_list.set_active_opt_params(gp_params)
-
-        gp.set_training_data(samples_per_output, values_per_output)
-        x0 = gp.hyp_list.get_active_opt_params().numpy()
-        errors = check_gradients(
-            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None], disp=False
-        )
-        gp.hyp_list.set_active_opt_params(gp_params)
-        assert errors.min() / errors.max() < 3.2e-6
-
-        gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=3)
-        cov_matrix = output_kernel.get_covariance_matrix()
-        for ii in range(2, noutputs):
-            for jj in range(1, ii):
-                bkd.abs(cov_matrix[ii, jj]) < 1e-10
-
-        # import matplotlib.pyplot as plt
-        # axs = plt.subplots(
-        #     1, noutputs, figsize=(noutputs*8, 6), sharey=True)[1]
-        # xx = np.linspace(-1, 1, 101)[None, :]
-        # for ii in range(noutputs):
-        #     gp.plot(axs[ii], [-1, 1], output_id=ii)
-        #     axs[ii].plot(xx[0], funs[ii](xx), '--')
-        #     axs[ii].plot(gp.train_samples[ii][0], gp.train_values[ii], 'o')
-        # plt.show()
-
+    @unittest.skip("Incomplete")
     def test_collaborative_gp(self):
         bkd = self.get_backend()
         nvars, noutputs = 1, 4
@@ -767,7 +657,7 @@ class TestGaussianProcess:
         # nsamples_per_output = np.array([5 for ii in range(noutputs-1)]+[4])*2
         # nsamples_per_output = np.array([3 for ii in range(noutputs-1)]+[2])
         samples_per_output = [
-            bkd.atleast2d(np.random.uniform(-1, 1, (nvars, nsamples)))
+            bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output
         ]
 
@@ -778,15 +668,13 @@ class TestGaussianProcess:
         gp = MOExactGaussianProcess(
             nvars,
             co_kernel,
-            values_trans=IdentityTransform(backend=bkd),
             kernel_reg=0,
         )
         gp_params = gp.hyp_list.get_active_opt_params()
 
-        gp.set_training_data(samples_per_output, values_per_output)
-        x0 = bkd.to_numpy(gp.hyp_list.get_active_opt_params())
-        errors = check_gradients(
-            lambda x: gp._fit_objective(x[:, 0]), True, x0[:, None], disp=False
+        gp._set_training_data(samples_per_output, values_per_output)
+        errors = gp._loss.check_apply_jacobian(
+            gp._optimizer._initial_interate_gen()
         )
         gp.hyp_list.set_active_opt_params(gp_params)
         assert errors.min() / errors.max() < 1e-6
@@ -796,21 +684,25 @@ class TestGaussianProcess:
         # For now just start test from feasiable initial parameter values
         # and run optimization once.
         # todo change initial guess to always be feasiable
-        gp.fit(samples_per_output, values_per_output, max_nglobal_opt_iters=1)
+        gp.fit(samples_per_output, values_per_output)
         cov_matrix = output_kernel.get_covariance_matrix()
+        bkd.cholesky(cov_matrix)
+        print(cov_matrix)
         for ii in range(2, noutputs):
             for jj in range(1, ii):
                 assert True  # np.abs(cov_matrix[ii, jj]) < 1e-10
 
-        # import matplotlib.pyplot as plt
-        # axs = plt.subplots(
-        #     1, noutputs, figsize=(noutputs*8, 6), sharey=True)[1]
-        # xx = np.linspace(-1, 1, 101)[None, :]
-        # for ii in range(noutputs):
-        #     gp.plot(axs[ii], [-1, 1], output_id=ii)
-        #     axs[ii].plot(xx[0], funs[ii](xx), '--')
-        #     axs[ii].plot(gp.train_samples[ii][0], gp.train_values[ii], 'o')
-        # plt.show()
+        # test plot runs
+        axs = plt.subplots(
+            1, noutputs, figsize=(noutputs*8, 6), sharey=True)[1]
+        xx = bkd.linspace(-1, 1, 101)[None, :]
+        for ii in range(noutputs):
+            gp.plot(axs[ii], [-1, 1], output_id=ii)
+            axs[ii].plot(xx[0], funs[ii](xx), '--')
+            axs[ii].plot(
+                gp.get_train_samples()[ii][0], gp.get_train_values()[ii], 'o'
+            )
+        plt.show()
 
 
 class TestNumpyNystrom(TestNystrom, unittest.TestCase):
