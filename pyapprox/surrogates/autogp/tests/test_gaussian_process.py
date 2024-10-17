@@ -43,65 +43,6 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 
-def _check_apply(
-    sample,
-    symb,
-    fun,
-    apply_fun,
-    fd_eps=None,
-    direction=None,
-    relative=True,
-    disp=False,
-    bkd=NumpyLinAlgMixin,
-):
-    if sample.ndim != 2:
-        raise ValueError(
-            "sample with shape {0} must be 2D array".format(sample.shape)
-        )
-    if fd_eps is None:
-        fd_eps = bkd.flip(bkd.logspace(-13, 0, 14))
-    if direction is None:
-        nvars = sample.shape[0]
-        direction = bkd.array(np.random.normal(0, 1, (nvars, 1)))
-        direction /= bkd.linalg.norm(direction)
-
-    row_format = "{:<12} {:<25} {:<25} {:<25}"
-    headers = [
-        "Eps",
-        "norm({0}v)".format(symb),
-        "norm({0}v_fd)".format(symb),
-        "Rel. Errors" if relative else "Abs. Errors",
-    ]
-    if disp:
-        print(row_format.format(*headers))
-    row_format = "{:<12.2e} {:<25} {:<25} {:<25}"
-    errors = []
-    val = fun(sample)
-    directional_grad = apply_fun(sample, direction)
-    for ii in range(fd_eps.shape[0]):
-        sample_perturbed = sample.copy() + fd_eps[ii] * direction
-        perturbed_val = fun(sample_perturbed)
-        fd_directional_grad = (perturbed_val - val) / fd_eps[ii]
-        errors.append(
-            bkd.norm(
-                fd_directional_grad.reshape(directional_grad.shape)
-                - directional_grad
-            )
-        )
-        if relative:
-            errors[-1] /= bkd.norm(directional_grad)
-        if disp:
-            print(
-                row_format.format(
-                    fd_eps[ii],
-                    bkd.norm(directional_grad),
-                    bkd.norm(fd_directional_grad),
-                    errors[ii],
-                )
-            )
-    return bkd.array(errors)
-
-
 class TestNystrom:
     def setUp(self):
         np.random.seed(1)
@@ -308,7 +249,6 @@ class TestGaussianProcess:
 
         pyagp_vals, pyagp_std = pyagp(test_samples, return_std=True)
         gp_vals, gp_std = gp.evaluate(test_samples, return_std=True)
-        # print(gp_std[:, 0]-pyagp_std)
         assert np.allclose(
             bkd.to_numpy(gp_std[:, 0]), pyagp_std, atol=1e-6
         )
@@ -602,7 +542,9 @@ class TestGaussianProcess:
         )
         xx = bkd.linspace(-1, 1, 31)[None, :]
         gp_mean, gp_std = gp.evaluate([xx] * noutputs, return_std=True)
-        peer_gp_mean, peer_gp_std = peer_gp.evaluate([xx] * noutputs, return_std=True)
+        peer_gp_mean, peer_gp_std = peer_gp.evaluate(
+            [xx] * noutputs, return_std=True
+        )
         assert np.allclose(peer_gp_mean, gp_mean)
         assert np.allclose(peer_gp_std, gp_std)
 

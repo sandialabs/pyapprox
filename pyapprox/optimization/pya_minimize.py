@@ -236,7 +236,7 @@ class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
 
     def set_bounds(self, bounds):
         bounds = self._bkd.atleast1d(bounds)
-        if bounds.shape[0] == 2:
+        if bounds.shape[0] == 2 and bounds.ndim != 2:
             bounds = self._bkd.reshape(
                 self._bkd.repeat(bounds, self._nvars), (self._nvars, 2)
             )

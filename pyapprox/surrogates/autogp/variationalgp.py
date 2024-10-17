@@ -209,7 +209,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
         mll -= 1 / (2 * noise_std**2) * K_tilde_trace
         return -mll[:, 0]
 
-    def _evaluate_posterior(self, Z, return_std):
+    def _evaluate_canonical_posterior(self, Z, return_std):
         noise_std = self.inducing_samples.get_noise()
         K_XU = self._K_XU()
         K_UU = self._K_UU()
@@ -242,7 +242,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
         mu = self._bkd.multidot((K_ZU, K_UU_inv, m))
 
         if not return_std:
-            return mu
+            return mu, None
 
         # The following is from Equation (6) in Titsias 2009 and
         # Equation (11) in Vanderwilk 2020 where Lambda^{-1} = S

@@ -95,7 +95,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         return self._in_trans.map_from_canonical(self._ctrain_samples)
 
     def get_train_values(self):
-        return self._out_trans.map_from_canonical(self._ctrain_values)
+        return self._out_trans.map_from_canonical(self._ctrain_values.T).T
 
     def _training_kernel_matrix(self) -> Tuple:
         # must only pass in X and not Y to kernel otherwise if noise kernel
@@ -181,17 +181,16 @@ class ExactGaussianProcess(OptimizedRegressor):
         self.hyp_list.set_active_opt_params(active_opt_params)
         return self._neg_log_likelihood_with_hyperparameter_trend()
 
-    def _evaluate_prior(self, samples: Array, return_std: bool):
-        trend = self._out_trans.map_from_canonical(
-            self._canonical_trend(self._in_trans.map_to_canonical(samples))
-        )
+    def _evaluate_canonical_prior(self, samples: Array, return_std: bool):
+        canonical_trend = self._canonical_trend(
+            self._in_trans.map_to_canonical(samples).T
+        ).T
         if not return_std:
-            return trend
-        return trend, self._in_trans.map_stdev_from_canonical(
-            self._bkd.sqrt(self.kernel.diag(samples))
-        )
+            return canonical_trend, None
+        canonical_std = self._bkd.sqrt(self.kernel.diag(samples))
+        return canonical_trend, canonical_std
 
-    def _evaluate_posterior(self, samples: Array, return_std: bool):
+    def _evaluate_canonical_posterior(self, samples: Array, return_std: bool):
         if self._coef is None:
             self._coef_args = self._factor_training_kernel_matrix()
             self._coef = self._solve_coefficients(*self._coef_args)
@@ -203,9 +202,8 @@ class ExactGaussianProcess(OptimizedRegressor):
         canonical_trend = self._canonical_trend(
             canonical_samples
         ) + self._bkd.multidot((kmat_pred, self._coef))
-        trend = self._out_trans.map_from_canonical(canonical_trend)
         if not return_std:
-            return trend
+            return canonical_trend, None
 
         canonical_pointwise_variance = (
             self._canonical_posterior_pointwise_variance(
@@ -219,24 +217,33 @@ class ExactGaussianProcess(OptimizedRegressor):
             )
             warnings.warn(msg, UserWarning)
         canonical_pointwise_variance[canonical_pointwise_variance < 0] = 0
-        pointwise_stdev = self._out_trans.map_stdev_from_canonical(
-            np.sqrt(canonical_pointwise_variance)
-        )
-        assert pointwise_stdev.shape == trend.shape
-        return trend, pointwise_stdev
-        # return trend, canonical_pointwise_variance[:, None]
+        canonical_pointwise_stdev = np.sqrt(canonical_pointwise_variance.T).T
+        assert canonical_pointwise_stdev.shape == canonical_trend.shape
+        return canonical_trend, canonical_pointwise_stdev
+
+    def _canonical_evaluate(self, samples: Array, return_std: bool):
+        if self._ctrain_samples is None:
+            return self._evaluate_canonical_prior(
+                samples, return_std
+            )
+        return self._evaluate_canonical_posterior(samples, return_std)
 
     def evaluate(self, samples: Array, return_std: bool):
         """
         Use when standard deviation of GP is needed.
         Otherwise use __call__
         """
-        if self._ctrain_samples is None:
-            return self._evaluate_prior(samples, return_std)
-        return self._evaluate_posterior(samples, return_std)
+        can_vals, can_std = self._canonical_evaluate(samples, return_std)
+        if return_std:
+            return (
+                self._out_trans.map_from_canonical(can_vals),
+                self._out_trans.map_from_canonical(can_std)
+            )
+        return self._out_trans.map_from_canonical(can_vals)
 
     def _values(self, samples):
-        return self.evaluate(samples, False)
+        # regressor expects values in the canonical domain
+        return self._canonical_evaluate(samples, False)[0]
 
     def __repr__(self):
         return "{0}({1})".format(
@@ -323,7 +330,7 @@ class MOExactGaussianProcess(ExactGaussianProcess):
             s for s in self._map_samples_to_canonical(train_samples)
         ]
         self._ctrain_values = self._bkd.vstack(
-            [self._out_trans.map_to_canonical(v) for v in train_values]
+            [self._out_trans.map_to_canonical(v.T).T for v in train_values]
         )
 
     def _map_samples_to_canonical(self, samples):
@@ -347,8 +354,8 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         for s in self._ctrain_samples:
             train_values.append(
                 self._out_trans.map_from_canonical(
-                    self._ctrain_values[cnt:cnt+s.shape[1]]
-                )
+                    self._ctrain_values[cnt:cnt+s.shape[1]].T
+                ).T
             )
             cnt += s.shape[1]
         return train_values

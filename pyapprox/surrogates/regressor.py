@@ -82,6 +82,8 @@ class Regressor(Model):
         ax.plot(plot_xx[0], self.__call__(plot_xx))
 
     def _plot_surface_2d(self, ax, qoi, plot_limits, npts_1d):
+        if ax.name != "3d":
+            raise ValueError("ax must use 3d projection")
         X, Y, pts = get_meshgrid_samples(
             plot_limits, npts_1d, bkd=self._bkd
         )
@@ -104,6 +106,19 @@ class Regressor(Model):
             2: self._plot_surface_2d,
         }
         plot_surface_funs[self.nvars()](ax, qoi, plot_limits, npts_1d)
+
+    def plot_contours(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
+        if self.nvars() != 2:
+            raise ValueError("Can only plot contours for 2D functions")
+        X, Y, pts = get_meshgrid_samples(
+            plot_limits, npts_1d, bkd=self._bkd
+        )
+        vals = self.__call__(pts)
+        Z = self._bkd.reshape(vals[:, qoi], X.shape)
+        return ax.contourf(X, Y, Z, **kwargs)
+
+    def nvars(self):
+        return self._ctrain_samples.shape[0]
 
 
 class OptimizedRegressor(Regressor):

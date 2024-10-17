@@ -124,25 +124,28 @@ class AffineBoundedVariableTransformation(object):
         return self.nvars
 
 
-class AffineTransform(object):
+from pyapprox.util.transforms import Transform
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+class AffineTransform(Transform):
     r"""
     Apply an affine transformation to a
     :py:class:`pyapprox.variables.IndependentMarginalsVariable`
     """
 
-    def __init__(self, variable, enforce_bounds=False):
+    def __init__(self, variable, enforce_bounds=False, bkd=NumpyLinAlgMixin):
         """
         Variable uniquness dependes on both the type of random variable
         e.g. beta, gaussian, etc. and the parameters of that distribution
         e.g. loc and scale parameters as well as any additional parameters
         """
-        if (type(variable) != IndependentMarginalsVariable):
+        self._bkd = bkd
+        if not isinstance(variable, IndependentMarginalsVariable):
             variable = IndependentMarginalsVariable(variable)
         self.variable = variable
         self.enforce_bounds = enforce_bounds
         self.identity_map_indices = None
 
-        self.scale_parameters = np.empty((self.variable.nunique_vars, 2))
+        self.scale_parameters = self._bkd.empty((self.variable.nunique_vars, 2))
         for ii in range(self.variable.nunique_vars):
             var = self.variable.unique_variables[ii]
             # name, scale_dict, __ = get_distribution_info(var)
@@ -154,7 +157,7 @@ class AffineTransform(object):
             #     lb, ub = -1, 1
             #     scale /= (ub-lb)
             #     loc = loc-scale*lb
-            self.scale_parameters[ii, :] = np.hstack(
+            self.scale_parameters[ii, :] = self._bkd.array(
                 transform_scale_parameters(var))
 
     def set_identity_maps(self, identity_map_indices):
@@ -171,7 +174,7 @@ class AffineTransform(object):
         self.identity_map_indices = identity_map_indices
 
     def map_to_canonical(self, user_samples):
-        canonical_samples = user_samples.copy().astype(float)
+        canonical_samples = self._bkd.copy(user_samples)
         for ii in range(self.variable.nunique_vars):
             indices = self.variable.unique_variable_indices[ii]
             loc, scale = self.scale_parameters[ii, :]
@@ -198,7 +201,7 @@ class AffineTransform(object):
         return canonical_samples
 
     def map_from_canonical(self, canonical_samples):
-        user_samples = canonical_samples.copy().astype(float)
+        user_samples = self._bkd.copy(canonical_samples)
         for ii in range(self.variable.nunique_vars):
             indices = self.variable.unique_variable_indices[ii]
             loc, scale = self.scale_parameters[ii, :]
