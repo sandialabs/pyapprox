@@ -90,13 +90,13 @@ class ScaleAndTranslationTransformMixIn:
         super().__init__(backend)
         # if following not satisfied it will mess up how normals are computed
         if self._bkd.any(
-                self._bkd.array(orthog_ranges[1::2])
-                <= self._bkd.array(orthog_ranges[::2])
+            self._bkd.array(orthog_ranges[1::2])
+            <= self._bkd.array(orthog_ranges[::2])
         ):
             msg = f"orthog_ranges {orthog_ranges} must be increasing"
             raise ValueError(msg)
         if self._bkd.any(
-                self._bkd.array(ranges[1::2]) <= self._bkd.array(ranges[::2])
+            self._bkd.array(ranges[1::2]) <= self._bkd.array(ranges[::2])
         ):
             msg = f"ranges {ranges} must be increasing"
             raise ValueError(msg)

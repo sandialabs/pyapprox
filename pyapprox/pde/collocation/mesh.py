@@ -207,7 +207,12 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
     ):
         super().__init__(bndry_name, trans, tol, bkd)
         self._bndry_index = {
-            "left": 0, "right": 1, "front": 2, "back": 3, "bottom": 4, "top": 5
+            "left": 0,
+            "right": 1,
+            "front": 2,
+            "back": 3,
+            "bottom": 4,
+            "top": 5,
         }[bndry_name]
         self._orth_normal = self._bkd.asarray(
             [
@@ -236,7 +241,7 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
     def orth_quadrature_rule(self):
         active_quad = [
             GaussLegendreQuadratureRule(self._active_orth_bounds[0:2]),
-            GaussLegendreQuadratureRule(self._active_orth_bounds[2:4])
+            GaussLegendreQuadratureRule(self._active_orth_bounds[2:4]),
         ]
         if self._bndry_index < 2:
             # x boundaries
@@ -247,8 +252,8 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
         else:
             # z boundaries
             jdx, idx0, idx1 = 2, 0, 1
-        active_quadx0, active_quadw0 = active_quad[0](self._npts_1d[idx0]+2)
-        active_quadx1, active_quadw1 = active_quad[1](self._npts_1d[idx1]+2)
+        active_quadx0, active_quadw0 = active_quad[0](self._npts_1d[idx0] + 2)
+        active_quadx1, active_quadw1 = active_quad[1](self._npts_1d[idx1] + 2)
         active_quadw = self._bkd.outer_product(
             [active_quadw0[:, 0], active_quadw1[:, 0]]
         )
@@ -322,12 +327,14 @@ class ChebyshevCollocationMesh1D(
 
 
 class ChebyshevCollocationMesh2D(
-        OrthogonalCoordinateMesh2DMixin, ChebyshevCollocationMesh,
+    OrthogonalCoordinateMesh2DMixin,
+    ChebyshevCollocationMesh,
 ):
     pass
 
 
 class ChebyshevCollocationMesh3D(
-        OrthogonalCoordinateMesh3DMixin, ChebyshevCollocationMesh,
+    OrthogonalCoordinateMesh3DMixin,
+    ChebyshevCollocationMesh,
 ):
     pass

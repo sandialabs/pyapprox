@@ -29,8 +29,10 @@ class PDESolver(ABC):
         return "{0}({1}\n)".format(
             self.__class__.__name__,
             textwrap.indent(
-                f"\nphysics={self.physics},\nnetwon="+str(self.newton_solver),
-                prefix="    ")
+                f"\nphysics={self.physics},\nnetwon="
+                + str(self.newton_solver),
+                prefix="    ",
+            ),
         )
 
 

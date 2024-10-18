@@ -6,20 +6,20 @@ from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
 from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 from pyapprox.pde.collocation.mesh import (
-    OrthogonalCoordinateMesh, ChebyshevCollocationMesh
+    OrthogonalCoordinateMesh,
+    ChebyshevCollocationMesh,
 )
 from pyapprox.surrogates.bases.orthopoly import (
-    UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis
+    UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis,
 )
 from pyapprox.util.linearalgebra.linalg import qr_solve
 
 
 class OrthogonalCoordinateCollocationBasis(ABC):
     def __init__(self, mesh: OrthogonalCoordinateMesh):
-        if not isinstance(mesh,  OrthogonalCoordinateMesh):
+        if not isinstance(mesh, OrthogonalCoordinateMesh):
             raise ValueError(
-                "transform must be an instance of "
-                "OrthogonalCoordinateMesh"
+                "transform must be an instance of " "OrthogonalCoordinateMesh"
             )
         self._bkd = mesh._bkd
         self.mesh = mesh
@@ -41,7 +41,7 @@ class OrthogonalCoordinateCollocationBasis(ABC):
             self._deriv_mats.append(0)
             for ii in range(self.nphys_vars()):
                 self._deriv_mats[-1] += (
-                    gradient_factors[:, dd, ii:ii+1]*orth_deriv_mats[ii]
+                    gradient_factors[:, dd, ii : ii + 1] * orth_deriv_mats[ii]
                 )
 
     def nphys_vars(self):
@@ -57,8 +57,8 @@ class OrthogonalCoordinateCollocationBasis(ABC):
 
     def interpolate(self, values_at_mesh: Array, new_samples: Array):
         if (
-                values_at_mesh.ndim != 2
-                or values_at_mesh.shape[0] != self.mesh.nmesh_pts()
+            values_at_mesh.ndim != 2
+            or values_at_mesh.shape[0] != self.mesh.nmesh_pts()
         ):
             raise ValueError(
                 "values_at_mesh shape {0} is wrong".format(
@@ -77,13 +77,12 @@ class OrthogonalCoordinateCollocationBasis(ABC):
 
 class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
     def __init__(
-            self,
-            mesh: ChebyshevCollocationMesh,
+        self,
+        mesh: ChebyshevCollocationMesh,
     ):
         if not isinstance(mesh, ChebyshevCollocationMesh):
             raise ValueError(
-                "transform must be an instance of "
-                "ChebyshevCollocationMesh"
+                "transform must be an instance of " "ChebyshevCollocationMesh"
             )
         super().__init__(mesh)
         # quadrule only used to define mesh of UnivariateLagrangeBasis
@@ -104,17 +103,17 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
 
         # the matrix returned reverse order used by matlab cheb function
         scalars = self._bkd.ones((npts), dtype=float)
-        scalars[0] = 2.
-        scalars[npts-1] = 2.
+        scalars[0] = 2.0
+        scalars[npts - 1] = 2.0
         scalars[1:npts:2] *= -1
         derivative_matrix = self._bkd.empty((npts, npts), dtype=float)
         for ii in range(npts):
-            row_sum = 0.
+            row_sum = 0.0
             for jj in range(npts):
-                if (ii == jj):
-                    denominator = 1.
+                if ii == jj:
+                    denominator = 1.0
                 else:
-                    denominator = pts[ii]-pts[jj]
+                    denominator = pts[ii] - pts[jj]
                 numerator = scalars[ii] / scalars[jj]
                 derivative_matrix[ii, jj] = numerator / denominator
                 row_sum += derivative_matrix[ii, jj]
@@ -126,16 +125,19 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
 
     def _second_derivative_matrix_entry(self, degree, pts: Array, ii, jj):
         if (ii == 0 and jj == 0) or (ii == degree and jj == degree):
-            return (degree**4-1)/15
+            return (degree**4 - 1) / 15
 
-        if (ii == jj and ((ii > 0) and (ii < degree))):
-            return -((degree**2-1)*(1-pts[ii]**2)+3)/(
-                3*(1-pts[ii]**2)**2)
+        if ii == jj and ((ii > 0) and (ii < degree)):
+            return -((degree**2 - 1) * (1 - pts[ii] ** 2) + 3) / (
+                3 * (1 - pts[ii] ** 2) ** 2
+            )
 
-        if (ii != jj and (ii > 0 and ii < degree)):
-            deriv = (-1)**(ii+jj)*(
-                pts[ii]**2+pts[ii]*pts[jj]-2)/(
-                    (1-pts[ii]**2)*(pts[ii]-pts[jj])**2)
+        if ii != jj and (ii > 0 and ii < degree):
+            deriv = (
+                (-1) ** (ii + jj)
+                * (pts[ii] ** 2 + pts[ii] * pts[jj] - 2)
+                / ((1 - pts[ii] ** 2) * (pts[ii] - pts[jj]) ** 2)
+            )
             if jj == 0 or jj == degree:
                 deriv /= 2
             return deriv
@@ -144,30 +146,41 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
         # the next two formulas are different to those in the book
         # Roger Peyret. Spectral Methods for Incompressible Viscous Flow
         # I.e. pts  = -x
-        if (ii == 0 and jj > 0):
-            deriv = 2/3*(-1)**jj*(
-                (2*degree**2+1)*(1+pts[jj])-6)/(1+pts[jj])**2
+        if ii == 0 and jj > 0:
+            deriv = (
+                2
+                / 3
+                * (-1) ** jj
+                * ((2 * degree**2 + 1) * (1 + pts[jj]) - 6)
+                / (1 + pts[jj]) ** 2
+            )
             if jj == degree:
                 deriv /= 2
             return deriv
 
         # if ii == degree and jj < degree:
-        deriv = 2/3*(-1)**(jj+degree)*(
-            (2*degree**2+1)*(1-pts[jj])-6)/(1-pts[jj])**2
+        deriv = (
+            2
+            / 3
+            * (-1) ** (jj + degree)
+            * ((2 * degree**2 + 1) * (1 - pts[jj]) - 6)
+            / (1 - pts[jj]) ** 2
+        )
         if jj == 0:
             deriv /= 2
         return deriv
 
     def _form_1d_orth_second_derivative_matrix(self, degree):
         # this is reverse order used in book
-        pts = -self._bkd.cos(self._bkd.linspace(0., math.pi, degree+1))
-        derivative_matrix = self._bkd.empty((degree+1, degree+1))
-        for ii in range(degree+1):
-            for jj in range(degree+1):
-                derivative_matrix[ii, jj] = \
+        pts = -self._bkd.cos(self._bkd.linspace(0.0, math.pi, degree + 1))
+        derivative_matrix = self._bkd.empty((degree + 1, degree + 1))
+        for ii in range(degree + 1):
+            for jj in range(degree + 1):
+                derivative_matrix[ii, jj] = (
                     self._chebyshev_second_derivative_matrix_entry(
                         degree, pts, ii, jj
                     )
+                )
         return pts, derivative_matrix
 
     def _interpolate(self, values_at_mesh: Array, new_samples: Array):
@@ -177,7 +190,7 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
     def __repr__(self):
         return "{0}(\n{1}\n)".format(
             self.__class__.__name__,
-            textwrap.indent("mesh="+str(self.mesh), prefix="    ")
+            textwrap.indent("mesh=" + str(self.mesh), prefix="    "),
         )
 
 
@@ -202,13 +215,13 @@ class OrthogonalCoordinateBasis2DMixin:
         # C = torch.kron(mat1, mat2)
         # print("A", C.shape)
         return [
-                self._bkd.kron(
-                    self._bkd.eye(self.mesh._npts_1d[1]), orth_deriv_mats_1d[0]
-                ),
-                self._bkd.kron(
-                    orth_deriv_mats_1d[1], self._bkd.eye(self.mesh._npts_1d[0])
-                )
-            ]
+            self._bkd.kron(
+                self._bkd.eye(self.mesh._npts_1d[1]), orth_deriv_mats_1d[0]
+            ),
+            self._bkd.kron(
+                orth_deriv_mats_1d[1], self._bkd.eye(self.mesh._npts_1d[0])
+            ),
+        ]
 
 
 class OrthogonalCoordinateBasis3DMixin:
@@ -220,37 +233,36 @@ class OrthogonalCoordinateBasis3DMixin:
             self._bkd.eye(self._npts_1d[2]),
             self._bkd.kron(
                 self._bkd.eye(self._npts_1d[1]), orth_deriv_mats_1d[0]
-            )
+            ),
         )
         Dy = self._bkd.kron(
             self._bkd.eye(self._npts_1d[2]),
             self._bkd.kron(
-                    orth_deriv_mats_1d[1], self._bkd.eye(self._npts_1d[0])
-            )
+                orth_deriv_mats_1d[1], self._bkd.eye(self._npts_1d[0])
+            ),
         )
         Dz = self._bkd.kron(
             self._bkd.kron(
-                orth_deriv_mats_1d[2],
-                self._bkd.eye(self._npts_1d[1])
+                orth_deriv_mats_1d[2], self._bkd.eye(self._npts_1d[1])
             ),
-            self._bkd.eye(self._npts_1d[0])
+            self._bkd.eye(self._npts_1d[0]),
         )
         return [Dx, Dy, Dz]
 
 
 class ChebyshevCollocationBasis1D(
-        ChebyshevCollocationBasis, OrthogonalCoordinateBasis1DMixin
+    ChebyshevCollocationBasis, OrthogonalCoordinateBasis1DMixin
 ):
     pass
 
 
 class ChebyshevCollocationBasis2D(
-        ChebyshevCollocationBasis, OrthogonalCoordinateBasis2DMixin
+    ChebyshevCollocationBasis, OrthogonalCoordinateBasis2DMixin
 ):
     pass
 
 
 class ChebyshevCollocationBasis3D(
-        ChebyshevCollocationBasis, OrthogonalCoordinateBasis3DMixin
+    ChebyshevCollocationBasis, OrthogonalCoordinateBasis3DMixin
 ):
     pass
