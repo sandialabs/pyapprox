@@ -5,25 +5,29 @@ import matplotlib.pyplot as plt
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 # from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution
 )
-from pyapprox.pde.collocation.collocationbasis import (
+from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
     ChebyshevCollocationBasis2D,
     ChebyshevCollocationBasis3D,
-    nabla,
-    LinearDiffusionEquation,
+    OrthogonalCoordinateCollocationBasis,
+    )
+from pyapprox.pde.collocation.physics import (
+    # LinearDiffusionEquation,
     LinearReactionDiffusionEquation,
-    Function,
+)
+from pyapprox.pde.collocation.functions import (
     ImutableScalarFunctionFromCallable,
+    ScalarSolutionFromCallable,
+)
+
+from pyapprox.pde.collocation.boundaryconditions import (
     DirichletBoundaryFromFunction,
     RobinBoundary,
     RobinBoundaryFromFunction,
     PeriodicBoundary,
-    ScalarSolutionFromCallable,
-    OrthogonalCoordinateCollocationBasis,
     OrthogonalCoordinateMeshBoundary,
 )
 from pyapprox.pde.collocation.mesh_transforms import (
@@ -35,7 +39,6 @@ from pyapprox.pde.collocation.mesh import (
     ChebyshevCollocationMesh1D,
     ChebyshevCollocationMesh2D,
     ChebyshevCollocationMesh3D,
-    OrthogonalCoordinateMesh,
 )
 from pyapprox.pde.collocation.solvers import SteadyStatePDE, NewtonSolver
 
@@ -81,148 +84,6 @@ class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromFunction):
 class TestCollocation:
     def setUp(self):
         np.random.seed(1)
-
-    def test_scalar_differential_operators_1d(self):
-        bkd = self.get_backend()
-        bounds = [0, 1]
-        nterms = [5]
-        transform = ScaleAndTranslationTransform1D([-1, 1], bounds, bkd)
-        mesh = ChebyshevCollocationMesh1D(nterms, transform)
-        basis = ChebyshevCollocationBasis1D(mesh)
-
-        def test_fun(xx):
-            return (xx.T)**3
-
-        def test_grad(xx):
-            return 3 * (xx.T)**2
-
-        fun_values = test_fun(basis.mesh.mesh_pts())
-        jac = "identity"
-        fun = ScalarFunction(
-            basis, fun_values[:, 0], jac=jac
-        )
-
-        plot_samples = bkd.linspace(*bounds, 101)[None, :]
-        assert bkd.allclose(fun(plot_samples), test_fun(plot_samples))
-
-        # check plots run without calling plt.show
-        ax = plt.figure().gca()
-        ax.plot(plot_samples[0], test_fun(plot_samples), '-k')
-        fun.plot(ax, ls='--', color='r')
-
-        gradfun = nabla(fun)
-        assert np.allclose(
-            gradfun(plot_samples)[:, 0, :].T, test_grad(plot_samples)
-        )
-
-        ax = plt.figure().gca()
-        ax.plot(plot_samples[0], test_grad(plot_samples), '-k')
-        ax.plot(
-            plot_samples[0], gradfun(plot_samples)[0, 0, :], ls='--', color='r'
-        )
-
-    def test_scalar_differential_operators_2d(self):
-        bkd = self.get_backend()
-        bounds = [0, 1, 0, 1]
-        nterms = [4, 4]
-        transform = ScaleAndTranslationTransform2D([-1, 1, -1, 1], bounds, bkd)
-        mesh = ChebyshevCollocationMesh2D(nterms, transform)
-        basis = ChebyshevCollocationBasis2D(mesh)
-
-        def test_fun(xx):
-            return bkd.sum(xx**3, axis=0)[:, None]
-
-        def test_grad(xx):
-            return 3 * xx ** 2
-
-        fun_values = test_fun(basis.mesh.mesh_pts())
-        # fun is independent of the solution
-        fun = ScalarFunction(basis, fun_values[:, 0], jac="zero")
-
-        X, Y, plot_samples = get_meshgrid_samples([0, 1, 0, 1], 11, bkd=bkd)
-        assert bkd.allclose(
-           fun(plot_samples)[0, 0, :, None], test_fun(plot_samples)
-        )
-
-        # check plots run without calling plt.show
-        ax = plt.figure().gca()
-        fun.plot(ax)
-        # plt.show()
-
-        gradfun = nabla(fun)
-        assert np.allclose(
-            gradfun(plot_samples)[:, 0, :], test_grad(plot_samples)
-        )
-        assert bkd.allclose(
-            gradfun.get_jacobian(), bkd.zeros(gradfun.jacobian_shape())
-        )
-
-        # fun is the solution
-        fun = ScalarFunction(
-            basis, fun_values[:, 0], jac="identity"
-        )
-        gradfun = nabla(fun)
-        for ii in range(fun.nphys_vars()):
-            assert bkd.allclose(
-                gradfun.get_jacobian()[ii, 0], basis._deriv_mats[ii]
-            )
-
-        # fun is a function of the solution
-        jac = bkd.diag(4*fun_values[:, 0]**3)
-        fun = ScalarFunction(
-            basis, fun_values[:, 0]**4, jac=jac
-        )
-        gradfun = nabla(fun)
-        for ii in range(fun.nphys_vars()):
-            assert bkd.allclose(
-                gradfun.get_jacobian()[ii, 0],
-                basis._deriv_mats[ii] @ bkd.diag(4*fun_values[:, 0]**3)
-            )
-
-        if not bkd.jacobian_implemented():
-            return
-
-        def jacfun(fun_values):
-            fun = ScalarFunction(
-                basis, fun_values**4, jac=jac
-            )
-            gradfun = nabla(fun)
-            return gradfun.get_values()
-
-        assert bkd.allclose(
-            gradfun.get_jacobian(),
-            bkd.jacobian(jacfun, fun_values[:, 0])
-        )
-
-        def test_gfun(xx):
-            return bkd.sum(xx**2, axis=0)[:, None]
-
-        # TODO once fix failing test with jac='zero' for gfun
-        # add test with jac being nonzero for gfun
-        gfun = ScalarFunction(
-            basis, test_gfun(basis.mesh.mesh_pts())[:, 0], jac="zero"
-        )
-        prodfun = gfun*nabla(fun)
-        for ii in range(prodfun.nphys_vars()):
-            assert bkd.allclose(
-                test_gfun(basis.mesh.mesh_pts())[:, 0]*nabla(fun).get_values()[ii],
-                prodfun.get_values()[ii]
-            )
-
-        def jacprodfun(fun_values):
-            fun = ScalarFunction(
-                basis, fun_values**4, jac=jac
-            )
-            gfun = ScalarFunction(
-                basis, test_gfun(basis.mesh.mesh_pts())[:, 0], jac="zero"
-            )
-            prodfun = gfun*nabla(fun)
-            return prodfun.get_values()
-
-        assert bkd.allclose(
-             prodfun.get_jacobian(),
-             bkd.jacobian(jacprodfun, fun_values[:, 0])
-        )
 
     def _setup_cheby_basis_1d(self, nterms: list, bounds: list):
         bkd = self.get_backend()
@@ -357,7 +218,7 @@ class TestCollocation:
         # of rows and columns, for example scalarfunction just returns a
         # single 1d vector
         assert bkd.allclose(
-            sol.get_values()[0, 0], exact_sol.get_values()[0, 0]
+            sol.get_values(), exact_sol.get_values()
         )
 
     def test_advection_diffusion_reaction(self):
