@@ -79,16 +79,17 @@ class OrthogonalCoordinateMeshBoundary(ABC):
     def __init__(
         self,
         bndry_name: str,
+        trans: OrthogonalCoordinateTransform,
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
         self._bndry_name = bndry_name
+        self._trans = trans
         self._bkd = bkd
         self._tol = tol
 
-    @abstractmethod
-    def orth_normals(self, samples):
-        raise NotImplementedError
+    def normals(self, samples):
+        return self._trans.normal(self._bndry_index, samples)
 
     @abstractmethod
     def orth_quadrature_rule(self):
@@ -109,23 +110,27 @@ class OrthogonalCoordinateMeshBoundary(ABC):
             self.__class__.__name__, self._bndry_name
         )
 
+    def nphys_vars(self):
+        return self._bndry_mesh_pts.shape[0]
+
 
 class OrthogonalCoordinateMeshBoundary1D(OrthogonalCoordinateMeshBoundary):
     def __init__(
         self,
         bndry_name: str,
+        trans: OrthogonalCoordinateTransform,
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(bndry_name, tol, bkd)
+        super().__init__(bndry_name, trans, tol, bkd)
         self._bndry_index = {"left": 0, "right": 1}[bndry_name]
         self._orth_normal = self._bkd.asarray([[-1.0], [1.0]])[
             self._bndry_index
         ]
         self._inactive_orth_coord = {"left": -1.0, "right": 1.0}[bndry_name]
 
-    def orth_normals(self, samples):
-        return self._bkd.tile(self._orth_normal, (1, samples.shape[1])).T
+    def names_of_boundary_pairs(self):
+        return {"left": "right", "bottom": "top"}
 
     def orth_quadrature_rule(self):
         return self._bkd.ones((1, 1)), self._bkd.ones((1, 1))
@@ -141,11 +146,12 @@ class OrthogonalCoordinateMeshBoundary2D(OrthogonalCoordinateMeshBoundary):
     def __init__(
         self,
         bndry_name: str,
+        trans: OrthogonalCoordinateTransform,
         npts: int,
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(bndry_name, tol, bkd)
+        super().__init__(bndry_name, trans, tol, bkd)
         self._bndry_index = {"left": 0, "right": 1, "bottom": 2, "top": 3}[
             bndry_name
         ]
@@ -161,10 +167,8 @@ class OrthogonalCoordinateMeshBoundary2D(OrthogonalCoordinateMeshBoundary):
             "top": 1.0,
         }[bndry_name]
 
-    def orth_normals(self, samples):
-        return self._bkd.tile(
-            self._orth_normal[:, None], (1, samples.shape[1])
-        ).T
+    def names_of_boundary_pairs(self):
+        return {"left": "right", "bottom": "top"}
 
     def orth_quadrature_rule(self):
         nsamples = self._npts + 2
@@ -196,11 +200,12 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
     def __init__(
         self,
         bndry_name: str,
+        trans: OrthogonalCoordinateTransform,
         npts_1d: int,
         tol: float = 1e-15,
         bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(bndry_name, tol, bkd)
+        super().__init__(bndry_name, trans, tol, bkd)
         self._bndry_index = {
             "left": 0, "right": 1, "front": 2, "back": 3, "bottom": 4, "top": 5
         }[bndry_name]
@@ -225,10 +230,8 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
             "top": 1.0,
         }[bndry_name]
 
-    def orth_normals(self, samples):
-        return self._bkd.tile(
-            self._orth_normal[:, None], (1, samples.shape[1])
-        ).T
+    def names_of_boundary_pairs(self):
+        return {"left": "right", "front": "back", "bottom": "top"}
 
     def orth_quadrature_rule(self):
         active_quad = [
@@ -281,7 +284,7 @@ class OrthogonalCoordinateMesh1DMixin(OrthogonalCoordinateMesh):
 
     def _set_boundaries(self):
         self._bndrys = {
-            name: OrthogonalCoordinateMeshBoundary1D(name)
+            name: OrthogonalCoordinateMeshBoundary1D(name, self.trans)
             for name in ["left", "right"]
         }
 
@@ -290,7 +293,7 @@ class OrthogonalCoordinateMesh2DMixin:
     def _set_boundaries(self):
         self._bndrys = {
             name: OrthogonalCoordinateMeshBoundary2D(
-                name, self._npts_1d[ii < 2]
+                name, self.trans, self._npts_1d[ii < 2]
             )
             for ii, name in enumerate(["left", "right", "bottom", "top"])
         }
@@ -299,7 +302,9 @@ class OrthogonalCoordinateMesh2DMixin:
 class OrthogonalCoordinateMesh3DMixin:
     def _set_boundaries(self):
         self._bndrys = {
-            name: OrthogonalCoordinateMeshBoundary3D(name, self._npts_1d)
+            name: OrthogonalCoordinateMeshBoundary3D(
+                name, self.trans, self._npts_1d
+            )
             # bounaries are in x, then y then z
             for name in ["left", "right", "front", "back", "bottom", "top"]
         }

@@ -316,7 +316,9 @@ class Function(ABC):
         plot_samples = self._bkd.linspace(
             *self.basis.mesh.trans._ranges, nplot_pts_1d
         )[None, :]
-        return ax.plot(plot_samples[0], self(plot_samples), **kwargs)
+        return ax.plot(
+            plot_samples[0], self(plot_samples)[:, 0, :].T, **kwargs
+        )
 
     def _plot_2d(self, ax, npts_1d, **kwargs):
         # TODO generate samples and interpolate on orth space
@@ -588,7 +590,7 @@ class BoundaryFunction(ABC):
         self._bkd = self._mesh_bndry._bkd
 
     @abstractmethod
-    def apply_to_residual(self, sol: Array, res_array: Array):
+    def apply_to_residual(self, sol: Array, res_array: Array, jac: Array):
         raise NotImplementedError
 
     @abstractmethod
@@ -618,7 +620,7 @@ class BoundaryFunction(ABC):
 
 
 class DirichletBoundary(BoundaryFunction):
-    def apply_to_residual(self, sol: Array, res: Array):
+    def apply_to_residual(self, sol: Array, res: Array, jac: Array):
         idx = self._mesh_bndry._bndry_idx
         bndry_vals = self._bkd.flatten(
             self(self._mesh_bndry._bndry_mesh_pts)
@@ -633,17 +635,179 @@ class DirichletBoundary(BoundaryFunction):
         return jac
 
 
-class DirichletBoundaryFromFunction(DirichletBoundary):
-    def __init__(
-            self, mesh_bndry: OrthogonalCoordinateMeshBoundary, fun: Function
-    ):
-        super().__init__(mesh_bndry)
+class BoundaryFromFunctionMixin:
+    def _set_function(self, fun: Function):
         if not isinstance(fun, Function):
             raise ValueError("fun must be an instance of Function")
         self._fun = fun
 
     def __call__(self, bndry_mesh_pts):
         return self._fun(bndry_mesh_pts)
+
+
+class DirichletBoundaryFromFunction(
+        BoundaryFromFunctionMixin, DirichletBoundary
+):
+    def __init__(
+            self, mesh_bndry: OrthogonalCoordinateMeshBoundary, fun: Function
+    ):
+        super().__init__(mesh_bndry)
+        self._set_function(fun)
+
+
+class RobinBoundary(BoundaryFunction):
+    def __init__(
+            self,
+            mesh_bndry: OrthogonalCoordinateMeshBoundary,
+            alpha: float,
+            beta: float,
+    ):
+        super().__init__(mesh_bndry)
+        self._alpha = alpha
+        self._beta = beta
+        self._normal_vals = self._mesh_bndry.normals(
+            self._mesh_bndry._bndry_mesh_pts
+        )
+        self._flux_jac = None
+
+    def set_flux_jacobian(self, flux_jac):
+        self._flux_jac = flux_jac
+
+    def _flux_normal_jacobian(self, sol_array: Array):
+        # pass in sol in case flux depends on sol
+        # todo. (determine if sol is ever needed an remove if not)
+        # todo only compute once for linear transient problems
+        # todo: flux_jac called here evaluates flux jac on all grid points
+        #       find way to only evalyate on boundary
+        idx = self._mesh_bndry._bndry_idx
+        flux_jac = self._flux_jac(sol_array)
+        flux_jac = [self._bndry_slice(f, idx, 0) for f in flux_jac]
+        flux_normal_jac = [
+            self._normal_vals[:, dd:dd+1]*flux_jac[dd]
+            for dd in range(self._mesh_bndry.nphys_vars())]
+        return flux_normal_jac
+
+    def apply_to_residual(
+            self, sol_array: Array, res_array: Array, jac: Array
+    ):
+        idx = self._mesh_bndry._bndry_idx
+        bndry_vals = self._bkd.flatten(
+            self(self._mesh_bndry._bndry_mesh_pts)
+        )
+        # todo flux_normal vals gets called here and in apply_to_jacobian
+        # remove this computational redundancy
+        jac[idx] = sum(self._flux_normal_jacobian(sol_array))
+        res_array[idx] = (
+            self._alpha * self._bndry_slice(sol_array, idx, 0)
+            + self._beta*(self._bndry_slice(jac, idx, 0) @ sol_array)
+            - bndry_vals
+        )
+        return res_array
+
+    def apply_to_jacobian(self, sol: Array, jac: Array):
+        # ignoring normals
+        # res = D1 * u + D2 * u + alpha * I
+        # so jac(res) = D1 + D2 + alpha * I
+        idx = self._mesh_bndry._bndry_idx
+        # D1 + D2
+        jac[idx] = sum(self._flux_normal_jacobian(sol))
+        # alpha * I
+        jac[idx, idx] += self._alpha
+        return jac
+
+
+class RobinBoundaryFromFunction(
+        BoundaryFromFunctionMixin, RobinBoundary
+):
+    def __init__(
+            self,
+            mesh_bndry: OrthogonalCoordinateMeshBoundary,
+            fun: Function,
+            alpha: float,
+    ):
+        super().__init__(mesh_bndry, alpha)
+        self._set_function(fun)
+
+
+class PeriodicBoundary(BoundaryFunction):
+    def __init__(
+            self,
+            mesh_bndry: OrthogonalCoordinateMeshBoundary,
+            partner_mesh_bndry: OrthogonalCoordinateMeshBoundary,
+            basis: OrthogonalCoordinateCollocationBasis,
+    ):
+        super().__init__(mesh_bndry)
+        self._partner_mesh_bndry = partner_mesh_bndry
+        self._basis = basis
+        self._normal_vals = self._mesh_bndry.normals(
+            self._mesh_bndry._bndry_mesh_pts
+        )
+        self._partner_normal_vals = self._partner_mesh_bndry.normals(
+            self._partner_mesh_bndry._bndry_mesh_pts
+        )
+
+    def _gradient_dot_normal_jacobian(
+            self,
+            mesh_bndry: OrthogonalCoordinateMeshBoundary,
+            normal_vals: Array,
+     ):
+        idx = mesh_bndry._bndry_idx
+        return sum(
+            [
+                normal_vals[:, dd:dd+1] * (
+                    self._bndry_slice(
+                        self._basis._deriv_mats[dd], idx, 0
+                    )
+                )
+                for dd in range(self._mesh_bndry.nphys_vars())
+            ]
+        )
+
+    def _gradient_dot_normal(
+            self,
+            mesh_bndry: OrthogonalCoordinateMeshBoundary,
+            normal_vals: Array,
+            sol_array: Array,
+    ):
+        jac = self._gradient_dot_normal_jacobian(mesh_bndry, normal_vals)
+        return jac @ sol_array
+
+    def apply_to_residual(
+            self, sol_array: Array, res_array: Array, jac: Array
+    ):
+        idx1 = self._mesh_bndry._bndry_idx
+        idx2 = self._partner_mesh_bndry._bndry_idx
+        # match solution values
+        res_array[idx1] = sol_array[idx1]-sol_array[idx2]
+        # match flux
+        res_array[idx2] = (
+            self._gradient_dot_normal(
+                self._mesh_bndry, self._normal_vals, sol_array
+            )
+            + self._gradient_dot_normal(
+                self._partner_mesh_bndry, self._partner_normal_vals, sol_array
+            )
+        )
+        return res_array
+
+    def apply_to_jacobian(self, sol_array: Array, jac: Array):
+        idx1 = self._mesh_bndry._bndry_idx
+        idx2 = self._partner_mesh_bndry._bndry_idx
+        jac[idx1, :] = 0
+        jac[idx1, idx1] = 1
+        jac[idx1, idx2] = -1
+        jac[idx2] = (
+            self._gradient_dot_normal_jacobian(
+                self._mesh_bndry, self._normal_vals
+            )
+            + self._gradient_dot_normal_jacobian(
+                self._partner_mesh_bndry, self._partner_normal_vals
+            )
+        )
+        return jac
+
+    def __call__(self, samples):
+        raise NotImplementedError("Periodic Boundary does not need __call__")
 
 
 class SolutionMixin:
@@ -721,17 +885,30 @@ class Physics(NewtonResidual):
                 "OrthogonalCoordinateCollocationBasis"
             )
         self.basis = basis
+        self._flux_jacobian_implemented = False
 
     def set_boundaries(self, bndrys: list[BoundaryFunction]):
-        if len(bndrys) != len(self.basis.mesh._bndrys):
+        nperiodic_boundaries = 0
+        for bndry in bndrys:
+            if isinstance(bndry, PeriodicBoundary):
+                nperiodic_boundaries += 1
+        if len(bndrys) + nperiodic_boundaries != len(self.basis.mesh._bndrys):
             raise ValueError("Must set all boundaries")
         self._bndrys = bndrys
+        for bndry in self._bndrys:
+            if isinstance(bndry, RobinBoundary):
+                if not self._flux_jacobian_implemented:
+                    raise ValueError(
+                        f"RobinBoundary requested but {self} "
+                        "does not define _flux_jacobian"
+                    )
+                bndry.set_flux_jacobian(self._flux_jacobian)
 
     def apply_boundary_conditions_to_residual(
-            self, sol_array: Array, res_array: Array
+            self, sol_array: Array, res_array: Array, jac: Array
     ):
         for bndry in self._bndrys:
-            res_array = bndry.apply_to_residual(sol_array, res_array)
+            res_array = bndry.apply_to_residual(sol_array, res_array, jac)
         return res_array
 
     def apply_boundary_conditions_to_jacobian(
@@ -787,7 +964,9 @@ class Physics(NewtonResidual):
             sol_array
         )
         self._jac = jac
-        return self.apply_boundary_conditions_to_residual(sol_array, res_array)
+        return self.apply_boundary_conditions_to_residual(
+            sol_array, res_array, jac
+        )
 
     def jacobian(self, sol_array: Array):
         # assumes jac called after __call__
@@ -799,6 +978,9 @@ class Physics(NewtonResidual):
         self._bkd.assert_isarray(self._bkd, res_array)
         return self._linsolve(sol_array, res_array)
 
+    def _flux_jacobian(self, sol_array: Array):
+        raise NotImplementedError
+
 
 class LinearPhysicsMixin:
     #TODO add option of prefactoring jacobian
@@ -808,14 +990,14 @@ class LinearPhysicsMixin:
     def _linsolve(self, sol_array: Array, res_array: Array):
         return self._bkd.solve(self.jacobian(sol_array), res_array)
 
-    def _residual_from_array(self, sol_array: Array):
-        # Only compute linear jacobian once.
-        # This is useful for transient problems or for steady state
-        # parameterized PDEs with jacobians that are not dependent on
-        # the uncertain parameters
-        if hasattr(self, "_linear_jac"):
-            return self._linear_jac @ sol_array
-        return self._linear_residual_from_function().get_values()
+    # def _residual_from_array(self, sol_array: Array):
+    #     # Only compute linear jacobian once.
+    #     # This is useful for transient problems or for steady state
+    #     # parameterized PDEs with jacobians that are not dependent on
+    #     # the uncertain parameters
+    #     if hasattr(self, "_linear_jac"):
+    #         return self._linear_jac @ sol_array
+    #     return self._linear_residual_from_function().get_values()
 
 
 class NonLinearPhysicsMixin:
@@ -848,11 +1030,37 @@ class LinearDiffusionEquation(LinearPhysicsMixin, ScalarPhysicsMixin, Physics):
         super().__init__(forcing.basis)
         self._forcing = forcing
         self._diffusion = diffusion
+        self._flux_jacobian_implemented = True
 
     def residual(self, sol: ScalarFunction):
         if not isinstance(sol, ScalarSolution):
             raise ValueError("sol must be an instance of ScalarFunction")
         return div(self._diffusion*nabla(sol)) + self._forcing
+
+    def _flux_jacobian(self, sol_array: Array):
+        sol = self.separate_solutions(sol_array)
+        flux_jac = (self._diffusion*nabla(sol)).get_jacobian()
+        return flux_jac[:, 0, :, :]
+
+
+class LinearReactionDiffusionEquation(LinearDiffusionEquation):
+    def __init__(
+            self,
+            forcing: ImutableScalarFunction,
+            diffusion: ImutableScalarFunction,
+            reaction: ImutableScalarFunction,
+    ):
+        super().__init__(forcing, diffusion)
+        if not isinstance(reaction, ImutableScalarFunction):
+            raise ValueError(
+                "reaction must be an instance of ImutableScalarFunction"
+            )
+        self._reaction = reaction
+
+    def residual(self, sol: ScalarFunction):
+        diff_res = super().residual(sol)
+        react_res = self._reaction * sol
+        return diff_res - react_res
 
 
 # nabla f(u) = [D_1f_1,    0  ], d/du (nabla f(u)) = [D_1f_1'(u),     0     ]
