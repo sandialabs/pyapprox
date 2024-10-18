@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.pde.autopde._mesh_transforms import (
+from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform2D,
     ScaleAndTranslationTransform3D,
     PolarTransform,

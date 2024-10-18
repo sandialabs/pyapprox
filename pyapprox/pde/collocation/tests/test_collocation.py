@@ -9,7 +9,7 @@ from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution
 )
-from pyapprox.pde.autopde._collocationbasis import (
+from pyapprox.pde.collocation.collocationbasis import (
     ChebyshevCollocationBasis1D,
     ChebyshevCollocationBasis2D,
     ChebyshevCollocationBasis3D,
@@ -26,18 +26,18 @@ from pyapprox.pde.autopde._collocationbasis import (
     OrthogonalCoordinateCollocationBasis,
     OrthogonalCoordinateMeshBoundary,
 )
-from pyapprox.pde.autopde._mesh_transforms import (
+from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
     ScaleAndTranslationTransform2D,
     ScaleAndTranslationTransform3D,
 )
-from pyapprox.pde.autopde._mesh import (
+from pyapprox.pde.collocation.mesh import (
     ChebyshevCollocationMesh1D,
     ChebyshevCollocationMesh2D,
     ChebyshevCollocationMesh3D,
     OrthogonalCoordinateMesh,
 )
-from pyapprox.pde.autopde._solvers import SteadyStatePDE, NewtonSolver
+from pyapprox.pde.collocation.solvers import SteadyStatePDE, NewtonSolver
 
 
 class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromFunction):

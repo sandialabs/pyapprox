@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 import textwrap
 
-from pyapprox.pde.autopde._collocationbasis import Physics, Function
-from pyapprox.pde.autopde.newton import NewtonSolver
+from pyapprox.pde.collocation.collocationbasis import Physics, Function
+from pyapprox.pde.collocation.newton import NewtonSolver
 
 
 class PDESolver(ABC):

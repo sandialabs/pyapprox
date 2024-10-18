@@ -6,12 +6,12 @@ import textwrap
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
 from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
-from pyapprox.pde.autopde._mesh import (
+from pyapprox.pde.collocation.mesh import (
     OrthogonalCoordinateMesh,
     ChebyshevCollocationMesh,
     OrthogonalCoordinateMeshBoundary,
 )
-from pyapprox.pde.autopde.newton import NewtonResidual
+from pyapprox.pde.collocation.newton import NewtonResidual
 from pyapprox.surrogates.bases.orthopoly import (
     UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis
 )

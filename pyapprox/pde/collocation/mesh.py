@@ -5,7 +5,7 @@ from pyapprox.util.linearalgebra.numpylinalg import (
     LinAlgMixin,
     NumpyLinAlgMixin,
 )
-from pyapprox.pde.autopde._mesh_transforms import (
+from pyapprox.pde.collocation.mesh_transforms import (
     OrthogonalCoordinateTransform,
     ScaleAndTranslationTransform1D,
 )
