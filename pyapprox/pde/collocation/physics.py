@@ -213,7 +213,7 @@ class ScalarPhysicsMixin:
     def _separate_solutions(self, array: Array):
         sol = ScalarSolution(self.basis)
         sol.set_values(array)
-        sol.set_matrix_jacobian(sol._initial_jacobian())
+        sol.set_matrix_jacobian(sol._initial_matrix_jacobian())
         return sol
 
 
@@ -264,4 +264,4 @@ class LinearReactionDiffusionEquation(LinearDiffusionEquation):
     def residual(self, sol: ScalarFunction):
         diff_res = super().residual(sol)
         react_res = self._reaction * sol
-        return diff_res - react_res
+        return diff_res + react_res

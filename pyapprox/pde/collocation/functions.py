@@ -62,7 +62,7 @@ class MatrixFunction(ABC):
     def nmesh_pts(self):
         return self.basis.mesh.nmesh_pts()
 
-    def jacobian_shape(self):
+    def matrix_jacobian_shape(self):
         return (
             self._nrows,
             self._ncols,
@@ -77,10 +77,10 @@ class MatrixFunction(ABC):
         jac : Array (nrows, ncols, nmesh_pts, nmesh_pts)
             The jacobian of each function at the mesh points
         """
-        if jac.shape != self.jacobian_shape():
+        if jac.shape != self.matrix_jacobian_shape():
             raise ValueError(
                 "jac shape {0} should be {1}".format(
-                    jac.shape, self.jacobian_shape()
+                    jac.shape, self.matrix_jacobian_shape()
                 )
             )
 
@@ -117,7 +117,7 @@ class MatrixFunction(ABC):
         )
 
     def __add__(self, other):
-        if self.jacobian_shape() != other.jacobian_shape():
+        if self.matrix_jacobian_shape() != other.matrix_jacobian_shape():
             raise ValueError("self and other have different shapes")
         return MatrixFunction(
             self.basis,
@@ -128,7 +128,7 @@ class MatrixFunction(ABC):
         )
 
     def __sub__(self, other):
-        if self.jacobian_shape() != other.jacobian_shape():
+        if self.matrix_jacobian_shape() != other.matrix_jacobian_shape():
             raise ValueError("self and other have different shapes")
         return MatrixFunction(
             self.basis,
@@ -310,10 +310,10 @@ class ImutableMixin:
         values_at_mesh: Array = None,
     ):
         super().__init__(basis, values_at_mesh)
-        self.set_matrix_jacobian(self._initial_jacobian())
+        self.set_matrix_jacobian(self._initial_matrix_jacobian())
 
-    def _initial_jacobian(self):
-        return self._bkd.zeros(self.jacobian_shape())
+    def _initial_matrix_jacobian(self):
+        return self._bkd.zeros(self.matrix_jacobian_shape())
 
 
 class ImutableScalarFunction(ImutableMixin, ScalarFunction):
@@ -324,22 +324,19 @@ class FunctionFromCallableMixin:
     def _setup(self, fun: callable):
         self._fun = fun
         self.set_values(self._fun(self.basis.mesh.mesh_pts()))
-        self.set_matrix_jacobian(self._initial_jacobian())
+        self.set_matrix_jacobian(self._initial_matrix_jacobian())
 
 
 class Operator(ABC):
-    def __init__(
-        self,
+    @abstractmethod
+    def __new__(
+        cls,
         fun: MatrixFunction,
-        op_values_fun: callable,
-        op_jac_fun: callable,
     ):
-        # each fun must take get_values as inputs (NOT get_matrix_values)
-        # each fun must return get_values().shape as outputs
-        self._op_values_fun = op_values_fun
-        self._op_jac_fun = op_jac_fun
-        self._fun = fun
+        raise NotImplementedError
 
+
+class OperatorFromCallable(Operator):
     @staticmethod
     def _values(fun: MatrixFunction, op_values_fun: callable):
         vals = op_values_fun(fun.get_values())
@@ -358,17 +355,8 @@ class Operator(ABC):
             )
         return jac
 
-    @abstractmethod
-    def __new__(
-        cls,
-        fun: MatrixFunction,
-        op_values_fun: callable,
-        op_jac_fun: callable,
-    ):
-        raise NotImplementedError
 
-
-class ScalarOperatorFromCallable(Operator):
+class ScalarOperatorFromCallable(OperatorFromCallable):
     def __new__(
         cls,
         fun: MatrixFunction,
@@ -382,6 +370,20 @@ class ScalarOperatorFromCallable(Operator):
         )
 
 
+class ScalarMonomialOperator(Operator):
+    def __new__(
+        cls,
+        fun: MatrixFunction,
+        degree: int,
+    ):
+        vals = fun.get_values()
+        return ScalarFunction(
+            fun.basis,
+            vals**degree,
+            (degree * fun._bkd.diag(vals) ** (degree-1)),
+        )
+
+
 class SolutionMixin:
     def __init__(
         self,
@@ -389,9 +391,9 @@ class SolutionMixin:
         values_at_mesh: Array = None,
     ):
         super().__init__(basis, values_at_mesh)
-        self.set_matrix_jacobian(self._initial_jacobian())
+        self.set_matrix_jacobian(self._initial_matrix_jacobian())
 
-    def _initial_jacobian(self):
+    def _initial_matrix_jacobian(self):
         return self._bkd.stack(
             [
                 self._bkd.stack(

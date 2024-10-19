@@ -9,6 +9,9 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
 )
+from pyapprox.pde.collocation.manufactured_solutions import (
+    Diffusion, ReactionDiffusion,
+)
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
     ChebyshevCollocationBasis2D,
@@ -16,7 +19,7 @@ from pyapprox.pde.collocation.basis import (
     OrthogonalCoordinateCollocationBasis,
 )
 from pyapprox.pde.collocation.physics import (
-    # LinearDiffusionEquation,
+    LinearDiffusionEquation,
     LinearReactionDiffusionEquation,
 )
 from pyapprox.pde.collocation.functions import (
@@ -71,14 +74,18 @@ class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromFunction):
         # normal_fun =  partial(transform.normal, ii)
         # normal_vals = torch.as_tensor(normal_fun(xx), dtype=torch.double)
         # flux_vals = torch.as_tensor(flux_funs(xx), dtype=torch.double)
+        flux_vals = self._flux_fun(pts)
+        if flux_vals.ndim != 2:
+            raise ValueError("flux_fun must return 2d array")
         return self._bkd.sum(
             self._mesh_bndry.normals(pts) * self._flux_fun(pts), axis=1
         )
 
     def _manufactured_callable(self, pts):
-        return self._alpha * self._sol_fun(pts)[
-            :, 0
-        ] + self._beta * self._robin_normal_flux(pts)
+        return (
+            self._alpha * self._sol_fun(pts)
+            + self._beta * self._robin_normal_flux(pts)
+        )
 
 
 class TestCollocation:
@@ -113,7 +120,7 @@ class TestCollocation:
     ):
         bndry_funs = []
         for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
-            sol = ScalarSolutionFromCallable(basis, lambda x: sol_fun(x)[:, 0])
+            sol = ScalarSolutionFromCallable(basis, sol_fun)
             bndry_funs.append(DirichletBoundaryFromFunction(mesh_bndry, sol))
         return bndry_funs
 
@@ -124,7 +131,8 @@ class TestCollocation:
         flux_fun: callable,
     ):
         # use the same alpha, beta for every test
-        alpha, beta = 2.0, 3.0
+        # alpha, beta = 2.0, 3.0
+        alpha, beta = 1.0, 1.0
         bndry_funs = []
         for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
             bndry_funs.append(
@@ -156,27 +164,34 @@ class TestCollocation:
         sol_string,
         diff_string,
         vel_strings,
-        react_funs,
+        react_str,
         bndry_types,
         basis,
         nl_diff_funs=[None, None],
     ):
         bkd = self.get_backend()
+        man_sol = ReactionDiffusion(
+            len(vel_strings), sol_string, diff_string, react_str, bkd=bkd,
+            oned=True
+        )
+        print(man_sol)
+
         sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string,
                 diff_string,
                 vel_strings,
-                react_funs[0],
+                lambda u: 0*u,
                 False,
-                nl_diff_funs[0],
+                None,
                 bkd=bkd,
             )
         )
+
         # TODO make function take in callable. Then call set_values
         # in steadystatepde on mesh_pts and similarly for transient PDE
         exact_sol = ScalarSolutionFromCallable(
-            basis, lambda x: sol_fun(x)[:, 0]
+            basis, man_sol.functions["solution"]
         )
 
         # test plot runs
@@ -184,22 +199,21 @@ class TestCollocation:
         exact_sol.plot(ax, 51)
 
         diffusion = ImutableScalarFunctionFromCallable(
-            basis, lambda x: diff_fun(x)[:, 0]
+            basis, man_sol.functions["diffusion"]
         )
         forcing = ImutableScalarFunctionFromCallable(
-            basis, lambda x: forc_fun(x)[:, 0]
+            basis, man_sol.functions["forcing"]
         )
-
-        # hack
-        react_fun = lambda x: bkd.ones(x.T.shape)
+        # todo man_sol.functions["reaction"] contains the values u
+        # but linearreactiondiffusionequations needs 1 from (1*u)
         reaction = ImutableScalarFunctionFromCallable(
-            basis, lambda x: react_fun(x)[:, 0]
+            basis, lambda x: 0*bkd.ones(x.shape[1])
         )
         physics = LinearReactionDiffusionEquation(forcing, diffusion, reaction)
-        np.set_printoptions(linewidth=1000)
         # physics = LinearDiffusionEquation(forcing, diffusion)
         residual = physics.residual(exact_sol)
-        print(residual.get_values()[0, 0])
+        # np.set_printoptions(linewidth=1000)
+        # print(residual.get_values()[0, 0])
         assert bkd.allclose(
             residual.get_values()[0, 0],
             bkd.zeros(
@@ -208,12 +222,12 @@ class TestCollocation:
         )
 
         # boundaries = self._setup_dirichlet_boundary_conditions(
-        #     basis, sol_fun
+        #     basis, man_sol.functions["solution"]
         # )
-        # boundaries = self._setup_robin_boundary_conditions(
-        #     basis, sol_fun, flux_funs
-        # )
-        boundaries = self._setup_periodic_boundary_conditions(basis)
+        boundaries = self._setup_robin_boundary_conditions(
+            basis,  man_sol.functions["solution"], man_sol.functions["flux"]
+        )
+        # boundaries = self._setup_periodic_boundary_conditions(basis)
         physics.set_boundaries(boundaries)
         solver = SteadyStatePDE(physics, NewtonSolver(verbosity=2, maxiters=1))
         init_sol = ScalarSolutionFromCallable(
@@ -223,30 +237,24 @@ class TestCollocation:
             ),
         )
         sol = solver.solve(init_sol)
-        # print(sol.get_values()[0, 0])
-        # print(exact_sol.get_values()[0, 0])
-
-        # consider renaming get_values with get_matrix_values and
-        # using get_values for returning values of size consistent with number
-        # of rows and columns, for example scalarfunction just returns a
-        # single 1d vector
+        # print(sol.get_values())
+        # print(exact_sol.get_values())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_advection_diffusion_reaction(self):
-        bkd = self.get_backend()
         test_cases = [
-            # ["-(x-1)*x/2", "4", ["0"], [None, None], ["D", "D"],
-            #  self._setup_cheby_basis_1d([5], [0, 1])
-            #  ],
-            [
-                "sin(x)",
-                "1",
-                ["0"],
-                [lambda sol: 1 * sol, lambda sol: bkd.ones(sol.shape[0])],
-                ["D", "D"],
-                self._setup_cheby_basis_1d([20], [0, 2 * np.pi]),
-            ],
-            # ["x**2*y**2", "2", ["0", "0"], [None, None], ["D", "D", "D", "D"],
+            ["-(x-1)*x/2", "4", ["0"], "0*u", ["D", "D"],
+             self._setup_cheby_basis_1d([5], [0, 1])
+             ],
+            # [
+            #     "sin(x)",
+            #     "1",
+            #     ["0"],
+            #     "2*u", # be careful using 1*u will have zero as a trivial solution
+            #     ["D", "D"],
+            #     self._setup_cheby_basis_1d([20], [0, 2 * np.pi]),
+            # ],
+            # ["x**2*y**2", "2", ["0", "0"], "0*u", ["D", "D", "D", "D"],
             #  self._setup_rect_cheby_basis_2d([4, 4], [0, 1, 0, 1])
             #  ],
             # ["x**2*y**2*z**2", "2", ["0", "0", "0"], [None, None],
