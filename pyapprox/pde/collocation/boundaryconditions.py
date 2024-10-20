@@ -25,6 +25,9 @@ class BoundaryFunction(ABC):
         raise NotImplementedError
 
     def _bndry_slice(self, vec, idx, axis):
+        # todo move to mesh_bndry
+        if self._mesh_bndry.nphys_vars() == 3:
+            return vec[idx]
         # avoid copying data
         if len(idx) == 1:
             if axis == 0:
@@ -134,7 +137,7 @@ class RobinBoundary(BoundaryFunction):
         # so jac(res) = D1 + D2 + alpha * I
         idx = self._mesh_bndry._bndry_idx
         # D1 + D2
-        jac[idx] = sum(self._flux_normal_jacobian(sol))
+        jac[idx] = self._beta * sum(self._flux_normal_jacobian(sol))
         # alpha * I
         jac[idx, idx] += self._alpha
         return jac

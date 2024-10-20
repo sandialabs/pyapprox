@@ -320,6 +320,10 @@ class ImutableScalarFunction(ImutableMixin, ScalarFunction):
     pass
 
 
+class ImutableVectorFunction(ImutableMixin, VectorFunction):
+    pass
+
+
 class FunctionFromCallableMixin:
     def _setup(self, fun: callable):
         self._fun = fun
@@ -424,6 +428,20 @@ class ImutableScalarFunctionFromCallable(
         fun: callable,
     ):
         ScalarFunction.__init__(self, basis)
+        self._setup(fun)
+
+
+class ImutableVectorFunctionFromCallable(
+    ImutableVectorFunction, FunctionFromCallableMixin
+):
+    """Vector function that does not depend on the solution of a PDE"""
+
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        fun: callable,
+    ):
+        VectorFunction.__init__(self, basis)
         self._setup(fun)
 
 

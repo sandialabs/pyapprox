@@ -6,6 +6,7 @@ from pyapprox.pde.collocation.functions import (
     ScalarSolution,
     ImutableScalarFunction,
     ScalarFunction,
+    ImutableVectorFunction,
     SolutionMixin,
 )
 from pyapprox.pde.collocation.newton import NewtonResidual
@@ -265,3 +266,24 @@ class LinearReactionDiffusionEquation(LinearDiffusionEquation):
         diff_res = super().residual(sol)
         react_res = self._reaction * sol
         return diff_res + react_res
+
+
+class LinearReactionAdvectionDiffusionEquation(LinearDiffusionEquation):
+    def __init__(
+        self,
+        forcing: ImutableScalarFunction,
+        diffusion: ImutableScalarFunction,
+        reaction: ImutableScalarFunction,
+        velocities: ImutableVectorFunction,
+    ):
+        super().__init__(forcing, diffusion)
+        if not isinstance(velocities, ImutableVectorFunction):
+            raise ValueError(
+                "velocities must be an instance of ImutableVectorFunction"
+            )
+        self._velocities = velocities
+
+    def residual(self, sol: ScalarFunction):
+        react_diff_res = super().residual(sol)
+        advec_res = sol * self._velocities
+        return react_diff_res + advec_res

@@ -230,22 +230,22 @@ class OrthogonalCoordinateBasis3DMixin:
         # which is faster than x3
         # TODO Need to check this is correct. I just derived it
         Dx = self._bkd.kron(
-            self._bkd.eye(self._npts_1d[2]),
+            self._bkd.eye(self.mesh._npts_1d[2]),
             self._bkd.kron(
-                self._bkd.eye(self._npts_1d[1]), orth_deriv_mats_1d[0]
+                self._bkd.eye(self.mesh._npts_1d[1]), orth_deriv_mats_1d[0]
             ),
         )
         Dy = self._bkd.kron(
-            self._bkd.eye(self._npts_1d[2]),
+            self._bkd.eye(self.mesh._npts_1d[2]),
             self._bkd.kron(
-                orth_deriv_mats_1d[1], self._bkd.eye(self._npts_1d[0])
+                orth_deriv_mats_1d[1], self._bkd.eye(self.mesh._npts_1d[0])
             ),
         )
         Dz = self._bkd.kron(
             self._bkd.kron(
-                orth_deriv_mats_1d[2], self._bkd.eye(self._npts_1d[1])
+                orth_deriv_mats_1d[2], self._bkd.eye(self.mesh._npts_1d[1])
             ),
-            self._bkd.eye(self._npts_1d[0]),
+            self._bkd.eye(self.mesh._npts_1d[0]),
         )
         return [Dx, Dy, Dz]
 

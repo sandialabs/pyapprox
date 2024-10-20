@@ -191,7 +191,7 @@ class OrthogonalCoordinateMeshBoundary2D(OrthogonalCoordinateMeshBoundary):
         )[0]
         # Avoid corners appearing twice. Remove second reference to corners
         # from top and bottom boundaries
-        if self._bndry_index in ["bottom", "top"]:
+        if self._bndry_name in ["bottom", "top"]:
             indices = indices[1:-1]
         return indices
 
@@ -226,14 +226,15 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
         )[self._bndry_index]
         self._npts_1d = npts_1d
         self._active_orth_bounds = self._bkd.asarray([-1.0, 1.0])
-        self._inactive_orth_coord = {
+        self._inactive_orth_coords = {
             "left": -1.0,
             "right": 1.0,
             "front": -1.0,
             "back": 1.0,
             "bottom": -1.0,
             "top": 1.0,
-        }[bndry_name]
+        }
+        self._inactive_orth_coord = self._inactive_orth_coords[bndry_name]
 
     def names_of_boundary_pairs(self):
         return {"left": "right", "front": "back", "bottom": "top"}
@@ -266,15 +267,73 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
         return xquad, active_quadw
 
     def _orth_samples_on_boundary(self, orth_samples):
-        dd = int(self._bndry_index >= 2)
+        if self._bndry_index < 2:
+            dd = 0
+        elif self._bndry_index < 4:
+            dd = 1
+        else:
+            dd = 2
         indices = self._bkd.where(
-            self._bkd.abs(self._inactive_coord - orth_samples[dd, :])
+            self._bkd.abs(self._inactive_orth_coord - orth_samples[dd, :])
             < self._tol
         )[0]
         # To avoid points on edge lines appearing twice.
-        # Remove second reference to edge lines
-        # from top and bottom boundaries
-        raise NotImplementedError("TODO")
+        # Remove repeat references to edge lines
+        # from front back and top and bottom boundaries
+        # remove x edge from y boundaries
+        # and remove all edges from z boundaries
+        if self._bndry_name in ["front", "back"]:
+            keep_idx = self._bkd.where(
+                (
+                    self._bkd.abs(
+                        self._inactive_orth_coords["left"]
+                        - orth_samples[0, indices]
+                    )
+                    > self._tol
+                )
+                & (
+                    self._bkd.abs(
+                        self._inactive_orth_coords["right"]
+                        - orth_samples[0, indices]
+                    )
+                    > self._tol
+                )
+            )[0]
+            indices = indices[keep_idx]
+
+        if self._bndry_name in ["bottom", "top"]:
+            keep_idx = self._bkd.where(
+                (
+                    self._bkd.abs(
+                        self._inactive_orth_coords["left"]
+                        - orth_samples[0, indices]
+                    )
+                    > self._tol
+                )
+                & (
+                    self._bkd.abs(
+                        self._inactive_orth_coords["right"]
+                        - orth_samples[0, indices]
+                    )
+                    > self._tol
+                )
+                & (
+                    self._bkd.abs(
+                        self._inactive_orth_coords["front"]
+                        - orth_samples[1, indices]
+                    )
+                    > self._tol
+                )
+                & (
+                    self._bkd.abs(
+                        self._inactive_orth_coords["back"]
+                        - orth_samples[1, indices]
+                    )
+                    > self._tol
+                )
+            )[0]
+            indices = indices[keep_idx]
+        print(indices.shape, self._bndry_name)
         return indices
 
 
