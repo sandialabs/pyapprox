@@ -220,7 +220,7 @@ class TestCollocation:
         )
 
         # test plot runs
-        ax = plt.figure().gca()
+        ax = exact_sol.get_plot_axis()
         exact_sol.plot(ax, 51)
 
         diffusion = ImutableScalarFunctionFromCallable(
@@ -264,6 +264,10 @@ class TestCollocation:
         # print(sol.get_values())
         # print(exact_sol.get_values())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
+
+        ax = sol.get_plot_axis()
+        sol.plot(ax, [50, 50])
+        plt.show()
 
     def test_steady_advection_diffusion_reaction_1D(self):
         bkd = self.get_backend()

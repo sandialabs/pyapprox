@@ -2,6 +2,8 @@ import textwrap
 from abc import ABC, abstractmethod
 from typing import Union
 
+import matplotlib.pyplot as plt
+
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
@@ -296,11 +298,68 @@ class ScalarFunction(MatrixFunction):
             X, Y, self._bkd.reshape(self(plot_samples), X.shape), **kwargs
         )
 
+    def _plot_3d(self, ax, npts_1d):
+        orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
+            self._bkd.tile(self.basis.mesh.trans._orthog_ranges, (2,)), npts_1d
+        )
+        orth_pts1 = self._bkd.vstack(
+            (orth_pts_2d, self._bkd.zeros(orth_pts_2d.shape[1],))
+        )
+        pts1 = self.basis.mesh.trans.map_from_orthogonal(orth_pts1)
+        vals1 = self(pts1)
+
+        orth_pts2 = self._bkd.vstack(
+            (
+                orth_pts_2d[:1],
+                self._bkd.zeros(orth_pts_2d.shape[1]),
+                orth_pts_2d[1:2],
+             )
+        )
+        pts2 = self.basis.mesh.trans.map_from_orthogonal(orth_pts2)
+        vals2 = self(pts2)
+
+        orth_pts3 = self._bkd.vstack(
+            (self._bkd.zeros(orth_pts_2d.shape[1],), orth_pts_2d)
+        )
+        pts3 = self.basis.mesh.trans.map_from_orthogonal(orth_pts3)
+        vals3 = self(pts3)
+
+        vmin = self._bkd.min(
+            self._bkd.array([vals1.min(), vals2.min(), vals3.min()])
+        )
+        vmax = self._bkd.max(
+            self._bkd.array([vals1.max(), vals2.max(), vals3.max()])
+        )
+        levels = self._bkd.linspace(vmin, vmax, 100)
+
+        X1 = self._bkd.reshape(pts1[0], orth_X.shape)
+        Y1 = self._bkd.reshape(pts1[1], orth_X.shape)
+        Z1 = self._bkd.reshape(vals1, X1.shape)
+        ax.contourf(X1, Y1, Z1, levels=levels, zdir="z", offset=pts1[2, 0])
+
+        X2 = self._bkd.reshape(pts2[0], orth_X.shape)
+        Y2 = self._bkd.reshape(vals2, X2.shape)
+        Z2 = self._bkd.reshape(pts2[2], orth_X.shape)
+        ax.contourf(X2, Y2, Z2, levels=levels, zdir="y", offset=pts2[1, 0])
+
+        X3 = self._bkd.reshape(vals3, X2.shape)
+        Y3 = self._bkd.reshape(pts3[1], orth_X.shape)
+        Z3 = self._bkd.reshape(pts3[2], orth_X.shape)
+        ax.contourf(X3, Y3, Z3, levels=levels, zdir="x", offset=pts3[0, 0])
+
     def plot(self, ax, npts_1d=51, **kwargs):
         if self.nphys_vars() == 1:
             return self._plot_1d(ax, npts_1d, **kwargs)
         if self.nphys_vars() == 2:
             return self._plot_2d(ax, npts_1d, **kwargs)
+        if self.nphys_vars() == 3:
+            return self._plot_3d(ax, npts_1d, **kwargs)
+
+    def get_plot_axis(self):
+        if self.nphys_vars() < 3:
+            return plt.figure().gca()
+        fig = plt.figure()
+        return fig.add_subplot(111, projection='3d')
 
 
 class ImutableMixin:
