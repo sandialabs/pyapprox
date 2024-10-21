@@ -290,12 +290,15 @@ class ScalarFunction(MatrixFunction):
         return ax.plot(plot_samples[0], self(plot_samples), **kwargs)
 
     def _plot_2d(self, ax, npts_1d, **kwargs):
-        # TODO generate samples and interpolate on orth space
-        X, Y, plot_samples = get_meshgrid_samples(
-            self.basis.mesh.trans._ranges, npts_1d, bkd=self._bkd
+        orth_range = self.basis.mesh.trans._orthog_ranges
+        orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
+            self._bkd.tile(orth_range, (2,)), npts_1d
         )
+        pts = self.basis.mesh.trans.map_from_orthogonal(orth_pts_2d)
+        X = self._bkd.reshape(pts[0], orth_X.shape)
+        Y = self._bkd.reshape(pts[1], orth_X.shape)
         return ax.contourf(
-            X, Y, self._bkd.reshape(self(plot_samples), X.shape), **kwargs
+            X, Y, self._bkd.reshape(self(pts), X.shape), **kwargs
         )
 
     def _set_plot_3d_limits(self, ax, orth_range):
