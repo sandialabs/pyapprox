@@ -298,9 +298,19 @@ class ScalarFunction(MatrixFunction):
             X, Y, self._bkd.reshape(self(plot_samples), X.shape), **kwargs
         )
 
-    def _plot_3d(self, ax, npts_1d):
+    def _set_plot_3d_limits(self, ax, orth_range):
+        orth_ranges = self._bkd.reshape(
+            self._bkd.tile(orth_range, (3, )), (3, 2)
+        )
+        ranges = self.basis.mesh.trans.map_from_orthogonal(orth_ranges)
+        ax.set_xlim(*ranges[0])
+        ax.set_ylim(*ranges[1])
+        ax.set_zlim(*ranges[2])
+
+    def _plot_3d_internal(self, ax, npts_1d):
+        orth_range = self.basis.mesh.trans._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
-            self._bkd.tile(self.basis.mesh.trans._orthog_ranges, (2,)), npts_1d
+            self._bkd.tile(orth_range, (2,)),  npts_1d
         )
         orth_pts1 = self._bkd.vstack(
             (orth_pts_2d, self._bkd.zeros(orth_pts_2d.shape[1],))
@@ -345,7 +355,101 @@ class ScalarFunction(MatrixFunction):
         X3 = self._bkd.reshape(vals3, X2.shape)
         Y3 = self._bkd.reshape(pts3[1], orth_X.shape)
         Z3 = self._bkd.reshape(pts3[2], orth_X.shape)
-        ax.contourf(X3, Y3, Z3, levels=levels, zdir="x", offset=pts3[0, 0])
+        im = ax.contourf(
+            X3, Y3, Z3, levels=levels, zdir="x", offset=pts3[0, 0]
+        )
+        self._set_plot_3d_limits(ax, orth_range)
+        return im
+
+    def _plot_3d_external(self, ax, npts_1d):
+        orth_range = self.basis.mesh.trans._orthog_ranges
+        orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
+            self._bkd.tile(orth_range, (2,)), npts_1d
+        )
+
+        orth_pts1, orth_pts2, orth_pts3 = [], [], []
+        vals1, vals2, vals3 = [], [], []
+        pts1, pts2, pts3 = [], [], []
+        for ii in range(2):
+            orth_pts1.append(
+                self._bkd.vstack(
+                    (
+                        orth_pts_2d,
+                        self._bkd.full((orth_pts_2d.shape[1],), orth_range[ii])
+                    )
+                )
+            )
+            pts1.append(
+                self.basis.mesh.trans.map_from_orthogonal(orth_pts1[-1])
+            )
+            vals1.append(self(pts1[-1]))
+
+            orth_pts2.append(
+                self._bkd.vstack(
+                    (
+                        orth_pts_2d[:1],
+                        self._bkd.full(
+                            (orth_pts_2d.shape[1],), orth_range[ii]
+                        ),
+                        orth_pts_2d[1:2],
+                    )
+                )
+            )
+            pts2.append(
+                self.basis.mesh.trans.map_from_orthogonal(orth_pts2[-1])
+            )
+            vals2.append(self(pts2[-1]))
+
+            orth_pts3.append(
+                self._bkd.vstack(
+                    (
+                        self._bkd.full(
+                            (orth_pts_2d.shape[1],), orth_range[ii]
+                        ),
+                        orth_pts_2d
+                    )
+                )
+            )
+            pts3.append(
+                self.basis.mesh.trans.map_from_orthogonal(orth_pts3[-1])
+            )
+            vals3.append(self(pts3[-1]))
+
+        vals1_min = min(vals1[0].min(), vals1[1].min())
+        vals2_min = min(vals2[0].min(), vals2[1].min())
+        vals3_min = min(vals3[0].min(), vals3[1].min())
+        vals1_max = max(vals1[0].max(), vals1[1].max())
+        vals2_max = max(vals2[0].max(), vals2[1].max())
+        vals3_max = max(vals3[0].max(), vals3[1].max())
+        vmin = self._bkd.min(
+            self._bkd.array([vals1_min, vals2_min, vals3_min])
+        )
+        vmax = self._bkd.max(
+            self._bkd.array([vals1_max, vals2_max, vals3_max])
+        )
+        levels = self._bkd.linspace(vmin, vmax, 100)
+
+        for ii in range(2):
+            X1 = self._bkd.reshape(pts1[ii][0], orth_X.shape)
+            Y1 = self._bkd.reshape(pts1[ii][1], orth_X.shape)
+            Z1 = self._bkd.reshape(vals1[ii], X1.shape)
+            ax.contourf(
+                X1, Y1, Z1, levels=levels, zdir="z", offset=pts1[ii][2, 0]
+            )
+            X2 = self._bkd.reshape(pts2[ii][0], orth_X.shape)
+            Y2 = self._bkd.reshape(vals2[ii], X2.shape)
+            Z2 = self._bkd.reshape(pts2[ii][2], orth_X.shape)
+            ax.contourf(
+                X2, Y2, Z2, levels=levels, zdir="y", offset=pts2[ii][1, 0]
+            )
+            X3 = self._bkd.reshape(vals3[ii], X2.shape)
+            Y3 = self._bkd.reshape(pts3[ii][1], orth_X.shape)
+            Z3 = self._bkd.reshape(pts3[ii][2], orth_X.shape)
+            im = ax.contourf(
+                X3, Y3, Z3, levels=levels, zdir="x", offset=pts3[ii][0, 0]
+            )
+        self._set_plot_3d_limits(ax, orth_range)
+        return im
 
     def plot(self, ax, npts_1d=51, **kwargs):
         if self.nphys_vars() == 1:
@@ -353,7 +457,10 @@ class ScalarFunction(MatrixFunction):
         if self.nphys_vars() == 2:
             return self._plot_2d(ax, npts_1d, **kwargs)
         if self.nphys_vars() == 3:
-            return self._plot_3d(ax, npts_1d, **kwargs)
+            ptype = kwargs.pop("ptype", "internal")
+            if ptype == "internal":
+                return self._plot_3d_internal(ax, npts_1d, **kwargs)
+            return self._plot_3d_external(ax, npts_1d, **kwargs)
 
     def get_plot_axis(self):
         if self.nphys_vars() < 3:

@@ -265,10 +265,6 @@ class TestCollocation:
         # print(exact_sol.get_values())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
-        ax = sol.get_plot_axis()
-        sol.plot(ax, [50, 50])
-        plt.show()
-
     def test_steady_advection_diffusion_reaction_1D(self):
         bkd = self.get_backend()
         test_case_args = [
