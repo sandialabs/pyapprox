@@ -73,10 +73,10 @@ class ExactGaussianProcess(OptimizedRegressor):
     ):
         optimizer = ScipyConstrainedOptimizer()
         optimizer.set_options(
-            gtol=1e-8, ftol=1e-12, maxiter=1000, method="L-BFGS-B"
+            gtol=1e-8, ftol=1e-12, maxiter=1000, method="L-BFGS-B",
         )
         optimizer.set_verbosity(0)
-        ms_optimizer = MultiStartOptimizer(optimizer, ncandidates=1)
+        ms_optimizer = MultiStartOptimizer(optimizer, ncandidates=ncandidates)
         if iterate_gen is None:
             iterate_gen = self._default_iterator_gen()
         if not isinstance(iterate_gen, OptimizerIterateGenerator):

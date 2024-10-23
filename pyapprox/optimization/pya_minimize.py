@@ -442,6 +442,7 @@ class MultiStartOptimizer(OptimizerWithObjective):
             if res.fun < best_res.fun:
                 best_res = res
             if self._verbosity > 1:
+                print("it {0}: objective {1}".format(ii+1, res.fun))
                 print("it {0}: best objective {1}".format(ii+1, best_res.fun))
         if self._verbosity > 0:
             print("{0}\n\t {1}".format(self, best_res))

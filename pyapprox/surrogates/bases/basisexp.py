@@ -18,7 +18,7 @@ from pyapprox.util.hyperparameter import (
 from pyapprox.surrogates.interp.manipulate_polynomials import add_polynomials
 from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions)
-from pyapprox.surrogates.regressor import Regressor
+from pyapprox.surrogates.regressor import Regressor, Surrogate
 from pyapprox.surrogates.bases.univariate import Monomial1D
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     convert_orthonormal_polynomials_to_monomials_1d,
@@ -501,7 +501,7 @@ class PolynomialChaosExpansion(MonomialExpansion):
         return mono
 
 
-class TensorProductInterpolant:
+class TensorProductInterpolant(Surrogate):
     # TODO make tensor product interpolant derive from regressor
     # or create InterpolantBases class that has fit that just takes values
     def __init__(self, basis: TensorProductInterpolatingBasis):
@@ -512,27 +512,40 @@ class TensorProductInterpolant:
                 )
             )
         self._basis = basis
-        self._bkd = basis._bkd
+        super().__init__(self._basis._bkd)
 
-    def fit(self, values):
+    def fit(self, train_values):
         # fit does not have samples like most surrogates because the samples
         # are predetermined by self._basis
-        if values.shape[0] != self._basis.nterms():
-            raise ValueError("nodes_1d and values are inconsistent")
-        if values.ndim != 2:
-            raise ValueError("values must be a 2d array")
-        self._values = values
+        if train_values.shape[0] != self._basis.nterms():
+            raise ValueError("nodes_1d and train_values are inconsistent")
+        if train_values.ndim != 2:
+            raise ValueError("train_values must be a 2d array")
+        self._train_values = train_values
+        self._nqoi = train_values.shape[1]
 
-    def __call__(self, samples):
+    def nqoi(self):
+        return self._nqoi
+
+    def nvars(self):
+        return self._basis.nvars()
+
+    def _values(self, samples):
         basis_mat = self._basis(samples)
-        return basis_mat @ self._values
+        return basis_mat @ self._train_values
 
     def __repr__(self):
         return "{0}(basis={1})".format(self.__class__.__name__, self._basis)
 
     def integrate(self):
         quad_weights = self._basis.quadrature_rule()[1]
-        return (self._values.T @ quad_weights)[:, 0]
+        return (self._train_values.T @ quad_weights)[:, 0]
+
+    def get_train_samples(self):
+        return self._basis.tensor_product_grid()
+
+    def get_train_values(self):
+        return self._train_values
 
 
 class TrigonometricExpansion(BasisExpansion):

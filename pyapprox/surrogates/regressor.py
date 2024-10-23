@@ -6,10 +6,72 @@ from pyapprox.surrogates.loss import LossFunction
 from pyapprox.optimization.pya_minimize import MultiStartOptimizer
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.transforms import Transform, IdentityTransform
-from pyapprox.util.visualization import get_meshgrid_samples, plot_surface
+from pyapprox.util.visualization import get_meshgrid_samples
 
 
-class Regressor(Model):
+class Surrogate(Model):
+    def __init__(self, backend=NumpyLinAlgMixin):
+        super().__init__(backend)
+
+    @abstractmethod
+    def nvars(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_train_samples(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_train_values(self):
+        raise NotImplementedError
+
+    def _plot_surface_1d(self, ax, qoi, plot_limits, npts_1d, **kwargs):
+        plot_xx = self._bkd.linspace(*plot_limits, npts_1d[0])[None, :]
+        ax.plot(plot_xx[0], self.__call__(plot_xx), **kwargs)
+
+    def _plot_surface_2d(self, ax, qoi, plot_limits, npts_1d, **kwargs):
+        if ax.name != "3d":
+            raise ValueError("ax must use 3d projection")
+        X, Y, pts = get_meshgrid_samples(
+            plot_limits, npts_1d, bkd=self._bkd
+        )
+        vals = self.__call__(pts)
+        Z = self._bkd.reshape(vals[:, qoi], X.shape)
+        # X = self._bkd.to_numpy(X)
+        # Y = self._bkd.to_numpy(Y)
+        # Z = self._bkd.to_numpy(Z)
+        return ax.plot_surface(X, Y, Z, **kwargs)
+
+    def plot_surface(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
+        if self.nvars() > 3:
+            raise RuntimeError("Cannot plot indices when nvars >= 3.")
+
+        if not isinstance(npts_1d, list):
+            npts_1d = [npts_1d]*self.nvars()
+
+        if len(npts_1d) != self.nvars():
+            raise ValueError("npts_1d must be a list")
+
+        plot_surface_funs = {
+            1: self._plot_surface_1d,
+            2: self._plot_surface_2d,
+        }
+        plot_surface_funs[self.nvars()](
+            ax, qoi, plot_limits, npts_1d, **kwargs
+        )
+
+    def plot_contours(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
+        if self.nvars() != 2:
+            raise ValueError("Can only plot contours for 2D functions")
+        X, Y, pts = get_meshgrid_samples(
+            plot_limits, npts_1d, bkd=self._bkd
+        )
+        vals = self.__call__(pts)
+        Z = self._bkd.reshape(vals[:, qoi], X.shape)
+        return ax.contourf(X, Y, Z, **kwargs)
+
+
+class Regressor(Surrogate):
     def __init__(self, backend=NumpyLinAlgMixin):
         super().__init__(backend)
         self._in_trans = IdentityTransform()
@@ -77,48 +139,14 @@ class Regressor(Model):
     def __call__(self, samples):
         return self._out_trans.map_from_canonical(super().__call__(samples))
 
-    def _plot_surface_1d(self, ax, qoi, plot_limits, npts_1d):
-        plot_xx = self._bkd.linspace(*plot_limits, npts_1d[0])[None, :]
-        ax.plot(plot_xx[0], self.__call__(plot_xx))
-
-    def _plot_surface_2d(self, ax, qoi, plot_limits, npts_1d):
-        if ax.name != "3d":
-            raise ValueError("ax must use 3d projection")
-        X, Y, pts = get_meshgrid_samples(
-            plot_limits, npts_1d, bkd=self._bkd
-        )
-        vals = self.__call__(pts)
-        Z = self._bkd.reshape(vals[:, qoi], X.shape)
-        plot_surface(X, Y, Z, ax)
-
-    def plot_surface(self, ax, plot_limits, qoi=0, npts_1d=51):
-        if self.nvars() > 3:
-            raise RuntimeError("Cannot plot indices when nvars >= 3.")
-
-        if not isinstance(npts_1d, list):
-            npts_1d = [npts_1d]*self.nvars()
-
-        if len(npts_1d) != self.nvars():
-            raise ValueError("npts_1d must be a list")
-
-        plot_surface_funs = {
-            1: self._plot_surface_1d,
-            2: self._plot_surface_2d,
-        }
-        plot_surface_funs[self.nvars()](ax, qoi, plot_limits, npts_1d)
-
-    def plot_contours(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
-        if self.nvars() != 2:
-            raise ValueError("Can only plot contours for 2D functions")
-        X, Y, pts = get_meshgrid_samples(
-            plot_limits, npts_1d, bkd=self._bkd
-        )
-        vals = self.__call__(pts)
-        Z = self._bkd.reshape(vals[:, qoi], X.shape)
-        return ax.contourf(X, Y, Z, **kwargs)
-
     def nvars(self):
         return self._ctrain_samples.shape[0]
+
+    def get_train_samples(self):
+        return self._in_trans.map_to_canonical(self._ctrain_samples)
+
+    def get_train_values(self):
+        return self._out_trans.map_to_canonical(self._ctrain_samples)
 
 
 class OptimizedRegressor(Regressor):
