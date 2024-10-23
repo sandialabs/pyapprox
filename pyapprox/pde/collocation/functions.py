@@ -2,6 +2,7 @@ import textwrap
 from abc import ABC, abstractmethod
 from typing import Union
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from pyapprox.util.linearalgebra.linalgbase import Array
@@ -310,151 +311,99 @@ class ScalarFunction(MatrixFunction):
         ax.set_ylim(*ranges[1])
         ax.set_zlim(*ranges[2])
 
-    def _plot_3d_internal(self, ax, npts_1d):
+    def _prepare_edge_3d(
+            self, ax, orth_pts_2d, X_shape, idx, inactive_orth_pt
+    ):
+        orth_pts = self._bkd.empty((3, orth_pts_2d.shape[1]))
+        orth_pts[idx] = self._bkd.full(
+            (orth_pts_2d.shape[1], ), inactive_orth_pt
+        )
+        jdx = self._bkd.arange(3)
+        jdx = self._bkd.delete(jdx, idx)
+        orth_pts[jdx] = orth_pts_2d
+        pts = self.basis.mesh.trans.map_from_orthogonal(orth_pts)
+        vals = self._bkd.reshape(self(pts), X_shape)
+        X = self._bkd.reshape(pts[0], X_shape)
+        Y = self._bkd.reshape(pts[1], X_shape)
+        Z = self._bkd.reshape(pts[2], X_shape)
+        return X, Y, Z, vals
+
+    def _plot_3d_internal(self, ax, npts_1d, fig):
         orth_range = self.basis.mesh.trans._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
             self._bkd.tile(orth_range, (2,)),  npts_1d
         )
-        orth_pts1 = self._bkd.vstack(
-            (orth_pts_2d, self._bkd.zeros(orth_pts_2d.shape[1],))
-        )
-        pts1 = self.basis.mesh.trans.map_from_orthogonal(orth_pts1)
-        vals1 = self(pts1)
+        # ax.contourf(X1, Y1, Z1, levels=levels, zdir="z", offset=pts1[2, 0])
+        mid = sum(orth_range)/2
+        edges = [
+            self._prepare_edge_3d(ax, orth_pts_2d, orth_X.shape, ii, mid)
+            for ii in range(3)
+        ]
+        vmin = self._bkd.min(self._bkd.hstack([edge[-1] for edge in edges]))
+        vmax = self._bkd.max(self._bkd.hstack([edge[-1] for edge in edges]))
+        zdirs = ["x", "y", "z"]
+        ims = []
+        for ii in range(3):
+            jdx = self._bkd.arange(3)
+            jdx = self._bkd.delete(jdx, ii)
+            data = [None, None, None]
+            data[ii] = edges[ii][3]
+            data[jdx[0]] = edges[ii][jdx[0]]
+            data[jdx[1]] = edges[ii][jdx[1]]
+            im = ax.contourf(
+                *data,
+                zdir=zdirs[ii],
+                offset=edges[ii][ii][0, 0],
+                levels=self._bkd.linspace(vmin, vmax, 50),
+            )
+            ims.append(im)
+        plt.colorbar(ims[0], ax=ax)
+        return ims
 
-        orth_pts2 = self._bkd.vstack(
-            (
-                orth_pts_2d[:1],
-                self._bkd.zeros(orth_pts_2d.shape[1]),
-                orth_pts_2d[1:2],
-             )
-        )
-        pts2 = self.basis.mesh.trans.map_from_orthogonal(orth_pts2)
-        vals2 = self(pts2)
-
-        orth_pts3 = self._bkd.vstack(
-            (self._bkd.zeros(orth_pts_2d.shape[1],), orth_pts_2d)
-        )
-        pts3 = self.basis.mesh.trans.map_from_orthogonal(orth_pts3)
-        vals3 = self(pts3)
-
-        vmin = self._bkd.min(
-            self._bkd.array([vals1.min(), vals2.min(), vals3.min()])
-        )
-        vmax = self._bkd.max(
-            self._bkd.array([vals1.max(), vals2.max(), vals3.max()])
-        )
-        levels = self._bkd.linspace(vmin, vmax, 100)
-
-        X1 = self._bkd.reshape(pts1[0], orth_X.shape)
-        Y1 = self._bkd.reshape(pts1[1], orth_X.shape)
-        Z1 = self._bkd.reshape(vals1, X1.shape)
-        ax.contourf(X1, Y1, Z1, levels=levels, zdir="z", offset=pts1[2, 0])
-
-        X2 = self._bkd.reshape(pts2[0], orth_X.shape)
-        Y2 = self._bkd.reshape(vals2, X2.shape)
-        Z2 = self._bkd.reshape(pts2[2], orth_X.shape)
-        ax.contourf(X2, Y2, Z2, levels=levels, zdir="y", offset=pts2[1, 0])
-
-        X3 = self._bkd.reshape(vals3, X2.shape)
-        Y3 = self._bkd.reshape(pts3[1], orth_X.shape)
-        Z3 = self._bkd.reshape(pts3[2], orth_X.shape)
-        im = ax.contourf(
-            X3, Y3, Z3, levels=levels, zdir="x", offset=pts3[0, 0]
-        )
-        self._set_plot_3d_limits(ax, orth_range)
-        return im
-
-    def _plot_3d_external(self, ax, npts_1d):
+    def _plot_3d_external(self, ax, npts_1d, fig):
         orth_range = self.basis.mesh.trans._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
             self._bkd.tile(orth_range, (2,)), npts_1d
         )
+        edges = [
+            self._prepare_edge_3d(
+                ax, orth_pts_2d, orth_X.shape, ii, orth_range[0]
+            )
+            for ii in range(3)
+        ]
+        edges += [
+            self._prepare_edge_3d(
+                ax, orth_pts_2d, orth_X.shape, ii, orth_range[1]
+            )
+            for ii in range(3)
+        ]
+        vmin = self._bkd.min(self._bkd.hstack([edge[-1] for edge in edges]))
+        vmax = self._bkd.max(self._bkd.hstack([edge[-1] for edge in edges]))
+        ims = []
+        for edge in edges:
+            vals = (edge[3]-vmin)/(vmax-vmin)
+            im = ax.plot_surface(
+                *edge[:3],
+                facecolors=plt.cm.jet(vals),
+                antialiased=False,
+            )
+            ims.append(im)
+        if fig is None:
+            return ims
 
-        orth_pts1, orth_pts2, orth_pts3 = [], [], []
-        vals1, vals2, vals3 = [], [], []
-        pts1, pts2, pts3 = [], [], []
-        for ii in range(2):
-            orth_pts1.append(
-                self._bkd.vstack(
-                    (
-                        orth_pts_2d,
-                        self._bkd.full((orth_pts_2d.shape[1],), orth_range[ii])
-                    )
-                )
-            )
-            pts1.append(
-                self.basis.mesh.trans.map_from_orthogonal(orth_pts1[-1])
-            )
-            vals1.append(self(pts1[-1]))
-
-            orth_pts2.append(
-                self._bkd.vstack(
-                    (
-                        orth_pts_2d[:1],
-                        self._bkd.full(
-                            (orth_pts_2d.shape[1],), orth_range[ii]
-                        ),
-                        orth_pts_2d[1:2],
-                    )
-                )
-            )
-            pts2.append(
-                self.basis.mesh.trans.map_from_orthogonal(orth_pts2[-1])
-            )
-            vals2.append(self(pts2[-1]))
-
-            orth_pts3.append(
-                self._bkd.vstack(
-                    (
-                        self._bkd.full(
-                            (orth_pts_2d.shape[1],), orth_range[ii]
-                        ),
-                        orth_pts_2d
-                    )
-                )
-            )
-            pts3.append(
-                self.basis.mesh.trans.map_from_orthogonal(orth_pts3[-1])
-            )
-            vals3.append(self(pts3[-1]))
-
-        vals1_min = min(vals1[0].min(), vals1[1].min())
-        vals2_min = min(vals2[0].min(), vals2[1].min())
-        vals3_min = min(vals3[0].min(), vals3[1].min())
-        vals1_max = max(vals1[0].max(), vals1[1].max())
-        vals2_max = max(vals2[0].max(), vals2[1].max())
-        vals3_max = max(vals3[0].max(), vals3[1].max())
-        vmin = self._bkd.min(
-            self._bkd.array([vals1_min, vals2_min, vals3_min])
+        fig.subplots_adjust(right=0.85)
+        ax1 = fig.add_axes([0.85, 0.10, 0.05, 0.8])
+        cmap = plt.cm.jet
+        norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+        mpl.colorbar.ColorbarBase(
+            ax1,
+            cmap=cmap,
+            norm=norm,
+            orientation='vertical'
         )
-        vmax = self._bkd.max(
-            self._bkd.array([vals1_max, vals2_max, vals3_max])
-        )
-        levels = self._bkd.linspace(vmin, vmax, 100)
+        return ims
 
-        for ii in range(2):
-            X1 = self._bkd.reshape(pts1[ii][0], orth_X.shape)
-            Y1 = self._bkd.reshape(pts1[ii][1], orth_X.shape)
-            Z1 = self._bkd.reshape(vals1[ii], X1.shape)
-            ax.contourf(
-                X1, Y1, Z1, levels=levels, zdir="z", offset=pts1[ii][2, 0]
-            )
-            X2 = self._bkd.reshape(pts2[ii][0], orth_X.shape)
-            Y2 = self._bkd.reshape(vals2[ii], X2.shape)
-            Z2 = self._bkd.reshape(pts2[ii][2], orth_X.shape)
-            ax.contourf(
-                X2, Y2, Z2, levels=levels, zdir="y", offset=pts2[ii][1, 0]
-            )
-            X3 = self._bkd.reshape(vals3[ii], X2.shape)
-            Y3 = self._bkd.reshape(pts3[ii][1], orth_X.shape)
-            Z3 = self._bkd.reshape(pts3[ii][2], orth_X.shape)
-            im = ax.contourf(
-                X3, Y3, Z3, levels=levels, zdir="x", offset=pts3[ii][0, 0]
-            )
-        self._set_plot_3d_limits(ax, orth_range)
-        return im
-
-    def plot(self, ax, npts_1d=51, **kwargs):
+    def plot(self, ax, npts_1d=51, fig=None, **kwargs):
         if self.nphys_vars() == 1:
             return self._plot_1d(ax, npts_1d, **kwargs)
         if self.nphys_vars() == 2:
@@ -462,14 +411,14 @@ class ScalarFunction(MatrixFunction):
         if self.nphys_vars() == 3:
             ptype = kwargs.pop("ptype", "internal")
             if ptype == "internal":
-                return self._plot_3d_internal(ax, npts_1d, **kwargs)
-            return self._plot_3d_external(ax, npts_1d, **kwargs)
+                return self._plot_3d_internal(ax, npts_1d, fig, **kwargs)
+            return self._plot_3d_external(ax, npts_1d, fig, **kwargs)
 
     def get_plot_axis(self):
         if self.nphys_vars() < 3:
             return plt.figure().gca()
         fig = plt.figure()
-        return fig.add_subplot(111, projection='3d')
+        return fig, fig.add_subplot(111, projection='3d')
 
 
 class ImutableMixin:

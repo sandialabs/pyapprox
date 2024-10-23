@@ -220,8 +220,8 @@ class TestCollocation:
         )
 
         # test plot runs
-        ax = exact_sol.get_plot_axis()
-        exact_sol.plot(ax, 51)
+        fig, ax = exact_sol.get_plot_axis()
+        exact_sol.plot(ax, 101, fig=fig)
 
         diffusion = ImutableScalarFunctionFromCallable(
             basis, man_sol.functions["diffusion"]
