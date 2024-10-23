@@ -196,6 +196,61 @@ class ScaleAndTranslationTransform3D(
     pass
 
 
+class FixedScaleAndTranslationTransform3D(ScaleAndTranslationTransform3D):
+    # fix one of the dimensions to a single value
+    def __init__(self, orthog_ranges, ranges, backend=NumpyLinAlgMixin):
+        OrthogonalCoordinateTransform3D.__init__(self, backend)
+        self._orthog_ranges = self._bkd.asarray(orthog_ranges)
+        self._ranges = self._bkd.asarray(ranges)
+        self._fixed_idx = self._bkd.where(
+            self._bkd.abs(self._ranges[::2]-self._ranges[1::2]) == 0
+        )[0]
+        self._active_idx = self._bkd.where(
+            self._bkd.abs(self._ranges[::2]-self._ranges[1::2]) != 0
+        )[0]
+
+    def _map_hypercube_samples(
+        self, current_samples, current_ranges, new_ranges
+    ):
+        # no error checking or notion of active_vars
+        clbs, cubs = current_ranges[0::2], current_ranges[1::2]
+        nlbs, nubs = new_ranges[0::2], new_ranges[1::2]
+        new_samples = self._bkd.empty(current_samples.shape)
+        new_samples[self._fixed_idx] = self._ranges[self._fixed_idx]
+        idx = self._active_idx
+        new_samples[idx] = (
+            (current_samples[idx].T - clbs[idx]) / (
+                cubs[idx] - clbs[idx]) * (nubs[idx] - nlbs[idx]) + nlbs[idx]
+        ).T
+        return new_samples
+
+    def scale_factors(self, orth_samples):
+        nsamples = orth_samples.shape[1]
+        lbs, ubs = self._ranges[0::2], self._ranges[1::2]
+        olbs, oubs = self._orthog_ranges[0::2], self._orthog_ranges[1::2]
+        diffs = ubs - lbs
+        odiffs = oubs - olbs
+        idx = self._active_idx
+        ratios = self._bkd.empty(diffs.shape)
+        ratios[idx] = diffs[idx] / odiffs[idx]
+        # value does not matter as this class will only composed
+        # with physics with grad that does not depend on fixed vars
+        ratios[self._fixed_idx] = 1
+        return self._bkd.stack(
+            [self._bkd.full((nsamples,), ratio) for ratio in ratios], axis=1
+        )
+
+    def determinants(self, orth_samples):
+        nsamples = orth_samples.shape[1]
+        lbs, ubs = self._ranges[0::2], self._ranges[1::2]
+        olbs, oubs = self._orthog_ranges[0::2], self._orthog_ranges[1::2]
+        idx = self._active_idx
+        det = self._bkd.prod(
+            (ubs - lbs)[idx]) / self._bkd.prod((oubs - olbs)[idx]
+                                               )
+        return self._bkd.full((nsamples), det)
+
+
 class PolarTransform(OrthogonalCoordinateTransform2D):
     def map_from_orthogonal(self, orth_samples):
         if (orth_samples[1].max() > np.pi) or (orth_samples[1].min() < -np.pi):
@@ -211,7 +266,7 @@ class PolarTransform(OrthogonalCoordinateTransform2D):
     def map_to_orthogonal(self, samples):
         x, y = samples
         r = self._bkd.sqrt(x**2 + y**2)
-        azimuth = np.arctan2(y, x)
+        azimuth = self._bkd.arctan2(y, x)
         orth_samples = self._bkd.stack([r, azimuth], axis=0)
         return orth_samples
 
@@ -429,6 +484,7 @@ class CompositionTransform(OrthogonalCoordinateTransform):
         self._bkd = transforms[0]._bkd
         self._transforms = transforms
         self._normal_sign = transforms[0]._normal_sign
+        self._orthog_ranges = transforms[0]._orthog_ranges
 
     def nphys_vars(self):
         return self._transforms[0].nphys_vars()
@@ -536,6 +592,7 @@ class SphericalTransform(OrthogonalCoordinateTransform3D):
     def scale_factors(self, orth_samples):
         nsamples = orth_samples.shape[1]
         r, azimuth, elevation = orth_samples
+        print(r)
         return self._bkd.stack(
             [
                 self._bkd.ones((nsamples,)),
@@ -575,3 +632,65 @@ class SphericalTransform(OrthogonalCoordinateTransform3D):
             ]
         )
         return basis
+
+
+# class SphereSurfaceTransform(OrthogonalCoordinateTransform2D):
+#     def __init__(
+#             self,
+#             radius: float,
+#             azimuth_bounds: list,
+#             elevation_bounds: list,
+#             backend=NumpyLinAlgMixin):
+#         self._bkd = backend
+#         self._radius = radius
+#         scale_transform = ScaleAndTranslationTransform3D(
+#             [-1, 1, -1, 1, -1, 1],
+#             [self._radius, self._radius]+azimuth_bounds+elevation_bounds,
+#             self._bkd
+#         )
+#         self._trans = CompositionTransform(
+#             [scale_transform, SphericalTransform(self._bkd)]
+#         )
+
+#     def _expand_orth(self, orth_samples_2d):
+#         radii = self._bkd.full((orth_samples_2d.shape[1], 1), self._radius)
+#         return self._bkd.vstack((radii, orth_samples_2d))
+
+#     def map_from_orthogonal(self, orth_samples):
+#         return self._trans.map_from_orthogonal(self._expand_orth(orth_samples))
+
+#     def scale_factors(self, orth_samples):
+#         return self._trans.scale_factors(self._expand_orth(orth_samples))
+
+#     def determinants(self, orth_samples):
+#         return self._trans.determinants(self._expand_orth(orth_samples))
+
+#     def unit_curvelinear_basis(self, orth_samples):
+#         return self._trans.unit_curvelinear_basis(
+#             self._expand_orth(orth_samples)
+#         )
+
+#     def normal(self, bndry_id, samples):
+        
+#         sign = self._normal_sign(bndry_id)
+#         return self._normal(
+#             self.map_to_orthogonal,
+#             self.unit_curvelinear_basis,
+#             bndry_id,
+#             sign,
+#             samples,
+#         )
+
+#     def gradient_factors(self, orth_samples):
+#         super().gradient_factors(self._expand_orth(orth_samples))
+
+#     def scale_orthogonal_gradients(self, orth_samples, orth_grads):
+#         super().scale_orthogonal_gradients(
+#             self._expand_orth(orth_samples), orth_grads
+#         )
+
+#     def modify_quadrature_weights(self, orth_samples, orth_weights):
+#         if orth_weights.ndim != 2:
+#             raise ValueError("oth weights must be 2d column vector")
+#         dets = self.determinants(orth_samples)
+#         return (orth_weights[:, 0] * self._bkd.abs(dets))[:, None]

@@ -12,7 +12,8 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
 )
 from pyapprox.pde.collocation.manufactured_solutions import (
-    Diffusion, ReactionDiffusion,
+    # Diffusion,
+    ReactionDiffusion,
 )
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
@@ -21,7 +22,7 @@ from pyapprox.pde.collocation.basis import (
     OrthogonalCoordinateCollocationBasis,
 )
 from pyapprox.pde.collocation.physics import (
-    LinearDiffusionEquation,
+    # LinearDiffusionEquation,
     LinearReactionDiffusionEquation,
 )
 from pyapprox.pde.collocation.functions import (
@@ -40,6 +41,10 @@ from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
     ScaleAndTranslationTransform2D,
     ScaleAndTranslationTransform3D,
+    FixedScaleAndTranslationTransform3D,
+    PolarTransform,
+    SphericalTransform,
+    CompositionTransform,
 )
 from pyapprox.pde.collocation.mesh import (
     ChebyshevCollocationMesh1D,
@@ -84,10 +89,9 @@ class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromFunction):
         )
 
     def _manufactured_callable(self, pts):
-        return (
-            self._alpha * self._sol_fun(pts)
-            + self._beta * self._robin_normal_flux(pts)
-        )
+        return self._alpha * self._sol_fun(
+            pts
+        ) + self._beta * self._robin_normal_flux(pts)
 
 
 class TestCollocation:
@@ -108,9 +112,31 @@ class TestCollocation:
         basis = ChebyshevCollocationBasis2D(mesh)
         return basis
 
+    def _setup_disc_cheby_basis_2d(self, nterms: list, bounds: list):
+        bkd = self.get_backend()
+        scale_transform = ScaleAndTranslationTransform2D(
+            [-1, 1, -1, 1], bounds, bkd
+        )
+        polar_transform = PolarTransform(bkd)
+        transform = CompositionTransform([scale_transform, polar_transform])
+        mesh = ChebyshevCollocationMesh2D(nterms, transform)
+        basis = ChebyshevCollocationBasis2D(mesh)
+        return basis
+
     def _setup_cube_cheby_basis_3d(self, nterms: list, bounds: list):
         bkd = self.get_backend()
         transform = ScaleAndTranslationTransform3D([-1, 1], bounds, bkd)
+        mesh = ChebyshevCollocationMesh3D(nterms, transform)
+        basis = ChebyshevCollocationBasis3D(mesh)
+        return basis
+
+    def _setup_sphere_cheby_basis_3d(self, nterms: list, bounds: list):
+        bkd = self.get_backend()
+        scale_trans = FixedScaleAndTranslationTransform3D(
+            [-1, 1, -1, 1, -1, 1], bounds, bkd
+        )
+        sphere_trans = SphericalTransform(bkd)
+        transform = CompositionTransform([scale_trans, sphere_trans])
         mesh = ChebyshevCollocationMesh3D(nterms, transform)
         basis = ChebyshevCollocationBasis3D(mesh)
         return basis
@@ -162,11 +188,11 @@ class TestCollocation:
         return bndry_funs
 
     def _setup_boundary_conditions(
-            self,
-            basis: OrthogonalCoordinateCollocationBasis,
-            sol_fun: callable,
-            flux_fun: callable,
-            bndry_types: str,
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        sol_fun: callable,
+        flux_fun: callable,
+        bndry_types: str,
     ):
         if bndry_types == "D":
             return self._setup_dirichlet_boundary_conditions(basis, sol_fun)
@@ -183,7 +209,7 @@ class TestCollocation:
         boundaries = basis.mesh.get_boundaries()
         sol = ScalarSolutionFromCallable(basis, sol_fun)
         mesh_bndry = boundaries["left"]
-        alpha, beta = 2., 3.
+        alpha, beta = 2.0, 3.0
         bndry_funs = [
             RobinBoundaryFromManufacturedSolution(
                 mesh_bndry, alpha, beta, basis, sol_fun, flux_fun
@@ -198,18 +224,22 @@ class TestCollocation:
 
     def _check_steady_state_advection_diffusion_reaction(
         self,
-        sol_string : str,
+        sol_string: str,
         diff_string: str,
         vel_strings: str,
         react_tup: Tuple[str, callable],
         bndry_types: str,
-        basis : OrthogonalCoordinateCollocationBasis,
+        basis: OrthogonalCoordinateCollocationBasis,
     ):
         bkd = self.get_backend()
         react_str, react_fun = react_tup
         man_sol = ReactionDiffusion(
-            len(vel_strings), sol_string, diff_string, react_str, bkd=bkd,
-            oned=True
+            len(vel_strings),
+            sol_string,
+            diff_string,
+            react_str,
+            bkd=bkd,
+            oned=True,
         )
         print(man_sol)
 
@@ -221,7 +251,10 @@ class TestCollocation:
 
         # test plot runs
         fig, ax = exact_sol.get_plot_axis()
+        basis.mesh.plot(ax)
         exact_sol.plot(ax, 101, fig=fig)
+        ax.set_aspect("equal")
+        # plt.show()
 
         diffusion = ImutableScalarFunctionFromCallable(
             basis, man_sol.functions["diffusion"]
@@ -232,13 +265,15 @@ class TestCollocation:
         # todo man_sol.functions["reaction"] contains the values u
         # but linearreactiondiffusionequations needs 1 from (1*u)
         reaction = ImutableScalarFunctionFromCallable(
-            basis, react_fun,
+            basis,
+            react_fun,
         )
         physics = LinearReactionDiffusionEquation(forcing, diffusion, reaction)
         # physics = LinearDiffusionEquation(forcing, diffusion)
         residual = physics.residual(exact_sol)
         # np.set_printoptions(linewidth=1000)
-        # print(residual.get_values()[0, 0])
+        print(residual.get_values()[0, 0])
+        print(bkd.abs(residual.get_values()[0, 0]).max())
         assert bkd.allclose(
             residual.get_values()[0, 0],
             bkd.zeros(
@@ -268,19 +303,20 @@ class TestCollocation:
     def test_steady_advection_diffusion_reaction_1D(self):
         bkd = self.get_backend()
         test_case_args = [
-            ["-(x-1)*x/2"],   # sol_string
-            ["4", "(x+1)"],   # diff_string
-            [["0"], ["1"]],   # vel_strings
+            ["-(x-1)*x/2"],  # sol_string
+            ["4", "(x+1)"],  # diff_string
+            [["0"], ["1"]],  # vel_strings
             [
                 ["0", lambda x: bkd.zeros(x.shape[1])],
-                ["2*u", lambda x: bkd.full((x.shape[1], ), 2.)]
-            ],     # react_str
+                ["2*u", lambda x: bkd.full((x.shape[1],), 2.0)],
+            ],  # react_str
             ["D", "R", "M"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([5], [0, 1]),
-                self._setup_cheby_basis_1d([5], [0, 2])
+                self._setup_cheby_basis_1d([5], [0, 2]),
             ],  # basis
         ]
+
         for test_case in itertools.product(*test_case_args):
             print(test_case)
             self._check_steady_state_advection_diffusion_reaction(*test_case)
@@ -292,25 +328,42 @@ class TestCollocation:
             "1",
             ["0"],
             # warning 1*u will have zero as a trivial solution
-            ["2*u", lambda x: bkd.full((x.shape[1], ), 2.)],
+            ["2*u", lambda x: bkd.full((x.shape[1],), 2.0)],
             "P",
             self._setup_cheby_basis_1d([20], [0, 2 * np.pi]),
-            ]
+        ]
         self._check_steady_state_advection_diffusion_reaction(*test_case)
 
     def test_steady_advection_diffusion_reaction_2D(self):
         bkd = self.get_backend()
         test_case_args = [
-            ["x**2*y**2"],   # sol_string
-            ["4", "(x+1)"],   # diff_string
-            [["0", "0"], ["1", "2"]],   # vel_strings
+            ["x**2*y**2"],  # sol_string
+            ["4", "(x+1)"],  # diff_string
+            [["0", "0"], ["1", "2"]],  # vel_strings
             [
                 ["0", lambda x: bkd.zeros(x.shape[1])],
-                ["2*u", lambda x: bkd.full((x.shape[1], ), 2.)]
-            ],     # react_str
+                ["2*u", lambda x: bkd.full((x.shape[1],), 2.0)],
+            ],  # react_str
             ["D", "R", "M"],  # bndry_types
-            [self._setup_rect_cheby_basis_2d([5, 5], [0, 1, 0, 2]),],  # basis
+            [
+                self._setup_rect_cheby_basis_2d([5, 5], [0, 1, 0, 2]),
+                self._setup_disc_cheby_basis_2d(
+                    [30, 30], [1, 2, -np.pi / 2, np.pi / 2]
+                )
+            ],  # basis
         ]
+        # Note for the basis: self._setup_disc_cheby_basis_2d(
+        # [30, 30], [1, 2, -2 * np.pi / 4, 2 * np.pi / 4])
+        # sol=(x**2+y**2) is exactly representable by a quadratic basis
+        # however Del f requires computing D(cos(x)Du) which requires
+        # interpolating cosine with a polynomial which requires high-degree.
+        # Thus I use 30 above
+
+        # Cannot solve PDE with r=0 because of singularity in gradient there
+        # i.e. self._setup_disc_cheby_basis_2d([35, 35], [0, 1, -np.pi, np.pi])
+        # need to increase 0 to small value e.g 1e-3, with dirichlet b.c.s
+        # but the smaller the values the more ill conditioned the newton solve
+
         for test_case in itertools.product(*test_case_args):
             self._check_steady_state_advection_diffusion_reaction(*test_case)
 
@@ -321,27 +374,43 @@ class TestCollocation:
             "1",
             ["0", "0"],
             # warning 1*u will have zero as a trivial solution
-            ["2*u", lambda x: bkd.full((x.shape[1], ), 2.)],
+            ["2*u", lambda x: bkd.full((x.shape[1],), 2.0)],
             "P",
             self._setup_rect_cheby_basis_2d(
                 [20, 20], [0, 2 * np.pi, 0, 2 * np.pi]
             ),
-            ]
+        ]
 
     def test_steady_advection_diffusion_reaction_3D(self):
         bkd = self.get_backend()
         test_case_args = [
-            ["x**2*y**2*z**2"],   # sol_string
-            ["4", "(x+1)"],   # diff_string
-            [["0", "0", "0"], ["1", "2", "3"]],   # vel_strings
+            ["x**2*y**2*z**2"],  # sol_string
+            ["4", "(x+1)"],  # diff_string
+            [["0", "0", "0"], ["1", "2", "3"]],  # vel_strings
             [
                 ["0", lambda x: bkd.zeros(x.shape[1])],
-                ["2*u", lambda x: bkd.full((x.shape[1], ), 2.)]
-            ],     # react_str
+                ["2*u", lambda x: bkd.full((x.shape[1],), 2.0)],
+            ],  # react_str
             ["D", "R", "M"],  # bndry_types
             # basis
-            [self._setup_cube_cheby_basis_3d([5, 5, 5], [0, 1, 0, 2, -1, 1]),],
+            [
+                self._setup_cube_cheby_basis_3d(
+                    [5, 5, 5], [0, 1, 0, 2, -1, 1]
+                ),
+            ],
         ]
+
+        # test_case = list(itertools.product(*test_case_args))[-1]
+        # test_case = [
+        #     "x**2*y**2*z**2", "1", ["0", "0", "0"],
+        #     ["0", lambda x: bkd.zeros(x.shape[1])], "D",
+        #     self._setup_sphere_cheby_basis_3d(
+        #             [1, 30, 30], [1, 1, -np.pi/2, np.pi/2, np.pi/4, np.pi/2]
+        #         ),
+        # ]
+        # self._check_steady_state_advection_diffusion_reaction(*test_case)
+        # assert False
+
         for test_case in itertools.product(*test_case_args):
             self._check_steady_state_advection_diffusion_reaction(*test_case)
 

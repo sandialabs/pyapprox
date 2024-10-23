@@ -286,6 +286,8 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D):
         )
 
     def _canonical_gauss_lobatto_quadrature_rule(self, npoints):
+        if npoints == 1:
+            return self.gauss_quadrature_rule(npoints)
         if npoints < 3:
             raise ValueError("to few points requested")
         if self._rcoefs is None:

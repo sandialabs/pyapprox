@@ -129,6 +129,12 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def arctan2(matrix1, matrix2):
+        """Apply arctan2 element wise to two matrices."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def sin(matrix):
         """Apply sin element wise to a matrix."""
         raise NotImplementedError

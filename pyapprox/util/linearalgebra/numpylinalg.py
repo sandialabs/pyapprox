@@ -90,6 +90,10 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.arctan(matrix)
 
     @staticmethod
+    def arctan2(matrix1: np.ndarray, matrix2: np.ndarray) -> np.ndarray:
+        return np.arctan2(matrix1, matrix2)
+
+    @staticmethod
     def sin(matrix: np.ndarray) -> np.ndarray:
         return np.sin(matrix)
 

@@ -93,6 +93,10 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.arctan(matrix)
 
     @staticmethod
+    def arctan2(matrix1: torch.Tensor, matrix2: torch.Tensor) -> torch.Tensor:
+        return torch.arctan2(matrix1, matrix2)
+
+    @staticmethod
     def sin(matrix: torch.Tensor) -> torch.Tensor:
         return torch.sin(matrix)
 

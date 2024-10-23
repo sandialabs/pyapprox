@@ -409,15 +409,16 @@ class ScalarFunction(MatrixFunction):
         if self.nphys_vars() == 2:
             return self._plot_2d(ax, npts_1d, **kwargs)
         if self.nphys_vars() == 3:
-            ptype = kwargs.pop("ptype", "internal")
+            ptype = kwargs.pop("ptype", "external")
             if ptype == "internal":
                 return self._plot_3d_internal(ax, npts_1d, fig, **kwargs)
             return self._plot_3d_external(ax, npts_1d, fig, **kwargs)
 
-    def get_plot_axis(self):
+    def get_plot_axis(self, figsize=(8, 6)):
         if self.nphys_vars() < 3:
-            return plt.figure().gca()
-        fig = plt.figure()
+            fig = plt.figure(figsize=figsize)
+            return fig, fig.gca()
+        fig = plt.figure(figsize=figsize)
         return fig, fig.add_subplot(111, projection='3d')
 
 

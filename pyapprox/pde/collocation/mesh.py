@@ -74,6 +74,9 @@ class OrthogonalCoordinateMesh(ABC):
             list(self._bndrys.keys()),
         )
 
+    def plot(self, ax):
+        return ax.plot(*self.mesh_pts(), 'o')
+
 
 class OrthogonalCoordinateMeshBoundary(ABC):
     def __init__(
@@ -333,7 +336,7 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
                 )
             )[0]
             indices = indices[keep_idx]
-        print(indices.shape, self._bndry_name)
+        print("mesh.py", indices.shape, self._bndry_name)
         return indices
 
 

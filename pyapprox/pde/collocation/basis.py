@@ -266,3 +266,7 @@ class ChebyshevCollocationBasis3D(
     ChebyshevCollocationBasis, OrthogonalCoordinateBasis3DMixin
 ):
     pass
+
+
+class ChebyshevCollocationSurfaceBasis(ChebyshevCollocationBasis2D):
+    pass
