@@ -4,6 +4,7 @@ from functools import partial
 import sympy as sp
 import numpy as np
 
+from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.autopde.manufactured_solutions import (
     _evaluate_list_of_sp_lambda,
@@ -16,24 +17,67 @@ class OrthogonalCoordinateTransform(ABC):
         self._bkd = backend
 
     @abstractmethod
-    def map_from_orthogonal(self, orth_samples):
+    def map_from_orthogonal(self, orth_samples: Array) -> Array:
+        """
+        Parameters
+        ----------
+        orth_samples : Array (nvars, nsamples)
+
+        Return
+        ------
+        samples : Array (nvars, nsamples)
+        """
         raise NotImplementedError()
 
     @abstractmethod
-    def map_to_orthogonal(self, samples):
+    def map_to_orthogonal(self, samples: Array) -> Array:
+        """
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+
+        Return
+        ------
+        orth_vals : Array (nvars, nsamples)
+        """
         raise NotImplementedError()
 
     @abstractmethod
-    def unit_curvelinear_basis(self, orth_samples):
-        # this is A^{-1} in my notes
+    def unit_curvelinear_basis(self, orth_samples: Array) -> Array:
+        """
+        Parameters
+        ----------
+        orth_samples : Array (nvars, nsamples)
+
+        Return
+        ------
+        basis_vals : Array (nsamples, nvars, nvars)
+        """
         raise NotImplementedError()
 
-    def scale_factors(self, orth_samples):
+    def scale_factors(self, orth_samples: Array) -> Array:
+        """
+        Parameters
+        ----------
+        orth_samples : Array (nvars, nsamples)
+
+        Return
+        ------
+        det_vals : Array (nsamples, nvars)
+        """
         raise NotImplementedError()
 
-    @abstractmethod
-    def determinants(self, orth_samples):
-        raise NotImplementedError()
+    def determinants(self, orth_samples: Array) -> Array:
+        """
+        Parameters
+        ----------
+        orth_samples : Array (nvars, nsamples)
+
+        Return
+        ------
+        det_vals : Array (nsamples, )
+        """
+        return self._bkd.prod(self.scale_factors(orth_samples), axis=1)
 
     @staticmethod
     def _normal_sign(bndry_id):
@@ -52,7 +96,13 @@ class OrthogonalCoordinateTransform(ABC):
         return normals
 
     @abstractmethod
-    def nphys_vars():
+    def nphys_vars(self) -> int:
+        """
+        Return
+        ------
+        nvars: int
+            The number of physical variables
+        """
         raise NotImplementedError
 
     def normal(self, bndry_id, samples):
@@ -65,7 +115,7 @@ class OrthogonalCoordinateTransform(ABC):
             samples,
         )
 
-    def gradient_factors(self, orth_samples):
+    def gradient_factors(self, orth_samples: Array):
         unit_basis = self.unit_curvelinear_basis(orth_samples)
         scale_factors = self.scale_factors(orth_samples)
         basis = unit_basis / scale_factors[:, None, :]
@@ -113,12 +163,12 @@ class ScaleAndTranslationTransformMixIn:
             (current_samples.T - clbs) / (cubs - clbs) * (nubs - nlbs) + nlbs
         ).T
 
-    def map_from_orthogonal(self, orth_samples):
+    def map_from_orthogonal(self, orth_samples: Array) -> Array:
         return self._map_hypercube_samples(
             orth_samples, self._orthog_ranges, self._ranges
         )
 
-    def map_to_orthogonal(self, samples):
+    def map_to_orthogonal(self, samples: Array) -> Array:
         return self._map_hypercube_samples(
             samples, self._ranges, self._orthog_ranges
         )
@@ -140,14 +190,14 @@ class ScaleAndTranslationTransformMixIn:
             self._ranges_repr(),
         )
 
-    def unit_curvelinear_basis(self, orth_samples):
+    def unit_curvelinear_basis(self, orth_samples: Array) -> Array:
         nsamples = orth_samples.shape[1]
         return self._bkd.reshape(
             self._bkd.repeat(self._bkd.eye(self.nphys_vars()), (nsamples, 1)),
             (nsamples, self.nphys_vars(), self.nphys_vars()),
         )
 
-    def scale_factors(self, orth_samples):
+    def scale_factors(self, orth_samples: Array) -> Array:
         nsamples = orth_samples.shape[1]
         lbs, ubs = self._ranges[0::2], self._ranges[1::2]
         olbs, oubs = self._orthog_ranges[0::2], self._orthog_ranges[1::2]
@@ -157,14 +207,6 @@ class ScaleAndTranslationTransformMixIn:
         return self._bkd.stack(
             [self._bkd.full((nsamples,), ratio) for ratio in ratios], axis=1
         )
-
-    def determinants(self, orth_samples):
-        nsamples = orth_samples.shape[1]
-        lbs, ubs = self._ranges[0::2], self._ranges[1::2]
-        olbs, oubs = self._orthog_ranges[0::2], self._orthog_ranges[1::2]
-        det = self._bkd.prod(ubs - lbs) / self._bkd.prod(oubs - olbs)
-        return self._bkd.full((nsamples), det)
-
 
 # scale and translation are the only things you can do in 1D
 class ScaleAndTranslationTransform1D(
@@ -215,7 +257,7 @@ class FixedScaleAndTranslationTransform3D(ScaleAndTranslationTransform3D):
         # no error checking or notion of active_vars
         clbs, cubs = current_ranges[0::2], current_ranges[1::2]
         nlbs, nubs = new_ranges[0::2], new_ranges[1::2]
-        new_samples = self._bkd.empty(current_samples.shape)
+        new_samples = self._bkd.empty((3, current_samples.shape[1]))
         new_samples[self._fixed_idx] = self._ranges[self._fixed_idx]
         idx = self._active_idx
         new_samples[idx] = (
@@ -224,7 +266,7 @@ class FixedScaleAndTranslationTransform3D(ScaleAndTranslationTransform3D):
         ).T
         return new_samples
 
-    def scale_factors(self, orth_samples):
+    def scale_factors(self, orth_samples: Array):
         nsamples = orth_samples.shape[1]
         lbs, ubs = self._ranges[0::2], self._ranges[1::2]
         olbs, oubs = self._orthog_ranges[0::2], self._orthog_ranges[1::2]
@@ -240,19 +282,9 @@ class FixedScaleAndTranslationTransform3D(ScaleAndTranslationTransform3D):
             [self._bkd.full((nsamples,), ratio) for ratio in ratios], axis=1
         )
 
-    def determinants(self, orth_samples):
-        nsamples = orth_samples.shape[1]
-        lbs, ubs = self._ranges[0::2], self._ranges[1::2]
-        olbs, oubs = self._orthog_ranges[0::2], self._orthog_ranges[1::2]
-        idx = self._active_idx
-        det = self._bkd.prod(
-            (ubs - lbs)[idx]) / self._bkd.prod((oubs - olbs)[idx]
-                                               )
-        return self._bkd.full((nsamples), det)
-
 
 class PolarTransform(OrthogonalCoordinateTransform2D):
-    def map_from_orthogonal(self, orth_samples):
+    def map_from_orthogonal(self, orth_samples: Array):
         if (orth_samples[1].max() > np.pi) or (orth_samples[1].min() < -np.pi):
             raise ValueError("theta must be in [-pi, pi]")
         if orth_samples[0].min() < 0:
@@ -270,7 +302,7 @@ class PolarTransform(OrthogonalCoordinateTransform2D):
         orth_samples = self._bkd.stack([r, azimuth], axis=0)
         return orth_samples
 
-    def unit_curvelinear_basis(self, orth_samples):
+    def unit_curvelinear_basis(self, orth_samples: Array):
         r, theta = orth_samples
         cos_t = self._bkd.cos(theta)
         sin_t = self._bkd.sin(theta)
@@ -288,14 +320,10 @@ class PolarTransform(OrthogonalCoordinateTransform2D):
         # it just happens that nvars always equals nbasis
         return unit_basis
 
-    def scale_factors(self, orth_samples):
+    def scale_factors(self, orth_samples: Array):
         nsamples = orth_samples.shape[1]
         r = orth_samples[0]
         return self._bkd.stack((self._bkd.ones((nsamples,)), r), axis=1)
-
-    def determinants(self, orth_samples):
-        r = orth_samples[0]
-        return r
 
 
 class EllipticalTransform(OrthogonalCoordinateTransform2D):
@@ -303,7 +331,7 @@ class EllipticalTransform(OrthogonalCoordinateTransform2D):
         super().__init__(backend)
         self._a = a
 
-    def map_from_orthogonal(self, orth_samples):
+    def map_from_orthogonal(self, orth_samples: Array):
         r, theta = orth_samples
         samples = self._bkd.vstack(
             [
@@ -329,7 +357,7 @@ class EllipticalTransform(OrthogonalCoordinateTransform2D):
         orth_samples[1, II] = orth_samples[1, II] + 2 * np.pi
         return orth_samples
 
-    def unit_curvelinear_basis(self, orth_samples):
+    def unit_curvelinear_basis(self, orth_samples: Array):
         r, theta = orth_samples
         cosh_r = self._bkd.cosh(r)
         sinh_r = self._bkd.sinh(r)
@@ -350,7 +378,7 @@ class EllipticalTransform(OrthogonalCoordinateTransform2D):
         )
         return basis
 
-    def scale_factors(self, orth_samples):
+    def scale_factors(self, orth_samples: Array):
         r, theta = orth_samples
         return np.stack(
             [
@@ -362,12 +390,6 @@ class EllipticalTransform(OrthogonalCoordinateTransform2D):
             * 2,
             axis=1,
         )
-
-    def determinants(self, orth_samples):
-        r, theta = orth_samples
-        return (
-            self._a**2 * (self._bkd.sinh(r) ** 2 + self._bkd.sin(theta) ** 2)
-        )[:, None]
 
 
 class SympyTransform2D(OrthogonalCoordinateTransform2D):
@@ -444,18 +466,18 @@ class SympyTransform2D(OrthogonalCoordinateTransform2D):
             for expr in self._scale_factor_expr
         ]
 
-    def map_from_orthogonal(self, orth_samples):
+    def map_from_orthogonal(self, orth_samples: Array):
         return self._map_from_orthogonal_trans(orth_samples).T
 
     def map_to_orthogonal(self, samples):
         return self._map_to_orthogonal_trans(samples).T
 
-    def scale_factors(self, orth_samples):
+    def scale_factors(self, orth_samples: Array):
         return self._bkd.hstack(
             [factor(orth_samples) for factor in self._scale_factors]
         )
 
-    def unit_curvelinear_basis(self, orth_samples):
+    def unit_curvelinear_basis(self, orth_samples: Array):
         scale_factors = self.scale_factors(orth_samples)
         basis = self._bkd.dstack(
             [
@@ -464,9 +486,6 @@ class SympyTransform2D(OrthogonalCoordinateTransform2D):
             ]
         )
         return basis
-
-    def determinants(self, orth_samples):
-        return self._bkd.prod(self._scale_factors(orth_samples), axis=1)
 
     def __repr__(self):
         return "{0}, {1}, {2}".format(
@@ -489,7 +508,7 @@ class CompositionTransform(OrthogonalCoordinateTransform):
     def nphys_vars(self):
         return self._transforms[0].nphys_vars()
 
-    def map_from_orthogonal(self, orth_samples):
+    def map_from_orthogonal(self, orth_samples: Array):
         samples = self._transforms[0].map_from_orthogonal(orth_samples)
         for transform in self._transforms[1:]:
             samples = transform.map_from_orthogonal(samples)
@@ -505,7 +524,7 @@ class CompositionTransform(OrthogonalCoordinateTransform):
         basis = self._bkd.einsum("ijk,ikl->ijl", basis1, basis2)
         return basis
 
-    def gradient_factors(self, orth_samples):
+    def gradient_factors(self, orth_samples: Array):
         basis = self._transforms[0].gradient_factors(orth_samples)
         for ii, transform in enumerate(self._transforms[1:]):
             orth_samples = self._transforms[ii].map_from_orthogonal(
@@ -515,7 +534,7 @@ class CompositionTransform(OrthogonalCoordinateTransform):
             basis = self._basis_product(new_basis, basis)
         return basis
 
-    def unit_curvelinear_basis(self, orth_samples):
+    def unit_curvelinear_basis(self, orth_samples: Array):
         basis = self._transforms[0].unit_curvelinear_basis(orth_samples)
         for ii, transform in enumerate(self._transforms[1:]):
             orth_samples = self._transforms[ii].map_from_orthogonal(
@@ -554,19 +573,18 @@ class CompositionTransform(OrthogonalCoordinateTransform):
             ", ".join(map("{}".format, self._transforms))
         )
 
-    def determinants(self, orth_samples):
-        dets = self._transforms[0].determinants(orth_samples)
+    def scale_factors(self, orth_samples: Array) -> Array:
+        factors = self._transforms[0].scale_factors(orth_samples)
         for ii, transform in enumerate(self._transforms[1:]):
             orth_samples = self._transforms[ii].map_from_orthogonal(
                 orth_samples
             )
-            new_dets = transform.determinants(orth_samples)
-            dets *= new_dets
-        return dets
+            factors *= transform.scale_factors(orth_samples)
+        return factors
 
 
 class SphericalTransform(OrthogonalCoordinateTransform3D):
-    def map_from_orthogonal(self, orth_samples):
+    def map_from_orthogonal(self, orth_samples: Array):
         if orth_samples[0].min() < 0:
             raise ValueError("radius must be in [0, np.inf]")
         if orth_samples[1].min() < -np.pi or orth_samples[1].max() >= np.pi:
@@ -589,10 +607,9 @@ class SphericalTransform(OrthogonalCoordinateTransform3D):
         orth_samples = self._bkd.stack([r, azimuth, elevation], axis=0)
         return orth_samples
 
-    def scale_factors(self, orth_samples):
+    def scale_factors(self, orth_samples: Array):
         nsamples = orth_samples.shape[1]
         r, azimuth, elevation = orth_samples
-        print(r)
         return self._bkd.stack(
             [
                 self._bkd.ones((nsamples,)),
@@ -602,11 +619,7 @@ class SphericalTransform(OrthogonalCoordinateTransform3D):
             axis=1,
         )
 
-    def determinants(self, orth_samples):
-        r, azimuth, elevation = orth_samples
-        return r**2 * self._bkd.sin(elevation)
-
-    def unit_curvelinear_basis(self, orth_samples):
+    def unit_curvelinear_basis(self, orth_samples: Array):
         r, azimuth, elevation = orth_samples
         r, azimuth, elevation = (
             r[:, None],
@@ -634,63 +647,50 @@ class SphericalTransform(OrthogonalCoordinateTransform3D):
         return basis
 
 
-# class SphereSurfaceTransform(OrthogonalCoordinateTransform2D):
-#     def __init__(
-#             self,
-#             radius: float,
-#             azimuth_bounds: list,
-#             elevation_bounds: list,
-#             backend=NumpyLinAlgMixin):
-#         self._bkd = backend
-#         self._radius = radius
-#         scale_transform = ScaleAndTranslationTransform3D(
-#             [-1, 1, -1, 1, -1, 1],
-#             [self._radius, self._radius]+azimuth_bounds+elevation_bounds,
-#             self._bkd
-#         )
-#         self._trans = CompositionTransform(
-#             [scale_transform, SphericalTransform(self._bkd)]
-#         )
+class SurfaceTransform(OrthogonalCoordinateTransform):
+    """
+    Surface transform for maps on surfaces and integration. 
+    Unlike other transforms this does not support gradients or normals
+    """
+    def __init__(
+            self,
+            trans: OrthogonalCoordinateTransform3D,
+            inactive_idx: int,
+            inactive_val: float,
+    ):
+        self._trans = trans
+        self._bkd = trans._bkd
+        self._inactive_idx = inactive_idx
+        self._active_idx = self._bkd.delete(self._bkd.arange(3), inactive_idx)
+        self._inactive_val = inactive_val
 
-#     def _expand_orth(self, orth_samples_2d):
-#         radii = self._bkd.full((orth_samples_2d.shape[1], 1), self._radius)
-#         return self._bkd.vstack((radii, orth_samples_2d))
+    def nphys_vars(self) -> int:
+        return 2
 
-#     def map_from_orthogonal(self, orth_samples):
-#         return self._trans.map_from_orthogonal(self._expand_orth(orth_samples))
+    def _expand_orth(self, orth_samples_2d: Array) -> Array:
+        orth_samples_3d = self._bkd.empty((3, orth_samples_2d.shape[1]))
+        orth_samples_3d[self._inactive_idx] = self._bkd.full(
+            (orth_samples_2d.shape[1],), -1,
+        )
+        orth_samples_3d[self._active_idx] = orth_samples_2d
+        return orth_samples_3d
 
-#     def scale_factors(self, orth_samples):
-#         return self._trans.scale_factors(self._expand_orth(orth_samples))
+    def map_from_orthogonal(self, orth_samples: Array) -> Array:
+        return self._trans.map_from_orthogonal(self._expand_orth(orth_samples))
 
-#     def determinants(self, orth_samples):
-#         return self._trans.determinants(self._expand_orth(orth_samples))
+    def map_to_orthogonal(self, samples: Array) -> Array:
+        return self._trans.map_to_orthogonal(samples)[self._active_idx]
 
-#     def unit_curvelinear_basis(self, orth_samples):
-#         return self._trans.unit_curvelinear_basis(
-#             self._expand_orth(orth_samples)
-#         )
+    def unit_curvelinear_basis(self, orth_samples: Array) -> Array:
+        raise NotImplementedError
 
-#     def normal(self, bndry_id, samples):
-        
-#         sign = self._normal_sign(bndry_id)
-#         return self._normal(
-#             self.map_to_orthogonal,
-#             self.unit_curvelinear_basis,
-#             bndry_id,
-#             sign,
-#             samples,
-#         )
+    def gradient_factors(self, orth_samples: Array):
+        raise NotImplementedError
 
-#     def gradient_factors(self, orth_samples):
-#         super().gradient_factors(self._expand_orth(orth_samples))
+    def normal(self, bndry_id, samples):
+        raise NotImplementedError
 
-#     def scale_orthogonal_gradients(self, orth_samples, orth_grads):
-#         super().scale_orthogonal_gradients(
-#             self._expand_orth(orth_samples), orth_grads
-#         )
-
-#     def modify_quadrature_weights(self, orth_samples, orth_weights):
-#         if orth_weights.ndim != 2:
-#             raise ValueError("oth weights must be 2d column vector")
-#         dets = self.determinants(orth_samples)
-#         return (orth_weights[:, 0] * self._bkd.abs(dets))[:, None]
+    def scale_factors(self, orth_samples: Array) -> Array:
+        return self._trans.scale_factors(
+            self._expand_orth(orth_samples)
+        )[:, self._active_idx]

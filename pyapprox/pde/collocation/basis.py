@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-import math
 import textwrap
 
 from pyapprox.util.linearalgebra.linalgbase import Array
@@ -12,7 +11,6 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.surrogates.bases.orthopoly import (
     UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis,
 )
-from pyapprox.util.linearalgebra.linalg import qr_solve
 
 
 class OrthogonalCoordinateCollocationBasis(ABC):
@@ -123,66 +121,6 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
         # derivative matrix I return will be the negative of the matlab version
         return derivative_matrix
 
-    def _second_derivative_matrix_entry(self, degree, pts: Array, ii, jj):
-        if (ii == 0 and jj == 0) or (ii == degree and jj == degree):
-            return (degree**4 - 1) / 15
-
-        if ii == jj and ((ii > 0) and (ii < degree)):
-            return -((degree**2 - 1) * (1 - pts[ii] ** 2) + 3) / (
-                3 * (1 - pts[ii] ** 2) ** 2
-            )
-
-        if ii != jj and (ii > 0 and ii < degree):
-            deriv = (
-                (-1) ** (ii + jj)
-                * (pts[ii] ** 2 + pts[ii] * pts[jj] - 2)
-                / ((1 - pts[ii] ** 2) * (pts[ii] - pts[jj]) ** 2)
-            )
-            if jj == 0 or jj == degree:
-                deriv /= 2
-            return deriv
-
-        # because I define pts from left to right instead of right to left
-        # the next two formulas are different to those in the book
-        # Roger Peyret. Spectral Methods for Incompressible Viscous Flow
-        # I.e. pts  = -x
-        if ii == 0 and jj > 0:
-            deriv = (
-                2
-                / 3
-                * (-1) ** jj
-                * ((2 * degree**2 + 1) * (1 + pts[jj]) - 6)
-                / (1 + pts[jj]) ** 2
-            )
-            if jj == degree:
-                deriv /= 2
-            return deriv
-
-        # if ii == degree and jj < degree:
-        deriv = (
-            2
-            / 3
-            * (-1) ** (jj + degree)
-            * ((2 * degree**2 + 1) * (1 - pts[jj]) - 6)
-            / (1 - pts[jj]) ** 2
-        )
-        if jj == 0:
-            deriv /= 2
-        return deriv
-
-    def _form_1d_orth_second_derivative_matrix(self, degree):
-        # this is reverse order used in book
-        pts = -self._bkd.cos(self._bkd.linspace(0.0, math.pi, degree + 1))
-        derivative_matrix = self._bkd.empty((degree + 1, degree + 1))
-        for ii in range(degree + 1):
-            for jj in range(degree + 1):
-                derivative_matrix[ii, jj] = (
-                    self._chebyshev_second_derivative_matrix_entry(
-                        degree, pts, ii, jj
-                    )
-                )
-        return pts, derivative_matrix
-
     def _interpolate(self, values_at_mesh: Array, new_samples: Array):
         self._bexp.fit(values_at_mesh)
         return self._bexp(new_samples)
@@ -265,8 +203,4 @@ class ChebyshevCollocationBasis2D(
 class ChebyshevCollocationBasis3D(
     ChebyshevCollocationBasis, OrthogonalCoordinateBasis3DMixin
 ):
-    pass
-
-
-class ChebyshevCollocationSurfaceBasis(ChebyshevCollocationBasis2D):
     pass

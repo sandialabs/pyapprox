@@ -12,6 +12,8 @@ from pyapprox.pde.collocation.mesh_transforms import (
     CompositionTransform,
     SympyTransform2D,
     SphericalTransform,
+    SurfaceTransform,
+    FixedScaleAndTranslationTransform3D,
 )
 from pyapprox.util.utilities import approx_fprime
 from pyapprox.surrogates.bases.orthopoly import GaussLegendreQuadratureRule
@@ -34,7 +36,6 @@ class TestMeshTransforms:
                 approx_fprime(sample[:, None], _fun, forward=forward)
             )
         grad_fd = bkd.asarray(grad_fd)
-        # print(grad_fd, "f_x FD")
 
         def _orth_fun(orth_samples):
             return _fun(transform.map_from_orthogonal(orth_samples))
@@ -47,6 +48,8 @@ class TestMeshTransforms:
         orth_grad_fd = bkd.asarray(orth_grad_fd)
         grad = transform.scale_orthogonal_gradients(orth_samples, orth_grad_fd)
         tol = 3e-7
+        # print(grad, 'f_x')
+        # print(grad_fd-grad)
         assert bkd.allclose(grad_fd, grad, atol=tol, rtol=tol)
 
     def _check_integral(self, transform, exact_integral, fun, npts_1d=20):
@@ -58,18 +61,17 @@ class TestMeshTransforms:
             [npts_1d] * transform.nphys_vars(),
         )
         orth_samples, orth_weights = quad_rule()
-        if not isinstance(transform, CompositionTransform):
-            assert bkd.allclose(
-                transform.determinants(orth_samples),
-                bkd.prod(transform.scale_factors(orth_samples), axis=1),
-            )
+        assert bkd.allclose(
+            transform.determinants(orth_samples),
+            bkd.prod(transform.scale_factors(orth_samples), axis=1),
+        )
         weights = transform.modify_quadrature_weights(
             orth_samples, orth_weights
         )
         integral = fun(transform.map_from_orthogonal(orth_samples)).dot(
             weights
         )
-        # print(integral, exact_integral)
+        print(integral, exact_integral)
         assert bkd.allclose(integral, exact_integral)
 
     def _get_orthogonal_boundary_samples_2d(self, npts):
@@ -620,6 +622,55 @@ class TestMeshTransforms:
         ) / 4
         self._check_integral(
             transform, exact_integral, lambda xx: bkd.ones(xx[1].shape)
+        )
+
+    def surface_transform(self):
+        import warnings
+        warnings.filterwarnings("error")
+        bkd = self.get_backend()
+        radius = 1.
+        # map_from orthogonal is ill defined at elevation = 0 and pi
+        # because there are many values of aziumuth that will
+        # give the same (x,y,z), so use 1e-8 as lower bound
+        bounds = [radius, radius, -np.pi/2, np.pi/2, 1e-6, np.pi/2]
+        scale_trans = FixedScaleAndTranslationTransform3D(
+            [-1, 1, -1, 1, -1, 1], bounds, bkd
+        )
+        sphere_trans = SphericalTransform(bkd)
+        trans3d = CompositionTransform([scale_trans, sphere_trans])
+        trans = SurfaceTransform(trans3d, 0, radius)
+
+        # trans = SurfaceTransform(
+        #     FixedScaleAndTranslationTransform3D(
+        #        [-1, 1, -1, 1, -1, 1], [1, 1, 0, 2, 0, 3], bkd
+        #     ),
+        #     0, 1.
+        # )
+
+        nsamples_1d = [3, 3]
+        orth_samples = bkd.cartesian_product(
+            [
+                bkd.linspace(-1, 1, nsamples_1d[0]),
+                bkd.linspace(-1, 1, nsamples_1d[1]),
+            ]
+        )
+        np.set_printoptions(linewidth=1000)
+        samples = trans.map_from_orthogonal(orth_samples)
+
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot(1, 1, 1, projection="3d")
+        ax.plot(*samples, "o")
+        ax.set_aspect("equal")
+        # plt.show()
+
+        assert bkd.allclose(
+            trans.map_to_orthogonal(samples), orth_samples
+        )
+
+        # domain is 1/4 of sphere
+        exact_integral = 4*np.pi*radius**2/4
+        self._check_integral(
+            trans, exact_integral, lambda xx: bkd.ones(xx[1].shape)
         )
 
 
