@@ -56,7 +56,9 @@ class Optimizer(ABC):
         self._bounds = None
         self._objective_fun = None
         self._verbosity = 0
+        self._tol = 1e-5
         self._numeric_upper_bound =100
+
 
     def set_numeric_upper_bound(self, ub):
         """Set the value used when computing initial guesses to replace np.inf."""
@@ -104,6 +106,17 @@ class Optimizer(ABC):
         """
         self._verbosity = verbosity
 
+    def set_tolerance(self, tol):
+        """
+        Set the tolerance that will be passed to the optimizer.
+
+        Parameters
+        ----------
+        tol : float
+            Tolerance (see specific optimizer documentation for details)
+        """
+        self._tol = tol
+
     def _get_random_optimizer_initial_guess(self):
         if self._bounds is None:
             raise RuntimeError("must call set_bounds")
@@ -125,7 +138,7 @@ class Optimizer(ABC):
     @abstractmethod
     def _optimize(self, iterate):
         raise NotImplementedError
-    
+
     def optimize(self, iterate):
         """
         Minimize the objective function.
@@ -191,10 +204,11 @@ class ScipyLBFGSB(Optimizer):
 
         scipy_res = scipy.optimize.minimize(
             self._np_objective_fun_wrapper, self._bkd.to_numpy(iterate), method='L-BFGS-B',
-            jac=True, bounds=self._bkd.to_numpy(self._bounds), options=self._options)
+            jac=True, bounds=self._bkd.to_numpy(self._bounds), tol=self._tol,
+            options=self._options)
 
         result = ScipyOptimizationResult(scipy_res, self._bkd)
-        
+
         if self._verbosity > 0:
             print(result)
 
@@ -227,7 +241,7 @@ class MultiStartOptimizer(Optimizer):
     def set_numeric_upper_bound(self, ub):
         self._numeric_upper_bound = ub
         self._optimizer.set_numeric_upper_bound(ub)
-        
+
     def set_objective_function(self, objective_fun):
         self._objective_fun = objective_fun
         self._optimizer.set_objective_function(objective_fun)
@@ -252,6 +266,4 @@ class MultiStartOptimizer(Optimizer):
         return "{0}(optimizer={1}, ncandidates={2})".format(
             self.__class__.__name__, self._optimizer, self._ncandidates
         )
-        
-        
-    
+

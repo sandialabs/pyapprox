@@ -787,3 +787,8 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def flatten(array: Array):
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def gammaln(array):
+        raise NotImplementedError

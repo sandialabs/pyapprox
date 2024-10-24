@@ -292,7 +292,9 @@ class HilbertSchmidtKernel(Kernel):
         )
 
     def _get_basis_matrices(self, X1, X2):
-        if self._X1 is not None and self._bkd.allclose(self._X1, X2, atol=1e-15):
+        if (self._X1 is not None and
+            self._X1.shape == X2.shape and
+            self._bkd.allclose(self._X1, X2, atol=1e-15)):
             X1basis_mat = self._X1basis_mat
         else:
             X1basis_mat = self._basis1(X1)
@@ -300,7 +302,9 @@ class HilbertSchmidtKernel(Kernel):
                 X1basis_mat /= self._bkd.norm(X1basis_mat, axis=1)[:, None]
             self._X1 = self._bkd.copy(X1)
             self._X1basis_mat = self._bkd.copy(X1basis_mat)
-        if self._X2 is not None and self._bkd.allclose(self._X2, X2, atol=1e-15):
+        if (self._X2 is not None and
+            self._X2.shape == X2.shape and
+            self._bkd.allclose(self._X2, X2, atol=1e-15)):
             X2basis_mat = self._X2basis_mat
         else:
             X2basis_mat = self._basis2(X2)
@@ -310,7 +314,7 @@ class HilbertSchmidtKernel(Kernel):
             self._X2basis_mat = self._bkd.copy(X2basis_mat)
         return X1basis_mat, X2basis_mat
 
-        
+
 
     def __call__(self, X1, X2=None):
         weights = self._get_weights()
