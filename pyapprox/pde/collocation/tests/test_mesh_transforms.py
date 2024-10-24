@@ -640,13 +640,6 @@ class TestMeshTransforms:
         trans3d = CompositionTransform([scale_trans, sphere_trans])
         trans = SurfaceTransform(trans3d, 0, radius)
 
-        # trans = SurfaceTransform(
-        #     FixedScaleAndTranslationTransform3D(
-        #        [-1, 1, -1, 1, -1, 1], [1, 1, 0, 2, 0, 3], bkd
-        #     ),
-        #     0, 1.
-        # )
-
         nsamples_1d = [3, 3]
         orth_samples = bkd.cartesian_product(
             [

@@ -10,6 +10,10 @@ class NewtonResidual(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def jacobian(self, iterate):
+        raise NotImplementedError
+
+    @abstractmethod
     def linsolve(self, iterate, res):
         raise NotImplementedError
 
