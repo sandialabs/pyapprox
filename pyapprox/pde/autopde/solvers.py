@@ -282,7 +282,7 @@ class TransientAdjointPDE(TransientPDE):
             # print('jT', jac_adjoint.T)
             adj_sols[:, ii] = torch.linalg.solve(jac_adjoint, rhs)
             # print(adj_sols[:, ii], 'phi', adj_sols[:, ii].sum())
-        adj_sols[:, 0] = adj_sols[:, 1]
+            adj_sols[:, 0] = adj_sols[:, 1]
         return adj_sols
 
     # def solve_adjoint(self, fwd_sols, param_vals, times, verbosity=0,

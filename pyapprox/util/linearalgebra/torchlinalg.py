@@ -485,3 +485,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def flatten(array: torch.Tensor):
         return array.flatten()
+
+    @staticmethod
+    def double_type():
+        return torch.double
