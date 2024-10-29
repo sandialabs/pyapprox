@@ -198,7 +198,6 @@ class GroupACVEstimator:
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples):
-        #print(npartition_samples, self._partitions_per_model)
         nsamples_per_model = self._bkd.einsum(
             "ji,i->j", self._partitions_per_model, npartition_samples)
         return nsamples_per_model
@@ -635,11 +634,10 @@ class GroupACVObjective(Model):
         )
 
     def _jacobian(self, npartition_samples):
-        jac = self._bkd.grad(
+        return self._bkd.grad(
             self._est._covariance_from_npartition_samples,
             npartition_samples[:, 0],
             )[1][None,...]
-        return jac
 
     def _hessian(self, npartition_samples):
         return self._bkd.hessian(

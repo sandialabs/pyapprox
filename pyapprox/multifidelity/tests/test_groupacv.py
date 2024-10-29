@@ -552,10 +552,8 @@ class TestGroupACV:
 
         stat = multioutput_stats["variance"](1, backend=bkd,return_cov=False)
         stat.set_pilot_quantities(cov, W)
-        #subsets = [[0, 1, 2], [1, 2], [2]]
         subsets = [[0, 1, 2], [1], [2]]
         subsets = [bkd.array(s, dtype=int) for s in subsets]
-        #est = MLBLUEEstimator(stat, costs, reg_blue=0, subsets=subsets)
         est = GroupACVEstimator(stat, costs, subsets=subsets)
 
         opt1 = GroupACVGradientOptimizer(
@@ -582,11 +580,9 @@ class TestGroupACV:
         print(est_val)
         print(est._optimized_criteria)
 
-
         # todo chenge backend once I clean up acv code to use backends
         stat = multioutput_stats["variance"](1, backend=None)
         stat.set_pilot_quantities(np_cov, np_W)
-        #mfmc_est = get_estimator("gmf", stat, costs, recursion_index=[0, 1])
         mfmc_est = get_estimator("gis", stat, costs)
         mfmc_est.allocate_samples(target_cost)
 
@@ -613,6 +609,8 @@ class TestGroupACV:
         est_val = est(values_per_model)
         print(est_val)
         
+
+
 class TestTorchGroupACV(TestGroupACV, unittest.TestCase):
     def get_backend(self):
         return TorchLinAlgMixin
