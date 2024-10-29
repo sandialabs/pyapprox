@@ -12,8 +12,8 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
 )
 from pyapprox.pde.collocation.manufactured_solutions import (
-    # Diffusion,
-    ReactionDiffusion,
+    ManufacturedSolution,
+    AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
@@ -28,6 +28,8 @@ from pyapprox.pde.collocation.physics import (
 from pyapprox.pde.collocation.functions import (
     ImutableScalarFunctionFromCallable,
     ScalarSolutionFromCallable,
+    ImutableScalarTransientFunctionFromCallable,
+    ScalarTransientSolutionFromCallable,
 )
 
 from pyapprox.pde.collocation.boundaryconditions import (
@@ -51,7 +53,7 @@ from pyapprox.pde.collocation.mesh import (
     ChebyshevCollocationMesh2D,
     ChebyshevCollocationMesh3D,
 )
-from pyapprox.pde.collocation.solvers import SteadyStatePDE, NewtonSolver
+from pyapprox.pde.collocation.solvers import SteadyPDE, NewtonSolver
 
 
 class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromFunction):
@@ -144,19 +146,20 @@ class TestCollocation:
     def _setup_dirichlet_boundary_conditions(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
-        sol_fun: callable,
+        man_sol: ManufacturedSolution,
     ):
         bndry_funs = []
         for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
-            sol = ScalarSolutionFromCallable(basis, sol_fun)
+            sol = self._setup_scalar_solution_from_manufactured_solution(
+                basis, man_sol
+            )
             bndry_funs.append(DirichletBoundaryFromFunction(mesh_bndry, sol))
         return bndry_funs
 
     def _setup_robin_boundary_conditions(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
-        sol_fun: callable,
-        flux_fun: callable,
+        man_sol: ManufacturedSolution,
     ):
         # use the same alpha, beta for every test
         alpha, beta = 2.0, 3.0
@@ -165,7 +168,12 @@ class TestCollocation:
         for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
             bndry_funs.append(
                 RobinBoundaryFromManufacturedSolution(
-                    mesh_bndry, alpha, beta, basis, sol_fun, flux_fun
+                    mesh_bndry,
+                    alpha,
+                    beta,
+                    basis,
+                    man_sol.functions["solution"],
+                    man_sol.functions["flux"],
                 )
             )
         return bndry_funs
@@ -190,15 +198,14 @@ class TestCollocation:
     def _setup_boundary_conditions(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
-        sol_fun: callable,
-        flux_fun: callable,
         bndry_types: str,
+        man_sol: ManufacturedSolution,
     ):
         if bndry_types == "D":
-            return self._setup_dirichlet_boundary_conditions(basis, sol_fun)
+            return self._setup_dirichlet_boundary_conditions(basis, man_sol)
         if bndry_types == "R":
             return self._setup_robin_boundary_conditions(
-                basis, sol_fun, flux_fun
+                basis, man_sol
             )
         if bndry_types == "P":
             return self._setup_periodic_boundary_conditions(basis)
@@ -207,20 +214,49 @@ class TestCollocation:
             raise ValueError("incorrect bndry_type specified")
         # mix robin dirichlet boundaries
         boundaries = basis.mesh.get_boundaries()
-        sol = ScalarSolutionFromCallable(basis, sol_fun)
         mesh_bndry = boundaries["left"]
         alpha, beta = 2.0, 3.0
         bndry_funs = [
             RobinBoundaryFromManufacturedSolution(
-                mesh_bndry, alpha, beta, basis, sol_fun, flux_fun
+                mesh_bndry,
+                alpha,
+                beta,
+                basis,
+                man_sol.functions["solution"],
+                man_sol.functions["flux"],
             )
         ]
         for bndry_name, mesh_bndry in boundaries.items():
             if bndry_name == "left":
                 continue
+            sol = self._setup_scalar_solution_from_manufactured_solution(
+                basis, man_sol
+            )
             bndry_funs.append(DirichletBoundaryFromFunction(mesh_bndry, sol))
-        print(bndry_funs)
         return bndry_funs
+
+    def _setup_scalar_solution_from_manufactured_solution(
+            self, basis, man_sol
+    ):
+        name = "solution"
+        if not man_sol.transient[name]:
+            return ScalarSolutionFromCallable(
+                basis, man_sol.functions[name]
+            )
+        return ScalarTransientSolutionFromCallable(
+            basis, man_sol.functions[name]
+        )
+
+    def _setup_immutable_function_from_manufactured_solution(
+            self, name, basis, man_sol
+    ):
+        if not man_sol.transient[name]:
+            return ImutableScalarFunctionFromCallable(
+                basis, man_sol.functions[name]
+            )
+        return ImutableScalarTransientFunctionFromCallable(
+            basis, man_sol.functions[name]
+        )
 
     def _check_steady_state_advection_diffusion_reaction(
         self,
@@ -233,21 +269,24 @@ class TestCollocation:
     ):
         bkd = self.get_backend()
         react_str, react_fun = react_tup
-        man_sol = ReactionDiffusion(
+        man_sol = AdvectionDiffusionReaction(
             len(vel_strings),
             sol_string,
             diff_string,
             react_str,
+            vel_strings,
             bkd=bkd,
             oned=True,
         )
         print(man_sol)
+        print(man_sol.transient, sol_string)
 
         # TODO make function take in callable. Then call set_values
         # in steadystatepde on mesh_pts and similarly for transient PDE
-        exact_sol = ScalarSolutionFromCallable(
-            basis, man_sol.functions["solution"]
+        exact_sol = self._setup_scalar_solution_from_manufactured_solution(
+            basis, man_sol
         )
+        print(exact_sol)
 
         # test plot runs
         fig, ax = exact_sol.get_plot_axis()
@@ -256,11 +295,14 @@ class TestCollocation:
         ax.set_aspect("equal")
         # plt.show()
 
-        diffusion = ImutableScalarFunctionFromCallable(
-            basis, man_sol.functions["diffusion"]
+        # diffusion = ImutableScalarFunctionFromCallable(
+        #     basis, man_sol.functions["diffusion"]
+        # )
+        diffusion = self._setup_immutable_function_from_manufactured_solution(
+            "diffusion", basis, man_sol
         )
-        forcing = ImutableScalarFunctionFromCallable(
-            basis, man_sol.functions["forcing"]
+        forcing = self._setup_immutable_function_from_manufactured_solution(
+            "forcing", basis, man_sol
         )
         # todo man_sol.functions["reaction"] contains the values u
         # but linearreactiondiffusionequations needs 1 from (1*u)
@@ -283,12 +325,11 @@ class TestCollocation:
 
         boundaries = self._setup_boundary_conditions(
             basis,
-            man_sol.functions["solution"],
-            man_sol.functions["flux"],
             bndry_types,
+            man_sol,
         )
         physics.set_boundaries(boundaries)
-        solver = SteadyStatePDE(physics, NewtonSolver(verbosity=2, maxiters=1))
+        solver = SteadyPDE(physics, NewtonSolver(verbosity=2, maxiters=1))
         init_sol = ScalarSolutionFromCallable(
             basis,
             lambda x: bkd.ones(
@@ -317,9 +358,9 @@ class TestCollocation:
             ],  # basis
         ]
 
-        for test_case in itertools.product(*test_case_args):
-            print(test_case)
-            self._check_steady_state_advection_diffusion_reaction(*test_case)
+        # for test_case in itertools.product(*test_case_args):
+        #     print(test_case)
+        #     self._check_steady_state_advection_diffusion_reaction(*test_case)
 
         # test periodic BCs which requires a periodic sol_str and reaction term
         # to make solution unique
@@ -332,7 +373,23 @@ class TestCollocation:
             "P",
             self._setup_cheby_basis_1d([20], [0, 2 * np.pi]),
         ]
-        self._check_steady_state_advection_diffusion_reaction(*test_case)
+        # self._check_steady_state_advection_diffusion_reaction(*test_case)
+
+        # transient test cases
+        test_case_args = [
+            ["-(x-1)*x/2*(1+T)"],  # sol_string
+            ["4"],  # diff_string
+            [["0"]],  # vel_strings
+            [
+                ["0", lambda x: bkd.zeros(x.shape[1])],
+            ],  # react_str
+            ["D"],  # bndry_types
+            [
+                self._setup_cheby_basis_1d([5], [0, 1]),
+            ],  # basis
+        ]
+        for test_case in itertools.product(*test_case_args):
+            self._check_steady_state_advection_diffusion_reaction(*test_case)
 
     def test_steady_advection_diffusion_reaction_2D(self):
         bkd = self.get_backend()

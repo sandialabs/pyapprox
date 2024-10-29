@@ -445,3 +445,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def flatten(array: np.ndarray):
         return array.flatten()
+
+    @staticmethod
+    def double_type():
+        return float

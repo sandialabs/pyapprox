@@ -2,7 +2,9 @@ from abc import ABC, abstractmethod
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.pde.collocation.mesh import OrthogonalCoordinateMeshBoundary
-from pyapprox.pde.collocation.functions import MatrixFunction
+from pyapprox.pde.collocation.functions import (
+    MatrixFunction, TransientFunctionMixin
+)
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
 
 
@@ -81,6 +83,13 @@ class DirichletBoundaryFromFunction(
     ):
         super().__init__(mesh_bndry)
         self._set_function(fun)
+
+    def set_time(self, time):
+        if not isinstance(self._fun, TransientFunctionMixin):
+            raise ValueError(
+                "set_time can only be used with transient functions"
+            )
+
 
 
 class RobinBoundary(BoundaryFunction):

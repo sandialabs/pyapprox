@@ -1,20 +1,38 @@
 from abc import ABC, abstractmethod
 
+from pyapprox.util.linearalgebra.linalgbase import Array
+
 
 class NewtonResidual(ABC):
     def __init__(self, backend):
         self._bkd = backend
 
     @abstractmethod
-    def __call__(self, iterate):
+    def __call__(self, iterate: Array) -> Array:
         raise NotImplementedError
 
     @abstractmethod
-    def linsolve(self, iterate, res):
+    def jacobian(self, iterate: Array) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def linsolve(self, iterate: Array, res: Array) -> Array:
         raise NotImplementedError
 
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
+
+    def _residual_param_jacobian(self, sol: Array) -> Array:
+        raise NotImplementedError
+
+    def residual_param_jacobian(self, sol: Array) -> Array:
+        """Gradient of residual with respect to parameters"""
+        if sol.ndim != 1:
+            raise ValueError("sol must be a 1d Array")
+        jac = self._residual_param_jacobian(sol)
+        if jac.ndim != 2 or jac.shape[0] != sol.shape[0]:
+            raise RuntimeError(f"jac has the wrong shape {jac.shape}")
+        return jac
 
 
 class NewtonSolver:

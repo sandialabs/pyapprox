@@ -565,7 +565,7 @@ class ImutableVectorFunctionFromCallable(
 
 
 class ScalarSolutionFromCallable(ScalarSolution, FunctionFromCallableMixin):
-    """Scalar solution of a PDE"""
+    """Steady scalar solution of a PDE"""
 
     def __init__(
         self,
@@ -576,20 +576,57 @@ class ScalarSolutionFromCallable(ScalarSolution, FunctionFromCallableMixin):
         self._setup(fun)
 
 
-class TransientFunctionFromCallableMixin:
+class TransientFunctionMixin(ABC):
+    @abstractmethod
+    def _eval(self, time: float):
+        raise NotImplementedError
+
+    def set_time(self, time: float):
+        self._time = time
+        self.set_values(self._eval(self.basis.mesh.mesh_pts()))
+        self.set_matrix_jacobian(self._initial_matrix_jacobian())
+
     def _check_time_set(self):
         if not hasattr(self, "_time"):
             raise ValueError(
                 "Must call set_time before evaluating the function"
             )
 
-    def set_time(self, time):
-        self._time = time
-
     def get_time(self):
         self._check_time_set()
         return self._time
 
+
+class TransientFunctionFromCallableMixin(TransientFunctionMixin):
     def _eval(self, mesh_pts):
         self._check_time_set()
         return self._fun(mesh_pts, time=self._time)
+
+
+class ImutableScalarTransientFunctionFromCallable(
+        ImutableScalarFunction, TransientFunctionFromCallableMixin
+):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        fun: callable,
+        time: float = 0,
+    ):
+        self._fun = fun
+        ScalarFunction.__init__(self, basis)
+        self.set_time(time)
+
+
+class ScalarTransientSolutionFromCallable(
+        ScalarSolution, TransientFunctionFromCallableMixin
+):
+    """Transient scalar solution of a PDE"""
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        fun: callable,
+        time: float = 0,
+    ):
+        self._fun = fun
+        ScalarSolution.__init__(self, basis)
+        self.set_time(time)
