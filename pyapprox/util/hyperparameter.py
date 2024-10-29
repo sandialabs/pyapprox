@@ -65,6 +65,7 @@ class HyperParameter:
             if type(transform._bkd) is not type(backend):
                 raise ValueError("transform._bkd must be the same as backend")
         self.transform = transform
+        self.transform._bkd = self._bkd
 
         self.name = name
         self._nvars = nvars
