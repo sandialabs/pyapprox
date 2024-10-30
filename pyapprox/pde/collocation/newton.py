@@ -22,18 +22,6 @@ class NewtonResidual(ABC):
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
-    def _residual_param_jacobian(self, sol: Array) -> Array:
-        raise NotImplementedError
-
-    def residual_param_jacobian(self, sol: Array) -> Array:
-        """Gradient of residual with respect to parameters"""
-        if sol.ndim != 1:
-            raise ValueError("sol must be a 1d Array")
-        jac = self._residual_param_jacobian(sol)
-        if jac.ndim != 2 or jac.shape[0] != sol.shape[0]:
-            raise RuntimeError(f"jac has the wrong shape {jac.shape}")
-        return jac
-
 
 class NewtonSolver:
     def __init__(

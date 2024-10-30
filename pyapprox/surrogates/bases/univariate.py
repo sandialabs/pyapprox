@@ -500,7 +500,7 @@ class UnivariatePiecewisePolynomialNodeGenerator(ABC):
             raise ValueError("must call set_bounds")
         nodes = self._nodes(nnodes)
         if nodes.ndim != 2 or nodes.shape[0] != 1:
-            raise RuntimeError("nodes returned does must be a 2D row vector")
+            raise RuntimeError("nodes returned must be a 2D row vector")
         return nodes
 
     @abstractmethod
