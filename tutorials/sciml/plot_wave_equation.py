@@ -142,7 +142,8 @@ To obtain the solution to the wave equation we must apply the inverse fourier tr
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.sciml.quadrature import Fixed1DTrapezoidIOQuadRule
+from pyapprox.surrogates.bases.orthopoly import GaussLegendreQuadratureRule
+from pyapprox.sciml.util import NumpyLinAlgMixin
 
 
 def _greens_function(k, L, X, Y):
@@ -168,9 +169,9 @@ def greens_function_series(nterms, k, L, X, Y):
 
 
 def greens_solution(quad_rule, kernel, forc, xx):
-    quad_xx, quad_ww = quad_rule.get_samples_weights()
-    return (kernel(xx, quad_xx.numpy())*forc(quad_xx.numpy())[:, 0] @
-            quad_ww.numpy())
+    quad_xx, quad_ww = quad_rule()
+    return (kernel(xx, quad_xx)*forc(quad_xx)[:, 0] @
+            quad_ww)
 
 
 L = 1
@@ -239,7 +240,9 @@ def helmholtz_forcing_fun(k, a, w0, xx):
     const = helmholtz_forcing_const(k, a)
     return const*np.sin(a*xx.T)
 
-
+quad_rule = GaussLegendreQuadratureRule(bounds=[0, L],
+                                        backend=NumpyLinAlgMixin)
+quad_rule.set_nnodes(100)
 axs[1].plot(
    plot_xx[0],
    exact_helmholtz_sol(wave_number, x_freq, t_freq, plot_xx),
@@ -247,7 +250,7 @@ axs[1].plot(
 sol_plot = axs[1].plot(
     plot_xx[0],
     greens_solution(
-        Fixed1DTrapezoidIOQuadRule(301),
+        quad_rule,
         lambda X, Y: greens_function(wave_number, L, X, Y),
         lambda xx: helmholtz_forcing_fun(wave_number, x_freq, t_freq, xx),
         plot_xx), '--', label="Greens Helmholtz Solution")

@@ -1,6 +1,6 @@
 r"""
-Green's Function Example
-========================
+Learning Green's Functions
+==========================
 
 Consider the constant-coefficient diffusion equation
 
@@ -43,34 +43,38 @@ trapezoid rule to compute the integral of the Green's function with the forcing
 function and compares the result against the exact solution.
 """
 from functools import partial
-
-import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.sciml.quadrature import Fixed1DGaussLegendreIOQuadRule
+from pyapprox.util.hyperparameter import LogHyperParameterTransform
+from pyapprox.util.transforms import UnivariateBoundedAffineTransform
+
+from pyapprox.surrogates.bases.orthopoly import (
+    GaussLegendreQuadratureRule, LegendrePolynomial1D)
+from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.kernels.kernels import (
+    ConstantKernel, MaternKernel, HilbertSchmidtKernel)
+from pyapprox.surrogates.kernels.greensfunctions import (
+    HomogeneousLaplace1DGreensKernel)
+
+from pyapprox.sciml.integraloperators import (
+    KernelIntegralOperator, ChebyshevIntegralOperator,
+    DenseAffineIntegralOperator, FourierHSOperator)
 from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.activations import TanhActivation, IdentityActivation
-from pyapprox.sciml.util.hyperparameter import LogHyperParameterTransform
-from pyapprox.sciml.torchintegraloperators import (
-    TorchKernelIntegralOperator, TorchChebyshevIntegralOperator,
-    TorchDenseAffineIntegralOperator, TorchFourierHSOperator)
-from pyapprox.sciml.kernels import (
-    ConstantKernel, MaternKernel, Legendre1DHilbertSchmidtKernel)
-from pyapprox.sciml.greensfunctions import HomogeneousLaplace1DGreensKernel
-from pyapprox.sciml.quadrature import (
-    Fixed1DTrapezoidIOQuadRule, Transformed1DQuadRule)
-from pyapprox.sciml.util.torchutils import TorchUtilitiesSciML
-from pyapprox.sciml.util._torch_wrappers import asarray
+from pyapprox.sciml.util import TorchLinAlgMixin, FCT
 
-np.random.seed(1)
+bkd = TorchLinAlgMixin
+fct = FCT()
+pi = 3.1415926535897932
 
 kappa = 0.1
 nquad = 100
-greens_fun = HomogeneousLaplace1DGreensKernel(kappa, [1e-3, 1])
+greens_fun = HomogeneousLaplace1DGreensKernel(kappa, [1e-3, 1], backend=bkd)
 # TODO currently quadrature rules defined on [0, 1] need to pass
 # a transform that defines them on a user specified domain
-quad_rule = Transformed1DQuadRule(
-    Fixed1DTrapezoidIOQuadRule(nquad), [0, 1])
+quad_rule = GaussLegendreQuadratureRule(bounds=[0., 1.],
+                                        backend=bkd)
+quad_rule.set_nnodes(nquad)
 
 
 def forc_fun(xx):
@@ -83,11 +87,11 @@ def exact_solution(xx):
 
 
 def greens_solution(kernel, forc, xx):
-    quad_xx, quad_ww = quad_rule.get_samples_weights()
+    quad_xx, quad_ww = quad_rule()
     return kernel(xx, quad_xx)*forc(quad_xx)[:, 0] @ quad_ww
 
 
-plot_xx = np.linspace(0, 1, 101)[None, :]
+plot_xx = bkd.linspace(0, 1, 101)[None, :]
 green_sol = greens_solution(greens_fun, forc_fun, plot_xx)
 ax = plt.figure().gca()
 ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
@@ -100,7 +104,7 @@ plt.show()
 # %%
 # Now plot the greens function
 ax = plt.figure().gca()
-X, Y = np.meshgrid(plot_xx[0], plot_xx[0])
+X, Y = bkd.meshgrid(plot_xx[0], plot_xx[0])
 G = greens_fun(plot_xx, plot_xx)
 greens_plot = ax.imshow(G, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
 plt.show()
@@ -116,13 +120,17 @@ plt.show()
 # %%
 # Now plot the linear integral operator (not CERTANN) with fixed kernel
 # hyper-parameters (the weights of the terms in the Hilbert-Schmidt sum)
-nterms = 30
-hs_kernel = Legendre1DHilbertSchmidtKernel(
-    nterms, 1/np.arange(1, nterms+1)**1, [1e-2, 1])
-# Replace above hs_kernel with Matern kernel to see how approximation changes
-# hs_kernel = MaternKernel(0.5, 0.1, [1e-2, 1], 1)
+nterms = 25
+trans = UnivariateBoundedAffineTransform([0., 1.], backend=bkd)
+basis = OrthonormalPolynomialBasis([
+    LegendrePolynomial1D(trans=trans, backend=bkd)],
+    indices=bkd.arange(5, dtype=float)[None, :])
+hs_kernel = HilbertSchmidtKernel(basis, basis,
+                                 1/bkd.arange(1, nterms+1, dtype=float),
+                                 [1e-2, 1])
 const_kernel = ConstantKernel(
-    10, [1e-2, 1e4], transform=LogHyperParameterTransform())
+    10, [1e-2, 1e4], transform=LogHyperParameterTransform(),
+    backend=bkd)
 final_kernel = const_kernel*hs_kernel
 green_sol_hs = greens_solution(final_kernel, forc_fun, plot_xx)
 ax = plt.figure().gca()
@@ -135,7 +143,7 @@ plt.show()
 # %%
 # Plot the Hilbert-Schmidt kernel used
 ax = plt.figure().gca()
-X, Y = np.meshgrid(plot_xx[0], plot_xx[0])
+X, Y = bkd.meshgrid(plot_xx[0], plot_xx[0])
 Z = final_kernel(plot_xx, plot_xx)
 im = ax.imshow(
     Z, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
@@ -152,7 +160,8 @@ nfterms = 4  # the number of unknown coefficients parameterizing the forcing
 
 
 def parameterized_forc_fun(coef, xx):
-    return ((xx.T**np.arange(len(coef))[None, :]) @ coef)[:, None]
+    return ((xx.T**bkd.arange(
+                len(coef), dtype=float)[None, :]) @ coef)[:, None]
     # coef = coef.reshape(coef.shape[0]//2, 2)
     # return np.hstack([np.cos(2*c[0]*np.pi*xx.T+c[1])
     #                  for c in coef]).sum(axis=1)[:, None]
@@ -163,41 +172,41 @@ nphys_vars = 1
 ninputs = 40
 # Set the number of random training samples.
 ntrain_samples = 10
-abscissa = np.linspace(0, 1, ninputs)[None, :]
+abscissa = bkd.linspace(0, 1, ninputs)[None, :]
 noutputs = abscissa.shape[1]
-train_coef = np.random.normal(0, 1, (nfterms, ntrain_samples))
+train_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
 train_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in train_coef.T]
 # The training samples shape is (ninputs, nntrain_samples)
-train_samples = np.hstack([f(abscissa) for f in train_forc_funs])
+train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
 # The training samples shape is (nntrain_samples, noutputs)
-train_values = np.hstack(
+train_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
 
 
 # Set the number of CERTANN layers
 nlayers = 2
 # Set the matern smoothness parameter of the first kernel
-nu = np.inf
+nu = bkd.inf()
 # Set the kernels for each layer
-kernels = [MaternKernel(nu, [0.1], [1e-5, 1], nphys_vars)
+kernels = [MaternKernel(nu, [0.1], [1e-5, 1], nphys_vars, backend=bkd)
            for ii in range(nlayers-1)]+[final_kernel]
 
 # Use Gauss-Legendre Quadrature
-QuadRule = Fixed1DGaussLegendreIOQuadRule
-
 # Set the quadrature rules for each layer. Note Last quad rule is only
 # used to set the locations X of the kernel(X,Y) in the final integral operator
-quad_rules = (
-    [QuadRule(ninputs)] +
-    [QuadRule(nquad) for kl in range(nlayers-1)] +
-    [QuadRule(noutputs)])
+quad_rules = (nlayers+1)*[GaussLegendreQuadratureRule(bounds=[0., 1.],
+                                                      backend=bkd)]
+quad_rules[0].set_nnodes(ninputs)
+for kl in range(nlayers-1):
+    quad_rules[kl].set_nnodes(nquad)
+quad_rules[-1].set_nnodes(noutputs)
 
 # Set the integral operators for each layer. They each need to know
 # two quadrature rules
 integral_ops = (
-    [TorchKernelIntegralOperator(
-        kernels[kk], quad_rules[kk], quad_rules[kk+1])
+    [KernelIntegralOperator(
+        kernels[kk], quad_rules[kk], quad_rules[kk+1], backend=bkd)
      for kk in range(len(kernels))])
 
 # Set the activations for each layer. The last layer has no activation function
@@ -227,22 +236,22 @@ ax.plot(abscissa[0], ctn_sol.numpy(), 'r--')
 plt.show()
 
 
-val_coef = np.random.normal(0, 1, (nfterms, ntrain_samples))
+val_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
 val_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in val_coef.T]
-val_samples = np.hstack([f(abscissa) for f in val_forc_funs])
-val_values = np.hstack(
+val_samples = bkd.hstack([f(abscissa) for f in val_forc_funs])
+val_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in val_forc_funs])
 ctn_sol = ctn(val_samples)
 exact_sol = val_values
-print(np.linalg.norm(ctn_sol.numpy().flatten()-exact_sol.flatten()) /
-      np.linalg.norm(exact_sol.flatten()))
+print(bkd.norm(ctn_sol.flatten()-exact_sol.flatten()) /
+      bkd.norm(exact_sol.flatten()))
 
 # %%
-# Plot the learnt kernel
-plot_xx = np.linspace(0, 1, 101)[None, :]
+# Plot the learned kernel
+plot_xx = bkd.linspace(0, 1, 101)[None, :]
 ax = plt.figure().gca()
-X, Y = np.meshgrid(plot_xx[0], plot_xx[0])
+X, Y = bkd.meshgrid(plot_xx[0], plot_xx[0])
 Z = final_kernel(plot_xx, plot_xx)
 im = ax.imshow(
     Z, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
@@ -256,7 +265,7 @@ print(const_kernel)
 print(hs_kernel)
 # The __repr__ function called by print(hs_kernel)
 # will not print all the weights because there are so many so call get_values
-if isinstance(hs_kernel, Legendre1DHilbertSchmidtKernel):
+if isinstance(hs_kernel, HilbertSchmidtKernel):
     print(hs_kernel._weights.get_values())
 
 
@@ -274,17 +283,17 @@ if isinstance(hs_kernel, Legendre1DHilbertSchmidtKernel):
 
 
 def greens_solution_fourier(kernel, forc, xx, N):
-    quad_xx, quad_ww = quad_rule.get_samples_weights()
-    coefs = np.fft.fft(kernel(quad_xx, xx).numpy(), axis=-1)
+    quad_xx, quad_ww = quad_rule()
+    coefs = bkd.fft(kernel(quad_xx, xx)[..., None], axis=(-2,))[..., 0]
     if N == 0:
         coefs[:, 1:] = 0
     else:
         coefs[:, N:-N+1] = 0
-    kvals = np.fft.ifft(coefs, axis=-1).T
-    return kvals*forc(quad_xx)[:, 0].numpy() @ quad_ww.numpy()
+    kvals = bkd.ifft(coefs[..., None], axis=(-2,))[..., 0].T.real
+    return kvals*forc(quad_xx)[:, 0] @ quad_ww
 
 
-plot_xx = np.arange(101)[None, :]/101
+plot_xx = bkd.arange(101, dtype=float)[None, :]/101
 green_sol = greens_solution_fourier(greens_fun, forc_fun, plot_xx, N=4)
 ax = plt.figure().gca()
 ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
@@ -297,18 +306,16 @@ plt.show()
 # %%
 # Now we'll do a Chebyshev transform and retain 7 coefficients.
 
-torchutils = TorchUtilitiesSciML()
-
 
 def greens_solution_chebyshev(kernel, forc, xx, N):
-    pts = (np.cos(np.arange(101)*np.pi/100)+1)/2
-    coefs = torchutils._sciml_fct(kernel(xx, pts[None, :]).T)[:N, :]
-    quad_xx, quad_ww = quad_rule.get_samples_weights()
-    basis = torchutils._sciml_chebyshev_poly_basis(2*quad_xx-1, N)
+    pts = (bkd.cos(bkd.arange(101, dtype=float)*pi/100)+1)/2
+    coefs = fct.fct(kernel(xx, pts[None, :]).T)[:N, :]
+    quad_xx, quad_ww = quad_rule()
+    basis = fct.chebyshev_poly_basis(2*quad_xx-1, N)
     return (basis.T @ coefs).T*(forc(quad_xx)[:, 0]) @ quad_ww
 
 
-plot_xx = np.linspace(0, 1, 101)[None, :]
+plot_xx = bkd.linspace(0, 1, 101)[None, :]
 green_sol = greens_solution_chebyshev(greens_fun, forc_fun, plot_xx, N=7)
 ax = plt.figure().gca()
 ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
@@ -333,19 +340,19 @@ plt.show()
 ntrain_samples = 10
 level = 5
 nx = 2**level + 1
-abscissa = 0.5*(1+np.cos(np.pi*np.arange(nx)/(nx-1))[None, :])
+abscissa = 0.5*(1+bkd.cos(pi*bkd.arange(nx, dtype=float)/(nx-1))[None, :])
 kmax = 6
 noutputs = abscissa.shape[1]
-train_coef = np.random.normal(0, 1, (nfterms, ntrain_samples))
+train_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
 train_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in train_coef.T]
-train_samples = np.hstack([f(abscissa) for f in train_forc_funs])
-train_values = np.hstack(
+train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
+train_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
 train_samples = train_samples[:, None, :]
 train_values = train_values[:, None, :]
 
-ctn = CERTANN(nx, [TorchChebyshevIntegralOperator(kmax, chol=False)],
+ctn = CERTANN(nx, [ChebyshevIntegralOperator(kmax, chol=False)],
               [IdentityActivation()])
 ctn.fit(train_samples, train_values, verbosity=1, tol=1e-14)
 
@@ -355,11 +362,11 @@ print(ctn)
 # Now let's see how the CERTANN does on a test set.
 
 ntest_samples = 5
-test_coef = np.random.normal(0, 1, (nfterms, ntest_samples))
+test_coef = bkd.normal(0, 1, (nfterms, ntest_samples))
 test_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in test_coef.T]
-test_samples = np.hstack([f(abscissa) for f in test_forc_funs])
-test_values = np.hstack(
+test_samples = bkd.hstack([f(abscissa) for f in test_forc_funs])
+test_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs])
 test_samples = test_samples[:, None, :]
 test_values = test_values[:, None, :]
@@ -375,8 +382,8 @@ plt.title(r'Exact $u$ (black), predicted $u$ (red), $k_\mathrm{max} = %d$' %
           kmax)
 plt.show()
 
-print('Relative error:', np.linalg.norm(
-    ctn_sol.numpy().flatten() - exact_sol.flatten()) / np.linalg.norm(
+print('Relative error:', bkd.norm(
+    ctn_sol.flatten() - exact_sol.flatten()) / bkd.norm(
     exact_sol.flatten()))
 
 
@@ -396,7 +403,7 @@ print('Relative error:', np.linalg.norm(
 
 # Convert parameters to matrix form
 cheb_U = ctn._hyp_list.get_values()
-U = np.zeros((kmax+1, kmax+1))
+U = bkd.zeros((kmax+1, kmax+1))
 c = 0
 diag_idx = range(kmax+1)
 for k in diag_idx:
@@ -405,14 +412,13 @@ for k in diag_idx:
 A = U.T + U
 A[diag_idx, diag_idx] = U[diag_idx, diag_idx]
 
-w = 1.0 / (1e-14+np.sqrt(1-(2*plot_xx[0]-1)**2))
+w = 1.0 / (1e-14+bkd.sqrt(1-(2*plot_xx[0]-1)**2))
 w[0] = (w[1] + (plot_xx[0, 2] - plot_xx[0, 1]) / (
     plot_xx[0, 0] - plot_xx[0, 1]) * (w[2] - w[1]))
 w[-1] = w[0]
-Phi = torchutils._sciml_chebyshev_poly_basis(2*asarray(plot_xx)-1.0,
-                                             kmax+1).numpy()
+Phi = fct.chebyshev_poly_basis(2*plot_xx-1.0, kmax+1)
 fig, ax = plt.subplots(1, 2)
-K = 2 * np.diag(w) @ (Phi.T @ (A @ Phi)) @ np.diag(w)
+K = 2 * bkd.diag(w) @ (Phi.T @ (A @ Phi)) @ bkd.diag(w)
 ax[0].imshow(
     K, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5)
 ax[1].imshow(
@@ -439,25 +445,25 @@ plt.show()
 level = 3
 nx = 2**level+1
 ntrain_samples = 40
-abscissa = 0.5*(1+np.cos(np.pi*np.arange(nx)/(nx-1))[None, :])
+abscissa = 0.5*(1+bkd.cos(pi*bkd.arange(nx, dtype=float)/(nx-1))[None, :])
 kmax = 6
 noutputs = abscissa.shape[1]
-train_coef = np.random.normal(0, 1, (nfterms, ntrain_samples))
+train_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
 train_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in train_coef.T]
-train_samples = np.hstack([f(abscissa) for f in train_forc_funs])
-train_values = np.hstack(
+train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
+train_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
 train_samples = train_samples[:, None, :]
 train_values = train_values[:, None, :]
 
 # Use 10 test samples with the same nodes as before
 ntest_samples = 10
-test_coef = np.random.normal(0, 1, (nfterms, ntest_samples))
+test_coef = bkd.normal(0, 1, (nfterms, ntest_samples))
 test_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in test_coef.T]
-test_samples = np.hstack([f(abscissa) for f in test_forc_funs])
-test_values = np.hstack(
+test_samples = bkd.hstack([f(abscissa) for f in test_forc_funs])
+test_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs])
 test_samples = test_samples[:, None, :]
 test_values = test_values[:, None, :]
@@ -470,13 +476,14 @@ print('---------------------------')
 cheb_size, cheb_err = [], []
 for kmax in range(0, 9, 2):
     ctn = CERTANN(
-        nx, [TorchChebyshevIntegralOperator(kmax)], [IdentityActivation()])
+        nx, [ChebyshevIntegralOperator(kmax, backend=bkd)],
+        [IdentityActivation()])
     ctn.fit(train_samples, train_values, tol=1e-10)
     approx_values = ctn(test_samples)
     cheb_size.append(ctn._hyp_list.get_values().shape[0])
     cheb_err.append(
-        np.linalg.norm((approx_values-test_values).flatten()) /
-        np.linalg.norm(test_values.flatten()))
+        bkd.norm((approx_values-test_values).flatten()) /
+        bkd.norm(test_values.flatten()))
     print('%8d     | %10.3e' % (cheb_size[-1], cheb_err[-1]))
 
 
@@ -488,16 +495,16 @@ print('Network size | Rel test err')
 print('---------------------------')
 mlp_size, mlp_err = [], []
 for width in range(4):
-    integralops = [TorchDenseAffineIntegralOperator(nx, width),
-                   TorchDenseAffineIntegralOperator(width, nx)]
+    integralops = [DenseAffineIntegralOperator(nx, width, backend=bkd),
+                   DenseAffineIntegralOperator(width, nx, backend=bkd)]
     activations = 2*[IdentityActivation()]
     ctn = CERTANN(nx, integralops, activations)
     ctn.fit(train_samples, train_values, tol=1e-14)
     approx_values = ctn(test_samples)
     mlp_size.append(ctn._hyp_list.get_values().shape[0])
     mlp_err.append(
-        np.linalg.norm((approx_values-test_values).flatten()) /
-        np.linalg.norm(test_values.flatten()))
+        bkd.norm((approx_values-test_values).flatten()) /
+        bkd.norm(test_values.flatten()))
     print('%8d     | %10.3e' % (mlp_size[-1], mlp_err[-1]))
 
 # %%
@@ -527,11 +534,11 @@ plt.show()
 # In this section, we will repeat the previous experiments using
 # (approximations of) Dirac delta functions as input functions:
 
-x = [0]
+x = bkd.asarray([0])
 nfterms = 40
-c = torchutils._sciml_chebyshev_poly_basis(asarray(x), nfterms).numpy()
-xx = np.linspace(-1, 1, 201)
-A = torchutils._sciml_chebyshev_poly_basis(asarray(xx), nfterms).numpy().T
+c = fct.chebyshev_poly_basis(x, nfterms)
+xx = bkd.linspace(-1, 1, 201)
+A = fct.chebyshev_poly_basis(xx, nfterms).T
 plt.plot(xx, A @ c)
 plt.ylim([-5, 25])
 plt.grid()
@@ -545,11 +552,9 @@ plt.show()
 def dirac_delta_approx(mass_points, eval_points):
     nterms = 50  # num Chebyshev polynomials to approximate Dirac delta
     mass_points_transformed = 2.0*mass_points-1.0
-    c = torchutils._sciml_chebyshev_poly_basis(
-            asarray(mass_points_transformed), nterms).numpy()
+    c = fct.chebyshev_poly_basis(mass_points_transformed, nterms)
     eval_points_transformed = 2.0*eval_points-1.0
-    Phi = torchutils._sciml_chebyshev_poly_basis(
-            asarray(eval_points_transformed), nterms).numpy().T
+    Phi = fct.chebyshev_poly_basis(eval_points_transformed, nterms).T
     return (Phi @ c)
 
 
@@ -559,14 +564,14 @@ level = 5
 nx = 2**level+1
 # Set the number of random training samples.
 ntrain_samples = 50
-abscissa = 0.5*(1+np.cos(np.pi*np.arange(nx)/(nx-1))[None, :])
+abscissa = 0.5*(1+bkd.cos(pi*bkd.arange(nx, dtype=float)/(nx-1))[None, :])
 kmax = 20
 noutputs = abscissa.shape[1]
-train_mass_pts = np.random.uniform(0, 1, (ntrain_samples,))
+train_mass_pts = bkd.uniform(0, 1, (ntrain_samples,))
 train_forc_funs = [
     partial(dirac_delta_approx, mass_pt) for mass_pt in train_mass_pts]
-train_samples = np.hstack([f(abscissa) for f in train_forc_funs])
-train_values = np.hstack(
+train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
+train_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
 train_samples = train_samples[:, None, :]
 train_values = train_values[:, None, :]
@@ -574,18 +579,18 @@ train_values = train_values[:, None, :]
 # %%
 # Now, train the CERTANN
 
-ctn = CERTANN(nx, [TorchChebyshevIntegralOperator(kmax)],
+ctn = CERTANN(nx, [ChebyshevIntegralOperator(kmax, backend=bkd)],
               [IdentityActivation()])
 ctn.fit(train_samples, train_values, tol=1e-12)
 
 # %%
 # Now let's see how the CERTANN does on a test set.
 
-test_mass_pts = np.random.uniform(0, 1, (5,))
+test_mass_pts = bkd.uniform(0, 1, (5,))
 test_forc_funs = [
     partial(dirac_delta_approx, mass_pt) for mass_pt in test_mass_pts]
-test_samples = np.hstack([f(abscissa) for f in test_forc_funs])
-test_values = np.hstack(
+test_samples = bkd.hstack([f(abscissa) for f in test_forc_funs])
+test_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs])
 test_samples = test_samples[:, None, :]
 test_values = test_values[:, None, :]
@@ -601,8 +606,8 @@ plt.title(r'Exact $u$ (black), predicted $u$ (red), $k_\mathrm{max} = %d$' %
           kmax)
 plt.show()
 
-print('Relative error:', np.linalg.norm(
-    ctn_sol.numpy().flatten() - exact_sol.flatten()) / np.linalg.norm(
+print('Relative error:', bkd.norm(
+    ctn_sol.flatten() - exact_sol.flatten()) / bkd.norm(
     exact_sol.flatten()))
 
 # %%
@@ -611,7 +616,7 @@ print('Relative error:', np.linalg.norm(
 
 # Convert parameters to matrix form
 cheb_U = ctn._hyp_list.get_values()
-U = np.zeros((kmax+1, kmax+1))
+U = bkd.zeros((kmax+1, kmax+1))
 c = 0
 diag_idx = range(kmax+1)
 for k in diag_idx:
@@ -620,14 +625,13 @@ for k in diag_idx:
 A = U.T + U
 A[diag_idx, diag_idx] = U[diag_idx, diag_idx]
 
-w = 1.0 / (1e-14+np.sqrt(1-(2*plot_xx[0]-1)**2))
+w = 1.0 / (1e-14+bkd.sqrt(1-(2*plot_xx[0]-1)**2))
 w[0] = (w[1] + (plot_xx[0, 2] - plot_xx[0, 1]) / (
     plot_xx[0, 0] - plot_xx[0, 1]) * (w[2] - w[1]))
 w[-1] = w[0]
-Phi = torchutils._sciml_chebyshev_poly_basis(2*asarray(plot_xx)-1.0,
-                                             kmax+1).numpy()
+Phi = fct.chebyshev_poly_basis(2*plot_xx-1.0, kmax+1)
 fig, ax = plt.subplots(1, 2)
-K = 2 * np.diag(w) @ (Phi.T @ (A @ Phi)) @ np.diag(w)
+K = 2 * bkd.diag(w) @ (Phi.T @ (A @ Phi)) @ bkd.diag(w)
 ax[0].imshow(
     K, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5)
 ax[1].imshow(
@@ -653,13 +657,14 @@ print('---------------------------')
 cheb_size, cheb_err = [], []
 for kmax in range(0, 21, 2):
     ctn = CERTANN(
-        nx, [TorchChebyshevIntegralOperator(kmax)], [IdentityActivation()])
+        nx, [ChebyshevIntegralOperator(kmax, backend=bkd)],
+        [IdentityActivation()])
     ctn.fit(train_samples, train_values, tol=1e-10)
     approx_values = ctn(test_samples)
     cheb_size.append(ctn._hyp_list.get_values().shape[0])
     cheb_err.append(
-        np.linalg.norm((approx_values-test_values).flatten()) /
-        np.linalg.norm(test_values.flatten()))
+        bkd.norm((approx_values-test_values).flatten()) /
+        bkd.norm(test_values.flatten()))
     cheb_U = ctn._hyp_list.get_values()
     print('%8d     | %10.3e' % (cheb_size[-1], cheb_err[-1]))
 
@@ -668,16 +673,16 @@ print('Network size | Rel test err')
 print('---------------------------')
 mlp_size, mlp_err = [], []
 for width in range(1, 4):
-    integralops = [TorchDenseAffineIntegralOperator(nx, width),
-                   TorchDenseAffineIntegralOperator(width, nx)]
+    integralops = [DenseAffineIntegralOperator(nx, width, backend=bkd),
+                   DenseAffineIntegralOperator(width, nx, backend=bkd)]
     activations = 2*[IdentityActivation()]
     ctn = CERTANN(nx, integralops, activations)
     ctn.fit(train_samples, train_values, tol=1e-10)
     approx_values = ctn(test_samples)
     mlp_size.append(ctn._hyp_list.get_values().shape[0])
     mlp_err.append(
-        np.linalg.norm((approx_values-test_values).flatten()) /
-        np.linalg.norm(test_values.flatten()))
+        bkd.norm((approx_values-test_values).flatten()) /
+        bkd.norm(test_values.flatten()))
     print('%8d     | %10.3e' % (mlp_size[-1], mlp_err[-1]))
 
 plt.semilogy(cheb_size, cheb_err, 'ko-', label='Chebyshev kernel', linewidth=2)
@@ -705,19 +710,19 @@ plt.show()
 
 nx = 128
 ntrain_samples = 50
-abscissa = np.linspace(0, 1, nx)[None, :]
+abscissa = bkd.linspace(0, 1, nx)[None, :]
 kmax = 12
 noutputs = abscissa.shape[1]
-train_mass_pts = np.random.uniform(0, 1, (ntrain_samples,))
+train_mass_pts = bkd.uniform(0, 1, (ntrain_samples,))
 train_forc_funs = [
     partial(dirac_delta_approx, mass_pt) for mass_pt in train_mass_pts]
-train_samples = np.hstack([f(abscissa) for f in train_forc_funs])
-train_values = np.hstack(
+train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
+train_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
 train_samples = train_samples[:, None, :]
 train_values = train_values[:, None, :]
 
-ctn = CERTANN(nx, [TorchFourierHSOperator(kmax, channel_coupling='diag')],
+ctn = CERTANN(nx, [FourierHSOperator(kmax, channel_coupling='diag')],
               [IdentityActivation()])
 
 ctn.fit(train_samples, train_values, tol=1e-6)
@@ -725,11 +730,11 @@ ctn.fit(train_samples, train_values, tol=1e-6)
 # %%
 # Now let's see how the Fourier basis does on a test set.
 
-test_mass_pts = np.random.uniform(0, 1, (5,))
+test_mass_pts = bkd.uniform(0, 1, (5,))
 test_forc_funs = [
     partial(dirac_delta_approx, mass_pt) for mass_pt in test_mass_pts]
-test_samples = np.hstack([f(abscissa) for f in test_forc_funs])
-test_values = np.hstack(
+test_samples = bkd.hstack([f(abscissa) for f in test_forc_funs])
+test_values = bkd.hstack(
     [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs])
 test_samples = test_samples[:, None, :]
 test_values = test_values[:, None, :]
@@ -745,7 +750,7 @@ plt.title('Fourier basis \n Exact $u$ (black), predicted $u$ (red), ' +
           r'$k_\mathrm{max} = %d$' % kmax)
 plt.show()
 
-print('Relative error:', np.linalg.norm(
-    ctn_sol.numpy().flatten() - exact_sol.flatten()) / np.linalg.norm(
+print('Relative error:', bkd.norm(
+    ctn_sol.flatten() - exact_sol.flatten()) / bkd.norm(
     exact_sol.flatten()))
 print('Network size:', ctn._hyp_list.get_values().shape[0])

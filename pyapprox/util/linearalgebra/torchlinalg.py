@@ -489,3 +489,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def double_type():
         return torch.double
+
+    @staticmethod
+    def gammaln(mat: torch.Tensor) -> torch.Tensor:
+        return torch.special.gammaln(mat)
