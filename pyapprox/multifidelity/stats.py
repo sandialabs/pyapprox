@@ -542,16 +542,24 @@ class MultiOutputMean(MultiOutputStatistic):
 
 
 class MultiOutputVariance(MultiOutputStatistic):
-    def __init__(self, nqoi, backend=None):
+    def __init__(self, nqoi, return_cov=True, backend=None):
         super().__init__(nqoi, backend)
 
         self._nmodels = None
         self._cov = None
         self._W = None
         self._V = None
+        self._return_cov = return_cov
 
     def sample_estimate(self, values):
-        return self._bkd.cov(values.T, ddof=1).flatten()
+        if self._return_cov:
+            return self._bkd.cov(values.T, ddof=1).flatten()
+        else:
+            cov = self._bkd.cov(values.T,ddof=1)
+            if self._bkd.ndim(cov) == 2:
+                return self._bkd.diag(cov)
+            else:
+                return cov.flatten()
 
     def high_fidelity_estimator_covariance(self, nhf_samples):
         return _covariance_of_variance_estimator(
