@@ -330,6 +330,57 @@ class RK4(ExplicitTimeIntegratorNewtonResidual):
         raise NotImplementedError
 
 
+class ImplicitMidpointResidual(TimeIntegratorNewtonResidual):
+    """
+    First order implicit midpoint rule. It is the   lowest order
+    Gauss-Legendre rule. All Gauss-Legendre rules are symplectic.
+
+    Note
+    ----
+    Necause midpoint rule assumes solution is linear between two time steps
+    y_{n+1/2} = 1/2(y_n+y_{n+1}).
+    Thus rearranging
+    y_{n+1}=2 y_{n+1/2} - y_n.
+    We can use backward euler to compute y_{n+1/2} so that
+    2 y_{n+1/2} - y_n = y_n + delta * G(t+delta/2, y_{n+1/2} so
+    y_{n+1/2} = y_n + delta / 2 * G(t+delta/2, y_{n+1/2}
+    so we can use newtons rule to solve for y_{n+1/2} i.e.
+    y_{n+1/2} - y_n - delta/2*G(t+delta/2, y_{n+1/2} = 0 then
+    correct via y_{n+1} = 2*y_{n+1/2}-y_n
+    """
+    def __call__(self, sol: Array) -> Array:
+        self.native_residual.set_time(self._time + self._deltat/2)
+        return sol - self._prev_sol - self._deltat * self.native_residual(
+            (self._prev_sol+sol)/2
+        )
+
+    def jacobian(self, sol: Array) -> Array:
+        self.native_residual.set_time(self._time + self._deltat / 2)
+        return (
+            self.native_residual.mass_matrix(sol.shape[0])
+            - self._deltat * self.native_residual.jacobian(
+                (self._prev_sol+sol)/2
+            )
+        )
+
+    def _param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
+        self.native_residual.set_time(self._time + self._deltat)
+        return -self._deltat * self.native_residual.param_jacobian(sol)
+
+    def quadrature_samples_weights(self, times):
+        node_gen = UnivariateTransientNodeGenerator(self._bkd)
+        node_gen.set_times(times)
+        quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
+            "midconst",
+            [times[0], times[-1]],
+            node_gen,
+            self._bkd,
+            store=True,
+        )(times.shape[0])
+        return quadx, quadw
+
+    # TODO adjoint functions require either passing in two forward solutions
+
 class Functional(ABC):
     def __init__(self, backend=NumpyLinAlgMixin):
         self._bkd = backend
