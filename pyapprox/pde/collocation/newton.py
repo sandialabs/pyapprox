@@ -192,6 +192,69 @@ class AdjointSolver:
         drdp = self._residual.param_jacobian(sol)
         return self.functional.qoi_param_jacobian(sol) + adj_sol @ drdp
 
+    def forward_hessian_solve(self, sol: Array, pvec: Array) -> Array:
+        # todo these have already been computed in adjoint solve
+        # so just reuse
+        drdu = self._residual.jacobian(sol)
+        drdp = self._residual.param_jacobian(sol)
+        return self._bkd.solve(drdu, drdp @ pvec)
+
+    def _lagrangian_state_state_hvp(
+            self, sol: Array, adj_sol: Array, wvec: Array
+    ) -> Array:
+        # L_yy.w, w = wvec
+        return (
+            self._functional.qoi_state_state_hvp(sol, wvec)
+            + self._residual._state_state_hvp(sol, adj_sol, wvec)
+        )
+
+    def _lagrangian_state_param_hvp(
+            self, sol: Array, adj_sol: Array, pvec: Array
+    ) -> Array:
+        # L_yu.v
+        return (
+            self._functional.qoi_state_param_hvp(sol, pvec)
+            + self._residual._state_param_hvp(sol, adj_sol, pvec)
+        )
+
+    def _lagrangian_param_state_hvp(
+            self, sol: Array, adj_sol: Array, wvec: Array
+    ) -> Array:
+        # L_uy.w, w = wvec
+        return (
+            self._functional.qoi_param_state_hvp(sol, wvec)
+            + self._residual._param_state_hvp(sol, adj_sol, wvec)
+        )
+
+    def _lagrangian_param_param_hvp(
+            self, sol: Array, adj_sol: Array, pvec: Array
+    ) -> Array:
+        # L_uu.v
+        return (
+            self._functional.qoi_param_param_hvp(sol, pvec)
+            + self._residual._param_param_hvp(sol, adj_sol, pvec)
+        )
+
+    def adjoint_hessian_solve(
+            self, sol: Array, wvec: Array, pvec: Array
+    ) -> Array:
+        drdu = self._residual.jacobian(sol).T
+        return self._bkd.solve(
+            drdu,
+            self._lagrangian_param_param_hvp(sol, wvec)
+            - self._lagrangian_state_param_hvp(sol, pvec)
+        )
+
+    def apply_hessian(self, sol: Array, adj_sol: Array, pvec: Array) -> Array:
+        wvec = self.forward_hessian_solve(sol, pvec)
+        svec = self.adjoint_hessian_solve(sol, wvec, pvec)
+        drdp = self._residual.param_jacobian(sol)
+        return (
+            drdp.T @ svec
+            - self._lagrangian_param_state_hvp(sol, adj_sol, wvec)
+            - self._lagrangian_param_param_hvp(sol, adj_sol, pvec)
+        )
+
     def __repr__(self):
         return "{0}(functional={1})".format(
             self.__class__.__name__, self.functional
