@@ -3,7 +3,9 @@ from typing import Tuple
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.pde.collocation.newton import NewtonSolver, NewtonResidual
+from pyapprox.pde.collocation.newton import (
+    NewtonSolver, NewtonResidual, Functional, AdjointFunctional
+)
 
 
 class TransientNewtonResidual(NewtonResidual):
@@ -21,18 +23,6 @@ class TransientNewtonResidual(NewtonResidual):
     def initial_param_jacobian(self):
         raise NotImplementedError
 
-    def _param_jacobian(self, sol: Array) -> Array:
-        """Gradient of residual with respect to parameters"""
-        raise NotImplementedError
-
-    def param_jacobian(self, sol: Array) -> Array:
-        if sol.ndim != 1:
-            raise ValueError("sol must be a 1d Array")
-        jac = self._param_jacobian(sol)
-        if jac.ndim != 2 or jac.shape[0] != sol.shape[0]:
-            raise RuntimeError(f"jac has the wrong shape {jac.shape}")
-        return jac
-
 
 class TimeIntegratorNewtonResidual(NewtonResidual):
     # This should only be derived on by developers implementing
@@ -49,7 +39,6 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
     def linsolve(self, sol: Array, res: Array):
         return self._bkd.solve(self.jacobian(sol), res)
 
-    @abstractmethod
     def _param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
         raise NotImplementedError
 
@@ -63,6 +52,10 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         if jac.ndim != 2 or jac.shape[0] != sol.shape[0]:
             raise RuntimeError(f"jac has the wrong shape {jac.shape}")
         return jac
+
+    @abstractmethod
+    def quadrature_samples_weights(self, times):
+        raise NotImplementedError
 
     def adjoint_initial_condition(
         self, final_fwd_sol: Array, final_dqdu: Array
@@ -148,6 +141,9 @@ class ExplicitTimeIntegratorNewtonResidual(TimeIntegratorNewtonResidual):
     ) -> Array:
         return -final_dqdu
 
+    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+        return self.native_residual.mass_matrix(fsol_n.shape[0]).T
+
 from pyapprox.surrogates.bases.univariate import (
     UnivariatePiecewisePolynomialNodeGenerator,
     UnivariatePiecewisePolynomialQuadratureRule,
@@ -188,9 +184,6 @@ class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
             self._bkd.hstack((quadx[0], times[-1])),
             self._bkd.hstack((quadw[:, 0], self._bkd.zeros((1,)))),
         )
-
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
-        return self.native_residual.mass_matrix(fsol_n.shape[0]).T
 
     def adjoint_offdiag_jacobian(
         self, fsol_n: Array, deltat_np1: float
@@ -266,14 +259,29 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
         ident = self._bkd.eye(sol.shape[0])
         return -(ident + 0.5 * self._deltat * (current_jac + next_jac))
 
-    def adjoint_diag_jacobian(self, prev_sol: Array, sol: Array) -> Array:
-        # TODO below will need to allow for assembly with FEM models
+    def adjoint_off_diag_jacobian(
+            self, fsol_n: Array, deltat_np1: float
+    ) -> Array:
+        #TODO
         self.native_residual.set_time(self._time)
-        current_jac = self.native_residual.param_jacobian(prev_sol)
+        current_jac = self.native_residual.param_jacobian(fsol_n)
         self.native_residual.set_time(self._time + self._deltat)
         next_jac = self.native_residual.param_jacobian(sol)
         ident = self._bkd.eye(sol.shape[0])
         return -(ident + 0.5 * self._deltat * (current_jac + next_jac))
+
+    def quadrature_samples_weights(self, times):
+        node_gen = UnivariateTransientNodeGenerator(self._bkd)
+        node_gen.set_times(times)
+        quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
+            "linear",
+            [times[0], times[-1]],
+            node_gen,
+            self._bkd,
+            store=True,
+        )(times.shape[0])
+        # right const rule does not return value at left end point so adjust
+        return quadx, quadw
 
 
 class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
@@ -381,68 +389,6 @@ class ImplicitMidpointResidual(TimeIntegratorNewtonResidual):
 
     # TODO adjoint functions require either passing in two forward solutions
 
-class Functional(ABC):
-    def __init__(self, backend=NumpyLinAlgMixin):
-        self._bkd = backend
-
-    @abstractmethod
-    def nstates(self) -> int:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def nparams(self) -> int:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _value(self, sol: Array) -> Array:
-        raise NotImplementedError
-
-    def __call__(self, sol: Array) -> Array:
-        if sol.ndim != 2 or sol.shape[0] != self.nstates():
-            raise ValueError("sol must be a 2d Array")
-        val = self._value(sol)
-        if val.ndim != 1:
-            raise RuntimeError(f"{self} must return a 1D array")
-        return val
-
-    def __repr__(self):
-        return "{0}(nstates={1}, nparams={2})".format(
-            self.__class__.__name__, self.nstates(), self.nparams()
-        )
-
-
-class AdjointFunctional(Functional):
-    @abstractmethod
-    def _qoi_sol_jacobian(self, sol: Array) -> Array:
-        raise NotImplementedError
-
-    def qoi_sol_jacobian(self, sol: Array) -> Array:
-        """Gradient of qoi with respect to solution"""
-        if sol.ndim != 2 or sol.shape[0] != self.nstates():
-            raise ValueError("sol must be a 2d Array")
-        jac = self._qoi_sol_jacobian(sol)
-        if jac.shape[1] != sol.shape[1]:
-            raise RuntimeError("jac has the wrong shape")
-        return jac
-
-    @abstractmethod
-    def _qoi_param_jacobian(self, sol: Array) -> Array:
-        raise NotImplementedError
-
-    def qoi_param_jacobian(self, sol: Array) -> Array:
-        """Gradient of QoI with respect to parameters"""
-        if sol.ndim != 2 or sol.shape[0] != self.nstates():
-            raise ValueError("sol must be a 2d Array")
-        jac = self._qoi_param_jacobian(sol)
-        if jac.ndim != 1 or jac.shape[0] != self.nparams():
-            raise RuntimeError("jac has the wrong shape")
-        return jac
-
-    def set_param(self, param: Array):
-        if param.ndim != 1:
-            raise ValueError("param must be a 1D Array")
-        self._param = param
-
 
 class TransientFunctionalMixin:
     def set_quadrature_sample_weights(self, quadx, quadw):
@@ -455,7 +401,23 @@ class TransientFuncional(Functional, TransientFunctionalMixin):
 
 
 class TransientAdjointFunctional(AdjointFunctional, TransientFunctionalMixin):
-    pass
+    def qoi_sol_jacobian(self, sol: Array) -> Array:
+        """Gradient of qoi with respect to solution"""
+        if sol.ndim != 2 or sol.shape[0] != self.nstates():
+            raise ValueError("sol must be a 2d Array")
+        jac = self._qoi_sol_jacobian(sol)
+        if jac.ndim != 2 or jac.shape[1] != sol.shape[1]:
+            raise RuntimeError("jac has the wrong shape")
+        return jac
+
+    def qoi_param_jacobian(self, sol: Array) -> Array:
+        """Gradient of QoI with respect to parameters"""
+        if sol.ndim != 2 or sol.shape[0] != self.nstates():
+            raise ValueError("sol must be a 2d Array")
+        jac = self._qoi_param_jacobian(sol)
+        if jac.ndim != 1 or jac.shape[0] != self.nparams():
+            raise RuntimeError("jac has the wrong shape")
+        return jac
 
 
 class ImplicitTimeIntegrator:
@@ -578,6 +540,8 @@ class ImplicitTimeIntegrator:
         # copy required when using torch
         self._time = self._bkd.copy(times)[-1]
         # todo compute dqdu at each time step rather than all upfront
+        if not hasattr(self, "_functional"):
+            raise RuntimeError("must call set_functional")
         dqdu = self._functional.qoi_sol_jacobian(fwd_sols)
         adj_sols = self._bkd.empty(fwd_sols.shape)
         deltat_n = times[-1] - times[-2]
@@ -630,72 +594,13 @@ class ImplicitTimeIntegrator:
             grad += adj_sols[:, ii] @ drdp
         return self._bkd.atleast2d(grad)
 
-
-from pyapprox.interface.model import SingleSampleModel
-
-
-class AdjointModel(SingleSampleModel):
-    def __init__(self, backend=NumpyLinAlgMixin):
-        super().__init__(backend)
-        self._jacobian_implemented = True
-        self._setup_residual()
-        self._setup_functional()
-
-    def nqoi(self):
-        return 1
-
-    @abstractmethod
-    def _fwd_solve(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def _gradient(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def _setup_residual(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def _setup_functional(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def set_param(self):
-        raise NotImplementedError
-
-    def _evaluate(self, sample: Array) -> Array:
-        self._sample = sample
-        self.set_param(sample)
-        self._fwd_solve()
-        self.functional.set_quadrature_sample_weights(
-            *self._time_int.newton_solver._residual.quadrature_samples_weights(
-                self._times
-            )
+    def __repr__(self):
+        return (
+            "{0}(init_time={1}, final_time={2}, deltat={3}, residual={4})"
+        ).format(
+            self.__class__.__name__,
+            self._init_time,
+            self._final_time,
+            self._deltat,
+            self.time_residual._residual,
         )
-        return self.functional(self._sols)[None, :]
-
-    def _jacobian(self, sample: Array):
-        if not hasattr(self, "_sample") or not self._bkd.allclose(
-            sample, self._sample, atol=1e-15
-        ):
-            self._evaluate(sample)
-        return self._time_int.gradient(self._sols, self._times)
-
-
-class TransientAdjointModel(AdjointModel):
-    def __init__(self, backend=NumpyLinAlgMixin):
-        super().__init__(backend)
-        self._setup_time_integrator()
-        self._time_int.set_functional(self.functional)
-
-    @abstractmethod
-    def _setup_time_integrator(self):
-        raise NotImplementedError
-
-    def _fwd_solve(self):
-        init_sol = self.get_initial_solution()
-        self._sols, self._times = self._time_int.solve(init_sol)
-
-    def _gradient(self):
-        return self._time_int.gradient(self._sols, self._times)
