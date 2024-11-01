@@ -38,6 +38,58 @@ class NewtonResidual(ABC):
             raise RuntimeError(f"jac has the wrong shape {jac.shape}")
         return jac
 
+    def _param_param_hvp(
+        self, fwd_sol: Array, adj_sol: Array, vvec: Array
+    ) -> Array:
+        raise NotImplementedError
+
+    def param_param_hvp(
+        self, fwd_sol: Array, adj_sol: Array, vvec: Array
+    ) -> Array:
+        hvp = self._param_param_hvp(fwd_sol, adj_sol, vvec)
+        if hvp.ndim != 1:
+            raise RuntimeError("_param_param_hvp must return 1D array")
+        return hvp
+
+    def _state_state_hvp(
+        self, fwd_sol: Array, adj_sol: Array, wvec: Array
+    ) -> Array:
+        raise NotImplementedError
+
+    def state_state_hvp(
+        self, fwd_sol: Array, adj_sol: Array, wvec: Array
+    ) -> Array:
+        hvp = self._state_state_hvp(fwd_sol, adj_sol, wvec)
+        if hvp.ndim != 1 or hvp.shape[0] != fwd_sol.shape[0]:
+            raise RuntimeError("_state_state_hvp must return 1D array")
+        return hvp
+
+    def _param_state_hvp(
+        self, fwd_sol: Array, adj_sol: Array, wvec: Array
+    ) -> Array:
+        raise NotImplementedError
+
+    def param_state_hvp(
+        self, fwd_sol: Array, adj_sol: Array, wvec: Array
+    ) -> Array:
+        hvp = self._param_state_hvp(fwd_sol, adj_sol, wvec)
+        if hvp.ndim != 1:
+            raise RuntimeError("_param_state_hvp must return 1D array")
+        return hvp
+
+    def _state_param_hvp(
+        self, fwd_sol: Array, adj_sol: Array, vvec: Array
+    ) -> Array:
+        raise NotImplementedError
+
+    def state_param_hvp(
+        self, fwd_sol: Array, adj_sol: Array, vvec: Array
+    ) -> Array:
+        hvp = self._state_param_hvp(fwd_sol, adj_sol, vvec)
+        if hvp.ndim != 1 or hvp.shape[0] != fwd_sol.shape[0]:
+            raise RuntimeError("_state_param_hvp must return 1D array")
+        return hvp
+
 
 class NewtonSolver:
     def __init__(
@@ -172,87 +224,142 @@ class AdjointFunctional(Functional):
             raise ValueError("param must be a 1D Array")
         self._param = param
 
+    @abstractmethod
+    def _qoi_param_param_hvp(self, sol: Array, vvec: Array) -> Array:
+        raise NotImplementedError
+
+    def qoi_param_param_hvp(self, sol: Array, vvec: Array) -> Array:
+        hvp = self._qoi_param_param_hvp(sol, vvec)
+        if hvp.ndim != 1:
+            raise RuntimeError("_qoi_param_param_hvp must return 1D array")
+        return hvp
+
+    @abstractmethod
+    def _qoi_state_state_hvp(self, sol: Array, wvec: Array) -> Array:
+        raise NotImplementedError
+
+    def qoi_state_state_hvp(self, sol: Array, wvec: Array) -> Array:
+        hvp = self._qoi_state_state_hvp(sol, wvec)
+        if hvp.ndim != 1:
+            raise RuntimeError("_qoi_state_state_hvp must return 1D array")
+        return hvp
+
+    @abstractmethod
+    def _qoi_state_param_hvp(self, sol: Array, vvec: Array) -> Array:
+        raise NotImplementedError
+
+    def qoi_state_param_hvp(self, sol: Array, vvec: Array) -> Array:
+        hvp = self._qoi_state_param_hvp(sol, vvec)
+        if hvp.ndim != 1:
+            raise RuntimeError("_qoi_state_param_hvp must return 1D array")
+        return hvp
+
+    @abstractmethod
+    def _qoi_param_state_hvp(self, sol: Array, wvec: Array) -> Array:
+        raise NotImplementedError
+
+    def qoi_param_state_hvp(self, sol: Array, wvec: Array) -> Array:
+        hvp = self._qoi_param_state_hvp(sol, wvec)
+        if hvp.ndim != 1:
+            raise RuntimeError("_qoi_param_state_hvp must return 1D array")
+        return hvp
+
 
 class AdjointSolver:
     def __init__(
-            self, newton_solver: NewtonSolver, functional: AdjointFunctional
+        self, newton_solver: NewtonSolver, functional: AdjointFunctional
     ):
         self._bkd = newton_solver._bkd
         self._residual = newton_solver._residual
-        self.newton_solver = newton_solver
-        self.functional = functional
+        self._newton_solver = newton_solver
+        self._functional = functional
 
-    def solve_adjoint(self, sol: Array) -> Array:
-        drdu = self._residual.jacobian(sol)
-        dqdu = self.functional.qoi_sol_jacobian(sol)
-        return self._bkd.solve(drdu.T, -dqdu)
+        self._fwd_sol_param = None
+        self._adj_sol_param = None
 
-    def gradient(self, sol: Array) -> Array:
-        adj_sol = self.solve_adjoint(sol)
-        drdp = self._residual.param_jacobian(sol)
-        return self.functional.qoi_param_jacobian(sol) + adj_sol @ drdp
+    def set_param(self, param: Array):
+        self._param = param
+        self._residual.set_param(param)
+        self._functional.set_param(param)
 
-    def forward_hessian_solve(self, sol: Array, pvec: Array) -> Array:
-        # todo these have already been computed in adjoint solve
-        # so just reuse
-        drdu = self._residual.jacobian(sol)
-        drdp = self._residual.param_jacobian(sol)
-        return self._bkd.solve(drdu, drdp @ pvec)
+    def set_initial_iterate(self, iterate: Array):
+        if iterate.ndim != 1:
+            raise ValueError("iterate must return 1D array")
+        self._init_iterate = iterate
 
-    def _lagrangian_state_state_hvp(
-            self, sol: Array, adj_sol: Array, wvec: Array
-    ) -> Array:
+    def forward_solve(self):
+        if not hasattr(self, "_init_iterate"):
+            raise RuntimeError("must call set_initial_iterate")
+        self._fwd_sol = self._newton_solver.solve(self._init_iterate)
+        self._fwd_sol_param = self._bkd.copy(self._param)
+        return self._fwd_sol
+
+    def solve_adjoint(self) -> Array:
+        if self._fwd_sol_param is None or not self._bkd.allclose(
+            self._fwd_sol_param, self._param, atol=1e-15, rtol=1e-15
+        ):
+            self.forward_solve()
+        self._drdy = self._residual.jacobian(self._fwd_sol)
+        dqdy = self._functional.qoi_sol_jacobian(self._fwd_sol)
+        self._adj_sol = self._bkd.solve(self._drdy.T, -dqdy)
+        self._adj_sol_param = self._bkd.copy(self._param)
+        return self._adj_sol
+
+    def gradient(self) -> Array:
+        self.solve_adjoint()
+        self._drdp = self._residual.param_jacobian(self._fwd_sol)
+        return (
+            self._functional.qoi_param_jacobian(self._fwd_sol)
+            + self._adj_sol @ self._drdp
+        )
+
+    def forward_hessian_solve(self, vvec: Array) -> Array:
+        self._drdp = self._residual.param_jacobian(self._fwd_sol)
+        return self._bkd.solve(self._drdy, self._drdp @ vvec)
+
+    def _lagrangian_state_state_hvp(self, wvec: Array) -> Array:
         # L_yy.w, w = wvec
-        return (
-            self._functional.qoi_state_state_hvp(sol, wvec)
-            + self._residual._state_state_hvp(sol, adj_sol, wvec)
-        )
+        return self._functional.qoi_state_state_hvp(
+            self._fwd_sol, wvec
+        ) + self._residual.state_state_hvp(self._fwd_sol, self._adj_sol, wvec)
 
-    def _lagrangian_state_param_hvp(
-            self, sol: Array, adj_sol: Array, pvec: Array
-    ) -> Array:
-        # L_yu.v
-        return (
-            self._functional.qoi_state_param_hvp(sol, pvec)
-            + self._residual._state_param_hvp(sol, adj_sol, pvec)
-        )
+    def _lagrangian_state_param_hvp(self, vvec: Array) -> Array:
+        # L_yp.v
+        return self._functional.qoi_state_param_hvp(
+            self._fwd_sol, vvec
+        ) + self._residual.state_param_hvp(self._fwd_sol, self._adj_sol, vvec)
 
-    def _lagrangian_param_state_hvp(
-            self, sol: Array, adj_sol: Array, wvec: Array
-    ) -> Array:
-        # L_uy.w, w = wvec
-        return (
-            self._functional.qoi_param_state_hvp(sol, wvec)
-            + self._residual._param_state_hvp(sol, adj_sol, wvec)
-        )
+    def _lagrangian_param_state_hvp(self, wvec: Array) -> Array:
+        # L_py.w, w = wvec
+        return self._functional.qoi_param_state_hvp(
+            self._fwd_sol, wvec
+        ) + self._residual.param_state_hvp(self._fwd_sol, self._adj_sol, wvec)
 
-    def _lagrangian_param_param_hvp(
-            self, sol: Array, adj_sol: Array, pvec: Array
-    ) -> Array:
-        # L_uu.v
-        return (
-            self._functional.qoi_param_param_hvp(sol, pvec)
-            + self._residual._param_param_hvp(sol, adj_sol, pvec)
-        )
+    def _lagrangian_param_param_hvp(self, vvec: Array) -> Array:
+        # L_pp.v
+        return self._functional.qoi_param_param_hvp(
+            self._fwd_sol, vvec
+        ) + self._residual.param_param_hvp(self._fwd_sol, self._adj_sol, vvec)
 
-    def adjoint_hessian_solve(
-            self, sol: Array, wvec: Array, pvec: Array
-    ) -> Array:
-        drdu = self._residual.jacobian(sol).T
+    def adjoint_hessian_solve(self, wvec: Array, vvec: Array) -> Array:
         return self._bkd.solve(
-            drdu,
-            self._lagrangian_param_param_hvp(sol, wvec)
-            - self._lagrangian_state_param_hvp(sol, pvec)
+            self._drdy.T,
+            self._lagrangian_state_state_hvp(wvec)
+            - self._lagrangian_state_param_hvp(vvec),
         )
 
-    def apply_hessian(self, sol: Array, adj_sol: Array, pvec: Array) -> Array:
-        wvec = self.forward_hessian_solve(sol, pvec)
-        svec = self.adjoint_hessian_solve(sol, wvec, pvec)
-        drdp = self._residual.param_jacobian(sol)
+    def apply_hessian(self, vvec: Array) -> Array:
+        if self._adj_sol_param is None or not self._bkd.allclose(
+            self._adj_sol_param, self._param, atol=1e-15, rtol=1e-15
+        ):
+            self.solve_adjoint()
+
+        wvec = self.forward_hessian_solve(vvec)
+        svec = self.adjoint_hessian_solve(wvec, vvec)
         return (
-            drdp.T @ svec
-            - self._lagrangian_param_state_hvp(sol, adj_sol, wvec)
-            - self._lagrangian_param_param_hvp(sol, adj_sol, pvec)
+            self._drdp.T @ svec
+            - self._lagrangian_param_state_hvp(wvec)
+            + self._lagrangian_param_param_hvp(vvec)
         )
 
     def __repr__(self):

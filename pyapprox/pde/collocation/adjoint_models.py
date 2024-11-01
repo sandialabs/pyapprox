@@ -37,7 +37,6 @@ class AdjointModel(SingleSampleModel):
         raise NotImplementedError
 
     def _evaluate(self, sample: Array) -> Array:
-        self._sample = sample
         self._set_param(sample[:, 0])
         self._fwd_solve()
         return self._eval_functional()
@@ -47,11 +46,15 @@ class AdjointModel(SingleSampleModel):
         raise NotImplementedError
 
     def _jacobian(self, sample: Array):
-        if not hasattr(self, "_sample") or not self._bkd.allclose(
-            sample, self._sample, atol=1e-15
-        ):
-            self._evaluate(sample)
+        self._set_param(sample[:, 0])
         return self._jacobian_from_adjoint()
+
+    def _apply_hessian_from_adjoint(self, vec: Array):
+        raise NotImplementedError("_hessian_from_adjoint not implemented")
+
+    def _apply_hessian(self, sample: Array, vec: Array):
+        self._set_param(sample[:, 0])
+        return self._apply_hessian_from_adjoint(vec[:, 0])
 
 
 class SteadyAdjointModel(AdjointModel):
@@ -77,27 +80,26 @@ class SteadyAdjointModel(AdjointModel):
             self._newton_solver, self._functional
         )
 
-    def _set_param(self, param: Array):
-        self._residual.set_param(param)
-        self._functional.set_param(param)
-
     @abstractmethod
     def get_initial_iterate(self) -> Array:
         raise NotImplementedError
 
+    def _set_param(self, param: Array):
+        self._adjoint_solver.set_param(param)
+
     def _fwd_solve(self):
-        initial_iterate = self.get_initial_iterate()
-        if initial_iterate.ndim != 1:
-            raise ValueError(
-                "get_initial_iterate() must return 1D array"
-            )
-        self._sol = self._newton_solver.solve(initial_iterate)
+        self._adjoint_solver.forward_solve()
 
     def _eval_functional(self):
-        return self._functional(self._sol[:, None])[None, :]
+        return self._adjoint_solver._functional(
+            self._adjoint_solver._fwd_sol[:, None]
+        )[None, :]
 
     def _jacobian_from_adjoint(self):
-        return self._adjoint_solver.gradient(self._sol)[None, :]
+        return self._adjoint_solver.gradient()[None, :]
+
+    def _apply_hessian_from_adjoint(self, vec: Array):
+        return self._adjoint_solver.apply_hessian(vec)
 
     def __repr__(self):
         return "{0}(residual={1}, functional={2})".format(
@@ -114,14 +116,16 @@ class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
             functional: AdjointFunctional,
             init_iterate: Array,
             newton_solver: NewtonSolver = None,
+            apply_hessian_implemented=False,
             backend: LinAlgMixin = NumpyLinAlgMixin
     ):
         super().__init__(
             residual, functional, newton_solver, backend
         )
+        self._apply_hessian_implemented = apply_hessian_implemented
         if init_iterate.ndim != 1:
             raise ValueError("init_iterate must be 1D Array")
-        self._init_iterate = init_iterate
+        self._adjoint_solver.set_initial_iterate(init_iterate)
 
     def get_initial_iterate(self) -> Array:
         return self._init_iterate
