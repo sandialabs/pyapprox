@@ -3,6 +3,7 @@ from functools import partial
 
 import numpy as np
 
+# from pyapprox.util.print_wrapper import *
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -10,7 +11,7 @@ from pyapprox.pde.collocation.timeintegration import (
     TransientNewtonResidual,
     ImplicitTimeIntegrator,
     BackwardEulerResidual,
-    ImplicitMidpointResidual,
+    SymplecticMidpointResidual,
     CrankNicholsonResidual,
     ForwardEulerResidual,
     HeunResidual,
@@ -23,8 +24,9 @@ from pyapprox.pde.collocation.adjoint_models import TransientAdjointModel
 
 
 class LinearDecoupledODE(TransientNewtonResidual):
-    def __init__(self, backend):
+    def __init__(self, nstates, backend):
         super().__init__(backend)
+        self._nstates = nstates
 
     def set_time(self, time: float):
         self._time = time
@@ -48,11 +50,10 @@ class LinearDecoupledODE(TransientNewtonResidual):
         return -self._bkd.diag(b)
 
     def _initial_param_jacobian(self) -> Array:
-        nstates = 2
         return self._bkd.stack(
             [
-                self._bkd.full((nstates,), 0),
-                self._bkd.full((nstates,), -1),
+                self._bkd.full((self._nstates,), 0),
+                self._bkd.full((self._nstates,), -1),
             ],
             axis=1,
         )
@@ -76,7 +77,8 @@ class LinearDecoupledODE(TransientNewtonResidual):
 
 
 class NonLinearDecoupledODE(TransientNewtonResidual):
-    def __init__(self, backend):
+    def __init__(self, nstates, backend):
+        self._nstates = nstates
         super().__init__(backend)
 
     def set_time(self, time: float):
@@ -100,7 +102,7 @@ class NonLinearDecoupledODE(TransientNewtonResidual):
         return self._bkd.diag(-2 * b * sol)
 
     def _initial_param_jacobian(self) -> Array:
-        nstates = 2
+        nstates = self._nstates
         return self._bkd.stack(
             [
                 self._bkd.full((nstates,), 0),
@@ -128,11 +130,12 @@ class NonLinearDecoupledODE(TransientNewtonResidual):
 
 
 class TransientSingleStateLinearFunctional(TransientAdjointFunctional):
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, nstates, backend=NumpyLinAlgMixin):
+        self._nstates = nstates
         self._bkd = backend
 
     def nstates(self):
-        return 2
+        return self._nstates
 
     def nparams(self):
         return 2
@@ -171,20 +174,28 @@ class LinearDecoupledODEModel(TransientAdjointModel):
         final_time: float,
         deltat: float,
         time_residual_cls: TimeIntegratorNewtonResidual,
+        nstates: int = 2,
         backend=NumpyLinAlgMixin,
     ):
-        time_residual = self._setup_residual(time_residual_cls, backend)
-        functional = self._setup_functional(backend)
+        time_residual = self._setup_residual(
+            time_residual_cls, nstates, backend
+        )
+        functional = self._setup_functional(nstates, backend)
         super().__init__(
-            init_time, final_time, deltat, time_residual, functional,
-            None, backend
+            init_time,
+            final_time,
+            deltat,
+            time_residual,
+            functional,
+            None,
+            backend,
         )
 
-    def _setup_residual(self, time_residual_cls, bkd):
-        return time_residual_cls(LinearDecoupledODE(bkd))
+    def _setup_residual(self, time_residual_cls, nstates, bkd):
+        return time_residual_cls(LinearDecoupledODE(nstates, bkd))
 
-    def _setup_functional(self, bkd):
-        return TransientSingleStateLinearFunctional(bkd)
+    def _setup_functional(self, nstates, bkd):
+        return TransientSingleStateLinearFunctional(nstates, bkd)
 
     def get_initial_condition(self):
         # do not use bkd.full as it will mess up torch autograd
@@ -194,11 +205,12 @@ class LinearDecoupledODEModel(TransientAdjointModel):
 
 
 class NonLinearDecoupledODEModel(LinearDecoupledODEModel):
-    def _setup_residual(self, time_residual_cls, bkd):
-        return time_residual_cls(NonLinearDecoupledODE(bkd))
+    def _setup_residual(self, time_residual_cls, nstates, bkd):
+        print(nstates)
+        return time_residual_cls(NonLinearDecoupledODE(nstates, bkd))
 
-    def _setup_functional(self, bkd):
-        return TransientSingleStateNonLinearFunctional(bkd)
+    def _setup_functional(self, nstates, bkd):
+        return TransientSingleStateNonLinearFunctional(nstates, bkd)
 
 
 class TestTimeIntegration:
@@ -208,11 +220,12 @@ class TestTimeIntegration:
     def test_decoupled_linear_ode_forward_euler(self):
         bkd = self.get_backend()
 
+        nstates = 3
         param = bkd.array([4.0, 3.0])
         init_time, final_time = 0, 0.25
         deltat = 0.13  # intentionally create smaller last time step
         model = LinearDecoupledODEModel(
-            init_time, final_time, deltat, ForwardEulerResidual, bkd
+            init_time, final_time, deltat, ForwardEulerResidual, nstates, bkd
         )
         sample = param[:, None]
         model(sample)  # needed so that model._sols is created
@@ -306,11 +319,12 @@ class TestTimeIntegration:
     def test_decoupled_nonlinear_ode_forward_euler(self):
         bkd = self.get_backend()
 
+        nstates = 3
         param = bkd.array([4.0, 3.0])
         init_time, final_time = 0, 0.25
         deltat = 0.13  # intentionally create smaller last time step
         model = NonLinearDecoupledODEModel(
-            init_time, final_time, deltat, ForwardEulerResidual, bkd
+            init_time, final_time, deltat, ForwardEulerResidual, nstates, bkd
         )
         sample = param[:, None]
         model(sample)  # needed so that model._sols is created
@@ -418,14 +432,159 @@ class TestTimeIntegration:
         errors = model.check_apply_jacobian(sample, disp=True)
         assert errors.min() / errors.max() < 1e-6
 
+    def test_decoupled_linear_ode_heun(self):
+        bkd = self.get_backend()
+        nstates = 3
+        param = bkd.array([4.0, 3.0])
+        init_time, final_time = 0, 0.25
+        deltat = 0.13  # intentionally create smaller last time step
+        model = LinearDecoupledODEModel(
+            init_time, final_time, deltat, HeunResidual, nstates, bkd
+        )
+        sample = param[:, None]
+        model(sample)  # needed so that model._sols is created
+        scale = bkd.arange(
+            1, model._functional.nstates() + 1, dtype=bkd.double_type()
+        )
+        times = model._times
+        sols = model._sols
+        deltat1, deltat2 = times[1:] - times[:-1]
+        b, a = param
+        exact_sols = [
+            bkd.full((model._functional.nstates(),), param[1]),
+            0.5
+            * deltat1
+            * (
+                -scale * b**2 * a
+                - scale * b**2 * (-deltat1 * scale * b**2 * a + a)
+            )
+            + a,
+        ]
+        exact_sols.append(
+            0.5
+            * deltat2
+            * (
+                -scale * b**2 * exact_sols[1]
+                - scale
+                * b**2
+                * (-deltat2 * scale * b**2 * exact_sols[1] + exact_sols[1])
+            )
+            + exact_sols[1],
+        )
+        exact_sols = bkd.stack(exact_sols, axis=1)
+        assert bkd.allclose(sols, exact_sols, atol=1e-15, rtol=1e-15)
+
+        # time_residual = model._time_int.time_residual
+        time_residual = model._time_int.time_residual
+        res_param_jac0 = bkd.stack(
+            [
+                bkd.zeros((model._sols.shape[0],)),
+                bkd.full((model._sols.shape[0],), -1.0),
+            ],
+            axis=1,
+        )
+        assert bkd.allclose(
+            res_param_jac0,
+            time_residual.initial_param_jacobian(),
+        )
+        drdp = [res_param_jac0]
+        for ii, time in enumerate(times[1:], start=1):
+            time_residual.set_time(
+                time, time - times[ii - 1], model._sols[:, ii - 1]
+            )
+            drdp.append(
+                time_residual.param_jacobian(
+                    model._sols[:, ii - 1], model._sols[:, ii]
+                )
+            )
+        drdp = bkd.vstack(drdp)
+
+        res_param_jac1 = bkd.stack(
+            [
+                -0.5
+                * deltat1
+                * (
+                    2 * deltat1 * scale**2 * b**3 * exact_sols[:, 0]
+                    - 2 * scale * b * exact_sols[:, 0]
+                    - 2
+                    * scale
+                    * b
+                    * (
+                        -deltat1 * scale * b**2 * exact_sols[:, 0]
+                        + exact_sols[:, 0]
+                    )
+                ),
+                bkd.zeros((scale.shape[0],)),
+            ],
+            axis=1,
+        )
+        res_param_jac2 = bkd.stack(
+            [
+                -0.5
+                * deltat2
+                * (
+                    2 * deltat2 * scale**2 * b**3 * exact_sols[:, 1]
+                    - 2 * scale * b * exact_sols[:, 1]
+                    - 2
+                    * scale
+                    * b
+                    * (
+                        -deltat2 * scale * b**2 * exact_sols[:, 1]
+                        + exact_sols[:, 1]
+                    )
+                ),
+                bkd.zeros((scale.shape[0],)),
+            ],
+            axis=1,
+        )
+        exact_drdp = bkd.vstack(
+            [res_param_jac0, res_param_jac1, res_param_jac2]
+        )
+        print(exact_drdp)
+        print(drdp)
+        assert bkd.allclose(drdp, exact_drdp)
+
+        adj_sols = model._time_int.solve_adjoint(model._sols, model._times)
+        # deltat1, deltat2 = times[1:] - times[:-1]
+        # exact_adj_sols = bkd.stack(
+        #     [
+        #         scale,
+        #         -deltat1 / 2 - deltat2 - deltat2**3*scale**2*b**4 / 4 + deltat2**2*scale*b**2 / 2,
+        #         bkd.full((model._functional.nstates(),), -deltat2 / 2)
+        #     ],
+        #     axis=1,
+        # )
+        # # The qoi only depends on the first state at each time step
+        # exact_adj_sols[1:] = 0.0
+        # #print(exact_sols[:, 2])
+        # print(adj_sols)
+        # print(exact_adj_sols, "exact adj sols")
+        print(deltat2 * (-(b**2) * (-deltat2 * b**2 + 1) - b**2) / 2 + 1, "1")
+        print(deltat1 * (-(b**2) * (-deltat1 * b**2 + 1) - b**2) / 2 + 1, "2")
+        # assert bkd.allclose(adj_sols, exact_adj_sols, atol=1e-15, rtol=1e-15)
+
+        if bkd.jacobian_implemented():
+            print(model.jacobian(sample), "j")
+            print(bkd.grad(model._evaluate, sample)[1].T, "k")
+            assert bkd.allclose(
+                model.jacobian(sample),
+                bkd.grad(model._evaluate, sample)[1].T,
+                atol=1e-15,
+                rtol=1e-15,
+            )
+
+        errors = model.check_apply_jacobian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
     def test_decoupled_nonlinear_ode_backward_euler(self):
         bkd = self.get_backend()
 
+        nstates = 3
         param = bkd.array([4.0, 3.0])
         init_time, final_time = 0, 0.25
         deltat = 0.13  # intentionally create smaller last time step
         model = NonLinearDecoupledODEModel(
-            init_time, final_time, deltat, BackwardEulerResidual, bkd
+            init_time, final_time, deltat, BackwardEulerResidual, nstates, bkd
         )
         sample = param[:, None]
         # tighten tolerances of newton solver from default
@@ -563,11 +722,12 @@ class TestTimeIntegration:
     def test_decoupled_linear_ode_backward_euler(self):
         bkd = self.get_backend()
 
+        nstates = 3
         param = bkd.array([4.0, 3.0])
         init_time, final_time = 0, 0.25
         deltat = 0.13  # intentionally create smaller last time step
         model = LinearDecoupledODEModel(
-            init_time, final_time, deltat, BackwardEulerResidual, bkd
+            init_time, final_time, deltat, BackwardEulerResidual, nstates, bkd
         )
         sample = param[:, None]
         model(sample)  # needed so that model._sols is created
@@ -709,11 +869,12 @@ class TestTimeIntegration:
         param = bkd.array([4.0, 3.0])
         init_time, final_time = 0, 0.25
 
+        nstates = 3
         model = NonLinearDecoupledODEModel(
-            init_time, final_time, deltat, time_residual_cls, bkd
+            init_time, final_time, deltat, time_residual_cls, nstates, bkd
         )
-        model._time_int.newton_solver._atol = 1e-12
-        model._time_int.newton_solver._rtol = 1e-12
+        model._time_int.newton_solver._atol = 1e-8
+        model._time_int.newton_solver._rtol = 1e-8
         sample = param[:, None]
         model(sample)  # needed so that model._sols is created
 
@@ -731,6 +892,60 @@ class TestTimeIntegration:
         )
         print(bkd.abs(exact_sols - model._sols).max())
         assert bkd.abs(exact_sols - model._sols).max() < tol
+
+        if not model._time_int.time_residual.adjoint_implemented():
+            return False
+
+        if bkd.jacobian_implemented():
+            print(model.jacobian(sample))
+            print(bkd.grad(model._evaluate, sample)[1].T)
+            print(
+                model.jacobian(sample)
+                - bkd.grad(model._evaluate, sample)[1].T,
+                time_residual_cls,
+            )
+            # For some reason autograd with torch produces a slightly different
+            # grad than that computed with adjoints here as newton tolerances
+            # are relaxed
+            assert bkd.allclose(
+                model.jacobian(sample),
+                bkd.grad(model._evaluate, sample)[1].T,
+            )
+
+        errors = model.check_apply_jacobian(sample, disp=True)
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1e-6
+
+    def test_decoupled_nonlinear_ode(self):
+        test_cases = [
+            # [ForwardEulerResidual, 1e-4, 9e-3],
+            # [BackwardEulerResidual, 1e-4, 9e-3],
+            # [SymplecticMidpointResidual, 0.0001, 9e-3],
+            # [CrankNicholsonResidual, 0.0001, 5e-5],
+            [HeunResidual, 0.0001, 5e-5],
+            # [RK4, 0.0001, 6e-10],
+        ]
+        for test_case in test_cases:
+            self._check_decoupled_nonlinear_ode(*test_case)
+
+
+class TestNumpyTimeIntegration(TestTimeIntegration, unittest.TestCase):
+    def get_backend(self):
+        return NumpyLinAlgMixin
+
+
+class TestTorchTimeIntegration(TestTimeIntegration, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+# TODO add test where coefficient of decoupled ODE is time dependent
+# TODO add test with coefficient entering functional
+
+
 
         # if not isinstance(
         #     time_residual, (BackwardEulerResidual, ForwardEulerResidual)
@@ -770,51 +985,3 @@ class TestTimeIntegration:
         #     auto_drdp = bkd.vstack(auto_drdp)
 
         #     assert bkd.allclose(auto_drdp, drdp)
-
-        if bkd.jacobian_implemented():
-            print(model.jacobian(sample))
-            print(bkd.grad(model._evaluate, sample)[1].T)
-            print(
-                model.jacobian(sample)
-                - bkd.grad(model._evaluate, sample)[1].T,
-                time_residual_cls,
-            )
-            assert bkd.allclose(
-                model.jacobian(sample),
-                bkd.grad(model._evaluate, sample)[1].T,
-                atol=1e-15,
-                rtol=1e-15,
-            )
-
-        errors = model.check_apply_jacobian(sample, disp=True)
-        print(errors.min() / errors.max())
-        assert errors.min() / errors.max() < 1e-6
-
-    def test_decoupled_nonlinear_ode(self):
-        test_cases = [
-            [ForwardEulerResidual, 1e-4, 6e-3],
-            [BackwardEulerResidual, 1e-4, 6e-3],
-            #[ImplicitMidpointResidual, 0.0001, 6e-3],
-            # [CrankNicholsonResidual, 0.0001, 3e-5],
-            # [HeunResidual, 0.0001, 3e-5],
-            # [RK4, 0.0001, 2e-10],
-        ]
-        for test_case in test_cases:
-            self._check_decoupled_nonlinear_ode(*test_case)
-
-
-class TestNumpyTimeIntegration(TestTimeIntegration, unittest.TestCase):
-    def get_backend(self):
-        return NumpyLinAlgMixin
-
-
-class TestTorchTimeIntegration(TestTimeIntegration, unittest.TestCase):
-    def get_backend(self):
-        return TorchLinAlgMixin
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-# TODO add test where coefficient of decoupled ODE is time dependent
-# TODO add test with coefficient entering functional

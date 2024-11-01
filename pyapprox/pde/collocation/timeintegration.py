@@ -4,7 +4,10 @@ from typing import Tuple
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.collocation.newton import (
-    NewtonSolver, NewtonResidual, Functional, AdjointFunctional
+    NewtonSolver,
+    NewtonResidual,
+    Functional,
+    AdjointFunctional,
 )
 
 
@@ -31,25 +34,28 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         super().__init__(residual._bkd)
         self.native_residual = residual
 
+    def adjoint_implemented(self) -> bool:
+        return False
+
     def set_time(self, time: float, deltat: float, prev_sol: Array):
         self._time = time
         self._deltat = deltat
         self._prev_sol = prev_sol
 
-    def linsolve(self, sol: Array, res: Array):
+    def linsolve(self, sol: Array, res: Array) -> Array:
         return self._bkd.solve(self.jacobian(sol), res)
 
-    def _param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
+    def _param_jacobian(self, fsol_nm1: Array, sol: Array) -> Array:
         raise NotImplementedError
 
-    def param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
+    def param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
         """Gradient of residual with respect to parameters"""
-        if prev_sol.ndim != 1:
-            raise ValueError("prev_sol must be a 1d Array")
-        if sol.ndim != 1:
-            raise ValueError("sol must be a 1d Array")
-        jac = self._param_jacobian(prev_sol, sol)
-        if jac.ndim != 2 or jac.shape[0] != sol.shape[0]:
+        if fsol_nm1.ndim != 1:
+            raise ValueError("fsol_nm1 must be a 1d Array")
+        if fsol_n.ndim != 1:
+            raise ValueError("fsol_n must be a 1d Array")
+        jac = self._param_jacobian(fsol_nm1, fsol_n)
+        if jac.ndim != 2 or jac.shape[0] != fsol_n.shape[0]:
             raise RuntimeError(f"jac has the wrong shape {jac.shape}")
         return jac
 
@@ -80,7 +86,7 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         return self._bkd.solve(drdu.T, -final_dqdu)
 
     def adjoint_final_solution(
-            self, fsol_n: Array, asol_np1: Array, dqdu_n: Array, deltat_np1: float
+        self, fsol_n: Array, asol_np1: Array, dqdu_n: Array, deltat_np1: float
     ) -> Array:
         # TODO if identity then no need to use solve below
         drduT_diag = self.native_residual.mass_matrix(fsol_n.shape[0]).T
@@ -88,9 +94,7 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
             fsol_n,
             deltat_np1,
         )
-        return self._bkd.solve(
-            drduT_diag, -drduT_offdiag @ asol_np1 - dqdu_n
-        )
+        return self._bkd.solve(drduT_diag, -drduT_offdiag @ asol_np1 - dqdu_n)
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
         """
@@ -144,6 +148,7 @@ class ExplicitTimeIntegratorNewtonResidual(TimeIntegratorNewtonResidual):
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
         return self.native_residual.mass_matrix(fsol_n.shape[0]).T
 
+
 from pyapprox.surrogates.bases.univariate import (
     UnivariatePiecewisePolynomialNodeGenerator,
     UnivariatePiecewisePolynomialQuadratureRule,
@@ -161,6 +166,9 @@ class UnivariateTransientNodeGenerator(
 
 
 class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
+    def adjoint_implemented(self) -> bool:
+        return True
+
     def __call__(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat)
         return (
@@ -169,9 +177,9 @@ class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
             - self._deltat * self.native_residual(self._prev_sol)
         )
 
-    def _param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
+    def _param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
         self.native_residual.set_time(self._time)
-        return -self._deltat * self.native_residual.param_jacobian(prev_sol)
+        return -self._deltat * self.native_residual.param_jacobian(fsol_nm1)
 
     def quadrature_samples_weights(self, times):
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
@@ -195,6 +203,9 @@ class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
 
 
 class BackwardEulerResidual(TimeIntegratorNewtonResidual):
+    def adjoint_implemented(self) -> bool:
+        return True
+
     def __call__(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat)
         return sol - self._prev_sol - self._deltat * self.native_residual(sol)
@@ -205,9 +216,9 @@ class BackwardEulerResidual(TimeIntegratorNewtonResidual):
             sol.shape[0]
         ) - self._deltat * self.native_residual.jacobian(sol)
 
-    def _param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
+    def _param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat)
-        return -self._deltat * self.native_residual.param_jacobian(sol)
+        return -self._deltat * self.native_residual.param_jacobian(fsol_n)
 
     def quadrature_samples_weights(self, times):
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
@@ -238,6 +249,9 @@ class BackwardEulerResidual(TimeIntegratorNewtonResidual):
 
 
 class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
+    def adjoint_implemented(self) -> bool:
+        return True
+
     # Trapezoid integration
     def __call__(self, sol: Array):
         self.native_residual.set_time(self._time)
@@ -251,24 +265,42 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
             - 0.5 * self._deltat * (current_res + next_res)
         )
 
-    def _param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
+    def _param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
         self.native_residual.set_time(self._time)
-        current_jac = self.native_residual.param_jacobian(prev_sol)
+        k1_param_jac = self.native_residual.param_jacobian(fsol_nm1)
         self.native_residual.set_time(self._time + self._deltat)
-        next_jac = self.native_residual.param_jacobian(sol)
-        ident = self._bkd.eye(sol.shape[0])
-        return -(ident + 0.5 * self._deltat * (current_jac + next_jac))
+        #  d/dp g_p(x + d*g(x,p), p) =
+        #      g_p(x + d*g(x,p))+d*g_x(x + d*g(x,p))g_p(x, p)
+        k2 = fsol_nm1 + self._deltat * self.native_residual(fsol_nm1)
+        k2_state_jac = self.native_residual.jacobian(k2)
+        k2_param_jac = self.native_residual.param_jacobian(k2)
+        return -(
+            0.5
+            * self._deltat
+            * (
+                k1_param_jac
+                + k2_param_jac
+                + self._deltat * (k2_state_jac @ k1_param_jac)
+            )
+        )
 
-    def adjoint_off_diag_jacobian(
-            self, fsol_n: Array, deltat_np1: float
+    def adjoint_offdiag_jacobian(
+        self, fsol_n: Array, deltat_np1: float
     ) -> Array:
-        #TODO
         self.native_residual.set_time(self._time)
-        current_jac = self.native_residual.param_jacobian(fsol_n)
-        self.native_residual.set_time(self._time + self._deltat)
-        next_jac = self.native_residual.param_jacobian(sol)
-        ident = self._bkd.eye(sol.shape[0])
-        return -(ident + 0.5 * self._deltat * (current_jac + next_jac))
+        k1_jac = self.native_residual.jacobian(fsol_n)
+        self.native_residual.set_time(self._time + deltat_np1)
+        #  d/dx g(x + d*g(x)) = (1 + d g'(x))g'(x + d g(x))
+        #  k2 = x + d*g(x)
+        k2 = fsol_n + deltat_np1 * self.native_residual(fsol_n)
+        mass = self.native_residual.mass_matrix(fsol_n.shape[0])
+        k2_jac = self.native_residual.jacobian(k2)
+        return -(
+            mass
+            + 0.5
+            * deltat_np1
+            * (k1_jac + (mass + deltat_np1 * k1_jac) @ k2_jac)
+        )
 
     def quadrature_samples_weights(self, times):
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
@@ -280,11 +312,13 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
             self._bkd,
             store=True,
         )(times.shape[0])
-        # right const rule does not return value at left end point so adjust
-        return quadx, quadw
+        return quadx[0], quadw[:, 0]
 
 
 class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
+    def adjoint_implemented(self) -> bool:
+        return True
+
     # Trapezoid integration
     def __call__(self, sol: Array):
         self.native_residual.set_time(self._time)
@@ -306,17 +340,42 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
             sol.shape[0]
         ) - 0.5 * self._deltat * (current_jac + next_jac)
 
-    def _param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
-        # TODO FIX prev sol and next notation
+    def quadrature_samples_weights(self, times):
+        node_gen = UnivariateTransientNodeGenerator(self._bkd)
+        node_gen.set_times(times)
+        quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
+            "linear",
+            [times[0], times[-1]],
+            node_gen,
+            self._bkd,
+            store=True,
+        )(times.shape[0])
+        return quadx[0], quadw[:, 0]
+
+    def _param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
         self.native_residual.set_time(self._time)
-        current_param_jac = self.native_residual.param_jacobian(prev_sol)
+        current_param_jac = self.native_residual.param_jacobian(fsol_nm1)
         self.native_residual.set_time(self._time + self._deltat)
-        next_param_jac = self.native_residual.param_jacobian(sol)
+        next_param_jac = self.native_residual.param_jacobian(fsol_n)
         return -0.5 * self._deltat * (current_param_jac + next_param_jac)
+
+    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+        return (
+            self.native_residual.mass_matrix(fsol_n.shape[0])
+            - self._deltat / 2 * self.native_residual.jacobian(fsol_n)
+        ).T
+
+    def adjoint_offdiag_jacobian(
+        self, fsol_n: Array, deltat_np1: float
+    ) -> Array:
+        return -(
+            + self.native_residual.mass_matrix(fsol_n.shape[0])
+            + deltat_np1 / 2 * self.native_residual.jacobian(fsol_n)
+        ).T
 
 
 class RK4(ExplicitTimeIntegratorNewtonResidual):
-    # Simpsons integration
+    # Simpsons (piecewise quadratic) integration
     def __call__(self, sol: Array):
         self.native_residual.set_time(self._time)
         k1_res = self.native_residual(self._prev_sol)
@@ -334,11 +393,20 @@ class RK4(ExplicitTimeIntegratorNewtonResidual):
             - self._deltat / 6 * (k1_res + 2 * k2_res + 2 * k3_res + k4_res)
         )
 
-    def _param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
-        raise NotImplementedError
+    def quadrature_samples_weights(self, times):
+        node_gen = UnivariateTransientNodeGenerator(self._bkd)
+        node_gen.set_times(times)
+        quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
+            "quadratic",
+            [times[0], times[-1]],
+            node_gen,
+            self._bkd,
+            store=True,
+        )(times.shape[0])
+        return quadx[0], quadw[:, 0]
 
 
-class ImplicitMidpointResidual(TimeIntegratorNewtonResidual):
+class SymplecticMidpointResidual(TimeIntegratorNewtonResidual):
     """
     First order implicit midpoint rule. It is the   lowest order
     Gauss-Legendre rule. All Gauss-Legendre rules are symplectic.
@@ -356,38 +424,57 @@ class ImplicitMidpointResidual(TimeIntegratorNewtonResidual):
     y_{n+1/2} - y_n - delta/2*G(t+delta/2, y_{n+1/2} = 0 then
     correct via y_{n+1} = 2*y_{n+1/2}-y_n
     """
+    def adjoint_implemented(self) -> bool:
+        return True
+
     def __call__(self, sol: Array) -> Array:
-        self.native_residual.set_time(self._time + self._deltat/2)
-        return sol - self._prev_sol - self._deltat * self.native_residual(
-            (self._prev_sol+sol)/2
+        self.native_residual.set_time(self._time + self._deltat / 2)
+        return (
+            sol
+            - self._prev_sol
+            - self._deltat * self.native_residual((self._prev_sol + sol) / 2)
         )
 
     def jacobian(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat / 2)
-        return (
-            self.native_residual.mass_matrix(sol.shape[0])
-            - self._deltat * self.native_residual.jacobian(
-                (self._prev_sol+sol)/2
-            )
+        return self.native_residual.mass_matrix(
+            sol.shape[0]
+        ) - self._deltat * self.native_residual.jacobian(
+            (self._prev_sol + sol) / 2
         )
 
-    def _param_jacobian(self, prev_sol: Array, sol: Array) -> Array:
-        self.native_residual.set_time(self._time + self._deltat)
-        return -self._deltat * self.native_residual.param_jacobian(sol)
-
     def quadrature_samples_weights(self, times):
-        node_gen = UnivariateTransientNodeGenerator(self._bkd)
-        node_gen.set_times(times)
-        quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
-            "midconst",
-            [times[0], times[-1]],
-            node_gen,
-            self._bkd,
-            store=True,
-        )(times.shape[0])
+        quadx = times
+        deltat = times[1:] - times[:-1]
+        quadw = self._bkd.hstack(
+            [deltat[0] / 2, (deltat[1:] + deltat[-1:])/2,  deltat[-1] / 2]
+        )
         return quadx, quadw
 
-    # TODO adjoint functions require either passing in two forward solutions
+    def _param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
+        # d/dy f((y(p) + x(p))/2) = 1/2 f_p(1/2 (x[p] + y[p]))*(x_p(p)+y_p(p))
+        self.native_residual.set_time(self._time)
+        current_param_jac = self.native_residual.param_jacobian(fsol_nm1)
+        next_param_jac = self.native_residual.param_jacobian(fsol_n)
+        self.native_residual.set_time(self._time + self._deltat)
+        mixed_param_jac = self.native_residual.param_jacobian((fsol_nm1+fsol_n)/2)
+        return -0.5 * self._deltat * (
+            mixed_param_jac * (current_param_jac + next_param_jac)
+        )
+
+    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+        return (
+            self.native_residual.mass_matrix(fsol_n.shape[0])
+            - self._deltat / 2 * self.native_residual.jacobian(fsol_n)
+        ).T
+
+    def adjoint_offdiag_jacobian(
+        self, fsol_n: Array, deltat_np1: float
+    ) -> Array:
+        return -(
+            + self.native_residual.mass_matrix(fsol_n.shape[0])
+            + deltat_np1 / 2 * self.native_residual.jacobian(fsol_n)
+        ).T
 
 
 class TransientFunctionalMixin:
@@ -562,9 +649,7 @@ class ImplicitTimeIntegrator:
             )
         deltat_np1 = deltat_n
         deltat_n = times[1] - times[0]
-        self.time_residual.set_time(
-            self._time, deltat_n, fwd_sols[:, 0]
-        )
+        self.time_residual.set_time(self._time, deltat_n, fwd_sols[:, 0])
         adj_sols[:, 0] = self.time_residual.adjoint_final_solution(
             fwd_sols[:, 0],
             adj_sols[:, 1],

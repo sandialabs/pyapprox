@@ -206,7 +206,6 @@ class AdjointFunctional(Functional):
             raise RuntimeError("jac has the wrong shape")
         return jac
 
-    @abstractmethod
     def _qoi_param_jacobian(self, sol: Array) -> Array:
         raise NotImplementedError
 
@@ -224,7 +223,6 @@ class AdjointFunctional(Functional):
             raise ValueError("param must be a 1D Array")
         self._param = param
 
-    @abstractmethod
     def _qoi_param_param_hvp(self, sol: Array, vvec: Array) -> Array:
         raise NotImplementedError
 
@@ -234,7 +232,6 @@ class AdjointFunctional(Functional):
             raise RuntimeError("_qoi_param_param_hvp must return 1D array")
         return hvp
 
-    @abstractmethod
     def _qoi_state_state_hvp(self, sol: Array, wvec: Array) -> Array:
         raise NotImplementedError
 
@@ -244,7 +241,6 @@ class AdjointFunctional(Functional):
             raise RuntimeError("_qoi_state_state_hvp must return 1D array")
         return hvp
 
-    @abstractmethod
     def _qoi_state_param_hvp(self, sol: Array, vvec: Array) -> Array:
         raise NotImplementedError
 
@@ -254,7 +250,6 @@ class AdjointFunctional(Functional):
             raise RuntimeError("_qoi_state_param_hvp must return 1D array")
         return hvp
 
-    @abstractmethod
     def _qoi_param_state_hvp(self, sol: Array, wvec: Array) -> Array:
         raise NotImplementedError
 
