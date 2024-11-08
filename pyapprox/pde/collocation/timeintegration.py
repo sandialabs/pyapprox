@@ -50,6 +50,8 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
 
     def param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
         """Gradient of residual with respect to parameters"""
+        # this function assumes self._time has been set to time_nm1
+        # and self._deltat = time_n-time_nm1
         if fsol_nm1.ndim != 1:
             raise ValueError("fsol_nm1 must be a 1d Array")
         if fsol_n.ndim != 1:
@@ -170,7 +172,7 @@ class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
         return True
 
     def __call__(self, sol: Array) -> Array:
-        self.native_residual.set_time(self._time + self._deltat)
+        self.native_residual.set_time(self._time)
         return (
             sol
             - self._prev_sol
@@ -196,6 +198,7 @@ class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
     def adjoint_offdiag_jacobian(
         self, fsol_n: Array, deltat_np1: float
     ) -> Array:
+        self.native_residual.set_time(self._time)
         return -(
             deltat_np1 * self.native_residual.jacobian(fsol_n)
             + self.native_residual.mass_matrix(fsol_n.shape[0])
@@ -237,6 +240,11 @@ class BackwardEulerResidual(TimeIntegratorNewtonResidual):
         )
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+        # while forward solve requires setting
+        # self.native_residual.set_time(self._time + self._deltat),
+        # where self._time = time_nm1, self._deltat = time_n-times_nm1
+        # adjoint solve passes in time_n so only do the following
+        self.native_residual.set_time(self._time)
         return (
             self.native_residual.mass_matrix(fsol_n.shape[0])
             - self._deltat * self.native_residual.jacobian(fsol_n)
@@ -360,6 +368,11 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
         return -0.5 * self._deltat * (current_param_jac + next_param_jac)
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+        # while forward solve requires setting
+        # self.native_residual.set_time(self._time + self._deltat),
+        # where self._time = time_nm1, self._deltat = time_n-times_nm1
+        # adjoint solve passes in time_n so only do the following
+        self.native_residual.set_time(self._time)
         return (
             self.native_residual.mass_matrix(fsol_n.shape[0])
             - self._deltat / 2 * self.native_residual.jacobian(fsol_n)
@@ -368,6 +381,11 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
     def adjoint_offdiag_jacobian(
         self, fsol_n: Array, deltat_np1: float
     ) -> Array:
+        # while forward solve requires setting
+        # self.native_residual.set_time(self._time + self._deltat),
+        # where self._time = time_nm1, self._deltat = time_n-times_nm1
+        # adjoint solve passes in time_n so only do the following
+        self.native_residual.set_time(self._time)
         return -(
             + self.native_residual.mass_matrix(fsol_n.shape[0])
             + deltat_np1 / 2 * self.native_residual.jacobian(fsol_n)
@@ -424,9 +442,6 @@ class SymplecticMidpointResidual(TimeIntegratorNewtonResidual):
     y_{n+1/2} - y_n - delta/2*G(t+delta/2, y_{n+1/2} = 0 then
     correct via y_{n+1} = 2*y_{n+1/2}-y_n
     """
-    def adjoint_implemented(self) -> bool:
-        return True
-
     def __call__(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat / 2)
         return (
@@ -439,7 +454,7 @@ class SymplecticMidpointResidual(TimeIntegratorNewtonResidual):
         self.native_residual.set_time(self._time + self._deltat / 2)
         return self.native_residual.mass_matrix(
             sol.shape[0]
-        ) - self._deltat * self.native_residual.jacobian(
+        ) - 0.5 * self._deltat * self.native_residual.jacobian(
             (self._prev_sol + sol) / 2
         )
 
@@ -450,31 +465,6 @@ class SymplecticMidpointResidual(TimeIntegratorNewtonResidual):
             [deltat[0] / 2, (deltat[1:] + deltat[-1:])/2,  deltat[-1] / 2]
         )
         return quadx, quadw
-
-    def _param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
-        # d/dy f((y(p) + x(p))/2) = 1/2 f_p(1/2 (x[p] + y[p]))*(x_p(p)+y_p(p))
-        self.native_residual.set_time(self._time)
-        current_param_jac = self.native_residual.param_jacobian(fsol_nm1)
-        next_param_jac = self.native_residual.param_jacobian(fsol_n)
-        self.native_residual.set_time(self._time + self._deltat)
-        mixed_param_jac = self.native_residual.param_jacobian((fsol_nm1+fsol_n)/2)
-        return -0.5 * self._deltat * (
-            mixed_param_jac * (current_param_jac + next_param_jac)
-        )
-
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
-        return (
-            self.native_residual.mass_matrix(fsol_n.shape[0])
-            - self._deltat / 2 * self.native_residual.jacobian(fsol_n)
-        ).T
-
-    def adjoint_offdiag_jacobian(
-        self, fsol_n: Array, deltat_np1: float
-    ) -> Array:
-        return -(
-            + self.native_residual.mass_matrix(fsol_n.shape[0])
-            + deltat_np1 / 2 * self.native_residual.jacobian(fsol_n)
-        ).T
 
 
 class TransientFunctionalMixin:
@@ -589,14 +579,14 @@ class ImplicitTimeIntegrator:
             The gradient of the QoI with respect to the solution at
             the n time step
 
-        delta_n: float
-            the n time step size
+        deltat_n: float
+            the n time step size, deltat_n = time_n - time_nm1
 
-        delta_np1: float
-            the n+1 time step size
+        deltat_np1: float
+            the n+1 time step size, deltat_np1 = time_np1 - time_n
 
         time_n: float
-            The time at the n time step. time_np1 = time_n + delta_n
+            The time at the n time step. time_nm1 = time_n - deltat_n.
 
         Return
         ------
@@ -606,6 +596,7 @@ class ImplicitTimeIntegrator:
         """
 
         # Jacobian of residual with respect to solution
+        self._time = time_n
         self.time_residual.set_time(time_n, deltat_n, fsol_n)
         # Adjoint Jacobian functions already apply tranpose
         drduT_diag = self.time_residual.adjoint_diag_jacobian(fsol_n)
@@ -616,7 +607,6 @@ class ImplicitTimeIntegrator:
         asol_n = self._bkd.solve(
             drduT_diag, -drduT_offdiag @ asol_np1 - dqdu_n
         )
-        self._time = time_n
         return asol_n
 
     def solve_adjoint(self, fwd_sols: Array, times: Array) -> Array:
@@ -625,30 +615,35 @@ class ImplicitTimeIntegrator:
         ):
             raise ValueError("times array is inconsistent with final_time")
         # copy required when using torch
-        self._time = self._bkd.copy(times)[-1]
         # todo compute dqdu at each time step rather than all upfront
         if not hasattr(self, "_functional"):
             raise RuntimeError("must call set_functional")
         dqdu = self._functional.qoi_sol_jacobian(fwd_sols)
         adj_sols = self._bkd.empty(fwd_sols.shape)
+        # using notation deltat_n = t_n-tnm1, e.g. deltat_1 = t1 - t0
+        # given times t0, t1, ..., t_Nm2, t_Nm1
+        # start at n = Nm2, time = t_Nm2
+        self._time = self._bkd.copy(times)[-2]
         deltat_n = times[-1] - times[-2]
         self.time_residual.set_time(self._time, deltat_n, fwd_sols[:, -1])
         adj_sols[:, -1] = self.time_residual.adjoint_initial_condition(
             fwd_sols[:, -1], dqdu[:, -1]
         )
-        for ii in range(fwd_sols.shape[1] - 2, 0, -1):
+        for nn in range(fwd_sols.shape[1] - 2, 0, -1):
             deltat_np1 = deltat_n
-            deltat_n = times[ii] - times[ii - 1]
-            adj_sols[:, ii] = self.adjoint_step(
-                fwd_sols[:, ii],
-                adj_sols[:, ii + 1],
-                dqdu[:, ii],
+            deltat_n = times[nn] - times[nn-1]
+            # deltat_n = times[nn+1] - times[nn]
+            adj_sols[:, nn] = self.adjoint_step(
+                fwd_sols[:, nn],
+                adj_sols[:, nn + 1],
+                dqdu[:, nn],
                 deltat_n,
                 deltat_np1,
-                times[ii],
+                times[nn],
             )
         deltat_np1 = deltat_n
         deltat_n = times[1] - times[0]
+        self._time = times[0]
         self.time_residual.set_time(self._time, deltat_n, fwd_sols[:, 0])
         adj_sols[:, 0] = self.time_residual.adjoint_final_solution(
             fwd_sols[:, 0],
@@ -656,7 +651,6 @@ class ImplicitTimeIntegrator:
             dqdu[:, 0],
             deltat_np1,
         )
-        self._time = times[0]
         return adj_sols
 
     def gradient(self, fwd_sols: Array, times: Array) -> Array:
@@ -669,14 +663,14 @@ class ImplicitTimeIntegrator:
         )
         drdp = self.time_residual.initial_param_jacobian()
         grad += adj_sols[:, 0] @ drdp
-        for ii, time in enumerate(times[1:], start=1):
+        for ii, time in enumerate(times[:-1], start=0):
             self.time_residual.set_time(
-                times[ii], times[ii] - times[ii - 1], fwd_sols[:, ii - 1]
+                times[ii], times[ii + 1] - times[ii], fwd_sols[:, ii]
             )
             drdp = self.time_residual.param_jacobian(
-                fwd_sols[:, ii - 1], fwd_sols[:, ii]
+                fwd_sols[:, ii], fwd_sols[:, ii+1]
             )
-            grad += adj_sols[:, ii] @ drdp
+            grad += adj_sols[:, ii+1] @ drdp
         return self._bkd.atleast2d(grad)
 
     def __repr__(self):
