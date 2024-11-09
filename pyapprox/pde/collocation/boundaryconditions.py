@@ -91,7 +91,6 @@ class DirichletBoundaryFromFunction(
             )
 
 
-
 class RobinBoundary(BoundaryFunction):
     def __init__(
         self,
@@ -109,6 +108,7 @@ class RobinBoundary(BoundaryFunction):
 
     def set_flux_jacobian(self, flux_jac):
         self._flux_jac = flux_jac
+        print(self._flux_jac)
 
     def _flux_normal_jacobian(self, sol_array: Array):
         # pass in sol in case flux depends on sol

@@ -23,13 +23,15 @@ from pyapprox.pde.collocation.basis import (
 )
 from pyapprox.pde.collocation.physics import (
     # LinearDiffusionEquation,
-    LinearReactionDiffusionEquation,
+    AdvectionDiffusionReactionEquation,
 )
 from pyapprox.pde.collocation.functions import (
     ImutableScalarFunctionFromCallable,
     ScalarSolutionFromCallable,
     ImutableScalarTransientFunctionFromCallable,
     ScalarTransientSolutionFromCallable,
+    ScalarMonomialOperator,
+    ImutableVectorFunctionFromCallable,
 )
 
 from pyapprox.pde.collocation.boundaryconditions import (
@@ -236,7 +238,9 @@ class TestCollocation:
         return bndry_funs
 
     def _setup_scalar_solution_from_manufactured_solution(
-            self, basis, man_sol
+            self,
+            basis: OrthogonalCoordinateCollocationBasis,
+            man_sol: ManufacturedSolution
     ):
         name = "solution"
         if not man_sol.transient[name]:
@@ -247,8 +251,11 @@ class TestCollocation:
             basis, man_sol.functions[name]
         )
 
-    def _setup_immutable_function_from_manufactured_solution(
-            self, name, basis, man_sol
+    def _setup_immutable_scalar_function(
+            self,
+            name: str,
+            basis: OrthogonalCoordinateCollocationBasis,
+            man_sol: ManufacturedSolution
     ):
         if not man_sol.transient[name]:
             return ImutableScalarFunctionFromCallable(
@@ -268,7 +275,7 @@ class TestCollocation:
         basis: OrthogonalCoordinateCollocationBasis,
     ):
         bkd = self.get_backend()
-        react_str, react_fun = react_tup
+        react_str, react_fun, react_op_degree = react_tup
         man_sol = AdvectionDiffusionReaction(
             len(vel_strings),
             sol_string,
@@ -279,14 +286,9 @@ class TestCollocation:
             oned=True,
         )
         print(man_sol)
-        print(man_sol.transient, sol_string)
-
-        # TODO make function take in callable. Then call set_values
-        # in steadystatepde on mesh_pts and similarly for transient PDE
         exact_sol = self._setup_scalar_solution_from_manufactured_solution(
             basis, man_sol
         )
-        print(exact_sol)
 
         # test plot runs
         fig, ax = exact_sol.get_plot_axis()
@@ -295,22 +297,25 @@ class TestCollocation:
         ax.set_aspect("equal")
         # plt.show()
 
-        # diffusion = ImutableScalarFunctionFromCallable(
-        #     basis, man_sol.functions["diffusion"]
-        # )
-        diffusion = self._setup_immutable_function_from_manufactured_solution(
+        diffusion = self._setup_immutable_scalar_function(
             "diffusion", basis, man_sol
         )
-        forcing = self._setup_immutable_function_from_manufactured_solution(
+        forcing = self._setup_immutable_scalar_function(
             "forcing", basis, man_sol
         )
-        # todo man_sol.functions["reaction"] contains the values u
-        # but linearreactiondiffusionequations needs 1 from (1*u)
-        reaction = ImutableScalarFunctionFromCallable(
+        react_coef = ImutableScalarFunctionFromCallable(
             basis,
-            react_fun,
+            react_fun
         )
-        physics = LinearReactionDiffusionEquation(forcing, diffusion, reaction)
+        react_op = ScalarMonomialOperator(
+            degree=react_op_degree, coef=react_coef
+        )
+        vel_field = ImutableVectorFunctionFromCallable(
+            basis, basis.nphys_vars(), man_sol.functions["velocity"]
+        )
+        physics = AdvectionDiffusionReactionEquation(
+            forcing, diffusion, react_op, vel_field
+        )
         # physics = LinearDiffusionEquation(forcing, diffusion)
         residual = physics.residual(exact_sol)
         # np.set_printoptions(linewidth=1000)
@@ -329,16 +334,45 @@ class TestCollocation:
             man_sol,
         )
         physics.set_boundaries(boundaries)
-        solver = SteadyPDE(physics, NewtonSolver(verbosity=2, maxiters=1))
-        init_sol = ScalarSolutionFromCallable(
+        solver = SteadyPDE(
+            physics,
+            NewtonSolver(
+                verbosity=2,
+                maxiters=1 if react_op_degree < 2 else 10,
+                atol=1e-10,
+                rtol=1e-10,
+            )
+        )
+        linear_init_sol = ScalarSolutionFromCallable(
             basis,
             lambda x: bkd.ones(
                 x.shape[1],
             ),
         )
+        if react_op_degree < 2:
+            sol = solver.solve(linear_init_sol)
+            assert bkd.allclose(sol.get_values(), exact_sol.get_values())
+            return
+
+        # linear_physics = AdvectionDiffusionReactionEquation(
+        #     forcing, diffusion,  ScalarMonomialOperator(
+        #         degree=1, coef=react_coef
+        #     ),
+        #     vel_field
+        # )
+        # # linear physics must have all the same functions, e.g. forcing
+        # # as physics or set_boundaries, will changes the boundaries
+        # # that means they are no longer consistent with nonlinear problem
+        # linear_physics.set_boundaries(boundaries)
+        # linear_solver = SteadyPDE(linear_physics, NewtonSolver(maxiters=1))
+        # init_sol = linear_solver.solve(linear_init_sol)
+        # init_sol = exact_sol
+        # linear solve does not seem to provide a good initial guess
+        # when reaction term is nonlinear, but an initial sol of 0 does
+        # not sure why
+        init_sol = linear_init_sol * 0.
         sol = solver.solve(init_sol)
-        # print(sol.get_values())
-        # print(exact_sol.get_values())
+        print(sol.get_values()-exact_sol.get_values())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_steady_advection_diffusion_reaction_1D(self):
@@ -348,9 +382,10 @@ class TestCollocation:
             ["4", "(x+1)"],  # diff_string
             [["0"], ["1"]],  # vel_strings
             [
-                ["0", lambda x: bkd.zeros(x.shape[1])],
-                ["2*u", lambda x: bkd.full((x.shape[1],), 2.0)],
-            ],  # react_str
+                ["0", lambda x: bkd.zeros(x.shape[1]), 0],
+                ["2*u", lambda x: bkd.full((x.shape[1],), 2.0), 1],
+                ["4*u**2", lambda x: bkd.full((x.shape[1],), 4.0), 2],
+            ],  # react_str,
             ["D", "R", "M"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([5], [0, 1]),
@@ -358,9 +393,8 @@ class TestCollocation:
             ],  # basis
         ]
 
-        # for test_case in itertools.product(*test_case_args):
-        #     print(test_case)
-        #     self._check_steady_state_advection_diffusion_reaction(*test_case)
+        for test_case in itertools.product(*test_case_args):
+            self._check_steady_state_advection_diffusion_reaction(*test_case)
 
         # test periodic BCs which requires a periodic sol_str and reaction term
         # to make solution unique
@@ -369,12 +403,14 @@ class TestCollocation:
             "1",
             ["0"],
             # warning 1*u will have zero as a trivial solution
-            ["2*u", lambda x: bkd.full((x.shape[1],), 2.0)],
+            ["2*u", lambda x: bkd.full((x.shape[1],), 2.0), 1],
             "P",
             self._setup_cheby_basis_1d([20], [0, 2 * np.pi]),
         ]
-        # self._check_steady_state_advection_diffusion_reaction(*test_case)
+        self._check_steady_state_advection_diffusion_reaction(*test_case)
 
+    def test_transient_advection_diffusion_reaction_1D(self):
+        bkd = self.get_backend()
         # transient test cases
         test_case_args = [
             ["-(x-1)*x/2*(1+T)"],  # sol_string
@@ -389,7 +425,9 @@ class TestCollocation:
             ],  # basis
         ]
         for test_case in itertools.product(*test_case_args):
-            self._check_steady_state_advection_diffusion_reaction(*test_case)
+            self._check_transient_state_advection_diffusion_reaction(
+                *test_case
+            )
 
     def test_steady_advection_diffusion_reaction_2D(self):
         bkd = self.get_backend()

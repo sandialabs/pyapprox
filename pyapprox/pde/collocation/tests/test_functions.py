@@ -16,8 +16,8 @@ from pyapprox.pde.collocation.functions import (
     ScalarOperatorFromCallable,
     ScalarMonomialOperator,
     ImutableScalarFunctionFromCallable,
+    nabla,
 )
-from pyapprox.pde.collocation.physics import nabla
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
     ScaleAndTranslationTransform2D,
@@ -74,7 +74,8 @@ class TestFunctions:
 
         def get_gradfun(fun_values):
             sol = ScalarSolution(basis, fun_values)
-            fun = ScalarMonomialOperator(sol, 4)
+            op = ScalarMonomialOperator(4)
+            fun = op(sol)
             gradfun = nabla(fun)
             return gradfun
 
@@ -145,7 +146,8 @@ class TestFunctions:
             gradfun(plot_samples)[:, 0, :], test_grad(plot_samples)
         )
         assert bkd.allclose(
-            gradfun.get_matrix_jacobian(), bkd.zeros(gradfun.matrix_jacobian_shape())
+            gradfun.get_matrix_jacobian(),
+            bkd.zeros(gradfun.matrix_jacobian_shape())
         )
 
         # fun is the solution
@@ -160,11 +162,8 @@ class TestFunctions:
         def op_jac(vals):
             return (4 * bkd.diag(vals) ** 3)
 
-        fun = ScalarOperatorFromCallable(
-            sol,
-            lambda vals: vals ** 4,
-            op_jac,
-        )
+        op = ScalarOperatorFromCallable(lambda vals: vals ** 4, op_jac)
+        fun = op(sol)
         gradfun = nabla(fun)
         for ii in range(fun.nphys_vars()):
             assert bkd.allclose(

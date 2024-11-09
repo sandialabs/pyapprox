@@ -120,11 +120,18 @@ class ManufacturedSolution(ABC):
         return self._nvars
 
     def _set_expression_from_bool(self, name: str, expr, transient: bool):
-        self._expressions[name] = expr
-        self.transient[name] = transient
+        if name in self._expressions:
+            if not isinstance(expr, list):
+                self._expressions[name] += expr
+            else:
+                for ii in range(len(self._expressions[name])):
+                    self._expressions[name][ii] += expr[ii]
+            self.transient[name] = transient or self.transient[name]
+        else:
+            self._expressions[name] = expr
+            self.transient[name] = transient
 
     def _set_expression(self, name: str, expr, expr_str: str):
-        print(expr_str)
         if "T" in expr_str:
             transient = True
         else:
@@ -192,6 +199,9 @@ class AdvectionMixin:
             "velocity",  vel_exprs, ", ".join(self._vel_strs)
         )
         self._expressions["forcing"] += advection_expr
+        flux_exprs = [
+            -vel_expr*self._expressions["solution"] for vel_expr in vel_exprs]
+        self._set_expression("flux", flux_exprs, self._sol_string)
 
 
 class AdvectionDiffusionReaction(
@@ -219,3 +229,4 @@ class AdvectionDiffusionReaction(
     def sympy_expressions(self):
         self.sympy_diffusion_expressions()
         self.sympy_reaction_expressions()
+        self.sympy_advection_expressions()

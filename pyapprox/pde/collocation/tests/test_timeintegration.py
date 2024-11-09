@@ -38,7 +38,6 @@ class LinearDecoupledODE(TransientNewtonResidual):
         self._init_cond = param[1]
 
     def __call__(self, sol: Array) -> Array:
-        np.set_printoptions(precision=16)
         b = self._coef**2 * self._bkd.arange(
             1, sol.shape[0] + 1, dtype=self._bkd.double_type()
         )

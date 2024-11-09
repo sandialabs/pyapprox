@@ -102,7 +102,21 @@ class MatrixFunction(ABC):
             self._bkd,
         )
 
-    def __mul__(self, other):
+    def _multiply_functions(self, other):
+        if not isinstance(other, (MatrixFunction, float)):
+            raise ValueError(
+                f"cannot multiply Matrixfunction by {type(other)}"
+            )
+
+        if isinstance(other, float):
+            return MatrixFunction(
+                self.basis,
+                self._nrows,
+                self._ncols,
+                self.get_matrix_values() * other,
+                self.get_matrix_jacobian() * other,
+            )
+
         if self._nrows != 1 or self._ncols != 1:
             raise ValueError(
                 "multiplication only defined when other is a scalar valued "
@@ -119,7 +133,22 @@ class MatrixFunction(ABC):
             other.basis, other._nrows, other._ncols, values, jac
         )
 
-    def __add__(self, other):
+    def __mul__(self, other):
+        return self._multiply_functions(other)
+
+    def __rmul__(self, other):
+        return self._multiply_functions(other)
+
+    def _add_functions(self, other):
+        if isinstance(other, float):
+            return MatrixFunction(
+                self.basis,
+                self._nrows,
+                self._ncols,
+                self.get_matrix_values() + other,
+                self.get_matrix_jacobian(),
+            )
+
         if self.matrix_jacobian_shape() != other.matrix_jacobian_shape():
             raise ValueError("self and other have different shapes")
         return MatrixFunction(
@@ -130,16 +159,49 @@ class MatrixFunction(ABC):
             self.get_matrix_jacobian() + other.get_matrix_jacobian(),
         )
 
-    def __sub__(self, other):
-        if self.matrix_jacobian_shape() != other.matrix_jacobian_shape():
+    def __add__(self, other):
+        if not isinstance(other, (MatrixFunction, float)):
+            raise ValueError(f"cannot add {type(other)} to a Matrixfunction")
+        return self._add_functions(other)
+
+    def __radd__(self, other):
+        if not isinstance(other, (MatrixFunction, float)):
+            raise ValueError(f"cannot add {type(other)} to a Matrixfunction")
+        return self._add_functions(other)
+
+    def _subtract_functions(self, fun1, fun2):
+        if fun1.matrix_jacobian_shape() != fun2.matrix_jacobian_shape():
             raise ValueError("self and other have different shapes")
         return MatrixFunction(
             self.basis,
             self._nrows,
             self._ncols,
-            self.get_matrix_values() - other.get_matrix_values(),
-            self.get_matrix_jacobian() - other.get_matrix_jacobian(),
+            fun1.get_matrix_values() - fun2.get_matrix_values(),
+            fun1.get_matrix_jacobian() - fun2.get_matrix_jacobian(),
         )
+
+    def __sub__(self, other):
+        if isinstance(other, float):
+            return MatrixFunction(
+                self.basis,
+                self._nrows,
+                self._ncols,
+                self.get_matrix_values() - other,
+                self.get_matrix_jacobian(),
+            )
+
+        return self._subtract_functions(self, other)
+
+    def __rsub__(self, other):
+        if isinstance(other, float):
+            return MatrixFunction(
+                self.basis,
+                self._nrows,
+                self._ncols,
+                other - self.get_matrix_values(),
+                -self.get_matrix_jacobian(),
+            )
+        return self._subtract_functions(other, self)
 
     def __call__(self, eval_samples: Array):
         values_at_mesh = self.get_matrix_values()
@@ -197,7 +259,7 @@ class VectorFunction(MatrixFunction):
                     array.shape, (self.basis.mesh.nmesh_pts(), self._nrows)
                 )
             )
-        return array[:, None, :]
+        return array.T[:, None, :]
 
     def _reshape_jacobian_to_matrix(self, jac: Array):
         # note reshape_to_matrix takes nrows as last axis.
@@ -293,7 +355,7 @@ class ScalarFunction(MatrixFunction):
     def _plot_2d(self, ax, npts_1d, **kwargs):
         orth_range = self.basis.mesh.trans._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
-            self._bkd.tile(orth_range, (2,)), npts_1d
+            self._bkd.tile(orth_range, (2,)), npts_1d, bkd=self._bkd
         )
         pts = self.basis.mesh.trans.map_from_orthogonal(orth_pts_2d)
         X = self._bkd.reshape(pts[0], orth_X.shape)
@@ -452,26 +514,28 @@ class FunctionFromCallableMixin:
 
 class Operator(ABC):
     @abstractmethod
-    def __new__(
-        cls,
-        fun: MatrixFunction,
-    ):
+    def __call__(self, fun: MatrixFunction) -> MatrixFunction:
         raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
 
 
 class OperatorFromCallable(Operator):
-    @staticmethod
-    def _values(fun: MatrixFunction, op_values_fun: callable):
-        vals = op_values_fun(fun.get_values())
+    def __init__(self, op_values_fun: callable, op_jac_fun: callable):
+        self._op_values_fun = op_values_fun
+        self._op_jac_fun = op_jac_fun
+
+    def _values(self, fun: MatrixFunction):
+        vals = self._op_values_fun(fun.get_values())
         if vals.shape != fun.get_values().shape:
             raise RuntimeError(
                 "op_values_fun returned array with the wrong shape"
             )
         return vals
 
-    @staticmethod
-    def _jacobian(fun: MatrixFunction, op_jac_fun):
-        jac = op_jac_fun(fun.get_values())
+    def _jacobian(self, fun: MatrixFunction):
+        jac = self._op_jac_fun(fun.get_values())
         if jac.shape != fun.get_jacobian().shape:
             raise RuntimeError(
                 "op_jac_fun returned array with the wrong shape"
@@ -480,30 +544,43 @@ class OperatorFromCallable(Operator):
 
 
 class ScalarOperatorFromCallable(OperatorFromCallable):
-    def __new__(
-        cls,
+    def __call__(
+        self,
         fun: MatrixFunction,
-        op_values_fun: callable,
-        op_jac_fun: callable,
-    ):
+    ) -> ScalarFunction:
         return ScalarFunction(
             fun.basis,
-            cls._values(fun, op_values_fun),
-            cls._jacobian(fun, op_jac_fun),
+            self._values(fun),
+            self._jacobian(fun),
         )
 
 
 class ScalarMonomialOperator(Operator):
-    def __new__(
-        cls,
-        fun: MatrixFunction,
-        degree: int,
-    ):
-        vals = fun.get_values()
-        return ScalarFunction(
-            fun.basis,
-            vals**degree,
-            (degree * fun._bkd.diag(vals) ** (degree-1)),
+    def __init__(self, degree: int, coef: ScalarFunction = None):
+        self._degree = degree
+        if coef is not None and not isinstance(coef, ScalarFunction):
+            raise ValueError(
+                "coef must be an instance ScalarFunction"
+            )
+        self._coef = coef
+
+    def __call__(self, fun: MatrixFunction) -> ScalarFunction:
+        if self._degree > 0:
+            vals = fun.get_values()
+            if self._degree > 1:
+                jac = self._degree * fun._bkd.diag(vals) ** (self._degree-1)
+            else:
+                jac = self._degree * fun._bkd.diag(vals)
+            poly = ScalarFunction(fun.basis, vals**self._degree, jac)
+        else:
+            poly = 1.
+        if self._coef is None:
+            return poly
+        return self._coef * poly
+
+    def __repr__(self):
+        return "{0}(degree={1}, coef={2})".format(
+            self.__class__.__name__, self._degree, self._coef
         )
 
 
@@ -558,9 +635,10 @@ class ImutableVectorFunctionFromCallable(
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
+        nrows: int,
         fun: callable,
     ):
-        VectorFunction.__init__(self, basis)
+        VectorFunction.__init__(self, basis, nrows)
         self._setup(fun)
 
 
@@ -630,3 +708,65 @@ class ScalarTransientSolutionFromCallable(
         self._fun = fun
         ScalarSolution.__init__(self, basis)
         self.set_time(time)
+
+
+    # nabla f(u) = [D_1f_1,    0  ], d/du (nabla f(u)) = [D_1f_1'(u),     0     ]
+#            = [  0   , D_2f_2]                      [   0      , D_2 f'(u) ]
+# where f'(u) = d/du f(u)
+def nabla(fun: MatrixFunction):
+    """Gradient of a scalar valued function"""
+    funvalues = fun.get_matrix_values()[0, 0]
+    fun_jac = fun.get_matrix_jacobian()
+    # todo need to create 3d array
+    grad_vals = fun._bkd.stack(
+        [
+            fun.basis._deriv_mats[dd] @ funvalues
+            for dd in range(fun.nphys_vars())
+        ],
+        axis=0,
+    )[:, None, :]
+    grad_jacs = fun._bkd.stack(
+        [
+            (fun.basis._deriv_mats[dd] @ fun_jac[0, 0])[None, :]
+            for dd in range(fun.nphys_vars())
+        ],
+        axis=0,
+    )
+    return MatrixFunction(fun.basis, fun.nphys_vars(), 1, grad_vals, grad_jacs)
+
+
+# div f = [D_1 f_1(u) + D_2f_2(u)],  (div f)' = [D_1f'_1(u) + D_2f'_2(u)]
+def div(fun: MatrixFunction):
+    """Divergence of a vector valued function."""
+    if fun._ncols != 1:
+        raise ValueError("Fun must be a vector valued function")
+    fun_values = fun.get_values()[:, 0, ...]
+    fun_jacs = fun.get_matrix_jacobian()[:, 0, ...]
+    dmats = fun._bkd.stack(fun.basis._deriv_mats, axis=0)
+    # dmats: (nrows, n, n)
+    # fun_values : (nrows, n)
+    div_vals = fun._bkd.sum(
+        fun._bkd.einsum("ijk,ik->ij", dmats, fun_values), axis=0
+    )
+    # dmats: (nrows, n, n)
+    # fun_jacs : (nrows, n, n)
+    div_jac = fun._bkd.sum(
+        fun._bkd.einsum("ijk,ikm->ijm", dmats, fun_jacs), axis=0
+    )
+    return MatrixFunction(
+        fun.basis, 1, 1, div_vals[None, None, :], div_jac[None, None, ...]
+    )
+
+
+# div (nabla f)  = [D_1, D_2][D_1f_1,    0  ] = [D_1D_1f_1,    0     ]
+#                            [  0   , D_2f_2] = [  0      , D_2D_2f_2]
+# d/du (nabla f(u)) = [D_1D_1f_1'(u),     0        ]
+#                     [   0      ,    D_2D_2 f'(u) ]
+def laplace(fun: MatrixFunction):
+    """Laplacian of a scalar valued function"""
+    return div(nabla(fun))
+
+
+def fdotgradf(fun: MatrixFunction):
+    r"""(f \cdot nabla f)f of a vector-valued function f"""
+    pass

@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from typing import Dict
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.pde.collocation.functions import (
@@ -8,6 +9,7 @@ from pyapprox.pde.collocation.functions import (
     ScalarFunction,
     ImutableVectorFunction,
     SolutionMixin,
+    Operator,
 )
 from pyapprox.pde.collocation.newton import NewtonResidual
 from pyapprox.pde.collocation.boundaryconditions import (
@@ -16,68 +18,7 @@ from pyapprox.pde.collocation.boundaryconditions import (
     RobinBoundary,
 )
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
-
-
-# nabla f(u) = [D_1f_1,    0  ], d/du (nabla f(u)) = [D_1f_1'(u),     0     ]
-#            = [  0   , D_2f_2]                      [   0      , D_2 f'(u) ]
-# where f'(u) = d/du f(u)
-def nabla(fun: MatrixFunction):
-    """Gradient of a scalar valued function"""
-    funvalues = fun.get_matrix_values()[0, 0]
-    fun_jac = fun.get_matrix_jacobian()
-    # todo need to create 3d array
-    grad_vals = fun._bkd.stack(
-        [
-            fun.basis._deriv_mats[dd] @ funvalues
-            for dd in range(fun.nphys_vars())
-        ],
-        axis=0,
-    )[:, None, :]
-    grad_jacs = fun._bkd.stack(
-        [
-            (fun.basis._deriv_mats[dd] @ fun_jac[0, 0])[None, :]
-            for dd in range(fun.nphys_vars())
-        ],
-        axis=0,
-    )
-    return MatrixFunction(fun.basis, fun.nphys_vars(), 1, grad_vals, grad_jacs)
-
-
-# div f = [D_1 f_1(u) + D_2f_2(u)],  (div f)' = [D_1f'_1(u) + D_2f'_2(u)]
-def div(fun: MatrixFunction):
-    """Divergence of a vector valued function."""
-    if fun._ncols != 1:
-        raise ValueError("Fun must be a vector valued function")
-    fun_values = fun.get_values()[:, 0, ...]
-    fun_jacs = fun.get_matrix_jacobian()[:, 0, ...]
-    dmats = fun._bkd.stack(fun.basis._deriv_mats, axis=0)
-    # dmats: (nrows, n, n)
-    # fun_values : (nrows, n)
-    div_vals = fun._bkd.sum(
-        fun._bkd.einsum("ijk,ik->ij", dmats, fun_values), axis=0
-    )
-    # dmats: (nrows, n, n)
-    # fun_jacs : (nrows, n, n)
-    div_jac = fun._bkd.sum(
-        fun._bkd.einsum("ijk,ikm->ijm", dmats, fun_jacs), axis=0
-    )
-    return MatrixFunction(
-        fun.basis, 1, 1, div_vals[None, None, :], div_jac[None, None, ...]
-    )
-
-
-# div (nabla f)  = [D_1, D_2][D_1f_1,    0  ] = [D_1D_1f_1,    0     ]
-#                            [  0   , D_2f_2] = [  0      , D_2D_2f_2]
-# d/du (nabla f(u)) = [D_1D_1f_1'(u),     0        ]
-#                     [   0      ,    D_2D_2 f'(u) ]
-def laplace(fun: MatrixFunction):
-    """Laplacian of a scalar valued function"""
-    return div(nabla(fun))
-
-
-def fdotgradf(fun: MatrixFunction):
-    r"""(f \cdot nabla f)f of a vector-valued function f"""
-    pass
+from pyapprox.pde.collocation.functions import nabla, div
 
 
 class Physics(NewtonResidual):
@@ -178,6 +119,9 @@ class Physics(NewtonResidual):
         # assumes jac called after __call__
         return self.apply_boundary_conditions_to_jacobian(sol_array, self._jac)
 
+    def _linsolve(self, sol_array: Array, res_array: Array):
+        return self._bkd.solve(self.jacobian(sol_array), res_array)
+
     def linsolve(self, sol_array: Array, res_array: Array):
         self._bkd.assert_isarray(self._bkd, sol_array)
         self._bkd.assert_isarray(self._bkd, res_array)
@@ -186,28 +130,11 @@ class Physics(NewtonResidual):
     def _flux_jacobian(self, sol_array: Array):
         raise NotImplementedError
 
+    def get_functions(self) -> Dict[str, MatrixFunction]:
+        return self._bndrys
 
-class LinearPhysicsMixin:
-    # TODO add option of prefactoring jacobian
-    # def _linsolve(self, sol_array: Array, res_array: Array):
-    #     return qr_solve(self._Q, self._R, res_array, bkd=self._bkd)
-
-    def _linsolve(self, sol_array: Array, res_array: Array):
-        return self._bkd.solve(self.jacobian(sol_array), res_array)
-
-    # def _residual_from_array(self, sol_array: Array):
-    #     # Only compute linear jacobian once.
-    #     # This is useful for transient problems or for steady state
-    #     # parameterized PDEs with jacobians that are not dependent on
-    #     # the uncertain parameters
-    #     if hasattr(self, "_linear_jac"):
-    #         return self._linear_jac @ sol_array
-    #     return self._linear_residual_from_function().get_values()
-
-
-class NonLinearPhysicsMixin:
-    def _linsolve(self, sol_array: Array, res_array: Array):
-        return self._bkd.solve(self.jacobian(sol_array), res_array)
+    def __repr__(self):
+        return "{0}(bndrys={1})".format(self.__class__.__name__, self._bndrys)
 
 
 class ScalarPhysicsMixin:
@@ -218,72 +145,74 @@ class ScalarPhysicsMixin:
         return sol
 
 
-class LinearDiffusionEquation(LinearPhysicsMixin, ScalarPhysicsMixin, Physics):
+class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
     def __init__(
         self,
-        forcing: ImutableScalarFunction,
-        diffusion: ImutableScalarFunction,
+        forcing: ImutableScalarFunction = None,
+        diffusion: ImutableScalarFunction = None,
+        reaction_op: Operator = None,
+        velocity_field: ImutableVectorFunction = None,
     ):
-        if not isinstance(forcing, ImutableScalarFunction):
+        if forcing is not None and not isinstance(
+                forcing, ImutableScalarFunction
+        ):
             raise ValueError(
                 "forcing must be an instance of ImutableScalarFunction"
             )
-        if not isinstance(diffusion, ImutableScalarFunction):
+        if diffusion is not None and not isinstance(
+                diffusion, ImutableScalarFunction
+        ):
             raise ValueError(
                 "diffusion must be an instance of ImutableScalarFunction"
+            )
+        if reaction_op is not None and not isinstance(reaction_op, Operator):
+            raise ValueError(
+                "reaction must be an instance of Operator"
+            )
+        if velocity_field is not None and not isinstance(
+                velocity_field, ImutableVectorFunction
+        ):
+            raise ValueError(
+                "velocity_field must be an instance of ImutableVectorFunction"
             )
         super().__init__(forcing.basis)
         self._forcing = forcing
         self._diffusion = diffusion
+        self._reaction_op = reaction_op
+        self._velocity_field = velocity_field
         self._flux_jacobian_implemented = True
 
     def residual(self, sol: ScalarFunction):
         if not isinstance(sol, ScalarSolution):
             raise ValueError("sol must be an instance of ScalarFunction")
-        return div(self._diffusion * nabla(sol)) + self._forcing
+        residual = 0.
+        if self._forcing is not None:
+            residual += self._forcing
+        if self._diffusion is not None:
+            residual += div(self._diffusion * nabla(sol))
+        if self._reaction_op is not None:
+            residual += self._reaction_op(sol)
+        if self._velocity_field is not None:
+            # todo combine with diffusion so div only applied once
+            residual -= div(sol * self._velocity_field)
+        return residual
 
     def _flux_jacobian(self, sol_array: Array):
         sol = self.separate_solutions(sol_array)
-        flux_jac = (self._diffusion * nabla(sol)).get_matrix_jacobian()
+        flux_jac = 0
+        if self._diffusion is not None:
+            flux_jac += (self._diffusion * nabla(sol)).get_matrix_jacobian()
+        if self._velocity_field is not None:
+            flux_jac -= (sol * self._velocity_field).get_matrix_jacobian()
         return flux_jac[:, 0, :, :]
 
-
-class LinearReactionDiffusionEquation(LinearDiffusionEquation):
-    def __init__(
-        self,
-        forcing: ImutableScalarFunction,
-        diffusion: ImutableScalarFunction,
-        reaction: ImutableScalarFunction,
-    ):
-        super().__init__(forcing, diffusion)
-        if not isinstance(reaction, ImutableScalarFunction):
-            raise ValueError(
-                "reaction must be an instance of ImutableScalarFunction"
-            )
-        self._reaction = reaction
-
-    def residual(self, sol: ScalarFunction):
-        diff_res = super().residual(sol)
-        react_res = self._reaction * sol
-        return diff_res + react_res
-
-
-class LinearReactionAdvectionDiffusionEquation(LinearDiffusionEquation):
-    def __init__(
-        self,
-        forcing: ImutableScalarFunction,
-        diffusion: ImutableScalarFunction,
-        reaction: ImutableScalarFunction,
-        velocities: ImutableVectorFunction,
-    ):
-        super().__init__(forcing, diffusion)
-        if not isinstance(velocities, ImutableVectorFunction):
-            raise ValueError(
-                "velocities must be an instance of ImutableVectorFunction"
-            )
-        self._velocities = velocities
-
-    def residual(self, sol: ScalarFunction):
-        react_diff_res = super().residual(sol)
-        advec_res = sol * self._velocities
-        return react_diff_res + advec_res
+    def get_functions(self) -> Dict[str, MatrixFunction]:
+        funs = super().get_functions()
+        funs["forcing"] = self._forcing,
+        if self._diffusion is not None:
+            funs["diffusion"] = self._diffusion
+        if self._reaction is not None:
+            funs["reaction_op"] = self._reaction_op
+        if self._advection is not None:
+            funs["advection"] = self._advection
+        return funs

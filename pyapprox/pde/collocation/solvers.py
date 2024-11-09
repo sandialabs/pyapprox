@@ -1,9 +1,13 @@
 from abc import ABC, abstractmethod
 import textwrap
 
+from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.pde.collocation.physics import Physics
-from pyapprox.pde.collocation.functions import MatrixFunction
+from pyapprox.pde.collocation.functions import (
+    MatrixFunction, TransientFunctionMixin
+)
 from pyapprox.pde.collocation.newton import NewtonSolver
+from pyapprox.pde.collocation.timeintegration import TransientNewtonResidual
 
 
 class PDESolver(ABC):
@@ -39,25 +43,31 @@ class SteadyPDE(PDESolver):
             )
         self.newton_solver = newton_solver
         self.newton_solver.set_residual(self.physics)
-    
+
     def solve(self, init_sol: MatrixFunction):
         init_sol_array = self._bkd.flatten(init_sol.get_values())
         sol_array = self.newton_solver.solve(init_sol_array)
         return self.physics.separate_solutions(sol_array)
 
 
-# class TransientPhysicsNewtonResidual(TransientNewtonResidual):
-#     def __init__(self, physics: Physics):
-#         super().__init__(physics._bkd)
-#         self._physics = physics
+class TransientPhysicsNewtonResidual(TransientNewtonResidual):
+    def __init__(self, physics: Physics):
+        super().__init__(physics._bkd)
+        self._physics = physics
 
-#     def linsolve(self, iterate, res):
-#         self.physics.linsolve(iterate, res)
+    def linsolve(self, iterate: Array, res: Array) -> Array:
+        return self.physics.linsolve(iterate, res)
 
-#     def __call__(self, iterate):
-#         raise NotImplementedError
-    
-    
+    def __call__(self, iterate: Array) -> Array:
+        return self._physics(iterate)
+
+    def set_time(self, time: float):
+        self._time = time
+        funs = self._physics.get_functions()
+        for name, fun in funs.items():
+            if isinstance(fun, TransientFunctionMixin):
+                fun.set_time(self._time)
+
 # class TransientPDE(PDESolver):
 #     def __init__(
 #             self,
