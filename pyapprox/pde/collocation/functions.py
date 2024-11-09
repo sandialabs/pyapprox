@@ -710,7 +710,7 @@ class ScalarTransientSolutionFromCallable(
         self.set_time(time)
 
 
-    # nabla f(u) = [D_1f_1,    0  ], d/du (nabla f(u)) = [D_1f_1'(u),     0     ]
+# nabla f(u) = [D_1f_1,    0  ], d/du (nabla f(u)) = [D_1f_1'(u),     0     ]
 #            = [  0   , D_2f_2]                      [   0      , D_2 f'(u) ]
 # where f'(u) = d/du f(u)
 def nabla(fun: MatrixFunction):
@@ -756,6 +756,17 @@ def div(fun: MatrixFunction):
     return MatrixFunction(
         fun.basis, 1, 1, div_vals[None, None, :], div_jac[None, None, ...]
     )
+
+
+def sqmagnitude(fun: MatrixFunction):
+    """Squared magnitude of a vector valued function."""
+    if fun._ncols != 1:
+        raise ValueError("Fun must be a vector valued function")
+    fun_values = fun.get_values()[:, 0, ...]
+    fun_jacs = fun.get_matrix_jacobian()[:, 0, ...]
+    mag_vals = fun._bkd.sum(fun_values**2, axis=0)
+    mag_jacs = fun._bkd.sum(fun_jacs**2, axis=0)
+    return ScalarFunction(fun.basis, mag_vals, mag_jacs)
 
 
 # div (nabla f)  = [D_1, D_2][D_1f_1,    0  ] = [D_1D_1f_1,    0     ]

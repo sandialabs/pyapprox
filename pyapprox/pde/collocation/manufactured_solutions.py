@@ -69,8 +69,10 @@ class ManufacturedSolution(ABC):
         expr_lambda = sp.lambdify(all_symbs, expr, "numpy")
         print(all_symbs)
         return partial(
-            _evaluate_transient_sp_lambda, expr_lambda, bkd=self._bkd,
-            oned=self._oned
+            _evaluate_transient_sp_lambda,
+            expr_lambda,
+            bkd=self._bkd,
+            oned=self._oned,
         )
 
     def _transient_expression_list_to_function(self, exprs):
@@ -89,8 +91,8 @@ class ManufacturedSolution(ABC):
     def _expressions_to_functions(self):
         self.transient["forcing"] = self.is_transient()
         if (
-                self._bkd.any(list(self.transient.values()))
-                and not self.transient["solution"]
+            self._bkd.any(list(self.transient.values()))
+            and not self.transient["solution"]
         ):
             raise ValueError(
                 "solution must be transient because another function is"
@@ -170,7 +172,7 @@ class DiffusionMixin:
         )
         forc_expr = -laplace_expr
         flux_exprs = [
-            diff_expr*sol_expr.diff(symb, 1) for symb in cartesian_symbs
+            diff_expr * sol_expr.diff(symb, 1) for symb in cartesian_symbs
         ]
         self._set_expression("diffusion", diff_expr, self._diff_string)
         self._set_expression("flux", flux_exprs, self._sol_string)
@@ -189,27 +191,27 @@ class ReactionMixin:
 class AdvectionMixin:
     def sympy_advection_expressions(self):
         cartesian_symbs = self.cartesian_symbols()
-        vel_exprs = [
-            sp.sympify(vel_string) for vel_string in self._vel_strs
-        ]
+        vel_exprs = [sp.sympify(vel_string) for vel_string in self._vel_strs]
         advection_expr = sum(
-            [vel_expr*self._expressions["solution"].diff(symb, 1)
-             for vel_expr, symb in zip(vel_exprs, cartesian_symbs)])
-        self._set_expression(
-            "velocity",  vel_exprs, ", ".join(self._vel_strs)
+            [
+                vel_expr * self._expressions["solution"].diff(symb, 1)
+                for vel_expr, symb in zip(vel_exprs, cartesian_symbs)
+            ]
         )
+        self._set_expression("velocity", vel_exprs, ", ".join(self._vel_strs))
         self._expressions["forcing"] += advection_expr
         flux_exprs = [
-            -vel_expr*self._expressions["solution"] for vel_expr in vel_exprs]
+            -vel_expr * self._expressions["solution"] for vel_expr in vel_exprs
+        ]
         self._set_expression("flux", flux_exprs, self._sol_string)
 
 
 class AdvectionDiffusionReaction(
-        ScalarSolutionMixin,
-        DiffusionMixin,
-        ReactionMixin,
-        AdvectionMixin,
-        ManufacturedSolution,
+    ScalarSolutionMixin,
+    DiffusionMixin,
+    ReactionMixin,
+    AdvectionMixin,
+    ManufacturedSolution,
 ):
     def __init__(
         self,
@@ -230,3 +232,53 @@ class AdvectionDiffusionReaction(
         self.sympy_diffusion_expressions()
         self.sympy_reaction_expressions()
         self.sympy_advection_expressions()
+
+
+class ShallowIceEquation(ScalarSolutionMixin):
+    def __init__(
+        self,
+        nvars: int,
+        sol_string: str,
+        bed_string: str,
+        friction_string: str,
+        A: float,
+        rho: float,
+        bkd=NumpyLinAlgMixin,
+        oned: bool = False,
+    ):
+        super().__init__(nvars, sol_string, bkd, oned)
+        self._bed_str = bed_string
+        self._friction_str = friction_string
+        self._A = A
+        self._rho = rho
+        self._n = 3
+        self._g = 9.81
+        self._gamma = (
+            2 * self._A * (self._rho * self._g) ** self._n / (self._n + 2)
+        )
+
+    def sympy_expressions(self):
+        cartesian_symbs = self.cartesian_symbols()
+        bed_expr = sp.sympify(self._bed_str)
+        friction_expr = sp.sympify(self._friction_str)
+        sol_expr = self._expressions["solution"]
+        surface_expr = bed_expr + sol_expr
+        surface_grad_exprs = [surface_expr.diff(s, 1) for s in cartesian_symbs]
+        flux_const = (
+            self._gamma
+            * sol_expr ** (self._n + 2)
+            * sum([gs**2 for gs in surface_grad_exprs]) ** ((self._n - 1) / 2)
+            + self._rho * self._g / self._friction_expr * sol_expr**2
+        )
+
+        flux_exprs = [flux_const * gs for gs in surface_grad_exprs]
+        forc_expr = -sum(
+            [
+                flux_expr.diff(symb, 1)
+                for symb, flux_expr in zip(cartesian_symbs, flux_exprs)
+            ]
+        )
+        self._set_expression("bed", bed_expr, self._bed_str)
+        self._set_expression("friction", friction_expr, self._friction_str)
+        self._set_expression("flux", flux_exprs, self._sol_string)
+        self._expressions["forcing"] += forc_expr

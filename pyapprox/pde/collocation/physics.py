@@ -18,7 +18,7 @@ from pyapprox.pde.collocation.boundaryconditions import (
     RobinBoundary,
 )
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
-from pyapprox.pde.collocation.functions import nabla, div
+from pyapprox.pde.collocation.functions import nabla, div, sqmagnitude
 
 
 class Physics(NewtonResidual):
@@ -144,6 +144,14 @@ class ScalarPhysicsMixin:
         sol.set_matrix_jacobian(sol._initial_matrix_jacobian())
         return sol
 
+    def _check_is_imutable_scalar_function(
+        self, fun: ImutableScalarFunction, name
+    ):
+        if fun is not None and not isinstance(fun, ImutableScalarFunction):
+            raise ValueError(
+                f"{name} must be an instance of ImutableScalarFunction"
+            )
+
 
 class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
     def __init__(
@@ -153,24 +161,12 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         reaction_op: Operator = None,
         velocity_field: ImutableVectorFunction = None,
     ):
-        if forcing is not None and not isinstance(
-                forcing, ImutableScalarFunction
-        ):
-            raise ValueError(
-                "forcing must be an instance of ImutableScalarFunction"
-            )
-        if diffusion is not None and not isinstance(
-                diffusion, ImutableScalarFunction
-        ):
-            raise ValueError(
-                "diffusion must be an instance of ImutableScalarFunction"
-            )
+        self._check_is_imutable_scalar_function(forcing, "forcing")
+        self._check_is_imutable_scalar_function(diffusion, "diffusion")
         if reaction_op is not None and not isinstance(reaction_op, Operator):
-            raise ValueError(
-                "reaction must be an instance of Operator"
-            )
+            raise ValueError("reaction must be an instance of Operator")
         if velocity_field is not None and not isinstance(
-                velocity_field, ImutableVectorFunction
+            velocity_field, ImutableVectorFunction
         ):
             raise ValueError(
                 "velocity_field must be an instance of ImutableVectorFunction"
@@ -185,7 +181,7 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
     def residual(self, sol: ScalarFunction):
         if not isinstance(sol, ScalarSolution):
             raise ValueError("sol must be an instance of ScalarFunction")
-        residual = 0.
+        residual = 0.0
         if self._forcing is not None:
             residual += self._forcing
         if self._diffusion is not None:
@@ -208,7 +204,7 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
 
     def get_functions(self) -> Dict[str, MatrixFunction]:
         funs = super().get_functions()
-        funs["forcing"] = self._forcing,
+        funs["forcing"] = self._forcing
         if self._diffusion is not None:
             funs["diffusion"] = self._diffusion
         if self._reaction is not None:
@@ -216,3 +212,60 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         if self._advection is not None:
             funs["advection"] = self._advection
         return funs
+
+
+class ShallowIceEquation(ScalarPhysicsMixin, Physics):
+    def __init__(
+        self,
+        bed: ImutableScalarFunction,
+        friction: ImutableScalarFunction,
+        A: float,
+        rho: float,
+        forcing: ImutableScalarFunction = None,
+        n: int = 3,
+        eps: float = 1e-15,
+    ):
+        self._check_is_imutable_scalar_function(bed, "bed")
+        self._check_is_imutable_scalar_function(friction, "friction")
+        self._check_is_imutable_scalar_function(forcing, "forcing")
+        super().__init__(forcing.basis)
+        self._bed = bed
+        self._friction = friction
+        self._forcing = forcing
+        self._eps = eps
+        self._A = A
+        self._rho = rho
+        self._g = 9.81
+        self._n = 3
+        self._gamma = (
+            2 * self._A * (self._rho * self._g) ** self._n / (self._n + 2)
+        )
+        self._friction_frac = self._g * self._rho / self._friction
+        self._flux_jacobian_implemented = True
+
+    def _flux(self, sol: ScalarFunction):
+        surf_grad = nabla(self._bed + sol)
+        return (
+            self._gamma
+            * sol ** (self._n + 2)
+            * (sqmagnitude(surf_grad) + self._eps) ** ((self._n - 1) / 2)
+            + (self._friction_frac * sol**2) * surf_grad
+        )
+
+    def residual(self, sol: ScalarFunction):
+        if not isinstance(sol, ScalarSolution):
+            raise ValueError("sol must be an instance of ScalarFunction")
+        residual = 0.0
+        if self._forcing is not None:
+            residual += self._forcing
+        residual += div(self._flux(sol))
+        return residual
+
+    def _flux_jacobian(self, sol_array: Array):
+        sol = self.separate_solutions(sol_array)
+        flux_jac = self._flux(sol).get_matrix_jacobian()
+        return flux_jac[:, 0, :, :]
+
+    def get_functions(self) -> Dict[str, MatrixFunction]:
+        funs = super().get_functions()
+        funs["forcing"] = self._forcing
