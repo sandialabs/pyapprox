@@ -16,7 +16,7 @@ class OrthogonalCoordinateMesh(ABC):
     def __init__(self, npts_1d, transform: OrthogonalCoordinateTransform):
         self._nphys_vars = transform.nphys_vars()
         if len(npts_1d) != self._nphys_vars:
-            raise ValueError("len(npts_1d) must match nphys_vars()")
+            raise ValueError(f"{len(npts_1d)=} must match {self.nphys_vars()=}")
         self._npts_1d = npts_1d
         if not isinstance(transform, OrthogonalCoordinateTransform):
             raise ValueError(

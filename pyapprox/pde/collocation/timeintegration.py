@@ -34,6 +34,27 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         super().__init__(residual._bkd)
         self.native_residual = residual
 
+    def _apply_constraints_to_residual(self, res_array: Array) -> Array:
+        return res_array
+
+    def _apply_constraints_to_jacobian(self, jac: Array) -> Array:
+        return jac
+
+    def _value(self, sol: Array) -> Array:
+        raise NotImplementedError
+
+    def __call__(self, sol: Array) -> Array:
+        res_array = self._value(sol)
+        return self._apply_constraints_to_residual(res_array)
+
+    def _jacobian(self, sol: Array) -> Array:
+        raise NotImplementedError
+
+    def jacobian(self, sol: Array) -> Array:
+        jac = self._jacobian(sol)
+        return self._apply_constraints_to_jacobian(jac)
+    # return self._apply_constraints_to_jacobian(jac)
+
     def adjoint_implemented(self) -> bool:
         return False
 
@@ -138,7 +159,7 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
 
 
 class ExplicitTimeIntegratorNewtonResidual(TimeIntegratorNewtonResidual):
-    def jacobian(self, sol: Array) -> Array:
+    def _jacobian(self, sol: Array) -> Array:
         # todo: do not solve linear system when using explicit time integrators
         return self.native_residual.mass_matrix(sol.shape[0])
 
@@ -171,7 +192,7 @@ class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
     def adjoint_implemented(self) -> bool:
         return True
 
-    def __call__(self, sol: Array) -> Array:
+    def _value(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time)
         return (
             sol
@@ -196,7 +217,7 @@ class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
         )
 
     def adjoint_offdiag_jacobian(
-        self, fsol_n: Array, deltat_np1: float
+            self, fsol_n: Array, deltat_np1: float
     ) -> Array:
         self.native_residual.set_time(self._time)
         return -(
@@ -209,11 +230,11 @@ class BackwardEulerResidual(TimeIntegratorNewtonResidual):
     def adjoint_implemented(self) -> bool:
         return True
 
-    def __call__(self, sol: Array) -> Array:
+    def _value(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat)
         return sol - self._prev_sol - self._deltat * self.native_residual(sol)
 
-    def jacobian(self, sol: Array) -> Array:
+    def _jacobian(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat)
         return self.native_residual.mass_matrix(
             sol.shape[0]
@@ -261,7 +282,7 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
         return True
 
     # Trapezoid integration
-    def __call__(self, sol: Array):
+    def _value(self, sol: Array):
         self.native_residual.set_time(self._time)
         current_res = self.native_residual(self._prev_sol)
         next_sol = self._prev_sol + self._deltat * current_res
@@ -328,7 +349,7 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
         return True
 
     # Trapezoid integration
-    def __call__(self, sol: Array):
+    def _value(self, sol: Array):
         self.native_residual.set_time(self._time)
         current_res = self.native_residual(self._prev_sol)
         self.native_residual.set_time(self._time + self._deltat)
@@ -339,7 +360,7 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
             - 0.5 * self._deltat * (current_res + next_res)
         )
 
-    def jacobian(self, sol: Array):
+    def _jacobian(self, sol: Array):
         self.native_residual.set_time(self._time)
         current_jac = self.native_residual.jacobian(self._prev_sol)
         self.native_residual.set_time(self._time + self._deltat)
@@ -394,7 +415,7 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
 
 class RK4(ExplicitTimeIntegratorNewtonResidual):
     # Simpsons (piecewise quadratic) integration
-    def __call__(self, sol: Array):
+    def _value(self, sol: Array):
         self.native_residual.set_time(self._time)
         k1_res = self.native_residual(self._prev_sol)
         self.native_residual.set_time(self._time + self._deltat / 2)
@@ -442,7 +463,7 @@ class SymplecticMidpointResidual(TimeIntegratorNewtonResidual):
     y_{n+1/2} - y_n - delta/2*G(t+delta/2, y_{n+1/2} = 0 then
     correct via y_{n+1} = 2*y_{n+1/2}-y_n
     """
-    def __call__(self, sol: Array) -> Array:
+    def _value(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat / 2)
         return (
             sol
@@ -450,7 +471,7 @@ class SymplecticMidpointResidual(TimeIntegratorNewtonResidual):
             - self._deltat * self.native_residual((self._prev_sol + sol) / 2)
         )
 
-    def jacobian(self, sol: Array) -> Array:
+    def _jacobian(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat / 2)
         return self.native_residual.mass_matrix(
             sol.shape[0]

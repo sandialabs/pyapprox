@@ -12,6 +12,7 @@ from pyapprox.pde.collocation.functions import (
     Operator,
     ImutableScalarFunctionFromCallable,
     ScalarMonomialOperator,
+    TransientFunctionMixin,
 )
 from pyapprox.pde.collocation.newton import NewtonResidual
 from pyapprox.pde.collocation.boundaryconditions import (
@@ -34,6 +35,9 @@ class Physics(NewtonResidual):
         self.basis = basis
         self._flux_jacobian_implemented = False
 
+    def mass_matrix(self, nterms: int) -> Array:
+        return self._bkd.eye(nterms)
+
     def set_boundaries(self, bndrys: list[BoundaryFunction]):
         nperiodic_boundaries = 0
         for bndry in bndrys:
@@ -54,10 +58,10 @@ class Physics(NewtonResidual):
                 )
 
     def apply_boundary_conditions_to_residual(
-        self, sol_array: Array, res_array: Array, jac: Array
+        self, sol_array: Array, res_array: Array
     ):
         for bndry in self._bndrys:
-            res_array = bndry.apply_to_residual(sol_array, res_array, jac)
+            res_array = bndry.apply_to_residual(sol_array, res_array)
         return res_array
 
     def apply_boundary_conditions_to_jacobian(
@@ -76,25 +80,21 @@ class Physics(NewtonResidual):
         sol = self._separate_solutions(sol_array)
         return self.residual(sol)
 
-    def _residual_array_and_jacobian_from_solution_array(
-        self, sol_array: Array
-    ):
-        res = self._residual_function_from_solution_array(sol_array)
-        res_array = self._bkd.flatten(res.get_values())
-        jac = res.get_matrix_jacobian()
-        jac = self._bkd.reshape(
-            jac, (jac.shape[0] * jac.shape[2], jac.shape[3])
-        )
-        return res_array, jac
-
     def _residual_array_from_solution_array(self, sol_array: Array):
         # TODO add option to matrix function that stops jacobian being computed
         # when computing residual. useful for explicit time stepping
         # and linear problems where jacobian does not depend on time or
         # on uncertain parameters of PDE
-        return self._residual_array_and_jacobian_from_solution_array(
-            sol_array
-        )[0]
+        res = self._residual_function_from_solution_array(sol_array)
+        res_array = self._bkd.flatten(res.get_values())
+        return res_array
+
+    def _residual_jacobian_from_solution_array(self, sol_array: Array):
+        res = self._residual_function_from_solution_array(sol_array)
+        jac = res.get_matrix_jacobian()
+        return self._bkd.reshape(
+            jac, (jac.shape[0] * jac.shape[2], jac.shape[3])
+        )
 
     @abstractmethod
     def _separate_solutions(self, array):
@@ -110,26 +110,13 @@ class Physics(NewtonResidual):
             )
         return sol
 
+    # TODO consider making physics not derive from newton residual.
+    # As we already wrap physics in another class that acts as the newton residual
     def __call__(self, sol_array: Array):
-        res_array, jac = self._residual_array_and_jacobian_from_solution_array(
-            sol_array
-        )
-        self._jac = jac
-        return self.apply_boundary_conditions_to_residual(
-            sol_array, res_array, jac
-        )
+        raise NotImplementedError("Use physics with SteadyPhysicsNewtonResidual")
 
     def jacobian(self, sol_array: Array):
-        # assumes jac called after __call__
-        return self.apply_boundary_conditions_to_jacobian(sol_array, self._jac)
-
-    def _linsolve(self, sol_array: Array, res_array: Array):
-        return self._bkd.solve(self.jacobian(sol_array), res_array)
-
-    def linsolve(self, sol_array: Array, res_array: Array):
-        self._bkd.assert_isarray(self._bkd, sol_array)
-        self._bkd.assert_isarray(self._bkd, res_array)
-        return self._linsolve(sol_array, res_array)
+        raise NotImplementedError("Use physics with SteadyPhysicsNewtonResidual")
 
     def _flux(self, sol_array: Array):
         raise NotImplementedError
@@ -147,7 +134,8 @@ class Physics(NewtonResidual):
         return flux[:, 0, :]
 
     def get_functions(self) -> Dict[str, MatrixFunction]:
-        return self._bndrys
+        funs = dict()
+        return funs
 
     def __repr__(self):
         return "{0}(bndrys={1})".format(self.__class__.__name__, self._bndrys)
@@ -222,10 +210,10 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         funs["forcing"] = self._forcing
         if self._diffusion is not None:
             funs["diffusion"] = self._diffusion
-        if self._reaction is not None:
+        if self._reaction_op is not None:
             funs["reaction_op"] = self._reaction_op
-        if self._advection is not None:
-            funs["advection"] = self._advection
+        if self._velocity_field is not None:
+            funs["velocity_field"] = self._velocity_field
         return funs
 
 

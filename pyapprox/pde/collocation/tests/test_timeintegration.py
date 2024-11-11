@@ -956,7 +956,6 @@ class TestTimeIntegration:
         errors = model.check_apply_jacobian(sample, disp=True)
         assert errors.min() / errors.max() < 1e-6
 
-
     def test_decoupled_linear_ode_implicit_midpoint(self):
         bkd = self.get_backend()
 

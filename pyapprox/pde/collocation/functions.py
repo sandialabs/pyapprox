@@ -516,7 +516,7 @@ class ScalarFunction(MatrixFunction):
     def _plot_3d_external(self, ax, npts_1d, fig):
         orth_range = self.basis.mesh.trans._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
-            self._bkd.tile(orth_range, (2,)), npts_1d
+            self._bkd.tile(orth_range, (2,)), npts_1d, bkd=self._bkd
         )
         edges = [
             self._prepare_edge_3d(
@@ -741,6 +741,9 @@ class ScalarSolutionFromCallable(ScalarSolution, FunctionFromCallableMixin):
 
 
 class TransientFunctionMixin(ABC):
+    def __init__(self, *args, **kwargs):
+        super()._init__(*args, **kwargs)
+
     @abstractmethod
     def _eval(self, time: float):
         raise NotImplementedError
@@ -760,6 +763,13 @@ class TransientFunctionMixin(ABC):
         self._check_time_set()
         return self._time
 
+    def __repr__(self):
+        return "{0}(\ntime={1}\n{2}\n)".format(
+            self.__class__.__name__,
+            self._time,
+            textwrap.indent("basis=" + str(self.basis), prefix="    "),
+        )
+
 
 class TransientFunctionFromCallableMixin(TransientFunctionMixin):
     def _eval(self, mesh_pts):
@@ -768,7 +778,7 @@ class TransientFunctionFromCallableMixin(TransientFunctionMixin):
 
 
 class ImutableScalarTransientFunctionFromCallable(
-    ImutableScalarFunction, TransientFunctionFromCallableMixin
+        TransientFunctionFromCallableMixin, ImutableScalarFunction
 ):
     def __init__(
         self,
@@ -782,7 +792,7 @@ class ImutableScalarTransientFunctionFromCallable(
 
 
 class ScalarTransientSolutionFromCallable(
-    ScalarSolution, TransientFunctionFromCallableMixin
+        TransientFunctionFromCallableMixin, ScalarSolution
 ):
     """Transient scalar solution of a PDE"""
 

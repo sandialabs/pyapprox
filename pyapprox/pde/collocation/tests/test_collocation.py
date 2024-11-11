@@ -1,5 +1,6 @@
 import unittest
 import itertools
+import copy
 from typing import Tuple
 
 import numpy as np
@@ -13,6 +14,7 @@ from pyapprox.pde.collocation.manufactured_solutions import (
     AdvectionDiffusionReaction,
     ShallowIce,
     Helmholtz,
+    ShallowWave
 )
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
@@ -55,7 +57,10 @@ from pyapprox.pde.collocation.mesh import (
     ChebyshevCollocationMesh2D,
     ChebyshevCollocationMesh3D,
 )
-from pyapprox.pde.collocation.solvers import SteadyPDE, NewtonSolver
+from pyapprox.pde.collocation.solvers import (
+    SteadyPDE, NewtonSolver, TransientPDE
+)
+from pyapprox.pde.collocation.timeintegration import BackwardEulerResidual, CrankNicholsonResidual
 # from pyapprox.util.print_wrapper import *
 
 
@@ -278,15 +283,14 @@ class TestCollocation:
         bkd = self.get_backend()
         react_str, react_fun, react_op_degree = react_tup
         man_sol = AdvectionDiffusionReaction(
-            len(vel_strings),
             sol_string,
+            len(vel_strings),
             diff_string,
             react_str,
             vel_strings,
             bkd=bkd,
             oned=True,
         )
-        print(bndry_types)
         print(man_sol)
         exact_sol = self._setup_scalar_solution_from_manufactured_solution(
             basis, man_sol
@@ -380,8 +384,85 @@ class TestCollocation:
         init_sol = linear_solver.solve(linear_init_sol)
         init_sol = exact_sol
         sol = solver.solve(init_sol)
-        print(sol.get_values()-exact_sol.get_values())
+        # print(sol.get_values()-exact_sol.get_values())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
+
+    def _check_transient_state_advection_diffusion_reaction(
+        self,
+        sol_string: str,
+        diff_string: str,
+        vel_strings: str,
+        react_tup: Tuple[str, callable],
+        bndry_types: str,
+        basis: OrthogonalCoordinateCollocationBasis,
+    ):
+        bkd = self.get_backend()
+        react_str, react_fun, react_op_degree = react_tup
+        man_sol = AdvectionDiffusionReaction(
+            sol_string,
+            len(vel_strings),
+            diff_string,
+            react_str,
+            vel_strings,
+            bkd=bkd,
+            oned=True,
+        )
+        print(man_sol)
+        exact_sol = self._setup_scalar_solution_from_manufactured_solution(
+            basis, man_sol
+        )
+
+        diffusion = self._setup_immutable_scalar_function(
+            "diffusion", basis, man_sol
+        )
+        forcing = self._setup_immutable_scalar_function(
+            "forcing", basis, man_sol
+        )
+        react_coef = ImutableScalarFunctionFromCallable(
+            basis,
+            react_fun
+        )
+        react_op = ScalarMonomialOperator(
+            degree=react_op_degree, coef=react_coef
+        )
+        vel_field = ImutableVectorFunctionFromCallable(
+            basis, basis.nphys_vars(), man_sol.functions["velocity"]
+        )
+        physics = AdvectionDiffusionReactionEquation(
+            forcing, diffusion, react_op, vel_field
+        )
+        boundaries = self._setup_boundary_conditions(
+            basis,
+            bndry_types,
+            man_sol,
+        )
+        physics.set_boundaries(boundaries)
+        solver = TransientPDE(
+            physics,
+            NewtonSolver(
+                verbosity=2,
+                maxiters=1 if react_op_degree < 2 else 10,
+                atol=1e-8,
+                rtol=1e-8,
+            )
+        )
+        init_time, final_time, deltat = 0., 1., 0.5
+        solver.setup_time_integrator(
+            BackwardEulerResidual, init_time, final_time, deltat
+            # CrankNicholsonResidual, init_time, final_time, deltat
+        )
+        init_sol = copy.deepcopy(exact_sol)
+        init_sol.set_time(init_time)
+        sols, times = solver.solve(init_sol)
+        exact_sols = []
+        for time in times:
+            exact_sol.set_time(time)
+            exact_sols.append(exact_sol.get_values())
+        exact_sols = bkd.stack(exact_sols, axis=1)
+        # print(sols)
+        # print(exact_sols)
+        # print((sols-exact_sols))
+        assert bkd.allclose(sols, exact_sols, atol=1e-12)
 
     def test_steady_advection_diffusion_reaction_1D(self):
         bkd = self.get_backend()
@@ -421,15 +502,37 @@ class TestCollocation:
         bkd = self.get_backend()
         # transient test cases
         test_case_args = [
-            ["-(x-1)*x/2*(1+T)"],  # sol_string
+            ["x**2*(1+T)"],  # sol_string
             ["4"],  # diff_string
             [["0"]],  # vel_strings
             [
-                ["0", lambda x: bkd.zeros(x.shape[1])],
+                ["0", lambda x: bkd.zeros(x.shape[1]), 0],
+                ["2*u", lambda x: bkd.full((x.shape[1],), 2.0), 1],
             ],  # react_str
             ["D"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([5], [0, 1]),
+            ],  # basis
+        ]
+        for test_case in itertools.product(*test_case_args):
+            self._check_transient_state_advection_diffusion_reaction(
+                *test_case
+            )
+
+    def test_transient_advection_diffusion_reaction_2D(self):
+        bkd = self.get_backend()
+        # transient test cases
+        test_case_args = [
+            ["x**2*(1+T)*y**2"],  # sol_string
+            ["4"],  # diff_string
+            [["0", "1"],],  # vel_strings
+            [
+                ["0", lambda x: bkd.zeros(x.shape[1]), 0],
+                ["2*u", lambda x: bkd.full((x.shape[1],), 2.0), 1],
+            ],  # react_str
+            ["D"],  # bndry_types
+            [
+                self._setup_rect_cheby_basis_2d([5, 5], [0, 1, 0, 2]),
             ],  # basis
         ]
         for test_case in itertools.product(*test_case_args):
@@ -491,8 +594,8 @@ class TestCollocation:
             ["4", "(x+1)"],  # diff_string
             [["0", "0", "0"], ["1", "2", "3"]],  # vel_strings
             [
-                ["0", lambda x: bkd.zeros(x.shape[1])],
-                ["2*u", lambda x: bkd.full((x.shape[1],), 2.0)],
+                ["0", lambda x: bkd.zeros(x.shape[1]), 0],
+                ["2*u", lambda x: bkd.full((x.shape[1],), 2.0), 1],
             ],  # react_str
             ["D", "R", "M"],  # bndry_types
             # basis
@@ -529,8 +632,8 @@ class TestCollocation:
     ):
         bkd = self.get_backend()
         man_sol = ShallowIce(
-            basis.nphys_vars(),
             sol_string,
+            basis.nphys_vars(),
             bed_string,
             friction_string,
             A,
@@ -562,15 +665,15 @@ class TestCollocation:
         )
         physics = ShallowIceEquation(bed, friction, A, rho, forcing)
         residual = physics.residual(exact_sol)
-        print(residual.get_values()[0, 0])
-        print(bkd.abs(residual.get_values()[0, 0]).max())
-        # assert bkd.allclose(
-        #     residual.get_values()[0, 0],
-        #     bkd.zeros(
-        #         exact_sol.nmesh_pts(),
-        #     ),
-        #     atol=1e-7
-        # )
+        # print(residual.get_values()[0, 0])
+        # print(bkd.abs(residual.get_values()[0, 0]).max())
+        assert bkd.allclose(
+            residual.get_values()[0, 0],
+            bkd.zeros(
+                exact_sol.nmesh_pts(),
+            ),
+            atol=1e-7
+        )
 
         boundaries = self._setup_boundary_conditions(
             basis,
@@ -579,13 +682,12 @@ class TestCollocation:
         )
         physics.set_boundaries(boundaries)
 
-        assert bkd.max(bkd.abs(physics(exact_sol.get_values()))) < 1e-5
+        assert bkd.max(bkd.abs(physics.residual(exact_sol).get_values())) < 1e-5
 
         def autofun(sol_array):
             sol = physics.separate_solutions(sol_array)
             return physics._flux(sol).get_values()
         jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
-        np.set_printoptions(linewidth=1000)
         assert bkd.allclose(
             physics._flux_jacobian_from_array(exact_sol.get_values()), jac_auto,
             atol=1e-15
@@ -631,8 +733,8 @@ class TestCollocation:
     ):
         bkd = self.get_backend()
         man_sol = Helmholtz(
-            basis.nphys_vars(),
             sol_string,
+            basis.nphys_vars(),
             sqwavenum_string,
             bkd=bkd,
             oned=True,
@@ -651,8 +753,8 @@ class TestCollocation:
         physics = HelmholtzEquation(sqwavenum, forcing)
         residual = physics.residual(exact_sol)
         # np.set_printoptions(linewidth=1000)
-        print(residual.get_values()[0, 0])
-        print(bkd.abs(residual.get_values()[0, 0]).max())
+        # print(residual.get_values()[0, 0])
+        # print(bkd.abs(residual.get_values()[0, 0]).max())
         assert bkd.allclose(
             residual.get_values()[0, 0],
             bkd.zeros(
@@ -711,6 +813,39 @@ class TestCollocation:
 
         for test_case in itertools.product(*test_case_args):
             self._check_helmholtz_equation(*test_case)
+
+    def _check_shallow_wave_equation(
+            self,
+            depth_str: str,
+            vel_strs: str,
+            bed_str: str,
+            bndry_types: str,
+            basis: OrthogonalCoordinateCollocationBasis,
+    ):
+        bkd = self.get_backend()
+        man_sol = ShallowWave(
+            basis.nphys_vars(),
+            depth_str,
+            vel_strs,
+            bed_str,
+            bkd=bkd,
+            oned=False,
+        )
+        print(man_sol)
+
+    def test_shallow_wave_equation(self):
+        test_case_args = [
+            ["1-(x-1)*x/2*(1+T)"],  # depth_string
+            [["(x+1)*(1+T)"],],  # vel_strings
+            ["0"],  # bed_string
+            ["D"],  # bndry_types
+            [
+                self._setup_cheby_basis_1d([5], [0, 1]),
+            ],  # basis
+        ]
+
+        for test_case in itertools.product(*test_case_args):
+            self._check_shallow_wave_equation(*test_case)
 
 
 class TestNumpyCollocation(TestCollocation, unittest.TestCase):

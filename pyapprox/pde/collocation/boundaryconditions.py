@@ -19,7 +19,7 @@ class BoundaryFunction(ABC):
         self._bkd = self._mesh_bndry._bkd
 
     @abstractmethod
-    def apply_to_residual(self, sol: Array, res_array: Array, jac: Array):
+    def apply_to_residual(self, sol: Array, res_array: Array):
         raise NotImplementedError
 
     @abstractmethod
@@ -52,7 +52,7 @@ class BoundaryFunction(ABC):
 
 
 class DirichletBoundary(BoundaryFunction):
-    def apply_to_residual(self, sol: Array, res: Array, jac: Array):
+    def apply_to_residual(self, sol: Array, res: Array):
         idx = self._mesh_bndry._bndry_idx
         bndry_vals = self._bkd.flatten(self(self._mesh_bndry._bndry_mesh_pts))
         res[idx] = self._bndry_slice(sol, idx, 0) - bndry_vals
@@ -139,14 +139,9 @@ class RobinBoundary(BoundaryFunction):
         )
         return normal_flux_jac
 
-    def apply_to_residual(
-        self, sol_array: Array, res_array: Array, jac: Array
-    ):
+    def apply_to_residual(self, sol_array: Array, res_array: Array):
         idx = self._mesh_bndry._bndry_idx
         bndry_vals = self._bkd.flatten(self(self._mesh_bndry._bndry_mesh_pts))
-        # todo normal_flux vals gets called here and in apply_to_jacobian
-        # remove this computational redundancy
-        jac[idx] = self._normal_flux_jacobian(sol_array)
         res_array[idx] = (
             self._alpha * self._bndry_slice(sol_array, idx, 0)
             + self._beta * self._normal_flux(sol_array)
@@ -217,9 +212,7 @@ class PeriodicBoundary(BoundaryFunction):
         jac = self._gradient_dot_normal_jacobian(mesh_bndry, normal_vals)
         return jac @ sol_array
 
-    def apply_to_residual(
-        self, sol_array: Array, res_array: Array, jac: Array
-    ):
+    def apply_to_residual(self, sol_array: Array, res_array: Array):
         idx1 = self._mesh_bndry._bndry_idx
         idx2 = self._partner_mesh_bndry._bndry_idx
         # match solution values
