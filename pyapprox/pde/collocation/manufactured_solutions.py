@@ -67,7 +67,6 @@ class ManufacturedSolution(ABC):
     def _transient_expression_to_function(self, expr):
         all_symbs = self.all_symbols()
         expr_lambda = sp.lambdify(all_symbs, expr, "numpy")
-        print(all_symbs)
         return partial(
             _evaluate_transient_sp_lambda,
             expr_lambda,
@@ -86,12 +85,12 @@ class ManufacturedSolution(ABC):
         )
 
     def is_transient(self):
-        return self._bkd.any(list(self.transient.values()))
+        return self._bkd.any(self._bkd.array(list(self.transient.values())))
 
     def _expressions_to_functions(self):
         self.transient["forcing"] = self.is_transient()
         if (
-            self._bkd.any(list(self.transient.values()))
+            self._bkd.any(self._bkd.array(list(self.transient.values())))
             and not self.transient["solution"]
         ):
             raise ValueError(
@@ -234,7 +233,34 @@ class AdvectionDiffusionReaction(
         self.sympy_advection_expressions()
 
 
-class ShallowIceEquation(ScalarSolutionMixin):
+class Helmholtz(
+        ScalarSolutionMixin, DiffusionMixin, ReactionMixin, ManufacturedSolution
+):
+    def __init__(
+        self,
+        nvars: int,
+        sol_string: str,
+        sqwavenum_str: str,
+        bkd=NumpyLinAlgMixin,
+        oned: bool = False,
+    ):
+        self._diff_string = "1"
+        self._sqwavenum_string = sqwavenum_str
+        self._react_str = f"u*{sqwavenum_str}"
+        self._vel_strs = ["0"] * nvars
+        super().__init__(nvars, sol_string, bkd, oned)
+
+    def sympy_expressions(self):
+        self.sympy_diffusion_expressions()
+        self.sympy_reaction_expressions()
+        self._set_expression(
+            "sqwavenum",
+            sp.sympify(self._sqwavenum_string),
+            self._sqwavenum_string,
+        )
+
+
+class ShallowIce(ScalarSolutionMixin, ManufacturedSolution):
     def __init__(
         self,
         nvars: int,
@@ -246,7 +272,6 @@ class ShallowIceEquation(ScalarSolutionMixin):
         bkd=NumpyLinAlgMixin,
         oned: bool = False,
     ):
-        super().__init__(nvars, sol_string, bkd, oned)
         self._bed_str = bed_string
         self._friction_str = friction_string
         self._A = A
@@ -256,6 +281,7 @@ class ShallowIceEquation(ScalarSolutionMixin):
         self._gamma = (
             2 * self._A * (self._rho * self._g) ** self._n / (self._n + 2)
         )
+        super().__init__(nvars, sol_string, bkd, oned)
 
     def sympy_expressions(self):
         cartesian_symbs = self.cartesian_symbols()
@@ -264,14 +290,14 @@ class ShallowIceEquation(ScalarSolutionMixin):
         sol_expr = self._expressions["solution"]
         surface_expr = bed_expr + sol_expr
         surface_grad_exprs = [surface_expr.diff(s, 1) for s in cartesian_symbs]
-        flux_const = (
+        diffusion = (
             self._gamma
             * sol_expr ** (self._n + 2)
-            * sum([gs**2 for gs in surface_grad_exprs]) ** ((self._n - 1) / 2)
-            + self._rho * self._g / self._friction_expr * sol_expr**2
+            * sum([gs ** 2 for gs in surface_grad_exprs]) ** ((self._n - 1) / 2)
+            + self._rho * self._g / friction_expr * sol_expr ** 2
         )
 
-        flux_exprs = [flux_const * gs for gs in surface_grad_exprs]
+        flux_exprs = [diffusion * gs for gs in surface_grad_exprs]
         forc_expr = -sum(
             [
                 flux_expr.diff(symb, 1)
@@ -280,5 +306,6 @@ class ShallowIceEquation(ScalarSolutionMixin):
         )
         self._set_expression("bed", bed_expr, self._bed_str)
         self._set_expression("friction", friction_expr, self._friction_str)
+        self._set_expression("diffusion", diffusion, "")
         self._set_expression("flux", flux_exprs, self._sol_string)
         self._expressions["forcing"] += forc_expr

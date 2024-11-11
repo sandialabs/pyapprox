@@ -131,6 +131,8 @@ class NewtonSolver:
             it += 1
             if self._verbosity > 1:
                 print("Iter", it, "rnorm", residual_norm)
+            if not self._bkd.isfinite(residual_norm):
+                raise ValueError("Residual is no longer finite")
             if residual_norm <= self._atol + self._rtol * residual_norms[0]:
                 exit_msg = (
                     f"Tolerance {self._atol+self._rtol*residual_norms[0]} "

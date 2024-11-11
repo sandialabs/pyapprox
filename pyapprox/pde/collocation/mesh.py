@@ -24,6 +24,7 @@ class OrthogonalCoordinateMesh(ABC):
                 "OrthogonalCoordinateTransform"
             )
         self._bkd = transform._bkd
+        print(self._bkd)
         self.trans = transform
         self._set_orthogonal_mesh_pts(npts_1d)
         self._mesh_pts = self.trans.map_from_orthogonal(self._orth_mesh_pts)
@@ -123,9 +124,8 @@ class OrthogonalCoordinateMeshBoundary1D(OrthogonalCoordinateMeshBoundary):
         bndry_name: str,
         trans: OrthogonalCoordinateTransform,
         tol: float = 1e-15,
-        bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(bndry_name, trans, tol, bkd)
+        super().__init__(bndry_name, trans, tol, trans._bkd)
         self._bndry_index = {"left": 0, "right": 1}[bndry_name]
         self._orth_normal = self._bkd.asarray([[-1.0], [1.0]])[
             self._bndry_index
@@ -152,9 +152,8 @@ class OrthogonalCoordinateMeshBoundary2D(OrthogonalCoordinateMeshBoundary):
         trans: OrthogonalCoordinateTransform,
         npts: int,
         tol: float = 1e-15,
-        bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(bndry_name, trans, tol, bkd)
+        super().__init__(bndry_name, trans, tol, trans._bkd)
         self._bndry_index = {"left": 0, "right": 1, "bottom": 2, "top": 3}[
             bndry_name
         ]
@@ -206,9 +205,8 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
         trans: OrthogonalCoordinateTransform,
         npts_1d: int,
         tol: float = 1e-15,
-        bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(bndry_name, trans, tol, bkd)
+        super().__init__(bndry_name, trans, tol, trans._bkd)
         self._bndry_index = {
             "left": 0,
             "right": 1,
@@ -336,7 +334,6 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
                 )
             )[0]
             indices = indices[keep_idx]
-        print("mesh.py", indices.shape, self._bndry_name)
         return indices
 
 

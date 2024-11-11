@@ -10,6 +10,13 @@ from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
 
 
+# Note from typing documentation
+# When a type hint contains names that have not been defined yet, that
+# definition may be expressed as a string literal, to be resolved later.
+# The string literal should contain a valid Python expression and it
+# should evaluate without errors once the module has been fully loaded.
+
+
 class MatrixFunction(ABC):
     def __init__(
         self,
@@ -92,7 +99,7 @@ class MatrixFunction(ABC):
     def get_matrix_values(self):
         return self._values_at_mesh
 
-    def dot(self, other):
+    def dot(self, other: "MatrixFunction") -> "MatrixFunction":
         values = self.get_matrix_values()
         other_values = self.get_matrix_values()
         return MatrixFunction(
@@ -102,7 +109,9 @@ class MatrixFunction(ABC):
             self._bkd,
         )
 
-    def _multiply_functions(self, other):
+    def _multiply_functions(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
         if not isinstance(other, (MatrixFunction, float)):
             raise ValueError(
                 f"cannot multiply Matrixfunction by {type(other)}"
@@ -133,13 +142,73 @@ class MatrixFunction(ABC):
             other.basis, other._nrows, other._ncols, values, jac
         )
 
-    def __mul__(self, other):
+    def __mul__(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
         return self._multiply_functions(other)
 
-    def __rmul__(self, other):
+    def __rmul__(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
         return self._multiply_functions(other)
 
-    def _add_functions(self, other):
+    def _divide_functions(self, fun1, fun2) -> "MatrixFunction":
+        if isinstance(fun2, float):
+            if fun2 == 0:
+                raise ValueError("Cannot divide by zero")
+            return MatrixFunction(
+                fun1.basis,
+                fun1._nrows,
+                fun1._ncols,
+                fun1.get_matrix_values() / fun2,
+                fun1.get_matrix_jacobian() / fun2,
+            )
+
+        if isinstance(fun1, float):
+            if self._bkd.any(fun2.get_matrix_values() == 0.):
+                raise ValueError("Cannot divide by zero")
+            return MatrixFunction(
+                fun2.basis,
+                fun2._nrows,
+                fun2._ncols,
+                fun1 / fun2.get_matrix_values(),
+                -fun1
+                * fun2.get_matrix_jacobian()
+                / (fun2.get_matrix_values() ** 2),
+            )
+
+        if fun1._nrows != 1 or fun1._ncols != 1:
+            raise ValueError(
+                "multiplication only defined when other is a scalar valued "
+                "function"
+            )
+        values = fun1.get_matrix_values() / fun2.get_matrix_values()
+        # use quotient rule
+        jac = (
+            fun2.get_matrix_values()[..., None] * fun1.get_matrix_jacobian()
+            - fun2.get_matrix_jacobian() * fun1.get_matrix_values()[..., None]
+        ) / fun2.get_matrix_values()[..., None] ** 2
+        return MatrixFunction(
+            fun2.basis, fun2._nrows, fun2._ncols, values, jac
+        )
+
+    def __truediv__(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
+        if not isinstance(other, (float, MatrixFunction)):
+            raise ValueError(f"Cannot divde function by {type(other)}")
+        return self._divide_functions(self, other)
+
+    def __rtruediv__(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
+        if not isinstance(other, (float, MatrixFunction)):
+            raise ValueError(f"Cannot divide {type(other)} by function")
+        return self._divide_functions(other, self)
+
+    def _add_functions(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
         if isinstance(other, float):
             return MatrixFunction(
                 self.basis,
@@ -159,28 +228,55 @@ class MatrixFunction(ABC):
             self.get_matrix_jacobian() + other.get_matrix_jacobian(),
         )
 
-    def __add__(self, other):
+    def __add__(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
         if not isinstance(other, (MatrixFunction, float)):
             raise ValueError(f"cannot add {type(other)} to a Matrixfunction")
         return self._add_functions(other)
 
-    def __radd__(self, other):
+    def __radd__(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
         if not isinstance(other, (MatrixFunction, float)):
             raise ValueError(f"cannot add {type(other)} to a Matrixfunction")
         return self._add_functions(other)
 
-    def _subtract_functions(self, fun1, fun2):
-        if fun1.matrix_jacobian_shape() != fun2.matrix_jacobian_shape():
-            raise ValueError("self and other have different shapes")
+    def __pow__(self, other: int) -> "MatrixFunction":
+        if not isinstance(other, int) or other < 2:
+            raise ValueError("Can only use power with int and power > 1")
+        result = self
+        for ii in range(2, other + 1):
+            result = self * result
+        return result
+
+    def sqrt(self) -> "MatrixFunction":
+        vals = self.get_matrix_values()
+        if self._bkd.any(vals < 0.):
+            raise ValueError("Cannot take sqrt of negative values")
+        sqrt_vals = self._bkd.sqrt(vals)
         return MatrixFunction(
             self.basis,
             self._nrows,
             self._ncols,
+            sqrt_vals,
+            self.get_matrix_jacobian() / (2 * sqrt_vals[..., None]),
+        )
+
+    def _subtract_functions(self, fun1, fun2) -> "MatrixFunction":
+        if fun1.matrix_jacobian_shape() != fun2.matrix_jacobian_shape():
+            raise ValueError("self and other have different shapes")
+        return MatrixFunction(
+            fun1.basis,
+            fun1._nrows,
+            fun1._ncols,
             fun1.get_matrix_values() - fun2.get_matrix_values(),
             fun1.get_matrix_jacobian() - fun2.get_matrix_jacobian(),
         )
 
-    def __sub__(self, other):
+    def __sub__(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
         if isinstance(other, float):
             return MatrixFunction(
                 self.basis,
@@ -192,7 +288,9 @@ class MatrixFunction(ABC):
 
         return self._subtract_functions(self, other)
 
-    def __rsub__(self, other):
+    def __rsub__(
+        self, other: Union["MatrixFunction", float]
+    ) -> "MatrixFunction":
         if isinstance(other, float):
             return MatrixFunction(
                 self.basis,
@@ -272,9 +370,7 @@ class VectorFunction(MatrixFunction):
         )
         if jac.ndim != 2 or jac.shape != jac_shape:
             raise ValueError(
-                "jac shape {0} should be {1}".format(
-                    jac.shape, jac_shape
-                )
+                "jac shape {0} should be {1}".format(jac.shape, jac_shape)
             )
         return jac[:, None, ...]
 
@@ -319,15 +415,10 @@ class ScalarFunction(MatrixFunction):
         return array[None, None, :]
 
     def _reshape_jacobian_to_matrix(self, jac: Array):
-        jac_shape = (
-            self.basis.mesh.nmesh_pts(),
-            self.basis.mesh.nmesh_pts()
-        )
+        jac_shape = (self.basis.mesh.nmesh_pts(), self.basis.mesh.nmesh_pts())
         if jac.ndim != 2 or jac.shape != jac_shape:
             raise ValueError(
-                "jac shape {0} should be {1}".format(
-                    jac.shape, jac_shape
-                )
+                "jac shape {0} should be {1}".format(jac.shape, jac_shape)
             )
         return jac[None, None, :]
 
@@ -366,7 +457,7 @@ class ScalarFunction(MatrixFunction):
 
     def _set_plot_3d_limits(self, ax, orth_range):
         orth_ranges = self._bkd.reshape(
-            self._bkd.tile(orth_range, (3, )), (3, 2)
+            self._bkd.tile(orth_range, (3,)), (3, 2)
         )
         ranges = self.basis.mesh.trans.map_from_orthogonal(orth_ranges)
         ax.set_xlim(*ranges[0])
@@ -374,11 +465,11 @@ class ScalarFunction(MatrixFunction):
         ax.set_zlim(*ranges[2])
 
     def _prepare_edge_3d(
-            self, ax, orth_pts_2d, X_shape, idx, inactive_orth_pt
+        self, ax, orth_pts_2d, X_shape, idx, inactive_orth_pt
     ):
         orth_pts = self._bkd.empty((3, orth_pts_2d.shape[1]))
         orth_pts[idx] = self._bkd.full(
-            (orth_pts_2d.shape[1], ), inactive_orth_pt
+            (orth_pts_2d.shape[1],), inactive_orth_pt
         )
         jdx = self._bkd.arange(3)
         jdx = self._bkd.delete(jdx, idx)
@@ -393,10 +484,10 @@ class ScalarFunction(MatrixFunction):
     def _plot_3d_internal(self, ax, npts_1d, fig):
         orth_range = self.basis.mesh.trans._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
-            self._bkd.tile(orth_range, (2,)),  npts_1d
+            self._bkd.tile(orth_range, (2,)), npts_1d
         )
         # ax.contourf(X1, Y1, Z1, levels=levels, zdir="z", offset=pts1[2, 0])
-        mid = sum(orth_range)/2
+        mid = sum(orth_range) / 2
         edges = [
             self._prepare_edge_3d(ax, orth_pts_2d, orth_X.shape, ii, mid)
             for ii in range(3)
@@ -443,7 +534,7 @@ class ScalarFunction(MatrixFunction):
         vmax = self._bkd.max(self._bkd.hstack([edge[-1] for edge in edges]))
         ims = []
         for edge in edges:
-            vals = (edge[3]-vmin)/(vmax-vmin)
+            vals = (edge[3] - vmin) / (vmax - vmin)
             im = ax.plot_surface(
                 *edge[:3],
                 facecolors=plt.cm.jet(vals),
@@ -458,10 +549,7 @@ class ScalarFunction(MatrixFunction):
         cmap = plt.cm.jet
         norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
         mpl.colorbar.ColorbarBase(
-            ax1,
-            cmap=cmap,
-            norm=norm,
-            orientation='vertical'
+            ax1, cmap=cmap, norm=norm, orientation="vertical"
         )
         return ims
 
@@ -481,7 +569,7 @@ class ScalarFunction(MatrixFunction):
             fig = plt.figure(figsize=figsize)
             return fig, fig.gca()
         fig = plt.figure(figsize=figsize)
-        return fig, fig.add_subplot(111, projection='3d')
+        return fig, fig.add_subplot(111, projection="3d")
 
 
 class ImutableMixin:
@@ -559,21 +647,19 @@ class ScalarMonomialOperator(Operator):
     def __init__(self, degree: int, coef: ScalarFunction = None):
         self._degree = degree
         if coef is not None and not isinstance(coef, ScalarFunction):
-            raise ValueError(
-                "coef must be an instance ScalarFunction"
-            )
+            raise ValueError("coef must be an instance ScalarFunction")
         self._coef = coef
 
     def __call__(self, fun: MatrixFunction) -> ScalarFunction:
         if self._degree > 0:
             vals = fun.get_values()
             if self._degree > 1:
-                jac = self._degree * fun._bkd.diag(vals) ** (self._degree-1)
+                jac = self._degree * fun._bkd.diag(vals) ** (self._degree - 1)
             else:
                 jac = self._degree * fun._bkd.diag(vals)
             poly = ScalarFunction(fun.basis, vals**self._degree, jac)
         else:
-            poly = 1.
+            poly = 1.0
         if self._coef is None:
             return poly
         return self._coef * poly
@@ -682,7 +768,7 @@ class TransientFunctionFromCallableMixin(TransientFunctionMixin):
 
 
 class ImutableScalarTransientFunctionFromCallable(
-        ImutableScalarFunction, TransientFunctionFromCallableMixin
+    ImutableScalarFunction, TransientFunctionFromCallableMixin
 ):
     def __init__(
         self,
@@ -696,9 +782,10 @@ class ImutableScalarTransientFunctionFromCallable(
 
 
 class ScalarTransientSolutionFromCallable(
-        ScalarSolution, TransientFunctionFromCallableMixin
+    ScalarSolution, TransientFunctionFromCallableMixin
 ):
     """Transient scalar solution of a PDE"""
+
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -765,7 +852,7 @@ def sqmagnitude(fun: MatrixFunction):
     fun_values = fun.get_values()[:, 0, ...]
     fun_jacs = fun.get_matrix_jacobian()[:, 0, ...]
     mag_vals = fun._bkd.sum(fun_values**2, axis=0)
-    mag_jacs = fun._bkd.sum(fun_jacs**2, axis=0)
+    mag_jacs = fun._bkd.sum(2 * fun_jacs * fun_values[..., None], axis=0)
     return ScalarFunction(fun.basis, mag_vals, mag_jacs)
 
 

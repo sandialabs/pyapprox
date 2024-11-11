@@ -104,13 +104,25 @@ class RobinBoundary(BoundaryFunction):
         self._normal_vals = self._mesh_bndry.normals(
             self._mesh_bndry._bndry_mesh_pts
         )
+        self._flux = None
         self._flux_jac = None
 
-    def set_flux_jacobian(self, flux_jac):
+    def set_flux_functions(self, flux: callable, flux_jac: callable):
+        self._flux = flux
         self._flux_jac = flux_jac
-        print(self._flux_jac)
 
-    def _flux_normal_jacobian(self, sol_array: Array):
+    def _normal_flux(self, sol_array: Array):
+        idx = self._mesh_bndry._bndry_idx
+        flux = self._flux(sol_array)
+        normal_flux = sum(
+            [
+                self._normal_vals[:, dd] * flux[dd, idx]
+                for dd in range(self._mesh_bndry.nphys_vars())
+            ]
+        )
+        return normal_flux
+
+    def _normal_flux_jacobian(self, sol_array: Array):
         # pass in sol in case flux depends on sol
         # todo. (determine if sol is ever needed an remove if not)
         # todo only compute once for linear transient problems
@@ -119,23 +131,25 @@ class RobinBoundary(BoundaryFunction):
         idx = self._mesh_bndry._bndry_idx
         flux_jac = self._flux_jac(sol_array)
         flux_jac = [self._bndry_slice(f, idx, 0) for f in flux_jac]
-        flux_normal_jac = [
-            self._normal_vals[:, dd : dd + 1] * flux_jac[dd]
-            for dd in range(self._mesh_bndry.nphys_vars())
-        ]
-        return flux_normal_jac
+        normal_flux_jac = sum(
+            [
+                self._normal_vals[:, dd : dd + 1] * flux_jac[dd]
+                for dd in range(self._mesh_bndry.nphys_vars())
+            ]
+        )
+        return normal_flux_jac
 
     def apply_to_residual(
         self, sol_array: Array, res_array: Array, jac: Array
     ):
         idx = self._mesh_bndry._bndry_idx
         bndry_vals = self._bkd.flatten(self(self._mesh_bndry._bndry_mesh_pts))
-        # todo flux_normal vals gets called here and in apply_to_jacobian
+        # todo normal_flux vals gets called here and in apply_to_jacobian
         # remove this computational redundancy
-        jac[idx] = sum(self._flux_normal_jacobian(sol_array))
+        jac[idx] = self._normal_flux_jacobian(sol_array)
         res_array[idx] = (
             self._alpha * self._bndry_slice(sol_array, idx, 0)
-            + self._beta * (self._bndry_slice(jac, idx, 0) @ sol_array)
+            + self._beta * self._normal_flux(sol_array)
             - bndry_vals
         )
         return res_array
@@ -146,7 +160,7 @@ class RobinBoundary(BoundaryFunction):
         # so jac(res) = D1 + D2 + alpha * I
         idx = self._mesh_bndry._bndry_idx
         # D1 + D2
-        jac[idx] = self._beta * sum(self._flux_normal_jacobian(sol))
+        jac[idx] = self._beta * self._normal_flux_jacobian(sol)
         # alpha * I
         jac[idx, idx] += self._alpha
         return jac

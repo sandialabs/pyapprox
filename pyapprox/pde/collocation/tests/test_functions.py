@@ -115,6 +115,72 @@ class TestFunctions:
             bkd.jacobian(prodfun, fun_values[:, 0]),
         )
 
+        def get_float_divfun(fun_values):
+            fun = ScalarSolution(basis, fun_values+1)
+            return 1. / fun
+
+        def float_divfun(fun_values):
+            return get_float_divfun(fun_values).get_values()
+
+        assert bkd.allclose(
+            float_divfun(fun_values[:, 0])[0].T, 1/(fun_values + 1)
+        )
+
+        assert bkd.allclose(
+            get_float_divfun(fun_values[:, 0]).get_matrix_jacobian(),
+            bkd.jacobian(float_divfun, fun_values[:, 0]),
+        )
+
+        def get_divfun(fun_values):
+            fun = ScalarSolution(basis, fun_values+1)
+            op = ScalarMonomialOperator(4)
+            gfun = op(fun)
+            return gfun / fun
+
+        def divfun(fun_values):
+            return get_divfun(fun_values).get_values()
+
+        assert bkd.allclose(
+            divfun(fun_values[:, 0])[0].T, (fun_values + 1)**3
+        )
+
+        assert bkd.allclose(
+            get_divfun(fun_values[:, 0]).get_matrix_jacobian(),
+            bkd.jacobian(divfun, fun_values[:, 0]),
+        )
+
+        def get_sqrtfun(fun_values):
+            fun = ScalarSolution(basis, fun_values+1)
+            return fun.sqrt()
+
+        def sqrtfun(fun_values):
+            return get_sqrtfun(fun_values).get_values()
+
+        assert bkd.allclose(
+            sqrtfun(fun_values[:, 0])[0].T, bkd.sqrt(fun_values + 1)
+        )
+
+        assert bkd.allclose(
+            get_sqrtfun(fun_values[:, 0]).get_matrix_jacobian(),
+            bkd.jacobian(sqrtfun, fun_values[:, 0]),
+        )
+
+        def get_powerfun(fun_values):
+            fun = ScalarSolution(basis, fun_values+1)
+            return fun ** 3
+
+        def powerfun(fun_values):
+            return get_powerfun(fun_values).get_values()
+
+        assert bkd.allclose(
+            powerfun(fun_values[:, 0])[0].T, (fun_values + 1) ** 3
+        )
+
+        assert bkd.allclose(
+            get_powerfun(fun_values[:, 0]).get_matrix_jacobian(),
+            bkd.jacobian(powerfun, fun_values[:, 0]),
+        )
+
     def test_scalar_differential_operators_2d(self):
         bkd = self.get_backend()
         bounds = [0, 1, 0, 1]

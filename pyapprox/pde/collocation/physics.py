@@ -10,6 +10,8 @@ from pyapprox.pde.collocation.functions import (
     ImutableVectorFunction,
     SolutionMixin,
     Operator,
+    ImutableScalarFunctionFromCallable,
+    ScalarMonomialOperator,
 )
 from pyapprox.pde.collocation.newton import NewtonResidual
 from pyapprox.pde.collocation.boundaryconditions import (
@@ -47,7 +49,9 @@ class Physics(NewtonResidual):
                         f"RobinBoundary requested but {self} "
                         "does not define _flux_jacobian"
                     )
-                bndry.set_flux_jacobian(self._flux_jacobian)
+                bndry.set_flux_functions(
+                    self._flux_from_array, self._flux_jacobian_from_array
+                )
 
     def apply_boundary_conditions_to_residual(
         self, sol_array: Array, res_array: Array, jac: Array
@@ -127,8 +131,20 @@ class Physics(NewtonResidual):
         self._bkd.assert_isarray(self._bkd, res_array)
         return self._linsolve(sol_array, res_array)
 
-    def _flux_jacobian(self, sol_array: Array):
+    def _flux(self, sol_array: Array):
         raise NotImplementedError
+
+    def _flux_jacobian_from_array(self, sol_array: Array):
+        sol = self.separate_solutions(sol_array)
+        flux_jac = self._flux(sol).get_matrix_jacobian()
+        return flux_jac[:, 0, :, :]
+
+    def _flux_from_array(self, sol_array: Array):
+        sol = self._separate_solutions(sol_array)
+        flux = self._flux(sol).get_matrix_values()
+        if flux.shape[1] != 1:
+            raise RuntimeError("flux must be a vector valued funciton")
+        return flux[:, 0, :]
 
     def get_functions(self) -> Dict[str, MatrixFunction]:
         return self._bndrys
@@ -193,14 +209,13 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
             residual -= div(sol * self._velocity_field)
         return residual
 
-    def _flux_jacobian(self, sol_array: Array):
-        sol = self.separate_solutions(sol_array)
-        flux_jac = 0
+    def _flux(self, sol: ScalarFunction):
+        flux = 0.
         if self._diffusion is not None:
-            flux_jac += (self._diffusion * nabla(sol)).get_matrix_jacobian()
+            flux += self._diffusion * nabla(sol)
         if self._velocity_field is not None:
-            flux_jac -= (sol * self._velocity_field).get_matrix_jacobian()
-        return flux_jac[:, 0, :, :]
+            flux -= sol * self._velocity_field
+        return flux
 
     def get_functions(self) -> Dict[str, MatrixFunction]:
         funs = super().get_functions()
@@ -222,8 +237,7 @@ class ShallowIceEquation(ScalarPhysicsMixin, Physics):
         A: float,
         rho: float,
         forcing: ImutableScalarFunction = None,
-        n: int = 3,
-        eps: float = 1e-15,
+        eps: float = 0.,
     ):
         self._check_is_imutable_scalar_function(bed, "bed")
         self._check_is_imutable_scalar_function(friction, "friction")
@@ -245,12 +259,15 @@ class ShallowIceEquation(ScalarPhysicsMixin, Physics):
 
     def _flux(self, sol: ScalarFunction):
         surf_grad = nabla(self._bed + sol)
-        return (
+        mon_op = ScalarMonomialOperator(degree=self._n + 2)
+        diffusion = (
             self._gamma
-            * sol ** (self._n + 2)
-            * (sqmagnitude(surf_grad) + self._eps) ** ((self._n - 1) / 2)
-            + (self._friction_frac * sol**2) * surf_grad
+            * mon_op(sol)
+            # * ((sqmagnitude(surf_grad) + self._eps) ** (self._n - 1)).sqrt()
+            * sqmagnitude(surf_grad)  # true because self._n = 3
+            + (self._friction_frac * sol**2)
         )
+        return diffusion * surf_grad
 
     def residual(self, sol: ScalarFunction):
         if not isinstance(sol, ScalarSolution):
@@ -261,11 +278,27 @@ class ShallowIceEquation(ScalarPhysicsMixin, Physics):
         residual += div(self._flux(sol))
         return residual
 
-    def _flux_jacobian(self, sol_array: Array):
-        sol = self.separate_solutions(sol_array)
-        flux_jac = self._flux(sol).get_matrix_jacobian()
-        return flux_jac[:, 0, :, :]
-
     def get_functions(self) -> Dict[str, MatrixFunction]:
         funs = super().get_functions()
         funs["forcing"] = self._forcing
+
+
+class HelmholtzEquation(AdvectionDiffusionReactionEquation):
+    def __init__(
+        self,
+        sq_wave_num: ScalarFunction,
+        forcing: ImutableScalarFunction = None,
+    ):
+        basis = sq_wave_num.basis
+        diffusion = ImutableScalarFunctionFromCallable(
+            basis, lambda x: basis._bkd.ones(x.shape[1])
+        )
+        reaction_op = ScalarMonomialOperator(
+            degree=1, coef=sq_wave_num
+        )
+        super().__init__(
+            forcing,
+            diffusion,
+            reaction_op,
+            None,
+        )
