@@ -26,7 +26,6 @@ class OrthogonalCoordinateMesh(ABC):
                 "OrthogonalCoordinateTransform"
             )
         self._bkd = transform._bkd
-        print(self._bkd)
         self.trans = transform
         self._set_orthogonal_mesh_pts(npts_1d)
         self._mesh_pts = self.trans.map_from_orthogonal(self._orth_mesh_pts)

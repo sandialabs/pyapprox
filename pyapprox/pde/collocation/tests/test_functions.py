@@ -1,30 +1,32 @@
 import unittest
+from functools import partial
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
     ChebyshevCollocationBasis2D,
+    ChebyshevCollocationBasis3D,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarSolution,
     ScalarFunction,
-    ScalarOperatorFromCallable,
-    ScalarMonomialOperator,
-    ScalarFunctionFromCallable,
+    VectorSolutionComponent,
     nabla,
+    div,
+    VectorOperator
 )
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
     ScaleAndTranslationTransform2D,
+    ScaleAndTranslationTransform3D,
 )
 from pyapprox.pde.collocation.mesh import (
     ChebyshevCollocationMesh1D,
     ChebyshevCollocationMesh2D,
+    ChebyshevCollocationMesh3D,
 )
 
 
@@ -32,218 +34,315 @@ class TestOperators:
     def setUp(self):
         np.random.seed(1)
 
-    def test_scalar_differential_operators_1d(self):
+    def _check_operations_on_operators_with_single_input_function(self, basis):
+        bkd = self.get_backend()
+
+        def tfun0(xx):
+            return bkd.sum((1 + xx) ** 3, axis=0)
+
+        def tfun0_deriv(ii, xx):
+            # derivative of fun_0 in 0th phys_var
+            return 3 * (1 + xx[ii]) ** 2
+
+        tfun1 = partial(tfun0_deriv, 0)
+
+        def tfun0_hess(ii, xx):
+            # derivative  of fun_0 in 0th phys_var
+            return 6 * (1 + xx[ii])
+
+        def tfun2(xx):
+            return bkd.sum((1 + xx) ** 3, axis=0)
+
+        def tsumfun(xx):
+            return tfun1(xx) + tfun2(xx)
+
+        def tsubfun(xx):
+            return tfun1(xx) - tfun2(xx)
+
+        def tprodfun(xx):
+            return tfun1(xx) * tfun2(xx)
+
+        def tpowfun(xx):
+            return tfun1(xx) ** 3
+
+        def tsqrtfun(xx):
+            return tfun1(xx) ** 0.5
+
+        def tdivfun(xx):
+            return tfun1(xx) / tfun2(xx)
+
+        fun_values0 = tfun0(basis.mesh.mesh_pts())
+        sol0 = ScalarSolution(basis, fun_values0)
+        fun_values1 = tfun1(basis.mesh.mesh_pts())
+        sol1 = sol0.deriv(0)
+        assert bkd.allclose(sol1.get_values(), fun_values1)
+        fun_values2 = tfun2(basis.mesh.mesh_pts())
+        # fun is independent of the solution
+        fun2 = ScalarFunction(basis, fun_values2)
+        sumfun = sol1 + fun2
+        assert bkd.allclose(
+            sumfun.get_values(), tsumfun(basis.mesh.mesh_pts())
+        )
+        subfun = sol1 - fun2
+        assert bkd.allclose(
+            subfun.get_values(), tsubfun(basis.mesh.mesh_pts())
+        )
+        fun_sub_const = sol1 - 1.0
+        assert bkd.allclose(
+            fun_sub_const.get_values(), tfun1(basis.mesh.mesh_pts()) - 1
+        )
+        const_sub_fun = 1.0 - sol1
+        assert bkd.allclose(
+            const_sub_fun.get_values(), 1 - tfun1(basis.mesh.mesh_pts())
+        )
+        prodfun = sol1 * fun2
+        assert bkd.allclose(
+            prodfun.get_values(), tprodfun(basis.mesh.mesh_pts())
+        )
+        const_prod_fun = 2.0 * sol1
+        assert bkd.allclose(
+            const_prod_fun.get_values(), 2 * sol1(basis.mesh.mesh_pts())
+        )
+        powfun = sol1**3
+        assert bkd.allclose(
+            powfun.get_values(), tpowfun(basis.mesh.mesh_pts())
+        )
+        sqrtfun = sol1**0.5
+        assert bkd.allclose(
+            sqrtfun.get_values(), tsqrtfun(basis.mesh.mesh_pts())
+        )
+        divfun = sol1 / fun2
+        assert bkd.allclose(
+            divfun.get_values(), tdivfun(basis.mesh.mesh_pts())
+        )
+        const_div_fun = 2.0 / sol1
+        assert bkd.allclose(
+            const_div_fun.get_values(), 2 / sol1(basis.mesh.mesh_pts())
+        )
+        fun_div_const = sol1 / 2.0
+        assert bkd.allclose(
+            fun_div_const.get_values(), sol1(basis.mesh.mesh_pts()) / 2
+        )
+
+        assert bkd.allclose(
+            nabla(sol0).get_values(),
+            bkd.stack(
+                [
+                    tfun0_deriv(ii, basis.mesh.mesh_pts())
+                    for ii in range(sol0.nphys_vars())
+                ],
+                axis=0
+            )
+        )
+
+        assert bkd.allclose(
+            div(nabla(sol0)).get_values(),
+            sum(
+                [
+                    tfun0_hess(ii, basis.mesh.mesh_pts())
+                    for ii in range(sol0.nphys_vars())
+                ]
+            )
+        )
+
+        # check plots run without calling plt.show
+        ax = sol1.get_plot_axis()[1]
+        sol1.plot(ax)
+
+        if not bkd.jacobian_implemented():
+            return
+
+        assert bkd.allclose(
+            (sol1 + sol1).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    ScalarFunction(basis, v).deriv(0)
+                    + ScalarFunction(basis, v).deriv(0)
+                ).get_values(),
+                fun_values0,
+            ),
+        )
+        assert bkd.allclose(
+            (sol1**3).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    ScalarFunction(basis, v).deriv(0) ** 3
+                ).get_values(),
+                fun_values0,
+            ),
+        )
+
+        assert bkd.allclose(
+            (sol1**0.5).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    ScalarFunction(basis, v).deriv(0) ** 0.5
+                ).get_values(),
+                fun_values0,
+            ),
+        )
+
+        assert bkd.allclose(
+            (sol1 * sol1).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    ScalarFunction(basis, v).deriv(0)
+                    * ScalarFunction(basis, v).deriv(0)
+                ).get_values(),
+                fun_values0,
+            ),
+        )
+
+        assert bkd.allclose(
+            (2.0 * sol1 - sol1).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    2.0 * ScalarFunction(basis, v).deriv(0)
+                    - ScalarFunction(basis, v).deriv(0)
+                ).get_values(),
+                fun_values0,
+            ),
+        )
+
+        assert bkd.allclose(
+            (sol1 / fun2).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    ScalarFunction(basis, v).deriv(0) / fun2
+                ).get_values(),
+                fun_values0,
+            ),
+        )
+
+        assert bkd.allclose(
+            (1.0 / sol1).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    1.0 / ScalarFunction(basis, v).deriv(0)
+                ).get_values(),
+                fun_values0,
+            ),
+        )
+
+        assert bkd.allclose(
+            (sol1 / 2.0).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    ScalarFunction(basis, v).deriv(0) / 2.0
+                ).get_values(),
+                fun_values0,
+            ),
+        )
+
+        assert bkd.allclose(
+            nabla(sol0).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    nabla(ScalarFunction(basis, v))
+                ).get_values(),
+                fun_values0,
+            )[:, None],
+        )
+
+        assert bkd.allclose(
+            div(nabla(sol0)).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    div(nabla(ScalarFunction(basis, v)))
+                ).get_values(),
+                fun_values0,
+            ),
+        )
+
+    def test_operations_on_operators_with_single_input_function(self):
         bkd = self.get_backend()
         bounds = [0, 1]
-        nterms = [5]
+        nterms = [4]
         transform = ScaleAndTranslationTransform1D([-1, 1], bounds, bkd)
         mesh = ChebyshevCollocationMesh1D(nterms, transform)
         basis = ChebyshevCollocationBasis1D(mesh)
+        self._check_operations_on_operators_with_single_input_function(basis)
 
-        def test_fun(xx):
-            return (xx.T) ** 3
-
-        def test_grad(xx):
-            return 3 * (xx.T) ** 2
-
-        fun_values = test_fun(basis.mesh.mesh_pts())
-        fun = ScalarSolution(basis, fun_values[:, 0])
-
-        # plot_samples = bkd.linspace(*bounds, 101)[None, :]
-        plot_samples = bkd.linspace(*bounds, 11)[None, :]
-        assert bkd.allclose(fun(plot_samples), test_fun(plot_samples)[:, 0])
-
-        # check plots run without calling plt.show
-        ax = plt.figure().gca()
-        ax.plot(plot_samples[0], test_fun(plot_samples), "-k")
-        fun.plot(ax, ls="--", color="r")
-
-        gradfun = nabla(fun)
-        assert np.allclose(
-            gradfun(plot_samples)[:, 0, :].T, test_grad(plot_samples)
-        )
-
-        ax = plt.figure().gca()
-        ax.plot(plot_samples[0], test_grad(plot_samples), "-k")
-        ax.plot(
-            plot_samples[0], gradfun(plot_samples)[0, 0, :], ls="--", color="r"
-        )
-
-    def _check_differential_operators_2d_with_autograd(self, basis):
-        bkd = self.get_backend()
-
-        def get_gradfun(fun_values):
-            sol = ScalarSolution(basis, fun_values)
-            op = ScalarMonomialOperator(4)
-            fun = op(sol)
-            gradfun = nabla(fun)
-            return gradfun
-
-        def jacfun(fun_values):
-            return get_gradfun(fun_values).get_values()
-
-        def test_fun(xx):
-            return bkd.sum(xx**3, axis=0)[:, None]
-
-        fun_values = test_fun(basis.mesh.mesh_pts())
-        assert bkd.allclose(
-            get_gradfun(fun_values[:, 0]).get_matrix_jacobian(),
-            bkd.jacobian(jacfun, fun_values[:, 0]),
-        )
-
-        def test_gfun(xx):
-            return bkd.sum(xx**2, axis=0)
-
-        def get_prodfun(fun_values):
-            gradfun = get_gradfun(fun_values)
-            gfun = ScalarFunctionFromCallable(basis, test_gfun)
-            return gfun * gradfun
-
-        prodfun = get_prodfun(fun_values[:, 0])
-        for ii in range(prodfun.nphys_vars()):
-            assert bkd.allclose(
-                test_gfun(basis.mesh.mesh_pts())
-                * get_gradfun(fun_values[:, 0]).get_values()[ii],
-                prodfun.get_values()[ii],
-            )
-
-        def prodfun(fun_values):
-            return get_prodfun(fun_values).get_values()
-
-        assert bkd.allclose(
-            get_prodfun(fun_values[:, 0]).get_matrix_jacobian(),
-            bkd.jacobian(prodfun, fun_values[:, 0]),
-        )
-
-        def get_float_divfun(fun_values):
-            fun = ScalarSolution(basis, fun_values + 1)
-            return 1.0 / fun
-
-        def float_divfun(fun_values):
-            return get_float_divfun(fun_values).get_values()
-
-        assert bkd.allclose(
-            float_divfun(fun_values[:, 0])[0].T, 1 / (fun_values + 1)
-        )
-
-        assert bkd.allclose(
-            get_float_divfun(fun_values[:, 0]).get_matrix_jacobian(),
-            bkd.jacobian(float_divfun, fun_values[:, 0]),
-        )
-
-        def get_divfun(fun_values):
-            fun = ScalarSolution(basis, fun_values + 1)
-            op = ScalarMonomialOperator(4)
-            gfun = op(fun)
-            return gfun / fun
-
-        def divfun(fun_values):
-            return get_divfun(fun_values).get_values()
-
-        assert bkd.allclose(
-            divfun(fun_values[:, 0])[0].T, (fun_values + 1) ** 3
-        )
-
-        assert bkd.allclose(
-            get_divfun(fun_values[:, 0]).get_matrix_jacobian(),
-            bkd.jacobian(divfun, fun_values[:, 0]),
-        )
-
-        def get_sqrtfun(fun_values):
-            fun = ScalarSolution(basis, fun_values + 1)
-            return fun.sqrt()
-
-        def sqrtfun(fun_values):
-            return get_sqrtfun(fun_values).get_values()
-
-        assert bkd.allclose(
-            sqrtfun(fun_values[:, 0])[0].T, bkd.sqrt(fun_values + 1)
-        )
-
-        assert bkd.allclose(
-            get_sqrtfun(fun_values[:, 0]).get_matrix_jacobian(),
-            bkd.jacobian(sqrtfun, fun_values[:, 0]),
-        )
-
-        def get_powerfun(fun_values):
-            fun = ScalarSolution(basis, fun_values + 1)
-            return fun**3
-
-        def powerfun(fun_values):
-            return get_powerfun(fun_values).get_values()
-
-        assert bkd.allclose(
-            powerfun(fun_values[:, 0])[0].T, (fun_values + 1) ** 3
-        )
-
-        assert bkd.allclose(
-            get_powerfun(fun_values[:, 0]).get_matrix_jacobian(),
-            bkd.jacobian(powerfun, fun_values[:, 0]),
-        )
-
-    def test_scalar_differential_operators_2d(self):
-        bkd = self.get_backend()
         bounds = [0, 1, 0, 1]
         nterms = [4, 4]
         transform = ScaleAndTranslationTransform2D([-1, 1, -1, 1], bounds, bkd)
         mesh = ChebyshevCollocationMesh2D(nterms, transform)
         basis = ChebyshevCollocationBasis2D(mesh)
+        self._check_operations_on_operators_with_single_input_function(basis)
 
-        def test_fun(xx):
-            return bkd.sum(xx**3, axis=0)[:, None]
-
-        def test_grad(xx):
-            return 3 * xx**2
-
-        fun_values = test_fun(basis.mesh.mesh_pts())
-        # fun is independent of the solution
-        fun = ScalarFunction(basis, fun_values[:, 0])
-
-        X, Y, plot_samples = get_meshgrid_samples([0, 1, 0, 1], 11, bkd=bkd)
-        assert bkd.allclose(fun(plot_samples), test_fun(plot_samples)[:, 0])
-
-        # check plots run without calling plt.show
-        ax = plt.figure().gca()
-        fun.plot(ax)
-        # plt.show()
-
-        gradfun = nabla(fun)
-        assert np.allclose(
-            gradfun(plot_samples)[:, 0, :], test_grad(plot_samples)
+        bounds = [0, 1, 0, 1, 0, 1]
+        nterms = [4, 4, 4]
+        transform = ScaleAndTranslationTransform3D(
+            [-1, 1, -1, 1, -1, 1], bounds, bkd
         )
+        mesh = ChebyshevCollocationMesh3D(nterms, transform)
+        basis = ChebyshevCollocationBasis3D(mesh)
+        self._check_operations_on_operators_with_single_input_function(basis)
+
+    def test_operations_on_operators_with_multiple_input_functions(self):
+        bkd = self.get_backend()
+        bounds = [0, 1]
+        nterms = [4]
+        transform = ScaleAndTranslationTransform1D([-1, 1], bounds, bkd)
+        mesh = ChebyshevCollocationMesh1D(nterms, transform)
+        basis = ChebyshevCollocationBasis1D(mesh)
+
+        def tfun0(xx):
+            return bkd.sum((1 + xx) ** 3, axis=0)
+
+        def tfun1(xx):
+            return 3 * (1 + xx[0]) ** 2
+
+        def tfun2(xx):
+            return bkd.sum((1 + xx) ** 2, axis=0)
+
+        def tfun3(xx):
+            return bkd.sum((2 + xx), axis=0)
+
+        fun_values0 = tfun0(basis.mesh.mesh_pts())
+        fun_values1 = tfun1(basis.mesh.mesh_pts())
+        fun_values2 = tfun2(basis.mesh.mesh_pts())
+        fun_values3 = tfun3(basis.mesh.mesh_pts())
+        sol0 = VectorSolutionComponent(basis, 3, 0, fun_values0)
+        op1 = sol0.deriv(0)
+        sol2 = VectorSolutionComponent(basis, 3, 1, fun_values2)
+        sol3 = VectorSolutionComponent(basis, 3, 2, fun_values3).deriv(0)
+
         assert bkd.allclose(
-            gradfun.get_matrix_jacobian(),
-            bkd.zeros(gradfun.matrix_jacobian_shape()),
+            (op1 * sol2 / sol3).get_values(), fun_values1 * fun_values2
         )
 
-        # fun is the solution
-        sol = ScalarSolution(basis, fun_values[:, 0])
-        gradsol = nabla(sol)
-        for ii in range(fun.nphys_vars()):
-            assert bkd.allclose(
-                gradsol.get_matrix_jacobian()[ii, 0], basis._deriv_mats[ii]
-            )
-
-        # fun is a function of the solution
-        def op_jac(vals):
-            return 4 * bkd.diag(vals) ** 3
-
-        op = ScalarOperatorFromCallable(lambda vals: vals**4, op_jac)
-        fun = op(sol)
-        gradfun = nabla(fun)
-        for ii in range(fun.nphys_vars()):
-            assert bkd.allclose(
-                gradfun.get_matrix_jacobian()[ii, 0],
-                basis._deriv_mats[ii] @ bkd.diag(4 * fun_values[:, 0] ** 3),
-            )
-
-        if not bkd.jacobian_implemented():
+        if bkd.jacobian_implemented():
             return
 
-        self._check_differential_operators_2d_with_autograd(basis)
-
-    def test_multidimensional_operators(self):
-        pass
+        assert bkd.allclose(
+            (op1 * sol2 / sol3).get_jacobian(),
+            # (op1 / sol3).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    VectorSolutionComponent(
+                        basis, 3, 0, v[: basis.mesh.nmesh_pts()]
+                    ).deriv(0)
+                    * VectorSolutionComponent(
+                        basis,
+                        3,
+                        1,
+                        v[basis.mesh.nmesh_pts() : 2 * basis.mesh.nmesh_pts()],
+                    )
+                    / VectorSolutionComponent(
+                        basis,
+                        3,
+                        2,
+                        v[
+                            2
+                            * basis.mesh.nmesh_pts() : 3
+                            * basis.mesh.nmesh_pts()
+                        ],
+                    ).deriv(0)
+                ).get_values(),
+                bkd.hstack((fun_values0, fun_values2, fun_values3)),
+            ),
+        )
 
 
 class TestNumpyOperators(TestOperators, unittest.TestCase):
