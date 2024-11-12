@@ -442,14 +442,24 @@ class TestTimeIntegration:
                     4
                     * deltat1
                     * deltat2
-                    * scale ** 2
+                    * scale**2
                     * param[0] ** 4
                     * exact_sols[:, 0]
                     * exact_sols[:, 1]
                     * (t0 + 2)
                     * (t1 + 2)
-                    - 2 * deltat1 * scale * param[0] ** 2 * exact_sols[:, 0] * (t0 + 2)
-                    - 2 * deltat2 * scale * param[0] ** 2 * exact_sols[:, 1] * (t1 + 2)
+                    - 2
+                    * deltat1
+                    * scale
+                    * param[0] ** 2
+                    * exact_sols[:, 0]
+                    * (t0 + 2)
+                    - 2
+                    * deltat2
+                    * scale
+                    * param[0] ** 2
+                    * exact_sols[:, 1]
+                    * (t1 + 2)
                     + 1
                 ),
                 2
@@ -985,29 +995,31 @@ class TestTimeIntegration:
         y1 = (
             param[1]
             * (
-                4 - deltat1 ** 2 * scale * param[0] ** 2
+                4
+                - deltat1**2 * scale * param[0] ** 2
                 - 2 * deltat1 * scale * param[0] ** 2 * (t0 + 2)
             )
             / (
-                4 + deltat1 ** 2 * scale * param[0] ** 2
+                4
+                + deltat1**2 * scale * param[0] ** 2
                 + 2 * deltat1 * scale * param[0] ** 2 * (t0 + 2)
             )
         )
         exact_sols = bkd.stack(
             [
                 bkd.full((model._functional.nstates(),), param[1]),
-                y1
-                ,
+                y1,
                 y1
                 * (
-                    4 - deltat2 ** 2 * scale * param[0] ** 2
+                    4
+                    - deltat2**2 * scale * param[0] ** 2
                     - 2 * deltat2 * scale * param[0] ** 2 * (t1 + 2)
                 )
                 / (
-                    4 + deltat2 ** 2 * scale * param[0] ** 2
+                    4
+                    + deltat2**2 * scale * param[0] ** 2
                     + 2 * deltat2 * scale * param[0] ** 2 * (t1 + 2)
-                )
-                ,
+                ),
             ],
             axis=1,
         )
@@ -1109,5 +1121,5 @@ class TestTorchTimeIntegration(TestTimeIntegration, unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
-    
+
 # TODO add test with coefficient entering functional

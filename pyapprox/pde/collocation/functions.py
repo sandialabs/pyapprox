@@ -1,6 +1,6 @@
 import textwrap
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, List
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -17,7 +17,13 @@ from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
 # should evaluate without errors once the module has been fully loaded.
 
 
-class MatrixFunction(ABC):
+class MatrixOperator(ABC):
+    """
+    Matrix valued operator, which depends on the PDE solution.
+
+    Functions can be recovered by setting Jacobian (w.r.t solution) to zero
+    """
+
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -76,7 +82,7 @@ class MatrixFunction(ABC):
         return (
             self._nrows,
             self._ncols,
-            self.basis.mesh.nmesh_pts(),
+            self.nmesh_pts(),
             self.nmesh_pts(),
         )
 
@@ -99,10 +105,10 @@ class MatrixFunction(ABC):
     def get_matrix_values(self):
         return self._values_at_mesh
 
-    def dot(self, other: "MatrixFunction") -> "MatrixFunction":
+    def dot(self, other: "MatrixOperator") -> "MatrixOperator":
         values = self.get_matrix_values()
         other_values = self.get_matrix_values()
-        return MatrixFunction(
+        return MatrixOperator(
             values._nrows,
             other_values._ncols,
             self._bkd.einsum("ijk,jkl->ilk", values, other_values),
@@ -110,15 +116,15 @@ class MatrixFunction(ABC):
         )
 
     def _multiply_functions(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
-        if not isinstance(other, (MatrixFunction, float)):
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
+        if not isinstance(other, (MatrixOperator, float)):
             raise ValueError(
                 f"cannot multiply Matrixfunction by {type(other)}"
             )
 
         if isinstance(other, float):
-            return MatrixFunction(
+            return MatrixOperator(
                 self.basis,
                 self._nrows,
                 self._ncols,
@@ -138,25 +144,25 @@ class MatrixFunction(ABC):
             other.get_matrix_jacobian() * self.get_matrix_values()[..., None]
             + other.get_matrix_values()[..., None] * self.get_matrix_jacobian()
         )
-        return MatrixFunction(
+        return MatrixOperator(
             other.basis, other._nrows, other._ncols, values, jac
         )
 
     def __mul__(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
         return self._multiply_functions(other)
 
     def __rmul__(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
         return self._multiply_functions(other)
 
-    def _divide_functions(self, fun1, fun2) -> "MatrixFunction":
+    def _divide_functions(self, fun1, fun2) -> "MatrixOperator":
         if isinstance(fun2, float):
             if fun2 == 0:
                 raise ValueError("Cannot divide by zero")
-            return MatrixFunction(
+            return MatrixOperator(
                 fun1.basis,
                 fun1._nrows,
                 fun1._ncols,
@@ -165,9 +171,9 @@ class MatrixFunction(ABC):
             )
 
         if isinstance(fun1, float):
-            if self._bkd.any(fun2.get_matrix_values() == 0.):
+            if self._bkd.any(fun2.get_matrix_values() == 0.0):
                 raise ValueError("Cannot divide by zero")
-            return MatrixFunction(
+            return MatrixOperator(
                 fun2.basis,
                 fun2._nrows,
                 fun2._ncols,
@@ -188,29 +194,29 @@ class MatrixFunction(ABC):
             fun2.get_matrix_values()[..., None] * fun1.get_matrix_jacobian()
             - fun2.get_matrix_jacobian() * fun1.get_matrix_values()[..., None]
         ) / fun2.get_matrix_values()[..., None] ** 2
-        return MatrixFunction(
+        return MatrixOperator(
             fun2.basis, fun2._nrows, fun2._ncols, values, jac
         )
 
     def __truediv__(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
-        if not isinstance(other, (float, MatrixFunction)):
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
+        if not isinstance(other, (float, MatrixOperator)):
             raise ValueError(f"Cannot divde function by {type(other)}")
         return self._divide_functions(self, other)
 
     def __rtruediv__(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
-        if not isinstance(other, (float, MatrixFunction)):
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
+        if not isinstance(other, (float, MatrixOperator)):
             raise ValueError(f"Cannot divide {type(other)} by function")
         return self._divide_functions(other, self)
 
     def _add_functions(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
         if isinstance(other, float):
-            return MatrixFunction(
+            return MatrixOperator(
                 self.basis,
                 self._nrows,
                 self._ncols,
@@ -220,7 +226,7 @@ class MatrixFunction(ABC):
 
         if self.matrix_jacobian_shape() != other.matrix_jacobian_shape():
             raise ValueError("self and other have different shapes")
-        return MatrixFunction(
+        return MatrixOperator(
             self.basis,
             self._nrows,
             self._ncols,
@@ -229,20 +235,20 @@ class MatrixFunction(ABC):
         )
 
     def __add__(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
-        if not isinstance(other, (MatrixFunction, float)):
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
+        if not isinstance(other, (MatrixOperator, float)):
             raise ValueError(f"cannot add {type(other)} to a Matrixfunction")
         return self._add_functions(other)
 
     def __radd__(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
-        if not isinstance(other, (MatrixFunction, float)):
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
+        if not isinstance(other, (MatrixOperator, float)):
             raise ValueError(f"cannot add {type(other)} to a Matrixfunction")
         return self._add_functions(other)
 
-    def __pow__(self, other: int) -> "MatrixFunction":
+    def __pow__(self, other: int) -> "MatrixOperator":
         if not isinstance(other, int) or other < 2:
             raise ValueError("Can only use power with int and power > 1")
         result = self
@@ -250,12 +256,12 @@ class MatrixFunction(ABC):
             result = self * result
         return result
 
-    def sqrt(self) -> "MatrixFunction":
+    def sqrt(self) -> "MatrixOperator":
         vals = self.get_matrix_values()
-        if self._bkd.any(vals < 0.):
+        if self._bkd.any(vals < 0.0):
             raise ValueError("Cannot take sqrt of negative values")
         sqrt_vals = self._bkd.sqrt(vals)
-        return MatrixFunction(
+        return MatrixOperator(
             self.basis,
             self._nrows,
             self._ncols,
@@ -263,10 +269,10 @@ class MatrixFunction(ABC):
             self.get_matrix_jacobian() / (2 * sqrt_vals[..., None]),
         )
 
-    def _subtract_functions(self, fun1, fun2) -> "MatrixFunction":
+    def _subtract_functions(self, fun1, fun2) -> "MatrixOperator":
         if fun1.matrix_jacobian_shape() != fun2.matrix_jacobian_shape():
             raise ValueError("self and other have different shapes")
-        return MatrixFunction(
+        return MatrixOperator(
             fun1.basis,
             fun1._nrows,
             fun1._ncols,
@@ -275,10 +281,10 @@ class MatrixFunction(ABC):
         )
 
     def __sub__(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
         if isinstance(other, float):
-            return MatrixFunction(
+            return MatrixOperator(
                 self.basis,
                 self._nrows,
                 self._ncols,
@@ -289,10 +295,10 @@ class MatrixFunction(ABC):
         return self._subtract_functions(self, other)
 
     def __rsub__(
-        self, other: Union["MatrixFunction", float]
-    ) -> "MatrixFunction":
+        self, other: Union["MatrixOperator", float]
+    ) -> "MatrixOperator":
         if isinstance(other, float):
-            return MatrixFunction(
+            return MatrixOperator(
                 self.basis,
                 self._nrows,
                 self._ncols,
@@ -331,7 +337,9 @@ class MatrixFunction(ABC):
         )
 
 
-class VectorFunction(MatrixFunction):
+class VectorOperator(MatrixOperator):
+    """Vector Valued Operator, which depends on the PDE solution."""
+
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -390,7 +398,9 @@ class VectorFunction(MatrixFunction):
         return self._reshape_from_matrix(super().__call__(eval_samples))
 
 
-class ScalarFunction(MatrixFunction):
+class ScalarOperator(MatrixOperator):
+    """Scalar Valued Operator, which depends on the PDE solution."""
+
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -572,7 +582,9 @@ class ScalarFunction(MatrixFunction):
         return fig, fig.add_subplot(111, projection="3d")
 
 
-class ImutableMixin:
+class FunctionMixin:
+    """Function of physical variables, which is independent of solution"""
+
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -585,15 +597,15 @@ class ImutableMixin:
         return self._bkd.zeros(self.matrix_jacobian_shape())
 
 
-class ImutableScalarFunction(ImutableMixin, ScalarFunction):
+class ScalarFunction(FunctionMixin, ScalarOperator):
     pass
 
 
-class ImutableVectorFunction(ImutableMixin, VectorFunction):
+class VectorFunction(FunctionMixin, VectorOperator):
     pass
 
 
-class FunctionFromCallableMixin:
+class OperatorFromCallableMixin:
     def _setup(self, fun: callable):
         self._fun = fun
         self.set_values(self._fun(self.basis.mesh.mesh_pts()))
@@ -602,7 +614,7 @@ class FunctionFromCallableMixin:
 
 class Operator(ABC):
     @abstractmethod
-    def __call__(self, fun: MatrixFunction) -> MatrixFunction:
+    def __call__(self, fun: MatrixOperator) -> MatrixOperator:
         raise NotImplementedError
 
     def __repr__(self):
@@ -614,7 +626,7 @@ class OperatorFromCallable(Operator):
         self._op_values_fun = op_values_fun
         self._op_jac_fun = op_jac_fun
 
-    def _values(self, fun: MatrixFunction):
+    def _values(self, fun: MatrixOperator):
         vals = self._op_values_fun(fun.get_values())
         if vals.shape != fun.get_values().shape:
             raise RuntimeError(
@@ -622,7 +634,7 @@ class OperatorFromCallable(Operator):
             )
         return vals
 
-    def _jacobian(self, fun: MatrixFunction):
+    def _jacobian(self, fun: MatrixOperator):
         jac = self._op_jac_fun(fun.get_values())
         if jac.shape != fun.get_jacobian().shape:
             raise RuntimeError(
@@ -634,9 +646,9 @@ class OperatorFromCallable(Operator):
 class ScalarOperatorFromCallable(OperatorFromCallable):
     def __call__(
         self,
-        fun: MatrixFunction,
-    ) -> ScalarFunction:
-        return ScalarFunction(
+        fun: MatrixOperator,
+    ) -> ScalarOperator:
+        return ScalarOperator(
             fun.basis,
             self._values(fun),
             self._jacobian(fun),
@@ -644,20 +656,20 @@ class ScalarOperatorFromCallable(OperatorFromCallable):
 
 
 class ScalarMonomialOperator(Operator):
-    def __init__(self, degree: int, coef: ScalarFunction = None):
+    def __init__(self, degree: int, coef: ScalarOperator = None):
         self._degree = degree
-        if coef is not None and not isinstance(coef, ScalarFunction):
-            raise ValueError("coef must be an instance ScalarFunction")
+        if coef is not None and not isinstance(coef, ScalarOperator):
+            raise ValueError("coef must be an instance ScalarOperator")
         self._coef = coef
 
-    def __call__(self, fun: MatrixFunction) -> ScalarFunction:
+    def __call__(self, fun: MatrixOperator) -> ScalarOperator:
         if self._degree > 0:
             vals = fun.get_values()
             if self._degree > 1:
                 jac = self._degree * fun._bkd.diag(vals) ** (self._degree - 1)
             else:
                 jac = self._degree * fun._bkd.diag(vals)
-            poly = ScalarFunction(fun.basis, vals**self._degree, jac)
+            poly = ScalarOperator(fun.basis, vals**self._degree, jac)
         else:
             poly = 1.0
         if self._coef is None:
@@ -695,13 +707,15 @@ class SolutionMixin:
         )
 
 
-class ScalarSolution(SolutionMixin, ScalarFunction):
+class ScalarSolution(SolutionMixin, ScalarOperator):
     pass
 
 
-class ImutableScalarFunctionFromCallable(
-    ImutableScalarFunction, FunctionFromCallableMixin
-):
+class VectorSolution(SolutionMixin, VectorOperator):
+    pass
+
+
+class ScalarFunctionFromCallable(ScalarFunction, OperatorFromCallableMixin):
     """Scalar function that does not depend on the solution of a PDE"""
 
     def __init__(
@@ -709,13 +723,11 @@ class ImutableScalarFunctionFromCallable(
         basis: OrthogonalCoordinateCollocationBasis,
         fun: callable,
     ):
-        ScalarFunction.__init__(self, basis)
+        ScalarOperator.__init__(self, basis)
         self._setup(fun)
 
 
-class ImutableVectorFunctionFromCallable(
-    ImutableVectorFunction, FunctionFromCallableMixin
-):
+class VectorFunctionFromCallable(VectorFunction, OperatorFromCallableMixin):
     """Vector function that does not depend on the solution of a PDE"""
 
     def __init__(
@@ -724,11 +736,11 @@ class ImutableVectorFunctionFromCallable(
         nrows: int,
         fun: callable,
     ):
-        VectorFunction.__init__(self, basis, nrows)
+        VectorOperator.__init__(self, basis, nrows)
         self._setup(fun)
 
 
-class ScalarSolutionFromCallable(ScalarSolution, FunctionFromCallableMixin):
+class ScalarSolutionFromCallable(ScalarSolution, OperatorFromCallableMixin):
     """Steady scalar solution of a PDE"""
 
     def __init__(
@@ -740,7 +752,22 @@ class ScalarSolutionFromCallable(ScalarSolution, FunctionFromCallableMixin):
         self._setup(fun)
 
 
-class TransientFunctionMixin(ABC):
+class VectorSolutionFromCallable(VectorSolution, OperatorFromCallableMixin):
+    """Steady vector solution of a PDE"""
+
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        nrows: int,
+        fun: callable,
+    ):
+        VectorSolution.__init__(self, basis, nrows)
+        self._setup(fun)
+
+
+class TransientOperatorMixin(ABC):
+    """Operator that depends on time."""
+
     def __init__(self, *args, **kwargs):
         super()._init__(*args, **kwargs)
 
@@ -771,14 +798,14 @@ class TransientFunctionMixin(ABC):
         )
 
 
-class TransientFunctionFromCallableMixin(TransientFunctionMixin):
+class TransientOperatorFromCallableMixin(TransientOperatorMixin):
     def _eval(self, mesh_pts):
         self._check_time_set()
         return self._fun(mesh_pts, time=self._time)
 
 
-class ImutableScalarTransientFunctionFromCallable(
-        TransientFunctionFromCallableMixin, ImutableScalarFunction
+class TransientScalarFunctionFromCallable(
+    TransientOperatorFromCallableMixin, ScalarFunction
 ):
     def __init__(
         self,
@@ -787,12 +814,12 @@ class ImutableScalarTransientFunctionFromCallable(
         time: float = 0,
     ):
         self._fun = fun
-        ScalarFunction.__init__(self, basis)
+        ScalarOperator.__init__(self, basis)
         self.set_time(time)
 
 
-class ScalarTransientSolutionFromCallable(
-        TransientFunctionFromCallableMixin, ScalarSolution
+class TransientScalarSolutionFromCallable(
+    TransientOperatorFromCallableMixin, ScalarSolution
 ):
     """Transient scalar solution of a PDE"""
 
@@ -807,10 +834,88 @@ class ScalarTransientSolutionFromCallable(
         self.set_time(time)
 
 
+class TransientVectorFunctionFromCallable(
+    TransientOperatorFromCallableMixin, VectorFunction
+):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        nrows: int,
+        fun: callable,
+        time: float = 0,
+    ):
+        self._fun = fun
+        VectorOperator.__init__(self, basis, nrows)
+        self.set_time(time)
+
+
+class TransientVectorSolutionFromCallable(
+    TransientOperatorFromCallableMixin, VectorSolution
+):
+    """Transient scalar solution of a PDE"""
+
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        nrows: int,
+        fun: callable,
+        time: float = 0,
+    ):
+        self._fun = fun
+        ScalarSolution.__init__(self, basis, nrows)
+        self.set_time(time)
+
+
+class VectorSolutionOperator(Operator):
+    def __init__(self, scalar_vec_operators: List):
+        self._ops = scalar_vec_operators
+
+    def split_into_scalar_solutions(self, sol: VectorSolution):
+        vals = sol.get_values()
+        if vals.shape[1] != 1:
+            raise ValueError("sol must be a vector-valued funciton")
+        return [
+            ScalarSolution(sol.basis, vals[ii, 0])
+            for ii in range(vals.shape[0])
+        ]
+
+    def split_into_immutable_functions(self, sol: VectorSolution):
+        vals = sol.get_values()
+        if vals.shape[1] != 1:
+            raise ValueError("sol must be a vector-valued funciton")
+        return [
+            ScalarFunction(sol.basis, vals[ii, 0])
+            for ii in range(vals.shape[0])
+        ]
+
+    def __call__(self, sol: VectorSolution):
+        # split into sols with jacobian and without to easily compute
+        # jacobian entries
+        nop_rows = len(self._ops)
+        sols = self.split_into_scalar_solutions(sol)
+        funs = self.split_into_immutable_functions(sol)
+        result = MatrixOperator(basis, nop_rows, nop_cols)
+        values = self._bkd.zeros(result.matrix_jacobian_shape()[:-1])
+        jac = self._bkd.zeros(result.matrix_jacobian_shape())
+        # loop over element of output vector
+        for ii in range(nop_rows):
+            # compute derivative of ith output vector operator with respect to
+            # each input vector element
+            for jj in range(sol._nrows):
+                quantities = [
+                    funs[jj] if jj != kk else sols[kk]
+                    for kk in range(sol._nrows)
+                ]
+                result_ii = op(quantities)
+                values[ii, 0] = result_ii.get_values()
+                # jac (npts, npts)
+                jac[ii, jj, ...] = result_ii.get_jacobian()
+
+
 # nabla f(u) = [D_1f_1,    0  ], d/du (nabla f(u)) = [D_1f_1'(u),     0     ]
 #            = [  0   , D_2f_2]                      [   0      , D_2 f'(u) ]
 # where f'(u) = d/du f(u)
-def nabla(fun: MatrixFunction):
+def nabla(fun: MatrixOperator):
     """Gradient of a scalar valued function"""
     funvalues = fun.get_matrix_values()[0, 0]
     fun_jac = fun.get_matrix_jacobian()
@@ -829,11 +934,11 @@ def nabla(fun: MatrixFunction):
         ],
         axis=0,
     )
-    return MatrixFunction(fun.basis, fun.nphys_vars(), 1, grad_vals, grad_jacs)
+    return MatrixOperator(fun.basis, fun.nphys_vars(), 1, grad_vals, grad_jacs)
 
 
 # div f = [D_1 f_1(u) + D_2f_2(u)],  (div f)' = [D_1f'_1(u) + D_2f'_2(u)]
-def div(fun: MatrixFunction):
+def div(fun: MatrixOperator):
     """Divergence of a vector valued function."""
     if fun._ncols != 1:
         raise ValueError("Fun must be a vector valued function")
@@ -850,12 +955,12 @@ def div(fun: MatrixFunction):
     div_jac = fun._bkd.sum(
         fun._bkd.einsum("ijk,ikm->ijm", dmats, fun_jacs), axis=0
     )
-    return MatrixFunction(
+    return MatrixOperator(
         fun.basis, 1, 1, div_vals[None, None, :], div_jac[None, None, ...]
     )
 
 
-def sqmagnitude(fun: MatrixFunction):
+def sqmagnitude(fun: MatrixOperator):
     """Squared magnitude of a vector valued function."""
     if fun._ncols != 1:
         raise ValueError("Fun must be a vector valued function")
@@ -863,18 +968,18 @@ def sqmagnitude(fun: MatrixFunction):
     fun_jacs = fun.get_matrix_jacobian()[:, 0, ...]
     mag_vals = fun._bkd.sum(fun_values**2, axis=0)
     mag_jacs = fun._bkd.sum(2 * fun_jacs * fun_values[..., None], axis=0)
-    return ScalarFunction(fun.basis, mag_vals, mag_jacs)
+    return ScalarOperator(fun.basis, mag_vals, mag_jacs)
 
 
 # div (nabla f)  = [D_1, D_2][D_1f_1,    0  ] = [D_1D_1f_1,    0     ]
 #                            [  0   , D_2f_2] = [  0      , D_2D_2f_2]
 # d/du (nabla f(u)) = [D_1D_1f_1'(u),     0        ]
 #                     [   0      ,    D_2D_2 f'(u) ]
-def laplace(fun: MatrixFunction):
+def laplace(fun: MatrixOperator):
     """Laplacian of a scalar valued function"""
     return div(nabla(fun))
 
 
-def fdotgradf(fun: MatrixFunction):
+def fdotgradf(fun: MatrixOperator):
     r"""(f \cdot nabla f)f of a vector-valued function f"""
     pass

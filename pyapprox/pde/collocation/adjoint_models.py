@@ -59,11 +59,11 @@ class AdjointModel(SingleSampleModel):
 
 class SteadyAdjointModel(AdjointModel):
     def __init__(
-            self,
-            residual: NewtonResidual,
-            functional: AdjointFunctional,
-            newton_solver: NewtonSolver = None,
-            backend: LinAlgMixin = NumpyLinAlgMixin
+        self,
+        residual: NewtonResidual,
+        functional: AdjointFunctional,
+        newton_solver: NewtonSolver = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         super().__init__(backend)
         self._residual = residual
@@ -111,17 +111,15 @@ class SteadyAdjointModel(AdjointModel):
 
 class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
     def __init__(
-            self,
-            residual: NewtonResidual,
-            functional: AdjointFunctional,
-            init_iterate: Array,
-            newton_solver: NewtonSolver = None,
-            apply_hessian_implemented=False,
-            backend: LinAlgMixin = NumpyLinAlgMixin
+        self,
+        residual: NewtonResidual,
+        functional: AdjointFunctional,
+        init_iterate: Array,
+        newton_solver: NewtonSolver = None,
+        apply_hessian_implemented=False,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(
-            residual, functional, newton_solver, backend
-        )
+        super().__init__(residual, functional, newton_solver, backend)
         self._apply_hessian_implemented = apply_hessian_implemented
         if init_iterate.ndim != 1:
             raise ValueError("init_iterate must be 1D Array")
@@ -133,14 +131,14 @@ class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
 
 class TransientAdjointModel(AdjointModel):
     def __init__(
-            self,
-            init_time: float,
-            final_time: float,
-            deltat: float,
-            time_residual: TimeIntegratorNewtonResidual,
-            functional: TransientAdjointFunctional,
-            newton_solver: NewtonSolver = None,
-            backend: LinAlgMixin = NumpyLinAlgMixin
+        self,
+        init_time: float,
+        final_time: float,
+        deltat: float,
+        time_residual: TimeIntegratorNewtonResidual,
+        functional: TransientAdjointFunctional,
+        newton_solver: NewtonSolver = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         super().__init__(backend)
         if not isinstance(time_residual, TimeIntegratorNewtonResidual):
@@ -158,7 +156,7 @@ class TransientAdjointModel(AdjointModel):
         self.setup_time_integrator(init_time, final_time, deltat)
 
     def setup_time_integrator(
-            self, init_time: float, final_time: float, deltat: float
+        self, init_time: float, final_time: float, deltat: float
     ):
         self._init_time = init_time
         self._final_time = final_time
@@ -182,9 +180,7 @@ class TransientAdjointModel(AdjointModel):
 
     def _eval_functional(self):
         self._functional.set_quadrature_sample_weights(
-            *self._time_residual.quadrature_samples_weights(
-                self._times
-            )
+            *self._time_residual.quadrature_samples_weights(self._times)
         )
         return self._functional(self._sols)[None, :]
 
@@ -197,6 +193,5 @@ class TransientAdjointModel(AdjointModel):
 
     def __repr__(self):
         return "{0}(integrator={1})".format(
-            self.__class__.__name__,
-            self._time_int
+            self.__class__.__name__, self._time_int
         )

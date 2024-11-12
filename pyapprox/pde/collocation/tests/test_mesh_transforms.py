@@ -316,12 +316,12 @@ class TestMeshTransforms:
             radius, azimuth = orth_line
             sign = (-1) ** ((bndry_id % 2) + 1)
             if bndry_id < 2:
-                return sign*bkd.stack(
-                    [bkd.cos(azimuth), bkd.sin(azimuth)],
-                    axis=1)
-            return sign*bkd.stack(
-                    [-bkd.sin(azimuth), bkd.cos(azimuth)],
-                    axis=1)
+                return sign * bkd.stack(
+                    [bkd.cos(azimuth), bkd.sin(azimuth)], axis=1
+                )
+            return sign * bkd.stack(
+                [-bkd.sin(azimuth), bkd.cos(azimuth)], axis=1
+            )
 
         orth_lines = self._get_orthogonal_boundary_samples_2d(30)
         polar_orth_lines = [
@@ -561,7 +561,7 @@ class TestMeshTransforms:
             sph_transform.map_to_orthogonal(samples), sph_orth_samples
         )
         self._check_gradients(
-           sph_transform, sph_orth_samples, samples, forward=False
+            sph_transform, sph_orth_samples, samples, forward=False
         )
 
         orth_surfaces = self._get_orthogonal_boundary_samples_3d(10)
@@ -576,30 +576,26 @@ class TestMeshTransforms:
             sign = (-1) ** ((bndry_id % 2) + 1)
             if bndry_id < 2:
                 sign = -1 if bndry_id == 0 else 1
-                return sign*bkd.stack(
+                return sign * bkd.stack(
                     [
-                        bkd.cos(azimuth)*bkd.sin(elevation),
-                        bkd.sin(azimuth)*bkd.sin(elevation),
-                        bkd.cos(elevation)
+                        bkd.cos(azimuth) * bkd.sin(elevation),
+                        bkd.sin(azimuth) * bkd.sin(elevation),
+                        bkd.cos(elevation),
                     ],
-                    axis=1)
+                    axis=1,
+                )
             if bndry_id < 4:
-                return sign*bkd.stack(
-                    [
-                        -bkd.sin(azimuth),
-                        bkd.cos(azimuth),
-                        zeros
-                    ],
-                    axis=1
+                return sign * bkd.stack(
+                    [-bkd.sin(azimuth), bkd.cos(azimuth), zeros], axis=1
                 )
-            return sign*bkd.stack(
-                    [
-                        bkd.cos(azimuth)*bkd.cos(elevation),
-                        bkd.sin(azimuth)*bkd.cos(elevation),
-                        -bkd.sin(elevation)
-                    ],
-                    axis=1
-                )
+            return sign * bkd.stack(
+                [
+                    bkd.cos(azimuth) * bkd.cos(elevation),
+                    bkd.sin(azimuth) * bkd.cos(elevation),
+                    -bkd.sin(elevation),
+                ],
+                axis=1,
+            )
 
         self._check_normals_3d(
             sph_transform, sph_orth_surfaces, _sphere_normals
@@ -626,13 +622,14 @@ class TestMeshTransforms:
 
     def surface_transform(self):
         import warnings
+
         warnings.filterwarnings("error")
         bkd = self.get_backend()
-        radius = 1.
+        radius = 1.0
         # map_from orthogonal is ill defined at elevation = 0 and pi
         # because there are many values of aziumuth that will
         # give the same (x,y,z), so use 1e-8 as lower bound
-        bounds = [radius, radius, -np.pi/2, np.pi/2, 1e-6, np.pi/2]
+        bounds = [radius, radius, -np.pi / 2, np.pi / 2, 1e-6, np.pi / 2]
         scale_trans = FixedScaleAndTranslationTransform3D(
             [-1, 1, -1, 1, -1, 1], bounds, bkd
         )
@@ -656,12 +653,10 @@ class TestMeshTransforms:
         ax.set_aspect("equal")
         # plt.show()
 
-        assert bkd.allclose(
-            trans.map_to_orthogonal(samples), orth_samples
-        )
+        assert bkd.allclose(trans.map_to_orthogonal(samples), orth_samples)
 
         # domain is 1/4 of sphere
-        exact_integral = 4*np.pi*radius**2/4
+        exact_integral = 4 * np.pi * radius**2 / 4
         self._check_integral(
             trans, exact_integral, lambda xx: bkd.ones(xx[1].shape)
         )

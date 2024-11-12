@@ -325,6 +325,9 @@ class VectorSolutionMixin:
         self._nelems = len(sol_strs)
         super().__init__(*args, **kwargs)
 
+    def nelements(self) -> int:
+        return self._nelems
+
     def _solution_expression(self):
         sol_exprs = [sp.sympify(sol_str) for sol_str in self._sol_strs]
         # next line will not work if one component is time dependent
@@ -340,12 +343,10 @@ class VectorSolutionMixin:
 
     def sympy_temporal_derivative_expression(self):
         if self.is_transient():
-            for ii in range(self._nvars+1):
-                self._expressions["forcing"][ii] += (
-                    self._expressions["solution"][ii].diff(
-                        self.time_symbol()[0]
-                    )
-                )
+            for ii in range(self._nvars + 1):
+                self._expressions["forcing"][ii] += self._expressions[
+                    "solution"
+                ][ii].diff(self.time_symbol()[0])
 
 
 class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
@@ -361,6 +362,7 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
         self._depth_str = depth_str
         self._vel_strs = vel_strs
         self._bed_str = bed_str
+        print(bed_str, "A")
         self._g = 9.81
         mom_strs = [f"{depth_str}*{vel_str}" for vel_str in vel_strs]
         super().__init__([depth_str] + mom_strs, nvars, bkd, oned)
@@ -371,7 +373,7 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
         depth_expr = self._expressions["solution"][0]
         mom_exprs = self._expressions["solution"][1:]
 
-        flux_exprs = [None for ii in range(self._nvars+1)]
+        flux_exprs = [None for ii in range(self._nvars + 1)]
         flux_exprs[0] = [-mom_expr for mom_expr in mom_exprs]
         flux_exprs[1] = [None for ii in range(self._nvars)]
         flux_exprs[1][0] = -(
@@ -394,7 +396,7 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
                     for flux, s in zip(flux_exprs[ii], cartesian_symbs)
                 ]
             )
-            for ii in range(self._nvars+1)
+            for ii in range(self._nvars + 1)
         ]
         self._set_expression("bed", bed_expr, self._bed_str)
         self._set_expression("flux", flux_exprs, self._depth_str)

@@ -12,10 +12,10 @@ from pyapprox.pde.collocation.basis import (
 )
 from pyapprox.pde.collocation.functions import (
     ScalarSolution,
-    ImutableScalarFunction,
+    ScalarFunction,
     ScalarOperatorFromCallable,
     ScalarMonomialOperator,
-    ImutableScalarFunctionFromCallable,
+    ScalarFunctionFromCallable,
     nabla,
 )
 from pyapprox.pde.collocation.mesh_transforms import (
@@ -28,7 +28,7 @@ from pyapprox.pde.collocation.mesh import (
 )
 
 
-class TestFunctions:
+class TestOperators:
     def setUp(self):
         np.random.seed(1)
 
@@ -96,7 +96,7 @@ class TestFunctions:
 
         def get_prodfun(fun_values):
             gradfun = get_gradfun(fun_values)
-            gfun = ImutableScalarFunctionFromCallable(basis, test_gfun)
+            gfun = ScalarFunctionFromCallable(basis, test_gfun)
             return gfun * gradfun
 
         prodfun = get_prodfun(fun_values[:, 0])
@@ -116,14 +116,14 @@ class TestFunctions:
         )
 
         def get_float_divfun(fun_values):
-            fun = ScalarSolution(basis, fun_values+1)
-            return 1. / fun
+            fun = ScalarSolution(basis, fun_values + 1)
+            return 1.0 / fun
 
         def float_divfun(fun_values):
             return get_float_divfun(fun_values).get_values()
 
         assert bkd.allclose(
-            float_divfun(fun_values[:, 0])[0].T, 1/(fun_values + 1)
+            float_divfun(fun_values[:, 0])[0].T, 1 / (fun_values + 1)
         )
 
         assert bkd.allclose(
@@ -132,7 +132,7 @@ class TestFunctions:
         )
 
         def get_divfun(fun_values):
-            fun = ScalarSolution(basis, fun_values+1)
+            fun = ScalarSolution(basis, fun_values + 1)
             op = ScalarMonomialOperator(4)
             gfun = op(fun)
             return gfun / fun
@@ -141,7 +141,7 @@ class TestFunctions:
             return get_divfun(fun_values).get_values()
 
         assert bkd.allclose(
-            divfun(fun_values[:, 0])[0].T, (fun_values + 1)**3
+            divfun(fun_values[:, 0])[0].T, (fun_values + 1) ** 3
         )
 
         assert bkd.allclose(
@@ -150,7 +150,7 @@ class TestFunctions:
         )
 
         def get_sqrtfun(fun_values):
-            fun = ScalarSolution(basis, fun_values+1)
+            fun = ScalarSolution(basis, fun_values + 1)
             return fun.sqrt()
 
         def sqrtfun(fun_values):
@@ -166,8 +166,8 @@ class TestFunctions:
         )
 
         def get_powerfun(fun_values):
-            fun = ScalarSolution(basis, fun_values+1)
-            return fun ** 3
+            fun = ScalarSolution(basis, fun_values + 1)
+            return fun**3
 
         def powerfun(fun_values):
             return get_powerfun(fun_values).get_values()
@@ -197,7 +197,7 @@ class TestFunctions:
 
         fun_values = test_fun(basis.mesh.mesh_pts())
         # fun is independent of the solution
-        fun = ImutableScalarFunction(basis, fun_values[:, 0])
+        fun = ScalarFunction(basis, fun_values[:, 0])
 
         X, Y, plot_samples = get_meshgrid_samples([0, 1, 0, 1], 11, bkd=bkd)
         assert bkd.allclose(fun(plot_samples), test_fun(plot_samples)[:, 0])
@@ -213,7 +213,7 @@ class TestFunctions:
         )
         assert bkd.allclose(
             gradfun.get_matrix_jacobian(),
-            bkd.zeros(gradfun.matrix_jacobian_shape())
+            bkd.zeros(gradfun.matrix_jacobian_shape()),
         )
 
         # fun is the solution
@@ -226,9 +226,9 @@ class TestFunctions:
 
         # fun is a function of the solution
         def op_jac(vals):
-            return (4 * bkd.diag(vals) ** 3)
+            return 4 * bkd.diag(vals) ** 3
 
-        op = ScalarOperatorFromCallable(lambda vals: vals ** 4, op_jac)
+        op = ScalarOperatorFromCallable(lambda vals: vals**4, op_jac)
         fun = op(sol)
         gradfun = nabla(fun)
         for ii in range(fun.nphys_vars()):
@@ -242,13 +242,16 @@ class TestFunctions:
 
         self._check_differential_operators_2d_with_autograd(basis)
 
+    def test_multidimensional_operators(self):
+        pass
 
-class TestNumpyFunctions(TestFunctions, unittest.TestCase):
+
+class TestNumpyOperators(TestOperators, unittest.TestCase):
     def get_backend(self):
         return NumpyLinAlgMixin
 
 
-class TestTorchFunctions(TestFunctions, unittest.TestCase):
+class TestTorchOperators(TestOperators, unittest.TestCase):
     def get_backend(self):
         return TorchLinAlgMixin
 

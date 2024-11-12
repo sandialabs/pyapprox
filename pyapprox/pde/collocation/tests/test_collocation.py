@@ -14,7 +14,7 @@ from pyapprox.pde.collocation.manufactured_solutions import (
     AdvectionDiffusionReaction,
     ShallowIce,
     Helmholtz,
-    ShallowWave
+    ShallowWave,
 )
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
@@ -26,20 +26,24 @@ from pyapprox.pde.collocation.physics import (
     AdvectionDiffusionReactionEquation,
     ShallowIceEquation,
     HelmholtzEquation,
+    ShallowWaveEquation,
 )
 from pyapprox.pde.collocation.functions import (
-    ImutableScalarFunctionFromCallable,
+    ScalarFunctionFromCallable,
     ScalarSolutionFromCallable,
-    ImutableScalarTransientFunctionFromCallable,
-    ScalarTransientSolutionFromCallable,
+    TransientScalarFunctionFromCallable,
+    TransientScalarSolutionFromCallable,
     ScalarMonomialOperator,
-    ImutableVectorFunctionFromCallable,
+    VectorFunctionFromCallable,
+    VectorSolutionFromCallable,
+    TransientVectorSolutionFromCallable,
+    TransientVectorFunctionFromCallable,
 )
 
 from pyapprox.pde.collocation.boundaryconditions import (
-    DirichletBoundaryFromFunction,
+    DirichletBoundaryFromOperator,
     RobinBoundary,
-    RobinBoundaryFromFunction,
+    RobinBoundaryFromOperator,
     PeriodicBoundary,
     OrthogonalCoordinateMeshBoundary,
 )
@@ -58,13 +62,19 @@ from pyapprox.pde.collocation.mesh import (
     ChebyshevCollocationMesh3D,
 )
 from pyapprox.pde.collocation.solvers import (
-    SteadyPDE, NewtonSolver, TransientPDE
+    SteadyPDE,
+    NewtonSolver,
+    TransientPDE,
 )
-from pyapprox.pde.collocation.timeintegration import BackwardEulerResidual, CrankNicholsonResidual
+from pyapprox.pde.collocation.timeintegration import (
+    BackwardEulerResidual,
+    CrankNicholsonResidual,
+)
+
 # from pyapprox.util.print_wrapper import *
 
 
-class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromFunction):
+class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromOperator):
     def __init__(
         self,
         mesh_bndry: OrthogonalCoordinateMeshBoundary,
@@ -82,9 +92,7 @@ class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromFunction):
         # because manufactured_callable with be called and needs alpha
         RobinBoundary.__init__(self, mesh_bndry, alpha, beta)
         self._set_function(
-            ImutableScalarFunctionFromCallable(
-                basis, self._manufactured_callable
-            )
+            ScalarFunctionFromCallable(basis, self._manufactured_callable)
         )
 
     def _robin_normal_flux(self, pts):
@@ -161,7 +169,7 @@ class TestCollocation:
             sol = self._setup_scalar_solution_from_manufactured_solution(
                 basis, man_sol
             )
-            bndry_funs.append(DirichletBoundaryFromFunction(mesh_bndry, sol))
+            bndry_funs.append(DirichletBoundaryFromOperator(mesh_bndry, sol))
         return bndry_funs
 
     def _setup_robin_boundary_conditions(
@@ -212,9 +220,7 @@ class TestCollocation:
         if bndry_types == "D":
             return self._setup_dirichlet_boundary_conditions(basis, man_sol)
         if bndry_types == "R":
-            return self._setup_robin_boundary_conditions(
-                basis, man_sol
-            )
+            return self._setup_robin_boundary_conditions(basis, man_sol)
         if bndry_types == "P":
             return self._setup_periodic_boundary_conditions(basis)
         if bndry_types != "M":
@@ -240,35 +246,59 @@ class TestCollocation:
             sol = self._setup_scalar_solution_from_manufactured_solution(
                 basis, man_sol
             )
-            bndry_funs.append(DirichletBoundaryFromFunction(mesh_bndry, sol))
+            bndry_funs.append(DirichletBoundaryFromOperator(mesh_bndry, sol))
         return bndry_funs
 
     def _setup_scalar_solution_from_manufactured_solution(
-            self,
-            basis: OrthogonalCoordinateCollocationBasis,
-            man_sol: ManufacturedSolution
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        man_sol: ManufacturedSolution,
     ):
         name = "solution"
         if not man_sol.transient[name]:
-            return ScalarSolutionFromCallable(
-                basis, man_sol.functions[name]
-            )
-        return ScalarTransientSolutionFromCallable(
+            return ScalarSolutionFromCallable(basis, man_sol.functions[name])
+        return TransientScalarSolutionFromCallable(
             basis, man_sol.functions[name]
         )
 
     def _setup_immutable_scalar_function(
-            self,
-            name: str,
-            basis: OrthogonalCoordinateCollocationBasis,
-            man_sol: ManufacturedSolution
+        self,
+        name: str,
+        basis: OrthogonalCoordinateCollocationBasis,
+        man_sol: ManufacturedSolution,
     ):
         if not man_sol.transient[name]:
-            return ImutableScalarFunctionFromCallable(
-                basis, man_sol.functions[name]
-            )
-        return ImutableScalarTransientFunctionFromCallable(
+            return ScalarFunctionFromCallable(basis, man_sol.functions[name])
+        return TransientScalarFunctionFromCallable(
             basis, man_sol.functions[name]
+        )
+
+    def _setup_vector_solution_from_manufactured_solution(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        man_sol: ManufacturedSolution,
+    ):
+        name = "solution"
+        if not man_sol.transient[name]:
+            return VectorSolutionFromCallable(
+                basis, man_sol.nelements(), man_sol.functions[name]
+            )
+        return TransientVectorSolutionFromCallable(
+            basis, man_sol.nelements(), man_sol.functions[name]
+        )
+
+    def _setup_immutable_vector_function(
+        self,
+        name: str,
+        basis: OrthogonalCoordinateCollocationBasis,
+        man_sol: ManufacturedSolution,
+    ):
+        if not man_sol.transient[name]:
+            return VectorFunctionFromCallable(
+                basis, man_sol.nelements(), man_sol.functions[name]
+            )
+        return TransientVectorFunctionFromCallable(
+            basis, man_sol.nelements(), man_sol.functions[name]
         )
 
     def _check_steady_state_advection_diffusion_reaction(
@@ -309,14 +339,11 @@ class TestCollocation:
         forcing = self._setup_immutable_scalar_function(
             "forcing", basis, man_sol
         )
-        react_coef = ImutableScalarFunctionFromCallable(
-            basis,
-            react_fun
-        )
+        react_coef = ScalarFunctionFromCallable(basis, react_fun)
         react_op = ScalarMonomialOperator(
             degree=react_op_degree, coef=react_coef
         )
-        vel_field = ImutableVectorFunctionFromCallable(
+        vel_field = VectorFunctionFromCallable(
             basis, basis.nphys_vars(), man_sol.functions["velocity"]
         )
         physics = AdvectionDiffusionReactionEquation(
@@ -334,15 +361,18 @@ class TestCollocation:
             ),
         )
 
-        def autofun(sol_array):
-            sol = physics.separate_solutions(sol_array)
-            return physics._flux(sol).get_values()
-        jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
-        assert bkd.allclose(
-            physics._flux_jacobian_from_array(exact_sol.get_values()),
-            jac_auto[:, 0],
-            atol=1e-15
-        )
+        if bkd.jacobian_implemented():
+
+            def autofun(sol_array):
+                sol = physics.separate_solutions(sol_array)
+                return physics._flux(sol).get_values()
+
+            jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
+            assert bkd.allclose(
+                physics._flux_jacobian_from_array(exact_sol.get_values()),
+                jac_auto[:, 0],
+                atol=1e-15,
+            )
 
         boundaries = self._setup_boundary_conditions(
             basis,
@@ -357,7 +387,7 @@ class TestCollocation:
                 maxiters=1 if react_op_degree < 2 else 10,
                 atol=1e-8,
                 rtol=1e-8,
-            )
+            ),
         )
         linear_init_sol = ScalarSolutionFromCallable(
             basis,
@@ -371,10 +401,10 @@ class TestCollocation:
             return
 
         linear_physics = AdvectionDiffusionReactionEquation(
-            forcing, diffusion,  ScalarMonomialOperator(
-                degree=1, coef=react_coef
-            ),
-            vel_field
+            forcing,
+            diffusion,
+            ScalarMonomialOperator(degree=1, coef=react_coef),
+            vel_field,
         )
         # linear physics must have all the same functions, e.g. forcing
         # as physics or set_boundaries, will changes the boundaries
@@ -418,14 +448,11 @@ class TestCollocation:
         forcing = self._setup_immutable_scalar_function(
             "forcing", basis, man_sol
         )
-        react_coef = ImutableScalarFunctionFromCallable(
-            basis,
-            react_fun
-        )
+        react_coef = ScalarFunctionFromCallable(basis, react_fun)
         react_op = ScalarMonomialOperator(
             degree=react_op_degree, coef=react_coef
         )
-        vel_field = ImutableVectorFunctionFromCallable(
+        vel_field = VectorFunctionFromCallable(
             basis, basis.nphys_vars(), man_sol.functions["velocity"]
         )
         physics = AdvectionDiffusionReactionEquation(
@@ -444,11 +471,14 @@ class TestCollocation:
                 maxiters=1 if react_op_degree < 2 else 10,
                 atol=1e-8,
                 rtol=1e-8,
-            )
+            ),
         )
-        init_time, final_time, deltat = 0., 1., 0.5
+        init_time, final_time, deltat = 0.0, 1.0, 0.5
         solver.setup_time_integrator(
-            BackwardEulerResidual, init_time, final_time, deltat
+            BackwardEulerResidual,
+            init_time,
+            final_time,
+            deltat,
             # CrankNicholsonResidual, init_time, final_time, deltat
         )
         init_sol = copy.deepcopy(exact_sol)
@@ -525,7 +555,9 @@ class TestCollocation:
         test_case_args = [
             ["x**2*(1+T)*y**2"],  # sol_string
             ["4"],  # diff_string
-            [["0", "1"],],  # vel_strings
+            [
+                ["0", "1"],
+            ],  # vel_strings
             [
                 ["0", lambda x: bkd.zeros(x.shape[1]), 0],
                 ["2*u", lambda x: bkd.full((x.shape[1],), 2.0), 1],
@@ -555,7 +587,7 @@ class TestCollocation:
                 self._setup_rect_cheby_basis_2d([5, 5], [0, 1, 0, 2]),
                 self._setup_disc_cheby_basis_2d(
                     [30, 30], [1, 2, -np.pi / 2, np.pi / 2]
-                )
+                ),
             ],  # basis
         ]
         # Note for the basis: self._setup_disc_cheby_basis_2d(
@@ -654,9 +686,7 @@ class TestCollocation:
         ax.set_aspect("equal")
         # plt.show()
 
-        bed = self._setup_immutable_scalar_function(
-            "bed", basis, man_sol
-        )
+        bed = self._setup_immutable_scalar_function("bed", basis, man_sol)
         friction = self._setup_immutable_scalar_function(
             "friction", basis, man_sol
         )
@@ -672,7 +702,7 @@ class TestCollocation:
             bkd.zeros(
                 exact_sol.nmesh_pts(),
             ),
-            atol=1e-7
+            atol=1e-7,
         )
 
         boundaries = self._setup_boundary_conditions(
@@ -682,16 +712,22 @@ class TestCollocation:
         )
         physics.set_boundaries(boundaries)
 
-        assert bkd.max(bkd.abs(physics.residual(exact_sol).get_values())) < 1e-5
-
-        def autofun(sol_array):
-            sol = physics.separate_solutions(sol_array)
-            return physics._flux(sol).get_values()
-        jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
-        assert bkd.allclose(
-            physics._flux_jacobian_from_array(exact_sol.get_values()), jac_auto,
-            atol=1e-15
+        assert (
+            bkd.max(bkd.abs(physics.residual(exact_sol).get_values())) < 1e-5
         )
+
+        if bkd.jacobian_implemented():
+
+            def autofun(sol_array):
+                sol = physics.separate_solutions(sol_array)
+                return physics._flux(sol).get_values()
+
+            jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
+            assert bkd.allclose(
+                physics._flux_jacobian_from_array(exact_sol.get_values()),
+                jac_auto,
+                atol=1e-15,
+            )
 
         solver = SteadyPDE(
             physics,
@@ -700,26 +736,37 @@ class TestCollocation:
                 maxiters=1,
                 atol=1e-8,
                 rtol=1e-8,
-            )
+            ),
         )
         # SIA is sensitive to initial guess and should really only be used
         # for transient problems so just test 1 newton iteration is needed
         # when passing in exact sol
         sol = solver.solve(exact_sol)
-        assert bkd.allclose(
-            sol.get_values(), exact_sol.get_values())
+        assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_steady_shallow_ice_equation_1d(self):
-        s0, depth, alpha = 2, .1, 1e-1
+        s0, depth, alpha = 2, 0.1, 1e-1
         test_case_args = [
-            ["x",],  # solution
-            [f"{s0}-{alpha}*x**2-{depth}",],  # bed string
-            ["100000",],  # friction string
-            [1e-4,],  # A
-            [1,],  # rho
+            [
+                "x",
+            ],  # solution
+            [
+                f"{s0}-{alpha}*x**2-{depth}",
+            ],  # bed string
+            [
+                "100000",
+            ],  # friction string
+            [
+                1e-4,
+            ],  # A
+            [
+                1,
+            ],  # rho
             ["R"],
-            #["D", "R", "M"],  # bndry types
-            [self._setup_cheby_basis_1d([15], [0, 1]),],  # basis
+            # ["D", "R", "M"],  # bndry types
+            [
+                self._setup_cheby_basis_1d([15], [0, 1]),
+            ],  # basis
         ]
         for test_case in itertools.product(*test_case_args):
             self._check_steady_shallow_ice_equation(*test_case)
@@ -760,7 +807,7 @@ class TestCollocation:
             bkd.zeros(
                 exact_sol.nmesh_pts(),
             ),
-            atol=1e-7
+            atol=1e-7,
         )
 
         boundaries = self._setup_boundary_conditions(
@@ -776,7 +823,7 @@ class TestCollocation:
                 maxiters=1,
                 atol=1e-8,
                 rtol=1e-8,
-            )
+            ),
         )
         init_sol = ScalarSolutionFromCallable(
             basis,
@@ -785,8 +832,7 @@ class TestCollocation:
             ),
         )
         sol = solver.solve(init_sol)
-        assert bkd.allclose(
-            sol.get_values(), exact_sol.get_values())
+        assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_helmholtz(self):
         test_case_args = [
@@ -815,12 +861,12 @@ class TestCollocation:
             self._check_helmholtz_equation(*test_case)
 
     def _check_shallow_wave_equation(
-            self,
-            depth_str: str,
-            vel_strs: str,
-            bed_str: str,
-            bndry_types: str,
-            basis: OrthogonalCoordinateCollocationBasis,
+        self,
+        depth_str: str,
+        vel_strs: str,
+        bed_str: str,
+        bndry_types: str,
+        basis: OrthogonalCoordinateCollocationBasis,
     ):
         bkd = self.get_backend()
         man_sol = ShallowWave(
@@ -829,14 +875,36 @@ class TestCollocation:
             vel_strs,
             bed_str,
             bkd=bkd,
-            oned=False,
+            oned=True,
         )
         print(man_sol)
+
+        exact_sol = self._setup_vector_solution_from_manufactured_solution(
+            basis, man_sol
+        )
+
+        times = bkd.linspace(0, 1, 3)
+        exact_sols = []
+        for time in times:
+            exact_sol.set_time(time)
+            exact_sols.append(exact_sol.get_values())
+        print(exact_sols[0].shape)
+        exact_sols = bkd.stack(exact_sols, axis=-1)
+        print(exact_sols.shape)
+
+        bed = self._setup_immutable_scalar_function("bed", basis, man_sol)
+        forcing = self._setup_immutable_vector_function(
+            "forcing", basis, man_sol
+        )
+
+        physics = ShallowWaveEquation(bed, forcing)
 
     def test_shallow_wave_equation(self):
         test_case_args = [
             ["1-(x-1)*x/2*(1+T)"],  # depth_string
-            [["(x+1)*(1+T)"],],  # vel_strings
+            [
+                ["(x+1)*(1+T)"],
+            ],  # vel_strings
             ["0"],  # bed_string
             ["D"],  # bndry_types
             [

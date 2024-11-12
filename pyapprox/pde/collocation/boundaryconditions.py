@@ -3,12 +3,13 @@ from abc import ABC, abstractmethod
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.pde.collocation.mesh import OrthogonalCoordinateMeshBoundary
 from pyapprox.pde.collocation.functions import (
-    MatrixFunction, TransientFunctionMixin
+    MatrixOperator,
+    TransientOperatorMixin,
 )
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
 
 
-class BoundaryFunction(ABC):
+class BoundaryOperator(ABC):
     def __init__(self, mesh_bndry: OrthogonalCoordinateMeshBoundary):
         if not isinstance(mesh_bndry, OrthogonalCoordinateMeshBoundary):
             raise ValueError(
@@ -51,7 +52,7 @@ class BoundaryFunction(ABC):
         )
 
 
-class DirichletBoundary(BoundaryFunction):
+class DirichletBoundary(BoundaryOperator):
     def apply_to_residual(self, sol: Array, res: Array):
         idx = self._mesh_bndry._bndry_idx
         bndry_vals = self._bkd.flatten(self(self._mesh_bndry._bndry_mesh_pts))
@@ -65,33 +66,33 @@ class DirichletBoundary(BoundaryFunction):
         return jac
 
 
-class BoundaryFromFunctionMixin:
-    def _set_function(self, fun: MatrixFunction):
-        if not isinstance(fun, MatrixFunction):
-            raise ValueError("fun must be an instance of MatrixFunction")
+class BoundaryFromOperatorMixin:
+    def _set_function(self, fun: MatrixOperator):
+        if not isinstance(fun, MatrixOperator):
+            raise ValueError("fun must be an instance of MatrixOperator")
         self._fun = fun
 
     def __call__(self, bndry_mesh_pts):
         return self._fun(bndry_mesh_pts)
 
 
-class DirichletBoundaryFromFunction(
-    BoundaryFromFunctionMixin, DirichletBoundary
+class DirichletBoundaryFromOperator(
+    BoundaryFromOperatorMixin, DirichletBoundary
 ):
     def __init__(
-        self, mesh_bndry: OrthogonalCoordinateMeshBoundary, fun: MatrixFunction
+        self, mesh_bndry: OrthogonalCoordinateMeshBoundary, fun: MatrixOperator
     ):
         super().__init__(mesh_bndry)
         self._set_function(fun)
 
     def set_time(self, time):
-        if not isinstance(self._fun, TransientFunctionMixin):
+        if not isinstance(self._fun, TransientOperatorMixin):
             raise ValueError(
                 "set_time can only be used with transient functions"
             )
 
 
-class RobinBoundary(BoundaryFunction):
+class RobinBoundary(BoundaryOperator):
     def __init__(
         self,
         mesh_bndry: OrthogonalCoordinateMeshBoundary,
@@ -161,18 +162,18 @@ class RobinBoundary(BoundaryFunction):
         return jac
 
 
-class RobinBoundaryFromFunction(BoundaryFromFunctionMixin, RobinBoundary):
+class RobinBoundaryFromOperator(BoundaryFromOperatorMixin, RobinBoundary):
     def __init__(
         self,
         mesh_bndry: OrthogonalCoordinateMeshBoundary,
-        fun: MatrixFunction,
+        fun: MatrixOperator,
         alpha: float,
     ):
         super().__init__(mesh_bndry, alpha)
         self._set_function(fun)
 
 
-class PeriodicBoundary(BoundaryFunction):
+class PeriodicBoundary(BoundaryOperator):
     def __init__(
         self,
         mesh_bndry: OrthogonalCoordinateMeshBoundary,
