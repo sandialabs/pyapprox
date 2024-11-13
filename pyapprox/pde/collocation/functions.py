@@ -17,7 +17,7 @@ from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
 # should evaluate without errors once the module has been fully loaded.
 
 
-class Operator:
+class ScalarOperator:
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -85,75 +85,97 @@ class Operator:
             )
         self._jac = jac
 
-    def _add_functions(self, other: Union["Operator", float]) -> "Operator":
+    def get_flattened_values(self):
+        return self.get_values()
+
+    def get_flattened_jacobian(self):
+        return self.get_jacobian()
+
+    def _add_functions(
+        self, other: Union["ScalarOperator", float]
+    ) -> "ScalarOperator":
         if isinstance(other, float):
-            return Operator(
+            return ScalarOperator(
                 self.basis,
                 self.ninput_funs(),
                 self.get_values() + other,
                 self.get_jacobian(),
             )
 
-        return Operator(
+        return ScalarOperator(
             self.basis,
             self.ninput_funs(),
             self.get_values() + other.get_values(),
             self.get_jacobian() + other.get_jacobian(),
         )
 
-    def __add__(self, other: Union["Operator", float]) -> "Operator":
-        if not isinstance(other, (Operator, float)):
-            raise ValueError(f"cannot add {type(other)} to a Operator")
+    def __add__(
+        self, other: Union["ScalarOperator", float]
+    ) -> "ScalarOperator":
+        if not isinstance(other, (ScalarOperator, float)):
+            raise ValueError(f"cannot add {type(other)} to a ScalarOperator")
         return self._add_functions(other)
 
-    def __radd__(self, other: Union["Operator", float]) -> "Operator":
+    def __radd__(
+        self, other: Union["ScalarOperator", float]
+    ) -> "ScalarOperator":
         if isinstance(other, int):
             # allow use of sum(List[ops])
             other = float(other)
-        if not isinstance(other, (Operator, float)):
-            raise ValueError(f"cannot add {type(other)} to a Operator")
+        if not isinstance(other, (ScalarOperator, float)):
+            raise ValueError(f"cannot add {type(other)} to a ScalarOperator")
         return self._add_functions(other)
 
-    def _subtract_functions(self, fun1, fun2) -> "Operator":
-        return Operator(
+    def _subtract_functions(self, fun1, fun2) -> "ScalarOperator":
+        return ScalarOperator(
             fun1.basis,
             self.ninput_funs(),
             fun1.get_values() - fun2.get_values(),
             fun1.get_jacobian() - fun2.get_jacobian(),
         )
 
-    def __sub__(self, other: Union["Operator", float]) -> "Operator":
+    def __sub__(
+        self, other: Union["ScalarOperator", float]
+    ) -> "ScalarOperator":
         if isinstance(other, float):
-            return Operator(
+            return ScalarOperator(
                 self.basis,
                 self.ninput_funs(),
                 self.get_values() - other,
                 self.get_jacobian(),
             )
-        if not isinstance(other, Operator):
-            raise ValueError(f"cannot subtract {type(other)} to a Operator")
+        if not isinstance(other, ScalarOperator):
+            raise ValueError(
+                f"cannot subtract {type(other)} from a ScalarOperator"
+            )
         return self._subtract_functions(self, other)
 
-    def __rsub__(self, other: Union["Operator", float]) -> "Operator":
+    def __rsub__(
+        self, other: Union["ScalarOperator", float]
+    ) -> "ScalarOperator":
         if isinstance(other, float):
-            return Operator(
+            return ScalarOperator(
                 self.basis,
                 self.ninput_funs(),
                 other - self.get_values(),
                 -self.get_jacobian(),
             )
-        if not isinstance(other, Operator):
-            raise ValueError(f"cannot subtract {type(other)} to a Operator")
+        if not isinstance(other, ScalarOperator):
+            raise ValueError(
+                f"cannot subtract a ScalarOperator from {type(other)}"
+            )
         return self._subtract_functions(other, self)
 
     def _multiply_functions(
-        self, other: Union["Operator", float]
-    ) -> "Operator":
-        if not isinstance(other, (Operator, float)):
-            raise ValueError(f"cannot multiply Operator by {type(other)}")
+        self, other: Union["ScalarOperator", float]
+    ) -> "ScalarOperator":
+        if not isinstance(other, (ScalarOperator, float)):
+            raise ValueError(
+                f"cannot multiply ScalarOperator by {type(other)}"
+            )
 
         if isinstance(other, float):
-            return Operator(
+            return ScalarOperator(
                 self.basis,
                 self.ninput_funs(),
                 self.get_values() * other,
@@ -166,15 +188,25 @@ class Operator:
             other.get_jacobian() * self.get_values()[..., None]
             + other.get_values()[..., None] * self.get_jacobian()
         )
-        return Operator(other.basis, self.ninput_funs(), values, jac)
+        return ScalarOperator(other.basis, self.ninput_funs(), values, jac)
 
-    def __mul__(self, other: Union["Operator", float]) -> "Operator":
+    def __mul__(
+        self, other: Union["ScalarOperator", "MatrixOperator", float]
+    ) -> "ScalarOperator":
+        if isinstance(other, MatrixOperator):
+            # use __mul__ defined in MatrixOperator
+            return other * self
         return self._multiply_functions(other)
 
-    def __rmul__(self, other: Union["Operator", float]) -> "Operator":
+    def __rmul__(
+        self, other: Union["ScalarOperator", "MatrixOperator", float]
+    ) -> "ScalarOperator":
+        if isinstance(other, MatrixOperator):
+            # use __mul__ defined in MatrixOperator
+            return other * self
         return self._multiply_functions(other)
 
-    def __pow__(self, other: int) -> "Operator":
+    def __pow__(self, other: int) -> "ScalarOperator":
         if (
             not (isinstance(other, int) or isinstance(other, float))
             or other == 0
@@ -182,7 +214,7 @@ class Operator:
             raise ValueError(
                 "power must be an integer or float and must not be zero"
             )
-        return Operator(
+        return ScalarOperator(
             self.basis,
             self.ninput_funs(),
             self.get_values() ** other,
@@ -191,11 +223,11 @@ class Operator:
             * self.get_values()[..., None] ** (other - 1),
         )
 
-    def _divide_functions(self, fun1, fun2) -> "Operator":
+    def _divide_functions(self, fun1, fun2) -> "ScalarOperator":
         if isinstance(fun2, float):
             if fun2 == 0:
                 raise ValueError("Cannot divide by zero")
-            return Operator(
+            return ScalarOperator(
                 fun1.basis,
                 self.ninput_funs(),
                 fun1.get_values() / fun2,
@@ -205,7 +237,7 @@ class Operator:
         if isinstance(fun1, float):
             if self._bkd.any(fun2.get_values() == 0.0):
                 raise ValueError("Cannot divide by zero")
-            return Operator(
+            return ScalarOperator(
                 fun2.basis,
                 self.ninput_funs(),
                 fun1 / fun2.get_values(),
@@ -220,20 +252,24 @@ class Operator:
             fun2.get_values()[..., None] * fun1.get_jacobian()
             - fun2.get_jacobian() * fun1.get_values()[..., None]
         ) / fun2.get_values()[..., None] ** 2
-        return Operator(fun1.basis, self.ninput_funs(), values, jac)
+        return ScalarOperator(fun1.basis, self.ninput_funs(), values, jac)
 
-    def __truediv__(self, other: Union["Operator", float]) -> "Operator":
-        if not isinstance(other, (float, Operator)):
+    def __truediv__(
+        self, other: Union["ScalarOperator", float]
+    ) -> "ScalarOperator":
+        if not isinstance(other, (float, ScalarOperator)):
             raise ValueError(f"Cannot divde function by {type(other)}")
         return self._divide_functions(self, other)
 
-    def __rtruediv__(self, other: Union["Operator", float]) -> "Operator":
-        if not isinstance(other, (float, Operator)):
+    def __rtruediv__(
+        self, other: Union["ScalarOperator", float]
+    ) -> "ScalarOperator":
+        if not isinstance(other, (float, ScalarOperator)):
             raise ValueError(f"Cannot divide {type(other)} by function")
         return self._divide_functions(other, self)
 
-    def deriv(self, physvar_id: int) -> "Operator":
-        return Operator(
+    def deriv(self, physvar_id: int) -> "ScalarOperator":
+        return ScalarOperator(
             self.basis,
             self.ninput_funs(),
             self.basis._deriv_mats[physvar_id] @ self.get_values(),
@@ -385,29 +421,178 @@ class Operator:
         )
 
 
-class ScalarFunction(Operator):
+class ScalarFunction(ScalarOperator):
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         values: Array = None,
+        ninput_funs: int = 1,
     ):
-        zero_jac = basis._bkd.zeros(
-            (basis.mesh.nmesh_pts(), basis.mesh.nmesh_pts())
+        super().__init__(basis, ninput_funs, values)
+
+    def set_values(self, values: Array):
+        super().set_values(values)
+        zero_jac = self.basis._bkd.zeros(
+            (self.basis.mesh.nmesh_pts(), self.basis.mesh.nmesh_pts())
         )
-        super().__init__(basis, 1, values, zero_jac)
+        super().set_jacobian(zero_jac)
+
+    def set_jacobian(self, jac: Array):
+        raise NotImplementedError(
+            "do not call set_jacobian because it is called by set_values"
+        )
 
 
-class ScalarSolution(Operator):
+class ScalarSolution(ScalarOperator):
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         values: Array = None,
     ):
-        ident_jac = basis._bkd.eye(basis.mesh.nmesh_pts())
-        super().__init__(basis, 1, values, ident_jac)
+        super().__init__(basis, 1, values)
+
+    def set_values(self, values: Array):
+        super().set_values(values)
+        ident_jac = self.basis._bkd.eye(self.basis.mesh.nmesh_pts())
+        super().set_jacobian(ident_jac)
+
+    def set_jacobian(self, jac: Array):
+        raise NotImplementedError(
+            "do not call set_jacobian because it is called by set_values"
+        )
 
 
-class VectorSolutionComponent(Operator):
+class ScalarOperatorFromCallableMixin:
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        fun: callable,
+    ):
+        super().__init__(basis, self._get_values(basis, fun))
+
+    def _get_values(
+        self, basis: OrthogonalCoordinateCollocationBasis, fun: callable
+    ):
+        self._fun = fun
+        return self._fun(basis.mesh.mesh_pts())
+
+
+class ScalarFunctionFromCallable(
+    ScalarOperatorFromCallableMixin, ScalarFunction
+):
+    pass
+
+
+class ScalarSolutionFromCallable(
+    ScalarOperatorFromCallableMixin, ScalarSolution
+):
+    pass
+
+
+class ScalarOperatorOperation(ABC):
+    """Shortcut to create complex operator operation on ScalarOperators"""
+
+    @abstractmethod
+    def __call__(self, fun: ScalarOperator) -> ScalarOperator:
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
+
+class ScalarMonomialOperator(ScalarOperatorOperation):
+    def __init__(self, degree: int, coef: ScalarOperator = None):
+        self._degree = degree
+        if coef is not None and not isinstance(coef, ScalarOperator):
+            raise ValueError("coef must be an instance ScalarOperator")
+        self._coef = coef
+
+    def __call__(self, fun: ScalarOperator) -> ScalarOperator:
+        if not isinstance(fun, ScalarOperator):
+            raise ValueError("Can only be used for scalar solutions")
+        if self._degree > 0:
+            poly = fun**self._degree
+        else:
+            poly = 1.0
+        if self._coef is None:
+            return poly
+        return self._coef * poly
+
+    def __repr__(self):
+        return "{0}(degree={1}, coef={2})".format(
+            self.__class__.__name__, self._degree, self._coef
+        )
+
+
+class TransientOperatorMixin:
+    """Operator that depends on time."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @abstractmethod
+    def _eval(self, time: float):
+        raise NotImplementedError
+
+    def set_time(self, time: float):
+        self._time = time
+        self.set_values(self._eval(self.basis.mesh.mesh_pts()))
+        # It is assumed set_jacobian is set in set_values, e.g.
+        # as done by Function and Solution
+
+    def _check_time_set(self):
+        if not hasattr(self, "_time"):
+            raise ValueError(
+                "Must call set_time before evaluating the function"
+            )
+
+    def get_time(self):
+        self._check_time_set()
+        return self._time
+
+    def __repr__(self):
+        return "{0}(\ntime={1}\n{2}\n)".format(
+            self.__class__.__name__,
+            self._time,
+            textwrap.indent("basis=" + str(self.basis), prefix="    "),
+        )
+
+
+class TransientScalarFunction(TransientOperatorMixin, ScalarFunction):
+    pass
+
+
+class TransientOperatorFromCallableMixin(TransientOperatorMixin):
+    def __init__(
+            self,
+            basis: OrthogonalCoordinateCollocationBasis,
+            fun: callable,
+    ):
+        self._fun = fun
+        super().__init__(basis)
+
+    def _eval(self, mesh_pts):
+        self._check_time_set()
+        return self._fun(mesh_pts, time=self._time)
+
+
+class TransientScalarFunctionFromCallable(
+    TransientOperatorFromCallableMixin, TransientScalarFunction
+):
+    pass
+
+
+class TransientScalarSolution(TransientOperatorMixin, ScalarSolution):
+    pass
+
+
+class TransientScalarSolutionFromCallable(
+    TransientOperatorFromCallableMixin, TransientScalarSolution
+):
+    pass
+
+
+class VectorSolutionComponent(ScalarOperator):
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -432,7 +617,6 @@ class VectorSolutionComponent(Operator):
         super().__init__(basis, ninput_funs, values, jac)
 
 
-# Todo rename Operator -> ScalarOperator
 class MatrixOperator:
     def __init__(self, nrows: int, ncols: int):
         self._nrows = nrows
@@ -441,19 +625,29 @@ class MatrixOperator:
             [None for jj in range(ncols)] for ii in range(nrows)
         ]
 
-    # def set_component(self, row, col, component: Operator):
-    #     # todo check all components have the same ninput_funs()
-    #     self._components[row][col] = component
-
-    def set_components(self, components: List[Operator]):
+    def _check_components(self, components):
         # todo check all components have the same ninput_funs()
         if len(components) != self.nrows():
-            raise ValueError("len(components) must equal self.nrows()")
+            print(components)
+            raise ValueError(
+                "len(components)={0} must equal self.nrows()={1}".format(
+                    len(components), self.nrows()
+                )
+            )
         for ii in range(self.nrows()):
-            if len(components[ii]) != self._ncols:
+            if len(components[ii]) != self.ncols():
                 raise ValueError(
                     f"len(components[{ii}]) must equal self.ncols()"
                 )
+            for comp in components[ii]:
+                if not isinstance(comp, ScalarOperator):
+                    raise ValueError(
+                        f"component {comp} is not an instance "
+                        "of ScalarOperator"
+                    )
+
+    def set_components(self, components: List[ScalarOperator]):
+        self._check_components(components)
         self._components = components
         self._bkd = components[0][0]._bkd
 
@@ -475,6 +669,15 @@ class MatrixOperator:
             rows.append(self._bkd.stack(row, axis=0))
         return self._bkd.stack(rows, axis=0)
 
+    def get_flattened_values(self):
+        return self._bkd.flatten(self.get_values())
+
+    def get_flattened_jacobian(self):
+        jac = self.get_jacobian()
+        return self._bkd.reshape(
+            jac, ((jac.shape[0] * jac.shape[2], jac.shape[3]))
+        )
+
     def nrows(self) -> int:
         return self._nrows
 
@@ -485,33 +688,227 @@ class MatrixOperator:
         return self._components[0][0].nphys_vars()
 
     def __repr__(self) -> str:
-        return "{0}(ncomponents={1})".format(
-            self.__class__.__name__, self.ncomponents()
+        return "{0}(nrows={1}, ncols={2})".format(
+            self.__class__.__name__, self.nrows(), self.ncols()
         )
 
-    def sqnorm(self) -> Operator:
+    def sqnorm(self) -> ScalarOperator:
         """Squared Frobenius norm of a matrix valued function."""
         ops = []
         for ii in range(self.nrows()):
             for jj in range(self.ncols()):
-                ops.append(self._components[ii]**2)
+                ops.append(self._components[ii][jj] ** 2)
         return sum(ops)
+
+    def _multiply_functions(
+        self, other: Union["MatrixOperator", ScalarOperator, float]
+    ) -> "MatrixOperator":
+        if not isinstance(other, (MatrixOperator, ScalarOperator, float)):
+            raise ValueError(
+                f"cannot multiply MatrixOperator by {type(other)}"
+            )
+
+        if isinstance(other, MatrixOperator):
+            op = MatrixOperator(self.nrows(), self.ncols())
+            components = [
+                [
+                    other._components[ii][jj] * self._components[ii][jj]
+                    for jj in range(self.ncols())
+                ]
+                for ii in range(self.nrows())
+            ]
+            op.set_components(components)
+            return op
+
+        op = MatrixOperator(self.nrows(), self.ncols())
+        components = [
+            [self._components[ii][jj] * other for jj in range(self.ncols())]
+            for ii in range(self.nrows())
+        ]
+        op.set_components(components)
+        return op
+
+    def __mul__(
+        self, other: Union["MatrixOperator", ScalarOperator, float]
+    ) -> "MatrixOperator":
+        return self._multiply_functions(other)
+
+    def __rmul__(
+        self, other: Union["MatrixOperator", ScalarOperator, float]
+    ) -> "MatrixOperator":
+        return self._multiply_functions(other)
+
+    def _add_functions(
+        self, other: Union["MatrixOperator", ScalarOperator, float]
+    ) -> "MatrixOperator":
+        if not isinstance(other, (MatrixOperator, ScalarOperator, float)):
+            raise ValueError(f"cannot add {type(other)} to a ScalarOperator")
+
+        if isinstance(other, MatrixOperator):
+            op = MatrixOperator(self.nrows(), self.ncols())
+            components = [
+                [
+                    other._components[ii][jj] + self._components[ii][jj]
+                    for jj in range(self.ncols())
+                ]
+                for ii in range(self.nrows())
+            ]
+            op.set_components(components)
+            return op
+
+        op = MatrixOperator(self.nrows(), self.ncols())
+        components = [
+            [self._components[ii][jj] + other for jj in range(self.ncols())]
+            for ii in range(self.nrows())
+        ]
+        op.set_components(components)
+        return op
+
+    def __add__(
+        self, other: Union["MatrixOperator", ScalarOperator, float]
+    ) -> "MatrixOperator":
+        return self._add_functions(other)
+
+    def __radd__(
+        self, other: Union["MatrixOperator", ScalarOperator, float]
+    ) -> "MatrixOperator":
+        return self._add_functions(other)
+
+    def __sub__(
+        self, other: Union["MatrixOperator", ScalarOperator, float]
+    ) -> "MatrixOperator":
+        if not isinstance(other, (MatrixOperator, ScalarOperator, float)):
+            raise ValueError(
+                f"cannot subtract {type(other)} from a MatrixOperator"
+            )
+        if isinstance(other, MatrixOperator):
+            op = MatrixOperator(self.nrows(), self.ncols())
+            components = [
+                [
+                    self._components[ii][jj] - other._components[ii][jj]
+                    for jj in range(self.ncols())
+                ]
+                for ii in range(self.nrows())
+            ]
+            op.set_components(components)
+            return op
+
+        op = MatrixOperator(self.nrows(), self.ncols())
+        components = [
+            [self._components[ii][jj] - other for jj in range(self.ncols())]
+            for ii in range(self.nrows())
+        ]
+        op.set_components(components)
+        return op
+
+    def __rsub__(
+        self, other: Union["MatrixOperator", ScalarOperator, float]
+    ) -> "MatrixOperator":
+        if not isinstance(other, (MatrixOperator, ScalarOperator, float)):
+            raise ValueError(
+                f"cannot subtract MatrixOperator from {type(other)}"
+            )
+
+        if isinstance(other, MatrixOperator):
+            op = MatrixOperator(self.nrows(), self.ncols())
+            components = [
+                [
+                    other._components[ii][jj] - self._components[ii][jj]
+                    for jj in range(self.ncols())
+                ]
+                for ii in range(self.nrows())
+            ]
+            op.set_components(components)
+            return op
+
+        op = MatrixOperator(self.nrows(), self.ncols())
+        components = [
+            [other - self._components[ii][jj] for jj in range(self.ncols())]
+            for ii in range(self.nrows())
+        ]
+        op.set_components(components)
+        return op
 
 
 class VectorOperator(MatrixOperator):
     def __init__(self, nrows: int):
         super().__init__(nrows, 1)
 
-    def set_components(self, components: List[Operator]):
-        if len(components) != self._nrows:
-            raise ValueError("len(components) must equal self.nrows()")
+    def set_components(self, components: List[ScalarOperator]):
         super().set_components([[comp] for comp in components])
 
     def get_values(self) -> Array:
         return super().get_values()[:, 0]
 
+    def __repr__(self) -> str:
+        return "{0}(nrows={1})".format(
+            self.__class__.__name__, self.nrows()
+        )
 
-def nabla(op: Operator) -> VectorOperator:
+
+def VectorSolution(VectorOperator):
+    def set_components(self, components: List[VectorSolutionComponent]):
+        for comp in components:
+            if not isinstance(comp, VectorSolutionComponent):
+                raise ValueError(
+                    "component must be an instance of VectorSolutionComponent"
+                )
+        super().set_components([comp for comp in components])
+
+
+class VectorFunction(VectorOperator):
+    def set_components(self, components: List[ScalarFunction]):
+        for comp in components:
+            if not isinstance(comp, ScalarFunction):
+                raise ValueError("component must be an instance of Function")
+        super().set_components([comp for comp in components])
+
+
+class VectorSolutionFromCallable(VectorOperator):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        ninput_funs: int,
+        nrows: int,
+        fun: callable,
+    ):
+        super().__init__(nrows)
+        self._fun = fun
+        values = self._fun(basis.mesh.mesh_pts())
+        if values.shape[1] != nrows:
+            raise ValueError("values returned by fun has the wrong shape")
+        components = [
+            VectorSolutionComponent(basis, ninput_funs, ii, values)
+            for ii in range(nrows)
+        ]
+        self.set_components(components)
+
+
+class VectorFunctionFromCallable(VectorFunction):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        nrows: int,
+        fun: callable,
+        ninput_funs: int = 1,
+    ):
+        super().__init__(nrows)
+        self._fun = fun
+        values = self._fun(basis.mesh.mesh_pts())
+        if values.shape[1] != nrows:
+            raise ValueError(
+                "values shape {0} returned by fun has the wrong shape".format(
+                    values.shape
+                )
+            )
+        components = [
+            ScalarFunction(basis, values[:, ii], ninput_funs)
+            for ii in range(nrows)
+        ]
+        self.set_components(components)
+
+
+def nabla(op: ScalarOperator) -> VectorOperator:
     """Gradient of a scalar valued function"""
     vec_op = VectorOperator(op.nphys_vars())
     ops = [op.deriv(dd) for dd in range(op.nphys_vars())]
@@ -544,846 +941,6 @@ def div(mat_op: MatrixOperator):
     op = VectorOperator(len(ops))
     op.set_components(ops)
     return op
-
-
-# class MultipleFunctionOperator:
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         ninput_funs: int,
-#         values: Array = None,
-#     ):
-#         self._bkd = basis._bkd
-#         self._basis = basis
-#         self._ninput_funs = ninput_funs
-
-#     def ninput_funs(self):
-#         return self._ninput_funs
-
-#     def _value(self, ops):
-#         jac = []
-#         for ii in range(self.ninput_funs()):
-#             # compute jacobian with respect to ith input function
-#             funs = [
-#                 (
-#                     Function(ops[jj].basis, ops[jj].get_values())
-#                     if ii != jj
-#                     else ops[jj]
-#                 )
-#                 for jj in range(self.ninput_funs())
-#             ]
-#             vals_ii, jac_ii = self._apply(funs).get_jacobian()
-#             jac.apend(jac_ii)
-#         MultipleFunctionOperator(
-#             self._basis, vals_ii, self._bkd.stack(jac, axis=0)
-#         )
-
-
-# class MatrixOperator(ABC):
-#     """
-#     Matrix valued operator, which depends on the PDE solution.
-
-#     Functions can be recovered by setting Jacobian (w.r.t solution) to zero
-#     """
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nrows: int,
-#         ncols: int,
-#         nsols: int,
-#         values_at_mesh: Array = None,
-#         jac: Array = None,
-#     ):
-#         """
-#         Parameters
-#         ----------
-#         basis : OrthogonalCoordinateCollocationBasis
-#             The basis used to represent the functions
-
-#         nrows : integer
-#             The number of rows in the matrix
-
-#         ncols : integer
-#             The number of cols in the matrix
-
-#         nsols : integer
-#             The number of solutions the operator takes as input
-
-#         values_at_mesh : Array (nrows, ncols, nmesh_pts)
-#             The values of each function at the mesh points
-
-#         jac : Array (nrows, ncols, nsols, nmesh_pts, nmesh_pts)
-#             The jacobian of each function at the mesh points
-#         """
-#         if not isinstance(nrows, int):
-#             raise ValueError("nrows must be an integer")
-#         if not isinstance(ncols, int):
-#             raise ValueError("ncols must be an integer")
-#         if not isinstance(nsols, int):
-#             raise ValueError("nsols must be an integer")
-
-#         if not isinstance(basis, OrthogonalCoordinateCollocationBasis):
-#             raise ValueError(
-#                 "basis must be an instance of "
-#                 "OrthogonalCoordinateCollocationBasis"
-#             )
-#         self._nrows = nrows
-#         self._ncols = ncols
-#         self._nsols = nsols
-#         self._bkd = basis._bkd
-#         self.basis = basis
-#         if values_at_mesh is not None:
-#             self.set_values(values_at_mesh)
-#         if jac is not None:
-#             self.set_jacobian(jac)
-
-#     def nphys_vars(self):
-#         return self.basis.nphys_vars()
-
-#     def shape(self):
-#         return [self._nrows, self._ncols]
-
-#     def set_matrix_values(self, values_at_mesh):
-#         """
-#         Parameters
-#         ----------
-#         values_at_mesh : Array (nrows, ncols, nmesh_pts)
-#             The values of each function at the mesh points
-#         """
-#         if values_at_mesh.ndim != 3 or values_at_mesh.shape != (
-#             self._nrows,
-#             self._ncols,
-#             self.basis.mesh.nmesh_pts(),
-#         ):
-#             raise ValueError(
-#                 "values_at_mesh shape {0} should be {1}".format(
-#                     values_at_mesh.shape,
-#                     self.matrix_values_shape(),
-#                 )
-#             )
-#         self._values_at_mesh = values_at_mesh
-
-#     def get_matrix_jacobian(self):
-#         return self._jac
-
-#     def nmesh_pts(self):
-#         return self.basis.mesh.nmesh_pts()
-
-#     def matrix_values_shape(self):
-#         return (
-#             self._nrows,
-#             self._ncols,
-#             self.nmesh_pts(),
-#         )
-
-#     def matrix_jacobian_shape(self):
-#         return (
-#             self._nrows,
-#             self._ncols,
-#             self._nsols,
-#             self.nmesh_pts(),
-#             self.nmesh_pts(),
-#         )
-
-#     def set_matrix_jacobian(self, jac):
-#         """
-#         Parameters
-#         ----------
-#         jac : Array (nrows, ncols, nmesh_pts, nmesh_pts)
-#             The jacobian of each function at the mesh points
-#         """
-#         if jac.shape != self.matrix_jacobian_shape():
-#             raise ValueError(
-#                 "jac shape {0} should be {1}".format(
-#                     jac.shape, self.matrix_jacobian_shape()
-#                 )
-#             )
-
-#         self._jac = jac
-
-#     def get_matrix_values(self):
-#         return self._values_at_mesh
-
-#     def dot(self, other: "MatrixOperator") -> "MatrixOperator":
-#         values = self.get_matrix_values()
-#         other_values = self.get_matrix_values()
-#         return MatrixOperator(
-#             values._nrows,
-#             other_values._ncols,
-#             self._bkd.einsum("ijk,jkl->ilk", values, other_values),
-#             self._bkd,
-#         )
-
-#     def _multiply_functions(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         if not isinstance(other, (MatrixOperator, float)):
-#             raise ValueError(
-#                 f"cannot multiply Matrixfunction by {type(other)}"
-#             )
-
-#         if isinstance(other, float):
-#             return MatrixOperator(
-#                 self.basis,
-#                 self._nrows,
-#                 self._ncols,
-#                 self.get_matrix_values() * other,
-#                 self.get_matrix_jacobian() * other,
-#             )
-
-#         if self._nrows != 1 or self._ncols != 1:
-#             raise ValueError(
-#                 "multiplication only defined when other is a scalar valued "
-#                 "function"
-#             )
-
-#         if other._nsols > 0 and other._nsols != self._nsols:
-#             raise ValueError(
-#                 "Other must be a function indepedent of the solution or "
-#                 "have the same self._nsols"
-#             )
-
-#         values = self.get_matrix_values() * other.get_matrix_values()
-#         # values = self._bkd.copy(other.get_values())
-#         # use product rule
-#         print(
-#             other.get_matrix_jacobian().shape,
-#             self.get_matrix_values().shape,
-#             "A",
-#         )
-#         print(
-#             self.get_matrix_jacobian().shape,
-#             other.get_matrix_values().shape,
-#             "B",
-#         )
-#         jac = (
-#             other.get_matrix_jacobian() * self.get_matrix_values()[..., None]
-#             + other.get_matrix_values()[..., None] * self.get_matrix_jacobian()
-#         )
-#         return MatrixOperator(
-#             other.basis, other._nrows, other._ncols, other._nsols, values, jac
-#         )
-
-#     def __mul__(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         return self._multiply_functions(other)
-
-#     def __rmul__(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         return self._multiply_functions(other)
-
-#     def _divide_functions(self, fun1, fun2) -> "MatrixOperator":
-#         if isinstance(fun2, float):
-#             if fun2 == 0:
-#                 raise ValueError("Cannot divide by zero")
-#             return MatrixOperator(
-#                 fun1.basis,
-#                 fun1._nrows,
-#                 fun1._ncols,
-#                 fun1.get_matrix_values() / fun2,
-#                 fun1.get_matrix_jacobian() / fun2,
-#             )
-
-#         if isinstance(fun1, float):
-#             if self._bkd.any(fun2.get_matrix_values() == 0.0):
-#                 raise ValueError("Cannot divide by zero")
-#             return MatrixOperator(
-#                 fun2.basis,
-#                 fun2._nrows,
-#                 fun2._ncols,
-#                 fun1 / fun2.get_matrix_values(),
-#                 -fun1
-#                 * fun2.get_matrix_jacobian()
-#                 / (fun2.get_matrix_values() ** 2),
-#             )
-
-#         if fun1._nrows != 1 or fun1._ncols != 1:
-#             raise ValueError(
-#                 "multiplication only defined when other is a scalar valued "
-#                 "function"
-#             )
-#         values = fun1.get_matrix_values() / fun2.get_matrix_values()
-#         # use quotient rule
-#         jac = (
-#             fun2.get_matrix_values()[..., None] * fun1.get_matrix_jacobian()
-#             - fun2.get_matrix_jacobian() * fun1.get_matrix_values()[..., None]
-#         ) / fun2.get_matrix_values()[..., None] ** 2
-#         return MatrixOperator(
-#             fun2.basis, fun2._nrows, fun2._ncols, values, jac
-#         )
-
-#     def __truediv__(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         if not isinstance(other, (float, MatrixOperator)):
-#             raise ValueError(f"Cannot divde function by {type(other)}")
-#         return self._divide_functions(self, other)
-
-#     def __rtruediv__(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         if not isinstance(other, (float, MatrixOperator)):
-#             raise ValueError(f"Cannot divide {type(other)} by function")
-#         return self._divide_functions(other, self)
-
-#     def _add_functions(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         if isinstance(other, float):
-#             return MatrixOperator(
-#                 self.basis,
-#                 self._nrows,
-#                 self._ncols,
-#                 self.get_matrix_values() + other,
-#                 self.get_matrix_jacobian(),
-#             )
-
-#         if self.matrix_jacobian_shape() != other.matrix_jacobian_shape():
-#             raise ValueError("self and other have different shapes")
-#         return MatrixOperator(
-#             self.basis,
-#             self._nrows,
-#             self._ncols,
-#             self.get_matrix_values() + other.get_matrix_values(),
-#             self.get_matrix_jacobian() + other.get_matrix_jacobian(),
-#         )
-
-#     def __add__(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         if not isinstance(other, (MatrixOperator, float)):
-#             raise ValueError(f"cannot add {type(other)} to a Matrixfunction")
-#         return self._add_functions(other)
-
-#     def __radd__(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         if not isinstance(other, (MatrixOperator, float)):
-#             raise ValueError(f"cannot add {type(other)} to a Matrixfunction")
-#         return self._add_functions(other)
-
-#     def __pow__(self, other: int) -> "MatrixOperator":
-#         if not isinstance(other, int) or other < 2:
-#             raise ValueError("Can only use power with int and power > 1")
-#         result = self
-#         for ii in range(2, other + 1):
-#             result = self * result
-#         return result
-
-#     def sqrt(self) -> "MatrixOperator":
-#         vals = self.get_matrix_values()
-#         if self._bkd.any(vals < 0.0):
-#             raise ValueError("Cannot take sqrt of negative values")
-#         sqrt_vals = self._bkd.sqrt(vals)
-#         return MatrixOperator(
-#             self.basis,
-#             self._nrows,
-#             self._ncols,
-#             sqrt_vals,
-#             self.get_matrix_jacobian() / (2 * sqrt_vals[..., None]),
-#         )
-
-#     def _subtract_functions(self, fun1, fun2) -> "MatrixOperator":
-#         if fun1.matrix_jacobian_shape() != fun2.matrix_jacobian_shape():
-#             raise ValueError("self and other have different shapes")
-#         return MatrixOperator(
-#             fun1.basis,
-#             fun1._nrows,
-#             fun1._ncols,
-#             fun1.get_matrix_values() - fun2.get_matrix_values(),
-#             fun1.get_matrix_jacobian() - fun2.get_matrix_jacobian(),
-#         )
-
-#     def __sub__(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         if isinstance(other, float):
-#             return MatrixOperator(
-#                 self.basis,
-#                 self._nrows,
-#                 self._ncols,
-#                 self.get_matrix_values() - other,
-#                 self.get_matrix_jacobian(),
-#             )
-
-#         return self._subtract_functions(self, other)
-
-#     def __rsub__(
-#         self, other: Union["MatrixOperator", float]
-#     ) -> "MatrixOperator":
-#         if isinstance(other, float):
-#             return MatrixOperator(
-#                 self.basis,
-#                 self._nrows,
-#                 self._ncols,
-#                 other - self.get_matrix_values(),
-#                 -self.get_matrix_jacobian(),
-#             )
-#         return self._subtract_functions(other, self)
-
-#     def __call__(self, eval_samples: Array):
-#         values_at_mesh = self.get_matrix_values()
-#         flat_values = values_at_mesh.reshape(
-#             (self._nrows * self._ncols, self.basis.mesh.nmesh_pts())
-#         ).T
-#         interp_vals = self.basis.interpolate(flat_values, eval_samples)
-#         # may not work for matrix valued function
-#         return self._bkd.stack(
-#             [vals for vals in interp_vals.T], axis=0
-#         ).reshape(self._nrows, self._ncols, interp_vals.shape[0])
-
-#     def set_values(self, values_at_mesh: Array):
-#         self.set_matrix_values(values_at_mesh)
-
-#     def get_values(self):
-#         return self.get_matrix_values()
-
-#     def set_jacobian(self, jac):
-#         return self.set_matrix_jacobian(jac)
-
-#     def get_jacobian(self):
-#         return self.get_matrix_jacobian()
-
-#     def __repr__(self):
-#         return "{0}(\n{1}\n)".format(
-#             self.__class__.__name__,
-#             textwrap.indent("basis=" + str(self.basis), prefix="    "),
-#         )
-
-
-# class VectorOperator(MatrixOperator):
-#     """Vector Valued Operator, which depends on the PDE solution."""
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nrows: int,
-#         nsols: int,
-#         values_at_mesh: Array = None,
-#         jac: Array = None,
-#     ):
-#         super().__init__(basis, nrows, 1, values_at_mesh, jac)
-
-#     def set_values(self, values_at_mesh: Array):
-#         self.set_matrix_values(self._reshape_to_matrix(values_at_mesh))
-
-#     def _reshape_from_matrix(self, array: Array):
-#         return array[:, 0]
-
-#     def _reshape_to_matrix(self, array: Array):
-#         if array.ndim != 2 or array.shape != (
-#             self.basis.mesh.nmesh_pts(),
-#             self._nrows,
-#         ):
-#             raise ValueError(
-#                 "array shape {0} should be {1}".format(
-#                     array.shape, (self.basis.mesh.nmesh_pts(), self._nrows)
-#                 )
-#             )
-#         return array.T[:, None, :]
-
-#     def _reshape_jacobian_to_matrix(self, jac: Array):
-#         # note reshape_to_matrix takes nrows as last axis.
-#         # This is to be consistent with rest of pyapprox.
-#         # But we do not do that here
-#         jac_shape = (
-#             self._nrows,
-#             self.basis.mesh.nmesh_pts(),
-#             self.basis.mesh.nmesh_pts(),
-#         )
-#         if jac.ndim != 2 or jac.shape != jac_shape:
-#             raise ValueError(
-#                 "jac shape {0} should be {1}".format(jac.shape, jac_shape)
-#             )
-#         return jac[:, None, ...]
-
-#     def _reshape_jacobian_from_matrix(self, jac: Array):
-#         return jac[:, 0, ...]
-
-#     def get_values(self):
-#         return self._reshape_from_matrix(self.get_matrix_values())
-
-#     def get_jacobian(self):
-#         return self._reshape_jacobian_from_matrix(self.get_matrix_jacobian())
-
-#     def set_jacobian(self, jac):
-#         return self.set_matrix_jacobian(self._reshape_jacobian_to_matrix(jac))
-
-#     def __call__(self, eval_samples: Array):
-#         return self._reshape_from_matrix(super().__call__(eval_samples))
-
-
-# class ScalarOperator(MatrixOperator):
-#     """Scalar Valued Operator, which depends on the PDE solution."""
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nsols: int,
-#         values_at_mesh: Array = None,
-#         jac: Array = None,
-#     ):
-#         super().__init__(basis, 1, 1, nsols)
-#         if values_at_mesh is not None:
-#             self.set_values(values_at_mesh)
-#         if jac is not None:
-#             self.set_jacobian(jac)
-
-#     def set_values(self, values_at_mesh: Array):
-#         self.set_matrix_values(self._reshape_to_matrix(values_at_mesh))
-
-#     def _reshape_from_matrix(self, array: Array):
-#         return array[0, 0]
-
-#     def _reshape_to_matrix(self, array: Array):
-#         if array.ndim != 1 or array.shape != (self.basis.mesh.nmesh_pts(),):
-#             raise ValueError(
-#                 "array shape {0} should be {1}".format(
-#                     array.shape, (self.basis.mesh.nmesh_pts(),)
-#                 )
-#             )
-#         return array[None, None, :]
-
-#     def _reshape_jacobian_to_matrix(self, jac: Array):
-#         jac_shape = (
-#             self._nrows,
-#             self.basis.mesh.nmesh_pts(),
-#             self.basis.mesh.nmesh_pts(),
-#         )
-#         if jac.ndim != 3 or jac.shape != jac_shape:
-#             raise ValueError(
-#                 "jac shape {0} should be {1}".format(jac.shape, jac_shape)
-#             )
-#         return jac[None, None, :]
-
-#     def _reshape_jacobian_from_matrix(self, jac: Array):
-#         return jac[0, 0]
-
-#     def get_values(self):
-#         return self._reshape_from_matrix(self.get_matrix_values())
-
-#     def get_jacobian(self):
-#         return self._reshape_jacobian_from_matrix(self.get_matrix_jacobian())
-
-#     def set_jacobian(self, jac):
-#         return self.set_matrix_jacobian(self._reshape_jacobian_to_matrix(jac))
-
-#     def __call__(self, eval_samples: Array):
-#         return self._reshape_from_matrix(super().__call__(eval_samples))
-
-#     def _plot_1d(self, ax, nplot_pts_1d, **kwargs):
-#         plot_samples = self._bkd.linspace(
-#             *self.basis.mesh.trans._ranges, nplot_pts_1d
-#         )[None, :]
-#         return ax.plot(plot_samples[0], self(plot_samples), **kwargs)
-
-#     def _plot_2d(self, ax, npts_1d, **kwargs):
-#         orth_range = self.basis.mesh.trans._orthog_ranges
-#         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
-#             self._bkd.tile(orth_range, (2,)), npts_1d, bkd=self._bkd
-#         )
-#         pts = self.basis.mesh.trans.map_from_orthogonal(orth_pts_2d)
-#         X = self._bkd.reshape(pts[0], orth_X.shape)
-#         Y = self._bkd.reshape(pts[1], orth_X.shape)
-#         return ax.contourf(
-#             X, Y, self._bkd.reshape(self(pts), X.shape), **kwargs
-#         )
-
-#     def _set_plot_3d_limits(self, ax, orth_range):
-#         orth_ranges = self._bkd.reshape(
-#             self._bkd.tile(orth_range, (3,)), (3, 2)
-#         )
-#         ranges = self.basis.mesh.trans.map_from_orthogonal(orth_ranges)
-#         ax.set_xlim(*ranges[0])
-#         ax.set_ylim(*ranges[1])
-#         ax.set_zlim(*ranges[2])
-
-#     def _prepare_edge_3d(
-#         self, ax, orth_pts_2d, X_shape, idx, inactive_orth_pt
-#     ):
-#         orth_pts = self._bkd.empty((3, orth_pts_2d.shape[1]))
-#         orth_pts[idx] = self._bkd.full(
-#             (orth_pts_2d.shape[1],), inactive_orth_pt
-#         )
-#         jdx = self._bkd.arange(3)
-#         jdx = self._bkd.delete(jdx, idx)
-#         orth_pts[jdx] = orth_pts_2d
-#         pts = self.basis.mesh.trans.map_from_orthogonal(orth_pts)
-#         vals = self._bkd.reshape(self(pts), X_shape)
-#         X = self._bkd.reshape(pts[0], X_shape)
-#         Y = self._bkd.reshape(pts[1], X_shape)
-#         Z = self._bkd.reshape(pts[2], X_shape)
-#         return X, Y, Z, vals
-
-#     def _plot_3d_internal(self, ax, npts_1d, fig):
-#         orth_range = self.basis.mesh.trans._orthog_ranges
-#         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
-#             self._bkd.tile(orth_range, (2,)), npts_1d
-#         )
-#         # ax.contourf(X1, Y1, Z1, levels=levels, zdir="z", offset=pts1[2, 0])
-#         mid = sum(orth_range) / 2
-#         edges = [
-#             self._prepare_edge_3d(ax, orth_pts_2d, orth_X.shape, ii, mid)
-#             for ii in range(3)
-#         ]
-#         vmin = self._bkd.min(self._bkd.hstack([edge[-1] for edge in edges]))
-#         vmax = self._bkd.max(self._bkd.hstack([edge[-1] for edge in edges]))
-#         zdirs = ["x", "y", "z"]
-#         ims = []
-#         for ii in range(3):
-#             jdx = self._bkd.arange(3)
-#             jdx = self._bkd.delete(jdx, ii)
-#             data = [None, None, None]
-#             data[ii] = edges[ii][3]
-#             data[jdx[0]] = edges[ii][jdx[0]]
-#             data[jdx[1]] = edges[ii][jdx[1]]
-#             im = ax.contourf(
-#                 *data,
-#                 zdir=zdirs[ii],
-#                 offset=edges[ii][ii][0, 0],
-#                 levels=self._bkd.linspace(vmin, vmax, 50),
-#             )
-#             ims.append(im)
-#         plt.colorbar(ims[0], ax=ax)
-#         return ims
-
-#     def _plot_3d_external(self, ax, npts_1d, fig):
-#         orth_range = self.basis.mesh.trans._orthog_ranges
-#         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
-#             self._bkd.tile(orth_range, (2,)), npts_1d, bkd=self._bkd
-#         )
-#         edges = [
-#             self._prepare_edge_3d(
-#                 ax, orth_pts_2d, orth_X.shape, ii, orth_range[0]
-#             )
-#             for ii in range(3)
-#         ]
-#         edges += [
-#             self._prepare_edge_3d(
-#                 ax, orth_pts_2d, orth_X.shape, ii, orth_range[1]
-#             )
-#             for ii in range(3)
-#         ]
-#         vmin = self._bkd.min(self._bkd.hstack([edge[-1] for edge in edges]))
-#         vmax = self._bkd.max(self._bkd.hstack([edge[-1] for edge in edges]))
-#         ims = []
-#         for edge in edges:
-#             vals = (edge[3] - vmin) / (vmax - vmin)
-#             im = ax.plot_surface(
-#                 *edge[:3],
-#                 facecolors=plt.cm.jet(vals),
-#                 antialiased=False,
-#             )
-#             ims.append(im)
-#         if fig is None:
-#             return ims
-
-#         fig.subplots_adjust(right=0.85)
-#         ax1 = fig.add_axes([0.85, 0.10, 0.05, 0.8])
-#         cmap = plt.cm.jet
-#         norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
-#         mpl.colorbar.ColorbarBase(
-#             ax1, cmap=cmap, norm=norm, orientation="vertical"
-#         )
-#         return ims
-
-#     def plot(self, ax, npts_1d=51, fig=None, **kwargs):
-#         if self.nphys_vars() == 1:
-#             return self._plot_1d(ax, npts_1d, **kwargs)
-#         if self.nphys_vars() == 2:
-#             return self._plot_2d(ax, npts_1d, **kwargs)
-#         if self.nphys_vars() == 3:
-#             ptype = kwargs.pop("ptype", "external")
-#             if ptype == "internal":
-#                 return self._plot_3d_internal(ax, npts_1d, fig, **kwargs)
-#             return self._plot_3d_external(ax, npts_1d, fig, **kwargs)
-
-#     def get_plot_axis(self, figsize=(8, 6)):
-#         if self.nphys_vars() < 3:
-#             fig = plt.figure(figsize=figsize)
-#             return fig, fig.gca()
-#         fig = plt.figure(figsize=figsize)
-#         return fig, fig.add_subplot(111, projection="3d")
-
-
-# class FunctionMixin:
-#     """Function of physical variables, which is independent of solution"""
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         values_at_mesh: Array = None,
-#     ):
-#         super().__init__(basis, 1, values_at_mesh)
-#         self.set_matrix_jacobian(self._initial_matrix_jacobian())
-
-#     def _initial_matrix_jacobian(self):
-#         return self._bkd.zeros(self.matrix_jacobian_shape())
-
-
-# class ScalarFunction(FunctionMixin, ScalarOperator):
-#     pass
-
-
-# class VectorFunction(FunctionMixin, VectorOperator):
-#     pass
-
-
-# class OperatorFromCallableMixin:
-#     def _setup(self, fun: callable):
-#         self._fun = fun
-#         self.set_values(self._fun(self.basis.mesh.mesh_pts()))
-#         self.set_matrix_jacobian(self._initial_matrix_jacobian())
-
-
-# class OperatorFactory(ABC):
-#     """Shortcut to create complex operator"""
-
-#     @abstractmethod
-#     def __call__(self, fun: MatrixOperator) -> MatrixOperator:
-#         raise NotImplementedError
-
-#     def __repr__(self):
-#         return "{0}".format(self.__class__.__name__)
-
-
-# class ScalarMonomialOperator(OperatorFactory):
-#     def __init__(self, degree: int, coef: ScalarOperator = None):
-#         self._degree = degree
-#         if coef is not None and not isinstance(coef, ScalarOperator):
-#             raise ValueError("coef must be an instance ScalarOperator")
-#         self._coef = coef
-
-#     def __call__(self, fun: MatrixOperator) -> ScalarOperator:
-#         if fun._nsols != 1:
-#             raise ValueError(
-#                 "Can only be used for operators that depend on one solution"
-#             )
-#         if self._degree > 0:
-#             vals = fun.get_values()
-#             if self._degree > 1:
-#                 jac = self._degree * fun._bkd.diag(vals) ** (self._degree - 1)
-#             else:
-#                 jac = self._degree * fun._bkd.diag(vals)
-#             poly = ScalarOperator(
-#                 fun.basis, fun._nsols, vals**self._degree, jac[None, ...]
-#             )
-#         else:
-#             poly = 1.0
-#         if self._coef is None:
-#             return poly
-#         return self._coef * poly
-
-#     def __repr__(self):
-#         return "{0}(degree={1}, coef={2})".format(
-#             self.__class__.__name__, self._degree, self._coef
-#         )
-
-
-# class SolutionMixin:
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nsols: int,
-#         values_at_mesh: Array = None,
-#     ):
-#         super().__init__(basis, nsols, values_at_mesh)
-#         self.set_matrix_jacobian(self._initial_matrix_jacobian())
-
-#     def _initial_matrix_jacobian(self):
-#         return self._bkd.stack(
-#             [
-#                 self._bkd.stack(
-#                     [
-#                         self._bkd.stack(
-#                             [
-#                                 self._bkd.eye(self.nmesh_pts())
-#                                 for jj in range(self._nsols)
-#                             ],
-#                             axis=0,
-#                         )
-#                         for jj in range(self._ncols)
-#                     ],
-#                     axis=0,
-#                 )
-#                 for ii in range(self._nrows)
-#             ],
-#             axis=0,
-#         )
-
-
-# class ScalarSolution(SolutionMixin, ScalarOperator):
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         values_at_mesh: Array = None,
-#     ):
-#         super().__init__(basis, 1, values_at_mesh)
-
-
-# class VectorSolution(SolutionMixin, VectorOperator):
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nrows: int,
-#         values_at_mesh: Array = None,
-#         jac: Array = None,
-#     ):
-#         super().__init__(basis, nrows, nrows, values_at_mesh, jac)
-
-
-# class ScalarFunctionFromCallable(ScalarFunction, OperatorFromCallableMixin):
-#     """Scalar function that does not depend on the solution of a PDE"""
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nsols: int,
-#         fun: callable,
-#     ):
-#         ScalarOperator.__init__(self, basis, nsols)
-#         self._setup(fun)
-
-
-# class VectorFunctionFromCallable(VectorFunction, OperatorFromCallableMixin):
-#     """Vector function that does not depend on the solution of a PDE"""
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nrows: int,
-#         fun: callable,
-#     ):
-#         VectorOperator.__init__(self, basis, nrows)
-#         self._setup(fun)
-
-
-# class ScalarSolutionFromCallable(ScalarSolution, OperatorFromCallableMixin):
-#     """Steady scalar solution of a PDE"""
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         fun: callable,
-#     ):
-#         ScalarSolution.__init__(self, basis)
-#         self._setup(fun)
-
-
-# class VectorSolutionFromCallable(VectorSolution, OperatorFromCallableMixin):
-#     """Steady vector solution of a PDE"""
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nrows: int,
-#         fun: callable,
-#     ):
-#         VectorSolution.__init__(self, basis, nrows)
-#         self._setup(fun)
 
 
 # class TransientOperatorMixin(ABC):

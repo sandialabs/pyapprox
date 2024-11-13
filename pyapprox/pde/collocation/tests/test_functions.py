@@ -16,7 +16,7 @@ from pyapprox.pde.collocation.functions import (
     VectorSolutionComponent,
     nabla,
     div,
-    VectorOperator
+    VectorOperator,
 )
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
@@ -131,8 +131,8 @@ class TestOperators:
                     tfun0_deriv(ii, basis.mesh.mesh_pts())
                     for ii in range(sol0.nphys_vars())
                 ],
-                axis=0
-            )
+                axis=0,
+            ),
         )
 
         assert bkd.allclose(
@@ -142,7 +142,7 @@ class TestOperators:
                     tfun0_hess(ii, basis.mesh.mesh_pts())
                     for ii in range(sol0.nphys_vars())
                 ]
-            )
+            ),
         )
 
         # check plots run without calling plt.show
@@ -237,9 +237,7 @@ class TestOperators:
         assert bkd.allclose(
             nabla(sol0).get_jacobian(),
             bkd.jacobian(
-                lambda v: (
-                    nabla(ScalarFunction(basis, v))
-                ).get_values(),
+                lambda v: (nabla(ScalarFunction(basis, v))).get_values(),
                 fun_values0,
             )[:, None],
         )
@@ -247,9 +245,7 @@ class TestOperators:
         assert bkd.allclose(
             div(nabla(sol0)).get_jacobian(),
             bkd.jacobian(
-                lambda v: (
-                    div(nabla(ScalarFunction(basis, v)))
-                ).get_values(),
+                lambda v: (div(nabla(ScalarFunction(basis, v)))).get_values(),
                 fun_values0,
             ),
         )
@@ -312,7 +308,7 @@ class TestOperators:
             (op1 * sol2 / sol3).get_values(), fun_values1 * fun_values2
         )
 
-        if bkd.jacobian_implemented():
+        if not bkd.jacobian_implemented():
             return
 
         assert bkd.allclose(
@@ -339,6 +335,27 @@ class TestOperators:
                             * basis.mesh.nmesh_pts()
                         ],
                     ).deriv(0)
+                ).get_values(),
+                bkd.hstack((fun_values0, fun_values2, fun_values3)),
+            ),
+        )
+
+        assert bkd.allclose(
+            div(nabla(sol0 * sol2)).get_jacobian(),
+            bkd.jacobian(
+                lambda v: (
+                    div(
+                        nabla(
+                            ScalarFunction(basis, v[: basis.mesh.nmesh_pts()])
+                            * ScalarFunction(
+                                basis,
+                                v[
+                                    basis.mesh.nmesh_pts() : 2
+                                    * basis.mesh.nmesh_pts()
+                                ],
+                            )
+                        )
+                    )
                 ).get_values(),
                 bkd.hstack((fun_values0, fun_values2, fun_values3)),
             ),

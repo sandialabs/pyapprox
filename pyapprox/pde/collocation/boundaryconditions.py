@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.pde.collocation.mesh import OrthogonalCoordinateMeshBoundary
 from pyapprox.pde.collocation.functions import (
+    ScalarOperator,
     MatrixOperator,
     TransientOperatorMixin,
 )
@@ -67,9 +68,9 @@ class DirichletBoundary(BoundaryOperator):
 
 
 class BoundaryFromOperatorMixin:
-    def _set_function(self, fun: MatrixOperator):
-        if not isinstance(fun, MatrixOperator):
-            raise ValueError("fun must be an instance of MatrixOperator")
+    def _set_function(self, fun: ScalarOperator):
+        if not isinstance(fun, ScalarOperator):
+            raise ValueError("fun must be an instance of ScalarOperator")
         self._fun = fun
 
     def __call__(self, bndry_mesh_pts):

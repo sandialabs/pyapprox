@@ -3,16 +3,16 @@ from typing import Dict, List
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.pde.collocation.functions import (
-    MatrixOperator,
     ScalarSolution,
-    # VectorSolution,
+    VectorSolution,
     ScalarFunction,
-    ScalarOperator,
     VectorFunction,
-    SolutionMixin,
-    Operator,
+    ScalarOperator,
+    ScalarOperatorOperation,
     ScalarFunctionFromCallable,
     ScalarMonomialOperator,
+    nabla,
+    div,
 )
 from pyapprox.pde.collocation.newton import NewtonResidual
 from pyapprox.pde.collocation.boundaryconditions import (
@@ -21,7 +21,6 @@ from pyapprox.pde.collocation.boundaryconditions import (
     RobinBoundary,
 )
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
-from pyapprox.pde.collocation.functions import nabla, div, sqmagnitude
 
 
 class Physics(NewtonResidual):
@@ -72,7 +71,7 @@ class Physics(NewtonResidual):
         return res_array
 
     @abstractmethod
-    def residual(self, sol: Operator):
+    def residual(self, sol: ScalarOperator):
         raise NotImplementedError
 
     def _residual_function_from_solution_array(self, sol_array: Array):
@@ -86,15 +85,17 @@ class Physics(NewtonResidual):
         # and linear problems where jacobian does not depend on time or
         # on uncertain parameters of PDE
         res = self._residual_function_from_solution_array(sol_array)
-        res_array = self._bkd.flatten(res.get_values())
-        return res_array
+        # res_array = self._bkd.flatten(res.get_values())
+        # return res_array
+        return res.get_flattened_values()
 
     def _residual_jacobian_from_solution_array(self, sol_array: Array):
         res = self._residual_function_from_solution_array(sol_array)
-        jac = res.get_matrix_jacobian()
-        return self._bkd.reshape(
-            jac, (jac.shape[0] * jac.shape[2], jac.shape[3])
-        )
+        # jac = res.get_jacobian()
+        # return self._bkd.reshape(
+        #     jac, (jac.shape[0] * jac.shape[2], jac.shape[3])
+        # )
+        return res.get_flattened_jacobian()
 
     @abstractmethod
     def _separate_solutions(self, array):
@@ -102,11 +103,9 @@ class Physics(NewtonResidual):
 
     def separate_solutions(self, sol_array: Array):
         sol = self._separate_solutions(sol_array)
-        if not isinstance(sol, SolutionMixin) or not isinstance(
-            sol, Operator
-        ):
+        if not isinstance(sol, (ScalarSolution, VectorSolution)):
             raise RuntimeError(
-                "sol must be derived from SolutionMixin and Operator"
+                "sol must be ScalarSolution or VectorSolution"
             )
         return sol
 
@@ -127,17 +126,17 @@ class Physics(NewtonResidual):
 
     def _flux_jacobian_from_array(self, sol_array: Array):
         sol = self.separate_solutions(sol_array)
-        flux_jac = self._flux(sol).get_matrix_jacobian()
+        flux_jac = self._flux(sol).get_jacobian()
         return flux_jac[:, 0, :, :]
 
     def _flux_from_array(self, sol_array: Array):
         sol = self._separate_solutions(sol_array)
-        flux = self._flux(sol).get_matrix_values()
-        if flux.shape[1] != 1:
-            raise RuntimeError("flux must be a vector valued funciton")
-        return flux[:, 0, :]
+        flux = self._flux(sol)
+        if flux.ncols() != 1:
+            raise RuntimeError("flux must be a MatrixFunction with one column")
+        return flux.get_values()[:, 0, :]
 
-    def get_functions(self) -> Dict[str, Operator]:
+    def get_functions(self) -> Dict[str, ScalarOperator]:
         funs = dict()
         return funs
 
@@ -147,9 +146,7 @@ class Physics(NewtonResidual):
 
 class ScalarPhysicsMixin:
     def _separate_solutions(self, array: Array):
-        sol = ScalarSolution(self.basis)
-        sol.set_values(array)
-        sol.set_matrix_jacobian(sol._initial_matrix_jacobian())
+        sol = ScalarSolution(self.basis, array)
         return sol
 
     def _check_is_imutable_scalar_function(self, fun: ScalarFunction, name):
@@ -157,16 +154,16 @@ class ScalarPhysicsMixin:
             raise ValueError(f"{name} must be an instance of ScalarFunction")
 
 
-class VectorPhysicsMixin:
-    def _separate_solutions(self, array: Array):
-        sol = VectorSolution(self.basis)
-        sol.set_values(array)
-        sol.set_matrix_jacobian(sol._initial_matrix_jacobian())
-        return sol
+# class VectorPhysicsMixin:
+#     def _separate_solutions(self, array: Array):
+#         sol = VectorSolution(self.basis)
+#         sol.set_values(array)
+#         sol.set_jacobian(sol._initial_matrix_jacobian())
+#         return sol
 
-    def _check_is_imutable_vector_function(self, fun: VectorFunction, name):
-        if fun is not None and not isinstance(fun, VectorFunction):
-            raise ValueError(f"{name} must be an instance of VectorFunction")
+#     def _check_is_imutable_vector_function(self, fun: VectorFunction, name):
+#         if fun is not None and not isinstance(fun, VectorFunction):
+#             raise ValueError(f"{name} must be an instance of VectorFunction")
 
 
 class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
@@ -174,13 +171,13 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         self,
         forcing: ScalarFunction = None,
         diffusion: ScalarFunction = None,
-        reaction_op: Operator = None,
+        reaction_op: ScalarOperatorOperation = None,
         velocity_field: VectorFunction = None,
     ):
         self._check_is_imutable_scalar_function(forcing, "forcing")
         self._check_is_imutable_scalar_function(diffusion, "diffusion")
-        if reaction_op is not None and not isinstance(reaction_op, Operator):
-            raise ValueError("reaction must be an instance of Operator")
+        if reaction_op is not None and not isinstance(reaction_op, ScalarOperatorOperation):
+            raise ValueError("reaction must be an instance of ScalarOperator")
         if velocity_field is not None and not isinstance(
             velocity_field, VectorFunction
         ):
@@ -209,7 +206,7 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
             residual -= div(sol * self._velocity_field)
         return residual
 
-    def _flux(self, sol: ScalarOperator):
+    def _flux(self, sol: ScalarSolution):
         flux = 0.0
         if self._diffusion is not None:
             flux += self._diffusion * nabla(sol)
@@ -217,7 +214,7 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
             flux -= sol * self._velocity_field
         return flux
 
-    def get_functions(self) -> Dict[str, Operator]:
+    def get_functions(self) -> Dict[str, ScalarOperator]:
         funs = super().get_functions()
         funs["forcing"] = self._forcing
         if self._diffusion is not None:
@@ -257,13 +254,13 @@ class ShallowIceEquation(ScalarPhysicsMixin, Physics):
         self._friction_frac = self._g * self._rho / self._friction
         self._flux_jacobian_implemented = True
 
-    def _flux(self, sol: ScalarOperator):
+    def _flux(self, sol: ScalarSolution):
         surf_grad = nabla(self._bed + sol)
         mon_op = ScalarMonomialOperator(degree=self._n + 2)
         diffusion = (
             self._gamma * mon_op(sol)
-            # * ((sqmagnitude(surf_grad) + self._eps) ** (self._n - 1)).sqrt()
-            * sqmagnitude(surf_grad)  # true because self._n = 3
+            # * ((sqmagnitude(surf_grad) + self._eps) ** ((self._n - 1) / 2)
+            * surf_grad.sqnorm()  # true because self._n = 3
             + (self._friction_frac * sol**2)
         )
         return diffusion * surf_grad
@@ -277,7 +274,7 @@ class ShallowIceEquation(ScalarPhysicsMixin, Physics):
         residual += div(self._flux(sol))
         return residual
 
-    def get_functions(self) -> Dict[str, Operator]:
+    def get_functions(self) -> Dict[str, ScalarOperator]:
         funs = super().get_functions()
         funs["forcing"] = self._forcing
 
@@ -285,7 +282,7 @@ class ShallowIceEquation(ScalarPhysicsMixin, Physics):
 class HelmholtzEquation(AdvectionDiffusionReactionEquation):
     def __init__(
         self,
-        sq_wave_num: ScalarOperator,
+        sq_wave_num: ScalarFunction,
         forcing: ScalarFunction = None,
     ):
         basis = sq_wave_num.basis

@@ -26,7 +26,7 @@ from pyapprox.pde.collocation.physics import (
     AdvectionDiffusionReactionEquation,
     ShallowIceEquation,
     HelmholtzEquation,
-    ShallowWaveEquation,
+    # ShallowWaveEquation,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunctionFromCallable,
@@ -35,9 +35,9 @@ from pyapprox.pde.collocation.functions import (
     TransientScalarSolutionFromCallable,
     ScalarMonomialOperator,
     VectorFunctionFromCallable,
-    VectorSolutionFromCallable,
-    TransientVectorSolutionFromCallable,
-    TransientVectorFunctionFromCallable,
+    #VectorSolutionFromCallable,
+    #TransientVectorSolutionFromCallable,
+    #TransientVectorFunctionFromCallable,
 )
 
 from pyapprox.pde.collocation.boundaryconditions import (
@@ -355,7 +355,7 @@ class TestCollocation:
         # print(residual.get_values()[0, 0])
         # print(bkd.abs(residual.get_values()[0, 0]).max())
         assert bkd.allclose(
-            residual.get_values()[0, 0],
+            residual.get_values(),
             bkd.zeros(
                 exact_sol.nmesh_pts(),
             ),
@@ -698,7 +698,7 @@ class TestCollocation:
         # print(residual.get_values()[0, 0])
         # print(bkd.abs(residual.get_values()[0, 0]).max())
         assert bkd.allclose(
-            residual.get_values()[0, 0],
+            residual.get_values(),
             bkd.zeros(
                 exact_sol.nmesh_pts(),
             ),
@@ -799,11 +799,10 @@ class TestCollocation:
         )
         physics = HelmholtzEquation(sqwavenum, forcing)
         residual = physics.residual(exact_sol)
-        # np.set_printoptions(linewidth=1000)
         # print(residual.get_values()[0, 0])
         # print(bkd.abs(residual.get_values()[0, 0]).max())
         assert bkd.allclose(
-            residual.get_values()[0, 0],
+            residual.get_values(),
             bkd.zeros(
                 exact_sol.nmesh_pts(),
             ),
