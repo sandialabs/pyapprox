@@ -26,7 +26,7 @@ from pyapprox.pde.collocation.physics import (
     AdvectionDiffusionReactionEquation,
     ShallowIceEquation,
     HelmholtzEquation,
-    # ShallowWaveEquation,
+    ShallowWaveEquation,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunctionFromCallable,
@@ -35,9 +35,9 @@ from pyapprox.pde.collocation.functions import (
     TransientScalarSolutionFromCallable,
     ScalarMonomialOperator,
     VectorFunctionFromCallable,
-    #VectorSolutionFromCallable,
-    #TransientVectorSolutionFromCallable,
-    #TransientVectorFunctionFromCallable,
+    VectorSolutionFromCallable,
+    TransientVectorSolutionFromCallable,
+    TransientVectorFunctionFromCallable,
 )
 
 from pyapprox.pde.collocation.boundaryconditions import (
@@ -261,7 +261,7 @@ class TestCollocation:
             basis, man_sol.functions[name]
         )
 
-    def _setup_immutable_scalar_function(
+    def _setup_scalar_function(
         self,
         name: str,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -281,13 +281,13 @@ class TestCollocation:
         name = "solution"
         if not man_sol.transient[name]:
             return VectorSolutionFromCallable(
-                basis, man_sol.nelements(), man_sol.functions[name]
+                basis, man_sol.ncomponents(),  man_sol.ncomponents(), man_sol.functions[name]
             )
         return TransientVectorSolutionFromCallable(
-            basis, man_sol.nelements(), man_sol.functions[name]
+            basis, man_sol.ncomponents(),  man_sol.ncomponents(), man_sol.functions[name]
         )
 
-    def _setup_immutable_vector_function(
+    def _setup_vector_function(
         self,
         name: str,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -295,10 +295,10 @@ class TestCollocation:
     ):
         if not man_sol.transient[name]:
             return VectorFunctionFromCallable(
-                basis, man_sol.nelements(), man_sol.functions[name]
+                basis, man_sol.ncomponents(), man_sol.functions[name]
             )
         return TransientVectorFunctionFromCallable(
-            basis, man_sol.nelements(), man_sol.functions[name]
+            basis, man_sol.ncomponents(), man_sol.functions[name]
         )
 
     def _check_steady_state_advection_diffusion_reaction(
@@ -333,12 +333,8 @@ class TestCollocation:
         ax.set_aspect("equal")
         # plt.show()
 
-        diffusion = self._setup_immutable_scalar_function(
-            "diffusion", basis, man_sol
-        )
-        forcing = self._setup_immutable_scalar_function(
-            "forcing", basis, man_sol
-        )
+        diffusion = self._setup_scalar_function("diffusion", basis, man_sol)
+        forcing = self._setup_scalar_function("forcing", basis, man_sol)
         react_coef = ScalarFunctionFromCallable(basis, react_fun)
         react_op = ScalarMonomialOperator(
             degree=react_op_degree, coef=react_coef
@@ -364,7 +360,7 @@ class TestCollocation:
         if bkd.jacobian_implemented():
 
             def autofun(sol_array):
-                sol = physics.separate_solutions(sol_array)
+                sol = physics.solution_from_array(sol_array)
                 return physics._flux(sol).get_values()
 
             jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
@@ -442,12 +438,8 @@ class TestCollocation:
             basis, man_sol
         )
 
-        diffusion = self._setup_immutable_scalar_function(
-            "diffusion", basis, man_sol
-        )
-        forcing = self._setup_immutable_scalar_function(
-            "forcing", basis, man_sol
-        )
+        diffusion = self._setup_scalar_function("diffusion", basis, man_sol)
+        forcing = self._setup_scalar_function("forcing", basis, man_sol)
         react_coef = ScalarFunctionFromCallable(basis, react_fun)
         react_op = ScalarMonomialOperator(
             degree=react_op_degree, coef=react_coef
@@ -686,13 +678,9 @@ class TestCollocation:
         ax.set_aspect("equal")
         # plt.show()
 
-        bed = self._setup_immutable_scalar_function("bed", basis, man_sol)
-        friction = self._setup_immutable_scalar_function(
-            "friction", basis, man_sol
-        )
-        forcing = self._setup_immutable_scalar_function(
-            "forcing", basis, man_sol
-        )
+        bed = self._setup_scalar_function("bed", basis, man_sol)
+        friction = self._setup_scalar_function("friction", basis, man_sol)
+        forcing = self._setup_scalar_function("forcing", basis, man_sol)
         physics = ShallowIceEquation(bed, friction, A, rho, forcing)
         residual = physics.residual(exact_sol)
         # print(residual.get_values()[0, 0])
@@ -719,7 +707,7 @@ class TestCollocation:
         if bkd.jacobian_implemented():
 
             def autofun(sol_array):
-                sol = physics.separate_solutions(sol_array)
+                sol = physics.solution_from_array(sol_array)
                 return physics._flux(sol).get_values()
 
             jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
@@ -791,12 +779,8 @@ class TestCollocation:
         exact_sol = self._setup_scalar_solution_from_manufactured_solution(
             basis, man_sol
         )
-        sqwavenum = self._setup_immutable_scalar_function(
-            "sqwavenum", basis, man_sol
-        )
-        forcing = self._setup_immutable_scalar_function(
-            "forcing", basis, man_sol
-        )
+        sqwavenum = self._setup_scalar_function("sqwavenum", basis, man_sol)
+        forcing = self._setup_scalar_function("forcing", basis, man_sol)
         physics = HelmholtzEquation(sqwavenum, forcing)
         residual = physics.residual(exact_sol)
         # print(residual.get_values()[0, 0])
@@ -891,10 +875,8 @@ class TestCollocation:
         exact_sols = bkd.stack(exact_sols, axis=-1)
         print(exact_sols.shape)
 
-        bed = self._setup_immutable_scalar_function("bed", basis, man_sol)
-        forcing = self._setup_immutable_vector_function(
-            "forcing", basis, man_sol
-        )
+        bed = self._setup_scalar_function("bed", basis, man_sol)
+        forcing = self._setup_vector_function("forcing", basis, man_sol)
 
         physics = ShallowWaveEquation(bed, forcing)
 

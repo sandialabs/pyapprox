@@ -16,7 +16,7 @@ from pyapprox.pde.collocation.functions import (
     VectorSolutionComponent,
     nabla,
     div,
-    VectorOperator,
+    VectorSolution,
 )
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
@@ -302,18 +302,28 @@ class TestOperators:
         sol0 = VectorSolutionComponent(basis, 3, 0, fun_values0)
         op1 = sol0.deriv(0)
         sol2 = VectorSolutionComponent(basis, 3, 1, fun_values2)
-        sol3 = VectorSolutionComponent(basis, 3, 2, fun_values3).deriv(0)
+        sol3 = VectorSolutionComponent(basis, 3, 2, fun_values3)
+        fun4 = VectorSolutionComponent(basis, 3, 2, fun_values3).deriv(0)
 
         assert bkd.allclose(
-            (op1 * sol2 / sol3).get_values(), fun_values1 * fun_values2
+            (op1 * sol2 / fun4).get_values(), fun_values1 * fun_values2
         )
+
+        vec_sol1 = VectorSolution(basis, 3, 3)
+        print(vec_sol1)
+        vec_sol1.set_components([sol0, sol2, sol3])
+        vec_sol1.get_flattened_values()
+
+        vec_sol2 = VectorSolution(basis, 3, 3)
+        vec_sol2.set_values(vec_sol1.get_flattened_values())
+        assert bkd.allclose(vec_sol2.get_values(), vec_sol1.get_values())
 
         if not bkd.jacobian_implemented():
             return
 
         assert bkd.allclose(
-            (op1 * sol2 / sol3).get_jacobian(),
-            # (op1 / sol3).get_jacobian(),
+            (op1 * sol2 / fun4).get_jacobian(),
+            # (op1 / fun4).get_jacobian(),
             bkd.jacobian(
                 lambda v: (
                     VectorSolutionComponent(

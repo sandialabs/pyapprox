@@ -322,11 +322,11 @@ class ShallowIce(ScalarSolutionMixin, ManufacturedSolution):
 class VectorSolutionMixin:
     def __init__(self, sol_strs, *args, **kwargs):
         self._sol_strs = sol_strs
-        self._nelems = len(sol_strs)
+        self._ncomponents = len(sol_strs)
         super().__init__(*args, **kwargs)
 
-    def nelements(self) -> int:
-        return self._nelems
+    def ncomponents(self) -> int:
+        return self._ncomponents
 
     def _solution_expression(self):
         sol_exprs = [sp.sympify(sol_str) for sol_str in self._sol_strs]
@@ -336,10 +336,10 @@ class VectorSolutionMixin:
         # do not use set expression for forcing as we will
         # only know if it is transient once all functions have been
         # parsed
-        self._expressions["forcing"] = [0 for ii in range(self._nelems)]
+        self._expressions["forcing"] = [0 for ii in range(self._ncomponents)]
 
     def solution_symbols(self):
-        return sp.symbols(["u{ii+1}" for ii in range(self._nelems)])
+        return sp.symbols(["u{ii+1}" for ii in range(self._ncomponents)])
 
     def sympy_temporal_derivative_expression(self):
         if self.is_transient():

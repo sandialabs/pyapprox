@@ -564,9 +564,9 @@ class TransientScalarFunction(TransientOperatorMixin, ScalarFunction):
 
 class TransientOperatorFromCallableMixin(TransientOperatorMixin):
     def __init__(
-            self,
-            basis: OrthogonalCoordinateCollocationBasis,
-            fun: callable,
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        fun: callable,
     ):
         self._fun = fun
         super().__init__(basis)
@@ -618,12 +618,24 @@ class VectorSolutionComponent(ScalarOperator):
 
 
 class MatrixOperator:
-    def __init__(self, nrows: int, ncols: int):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        ninput_funs: int,
+        nrows: int,
+        ncols: int,
+    ):
+        self.basis = basis
+        self._bkd = basis._bkd
+        self._ninput_funs = ninput_funs
         self._nrows = nrows
         self._ncols = ncols
         self._components = [
             [None for jj in range(ncols)] for ii in range(nrows)
         ]
+
+    def ninput_funs(self) -> int:
+        return self._ninput_funs
 
     def _check_components(self, components):
         # todo check all components have the same ninput_funs()
@@ -829,10 +841,46 @@ class MatrixOperator:
         op.set_components(components)
         return op
 
+    def create_scalar_operator_from_values(
+        self, values: Array, row: int, col: int
+    ) -> ScalarOperator:
+        return ScalarOperator(self.basis, self.ninput_funs(), values)
+
+    def _set_matrix_components(self, components: List[ScalarOperator]):
+        self.set_components(self, components)
+
+    def set_values(self, values: Array):
+        values_shape = (
+            self.nrows() * self.ncols() * self.basis.mesh.nmesh_pts(),
+        )
+        if values.shape != values_shape:
+            raise ValueError(
+                f"values.shape {values.shape} must be {values_shape}"
+            )
+        reshaped_values = self._bkd.reshape(
+            values, (self.nrows(), self.ncols(), self.basis.mesh.nmesh_pts())
+        )
+        components = []
+        for ii in range(self.nrows()):
+            row = []
+            for jj in range(self.ncols()):
+                row.append(
+                    self.create_scalar_operator_from_values(
+                        reshaped_values[ii, jj], ii, jj
+                    )
+                )
+            components.append(row)
+        self._set_matrix_components(components)
+
 
 class VectorOperator(MatrixOperator):
-    def __init__(self, nrows: int):
-        super().__init__(nrows, 1)
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        ninput_funs: int,
+        nrows: int,
+    ):
+        super().__init__(basis, ninput_funs, nrows, 1)
 
     def set_components(self, components: List[ScalarOperator]):
         super().set_components([[comp] for comp in components])
@@ -841,19 +889,26 @@ class VectorOperator(MatrixOperator):
         return super().get_values()[:, 0]
 
     def __repr__(self) -> str:
-        return "{0}(nrows={1})".format(
-            self.__class__.__name__, self.nrows()
+        return "{0}(nrows={1})".format(self.__class__.__name__, self.nrows())
+
+
+class VectorSolution(VectorOperator):
+    def create_scalar_operator_from_values(
+        self, values: Array, row: int, col: int
+    ) -> VectorSolutionComponent:
+        return VectorSolutionComponent(
+            self.basis, self.ninput_funs(), row, values
         )
 
-
-def VectorSolution(VectorOperator):
-    def set_components(self, components: List[VectorSolutionComponent]):
-        for comp in components:
-            if not isinstance(comp, VectorSolutionComponent):
+    def _set_matrix_components(
+        self, components: List[VectorSolutionComponent]
+    ):
+        for row in components:
+            if not isinstance(row[0], VectorSolutionComponent):
                 raise ValueError(
                     "component must be an instance of VectorSolutionComponent"
                 )
-        super().set_components([comp for comp in components])
+        MatrixOperator.set_components(self, components)
 
 
 class VectorFunction(VectorOperator):
@@ -864,24 +919,67 @@ class VectorFunction(VectorOperator):
         super().set_components([comp for comp in components])
 
 
-class VectorSolutionFromCallable(VectorOperator):
-    def __init__(
+class TransientVectorSolution(TransientOperatorMixin, VectorSolution):
+    pass
+
+
+class TransientVectorFunction(TransientOperatorMixin, VectorFunction):
+    pass
+
+
+class VectorOperatorFromCallableMixin:
+     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         ninput_funs: int,
         nrows: int,
         fun: callable,
     ):
-        super().__init__(nrows)
+        super().__init__(basis, ninput_funs, nrows)
         self._fun = fun
         values = self._fun(basis.mesh.mesh_pts())
         if values.shape[1] != nrows:
             raise ValueError("values returned by fun has the wrong shape")
-        components = [
-            VectorSolutionComponent(basis, ninput_funs, ii, values)
-            for ii in range(nrows)
-        ]
-        self.set_components(components)
+        self.set_values(self._bkd.flatten(values.T))
+
+
+
+class VectorSolutionFromCallable(
+        VectorOperatorFromCallableMixin, VectorOperator
+):
+    pass
+
+
+class VectorFunctionFromCallable(
+        VectorOperatorFromCallableMixin, VectorOperator
+):
+    pass
+
+
+class TransientMatrixOperatorFromCallableMixin(TransientOperatorMixin):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        fun: callable,
+    ):
+        self._fun = fun
+        super().__init__(basis)
+
+    def _eval(self, mesh_pts):
+        self._check_time_set()
+        return self._fun(mesh_pts, time=self._time)
+
+
+class TransientVectorSolutionFromCallable(
+        TransientMatrixOperatorFromCallableMixin, TransientVectorSolution
+):
+    pass
+
+
+class TransientVectorFunctionFromCallable(
+        TransientMatrixOperatorFromCallableMixin, TransientVectorSolution
+):
+    pass
 
 
 class VectorFunctionFromCallable(VectorFunction):
@@ -910,7 +1008,7 @@ class VectorFunctionFromCallable(VectorFunction):
 
 def nabla(op: ScalarOperator) -> VectorOperator:
     """Gradient of a scalar valued function"""
-    vec_op = VectorOperator(op.nphys_vars())
+    vec_op = VectorOperator(op.basis, op.ninput_funs(), op.nphys_vars())
     ops = [op.deriv(dd) for dd in range(op.nphys_vars())]
     vec_op.set_components(ops)
     return vec_op
@@ -938,7 +1036,7 @@ def div(mat_op: MatrixOperator):
     if len(ops) == 1:
         return ops[0]
 
-    op = VectorOperator(len(ops))
+    op = VectorOperator(mat_op.basis, mat_op.ninput_funs(), len(ops))
     op.set_components(ops)
     return op
 
