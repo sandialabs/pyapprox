@@ -44,7 +44,10 @@ class Physics(NewtonResidual):
         for bndry in bndrys:
             if isinstance(bndry, PeriodicBoundary):
                 nperiodic_boundaries += 1
-        if len(bndrys) + nperiodic_boundaries != len(self.basis.mesh._bndrys):
+        if (
+            len(bndrys) + nperiodic_boundaries
+            != len(self.basis.mesh._bndrys) * self.ncomponents()
+        ):
             raise ValueError("Must set all boundaries")
         self._bndrys = bndrys
         for bndry in self._bndrys:
@@ -147,13 +150,18 @@ class ScalarPhysicsMixin:
         if fun is not None and not isinstance(fun, ScalarFunction):
             raise ValueError(f"{name} must be an instance of ScalarFunction")
 
+    def ncomponents(self) -> int:
+        return 1
+
 
 class VectorPhysicsMixin:
     def ncomponents(self):
         raise NotImplementedError
 
     def _solution_from_array(self, array: Array):
-        sol = VectorSolution(self.basis, self.ncomponents(), self.ncomponents())
+        sol = VectorSolution(
+            self.basis, self.ncomponents(), self.ncomponents()
+        )
         sol.set_flattened_values(array)
         return sol
 
@@ -317,20 +325,21 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         # because divergence will be applied store flux for each equation
         # as a column
         flux = MatrixOperator(
-            sol.basis, sol.ninput_funs(), sol.nphys_vars(), sol.nrows(),
+            sol.basis,
+            sol.ninput_funs(),
+            sol.nphys_vars(),
+            sol.nrows(),
         )
         if sol.basis.nphys_vars() == 1:
             h, uh = sol.get_components()
-            components = [
-                [uh, uh ** 2 / h + (0.5 * self._g) * h ** 2]
-            ]
+            components = [[uh, uh**2 / h + (0.5 * self._g) * h**2]]
         else:
             h, uh, vh = sol.get_components()
             uvh = uh * vh
-            g_hsq = (0.5 * self._g) * h ** 2
+            g_hsq = (0.5 * self._g) * h**2
             components = [
-                [uh, uh ** 2 / h + g_hsq, uvh],
-                [vh, uvh, uh ** 2 / h + g_hsq],
+                [uh, uh**2 / h + g_hsq, uvh],
+                [vh, uvh, uh**2 / h + g_hsq],
             ]
         flux.set_components(components)
         return -flux
@@ -339,9 +348,7 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         if not isinstance(sol, VectorSolution):
             raise ValueError("sol must be an instance of VectorSolution")
         flux = self._flux(sol)
-        print(flux.get_values()[0].T)
         residual = div(flux)
-        print(residual.get_values())
         if self._forcing is not None:
             residual += self._forcing
         return residual

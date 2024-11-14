@@ -13,7 +13,11 @@ from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
 
 
 class BoundaryOperator(ABC):
-    def __init__(self, mesh_bndry: OrthogonalCoordinateMeshBoundary):
+    def __init__(
+            self,
+            mesh_bndry: OrthogonalCoordinateMeshBoundary,
+            index_shift: int = 0,
+    ):
         if not isinstance(mesh_bndry, OrthogonalCoordinateMeshBoundary):
             raise ValueError(
                 "mesh_bndry must be an instance of "
@@ -21,6 +25,12 @@ class BoundaryOperator(ABC):
             )
         self._mesh_bndry = mesh_bndry
         self._bkd = self._mesh_bndry._bkd
+        # self._mesh_bndry._bndry_idx indexes mesh points on the boundary
+        # of a single mesh
+        # self._residual_bndry_idx indexes point
+        # VectorFunction.get_flattened_values() that are on the boundary
+        # index shift should be component_id * mesh.nmesh_pts()
+        self._residual_bndry_idx = self._mesh_bndry._bndry_idx + index_shift
 
     @abstractmethod
     def apply_to_residual(self, sol: Array, res_array: Array):
@@ -57,14 +67,13 @@ class BoundaryOperator(ABC):
 
 class DirichletBoundary(BoundaryOperator):
     def apply_to_residual(self, sol: Array, res: Array):
-        idx = self._mesh_bndry._bndry_idx
+        idx = self._residual_bndry_idx
         bndry_vals = self._bkd.flatten(self(self._mesh_bndry._bndry_mesh_pts))
-        print(sol.shape, bndry_vals.shape, idx, "BOUND")
         res[idx] = self._bndry_slice(sol, idx, 0) - bndry_vals
         return res
 
     def apply_to_jacobian(self, sol: Array, jac: Array):
-        idx = self._mesh_bndry._bndry_idx
+        idx = self._residual_bndry_idx
         jac[idx,] = 0.0
         jac[idx, idx] = 1.0
         return jac
@@ -91,9 +100,12 @@ class DirichletBoundaryFromOperator(
     BoundaryFromOperatorMixin, DirichletBoundary
 ):
     def __init__(
-        self, mesh_bndry: OrthogonalCoordinateMeshBoundary, fun: MatrixOperator
+        self,
+        mesh_bndry: OrthogonalCoordinateMeshBoundary,
+        fun: MatrixOperator,
+        index_shift: int = 0,
     ):
-        super().__init__(mesh_bndry)
+        super().__init__(mesh_bndry, index_shift)
         self._set_function(fun)
 
     def set_time(self, time):
@@ -124,7 +136,7 @@ class RobinBoundary(BoundaryOperator):
         self._flux_jac = flux_jac
 
     def _normal_flux(self, sol_array: Array):
-        idx = self._mesh_bndry._bndry_idx
+        idx = self._residual_bndry_idx
         flux = self._flux(sol_array)
         normal_flux = sum(
             [
@@ -140,7 +152,7 @@ class RobinBoundary(BoundaryOperator):
         # todo only compute once for linear transient problems
         # todo: flux_jac called here evaluates flux jac on all grid points
         #       find way to only evalyate on boundary
-        idx = self._mesh_bndry._bndry_idx
+        idx = self._residual_bndry_idx
         flux_jac = self._flux_jac(sol_array)
         flux_jac = [self._bndry_slice(f, idx, 0) for f in flux_jac]
         normal_flux_jac = sum(
@@ -152,7 +164,7 @@ class RobinBoundary(BoundaryOperator):
         return normal_flux_jac
 
     def apply_to_residual(self, sol_array: Array, res_array: Array):
-        idx = self._mesh_bndry._bndry_idx
+        idx = self._residual_bndry_idx
         bndry_vals = self._bkd.flatten(self(self._mesh_bndry._bndry_mesh_pts))
         res_array[idx] = (
             self._alpha * self._bndry_slice(sol_array, idx, 0)
@@ -165,7 +177,7 @@ class RobinBoundary(BoundaryOperator):
         # ignoring normals
         # res = D1 * u + D2 * u + alpha * I
         # so jac(res) = D1 + D2 + alpha * I
-        idx = self._mesh_bndry._bndry_idx
+        idx = self._residual_bndry_idx
         # D1 + D2
         jac[idx] = self._beta * self._normal_flux_jacobian(sol)
         # alpha * I
@@ -225,7 +237,7 @@ class PeriodicBoundary(BoundaryOperator):
         return jac @ sol_array
 
     def apply_to_residual(self, sol_array: Array, res_array: Array):
-        idx1 = self._mesh_bndry._bndry_idx
+        idx1 = self._residual_bndry_idx
         idx2 = self._partner_mesh_bndry._bndry_idx
         # match solution values
         res_array[idx1] = sol_array[idx1] - sol_array[idx2]
@@ -238,7 +250,7 @@ class PeriodicBoundary(BoundaryOperator):
         return res_array
 
     def apply_to_jacobian(self, sol_array: Array, jac: Array):
-        idx1 = self._mesh_bndry._bndry_idx
+        idx1 = self._residual_bndry_idx
         idx2 = self._partner_mesh_bndry._bndry_idx
         jac[idx1, :] = 0
         jac[idx1, idx1] = 1

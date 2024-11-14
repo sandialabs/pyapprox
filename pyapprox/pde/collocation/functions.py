@@ -72,6 +72,9 @@ class ScalarOperator:
         self._values = values
 
     def get_values(self) -> Array:
+        if not hasattr(self, "_values"):
+            print(self)
+            raise RuntimeError("must first call set_values()")
         return self._values
 
     def get_jacobian(self) -> Array:
@@ -425,6 +428,9 @@ class ScalarOperator:
             textwrap.indent("basis=" + str(self.basis), prefix="    "),
         )
 
+    def values_shape(self) -> tuple:
+        return (self.basis.mesh.nmesh_pts(),)
+
 
 class ScalarFunction(ScalarOperator):
     def __init__(
@@ -438,7 +444,7 @@ class ScalarFunction(ScalarOperator):
     def set_values(self, values: Array):
         super().set_values(values)
         zero_jac = self.basis._bkd.zeros(
-            (self.basis.mesh.nmesh_pts(), self.basis.mesh.nmesh_pts())
+            (self.basis.mesh.nmesh_pts(), self.ninput_funs()*self.basis.mesh.nmesh_pts())
         )
         super().set_jacobian(zero_jac)
 
@@ -453,8 +459,9 @@ class ScalarSolution(ScalarOperator):
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         values: Array = None,
+        ninput_funs: int = 1,
     ):
-        super().__init__(basis, 1, values)
+        super().__init__(basis, ninput_funs, values)
 
     def set_values(self, values: Array):
         super().set_values(values)
@@ -573,12 +580,14 @@ class TransientOperatorFromCallableMixin(TransientOperatorMixin):
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         fun: callable,
+        ninput_funs: int = 1,
     ):
         self._fun = fun
-        super().__init__(basis)
+        super().__init__(basis, ninput_funs=ninput_funs)
 
     def _eval(self, mesh_pts):
         self._check_time_set()
+        print(self._fun(mesh_pts, time=self._time).shape)
         return self._fun(mesh_pts, time=self._time)
 
 
@@ -909,12 +918,7 @@ class MatrixOperator:
         self._set_matrix_components(components)
 
     def set_values(self, values: Array):
-        values_shape = (
-            self.nrows(),
-            self.ncols(),
-            self.basis.mesh.nmesh_pts(),
-        )
-        if values.shape != values_shape:
+        if values.shape != self.values_shape():
             raise ValueError("values has the wrong shape")
         self.set_flattened_values(self._bkd.flatten(values))
 
@@ -930,6 +934,18 @@ class MatrixOperator:
         # todo consider passing stacked values of each component
         # to interpolate just once and then separting
         return self._bkd.stack(rows, axis=0)
+
+    def get_components(self) -> List[VectorSolutionComponent]:
+        if not hasattr(self, "_components"):
+            raise RuntimeError("must call set_commponents()")
+        return self._components
+
+    def values_shape(self) -> tuple:
+        return (
+            self.nrows(),
+            self.ncols(),
+            self.basis.mesh.nmesh_pts(),
+        )
 
 
 class VectorOperator(MatrixOperator):
@@ -951,7 +967,7 @@ class VectorOperator(MatrixOperator):
         return "{0}(nrows={1})".format(self.__class__.__name__, self.nrows())
 
     def set_values(self, values: Array):
-        values_shape = (self.nrows(), self.basis.mesh.nmesh_pts())
+        values_shape = self.values_shape()
         if values.shape != values_shape:
             raise ValueError(
                 "values shape {0} must be {1}".format(
@@ -962,6 +978,14 @@ class VectorOperator(MatrixOperator):
 
     def __call__(self, eval_samples: Array) -> Array:
         return super().__call__(eval_samples)[:, 0]
+
+    def get_components(self) -> List[VectorSolutionComponent]:
+        if not hasattr(self, "_components"):
+            raise RuntimeError("must call set_commponents()")
+        return [row[0] for row in self._components]
+
+    def values_shape(self) -> tuple:
+        return (self.nrows(), self.basis.mesh.nmesh_pts(),)
 
 
 class VectorSolution(VectorOperator):
@@ -982,11 +1006,6 @@ class VectorSolution(VectorOperator):
                 )
         MatrixOperator.set_components(self, components)
 
-    def get_components(self) -> List[VectorSolutionComponent]:
-        if not hasattr(self, "_components"):
-            raise RuntimeError("must call set_commponents()")
-        return [row[0] for row in self._components]
-
 
 class VectorFunction(VectorOperator):
     def set_components(self, components: List[ScalarFunction]):
@@ -997,12 +1016,6 @@ class VectorFunction(VectorOperator):
 
     def set_values(self, values: Array):
         super().set_values(values)
-        zero_jac = self.basis._bkd.zeros(
-            (self.basis.mesh.nmesh_pts(), self.basis.mesh.nmesh_pts())
-        )
-        for ii in range(self.nrows()):
-            for jj in range(self.ncols()):
-                self._components[ii][jj].set_jacobian(zero_jac)
 
 
 class TransientVectorSolution(TransientOperatorMixin, VectorSolution):
@@ -1010,7 +1023,12 @@ class TransientVectorSolution(TransientOperatorMixin, VectorSolution):
 
 
 class TransientVectorFunction(TransientOperatorMixin, VectorFunction):
-    pass
+    def create_scalar_operator_from_values(
+        self, values: Array, row: int, col: int
+    ) -> TransientScalarFunction:
+        return TransientScalarFunction(
+            self.basis, values, ninput_funs=self.ninput_funs()
+        )
 
 
 class VectorOperatorFromCallableMixin:
@@ -1038,7 +1056,10 @@ class VectorSolutionFromCallable(
 class VectorFunctionFromCallable(
     VectorOperatorFromCallableMixin, VectorFunction
 ):
-    pass
+    def create_scalar_operator_from_values(
+        self, values: Array, row: int, col: int
+    ) -> ScalarFunction:
+        return ScalarFunction(self.basis, values, ninput_funs=self.ninput_funs())
 
 
 class TransientVectorOperatorFromCallableMixin(TransientOperatorMixin):
@@ -1066,11 +1087,19 @@ class TransientVectorSolutionFromCallable(
 
 
 class TransientVectorFunctionFromCallable(
-    TransientVectorOperatorFromCallableMixin, TransientVectorSolution
+    TransientVectorOperatorFromCallableMixin, TransientVectorFunction
 ):
     # if RuntimeError: must call set_commponents() is raised then
     # set_time was likely not called.
-    pass
+    def create_scalar_operator_from_values(
+        self, values: Array, row: int, col: int
+    ) -> TransientScalarFunctionFromCallable:
+        fun = TransientScalarFunctionFromCallable(
+            self.basis, lambda xx, time: self._fun(xx, time)[:, row],
+            ninput_funs = self.ninput_funs()
+        )
+        fun.set_time(self._time)
+        return fun
 
 
 def nabla(op: ScalarOperator) -> VectorOperator:

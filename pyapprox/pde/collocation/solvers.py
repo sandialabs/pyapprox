@@ -120,10 +120,13 @@ class TransientPhysicsNewtonResidual(TransientNewtonResidual):
         funs = self._physics.get_functions()
         for name, fun in funs.items():
             if isinstance(fun, TransientOperatorMixin):
+                print(name, "B")
                 fun.set_time(time)
 
         for bndry in self._physics._bndrys:
+            print(bndry._fun)
             if isinstance(bndry._fun, TransientOperatorMixin):
+                print("A")
                 bndry._fun.set_time(time)
 
 
@@ -168,4 +171,9 @@ class TransientPDE(PDESolver):
         self._sols, self._times = self._time_int.solve(
             init_sol.get_flattened_values()
         )
-        return self._sols, self._times
+        return (
+            self._sols.reshape(
+                init_sol.values_shape()+(self._times.shape[0],)
+            ),
+            self._times
+        )

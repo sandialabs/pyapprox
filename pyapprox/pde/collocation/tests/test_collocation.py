@@ -166,16 +166,26 @@ class TestCollocation:
     ):
         bndry_funs = []
         for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
-            # TODO make 1 component case be vec with one entry
+            # TODO considert makeing 1 component case be VectorOperator
+            # with one entry
             if man_sol.ncomponents() == 1:
-                sol = self._setup_scalar_solution_from_manufactured_solution(
-                    basis, man_sol
+                sol = self._setup_scalar_function(
+                    "solution", basis, man_sol
                 )
-            else:
-                sol = self._setup_vector_solution_from_manufactured_solution(
-                    basis, man_sol
+                bndry_funs.append(
+                    DirichletBoundaryFromOperator(mesh_bndry, sol)
                 )
-            bndry_funs.append(DirichletBoundaryFromOperator(mesh_bndry, sol))
+                continue
+
+            sol = self._setup_vector_function("solution", basis, man_sol)
+            sol_components = sol.get_components()
+            for ii in range(man_sol.ncomponents()):
+                bndry_funs.append(
+                    DirichletBoundaryFromOperator(
+                        mesh_bndry, sol_components[ii], ii * basis.mesh.nmesh_pts()
+                    )
+                )
+
         return bndry_funs
 
     def _setup_robin_boundary_conditions(
@@ -185,7 +195,6 @@ class TestCollocation:
     ):
         # use the same alpha, beta for every test
         alpha, beta = 2.0, 3.0
-        # alpha, beta = 1.0, 1.0
         bndry_funs = []
         for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
             bndry_funs.append(
@@ -249,13 +258,13 @@ class TestCollocation:
         for bndry_name, mesh_bndry in boundaries.items():
             if bndry_name == "left":
                 continue
-            sol = self._setup_scalar_solution_from_manufactured_solution(
+            sol = self._setup_scalar_solution(
                 basis, man_sol
             )
             bndry_funs.append(DirichletBoundaryFromOperator(mesh_bndry, sol))
         return bndry_funs
 
-    def _setup_scalar_solution_from_manufactured_solution(
+    def _setup_scalar_solution(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         man_sol: ManufacturedSolution,
@@ -279,7 +288,7 @@ class TestCollocation:
             basis, man_sol.functions[name]
         )
 
-    def _setup_vector_solution_from_manufactured_solution(
+    def _setup_vector_solution(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         man_sol: ManufacturedSolution,
@@ -309,12 +318,31 @@ class TestCollocation:
             return VectorFunctionFromCallable(
                 basis, man_sol.ncomponents(), man_sol.functions[name]
             )
-        return TransientVectorFunctionFromCallable(
+        fun = TransientVectorFunctionFromCallable(
             basis,
             man_sol.ncomponents(),
             man_sol.ncomponents(),
             man_sol.functions[name],
         )
+        fun.set_time(0)
+        return fun
+
+    # def _setup_scalar_function_from_solution_component(
+    #     self,
+    #     name: str,
+    #     basis: OrthogonalCoordinateCollocationBasis,
+    #     man_sol: ManufacturedSolution,
+    # ):
+    #     if not man_sol.transient[name]:
+    #         return VectorFunctionFromCallable(
+    #             basis, man_sol.ncomponents(), man_sol.functions[name]
+    #         )
+    #     return TransientVectorFunctionFromCallable(
+    #         basis,
+    #         man_sol.ncomponents(),
+    #         man_sol.ncomponents(),
+    #         man_sol.functions[name],
+    #     )
 
     def _check_steady_state_advection_diffusion_reaction(
         self,
@@ -337,7 +365,7 @@ class TestCollocation:
             oned=True,
         )
         print(man_sol)
-        exact_sol = self._setup_scalar_solution_from_manufactured_solution(
+        exact_sol = self._setup_scalar_solution(
             basis, man_sol
         )
 
@@ -450,7 +478,7 @@ class TestCollocation:
             oned=True,
         )
         print(man_sol)
-        exact_sol = self._setup_scalar_solution_from_manufactured_solution(
+        exact_sol = self._setup_scalar_solution(
             basis, man_sol
         )
 
@@ -685,7 +713,7 @@ class TestCollocation:
         )
 
         print(man_sol)
-        exact_sol = self._setup_scalar_solution_from_manufactured_solution(
+        exact_sol = self._setup_scalar_solution(
             basis, man_sol
         )
 
@@ -792,7 +820,7 @@ class TestCollocation:
         )
 
         print(man_sol)
-        exact_sol = self._setup_scalar_solution_from_manufactured_solution(
+        exact_sol = self._setup_scalar_solution(
             basis, man_sol
         )
         sqwavenum = self._setup_scalar_function("sqwavenum", basis, man_sol)
@@ -962,8 +990,9 @@ class TestCollocation:
             exact_sol.set_time(time)
             exact_sols.append(exact_sol.get_values())
         exact_sols = bkd.stack(exact_sols, axis=-1)
-        print(sols.shape)
-        print(exact_sols.shape)
+        print(sols)
+        print(exact_sols)
+        print(sols-exact_sols)
         assert bkd.allclose(sols, exact_sols, atol=1e-12)
 
     def _check_shallow_wave_equation(
@@ -985,9 +1014,7 @@ class TestCollocation:
         )
         print(man_sol)
 
-        exact_sol = self._setup_vector_solution_from_manufactured_solution(
-            basis, man_sol
-        )
+        exact_sol = self._setup_vector_solution(basis, man_sol)
         init_time, final_time, deltat = 0.0, 1.0, 0.5
 
         bed = self._setup_scalar_function("bed", basis, man_sol)
@@ -1022,7 +1049,8 @@ class TestCollocation:
 
     def test_shallow_wave_equation(self):
         test_case_args = [
-            ["1-(x-1)*x/2*(1+T)"],  # depth_string
+            # ["1-(x-2)*x/2*(1+T)"],  # depth_string # tests time dependent boundary conditions
+            ["1-(x-1)*x/2*(1+T)"],  # depth_string # strictly enforces zero dirichlet conditions
             [
                 ["(x+1)*(1+T)"],
             ],  # vel_strings
