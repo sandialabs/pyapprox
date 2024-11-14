@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from functools import partial
-import textwrap
 from typing import List
+import copy
 
 import sympy as sp
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -32,6 +32,10 @@ class ManufacturedSolution(ABC):
 
     @abstractmethod
     def sympy_expressions(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def ncomponents(self) -> int:
         raise NotImplementedError
 
     @abstractmethod
@@ -163,9 +167,17 @@ class ScalarSolutionMixin:
 
     def sympy_temporal_derivative_expression(self):
         if self.is_transient():
+            self._set_expression(
+                "forcing_without_time_deriv",
+                self._expressions["forcing"],
+                self._sol_str,
+            )
             self._expressions["forcing"] += self._expressions["solution"].diff(
                 self.time_symbol()[0]
             )
+
+    def ncomponents(self) -> int:
+        return 1
 
 
 class DiffusionMixin:
@@ -343,6 +355,12 @@ class VectorSolutionMixin:
 
     def sympy_temporal_derivative_expression(self):
         if self.is_transient():
+            self._set_expression(
+                "forcing_without_time_deriv",
+                copy.deepcopy(self._expressions["forcing"]),
+                self._sol_strs[0],
+            )
+
             for ii in range(self._nvars + 1):
                 self._expressions["forcing"][ii] += self._expressions[
                     "solution"
@@ -370,25 +388,21 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
     def sympy_expressions(self):
         cartesian_symbs = self.cartesian_symbols()
         bed_expr = sp.sympify(self._bed_str)
-        depth_expr = self._expressions["solution"][0]
-        mom_exprs = self._expressions["solution"][1:]
 
-        flux_exprs = [None for ii in range(self._nvars + 1)]
-        flux_exprs[0] = [-mom_expr for mom_expr in mom_exprs]
-        flux_exprs[1] = [None for ii in range(self._nvars)]
-        flux_exprs[1][0] = -(
-            mom_exprs[0] ** 2 * depth_expr + 0.5 * self._g * depth_expr**2
-        )
-        if self._nvars > 1:
-            flux_exprs[1][1] = -mom_exprs[0] * mom_exprs[1] / depth_expr
-            flux_exprs[2] = [
-                -mom_exprs[0] * mom_exprs[1] / depth_expr,
-                -(
-                    mom_exprs[1] ** 2 / depth_expr
-                    + 0.5 * self._g * depth_expr**2
-                ),
+        if self._nvars == 1:
+            h, uh = self._expressions["solution"]
+            flux_exprs = [
+                [-uh],
+                [-(uh**2) / h - 0.5 * self._g * h**2],
             ]
-
+        else:
+            h, uh, vh = self._expressions["solution"]
+            uvh = uh * vh / h
+            flux_exprs = [
+                [-uh, -vh],
+                [-(uh**2) / h - 0.5 * self._g * h**2, -uvh],
+                [-uvh, -(vh**2) / h - 0.5 * self._g * h**2],
+            ]
         forc_expr = [
             -sum(
                 [

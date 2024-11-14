@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
+from typing import Union
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.pde.collocation.mesh import OrthogonalCoordinateMeshBoundary
 from pyapprox.pde.collocation.functions import (
     ScalarOperator,
+    VectorOperator,
     MatrixOperator,
     TransientOperatorMixin,
 )
@@ -57,6 +59,7 @@ class DirichletBoundary(BoundaryOperator):
     def apply_to_residual(self, sol: Array, res: Array):
         idx = self._mesh_bndry._bndry_idx
         bndry_vals = self._bkd.flatten(self(self._mesh_bndry._bndry_mesh_pts))
+        print(sol.shape, bndry_vals.shape, idx, "BOUND")
         res[idx] = self._bndry_slice(sol, idx, 0) - bndry_vals
         return res
 
@@ -68,13 +71,20 @@ class DirichletBoundary(BoundaryOperator):
 
 
 class BoundaryFromOperatorMixin:
-    def _set_function(self, fun: ScalarOperator):
-        if not isinstance(fun, ScalarOperator):
-            raise ValueError("fun must be an instance of ScalarOperator")
+    def _set_function(self, fun: Union[ScalarOperator, VectorOperator]):
+        if not isinstance(fun, (ScalarOperator, VectorOperator)):
+            raise ValueError(
+                "fun must be an instance of ScalarOperator or VectorOperator"
+            )
         self._fun = fun
 
     def __call__(self, bndry_mesh_pts):
-        return self._fun(bndry_mesh_pts)
+        # todo consider avoiding interpolation and just
+        # accessing correct values in self._fun.get_flattened_values()
+        # by passing in index to array returned by get_values()
+        # need to think about whether this affects hybrid discontinous Galerkin
+        # perhaps support both options
+        return self._bkd.flatten(self._fun(bndry_mesh_pts))
 
 
 class DirichletBoundaryFromOperator(

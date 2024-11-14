@@ -315,7 +315,10 @@ class TestOperators:
         vec_sol1.get_flattened_values()
 
         vec_sol2 = VectorSolution(basis, 3, 3)
-        vec_sol2.set_values(vec_sol1.get_flattened_values())
+        vec_sol2.set_flattened_values(vec_sol1.get_flattened_values())
+        assert bkd.allclose(vec_sol2.get_values(), vec_sol1.get_values())
+
+        vec_sol2.set_values(vec_sol1.get_values())
         assert bkd.allclose(vec_sol2.get_values(), vec_sol1.get_values())
 
         if not bkd.jacobian_implemented():

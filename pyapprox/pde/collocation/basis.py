@@ -54,13 +54,13 @@ class OrthogonalCoordinateCollocationBasis(ABC):
         raise NotImplementedError
 
     def interpolate(self, values_at_mesh: Array, new_samples: Array):
-        if (
-            values_at_mesh.ndim != 2
-            or values_at_mesh.shape[0] != self.mesh.nmesh_pts()
-        ):
+        if values_at_mesh.ndim != 2:
+            raise ValueError("values_at_mesh must be a 2D array")
+
+        if values_at_mesh.shape[0] != self.mesh.nmesh_pts():
             raise ValueError(
-                "values_at_mesh shape {0} is wrong".format(
-                    values_at_mesh.shape
+                "values_at_mesh shape[0] {0} must be {1}".format(
+                    values_at_mesh.shape, self.mesh.nmesh_pts()
                 )
             )
         new_orth_samples = self.mesh.trans.map_to_orthogonal(new_samples)

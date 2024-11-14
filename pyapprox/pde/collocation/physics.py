@@ -11,6 +11,8 @@ from pyapprox.pde.collocation.functions import (
     ScalarOperatorOperation,
     ScalarFunctionFromCallable,
     ScalarMonomialOperator,
+    VectorOperator,
+    MatrixOperator,
     nabla,
     div,
 )
@@ -85,16 +87,10 @@ class Physics(NewtonResidual):
         # and linear problems where jacobian does not depend on time or
         # on uncertain parameters of PDE
         res = self._residual_function_from_solution_array(sol_array)
-        # res_array = self._bkd.flatten(res.get_values())
-        # return res_array
         return res.get_flattened_values()
 
     def _residual_jacobian_from_solution_array(self, sol_array: Array):
         res = self._residual_function_from_solution_array(sol_array)
-        # jac = res.get_jacobian()
-        # return self._bkd.reshape(
-        #     jac, (jac.shape[0] * jac.shape[2], jac.shape[3])
-        # )
         return res.get_flattened_jacobian()
 
     @abstractmethod
@@ -128,7 +124,7 @@ class Physics(NewtonResidual):
         return flux_jac[:, 0, :, :]
 
     def _flux_from_array(self, sol_array: Array):
-        sol = self._solution_from_array(sol_array)
+        sol = self.solution_from_array(sol_array)
         flux = self._flux(sol)
         if flux.ncols() != 1:
             raise RuntimeError("flux must be a MatrixFunction with one column")
@@ -153,16 +149,12 @@ class ScalarPhysicsMixin:
 
 
 class VectorPhysicsMixin:
-    @abstractmethod
     def ncomponents(self):
         raise NotImplementedError
 
     def _solution_from_array(self, array: Array):
-        reshaped_array = self._bkd.reshape(
-            array, (self.ncomponents(), self.basis.mesh.nmesh_pts())
-        )
-        sol = VectorSolution(self.ncomponents())
-        sol.set_values(array)
+        sol = VectorSolution(self.basis, self.ncomponents(), self.ncomponents())
+        sol.set_flattened_values(array)
         return sol
 
     def _check_is_imutable_vector_function(self, fun: VectorFunction, name):
@@ -188,7 +180,9 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
             velocity_field, VectorFunction
         ):
             raise ValueError(
-                "velocity_field must be an instance of VectorFunction"
+                "velocity_field {0} must be an instance of VectorFunction".format(
+                    velocity_field
+                )
             )
         super().__init__(forcing.basis)
         self._forcing = forcing
@@ -315,25 +309,45 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         self._g = 9.81
         super().__init__(forcing.basis)
 
-    def split_solution(sol: VectorSolution) -> List[ScalarOperator]:
-        h = ScalarSolution(sol.get_values()[0, 0, ...])
-        uh = ScalarSolution(sol.get_values()[1, 0, ...])
-        vh = ScalarSolution(sol.get_values()[2, 0, ...])
-        return h, uh, vh
+    def ncomponents(self) -> int:
+        return self._bed.nphys_vars() + 1
 
     def _flux(self, sol: VectorSolution):
-        h, uh, vh = self.split_solution(sol)
-        flux = VectorOperator(
-            [
-                [uh, vh],
-                [uh**2 / h + self._g * h**2, uh * vh / h],
-                [uh * vh / h, vh**2 / h + self._g * h**2],
-            ]
+        # flux is actually a diagonal 3D tensor but store as a matrix
+        # because divergence will be applied store flux for each equation
+        # as a column
+        flux = MatrixOperator(
+            sol.basis, sol.ninput_funs(), sol.nphys_vars(), sol.nrows(),
         )
+        if sol.basis.nphys_vars() == 1:
+            h, uh = sol.get_components()
+            components = [
+                [uh, uh ** 2 / h + (0.5 * self._g) * h ** 2]
+            ]
+        else:
+            h, uh, vh = sol.get_components()
+            uvh = uh * vh
+            g_hsq = (0.5 * self._g) * h ** 2
+            components = [
+                [uh, uh ** 2 / h + g_hsq, uvh],
+                [vh, uvh, uh ** 2 / h + g_hsq],
+            ]
+        flux.set_components(components)
+        return -flux
 
     def residual(self, sol: VectorSolution):
         if not isinstance(sol, VectorSolution):
             raise ValueError("sol must be an instance of VectorSolution")
-        residual = 0.0
+        flux = self._flux(sol)
+        print(flux.get_values()[0].T)
+        residual = div(flux)
+        print(residual.get_values())
         if self._forcing is not None:
             residual += self._forcing
+        return residual
+
+    def get_functions(self) -> Dict:
+        funs = super().get_functions()
+        funs["forcing"] = self._forcing
+        funs["bed"] = self._bed
+        return funs

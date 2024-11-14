@@ -166,9 +166,15 @@ class TestCollocation:
     ):
         bndry_funs = []
         for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
-            sol = self._setup_scalar_solution_from_manufactured_solution(
-                basis, man_sol
-            )
+            # TODO make 1 component case be vec with one entry
+            if man_sol.ncomponents() == 1:
+                sol = self._setup_scalar_solution_from_manufactured_solution(
+                    basis, man_sol
+                )
+            else:
+                sol = self._setup_vector_solution_from_manufactured_solution(
+                    basis, man_sol
+                )
             bndry_funs.append(DirichletBoundaryFromOperator(mesh_bndry, sol))
         return bndry_funs
 
@@ -281,10 +287,16 @@ class TestCollocation:
         name = "solution"
         if not man_sol.transient[name]:
             return VectorSolutionFromCallable(
-                basis, man_sol.ncomponents(),  man_sol.ncomponents(), man_sol.functions[name]
+                basis,
+                man_sol.ncomponents(),
+                man_sol.ncomponents(),
+                man_sol.functions[name],
             )
         return TransientVectorSolutionFromCallable(
-            basis, man_sol.ncomponents(),  man_sol.ncomponents(), man_sol.functions[name]
+            basis,
+            man_sol.ncomponents(),
+            man_sol.ncomponents(),
+            man_sol.functions[name],
         )
 
     def _setup_vector_function(
@@ -298,7 +310,10 @@ class TestCollocation:
                 basis, man_sol.ncomponents(), man_sol.functions[name]
             )
         return TransientVectorFunctionFromCallable(
-            basis, man_sol.ncomponents(), man_sol.functions[name]
+            basis,
+            man_sol.ncomponents(),
+            man_sol.ncomponents(),
+            man_sol.functions[name],
         )
 
     def _check_steady_state_advection_diffusion_reaction(
@@ -327,10 +342,10 @@ class TestCollocation:
         )
 
         # test plot runs
-        fig, ax = exact_sol.get_plot_axis()
-        basis.mesh.plot(ax)
-        exact_sol.plot(ax, 101, fig=fig)
-        ax.set_aspect("equal")
+        # fig, ax = exact_sol.get_plot_axis()
+        # basis.mesh.plot(ax)
+        # exact_sol.plot(ax, 101, fig=fig)
+        # ax.set_aspect("equal")
         # plt.show()
 
         diffusion = self._setup_scalar_function("diffusion", basis, man_sol)
@@ -340,7 +355,10 @@ class TestCollocation:
             degree=react_op_degree, coef=react_coef
         )
         vel_field = VectorFunctionFromCallable(
-            basis, basis.nphys_vars(), man_sol.functions["velocity"]
+            basis,
+            man_sol.ncomponents(),
+            basis.nphys_vars(),
+            man_sol.functions["velocity"],
         )
         physics = AdvectionDiffusionReactionEquation(
             forcing, diffusion, react_op, vel_field
@@ -348,13 +366,11 @@ class TestCollocation:
         # physics = LinearDiffusionEquation(forcing, diffusion)
         residual = physics.residual(exact_sol)
         # np.set_printoptions(linewidth=1000)
-        # print(residual.get_values()[0, 0])
-        # print(bkd.abs(residual.get_values()[0, 0]).max())
+        # print(residual.get_values())
+        # print(bkd.abs(residual.get_values()).max())
         assert bkd.allclose(
             residual.get_values(),
-            bkd.zeros(
-                exact_sol.nmesh_pts(),
-            ),
+            bkd.zeros(exact_sol.nmesh_pts()),
         )
 
         if bkd.jacobian_implemented():
@@ -445,7 +461,10 @@ class TestCollocation:
             degree=react_op_degree, coef=react_coef
         )
         vel_field = VectorFunctionFromCallable(
-            basis, basis.nphys_vars(), man_sol.functions["velocity"]
+            basis,
+            1,
+            basis.nphys_vars(),
+            man_sol.functions["velocity"],
         )
         physics = AdvectionDiffusionReactionEquation(
             forcing, diffusion, react_op, vel_field
@@ -471,7 +490,6 @@ class TestCollocation:
             init_time,
             final_time,
             deltat,
-            # CrankNicholsonResidual, init_time, final_time, deltat
         )
         init_sol = copy.deepcopy(exact_sol)
         init_sol.set_time(init_time)
@@ -672,10 +690,10 @@ class TestCollocation:
         )
 
         # test plot runs
-        fig, ax = exact_sol.get_plot_axis()
-        basis.mesh.plot(ax)
-        exact_sol.plot(ax, 101, fig=fig)
-        ax.set_aspect("equal")
+        # fig, ax = exact_sol.get_plot_axis()
+        # basis.mesh.plot(ax)
+        # exact_sol.plot(ax, 101, fig=fig)
+        # ax.set_aspect("equal")
         # plt.show()
 
         bed = self._setup_scalar_function("bed", basis, man_sol)
@@ -683,13 +701,11 @@ class TestCollocation:
         forcing = self._setup_scalar_function("forcing", basis, man_sol)
         physics = ShallowIceEquation(bed, friction, A, rho, forcing)
         residual = physics.residual(exact_sol)
-        # print(residual.get_values()[0, 0])
-        # print(bkd.abs(residual.get_values()[0, 0]).max())
+        # print(residual.get_values())
+        # print(bkd.abs(residual.get_values()).max())
         assert bkd.allclose(
             residual.get_values(),
-            bkd.zeros(
-                exact_sol.nmesh_pts(),
-            ),
+            bkd.zeros(exact_sol.nmesh_pts()),
             atol=1e-7,
         )
 
@@ -783,13 +799,11 @@ class TestCollocation:
         forcing = self._setup_scalar_function("forcing", basis, man_sol)
         physics = HelmholtzEquation(sqwavenum, forcing)
         residual = physics.residual(exact_sol)
-        # print(residual.get_values()[0, 0])
-        # print(bkd.abs(residual.get_values()[0, 0]).max())
+        # print(residual.get_values())
+        # print(bkd.abs(residual.get_values()).max())
         assert bkd.allclose(
             residual.get_values(),
-            bkd.zeros(
-                exact_sol.nmesh_pts(),
-            ),
+            bkd.zeros(exact_sol.nmesh_pts()),
             atol=1e-7,
         )
 
@@ -843,6 +857,115 @@ class TestCollocation:
         for test_case in itertools.product(*test_case_args):
             self._check_helmholtz_equation(*test_case)
 
+    def _setup_transient_pde(
+        self,
+        basis,
+        bndry_types,
+        man_sol,
+        physics,
+        exact_sol,
+        init_time,
+        final_time,
+        deltat,
+    ):
+        bkd = self.get_backend()
+        boundaries = self._setup_boundary_conditions(
+            basis,
+            bndry_types,
+            man_sol,
+        )
+        physics.set_boundaries(boundaries)
+
+        solver = TransientPDE(
+            physics,
+            NewtonSolver(
+                verbosity=2,
+                maxiters=10,
+                atol=1e-8,
+                rtol=1e-8,
+            ),
+        )
+        solver.setup_time_integrator(
+            BackwardEulerResidual,
+            init_time,
+            final_time,
+            deltat,
+        )
+
+        # set time so that functions are populated
+        init_sol = copy.deepcopy(exact_sol)
+        init_sol.set_time(init_time)
+        return solver, init_sol
+
+    def _check_transient_pde_physics_residual(
+        self,
+        basis,
+        bndry_types,
+        man_sol,
+        physics,
+        exact_sol,
+        init_time,
+        final_time,
+        deltat,
+    ):
+        # physics must use man_sol["forcing_without_time_deriv"]
+
+        bkd = self.get_backend()
+        solver, init_sol = self._setup_transient_pde(
+            basis,
+            bndry_types,
+            man_sol,
+            physics,
+            exact_sol,
+            init_time,
+            final_time,
+            deltat,
+        )
+        solver._time_residual.native_residual.set_time(init_time)
+
+        residual = physics.residual(init_sol)
+        print(residual.get_flattened_values())
+        print(bkd.abs(residual.get_flattened_values()).max())
+        assert bkd.allclose(
+            residual.get_flattened_values(),
+            bkd.zeros(
+                man_sol.ncomponents() * exact_sol.basis.mesh.nmesh_pts()
+            ),
+            atol=1e-7,
+        )
+
+    def _check_transient_pde_solve(
+        self,
+        basis,
+        bndry_types,
+        man_sol,
+        physics,
+        exact_sol,
+        init_time,
+        final_time,
+        deltat,
+    ):
+        bkd = self.get_backend()
+        solver, init_sol = self._setup_transient_pde(
+            basis,
+            bndry_types,
+            man_sol,
+            physics,
+            exact_sol,
+            init_time,
+            final_time,
+            deltat,
+        )
+        sols, times = solver.solve(init_sol)
+        exact_sols = []
+        for time in times:
+            exact_sol.set_time(time)
+            exact_sols.append(exact_sol.get_values())
+        exact_sols = bkd.stack(exact_sols, axis=-1)
+        print(sols.shape)
+        print(exact_sols.shape)
+        assert bkd.allclose(sols, exact_sols, atol=1e-12)
+
     def _check_shallow_wave_equation(
         self,
         depth_str: str,
@@ -865,20 +988,37 @@ class TestCollocation:
         exact_sol = self._setup_vector_solution_from_manufactured_solution(
             basis, man_sol
         )
-
-        times = bkd.linspace(0, 1, 3)
-        exact_sols = []
-        for time in times:
-            exact_sol.set_time(time)
-            exact_sols.append(exact_sol.get_values())
-        print(exact_sols[0].shape)
-        exact_sols = bkd.stack(exact_sols, axis=-1)
-        print(exact_sols.shape)
+        init_time, final_time, deltat = 0.0, 1.0, 0.5
 
         bed = self._setup_scalar_function("bed", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
 
+        forcing_wo_time_deriv = self._setup_vector_function(
+            "forcing_without_time_deriv", basis, man_sol
+        )
+        physics = ShallowWaveEquation(bed, forcing_wo_time_deriv)
+        self._check_transient_pde_physics_residual(
+            basis,
+            bndry_types,
+            man_sol,
+            physics,
+            exact_sol,
+            init_time,
+            final_time,
+            deltat,
+        )
+
         physics = ShallowWaveEquation(bed, forcing)
+        self._check_transient_pde_solve(
+            basis,
+            bndry_types,
+            man_sol,
+            physics,
+            exact_sol,
+            init_time,
+            final_time,
+            deltat,
+        )
 
     def test_shallow_wave_equation(self):
         test_case_args = [
@@ -889,7 +1029,7 @@ class TestCollocation:
             ["0"],  # bed_string
             ["D"],  # bndry_types
             [
-                self._setup_cheby_basis_1d([5], [0, 1]),
+                self._setup_cheby_basis_1d([15], [0, 1]),
             ],  # basis
         ]
 

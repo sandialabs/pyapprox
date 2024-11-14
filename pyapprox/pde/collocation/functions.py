@@ -75,6 +75,8 @@ class ScalarOperator:
         return self._values
 
     def get_jacobian(self) -> Array:
+        if not hasattr(self, "_jac"):
+            raise RuntimeError("must call set_jacobian()")
         return self._jac
 
     def set_jacobian(self, jac: Array):
@@ -206,6 +208,9 @@ class ScalarOperator:
             return other * self
         return self._multiply_functions(other)
 
+    def __neg__(self):
+        return -1.0 * self
+
     def __pow__(self, other: int) -> "ScalarOperator":
         if (
             not (isinstance(other, int) or isinstance(other, float))
@@ -276,7 +281,7 @@ class ScalarOperator:
             self.basis._deriv_mats[physvar_id] @ self.get_jacobian(),
         )
 
-    def __call__(self, eval_samples: Array):
+    def __call__(self, eval_samples: Array) -> Array:
         values = self.get_values()[:, None]
         return self.basis.interpolate(values, eval_samples)[:, 0]
 
@@ -528,6 +533,7 @@ class TransientOperatorMixin:
     """Operator that depends on time."""
 
     def __init__(self, *args, **kwargs):
+        self._time = None
         super().__init__(*args, **kwargs)
 
     @abstractmethod
@@ -536,7 +542,7 @@ class TransientOperatorMixin:
 
     def set_time(self, time: float):
         self._time = time
-        self.set_values(self._eval(self.basis.mesh.mesh_pts()))
+        self.set_values(self._eval(self.basis.mesh.mesh_pts()).T)
         # It is assumed set_jacobian is set in set_values, e.g.
         # as done by Function and Solution
 
@@ -551,9 +557,9 @@ class TransientOperatorMixin:
         return self._time
 
     def __repr__(self):
-        return "{0}(\ntime={1}\n{2}\n)".format(
+        return "{0}(\n{1},\n{2}\n)".format(
             self.__class__.__name__,
-            self._time,
+            textwrap.indent(f"time={self._time}", prefix="    "),
             textwrap.indent("basis=" + str(self.basis), prefix="    "),
         )
 
@@ -630,9 +636,6 @@ class MatrixOperator:
         self._ninput_funs = ninput_funs
         self._nrows = nrows
         self._ncols = ncols
-        self._components = [
-            [None for jj in range(ncols)] for ii in range(nrows)
-        ]
 
     def ninput_funs(self) -> int:
         return self._ninput_funs
@@ -664,12 +667,14 @@ class MatrixOperator:
         self._bkd = components[0][0]._bkd
 
     def get_values(self) -> Array:
+        if not hasattr(self, "_components"):
+            raise RuntimeError("must call set_commponents()")
         rows = []
         for ii in range(self.nrows()):
             row = []
             for jj in range(self.ncols()):
                 row.append(self._components[ii][jj].get_values())
-                rows.append(self._bkd.stack(row, axis=0))
+            rows.append(self._bkd.stack(row, axis=0))
         return self._bkd.stack(rows, axis=0)
 
     def get_jacobian(self) -> Array:
@@ -715,13 +720,18 @@ class MatrixOperator:
     def _multiply_functions(
         self, other: Union["MatrixOperator", ScalarOperator, float]
     ) -> "MatrixOperator":
+        if not hasattr(self, "_components"):
+            raise RuntimeError("must call set_commponents()")
+
         if not isinstance(other, (MatrixOperator, ScalarOperator, float)):
             raise ValueError(
                 f"cannot multiply MatrixOperator by {type(other)}"
             )
 
         if isinstance(other, MatrixOperator):
-            op = MatrixOperator(self.nrows(), self.ncols())
+            op = MatrixOperator(
+                self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+            )
             components = [
                 [
                     other._components[ii][jj] * self._components[ii][jj]
@@ -732,7 +742,9 @@ class MatrixOperator:
             op.set_components(components)
             return op
 
-        op = MatrixOperator(self.nrows(), self.ncols())
+        op = MatrixOperator(
+            self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+        )
         components = [
             [self._components[ii][jj] * other for jj in range(self.ncols())]
             for ii in range(self.nrows())
@@ -750,14 +762,22 @@ class MatrixOperator:
     ) -> "MatrixOperator":
         return self._multiply_functions(other)
 
+    def __neg__(self):
+        return -1.0 * self
+
     def _add_functions(
         self, other: Union["MatrixOperator", ScalarOperator, float]
     ) -> "MatrixOperator":
+        if not hasattr(self, "_components"):
+            raise RuntimeError("must call set_commponents()")
+
         if not isinstance(other, (MatrixOperator, ScalarOperator, float)):
             raise ValueError(f"cannot add {type(other)} to a ScalarOperator")
 
         if isinstance(other, MatrixOperator):
-            op = MatrixOperator(self.nrows(), self.ncols())
+            op = MatrixOperator(
+                self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+            )
             components = [
                 [
                     other._components[ii][jj] + self._components[ii][jj]
@@ -768,7 +788,9 @@ class MatrixOperator:
             op.set_components(components)
             return op
 
-        op = MatrixOperator(self.nrows(), self.ncols())
+        op = MatrixOperator(
+            self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+        )
         components = [
             [self._components[ii][jj] + other for jj in range(self.ncols())]
             for ii in range(self.nrows())
@@ -789,12 +811,17 @@ class MatrixOperator:
     def __sub__(
         self, other: Union["MatrixOperator", ScalarOperator, float]
     ) -> "MatrixOperator":
+        if not hasattr(self, "_components"):
+            raise RuntimeError("must call set_commponents()")
+
         if not isinstance(other, (MatrixOperator, ScalarOperator, float)):
             raise ValueError(
                 f"cannot subtract {type(other)} from a MatrixOperator"
             )
         if isinstance(other, MatrixOperator):
-            op = MatrixOperator(self.nrows(), self.ncols())
+            op = MatrixOperator(
+                self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+            )
             components = [
                 [
                     self._components[ii][jj] - other._components[ii][jj]
@@ -805,7 +832,9 @@ class MatrixOperator:
             op.set_components(components)
             return op
 
-        op = MatrixOperator(self.nrows(), self.ncols())
+        op = MatrixOperator(
+            self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+        )
         components = [
             [self._components[ii][jj] - other for jj in range(self.ncols())]
             for ii in range(self.nrows())
@@ -816,13 +845,18 @@ class MatrixOperator:
     def __rsub__(
         self, other: Union["MatrixOperator", ScalarOperator, float]
     ) -> "MatrixOperator":
+        if not hasattr(self, "_components"):
+            raise RuntimeError("must call set_commponents()")
+
         if not isinstance(other, (MatrixOperator, ScalarOperator, float)):
             raise ValueError(
                 f"cannot subtract MatrixOperator from {type(other)}"
             )
 
         if isinstance(other, MatrixOperator):
-            op = MatrixOperator(self.nrows(), self.ncols())
+            op = MatrixOperator(
+                self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+            )
             components = [
                 [
                     other._components[ii][jj] - self._components[ii][jj]
@@ -833,7 +867,9 @@ class MatrixOperator:
             op.set_components(components)
             return op
 
-        op = MatrixOperator(self.nrows(), self.ncols())
+        op = MatrixOperator(
+            self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+        )
         components = [
             [other - self._components[ii][jj] for jj in range(self.ncols())]
             for ii in range(self.nrows())
@@ -847,9 +883,9 @@ class MatrixOperator:
         return ScalarOperator(self.basis, self.ninput_funs(), values)
 
     def _set_matrix_components(self, components: List[ScalarOperator]):
-        self.set_components(self, components)
+        MatrixOperator.set_components(self, components)
 
-    def set_values(self, values: Array):
+    def set_flattened_values(self, values: Array):
         values_shape = (
             self.nrows() * self.ncols() * self.basis.mesh.nmesh_pts(),
         )
@@ -872,6 +908,29 @@ class MatrixOperator:
             components.append(row)
         self._set_matrix_components(components)
 
+    def set_values(self, values: Array):
+        values_shape = (
+            self.nrows(),
+            self.ncols(),
+            self.basis.mesh.nmesh_pts(),
+        )
+        if values.shape != values_shape:
+            raise ValueError("values has the wrong shape")
+        self.set_flattened_values(self._bkd.flatten(values))
+
+    def __call__(self, eval_samples: Array) -> Array:
+        rows = []
+        for ii in range(self.nrows()):
+            row = []
+            for jj in range(self.ncols()):
+                row.append(
+                    self._components[ii][jj](eval_samples)
+                )
+            rows.append(self._bkd.stack(row, axis=0))
+        # todo consider passing stacked values of each component
+        # to interpolate just once and then separting
+        return self._bkd.stack(rows, axis=0)
+
 
 class VectorOperator(MatrixOperator):
     def __init__(
@@ -890,6 +949,19 @@ class VectorOperator(MatrixOperator):
 
     def __repr__(self) -> str:
         return "{0}(nrows={1})".format(self.__class__.__name__, self.nrows())
+
+    def set_values(self, values: Array):
+        values_shape = (self.nrows(), self.basis.mesh.nmesh_pts())
+        if values.shape != values_shape:
+            raise ValueError(
+                "values shape {0} must be {1}".format(
+                    values.shape, values_shape
+                )
+            )
+        self.set_flattened_values(self._bkd.flatten(values))
+
+    def __call__(self, eval_samples: Array) -> Array:
+        return super().__call__(eval_samples)[:, 0]
 
 
 class VectorSolution(VectorOperator):
@@ -910,6 +982,11 @@ class VectorSolution(VectorOperator):
                 )
         MatrixOperator.set_components(self, components)
 
+    def get_components(self) -> List[VectorSolutionComponent]:
+        if not hasattr(self, "_components"):
+            raise RuntimeError("must call set_commponents()")
+        return [row[0] for row in self._components]
+
 
 class VectorFunction(VectorOperator):
     def set_components(self, components: List[ScalarFunction]):
@@ -917,6 +994,15 @@ class VectorFunction(VectorOperator):
             if not isinstance(comp, ScalarFunction):
                 raise ValueError("component must be an instance of Function")
         super().set_components([comp for comp in components])
+
+    def set_values(self, values: Array):
+        super().set_values(values)
+        zero_jac = self.basis._bkd.zeros(
+            (self.basis.mesh.nmesh_pts(), self.basis.mesh.nmesh_pts())
+        )
+        for ii in range(self.nrows()):
+            for jj in range(self.ncols()):
+                self._components[ii][jj].set_jacobian(zero_jac)
 
 
 class TransientVectorSolution(TransientOperatorMixin, VectorSolution):
@@ -928,7 +1014,7 @@ class TransientVectorFunction(TransientOperatorMixin, VectorFunction):
 
 
 class VectorOperatorFromCallableMixin:
-     def __init__(
+    def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         ninput_funs: int,
@@ -940,30 +1026,31 @@ class VectorOperatorFromCallableMixin:
         values = self._fun(basis.mesh.mesh_pts())
         if values.shape[1] != nrows:
             raise ValueError("values returned by fun has the wrong shape")
-        self.set_values(self._bkd.flatten(values.T))
-
+        self.set_values(values.T)
 
 
 class VectorSolutionFromCallable(
-        VectorOperatorFromCallableMixin, VectorOperator
+    VectorOperatorFromCallableMixin, VectorSolution
 ):
     pass
 
 
 class VectorFunctionFromCallable(
-        VectorOperatorFromCallableMixin, VectorOperator
+    VectorOperatorFromCallableMixin, VectorFunction
 ):
     pass
 
 
-class TransientMatrixOperatorFromCallableMixin(TransientOperatorMixin):
+class TransientVectorOperatorFromCallableMixin(TransientOperatorMixin):
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
+        ninput_funs: int,
+        nrows: int,
         fun: callable,
     ):
         self._fun = fun
-        super().__init__(basis)
+        super().__init__(basis, ninput_funs, nrows)
 
     def _eval(self, mesh_pts):
         self._check_time_set()
@@ -971,39 +1058,19 @@ class TransientMatrixOperatorFromCallableMixin(TransientOperatorMixin):
 
 
 class TransientVectorSolutionFromCallable(
-        TransientMatrixOperatorFromCallableMixin, TransientVectorSolution
+    TransientVectorOperatorFromCallableMixin, TransientVectorSolution
 ):
+    # if RuntimeError: must call set_commponents() is raised then
+    # set_time was likely not called.
     pass
 
 
 class TransientVectorFunctionFromCallable(
-        TransientMatrixOperatorFromCallableMixin, TransientVectorSolution
+    TransientVectorOperatorFromCallableMixin, TransientVectorSolution
 ):
+    # if RuntimeError: must call set_commponents() is raised then
+    # set_time was likely not called.
     pass
-
-
-class VectorFunctionFromCallable(VectorFunction):
-    def __init__(
-        self,
-        basis: OrthogonalCoordinateCollocationBasis,
-        nrows: int,
-        fun: callable,
-        ninput_funs: int = 1,
-    ):
-        super().__init__(nrows)
-        self._fun = fun
-        values = self._fun(basis.mesh.mesh_pts())
-        if values.shape[1] != nrows:
-            raise ValueError(
-                "values shape {0} returned by fun has the wrong shape".format(
-                    values.shape
-                )
-            )
-        components = [
-            ScalarFunction(basis, values[:, ii], ninput_funs)
-            for ii in range(nrows)
-        ]
-        self.set_components(components)
 
 
 def nabla(op: ScalarOperator) -> VectorOperator:

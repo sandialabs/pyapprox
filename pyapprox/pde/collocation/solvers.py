@@ -83,7 +83,7 @@ class SteadyPDE(PDESolver):
     def solve(self, init_sol: MatrixOperator):
         init_sol_array = self._bkd.flatten(init_sol.get_values())
         sol_array = self.newton_solver.solve(init_sol_array)
-        return self.physics.separate_solutions(sol_array)
+        return self.physics.solution_from_array(sol_array)
 
 
 class TransientPhysicsNewtonResidual(TransientNewtonResidual):
@@ -165,5 +165,7 @@ class TransientPDE(PDESolver):
         )
 
     def solve(self, init_sol: MatrixOperator):
-        self._sols, self._times = self._time_int.solve(init_sol.get_values())
+        self._sols, self._times = self._time_int.solve(
+            init_sol.get_flattened_values()
+        )
         return self._sols, self._times
