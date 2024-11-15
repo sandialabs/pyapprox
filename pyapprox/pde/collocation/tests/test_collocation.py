@@ -79,6 +79,41 @@ from pyapprox.pde.collocation.timeintegration import (
 # from pyapprox.util.print_wrapper import *
 
 
+class CoupledReactionOperation(VectorOperatorOperation):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        react_funs: List[callable],
+        react_op_degrees: List[int],
+    ):
+        self._basis = basis
+        self._react_coefs = [
+            ScalarFunctionFromCallable(
+                self._basis, react_funs[0], ninput_funs=2
+            ),
+            ScalarFunctionFromCallable(
+                self._basis, react_funs[1], ninput_funs=2
+            ),
+        ]
+        self._react_ops = [
+            ScalarMonomialOperator(
+                degree=react_op_degrees[0], coef=self._react_coefs[0]
+            ),
+            ScalarMonomialOperator(
+                degree=react_op_degrees[1], coef=self._react_coefs[1]
+            ),
+        ]
+
+    def __call__(self, sol: VectorSolution):
+        u0, u1 = sol.get_components()
+        vec = VectorOperator(sol.basis, sol.ninput_funs(), sol.nrows())
+        vec.set_components(
+            # [self._react_ops[0](u0), self._react_ops[1](u1)]
+            [self._react_ops[0](u0)-u1, self._react_ops[1](u1)+u0]
+        )
+        return vec
+
+
 class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromOperator):
     def __init__(
         self,
@@ -1097,40 +1132,9 @@ class TestCollocation:
 
         diffusion = self._setup_vector_function("diffusion", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
-
-        class CoupledReactionOperation(VectorOperatorOperation):
-            def __init__(
-                self,
-                react_funs: List[callable],
-                react_op_degrees: List[int],
-            ):
-                self._react_coefs = [
-                    ScalarFunctionFromCallable(
-                        basis, react_funs[0], ninput_funs=2
-                    ),
-                    ScalarFunctionFromCallable(
-                        basis, react_funs[1], ninput_funs=2
-                    ),
-                ]
-                self._react_ops = [
-                    ScalarMonomialOperator(
-                        degree=react_op_degrees[0], coef=self._react_coefs[0]
-                    ),
-                    ScalarMonomialOperator(
-                        degree=react_op_degrees[1], coef=self._react_coefs[1]
-                    ),
-                ]
-
-            def __call__(self, sol: VectorSolution):
-                u1, u2 = sol.get_components()
-                vec = VectorOperator(sol.basis, sol.ninput_funs(), sol.nrows())
-                vec.set_components(
-                    #[self._react_ops[0](u1), self._react_ops[1](u2)]
-                    [self._react_ops[0](u1)-u2, self._react_ops[1](u2)+u1]
-                )
-                return vec
-
-        react_op = CoupledReactionOperation(react_funs, react_op_degrees)
+        react_op = CoupledReactionOperation(
+            basis, react_funs, react_op_degrees
+        )
         physics = TwoSpeciesReactionDiffusionEquations(
             forcing,
             diffusion,
@@ -1138,9 +1142,9 @@ class TestCollocation:
         )
         # physics = LinearDiffusionEquation(forcing, diffusion)
         residual = physics.residual(exact_sol)
-        np.set_printoptions(linewidth=1000)
-        print(residual.get_values())
-        print(bkd.abs(residual.get_values()).max())
+        # np.set_printoptions(linewidth=1000)
+        # print(residual.get_values())
+        # print(bkd.abs(residual.get_values()).max())
         assert bkd.allclose(
             residual.get_values(),
             bkd.zeros(exact_sol.basis.mesh.nmesh_pts()),
@@ -1152,9 +1156,11 @@ class TestCollocation:
                 sol = physics.solution_from_array(sol_array)
                 return physics._flux(sol).get_values()
 
-            jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
+            jac_auto = bkd.jacobian(autofun, exact_sol.get_flattened_values())
             assert bkd.allclose(
-                physics._flux_jacobian_from_array(exact_sol.get_values()),
+                physics._flux_jacobian_from_array(
+                    exact_sol.get_flattened_values()
+                ),
                 jac_auto[:, 0],
                 atol=1e-15,
             )
@@ -1184,7 +1190,7 @@ class TestCollocation:
             assert bkd.allclose(sol.get_values(), exact_sol.get_values())
             return
 
-        linear_react_op = CoupledReactionOperation(react_funs, [1, 1])
+        linear_react_op = CoupledReactionOperation(basis, react_funs, [1, 1])
         linear_physics = TwoSpeciesReactionDiffusionEquations(
             forcing,
             diffusion,
@@ -1198,10 +1204,10 @@ class TestCollocation:
         # print(sol.get_values()-exact_sol.get_values())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
-    def test_two_species_reaction_diffusion(self):
+    def test_steady_two_species_reaction_diffusion(self):
         bkd = self.get_backend()
         test_case_args = [
-            [["-(x-1)*x+x", "-(x-1)*x"]],  # sol_strings
+            [["-(x-1)*x+x", "1-(x-1)*x"]],  # sol_strings
             [
                 ["1", "2"],
             ],  # diff_strings
@@ -1222,11 +1228,6 @@ class TestCollocation:
                     ],
                     [2, 1],
                 ],
-                # [
-                #     ["4*u**2", "2*u"],
-                #     [lambda x: bkd.full((x.shape[1],), 4.), lambda x: bkd.full((x.shape[1],), 2.)],
-                #     [2, 1],
-                # ],
             ],  # react_strs,
             [
                 "D"
@@ -1238,6 +1239,84 @@ class TestCollocation:
 
         for test_case in itertools.product(*test_case_args):
             self._check_steady_state_two_species_reaction_diffusion(*test_case)
+
+    def _check_transient_two_species_reaction_diffusion(
+        self,
+        sol_strings: List[str],
+        diff_strings: List[str],
+        react_tup: Tuple[List[str], List[callable], List[int]],  
+        bndry_types: str,
+        basis: OrthogonalCoordinateCollocationBasis,
+    ):
+        bkd = self.get_backend()
+        react_strs, react_funs, react_op_degrees = react_tup
+        man_sol = TwoSpeciesReactionDiffusion(
+            sol_strings,
+            basis.nphys_vars(),
+            diff_strings,
+            react_strs,
+            bkd=bkd,
+            oned=True,
+        )
+        print(man_sol)
+        exact_sol = self._setup_vector_solution(basis, man_sol)
+        init_time, final_time, deltat = 0.0, 1.0, 0.5
+        diffusion = self._setup_vector_function("diffusion", basis, man_sol)
+        forcing = self._setup_vector_function("forcing", basis, man_sol)
+        react_op = CoupledReactionOperation(
+            basis, react_funs, react_op_degrees
+        )
+        physics = TwoSpeciesReactionDiffusionEquations(
+            forcing,
+            diffusion,
+            react_op,
+        )
+        self._check_transient_pde_solve(
+            basis,
+            bndry_types,
+            man_sol,
+            physics,
+            exact_sol,
+            init_time,
+            final_time,
+            deltat,
+        )
+
+    def test_transient_two_species_reaction_diffusion(self):
+        bkd = self.get_backend()
+        test_case_args = [
+            [["(-(x-1)*x+x)*(T+1)", "(1-(x-1)*x)*(T+1)"]],  # sol_strings
+            [
+                ["1", "2"],
+            ],  # diff_strings
+            [
+                [
+                    ["0", "0"],
+                    [
+                        lambda x: bkd.zeros(x.shape[1]),
+                        lambda x: bkd.zeros(x.shape[1]),
+                    ],
+                    [0, 0],
+                ],
+                [
+                    ["4*u**2", "2*u"],
+                    [
+                        lambda x: bkd.full((x.shape[1],), 4.0),
+                        lambda x: bkd.full((x.shape[1],), 2.0),
+                    ],
+                    [2, 1],
+                ],
+            ],  # react_strs,
+            [
+                "D"
+            ],  # bndry_types # TODO need to implement robin and periodic boundary conditions for vector solutions
+            [
+                self._setup_cheby_basis_1d([14], [0, 1]),
+            ],  # basis
+        ]
+
+        for test_case in itertools.product(*test_case_args):
+            self._check_transient_two_species_reaction_diffusion(*test_case)
 
 
 class TestNumpyCollocation(TestCollocation, unittest.TestCase):
