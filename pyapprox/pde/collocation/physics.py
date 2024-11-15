@@ -355,7 +355,6 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         flux = self._flux(sol)
         residual = div(flux)
         if self._forcing is not None:
-            print(self._forcing.get_values(), "F", self._forcing._time)
             residual += self._forcing
         return residual
 

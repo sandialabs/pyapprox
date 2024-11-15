@@ -119,6 +119,7 @@ class NewtonSolver:
             raise ValueError("must call set_residual")
         sol = self._bkd.copy(init_guess)
         residual = self._residual(sol)
+
         residual_norms = []
         it = 0
         while True:
@@ -128,6 +129,7 @@ class NewtonSolver:
             residual = self._residual(sol)
             residual_norm = self._bkd.norm(residual)
             residual_norms.append(residual_norm)
+
             it += 1
             if self._verbosity > 1:
                 print("Iter", it, "rnorm", residual_norm)

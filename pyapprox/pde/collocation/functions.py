@@ -557,7 +557,10 @@ class TransientOperatorMixin:
 
     def set_time(self, time: float):
         self._time = time
-        self.set_values(self._eval(self.basis.mesh.mesh_pts()).T)
+        vals = self._eval(self.basis.mesh.mesh_pts())
+        if vals.ndim > 1:
+            vals = vals.T
+        self.set_values(vals)
         # It is assumed set_jacobian is set in set_values, e.g.
         # as done by Function and Solution
 

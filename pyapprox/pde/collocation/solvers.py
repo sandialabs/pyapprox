@@ -136,6 +136,7 @@ class TransientPDE(PDESolver):
             raise ValueError(
                 "newton_solver must be an instance of NewtonSolver"
             )
+        self._newton_solver = newton_solver
 
     def setup_time_integrator(
         self,
@@ -161,6 +162,7 @@ class TransientPDE(PDESolver):
             self._init_time,
             self._final_time,
             self._deltat,
+            newton_solver=self._newton_solver,
             verbosity=0,
         )
 

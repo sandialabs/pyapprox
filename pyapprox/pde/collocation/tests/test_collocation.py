@@ -551,14 +551,17 @@ class TestCollocation:
         )
         init_time, final_time, deltat = 0.0, 1.0, 0.5
         solver.setup_time_integrator(
-            BackwardEulerResidual,
+            # BackwardEulerResidual,
+            CrankNicholsonResidual,
             init_time,
             final_time,
             deltat,
         )
         init_sol = copy.deepcopy(exact_sol)
         init_sol.set_time(init_time)
+        print("A")
         sols, times = solver.solve(init_sol)
+        print("B")
         exact_sols = []
         for time in times:
             exact_sol.set_time(time)
@@ -941,14 +944,14 @@ class TestCollocation:
             physics,
             NewtonSolver(
                 verbosity=2,
-                maxiters=10,
+                maxiters=30,
                 atol=1e-8,
                 rtol=1e-8,
             ),
         )
         solver.setup_time_integrator(
-            BackwardEulerResidual,
-            # CrankNicholsonResidual,
+            # BackwardEulerResidual,
+            CrankNicholsonResidual,
             init_time,
             final_time,
             deltat,
@@ -969,6 +972,7 @@ class TestCollocation:
         init_time,
         final_time,
         deltat,
+        test_time,
     ):
         # physics must use man_sol["forcing_without_time_deriv"]
 
@@ -983,7 +987,8 @@ class TestCollocation:
             final_time,
             deltat,
         )
-        solver._time_residual.native_residual.set_time(init_time)
+        init_sol.set_time(test_time)
+        solver._time_residual.native_residual.set_time(test_time)
 
         residual = physics.residual(init_sol)
         print(residual.get_flattened_values(), "R")
@@ -994,6 +999,23 @@ class TestCollocation:
                 man_sol.ncomponents() * exact_sol.basis.mesh.nmesh_pts()
             ),
             atol=1e-7,
+        )
+
+        if not bkd.jacobian_implemented():
+            return
+
+        def autofun(sol_array):
+            sol = physics.solution_from_array(sol_array)
+            return physics.residual(sol).get_values()
+
+        jac_auto = bkd.jacobian(autofun, init_sol.get_flattened_values())
+        # np.set_printoptions(linewidth=1000)
+        #print(bkd.to_numpy(jac_auto), "JAUTO")
+        #print(bkd.to_numpy(physics.residual(init_sol).get_jacobian()), "JC")
+        assert bkd.allclose(
+            physics.residual(init_sol).get_jacobian(),
+            jac_auto,
+            atol=1e-15,
         )
 
     def _check_transient_pde_solve(
@@ -1024,9 +1046,9 @@ class TestCollocation:
             exact_sol.set_time(time)
             exact_sols.append(exact_sol.get_values())
         exact_sols = bkd.stack(exact_sols, axis=-1)
-        print(sols)
-        print(exact_sols)
-        print(sols - exact_sols)
+        # print(sols)
+        # print(exact_sols)
+        # print(sols - exact_sols)
         assert bkd.allclose(sols, exact_sols, atol=1e-12)
 
     def _check_shallow_wave_equation(
@@ -1050,7 +1072,6 @@ class TestCollocation:
 
         exact_sol = self._setup_vector_solution(basis, man_sol)
         init_time, final_time, deltat = 0.0, 1.0, 0.5
-        # init_time, final_time, deltat = 0.0, 0.1, 0.1
 
         bed = self._setup_scalar_function("bed", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
@@ -1059,6 +1080,7 @@ class TestCollocation:
             "forcing_without_time_deriv", basis, man_sol
         )
         physics = ShallowWaveEquation(bed, forcing_wo_time_deriv)
+        test_time = deltat
         self._check_transient_pde_physics_residual(
             basis,
             bndry_types,
@@ -1068,6 +1090,7 @@ class TestCollocation:
             init_time,
             final_time,
             deltat,
+            test_time
         )
 
         physics = ShallowWaveEquation(bed, forcing)
@@ -1083,19 +1106,21 @@ class TestCollocation:
         )
 
     def test_shallow_wave_equation(self):
+        # while velocity and momentum are only linear in Time
+        # momentum will be quadratic so only crank nicholso will be exact
+        # It appears that this choice of depth and vel requires huge numbers of newton interation
+        e# ven though I have verified that the jaocbians are exct with AD.
         test_case_args = [
             [
-                "1-(x-2)*x/2*(1+T)"
+                "(1+x**2)*(1+T)"
             ],  # depth_string # tests time dependent boundary conditions
-            # ["1-(x-1)*x/2*(1+T)"],  # depth_string # strictly enforces zero dirichlet conditions
-            # ["1+0*T"],
             [
-                ["(x+1)*(1+T)"],
+                ["(1+x**2)/10*(1+T)"],
             ],  # vel_strings
             ["0"],  # bed_string
             ["D"],  # bndry_types
             [
-                self._setup_cheby_basis_1d([6], [0, 1]),
+                self._setup_cheby_basis_1d([10], [0, 1]),
             ],  # basis
         ]
 
@@ -1149,21 +1174,6 @@ class TestCollocation:
             residual.get_values(),
             bkd.zeros(exact_sol.basis.mesh.nmesh_pts()),
         )
-
-        if bkd.jacobian_implemented():
-
-            def autofun(sol_array):
-                sol = physics.solution_from_array(sol_array)
-                return physics._flux(sol).get_values()
-
-            jac_auto = bkd.jacobian(autofun, exact_sol.get_flattened_values())
-            assert bkd.allclose(
-                physics._flux_jacobian_from_array(
-                    exact_sol.get_flattened_values()
-                ),
-                jac_auto[:, 0],
-                atol=1e-15,
-            )
 
         boundaries = self._setup_boundary_conditions(
             basis,

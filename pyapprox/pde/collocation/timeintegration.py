@@ -54,8 +54,6 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         jac = self._jacobian(sol)
         return self._apply_constraints_to_jacobian(jac)
 
-    # return self._apply_constraints_to_jacobian(jac)
-
     def adjoint_implemented(self) -> bool:
         return False
 
@@ -65,6 +63,33 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         self._prev_sol = prev_sol
 
     def linsolve(self, sol: Array, res: Array) -> Array:
+
+        # leave around incase need to debug timestepping schemes and
+        # newton residuals
+        # def autofun(sol_array):
+        #     return self(sol_array)
+        # jac_auto = self._bkd.jacobian(autofun, sol)
+        # print(jac_auto)
+        # print(self.jacobian(sol))
+        # print(jac_auto-self.jacobian(sol))
+        # assert self._bkd.allclose(
+        #     self.jacobian(sol),
+        #     jac_auto,
+        #     atol=1e-15
+        # )
+
+        # def autofun(sol_array):
+        #     return self.native_residual(sol_array)
+        # jac_auto = self._bkd.jacobian(autofun, sol)
+        # print(jac_auto)
+        # print(self.native_residual.jacobian(sol))
+        # print(jac_auto-self.native_residual.jacobian(sol))
+        # assert self._bkd.allclose(
+        #     self.native_residual.jacobian(sol),
+        #     jac_auto,
+        #     atol=1e-15
+        # )
+
         return self._bkd.solve(self.jacobian(sol), res)
 
     def _param_jacobian(self, fsol_nm1: Array, sol: Array) -> Array:
@@ -364,11 +389,11 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
     def _jacobian(self, sol: Array):
         self.native_residual.set_time(self._time)
         current_jac = self.native_residual.jacobian(self._prev_sol)
-        self.native_residual.set_time(self._time + self._deltat)
-        next_jac = self.native_residual.jacobian(sol)
+        # self.native_residual.set_time(self._time + self._deltat)
+        # next_jac = self.native_residual.jacobian(sol)
         return self.native_residual.mass_matrix(
             sol.shape[0]
-        ) - 0.5 * self._deltat * (current_jac + next_jac)
+        ) - 0.5 * self._deltat * (current_jac)
 
     def quadrature_samples_weights(self, times):
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
