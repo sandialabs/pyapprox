@@ -181,10 +181,9 @@ class ScalarSolutionMixin:
 
 
 class DiffusionMixin:
-    def sympy_diffusion_expressions(self):
+    def _sympy_diffusion_expressions(self, diff_str, sol_expr):
         cartesian_symbs = self.cartesian_symbols()
-        diff_expr = sp.sympify(self._diff_str)
-        sol_expr = self._expressions["solution"]
+        diff_expr = sp.sympify(diff_str)
         laplace_expr = sum(
             [
                 (diff_expr * sol_expr.diff(symb, 1)).diff(symb, 1)
@@ -195,15 +194,27 @@ class DiffusionMixin:
         flux_exprs = [
             diff_expr * sol_expr.diff(symb, 1) for symb in cartesian_symbs
         ]
+        return diff_expr, flux_exprs, forc_expr
+
+    def sympy_diffusion_expressions(self):
+        diff_expr, flux_exprs, forc_expr = self._sympy_diffusion_expressions(
+            self._diff_str, self._expressions["solution"]
+        )
         self._set_expression("diffusion", diff_expr, self._diff_str)
         self._set_expression("flux", flux_exprs, self._sol_str)
         self._expressions["forcing"] += forc_expr
 
 
 class ReactionMixin:
+    def _sympy_reaction_expressions(self, react_str, sol_str):
+        react_str = react_str.replace("u", "({0})".format(sol_str))
+        return react_str, sp.sympify(react_str)
+
     def sympy_reaction_expressions(self):
-        react_str = self._react_str.replace("u", "({0})".format(self._sol_str))
-        self._set_expression("reaction", sp.sympify(react_str), react_str)
+        react_str, react_expr = self._sympy_reaction_expressions(
+            self._react_str, self._sol_str
+        )
+        self._set_expression("reaction", react_expr, react_str)
         self._expressions["forcing"] -= self._expressions["reaction"]
 
 
@@ -417,3 +428,61 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
         self._expressions["forcing"] = [
             f + g for f, g in zip(self._expressions["forcing"], forc_expr)
         ]
+
+
+class TwoSpeciesReactionDiffusion(
+    VectorSolutionMixin,
+    DiffusionMixin,
+    ReactionMixin,
+    ManufacturedSolution,
+):
+    def __init__(
+        self,
+        sol_strs: List[str],
+        nvars: int,
+        diff_strs: List[str],
+        react_strs: List[str],
+        bkd=NumpyLinAlgMixin,
+        oned: bool = False,
+    ):
+        self._diff_strs = diff_strs
+        self._react_strs = react_strs
+        super().__init__(sol_strs, nvars, bkd, oned)
+
+    def sympy_diffusion_expressions(self):
+        diff_expr0, flux_exprs0, forc_expr0 = (
+            self._sympy_diffusion_expressions(
+                self._diff_strs[0], self._expressions["solution"][0]
+            )
+        )
+        diff_expr1, flux_exprs1, forc_expr1 = (
+            self._sympy_diffusion_expressions(
+                self._diff_strs[1], self._expressions["solution"][1]
+            )
+        )
+        forc_exprs = [forc_expr0, forc_expr1]
+        flux_exprs = [flux_exprs0, flux_exprs1]
+        diff_exprs = [diff_expr0, diff_expr1]
+
+        self._set_expression("diffusion", diff_exprs, self._diff_strs[0])
+        self._set_expression("flux", flux_exprs, self._sol_strs[0])
+        self._expressions["forcing"] = [
+            f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
+        ]
+
+    def sympy_reaction_expressions(self):
+        react_str0, react_expr0 = self._sympy_reaction_expressions(
+            self._react_strs[0], self._sol_strs[0]
+        )
+        react_str1, react_expr1 = self._sympy_reaction_expressions(
+            self._react_strs[1], self._sol_strs[1]
+        )
+        react_exprs = [react_expr0, react_expr1]
+        self._set_expression("reaction", react_exprs, self._react_strs[0])
+        self._expressions["forcing"] = [
+            f - g for f, g in zip(self._expressions["forcing"], react_exprs)
+        ]
+
+    def sympy_expressions(self):
+        self.sympy_diffusion_expressions()
+        self.sympy_reaction_expressions()

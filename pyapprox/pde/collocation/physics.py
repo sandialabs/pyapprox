@@ -339,7 +339,7 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
             g_hsq = (0.5 * self._g) * h**2
             components = [
                 [uh, uh**2 / h + g_hsq, uvh],
-                [vh, uvh, uh**2 / h + g_hsq],
+                [vh, uvh, vh**2 / h + g_hsq],
             ]
         flux.set_components(components)
         return -flux
@@ -350,6 +350,7 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         flux = self._flux(sol)
         residual = div(flux)
         if self._forcing is not None:
+            print(self._forcing.get_values(), "F")
             residual += self._forcing
         return residual
 
