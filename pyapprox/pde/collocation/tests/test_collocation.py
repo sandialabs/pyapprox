@@ -28,6 +28,7 @@ from pyapprox.pde.collocation.physics import (
     ShallowIceEquation,
     HelmholtzEquation,
     ShallowWaveEquation,
+    TwoSpeciesReactionDiffusionEquations,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunctionFromCallable,
@@ -39,6 +40,9 @@ from pyapprox.pde.collocation.functions import (
     VectorSolutionFromCallable,
     TransientVectorSolutionFromCallable,
     TransientVectorFunctionFromCallable,
+    VectorSolution,
+    VectorOperator,
+    VectorOperatorOperation,
 )
 
 from pyapprox.pde.collocation.boundaryconditions import (
@@ -170,9 +174,7 @@ class TestCollocation:
             # TODO considert makeing 1 component case be VectorOperator
             # with one entry
             if man_sol.ncomponents() == 1:
-                sol = self._setup_scalar_function(
-                    "solution", basis, man_sol
-                )
+                sol = self._setup_scalar_function("solution", basis, man_sol)
                 bndry_funs.append(
                     DirichletBoundaryFromOperator(mesh_bndry, sol)
                 )
@@ -183,7 +185,9 @@ class TestCollocation:
             for ii in range(man_sol.ncomponents()):
                 bndry_funs.append(
                     DirichletBoundaryFromOperator(
-                        mesh_bndry, sol_components[ii], ii * basis.mesh.nmesh_pts()
+                        mesh_bndry,
+                        sol_components[ii],
+                        ii * basis.mesh.nmesh_pts(),
                     )
                 )
 
@@ -259,9 +263,7 @@ class TestCollocation:
         for bndry_name, mesh_bndry in boundaries.items():
             if bndry_name == "left":
                 continue
-            sol = self._setup_scalar_solution(
-                basis, man_sol
-            )
+            sol = self._setup_scalar_solution(basis, man_sol)
             bndry_funs.append(DirichletBoundaryFromOperator(mesh_bndry, sol))
         return bndry_funs
 
@@ -317,7 +319,10 @@ class TestCollocation:
     ):
         if not man_sol.transient[name]:
             return VectorFunctionFromCallable(
-                basis, man_sol.ncomponents(), man_sol.functions[name]
+                basis,
+                man_sol.ncomponents(),
+                man_sol.ncomponents(),
+                man_sol.functions[name],
             )
         fun = TransientVectorFunctionFromCallable(
             basis,
@@ -366,9 +371,7 @@ class TestCollocation:
             oned=True,
         )
         print(man_sol)
-        exact_sol = self._setup_scalar_solution(
-            basis, man_sol
-        )
+        exact_sol = self._setup_scalar_solution(basis, man_sol)
 
         # test plot runs
         # fig, ax = exact_sol.get_plot_axis()
@@ -479,9 +482,7 @@ class TestCollocation:
             oned=True,
         )
         print(man_sol)
-        exact_sol = self._setup_scalar_solution(
-            basis, man_sol
-        )
+        exact_sol = self._setup_scalar_solution(basis, man_sol)
 
         diffusion = self._setup_scalar_function("diffusion", basis, man_sol)
         forcing = self._setup_scalar_function("forcing", basis, man_sol)
@@ -714,9 +715,7 @@ class TestCollocation:
         )
 
         print(man_sol)
-        exact_sol = self._setup_scalar_solution(
-            basis, man_sol
-        )
+        exact_sol = self._setup_scalar_solution(basis, man_sol)
 
         # test plot runs
         # fig, ax = exact_sol.get_plot_axis()
@@ -821,9 +820,7 @@ class TestCollocation:
         )
 
         print(man_sol)
-        exact_sol = self._setup_scalar_solution(
-            basis, man_sol
-        )
+        exact_sol = self._setup_scalar_solution(basis, man_sol)
         sqwavenum = self._setup_scalar_function("sqwavenum", basis, man_sol)
         forcing = self._setup_scalar_function("forcing", basis, man_sol)
         physics = HelmholtzEquation(sqwavenum, forcing)
@@ -954,7 +951,7 @@ class TestCollocation:
         solver._time_residual.native_residual.set_time(init_time)
 
         residual = physics.residual(init_sol)
-        print(residual.get_flattened_values())
+        print(residual.get_flattened_values(), "R")
         print(bkd.abs(residual.get_flattened_values()).max())
         assert bkd.allclose(
             residual.get_flattened_values(),
@@ -994,7 +991,7 @@ class TestCollocation:
         exact_sols = bkd.stack(exact_sols, axis=-1)
         print(sols)
         print(exact_sols)
-        print(sols-exact_sols)
+        print(sols - exact_sols)
         assert bkd.allclose(sols, exact_sols, atol=1e-12)
 
     def _check_shallow_wave_equation(
@@ -1017,8 +1014,8 @@ class TestCollocation:
         print(man_sol)
 
         exact_sol = self._setup_vector_solution(basis, man_sol)
-        # init_time, final_time, deltat = 0.0, 1.0, 0.5
-        init_time, final_time, deltat = 0.0, 0.2, 0.2
+        init_time, final_time, deltat = 0.0, 1.0, 0.5
+        # init_time, final_time, deltat = 0.0, 0.1, 0.1
 
         bed = self._setup_scalar_function("bed", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
@@ -1052,15 +1049,18 @@ class TestCollocation:
 
     def test_shallow_wave_equation(self):
         test_case_args = [
-            ["1-(x-2)*x/2*(1+T)"],  # depth_string # tests time dependent boundary conditions
+            [
+                "1-(x-2)*x/2*(1+T)"
+            ],  # depth_string # tests time dependent boundary conditions
             # ["1-(x-1)*x/2*(1+T)"],  # depth_string # strictly enforces zero dirichlet conditions
+            # ["1+0*T"],
             [
                 ["(x+1)*(1+T)"],
             ],  # vel_strings
             ["0"],  # bed_string
             ["D"],  # bndry_types
             [
-                self._setup_cheby_basis_1d([14], [0, 1]),
+                self._setup_cheby_basis_1d([6], [0, 1]),
             ],  # basis
         ]
 
@@ -1097,22 +1097,53 @@ class TestCollocation:
 
         diffusion = self._setup_vector_function("diffusion", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
-        react_coef = ScalarFunctionFromCallable(basis, react_fun)
-        react_op = ScalarMonomialOperator(
-            degree=react_op_degree, coef=react_coef
-        )
 
+        class CoupledReactionOperation(VectorOperatorOperation):
+            def __init__(
+                self,
+                react_funs: List[callable],
+                react_op_degrees: List[int],
+            ):
+                self._react_coefs = [
+                    ScalarFunctionFromCallable(
+                        basis, react_funs[0], ninput_funs=2
+                    ),
+                    ScalarFunctionFromCallable(
+                        basis, react_funs[1], ninput_funs=2
+                    ),
+                ]
+                self._react_ops = [
+                    ScalarMonomialOperator(
+                        degree=react_op_degrees[0], coef=self._react_coefs[0]
+                    ),
+                    ScalarMonomialOperator(
+                        degree=react_op_degrees[1], coef=self._react_coefs[1]
+                    ),
+                ]
+
+            def __call__(self, sol: VectorSolution):
+                u1, u2 = sol.get_components()
+                vec = VectorOperator(sol.basis, sol.ninput_funs(), sol.nrows())
+                vec.set_components(
+                    #[self._react_ops[0](u1), self._react_ops[1](u2)]
+                    [self._react_ops[0](u1)-u2, self._react_ops[1](u2)+u1]
+                )
+                return vec
+
+        react_op = CoupledReactionOperation(react_funs, react_op_degrees)
         physics = TwoSpeciesReactionDiffusionEquations(
-            forcing, diffusion, react_ops,
+            forcing,
+            diffusion,
+            react_op,
         )
         # physics = LinearDiffusionEquation(forcing, diffusion)
         residual = physics.residual(exact_sol)
-        # np.set_printoptions(linewidth=1000)
-        # print(residual.get_values())
-        # print(bkd.abs(residual.get_values()).max())
+        np.set_printoptions(linewidth=1000)
+        print(residual.get_values())
+        print(bkd.abs(residual.get_values()).max())
         assert bkd.allclose(
             residual.get_values(),
-            bkd.zeros(exact_sol.nmesh_pts()),
+            bkd.zeros(exact_sol.basis.mesh.nmesh_pts()),
         )
 
         if bkd.jacobian_implemented():
@@ -1134,35 +1165,31 @@ class TestCollocation:
             man_sol,
         )
         physics.set_boundaries(boundaries)
+        print(react_op_degrees)
+        maxiters = (
+            1 if (react_op_degrees[0] < 2 and react_op_degrees[1] < 2) else 10
+        )
         solver = SteadyPDE(
             physics,
             NewtonSolver(
                 verbosity=2,
-                maxiters=1 if react_op_degree < 2 else 10,
+                maxiters=maxiters,
                 atol=1e-8,
                 rtol=1e-8,
             ),
         )
-        linear_init_sol = ScalarSolutionFromCallable(
-            basis,
-            lambda x: bkd.ones(
-                x.shape[1],
-            ),
-        )
-        if react_op_degree < 2:
+        linear_init_sol = exact_sol * 0.0
+        if react_op_degrees[0] < 2 and react_op_degrees[1] < 2:
             sol = solver.solve(linear_init_sol)
             assert bkd.allclose(sol.get_values(), exact_sol.get_values())
             return
 
-        linear_physics = AdvectionDiffusionReactionEquation(
+        linear_react_op = CoupledReactionOperation(react_funs, [1, 1])
+        linear_physics = TwoSpeciesReactionDiffusionEquations(
             forcing,
             diffusion,
-            ScalarMonomialOperator(degree=1, coef=react_coef),
-            vel_field,
+            linear_react_op,
         )
-        # linear physics must have all the same functions, e.g. forcing
-        # as physics or set_boundaries, will changes the boundaries
-        # that means they are no longer consistent with nonlinear problem
         linear_physics.set_boundaries(boundaries)
         linear_solver = SteadyPDE(linear_physics, NewtonSolver(maxiters=1))
         init_sol = linear_solver.solve(linear_init_sol)
@@ -1174,20 +1201,36 @@ class TestCollocation:
     def test_two_species_reaction_diffusion(self):
         bkd = self.get_backend()
         test_case_args = [
-            [
-                ["-(x-1)*x/2", "-(x-1)*x"]
-            ],  # sol_strings
+            [["-(x-1)*x+x", "-(x-1)*x"]],  # sol_strings
             [
                 ["1", "2"],
             ],  # diff_strings
             [
                 [
                     ["0", "0"],
-                    [lambda x: bkd.zeros(x.shape[1]), lambda x: bkd.zeros(x.shape[1])],
+                    [
+                        lambda x: bkd.zeros(x.shape[1]),
+                        lambda x: bkd.zeros(x.shape[1]),
+                    ],
                     [0, 0],
                 ],
+                [
+                    ["4*u**2", "2*u"],
+                    [
+                        lambda x: bkd.full((x.shape[1],), 4.0),
+                        lambda x: bkd.full((x.shape[1],), 2.0),
+                    ],
+                    [2, 1],
+                ],
+                # [
+                #     ["4*u**2", "2*u"],
+                #     [lambda x: bkd.full((x.shape[1],), 4.), lambda x: bkd.full((x.shape[1],), 2.)],
+                #     [2, 1],
+                # ],
             ],  # react_strs,
-            ["D"],  # bndry_types
+            [
+                "D"
+            ],  # bndry_types # TODO need to implement robin and periodic boundary conditions for vector solutions
             [
                 self._setup_cheby_basis_1d([14], [0, 1]),
             ],  # basis

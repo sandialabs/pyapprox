@@ -391,9 +391,10 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
         self._depth_str = depth_str
         self._vel_strs = vel_strs
         self._bed_str = bed_str
-        print(bed_str, "A")
+        print(vel_strs, "A", depth_str)
         self._g = 9.81
-        mom_strs = [f"{depth_str}*{vel_str}" for vel_str in vel_strs]
+        mom_strs = [f"({depth_str})*({vel_str})" for vel_str in vel_strs]
+        print(mom_strs)
         super().__init__([depth_str] + mom_strs, nvars, bkd, oned)
 
     def sympy_expressions(self):
@@ -420,7 +421,7 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
                     flux.diff(s, 1)
                     for flux, s in zip(flux_exprs[ii], cartesian_symbs)
                 ]
-            )
+            ).simplify()
             for ii in range(self._nvars + 1)
         ]
         self._set_expression("bed", bed_expr, self._bed_str)
@@ -436,6 +437,10 @@ class TwoSpeciesReactionDiffusion(
     ReactionMixin,
     ManufacturedSolution,
 ):
+    f"""
+    Reaction Vector: R(u0, u1) = [c0*u0**p0-u1, c1*u1**p1+u0]
+    for coefficients c0, c1 and powers p0 and p1
+    """
     def __init__(
         self,
         sol_strs: List[str],
@@ -478,6 +483,9 @@ class TwoSpeciesReactionDiffusion(
             self._react_strs[1], self._sol_strs[1]
         )
         react_exprs = [react_expr0, react_expr1]
+        react_exprs = [
+           react_expr0-self._expressions["solution"][1],
+           react_expr1+self._expressions["solution"][0]]
         self._set_expression("reaction", react_exprs, self._react_strs[0])
         self._expressions["forcing"] = [
             f - g for f, g in zip(self._expressions["forcing"], react_exprs)

@@ -12,8 +12,10 @@ from pyapprox.pde.collocation.functions import (
     ScalarFunctionFromCallable,
     ScalarMonomialOperator,
     VectorOperator,
+    VectorOperatorOperation,
     MatrixOperator,
     nabla,
+    vector_nabla,
     div,
 )
 from pyapprox.pde.collocation.newton import NewtonResidual
@@ -165,7 +167,7 @@ class VectorPhysicsMixin:
         sol.set_flattened_values(array)
         return sol
 
-    def _check_is_imutable_vector_function(self, fun: VectorFunction, name):
+    def _check_is_vector_function(self, fun: VectorFunction, name):
         if fun is not None and not isinstance(fun, VectorFunction):
             raise ValueError(f"{name} must be an instance of VectorFunction")
 
@@ -183,7 +185,9 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         if reaction_op is not None and not isinstance(
             reaction_op, ScalarOperatorOperation
         ):
-            raise ValueError("reaction must be an instance of ScalarOperator")
+            raise ValueError(
+                "reaction must be an instance of ScalarOperatorOperation"
+            )
         if velocity_field is not None and not isinstance(
             velocity_field, VectorFunction
         ):
@@ -197,7 +201,9 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         self._diffusion = diffusion
         self._reaction_op = reaction_op
         self._velocity_field = velocity_field
-        self._flux_jacobian_implemented = True
+        self._flux_jacobian_implemented = (
+            self._velocity_field is not None or self._diffusion is not None
+        )
 
     def residual(self, sol: ScalarSolution):
         if not isinstance(sol, ScalarSolution):
@@ -205,13 +211,10 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         residual = 0.0
         if self._forcing is not None:
             residual += self._forcing
-        if self._diffusion is not None:
-            residual += div(self._diffusion * nabla(sol))
         if self._reaction_op is not None:
             residual += self._reaction_op(sol)
-        if self._velocity_field is not None:
-            # todo combine with diffusion so div only applied once
-            residual -= div(sol * self._velocity_field)
+        if self._flux_jacobian_from_array:
+            residual += div(self._flux(sol))
         return residual
 
     def _flux(self, sol: ScalarSolution):
@@ -224,7 +227,8 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
 
     def get_functions(self) -> Dict[str, ScalarOperator]:
         funs = super().get_functions()
-        funs["forcing"] = self._forcing
+        if self._forcing is not None:
+            funs["forcing"] = self._forcing
         if self._diffusion is not None:
             funs["diffusion"] = self._diffusion
         if self._reaction_op is not None:
@@ -284,7 +288,8 @@ class ShallowIceEquation(ScalarPhysicsMixin, Physics):
 
     def get_functions(self) -> Dict[str, ScalarOperator]:
         funs = super().get_functions()
-        funs["forcing"] = self._forcing
+        if self._forcing is not None:
+            funs["forcing"] = self._forcing
 
 
 class HelmholtzEquation(AdvectionDiffusionReactionEquation):
@@ -350,12 +355,69 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         flux = self._flux(sol)
         residual = div(flux)
         if self._forcing is not None:
-            print(self._forcing.get_values(), "F")
+            print(self._forcing.get_values(), "F", self._forcing._time)
             residual += self._forcing
         return residual
 
     def get_functions(self) -> Dict:
         funs = super().get_functions()
-        funs["forcing"] = self._forcing
+        if self._forcing is not None:
+            funs["forcing"] = self._forcing
         funs["bed"] = self._bed
+        return funs
+
+
+class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
+    def __init__(
+        self,
+        forcing: VectorFunction = None,
+        diffusion: VectorFunction = None,
+        reaction_op: VectorOperatorOperation = None,
+    ):
+        self._check_is_vector_function(forcing, "forcing")
+        self._check_is_vector_function(diffusion, "diffusion")
+        if not isinstance(reaction_op, VectorOperatorOperation):
+            raise ValueError(
+                "reaction must be an instance of VectorOperatorOperation"
+            )
+        super().__init__(forcing.basis)
+        self._forcing = forcing
+        diff_components = diffusion.get_components()
+        self._diffusion = MatrixOperator(
+            diffusion.basis, 2, 2, 2
+        )
+        zero = ScalarFunction(
+            self.basis,
+            self._bkd.zeros(self.basis.mesh.nmesh_pts()),
+            ninput_funs=2,
+        )
+        self._diffusion.set_components(
+            [[diff_components[0], zero],
+             [zero, diff_components[1]]]
+        )
+        self._reaction_op = reaction_op
+        self._flux_jacobian_implemented = True
+
+    def ncomponents(self) -> int:
+        return 2
+
+    def residual(self, sol: VectorSolution):
+        if not isinstance(sol, VectorSolution):
+            raise ValueError("sol must be an instance of VectorSolution")
+        residual = div(self._flux(sol).T)
+        residual += self._reaction_op(sol)
+        if self._forcing is not None:
+            residual += self._forcing
+        return residual
+
+    def _flux(self, sol: VectorSolution):
+        flux = self._diffusion @ vector_nabla(sol)
+        return flux
+
+    def get_functions(self) -> Dict[str, ScalarOperator]:
+        funs = super().get_functions()
+        if self._forcing is not None:
+            funs["forcing"] = self._forcing
+        funs["diffusion"] = self._diffusion
+        funs["reaction_op"] = self._reaction_op
         return funs

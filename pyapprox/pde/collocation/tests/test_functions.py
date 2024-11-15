@@ -16,7 +16,9 @@ from pyapprox.pde.collocation.functions import (
     VectorSolutionComponent,
     nabla,
     div,
+    VectorOperator,
     VectorSolution,
+    MatrixOperator,
 )
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
@@ -300,13 +302,13 @@ class TestOperators:
         fun_values2 = tfun2(basis.mesh.mesh_pts())
         fun_values3 = tfun3(basis.mesh.mesh_pts())
         sol0 = VectorSolutionComponent(basis, 3, 0, fun_values0)
-        op1 = sol0.deriv(0)
+        fun1 = sol0.deriv(0)
         sol2 = VectorSolutionComponent(basis, 3, 1, fun_values2)
         sol3 = VectorSolutionComponent(basis, 3, 2, fun_values3)
         fun4 = VectorSolutionComponent(basis, 3, 2, fun_values3).deriv(0)
 
         assert bkd.allclose(
-            (op1 * sol2 / fun4).get_values(), fun_values1 * fun_values2
+            (fun1 * sol2 / fun4).get_values(), fun_values1 * fun_values2
         )
 
         vec_sol1 = VectorSolution(basis, 3, 3)
@@ -321,12 +323,30 @@ class TestOperators:
         vec_sol2.set_values(vec_sol1.get_values())
         assert bkd.allclose(vec_sol2.get_values(), vec_sol1.get_values())
 
+        vec_op = VectorOperator(basis, 2, 2)
+        vec_op.set_components([fun1, fun4])
+
+        mat_op = MatrixOperator(basis, 2, 2, 2)
+        mat_op.set_components([[fun1, fun4], [2.0 * fun1, 2.0 * fun4]])
+
+        inner_prod = vec_op.T @ vec_op
+        assert bkd.allclose(
+            inner_prod.get_values(), vec_op.sqnorm().get_values()
+        )
+        matmul = mat_op @ vec_op
+        assert bkd.allclose(
+            matmul.get_values()[0], vec_op.sqnorm().get_values()
+        )
+        assert bkd.allclose(
+            matmul.get_values()[1], 2.0 * vec_op.sqnorm().get_values()
+        )
+
         if not bkd.jacobian_implemented():
             return
 
         assert bkd.allclose(
-            (op1 * sol2 / fun4).get_jacobian(),
-            # (op1 / fun4).get_jacobian(),
+            (fun1 * sol2 / fun4).get_jacobian(),
+            # (fun1 / fun4).get_jacobian(),
             bkd.jacobian(
                 lambda v: (
                     VectorSolutionComponent(

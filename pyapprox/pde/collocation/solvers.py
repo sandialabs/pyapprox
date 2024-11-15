@@ -120,13 +120,10 @@ class TransientPhysicsNewtonResidual(TransientNewtonResidual):
         funs = self._physics.get_functions()
         for name, fun in funs.items():
             if isinstance(fun, TransientOperatorMixin):
-                print(name, "B")
                 fun.set_time(time)
 
         for bndry in self._physics._bndrys:
-            print(bndry._fun)
             if isinstance(bndry._fun, TransientOperatorMixin):
-                print("A")
                 bndry._fun.set_time(time)
 
 

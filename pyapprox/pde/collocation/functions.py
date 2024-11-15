@@ -73,7 +73,6 @@ class ScalarOperator:
 
     def get_values(self) -> Array:
         if not hasattr(self, "_values"):
-            print(self)
             raise RuntimeError("must first call set_values()")
         return self._values
 
@@ -423,8 +422,11 @@ class ScalarOperator:
         return fig, fig.add_subplot(111, projection="3d")
 
     def __repr__(self):
-        return "{0}(\n{1}\n)".format(
+        return "{0}(\n{1}\n{2}\n)".format(
             self.__class__.__name__,
+            textwrap.indent(
+                f"ninput_funs={self.ninput_funs()}", prefix="    "
+            ),
             textwrap.indent("basis=" + str(self.basis), prefix="    "),
         )
 
@@ -444,7 +446,10 @@ class ScalarFunction(ScalarOperator):
     def set_values(self, values: Array):
         super().set_values(values)
         zero_jac = self.basis._bkd.zeros(
-            (self.basis.mesh.nmesh_pts(), self.ninput_funs()*self.basis.mesh.nmesh_pts())
+            (
+                self.basis.mesh.nmesh_pts(),
+                self.ninput_funs() * self.basis.mesh.nmesh_pts(),
+            )
         )
         super().set_jacobian(zero_jac)
 
@@ -479,8 +484,11 @@ class ScalarOperatorFromCallableMixin:
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         fun: callable,
+        ninput_funs: int = 1,
     ):
-        super().__init__(basis, self._get_values(basis, fun))
+        super().__init__(
+            basis, self._get_values(basis, fun), ninput_funs=ninput_funs
+        )
 
     def _get_values(
         self, basis: OrthogonalCoordinateCollocationBasis, fun: callable
@@ -587,7 +595,6 @@ class TransientOperatorFromCallableMixin(TransientOperatorMixin):
 
     def _eval(self, mesh_pts):
         self._check_time_set()
-        print(self._fun(mesh_pts, time=self._time).shape)
         return self._fun(mesh_pts, time=self._time)
 
 
@@ -652,7 +659,6 @@ class MatrixOperator:
     def _check_components(self, components):
         # todo check all components have the same ninput_funs()
         if len(components) != self.nrows():
-            print(components)
             raise ValueError(
                 "len(components)={0} must equal self.nrows()={1}".format(
                     len(components), self.nrows()
@@ -714,8 +720,11 @@ class MatrixOperator:
         return self._components[0][0].nphys_vars()
 
     def __repr__(self) -> str:
-        return "{0}(nrows={1}, ncols={2})".format(
-            self.__class__.__name__, self.nrows(), self.ncols()
+        return "{0}(nrows={1}, ncols={2}, ninput_funs={3})".format(
+            self.__class__.__name__,
+            self.nrows(),
+            self.ncols(),
+            self.ninput_funs(),
         )
 
     def sqnorm(self) -> ScalarOperator:
@@ -770,6 +779,50 @@ class MatrixOperator:
         self, other: Union["MatrixOperator", ScalarOperator, float]
     ) -> "MatrixOperator":
         return self._multiply_functions(other)
+
+    def __matmul__(self, other: "MatrixOperator") -> "MatrixOperator":
+        if not hasattr(self, "_components"):
+            raise RuntimeError("must call set_commponents()")
+
+        if not isinstance(other, MatrixOperator):
+            raise ValueError(
+                f"cannot dot product a MatrixOperator with {type(other)}"
+            )
+
+        if self.ncols() != other.nrows():
+            raise ValueError("matrix shapes are inconsistent")
+
+        op = MatrixOperator(
+            self.basis, self.ninput_funs(), self.nrows(), other.ncols()
+        )
+        components = [
+            [None for kk in range(other.ncols())] for ii in range(self.nrows())
+        ]
+        for ii in range(self.nrows()):
+            for kk in range(other.ncols()):
+                components[ii][kk] = sum(
+                    [
+                        self._components[ii][jj] * other._components[jj][kk]
+                        for jj in range(self.ncols())
+                    ]
+                )
+        op.set_components(components)
+        return op
+
+    @property
+    def T(self):
+        """
+        Returns the transpose of the matrix opeator.
+        """
+        op = MatrixOperator(
+            self.basis, self.ninput_funs(), self.ncols(), self.nrows()
+        )
+        components_transpose = [
+            [self._components[ii][jj] for ii in range(self.nrows())]
+            for jj in range(self.ncols())
+        ]
+        op.set_components(components_transpose)
+        return op
 
     def __neg__(self):
         return -1.0 * self
@@ -927,9 +980,7 @@ class MatrixOperator:
         for ii in range(self.nrows()):
             row = []
             for jj in range(self.ncols()):
-                row.append(
-                    self._components[ii][jj](eval_samples)
-                )
+                row.append(self._components[ii][jj](eval_samples))
             rows.append(self._bkd.stack(row, axis=0))
         # todo consider passing stacked values of each component
         # to interpolate just once and then separting
@@ -964,7 +1015,9 @@ class VectorOperator(MatrixOperator):
         return super().get_values()[:, 0]
 
     def __repr__(self) -> str:
-        return "{0}(nrows={1})".format(self.__class__.__name__, self.nrows())
+        return "{0}(nrows={1}, ninput_funs={2})".format(
+            self.__class__.__name__, self.nrows(), self.ninput_funs()
+        )
 
     def set_values(self, values: Array):
         values_shape = self.values_shape()
@@ -985,7 +1038,21 @@ class VectorOperator(MatrixOperator):
         return [row[0] for row in self._components]
 
     def values_shape(self) -> tuple:
-        return (self.nrows(), self.basis.mesh.nmesh_pts(),)
+        return (
+            self.nrows(),
+            self.basis.mesh.nmesh_pts(),
+        )
+
+
+class VectorOperatorOperation(ABC):
+    """Shortcut to create complex operator operation on ScalarOperators"""
+
+    @abstractmethod
+    def __call__(self, fun: VectorOperator) -> VectorOperator:
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
 
 
 class VectorSolution(VectorOperator):
@@ -1059,7 +1126,9 @@ class VectorFunctionFromCallable(
     def create_scalar_operator_from_values(
         self, values: Array, row: int, col: int
     ) -> ScalarFunction:
-        return ScalarFunction(self.basis, values, ninput_funs=self.ninput_funs())
+        return ScalarFunction(
+            self.basis, values, ninput_funs=self.ninput_funs()
+        )
 
 
 class TransientVectorOperatorFromCallableMixin(TransientOperatorMixin):
@@ -1095,26 +1164,48 @@ class TransientVectorFunctionFromCallable(
         self, values: Array, row: int, col: int
     ) -> TransientScalarFunctionFromCallable:
         fun = TransientScalarFunctionFromCallable(
-            self.basis, lambda xx, time: self._fun(xx, time)[:, row],
-            ninput_funs = self.ninput_funs()
+            self.basis,
+            lambda xx, time: self._fun(xx, time)[:, row],
+            ninput_funs=self.ninput_funs(),
         )
         fun.set_time(self._time)
         return fun
 
 
 def nabla(op: ScalarOperator) -> VectorOperator:
-    """Gradient of a scalar valued function"""
+    """
+    Gradient of a scalar-valued function.
+    Returns VectorOperator with shape (nphys_vars, 1)
+    """
     vec_op = VectorOperator(op.basis, op.ninput_funs(), op.nphys_vars())
     ops = [op.deriv(dd) for dd in range(op.nphys_vars())]
     vec_op.set_components(ops)
     return vec_op
 
 
+def vector_nabla(vec_op: VectorOperator) -> MatrixOperator:
+    """
+    Gradient of a vector-valued function.
+    Returns VectorOperator with shape (nrows, nphys_vars).
+    This is opposite convention of scalar nabla. We change format here
+    because we want each row to correspond to a unique equation
+    """
+    mat_op = MatrixOperator(
+        vec_op.basis, vec_op.ninput_funs(), vec_op.nrows(), vec_op.nphys_vars()
+    )
+    comps = [
+        [comp.deriv(dd) for dd in range(comp.nphys_vars())]
+        for comp in vec_op.get_components()
+    ]
+    mat_op.set_components(comps)
+    return mat_op
+
+
 def div(mat_op: MatrixOperator):
     """
     Divergence of a Matrix valued function.
 
-    The divergence opeerator is applied to each column of the matrix
+    The divergence operator is applied to each column of the matrix
     independently.
     """
     if mat_op.nrows() != mat_op.nphys_vars():
