@@ -317,10 +317,32 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         bed: ScalarOperator,
         forcing: ScalarFunction = None,
     ):
+        if bed.ninput_funs() != forcing.ninput_funs():
+            raise ValueError("bed and forcing are inconsistent")
         self._forcing = forcing
         self._bed = bed
         self._g = 9.81
         super().__init__(forcing.basis)
+        self.set_bed_slope_forcing()
+
+    def set_bed_slope_forcing(self):
+        self._slope_forcing = VectorOperator(
+            self.basis, self._forcing.ninput_funs(), self._forcing.nrows()
+        )
+        zero = ScalarFunction(
+            self.basis,
+            self._bkd.zeros(self.basis.mesh.nmesh_pts()),
+            ninput_funs=self._forcing.ninput_funs(),
+        )
+        print(zero.get_jacobian().shape)
+        print(self._bed, self._bed.get_jacobian().shape)
+        slope_gradient_components = nabla(self._bed).get_components()
+        print(slope_gradient_components)
+        self._slope_forcing.set_components(
+            [zero] + slope_gradient_components
+        )
+        self._slope_forcing *= self._g
+        print(self._slope_forcing.get_jacobian())
 
     def ncomponents(self) -> int:
         return self._bed.nphys_vars() + 1
@@ -340,7 +362,7 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
             components = [[uh, uh**2 / h + (0.5 * self._g) * h**2]]
         else:
             h, uh, vh = sol.get_components()
-            uvh = uh * vh
+            uvh = uh * vh / h
             g_hsq = (0.5 * self._g) * h**2
             components = [
                 [uh, uh**2 / h + g_hsq, uvh],
@@ -355,7 +377,7 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         flux = self._flux(sol)
         residual = div(flux)
         if self._forcing is not None:
-            residual += self._forcing
+            residual += self._forcing - self._slope_forcing
         return residual
 
     def get_functions(self) -> Dict:

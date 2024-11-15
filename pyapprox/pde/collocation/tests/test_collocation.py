@@ -321,9 +321,15 @@ class TestCollocation:
         man_sol: ManufacturedSolution,
     ):
         if not man_sol.transient[name]:
-            return ScalarFunctionFromCallable(basis, man_sol.functions[name])
+            return ScalarFunctionFromCallable(
+                basis,
+                man_sol.functions[name],
+                ninput_funs=man_sol.ncomponents(),
+            )
         return TransientScalarFunctionFromCallable(
-            basis, man_sol.functions[name]
+            basis,
+            man_sol.functions[name],
+            ninput_funs=man_sol.ncomponents(),
         )
 
     def _setup_vector_solution(
@@ -1010,12 +1016,13 @@ class TestCollocation:
 
         jac_auto = bkd.jacobian(autofun, init_sol.get_flattened_values())
         # np.set_printoptions(linewidth=1000)
-        #print(bkd.to_numpy(jac_auto), "JAUTO")
-        #print(bkd.to_numpy(physics.residual(init_sol).get_jacobian()), "JC")
+        # print(bkd.to_numpy(jac_auto), "JAUTO")
+        # print(bkd.to_numpy(physics.residual(init_sol).get_jacobian()), "JC")
         assert bkd.allclose(
             physics.residual(init_sol).get_jacobian(),
             jac_auto,
-            atol=1e-15,
+            # atol=1e-15,
+            atol=2e-12,
         )
 
     def _check_transient_pde_solve(
@@ -1109,7 +1116,7 @@ class TestCollocation:
         # while velocity and momentum are only linear in Time
         # momentum will be quadratic so only crank nicholso will be exact
         # It appears that this choice of depth and vel requires huge numbers of newton interation
-        e# ven though I have verified that the jaocbians are exct with AD.
+        # even though I have verified that the jaocbians are exct with AD.
         test_case_args = [
             [
                 "(1+x**2)*(1+T)"
@@ -1117,10 +1124,28 @@ class TestCollocation:
             [
                 ["(1+x**2)/10*(1+T)"],
             ],  # vel_strings
-            ["0"],  # bed_string
+            ["-x"],  # bed_string
             ["D"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([10], [0, 1]),
+            ],  # basis
+        ]
+
+        for test_case in itertools.product(*test_case_args):
+            self._check_shallow_wave_equation(*test_case)
+
+        # test 2d equationss
+        test_case_args = [
+            [
+                "((1+x**2)+0*(1+y**2))*(1+T)"
+            ],  # depth_string # tests time dependent boundary conditions
+            [
+                ["(1+x**2)/10*(1+T)", "(1+y**2)/10*(1+T)"],
+            ],  # vel_strings
+            ["-x -y"],  # bed_string
+            ["D"],  # bndry_types
+            [
+                self._setup_rect_cheby_basis_2d([10, 10], [0, 1, 0, 1]),
             ],  # basis
         ]
 

@@ -424,6 +424,9 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
             ).simplify()
             for ii in range(self._nvars + 1)
         ]
+        # assume code always applies bed gradient forcing
+        for ii in range(self._nvars):
+            forc_expr[ii+1] += self._g * bed_expr.diff(cartesian_symbs[ii], 1)
         self._set_expression("bed", bed_expr, self._bed_str)
         self._set_expression("flux", flux_exprs, self._depth_str)
         self._expressions["forcing"] = [
