@@ -401,12 +401,13 @@ class TestOperators:
             return bkd.sum((1 + xx) ** 3, axis=0)
 
         bounds = [0, 1]
-        nterms = [4]
+        nterms = [10]
         transform = ScaleAndTranslationTransform1D([-1, 1], bounds, bkd)
         mesh = ChebyshevCollocationMesh1D(nterms, transform)
         basis = ChebyshevCollocationBasis1D(mesh)
         fun_values0 = tfun0(basis.mesh.mesh_pts())
         sol0 = ScalarSolution(basis, fun_values0)
+        print(sol0.integrate())
         assert bkd.allclose(sol0.integrate(),  bkd.array([15/4]), atol=1e-15)
 
         bounds = [0, 1, 0, 1]

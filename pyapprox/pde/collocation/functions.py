@@ -52,6 +52,7 @@ class ScalarOperator:
             self.set_values(values)
         if jac is not None:
             self.set_jacobian(jac)
+        self._set_quadrature_weights_at_mesh_pts()
 
     def ninput_funs(self) -> int:
         return self._ninput_funs
@@ -287,10 +288,23 @@ class ScalarOperator:
         values = self.get_values()[:, None]
         return self.basis.interpolate(values, eval_samples)[:, 0]
 
+    def _set_quadrature_weights_at_mesh_pts(self):
+        # compute quadrature rule at mesh points that integrates
+        # lagrange basis exactly for lebesque measure
+        orth_xx, orth_ww = self.basis._orth_quadrature_rule()
+        ww = self.basis._bexp._basis(orth_xx).T @ orth_ww[:, 0]
+        ww = self.basis.mesh.trans.modify_quadrature_weights(
+            self.basis.mesh._orth_mesh_pts, ww[:, None]
+        )
+        self._quad_weights_at_mesh_pts = ww
+
     def integrate(self):
-        xx, ww = self.basis.quadrature_rule()
-        values = self(xx)
-        return self._bkd.sum(values * ww[:, 0])
+        # self.basis.quadrature_rule() return Gauss Legendre rule
+        # use this to integrate lagrange basis
+        # xx, ww = self.basis.quadrature_rule()
+        # values = self(xx)
+        # return self._bkd.sum(values * ww[:, 0])
+        return self.get_values() @ self._quad_weights_at_mesh_pts
 
     def _plot_1d(self, ax, nplot_pts_1d, **kwargs):
         plot_samples = self._bkd.linspace(
