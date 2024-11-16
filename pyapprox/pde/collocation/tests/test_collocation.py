@@ -1119,10 +1119,10 @@ class TestCollocation:
         # even though I have verified that the jaocbians are exct with AD.
         test_case_args = [
             [
-                "(1+x**2)*(1+T)"
+                "(1+x**2)*(10-T)"
             ],  # depth_string # tests time dependent boundary conditions
             [
-                ["(1+x**2)/10*(1+T)"],
+                ["(1+x**2)/10*(10-T)"],
             ],  # vel_strings
             ["-x"],  # bed_string
             ["D"],  # bndry_types
@@ -1137,10 +1137,10 @@ class TestCollocation:
         # test 2d equationss
         test_case_args = [
             [
-                "((1+x**2)+0*(1+y**2))*(1+T)"
+                "((1+x**2)+0*(1+y**2))*(10-T)"
             ],  # depth_string # tests time dependent boundary conditions
             [
-                ["(1+x**2)/10*(1+T)", "(1+y**2)/10*(1+T)"],
+                ["(1+x**2)/10*(10-T)", "(1+y**2)/10*(10-T)"],
             ],  # vel_strings
             ["-x -y"],  # bed_string
             ["D"],  # bndry_types

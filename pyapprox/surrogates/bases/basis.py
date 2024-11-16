@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import List
 
 from pyapprox.util.linearalgebra.numpylinalg import (
     LinAlgMixin,
@@ -423,7 +424,8 @@ class TensorProductQuadratureRule(QuadratureRule):
         for quad_rule in univariate_quad_rules:
             if not isinstance(quad_rule, UnivariateQuadratureRule):
                 raise ValueError(
-                    "quad rule must be an instance of UnivariateQuadratureRule"
+                    "quad rule {0} not an instance of "
+                    "UnivariateQuadratureRule".format(quad_rule)
                 )
         self._nvars = nvars
         self._univariate_quad_rules = univariate_quad_rules
@@ -455,7 +457,12 @@ class TensorProductQuadratureRule(QuadratureRule):
 
 
 class FixedTensorProductQuadratureRule(TensorProductQuadratureRule):
-    def __init__(self, nvars, univariate_quad_rules, nnodes_1d):
+    def __init__(
+            self,
+            nvars: int,
+            univariate_quad_rules: List[UnivariateQuadratureRule],
+            nnodes_1d: List[int],
+    ):
         super().__init__(nvars, univariate_quad_rules, store=True)
         self._nnodes_1d = self._bkd.asarray(nnodes_1d)
 

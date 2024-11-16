@@ -2,7 +2,10 @@ from abc import ABC, abstractmethod
 import textwrap
 
 from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.bases.basis import (
+    TensorProductInterpolatingBasis, FixedTensorProductQuadratureRule
+)
+from pyapprox.surrogates.bases.orthopoly import GaussLegendreQuadratureRule
 from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 from pyapprox.pde.collocation.mesh import (
     OrthogonalCoordinateMesh,
@@ -22,6 +25,7 @@ class OrthogonalCoordinateCollocationBasis(ABC):
         self._bkd = mesh._bkd
         self.mesh = mesh
         self._set_derivative_matrices()
+        self._set_quadrature_rule()
 
     def _set_derivative_matrices(self):
         orth_deriv_mats_1d = [
@@ -41,6 +45,13 @@ class OrthogonalCoordinateCollocationBasis(ABC):
                 self._deriv_mats[-1] += (
                     gradient_factors[:, dd, ii : ii + 1] * orth_deriv_mats[ii]
                 )
+
+    def _set_quadrature_rule(self):
+        self._orth_quadrature_rule = FixedTensorProductQuadratureRule(
+            self.nphys_vars(),
+            [GaussLegendreQuadratureRule([-1, 1], backend=self._bkd)] * self.nphys_vars(),
+            self._bkd.asarray(self.mesh._npts_1d)+1,
+        )
 
     def nphys_vars(self):
         return self.mesh.nphys_vars()
@@ -130,6 +141,14 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
             self.__class__.__name__,
             textwrap.indent("mesh=" + str(self.mesh), prefix="    "),
         )
+
+    def quadrature_rule(self):
+        # This will integrate with respect to chebyshev measures
+        # orth_xx, orth_ww = self._bexp._basis.quadrature_rule()
+        orth_xx, orth_ww = self._orth_quadrature_rule()
+        xx = self.mesh.trans.map_from_orthogonal(orth_xx)
+        ww = self.mesh.trans.modify_quadrature_weights(orth_xx, orth_ww)
+        return xx, ww
 
 
 class OrthogonalCoordinateBasis1DMixin:

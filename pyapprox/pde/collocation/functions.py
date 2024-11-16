@@ -287,6 +287,11 @@ class ScalarOperator:
         values = self.get_values()[:, None]
         return self.basis.interpolate(values, eval_samples)[:, 0]
 
+    def integrate(self):
+        xx, ww = self.basis.quadrature_rule()
+        values = self(xx)
+        return self._bkd.sum(values * ww[:, 0])
+
     def _plot_1d(self, ax, nplot_pts_1d, **kwargs):
         plot_samples = self._bkd.linspace(
             *self.basis.mesh.trans._ranges, nplot_pts_1d

@@ -75,6 +75,7 @@ class TestOperators:
 
         fun_values0 = tfun0(basis.mesh.mesh_pts())
         sol0 = ScalarSolution(basis, fun_values0)
+
         fun_values1 = tfun1(basis.mesh.mesh_pts())
         sol1 = sol0.deriv(0)
         assert bkd.allclose(sol1.get_values(), fun_values1)
@@ -312,7 +313,6 @@ class TestOperators:
         )
 
         vec_sol1 = VectorSolution(basis, 3, 3)
-        print(vec_sol1)
         vec_sol1.set_components([sol0, sol2, sol3])
         vec_sol1.get_flattened_values()
 
@@ -394,6 +394,29 @@ class TestOperators:
             ),
         )
 
+    def test_integrate(self):
+        bkd = self.get_backend()
+
+        def tfun0(xx):
+            return bkd.sum((1 + xx) ** 3, axis=0)
+
+        bounds = [0, 1]
+        nterms = [4]
+        transform = ScaleAndTranslationTransform1D([-1, 1], bounds, bkd)
+        mesh = ChebyshevCollocationMesh1D(nterms, transform)
+        basis = ChebyshevCollocationBasis1D(mesh)
+        fun_values0 = tfun0(basis.mesh.mesh_pts())
+        sol0 = ScalarSolution(basis, fun_values0)
+        assert bkd.allclose(sol0.integrate(),  bkd.array([15/4]), atol=1e-15)
+
+        bounds = [0, 1, 0, 1]
+        nterms = [4, 4]
+        transform = ScaleAndTranslationTransform2D([-1, 1, -1, 1], bounds, bkd)
+        mesh = ChebyshevCollocationMesh2D(nterms, transform)
+        basis = ChebyshevCollocationBasis2D(mesh)
+        fun_values0 = tfun0(basis.mesh.mesh_pts())
+        sol0 = ScalarSolution(basis, fun_values0)
+        assert bkd.allclose(sol0.integrate(), bkd.array([15/2]), atol=1e-15)
 
 class TestNumpyOperators(TestOperators, unittest.TestCase):
     def get_backend(self):
