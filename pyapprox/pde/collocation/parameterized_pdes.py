@@ -12,7 +12,7 @@ from pyapprox.pde.collocation.functions import (
     ScalarFunction,
     VectorFunction,
     ScalarKLEFunction,
-    ZeroScalarFunction
+    ZeroScalarFunction,
 )
 from pyapprox.pde.collocation.boundaryconditions import (
     DirichletBoundaryFromOperator,
@@ -38,11 +38,6 @@ class ShallowWaterWaveModel(TransientAdjointModel):
         self._bed = bed
         self._forcing = forcing
         self._physics = ShallowWaveEquation(self._bed, self._forcing)
-
-        self._zerofun = ZeroScalarFunction(
-            self._basis,
-            ninput_funs=self._physics.ncomponents(),
-        )
 
         self._init_surface = init_surface
         bndrys = self.setup_reflective_boundaries()
@@ -70,16 +65,17 @@ class ShallowWaterWaveModel(TransientAdjointModel):
         init_cond = VectorFunction(
             self._basis,
             self._physics.ncomponents(),
-            self._physics.ncomponents()
+            self._physics.ncomponents(),
         )
         init_depth = ScalarFunction(
             self._basis,
             (self._init_surface - self._bed).get_values(),
-            ninput_funs=self._bed.ninput_funs()
+            ninput_funs=self._bed.ninput_funs(),
         )
+        print(init_depth.get_values().min(), init_depth.get_values().max(), "A")
         init_cond.set_components(
             [init_depth]
-            + [self._zerofun for ii in range(self._basis.nphys_vars())]
+            + [self._get_zerofun() for ii in range(self._basis.nphys_vars())]
         )
         return init_cond
 
@@ -96,32 +92,40 @@ class ShallowWaterWaveModel(TransientAdjointModel):
     #             )
     #     return bndry_funs
 
+    def _get_zerofun(self):
+        return ZeroScalarFunction(
+            self._basis,
+            ninput_funs=self._physics.ncomponents(),
+        )
+
     def setup_reflective_boundaries(self):
         # bndrys_funs: list[BoundaryOperator],
         bndry_funs = []
         # loop over all boundaries
-        for bndry_name, mesh_bndry in self._basis.mesh.get_boundaries().items():
+        for (
+            bndry_name,
+            mesh_bndry,
+        ) in self._basis.mesh.get_boundaries().items():
             # loop over momentum solution components
             for component_id in range(self._physics.ncomponents()):
-                if (
-                        component_id == 1 and bndry_name in ["left", "right"]
-                        or component_id == 2 and bndry_name in ["bottom", "top"]
+                if (component_id == 1 and bndry_name in ["left", "right"]) or (
+                    component_id == 2 and bndry_name in ["bottom", "top"]
                 ):
                     # set vertical velocity on horizontal boundaries to zero
                     bndry_funs.append(
                         DirichletBoundaryFromOperator(
                             mesh_bndry,
-                            self._zerofun,
+                            self._get_zerofun(),
                             component_id * self._basis.mesh.nmesh_pts(),
                         )
                     )
-                else:
+                elif False:#component_id == 0:
                     bndry_funs.append(
                         RobinBoundaryFromOperator(
                             mesh_bndry,
-                            self._zerofun,
-                            0.,
-                            1.,
+                            self._get_zerofun(),
+                            0.0,
+                            1.0,
                             component_id * self._basis.mesh.nmesh_pts(),
                             component_id,
                         )

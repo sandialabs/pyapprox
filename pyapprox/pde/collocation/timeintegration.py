@@ -64,8 +64,8 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
 
     def linsolve(self, sol: Array, res: Array) -> Array:
 
-        # leave around incase need to debug timestepping schemes and
-        # newton residuals
+        # # leave around incase need to debug timestepping schemes and
+        # # newton residuals
         # def autofun(sol_array):
         #     return self(sol_array)
         # jac_auto = self._bkd.jacobian(autofun, sol)
@@ -94,7 +94,6 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         #     jac_auto,
         #     atol=1e-15
         # )
-
         return self._bkd.solve(self.jacobian(sol), res)
 
     def _param_jacobian(self, fsol_nm1: Array, sol: Array) -> Array:
@@ -267,6 +266,7 @@ class BackwardEulerResidual(TimeIntegratorNewtonResidual):
 
     def _jacobian(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat)
+        # print(self._time, self._delt
         return self.native_residual.mass_matrix(
             sol.shape[0]
         ) - self._deltat * self.native_residual.jacobian(sol)

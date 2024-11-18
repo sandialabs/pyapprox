@@ -1118,7 +1118,6 @@ class VectorFunction(VectorOperator):
         for comp in components:
             if not isinstance(comp, ScalarFunction):
                 raise ValueError("component must be an instance of Function")
-        print(components)
         super().set_components([comp for comp in components])
 
     def set_values(self, values: Array):

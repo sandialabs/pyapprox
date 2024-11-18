@@ -28,7 +28,7 @@ from pyapprox.pde.collocation.mesh_transforms import (
 from pyapprox.pde.collocation.mesh import ChebyshevCollocationMesh2D
 from pyapprox.pde.collocation.basis import ChebyshevCollocationBasis2D
 from pyapprox.pde.collocation.newton import NewtonSolver
-
+# from pyapprox.util.print_wrapper import *
 import sys
 
 if sys.platform == "darwin":
@@ -43,11 +43,11 @@ np.random.seed(1)
 transform = ScaleAndTranslationTransform2D(
     [-1, 1, -1, 1], [0, 100, 0, 100], bkd
 )
-mesh = ChebyshevCollocationMesh2D([20, 20], transform)
+mesh = ChebyshevCollocationMesh2D([30, 30], transform)
 basis = ChebyshevCollocationBasis2D(mesh)
 
 # define time period
-init_time, final_time, deltat = 0, 10, 0.1
+init_time, final_time, deltat = 0, 10, 0.5
 
 # TODO: WARNING INITIAL CONDITION IS NOT CONSISTENT WITH BOUNDARY CONDITIONS
 
@@ -102,12 +102,20 @@ init_surface = ZeroScalarFunction(basis, basis.nphys_vars() + 1)
 
 
 def init_surface_fun(xx):
-    return 1 - xx[0] / 100
+    a0, b0 = 5, 8
+    a1, b1 = 5, 5
+    xn = xx/100
+    return (
+        xn[0] ** (a0-1) * (1 - xn[0]) ** (b0-1) *
+        xn[1] ** (a1-1) * (1 - xn[1]) ** (b1-1)
+    ) * 1e5
 
 
 init_surface = ScalarFunctionFromCallable(
     basis, init_surface_fun, basis.nphys_vars() + 1
 )
+#init_surface.plot(plt.figure().gca())
+#plt.show()
 newton_solver = NewtonSolver(
     verbosity=2,
     maxiters=5,

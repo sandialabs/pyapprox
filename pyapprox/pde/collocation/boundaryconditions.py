@@ -166,6 +166,7 @@ class RobinBoundary(BoundaryOperator):
         flux_jac = self._flux_jac(sol_array)
         # flux_jac = [self._bndry_slice(f, idx, 0) for f in flux_jac]
         flux_jac = flux_jac[:, idx]
+        print(flux_jac.min(), flux_jac.max(), self)
         normal_flux_jac = sum(
             [
                 self._normal_vals[:, dd : dd + 1] * flux_jac[dd]
@@ -202,6 +203,11 @@ class RobinBoundary(BoundaryOperator):
         # alpha * I
         jac[idx, idx] += self._alpha
         return jac
+
+    def __repr__(self):
+        return "{0}(bndry={1}, component_id={2})".format(
+            self.__class__.__name__, self._mesh_bndry, self._component_id
+        )
 
 
 class RobinBoundaryFromOperator(BoundaryFromOperatorMixin, RobinBoundary):

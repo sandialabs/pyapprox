@@ -66,7 +66,9 @@ class Physics(NewtonResidual):
                     )
                 bndry.set_flux_functions(
                     partial(self._flux_from_array, bndry._component_id),
-                    partial(self._flux_jacobian_from_array, bndry._component_id),
+                    partial(
+                        self._flux_jacobian_from_array, bndry._component_id
+                    ),
                 )
 
     def apply_boundary_conditions_to_residual(
@@ -140,12 +142,14 @@ class Physics(NewtonResidual):
         if flux.ncols() != self.ncomponents():
             raise RuntimeError(
                 "flux must be a MatrixFunction with {0} columns".format(
-                    self.ncomponents())
+                    self.ncomponents()
+                )
             )
         if flux.nrows() != self.basis.nphys_vars():
             raise RuntimeError(
                 "flux must be a MatrixFunction with {0} rows".format(
-                    self.basis.nphys_vars())
+                    self.basis.nphys_vars()
+                )
             )
         # return flux.get_values()[:, component_id, :]
         return flux.get_values()[:, component_id, :]
@@ -350,9 +354,7 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
             ninput_funs=self._bed.ninput_funs(),
         )
         slope_gradient_components = nabla(self._bed).get_components()
-        self._slope_forcing.set_components(
-            [zero] + slope_gradient_components
-        )
+        self._slope_forcing.set_components([zero] + slope_gradient_components)
         self._slope_forcing *= self._g
 
     def ncomponents(self) -> int:
@@ -371,13 +373,15 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         if sol.basis.nphys_vars() == 1:
             h, uh = sol.get_components()
             if self._bkd.any(h.get_values() <= 0):
-                raise RuntimeError("Depth became negative")
+                raise RuntimeError(
+                    f"Depth became negative {h.get_values().min()}")
             components = [[uh, uh**2 / h + (0.5 * self._g) * h**2]]
         else:
             h, uh, vh = sol.get_components()
             if self._bkd.any(h.get_values() <= 0):
-                print(h.get_values().min())
-                raise RuntimeError("Depth became negative")
+                raise RuntimeError(
+                    f"Depth became negative {h.get_values().min()}"
+                )
             uvh = uh * vh / h
             g_hsq = (0.5 * self._g) * h**2
             components = [
@@ -422,16 +426,13 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
         super().__init__(forcing.basis)
         self._forcing = forcing
         diff_components = diffusion.get_components()
-        self._diffusion = MatrixOperator(
-            diffusion.basis, 2, 2, 2
-        )
+        self._diffusion = MatrixOperator(diffusion.basis, 2, 2, 2)
         zero = ZeroScalarFunction(
             self.basis,
             ninput_funs=2,
         )
         self._diffusion.set_components(
-            [[diff_components[0], zero],
-             [zero, diff_components[1]]]
+            [[diff_components[0], zero], [zero, diff_components[1]]]
         )
         self._reaction_op = reaction_op
         self._flux_jacobian_implemented = True
