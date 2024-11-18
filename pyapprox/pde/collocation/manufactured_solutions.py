@@ -8,8 +8,10 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.autopde.sympy_utils import (
     _evaluate_sp_lambda,
     _evaluate_list_of_sp_lambda,
+    _evaluate_list_of_list_of_sp_lambda,
     _evaluate_transient_sp_lambda,
     _evaluate_list_of_transient_sp_lambda,
+    _evaluate_list_of_list_of_transient_sp_lambda,
 )
 
 
@@ -65,7 +67,20 @@ class ManufacturedSolution(ABC):
             _evaluate_list_of_sp_lambda,
             expr_lambda,
             bkd=self._bkd,
-            oned=False,  # when passing a list must always return 2d array
+            oned=False,
+        )
+
+    def _steady_expression_list_of_lists_to_function(self, exprs):
+        all_symbs = self.cartesian_symbols()
+        expr_lambda = [
+            [sp.lambdify(all_symbs, expr, "numpy") for expr in row]
+            for row in exprs
+        ]
+        return partial(
+            _evaluate_list_of_list_of_sp_lambda,
+            expr_lambda,
+            bkd=self._bkd,
+            oned=False,
         )
 
     def _transient_expression_to_function(self, expr):
@@ -85,7 +100,20 @@ class ManufacturedSolution(ABC):
             _evaluate_list_of_transient_sp_lambda,
             expr_lambda,
             bkd=self._bkd,
-            oned=False,  # when passing a list must always return 2d array
+            oned=False,
+        )
+
+    def _transient_expression_list_of_lists_to_function(self, exprs):
+        all_symbs = self.all_symbols()
+        expr_lambda = [
+            [sp.lambdify(all_symbs, expr, "numpy") for expr in row]
+            for row in exprs
+        ]
+        return partial(
+            _evaluate_list_of_list_of_transient_sp_lambda,
+            expr_lambda,
+            bkd=self._bkd,
+            oned=False,
         )
 
     def is_transient(self):
@@ -102,7 +130,7 @@ class ManufacturedSolution(ABC):
             )
         self.functions = dict()
         for name, expr in self._expressions.items():
-            if isinstance(expr, list):
+            if isinstance(expr, list) and not isinstance(expr[0], list):
                 if not self.transient[name]:
                     self.functions[name] = (
                         self._steady_expression_list_to_function(expr)
@@ -110,6 +138,17 @@ class ManufacturedSolution(ABC):
                 else:
                     self.functions[name] = (
                         self._transient_expression_list_to_function(expr)
+                    )
+            elif isinstance(expr, list) and isinstance(expr[0], list):
+                if not self.transient[name]:
+                    self.functions[name] = (
+                        self._steady_expression_list_of_lists_to_function(expr)
+                    )
+                else:
+                    self.functions[name] = (
+                        self._transient_expression_list_of_lists_to_function(
+                            expr
+                        )
                     )
             else:
                 if not self.transient[name]:
@@ -372,7 +411,7 @@ class VectorSolutionMixin:
                 self._sol_strs[0],
             )
 
-            for ii in range(self._nvars + 1):
+            for ii in range(self.ncomponents()):
                 self._expressions["forcing"][ii] += self._expressions[
                     "solution"
                 ][ii].diff(self.time_symbol()[0])
@@ -392,7 +431,6 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
         self._mom_strs = mom_strs
         self._bed_str = bed_str
         self._g = 9.81
-        print(mom_strs)
         super().__init__([depth_str] + mom_strs, nvars, bkd, oned)
 
     def sympy_expressions(self):

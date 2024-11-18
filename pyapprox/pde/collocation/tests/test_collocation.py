@@ -2,6 +2,7 @@ import unittest
 import itertools
 import copy
 from typing import Tuple, List
+from functools import partial
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -110,7 +111,7 @@ class CoupledReactionOperation(VectorOperatorOperation):
         vec = VectorOperator(sol.basis, sol.ninput_funs(), sol.nrows())
         vec.set_components(
             # [self._react_ops[0](u0), self._react_ops[1](u1)]
-            [self._react_ops[0](u0)-u1, self._react_ops[1](u1)+u0]
+            [self._react_ops[0](u0) - u1, self._react_ops[1](u1) + u0]
         )
         return vec
 
@@ -124,33 +125,49 @@ class RobinBoundaryFromManufacturedSolution(RobinBoundaryFromOperator):
         basis: OrthogonalCoordinateCollocationBasis,
         sol_fun: callable,
         flux_fun: callable,
+        transient: bool,
+        index_shift: int = 0,
+        component_id: int = 0,
     ):
         self._basis = basis
         self._sol_fun = sol_fun
+        self._transient = transient
         self._flux_fun = flux_fun
         self._bkd = self._basis._bkd
         # must set alpha before calling set function
         # because manufactured_callable with be called and needs alpha
-        RobinBoundary.__init__(self, mesh_bndry, alpha, beta)
-        self._set_function(
-            ScalarFunctionFromCallable(basis, self._manufactured_callable)
+        RobinBoundary.__init__(
+            self, mesh_bndry, alpha, beta, index_shift, component_id
         )
+        if not self._transient:
+            self._set_function(
+                ScalarFunctionFromCallable(basis, self._manufactured_callable)
+            )
+        else:
+            self._set_function(
+                TransientScalarFunctionFromCallable(
+                    basis, self._manufactured_callable
+                )
+            )
 
-    def _robin_normal_flux(self, pts):
-        # normal_fun =  partial(transform.normal, ii)
-        # normal_vals = torch.as_tensor(normal_fun(xx), dtype=torch.double)
-        # flux_vals = torch.as_tensor(flux_funs(xx), dtype=torch.double)
-        flux_vals = self._flux_fun(pts)
+    def _robin_normal_flux(self, pts, **kwargs):
+        flux_vals = self._flux_fun(pts, **kwargs)
         if flux_vals.ndim != 2:
             raise ValueError("flux_fun must return 2d array")
         return self._bkd.sum(
-            self._mesh_bndry.normals(pts) * self._flux_fun(pts), axis=1
+            self._mesh_bndry.normals(pts) * self._flux_fun(pts, **kwargs),
+            axis=1,
         )
 
-    def _manufactured_callable(self, pts):
-        return self._alpha * self._sol_fun(
-            pts
-        ) + self._beta * self._robin_normal_flux(pts)
+    def _manufactured_callable(self, pts, **kwargs):
+        sol_vals = self._sol_fun(pts, **kwargs)
+        if sol_vals.ndim != 1:
+            # even when using vector solution sol_fun passed in must only
+            # compute sol for a single component
+            raise RuntimeError("sol_fun must return 1D array")
+        return self._alpha * sol_vals + self._beta * self._robin_normal_flux(
+            pts, **kwargs
+        )
 
 
 class TestCollocation:
@@ -229,6 +246,12 @@ class TestCollocation:
 
         return bndry_funs
 
+    def _solution_component(self, man_sol, ii, *args, **kwargs):
+        return man_sol.functions["solution"](*args, **kwargs)[:, ii]
+
+    def _flux_component(self, man_sol, ii, *args, **kwargs):
+        return man_sol.functions["flux"](*args, **kwargs)[ii]
+
     def _setup_vector_robin_boundary_conditions(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
@@ -236,7 +259,23 @@ class TestCollocation:
         alpha: float,
         beta: float,
     ):
-        pass
+        bndry_funs = []
+        for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
+            for ii in range(man_sol.ncomponents()):
+                bndry_funs.append(
+                    RobinBoundaryFromManufacturedSolution(
+                        mesh_bndry,
+                        alpha,
+                        beta,
+                        basis,
+                        partial(self._solution_component, man_sol, ii),
+                        partial(self._flux_component, man_sol, ii),
+                        man_sol.transient["solution"],
+                        ii * basis.mesh.nmesh_pts(),
+                        ii,
+                    )
+                )
+        return bndry_funs
 
     def _setup_scalar_robin_boundary_conditions(
         self,
@@ -255,6 +294,7 @@ class TestCollocation:
                     basis,
                     man_sol.functions["solution"],
                     man_sol.functions["flux"],
+                    man_sol.transient["solution"],
                 )
             )
         return bndry_funs
@@ -310,21 +350,57 @@ class TestCollocation:
         boundaries = basis.mesh.get_boundaries()
         mesh_bndry = boundaries["left"]
         alpha, beta = 2.0, 3.0
-        bndry_funs = [
-            RobinBoundaryFromManufacturedSolution(
-                mesh_bndry,
-                alpha,
-                beta,
-                basis,
-                man_sol.functions["solution"],
-                man_sol.functions["flux"],
+        if man_sol.ncomponents() == 1:
+            bndry_funs = [
+                RobinBoundaryFromManufacturedSolution(
+                    mesh_bndry,
+                    alpha,
+                    beta,
+                    basis,
+                    man_sol.functions["solution"],
+                    man_sol.functions["flux"],
+                    man_sol.transient["solution"],
+                )
+            ]
+            for bndry_name, mesh_bndry in boundaries.items():
+                if bndry_name == "left":
+                    continue
+                sol = self._setup_scalar_solution(basis, man_sol)
+                bndry_funs.append(
+                    DirichletBoundaryFromOperator(mesh_bndry, sol)
+                )
+            return bndry_funs
+
+        bndry_funs = []
+        for ii in range(man_sol.ncomponents()):
+            bndry_funs.append(
+                RobinBoundaryFromManufacturedSolution(
+                    mesh_bndry,
+                    alpha,
+                    beta,
+                    basis,
+                    lambda *args, **kwargs: man_sol.functions["solution"](*args, **kwargs)[:, ii],
+                    lambda *args, **kwargs: man_sol.functions["flux"](*args, **kwargs)[ii],
+                    man_sol.transient["solution"],
+                    ii * basis.mesh.nmesh_pts(),
+                    ii,
+                )
             )
-        ]
+
+        sol = self._setup_vector_function("solution", basis, man_sol)
+        sol_components = sol.get_components()
         for bndry_name, mesh_bndry in boundaries.items():
             if bndry_name == "left":
                 continue
-            sol = self._setup_scalar_solution(basis, man_sol)
-            bndry_funs.append(DirichletBoundaryFromOperator(mesh_bndry, sol))
+            for ii in range(man_sol.ncomponents()):
+                bndry_funs.append(
+                    DirichletBoundaryFromOperator(
+                        mesh_bndry,
+                        sol_components[ii],
+                        ii * basis.mesh.nmesh_pts(),
+                    )
+                )
+
         return bndry_funs
 
     def _setup_scalar_solution(
@@ -479,7 +555,7 @@ class TestCollocation:
 
             jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
             assert bkd.allclose(
-                physics._flux_jacobian_from_array(exact_sol.get_values()),
+                physics._flux_jacobian_from_array(0, exact_sol.get_values()),
                 jac_auto[:, 0],
                 atol=1e-15,
             )
@@ -648,7 +724,7 @@ class TestCollocation:
                 ["0", lambda x: bkd.zeros(x.shape[1]), 0],
                 ["2*u", lambda x: bkd.full((x.shape[1],), 2.0), 1],
             ],  # react_str
-            ["D"],  # bndry_types
+            ["D", "R", "M"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([5], [0, 1]),
             ],  # basis
@@ -672,7 +748,7 @@ class TestCollocation:
                 ["0", lambda x: bkd.zeros(x.shape[1]), 0],
                 ["2*u", lambda x: bkd.full((x.shape[1],), 2.0), 1],
             ],  # react_str
-            ["D"],  # bndry_types
+            ["D", "R", "M"],  # bndry_types
             [
                 self._setup_rect_cheby_basis_2d([5, 5], [0, 1, 0, 2]),
             ],  # basis
@@ -827,7 +903,7 @@ class TestCollocation:
 
             jac_auto = bkd.jacobian(autofun, exact_sol.get_values())
             assert bkd.allclose(
-                physics._flux_jacobian_from_array(exact_sol.get_values()),
+                physics._flux_jacobian_from_array(0, exact_sol.get_values()),
                 jac_auto,
                 atol=1e-15,
             )
@@ -964,9 +1040,8 @@ class TestCollocation:
         init_time,
         final_time,
         deltat,
-        timestep_cls
+        timestep_cls,
     ):
-        bkd = self.get_backend()
         boundaries = self._setup_boundary_conditions(
             basis,
             bndry_types,
@@ -979,8 +1054,8 @@ class TestCollocation:
             NewtonSolver(
                 verbosity=2,
                 maxiters=30,
-                atol=1e-8,
-                rtol=1e-8,
+                atol=1e-11,
+                rtol=1e-11,
             ),
         )
         solver.setup_time_integrator(
@@ -1227,7 +1302,7 @@ class TestCollocation:
         residual = physics.residual(exact_sol)
         # np.set_printoptions(linewidth=1000)
         # print(residual.get_values())
-        # print(bkd.abs(residual.get_values()).max())
+        print(bkd.abs(residual.get_values()).max())
         assert bkd.allclose(
             residual.get_values(),
             bkd.zeros(exact_sol.basis.mesh.nmesh_pts()),
@@ -1255,6 +1330,7 @@ class TestCollocation:
         linear_init_sol = exact_sol * 0.0
         if react_op_degrees[0] < 2 and react_op_degrees[1] < 2:
             sol = solver.solve(linear_init_sol)
+            print(sol.get_values() - exact_sol.get_values())
             assert bkd.allclose(sol.get_values(), exact_sol.get_values())
             return
 
@@ -1297,14 +1373,43 @@ class TestCollocation:
                     [2, 1],
                 ],
             ],  # react_strs,
-            [
-                "D"
-            ],  # bndry_types # TODO need to implement robin and periodic boundary conditions for vector solutions
+            ["D", "R", "M"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([14], [0, 1]),
             ],  # basis
         ]
+        for test_case in itertools.product(*test_case_args):
+            self._check_steady_state_two_species_reaction_diffusion(*test_case)
 
+        test_case_args = [
+            [["(-(x-1)*x+x)*(y+1)", "(1-(x-1)*x)*(y**2+1)"]],  # sol_strings
+            [
+                ["1", "2"],
+            ],  # diff_strings
+            [
+                [
+                    ["0", "0"],
+                    [
+                        lambda x: bkd.zeros(x.shape[1]),
+                        lambda x: bkd.zeros(x.shape[1]),
+                    ],
+                    [0, 0],
+                ],
+                [
+                    ["4*u**2", "2*u"],
+                    [
+                        lambda x: bkd.full((x.shape[1],), 4.0),
+                        lambda x: bkd.full((x.shape[1],), 2.0),
+                    ],
+                    [2, 1],
+                ],
+            ],  # react_strs,
+            ["D", "R", "M"],  # bndry_types
+            [
+                self._setup_rect_cheby_basis_2d([4, 4], [0, 1, 0, 1]),
+            ],  # basis
+        ]
+        # TODO need to implement periodic boundary conditions for vector solutions
         for test_case in itertools.product(*test_case_args):
             self._check_steady_state_two_species_reaction_diffusion(*test_case)
 
@@ -1377,11 +1482,42 @@ class TestCollocation:
                     [2, 1],
                 ],
             ],  # react_strs,
+            ["D", "R"],  # bndry_types
             [
-                "D"
-            ],  # bndry_types # TODO need to implement robin and periodic boundary conditions for vector solutions
+                self._setup_cheby_basis_1d([5], [0, 1]),
+            ],  # basis
+            [BackwardEulerResidual, CrankNicholsonResidual],  # timestep_cls
+        ]
+
+        for test_case in itertools.product(*test_case_args):
+            self._check_transient_two_species_reaction_diffusion(*test_case)
+
+        test_case_args = [
+            [["(-(x-1)*x+x)*(T+1)*(y**2+1)", "(1-(x-1)*x)*(T+1)*(y+1)"]],  # sol_strings
             [
-                self._setup_cheby_basis_1d([14], [0, 1]),
+                ["1", "2"],
+            ],  # diff_strings
+            [
+                [
+                    ["0", "0"],
+                    [
+                        lambda x: bkd.zeros(x.shape[1]),
+                        lambda x: bkd.zeros(x.shape[1]),
+                    ],
+                    [0, 0],
+                ],
+                [
+                    ["4*u**2", "2*u"],
+                    [
+                        lambda x: bkd.full((x.shape[1],), 4.0),
+                        lambda x: bkd.full((x.shape[1],), 2.0),
+                    ],
+                    [2, 1],
+                ],
+            ],  # react_strs,
+            ["D", "R"],  # bndry_types
+            [
+                self._setup_rect_cheby_basis_2d([5, 5], [0, 1, 0, 1]),
             ],  # basis
             [BackwardEulerResidual, CrankNicholsonResidual],  # timestep_cls
         ]

@@ -1,5 +1,6 @@
 from abc import abstractmethod
-from typing import Dict, List
+from typing import Dict
+from functools import partial
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.pde.collocation.functions import (
@@ -64,7 +65,8 @@ class Physics(NewtonResidual):
                         "does not define _flux_jacobian"
                     )
                 bndry.set_flux_functions(
-                    self._flux_from_array, self._flux_jacobian_from_array
+                    partial(self._flux_from_array, bndry._component_id),
+                    partial(self._flux_jacobian_from_array, bndry._component_id),
                 )
 
     def apply_boundary_conditions_to_residual(
@@ -127,17 +129,26 @@ class Physics(NewtonResidual):
     def _flux(self, sol_array: Array):
         raise NotImplementedError
 
-    def _flux_jacobian_from_array(self, sol_array: Array):
+    def _flux_jacobian_from_array(self, component_id: int, sol_array: Array):
         sol = self.solution_from_array(sol_array)
         flux_jac = self._flux(sol).get_jacobian()
-        return flux_jac[:, 0, :, :]
+        return flux_jac[:, component_id, :, :]
 
-    def _flux_from_array(self, sol_array: Array):
+    def _flux_from_array(self, component_id: int, sol_array: Array):
         sol = self.solution_from_array(sol_array)
         flux = self._flux(sol)
-        if flux.ncols() != 1:
-            raise RuntimeError("flux must be a MatrixFunction with one column")
-        return flux.get_values()[:, 0, :]
+        if flux.ncols() != self.ncomponents():
+            raise RuntimeError(
+                "flux must be a MatrixFunction with {0} columns".format(
+                    self.ncomponents())
+            )
+        if flux.nrows() != self.basis.nphys_vars():
+            raise RuntimeError(
+                "flux must be a MatrixFunction with {0} rows".format(
+                    self.basis.nphys_vars())
+            )
+        # return flux.get_values()[:, component_id, :]
+        return flux.get_values()[:, component_id, :]
 
     def get_functions(self) -> Dict[str, ScalarOperator]:
         funs = dict()
@@ -430,7 +441,7 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
     def residual(self, sol: VectorSolution):
         if not isinstance(sol, VectorSolution):
             raise ValueError("sol must be an instance of VectorSolution")
-        residual = div(self._flux(sol).T)
+        residual = div(self._flux(sol))
         residual += self._reaction_op(sol)
         if self._forcing is not None:
             residual += self._forcing
@@ -438,7 +449,7 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
 
     def _flux(self, sol: VectorSolution):
         flux = self._diffusion @ vector_nabla(sol)
-        return flux
+        return flux.T
 
     def get_functions(self) -> Dict[str, ScalarOperator]:
         funs = super().get_functions()

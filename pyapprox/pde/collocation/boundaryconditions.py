@@ -121,8 +121,11 @@ class RobinBoundary(BoundaryOperator):
         mesh_bndry: OrthogonalCoordinateMeshBoundary,
         alpha: float,
         beta: float,
+        index_shift: int = 0,
+        component_id: int = 0,
     ):
-        super().__init__(mesh_bndry)
+        super().__init__(mesh_bndry, index_shift)
+        self._component_id = component_id
         self._alpha = alpha
         self._beta = beta
         self._normal_vals = self._mesh_bndry.normals(
@@ -136,7 +139,10 @@ class RobinBoundary(BoundaryOperator):
         self._flux_jac = flux_jac
 
     def _normal_flux(self, sol_array: Array):
-        idx = self._residual_bndry_idx
+        # self._flux only returns one component of flux
+        # so  use self._mesh_bndry._bndry_idx instead of
+        # self._residual_bndry_idx
+        idx = self._mesh_bndry._bndry_idx
         flux = self._flux(sol_array)
         normal_flux = sum(
             [
@@ -152,15 +158,28 @@ class RobinBoundary(BoundaryOperator):
         # todo only compute once for linear transient problems
         # todo: flux_jac called here evaluates flux jac on all grid points
         #       find way to only evalyate on boundary
-        idx = self._residual_bndry_idx
+
+        # self._flux only returns one component of flux
+        # so  use self._mesh_bndry._bndry_idx instead of
+        # self._residual_bndry_idx
+        idx = self._mesh_bndry._bndry_idx
         flux_jac = self._flux_jac(sol_array)
-        flux_jac = [self._bndry_slice(f, idx, 0) for f in flux_jac]
+        # flux_jac = [self._bndry_slice(f, idx, 0) for f in flux_jac]
+        flux_jac = flux_jac[:, idx]
         normal_flux_jac = sum(
             [
                 self._normal_vals[:, dd : dd + 1] * flux_jac[dd]
                 for dd in range(self._mesh_bndry.nphys_vars())
             ]
         )
+        # def autofun(sarray):
+        #     return self._normal_flux(sarray)
+        # jac_auto = self._bkd.jacobian(autofun, sol_array)
+        # import torch
+        # torch.set_printoptions(linewidth=1000, threshold=10000)
+        # print(jac_auto.shape, "J")
+        # print(normal_flux_jac.shape)
+        # assert self._bkd.allclose(normal_flux_jac, jac_auto, atol=1e-15)
         return normal_flux_jac
 
     def apply_to_residual(self, sol_array: Array, res_array: Array):
