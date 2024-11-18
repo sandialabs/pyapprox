@@ -6,6 +6,7 @@ from pyapprox.pde.collocation.functions import (
     ScalarSolution,
     VectorSolution,
     ScalarFunction,
+    ZeroScalarFunction,
     VectorFunction,
     ScalarOperator,
     ScalarOperatorOperation,
@@ -46,11 +47,14 @@ class Physics(NewtonResidual):
         for bndry in bndrys:
             if isinstance(bndry, PeriodicBoundary):
                 nperiodic_boundaries += 1
-        if (
-            len(bndrys) + nperiodic_boundaries
-            != len(self.basis.mesh._bndrys) * self.ncomponents()
-        ):
-            raise ValueError("Must set all boundaries")
+        # TODO allow physics to set define the minimum number of bndry conditions
+        # of certain types, e.g. diffusion equation requires at least one dirichlet
+        # boundary (or robin with nonzero solution contribution)
+        # if (
+        #     len(bndrys) + nperiodic_boundaries
+        #     != len(self.basis.mesh._bndrys) * self.ncomponents()
+        # ):
+        #     raise ValueError("Must set all boundaries")
         self._bndrys = bndrys
         for bndry in self._bndrys:
             if isinstance(bndry, RobinBoundary):
@@ -317,37 +321,32 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         bed: ScalarOperator,
         forcing: ScalarFunction = None,
     ):
-        if bed.ninput_funs() != forcing.ninput_funs():
+        if forcing is not None and bed.ninput_funs() != forcing.ninput_funs():
             raise ValueError("bed and forcing are inconsistent")
         self._forcing = forcing
         self._bed = bed
         self._g = 9.81
-        super().__init__(forcing.basis)
+        super().__init__(bed.basis)
         self.set_bed_slope_forcing()
 
     def set_bed_slope_forcing(self):
         self._slope_forcing = VectorOperator(
-            self.basis, self._forcing.ninput_funs(), self._forcing.nrows()
+            self.basis, self.ncomponents(), self.ncomponents()
         )
-        zero = ScalarFunction(
+        zero = ZeroScalarFunction(
             self.basis,
-            self._bkd.zeros(self.basis.mesh.nmesh_pts()),
-            ninput_funs=self._forcing.ninput_funs(),
+            ninput_funs=self._bed.ninput_funs(),
         )
-        print(zero.get_jacobian().shape)
-        print(self._bed, self._bed.get_jacobian().shape)
         slope_gradient_components = nabla(self._bed).get_components()
-        print(slope_gradient_components)
         self._slope_forcing.set_components(
             [zero] + slope_gradient_components
         )
         self._slope_forcing *= self._g
-        print(self._slope_forcing.get_jacobian())
 
     def ncomponents(self) -> int:
         return self._bed.nphys_vars() + 1
 
-    def _flux(self, sol: VectorSolution):
+    def _flux(self, sol: VectorSolution) -> MatrixOperator:
         # flux is actually a diagonal 3D tensor but store as a matrix
         # because divergence will be applied store flux for each equation
         # as a column
@@ -359,9 +358,14 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         )
         if sol.basis.nphys_vars() == 1:
             h, uh = sol.get_components()
+            if self._bkd.any(h.get_values() <= 0):
+                raise RuntimeError("Depth became negative")
             components = [[uh, uh**2 / h + (0.5 * self._g) * h**2]]
         else:
             h, uh, vh = sol.get_components()
+            if self._bkd.any(h.get_values() <= 0):
+                print(h.get_values().min())
+                raise RuntimeError("Depth became negative")
             uvh = uh * vh / h
             g_hsq = (0.5 * self._g) * h**2
             components = [
@@ -371,13 +375,15 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         flux.set_components(components)
         return -flux
 
-    def residual(self, sol: VectorSolution):
+    def residual(self, sol: VectorSolution) -> VectorOperator:
         if not isinstance(sol, VectorSolution):
             raise ValueError("sol must be an instance of VectorSolution")
         flux = self._flux(sol)
         residual = div(flux)
+        h = sol.get_components()[0]
+        residual -= h * self._slope_forcing
         if self._forcing is not None:
-            residual += self._forcing - self._slope_forcing
+            residual += self._forcing
         return residual
 
     def get_functions(self) -> Dict:
@@ -407,9 +413,8 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
         self._diffusion = MatrixOperator(
             diffusion.basis, 2, 2, 2
         )
-        zero = ScalarFunction(
+        zero = ZeroScalarFunction(
             self.basis,
-            self._bkd.zeros(self.basis.mesh.nmesh_pts()),
             ninput_funs=2,
         )
         self._diffusion.set_components(

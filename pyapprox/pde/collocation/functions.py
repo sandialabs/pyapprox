@@ -1,6 +1,7 @@
 import textwrap
 from abc import ABC, abstractmethod
 from typing import Union, List
+import numpy as np
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -8,7 +9,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
-
+from pyapprox.pde.kle.kle import MeshKLE
 
 # Note from typing documentation
 # When a type hint contains names that have not been defined yet, that
@@ -52,7 +53,6 @@ class ScalarOperator:
             self.set_values(values)
         if jac is not None:
             self.set_jacobian(jac)
-        self._set_quadrature_weights_at_mesh_pts()
 
     def ninput_funs(self) -> int:
         return self._ninput_funs
@@ -288,23 +288,13 @@ class ScalarOperator:
         values = self.get_values()[:, None]
         return self.basis.interpolate(values, eval_samples)[:, 0]
 
-    def _set_quadrature_weights_at_mesh_pts(self):
-        # compute quadrature rule at mesh points that integrates
-        # lagrange basis exactly for lebesque measure
-        orth_xx, orth_ww = self.basis._orth_quadrature_rule()
-        ww = self.basis._bexp._basis(orth_xx).T @ orth_ww[:, 0]
-        ww = self.basis.mesh.trans.modify_quadrature_weights(
-            self.basis.mesh._orth_mesh_pts, ww[:, None]
-        )
-        self._quad_weights_at_mesh_pts = ww
-
     def integrate(self):
         # self.basis.quadrature_rule() return Gauss Legendre rule
         # use this to integrate lagrange basis
         # xx, ww = self.basis.quadrature_rule()
         # values = self(xx)
         # return self._bkd.sum(values * ww[:, 0])
-        return self.get_values() @ self._quad_weights_at_mesh_pts
+        return self.get_values() @ self.basis.quadrature_rule_at_mesh_pts()[1]
 
     def _plot_1d(self, ax, nplot_pts_1d, **kwargs):
         plot_samples = self._bkd.linspace(
@@ -476,6 +466,26 @@ class ScalarFunction(ScalarOperator):
         raise NotImplementedError(
             "do not call set_jacobian because it is called by set_values"
         )
+
+
+class ConstantScalarFunction(ScalarFunction):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        const: float,
+        ninput_funs: int = 1,
+    ):
+        values = basis._bkd.full((basis.mesh.nmesh_pts(),), const)
+        super().__init__(basis, values, ninput_funs)
+
+
+class ZeroScalarFunction(ConstantScalarFunction):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        ninput_funs: int = 1,
+    ):
+        super().__init__(basis, 0., ninput_funs)
 
 
 class ScalarSolution(ScalarOperator):
@@ -1097,10 +1107,18 @@ class VectorSolution(VectorOperator):
 
 
 class VectorFunction(VectorOperator):
+    def create_scalar_operator_from_values(
+        self, values: Array, row: int, col: int
+    ) -> "ScalarFunction":
+        return ScalarFunction(
+            self.basis, values, ninput_funs=self.ninput_funs(),
+        )
+
     def set_components(self, components: List[ScalarFunction]):
         for comp in components:
             if not isinstance(comp, ScalarFunction):
                 raise ValueError("component must be an instance of Function")
+        print(components)
         super().set_components([comp for comp in components])
 
     def set_values(self, values: Array):
@@ -1250,223 +1268,45 @@ def div(mat_op: MatrixOperator):
     return op
 
 
-# class TransientOperatorMixin(ABC):
-#     """Operator that depends on time."""
+class ScalarKLEFunction(ScalarFunction):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        lenscale: float,
+        nterms: int,
+        sigma: float = 1,
+        use_log: bool = False,
+        matern_nu: float = np.inf,
+        mean_field: ScalarFunction = None,
+        ninput_funs: int = 1,
+    ):
+        super().__init__(basis, ninput_funs=ninput_funs)
+        self._setup_kle(lenscale, sigma, use_log, matern_nu, nterms, mean_field)
 
-#     def __init__(self, *args, **kwargs):
-#         super()._init__(*args, **kwargs)
+    def _setup_kle(
+        self,
+        lenscale: float,
+        sigma: float,
+        use_log: bool,
+        matern_nu: float,
+        nterms: int,
+        mean_field: ScalarFunction,
+    ):
+        self._kle = MeshKLE(
+            self.basis.mesh.mesh_pts(),
+            lenscale,
+            sigma,
+            0 if mean_field is None else mean_field.get_values(),
+            use_log,
+            matern_nu,
+            self.basis.quadrature_rule_at_mesh_pts()[1][:, 0],
+            backend=self.basis._bkd,
+        )
+        # initialize to mean
+        self.set_param(self._bkd.zeros(self._kle.nvars(),))
 
-#     @abstractmethod
-#     def _eval(self, time: float):
-#         raise NotImplementedError
+    def kle(self) -> MeshKLE:
+        return self._kle
 
-#     def set_time(self, time: float):
-#         self._time = time
-#         self.set_values(self._eval(self.basis.mesh.mesh_pts()))
-#         self.set_matrix_jacobian(self._initial_matrix_jacobian())
-
-#     def _check_time_set(self):
-#         if not hasattr(self, "_time"):
-#             raise ValueError(
-#                 "Must call set_time before evaluating the function"
-#             )
-
-#     def get_time(self):
-#         self._check_time_set()
-#         return self._time
-
-#     def __repr__(self):
-#         return "{0}(\ntime={1}\n{2}\n)".format(
-#             self.__class__.__name__,
-#             self._time,
-#             textwrap.indent("basis=" + str(self.basis), prefix="    "),
-#         )
-
-
-# class TransientOperatorFromCallableMixin(TransientOperatorMixin):
-#     def _eval(self, mesh_pts):
-#         self._check_time_set()
-#         return self._fun(mesh_pts, time=self._time)
-
-
-# class TransientScalarFunctionFromCallable(
-#     TransientOperatorFromCallableMixin, ScalarFunction
-# ):
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         fun: callable,
-#         time: float = 0,
-#     ):
-#         self._fun = fun
-#         ScalarOperator.__init__(self, basis)
-#         self.set_time(time)
-
-
-# class TransientScalarSolutionFromCallable(
-#     TransientOperatorFromCallableMixin, ScalarSolution
-# ):
-#     """Transient scalar solution of a PDE"""
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         fun: callable,
-#         time: float = 0,
-#     ):
-#         self._fun = fun
-#         ScalarSolution.__init__(self, basis)
-#         self.set_time(time)
-
-
-# class TransientVectorFunctionFromCallable(
-#     TransientOperatorFromCallableMixin, VectorFunction
-# ):
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nrows: int,
-#         fun: callable,
-#         time: float = 0,
-#     ):
-#         self._fun = fun
-#         VectorOperator.__init__(self, basis, nrows)
-#         self.set_time(time)
-
-
-# class TransientVectorSolutionFromCallable(
-#     TransientOperatorFromCallableMixin, VectorSolution
-# ):
-#     """Transient scalar solution of a PDE"""
-
-#     def __init__(
-#         self,
-#         basis: OrthogonalCoordinateCollocationBasis,
-#         nrows: int,
-#         fun: callable,
-#         time: float = 0,
-#     ):
-#         self._fun = fun
-#         ScalarSolution.__init__(self, basis, nrows)
-#         self.set_time(time)
-
-
-# # class VectorSolutionOperator(Operator):
-# #     def __init__(self, scalar_vec_operators: List):
-# #         self._ops = scalar_vec_operators
-
-# #     def split_into_scalar_solutions(self, sol: VectorSolution):
-# #         vals = sol.get_values()
-# #         if vals.shape[1] != 1:
-# #             raise ValueError("sol must be a vector-valued funciton")
-# #         return [
-# #             ScalarSolution(sol.basis, vals[ii, 0])
-# #             for ii in range(vals.shape[0])
-# #         ]
-
-# #     def split_into_immutable_functions(self, sol: VectorSolution):
-# #         vals = sol.get_values()
-# #         if vals.shape[1] != 1:
-# #             raise ValueError("sol must be a vector-valued funciton")
-# #         return [
-# #             ScalarFunction(sol.basis, vals[ii, 0])
-# #             for ii in range(vals.shape[0])
-# #         ]
-
-# #     def __call__(self, sol: VectorSolution):
-# #         # split into sols with jacobian and without to easily compute
-# #         # jacobian entries
-# #         nop_rows = len(self._ops)
-# #         sols = self.split_into_scalar_solutions(sol)
-# #         funs = self.split_into_immutable_functions(sol)
-# #         result = MatrixOperator(basis, nop_rows, nop_cols)
-# #         values = self._bkd.zeros(result.matrix_jacobian_shape()[:-1])
-# #         jac = self._bkd.zeros(result.matrix_jacobian_shape())
-# #         # loop over element of output vector
-# #         for ii in range(nop_rows):
-# #             # compute derivative of ith output vector operator with respect to
-# #             # each input vector element
-# #             for jj in range(sol._nrows):
-# #                 quantities = [
-# #                     funs[jj] if jj != kk else sols[kk]
-# #                     for kk in range(sol._nrows)
-# #                 ]
-# #                 result_ii = op(quantities)
-# #                 values[ii, 0] = result_ii.get_values()
-# #                 # jac (npts, npts)
-# #                 jac[ii, jj, ...] = result_ii.get_jacobian()
-
-
-# # nabla f(u) = [D_1f_1,    0  ], d/du (nabla f(u)) = [D_1f_1'(u),     0     ]
-# #            = [  0   , D_2f_2]                      [   0      , D_2 f'(u) ]
-# # where f'(u) = d/du f(u)
-# def nabla(fun: MatrixOperator):
-#     """Gradient of a scalar valued function"""
-#     funvalues = fun.get_matrix_values()[0, 0]
-#     fun_jac = fun.get_matrix_jacobian()
-#     # todo need to create 3d array
-#     grad_vals = fun._bkd.stack(
-#         [
-#             fun.basis._deriv_mats[dd] @ funvalues
-#             for dd in range(fun.nphys_vars())
-#         ],
-#         axis=0,
-#     )[:, None, :]
-#     grad_jacs = fun._bkd.stack(
-#         [
-#             (fun.basis._deriv_mats[dd] @ fun_jac[0, 0])[None, :]
-#             for dd in range(fun.nphys_vars())
-#         ],
-#         axis=0,
-#     )
-#     return MatrixOperator(
-#         fun.basis, fun.nphys_vars(), 1, fun._nsols, grad_vals, grad_jacs
-#     )
-
-
-# # div f = [D_1 f_1(u) + D_2f_2(u)],  (div f)' = [D_1f'_1(u) + D_2f'_2(u)]
-# def div(fun: MatrixOperator):
-#     """Divergence of a vector valued function."""
-#     if fun._ncols != 1:
-#         raise ValueError("Fun must be a vector valued function")
-#     fun_values = fun.get_values()[:, 0, ...]
-#     fun_jacs = fun.get_matrix_jacobian()[:, 0, ...]
-#     dmats = fun._bkd.stack(fun.basis._deriv_mats, axis=0)
-#     # dmats: (nrows, n, n)
-#     # fun_values : (nrows, n)
-#     div_vals = fun._bkd.sum(
-#         fun._bkd.einsum("ijk,ik->ij", dmats, fun_values), axis=0
-#     )
-#     # dmats: (nrows, n, n)
-#     # fun_jacs : (nrows, n, n)
-#     div_jac = fun._bkd.sum(
-#         fun._bkd.einsum("ijk,ikm->ijm", dmats, fun_jacs), axis=0
-#     )
-#     return MatrixOperator(
-#         fun.basis, 1, 1, div_vals[None, None, :], div_jac[None, None, ...]
-#     )
-
-
-# def sqmagnitude(fun: MatrixOperator):
-#     """Squared magnitude of a vector valued function."""
-#     if fun._ncols != 1:
-#         raise ValueError("Fun must be a vector valued function")
-#     fun_values = fun.get_values()[:, 0, ...]
-#     fun_jacs = fun.get_matrix_jacobian()[:, 0, ...]
-#     mag_vals = fun._bkd.sum(fun_values**2, axis=0)
-#     mag_jacs = fun._bkd.sum(2 * fun_jacs * fun_values[..., None], axis=0)
-#     return ScalarOperator(fun.basis, mag_vals, mag_jacs)
-
-
-# # div (nabla f)  = [D_1, D_2][D_1f_1,    0  ] = [D_1D_1f_1,    0     ]
-# #                            [  0   , D_2f_2] = [  0      , D_2D_2f_2]
-# # d/du (nabla f(u)) = [D_1D_1f_1'(u),     0        ]
-# #                     [   0      ,    D_2D_2 f'(u) ]
-# def laplace(fun: MatrixOperator):
-#     """Laplacian of a scalar valued function"""
-#     return div(nabla(fun))
-
-
-# def fdotgradf(fun: MatrixOperator):
-#     r"""(f \cdot nabla f)f of a vector-valued function f"""
-#     pass
+    def set_param(self, param):
+        self.set_values(self._kle(param[:, None])[:, 0])

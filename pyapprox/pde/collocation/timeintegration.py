@@ -69,9 +69,12 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         # def autofun(sol_array):
         #     return self(sol_array)
         # jac_auto = self._bkd.jacobian(autofun, sol)
-        # print(jac_auto)
-        # print(self.jacobian(sol))
-        # print(jac_auto-self.jacobian(sol))
+        # import torch
+        # torch.set_printoptions(linewidth=1000, threshold=10000)
+        # print(res, "R")
+        # print(jac_auto, "J")
+        # # print(self.jacobian(sol))
+        # # print((jac_auto-self.jacobian(sol)).max())
         # assert self._bkd.allclose(
         #     self.jacobian(sol),
         #     jac_auto,
@@ -83,7 +86,7 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         # jac_auto = self._bkd.jacobian(autofun, sol)
         # print(jac_auto)
         # print(self.native_residual.jacobian(sol))
-        # print(jac_auto-self.native_residual.jacobian(sol))
+        # print((jac_auto-self.native_residual.jacobian(sol)).max())
         # assert self._bkd.allclose(
         #     self.native_residual.jacobian(sol),
         #     jac_auto,

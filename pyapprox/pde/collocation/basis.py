@@ -104,6 +104,7 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
         basis = TensorProductInterpolatingBasis(bases_1d)
         basis.set_tensor_product_indices(self.mesh._npts_1d)
         self._bexp = TensorProductInterpolant(basis)
+        self._set_quadrature_weights_at_mesh_pts()
 
     def _form_1d_orth_derivative_matrix(self, pts: Array):
         npts = pts.shape[0]
@@ -149,6 +150,19 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
         xx = self.mesh.trans.map_from_orthogonal(orth_xx)
         ww = self.mesh.trans.modify_quadrature_weights(orth_xx, orth_ww)
         return xx, ww
+
+    def _set_quadrature_weights_at_mesh_pts(self):
+        # compute quadrature rule at mesh points that integrates
+        # lagrange basis exactly for lebesque measure
+        orth_xx, orth_ww = self._orth_quadrature_rule()
+        ww = self._bexp._basis(orth_xx).T @ orth_ww[:, 0]
+        ww = self.mesh.trans.modify_quadrature_weights(
+            self.mesh._orth_mesh_pts, ww[:, None]
+        )
+        self._quad_weights_at_mesh_pts = ww
+
+    def quadrature_rule_at_mesh_pts(self):
+        return self.mesh.mesh_pts(), self._quad_weights_at_mesh_pts
 
 
 class OrthogonalCoordinateBasis1DMixin:

@@ -322,6 +322,9 @@ class AbstractKLE(ABC):
     def _set_nterms(self, nterms):
         self._nterms = nterms
 
+    def nvars(self) -> int:
+        return self._nterms
+
     @abstractmethod
     def _compute_kernel_matrix(self):
         raise NotImplementedError

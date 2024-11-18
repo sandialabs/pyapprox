@@ -163,7 +163,7 @@ class TransientPDE(PDESolver):
             self._final_time,
             self._deltat,
             newton_solver=self._newton_solver,
-            verbosity=0,
+            verbosity=2,
         )
 
     def solve(self, init_sol: MatrixOperator):
