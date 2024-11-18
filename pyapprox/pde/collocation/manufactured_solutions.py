@@ -383,17 +383,15 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
         self,
         nvars: int,
         depth_str: str,
-        vel_strs: List[str],
+        mom_strs: List[str],
         bed_str: str,
         bkd=NumpyLinAlgMixin,
         oned: bool = False,
     ):
         self._depth_str = depth_str
-        self._vel_strs = vel_strs
+        self._mom_strs = mom_strs
         self._bed_str = bed_str
-        print(vel_strs, "A", depth_str)
         self._g = 9.81
-        mom_strs = [f"({depth_str})*({vel_str})" for vel_str in vel_strs]
         print(mom_strs)
         super().__init__([depth_str] + mom_strs, nvars, bkd, oned)
 
@@ -426,7 +424,9 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
         ]
         # assume code always applies bed gradient forcing
         for ii in range(self._nvars):
-            forc_expr[ii+1] += self._g * h * bed_expr.diff(cartesian_symbs[ii], 1)
+            forc_expr[ii+1] += self._g * h * bed_expr.diff(
+                cartesian_symbs[ii], 1
+            )
         self._set_expression("bed", bed_expr, self._bed_str)
         self._set_expression("flux", flux_exprs, self._depth_str)
         self._expressions["forcing"] = [

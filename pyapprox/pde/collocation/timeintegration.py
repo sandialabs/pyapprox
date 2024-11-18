@@ -73,6 +73,8 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         # torch.set_printoptions(linewidth=1000, threshold=10000)
         # print(res, "R")
         # print(jac_auto, "J")
+        # print(self)
+        # print(self._time, self._deltat)
         # # print(self.jacobian(sol))
         # # print((jac_auto-self.jacobian(sol)).max())
         # assert self._bkd.allclose(
@@ -390,13 +392,13 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
         )
 
     def _jacobian(self, sol: Array):
-        self.native_residual.set_time(self._time)
-        current_jac = self.native_residual.jacobian(self._prev_sol)
-        # self.native_residual.set_time(self._time + self._deltat)
-        # next_jac = self.native_residual.jacobian(sol)
+        # self.native_residual.set_time(self._time)
+        # current_jac = self.native_residual.jacobian(self._prev_sol)
+        self.native_residual.set_time(self._time + self._deltat)
+        next_jac = self.native_residual.jacobian(sol)
         return self.native_residual.mass_matrix(
             sol.shape[0]
-        ) - 0.5 * self._deltat * (current_jac)
+        ) - 0.5 * self._deltat * (next_jac)
 
     def quadrature_samples_weights(self, times):
         node_gen = UnivariateTransientNodeGenerator(self._bkd)

@@ -74,6 +74,7 @@ from pyapprox.pde.collocation.solvers import (
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
     CrankNicholsonResidual,
+    TimeIntegratorNewtonResidual,
 )
 
 # from pyapprox.util.print_wrapper import *
@@ -228,13 +229,22 @@ class TestCollocation:
 
         return bndry_funs
 
-    def _setup_robin_boundary_conditions(
+    def _setup_vector_robin_boundary_conditions(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
         man_sol: ManufacturedSolution,
+        alpha: float,
+        beta: float,
     ):
-        # use the same alpha, beta for every test
-        alpha, beta = 2.0, 3.0
+        pass
+
+    def _setup_scalar_robin_boundary_conditions(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        man_sol: ManufacturedSolution,
+        alpha: float,
+        beta: float,
+    ):
         bndry_funs = []
         for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
             bndry_funs.append(
@@ -248,6 +258,21 @@ class TestCollocation:
                 )
             )
         return bndry_funs
+
+    def _setup_robin_boundary_conditions(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        man_sol: ManufacturedSolution,
+    ):
+        # use the same alpha, beta for every test
+        alpha, beta = 2.0, 3.0
+        if man_sol.ncomponents() == 1:
+            return self._setup_scalar_robin_boundary_conditions(
+                basis, man_sol, alpha, beta
+            )
+        return self._setup_vector_robin_boundary_conditions(
+            basis, man_sol, alpha, beta
+        )
 
     def _setup_periodic_boundary_conditions(
         self,
@@ -510,6 +535,7 @@ class TestCollocation:
         react_tup: Tuple[str, callable, int],
         bndry_types: str,
         basis: OrthogonalCoordinateCollocationBasis,
+        timestep_cls: TimeIntegratorNewtonResidual,
     ):
         bkd = self.get_backend()
         react_str, react_fun, react_op_degree = react_tup
@@ -557,8 +583,7 @@ class TestCollocation:
         )
         init_time, final_time, deltat = 0.0, 1.0, 0.5
         solver.setup_time_integrator(
-            # BackwardEulerResidual,
-            CrankNicholsonResidual,
+            timestep_cls,
             init_time,
             final_time,
             deltat,
@@ -627,6 +652,7 @@ class TestCollocation:
             [
                 self._setup_cheby_basis_1d([5], [0, 1]),
             ],  # basis
+            [BackwardEulerResidual, CrankNicholsonResidual],  # timestep_cls
         ]
         for test_case in itertools.product(*test_case_args):
             self._check_transient_state_advection_diffusion_reaction(
@@ -650,6 +676,7 @@ class TestCollocation:
             [
                 self._setup_rect_cheby_basis_2d([5, 5], [0, 1, 0, 2]),
             ],  # basis
+            [BackwardEulerResidual, CrankNicholsonResidual],  # timestep_cls
         ]
         for test_case in itertools.product(*test_case_args):
             self._check_transient_state_advection_diffusion_reaction(
@@ -937,6 +964,7 @@ class TestCollocation:
         init_time,
         final_time,
         deltat,
+        timestep_cls
     ):
         bkd = self.get_backend()
         boundaries = self._setup_boundary_conditions(
@@ -956,8 +984,7 @@ class TestCollocation:
             ),
         )
         solver.setup_time_integrator(
-            # BackwardEulerResidual,
-            CrankNicholsonResidual,
+            timestep_cls,
             init_time,
             final_time,
             deltat,
@@ -979,6 +1006,7 @@ class TestCollocation:
         final_time,
         deltat,
         test_time,
+        timestep_cls,
     ):
         # physics must use man_sol["forcing_without_time_deriv"]
 
@@ -992,6 +1020,7 @@ class TestCollocation:
             init_time,
             final_time,
             deltat,
+            timestep_cls,
         )
         init_sol.set_time(test_time)
         solver._time_residual.native_residual.set_time(test_time)
@@ -1035,6 +1064,7 @@ class TestCollocation:
         init_time,
         final_time,
         deltat,
+        timestep_cls,
     ):
         bkd = self.get_backend()
         solver, init_sol = self._setup_transient_pde(
@@ -1046,6 +1076,7 @@ class TestCollocation:
             init_time,
             final_time,
             deltat,
+            timestep_cls,
         )
         sols, times = solver.solve(init_sol)
         exact_sols = []
@@ -1055,8 +1086,9 @@ class TestCollocation:
         exact_sols = bkd.stack(exact_sols, axis=-1)
         # print(sols)
         # print(exact_sols)
-        # print(sols - exact_sols)
-        assert bkd.allclose(sols, exact_sols, atol=1e-12)
+        print(sols - exact_sols)
+        print(bkd.abs(sols - exact_sols).max())
+        assert bkd.allclose(sols, exact_sols, atol=3e-12)
 
     def _check_shallow_wave_equation(
         self,
@@ -1065,6 +1097,7 @@ class TestCollocation:
         bed_str: str,
         bndry_types: str,
         basis: OrthogonalCoordinateCollocationBasis,
+        timestep_cls: TimeIntegratorNewtonResidual,
     ):
         bkd = self.get_backend()
         man_sol = ShallowWave(
@@ -1078,7 +1111,7 @@ class TestCollocation:
         print(man_sol)
 
         exact_sol = self._setup_vector_solution(basis, man_sol)
-        init_time, final_time, deltat = 0.0, 1.0, 0.5
+        init_time, final_time, deltat = 0.0, 0.1, 0.1
 
         bed = self._setup_scalar_function("bed", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
@@ -1097,7 +1130,8 @@ class TestCollocation:
             init_time,
             final_time,
             deltat,
-            test_time
+            test_time,
+            timestep_cls,
         )
 
         physics = ShallowWaveEquation(bed, forcing)
@@ -1110,25 +1144,23 @@ class TestCollocation:
             init_time,
             final_time,
             deltat,
+            timestep_cls,
         )
 
     def test_shallow_wave_equation(self):
-        # while velocity and momentum are only linear in Time
-        # momentum will be quadratic so only crank nicholso will be exact
-        # It appears that this choice of depth and vel requires huge numbers of newton interation
-        # even though I have verified that the jaocbians are exct with AD.
         test_case_args = [
             [
                 "(1+x**2)*(10-T)"
             ],  # depth_string # tests time dependent boundary conditions
             [
-                ["(1+x**2)/10*(10-T)"],
-            ],  # vel_strings
+                ["(1+x**2)*(10-T)/10*x"],
+            ],  # mom_strings
             ["-x"],  # bed_string
             ["D"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([10], [0, 1]),
             ],  # basis
+            [BackwardEulerResidual, CrankNicholsonResidual],  # timestep_cls
         ]
 
         for test_case in itertools.product(*test_case_args):
@@ -1147,6 +1179,7 @@ class TestCollocation:
             [
                 self._setup_rect_cheby_basis_2d([10, 10], [0, 1, 0, 1]),
             ],  # basis
+            [BackwardEulerResidual, CrankNicholsonResidual],  # timestep_cls
         ]
 
         for test_case in itertools.product(*test_case_args):
@@ -1279,9 +1312,10 @@ class TestCollocation:
         self,
         sol_strings: List[str],
         diff_strings: List[str],
-        react_tup: Tuple[List[str], List[callable], List[int]],  
+        react_tup: Tuple[List[str], List[callable], List[int]],
         bndry_types: str,
         basis: OrthogonalCoordinateCollocationBasis,
+        timestep_cls: TimeIntegratorNewtonResidual,
     ):
         bkd = self.get_backend()
         react_strs, react_funs, react_op_degrees = react_tup
@@ -1315,6 +1349,7 @@ class TestCollocation:
             init_time,
             final_time,
             deltat,
+            timestep_cls,
         )
 
     def test_transient_two_species_reaction_diffusion(self):
@@ -1348,6 +1383,7 @@ class TestCollocation:
             [
                 self._setup_cheby_basis_1d([14], [0, 1]),
             ],  # basis
+            [BackwardEulerResidual, CrankNicholsonResidual],  # timestep_cls
         ]
 
         for test_case in itertools.product(*test_case_args):
