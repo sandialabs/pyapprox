@@ -339,6 +339,7 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         self._g = 9.81
         super().__init__(bed.basis)
         self.set_bed_slope_forcing()
+        self._flux_jacobian_implemented = True
 
     def set_bed_slope_forcing(self):
         self._slope_forcing = VectorOperator(

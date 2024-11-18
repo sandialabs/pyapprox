@@ -210,8 +210,13 @@ class RobinBoundaryFromOperator(BoundaryFromOperatorMixin, RobinBoundary):
         mesh_bndry: OrthogonalCoordinateMeshBoundary,
         fun: MatrixOperator,
         alpha: float,
+        beta: float,
+        index_shift: int,
+        component_id: int,
     ):
-        super().__init__(mesh_bndry, alpha)
+        super().__init__(
+            mesh_bndry, alpha, beta, index_shift, component_id
+        )
         self._set_function(fun)
 
 

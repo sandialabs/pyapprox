@@ -1231,7 +1231,7 @@ class TestCollocation:
                 ["(1+x**2)*(10-T)/10*x"],
             ],  # mom_strings
             ["-x"],  # bed_string
-            ["D"],  # bndry_types
+            ["D", "R", "M"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([10], [0, 1]),
             ],  # basis
@@ -1250,7 +1250,7 @@ class TestCollocation:
                 ["(1+x**2)/10*(10-T)", "(1+y**2)/10*(10-T)"],
             ],  # vel_strings
             ["-x -y"],  # bed_string
-            ["D"],  # bndry_types
+            ["D", "R"],  # bndry_types
             [
                 self._setup_rect_cheby_basis_2d([10, 10], [0, 1, 0, 1]),
             ],  # basis
