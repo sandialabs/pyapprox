@@ -353,6 +353,7 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
             self.basis,
             ninput_funs=self._bed.ninput_funs(),
         )
+        print(self._bed.jac_type())
         slope_gradient_components = nabla(self._bed).get_components()
         self._slope_forcing.set_components([zero] + slope_gradient_components)
         self._slope_forcing *= self._g

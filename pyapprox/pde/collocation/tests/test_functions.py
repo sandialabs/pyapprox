@@ -19,6 +19,9 @@ from pyapprox.pde.collocation.functions import (
     VectorOperator,
     VectorSolution,
     MatrixOperator,
+    ZeroJac,
+    DiagJac,
+    DenseJac,
 )
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
@@ -151,6 +154,24 @@ class TestOperators:
         # check plots run without calling plt.show
         ax = sol1.get_plot_axis()[1]
         sol1.plot(ax)
+
+        assert isinstance((fun2**2).jac_type(), ZeroJac)
+        assert isinstance((sol0**2).jac_type(), DiagJac)
+        assert isinstance((sol0*fun2).jac_type(), DiagJac)
+        assert isinstance((sol0+fun2).jac_type(), DiagJac)
+        assert isinstance((sol0-fun2).jac_type(), DiagJac)
+        assert isinstance((fun2-sol0).jac_type(), DiagJac)
+        assert isinstance((1.-sol0).jac_type(), DiagJac)
+        assert isinstance((sol0-1.).jac_type(), DiagJac)
+        assert isinstance((1.-fun2).jac_type(), ZeroJac)
+        assert isinstance((fun2-1.).jac_type(), ZeroJac)
+        assert isinstance((fun2/sol0).jac_type(), DiagJac)
+        assert isinstance((1./sol0).jac_type(), DiagJac)
+        assert isinstance((sol0/2.).jac_type(), DiagJac)
+        assert isinstance((1./fun2).jac_type(), ZeroJac)
+        assert isinstance((fun2/2.).jac_type(), ZeroJac)
+        assert isinstance(sol0.deriv(0).jac_type(), DenseJac)
+        assert isinstance(fun2.deriv(0).jac_type(), ZeroJac)
 
         if not bkd.jacobian_implemented():
             return

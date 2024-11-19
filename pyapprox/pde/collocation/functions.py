@@ -18,6 +18,36 @@ from pyapprox.pde.kle.kle import MeshKLE
 # should evaluate without errors once the module has been fully loaded.
 
 
+class JacType(ABC):
+    # def __init__(self, shape: tuple)
+    
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
+    @abstractmethod
+    def new_type(self, other: "JacType"):
+        raise NotImplementedError
+
+
+class DenseJac(JacType):
+    def new_type(self, other: JacType):
+        return DenseJac()
+
+
+class DiagJac(JacType):
+    def new_type(self, other: JacType):
+        if isinstance(other, DenseJac):
+            return DenseJac
+        return DiagJac()
+
+
+class ZeroJac(JacType):
+    def new_type(self, other: JacType):
+        if isinstance(other, ZeroJac):
+            return ZeroJac()
+        return other.jac_type()
+
+
 class ScalarOperator:
     def __init__(
         self,
@@ -25,6 +55,7 @@ class ScalarOperator:
         ninput_funs: int,
         values: Array = None,
         jac: Array = None,
+        jac_type: JacType = DenseJac(),
     ):
         """
         Parameters
@@ -40,7 +71,13 @@ class ScalarOperator:
 
         jac : Array (nrows, ncols, nsols, nmesh_pts, nmesh_pts)
             The jacobian of each function at the mesh points
+
+        jac_type: JacType
+            The sparsity type of the jacobian
         """
+        # TODO Warning right now jac_type is primiarly used to
+        # speed up deriv calculation, but full jacobian is always
+        # stored. Eventually only store sparse entries of jacobian
         self._ninput_funs = ninput_funs
         if not isinstance(basis, OrthogonalCoordinateCollocationBasis):
             raise ValueError(
@@ -52,7 +89,7 @@ class ScalarOperator:
         if values is not None:
             self.set_values(values)
         if jac is not None:
-            self.set_jacobian(jac)
+            self.set_jacobian(jac, jac_type)
 
     def ninput_funs(self) -> int:
         return self._ninput_funs
@@ -82,13 +119,17 @@ class ScalarOperator:
             raise RuntimeError("must call set_jacobian()")
         return self._jac
 
-    def set_jacobian(self, jac: Array):
+    def set_jacobian(self, jac: Array, jac_type: JacType = DenseJac()):
+        self._jac_type = jac_type
         jac_shape = (self.nmesh_pts(), self.nmesh_pts() * self.ninput_funs())
         if jac.shape != jac_shape:
             raise ValueError(
                 "values.shape {0} should be {1}".format(jac.shape, jac_shape)
             )
         self._jac = jac
+
+    def jac_type(self):
+        return self._jac_type
 
     def get_flattened_values(self):
         return self.get_values()
@@ -105,6 +146,7 @@ class ScalarOperator:
                 self.ninput_funs(),
                 self.get_values() + other,
                 self.get_jacobian(),
+                jac_type=self.jac_type(),
             )
 
         return ScalarOperator(
@@ -112,6 +154,7 @@ class ScalarOperator:
             self.ninput_funs(),
             self.get_values() + other.get_values(),
             self.get_jacobian() + other.get_jacobian(),
+            jac_type=self.jac_type().new_type(other),
         )
 
     def __add__(
@@ -137,6 +180,7 @@ class ScalarOperator:
             self.ninput_funs(),
             fun1.get_values() - fun2.get_values(),
             fun1.get_jacobian() - fun2.get_jacobian(),
+            jac_type=fun1.jac_type().new_type(fun2),
         )
 
     def __sub__(
@@ -148,6 +192,7 @@ class ScalarOperator:
                 self.ninput_funs(),
                 self.get_values() - other,
                 self.get_jacobian(),
+                jac_type=self.jac_type()
             )
         if not isinstance(other, ScalarOperator):
             raise ValueError(
@@ -164,12 +209,23 @@ class ScalarOperator:
                 self.ninput_funs(),
                 other - self.get_values(),
                 -self.get_jacobian(),
+                jac_type=self.jac_type()
             )
         if not isinstance(other, ScalarOperator):
             raise ValueError(
                 f"cannot subtract a ScalarOperator from {type(other)}"
             )
         return self._subtract_functions(other, self)
+
+    def _init_function(self, values):
+        # initialize operator with zero jacobian
+        return ScalarOperator(
+            self.basis,
+            self.ninput_funs(),
+            values,
+            self.get_jacobian(),
+            ZeroJac(),
+        )
 
     def _multiply_functions(
         self, other: Union["ScalarOperator", float]
@@ -185,15 +241,28 @@ class ScalarOperator:
                 self.ninput_funs(),
                 self.get_values() * other,
                 self.get_jacobian() * other,
+                jac_type=self.jac_type()
             )
 
         values = self.get_values() * other.get_values()
         # use product rule
-        jac = (
-            other.get_jacobian() * self.get_values()[..., None]
-            + other.get_values()[..., None] * self.get_jacobian()
+        if isinstance(self.jac_type(), ZeroJac) and isinstance(
+            other.jac_type(), ZeroJac
+        ):
+            return self._init_function(values)
+        jac = 0
+        if not isinstance(self.jac_type(), ZeroJac):
+            jac += other.get_values()[..., None] * self.get_jacobian()
+        if not isinstance(other.jac_type(), ZeroJac):
+            jac += other.get_jacobian() * self.get_values()[..., None]
+
+        return ScalarOperator(
+            other.basis,
+            self.ninput_funs(),
+            values,
+            jac,
+            jac_type=self.jac_type().new_type(other),
         )
-        return ScalarOperator(other.basis, self.ninput_funs(), values, jac)
 
     def __mul__(
         self, other: Union["ScalarOperator", "MatrixOperator", float]
@@ -229,6 +298,7 @@ class ScalarOperator:
             other
             * self.get_jacobian()
             * self.get_values()[..., None] ** (other - 1),
+            jac_type=self.jac_type(),
         )
 
     def _divide_functions(self, fun1, fun2) -> "ScalarOperator":
@@ -240,6 +310,7 @@ class ScalarOperator:
                 self.ninput_funs(),
                 fun1.get_values() / fun2,
                 fun1.get_jacobian() / fun2,
+                jac_type=fun1.jac_type(),
             )
 
         if isinstance(fun1, float):
@@ -252,15 +323,30 @@ class ScalarOperator:
                 -fun1
                 * fun2.get_jacobian()
                 / (fun2.get_values()[..., None] ** 2),
+                jac_type=fun2.jac_type()
             )
 
         values = fun1.get_values() / fun2.get_values()
+        if isinstance(fun1.jac_type(), ZeroJac) and isinstance(
+            fun2.jac_type(), ZeroJac
+        ):
+            return self._init_function(values)
+
         # use quotient rule
-        jac = (
-            fun2.get_values()[..., None] * fun1.get_jacobian()
-            - fun2.get_jacobian() * fun1.get_values()[..., None]
-        ) / fun2.get_values()[..., None] ** 2
-        return ScalarOperator(fun1.basis, self.ninput_funs(), values, jac)
+        jac = 0
+        if not isinstance(fun1.jac_type(), ZeroJac):
+            jac += fun2.get_values()[..., None] * fun1.get_jacobian()
+        if not isinstance(fun2.jac_type(), ZeroJac):
+            jac -= fun2.get_jacobian() * fun1.get_values()[..., None]
+        jac /= fun2.get_values()[..., None] ** 2
+        # jac = (
+        #     fun2.get_values()[..., None] * fun1.get_jacobian()
+        #     - fun2.get_jacobian() * fun1.get_values()[..., None]
+        # ) / fun2.get_values()[..., None] ** 2
+        return ScalarOperator(
+            fun1.basis, self.ninput_funs(), values, jac,
+            jac_type=fun1.jac_type().new_type(fun2),
+        )
 
     def __truediv__(
         self, other: Union["ScalarOperator", float]
@@ -277,11 +363,30 @@ class ScalarOperator:
         return self._divide_functions(other, self)
 
     def deriv(self, physvar_id: int) -> "ScalarOperator":
+        if isinstance(self.jac_type(), ZeroJac):
+            jac_type = ZeroJac()
+            jac = self.get_jacobian()
+        else:
+            jac_type = DenseJac()
+            if isinstance(self.jac_type(), DiagJac):
+                # copy is necessary so not to effect selfs jacobian
+                jac = self._bkd.copy(self.get_jacobian())
+                # exploit fact dot product of derivative matrix is with
+                # diag matrix
+                stride = self.basis.mesh.nmesh_pts()
+                for ii in range(self.ninput_funs()):
+                    jac[:, ii*stride:(ii+1)*stride] = (
+                        self.basis._deriv_mats[physvar_id]
+                        * self._bkd.diag(jac[:, ii*stride:(ii+1)*stride])
+                    )
+            else:
+                jac = self.basis._deriv_mats[physvar_id] @ self.get_jacobian()
         return ScalarOperator(
             self.basis,
             self.ninput_funs(),
             self.basis._deriv_mats[physvar_id] @ self.get_values(),
-            self.basis._deriv_mats[physvar_id] @ self.get_jacobian(),
+            jac,
+            jac_type=jac_type
         )
 
     def __call__(self, eval_samples: Array) -> Array:
@@ -322,7 +427,7 @@ class ScalarOperator:
                 raise ValueError(
                     "Z max {0} outside zbounds {1}".format(Z.max(), zbounds[1])
                 )
-            Z = (Z-zmin)/(zmax-zmin)
+            Z = (Z - zmin) / (zmax - zmin)
         if ax.name != "3d":
             return ax.contourf(X, Y, Z, **kwargs)
         return ax.plot_surface(X, Y, Z, **kwargs)
@@ -473,7 +578,7 @@ class ScalarFunction(ScalarOperator):
                 self.ninput_funs() * self.basis.mesh.nmesh_pts(),
             )
         )
-        super().set_jacobian(zero_jac)
+        super().set_jacobian(zero_jac, ZeroJac())
 
     def set_jacobian(self, jac: Array):
         raise NotImplementedError(
@@ -498,7 +603,7 @@ class ZeroScalarFunction(ConstantScalarFunction):
         basis: OrthogonalCoordinateCollocationBasis,
         ninput_funs: int = 1,
     ):
-        super().__init__(basis, 0., ninput_funs)
+        super().__init__(basis, 0.0, ninput_funs)
 
 
 class ScalarSolution(ScalarOperator):
@@ -513,7 +618,7 @@ class ScalarSolution(ScalarOperator):
     def set_values(self, values: Array):
         super().set_values(values)
         ident_jac = self.basis._bkd.eye(self.basis.mesh.nmesh_pts())
-        super().set_jacobian(ident_jac)
+        super().set_jacobian(ident_jac, jac_type=DiagJac())
 
     def set_jacobian(self, jac: Array):
         raise NotImplementedError(
@@ -681,7 +786,7 @@ class VectorSolutionComponent(ScalarOperator):
             else:
                 jac[ii] = zero_jac
         jac = basis._bkd.hstack(jac)
-        super().__init__(basis, ninput_funs, values, jac)
+        super().__init__(basis, ninput_funs, values, jac, jac_type=DiagJac())
 
 
 class MatrixOperator:
@@ -1124,7 +1229,9 @@ class VectorFunction(VectorOperator):
         self, values: Array, row: int, col: int
     ) -> "ScalarFunction":
         return ScalarFunction(
-            self.basis, values, ninput_funs=self.ninput_funs(),
+            self.basis,
+            values,
+            ninput_funs=self.ninput_funs(),
         )
 
     def set_components(self, components: List[ScalarFunction]):
@@ -1293,7 +1400,9 @@ class ScalarKLEFunction(ScalarFunction):
         ninput_funs: int = 1,
     ):
         super().__init__(basis, ninput_funs=ninput_funs)
-        self._setup_kle(lenscale, sigma, use_log, matern_nu, nterms, mean_field)
+        self._setup_kle(
+            lenscale, sigma, use_log, matern_nu, nterms, mean_field
+        )
 
     def _setup_kle(
         self,
@@ -1315,7 +1424,11 @@ class ScalarKLEFunction(ScalarFunction):
             backend=self.basis._bkd,
         )
         # initialize to mean
-        self.set_param(self._bkd.zeros(self._kle.nvars(),))
+        self.set_param(
+            self._bkd.zeros(
+                self._kle.nvars(),
+            )
+        )
 
     def kle(self) -> MeshKLE:
         return self._kle
