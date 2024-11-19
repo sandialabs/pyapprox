@@ -310,9 +310,22 @@ class ScalarOperator:
         pts = self.basis.mesh.trans.map_from_orthogonal(orth_pts_2d)
         X = self._bkd.reshape(pts[0], orth_X.shape)
         Y = self._bkd.reshape(pts[1], orth_X.shape)
-        return ax.contourf(
-            X, Y, self._bkd.reshape(self(pts), X.shape), **kwargs
-        )
+        Z = self._bkd.reshape(self(pts), X.shape)
+        zbounds = kwargs.pop("zbounds", None)
+        if zbounds is not None:
+            zmin, zmax = zbounds
+            if Z.min() < zmin:
+                raise ValueError(
+                    "Z min {0} outside zbounds {1}".format(Z.min(), zbounds[0])
+                )
+            if Z.max() > zmax:
+                raise ValueError(
+                    "Z max {0} outside zbounds {1}".format(Z.max(), zbounds[1])
+                )
+            Z = (Z-zmin)/(zmax-zmin)
+        if ax.name != "3d":
+            return ax.contourf(X, Y, Z, **kwargs)
+        return ax.plot_surface(X, Y, Z, **kwargs)
 
     def _set_plot_3d_limits(self, ax, orth_range):
         orth_ranges = self._bkd.reshape(
@@ -423,8 +436,8 @@ class ScalarOperator:
                 return self._plot_3d_internal(ax, npts_1d, fig, **kwargs)
             return self._plot_3d_external(ax, npts_1d, fig, **kwargs)
 
-    def get_plot_axis(self, figsize=(8, 6)):
-        if self.nphys_vars() < 3:
+    def get_plot_axis(self, figsize=(8, 6), surface=False):
+        if self.nphys_vars() < 3 and not surface:
             fig = plt.figure(figsize=figsize)
             return fig, fig.gca()
         fig = plt.figure(figsize=figsize)

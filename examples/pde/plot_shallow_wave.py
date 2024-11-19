@@ -7,8 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.linearalgebra.linalgbase import Array
 
-# from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+# from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.pde.collocation.adjoint_models import TransientAdjointFunctional
 from pyapprox.pde.collocation.parameterized_pdes import ShallowWaterWaveModel
 from pyapprox.pde.collocation.timeintegration import (
@@ -37,17 +37,17 @@ if sys.platform == "darwin":
     matplotlib.use("TKAgg")
 
 # setup domain
-# bkd = NumpyLinAlgMixin
-bkd = TorchLinAlgMixin
+bkd = NumpyLinAlgMixin
+# bkd = TorchLinAlgMixin
 np.random.seed(1)
 transform = ScaleAndTranslationTransform2D(
     [-1, 1, -1, 1], [0, 100, 0, 100], bkd
 )
-mesh = ChebyshevCollocationMesh2D([30, 30], transform)
+mesh = ChebyshevCollocationMesh2D([20, 30], transform)
 basis = ChebyshevCollocationBasis2D(mesh)
 
 # define time period
-init_time, final_time, deltat = 0, 10, 0.5
+init_time, final_time, deltat = 0, 2, 0.5
 
 # TODO: WARNING INITIAL CONDITION IS NOT CONSISTENT WITH BOUNDARY CONDITIONS
 
@@ -101,21 +101,35 @@ functional = TransientTODOFunctional(basis.mesh.nmesh_pts(), bkd)
 init_surface = ZeroScalarFunction(basis, basis.nphys_vars() + 1)
 
 
+from scipy.special import beta as beta_fn
 def init_surface_fun(xx):
-    a0, b0 = 5, 8
-    a1, b1 = 5, 5
+    a0, b0 = 5, 20
+    #a1, b1 = 20, 20
+    # The higher these values the higher basis orders need to be
+    #a0, b0 = 5, 10
+    a1, b1 = 10, 10
     xn = xx/100
+    const0 = 1./beta_fn(a0, b0)
+    const1 = 1./beta_fn(a1, b1)
     return (
         xn[0] ** (a0-1) * (1 - xn[0]) ** (b0-1) *
         xn[1] ** (a1-1) * (1 - xn[1]) ** (b1-1)
-    ) * 1e5
+    ) * const0 * const1 / 20
 
 
+plot_kwargs = {
+    "npts_1d": 51,
+    "edgecolor": "royalblue",
+    "cmap":  "Blues_r",
+    "alpha": 0.75,
+    "antialiased": True,
+    "linewidth": 0,
+}
 init_surface = ScalarFunctionFromCallable(
     basis, init_surface_fun, basis.nphys_vars() + 1
 )
-#init_surface.plot(plt.figure().gca())
-#plt.show()
+# init_surface.plot(init_surface.get_plot_axis(surface=True)[1], **plot_kwargs)
+# plt.show()
 newton_solver = NewtonSolver(
     verbosity=2,
     maxiters=5,
@@ -167,7 +181,7 @@ from matplotlib.gridspec import GridSpec
 
 gs = GridSpec(10, 3, hspace=1)  # 10 rows, 3 columns
 fig = plt.figure(figsize=(3 * 8, 6))
-ax0 = fig.add_subplot(gs[:9, 0])
+ax0 = fig.add_subplot(gs[:9, 0], projection="3d")
 ax1 = fig.add_subplot(gs[:9, 1])
 ax2 = fig.add_subplot(gs[:9, 2])
 ax3 = fig.add_subplot(gs[-1, :])
@@ -182,16 +196,29 @@ state_bounds = bkd.stack(
 levels = [bkd.linspace(*b, 51) for b in state_bounds]
 print(levels)
 
+zmin, zmax = surface_vals.min(), surface_vals.max()
+zmin -= 0.02
+zmax += 0.07
+plot_kwargs["zbounds"] = [zmin, zmax]
+
 
 def animate(ii):
     [ax.clear() for ax in axs]
     sol = VectorFunction(basis, bed.ninput_funs(), bed.ninput_funs())
     sol.set_values(model._sols[..., ii])
     h, uh, vh = sol.get_components()
+    u = uh / h
+    v = vh / h
+    vorticity = v.deriv(0) - u.deriv(1)
     surface = model._bed + h
-    im = surface.plot(axs[0], levels=levels[0])
+    #im = surface.plot(axs[0], levels=levels[0])
+    im = surface.plot(axs[0], **plot_kwargs)
+    axs[0].set_zlim((zmin, zmax))
+    axs[0].set_box_aspect((1, 1, 0.25))
     im = uh.plot(axs[1], levels=levels[1])
-    im = vh.plot(axs[2], levels=levels[2])
+    # im = vh.plot(axs[2], levels=levels[2])
+    im = vorticity.plot(axs[2])
+    #axs[2].quiver(*basis.mesh.mesh_pts(), u.get_values(), v.get_values())
     timebar = bkd.zeros(model._times.shape[0])
     timebar[:ii] = 1.0
     axs[3].imshow(
