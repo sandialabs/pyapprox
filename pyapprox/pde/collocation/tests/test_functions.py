@@ -440,6 +440,7 @@ class TestOperators:
         sol0 = ScalarSolution(basis, fun_values0)
         assert bkd.allclose(sol0.integrate(), bkd.array([15/2]), atol=1e-15)
 
+
 class TestNumpyOperators(TestOperators, unittest.TestCase):
     def get_backend(self):
         return NumpyLinAlgMixin
