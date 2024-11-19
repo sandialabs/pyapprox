@@ -5,6 +5,10 @@ from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 
 
 class SparseJacobian(ABC):
+    # needed for ndarray * SparseJacobian so numpy does not mulitply
+    # SparseJacobian by each entry of ndarray separately
+    __array_priority__ = 1
+    
     def __init__(self, bkd: LinAlgMixin, shape: tuple, sparse_jac: Array):
         self._shape = shape
         self._bkd = bkd
@@ -14,7 +18,7 @@ class SparseJacobian(ABC):
         return "{0}(shape={1})".format(self.__class__.__name__, self._shape)
 
     @abstractmethod
-    def new_type(self, other: "SparseJacobian"):
+    def copy(self) -> "SparseJacobian":
         raise NotImplementedError
 
     @abstractmethod
@@ -26,11 +30,12 @@ class SparseJacobian(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __add__(self, other: "SparseJacobian"):
+    def __neg__(self):
         raise NotImplementedError
 
-    # def __radd__(self, other: "SparseJacobian"):
-    #     return self.__add__(other)
+    @abstractmethod
+    def __add__(self, other: "SparseJacobian"):
+        raise NotImplementedError
 
     @abstractmethod
     def __sub__(self, other: "SparseJacobian"):
@@ -59,8 +64,10 @@ class SparseJacobian(ABC):
 
 
 class DenseJac(SparseJacobian):
-    def new_type(self, other: SparseJacobian):
-        return DenseJac()
+    def copy(self) -> "DenseJac":
+        return DenseJac(
+            self._bkd, self._shape, self._bkd.copy(self._sparse_jac)
+        )
 
     def set_sparse_jacobian(self, jac: Array):
         if not isinstance(jac, self._bkd.array_type()):
@@ -71,6 +78,9 @@ class DenseJac(SparseJacobian):
 
     def get_jacobian(self) -> Array:
         return self._sparse_jac
+
+    def __neg__(self):
+        return DenseJac(self._bkd, self._shape, -self._sparse_jac)
 
     def __mul__(self, other: Union[Array, float]):
         self._check_other(other)
@@ -93,7 +103,7 @@ class DenseJac(SparseJacobian):
         if not isinstance(other, self._bkd.array_type()):
             raise NotImplementedError(f"cannot dot product {0} with jacobian")
         if other.shape[1] != self._shape[0]:
-            raise NotImplementedError(f"Array has the wrong shape")
+            raise NotImplementedError("Array has the wrong shape")
         return DenseJac(self._bkd, self._shape, other @ self._sparse_jac)
 
     def __add__(self, other: "SparseJacobian"):
@@ -106,10 +116,12 @@ class DenseJac(SparseJacobian):
             ninput_funs = self._shape[1] // self._shape[0]
             dense_jac = self._bkd.copy(self._sparse_jac)
             for ii in range(ninput_funs):
-                dense_jac[:, ii*stride:(ii+1)*stride] += self._bkd.diag(other._sparse_jac[:, ii])
+                dense_jac[
+                    :, ii * stride : (ii + 1) * stride
+                ] += self._bkd.diag(other._sparse_jac[:, ii])
             return DenseJac(self._bkd, self._shape, dense_jac)
         return DenseJac(
-             self._bkd, self._shape, self._sparse_jac + other._sparse_jac
+            self._bkd, self._shape, self._sparse_jac + other._sparse_jac
         )
 
     def __sub__(self, other: "SparseJacobian"):
@@ -122,10 +134,12 @@ class DenseJac(SparseJacobian):
             ninput_funs = self._shape[1] // self._shape[0]
             dense_jac = self._bkd.copy(self._sparse_jac)
             for ii in range(ninput_funs):
-                dense_jac[:, ii*stride:(ii+1)*stride] -= self._bkd.diag(other._sparse_jac[:, ii])
+                dense_jac[
+                    :, ii * stride : (ii + 1) * stride
+                ] -= self._bkd.diag(other._sparse_jac[:, ii])
             return DenseJac(self._bkd, self._shape, dense_jac)
         return DenseJac(
-             self._bkd, self._shape, self._sparse_jac - other._sparse_jac
+            self._bkd, self._shape, self._sparse_jac - other._sparse_jac
         )
 
     def __rsub__(self, other: "SparseJacobian"):
@@ -138,23 +152,25 @@ class DenseJac(SparseJacobian):
             ninput_funs = self._shape[1] // self._shape[0]
             dense_jac = -self._sparse_jac
             for ii in range(ninput_funs):
-                dense_jac[:, ii*stride:(ii+1)*stride] += self._bkd.diag(other._sparse_jac[:, ii])
+                dense_jac[
+                    :, ii * stride : (ii + 1) * stride
+                ] += self._bkd.diag(other._sparse_jac[:, ii])
             return DenseJac(self._bkd, self._shape, dense_jac)
         return DenseJac(
-             self._bkd, self._shape, self._sparse_jac - other._sparse_jac
+            self._bkd, self._shape, self._sparse_jac - other._sparse_jac
         )
 
 
 class DiagJac(SparseJacobian):
-    def new_type(self, other: SparseJacobian):
-        if isinstance(other, DenseJac):
-            return DenseJac
-        return DiagJac()
+    def copy(self) -> "DiagJac":
+        return DiagJac(
+            self._bkd, self._shape, self._bkd.copy(self._sparse_jac)
+        )
 
     def set_sparse_jacobian(self, jac: Array):
         if not isinstance(jac, self._bkd.array_type()):
             raise ValueError("Sparse jacobian must be an array")
-        ninput_funs = self._shape[1] / self._shape[0]
+        ninput_funs = self._shape[1] // self._shape[0]
         if jac.shape != (self._shape[0], ninput_funs):
             raise ValueError("jac has the wrong shape")
         self._sparse_jac = jac
@@ -166,6 +182,9 @@ class DiagJac(SparseJacobian):
                 for ii in range(self._sparse_jac.shape[1])
             ]
         )
+
+    def __neg__(self):
+        return DiagJac(self._bkd, self._shape, -self._sparse_jac)
 
     def __mul__(self, other: Union[Array, float]):
         self._check_other(other)
@@ -195,7 +214,7 @@ class DiagJac(SparseJacobian):
         stride = self._shape[0]
         ninput_funs = self._shape[1] // self._shape[0]
         for ii in range(ninput_funs):
-            dense_jac[:, ii*stride:(ii+1)*stride] = (
+            dense_jac[:, ii * stride : (ii + 1) * stride] = (
                 other * self._sparse_jac[:, ii]
             )
         return DenseJac(self._bkd, self._shape, dense_jac)
@@ -208,7 +227,7 @@ class DiagJac(SparseJacobian):
         if isinstance(other, DenseJac):
             return other.__add__(self)
         return DiagJac(
-             self._bkd, self._shape, self._sparse_jac + other._sparse_jac
+            self._bkd, self._shape, self._sparse_jac + other._sparse_jac
         )
 
     def __sub__(self, other: "SparseJacobian"):
@@ -219,13 +238,16 @@ class DiagJac(SparseJacobian):
         if isinstance(other, DenseJac):
             return other.__rsub__(self)
         return DiagJac(
-             self._bkd, self._shape, self._sparse_jac - other._sparse_jac
+            self._bkd, self._shape, self._sparse_jac - other._sparse_jac
         )
 
 
 class ZeroJac(SparseJacobian):
     def __init__(self, bkd: LinAlgMixin, shape: tuple):
         super().__init__(bkd, shape, None)
+
+    def copy(self) -> "ZeroJac":
+        return ZeroJac(self._bkd, self._shape)
 
     def new_type(self, other: SparseJacobian):
         if isinstance(other, ZeroJac):
@@ -253,7 +275,7 @@ class ZeroJac(SparseJacobian):
         if isinstance(other, ZeroJac):
             return ZeroJac(self._bkd, self._shape)
         return other.__class__(
-             self._bkd, other._shape, self._bkd.copy(other._sparse_jac)
+            self._bkd, other._shape, self._bkd.copy(other._sparse_jac)
         )
 
     def __sub__(self, other: SparseJacobian):
@@ -261,15 +283,13 @@ class ZeroJac(SparseJacobian):
             raise ValueError(f"Cannot subtract {other}")
         if isinstance(other, ZeroJac):
             return ZeroJac(self._bkd, self._shape)
-        return other.__class__(
-            self._bkd, other._shape, -other._sparse_jac
-        )
+        return other.__class__(self._bkd, other._shape, -other._sparse_jac)
 
     def __rsub__(self, other: SparseJacobian):
         if not isinstance(other, SparseJacobian):
             raise ValueError(f"Cannot subtract {other}")
         return other.__class__(
-             self._bkd, other._shape, self._bkd.copy(other._sparse_jac)
+            self._bkd, other._shape, self._bkd.copy(other._sparse_jac)
         )
 
     def rdot(self, other: Array):
@@ -277,203 +297,8 @@ class ZeroJac(SparseJacobian):
         if not isinstance(other, self._bkd.array_type()):
             raise NotImplementedError(f"cannot dot product {0} with jacobian")
         if other.shape[1] != self._shape[0]:
-            raise NotImplementedError(f"Array has the wrong shape")
+            raise NotImplementedError("Array has the wrong shape")
         return ZeroJac(self._bkd, self._shape)
 
-
-
-import numpy as np
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-def test_sparse_jacobian():
-    np.random.seed(1)
-    bkd = NumpyLinAlgMixin
-    nrows, ninput_funs = 3, 2
-    shape = (nrows, nrows * ninput_funs)
-    dense_jac_array = bkd.asarray(np.random.normal(0, 1, shape))
-    mat = bkd.asarray(np.random.normal(0, 1, (shape[0], shape[0])))
-    dense_jac = DenseJac(bkd, shape, dense_jac_array)
-    diag_jac_array = bkd.asarray(np.random.normal(0, 1, (nrows, ninput_funs)))
-    diag_jac = DiagJac(bkd, shape, diag_jac_array)
-    zero_jac = ZeroJac(bkd, shape)
-    vec = bkd.arange(1, nrows+1)
-
-    # operations on zero jacobian
-    assert isinstance(zero_jac * 2., ZeroJac)
-    assert isinstance(zero_jac * vec, ZeroJac)
-    assert isinstance(zero_jac - 2. * zero_jac, ZeroJac)
-    assert isinstance(zero_jac + zero_jac, ZeroJac)
-    assert isinstance(zero_jac / 2., ZeroJac)
-    assert isinstance(zero_jac / vec, ZeroJac)
-    assert isinstance(zero_jac.rdot(mat), ZeroJac)
-
-    # operations on diagonal jacobian
-    assert isinstance(diag_jac * 2., DiagJac)
-    assert bkd.allclose(
-        (diag_jac * 2.).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(2 * diag_jac_array[:, ii]) for ii in range(2)]
-        )
-    )
-    assert isinstance(diag_jac * vec, DiagJac)
-    assert bkd.allclose(
-        (diag_jac * vec).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(vec * diag_jac_array[:, ii]) for ii in range(2)]
-        )
-    )
-    assert isinstance(diag_jac - 2. * diag_jac, DiagJac)
-    assert bkd.allclose(
-        (diag_jac - 2. * diag_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(-diag_jac_array[:, ii]) for ii in range(2)]
-        )
-    )
-    assert isinstance(diag_jac + diag_jac, DiagJac)
-    assert bkd.allclose(
-        (diag_jac + diag_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(2*diag_jac_array[:, ii]) for ii in range(2)]
-        )
-    )
-    assert isinstance(diag_jac / 2., DiagJac)
-    assert bkd.allclose(
-        (diag_jac / 2.).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(diag_jac_array[:, ii] / 2) for ii in range(2)]
-        )
-    )
-    assert isinstance(diag_jac / vec, DiagJac)
-    assert bkd.allclose(
-        (diag_jac / vec).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(diag_jac_array[:, ii] / vec) for ii in range(2)]
-        )
-    )
-    assert isinstance(diag_jac.rdot(mat), DenseJac)
-    assert bkd.allclose(
-        diag_jac.rdot(mat).get_jacobian(),
-        mat @ diag_jac.get_jacobian()
-    )
-
-    # operations on dense jacobian
-    assert isinstance(dense_jac * 2., DenseJac)
-    assert bkd.allclose(
-        (dense_jac * 2.).get_jacobian(),
-        2. * dense_jac_array
-    )
-    assert isinstance(dense_jac * vec, DenseJac)
-    assert bkd.allclose(
-        (dense_jac * vec).get_jacobian(),
-        dense_jac_array * vec[:, None]
-    )
-    assert isinstance(dense_jac - 2. * dense_jac, DenseJac)
-    assert bkd.allclose(
-        (dense_jac - 2. * dense_jac).get_jacobian(),
-        -dense_jac_array
-    )
-    assert isinstance(dense_jac + dense_jac, DenseJac)
-    assert bkd.allclose(
-        (dense_jac + dense_jac).get_jacobian(),
-        2. * dense_jac_array
-    )
-    assert isinstance(dense_jac / 2., DenseJac)
-    assert bkd.allclose(
-        (dense_jac / 2.).get_jacobian(),
-        dense_jac_array / 2.
-    )
-    assert isinstance(dense_jac / vec, DenseJac)
-    assert bkd.allclose(
-        (dense_jac / vec).get_jacobian(),
-        dense_jac_array / vec[:, None]
-    )
-    assert isinstance(dense_jac.rdot(mat), DenseJac)
-    assert bkd.allclose(
-        dense_jac.rdot(mat).get_jacobian(),
-        mat @ dense_jac_array
-    )
-
-    # Combining zero and diagonal jacobians
-    assert isinstance(diag_jac - 2. * zero_jac, DiagJac)
-    assert bkd.allclose(
-        (diag_jac - 2. * zero_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
-        )
-    )
-    assert isinstance(diag_jac + zero_jac, DiagJac)
-    assert bkd.allclose(
-        (diag_jac + zero_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
-        )
-    )
-    assert isinstance(zero_jac - 2. * diag_jac, DiagJac)
-    assert bkd.allclose(
-        (zero_jac - 2. * diag_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(-2. * diag_jac_array[:, ii]) for ii in range(2)]
-        )
-    )
-    assert isinstance(zero_jac + diag_jac, DiagJac)
-    assert bkd.allclose(
-        (zero_jac + diag_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
-        )
-    )
-
-    # Combining zero and dense jacobians
-    assert isinstance(dense_jac - 2. * zero_jac, DenseJac)
-    assert bkd.allclose(
-        (dense_jac - 2. * zero_jac).get_jacobian(),
-        dense_jac_array
-    )
-    assert isinstance(dense_jac + zero_jac, DenseJac)
-    assert bkd.allclose(
-        (dense_jac + zero_jac).get_jacobian(),
-        dense_jac_array
-    )
-    assert isinstance(zero_jac - 2. * dense_jac, DenseJac)
-    assert bkd.allclose(
-        (zero_jac - 2. * dense_jac).get_jacobian(),
-        -2 * dense_jac_array
-    )
-    assert isinstance(zero_jac + dense_jac, DenseJac)
-    assert bkd.allclose(
-        (zero_jac + dense_jac).get_jacobian(),
-        dense_jac_array
-    )
-
-    # Combining diag and dense jacobians
-    assert isinstance(diag_jac - 2. * dense_jac, DenseJac)
-    assert bkd.allclose(
-        (diag_jac - 2. * dense_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
-        ) - 2 * dense_jac_array
-    )
-    assert isinstance(diag_jac + dense_jac, DenseJac)
-    assert bkd.allclose(
-        (diag_jac + dense_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
-        ) + dense_jac_array
-    )
-    assert isinstance(dense_jac - 2. * diag_jac, DenseJac)
-    assert bkd.allclose(
-        (dense_jac - 2. * diag_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(-2. * diag_jac_array[:, ii]) for ii in range(2)]
-        ) + dense_jac_array
-    )
-    assert isinstance(dense_jac + diag_jac, DenseJac)
-    assert bkd.allclose(
-        (dense_jac + diag_jac).get_jacobian(),
-        bkd.hstack(
-            [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
-        ) + dense_jac_array
-    )
-    
-
-
-test_sparse_jacobian()
+    def __neg__(self):
+        return ZeroJac(self._bkd, self._shape)

@@ -43,7 +43,7 @@ np.random.seed(1)
 transform = ScaleAndTranslationTransform2D(
     [-1, 1, -1, 1], [0, 100, 0, 100], bkd
 )
-mesh = ChebyshevCollocationMesh2D([30, 30], transform)
+mesh = ChebyshevCollocationMesh2D([20, 30], transform)
 basis = ChebyshevCollocationBasis2D(mesh)
 
 # define time period
@@ -158,7 +158,7 @@ model = ShallowWaterWaveModel(
 # plt.colorbar(im, ax=ax)
 # plt.show()
 model._fwd_solve()
-assert False
+
 # sol = VectorFunction(basis, bed.ninput_funs(), bed.ninput_funs())
 # print(model._sols.shape)
 # sol.set_values(model._sols[..., -1])

@@ -39,6 +39,209 @@ class TestOperators:
     def setUp(self):
         np.random.seed(1)
 
+    def test_sparse_jacobian(self):
+        bkd = self.get_backend()
+        nrows, ninput_funs = 3, 2
+        shape = (nrows, nrows * ninput_funs)
+        dense_jac_array = bkd.asarray(np.random.normal(0, 1, shape))
+        mat = bkd.asarray(np.random.normal(0, 1, (shape[0], shape[0])))
+        dense_jac = DenseJac(bkd, shape, dense_jac_array)
+        diag_jac_array = bkd.asarray(np.random.normal(0, 1, (nrows, ninput_funs)))
+        diag_jac = DiagJac(bkd, shape, diag_jac_array)
+        zero_jac = ZeroJac(bkd, shape)
+        vec = bkd.arange(1, nrows+1)
+
+        # operations on zero jacobian
+        assert isinstance(zero_jac * 2., ZeroJac)
+        assert isinstance(zero_jac * vec, ZeroJac)
+        assert isinstance(zero_jac - 2. * zero_jac, ZeroJac)
+        assert isinstance(zero_jac + zero_jac, ZeroJac)
+        assert isinstance(zero_jac / 2., ZeroJac)
+        assert isinstance(zero_jac / vec, ZeroJac)
+        assert isinstance(zero_jac.rdot(mat), ZeroJac)
+        assert isinstance(-zero_jac, ZeroJac)
+
+        # operations on diagonal jacobian
+        assert isinstance(diag_jac * 2., DiagJac)
+        assert bkd.allclose(
+            (diag_jac * 2.).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(2 * diag_jac_array[:, ii]) for ii in range(2)]
+            )
+        )
+        assert isinstance(diag_jac * vec, DiagJac)
+        assert bkd.allclose(
+            (diag_jac * vec).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(vec * diag_jac_array[:, ii]) for ii in range(2)]
+            )
+        )
+        assert isinstance(diag_jac - 2. * diag_jac, DiagJac)
+        assert bkd.allclose(
+            (diag_jac - 2. * diag_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(-diag_jac_array[:, ii]) for ii in range(2)]
+            )
+        )
+        assert isinstance(diag_jac + diag_jac, DiagJac)
+        assert bkd.allclose(
+            (diag_jac + diag_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(2*diag_jac_array[:, ii]) for ii in range(2)]
+            )
+        )
+        assert isinstance(diag_jac / 2., DiagJac)
+        assert bkd.allclose(
+            (diag_jac / 2.).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(diag_jac_array[:, ii] / 2) for ii in range(2)]
+            )
+        )
+        assert isinstance(diag_jac / vec, DiagJac)
+        assert bkd.allclose(
+            (diag_jac / vec).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(diag_jac_array[:, ii] / vec) for ii in range(2)]
+            )
+        )
+        assert isinstance(diag_jac.rdot(mat), DenseJac)
+        assert bkd.allclose(
+            diag_jac.rdot(mat).get_jacobian(),
+            mat @ diag_jac.get_jacobian()
+        )
+        assert isinstance(-diag_jac, DiagJac)
+        assert bkd.allclose(
+            -diag_jac.get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(- diag_jac_array[:, ii]) for ii in range(2)]
+            )
+        )
+
+        # operations on dense jacobian
+        assert isinstance(dense_jac * 2., DenseJac)
+        assert bkd.allclose(
+            (dense_jac * 2.).get_jacobian(),
+            2. * dense_jac_array
+        )
+        assert isinstance(dense_jac * vec, DenseJac)
+        assert bkd.allclose(
+            (dense_jac * vec).get_jacobian(),
+            dense_jac_array * vec[:, None]
+        )
+        assert isinstance(dense_jac - 2. * dense_jac, DenseJac)
+        assert bkd.allclose(
+            (dense_jac - 2. * dense_jac).get_jacobian(),
+            -dense_jac_array
+        )
+        assert isinstance(dense_jac + dense_jac, DenseJac)
+        assert bkd.allclose(
+            (dense_jac + dense_jac).get_jacobian(),
+            2. * dense_jac_array
+        )
+        assert isinstance(dense_jac / 2., DenseJac)
+        assert bkd.allclose(
+            (dense_jac / 2.).get_jacobian(),
+            dense_jac_array / 2.
+        )
+        assert isinstance(dense_jac / vec, DenseJac)
+        assert bkd.allclose(
+            (dense_jac / vec).get_jacobian(),
+            dense_jac_array / vec[:, None]
+        )
+        assert isinstance(dense_jac.rdot(mat), DenseJac)
+        assert bkd.allclose(
+            dense_jac.rdot(mat).get_jacobian(),
+            mat @ dense_jac_array
+        )
+        assert isinstance(-dense_jac, DenseJac)
+        assert bkd.allclose(
+            -dense_jac.get_jacobian(),
+            -dense_jac_array
+        )
+
+        # Combining zero and diagonal jacobians
+        assert isinstance(diag_jac - 2. * zero_jac, DiagJac)
+        assert bkd.allclose(
+            (diag_jac - 2. * zero_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
+            )
+        )
+        assert isinstance(diag_jac + zero_jac, DiagJac)
+        assert bkd.allclose(
+            (diag_jac + zero_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
+            )
+        )
+        assert isinstance(zero_jac - 2. * diag_jac, DiagJac)
+        assert bkd.allclose(
+            (zero_jac - 2. * diag_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(-2. * diag_jac_array[:, ii]) for ii in range(2)]
+            )
+        )
+        assert isinstance(zero_jac + diag_jac, DiagJac)
+        assert bkd.allclose(
+            (zero_jac + diag_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
+            )
+        )
+
+        # Combining zero and dense jacobians
+        assert isinstance(dense_jac - 2. * zero_jac, DenseJac)
+        assert bkd.allclose(
+            (dense_jac - 2. * zero_jac).get_jacobian(),
+            dense_jac_array
+        )
+        assert isinstance(dense_jac + zero_jac, DenseJac)
+        assert bkd.allclose(
+            (dense_jac + zero_jac).get_jacobian(),
+            dense_jac_array
+        )
+        assert isinstance(zero_jac - 2. * dense_jac, DenseJac)
+        assert bkd.allclose(
+            (zero_jac - 2. * dense_jac).get_jacobian(),
+            -2 * dense_jac_array
+        )
+        assert isinstance(zero_jac + dense_jac, DenseJac)
+        assert bkd.allclose(
+            (zero_jac + dense_jac).get_jacobian(),
+            dense_jac_array
+        )
+
+        # Combining diag and dense jacobians
+        assert isinstance(diag_jac - 2. * dense_jac, DenseJac)
+        assert bkd.allclose(
+            (diag_jac - 2. * dense_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
+            ) - 2 * dense_jac_array
+        )
+        assert isinstance(diag_jac + dense_jac, DenseJac)
+        assert bkd.allclose(
+            (diag_jac + dense_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
+            ) + dense_jac_array
+        )
+        assert isinstance(dense_jac - 2. * diag_jac, DenseJac)
+        assert bkd.allclose(
+            (dense_jac - 2. * diag_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(-2. * diag_jac_array[:, ii]) for ii in range(2)]
+            ) + dense_jac_array
+        )
+        assert isinstance(dense_jac + diag_jac, DenseJac)
+        assert bkd.allclose(
+            (dense_jac + diag_jac).get_jacobian(),
+            bkd.hstack(
+                [bkd.diag(diag_jac_array[:, ii]) for ii in range(2)]
+            ) + dense_jac_array
+        )
+
+
     def _check_operations_on_operators_with_single_input_function(self, basis):
         bkd = self.get_backend()
 
@@ -155,23 +358,23 @@ class TestOperators:
         ax = sol1.get_plot_axis()[1]
         sol1.plot(ax)
 
-        assert isinstance((fun2**2).jac_type(), ZeroJac)
-        assert isinstance((sol0**2).jac_type(), DiagJac)
-        assert isinstance((sol0*fun2).jac_type(), DiagJac)
-        assert isinstance((sol0+fun2).jac_type(), DiagJac)
-        assert isinstance((sol0-fun2).jac_type(), DiagJac)
-        assert isinstance((fun2-sol0).jac_type(), DiagJac)
-        assert isinstance((1.-sol0).jac_type(), DiagJac)
-        assert isinstance((sol0-1.).jac_type(), DiagJac)
-        assert isinstance((1.-fun2).jac_type(), ZeroJac)
-        assert isinstance((fun2-1.).jac_type(), ZeroJac)
-        assert isinstance((fun2/sol0).jac_type(), DiagJac)
-        assert isinstance((1./sol0).jac_type(), DiagJac)
-        assert isinstance((sol0/2.).jac_type(), DiagJac)
-        assert isinstance((1./fun2).jac_type(), ZeroJac)
-        assert isinstance((fun2/2.).jac_type(), ZeroJac)
-        assert isinstance(sol0.deriv(0).jac_type(), DenseJac)
-        assert isinstance(fun2.deriv(0).jac_type(), ZeroJac)
+        assert isinstance((fun2**2).sparse_jacobian(), ZeroJac)
+        assert isinstance((sol0**2).sparse_jacobian(), DiagJac)
+        assert isinstance((sol0*fun2).sparse_jacobian(), DiagJac)
+        assert isinstance((sol0+fun2).sparse_jacobian(), DiagJac)
+        assert isinstance((sol0-fun2).sparse_jacobian(), DiagJac)
+        assert isinstance((fun2-sol0).sparse_jacobian(), DiagJac)
+        assert isinstance((1.-sol0).sparse_jacobian(), DiagJac)
+        assert isinstance((sol0-1.).sparse_jacobian(), DiagJac)
+        assert isinstance((1.-fun2).sparse_jacobian(), ZeroJac)
+        assert isinstance((fun2-1.).sparse_jacobian(), ZeroJac)
+        assert isinstance((fun2/sol0).sparse_jacobian(), DiagJac)
+        assert isinstance((1./sol0).sparse_jacobian(), DiagJac)
+        assert isinstance((sol0/2.).sparse_jacobian(), DiagJac)
+        assert isinstance((1./fun2).sparse_jacobian(), ZeroJac)
+        assert isinstance((fun2/2.).sparse_jacobian(), ZeroJac)
+        assert isinstance(sol0.deriv(0).sparse_jacobian(), DenseJac)
+        assert isinstance(fun2.deriv(0).sparse_jacobian(), ZeroJac)
 
         if not bkd.jacobian_implemented():
             return
