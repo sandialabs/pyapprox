@@ -138,25 +138,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks.multifidelity_benchmarks import PolynomialModelEnsemble
 from pyapprox.multifidelity.factory import (
-    get_estimator, compare_estimator_variances, multioutput_stats)
+    get_estimator, compare_estimator_variances, multioutput_stats
+)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions, plot_estimator_variances,
-    plot_estimator_sample_allocation_comparison)
+    plot_estimator_sample_allocation_comparison
+)
 
 
 #%%
 #The following code computes the variance of the MLMC estimator for different target costs using the optimal sample allocation using an exact estimate of the covariance between models and an approximation.
 
 np.random.seed(1)
-benchmark = setup_benchmark("polynomial_ensemble")
-poly_model = benchmark.fun
-cov = benchmark.covariance
+benchmark = PolynomialModelEnsemble()
+cov = benchmark.covariance()
 target_costs = np.array([1e1, 1e2, 1e3], dtype=int)
 costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
 model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
-stat = multioutput_stats["mean"](benchmark.nqoi)
+stat = multioutput_stats["mean"](benchmark.nqoi())
 stat.set_pilot_quantities(cov)
 estimators = [
     get_estimator("mc", stat, costs),

@@ -27,7 +27,7 @@ The following code quantities the impact of the size of the pilot sample on the 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks.multifidelity_benchmarks import PolynomialModelEnsemble
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.util.visualization import mathrm_label
@@ -39,25 +39,24 @@ np.random.seed(1)
 #that is the exact model covariance. We will use MFMC because the optimal sample allocation can be obtained analytically which speeds up this tutorial. However other estimators can be used. Also note that if using MFMC to estimate variance or other stats its allocation it still uses the allocation that is only guaranteed to be optimal when estimating the mean. This is not true of any other estimator except MLMC.
 target_cost = 100
 est_name = "mfmc"
-benchmark = setup_benchmark("polynomial_ensemble", nmodels=3)
-nmodels = len(benchmark.funs)
+benchmark = PolynomialModelEnsemble(nmodels=3)
 costs = np.array([1, 0.1, 0.05])
 
 stat_type = "mean"
 # stat_type = "variance"
 
-cov = benchmark.covariance
+cov = benchmark.covariance()
 if stat_type == "mean":
-    oracle_stats = benchmark.mean[0]
+    oracle_stats = benchmark.mean()[0]
     oracle_stat_args = [cov]
 else:
-    oracle_stats = benchmark.covariance[0, 0]
+    oracle_stats = benchmark.covariance()[0, 0]
     oracle_stat_args = [
-        cov, benchmark.fun.covariance_of_centered_values_kronker_product()]
+        cov, benchmark().fun.covariance_of_centered_values_kronker_product()]
 
-print(get_correlation_from_covariance(benchmark.covariance))
+print(get_correlation_from_covariance(benchmark.covariance()))
 
-oracle_stat = multioutput_stats[stat_type](benchmark.nqoi)
+oracle_stat = multioutput_stats[stat_type](benchmark.nqoi())
 oracle_stat.set_pilot_quantities(*oracle_stat_args)
 
 oracle_est = get_estimator(est_name, oracle_stat, costs)
@@ -89,7 +88,7 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
     # print(get_correlation_from_covariance(pilot_cov))
 
     # optimize the ACV estimator
-    stat = multioutput_stats[stat_type](benchmark.nqoi)
+    stat = multioutput_stats[stat_type](benchmark.nqoi())
     stat.set_pilot_quantities(*pilot_quantities)
     est = get_estimator(est_name, stat, costs)
     # remaining_budget_after_pilot
@@ -165,7 +164,7 @@ npilot_samples_list = [5, 10, 20, 40, 80, 160]
 for npilot_samples in npilot_samples_list:
     print(npilot_samples)
     mse_list.append(compute_mse(
-        build_acv, benchmark.funs, benchmark.variable, target_cost,
+        build_acv, benchmark.models(), benchmark.variable(), target_cost,
         npilot_samples, False, ntrials, 1, oracle_stats,
         stat_type))
     print(mse_list[-1])
@@ -202,7 +201,7 @@ for npilot_samples in npilot_samples_list:
     pilot_cost = np.sum(costs)*npilot_samples
     print(npilot_samples)
     mse_list.append(compute_mse(
-        build_acv, benchmark.funs, benchmark.variable, target_cost-pilot_cost,
+        build_acv, benchmark.models(), benchmark.variable(), target_cost-pilot_cost,
         npilot_samples, False, ntrials, 1, oracle_stats,
         stat_type))
     print(mse_list[-1])

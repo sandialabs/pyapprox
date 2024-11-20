@@ -36,12 +36,11 @@ where :math:`\rv_1,\rv_2\sim\mathcal{U}(-1,1)` and all :math:`A` and :math:`\the
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
 
 np.random.seed(1)
 shifts = [.1, .2]
-benchmark = setup_benchmark(
-    "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
+benchmark = TunableModelEnsemble(theta1=np.pi/2*.95, shifts=shifts)
 
 #%%
 #Now define a function that computes MC estimates of the mean using different sample sets :math:`\rvset_N` and plots the distribution the MC estimator :math:`Q_{\alpha}(\rvset_N)`, computed from 1000 different sets, and the exact value of the mean :math:`Q_{\alpha}`
@@ -50,14 +49,14 @@ def plot_estimator_histrogram(nsamples, model_id, ax):
     ntrials = 1000
     np.random.seed(1)
     means = np.empty((ntrials))
-    model = benchmark.funs[model_id]
+    model = benchmark.models()[model_id]
     for ii in range(ntrials):
-        samples = benchmark.variable.rvs(nsamples)
+        samples = benchmark.variable().rvs(nsamples)
         values = model(samples)
         means[ii] = values.mean()
     im = ax.hist(means, bins=ntrials//100, density=True, alpha=0.3,
                  label=r'$Q_{%d}(\mathcal{Z}_{%d})$' % (model_id, nsamples))[2]
-    ax.axvline(x=benchmark.fun.get_means()[model_id], alpha=1,
+    ax.axvline(x=benchmark.mean()[model_id], alpha=1,
                label=r'$Q_{%d}$' % model_id, c=im[0].get_facecolor())
 
 

@@ -17,6 +17,9 @@ from pyapprox.multifidelity.tests.test_stats import (
     _setup_multioutput_model_subproblem)
 from pyapprox.multifidelity.stats import (
     _get_nsamples_intersect, _get_nsamples_subset)
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    PolynomialModelEnsemble
+)
 
 
 def _log_single_qoi_criteria(
@@ -38,7 +41,7 @@ class TestMOMC(unittest.TestCase):
     def test_generalized_recursive_difference_allocation_matrices(self):
         model_idx = [0, 1, 2]
         qoi_idx = [0]
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
 
         stat = multioutput_stats["mean"](len(qoi_idx))
@@ -97,7 +100,7 @@ class TestMOMC(unittest.TestCase):
     def test_generalized_multifidelity_allocation_matrices(self):
         model_idx = [0, 1, 2]
         qoi_idx = [0]
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         stat = multioutput_stats["mean"](len(qoi_idx))
         stat.set_pilot_quantities(cov)
@@ -133,7 +136,7 @@ class TestMOMC(unittest.TestCase):
     def test_generalized_independent_samples_allocation_matrices(self):
         model_idx = [0, 1, 2]
         qoi_idx = [0]
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
 
         stat = multioutput_stats["mean"](len(qoi_idx))
@@ -172,7 +175,7 @@ class TestMOMC(unittest.TestCase):
                                    target_cost=50):
         ntrials = int(ntrials)
         rtol, atol = 4.6e-2, 1.01e-3
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
 
         # change costs so less samples are used in the estimator
@@ -204,11 +207,11 @@ class TestMOMC(unittest.TestCase):
                     lfcovs.append(cov[lb:ub, lb:ub])
                     lb = ub
                 kwargs["lowfi_stats"] = [cov.flatten() for cov in lfcovs]
-            W = model.covariance_of_centered_values_kronker_product()
+            W = benchmark.covariance_of_centered_values_kronker_product()
             W = _nqoisq_nqoisq_subproblem(
-                W, model.nmodels, model.nqoi, model_idx, qoi_idx)
+                W, benchmark.nmodels(), benchmark.nqoi(), model_idx, qoi_idx)
             # npilot_samples = int(1e6)
-            # pilot_samples = model.variable.rvs(npilot_samples)
+            # pilot_samples = benchmark.variable().rvs(npilot_samples)
             # pilot_values = np.hstack([f(pilot_samples) for f in funs])
             # W = get_W_from_pilot(pilot_values, nmodels)
             pilot_args.append(W)
@@ -224,9 +227,9 @@ class TestMOMC(unittest.TestCase):
                 kwargs["lowfi_stats"] = [
                     np.hstack((m, cov.flatten()))
                     for m, cov in zip(means[1:], lfcovs)]
-            B = model.covariance_of_mean_and_variance_estimators()
+            B = benchmark.covariance_of_mean_and_variance_estimators()
             B = _nqoi_nqoisq_subproblem(
-                B, model.nmodels, model.nqoi, model_idx, qoi_idx)
+                B, benchmark.nmodels(), benchmark.nqoi(), model_idx, qoi_idx)
             pilot_args.append(B)
             idx = nqoi+nqoi**2
 
@@ -247,7 +250,7 @@ class TestMOMC(unittest.TestCase):
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
                 funs_subset,
-                model.variable, est, ntrials, max_eval_concurrency, True)
+                benchmark.variable(), est, ntrials, max_eval_concurrency, True)
         )
         hfcovar = hfcovar.numpy()
 
@@ -330,7 +333,7 @@ class TestMOMC(unittest.TestCase):
         model_idx, qoi_idx = [0, 1, 2], [0]
         recursion_index = [0, 1]
         target_cost = 10
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         stat = multioutput_stats["mean"](len(qoi_idx))
         stat.set_pilot_quantities(cov)
@@ -399,7 +402,7 @@ class TestMOMC(unittest.TestCase):
         model_idx, qoi_idx = [0, 1, 2], [0]
         recursion_index = [0, 1]
         target_cost = 10
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
 
         # The following will give mlmc with unit variance
@@ -486,7 +489,7 @@ class TestMOMC(unittest.TestCase):
         assert np.allclose(model_ratios, mlmc_model_ratios)
 
     def test_best_model_subset_estimator(self):
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
         stat = multioutput_stats["mean"](3)
         stat.set_pilot_quantities(cov)
@@ -507,7 +510,7 @@ class TestMOMC(unittest.TestCase):
         ntrials, max_eval_concurrency = int(1e3), 1
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
-                funs, model.variable, est, ntrials, max_eval_concurrency, True)
+                funs, benchmark.variable(), est, ntrials, max_eval_concurrency, True)
         )
 
         rtol, atol = 2e-2, 1e-3
@@ -516,14 +519,14 @@ class TestMOMC(unittest.TestCase):
         ntrials, max_eval_concurrency = int(1e4), 4
         qoi_idx = [0, 1]
         target_cost = 50
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             [0, 1, 2], qoi_idx)
-        W = model.covariance_of_centered_values_kronker_product()
+        W = benchmark.covariance_of_centered_values_kronker_product()
         W = _nqoisq_nqoisq_subproblem(
-            W, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
-        B = model.covariance_of_mean_and_variance_estimators()
+            W, benchmark.nmodels(), benchmark.nqoi(), [0, 1, 2], qoi_idx)
+        B = benchmark.covariance_of_mean_and_variance_estimators()
         B = _nqoi_nqoisq_subproblem(
-            B, model.nmodels, model.nqoi, [0, 1, 2], qoi_idx)
+            B, benchmark.nmodels(), benchmark.nqoi(), [0, 1, 2], qoi_idx)
         stat = multioutput_stats["mean_variance"](len(qoi_idx))
         stat.set_pilot_quantities(cov, W, B)
         est = get_estimator("gmf", stat, costs)
@@ -532,14 +535,14 @@ class TestMOMC(unittest.TestCase):
                                              "lower_bound": 1e-3}})
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
-                funs, model.variable, est, ntrials, max_eval_concurrency, True)
+                funs, benchmark.variable(), est, ntrials, max_eval_concurrency, True)
         )
         rtol, atol = 2e-2, 1e-4
         assert np.allclose(covar_mc, covar, atol=atol, rtol=rtol)
 
     def test_insert_pilot_samples(self):
         # This test is specific to ACV sampling strategies (not yet MLBLUE)
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             [0, 1, 2], [0, 1, 2])
         nqoi = 3
 
@@ -554,7 +557,7 @@ class TestMOMC(unittest.TestCase):
         est.allocate_samples(target_cost, {"verbosity": 0, "nprocs": 1})
 
         np.random.seed(1)
-        samples_per_model = est.generate_samples_per_model(model.variable.rvs)
+        samples_per_model = est.generate_samples_per_model(benchmark.variable().rvs)
         values_per_model = [
             fun(samples) for fun, samples in zip(funs, samples_per_model)]
         est_val = est(values_per_model)
@@ -567,13 +570,13 @@ class TestMOMC(unittest.TestCase):
         # partial(variable.rvs, random_state=random_state)(4)[:, :3]
         np.random.seed(1)
         npilot_samples = 5
-        pilot_samples = model.variable.rvs(npilot_samples)
-        pilot_values = [f(pilot_samples) for f in model.funs]
+        pilot_samples = benchmark.variable().rvs(npilot_samples)
+        pilot_values = [f(pilot_samples) for f in benchmark.models()]
         assert np.allclose(
             pilot_values[0], values_per_model[0][:npilot_samples])
 
         samples_per_model_wo_pilot = est.generate_samples_per_model(
-            model.variable.rvs, npilot_samples)
+            benchmark.variable().rvs, npilot_samples)
         values_per_model_wo_pilot = [
             fun(samples) for fun, samples in
             zip(funs, samples_per_model_wo_pilot)]
@@ -596,7 +599,7 @@ class TestMOMC(unittest.TestCase):
         model_idx = [0, 1, 2]
         ntrials = 1e3
         # model_idx = [0, 1]
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         nqoi = len(qoi_idx)
 
@@ -615,7 +618,7 @@ class TestMOMC(unittest.TestCase):
                           "init_guess": {"disp": True, "maxiter": 100,
                                          "lower_bound": 1e-3}})
 
-        samples_per_model = est.generate_samples_per_model(model.variable.rvs)
+        samples_per_model = est.generate_samples_per_model(benchmark.variable().rvs)
         values_per_model = [
             f(samples) for f, samples in zip(funs, samples_per_model)]
 
@@ -638,7 +641,7 @@ class TestMOMC(unittest.TestCase):
         stat_name = "mean_variance"
         stat = multioutput_stats[stat_name](nqoi)
         npilot_samples = 20
-        pilot_samples = model.variable.rvs(npilot_samples)
+        pilot_samples = benchmark.variable().rvs(npilot_samples)
         pilot_values_per_model = [fun(pilot_samples) for fun in funs]
         stat.set_pilot_quantities(*stat.compute_pilot_quantities(
             pilot_values_per_model))
@@ -667,7 +670,7 @@ class TestMOMC(unittest.TestCase):
                           "init_guess": {"disp": True, "maxiter": 100,
                                          "lower_bound": 1e-3}})
         print(est)
-        samples_per_model = est.generate_samples_per_model(model.variable.rvs)
+        samples_per_model = est.generate_samples_per_model(benchmark.variable().rvs)
         values_per_model = [
             f(samples) for f, samples in zip(funs, samples_per_model)]
 
@@ -696,13 +699,12 @@ class TestMOMC(unittest.TestCase):
             self._check_bootstrap_estimator(*test_case)
 
     def test_polynomial_ensemeble(self):
-        from pyapprox.benchmarks.benchmarks import setup_benchmark
-        benchmark = setup_benchmark("polynomial_ensemble")
-        cov = benchmark.covariance
+        benchmark = PolynomialModelEnsemble()
+        cov = benchmark.covariance()
         nmodels = cov.shape[0]
         costs = np.asarray([10**-ii for ii in range(nmodels)])
 
-        stat = multioutput_stats["mean"](benchmark.nqoi)
+        stat = multioutput_stats["mean"](benchmark.nqoi())
         stat.set_pilot_quantities(cov)
         est = get_estimator(
             "gmf", stat, costs, recursion_index=np.zeros(nmodels-1, dtype=int))
@@ -710,7 +712,7 @@ class TestMOMC(unittest.TestCase):
 
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
-                benchmark.funs, benchmark.variable, est, 1000, 1, True)
+                benchmark.models(), benchmark.variable(), est, 1000, 1, True)
         )
         assert np.allclose(covar_mc, covar, rtol=1e-2)
 

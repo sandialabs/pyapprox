@@ -12,6 +12,7 @@ import numpy as np
 import umbridge
 
 from pyapprox.util.utilities import get_all_sample_combinations
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
@@ -32,6 +33,7 @@ class Model(ABC):
     _apply_hessian_implemented,
     _apply_weighted_hessian_implemented
     """
+
     def __init__(self, backend=NumpyLinAlgMixin):
         self._bkd = backend
         self._apply_jacobian_implemented = False
@@ -74,20 +76,26 @@ class Model(ABC):
     def _check_sample_shape(self, sample):
         if sample.ndim != 2:
             raise ValueError(
-                "sample is not a 2D array, has shape {0}".format(sample.shape))
+                "sample is not a 2D array, has shape {0}".format(sample.shape)
+            )
         if sample.shape[1] != 1:
             raise ValueError(
                 "sample is not a 2D array with 1 column, has shape {0}".format(
-                    sample.shape))
+                    sample.shape
+                )
+            )
 
     def _check_vec_shape(self, sample, vec):
         if vec.ndim != 2:
             raise ValueError(
-                "vec is not a 2D array, has shape {0}".format(vec.shape))
+                "vec is not a 2D array, has shape {0}".format(vec.shape)
+            )
         if sample.shape[0] != vec.shape[0]:
             raise ValueError(
                 "sample.shape {0} and vec.shape {1} are inconsistent".format(
-                    sample.shape, vec.shape))
+                    sample.shape, vec.shape
+                )
+            )
 
     def _check_weights_shape(self, weights):
         if weights.ndim != 2:
@@ -122,8 +130,10 @@ class Model(ABC):
         jac : np.ndarray (nqoi, nvars)
             The Jacobian matrix
         """
-        if (not self._jacobian_implemented and
-                not self._apply_jacobian_implemented):
+        if (
+            not self._jacobian_implemented
+            and not self._apply_jacobian_implemented
+        ):
             raise NotImplementedError(
                 "_jacobian and _apply_jacobian are not implemented"
             )
@@ -161,11 +171,12 @@ class Model(ABC):
             The dot product of the Jacobian with the vector
         """
         if (
-                not self._apply_jacobian_implemented
-                and not self._jacobian_implemented
+            not self._apply_jacobian_implemented
+            and not self._jacobian_implemented
         ):
             raise RuntimeError(
-                "apply_jacobian and jacobian are not implemented")
+                "apply_jacobian and jacobian are not implemented"
+            )
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
         if self._apply_jacobian_implemented:
@@ -196,11 +207,10 @@ class Model(ABC):
             The dot product of the Hessian with the vector
         """
         if (
-                not self._apply_hessian_implemented
-                and not self._hessian_implemented
+            not self._apply_hessian_implemented
+            and not self._hessian_implemented
         ):
-            raise RuntimeError(
-                "apply_hessian and hessian are not implemented")
+            raise RuntimeError("apply_hessian and hessian are not implemented")
         if self.nqoi() > 1:
             raise ValueError("apply_hessian cannot be used when nqoi > 1")
         self._check_sample_shape(sample)
@@ -233,14 +243,11 @@ class Model(ABC):
             The Jacobian matrix
         """
         if (
-                not (self._apply_hessian_implemented)
-                and not self._hessian_implemented
+            not (self._apply_hessian_implemented)
+            and not self._hessian_implemented
         ):
             raise NotImplementedError("Hessian not implemented")
-        if (
-                not self._hessian_implemented
-                and self.nqoi() > 1
-        ):
+        if not self._hessian_implemented and self.nqoi() > 1:
             raise ValueError("apply_hessian cannot be used when nqoi > 1")
 
         self._check_sample_shape(sample)
@@ -281,11 +288,12 @@ class Model(ABC):
             The dot product of the weighted Jacobian with the vector
         """
         if (
-                not self._apply_jacobian_implemented
-                and not self._jacobian_implemented
+            not self._apply_jacobian_implemented
+            and not self._jacobian_implemented
         ):
             raise RuntimeError(
-                "apply_jacobian and jacobian are not implemented")
+                "apply_jacobian and jacobian are not implemented"
+            )
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
         self._check_weights_shape(weights)
@@ -318,22 +326,34 @@ class Model(ABC):
             The dot product of the weighted Hessian with the vector
         """
         if (
-                not self._apply_weighted_hessian_implemented
-                and not self._hessian_implemented
+            not self._apply_weighted_hessian_implemented
+            and not self._hessian_implemented
         ):
             raise RuntimeError(
-                "apply_weighted_hessian and hessian are not implemented")
+                "apply_weighted_hessian and hessian are not implemented"
+            )
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
         if self._apply_weighted_hessian_implemented:
             return self._apply_weighted_hessian(sample, vec, weights)
         return weights.T @ (self.hessian(sample) @ vec[:, 0])
 
-    def _check_apply(self, sample, symb, fun, apply_fun, fd_eps=None,
-                     direction=None, relative=True, disp=False, args=[]):
+    def _check_apply(
+        self,
+        sample,
+        symb,
+        fun,
+        apply_fun,
+        fd_eps=None,
+        direction=None,
+        relative=True,
+        disp=False,
+        args=[],
+    ):
         if sample.ndim != 2:
             raise ValueError(
-                "sample with shape {0} must be 2D array".format(sample.shape))
+                "sample with shape {0} must be 2D array".format(sample.shape)
+            )
         if fd_eps is None:
             fd_eps = self._bkd.flip(self._bkd.logspace(-13, 0, 14))
         if direction is None:
@@ -344,8 +364,11 @@ class Model(ABC):
 
         row_format = "{:<12} {:<25} {:<25} {:<25}"
         headers = [
-            "Eps", "norm({0}v)".format(symb), "norm({0}v_fd)".format(symb),
-            "Rel. Errors" if relative else "Abs. Errors"]
+            "Eps",
+            "norm({0}v)".format(symb),
+            "norm({0}v_fd)".format(symb),
+            "Rel. Errors" if relative else "Abs. Errors",
+        ]
         if disp:
             print(row_format.format(*headers))
         row_format = "{:<12.2e} {:<25} {:<25} {:<25}"
@@ -353,67 +376,105 @@ class Model(ABC):
         val = fun(sample, *args)
         directional_grad = apply_fun(sample, direction, *args)
         for ii in range(fd_eps.shape[0]):
-            sample_perturbed = self._bkd.copy(sample)+fd_eps[ii]*direction
+            sample_perturbed = self._bkd.copy(sample) + fd_eps[ii] * direction
             perturbed_val = fun(sample_perturbed, *args)
-            fd_directional_grad = (perturbed_val-val)/fd_eps[ii]
-            errors.append(self._bkd.norm(
-                fd_directional_grad.reshape(directional_grad.shape) -
-                directional_grad))
+            fd_directional_grad = (perturbed_val - val) / fd_eps[ii]
+            errors.append(
+                self._bkd.norm(
+                    fd_directional_grad.reshape(directional_grad.shape)
+                    - directional_grad
+                )
+            )
             if relative:
                 errors[-1] /= self._bkd.norm(directional_grad)
             if disp:
-                print(row_format.format(
-                    fd_eps[ii], self._bkd.norm(directional_grad),
-                    self._bkd.norm(fd_directional_grad), errors[ii]))
+                print(
+                    row_format.format(
+                        fd_eps[ii],
+                        self._bkd.norm(directional_grad),
+                        self._bkd.norm(fd_directional_grad),
+                        errors[ii],
+                    )
+                )
         return self._bkd.asarray(errors)
 
-    def check_apply_jacobian(self, sample, fd_eps=None, direction=None,
-                             relative=True, disp=False):
+    def check_apply_jacobian(
+        self, sample, fd_eps=None, direction=None, relative=True, disp=False
+    ):
         """
         Compare apply_jacobian with finite difference.
         """
         if (
-                not self._apply_jacobian_implemented
-                and not self._jacobian_implemented
+            not self._apply_jacobian_implemented
+            and not self._jacobian_implemented
         ):
             raise RuntimeError(
-                "Cannot check apply_jacobian because it not implemented")
+                "Cannot check apply_jacobian because it not implemented"
+            )
         return self._check_apply(
-            sample, "J", self, self.apply_jacobian, fd_eps, direction,
-            relative, disp)
+            sample,
+            "J",
+            self,
+            self.apply_jacobian,
+            fd_eps,
+            direction,
+            relative,
+            disp,
+        )
 
     def _weighted_jacobian(self, sample, weights):
         # only used by check_apply_hessian
         return weights.T @ self.jacobian(sample)
 
-    def check_apply_hessian(self, sample, fd_eps=None, direction=None,
-                            relative=True, disp=False, weights=None):
+    def check_apply_hessian(
+        self,
+        sample,
+        fd_eps=None,
+        direction=None,
+        relative=True,
+        disp=False,
+        weights=None,
+    ):
         """
         Compare apply_hessian with finite difference.
         """
         if weights is None:
             if (
-                    not self._apply_hessian_implemented
-                    and not self._hessian_implemented
+                not self._apply_hessian_implemented
+                and not self._hessian_implemented
             ):
                 raise RuntimeError(
-                    "Cannot check apply_hessian because it is not implemented")
+                    "Cannot check apply_hessian because it is not implemented"
+                )
             return self._check_apply(
-                sample, "H", self.jacobian, self.apply_hessian, fd_eps,
-                direction, relative, disp)
+                sample,
+                "H",
+                self.jacobian,
+                self.apply_hessian,
+                fd_eps,
+                direction,
+                relative,
+                disp,
+            )
 
         if (
-                not self._apply_weighted_hessian_implemented
-                and not self._hessian_implemented
+            not self._apply_weighted_hessian_implemented
+            and not self._hessian_implemented
         ):
             raise RuntimeError(
-                "Cannot check apply_weighted_hessian because not implemented")
+                "Cannot check apply_weighted_hessian because not implemented"
+            )
         return self._check_apply(
             sample,
             "H",
             self._weighted_jacobian,
             self.apply_weighted_hessian,
-            fd_eps, direction, relative, disp, (weights,))
+            fd_eps,
+            direction,
+            relative,
+            disp,
+            (weights,),
+        )
 
     def approx_jacobian(self, sample, eps=np.sqrt(np.finfo(float).eps)):
         self._check_sample_shape(sample)
@@ -424,13 +485,16 @@ class Model(ABC):
         dx = self._bkd.zeros((nvars, 1))
         for ii in range(nvars):
             dx[ii] = eps
-            val_perturbed = self(sample+dx)
-            jac[:, ii] = (val_perturbed - val)/eps
+            val_perturbed = self(sample + dx)
+            jac[:, ii] = (val_perturbed - val) / eps
             dx[ii] = 0.0
         return jac
 
 
-class SingleSampleModel(Model):
+class SingleSampleModelMixin:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     @abstractmethod
     def _evaluate(self, sample):
         """
@@ -455,29 +519,30 @@ class SingleSampleModel(Model):
         if values_0.ndim != 2 or values_0.shape[0] != 1:
             msg = "values returned by self._model has the wrong shape."
             msg += " shape is {0} but must be 2D array with single row".format(
-                values_0.shape)
+                values_0.shape
+            )
             raise ValueError(msg)
         nqoi = values_0.shape[1]
         values = self._bkd.empty((nsamples, nqoi), dtype=float)
         values[0, :] = values_0
         for ii in range(1, nsamples):
-            values[ii, :] = self._evaluate(samples[:, ii:ii+1])
+            values[ii, :] = self._evaluate(samples[:, ii : ii + 1])
         return values
 
 
-class ModelFromCallable(SingleSampleModel):
+class ModelFromCallable(Model):
     def __init__(
-            self,
-            nqoi,
-            function,
-            jacobian=None,
-            apply_jacobian=None,
-            apply_hessian=None,
-            hessian=None,
-            apply_weighted_hessian=None,
-            sample_ndim=2,
-            values_ndim=2,
-            backend=NumpyLinAlgMixin,
+        self,
+        nqoi: int,
+        function: callable,
+        jacobian: callable = None,
+        apply_jacobian: callable = None,
+        apply_hessian: callable = None,
+        hessian: callable = None,
+        apply_weighted_hessian: callable = None,
+        sample_ndim: int = 2,
+        values_ndim: int = 2,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         """
         Parameters
@@ -524,6 +589,62 @@ class ModelFromCallable(SingleSampleModel):
     def nqoi(self):
         return self._nqoi
 
+    def _jacobian(self, sample):
+        return self._eval_fun(self._user_jacobian, sample)
+
+    def _apply_jacobian(self, sample, vec):
+        return self._eval_fun(self._user_apply_jacobian, sample, vec)
+
+    def _apply_hessian(self, sample, vec):
+        return self._eval_fun(self._user_apply_hessian, sample, vec)
+
+    def _hessian(self, sample):
+        return self._eval_fun(self._user_hessian, sample)
+
+    def _apply_weighted_hessian(self, sample, vec, weights):
+        return self._eval_fun(
+            self._user_apply_weighted_hessian, sample, vec, weights
+        )
+
+
+class ModelFromVectorizedCallable(ModelFromCallable):
+    def __init__(
+        self,
+        nqoi: int,
+        function: callable,
+        jacobian: callable = None,
+        apply_jacobian: callable = None,
+        apply_hessian: callable = None,
+        hessian: callable = None,
+        apply_weighted_hessian: callable = None,
+        values_ndim: int = 2,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(
+            nqoi,
+            function,
+            jacobian,
+            apply_jacobian,
+            apply_hessian,
+            hessian,
+            apply_weighted_hessian,
+            2,
+            values_ndim,
+            backend,
+        )
+
+    def _values(self, samples: Array) -> Array:
+        values = self._user_function(samples)
+        if self._values_ndim != values.ndim:
+            raise RuntimeError("function returned values with the wrong ndim")
+        if values.shape[0] != samples.shape[1]:
+            raise RuntimeError("function returned values with the wrong shape")
+        if self._values_ndim == 1:
+            values = values[:, None]
+        return values
+
+
+class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
     def _eval_fun(self, fun, sample, *args):
         if self._sample_ndim == 2:
             return fun(sample, *args)
@@ -531,28 +652,15 @@ class ModelFromCallable(SingleSampleModel):
 
     def _evaluate(self, sample):
         values = self._eval_fun(self._user_function, sample)
+        if self._values_ndim != values.ndim:
+            raise RuntimeError("function returned values with the wrong ndim")
         if self._values_ndim != 2:
             return np.atleast_2d(values)
         return values
 
-    def _jacobian(self, sample):
-        return self._eval_fun(self._user_jacobian, sample)
 
-    def _apply_jacobian(self, sample, vec):
-        return self._eval_fun(
-            self._user_apply_jacobian, sample, vec)
-
-    def _apply_hessian(self, sample, vec):
-        return self._eval_fun(
-            self._user_apply_hessian, sample, vec)
-
-    def _hessian(self, sample):
-        return self._eval_fun(
-            self._user_hessian, sample)
-
-    def _apply_weighted_hessian(self, sample, vec, weights):
-        return self._eval_fun(
-            self._user_apply_weighted_hessian, sample, vec, weights)
+class SingleSampleModel(SingleSampleModelMixin, Model):
+    pass
 
 
 class ScipyModelWrapper:
@@ -569,9 +677,9 @@ class ScipyModelWrapper:
             raise ValueError("model must be derived from Model")
         self._model = model
         for attr in [
-                "_jacobian_implemented",
-                "_hessian_implemented",
-                "_apply_hessian_implemented",
+            "_jacobian_implemented",
+            "_hessian_implemented",
+            "_apply_hessian_implemented",
         ]:
             setattr(self, attr, self._model.__dict__[attr])
 
@@ -579,7 +687,9 @@ class ScipyModelWrapper:
         if sample.ndim != 1:
             raise ValueError(
                 "sample must be a 1D array but has shape {0}".format(
-                    sample.shape))
+                    sample.shape
+                )
+            )
         return self._bkd.asarray(sample)
 
     def __call__(self, sample):
@@ -604,7 +714,7 @@ class ScipyModelWrapper:
 
     def hessp(self, sample, vec):
         sample = self._check_sample(sample)
-        if (vec.ndim != 1):
+        if vec.ndim != 1:
             raise ValueError("vec must be 1D array")
         return self._bkd.to_numpy(
             self._model.apply_hessian(
@@ -622,7 +732,7 @@ class ScipyModelWrapper:
 
 class UmbridgeModelWrapper(Model):
     def __init__(
-            self, umb_model, config={}, nprocs=1, backend=NumpyLinAlgMixin
+        self, umb_model, config={}, nprocs=1, backend=NumpyLinAlgMixin
     ):
         """
         Evaluate an umbridge model at multiple samples
@@ -650,7 +760,8 @@ class UmbridgeModelWrapper(Model):
     def _check_sample(self, sample):
         if sample.ndim != 2:
             raise ValueError(
-                "sample is not a 2D array, has shape {0}".format(sample.shape))
+                "sample is not a 2D array, has shape {0}".format(sample.shape)
+            )
         return [sample[:, 0].tolist()]
 
     def _jacobian(self, sample):
@@ -665,18 +776,21 @@ class UmbridgeModelWrapper(Model):
         # sens is vector v and applies a constant to each sublist of outputs
         # we want jacobian so set sens to [1]
         parameters = self._check_sample(sample)
-        return self._bkd.asarray(self._model.gradient(
-            0, 0, parameters, [1.], config=self._config)).T
+        return self._bkd.asarray(
+            self._model.gradient(0, 0, parameters, [1.0], config=self._config)
+        ).T
 
     def _apply_jacobian(self, sample, vec):
         parameters = self._check_sample(sample)
         self._model.apply_jacobian(
-            None, None, parameters, vec, config=self._config)
+            None, None, parameters, vec, config=self._config
+        )
 
     def _apply_hessian(self, sample, vec):
         parameters = self._check_sample(sample)
         self._model.apply_hessian(
-            None, None, None, parameters, vec, None, config=self._config)
+            None, None, None, parameters, vec, None, config=self._config
+        )
 
     def _evaluate_single_thread(self, sample, sample_id):
         parameters = self._check_sample(sample)
@@ -687,8 +801,11 @@ class UmbridgeModelWrapper(Model):
         nsamples = samples.shape[1]
         results = pool.starmap(
             self._evaluate_single_thread,
-            [(samples[:, ii:ii+1], self._nmodel_evaluations+ii)
-             for ii in range(nsamples)])
+            [
+                (samples[:, ii : ii + 1], self._nmodel_evaluations + ii)
+                for ii in range(nsamples)
+            ],
+        )
         pool.close()
         self._nmodel_evaluations += nsamples
         return results
@@ -699,7 +816,9 @@ class UmbridgeModelWrapper(Model):
         for ii in range(nsamples):
             results.append(
                 self._evaluate_single_thread(
-                    samples[:, ii:ii+1], self._nmodel_evaluations+ii))
+                    samples[:, ii : ii + 1], self._nmodel_evaluations + ii
+                )
+            )
         self._nmodel_evaluations += nsamples
         return results
 
@@ -710,22 +829,29 @@ class UmbridgeModelWrapper(Model):
 
     @staticmethod
     def start_server(
-            run_server_string, url='http://localhost:4242', out=None,
-            max_connection_time=20):
+        run_server_string,
+        url="http://localhost:4242",
+        out=None,
+        max_connection_time=20,
+    ):
         if out is None:
-            out = open(os.devnull, 'w')
+            out = open(os.devnull, "w")
         process = subprocess.Popen(
-            run_server_string, shell=True, stdout=out,
-            stderr=out, preexec_fn=os.setsid)
+            run_server_string,
+            shell=True,
+            stdout=out,
+            stderr=out,
+            preexec_fn=os.setsid,
+        )
         t0 = time.time()
         print("Starting server using {0}".format(run_server_string))
         while True:
             try:
-                requests.get(os.path.join(url, 'Info'))
+                requests.get(os.path.join(url, "Info"))
                 print("Server running")
                 break
             except requests.exceptions.ConnectionError:
-                if time.time()-t0 > max_connection_time:
+                if time.time() - t0 > max_connection_time:
                     UmbridgeModelWrapper.kill_server(process, out)
                     raise RuntimeError("Could not connect to server") from None
         return process, out
@@ -738,8 +864,14 @@ class UmbridgeModelWrapper(Model):
 
 
 class UmbridgeIOModelWrapper(UmbridgeModelWrapper):
-    def __init__(self, umb_model, config={}, nprocs=1,
-                 outdir_basename="modelresults", backend=NumpyLinAlgMixin):
+    def __init__(
+        self,
+        umb_model,
+        config={},
+        nprocs=1,
+        outdir_basename="modelresults",
+        backend=NumpyLinAlgMixin,
+    ):
         """
         Evaluate an umbridge model that wraps models that require
         creation of separate directories for each model run to enable
@@ -752,13 +884,20 @@ class UmbridgeIOModelWrapper(UmbridgeModelWrapper):
         parameters = self._check_sample(sample)
         config = self._config.copy()
         config["outdir_basename"] = os.path.join(
-            self._outdir_basename, "wdir-{0}".format(sample_id))
+            self._outdir_basename, "wdir-{0}".format(sample_id)
+        )
         return self._model(parameters, config=config)[0]
 
 
 class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
-    def __init__(self, umb_model, model_configs={}, nprocs=1,
-                 outdir_basename="modelresults", backend=NumpyLinAlgMixin):
+    def __init__(
+        self,
+        umb_model,
+        model_configs={},
+        nprocs=1,
+        outdir_basename="modelresults",
+        backend=NumpyLinAlgMixin,
+    ):
         """
         Evaluate an umbridge model with multiple configs that wraps models
         that require
@@ -774,17 +913,27 @@ class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
         parameters = self._check_sample(sample)
         config = self._model_configs[model_id].copy()
         config["outdir_basename"] = os.path.join(
-            self._outdir_basename, "wdir-{0}".format(sample_id))
+            self._outdir_basename, "wdir-{0}".format(sample_id)
+        )
         if sample.shape[0] != self._model.get_input_sizes(config)[0]:
             raise ValueError(
                 "sample must contain model id but shape {0}!={1}".format(
-                    sample.shape[0], self._model.get_input_sizes(config)[0]))
+                    sample.shape[0], self._model.get_input_sizes(config)[0]
+                )
+            )
         return self._model(parameters, config=config)[0]
 
 
-class IOModel(SingleSampleModel):
-    def __init__(self, nqoi, infilenames, outdir_basename=None, save="no",
-                 datafilename=None, backend=NumpyLinAlgMixin):
+class IOModel(SingleSampleModelMixin, Model):
+    def __init__(
+        self,
+        nqoi,
+        infilenames,
+        outdir_basename=None,
+        save="no",
+        datafilename=None,
+        backend=NumpyLinAlgMixin,
+    ):
         """
         Base class for models that require loading and or writing of files
         """
@@ -819,7 +968,8 @@ class IOModel(SingleSampleModel):
         outdirname = os.path.join(self._outdir_basename, ext)
         if os.path.exists(outdirname):
             raise RuntimeError(
-                "Tried to create {0} but it already exists".format(outdirname))
+                "Tried to create {0} but it already exists".format(outdirname)
+            )
         os.makedirs(outdirname)
         return outdirname, None
 
@@ -829,17 +979,17 @@ class IOModel(SingleSampleModel):
             filename = os.path.basename(filename_w_src_path)
             filename_w_target_path = os.path.join(outdirname, filename)
             if not os.path.exists(filename_w_target_path):
-                os.symlink(
-                    filename_w_src_path, filename_w_target_path)
+                os.symlink(filename_w_src_path, filename_w_target_path)
             else:
-                msg = '{0} exists in {1} so cannot create soft link'.format(
-                    filename, outdirname)
+                msg = "{0} exists in {1} so cannot create soft link".format(
+                    filename, outdirname
+                )
                 raise Exception(msg)
             linked_filenames.append(filename_w_target_path)
         return linked_filenames
 
     def _cleanup_outdir(self, outdirname):
-        filenames_to_delete = glob.glob(os.path.join(outdirname, '*'))
+        filenames_to_delete = glob.glob(os.path.join(outdirname, "*"))
         for filename in filenames_to_delete:
             os.remove(filename)
 
@@ -874,13 +1024,14 @@ class ActiveSetVariableModel(Model):
     """
 
     def __init__(
-            self,
-            model,
-            nvars,
-            inactive_var_values,
-            active_var_indices,
-            base_model=None,
-            backend=NumpyLinAlgMixin):
+        self,
+        model,
+        nvars,
+        inactive_var_values,
+        active_var_indices,
+        base_model=None,
+        backend=NumpyLinAlgMixin,
+    ):
         super().__init__(backend=backend)
         # nvars can de determined from inputs but making it
         # necessary allows for better error checking
@@ -894,46 +1045,61 @@ class ActiveSetVariableModel(Model):
         self._active_var_indices = self._bkd.asarray(
             active_var_indices, dtype=int
         )
-        assert self._active_var_indices.shape[0] + \
-            self._inactive_var_values.shape[0] == nvars
+        assert (
+            self._active_var_indices.shape[0]
+            + self._inactive_var_values.shape[0]
+            == nvars
+        )
         self._nvars = nvars
         assert self._bkd.all(self._active_var_indices < self._nvars)
         self._inactive_var_indices = self._bkd.delete(
-            self._bkd.arange(self._nvars, dtype=int), active_var_indices)
+            self._bkd.arange(self._nvars, dtype=int), active_var_indices
+        )
         if base_model is None:
             base_model = model
         self._base_model = base_model
 
         self._jacobian_implemented = self._base_model._jacobian_implemented
         self._apply_jacobian_implemented = (
-            self._base_model._apply_jacobian_implemented)
+            self._base_model._apply_jacobian_implemented
+        )
         self._hessian_implemented = self._base_model._hessian_implemented
         self._apply_hessian_implemented = (
-            self._base_model._apply_hessian_implemented)
+            self._base_model._apply_hessian_implemented
+        )
 
     def nqoi(self):
         return self._model.nqoi()
 
     @staticmethod
-    def _expand_samples_from_indices(reduced_samples, active_var_indices,
-                                     inactive_var_indices,
-                                     inactive_var_values,
-                                     bkd=NumpyLinAlgMixin):
+    def _expand_samples_from_indices(
+        reduced_samples,
+        active_var_indices,
+        inactive_var_indices,
+        inactive_var_values,
+        bkd=NumpyLinAlgMixin,
+    ):
         assert reduced_samples.ndim == 2
         raw_samples = get_all_sample_combinations(
-            inactive_var_values, reduced_samples)
+            inactive_var_values, reduced_samples
+        )
         samples = bkd.empty(raw_samples.shape)
-        samples[inactive_var_indices, :] = (
-            raw_samples[:inactive_var_indices.shape[0]])
-        samples[active_var_indices, :] = (
-            raw_samples[inactive_var_indices.shape[0]:])
+        samples[inactive_var_indices, :] = raw_samples[
+            : inactive_var_indices.shape[0]
+        ]
+        samples[active_var_indices, :] = raw_samples[
+            inactive_var_indices.shape[0] :
+        ]
         return samples
 
     def _expand_samples(self, reduced_samples):
         return self._expand_samples_from_indices(
-            reduced_samples, self._active_var_indices,
-            self._inactive_var_indices, self._inactive_var_values,
-            self._bkd)
+            reduced_samples,
+            self._active_var_indices,
+            self._inactive_var_indices,
+            self._inactive_var_values,
+            self._bkd,
+        )
 
     def __call__(self, reduced_samples):
         samples = self._expand_samples(reduced_samples)
@@ -974,11 +1140,11 @@ class ChangeModelSignWrapper(Model):
             raise ValueError("model must be derived from Model")
         self._model = model
         for attr in [
-                "_jacobian_implemented",
-                "_apply_jacobian_implemented",
-                "_hessian_implemented",
-                "_apply_hessian_implemented",
-                "_apply_weighted_hessian_implemented",
+            "_jacobian_implemented",
+            "_apply_jacobian_implemented",
+            "_hessian_implemented",
+            "_apply_hessian_implemented",
+            "_apply_weighted_hessian_implemented",
         ]:
             setattr(self, attr, self._model.__dict__[attr])
 

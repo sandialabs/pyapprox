@@ -7,7 +7,7 @@ import numpy as np
 import sympy as sp
 
 from pyapprox.interface.model import (
-    ModelFromCallable, ScipyModelWrapper, UmbridgeModelWrapper, umbridge,
+    ModelFromSingleSampleCallable, ScipyModelWrapper, UmbridgeModelWrapper, umbridge,
     IOModel, UmbridgeIOModelWrapper)
 
 
@@ -27,7 +27,7 @@ class TestModel(unittest.TestCase):
         sp_fun = sum([s*(ii+1) for ii, s in enumerate(symbs)])**4
         sp_grad = [sp_fun.diff(x) for x in symbs]
         sp_hessian = [[sp_fun.diff(x).diff(y) for x in symbs] for y in symbs]
-        model = ModelFromCallable(
+        model = ModelFromSingleSampleCallable(
             1,
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample),
@@ -50,20 +50,20 @@ class TestModel(unittest.TestCase):
 
     def test_scalar_model_from_callable_1D_sample(self):
         # check jacobian with 1D samples
-        model = ModelFromCallable(
+        model = ModelFromSingleSampleCallable(
             1,
             lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
-            jacobian=lambda x: np.array([2*(x[0] - 1), 2*(x[1] - 2.5)]),
+            jacobian=lambda x: np.array([[2*(x[0] - 1), 2*(x[1] - 2.5)]]),
             sample_ndim=1, values_ndim=0)
         sample = np.array([2, 0])[:, None]
         errors = model.check_apply_jacobian(sample)
         assert errors.min()/errors.max() < 1e-6
 
         # check apply_jacobian and apply_hessian with 1D samples
-        model = ModelFromCallable(
+        model = ModelFromSingleSampleCallable(
             1,
             lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
-            jacobian=lambda x: np.array([2*(x[0] - 1), 2*(x[1] - 2.5)]),
+            jacobian=lambda x: np.array([[2*(x[0] - 1), 2*(x[1] - 2.5)]]),
             apply_jacobian=lambda x, v: 2*(x[0] - 1)*v[0]+2*(x[1] - 2.5)*v[1],
             apply_hessian=lambda x, v: np.array(np.diag([2, 2])) @ v,
             sample_ndim=1, values_ndim=0)
@@ -97,7 +97,7 @@ class TestModel(unittest.TestCase):
         def apply_weighted_hessian(sample, vec, weights):
             hess = hessian(sample)
             return np.sum(weights[..., None]*hess, axis=0) @ vec
-        model = ModelFromCallable(
+        model = ModelFromSingleSampleCallable(
             2,
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample
@@ -147,7 +147,7 @@ class TestModel(unittest.TestCase):
         sp_fun = sum([s*(ii+1) for ii, s in enumerate(symbs)])**4
         sp_grad = [sp_fun.diff(x) for x in symbs]
         sp_hessian = [[sp_fun.diff(x).diff(y) for x in symbs] for y in symbs]
-        model = ModelFromCallable(
+        model = ModelFromSingleSampleCallable(
             1,
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample),

@@ -97,24 +97,22 @@ The following code can be used to investigate the properties of a two model ACV 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
 from pyapprox.util.visualization import mathrm_label
 
 np.random.seed(1)
 shifts = [.1, .2]
-benchmark = setup_benchmark(
-    "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
-model = benchmark.fun
-exact_integral_f0 = benchmark.mean[0]
+benchmark = TunableModelEnsemble(theta1=np.pi/2*.95, shifts=shifts)
+exact_integral_f0 = benchmark.mean()[0]
 
 #%%
 #Now initialize the estimator
 from pyapprox.multifidelity.factory import (
     get_estimator, numerically_compute_estimator_variance, multioutput_stats)
 # The benchmark has three models, so just extract data for first two models
-costs = benchmark.fun.costs()[:2]
-stat = multioutput_stats["mean"](benchmark.nqoi)
-stat.set_pilot_quantities(benchmark.covariance[:2, :2])
+costs = benchmark.costs()[:2]
+stat = multioutput_stats["mean"](benchmark.nqoi())
+stat.set_pilot_quantities(benchmark.covariance()[:2, :2])
 est = get_estimator("gis", stat, costs)
 
 #%%
@@ -131,7 +129,7 @@ est._set_optimized_params(npartition_ratios, target_cost)
 #%%
 #Now lets plot the samples assigned to each model.
 
-samples_per_model = est.generate_samples_per_model(benchmark.variable.rvs)
+samples_per_model = est.generate_samples_per_model(benchmark.variable().rvs)
 print(est._rounded_npartition_samples)
 samples_shared = (
     samples_per_model[0][:, :int(est._rounded_npartition_samples[0])])
@@ -152,7 +150,7 @@ _ = ax.legend(loc='upper left')
 #
 #Now lets use both sets of samples to construct the ACV estimator
 
-values_per_model = [benchmark.funs[ii](samples_per_model[ii])
+values_per_model = [benchmark.models()[ii](samples_per_model[ii])
                     for ii in range(len(samples_per_model))]
 acv_mean = est(values_per_model)
 
@@ -174,7 +172,7 @@ target_cost = (
 est._set_optimized_params(npartition_ratios, target_cost)
 numerical_var, true_var, means = (
     numerically_compute_estimator_variance(
-        benchmark.funs[:2], benchmark.variable, est, ntrials, 1,
+        benchmark.models()[:2], benchmark.variable(), est, ntrials, 1,
         return_all=True))[2:5]
 
 
@@ -182,7 +180,7 @@ sfmc_est = get_estimator("mc", stat, costs)
 sfmc_est.allocate_samples(target_cost)
 sfmc_means = (
     numerically_compute_estimator_variance(
-        benchmark.funs[:1], benchmark.variable, sfmc_est, ntrials,
+        benchmark.models()[:1], benchmark.variable(), sfmc_est, ntrials,
         return_all=True))[5]
 
 fig, ax = plt.subplots()
@@ -214,7 +212,7 @@ target_cost = (
 est._set_optimized_params(npartition_ratios, target_cost)
 numerical_var, true_var, means = (
     numerically_compute_estimator_variance(
-        benchmark.funs[:2], benchmark.variable, est, ntrials,
+        benchmark.models()[:2], benchmark.variable(), est, ntrials,
         return_all=True))[2:5]
 ax.hist(means, bins=ntrials//100, density=True, alpha=0.5,
         label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$' % (

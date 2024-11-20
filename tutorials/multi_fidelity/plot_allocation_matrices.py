@@ -210,17 +210,17 @@ And finally because ACMF always uses all independent partitions up to including 
 
 The following can be used to plot the allocation matrix of any PACV estimator (not just GMF). Note we load a benchmark because it is needed to initialize the PACV estimator, but the allocation matrix is independent of any benchmark properties other than the number of models it provides
 """
+import math
 import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 
-benchmark = setup_benchmark("tunable_model_ensemble")
-model = benchmark.fun
+benchmark = TunableModelEnsemble(math.pi/2*0.95)
 
-stat = multioutput_stats["mean"](benchmark.nqoi)
-stat.set_pilot_quantities(benchmark.covariance)
-est = get_estimator("grd", stat, model.costs(), recursion_index=(2, 0))
+stat = multioutput_stats["mean"](benchmark.nqoi())
+stat.set_pilot_quantities(benchmark.covariance())
+est = get_estimator("grd", stat, benchmark.costs(), recursion_index=(2, 0))
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 _ = est.plot_allocation(ax)

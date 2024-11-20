@@ -17,9 +17,9 @@ class TestETC(unittest.TestCase):
     @staticmethod
     def _setup_model_ensemble_tunable(shifts=None, angle=np.pi/4):
         example = TunableModelEnsemble(angle, shifts)
-        cov = example.get_covariance_matrix()
+        cov = example.covariance()
         costs = 10.**(-np.arange(cov.shape[0]))
-        return example.funs, cov, costs, example.variable
+        return example.models(), cov, costs, example.variable()
 
     def test_AETC_optimal_loss(self):
         alpha = 1000

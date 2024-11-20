@@ -28,9 +28,6 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     CantileverBeamConstraintsModel,
 )
 from pyapprox.benchmarks.genz import GenzFunction
-from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble, TunableModelEnsemble, ShortColumnModelEnsemble,
-    MultioutputModelEnsemble)
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.interface.wrappers import (
     TimerModel, PoolModel, WorkTrackingModel)
@@ -58,6 +55,8 @@ class Benchmark(OptimizeResult):
     variable : :py:class:`~pyapprox.variables.JointVariable`
         Class containing information about each of the nvars inputs to fun
 
+    Optional Attributes
+    -------------------
     jac : callable
         The jacobian of fun. (optional)
 
@@ -696,54 +695,6 @@ def _extract_acv_benchmark_dict(model):
             "funs": model.funs, "nqoi": model.nqoi}
 
 
-def setup_polynomial_ensemble(nmodels=5):
-    r"""
-    Return an ensemble of 5 univariate models of the form
-
-    .. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4
-
-    where :math:`z\sim\mathcal{U}[0, 1]`
-
-    Returns
-    -------
-    benchmark : :py:class:`~pyapprox.benchmarks.Benchmark`
-       Object containing the benchmark attributes
-
-    fun : callable
-        The function being analyzed
-
-    variable : :py:class:`~pyapprox.variables.JointVariable`
-        Class containing information about each of the nvars inputs to fun
-
-    means : np.ndarray (nmodels)
-        The mean of each model fidelity
-
-    covariance : np.ndarray (nmodels)
-        The covariance between the outputs of each model fidelity
-
-    References
-    ----------
-    .. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
-    """
-    model = PolynomialModelEnsemble(nmodels)
-    return Benchmark(_extract_acv_benchmark_dict(model))
-
-
-def setup_tunable_model_ensemble(theta1=np.pi/2*0.95, shifts=None):
-    model = TunableModelEnsemble(theta1, shifts)
-    return Benchmark(_extract_acv_benchmark_dict(model))
-
-
-def setup_short_column_ensemble(nmodels=5):
-    model = ShortColumnModelEnsemble(nmodels)
-    return Benchmark(_extract_acv_benchmark_dict(model))
-
-
-def setup_multioutput_model_ensemble():
-    model = MultioutputModelEnsemble()
-    return Benchmark(_extract_acv_benchmark_dict(model))
-
-
 def setup_parameterized_nonlinear_model():
     model = ParameterizedNonlinearModel()
     model.qoi = np.array([1])
@@ -1156,10 +1107,6 @@ _benchmarks = {
     setup_multi_index_advection_diffusion_benchmark,
     'advection_diffusion_kle_inversion':
     setup_advection_diffusion_kle_inversion_benchmark,
-    'polynomial_ensemble': setup_polynomial_ensemble,
-    'tunable_model_ensemble': setup_tunable_model_ensemble,
-    'multioutput_model_ensemble': setup_multioutput_model_ensemble,
-    'short_column_ensemble': setup_short_column_ensemble,
     "parameterized_nonlinear_model": setup_parameterized_nonlinear_model,
     "burgers_1d": setup_1d_burgers,
     "darcy_kle_2d": setup_darcy_kle_2d,

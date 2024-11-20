@@ -8,7 +8,7 @@ from pyapprox.multifidelity.stats import (
     _nqoi_nqoisq_subproblem, MultiOutputMeanAndVariance,
     _get_V_from_covariance, _covariance_of_variance_estimator)
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    MultioutputModelEnsemble)
+    MultiOutputModelEnsemble)
 
 
 def _single_qoi(qoi, fun, xx):
@@ -20,18 +20,18 @@ def _two_qoi(ii, jj, fun, xx):
 
 
 def _setup_multioutput_model_subproblem(model_idx, qoi_idx):
-    model = MultioutputModelEnsemble()
-    cov = model.get_covariance_matrix()
-    funs = [model.funs[ii] for ii in model_idx]
+    benchmark = MultiOutputModelEnsemble()
+    cov = benchmark.covariance()
+    funs = [benchmark.models()[ii] for ii in model_idx]
     if len(qoi_idx) == 1:
         funs = [partial(_single_qoi, qoi_idx[0], f) for f in funs]
     elif len(qoi_idx) == 2:
         funs = [partial(_two_qoi, *qoi_idx, f) for f in funs]
     idx = np.arange(9).reshape(3, 3)[np.ix_(model_idx, qoi_idx)].flatten()
     cov = cov[np.ix_(idx, idx)]
-    costs = model.costs()[model_idx]
-    means = model.get_means()[np.ix_(model_idx, qoi_idx)]
-    return funs, cov, costs, model, means
+    costs = benchmark.costs()[model_idx]
+    means = benchmark.mean()[np.ix_(model_idx, qoi_idx)]
+    return funs, cov, costs, benchmark, means
 
 
 class TestMOSTATS(unittest.TestCase):
@@ -39,10 +39,10 @@ class TestMOSTATS(unittest.TestCase):
         np.random.seed(1)
 
     def test_covariance_einsum(self):
-        model = MultioutputModelEnsemble()
+        benchmark = MultiOutputModelEnsemble()
         npilot_samples = int(1e5)
-        pilot_samples = model.variable.rvs(npilot_samples)
-        pilot_values = np.hstack([f(pilot_samples) for f in model.funs])
+        pilot_samples = benchmark.variable().rvs(npilot_samples)
+        pilot_values = np.hstack([f(pilot_samples) for f in benchmark.models()])
         means = pilot_values.mean(axis=0)
         centered_values = pilot_values - means
         centered_values_sq = np.einsum(
@@ -51,12 +51,12 @@ class TestMOSTATS(unittest.TestCase):
         nqoi = pilot_values.shape[1]
         mc_cov = (centered_values_sq.sum(axis=0)/(npilot_samples-1)).reshape(
             nqoi, nqoi)
-        assert np.allclose(mc_cov, model.get_covariance_matrix(), rtol=1e-2)
+        assert np.allclose(mc_cov, benchmark.covariance(), rtol=1e-2)
 
     def test_variance_double_loop(self):
         NN = 5
-        model = MultioutputModelEnsemble()
-        samples = model.variable.rvs(NN)
+        benchmark = MultiOutputModelEnsemble()
+        samples = benchmark.variable().rvs(NN)
         variance = 0
         for ii in range(samples.shape[1]):
             for jj in range(samples.shape[1]):
@@ -67,23 +67,23 @@ class TestMOSTATS(unittest.TestCase):
         assert np.allclose(variance, samples.var(axis=1, ddof=1))
 
     def _check_pilot_covariances(self, model_idx, qoi_idx):
-        funs, cov_exact, costs, model, means = (
+        funs, cov_exact, costs, benchmark, means = (
             _setup_multioutput_model_subproblem(model_idx, qoi_idx))
         # atol is needed for terms close to zero
         rtol, atol = 1e-2, 5.5e-4
         npilot_samples = int(1e6)
-        pilot_samples = model.variable.rvs(npilot_samples)
+        pilot_samples = benchmark.variable().rvs(npilot_samples)
         pilot_values = [f(pilot_samples) for f in funs]
         cov, W, B = MultiOutputMeanAndVariance.compute_pilot_quantities(
             pilot_values)
         assert np.allclose(cov, cov_exact, atol=atol, rtol=rtol)
-        W_exact = model.covariance_of_centered_values_kronker_product()
+        W_exact = benchmark.covariance_of_centered_values_kronker_product()
         W_exact = _nqoisq_nqoisq_subproblem(
-            W_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
+            W_exact, benchmark.nmodels, benchmark.nqoi(), model_idx, qoi_idx)
         assert np.allclose(W, W_exact, atol=atol, rtol=rtol)
-        B_exact = model.covariance_of_mean_and_variance_estimators()
+        B_exact = benchmark.covariance_of_mean_and_variance_estimators()
         B_exact = _nqoi_nqoisq_subproblem(
-            B_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
+            B_exact, benchmark.nmodels, benchmark.nqoi(), model_idx, qoi_idx)
         assert np.allclose(B, B_exact, atol=atol, rtol=rtol)
 
     def test_pilot_covariances(self):
@@ -123,18 +123,18 @@ class TestMOSTATS(unittest.TestCase):
 
     def _check_mean_variance_covariances(self, model_idx, qoi_idx):
         nsamples, ntrials = 20, int(1e5)
-        funs, cov, costs, model, means = _setup_multioutput_model_subproblem(
+        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
             model_idx, qoi_idx)
         means, covariances = self._mean_variance_realizations(
-            funs, model.variable, nsamples, ntrials)
+            funs, benchmark.variable(), nsamples, ntrials)
         nmodels = len(funs)
         nqoi = cov.shape[0]//nmodels
 
         # atol is needed for terms close to zero
         rtol, atol = 1e-2, 1e-4
-        B_exact = model.covariance_of_mean_and_variance_estimators()
+        B_exact = benchmark.covariance_of_mean_and_variance_estimators()
         B_exact = _nqoi_nqoisq_subproblem(
-            B_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
+            B_exact, benchmark.nmodels, benchmark.nqoi(), model_idx, qoi_idx)
         mc_mean_cov_var = np.cov(means.T, covariances.T, ddof=1)
         B_mc = mc_mean_cov_var[:nqoi*nmodels, nqoi*nmodels:]
         assert np.allclose(B_mc, B_exact/nsamples, atol=atol, rtol=rtol)
@@ -142,9 +142,9 @@ class TestMOSTATS(unittest.TestCase):
         # no need to extract subproblem for V_exact as cov has already
         # been downselected
         V_exact = _get_V_from_covariance(cov, nmodels)
-        W_exact = model.covariance_of_centered_values_kronker_product()
+        W_exact = benchmark.covariance_of_centered_values_kronker_product()
         W_exact = _nqoisq_nqoisq_subproblem(
-            W_exact, model.nmodels, model.nqoi, model_idx, qoi_idx)
+            W_exact, benchmark.nmodels, benchmark.nqoi(), model_idx, qoi_idx)
         cov_var_exact = _covariance_of_variance_estimator(
             W_exact, V_exact, nsamples)
         assert np.allclose(

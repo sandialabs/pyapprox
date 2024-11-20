@@ -62,7 +62,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks.multifidelity_benchmarks import PolynomialModelEnsemble
 from pyapprox.multifidelity.factory import (
     get_estimator, compare_estimator_variances, compute_variance_reductions,
     multioutput_stats)
@@ -70,14 +70,13 @@ from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions)
 
 np.random.seed(1)
-benchmark = setup_benchmark("polynomial_ensemble")
-model = benchmark.fun
-cov = benchmark.covariance
+benchmark = PolynomialModelEnsemble()
+cov = benchmark.covariance()
 target_costs = np.array([1e1, 1e2, 1e3, 1e4], dtype=int)
 costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
 model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
 
-stat = multioutput_stats["mean"](benchmark.nqoi)
+stat = multioutput_stats["mean"](benchmark.nqoi())
 stat.set_pilot_quantities(cov)
 estimators = [
     get_estimator("mlmc", stat, costs),
@@ -119,11 +118,11 @@ nmodels = costs.shape[0]
 
 cv_stats, cv_ests = [], []
 for ii in range(1, nmodels):
-    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi))
+    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi()))
     cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
     cv_ests.append(get_estimator(
         "cv", cv_stats[ii-1], costs[:ii+1],
-        lowfi_stats=benchmark.mean[1:ii+1]))
+        lowfi_stats=benchmark.mean()[1:ii+1]))
 cv_labels = mathrm_labels(["CV-{%d}" % ii for ii in range(1, nmodels)])
 target_cost = nhf_samples*sum(costs)
 [est.allocate_samples(target_cost) for est in cv_ests]

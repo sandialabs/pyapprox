@@ -83,33 +83,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks.multifidelity_benchmarks import PolynomialModelEnsemble
 from pyapprox.multifidelity.factory import (
     get_estimator, compare_estimator_variances, compute_variance_reductions,
     multioutput_stats)
-from pyapprox.multifidelity.visualize import (
-    plot_estimator_variance_reductions)
 
 #%%
 #First, plot the variance reduction of the optimal control variates using known low-fidelity means.
 #
 #Second, plot the variance reduction of multi-fidelity estimators that do not assume known low-fidelity means. The code below repeatedly doubles the number of low-fidelity samples according to the initial allocation defined by nsample_ratios_base=[2,4,8,16].
 
-benchmark = setup_benchmark("polynomial_ensemble")
-model = benchmark.fun
+benchmark = PolynomialModelEnsemble()
 
 nmodels = 5
-cov = benchmark.covariance
+cov = benchmark.covariance()
 costs = np.asarray([10**-ii for ii in range(nmodels)])
 nhf_samples = 1
 
 cv_stats, cv_ests = [], []
 for ii in range(1, nmodels):
-    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi))
+    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi()))
     cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
     cv_ests.append(get_estimator(
         "cv", cv_stats[ii-1], costs[:ii+1],
-        lowfi_stats=benchmark.mean[1:ii+1]))
+        lowfi_stats=benchmark.mean()[1:ii+1]))
 cv_labels = mathrm_labels(["CV-{%d}" % ii for ii in range(1, nmodels)])
 target_cost = nhf_samples*sum(costs)
 [est.allocate_samples(target_cost) for est in cv_ests]
@@ -156,7 +153,7 @@ estimators = [
         np.array([2, 3, 4]), np.array([3, 4]), np.array([4,])]),
     get_estimator("gmf", cv_stats[-1], costs, tree_depth=4),
     get_estimator("cv", cv_stats[-1], costs,
-                  lowfi_stats=benchmark.mean[1:])]
+                  lowfi_stats=benchmark.mean()[1:])]
 est_labels = mathrm_labels(["MC", "MLMC", "MLBLUE", "GRD", "CV"])
 optimized_estimators = compare_estimator_variances(
     target_costs, estimators)

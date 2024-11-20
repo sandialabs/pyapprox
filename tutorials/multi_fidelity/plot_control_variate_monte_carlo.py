@@ -73,19 +73,18 @@ Again consider the tunable model ensemble. The correlation between the models :m
 # First let us setup the problem and compute a single estimate using CVMC
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox import interface
+from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
 
 np.random.seed(1)
 shifts = [.1, .2]
-benchmark = setup_benchmark(
-    "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
-model = benchmark.fun
+benchmark = TunableModelEnsemble(theta1=np.pi/2*.95, shifts=shifts)
 
 nsamples = int(1e2)
-samples = benchmark.variable.rvs(nsamples)
-values0 = model.m0(samples)
-values1 = model.m1(samples)
-cov = benchmark.covariance
+samples = benchmark.variable().rvs(nsamples)
+values0 = benchmark.m0(samples)
+values1 = benchmark.m1(samples)
+cov = benchmark.covariance()
 eta = -cov[0, 1]/cov[0, 0]
 #cov_mc = np.cov(values0,values1)
 #eta_mc = -cov_mc[0,1]/cov_mc[0,0]
@@ -100,9 +99,9 @@ print('CVMC difference squared =', (cv_mean-exact_integral_f0)**2)
 ntrials = 1000
 means = np.empty((ntrials, 2))
 for ii in range(ntrials):
-    samples = benchmark.variable.rvs(nsamples)
-    values0 = model.m0(samples)
-    values1 = model.m1(samples)
+    samples = benchmark.variable().rvs(nsamples)
+    values0 = benchmark.m0(samples)
+    values1 = benchmark.m1(samples)
     means[ii, 0] = values0.mean()
     means[ii, 1] = values0.mean()+eta*(values1.mean()-exact_integral_f1)
 

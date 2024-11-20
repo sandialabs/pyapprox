@@ -34,21 +34,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks.multifidelity_benchmarks import PolynomialModelEnsemble
 from pyapprox.multifidelity.factory import (
     get_estimator, compare_estimator_variances, compute_variance_reductions,
     multioutput_stats)
-from pyapprox.multifidelity.visualize import (
-    plot_estimator_variance_reductions)
 
 nmodels = 4
 np.random.seed(1)
-benchmark = setup_benchmark("polynomial_ensemble")
-model = benchmark.fun
-cov = benchmark.covariance[:nmodels, :nmodels]
+benchmark = PolynomialModelEnsemble()
+cov = benchmark.covariance()[:nmodels, :nmodels]
 costs = np.asarray([10**-ii for ii in range(nmodels)])
 
-stat = multioutput_stats["mean"](benchmark.nqoi)
+stat = multioutput_stats["mean"](benchmark.nqoi())
 stat.set_pilot_quantities(cov)
 gmf_est = get_estimator("gmf", stat, costs, tree_depth=nmodels-1)
 recursion_indices = list(gmf_est.get_all_recursion_indices())
@@ -93,16 +90,16 @@ for ii, recursion_index in enumerate(recursion_indices):
 #The following code shows the benefit of using all models as control variates for the highest fidelity model, such as is enforced by ACVMF estimators. Specifically, it shows that as the number of low-fideliy samples increases, but the number of high-fidelity samples is fixed, the ACVMF estiamtor variance converges to the estiamtor variance of the CV estimator that uses all 5 models. In contrast the  MLMC and MFMC estimators only converge to the CV estimator CV that uses 1 low-fidelity model. However, these two approaches reduce the variance of the estimator more quickly than the ACV estimator, but cannot obtain the optimal variance reduction.
 
 nmodels = 5
-cov = benchmark.covariance
+cov = benchmark.covariance()
 costs = np.asarray([10**-ii for ii in range(nmodels)])
 nhf_samples = 1
 cv_stats, cv_ests = [], []
 for ii in range(1, nmodels):
-    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi))
+    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi()))
     cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
     cv_ests.append(get_estimator(
         "cv", cv_stats[ii-1], costs[:ii+1],
-        lowfi_stats=benchmark.mean[1:ii+1]))
+        lowfi_stats=benchmark.mean()[1:ii+1]))
 cv_labels = mathrm_labels(["CV-{%d}" % ii for ii in range(1, nmodels)])
 target_cost = nhf_samples*sum(costs)
 [est.allocate_samples(target_cost) for est in cv_ests]
@@ -112,7 +109,7 @@ from util import (
     plot_control_variate_variance_ratios,
     plot_estimator_variance_ratios_for_polynomial_ensemble)
 
-stat = multioutput_stats["mean"](benchmark.nqoi)
+stat = multioutput_stats["mean"](benchmark.nqoi())
 stat.set_pilot_quantities(cov)
 estimators = [
     get_estimator("mlmc", stat, costs),
