@@ -82,8 +82,8 @@ class Physics(NewtonResidual):
         self, sol_array: Array, jac: Array
     ):
         for bndry in self._bndrys:
-            res_array = bndry.apply_to_jacobian(sol_array, jac)
-        return res_array
+            jac = bndry.apply_to_jacobian(sol_array, jac)
+        return jac
 
     @abstractmethod
     def residual(self, sol: ScalarOperator):

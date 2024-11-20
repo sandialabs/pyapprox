@@ -113,12 +113,12 @@ class ShallowWaterWaveModel(TransientAdjointModel):
                             component_id * self._basis.mesh.nmesh_pts(),
                         )
                     )
-                elif False:#component_id == 0:
+                elif False:
                     bndry_funs.append(
                         RobinBoundaryFromOperator(
                             mesh_bndry,
                             self._get_zerofun(),
-                            0.0,
+                            0,
                             1.0,
                             component_id * self._basis.mesh.nmesh_pts(),
                             component_id,

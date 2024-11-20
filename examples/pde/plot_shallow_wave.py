@@ -49,7 +49,7 @@ mesh = ChebyshevCollocationMesh2D([30, 30], transform)
 basis = ChebyshevCollocationBasis2D(mesh)
 
 # define time period
-init_time, final_time, deltat = 0, 5, 0.5
+init_time, final_time, deltat = 0, 20, 0.5
 
 # TODO: WARNING INITIAL CONDITION IS NOT CONSISTENT WITH BOUNDARY CONDITIONS
 
@@ -106,12 +106,10 @@ functional = TransientTODOFunctional(basis.mesh.nmesh_pts(), bkd)
 
 
 from scipy.special import beta as beta_fn
-def init_surface_fun(xx):
-    a0, b0 = 5, 20
-    a1, b1 = 20, 20
-    # The higher these values the higher basis orders need to be
-    #a0, b0 = 5, 10
-    # a1, b1 = 10, 10
+def beta_surface_fun(shapes, xx):
+    # if a0<b0  not value then bump will be closer to left boundary
+    a0, b0, a1, b1 = shapes
+    # The higher the shape values the higher basis orders need to be
     xn = 1 / bounds[1::2, None] * xx
     const0 = 1./beta_fn(a0, b0)
     const1 = 1./beta_fn(a1, b1)
@@ -119,6 +117,31 @@ def init_surface_fun(xx):
         xn[0] ** (a0-1) * (1 - xn[0]) ** (b0-1) *
         xn[1] ** (a1-1) * (1 - xn[1]) ** (b1-1)
     ) * const0 * const1 / 20
+
+def gaussian_surface_fun(loc, xx):
+    xn = 1 / bounds[1::2, None] * xx
+    width = 0.1
+    vals = bkd.exp(-bkd.sum((xn-loc) ** 2, axis=0) / width ** 2) / np.sqrt(2*np.pi)
+    # normalize to have largest value of 1
+    # Note, interpolated val max will not be one because of interpolation error
+    vals = vals/bkd.max(vals)
+    return vals
+
+def beta_surface_mixture(xx):
+    return (beta_surface_fun([25, 20, 20, 20], xx) + beta_surface_fun(
+        [5, 20, 20, 20], xx)
+    )
+
+def gaussian_surface_mixture(xx):
+    loc0 = bkd.array([0.5, 0.5])[:, None]
+    loc1 = bkd.array([0.2, 0.5])[:, None]
+    return gaussian_surface_fun(loc0, xx) + gaussian_surface_fun(loc1, xx)
+
+# init_surface_fun = partial(beta_surface_fun, [25, 20, 20, 20])
+# init_surface_fun = partial(gaussian_surface_fun,  bkd.array([0.5, 0.5])[:, None])
+#init_surface_fun = gaussian_surface_mixture
+init_surface_fun = beta_surface_mixture
+
 
 
 import matplotlib
@@ -141,14 +164,14 @@ plot_kwargs = {
 init_surface = ScalarFunctionFromCallable(
     basis, init_surface_fun, basis.nphys_vars() + 1
 )
-# print(init_surface.get_values())
+
 # init_surface.plot(init_surface.get_plot_axis(surface=True)[1], **plot_kwargs)
 # plt.show()
 newton_solver = NewtonSolver(
     verbosity=2,
     maxiters=5,
-    atol=1e-8,
-    rtol=1e-8,
+    atol=1e-6,
+    rtol=1e-6,
 )
 model = ShallowWaterWaveModel(
     init_time,
@@ -220,8 +243,10 @@ state_bounds = bkd.stack(
 # which can be larger/smaller than mesh values which can cause white values in plot
 
 zmin, zmax = surface_vals.min(), surface_vals.max()
-zmin -= 0.02
-zmax += 0.08
+#zmin -= 0.02
+# zmax += 0.14
+zmin -= 1
+zmax += 0.7
 plot_kwargs["zbounds"] = [zmin, zmax]
 state_bounds[0] = bkd.array([zmin, zmax])
 levels = [bkd.linspace(*b, 51) for b in state_bounds]
