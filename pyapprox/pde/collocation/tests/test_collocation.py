@@ -666,9 +666,7 @@ class TestCollocation:
         )
         init_sol = copy.deepcopy(exact_sol)
         init_sol.set_time(init_time)
-        print("A")
         sols, times = solver.solve(init_sol)
-        print("B")
         exact_sols = []
         for time in times:
             exact_sol.set_time(time)

@@ -67,30 +67,24 @@ class ShallowWaterWaveModel(TransientAdjointModel):
             self._physics.ncomponents(),
             self._physics.ncomponents(),
         )
+        if self._basis._bkd.any(
+                self._init_surface.get_values() <= self._bed.get_values()
+        ):
+            print(self._init_surface.get_values())
+            print(self._bed.get_values())
+            raise ValueError(
+                "bed and initial surface given cause negative depths"
+            )
         init_depth = ScalarFunction(
             self._basis,
             (self._init_surface - self._bed).get_values(),
             ninput_funs=self._bed.ninput_funs(),
         )
-        print(init_depth.get_values().min(), init_depth.get_values().max(), "A")
         init_cond.set_components(
             [init_depth]
             + [self._get_zerofun() for ii in range(self._basis.nphys_vars())]
         )
         return init_cond
-
-    # def setup_dirichlet_boundaries(self):
-    #     bndry_funs = []
-    #     for bndry_name, mesh_bndry in self._basis.mesh.get_boundaries().items():
-    #         for ii in range(1, self._basis.nphys_vars()+1):
-    #             bndry_funs.append(
-    #                 DirichletBoundaryFromOperator(
-    #                     mesh_bndry,
-    #                     self._zerofun,
-    #                     ii * self._basis.mesh.nmesh_pts(),
-    #                 )
-    #             )
-    #     return bndry_funs
 
     def _get_zerofun(self):
         return ZeroScalarFunction(

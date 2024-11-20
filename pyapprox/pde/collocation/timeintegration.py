@@ -1,8 +1,7 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Tuple
 
 from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.collocation.newton import (
     NewtonSolver,
     NewtonResidual,
@@ -266,7 +265,6 @@ class BackwardEulerResidual(TimeIntegratorNewtonResidual):
 
     def _jacobian(self, sol: Array) -> Array:
         self.native_residual.set_time(self._time + self._deltat)
-        # print(self._time, self._delt
         return self.native_residual.mass_matrix(
             sol.shape[0]
         ) - self._deltat * self.native_residual.jacobian(sol)
