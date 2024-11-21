@@ -41,7 +41,7 @@ def _get_allocation_matrix_is(subsets, bkd):
     nsubsets = len(subsets)
     npartitions = nsubsets
     allocation_mat = bkd.full(
-        (nsubsets, npartitions), 0., dtype=torch.double)
+        (nsubsets, npartitions), 0., dtype=bkd.double_type())
     for ii, subset in enumerate(subsets):
         allocation_mat[ii, ii] = 1.0
     return allocation_mat
@@ -52,7 +52,7 @@ def _get_allocation_matrix_nested(subsets, bkd):
     nsubsets = len(subsets)
     npartitions = nsubsets
     allocation_mat = bkd.full(
-        (nsubsets, npartitions), 0., dtype=torch.double)
+        (nsubsets, npartitions), 0., dtype=bkd.double_type())
     for ii, subset in enumerate(subsets):
         allocation_mat[ii, :ii+1] = 1.0
     return allocation_mat
@@ -571,10 +571,10 @@ class GroupACVEstimator:
 
 class MLBLUEEstimator(GroupACVEstimator):
     def __init__(self, stat, costs, reg_blue=0, subsets=None,
-                 asketch=None):
+                 asketch=None,backend=TorchLinAlgMixin):
         # Currently stats is ignored.
         super().__init__(stat, costs, reg_blue, subsets, est_type="is",
-                         asketch=asketch)
+                         asketch=asketch,backend=backend)
         self._best_model_indices = self._bkd.arange(len(costs))
 
         # compute psi blocks once and store because they are independent

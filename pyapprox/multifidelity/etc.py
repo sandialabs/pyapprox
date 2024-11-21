@@ -6,13 +6,10 @@ import numpy as np
 from pyapprox.multifidelity.groupacv import MLBLUEEstimator, get_model_subsets, MLBLUESPDOptimizer
 from pyapprox.multifidelity.stats import MultiOutputMean
 from pyapprox.multifidelity.acv import MCEstimator
-
-
-def asarray(array):
-    return torch.as_tensor(array,dtype=torch.double)
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 class AETC():
-    def __init__(self, models, rvs, costs=None, oracle_stats=None,opt_options={}):
+    def __init__(self, models, rvs, costs=None, oracle_stats=None,backend=NumpyLinAlgMixin):
         r"""
         Parameters
         ----------
@@ -40,7 +37,7 @@ class AETC():
         self.rvs = rvs
         self._costs = self._validate_costs(costs)
         self._oracle_stats = oracle_stats
-        self._opt_options = opt_options
+        self._bkd = backend
 
     def _validate_costs(self, costs):
         if costs is None:
@@ -244,12 +241,12 @@ class AETC():
         # use +1 to account for subset indexing only lf models
         best_subset_costs = self._costs[best_subset+1]
         best_subset_groups = get_model_subsets(best_subset.shape[0],np)
-        best_subset_group_costs = asarray([
+        best_subset_group_costs = np.asarray([
             best_subset_costs[group].sum() for group in best_subset_groups])
 
         # recorrect for solving exploitation with unit exploit budget
-        best_nsamples_per_subset = asarray(best_allocation)
-        rounded_best_nsamples_per_subset = asarray(
+        best_nsamples_per_subset = np.asarray(best_allocation)
+        rounded_best_nsamples_per_subset = np.asarray(
             np.floor(best_nsamples_per_subset))
         best_variance = best_k2/best_exploit_budget
 
@@ -337,7 +334,7 @@ class AETC():
 
 
 class AETCMC(AETC):
-    def __init__(self, models, rvs, costs=None, oracle_stats=None,opt_options={}):
+    def __init__(self, models, rvs, costs=None, oracle_stats=None):
         r"""
         Parameters
         ----------
@@ -363,7 +360,7 @@ class AETCMC(AETC):
             First element is the Oracle covariance between models.
             Second element is the Oracle means of the models.
         """
-        super().__init__(models,rvs,costs,oracle_stats,opt_options)
+        super().__init__(models,rvs,costs,oracle_stats)
 
     def _find_k2(self,beta_Sp,Sigma_S,costs_S):
         asketch = beta_Sp[1:]  # remove high-fidelity coefficient
@@ -424,7 +421,7 @@ class AETCMC(AETC):
 
 class AETCBLUE(AETC):
     def __init__(self, models, rvs, costs=None, oracle_stats=None,
-                 reg_blue=1e-15, opt_options={}):
+                 reg_blue=1e-15, backend=NumpyLinAlgMixin):
         r"""
         Parameters
         ----------
@@ -450,7 +447,7 @@ class AETCBLUE(AETC):
             First element is the Oracle covariance between models.
             Second element is the Oracle means of the models.
         """
-        super().__init__(models,rvs,costs,oracle_stats,opt_options)
+        super().__init__(models,rvs,costs,oracle_stats,backend=backend)
         self._reg_blue = reg_blue
 
     def _find_k2(self,beta_Sp,Sigma_S,costs_S,round_nsamples=False):
@@ -459,7 +456,7 @@ class AETCBLUE(AETC):
         stat_S = MultiOutputMean(1)
         stat_S.set_pilot_quantities(Sigma_S)
         est = MLBLUEEstimator(
-            stat_S, costs_S, asketch=asketch, reg_blue=self._reg_blue)
+            stat_S, costs_S, asketch=asketch, reg_blue=self._reg_blue, backend=self._bkd)
         target_cost = 10*costs_S[0]
         opt = MLBLUESPDOptimizer()
         opt.set_estimator(est)
@@ -487,7 +484,7 @@ class AETCBLUE(AETC):
         stat_best_S = MultiOutputMean(1)
         stat_best_S.set_pilot_quantities(Sigma_best_S)
         est = MLBLUEEstimator(
-            stat_best_S, costs_best_S, Sigma_best_S, asketch=beta_best_S)
+            stat_best_S, costs_best_S, Sigma_best_S, asketch=beta_best_S,backend=self._bkd)
         est._set_optimized_params(rounded_nsamples_per_subset)
         samples_per_model = est.generate_samples_per_model(rvs)
         best_subset_HF = [s+1 for s in best_subset] #We convert to account for the introduction of HF model
@@ -500,7 +497,7 @@ class AETCBLUE(AETC):
         beta_best_S = beta_Sp[1:]
         stat_best_S = MultiOutputMean(1)
         stat_best_S.set_pilot_quantities(Sigma_best_S)
-        est = MLBLUEEstimator(stat_best_S, costs_best_S, Sigma_best_S, asketch=beta_best_S)
+        est = MLBLUEEstimator(stat_best_S, costs_best_S, Sigma_best_S, asketch=beta_best_S,backend=self._bkd)
         est._set_optimized_params(rounded_nsamples_per_subset)
         product =  est(values_per_model).item()
         return beta_Sp[0, 0] + product

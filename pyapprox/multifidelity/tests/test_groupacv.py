@@ -509,7 +509,7 @@ class TestGroupACV:
         bkd = self.get_backend()
         ntrials = int(ntrials)
         cov, W, costs, funs, model = self._setup_variance_problem(nmodels, bkd)
-        variable = model._set_variable()
+        variable = model.variable()
         stat = multioutput_stats["variance"](1, backend=bkd, return_cov=False)
         stat.set_pilot_quantities(cov, W)
         est = GroupACVEstimator(
@@ -586,7 +586,7 @@ class TestGroupACV:
         cov = bkd.array(np_cov)
         np_W = model.covariance_of_centered_values_kronker_product()
         np_W = _nqoisq_nqoisq_subproblem(
-            np_W, model.nmodels, model.nqoi, model_idx, qoi_idx
+            np_W, model.nmodels(), model.nqoi(), model_idx, qoi_idx
         )
         W = bkd.array(np_W)
         costs = bkd.array(np_costs)
@@ -601,7 +601,7 @@ class TestGroupACV:
         cov = bkd.array(np_cov)
         np_W = model.covariance_of_centered_values_kronker_product()
         np_W = _nqoisq_nqoisq_subproblem(
-            np_W, model.nmodels, model.nqoi, model_idx, qoi_idx
+            np_W, model.nmodels(), model.nqoi(), model_idx, qoi_idx
         )
         W = bkd.array(np_W)
         costs = bkd.array(np_costs)
@@ -627,7 +627,7 @@ class TestGroupACV:
         iterate = est._init_guess(target_cost)[:, None]
         est.allocate_samples(target_cost, iterate=iterate, round_nsamples=True)
 
-        rvs = lambda n: bkd.array(model.variable.rvs(n))
+        rvs = lambda n: bkd.array(model.variable().rvs(n))
         samples_per_model = est.generate_samples_per_model(rvs)
         values_per_model = [
             bkd.array(fun(samples))
@@ -645,7 +645,7 @@ class TestGroupACV:
         mfmc_est.allocate_samples(target_cost)
 
         samples_per_model = mfmc_est.generate_samples_per_model(
-            model.variable.rvs
+            model.variable().rvs
         )
         values_per_model = [
             bkd.array(fun(samples))
