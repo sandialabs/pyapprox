@@ -16,6 +16,9 @@ from pyapprox.pde.autopde.manufactured_solutions import (
     setup_steady_stokes_manufactured_solution,
     setup_helmholtz_manufactured_solution, setup_burgers_manufactured_solution)
 from pyapprox.pde.autopde.tests.test_autopde import _vel_component_fun
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedAdvectionDiffusionReaction
+)
 
 
 def _normal_flux(flux_funs, normal_fun, xx):
@@ -223,6 +226,14 @@ class TestFiniteElements(unittest.TestCase):
             setup_advection_diffusion_reaction_manufactured_solution(
                 sol_string, diff_string, vel_strings, react_funs[0], False,
                 mms_nl_diff_funs[0]))
+
+        nvars = len(vel_strings)
+        # man_sol = AdvectionDiffusionReaction(
+        #     sol_string, nvars, react_string, vel_strings
+        # )
+        # sol_fun = man_sol.functions["solution"]
+        # diff_fun = man_sol.functions["diffusion"]
+        # forc_fun = man_sol.functions["forcing"]
 
         # put manufactured vels in format required by FEM
         def vel_fun(x):

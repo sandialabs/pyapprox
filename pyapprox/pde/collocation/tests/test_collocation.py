@@ -12,11 +12,11 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedSolution,
-    AdvectionDiffusionReaction,
-    ShallowIce,
-    Helmholtz,
-    ShallowWave,
-    TwoSpeciesReactionDiffusion,
+    ManufacturedAdvectionDiffusionReaction,
+    ManufacturedShallowIce,
+    ManufacturedHelmholtz,
+    ManufacturedShallowWave,
+    ManufacturedTwoSpeciesReactionDiffusion,
 )
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
@@ -503,7 +503,7 @@ class TestCollocation:
     ):
         bkd = self.get_backend()
         react_str, react_fun, react_op_degree = react_tup
-        man_sol = AdvectionDiffusionReaction(
+        man_sol = ManufacturedAdvectionDiffusionReaction(
             sol_string,
             len(vel_strings),
             diff_string,
@@ -615,7 +615,7 @@ class TestCollocation:
     ):
         bkd = self.get_backend()
         react_str, react_fun, react_op_degree = react_tup
-        man_sol = AdvectionDiffusionReaction(
+        man_sol = ManufacturedAdvectionDiffusionReaction(
             sol_string,
             len(vel_strings),
             diff_string,
@@ -848,7 +848,7 @@ class TestCollocation:
         basis: OrthogonalCoordinateCollocationBasis,
     ):
         bkd = self.get_backend()
-        man_sol = ShallowIce(
+        man_sol = ManufacturedShallowIce(
             sol_string,
             basis.nphys_vars(),
             bed_string,
@@ -956,7 +956,7 @@ class TestCollocation:
         basis: OrthogonalCoordinateCollocationBasis,
     ):
         bkd = self.get_backend()
-        man_sol = Helmholtz(
+        man_sol = ManufacturedHelmholtz(
             sol_string,
             basis.nphys_vars(),
             sqwavenum_string,
@@ -1173,7 +1173,7 @@ class TestCollocation:
         timestep_cls: TimeIntegratorNewtonResidual,
     ):
         bkd = self.get_backend()
-        man_sol = ShallowWave(
+        man_sol = ManufacturedShallowWave(
             basis.nphys_vars(),
             depth_str,
             vel_strs,
@@ -1268,7 +1268,7 @@ class TestCollocation:
     ):
         bkd = self.get_backend()
         react_strs, react_funs, react_op_degrees = react_tup
-        man_sol = TwoSpeciesReactionDiffusion(
+        man_sol = ManufacturedTwoSpeciesReactionDiffusion(
             sol_strings,
             basis.nphys_vars(),
             diff_strings,
@@ -1422,7 +1422,7 @@ class TestCollocation:
     ):
         bkd = self.get_backend()
         react_strs, react_funs, react_op_degrees = react_tup
-        man_sol = TwoSpeciesReactionDiffusion(
+        man_sol = ManufacturedTwoSpeciesReactionDiffusion(
             sol_strings,
             basis.nphys_vars(),
             diff_strings,

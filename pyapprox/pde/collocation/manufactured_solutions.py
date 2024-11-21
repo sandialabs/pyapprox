@@ -275,7 +275,7 @@ class AdvectionMixin:
         self._set_expression("flux", flux_exprs, self._sol_str)
 
 
-class AdvectionDiffusionReaction(
+class ManufacturedAdvectionDiffusionReaction(
     ScalarSolutionMixin,
     DiffusionMixin,
     ReactionMixin,
@@ -303,7 +303,7 @@ class AdvectionDiffusionReaction(
         self.sympy_advection_expressions()
 
 
-class Helmholtz(
+class ManufacturedHelmholtz(
     ScalarSolutionMixin, DiffusionMixin, ReactionMixin, ManufacturedSolution
 ):
     def __init__(
@@ -330,7 +330,7 @@ class Helmholtz(
         )
 
 
-class ShallowIce(ScalarSolutionMixin, ManufacturedSolution):
+class ManufacturedShallowIce(ScalarSolutionMixin, ManufacturedSolution):
     def __init__(
         self,
         sol_str: str,
@@ -417,7 +417,7 @@ class VectorSolutionMixin:
                 ][ii].diff(self.time_symbol()[0])
 
 
-class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
+class ManufacturedShallowWave(VectorSolutionMixin, ManufacturedSolution):
     def __init__(
         self,
         nvars: int,
@@ -472,7 +472,7 @@ class ShallowWave(VectorSolutionMixin, ManufacturedSolution):
         ]
 
 
-class TwoSpeciesReactionDiffusion(
+class ManufacturedTwoSpeciesReactionDiffusion(
     VectorSolutionMixin,
     DiffusionMixin,
     ReactionMixin,
