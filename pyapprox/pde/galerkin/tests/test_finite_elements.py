@@ -1,24 +1,30 @@
 import unittest
+import itertools
 import numpy as np
 from functools import partial
-from skfem import (ElementVector, Basis, Functional)
+from skfem import ElementVector, Basis, Functional
+from typing import List, Tuple
 
 from pyapprox.pde.galerkin.util import (
     _get_mesh, _get_element)
 from pyapprox.pde.galerkin.physics import (
     _assemble_advection_diffusion_reaction, _assemble_stokes)
-from pyapprox.pde.galerkin.solvers import (
-    SteadyStatePDE, TransientPDE, TransientFunction)
+from pyapprox.pde.galerkin.solvers import SteadyStatePDE, TransientPDE
 from pyapprox.pde.galerkin.physics import (
-    AdvectionDiffusionReaction, Helmholtz, Stokes, Burgers)
+    NonLinearAdvectionDiffusionReaction, Helmholtz, Stokes, Burgers,
+    FEMScalarFunctionFromCallable, FEMVectorFunctionFromCallable,
+    LinearAdvectionDiffusionReaction, FEMNonLinearOperatorFromCallable,
+    FEMTransientScalarFunctionFromCallable
+)
 from pyapprox.pde.autopde.manufactured_solutions import (
     setup_advection_diffusion_reaction_manufactured_solution,
     setup_steady_stokes_manufactured_solution,
     setup_helmholtz_manufactured_solution, setup_burgers_manufactured_solution)
 from pyapprox.pde.autopde.tests.test_autopde import _vel_component_fun
 from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedAdvectionDiffusionReaction
+    ManufacturedNonLinearAdvectionDiffusionReaction
 )
+from pyapprox.pde.collocation.newton import NewtonSolver
 
 
 def _normal_flux(flux_funs, normal_fun, xx):
@@ -116,12 +122,12 @@ class MSBoundaryConditionFunction():
     def __init__(self, idx, bndry_conds):
         self._idx = idx
         self._fun = bndry_conds[self._idx][0]
-        if isinstance(self._fun, TransientFunction):
+        if isinstance(self._fun, FEMTransientScalarFunctionFromCallable):
             self.set_time = self._fun.set_time
 
     def __call__(self, xx):
         vals = self._fun(xx)
-        if isinstance(self._fun, TransientFunction):
+        if isinstance(self._fun, FEMTransientScalarFunctionFromCallable):
             return vals
         return vals[:, 0]
 
@@ -182,23 +188,6 @@ def _get_stokes_boundary_conditions(mesh, bndry_types, domain_bounds, vel_fun,
     return D_bndry_conds, N_bndry_conds, R_bndry_conds
 
 
-class Function():
-    def __init__(self, fun, name="fun"):
-        self._fun = fun
-        self._name = name
-
-    def __call__(self, xx):
-        vals = self._fun(xx)
-        # if self._fun is not implemented correctly this will fail
-        # E.g. when manufactured solution, diff etc. string does not have x
-        # in it. If not dependent on x then must use 1e-16*x
-        assert xx.ndim == vals.ndim
-        return vals[:, 0]
-
-    def __repr__(self):
-        return "{0}()".format(self._name)
-
-
 class TestFiniteElements(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
@@ -217,45 +206,52 @@ class TestFiniteElements(unittest.TestCase):
         print(integral)
         assert np.allclose(integral, 1/3)
 
-    def check_advection_diffusion_reaction(
-            self, domain_bounds, order, nrefine, sol_string, diff_string,
-            vel_strings, react_funs, bndry_types,
-            mms_nl_diff_funs=[None, None]):
-
-        sol_fun, diff_fun, mms_vel_fun, forc_fun, flux_funs = (
-            setup_advection_diffusion_reaction_manufactured_solution(
-                sol_string, diff_string, vel_strings, react_funs[0], False,
-                mms_nl_diff_funs[0]))
-
+    def _check_advection_diffusion_reaction(
+            self,
+            domain_bounds: List[float],
+            order: int,
+            nrefine: int,
+            bndry_types: List[str],
+            sol_string: str,
+            diff_tup: Tuple[str, str],
+            vel_strings: str,
+            react_tup: Tuple[str, callable, callable],
+    ):
         nvars = len(vel_strings)
-        # man_sol = AdvectionDiffusionReaction(
-        #     sol_string, nvars, react_string, vel_strings
-        # )
-        # sol_fun = man_sol.functions["solution"]
-        # diff_fun = man_sol.functions["diffusion"]
-        # forc_fun = man_sol.functions["forcing"]
+        react_str, react_fun, react_prime = react_tup
+        linear_diff_str, nonlinear_diff_op_str, diff_fun, diff_prime = diff_tup
+        if "x" not in linear_diff_str:
+            # if what a constant then must include 1e-16*x, 0*x will not work
+            raise ValueError("linear_diff_str must have x")
+        for v_str in vel_strings:
+            if "x" not in v_str:
+                raise ValueError("velocity_strs must have x")
+
+        man_sol = ManufacturedNonLinearAdvectionDiffusionReaction(
+            sol_string, nvars, linear_diff_str, nonlinear_diff_op_str, react_str, vel_strings,
+            conservative=False
+        )
+        print(man_sol)
+        sol_fun = man_sol.functions["solution"]
+        linear_diff_fun = man_sol.functions["linear_diffusion"]
+        forc_fun = man_sol.functions["forcing"]
+        mms_vel_fun = man_sol.functions["velocity"]
+        flux_funs = man_sol.functions["flux"]
 
         # put manufactured vels in format required by FEM
-        def vel_fun(x):
-            vals = mms_vel_fun(x)
-            vals = np.swapaxes(vals, 0, 1)
-            return vals
+        # def vel_fun(x):
+        #     vals = mms_vel_fun(x)
+        #     vals = np.swapaxes(vals, 0, 1)
+        #     return vals
 
-        # manufactured solutions assumes nl_diff_fun takes linear diffusion
-        # and solution as arguments. Now convert to format required by
-        # fem which takes x and solution as arguments
-        nl_diff_funs = [None, None]
-        if mms_nl_diff_funs[0] is not None:
-            nl_diff_funs[0] = lambda x, sol: mms_nl_diff_funs[0](
-                diff_fun(x), sol)
-            nl_diff_funs[1] = lambda x, sol: mms_nl_diff_funs[1](
-                diff_fun(x), sol)
-        else:
-            nl_diff_funs[0] = lambda x, sol: diff_fun(x)
-            nl_diff_funs[1] = lambda x, sol: x[0]*0
+        vel_fun = FEMVectorFunctionFromCallable(mms_vel_fun, "velocity")
 
-        diff_fun = Function(diff_fun)
-        forc_fun = Function(forc_fun)
+        linear_diff_fun = FEMScalarFunctionFromCallable(
+            linear_diff_fun, "linear_diffusion"
+        )
+        forc_fun = FEMScalarFunctionFromCallable(forc_fun, "forcing")
+        diff_op = FEMNonLinearOperatorFromCallable(diff_fun, diff_prime)
+        react_op = FEMNonLinearOperatorFromCallable(react_fun, react_prime)
 
         print(domain_bounds, nrefine, type(domain_bounds))
         mesh = _get_mesh(domain_bounds, nrefine)
@@ -267,32 +263,27 @@ class TestFiniteElements(unittest.TestCase):
 
         # Solve linear diffusion problem to get initial guess
         # starting with just zeros can cause singular matrix if
-        physics = AdvectionDiffusionReaction(
-            mesh, element, basis, bndry_conds, diff_fun, forc_fun,
-            vel_fun, nl_diff_funs, react_funs)
-        init_sol = physics.init_guess()
-
+        physics = NonLinearAdvectionDiffusionReaction(
+            mesh, element, basis, bndry_conds, linear_diff_fun, forc_fun,
+            vel_fun, diff_op, react_op)
+        # physics = LinearAdvectionDiffusionReaction(
+        #     mesh, element, basis, bndry_conds, linear_diff_fun, forc_fun,
+        #     vel_fun)
+        newton_solver = NewtonSolver(verbosity=2, maxiters=30, rtol=1e-12)
+        solver = SteadyStatePDE(physics, newton_solver)
         exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
-        # print(np.abs(init_sol-exact_sol).max(), 'a')
 
-        assemble = partial(
-            _assemble_advection_diffusion_reaction, diff_fun,
-            forc_fun, nl_diff_funs, react_funs, vel_fun, bndry_conds, mesh,
-            element, basis)
-        bilinear_mat, res, D_vals, D_dofs = assemble(u_prev=exact_sol)
-        # minus sign because res = -a(u_prev, v) + L(v)
-        jac = -bilinear_mat
-        # print(jac.toarray()[:K.blocks[0], :K.blocks[0]], 'jac', jac.shape)
-        II = np.setdiff1d(np.arange(jac.shape[0]), D_dofs)
-        # print(res[II], 'res')
-        # assert False
-        assert np.all(np.abs(res[II]) < 5e-7)
+        res = solver.newton_solver._residual(exact_sol)
+        print(res, "Residual")
+        assert np.all(np.abs(res) < 5e-7)
 
-        res = assemble(u_prev=init_sol)[1]
-
-        solver = SteadyStatePDE(physics)
-        fem_sol = solver.solve(init_sol, atol=1e-8, rtol=1e-8, maxiters=20,
-                               verbosity=0)
+        linear_newton_solver = NewtonSolver(verbosity=2, maxiters=1)
+        linear_physics = LinearAdvectionDiffusionReaction(
+            mesh, element, basis, bndry_conds, linear_diff_fun, forc_fun,
+            vel_fun)
+        linear_solver = SteadyStatePDE(linear_physics, linear_newton_solver)
+        init_sol = linear_solver.solve(linear_physics.init_guess())
+        fem_sol = solver.solve(init_sol)
 
         @Functional
         def integrate(w):
@@ -305,59 +296,87 @@ class TestFiniteElements(unittest.TestCase):
         # print(fem_sol)
         # print(fem_sol_on_mesh)
         # print(sol_fun(mesh_pts)[:, 0])
-        # print(fem_sol_on_mesh-sol_fun(mesh_pts)[:, 0])
-        assert np.allclose(fem_sol_on_mesh, sol_fun(mesh_pts)[:, 0], atol=1e-7)
 
         # II = np.argsort(mesh_pts[0])
-        # mesh_pts = mesh_pts[:, II]
-        # # plt.plot(mesh_pts[0], sol_fun(mesh_pts)[:, 0], '-ok')
-        # # plt.plot(mesh_pts[0], fem_sol_on_mesh[II], '--')
-        # plt.semilogy(
-        #     mesh_pts[0], np.abs(sol_fun(mesh_pts)[:, 0]-fem_sol_on_mesh[II]), '--')
+        # ordered_mesh_pts = mesh_pts[:, II]
+        # import matplotlib.pyplot as plt
+        # plt.plot(ordered_mesh_pts[0], sol_fun(ordered_mesh_pts)[:, 0], '-ok')
+        # plt.plot(ordered_mesh_pts[0], fem_sol_on_mesh[II], '--')
+        # # plt.semilogy(
+        # #     mesh_pts[0], np.abs(sol_fun(mesh_pts)[:, 0]-fem_sol_on_mesh[II]), '--')
         # plt.show()
 
+        print(fem_sol_on_mesh-sol_fun(mesh_pts)[:, 0])
+        assert np.allclose(fem_sol_on_mesh, sol_fun(mesh_pts)[:, 0], atol=1e-6)
+
     def test_advection_diffusion_reaction(self):
-        power = 1  # power of nonlinear diffusion
-        test_cases = [
-            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0+1e-16*x"], [None, None],
-             ["D", "D"]],
-            [[0, 1], 2, 1, "x*x", "4+x", ["0+1e-16*x"], [None, None],
-             ["D", "D"]],
-            [[0, 1], 2, 1, "x*x", "4+x", ["0+1e-16*x"], [None, None],
-             ["D", "R"]],
-            [[0, 1], 2, 1, "x*x", "4+x", ["1+1e-16*x"], [None, None],
-             ["D", "R"]],
-            # for nonlinear diffusion be careful to ensure that nl_diff > 0
-            [[0, 1], 2, 5, "1+x", "4+1e-16*x", ["0+1e-16*x"], [None, None],
-             ["D", "D"],
-             [lambda linear_diff, sol: (sol**power+1)*linear_diff,
-              lambda linear_diff, sol: (power*sol**(power-1))*linear_diff
-              if power > 0 else 0*sol]],
-            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x",
-             ["0+1e-16*x", "0+1e-16*x"],
-             [None, None], ["D", "D", "D", "D"]],
-            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x",
-             ["0+1e-16*x", "0+1e-16*x"],
-             [None, None], ["D", "R", "N", "D"]],
-            # [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x", ["0", "0"],
-            #  [None, None], ["D", "D", "N", "D"],
-            #  [lambda linear_diff, sol: (sol**power+1)*linear_diff,
-            #   lambda linear_diff, sol: (power*sol**(power-1))*linear_diff
-            #   if power > 0 else 0*sol]],
-            [[0, 1], 2, 1, "x*(1-x)", "4+x", ["0+1e-16*x"],
-             [lambda x, sol: 2*sol, lambda x, sol: 0*sol+2], ["D", "D"]],
-            [[0, 1], 2, 1, "(1-x)", "4+x", ["0+1e-16*x"],
-             [lambda x, sol: sol**2, lambda x, sol: 2*sol], ["D", "D"]],
-            [[0, 1, 0, 1], 2, 1, "x*(1-x)+2*y*(1-y)", "4+1e-16*x",
-             ["1+x", "2+1e-16*x"], [None, None], ["D", "R", "N", "D"]],
+        # check 1D domain linear PDE
+        test_case_args = [
+            [[0, 1], [0, 1.1]],  # bounds
+            [2,],  # element_order
+            [1,],  # nrefine
+            [["D", "D"], ["R", "D"], ["R", "R"]],  # bndry_types
+            ["x",],  # sol_str
+            # functions in tuple must be linear_diff * f(u)
+            [("(4+1e-16*x)", "u**0", lambda x, u: 4+u*0, lambda x, u:  u*0)],  # diff_tup
+            [["0+1e-16*x"], ["(1+x)/10"]],  # vel_strs
+            [("u**2", lambda x, u: u**2, lambda x, u: 2*u), ],  # react_tup
+
         ]
-        # currently robin and neumann conditions do not work when
-        # nonlinear diffusion present, so skip test
-        cnt = 0
-        for test_case in test_cases[:1]:
-            print(cnt)
-            self.check_advection_diffusion_reaction(*test_case)
-            cnt += 1
+        for test_case in itertools.product(*test_case_args):
+            self._check_advection_diffusion_reaction(*test_case)
+
+        # check 1D domain linear PDE
+        test_case_args = [
+            # [[0, 1], [0, 1.1]],  # bounds
+            [[0, 1.1]],  # bounds
+            [2,],  # element_order
+            [2,],  # nrefine
+            # [["D", "D"], ["D", "R"]],  # bndry_types
+            [["D", "R"], ["D", "R"]],  # bndry_types
+            ["x",],  # sol_str
+            # functions in tuple must be linear_diff * f(u)
+            [("(4+1e-16*x)", "u**2", lambda x, u: 4*u**2, lambda x, u:  8*u)],  # diff_tup
+            [["0+1e-16*x"], ["(1+x)/10"]],  # vel_strs
+            [("u**2", lambda x, u: u**2, lambda x, u: 2*u), ],  # react_tup
+
+        ]
+        for test_case in itertools.product(*test_case_args):
+            self._check_advection_diffusion_reaction(*test_case)
+
+        # check 2D domain nolinear reaction but linear diffusion
+        # TODO ROBIN BOUNDARY and Neumann boundary do not work with non-linear diffusion
+        test_case_args = [
+            [[0, 1, 0, 1],],  # bounds
+            [2,],  # element_order
+            [1,],  # nrefine
+            [["D", "D", "D", "D"], ["D", "R", "D", "N"]],  # bndry_types
+            ["x+2*y",],  # sol_str
+            # functions in tuple must be linear_diff * f(u)
+            [("(4+1e-16*x+1e-16*y)", "(u+1)**0", lambda x, u: 4+0*u, lambda x, u:  0*u)],  # diff_tup
+            [["0+1e-16*x", "0+1e-16*x"], ["1+1e-16*x", "1+x"]],  # vel_strs
+            [("u**2", lambda x, u: u**2, lambda x, u: 2*u), ],  # react_tup
+
+        ]
+        for test_case in itertools.product(*test_case_args):
+            self._check_advection_diffusion_reaction(*test_case)
+
+        # check 2D domain nonlinear PDE
+        # TODO ROBIN BOUNDARY and Neumann boundary do not work with non-linear diffusion
+        test_case_args = [
+            [[0, 1, 0, 1],],  # bounds
+            [2,],  # element_order
+            [1,],  # nrefine
+            [["D", "D", "D", "D"],],  # bndry_types
+            ["x+2*y",],  # sol_str
+            # functions in tuple must be linear_diff * f(u)
+            [("(4+1e-16*x+1e-16*y)", "(u+1)**2", lambda x, u: 4*(u+1)**2, lambda x, u:  8*(u+1)**1)],  # diff_tup
+            [["0+1e-16*x", "0+1e-16*x"],],  # vel_strs
+            [("u**2", lambda x, u: u**2, lambda x, u: 2*u), ],  # react_tup
+
+        ]
+        for test_case in itertools.product(*test_case_args):
+            self._check_advection_diffusion_reaction(*test_case)
 
     def _check_helmholtz(self, domain_bounds, order, nrefine, sol_string,
                          wnum_string, bndry_types):
@@ -365,8 +384,8 @@ class TestFiniteElements(unittest.TestCase):
             setup_helmholtz_manufactured_solution(
                 sol_string, wnum_string, len(domain_bounds)//2))
 
-        wnum_fun = Function(wnum_fun)
-        forc_fun = Function(forc_fun)
+        wnum_fun = FEMScalarFunctionFromCallable(wnum_fun)
+        forc_fun = FEMScalarFunctionFromCallable(forc_fun)
 
         mesh = _get_mesh(domain_bounds, nrefine)
         element = _get_element(mesh, order)
@@ -496,10 +515,10 @@ class TestFiniteElements(unittest.TestCase):
             nl_diff_funs[0] = lambda x, sol: diff_fun(x)
             nl_diff_funs[1] = lambda x, sol: x[0]*0
 
-        diff_fun = Function(diff_fun)
-        forc_fun = TransientFunction(forc_fun, name='forcing')
-        flux_funs = TransientFunction(flux_funs, name='flux')
-        sol_fun = TransientFunction(sol_fun, name='sol')
+        diff_fun = FEMScalarFunctionFromCallable(diff_fun)
+        forc_fun = FEMTransientScalarFunctionFromCallable(forc_fun, name='forcing')
+        flux_funs = FEMTransientScalarFunctionFromCallable(flux_funs, name='flux')
+        sol_fun = FEMTransientScalarFunctionFromCallable(sol_fun, name='sol')
 
         mesh = _get_mesh(domain_bounds, nrefine)
         element = _get_element(mesh, order)
@@ -556,16 +575,16 @@ class TestFiniteElements(unittest.TestCase):
             setup_burgers_manufactured_solution(
                 sol_string, viscosity_string, transient))
 
-        viscosity_fun = Function(viscosity_fun)
+        viscosity_fun = FEMScalarFunctionFromCallable(viscosity_fun)
         if transient:
-            forc_fun = TransientFunction(forc_fun, name='forcing')
-            flux_funs = TransientFunction(flux_funs, name='flux')
-            sol_fun = TransientFunction(sol_fun, name='sol')
+            forc_fun = FEMTransientScalarFunctionFromCallable(forc_fun, name='forcing')
+            flux_funs = FEMTransientScalarFunctionFromCallable(flux_funs, name='flux')
+            sol_fun = FEMTransientScalarFunctionFromCallable(sol_fun, name='sol')
         else:
-            forc_fun = Function(forc_fun, name='forcing')
-            flux_funs = Function(flux_funs, name='flux')
+            forc_fun = FEMScalarFunctionFromCallable(forc_fun, name='forcing')
+            flux_funs = FEMScalarFunctionFromCallable(flux_funs, name='flux')
             # for some reason tests fail when sol fun is wrapped
-            # sol_fun = Function(sol_fun, name='sol')
+            # sol_fun = FEMScalarFunctionFromCallable(sol_fun, name='sol')
             # so do not wrap
 
         periodic = (bndry_types == ["P", "P"])
@@ -577,7 +596,7 @@ class TestFiniteElements(unittest.TestCase):
             bndry_conds = _get_advection_diffusion_reaction_bndry_conds(
                 mesh, bndry_types, domain_bounds, sol_fun, flux_funs)
         else:
-            bndry_conds = [{}, {}, {}]
+            bndry_conds = ({}, {}, {})
 
         physics = Burgers(
             mesh, element, basis, bndry_conds, viscosity_fun, forc_fun)
@@ -587,18 +606,16 @@ class TestFiniteElements(unittest.TestCase):
             return w.y
 
         if not transient:
-            solver = SteadyStatePDE(physics)
-
-            II = np.argsort(mesh.p[0])
-            # init_sol = basis.project(lambda x: sol_fun(x)[:, 0])
-            init_sol = physics.init_guess()
-            fem_sol = solver.solve(
-                init_sol, atol=1e-8, rtol=1e-8, maxiters=20, verbosity=3)
+            init_sol = basis.project(lambda x: sol_fun(x)[:, 0] + 1)
+            newton_solver = NewtonSolver(verbosity=2, maxiters=5, rtol=1e-12)
+            solver = SteadyStatePDE(physics, newton_solver)
+            fem_sol = solver.solve(init_sol)
             # when projecting must use sol_fun(x)[:, 0]
             exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
             error = np.sqrt(
                 integrate.assemble(basis, y=(exact_sol-fem_sol)**2))
             print("error", error)
+            # II = np.argsort(mesh.p[0])
             # assert error < 1e-12
             # import matplotlib.pyplot as plt
             # ax = plt.subplots(1, 1)[1]

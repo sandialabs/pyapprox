@@ -246,14 +246,21 @@ class DiffusionMixin:
 
 class ReactionMixin:
     def _sympy_reaction_expressions(self, react_str, sol_str):
+        # react_expr_wrt_sol = sp.sympify(react_str)
+        # sol_symb = self.solution_symbols()[0]
+        # react_prime_expr = react_expr_wrt_sol.diff(sol_symb)
+        # react_prime_expr = react_prime_expr.subs(
+        #     sol_symb, self._expressions["solution"]
+        # )
         react_str = react_str.replace("u", "({0})".format(sol_str))
-        return react_str, sp.sympify(react_str)
+        return react_str, sp.sympify(react_str)#, react_prime_expr
 
     def sympy_reaction_expressions(self):
         react_str, react_expr = self._sympy_reaction_expressions(
             self._react_str, self._sol_str
         )
         self._set_expression("reaction", react_expr, react_str)
+        # self._set_expression("reaction_prime", react_prime_expr, react_str)
         self._expressions["forcing"] -= self._expressions["reaction"]
 
 
@@ -269,10 +276,11 @@ class AdvectionMixin:
         )
         self._set_expression("velocity", vel_exprs, ", ".join(self._vel_strs))
         self._expressions["forcing"] += advection_expr
-        flux_exprs = [
-            -vel_expr * self._expressions["solution"] for vel_expr in vel_exprs
-        ]
-        self._set_expression("flux", flux_exprs, self._sol_str)
+        if self._conservative:
+            flux_exprs = [
+                -vel_expr * self._expressions["solution"] for vel_expr in vel_exprs
+            ]
+            self._set_expression("flux", flux_exprs, self._sol_str)
 
 
 class ManufacturedAdvectionDiffusionReaction(
@@ -291,16 +299,47 @@ class ManufacturedAdvectionDiffusionReaction(
         vel_strs: list[str],
         bkd=NumpyLinAlgMixin,
         oned: bool = False,
+        conservative: bool = True,
     ):
         self._diff_str = diff_str
         self._react_str = react_str
         self._vel_strs = vel_strs
+        self._conservative = conservative
         super().__init__(sol_str, nvars, bkd, oned)
 
     def sympy_expressions(self):
         self.sympy_diffusion_expressions()
         self.sympy_reaction_expressions()
         self.sympy_advection_expressions()
+
+
+class ManufacturedNonLinearAdvectionDiffusionReaction(
+        ManufacturedAdvectionDiffusionReaction
+):
+    def __init__(
+        self,
+        sol_str: str,
+        nvars: int,
+        linear_diff_str: str,
+        nonlinear_diff_op_str: str,
+        react_str: str,
+        vel_strs: list[str],
+        bkd=NumpyLinAlgMixin,
+        oned: bool = False,
+        conservative: bool = True,
+    ):
+        nonlinear_diff_str = f"({linear_diff_str}) * ({nonlinear_diff_op_str})"
+        self._linear_diff_str = linear_diff_str
+        diff_str = nonlinear_diff_str.replace("u", "({0})".format(sol_str))
+        super().__init__(
+            sol_str, nvars, diff_str, react_str, vel_strs, bkd, oned,
+            conservative
+        )
+
+    def sympy_expressions(self):
+        super().sympy_expressions()
+        linear_diff = sp.sympify(self._linear_diff_str)
+        self._set_expression("linear_diffusion", linear_diff, self._sol_str)
 
 
 class ManufacturedHelmholtz(

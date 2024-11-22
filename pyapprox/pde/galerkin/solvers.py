@@ -1,3 +1,6 @@
+from abc import ABC, abstractmethod
+import textwrap
+
 import numpy as np
 from functools import partial
 from skfem import condense, solve, asm, LinearForm
@@ -35,7 +38,7 @@ def newton_solve(assemble, u_init,
                 raise RuntimeError("Newton solve did not converge\n\t"+msg)
             break
         if it > 0 and res_norm < init_res_norm*rtol+atol:
-            msg = f"Netwon solve: tolerance {atol}+norm(res_init)*{rtol}"
+            msg = f"Newton solve: tolerance {atol}+norm(res_init)*{rtol}"
             msg += f" = {init_res_norm*rtol+atol} reached"
             break
         if it > maxiters:
@@ -43,9 +46,13 @@ def newton_solve(assemble, u_init,
             if hard_exit:
                 raise RuntimeError("Newton solve did not converge\n\t"+msg)
             break
-        # netwon solve is du = -inv(j)*res u = u + du
+        # newton solve is du = -inv(j)*res u = u + du
         # move minus sign so that du = inv(j)*res u = u - du
+        np.set_printoptions(linewidth=1000)
+        print(res)
+        print(jac.todense())
         du = solve(*condense(jac, res, x=D_vals, D=D_dofs))
+        print(du)
         # print(du)
         u = u_prev - du
         it += 1
@@ -54,8 +61,92 @@ def newton_solve(assemble, u_init,
         print(msg)
     return u
 
+from pyapprox.pde.collocation.newton import NewtonSolver, NewtonResidual
+from pyapprox.pde.galerkin.physics import Physics
+from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+import skfem
 
-class SteadyStatePDE():
+
+class SteadyPhysicsNewtonResidual(NewtonResidual):
+    def __init__(self, physics: Physics):
+        super().__init__(NumpyLinAlgMixin)
+        self._physics = physics
+
+    def linsolve(self, sol_array: Array, res_array: Array):
+        # assumes __call__ called first
+        vec = skfem.solve(
+            *condense(self._jac, self._res, x=self._D_vals, D=self._D_dofs)
+        )
+        np.set_printoptions(linewidth=1000)
+        return vec
+
+    def __call__(self, sol_array: Array):
+        bilinear_mat, self._res, self._D_vals, self._D_dofs = self._physics.assemble(
+            sol_array
+        )
+        # minus sign because res = -a(u_prev, v) + L(v) = -bilinear_mat + lvec
+        # lvec is not returned to this scope
+        self._jac = -bilinear_mat
+        II = np.setdiff1d(np.arange(self._jac.shape[0]), self._D_dofs)
+        # compute residual when boundary conditions have been applied
+        # This is done by condense in linsolve. But newton requires full
+        # residual to compute norm. So create full residual.
+        # Note the order of concatenation used here will likely be different
+        # to in jac and res but this does not matter because newton solve
+        # only uses residual to compute norm. residual is passed back to
+        # linsolve but we can replace it with self._res at that point
+        res = np.concatenate((self._res[II], self._D_vals[self._D_dofs]))
+        return res
+
+    def jacobian(self, sol_array: Array):
+        # TODO remove jacobian as required function and remove
+        # default implementation of linsolve that calles self.jacobain
+        raise NotImplementedError("Should not be called")
+
+
+class PDESolver(ABC):
+    def __init__(self, physics: Physics):
+        if not isinstance(physics, Physics):
+            raise ValueError("physics must be an instance of Physics")
+        self.physics = physics
+
+    @abstractmethod
+    def solve(self):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}({1}\n)".format(
+            self.__class__.__name__,
+            textwrap.indent(
+                f"\nphysics={self.physics},\nnetwon="
+                + str(self.newton_solver),
+                prefix="    ",
+            ),
+        )
+
+
+class SteadyPDE(PDESolver):
+    def __init__(self, physics: Physics, newton_solver: NewtonSolver = None):
+        super().__init__(physics)
+        if newton_solver is None:
+            newton_solver = NewtonSolver()
+        if not isinstance(newton_solver, NewtonSolver):
+            raise ValueError(
+                "newton_solver must be an instance of NewtonSolver"
+            )
+        self.newton_solver = newton_solver
+        self.newton_solver.set_residual(
+            SteadyPhysicsNewtonResidual(self.physics)
+        )
+
+    def solve(self, init_sol_array: Array):
+        if init_sol_array is None:
+            init_sol_array = self._physics.init_guess()
+        return self.newton_solver.solve(init_sol_array)
+
+
+class SteadyStatePDEOld():
     def __init__(self, physics):
         self.physics = physics
 
@@ -66,26 +157,8 @@ class SteadyStatePDE():
             self.physics.assemble, init_guess, **newton_kwargs)
         return sol
 
-
-class TransientFunction():
-    def __init__(self, fun, name="fun"):
-        self._fun = fun
-        self._name = name
-
-    def __call__(self, samples):
-        return self._eval(samples)
-
-    def _eval(self, samples):
-        if self._time is None:
-            raise ValueError("Must call set_time before calling eval")
-        return self._partial_fun(samples)[:, 0]
-
-    def set_time(self, time):
-        self._time = time
-        self._partial_fun = partial(self._fun, time=time)
-
-    def __repr__(self):
-        return "{0}(time={1})".format(self._name, self._time)
+SteadyStatePDE = SteadyPDE
+# SteadyStatePDE = SteadyStatePDEOld
 
 
 class TransientPDE():

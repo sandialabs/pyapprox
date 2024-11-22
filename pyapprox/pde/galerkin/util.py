@@ -15,8 +15,8 @@ def _get_mesh(bounds, nrefine, periodic=False):
             mesh = (MeshLine.init_tensor(np.linspace(*bounds, 3))
                     .refined(nrefine)
                     .with_boundaries({
-                        "left": lambda x: x[0] == 0,
-                        "right": lambda x: x[0] == 1}))
+                        "left": lambda x: x[0] == bounds[0],
+                        "right": lambda x: x[0] == bounds[1]}))
             return mesh
         # can use refine with periodic mesh
         mesh = MeshLine1DG.init_tensor(

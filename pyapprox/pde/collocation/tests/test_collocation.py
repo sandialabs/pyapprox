@@ -687,7 +687,7 @@ class TestCollocation:
                 ["0", lambda x: bkd.zeros(x.shape[1]), 0],
                 ["2*u", lambda x: bkd.full((x.shape[1],), 2.0), 1],
                 ["4*u**2", lambda x: bkd.full((x.shape[1],), 4.0), 2],
-            ],  # react_str,
+            ],  # react_tup,
             ["D", "R", "M"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([5], [0, 1]),
