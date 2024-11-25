@@ -267,9 +267,14 @@ class TorchLinAlgMixin(LinAlgMixin):
             return torch.mean(mat)
         return torch.mean(mat, dim=axis)
 
+    def var(mat: torch.Tensor, axis: int = None, ddof: int = 0) -> torch.Tensor:
+        if axis is None:
+            return torch.var(mat, correction=ddof)
+        return torch.var(mat, dim=axis, correction=ddof)
+
     @staticmethod
     def std(mat: torch.Tensor, axis: int = None,
-                ddof: int = 0) -> torch.Tensor:
+            ddof: int = 0) -> torch.Tensor:
         if axis is None:
             return torch.std(mat, correction=ddof)
         return torch.std(mat, dim=axis, correction=ddof)
@@ -460,7 +465,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def cumsum(array, axis=0, **kwargs):
         assert axis is not None
-        return array.cumsum(dim=axis, **kwargs)
+        return torch.cumsum(array, dim=axis, **kwargs)
 
     @staticmethod
     def complex_dtype():
@@ -493,3 +498,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def gammaln(mat: torch.Tensor) -> torch.Tensor:
         return torch.special.gammaln(mat)
+
+    @staticmethod
+    def split(mat, splits, axis=0):
+        return torch.tensor_split(mat, splits.tolist(), dim=axis)

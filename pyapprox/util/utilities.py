@@ -425,7 +425,7 @@ def get_all_sample_combinations(samples1, samples2):
     return np.asarray(samples).T
 
 
-def get_correlation_from_covariance(cov):
+def get_correlation_from_covariance(cov, bkd=NumpyLinAlgMixin):
     r"""
     Compute the correlation matrix from a covariance matrix
 
@@ -446,8 +446,8 @@ def get_correlation_from_covariance(cov):
     array([[ 1. , -0.5],
            [-0.5,  1. ]])
     """
-    stdev_inv = 1/np.sqrt(np.diag(cov))
-    cor = stdev_inv[np.newaxis, :]*cov*stdev_inv[:, np.newaxis]
+    stdev_inv = 1/bkd.sqrt(bkd.diag(cov))
+    cor = stdev_inv[None, :]*cov*stdev_inv[:, None]
     return cor
 
 

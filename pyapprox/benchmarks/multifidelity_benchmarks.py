@@ -61,13 +61,14 @@ class ACVBenchmark(MultiModelBenchmark):
 
     def _set_quadrature_samples_weights(self):
         univariate_quad_rules = [
-            GaussQuadratureRule(variable)
+            GaussQuadratureRule(variable, backend=self._bkd)
             for variable in self.variable().marginals()
         ]
         quad_rule = FixedTensorProductQuadratureRule(
             self.nvars(), univariate_quad_rules, [21] * self.nvars()
         )
         self._quadx, self._quadw = quad_rule()
+        self._quadw = self._quadw[:, 0]
 
     def _flat_fun_wrapper(self, ii, jj, xx) -> Array:
         if xx.ndim != 2 or xx.shape[0] != self.nvars():
@@ -107,7 +108,7 @@ class ACVBenchmark(MultiModelBenchmark):
 
     def _covariance(self) -> Array:
         # overide this function if you know the means exactly
-        means = [f(self._quadx).dot(self._quadw) for f in self._flat_funs]
+        means = [f(self._quadx) @ self._quadw for f in self._flat_funs]
 
         cov = self._bkd.empty(
             (self.nmodels() * self.nqoi(), self.nmodels() * self.nqoi())
@@ -118,8 +119,7 @@ class ACVBenchmark(MultiModelBenchmark):
             for fj, mj in zip(self._flat_funs, means):
                 cov[ii, jj] = (
                     ((fi(self._quadx) - mi) * (fj(self._quadx) - mj))
-                    .dot(self._quadw)
-                    .item()
+                    @ (self._quadw)
                 )
                 jj += 1
             ii += 1
@@ -327,7 +327,9 @@ class PolynomialModelEnsemble(ACVBenchmark):
 
     def _set_variable(self):
         univariate_variables = [stats.uniform(0, 1)]
-        self._variable = IndependentMarginalsVariable(univariate_variables)
+        self._variable = IndependentMarginalsVariable(
+            univariate_variables, backend=self._bkd
+        )
 
 
 class TunableModelEnsemble(ACVBenchmark):
@@ -409,7 +411,9 @@ class TunableModelEnsemble(ACVBenchmark):
 
     def _set_variable(self):
         univariate_variables = [stats.uniform(-1, 2), stats.uniform(-1, 2)]
-        self._variable = IndependentMarginalsVariable(univariate_variables)
+        self._variable = IndependentMarginalsVariable(
+            univariate_variables, backend=self._bkd
+        )
 
     def _covariance(self):
         cov = self._bkd.eye(self.nmodels())
@@ -653,7 +657,9 @@ class ShortColumnModelEnsemble(ACVBenchmark):
 
     def _set_variable(self):
         univariate_variables = [stats.uniform(0, 1)]
-        self._variable = IndependentMarginalsVariable(univariate_variables)
+        self._variable = IndependentMarginalsVariable(
+            univariate_variables, backend=self._bkd
+        )
 
 
 class MultiOutputModelEnsemble(ACVBenchmark):
@@ -733,7 +739,9 @@ class MultiOutputModelEnsemble(ACVBenchmark):
         )
 
     def _set_variable(self):
-        self._variable = IndependentMarginalsVariable([stats.uniform(0, 1)])
+        self._variable = IndependentMarginalsVariable(
+            [stats.uniform(0, 1)], backend=self._bkd
+        )
 
     def _set_models(self):
         self._models = [

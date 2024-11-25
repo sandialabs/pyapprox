@@ -6,6 +6,7 @@ from pyapprox.benchmarks.multifidelity_benchmarks import (
     TunableModelEnsemble)
 from pyapprox.multifidelity.etc import (AETCBLUE)
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 class TestETC(unittest.TestCase):
@@ -48,6 +49,7 @@ class TestETC(unittest.TestCase):
 
     #@unittest.skipIf(True, "not released yet")
     def test_aetc_blue(self):
+        bkd = NumpyLinAlgMixin
         target_cost = 300  # 1e3
         shifts = np.array([1, 2])
         funs, cov, costs, variable = self._setup_model_ensemble_tunable(shifts)
@@ -73,7 +75,7 @@ class TestETC(unittest.TestCase):
         #print("#")
         np.set_printoptions(precision=16)
         estimator = AETCBLUE(
-            funs, variable.rvs, costs,  oracle_stats, 0)
+            funs, variable.rvs, costs,  oracle_stats, 0, backend=bkd)
         mean, values, result = estimator.estimate(
             target_cost, return_dict=False, subsets=subsets)
         result_dict = estimator._explore_result_to_dict(result)
@@ -83,11 +85,12 @@ class TestETC(unittest.TestCase):
         # todo switch on and off oracle stats
 
         subset = result_dict["subset"]+1
-        stat = multioutput_stats["mean"](1)
+        stat = multioutput_stats["mean"](1, backend=bkd)
         stat.set_pilot_quantities(cov_exe[np.ix_(subset, subset)])
         mlblue_est = get_estimator(
             "mlblue", stat, costs[subset],
-            asketch=result_dict["beta_Sp"][1:])
+            asketch=result_dict["beta_Sp"][1:], backend=bkd
+        )
         true_var = mlblue_est._covariance_from_npartition_samples(
             result_dict["rounded_nsamples_per_subset"])
         unrounded_true_var = mlblue_est._covariance_from_npartition_samples(
@@ -157,6 +160,4 @@ class TestETC(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    etc_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestETC)
-    unittest.TextTestRunner(verbosity=2).run(etc_test_suite)
+    unittest.main(verbosity=2)

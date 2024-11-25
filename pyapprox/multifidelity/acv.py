@@ -23,7 +23,7 @@ from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 
 def _combine_acv_values(reorder_allocation_mat, npartition_samples,
-                        acv_values):
+                        acv_values, bkd):
     r"""
     Extract the unique values from the sets
     :math:`f_\alpha(\mathcal{Z}_\alpha), `f_\alpha(\mathcal{Z}_\alpha^*)`
@@ -50,15 +50,15 @@ def _combine_acv_values(reorder_allocation_mat, npartition_samples,
                 if not found:
                     values_per_model[ii] += [acv_values[ii][1][lb2:ub2]]
                 lb2 = ub2
-        values_per_model[ii] = np.vstack(values_per_model[ii])
+        values_per_model[ii] = bkd.vstack(values_per_model[ii])
     return values_per_model
 
 
 def _combine_acv_samples(reorder_allocation_mat, npartition_samples,
-                         acv_samples):
+                         acv_samples, bkd):
     r"""
     Extract the unique amples from the sets
-:math:`\mathcal{Z}_\alpha, `\mathcal{Z}_\alpha^*` for each model
+    :math:`\mathcal{Z}_\alpha, `\mathcal{Z}_\alpha^*` for each model
     :math:`\alpha=0,\ldots,M`
     """
     nmodels = len(acv_samples)
@@ -80,39 +80,39 @@ def _combine_acv_samples(reorder_allocation_mat, npartition_samples,
                 if not found:
                     # Only add samples if they were not in Z_m^*
                     samples_per_model[ii] += [acv_samples[ii][1][:, lb2:ub2]]
-                lb2 = ub2
-        samples_per_model[ii] = np.hstack(samples_per_model[ii])
+                    lb2 = ub2
+                    samples_per_model[ii] = bkd.hstack(samples_per_model[ii])
     return samples_per_model
 
 
-def _get_allocation_matrix_gmf(recursion_index):
+def _get_allocation_matrix_gmf(recursion_index, bkd):
     nmodels = len(recursion_index)+1
-    mat = np.zeros((nmodels, 2*nmodels))
+    mat = bkd.zeros((nmodels, 2*nmodels))
     for ii in range(nmodels):
         mat[ii, 2*ii+1] = 1.0
     for ii in range(1, nmodels):
         mat[:, 2*ii] = mat[:, recursion_index[ii-1]*2+1]
     for ii in range(2, 2*nmodels):
-        II = np.where(mat[:, ii] == 1)[0][-1]
+        II = bkd.where(mat[:, ii] == 1)[0][-1]
         mat[:II, ii] = 1.0
     return mat
 
 
-def _get_allocation_matrix_acvis(recursion_index):
+def _get_allocation_matrix_acvis(recursion_index, bkd):
     nmodels = len(recursion_index)+1
-    mat = np.zeros((nmodels, 2*nmodels))
+    mat = bkd.zeros((nmodels, 2*nmodels))
     for ii in range(nmodels):
         mat[ii, 2*ii+1] = 1
     for ii in range(1, nmodels):
         mat[:, 2*ii] = mat[:, recursion_index[ii-1]*2+1]
     for ii in range(1, nmodels):
-        mat[:, 2*ii+1] = np.maximum(mat[:, 2*ii], mat[:, 2*ii+1])
+        mat[:, 2*ii+1] = bkd.maximum(mat[:, 2*ii], mat[:, 2*ii+1])
     return mat
 
 
-def _get_allocation_matrix_acvrd(recursion_index):
+def _get_allocation_matrix_acvrd(recursion_index, bkd):
     nmodels = len(recursion_index)+1
-    allocation_mat = np.zeros((nmodels, 2*nmodels))
+    allocation_mat = bkd.zeros((nmodels, 2*nmodels))
     for ii in range(nmodels):
         allocation_mat[ii, 2*ii+1] = 1
     for ii in range(1, nmodels):
@@ -121,37 +121,7 @@ def _get_allocation_matrix_acvrd(recursion_index):
     return allocation_mat
 
 
-def log_determinant_variance(variance):
-    # return torch.logdet(variance)
-    # Only compute large eigvalues as the variance will
-    # be singular when estimating variance or mean+variance
-    # because of the duplicate entries in
-    # the covariance matrix
-    eigvals = torch.linalg.eigh(variance)[0]
-    val = torch.log(eigvals[eigvals > 1e-14]).sum()
-    return val
-
-
-def determinant_variance(variance):
-    # return torch.det(variance)
-    eigvals = torch.linalg.eigh(variance)[0]
-    return eigvals[eigvals > 1e-14].prod()
-
-
-def log_trace_variance(variance):
-    val = torch.log(torch.trace(variance))
-    if not torch.isfinite(val):
-        raise RuntimeError("trace is negative")
-    return val
-
-
-def log_linear_combination_diag_variance(weights, variance):
-    # must be used with partial, e.g.
-    # opt_criteria = partial(log_linear_combination_diag_variance, weights)
-    return torch.log(torch.multi_dot(weights, torch.diag(variance)))
-
-
-class MCEstimator():
+class MCEstimator:
     def __init__(self, stat, costs, opt_criteria=None):
         r"""
         Parameters
@@ -159,7 +129,7 @@ class MCEstimator():
         stat : :class:`~pyapprox.multifidelity.multioutput_monte_carlo.MultiOutputStatistic`
             Object defining what statistic will be calculated
 
-        costs : np.ndarray (nmodels)
+        costs : Array (nmodels)
             The relative costs of evaluating each model
 
         opt_criteria : callable
@@ -168,21 +138,17 @@ class MCEstimator():
 
             ``opt_criteria(variance) -> float
 
-            where variance is np.ndarray with size that depends on
+            where variance is Array with size that depends on
             what statistics are being estimated. E.g. when estimating means
             then variance shape is (nqoi, nqoi), when estimating variances
             then variance shape is (nqoi**2, nqoi**2), when estimating mean
             and variance then shape (nqoi+nqoi**2, nqoi+nqoi**2)
         """
-        # public variables (will be backwards compatible)
+        self._bkd = stat._bkd
         self._stat = stat
-
-        # private variables (no guarantee that these variables
-        #                    will exist in the future)
         self._cov, self._costs, self._nmodels, self._nqoi = self._check_cov(
             self._stat._cov, costs)
-        self._optimization_criteria = self._set_optimization_criteria(
-            opt_criteria)
+        self._optimization_criteria = self._log_determinant_variance
 
         self._rounded_nsamples_per_model = None
         self._rounded_npartition_samples = None
@@ -193,7 +159,7 @@ class MCEstimator():
         self._npartitions = 1
 
     def _check_cov(self, cov, costs):
-        costs = np.atleast_1d(costs)
+        costs = self._bkd.atleast1d(costs)
         if costs.ndim != 1:
             raise ValueError("costs is not a 1D iterable")
         nmodels = len(costs)
@@ -201,15 +167,18 @@ class MCEstimator():
             msg = "cov.shape {0} and costs.shape {1} are inconsistent".format(
                 cov.shape, costs.shape)
             raise ValueError(msg)
-        return (torch.as_tensor(cov, dtype=torch.double).clone(),
-                torch.as_tensor(costs, dtype=torch.double),
+        return (self._bkd.array(cov),
+                self._bkd.array(costs),
                 nmodels, cov.shape[0]//nmodels)
 
-    def _set_optimization_criteria(self, opt_criteria):
-        if opt_criteria is None:
-            opt_criteria = log_determinant_variance
-            # opt_criteria = log_trace_variance
-        return opt_criteria
+    def _log_determinant_variance(self, variance):
+        # Only compute large eigvalues as the variance will
+        # be singular when estimating variance or mean+variance
+        # because of the duplicate entries in
+        # the covariance matrix
+        eigvals = self._bkd.eigh(variance)[0]
+        val = self._bkd.log(eigvals[eigvals > 1e-14]).sum()
+        return val
 
     def _covariance_from_npartition_samples(self, npartition_samples):
         """
@@ -227,7 +196,7 @@ class MCEstimator():
         return self._optimized_covariance
 
     def allocate_samples(self, target_cost, optim_options={}):
-        self._rounded_nsamples_per_model = np.asarray(
+        self._rounded_nsamples_per_model = self._bkd.asarray(
             [int(np.floor(target_cost/self._costs[0]))])
         self._rounded_npartition_samples = self._rounded_nsamples_per_model
         est_covariance = self._covariance_from_npartition_samples(
@@ -247,22 +216,22 @@ class MCEstimator():
         rvs : callable
             Function with signature
 
-            `rvs(nsamples)->np.ndarray(nvars, nsamples)`
+            `rvs(nsamples)->Array (nvars, nsamples)`
 
         Returns
         -------
-        samples_per_model : list[np.ndarray] (1)
-            List with one entry np.ndarray (nvars, nsamples_per_model[0])
+        samples_per_model : list[Array] (1)
+            List with one entry Array (nvars, nsamples_per_model[0])
         """
         return [rvs(self._rounded_nsamples_per_model[0])]
 
     def __call__(self, values):
-        if not isinstance(values, np.ndarray):
+        if not isinstance(values, self._bkd.array_type()):
             raise ValueError(
-                "values must be an np.ndarray but type={0}".format(
-                    type(values)))
+                "values must be an {0} but type={1}".format(
+                    self._bkd.array_type(), type(values)))
         if ((values.ndim != 2) or
-                (values.shape[0] != self._rounded_nsamples_per_model[0])):
+            (values.shape[0] != self._rounded_nsamples_per_model[0])):
             msg = "values has the incorrect shape {0} expected {1}".format(
                 values.shape,
                 (self._rounded_nsamples_per_model[0], self._nqoi))
@@ -278,7 +247,7 @@ class MCEstimator():
 
         Parameters
         ----------
-        values : [np.ndarray(nsamples, nqoi)]
+        values : [Array (nsamples, nqoi)]
             A single entry list containing the unique values of each model.
             The list is required to allow consistent interface with
             multi-fidelity estimators
@@ -295,16 +264,21 @@ class MCEstimator():
             The bootstrap estimate of the estimator covariance
         """
         nbootstraps = int(nbootstraps)
-        estimator_vals = np.empty((nbootstraps, self._stat._nqoi))
+        estimator_vals = self._bkd.empty((nbootstraps, self._stat._nqoi))
         nsamples = values[0].shape[0]
-        indices = np.arange(nsamples)
+        indices = self._bkd.arange(nsamples, dtype=int)
         for kk in range(nbootstraps):
-            bootstrapped_indices = np.random.choice(
-                indices, size=nsamples, replace=True)
+            bootstrapped_indices = self._bkd.array(
+                np.random.choice(
+                    indices, size=nsamples, replace=True
+                ),
+                dtype=int
+            )
             estimator_vals[kk] = self._stat.sample_estimate(
-                values[0][bootstrapped_indices])
-        bootstrap_mean = estimator_vals.mean(axis=0)
-        bootstrap_covar = np.cov(estimator_vals, rowvar=False, ddof=1)
+                values[0][bootstrapped_indices]
+            )
+            bootstrap_mean = estimator_vals.mean(axis=0)
+            bootstrap_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
         return bootstrap_mean, bootstrap_covar
 
     def __repr__(self):
@@ -328,7 +302,7 @@ class CVEstimator(MCEstimator):
         self._optimized_cf = None
         self._optimized_weights = None
 
-        self._best_model_indices = np.arange(len(costs))
+        self._best_model_indices = self._bkd.arange(len(costs), dtype=int)
 
     def _get_discrepancy_covariances(self, npartition_samples):
         return self._stat._get_cv_discrepancy_covariances(npartition_samples)
@@ -337,7 +311,7 @@ class CVEstimator(MCEstimator):
         CF, cf = self._get_discrepancy_covariances(npartition_samples)
         weights = self._weights(CF, cf)
         return (self._stat.high_fidelity_estimator_covariance(
-            npartition_samples[0]) + torch.linalg.multi_dot((weights, cf.T)))
+            npartition_samples[0]) + self._bkd.multidot((weights, cf.T)))
 
     def _set_optimized_params_base(self, rounded_npartition_samples,
                                    rounded_nsamples_per_model,
@@ -348,10 +322,10 @@ class CVEstimator(MCEstimator):
 
         Parameters
         ----------
-        rounded_npartition_samples : np.ndarray (npartitions, dtype=int)
+        rounded_npartition_samples : Array (npartitions, dtype=int)
             The number of samples in the independent sample partitions.
 
-        rounded_nsamples_per_model :  np.ndarray (nmodels)
+        rounded_nsamples_per_model :  Array (nmodels)
             The number of samples allocated to each model
 
         rounded_target_cost : float
@@ -363,31 +337,31 @@ class CVEstimator(MCEstimator):
             The computational cost of the estimator using the rounded
             npartition_samples
 
-        self._rounded_npartition_samples :  np.ndarray (npartitions)
+        self._rounded_npartition_samples :  Array (npartitions)
             The number of samples in each partition corresponding to the
             rounded partition_ratios
 
-        self._rounded_nsamples_per_model :  np.ndarray (nmodels)
+        self._rounded_nsamples_per_model :  Array (nmodels)
             The number of samples allocated to each model
 
-        self._optimized_covariance : np.ndarray (nstats, nstats)
+        self._optimized_covariance : Array (nstats, nstats)
             The optimal estimator covariance
 
         self._optimized_criteria: float
             The value of the sample allocation objective using the rounded
             partition_ratios
 
-        self._rounded_nsamples_per_model : np.ndarray (nmodels)
+        self._rounded_nsamples_per_model : Array (nmodels)
             The number of samples allocated to each model using the rounded
             partition_ratios
 
-        self._optimized_CF : np.ndarray (nstats*(nmodels-1),nstats*(nmodels-1))
+        self._optimized_CF : Array (nstats*(nmodels-1),nstats*(nmodels-1))
             The covariance between :math:`\Delta_i`, :math:`\Delta_j`
 
-        self._optimized_cf : np.ndarray (nstats, nstats*(nmodels-1))
+        self._optimized_cf : Array (nstats, nstats*(nmodels-1))
             The covariance between :math:`Q_0`, :math:`\Delta_j`
 
-        self._optimized_weights : np.ndarray (nstats, nmodels-1)
+        self._optimized_weights : Array (nstats, nmodels-1)
             The optimal control variate weights
         """
         self._rounded_npartition_samples = rounded_npartition_samples
@@ -426,7 +400,7 @@ class CVEstimator(MCEstimator):
                 npartition_samples[0], min_nhf_samples)
             raise ValueError(msg)
 
-        rounded_nsamples_per_model = np.full(
+        rounded_nsamples_per_model = self._bkd.full(
             (self._nmodels,), rounded_npartition_samples[0])
         rounded_target_cost = (
             self._costs*rounded_nsamples_per_model).sum()
@@ -443,23 +417,22 @@ class CVEstimator(MCEstimator):
         rvs : callable
             Function with signature
 
-            `rvs(nsamples)->np.ndarray(nvars, nsamples)`
+            `rvs(nsamples)->Array (nvars, nsamples)`
 
         Returns
         -------
-        samples_per_model : list[np.ndarray] (1)
-            List with one entry np.ndarray (nvars, nsamples_per_model[0])
+        samples_per_model : list[Array] (1)
+            List with one entry Array (nvars, nsamples_per_model[0])
         """
         samples = rvs(self._rounded_nsamples_per_model[0])
-        return [samples.copy() for ii in range(self._nmodels)]
+        return [self._bkd.copy(samples) for ii in range(self._nmodels)]
 
     def _weights(self, CF, cf):
-        return -torch.linalg.multi_dot(
-            (torch.linalg.pinv(CF), cf.T)).T
+        return -self._bkd.multidot(
+            (self._bkd.pinv(CF), cf.T)).T
 
-    @staticmethod
     def _covariance_non_optimal_weights(
-            hf_est_covar, weights, CF, cf):
+            self, hf_est_covar, weights, CF, cf):
         # The expression below, e.g. Equation 8
         # from Dixon 2024, can be used for non optimal control variate weights
         # Warning: Even though this function is general,
@@ -467,9 +440,9 @@ class CVEstimator(MCEstimator):
         # expression for optimal weights is more efficient
         return (
             hf_est_covar
-            + torch.linalg.multi_dot((weights, CF, weights.T))
-            + torch.linalg.multi_dot((cf, weights.T))
-            + torch.linalg.multi_dot((weights, cf.T))
+            + self._bkd.multidot((weights, CF, weights.T))
+            + self._bkd.multidot((cf, weights.T))
+            + self._bkd.multidot((weights, cf.T))
         )
 
     def _estimate(self, values_per_model, weights, bootstrap=False):
@@ -483,16 +456,20 @@ class CVEstimator(MCEstimator):
             if values.shape[0] != nsamples:
                 msg = "Must provide the same number of samples for each model"
                 raise ValueError(msg)
-        indices = np.arange(nsamples)
+            indices = self._bkd.arange(nsamples, dtype=int)
         if bootstrap:
-            indices = np.random.choice(
-                indices, size=indices.shape[0], replace=True)
+            indices = self._bkd.array(
+                np.random.choice(
+                    indices, size=indices.shape[0], replace=True
+                ),
+                dtype=int
+            )
 
-        deltas = np.hstack(
+        deltas = self._bkd.hstack(
             [self._stat.sample_estimate(values_per_model[ii][indices]) -
              self._lowfi_stats[ii-1] for ii in range(1, self._nmodels)])
         est = (self._stat.sample_estimate(values_per_model[0][indices]) +
-               weights.numpy().dot(deltas))
+               weights @ deltas)
         return est
 
     def __call__(self, values_per_model):
@@ -506,10 +483,17 @@ class CVEstimator(MCEstimator):
 
         Returns
         -------
-        est : np.ndarray (nqoi, nqoi)
+        est : Array (nqoi, nqoi)
             The covariance of the estimator values for
             each high-fidelity model QoI
         """
+        for vals in values_per_model:
+            if not isinstance(vals, self._bkd.array_type()):
+                raise ValueError(
+                    "vals must be an instance of {0}".format(
+                         self._bkd.array_type()
+                    )
+                )
         return self._estimate(values_per_model, self._optimized_weights)
 
     def insert_pilot_values(self, pilot_values, values_per_model):
@@ -523,7 +507,7 @@ class CVEstimator(MCEstimator):
                 (self._allocation_mat[0, 2*ii] == 1) or
                 (self._allocation_mat[0, 2*ii+1] == 1))
             if active_partition:
-                new_values_per_model.append(np.vstack((
+                new_values_per_model.append(self._bkd.vstack((
                     pilot_values[ii], values_per_model[ii])))
             else:
                 new_values_per_model.append(values_per_model[ii].copy())
@@ -564,12 +548,12 @@ class CVEstimator(MCEstimator):
             The bootstrap estimate of the estimator covariance
         """
         nbootstraps = int(nbootstraps)
-        estimator_vals = np.empty((nbootstraps, self._stat._nqoi))
+        estimator_vals = self._bkd.empty((nbootstraps, self._stat._nqoi))
         for kk in range(nbootstraps):
             estimator_vals[kk] = self._estimate(
                 values_per_model, self._optimized_weights, bootstrap=True)
         bootstrap_mean = estimator_vals.mean(axis=0)
-        bootstrap_covar = np.cov(estimator_vals, rowvar=False, ddof=1)
+        bootstrap_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
         return bootstrap_mean, bootstrap_covar
 
     def bootstrap(self, values_per_model, nbootstraps=1000,
@@ -590,9 +574,13 @@ class CVEstimator(MCEstimator):
             weights_list = []
         for kk in range(nbootstraps):
             if bootstrap_weights:
-                indices = np.random.choice(
-                    np.arange(npilot_samples, dtype=int),
-                    size=npilot_samples, replace=True)
+                indices = self._bkd.array(
+                    np.random.choice(
+                        np.arange(npilot_samples, dtype=int),
+                        size=npilot_samples, replace=True
+                    ),
+                    dtype=int
+                )
                 boostrap_pilot_values = [
                     vals[indices] for vals in pilot_values]
                 self._stat.set_pilot_quantities(
@@ -601,19 +589,19 @@ class CVEstimator(MCEstimator):
                 CF, cf = self._get_discrepancy_covariances(
                     self._rounded_npartition_samples)
                 weights = self._weights(CF, cf)
-                weights_list.append(weights.flatten().numpy())
+                weights_list.append(weights.flatten())
             else:
                 weights = self._optimized_weights
             estimator_vals.append(self._estimate(
                 values_per_model, weights, bootstrap=bootstrap_vals).flatten())
-        estimator_vals = np.array(estimator_vals)
+        estimator_vals = self._bkd.stack(estimator_vals)
         bootstrap_values_mean = estimator_vals.mean(axis=0)
-        bootstrap_values_covar = np.cov(estimator_vals, rowvar=False, ddof=1)
+        bootstrap_values_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
         if bootstrap_weights:
             self._stat = self_stat
-            weights_list = np.asarray(weights_list)
+            weights_list = self._bkd.stack(weights_list)
             bootstrap_weights_mean = weights_list.mean(axis=0)
-            bootstrap_weights_covar = np.cov(
+            bootstrap_weights_covar = self._bkd.cov(
                 weights_list, rowvar=False, ddof=1)
             return (bootstrap_values_mean, bootstrap_values_covar,
                     bootstrap_weights_mean, bootstrap_weights_covar)
@@ -632,15 +620,15 @@ class ACVEstimator(CVEstimator):
         stat : :class:`~pyapprox.multifidelity.multioutput_monte_carlo.MultiOutputStatistic`
             Object defining what statistic will be calculated
 
-        costs : np.ndarray (nmodels)
+        costs : Array (nmodels)
             The relative costs of evaluating each model
 
-        cov : np.ndarray (nmodels*nqoi, nmodels)
+        cov : Array (nmodels*nqoi, nmodels)
             The covariance C between each of the models. The highest fidelity
             model is the first model, i.e. covariance between its QoI
             is cov[:nqoi, :nqoi]
 
-        recursion_index : np.ndarray (nmodels-1)
+        recursion_index : Array (nmodels-1)
             The recusion index that specifies which ACV estimator is used
 
         opt_criteria : callable
@@ -649,7 +637,7 @@ class ACVEstimator(CVEstimator):
 
             ``opt_criteria(variance) -> float
 
-            where variance is np.ndarray with size that depends on
+            where variance is Array with size that depends on
             what statistics are being estimated. E.g. when estimating means
             then variance shape is (nqoi, nqoi), when estimating variances
             then variance shape is (nqoi**2, nqoi**2), when estimating mean
@@ -682,20 +670,22 @@ class ACVEstimator(CVEstimator):
         return self._stat._get_acv_discrepancy_covariances(
             self._get_allocation_matrix(), npartition_samples)
 
-    @staticmethod
-    def _get_partition_indices(npartition_samples):
+    def _get_partition_indices(self, npartition_samples):
         """
         Get the indices, into the flattened array of all samples/values,
         of each indpendent sample partition
         """
         ntotal_independent_samples = npartition_samples.sum()
-        total_indices = torch.arange(ntotal_independent_samples)
+        total_indices = self._bkd.arange(ntotal_independent_samples, dtype=int)
         # round the cumsum to make sure values like 3.9999999999999999
         # do not get rounded down to 3
-        indices = np.split(
+        indices = self._bkd.split(
             total_indices,
-            np.round(np.cumsum(npartition_samples.numpy()[:-1])).astype(int))
-        return [torch.as_tensor(idx, dtype=int) for idx in indices]
+            self._bkd.array(
+                self._bkd.round(self._bkd.cumsum(npartition_samples[:-1])), dtype=int
+            )
+        )
+        return [self._bkd.asarray(idx, dtype=int) for idx in indices]
 
     def _get_partition_indices_per_acv_subset(self, bootstrap=False):
         r"""
@@ -709,41 +699,48 @@ class ACVEstimator(CVEstimator):
             npartitions = len(self._rounded_npartition_samples)
             random_partition_indices = [
                 None for jj in range(npartitions)]
-            random_partition_indices[0] = np.random.choice(
-                np.arange(partition_indices[0].shape[0], dtype=int),
-                size=partition_indices[0].shape[0], replace=True)
+            random_partition_indices[0] = self._bkd.array(
+                np.random.choice(
+                    np.arange(partition_indices[0].shape[0], dtype=int),
+                    size=partition_indices[0].shape[0], replace=True),
+                dtype=int
+            )
             partition_indices_per_acv_subset = [
-                np.array([], dtype=int),
+                self._bkd.array([], dtype=int),
                 partition_indices[0][random_partition_indices[0]]]
         else:
             partition_indices_per_acv_subset = [
-                np.array([], dtype=int), partition_indices[0]]
+                self._bkd.array([], dtype=int), partition_indices[0]]
         for ii in range(1, self._nmodels):
-            active_partitions = np.where(
+            active_partitions = self._bkd.where(
                 (self._allocation_mat[:, 2*ii] == 1) |
                 (self._allocation_mat[:, 2*ii+1] == 1))[0]
             subset_indices = [None for ii in range(self._nmodels)]
             lb, ub = 0, 0
             for idx in active_partitions:
                 ub += partition_indices[idx].shape[0]
-                subset_indices[idx] = np.arange(lb, ub)
+                subset_indices[idx] = self._bkd.arange(lb, ub, dtype=int)
                 if bootstrap:
                     if random_partition_indices[idx] is None:
                         # make sure the same random permutation for partition
                         # idx is used for all acv_subsets
-                        random_partition_indices[idx] = np.random.choice(
-                            np.arange(ub-lb, dtype=int), size=ub-lb,
-                            replace=True)
+                        random_partition_indices[idx] = self._bkd.array(
+                            np.random.choice(
+                                np.arange(ub-lb, dtype=int), size=ub-lb,
+                                replace=True
+                            ),
+                            dtype=int,
+                        )
                     subset_indices[idx] = (
                         subset_indices[idx][random_partition_indices[idx]])
                 lb = ub
-            active_partitions_1 = np.where(
+            active_partitions_1 = self._bkd.where(
                 (self._allocation_mat[:, 2*ii] == 1))[0]
-            active_partitions_2 = np.where(
+            active_partitions_2 = self._bkd.where(
                 (self._allocation_mat[:, 2*ii+1] == 1))[0]
-            indices_1 = np.hstack(
+            indices_1 = self._bkd.hstack(
                 [subset_indices[idx] for idx in active_partitions_1])
-            indices_2 = np.hstack(
+            indices_2 = self._bkd.hstack(
                 [subset_indices[idx] for idx in active_partitions_2])
             partition_indices_per_acv_subset += [indices_1, indices_2]
         return partition_indices_per_acv_subset
@@ -756,9 +753,9 @@ class ACVEstimator(CVEstimator):
         to ratios defining the number of samples per mdoel
         relative to the number of highest-fidelity model samples
         """
-        model_ratios = torch.empty_like(partition_ratios, dtype=torch.double)
+        model_ratios = self._bkd.empty(partition_ratios.shape)
         for ii in range(1, self._nmodels):
-            active_partitions = np.where(
+            active_partitions = self._bkd.where(
                 (self._allocation_mat[1:, 2*ii] == 1) |
                 (self._allocation_mat[1:, 2*ii+1] == 1))[0]
             model_ratios[ii-1] = partition_ratios[active_partitions].sum()
@@ -778,8 +775,8 @@ class ACVEstimator(CVEstimator):
         nhf_samples = (
             self._get_num_high_fidelity_samples_from_partition_ratios(
                 target_cost, partition_ratios))
-        npartition_samples = torch.empty(
-            partition_ratios.shape[0]+1, dtype=torch.double)
+        npartition_samples = self._bkd.empty(
+            partition_ratios.shape[0]+1)
         npartition_samples[0] = nhf_samples
         npartition_samples[1:] = partition_ratios*nhf_samples
         return npartition_samples
@@ -794,7 +791,7 @@ class ACVEstimator(CVEstimator):
         target_cost : float
             The total cost budget
 
-        partition_ratios : np.ndarray (nmodels-1)
+        partition_ratios : Array (nmodels-1)
             The sample ratios r used to specify the number of samples
             in the indepedent sample partitions
 
@@ -833,7 +830,7 @@ class ACVEstimator(CVEstimator):
         # in this case python automatically reduces the values array from
         # shape (1, N) to (N)
         acv_values = [
-            np.atleast_2d(values_per_model[ii//2][acv_partition_indices[ii]])
+            self._bkd.atleast2d(values_per_model[ii//2][acv_partition_indices[ii]])
             for ii in range(nacv_subsets)]
         return acv_values
 
@@ -874,10 +871,10 @@ class ACVEstimator(CVEstimator):
         partition_indices = self._get_partition_indices(
             rounded_npartition_samples)
         for ii in range(self._nmodels):
-            active_partitions = np.where(
+            active_partitions = self._bkd.where(
                 (self._allocation_mat[:, 2*ii] == 1) |
                 (self._allocation_mat[:, 2*ii+1] == 1))[0]
-            indices = np.hstack(
+            indices = self._bkd.hstack(
                 [partition_indices[idx] for idx in active_partitions])
             if indices.shape[0] != rounded_nsamples_per_model[ii]:
                 msg = "Rounding has caused {0} != {1}".format(
@@ -887,7 +884,7 @@ class ACVEstimator(CVEstimator):
         return samples_per_model
 
     def _compute_single_model_nsamples(self, npartition_samples, model_id):
-        active_partitions = np.where(
+        active_partitions = self._bkd.where(
             (self._allocation_mat[:, 2*model_id] == 1) |
             (self._allocation_mat[:, 2*model_id+1] == 1))[0]
         return npartition_samples[active_partitions].sum()
@@ -900,7 +897,7 @@ class ACVEstimator(CVEstimator):
             npartition_samples, model_id)
 
     def _compute_nsamples_per_model(self, npartition_samples):
-        nsamples_per_model = np.empty(self._nmodels)
+        nsamples_per_model = self._bkd.empty(self._nmodels)
         for ii in range(self._nmodels):
             nsamples_per_model[ii] = self._compute_single_model_nsamples(
                 npartition_samples, ii)
@@ -910,12 +907,12 @@ class ACVEstimator(CVEstimator):
         nmodels = len(values_per_model)
         acv_values = self._separate_values_per_model(
             values_per_model, bootstrap)
-        deltas = np.hstack(
+        deltas = self._bkd.hstack(
             [self._stat.sample_estimate(acv_values[2*ii]) -
              self._stat.sample_estimate(acv_values[2*ii+1])
              for ii in range(1, nmodels)])
         est = (self._stat.sample_estimate(acv_values[1]) +
-               weights.numpy().dot(deltas))
+               weights @ deltas)
         return est
 
     def __repr__(self):
@@ -928,7 +925,7 @@ class ACVEstimator(CVEstimator):
         rep += " target_cost={0:.5g}, ratios={1}, nsamples={2})".format(
             self._rounded_target_cost,
             self._rounded_partition_ratios,
-            self._rounded_nsamples_per_model.numpy())
+            self._rounded_nsamples_per_model)
         return rep
 
     @abstractmethod
@@ -939,7 +936,7 @@ class ACVEstimator(CVEstimator):
 
         Returns
         -------
-        mat : np.ndarray (nmodels, 2*nmodels)
+        mat : Array (nmodels, 2*nmodels)
             For columns :math:`2j, j=0,\ldots,M-1` the ith row contains a
             flag specifiying if :math:`z_i^\star\subseteq z_j^\star`
             For columns :math:`2j+1, j=0,\ldots,M-1` the ith row contains a
@@ -949,7 +946,7 @@ class ACVEstimator(CVEstimator):
 
     def _get_allocation_matrix(self):
         """return allocation matrix as torch tensor"""
-        return torch.as_tensor(self._allocation_mat, dtype=torch.double)
+        return self._bkd.asarray(self._allocation_mat)
 
     def _set_recursion_index(self, index):
         """Set the recursion index of the parameterically defined ACV
@@ -959,13 +956,13 @@ class ACVEstimator(CVEstimator):
 
         Parameters
         ----------
-        index : np.ndarray (nmodels-1)
+        index : Array (nmodels-1)
             The recusion index
         """
         if index is None:
-            index = np.zeros(self._nmodels-1, dtype=int)
+            index = self._bkd.zeros(self._nmodels-1, dtype=int)
         else:
-            index = np.asarray(index)
+            index = self._bkd.asarray(index, dtype=int)
         if index.shape[0] != self._nmodels-1:
             msg = "index {0} is the wrong shape. Should be {1}".format(
                 index, self._nmodels-1)
@@ -976,11 +973,14 @@ class ACVEstimator(CVEstimator):
     def combine_acv_samples(self, acv_samples):
         return _combine_acv_samples(
             self._allocation_mat, self._rounded_npartition_samples,
-            acv_samples)
+            acv_samples, self._bkd
+        )
 
     def combine_acv_values(self, acv_values):
         return _combine_acv_values(
-            self._allocation_mat, self._rounded_npartition_samples, acv_values)
+            self._allocation_mat, self._rounded_npartition_samples, acv_values,
+            self._bkd
+        )
 
     def plot_allocation(self, ax, show_npartition_samples=False, **kwargs):
         if show_npartition_samples:
@@ -998,7 +998,7 @@ class ACVEstimator(CVEstimator):
         return _plot_model_recursion(self._recursion_index, ax)
 
     def _objective(self, target_cost, x, return_grad=True):
-        partition_ratios = torch.as_tensor(x, dtype=torch.double)
+        partition_ratios = self._bkd.asarray(x)
         if return_grad:
             partition_ratios.requires_grad = True
         covariance = self._covariance_from_partition_ratios(
@@ -1040,7 +1040,8 @@ class ACVEstimator(CVEstimator):
         # lower and upper bounds can cause some edge cases to
         # not solve reliably
         bounds = Bounds(
-            np.zeros(nunknowns)+lower_bound, np.full((nunknowns), np.inf),
+            np.zeros((nunknowns,))+lower_bound,
+            np.full((nunknowns,), np.inf),
             keep_feasible=True)
 
         return_grad = True
@@ -1056,8 +1057,8 @@ class ACVEstimator(CVEstimator):
                 # fail so allow user to pass in lower-bound
                 nm_lower_bound = init_guess.get("lower_bound", 1e-3)
                 nm_bounds = Bounds(
-                    np.zeros(nunknowns)+nm_lower_bound,
-                    np.full((nunknowns), np.inf), keep_feasible=True)
+                    np.zeros((nunknowns,))+nm_lower_bound,
+                    np.full((nunknowns,), np.inf), keep_feasible=True)
                 opt = minimize(
                     partial(self._objective, target_cost, return_grad=False),
                     default_init_guess, method="nelder-mead", jac=False,
@@ -1076,10 +1077,9 @@ class ACVEstimator(CVEstimator):
     def _get_specific_constraints(self, target_cost):
         raise NotImplementedError()
 
-    @staticmethod
-    def _constraint_jacobian(constraint_fun, partition_ratios_np, *args):
-        partition_ratios = torch.as_tensor(
-            partition_ratios_np, dtype=torch.double)
+    def _constraint_jacobian(self, constraint_fun, partition_ratios_np, *args):
+        partition_ratios = self._bkd.asarray(
+            partition_ratios_np)
         partition_ratios.requires_grad = True
         val = constraint_fun(partition_ratios, *args, return_numpy=False)
         val.backward()
@@ -1090,8 +1090,8 @@ class ACVEstimator(CVEstimator):
     def _acv_npartition_samples_constraint(
             self, partition_ratios_np, target_cost, min_nsamples, partition_id,
             return_numpy=True):
-        partition_ratios = torch.as_tensor(
-            partition_ratios_np, dtype=torch.double)
+        partition_ratios = self._bkd.asarray(
+            partition_ratios_np)
         nsamples = self._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios)[partition_id]
         val = nsamples-min_nsamples
@@ -1112,7 +1112,7 @@ class ACVEstimator(CVEstimator):
 
     def _npartition_ratios_constaint_jac(
             self, partition_ratios_np, ratio_id):
-        jac = np.zeros(partition_ratios_np.shape[0], dtype=float)
+        jac = self._bkd.zeros(partition_ratios_np.shape[0], dtype=float)
         jac[ratio_id] = 1.0
         return jac
 
@@ -1152,7 +1152,7 @@ class ACVEstimator(CVEstimator):
         cons = self._get_constraints(target_cost)
         opt = self._allocate_samples_minimize(
             self._costs, target_cost, cons, optim_options)
-        partition_ratios = torch.as_tensor(opt.x, dtype=torch.double)
+        partition_ratios = self._bkd.asarray(opt.x)
         if not opt.success:
             raise RuntimeError('{0} optimizer failed {1}'.format(self, opt))
         else:
@@ -1166,12 +1166,13 @@ class ACVEstimator(CVEstimator):
             msg = "Rounding will cause nhf samples to be zero {0}".format(
                 npartition_samples)
             raise RuntimeError(msg)
-        rounded_npartition_samples = np.floor(
-            npartition_samples.numpy()+1e-8).astype(int)
+        rounded_npartition_samples = self._bkd.asarray(
+            self._bkd.floor(npartition_samples+1e-8), dtype=int
+        )
         assert rounded_npartition_samples[0] >= 1
         rounded_target_cost = (
             self._compute_nsamples_per_model(rounded_npartition_samples) *
-            self._costs.numpy()).sum()
+            self._costs).sum()
         rounded_partition_ratios = (
             rounded_npartition_samples[1:]/rounded_npartition_samples[0])
         return rounded_partition_ratios, rounded_target_cost
@@ -1179,7 +1180,7 @@ class ACVEstimator(CVEstimator):
     def _estimator_cost(self, npartition_samples):
         nsamples_per_model = self._compute_nsamples_per_model(
             TorchLinAlgMixin.asarray(npartition_samples))
-        return (nsamples_per_model*self._costs.numpy()).sum()
+        return (nsamples_per_model*self._costs).sum()
 
     def _set_optimized_params(self, partition_ratios, target_cost):
         """
@@ -1188,7 +1189,7 @@ class ACVEstimator(CVEstimator):
 
         Parameters
         ----------
-        rounded_nsample_ratios : np.ndarray (nmodels-1, dtype=int)
+        rounded_nsample_ratios : Array (nmodels-1, dtype=int)
             The sample ratios r used to specify the number of samples in
             the independent sample partitions.
 
@@ -1197,7 +1198,7 @@ class ACVEstimator(CVEstimator):
 
         Sets attrributes
         ----------------
-        self._rounded_partition_ratios : np.ndarray (nmodels-1)
+        self._rounded_partition_ratios : Array (nmodels-1)
             The optimal partition ratios rounded so that each partition
             contains an integer number of samples
 
@@ -1207,20 +1208,21 @@ class ACVEstimator(CVEstimator):
         self._rounded_partition_ratios, rounded_target_cost = (
             self._round_partition_ratios(
                 target_cost,
-                torch.as_tensor(partition_ratios, dtype=torch.double)))
+                self._bkd.asarray(partition_ratios)))
         rounded_npartition_samples = (
             self._npartition_samples_from_partition_ratios(
                 rounded_target_cost,
-                torch.as_tensor(self._rounded_partition_ratios,
-                                dtype=torch.double)))
+                self._bkd.asarray(self._rounded_partition_ratios)
+            )
+        )
         # round because sometimes round_partition_ratios
         # will produce floats slightly smaller
         # than an integer so when converted to an integer will produce
         # values 1 smaller than the correct value
-        rounded_npartition_samples = np.round(rounded_npartition_samples)
-        rounded_nsamples_per_model = torch.as_tensor(
+        rounded_npartition_samples = self._bkd.round(rounded_npartition_samples)
+        rounded_nsamples_per_model = self._bkd.asarray(
             self._compute_nsamples_per_model(rounded_npartition_samples),
-            dtype=torch.int)
+            dtype=int)
         super()._set_optimized_params_base(
             rounded_npartition_samples, rounded_nsamples_per_model,
             rounded_target_cost)
@@ -1237,7 +1239,7 @@ class ACVEstimator(CVEstimator):
     def _allocate_samples_for_all_recursion_indices(
             self, target_cost, optim_options):
         verbosity = optim_options.get("verbosity", 0)
-        best_criteria = torch.as_tensor(np.inf, dtype=torch.double)
+        best_criteria = self._bkd.asarray(np.inf)
         best_result = None
         for index in self.get_all_recursion_indices():
             self._set_recursion_index(index)
@@ -1249,8 +1251,7 @@ class ACVEstimator(CVEstimator):
                 # uniformative model as a recursive control variate
                 if not self._allow_failures:
                     raise e
-                self._optimized_criteria = torch.as_tensor(
-                    np.inf, dtype=torch.double)
+                self._optimized_criteria = self._bkd.asarray(np.inf)
                 if verbosity > 0:
                     print("Optimizer failed")
             if verbosity > 2:
@@ -1267,7 +1268,7 @@ class ACVEstimator(CVEstimator):
             raise RuntimeError("No solutions were found")
         self._set_recursion_index(best_result[3])
         self._set_optimized_params(
-            torch.as_tensor(best_result[0], dtype=torch.double),
+            self._bkd.asarray(best_result[0]),
             target_cost)
 
     def allocate_samples(self, target_cost, optim_options={}):
@@ -1281,7 +1282,7 @@ class ACVEstimator(CVEstimator):
 class GMFEstimator(ACVEstimator):
     def _create_allocation_matrix(self, recursion_index):
         self._allocation_mat = _get_allocation_matrix_gmf(
-            recursion_index)
+            recursion_index, self._bkd)
 
     def _get_specific_constraints(self, target_cost):
         return []
@@ -1293,7 +1294,7 @@ class GISEstimator(ACVEstimator):
     """
     def _create_allocation_matrix(self, recursion_index):
         self._allocation_mat = _get_allocation_matrix_acvis(
-            recursion_index)
+            recursion_index, self._bkd)
 
     def _get_specific_constraints(self, target_cost):
         return []
@@ -1305,7 +1306,7 @@ class GRDEstimator(ACVEstimator):
     """
     def _create_allocation_matrix(self, recursion_index):
         self._allocation_mat = _get_allocation_matrix_acvrd(
-            recursion_index)
+            recursion_index, self._bkd)
 
     def _get_specific_constraints(self, target_cost):
         return []
@@ -1316,9 +1317,12 @@ class MFMCEstimator(GMFEstimator):
         # Use the sample analytical sample allocation for estimating a scalar
         # mean when estimating any statistic
         nmodels = len(costs)
-        super().__init__(stat, costs,
-                         recursion_index=np.arange(nmodels-1),
-                         opt_criteria=None)
+        super().__init__(
+            stat,
+            costs,
+            recursion_index=stat._bkd.arange(nmodels-1, dtype=int),
+            opt_criteria=None
+        )
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
 
@@ -1328,22 +1332,24 @@ class MFMCEstimator(GMFEstimator):
         nqoi = self._cov.shape[0]//len(self._costs)
         if not _check_mfmc_model_costs_and_correlations(
                 self._costs,
-                get_correlation_from_covariance(self._cov.numpy())):
+                get_correlation_from_covariance(self._cov, self._bkd)):
             raise ValueError("models do not admit a hierarchy")
         nsample_ratios, val = _allocate_samples_mfmc(
-            self._cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
-            self._costs.numpy(), target_cost)
+            self._cov[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
+            self._costs, target_cost, self._bkd)
         nsample_ratios = (
-            self._native_ratios_to_npartition_ratios(nsample_ratios))
-        return torch.as_tensor(nsample_ratios, dtype=torch.double), val
+            self._native_ratios_to_npartition_ratios(nsample_ratios)
+        )
+        return nsample_ratios, val
 
-    @staticmethod
-    def _native_ratios_to_npartition_ratios(ratios):
-        partition_ratios = np.hstack((ratios[0]-1, np.diff(ratios)))
+    def _native_ratios_to_npartition_ratios(self, ratios):
+        partition_ratios = self._bkd.hstack(
+            (ratios[0]-1, self._bkd.diff(ratios))
+        )
         return partition_ratios
 
     def _get_allocation_matrix(self):
-        return _get_sample_allocation_matrix_mfmc(self._nmodels)
+        return _get_sample_allocation_matrix_mfmc(self._nmodels, self._bkd)
 
 
 class MLMCEstimator(GRDEstimator):
@@ -1358,15 +1364,14 @@ class MLMCEstimator(GRDEstimator):
         """
         nmodels = len(costs)
         super().__init__(stat, costs,
-                         recursion_index=np.arange(nmodels-1),
+                         recursion_index=stat._bkd.arange(nmodels-1),
                          opt_criteria=None)
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
 
-    @staticmethod
-    def _weights(CF, cf):
+    def _weights(self, CF, cf):
         # raise NotImplementedError("check weights size is correct")
-        return -torch.ones(cf.shape, dtype=torch.double)
+        return -self._bkd.ones(cf.shape)
 
     def _covariance_from_npartition_samples(self, npartition_samples):
         CF, cf = self._get_discrepancy_covariances(npartition_samples)
@@ -1381,20 +1386,21 @@ class MLMCEstimator(GRDEstimator):
     def _allocate_samples(self, target_cost, optim_options={}):
         nqoi = self._cov.shape[0]//len(self._costs)
         nsample_ratios, val = _allocate_samples_mlmc(
-            self._cov.numpy()[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
-            self._costs.numpy(), target_cost)
-        return torch.as_tensor(nsample_ratios, dtype=torch.double), val
+            self._cov[self._opt_qoi::nqoi, self._opt_qoi::nqoi],
+            self._costs, target_cost, self._bkd
+        )
+        return self._bkd.asarray(nsample_ratios), val
 
     def _create_allocation_matrix(self, dummy):
         self._allocation_mat = _get_sample_allocation_matrix_mlmc(
-            self._nmodels)
+            self._nmodels, self._bkd
+        )
 
-    @staticmethod
-    def _native_ratios_to_npartition_ratios(ratios):
+    def _native_ratios_to_npartition_ratios(self, ratios):
         partition_ratios = [ratios[0]-1]
         for ii in range(1, len(ratios)):
             partition_ratios.append(ratios[ii]-partition_ratios[ii-1])
-        return np.hstack(partition_ratios)
+        return self._bkd.hstack(partition_ratios)
 
 
 # COMMON TORCH AUTOGRAD MISTAKES

@@ -262,6 +262,10 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.mean(mat, axis=axis)
 
     @staticmethod
+    def var(mat: np.ndarray, axis: int = None, ddof: int = 0) -> np.ndarray:
+        return np.var(mat, axis=axis, ddof=ddof)
+
+    @staticmethod
     def std(mat: np.ndarray, axis: int = None, ddof: int = 0) -> np.ndarray:
         return np.std(mat, axis=axis, ddof=ddof)
 
@@ -449,7 +453,11 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def double_type():
         return float
-    
+
     @staticmethod
     def gammaln(mat: np.ndarray) -> np.ndarray:
         return jax.scipy.special.gammaln(mat)
+
+    @staticmethod
+    def split(mat, splits, axis=0):
+        return np.split(max, splits, axis=axis)

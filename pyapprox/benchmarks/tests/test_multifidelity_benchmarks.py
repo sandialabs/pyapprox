@@ -35,7 +35,7 @@ class TestMFBenchmarks(unittest.TestCase):
             kurtosis = bench.get_kurtosis()
             quad_x, quad_w = bench._quadx, bench._quadw
             ref_kurtosis = bkd.hstack([
-                (((m(quad_x)-mu)**4).T.dot(quad_w)[:, 0])
+                (((m(quad_x)-mu)**4).T.dot(quad_w))
                 for m, mu in zip(bench.models(), bench.mean())])
             assert bkd.allclose(ref_kurtosis, kurtosis)
 

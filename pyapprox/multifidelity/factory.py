@@ -8,7 +8,7 @@ import numpy as np
 from pyapprox.multifidelity.acv import (
     CVEstimator, MLMCEstimator, MFMCEstimator, GMFEstimator, GISEstimator,
     GRDEstimator, MCEstimator, ACVEstimator,
-    log_trace_variance, determinant_variance)
+)
 from pyapprox.multifidelity.stats import (
     MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance,
     _nqoi_nqoi_subproblem)
@@ -26,13 +26,13 @@ class BestEstimator():
             List of strings of each estimator type to compute, e.g. [gmf, grd]
         """
         self.best_est = None
-
+        self._bkd = stat._bkd
         self._estimator_types = est_types
         self._stat = stat
-        self._candidate_costs = np.asarray(costs)
+        self._candidate_costs = self._bkd.asarray(costs)
         # self._ncandidate_nmodels is the number of total models
         self._ncandidate_models = len(self._candidate_costs)
-        self._lf_model_indices = np.arange(1, self._ncandidate_models)
+        self._lf_model_indices = self._bkd.arange(1, self._ncandidate_models, dtype=int)
         self._nqoi = stat._nqoi
         if max_nmodels is not None and max_nmodels < 2:
             raise ValueError("Ensure max_nmodels > 1")
@@ -60,9 +60,9 @@ class BestEstimator():
     def _validate_kwargs(self, nsubset_lfmodels):
         sub_kwargs = copy.deepcopy(self._kwargs)
         if "recursion_index" in sub_kwargs:
-            index = sub_kwargs["recursion_index"]
-            if (np.allclose(index, np.arange(len(index))) or
-                    np.allclose(index, np.zeros(len(index)))):
+            index = self._bkd.array(sub_kwargs["recursion_index"], dtype=int)
+            if (self._bkd.allclose(index, self._bkd.arange(len(index), dtype=int)) or
+                    self._bkd.allclose(index, self._bkd.zeros(len(index), dtype=int))):
                 sub_kwargs["recursion_index"] = index[:nsubset_lfmodels]
             else:
                 msg = "model selection can only be used with recursion indices"
@@ -105,9 +105,12 @@ class BestEstimator():
         Compute estimator covariance for all estimator types in
         self._estimator_types
         """
-        idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
+        idx = self._bkd.array(
+            self._bkd.hstack((self._bkd.array([0]), self._bkd.array(lf_model_subset_indices))),
+            dtype=int
+        )
         subset_costs = self._candidate_costs[idx]
-        sub_stat = self._stat.__class__(self._stat._nqoi)
+        sub_stat = self._stat.__class__(self._stat._nqoi, self._bkd)
         sub_stat.set_pilot_quantities(*self._stat.get_pilot_quantities_subset(
             self._ncandidate_models, self._nqoi, idx))
         sub_kwargs = self._validate_kwargs(nsubset_lfmodels)
@@ -139,7 +142,7 @@ class BestEstimator():
         """
         Compute estimator covariances for all model subets
         """
-        qoi_idx = np.arange(self._nqoi)
+        qoi_idx = self._bkd.arange(self._nqoi, dtype=int)
         pool = Pool(nprocs)
         indices = list(
             combinations(self._lf_model_indices, nsubset_lfmodels))
@@ -149,22 +152,23 @@ class BestEstimator():
                     target_cost), indices)
         pool.close()
         criteria = [
-            np.array(est._optimized_criteria)
+            self._bkd.array(est._optimized_criteria)
             if est is not None else np.inf for est in result]
-        II = np.argmin(criteria)
-        if not np.isfinite(criteria[II]):
+        II = self._bkd.argmin(criteria)
+        if not self._bkd.isfinite(criteria[II]):
             best_est = None
         else:
             best_est = result[II]
-            best_model_indices = np.hstack(
-                ([0], indices[II])).astype(int)
+            best_model_indices = self._bkd.array(
+                self._bkd.hstack(([0], indices[II])), dtype=int
+            )
             best_criteria = best_est._optimized_criteria
         return best_criteria, best_model_indices, best_est
 
     def _get_best_model_subset_for_estimator_serial(
             self, nsubset_lfmodels, target_cost,
             best_criteria, best_model_indices, best_est, optim_options):
-        qoi_idx = np.arange(self._nqoi)
+        qoi_idx = self._bkd.arange(self._nqoi, dtype=int)
         for lf_model_subset_indices in combinations(
                 self._lf_model_indices, nsubset_lfmodels):
             est = self._get_model_subset_estimator(
@@ -172,8 +176,12 @@ class BestEstimator():
                 target_cost, lf_model_subset_indices)
             if est is not None and est._optimized_criteria < best_criteria:
                 best_est = est
-                best_model_indices = np.hstack(
-                    ([0], lf_model_subset_indices)).astype(int)
+                best_model_indices = self._bkd.array(
+                    self._bkd.hstack(
+                        (self._bkd.array([0]),
+                         self._bkd.array(lf_model_subset_indices))
+                    ), dtype=int
+                )
                 best_criteria = best_est._optimized_criteria
         return best_criteria, best_model_indices, best_est
 
@@ -302,7 +310,7 @@ def get_estimator(estimator_types, stat, costs,
     stat_type : str
         The type of statistics to compute
 
-    costs : np.ndarray (nmodels)
+    costs : Array (nmodels)
         The computational cost of evaluating each model
 
     stat_args : list or tuple
@@ -321,7 +329,8 @@ def get_estimator(estimator_types, stat, costs,
             estimator_types = [estimator_types]
         return BestEstimator(
             estimator_types, stat, costs,
-            max_nmodels, **est_kwargs)
+            max_nmodels, **est_kwargs
+        )
 
     if isinstance(estimator_types, list):
         estimator_type = estimator_types[0]
@@ -355,12 +364,15 @@ def _estimate_components(variable, est, funs, ii):
     https://docs.scipy.org/doc/numpy/reference/random/parallel.html
     https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
     """
+    bkd = est._bkd
     random_states = [np.random.RandomState(ii*variable.num_vars()+jj)
                      for jj in range(variable.num_vars())]
     samples_per_model = est.generate_samples_per_model(
         partial(variable.rvs, random_states=random_states))
     values_per_model = [
-        fun(samples) for fun, samples in zip(funs, samples_per_model)]
+        bkd.array(fun(samples))
+        for fun, samples in zip(funs, samples_per_model)
+    ]
 
     mc_est = est._stat.sample_estimate
     if ((isinstance(est, ACVEstimator) or isinstance(est, BestEstimator))):
@@ -369,13 +381,13 @@ def _estimate_components(variable, est, funs, ii):
         est_val = est(values_per_model)
         acv_values = est._separate_values_per_model(values_per_model)
         Q = mc_est(acv_values[1])
-        delta = np.hstack([mc_est(acv_values[2*ii]) -
+        delta = bkd.hstack([mc_est(acv_values[2*ii]) -
                            mc_est(acv_values[2*ii+1])
                            for ii in range(1, est._nmodels)])
     elif isinstance(est, CVEstimator):
         est_val = est(values_per_model)
         Q = mc_est(values_per_model[0])
-        delta = np.hstack(
+        delta = bkd.hstack(
             [mc_est(values_per_model[ii]) - est._lowfi_stats[ii-1]
              for ii in range(1, est._nmodels)])
     else:
@@ -387,6 +399,7 @@ def _estimate_components(variable, est, funs, ii):
 
 def _estimate_components_loop(
         variable, ntrials, est, funs, max_eval_concurrency):
+    bkd = est._bkd
     if max_eval_concurrency == 1:
         Q = []
         delta = []
@@ -397,9 +410,9 @@ def _estimate_components_loop(
             estimator_vals.append(est_val)
             Q.append(Q_val)
             delta.append(delta_val)
-        Q = np.array(Q)
-        delta = np.array(delta)
-        estimator_vals = np.array(estimator_vals)
+        Q = bkd.stack(Q)
+        delta = bkd.stack(delta)
+        estimator_vals = bkd.stack(estimator_vals)
         return estimator_vals, Q, delta
 
     # set flat funs to none so funs can be pickled
@@ -407,9 +420,9 @@ def _estimate_components_loop(
     func = partial(_estimate_components, variable, est, funs)
     result = pool.map(func, list(range(ntrials)))
     pool.close()
-    estimator_vals = np.asarray([r[0] for r in result])
-    Q = np.asarray([r[1] for r in result])
-    delta = np.asarray([r[2] for r in result])
+    estimator_vals = bkd.stack([r[0] for r in result])
+    Q = bkd.stack([r[1] for r in result])
+    delta = bkd.stack([r[2] for r in result])
     return estimator_vals, Q, delta
 
 
@@ -425,7 +438,7 @@ def numerically_compute_estimator_variance(
     funs : list [callable]
         List of functions with signature
 
-        `fun(samples) -> np.ndarray (nsamples, nqoi)`
+        `fun(samples) -> Array (nsamples, nqoi)`
 
     where samples has shape (nvars, nsamples)
 
@@ -442,29 +455,29 @@ def numerically_compute_estimator_variance(
 
     Returns
     -------
-    hf_covar_numer : np.ndarray (nstats, nstats)
+    hf_covar_numer : Array (nstats, nstats)
         The estimator covariance of the single high-fidelity Monte Carlo
         estimator
 
-    hf_covar : np.ndarray (nstats, nstats)
+    hf_covar : Array (nstats, nstats)
         The analytical value of the estimator covariance of the single
        high-fidelity Monte Carlo estimator
 
 
-    covar_numer : np.ndarray (nstats, nstats)
+    covar_numer : Array (nstats, nstats)
         The estimator covariance of est
 
-    hf_covar : np.ndarray (nstats, nstats)
+    hf_covar : Array (nstats, nstats)
         The analytical value of the estimator covariance of est
 
-    est_vals : np.ndarray (ntrials, nstats)
+    est_vals : Array (ntrials, nstats)
         The values for the est for each trial. Only returned if return_all=True
 
-    Q0 : np.ndarray (ntrials, nstats)
+    Q0 : Array (ntrials, nstats)
         The values for the single fidelity MC estimator for each trial.
         Only returned if return_all=True
 
-    delta : np.ndarray (ntrials, nstats)
+    delta : Array (ntrials, nstats)
         The values for the differences between the low-fidelty estimators
         :math:`\mathcal{Z}_\alpha` and :math:`\mathcal{Z}_\alpha^*`
         for each trial. Only returned if return_all=True
@@ -473,13 +486,13 @@ def numerically_compute_estimator_variance(
     est_vals, Q0, delta = _estimate_components_loop(
         variable, ntrials, est, funs, max_eval_concurrency)
 
-    hf_covar_numer = np.cov(Q0, ddof=1, rowvar=False)
+    hf_covar_numer = est._bkd.cov(Q0, ddof=1, rowvar=False)
     hf_covar = est._stat.high_fidelity_estimator_covariance(
         est._rounded_npartition_samples[0])
 
-    covar_numer = np.cov(est_vals, ddof=1, rowvar=False)
+    covar_numer = est._bkd.cov(est_vals, ddof=1, rowvar=False)
     covar = est._covariance_from_npartition_samples(
-        est._rounded_npartition_samples).numpy()
+        est._rounded_npartition_samples)
 
     if not return_all:
         return hf_covar_numer, hf_covar, covar_numer, covar
@@ -492,7 +505,7 @@ def compare_estimator_variances(target_costs, estimators, optim_opts={}):
 
     Parameters
     ----------
-    target_costs : np.ndarray (ntarget_costs)
+    target_costs : Array (ntarget_costs)
         Different total cost budgets
 
     estimators : list (nestimators)
@@ -520,11 +533,21 @@ class ComparisonCriteria():
     def __init__(self, criteria_type=None):
         self._criteria_type = criteria_type
 
+    def trace_variance(self, variance, bkd):
+        val = bkd.trace(variance)
+        if val < 0:
+            raise RuntimeError("trace is negative")
+        return val
+
+    def determinant_variance(self, variance, bkd):
+        eigvals = bkd.eigh(variance)[0]
+        return eigvals[eigvals > 1e-14].prod()
+
     def __call__(self, est_covariance, est):
         if self._criteria_type == "det":
-            return determinant_variance(est_covariance)
+            return self.determinant_variance(est_covariance, est._bkd)
         if self._criteria_type == "trace":
-            return np.exp(log_trace_variance(est_covariance))
+            return self.trace_variance(est_covariance, est._bkd)
         raise ValueError(
             "Criteria {0} not supported".format(self._criteria_type))
 
@@ -589,7 +612,7 @@ def compute_variance_reductions(optimized_estimators,
 
         `criteria(cov) -> float`
 
-        where cov is an np.ndarray (nstats, nstats) is the estimator covariance
+        where cov is an Array (nstats, nstats) is the estimator covariance
 
     nhf_samples : int
         The number of samples of the high-fidelity model used for the
@@ -605,6 +628,7 @@ def compute_variance_reductions(optimized_estimators,
     """
     var_red, est_criterias, sf_criterias = [], [], []
     optimized_estimators = optimized_estimators.copy()
+    bkd = optimized_estimators[0]._bkd
     nestimators = len(optimized_estimators)
     for ii in range(nestimators):
         est = optimized_estimators[ii]
@@ -627,8 +651,8 @@ def compute_variance_reductions(optimized_estimators,
         var_red.append(sf_criteria/est_criteria)
         sf_criterias.append(sf_criteria)
         est_criterias.append(est_criteria)
-    return (np.asarray(var_red), np.asarray(est_criterias),
-            np.asarray(sf_criterias))
+    return (bkd.asarray(var_red), bkd.asarray(est_criterias),
+            bkd.asarray(sf_criterias))
 
 
 def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
@@ -645,7 +669,7 @@ def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
         Function used to generate realizations of the random variable with
         call signature samples = generate_samples(npilot_samples)
 
-    model_ensemble : callable or np.ndarray  (nvars, nsamples)
+    model_ensemble : callable or Array  (nvars, nsamples)
         Function that takes a set of samples and models ids and evaluates
         a set of models. See ModelEnsemble.
         call signature values = model_emsemble(samples)
@@ -657,14 +681,14 @@ def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
 
     Returns
     -------
-    cov : np.ndarray (nqoi,nqoi)
+    cov : Array (nqoi,nqoi)
         The covariance between the model qoi
 
-    pilot_random_samples : np.ndarray (nvars,npilot_samples)
+    pilot_random_samples : Array (nvars,npilot_samples)
         The random samples used to compute the covariance. These samples
         DO NOT have a model id
 
-    pilot_values : np.ndaray (npilot_samples,nmodels)
+    pilot_values : Array (npilot_samples,nmodels)
         The values of each model at the pilot samples
     """
     # generate pilot samples

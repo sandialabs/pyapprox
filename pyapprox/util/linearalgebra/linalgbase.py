@@ -368,6 +368,12 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def var(mat, axis=None, ddof=0):
+        """Compute the variance of a matrix"""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def std(mat, axis=None, ddof=0):
         """Compute the standard-deviation of a matrix"""
         raise NotImplementedError
@@ -796,4 +802,9 @@ class LinAlgMixin(ABC):
     @staticmethod
     @abstractmethod
     def gammaln(array):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def split(mat, splits, axis=0):
         raise NotImplementedError

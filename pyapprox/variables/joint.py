@@ -11,15 +11,18 @@ from pyapprox.variables.nataf import (
     transform_correlations, scipy_gauss_hermite_pts_wts_1D
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 
 
 class JointVariable(ABC):
     r"""
     Base class for multivariate variables.
     """
+    def __init__(self, backend: LinAlgMixin):
+        self._bkd = backend
 
     @abstractmethod
-    def rvs(self, nsamples):
+    def rvs(self, nsamples: int) -> Array:
         """
         Generate samples from a random variable.
 
@@ -30,7 +33,7 @@ class JointVariable(ABC):
 
         Returns
         -------
-        samples : np.ndarray (nvars, nsamples)
+        samples : Array (nvars, nsamples)
             Independent samples from the target distribution
         """
         raise NotImplementedError()
@@ -69,6 +72,7 @@ class IndependentMarginalsVariable(JointVariable):
         """
         Constructor method
         """
+        super().__init__(backend)
         self._bkd = backend
         if unique_variable_indices is None:
             self.unique_variables, self.unique_variable_indices =\
@@ -87,7 +91,7 @@ class IndependentMarginalsVariable(JointVariable):
             assert self.nvars == len(unique_variables)
         self.variable_labels = variable_labels
 
-    def num_vars(self):
+    def num_vars(self) -> int:
         """
         Return The number of independent 1D variables
 
@@ -98,7 +102,7 @@ class IndependentMarginalsVariable(JointVariable):
         """
         return self.nvars
 
-    def marginals(self):
+    def marginals(self) -> list:
         """
         Return a list of all the 1D scipy.stats random variables.
 
@@ -113,13 +117,13 @@ class IndependentMarginalsVariable(JointVariable):
                 all_variables[jj] = self.unique_variables[ii]
         return all_variables
 
-    def get_statistics(self, function_name, *args, **kwargs):
+    def get_statistics(self, function_name: str, *args, **kwargs) -> Array:
         """
         Get a statistic from each univariate random variable.
 
         Parameters
         ----------
-        function_name : string
+        function_name : str
             The function name of the scipy random variable statistic of
             interest
 
@@ -128,7 +132,7 @@ class IndependentMarginalsVariable(JointVariable):
 
         Returns
         -------
-        stat : np.ndarray
+        stat : Array
             The output of the stat function
 
         Examples
@@ -158,7 +162,7 @@ class IndependentMarginalsVariable(JointVariable):
             stats[indices] = stats_ii
         return stats
 
-    def evaluate(self, function_name, x):
+    def evaluate(self, function_name: str, x: Array) -> Array:
         """
         Evaluate a frunction for each univariate random variable.
 
@@ -192,7 +196,7 @@ class IndependentMarginalsVariable(JointVariable):
                 stats[jj] = stats_jj
         return stats
 
-    def pdf(self, x, log=False):
+    def pdf(self, x: Array, log: bool = False) -> Array:
         """
         Evaluate the joint probability distribution function.
 
@@ -218,7 +222,7 @@ class IndependentMarginalsVariable(JointVariable):
         marginal_vals = self.evaluate("logpdf", x)
         return self._bkd.sum(marginal_vals, axis=0)[:, None]
 
-    def _evaluate(self, function_name, x):
+    def _evaluate(self, function_name: str, x: Array):
         """
         Evaluate a frunction for each univariate random variable using rv.dist
         This is faster than evaluate because it avoids error checks.
@@ -254,7 +258,7 @@ class IndependentMarginalsVariable(JointVariable):
                 stats[jj] = stats_jj
         return stats
 
-    def _pdf(self, x, log=False):
+    def _pdf(self, x: Array, log: bool = False):
         if not log:
             marginal_vals = self._evaluate("_pdf", x)
             return self._bkd.prod(marginal_vals, axis=0)[:, None]
@@ -289,7 +293,7 @@ class IndependentMarginalsVariable(JointVariable):
                 string += "\n"
         return string
 
-    def is_bounded_continuous_variable(self):
+    def is_bounded_continuous_variable(self) -> bool:
         """
         Are all 1D variables are continuous and bounded.
 
@@ -304,7 +308,7 @@ class IndependentMarginalsVariable(JointVariable):
                 return False
         return True
 
-    def rvs(self, num_samples, random_states=None):
+    def rvs(self, num_samples, random_states=None) -> Array:
         """
         Generate samples from a tensor-product probability measure.
 
@@ -350,7 +354,10 @@ class GaussCopulaVariable(JointVariable):
     marginals
     """
 
-    def __init__(self, marginals, x_correlation, bisection_opts={}):
+    def __init__(
+            self, marginals, x_correlation, bisection_opts={}, backend=NumpyLinAlgMixin
+    ):
+        super().__init__(backend)
         self.nvars = len(marginals)
         self._marginals = marginals
         self.x_correlation = x_correlation
@@ -368,10 +375,10 @@ class GaussCopulaVariable(JointVariable):
         self.z_variable = stats.multivariate_normal(
             mean=np.zeros((self.nvars)), cov=self.z_correlation)
 
-    def z_joint_density(self, z_samples):
+    def z_joint_density(self, z_samples: Array) -> Array:
         return self.z_variable.pdf(z_samples.T)
 
-    def pdf(self, x_samples, log=False):
+    def pdf(self, x_samples: Array, log: bool = False) -> Array:
         vals = nataf_joint_density(
             x_samples, self.x_marginal_cdfs, self.x_marginal_pdfs,
             self.z_joint_density)
@@ -379,21 +386,23 @@ class GaussCopulaVariable(JointVariable):
             return vals
         return np.log(vals)
 
-    def num_vars(self):
+    def num_vars(self) -> int:
         return self.nvars
 
-    def rvs(self, nsamples, return_all=False):
+    def rvs(self, nsamples: int, return_all: bool = False) -> Array:
         out = generate_x_samples_using_gaussian_copula(
             self.nvars, self.z_correlation, self.x_marginal_inv_cdfs, nsamples)
         if not return_all:
             return out[0]
         return out
 
-    def marginals(self):
+    def marginals(self) -> list:
         return self._marginals
 
 
-def define_iid_random_variable(rv, num_vars):
+def define_iid_random_variable(
+        rv, num_vars: int
+) -> IndependentMarginalsVariable:
     """
     Create independent identically distributed variables
 
@@ -416,7 +425,11 @@ def define_iid_random_variable(rv, num_vars):
         unique_variables, unique_var_indices)
 
 
-def get_truncated_ranges(variable, unbounded_alpha=0.99, bounded_alpha=1.0):
+def get_truncated_ranges(
+        variable: JointVariable,
+        unbounded_alpha: float = 0.99,
+        bounded_alpha: float = 1.0
+) -> Array:
     r"""
     Get truncated ranges for independent random variables or Copulas
 
@@ -441,7 +454,7 @@ def get_truncated_ranges(variable, unbounded_alpha=0.99, bounded_alpha=1.0):
         [lb0, ub0, lb1, ub1, ...]
     """
     ranges = []
-    if (type(variable) == GaussCopulaVariable) and (bounded_alpha == 1):
+    if isinstance(variable, GaussCopulaVariable) and (bounded_alpha == 1):
         bounded_alpha = unbounded_alpha
 
     for rv in variable.marginals():
@@ -486,7 +499,7 @@ def combine_uncertain_and_bounded_design_variables(
     return IndependentMarginalsVariable(variable_list)
 
 
-class DesignVariable(object):
+class DesignVariable:
     """
     Design variables with no probability information
     """
@@ -516,7 +529,8 @@ class DesignVariable(object):
 
 
 class FiniteSamplesVariable(JointVariable):
-    def __init__(self, samples, randomness="replacement", weights=None):
+    def __init__(self, samples, randomness="replacement", weights=None, backend=NumpyLinAlgMixin):
+        super().__init__(backend)
         self._samples = samples.copy()
         self._nvars = samples.shape[0]
         self._weights = weights

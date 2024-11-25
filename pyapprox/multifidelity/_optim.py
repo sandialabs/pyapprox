@@ -93,7 +93,7 @@ def _get_rsquared_mfmc(cov, nsample_ratios):
     return rsquared
 
 
-def _allocate_samples_mfmc(cov, costs, target_cost):
+def _allocate_samples_mfmc(cov, costs, target_cost, bkd):
     r"""
     Determine the samples to be allocated to each model when using MFMC
 
@@ -120,13 +120,13 @@ def _allocate_samples_mfmc(cov, costs, target_cost):
     """
 
     nmodels = len(costs)
-    corr = get_correlation_from_covariance(cov)
-    II = np.argsort(np.absolute(corr[0, 1:]))[::-1]
+    corr = get_correlation_from_covariance(cov, bkd)
+    II = bkd.flip(bkd.argsort(bkd.abs(corr[0, 1:])))
     if (II.shape[0] != nmodels-1):
         msg = "Correlation shape {0} inconsistent with len(costs) {1}.".format(
             corr.shape, len(costs))
         raise RuntimeError(msg)
-    if not np.allclose(II, np.arange(nmodels-1)):
+    if not bkd.allclose(II, bkd.arange(nmodels-1, dtype=int)):
         msg = 'Models must be ordered with decreasing correlation with '
         msg += 'high-fidelity model'
         raise RuntimeError(msg)
@@ -136,24 +136,25 @@ def _allocate_samples_mfmc(cov, costs, target_cost):
         # Step 3 in Algorithm 2 in Peherstorfer et al 2016
         num = costs[0] * (corr[0, ii]**2 - corr[0, ii+1]**2)
         den = costs[ii] * (1 - corr[0, 1]**2)
-        r.append(np.sqrt(num/den))
+        r.append(bkd.sqrt(num/den))
 
     num = costs[0]*corr[0, -1]**2
     den = costs[-1] * (1 - corr[0, 1]**2)
-    r.append(np.sqrt(num/den))
+    r.append(bkd.sqrt(num/den))
+    r = bkd.array(r)
 
     # Step 4 in Algorithm 2 in Peherstorfer et al 2016
-    nhf_samples = target_cost / np.dot(costs, r)
+    nhf_samples = target_cost / bkd.dot(costs, r)
     nsample_ratios = r[1:]
 
     gamma = _variance_reduction(_get_rsquared_mfmc, cov, nsample_ratios)
-    log_variance = np.log(gamma)+np.log(cov[0, 0])-np.log(
+    log_variance = bkd.log(gamma)+bkd.log(cov[0, 0])-bkd.log(
         nhf_samples)
-    return np.atleast_1d(nsample_ratios), log_variance
+    return bkd.atleast1d(nsample_ratios), log_variance
 
 
-def _get_sample_allocation_matrix_mfmc(nmodels):
-    mat = np.zeros((nmodels, 2*nmodels))
+def _get_sample_allocation_matrix_mfmc(nmodels, bkd):
+    mat = bkd.zeros((nmodels, 2*nmodels))
     mat[0, 1:] = 1
     for ii in range(1, nmodels):
         mat[ii, 2*ii+1:] = 1
@@ -208,7 +209,7 @@ def _get_rsquared_mlmc(cov, nsample_ratios):
     return 1-gamma
 
 
-def _allocate_samples_mlmc(cov, costs, target_cost):
+def _allocate_samples_mlmc(cov, costs, target_cost, bkd):
     r"""
     Determine the samples to be allocated to each model when using MLMC
 
@@ -240,21 +241,21 @@ def _allocate_samples_mlmc(cov, costs, target_cost):
         The logarithm of the variance of the estimator
     """
     nmodels = cov.shape[0]
-    costs = np.asarray(costs)
+    costs = bkd.asarray(costs)
 
-    II = np.argsort(costs)[::-1]
-    if not np.allclose(II, np.arange(nmodels)):
+    II = bkd.flip(bkd.argsort(costs))
+    if not bkd.allclose(II, bkd.arange(nmodels)):
         # print(costs)
         raise ValueError("Models cost do not decrease monotonically")
 
     # compute the variance of the discrepancy
-    var_deltas = np.empty(nmodels)
+    var_deltas = bkd.empty(nmodels)
     for ii in range(nmodels-1):
         var_deltas[ii] = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
     var_deltas[nmodels-1] = cov[nmodels-1, nmodels-1]
 
     # compute the cost of one sample of the discrepancy
-    cost_deltas = np.empty(nmodels)
+    cost_deltas = bkd.empty(nmodels)
     cost_deltas[:nmodels-1] = (costs[:nmodels-1] + costs[1:nmodels])
     cost_deltas[nmodels-1] = costs[nmodels-1]
 
@@ -265,37 +266,37 @@ def _allocate_samples_mlmc(cov, costs, target_cost):
     var_cost_ratios = var_deltas / cost_deltas
 
     # compute the lagrange multiplier
-    lagrange_multiplier = target_cost / np.sqrt(var_cost_prods).sum()
+    lagrange_multiplier = target_cost / bkd.sqrt(var_cost_prods).sum()
 
     # compute the number of samples needed for each discrepancy
-    nsamples_per_delta = lagrange_multiplier*np.sqrt(var_cost_ratios)
+    nsamples_per_delta = lagrange_multiplier*bkd.sqrt(var_cost_ratios)
 
     # compute the ML estimator variance from the target cost
-    variance = np.sum(var_deltas/nsamples_per_delta)
+    variance = bkd.sum(var_deltas/nsamples_per_delta)
 
     # compute the number of samples allocated to each model. For
     # all but the highest fidelity model we need to collect samples
     # from two discrepancies.
     nhf_samples = nsamples_per_delta[0]
-    nsample_ratios = np.empty(nmodels-1)
+    nsample_ratios = bkd.empty(nmodels-1)
     for ii in range(nmodels-1):
         nsample_ratios[ii] = (
             nsamples_per_delta[ii]+nsamples_per_delta[ii+1])/nhf_samples
 
-    assert np.allclose(
+    assert bkd.allclose(
         nhf_samples*costs[0] + (nsample_ratios*nhf_samples).dot(costs[1:]),
         cost_deltas.dot(nsamples_per_delta))
 
     gamma = _variance_reduction(_get_rsquared_mlmc, cov, nsample_ratios)
-    log_variance = np.log(gamma)+np.log(cov[0, 0])-np.log(
+    log_variance = bkd.log(gamma)+bkd.log(cov[0, 0])-bkd.log(
         nhf_samples)
     # print(log_variance)
     if np.isnan(log_variance):
         raise RuntimeError('MLMC variance is NAN')
-    return np.atleast_1d(nsample_ratios), log_variance
+    return bkd.atleast1d(nsample_ratios), log_variance
 
 
-def _get_sample_allocation_matrix_mlmc(nmodels):
+def _get_sample_allocation_matrix_mlmc(nmodels, bkd):
     r"""
     Get the sample allocation matrix
 
@@ -312,7 +313,7 @@ def _get_sample_allocation_matrix_mlmc(nmodels):
         For columns :math:`2j+1, j=0,\ldots,M-1` the ith row contains a
         flag specifiying if :math:`z_i\subseteq z_j`
     """
-    mat = np.zeros((nmodels, 2*nmodels))
+    mat = bkd.zeros((nmodels, 2*nmodels))
     for ii in range(nmodels-1):
         mat[ii, 2*ii+1:2*ii+3] = 1
     mat[-1, -1] = 1
@@ -415,3 +416,4 @@ def _get_acv_recursion_indices(nmodels, depth=None):
         raise ValueError(msg)
     for index in _generate_all_trees(np.arange(1, nmodels), 0, depth):
         yield index.to_index()[1:]
+        

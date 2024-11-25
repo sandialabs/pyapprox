@@ -181,7 +181,8 @@ class AETC():
         # only pass in costs_S of subset because exploitation does not
         # further evaluate the high-fidelity model
         k1, k2, nsamples_per_subset = self._allocate_samples(
-            beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S, exploit_budget)
+            beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S, exploit_budget
+        )
 
         # cost of exploration (exploration evaluates all models)
         explore_cost = costs.sum()
@@ -389,7 +390,7 @@ class AETCMC(AETC):
         beta_Sp  = result[3]
         beta_best_S = beta_Sp[1:]
  
-        stat_best_S = MultiOutputMean(1)
+        stat_best_S = MultiOutputMean(1, self._bkd)
 
         values_per_model = np.array(values_per_model)[:,:,0]
         product =  np.squeeze(np.dot(beta_best_S.T, values_per_model.mean(axis=1)))
@@ -453,7 +454,7 @@ class AETCBLUE(AETC):
     def _find_k2(self,beta_Sp,Sigma_S,costs_S,round_nsamples=False):
         asketch = beta_Sp[1:]  # remove high-fidelity coefficient
 
-        stat_S = MultiOutputMean(1)
+        stat_S = MultiOutputMean(1, self._bkd)
         stat_S.set_pilot_quantities(Sigma_S)
         est = MLBLUEEstimator(
             stat_S, costs_S, asketch=asketch, reg_blue=self._reg_blue, backend=self._bkd)
@@ -481,7 +482,7 @@ class AETCBLUE(AETC):
         beta_Sp, Sigma_best_S, rounded_nsamples_per_subset = result[3:6]
         costs_best_S = self._costs[best_subset+1]
         beta_best_S = beta_Sp[1:]
-        stat_best_S = MultiOutputMean(1)
+        stat_best_S = MultiOutputMean(1, self._bkd)
         stat_best_S.set_pilot_quantities(Sigma_best_S)
         est = MLBLUEEstimator(
             stat_best_S, costs_best_S, Sigma_best_S, asketch=beta_best_S,backend=self._bkd)
@@ -495,7 +496,7 @@ class AETCBLUE(AETC):
         beta_Sp, Sigma_best_S, rounded_nsamples_per_subset = result[3:6]
         costs_best_S = self._costs[best_subset+1]
         beta_best_S = beta_Sp[1:]
-        stat_best_S = MultiOutputMean(1)
+        stat_best_S = MultiOutputMean(1, self._bkd)
         stat_best_S.set_pilot_quantities(Sigma_best_S)
         est = MLBLUEEstimator(stat_best_S, costs_best_S, Sigma_best_S, asketch=beta_best_S,backend=self._bkd)
         est._set_optimized_params(rounded_nsamples_per_subset)
