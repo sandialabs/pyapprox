@@ -5,10 +5,7 @@ from functools import partial
 from skfem import ElementVector, Basis, Functional
 from typing import List, Tuple
 
-from pyapprox.pde.galerkin.util import (
-    _get_mesh, _get_element)
-from pyapprox.pde.galerkin.physics import (
-    _assemble_advection_diffusion_reaction, _assemble_stokes)
+from pyapprox.pde.galerkin.util import _get_mesh, _get_element
 from pyapprox.pde.galerkin.solvers import SteadyStatePDE, TransientPDE
 from pyapprox.pde.galerkin.physics import (
     NonLinearAdvectionDiffusionReaction, Helmholtz, Stokes, Burgers,
@@ -437,19 +434,14 @@ class TestFiniteElements(unittest.TestCase):
         bndry_conds = _get_stokes_boundary_conditions(
             mesh, bndry_types, domain_bounds, vel_fun, vel_grad_funs)
 
-        bilinear_mat, linear_vec, D_vals, D_dofs, K = _assemble_stokes(
-            vel_forc_fun, pres_forc_fun, False,
-            bndry_conds, mesh, element, basis, return_K=True)
+        vel_forc_fun = FEMVectorFunctionFromCallable(vel_forc_fun)
+        pres_forc_fun = FEMScalarFunctionFromCallable(pres_forc_fun)
 
         physics = Stokes(
             mesh, element, basis, bndry_conds, navier_stokes,
             vel_forc_fun, pres_forc_fun)
         init_sol = physics.init_guess()
 
-        # A, b, x, I = condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs)
-        # init_sol = solve(A, b, x, I)
-        assemble = partial(_assemble_stokes, vel_forc_fun, pres_forc_fun,
-                           navier_stokes, bndry_conds, mesh, element, basis)
         exact_pres_sol = basis['p'].project(lambda x: pres_fun(x)[:, 0])
 
         # projection using vector basis requires function to return np.ndarray
@@ -459,26 +451,15 @@ class TestFiniteElements(unittest.TestCase):
                 [vel_fun(x)[:, ii] for ii in range(len(domain_bounds)//2)]))
         exact_sol = np.concatenate([exact_vel_sol, exact_pres_sol])
 
-        # check dirichlet boundary conditions are enforced correctly
-        assert np.allclose(init_sol[D_dofs], exact_sol[D_dofs])
-
         if not navier_stokes:
             # print(init_sol-exact_sol)
             assert np.allclose(init_sol, exact_sol)
 
-        bilinear_mat, res, D_vals, D_dofs = assemble(u_prev=exact_sol)
-        # minus sign because res = -a(u_prev, v) + L(v)
-        jac = -bilinear_mat
-        II = np.setdiff1d(np.arange(jac.shape[0]), D_dofs)
-        # print(res[II], 'res')
-        assert np.all(np.abs(res[II]) < 5e-7)
-
-        # fem_sol = newton_solve(
-        #     assemble, init_sol, atol=1e-7, rtol=1e-6, maxiters=10)
-
         solver = SteadyStatePDE(physics)
-        fem_sol = solver.solve(init_sol)
+        res = solver.newton_solver._residual(exact_sol)
+        assert np.all(np.abs(res) < 5e-7)
 
+        fem_sol = solver.solve(init_sol)
         # print(np.abs(fem_sol - exact_sol).max())
         assert np.allclose(fem_sol, exact_sol)
 
@@ -493,7 +474,7 @@ class TestFiniteElements(unittest.TestCase):
              ["D", "D", "D", "D"], True],
         ]
 
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases:
             self.check_stokes(*test_case)
 
     def _check_transient_advection_diffusion_reaction(

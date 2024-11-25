@@ -126,7 +126,7 @@ class PDESolver(ABC):
         )
 
 
-class SteadyPDE(PDESolver):
+class SteadyStatePDE(PDESolver):
     def __init__(self, physics: Physics, newton_solver: NewtonSolver = None):
         super().__init__(physics)
         if newton_solver is None:
@@ -144,21 +144,6 @@ class SteadyPDE(PDESolver):
         if init_sol_array is None:
             init_sol_array = self._physics.init_guess()
         return self.newton_solver.solve(init_sol_array)
-
-
-class SteadyStatePDEOld():
-    def __init__(self, physics):
-        self.physics = physics
-
-    def solve(self, init_guess=None, **newton_kwargs):
-        if init_guess is None:
-            init_guess = self.physics.init_guess()
-        sol = newton_solve(
-            self.physics.assemble, init_guess, **newton_kwargs)
-        return sol
-
-SteadyStatePDE = SteadyPDE
-# SteadyStatePDE = SteadyStatePDEOld
 
 
 class TransientPDE():
