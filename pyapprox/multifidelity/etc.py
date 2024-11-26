@@ -3,13 +3,25 @@ import torch
 
 import numpy as np
 
-from pyapprox.multifidelity.groupacv import MLBLUEEstimator, get_model_subsets, MLBLUESPDOptimizer
+from pyapprox.multifidelity.groupacv import (
+    MLBLUEEstimator,
+    get_model_subsets,
+    MLBLUESPDOptimizer,
+)
 from pyapprox.multifidelity.stats import MultiOutputMean
 from pyapprox.multifidelity.acv import MCEstimator
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
-class AETC():
-    def __init__(self, models, rvs, costs=None, oracle_stats=None,backend=NumpyLinAlgMixin):
+
+class AETC:
+    def __init__(
+        self,
+        models,
+        rvs,
+        costs=None,
+        oracle_stats=None,
+        backend=NumpyLinAlgMixin,
+    ):
         r"""
         Parameters
         ----------
@@ -49,11 +61,12 @@ class AETC():
     def _validate_subsets(self, subsets):
         # subsets are indexes of low fidelity models
         if subsets is None:
-            subsets = get_model_subsets(self._nmodels-1,np)
+            subsets = get_model_subsets(self._nmodels - 1, np)
         validated_subsets, max_ncovariates = [], -np.inf
         for subset in subsets:
-            if ((np.unique(subset).shape[0] != len(subset)) or
-                    (np.max(subset) >= self._nmodels-1)):
+            if (np.unique(subset).shape[0] != len(subset)) or (
+                np.max(subset) >= self._nmodels - 1
+            ):
                 msg = "subsets provided are not valid. First invalid subset"
                 msg += f" {subset}"
                 raise ValueError(msg)
@@ -61,15 +74,15 @@ class AETC():
             max_ncovariates = max(max_ncovariates, len(subset))
         return validated_subsets, max_ncovariates
 
-    def _subset_oracle_stats(self,oracle_stats, covariate_subset):
+    def _subset_oracle_stats(self, oracle_stats, covariate_subset):
         cov, means = oracle_stats[:2]
-        Sigma_S = cov[np.ix_(covariate_subset+1, covariate_subset+1)]
-        Sp_subset = np.hstack((0, covariate_subset+1))
-        x_Sp = np.vstack(([1],means[covariate_subset+1]))
+        Sigma_S = cov[np.ix_(covariate_subset + 1, covariate_subset + 1)]
+        Sp_subset = np.hstack((0, covariate_subset + 1))
+        x_Sp = np.vstack(([1], means[covariate_subset + 1]))
         tmp1 = np.zeros_like(cov)
         tmp1[1:, 1:] = cov[1:, 1:]
         tmp2 = np.vstack((1, means[1:]))
-        Lambda_Sp = (tmp1+tmp2.dot(tmp2.T))[np.ix_(Sp_subset, Sp_subset)]
+        Lambda_Sp = (tmp1 + tmp2.dot(tmp2.T))[np.ix_(Sp_subset, Sp_subset)]
         return Sigma_S, Lambda_Sp, x_Sp
 
     def _least_squares(self, hf_values, covariate_values):
@@ -90,46 +103,63 @@ class AETC():
         nsamples, ncovariates = covariate_values.shape
         # X_S is evaluations of low fidelity models in subset S
         # X_Sp is $X_{S+}=(1, X_S)$
-        X_Sp = np.hstack(
-            (np.ones((nsamples, 1)), covariate_values))
+        X_Sp = np.hstack((np.ones((nsamples, 1)), covariate_values))
         # beta_Sp = $\hat{beta}_{S+}=(\hat{b}_S, \hat{\beta}_S)$
         beta_Sp = np.linalg.lstsq(X_Sp, hf_values, rcond=None)[0]
         assert beta_Sp.ndim == 2 and beta_Sp.shape[1] == 1
         # sigma_S_sq = $\hat{\sigma}_S^2$
-        sigma_S_sq = ((hf_values-X_Sp.dot(beta_Sp))**2).sum()/(nsamples -1)
+        sigma_S_sq = ((hf_values - X_Sp.dot(beta_Sp)) ** 2).sum() / (
+            nsamples - 1
+        )
 
         return beta_Sp, sigma_S_sq, X_Sp
 
     def _find_k2(self):
         raise NotImplementedError
 
-    def _allocate_samples(self,
-            beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S, exploit_budget):
+    def _allocate_samples(
+        self,
+        beta_Sp,
+        Sigma_S,
+        sigma_S_sq,
+        x_Sp,
+        Lambda_Sp,
+        costs_S,
+        exploit_budget,
+    ):
 
         nmodels = len(costs_S)
 
         # np.trace(Gamma) = $\hat{\sigma}^2_S
-        k1 = sigma_S_sq*np.trace(
-            np.linalg.multi_dot((x_Sp, x_Sp.T, np.linalg.inv(Lambda_Sp))))
+        k1 = sigma_S_sq * np.trace(
+            np.linalg.multi_dot((x_Sp, x_Sp.T, np.linalg.inv(Lambda_Sp)))
+        )
 
-        Sigma_Sp = np.zeros((Sigma_S.shape[0]+1, Sigma_S.shape[1]+1))
+        Sigma_Sp = np.zeros((Sigma_S.shape[0] + 1, Sigma_S.shape[1] + 1))
         Sigma_Sp[1:, 1:] = Sigma_S
-
 
         if nmodels == 1:
             exploit_cost = sum(costs_S)
-            nsamples_per_subset = 1/exploit_cost
-            k2 = exploit_cost*np.trace( np.linalg.multi_dot((Sigma_Sp, beta_Sp, beta_Sp.T))) 
-            return k1, k2, nsamples_per_subset*np.ones(1)
+            nsamples_per_subset = 1 / exploit_cost
+            k2 = exploit_cost * np.trace(
+                np.linalg.multi_dot((Sigma_Sp, beta_Sp, beta_Sp.T))
+            )
+            return k1, k2, nsamples_per_subset * np.ones(1)
 
-        k2, nsamples_per_subset = self._find_k2(beta_Sp,Sigma_S,costs_S)
-
+        k2, nsamples_per_subset = self._find_k2(beta_Sp, Sigma_S, costs_S)
 
         return k1, k2, nsamples_per_subset
 
-    def _optimal_loss(self,
-            total_budget, hf_values, covariate_values, costs, covariate_subset,
-            alpha, exploit_budget):
+    def _optimal_loss(
+        self,
+        total_budget,
+        hf_values,
+        covariate_values,
+        costs,
+        covariate_subset,
+        alpha,
+        exploit_budget,
+    ):
         r"""
         Parameters
         ----------
@@ -160,28 +190,37 @@ class AETC():
         nsamples = hf_values.shape[0]
 
         beta_Sp, sigma_S_sq, X_Sp = self._least_squares(
-                  hf_values, covariate_values[:, covariate_subset])
+            hf_values, covariate_values[:, covariate_subset]
+        )
 
         if self._oracle_stats is None:
             x_Sp = X_Sp.mean(axis=0)[:, None]
             Sigma_S = np.atleast_2d(
-                np.cov(covariate_values[:, covariate_subset].T, ddof=1))
-            Lambda_Sp = X_Sp.T.dot(X_Sp)/nsamples
+                np.cov(covariate_values[:, covariate_subset].T, ddof=1)
+            )
+            Lambda_Sp = X_Sp.T.dot(X_Sp) / nsamples
         else:
             Sigma_S, Lambda_Sp, x_Sp = self._subset_oracle_stats(
-                self._oracle_stats, covariate_subset)
+                self._oracle_stats, covariate_subset
+            )
 
         # extract costs of models in subset
         # covariate_subset+1 is used because high-fidelity assumed
         # to be in first column of covariate values and covariate_subset
         # just indexes low fidelity models starting from 0
-        costs_S = costs[covariate_subset+1]
+        costs_S = costs[covariate_subset + 1]
 
         # find optimal sample allocation
         # only pass in costs_S of subset because exploitation does not
         # further evaluate the high-fidelity model
         k1, k2, nsamples_per_subset = self._allocate_samples(
-            beta_Sp, Sigma_S, sigma_S_sq, x_Sp, Lambda_Sp, costs_S, exploit_budget
+            beta_Sp,
+            Sigma_S,
+            sigma_S_sq,
+            x_Sp,
+            Lambda_Sp,
+            costs_S,
+            exploit_budget,
         )
 
         # cost of exploration (exploration evaluates all models)
@@ -190,15 +229,29 @@ class AETC():
         # estimate optimal exploration rate Equation 4.34
         # k2 is $\gamma_m$ and k1 is $k_m$ in the paper
         explore_rate = max(
-            total_budget/(
-                explore_cost+np.sqrt(explore_cost*k2/(k1+alpha**(-nsamples)))),
-            nsamples)
-        exploit_budget = (total_budget-explore_cost*explore_rate)
-        opt_loss = k2/exploit_budget+(k1+alpha**(-nsamples))/explore_rate
+            total_budget
+            / (
+                explore_cost
+                + np.sqrt(explore_cost * k2 / (k1 + alpha ** (-nsamples)))
+            ),
+            nsamples,
+        )
+        exploit_budget = total_budget - explore_cost * explore_rate
+        opt_loss = (
+            k2 / exploit_budget + (k1 + alpha ** (-nsamples)) / explore_rate
+        )
         nsamples_per_subset *= exploit_budget
 
-        return (opt_loss, nsamples_per_subset, explore_rate, beta_Sp, Sigma_S,
-                k1, k2, exploit_budget)
+        return (
+            opt_loss,
+            nsamples_per_subset,
+            explore_rate,
+            beta_Sp,
+            Sigma_S,
+            k1,
+            k2,
+            exploit_budget,
+        )
 
     def _explore_step(self, total_budget, lf_model_subsets, values, alpha):
         """
@@ -217,39 +270,62 @@ class AETC():
         # compute exploitation budget used _AETC_optimal_loss. It is notation
         # the exploit budget if nexplore_samples (redefined below) > nsamples
         # Note exploit budget is for unrounded nsamples_per_subset
-        exploit_budget = (total_budget-nsamples*explore_cost)
+        exploit_budget = total_budget - nsamples * explore_cost
         if (exploit_budget) < 0:
             raise RuntimeError("Exploitation budget is negative")
 
         results = []
         for subset in lf_model_subsets:
             result = self._optimal_loss(
-                total_budget, values[:, :1], values[:, 1:], self._costs,
-                subset, alpha, exploit_budget)
-            (loss, nsamples_per_subset, explore_rate, beta_Sp,
-             Sigma_S, k1, k2, exploit_budget) = result
+                total_budget,
+                values[:, :1],
+                values[:, 1:],
+                self._costs,
+                subset,
+                alpha,
+                exploit_budget,
+            )
+            (
+                loss,
+                nsamples_per_subset,
+                explore_rate,
+                beta_Sp,
+                Sigma_S,
+                k1,
+                k2,
+                exploit_budget,
+            ) = result
             results.append(result)
 
         # compute optimal model
         best_subset_idx = np.argmin([result[0] for result in results])
         best_result = results[best_subset_idx]
-        (best_loss, best_allocation, best_rate, best_beta_Sp,
-         best_Sigma_S, best_k1, best_k2,
-         best_exploit_budget) = best_result
-        best_cost = self._costs[lf_model_subsets[best_subset_idx]+1].sum()
+        (
+            best_loss,
+            best_allocation,
+            best_rate,
+            best_beta_Sp,
+            best_Sigma_S,
+            best_k1,
+            best_k2,
+            best_exploit_budget,
+        ) = best_result
+        best_cost = self._costs[lf_model_subsets[best_subset_idx] + 1].sum()
 
         best_subset = lf_model_subsets[best_subset_idx]
         # use +1 to account for subset indexing only lf models
-        best_subset_costs = self._costs[best_subset+1]
-        best_subset_groups = get_model_subsets(best_subset.shape[0],np)
-        best_subset_group_costs = np.asarray([
-            best_subset_costs[group].sum() for group in best_subset_groups])
+        best_subset_costs = self._costs[best_subset + 1]
+        best_subset_groups = get_model_subsets(best_subset.shape[0], np)
+        best_subset_group_costs = np.asarray(
+            [best_subset_costs[group].sum() for group in best_subset_groups]
+        )
 
         # recorrect for solving exploitation with unit exploit budget
         best_nsamples_per_subset = np.asarray(best_allocation)
         rounded_best_nsamples_per_subset = np.asarray(
-            np.floor(best_nsamples_per_subset))
-        best_variance = best_k2/best_exploit_budget
+            np.floor(best_nsamples_per_subset)
+        )
+        best_variance = best_k2 / best_exploit_budget
 
         # Incrementing one round at a time is the most optimal
         # but does not allow for parallelism
@@ -258,42 +334,52 @@ class AETC():
         # else:
         #     nexplore_samples = nsamples + 1
 
-        if best_rate > 2*nsamples:
-            nexplore_samples = 2*nsamples
+        if best_rate > 2 * nsamples:
+            nexplore_samples = 2 * nsamples
         elif best_rate > nsamples:
-            nexplore_samples = int(np.ceil((nsamples+best_rate)/2))
+            nexplore_samples = int(np.ceil((nsamples + best_rate) / 2))
         else:
             nexplore_samples = nsamples
 
-        if (total_budget-nexplore_samples*explore_cost) < 0:
-            nexplore_samples = int(total_budget/explore_cost)
+        if (total_budget - nexplore_samples * explore_cost) < 0:
+            nexplore_samples = int(total_budget / explore_cost)
 
-        return (nexplore_samples, best_subset, best_cost, best_beta_Sp,
-                best_Sigma_S, rounded_best_nsamples_per_subset,
-                best_nsamples_per_subset,
-                best_loss, best_k1,
-                best_variance, best_exploit_budget,
-                best_subset_group_costs)
+        return (
+            nexplore_samples,
+            best_subset,
+            best_cost,
+            best_beta_Sp,
+            best_Sigma_S,
+            rounded_best_nsamples_per_subset,
+            best_nsamples_per_subset,
+            best_loss,
+            best_k1,
+            best_variance,
+            best_exploit_budget,
+            best_subset_group_costs,
+        )
 
-    def explore(self, total_budget, lf_model_subsets, alpha=4,random_states=None):
+    def explore(
+        self, total_budget, lf_model_subsets, alpha=4, random_states=None
+    ):
         if self._costs is None:
             # todo extract costs from models
             # costs = ...
             raise NotImplementedError()
         lf_model_subsets, max_ncovariates = self._validate_subsets(
-            lf_model_subsets)
+            lf_model_subsets
+        )
         if random_states is not None:
-            rvs = partial(self.rvs,random_states=random_states)
+            rvs = partial(self.rvs, random_states=random_states)
         else:
             rvs = self.rvs
 
-        nexplore_samples = max_ncovariates+2
+        nexplore_samples = max_ncovariates + 2
         nexplore_samples_prev = 0
-        while ((nexplore_samples - nexplore_samples_prev > 0)):
-            nnew_samples = nexplore_samples-nexplore_samples_prev
+        while nexplore_samples - nexplore_samples_prev > 0:
+            nnew_samples = nexplore_samples - nexplore_samples_prev
             new_samples = rvs(nnew_samples)
-            new_values = [
-                model(new_samples) for model in self.models]
+            new_values = [model(new_samples) for model in self.models]
             if nexplore_samples_prev == 0:
                 samples = new_samples
                 values = np.hstack(new_values)
@@ -304,10 +390,11 @@ class AETC():
                 values = np.vstack((values, np.hstack(new_values)))
             nexplore_samples_prev = nexplore_samples
             result = self._explore_step(
-                total_budget, lf_model_subsets, values, alpha)
+                total_budget, lf_model_subsets, values, alpha
+            )
             nexplore_samples = result[0]
             last_result = result
-        return samples, values, last_result 
+        return samples, values, last_result
 
     def get_exploit_samples(self):
         raise NotImplementedError
@@ -361,68 +448,89 @@ class AETCMC(AETC):
             First element is the Oracle covariance between models.
             Second element is the Oracle means of the models.
         """
-        super().__init__(models,rvs,costs,oracle_stats)
+        super().__init__(models, rvs, costs, oracle_stats)
 
-    def _find_k2(self,beta_Sp,Sigma_S,costs_S):
+    def _find_k2(self, beta_Sp, Sigma_S, costs_S):
         asketch = beta_Sp[1:]  # remove high-fidelity coefficient
 
         exploit_cost = sum(costs_S)
 
         assert len(asketch.shape) == 2
-        k2 = exploit_cost*np.trace(np.linalg.multi_dot((asketch.T, Sigma_S, asketch)))
+        k2 = exploit_cost * np.trace(
+            np.linalg.multi_dot((asketch.T, Sigma_S, asketch))
+        )
 
-        return k2, 1/exploit_cost*np.ones(1)
+        return k2, 1 / exploit_cost * np.ones(1)
 
-    def get_exploit_samples(self,result,random_states=None):
+    def get_exploit_samples(self, result, random_states=None):
         best_subset = result[1]
-        rounded_nsamples_per_subset = result[5] 
+        rounded_nsamples_per_subset = result[5]
 
         if random_states is not None:
-            rvs = partial(self.rvs,random_states=random_states)
+            rvs = partial(self.rvs, random_states=random_states)
         else:
             rvs = self.rvs
         samples = rvs(rounded_nsamples_per_subset)
         samples_per_model = [samples for _ in best_subset]
-        best_subset_HF = [s+1 for s in best_subset]
+        best_subset_HF = [s + 1 for s in best_subset]
         return samples_per_model, best_subset_HF
 
-    def find_exploit_mean(self,values_per_model,result):
-        beta_Sp  = result[3]
+    def find_exploit_mean(self, values_per_model, result):
+        beta_Sp = result[3]
         beta_best_S = beta_Sp[1:]
- 
+
         stat_best_S = MultiOutputMean(1, self._bkd)
 
-        values_per_model = np.array(values_per_model)[:,:,0]
-        product =  np.squeeze(np.dot(beta_best_S.T, values_per_model.mean(axis=1)))
+        values_per_model = np.array(values_per_model)[:, :, 0]
+        product = np.squeeze(
+            np.dot(beta_best_S.T, values_per_model.mean(axis=1))
+        )
         return beta_Sp[0, 0] + product
 
-    def exploit(self,result):
+    def exploit(self, result):
         samples_per_model, best_subset = self.get_exploit_samples(result)
-        values_per_model = np.array([
-            self.models[s](samples)
-            for s, samples in zip(best_subset, samples_per_model)])
-        return self.find_exploit_mean(values_per_model,result)
-        
+        values_per_model = np.array(
+            [
+                self.models[s](samples)
+                for s, samples in zip(best_subset, samples_per_model)
+            ]
+        )
+        return self.find_exploit_mean(values_per_model, result)
+
     def _explore_result_to_dict(self, result):
         result = {
-            "nexplore_samples": result[0], "subset": result[1],
-            "subset_cost": result[2], "beta_Sp": result[3],
-            "sigma_S": result[4], "rounded_nsamples_per_subset": result[5],
+            "nexplore_samples": result[0],
+            "subset": result[1],
+            "subset_cost": result[2],
+            "beta_Sp": result[3],
+            "sigma_S": result[4],
+            "rounded_nsamples_per_subset": result[5],
             "nsamples_per_subset": result[6],
-            "loss": result[7], "k1": result[8],
+            "loss": result[7],
+            "k1": result[8],
             # BLUE_variance is for unrounded nsamples_per_subset
             "BLUE_variance": result[9],
-            "exploit_budget": result[10], "mlblue_subset_costs": result[11],
-            "explore_budget": result[0]*(result[2]+self._costs[0])}
+            "exploit_budget": result[10],
+            "mlblue_subset_costs": result[11],
+            "explore_budget": result[0] * (result[2] + self._costs[0]),
+        }
         return result
 
     def __repr__(self):
         rep = "{0}()".format(self.__class__.__name__)
         return rep
 
+
 class AETCBLUE(AETC):
-    def __init__(self, models, rvs, costs=None, oracle_stats=None,
-                 reg_blue=1e-15, backend=NumpyLinAlgMixin):
+    def __init__(
+        self,
+        models,
+        rvs,
+        costs=None,
+        oracle_stats=None,
+        reg_blue=1e-15,
+        backend=NumpyLinAlgMixin,
+    ):
         r"""
         Parameters
         ----------
@@ -448,79 +556,107 @@ class AETCBLUE(AETC):
             First element is the Oracle covariance between models.
             Second element is the Oracle means of the models.
         """
-        super().__init__(models,rvs,costs,oracle_stats,backend=backend)
+        super().__init__(models, rvs, costs, oracle_stats, backend=backend)
         self._reg_blue = reg_blue
 
-    def _find_k2(self,beta_Sp,Sigma_S,costs_S,round_nsamples=False):
+    def _find_k2(self, beta_Sp, Sigma_S, costs_S, round_nsamples=False):
         asketch = beta_Sp[1:]  # remove high-fidelity coefficient
 
         stat_S = MultiOutputMean(1, self._bkd)
         stat_S.set_pilot_quantities(Sigma_S)
         est = MLBLUEEstimator(
-            stat_S, costs_S, asketch=asketch, reg_blue=self._reg_blue, backend=self._bkd)
-        target_cost = 10*costs_S[0]
+            stat_S,
+            costs_S,
+            asketch=asketch,
+            reg_blue=self._reg_blue,
+            backend=self._bkd,
+        )
+        target_cost = 10 * costs_S[0]
         opt = MLBLUESPDOptimizer()
         opt.set_estimator(est)
         est.set_optimizer(opt)
-        est.allocate_samples(target_cost, round_nsamples=round_nsamples, min_nhf_samples=0)
+        est.allocate_samples(
+            target_cost, round_nsamples=round_nsamples, min_nhf_samples=0
+        )
         nsamples_per_subset = np.maximum(
-                np.zeros_like(est._rounded_npartition_samples),
-                est._rounded_npartition_samples)
+            np.zeros_like(est._rounded_npartition_samples),
+            est._rounded_npartition_samples,
+        )
         k2 = est._optimized_criteria
         k2 *= target_cost
         nsamples_per_subset /= target_cost
 
         return k2, nsamples_per_subset
 
-    def get_exploit_samples(self,result,random_states=None):
+    def get_exploit_samples(self, result, random_states=None):
         if random_states is not None:
-            rvs = partial(self.rvs,random_states=random_states)
+            rvs = partial(self.rvs, random_states=random_states)
         else:
             rvs = self.rvs
 
         best_subset = result[1]
         beta_Sp, Sigma_best_S, rounded_nsamples_per_subset = result[3:6]
-        costs_best_S = self._costs[best_subset+1]
+        costs_best_S = self._costs[best_subset + 1]
         beta_best_S = beta_Sp[1:]
         stat_best_S = MultiOutputMean(1, self._bkd)
         stat_best_S.set_pilot_quantities(Sigma_best_S)
         est = MLBLUEEstimator(
-            stat_best_S, costs_best_S, Sigma_best_S, asketch=beta_best_S,backend=self._bkd)
+            stat_best_S,
+            costs_best_S,
+            Sigma_best_S,
+            asketch=beta_best_S,
+            backend=self._bkd,
+        )
         est._set_optimized_params(rounded_nsamples_per_subset)
         samples_per_model = est.generate_samples_per_model(rvs)
-        best_subset_HF = [s+1 for s in best_subset] #We convert to account for the introduction of HF model
+        best_subset_HF = [
+            s + 1 for s in best_subset
+        ]  # We convert to account for the introduction of HF model
         return samples_per_model, best_subset_HF
 
-    def find_exploit_mean(self,values_per_model,result):
+    def find_exploit_mean(self, values_per_model, result):
         best_subset = result[1]
         beta_Sp, Sigma_best_S, rounded_nsamples_per_subset = result[3:6]
-        costs_best_S = self._costs[best_subset+1]
+        costs_best_S = self._costs[best_subset + 1]
         beta_best_S = beta_Sp[1:]
         stat_best_S = MultiOutputMean(1, self._bkd)
         stat_best_S.set_pilot_quantities(Sigma_best_S)
-        est = MLBLUEEstimator(stat_best_S, costs_best_S, Sigma_best_S, asketch=beta_best_S,backend=self._bkd)
+        est = MLBLUEEstimator(
+            stat_best_S,
+            costs_best_S,
+            Sigma_best_S,
+            asketch=beta_best_S,
+            backend=self._bkd,
+        )
         est._set_optimized_params(rounded_nsamples_per_subset)
-        product =  est(values_per_model).item()
+        product = est(values_per_model).item()
         return beta_Sp[0, 0] + product
 
-    def exploit(self,result):
+    def exploit(self, result):
         samples_per_model, best_subset = self.get_exploit_samples(result)
         values_per_model = [
             self.models[s](samples)
-            for s, samples in zip(best_subset, samples_per_model)]
-        return self.find_exploit_mean(values_per_model,result)
- 
+            for s, samples in zip(best_subset, samples_per_model)
+        ]
+        return self.find_exploit_mean(values_per_model, result)
+
     def _explore_result_to_dict(self, result):
         result = {
-            "nexplore_samples": result[0], "subset": result[1],
-            "subset_cost": result[2], "beta_Sp": result[3],
-            "sigma_S": result[4], "rounded_nsamples_per_subset": result[5],
+            "nexplore_samples": result[0],
+            "subset": result[1],
+            "subset_cost": result[2],
+            "beta_Sp": result[3],
+            "sigma_S": result[4],
+            "rounded_nsamples_per_subset": result[5],
             "nsamples_per_subset": result[6],
-            "loss": result[7], "k1": result[8],
+            "loss": result[7],
+            "k1": result[8],
             # BLUE_variance is for unrounded nsamples_per_subset
             "BLUE_variance": result[9],
-            "exploit_budget": result[10], "mlblue_subset_costs": result[11],
-            "explore_budget": result[0]*(result[2]+self._costs[0])}
+            "exploit_budget": result[10],
+            "mlblue_subset_costs": result[11],
+            "explore_budget": result[0] * (result[2] + self._costs[0]),
+        }
         return result
 
     def __repr__(self):
