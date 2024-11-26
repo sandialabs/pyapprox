@@ -349,7 +349,7 @@ class TunableModelEnsemble(ACVBenchmark):
         -----
         The choice of A0, A1, A2 here results in unit variance for each model
         """
-        self._theta1 = theta1
+        self._theta1 = backend.array(theta1)
         if shifts is None:
             shifts = [0, 0]
         self._shifts = shifts
@@ -400,8 +400,8 @@ class TunableModelEnsemble(ACVBenchmark):
         self.A0 = math.sqrt(11)
         self.A1 = math.sqrt(7)
         self.A2 = math.sqrt(3)
-        self._theta0 = math.pi / 2
-        self._theta2 = math.pi / 6
+        self._theta0 = self._bkd.array(math.pi / 2)
+        self._theta2 = self._bkd.array(math.pi / 6)
         assert self._theta0 > self._theta1 and self._theta1 > self._theta2
         funs = [self.m0, self.m1, self.m2]
         self._models = [

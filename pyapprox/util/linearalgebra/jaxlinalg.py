@@ -386,6 +386,10 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.floor(array)
 
     @staticmethod
+    def ceil(array):
+        return np.ceil(array)
+
+    @staticmethod
     def asarray(array, dtype=float):
         return np.asarray(array, dtype=dtype)
 

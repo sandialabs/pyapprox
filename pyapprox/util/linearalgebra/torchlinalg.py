@@ -417,6 +417,10 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.floor(array)
 
     @staticmethod
+    def ceil(array):
+        return torch.ceil(array)
+
+    @staticmethod
     def asarray(array, dtype=torch.double):
         return torch.as_tensor(array, dtype=dtype)
 

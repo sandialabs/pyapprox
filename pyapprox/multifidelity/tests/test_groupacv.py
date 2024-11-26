@@ -18,6 +18,7 @@ from pyapprox.multifidelity.groupacv import (
     GroupACVGradientOptimizer,
     MLBLUESPDOptimizer,
     ChainedACVOptimizer,
+    MLBLUEGradientOptimizer,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -291,7 +292,8 @@ class TestGroupACV:
         assert errors[0] < 1e-12
 
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
-        opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        # opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        opt = MLBLUEGradientOptimizer(ScipyConstrainedOptimizer())
         opt.set_estimator(mlest)
         opt.set_budget(target_cost)
         errors = opt._optimizer._objective.check_apply_jacobian(iterate)

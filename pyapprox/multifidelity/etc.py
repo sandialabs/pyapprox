@@ -1,5 +1,5 @@
 from functools import partial
-import torch
+from typing import List, Union
 
 import numpy as np
 
@@ -7,20 +7,22 @@ from pyapprox.multifidelity.groupacv import (
     MLBLUEEstimator,
     get_model_subsets,
     MLBLUESPDOptimizer,
+    GroupACVOptimizer,
+    ChainedACVOptimizer,
 )
 from pyapprox.multifidelity.stats import MultiOutputMean
-from pyapprox.multifidelity.acv import MCEstimator
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 class AETC:
     def __init__(
         self,
-        models,
-        rvs,
-        costs=None,
-        oracle_stats=None,
-        backend=NumpyLinAlgMixin,
+        models: List[callable],
+        rvs: callable,
+        costs: Array = None,
+        oracle_stats: List[Array] = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         r"""
         Parameters
@@ -28,20 +30,21 @@ class AETC:
         models : list
             List of callable functions fun with signature
 
-            ``fun(samples)-> np.ndarary (nsamples, nqoi)``
+            ``fun(samples)-> Array (nsamples, nqoi)``
 
-        where samples is np.ndarray (nvars, nsamples)
+        where samples is Array (nvars, nsamples)
 
         rvs : callable
             Function used to generate random samples with signature
 
-            ``fun(nsamples)-> np.ndarary (nvars, nsamples)``
+            ``fun(nsamples)-> Array (nvars, nsamples)``
 
         costs : iterable
             Iterable containing the time taken to evaluate a single sample
             with each model. If None then each model will be assumed to
             track the evaluation time.
         """
+        self._bkd = backend
         self.models = models
         self._nmodels = len(models)
         if not callable(rvs):
@@ -49,39 +52,38 @@ class AETC:
         self.rvs = rvs
         self._costs = self._validate_costs(costs)
         self._oracle_stats = oracle_stats
-        self._bkd = backend
 
     def _validate_costs(self, costs):
         if costs is None:
             return
         if len(costs) != self._nmodels:
             raise ValueError("costs must be provided for each model")
-        return np.asarray(costs)
+        return self._bkd.asarray(costs)
 
     def _validate_subsets(self, subsets):
         # subsets are indexes of low fidelity models
         if subsets is None:
-            subsets = get_model_subsets(self._nmodels - 1, np)
+            subsets = get_model_subsets(self._nmodels - 1, self._bkd)
         validated_subsets, max_ncovariates = [], -np.inf
         for subset in subsets:
-            if (np.unique(subset).shape[0] != len(subset)) or (
-                np.max(subset) >= self._nmodels - 1
+            if (self._bkd.unique(subset).shape[0] != len(subset)) or (
+                self._bkd.max(subset) >= self._nmodels - 1
             ):
                 msg = "subsets provided are not valid. First invalid subset"
                 msg += f" {subset}"
                 raise ValueError(msg)
-            validated_subsets.append(np.asarray(subset))
+            validated_subsets.append(self._bkd.asarray(subset, dtype=int))
             max_ncovariates = max(max_ncovariates, len(subset))
         return validated_subsets, max_ncovariates
 
     def _subset_oracle_stats(self, oracle_stats, covariate_subset):
         cov, means = oracle_stats[:2]
         Sigma_S = cov[np.ix_(covariate_subset + 1, covariate_subset + 1)]
-        Sp_subset = np.hstack((0, covariate_subset + 1))
-        x_Sp = np.vstack(([1], means[covariate_subset + 1]))
-        tmp1 = np.zeros_like(cov)
+        Sp_subset = self._bkd.hstack((0, covariate_subset + 1))
+        x_Sp = self._bkd.vstack(([1], means[covariate_subset + 1]))
+        tmp1 = self._bkd.zeros(cov.shape)
         tmp1[1:, 1:] = cov[1:, 1:]
-        tmp2 = np.vstack((1, means[1:]))
+        tmp2 = self._bkd.vstack((1, means[1:]))
         Lambda_Sp = (tmp1 + tmp2.dot(tmp2.T))[np.ix_(Sp_subset, Sp_subset)]
         return Sigma_S, Lambda_Sp, x_Sp
 
@@ -89,10 +91,10 @@ class AETC:
         r"""
         Parameters
         ----------
-        hf_values : np.ndarray (nsamples, 1)
+        hf_values : Array (nsamples, 1)
             Evaluations of the high-fidelity model
 
-        covariate_values : np.ndarray (nsamples, nmodels-1)
+        covariate_values : Array (nsamples, nmodels-1)
             Evaluations of the low-fidelity models (co-variates)
 
         Returns
@@ -103,12 +105,14 @@ class AETC:
         nsamples, ncovariates = covariate_values.shape
         # X_S is evaluations of low fidelity models in subset S
         # X_Sp is $X_{S+}=(1, X_S)$
-        X_Sp = np.hstack((np.ones((nsamples, 1)), covariate_values))
+        X_Sp = self._bkd.hstack(
+            (self._bkd.ones((nsamples, 1)), covariate_values)
+        )
         # beta_Sp = $\hat{beta}_{S+}=(\hat{b}_S, \hat{\beta}_S)$
-        beta_Sp = np.linalg.lstsq(X_Sp, hf_values, rcond=None)[0]
+        beta_Sp = self._bkd.lstsq(X_Sp, hf_values)
         assert beta_Sp.ndim == 2 and beta_Sp.shape[1] == 1
         # sigma_S_sq = $\hat{\sigma}_S^2$
-        sigma_S_sq = ((hf_values - X_Sp.dot(beta_Sp)) ** 2).sum() / (
+        sigma_S_sq = ((hf_values - X_Sp @ (beta_Sp)) ** 2).sum() / (
             nsamples - 1
         )
 
@@ -130,21 +134,21 @@ class AETC:
 
         nmodels = len(costs_S)
 
-        # np.trace(Gamma) = $\hat{\sigma}^2_S
-        k1 = sigma_S_sq * np.trace(
-            np.linalg.multi_dot((x_Sp, x_Sp.T, np.linalg.inv(Lambda_Sp)))
+        # trace(Gamma) = $\hat{\sigma}^2_S
+        k1 = sigma_S_sq * self._bkd.trace(
+            self._bkd.multidot((x_Sp, x_Sp.T, self._bkd.inv(Lambda_Sp)))
         )
 
-        Sigma_Sp = np.zeros((Sigma_S.shape[0] + 1, Sigma_S.shape[1] + 1))
+        Sigma_Sp = self._bkd.zeros((Sigma_S.shape[0] + 1, Sigma_S.shape[1] + 1))
         Sigma_Sp[1:, 1:] = Sigma_S
 
         if nmodels == 1:
             exploit_cost = sum(costs_S)
             nsamples_per_subset = 1 / exploit_cost
-            k2 = exploit_cost * np.trace(
-                np.linalg.multi_dot((Sigma_Sp, beta_Sp, beta_Sp.T))
+            k2 = exploit_cost * self._bkd.trace(
+                self._bkd.multidot((Sigma_Sp, beta_Sp, beta_Sp.T))
             )
-            return k1, k2, nsamples_per_subset * np.ones(1)
+            return k1, k2, nsamples_per_subset * self._bkd.ones((1,))
 
         k2, nsamples_per_subset = self._find_k2(beta_Sp, Sigma_S, costs_S)
 
@@ -166,17 +170,17 @@ class AETC:
         total_budget : float
             The total budget allocated to exploration and exploitation.
 
-        hf_values : np.ndarray (nsamples, 1)
+        hf_values : Array (nsamples, 1)
             Evaluations of the high-fidelity model
 
-        covariate_values : np.ndarray (nsamples, nmodels-1)
+        covariate_values : Array (nsamples, nmodels-1)
             Evaluations of the low-fidelity models (co-variates)
 
-        costs : np.ndarray (nmodels)
+        costs : Array (nmodels)
             The computational cost of evaluating each model at one realization.
             High fidelity is assumed to be first entry
 
-        covariate_subset : np.ndarray (nsubset_models)
+        covariate_subset : Array (nsubset_models)
             The indices :math:`S\subseteq[1,\ldots,N]` of the low-fidelity models
             in the subset. :math:`s\in S` indexes the columns in values and costs.
             High-fidelity is indexed by :math:`s=0` and cannot be in :math:`S`.
@@ -195,10 +199,10 @@ class AETC:
 
         if self._oracle_stats is None:
             x_Sp = X_Sp.mean(axis=0)[:, None]
-            Sigma_S = np.atleast_2d(
-                np.cov(covariate_values[:, covariate_subset].T, ddof=1)
+            Sigma_S = self._bkd.atleast2d(
+                self._bkd.cov(covariate_values[:, covariate_subset].T, ddof=1)
             )
-            Lambda_Sp = X_Sp.T.dot(X_Sp) / nsamples
+            Lambda_Sp = X_Sp.T @ X_Sp / nsamples
         else:
             Sigma_S, Lambda_Sp, x_Sp = self._subset_oracle_stats(
                 self._oracle_stats, covariate_subset
@@ -232,7 +236,7 @@ class AETC:
             total_budget
             / (
                 explore_cost
-                + np.sqrt(explore_cost * k2 / (k1 + alpha ** (-nsamples)))
+                + self._bkd.sqrt(explore_cost * k2 / (k1 + alpha ** (-nsamples)))
             ),
             nsamples,
         )
@@ -257,7 +261,7 @@ class AETC:
         """
         Parameters
         ----------
-        subsets : list[np.ndarray]
+        subsets : list[Array]
            Indices of the low fidelity models in a subset from 0,...,K-2
            e.g. (0) contains only the first low fidelity model and (0, 2)
            contains the first and third. 0 DOES NOT correspond to the
@@ -265,7 +269,7 @@ class AETC:
         """
 
         nsamples = values.shape[0]
-        explore_cost = np.sum(self._costs)
+        explore_cost = self._bkd.sum(self._costs)
 
         # compute exploitation budget used _AETC_optimal_loss. It is notation
         # the exploit budget if nexplore_samples (redefined below) > nsamples
@@ -298,7 +302,9 @@ class AETC:
             results.append(result)
 
         # compute optimal model
-        best_subset_idx = np.argmin([result[0] for result in results])
+        best_subset_idx = self._bkd.argmin(
+            self._bkd.array([result[0] for result in results])
+        )
         best_result = results[best_subset_idx]
         (
             best_loss,
@@ -316,14 +322,14 @@ class AETC:
         # use +1 to account for subset indexing only lf models
         best_subset_costs = self._costs[best_subset + 1]
         best_subset_groups = get_model_subsets(best_subset.shape[0], np)
-        best_subset_group_costs = np.asarray(
+        best_subset_group_costs = self._bkd.asarray(
             [best_subset_costs[group].sum() for group in best_subset_groups]
         )
 
         # recorrect for solving exploitation with unit exploit budget
-        best_nsamples_per_subset = np.asarray(best_allocation)
-        rounded_best_nsamples_per_subset = np.asarray(
-            np.floor(best_nsamples_per_subset)
+        best_nsamples_per_subset = self._bkd.asarray(best_allocation)
+        rounded_best_nsamples_per_subset = self._bkd.asarray(
+            self._bkd.floor(best_nsamples_per_subset)
         )
         best_variance = best_k2 / best_exploit_budget
 
@@ -337,7 +343,7 @@ class AETC:
         if best_rate > 2 * nsamples:
             nexplore_samples = 2 * nsamples
         elif best_rate > nsamples:
-            nexplore_samples = int(np.ceil((nsamples + best_rate) / 2))
+            nexplore_samples = int(self._bkd.ceil((nsamples + best_rate) / 2))
         else:
             nexplore_samples = nsamples
 
@@ -382,12 +388,12 @@ class AETC:
             new_values = [model(new_samples) for model in self.models]
             if nexplore_samples_prev == 0:
                 samples = new_samples
-                values = np.hstack(new_values)
+                values = self._bkd.hstack(new_values)
                 # will fail if model does not return ndarray (nsamples, nqoi=1)
                 assert values.ndim == 2
             else:
-                samples = np.hstack((samples, new_samples))
-                values = np.vstack((values, np.hstack(new_values)))
+                samples = self._bkd.hstack((samples, new_samples))
+                values = self._bkd.vstack((values, self._bkd.hstack(new_values)))
             nexplore_samples_prev = nexplore_samples
             result = self._explore_step(
                 total_budget, lf_model_subsets, values, alpha
@@ -422,28 +428,33 @@ class AETC:
 
 
 class AETCMC(AETC):
-    def __init__(self, models, rvs, costs=None, oracle_stats=None):
+    def __init__(
+            self, models: List[callable],
+            rvs: callable,
+            costs: Array = None,
+            oracle_stats: List[Array] = None
+    ):
         r"""
         Parameters
         ----------
         models : list
             List of callable functions fun with signature
 
-            ``fun(samples)-> np.ndarary (nsamples, nqoi)``
+            ``fun(samples)-> Array (nsamples, nqoi)``
 
-        where samples is np.ndarray (nvars, nsamples)
+        where samples is Array (nvars, nsamples)
 
         rvs : callable
             Function used to generate random samples with signature
 
-            ``fun(nsamples)-> np.ndarary (nvars, nsamples)``
+            ``fun(nsamples)-> Array (nvars, nsamples)``
 
         costs : iterable
             Iterable containing the time taken to evaluate a single sample
             with each model. If None then each model will be assumed to
             track the evaluation time.
 
-        oracle_stats : list[np.ndarray (nmodels, nmodels), np.ndarray (nmodels, 1)]
+        oracle_stats : list[Array (nmodels, nmodels), Array (nmodels, 1)]
             This is only used for testing.
             First element is the Oracle covariance between models.
             Second element is the Oracle means of the models.
@@ -456,11 +467,11 @@ class AETCMC(AETC):
         exploit_cost = sum(costs_S)
 
         assert len(asketch.shape) == 2
-        k2 = exploit_cost * np.trace(
-            np.linalg.multi_dot((asketch.T, Sigma_S, asketch))
+        k2 = exploit_cost * self._bkd.trace(
+            self._bkd.multidot((asketch.T, Sigma_S, asketch))
         )
 
-        return k2, 1 / exploit_cost * np.ones(1)
+        return k2, 1 / exploit_cost * self._bkd.ones((1,))
 
     def get_exploit_samples(self, result, random_states=None):
         best_subset = result[1]
@@ -479,17 +490,17 @@ class AETCMC(AETC):
         beta_Sp = result[3]
         beta_best_S = beta_Sp[1:]
 
-        stat_best_S = MultiOutputMean(1, self._bkd)
+        # stat_best_S = MultiOutputMean(1, self._bkd)
 
-        values_per_model = np.array(values_per_model)[:, :, 0]
-        product = np.squeeze(
-            np.dot(beta_best_S.T, values_per_model.mean(axis=1))
+        values_per_model = self._bkd.array(values_per_model)[:, :, 0]
+        product = self._bkd.squeeze(
+            self._bkd.dot(beta_best_S.T, values_per_model.mean(axis=1))
         )
         return beta_Sp[0, 0] + product
 
     def exploit(self, result):
         samples_per_model, best_subset = self.get_exploit_samples(result)
-        values_per_model = np.array(
+        values_per_model = self._bkd.array(
             [
                 self.models[s](samples)
                 for s, samples in zip(best_subset, samples_per_model)
@@ -524,11 +535,12 @@ class AETCMC(AETC):
 class AETCBLUE(AETC):
     def __init__(
         self,
-        models,
-        rvs,
-        costs=None,
-        oracle_stats=None,
-        reg_blue=1e-15,
+        models: List[callable],
+        rvs: callable,
+        costs: Array = None,
+        oracle_stats: List[Array] = None,
+        reg_blue: float = 1e-15,
+        optimizer: GroupACVOptimizer = None,
         backend=NumpyLinAlgMixin,
     ):
         r"""
@@ -537,27 +549,42 @@ class AETCBLUE(AETC):
         models : list
             List of callable functions fun with signature
 
-            ``fun(samples)-> np.ndarary (nsamples, nqoi)``
+            ``fun(samples)-> Array (nsamples, nqoi)``
 
-        where samples is np.ndarray (nvars, nsamples)
+        where samples is Array (nvars, nsamples)
 
         rvs : callable
             Function used to generate random samples with signature
 
-            ``fun(nsamples)-> np.ndarary (nvars, nsamples)``
+            ``fun(nsamples)-> Array (nvars, nsamples)``
 
         costs : iterable
             Iterable containing the time taken to evaluate a single sample
             with each model. If None then each model will be assumed to
             track the evaluation time.
 
-        oracle_stats : list[np.ndarray (nmodels, nmodels), np.ndarray (nmodels, 1)]
+        oracle_stats : list[Array (nmodels, nmodels), Array (nmodels, 1)]
             This is only used for testing.
             First element is the Oracle covariance between models.
             Second element is the Oracle means of the models.
         """
+        if optimizer is None:
+            optimizer = MLBLUESPDOptimizer()
+        self.set_optimizer(optimizer)
         super().__init__(models, rvs, costs, oracle_stats, backend=backend)
         self._reg_blue = reg_blue
+
+    def set_optimizer(
+            self, optimizer: Union[GroupACVOptimizer, ChainedACVOptimizer]
+    ):
+        if not isinstance(optimizer, GroupACVOptimizer) and not isinstance(
+                optimizer, ChainedACVOptimizer
+        ):
+            raise ValueError(
+                "optimizer must be instance of GroupACVOptimizer"
+                "or ChainedACVOptimizer"
+            )
+        self._optimizer = optimizer
 
     def _find_k2(self, beta_Sp, Sigma_S, costs_S, round_nsamples=False):
         asketch = beta_Sp[1:]  # remove high-fidelity coefficient
@@ -572,14 +599,13 @@ class AETCBLUE(AETC):
             backend=self._bkd,
         )
         target_cost = 10 * costs_S[0]
-        opt = MLBLUESPDOptimizer()
-        opt.set_estimator(est)
-        est.set_optimizer(opt)
+        # opt.set_estimator(est)
+        est.set_optimizer(self._optimizer)
         est.allocate_samples(
             target_cost, round_nsamples=round_nsamples, min_nhf_samples=0
         )
-        nsamples_per_subset = np.maximum(
-            np.zeros_like(est._rounded_npartition_samples),
+        nsamples_per_subset = self._bkd.maximum(
+            self._bkd.zeros(est._rounded_npartition_samples.shape),
             est._rounded_npartition_samples,
         )
         k2 = est._optimized_criteria

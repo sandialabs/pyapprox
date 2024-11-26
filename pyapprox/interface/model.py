@@ -113,7 +113,10 @@ class Model(ABC):
     def _check_jacobian_shape(self, jac, sample):
         if jac.shape != (self.nqoi(), sample.shape[0]):
             raise RuntimeError(
-                "Jacobian returned by _jacobian has the wrong shape"
+                "Jacobian returned by _jacobian has shape {0}"
+                " but must be {1}".format(
+                    jac.shape, (self.nqoi(), sample.shape[0])
+                )
             )
 
     def jacobian(self, sample):

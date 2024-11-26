@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from itertools import combinations
-from typing import List
+from typing import List, Union
 
 import numpy as np
 
@@ -119,7 +119,6 @@ def _grouped_acv_sigma(nmodels, nsamples_intersect, subsets, stat):
                 subset0, subset1, nsamples_intersect[ii, jj], N_ii, N_jj, stat
             )
             Sigma[jj][ii] = Sigma[ii][jj].T
-    Sigma = stat._bkd.vstack([stat._bkd.hstack(row) for row in Sigma])
     return Sigma
 
 
@@ -154,6 +153,87 @@ class GroupACVObjective(Model):
             self._est._covariance_from_npartition_samples,
             npartition_samples[:, 0],
         )[None, ...]
+
+
+class MLBLUEObjective(GroupACVObjective):
+    def _jacobian(self, npartition_samples):
+        # apply derivative of inverse matrix
+        # d_m X^{-1} = X^{-1} (d_mX) X^{-1}
+        # where X = psi_matrix and d_mX is RC_mR.T (not multiplied by nsamples)
+        # Objective is e^T X e so
+        # grad is e^T X^{-1} d_mX X^{-1} e = \gamma^T(d_mX)\gamma
+        # compute sigma blocks with npartition_samples = 1
+        Sigma_blocks = _grouped_acv_sigma(
+            self._est.nmodels(),
+            self._bkd.eye(npartition_samples.shape[0]),
+            # self._est._nintersect_samples(npartition_samples[:, 0]),
+            self._est._subsets,
+            self._est._stat,
+        )
+        # compute psi matrix with partition sizes
+        # todo cache psi_matrix when it is computed when evaluatin objective
+        psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
+        psi_inv = self._bkd.pinv(psi_matrix)
+        gamma = psi_inv @ self._est._asketch
+        Rmats = self._est._restriction_matrices
+        jacobian = self._bkd.hstack(
+            [
+                self._bkd.multidot(
+                    (
+                        -gamma.T,
+                        Rmats[ii],
+                        self._bkd.pinv(Sigma_blocks[ii][ii]),
+                        Rmats[ii].T,
+                        gamma
+                     )
+                )
+                for ii in range(len(Sigma_blocks))
+            ]
+        )
+        return jacobian
+
+    def _hessian(self, npartition_samples):
+        # apply derivative of inverse matrix twice
+        # d_m X^{-1} = X^{-1} (d_mX) X^{-1}
+        # where X = psi_matrix and d_mX is RC_mR.T (not multiplied by nsamples)
+        # Applying twice we have
+        # d_mn X^{-1} = d_n(X^{-1} (d_mX) X^{-1})
+        # = X^{-1}(d_nX)X^{-1}d_mX^{-1} + X^{-1}(d_mX)X^{-1}d_nX^{-1}
+        # So hessian is
+        # = \gamma^T(d_nX)X^{-1}d_m\gamma + \gamma^T(d_mX)X^{-1}d_nX^{-1}/gamma
+        # = \gamma^T(d_nX)\xi + \xi^Td_nX^{-1}/gamma
+        # = \eta^T + \eta, \eta = \xi^Td_nX^{-1}/gamma
+
+        Sigma_blocks = _grouped_acv_sigma(
+            self._est.nmodels(),
+            self._bkd.eye(npartition_samples.shape[0]),
+            self._est._subsets,
+            self._est._stat,
+        )
+        psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
+        psi_inv = self._bkd.pinv(psi_matrix)
+        gamma = psi_inv @ self._est._asketch
+        Rmats = self._est._restriction_matrices
+        hess = [
+            [None for jj in range(len(Sigma_blocks))]
+            for ii in range(len(Sigma_blocks))
+        ]
+        sigma_invs = [
+            self._bkd.pinv(Sigma_blocks[ii][ii])
+            for ii in range(len(Sigma_blocks))
+        ]
+        psi_derivs = [
+            self._bkd.multidot((Rmats[ii], sigma_invs[ii], Rmats[ii].T))
+            for ii in range(len(Sigma_blocks))
+        ]
+        for ii in range(len(Sigma_blocks)):
+            xi = self._bkd.multidot((psi_inv, psi_derivs[ii], gamma))
+            for jj in range(ii, len(Sigma_blocks)):
+                eta = self._bkd.multidot((xi.T, psi_derivs[jj], gamma))
+                hess[ii][jj] = eta.T + eta
+                hess[jj][ii] = hess[ii][jj]
+        hess = self._bkd.vstack([self._bkd.hstack(row) for row in hess])[None, ...]
+        return hess
 
 
 class GroupACVConstraint(Constraint):
@@ -275,9 +355,12 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         super().set_budget(target_cost, min_nhf_samples)
         self._constraint.set_budget(target_cost, min_nhf_samples)
 
+    def get_objective(self):
+        return GroupACVObjective()
+
     def set_estimator(self, est: "GroupACVEstimator"):
         super().set_estimator(est)
-        objective = GroupACVObjective()
+        objective = self.get_objective()
         objective.set_estimator(self._est)
         self._optimizer.set_objective_function(objective)
         self._constraint = GroupACVCostContstraint(
@@ -295,19 +378,25 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         )
 
 
+class MLBLUEGradientOptimizer(GroupACVGradientOptimizer):
+    def get_objective(self):
+        return MLBLUEObjective()
+
+
 class MLBLUESPDOptimizer(GroupACVOptimizer):
-    def __init__(self):
+    def __init__(self, solver_name: str = "CVXOPT"):
         try:
             import cvxpy
         except ImportError:
             raise ValueError(
-                "MLBLUESPDOptimizer can only be used when optinal dependency"
+                "MLBLUESPDOptimizer can only be used when optional dependency"
                 "cvxpy is installed"
             )
         self._cvxpy = cvxpy
 
         super().__init__()
         self._min_nlf_samples = None
+        self._solver_name = solver_name
 
     def _cvxpy_psi(self, nsps_cvxpy):
         Psi = self._est._psi_blocks_flat @ nsps_cvxpy
@@ -351,7 +440,8 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
             ]
         constraints += [self._cvxpy_spd_constraint(nsps_cvxpy, t_cvxpy) >> 0]
         prob = self._cvxpy.Problem(obj, constraints)
-        prob.solve(verbose=0, solver="CVXOPT")
+        # prob.solve(verbose=0, solver=self._solver_name)
+        prob.solve(solver=self._solver_name)
         if t_cvxpy.value is None:
             raise RuntimeError("solver did not converge")
         result = OptimizationResult(
@@ -417,12 +507,11 @@ class GroupACVEstimator:
         self._npartitions = self._allocation_mat.shape[1]
         self._partitions_per_model = self._get_partitions_per_model()
         self._partitions_intersect = self._get_subset_intersecting_partitions()
-        self._R = self._bkd.hstack(
-            [
+        self._restriction_matrices = [
                 self._restriction_matrix(self.nmodels(), subset).T
                 for ii, subset in enumerate(self._subsets)
             ]
-        )
+        self._R = self._bkd.hstack(self._restriction_matrices)
         # set npatition_samples above small constant,
         # otherwise gradient will not be defined.
         self._npartition_samples_lb = 0  # 1e-5
@@ -528,15 +617,18 @@ class GroupACVEstimator:
         )
 
     def _sigma(self, npartition_samples):
-        return _grouped_acv_sigma(
+        Sigma = _grouped_acv_sigma(
             self.nmodels(),
             self._nintersect_samples(npartition_samples),
             self._subsets,
             self._stat,
         )
+        Sigma = self._bkd.vstack([self._bkd.hstack(row) for row in Sigma])
+        return Sigma
 
     def _psi_matrix_from_sigma(self, Sigma):
-        # TODO instead of applyint R matrices just collect correct rows and columns
+        # TODO instead of applying R matrices just collect correct rows
+        # and columns
         reg_mat = self._bkd.eye(self.nmodels()) * self._reg_blue
         return (
             self._bkd.multidot((self._R, self._bkd.pinv(Sigma), self._R.T))
@@ -655,7 +747,9 @@ class GroupACVEstimator:
             asketch = asketch[:, None]
         return asketch
 
-    def set_optimizer(self, optimizer: GroupACVOptimizer):
+    def set_optimizer(
+            self, optimizer: Union[GroupACVOptimizer, ChainedACVOptimizer]
+    ):
         if not isinstance(optimizer, GroupACVOptimizer) and not isinstance(
             optimizer, ChainedACVOptimizer
         ):

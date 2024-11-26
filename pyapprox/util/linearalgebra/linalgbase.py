@@ -705,6 +705,11 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def ceil(array):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def asarray(array):
         raise NotImplementedError
 
