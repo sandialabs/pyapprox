@@ -624,9 +624,11 @@ class GroupACVEstimator:
         self._rounded_target_cost = rounded_target_cost
         self._opt_sample_splits = self._sample_splits_per_model()
         self._optimized_sigma = self._sigma(self._rounded_npartition_samples)
-        self._optimized_criteria = self._covariance_from_npartition_samples(
-            self._rounded_npartition_samples
-        ).item()
+        self._optimized_criteria = float(
+            self._covariance_from_npartition_samples(
+                self._rounded_npartition_samples
+            )
+        )
 
     def _set_optimized_params(self, npartition_samples, round_nsamples=True):
         # expected scalar type Double but found Float error can occur
@@ -707,6 +709,7 @@ class GroupACVEstimator:
         result = self._optimizer.minimize(iterate)
 
         if not result.success or self._bkd.any(result.x < 0):
+            print(result)
             raise RuntimeError("optimization not successful")
 
         self._set_optimized_params(result.x[:, 0], round_nsamples)

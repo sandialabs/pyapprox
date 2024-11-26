@@ -527,19 +527,19 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
         method = opts.pop("method", "trust-constr")
         if method == "L-BFGS-B":
             if self._verbosity < 3:
-                self._opts['iprint'] = self._verbosity-1
+                opts['iprint'] = self._verbosity-1
             else:
-                self._opts['iprint'] = 200
+                opts['iprint'] = 200
             if len(self._raw_constraints) > 0:
                 raise ValueError(
                     "{0} cannot be used with constraints".format(method)
                 )
         elif method == "trust-constr":
-            self._opts["verbose"] = self._verbosity
+            opts["verbose"] = self._verbosity
         elif method == "slsqp":
             if self._verbosity > 0:
-                self._opts["disp"] = True
-                self._opts["iprint"] = self._verbosity
+                opts["disp"] = True
+                opts["iprint"] = self._verbosity
 
         scipy_result = scipy_minimize(
             objective,

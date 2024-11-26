@@ -270,7 +270,7 @@ class TestGroupACV:
         # todo use hyperparameter to set npartition_samples
         # todo move all member variables private and add functions to access
         # iterate = bkd.full((gest.npartitions(), 1), 1.)
-        iterate = gest._init_guess(target_cost)[:, None]
+        iterate = gest._init_guess(target_cost)
         # assert bkd.min(errors)/bkd.max(errors) < 1e-6 and errors[0] > 0.2
 
         opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
@@ -345,18 +345,19 @@ class TestGroupACV:
 
         gest = MLBLUEEstimator(stat, costs, reg_blue=0)
         opt1 = GroupACVGradientOptimizer(
-            ScipyConstrainedNelderMeadOptimizer(opts={"maxiter": 100})
+            ScipyConstrainedNelderMeadOptimizer(opts={"maxiter": 20})
         )
         opt1.set_estimator(gest)
-        opt2 = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        scipy_opt = ScipyConstrainedOptimizer(opts={"gtol": 1e-9})
+        scipy_opt.set_verbosity(3)
+        opt2 = GroupACVGradientOptimizer(scipy_opt)
         opt2.set_estimator(gest)
         opt = ChainedACVOptimizer(opt1, opt2)
         gest.set_optimizer(opt)
-        iterate = gest._init_guess(target_cost)[:, None]
+        iterate = gest._init_guess(target_cost)
         gest.allocate_samples(target_cost, min_nhf_samples, iterate=iterate)
-
-        print(gest._optimized_criteria, mlest._optimized_criteria)
-        assert bkd.allclose(
+        # print(gest._optimized_criteria-mlest._optimized_criteria)
+        assert np.allclose(
             gest._optimized_criteria, mlest._optimized_criteria, rtol=1e-3
         )
 
@@ -370,6 +371,7 @@ class TestGroupACV:
         ]
         for test_case in test_cases:
             np.random.seed(1)
+            print(test_case)
             self._check_mlblue_spd(*test_case)
 
     def _check_insert_pilot_samples(self, nmodels, min_nhf_samples, seed):
@@ -399,7 +401,7 @@ class TestGroupACV:
         opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
         opt.set_estimator(est)
         est.set_optimizer(opt)
-        iterate = est._init_guess(target_cost)[:, None]
+        iterate = est._init_guess(target_cost)
         est.allocate_samples(target_cost, min_nhf_samples, iterate=iterate)
 
         # the following test only works if variable.num_vars()==1 because
@@ -448,7 +450,7 @@ class TestGroupACV:
             for seed in range(ntrials):
                 self._check_insert_pilot_samples(*test_case, seed)
 
-    def test_mlblue_recovers_mfmc(self):
+    def test_groupacv_recovers_mfmc(self):
         nmodels = 3
         bkd = self.get_backend()
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
@@ -474,20 +476,20 @@ class TestGroupACV:
         opt2.set_estimator(est)
         opt = ChainedACVOptimizer(opt1, opt2)
         est.set_optimizer(opt)
-        iterate = est._init_guess(target_cost)[:, None]
+        iterate = est._init_guess(target_cost)
         est.allocate_samples(
             target_cost, iterate=iterate, round_nsamples=False
         )
         mfmc_model_ratios, mfmc_log_variance = _allocate_samples_mfmc(
-            bkd.to_numpy(cov), bkd.to_numpy(costs), target_cost
+            cov, costs, target_cost, bkd
         )
-        partition_ratios = MFMCEstimator._native_ratios_to_npartition_ratios(
+        mfmc_est = MFMCEstimator(stat, costs)
+        partition_ratios = mfmc_est._native_ratios_to_npartition_ratios(
             mfmc_model_ratios
         )
-        mfmc_est = MFMCEstimator(stat, bkd.to_numpy(costs))
         npartition_samples = (
             mfmc_est._npartition_samples_from_partition_ratios(
-                target_cost, bkd.array(partition_ratios)
+                target_cost, partition_ratios
             )
         )
         assert np.allclose(
@@ -603,12 +605,46 @@ class TestGroupACV:
         target_cost = 10  # 0
         costs = bkd.copy(bkd.flip(bkd.logspace(-nmodels + 1, 0, nmodels)))
 
+        # check that group acv computes the same estimator variance
+        # as mfmc when estimating variance using the optimal mfmc sample allocation for
+        # estimating variance
         stat = multioutput_stats["variance"](1, backend=bkd, return_cov=False)
         stat.set_pilot_quantities(cov, W)
-        subsets = [[0, 1, 2], [1], [2]]
+        subsets = [[0, 1], [1, 2], [2]]
         subsets = [bkd.array(s, dtype=int) for s in subsets]
-        est = GroupACVEstimator(stat, costs, subsets=subsets)
+        est = GroupACVEstimator(stat, costs, subsets=subsets, est_type="nested")
+        
+        stat = multioutput_stats["variance"](1, backend=bkd)
+        stat.set_pilot_quantities(cov, W)
+        mfmc_est = get_estimator("gmf", stat, costs, recursion_index=bkd.array([0, 1]))
+        mfmc_est.allocate_samples(target_cost)
+        print(mfmc_est, mfmc_est._optimized_covariance)
 
+        samples_per_model = mfmc_est.generate_samples_per_model(
+            lambda n: model.variable().rvs(n)
+        )
+        values_per_model = [
+            fun(samples) for fun, samples in zip(funs, samples_per_model)
+        ]
+        mfmc_est_val = mfmc_est(values_per_model)
+
+        # apply mfmc sample allocaiton to group acv
+        est._set_optimized_params(
+            mfmc_est._rounded_npartition_samples,
+            round_nsamples=False,
+        )
+        groupacv_est_val = est(values_per_model)
+        assert np.allclose(
+            est._optimized_criteria, mfmc_est._optimized_covariance
+        )
+        assert np.allclose(groupacv_est_val, mfmc_est_val)
+
+        # check optimization of group acv
+        stat = multioutput_stats["variance"](1, backend=bkd, return_cov=False)
+        stat.set_pilot_quantities(cov, W)
+        subsets = [[0, 1], [1, 2], [2]]
+        subsets = [bkd.array(s, dtype=int) for s in subsets]
+        est = GroupACVEstimator(stat, costs, subsets=subsets, est_type="nested")
         opt1 = GroupACVGradientOptimizer(
             ScipyConstrainedNelderMeadOptimizer(opts={"maxiter": 100})
         )
@@ -617,55 +653,11 @@ class TestGroupACV:
         opt2.set_estimator(est)
         opt = ChainedACVOptimizer(opt1, opt2)
         est.set_optimizer(opt)
-        iterate = est._init_guess(target_cost)[:, None]
+        iterate = est._init_guess(target_cost)
         est.allocate_samples(target_cost, iterate=iterate, round_nsamples=True)
-
-        samples_per_model = est.generate_samples_per_model(
-            model.variable().rvs
+        assert np.allclose(
+            est._optimized_criteria, mfmc_est._optimized_covariance
         )
-        values_per_model = [
-            bkd.array(fun(samples))
-            for fun, samples in zip(funs, samples_per_model)
-        ]
-        print(est._rounded_npartition_samples)
-        est_val = est(values_per_model)
-        print(est_val)
-        print(est._optimized_criteria)
-
-        # TODO: change backend once I clean up acv code to use backends
-        # for now acv requires numpy
-        from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-
-        stat = multioutput_stats["variance"](1, backend=bkd)
-        stat.set_pilot_quantities(cov, W)
-        mfmc_est = get_estimator("gis", stat, bkd.to_numpy(costs))
-        print(mfmc_est)
-        mfmc_est.allocate_samples(target_cost)
-
-        samples_per_model = mfmc_est.generate_samples_per_model(
-            lambda n: model.variable().rvs(n)
-        )
-        values_per_model = [
-            fun(samples) for fun, samples in zip(funs, samples_per_model)
-        ]
-        print(mfmc_est._rounded_npartition_samples)
-        mfmc_est_val = mfmc_est(
-            # [bkd.to_numpy(vals) for vals in values_per_model]
-            values_per_model
-        )
-        print(mfmc_est_val)
-        print(mfmc_est._optimized_covariance)
-
-        # set mfmc optimal
-        # todo eventually I think I should be able to recover the same
-        # optima using GroupACVEstimator.allocate_samples
-
-        est._set_optimized_params(
-            mfmc_est._rounded_npartition_samples,
-            round_nsamples=False,
-        )
-        est_val = est(values_per_model)
-        print(est_val)
 
 
 class TestTorchGroupACV(TestGroupACV, unittest.TestCase):

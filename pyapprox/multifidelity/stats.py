@@ -1,9 +1,8 @@
 import numpy as np
-import torch
 from abc import ABC, abstractmethod
+from typing import List
 
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 def block_2x2(blocks, bkd):
@@ -567,6 +566,21 @@ class MultiOutputStatistic(ABC):
     ):
         raise NotImplementedError
 
+    def _check_pilot_values(self, pilot_values: List[Array]):
+        if not isinstance(pilot_values, list):
+            raise ValueError("pilot_values must be a list")
+        for vals in pilot_values:
+            if not isinstance(vals, self._bkd.array_type()):
+                raise ValueError(
+                    "pilot_values entry must be {0}".format(
+                         self._bkd.array_type()
+                    )
+                )
+            if vals.ndim != 2:
+                raise ValueError(
+                    "pilot_values entry must be 2D array"
+                )
+
 
 class MultiOutputMean(MultiOutputStatistic):
     def __init__(self, nqoi: int, backend: LinAlgMixin):
@@ -581,6 +595,7 @@ class MultiOutputMean(MultiOutputStatistic):
         return self._cov[: self._nqoi, : self._nqoi] / nhf_samples
 
     def compute_pilot_quantities(self, pilot_values: Array):
+        self._check_pilot_values(pilot_values)
         pilot_values = self._bkd.hstack(pilot_values)
         return (self._bkd.cov(pilot_values, rowvar=False, ddof=1),)
 
@@ -673,7 +688,8 @@ class MultiOutputVariance(MultiOutputStatistic):
             nhf_samples,
         )
 
-    def compute_pilot_quantities(self, pilot_values: Array):
+    def compute_pilot_quantities(self, pilot_values: List[Array]):
+        self._check_pilot_values(pilot_values)
         nmodels = len(pilot_values)
         pilot_values = self._bkd.hstack(pilot_values)
         cov = self._bkd.cov(pilot_values, rowvar=False, ddof=1)
@@ -800,6 +816,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         )
 
     def compute_pilot_quantities(self, pilot_values: Array):
+        self._check_pilot_values(pilot_values)
         nmodels = len(pilot_values)
         pilot_values = self._bkd.hstack(pilot_values)
         cov = self._bkd.cov(pilot_values, rowvar=False, ddof=1)
