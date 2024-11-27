@@ -86,7 +86,7 @@ class Physics(NewtonResidual):
         return jac
 
     @abstractmethod
-    def residual(self, sol: ScalarOperator):
+    def residual(self, sol: MatrixOperator):
         raise NotImplementedError
 
     def _residual_function_from_solution_array(self, sol_array: Array):
@@ -107,7 +107,7 @@ class Physics(NewtonResidual):
         return res.get_flattened_jacobian()
 
     @abstractmethod
-    def _solution_from_array(self, array):
+    def _solution_from_array(self, array: Array):
         raise NotImplementedError
 
     def solution_from_array(self, sol_array: Array):
@@ -241,6 +241,9 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         return residual
 
     def _flux(self, sol: ScalarSolution):
+        # Implement conservative form of flux that includes both diffusion
+        # and velocity field.
+        # The non conservative version does not include velocity field
         flux = 0.0
         if self._diffusion is not None:
             flux += self._diffusion * nabla(sol)
@@ -467,7 +470,7 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
         return funs
 
 
-class ShallowShelfEquations(VectorPhysicsMixin, Physics):
+class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
     def __init__(
         self,
         depth: ScalarFunction,
@@ -475,17 +478,16 @@ class ShallowShelfEquations(VectorPhysicsMixin, Physics):
         friction: ScalarFunction,
         A: float,
         rho: float,
-        forcing: VectorFunction = None,
+        velocity_forcing: VectorFunction = None,
     ):
-        self._check_is_scalar_function(friction, "bed")
-        self._check_is_scalar_function(friction, "depth")
+        self._check_is_scalar_function(bed, "bed")
         self._check_is_scalar_function(friction, "friction")
-        self._check_is_vector_function(forcing, "forcing")
-        super().__init__(forcing.basis)
-        self._depth = depth
+        self._check_is_vector_function(velocity_forcing, "velocity_forcing")
+        self.set_depth(depth)
+        super().__init__(velocity_forcing.basis)
         self._bed = bed
         self._friction = friction
-        self._forcing = forcing
+        self._velocity_forcing = velocity_forcing
 
         self._A = A
         self._rho = rho
@@ -499,6 +501,11 @@ class ShallowShelfEquations(VectorPhysicsMixin, Physics):
         self._const = 0.5 * self._A ** (-1 / self._n)
 
         self._flux_jacobian_implemented = True
+
+    def set_depth(self, depth: ScalarOperator):
+        if not isinstance(depth, ScalarOperator):
+            raise ValueError("depth must be an instance of ScalarOperator")
+        self._depth = depth
 
     def _effective_strain_rate(self, ux, uy, vx, vy):
         return (ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2) ** (0.5)
@@ -527,9 +534,149 @@ class ShallowShelfEquations(VectorPhysicsMixin, Physics):
             div(self._depth * flux)
             - self._friction * sol
             - self._depth * self._weighted_surf_grad
-            + self._forcing
+            + self._velocity_forcing
         )
         return residual
 
     def ncomponents(self):
         return 2
+
+    def get_functions(self) -> Dict:
+        funs = super().get_functions()
+        if self._velocity_forcing is not None:
+            funs["velocity_forcing"] = self._velocity_forcing
+        funs["bed"] = self._bed
+        funs["friction"] = self._bed
+        return funs
+
+
+class ShallowShelfDepthEquations(ScalarPhysicsMixin, Physics):
+    def __init__(self, depth_forcing: ScalarFunction = None):
+        self._check_is_scalar_function(depth_forcing, "depth_forcing")
+        super().__init__(depth_forcing.basis)
+        self._depth_forcing = depth_forcing
+        self._flux_jacobian_implemented = True
+
+    def set_velocities(self, velocities: VectorSolution):
+        self._velocities = velocities
+
+    def _flux(self, sol: ScalarSolution):
+        # sol = depth
+        return sol * self._velocities
+
+    def residual(self, sol: ScalarSolution) -> ScalarOperator:
+        residual = -div(self._flux(sol))
+        if self._depth_forcing is not None:
+            residual += self._depth_forcing
+        return residual
+
+    def get_functions(self) -> Dict:
+        funs = super().get_functions()
+        if self._depth_forcing is not None:
+            funs["depth_forcing"] = self._depth_forcing
+        return funs
+
+
+class SplitPhysicsMixin:
+    @abstractmethod
+    def _transient_physics_solution_from_array(
+            self, sol_array: Array
+    ) -> MatrixOperator:
+        raise NotImplementedError
+
+    def _stead_physics_solution_from_array(
+            self, sol_array: Array
+    ) -> MatrixOperator:
+        raise NotImplementedError
+
+    def __call__(self, sol_array: Array):
+        # this will be called by TimeIntegratorNewtonResidual
+        sol = self._transient_physics_solution_from_array(sol_array)
+        return self._transient_physics.residual(sol).get_flattened_values()
+
+    def jacobian(self, sol_array: Array):
+        # this will be called by TimeIntegratorNewtonResidual
+        sol = self._transient_physics_solution_from_array(sol_array)
+        return self._transient_physics.residual(sol).get_flattened_jacobian()
+
+    def steady_value(self, sol_array: Array) -> Array:
+        sol = self._steady_physics_solution_from_array(sol_array)
+        return self._steady_physics.residual(sol).get_flattened_values()
+
+    def steady_jacobian(self, sol_array: Array) -> Array:
+        sol = self._steady_physics_solution_from_array(sol_array)
+        return self._steady_physics.residual(sol).get_flattened_jacobian()
+
+
+class ShallowShelfDepthVelocityEquations(
+        SplitPhysicsMixin, VectorPhysicsMixin, Physics
+):
+    def __init__(
+        self,
+        bed: ScalarFunction,
+        friction: ScalarFunction,
+        A: float,
+        rho: float,
+        depth_forcing: ScalarFunction = None,
+        velocity_forcing: VectorFunction = None,
+    ):
+        super().__init__(bed.basis)
+        # initialize depth to zero, it will be overwritten later
+        depth = ZeroScalarFunction(self.basis, self.ncomponents())
+        self._steady_physics = ShallowShelfVelocityEquations(
+            depth, bed, friction, A, rho, velocity_forcing
+        )
+        self._transient_physics = ShallowShelfDepthEquations(depth_forcing)
+
+    def ncomponents(self) -> int:
+        return self.basis.nphys_vars()+1
+
+    def _transient_physics_solution_from_array(
+            self, sol_array: Array
+    ) -> MatrixOperator:
+        sol = self._solution_from_array(sol_array)
+        depth, u, v = sol.get_components()
+        velocities = VectorSolution(
+            self.basis, self.ncomponents(), self.ncomponents()-1
+        )
+        velocities.set_components([u, v])
+        self._transient_physics.set_velocities(velocities)
+        return depth
+
+    def _steady_physics_solution_from_array(
+            self, sol_array: Array
+    ) -> MatrixOperator:
+        sol = self._solution_from_array(sol_array)
+        depth, u, v = sol.get_components()
+        velocities = VectorSolution(
+            self.basis, self.ncomponents(), self.ncomponents()-1
+        )
+        velocities.set_components([u, v])
+        self._steady_physics.set_depth(depth)
+        return velocities
+
+    def residual(self, sol: MatrixOperator) -> MatrixOperator:
+        # depth, u, v = sol.get_components()
+        # must be MatrixOperator not VectorOperator even though it has
+        # only 1 column because every other physics does the same thing
+        residual = MatrixOperator(
+            self.basis, self.ncomponents(), self.ncomponents(), 1
+        )
+        depth = self._transient_physics_solution_from_array(
+            sol.get_flattened_values()
+        )
+        velocities = self._steady_physics_solution_from_array(
+            sol.get_flattened_values()
+        )
+        depth_residual = self._transient_physics.residual(depth)
+        velocities_residual = self._steady_physics.residual(velocities)
+        residual.set_components(
+            [[depth_residual]] + [v for v in velocities_residual.get_components()]
+        )
+        return residual
+
+    def get_functions(self) -> Dict:
+        return {
+            **self._steady_physics.get_functions(),
+            **self._transient_physics.get_functions()
+        }

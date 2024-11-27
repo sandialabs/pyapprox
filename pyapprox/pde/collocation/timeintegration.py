@@ -8,6 +8,10 @@ from pyapprox.pde.collocation.newton import (
     Functional,
     AdjointFunctional,
 )
+from pyapprox.surrogates.bases.univariate import (
+    UnivariatePiecewisePolynomialNodeGenerator,
+    UnivariatePiecewisePolynomialQuadratureRule,
+)
 
 
 class TransientNewtonResidual(NewtonResidual):
@@ -40,6 +44,7 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         return jac
 
     def _value(self, sol: Array) -> Array:
+        print(self)
         raise NotImplementedError
 
     def __call__(self, sol: Array) -> Array:
@@ -112,7 +117,7 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         return jac
 
     @abstractmethod
-    def quadrature_samples_weights(self, times):
+    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
         raise NotImplementedError
 
     def adjoint_initial_condition(
@@ -201,12 +206,6 @@ class ExplicitTimeIntegratorNewtonResidual(TimeIntegratorNewtonResidual):
         return self.native_residual.mass_matrix(fsol_n.shape[0]).T
 
 
-from pyapprox.surrogates.bases.univariate import (
-    UnivariatePiecewisePolynomialNodeGenerator,
-    UnivariatePiecewisePolynomialQuadratureRule,
-)
-
-
 class UnivariateTransientNodeGenerator(
     UnivariatePiecewisePolynomialNodeGenerator
 ):
@@ -233,7 +232,7 @@ class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
         self.native_residual.set_time(self._time)
         return -self._deltat * self.native_residual.param_jacobian(fsol_nm1)
 
-    def quadrature_samples_weights(self, times):
+    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
@@ -273,7 +272,7 @@ class BackwardEulerResidual(TimeIntegratorNewtonResidual):
         self.native_residual.set_time(self._time + self._deltat)
         return -self._deltat * self.native_residual.param_jacobian(fsol_n)
 
-    def quadrature_samples_weights(self, times):
+    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
@@ -360,7 +359,7 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
             * (k1_jac + (mass + deltat_np1 * k1_jac) @ k2_jac)
         )
 
-    def quadrature_samples_weights(self, times):
+    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
@@ -398,7 +397,7 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
             sol.shape[0]
         ) - 0.5 * self._deltat * (next_jac)
 
-    def quadrature_samples_weights(self, times):
+    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
@@ -461,7 +460,7 @@ class RK4(ExplicitTimeIntegratorNewtonResidual):
             - self._deltat / 6 * (k1_res + 2 * k2_res + 2 * k3_res + k4_res)
         )
 
-    def quadrature_samples_weights(self, times):
+    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
@@ -509,7 +508,7 @@ class SymplecticMidpointResidual(TimeIntegratorNewtonResidual):
             (self._prev_sol + sol) / 2
         )
 
-    def quadrature_samples_weights(self, times):
+    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
         quadx = times
         deltat = times[1:] - times[:-1]
         quadw = self._bkd.hstack(

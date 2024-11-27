@@ -585,7 +585,7 @@ class ManufacturedTwoSpeciesReactionDiffusion(
         self.sympy_reaction_expressions()
 
 
-class ManufacturedShallowShelfEquations(
+class ManufacturedShallowShelfVelocityEquations(
     VectorSolutionMixin,
     ManufacturedSolution,
 ):
@@ -611,6 +611,9 @@ class ManufacturedShallowShelfEquations(
         self._n = 3
         super().__init__(sol_strs, nvars, bkd, oned)
 
+    def velocity_expressions(self):
+        return self._expressions["solution"]
+
     def sympy_expressions(self):
         cartesian_symbs = self.cartesian_symbols()
         bed_expr = sp.sympify(self._bed_str)
@@ -619,7 +622,7 @@ class ManufacturedShallowShelfEquations(
         surface_expr = bed_expr + depth_expr
         surface_grad_exprs = [surface_expr.diff(s, 1) for s in cartesian_symbs]
 
-        u, v = self._expressions["solution"]
+        u, v = self.velocity_expressions()
         ux = u.diff(cartesian_symbs[0])
         uy = u.diff(cartesian_symbs[1])
         vx = v.diff(cartesian_symbs[0])
@@ -664,3 +667,60 @@ class ManufacturedShallowShelfEquations(
         self._expressions["forcing"] = [
             f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
         ]
+
+
+class ManufacturedShallowShelfVelocityAndDepthEquations(
+    ManufacturedShallowShelfVelocityEquations
+):
+    def __init__(
+        self,
+        vel_strs: List[str],
+        nvars: int,
+        bed_str: str,
+        depth_str: str,
+        friction_str: str,
+        A: float,
+        rho: float,
+        bkd=NumpyLinAlgMixin,
+        oned: bool = False,
+    ):
+        sol_strs = [depth_str] + vel_strs
+        super().__init__(
+            sol_strs, nvars, bed_str, depth_str, friction_str, A, rho, bkd, oned
+        )
+
+    def velocity_expressions(self):
+        return self._expressions["solution"][1:]
+
+    def sympy_expressions(self):
+        super().sympy_expressions()
+        cartesian_symbs = self.cartesian_symbols()
+        depth = self._expressions["depth"]
+        vel_exprs = self.velocity_expressions()
+        # note sign in front of divergence is the negative of that used in
+        # diffusion equation
+        depth_forc = sum(
+            [
+                (depth * vel_expr).diff(symb, 1)
+                for vel_expr, symb in zip(vel_exprs, cartesian_symbs)
+            ]
+        )
+        self._expressions["velocity_forcing"] = self._expressions["forcing"]
+        self._expressions["forcing"] = [depth_forc] + self._expressions["forcing"]
+        self._expressions["depth_forcing"] = depth_forc
+        self.transient["depth_forcing"] = self.is_transient()
+        self.transient["velocity_forcing"] = self.is_transient()
+        print(self.transient)
+
+    def sympy_temporal_derivative_expression(self):
+        if not self.is_transient():
+            raise ValueError("Equations must be transient")
+        # only depth equations depends on temporal derivative
+        self._set_expression(
+                "depth_forcing_without_time_deriv",
+                copy.deepcopy(self._expressions["depth_forcing"]),
+                self._sol_strs[0],
+        )
+        self._expressions["depth_forcing"] += self._expressions[
+                "solution"
+            ][0].diff(self.time_symbol()[0], 1)

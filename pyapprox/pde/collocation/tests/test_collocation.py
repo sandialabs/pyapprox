@@ -17,7 +17,8 @@ from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedHelmholtz,
     ManufacturedShallowWave,
     ManufacturedTwoSpeciesReactionDiffusion,
-    ManufacturedShallowShelfEquations,
+    ManufacturedShallowShelfVelocityEquations,
+    ManufacturedShallowShelfVelocityAndDepthEquations,
 )
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
@@ -31,7 +32,8 @@ from pyapprox.pde.collocation.physics import (
     HelmholtzEquation,
     ShallowWaveEquation,
     TwoSpeciesReactionDiffusionEquations,
-    ShallowShelfEquations,
+    ShallowShelfVelocityEquations,
+    ShallowShelfDepthVelocityEquations,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunctionFromCallable,
@@ -460,18 +462,24 @@ class TestCollocation:
         name: str,
         basis: OrthogonalCoordinateCollocationBasis,
         man_sol: ManufacturedSolution,
+        ninput_funs: int = None,
+        ncomponents: int = None,
     ):
+        if ninput_funs is None:
+            ninput_funs = man_sol.ncomponents()
+        if ncomponents is None:
+            ncomponents = man_sol.ncomponents()
         if not man_sol.transient[name]:
             return VectorFunctionFromCallable(
                 basis,
-                man_sol.ncomponents(),
-                man_sol.ncomponents(),
+                ninput_funs,
+                ncomponents,
                 man_sol.functions[name],
             )
         fun = TransientVectorFunctionFromCallable(
             basis,
-            man_sol.ncomponents(),
-            man_sol.ncomponents(),
+            ninput_funs,
+            ncomponents,
             man_sol.functions[name],
         )
         fun.set_time(0)
@@ -1082,6 +1090,7 @@ class TestCollocation:
         deltat,
         test_time,
         timestep_cls,
+        jac_atol=2e-12
     ):
         # physics must use man_sol["forcing_without_time_deriv"]
 
@@ -1101,8 +1110,8 @@ class TestCollocation:
         solver._time_residual.native_residual.set_time(test_time)
 
         residual = physics.residual(init_sol)
-        print(residual.get_flattened_values(), "R")
-        print(bkd.abs(residual.get_flattened_values()).max())
+        # print(residual.get_flattened_values(), "R")
+        # print(bkd.abs(residual.get_flattened_values()).max())
         assert bkd.allclose(
             residual.get_flattened_values(),
             bkd.zeros(
@@ -1119,14 +1128,16 @@ class TestCollocation:
             return physics.residual(sol).get_values()
 
         jac_auto = bkd.jacobian(autofun, init_sol.get_flattened_values())
-        # np.set_printoptions(linewidth=1000)
-        # print(bkd.to_numpy(jac_auto), "JAUTO")
-        # print(bkd.to_numpy(physics.residual(init_sol).get_jacobian()), "JC")
+        # import torch
+        # torch.set_printoptions(linewidth=1000, threshold=10000)
+        # print(jac_auto, "JAUTO")
+        # print(physics.residual(init_sol).get_jacobian(), "JC")
+        # print(jac_auto-physics.residual(init_sol).get_jacobian(), "Jdiff")
+        # print(bkd.abs(jac_auto-physics.residual(init_sol).get_jacobian()).max(), "Jdiff")
         assert bkd.allclose(
             physics.residual(init_sol).get_jacobian(),
             jac_auto,
-            # atol=1e-15,
-            atol=2e-12,
+            atol=jac_atol,
         )
 
     def _check_transient_pde_solve(
@@ -1537,7 +1548,7 @@ class TestCollocation:
         basis: OrthogonalCoordinateCollocationBasis,
     ):
         bkd = self.get_backend()
-        man_sol = ManufacturedShallowShelfEquations(
+        man_sol = ManufacturedShallowShelfVelocityEquations(
             sol_strs,
             basis.nphys_vars(),
             bed_str,
@@ -1556,7 +1567,7 @@ class TestCollocation:
         friction = self._setup_scalar_function("friction", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
 
-        physics = ShallowShelfEquations(
+        physics = ShallowShelfVelocityEquations(
             depth,
             bed,
             friction,
@@ -1622,6 +1633,124 @@ class TestCollocation:
         ]
         for test_case in itertools.product(*test_case_args):
             self._check_steady_shallow_shelf_equations(*test_case)
+
+    def _check_transient_shallow_shelf_equations(
+        self,
+        sol_strs: List[str],
+        bed_str: str,
+        depth_str: str,
+        friction_str: str,
+        A: str,
+        rho: str,
+        bndry_types: str,
+        basis: OrthogonalCoordinateCollocationBasis,
+        timestep_cls: TimeIntegratorNewtonResidual,
+    ):
+        bkd = self.get_backend()
+        man_sol = ManufacturedShallowShelfVelocityAndDepthEquations(
+            sol_strs,
+            basis.nphys_vars(),
+            bed_str,
+            depth_str,
+            friction_str,
+            A,
+            rho,
+            bkd=bkd,
+            oned=True,
+        )
+        print(man_sol)
+        exact_sol = self._setup_vector_solution(basis, man_sol)
+        init_time, final_time, deltat = 0.0, 0.1, 0.1
+        exact_sol.set_time(init_time)
+
+        bed = self._setup_scalar_function("bed", basis, man_sol)
+        friction = self._setup_scalar_function("friction", basis, man_sol)
+        velocity_forcing = self._setup_vector_function(
+            "velocity_forcing", basis, man_sol, man_sol.ncomponents(),
+            man_sol.ncomponents()-1
+        )
+        depth_forcing = self._setup_scalar_function(
+            "depth_forcing", basis, man_sol
+        )
+        depth_forcing_wo_time_deriv = self._setup_scalar_function(
+            "depth_forcing_without_time_deriv", basis, man_sol
+        )
+
+        physics = ShallowShelfDepthVelocityEquations(
+            bed,
+            friction,
+            A,
+            rho,
+            depth_forcing_wo_time_deriv,
+            velocity_forcing,
+        )
+        test_time = deltat
+        self._check_transient_pde_physics_residual(
+            basis,
+            bndry_types,
+            man_sol,
+            physics,
+            exact_sol,
+            init_time,
+            final_time,
+            deltat,
+            test_time,
+            timestep_cls,
+        )
+
+        physics = ShallowShelfDepthVelocityEquations(
+            bed,
+            friction,
+            A,
+            rho,
+            depth_forcing,
+            velocity_forcing,
+        )
+        self._check_transient_pde_solve(
+            basis,
+            bndry_types,
+            man_sol,
+            physics,
+            exact_sol,
+            init_time,
+            final_time,
+            deltat,
+            timestep_cls,
+        )
+
+    def test_transient_shallow_shelf_equation_2d(self):
+        from pyapprox.pde.collocation.solvers import SplitPhysicsTimeIntegratorNewtonResidual
+        s0, depth, alpha = 2, 0.1, 1e-1
+        test_case_args = [
+            # need to have at least one velocity derivative non zero
+            # for all x or nans will be produced when computing rate ** (1/n-1)
+            [
+                ["(x+1)**2*(1+y)*(1+T)", "y**2"],
+            ],  # solution
+            [
+                f"{s0}-{alpha}*x**2-{depth}",
+            ],  # bed string
+            [
+                #f"{depth}+{alpha}*x**2",
+                f"{depth}*(T+1)"
+            ],  # depth string
+            [
+                "10",
+            ],  # friction string
+            [
+                1,#1e-4,
+            ],  # A
+            [
+                1,
+            ],  # rho
+            ["D"],  # bndry types
+            [
+                self._setup_rect_cheby_basis_2d([15, 15], [0, 1, 0, 1]),
+            ],  # basis
+            [SplitPhysicsTimeIntegratorNewtonResidual],  # timestep_cls
+        ]
+        for test_case in itertools.product(*test_case_args):
+            self._check_transient_shallow_shelf_equations(*test_case)
 
 
 class TestNumpyCollocation(TestCollocation, unittest.TestCase):

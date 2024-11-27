@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 import textwrap
+from typing import Tuple
 
 from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.pde.collocation.physics import Physics
+from pyapprox.pde.collocation.physics import Physics, SplitPhysicsMixin
 from pyapprox.pde.collocation.functions import (
     MatrixOperator,
     TransientOperatorMixin,
@@ -176,3 +177,54 @@ class TransientPDE(PDESolver):
             ),
             self._times
         )
+
+
+from pyapprox.pde.collocation.timeintegration import BackwardEulerResidual
+class SplitPhysicsTimeIntegratorNewtonResidual(
+        TimeIntegratorNewtonResidual
+):
+    def __init__(
+        self,
+        transient_residual: TransientPhysicsNewtonResidual,
+        # TODO: set backward euler as default only to enable easier testing,
+        # when this class works remove default
+        time_residual_cls: TimeIntegratorNewtonResidual = BackwardEulerResidual,
+    ):
+        super().__init__(transient_residual)
+        # SplitPhysicsMixin is structured so that while passing in all physics
+        # time residual is only applied to the traansient physics
+        self._time_residual = time_residual_cls(transient_residual)
+        self._physics = self._time_residual.native_residual._physics
+
+    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
+        return self._time_residual.quadrature_samples_weights(times)
+
+    def _value(self, sol: Array) -> Array:
+        # called by TimeIntegratorNewtonResidual.__call__ which is called by
+        # ImplicitTimeIntegrator.step()
+        print(self._physics)
+        return self._bkd.vstack(
+            (self._time_residual._value(sol), self._physics.steady_value(sol))
+        )
+
+    def _jacobian(self, sol: Array) -> Array:
+        return self._bkd.vstack(
+            (
+                self._time_residual._jacobian(sol),
+                self._physics.steady_jacobian(sol)
+            )
+        )
+
+    def set_time(self, time: float, deltat: float, prev_sol: Array):
+        self._time = time
+        self._deltat = deltat
+        self._prev_sol = prev_sol
+        self._time_residual.set_time(time, deltat, prev_sol)
+
+    def _apply_constraints_to_residual(self, res_array: Array) -> Array:
+        # boundary conditions applied by each physics component
+        raise NotImplementedError
+
+    def _apply_constraints_to_jacobian(self, jac: Array) -> Array:
+        # boundary conditions applied by each physics component
+        raise NotImplementedError
