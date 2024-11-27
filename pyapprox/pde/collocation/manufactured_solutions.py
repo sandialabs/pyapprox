@@ -253,7 +253,7 @@ class ReactionMixin:
         #     sol_symb, self._expressions["solution"]
         # )
         react_str = react_str.replace("u", "({0})".format(sol_str))
-        return react_str, sp.sympify(react_str)#, react_prime_expr
+        return react_str, sp.sympify(react_str)  # , react_prime_expr
 
     def sympy_reaction_expressions(self):
         react_str, react_expr = self._sympy_reaction_expressions(
@@ -278,7 +278,8 @@ class AdvectionMixin:
         self._expressions["forcing"] += advection_expr
         if self._conservative:
             flux_exprs = [
-                -vel_expr * self._expressions["solution"] for vel_expr in vel_exprs
+                -vel_expr * self._expressions["solution"]
+                for vel_expr in vel_exprs
             ]
             self._set_expression("flux", flux_exprs, self._sol_str)
 
@@ -314,7 +315,7 @@ class ManufacturedAdvectionDiffusionReaction(
 
 
 class ManufacturedNonLinearAdvectionDiffusionReaction(
-        ManufacturedAdvectionDiffusionReaction
+    ManufacturedAdvectionDiffusionReaction
 ):
     def __init__(
         self,
@@ -332,8 +333,14 @@ class ManufacturedNonLinearAdvectionDiffusionReaction(
         self._linear_diff_str = linear_diff_str
         diff_str = nonlinear_diff_str.replace("u", "({0})".format(sol_str))
         super().__init__(
-            sol_str, nvars, diff_str, react_str, vel_strs, bkd, oned,
-            conservative
+            sol_str,
+            nvars,
+            diff_str,
+            react_str,
+            vel_strs,
+            bkd,
+            oned,
+            conservative,
         )
 
     def sympy_expressions(self):
@@ -501,8 +508,8 @@ class ManufacturedShallowWave(VectorSolutionMixin, ManufacturedSolution):
         ]
         # assume code always applies bed gradient forcing
         for ii in range(self._nvars):
-            forc_expr[ii+1] += self._g * h * bed_expr.diff(
-                cartesian_symbs[ii], 1
+            forc_expr[ii + 1] += (
+                self._g * h * bed_expr.diff(cartesian_symbs[ii], 1)
             )
         self._set_expression("bed", bed_expr, self._bed_str)
         self._set_expression("flux", flux_exprs, self._depth_str)
@@ -517,10 +524,11 @@ class ManufacturedTwoSpeciesReactionDiffusion(
     ReactionMixin,
     ManufacturedSolution,
 ):
-    f"""
+    r"""
     Reaction Vector: R(u0, u1) = [c0*u0**p0-u1, c1*u1**p1+u0]
     for coefficients c0, c1 and powers p0 and p1
     """
+
     def __init__(
         self,
         sol_strs: List[str],
@@ -564,8 +572,9 @@ class ManufacturedTwoSpeciesReactionDiffusion(
         )
         react_exprs = [react_expr0, react_expr1]
         react_exprs = [
-           react_expr0-self._expressions["solution"][1],
-           react_expr1+self._expressions["solution"][0]]
+            react_expr0 - self._expressions["solution"][1],
+            react_expr1 + self._expressions["solution"][0],
+        ]
         self._set_expression("reaction", react_exprs, self._react_strs[0])
         self._expressions["forcing"] = [
             f - g for f, g in zip(self._expressions["forcing"], react_exprs)
@@ -574,3 +583,84 @@ class ManufacturedTwoSpeciesReactionDiffusion(
     def sympy_expressions(self):
         self.sympy_diffusion_expressions()
         self.sympy_reaction_expressions()
+
+
+class ManufacturedShallowShelfEquations(
+    VectorSolutionMixin,
+    ManufacturedSolution,
+):
+    def __init__(
+        self,
+        sol_strs: List[str],
+        nvars: int,
+        bed_str: str,
+        depth_str: str,
+        friction_str: str,
+        A: float,
+        rho: float,
+        bkd=NumpyLinAlgMixin,
+        oned: bool = False,
+    ):
+
+        self._bed_str = bed_str
+        self._depth_str = depth_str
+        self._friction_str = friction_str
+        self._A = A
+        self._rho = rho
+        self._g = 9.81
+        self._n = 3
+        super().__init__(sol_strs, nvars, bkd, oned)
+
+    def sympy_expressions(self):
+        cartesian_symbs = self.cartesian_symbols()
+        bed_expr = sp.sympify(self._bed_str)
+        depth_expr = sp.sympify(self._depth_str)
+        friction_expr = sp.sympify(self._friction_str)
+        surface_expr = bed_expr + depth_expr
+        surface_grad_exprs = [surface_expr.diff(s, 1) for s in cartesian_symbs]
+
+        u, v = self._expressions["solution"]
+        ux = u.diff(cartesian_symbs[0])
+        uy = u.diff(cartesian_symbs[1])
+        vx = v.diff(cartesian_symbs[0])
+        vy = v.diff(cartesian_symbs[1])
+
+        effective_strain_rate = (
+            ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2
+        ) ** (1 / 2)
+        mu_expr = (
+            0.5
+            * self._A ** (-1 / self._n)
+            * effective_strain_rate ** (1 / self._n - 1)
+        )
+        offdiag_strain = 0.5 * (uy + vx)
+        strain_tensor = [
+            [2. * ux + vy, offdiag_strain],
+            [offdiag_strain, ux + 2. * vy],
+        ]
+        flux = [[2 * mu_expr * s for s in row] for row in strain_tensor]
+        forc_expr0 = (
+            -(depth_expr * flux[0][0]).diff(cartesian_symbs[0])
+            - (depth_expr * flux[0][1]).diff(cartesian_symbs[1])
+            + friction_expr * u
+            + self._rho * self._g * depth_expr * surface_grad_exprs[0]
+        )
+        forc_expr1 = (
+            -(depth_expr * flux[1][0]).diff(cartesian_symbs[0])
+            - (depth_expr * flux[1][1]).diff(cartesian_symbs[1])
+            + friction_expr * v
+            + self._rho * self._g * depth_expr * surface_grad_exprs[1]
+        )
+        forc_exprs = [forc_expr0, forc_expr1]
+        # for now assume always steady
+        self._set_expression("bed", bed_expr, self._bed_str)
+        self._set_expression("depth", depth_expr, self._depth_str)
+        self._set_expression("surface", surface_expr, self._depth_str)
+        self._set_expression("friction", friction_expr, self._friction_str)
+        self._set_expression(
+            "effective_strain_rate", effective_strain_rate, self._sol_strs[0]
+        )
+        self._set_expression("flux", flux, self._sol_strs[0])
+        self._expressions["forcing"] = [
+            f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
+        ]

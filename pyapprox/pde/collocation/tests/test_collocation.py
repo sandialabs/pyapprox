@@ -17,6 +17,7 @@ from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedHelmholtz,
     ManufacturedShallowWave,
     ManufacturedTwoSpeciesReactionDiffusion,
+    ManufacturedShallowShelfEquations,
 )
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
@@ -30,6 +31,7 @@ from pyapprox.pde.collocation.physics import (
     HelmholtzEquation,
     ShallowWaveEquation,
     TwoSpeciesReactionDiffusionEquations,
+    ShallowShelfEquations,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunctionFromCallable,
@@ -1522,6 +1524,104 @@ class TestCollocation:
 
         for test_case in itertools.product(*test_case_args):
             self._check_transient_two_species_reaction_diffusion(*test_case)
+
+    def _check_steady_shallow_shelf_equations(
+        self,
+        sol_strs: List[str],
+        bed_str: str,
+        depth_str: str,
+        friction_str: str,
+        A: str,
+        rho: str,
+        bndry_types: str,
+        basis: OrthogonalCoordinateCollocationBasis,
+    ):
+        bkd = self.get_backend()
+        man_sol = ManufacturedShallowShelfEquations(
+            sol_strs,
+            basis.nphys_vars(),
+            bed_str,
+            depth_str,
+            friction_str,
+            A,
+            rho,
+            bkd=bkd,
+            oned=True,
+        )
+        print(man_sol)
+        exact_sol = self._setup_vector_solution(basis, man_sol)
+
+        bed = self._setup_scalar_function("bed", basis, man_sol)
+        depth = self._setup_scalar_function("depth", basis, man_sol)
+        friction = self._setup_scalar_function("friction", basis, man_sol)
+        forcing = self._setup_vector_function("forcing", basis, man_sol)
+
+        physics = ShallowShelfEquations(
+            depth,
+            bed,
+            friction,
+            A,
+            rho,
+            forcing,
+        )
+        residual = physics.residual(exact_sol)
+        print(bkd.abs(residual.get_values()).max())
+        assert bkd.allclose(
+            residual.get_values(),
+            bkd.zeros(exact_sol.basis.mesh.nmesh_pts()),
+        )
+
+        boundaries = self._setup_boundary_conditions(
+            basis,
+            bndry_types,
+            man_sol,
+        )
+        physics.set_boundaries(boundaries)
+
+        solver = SteadyPDE(
+            physics,
+            NewtonSolver(
+                verbosity=2,
+                maxiters=30,
+                atol=1e-11,
+                rtol=1e-11,
+            ),
+        )
+
+        sol = solver.solve(1.+exact_sol)
+        assert bkd.allclose(sol.get_values(), exact_sol.get_values())
+
+    def test_steady_shallow_shelf_equation_2d(self):
+        s0, depth, alpha = 2, 0.1, 1e-1
+        test_case_args = [
+            # need to have at least one velocity derivative non zero
+            # for all x or nans will be produced when computing rate ** (1/n-1)
+            [
+                ["(x+1)**2*(1+y)", "y**2"],
+            ],  # solution
+            [
+                f"{s0}-{alpha}*x**2-{depth}",
+            ],  # bed string
+            [
+                #f"{depth}+{alpha}*x**2",
+                f"{depth}"
+            ],  # depth string
+            [
+                "10",
+            ],  # friction string
+            [
+                1,#1e-4,
+            ],  # A
+            [
+                1,
+            ],  # rho
+            ["D", "R"],  # bndry types
+            [
+                self._setup_rect_cheby_basis_2d([15, 15], [0, 1, 0, 1]),
+            ],  # basis
+        ]
+        for test_case in itertools.product(*test_case_args):
+            self._check_steady_shallow_shelf_equations(*test_case)
 
 
 class TestNumpyCollocation(TestCollocation, unittest.TestCase):

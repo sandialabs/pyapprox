@@ -186,6 +186,10 @@ class VectorPhysicsMixin:
         sol.set_flattened_values(array)
         return sol
 
+    def _check_is_scalar_function(self, fun: ScalarFunction, name):
+        if fun is not None and not isinstance(fun, ScalarFunction):
+            raise ValueError(f"{name} must be an instance of ScalarFunction")
+
     def _check_is_vector_function(self, fun: VectorFunction, name):
         if fun is not None and not isinstance(fun, VectorFunction):
             raise ValueError(f"{name} must be an instance of VectorFunction")
@@ -374,7 +378,8 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
             h, uh = sol.get_components()
             if self._bkd.any(h.get_values() <= 0):
                 raise RuntimeError(
-                    f"Depth became negative {h.get_values().min()}")
+                    f"Depth became negative {h.get_values().min()}"
+                )
             components = [[uh, uh**2 / h + (0.5 * self._g) * h**2]]
         else:
             h, uh, vh = sol.get_components()
@@ -460,3 +465,71 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
         funs["diffusion"] = self._diffusion
         funs["reaction_op"] = self._reaction_op
         return funs
+
+
+class ShallowShelfEquations(VectorPhysicsMixin, Physics):
+    def __init__(
+        self,
+        depth: ScalarFunction,
+        bed: ScalarFunction,
+        friction: ScalarFunction,
+        A: float,
+        rho: float,
+        forcing: VectorFunction = None,
+    ):
+        self._check_is_scalar_function(friction, "bed")
+        self._check_is_scalar_function(friction, "depth")
+        self._check_is_scalar_function(friction, "friction")
+        self._check_is_vector_function(forcing, "forcing")
+        super().__init__(forcing.basis)
+        self._depth = depth
+        self._bed = bed
+        self._friction = friction
+        self._forcing = forcing
+
+        self._A = A
+        self._rho = rho
+        self._g = 9.81
+        self._n = 3
+
+        # for now assume this phsyics is only used to solve steady state
+        # problem, so depth does not change
+        surf_grad = nabla(self._bed + self._depth)
+        self._weighted_surf_grad = (self._rho * self._g) * surf_grad
+        self._const = 0.5 * self._A ** (-1 / self._n)
+
+        self._flux_jacobian_implemented = True
+
+    def _effective_strain_rate(self, ux, uy, vx, vy):
+        return (ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2) ** (0.5)
+
+    def _flux(self, sol: VectorSolution) -> MatrixOperator:
+        strain_tensor = MatrixOperator(sol.basis, 2, 2, 2)
+        u, v = sol.get_components()
+        ux = u.deriv(0)
+        uy = u.deriv(1)
+        vx = v.deriv(0)
+        vy = v.deriv(1)
+        offdiag = 0.5 * (uy + vx)
+        strain_tensor_components = [
+            [2.0 * ux + vy, offdiag],
+            [offdiag, ux + 2.0 * vy],
+        ]
+        strain_tensor.set_components(strain_tensor_components)
+        rate = self._effective_strain_rate(ux, uy, vx, vy)
+        mu = self._const * rate ** (1 / self._n - 1)
+        flux = 2.0 * mu * strain_tensor
+        return flux
+
+    def residual(self, sol: VectorSolution) -> VectorOperator:
+        flux = self._flux(sol)
+        residual = (
+            div(self._depth * flux)
+            - self._friction * sol
+            - self._depth * self._weighted_surf_grad
+            + self._forcing
+        )
+        return residual
+
+    def ncomponents(self):
+        return 2
