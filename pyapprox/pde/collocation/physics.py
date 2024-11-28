@@ -457,7 +457,7 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
             residual += self._forcing
         return residual
 
-    def _flux(self, sol: VectorSolution):
+    def _flux(self, sol: VectorSolution) -> MatrixOperator:
         flux = self._diffusion @ vector_nabla(sol)
         return flux.T
 
@@ -680,3 +680,71 @@ class ShallowShelfDepthVelocityEquations(
             **self._steady_physics.get_functions(),
             **self._transient_physics.get_functions()
         }
+
+
+class Isotropic2DLinearElasticityEquations(VectorPhysicsMixin, Physics):
+    def __init__(
+        self,
+        lamda: ScalarFunction,
+        mu: ScalarFunction,
+        forcing: VectorFunction = None,
+    ):
+        self._check_is_scalar_function(lamda, "lambda")
+        self._check_is_scalar_function(mu, "mu")
+        self._check_is_vector_function(forcing, "forcing")
+        self._lambda = lamda
+        self._mu = mu
+        self._forcing = forcing
+        super().__init__(mu.basis)
+
+    def ncomponents(self) -> int:
+        return 2
+
+    def _flux(self, sol: VectorSolution) -> MatrixOperator:
+        u, v = sol.get_components()
+        ux = u.deriv(0)
+        uy = u.deriv(1)
+        vx = v.deriv(0)
+        vy = v.deriv(1)
+
+        exx = ux
+        exy = 0.5 * (vx+uy)
+        eyy = vy
+
+        # no need to store strain tensor as a matrix operator
+        # strain_tensor = MatrixOperator(sol.basis, 2, 2, 2)
+        # strain_tensor_components = [
+        #     [exx, exy]
+        #     [exy, eyy],
+        # ]
+        # strain_tensor.set_components(strain_tensor_components)
+
+        trace_tensor = exx + eyy
+        two_mu = 2*self._mu
+        tauxx = self._lambda * trace_tensor + two_mu * exx
+        tauxy = two_mu * exy
+        tauyy = self._lambda * trace_tensor + two_mu * eyy
+
+        flux = MatrixOperator(sol.basis, 2, 2, 2)
+        flux_components = [
+            [tauxx, tauxy]
+            [tauxy, tauyy],
+        ]
+        flux.set_components(flux_components)
+        return flux
+
+    def residual(self, sol: VectorSolution):
+        if not isinstance(sol, VectorSolution):
+            raise ValueError("sol must be an instance of VectorSolution")
+        residual = div(self._flux(sol))
+        if self._forcing is not None:
+            residual += self._forcing
+        return residual
+
+    def get_functions(self) -> Dict:
+        funs = super().get_functions()
+        if self._forcing is not None:
+            funs["forcing"] = self._forcing
+        funs["lambda"] = self._lambda
+        funs["mu"] = self._mu
+        return funs

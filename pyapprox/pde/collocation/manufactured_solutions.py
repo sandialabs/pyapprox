@@ -724,3 +724,69 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
         self._expressions["depth_forcing"] += self._expressions[
                 "solution"
             ][0].diff(self.time_symbol()[0], 1)
+
+
+class ManufacturedShallowShelfVelocityEquations(
+    VectorSolutionMixin,
+    ManufacturedSolution,
+):
+    def __init__(
+        self,
+        sol_strs: List[str],
+        nvars: int,
+        lambda_str: int,
+        mu_str: int,
+        body_forc_strs: List[str],
+        bkd=NumpyLinAlgMixin,
+        oned: bool = False,
+    ):
+        self._lambda_str = lambda_str
+        self._mu_str = mu_str
+        self._body_forc_strs = body_forc_strs
+        super().__init__(sol_strs, nvars, bkd, oned)
+
+    def sympy_expressions(self):
+        cartesian_symbs = self.cartesian_symbols()
+        lambda_expr = sp.sympify(self._lambda_str)
+        mu_expr = sp.sympify(self.mu_str)
+        body_forc_exprs = [
+            sp.sympify(bforce_str) for bforce_str in self._bforce_strs
+        ]
+        self._set_expression(lambda_expr, "lambda", self._lambda_str)
+        self._set_expression(mu_expr, "mu", self._mu_str)
+        self._set_expression(
+            body_forc_exprs, "body_force", self._body_forc_strs[0]
+        )
+
+        disp_expr = self._expressions["solutions"]
+        exx = disp_expr[0].diff(cartesian_symbs[0], 1)
+        exy = 0.5 * (
+            disp_expr[0].diff(cartesian_symbs[1], 1)
+            + disp_expr[1].diff(cartesian_symbs[0], 1)
+        )
+        eyy = disp_expr[1].diff(cartesian_symbs[1], 1)
+
+        trace_e = exx + eyy
+        tauxx = lambda_expr * trace_e + 2. * mu_expr * exx
+        tauxy = 2.0 * mu_expr * exy
+        tauyy = lambda_expr * trace_e + 2. * mu_expr * eyy
+        tau = [
+            [tauxx, tauxy],
+            [tauxy, tauyy]
+        ]
+        # compute divergence of tau
+        forc_exprs = [
+            -sum(
+                [
+                    tau[ii][jj].diff(cartesian_symbs[jj], 1)
+                    - body_forc_exprs[ii]
+                    for jj in range(2)
+                ]
+            )
+            for ii in range(2)
+        ]
+        # tau is the flux
+        self._set_expression("flux", tau, self._sol_strs[0])
+        self._expressions["forcing"] = [
+            f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
+        ]
