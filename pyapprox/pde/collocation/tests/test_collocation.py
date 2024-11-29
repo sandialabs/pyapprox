@@ -1745,7 +1745,7 @@ class TestCollocation:
             [
                 1,
             ],  # rho
-            ["D"],  # bndry types
+            ["D", "R"],  # bndry types
             [
                 self._setup_rect_cheby_basis_2d([15, 15], [0, 1, 0, 1]),
             ],  # basis

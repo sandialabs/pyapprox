@@ -654,6 +654,7 @@ class ShallowShelfDepthVelocityEquations(
         super().__init__(bed.basis)
         # initialize depth to zero, it will be overwritten later
         depth = ZeroScalarFunction(self.basis, self.ncomponents())
+        self._flux_jacobian_implemented = True
         self._steady_physics = ShallowShelfVelocityEquations(
             depth, bed, friction, A, rho, velocity_forcing
         )
@@ -721,6 +722,30 @@ class ShallowShelfDepthVelocityEquations(
             + [v for v in velocities_residual.get_components()]
         )
         return residual
+
+    def _flux(self, sol: VectorSolution) -> MatrixOperator:
+        depth = self._transient_physics_solution_from_array(
+            sol.get_flattened_values()
+        )
+        transient_flux = self._transient_physics._flux(depth)
+        velocities = self._steady_physics_solution_from_array(
+            sol.get_flattened_values()
+        )
+        steady_flux = self._steady_physics._flux(velocities)
+        flux = MatrixOperator(
+            self.basis,
+            self.ncomponents(),
+            self.basis.nphys_vars(),
+            self.ncomponents(),
+        )
+        transient_flux_components = transient_flux.get_components()
+        steady_flux_components = steady_flux.get_components()
+        flux_components = [
+            transient_flux_components[ii] + steady_flux_components[ii]
+            for ii in range(self.basis.nphys_vars())
+        ]
+        flux.set_components(flux_components)
+        return flux
 
     def get_functions(self) -> Dict:
         return {

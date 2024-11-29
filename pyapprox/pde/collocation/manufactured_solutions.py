@@ -710,7 +710,11 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
         self._expressions["depth_forcing"] = depth_forc
         self.transient["depth_forcing"] = self.is_transient()
         self.transient["velocity_forcing"] = self.is_transient()
-        print(self.transient)
+        velocity_flux = self._expressions["flux"]
+        depth_flux = [[depth*vel for vel in vel_exprs]]
+        flux = velocity_flux + depth_flux
+        del self._expressions["flux"]
+        self._set_expression("flux", flux, self._sol_strs[0])
 
     def sympy_temporal_derivative_expression(self):
         if not self.is_transient():
