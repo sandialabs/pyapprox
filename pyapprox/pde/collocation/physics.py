@@ -696,6 +696,7 @@ class Isotropic2DLinearElasticityEquations(VectorPhysicsMixin, Physics):
         self._mu = mu
         self._forcing = forcing
         super().__init__(mu.basis)
+        self._flux_jacobian_implemented = True
 
     def ncomponents(self) -> int:
         return 2
@@ -720,14 +721,14 @@ class Isotropic2DLinearElasticityEquations(VectorPhysicsMixin, Physics):
         # strain_tensor.set_components(strain_tensor_components)
 
         trace_tensor = exx + eyy
-        two_mu = 2*self._mu
+        two_mu = 2. * self._mu
         tauxx = self._lambda * trace_tensor + two_mu * exx
         tauxy = two_mu * exy
         tauyy = self._lambda * trace_tensor + two_mu * eyy
 
         flux = MatrixOperator(sol.basis, 2, 2, 2)
         flux_components = [
-            [tauxx, tauxy]
+            [tauxx, tauxy],
             [tauxy, tauyy],
         ]
         flux.set_components(flux_components)

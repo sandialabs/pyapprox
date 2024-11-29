@@ -19,6 +19,7 @@ from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedTwoSpeciesReactionDiffusion,
     ManufacturedShallowShelfVelocityEquations,
     ManufacturedShallowShelfVelocityAndDepthEquations,
+    ManufacturedLinearElasticityEquations,
 )
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
@@ -34,6 +35,7 @@ from pyapprox.pde.collocation.physics import (
     TwoSpeciesReactionDiffusionEquations,
     ShallowShelfVelocityEquations,
     ShallowShelfDepthVelocityEquations,
+    Isotropic2DLinearElasticityEquations,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunctionFromCallable,
@@ -1751,6 +1753,73 @@ class TestCollocation:
         ]
         for test_case in itertools.product(*test_case_args):
             self._check_transient_shallow_shelf_equations(*test_case)
+
+    def _check_steady_state_linear_elasticity_2d(
+        self,
+        sol_strings: List[str],
+        lambda_str: str,
+        mu_str: str,
+        bndry_types: str,
+        basis: OrthogonalCoordinateCollocationBasis,
+    ):
+        bkd = self.get_backend()
+        man_sol = ManufacturedLinearElasticityEquations(
+            sol_strings,
+            basis.nphys_vars(),
+            lambda_str,
+            mu_str,
+            bkd=bkd,
+            oned=True,
+        )
+        print(man_sol)
+        exact_sol = self._setup_vector_solution(basis, man_sol)
+
+        lamda = self._setup_scalar_function("lambda", basis, man_sol)
+        mu = self._setup_scalar_function("mu", basis, man_sol)
+        forcing = self._setup_vector_function("forcing", basis, man_sol)
+        physics = Isotropic2DLinearElasticityEquations(
+            lamda, mu, forcing
+        )
+        residual = physics.residual(exact_sol)
+        # np.set_printoptions(linewidth=1000)
+        # print(residual.get_values())
+        print(bkd.abs(residual.get_values()).max())
+        assert bkd.allclose(
+            residual.get_values(),
+            bkd.zeros(exact_sol.basis.mesh.nmesh_pts()),
+        )
+
+        boundaries = self._setup_boundary_conditions(
+            basis,
+            bndry_types,
+            man_sol,
+        )
+        physics.set_boundaries(boundaries)
+        solver = SteadyPDE(
+            physics,
+            NewtonSolver(
+                verbosity=2,
+                maxiters=1,
+                atol=1e-8,
+                rtol=1e-8,
+            ),
+        )
+        init_sol = exact_sol * 0.0
+        sol = solver.solve(init_sol)
+        assert bkd.allclose(sol.get_values(), exact_sol.get_values())
+
+    def test_steady_state_linear_elasticity_2d(self):
+        test_case_args = [
+            [["(-(x-1)*x+x)*(y+1)", "(1-(x-1)*x)*(y**2+1)"]],  # sol_strings
+            ["1", "2"],  # lambda_str
+            ["1",],  # mu_str,
+            ["D", "R", "M"],  # bndry_types
+            [
+                self._setup_rect_cheby_basis_2d([4, 4], [0, 1, 0, 1]),
+            ],  # basis
+        ]
+        for test_case in itertools.product(*test_case_args):
+            self._check_steady_state_linear_elasticity_2d(*test_case)
 
 
 class TestNumpyCollocation(TestCollocation, unittest.TestCase):

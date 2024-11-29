@@ -726,7 +726,7 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
             ][0].diff(self.time_symbol()[0], 1)
 
 
-class ManufacturedShallowShelfVelocityEquations(
+class ManufacturedLinearElasticityEquations(
     VectorSolutionMixin,
     ManufacturedSolution,
 ):
@@ -736,29 +736,29 @@ class ManufacturedShallowShelfVelocityEquations(
         nvars: int,
         lambda_str: int,
         mu_str: int,
-        body_forc_strs: List[str],
+        # body_forc_strs: List[str],
         bkd=NumpyLinAlgMixin,
         oned: bool = False,
     ):
         self._lambda_str = lambda_str
         self._mu_str = mu_str
-        self._body_forc_strs = body_forc_strs
+        # self._body_forc_strs = body_forc_strs
         super().__init__(sol_strs, nvars, bkd, oned)
 
     def sympy_expressions(self):
         cartesian_symbs = self.cartesian_symbols()
         lambda_expr = sp.sympify(self._lambda_str)
-        mu_expr = sp.sympify(self.mu_str)
-        body_forc_exprs = [
-            sp.sympify(bforce_str) for bforce_str in self._bforce_strs
-        ]
-        self._set_expression(lambda_expr, "lambda", self._lambda_str)
-        self._set_expression(mu_expr, "mu", self._mu_str)
-        self._set_expression(
-            body_forc_exprs, "body_force", self._body_forc_strs[0]
-        )
+        mu_expr = sp.sympify(self._mu_str)
+        # body_forc_exprs = [
+        #     sp.sympify(bforce_str) for bforce_str in self._bforce_strs
+        # ]
+        self._set_expression("lambda", lambda_expr, self._lambda_str)
+        self._set_expression("mu", mu_expr, self._mu_str)
+        # self._set_expression(
+        #     "body_force", body_forc_exprs, self._body_forc_strs[0]
+        # )
 
-        disp_expr = self._expressions["solutions"]
+        disp_expr = self._expressions["solution"]
         exx = disp_expr[0].diff(cartesian_symbs[0], 1)
         exy = 0.5 * (
             disp_expr[0].diff(cartesian_symbs[1], 1)
@@ -779,7 +779,7 @@ class ManufacturedShallowShelfVelocityEquations(
             -sum(
                 [
                     tau[ii][jj].diff(cartesian_symbs[jj], 1)
-                    - body_forc_exprs[ii]
+                    #- body_forc_exprs[ii]
                     for jj in range(2)
                 ]
             )
