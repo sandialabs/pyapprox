@@ -92,6 +92,9 @@ class TransientPhysicsNewtonResidual(TransientNewtonResidual):
         super().__init__(physics._bkd)
         self._physics = physics
 
+    def mass_matrix(self, nterms: int) -> Array:
+        return self._physics.mass_matrix(nterms)
+
     def linsolve(self, sol_array: Array, res_array: Array):
         self._bkd.assert_isarray(self._bkd, sol_array)
         self._bkd.assert_isarray(self._bkd, res_array)
@@ -199,27 +202,52 @@ class SplitPhysicsTimeIntegratorNewtonResidual(
     def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
         return self._time_residual.quadrature_samples_weights(times)
 
-    def _value(self, sol: Array) -> Array:
+    def __call__(self, sol_array: Array) -> Array:
         # called by TimeIntegratorNewtonResidual.__call__ which is called by
         # ImplicitTimeIntegrator.step()
-        print(self._physics)
-        return self._bkd.vstack(
-            (self._time_residual._value(sol), self._physics.steady_value(sol))
+        split_physics = self._time_residual.native_residual._physics
+        split_physics._set_steady_and_transient_components(sol_array)
+        transient_sol_array = split_physics._transient_physics_solution_from_array(
+            sol_array
+        ).get_flattened_values()
+        # self._time_residual._value(sol) calls native_residual.__call__ which
+        # calls _residual_array_from_solution_array
+        res = self._bkd.hstack(
+            (self._time_residual._value(transient_sol_array),
+             self._physics.steady_value(sol_array))
         )
+        # must overwrite self._time_residual.native_residual._sol_array
+        # which was set to just transient physics above
+        self._time_residual.native_residual._sol_array = sol_array
+        res = self._apply_constraints_to_residual(res)
+        return res
 
-    def _jacobian(self, sol: Array) -> Array:
-        return self._bkd.vstack(
-            (
-                self._time_residual._jacobian(sol),
-                self._physics.steady_jacobian(sol)
-            )
-        )
+    def _jacobian(self, sol_array: Array) -> Array:
+        split_physics = self._time_residual.native_residual._physics
+        split_physics._set_steady_and_transient_components(sol_array)
+        transient_sol_array = split_physics._transient_physics_solution_from_array(
+            sol_array
+        ).get_flattened_values()
+        steady_jac = self._physics.steady_jacobian(sol_array)
+        transient_jac = self._time_residual._jacobian(transient_sol_array)
+        jac = self._bkd.vstack((transient_jac, steady_jac))
+        #print(self._bkd.abs(jac-self._bkd.jacobian(lambda x: self(x), sol_array)).max())
+        #assert False
+        # must overwrite self._time_residual.native_residual._sol_array
+        # which was set to just transient physics above
+        self._time_residual.native_residual._sol_array = sol_array
+        jac = self._apply_constraints_to_jacobian(jac)
+        return jac
 
     def set_time(self, time: float, deltat: float, prev_sol: Array):
         self._time = time
         self._deltat = deltat
-        self._prev_sol = prev_sol
-        self._time_residual.set_time(time, deltat, prev_sol)
+        # self._prev_sol = prev_sol
+        split_physics = self._time_residual.native_residual._physics
+        self._prev_sol = split_physics._transient_physics_solution_from_array(
+            prev_sol
+        ).get_flattened_values()
+        self._time_residual.set_time(time, deltat, self._prev_sol)
 
     def _apply_constraints_to_residual(self, res_array: Array) -> Array:
         # boundary conditions applied by each physics component

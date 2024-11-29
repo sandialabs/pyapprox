@@ -31,7 +31,7 @@ class TransientNewtonResidual(NewtonResidual):
 
 
 class TimeIntegratorNewtonResidual(NewtonResidual):
-    # This should only be derived on by developers implementing
+    # This should only be derived from by developers implementing
     # new timestepping classes
     def __init__(self, residual: NewtonResidual):
         super().__init__(residual._bkd)
@@ -44,7 +44,6 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         return jac
 
     def _value(self, sol: Array) -> Array:
-        print(self)
         raise NotImplementedError
 
     def __call__(self, sol: Array) -> Array:
@@ -56,6 +55,11 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
 
     def jacobian(self, sol: Array) -> Array:
         jac = self._jacobian(sol)
+        # print(
+        #     self._bkd.abs(self._jacobian(sol)-self._bkd.jacobian(lambda x: self(x), sol)).max()
+        # )
+        # print(self._bkd.abs(jac-self._apply_constraints_to_jacobian(jac)).max())
+        # assert False
         return self._apply_constraints_to_jacobian(jac)
 
     def adjoint_implemented(self) -> bool:
@@ -74,13 +78,13 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         #     return self(sol_array)
         # jac_auto = self._bkd.jacobian(autofun, sol)
         # import torch
-        # torch.set_printoptions(linewidth=1000, threshold=10000)
+        # torch.set_printoptions(linewidth=1000, threshold=10000, sci_mode=False, precision=2)
         # print(res, "R")
-        # print(jac_auto, "J")
         # print(self)
         # print(self._time, self._deltat)
-        # # print(self.jacobian(sol))
-        # # print((jac_auto-self.jacobian(sol)).max())
+        # print(jac_auto, "J")
+        # print(self.jacobian(sol))
+        # print((jac_auto-self.jacobian(sol)).max())
         # assert self._bkd.allclose(
         #     self.jacobian(sol),
         #     jac_auto,
@@ -89,15 +93,20 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
 
         # def autofun(sol_array):
         #     return self.native_residual(sol_array)
+        # print("C", self.native_residual)
         # jac_auto = self._bkd.jacobian(autofun, sol)
-        # print(jac_auto)
-        # print(self.native_residual.jacobian(sol))
+        # import torch
+        # torch.set_printoptions(linewidth=1000, precision=3, sci_mode=False)
+        # # print(jac_auto)
+        # # print(self.native_residual.jacobian(sol))
         # print((jac_auto-self.native_residual.jacobian(sol)).max())
         # assert self._bkd.allclose(
         #     self.native_residual.jacobian(sol),
         #     jac_auto,
         #     atol=1e-15
         # )
+        # print("Warning using autograd to compute jacobian")
+        # return self._bkd.solve(jac_auto, res)
         return self._bkd.solve(self.jacobian(sol), res)
 
     def _param_jacobian(self, fsol_nm1: Array, sol: Array) -> Array:

@@ -1169,13 +1169,13 @@ class TestCollocation:
         sols, times = solver.solve(init_sol)
         exact_sols = []
         for time in times:
-            exact_sol.set_time(time)
+            exact_sol.set_time(float(time))
             exact_sols.append(exact_sol.get_values())
         exact_sols = bkd.stack(exact_sols, axis=-1)
         # print(sols)
         # print(exact_sols)
-        print(sols - exact_sols)
-        print(bkd.abs(sols - exact_sols).max())
+        # print(sols - exact_sols)
+        # print(bkd.abs(sols - exact_sols).max())
         assert bkd.allclose(sols, exact_sols, atol=3e-12)
 
     def _check_shallow_wave_equation(
@@ -1740,7 +1740,7 @@ class TestCollocation:
                 "10",
             ],  # friction string
             [
-                1,#1e-4,
+                1#1e-4,
             ],  # A
             [
                 1,

@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import Dict
 from functools import partial
 
@@ -86,15 +86,17 @@ class Physics(NewtonResidual):
         return jac
 
     @abstractmethod
-    def residual(self, sol: MatrixOperator):
+    def residual(self, sol: MatrixOperator) -> MatrixOperator:
         raise NotImplementedError
 
-    def _residual_function_from_solution_array(self, sol_array: Array):
+    def _residual_function_from_solution_array(
+            self, sol_array: Array
+    ) -> MatrixOperator:
         self._bkd.assert_isarray(self._bkd, sol_array)
         sol = self._solution_from_array(sol_array)
         return self.residual(sol)
 
-    def _residual_array_from_solution_array(self, sol_array: Array):
+    def _residual_array_from_solution_array(self, sol_array: Array) -> Array:
         # TODO add option to matrix function that stops jacobian being computed
         # when computing residual. useful for explicit time stepping
         # and linear problems where jacobian does not depend on time or
@@ -102,15 +104,17 @@ class Physics(NewtonResidual):
         res = self._residual_function_from_solution_array(sol_array)
         return res.get_flattened_values()
 
-    def _residual_jacobian_from_solution_array(self, sol_array: Array):
+    def _residual_jacobian_from_solution_array(
+            self, sol_array: Array
+    ) -> Array:
         res = self._residual_function_from_solution_array(sol_array)
         return res.get_flattened_jacobian()
 
     @abstractmethod
-    def _solution_from_array(self, array: Array):
+    def _solution_from_array(self, array: Array) -> MatrixOperator:
         raise NotImplementedError
 
-    def solution_from_array(self, sol_array: Array):
+    def solution_from_array(self, sol_array: Array) -> MatrixOperator:
         sol = self._solution_from_array(sol_array)
         if not isinstance(sol, (ScalarSolution, VectorSolution)):
             raise RuntimeError("sol must be ScalarSolution or VectorSolution")
@@ -577,26 +581,38 @@ class ShallowShelfDepthEquations(ScalarPhysicsMixin, Physics):
         return funs
 
 
-class SplitPhysicsMixin:
+class SplitPhysicsMixin(ABC):
     @abstractmethod
     def _transient_physics_solution_from_array(
             self, sol_array: Array
     ) -> MatrixOperator:
         raise NotImplementedError
 
-    def _stead_physics_solution_from_array(
+    @abstractmethod
+    def mass_matrix(self, nterms: int) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _steady_physics_solution_from_array(
             self, sol_array: Array
     ) -> MatrixOperator:
         raise NotImplementedError
 
-    def __call__(self, sol_array: Array):
-        # this will be called by TimeIntegratorNewtonResidual
-        sol = self._transient_physics_solution_from_array(sol_array)
+    def _residual_array_from_solution_array(
+            self, transient_sol_array: Array
+    ) -> Array:
+        # this will be called by TimeIntegratorNewtonResidual which will only
+        # pass in transient_sol array. ignore this input and
+        # just use self._sol_array which contains transient_sol components
+        # and steady components
+        sol = self._transient_physics_solution_from_array(self._sol_array)
         return self._transient_physics.residual(sol).get_flattened_values()
 
-    def jacobian(self, sol_array: Array):
+    def _residual_jacobian_from_solution_array(
+            self, transient_sol_array: Array
+    ):
         # this will be called by TimeIntegratorNewtonResidual
-        sol = self._transient_physics_solution_from_array(sol_array)
+        sol = self._transient_physics_solution_from_array(self._sol_array)
         return self._transient_physics.residual(sol).get_flattened_jacobian()
 
     def steady_value(self, sol_array: Array) -> Array:
@@ -605,7 +621,22 @@ class SplitPhysicsMixin:
 
     def steady_jacobian(self, sol_array: Array) -> Array:
         sol = self._steady_physics_solution_from_array(sol_array)
+
         return self._steady_physics.residual(sol).get_flattened_jacobian()
+
+    def _set_steady_and_transient_components(self, sol_array: Array):
+        self._sol_array = sol_array
+        sol = self._solution_from_array(sol_array)
+        self._set_transient_physics_components(sol)
+        self._set_steady_physics_components(sol)
+
+    @abstractmethod
+    def _set_transient_physics_components(self, sol: VectorSolution):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _set_steady_physics_components(self, sol: VectorSolution):
+        raise NotImplementedError
 
 
 class ShallowShelfDepthVelocityEquations(
@@ -631,28 +662,43 @@ class ShallowShelfDepthVelocityEquations(
     def ncomponents(self) -> int:
         return self.basis.nphys_vars()+1
 
-    def _transient_physics_solution_from_array(
-            self, sol_array: Array
-    ) -> MatrixOperator:
-        sol = self._solution_from_array(sol_array)
-        depth, u, v = sol.get_components()
+    def mass_matrix(self, nterms: int) -> Array:
+        return self._bkd.hstack(
+            (self._bkd.eye(nterms), self._bkd.zeros((nterms, 2*nterms)))
+        )
+
+    def _extract_velocities_components(
+            self, sol: VectorSolution
+    ) -> VectorSolution:
+        u, v = sol.get_components()[1:]
         velocities = VectorSolution(
             self.basis, self.ncomponents(), self.ncomponents()-1
         )
         velocities.set_components([u, v])
+        return velocities
+
+    def _set_transient_physics_components(self, sol: VectorSolution):
+        velocities = self._extract_velocities_components(sol)
         self._transient_physics.set_velocities(velocities)
+
+    def _set_steady_physics_components(self, sol: VectorSolution):
+        depth = sol.get_components()[0]
+        self._steady_physics.set_depth(depth)
+
+    def _transient_physics_solution_from_array(
+            self, sol_array: Array
+    ) -> MatrixOperator:
+        sol = self._solution_from_array(sol_array)
+        depth = sol.get_components()[0]
+        self._set_transient_physics_components(sol)
         return depth
 
     def _steady_physics_solution_from_array(
             self, sol_array: Array
     ) -> MatrixOperator:
         sol = self._solution_from_array(sol_array)
-        depth, u, v = sol.get_components()
-        velocities = VectorSolution(
-            self.basis, self.ncomponents(), self.ncomponents()-1
-        )
-        velocities.set_components([u, v])
-        self._steady_physics.set_depth(depth)
+        velocities = self._extract_velocities_components(sol)
+        self._set_steady_physics_components(sol)
         return velocities
 
     def residual(self, sol: MatrixOperator) -> MatrixOperator:
@@ -671,7 +717,8 @@ class ShallowShelfDepthVelocityEquations(
         depth_residual = self._transient_physics.residual(depth)
         velocities_residual = self._steady_physics.residual(velocities)
         residual.set_components(
-            [[depth_residual]] + [v for v in velocities_residual.get_components()]
+            [[depth_residual]]
+            + [v for v in velocities_residual.get_components()]
         )
         return residual
 
