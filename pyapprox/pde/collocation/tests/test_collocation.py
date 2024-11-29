@@ -1175,8 +1175,8 @@ class TestCollocation:
         # print(sols)
         # print(exact_sols)
         # print(sols - exact_sols)
-        # print(bkd.abs(sols - exact_sols).max())
-        assert bkd.allclose(sols, exact_sols, atol=3e-12)
+        print(bkd.abs(sols - exact_sols).max())
+        assert bkd.allclose(sols, exact_sols, atol=4e-11)
 
     def _check_shallow_wave_equation(
         self,

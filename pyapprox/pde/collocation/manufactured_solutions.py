@@ -712,7 +712,7 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
         self.transient["velocity_forcing"] = self.is_transient()
         velocity_flux = self._expressions["flux"]
         depth_flux = [[depth*vel for vel in vel_exprs]]
-        flux = velocity_flux + depth_flux
+        flux = depth_flux + velocity_flux
         del self._expressions["flux"]
         self._set_expression("flux", flux, self._sol_strs[0])
 
