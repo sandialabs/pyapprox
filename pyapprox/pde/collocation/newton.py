@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from functools import partial
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -15,9 +16,16 @@ class NewtonResidual(ABC):
     def __call__(self, iterate: Array) -> Array:
         raise NotImplementedError
 
-    @abstractmethod
+    def _jacobian(self, iterate: Array) -> Array:
+        if not self._bkd.jacobian_implemented():
+            raise NotImplementedError
+        return self._bkd.jacobian(self.__call__, iterate)
+
     def jacobian(self, iterate: Array) -> Array:
-        raise NotImplementedError
+        jac = self._jacobian(iterate)
+        if jac.ndim != 2 or jac.shape[0] != iterate.shape[0]:
+            raise RuntimeError(f"jac has the wrong shape {jac.shape}")
+        return jac
 
     def linsolve(self, iterate: Array, res: Array) -> Array:
         jac = self.jacobian(iterate)
@@ -26,9 +34,20 @@ class NewtonResidual(ABC):
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
+    def set_param(self, param: Array):
+        self._param = param
+
+    def _residual_param_wrapper(self, sol: Array, param: Array) -> Array:
+        self.set_param(param)
+        return self(sol)
+
     def _param_jacobian(self, sol: Array) -> Array:
         """Gradient of residual with respect to parameters"""
-        raise NotImplementedError
+        if not self._bkd.jacobian_implemented():
+            raise NotImplementedError
+        return self._bkd.jacobian(
+            partial(self._residual_param_wrapper, sol), self._param
+        )
 
     def param_jacobian(self, sol: Array) -> Array:
         if sol.ndim != 1:
@@ -38,10 +57,27 @@ class NewtonResidual(ABC):
             raise RuntimeError(f"jac has the wrong shape {jac.shape}")
         return jac
 
+    def _adjoint_dot_residual_param_wrapper(
+            self, adj_sol: Array, fwd_sol: Array, param: Array
+    ):
+        self.set_param(param)
+        return adj_sol @ self(fwd_sol)
+
+    def _adjoint_dot_residual_state_wrapper(
+            self, adj_sol: Array, fwd_sol: Array
+    ):
+        return adj_sol @ self(fwd_sol)
+
     def _param_param_hvp(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
     ) -> Array:
-        raise NotImplementedError
+        if not self._bkd.hvp_implemented():
+            raise NotImplementedError
+        return self._bkd.hvp(
+            partial(self._adjoint_dot_residual_param_wrapper, adj_sol, fwd_sol),
+            self._param,
+            vvec,
+        )
 
     def param_param_hvp(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
@@ -54,7 +90,13 @@ class NewtonResidual(ABC):
     def _state_state_hvp(
         self, fwd_sol: Array, adj_sol: Array, wvec: Array
     ) -> Array:
-        raise NotImplementedError
+        if not self._bkd.hvp_implemented():
+            raise NotImplementedError
+        return self._bkd.hvp(
+            partial(self._adjoint_dot_residual_state_wrapper, adj_sol),
+            self._param,
+            wvec,
+        )
 
     def state_state_hvp(
         self, fwd_sol: Array, adj_sol: Array, wvec: Array
@@ -64,10 +106,28 @@ class NewtonResidual(ABC):
             raise RuntimeError("_state_state_hvp must return 1D array")
         return hvp
 
+    def _adjoint_dot_residual_state_jvp(self, adj_sol, wvec, fwd_sol, param):
+        self.set_param(param)
+        return self._bkd.jvp(
+            partial(
+                self._adjoint_dot_residual_state_wrapper, adj_sol
+            ),
+            fwd_sol,
+            wvec,
+        )
+
     def _param_state_hvp(
         self, fwd_sol: Array, adj_sol: Array, wvec: Array
     ) -> Array:
-        raise NotImplementedError
+        if not self._bkd.jvp_implemented():
+            raise NotImplementedError
+        # if using torch requires result of jvp to be differentiable
+        return self._bkd.jacobian(
+            partial(
+                self._adjoint_dot_residual_state_jvp, adj_sol, wvec, fwd_sol
+            ),
+            self._param
+        )
 
     def param_state_hvp(
         self, fwd_sol: Array, adj_sol: Array, wvec: Array
@@ -77,10 +137,27 @@ class NewtonResidual(ABC):
             raise RuntimeError("_param_state_hvp must return 1D array")
         return hvp
 
+    def _adjoint_dot_residual_param_jvp(self, adj_sol, vvec, param, fwd_sol):
+        return self._bkd.jvp(
+            partial(
+                self._adjoint_dot_residual_param_wrapper, adj_sol, fwd_sol
+            ),
+            param,
+            vvec,
+        )
+
     def _state_param_hvp(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
     ) -> Array:
-        raise NotImplementedError
+        if not self._bkd.jvp_implemented():
+            raise NotImplementedError
+        # if using torch requires result of jvp to be differentiable
+        return self._bkd.jacobian(
+            partial(
+                self._adjoint_dot_residual_param_jvp, adj_sol, vvec, self._param
+            ),
+            fwd_sol
+        )
 
     def state_param_hvp(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
@@ -197,9 +274,10 @@ class Functional(ABC):
 
 
 class AdjointFunctional(Functional):
-    @abstractmethod
     def _qoi_sol_jacobian(self, sol: Array) -> Array:
-        raise NotImplementedError
+        if not self._bkd.jacobian_implemented():
+            raise NotImplementedError
+        return self._bkd.grad(self._value, sol)[1]
 
     def qoi_sol_jacobian(self, sol: Array) -> Array:
         """Gradient of qoi with respect to solution"""
@@ -210,8 +288,16 @@ class AdjointFunctional(Functional):
             raise RuntimeError("jac has the wrong shape")
         return jac
 
+    def _qoi_param_wrapper(self, sol: Array, param: Array) -> Array:
+        self.set_param(param)
+        return self._value(sol)
+
     def _qoi_param_jacobian(self, sol: Array) -> Array:
-        raise NotImplementedError
+        if not self._bkd.jacobian_implemented():
+            raise NotImplementedError
+        return self._bkd.jacobian(
+            partial(self._qoi_param_wrapper, sol), self._param
+        )[0]
 
     def qoi_param_jacobian(self, sol: Array) -> Array:
         """Gradient of QoI with respect to parameters"""
@@ -228,7 +314,11 @@ class AdjointFunctional(Functional):
         self._param = param
 
     def _qoi_param_param_hvp(self, sol: Array, vvec: Array) -> Array:
-        raise NotImplementedError
+        if not self._bkd.hvp_implemented():
+            raise NotImplementedError
+        return self._bkd.hvp(
+            partial(self._qoi_param_wrapper, sol), self._param, vvec
+        )
 
     def qoi_param_param_hvp(self, sol: Array, vvec: Array) -> Array:
         hvp = self._qoi_param_param_hvp(sol, vvec)
@@ -237,7 +327,9 @@ class AdjointFunctional(Functional):
         return hvp
 
     def _qoi_state_state_hvp(self, sol: Array, wvec: Array) -> Array:
-        raise NotImplementedError
+        if not self._bkd.hvp_implemented():
+            raise NotImplementedError
+        return self._bkd.hvp(self._value, sol, wvec)
 
     def qoi_state_state_hvp(self, sol: Array, wvec: Array) -> Array:
         hvp = self._qoi_state_state_hvp(sol, wvec)
@@ -245,8 +337,17 @@ class AdjointFunctional(Functional):
             raise RuntimeError("_qoi_state_state_hvp must return 1D array")
         return hvp
 
+    def _qoi_param_jvp(self, vvec, param, fwd_sol):
+        return self._bkd.jvp(
+            partial(self._qoi_param_wrapper, fwd_sol), self._param, vvec
+        )
+
     def _qoi_state_param_hvp(self, sol: Array, vvec: Array) -> Array:
-        raise NotImplementedError
+        if not self._bkd.jvp_implemented():
+            raise NotImplementedError
+        return self._bkd.jacobian(
+            partial(self._qoi_param_jvp, vvec, self._param), sol
+        )[0]
 
     def qoi_state_param_hvp(self, sol: Array, vvec: Array) -> Array:
         hvp = self._qoi_state_param_hvp(sol, vvec)
@@ -254,8 +355,16 @@ class AdjointFunctional(Functional):
             raise RuntimeError("_qoi_state_param_hvp must return 1D array")
         return hvp
 
+    def _qoi_state_jvp(self, wvec, fwd_sol, param):
+        self.set_param(param)
+        return self._bkd.jvp(self._value, fwd_sol, wvec)
+
     def _qoi_param_state_hvp(self, sol: Array, wvec: Array) -> Array:
-        raise NotImplementedError
+        if not self._bkd.jvp_implemented():
+            raise NotImplementedError
+        return self._bkd.jacobian(
+            partial(self._qoi_state_jvp, wvec, sol), self._param
+        )[0]
 
     def qoi_param_state_hvp(self, sol: Array, wvec: Array) -> Array:
         hvp = self._qoi_param_state_hvp(sol, wvec)

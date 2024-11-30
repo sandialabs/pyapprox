@@ -689,6 +689,14 @@ class LinAlgMixin(ABC):
         raise NotImplementedError
 
     @staticmethod
+    def jvp(fun, params, vec):
+        raise NotImplementedError
+
+    @staticmethod
+    def hvp(fun, params, vec):
+        raise NotImplementedError
+
+    @staticmethod
     @abstractmethod
     def up(matrix, indices, submatrix, axis=0):
         raise NotImplementedError
@@ -731,6 +739,16 @@ class LinAlgMixin(ABC):
     @staticmethod
     @abstractmethod
     def hessian_implemented() -> bool:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def jvp_implemented() -> bool:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def hvp_implemented() -> bool:
         raise NotImplementedError
 
     @staticmethod

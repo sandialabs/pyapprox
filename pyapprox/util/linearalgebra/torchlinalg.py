@@ -384,16 +384,29 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def grad(fun, params):
+        # if not params.requires_grad:
+        #    params.requires_grad = True
         params.requires_grad = True
         val = fun(params)
         val.backward()
         grad = __class__.copy(params.grad)
         params.grad.zero_()
+        # params.requires_grad = False
         return val, grad
+
+    @staticmethod
+    def jvp(fun, params, vec):
+        # set create_graph=True so that result is differentiable.
+        return torch.autograd.functional.jvp(
+            fun, params, vec, create_graph=True
+        )[1]
 
     @staticmethod
     def hessian(fun, params):
         return torch.autograd.functional.hessian(fun, params)
+
+    def hvp(fun, params, vec):
+        return torch.autograd.functional.hvp(fun, params, vec)[1]
 
     @staticmethod
     def up(matrix, indices, submatrix, axis=0):
@@ -448,6 +461,14 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def hessian_implemented() -> bool:
+        return True
+
+    @staticmethod
+    def jvp_implemented() -> bool:
+        return True
+
+    @staticmethod
+    def hvp_implemented() -> bool:
         return True
 
     @staticmethod

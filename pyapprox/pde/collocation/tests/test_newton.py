@@ -4,8 +4,7 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-
-# from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.pde.collocation.newton import (
     NewtonResidual,
     NewtonSolver,
@@ -17,33 +16,19 @@ from pyapprox.pde.collocation.adjoint_models import (
 )
 
 
-class NonLinearCoupledResidual(NewtonResidual):
+class NonLinearCoupledResidualAuto(NewtonResidual):
     def __call__(self, iterate: Array) -> Array:
-        return self._bkd.array(
+        # do not use bkd.array or asarray use stack
+        return self._bkd.stack(
             [
                 self._a**2 * iterate[0] ** 2 + iterate[1] ** 2 - 1,
                 iterate[0] ** 2 - self._b**3 * iterate[1] ** 2 - 1,
-            ]
-        )
-
-    def jacobian(self, iterate: Array) -> Array:
-        return self._bkd.array(
-            [
-                [2 * self._a**2 * iterate[0], 2 * iterate[1]],
-                [2 * iterate[0], -2 * self._b**3 * iterate[1]],
-            ]
-        )
-
-    def param_jacobian(self, iterate: Array) -> Array:
-        return self._bkd.array(
-            [
-                [2 * self._a * iterate[0] ** 2, 0.0],
-                [0.0, -3 * self._b**2 * iterate[1] ** 2],
-            ]
+            ],
+            axis=0,
         )
 
     def set_param(self, param: Array):
-        self._param = param
+        super().set_param(param)
         self._a, self._b = self._param
 
     def __repr__(self):
@@ -51,31 +36,66 @@ class NonLinearCoupledResidual(NewtonResidual):
             self.__class__.__name__, self._a, self._b
         )
 
-    def param_param_hvp(
+
+class NonLinearCoupledResidual(NonLinearCoupledResidualAuto):
+    def _jacobian(self, iterate: Array) -> Array:
+        # return super()._jacobian(iterate)
+        # do not use bkd.array or asarray use stack
+        return self._bkd.stack(
+            [
+                self._bkd.hstack(
+                    [2 * self._a**2 * iterate[0], 2 * iterate[1]]
+                ),
+                self._bkd.hstack(
+                    [2 * iterate[0], -2 * self._b**3 * iterate[1]]
+                ),
+            ],
+            axis=0,
+        )
+
+    def _param_jacobian(self, iterate: Array) -> Array:
+        # super()._param_jacobian(iterate)
+        zero = self._bkd.zeros((1,))
+        return self._bkd.stack(
+            [
+                self._bkd.hstack([2 * self._a * iterate[0] ** 2, zero]),
+                self._bkd.hstack([zero, -3 * self._b**2 * iterate[1] ** 2]),
+            ],
+            axis=0,
+        )
+
+    def _param_param_hvp(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
     ) -> Array:
-        return self._bkd.array(
-            [
-                [2 * adj_sol[0] * fwd_sol[0] ** 2, 0],
-                [0, -6 * adj_sol[1] * self._b * fwd_sol[1] ** 2],
-            ]
+        # return super()._param_param_hvp(fwd_sol, adj_sol, vvec)
+        return (
+            self._bkd.array(
+                [
+                    [2 * adj_sol[0] * fwd_sol[0] ** 2, 0],
+                    [0, -6 * adj_sol[1] * self._b * fwd_sol[1] ** 2],
+                ]
+            )
             @ vvec
         )
 
-    def state_state_hvp(
+    def _state_state_hvp(
         self, fwd_sol: Array, adj_sol: Array, wvec: Array
     ) -> Array:
-        return self._bkd.array(
-            [
-                [2 * adj_sol[0] * self._a**2 + 2 * adj_sol[1], 0],
-                [0, 2 * adj_sol[0] - 2 * adj_sol[1] * self._b**3],
-            ]
+        # return super()._state_state_hvp(fwd_sol, adj_sol, wvec)
+        return (
+            self._bkd.array(
+                [
+                    [2 * adj_sol[0] * self._a**2 + 2 * adj_sol[1], 0],
+                    [0, 2 * adj_sol[0] - 2 * adj_sol[1] * self._b**3],
+                ]
+            )
             @ wvec
         )
 
-    def state_param_hvp(
+    def _state_param_hvp(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
     ) -> Array:
+        # return super()._state_param_hvp(fwd_sol, adj_sol, vvec)
         return (
             self._bkd.array(
                 [
@@ -86,9 +106,10 @@ class NonLinearCoupledResidual(NewtonResidual):
             @ vvec
         )
 
-    def param_state_hvp(
+    def _param_state_hvp(
         self, fwd_sol: Array, adj_sol: Array, wvec: Array
     ) -> Array:
+        # return super()._param_state_hvp(fwd_sol, adj_sol, wvec)
         return (
             self._bkd.array(
                 [
@@ -100,7 +121,7 @@ class NonLinearCoupledResidual(NewtonResidual):
         )
 
 
-class SumFunctional(AdjointFunctional):
+class SumFunctionalAuto(AdjointFunctional):
     def nstates(self):
         return 2
 
@@ -110,23 +131,30 @@ class SumFunctional(AdjointFunctional):
     def _value(self, sol: Array) -> Array:
         return self._bkd.atleast1d(self._bkd.sum(sol**3))
 
+
+class SumFunctional(SumFunctionalAuto):
     def _qoi_sol_jacobian(self, sol: Array) -> Array:
         dqdu = 3 * sol**2
         return dqdu
 
     def _qoi_param_jacobian(self, sol: Array) -> Array:
+        # return super()._qoi_param_jacobian(sol)
         return self._bkd.zeros((self.nparams(),))
 
     def _qoi_param_param_hvp(self, sol: Array, vvec: Array) -> Array:
+        # return super()._qoi_param_param_hvp(sol, vvec)
         return self._bkd.zeros((sol.shape[0],))
 
     def _qoi_state_state_hvp(self, sol: Array, wvec: Array) -> Array:
+        # return super()._qoi_state_state_hvp(sol, wvec)
         return self._bkd.array([[6 * sol[0], 0], [0, 6 * sol[1]]]) @ wvec
 
     def _qoi_state_param_hvp(self, sol: Array, vvec: Array) -> Array:
+        # return super()._qoi_state_param_hvp(sol, vvec)
         return self._bkd.zeros((2, 2)) @ vvec
 
     def _qoi_param_state_hvp(self, sol: Array, wvec: Array) -> Array:
+        # return super()._qoi_param_state_hvp(sol, wvec)
         return self._bkd.zeros((2, 2)) @ wvec
 
 
@@ -134,9 +162,8 @@ class TestNewton:
     def setUp(self):
         np.random.seed(1)
 
-    def test_nonlinear_coupled_residual(self):
+    def _check_nonlinear_coupled_residual(self, res, functional):
         bkd = self.get_backend()
-        res = NonLinearCoupledResidual(bkd)
         sample = bkd.array([0.8, 1.1])[:, None]
         res.set_param(sample[:, 0])
         solver = NewtonSolver()
@@ -153,7 +180,6 @@ class TestNewton:
         )
         assert bkd.allclose(sol, exact_sol)
 
-        functional = SumFunctional()
         adjoint_solver = AdjointSolver(solver, functional)
         adjoint_solver.set_param(sample[:, 0])
         adjoint_solver.set_initial_iterate(init_iterate)
@@ -217,15 +243,31 @@ class TestNewton:
         model.jacobian(sample)
         model.apply_hessian(sample, vec[:, None])
 
+    def test_nonlinear_coupled_residual(self):
+        bkd = self.get_backend()
+        res = NonLinearCoupledResidual(bkd)
+        functional = SumFunctional(backend=bkd)
+        self._check_nonlinear_coupled_residual(res, functional)
+
+        if (
+                not bkd.hvp_implemented()
+                or not bkd.jvp_implemented()
+                or not bkd.jacobian_implemented()
+        ):
+            return
+        res = NonLinearCoupledResidualAuto(bkd)
+        functional = SumFunctionalAuto(backend=bkd)
+        self._check_nonlinear_coupled_residual(res, functional)
+
 
 class TestNumpyNewton(TestNewton, unittest.TestCase):
     def get_backend(self):
         return NumpyLinAlgMixin
 
 
-# class TestTorchNewton(TestNewton, unittest.TestCase):
-#     def get_backend(self):
-#         return TorchLinAlgMixin
+class TestTorchNewton(TestNewton, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

@@ -394,6 +394,14 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return False
 
     @staticmethod
+    def hvp_implemented() -> bool:
+        return False
+
+    @staticmethod
+    def jvp_implemented() -> bool:
+        return False
+
+    @staticmethod
     def meshgrid(*arrays, indexing="xy"):
         return np.meshgrid(*arrays, indexing=indexing)
 

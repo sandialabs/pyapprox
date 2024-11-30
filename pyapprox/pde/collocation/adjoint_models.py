@@ -117,9 +117,8 @@ class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
         init_iterate: Array,
         newton_solver: NewtonSolver = None,
         apply_hessian_implemented=False,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(residual, functional, newton_solver, backend)
+        super().__init__(residual, functional, newton_solver, residual._bkd)
         self._apply_hessian_implemented = apply_hessian_implemented
         if init_iterate.ndim != 1:
             raise ValueError("init_iterate must be 1D Array")
