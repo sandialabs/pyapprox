@@ -152,6 +152,7 @@ class TransientAdjointModel(AdjointModel):
             )
         self._time_residual = time_residual
         self._functional = functional
+        self._newton_solver = newton_solver
         self.setup_time_integrator(init_time, final_time, deltat)
 
     def setup_time_integrator(
@@ -165,6 +166,7 @@ class TransientAdjointModel(AdjointModel):
             self._init_time,
             self._final_time,
             self._deltat,
+            newton_solver=self._newton_solver,
             verbosity=0,
         )
         self._time_int.set_functional(self._functional)

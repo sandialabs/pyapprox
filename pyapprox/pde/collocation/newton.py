@@ -231,7 +231,7 @@ class NewtonSolver:
 
     def __repr__(self):
         return (
-            "{0}(maxiters={1}, verbosity={2}, step_size={3}, atol={4},"
+            "{0}(maxiters={1}, verbosity={2}, step_size={3}, atol={4}, "
             "rol={5})"
         ).format(
             self.__class__.__name__,

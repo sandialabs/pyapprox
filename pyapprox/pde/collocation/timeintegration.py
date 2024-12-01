@@ -55,11 +55,6 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
 
     def jacobian(self, sol: Array) -> Array:
         jac = self._jacobian(sol)
-        # print(
-        #     self._bkd.abs(self._jacobian(sol)-self._bkd.jacobian(lambda x: self(x), sol)).max()
-        # )
-        # print(self._bkd.abs(jac-self._apply_constraints_to_jacobian(jac)).max())
-        # assert False
         return self._apply_constraints_to_jacobian(jac)
 
     def adjoint_implemented(self) -> bool:
@@ -331,6 +326,10 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
             - 0.5 * self._deltat * (current_res + next_res)
         )
 
+    # def param_hack(self, sol, param):
+    #     self.native_residual.set_param(param)
+    #     return self._value(sol)
+
     def _param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
         self.native_residual.set_time(self._time)
         k1_param_jac = self.native_residual.param_jacobian(fsol_nm1)
@@ -340,7 +339,7 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
         k2 = fsol_nm1 + self._deltat * self.native_residual(fsol_nm1)
         k2_state_jac = self.native_residual.jacobian(k2)
         k2_param_jac = self.native_residual.param_jacobian(k2)
-        return -(
+        jac = -(
             0.5
             * self._deltat
             * (
@@ -349,7 +348,15 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
                 + self._deltat * (k2_state_jac @ k1_param_jac)
             )
         )
+        # from functools import partial
+        # print(self._bkd.abs(self._bkd.jacobian(partial(self.param_hack, fsol_n), self.native_residual._param)-jac).max(), "jp")
+        # assert self._bkd.allclose(jac, self._bkd.jacobian(partial(self.param_hack, fsol_n), self.native_residual._param))
+        return jac
 
+    # def _state_hack(self, fsol_n, fsol_nm1):
+    #     self._prev_sol = fsol_nm1
+    #     return self._value(fsol_n)
+    
     def adjoint_offdiag_jacobian(
         self, fsol_n: Array, deltat_np1: float
     ) -> Array:
@@ -359,14 +366,18 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
         #  d/dx g(x + d*g(x)) = (1 + d g'(x))g'(x + d g(x))
         #  k2 = x + d*g(x)
         k2 = fsol_n + deltat_np1 * self.native_residual(fsol_n)
-        mass = self.native_residual.mass_matrix(fsol_n.shape[0])
         k2_jac = self.native_residual.jacobian(k2)
-        return -(
+        mass = self.native_residual.mass_matrix(fsol_n.shape[0])
+        jac = -(
             mass
             + 0.5
             * deltat_np1
-            * (k1_jac + (mass + deltat_np1 * k1_jac) @ k2_jac)
+            * (k1_jac + k2_jac @ (mass + deltat_np1 * k1_jac))
         )
+        # from functools import partial
+        # print(self._bkd.abs(jac-self._bkd.jacobian(partial(self._state_hack, fsol_n), self._prev_sol)).max(), "jx")
+        # assert self._bkd.allclose(jac, self._bkd.jacobian(partial(self._state_hack, fsol_n), self._prev_sol))
+        return jac.T
 
     def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
         node_gen = UnivariateTransientNodeGenerator(self._bkd)
