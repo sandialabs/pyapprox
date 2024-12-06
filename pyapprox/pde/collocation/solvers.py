@@ -127,7 +127,8 @@ class TransientPhysicsNewtonResidual(TransientNewtonResidual):
                 fun.set_time(time)
 
         for bndry in self._physics._bndrys:
-            if isinstance(bndry._fun, TransientOperatorMixin):
+            #TODO CREATE A BASE CLASS WHICH DERIVES CONSTANT AND FUNCTION based bndry
+            if hasattr(bndry, "_fun") and isinstance(bndry._fun, TransientOperatorMixin):
                 bndry._fun.set_time(time)
 
 

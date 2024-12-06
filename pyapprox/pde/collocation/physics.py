@@ -223,7 +223,7 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
                     velocity_field
                 )
             )
-        super().__init__(forcing.basis)
+        super().__init__(diffusion.basis)
         self._forcing = forcing
         self._diffusion = diffusion
         self._reaction_op = reaction_op
@@ -241,7 +241,7 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         if self._reaction_op is not None:
             residual += self._reaction_op(sol)
         if self._flux_jacobian_from_array:
-            residual += div(self._flux(sol))
+            residual += -div(self._flux(sol))
         return residual
 
     def _flux(self, sol: ScalarSolution):
@@ -250,9 +250,9 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         # The non conservative version does not include velocity field
         flux = 0.0
         if self._diffusion is not None:
-            flux += self._diffusion * nabla(sol)
+            flux -= self._diffusion * nabla(sol)
         if self._velocity_field is not None:
-            flux -= sol * self._velocity_field
+            flux += sol * self._velocity_field
         return flux
 
     def get_functions(self) -> Dict[str, ScalarOperator]:
@@ -401,13 +401,13 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
                 [vh, uvh, vh**2 / h + g_hsq],
             ]
         flux.set_components(components)
-        return -flux
+        return flux
 
     def residual(self, sol: VectorSolution) -> VectorOperator:
         if not isinstance(sol, VectorSolution):
             raise ValueError("sol must be an instance of VectorSolution")
         flux = self._flux(sol)
-        residual = div(flux)
+        residual = -div(flux)
         h = sol.get_components()[0]
         residual -= h * self._slope_forcing
         if self._forcing is not None:
@@ -455,14 +455,14 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
     def residual(self, sol: VectorSolution):
         if not isinstance(sol, VectorSolution):
             raise ValueError("sol must be an instance of VectorSolution")
-        residual = div(self._flux(sol))
+        residual = -div(self._flux(sol))
         residual += self._reaction_op(sol)
         if self._forcing is not None:
             residual += self._forcing
         return residual
 
     def _flux(self, sol: VectorSolution) -> MatrixOperator:
-        flux = self._diffusion @ vector_nabla(sol)
+        flux = -self._diffusion @ vector_nabla(sol)
         return flux.T
 
     def get_functions(self) -> Dict[str, ScalarOperator]:

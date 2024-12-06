@@ -1,10 +1,12 @@
 import textwrap
 from abc import ABC, abstractmethod
 from typing import Union, List
-import numpy as np
 
+import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.gridspec import GridSpec
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.visualization import get_meshgrid_samples
@@ -14,7 +16,6 @@ from pyapprox.pde.collocation.sparsejac import (
     SparseJacobian,
     ZeroJac,
     DiagJac,
-    DenseJac,
 )
 
 # Note from typing documentation
@@ -362,12 +363,16 @@ class ScalarOperator:
         )[None, :]
         return ax.plot(plot_samples[0], self(plot_samples), **kwargs)
 
-    def _plot_2d(self, ax, npts_1d, **kwargs):
+    def _get_2d_plot_samples(self, npts_1d):
         orth_range = self.basis.mesh.trans._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
             self._bkd.tile(orth_range, (2,)), npts_1d, bkd=self._bkd
         )
         pts = self.basis.mesh.trans.map_from_orthogonal(orth_pts_2d)
+        return pts, orth_X
+
+    def _plot_2d(self, ax, npts_1d, **kwargs):
+        pts, orth_X = self._get_2d_plot_samples(npts_1d)
         X = self._bkd.reshape(pts[0], orth_X.shape)
         Y = self._bkd.reshape(pts[1], orth_X.shape)
         Z = self._bkd.reshape(self(pts), X.shape)
@@ -1390,3 +1395,202 @@ class ScalarKLEFunction(ScalarFunction):
 
     def set_param(self, param):
         self.set_values(self._kle(param[:, None])[:, 0])
+
+
+def remove_3d_axis_panels(ax):
+    ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    # make the grid lines transparent
+    ax.xaxis._axinfo["grid"]["color"] = (1, 1, 1, 0)
+    ax.yaxis._axinfo["grid"]["color"] = (1, 1, 1, 0)
+    ax.zaxis._axinfo["grid"]["color"] = (1, 1, 1, 0)
+    return ax
+
+
+def animate_transient_2d_scalar_solution(
+    basis: OrthogonalCoordinateCollocationBasis,
+    sol: Array,
+    times: Array,
+    plot_surface: bool = False,
+):
+    if basis.nphys_vars() != 2:
+        raise ValueError("This function only creates 2D animations")
+    bkd = basis._bkd
+    gs = GridSpec(10, 1, hspace=1)  # 10 rows, 3 columns
+    fig = plt.figure(figsize=(8, 6))
+    if plot_surface:
+        ax0 = fig.add_subplot(gs[:9, 0], projection="3d")
+    else:
+        ax0 = fig.add_subplot(gs[:9, 0])
+    ax1 = fig.add_subplot(gs[-1, 0])
+    axs = [ax0, ax1]
+
+    # get the maximum values of the plot so
+    # that colorscale is consistent between frames
+    npts1d = 51
+    solfun = ScalarFunction(basis)
+    plot_samples = solfun._get_2d_plot_samples(npts1d)[0]
+    sol_plot_values = []
+    for ii in range(sol.shape[1]):
+        solfun.set_values(sol[:, ii])
+        sol_plot_values.append(solfun(plot_samples))
+    sol_plot_values = bkd.stack(sol_plot_values, axis=1)
+    zmin, zmax = sol_plot_values.min(), sol_plot_values.max()
+    state_bounds = bkd.array([zmin, zmax])
+    levels = bkd.linspace(*state_bounds, 51)
+
+    def animate(ii):
+        [ax.clear() for ax in axs]
+        solfun = ScalarSolution(basis)
+        solfun.set_values(sol[:, ii])
+        if not plot_surface:
+            solfun.plot(axs[0], npts1d, levels=levels)
+        else:
+            solfun.plot(axs[0], npts1d)
+            axs[0].set_zlim((zmin, zmax))
+            axs[0] = remove_3d_axis_panels(axs[0])
+            # rotate frame as animation evolves
+            # axs[0].view_init(0, 2*ii)
+
+        timebar = bkd.zeros(times.shape[0] - 1)
+        timebar[:ii] = 1.0
+        # TODO last timestep plot of timebar is all one value
+        # so it plots all the first color and not all the last color
+        axs[1].imshow(
+            timebar[None, :],
+            extent=[times[0], times[-1], 0, 1],
+            aspect="auto",
+            cmap="Dark2",
+        )
+        axs[1].set_xlabel("Time")
+        axs[1].set_yticks([])
+
+    ani = animation.FuncAnimation(
+        fig,
+        animate,
+        interval=125,
+        repeat_delay=1000,
+        frames=sol.shape[-1],
+    )
+    return ani
+
+
+def animate_transient_2d_vector_solution(
+    basis: OrthogonalCoordinateCollocationBasis,
+    sol: Array,
+    times: Array,
+    ncomponents: int,
+    components_as_contour_plots: Union[list, Array] = None,
+    components_as_surface_plots: Union[list, Array] = None,
+    npts1d: int = 51,
+    contour_plot_kwargs: dict = {},
+    surface_plot_kwargs: dict = {},
+):
+    bkd = basis._bkd
+    if times.shape[0] != sol.shape[1]:
+        raise ValueError("times and sol are inconsistent")
+
+    components_as_contour_plots = bkd.asarray(
+        components_as_contour_plots, dtype=int
+    )
+    components_as_surface_plots = bkd.asarray(
+        components_as_surface_plots, dtype=int
+    )
+    if bkd.max(components_as_contour_plots) >= ncomponents:
+        raise ValueError(
+            "entry in components_as_contour_plots exceeds ncomponents"
+        )
+    if bkd.max(components_as_surface_plots) >= ncomponents:
+        raise ValueError(
+            "entry in components_as_contour_plots exceeds ncomponents"
+        )
+
+    ncomponent_plots = (
+        components_as_contour_plots.shape[0]
+        + components_as_surface_plots.shape[0]
+    )
+    fig = plt.figure(figsize=(ncomponent_plots * 8, 6))
+    print(ncomponent_plots)
+    gs = GridSpec(
+        10, ncomponent_plots, hspace=1
+    )  # 10 rows, ncomponent columns
+    # plot all surface plots then all contour plots
+    axs = [
+        fig.add_subplot(gs[:9, ii], projection="3d")
+        for ii in range(components_as_surface_plots.shape[0])
+    ] + [
+        fig.add_subplot(gs[:9, ii + components_as_surface_plots.shape[0]])
+        for ii in range(components_as_contour_plots.shape[0])
+    ]
+    # add axis for time bar
+    axs += [fig.add_subplot(gs[-1, :])]
+
+    # get the maximum values of the plot so
+    # that colorscale is consistent between frames
+    solfun = VectorSolution(basis, ncomponents, ncomponents)
+    solfun.set_flattened_values(sol[:, 0])  # needed so next line will work
+    plot_samples = solfun.get_components()[0]._get_2d_plot_samples(npts1d)[0]
+    sol_plot_values = []
+    for ii in range(sol.shape[1]):
+        solfun.set_flattened_values(sol[:, ii])
+        sol_plot_values.append(solfun(plot_samples))
+    sol_plot_values = bkd.stack(sol_plot_values, axis=-1)
+    zmin = bkd.min(bkd.min(sol_plot_values, axis=-1), axis=-1)
+    zmax = bkd.max(bkd.max(sol_plot_values, axis=-1), axis=-1)
+    state_bounds = bkd.stack([zmin, zmax], axis=1)
+    levels = [bkd.linspace(*bounds, 51) for bounds in state_bounds]
+
+    def animate(ii):
+        [ax.clear() for ax in axs]
+        solfun.set_flattened_values(sol[:, ii])
+        components = solfun.get_components()
+        for ii, component_id in enumerate(components_as_surface_plots):
+            components[component_id].plot(
+                axs[ii], npts1d, **surface_plot_kwargs
+            )
+            axs[ii].set_zlim(state_bounds[component_id])
+            axs[ii] = remove_3d_axis_panels(axs[ii])
+        for jj, component_id in enumerate(components_as_contour_plots):
+            ii = jj + components_as_surface_plots.shape[0]
+            components[component_id].plot(
+                axs[ii],
+                npts1d,
+                levels=levels[component_id],
+                **contour_plot_kwargs,
+            )
+
+        timebar = bkd.zeros(times.shape[0] - 1)
+        timebar[:ii] = 1.0
+        # TODO last timestep plot of timebar is all one value
+        # so it plots all the first color and not all the last color
+        axs[-1].imshow(
+            timebar[None, :],
+            extent=[times[0], times[-1], 0, 1],
+            aspect="auto",
+            cmap="Dark2",
+        )
+        axs[-1].set_xlabel("Time")
+        axs[-1].set_yticks([])
+
+    ani = animation.FuncAnimation(
+        fig,
+        animate,
+        interval=125,
+        repeat_delay=1000,
+        frames=sol.shape[-1],
+        init_func=lambda: None,
+    )
+    return ani
+
+
+def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
+        "trunc({n},{a:.2f},{b:.2f})".format(n=cmap.name, a=minval, b=maxval),
+        cmap(np.linspace(minval, maxval, n)),
+    )
+    return new_cmap
+
+
+def get_water_cmap():
+    return truncate_colormap(plt.cm.Blues, minval=0.1)

@@ -146,7 +146,7 @@ class TransientSingleStateLinearFunctional(TransientAdjointFunctional):
     def __init__(self, nstates, nparams, backend=NumpyLinAlgMixin):
         self._nstates = nstates
         self._nparams = nparams
-        self._bkd = backend
+        super().__init__(backend)
 
     def nstates(self):
         return self._nstates
@@ -157,7 +157,7 @@ class TransientSingleStateLinearFunctional(TransientAdjointFunctional):
     def _value(self, sol: Array) -> Array:
         return self._bkd.atleast1d(self._bkd.sum(sol[0, :] * self._quadw))
 
-    def _qoi_sol_jacobian(self, sol: Array) -> Array:
+    def _qoi_state_jacobian(self, sol: Array) -> Array:
         e1 = self._bkd.zeros((self.nstates(),))
         e1[0] = 1.0
         dqdu = self._bkd.stack([e1] * (sol.shape[1]), axis=1) * self._quadw
@@ -166,6 +166,9 @@ class TransientSingleStateLinearFunctional(TransientAdjointFunctional):
     def _qoi_param_jacobian(self, sol: Array) -> Array:
         return self._bkd.zeros((self.nparams(),))
 
+    def nunique_functional_params(self) -> int:
+        return 0
+
 
 class TransientSingleStateNonLinearFunctional(
     TransientSingleStateLinearFunctional
@@ -173,7 +176,7 @@ class TransientSingleStateNonLinearFunctional(
     def _value(self, sol: Array) -> Array:
         return self._bkd.atleast1d(self._bkd.sum(sol[0, :] ** 2 * self._quadw))
 
-    def _qoi_sol_jacobian(self, sol: Array) -> Array:
+    def _qoi_state_jacobian(self, sol: Array) -> Array:
         e1 = self._bkd.zeros((self.nstates(),))
         # print(sol.shape, e1.shape, self._quadw.shape)
         e1[0] = 1.0

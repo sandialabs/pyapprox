@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from typing import Tuple
 
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -27,6 +28,11 @@ class AdjointModel(SingleSampleModel):
     @abstractmethod
     def _fwd_solve(self):
         raise NotImplementedError
+
+    def forward_solve(self, sample) -> Tuple[Array, Array]:
+        self._set_param(sample[:, 0])
+        self._fwd_solve()
+        return self._sols, self._times
 
     @abstractmethod
     def _set_param(self, param: Array):
@@ -135,7 +141,7 @@ class TransientAdjointModel(AdjointModel):
         final_time: float,
         deltat: float,
         time_residual: TimeIntegratorNewtonResidual,
-        functional: TransientAdjointFunctional,
+        functional: TransientAdjointFunctional = None,
         newton_solver: NewtonSolver = None,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
@@ -145,15 +151,21 @@ class TransientAdjointModel(AdjointModel):
                 "time_residual must be an instance of "
                 "TimeIntegratorNewtonResidual"
             )
+
+        self._time_residual = time_residual
+        self._newton_solver = newton_solver
+        self.setup_time_integrator(init_time, final_time, deltat)
+        if functional is not None:
+            self.set_functional(functional)
+
+    def set_functional(self, functional: TransientAdjointFunctional):
         if not isinstance(functional, TransientAdjointFunctional):
             raise ValueError(
                 "functional must be an instance of "
                 "TransientAdjointFunctional"
             )
-        self._time_residual = time_residual
         self._functional = functional
-        self._newton_solver = newton_solver
-        self.setup_time_integrator(init_time, final_time, deltat)
+        self._time_int.set_functional(self._functional)
 
     def setup_time_integrator(
         self, init_time: float, final_time: float, deltat: float
@@ -169,15 +181,21 @@ class TransientAdjointModel(AdjointModel):
             newton_solver=self._newton_solver,
             verbosity=0,
         )
-        self._time_int.set_functional(self._functional)
 
     @abstractmethod
     def get_initial_condition(self) -> Array:
         raise NotImplementedError
 
     def _set_param(self, param: Array):
-        self._time_residual.native_residual.set_param(param)
-        self._functional.set_param(param)
+        if hasattr(self, "_functional"):
+            # pass functional all parameters
+            self._functional.set_param(param)
+            # do not pass parameters unique to functional to native residual
+            self._time_residual.native_residual.set_param(
+                self._functional._residual_param(param)
+            )
+        else:
+            self._time_residual.native_residual.set_param(param)
 
     def _eval_functional(self):
         self._functional.set_quadrature_sample_weights(

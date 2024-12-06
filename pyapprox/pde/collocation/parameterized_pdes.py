@@ -1,4 +1,8 @@
-from pyapprox.util.linearalgebra.linalgbase import Array
+from typing import Tuple
+import math
+
+from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.collocation.adjoint_models import (
     TransientAdjointModel,
     TransientAdjointFunctional,
@@ -7,19 +11,176 @@ from pyapprox.pde.collocation.timeintegration import (
     TimeIntegratorNewtonResidual,
     TransientNewtonResidual,
 )
-from pyapprox.pde.collocation.solvers import TransientPDE
+# warning shallowwater wrapper needs updating
+from pyapprox.pde.collocation.solvers import (
+    TransientPDE, TransientPhysicsNewtonResidual
+)
 from pyapprox.pde.collocation.newton import NewtonSolver
 from pyapprox.pde.collocation.functions import (
     ScalarFunction,
+    ConstantScalarFunction,
     VectorFunction,
     ScalarKLEFunction,
     ZeroScalarFunction,
+    VectorFunctionFromCallable,
+    ScalarFunctionFromCallable,
 )
 from pyapprox.pde.collocation.boundaryconditions import (
     DirichletBoundaryFromOperator,
     RobinBoundaryFromOperator,
+    ConstantRobinBoundary,
+    ConstantDirichletBoundary,
 )
-from pyapprox.pde.collocation.physics import ShallowWaveEquation
+from pyapprox.pde.collocation.physics import (
+    Physics,
+    ShallowWaveEquation,
+    AdvectionDiffusionReactionEquation,
+)
+from pyapprox.pde.collocation.mesh import ChebyshevCollocationMesh2D
+from pyapprox.pde.collocation.basis import ChebyshevCollocationBasis2D
+from pyapprox.pde.collocation.mesh_transforms import (
+    ScaleAndTranslationTransform2D,
+)
+
+
+class TransientAdvectionDiffusionReactionModel(TransientAdjointModel):
+    def __init__(
+        self,
+        init_time: float,
+        final_time: float,
+        deltat: float,
+        time_residual_cls: TimeIntegratorNewtonResidual,
+        newton_solver: NewtonSolver = None,
+        functional: TransientAdjointFunctional = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        self.setup_basis()
+        self._nominal_val = 0.
+        self.setup_diffusion()
+        self.setup_velocity()
+        self.setup_forcing()
+        self._physics = AdvectionDiffusionReactionEquation(
+            self._forcing,
+            self._diffusion,
+            reaction_op=None,
+            velocity_field=self._vel_field,
+        )
+        self._set_boundaries()
+        # make following default for all collocation based adjoint models
+        time_residual = time_residual_cls(
+            TransientPhysicsNewtonResidual(self._physics)
+        )
+        time_residual._apply_constraints_to_residual = (
+            time_residual.native_residual._apply_constraints_to_residual
+        )
+        time_residual._apply_constraints_to_jacobian = (
+            time_residual.native_residual._apply_constraints_to_jacobian
+        )
+
+        super().__init__(
+            init_time,
+            final_time,
+            deltat,
+            time_residual,
+            functional,
+            newton_solver,
+            backend=backend,
+        )
+
+    def setup_basis(self):
+        Lx, Ly = 1, 1
+        bounds = self._bkd.array([0, Lx, 0, Ly])
+        transform = ScaleAndTranslationTransform2D(
+            [-1, 1, -1, 1], bounds, self._bkd
+        )
+        mesh = ChebyshevCollocationMesh2D([20, 20], transform)
+        self._basis = ChebyshevCollocationBasis2D(mesh)
+
+    def setup_diffusion(self):
+        self._diffusion = ScalarKLEFunction(
+            self._basis,
+            0.1,
+            3,
+            sigma=0.1,
+            mean_field=ConstantScalarFunction(self._basis, -1., 1),
+            ninput_funs=self._basis.mesh.nphys_vars() + 1,
+            use_log=True,
+        )
+
+    def setup_velocity(self):
+        self._vel_field = VectorFunctionFromCallable(
+            self._basis,
+            1,
+            self._basis.nphys_vars(),
+            lambda x: self._bkd.stack(
+                (
+                    self._bkd.cos(4*(x[0]-2) + 2*(4*(x[1]-2))),
+                    2 * self._bkd.sin(2*(2*x[0]-2) - 2*(2*(2*x[1]-2)))
+                ),
+                axis=1
+            )
+        )
+
+    def setup_forcing(self):
+        # self._forcing = ConstantScalarFunction(self._basis, 0., 1)
+        self._forcing = ScalarFunctionFromCallable(
+            self._basis,
+            lambda x: self._bkd.prod(x**10*(1-x)**10, axis=0)*1e7,
+            ninput_funs=1
+        )
+
+    def get_initial_condition(self):
+        return ConstantScalarFunction(
+            self._basis, self._nominal_val, ninput_funs=1
+        ).get_values()
+        # return ScalarFunctionFromCallable(
+        #     self._basis,
+        #     lambda x: self._bkd.prod(x**5*(1-x)**5, axis=0)*1e7,
+        #     ninput_funs=1
+        # ).get_values()
+
+    def _set_boundaries(self):
+        # make flux depend on solution's value relative to a nominal_val
+        # beta * flux(u(x)) @ n = u(x) - nominal_val
+        # beta * flux(u(x)) @ n - u(x) = nominal_val
+        # beta * flux(u(x)) @ n + alpha * u(x) = nominal_val, alpha = -1
+
+        # Conservative rules are written as
+        # du/dt = -div(F) + g for flux F.
+        bndrys = []
+        alpha, beta = -1.0, 1.0
+        for (
+            bndry_name,
+            mesh_bndry,
+        ) in self._basis.mesh.get_boundaries().items():
+            bndrys.append(
+                ConstantRobinBoundary(
+                    mesh_bndry, self._nominal_val, alpha, beta, 0, 0
+                )
+            )
+            # bndrys.append(
+            #     ConstantDirichletBoundary(mesh_bndry, 0.)
+            # )
+        self._physics.set_boundaries(bndrys)
+
+    def nvars(self) -> int:
+        # TODO MAKE THIS REQQUIRED FOR ALL PARAMETERIZED MODELS
+        if not hasattr(self, "_functional"):
+            return self._diffusion._kle.nvars()
+        return (
+            self._functional.nunique_functional_params()
+            + self._diffusion._kle.nvars()
+        )
+
+    def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
+        sols, times = super().forward_solve(sample)
+        return (
+            self._sols.reshape(
+                (self._basis.mesh.nmesh_pts(), self._times.shape[0])
+            ),
+            self._times
+        )
 
 
 class ShallowWaterWaveModel(TransientAdjointModel):
@@ -29,9 +190,9 @@ class ShallowWaterWaveModel(TransientAdjointModel):
         final_time: float,
         deltat: float,
         time_residual_cls: TimeIntegratorNewtonResidual,
-        functional: TransientAdjointFunctional,
         bed: ScalarKLEFunction,
         init_surface: ScalarFunction,
+        functional: TransientAdjointFunctional = None,
         newton_solver: NewtonSolver = None,
         forcing: VectorFunction = None,
     ):
@@ -44,23 +205,33 @@ class ShallowWaterWaveModel(TransientAdjointModel):
         bndrys = self.setup_reflective_boundaries()
         # bndrys = self.setup_dirichlet_boundaries()
         self._physics.set_boundaries(bndrys)
+        # make following default for all collocation based adjoint models
+        time_residual = time_residual_cls(
+            TransientPhysicsNewtonResidual(self._physics)
+        )
+        time_residual._apply_constraints_to_residual = (
+            time_residual.native_residual._apply_constraints_to_residual
+        )
+        time_residual._apply_constraints_to_jacobian = (
+            time_residual.native_residual._apply_constraints_to_jacobian
+        )
 
-        self._solver = TransientPDE(self._physics, newton_solver)
-        self._solver.setup_time_integrator(
-            time_residual_cls,
+        super().__init__(
             init_time,
             final_time,
             deltat,
+            time_residual,
+            functional,
+            newton_solver,
+            backend=self._basis._bkd,
         )
-
-    # TODO make adjoint model and this class consistent
-    def _fwd_solve(self):
-        init_sol = self.get_initial_condition()
-        self._sols, self._times = self._solver.solve(init_sol)
 
     def nvars(self) -> int:
         # TODO MAKE THIS REQQUIRED FOR ALL PARAMETERIZED MODELS
         return self._bed._kle.nvars()
+
+    def physics(self) -> Physics:
+        return self._physics
 
     def get_initial_condition(self):
         init_cond = VectorFunction(
@@ -85,7 +256,7 @@ class ShallowWaterWaveModel(TransientAdjointModel):
             [init_depth]
             + [self._get_zerofun() for ii in range(self._basis.nphys_vars())]
         )
-        return init_cond
+        return init_cond.get_flattened_values()
 
     def _get_zerofun(self):
         return ZeroScalarFunction(
@@ -158,11 +329,11 @@ class LotkaVolterraResidual(TransientNewtonResidual):
         ).T
 
     def _param_jacobian(self, sol: Array) -> Array:
-        jac_r = self._bkd.diag(sol) - sol*self._bkd.diag(self._acoefs @ sol)
+        jac_r = self._bkd.diag(sol) - sol * self._bkd.diag(self._acoefs @ sol)
         jac_a_rows = -(self._rcoefs * sol)[:, None] * sol[None, :]
         jac_a = self._bkd.zeros((3, 9))
         for ii in range(3):
-            jac_a[ii, 3*ii:3*(ii+1)] = jac_a_rows[ii]
+            jac_a[ii, 3 * ii : 3 * (ii + 1)] = jac_a_rows[ii]
         jac = self._bkd.hstack((jac_r, jac_a))
         return jac
 
@@ -180,10 +351,11 @@ class LotkaVolterraModel(TransientAdjointModel):
         final_time: float,
         deltat: float,
         time_residual_cls: TimeIntegratorNewtonResidual,
-        functional: TransientAdjointFunctional,
+        functional: TransientAdjointFunctional = None,
         newton_solver: NewtonSolver = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        self._residual = LotkaVolterraResidual(functional._bkd)
+        self._residual = LotkaVolterraResidual(backend)
         super().__init__(
             init_time,
             final_time,
@@ -191,11 +363,16 @@ class LotkaVolterraModel(TransientAdjointModel):
             time_residual_cls(self._residual),
             functional,
             newton_solver,
-            backend=functional._bkd,
+            backend=backend,
         )
 
     def nvars(self) -> int:
-        return self._residual.nvars()
+        if not hasattr(self, "_functional"):
+            return self._residual.nvars()
+        return (
+            self._functional.nunique_functional_params()
+            + self._residual.nvars()
+        )
 
     def get_initial_condition(self) -> Array:
         return self._bkd.array([0.3, 0.4, 0.3])

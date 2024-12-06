@@ -87,13 +87,29 @@ class BoundaryFromOperatorMixin:
             )
         self._fun = fun
 
-    def __call__(self, bndry_mesh_pts):
+    def __call__(self, bndry_mesh_pts: Array) -> Array:
         # todo consider avoiding interpolation and just
         # accessing correct values in self._fun.get_flattened_values()
         # by passing in index to array returned by get_values()
         # need to think about whether this affects hybrid discontinous Galerkin
         # perhaps support both options
         return self._bkd.flatten(self._fun(bndry_mesh_pts))
+
+
+class ConstantDirichletBoundary(
+    BoundaryFromOperatorMixin, DirichletBoundary
+):
+    def __init__(
+        self,
+        mesh_bndry: OrthogonalCoordinateMeshBoundary,
+        const: float,
+        index_shift: int = 0,
+    ):
+        self._const = const
+        super().__init__(mesh_bndry, index_shift)
+
+    def __call__(self, bndry_mesh_pts: Array) -> Array:
+        return self._bkd.full((bndry_mesh_pts.shape[1],), self._const)
 
 
 class DirichletBoundaryFromOperator(
@@ -210,6 +226,7 @@ class RobinBoundary(BoundaryOperator):
 
 
 class RobinBoundaryFromOperator(BoundaryFromOperatorMixin, RobinBoundary):
+    # beta * flux(u(x)) @ n + alpha * u(x) = g(x)
     def __init__(
         self,
         mesh_bndry: OrthogonalCoordinateMeshBoundary,
@@ -223,6 +240,26 @@ class RobinBoundaryFromOperator(BoundaryFromOperatorMixin, RobinBoundary):
             mesh_bndry, alpha, beta, index_shift, component_id
         )
         self._set_function(fun)
+
+
+class ConstantRobinBoundary(RobinBoundary):
+    # beta * flux(u(x)) @ n + alpha * u(x) = 0
+    def __init__(
+        self,
+        mesh_bndry: OrthogonalCoordinateMeshBoundary,
+        const: float,
+        alpha: float,
+        beta: float,
+        index_shift: int,
+        component_id: int,
+    ):
+        self._const = const
+        super().__init__(
+            mesh_bndry, alpha, beta, index_shift, component_id
+        )
+
+    def __call__(self, bndry_mesh_pts: Array) -> Array:
+        return self._bkd.full((bndry_mesh_pts.shape[1],), self._const)
 
 
 class PeriodicBoundary(BoundaryOperator):

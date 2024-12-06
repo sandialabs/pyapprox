@@ -5,15 +5,18 @@ import matplotlib.pyplot as plt
 
 # from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.pde.collocation.parameterized_pdes import LotkaVolterraModel
+from pyapprox.pde.collocation.parameterized_pdes import (
+    LotkaVolterraModel,
+    TransientAdvectionDiffusionReactionModel,
+)
 from pyapprox.pde.collocation.timeintegration import (
-    BackwardEulerResidual, CrankNicholsonResidual, ForwardEulerResidual,
-    HeunResidual
+    BackwardEulerResidual,
+    CrankNicholsonResidual,
+    ForwardEulerResidual,
+    HeunResidual,
+    TransientMSEAdjointFunctional,
 )
 from pyapprox.pde.collocation.newton import NewtonSolver
-from pyapprox.pde.collocation.tests.test_timeintegration import (
-    TransientSingleStateLinearFunctional
-)
 
 
 class TestParameterizedModels:
@@ -22,18 +25,39 @@ class TestParameterizedModels:
 
     def _check_lotka_volterra(self, time_residual_cls):
         bkd = self.get_backend()
-        functional = TransientSingleStateLinearFunctional(3, 12, backend=bkd)
-        # for some reason error in check apply jacobian depend on tolerance
         newton_solver = NewtonSolver(verbosity=0, rtol=1e-12, atol=1e-12)
         model = LotkaVolterraModel(
-            0, 10, 1, time_residual_cls, functional,
-            newton_solver=newton_solver
+            0,
+            10,
+            1,
+            time_residual_cls,
+            newton_solver=newton_solver,
+            backend=bkd,
         )
+        obs_sample = bkd.array(np.random.uniform(0.3, 0.7, model.nvars()))[
+            :, None
+        ]
+        model_obs_sol, model_obs_times = model.forward_solve(obs_sample)
+        obs_time_indices = bkd.arange(model_obs_times.shape[0], dtype=int)
+        # observe the 0th and at all time points, 2nd state at every second time point
+        # do not observe 1st state
+        obs_time_tuples = [
+            (0, obs_time_indices),
+            (2, obs_time_indices[::2]),
+        ]
+        functional = TransientMSEAdjointFunctional(
+            3, model.nvars(), obs_time_tuples, backend=bkd
+        )
+        obs = functional.observations_from_solution(model_obs_sol)
+        functional.set_observations(obs)
+        # The error in check apply jacobian depend on newton tolerance
+        # because finite difference is only accurate to that tolerance
+        model.set_functional(functional)
         sample = bkd.array(np.random.uniform(0.3, 0.7, model.nvars()))[:, None]
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = model.check_apply_jacobian(sample, fd_eps, disp=True)
-        print(errors.min()/errors.max())
-        assert errors.min()/errors.max() < 1.2e-6
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1.3e-6
 
     def test_lotka_volterra(self):
         test_cases = [
@@ -44,6 +68,33 @@ class TestParameterizedModels:
         ]
         for test_case in test_cases:
             self._check_lotka_volterra(*test_case)
+
+    def test_advection_diffusion_reaction(self):
+        bkd = self.get_backend()
+        time_residual_cls = BackwardEulerResidual
+        newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
+        model = TransientAdvectionDiffusionReactionModel(
+            0,
+            1,
+            .01,
+            time_residual_cls,
+            newton_solver=newton_solver,
+            backend=bkd,
+        )
+
+        # pts = model._basis.mesh.mesh_pts()
+        # xvel, yvel = model._vel_field.get_values()
+        # plt.figure().gca().quiver(
+        #     pts[0], pts[1], xvel, yvel, scale_units='xy', angles='xy'
+        # )
+        # plt.show()
+
+        sample = bkd.array(np.random.normal(0, 1, (model.nvars(), 1)))
+        sol, times = model.forward_solve(sample)
+        print(sol.max(axis=0))
+        from pyapprox.pde.collocation.functions import animate_transient_2d_scalar_solution
+        ani = animate_transient_2d_scalar_solution(model._basis, sol, times, plot_surface=True)
+        ani.save("diffusion.gif", dpi=100)
 
 
 class TestTorchParameterizedModels(TestParameterizedModels, unittest.TestCase):

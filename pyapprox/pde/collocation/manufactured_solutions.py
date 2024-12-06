@@ -223,16 +223,20 @@ class DiffusionMixin:
     def _sympy_diffusion_expressions(self, diff_str, sol_expr):
         cartesian_symbs = self.cartesian_symbols()
         diff_expr = sp.sympify(diff_str)
-        laplace_expr = sum(
-            [
-                (diff_expr * sol_expr.diff(symb, 1)).diff(symb, 1)
-                for symb in cartesian_symbs
-            ]
-        )
-        forc_expr = -laplace_expr
+        # laplace_expr = sum(
+        #     [
+        #         (diff_expr * sol_expr.diff(symb, 1)).diff(symb, 1)
+        #         for symb in cartesian_symbs
+        #     ]
+        # )
+        # forc_expr = -laplace_expr
         flux_exprs = [
-            diff_expr * sol_expr.diff(symb, 1) for symb in cartesian_symbs
+            -diff_expr * sol_expr.diff(symb, 1) for symb in cartesian_symbs
         ]
+        forc_expr = sum(
+            flux.diff(symb, 1)
+            for flux, symb in zip(flux_exprs, cartesian_symbs)
+        )
         return diff_expr, flux_exprs, forc_expr
 
     def sympy_diffusion_expressions(self):
@@ -278,7 +282,7 @@ class AdvectionMixin:
         self._expressions["forcing"] += advection_expr
         if self._conservative:
             flux_exprs = [
-                -vel_expr * self._expressions["solution"]
+                vel_expr * self._expressions["solution"]
                 for vel_expr in vel_exprs
             ]
             self._set_expression("flux", flux_exprs, self._sol_str)
@@ -486,19 +490,19 @@ class ManufacturedShallowWave(VectorSolutionMixin, ManufacturedSolution):
         if self._nvars == 1:
             h, uh = self._expressions["solution"]
             flux_exprs = [
-                [-uh],
-                [-(uh**2) / h - 0.5 * self._g * h**2],
+                [uh],
+                [(uh**2) / h + 0.5 * self._g * h**2],
             ]
         else:
             h, uh, vh = self._expressions["solution"]
             uvh = uh * vh / h
             flux_exprs = [
-                [-uh, -vh],
-                [-(uh**2) / h - 0.5 * self._g * h**2, -uvh],
-                [-uvh, -(vh**2) / h - 0.5 * self._g * h**2],
+                [uh, vh],
+                [(uh**2) / h + 0.5 * self._g * h**2, uvh],
+                [uvh, (vh**2) / h + 0.5 * self._g * h**2],
             ]
         forc_expr = [
-            -sum(
+            sum(
                 [
                     flux.diff(s, 1)
                     for flux, s in zip(flux_exprs[ii], cartesian_symbs)

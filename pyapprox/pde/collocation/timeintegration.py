@@ -1,7 +1,8 @@
 from abc import abstractmethod
-from typing import Tuple
+from typing import Tuple, List
 
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.collocation.newton import (
     NewtonSolver,
     NewtonResidual,
@@ -356,7 +357,7 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
     # def _state_hack(self, fsol_n, fsol_nm1):
     #     self._prev_sol = fsol_nm1
     #     return self._value(fsol_n)
-    
+
     def adjoint_offdiag_jacobian(
         self, fsol_n: Array, deltat_np1: float
     ) -> Array:
@@ -548,12 +549,12 @@ class TransientFuncional(Functional, TransientFunctionalMixin):
 
 
 class TransientAdjointFunctional(AdjointFunctional, TransientFunctionalMixin):
-    def qoi_sol_jacobian(self, sol: Array) -> Array:
+    def qoi_state_jacobian(self, sol: Array) -> Array:
         """Gradient of qoi with respect to solution"""
         if sol.ndim != 2 or sol.shape[0] != self.nstates():
             raise ValueError("sol must be a 2d Array")
-        jac = self._qoi_sol_jacobian(sol)
-        if jac.ndim != 2 or jac.shape[1] != sol.shape[1]:
+        jac = self._qoi_state_jacobian(sol)
+        if jac.ndim != 2 or jac.shape != sol.shape:
             raise RuntimeError("jac has the wrong shape")
         return jac
 
@@ -564,6 +565,101 @@ class TransientAdjointFunctional(AdjointFunctional, TransientFunctionalMixin):
         jac = self._qoi_param_jacobian(sol)
         if jac.ndim != 1 or jac.shape[0] != self.nparams():
             raise RuntimeError("jac has the wrong shape")
+        return jac
+
+    @abstractmethod
+    def nunique_functional_params(self) -> int:
+        # return the number of parameters only impacting the functional
+        raise NotImplementedError
+
+    def _unique_functional_params(self, param: Array) -> Array:
+        # return the parameters only impacting the functional
+        return param[: self.nunique_functional_params()]
+
+    def _residual_param(self, param: Array) -> Array:
+        # return the parameters that exist in either the residual or functional
+        # or both
+        return param[self.nunique_functional_params() :]
+
+    def update_model_drdp_with_unique_functional_params(
+        self, model_drdp: Array
+    ) -> Array:
+        zeros = self._bkd.zeros(
+            (model_drdp.shape[0], self.nunique_functional_params())
+        )
+        return self._bkd.hstack((zeros, model_drdp))
+
+
+class TransientMSEAdjointFunctional(TransientAdjointFunctional):
+    # TODO compute all log likelihood terms including determinant of noise
+    # covariance
+    def __init__(
+        self,
+        nstates: int,
+        nresidual_params: int,
+        obs_tuples: List[Tuple[int, Array]],
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._nstates = nstates
+        self._nparams = nresidual_params + 1
+        self._obs_state_indices = backend.array(
+            [tup[0] for tup in obs_tuples], dtype=int
+        )
+        self._obs_time_indices = [tup[1] for tup in obs_tuples]
+        super().__init__(backend)
+
+    def nunique_functional_params(self) -> int:
+        return 1
+
+    def set_observations(self, observations: Array):
+        self._obs = observations
+
+    def observations_from_solution(self, sol: Array) -> Array:
+        obs = []
+        for state_idx, time_idx in zip(
+            self._obs_state_indices, self._obs_time_indices
+        ):
+            obs.append(sol[state_idx, time_idx])
+        return self._bkd.hstack(obs)
+
+    def set_param(self, param: Array):
+        self._param = param
+        self._sigma = self._unique_functional_params(self._param)[0]
+
+    def nstates(self) -> int:
+        return self._nstates
+
+    def nparams(self) -> int:
+        return self._nparams
+
+    def _value(self, sol: Array) -> Array:
+        pred_obs = self.observations_from_solution(sol)
+        return self._bkd.atleast1d(
+            self._bkd.sum((pred_obs - self._obs) ** 2) / self._sigma**2
+        )
+
+    def _qoi_state_jacobian(self, sol: Array) -> Array:
+        dqdu = self._bkd.zeros(sol.shape)
+        idx = 0
+        for state_idx, time_idx in zip(
+            self._obs_state_indices, self._obs_time_indices
+        ):
+            dqdu[state_idx, time_idx] = (
+                2
+                * (
+                    sol[state_idx, time_idx]
+                    - self._obs[idx : idx + time_idx.shape[0]]
+                )
+                / self._sigma**2
+            )
+            idx += time_idx.shape[0]
+        return dqdu
+
+    def _qoi_param_jacobian(self, sol: Array) -> Array:
+        jac = self._bkd.zeros((self.nparams(),))
+        # functional assumes parameters unique to functional are
+        # first entries of param array
+        jac[0] = -2.0 / self._sigma * self(sol)
         return jac
 
 
@@ -688,7 +784,7 @@ class ImplicitTimeIntegrator:
         # todo compute dqdu at each time step rather than all upfront
         if not hasattr(self, "_functional"):
             raise RuntimeError("must call set_functional")
-        dqdu = self._functional.qoi_sol_jacobian(fwd_sols)
+        dqdu = self._functional.qoi_state_jacobian(fwd_sols)
         adj_sols = self._bkd.empty(fwd_sols.shape)
         # using notation deltat_n = t_n-tnm1, e.g. deltat_1 = t1 - t0
         # given times t0, t1, ..., t_Nm2, t_Nm1
@@ -732,6 +828,12 @@ class ImplicitTimeIntegrator:
             times[0], times[1] - times[0], fwd_sols[:, 0]
         )
         drdp = self.time_residual.initial_param_jacobian()
+        drdp = (
+            self._functional.update_model_drdp_with_unique_functional_params(
+                drdp
+            )
+        )
+        # print(drdp.shape, adj_sols.shape, dqdp.shape, (adj_sols[:, 0] @ drdp).shape)
         grad += adj_sols[:, 0] @ drdp
         for ii, time in enumerate(times[:-1], start=0):
             self.time_residual.set_time(
@@ -739,6 +841,9 @@ class ImplicitTimeIntegrator:
             )
             drdp = self.time_residual.param_jacobian(
                 fwd_sols[:, ii], fwd_sols[:, ii + 1]
+            )
+            drdp = self._functional.update_model_drdp_with_unique_functional_params(
+                drdp
             )
             grad += adj_sols[:, ii + 1] @ drdp
         return self._bkd.atleast2d(grad)

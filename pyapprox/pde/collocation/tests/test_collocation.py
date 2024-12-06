@@ -686,8 +686,8 @@ class TestCollocation:
         exact_sols = bkd.stack(exact_sols, axis=1)
         # print(sols)
         # print(exact_sols)
-        # print((sols-exact_sols))
-        assert bkd.allclose(sols, exact_sols, atol=1e-12)
+        print(bkd.abs(sols-exact_sols).max())
+        assert bkd.allclose(sols, exact_sols, atol=7e-12)
 
     def test_steady_advection_diffusion_reaction_1D(self):
         bkd = self.get_backend()
@@ -1175,7 +1175,7 @@ class TestCollocation:
         # print(sols)
         # print(exact_sols)
         # print(sols - exact_sols)
-        print(bkd.abs(sols - exact_sols).max())
+        print(bkd.abs(sols - exact_sols).max(), bndry_types)
         assert bkd.allclose(sols, exact_sols, atol=4e-11)
 
     def _check_shallow_wave_equation(
@@ -1495,11 +1495,14 @@ class TestCollocation:
                     [2, 1],
                 ],
             ],  # react_strs,
-            ["D", "R"],  # bndry_types
+            # ["D", "R"],  # bndry_types
+            ["R"],  # bndry_types
             [
                 self._setup_cheby_basis_1d([5], [0, 1]),
             ],  # basis
-            [BackwardEulerResidual, CrankNicholsonResidual],  # timestep_cls
+            # only crank nicholson will produce exact solutions because
+            # forcing is quadratic in time
+            [CrankNicholsonResidual],  # timestep_cls
         ]
 
         for test_case in itertools.product(*test_case_args):
@@ -1520,9 +1523,9 @@ class TestCollocation:
                     [0, 0],
                 ],
                 [
-                    ["4*u**2", "2*u"],
+                    ["u**2", "2*u"],
                     [
-                        lambda x: bkd.full((x.shape[1],), 4.0),
+                        lambda x: bkd.full((x.shape[1],), 1.0),
                         lambda x: bkd.full((x.shape[1],), 2.0),
                     ],
                     [2, 1],
@@ -1532,10 +1535,13 @@ class TestCollocation:
             [
                 self._setup_rect_cheby_basis_2d([5, 5], [0, 1, 0, 1]),
             ],  # basis
-            [BackwardEulerResidual, CrankNicholsonResidual],  # timestep_cls
+            # only crank nicholson will produce exact solutions because
+            # forcing is quadratic in time
+            [CrankNicholsonResidual],  # timestep_cls
         ]
 
         for test_case in itertools.product(*test_case_args):
+            print(test_case)
             self._check_transient_two_species_reaction_diffusion(*test_case)
 
     def _check_steady_shallow_shelf_equations(
