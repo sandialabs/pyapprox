@@ -76,7 +76,7 @@ class TestParameterizedModels:
         model = TransientAdvectionDiffusionReactionModel(
             0,
             1,
-            .01,
+            .05,
             time_residual_cls,
             newton_solver=newton_solver,
             backend=bkd,

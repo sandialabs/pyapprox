@@ -92,11 +92,16 @@ class TransientAdvectionDiffusionReactionModel(
 
     def setup_forcing(self):
         # self._forcing = ConstantScalarFunction(self._basis, 0., 1)
+        a0, b0 = 10, 10
+        # Use ** 2 in const because we are multiplying beta distribuion
+        # in 2 dimensions
+        const = 1.0 / beta_fn(a0, b0) ** 2 
         self._forcing = ScalarFunctionFromCallable(
             self._basis,
-            lambda x: self._bkd.prod(x**10*(1-x)**10, axis=0)*1e7,
+            lambda x: self._bkd.prod(x**a0*(1-x)**b0, axis=0) * const,
             ninput_funs=1
         )
+        print(self._forcing.get_values().max())
 
     def get_initial_condition(self):
         return ConstantScalarFunction(

@@ -1414,6 +1414,14 @@ def remove_3d_axis_panels(ax):
     return ax
 
 
+def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
+        "trunc({n},{a:.2f},{b:.2f})".format(n=cmap.name, a=minval, b=maxval),
+        cmap(np.linspace(minval, maxval, n)),
+    )
+    return new_cmap
+
+
 def animate_transient_2d_scalar_solution(
     basis: OrthogonalCoordinateCollocationBasis,
     sol: Array,
@@ -1459,15 +1467,24 @@ def animate_transient_2d_scalar_solution(
             # rotate frame as animation evolves
             # axs[0].view_init(0, 2*ii)
 
-        timebar = bkd.zeros(times.shape[0] - 1)
+        # imshow reverts to the same color as ii == 0
+        # at ii = times.shape[0]-1 because all values
+        # in the plot are the same. To avoid this set colormap
+        # at final time to be the correct value
+        if ii == times.shape[0]-1:
+            cmap = truncate_colormap(plt.cm.binary, minval=1.)
+        else:
+            cmap = truncate_colormap(plt.cm.binary, minval=0.1)
+        timebar = bkd.zeros((times.shape[0] - 1))
         timebar[:ii] = 1.0
+
         # TODO last timestep plot of timebar is all one value
         # so it plots all the first color and not all the last color
         axs[1].imshow(
             timebar[None, :],
             extent=[times[0], times[-1], 0, 1],
             aspect="auto",
-            cmap="Dark2",
+            cmap=cmap,
         )
         axs[1].set_xlabel("Time")
         axs[1].set_yticks([])
@@ -1565,7 +1582,14 @@ def animate_transient_2d_vector_solution(
                 levels=levels[component_id],
                 **contour_plot_kwargs,
             )
-
+        # imshow reverts to the same color as ii == 0
+        # at ii = times.shape[0]-1 because all values
+        # in the plot are the same. To avoid this set colormap
+        # at final time to be the correct value
+        if ii == times.shape[0]-1:
+            cmap = truncate_colormap(plt.cm.binary, minval=1.)
+        else:
+            cmap = truncate_colormap(plt.cm.binary, minval=0.1)
         timebar = bkd.zeros(times.shape[0] - 1)
         timebar[:ii] = 1.0
         # TODO last timestep plot of timebar is all one value
@@ -1574,7 +1598,7 @@ def animate_transient_2d_vector_solution(
             timebar[None, :],
             extent=[times[0], times[-1], 0, 1],
             aspect="auto",
-            cmap="Dark2",
+            cmap=cmap,
         )
         axs[-1].set_xlabel("Time")
         axs[-1].set_yticks([])
@@ -1588,14 +1612,6 @@ def animate_transient_2d_vector_solution(
         init_func=lambda: None,
     )
     return ani
-
-
-def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
-    new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
-        "trunc({n},{a:.2f},{b:.2f})".format(n=cmap.name, a=minval, b=maxval),
-        cmap(np.linspace(minval, maxval, n)),
-    )
-    return new_cmap
 
 
 def get_water_cmap():
