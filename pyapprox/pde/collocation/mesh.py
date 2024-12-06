@@ -26,11 +26,14 @@ class OrthogonalCoordinateMesh(ABC):
                 "OrthogonalCoordinateTransform"
             )
         self._bkd = transform._bkd
-        self.trans = transform
+        self._trans = transform
         self._set_orthogonal_mesh_pts(npts_1d)
-        self._mesh_pts = self.trans.map_from_orthogonal(self._orth_mesh_pts)
+        self._mesh_pts = self._trans.map_from_orthogonal(self._orth_mesh_pts)
         self._set_boundaries()
         self._set_boundary_indices()
+
+    def trans(self):
+        return self._trans
 
     @abstractmethod
     def _set_boundaries(self):
@@ -349,7 +352,7 @@ class OrthogonalCoordinateMesh1DMixin(OrthogonalCoordinateMesh):
 
     def _set_boundaries(self):
         self._bndrys = {
-            name: OrthogonalCoordinateMeshBoundary1D(name, self.trans)
+            name: OrthogonalCoordinateMeshBoundary1D(name, self.trans())
             for name in ["left", "right"]
         }
 
@@ -358,7 +361,7 @@ class OrthogonalCoordinateMesh2DMixin:
     def _set_boundaries(self):
         self._bndrys = {
             name: OrthogonalCoordinateMeshBoundary2D(
-                name, self.trans, self._npts_1d[ii < 2]
+                name, self.trans(), self._npts_1d[ii < 2]
             )
             for ii, name in enumerate(["left", "right", "bottom", "top"])
         }
@@ -368,7 +371,7 @@ class OrthogonalCoordinateMesh3DMixin:
     def _set_boundaries(self):
         self._bndrys = {
             name: OrthogonalCoordinateMeshBoundary3D(
-                name, self.trans, self._npts_1d
+                name, self.trans(), self._npts_1d
             )
             # bounaries are in x, then y then z
             for name in ["left", "right", "front", "back", "bottom", "top"]

@@ -74,9 +74,11 @@ from pyapprox.pde.collocation.mesh import (
     ChebyshevCollocationMesh3D,
 )
 from pyapprox.pde.collocation.solvers import (
-    SteadyPDE,
     NewtonSolver,
-    TransientPDE,
+    # SteadyPDE,
+    # TransientPDE,
+    SteadyForwardCollocationModelFromPhysics,
+    TransientForwardCollocationModelFromPhysics
 )
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
@@ -114,7 +116,7 @@ class CoupledReactionOperation(VectorOperatorOperation):
 
     def __call__(self, sol: VectorSolution):
         u0, u1 = sol.get_components()
-        vec = VectorOperator(sol.basis, sol.ninput_funs(), sol.nrows())
+        vec = VectorOperator(sol.basis(), sol.ninput_funs(), sol.nrows())
         vec.set_components(
             # [self._react_ops[0](u0), self._react_ops[1](u1)]
             [self._react_ops[0](u0) - u1, self._react_ops[1](u1) + u0]
@@ -229,7 +231,7 @@ class TestCollocation:
         man_sol: ManufacturedSolution,
     ):
         bndry_funs = []
-        for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
+        for bndry_name, mesh_bndry in basis.mesh().get_boundaries().items():
             # TODO considert makeing 1 component case be VectorOperator
             # with one entry
             if man_sol.ncomponents() == 1:
@@ -246,7 +248,7 @@ class TestCollocation:
                     DirichletBoundaryFromOperator(
                         mesh_bndry,
                         sol_components[ii],
-                        ii * basis.mesh.nmesh_pts(),
+                        ii * basis.mesh().nmesh_pts(),
                     )
                 )
 
@@ -266,7 +268,7 @@ class TestCollocation:
         beta: float,
     ):
         bndry_funs = []
-        for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
+        for bndry_name, mesh_bndry in basis.mesh().get_boundaries().items():
             for ii in range(man_sol.ncomponents()):
                 bndry_funs.append(
                     RobinBoundaryFromManufacturedSolution(
@@ -277,7 +279,7 @@ class TestCollocation:
                         partial(self._solution_component, man_sol, ii),
                         partial(self._flux_component, man_sol, ii),
                         man_sol.transient["solution"],
-                        ii * basis.mesh.nmesh_pts(),
+                        ii * basis.mesh().nmesh_pts(),
                         ii,
                     )
                 )
@@ -291,7 +293,7 @@ class TestCollocation:
         beta: float,
     ):
         bndry_funs = []
-        for bndry_name, mesh_bndry in basis.mesh.get_boundaries().items():
+        for bndry_name, mesh_bndry in basis.mesh().get_boundaries().items():
             bndry_funs.append(
                 RobinBoundaryFromManufacturedSolution(
                     mesh_bndry,
@@ -325,7 +327,7 @@ class TestCollocation:
         basis: OrthogonalCoordinateCollocationBasis,
     ):
         bndry_funs = []
-        boundaries = basis.mesh.get_boundaries()
+        boundaries = basis.mesh().get_boundaries()
         mesh_bndry = boundaries[list(boundaries.keys())[0]]
         bndry_pair_names_dict = mesh_bndry.names_of_boundary_pairs()
         for bndry_name, mesh_bndry in boundaries.items():
@@ -353,7 +355,7 @@ class TestCollocation:
             # M = Mixed:
             raise ValueError("incorrect bndry_type specified")
         # mix robin dirichlet boundaries
-        boundaries = basis.mesh.get_boundaries()
+        boundaries = basis.mesh().get_boundaries()
         mesh_bndry = boundaries["left"]
         alpha, beta = 2.0, 3.0
         if man_sol.ncomponents() == 1:
@@ -388,7 +390,7 @@ class TestCollocation:
                     partial(self._solution_component, man_sol, ii),
                     partial(self._flux_component, man_sol, ii),
                     man_sol.transient["solution"],
-                    ii * basis.mesh.nmesh_pts(),
+                    ii * basis.mesh().nmesh_pts(),
                     ii,
                 )
             )
@@ -403,7 +405,7 @@ class TestCollocation:
                     DirichletBoundaryFromOperator(
                         mesh_bndry,
                         sol_components[ii],
-                        ii * basis.mesh.nmesh_pts(),
+                        ii * basis.mesh().nmesh_pts(),
                     )
                 )
 
@@ -529,7 +531,7 @@ class TestCollocation:
 
         # test plot runs
         # fig, ax = exact_sol.get_plot_axis()
-        # basis.mesh.plot(ax)
+        # basis.mesh().plot(ax)
         # exact_sol.plot(ax, 101, fig=fig)
         # ax.set_aspect("equal")
         # plt.show()
@@ -578,14 +580,14 @@ class TestCollocation:
             man_sol,
         )
         physics.set_boundaries(boundaries)
-        solver = SteadyPDE(
-            physics,
-            NewtonSolver(
-                verbosity=2,
-                maxiters=1 if react_op_degree < 2 else 10,
-                atol=1e-8,
-                rtol=1e-8,
-            ),
+        newton_solver = NewtonSolver(
+            verbosity=2,
+            maxiters=1 if react_op_degree < 2 else 10,
+            atol=1e-8,
+            rtol=1e-8,
+        )
+        model = SteadyForwardCollocationModelFromPhysics(
+            physics, newton_solver
         )
         linear_init_sol = ScalarSolutionFromCallable(
             basis,
@@ -594,7 +596,8 @@ class TestCollocation:
             ),
         )
         if react_op_degree < 2:
-            sol = solver.solve(linear_init_sol)
+            # sol = solver.solve(linear_init_sol)
+            sol = model.forward_solve(linear_init_sol)
             assert bkd.allclose(sol.get_values(), exact_sol.get_values())
             return
 
@@ -608,10 +611,12 @@ class TestCollocation:
         # as physics or set_boundaries, will changes the boundaries
         # that means they are no longer consistent with nonlinear problem
         linear_physics.set_boundaries(boundaries)
-        linear_solver = SteadyPDE(linear_physics, NewtonSolver(maxiters=1))
-        init_sol = linear_solver.solve(linear_init_sol)
+        linear_model = SteadyForwardCollocationModelFromPhysics(
+            linear_physics, NewtonSolver(maxiters=1)
+        )
+        init_sol = linear_model.forward_solve(linear_init_sol)
         init_sol = exact_sol
-        sol = solver.solve(init_sol)
+        sol = model.forward_solve(init_sol)
         # print(sol.get_values()-exact_sol.get_values())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
@@ -660,25 +665,19 @@ class TestCollocation:
             man_sol,
         )
         physics.set_boundaries(boundaries)
-        solver = TransientPDE(
-            physics,
-            NewtonSolver(
-                verbosity=2,
-                maxiters=1 if react_op_degree < 2 else 10,
-                atol=1e-8,
-                rtol=1e-8,
-            ),
-        )
         init_time, final_time, deltat = 0.0, 1.0, 0.5
-        solver.setup_time_integrator(
-            timestep_cls,
-            init_time,
-            final_time,
-            deltat,
+        newton_solver = NewtonSolver(
+            verbosity=2,
+            maxiters=1 if react_op_degree < 2 else 10,
+            atol=1e-8,
+            rtol=1e-8,
+        )
+        model = TransientForwardCollocationModelFromPhysics(
+            init_time, final_time, deltat, timestep_cls, physics, newton_solver
         )
         init_sol = copy.deepcopy(exact_sol)
         init_sol.set_time(init_time)
-        sols, times = solver.solve(init_sol)
+        sols, times = model.forward_solve(init_sol)
         exact_sols = []
         for time in times:
             exact_sol.set_time(time)
@@ -876,7 +875,7 @@ class TestCollocation:
 
         # test plot runs
         # fig, ax = exact_sol.get_plot_axis()
-        # basis.mesh.plot(ax)
+        # basis.mesh().plot(ax)
         # exact_sol.plot(ax, 101, fig=fig)
         # ax.set_aspect("equal")
         # plt.show()
@@ -918,19 +917,19 @@ class TestCollocation:
                 atol=1e-15,
             )
 
-        solver = SteadyPDE(
-            physics,
-            NewtonSolver(
-                verbosity=2,
-                maxiters=1,
-                atol=1e-8,
-                rtol=1e-8,
-            ),
+        newton_solver = NewtonSolver(
+            verbosity=2,
+            maxiters=1,
+            atol=1e-8,
+            rtol=1e-8,
+        )
+        model = SteadyForwardCollocationModelFromPhysics(
+            physics, newton_solver
         )
         # SIA is sensitive to initial guess and should really only be used
         # for transient problems so just test 1 newton iteration is needed
         # when passing in exact sol
-        sol = solver.solve(exact_sol)
+        sol = model.forward_solve(exact_sol)
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_steady_shallow_ice_equation_1d(self):
@@ -996,14 +995,14 @@ class TestCollocation:
             man_sol,
         )
         physics.set_boundaries(boundaries)
-        solver = SteadyPDE(
-            physics,
-            NewtonSolver(
-                verbosity=2,
-                maxiters=1,
-                atol=1e-8,
-                rtol=1e-8,
-            ),
+        newton_solver = NewtonSolver(
+            verbosity=2,
+            maxiters=1,
+            atol=1e-8,
+            rtol=1e-8,
+        )
+        model = SteadyForwardCollocationModelFromPhysics(
+            physics, newton_solver
         )
         init_sol = ScalarSolutionFromCallable(
             basis,
@@ -1011,7 +1010,7 @@ class TestCollocation:
                 x.shape[1],
             ),
         )
-        sol = solver.solve(init_sol)
+        sol = model.forward_solve(init_sol)
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_helmholtz(self):
@@ -1059,26 +1058,18 @@ class TestCollocation:
         )
         physics.set_boundaries(boundaries)
 
-        solver = TransientPDE(
-            physics,
-            NewtonSolver(
-                verbosity=2,
-                maxiters=30,
-                atol=1e-11,
-                rtol=1e-11,
-            ),
+        newton_solver = NewtonSolver(
+            verbosity=2,
+            maxiters=30,
+            atol=1e-11,
+            rtol=1e-11,
         )
-        solver.setup_time_integrator(
-            timestep_cls,
-            init_time,
-            final_time,
-            deltat,
+        model = TransientForwardCollocationModelFromPhysics(
+            init_time, final_time, deltat, timestep_cls, physics, newton_solver
         )
-
-        # set time so that functions are populated
         init_sol = copy.deepcopy(exact_sol)
         init_sol.set_time(init_time)
-        return solver, init_sol
+        return model, init_sol
 
     def _check_transient_pde_physics_residual(
         self,
@@ -1117,7 +1108,7 @@ class TestCollocation:
         assert bkd.allclose(
             residual.get_flattened_values(),
             bkd.zeros(
-                man_sol.ncomponents() * exact_sol.basis.mesh.nmesh_pts()
+                man_sol.ncomponents() * exact_sol.basis().mesh().nmesh_pts()
             ),
             atol=1e-7,
         )
@@ -1155,7 +1146,7 @@ class TestCollocation:
         timestep_cls,
     ):
         bkd = self.get_backend()
-        solver, init_sol = self._setup_transient_pde(
+        model, init_sol = self._setup_transient_pde(
             basis,
             bndry_types,
             man_sol,
@@ -1166,7 +1157,7 @@ class TestCollocation:
             deltat,
             timestep_cls,
         )
-        sols, times = solver.solve(init_sol)
+        sols, times = model.forward_solve(init_sol)
         exact_sols = []
         for time in times:
             exact_sol.set_time(float(time))
@@ -1296,7 +1287,7 @@ class TestCollocation:
 
         # test plot runs
         # fig, ax = exact_sol.get_plot_axis()
-        # basis.mesh.plot(ax)
+        # basis.mesh().plot(ax)
         # exact_sol.plot(ax, 101, fig=fig)
         # ax.set_aspect("equal")
         # plt.show()
@@ -1318,7 +1309,7 @@ class TestCollocation:
         print(bkd.abs(residual.get_values()).max())
         assert bkd.allclose(
             residual.get_values(),
-            bkd.zeros(exact_sol.basis.mesh.nmesh_pts()),
+            bkd.zeros(exact_sol.basis().mesh().nmesh_pts()),
         )
 
         boundaries = self._setup_boundary_conditions(
@@ -1327,22 +1318,21 @@ class TestCollocation:
             man_sol,
         )
         physics.set_boundaries(boundaries)
-        print(react_op_degrees)
         maxiters = (
             1 if (react_op_degrees[0] < 2 and react_op_degrees[1] < 2) else 10
         )
-        solver = SteadyPDE(
-            physics,
-            NewtonSolver(
-                verbosity=2,
-                maxiters=maxiters,
-                atol=1e-8,
-                rtol=1e-8,
-            ),
+        newton_solver = NewtonSolver(
+            verbosity=2,
+            maxiters=maxiters,
+            atol=1e-8,
+            rtol=1e-8,
+        )
+        model = SteadyForwardCollocationModelFromPhysics(
+            physics, newton_solver
         )
         linear_init_sol = exact_sol * 0.0
         if react_op_degrees[0] < 2 and react_op_degrees[1] < 2:
-            sol = solver.solve(linear_init_sol)
+            sol = model.forward_solve(linear_init_sol)
             print(sol.get_values() - exact_sol.get_values())
             assert bkd.allclose(sol.get_values(), exact_sol.get_values())
             return
@@ -1354,10 +1344,12 @@ class TestCollocation:
             linear_react_op,
         )
         linear_physics.set_boundaries(boundaries)
-        linear_solver = SteadyPDE(linear_physics, NewtonSolver(maxiters=1))
-        init_sol = linear_solver.solve(linear_init_sol)
+        linear_model = SteadyForwardCollocationModelFromPhysics(
+            linear_physics, NewtonSolver(maxiters=1)
+        )
+        init_sol = linear_model.forward_solve(linear_init_sol)
         init_sol = exact_sol
-        sol = solver.solve(init_sol)
+        sol = model.forward_solve(init_sol)
         # print(sol.get_values()-exact_sol.get_values())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
@@ -1587,7 +1579,7 @@ class TestCollocation:
         print(bkd.abs(residual.get_values()).max())
         assert bkd.allclose(
             residual.get_values(),
-            bkd.zeros(exact_sol.basis.mesh.nmesh_pts()),
+            bkd.zeros(exact_sol.basis().mesh().nmesh_pts()),
         )
 
         boundaries = self._setup_boundary_conditions(
@@ -1596,18 +1588,16 @@ class TestCollocation:
             man_sol,
         )
         physics.set_boundaries(boundaries)
-
-        solver = SteadyPDE(
-            physics,
-            NewtonSolver(
-                verbosity=2,
-                maxiters=30,
-                atol=1e-11,
-                rtol=1e-11,
-            ),
+        newton_solver = NewtonSolver(
+            verbosity=2,
+            maxiters=30,
+            atol=1e-11,
+            rtol=1e-11,
         )
-
-        sol = solver.solve(1.+exact_sol)
+        model = SteadyForwardCollocationModelFromPhysics(
+            physics, newton_solver
+        )
+        sol = model.forward_solve(1.+exact_sol)
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_steady_shallow_shelf_equation_2d(self):
@@ -1792,7 +1782,7 @@ class TestCollocation:
         print(bkd.abs(residual.get_values()).max())
         assert bkd.allclose(
             residual.get_values(),
-            bkd.zeros(exact_sol.basis.mesh.nmesh_pts()),
+            bkd.zeros(exact_sol.basis().mesh().nmesh_pts()),
         )
 
         boundaries = self._setup_boundary_conditions(
@@ -1801,17 +1791,17 @@ class TestCollocation:
             man_sol,
         )
         physics.set_boundaries(boundaries)
-        solver = SteadyPDE(
-            physics,
-            NewtonSolver(
-                verbosity=2,
-                maxiters=1,
-                atol=1e-8,
-                rtol=1e-8,
-            ),
+        newton_solver = NewtonSolver(
+            verbosity=2,
+            maxiters=1,
+            atol=1e-8,
+            rtol=1e-8,
+        )
+        model = SteadyForwardCollocationModelFromPhysics(
+            physics, newton_solver
         )
         init_sol = exact_sol * 0.0
-        sol = solver.solve(init_sol)
+        sol = model.forward_solve(init_sol)
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_steady_state_linear_elasticity_2d(self):

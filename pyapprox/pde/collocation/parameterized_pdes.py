@@ -1,19 +1,18 @@
 from typing import Tuple
-import math
+
+from scipy.special import beta as beta_fn
 
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.collocation.adjoint_models import (
-    TransientAdjointModel,
-    TransientAdjointFunctional,
+    TransientAdjointFunctional, TransientAdjointModel
 )
 from pyapprox.pde.collocation.timeintegration import (
     TimeIntegratorNewtonResidual,
     TransientNewtonResidual,
 )
-# warning shallowwater wrapper needs updating
 from pyapprox.pde.collocation.solvers import (
-    TransientPDE, TransientPhysicsNewtonResidual
+    TransientPhysicsNewtonResidual, TransientAdjointCollocationModel
 )
 from pyapprox.pde.collocation.newton import NewtonSolver
 from pyapprox.pde.collocation.functions import (
@@ -29,7 +28,6 @@ from pyapprox.pde.collocation.boundaryconditions import (
     DirichletBoundaryFromOperator,
     RobinBoundaryFromOperator,
     ConstantRobinBoundary,
-    ConstantDirichletBoundary,
 )
 from pyapprox.pde.collocation.physics import (
     Physics,
@@ -43,19 +41,10 @@ from pyapprox.pde.collocation.mesh_transforms import (
 )
 
 
-class TransientAdvectionDiffusionReactionModel(TransientAdjointModel):
-    def __init__(
-        self,
-        init_time: float,
-        final_time: float,
-        deltat: float,
-        time_residual_cls: TimeIntegratorNewtonResidual,
-        newton_solver: NewtonSolver = None,
-        functional: TransientAdjointFunctional = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
-    ):
-        self._bkd = backend
-        self.setup_basis()
+class TransientAdvectionDiffusionReactionModel(
+        TransientAdjointCollocationModel
+):
+    def setup_physics(self):
         self._nominal_val = 0.
         self.setup_diffusion()
         self.setup_velocity()
@@ -65,27 +54,6 @@ class TransientAdvectionDiffusionReactionModel(TransientAdjointModel):
             self._diffusion,
             reaction_op=None,
             velocity_field=self._vel_field,
-        )
-        self._set_boundaries()
-        # make following default for all collocation based adjoint models
-        time_residual = time_residual_cls(
-            TransientPhysicsNewtonResidual(self._physics)
-        )
-        time_residual._apply_constraints_to_residual = (
-            time_residual.native_residual._apply_constraints_to_residual
-        )
-        time_residual._apply_constraints_to_jacobian = (
-            time_residual.native_residual._apply_constraints_to_jacobian
-        )
-
-        super().__init__(
-            init_time,
-            final_time,
-            deltat,
-            time_residual,
-            functional,
-            newton_solver,
-            backend=backend,
         )
 
     def setup_basis(self):
@@ -104,7 +72,7 @@ class TransientAdvectionDiffusionReactionModel(TransientAdjointModel):
             3,
             sigma=0.1,
             mean_field=ConstantScalarFunction(self._basis, -1., 1),
-            ninput_funs=self._basis.mesh.nphys_vars() + 1,
+            ninput_funs=self._basis.mesh().nphys_vars() + 1,
             use_log=True,
         )
 
@@ -140,7 +108,7 @@ class TransientAdvectionDiffusionReactionModel(TransientAdjointModel):
         #     ninput_funs=1
         # ).get_values()
 
-    def _set_boundaries(self):
+    def setup_boundaries(self):
         # make flux depend on solution's value relative to a nominal_val
         # beta * flux(u(x)) @ n = u(x) - nominal_val
         # beta * flux(u(x)) @ n - u(x) = nominal_val
@@ -153,7 +121,7 @@ class TransientAdvectionDiffusionReactionModel(TransientAdjointModel):
         for (
             bndry_name,
             mesh_bndry,
-        ) in self._basis.mesh.get_boundaries().items():
+        ) in self._basis.mesh().get_boundaries().items():
             bndrys.append(
                 ConstantRobinBoundary(
                     mesh_bndry, self._nominal_val, alpha, beta, 0, 0
@@ -165,7 +133,6 @@ class TransientAdvectionDiffusionReactionModel(TransientAdjointModel):
         self._physics.set_boundaries(bndrys)
 
     def nvars(self) -> int:
-        # TODO MAKE THIS REQQUIRED FOR ALL PARAMETERIZED MODELS
         if not hasattr(self, "_functional"):
             return self._diffusion._kle.nvars()
         return (
@@ -177,58 +144,76 @@ class TransientAdvectionDiffusionReactionModel(TransientAdjointModel):
         sols, times = super().forward_solve(sample)
         return (
             self._sols.reshape(
-                (self._basis.mesh.nmesh_pts(), self._times.shape[0])
+                (self._basis.mesh().nmesh_pts(), self._times.shape[0])
             ),
             self._times
         )
 
 
-class ShallowWaterWaveModel(TransientAdjointModel):
-    def __init__(
-        self,
-        init_time: float,
-        final_time: float,
-        deltat: float,
-        time_residual_cls: TimeIntegratorNewtonResidual,
-        bed: ScalarKLEFunction,
-        init_surface: ScalarFunction,
-        functional: TransientAdjointFunctional = None,
-        newton_solver: NewtonSolver = None,
-        forcing: VectorFunction = None,
-    ):
-        self._basis = bed.basis
-        self._bed = bed
-        self._forcing = forcing
-        self._physics = ShallowWaveEquation(self._bed, self._forcing)
+class ShallowWaterWaveModel(TransientAdjointCollocationModel):
+    def setup_physics(self):
+        self.setup_bed()
+        self._physics = ShallowWaveEquation(self._bed)
 
-        self._init_surface = init_surface
-        bndrys = self.setup_reflective_boundaries()
-        # bndrys = self.setup_dirichlet_boundaries()
-        self._physics.set_boundaries(bndrys)
-        # make following default for all collocation based adjoint models
-        time_residual = time_residual_cls(
-            TransientPhysicsNewtonResidual(self._physics)
+    def setup_basis(self):
+        Lx, Ly = 100, 200
+        self._bounds = self._bkd.array([0, Lx, 0, Ly])
+        transform = ScaleAndTranslationTransform2D(
+            [-1, 1, -1, 1], self._bounds, self._bkd
         )
-        time_residual._apply_constraints_to_residual = (
-            time_residual.native_residual._apply_constraints_to_residual
-        )
-        time_residual._apply_constraints_to_jacobian = (
-            time_residual.native_residual._apply_constraints_to_jacobian
+        mesh = ChebyshevCollocationMesh2D([30, 30], transform)
+        self._basis = ChebyshevCollocationBasis2D(mesh)
+
+    def _bed_callable(self, xx: Array) -> Array:
+        # wave propagates faster in deeper water. Make bed increase in
+        # elevation close to bottom and top boundaries so that it 0.1
+        # at boundaries and 1.1 at midpoint off y domain
+        xn = 1 / self._bounds[1::2, None] * xx
+        return -1 + (-0.1 + xn[1] * (xn[1] - 1)) * (1 - 0.9 * xn[0])
+
+    def setup_bed(self):
+        self._bed = ScalarFunctionFromCallable(
+            self._basis, self._bed_callable,
+            ninput_funs=self._basis.nphys_vars() + 1
         )
 
-        super().__init__(
-            init_time,
-            final_time,
-            deltat,
-            time_residual,
-            functional,
-            newton_solver,
-            backend=self._basis._bkd,
+    def _beta_surface_callable(self, beta_shapes: Array, xx: Array) -> Array:
+        a0, b0, a1, b1 = beta_shapes
+        # The higher the shape values the higher basis orders need to be
+        xn = 1 / self._bounds[1::2, None] * xx
+        const0 = 1.0 / beta_fn(a0, b0)
+        const1 = 1.0 / beta_fn(a1, b1)
+        return (
+            (
+                xn[0] ** (a0 - 1)
+                * (1 - xn[0]) ** (b0 - 1)
+                * xn[1] ** (a1 - 1)
+                * (1 - xn[1]) ** (b1 - 1)
+            )
+            * const0
+            * const1
+            / 20
+        )
+
+    def _init_surface_callable(self, xx: Array) -> Array:
+        # beta_shapes0 = self._bkd.array([25, 20, 20, 20])
+        # beta_shapes1 = self._bkd.array([5, 20, 20, 20])
+        beta_shapes0 = self._param[:4]
+        beta_shapes1 = self._param[4:]
+        return (
+            self._beta_surface_callable(beta_shapes0, xx)
+            + self._beta_surface_callable(beta_shapes1, xx)
+        )
+
+    def setup_init_surface(self):
+        self._init_surface = ScalarFunctionFromCallable(
+            self._basis,
+            self._init_surface_callable,
+            self._basis.nphys_vars() + 1
         )
 
     def nvars(self) -> int:
-        # TODO MAKE THIS REQQUIRED FOR ALL PARAMETERIZED MODELS
-        return self._bed._kle.nvars()
+        return 8
 
     def physics(self) -> Physics:
         return self._physics
@@ -242,8 +227,6 @@ class ShallowWaterWaveModel(TransientAdjointModel):
         if self._basis._bkd.any(
             self._init_surface.get_values() <= self._bed.get_values()
         ):
-            print(self._init_surface.get_values())
-            print(self._bed.get_values())
             raise ValueError(
                 "bed and initial surface given cause negative depths"
             )
@@ -264,14 +247,14 @@ class ShallowWaterWaveModel(TransientAdjointModel):
             ninput_funs=self._physics.ncomponents(),
         )
 
-    def setup_reflective_boundaries(self):
+    def setup_boundaries(self):
         # bndrys_funs: list[BoundaryOperator],
         bndry_funs = []
         # loop over all boundaries
         for (
             bndry_name,
             mesh_bndry,
-        ) in self._basis.mesh.get_boundaries().items():
+        ) in self._basis.mesh().get_boundaries().items():
             # loop over momentum solution components
             for component_id in range(self._physics.ncomponents()):
                 if (component_id == 1 and bndry_name in ["left", "right"]) or (
@@ -282,24 +265,25 @@ class ShallowWaterWaveModel(TransientAdjointModel):
                         DirichletBoundaryFromOperator(
                             mesh_bndry,
                             self._get_zerofun(),
-                            component_id * self._basis.mesh.nmesh_pts(),
+                            component_id * self._basis.mesh().nmesh_pts(),
                         )
                     )
-                elif False:
+                elif False:  # component_id != 0 and bndry_name == "left":
                     bndry_funs.append(
                         RobinBoundaryFromOperator(
                             mesh_bndry,
                             self._get_zerofun(),
-                            0,
+                            -10,
                             1.0,
-                            component_id * self._basis.mesh.nmesh_pts(),
+                            component_id * self._basis.mesh().nmesh_pts(),
                             component_id,
                         )
                     )
-        return bndry_funs
+        self._physics.set_boundaries(bndry_funs)
 
     def set_param(self, param: Array):
-        self._physics._bed.set_param(param)
+        self._param = param
+        self.setup_init_surface()
 
 
 class LotkaVolterraResidual(TransientNewtonResidual):

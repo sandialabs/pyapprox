@@ -85,23 +85,26 @@ class ScalarOperator:
                 "OrthogonalCoordinateCollocationBasis"
             )
         self._bkd = basis._bkd
-        self.basis = basis
+        self._basis = basis
         if values is not None:
             self.set_values(values)
         if jac is not None:
             self.set_jacobian(jac)
 
     def _jacobian_shape(self, basis, ninput_funs) -> tuple:
-        return (basis.mesh.nmesh_pts(), basis.mesh.nmesh_pts() * ninput_funs)
+        return (basis.mesh().nmesh_pts(), basis.mesh().nmesh_pts() * ninput_funs)
 
     def ninput_funs(self) -> int:
         return self._ninput_funs
 
+    def basis(self) -> OrthogonalCoordinateCollocationBasis:
+        return self._basis
+
     def nphys_vars(self) -> int:
-        return self.basis.nphys_vars()
+        return self.basis().nphys_vars()
 
     def nmesh_pts(self) -> int:
-        return self.basis.mesh.nmesh_pts()
+        return self.basis().mesh().nmesh_pts()
 
     def set_values(self, values: Array):
         if values.shape != (self.nmesh_pts(),):
@@ -141,14 +144,14 @@ class ScalarOperator:
     ) -> "ScalarOperator":
         if isinstance(other, float):
             return ScalarOperator(
-                self.basis,
+                self.basis(),
                 self.ninput_funs(),
                 self.get_values() + other,
                 self.sparse_jacobian().copy(),
             )
 
         return ScalarOperator(
-            self.basis,
+            self.basis(),
             self.ninput_funs(),
             self.get_values() + other.get_values(),
             self.sparse_jacobian() + other.sparse_jacobian(),
@@ -173,7 +176,7 @@ class ScalarOperator:
 
     def _subtract_functions(self, fun1, fun2) -> "ScalarOperator":
         return ScalarOperator(
-            fun1.basis,
+            fun1.basis(),
             self.ninput_funs(),
             fun1.get_values() - fun2.get_values(),
             fun1.sparse_jacobian() - fun2.sparse_jacobian(),
@@ -184,7 +187,7 @@ class ScalarOperator:
     ) -> "ScalarOperator":
         if isinstance(other, float):
             return ScalarOperator(
-                self.basis,
+                self.basis(),
                 self.ninput_funs(),
                 self.get_values() - other,
                 self.sparse_jacobian().copy(),
@@ -200,7 +203,7 @@ class ScalarOperator:
     ) -> "ScalarOperator":
         if isinstance(other, float):
             return ScalarOperator(
-                self.basis,
+                self.basis(),
                 self.ninput_funs(),
                 other - self.get_values(),
                 -self.sparse_jacobian(),
@@ -214,7 +217,7 @@ class ScalarOperator:
     # def _init_function(self, values):
     #     # initialize operator with zero jacobian
     #     return ScalarOperator(
-    #         self.basis,
+    #         self.basis(),
     #         self.ninput_funs(),
     #         values,
     #         ZeroJac(
@@ -233,7 +236,7 @@ class ScalarOperator:
 
         if isinstance(other, float):
             return ScalarOperator(
-                self.basis,
+                self.basis(),
                 self.ninput_funs(),
                 self.get_values() * other,
                 self.sparse_jacobian() * other,
@@ -246,7 +249,7 @@ class ScalarOperator:
             + other.sparse_jacobian() * self.get_values()
         )
         return ScalarOperator(
-            other.basis,
+            other.basis(),
             self.ninput_funs(),
             values,
             jac,
@@ -280,7 +283,7 @@ class ScalarOperator:
                 "power must be an integer or float and must not be zero"
             )
         return ScalarOperator(
-            self.basis,
+            self.basis(),
             self.ninput_funs(),
             self.get_values() ** other,
             float(other)
@@ -293,7 +296,7 @@ class ScalarOperator:
             if fun2 == 0:
                 raise ValueError("Cannot divide by zero")
             return ScalarOperator(
-                fun1.basis,
+                fun1.basis(),
                 self.ninput_funs(),
                 fun1.get_values() / fun2,
                 fun1.sparse_jacobian() / fun2,
@@ -303,7 +306,7 @@ class ScalarOperator:
             if self._bkd.any(fun2.get_values() == 0.0):
                 raise ValueError("Cannot divide by zero")
             return ScalarOperator(
-                fun2.basis,
+                fun2.basis(),
                 self.ninput_funs(),
                 fun1 / fun2.get_values(),
                 -fun1 * fun2.sparse_jacobian() / (fun2.get_values() ** 2),
@@ -316,7 +319,7 @@ class ScalarOperator:
             - fun2.sparse_jacobian() * fun1.get_values()
         ) / fun2.get_values() ** 2
         return ScalarOperator(
-            fun1.basis,
+            fun1.basis(),
             self.ninput_funs(),
             values,
             jac,
@@ -337,38 +340,38 @@ class ScalarOperator:
         return self._divide_functions(other, self)
 
     def deriv(self, physvar_id: int) -> "ScalarOperator":
-        jac = self.sparse_jacobian().rdot(self.basis._deriv_mats[physvar_id])
+        jac = self.sparse_jacobian().rdot(self.basis()._deriv_mats[physvar_id])
         return ScalarOperator(
-            self.basis,
+            self.basis(),
             self.ninput_funs(),
-            self.basis._deriv_mats[physvar_id] @ self.get_values(),
+            self.basis()._deriv_mats[physvar_id] @ self.get_values(),
             jac,
         )
 
     def __call__(self, eval_samples: Array) -> Array:
         values = self.get_values()[:, None]
-        return self.basis.interpolate(values, eval_samples)[:, 0]
+        return self.basis().interpolate(values, eval_samples)[:, 0]
 
     def integrate(self):
-        # self.basis.quadrature_rule() return Gauss Legendre rule
+        # self.basis().quadrature_rule() return Gauss Legendre rule
         # use this to integrate lagrange basis
-        # xx, ww = self.basis.quadrature_rule()
+        # xx, ww = self.basis().quadrature_rule()
         # values = self(xx)
         # return self._bkd.sum(values * ww[:, 0])
-        return self.get_values() @ self.basis.quadrature_rule_at_mesh_pts()[1]
+        return self.get_values() @ self.basis().quadrature_rule_at_mesh_pts()[1]
 
     def _plot_1d(self, ax, nplot_pts_1d, **kwargs):
         plot_samples = self._bkd.linspace(
-            *self.basis.mesh.trans._ranges, nplot_pts_1d
+            *self.basis().mesh().trans()._ranges, nplot_pts_1d
         )[None, :]
         return ax.plot(plot_samples[0], self(plot_samples), **kwargs)
 
     def _get_2d_plot_samples(self, npts_1d):
-        orth_range = self.basis.mesh.trans._orthog_ranges
+        orth_range = self.basis().mesh().trans()._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
             self._bkd.tile(orth_range, (2,)), npts_1d, bkd=self._bkd
         )
-        pts = self.basis.mesh.trans.map_from_orthogonal(orth_pts_2d)
+        pts = self.basis().mesh().trans().map_from_orthogonal(orth_pts_2d)
         return pts, orth_X
 
     def _plot_2d(self, ax, npts_1d, **kwargs):
@@ -396,7 +399,7 @@ class ScalarOperator:
         orth_ranges = self._bkd.reshape(
             self._bkd.tile(orth_range, (3,)), (3, 2)
         )
-        ranges = self.basis.mesh.trans.map_from_orthogonal(orth_ranges)
+        ranges = self.basis().mesh().trans().map_from_orthogonal(orth_ranges)
         ax.set_xlim(*ranges[0])
         ax.set_ylim(*ranges[1])
         ax.set_zlim(*ranges[2])
@@ -411,7 +414,7 @@ class ScalarOperator:
         jdx = self._bkd.arange(3)
         jdx = self._bkd.delete(jdx, idx)
         orth_pts[jdx] = orth_pts_2d
-        pts = self.basis.mesh.trans.map_from_orthogonal(orth_pts)
+        pts = self.basis().mesh().trans().map_from_orthogonal(orth_pts)
         vals = self._bkd.reshape(self(pts), X_shape)
         X = self._bkd.reshape(pts[0], X_shape)
         Y = self._bkd.reshape(pts[1], X_shape)
@@ -419,7 +422,7 @@ class ScalarOperator:
         return X, Y, Z, vals
 
     def _plot_3d_internal(self, ax, npts_1d, fig):
-        orth_range = self.basis.mesh.trans._orthog_ranges
+        orth_range = self.basis().mesh().trans()._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
             self._bkd.tile(orth_range, (2,)), npts_1d
         )
@@ -451,7 +454,7 @@ class ScalarOperator:
         return ims
 
     def _plot_3d_external(self, ax, npts_1d, fig):
-        orth_range = self.basis.mesh.trans._orthog_ranges
+        orth_range = self.basis().mesh().trans()._orthog_ranges
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
             self._bkd.tile(orth_range, (2,)), npts_1d, bkd=self._bkd
         )
@@ -514,11 +517,11 @@ class ScalarOperator:
             textwrap.indent(
                 f"ninput_funs={self.ninput_funs()}", prefix="    "
             ),
-            textwrap.indent("basis=" + str(self.basis), prefix="    "),
+            textwrap.indent("basis=" + str(self.basis()), prefix="    "),
         )
 
     def values_shape(self) -> tuple:
-        return (self.basis.mesh.nmesh_pts(),)
+        return (self.basis().mesh().nmesh_pts(),)
 
 
 class ScalarFunction(ScalarOperator):
@@ -533,7 +536,7 @@ class ScalarFunction(ScalarOperator):
     def set_values(self, values: Array):
         super().set_values(values)
         zero_jac = ZeroJac(
-            self._bkd, self._jacobian_shape(self.basis, self.ninput_funs())
+            self._bkd, self._jacobian_shape(self.basis(), self.ninput_funs())
         )
         super().set_jacobian(zero_jac)
 
@@ -550,7 +553,7 @@ class ConstantScalarFunction(ScalarFunction):
         const: float,
         ninput_funs: int = 1,
     ):
-        values = basis._bkd.full((basis.mesh.nmesh_pts(),), const)
+        values = basis._bkd.full((basis.mesh().nmesh_pts(),), const)
         super().__init__(basis, values, ninput_funs)
 
 
@@ -574,11 +577,11 @@ class ScalarSolution(ScalarOperator):
 
     def set_values(self, values: Array):
         super().set_values(values)
-        # ident_jac = self.basis._bkd.eye(self.basis.mesh.nmesh_pts())
+        # ident_jac = self.basis()._bkd.eye(self.basis().mesh().nmesh_pts())
         ident_jac = DiagJac(
             self._bkd,
-            self._jacobian_shape(self.basis, self.ninput_funs()),
-            self._bkd.ones((self.basis.mesh.nmesh_pts(), 1)),
+            self._jacobian_shape(self.basis(), self.ninput_funs()),
+            self._bkd.ones((self.basis().mesh().nmesh_pts(), 1)),
         )
         super().set_jacobian(ident_jac)
 
@@ -603,7 +606,7 @@ class ScalarOperatorFromCallableMixin:
         self, basis: OrthogonalCoordinateCollocationBasis, fun: callable
     ):
         self._fun = fun
-        return self._fun(basis.mesh.mesh_pts())
+        return self._fun(basis.mesh().mesh_pts())
 
 
 class ScalarFunctionFromCallable(
@@ -666,7 +669,7 @@ class TransientOperatorMixin:
 
     def set_time(self, time: float):
         self._time = time
-        vals = self._eval(self.basis.mesh.mesh_pts())
+        vals = self._eval(self.basis().mesh().mesh_pts())
         if vals.ndim > 1:
             vals = vals.T
         self.set_values(vals)
@@ -687,7 +690,7 @@ class TransientOperatorMixin:
         return "{0}(\n{1},\n{2}\n)".format(
             self.__class__.__name__,
             textwrap.indent(f"time={self._time}", prefix="    "),
-            textwrap.indent("basis=" + str(self.basis), prefix="    "),
+            textwrap.indent("basis=" + str(self.basis()), prefix="    "),
         )
 
 
@@ -738,7 +741,7 @@ class VectorSolutionComponent(ScalarOperator):
             raise ValueError("input_id must be smaller than ninput_funs")
         self._input_id = input_id
         sparse_jac_array = basis._bkd.zeros(
-            (basis.mesh.nmesh_pts(), ninput_funs)
+            (basis.mesh().nmesh_pts(), ninput_funs)
         )
         sparse_jac_array[:, input_id] = 1.0
         jac = DiagJac(
@@ -757,11 +760,14 @@ class MatrixOperator:
         nrows: int,
         ncols: int,
     ):
-        self.basis = basis
+        self._basis = basis
         self._bkd = basis._bkd
         self._ninput_funs = ninput_funs
         self._nrows = nrows
         self._ncols = ncols
+
+    def basis(self) -> OrthogonalCoordinateCollocationBasis:
+        return self._basis
 
     def ninput_funs(self) -> int:
         return self._ninput_funs
@@ -858,7 +864,7 @@ class MatrixOperator:
 
         if isinstance(other, MatrixOperator):
             op = MatrixOperator(
-                self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+                self.basis(), self.ninput_funs(), self.nrows(), self.ncols()
             )
             components = [
                 [
@@ -871,7 +877,7 @@ class MatrixOperator:
             return op
 
         op = MatrixOperator(
-            self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+            self.basis(), self.ninput_funs(), self.nrows(), self.ncols()
         )
         components = [
             [self._components[ii][jj] * other for jj in range(self.ncols())]
@@ -903,7 +909,7 @@ class MatrixOperator:
             raise ValueError("matrix shapes are inconsistent")
 
         op = MatrixOperator(
-            self.basis, self.ninput_funs(), self.nrows(), other.ncols()
+            self.basis(), self.ninput_funs(), self.nrows(), other.ncols()
         )
         components = [
             [None for kk in range(other.ncols())] for ii in range(self.nrows())
@@ -925,7 +931,7 @@ class MatrixOperator:
         Returns the transpose of the matrix opeator.
         """
         op = MatrixOperator(
-            self.basis, self.ninput_funs(), self.ncols(), self.nrows()
+            self.basis(), self.ninput_funs(), self.ncols(), self.nrows()
         )
         components_transpose = [
             [self._components[ii][jj] for ii in range(self.nrows())]
@@ -948,7 +954,7 @@ class MatrixOperator:
 
         if isinstance(other, MatrixOperator):
             op = MatrixOperator(
-                self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+                self.basis(), self.ninput_funs(), self.nrows(), self.ncols()
             )
             components = [
                 [
@@ -961,7 +967,7 @@ class MatrixOperator:
             return op
 
         op = MatrixOperator(
-            self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+            self.basis(), self.ninput_funs(), self.nrows(), self.ncols()
         )
         components = [
             [self._components[ii][jj] + other for jj in range(self.ncols())]
@@ -992,7 +998,7 @@ class MatrixOperator:
             )
         if isinstance(other, MatrixOperator):
             op = MatrixOperator(
-                self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+                self.basis(), self.ninput_funs(), self.nrows(), self.ncols()
             )
             components = [
                 [
@@ -1005,7 +1011,7 @@ class MatrixOperator:
             return op
 
         op = MatrixOperator(
-            self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+            self.basis(), self.ninput_funs(), self.nrows(), self.ncols()
         )
         components = [
             [self._components[ii][jj] - other for jj in range(self.ncols())]
@@ -1027,7 +1033,7 @@ class MatrixOperator:
 
         if isinstance(other, MatrixOperator):
             op = MatrixOperator(
-                self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+                self.basis(), self.ninput_funs(), self.nrows(), self.ncols()
             )
             components = [
                 [
@@ -1040,7 +1046,7 @@ class MatrixOperator:
             return op
 
         op = MatrixOperator(
-            self.basis, self.ninput_funs(), self.nrows(), self.ncols()
+            self.basis(), self.ninput_funs(), self.nrows(), self.ncols()
         )
         components = [
             [other - self._components[ii][jj] for jj in range(self.ncols())]
@@ -1052,21 +1058,21 @@ class MatrixOperator:
     def create_scalar_operator_from_values(
         self, values: Array, row: int, col: int
     ) -> ScalarOperator:
-        return ScalarOperator(self.basis, self.ninput_funs(), values)
+        return ScalarOperator(self.basis(), self.ninput_funs(), values)
 
     def _set_matrix_components(self, components: List[ScalarOperator]):
         MatrixOperator.set_components(self, components)
 
     def set_flattened_values(self, values: Array):
         values_shape = (
-            self.nrows() * self.ncols() * self.basis.mesh.nmesh_pts(),
+            self.nrows() * self.ncols() * self.basis().mesh().nmesh_pts(),
         )
         if values.shape != values_shape:
             raise ValueError(
                 f"values.shape {values.shape} must be {values_shape}"
             )
         reshaped_values = self._bkd.reshape(
-            values, (self.nrows(), self.ncols(), self.basis.mesh.nmesh_pts())
+            values, (self.nrows(), self.ncols(), self.basis().mesh().nmesh_pts())
         )
         components = []
         for ii in range(self.nrows()):
@@ -1105,7 +1111,7 @@ class MatrixOperator:
         return (
             self.nrows(),
             self.ncols(),
-            self.basis.mesh.nmesh_pts(),
+            self.basis().mesh().nmesh_pts(),
         )
 
 
@@ -1150,7 +1156,7 @@ class VectorOperator(MatrixOperator):
     def values_shape(self) -> tuple:
         return (
             self.nrows(),
-            self.basis.mesh.nmesh_pts(),
+            self.basis().mesh().nmesh_pts(),
         )
 
 
@@ -1170,7 +1176,7 @@ class VectorSolution(VectorOperator):
         self, values: Array, row: int, col: int
     ) -> VectorSolutionComponent:
         return VectorSolutionComponent(
-            self.basis, self.ninput_funs(), row, values
+            self.basis(), self.ninput_funs(), row, values
         )
 
     def _set_matrix_components(
@@ -1189,7 +1195,7 @@ class VectorFunction(VectorOperator):
         self, values: Array, row: int, col: int
     ) -> "ScalarFunction":
         return ScalarFunction(
-            self.basis,
+            self.basis(),
             values,
             ninput_funs=self.ninput_funs(),
         )
@@ -1213,7 +1219,7 @@ class TransientVectorFunction(TransientOperatorMixin, VectorFunction):
         self, values: Array, row: int, col: int
     ) -> TransientScalarFunction:
         return TransientScalarFunction(
-            self.basis, values, ninput_funs=self.ninput_funs()
+            self.basis(), values, ninput_funs=self.ninput_funs()
         )
 
 
@@ -1227,7 +1233,7 @@ class VectorOperatorFromCallableMixin:
     ):
         super().__init__(basis, ninput_funs, nrows)
         self._fun = fun
-        values = self._fun(basis.mesh.mesh_pts())
+        values = self._fun(basis.mesh().mesh_pts())
         if values.shape[1] != nrows:
             raise ValueError("values returned by fun has the wrong shape")
         self.set_values(values.T)
@@ -1246,7 +1252,7 @@ class VectorFunctionFromCallable(
         self, values: Array, row: int, col: int
     ) -> ScalarFunction:
         return ScalarFunction(
-            self.basis, values, ninput_funs=self.ninput_funs()
+            self.basis(), values, ninput_funs=self.ninput_funs()
         )
 
 
@@ -1283,7 +1289,7 @@ class TransientVectorFunctionFromCallable(
         self, values: Array, row: int, col: int
     ) -> TransientScalarFunctionFromCallable:
         fun = TransientScalarFunctionFromCallable(
-            self.basis,
+            self.basis(),
             lambda xx, time: self._fun(xx, time)[:, row],
             ninput_funs=self.ninput_funs(),
         )
@@ -1296,7 +1302,7 @@ def nabla(op: ScalarOperator) -> VectorOperator:
     Gradient of a scalar-valued function.
     Returns VectorOperator with shape (nphys_vars, 1)
     """
-    vec_op = VectorOperator(op.basis, op.ninput_funs(), op.nphys_vars())
+    vec_op = VectorOperator(op.basis(), op.ninput_funs(), op.nphys_vars())
     ops = [op.deriv(dd) for dd in range(op.nphys_vars())]
     vec_op.set_components(ops)
     return vec_op
@@ -1310,7 +1316,7 @@ def vector_nabla(vec_op: VectorOperator) -> MatrixOperator:
     because we want each row to correspond to a unique equation
     """
     mat_op = MatrixOperator(
-        vec_op.basis, vec_op.ninput_funs(), vec_op.nrows(), vec_op.nphys_vars()
+        vec_op.basis(), vec_op.ninput_funs(), vec_op.nrows(), vec_op.nphys_vars()
     )
     comps = [
         [comp.deriv(dd) for dd in range(comp.nphys_vars())]
@@ -1342,7 +1348,7 @@ def div(mat_op: MatrixOperator):
     if len(ops) == 1:
         return ops[0]
 
-    op = VectorOperator(mat_op.basis, mat_op.ninput_funs(), len(ops))
+    op = VectorOperator(mat_op.basis(), mat_op.ninput_funs(), len(ops))
     op.set_components(ops)
     return op
 
@@ -1374,14 +1380,14 @@ class ScalarKLEFunction(ScalarFunction):
         mean_field: ScalarFunction,
     ):
         self._kle = MeshKLE(
-            self.basis.mesh.mesh_pts(),
+            self.basis().mesh().mesh_pts(),
             lenscale,
             sigma,
             0 if mean_field is None else mean_field.get_values(),
             use_log,
             matern_nu,
-            self.basis.quadrature_rule_at_mesh_pts()[1][:, 0],
-            backend=self.basis._bkd,
+            self.basis().quadrature_rule_at_mesh_pts()[1][:, 0],
+            backend=self.basis()._bkd,
         )
         # initialize to mean
         self.set_param(
@@ -1545,16 +1551,16 @@ def animate_transient_2d_vector_solution(
         [ax.clear() for ax in axs]
         solfun.set_flattened_values(sol[:, ii])
         components = solfun.get_components()
-        for ii, component_id in enumerate(components_as_surface_plots):
+        for kk, component_id in enumerate(components_as_surface_plots):
             components[component_id].plot(
-                axs[ii], npts1d, **surface_plot_kwargs
+                axs[kk], npts1d, **surface_plot_kwargs
             )
-            axs[ii].set_zlim(state_bounds[component_id])
-            axs[ii] = remove_3d_axis_panels(axs[ii])
+            axs[kk].set_zlim(state_bounds[component_id])
+            axs[kk] = remove_3d_axis_panels(axs[kk])
         for jj, component_id in enumerate(components_as_contour_plots):
-            ii = jj + components_as_surface_plots.shape[0]
+            kk = jj + components_as_surface_plots.shape[0]
             components[component_id].plot(
-                axs[ii],
+                axs[kk],
                 npts1d,
                 levels=levels[component_id],
                 **contour_plot_kwargs,

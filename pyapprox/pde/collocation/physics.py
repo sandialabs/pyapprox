@@ -37,8 +37,11 @@ class Physics(NewtonResidual):
                 "basis must be an instance of "
                 "OrthogonalCoordinateCollocationBasis"
             )
-        self.basis = basis
+        self._basis = basis
         self._flux_jacobian_implemented = False
+
+    def basis(self) -> OrthogonalCoordinateCollocationBasis:
+        return self._basis
 
     def mass_matrix(self, nterms: int) -> Array:
         return self._bkd.eye(nterms)
@@ -53,7 +56,7 @@ class Physics(NewtonResidual):
         # boundary (or robin with nonzero solution contribution)
         # if (
         #     len(bndrys) + nperiodic_boundaries
-        #     != len(self.basis.mesh._bndrys) * self.ncomponents()
+        #     != len(self._basis.mesh._bndrys) * self.ncomponents()
         # ):
         #     raise ValueError("Must set all boundaries")
         self._bndrys = bndrys
@@ -149,10 +152,10 @@ class Physics(NewtonResidual):
                     self.ncomponents()
                 )
             )
-        if flux.nrows() != self.basis.nphys_vars():
+        if flux.nrows() != self._basis.nphys_vars():
             raise RuntimeError(
                 "flux must be a MatrixFunction with {0} rows".format(
-                    self.basis.nphys_vars()
+                    self._basis.nphys_vars()
                 )
             )
         # return flux.get_values()[:, component_id, :]
@@ -168,7 +171,7 @@ class Physics(NewtonResidual):
 
 class ScalarPhysicsMixin:
     def _solution_from_array(self, array: Array):
-        sol = ScalarSolution(self.basis, array)
+        sol = ScalarSolution(self._basis, array)
         return sol
 
     def _check_is_scalar_function(self, fun: ScalarFunction, name):
@@ -185,7 +188,7 @@ class VectorPhysicsMixin:
 
     def _solution_from_array(self, array: Array):
         sol = VectorSolution(
-            self.basis, self.ncomponents(), self.ncomponents()
+            self._basis, self.ncomponents(), self.ncomponents()
         )
         sol.set_flattened_values(array)
         return sol
@@ -223,7 +226,7 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
                     velocity_field
                 )
             )
-        super().__init__(diffusion.basis)
+        super().__init__(diffusion.basis())
         self._forcing = forcing
         self._diffusion = diffusion
         self._reaction_op = reaction_op
@@ -281,7 +284,7 @@ class ShallowIceEquation(ScalarPhysicsMixin, Physics):
         self._check_is_scalar_function(bed, "bed")
         self._check_is_scalar_function(friction, "friction")
         self._check_is_scalar_function(forcing, "forcing")
-        super().__init__(forcing.basis)
+        super().__init__(forcing.basis())
         self._bed = bed
         self._friction = friction
         self._forcing = forcing
@@ -328,7 +331,7 @@ class HelmholtzEquation(AdvectionDiffusionReactionEquation):
         sq_wave_num: ScalarFunction,
         forcing: ScalarFunction = None,
     ):
-        basis = sq_wave_num.basis
+        basis = sq_wave_num.basis()
         diffusion = ScalarFunctionFromCallable(
             basis, lambda x: basis._bkd.ones(x.shape[1])
         )
@@ -352,16 +355,16 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         self._forcing = forcing
         self._bed = bed
         self._g = 9.81
-        super().__init__(bed.basis)
+        super().__init__(bed.basis())
         self.set_bed_slope_forcing()
         self._flux_jacobian_implemented = True
 
     def set_bed_slope_forcing(self):
         self._slope_forcing = VectorOperator(
-            self.basis, self.ncomponents(), self.ncomponents()
+            self._basis, self.ncomponents(), self.ncomponents()
         )
         zero = ZeroScalarFunction(
-            self.basis,
+            self._basis,
             ninput_funs=self._bed.ninput_funs(),
         )
         slope_gradient_components = nabla(self._bed).get_components()
@@ -376,12 +379,12 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         # because divergence will be applied store flux for each equation
         # as a column
         flux = MatrixOperator(
-            sol.basis,
+            sol.basis(),
             sol.ninput_funs(),
             sol.nphys_vars(),
             sol.nrows(),
         )
-        if sol.basis.nphys_vars() == 1:
+        if sol.basis().nphys_vars() == 1:
             h, uh = sol.get_components()
             if self._bkd.any(h.get_values() <= 0):
                 raise RuntimeError(
@@ -435,12 +438,12 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
             raise ValueError(
                 "reaction must be an instance of VectorOperatorOperation"
             )
-        super().__init__(forcing.basis)
+        super().__init__(forcing.basis())
         self._forcing = forcing
         diff_components = diffusion.get_components()
-        self._diffusion = MatrixOperator(diffusion.basis, 2, 2, 2)
+        self._diffusion = MatrixOperator(diffusion.basis(), 2, 2, 2)
         zero = ZeroScalarFunction(
-            self.basis,
+            self._basis,
             ninput_funs=2,
         )
         self._diffusion.set_components(
@@ -488,7 +491,7 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         self._check_is_scalar_function(friction, "friction")
         self._check_is_vector_function(velocity_forcing, "velocity_forcing")
         self.set_depth(depth)
-        super().__init__(velocity_forcing.basis)
+        super().__init__(velocity_forcing.basis())
         self._bed = bed
         self._friction = friction
         self._velocity_forcing = velocity_forcing
@@ -515,7 +518,7 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         return (ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2) ** (0.5)
 
     def _flux(self, sol: VectorSolution) -> MatrixOperator:
-        strain_tensor = MatrixOperator(sol.basis, 2, 2, 2)
+        strain_tensor = MatrixOperator(sol.basis(), 2, 2, 2)
         u, v = sol.get_components()
         ux = u.deriv(0)
         uy = u.deriv(1)
@@ -557,7 +560,7 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
 class ShallowShelfDepthEquations(ScalarPhysicsMixin, Physics):
     def __init__(self, depth_forcing: ScalarFunction = None):
         self._check_is_scalar_function(depth_forcing, "depth_forcing")
-        super().__init__(depth_forcing.basis)
+        super().__init__(depth_forcing.basis())
         self._depth_forcing = depth_forcing
         self._flux_jacobian_implemented = True
 
@@ -651,9 +654,9 @@ class ShallowShelfDepthVelocityEquations(
         depth_forcing: ScalarFunction = None,
         velocity_forcing: VectorFunction = None,
     ):
-        super().__init__(bed.basis)
+        super().__init__(bed.basis())
         # initialize depth to zero, it will be overwritten later
-        depth = ZeroScalarFunction(self.basis, self.ncomponents())
+        depth = ZeroScalarFunction(self._basis, self.ncomponents())
         self._flux_jacobian_implemented = True
         self._steady_physics = ShallowShelfVelocityEquations(
             depth, bed, friction, A, rho, velocity_forcing
@@ -661,7 +664,7 @@ class ShallowShelfDepthVelocityEquations(
         self._transient_physics = ShallowShelfDepthEquations(depth_forcing)
 
     def ncomponents(self) -> int:
-        return self.basis.nphys_vars()+1
+        return self._basis.nphys_vars()+1
 
     def mass_matrix(self, nterms: int) -> Array:
         return self._bkd.hstack(
@@ -673,7 +676,7 @@ class ShallowShelfDepthVelocityEquations(
     ) -> VectorSolution:
         u, v = sol.get_components()[1:]
         velocities = VectorSolution(
-            self.basis, self.ncomponents(), self.ncomponents()-1
+            self._basis, self.ncomponents(), self.ncomponents()-1
         )
         velocities.set_components([u, v])
         return velocities
@@ -707,7 +710,7 @@ class ShallowShelfDepthVelocityEquations(
         # must be MatrixOperator not VectorOperator even though it has
         # only 1 column because every other physics does the same thing
         residual = MatrixOperator(
-            self.basis, self.ncomponents(), self.ncomponents(), 1
+            self._basis, self.ncomponents(), self.ncomponents(), 1
         )
         depth = self._transient_physics_solution_from_array(
             sol.get_flattened_values()
@@ -733,16 +736,16 @@ class ShallowShelfDepthVelocityEquations(
         )
         steady_flux = self._steady_physics._flux(velocities)
         flux = MatrixOperator(
-            self.basis,
+            self._basis,
             self.ncomponents(),
-            self.basis.nphys_vars(),
+            self._basis.nphys_vars(),
             self.ncomponents(),
         )
         transient_flux_components = transient_flux.get_components()
         steady_flux_components = steady_flux.get_components()
         flux_components = [
             transient_flux_components[ii] + steady_flux_components[ii]
-            for ii in range(self.basis.nphys_vars())
+            for ii in range(self._basis.nphys_vars())
         ]
         flux.set_components(flux_components)
         return flux
@@ -767,7 +770,7 @@ class Isotropic2DLinearElasticityEquations(VectorPhysicsMixin, Physics):
         self._lambda = lamda
         self._mu = mu
         self._forcing = forcing
-        super().__init__(mu.basis)
+        super().__init__(mu.basis())
         self._flux_jacobian_implemented = True
 
     def ncomponents(self) -> int:
@@ -785,7 +788,7 @@ class Isotropic2DLinearElasticityEquations(VectorPhysicsMixin, Physics):
         eyy = vy
 
         # no need to store strain tensor as a matrix operator
-        # strain_tensor = MatrixOperator(sol.basis, 2, 2, 2)
+        # strain_tensor = MatrixOperator(sol.basis(), 2, 2, 2)
         # strain_tensor_components = [
         #     [exx, exy]
         #     [exy, eyy],
@@ -798,7 +801,7 @@ class Isotropic2DLinearElasticityEquations(VectorPhysicsMixin, Physics):
         tauxy = two_mu * exy
         tauyy = self._lambda * trace_tensor + two_mu * eyy
 
-        flux = MatrixOperator(sol.basis, 2, 2, 2)
+        flux = MatrixOperator(sol.basis(), 2, 2, 2)
         flux_components = [
             [tauxx, tauxy],
             [tauxy, tauyy],

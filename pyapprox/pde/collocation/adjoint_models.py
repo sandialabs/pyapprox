@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import Tuple
 
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
@@ -17,49 +17,53 @@ from pyapprox.pde.collocation.timeintegration import (
 )
 
 
-class AdjointModel(SingleSampleModel):
+class AdjointModel(SingleSampleModel, ABC):
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
         self._jacobian_implemented = True
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return 1
+
+    @abstractmethod
+    def nvars(self) -> int:
+        raise NotImplementedError
 
     @abstractmethod
     def _fwd_solve(self):
         raise NotImplementedError
 
     def forward_solve(self, sample) -> Tuple[Array, Array]:
-        self._set_param(sample[:, 0])
+        self.set_param(sample[:, 0])
         self._fwd_solve()
         return self._sols, self._times
 
     @abstractmethod
-    def _set_param(self, param: Array):
+    def set_param(self, param: Array):
         raise NotImplementedError
 
     @abstractmethod
-    def _eval_functional(self):
+    def _eval_functional(self) -> Array:
         raise NotImplementedError
 
     def _evaluate(self, sample: Array) -> Array:
-        self._set_param(sample[:, 0])
+        self.set_param(sample[:, 0])
         self._fwd_solve()
         return self._eval_functional()
 
     @abstractmethod
-    def _jacobian_from_adjoint(self):
+    def _jacobian_from_adjoint(self) -> Array:
         raise NotImplementedError
 
-    def _jacobian(self, sample: Array):
-        self._set_param(sample[:, 0])
+    def _jacobian(self, sample: Array) -> Array:
+        self.set_param(sample[:, 0])
         return self._jacobian_from_adjoint()
 
-    def _apply_hessian_from_adjoint(self, vec: Array):
+    def _apply_hessian_from_adjoint(self, vec: Array) -> Array:
         raise NotImplementedError("_hessian_from_adjoint not implemented")
 
-    def _apply_hessian(self, sample: Array, vec: Array):
-        self._set_param(sample[:, 0])
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        self.set_param(sample[:, 0])
         return self._apply_hessian_from_adjoint(vec[:, 0])
 
 
@@ -67,11 +71,10 @@ class SteadyAdjointModel(AdjointModel):
     def __init__(
         self,
         residual: NewtonResidual,
-        functional: AdjointFunctional,
+        functional: AdjointFunctional = None,
         newton_solver: NewtonSolver = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(backend)
+        super().__init__(residual._bkd)
         self._residual = residual
         self._functional = functional
         if newton_solver is None:
@@ -86,25 +89,21 @@ class SteadyAdjointModel(AdjointModel):
             self._newton_solver, self._functional
         )
 
-    @abstractmethod
-    def get_initial_iterate(self) -> Array:
-        raise NotImplementedError
-
-    def _set_param(self, param: Array):
+    def set_param(self, param: Array):
         self._adjoint_solver.set_param(param)
 
     def _fwd_solve(self):
         self._adjoint_solver.forward_solve()
 
-    def _eval_functional(self):
+    def _eval_functional(self) -> Array:
         return self._adjoint_solver._functional(
             self._adjoint_solver._fwd_sol[:, None]
         )[None, :]
 
-    def _jacobian_from_adjoint(self):
+    def _jacobian_from_adjoint(self) -> Array:
         return self._adjoint_solver.gradient()[None, :]
 
-    def _apply_hessian_from_adjoint(self, vec: Array):
+    def _apply_hessian_from_adjoint(self, vec: Array) -> Array:
         return self._adjoint_solver.apply_hessian(vec)
 
     def __repr__(self):
@@ -119,19 +118,21 @@ class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
     def __init__(
         self,
         residual: NewtonResidual,
-        functional: AdjointFunctional,
         init_iterate: Array,
+        nvars: int,
+        functional: AdjointFunctional = None,
         newton_solver: NewtonSolver = None,
         apply_hessian_implemented=False,
     ):
-        super().__init__(residual, functional, newton_solver, residual._bkd)
+        self._nvars = nvars
+        super().__init__(residual, functional, newton_solver)
         self._apply_hessian_implemented = apply_hessian_implemented
         if init_iterate.ndim != 1:
             raise ValueError("init_iterate must be 1D Array")
         self._adjoint_solver.set_initial_iterate(init_iterate)
 
-    def get_initial_iterate(self) -> Array:
-        return self._init_iterate
+    def nvars(self) -> int:
+        return self._nvars
 
 
 class TransientAdjointModel(AdjointModel):
@@ -186,7 +187,7 @@ class TransientAdjointModel(AdjointModel):
     def get_initial_condition(self) -> Array:
         raise NotImplementedError
 
-    def _set_param(self, param: Array):
+    def set_param(self, param: Array):
         if hasattr(self, "_functional"):
             # pass functional all parameters
             self._functional.set_param(param)
@@ -197,7 +198,7 @@ class TransientAdjointModel(AdjointModel):
         else:
             self._time_residual.native_residual.set_param(param)
 
-    def _eval_functional(self):
+    def _eval_functional(self) -> Array:
         self._functional.set_quadrature_sample_weights(
             *self._time_residual.quadrature_samples_weights(self._times)
         )
@@ -207,7 +208,7 @@ class TransientAdjointModel(AdjointModel):
         init_sol = self.get_initial_condition()
         self._sols, self._times = self._time_int.solve(init_sol)
 
-    def _jacobian_from_adjoint(self):
+    def _jacobian_from_adjoint(self) -> Array:
         return self._time_int.gradient(self._sols, self._times)
 
     def __repr__(self):

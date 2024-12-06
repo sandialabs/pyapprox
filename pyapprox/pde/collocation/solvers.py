@@ -1,18 +1,24 @@
 from abc import ABC, abstractmethod
 import textwrap
-from typing import Tuple
+from typing import Tuple, Union
 
-from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.pde.collocation.physics import Physics, SplitPhysicsMixin
+from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.pde.collocation.physics import Physics
 from pyapprox.pde.collocation.functions import (
+    ScalarOperator,
     MatrixOperator,
     TransientOperatorMixin,
+    OrthogonalCoordinateCollocationBasis,
 )
 from pyapprox.pde.collocation.newton import NewtonSolver, NewtonResidual
 from pyapprox.pde.collocation.timeintegration import (
     TransientNewtonResidual,
     TimeIntegratorNewtonResidual,
-    ImplicitTimeIntegrator,
+    BackwardEulerResidual,
+)
+from pyapprox.pde.collocation.adjoint_models import (
+    TransientAdjointFunctional, TransientAdjointModel, SteadyAdjointModel
 )
 
 
@@ -67,24 +73,26 @@ class SteadyPhysicsNewtonResidual(NewtonResidual):
         )
 
 
-class SteadyPDE(PDESolver):
-    def __init__(self, physics: Physics, newton_solver: NewtonSolver = None):
-        super().__init__(physics)
-        if newton_solver is None:
-            newton_solver = NewtonSolver()
-        if not isinstance(newton_solver, NewtonSolver):
-            raise ValueError(
-                "newton_solver must be an instance of NewtonSolver"
-            )
-        self.newton_solver = newton_solver
-        self.newton_solver.set_residual(
-            SteadyPhysicsNewtonResidual(self.physics)
+class SteadyForwardCollocationModelFromPhysics(SteadyAdjointModel):
+    # Only intended for testing with manufactured solutions
+    def __init__(
+        self,
+        physics: Physics,
+        newton_solver: NewtonSolver = None,
+    ):
+        self._physics = physics
+        super().__init__(
+            SteadyPhysicsNewtonResidual(physics), newton_solver=newton_solver
         )
 
-    def solve(self, init_sol: MatrixOperator):
-        init_sol_array = self._bkd.flatten(init_sol.get_values())
-        sol_array = self.newton_solver.solve(init_sol_array)
-        return self.physics.solution_from_array(sol_array)
+    def nvars(self) -> int:
+        return 0
+
+    def forward_solve(self, init_cond: Union[MatrixOperator, ScalarOperator]):
+        sol_array = self._adjoint_solver._newton_solver.solve(
+            init_cond.get_flattened_values()
+        )
+        return self._physics.solution_from_array(sol_array)
 
 
 class TransientPhysicsNewtonResidual(TransientNewtonResidual):
@@ -127,63 +135,121 @@ class TransientPhysicsNewtonResidual(TransientNewtonResidual):
                 fun.set_time(time)
 
         for bndry in self._physics._bndrys:
-            #TODO CREATE A BASE CLASS WHICH DERIVES CONSTANT AND FUNCTION based bndry
-            if hasattr(bndry, "_fun") and isinstance(bndry._fun, TransientOperatorMixin):
+            # TODO CREATE A BASE CLASS WHICH DERIVES CONSTANT AND FUNCTION based bndry
+            if hasattr(bndry, "_fun") and isinstance(
+                    bndry._fun, TransientOperatorMixin
+            ):
                 bndry._fun.set_time(time)
 
 
-class TransientPDE(PDESolver):
-    def __init__(self, physics: Physics, newton_solver: NewtonSolver = None):
-        super().__init__(physics)
-        if newton_solver is None:
-            newton_solver = NewtonSolver()
-        if not isinstance(newton_solver, NewtonSolver):
-            raise ValueError(
-                "newton_solver must be an instance of NewtonSolver"
-            )
-        self._newton_solver = newton_solver
-
-    def setup_time_integrator(
+class TransientAdjointCollocationModel(TransientAdjointModel):
+    def __init__(
         self,
-        time_residual_cls: TimeIntegratorNewtonResidual,
         init_time: float,
         final_time: float,
         deltat: float,
+        time_residual_cls: TimeIntegratorNewtonResidual,
+        newton_solver: NewtonSolver = None,
+        functional: TransientAdjointFunctional = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        self._init_time = init_time
-        self._final_time = final_time
-        self._deltat = deltat
-        self._time_residual = time_residual_cls(
-            TransientPhysicsNewtonResidual(self.physics)
+        self._bkd = backend
+        self.setup_basis()
+        self.setup_physics()
+        self.setup_boundaries()
+
+        time_residual = time_residual_cls(
+            TransientPhysicsNewtonResidual(self._physics)
         )
-        self._time_residual._apply_constraints_to_residual = (
-            self._time_residual.native_residual._apply_constraints_to_residual
+        time_residual._apply_constraints_to_residual = (
+            time_residual.native_residual._apply_constraints_to_residual
         )
-        self._time_residual._apply_constraints_to_jacobian = (
-            self._time_residual.native_residual._apply_constraints_to_jacobian
-        )
-        self._time_int = ImplicitTimeIntegrator(
-            self._time_residual,
-            self._init_time,
-            self._final_time,
-            self._deltat,
-            newton_solver=self._newton_solver,
-            verbosity=2,
+        time_residual._apply_constraints_to_jacobian = (
+            time_residual.native_residual._apply_constraints_to_jacobian
         )
 
-    def solve(self, init_sol: MatrixOperator):
-        self._sols, self._times = self._time_int.solve(
-            init_sol.get_flattened_values()
-        )
-        return (
-            self._sols.reshape(
-                init_sol.values_shape()+(self._times.shape[0],)
-            ),
-            self._times
+        super().__init__(
+            init_time,
+            final_time,
+            deltat,
+            time_residual,
+            functional,
+            newton_solver,
+            backend=backend,
         )
 
+    @abstractmethod
+    def setup_basis(self):
+        raise NotImplementedError
 
-from pyapprox.pde.collocation.timeintegration import BackwardEulerResidual
+    @abstractmethod
+    def setup_physics(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def setup_boundaries(self):
+        raise NotImplementedError
+
+    def basis(self) -> OrthogonalCoordinateCollocationBasis:
+        return self._basis
+
+    def physics(self) -> Physics:
+        return self._physics
+
+
+class TransientForwardCollocationModelFromPhysics(
+        TransientAdjointCollocationModel
+):
+    # Only intended for testing with manufactured solutions
+    def __init__(
+        self,
+        init_time: float,
+        final_time: float,
+        deltat: float,
+        time_residual_cls: TimeIntegratorNewtonResidual,
+        physics: Physics,
+        newton_solver: NewtonSolver = None,
+    ):
+        self._physics = physics
+        super().__init__(
+            init_time,
+            final_time,
+            deltat,
+            time_residual_cls,
+            newton_solver,
+            functional=None,
+            backend=self._physics._bkd
+        )
+
+    def nvars(self) -> int:
+        return 0
+
+    def get_initial_condition(self) -> Array:
+        raise NotImplementedError(
+            "initial condition must be passed to forward_solve")
+
+    def setup_physics(self):
+        if not isinstance(self._physics, Physics):
+            raise ValueError("physics must be and instance of Physics")
+
+    def setup_boundaries(self):
+        if not hasattr(self._physics, "_bndrys"):
+            raise ValueError("physics boundaries were not set")
+
+    def setup_basis(self):
+        self._basis = self.physics().basis()
+
+    def forward_solve(self, init_cond: Union[MatrixOperator, ScalarOperator]):
+        sol, times = self._time_int.solve(init_cond.get_flattened_values())
+        values_shape = (
+            self.physics().ncomponents(),
+            self.basis().mesh().nmesh_pts(),
+            times.shape[0]
+        )
+        sol = self._bkd.reshape(sol, values_shape)
+        return sol, times
+
+
 class SplitPhysicsTimeIntegratorNewtonResidual(
         TimeIntegratorNewtonResidual
 ):
@@ -232,8 +298,6 @@ class SplitPhysicsTimeIntegratorNewtonResidual(
         steady_jac = self._physics.steady_jacobian(sol_array)
         transient_jac = self._time_residual._jacobian(transient_sol_array)
         jac = self._bkd.vstack((transient_jac, steady_jac))
-        #print(self._bkd.abs(jac-self._bkd.jacobian(lambda x: self(x), sol_array)).max())
-        #assert False
         # must overwrite self._time_residual.native_residual._sol_array
         # which was set to just transient physics above
         self._time_residual.native_residual._sol_array = sol_array

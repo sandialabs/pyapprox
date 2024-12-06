@@ -224,7 +224,7 @@ class TestNewton:
         assert bkd.allclose(adj_hess_sol, exact_adj_hess_sol)
 
         model = SteadyAdjointModelFixedInitialIterate(
-            res, functional, init_iterate, apply_hessian_implemented=True
+            res, init_iterate, 2, functional, apply_hessian_implemented=True
         )
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)

@@ -23,20 +23,23 @@ class OrthogonalCoordinateCollocationBasis(ABC):
                 "transform must be an instance of " "OrthogonalCoordinateMesh"
             )
         self._bkd = mesh._bkd
-        self.mesh = mesh
+        self._mesh = mesh
         self._set_derivative_matrices()
         self._set_quadrature_rule()
+
+    def mesh(self) -> OrthogonalCoordinateMesh:
+        return self._mesh
 
     def _set_derivative_matrices(self):
         orth_deriv_mats_1d = [
             self._form_1d_orth_derivative_matrix(pts)
-            for pts in self.mesh._orth_mesh_pts_1d
+            for pts in self.mesh()._orth_mesh_pts_1d
         ]
         orth_deriv_mats = self._form_orth_derivative_matrices(
             orth_deriv_mats_1d
         )
-        gradient_factors = self.mesh.trans.gradient_factors(
-            self.mesh._orth_mesh_pts
+        gradient_factors = self.mesh().trans().gradient_factors(
+            self.mesh()._orth_mesh_pts
         )
         self._deriv_mats = []
         for dd in range(self.nphys_vars()):
@@ -50,11 +53,11 @@ class OrthogonalCoordinateCollocationBasis(ABC):
         self._orth_quadrature_rule = FixedTensorProductQuadratureRule(
             self.nphys_vars(),
             [GaussLegendreQuadratureRule([-1, 1], backend=self._bkd)] * self.nphys_vars(),
-            self._bkd.asarray(self.mesh._npts_1d)+1,
+            self._bkd.asarray(self.mesh()._npts_1d)+1,
         )
 
     def nphys_vars(self):
-        return self.mesh.nphys_vars()
+        return self.mesh().nphys_vars()
 
     @abstractmethod
     def _form_1d_orth_derivative_matrix(self):
@@ -68,13 +71,13 @@ class OrthogonalCoordinateCollocationBasis(ABC):
         if values_at_mesh.ndim != 2:
             raise ValueError("values_at_mesh must be a 2D array")
 
-        if values_at_mesh.shape[0] != self.mesh.nmesh_pts():
+        if values_at_mesh.shape[0] != self.mesh().nmesh_pts():
             raise ValueError(
                 "values_at_mesh shape[0] {0} must be {1}".format(
-                    values_at_mesh.shape, self.mesh.nmesh_pts()
+                    values_at_mesh.shape, self.mesh().nmesh_pts()
                 )
             )
-        new_orth_samples = self.mesh.trans.map_to_orthogonal(new_samples)
+        new_orth_samples = self.mesh().trans().map_to_orthogonal(new_samples)
         return self._interpolate(values_at_mesh, new_orth_samples)
 
     def __call__(self):
@@ -102,7 +105,7 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
             for dd in range(self.nphys_vars())
         ]
         basis = TensorProductInterpolatingBasis(bases_1d)
-        basis.set_tensor_product_indices(self.mesh._npts_1d)
+        basis.set_tensor_product_indices(self.mesh()._npts_1d)
         self._bexp = TensorProductInterpolant(basis)
         self._set_quadrature_weights_at_mesh_pts()
 
@@ -140,15 +143,15 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
     def __repr__(self):
         return "{0}(\n{1}\n)".format(
             self.__class__.__name__,
-            textwrap.indent("mesh=" + str(self.mesh), prefix="    "),
+            textwrap.indent("mesh=" + str(self.mesh()), prefix="    "),
         )
 
     def quadrature_rule(self):
         # This will integrate with respect to chebyshev measures
         # orth_xx, orth_ww = self._bexp._basis.quadrature_rule()
         orth_xx, orth_ww = self._orth_quadrature_rule()
-        xx = self.mesh.trans.map_from_orthogonal(orth_xx)
-        ww = self.mesh.trans.modify_quadrature_weights(orth_xx, orth_ww)
+        xx = self.mesh().trans().map_from_orthogonal(orth_xx)
+        ww = self.mesh().trans().modify_quadrature_weights(orth_xx, orth_ww)
         return xx, ww
 
     def _set_quadrature_weights_at_mesh_pts(self):
@@ -156,13 +159,13 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
         # lagrange basis exactly for lebesque measure
         orth_xx, orth_ww = self._orth_quadrature_rule()
         ww = self._bexp._basis(orth_xx).T @ orth_ww[:, 0]
-        ww = self.mesh.trans.modify_quadrature_weights(
-            self.mesh._orth_mesh_pts, ww[:, None]
+        ww = self.mesh().trans().modify_quadrature_weights(
+            self.mesh()._orth_mesh_pts, ww[:, None]
         )
         self._quad_weights_at_mesh_pts = ww
 
     def quadrature_rule_at_mesh_pts(self):
-        return self.mesh.mesh_pts(), self._quad_weights_at_mesh_pts
+        return self.mesh().mesh_pts(), self._quad_weights_at_mesh_pts
 
 
 class OrthogonalCoordinateBasis1DMixin:
@@ -187,10 +190,10 @@ class OrthogonalCoordinateBasis2DMixin:
         # print("A", C.shape)
         return [
             self._bkd.kron(
-                self._bkd.eye(self.mesh._npts_1d[1]), orth_deriv_mats_1d[0]
+                self._bkd.eye(self.mesh()._npts_1d[1]), orth_deriv_mats_1d[0]
             ),
             self._bkd.kron(
-                orth_deriv_mats_1d[1], self._bkd.eye(self.mesh._npts_1d[0])
+                orth_deriv_mats_1d[1], self._bkd.eye(self.mesh()._npts_1d[0])
             ),
         ]
 
@@ -201,22 +204,22 @@ class OrthogonalCoordinateBasis3DMixin:
         # which is faster than x3
         # TODO Need to check this is correct. I just derived it
         Dx = self._bkd.kron(
-            self._bkd.eye(self.mesh._npts_1d[2]),
+            self._bkd.eye(self.mesh()._npts_1d[2]),
             self._bkd.kron(
-                self._bkd.eye(self.mesh._npts_1d[1]), orth_deriv_mats_1d[0]
+                self._bkd.eye(self.mesh()._npts_1d[1]), orth_deriv_mats_1d[0]
             ),
         )
         Dy = self._bkd.kron(
-            self._bkd.eye(self.mesh._npts_1d[2]),
+            self._bkd.eye(self.mesh()._npts_1d[2]),
             self._bkd.kron(
-                orth_deriv_mats_1d[1], self._bkd.eye(self.mesh._npts_1d[0])
+                orth_deriv_mats_1d[1], self._bkd.eye(self.mesh()._npts_1d[0])
             ),
         )
         Dz = self._bkd.kron(
             self._bkd.kron(
-                orth_deriv_mats_1d[2], self._bkd.eye(self.mesh._npts_1d[1])
+                orth_deriv_mats_1d[2], self._bkd.eye(self.mesh()._npts_1d[1])
             ),
-            self._bkd.eye(self.mesh._npts_1d[0]),
+            self._bkd.eye(self.mesh()._npts_1d[0]),
         )
         return [Dx, Dy, Dz]
 

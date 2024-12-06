@@ -30,6 +30,9 @@ class LinearDecoupledODE(TransientNewtonResidual):
     def set_time(self, time: float):
         self._time = time
 
+    def nvars(self) -> int:
+        return 2
+
     def set_param(self, param: Array):
         self._param = param
         self._coef = param[0]
@@ -86,6 +89,9 @@ class NonLinearDecoupledODE(TransientNewtonResidual):
         self._nstates = nstates
         self._transient_coef = transient_coef
         super().__init__(backend)
+        
+    def nvars(self) -> int:
+        return 2
 
     def set_time(self, time: float):
         self._time = time
@@ -208,6 +214,9 @@ class LinearDecoupledODEModel(TransientAdjointModel):
             None,
             backend,
         )
+
+    def nvars(self) -> int:
+        return self._time_residual.native_residual.nvars()
 
     def _setup_residual(self, time_residual_cls, nstates, transient_coef, bkd):
         return time_residual_cls(
