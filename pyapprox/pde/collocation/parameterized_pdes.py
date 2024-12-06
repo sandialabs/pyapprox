@@ -5,15 +5,14 @@ from scipy.special import beta as beta_fn
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.collocation.adjoint_models import (
-    TransientAdjointFunctional, TransientAdjointModel
+    TransientAdjointFunctional,
+    TransientAdjointModel,
 )
 from pyapprox.pde.collocation.timeintegration import (
     TimeIntegratorNewtonResidual,
     TransientNewtonResidual,
 )
-from pyapprox.pde.collocation.solvers import (
-    TransientPhysicsNewtonResidual, TransientAdjointCollocationModel
-)
+from pyapprox.pde.collocation.solvers import TransientAdjointCollocationModel
 from pyapprox.pde.collocation.newton import NewtonSolver
 from pyapprox.pde.collocation.functions import (
     ScalarFunction,
@@ -23,6 +22,7 @@ from pyapprox.pde.collocation.functions import (
     ZeroScalarFunction,
     VectorFunctionFromCallable,
     ScalarFunctionFromCallable,
+    TransientScalarFunctionFromCallable,
 )
 from pyapprox.pde.collocation.boundaryconditions import (
     DirichletBoundaryFromOperator,
@@ -42,10 +42,10 @@ from pyapprox.pde.collocation.mesh_transforms import (
 
 
 class TransientAdvectionDiffusionReactionModel(
-        TransientAdjointCollocationModel
+    TransientAdjointCollocationModel
 ):
     def setup_physics(self):
-        self._nominal_val = 0.
+        self._nominal_val = 0.0
         self.setup_diffusion()
         self.setup_velocity()
         self.setup_forcing()
@@ -71,7 +71,7 @@ class TransientAdvectionDiffusionReactionModel(
             0.1,
             3,
             sigma=0.1,
-            mean_field=ConstantScalarFunction(self._basis, -1., 1),
+            mean_field=ConstantScalarFunction(self._basis, -2.0, 1),
             ninput_funs=self._basis.mesh().nphys_vars() + 1,
             use_log=True,
         )
@@ -81,27 +81,35 @@ class TransientAdvectionDiffusionReactionModel(
             self._basis,
             1,
             self._basis.nphys_vars(),
+            # rotates in a circle
+            # lambda x: 10 * self._bkd.stack((-(2*x[1]-1), 2*x[0]-1, axis=1))
             lambda x: self._bkd.stack(
                 (
-                    self._bkd.cos(4*(x[0]-2) + 2*(4*(x[1]-2))),
-                    2 * self._bkd.sin(2*(2*x[0]-2) - 2*(2*(2*x[1]-2)))
+                    self._bkd.cos(4 * (x[0] - 2) + 2 * (4 * (x[1] - 2))),
+                    2
+                    * self._bkd.sin(
+                        2 * (2 * x[0] - 2) - 2 * (2 * (2 * x[1] - 2))
+                    ),
                 ),
-                axis=1
-            )
+                axis=1,
+            ),
         )
 
     def setup_forcing(self):
         # self._forcing = ConstantScalarFunction(self._basis, 0., 1)
-        a0, b0 = 10, 10
-        # Use ** 2 in const because we are multiplying beta distribuion
-        # in 2 dimensions
-        const = 1.0 / beta_fn(a0, b0) ** 2 
-        self._forcing = ScalarFunctionFromCallable(
+        a0, b0, a1, b1 = 10, 15, 15, 5
+        const = 1.0 / beta_fn(a0, b0) / beta_fn(a1, b1)
+        # self._forcing = ScalarFunctionFromCallable(
+        self._forcing = TransientScalarFunctionFromCallable(
             self._basis,
-            lambda x: self._bkd.prod(x**a0*(1-x)**b0, axis=0) * const,
-            ninput_funs=1
+            lambda x, time: (time < self._final_time / 2)
+            * x[0] ** a0
+            * (1 - x[0]) ** b0
+            * x[1] ** a1
+            * (1 - x[1]) ** b1
+            * const,
+            ninput_funs=1,
         )
-        print(self._forcing.get_values().max())
 
     def get_initial_condition(self):
         return ConstantScalarFunction(
@@ -126,7 +134,9 @@ class TransientAdvectionDiffusionReactionModel(
         for (
             bndry_name,
             mesh_bndry,
-        ) in self._basis.mesh().get_boundaries().items():
+        ) in (
+            self._basis.mesh().get_boundaries().items()
+        ):
             bndrys.append(
                 ConstantRobinBoundary(
                     mesh_bndry, self._nominal_val, alpha, beta, 0, 0
@@ -151,7 +161,7 @@ class TransientAdvectionDiffusionReactionModel(
             self._sols.reshape(
                 (self._basis.mesh().nmesh_pts(), self._times.shape[0])
             ),
-            self._times
+            self._times,
         )
 
 
@@ -178,8 +188,9 @@ class ShallowWaterWaveModel(TransientAdjointCollocationModel):
 
     def setup_bed(self):
         self._bed = ScalarFunctionFromCallable(
-            self._basis, self._bed_callable,
-            ninput_funs=self._basis.nphys_vars() + 1
+            self._basis,
+            self._bed_callable,
+            ninput_funs=self._basis.nphys_vars() + 1,
         )
 
     def _beta_surface_callable(self, beta_shapes: Array, xx: Array) -> Array:
@@ -205,16 +216,15 @@ class ShallowWaterWaveModel(TransientAdjointCollocationModel):
         # beta_shapes1 = self._bkd.array([5, 20, 20, 20])
         beta_shapes0 = self._param[:4]
         beta_shapes1 = self._param[4:]
-        return (
-            self._beta_surface_callable(beta_shapes0, xx)
-            + self._beta_surface_callable(beta_shapes1, xx)
-        )
+        return self._beta_surface_callable(
+            beta_shapes0, xx
+        ) + self._beta_surface_callable(beta_shapes1, xx)
 
     def setup_init_surface(self):
         self._init_surface = ScalarFunctionFromCallable(
             self._basis,
             self._init_surface_callable,
-            self._basis.nphys_vars() + 1
+            self._basis.nphys_vars() + 1,
         )
 
     def nvars(self) -> int:
@@ -259,7 +269,9 @@ class ShallowWaterWaveModel(TransientAdjointCollocationModel):
         for (
             bndry_name,
             mesh_bndry,
-        ) in self._basis.mesh().get_boundaries().items():
+        ) in (
+            self._basis.mesh().get_boundaries().items()
+        ):
             # loop over momentum solution components
             for component_id in range(self._physics.ncomponents()):
                 if (component_id == 1 and bndry_name in ["left", "right"]) or (

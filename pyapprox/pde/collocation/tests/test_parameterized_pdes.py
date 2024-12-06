@@ -76,24 +76,36 @@ class TestParameterizedModels:
         model = TransientAdvectionDiffusionReactionModel(
             0,
             1,
-            .05,
+            0.05,
             time_residual_cls,
             newton_solver=newton_solver,
             backend=bkd,
         )
 
-        # pts = model._basis.mesh.mesh_pts()
-        # xvel, yvel = model._vel_field.get_values()
-        # plt.figure().gca().quiver(
-        #     pts[0], pts[1], xvel, yvel, scale_units='xy', angles='xy'
-        # )
+        # ax = plt.figure().gca()
+        # model._vel_field.plot_vector_field(ax)
         # plt.show()
 
         sample = bkd.array(np.random.normal(0, 1, (model.nvars(), 1)))
         sol, times = model.forward_solve(sample)
+
+        from pyapprox.pde.collocation.functions import nabla
+
+        ax = plt.figure().gca()
+        velocity = nabla(
+            -model._diffusion * model.physics().solution_from_array(sol[:, -1])
+        )
+        velocity.plot_vector_field(ax)
+        plt.show()
+
         print(sol.max(axis=0))
-        from pyapprox.pde.collocation.functions import animate_transient_2d_scalar_solution
-        ani = animate_transient_2d_scalar_solution(model._basis, sol, times, plot_surface=True)
+        from pyapprox.pde.collocation.functions import (
+            animate_transient_2d_scalar_solution,
+        )
+
+        ani = animate_transient_2d_scalar_solution(
+            model._basis, sol, times, plot_surface=False
+        )
         ani.save("diffusion.gif", dpi=100)
 
 
