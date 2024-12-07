@@ -285,17 +285,17 @@ class ShallowWaterWaveModel(TransientAdjointCollocationModel):
                             component_id * self._basis.mesh().nmesh_pts(),
                         )
                     )
-                elif False:  # component_id != 0 and bndry_name == "left":
-                    bndry_funs.append(
-                        RobinBoundaryFromOperator(
-                            mesh_bndry,
-                            self._get_zerofun(),
-                            -10,
-                            1.0,
-                            component_id * self._basis.mesh().nmesh_pts(),
-                            component_id,
-                        )
-                    )
+                # elif component_id != 0 and bndry_name == "left":
+                #     bndry_funs.append(
+                #         RobinBoundaryFromOperator(
+                #             mesh_bndry,
+                #             self._get_zerofun(),
+                #             -10,
+                #             1.0,
+                #             component_id * self._basis.mesh().nmesh_pts(),
+                #             component_id,
+                #         )
+                #     )
         self._physics.set_boundaries(bndry_funs)
 
     def set_param(self, param: Array):

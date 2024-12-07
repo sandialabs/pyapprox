@@ -154,10 +154,13 @@ class TransientSingleStateLinearFunctional(TransientAdjointFunctional):
         self._nparams = nparams
         super().__init__(backend)
 
-    def nstates(self):
+    def nqoi(self) -> int:
+        return 1
+
+    def nstates(self) -> int:
         return self._nstates
 
-    def nparams(self):
+    def nparams(self) -> int:
         return self._nparams
 
     def _value(self, sol: Array) -> Array:

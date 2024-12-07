@@ -23,7 +23,7 @@ class AdjointModel(SingleSampleModel, ABC):
         self._jacobian_implemented = True
 
     def nqoi(self) -> int:
-        return 1
+        return self._functional.nqoi()
 
     @abstractmethod
     def nvars(self) -> int:
@@ -73,6 +73,7 @@ class SteadyAdjointModel(AdjointModel):
         residual: NewtonResidual,
         functional: AdjointFunctional = None,
         newton_solver: NewtonSolver = None,
+        jacobian_mode: str = "backward",
     ):
         super().__init__(residual._bkd)
         self._residual = residual
@@ -88,6 +89,11 @@ class SteadyAdjointModel(AdjointModel):
         self._adjoint_solver = AdjointSolver(
             self._newton_solver, self._functional
         )
+        self._jacobian_mode = jacobian_mode
+
+    def set_functional(self, functional: AdjointFunctional):
+        self._functional = functional
+        self._adjoint_solver.set_functional(self._functional)
 
     def set_param(self, param: Array):
         self._adjoint_solver.set_param(param)
@@ -99,6 +105,12 @@ class SteadyAdjointModel(AdjointModel):
         return self._adjoint_solver._functional(
             self._adjoint_solver._fwd_sol[:, None]
         )[None, :]
+
+    def _jacobian(self, sample: Array) -> Array:
+        self.set_param(sample[:, 0])
+        if self._jacobian_mode == "backward":
+            return self._jacobian_from_adjoint()
+        return self._adjoint_solver.parameter_jacobian()
 
     def _jacobian_from_adjoint(self) -> Array:
         return self._adjoint_solver.gradient()[None, :]
@@ -123,9 +135,10 @@ class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
         functional: AdjointFunctional = None,
         newton_solver: NewtonSolver = None,
         apply_hessian_implemented=False,
+        jacobian_mode: str = "backward",
     ):
         self._nvars = nvars
-        super().__init__(residual, functional, newton_solver)
+        super().__init__(residual, functional, newton_solver, jacobian_mode=jacobian_mode)
         self._apply_hessian_implemented = apply_hessian_implemented
         if init_iterate.ndim != 1:
             raise ValueError("init_iterate must be 1D Array")

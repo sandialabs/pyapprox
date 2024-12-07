@@ -121,21 +121,24 @@ class NonLinearCoupledResidual(NonLinearCoupledResidualAuto):
         )
 
 
-class SumFunctionalAuto(AdjointFunctional):
-    def nstates(self):
+class ScalarSumFunctionalAuto(AdjointFunctional):
+    def nstates(self) -> int:
         return 2
 
-    def nparams(self):
+    def nparams(self) -> int:
         return 2
 
     def _value(self, sol: Array) -> Array:
-        return self._bkd.atleast1d(self._bkd.sum(sol**3))
+        return self._bkd.hstack((self._bkd.sum(sol**3),))
+
+    def nqoi(self) -> int:
+        return 1
 
 
-class SumFunctional(SumFunctionalAuto):
+class ScalarSumFunctional(ScalarSumFunctionalAuto):
     def _qoi_sol_jacobian(self, sol: Array) -> Array:
         dqdu = 3 * sol**2
-        return dqdu
+        return dqdu[None, :]
 
     def _qoi_param_jacobian(self, sol: Array) -> Array:
         # return super()._qoi_param_jacobian(sol)
@@ -156,6 +159,22 @@ class SumFunctional(SumFunctionalAuto):
     def _qoi_param_state_hvp(self, sol: Array, wvec: Array) -> Array:
         # return super()._qoi_param_state_hvp(sol, wvec)
         return self._bkd.zeros((2, 2)) @ wvec
+
+
+class VectorSumFunctionalAuto(AdjointFunctional):
+    def nstates(self) -> int:
+        return 2
+
+    def nparams(self) -> int:
+        return 2
+
+    def _value(self, sol: Array) -> Array:
+        return self._bkd.hstack(
+            (self._bkd.sum(sol**3), self._bkd.sum(sol**2))
+        )
+
+    def nqoi(self) -> int:
+        return 2
 
 
 class TestNewton:
@@ -246,7 +265,7 @@ class TestNewton:
     def test_nonlinear_coupled_residual(self):
         bkd = self.get_backend()
         res = NonLinearCoupledResidual(bkd)
-        functional = SumFunctional(backend=bkd)
+        functional = ScalarSumFunctional(backend=bkd)
         self._check_nonlinear_coupled_residual(res, functional)
 
         if (
@@ -256,8 +275,29 @@ class TestNewton:
         ):
             return
         res = NonLinearCoupledResidualAuto(bkd)
-        functional = SumFunctionalAuto(backend=bkd)
+        functional = ScalarSumFunctionalAuto(backend=bkd)
         self._check_nonlinear_coupled_residual(res, functional)
+
+    def test_forward_parameter_jacobian(self):
+        bkd = self.get_backend()
+        res = NonLinearCoupledResidual(bkd)
+        init_iterate = bkd.array([-1, -1])
+        functional = ScalarSumFunctional(backend=bkd)
+        model = SteadyAdjointModelFixedInitialIterate(
+            res, init_iterate, 2, functional, apply_hessian_implemented=True,
+            jacobian_mode="forward"
+        )
+        sample = bkd.array([0.8, 1.1])[:, None]
+        fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
+        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
+        if not bkd.jacobian_implemented():
+            return
+        functional = VectorSumFunctionalAuto(backend=bkd)
+        model.set_functional(functional)
+        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
+        assert errors.min() / errors.max() < 1e-6
 
 
 class TestNumpyNewton(TestNewton, unittest.TestCase):
