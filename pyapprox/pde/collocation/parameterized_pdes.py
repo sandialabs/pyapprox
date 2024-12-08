@@ -23,16 +23,20 @@ from pyapprox.pde.collocation.functions import (
     VectorFunctionFromCallable,
     ScalarFunctionFromCallable,
     TransientScalarFunctionFromCallable,
+    TransientVectorFunctionFromCallable,
+    ConstantVectorFunction,
 )
 from pyapprox.pde.collocation.boundaryconditions import (
     DirichletBoundaryFromOperator,
     RobinBoundaryFromOperator,
     ConstantRobinBoundary,
+    ConstantDirichletBoundary,
 )
 from pyapprox.pde.collocation.physics import (
     Physics,
     ShallowWaveEquation,
     AdvectionDiffusionReactionEquation,
+    FitzHughNagumo
 )
 from pyapprox.pde.collocation.mesh import ChebyshevCollocationMesh2D
 from pyapprox.pde.collocation.basis import ChebyshevCollocationBasis2D
@@ -114,12 +118,12 @@ class TransientAdvectionDiffusionReactionModel(
     def get_initial_condition(self):
         return ConstantScalarFunction(
             self._basis, self._nominal_val, ninput_funs=1
-        ).get_values()
+        ).get_flattened_values()
         # return ScalarFunctionFromCallable(
         #     self._basis,
         #     lambda x: self._bkd.prod(x**5*(1-x)**5, axis=0)*1e7,
         #     ninput_funs=1
-        # ).get_values()
+        # ).get_flattened_values()
 
     def setup_boundaries(self):
         # make flux depend on solution's value relative to a nominal_val
@@ -377,3 +381,108 @@ class LotkaVolterraModel(TransientAdjointModel):
 
     def get_initial_condition(self) -> Array:
         return self._bkd.array([0.3, 0.4, 0.3])
+
+
+class FitzHughNagumoModel(TransientAdjointCollocationModel):
+    def setup_physics(self):
+        self.setup_forcing()
+        self._physics = FitzHughNagumo(self._basis, self._forcing)
+
+    def setup_boundaries(self):
+        bndrys = []
+        alpha, beta = 0, 1.0
+        # loop over solution components
+        for (
+            bndry_name,
+            mesh_bndry,
+        ) in (
+            self._basis.mesh().get_boundaries().items()
+        ):
+            for component_id in range(self._physics.ncomponents()):
+                if False:  # (component_id == 0 and bndry_name in ["left"]):
+                    bndrys.append(
+                        DirichletBoundaryFromOperator(
+                            mesh_bndry,
+                            TransientScalarFunctionFromCallable(
+                                self._basis,
+                                lambda x, time: (
+                                    time < self._final_time/4
+                                )*(x[0] * 0 + 1),
+                                ninput_funs=self._physics.ncomponents(),
+                            ),
+                            component_id * self._basis.mesh().nmesh_pts(),
+                        )
+                    )
+                else:
+                    bndrys.append(
+                        ConstantRobinBoundary(
+                            mesh_bndry, 0, alpha, beta, 0, 0
+                        )
+                    )
+        self._physics.set_boundaries(bndrys)
+
+    def setup_basis(self):
+        Lx, Ly = 2.5, 2.5
+        self._bounds = self._bkd.array([0, Lx, 0, Ly])
+        transform = ScaleAndTranslationTransform2D(
+            [-1, 1, -1, 1], self._bounds, self._bkd
+        )
+        mesh = ChebyshevCollocationMesh2D([20, 20], transform)
+        self._basis = ChebyshevCollocationBasis2D(mesh)
+
+    def _beta_function(self, shapes, x):
+        a0, b0, a1, b1 = shapes
+        const = 1.0 / beta_fn(a0, b0) / beta_fn(a1, b1)
+        Lx, Ly = self._bounds[1::2]
+        return (
+            (x[0]/Lx) ** (a0-1)
+            * (1 - x[0]/Lx) ** (b0-1)
+            * (x[1]/Ly) ** (a1-1)
+            * (1 - x[1]/Ly) ** (b1-1)
+            * const
+        )
+
+    def setup_forcing(self):
+        shapes0 = 5, 10, 5, 10
+        shapes1 = 10, 5, 10, 6
+        Lx, Ly = self._bounds[1::2]
+        self._forcing = TransientVectorFunctionFromCallable(
+            self._basis,
+            2,
+            2,
+            lambda x, time: self._bkd.stack(
+                (
+                    (time < self._final_time / 4)
+                    * (
+                        self._beta_function(shapes0, x)
+                        + self._beta_function(shapes1, x)
+                    ),
+                    x[0] * 0
+                ),
+                axis=1
+            )
+        )
+
+    def nvars(self) -> int:
+        return 4
+
+    def get_initial_condition(self):
+        init_cond = ConstantVectorFunction(
+            self._basis, 2, 2, [1., 0.],
+        )
+        # import numpy as np
+        # np.random.seed(1)
+        # init_cond = VectorFunctionFromCallable(
+        #     self._basis, 2, 2, lambda x: self._bkd.stack(
+        #         (
+        #             self._bkd.array(np.random.uniform(-1, 1, x.shape[1])),
+        #             0*x[0]
+        #         ),
+        #         axis=1
+        #     ),
+        # )
+        return init_cond.get_flattened_values()
+
+    def set_param(self, param: Array):
+        self._param = param
+        self._physics.set_coefficients(param)

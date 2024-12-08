@@ -3,11 +3,12 @@ import unittest
 import numpy as np
 import matplotlib.pyplot as plt
 
-# from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.pde.collocation.parameterized_pdes import (
     LotkaVolterraModel,
     TransientAdvectionDiffusionReactionModel,
+    FitzHughNagumoModel,
 )
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
@@ -17,6 +18,10 @@ from pyapprox.pde.collocation.timeintegration import (
     TransientMSEAdjointFunctional,
 )
 from pyapprox.pde.collocation.newton import NewtonSolver
+from pyapprox.pde.collocation.functions import (
+    animate_transient_2d_scalar_solution,
+    animate_transient_2d_vector_solution,
+)
 
 
 class TestParameterizedModels:
@@ -99,14 +104,42 @@ class TestParameterizedModels:
         plt.show()
 
         print(sol.max(axis=0))
-        from pyapprox.pde.collocation.functions import (
-            animate_transient_2d_scalar_solution,
-        )
 
         ani = animate_transient_2d_scalar_solution(
             model._basis, sol, times, plot_surface=False
         )
         ani.save("diffusion.gif", dpi=100)
+
+    def test_fitzhugonagumo(self):
+        #TODO consider making diffusion coefficient also a parameter
+        bkd = self.get_backend()
+        time_residual_cls = BackwardEulerResidual
+        newton_solver = NewtonSolver(verbosity=2, rtol=1e-6, atol=1e-6)
+        model = FitzHughNagumoModel(
+            0,
+            50,
+            1,
+            time_residual_cls,
+            newton_solver=newton_solver,
+            backend=bkd,
+        )
+        sample = bkd.array([0.1, 0.01, 0.5, 1.0])[:, None]
+        sols, times = model.forward_solve(sample)
+        ani = animate_transient_2d_vector_solution(
+            model.basis(),
+            sols,
+            times,
+            model.physics().ncomponents(),
+            [0, 1],
+            [0, 1],
+            51
+        )
+        ani.save("fitzhugnagumo.gif", dpi=100)
+
+
+class TestNumpyParameterizedModels(TestParameterizedModels, unittest.TestCase):
+    def get_backend(self):
+        return NumpyLinAlgMixin
 
 
 class TestTorchParameterizedModels(TestParameterizedModels, unittest.TestCase):

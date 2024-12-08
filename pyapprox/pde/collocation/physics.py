@@ -8,6 +8,7 @@ from pyapprox.pde.collocation.functions import (
     VectorSolution,
     ScalarFunction,
     ZeroScalarFunction,
+    ConstantScalarFunction,
     VectorFunction,
     ScalarOperator,
     ScalarOperatorOperation,
@@ -475,6 +476,53 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
         funs["diffusion"] = self._diffusion
         funs["reaction_op"] = self._reaction_op
         return funs
+
+
+class FitzHughNagumoReactionOperation(VectorOperatorOperation):
+    # equations obtained from
+    # https://simula-sscp.github.io/SSCP_2024_lectures/L13%20%28FEniCS%20Electrophysiology%29/L05%20-%20FitzhughNagumo-Solution.html
+    # see also https://visualpde.com/mathematical-biology/fitzhugh-nagumo.html
+    # first state represents voltage across a neuron
+    def __init__(
+        self,
+        coefs: Array,
+    ):
+        self.set_coefficients(coefs)
+
+    def set_coefficients(self, coefs):
+        self._coefs = coefs
+
+    def __call__(self, sol: VectorSolution):
+        alpha, eps, beta, gamma = self._coefs
+        u0, u1 = sol.get_components()
+        vec = VectorOperator(sol.basis(), sol.ninput_funs(), sol.nrows())
+        vec.set_components(
+            [u0 * (1. - u0)*(u0 - alpha) - u1, eps * (beta * u0 - gamma * u1)]
+        )
+        return vec
+
+
+class FitzHughNagumo(TwoSpeciesReactionDiffusionEquations):
+    def __init__(
+        self,
+        basis,
+        forcing: VectorFunction = None,
+    ):
+        diffusion_components = [
+            ConstantScalarFunction(basis, 1e-3, 2),
+            # ConstantScalarFunction(basis, 1e-4, 2),
+            ZeroScalarFunction(basis, 2),
+            #ConstantScalarFunction(basis, 1e-2, 2),
+        ]
+        diffusion = VectorFunction(basis, 2, 2)
+        diffusion.set_components(diffusion_components)
+        # set coefs to nominal values
+        coefs = basis._bkd.array([0.1, 0.01, 0.5, 1.0])
+        reaction_op = FitzHughNagumoReactionOperation(coefs)
+        super().__init__(forcing, diffusion, reaction_op)
+
+    def set_coefficients(self, coefs):
+        self._reaction_op.set_coefficients(coefs)
 
 
 class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):

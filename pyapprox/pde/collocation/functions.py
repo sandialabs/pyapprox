@@ -185,7 +185,8 @@ class ScalarOperator:
     def __sub__(
         self, other: Union["ScalarOperator", float]
     ) -> "ScalarOperator":
-        if isinstance(other, float):
+        if self._is_float(other):
+            # second condition is for scalar tensors
             return ScalarOperator(
                 self.basis(),
                 self.ninput_funs(),
@@ -226,15 +227,24 @@ class ScalarOperator:
     #         )
     #     )
 
+    def _is_float(self, other):
+        return (
+            isinstance(other, float)
+            or (
+                isinstance(other, self._bkd.array_type())
+                and other.ndim == 0 and other.dtype == self._bkd.double_type()
+            )
+        )
+
     def _multiply_functions(
         self, other: Union["ScalarOperator", float]
     ) -> "ScalarOperator":
-        if not isinstance(other, (ScalarOperator, float)):
+        if not isinstance(other, ScalarOperator) and not self._is_float(other):
             raise ValueError(
                 f"cannot multiply ScalarOperator by {type(other)}"
             )
 
-        if isinstance(other, float):
+        if self._is_float(other):
             return ScalarOperator(
                 self.basis(),
                 self.ninput_funs(),
@@ -392,7 +402,10 @@ class ScalarOperator:
                 )
             Z = (Z - zmin) / (zmax - zmin)
         if ax.name != "3d":
-            return ax.contourf(X, Y, Z, **kwargs)
+            kwargs_copy = kwargs.copy()
+            if Z.min() == Z.max():
+                kwargs_copy["levels"] = 1
+            return ax.contourf(X, Y, Z, **kwargs_copy)
         return ax.plot_surface(X, Y, Z, **kwargs)
 
     def _set_plot_3d_limits(self, ax, orth_range):
@@ -1217,6 +1230,30 @@ class VectorFunction(VectorOperator):
 
     def set_values(self, values: Array):
         super().set_values(values)
+
+
+class ConstantVectorFunction(VectorFunction):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        ninput_funs: int,
+        nrows: int,
+        consts: List[float],
+    ):
+        if len(consts) != nrows:
+            raise ValueError(
+                "One constant must be provided for each component"
+            )
+        values = basis._bkd.stack(
+            [
+                basis._bkd.full((basis.mesh().nmesh_pts(),), const)
+                for const in consts
+            ],
+            axis=0
+        )
+        super().__init__(basis, ninput_funs, nrows)
+        print(values.shape)
+        self.set_values(values)
 
 
 class TransientVectorSolution(TransientOperatorMixin, VectorSolution):

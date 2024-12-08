@@ -59,7 +59,10 @@ class SparseJacobian(ABC):
     def _check_other(self, other: Union[Array, float]):
         if not isinstance(other, (self._bkd.array_type(), float)):
             raise NotImplementedError(f"cannot appply jacobian and {other}")
-        if not isinstance(other, float) and other.shape != self._shape[:1]:
+        if (
+                not isinstance(other, float) and other.shape != self._shape[:1]
+                and not other.ndim == 0
+        ):
             raise RuntimeError("Other Array has the wrong shape")
 
 
@@ -84,7 +87,7 @@ class DenseJac(SparseJacobian):
 
     def __mul__(self, other: Union[Array, float]):
         self._check_other(other)
-        if isinstance(other, float):
+        if isinstance(other, float) or other.ndim == 0:
             return DenseJac(self._bkd, self._shape, self._sparse_jac * other)
         return DenseJac(
             self._bkd, self._shape, self._sparse_jac * other[..., None]
@@ -92,7 +95,7 @@ class DenseJac(SparseJacobian):
 
     def __truediv__(self, other: Union[Array, float]):
         self._check_other(other)
-        if isinstance(other, float):
+        if isinstance(other, float) or other.ndim == 0:
             return DenseJac(self._bkd, self._shape, self._sparse_jac / other)
         return DenseJac(
             self._bkd, self._shape, self._sparse_jac / other[..., None]
@@ -188,7 +191,7 @@ class DiagJac(SparseJacobian):
 
     def __mul__(self, other: Union[Array, float]):
         self._check_other(other)
-        if isinstance(other, float):
+        if isinstance(other, float) or other.ndim == 0:
             return DiagJac(self._bkd, self._shape, self._sparse_jac * other)
         return DiagJac(
             self._bkd, self._shape, self._sparse_jac * other[:, None]
@@ -196,7 +199,7 @@ class DiagJac(SparseJacobian):
 
     def __truediv__(self, other: Union[Array, float]):
         self._check_other(other)
-        if isinstance(other, float):
+        if isinstance(other, float) or other.ndim == 0:
             return DiagJac(self._bkd, self._shape, self._sparse_jac / other)
         return DiagJac(
             self._bkd, self._shape, self._sparse_jac / other[:, None]
