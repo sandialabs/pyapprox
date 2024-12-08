@@ -35,10 +35,12 @@ class NewtonResidual(ABC):
         return "{0}".format(self.__class__.__name__)
 
     def set_param(self, param: Array):
+        print("B")
         self._param = param
 
     def _residual_param_wrapper(self, sol: Array, param: Array) -> Array:
         self.set_param(param)
+        print(param, "PARA")
         return self(sol)
 
     def _param_jacobian(self, sol: Array) -> Array:
@@ -265,7 +267,8 @@ class Functional(ABC):
 
     def __call__(self, sol: Array) -> Array:
         if sol.ndim != 2 or sol.shape[0] != self.nstates():
-            raise ValueError("sol must be a 2d Array")
+            print(sol.shape, self.nstates())
+            raise ValueError("sol must has the wrong shape")
         val = self._value(sol)
         if val.ndim != 1 or val.shape[0] != self.nqoi():
             raise RuntimeError(f"{self} must return a 1D array")
@@ -397,7 +400,8 @@ class AdjointSolver:
     def set_param(self, param: Array):
         self._param = param
         self._residual.set_param(param)
-        self._functional.set_param(param)
+        if hasattr(self, "_functional") and self._functional is not None:
+            self._functional.set_param(param)
 
     def set_initial_iterate(self, iterate: Array):
         if iterate.ndim != 1:
@@ -449,6 +453,7 @@ class AdjointSolver:
         # compute the gradient of a single QoI
         self.solve_adjoint()
         self._drdp = self._residual.param_jacobian(self._fwd_sol)
+        print(self._bkd.abs(self._drdp).max(), 'drdp')
         return (
             self._functional.qoi_param_jacobian(self._fwd_sol)[0]
             + self._adj_sol @ self._drdp
@@ -507,3 +512,4 @@ class AdjointSolver:
         return "{0}(functional={1})".format(
             self.__class__.__name__, self.functional
         )
+    

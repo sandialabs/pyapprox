@@ -382,7 +382,12 @@ class AbstractKLE(ABC):
             The coefficients of the KLE basis
         """
         assert coef.ndim == 2
-        assert coef.shape[0] == self._nterms
+        if coef.shape[0] != self._nterms:
+            raise ValueError(
+                "coef.shape[0] {0} != self._nterms {1}".format(
+                    coef.shape[0], self._nterms
+                )
+            )
         if self._use_log:
             return self._bkd.exp(
                 self._mean_field[:, None] + self._eig_vecs @ coef

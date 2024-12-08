@@ -9,6 +9,7 @@ from pyapprox.pde.collocation.parameterized_pdes import (
     LotkaVolterraModel,
     TransientAdvectionDiffusionReactionModel,
     FitzHughNagumoModel,
+    SteadyShallowShelfModel2D,
 )
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
@@ -135,6 +136,63 @@ class TestParameterizedModels:
             51
         )
         ani.save("fitzhugnagumo.gif", dpi=100)
+
+    def test_steady_shallow_shelf_equation_2d(self):
+        bkd = self.get_backend()
+        newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
+        model = SteadyShallowShelfModel2D(newton_solver, backend=bkd)
+        sample = bkd.array(np.random.normal(0., 1., (model.nvars(), 1)))
+        sol = model.forward_solve(sample)
+        from pyapprox.pde.collocation.functions import plot_vector_function
+        axs = plt.subplots(1, 4, figsize=(4*8, 6))[1]
+        im = model._depth.plot(axs[0])
+        plt.colorbar(im, ax=axs[0])
+        im = model._surface.plot(axs[1])
+        plt.colorbar(im, ax=axs[1])
+        im = model._surface.plot(axs[2])
+        plt.colorbar(im, ax=axs[2])
+        sol.plot_vector_field(axs[2])
+        im = model._friction.plot(axs[3])
+        plt.colorbar(im, ax=axs[3])
+        axs = plt.subplots(1, 3, figsize=(4*8, 6))[1]
+        from pyapprox.pde.collocation.functions import ScalarFunction
+        for ii in range(3):
+            kle_mode = ScalarFunction(
+                model.basis(), model._friction._kle._eig_vecs[:, ii]
+            )
+            im = kle_mode.plot(axs[ii])
+            plt.colorbar(im, ax=axs[ii])
+        #plt.show()
+        plot_vector_function(sol)
+
+        from pyapprox.pde.collocation.newton import AdjointFunctional, Array
+        class SumFunctional(AdjointFunctional):
+            def nqoi(self) -> int:
+                return 1
+
+            def nstates(self) -> int:
+                return (
+                    model.basis().mesh().nmesh_pts()
+                    * model.physics().ncomponents()
+                )
+
+            def nparams(self) -> int:
+                return model.nvars()
+
+            def _value(self, sol: Array) -> Array:
+                return self._bkd.hstack((sol.sum(),))
+
+        functional = SumFunctional(bkd)
+        newton_solver._verbosity = 0
+        model.set_functional(functional)
+        print(bkd.jacobian(lambda x: model(x[:, None])[0], sample[:, 0]))
+        print(model.jacobian(sample))
+        assert False
+        fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
+        errors = model.check_apply_jacobian(sample, fd_eps, disp=True)
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1.3e-6
+
 
 
 class TestNumpyParameterizedModels(TestParameterizedModels, unittest.TestCase):

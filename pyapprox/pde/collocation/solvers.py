@@ -142,7 +142,51 @@ class TransientPhysicsNewtonResidual(TransientNewtonResidual):
                 bndry._fun.set_time(time)
 
 
-class TransientAdjointCollocationModel(TransientAdjointModel):
+class CollocationModelMixin(ABC):
+    @abstractmethod
+    def setup_basis(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def setup_physics(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def setup_boundaries(self):
+        raise NotImplementedError
+
+    def basis(self) -> OrthogonalCoordinateCollocationBasis:
+        return self._basis
+
+    def physics(self) -> Physics:
+        return self._physics
+
+
+class SteadyAdjointCollocationModel(SteadyAdjointModel, CollocationModelMixin):
+    def __init__(
+        self,
+        newton_solver: NewtonSolver = None,
+        functional: TransientAdjointFunctional = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        self.setup_basis()
+        self.setup_physics()
+        self.setup_boundaries()
+        super().__init__(
+            SteadyPhysicsNewtonResidual(self._physics),
+            functional,
+            newton_solver
+        )
+
+    def forward_solve(self, sample) -> Array:
+        super().forward_solve(sample)
+        return self.physics().solution_from_array(self._sols)
+
+
+class TransientAdjointCollocationModel(
+        TransientAdjointModel, CollocationModelMixin
+):
     def __init__(
         self,
         init_time: float,
@@ -177,24 +221,6 @@ class TransientAdjointCollocationModel(TransientAdjointModel):
             newton_solver,
             backend=backend,
         )
-
-    @abstractmethod
-    def setup_basis(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def setup_physics(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def setup_boundaries(self):
-        raise NotImplementedError
-
-    def basis(self) -> OrthogonalCoordinateCollocationBasis:
-        return self._basis
-
-    def physics(self) -> Physics:
-        return self._physics
 
 
 class TransientForwardCollocationModelFromPhysics(

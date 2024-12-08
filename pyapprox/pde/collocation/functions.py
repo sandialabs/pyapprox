@@ -1429,18 +1429,15 @@ class ScalarKLEFunction(ScalarFunction):
             self.basis().mesh().mesh_pts(),
             lenscale,
             sigma,
-            0 if mean_field is None else mean_field.get_values(),
+            0. if mean_field is None else mean_field.get_values(),
             use_log,
             matern_nu,
             self.basis().quadrature_rule_at_mesh_pts()[1][:, 0],
+            nterms,
             backend=self.basis()._bkd,
         )
         # initialize to mean
-        self.set_param(
-            self._bkd.zeros(
-                self._kle.nvars(),
-            )
-        )
+        self.set_param(self._bkd.zeros(self._kle.nvars(),))
 
     def kle(self) -> MeshKLE:
         return self._kle
@@ -1477,7 +1474,7 @@ def animate_transient_2d_scalar_solution(
     if basis.nphys_vars() != 2:
         raise ValueError("This function only creates 2D animations")
     bkd = basis._bkd
-    gs = GridSpec(10, 1, hspace=1)  # 10 rows, 3 columns
+    gs = GridSpec(10, 1, hspace=1)  # 10 rows, 1 column
     fig = plt.figure(figsize=(8, 6))
     if plot_surface:
         ax0 = fig.add_subplot(gs[:9, 0], projection="3d")
@@ -1560,6 +1557,10 @@ def animate_transient_2d_vector_solution(
     if times.shape[0] != sol.shape[1]:
         raise ValueError("times and sol are inconsistent")
 
+    if components_as_contour_plots is None:
+        components_as_contour_plots = bkd.arange(ncomponents())
+    if components_as_surface_plots is None:
+        components_as_surface_plots = bkd.arange(ncomponents())
     components_as_contour_plots = bkd.asarray(
         components_as_contour_plots, dtype=int
     )
@@ -1662,3 +1663,77 @@ def animate_transient_2d_vector_solution(
 
 def get_water_cmap():
     return truncate_colormap(plt.cm.Blues, minval=0.1)
+
+
+def plot_vector_function(
+    vec: MatrixOperator,
+    components_as_contour_plots: Union[list, Array] = None,
+    components_as_surface_plots: Union[list, Array] = None,
+    npts1d: int = 51,
+    contour_plot_kwargs: dict = {},
+    surface_plot_kwargs: dict = {},
+):
+    bkd = vec._bkd
+    if components_as_contour_plots is None:
+        components_as_contour_plots = bkd.arange(vec.nrows())
+    if components_as_surface_plots is None:
+        components_as_surface_plots = bkd.arange(vec.nrows())
+    components_as_contour_plots = bkd.asarray(
+        components_as_contour_plots, dtype=int
+    )
+    components_as_surface_plots = bkd.asarray(
+        components_as_surface_plots, dtype=int
+    )
+    if bkd.max(components_as_contour_plots) >= vec.nrows():
+        raise ValueError(
+            "entry in components_as_contour_plots exceeds ncomponents"
+        )
+    if bkd.max(components_as_surface_plots) >= vec.nrows():
+        raise ValueError(
+            "entry in components_as_contour_plots exceeds ncomponents"
+        )
+
+    ncomponent_plots = (
+        components_as_contour_plots.shape[0]
+        + components_as_surface_plots.shape[0]
+    )
+
+    gs = GridSpec(1, ncomponent_plots, hspace=1)
+    fig = plt.figure(figsize=(ncomponent_plots * 8, 6))
+    axs = [
+        fig.add_subplot(gs[0, ii], projection="3d")
+        for ii in range(components_as_surface_plots.shape[0])
+    ] + [
+        fig.add_subplot(gs[0, ii + components_as_surface_plots.shape[0]])
+        for ii in range(components_as_contour_plots.shape[0])
+    ]
+
+    tempvec = VectorFunction(vec.basis(), vec.ninput_funs(), vec.nrows())
+    tempvec.set_flattened_values(vec.get_flattened_values())
+    plot_samples = tempvec.get_components()[0]._get_2d_plot_samples(npts1d)[0]
+    tempvals = tempvec(plot_samples)
+    zmin = bkd.min(tempvals, axis=-1)
+    zmax = bkd.max(tempvals, axis=-1)
+
+    # todo create function similar to below that can also be used in
+    # animate vector solution. Also use above to create function that
+    # creates a grid for plotting vector functions
+
+    state_bounds = bkd.stack([zmin, zmax], axis=1)
+    levels = [bkd.linspace(*bounds, 51) for bounds in state_bounds]
+    components = vec.get_components()
+    for kk, component_id in enumerate(components_as_surface_plots):
+        components[component_id].plot(
+            axs[kk], npts1d, **surface_plot_kwargs
+        )
+        axs[kk].set_zlim(state_bounds[component_id])
+        axs[kk] = remove_3d_axis_panels(axs[kk])
+    for jj, component_id in enumerate(components_as_contour_plots):
+        kk = jj + components_as_surface_plots.shape[0]
+        im = components[component_id].plot(
+            axs[kk],
+            npts1d,
+            levels=levels[component_id],
+            **contour_plot_kwargs,
+        )
+        plt.colorbar(im, ax=axs[kk])

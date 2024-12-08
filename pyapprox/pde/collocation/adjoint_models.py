@@ -33,10 +33,9 @@ class AdjointModel(SingleSampleModel, ABC):
     def _fwd_solve(self):
         raise NotImplementedError
 
-    def forward_solve(self, sample) -> Tuple[Array, Array]:
-        self.set_param(sample[:, 0])
-        self._fwd_solve()
-        return self._sols, self._times
+    @abstractmethod
+    def forward_solve(self, sample):
+        raise NotImplementedError
 
     @abstractmethod
     def set_param(self, param: Array):
@@ -96,10 +95,16 @@ class SteadyAdjointModel(AdjointModel):
         self._adjoint_solver.set_functional(self._functional)
 
     def set_param(self, param: Array):
+        print("A")
         self._adjoint_solver.set_param(param)
 
     def _fwd_solve(self):
-        self._adjoint_solver.forward_solve()
+        self._sols = self._adjoint_solver.forward_solve()
+
+    def forward_solve(self, sample) -> Array:
+        self.set_param(sample[:, 0])
+        self._fwd_solve()
+        return self._sols
 
     def _eval_functional(self) -> Array:
         return self._adjoint_solver._functional(
@@ -138,7 +143,9 @@ class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
         jacobian_mode: str = "backward",
     ):
         self._nvars = nvars
-        super().__init__(residual, functional, newton_solver, jacobian_mode=jacobian_mode)
+        super().__init__(
+            residual, functional, newton_solver, jacobian_mode=jacobian_mode
+        )
         self._apply_hessian_implemented = apply_hessian_implemented
         if init_iterate.ndim != 1:
             raise ValueError("init_iterate must be 1D Array")
@@ -220,6 +227,11 @@ class TransientAdjointModel(AdjointModel):
     def _fwd_solve(self):
         init_sol = self.get_initial_condition()
         self._sols, self._times = self._time_int.solve(init_sol)
+
+    def forward_solve(self, sample) -> Tuple[Array, Array]:
+        self.set_param(sample[:, 0])
+        self._fwd_solve()
+        return self._sols, self._times
 
     def _jacobian_from_adjoint(self) -> Array:
         return self._time_int.gradient(self._sols, self._times)

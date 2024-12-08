@@ -539,7 +539,7 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         self._check_is_scalar_function(friction, "friction")
         self._check_is_vector_function(velocity_forcing, "velocity_forcing")
         self.set_depth(depth)
-        super().__init__(velocity_forcing.basis())
+        super().__init__(depth.basis())
         self._bed = bed
         self._friction = friction
         self._velocity_forcing = velocity_forcing
@@ -548,6 +548,7 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         self._rho = rho
         self._g = 9.81
         self._n = 3
+        self._linearize = False
 
         # for now assume this phsyics is only used to solve steady state
         # problem, so depth does not change
@@ -579,18 +580,24 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         ]
         strain_tensor.set_components(strain_tensor_components)
         rate = self._effective_strain_rate(ux, uy, vx, vy)
-        mu = self._const * rate ** (1 / self._n - 1)
+        if self._linearize:
+            mu = self._const
+        else:
+            mu = self._const * rate ** (1 / self._n - 1)
         flux = 2.0 * mu * strain_tensor
         return flux
 
     def residual(self, sol: VectorSolution) -> VectorOperator:
+        #print(sol.get_values().requires_grad)
+        # print(self._friction.get_values().requires_grad, 'friction')
         flux = self._flux(sol)
         residual = (
             div(self._depth * flux)
             - self._friction * sol
             - self._depth * self._weighted_surf_grad
-            + self._velocity_forcing
         )
+        if self._velocity_forcing is not None:
+            residual += self._velocity_forcing
         return residual
 
     def ncomponents(self):
@@ -601,7 +608,7 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         if self._velocity_forcing is not None:
             funs["velocity_forcing"] = self._velocity_forcing
         funs["bed"] = self._bed
-        funs["friction"] = self._bed
+        funs["friction"] = self._friction
         return funs
 
 

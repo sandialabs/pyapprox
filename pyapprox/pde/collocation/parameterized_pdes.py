@@ -1,4 +1,5 @@
 from typing import Tuple
+import math
 
 from scipy.special import beta as beta_fn
 
@@ -12,7 +13,9 @@ from pyapprox.pde.collocation.timeintegration import (
     TimeIntegratorNewtonResidual,
     TransientNewtonResidual,
 )
-from pyapprox.pde.collocation.solvers import TransientAdjointCollocationModel
+from pyapprox.pde.collocation.solvers import (
+    SteadyAdjointCollocationModel, TransientAdjointCollocationModel
+)
 from pyapprox.pde.collocation.newton import NewtonSolver
 from pyapprox.pde.collocation.functions import (
     ScalarFunction,
@@ -36,7 +39,8 @@ from pyapprox.pde.collocation.physics import (
     Physics,
     ShallowWaveEquation,
     AdvectionDiffusionReactionEquation,
-    FitzHughNagumo
+    FitzHughNagumo,
+    ShallowShelfVelocityEquations,
 )
 from pyapprox.pde.collocation.mesh import ChebyshevCollocationMesh2D
 from pyapprox.pde.collocation.basis import ChebyshevCollocationBasis2D
@@ -427,7 +431,7 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
         transform = ScaleAndTranslationTransform2D(
             [-1, 1, -1, 1], self._bounds, self._bkd
         )
-        mesh = ChebyshevCollocationMesh2D([20, 20], transform)
+        mesh = ChebyshevCollocationMesh2D([30, 30], transform)
         self._basis = ChebyshevCollocationBasis2D(mesh)
 
     def _beta_function(self, shapes, x):
@@ -486,3 +490,151 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
     def set_param(self, param: Array):
         self._param = param
         self._physics.set_coefficients(param)
+
+
+class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
+    def setup_physics(self):
+        self.setup_bed()
+        self.setup_depth()
+        self.setup_friction()
+        self.setup_forcing()
+
+        self._rho = 910
+        self._A = 1e-4
+
+        self._physics = ShallowShelfVelocityEquations(
+            self._depth,
+            self._bed,
+            self._friction,
+            self._A,
+            self._rho,
+            self._velocity_forcing,
+        )
+
+    def setup_basis(self):
+        Lx, Ly = 50, 100
+        self._bounds = self._bkd.array([0, Lx, 0, Ly])
+        transform = ScaleAndTranslationTransform2D(
+            [-1, 1, -1, 1], self._bounds, self._bkd
+        )
+        mesh = ChebyshevCollocationMesh2D([15, 15], transform)
+        self._basis = ChebyshevCollocationBasis2D(mesh)
+
+    def _bed_callable(self, xx: Array) -> Array:
+        yy = self.basis().mesh().trans().map_to_orthogonal(xx)
+        return -2. + self._bkd.cos(yy[0]*math.pi)*self._bkd.sin(yy[1]*math.pi)
+
+    def setup_bed(self):
+        self._bed = ScalarFunctionFromCallable(
+            self._basis,
+            self._bed_callable,
+            ninput_funs=self._basis.nphys_vars()
+        )
+
+    def _beta_function(self, shapes, x):
+        a0, b0, a1, b1 = shapes
+        yy = (self.basis().mesh().trans().map_to_orthogonal(x)+1)/2
+        const = 1.0 / beta_fn(a0, b0) / beta_fn(a1, b1)
+        Lx, Ly = self._bounds[1::2]
+        return 1 + (
+            (yy[0]) ** (a0-1)
+            * (1 - yy[0]) ** (b0-1)
+            * (yy[1]) ** (a1-1)
+            * (1 - yy[1]) ** (b1-1)
+            * const
+        )
+
+    # def _surface_callable(self, xx: Array) -> Array:
+    #     yy = self.basis().mesh().trans().map_to_orthogonal(xx)
+    #     return 1 + self._bkd.sum(1 - yy**2, axis=0)
+
+    def setup_depth(self):
+        from functools import partial
+        self._surface = ScalarFunctionFromCallable(
+            self._basis,
+            # self._surface_callable,
+            partial(self._beta_function, [2, 2, 2, 2]),
+            ninput_funs=self._basis.nphys_vars()
+        )
+        self._depth = self._surface - self._bed
+        if self._bkd.min(self._depth.get_values()) <= 0:
+            raise RuntimeError(
+                "Depth was set to be negative {0}".format(
+                    self._bkd.min(self._depth.get_values()))
+            )
+
+    def setup_friction(self):
+        Lx, Ly = self._bounds[1::2]
+        self._friction = ScalarKLEFunction(
+            self._basis,
+            min(Lx, Ly)/10,
+            self.nvars(),
+            sigma=0.1,
+            mean_field=ConstantScalarFunction(self._basis, 0.0, 1),
+            ninput_funs=self._basis.mesh().nphys_vars(),
+            use_log=True,
+        )
+
+    def setup_forcing(self):
+        self._velocity_forcing = None
+
+    def nvars(self) -> int:
+        return 3
+
+    def _initial_iterate(self) -> Array:
+        iterate = self._bkd.ones(
+            (self.physics().ncomponents() * self.basis().mesh().nmesh_pts())
+        )
+        self._adjoint_solver.set_initial_iterate(iterate)
+        self.physics()._linearize = True
+        init_iterate = self._adjoint_solver.forward_solve()
+        self.physics()._linearize = False
+        return init_iterate
+
+    def set_param(self, param: Array):
+        self._param = param
+        print(param.requires_grad, "P2")
+        self._friction.set_param(param)
+        self._adjoint_solver.set_param(param)
+        self._adjoint_solver.set_initial_iterate(self._initial_iterate())
+
+    def setup_boundaries(self):
+        bndry_funs = []
+        # loop over all boundaries
+        for (
+            bndry_name,
+            mesh_bndry,
+        ) in (
+            self._basis.mesh().get_boundaries().items()
+        ):
+            for component_id in range(self._physics.ncomponents()):
+                if False: #bndry_name in ["left", "bottom", "top"]: # (
+                #         (component_id == 1 and bndry_name in ["bottom", "top"])
+                #         or (component_id == 0 and bndry_name in ["left"])
+                # ):
+                    # set velocity at boundary to zero
+                    bndry_funs.append(
+                        DirichletBoundaryFromOperator(
+                            mesh_bndry,
+                            self._get_zerofun(),
+                            component_id * self._basis.mesh().nmesh_pts(),
+                        )
+                    )
+                else: #(component_id == 0):# and bndry_name in ["right"]):
+                    bndry_funs.append(
+                        RobinBoundaryFromOperator(
+                            mesh_bndry,
+                            self._get_zerofun(), # (self._physics._rho * self._physics._g * 0.5) * self._depth,
+                            0.,
+                            1.0,
+                            component_id * self._basis.mesh().nmesh_pts(),
+                            component_id,
+                        )
+                    )
+        self._physics.set_boundaries(bndry_funs)
+
+    def _get_zerofun(self):
+        return ZeroScalarFunction(
+            self._basis,
+            ninput_funs=self._physics.ncomponents(),
+        )
