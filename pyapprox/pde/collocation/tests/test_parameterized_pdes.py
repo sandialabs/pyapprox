@@ -23,7 +23,7 @@ from pyapprox.pde.collocation.functions import (
     animate_transient_2d_scalar_solution,
     animate_transient_2d_vector_solution,
 )
-
+# from pyapprox.util.print_wrapper import *
 
 class TestParameterizedModels:
     def setUp(self):
@@ -139,21 +139,25 @@ class TestParameterizedModels:
 
     def test_steady_shallow_shelf_equation_2d(self):
         bkd = self.get_backend()
-        newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
+        newton_solver = NewtonSolver(
+            # verbosity=2, rtol=1e-3, atol=1e-6,
+            verbosity=2, rtol=1e-10, atol=1e-8,
+        )
         model = SteadyShallowShelfModel2D(newton_solver, backend=bkd)
         sample = bkd.array(np.random.normal(0., 1., (model.nvars(), 1)))
-        sol = model.forward_solve(sample)
+        # sample = bkd.zeros((model.nvars(), 1))
+        model._friction.set_param(sample[:, 0])
         from pyapprox.pde.collocation.functions import plot_vector_function
         axs = plt.subplots(1, 4, figsize=(4*8, 6))[1]
         im = model._depth.plot(axs[0])
         plt.colorbar(im, ax=axs[0])
-        im = model._surface.plot(axs[1])
+        im = model._surface.plot(axs[1], levels=51)
         plt.colorbar(im, ax=axs[1])
-        im = model._surface.plot(axs[2])
+        im = model._bed.plot(axs[2])
         plt.colorbar(im, ax=axs[2])
-        sol.plot_vector_field(axs[2])
         im = model._friction.plot(axs[3])
         plt.colorbar(im, ax=axs[3])
+
         axs = plt.subplots(1, 3, figsize=(4*8, 6))[1]
         from pyapprox.pde.collocation.functions import ScalarFunction
         for ii in range(3):
@@ -162,8 +166,22 @@ class TestParameterizedModels:
             )
             im = kle_mode.plot(axs[ii])
             plt.colorbar(im, ax=axs[ii])
-        #plt.show()
+
+        print("START")
+        sol = model.forward_solve(sample)
+        res_array = model._adjoint_solver._newton_solver._residual(
+            sol.get_flattened_values()
+        )
+        res = model.physics().solution_from_array(res_array)
         plot_vector_function(sol)
+        plot_vector_function(res)
+        fig = plt.figure(figsize=(2*8, 6))
+        ax0 = fig.add_subplot(121, projection="3d")
+        ax1 = fig.add_subplot(122, projection="3d")
+        model._depth.plot(ax0)
+        model._surface.plot(ax1)
+        plt.show()
+        assert False
 
         from pyapprox.pde.collocation.newton import AdjointFunctional, Array
         class SumFunctional(AdjointFunctional):
@@ -192,7 +210,6 @@ class TestParameterizedModels:
         errors = model.check_apply_jacobian(sample, fd_eps, disp=True)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.3e-6
-
 
 
 class TestNumpyParameterizedModels(TestParameterizedModels, unittest.TestCase):

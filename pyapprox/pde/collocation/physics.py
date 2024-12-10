@@ -548,7 +548,7 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         self._rho = rho
         self._g = 9.81
         self._n = 3
-        self._linearize = False
+        self._fixed_strain_rate = None
 
         # for now assume this phsyics is only used to solve steady state
         # problem, so depth does not change
@@ -564,7 +564,31 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         self._depth = depth
 
     def _effective_strain_rate(self, ux, uy, vx, vy):
-        return (ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2) ** (0.5)
+        # add regulization term to avoid numeric zero
+        return (
+            ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2 + 1e-10
+        ) ** (0.5)
+
+    def _fix_strain_rate(self, strain_rate: ScalarFunction):
+        self._fixed_strain_rate = strain_rate
+
+    def _unfix_strain_rate(self):
+        self._fixed_strain_rate = None
+
+    def _get_strain_rate_from_solution_array(
+            self, sol_array: Array
+    ) -> ScalarOperator:
+        # Must be VectorFunction (not VectorSolution) so its jacobian is zero
+        sol = VectorFunction(
+            self._basis, self.ncomponents(), self.ncomponents()
+        )
+        sol.set_flattened_values(sol_array)
+        u, v = sol.get_components()
+        ux = u.deriv(0)
+        uy = u.deriv(1)
+        vx = v.deriv(0)
+        vy = v.deriv(1)
+        return self._effective_strain_rate(ux, uy, vx, vy)
 
     def _flux(self, sol: VectorSolution) -> MatrixOperator:
         strain_tensor = MatrixOperator(sol.basis(), 2, 2, 2)
@@ -580,11 +604,17 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         ]
         strain_tensor.set_components(strain_tensor_components)
         rate = self._effective_strain_rate(ux, uy, vx, vy)
-        if self._linearize:
-            mu = self._const
+        if self._fixed_strain_rate is not None:
+            # used for picard iteration
+            # print(
+            #     self._fixed_strain_rate.get_values().min(),
+            #     self._fixed_strain_rate.get_values().max(),
+            #     self._bkd.norm(self._fixed_strain_rate.get_values())
+            # )
+            mu = self._const * self._fixed_strain_rate ** (1 / self._n - 1)
         else:
             mu = self._const * rate ** (1 / self._n - 1)
-        flux = 2.0 * mu * strain_tensor
+        flux = 2.0 * mu * self._depth * strain_tensor
         return flux
 
     def residual(self, sol: VectorSolution) -> VectorOperator:
@@ -592,7 +622,7 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         # print(self._friction.get_values().requires_grad, 'friction')
         flux = self._flux(sol)
         residual = (
-            div(self._depth * flux)
+            div(flux)
             - self._friction * sol
             - self._depth * self._weighted_surf_grad
         )

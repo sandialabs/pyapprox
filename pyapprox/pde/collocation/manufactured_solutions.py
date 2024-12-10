@@ -645,16 +645,19 @@ class ManufacturedShallowShelfVelocityEquations(
             [2. * ux + vy, offdiag_strain],
             [offdiag_strain, ux + 2. * vy],
         ]
-        flux = [[2 * mu_expr * s for s in row] for row in strain_tensor]
+        flux = [
+            [2 * mu_expr * depth_expr * s for s in row]
+            for row in strain_tensor
+        ]
         forc_expr0 = (
-            -(depth_expr * flux[0][0]).diff(cartesian_symbs[0])
-            - (depth_expr * flux[0][1]).diff(cartesian_symbs[1])
+            -(flux[0][0]).diff(cartesian_symbs[0])
+            - (flux[0][1]).diff(cartesian_symbs[1])
             + friction_expr * u
             + self._rho * self._g * depth_expr * surface_grad_exprs[0]
         )
         forc_expr1 = (
-            -(depth_expr * flux[1][0]).diff(cartesian_symbs[0])
-            - (depth_expr * flux[1][1]).diff(cartesian_symbs[1])
+            -(flux[1][0]).diff(cartesian_symbs[0])
+            - (flux[1][1]).diff(cartesian_symbs[1])
             + friction_expr * v
             + self._rho * self._g * depth_expr * surface_grad_exprs[1]
         )

@@ -68,6 +68,14 @@ class SteadyPhysicsNewtonResidual(NewtonResidual):
     def jacobian(self, sol_array: Array):
         # assumes jac called after __call__
         jac = self._physics._residual_jacobian_from_solution_array(sol_array)
+        # auto_jac = self._bkd.jacobian(
+        #      self._physics._residual_array_from_solution_array,
+        #      sol_array
+        # )
+        # print(self._bkd.abs(jac-auto_jac).max(), "JAC DIFF1")
+        # assert self._bkd.allclose(
+        #     jac, auto_jac, atol=1e-10, rtol=1e-10
+        # )
         return self._physics.apply_boundary_conditions_to_jacobian(
             sol_array, jac
         )

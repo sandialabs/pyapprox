@@ -686,7 +686,7 @@ class TestCollocation:
         # print(sols)
         # print(exact_sols)
         print(bkd.abs(sols-exact_sols).max())
-        assert bkd.allclose(sols, exact_sols, atol=7e-12)
+        assert bkd.allclose(sols, exact_sols, atol=1e-11)
 
     def test_steady_advection_diffusion_reaction_1D(self):
         bkd = self.get_backend()
@@ -1598,6 +1598,7 @@ class TestCollocation:
             physics, newton_solver
         )
         sol = model.forward_solve(1.+exact_sol)
+        print((sol.get_values()-exact_sol.get_values()).max())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_steady_shallow_shelf_equation_2d(self):

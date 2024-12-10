@@ -14,7 +14,8 @@ from pyapprox.pde.collocation.timeintegration import (
     TransientNewtonResidual,
 )
 from pyapprox.pde.collocation.solvers import (
-    SteadyAdjointCollocationModel, TransientAdjointCollocationModel
+    SteadyAdjointCollocationModel,
+    TransientAdjointCollocationModel,
 )
 from pyapprox.pde.collocation.newton import NewtonSolver
 from pyapprox.pde.collocation.functions import (
@@ -409,9 +410,8 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
                             mesh_bndry,
                             TransientScalarFunctionFromCallable(
                                 self._basis,
-                                lambda x, time: (
-                                    time < self._final_time/4
-                                )*(x[0] * 0 + 1),
+                                lambda x, time: (time < self._final_time / 4)
+                                * (x[0] * 0 + 1),
                                 ninput_funs=self._physics.ncomponents(),
                             ),
                             component_id * self._basis.mesh().nmesh_pts(),
@@ -419,9 +419,7 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
                     )
                 else:
                     bndrys.append(
-                        ConstantRobinBoundary(
-                            mesh_bndry, 0, alpha, beta, 0, 0
-                        )
+                        ConstantRobinBoundary(mesh_bndry, 0, alpha, beta, 0, 0)
                     )
         self._physics.set_boundaries(bndrys)
 
@@ -439,10 +437,10 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
         const = 1.0 / beta_fn(a0, b0) / beta_fn(a1, b1)
         Lx, Ly = self._bounds[1::2]
         return (
-            (x[0]/Lx) ** (a0-1)
-            * (1 - x[0]/Lx) ** (b0-1)
-            * (x[1]/Ly) ** (a1-1)
-            * (1 - x[1]/Ly) ** (b1-1)
+            (x[0] / Lx) ** (a0 - 1)
+            * (1 - x[0] / Lx) ** (b0 - 1)
+            * (x[1] / Ly) ** (a1 - 1)
+            * (1 - x[1] / Ly) ** (b1 - 1)
             * const
         )
 
@@ -461,10 +459,10 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
                         self._beta_function(shapes0, x)
                         + self._beta_function(shapes1, x)
                     ),
-                    x[0] * 0
+                    x[0] * 0,
                 ),
-                axis=1
-            )
+                axis=1,
+            ),
         )
 
     def nvars(self) -> int:
@@ -472,7 +470,10 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
 
     def get_initial_condition(self):
         init_cond = ConstantVectorFunction(
-            self._basis, 2, 2, [1., 0.],
+            self._basis,
+            2,
+            2,
+            [1.0, 0.0],
         )
         # import numpy as np
         # np.random.seed(1)
@@ -500,7 +501,7 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         self.setup_forcing()
 
         self._rho = 910
-        self._A = 1e-4
+        self._A = 1e-16
 
         self._physics = ShallowShelfVelocityEquations(
             self._depth,
@@ -512,65 +513,106 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         )
 
     def setup_basis(self):
-        Lx, Ly = 50, 100
+        # distances in meters
+        Lx, Ly = 100 * 1000, 100 * 1000
         self._bounds = self._bkd.array([0, Lx, 0, Ly])
         transform = ScaleAndTranslationTransform2D(
             [-1, 1, -1, 1], self._bounds, self._bkd
         )
-        mesh = ChebyshevCollocationMesh2D([15, 15], transform)
+        mesh = ChebyshevCollocationMesh2D([20, 20], transform)
         self._basis = ChebyshevCollocationBasis2D(mesh)
 
     def _bed_callable(self, xx: Array) -> Array:
-        yy = self.basis().mesh().trans().map_to_orthogonal(xx)
-        return -2. + self._bkd.cos(yy[0]*math.pi)*self._bkd.sin(yy[1]*math.pi)
+        self._bed_mean = 10.0
+        yy = (self.basis().mesh().trans().map_to_orthogonal(xx) + 1) / 2
+        # Convention is 0 represents see level. So make bed positive
+        # return self._bed_mean + self._bkd.cos(
+        #     2*yy[0]*math.pi
+        # )*self._bkd.sin(2*yy[1]*math.pi)
+
+        return self._bed_mean - yy[1] * (1 - yy[1])
 
     def setup_bed(self):
         self._bed = ScalarFunctionFromCallable(
             self._basis,
             self._bed_callable,
-            ninput_funs=self._basis.nphys_vars()
+            ninput_funs=self._basis.nphys_vars(),
         )
 
     def _beta_function(self, shapes, x):
         a0, b0, a1, b1 = shapes
-        yy = (self.basis().mesh().trans().map_to_orthogonal(x)+1)/2
+        yy = (self.basis().mesh().trans().map_to_orthogonal(x) + 1) / 2
         const = 1.0 / beta_fn(a0, b0) / beta_fn(a1, b1)
         Lx, Ly = self._bounds[1::2]
         return 1 + (
-            (yy[0]) ** (a0-1)
-            * (1 - yy[0]) ** (b0-1)
-            * (yy[1]) ** (a1-1)
-            * (1 - yy[1]) ** (b1-1)
+            (yy[0]) ** (a0 - 1)
+            * (1 - yy[0]) ** (b0 - 1)
+            * (yy[1]) ** (a1 - 1)
+            * (1 - yy[1]) ** (b1 - 1)
             * const
         )
 
-    # def _surface_callable(self, xx: Array) -> Array:
-    #     yy = self.basis().mesh().trans().map_to_orthogonal(xx)
-    #     return 1 + self._bkd.sum(1 - yy**2, axis=0)
+    def _surface_callable(self, xx: Array) -> Array:
+        # depth ar right boundary (fixed margin) must be very small, e.g. 1
+        left_height, right_height = 1000, self._bed_mean + 2
+        xprofile_coefs = self._bkd.array(
+            [
+                left_height,
+                0.0,
+                3 * (right_height - left_height) - 1,
+                2 * (left_height - right_height) + 1,
+            ]
+        )
+        yy = (self.basis().mesh().trans().map_to_orthogonal(xx) + 1) / 2
+        scale = 0.9  # ratio of height on left boundary and top and
+        # bottom edges relative to middle of boundary
+        xprofile = (
+            yy[0][:, None] ** self._bkd.arange(4)[None, :]
+            @ xprofile_coefs
+        )
+        yprofile_coefs = self._bkd.array([scale, 4*(1-scale), 4 * (scale-1)])
+        yprofile = (
+            yy[1][:, None] ** self._bkd.arange(3)[None, :]
+            @ yprofile_coefs
+        )
+        # zz = self._bkd.linspace(0, 1, 101)
+        # import matplotlib.pyplot as plt
+        # plt.plot(zz,  zz[:, None] ** self._bkd.arange(3)[None, :]
+        #          @ yprofile_coefs)
+        # plt.show()
+        vals = xprofile * yprofile
+        return vals
 
     def setup_depth(self):
-        from functools import partial
+        # from functools import partial
         self._surface = ScalarFunctionFromCallable(
             self._basis,
-            # self._surface_callable,
-            partial(self._beta_function, [2, 2, 2, 2]),
-            ninput_funs=self._basis.nphys_vars()
+            self._surface_callable,
+            # partial(self._beta_function, [2, 2, 2, 2]),
+            ninput_funs=self._basis.nphys_vars(),
         )
         self._depth = self._surface - self._bed
+        Lx, Ly = self._bounds[1::2]
+        if self._depth(self._bkd.array([Lx, Ly/2])[:, None]) > 2.5:
+            print(self._depth(self._bkd.array([Lx, Ly/2])[:, None]))
+            raise RuntimeError(
+                "depth at right boundary must be small"
+            )
         if self._bkd.min(self._depth.get_values()) <= 0:
             raise RuntimeError(
                 "Depth was set to be negative {0}".format(
-                    self._bkd.min(self._depth.get_values()))
+                    self._bkd.min(self._depth.get_values())
+                )
             )
 
     def setup_friction(self):
         Lx, Ly = self._bounds[1::2]
         self._friction = ScalarKLEFunction(
             self._basis,
-            min(Lx, Ly)/10,
+            min(Lx, Ly) / 10,
             self.nvars(),
-            sigma=0.1,
-            mean_field=ConstantScalarFunction(self._basis, 0.0, 1),
+            sigma=1,
+            mean_field=ConstantScalarFunction(self._basis, math.log(1000), 1),
             ninput_funs=self._basis.mesh().nphys_vars(),
             use_log=True,
         )
@@ -579,21 +621,49 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         self._velocity_forcing = None
 
     def nvars(self) -> int:
-        return 3
+        return 10
 
-    def _initial_iterate(self) -> Array:
+    def _picard_iteration(self):
         iterate = self._bkd.ones(
             (self.physics().ncomponents() * self.basis().mesh().nmesh_pts())
         )
         self._adjoint_solver.set_initial_iterate(iterate)
-        self.physics()._linearize = True
-        init_iterate = self._adjoint_solver.forward_solve()
-        self.physics()._linearize = False
+        self.physics()._fix_strain_rate(
+            ConstantScalarFunction(
+                self.basis(), 1e3, ninput_funs=self.physics().ncomponents()
+            )
+        )
+        iterate = self._adjoint_solver.forward_solve()
+        npicard_iterations = 1
+        for it in range(npicard_iterations):
+            fixed_strain_rate = (
+                self.physics()._get_strain_rate_from_solution_array(
+                    iterate
+                )
+            )
+            self.physics()._fix_strain_rate(fixed_strain_rate)
+            self._adjoint_solver.set_initial_iterate(self._bkd.copy(iterate))
+            iterate = self._adjoint_solver.forward_solve()
+            # res_array = self._adjoint_solver._newton_solver._residual(
+            #     iterate
+            # )
+            # res_norm = self._bkd.norm(res_array)
+            # print("Picard Iter", it, "rnorm", res_norm)
+        self.physics()._unfix_strain_rate()
+        return iterate
+
+    def _initial_iterate(self) -> Array:
+        init_iterate = self._picard_iteration()
+        # init_sol = self.physics().solution_from_array(init_iterate)
+        # import matplotlib.pyplot as plt
+        # from pyapprox.pde.collocation.functions import plot_vector_function
+        # plot_vector_function(init_sol)
+        # # plt.show()
         return init_iterate
 
     def set_param(self, param: Array):
         self._param = param
-        print(param.requires_grad, "P2")
+        # print(param.requires_grad, "P2")
         self._friction.set_param(param)
         self._adjoint_solver.set_param(param)
         self._adjoint_solver.set_initial_iterate(self._initial_iterate())
@@ -608,10 +678,11 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
             self._basis.mesh().get_boundaries().items()
         ):
             for component_id in range(self._physics.ncomponents()):
-                if False: #bndry_name in ["left", "bottom", "top"]: # (
-                #         (component_id == 1 and bndry_name in ["bottom", "top"])
-                #         or (component_id == 0 and bndry_name in ["left"])
-                # ):
+                if (
+                    component_id == 0 and bndry_name == "left"
+                    or (component_id == 1 and bndry_name in ["bottom", "top"])
+                    or bndry_name == "right"
+                ) :
                     # set velocity at boundary to zero
                     bndry_funs.append(
                         DirichletBoundaryFromOperator(
@@ -620,12 +691,29 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
                             component_id * self._basis.mesh().nmesh_pts(),
                         )
                     )
-                else: #(component_id == 0):# and bndry_name in ["right"]):
+                elif bndry_name == "right":
                     bndry_funs.append(
                         RobinBoundaryFromOperator(
                             mesh_bndry,
-                            self._get_zerofun(), # (self._physics._rho * self._physics._g * 0.5) * self._depth,
-                            0.,
+                            (self._physics._rho * self._physics._g * 0.5)
+                            * self._depth**2,
+                            0.0,
+                            1.0,
+                            component_id * self._basis.mesh().nmesh_pts(),
+                            component_id,
+                        )
+                    )
+                else:
+                    # Since we are setting vertical velocity v = sol[1] = 0
+                    # at top and bottom boundary, we must set v = 0 or F(v)= 0
+                    # to be zero on left and right boundary otherwise
+                    # there will be an inconsistency in the boundary condition
+                    # at the corners of the domain
+                    bndry_funs.append(
+                        RobinBoundaryFromOperator(
+                            mesh_bndry,
+                            self._get_zerofun(),
+                            0.0,
                             1.0,
                             component_id * self._basis.mesh().nmesh_pts(),
                             component_id,
@@ -638,3 +726,20 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
             self._basis,
             ninput_funs=self._physics.ncomponents(),
         )
+
+
+def compute_shallow_shelf_surface():
+    import sympy as sp
+
+    a, b, c, d, e, f, x = sp.symbols(("a", "b", "c", "d", "e", "f", "x"))
+    poly = a + b * x + c * x**2 + d * x**3
+    result = sp.solve(
+        [
+            poly.subs(x, 0) - e,
+            poly.subs(x, 1) - f,
+            poly.diff(x, 1).subs(x, 0) - 0,
+            poly.diff(x, 1).subs(x, 1) - 1,
+        ],
+        [a, b, c, d],
+    )
+    print(result)

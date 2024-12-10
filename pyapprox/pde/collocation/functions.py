@@ -403,7 +403,7 @@ class ScalarOperator:
             Z = (Z - zmin) / (zmax - zmin)
         if ax.name != "3d":
             kwargs_copy = kwargs.copy()
-            if Z.min() == Z.max():
+            if Z.max()-Z.min() < 1e-12:
                 kwargs_copy["levels"] = 1
             return ax.contourf(X, Y, Z, **kwargs_copy)
         return ax.plot_surface(X, Y, Z, **kwargs)
@@ -864,13 +864,25 @@ class MatrixOperator:
                 ops.append(self._components[ii][jj] ** 2)
         return sum(ops)
 
+    def _is_float(self, other):
+        return (
+            isinstance(other, float)
+            or (
+                isinstance(other, self._bkd.array_type())
+                and other.ndim == 0 and other.dtype == self._bkd.double_type()
+            )
+        )
+
     def _multiply_functions(
         self, other: Union["MatrixOperator", ScalarOperator, float]
     ) -> "MatrixOperator":
         if not hasattr(self, "_components"):
             raise RuntimeError("must call set_commponents()")
 
-        if not isinstance(other, (MatrixOperator, ScalarOperator, float)):
+        if (
+                not isinstance(other, (MatrixOperator, ScalarOperator))
+                and not self._is_float(other)
+        ):
             raise ValueError(
                 f"cannot multiply MatrixOperator by {type(other)}"
             )
@@ -1252,7 +1264,6 @@ class ConstantVectorFunction(VectorFunction):
             axis=0
         )
         super().__init__(basis, ninput_funs, nrows)
-        print(values.shape)
         self.set_values(values)
 
 
@@ -1581,7 +1592,6 @@ def animate_transient_2d_vector_solution(
         + components_as_surface_plots.shape[0]
     )
     fig = plt.figure(figsize=(ncomponent_plots * 8, 6))
-    print(ncomponent_plots)
     gs = GridSpec(
         10, ncomponent_plots, hspace=1
     )  # 10 rows, ncomponent columns

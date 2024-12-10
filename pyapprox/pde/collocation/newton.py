@@ -35,12 +35,12 @@ class NewtonResidual(ABC):
         return "{0}".format(self.__class__.__name__)
 
     def set_param(self, param: Array):
-        print("B")
+        # print("B")
         self._param = param
 
     def _residual_param_wrapper(self, sol: Array, param: Array) -> Array:
         self.set_param(param)
-        print(param, "PARA")
+        # print(param, "PARA")
         return self(sol)
 
     def _param_jacobian(self, sol: Array) -> Array:
@@ -178,18 +178,38 @@ class NewtonSolver:
         step_size: float = 1,
         atol: float = 1e-7,
         rtol: float = 1e-7,
+        linesearch_maxiters: float = 5,
     ):
         self._maxiters = maxiters
         self._verbosity = verbosity
         self._step_size = step_size
         self._atol = atol
         self._rtol = rtol
+        self._linesearch_maxiters = linesearch_maxiters
 
     def set_residual(self, residual: NewtonResidual):
         if not isinstance(residual, NewtonResidual):
             raise ValueError("residual must be an instance of NewtonResidual")
         self._residual = residual
         self._bkd = residual._bkd
+
+    def _linesearch(self, prev_sol, prev_residual, prev_residual_norm):
+        # bisection-based linesearch
+        step_size = self._step_size / 2
+        ii = 0
+        while ii < self._linesearch_maxiters:
+            sol = prev_sol - step_size * self._residual.linsolve(
+                prev_sol, prev_residual
+            )
+            residual = self._residual(sol)
+            residual_norm = self._bkd.norm(residual)
+            if self._verbosity > 1:
+                print("\t Linesearch Iter", ii, "rnorm", residual_norm)
+            if residual_norm < prev_residual_norm:
+                return sol, residual, residual_norm
+            step_size /= 2.
+            ii += 1
+        raise RuntimeError("Max linesearch iterations reached")
 
     def solve(self, init_guess):
         if init_guess.ndim != 1:
@@ -198,15 +218,23 @@ class NewtonSolver:
             raise ValueError("must call set_residual")
         sol = self._bkd.copy(init_guess)
         residual = self._residual(sol)
-
-        residual_norms = []
+        residual_norms = [self._bkd.norm(residual)]
         it = 0
+        if self._verbosity > 1:
+            print("Iter", it, "rnorm", residual_norms[0])
         while True:
-            sol = sol - self._step_size * self._residual.linsolve(
-                sol, residual
+            prev_sol = self._bkd.copy(sol)
+            prev_residual = residual
+            sol = prev_sol - self._step_size * self._residual.linsolve(
+                sol, prev_residual
             )
             residual = self._residual(sol)
             residual_norm = self._bkd.norm(residual)
+            # linesearch is not tested
+            # if residual_norm > residual_norms[-1]:
+            #     sol, residual, residual_norm = self._linesearch(
+            #         prev_sol, prev_residual, residual_norms[-1]
+            #     )
             residual_norms.append(residual_norm)
 
             it += 1
@@ -453,7 +481,7 @@ class AdjointSolver:
         # compute the gradient of a single QoI
         self.solve_adjoint()
         self._drdp = self._residual.param_jacobian(self._fwd_sol)
-        print(self._bkd.abs(self._drdp).max(), 'drdp')
+        # print(self._bkd.abs(self._drdp).max(), 'drdp')
         return (
             self._functional.qoi_param_jacobian(self._fwd_sol)[0]
             + self._adj_sol @ self._drdp
