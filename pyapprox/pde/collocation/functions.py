@@ -1139,11 +1139,16 @@ class MatrixOperator:
             self.basis().mesh().nmesh_pts(),
         )
 
-    def plot_vector_field(self, ax):
+    def plot_vector_field(self, ax, npts_1d: int = 31):
         if self.nrows() != 2 or self.ncols() != 1:
             raise ValueError("Can only plot 2D vector field")
-        pts = self.basis().mesh().mesh_pts()
-        xvel, yvel = self.get_values()
+        # pts = self.basis().mesh().mesh_pts()
+        # xvel, yvel = self.get_values()
+        pts, orth_X = self._components[0][0]._get_2d_plot_samples(npts_1d)
+        X = self._bkd.reshape(pts[0], orth_X.shape)
+        Y = self._bkd.reshape(pts[1], orth_X.shape)
+        xvel = self._components[0][0](pts)
+        yvel = self._components[1][0](pts)
         return ax.quiver(
             pts[0], pts[1], xvel, yvel, scale_units='xy', angles='xy'
         )

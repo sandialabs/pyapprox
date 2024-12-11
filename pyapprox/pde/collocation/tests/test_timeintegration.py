@@ -222,6 +222,7 @@ class LinearDecoupledODEModel(TransientAdjointModel):
             None,
             backend,
         )
+        self._jacobian_implemented = True
 
     def nvars(self) -> int:
         return self._time_residual.native_residual.nvars()

@@ -99,7 +99,7 @@ class ParameterizedNewtonResidualMixin(ABC):
             raise NotImplementedError
         return self._bkd.hvp(
             partial(self._adjoint_dot_residual_state_wrapper, adj_sol),
-            self._param,
+            fwd_sol,
             wvec,
         )
 
@@ -297,6 +297,10 @@ class Functional(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def nunique_functional_params(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
     def _value(self, sol: Array) -> Array:
         raise NotImplementedError
 
@@ -487,9 +491,7 @@ class AdjointSolver:
     def gradient(self) -> Array:
         # compute the gradient of a single QoI
         self.solve_adjoint()
-        print(self._residual)
         self._drdp = self._residual.param_jacobian(self._fwd_sol)
-        # print(self._bkd.abs(self._drdp).max(), 'drdp')
         return (
             self._functional.qoi_param_jacobian(self._fwd_sol)[0]
             + self._adj_sol @ self._drdp

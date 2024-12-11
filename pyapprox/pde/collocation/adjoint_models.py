@@ -20,7 +20,7 @@ from pyapprox.pde.collocation.timeintegration import (
 class AdjointModel(SingleSampleModel, ABC):
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
-        self._jacobian_implemented = True
+        self._jacobian_implemented = backend.jacobian_implemented()
 
     def nqoi(self) -> int:
         return self._functional.nqoi()
@@ -89,6 +89,7 @@ class SteadyAdjointModel(AdjointModel):
             self._newton_solver, self._functional
         )
         self._jacobian_mode = jacobian_mode
+        self._apply_hessian_implemented = self._bkd.hessian_implemented()
 
     def set_functional(self, functional: AdjointFunctional):
         self._functional = functional
@@ -131,6 +132,7 @@ class SteadyAdjointModel(AdjointModel):
 
 
 class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
+    # Intended for testing only
     def __init__(
         self,
         residual: NewtonResidual,
@@ -138,6 +140,7 @@ class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
         nvars: int,
         functional: AdjointFunctional = None,
         newton_solver: NewtonSolver = None,
+        jacobian_implemented=False,
         apply_hessian_implemented=False,
         jacobian_mode: str = "backward",
     ):
@@ -145,7 +148,12 @@ class SteadyAdjointModelFixedInitialIterate(SteadyAdjointModel):
         super().__init__(
             residual, functional, newton_solver, jacobian_mode=jacobian_mode
         )
-        self._apply_hessian_implemented = apply_hessian_implemented
+        self._jacobian_implemented = (
+            jacobian_implemented or self._bkd.jacobian_implemented()
+        )
+        self._apply_hessian_implemented = (
+            apply_hessian_implemented or self._bkd.hessian_implemented()
+            )
         if init_iterate.ndim != 1:
             raise ValueError("init_iterate must be 1D Array")
         self._adjoint_solver.set_initial_iterate(init_iterate)

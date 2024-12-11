@@ -73,8 +73,16 @@ class CollocationModelMixin(ABC):
     def physics(self) -> Physics:
         return self._physics
 
+    def nvars(self) -> int:
+        if not hasattr(self, "_functional") or self._functional is None:
+            return self.physics().nvars()
+        return (
+            self._functional.nunique_functional_params()
+            + self.physics().nvars()
+        )
 
-class SteadyAdjointCollocationModel(SteadyAdjointModel, CollocationModelMixin):
+
+class SteadyAdjointCollocationModel(CollocationModelMixin, SteadyAdjointModel):
     def __init__(
         self,
         newton_solver: NewtonSolver = None,

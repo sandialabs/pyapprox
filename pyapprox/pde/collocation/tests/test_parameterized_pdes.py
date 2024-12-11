@@ -7,7 +7,8 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.pde.collocation.parameterized_pdes import (
     LotkaVolterraModel,
-    TransientAdvectionDiffusionReactionModel,
+    TransientDiffusionAdvectionModel,
+    SteadyDiffusionModel,
     FitzHughNagumoModel,
     SteadyShallowShelfModel2D,
 )
@@ -18,12 +19,43 @@ from pyapprox.pde.collocation.timeintegration import (
     HeunResidual,
     TransientMSEAdjointFunctional,
 )
-from pyapprox.pde.collocation.newton import NewtonSolver
+from pyapprox.pde.collocation.newton import (
+    NewtonSolver, AdjointFunctional, Array
+)
+from pyapprox.pde.collocation.solvers import CollocationModelMixin
 from pyapprox.pde.collocation.functions import (
     animate_transient_2d_scalar_solution,
     animate_transient_2d_vector_solution,
 )
 # from pyapprox.util.print_wrapper import *
+
+
+class SumFunctional(AdjointFunctional):
+    def __init__(self, model):
+        self._model = model
+        if not isinstance(model, CollocationModelMixin):
+            raise ValueError(
+                "model must be an instance of CollocationModelMixin"
+            )
+        super().__init__(model._bkd)
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nstates(self) -> int:
+        return (
+            self._model.basis().mesh().nmesh_pts()
+            * self._model.physics().ncomponents()
+        )
+
+    def nparams(self) -> int:
+        return self._model.nvars()
+
+    def _value(self, sol: Array) -> Array:
+        return self._bkd.hstack((sol.sum(),))
+
+    def nunique_functional_params(self) -> int:
+        return 0
 
 
 class TestParameterizedModels:
@@ -76,11 +108,41 @@ class TestParameterizedModels:
         for test_case in test_cases:
             self._check_lotka_volterra(*test_case)
 
-    def test_parameterized_diffusion_with_fixed_advection(self):
+    def test_steady_parameterized_diffusion(self):
+        bkd = self.get_backend()
+        newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
+        model = SteadyDiffusionModel(
+            newton_solver=newton_solver,
+            backend=bkd,
+        )
+
+        sample = bkd.array(np.random.normal(0, 1, (model.nvars(), 1)))
+        sol = model.forward_solve(sample)
+
+        # axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
+        # velocity = model.velocity_field(sol)
+        # sol.plot(axs[0])
+        # velocity.plot_vector_field(axs[0])
+        # model.physics()._diffusion.plot(axs[1])
+        # plt.show()
+
+        functional = SumFunctional(model)
+        newton_solver._verbosity = 0
+        model.set_functional(functional)
+        fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
+        errors = model.check_apply_jacobian(sample, fd_eps, disp=True)
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1.3e-6
+
+        errors = model.check_apply_hessian(sample, fd_eps, disp=True)
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1.3e-6
+
+    def test_transient_parameterized_diffusion_with_fixed_advection(self):
         bkd = self.get_backend()
         time_residual_cls = BackwardEulerResidual
         newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
-        model = TransientAdvectionDiffusionReactionModel(
+        model = TransientDiffusionAdvectionModel(
             0,
             1,
             0.05,
@@ -95,13 +157,6 @@ class TestParameterizedModels:
 
         sample = bkd.array(np.random.normal(0, 1, (model.nvars(), 1)))
         sol, times = model.forward_solve(sample)
-
-        ax = plt.figure().gca()
-        velocity = model.velocity_field_from_solution_array(sol[:, -1])
-        velocity.plot_vector_field(ax)
-        plt.show()
-
-        print(sol.max(axis=0))
 
         ani = animate_transient_2d_scalar_solution(
             model._basis, sol, times, plot_surface=False
@@ -180,29 +235,16 @@ class TestParameterizedModels:
         #plt.show()
         #assert False
 
-        from pyapprox.pde.collocation.newton import AdjointFunctional, Array
-        class SumFunctional(AdjointFunctional):
-            def nqoi(self) -> int:
-                return 1
-
-            def nstates(self) -> int:
-                return (
-                    model.basis().mesh().nmesh_pts()
-                    * model.physics().ncomponents()
-                )
-
-            def nparams(self) -> int:
-                return model.nvars()
-
-            def _value(self, sol: Array) -> Array:
-                return self._bkd.hstack((sol.sum(),))
-
-        functional = SumFunctional(bkd)
+        functional = SumFunctional(model)
         newton_solver._verbosity = 0
         model.set_functional(functional)
         print(bkd.jacobian(lambda x: model(x[:, None])[0], sample[:, 0]))
         print(model.jacobian(sample))
-        assert False
+        print(
+            bkd.jacobian(lambda x: model(x[:, None])[0], sample[:, 0])
+            - model.jacobian(sample)
+        )
+        # assert False
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = model.check_apply_jacobian(sample, fd_eps, disp=True)
         print(errors.min() / errors.max())

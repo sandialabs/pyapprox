@@ -140,6 +140,9 @@ class ScalarSumFunctionalAuto(AdjointFunctional):
     def nqoi(self) -> int:
         return 1
 
+    def nunique_functional_params(self) -> int:
+        return 0
+
 
 class ScalarSumFunctional(ScalarSumFunctionalAuto):
     def _qoi_sol_jacobian(self, sol: Array) -> Array:
@@ -181,6 +184,9 @@ class VectorSumFunctionalAuto(AdjointFunctional):
 
     def nqoi(self) -> int:
         return 2
+
+    def nunique_functional_params(self) -> int:
+        return 0
 
 
 class TestNewton:
@@ -249,7 +255,9 @@ class TestNewton:
         assert bkd.allclose(adj_hess_sol, exact_adj_hess_sol)
 
         model = SteadyAdjointModelFixedInitialIterate(
-            res, init_iterate, 2, functional, apply_hessian_implemented=True
+            res, init_iterate, 2, functional,
+            jacobian_implemented=True,
+            apply_hessian_implemented=True
         )
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
@@ -290,7 +298,9 @@ class TestNewton:
         init_iterate = bkd.array([-1, -1])
         functional = ScalarSumFunctional(backend=bkd)
         model = SteadyAdjointModelFixedInitialIterate(
-            res, init_iterate, 2, functional, apply_hessian_implemented=True,
+            res, init_iterate, 2, functional,
+            jacobian_implemented=True,
+            apply_hessian_implemented=True,
             jacobian_mode="forward"
         )
         sample = bkd.array([0.8, 1.1])[:, None]
@@ -318,3 +328,4 @@ class TestTorchNewton(TestNewton, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+    

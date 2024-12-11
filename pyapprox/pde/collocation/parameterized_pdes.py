@@ -24,6 +24,7 @@ from pyapprox.pde.collocation.functions import (
     ScalarFunction,
     ConstantScalarFunction,
     VectorFunction,
+    ScalarSolution,
     ScalarKLEFunction,
     ZeroScalarFunction,
     VectorFunctionFromCallable,
@@ -55,6 +56,98 @@ from pyapprox.pde.collocation.basis import (
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform2D,
 )
+
+
+class ParameterizedDiffusionPhysics(
+        AdvectionDiffusionReactionPhysics, ParameterizedNewtonResidualMixin
+):
+    def __init__(self, basis):
+        diffusion = self._setup_diffusion(basis)
+        super().__init__(None, diffusion, None, None)
+
+    def _setup_diffusion(self, basis: OrthogonalCoordinateCollocationBasis):
+        return ScalarKLEFunction(
+            basis,
+            0.1,
+            self.nvars(),
+            sigma=1.,
+            mean_field=ConstantScalarFunction(basis, 0., 1),
+            ninput_funs=basis.mesh().nphys_vars() + 1,
+            use_log=True,
+        )
+
+    def set_param(self, param: Array):
+        self._param = param
+        self._diffusion.set_param(param)
+
+    def nvars(self) -> int:
+        return 10
+
+
+class SteadyParameterizedDiffusionPhysics(
+        ParameterizedDiffusionPhysics, SteadyPhysicsNewtonResidualMixin,
+):
+    pass
+
+
+class SteadyDiffusionModel(
+    SteadyAdjointCollocationModel
+):
+    def setup_physics(self):
+        self._physics = SteadyParameterizedDiffusionPhysics(self.basis())
+
+    def setup_basis(self):
+        Lx, Ly = 1, 1
+        bounds = self._bkd.array([0, Lx, 0, Ly])
+        transform = ScaleAndTranslationTransform2D(
+            [-1, 1, -1, 1], bounds, self._bkd
+        )
+        mesh = ChebyshevCollocationMesh2D([12, 12], transform)
+        self._basis = ChebyshevCollocationBasis2D(mesh)
+
+    def setup_boundaries(self):
+        # make flux depend on solution's value relative to a nominal_val
+        # beta * flux(u(x)) @ n = u(x) - nominal_val
+        # beta * flux(u(x)) @ n - u(x) = nominal_val
+        # beta * flux(u(x)) @ n + alpha * u(x) = nominal_val, alpha = -1
+
+        # Conservative rules are written as
+        # du/dt = -div(F) + g for flux F.
+        bndrys = []
+        for (
+            bndry_name,
+            mesh_bndry,
+        ) in (
+            self._basis.mesh().get_boundaries().items()
+        ):
+            if bndry_name in ["bottom", "top"]:
+                # zero flux boundary
+                bndrys.append(
+                    ConstantRobinBoundary(
+                        mesh_bndry, 0., 0., 1., 0, 0
+                    )
+                )
+            elif bndry_name == "left":
+                bndrys.append(
+                    ConstantDirichletBoundary(mesh_bndry, 10.)
+                )
+            else:
+                bndrys.append(
+                    ConstantDirichletBoundary(mesh_bndry, 0.)
+                )
+        self._physics.set_boundaries(bndrys)
+
+    def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
+        # PDE is linear so initial guess does not matter
+        self._adjoint_solver.set_initial_iterate(
+            self._bkd.zeros(self.basis().mesh().nmesh_pts())
+        )
+        return super().forward_solve(sample)
+
+    def velocity_field(self, sol: ScalarSolution):
+        return nabla(
+            -self.physics()._diffusion * sol
+        )
 
 
 class ParameterizedDiffusionFixedAdvectionPhysics(
@@ -94,7 +187,7 @@ class TransientParameterizedDiffusionFixedAdvectionPhysics(
     pass
 
 
-class TransientAdvectionDiffusionReactionModel(
+class TransientDiffusionAdvectionModel(
     TransientAdjointCollocationModel
 ):
     def setup_physics(self):
@@ -186,14 +279,6 @@ class TransientAdvectionDiffusionReactionModel(
             # )
         self._physics.set_boundaries(bndrys)
 
-    def nvars(self) -> int:
-        if not hasattr(self, "_functional"):
-            return self.physics().nvars()
-        return (
-            self._functional.nunique_functional_params()
-            + self.phsyics().nvars()
-        )
-
     def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
         sols, times = super().forward_solve(sample)
         return (
@@ -201,13 +286,6 @@ class TransientAdvectionDiffusionReactionModel(
                 (self._basis.mesh().nmesh_pts(), self._times.shape[0])
             ),
             self._times,
-        )
-
-    def velocity_field_from_solution_array(self, sol_array: Array):
-        print("TODO move this to diffusion only model")
-        return nabla(
-            -self.physics()._diffusion
-            * self.physics().solution_from_array(sol_array)
         )
 
 
@@ -416,6 +494,9 @@ class LotkaVolterraModel(TransientAdjointModel):
             backend=backend,
         )
 
+    def get_initial_condition(self) -> Array:
+        return self._bkd.array([0.3, 0.4, 0.3])
+
     def nvars(self) -> int:
         if not hasattr(self, "_functional"):
             return self._residual.nvars()
@@ -423,9 +504,6 @@ class LotkaVolterraModel(TransientAdjointModel):
             self._functional.nunique_functional_params()
             + self._residual.nvars()
         )
-
-    def get_initial_condition(self) -> Array:
-        return self._bkd.array([0.3, 0.4, 0.3])
 
 
 class ParameterizedFitzHughNagumoPhysics(FitzHughNagumoPhysics):

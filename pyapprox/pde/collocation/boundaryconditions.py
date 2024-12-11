@@ -111,6 +111,11 @@ class ConstantDirichletBoundary(
     def __call__(self, bndry_mesh_pts: Array) -> Array:
         return self._bkd.full((bndry_mesh_pts.shape[1],), self._const)
 
+    def __repr__(self):
+        return "{0}(bndry={1}, const={2})".format(
+            self.__class__.__name__, self._mesh_bndry, self._const
+        )
+
 
 class DirichletBoundaryFromOperator(
     BoundaryFromOperatorMixin, DirichletBoundary
@@ -261,6 +266,10 @@ class ConstantRobinBoundary(RobinBoundary):
     def __call__(self, bndry_mesh_pts: Array) -> Array:
         return self._bkd.full((bndry_mesh_pts.shape[1],), self._const)
 
+    def __repr__(self):
+        return "{0}(bndry={1}, const={2})".format(
+            self.__class__.__name__, self._mesh_bndry, self._const
+        )
 
 class PeriodicBoundary(BoundaryOperator):
     def __init__(
