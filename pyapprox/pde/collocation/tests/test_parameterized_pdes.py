@@ -164,7 +164,7 @@ class TestParameterizedModels:
         ani.save("diffusion.gif", dpi=100)
 
     def test_fitzhugonagumo(self):
-        #TODO consider making diffusion coefficient also a parameter
+        # TODO consider making diffusion coefficient also a parameter
         bkd = self.get_backend()
         time_residual_cls = BackwardEulerResidual
         newton_solver = NewtonSolver(verbosity=2, rtol=1e-6, atol=1e-6)
@@ -193,7 +193,7 @@ class TestParameterizedModels:
         bkd = self.get_backend()
         newton_solver = NewtonSolver(
             # verbosity=2, rtol=1e-3, atol=1e-6,
-            verbosity=2, rtol=1e-10, atol=1e-8,
+            verbosity=2, rtol=1e-12, atol=1e-12,
         )
         model = SteadyShallowShelfModel2D(newton_solver, backend=bkd)
         sample = bkd.array(np.random.normal(0., 1., (model.nvars(), 1)))
@@ -236,19 +236,16 @@ class TestParameterizedModels:
         #assert False
 
         functional = SumFunctional(model)
-        newton_solver._verbosity = 0
         model.set_functional(functional)
-        print(bkd.jacobian(lambda x: model(x[:, None])[0], sample[:, 0]))
-        print(model.jacobian(sample))
-        print(
-            bkd.jacobian(lambda x: model(x[:, None])[0], sample[:, 0])
-            - model.jacobian(sample)
-        )
-        # assert False
-        fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
-        errors = model.check_apply_jacobian(sample, fd_eps, disp=True)
-        print(errors.min() / errors.max())
-        assert errors.min() / errors.max() < 1.3e-6
+        sol = model.forward_solve(sample)
+        newton_solver._verbosity = 0
+        errors = model.check_apply_jacobian(sample, disp=True)
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1e-7
+
+        errors = model.check_apply_hessian(sample, None, disp=True)
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1e-6
 
 
 class TestNumpyParameterizedModels(TestParameterizedModels, unittest.TestCase):

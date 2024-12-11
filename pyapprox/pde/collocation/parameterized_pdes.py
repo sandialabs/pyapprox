@@ -90,9 +90,7 @@ class SteadyParameterizedDiffusionPhysics(
     pass
 
 
-class SteadyDiffusionModel(
-    SteadyAdjointCollocationModel
-):
+class SteadyDiffusionModel(SteadyAdjointCollocationModel):
     def setup_physics(self):
         self._physics = SteadyParameterizedDiffusionPhysics(self.basis())
 
@@ -695,7 +693,7 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         transform = ScaleAndTranslationTransform2D(
             [-1, 1, -1, 1], self._bounds, self._bkd
         )
-        mesh = ChebyshevCollocationMesh2D([20, 20], transform)
+        mesh = ChebyshevCollocationMesh2D([10, 10], transform)
         self._basis = ChebyshevCollocationBasis2D(mesh)
 
     def _bed_callable(self, xx: Array) -> Array:
@@ -794,8 +792,11 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
                 self.basis(), 1e3, ninput_funs=self.physics().ncomponents()
             )
         )
-        iterate = self._adjoint_solver.forward_solve()
-        npicard_iterations = 1
+        # do not call iterate = self._adjoint_solver.forward_solve()
+        # as it updates self._adjoint_solver._fwd_sol_param so
+        # that new forward solution is not computed
+        iterate = self._adjoint_solver._newton_solver.solve(iterate)
+        npicard_iterations = 0
         for it in range(npicard_iterations):
             fixed_strain_rate = (
                 self.physics()._get_strain_rate_from_solution_array(
@@ -804,7 +805,7 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
             )
             self.physics()._fix_strain_rate(fixed_strain_rate)
             self._adjoint_solver.set_initial_iterate(self._bkd.copy(iterate))
-            iterate = self._adjoint_solver.forward_solve()
+            iterate = self._adjoint_solver._newton_solver.solve(iterate)
             # res_array = self._adjoint_solver._newton_solver._residual(
             #     iterate
             # )
@@ -822,11 +823,7 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         # # plt.show()
         return init_iterate
 
-    def nvars(self) -> int:
-        return self.physics().nvars()
-
     def set_param(self, param: Array):
-        self.physics().set_param(param)
         self._adjoint_solver.set_param(param)
         self._adjoint_solver.set_initial_iterate(self._initial_iterate())
 
@@ -892,7 +889,7 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
 
 def compute_shallow_shelf_surface():
     import sympy as sp
-
+    # used to find cubic polynomial that satisfies four constraints
     a, b, c, d, e, f, x = sp.symbols(("a", "b", "c", "d", "e", "f", "x"))
     poly = a + b * x + c * x**2 + d * x**3
     result = sp.solve(

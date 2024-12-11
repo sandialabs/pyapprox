@@ -456,7 +456,7 @@ class AdjointSolver:
 
     def solve_adjoint(self) -> Array:
         if self._fwd_sol_param is None or not self._bkd.allclose(
-            self._fwd_sol_param, self._param, atol=1e-15, rtol=1e-15
+             self._fwd_sol_param, self._param, atol=3e-16, rtol=3e-16
         ):
             self.forward_solve()
         if self._functional.nqoi() != 1:

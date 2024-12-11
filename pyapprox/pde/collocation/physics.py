@@ -689,7 +689,7 @@ class ShallowShelfVelocityPhysics(VectorPhysicsMixin, Physics):
     def _effective_strain_rate(self, ux, uy, vx, vy):
         # add regulization term to avoid numeric zero
         return (
-            ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2 + 1e-10
+            ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2 + 1e-12
         ) ** (0.5)
 
     def _fix_strain_rate(self, strain_rate: ScalarFunction):
