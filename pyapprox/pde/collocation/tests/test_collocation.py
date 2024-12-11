@@ -28,14 +28,16 @@ from pyapprox.pde.collocation.basis import (
     OrthogonalCoordinateCollocationBasis,
 )
 from pyapprox.pde.collocation.physics import (
-    AdvectionDiffusionReactionEquation,
-    ShallowIceEquation,
-    HelmholtzEquation,
-    ShallowWaveEquation,
-    TwoSpeciesReactionDiffusionEquations,
-    ShallowShelfVelocityEquations,
-    ShallowShelfDepthVelocityEquations,
-    Isotropic2DLinearElasticityEquations,
+    SteadyAdvectionDiffusionReactionPhysics,
+    TransientAdvectionDiffusionReactionPhysics,
+    SteadyShallowIcePhysics,
+    SteadyHelmholtzPhysics,
+    TransientShallowWavePhysics,
+    SteadyTwoSpeciesReactionDiffusionPhysics,
+    TransientTwoSpeciesReactionDiffusionPhysics,
+    SteadyShallowShelfVelocityPhysics,
+    TransientShallowShelfDepthVelocityPhysics,
+    SteadyIsotropic2DLinearElasticityPhysics,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunctionFromCallable,
@@ -75,10 +77,9 @@ from pyapprox.pde.collocation.mesh import (
 )
 from pyapprox.pde.collocation.solvers import (
     NewtonSolver,
-    # SteadyPDE,
-    # TransientPDE,
     SteadyForwardCollocationModelFromPhysics,
-    TransientForwardCollocationModelFromPhysics
+    TransientForwardCollocationModelFromPhysics,
+    SplitPhysicsTimeIntegratorNewtonResidual,
 )
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
@@ -548,7 +549,7 @@ class TestCollocation:
             basis.nphys_vars(),
             man_sol.functions["velocity"],
         )
-        physics = AdvectionDiffusionReactionEquation(
+        physics = SteadyAdvectionDiffusionReactionPhysics(
             forcing, diffusion, react_op, vel_field
         )
         # physics = LinearDiffusionEquation(forcing, diffusion)
@@ -601,7 +602,7 @@ class TestCollocation:
             assert bkd.allclose(sol.get_values(), exact_sol.get_values())
             return
 
-        linear_physics = AdvectionDiffusionReactionEquation(
+        linear_physics = SteadyAdvectionDiffusionReactionPhysics(
             forcing,
             diffusion,
             ScalarMonomialOperator(degree=1, coef=react_coef),
@@ -621,14 +622,14 @@ class TestCollocation:
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def _check_transient_state_advection_diffusion_reaction(
-        self,
-        sol_string: str,
-        diff_string: str,
-        vel_strings: List[str],
-        react_tup: Tuple[str, callable, int],
-        bndry_types: str,
-        basis: OrthogonalCoordinateCollocationBasis,
-        timestep_cls: TimeIntegratorNewtonResidual,
+            self,
+            sol_string: str,
+            diff_string: str,
+            vel_strings: List[str],
+            react_tup: Tuple[str, callable, int],
+            bndry_types: str,
+            basis: OrthogonalCoordinateCollocationBasis,
+            timestep_cls: TimeIntegratorNewtonResidual,
     ):
         bkd = self.get_backend()
         react_str, react_fun, react_op_degree = react_tup
@@ -656,7 +657,7 @@ class TestCollocation:
             basis.nphys_vars(),
             man_sol.functions["velocity"],
         )
-        physics = AdvectionDiffusionReactionEquation(
+        physics = TransientAdvectionDiffusionReactionPhysics(
             forcing, diffusion, react_op, vel_field
         )
         boundaries = self._setup_boundary_conditions(
@@ -883,7 +884,7 @@ class TestCollocation:
         bed = self._setup_scalar_function("bed", basis, man_sol)
         friction = self._setup_scalar_function("friction", basis, man_sol)
         forcing = self._setup_scalar_function("forcing", basis, man_sol)
-        physics = ShallowIceEquation(bed, friction, A, rho, forcing)
+        physics = SteadyShallowIcePhysics(bed, friction, A, rho, forcing)
         residual = physics.residual(exact_sol)
         # print(residual.get_values())
         # print(bkd.abs(residual.get_values()).max())
@@ -979,7 +980,7 @@ class TestCollocation:
         exact_sol = self._setup_scalar_solution(basis, man_sol)
         sqwavenum = self._setup_scalar_function("sqwavenum", basis, man_sol)
         forcing = self._setup_scalar_function("forcing", basis, man_sol)
-        physics = HelmholtzEquation(sqwavenum, forcing)
+        physics = SteadyHelmholtzPhysics(sqwavenum, forcing)
         residual = physics.residual(exact_sol)
         # print(residual.get_values())
         # print(bkd.abs(residual.get_values()).max())
@@ -1198,7 +1199,7 @@ class TestCollocation:
         forcing_wo_time_deriv = self._setup_vector_function(
             "forcing_without_time_deriv", basis, man_sol
         )
-        physics = ShallowWaveEquation(bed, forcing_wo_time_deriv)
+        physics = TransientShallowWavePhysics(bed, forcing_wo_time_deriv)
         test_time = deltat
         self._check_transient_pde_physics_residual(
             basis,
@@ -1213,7 +1214,7 @@ class TestCollocation:
             timestep_cls,
         )
 
-        physics = ShallowWaveEquation(bed, forcing)
+        physics = TransientShallowWavePhysics(bed, forcing)
         self._check_transient_pde_solve(
             basis,
             bndry_types,
@@ -1297,7 +1298,7 @@ class TestCollocation:
         react_op = CoupledReactionOperation(
             basis, react_funs, react_op_degrees
         )
-        physics = TwoSpeciesReactionDiffusionEquations(
+        physics = SteadyTwoSpeciesReactionDiffusionPhysics(
             forcing,
             diffusion,
             react_op,
@@ -1338,7 +1339,7 @@ class TestCollocation:
             return
 
         linear_react_op = CoupledReactionOperation(basis, react_funs, [1, 1])
-        linear_physics = TwoSpeciesReactionDiffusionEquations(
+        linear_physics = SteadyTwoSpeciesReactionDiffusionPhysics(
             forcing,
             diffusion,
             linear_react_op,
@@ -1445,7 +1446,7 @@ class TestCollocation:
         react_op = CoupledReactionOperation(
             basis, react_funs, react_op_degrees
         )
-        physics = TwoSpeciesReactionDiffusionEquations(
+        physics = TransientTwoSpeciesReactionDiffusionPhysics(
             forcing,
             diffusion,
             react_op,
@@ -1567,7 +1568,7 @@ class TestCollocation:
         friction = self._setup_scalar_function("friction", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
 
-        physics = ShallowShelfVelocityEquations(
+        physics = SteadyShallowShelfVelocityPhysics(
             depth,
             bed,
             friction,
@@ -1675,7 +1676,7 @@ class TestCollocation:
             "depth_forcing_without_time_deriv", basis, man_sol
         )
 
-        physics = ShallowShelfDepthVelocityEquations(
+        physics = TransientShallowShelfDepthVelocityPhysics(
             bed,
             friction,
             A,
@@ -1697,7 +1698,7 @@ class TestCollocation:
             timestep_cls,
         )
 
-        physics = ShallowShelfDepthVelocityEquations(
+        physics = TransientShallowShelfDepthVelocityPhysics(
             bed,
             friction,
             A,
@@ -1718,7 +1719,6 @@ class TestCollocation:
         )
 
     def test_transient_shallow_shelf_equation_2d(self):
-        from pyapprox.pde.collocation.solvers import SplitPhysicsTimeIntegratorNewtonResidual
         s0, depth, alpha = 2, 0.1, 1e-1
         test_case_args = [
             # need to have at least one velocity derivative non zero
@@ -1774,7 +1774,7 @@ class TestCollocation:
         lamda = self._setup_scalar_function("lambda", basis, man_sol)
         mu = self._setup_scalar_function("mu", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
-        physics = Isotropic2DLinearElasticityEquations(
+        physics = SteadyIsotropic2DLinearElasticityPhysics(
             lamda, mu, forcing
         )
         residual = physics.residual(exact_sol)

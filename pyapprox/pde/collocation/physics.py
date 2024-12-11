@@ -20,7 +20,10 @@ from pyapprox.pde.collocation.functions import (
     nabla,
     vector_nabla,
     div,
+    TransientOperatorMixin,
 )
+
+from pyapprox.pde.collocation.timeintegration import TransientNewtonResidual
 from pyapprox.pde.collocation.newton import NewtonResidual
 from pyapprox.pde.collocation.boundaryconditions import (
     BoundaryOperator,
@@ -30,9 +33,9 @@ from pyapprox.pde.collocation.boundaryconditions import (
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
 
 
-class Physics(NewtonResidual):
+class Physics(ABC):
     def __init__(self, basis: OrthogonalCoordinateCollocationBasis):
-        super().__init__(basis._bkd)
+        self._bkd = basis._bkd
         if not isinstance(basis, OrthogonalCoordinateCollocationBasis):
             raise ValueError(
                 "basis must be an instance of "
@@ -124,18 +127,6 @@ class Physics(NewtonResidual):
             raise RuntimeError("sol must be ScalarSolution or VectorSolution")
         return sol
 
-    # TODO consider making physics not derive from newton residual.
-    # As we already wrap physics in another class that acts as the newton residual
-    def __call__(self, sol_array: Array):
-        raise NotImplementedError(
-            "Use physics with SteadyPhysicsNewtonResidual"
-        )
-
-    def jacobian(self, sol_array: Array):
-        raise NotImplementedError(
-            "Use physics with SteadyPhysicsNewtonResidual"
-        )
-
     def _flux(self, sol_array: Array):
         raise NotImplementedError
 
@@ -203,7 +194,83 @@ class VectorPhysicsMixin:
             raise ValueError(f"{name} must be an instance of VectorFunction")
 
 
-class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
+class SteadyPhysicsNewtonResidualMixin(NewtonResidual):
+    def linsolve(self, sol_array: Array, res_array: Array):
+        self._bkd.assert_isarray(self._bkd, sol_array)
+        self._bkd.assert_isarray(self._bkd, res_array)
+        return self._linsolve(sol_array, res_array)
+
+    def _linsolve(self, sol_array: Array, res_array: Array) -> Array:
+        return self._bkd.solve(self.jacobian(sol_array), res_array)
+
+    def __call__(self, sol_array: Array):
+        res_array = self._residual_array_from_solution_array(
+            sol_array
+        )
+        return self.apply_boundary_conditions_to_residual(
+            sol_array, res_array
+        )
+
+    def _jacobian(self, sol_array: Array):
+        # assumes jac called after __call__
+        jac = self._residual_jacobian_from_solution_array(sol_array)
+        # auto_jac = self._bkd.jacobian(
+        #      self._physics._residual_array_from_solution_array,
+        #      sol_array
+        # )
+        # print(self._bkd.abs(jac-auto_jac).max(), "JAC DIFF1")
+        # assert self._bkd.allclose(
+        #     jac, auto_jac, atol=1e-10, rtol=1e-10
+        # )
+        return self.apply_boundary_conditions_to_jacobian(
+            sol_array, jac
+        )
+
+
+class TransientPhysicsNewtonResidualMixin(TransientNewtonResidual):
+    def mass_matrix(self, nterms: int) -> Array:
+        return self.mass_matrix(nterms)
+
+    def linsolve(self, sol_array: Array, res_array: Array):
+        self._bkd.assert_isarray(self._bkd, sol_array)
+        self._bkd.assert_isarray(self._bkd, res_array)
+        return self._linsolve(sol_array, res_array)
+
+    def _linsolve(self, sol_array: Array, res_array: Array) -> Array:
+        return self._bkd.solve(self.jacobian(sol_array), res_array)
+
+    def __call__(self, sol_array: Array) -> Array:
+        self._sol_array = sol_array
+        return self._residual_array_from_solution_array(sol_array)
+
+    def jacobian(self, sol_array: Array) -> Array:
+        return self._residual_jacobian_from_solution_array(sol_array)
+
+    def _apply_constraints_to_residual(self, res_array: Array) -> Array:
+        return self.apply_boundary_conditions_to_residual(
+            self._sol_array, res_array
+        )
+
+    def _apply_constraints_to_jacobian(self, jac: Array) -> Array:
+        return self.apply_boundary_conditions_to_jacobian(
+            self._sol_array, jac
+        )
+
+    def set_time(self, time: float):
+        funs = self.get_functions()
+        for name, fun in funs.items():
+            if isinstance(fun, TransientOperatorMixin):
+                fun.set_time(time)
+
+        for bndry in self._bndrys:
+            # TODO CREATE A BASE CLASS WHICH DERIVES CONSTANT AND FUNCTION based bndry
+            if hasattr(bndry, "_fun") and isinstance(
+                    bndry._fun, TransientOperatorMixin
+            ):
+                bndry._fun.set_time(time)
+
+
+class AdvectionDiffusionReactionPhysics(ScalarPhysicsMixin, Physics):
     def __init__(
         self,
         forcing: ScalarFunction = None,
@@ -272,7 +339,19 @@ class AdvectionDiffusionReactionEquation(ScalarPhysicsMixin, Physics):
         return funs
 
 
-class ShallowIceEquation(ScalarPhysicsMixin, Physics):
+class SteadyAdvectionDiffusionReactionPhysics(
+        AdvectionDiffusionReactionPhysics, SteadyPhysicsNewtonResidualMixin
+):
+    pass
+
+
+class TransientAdvectionDiffusionReactionPhysics(
+        AdvectionDiffusionReactionPhysics, TransientPhysicsNewtonResidualMixin
+):
+    pass
+
+
+class ShallowIcePhysics(ScalarPhysicsMixin, Physics):
     def __init__(
         self,
         bed: ScalarFunction,
@@ -326,7 +405,20 @@ class ShallowIceEquation(ScalarPhysicsMixin, Physics):
             funs["forcing"] = self._forcing
 
 
-class HelmholtzEquation(AdvectionDiffusionReactionEquation):
+class SteadyShallowIcePhysics(
+        ShallowIcePhysics, SteadyPhysicsNewtonResidualMixin
+):
+    pass
+
+
+# Not yet tested
+# class TransientShallowIcePhysics(
+#         ShallowIcePhysics, SteadyPhysicsNewtonResidualMixin
+# ):
+#     pass
+
+
+class HelmholtzPhysics(AdvectionDiffusionReactionPhysics):
     def __init__(
         self,
         sq_wave_num: ScalarFunction,
@@ -345,7 +437,13 @@ class HelmholtzEquation(AdvectionDiffusionReactionEquation):
         )
 
 
-class ShallowWaveEquation(VectorPhysicsMixin, Physics):
+class SteadyHelmholtzPhysics(
+        HelmholtzPhysics, SteadyPhysicsNewtonResidualMixin
+):
+    pass
+
+
+class ShallowWavePhysics(VectorPhysicsMixin, Physics):
     def __init__(
         self,
         bed: ScalarOperator,
@@ -426,7 +524,13 @@ class ShallowWaveEquation(VectorPhysicsMixin, Physics):
         return funs
 
 
-class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
+class TransientShallowWavePhysics(
+        ShallowWavePhysics, TransientPhysicsNewtonResidualMixin
+):
+    pass
+
+
+class TwoSpeciesReactionDiffusionPhysics(VectorPhysicsMixin, Physics):
     def __init__(
         self,
         forcing: VectorFunction = None,
@@ -478,6 +582,19 @@ class TwoSpeciesReactionDiffusionEquations(VectorPhysicsMixin, Physics):
         return funs
 
 
+class SteadyTwoSpeciesReactionDiffusionPhysics(
+        TwoSpeciesReactionDiffusionPhysics, SteadyPhysicsNewtonResidualMixin
+):
+    pass
+
+
+class TransientTwoSpeciesReactionDiffusionPhysics(
+        TwoSpeciesReactionDiffusionPhysics,
+        TransientPhysicsNewtonResidualMixin,
+):
+    pass
+
+
 class FitzHughNagumoReactionOperation(VectorOperatorOperation):
     # equations obtained from
     # https://simula-sscp.github.io/SSCP_2024_lectures/L13%20%28FEniCS%20Electrophysiology%29/L05%20-%20FitzhughNagumo-Solution.html
@@ -502,7 +619,7 @@ class FitzHughNagumoReactionOperation(VectorOperatorOperation):
         return vec
 
 
-class FitzHughNagumo(TwoSpeciesReactionDiffusionEquations):
+class FitzHughNagumoPhysics(TwoSpeciesReactionDiffusionPhysics):
     def __init__(
         self,
         basis,
@@ -512,7 +629,7 @@ class FitzHughNagumo(TwoSpeciesReactionDiffusionEquations):
             ConstantScalarFunction(basis, 1e-3, 2),
             # ConstantScalarFunction(basis, 1e-4, 2),
             ZeroScalarFunction(basis, 2),
-            #ConstantScalarFunction(basis, 1e-2, 2),
+            # ConstantScalarFunction(basis, 1e-2, 2),
         ]
         diffusion = VectorFunction(basis, 2, 2)
         diffusion.set_components(diffusion_components)
@@ -525,7 +642,13 @@ class FitzHughNagumo(TwoSpeciesReactionDiffusionEquations):
         self._reaction_op.set_coefficients(coefs)
 
 
-class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
+class TransientFitzHughNagumoPhysics(
+        FitzHughNagumoPhysics, TransientPhysicsNewtonResidualMixin
+):
+    pass
+
+
+class ShallowShelfVelocityPhysics(VectorPhysicsMixin, Physics):
     def __init__(
         self,
         depth: ScalarFunction,
@@ -642,7 +765,13 @@ class ShallowShelfVelocityEquations(VectorPhysicsMixin, Physics):
         return funs
 
 
-class ShallowShelfDepthEquations(ScalarPhysicsMixin, Physics):
+class SteadyShallowShelfVelocityPhysics(
+        ShallowShelfVelocityPhysics, SteadyPhysicsNewtonResidualMixin
+):
+    pass
+
+
+class ShallowShelfDepthPhysics(ScalarPhysicsMixin, Physics):
     def __init__(self, depth_forcing: ScalarFunction = None):
         self._check_is_scalar_function(depth_forcing, "depth_forcing")
         super().__init__(depth_forcing.basis())
@@ -727,7 +856,16 @@ class SplitPhysicsMixin(ABC):
         raise NotImplementedError
 
 
-class ShallowShelfDepthVelocityEquations(
+class TransientSplitPhysicsNewtonResidualMixin(
+        TransientPhysicsNewtonResidualMixin
+):
+    def __call__(self, sol_array: Array) -> Array:
+        # do not set self._sol_array as done in base class
+        # self._sol_array = sol_array
+        return self._residual_array_from_solution_array(sol_array)
+
+
+class ShallowShelfDepthVelocityPhysics(
         SplitPhysicsMixin, VectorPhysicsMixin, Physics
 ):
     def __init__(
@@ -743,10 +881,10 @@ class ShallowShelfDepthVelocityEquations(
         # initialize depth to zero, it will be overwritten later
         depth = ZeroScalarFunction(self._basis, self.ncomponents())
         self._flux_jacobian_implemented = True
-        self._steady_physics = ShallowShelfVelocityEquations(
+        self._steady_physics = ShallowShelfVelocityPhysics(
             depth, bed, friction, A, rho, velocity_forcing
         )
-        self._transient_physics = ShallowShelfDepthEquations(depth_forcing)
+        self._transient_physics = ShallowShelfDepthPhysics(depth_forcing)
 
     def ncomponents(self) -> int:
         return self._basis.nphys_vars()+1
@@ -842,7 +980,14 @@ class ShallowShelfDepthVelocityEquations(
         }
 
 
-class Isotropic2DLinearElasticityEquations(VectorPhysicsMixin, Physics):
+class TransientShallowShelfDepthVelocityPhysics(
+        ShallowShelfDepthVelocityPhysics,
+        TransientSplitPhysicsNewtonResidualMixin,
+):
+    pass
+
+
+class Isotropic2DLinearElasticityPhysics(VectorPhysicsMixin, Physics):
     def __init__(
         self,
         lamda: ScalarFunction,
@@ -909,3 +1054,17 @@ class Isotropic2DLinearElasticityEquations(VectorPhysicsMixin, Physics):
         funs["lambda"] = self._lambda
         funs["mu"] = self._mu
         return funs
+
+
+class SteadyIsotropic2DLinearElasticityPhysics(
+        Isotropic2DLinearElasticityPhysics, SteadyPhysicsNewtonResidualMixin
+):
+    pass
+
+
+# Not Yet Tested
+# class TransientIsotropic2DLinearElasticityPhysics(
+#         Isotropic2DLinearElasticityPhysics,
+#         TransientPhysicsNewtonResidualMixin
+# ):
+#     pass

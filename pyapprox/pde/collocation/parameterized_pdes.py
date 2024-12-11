@@ -17,7 +17,9 @@ from pyapprox.pde.collocation.solvers import (
     SteadyAdjointCollocationModel,
     TransientAdjointCollocationModel,
 )
-from pyapprox.pde.collocation.newton import NewtonSolver
+from pyapprox.pde.collocation.newton import (
+    NewtonSolver, ParameterizedNewtonResidualMixin
+)
 from pyapprox.pde.collocation.functions import (
     ScalarFunction,
     ConstantScalarFunction,
@@ -29,6 +31,7 @@ from pyapprox.pde.collocation.functions import (
     TransientScalarFunctionFromCallable,
     TransientVectorFunctionFromCallable,
     ConstantVectorFunction,
+    nabla,
 )
 from pyapprox.pde.collocation.boundaryconditions import (
     DirichletBoundaryFromOperator,
@@ -38,16 +41,57 @@ from pyapprox.pde.collocation.boundaryconditions import (
 )
 from pyapprox.pde.collocation.physics import (
     Physics,
-    ShallowWaveEquation,
-    AdvectionDiffusionReactionEquation,
-    FitzHughNagumo,
-    ShallowShelfVelocityEquations,
+    AdvectionDiffusionReactionPhysics,
+    TransientPhysicsNewtonResidualMixin,
+    SteadyPhysicsNewtonResidualMixin,
+    TransientShallowWavePhysics,
+    FitzHughNagumoPhysics,
+    ShallowShelfVelocityPhysics,
 )
 from pyapprox.pde.collocation.mesh import ChebyshevCollocationMesh2D
-from pyapprox.pde.collocation.basis import ChebyshevCollocationBasis2D
+from pyapprox.pde.collocation.basis import (
+    ChebyshevCollocationBasis2D, OrthogonalCoordinateCollocationBasis
+)
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform2D,
 )
+
+
+class ParameterizedDiffusionFixedAdvectionPhysics(
+        AdvectionDiffusionReactionPhysics
+):
+    def __init__(
+        self,
+        forcing: ScalarFunction,
+        velocity_field: VectorFunction,
+    ):
+        diffusion = self._setup_diffusion(forcing.basis())
+        super().__init__(forcing, diffusion, None, velocity_field)
+
+    def _setup_diffusion(self, basis: OrthogonalCoordinateCollocationBasis):
+        return ScalarKLEFunction(
+            basis,
+            0.1,
+            self.nvars(),
+            sigma=0.1,
+            mean_field=ConstantScalarFunction(basis, -2.0, 1),
+            ninput_funs=basis.mesh().nphys_vars() + 1,
+            use_log=True,
+        )
+
+    def set_param(self, param: Array):
+        self._param = param
+        self._diffusion.set_param(param)
+
+    def nvars(self) -> int:
+        return 3
+
+
+class TransientParameterizedDiffusionFixedAdvectionPhysics(
+        ParameterizedDiffusionFixedAdvectionPhysics,
+        TransientPhysicsNewtonResidualMixin,
+):
+    pass
 
 
 class TransientAdvectionDiffusionReactionModel(
@@ -55,13 +99,10 @@ class TransientAdvectionDiffusionReactionModel(
 ):
     def setup_physics(self):
         self._nominal_val = 0.0
-        self.setup_diffusion()
         self.setup_velocity()
         self.setup_forcing()
-        self._physics = AdvectionDiffusionReactionEquation(
+        self._physics = TransientParameterizedDiffusionFixedAdvectionPhysics(
             self._forcing,
-            self._diffusion,
-            reaction_op=None,
             velocity_field=self._vel_field,
         )
 
@@ -71,19 +112,8 @@ class TransientAdvectionDiffusionReactionModel(
         transform = ScaleAndTranslationTransform2D(
             [-1, 1, -1, 1], bounds, self._bkd
         )
-        mesh = ChebyshevCollocationMesh2D([20, 20], transform)
+        mesh = ChebyshevCollocationMesh2D([12, 12], transform)
         self._basis = ChebyshevCollocationBasis2D(mesh)
-
-    def setup_diffusion(self):
-        self._diffusion = ScalarKLEFunction(
-            self._basis,
-            0.1,
-            3,
-            sigma=0.1,
-            mean_field=ConstantScalarFunction(self._basis, -2.0, 1),
-            ninput_funs=self._basis.mesh().nphys_vars() + 1,
-            use_log=True,
-        )
 
     def setup_velocity(self):
         self._vel_field = VectorFunctionFromCallable(
@@ -158,10 +188,10 @@ class TransientAdvectionDiffusionReactionModel(
 
     def nvars(self) -> int:
         if not hasattr(self, "_functional"):
-            return self._diffusion._kle.nvars()
+            return self.physics().nvars()
         return (
             self._functional.nunique_functional_params()
-            + self._diffusion._kle.nvars()
+            + self.phsyics().nvars()
         )
 
     def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
@@ -173,11 +203,19 @@ class TransientAdvectionDiffusionReactionModel(
             self._times,
         )
 
+    def velocity_field_from_solution_array(self, sol_array: Array):
+        print("TODO move this to diffusion only model")
+        return nabla(
+            -self.physics()._diffusion
+            * self.physics().solution_from_array(sol_array)
+        )
+
 
 class ShallowWaterWaveModel(TransientAdjointCollocationModel):
+    #TODO CONVERT TO NEW paramerterizedresidual API and TEST
     def setup_physics(self):
         self.setup_bed()
-        self._physics = ShallowWaveEquation(self._bed)
+        self._physics = TransientShallowWavePhysics(self._bed)
 
     def setup_basis(self):
         Lx, Ly = 100, 200
@@ -312,7 +350,9 @@ class ShallowWaterWaveModel(TransientAdjointCollocationModel):
         self.setup_init_surface()
 
 
-class LotkaVolterraResidual(TransientNewtonResidual):
+class ParameterizedLotkaVolterraResidual(
+        TransientNewtonResidual, ParameterizedNewtonResidualMixin
+):
     def set_time(self, time: float):
         self._time = time
 
@@ -365,7 +405,7 @@ class LotkaVolterraModel(TransientAdjointModel):
         newton_solver: NewtonSolver = None,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        self._residual = LotkaVolterraResidual(backend)
+        self._residual = ParameterizedLotkaVolterraResidual(backend)
         super().__init__(
             init_time,
             final_time,
@@ -388,10 +428,28 @@ class LotkaVolterraModel(TransientAdjointModel):
         return self._bkd.array([0.3, 0.4, 0.3])
 
 
+class ParameterizedFitzHughNagumoPhysics(FitzHughNagumoPhysics):
+    def set_param(self, param: Array):
+        self._param = param
+        self.set_coefficients(param)
+
+    def nvars(self) -> int:
+        return 4
+
+
+class TransientParameterizedFitzHughNagumoPhysics(
+        ParameterizedFitzHughNagumoPhysics,
+        TransientPhysicsNewtonResidualMixin,
+):
+    pass
+
+
 class FitzHughNagumoModel(TransientAdjointCollocationModel):
     def setup_physics(self):
         self.setup_forcing()
-        self._physics = FitzHughNagumo(self._basis, self._forcing)
+        self._physics = TransientParameterizedFitzHughNagumoPhysics(
+            self._basis, self._forcing
+        )
 
     def setup_boundaries(self):
         bndrys = []
@@ -429,7 +487,7 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
         transform = ScaleAndTranslationTransform2D(
             [-1, 1, -1, 1], self._bounds, self._bkd
         )
-        mesh = ChebyshevCollocationMesh2D([30, 30], transform)
+        mesh = ChebyshevCollocationMesh2D([15, 15], transform)
         self._basis = ChebyshevCollocationBasis2D(mesh)
 
     def _beta_function(self, shapes, x):
@@ -466,7 +524,7 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
         )
 
     def nvars(self) -> int:
-        return 4
+        return self.physics.nvars()
 
     def get_initial_condition(self):
         init_cond = ConstantVectorFunction(
@@ -488,28 +546,68 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
         # )
         return init_cond.get_flattened_values()
 
+
+class ParameterizedShallowShelfVelocityPhysics(
+        ShallowShelfVelocityPhysics, ParameterizedNewtonResidualMixin
+):
+    def __init__(
+        self,
+        depth: ScalarFunction,
+        bed: ScalarFunction,
+        A: float,
+        rho: float,
+        friction_lenscale: float
+    ):
+        friction = self._setup_friction(depth.basis(), friction_lenscale)
+        super().__init__(depth, bed, friction, A, rho)
+
+    def _setup_friction(
+            self, basis: OrthogonalCoordinateCollocationBasis, lenscale: float
+    ):
+        friction = ScalarKLEFunction(
+            basis,
+            lenscale,
+            self.nvars(),
+            sigma=1,
+            mean_field=ConstantScalarFunction(basis, math.log(1000), 1),
+            ninput_funs=basis.mesh().nphys_vars(),
+            use_log=True,
+        )
+        return friction
+
+    def nvars(self) -> int:
+        return 10
+
     def set_param(self, param: Array):
         self._param = param
-        self._physics.set_coefficients(param)
+        self._friction.set_param(param)
+
+
+class SteadyParameterizedShallowShelfVelocityPhysics(
+        ParameterizedShallowShelfVelocityPhysics,
+        SteadyPhysicsNewtonResidualMixin,
+):
+    pass
 
 
 class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
     def setup_physics(self):
         self.setup_bed()
         self.setup_depth()
-        self.setup_friction()
         self.setup_forcing()
 
         self._rho = 910
         self._A = 1e-16
 
-        self._physics = ShallowShelfVelocityEquations(
+        Lx, Ly = self._bounds[1::2]
+        lenscale = min(Lx, Ly) / 10,
+
+        self._physics = SteadyParameterizedShallowShelfVelocityPhysics(
             self._depth,
             self._bed,
-            self._friction,
             self._A,
             self._rho,
-            self._velocity_forcing,
+            lenscale,
         )
 
     def setup_basis(self):
@@ -605,23 +703,8 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
                 )
             )
 
-    def setup_friction(self):
-        Lx, Ly = self._bounds[1::2]
-        self._friction = ScalarKLEFunction(
-            self._basis,
-            min(Lx, Ly) / 10,
-            self.nvars(),
-            sigma=1,
-            mean_field=ConstantScalarFunction(self._basis, math.log(1000), 1),
-            ninput_funs=self._basis.mesh().nphys_vars(),
-            use_log=True,
-        )
-
     def setup_forcing(self):
         self._velocity_forcing = None
-
-    def nvars(self) -> int:
-        return 10
 
     def _picard_iteration(self):
         iterate = self._bkd.ones(
@@ -661,10 +744,11 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         # # plt.show()
         return init_iterate
 
+    def nvars(self) -> int:
+        return self.physics().nvars()
+
     def set_param(self, param: Array):
-        self._param = param
-        # print(param.requires_grad, "P2")
-        self._friction.set_param(param)
+        self.physics().set_param(param)
         self._adjoint_solver.set_param(param)
         self._adjoint_solver.set_initial_iterate(self._initial_iterate())
 

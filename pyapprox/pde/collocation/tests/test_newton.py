@@ -7,6 +7,7 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.pde.collocation.newton import (
     NewtonResidual,
+    ParameterizedNewtonResidualMixin,
     NewtonSolver,
     AdjointFunctional,
     AdjointSolver,
@@ -16,7 +17,9 @@ from pyapprox.pde.collocation.adjoint_models import (
 )
 
 
-class NonLinearCoupledResidualAuto(NewtonResidual):
+class NonLinearCoupledResidualAuto(
+        NewtonResidual, ParameterizedNewtonResidualMixin
+):
     def __call__(self, iterate: Array) -> Array:
         # do not use bkd.array or asarray use stack
         return self._bkd.stack(
@@ -28,8 +31,11 @@ class NonLinearCoupledResidualAuto(NewtonResidual):
         )
 
     def set_param(self, param: Array):
-        super().set_param(param)
+        self._param = param
         self._a, self._b = self._param
+
+    def nvars(self) -> int:
+        return 2
 
     def __repr__(self):
         return "{0}(a={1}, b={2})".format(

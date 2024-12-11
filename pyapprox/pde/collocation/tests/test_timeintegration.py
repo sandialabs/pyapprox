@@ -19,9 +19,12 @@ from pyapprox.pde.collocation.timeintegration import (
     TimeIntegratorNewtonResidual,
 )
 from pyapprox.pde.collocation.adjoint_models import TransientAdjointModel
+from pyapprox.pde.collocation.newton import ParameterizedNewtonResidualMixin
 
 
-class LinearDecoupledODE(TransientNewtonResidual):
+class LinearDecoupledODE(
+        TransientNewtonResidual, ParameterizedNewtonResidualMixin
+):
     def __init__(self, nstates, transient_coef, backend):
         super().__init__(backend)
         self._nstates = nstates
@@ -84,12 +87,14 @@ class LinearDecoupledODE(TransientNewtonResidual):
         )
 
 
-class NonLinearDecoupledODE(TransientNewtonResidual):
+class NonLinearDecoupledODE(
+        TransientNewtonResidual, ParameterizedNewtonResidualMixin
+):
     def __init__(self, nstates, transient_coef, backend):
         self._nstates = nstates
         self._transient_coef = transient_coef
         super().__init__(backend)
-        
+
     def nvars(self) -> int:
         return 2
 

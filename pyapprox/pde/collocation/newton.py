@@ -34,13 +34,16 @@ class NewtonResidual(ABC):
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 
+
+class ParameterizedNewtonResidualMixin(ABC):
+
+    @abstractmethod
     def set_param(self, param: Array):
-        # print("B")
+        raise NotImplementedError
         self._param = param
 
     def _residual_param_wrapper(self, sol: Array, param: Array) -> Array:
         self.set_param(param)
-        # print(param, "PARA")
         return self(sol)
 
     def _param_jacobian(self, sol: Array) -> Array:
@@ -168,6 +171,10 @@ class NewtonResidual(ABC):
         if hvp.ndim != 1 or hvp.shape[0] != fwd_sol.shape[0]:
             raise RuntimeError("_state_param_hvp must return 1D array")
         return hvp
+
+    @abstractmethod
+    def nvars(self) -> int:
+        raise NotImplementedError
 
 
 class NewtonSolver:
@@ -480,6 +487,7 @@ class AdjointSolver:
     def gradient(self) -> Array:
         # compute the gradient of a single QoI
         self.solve_adjoint()
+        print(self._residual)
         self._drdp = self._residual.param_jacobian(self._fwd_sol)
         # print(self._bkd.abs(self._drdp).max(), 'drdp')
         return (
@@ -538,6 +546,6 @@ class AdjointSolver:
 
     def __repr__(self):
         return "{0}(functional={1})".format(
-            self.__class__.__name__, self.functional
+            self.__class__.__name__, self._functional
         )
     

@@ -95,7 +95,6 @@ class SteadyAdjointModel(AdjointModel):
         self._adjoint_solver.set_functional(self._functional)
 
     def set_param(self, param: Array):
-        print("A")
         self._adjoint_solver.set_param(param)
 
     def _fwd_solve(self):

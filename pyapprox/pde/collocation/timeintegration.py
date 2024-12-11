@@ -632,6 +632,9 @@ class TransientMSEAdjointFunctional(TransientAdjointFunctional):
     def nparams(self) -> int:
         return self._nparams
 
+    def nqoi(self) -> int:
+        return 1
+
     def _value(self, sol: Array) -> Array:
         pred_obs = self.observations_from_solution(sol)
         return self._bkd.atleast1d(

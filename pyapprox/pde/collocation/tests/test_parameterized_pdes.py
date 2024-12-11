@@ -25,6 +25,7 @@ from pyapprox.pde.collocation.functions import (
 )
 # from pyapprox.util.print_wrapper import *
 
+
 class TestParameterizedModels:
     def setUp(self):
         np.random.seed(1)
@@ -75,7 +76,7 @@ class TestParameterizedModels:
         for test_case in test_cases:
             self._check_lotka_volterra(*test_case)
 
-    def test_advection_diffusion_reaction(self):
+    def test_parameterized_diffusion_with_fixed_advection(self):
         bkd = self.get_backend()
         time_residual_cls = BackwardEulerResidual
         newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
@@ -95,12 +96,8 @@ class TestParameterizedModels:
         sample = bkd.array(np.random.normal(0, 1, (model.nvars(), 1)))
         sol, times = model.forward_solve(sample)
 
-        from pyapprox.pde.collocation.functions import nabla
-
         ax = plt.figure().gca()
-        velocity = nabla(
-            -model._diffusion * model.physics().solution_from_array(sol[:, -1])
-        )
+        velocity = model.velocity_field_from_solution_array(sol[:, -1])
         velocity.plot_vector_field(ax)
         plt.show()
 
@@ -146,7 +143,7 @@ class TestParameterizedModels:
         model = SteadyShallowShelfModel2D(newton_solver, backend=bkd)
         sample = bkd.array(np.random.normal(0., 1., (model.nvars(), 1)))
         # sample = bkd.zeros((model.nvars(), 1))
-        model._friction.set_param(sample[:, 0])
+        model.physics().set_param(sample[:, 0])
         from pyapprox.pde.collocation.functions import plot_vector_function
         axs = plt.subplots(1, 4, figsize=(4*8, 6))[1]
         im = model._depth.plot(axs[0])
@@ -155,14 +152,14 @@ class TestParameterizedModels:
         plt.colorbar(im, ax=axs[1])
         im = model._bed.plot(axs[2])
         plt.colorbar(im, ax=axs[2])
-        im = model._friction.plot(axs[3])
+        im = model.physics()._friction.plot(axs[3])
         plt.colorbar(im, ax=axs[3])
 
         axs = plt.subplots(1, 3, figsize=(4*8, 6))[1]
         from pyapprox.pde.collocation.functions import ScalarFunction
         for ii in range(3):
             kle_mode = ScalarFunction(
-                model.basis(), model._friction._kle._eig_vecs[:, ii]
+                model.basis(), model.physics()._friction._kle._eig_vecs[:, ii]
             )
             im = kle_mode.plot(axs[ii])
             plt.colorbar(im, ax=axs[ii])
@@ -180,8 +177,8 @@ class TestParameterizedModels:
         ax1 = fig.add_subplot(122, projection="3d")
         model._depth.plot(ax0)
         model._surface.plot(ax1)
-        plt.show()
-        assert False
+        #plt.show()
+        #assert False
 
         from pyapprox.pde.collocation.newton import AdjointFunctional, Array
         class SumFunctional(AdjointFunctional):
