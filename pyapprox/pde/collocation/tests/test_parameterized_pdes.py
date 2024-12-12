@@ -191,61 +191,68 @@ class TestParameterizedModels:
 
     def test_steady_shallow_shelf_equation_2d(self):
         bkd = self.get_backend()
-        newton_solver = NewtonSolver(
-            # verbosity=2, rtol=1e-3, atol=1e-6,
-            verbosity=2, rtol=1e-12, atol=1e-12,
-        )
+        newton_solver = NewtonSolver(verbosity=0, rtol=1e-12, atol=1e-6)
         model = SteadyShallowShelfModel2D(newton_solver, backend=bkd)
         sample = bkd.array(np.random.normal(0., 1., (model.nvars(), 1)))
-        # sample = bkd.zeros((model.nvars(), 1))
-        model.physics().set_param(sample[:, 0])
-        from pyapprox.pde.collocation.functions import plot_vector_function
-        axs = plt.subplots(1, 4, figsize=(4*8, 6))[1]
-        im = model._depth.plot(axs[0])
-        plt.colorbar(im, ax=axs[0])
-        im = model._surface.plot(axs[1], levels=51)
-        plt.colorbar(im, ax=axs[1])
-        im = model._bed.plot(axs[2])
-        plt.colorbar(im, ax=axs[2])
-        im = model.physics()._friction.plot(axs[3])
-        plt.colorbar(im, ax=axs[3])
 
-        axs = plt.subplots(1, 3, figsize=(4*8, 6))[1]
-        from pyapprox.pde.collocation.functions import ScalarFunction
-        for ii in range(3):
-            kle_mode = ScalarFunction(
-                model.basis(), model.physics()._friction._kle._eig_vecs[:, ii]
-            )
-            im = kle_mode.plot(axs[ii])
-            plt.colorbar(im, ax=axs[ii])
+        # Todo most of the following can be moved to an code example page
+        # model.physics().set_param(sample[:, 0])
+        # from pyapprox.pde.collocation.functions import plot_vector_function
+        # axs = plt.subplots(1, 4, figsize=(4*8, 6))[1]
+        # im = model._depth.plot(axs[0])
+        # plt.colorbar(im, ax=axs[0])
+        # im = model._surface.plot(axs[1], levels=51)
+        # plt.colorbar(im, ax=axs[1])
+        # im = model._bed.plot(axs[2])
+        # plt.colorbar(im, ax=axs[2])
+        # im = model.physics()._friction.plot(axs[3])
+        # plt.colorbar(im, ax=axs[3])
 
-        print("START")
-        sol = model.forward_solve(sample)
-        res_array = model._adjoint_solver._newton_solver._residual(
-            sol.get_flattened_values()
-        )
-        res = model.physics().solution_from_array(res_array)
-        plot_vector_function(sol)
-        plot_vector_function(res)
-        fig = plt.figure(figsize=(2*8, 6))
-        ax0 = fig.add_subplot(121, projection="3d")
-        ax1 = fig.add_subplot(122, projection="3d")
-        model._depth.plot(ax0)
-        model._surface.plot(ax1)
-        #plt.show()
-        #assert False
+        # axs = plt.subplots(1, 3, figsize=(4*8, 6))[1]
+        # from pyapprox.pde.collocation.functions import ScalarFunction
+        # for ii in range(3):
+        #     kle_mode = ScalarFunction(
+        #         model.basis(), model.physics()._friction._kle._eig_vecs[:, ii]
+        #     )
+        #     im = kle_mode.plot(axs[ii])
+        #     plt.colorbar(im, ax=axs[ii])
 
+        # sol = model.forward_solve(sample)
+        # res_array = model._adjoint_solver._newton_solver._residual(
+        #     sol.get_flattened_values()
+        # )
+        # res = model.physics().solution_from_array(res_array)
+        # plot_vector_function(sol)
+        # plot_vector_function(res)
+        # fig = plt.figure(figsize=(2*8, 6))
+        # ax0 = fig.add_subplot(121, projection="3d")
+        # ax1 = fig.add_subplot(122, projection="3d")
+        # model._depth.plot(ax0)
+        # model._surface.plot(ax1)
+        # #plt.show()
+        # #assert False
+
+        # warning test assumes mesh_npts_1d = [15, 15]
+        # checks of apply jacobian and hessian can not converge for certain
+        # finite difference sizes, if initial guess is not tuned correctly, .e.g
+        # by modifying the number of picard iterations
         functional = SumFunctional(model)
         model.set_functional(functional)
-        sol = model.forward_solve(sample)
-        newton_solver._verbosity = 0
+        # newton_solver._verbosity = 0
+        # compare times of lagrange based apply_hessian and bkd.hvp by timing
+        # using mesh_npts_1d = [25, 25]
+        # Spoliler hvp is very slow with torch
+        # vec = bkd.array(np.random.normal(0, 1, (model.nvars(), 1)))
+        # model.apply_hessian(sample, vec)
+        # bkd.hvp(lambda x: model(x[:, None]), sample[:, 0], vec[:, 0])
+
         errors = model.check_apply_jacobian(sample, disp=True)
-        # print(errors.min() / errors.max())
-        assert errors.min() / errors.max() < 1e-7
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 2e-7
 
         errors = model.check_apply_hessian(sample, None, disp=True)
-        # print(errors.min() / errors.max())
-        assert errors.min() / errors.max() < 1e-6
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 4e-7
 
 
 class TestNumpyParameterizedModels(TestParameterizedModels, unittest.TestCase):

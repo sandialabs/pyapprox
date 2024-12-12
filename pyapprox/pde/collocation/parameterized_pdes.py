@@ -18,7 +18,8 @@ from pyapprox.pde.collocation.solvers import (
     TransientAdjointCollocationModel,
 )
 from pyapprox.pde.collocation.newton import (
-    NewtonSolver, ParameterizedNewtonResidualMixin
+    NewtonSolver,
+    ParameterizedNewtonResidualMixin,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunction,
@@ -51,7 +52,8 @@ from pyapprox.pde.collocation.physics import (
 )
 from pyapprox.pde.collocation.mesh import ChebyshevCollocationMesh2D
 from pyapprox.pde.collocation.basis import (
-    ChebyshevCollocationBasis2D, OrthogonalCoordinateCollocationBasis
+    ChebyshevCollocationBasis2D,
+    OrthogonalCoordinateCollocationBasis,
 )
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform2D,
@@ -59,7 +61,7 @@ from pyapprox.pde.collocation.mesh_transforms import (
 
 
 class ParameterizedDiffusionPhysics(
-        AdvectionDiffusionReactionPhysics, ParameterizedNewtonResidualMixin
+    AdvectionDiffusionReactionPhysics, ParameterizedNewtonResidualMixin
 ):
     def __init__(self, basis):
         diffusion = self._setup_diffusion(basis)
@@ -70,8 +72,8 @@ class ParameterizedDiffusionPhysics(
             basis,
             0.1,
             self.nvars(),
-            sigma=1.,
-            mean_field=ConstantScalarFunction(basis, 0., 1),
+            sigma=1.0,
+            mean_field=ConstantScalarFunction(basis, 0.0, 1),
             ninput_funs=basis.mesh().nphys_vars() + 1,
             use_log=True,
         )
@@ -85,7 +87,8 @@ class ParameterizedDiffusionPhysics(
 
 
 class SteadyParameterizedDiffusionPhysics(
-        ParameterizedDiffusionPhysics, SteadyPhysicsNewtonResidualMixin,
+    ParameterizedDiffusionPhysics,
+    SteadyPhysicsNewtonResidualMixin,
 ):
     pass
 
@@ -121,18 +124,12 @@ class SteadyDiffusionModel(SteadyAdjointCollocationModel):
             if bndry_name in ["bottom", "top"]:
                 # zero flux boundary
                 bndrys.append(
-                    ConstantRobinBoundary(
-                        mesh_bndry, 0., 0., 1., 0, 0
-                    )
+                    ConstantRobinBoundary(mesh_bndry, 0.0, 0.0, 1.0, 0, 0)
                 )
             elif bndry_name == "left":
-                bndrys.append(
-                    ConstantDirichletBoundary(mesh_bndry, 10.)
-                )
+                bndrys.append(ConstantDirichletBoundary(mesh_bndry, 10.0))
             else:
-                bndrys.append(
-                    ConstantDirichletBoundary(mesh_bndry, 0.)
-                )
+                bndrys.append(ConstantDirichletBoundary(mesh_bndry, 0.0))
         self._physics.set_boundaries(bndrys)
 
     def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
@@ -143,13 +140,11 @@ class SteadyDiffusionModel(SteadyAdjointCollocationModel):
         return super().forward_solve(sample)
 
     def velocity_field(self, sol: ScalarSolution):
-        return nabla(
-            -self.physics()._diffusion * sol
-        )
+        return nabla(-self.physics()._diffusion * sol)
 
 
 class ParameterizedDiffusionFixedAdvectionPhysics(
-        AdvectionDiffusionReactionPhysics
+    AdvectionDiffusionReactionPhysics
 ):
     def __init__(
         self,
@@ -179,15 +174,13 @@ class ParameterizedDiffusionFixedAdvectionPhysics(
 
 
 class TransientParameterizedDiffusionFixedAdvectionPhysics(
-        ParameterizedDiffusionFixedAdvectionPhysics,
-        TransientPhysicsNewtonResidualMixin,
+    ParameterizedDiffusionFixedAdvectionPhysics,
+    TransientPhysicsNewtonResidualMixin,
 ):
     pass
 
 
-class TransientDiffusionAdvectionModel(
-    TransientAdjointCollocationModel
-):
+class TransientDiffusionAdvectionModel(TransientAdjointCollocationModel):
     def setup_physics(self):
         self._nominal_val = 0.0
         self.setup_velocity()
@@ -288,7 +281,7 @@ class TransientDiffusionAdvectionModel(
 
 
 class ShallowWaterWaveModel(TransientAdjointCollocationModel):
-    #TODO CONVERT TO NEW paramerterizedresidual API and TEST
+    # TODO CONVERT TO NEW paramerterizedresidual API and TEST
     def setup_physics(self):
         self.setup_bed()
         self._physics = TransientShallowWavePhysics(self._bed)
@@ -427,7 +420,7 @@ class ShallowWaterWaveModel(TransientAdjointCollocationModel):
 
 
 class ParameterizedLotkaVolterraResidual(
-        TransientNewtonResidual, ParameterizedNewtonResidualMixin
+    TransientNewtonResidual, ParameterizedNewtonResidualMixin
 ):
     def set_time(self, time: float):
         self._time = time
@@ -514,8 +507,8 @@ class ParameterizedFitzHughNagumoPhysics(FitzHughNagumoPhysics):
 
 
 class TransientParameterizedFitzHughNagumoPhysics(
-        ParameterizedFitzHughNagumoPhysics,
-        TransientPhysicsNewtonResidualMixin,
+    ParameterizedFitzHughNagumoPhysics,
+    TransientPhysicsNewtonResidualMixin,
 ):
     pass
 
@@ -624,7 +617,7 @@ class FitzHughNagumoModel(TransientAdjointCollocationModel):
 
 
 class ParameterizedShallowShelfVelocityPhysics(
-        ShallowShelfVelocityPhysics, ParameterizedNewtonResidualMixin
+    ShallowShelfVelocityPhysics, ParameterizedNewtonResidualMixin
 ):
     def __init__(
         self,
@@ -632,13 +625,13 @@ class ParameterizedShallowShelfVelocityPhysics(
         bed: ScalarFunction,
         A: float,
         rho: float,
-        friction_lenscale: float
+        friction_lenscale: float,
     ):
         friction = self._setup_friction(depth.basis(), friction_lenscale)
         super().__init__(depth, bed, friction, A, rho)
 
     def _setup_friction(
-            self, basis: OrthogonalCoordinateCollocationBasis, lenscale: float
+        self, basis: OrthogonalCoordinateCollocationBasis, lenscale: float
     ):
         friction = ScalarKLEFunction(
             basis,
@@ -658,16 +651,105 @@ class ParameterizedShallowShelfVelocityPhysics(
         self._param = param
         self._friction.set_param(param)
 
+    def _param_jacobian(self, sol: Array) -> Array:
+        # use chain rule for exp(g(p)) = exp(g(p))g'(p)
+        friction_vals = self._friction.get_values()[:, None]
+        eig_vecs = self._friction._kle._normalized_eig_vecs
+        jac = self._bkd.vstack(
+            (friction_vals * eig_vecs, friction_vals * eig_vecs)
+        )
+        # must set jac to zero on boundaries since
+        # they do not depend on parameter. Because of nature of this residual
+        # this can be done by setting bndry elements of solution to zero
+        # However, in general must do the following after jac is formed
+        # for bndry in self._bndrys:
+        #     jac[bndry._residual_bndry_idx] = 0.
+        sol_copy = self._bkd.copy(sol)
+        for bndry in self._bndrys:
+            sol_copy[bndry._residual_bndry_idx] = 0.0
+        jac = -sol_copy[:, None] * jac
+        return jac
+
+    def param_param_hvp(
+        self, fwd_sol: Array, adj_sol: Array, vvec: Array
+    ) -> Array:
+        friction = self._friction.get_values()
+        eigvecs = self._friction._kle._normalized_eig_vecs
+        # stack kle quantities for each component
+        eigvecs_stack = self._bkd.vstack((eigvecs, eigvecs))
+        friction_stack = self._bkd.hstack((friction, friction))
+        gvec = eigvecs_stack @ vvec
+        # must set jac to zero on boundaries since
+        # they do not depend on parameter. Because of nature of this residual
+        # this can be done by setting bndry elements of solution to zero
+        fwd_sol_copy = self._bkd.copy(fwd_sol)
+        for bndry in self._bndrys:
+            fwd_sol_copy[bndry._residual_bndry_idx] = 0.0
+        hvp = (
+            -(gvec * adj_sol * fwd_sol_copy * friction_stack)[None, :]
+            @ eigvecs_stack
+        )
+        return hvp
+
+    def _param_state_hvp(
+        self, fwd_sol: Array, adj_sol: Array, wvec: Array
+    ) -> Array:
+        friction = self._friction.get_values()
+        eigvecs = self._friction._kle._normalized_eig_vecs
+        eigvecs_stack = self._bkd.vstack((eigvecs, eigvecs))
+        friction_stack = self._bkd.hstack((friction, friction))
+        # must set jac to zero on boundaries since
+        # they do not depend on parameter. Because of nature of this residual
+        # this can be done by setting bndry elements of friction to zero
+        for bndry in self._bndrys:
+            friction_stack[bndry._residual_bndry_idx] = 0.0
+        return -((friction_stack * adj_sol)[:, None] * eigvecs_stack).T @ wvec
+
+    def _state_param_hvp(
+        self, fwd_sol: Array, adj_sol: Array, vvec: Array
+    ) -> Array:
+        friction = self._friction.get_values()
+        eigvecs = self._friction._kle._normalized_eig_vecs
+        eigvecs_stack = self._bkd.vstack((eigvecs, eigvecs))
+        friction_stack = self._bkd.hstack((friction, friction))
+        # must set jac to zero on boundaries since
+        # they do not depend on parameter. Because of nature of this residual
+        # this can be done by setting bndry elements of friction to zero
+        for bndry in self._bndrys:
+            friction_stack[bndry._residual_bndry_idx] = 0.0
+        gvec = eigvecs_stack @ vvec
+        return -friction_stack * gvec * adj_sol
+
+    def state_state_hvp(
+        self, fwd_sol: Array, adj_sol: Array, wvec: Array
+    ) -> Array:
+        # state_state_hvp is very challening to derive analytically for these
+        # equations so we must rely on auto differentiation. However, we can
+        # speed it up by apply jvp to the analytical expression
+        # of the jacobian. Rather than hvp to the residual
+
+        # The actual improvement is marginal for moderate problem sizes with
+        # torch. However applying torch.hvp directly to model.__call__ is many
+        # times slower than only using auto diff to compute state_state_hvp,
+        # state_param_jvp etc.
+        return self._bkd.jvp(
+            lambda x: (adj_sol[None, :] @ self.jacobian(x))[0], fwd_sol, wvec
+        )
+
 
 class SteadyParameterizedShallowShelfVelocityPhysics(
-        ParameterizedShallowShelfVelocityPhysics,
-        SteadyPhysicsNewtonResidualMixin,
+    ParameterizedShallowShelfVelocityPhysics,
+    SteadyPhysicsNewtonResidualMixin,
 ):
     pass
 
 
 class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
     def setup_physics(self):
+        self._jacobian_implemented = True
+        # one part of hessian (state_state_hvp) still relies on auto diff
+        # so use (default) self._apply_hessian_implemented = False
+
         self.setup_bed()
         self.setup_depth()
         self.setup_forcing()
@@ -676,7 +758,7 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         self._A = 1e-16
 
         Lx, Ly = self._bounds[1::2]
-        lenscale = min(Lx, Ly) / 10,
+        lenscale = (min(Lx, Ly) / 10,)
 
         self._physics = SteadyParameterizedShallowShelfVelocityPhysics(
             self._depth,
@@ -693,7 +775,9 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         transform = ScaleAndTranslationTransform2D(
             [-1, 1, -1, 1], self._bounds, self._bkd
         )
-        mesh = ChebyshevCollocationMesh2D([10, 10], transform)
+        # Note: Multiple picard iterations become more useful as the
+        # number of mesh points increases.
+        mesh = ChebyshevCollocationMesh2D([15, 15], transform)
         self._basis = ChebyshevCollocationBasis2D(mesh)
 
     def _bed_callable(self, xx: Array) -> Array:
@@ -741,13 +825,13 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         scale = 0.9  # ratio of height on left boundary and top and
         # bottom edges relative to middle of boundary
         xprofile = (
-            yy[0][:, None] ** self._bkd.arange(4)[None, :]
-            @ xprofile_coefs
+            yy[0][:, None] ** self._bkd.arange(4)[None, :] @ xprofile_coefs
         )
-        yprofile_coefs = self._bkd.array([scale, 4*(1-scale), 4 * (scale-1)])
+        yprofile_coefs = self._bkd.array(
+            [scale, 4 * (1 - scale), 4 * (scale - 1)]
+        )
         yprofile = (
-            yy[1][:, None] ** self._bkd.arange(3)[None, :]
-            @ yprofile_coefs
+            yy[1][:, None] ** self._bkd.arange(3)[None, :] @ yprofile_coefs
         )
         # zz = self._bkd.linspace(0, 1, 101)
         # import matplotlib.pyplot as plt
@@ -767,11 +851,9 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         )
         self._depth = self._surface - self._bed
         Lx, Ly = self._bounds[1::2]
-        if self._depth(self._bkd.array([Lx, Ly/2])[:, None]) > 2.5:
-            print(self._depth(self._bkd.array([Lx, Ly/2])[:, None]))
-            raise RuntimeError(
-                "depth at right boundary must be small"
-            )
+        if self._depth(self._bkd.array([Lx, Ly / 2])[:, None]) > 2.5:
+            print(self._depth(self._bkd.array([Lx, Ly / 2])[:, None]))
+            raise RuntimeError("depth at right boundary must be small")
         if self._bkd.min(self._depth.get_values()) <= 0:
             raise RuntimeError(
                 "Depth was set to be negative {0}".format(
@@ -796,12 +878,10 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         # as it updates self._adjoint_solver._fwd_sol_param so
         # that new forward solution is not computed
         iterate = self._adjoint_solver._newton_solver.solve(iterate)
-        npicard_iterations = 0
+        npicard_iterations = 1
         for it in range(npicard_iterations):
             fixed_strain_rate = (
-                self.physics()._get_strain_rate_from_solution_array(
-                    iterate
-                )
+                self.physics()._get_strain_rate_from_solution_array(iterate)
             )
             self.physics()._fix_strain_rate(fixed_strain_rate)
             self._adjoint_solver.set_initial_iterate(self._bkd.copy(iterate))
@@ -838,10 +918,11 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         ):
             for component_id in range(self._physics.ncomponents()):
                 if (
-                    component_id == 0 and bndry_name == "left"
+                    component_id == 0
+                    and bndry_name == "left"
                     or (component_id == 1 and bndry_name in ["bottom", "top"])
                     or bndry_name == "right"
-                ) :
+                ):
                     # set velocity at boundary to zero
                     bndry_funs.append(
                         DirichletBoundaryFromOperator(
@@ -889,6 +970,7 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
 
 def compute_shallow_shelf_surface():
     import sympy as sp
+
     # used to find cubic polynomial that satisfies four constraints
     a, b, c, d, e, f, x = sp.symbols(("a", "b", "c", "d", "e", "f", "x"))
     poly = a + b * x + c * x**2 + d * x**3

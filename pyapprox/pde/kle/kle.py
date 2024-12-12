@@ -371,6 +371,7 @@ class AbstractKLE(ABC):
         )
         self._sqrt_eig_vals = self._bkd.sqrt(eig_vals[II])
         self._eig_vecs = eig_vecs[:, II]
+        self._normalized_eig_vecs = self._eig_vecs * self._sqrt_eig_vals
 
     def __call__(self, coef):
         """
@@ -390,9 +391,9 @@ class AbstractKLE(ABC):
             )
         if self._use_log:
             return self._bkd.exp(
-                self._mean_field[:, None] + self._eig_vecs @ coef
+                self._mean_field[:, None] + self._normalized_eig_vecs @ coef
             )
-        return self._mean_field[:, None] + self._eig_vecs @ coef
+        return self._mean_field[:, None] + self._normalized_eig_vecs @ coef
 
     def __repr__(self):
         if self._nterms is None:
