@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.sys_utilities import hash_array
 from pyapprox.util.sys_utilities import has_kwarg
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
@@ -425,18 +426,20 @@ def get_all_sample_combinations(samples1, samples2):
     return np.asarray(samples).T
 
 
-def get_correlation_from_covariance(cov, bkd=NumpyLinAlgMixin):
+def get_correlation_from_covariance(
+        cov: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+) -> Array:
     r"""
     Compute the correlation matrix from a covariance matrix
 
     Parameters
     ----------
-    cov : np.ndarray (nrows,nrows)
+    cov : Array (nrows,nrows)
         The symetric covariance matrix
 
     Returns
     -------
-    cor : np.ndarray (nrows,nrows)
+    cor : Array (nrows,nrows)
         The symetric correlation matrix
 
     Examples
@@ -451,24 +454,26 @@ def get_correlation_from_covariance(cov, bkd=NumpyLinAlgMixin):
     return cor
 
 
-def evaluate_quadratic_form(matrix, samples):
+def evaluate_quadratic_form(
+        matrix: Array, samples: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+) -> Array:
     r"""
-    Evaluate x.T.dot(A).dot(x) for several vectors x
+    Evaluate x.T @ A @  x for several vectors x
 
     Parameters
     ----------
-    num_samples : np.ndarray (nvars,nsamples)
+    num_samples : Array (nvars, nsamples)
         The vectors x
 
-    matrix : np.ndarray(nvars,nvars)
+    matrix : Array(nvars, nvars)
         The matrix A
 
     Returns
     -------
-    vals : np.ndarray (nsamples)
+    vals : Array (nsamples)
         Evaluations of the quadratic form for each vector x
     """
-    return (samples.T.dot(matrix)*samples.T).sum(axis=1)
+    return bkd.sum(samples.T @ (matrix)*samples.T, axis=1)
 
 
 def split_dataset(samples, values, ndata1):

@@ -17,7 +17,7 @@ from pyapprox.analysis.sensitivity_analysis import (
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 from pyapprox.benchmarks.sensitivity_benchmarks import (
     ishigami_function, get_ishigami_funciton_statistics, sobol_g_function,
-    get_sobol_g_function_statistics, morris_function
+    get_sobol_g_function_statistics
 )
 from pyapprox.surrogates.approximate import approximate, adaptive_approximate
 from pyapprox.surrogates.interp.indexing import (
@@ -217,7 +217,6 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
     def test_morris_elementary_effects(self):
         nvars = 20
-        function = morris_function
 
         nvars = 6
         coefficients = np.array([78, 12, 0.5, 2, 97, 33])

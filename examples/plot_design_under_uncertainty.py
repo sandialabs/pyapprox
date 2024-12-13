@@ -78,33 +78,21 @@ of the random variables
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.interface.model import ActiveSetVariableModel
+from pyapprox.benchmarks import (
+    CantileverBeamDeterminsticOptimizationBenchmark,
+    CantileverBeamUncertainOptimizationBenchmark,
+)
 from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer, Constraint)
+    ScipyConstrainedOptimizer, ConstraintFromModel
+)
 np.random.seed(1)
 
-benchmark = setup_benchmark('cantilever_beam')
-
-ndesign_vars = benchmark.design_variable.num_vars()
-#nominal_values = benchmark.variable.get_statistics('ppf', q=0.9)
-nominal_values = benchmark.variable.get_statistics('mean')
-objective_model = ActiveSetVariableModel(
-    benchmark.funs[0],
-    benchmark.variable.num_vars()+ndesign_vars,
-    nominal_values, benchmark.design_var_indices)
-
-constraint_model = ActiveSetVariableModel(
-    benchmark.funs[1],
-    benchmark.variable.num_vars()+ndesign_vars,
-    nominal_values, benchmark.design_var_indices)
-constraint_bounds = np.hstack(
-    [np.zeros((2, 1)), np.full((2, 1), np.inf)])
-constraint = Constraint(constraint_model, constraint_bounds)
-
+benchmark = CantileverBeamDeterminsticOptimizationBenchmark()
 optimizer = ScipyConstrainedOptimizer(
-    objective_model, constraints=[constraint],
-    bounds=benchmark.design_variable.bounds)
+    benchmark.objective(),
+    constraints=[benchmark.constraint()],
+    bounds=benchmark.design_variable().bounds(),
+)
 result = optimizer.minimize(np.array([3, 3])[:, None])
 print("Optimal design vars", result.x)
 print("Optimal objective", result.fun)
@@ -118,16 +106,16 @@ print("Optimal objective from literature", 7.82)
 from pyapprox.util.visualization import get_meshgrid_function_data
 import matplotlib.cm as cm
 X, Y, Z_o = get_meshgrid_function_data(
-    objective_model,
-    np.hstack([benchmark.design_variable.bounds[:, :1],
-               benchmark.design_variable.bounds[:, 1:2]]).flatten(), 101)
+    benchmark.objective(),
+    np.hstack([benchmark.design_variable().bounds()[:, :1],
+               benchmark.design_variable().bounds()[:, 1:2]]).flatten(), 101)
 im = plt.contourf(X, Y, Z_o, levels=40, cmap="coolwarm")
 plt.colorbar(im)
 for ii in range(2):
     X, Y, Z_c = get_meshgrid_function_data(
-        constraint_model,
-        np.hstack([benchmark.design_variable.bounds[:, :1],
-                   benchmark.design_variable.bounds[:, 1:2]]).flatten(),
+        benchmark.constraint(),
+        np.hstack([benchmark.design_variable().bounds()[:, :1],
+                   benchmark.design_variable().bounds()[:, 1:2]]).flatten(),
         301, qoi=ii)
     II = np.where(Z_c < 0)
     JJ = np.where(Z_c >= 0)
@@ -142,45 +130,25 @@ plt.plot(*result.x, 'og')
 print("###")
 #%%
 #Now lets optimize under uncertainty
-from pyapprox.optimization.pya_minimize import (
-    SampleAverageConstraint, SampleAverageMeanPlusStdev)
 # set nominal values of the random variabels for the objective.
 # The values chosen do not matter
 # because the objective does not depend on the random variables
-nominal_values = benchmark.variable.get_statistics('mean')
-objective_model = ActiveSetVariableModel(
-    benchmark.funs[0],
-    benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
-    nominal_values, benchmark.design_var_indices)
-stat = SampleAverageMeanPlusStdev(3)
-constraint_bounds = np.hstack(
-    [np.full((2, 1), -np.inf), np.zeros((2, 1))])
 # TODO change weights to create unbiased estimators of mean and variance
-from pyapprox.surrogates.integrate import integrate
-samples, weights = integrate(
-   "tensorproduct", benchmark.variable,
-   levels=[4]*benchmark.variable.num_vars())
-nsamples = samples.shape[1]
-# nsamples = 50
-# samples = benchmark.variable.rvs(nsamples)
-# weights = np.full((nsamples, 1), 1/nsamples)
-print(f"optimizing using {nsamples} quadrature samples")
-from pyapprox.interface.model import ChangeModelSignWrapper
-constraint_model = ChangeModelSignWrapper(benchmark.funs[1])
-constraint = SampleAverageConstraint(
-    constraint_model, samples, weights, stat, constraint_bounds,
-    benchmark.variable.num_vars() +
-    benchmark.design_variable.num_vars(),
-    benchmark.design_var_indices)
+benchmark = CantileverBeamUncertainOptimizationBenchmark()
 optimizer = ScipyConstrainedOptimizer(
-    objective_model, constraints=[constraint],
-    bounds=benchmark.design_variable.bounds)
+    benchmark.objective(),
+    constraints=[benchmark.constraint()],
+    bounds=benchmark.design_variable().bounds()
+)
 result = optimizer.minimize(np.array([3, 3])[:, None])
 print("optimal design vars", result.x)
 print("optimal objective", result.fun)
 # M. Eldred. FORMULATIONS FOR SURROGATE-BASED OPTIMIZATION UNDER UNCERTAINTY.
 # AIAA-2002-5585
-print("Optimal, literature values use a very coarse MC estimate of stats")
+print("Optimal, literature values use a very coarse MC estimate of stats, "
+      " so do not expect this result to match exactly as we are using a "
+      "highly accurate quadrature rule"
+)
 print("Optimal design vars from literature", [2.53, 3.69])
 print("Optimal objective from literature", 9.32)
 print("Number of constraint evals", result.constr_nfev[0])
@@ -188,34 +156,35 @@ print("Number of constraint evals", result.constr_nfev[0])
 
 #%%
 # Plot objective and constraints
-# plt.figure()
-# X, Y, Z_o = get_meshgrid_function_data(
-#     objective_model,
-#     np.hstack([benchmark.design_variable.bounds.lb[:, None],
-#                benchmark.design_variable.bounds.ub[:, None]]).flatten(), 101)
-# im = plt.contourf(X, Y, Z_o, levels=40, cmap="coolwarm")
-# plt.colorbar(im)
-# from pyapprox.interface.model import ModelFromCallable
-# # contraint can only be evaluated at one sample so wrap it
-# batch_constraint_model = ModelFromCallable(constraint)
-# for ii in range(2):
-#     X, Y, Z_c = get_meshgrid_function_data(
-#         batch_constraint_model,
-#         np.hstack([benchmark.design_variable.bounds.lb[:, None],
-#                    benchmark.design_variable.bounds.ub[:, None]]).flatten(),
-#         101, qoi=ii)
-#     II = np.where(Z_c < 0)
-#     JJ = np.where(Z_c >= 0)
-#     Z_c[II] = 1
-#     # set region that satisfies constraints to np.nan so contourf
-#     # does not plot anything in that area
-#     Z_c[JJ] = np.nan
-#     im = plt.contourf(X, Y, Z_c, levels=40, cmap="gray")
-# plt.plot(*result.x, 'og')
-# plt.show()
+plt.figure()
+X, Y, Z_o = get_meshgrid_function_data(
+    benchmark.objective(),
+    np.hstack([benchmark.design_variable().bounds()[:, :1],
+               benchmark.design_variable().bounds()[:, 1:2]]).flatten(), 101
+)
+im = plt.contourf(X, Y, Z_o, levels=40, cmap="coolwarm")
+plt.colorbar(im)
+from pyapprox.interface.model import ModelFromSingleSampleCallable
+# contraint can only be evaluated at one sample so wrap it
+batch_constraint_model = ModelFromSingleSampleCallable(2, benchmark.constraint())
+for ii in range(2):
+    X, Y, Z_c = get_meshgrid_function_data(
+        batch_constraint_model,
+        np.hstack([benchmark.design_variable().bounds()[:, :1],
+                   benchmark.design_variable().bounds()[:, 1:2]]).flatten(),
+        101, qoi=ii)
+    II = np.where(Z_c < 0)
+    JJ = np.where(Z_c >= 0)
+    Z_c[II] = 1
+    # set region that satisfies constraints to np.nan so contourf
+    # does not plot anything in that area
+    Z_c[JJ] = np.nan
+    im = plt.contourf(X, Y, Z_c, levels=40, cmap="gray")
+plt.plot(*result.x, 'og')
+plt.show()
 
-#robust design
-#min f subject to variance<tol
+# robust design
+# min f subject to variance<tol
 
-#reliability design
-#min f subject to prob failure<tol
+# reliability design
+# min f subject to prob failure<tol

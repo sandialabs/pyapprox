@@ -514,9 +514,9 @@ class DesignVariable:
         """
         if bounds.ndim != 2 or bounds.shape[1] != 2:
             raise ValueError("bounds must be 2d array with two columns")
-        self.bounds = bounds
+        self._bounds = bounds
 
-    def num_vars(self):
+    def nvars(self):
         """
         Return The number of independent 1D variables
 
@@ -525,7 +525,11 @@ class DesignVariable:
         nvars : integer
             The number of independent 1D variables
         """
-        return self.bounds.shape[0]
+        return self.bounds().shape[0]
+
+    def bounds(self):
+        """Return the bounds of the design variable"""
+        return self._bounds
 
 
 class FiniteSamplesVariable(JointVariable):

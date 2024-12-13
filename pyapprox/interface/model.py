@@ -43,14 +43,14 @@ class Model(ABC):
         self._apply_weighted_hessian_implemented = False
 
     @abstractmethod
-    def nqoi(self):
+    def nqoi(self) -> int:
         raise NotImplementedError
 
     @abstractmethod
-    def _values(self, samples):
+    def _values(self, samples: Array) -> Array:
         raise NotImplementedError("Must implement self._values")
 
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate the model at a set of samples.
 
@@ -73,7 +73,7 @@ class Model(ABC):
             )
         return vals
 
-    def _check_sample_shape(self, sample):
+    def _check_sample_shape(self, sample: Array):
         if sample.ndim != 2:
             raise ValueError(
                 "sample is not a 2D array, has shape {0}".format(sample.shape)
@@ -85,7 +85,7 @@ class Model(ABC):
                 )
             )
 
-    def _check_vec_shape(self, sample, vec):
+    def _check_vec_shape(self, sample: Array, vec: Array):
         if vec.ndim != 2:
             raise ValueError(
                 "vec is not a 2D array, has shape {0}".format(vec.shape)
@@ -97,7 +97,7 @@ class Model(ABC):
                 )
             )
 
-    def _check_weights_shape(self, weights):
+    def _check_weights_shape(self, weights: Array):
         if weights.ndim != 2:
             raise ValueError(
                 "weights is not a 2D array, has shape {0}".format(
@@ -107,10 +107,10 @@ class Model(ABC):
         if weights.shape[0] != self.nqoi():
             raise ValueError("weights has the wrong shape")
 
-    def _jacobian(self, sample):
+    def _jacobian(self, sample: Array) -> Array:
         raise NotImplementedError
 
-    def _check_jacobian_shape(self, jac, sample):
+    def _check_jacobian_shape(self, jac: Array, sample: Array):
         if jac.shape != (self.nqoi(), sample.shape[0]):
             raise RuntimeError(
                 "Jacobian returned by _jacobian has shape {0}"
@@ -119,7 +119,7 @@ class Model(ABC):
                 )
             )
 
-    def jacobian(self, sample):
+    def jacobian(self, sample: Array) -> Array:
         """
         Evaluate the jacobian of the model at a sample.
 
@@ -153,10 +153,10 @@ class Model(ABC):
             actions.append(self._apply_jacobian(sample, vec))
         return np.hstack(actions)
 
-    def _apply_jacobian(self, sample, vec):
+    def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
         raise NotImplementedError
 
-    def apply_jacobian(self, sample, vec):
+    def apply_jacobian(self, sample: Array, vec: Array) -> Array:
         """
         Compute the matrix vector product of the Jacobian with a vector.
 
@@ -186,10 +186,10 @@ class Model(ABC):
             return self._apply_jacobian(sample, vec)
         return self.jacobian(sample) @ vec
 
-    def _apply_hessian(self, sample, vec):
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         raise NotImplementedError
 
-    def apply_hessian(self, sample, vec):
+    def apply_hessian(self, sample: Array, vec: Array) -> Array:
         """
         Compute the matrix vector product of the Hessian with a vector.
 
@@ -222,16 +222,20 @@ class Model(ABC):
             return self._apply_hessian(sample, vec)
         return self.hessian(sample)[0] @ vec
 
-    def _hessian(self, sample):
+    def _hessian(self, sample: Array) -> Array:
         raise NotImplementedError
 
-    def _check_hessian_shape(self, hess, sample):
+    def _check_hessian_shape(self, hess: Array, sample: Array):
         if hess.shape != (self.nqoi(), sample.shape[0], sample.shape[0]):
             raise RuntimeError(
-                "Hessian returned by _hessian has the wrong shape"
+                "Hessian returned by _hessian has the wrong shape. "
+                "was {0} but must be {1}".format(
+                    hess.shape,
+                    (self.nqoi(), sample.shape[0], sample.shape[0])
+                )
             )
 
-    def hessian(self, sample):
+    def hessian(self, sample: Array) -> Array:
         """
         Evaluate the hessian of the model at a sample.
 
@@ -266,10 +270,10 @@ class Model(ABC):
             actions.append(self._apply_hessian(sample, vec))
         return np.hstack(actions)[None, :]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}()".format(self.__class__.__name__)
 
-    def apply_weighted_jacobian(self, sample, vec, weights):
+    def apply_weighted_jacobian(self, sample: Array, vec: Array, weights: Array) -> Array:
         """
         Compute the matrix vector product of the Jacobian,
         of a weighted sum of the QoI, with a vector.
@@ -304,10 +308,10 @@ class Model(ABC):
             return self._apply_jacobian(sample, vec).T @ weights
         return (self.jacobian(sample) @ vec).T @ weights
 
-    def _apply_weighted_hessian(self, sample, vec, weights):
+    def _apply_weighted_hessian(self, sample: Array, vec: Array, weights: Array) -> Array:
         raise NotImplementedError
 
-    def apply_weighted_hessian(self, sample, vec, weights):
+    def apply_weighted_hessian(self, sample: Array, vec: Array, weights: Array) -> Array:
         """
         Compute the matrix vector product of the Hessian,
         of a weighted combinatino of the QoI, with a vector.
@@ -402,7 +406,7 @@ class Model(ABC):
         return self._bkd.asarray(errors)
 
     def check_apply_jacobian(
-        self, sample, fd_eps=None, direction=None, relative=True, disp=False
+        self, sample: Array, fd_eps: Array = None, direction: Array = None, relative: bool = True, disp: bool = False
     ):
         """
         Compare apply_jacobian with finite difference.
@@ -425,18 +429,18 @@ class Model(ABC):
             disp,
         )
 
-    def _weighted_jacobian(self, sample, weights):
+    def _weighted_jacobian(self, sample: Array, weights: Array) -> Array:
         # only used by check_apply_hessian
         return weights.T @ self.jacobian(sample)
 
     def check_apply_hessian(
         self,
-        sample,
-        fd_eps=None,
-        direction=None,
-        relative=True,
-        disp=False,
-        weights=None,
+        sample: Array,
+        fd_eps: Array = None,
+        direction: Array = None,
+        relative: bool = True,
+        disp: bool = False,
+        weights: bool = None,
     ):
         """
         Compare apply_hessian with finite difference.
@@ -479,7 +483,7 @@ class Model(ABC):
             (weights,),
         )
 
-    def approx_jacobian(self, sample, eps=np.sqrt(np.finfo(float).eps)):
+    def approx_jacobian(self, sample: Array, eps: float = np.sqrt(np.finfo(float).eps)) -> Array:
         self._check_sample_shape(sample)
         nvars = sample.shape[0]
         val = self(sample)
@@ -1066,9 +1070,9 @@ class ActiveSetVariableModel(Model):
         self._apply_jacobian_implemented = (
             self._base_model._apply_jacobian_implemented
         )
-        self._hessian_implemented = self._base_model._hessian_implemented
         self._apply_hessian_implemented = (
             self._base_model._apply_hessian_implemented
+            or self._base_model._hessian_implemented
         )
 
     def nqoi(self):
@@ -1104,7 +1108,7 @@ class ActiveSetVariableModel(Model):
             self._bkd,
         )
 
-    def __call__(self, reduced_samples):
+    def _values(self, reduced_samples):
         samples = self._expand_samples(reduced_samples)
         return self._model(samples)
 
@@ -1127,7 +1131,7 @@ class ActiveSetVariableModel(Model):
         # matvec product  so they do not contribute to sum
         expanded_vec = self._bkd.zeros((self._nvars, 1))
         expanded_vec[self._active_var_indices] = vec
-        return self._model.apply_hessian(samples, expanded_vec)
+        return self._model.apply_hessian(samples, expanded_vec)[self._active_var_indices]
 
     def nactive_vars(self):
         return len(self._active_var_indices)
@@ -1154,7 +1158,7 @@ class ChangeModelSignWrapper(Model):
     def nqoi(self):
         return self._model.nqoi()
 
-    def _values_(self, samples):
+    def _values(self, samples):
         vals = -self._model(samples)
         return vals
 
