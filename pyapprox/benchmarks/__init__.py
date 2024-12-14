@@ -18,6 +18,7 @@ from pyapprox.benchmarks.ode import (
     ChemicalReactionBenchmark,
     LotkaVolterraBenchmark,
     CoupledSpringsBenchmark,
+    HastingsEcologyBenchmark,
 )
 
 __all__ = [
@@ -33,4 +34,5 @@ __all__ = [
     "ChemicalReactionBenchmark",
     "LotkaVolterraBenchmark",
     "CoupledSpringsBenchmark",
+    "HastingsEcologyBenchmark",
 ]

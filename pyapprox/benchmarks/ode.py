@@ -75,18 +75,19 @@ class ParameterizedChemicalReactionResidual(
         # assert self._bkd.allclose(auto_jac, jac)
         return jac
 
-    # def _param_jacobian(self, sol: Array) -> Array:
-    #     a, b, c, d, e, f = self._param
-    #     z = 1.0 - sol[0] - sol[1] - sol[2]
-
-    #     return self._bkd.stack(
-    #         [
-    #             self._bkd.asarray([z, 0.0, -sol[0], -4 * sol[0] * sol[1], 0.0, 0.0]),
-    #             self._bkd.asarray([0.0, 2 * z**2, 0.0, -4 * sol[0] * sol[1], 0.0, 0.0]),
-    #             self._bkd.asarray([0.0, 0.0, 0.0, 0.0, z, -sol[2]]),
-    #         ],
-    #         axis=0,
-    #     )
+    def _param_jacobian(self, sol: Array) -> Array:
+        a, b, c, d, e, f = self._param
+        z = 1.0 - sol[0] - sol[1] - sol[2]
+        zero = sol[0] * 0.  # needed to be compatable with torch hstack
+        # if asarray is used instead, autograd graph will be wrong
+        return self._bkd.stack(
+            [
+                self._bkd.hstack([z, zero, -sol[0], -4 * sol[0] * sol[1], zero, zero]),
+                self._bkd.hstack([zero, 2 * z**2, zero, -4 * sol[0] * sol[1], zero, zero]),
+                self._bkd.hstack([zero, zero, zero, zero, z, -sol[2]]),
+            ],
+            axis=0,
+        )
 
     def nvars(self) -> int:
         return 6
@@ -147,7 +148,7 @@ class ChemicalReactionModel(TransientAdjointModel):
 class ChemicalReactionBenchmark(SingleModelBenchmark):
     def _variable_ranges(self):
         nominal_vals = self._bkd.array(
-            [1.6, 20.75, 0.04, 1.0, 0.36, 0.016], 
+            [1.6, 20.75, 0.04, 1.0, 0.36, 0.016],
         )
         ranges = self._bkd.empty(2 * nominal_vals.shape[0])
         ranges[:4] = [0.0, 4, 5.0, 35.0]
@@ -341,12 +342,14 @@ class ParameterizedCoupledSpringsResidual(
     def _jacobian(self, sol: Array) -> Array:
         x1, y1, x2, y2 = sol
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
+        zero = x1 * 0.  # needed to be compatable with torch hstack
+        # if asarray is used instead, autograd graph will be wrong
         jac = self._bkd.stack(
             [
-                self._bkd.asarray([0.0, 1.0, 0.0, 0.0]),
-                self._bkd.asarray([-k1 - k2, -b1, k2, 0.0]) / m1,
-                self._bkd.asarray([0.0, 0.0, 0.0, 1.0]),
-                self._bkd.asarray([k2, 0.0, -k2, -b2]) / m2,
+                self._bkd.hstack([zero, 1.0, zero, zero]),
+                self._bkd.hstack([-k1 - k2, -b1, k2, zero]) / m1,
+                self._bkd.hstack([zero, zero, zero, 1.0]),
+                self._bkd.hstack([k2, zero, -k2, -b2]) / m2,
             ],
             axis=0,
         )
@@ -355,19 +358,21 @@ class ParameterizedCoupledSpringsResidual(
     def _param_jacobian(self, sol: Array) -> Array:
         x1, y1, x2, y2 = sol
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
+        zero = x1 * 0.  # needed to be compatable with torch hstack
+        # if asarray is used instead, autograd graph will be wrong
         numer1 = -b1 * y1 - k1 * (x1 - L1) + k2 * (x2 - x1 - L2)
         numer2 = -b2 * y2 - k2 * (x2 - x1 - L2)
         row0 = self._bkd.zeros((self.nvars(),))
-        row1 = self._bkd.asarray(
+        row1 = self._bkd.hstack(
             [
                 -numer1 / m1**2,
-                0.0,
+                zero,
                 -(x1 - L1) / m1,
                 (x2 - x1 - L2) / m1,
                 k1 / m1,
                 -k2 / m1,
                 -y1 / m1,
-                0.0,
+                zero,
                 0.,
                 0.,
                 0.,
@@ -375,15 +380,15 @@ class ParameterizedCoupledSpringsResidual(
             ]
             )
         row2 = self._bkd.zeros((self.nvars(),))
-        row3 = self._bkd.asarray(
+        row3 = self._bkd.hstack(
             [
-                0.0,
+                zero,
                 -numer2 / m2**2,
-                0.0,
+                zero,
                 -(x2 - x1 - L2) / m2,
-                0.0,
+                zero,
                 k2 / m2,
-                0.0,
+                zero,
                 -y2 / m2,
                 0.,
                 0.,
@@ -503,64 +508,9 @@ class CoupledSpringsBenchmark(SingleModelBenchmark):
         )
 
 
-def get_nondim_hastings_ecology_nominal_values():
-    # return np.array([5.0, 4.1, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0],
-    #                 np.double)
-    return np.array([5.0, 3, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0], np.double)
-
-
-def define_nondim_hastings_ecology_random_variables():
-    nominal_sample = get_nondim_hastings_ecology_nominal_values()
-    ranges = np.zeros((2 * len(nominal_sample)), np.double)
-    ranges[::2] = nominal_sample * 0.95
-    ranges[1::2] = nominal_sample * 1.05
-    # ranges[:2] = 4.9, 5.1
-    # ranges[12:14] = 0, 1
-    # ranges[14:16] = 0, 1
-    # ranges[16:18] = 5, 12
-    univariate_variables = [
-        stats.uniform(ranges[2 * ii], ranges[2 * ii + 1] - ranges[2 * ii])
-        for ii in range(len(ranges) // 2)
-    ]
-    variable = IndependentMarginalsVariable(univariate_variables)
-    return variable
-
-
-# @njit(cache=True)
-def nondim_hastings_ecology_rhs(y, t, z):
-    """ """
-    y1, y2, y3 = y
-    a1, b1, a2, b2, d1, d2 = z[:6]
-    return [
-        y1 * (1 - y1) - a1 * y1 * y2 / (1 + b1 * y1),
-        a1 * y1 * y2 / (1.0 + b1 * y1)
-        - a2 * y2 * y3 / (1.0 + b2 * y2)
-        - d1 * y2,
-        a2 * y2 * y3 / (1.0 + b2 * y2) - d2 * y3,
-    ]
-
-
-def non_dimensionalize_hastings_ecology_variables(z):
-    R0, K0, C1, C2, D1, D2, A1, A2, B1, B2 = z
-    a1 = K0 * A1 / (R0 * B1)
-    b1 = K0 / B1
-    a2 = C2 * A2 * K0 / (C1 * R0 * B2)
-    b2 = K0 / (C1 * B2)
-    d1 = D1 / R0
-    d2 = D2 / R0
-    return np.array([a1, b1, a2, b2, d1, d2])
-
-
-# @njit(cache=True)
-def dim_hastings_ecology_rhs(y, t, z):
-    """ """
-    y1, y2, y3 = y
-    nondim_z = non_dimensionalize_hastings_ecology_variables(z[:10])
-    nondim_z = np.vstack((nondim_z, z[10:]))
-    return nondim_hastings_ecology_rhs(y, t, z)
-
-
-class HastingsEcology(object):
+class ParameterizedHastingsEcologyResidual(
+        TransientNewtonResidual, ParameterizedNewtonResidualMixin
+):
     """
     http://www.jstor.org/stable/1940591
 
@@ -594,111 +544,134 @@ class HastingsEcology(object):
     d_1 = D_1/R_0
     d_2 = D_2/R_0
     """
+    def set_time(self, time: float):
+        self._time = time
 
-    def __init__(self, qoi_functional=None, nondim=True, time=None):
-        self.num_vars = 9
-        self.opts = {"rtol": 1e-10, "atol": 1e-10}
-        if time is None:
-            self.t = np.linspace(0.0, 100, 101)
-        else:
-            self.t = time
-        self.nondim = nondim
-        if self.nondim:
-            self.run = self.nondim_run
-        else:
-            self.run = self.dim_run
-        if qoi_functional is None:
-            self.qoi_functional = lambda sol: np.array([sol[-1, 2]])
-        else:
-            self.qoi_functional = qoi_functional
-        self.name = "hastings-ecology-9"
+    def nstates(self) -> int:
+        return 3
 
-    def nondim_run(self, z):
-        assert z.ndim == 1
-        y0 = z[6:]
-        return integrate.odeint(
-            nondim_hastings_ecology_rhs, y0, self.t, args=(z,), **self.opts
+    def set_param(self, param: Array):
+        if param.shape[0] != self.nvars():
+            raise ValueError("param has the wrong shape")
+        self._param = param
+
+    def nvars(self) -> int:
+        return 9
+
+    def __call__(self, sol: Array) -> Array:
+        y1, y2, y3 = sol
+        a1, b1, a2, b2, d1, d2 = self._param[:6]
+        return self._bkd.stack(
+            [
+                y1 * (1 - y1) - a1 * y1 * y2 / (1 + b1 * y1),
+                a1 * y1 * y2 / (1.0 + b1 * y1)
+                - a2 * y2 * y3 / (1.0 + b2 * y2)
+                - d1 * y2,
+                a2 * y2 * y3 / (1.0 + b2 * y2) - d2 * y3,
+            ], axis=0
         )
 
-    def dim_run(self, z):
-        assert z.ndim == 1
-        y0 = z[10:]
-        return integrate.odeint(
-            nondim_hastings_ecology_rhs, y0, self.t, args=(z,), **self.opts
+    def _jacobian(self, sol: Array) -> Array:
+        y1, y2, y3 = sol
+        a1, b1, a2, b2, d1, d2 = self._param[:6]
+        zero = y1 * 0.  # needed to be compatable with torch hstack
+        # if asarray is used instead, autograd graph will be wrong
+        jac = self._bkd.stack(
+            [
+                self._bkd.hstack(
+                    [
+                        1 - (a1 * y2)/(1 + b1 * y1) + y1 * (-2 + (a1*b1*y2)/(1 + b1*y1)**2),
+                        -((a1*y1)/(1 + b1*y1)),
+                        zero,
+                    ]
+                ),
+                self._bkd.hstack(
+                    [
+                        (a1*y2)/(1. + b1*y1)**2,
+                        -d1 + (a1*y1)/(1. + b1*y1) - (a2*y3)/(1. + b2 * y2) ** 2,
+                        (-a2*y2)/(1. + b2 * y2),
+                    ]
+                ),
+                self._bkd.hstack(
+                    [
+                        zero,
+                        (1.*a2*y3)/(1. + b2 * y2)**2,
+                        -d2 + (a2*y2)/(1. + b2*y2)
+                    ]
+                ),
+            ], axis=0
+        )
+        return jac
+
+    def _initial_param_jacobian(self) -> Array:
+        return self._bkd.hstack(
+            (
+                self._bkd.zeros((self.nstates(), 6)),
+                -self._bkd.eye(3),
+            )
         )
 
-    def value(self, z):
-        assert z.ndim == 1
-        sol = self.run(z)
-        return self.qoi_functional(sol)
 
-    def __call__(self, samples):
-        return evaluate_1darray_function_on_2d_array(self.value, samples, None)
+class HastingsEcologyModel(TransientAdjointModel):
+    def __init__(
+        self,
+        time_residual_cls: TimeIntegratorNewtonResidual,
+        functional: Functional = None,
+        final_time: float = 100.0,
+        deltat: float = 2.5,
+        newton_solver: NewtonSolver = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._init_time = 0
+        self._residual = ParameterizedHastingsEcologyResidual(backend)
+        if functional is None:
+            functional = TransientSingleStateFinalTimeFunctional(
+                2, self._residual.nstates(), self.nvars(), backend=backend
+            )
+        super().__init__(
+            self._init_time,
+            final_time,
+            deltat,
+            time_residual_cls(self._residual),
+            functional,
+            newton_solver,
+            backend=backend,
+        )
+        self._jacobian_implemented = True
 
+    def get_initial_condition(self) -> Array:
+        return self._residual._param[6:]
 
-class ParameterizedNonlinearModel(object):
-    def __init__(self):
-        self.qoi = 1
-        self.ranges = np.array(
-            [0.79, 0.99, 1 - 4.5 * np.sqrt(0.1), 1 + 4.5 * np.sqrt(0.1)],
-            np.double,
+    def nvars(self) -> int:
+        if not hasattr(self, "_functional"):
+            return self._residual.nvars()
+        return (
+            self._functional.nunique_functional_params()
+            + self._residual.nvars()
         )
 
-    def num_qoi(self):
-        if np.isscalar(self.qoi):
-            return 1
-        else:
-            return len(self.qoi)
 
-    def evaluate(self, samples):
-        assert samples.ndim == 1
-        assert samples.ndim == 1
+class HastingsEcologyBenchmark(SingleModelBenchmark):
+    def _variable_ranges(self):
+        nominal_values = self._bkd.array([5.0, 3, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0])
+        ranges = self._bkd.zeros((2 * len(nominal_values)))
+        ranges[::2] = nominal_values * 0.95
+        ranges[1::2] = nominal_values * 1.05
+        return ranges
 
-        sol = np.ones((2), float)
+    def _set_variable(self):
+        ranges = self._variable_ranges()
+        marginals = [
+            stats.uniform(ranges[2 * ii], ranges[2 * ii + 1] - ranges[2 * ii])
+            for ii in range(len(ranges) // 2)
+        ]
+        self._variable = IndependentMarginalsVariable(
+            marginals, backend=self._bkd
+        )
 
-        x1 = samples[0]
-        x2 = samples[1]
-        u1 = sol[0]
-        u2 = sol[1]
-
-        res1 = 1.0 - (x1 * u1 * u1 + u2 * u2)
-        res2 = 1.0 - (u1 * u1 - x2 * u2 * u2)
-
-        norm_res = np.sqrt(res1 * res1 + res2 * res2)
-
-        it = 0
-        max_iters = 20
-        while (norm_res > 1e-10) and (it < max_iters):
-            det = -4 * u1 * u2 * (x1 * x2 + 1.0)
-            j11i = -2.0 * x2 * u2 / det
-            j12i = -2.0 * u2 / det
-            j21i = -2.0 * u1 / det
-            j22i = 2 * x1 * u1 / det
-
-            du1 = j11i * res1 + j12i * res2
-            du2 = j21i * res1 + j22i * res2
-
-            u1 += du1
-            u2 += du2
-
-            res1 = 1.0 - (x1 * u1 * u1 + u2 * u2)
-            res2 = 1.0 - (u1 * u1 - x2 * u2 * u2)
-
-            norm_res = np.sqrt(res1 * res1 + res2 * res2)
-            it += 1
-
-        sol[0] = u1
-        sol[1] = u2
-
-        if np.isscalar(self.qoi):
-            values = np.array([sol[self.qoi]])
-        else:
-            values = sol[self.qoi]
-        return values
-
-    def __call__(self, samples):
-        num_samples = samples.shape[1]
-        values = np.empty((num_samples, self.num_qoi()), float)
-        for i in range(samples.shape[1]):
-            values[i, :] = self.evaluate(samples[:, i])
-        return values
+    def _set_model(self):
+        newton_solver = NewtonSolver(verbosity=0, rtol=1e-12, atol=1e-12)
+        self._model = HastingsEcologyModel(
+            BackwardEulerResidual, None, newton_solver=newton_solver,
+            backend=self._bkd
+        )

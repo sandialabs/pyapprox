@@ -15,6 +15,7 @@ from pyapprox.benchmarks import (
     ChemicalReactionBenchmark,
     LotkaVolterraBenchmark,
     CoupledSpringsBenchmark,
+    HastingsEcologyBenchmark,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 # TODO relplace integrate with new version once implemented
@@ -151,7 +152,7 @@ class TestBenchmarks(unittest.TestCase):
 
         if benchmark.model()._jacobian_implemented:
             sample = benchmark.variable().get_statistics('mean')*0.25
-            errors = benchmark.model().check_apply_jacobian(sample, disp=True)
+            errors = benchmark.model().check_apply_jacobian(sample)
             assert errors.min()/errors.max() < 1e-6
 
     def test_genz(self):
@@ -194,7 +195,7 @@ class TestBenchmarks(unittest.TestCase):
         # because finite difference is only accurate to that tolerance
         sample = bkd.array(np.random.uniform(0.3, 0.7, benchmark.model().nvars()))[:, None]
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
-        errors = benchmark.model().check_apply_jacobian(sample, fd_eps, disp=True)
+        errors = benchmark.model().check_apply_jacobian(sample, fd_eps)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.4e-6
 
@@ -212,15 +213,20 @@ class TestBenchmarks(unittest.TestCase):
 
     def test_coupled_springs(self):
         bkd = self.get_backend()
-        from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-        bkd = TorchLinAlgMixin
-        # newton_solver = NewtonSolver(verbosity=0, rtol=1e-12, atol=1e-12)
         benchmark = CoupledSpringsBenchmark(bkd)
+        sample = benchmark.variable().get_statistics('mean')
+        errors = benchmark.model().check_apply_jacobian(sample)
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 5e-6
+
+    def test_hastings_ecology(self):
+        bkd = self.get_backend()
+        benchmark = HastingsEcologyBenchmark(bkd)
         # The error in check apply jacobian depend on newton tolerance
         # because finite difference is only accurate to that tolerance
-        sample = bkd.array(np.random.uniform(0.3, 0.7, benchmark.model().nvars()))[:, None]
-        fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
-        errors = benchmark.model().check_apply_jacobian(sample, fd_eps, disp=True)
+        sample = benchmark.variable().get_statistics('mean')
+        
+        errors = benchmark.model().check_apply_jacobian(sample)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.4e-6
 
@@ -230,3 +236,4 @@ if __name__ == "__main__":
     benchmarks_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestBenchmarks)
     unittest.TextTestRunner(verbosity=2).run(benchmarks_test_suite)
+    
