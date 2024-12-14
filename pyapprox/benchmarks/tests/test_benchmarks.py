@@ -18,6 +18,7 @@ from pyapprox.benchmarks import (
     HastingsEcologyBenchmark,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 # TODO relplace integrate with new version once implemented
 from pyapprox.surrogates.integrate import integrate
 from pyapprox.pde.collocation.newton import NewtonSolver
@@ -29,7 +30,7 @@ from pyapprox.pde.collocation.timeintegration import (
 )
 
 
-class TestBenchmarks(unittest.TestCase):
+class TestBenchmarks:
 
     def setUp(self):
         np.random.seed(1)
@@ -59,7 +60,7 @@ class TestBenchmarks(unittest.TestCase):
 
     def test_oakley(self):
         bkd = self.get_backend()
-        benchmark = OakleyBenchmark()
+        benchmark = OakleyBenchmark(backend=bkd)
         samples = benchmark.variable().rvs(1e5)
         values = benchmark.model()(samples)
         assert bkd.allclose(bkd.mean(values), benchmark.mean(), rtol=1e-2)
@@ -74,6 +75,7 @@ class TestBenchmarks(unittest.TestCase):
         benchmark = SobolGBenchmark(backend=bkd)
         samples = benchmark.variable().rvs(1e5)
         values = benchmark.model()(samples)
+        print(benchmark.mean(), bkd.mean(values))
         assert bkd.allclose(bkd.mean(values), benchmark.mean(), rtol=1e-2)
         assert bkd.allclose(
             bkd.var(values, ddof=1), benchmark.variance(), rtol=1e-2
@@ -144,10 +146,12 @@ class TestBenchmarks(unittest.TestCase):
 
         samples, weights = integrate(
             "quasimontecarlo", benchmark.variable(), rule="sobol", nsamples=1e4)
+        samples = bkd.array(samples)
+        weights = bkd.array(weights)
         vals = benchmark.model()(samples)
         qmc_integral = vals.T @ weights
-        print(integral, qmc_integral)
-        print((qmc_integral-integral)/integral)
+        #print(integral, qmc_integral)
+        #print((qmc_integral-integral)/integral)
         assert np.allclose(qmc_integral, integral, rtol=7e-4)
 
         if benchmark.model()._jacobian_implemented:
@@ -163,16 +167,8 @@ class TestBenchmarks(unittest.TestCase):
         test_scenarios = itertools.product(*[names, nvars, decays])
         for test_scenario in test_scenarios:
             np.random.seed(1)
-            print(test_scenario)
+            # print(test_scenario)
             self._check_genz(*test_scenario)
-
-    def test_random_oscillator_analytical_solution(self):
-        benchmark = setup_benchmark("random_oscillator")
-        time = benchmark.fun.t
-        sample = benchmark.variable.get_statistics("mean")
-        asol = benchmark.fun.analytical_solution(sample, time)
-        nsol = benchmark.fun.numerical_solution(sample.squeeze())
-        assert np.allclose(asol, nsol[:, 0])
 
     def test_chemical_reaction(self):
         bkd = self.get_backend()
@@ -196,7 +192,7 @@ class TestBenchmarks(unittest.TestCase):
         sample = bkd.array(np.random.uniform(0.3, 0.7, benchmark.model().nvars()))[:, None]
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = benchmark.model().check_apply_jacobian(sample, fd_eps)
-        print(errors.min() / errors.max())
+        # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.4e-6
 
     def test_lotka_volterra(self):
@@ -225,15 +221,22 @@ class TestBenchmarks(unittest.TestCase):
         # The error in check apply jacobian depend on newton tolerance
         # because finite difference is only accurate to that tolerance
         sample = benchmark.variable().get_statistics('mean')
-        
         errors = benchmark.model().check_apply_jacobian(sample)
-        print(errors.min() / errors.max())
+        # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.4e-6
 
 
+class TestNumpyBenchmarks(TestBenchmarks, unittest.TestCase):
+    def get_backend(self):
+        return NumpyLinAlgMixin
 
+
+class TestTorchBenchmarks(TestBenchmarks, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
+
+        
 if __name__ == "__main__":
     benchmarks_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestBenchmarks)
     unittest.TextTestRunner(verbosity=2).run(benchmarks_test_suite)
-    

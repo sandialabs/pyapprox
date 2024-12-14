@@ -1041,7 +1041,7 @@ class ActiveSetVariableModel(Model):
         base_model=None,
         backend=NumpyLinAlgMixin,
     ):
-        super().__init__(backend=backend)
+        super().__init__(backend=model._bkd)
         # nvars can de determined from inputs but making it
         # necessary allows for better error checking
         if not isinstance(model, Model):
@@ -1090,7 +1090,7 @@ class ActiveSetVariableModel(Model):
     ):
         assert reduced_samples.ndim == 2
         raw_samples = get_all_sample_combinations(
-            inactive_var_values, reduced_samples
+            inactive_var_values, reduced_samples, bkd
         )
         samples = bkd.empty(raw_samples.shape)
         samples[inactive_var_indices, :] = raw_samples[

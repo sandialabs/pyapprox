@@ -134,7 +134,7 @@ class IshigamiBenchmark(SingleModelBenchmark):
         )
 
     def mean(self) -> float:
-        return self._a / 2
+        return self._a / 2 * self._bkd.ones((1,))[0]
 
     def variance(self) -> float:
         return (
@@ -142,16 +142,18 @@ class IshigamiBenchmark(SingleModelBenchmark):
             + self._b * np.pi**4 / 5
             + self._b**2 * np.pi**8 / 18
             + 0.5
-        )
+        ) * self._bkd.ones((1,))[0]
 
     def _unnormalized_sobol_indices(self):
-        D_1 = self._b * np.pi**4 / 5 + self._b**2 * np.pi**8 / 50 + 0.5
-        D_2 = self._a**2 / 8
-        D_3 = 0.0
-        D_12 = 0.0
-        D_13 = self._b**2 * np.pi**8 / 18 - self._b**2 * np.pi**8 / 50
-        D_23 = 0.0
-        D_123 = 0.0
+        zero = self._bkd.zeros((1,))[0]
+        one = self._bkd.ones((1,))[0]
+        D_1 = self._b * np.pi**4 / 5 + self._b**2 * np.pi**8 / 50 + 0.5 * one
+        D_2 = self._a**2 / 8 * one
+        D_3 = zero
+        D_12 = zero
+        D_13 = self._b**2 * np.pi**8 / 18 - self._b**2 * np.pi**8 / 50 * one
+        D_23 = zero
+        D_123 = zero
         return D_1, D_2, D_3, D_12, D_13, D_23, D_123
 
     def main_effects(self) -> Array:
@@ -202,7 +204,7 @@ class IshigamiBenchmark(SingleModelBenchmark):
         return sobol_indices[:, None], sobol_interaction_indices
 
 
-def get_oakley_function_data() -> Array:
+def get_oakley_function_data(bkd=NumpyLinAlgMixin) -> Array:
     r"""
     Get the data :math:`a_1,a_2,a_3` and :math:`M` of the Oakley function
 
@@ -210,16 +212,16 @@ def get_oakley_function_data() -> Array:
 
     Returns
     -------
-    a1 : np.ndarray (15)
+    a1 : Array (15)
        The vector :math:`a_1` of the Oakley function
 
-    a2 : np.ndarray (15)
+    a2 : Array (15)
        The vector :math:`a_2` of the Oakley function
 
-    a3 : np.ndarray (15)
+    a3 : Array (15)
        The vector :math:`a_3` of the Oakley function
 
-    M : np.ndarray (15,15)
+    M : Array (15,15)
        The non-symmetric matrix :math:`M` of the Oakley function
 
     Examples
@@ -283,7 +285,7 @@ def get_oakley_function_data() -> Array:
        0.00309433  0.05279294  0.22523648  0.38390366  0.45562427 -0.18631744
        0.0082334   0.16670803  0.16045688]]
     """
-    a1 = np.array(
+    a1 = bkd.array(
         [
             0.0118,
             0.0456,
@@ -302,7 +304,7 @@ def get_oakley_function_data() -> Array:
             1.1982,
         ]
     )
-    a2 = np.array(
+    a2 = bkd.array(
         [
             0.4341,
             0.0887,
@@ -321,7 +323,7 @@ def get_oakley_function_data() -> Array:
             2.2621,
         ]
     )
-    a3 = np.array(
+    a3 = bkd.array(
         [
             0.1044,
             0.2057,
@@ -340,7 +342,7 @@ def get_oakley_function_data() -> Array:
             1.9845,
         ]
     )
-    M = np.array(
+    M = bkd.array(
         [
             [
                 -2.2482886e-002,
@@ -620,9 +622,9 @@ class OakleyModel(Model):
         15
 
     def _values(self, samples: Array) -> Array:
-        a1, a2, a3, M = get_oakley_function_data()
-        term1, term2 = a1.T @ (samples), a2.T @ (self._bkd.sin(samples))
-        term3 = a3.T @ self._bkd.cos(samples)
+        a1, a2, a3, M = get_oakley_function_data(self._bkd)
+        term1, term2 = a1 @ (samples), a2 @ (self._bkd.sin(samples))
+        term3 = a3 @ self._bkd.cos(samples)
         term4 = evaluate_quadratic_form(M, samples, self._bkd)
         vals = term1 + term2 + term3 + term4
         return vals[:, None]
@@ -663,7 +665,7 @@ class OakleyBenchmark(SingleModelBenchmark):
 
     def _set_statistics(self):
         e = math.exp(1)
-        a1, a2, a3, M = get_oakley_function_data()
+        a1, a2, a3, M = get_oakley_function_data(self._bkd)
         nvars = M.shape[0]
 
         term1_mean, term2_mean = 0, 0
@@ -686,7 +688,7 @@ class OakleyBenchmark(SingleModelBenchmark):
             a3, variances_1d
         )
         A = 0.5 * (M.T + M)  # needed because M is not symmetric
-        term4_var = 2 * self._bkd.trace(A.dot(A))
+        term4_var = 2 * self._bkd.trace(A @ A)
 
         cov_xsinx = 1 / math.sqrt(e)
         covar13, covar14, covar23, covar24 = 0, 0, 0, 0
@@ -762,7 +764,11 @@ class SobolGBenchmark(SingleModelBenchmark):
     def __init__(self, nvars=5, backend: LinAlgMixin = NumpyLinAlgMixin):
         self._nvars = nvars
         super().__init__(backend)
-        self._acoefs = (self._bkd.arange(1, self.nvars() + 1) - 2) / 2
+        self._acoefs = (
+            self._bkd.arange(
+                1, self.nvars() + 1, dtype=self._bkd.double_type()
+            ) - 2
+        ) / 2
         self._set_statistics()
 
     def _set_statistics(self):
@@ -775,8 +781,8 @@ class SobolGBenchmark(SingleModelBenchmark):
         for ii in range(self.nvars()):
             for jj in range(ii + 1, self.nvars()):
                 self._interaction_indices.append([ii, jj])
-        print(self._interaction_indices)
-        self._mean = 1
+        zero = self._acoefs[0] * 0.  # necessary for torch
+        self._mean = zero + 1.
         unnormalized_main_effects = 1 / (3 * (1 + self._acoefs) ** 2)
         self._variance = self._bkd.prod(unnormalized_main_effects + 1) - 1
         self._main_effects = unnormalized_main_effects / self._variance
@@ -838,16 +844,19 @@ class RosenbrockModel(Model):
         return 1
 
     def _values(self, samples: Array) -> Array:
-        return rosen(samples)[:, None]
+        # note torch back prop wont work this function because rosen is a numpy function
+        return self._bkd.asarray(rosen(self._bkd.to_numpy(samples)))[:, None]
 
     def nvars(self):
         return self._nvars
 
     def _jacobian(self, sample: Array) -> Array:
-        return rosen_der(sample).T
+        return self._bkd.asarray(rosen_der(self._bkd.to_numpy(sample))).T
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        return rosen_hess_prod(sample[:, 0], vec[:, 0])[:, None]
+        return self._bkd.asarray(
+            rosen_hess_prod(self._bkd.to_numpy(sample[:, 0]), self._bkd.to_numpy(vec[:, 0]))
+        )[:, None]
 
 
 class RosenbrockBenchmark(SingleModelBenchmark):
@@ -869,7 +878,7 @@ class RosenbrockBenchmark(SingleModelBenchmark):
         super().__init__(backend)
 
     def _set_model(self):
-        self._model = RosenbrockModel(self._bkd)
+        self._model = RosenbrockModel(self._nvars, self._bkd)
 
     def _set_variable(self) -> JointVariable:
         marginals = [stats.uniform(-2, 4)] * self._nvars
@@ -898,7 +907,7 @@ class RosenbrockBenchmark(SingleModelBenchmark):
             )
             / (4**self._nvars)
         )
-        return exact_mean
+        return exact_mean * self._bkd.ones((1,))[0]
 
 
 class CantileverBeamModel(SingleSampleModel):
@@ -959,7 +968,7 @@ class CantileverBeamObjectiveModel(CantileverBeamModel):
         return super()._jacobian(sample)[:1, :]
 
     def _hessian(self, sample):
-        return super()._hessian(sample)[:1, ...].copy()
+        return self._bkd.copy(super()._hessian(sample)[:1, ...])
 
 
 class CantileverBeamConstraintsModel(CantileverBeamModel):
@@ -976,7 +985,7 @@ class CantileverBeamConstraintsModel(CantileverBeamModel):
         return super()._jacobian(sample)[1:, :]
 
     def _hessian(self, sample):
-        return super()._hessian(sample)[1:, ...].copy()
+        return self._bkd.copy(super()._hessian(sample)[1:, ...])
 
 
 class CantileverBeamDeterminsticOptimizationBenchmark(SingleModelBenchmark):
@@ -1010,7 +1019,9 @@ class CantileverBeamDeterminsticOptimizationBenchmark(SingleModelBenchmark):
         Y = stats.norm(loc=1000, scale=np.sqrt(100) ** 2)
         E = stats.norm(loc=2.9e7, scale=np.sqrt(1.45e6) ** 2)
         R = stats.norm(loc=40000, scale=np.sqrt(2000) ** 2)
-        design_bounds = self._bkd.stack([[1, 1], [4, 4]], axis=1)
+        design_bounds = self._bkd.stack(
+            [self._bkd.ones((2,)), self._bkd.full((2,), 4.)], axis=1
+        )
         self._design_variable = DesignVariable(design_bounds)
         self._design_var_indices = self._bkd.array([4, 5], dtype=int)
         self._variable = IndependentMarginalsVariable(
@@ -1045,7 +1056,7 @@ class CantileverBeamUncertainOptimizationBenchmark(
         quad_rule = FixedTensorProductQuadratureRule(
             self.variable().num_vars(),
             [
-                GaussQuadratureRule(marginal)
+                GaussQuadratureRule(marginal, backend=self._bkd)
                 for marginal in self.variable().marginals()
             ],
             [5 for ii in range(self.variable().num_vars())],
@@ -1226,7 +1237,7 @@ class WingWeightModel(Model):
             * (S_w**0.758)
             * (W_fw**0.0035)
             * (A**0.6)
-            * (np.cos(Lamda) ** -0.9)
+            * (self._bkd.cos(Lamda) ** -0.9)
             * (q**0.006)
             * (lamda**0.04)
             * (100**-0.3)
@@ -1237,15 +1248,15 @@ class WingWeightModel(Model):
         return vals[:, None]
 
     def _jacobian(self, samples: Array) -> Array:
-        S_w, W_fw, A, Lamda, q, lamda, tc, N_z, W_dg, W_p = samples.copy()
+        S_w, W_fw, A, Lamda, q, lamda, tc, N_z, W_dg, W_p = samples
         Lamda *= np.pi / 180.0
         vals = self(samples)[:, 0] - S_w * W_p
         nvars, nsamples = samples.shape
-        grad = np.empty((nvars, nsamples))
+        grad = self._bkd.empty((nvars, nsamples))
         grad[0] = 0.758 * vals / S_w + W_p
         grad[1] = 0.0035 * vals / W_fw
         grad[2] = 0.6 * vals / A
-        grad[3] = (0.9 * vals * np.sin(Lamda) / np.cos(Lamda)) * np.pi / 180
+        grad[3] = (0.9 * vals * self._bkd.sin(Lamda) / self._bkd.cos(Lamda)) * np.pi / 180
         grad[4] = 0.006 * vals / q
         grad[5] = 0.04 * vals / lamda
         grad[6] = -0.3 * vals / tc

@@ -38,7 +38,7 @@ class GenzModel(Model):
         ]
 
     def _get_c_coefficients(self, decay: str, nvars: int):
-        ind = self._bkd.arange(nvars)[:, None]
+        ind = self._bkd.arange(nvars, dtype=self._bkd.double_type())[:, None]
         if decay == "none":
             return (ind + 0.5) / nvars
         if decay == "quadratic":
@@ -48,12 +48,12 @@ class GenzModel(Model):
         if decay == "exp":
             # smallest value will be self._min_c
             return self._bkd.exp(
-                (ind + 1) * self._bkd.log(self._min_c) / nvars
+                (ind + 1) * math.log(self._min_c) / nvars
             )
         if decay == "sqexp":
             # smallest value will be self._min_c
             return 10 ** (
-                self._bkd.log10(self._min_c) * ((ind + 1) / nvars) ** 2
+                math.log10(self._min_c) * ((ind + 1) / nvars) ** 2
             )
         msg = f"decay: {decay} not supported"
         raise ValueError(msg)
@@ -73,7 +73,7 @@ class GenzModel(Model):
         self._c *= cfactor / self._c.sum()
 
     def _oscillatory(self, samples: Array, return_grad: bool) -> Array:
-        tmp = 2.0 * math.pi * self._w[0] + samples.T.dot(self._c)
+        tmp = 2.0 * math.pi * self._w[0] + samples.T @ self._c
         result = self._bkd.cos(tmp)
         if not return_grad:
             return result
@@ -81,7 +81,6 @@ class GenzModel(Model):
         return result, grad.T
 
     def _product_peak(self, samples: Array, return_grad: bool) -> Array:
-        print(self._c.shape, "c")
         result = (
             1
             / self._bkd.prod(
@@ -99,7 +98,7 @@ class GenzModel(Model):
         return result, grad.T
 
     def _corner_peak(self, samples: Array, return_grad: bool) -> Array:
-        tmp = 1 + samples.T.dot(self._c)
+        tmp = 1 + samples.T @ self._c
         result = tmp ** (-(self._nvars + 1))
         if not return_grad:
             return result
@@ -125,7 +124,7 @@ class GenzModel(Model):
         raise ValueError(msg)
 
     def _discontinuous(self, samples: Array, return_grad: bool) -> Array:
-        result = self._bkd.exp(samples.T.dot(self._c))
+        result = self._bkd.exp(samples.T @ self._c)
         II = self._bkd.where(
             (samples[0] > self._w[0]) | (samples[1] > self._w[1])
         )
@@ -239,7 +238,7 @@ class GenzModel(Model):
                 special.erf(self._c * self._w)
                 + special.erf(self._c - self._c * self._w)
             )
-            * self._bkd.sqrt(math.pi)
+            * math.sqrt(math.pi)
             / (2 * self._c)
         )
         return result
@@ -373,7 +372,9 @@ class GenzBenchmark(SingleModelBenchmark):
 
     def _set_variable(self):
         marginals = [stats.uniform(0, 1)] * self._nvars
-        self._variable = IndependentMarginalsVariable(marginals)
+        self._variable = IndependentMarginalsVariable(
+            marginals, backend=self._bkd
+        )
 
     def integral(self):
         return self._model.integrate()

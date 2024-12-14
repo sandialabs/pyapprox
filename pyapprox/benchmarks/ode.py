@@ -151,7 +151,7 @@ class ChemicalReactionBenchmark(SingleModelBenchmark):
             [1.6, 20.75, 0.04, 1.0, 0.36, 0.016],
         )
         ranges = self._bkd.empty(2 * nominal_vals.shape[0])
-        ranges[:4] = [0.0, 4, 5.0, 35.0]
+        ranges[:4] = self._bkd.array([0.0, 4, 5.0, 35.0])
         ranges[4::2] = nominal_vals[2:] * 0.9
         ranges[5::2] = nominal_vals[2:] * 1.1
         return ranges
@@ -343,12 +343,13 @@ class ParameterizedCoupledSpringsResidual(
         x1, y1, x2, y2 = sol
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
         zero = x1 * 0.  # needed to be compatable with torch hstack
+        one = x1 * 0 + 1.
         # if asarray is used instead, autograd graph will be wrong
         jac = self._bkd.stack(
             [
-                self._bkd.hstack([zero, 1.0, zero, zero]),
+                self._bkd.hstack([zero, one, zero, zero]),
                 self._bkd.hstack([-k1 - k2, -b1, k2, zero]) / m1,
-                self._bkd.hstack([zero, zero, zero, 1.0]),
+                self._bkd.hstack([zero, zero, zero, one]),
                 self._bkd.hstack([k2, zero, -k2, -b2]) / m2,
             ],
             axis=0,
@@ -373,10 +374,10 @@ class ParameterizedCoupledSpringsResidual(
                 -k2 / m1,
                 -y1 / m1,
                 zero,
-                0.,
-                0.,
-                0.,
-                0.
+                zero,
+                zero,
+                zero,
+                zero,
             ]
             )
         row2 = self._bkd.zeros((self.nvars(),))
@@ -390,10 +391,10 @@ class ParameterizedCoupledSpringsResidual(
                 k2 / m2,
                 zero,
                 -y2 / m2,
-                0.,
-                0.,
-                0.,
-                0.,
+                zero,
+                zero,
+                zero,
+                zero,
             ]
         )
         jac = self._bkd.stack([row0, row1, row2, row3], axis=0)
@@ -602,6 +603,52 @@ class ParameterizedHastingsEcologyResidual(
             ], axis=0
         )
         return jac
+
+    def _param_jacobian(self, sol: Array) -> Array:
+        y1, y2, y3 = sol
+        a1, b1, a2, b2, d1, d2 = self._param[:6]
+        zero = y1 * 0.  # needed to be compatable with torch hstack
+        row0 = self._bkd.hstack(
+            [
+                -y1 * y2 / (1 + b1 * y1),
+                (a1 * y1 ** 2 * y2) / (1 + b1 * y1) ** 2,
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+                
+            ]
+        )
+        row1 = self._bkd.hstack(
+            [
+                y1*y2/(b1*y1+1),
+                -(a1 * y1 ** 2 * y2)/(1 + b1 * y1) ** 2,
+                -y2*y3/(b2*y2+1),
+                (a2 * y2 ** 2 * y3)/(1 + b2 * y2) ** 2,
+                -y2,
+                zero,
+                zero,
+                zero,
+                zero,
+            ]
+        )
+        row2 = self._bkd.hstack(
+            [
+                zero,
+                zero,
+                y2*y3/(b2*y2+1),
+                -(a2 * y2 ** 2 * y3)/(1 + b2 * y2) ** 2,
+                zero,
+                -y3,
+                zero,
+                zero,
+                zero,
+            ]
+        )
+        return self._bkd.stack((row0, row1, row2), axis=0)
 
     def _initial_param_jacobian(self) -> Array:
         return self._bkd.hstack(

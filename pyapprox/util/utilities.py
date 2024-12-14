@@ -401,7 +401,7 @@ def partial_functions_equal(func1, func2):
     return are_equal
 
 
-def get_all_sample_combinations(samples1, samples2):
+def get_all_sample_combinations(samples1, samples2, bkd=NumpyLinAlgMixin):
     r"""
     For two sample sets of different random variables
     loop over all combinations
@@ -422,8 +422,8 @@ def get_all_sample_combinations(samples1, samples2):
     import itertools
     samples = []
     for r in itertools.product(*[samples1.T, samples2.T]):
-        samples.append(np.concatenate(r))
-    return np.asarray(samples).T
+        samples.append(bkd.hstack(r))
+    return bkd.stack(samples, axis=1)
 
 
 def get_correlation_from_covariance(
