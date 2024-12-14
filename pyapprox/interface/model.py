@@ -36,6 +36,8 @@ class Model(ABC):
 
     def __init__(self, backend=NumpyLinAlgMixin):
         self._bkd = backend
+
+        # TODO: Make variables below functions that can be overwritten
         self._apply_jacobian_implemented = False
         self._jacobian_implemented = False
         self._apply_hessian_implemented = False

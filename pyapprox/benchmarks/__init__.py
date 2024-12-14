@@ -2,16 +2,22 @@
 the modeling literature.
 """
 
-from pyapprox.benchmarks.sensitivity_benchmarks import (
+from pyapprox.benchmarks.algebraic import (
     IshigamiBenchmark,
     OakleyBenchmark,
     SobolGBenchmark,
-)
-
-from pyapprox.benchmarks.surrogate_benchmarks import (
     RosenbrockBenchmark,
     CantileverBeamDeterminsticOptimizationBenchmark,
     CantileverBeamUncertainOptimizationBenchmark,
+    PistonBenchmark,
+    WingWeightBenchmark,
+)
+from pyapprox.benchmarks.genz import GenzBenchmark
+
+from pyapprox.benchmarks.ode import (
+    ChemicalReactionBenchmark,
+    LotkaVolterraBenchmark,
+    CoupledSpringsBenchmark,
 )
 
 __all__ = [
@@ -21,4 +27,10 @@ __all__ = [
     "RosenbrockBenchmark",
     "CantileverBeamDeterminsticOptimizationBenchmark",
     "CantileverBeamUncertainOptimizationBenchmark",
+    "PistonBenchmark",
+    "WingWeightBenchmark",
+    "GenzBenchmark",
+    "ChemicalReactionBenchmark",
+    "LotkaVolterraBenchmark",
+    "CoupledSpringsBenchmark",
 ]

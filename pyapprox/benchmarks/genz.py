@@ -1,130 +1,180 @@
-import numpy as np
+import math
+
+from scipy import stats
 from scipy import special
 
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.benchmarks.base import SingleModelBenchmark
+from pyapprox.interface.model import Model
+from pyapprox.variables.joint import IndependentMarginalsVariable
 
-class GenzFunction(object):
-    def __init__(self):
-        self._nvars = None
-        self._c = None
-        self._w = None
+
+class GenzModel(Model):
+    def __init__(self, name: str, backend: LinAlgMixin = NumpyLinAlgMixin):
+        super().__init__(backend)
+        self.set_name(name)
         self._min_c = 5e-6
-
         self._funs = {
             "oscillatory": (self._oscillatory, self._oscillatory_integrate),
             "product_peak": (self._product_peak, self._product_peak_integrate),
             "corner_peak": (self._corner_peak, self._corner_peak_integrate),
             "gaussian": (self._gaussian, self._gaussian_integrate),
-            "c0continuous":
-            (self._c0_continuous, self._c0_continuous_integrate),
-            "discontinuous":
-            (self._discontinuous, self._discontinuous_integrate)}
+            "c0continuous": (
+                self._c0_continuous,
+                self._c0_continuous_integrate,
+            ),
+            "discontinuous": (
+                self._discontinuous,
+                self._discontinuous_integrate,
+            ),
+        }
 
-    @staticmethod
-    def _get_c_coefficients(decay, nvars, min_c):
-        ind = np.arange(nvars)[:, None]
-        if (decay == "none"):
-            return (ind+0.5)/nvars
-        if (decay == "quadratic"):
-            return 1.0 / (ind + 1.)**2
-        if (decay == "quartic"):
-            return 1.0 / (ind + 1.)**4
-        if (decay == "exp"):
-            # smallest value will be 1e-8
-            return np.exp((ind+1)*np.log(min_c)/nvars)
-        if (decay == "sqexp"):
-            # smallest value will be 1e-8
-            return 10**(np.log10(min_c)*((ind+1)/nvars)**2)
+    def set_name(self, name: str):
+        self._name = name
+        self._jacobian_implemented = self._name not in [
+            "c0continuous",
+            "discontinuous",
+        ]
+
+    def _get_c_coefficients(self, decay: str, nvars: int):
+        ind = self._bkd.arange(nvars)[:, None]
+        if decay == "none":
+            return (ind + 0.5) / nvars
+        if decay == "quadratic":
+            return 1.0 / (ind + 1.0) ** 2
+        if decay == "quartic":
+            return 1.0 / (ind + 1.0) ** 4
+        if decay == "exp":
+            # smallest value will be self._min_c
+            return self._bkd.exp(
+                (ind + 1) * self._bkd.log(self._min_c) / nvars
+            )
+        if decay == "sqexp":
+            # smallest value will be self._min_c
+            return 10 ** (
+                self._bkd.log10(self._min_c) * ((ind + 1) / nvars) ** 2
+            )
         msg = f"decay: {decay} not supported"
         raise ValueError(msg)
 
-    def set_coefficients(self, nvars, c_factor, decay, w_factor=0.5):
+    def nvars(self) -> int:
+        return self._nvars
+
+    def nqoi(self) -> int:
+        return 1
+
+    def set_coefficients(
+        self, nvars: int, cfactor: float, decay: str, wfactor: float = 0.5
+    ):
         self._nvars = nvars
-        self._w = np.full((self._nvars, 1), w_factor, dtype=np.double)
-        self._c = self._get_c_coefficients(decay, self._nvars, self._min_c)
-        self._c *= c_factor/self._c.sum()
+        self._w = self._bkd.full((self._nvars, 1), wfactor)
+        self._c = self._get_c_coefficients(decay, self._nvars)
+        self._c *= cfactor / self._c.sum()
 
-    def _oscillatory(self, samples, return_grad):
-        tmp = 2.0*np.pi*self._w[0] + samples.T.dot(self._c)
-        result = np.cos(tmp)
+    def _oscillatory(self, samples: Array, return_grad: bool) -> Array:
+        tmp = 2.0 * math.pi * self._w[0] + samples.T.dot(self._c)
+        result = self._bkd.cos(tmp)
         if not return_grad:
             return result
-        grad = -self._c*np.sin(tmp)
-        return result, grad
+        grad = -self._c * self._bkd.sin(tmp)
+        return result, grad.T
 
-    def _product_peak(self, samples, return_grad):
-        result = 1/np.prod(
-            (1/self._c**2+(samples-self._w)**2), axis=0)[:, None]
+    def _product_peak(self, samples: Array, return_grad: bool) -> Array:
+        print(self._c.shape, "c")
+        result = (
+            1
+            / self._bkd.prod(
+                (1 / self._c**2 + (samples - self._w) ** 2), axis=0
+            )[:, None]
+        )
         if not return_grad:
             return result
-        grad = 2.*(samples.T - self._w)*result
-        return result, grad
+        grad = (
+            -2.0
+            * (samples - self._w)
+            / (1 / self._c**2 + (samples - self._w) ** 2)
+            * result[0, 0]
+        )
+        return result, grad.T
 
-    def _corner_peak(self, samples, return_grad):
-        tmp = 1+samples.T.dot(self._c)
-        result = tmp**(-(self._nvars+1))
+    def _corner_peak(self, samples: Array, return_grad: bool) -> Array:
+        tmp = 1 + samples.T.dot(self._c)
+        result = tmp ** (-(self._nvars + 1))
         if not return_grad:
             return result
-        grad = -self._c*(self._nvars+1)/tmp**(self._nvars+2)
-        return result, grad
+        grad = -self._c * (self._nvars + 1) / tmp ** (self._nvars + 2)
+        return result, grad.T
 
-    def _gaussian(self, samples, return_grad):
-        tmp = -np.sum(self._c**2*(samples-self._w)**2, axis=0)
-        result = np.exp(tmp)[:, None]
+    def _gaussian(self, samples: Array, return_grad: bool) -> Array:
+        tmp = -self._bkd.sum(self._c**2 * (samples - self._w) ** 2, axis=0)
+        result = self._bkd.exp(tmp)[:, None]
         if not return_grad:
             return result
-        grad = 2.*self._c**2*(self._w-samples.T)*result
+        grad = 2.0 * self._c.T**2 * (self._w.T - samples.T) * result
         return result, grad
 
-    def _c0_continuous(self, samples, return_grad):
-        tmp = -np.sum(self._c*np.abs(samples-self._w), axis=0)
-        result = np.exp(tmp)[:, None]
+    def _c0_continuous(self, samples: Array, return_grad: bool) -> Array:
+        tmp = -self._bkd.sum(
+            self._c * self._bkd.abs(samples - self._w), axis=0
+        )
+        result = self._bkd.exp(tmp)[:, None]
         if not return_grad:
             return result
         msg = "grad of c0_continuous function is not supported"
         raise ValueError(msg)
 
-    def _discontinuous(self, samples, return_grad):
-        result = np.exp(samples.T.dot(self._c))
-        II = np.where((samples[0] > self._w[0]) | (samples[1] > self._w[1]))
+    def _discontinuous(self, samples: Array, return_grad: bool) -> Array:
+        result = self._bkd.exp(samples.T.dot(self._c))
+        II = self._bkd.where(
+            (samples[0] > self._w[0]) | (samples[1] > self._w[1])
+        )
         result[II] = 0.0
         if not return_grad:
             return result
         msg = "grad of discontinuous function is not supported"
         raise ValueError(msg)
 
-    def __call__(self, name, samples, return_grad=False):
-        return self._funs[name][0](samples, return_grad)
+    def _values(self, samples: Array) -> Array:
+        return self._funs[self._name][0](samples, False)
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._funs[self._name][0](sample, True)[1]
 
     def _oscillatory_recursive_integrate_alternate(self, var_id, integral):
         if var_id > 0:
-            return (self._oscillatory_recursive_integrate(
-                var_id-1, integral+self._c[var_id-1]) -
-                    self._oscillatory_recursive_integrate(
-                        var_id-1, integral))/self._c[var_id-1]
+            return (
+                self._oscillatory_recursive_integrate(
+                    var_id - 1, integral + self._c[var_id - 1]
+                )
+                - self._oscillatory_recursive_integrate(var_id - 1, integral)
+            ) / self._c[var_id - 1]
         case = self._nvars % 4
-        if (case == 0):
-            return np.cos(2.0*np.pi*self._w[0]+integral)
-        if (case == 1):
-            return np.sin(2.0*np.pi*self._w[0]+integral)
-        if (case == 2):
-            return -np.cos(2.0*np.pi*self._w[0]+integral)
-        return -np.sin(2.0*np.pi*self._w[0]+integral)
+        if case == 0:
+            return self._bkd.cos(2.0 * math.pi * self._w[0] + integral)
+        if case == 1:
+            return self._bkd.sin(2.0 * math.pi * self._w[0] + integral)
+        if case == 2:
+            return -self._bkd.cos(2.0 * math.pi * self._w[0] + integral)
+        return -self._bkd.sin(2.0 * math.pi * self._w[0] + integral)
 
     def _oscillatory_integrate_alternate(self):
         return self._oscillatory_recursive_integrate(self._nvars, 0.0)
 
     def _oscillatory_recursive_integrate(self, var_id, cosine):
-        C1 = np.sin(self._c[var_id])/self._c[var_id]
-        C2 = (1-np.cos(self._c[var_id]))/self._c[var_id]
-        if var_id == self._nvars-1:
+        C1 = self._bkd.sin(self._c[var_id]) / self._c[var_id]
+        C2 = (1 - self._bkd.cos(self._c[var_id])) / self._c[var_id]
+        if var_id == self._nvars - 1:
             if cosine:
                 return C1
             return C2
         if cosine:
-            return (C1*self._oscillatory_recursive_integrate(var_id+1, True) -
-                    C2*self._oscillatory_recursive_integrate(var_id+1, False))
-        return (C2*self._oscillatory_recursive_integrate(var_id+1, True) +
-                C1*self._oscillatory_recursive_integrate(var_id+1, False))
+            return C1 * self._oscillatory_recursive_integrate(
+                var_id + 1, True
+            ) - C2 * self._oscillatory_recursive_integrate(var_id + 1, False)
+        return C2 * self._oscillatory_recursive_integrate(
+            var_id + 1, True
+        ) + C1 * self._oscillatory_recursive_integrate(var_id + 1, False)
 
     def _oscillatory_integrate(self):
         """
@@ -140,23 +190,35 @@ class GenzFunction(object):
         int_0^1 cos(ax)dx = sin(a)/a
         int_0^1 sin(ax)dx = (1-cos(a))/a
         """
-        C1 = np.cos(2.*np.pi*self._w[0])
-        C2 = np.sin(2.*np.pi*self._w[0])
-        integral = (C1*self._oscillatory_recursive_integrate(0, True) -
-                    C2*self._oscillatory_recursive_integrate(0, False))
+        C1 = self._bkd.cos(2.0 * math.pi * self._w[0])
+        C2 = self._bkd.sin(2.0 * math.pi * self._w[0])
+        integral = C1 * self._oscillatory_recursive_integrate(
+            0, True
+        ) - C2 * self._oscillatory_recursive_integrate(0, False)
         return integral
 
     def _product_peak_integrate(self):
-        return np.prod(
-            self._c*(np.arctan(self._c*(1.0-self._w)) +
-                     np.arctan(self._c*self._w)))
+        return self._bkd.prod(
+            self._c
+            * (
+                self._bkd.arctan(self._c * (1.0 - self._w))
+                + self._bkd.arctan(self._c * self._w)
+            )
+        )
 
     def _corner_peak_integrate_recursive(self, integral, D):
         if D == 0:
             return 1.0 / (1.0 + integral)
-        return 1/(D*self._c[D-1])*(
-            self._corner_peak_integrate_recursive(integral, D-1) -
-            self._corner_peak_integrate_recursive(integral+self._c[D-1], D-1))
+        return (
+            1
+            / (D * self._c[D - 1])
+            * (
+                self._corner_peak_integrate_recursive(integral, D - 1)
+                - self._corner_peak_integrate_recursive(
+                    integral + self._c[D - 1], D - 1
+                )
+            )
+        )
 
     def _corner_peak_integrate(self):
         r"""
@@ -172,24 +234,146 @@ class GenzFunction(object):
         return self._corner_peak_integrate_recursive(0.0, self._nvars)
 
     def _gaussian_integrate(self):
-        result = np.prod(
-            (special.erf(self._c*self._w)+special.erf(self._c-self._c*self._w))
-            * np.sqrt(np.pi)/(2*self._c))
+        result = self._bkd.prod(
+            (
+                special.erf(self._c * self._w)
+                + special.erf(self._c - self._c * self._w)
+            )
+            * self._bkd.sqrt(math.pi)
+            / (2 * self._c)
+        )
         return result
 
     def _c0_continuous_integrate(self):
-        return np.prod(
-            (2.0-np.exp(-self._c*self._w)-np.exp(
-                self._c*(self._w-1.0)))/self._c)
+        return self._bkd.prod(
+            (
+                2.0
+                - self._bkd.exp(-self._c * self._w)
+                - self._bkd.exp(self._c * (self._w - 1.0))
+            )
+            / self._c
+        )
 
     def _discontinuous_integrate(self):
         assert self._nvars >= 2
         idx = min(self._nvars, 2)
-        tmp = np.prod(
-            (np.exp(self._c[:idx]*self._w[:idx])-1.0)/self._c[:idx])
+        tmp = self._bkd.prod(
+            (self._bkd.exp(self._c[:idx] * self._w[:idx]) - 1.0)
+            / self._c[:idx]
+        )
         if self._nvars <= 2:
             return tmp
-        return tmp*np.prod((np.exp(self._c[2:])-1)/self._c[2:])
+        return tmp * self._bkd.prod(
+            (self._bkd.exp(self._c[2:]) - 1) / self._c[2:]
+        )
 
-    def integrate(self, name):
-        return self._funs[name][1]()
+    def integrate(self):
+        return self._funs[self._name][1]()
+
+
+class GenzBenchmark(SingleModelBenchmark):
+    r"""
+    Setup one of the six Genz integration benchmarks
+    :math:`f_d(x):\mathbb{R}^D\to\mathbb{R}`,
+    where :math:`x=[x_1,\ldots,x_D]^\top`.
+    The number of inputs :math:`D` and the anisotropy (relative importance of
+    each variable and interactions) of the functions can be adjusted.
+    The definition of each function is in the Notes section.
+
+    References
+    ----------
+    .. [Genz1984] `Genz, A. Testing multidimensional integration routines. In Proc. of international conference on Tools, methods and languages for scientific and engineering computation (pp. 81-94), 1984 <https://dl.acm.org/doi/10.5555/2837.2842>`_
+
+    Notes
+    -----
+    The six Genz test function are:
+
+    Oscillatory ('oscillatory')
+
+    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{d=1}^D c_dz_d\right)
+
+    Product Peak ('product_peak')
+
+    .. math:: f(z) = \prod_{d=1}^D \left(c_d^{-2}+(z_d-w_d)^2\right)^{-1}
+
+    Corner Peak ('corner_peak')
+
+    .. math:: f(z)=\left( 1+\sum_{d=1}^D c_dz_d\right)^{-(D+1)}
+
+    Gaussian Peak ('gaussian')
+
+    .. math:: f(z) = \exp\left( -\sum_{d=1}^D c_d^2(z_d-w_d)^2\right)
+
+    C0 Continuous ('c0continuous')
+
+    .. math:: f(z) = \exp\left( -\sum_{d=1}^D c_d\lvert z_d-w_d\rvert\right)
+
+    Discontinuous ('discontinuous')
+
+    .. math:: f(z) = \begin{cases}0 & z_1>w_1 \;\mathrm{or}\; z_2>w_2\\\exp\left(\sum_{d=1}^D c_d z_d\right) & \mathrm{otherwise}\end{cases}
+
+    Increasing :math:`\lVert c \rVert` will in general make
+    the integrands more difficult.
+
+    The :math:`0\le w_d \le 1` parameters do not affect the difficulty
+    of the integration problem. We set :math:`w_1=w_2=\ldots=W_D`.
+
+    The coefficient types implement different decay rates for :math:`c_d`.
+    This allows testing of methods that can identify and exploit anisotropy.
+    They are as follows:
+
+    No decay (none)
+
+    .. math:: \hat{c}_d=\frac{d+0.5}{D}
+
+    Quadratic decay (qudratic)
+
+    .. math:: \hat{c}_d = \frac{1}{(d + 1)^2}
+
+    Quartic decay (quartic)
+
+    .. math:: \hat{c}_d = \frac{1}{(d + 1)^4}
+
+    Exponential decay (exp)
+
+    .. math:: \hat{c}_d=\exp\left(\log(c_\mathrm{min})\frac{d+1}{D}\right)
+
+    Squared-exponential decay (sqexp)
+
+    .. math:: \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D^2}\right)}
+
+    Here :math:`c_\mathrm{min}` is argument that sets the minimum value of :math:`c_D`.
+
+    Once the formula are used the coefficients are normalized such that
+
+    .. math:: c_d = c_\text{factor}\frac{\hat{c}_d}{\sum_{d=1}^D \hat{c}_d}.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        nvars: int,
+        decay: str,
+        cfactor: float = 1.0,
+        wfactor: float = 0.25,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._name = name
+        self._nvars = nvars
+        self._decay = decay
+        self._cfactor = cfactor
+        self._wfactor = wfactor
+        super().__init__(backend)
+
+    def _set_model(self):
+        self._model = GenzModel(self._name, self._bkd)
+        self._model.set_coefficients(
+            self.nvars(), self._cfactor, self._decay, self._wfactor
+        )
+
+    def _set_variable(self):
+        marginals = [stats.uniform(0, 1)] * self._nvars
+        self._variable = IndependentMarginalsVariable(marginals)
+
+    def integral(self):
+        return self._model.integrate()

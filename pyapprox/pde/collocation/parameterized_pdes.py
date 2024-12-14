@@ -94,6 +94,14 @@ class SteadyParameterizedDiffusionPhysics(
 
 
 class SteadyDiffusionModel(SteadyAdjointCollocationModel):
+    def __init__(
+        self,
+        newton_solver: NewtonSolver = None,
+        functional: TransientAdjointFunctional = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(newton_solver, functional, backend)
+
     def setup_physics(self):
         self._physics = SteadyParameterizedDiffusionPhysics(self.basis())
 
@@ -181,6 +189,23 @@ class TransientParameterizedDiffusionFixedAdvectionPhysics(
 
 
 class TransientDiffusionAdvectionModel(TransientAdjointCollocationModel):
+    def __init__(
+        self,
+        init_time: float,
+        final_time: float,
+        deltat: float,
+        time_residual_cls: TimeIntegratorNewtonResidual,
+        newton_solver: NewtonSolver = None,
+        functional: TransientAdjointFunctional = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(init_time, final_time, deltat, time_residual_cls, newton_solver,
+                         functional, backend)
+        self._jacobian_implemented = True
+
+    def nvars(self) -> int:
+        return self._physics.nvars()
+
     def setup_physics(self):
         self._nominal_val = 0.0
         self.setup_velocity()
@@ -417,84 +442,6 @@ class ShallowWaterWaveModel(TransientAdjointCollocationModel):
     def set_param(self, param: Array):
         self._param = param
         self.setup_init_surface()
-
-
-class ParameterizedLotkaVolterraResidual(
-    TransientNewtonResidual, ParameterizedNewtonResidualMixin
-):
-    def set_time(self, time: float):
-        self._time = time
-
-    def nstates(self) -> int:
-        return 3
-
-    def set_param(self, param: Array):
-        if param.shape[0] != self.nvars():
-            raise ValueError("param has the wrong shape")
-        self._param = param
-        self._rcoefs = param[: self.nstates()]
-        self._acoefs = self._bkd.reshape(
-            param[self.nstates() :], (self.nstates(), self.nstates())
-        )
-
-    def __call__(self, sol: Array) -> Array:
-        return self._rcoefs * sol * (1.0 - self._acoefs @ sol)
-
-    def jacobian(self, sol: Array) -> Array:
-        return (
-            self._bkd.diag(self._rcoefs)
-            - self._rcoefs * self._bkd.diag(self._acoefs @ sol)
-            - (self._rcoefs * sol) * self._acoefs.T
-        ).T
-
-    def _param_jacobian(self, sol: Array) -> Array:
-        jac_r = self._bkd.diag(sol) - sol * self._bkd.diag(self._acoefs @ sol)
-        jac_a_rows = -(self._rcoefs * sol)[:, None] * sol[None, :]
-        jac_a = self._bkd.zeros((3, 9))
-        for ii in range(3):
-            jac_a[ii, 3 * ii : 3 * (ii + 1)] = jac_a_rows[ii]
-        jac = self._bkd.hstack((jac_r, jac_a))
-        return jac
-
-    def nvars(self) -> int:
-        return (self.nstates() + 1) * self.nstates()
-
-    def _initial_param_jacobian(self) -> Array:
-        return self._bkd.zeros((self.nstates(), self.nvars()))
-
-
-class LotkaVolterraModel(TransientAdjointModel):
-    def __init__(
-        self,
-        init_time: float,
-        final_time: float,
-        deltat: float,
-        time_residual_cls: TimeIntegratorNewtonResidual,
-        functional: TransientAdjointFunctional = None,
-        newton_solver: NewtonSolver = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
-    ):
-        self._residual = ParameterizedLotkaVolterraResidual(backend)
-        super().__init__(
-            init_time,
-            final_time,
-            deltat,
-            time_residual_cls(self._residual),
-            functional,
-            newton_solver,
-            backend=backend,
-        )
-
-    def get_initial_condition(self) -> Array:
-        return self._bkd.array([0.3, 0.4, 0.3])
-
-    def nvars(self) -> int:
-        if not hasattr(self, "_functional"):
-            return self._residual.nvars()
-        return (
-            self._functional.nunique_functional_params()
-            + self._residual.nvars()
-        )
 
 
 class ParameterizedFitzHughNagumoPhysics(FitzHughNagumoPhysics):
@@ -745,8 +692,16 @@ class SteadyParameterizedShallowShelfVelocityPhysics(
 
 
 class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
-    def setup_physics(self):
+    def __init__(
+        self,
+        newton_solver: NewtonSolver = None,
+        functional: TransientAdjointFunctional = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(newton_solver, functional, backend)
         self._jacobian_implemented = True
+
+    def setup_physics(self):
         # one part of hessian (state_state_hvp) still relies on auto diff
         # so use (default) self._apply_hessian_implemented = False
 

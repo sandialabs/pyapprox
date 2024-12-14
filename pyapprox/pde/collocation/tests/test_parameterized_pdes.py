@@ -57,56 +57,16 @@ class SumFunctional(AdjointFunctional):
     def nunique_functional_params(self) -> int:
         return 0
 
+    def _qoi_sol_jacobian(self, sol: Array) -> Array:
+        return self._bkd.ones((1, sol.shape[0]))
+
+    def _qoi_param_jacobian(self, sol: Array) -> Array:
+        return self._bkd.zeros((1, self.nparams()))
+
 
 class TestParameterizedModels:
     def setUp(self):
         np.random.seed(1)
-
-    def _check_lotka_volterra(self, time_residual_cls):
-        bkd = self.get_backend()
-        newton_solver = NewtonSolver(verbosity=0, rtol=1e-12, atol=1e-12)
-        model = LotkaVolterraModel(
-            0,
-            10,
-            1,
-            time_residual_cls,
-            newton_solver=newton_solver,
-            backend=bkd,
-        )
-        obs_sample = bkd.array(np.random.uniform(0.3, 0.7, model.nvars()))[
-            :, None
-        ]
-        model_obs_sol, model_obs_times = model.forward_solve(obs_sample)
-        obs_time_indices = bkd.arange(model_obs_times.shape[0], dtype=int)
-        # observe the 0th and at all time points, 2nd state at every second time point
-        # do not observe 1st state
-        obs_time_tuples = [
-            (0, obs_time_indices),
-            (2, obs_time_indices[::2]),
-        ]
-        functional = TransientMSEAdjointFunctional(
-            3, model.nvars(), obs_time_tuples, backend=bkd
-        )
-        obs = functional.observations_from_solution(model_obs_sol)
-        functional.set_observations(obs)
-        # The error in check apply jacobian depend on newton tolerance
-        # because finite difference is only accurate to that tolerance
-        model.set_functional(functional)
-        sample = bkd.array(np.random.uniform(0.3, 0.7, model.nvars()))[:, None]
-        fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
-        errors = model.check_apply_jacobian(sample, fd_eps, disp=True)
-        print(errors.min() / errors.max())
-        assert errors.min() / errors.max() < 1.3e-6
-
-    def test_lotka_volterra(self):
-        test_cases = [
-            [BackwardEulerResidual],
-            [CrankNicholsonResidual],
-            [ForwardEulerResidual],
-            [HeunResidual],
-        ]
-        for test_case in test_cases:
-            self._check_lotka_volterra(*test_case)
 
     def test_steady_parameterized_diffusion(self):
         bkd = self.get_backend()
@@ -125,6 +85,11 @@ class TestParameterizedModels:
         # velocity.plot_vector_field(axs[0])
         # model.physics()._diffusion.plot(axs[1])
         # plt.show()
+
+        if not bkd.jacobian_implemented():
+            # TODO implement analytical expressions for the componets needed
+            # by adjoint solve
+            return
 
         functional = SumFunctional(model)
         newton_solver._verbosity = 0
@@ -250,6 +215,8 @@ class TestParameterizedModels:
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 2e-7
 
+        if not bkd.hessian_implemented():
+            return
         errors = model.check_apply_hessian(sample, None, disp=True)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 4e-7

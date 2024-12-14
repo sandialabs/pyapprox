@@ -590,6 +590,40 @@ class TransientAdjointFunctional(AdjointFunctional, TransientFunctionalMixin):
         return self._bkd.hstack((zeros, model_drdp))
 
 
+class TransientSingleStateFinalTimeFunctional(TransientAdjointFunctional):
+    def __init__(
+        self, state_id: int, nstates: int, nparams: int,
+        backend: LinAlgMixin = NumpyLinAlgMixin
+    ):
+        self._state_id = state_id
+        self._nstates = nstates
+        self._nparams = nparams
+        super().__init__(backend)
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nstates(self) -> int:
+        return self._nstates
+
+    def nparams(self) -> int:
+        return self._nparams
+
+    def _value(self, sol: Array) -> Array:
+        return sol[self._state_id, -1:]
+
+    def _qoi_state_jacobian(self, sol: Array) -> Array:
+        dqdu = self._bkd.zeros((self.nstates(), sol.shape[1]))
+        dqdu[self._state_id, -1] = 1.0
+        return dqdu
+
+    def _qoi_param_jacobian(self, sol: Array) -> Array:
+        return self._bkd.zeros((self.nparams(),))
+
+    def nunique_functional_params(self) -> int:
+        return 0
+
+
 class TransientMSEAdjointFunctional(TransientAdjointFunctional):
     # TODO compute all log likelihood terms including determinant of noise
     # covariance
