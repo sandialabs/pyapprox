@@ -112,7 +112,7 @@ class SteadyAdjointCollocationModel(CollocationModelMixin, SteadyAdjointModel):
 
 
 class TransientAdjointCollocationModel(
-        TransientAdjointModel, CollocationModelMixin
+        CollocationModelMixin, TransientAdjointModel
 ):
     def __init__(
         self,
