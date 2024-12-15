@@ -439,7 +439,7 @@ class MeshKLE(AbstractKLE):
             mean_field, use_log, quad_weights, nterms, backend=backend
         )
         # normalize the basis
-        self._eig_vecs *= sigma * self._sqrt_eig_vals
+        self._normalized_eig_vecs *= sigma
 
     def _set_mean_field(self, mean_field):
         if np.isscalar(mean_field):
