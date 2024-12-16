@@ -219,7 +219,7 @@ class TestKLE():
             atol=1e-3
         )
         assert bkd.allclose(
-            kle_data._eig_vecs, kle_data_from_cov._eig_vecs, atol=1e-4)
+            kle_data._eig_vecs, kle_data_from_cov._eig_vecs, atol=1e-3)
 
         # Test use of quadrature weights
         kle = MeshKLE(

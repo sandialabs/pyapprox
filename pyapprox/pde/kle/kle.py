@@ -371,7 +371,7 @@ class AbstractKLE(ABC):
         )
         self._sqrt_eig_vals = self._bkd.sqrt(eig_vals[II])
         self._eig_vecs = eig_vecs[:, II]
-        self._normalized_eig_vecs = self._eig_vecs * self._sqrt_eig_vals
+        self._eig_vecs *= self._sqrt_eig_vals
 
     def __call__(self, coef):
         """
@@ -391,9 +391,9 @@ class AbstractKLE(ABC):
             )
         if self._use_log:
             return self._bkd.exp(
-                self._mean_field[:, None] + self._normalized_eig_vecs @ coef
+                self._mean_field[:, None] + self._eig_vecs @ coef
             )
-        return self._mean_field[:, None] + self._normalized_eig_vecs @ coef
+        return self._mean_field[:, None] + self._eig_vecs @ coef
 
     def __repr__(self):
         if self._nterms is None:
@@ -439,7 +439,7 @@ class MeshKLE(AbstractKLE):
             mean_field, use_log, quad_weights, nterms, backend=backend
         )
         # normalize the basis
-        self._normalized_eig_vecs *= sigma
+        self._eig_vecs *= sigma
 
     def _set_mean_field(self, mean_field):
         if np.isscalar(mean_field):
@@ -565,6 +565,7 @@ class DataDrivenKLE(AbstractKLE):
         self._sqrt_eig_vals = S[: self._nterms] / np.sqrt(
             self._field_samples.shape[1] - 1
         )
+        self._eig_vecs *= self._sqrt_eig_vals
 
 
 def multivariate_chain_rule(jac_yu, jac_ux):

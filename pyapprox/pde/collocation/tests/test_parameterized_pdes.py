@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.pde.collocation.parameterized_pdes import (
-    LotkaVolterraModel,
     TransientDiffusionAdvectionModel,
     SteadyDiffusionModel,
     FitzHughNagumoModel,
