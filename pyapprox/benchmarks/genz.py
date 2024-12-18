@@ -1,4 +1,5 @@
 import math
+from typing import Tuple
 
 from scipy import stats
 from scipy import special
@@ -352,9 +353,10 @@ class GenzBenchmark(SingleModelBenchmark):
         self,
         name: str,
         nvars: int,
-        decay: str,
+        decay: str = None,
         cfactor: float = 1.0,
         wfactor: float = 0.25,
+        coefs: Tuple[Array, Array] = None,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         self._name = name
@@ -362,13 +364,17 @@ class GenzBenchmark(SingleModelBenchmark):
         self._decay = decay
         self._cfactor = cfactor
         self._wfactor = wfactor
+        self._coefs = coefs
         super().__init__(backend)
 
     def _set_model(self):
         self._model = GenzModel(self._name, self._bkd)
-        self._model.set_coefficients(
-            self.nvars(), self._cfactor, self._decay, self._wfactor
-        )
+        if self._coefs is None:
+            self._model.set_coefficients(
+                self.nvars(), self._cfactor, self._decay, self._wfactor
+            )
+        else:
+            self._model._c, self._model._w = self._coefs
 
     def _set_variable(self):
         marginals = [stats.uniform(0, 1)] * self._nvars

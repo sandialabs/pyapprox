@@ -87,14 +87,16 @@ def _grouped_acv_sigma_block(
 ):
     nsubset0 = len(subset0)
     nsubset1 = len(subset1)
-    block = stat._bkd.full((nsubset0, nsubset1), 0.0)
+    zero_block = stat._bkd.full(
+        (nsubset0 * stat.nstats(), nsubset1 * stat.nstats()), 0.0
+    )
     if (nsamples_subset0 * nsamples_subset1) == 0:
-        return block
+        return zero_block
     if (
         nsamples_subset0 < stat.min_nsamples()
         or nsamples_subset1 < stat.min_nsamples()
     ):
-        return block
+        return zero_block
     block = stat._group_acv_sigma_block(
         subset0,
         subset1,
@@ -130,6 +132,9 @@ class GroupACVObjective(Model):
 
     def nqoi(self):
         return 1
+
+    def _inv(self, mat):
+        return self._bkd.pinv(mat)
 
     def set_estimator(self, estimator):
         self._est = estimator
@@ -173,7 +178,7 @@ class MLBLUEObjective(GroupACVObjective):
         # compute psi matrix with partition sizes
         # todo cache psi_matrix when it is computed when evaluatin objective
         psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
-        psi_inv = self._bkd.pinv(psi_matrix)
+        psi_inv = self._inv(psi_matrix)
         gamma = psi_inv @ self._est._asketch
         Rmats = self._est._restriction_matrices
         jacobian = self._bkd.hstack(
@@ -182,7 +187,7 @@ class MLBLUEObjective(GroupACVObjective):
                     (
                         -gamma.T,
                         Rmats[ii],
-                        self._bkd.pinv(Sigma_blocks[ii][ii]),
+                        self._inv(Sigma_blocks[ii][ii]),
                         Rmats[ii].T,
                         gamma
                      )
@@ -211,7 +216,7 @@ class MLBLUEObjective(GroupACVObjective):
             self._est._stat,
         )
         psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
-        psi_inv = self._bkd.pinv(psi_matrix)
+        psi_inv = self._inv(psi_matrix)
         gamma = psi_inv @ self._est._asketch
         Rmats = self._est._restriction_matrices
         hess = [
@@ -219,7 +224,7 @@ class MLBLUEObjective(GroupACVObjective):
             for ii in range(len(Sigma_blocks))
         ]
         sigma_invs = [
-            self._bkd.pinv(Sigma_blocks[ii][ii])
+            self._inv(Sigma_blocks[ii][ii])
             for ii in range(len(Sigma_blocks))
         ]
         psi_derivs = [
@@ -497,8 +502,8 @@ class GroupACVEstimator:
             raise ValueError(
                 "GroupACV only suppots estimation of mean or variance"
             )
-        if stat.nqoi() != 1:
-            raise ValueError("GroupACV only supports nqoi=1")
+        # if stat.nqoi() != 1:
+        #     raise ValueError("GroupACV only supports nqoi=1")
         self._stat = stat
 
         self._subsets, self._allocation_mat = self._set_subsets(
@@ -508,7 +513,7 @@ class GroupACVEstimator:
         self._partitions_per_model = self._get_partitions_per_model()
         self._partitions_intersect = self._get_subset_intersecting_partitions()
         self._restriction_matrices = [
-                self._restriction_matrix(self.nmodels(), subset).T
+                self._restriction_matrix(subset).T
                 for ii, subset in enumerate(self._subsets)
             ]
         self._R = self._bkd.hstack(self._restriction_matrices)
@@ -528,13 +533,21 @@ class GroupACVEstimator:
     def nmodels(self):
         return self._nmodels
 
-    def _restriction_matrix(self, ncols, subset):
+    def _restriction_matrix(self, subset):
         # TODO Consider replacing _restriction_matrix.T.dot(A) with
         # special indexing applied to A
         nsubset = len(subset)
-        mat = self._bkd.zeros((nsubset, ncols))
+        nstats = self._stat.nstats()
+        mat = self._bkd.zeros((nsubset*nstats, self.nmodels() * nstats))
+        kk = 0
         for ii in range(nsubset):
-            mat[ii, subset[ii]] = 1.0
+            for jj in range(self._stat.nqoi()):
+                mat[kk, subset[ii]*self._stat.nqoi()+jj] = 1.0
+                kk += 1
+        # old code for single QoI
+        # mat1 = self._bkd.zeros((nsubset*nstats, self.nmodels() * nstats))
+        # for ii in range(nsubset):
+        #     mat1[ii, subset[ii]] = 1.0
         return mat
 
     def _check_cov(self, cov, costs):
@@ -626,12 +639,17 @@ class GroupACVEstimator:
         Sigma = self._bkd.vstack([self._bkd.hstack(row) for row in Sigma])
         return Sigma
 
+    def _inv(self, mat):
+        return self._bkd.pinv(mat)
+
     def _psi_matrix_from_sigma(self, Sigma):
         # TODO instead of applying R matrices just collect correct rows
         # and columns
-        reg_mat = self._bkd.eye(self.nmodels()) * self._reg_blue
+        reg_mat = self._bkd.eye(
+            self.nmodels() * self._stat.nstats()
+        ) * self._reg_blue
         return (
-            self._bkd.multidot((self._R, self._bkd.pinv(Sigma), self._R.T))
+            self._bkd.multidot((self._R, self._inv(Sigma), self._R.T))
             + reg_mat
         )
 
@@ -639,11 +657,29 @@ class GroupACVEstimator:
         Sigma = self._sigma(npartition_samples)
         return self._psi_matrix_from_sigma(Sigma)
 
-    def _covariance_from_npartition_samples(self, npartition_samples):
+    def _psi_inv_from_npartition_samples(self, npartition_samples):
         if self._asketch.shape != (self.nmodels(), 1):
             raise ValueError("asketch has the wrong shape")
-        psi_inv = self._bkd.pinv(self._psi_matrix(npartition_samples))
-        return self._bkd.multidot((self._asketch.T, psi_inv, self._asketch))
+        psi_inv = self._inv(self._psi_matrix(npartition_samples))
+        return psi_inv
+
+    def _covariance_hf_components_from_npartition_samples(
+            self, npartition_samples
+    ):
+        psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
+        return psi_inv[:self._stat.nstats(), :self._stat.nstats()]
+
+    def _covariance_from_npartition_samples(self, npartition_samples):
+        if self._stat.nstats() == 1:
+            psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
+            return self._bkd.multidot(
+                (self._asketch.T, psi_inv, self._asketch)
+            )
+        # estimator covariance of high-fidelity components of acv estimator
+        hf_est_cov = self._covariance_hf_components_from_npartition_samples(
+            npartition_samples
+        )
+        return self._bkd.trace(hf_est_cov)
 
     def _get_model_subset_costs(self, subsets, costs):
         subset_costs = self._bkd.array(
@@ -716,11 +752,10 @@ class GroupACVEstimator:
         self._rounded_target_cost = rounded_target_cost
         self._opt_sample_splits = self._sample_splits_per_model()
         self._optimized_sigma = self._sigma(self._rounded_npartition_samples)
-        self._optimized_criteria = float(
-            self._covariance_from_npartition_samples(
+        self._optimized_covariance = self._covariance_from_npartition_samples(
                 self._rounded_npartition_samples
-            )
         )
+        self._optimized_criteria = float(self._optimized_covariance)
 
     def _set_optimized_params(self, npartition_samples, round_nsamples=True):
         # expected scalar type Double but found Float error can occur
@@ -926,11 +961,14 @@ class GroupACVEstimator:
 
     def _grouped_acv_beta(self, sigma):
         psi_matrix = self._psi_matrix_from_sigma(sigma)
+        asketch = self._bkd.flatten(
+            self._bkd.tile(self._asketch, (self._stat.nstats(),))
+        )
         beta = self._bkd.multidot(
             (
-                self._bkd.pinv(sigma),
+                self._inv(sigma),
                 self._R.T,
-                self._bkd.solve(psi_matrix, self._asketch[:, 0]),
+                self._bkd.solve(psi_matrix, asketch),
             )
         )
         return beta
@@ -940,11 +978,23 @@ class GroupACVEstimator:
         ll, mm = 0, 0
         acv_stat = 0
         for kk in range(self.nsubsets()):
-            mm += len(self._subsets[kk])
+            mm += len(self._subsets[kk]) * self._stat.nstats()
             if values_per_subset[kk].shape[0] > 0:
+                # will not work for nqoi > 1
                 subset_stat = self._stat.sample_estimate(values_per_subset[kk])
-                acv_stat += (beta[ll:mm]) @ subset_stat
+                beta_kk = self._bkd.reshape(
+                    beta[ll:mm], (self._stat.nstats(), len(self._subsets[kk]))
+                ).T
+                subset_stat = subset_stat.reshape(
+                    (self._stat.nstats(), len(self._subsets[kk]))
+                ).T
+                print(beta_kk.shape, subset_stat.shape)
+                # acv_stat += beta_kk @ subset_stat
+                acv_stat += self._bkd.einsum("ij,ik->jk", beta_kk, subset_stat)
             ll = mm
+        print(ll)
+        print(beta.shape)
+        assert False
         return acv_stat
 
     def __call__(self, values_per_model):
@@ -1101,11 +1151,11 @@ class MLBLUEEstimator(GroupACVEstimator):
     def _compute_psi_blocks(self):
         submats = []
         for ii, subset in enumerate(self._subsets):
-            R = self._restriction_matrix(self.nmodels(), subset)
+            R = self._restriction_matrix(subset)
             submat = self._bkd.multidot(
                 (
                     R.T,
-                    self._bkd.pinv(self._stat._cov[np.ix_(subset, subset)]),
+                    self._inv(self._stat._cov[np.ix_(subset, subset)]),
                     R,
                 )
             )

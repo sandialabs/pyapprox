@@ -727,7 +727,7 @@ class TestMOMC:
             np.random.seed(1)
             self._check_bootstrap_estimator(*test_case)
 
-    def test_polynomial_ensemeble(self):
+    def test_polynomial_ensemble(self):
         bkd = self.get_backend()
         benchmark = PolynomialModelEnsemble(backend=bkd)
         cov = benchmark.covariance()

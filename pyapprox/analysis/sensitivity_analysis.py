@@ -140,6 +140,8 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
     qoi : integer
         The index 0<qoi<nqoi of the quantitiy of interest to plot
     """
+    if main_effects.ndim == 1:
+        main_effects = main_effects[:, None]
     main_effects = main_effects[:, qoi]
     assert main_effects.sum() <= 1.+np.finfo(float).eps
     main_effects_sum = main_effects.sum()
@@ -242,6 +244,8 @@ def plot_total_effects(total_effects, ax, truncation_pct=0.95,
         The index 0<qoi<nqoi of the quantitiy of interest to plot
     """
 
+    if total_effects.ndim == 1:
+        total_effects = total_effects[:, None]
     total_effects = total_effects[:, qoi]
 
     width = .95

@@ -450,15 +450,18 @@ def _get_B_from_pilot(pilot_values, nmodels, bkd):
     return bkd.block(B)
 
 
-def _nqoi_nqoi_subproblem(C, nmodels, nqoi, model_idx, qoi_idx, bkd):
+def _nqoi_nqoi_subproblem(C, nmodels, nqoi, model_idx, qoi_idx, bkd, model_idx2=None):
+    if model_idx2 is None:
+        model_idx2 = model_idx
     nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
-    C_new = bkd.empty((nsub_models * nsub_qoi, nsub_models * nsub_qoi))
+    nsub_models2 = len(model_idx2)
+    C_new = bkd.empty((nsub_models * nsub_qoi, nsub_models2 * nsub_qoi))
     cnt1 = 0
     for jj1 in model_idx:
         for kk1 in qoi_idx:
             cnt2 = 0
             idx1 = jj1 * nqoi + kk1
-            for jj2 in model_idx:
+            for jj2 in model_idx2:
                 for kk2 in qoi_idx:
                     idx2 = jj2 * nqoi + kk2
                     C_new[cnt1, cnt2] = C[idx1, idx2]
@@ -515,8 +518,16 @@ class MultiOutputStatistic(ABC):
         self._nqoi = nqoi
         self._bkd = backend
 
-    def nqoi(self):
+    def nqoi(self) -> int:
+        """
+        The number of quantities of interest (QoI) that each model returns
+        """
         return self._nqoi
+
+    @abstractmethod
+    def nstats(self) -> int:
+        """The number of statistics computed"""
+        raise NotImplementedError
 
     @abstractmethod
     def sample_estimate(self, values: Array):
@@ -588,6 +599,9 @@ class MultiOutputMean(MultiOutputStatistic):
         self._nmodels = None
         self._cov = None
 
+    def nstats(self) -> int:
+        return self.nqoi()
+
     def sample_estimate(self, values):
         return self._bkd.mean(values, axis=0)
 
@@ -650,8 +664,17 @@ class MultiOutputMean(MultiOutputStatistic):
         nsamples_subset0,
         nsamples_subset1,
     ):
+        qoi_idx = self._bkd.arange(self.nqoi())
+        model_idx = self._bkd.hstack((subset0, subset1))
+        cov = _nqoi_nqoi_subproblem(
+            self._cov, self._nmodels, self._nqoi, model_idx, qoi_idx, self._bkd
+        )[:len(subset0)*self.nqoi(), len(subset0)*self.nqoi():]
+        self._bkd.allclose(cov, _nqoi_nqoi_subproblem(
+            self._cov, self._nmodels, self._nqoi, subset0, qoi_idx, self._bkd, subset1))
+        # cov = self._cov[np.ix_(subset0, subset1)]
+        # assert self._bkd.allclose(self._cov[np.ix_(subset0, subset1)], cov)
         return (
-            self._cov[np.ix_(subset0, subset1)]
+            cov
             * nsamples_intersect
             / (nsamples_subset0 * nsamples_subset1)
         )
@@ -670,6 +693,9 @@ class MultiOutputVariance(MultiOutputStatistic):
         self._W = None
         self._V = None
         self._return_cov = return_cov
+
+    def nstats(self) -> int:
+        return self.nqoi() ** 2
 
     def sample_estimate(self, values: Array):
         if self._return_cov:
@@ -794,6 +820,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         self._W = None
         self._V = None
         self._B = None
+
+    def nstats(self) -> int:
+        return self.nqoi() * (1 + self.nqoi())
 
     def sample_estimate(self, values: Array):
         return self._bkd.hstack(

@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.surrogates.interp.sparse_grid import plot_sparse_grid_2d
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks import GenzBenchmark
 
 
 def compute_l2_error(validation_samples, validation_values, pce,
@@ -31,16 +31,15 @@ np.random.seed(1)
 
 c = np.array([[10, 0.01]]).T
 w = np.full((2, 1), 0.25)
-benchmark = setup_benchmark('genz', nvars=2, test_name='oscillatory',
-                            coeff=(c, w))
-model = benchmark.fun
-variable = benchmark.variable
+benchmark = GenzBenchmark(name='oscillatory', nvars=2, coefs=(c, w))
+model = benchmark.model()
+variable = benchmark.variable()
 
 #%% We can also use other benchmarks, for example by uncommenting the following code
 
-# benchmark = setup_benchmark('ishigami', a=7, b=0.1)
-# variable = benchmark.variable
-# model = benchmark.fun
+# benchmark = IshigamiBenchmark(a=7, b=0.1)
+# variable = benchmark.variable()
+# model = benchmark.model()
 
 #%%
 #Here we have intentionally set the coefficients :math:`c`: of the Genz function to be highly anisotropic, to emphasize the properties of the adaptive algorithm.
@@ -145,8 +144,9 @@ opts = {"method": "leja",
 #
 #Now we are in a position to start the adaptive process
 
-pce = surrogates.adaptive_approximate(
-    benchmark.fun, benchmark.variable, "polynomial_chaos", opts).approx
+from pyapprox.surrogates.approximate import adaptive_approximate
+pce = adaptive_approximate(
+    benchmark.model(), benchmark.variable(), "polynomial_chaos", opts).approx
 
 #%%
 #And finally we plot the final polynomial index set :math:`\Lambda` the subspace index set, the Leja sequence, and the decay in error as the number of samples increases.
