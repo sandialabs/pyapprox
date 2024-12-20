@@ -486,7 +486,7 @@ class GroupACVEstimator:
         stat: MultiOutputStatistic,
         costs: Array,
         reg_blue: float = 0,
-        subsets: List[Array] = None,
+        model_subsets: List[Array] = None,
         est_type: str = "is",
         asketch: Array = None,
         backend: LinAlgMixin = TorchLinAlgMixin,
@@ -506,8 +506,8 @@ class GroupACVEstimator:
         #     raise ValueError("GroupACV only supports nqoi=1")
         self._stat = stat
 
-        self._subsets, self._allocation_mat = self._set_subsets(
-            subsets, est_type
+        self._model_subsets, self._subsets, self._allocation_mat = self._set_subsets(
+            model_subsets, est_type
         )
         self._npartitions = self._allocation_mat.shape[1]
         self._partitions_per_model = self._get_partitions_per_model()
@@ -537,17 +537,17 @@ class GroupACVEstimator:
         # TODO Consider replacing _restriction_matrix.T.dot(A) with
         # special indexing applied to A
         nsubset = len(subset)
-        nstats = self._stat.nstats()
-        mat = self._bkd.zeros((nsubset*nstats, self.nmodels() * nstats))
-        kk = 0
-        for ii in range(nsubset):
-            for jj in range(self._stat.nqoi()):
-                mat[kk, subset[ii]*self._stat.nqoi()+jj] = 1.0
-                kk += 1
-        # old code for single QoI
-        # mat1 = self._bkd.zeros((nsubset*nstats, self.nmodels() * nstats))
+        # nstats = self._stat.nstats()
+        # mat = self._bkd.zeros((nsubset*nstats, self.nmodels() * nstats))
+        # kk = 0
         # for ii in range(nsubset):
-        #     mat1[ii, subset[ii]] = 1.0
+        #     for jj in range(self._stat.nqoi()):
+        #         mat[kk, subset[ii]*self._stat.nqoi()+jj] = 1.0
+        #         kk += 1
+        # old code for single QoI
+        mat = self._bkd.zeros((nsubset, self.nmodels() * self._stat.nstats()))
+        for ii in range(nsubset):
+            mat[ii, subset[ii]] = 1.0
         return mat
 
     def _check_cov(self, cov, costs):
@@ -556,32 +556,45 @@ class GroupACVEstimator:
             raise ValueError("cov and costs are inconsistent")
         return cov, self._bkd.asarray(costs)
 
-    def _set_subsets(self, subsets, est_type):
-        if subsets is None:
-            subsets = get_model_subsets(self.nmodels(), self._bkd)
+    def _set_subsets(self, model_subsets: Array, est_type: str):
+        if model_subsets is None:
+            model_subsets = get_model_subsets(self.nmodels(), self._bkd)
         if est_type == "is":
             get_allocation_mat = _get_allocation_matrix_is
         elif est_type == "nested":
             zero = self._bkd.zeros((1,), dtype=int)
-            for ii, subset in enumerate(subsets):
+            for ii, subset in enumerate(model_subsets):
                 if not isinstance(subset, self._bkd.array_type()):
                     raise ValueError(
                         "subset must be an instance of {0}".format(
                             self._bkd.array_type())
                     )
                 if self._bkd.allclose(subset, zero):
-                    del subsets[ii]
+                    del model_subsets[ii]
                     break
-            subsets = _nest_subsets(subsets, self.nmodels(), self._bkd)[0]
+            model_subsets = _nest_subsets(model_subsets, self.nmodels(), self._bkd)[0]
             get_allocation_mat = _get_allocation_matrix_nested
         else:
             raise ValueError(
                 "incorrect est_type {0} specified".format(est_type)
             )
-        # make sure subsets are integer arrays
-        for ii in range(len(subsets)):
-            subsets[ii] = self._bkd.asarray(subsets[ii], dtype=int)
-        return subsets, get_allocation_mat(subsets, self._bkd)
+        # amend subsets to include indices into each statistic
+        # stats ordered by all stats model 0, all stats model 1 and so on
+        model_stat_ids = self._bkd.reshape(
+            self._bkd.arange(self._nmodels * self._stat.nstats(), dtype=int),
+            (self._nmodels, self._stat.nstats()),
+        )
+        subsets = []
+        for ii in range(len(model_subsets)):
+            subsets.append(
+                self._bkd.hstack(
+                    [
+                        model_stat_ids[model_id]
+                        for model_id in model_subsets[ii]
+                    ]
+                )
+            )
+        return model_subsets, subsets, get_allocation_mat(subsets, self._bkd)
 
     def _get_partitions_per_model(self):
         # assume npartitions = nsubsets
@@ -589,9 +602,9 @@ class GroupACVEstimator:
         partitions_per_model = self._bkd.full(
             (self.nmodels(), npartitions), 0.0
         )
-        for ii, subset in enumerate(self._subsets):
+        for ii, model_subset in enumerate(self._model_subsets):
             partitions_per_model[
-                np.ix_(subset, self._allocation_mat[ii] == 1)
+                np.ix_(model_subset, self._allocation_mat[ii] == 1)
             ] = 1
         return partitions_per_model
 
@@ -640,7 +653,7 @@ class GroupACVEstimator:
         return Sigma
 
     def _inv(self, mat):
-        return self._bkd.pinv(mat)
+        return self._bkd.inv(mat)
 
     def _psi_matrix_from_sigma(self, Sigma):
         # TODO instead of applying R matrices just collect correct rows
@@ -658,27 +671,18 @@ class GroupACVEstimator:
         return self._psi_matrix_from_sigma(Sigma)
 
     def _psi_inv_from_npartition_samples(self, npartition_samples):
-        if self._asketch.shape != (self.nmodels(), 1):
-            raise ValueError("asketch has the wrong shape")
         psi_inv = self._inv(self._psi_matrix(npartition_samples))
         return psi_inv
 
-    def _covariance_hf_components_from_npartition_samples(
-            self, npartition_samples
-    ):
-        psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
-        return psi_inv[:self._stat.nstats(), :self._stat.nstats()]
-
     def _covariance_from_npartition_samples(self, npartition_samples):
-        if self._stat.nstats() == 1:
-            psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
-            return self._bkd.multidot(
-                (self._asketch.T, psi_inv, self._asketch)
-            )
-        # estimator covariance of high-fidelity components of acv estimator
-        hf_est_cov = self._covariance_hf_components_from_npartition_samples(
-            npartition_samples
+        psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
+        return self._bkd.multidot(
+            (self._asketch, psi_inv, self._asketch.T)
         )
+        # estimator covariance of high-fidelity components of acv estimator
+        # hf_est_cov = self._covariance_hf_components_from_npartition_samples(
+        #     npartition_samples
+        # )
         return self._bkd.trace(hf_est_cov)
 
     def _get_model_subset_costs(self, subsets, costs):
@@ -755,7 +759,7 @@ class GroupACVEstimator:
         self._optimized_covariance = self._covariance_from_npartition_samples(
                 self._rounded_npartition_samples
         )
-        self._optimized_criteria = float(self._optimized_covariance)
+        self._optimized_criteria = self._bkd.trace(self._optimized_covariance)
 
     def _set_optimized_params(self, npartition_samples, round_nsamples=True):
         # expected scalar type Double but found Float error can occur
@@ -773,13 +777,23 @@ class GroupACVEstimator:
 
     def _validate_asketch(self, asketch):
         if asketch is None:
-            asketch = self._bkd.full((self.nmodels(), 1), 0)
-            asketch[0] = 1.0
-        asketch = self._bkd.array(asketch)
-        if asketch.shape[0] != self._costs.shape[0]:
-            raise ValueError("aksetch has the wrong shape")
-        if asketch.ndim == 1:
-            asketch = asketch[:, None]
+            asketch = self._bkd.full(
+                (self._stat.nstats(), self._stat.nstats() * self.nmodels()), 0
+            )
+            for nn in range(self._stat.nstats()):
+                asketch[nn, nn] = 1.0
+        # if asketch.ndim == 1:
+        #     asketch = asketch[None, :]
+        asketch = self._bkd.asarray(asketch)
+        if asketch.shape != (
+                self._stat.nstats(), self._stat.nstats() * self.nmodels()
+        ):
+            raise ValueError(
+                "aksetch shape {0} must be {1}".format(
+                    asketch.shape,
+                    (self._stat.nstats(), self._stat.nstats() * self.nmodels()),
+                )
+            )
         return asketch
 
     def set_optimizer(
@@ -941,10 +955,10 @@ class GroupACVEstimator:
                 raise ValueError(msg)
 
         values_per_subset = []
-        for ii, subset in enumerate(self._subsets):
+        for ii, model_subset in enumerate(self._model_subsets):
             values = []
             active_partitions = self._bkd.where(self._allocation_mat[ii])[0]
-            for model_id in subset:
+            for model_id in model_subset:
                 splits = self._opt_sample_splits[model_id]
                 values.append(
                     self._bkd.vstack(
@@ -961,15 +975,17 @@ class GroupACVEstimator:
 
     def _grouped_acv_beta(self, sigma):
         psi_matrix = self._psi_matrix_from_sigma(sigma)
-        asketch = self._bkd.flatten(
-            self._bkd.tile(self._asketch, (self._stat.nstats(),))
-        )
-        beta = self._bkd.multidot(
-            (
-                self._inv(sigma),
-                self._R.T,
-                self._bkd.solve(psi_matrix, asketch),
-            )
+        beta = self._bkd.stack(
+            [
+                self._bkd.multidot(
+                    (
+                        self._inv(sigma),
+                        self._R.T,
+                        self._bkd.solve(psi_matrix, asketch),
+                    )
+                )
+                for asketch in self._asketch
+            ], axis=0
         )
         return beta
 
@@ -978,23 +994,13 @@ class GroupACVEstimator:
         ll, mm = 0, 0
         acv_stat = 0
         for kk in range(self.nsubsets()):
-            mm += len(self._subsets[kk]) * self._stat.nstats()
+            mm += len(self._subsets[kk])
             if values_per_subset[kk].shape[0] > 0:
                 # will not work for nqoi > 1
                 subset_stat = self._stat.sample_estimate(values_per_subset[kk])
-                beta_kk = self._bkd.reshape(
-                    beta[ll:mm], (self._stat.nstats(), len(self._subsets[kk]))
-                ).T
-                subset_stat = subset_stat.reshape(
-                    (self._stat.nstats(), len(self._subsets[kk]))
-                ).T
-                print(beta_kk.shape, subset_stat.shape)
-                # acv_stat += beta_kk @ subset_stat
-                acv_stat += self._bkd.einsum("ij,ik->jk", beta_kk, subset_stat)
+                acv_stat += (beta[:, ll:mm]) @ subset_stat
             ll = mm
-        print(ll)
-        print(beta.shape)
-        assert False
+        #assert False
         return acv_stat
 
     def __call__(self, values_per_model):
