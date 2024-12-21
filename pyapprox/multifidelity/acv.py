@@ -230,8 +230,10 @@ class MCEstimator:
             raise ValueError(
                 "values must be an {0} but type={1}".format(
                     self._bkd.array_type(), type(values)))
-        if ((values.ndim != 2) or
-            (values.shape[0] != self._rounded_nsamples_per_model[0])):
+        if (
+                (values.ndim != 2) or
+                (values.shape[0] != self._rounded_nsamples_per_model[0])
+        ):
             msg = "values has the incorrect shape {0} expected {1}".format(
                 values.shape,
                 (self._rounded_nsamples_per_model[0], self._nqoi))

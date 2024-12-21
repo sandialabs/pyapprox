@@ -11,7 +11,7 @@ from pyapprox.multifidelity.stats import (
     _covariance_of_variance_estimator,
 )
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    MultiOutputModelEnsemble,
+    MultiOutputModelEnsemble, PSDMultiOutputModelEnsemble
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -25,8 +25,11 @@ def _two_qoi(ii, jj, fun, xx):
     return fun(xx)[:, [ii, jj]]
 
 
-def _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd):
-    benchmark = MultiOutputModelEnsemble(backend=bkd)
+def _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd, psd=False):
+    if not psd:
+        benchmark = MultiOutputModelEnsemble(backend=bkd)
+    if psd:
+        benchmark = PSDMultiOutputModelEnsemble(backend=bkd)
     cov = benchmark.covariance()
     funs = [benchmark.models()[ii] for ii in model_idx]
     if len(qoi_idx) == 1:

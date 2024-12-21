@@ -88,7 +88,7 @@ def _grouped_acv_sigma_block(
     nsubset0 = len(subset0)
     nsubset1 = len(subset1)
     zero_block = stat._bkd.full(
-        (nsubset0 * stat.nstats(), nsubset1 * stat.nstats()), 0.0
+        (nsubset0, nsubset1), 0.0
     )
     if (nsamples_subset0 * nsamples_subset1) == 0:
         return zero_block
@@ -133,30 +133,32 @@ class GroupACVObjective(Model):
     def nqoi(self):
         return 1
 
-    def _inv(self, mat):
-        return self._bkd.pinv(mat)
-
     def set_estimator(self, estimator):
         self._est = estimator
         self._bkd = self._est._bkd
         self._jacobian_implemented = self._bkd.jacobian_implemented()
         self._hessian_implemented = self._bkd.hessian_implemented()
 
-    def _values(self, npartition_samples):
-        return self._est._covariance_from_npartition_samples(
-            npartition_samples[:, 0]
+    def _trace_covariance_wrapper(self, npartition_samples_1d):
+        trace = self._bkd.trace(
+            self._est._covariance_from_npartition_samples(
+                npartition_samples_1d
+            )
         )
+        # necessary for torch
+        return self._bkd.hstack((trace, ))[:, None]
+
+    def _values(self, npartition_samples):
+        return self._trace_covariance_wrapper(npartition_samples[:, 0])
 
     def _jacobian(self, npartition_samples):
         return self._bkd.grad(
-            self._est._covariance_from_npartition_samples,
-            npartition_samples[:, 0],
+            self._trace_covariance_wrapper, npartition_samples[:, 0]
         )[1][None, ...]
 
     def _hessian(self, npartition_samples):
         return self._bkd.hessian(
-            self._est._covariance_from_npartition_samples,
-            npartition_samples[:, 0],
+            self._trace_covariance_wrapper, npartition_samples[:, 0],
         )[None, ...]
 
 
@@ -178,23 +180,25 @@ class MLBLUEObjective(GroupACVObjective):
         # compute psi matrix with partition sizes
         # todo cache psi_matrix when it is computed when evaluatin objective
         psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
-        psi_inv = self._inv(psi_matrix)
-        gamma = psi_inv @ self._est._asketch
+        psi_inv = self._est._inv(psi_matrix)
         Rmats = self._est._restriction_matrices
-        jacobian = self._bkd.hstack(
-            [
-                self._bkd.multidot(
-                    (
-                        -gamma.T,
-                        Rmats[ii],
-                        self._inv(Sigma_blocks[ii][ii]),
-                        Rmats[ii].T,
-                        gamma
-                     )
-                )
-                for ii in range(len(Sigma_blocks))
-            ]
-        )
+        jacobian = 0
+        for kk in range(self._est._stat.nstats()):
+            gamma = psi_inv @ self._est._asketch[kk:kk+1].T
+            jacobian += self._bkd.hstack(
+                [
+                    self._bkd.multidot(
+                        (
+                            -gamma.T,
+                            Rmats[ii],
+                            self._est._inv(Sigma_blocks[ii][ii]),
+                            Rmats[ii].T,
+                            gamma
+                         )
+                    )
+                    for ii in range(len(Sigma_blocks))
+                ]
+            )
         return jacobian
 
     def _hessian(self, npartition_samples):
@@ -216,27 +220,28 @@ class MLBLUEObjective(GroupACVObjective):
             self._est._stat,
         )
         psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
-        psi_inv = self._inv(psi_matrix)
-        gamma = psi_inv @ self._est._asketch
+        psi_inv = self._est._inv(psi_matrix)
         Rmats = self._est._restriction_matrices
         hess = [
-            [None for jj in range(len(Sigma_blocks))]
+            [0 for jj in range(len(Sigma_blocks))]
             for ii in range(len(Sigma_blocks))
         ]
         sigma_invs = [
-            self._inv(Sigma_blocks[ii][ii])
+            self._est._inv(Sigma_blocks[ii][ii])
             for ii in range(len(Sigma_blocks))
         ]
         psi_derivs = [
             self._bkd.multidot((Rmats[ii], sigma_invs[ii], Rmats[ii].T))
             for ii in range(len(Sigma_blocks))
         ]
-        for ii in range(len(Sigma_blocks)):
-            xi = self._bkd.multidot((psi_inv, psi_derivs[ii], gamma))
-            for jj in range(ii, len(Sigma_blocks)):
-                eta = self._bkd.multidot((xi.T, psi_derivs[jj], gamma))
-                hess[ii][jj] = eta.T + eta
-                hess[jj][ii] = hess[ii][jj]
+        for kk in range(self._est._stat.nstats()):
+            gamma = psi_inv @ self._est._asketch[kk:kk+1].T
+            for ii in range(len(Sigma_blocks)):
+                xi = self._bkd.multidot((psi_inv, psi_derivs[ii], gamma))
+                for jj in range(ii, len(Sigma_blocks)):
+                    eta = self._bkd.multidot((xi.T, psi_derivs[jj], gamma))
+                    hess[ii][jj] += eta.T + eta
+                    hess[jj][ii] = hess[ii][jj]
         hess = self._bkd.vstack([self._bkd.hstack(row) for row in hess])[None, ...]
         return hess
 
@@ -414,8 +419,8 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
         Psi = self._cvxpy_psi(nsps_cvxpy)
         mat = self._cvxpy.bmat(
             [
-                [Psi, self._est._asketch],
-                [self._est._asketch.T, self._cvxpy.reshape(t_cvxpy, (1, 1))],
+                [Psi, self._est._asketch.T],
+                [self._est._asketch, self._cvxpy.reshape(t_cvxpy, (1, 1))],
             ]
         )
         return mat
@@ -424,6 +429,8 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
         return None
 
     def _minimize(self, iterate):
+        if self._est._stat.nstats() != 1:
+            raise RuntimeError("SPD solver only works for single outputs")
         # if iterate is not None:
         #     raise ValueError("iterate must be None")
         t_cvxpy = self._cvxpy.Variable(nonneg=True)
@@ -480,6 +487,9 @@ class ChainedACVOptimizer(ChainedOptimizer):
         self._optimizer2.set_estimator(est)
 
 
+# TODO to enable multioutput I changed to require asketch has a row for each output
+# this messesd up etc code. Consider requiring asketch to have a column for each
+# output. Then need to change transpose on asketch in this file.
 class GroupACVEstimator:
     def __init__(
         self,
@@ -489,9 +499,11 @@ class GroupACVEstimator:
         model_subsets: List[Array] = None,
         est_type: str = "is",
         asketch: Array = None,
+        use_pseudo_inv: bool = True,
         backend: LinAlgMixin = TorchLinAlgMixin,
     ):
         self._bkd = backend
+        self._use_pseudo_inv = use_pseudo_inv
         # self._cov, self._costs = self._check_cov(stat._cov, costs)
         self._costs = self._bkd.array(costs)
         self._nmodels = len(costs)
@@ -653,6 +665,8 @@ class GroupACVEstimator:
         return Sigma
 
     def _inv(self, mat):
+        if self._use_pseudo_inv:
+            return self._bkd.pinv(mat)
         return self._bkd.inv(mat)
 
     def _psi_matrix_from_sigma(self, Sigma):
@@ -679,11 +693,6 @@ class GroupACVEstimator:
         return self._bkd.multidot(
             (self._asketch, psi_inv, self._asketch.T)
         )
-        # estimator covariance of high-fidelity components of acv estimator
-        # hf_est_cov = self._covariance_hf_components_from_npartition_samples(
-        #     npartition_samples
-        # )
-        return self._bkd.trace(hf_est_cov)
 
     def _get_model_subset_costs(self, subsets, costs):
         subset_costs = self._bkd.array(
@@ -1000,7 +1009,6 @@ class GroupACVEstimator:
                 subset_stat = self._stat.sample_estimate(values_per_subset[kk])
                 acv_stat += (beta[:, ll:mm]) @ subset_stat
             ll = mm
-        #assert False
         return acv_stat
 
     def __call__(self, values_per_model):
@@ -1169,15 +1177,24 @@ class MLBLUEEstimator(GroupACVEstimator):
         return submats
 
     def _psi_matrix(self, npartition_samples):
-        psi = self._bkd.eye(self.nmodels()) * self._reg_blue
+        psi = self._bkd.eye(
+            self.nmodels() * self._stat.nstats()
+        ) * self._reg_blue
         psi += (self._psi_blocks_flat @ npartition_samples).reshape(
-            (self.nmodels(), self.nmodels())
+            (
+                self.nmodels() * self._stat.nstats(),
+                self.nmodels() * self._stat.nstats()
+            )
         )
         return psi
 
     def estimate_all_means(self, values_per_subset):
         asketch = self._bkd.copy(self._asketch)
         means = self._bkd.empty(self.nmodels())
+        if self._stat.nstats() > 1:
+            raise NotImplementedError(
+                "Must adjust this function to work for multiple outputs"
+            )
         for ii in range(self.nmodels()):
             self._asketch = self._bkd.full((self.nmodels()), 0.0)
             self._asketch[ii] = 1.0

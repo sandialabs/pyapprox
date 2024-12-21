@@ -661,6 +661,8 @@ class MultiOutputMean(MultiOutputStatistic):
         nsamples_subset0,
         nsamples_subset1,
     ):
+        if self._cov is None:
+            raise RuntimeError("must call set_pilot_quantities")
         cov = self._cov[np.ix_(subset0, subset1)]
         return (
             cov
@@ -787,6 +789,8 @@ class MultiOutputVariance(MultiOutputStatistic):
         nsamples_subset0,
         nsamples_subset1,
     ):
+        if self._cov is None:
+            raise RuntimeError("must call set_pilot_quantities")
         block = self._V[np.ix_(subset0, subset1)] * (
             nsamples_intersect * (nsamples_intersect - 1)
         ) / (

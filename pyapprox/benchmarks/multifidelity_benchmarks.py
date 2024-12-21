@@ -465,8 +465,7 @@ class MultiOutputModelEnsemble(ACVBenchmark):
         return self._bkd.hstack(
             [
                 math.sqrt(7) * samples.T**3,
-                math.sqrt(7) * samples.T**2,  # alexs paper
-                # math.sqrt(6.9)*samples.T**2, # test
+                math.sqrt(7) * samples.T**2,
                 self._bkd.cos(2 * math.pi * samples.T + math.pi / 2),
             ]
         )
@@ -487,10 +486,11 @@ class MultiOutputModelEnsemble(ACVBenchmark):
         """
         return self._bkd.hstack(
             [
+                # alexs paper, but ill conditioned
                 math.sqrt(3) / 2 * samples.T**2,
                 math.sqrt(3) / 2 * samples.T,
                 self._bkd.cos(2 * math.pi * samples.T + math.pi / 4),
-            ]
+           ]
         )
 
     def _set_variable(self):
@@ -615,3 +615,105 @@ class MultiOutputModelEnsemble(ACVBenchmark):
             ]
         )
         return cov11, cov22, cov33, cov12, cov13, cov23
+
+
+class PSDMultiOutputModelEnsemble(ACVBenchmark):
+    """
+    Benchmark for testing multifidelity algorithms that estimate statistics
+    for vector valued models of varying fidelity. Modification
+    of benchmark in gordetsky et al that has a positive definite covariance matrix
+    """
+
+    def nmodels(self) -> int:
+        return 3
+
+    def f0(self, samples: Array) -> Array:
+        """
+        Highest fidelity model
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            Samples realizations
+
+        Returns
+        -------
+        values : Array (nsamples, qoi)
+            Model evaluations at the samples
+        """
+        return self._bkd.hstack(
+            [
+                math.sqrt(11) * samples.T**5,
+                samples.T**4,
+                self._bkd.cos(2.2 * math.pi * samples.T),
+            ]
+        )
+
+    def f1(self, samples: Array) -> Array:
+        """
+        A low fidelity model
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            Samples realizations
+
+        Returns
+        -------
+        values : Array (nsamples, qoi)
+            Model evaluations at the samples
+        """
+        return self._bkd.hstack(
+            [
+                math.sqrt(7) * samples.T**3,
+                math.sqrt(7) * samples.T**2,
+                self._bkd.cos(2 * math.pi * samples.T + math.pi / 2),
+            ]
+        )
+
+    def f2(self, samples: Array) -> Array:
+        """
+        A low fidelity model
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            Samples realizations
+
+        Returns
+        -------
+        values : Array (nsamples, qoi)
+            Model evaluations at the samples
+        """
+        return self._bkd.hstack(
+            [
+                math.sqrt(3) / 2 * samples.T**2 + samples.T,
+                math.sqrt(3) / 2 * samples.T + self._bkd.cos(math.pi * samples.T * 2.1),
+                self._bkd.cos(3 * math.pi * samples.T + math.pi / 4),
+            ]
+        )
+
+    def _set_variable(self):
+        self._variable = IndependentMarginalsVariable(
+            [stats.uniform(0, 1)], backend=self._bkd
+        )
+
+    def _set_models(self):
+        self._models = [
+            ModelFromVectorizedCallable(self.nqoi(), fun, backend=self._bkd)
+            for fun in [self.f0, self.f1, self.f2]
+        ]
+
+    def nqoi(self) -> int:
+        return 3
+
+    def costs(self) -> Array:
+        """
+        The nominal costs of each model for a single sample
+
+        Returns
+        -------
+        values : Array (nmodels)
+            Model costs
+        """
+        return self._bkd.array([1.0, 0.01, 0.001])

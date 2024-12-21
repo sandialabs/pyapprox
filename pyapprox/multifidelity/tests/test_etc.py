@@ -126,7 +126,7 @@ class TestETC(unittest.TestCase):
             "mlblue",
             stat,
             costs[subset],
-            asketch=result_dict["beta_Sp"][1:],
+            asketch=result_dict["beta_Sp"][1:].T,
             backend=bkd,
         )
         unrounded_true_var = mlblue_est._covariance_from_npartition_samples(
