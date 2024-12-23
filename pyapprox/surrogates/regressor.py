@@ -4,13 +4,14 @@ import pickle
 from pyapprox.interface.model import Model
 from pyapprox.surrogates.loss import LossFunction
 from pyapprox.optimization.pya_minimize import MultiStartOptimizer
+from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.transforms import Transform, IdentityTransform
 from pyapprox.util.visualization import get_meshgrid_samples
 
 
 class Surrogate(Model):
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
 
     @abstractmethod
@@ -182,6 +183,17 @@ class OptimizedRegressor(Regressor):
         res = self._optimizer.minimize(iterate)
         active_opt_params = res.x[:, 0]
         self.hyp_list.set_active_opt_params(active_opt_params)
+
+    def hyperparam_jacobian(self, active_opt_params: Array) -> Array:
+        if active_opt_params.ndim != 2 and active_opt_params.shape[1] != 1:
+            raise ValueError(
+                "active_opt_params must be a 2D array with one column"
+            )
+        return self._hyperparam_jacobian(active_opt_params)
+
+    def _hyperparam_jacobian(self, active_opt_params: Array) -> Array:
+        self.hyp_list.set_active_opt_params(active_opt_params[:, 0])
+        return self.basis(self._ctrain_values)
 
 
 def QuadratureRule(ABC):

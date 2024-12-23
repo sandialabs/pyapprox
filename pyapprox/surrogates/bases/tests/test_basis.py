@@ -38,13 +38,12 @@ from pyapprox.surrogates.bases.linearsystemsolvers import (
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.interp.indexing import sort_indices_lexiographically
-from pyapprox.util.sys_utilities import package_available
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.density import beta_pdf_on_ab, gaussian_pdf
 
-
-if package_available("jax"):
-    from pyapprox.util.linearalgebra.jaxlinalg import JaxLinAlgMixin
+# from pyapprox.util.sys_utilities import package_available
+# if package_available("jax"):
+#     from pyapprox.util.linearalgebra.jaxlinalg import JaxLinAlgMixin
 
 
 class TestBasis:

@@ -1,6 +1,8 @@
 import copy
+from typing import List
 
 # from pyapprox.interface.model import ModelFromCallable
+from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.surrogates.bases.univariate import Monomial1D
 from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import (
@@ -47,7 +49,7 @@ class HomogeneousFunctionTrainCore(FunctionTrainCore):
 
 
 class FunctionTrain(OptimizedRegressor):
-    def __init__(self, cores, nqoi=1):
+    def __init__(self, cores: List[FunctionTrainCore], nqoi: int = 1):
         super().__init__(cores[0]._bkd)
         if cores[0]._ranks[0] != 1:
             raise ValueError(
@@ -70,17 +72,17 @@ class FunctionTrain(OptimizedRegressor):
         self._nqoi = nqoi
         self._samples = None
 
-    def nvars(self):
+    def nvars(self) -> int:
         return len(self._cores)
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return self._nqoi
 
-    def _core_params_eval(self, active_opt_params):
+    def _core_params_eval(self, active_opt_params: Array) -> Array:
         self.hyp_list.set_active_opt_params(active_opt_params)
         return self(self._samples)
 
-    def _core_jacobian_ad(self, samples, core_id):
+    def _core_jacobian_ad(self, samples: Array, core_id: int) -> List[Array]:
         """Compute Jacobian with automatic differentiation."""
         self._samples = samples
         active_indices = self.hyp_list.get_active_indices()
@@ -104,7 +106,7 @@ class FunctionTrain(OptimizedRegressor):
         jac = [jac[:, qq, qq :: self.nqoi()] for qq in range(self.nqoi())]
         return jac
 
-    def _eval_left_cores(self, core_id, samples):
+    def _eval_left_cores(self, core_id: int, samples: Array) -> Array:
         if core_id < 1 or core_id >= self.nvars():
             raise ValueError(
                 "Ensure 0 < core_id < nvars. core_id={0}".format(core_id)
@@ -118,7 +120,7 @@ class FunctionTrain(OptimizedRegressor):
             )
         return values
 
-    def _eval_right_cores(self, core_id, samples):
+    def _eval_right_cores(self, core_id: int, samples: Array) -> Array:
         if core_id >= self.nvars() - 1 or core_id < 0:
             raise ValueError("Ensure 0 <= core_id < nvars-1")
         values = self._cores[core_id + 1](samples[core_id + 1 : core_id + 2])
@@ -130,7 +132,9 @@ class FunctionTrain(OptimizedRegressor):
             )
         return values
 
-    def _core_function_jacobians(self, core_id, samples):
+    def _core_function_jacobians(
+            self, core_id: int, samples: Array
+    ) -> List[Array]:
         core = self._cores[core_id]
         jacs = []
         for ii in range(core._ranks[0]):
@@ -143,7 +147,7 @@ class FunctionTrain(OptimizedRegressor):
                 )
         return jacs
 
-    def _core_jacobian(self, samples, core_id):
+    def _core_jacobian(self, samples: Array, core_id: int) -> List[Array]:
         # TODO: this function is only really used by alternating least squares
         # when used for least squares this can be improved, e.g.
         # when sweeping left to right through cores we can store
@@ -156,7 +160,7 @@ class FunctionTrain(OptimizedRegressor):
             return self._interior_core_jacobian(samples, core_id)
         return self._final_core_jacobian(samples)
 
-    def _first_core_jacobian(self, samples):
+    def _first_core_jacobian(self, samples: Array) -> List[Array]:
         core = self._cores[0]
         fun_jacs = self._core_function_jacobians(0, samples)
         Rmat = self._eval_right_cores(0, samples)
@@ -168,7 +172,9 @@ class FunctionTrain(OptimizedRegressor):
             jacs.append(self._bkd.hstack(jac))
         return jacs
 
-    def _interior_core_jacobian(self, samples, core_id):
+    def _interior_core_jacobian(
+            self, samples: Array, core_id: int
+    ) -> List[Array]:
         core = self._cores[core_id]
         Lmat = self._eval_left_cores(core_id, samples)
         fun_jacs = self._core_function_jacobians(core_id, samples)
@@ -191,7 +197,7 @@ class FunctionTrain(OptimizedRegressor):
             jacs.append(self._bkd.hstack(jac))
         return jacs
 
-    def _final_core_jacobian(self, samples):
+    def _final_core_jacobian(self, samples: Array) -> List[Array]:
         core = self._cores[self.nvars() - 1]
         Lmat = self._eval_left_cores(self.nvars() - 1, samples)
         fun_jacs = self._core_function_jacobians(self.nvars() - 1, samples)
@@ -203,7 +209,7 @@ class FunctionTrain(OptimizedRegressor):
             jacs.append(self._bkd.hstack(jac))
         return jacs
 
-    def _values(self, samples):
+    def _values(self, samples: Array) -> Array:
         values = self._cores[0](samples[:1])
         for ii in range(1, self.nvars()):
             values = self._bkd.einsum(

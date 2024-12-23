@@ -1,3 +1,4 @@
+from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.interface.model import Model
 
 
@@ -6,13 +7,14 @@ class LossFunction(Model):
         super().__init__()
         self._bkd = None
         self._model = None
-        self._jacobian_implemented = True
 
     def nqoi(self):
         return 1
 
-    def set_model(self, model):
+    def set_model(self, model: Model):
         self._bkd = model._bkd
+        self._jacobian_implemented = self._bkd.jacobian_implemented()
+        self._apply_hessian_implemented = self._bkd.jacobian_implemented()
         self._model = model
         # TODO check if analytical jacobian available and use
         # with chain rule to compute grad of objective but for
@@ -26,7 +28,9 @@ class LossFunction(Model):
                 "Backend must support auto differentiation."
             )
 
-    def _check_model(self, model):
+    def _check_model(self, model: Model):
+        if not isinstance(model, Model):
+            raise ValueError("model must be an instance of Model")
         if (
             not hasattr(model, "_ctrain_samples") or
             model._ctrain_samples is None
@@ -38,19 +42,23 @@ class LossFunction(Model):
         ):
             raise ValueError("model must have attribute _ctrain_values")
 
-    def _jacobian(self, active_opt_params):
+    def _jacobian(self, active_opt_params: Array) -> Array:
         val, grad = self._bkd.grad(self._loss_values, active_opt_params)
         # todo move detach to linalgmixin if needed
         for hyp in self._model.hyp_list.hyper_params:
             self._bkd.detach(hyp)
         return self._bkd.detach(grad).T
+        # return grad.T
 
-    def _values(self, active_opt_params):
-        return self._bkd.detach(self._loss_values(active_opt_params))
+    def _apply_hessian(self, active_opt_params: Array, vec: Array) -> Array:
+        val, grad = self._bkd.hvp(self._loss_values, active_opt_params)
+
+    def _values(self, active_opt_params: Array) -> Array:
+        return self._loss_values(active_opt_params)
 
 
 class RMSELoss(LossFunction):
-    def _loss_values(self, active_opt_params):
+    def _loss_values(self, active_opt_params: Array) -> Array:
         self._check_model(self._model)
         self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
         return self._bkd.atleast2d(
