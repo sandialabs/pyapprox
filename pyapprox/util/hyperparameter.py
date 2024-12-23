@@ -132,7 +132,9 @@ class HyperParameter:
         return self._active_indices.shape[0]
 
     def set_active_opt_params(self, active_params):
-        """Set the values of the active parameters in the optimization space."""
+        """
+        Set the values of the active parameters in the optimization space.
+        """
         # The copy ensures that the error
         # "a leaf Variable that requires grad is being used in an in-place
         # operation is not thrown
