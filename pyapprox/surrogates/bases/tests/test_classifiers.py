@@ -65,7 +65,7 @@ class TestClassifiers(unittest.TestCase):
         clf = LogisticClassifier(bexp)
         # train_samples = bkd.linspace(0.0, 1.0, 101)[None, :]
         train_samples = bkd.array(np.random.uniform(0.0, 1.0, 101))[None, :]
-        
+
         def label_fun(xx):
             # return bkd.array(xx > 0.5, dtype=bkd.double_type()).T
             return bkd.array(bkd.abs(xx-0.5) > 0.25, dtype=bkd.double_type()).T
@@ -91,14 +91,15 @@ class TestClassifiers(unittest.TestCase):
         label_acuracy = 1-nwrong / test_labels.shape[0]
         print("NWRONG", nwrong)
         print("Label accuracy", label_acuracy)
+        assert nwrong == 1
 
-        import matplotlib.pyplot as plt
-        ax = plt.figure().gca()
-        # ax.plot(train_samples[0], train_values, 'X')
-        ax.plot(test_samples[0], test_labels, 'o')
-        ax.plot(test_samples[0], clf_labels, 'X')
-        clf.plot_surface(ax, [0, 1])
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # ax = plt.figure().gca()
+        # # ax.plot(train_samples[0], train_values, 'X')
+        # ax.plot(test_samples[0], test_labels, 'o')
+        # ax.plot(test_samples[0], clf_labels, 'X')
+        # clf.plot_surface(ax, [0, 1])
+        # plt.show()
 
 
 if __name__ == "__main__":
