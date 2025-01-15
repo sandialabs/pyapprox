@@ -107,6 +107,62 @@ class AffineTransform1D(Generic[Array]):
         npts = reference_pts.shape[1]
         return self._bkd.full((npts,), self._scale)
 
+    def scale_factors(self, reference_pts: Array) -> Array:
+        """Compute scale factors (constant for affine).
+
+        For affine transforms, scale factors are the diagonal Jacobian entries.
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Reference coordinates. Shape: (1, npts)
+
+        Returns
+        -------
+        Array
+            Scale factors. Shape: (npts, 1)
+        """
+        npts = reference_pts.shape[1]
+        return self._bkd.full((npts, 1), self._scale)
+
+    def unit_curvilinear_basis(self, reference_pts: Array) -> Array:
+        """Compute unit curvilinear basis vectors (identity for Cartesian).
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Reference coordinates. Shape: (1, npts)
+
+        Returns
+        -------
+        Array
+            Unit basis vectors. Shape: (npts, 1, 1)
+        """
+        npts = reference_pts.shape[1]
+        return self._bkd.ones((npts, 1, 1))
+
+    def gradient_factors(self, reference_pts: Array) -> Array:
+        """Compute gradient factors for coordinate transformation.
+
+        For affine transforms, gradient factors are 1/scale on the diagonal.
+        This converts reference derivatives to physical derivatives:
+            d/dx_phys = (1/scale) * d/d_xi_ref
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Reference coordinates. Shape: (1, npts)
+
+        Returns
+        -------
+        Array
+            Gradient factors. Shape: (npts, 1, 1)
+            gradient_factors[i, d, j] = factor to multiply j-th reference
+            derivative to get d-th physical derivative at point i.
+        """
+        npts = reference_pts.shape[1]
+        return self._bkd.full((npts, 1, 1), 1.0 / self._scale)
+
 
 class AffineTransform2D(Generic[Array]):
     """Affine transform for 2D domains.
@@ -217,6 +273,72 @@ class AffineTransform2D(Generic[Array]):
         npts = reference_pts.shape[1]
         det = self._scale_x * self._scale_y
         return self._bkd.full((npts,), det)
+
+    def scale_factors(self, reference_pts: Array) -> Array:
+        """Compute scale factors (constant for affine).
+
+        For affine transforms, scale factors are the diagonal Jacobian entries.
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Reference coordinates. Shape: (2, npts)
+
+        Returns
+        -------
+        Array
+            Scale factors. Shape: (npts, 2)
+        """
+        npts = reference_pts.shape[1]
+        scales = self._bkd.zeros((npts, 2))
+        scales[:, 0] = self._scale_x
+        scales[:, 1] = self._scale_y
+        return scales
+
+    def unit_curvilinear_basis(self, reference_pts: Array) -> Array:
+        """Compute unit curvilinear basis vectors (identity for Cartesian).
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Reference coordinates. Shape: (2, npts)
+
+        Returns
+        -------
+        Array
+            Unit basis vectors. Shape: (npts, 2, 2)
+        """
+        npts = reference_pts.shape[1]
+        basis = self._bkd.zeros((npts, 2, 2))
+        basis[:, 0, 0] = 1.0
+        basis[:, 1, 1] = 1.0
+        return basis
+
+    def gradient_factors(self, reference_pts: Array) -> Array:
+        """Compute gradient factors for coordinate transformation.
+
+        For affine transforms, gradient factors are 1/scale on the diagonal.
+        This converts reference derivatives to physical derivatives:
+            d/dx_phys = (1/scale_x) * d/d_xi_ref
+            d/dy_phys = (1/scale_y) * d/d_eta_ref
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Reference coordinates. Shape: (2, npts)
+
+        Returns
+        -------
+        Array
+            Gradient factors. Shape: (npts, 2, 2)
+            gradient_factors[i, d, j] = factor to multiply j-th reference
+            derivative to get d-th physical derivative at point i.
+        """
+        npts = reference_pts.shape[1]
+        factors = self._bkd.zeros((npts, 2, 2))
+        factors[:, 0, 0] = 1.0 / self._scale_x
+        factors[:, 1, 1] = 1.0 / self._scale_y
+        return factors
 
 
 class AffineTransform3D(Generic[Array]):
@@ -350,3 +472,73 @@ class AffineTransform3D(Generic[Array]):
         npts = reference_pts.shape[1]
         det = self._scale_x * self._scale_y * self._scale_z
         return self._bkd.full((npts,), det)
+
+    def scale_factors(self, reference_pts: Array) -> Array:
+        """Compute scale factors (constant for affine).
+
+        For affine transforms, scale factors are the diagonal Jacobian entries.
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Reference coordinates. Shape: (3, npts)
+
+        Returns
+        -------
+        Array
+            Scale factors. Shape: (npts, 3)
+        """
+        npts = reference_pts.shape[1]
+        scales = self._bkd.zeros((npts, 3))
+        scales[:, 0] = self._scale_x
+        scales[:, 1] = self._scale_y
+        scales[:, 2] = self._scale_z
+        return scales
+
+    def unit_curvilinear_basis(self, reference_pts: Array) -> Array:
+        """Compute unit curvilinear basis vectors (identity for Cartesian).
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Reference coordinates. Shape: (3, npts)
+
+        Returns
+        -------
+        Array
+            Unit basis vectors. Shape: (npts, 3, 3)
+        """
+        npts = reference_pts.shape[1]
+        basis = self._bkd.zeros((npts, 3, 3))
+        basis[:, 0, 0] = 1.0
+        basis[:, 1, 1] = 1.0
+        basis[:, 2, 2] = 1.0
+        return basis
+
+    def gradient_factors(self, reference_pts: Array) -> Array:
+        """Compute gradient factors for coordinate transformation.
+
+        For affine transforms, gradient factors are 1/scale on the diagonal.
+        This converts reference derivatives to physical derivatives:
+            d/dx_phys = (1/scale_x) * d/d_xi_ref
+            d/dy_phys = (1/scale_y) * d/d_eta_ref
+            d/dz_phys = (1/scale_z) * d/d_zeta_ref
+
+        Parameters
+        ----------
+        reference_pts : Array
+            Reference coordinates. Shape: (3, npts)
+
+        Returns
+        -------
+        Array
+            Gradient factors. Shape: (npts, 3, 3)
+            gradient_factors[i, d, j] = factor to multiply j-th reference
+            derivative to get d-th physical derivative at point i.
+        """
+        npts = reference_pts.shape[1]
+        factors = self._bkd.zeros((npts, 3, 3))
+        factors[:, 0, 0] = 1.0 / self._scale_x
+        factors[:, 1, 1] = 1.0 / self._scale_y
+        factors[:, 2, 2] = 1.0 / self._scale_z
+        return factors

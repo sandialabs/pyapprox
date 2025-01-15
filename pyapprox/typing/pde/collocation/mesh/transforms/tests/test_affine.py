@@ -171,6 +171,150 @@ class TestAffineTransforms(Generic[Array], unittest.TestCase):
         # Determinant = 1*2*3 = 6
         bkd.assert_allclose(jac_det, bkd.full((2,), 6.0), atol=1e-14)
 
+    # Tests for gradient_factors, scale_factors, and unit_curvilinear_basis
+
+    def test_gradient_factors_1d(self):
+        """Test 1D gradient factors are inverse of scale."""
+        bkd = self.bkd()
+        # Map [-1,1] to [0,4], so scale = 2, gradient factor = 1/2
+        transform = AffineTransform1D((0.0, 4.0), bkd)
+
+        ref_pts = bkd.asarray([[-1.0, 0.0, 1.0]])
+        grad_factors = transform.gradient_factors(ref_pts)
+
+        self.assertEqual(grad_factors.shape, (3, 1, 1))
+        # d/dx_phys = (1/2) * d/d_xi_ref
+        bkd.assert_allclose(
+            grad_factors[:, 0, 0], bkd.full((3,), 0.5), atol=1e-14
+        )
+
+    def test_scale_factors_1d(self):
+        """Test 1D scale factors equal Jacobian diagonal."""
+        bkd = self.bkd()
+        transform = AffineTransform1D((0.0, 4.0), bkd)
+
+        ref_pts = bkd.asarray([[-1.0, 0.0, 1.0]])
+        scales = transform.scale_factors(ref_pts)
+
+        self.assertEqual(scales.shape, (3, 1))
+        bkd.assert_allclose(scales[:, 0], bkd.full((3,), 2.0), atol=1e-14)
+
+    def test_unit_basis_1d(self):
+        """Test 1D unit basis is identity."""
+        bkd = self.bkd()
+        transform = AffineTransform1D((0.0, 4.0), bkd)
+
+        ref_pts = bkd.asarray([[-1.0, 0.0, 1.0]])
+        basis = transform.unit_curvilinear_basis(ref_pts)
+
+        self.assertEqual(basis.shape, (3, 1, 1))
+        bkd.assert_allclose(basis[:, 0, 0], bkd.ones((3,)), atol=1e-14)
+
+    def test_gradient_factors_2d(self):
+        """Test 2D gradient factors are inverse of scales on diagonal."""
+        bkd = self.bkd()
+        # Map to [0,4] x [0,6], scales = (2, 3), grad factors = (1/2, 1/3)
+        transform = AffineTransform2D((0.0, 4.0, 0.0, 6.0), bkd)
+
+        ref_pts = bkd.asarray([[0.0, 0.5], [0.0, -0.5]])
+        grad_factors = transform.gradient_factors(ref_pts)
+
+        self.assertEqual(grad_factors.shape, (2, 2, 2))
+        # Diagonal entries
+        bkd.assert_allclose(
+            grad_factors[:, 0, 0], bkd.full((2,), 0.5), atol=1e-14
+        )
+        bkd.assert_allclose(
+            grad_factors[:, 1, 1], bkd.full((2,), 1.0/3.0), atol=1e-14
+        )
+        # Off-diagonal entries should be zero
+        bkd.assert_allclose(grad_factors[:, 0, 1], bkd.zeros((2,)), atol=1e-14)
+        bkd.assert_allclose(grad_factors[:, 1, 0], bkd.zeros((2,)), atol=1e-14)
+
+    def test_scale_factors_2d(self):
+        """Test 2D scale factors equal Jacobian diagonal entries."""
+        bkd = self.bkd()
+        transform = AffineTransform2D((0.0, 4.0, 0.0, 6.0), bkd)
+
+        ref_pts = bkd.asarray([[0.0], [0.0]])
+        scales = transform.scale_factors(ref_pts)
+
+        self.assertEqual(scales.shape, (1, 2))
+        bkd.assert_allclose(scales[:, 0], bkd.asarray([2.0]), atol=1e-14)
+        bkd.assert_allclose(scales[:, 1], bkd.asarray([3.0]), atol=1e-14)
+
+    def test_unit_basis_2d(self):
+        """Test 2D unit basis is identity."""
+        bkd = self.bkd()
+        transform = AffineTransform2D((0.0, 4.0, 0.0, 6.0), bkd)
+
+        ref_pts = bkd.asarray([[0.0], [0.0]])
+        basis = transform.unit_curvilinear_basis(ref_pts)
+
+        self.assertEqual(basis.shape, (1, 2, 2))
+        expected = bkd.asarray([[[1.0, 0.0], [0.0, 1.0]]])
+        bkd.assert_allclose(basis, expected, atol=1e-14)
+
+    def test_gradient_factors_3d(self):
+        """Test 3D gradient factors are inverse of scales on diagonal."""
+        bkd = self.bkd()
+        # Map to [0,2] x [0,4] x [0,6], scales = (1, 2, 3)
+        transform = AffineTransform3D((0.0, 2.0, 0.0, 4.0, 0.0, 6.0), bkd)
+
+        ref_pts = bkd.asarray([[0.0], [0.0], [0.0]])
+        grad_factors = transform.gradient_factors(ref_pts)
+
+        self.assertEqual(grad_factors.shape, (1, 3, 3))
+        # Diagonal: 1/1, 1/2, 1/3
+        bkd.assert_allclose(grad_factors[:, 0, 0], bkd.asarray([1.0]), atol=1e-14)
+        bkd.assert_allclose(grad_factors[:, 1, 1], bkd.asarray([0.5]), atol=1e-14)
+        bkd.assert_allclose(
+            grad_factors[:, 2, 2], bkd.asarray([1.0/3.0]), atol=1e-14
+        )
+        # Off-diagonal should be zero
+        for i in range(3):
+            for j in range(3):
+                if i != j:
+                    bkd.assert_allclose(
+                        grad_factors[:, i, j], bkd.asarray([0.0]), atol=1e-14
+                    )
+
+    def test_scale_factors_3d(self):
+        """Test 3D scale factors."""
+        bkd = self.bkd()
+        transform = AffineTransform3D((0.0, 2.0, 0.0, 4.0, 0.0, 6.0), bkd)
+
+        ref_pts = bkd.asarray([[0.0], [0.0], [0.0]])
+        scales = transform.scale_factors(ref_pts)
+
+        self.assertEqual(scales.shape, (1, 3))
+        bkd.assert_allclose(scales[:, 0], bkd.asarray([1.0]), atol=1e-14)
+        bkd.assert_allclose(scales[:, 1], bkd.asarray([2.0]), atol=1e-14)
+        bkd.assert_allclose(scales[:, 2], bkd.asarray([3.0]), atol=1e-14)
+
+    def test_unit_basis_3d(self):
+        """Test 3D unit basis is identity."""
+        bkd = self.bkd()
+        transform = AffineTransform3D((0.0, 2.0, 0.0, 4.0, 0.0, 6.0), bkd)
+
+        ref_pts = bkd.asarray([[0.0], [0.0], [0.0]])
+        basis = transform.unit_curvilinear_basis(ref_pts)
+
+        self.assertEqual(basis.shape, (1, 3, 3))
+        expected = bkd.asarray([[[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]])
+        bkd.assert_allclose(basis, expected, atol=1e-14)
+
+    def test_gradient_factors_identity(self):
+        """Test gradient factors are identity when domain is [-1,1]."""
+        bkd = self.bkd()
+        transform = AffineTransform1D((-1.0, 1.0), bkd)
+
+        ref_pts = bkd.asarray([[0.0]])
+        grad_factors = transform.gradient_factors(ref_pts)
+
+        # Scale = 1, so gradient factor = 1
+        bkd.assert_allclose(grad_factors[:, 0, 0], bkd.asarray([1.0]), atol=1e-14)
+
 
 class TestAffineTransformsNumpy(TestAffineTransforms):
     """NumPy backend tests for affine transforms."""
