@@ -49,6 +49,8 @@ class ScipyOptimizationResult(OptimizationResult):
                 self[key] = item
 
 
+# TODO Some optimizer classes here are duplicated in
+# pyapprox.optimize.pya_minimize. Merge and remove duplicate code
 class Optimizer(ABC):
     def __init__(self, backend):
         """

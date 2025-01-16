@@ -1,6 +1,6 @@
 import warnings
 import copy
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from functools import partial
 from typing import List, Union, Tuple
 
@@ -278,7 +278,7 @@ class MCEstimator:
             List with one entry Array (nvars, nsamples_per_model[0])
         """
         return [rvs(self._rounded_nsamples_per_model[0])]
-    
+
     def __call__(self, values: Array) -> Array:
         """
         Return the value of the estimator using a set of model evaluations.
@@ -377,11 +377,11 @@ class CVEstimator(MCEstimator):
     ):
         super().__init__(stat, costs, opt_criteria=opt_criteria)
         if lowfi_stats is not None:
-            if lowfi_stats.shape != (self._nmodels-1, self._stat.nstats()):
+            if lowfi_stats.shape != (self._nmodels - 1, self._stat.nstats()):
                 raise ValueError(
                     "lowfi_stats must be a 2D Array with shape {0} "
                     "but has shape {1}".format(
-                        (self._nmodels-1, self._stat.nstats()),
+                        (self._nmodels - 1, self._stat.nstats()),
                         lowfi_stats.shape,
                     )
                 )
@@ -750,11 +750,103 @@ class CVEstimator(MCEstimator):
         return (bootstrap_values_mean, bootstrap_values_covar)
 
 
-# from pyapprox.interface.model import Model
-# class ACVObjective(Model):
-#     def __init__(self, lower_bound: float, scaling: float):
-#         self._lower_bound = lower_bound
-#         self._scaling = scaling
+from pyapprox.interface.model import SingleSampleModel
+from pyapprox.optimization.pya_minimize import Constraint
+
+
+class ACVObjective(SingleSampleModel, ABC):
+    def __init__(
+        self,
+        scaling: float = 1e-2,
+        backend: LinAlgMixin = TorchLinAlgMixin,
+    ):
+        self._scaling = scaling
+        super().__init__(backend)
+
+    def set_target_cost(self, target_cost: float):
+        self._target_cost = target_cost
+
+    def set_estimator(self, est: "ACVEstimator"):
+        if not isinstance(est, ACVEstimator):
+            raise ValueError("est must be an instance of ACVEstimator")
+        if not est._bkd.jacobian_implemented():
+            raise ValueError(
+                "Optimization requires "
+                "est._bkd.jacobian_implemented() be true"
+            )
+        self._est = est
+        self._bkd = est._bkd
+        self._jacobian_implemented = True
+
+    @abstractmethod
+    def _optimization_criteria(self, est_covariance: Array) -> float:
+        raise NotImplementedError
+
+    def _objective_value(self, partition_ratios: Array) -> Array:
+        if partition_ratios.shape[1] != 1:
+            raise ValueError(
+                "partition_ratios must be a 2D array with one column"
+            )
+        est_covariance = self._est._covariance_from_partition_ratios(
+            self._target_cost, partition_ratios[:, 0]
+        )
+        return self._optimization_criteria(est_covariance) * self._scaling
+
+    def _evaluate(self, partition_ratios: Array) -> Array:
+        return self._bkd.atleast2d(self._objective_value(partition_ratios))
+
+    def _jacobian(self, partition_ratios: Array) -> Array:
+        return self._bkd.jacobian(self._objective_value, partition_ratios).T
+
+    def nqoi(self) -> int:
+        return 1
+
+
+class ACVLogDeterminantObjective(ACVObjective):
+    def _optimization_criteria(self, est_covariance: Array) -> float:
+        eigvals = self._bkd.eigh(est_covariance)[0]
+        return self._bkd.log(eigvals[eigvals > 1e-14]).sum()
+
+
+class ACVPartitionConstraint(Constraint):
+    def __init__(
+        self,
+        est: "ACVEstimator",
+        target_cost: float,
+    ):
+        if not isinstance(est, ACVEstimator):
+            raise ValueError("est must be an instance of ACVEstimator")
+        if not est._bkd.jacobian_implemented():
+            raise ValueError(
+                "Optimization requires "
+                "est._bkd.jacobian_implemented() be true"
+            )
+        self._est = est
+        self._target_cost = target_cost
+        bkd = est._bkd
+        bounds = bkd.stack(
+            (
+                bkd.zeros(self._est._npartitions),
+                bkd.full((self._est._npartitions,), np.inf),
+            ),
+            axis=1,
+        )
+        print(bounds.shape)
+        super().__init__(bounds, keep_feasible=False, backend=est._bkd)
+
+    def _values(self, partition_ratios: Array) -> Array:
+        nsamples = self._est._npartition_samples_from_partition_ratios(
+            self._target_cost, partition_ratios[:, 0]
+        )
+        vals = nsamples - self._est._stat.min_nsamples()
+        return vals[None, :]
+
+    def _jacobian(self, partition_ratios: Array) -> Array:
+        return self._bkd.jacobian(self._values, partition_ratios)
+
+    def nqoi(self):
+        return self._est._npartitions
+
 
 class ACVEstimator(CVEstimator):
     def __init__(
@@ -1258,6 +1350,45 @@ class ACVEstimator(CVEstimator):
         self, costs: Array, target_cost: float, cons, optim_options
     ):
 
+        # TODO Pass in optimizer once tests pass
+        from pyapprox.optimization.pya_minimize import (
+            ScipyConstrainedOptimizer,
+            ConstrainedMultiStartOptimizer,
+            RandomUniformOptimzerIterateGenerator,
+        )
+
+        nunknowns = self._npartitions - 1
+        lower_bound = 1e-10
+        bounds = self._bkd.stack(
+            (
+                self._bkd.full((nunknowns,), lower_bound),
+                self._bkd.full((nunknowns,), np.inf),
+            ),
+            axis=1,
+        )
+
+        optimizer = None
+        if optimizer is None:
+            local_optimizer = ScipyConstrainedOptimizer(opts={})
+            init_gen = RandomUniformOptimzerIterateGenerator(
+                nunknowns, backend=self._bkd
+            )
+            init_gen.set_bounds(bounds)
+            optimizer = ConstrainedMultiStartOptimizer(local_optimizer)
+            optimizer.set_initial_iterate_generator(init_gen)
+        objective = ACVLogDeterminantObjective()
+        objective.set_target_cost(target_cost)
+        objective.set_estimator(self)
+        optimizer.set_objective_function(objective)
+        constraints = [ACVPartitionConstraint(self, target_cost)]
+        optimizer.set_constraints(constraints)
+        lower_bound = 1e-10
+        optimizer.set_bounds(bounds)
+        init_iterate = self._bkd.full((self._nmodels - 1, 1), 1.0)
+        result = optimizer.minimize(init_iterate)
+        result.x = result.x[:, 0]
+        return result
+
         # take copy of options so do not effect options dictionary
         # provided by user. Items will then be popped from opts
         # so that remaining opts are those needed for scipy opt
@@ -1693,7 +1824,9 @@ class MLMCEstimator(GRDEstimator):
         # raise NotImplementedError("check weights size is correct")
         return -self._bkd.ones(cf.shape)
 
-    def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
+    def _covariance_from_npartition_samples(
+        self, npartition_samples: Array
+    ) -> Array:
         CF, cf = self._get_discrepancy_covariances(npartition_samples)
         weights = self._weights(CF, cf)
         # cannot use formulation of variance that uses optimal weights

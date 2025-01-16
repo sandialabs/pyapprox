@@ -57,7 +57,7 @@ class Model(ABC):
         Evaluate the model at a set of samples.
 
         Parameters
-        ----------s
+        ----------
         samples : np.ndarray (nvars, nsamples)
             The model inputs used to evaluate the model
 

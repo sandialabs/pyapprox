@@ -260,6 +260,8 @@ class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
             np.random.uniform(bounds[:, 0], bounds[:, 1]))[:, None]
 
 
+# TODO Some optimizer classes here are duplicated in
+# pyapprox.bases.optimsers. Merge and remove duplicate code
 class Optimizer(ABC):
     def __init__(self, opts={}):
         self._bkd = None
@@ -479,6 +481,18 @@ class ConstrainedOptimizer(OptimizerWithObjective):
         return constraints
 
 
+class ConstrainedMultiStartOptimizer(MultiStartOptimizer):
+    def __init__(self, optimizer, ncandidates=1):
+        if not isinstance(optimizer, ConstrainedOptimizer):
+            raise ValueError(
+                "optimizer must be an instance of ConstrainedOptimizer"
+            )
+        super().__init__(optimizer, ncandidates)
+
+    def set_constraints(self, constraints):
+        self._optimizer.set_constraints(constraints)
+
+
 class ScipyConstrainedOptimizer(ConstrainedOptimizer):
     def _convert_constraints(self, constraints):
         scipy_constraints = []
@@ -541,6 +555,7 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
                 opts["disp"] = True
                 opts["iprint"] = self._verbosity
 
+        print(bounds, init_guess.shape)
         scipy_result = scipy_minimize(
             objective,
             init_guess[:, 0],
@@ -676,7 +691,7 @@ class SampleAverageStat(ABC):
 
         jac_values: array (nsamples, nqoi, nvars)
            function values at each sample
-
+        
         weights: array(nsamples, 1)
             qudrature weight for each sample
 
