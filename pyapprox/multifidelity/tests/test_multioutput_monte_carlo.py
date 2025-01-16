@@ -5,31 +5,39 @@ import numpy as np
 
 from pyapprox.util.utilities import check_gradients
 from pyapprox.multifidelity.stats import (
-    _nqoisq_nqoisq_subproblem, _nqoi_nqoisq_subproblem)
+    _nqoisq_nqoisq_subproblem,
+    _nqoi_nqoisq_subproblem,
+)
 from pyapprox.multifidelity._optim import (
-    _allocate_samples_mfmc, _allocate_samples_mlmc)
-from pyapprox.multifidelity.acv import (
-    MFMCEstimator, MLMCEstimator)
+    _allocate_samples_mfmc,
+    _allocate_samples_mlmc,
+)
+from pyapprox.multifidelity.acv import MFMCEstimator, MLMCEstimator
 from pyapprox.multifidelity.factory import (
-    get_estimator, BestEstimator, numerically_compute_estimator_variance,
-    multioutput_stats)
+    get_estimator,
+    BestEstimator,
+    numerically_compute_estimator_variance,
+    multioutput_stats,
+)
 from pyapprox.multifidelity.tests.test_stats import (
-    _setup_multioutput_model_subproblem)
+    _setup_multioutput_model_subproblem,
+)
 from pyapprox.multifidelity.stats import (
-    _get_nsamples_intersect, _get_nsamples_subset)
+    _get_nsamples_intersect,
+    _get_nsamples_subset,
+)
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble
+    PolynomialModelEnsemble,
 )
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 
-def _log_single_qoi_criteria(
-        qoi_idx, stat_type, criteria_type, variance):
+def _log_single_qoi_criteria(qoi_idx, stat_type, criteria_type, variance):
     # use if stat == Variance and target is variance
     # return torch.log(variance[qoi_idx[0], qoi_idx[0]])
     # use if stat == MeanAndVariance and target is variance
     if stat_type == "mean_var" and criteria_type == "var":
-        return torch.log(variance[3+qoi_idx[0], 3+qoi_idx[0]])
+        return torch.log(variance[3 + qoi_idx[0], 3 + qoi_idx[0]])
     if stat_type == "mean_var" and criteria_type == "mean":
         return torch.log(variance[qoi_idx[0], qoi_idx[0]])
     raise ValueError
@@ -43,17 +51,22 @@ class TestMOMC:
         bkd = self.get_backend()
         model_idx = [0, 1, 2]
         qoi_idx = [0]
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx, bkd)
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd)
+        )
 
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(cov)
         est = get_estimator("grd", stat, costs, recursion_index=[2, 0])
         assert bkd.allclose(
             est._allocation_mat,
-            bkd.array([[0.,  1.,  0.,  0.,  1.,  0.],
-                      [0.,  0.,  0.,  1.,  0.,  0.],
-                      [0.,  0.,  1.,  0.,  0.,  1.]])
+            bkd.array(
+                [
+                    [0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+                ]
+            ),
         )
 
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
@@ -61,9 +74,13 @@ class TestMOMC:
         est = get_estimator("grd", stat, costs, recursion_index=[0, 1])
         assert bkd.allclose(
             est._allocation_mat,
-            bkd.array([[0.,  1.,  1.,  0.,  0.,  0.],
-                      [0.,  0.,  0.,  1.,  1.,  0.],
-                      [0.,  0.,  0.,  0.,  0.,  1.]])
+            bkd.array(
+                [
+                    [0.0, 1.0, 1.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+                ]
+            ),
         )
 
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
@@ -71,9 +88,13 @@ class TestMOMC:
         est = get_estimator("grd", stat, costs, recursion_index=[0, 0])
         assert bkd.allclose(
             est._allocation_mat,
-            bkd.array([[0.,  1.,  1.,  0.,  1.,  0.],
-                      [0.,  0.,  0.,  1.,  0.,  0.],
-                      [0.,  0.,  0.,  0.,  0.,  1.]])
+            bkd.array(
+                [
+                    [0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+                ]
+            ),
         )
 
         cov = bkd.array(np.random.normal(0, 1, (4, 4)))
@@ -83,17 +104,21 @@ class TestMOMC:
         est = get_estimator("grd", stat, costs, recursion_index=[0, 1, 2])
         npartition_samples = torch.as_tensor([2, 2, 4, 4], dtype=torch.double)
         nsamples_intersect = _get_nsamples_intersect(
-            est._allocation_mat, npartition_samples, bkd)
+            est._allocation_mat, npartition_samples, bkd
+        )
 
         nsamples_interesect_true = bkd.array(
-            [[0., 0., 0., 0., 0., 0., 0., 0.],
-             [0., 2., 2., 0., 0., 0., 0., 0.],
-             [0., 2., 2., 0., 0., 0., 0., 0.],
-             [0., 0., 0., 2., 2., 0., 0., 0.],
-             [0., 0., 0., 2., 2., 0., 0., 0.],
-             [0., 0., 0., 0., 0., 4., 4., 0.],
-             [0., 0., 0., 0., 0., 4., 4., 0.],
-             [0., 0., 0., 0., 0., 0., 0., 4.]])
+            [
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 2.0, 2.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 2.0, 2.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 4.0, 4.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 4.0, 4.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 4.0],
+            ]
+        )
         assert bkd.allclose(nsamples_intersect, nsamples_interesect_true)
         nsamples_subset = _get_nsamples_subset(
             est._allocation_mat, npartition_samples, bkd
@@ -106,17 +131,22 @@ class TestMOMC:
         bkd = self.get_backend()
         model_idx = [0, 1, 2]
         qoi_idx = [0]
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx, bkd)
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd)
+        )
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(cov)
         est = get_estimator("gmf", stat, costs, recursion_index=[2, 0])
 
         assert bkd.allclose(
             est._allocation_mat,
-            bkd.array([[0.,  1.,  1.,  1.,  1.,  1.],
-                      [0.,  0.,  1.,  1.,  0.,  1.],
-                      [0.,  0.,  1.,  0.,  0.,  1.]])
+            bkd.array(
+                [
+                    [0.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                    [0.0, 0.0, 1.0, 1.0, 0.0, 1.0],
+                    [0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+                ]
+            ),
         )
 
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
@@ -124,9 +154,13 @@ class TestMOMC:
         est = get_estimator("gmf", stat, costs, recursion_index=[0, 1])
         assert bkd.allclose(
             est._allocation_mat,
-            bkd.array([[0.,  1.,  1.,  1.,  1.,  1.],
-                      [0.,  0.,  0.,  1.,  1.,  1.],
-                      [0.,  0.,  0.,  0.,  0.,  1.]])
+            bkd.array(
+                [
+                    [0.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                    [0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+                ]
+            ),
         )
 
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
@@ -134,26 +168,35 @@ class TestMOMC:
         est = get_estimator("gmf", stat, costs, recursion_index=[0, 0])
         assert bkd.allclose(
             est._allocation_mat,
-            bkd.array([[0.,  1.,  1.,  1.,  1.,  1.],
-                      [0.,  0.,  0.,  1.,  0.,  1.],
-                      [0.,  0.,  0.,  0.,  0.,  1.]])
+            bkd.array(
+                [
+                    [0.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                    [0.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+                ]
+            ),
         )
 
     def test_generalized_independent_samples_allocation_matrices(self):
         bkd = self.get_backend()
         model_idx = [0, 1, 2]
         qoi_idx = [0]
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx, bkd)
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd)
+        )
 
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(cov)
         est = get_estimator("gis", stat, costs, recursion_index=[2, 0])
         assert np.allclose(
             est._allocation_mat,
-            np.array([[0.,  1.,  0.,  0.,  1.,  1.],
-                      [0.,  0.,  0.,  1.,  0.,  0.],
-                      [0.,  0.,  1.,  1.,  0.,  1.]])
+            np.array(
+                [
+                    [0.0, 1.0, 0.0, 0.0, 1.0, 1.0],
+                    [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 1.0, 0.0, 1.0],
+                ]
+            ),
         )
 
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
@@ -161,9 +204,13 @@ class TestMOMC:
         est = get_estimator("gis", stat, costs, recursion_index=[0, 1])
         assert np.allclose(
             est._allocation_mat,
-            np.array([[0.,  1.,  1.,  1.,  0.,  0.],
-                      [0.,  0.,  0.,  1.,  1.,  1.],
-                      [0.,  0.,  0.,  0.,  0.,  1.]])
+            np.array(
+                [
+                    [0.0, 1.0, 1.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+                ]
+            ),
         )
 
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
@@ -171,20 +218,33 @@ class TestMOMC:
         est = get_estimator("gis", stat, costs, recursion_index=[0, 0])
         assert np.allclose(
             est._allocation_mat,
-            np.array([[0.,  1.,  1.,  1.,  1.,  1.],
-                      [0.,  0.,  0.,  1.,  0.,  0.],
-                      [0.,  0.,  0.,  0.,  0.,  1.]])
+            np.array(
+                [
+                    [0.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                    [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+                ]
+            ),
         )
 
-    def _check_estimator_variances(self, model_idx, qoi_idx, recursion_index,
-                                   est_type, stat_type, tree_depth=None,
-                                   max_nmodels=None, ntrials=int(1e4),
-                                   target_cost=50):
+    def _check_estimator_variances(
+        self,
+        model_idx,
+        qoi_idx,
+        recursion_index,
+        est_type,
+        stat_type,
+        tree_depth=None,
+        max_nmodels=None,
+        ntrials=int(1e4),
+        target_cost=50,
+    ):
         bkd = self.get_backend()
         ntrials = int(ntrials)
         rtol, atol = 4.6e-2, 1.01e-3
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx, bkd)
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd)
+        )
 
         # change costs so less samples are used in the estimator
         # to speed up test
@@ -205,7 +265,9 @@ class TestMOMC:
         if stat_type == "mean":
             idx = nqoi
             if est_type == "cv":
-                kwargs["lowfi_stats"] = [m for m in means[1:]]
+                kwargs["lowfi_stats"] = bkd.stack(
+                    [m for m in means[1:]], axis=0
+                )
         if "variance" in stat_type:
             if est_type == "cv":
                 lfcovs = []
@@ -214,10 +276,17 @@ class TestMOMC:
                     ub += nqoi
                     lfcovs.append(cov[lb:ub, lb:ub])
                     lb = ub
-                kwargs["lowfi_stats"] = [cov.flatten() for cov in lfcovs]
+                kwargs["lowfi_stats"] = bkd.stack(
+                    [cov.flatten() for cov in lfcovs]
+                )
             W = benchmark.covariance_of_centered_values_kronker_product()
             W = _nqoisq_nqoisq_subproblem(
-                W, benchmark.nmodels(), benchmark.nqoi(), model_idx, qoi_idx, bkd
+                W,
+                benchmark.nmodels(),
+                benchmark.nqoi(),
+                model_idx,
+                qoi_idx,
+                bkd,
             )
             # npilot_samples = int(1e6)
             # pilot_samples = benchmark.variable().rvs(npilot_samples)
@@ -233,22 +302,32 @@ class TestMOMC:
                     ub += nqoi
                     lfcovs.append(cov[lb:ub, lb:ub])
                     lb = ub
-                kwargs["lowfi_stats"] = [
-                    np.hstack((m, cov.flatten()))
-                    for m, cov in zip(means[1:], lfcovs)]
+                kwargs["lowfi_stats"] = bkd.stack(
+                    [
+                        bkd.hstack((m, cov.flatten()))
+                        for m, cov in zip(means[1:], lfcovs)
+                    ],
+                    axis=0,
+                )
             B = benchmark.covariance_of_mean_and_variance_estimators()
             B = _nqoi_nqoisq_subproblem(
-                B, benchmark.nmodels(), benchmark.nqoi(), model_idx, qoi_idx, bkd
+                B,
+                benchmark.nmodels(),
+                benchmark.nqoi(),
+                model_idx,
+                qoi_idx,
+                bkd,
             )
             pilot_args.append(B)
-            idx = nqoi+nqoi**2
+            idx = nqoi + nqoi**2
 
         # check covariance matrix is positive definite
         # np.linalg.cholesky(cov)
         stat = multioutput_stats[stat_type](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(*pilot_args)
         est = get_estimator(
-            est_type, stat, costs, max_nmodels=max_nmodels, **kwargs)
+            est_type, stat, costs, max_nmodels=max_nmodels, **kwargs
+        )
 
         est.allocate_samples(target_cost)
 
@@ -260,7 +339,12 @@ class TestMOMC:
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
                 funs_subset,
-                benchmark.variable(), est, ntrials, max_eval_concurrency, True)
+                benchmark.variable(),
+                est,
+                ntrials,
+                max_eval_concurrency,
+                True,
+            )
         )
         hfcovar = hfcovar.numpy()
 
@@ -273,13 +357,14 @@ class TestMOMC:
             CF_mc = bkd.cov(delta.T, ddof=1)
             cf_mc = bkd.cov(bkd.vstack((Q.T, delta.T)), ddof=1)[:idx, idx:]
             CF, cf = est._get_discrepancy_covariances(
-                est._rounded_npartition_samples)
+                est._rounded_npartition_samples
+            )
             # print(CF)
             # print(CF_mc)
             # print((np.abs(CF_mc-CF)-(atol + rtol*np.abs(CF))).max())
             torch.set_printoptions(linewidth=1000)
-            print(cf-cf_mc)
-            print((np.abs(cf_mc-cf)-(atol + rtol*np.abs(cf_mc))).max())
+            print(cf - cf_mc)
+            print((np.abs(cf_mc - cf) - (atol + rtol * np.abs(cf_mc))).max())
             assert bkd.allclose(CF, CF_mc, atol=atol, rtol=rtol)
             assert bkd.allclose(cf, cf_mc, atol=atol, rtol=rtol)
 
@@ -295,38 +380,71 @@ class TestMOMC:
             [[0], [0, 1], None, "mc", "mean_variance"],
             [[0, 1, 2], [0, 1], None, "cv", "mean"],
             [[0, 1, 2], [0, 1], None, "cv", "variance"],
-            [[0, 1, 2], [0, 2], None, "cv", "mean_variance",
-             None, None, 5e4],
+            [[0, 1, 2], [0, 2], None, "cv", "mean_variance", None, None, 5e4],
             [[0, 1, 2], [0], [0, 1], "grd", "mean"],
             [[0, 1, 2], [0, 1], [0, 1], "grd", "mean"],
             [[0, 1, 2], [0, 1], [0, 0], "grd", "mean"],
             [[0, 1], [0, 1, 2], [0], "grd", "variance", None, None, 2e4],
             [[0, 1, 2], [0, 1], [0, 1], "grd", "variance"],
-            [[0, 1, 2], [0, 1], [0, 1], "grd", "mean_variance",
-             None, None, 5e4],
+            [
+                [0, 1, 2],
+                [0, 1],
+                [0, 1],
+                "grd",
+                "mean_variance",
+                None,
+                None,
+                5e4,
+            ],
             [[0, 1, 2], [0], [0, 1], "gis", "mean"],
             [[0, 1, 2], [0, 1, 2], [0, 0], "gmf", "mean"],
-            [[0, 1, 2], [0, 1, 2], [0, 0], "gmf", "mean",
-             None, None, 1e4, 10],
+            [[0, 1, 2], [0, 1, 2], [0, 0], "gmf", "mean", None, None, 1e4, 10],
             [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", 2, None, 5e4, 100],
             [[0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", None, 3, 1e4, 100],
-            [[0, 1, 2], [0, 1, 2], [0, 1],
-             ["gmf", "grd", "gis", "mlmc"], "mean", None, 3, 1e4, 100],
+            [
+                [0, 1, 2],
+                [0, 1, 2],
+                [0, 1],
+                ["gmf", "grd", "gis", "mlmc"],
+                "mean",
+                None,
+                3,
+                1e4,
+                100,
+            ],
             [[0, 1, 2], [0, 1, 2], [0, 1], "grd", "mean", None, 3],
             [[0, 1, 2], [1], [0, 1], "grd", "variance", None, 3],
             [[0, 1], [0, 2], [0], "gmf", "mean"],
             [[0, 1], [0], [0], "gmf", "variance"],
             [[0, 1], [0, 2], [0], "gmf", "variance"],
             [[0, 1, 2], [0], [0, 0], "gmf", "variance"],
-            [[0, 1, 2], [0, 2], [0, 0], "gmf", "variance",
-             None, None, 1e4, 100],
+            [
+                [0, 1, 2],
+                [0, 2],
+                [0, 0],
+                "gmf",
+                "variance",
+                None,
+                None,
+                1e4,
+                100,
+            ],
             [[0, 1], [0], [0], "gmf", "mean_variance"],
             [[0, 1, 2], [0], None, "mfmc", "mean"],
             [[0, 1, 2], [0], None, "mlmc", "mean", None, None, 5e4],
             [[0, 1, 2], [0, 1], None, "mlmc", "mean", None, None, 5e4],
             [[0, 1, 2], [0], None, "mlmc", "variance"],
-            [[0, 1, 2], [0], None, "mlmc", "mean_variance",
-             None, None, 1e4, 100],
+            [
+                [0, 1, 2],
+                [0],
+                None,
+                "mlmc",
+                "mean_variance",
+                None,
+                None,
+                1e4,
+                100,
+            ],
             [[0], [0, 1, 2], None, "mc", "variance"],
             [[0, 1, 2], [0, 2], None, "gmf", "variance", 2, None, int(7e4)],
         ]
@@ -341,72 +459,96 @@ class TestMOMC:
         model_idx, qoi_idx = [0, 1, 2], [0]
         recursion_index = [0, 1]
         target_cost = 10
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx, bkd
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd)
         )
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(cov)
-        est = get_estimator("gmf", stat, costs,
-                            recursion_index=np.asarray(recursion_index))
+        est = get_estimator(
+            "gmf", stat, costs, recursion_index=np.asarray(recursion_index)
+        )
         mfmc_model_ratios, mfmc_log_variance = _allocate_samples_mfmc(
-            cov, costs, target_cost, bkd)
+            cov, costs, target_cost, bkd
+        )
         mfmc_est = MFMCEstimator(stat, costs)
         assert np.allclose(
             np.exp(
                 est._objective(
-                    target_cost, mfmc_est._native_ratios_to_npartition_ratios(
+                    target_cost,
+                    mfmc_est._native_ratios_to_npartition_ratios(
                         mfmc_model_ratios
-                    )
+                    ),
                 )[0]
             ),
-            np.exp(mfmc_log_variance))
+            np.exp(mfmc_log_variance),
+        )
         assert np.allclose(
             est._objective(
-                target_cost, mfmc_est._native_ratios_to_npartition_ratios(
-                    mfmc_model_ratios))[1], 0)
+                target_cost,
+                mfmc_est._native_ratios_to_npartition_ratios(
+                    mfmc_model_ratios
+                ),
+            )[1],
+            0,
+        )
 
         partition_ratios = torch.as_tensor(
-            mfmc_est._native_ratios_to_npartition_ratios(
-                mfmc_model_ratios), dtype=torch.double)
+            mfmc_est._native_ratios_to_npartition_ratios(mfmc_model_ratios),
+            dtype=torch.double,
+        )
         errors = check_gradients(
-            lambda z: est._objective(target_cost, z[:, 0]), True,
-            partition_ratios[:, None].numpy()+1,
-            fd_eps=np.logspace(-12, 1, 14)[::-1])
-        assert errors.min()/errors.max() < 3.e-6
+            lambda z: est._objective(target_cost, z[:, 0]),
+            True,
+            partition_ratios[:, None].numpy() + 1,
+            fd_eps=np.logspace(-12, 1, 14)[::-1],
+        )
+        assert errors.min() / errors.max() < 3.0e-6
 
         cons = est._get_constraints(target_cost)
         for con in cons:
             errors = check_gradients(
                 lambda z: con["fun"](z[:, 0], *con["args"]),
                 lambda z: con["jac"](z[:, 0], *con["args"]),
-                partition_ratios[:, None].numpy()+1,
-                fd_eps=np.logspace(-12, 1, 14)[::-1], disp=False)
-        assert errors.min()/errors.max() < 1e-6
+                partition_ratios[:, None].numpy() + 1,
+                fd_eps=np.logspace(-12, 1, 14)[::-1],
+                disp=False,
+            )
+        assert errors.min() / errors.max() < 1e-6
 
         # test mapping from partition ratios to model ratios
         model_ratios = est._partition_ratios_to_model_ratios(partition_ratios)
         npartition_samples = est._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios)
+            target_cost, partition_ratios
+        )
         nsamples_per_model = est._compute_nsamples_per_model(
-            npartition_samples)
-        est_cost = (nsamples_per_model*est._costs.numpy()).sum()
+            npartition_samples
+        )
+        est_cost = (nsamples_per_model * est._costs.numpy()).sum()
         assert np.allclose(
-            nsamples_per_model, np.hstack(
-                (nsamples_per_model[0], model_ratios*npartition_samples[0])))
+            nsamples_per_model,
+            np.hstack(
+                (nsamples_per_model[0], model_ratios * npartition_samples[0])
+            ),
+        )
         assert np.allclose(model_ratios, mfmc_model_ratios)
-        assert np.allclose(model_ratios*npartition_samples[0],
-                           np.cumsum(npartition_samples)[1:])
+        assert np.allclose(
+            model_ratios * npartition_samples[0],
+            np.cumsum(npartition_samples)[1:],
+        )
         assert np.allclose(target_cost, est_cost)
         # get nsample ratios before rounding
         # avoid using est._allocate_samples so we do not start
         # from mfmc exact solution
         partition_ratios, obj_val = est._allocate_samples(
-            target_cost, {"scaling": 1.})
+            target_cost, {"scaling": 1.0}
+        )
         npartition_samples = est._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios)
+            target_cost, partition_ratios
+        )
         nsamples_per_model = est._compute_nsamples_per_model(
-            npartition_samples)
-        est_cost = (nsamples_per_model*est._costs.numpy()).sum()
+            npartition_samples
+        )
+        est_cost = (nsamples_per_model * est._costs.numpy()).sum()
         assert np.allclose(np.exp(obj_val), np.exp(mfmc_log_variance))
         model_ratios = est._partition_ratios_to_model_ratios(partition_ratios)
         assert np.allclose(model_ratios, mfmc_model_ratios)
@@ -417,23 +559,22 @@ class TestMOMC:
         model_idx, qoi_idx = [0, 1, 2], [0]
         recursion_index = [0, 1]
         target_cost = 10
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx, bkd
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd)
         )
 
         # The following will give mlmc with unit variance
         # and level variances var[f_i-f_{i+1}] = [1, 4, 4]
         target_cost = 81
         costs = bkd.array([6, 3, 1])
-        cov = bkd.asarray([[1.00, 0.50, 0.25],
-                          [0.50, 1.00, 0.50],
-                          [0.25, 0.50, 4.00]])
+        cov = bkd.asarray(
+            [[1.00, 0.50, 0.25], [0.50, 1.00, 0.50], [0.25, 0.50, 4.00]]
+        )
 
         stat = multioutput_stats["mean"](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(cov)
         est = get_estimator(
-            "grd", stat, costs,
-            recursion_index=bkd.asarray(recursion_index)
+            "grd", stat, costs, recursion_index=bkd.asarray(recursion_index)
         )
         mlmc_model_ratios, mlmc_log_variance = _allocate_samples_mlmc(
             cov, costs, target_cost, bkd
@@ -450,87 +591,132 @@ class TestMOMC:
             weights = est._weights(CF, cf)
             return est._covariance_non_optimal_weights(
                 est._stat.high_fidelity_estimator_covariance(
-                    npartition_samples[0]), weights, CF, cf)
+                    npartition_samples[0]
+                ),
+                weights,
+                CF,
+                cf,
+            )
+
         est._covariance_from_npartition_samples = mlmc_cov
 
         # test mapping from partition ratios to model ratios
         partition_ratios = mlmc_est._native_ratios_to_npartition_ratios(
-                mlmc_model_ratios
+            mlmc_model_ratios
         )
         model_ratios = est._partition_ratios_to_model_ratios(partition_ratios)
         npartition_samples = est._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios)
+            target_cost, partition_ratios
+        )
         nsamples_per_model = est._compute_nsamples_per_model(
-            npartition_samples)
-        est_cost = (nsamples_per_model*est._costs.numpy()).sum()
+            npartition_samples
+        )
+        est_cost = (nsamples_per_model * est._costs.numpy()).sum()
         assert np.allclose(
-            nsamples_per_model, np.hstack(
-                (nsamples_per_model[0], model_ratios*npartition_samples[0])))
+            nsamples_per_model,
+            np.hstack(
+                (nsamples_per_model[0], model_ratios * npartition_samples[0])
+            ),
+        )
         assert np.allclose(model_ratios, mlmc_model_ratios)
         assert np.allclose(target_cost, est_cost)
 
         assert np.allclose(
-            np.exp(est._objective(
-                target_cost, mlmc_est._native_ratios_to_npartition_ratios(
-                    mlmc_model_ratios))[0]),
-            np.exp(mlmc_log_variance))
+            np.exp(
+                est._objective(
+                    target_cost,
+                    mlmc_est._native_ratios_to_npartition_ratios(
+                        mlmc_model_ratios
+                    ),
+                )[0]
+            ),
+            np.exp(mlmc_log_variance),
+        )
         assert np.allclose(
             est._objective(
-                target_cost, mlmc_est._native_ratios_to_npartition_ratios(
-                    mlmc_model_ratios))[1], 0)
+                target_cost,
+                mlmc_est._native_ratios_to_npartition_ratios(
+                    mlmc_model_ratios
+                ),
+            )[1],
+            0,
+        )
 
         errors = check_gradients(
-            lambda z: est._objective(target_cost, z[:, 0]), True,
-            partition_ratios[:, None].numpy()+1,
-            fd_eps=np.logspace(-12, 1, 14)[::-1])
-        assert errors.min()/errors.max() < 1e-6
+            lambda z: est._objective(target_cost, z[:, 0]),
+            True,
+            partition_ratios[:, None].numpy() + 1,
+            fd_eps=np.logspace(-12, 1, 14)[::-1],
+        )
+        assert errors.min() / errors.max() < 1e-6
 
         cons = est._get_constraints(target_cost)
         for con in cons:
             errors = check_gradients(
                 lambda z: con["fun"](z[:, 0], *con["args"]),
                 lambda z: con["jac"](z[:, 0], *con["args"]),
-                partition_ratios[:, None].numpy()+1,
-                fd_eps=np.logspace(-12, 1, 14)[::-1], disp=False)
-        assert errors.min()/errors.max() < 1e-6
+                partition_ratios[:, None].numpy() + 1,
+                fd_eps=np.logspace(-12, 1, 14)[::-1],
+                disp=False,
+            )
+        assert errors.min() / errors.max() < 1e-6
 
         # get nsample ratios before rounding
         # avoid using est._allocate_samples so we do not start
         # from mlmc exact solution
         partition_ratios, obj_val = est._allocate_samples(
-            target_cost, {"scaling": 1.})
+            target_cost, {"scaling": 1.0}
+        )
         npartition_samples = est._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios)
+            target_cost, partition_ratios
+        )
         nsamples_per_model = est._compute_nsamples_per_model(
-            npartition_samples)
-        est_cost = (nsamples_per_model*est._costs.numpy()).sum()
+            npartition_samples
+        )
+        est_cost = (nsamples_per_model * est._costs.numpy()).sum()
         assert np.allclose(np.exp(obj_val), np.exp(mlmc_log_variance))
         model_ratios = est._partition_ratios_to_model_ratios(partition_ratios)
         assert np.allclose(model_ratios, mlmc_model_ratios)
 
     def test_best_model_subset_estimator(self):
         bkd = self.get_backend()
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            [0, 1, 2], [0, 1, 2], bkd)
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem([0, 1, 2], [0, 1, 2], bkd)
+        )
         stat = multioutput_stats["mean"](3, backend=bkd)
         stat.set_pilot_quantities(cov)
-        est = get_estimator(
-            ["gmf", "mfmc", "gis"], stat, costs, max_nmodels=3)
+        est = get_estimator(["gmf", "mfmc", "gis"], stat, costs, max_nmodels=3)
         target_cost = 10
         est._save_candidate_estimators = True
         est.allocate_samples(
-            target_cost, {"verbosity": 1, "nprocs": 1, "scaling": 1,
-                          "init_guess": {"disp": True, "maxiter": 300,
-                                         "lower_bound": 1e-10}})
+            target_cost,
+            {
+                "verbosity": 1,
+                "nprocs": 1,
+                "scaling": 1,
+                "init_guess": {
+                    "disp": True,
+                    "maxiter": 300,
+                    "lower_bound": 1e-10,
+                },
+            },
+        )
 
         criteria = np.array(
-            [e[0]._optimized_criteria for e in est._candidate_estimators])
+            [e[0]._optimized_criteria for e in est._candidate_estimators]
+        )
         assert np.allclose(criteria.min(), est._optimized_criteria)
 
         ntrials, max_eval_concurrency = int(1e3), 1
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
-                funs, benchmark.variable(), est, ntrials, max_eval_concurrency, True)
+                funs,
+                benchmark.variable(),
+                est,
+                ntrials,
+                max_eval_concurrency,
+                True,
+            )
         )
 
         rtol, atol = 2e-2, 1e-3
@@ -539,8 +725,8 @@ class TestMOMC:
         ntrials, max_eval_concurrency = int(1e4), 4
         qoi_idx = [0, 1]
         target_cost = 50
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            [0, 1, 2], qoi_idx, bkd
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem([0, 1, 2], qoi_idx, bkd)
         )
         W = benchmark.covariance_of_centered_values_kronker_product()
         W = _nqoisq_nqoisq_subproblem(
@@ -553,12 +739,25 @@ class TestMOMC:
         stat = multioutput_stats["mean_variance"](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(cov, W, B)
         est = get_estimator("gmf", stat, costs)
-        est.allocate_samples(target_cost,
-                             {"init_guess": {"disp": True, "maxiter": 100,
-                                             "lower_bound": 1e-3}})
+        est.allocate_samples(
+            target_cost,
+            {
+                "init_guess": {
+                    "disp": True,
+                    "maxiter": 100,
+                    "lower_bound": 1e-3,
+                }
+            },
+        )
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
-                funs, benchmark.variable(), est, ntrials, max_eval_concurrency, True)
+                funs,
+                benchmark.variable(),
+                est,
+                ntrials,
+                max_eval_concurrency,
+                True,
+            )
         )
         rtol, atol = 2e-2, 1e-4
         assert np.allclose(covar_mc, covar, atol=atol, rtol=rtol)
@@ -566,8 +765,8 @@ class TestMOMC:
     def test_insert_pilot_samples(self):
         bkd = self.get_backend()
         # This test is specific to ACV sampling strategies (not yet MLBLUE)
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            [0, 1, 2], [0, 1, 2], bkd
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem([0, 1, 2], [0, 1, 2], bkd)
         )
         nqoi = 3
 
@@ -577,14 +776,18 @@ class TestMOMC:
         stat = multioutput_stats["mean"](nqoi, backend=bkd)
         stat.set_pilot_quantities(cov)
         est = get_estimator(
-            "grd", stat, costs, max_nmodels=3, recursion_index=(0, 1))
+            "grd", stat, costs, max_nmodels=3, recursion_index=(0, 1)
+        )
         target_cost = 100
         est.allocate_samples(target_cost, {"verbosity": 0, "nprocs": 1})
 
         np.random.seed(1)
-        samples_per_model = est.generate_samples_per_model(benchmark.variable().rvs)
+        samples_per_model = est.generate_samples_per_model(
+            benchmark.variable().rvs
+        )
         values_per_model = [
-            fun(samples) for fun, samples in zip(funs, samples_per_model)]
+            fun(samples) for fun, samples in zip(funs, samples_per_model)
+        ]
         est_val = est(values_per_model)
 
         # start from same seed so samples will be generated in the same order
@@ -598,24 +801,32 @@ class TestMOMC:
         pilot_samples = benchmark.variable().rvs(npilot_samples)
         pilot_values = [f(pilot_samples) for f in benchmark.models()]
         assert np.allclose(
-            pilot_values[0], values_per_model[0][:npilot_samples])
+            pilot_values[0], values_per_model[0][:npilot_samples]
+        )
 
         samples_per_model_wo_pilot = est.generate_samples_per_model(
-            benchmark.variable().rvs, npilot_samples)
+            benchmark.variable().rvs, npilot_samples
+        )
         values_per_model_wo_pilot = [
-            fun(samples) for fun, samples in
-            zip(funs, samples_per_model_wo_pilot)]
+            fun(samples)
+            for fun, samples in zip(funs, samples_per_model_wo_pilot)
+        ]
         nvalues_per_model_wo_pilot = [
-            v.shape[0] for v in values_per_model_wo_pilot]
+            v.shape[0] for v in values_per_model_wo_pilot
+        ]
         modified_values_per_model = est.insert_pilot_values(
-            pilot_values, values_per_model_wo_pilot)
+            pilot_values, values_per_model_wo_pilot
+        )
         for ii in range(len(values_per_model)):
-            assert np.allclose(modified_values_per_model[ii],
-                               values_per_model[ii])
+            assert np.allclose(
+                modified_values_per_model[ii], values_per_model[ii]
+            )
             # make sure that values_per_model_wo_pilot is not being modified
             # by insert_pilot_values
-            assert np.allclose(values_per_model_wo_pilot[ii].shape[0],
-                               nvalues_per_model_wo_pilot[ii])
+            assert np.allclose(
+                values_per_model_wo_pilot[ii].shape[0],
+                nvalues_per_model_wo_pilot[ii],
+            )
         est_stats = est(modified_values_per_model)
         assert np.allclose(est_stats, est_val)
 
@@ -625,14 +836,14 @@ class TestMOMC:
         model_idx = [0, 1, 2]
         ntrials = 1e3
         # model_idx = [0, 1]
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx, bkd
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd)
         )
         nqoi = len(qoi_idx)
 
         # modify costs so more hf samples are used but all three models
         # are selected
-        costs[1:] = bkd.array([0.1, 0.05])[:len(model_idx)-1]
+        costs[1:] = bkd.array([0.1, 0.05])[: len(model_idx) - 1]
 
         stat = multioutput_stats["mean"](nqoi, backend=bkd)
         stat.set_pilot_quantities(cov)
@@ -641,24 +852,41 @@ class TestMOMC:
         else:
             est = get_estimator(est_name, stat, costs)
         est.allocate_samples(
-            target_cost, {"scaling": 1., "maxiter": 200,
-                          "init_guess": {"disp": True, "maxiter": 100,
-                                         "lower_bound": 1e-3}})
+            target_cost,
+            {
+                "scaling": 1.0,
+                "maxiter": 200,
+                "init_guess": {
+                    "disp": True,
+                    "maxiter": 100,
+                    "lower_bound": 1e-3,
+                },
+            },
+        )
 
-        samples_per_model = est.generate_samples_per_model(benchmark.variable().rvs)
+        samples_per_model = est.generate_samples_per_model(
+            benchmark.variable().rvs
+        )
         values_per_model = [
-            f(samples) for f, samples in zip(funs, samples_per_model)]
+            f(samples) for f, samples in zip(funs, samples_per_model)
+        ]
 
         bootstrap_values_mean, bootstrap_values_cov = est.bootstrap(
-            values_per_model, ntrials)
+            values_per_model, ntrials
+        )
         # print(bootstrap_values_mean, bootstrap_values_cov, "I")
         # print(bootstrap_values_mean-means[0])
         # print(bootstrap_values_cov, "CB")
         # print(est._optimized_covariance, "C")
         assert np.allclose(
-            bootstrap_values_mean, means[0], atol=1e-3, rtol=1e-2)
-        assert np.allclose(bootstrap_values_cov, est._optimized_covariance,
-                           atol=1e-3, rtol=1e-2)
+            bootstrap_values_mean, means[0], atol=1e-3, rtol=1e-2
+        )
+        assert np.allclose(
+            bootstrap_values_cov,
+            est._optimized_covariance,
+            atol=1e-3,
+            rtol=1e-2,
+        )
 
         if est_name == "mc":
             return
@@ -670,8 +898,9 @@ class TestMOMC:
         npilot_samples = 20
         pilot_samples = benchmark.variable().rvs(npilot_samples)
         pilot_values_per_model = [fun(pilot_samples) for fun in funs]
-        stat.set_pilot_quantities(*stat.compute_pilot_quantities(
-            pilot_values_per_model))
+        stat.set_pilot_quantities(
+            *stat.compute_pilot_quantities(pilot_values_per_model)
+        )
 
         if est_name == "cv":
             lfcovs = []
@@ -685,43 +914,73 @@ class TestMOMC:
             elif stat_name == "variance":
                 lowfi_stats = lfcovs.flatten()
             else:
-                lowfi_stats = [
-                    np.hstack((m, cov.flatten()))
-                    for m, cov in zip(means[1:], lfcovs)]
-            est = get_estimator(
-                "cv", stat, costs, lowfi_stats=lowfi_stats)
+                lowfi_stats = bkd.stack(
+                    [
+                        bkd.hstack((m, cov.flatten()))
+                        for m, cov in zip(means[1:], lfcovs)
+                    ],
+                    axis=0,
+                )
+            est = get_estimator("cv", stat, costs, lowfi_stats=lowfi_stats)
         else:
             est = get_estimator(est_name, stat, costs)
         est.allocate_samples(
-            target_cost, {"scaling": 1., "maxiter": 200,
-                          "init_guess": {"disp": True, "maxiter": 100,
-                                         "lower_bound": 1e-3}})
+            target_cost,
+            {
+                "scaling": 1.0,
+                "maxiter": 200,
+                "init_guess": {
+                    "disp": True,
+                    "maxiter": 100,
+                    "lower_bound": 1e-3,
+                },
+            },
+        )
         print(est)
         samples_per_model = est.generate_samples_per_model(
             benchmark.variable().rvs
         )
         values_per_model = [
-            f(samples) for f, samples in zip(funs, samples_per_model)]
+            f(samples) for f, samples in zip(funs, samples_per_model)
+        ]
 
-        (bootstrap_values_mean, bootstrap_values_cov, bootstrap_weights_mean,
-         bootstrap_weights_cov) = est.bootstrap(
-             values_per_model, ntrials, mode="values_weights",
-             pilot_values=pilot_values_per_model)
+        (
+            bootstrap_values_mean,
+            bootstrap_values_cov,
+            bootstrap_weights_mean,
+            bootstrap_weights_cov,
+        ) = est.bootstrap(
+            values_per_model,
+            ntrials,
+            mode="values_weights",
+            pilot_values=pilot_values_per_model,
+        )
         # print(bootstrap_values_mean, bootstrap_values_cov, "J")
         # print(bootstrap_weights_mean, bootstrap_weights_cov)
 
-        (bootstrap_values_mean, bootstrap_values_cov, bootstrap_weights_mean,
-         bootstrap_weights_cov) = est.bootstrap(
-             values_per_model, ntrials, mode="weights",
-             pilot_values=pilot_values_per_model)
+        (
+            bootstrap_values_mean,
+            bootstrap_values_cov,
+            bootstrap_weights_mean,
+            bootstrap_weights_cov,
+        ) = est.bootstrap(
+            values_per_model,
+            ntrials,
+            mode="weights",
+            pilot_values=pilot_values_per_model,
+        )
         # print(bootstrap_values_mean, bootstrap_values_cov, "K")
         # print(bootstrap_weights_mean, bootstrap_weights_cov)
 
     def test_bootstrap_estimator(self):
         test_cases = [
-            ["mc", 1000], ["cv", 42], ["mfmc", 10000],
+            ["mc", 1000],
+            ["cv", 42],
+            ["mfmc", 10000],
             ["gmf", 10000],
-            ["grd", 10000], ["gis", 10000]]
+            ["grd", 10000],
+            ["gis", 10000],
+        ]
         for test_case in test_cases:
             print(test_case)
             np.random.seed(1)
@@ -737,12 +996,17 @@ class TestMOMC:
         stat = multioutput_stats["mean"](benchmark.nqoi(), backend=bkd)
         stat.set_pilot_quantities(cov)
         est = get_estimator(
-            "gmf", stat, costs, recursion_index=np.zeros(nmodels-1, dtype=int))
+            "gmf",
+            stat,
+            costs,
+            recursion_index=np.zeros(nmodels - 1, dtype=int),
+        )
         est.allocate_samples(100)
 
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
-                benchmark.models(), benchmark.variable(), est, 1000, 1, True)
+                benchmark.models(), benchmark.variable(), est, 1000, 1, True
+            )
         )
         assert bkd.allclose(covar_mc, covar, rtol=1e-2)
 
