@@ -490,7 +490,7 @@ class MultiOutputModelEnsemble(ACVBenchmark):
                 math.sqrt(3) / 2 * samples.T**2,
                 math.sqrt(3) / 2 * samples.T,
                 self._bkd.cos(2 * math.pi * samples.T + math.pi / 4),
-           ]
+            ]
         )
 
     def _set_variable(self):

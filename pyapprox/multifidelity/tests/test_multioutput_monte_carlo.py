@@ -851,18 +851,22 @@ class TestMOMC:
             est = get_estimator("cv", stat, costs, lowfi_stats=means[1:])
         else:
             est = get_estimator(est_name, stat, costs)
-        est.allocate_samples(
-            target_cost,
-            {
-                "scaling": 1.0,
-                "maxiter": 200,
-                "init_guess": {
-                    "disp": True,
-                    "maxiter": 100,
-                    "lower_bound": 1e-3,
+
+        if est_name in ["mc", "cv"]:
+            est.allocate_samples(target_cost)
+        else:
+            est.allocate_samples(
+                target_cost,
+                {
+                    "scaling": 1.0,
+                    "maxiter": 200,
+                    "init_guess": {
+                        "disp": True,
+                        "maxiter": 100,
+                        "lower_bound": 1e-3,
+                    },
                 },
-            },
-        )
+            )
 
         samples_per_model = est.generate_samples_per_model(
             benchmark.variable().rvs
@@ -924,18 +928,21 @@ class TestMOMC:
             est = get_estimator("cv", stat, costs, lowfi_stats=lowfi_stats)
         else:
             est = get_estimator(est_name, stat, costs)
-        est.allocate_samples(
-            target_cost,
-            {
-                "scaling": 1.0,
-                "maxiter": 200,
-                "init_guess": {
-                    "disp": True,
-                    "maxiter": 100,
-                    "lower_bound": 1e-3,
+        if est_name in ["mc", "cv"]:
+            est.allocate_samples(target_cost)
+        else:
+            est.allocate_samples(
+                target_cost,
+                {
+                    "scaling": 1.0,
+                    "maxiter": 200,
+                    "init_guess": {
+                        "disp": True,
+                        "maxiter": 100,
+                        "lower_bound": 1e-3,
+                    },
                 },
-            },
-        )
+            )
         print(est)
         samples_per_model = est.generate_samples_per_model(
             benchmark.variable().rvs

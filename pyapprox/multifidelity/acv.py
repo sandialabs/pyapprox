@@ -236,7 +236,7 @@ class MCEstimator:
         """
         return self._optimized_covariance
 
-    def allocate_samples(self, target_cost: float, optim_options: dict = {}):
+    def allocate_samples(self, target_cost: float):
         """
         Find the optimal number of samples that minimize the metric of the
         estimator covvariance for the specficied target cost.
@@ -488,7 +488,7 @@ class CVEstimator(MCEstimator):
             rounded_target_cost,
         )
 
-    def allocate_samples(self, target_cost: float, optim_options: dict = None):
+    def allocate_samples(self, target_cost: float):
         npartition_samples = [target_cost / self._costs.sum()]
         rounded_npartition_samples = [int(np.floor(npartition_samples[0]))]
         if isinstance(
@@ -749,6 +749,12 @@ class CVEstimator(MCEstimator):
             )
         return (bootstrap_values_mean, bootstrap_values_covar)
 
+
+# from pyapprox.interface.model import Model
+# class ACVObjective(Model):
+#     def __init__(self, lower_bound: float, scaling: float):
+#         self._lower_bound = lower_bound
+#         self._scaling = scaling
 
 class ACVEstimator(CVEstimator):
     def __init__(

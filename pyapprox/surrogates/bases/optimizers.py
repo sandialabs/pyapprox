@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import scipy
-import torch.optim
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
@@ -13,6 +12,7 @@ class OptimizationResult(dict):
     the iterate and objective function value at the minima,
     which can be accessed via res.x and res.fun, respectively.
     """
+
     def __getattr__(self, name):
         try:
             return self[name]
@@ -28,7 +28,9 @@ class OptimizationResult(dict):
     def __repr__(self):
         return self.__class__.__name__ + (
             "(\n\t x={0}, \n\t fun={1}, \n\t attr={2})".format(
-                self.x, self.fun, list(self.keys())))
+                self.x, self.fun, list(self.keys())
+            )
+        )
 
 
 class ScipyOptimizationResult(OptimizationResult):
@@ -57,11 +59,12 @@ class Optimizer(ABC):
         self._objective_fun = None
         self._verbosity = 0
         self._tol = 1e-5
-        self._numeric_upper_bound =100
-
+        self._numeric_upper_bound = 100
 
     def set_numeric_upper_bound(self, ub):
-        """Set the value used when computing initial guesses to replace np.inf."""
+        """
+        Set the value used when computing initial guesses to replace np.inf.
+        """
         self._numeric_upper_bound = ub
 
     def set_objective_function(self, objective_fun):
@@ -124,16 +127,15 @@ class Optimizer(ABC):
         bounds = self._bkd.to_numpy(self._bounds)
         bounds[bounds == -np.inf] = -self._numeric_upper_bound
         bounds[bounds == np.inf] = self._numeric_upper_bound
-        return self._bkd.asarray(
-            np.random.uniform(bounds[:, 0], bounds[:, 1]))
+        return self._bkd.asarray(np.random.uniform(bounds[:, 0], bounds[:, 1]))
 
     def _is_iterate_within_bounds(self, iterate):
         # convert bounds to np.logical
         bounds = self._bkd.to_numpy(self._bounds)
         iterate = self._bkd.to_numpy(iterate)
         return np.logical_and(
-            iterate >= bounds[:, 0],
-            iterate <= bounds[:, 1]).all()
+            iterate >= bounds[:, 0], iterate <= bounds[:, 1]
+        ).all()
 
     @abstractmethod
     def _optimize(self, iterate):
@@ -160,7 +162,9 @@ class Optimizer(ABC):
         return self._optimize(iterate)
 
     def __repr__(self):
-        return "{0}(verbosity={1})".format(self.__class__.__name__, self._verbosity)
+        return "{0}(verbosity={1})".format(
+            self.__class__.__name__, self._verbosity
+        )
 
 
 class ScipyLBFGSB(Optimizer):
@@ -195,17 +199,22 @@ class ScipyLBFGSB(Optimizer):
 
         """
         if not self._is_iterate_within_bounds(iterate):
-            raise ValueError('Initial iterate is not within bounds')
+            raise ValueError("Initial iterate is not within bounds")
 
         if self._verbosity < 3:
-            self._options['iprint'] = self._verbosity-1
+            self._options["iprint"] = self._verbosity - 1
         else:
-            self._options['iprint'] = 200
+            self._options["iprint"] = 200
 
         scipy_res = scipy.optimize.minimize(
-            self._np_objective_fun_wrapper, self._bkd.to_numpy(iterate), method='L-BFGS-B',
-            jac=True, bounds=self._bkd.to_numpy(self._bounds), tol=self._tol,
-            options=self._options)
+            self._np_objective_fun_wrapper,
+            self._bkd.to_numpy(iterate),
+            method="L-BFGS-B",
+            jac=True,
+            bounds=self._bkd.to_numpy(self._bounds),
+            tol=self._tol,
+            options=self._options,
+        )
 
         result = ScipyOptimizationResult(scipy_res, self._bkd)
 
@@ -249,15 +258,18 @@ class MultiStartOptimizer(Optimizer):
     def _optimize(self, x0_global, **kwargs):
         best_res = self._optimizer.optimize(x0_global)
         if self._verbosity > 1:
-                print("it {1}: best objective {1}".format(0, best_res.fun))
+            print("it {0}: best objective {1}".format(0, best_res.fun))
         for ii in range(1, self._ncandidates):
-            print( self._optimizer._get_random_optimizer_initial_guess())
+            print(self._optimizer._get_random_optimizer_initial_guess())
             res = self._optimizer.optimize(
-                self._optimizer._get_random_optimizer_initial_guess(), **kwargs)
+                self._optimizer._get_random_optimizer_initial_guess(), **kwargs
+            )
             if res.fun < best_res.fun:
                 best_res = res
             if self._verbosity > 1:
-                print("it {0}: best objective {1}".format(ii+1, best_res.fun))
+                print(
+                    "it {0}: best objective {1}".format(ii + 1, best_res.fun)
+                )
         if self._verbosity > 0:
             print("{0}\n\t {1}".format(self, best_res))
         return best_res
@@ -266,4 +278,3 @@ class MultiStartOptimizer(Optimizer):
         return "{0}(optimizer={1}, ncandidates={2})".format(
             self.__class__.__name__, self._optimizer, self._ncandidates
         )
-
