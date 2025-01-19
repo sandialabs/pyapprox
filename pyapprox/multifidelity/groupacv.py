@@ -18,6 +18,8 @@ from pyapprox.optimization.pya_minimize import (
     OptimizationResult,
     ChainedOptimizer,
     Optimizer,
+    ScipyConstrainedOptimizer,
+    ScipyConstrainedNelderMeadOptimizer,
 )
 
 
@@ -814,6 +816,16 @@ class GroupACVEstimator:
             )
         return asketch
 
+    def get_default_optimizer(self) -> ChainedACVOptimizer:
+        opt1 = GroupACVGradientOptimizer(
+            ScipyConstrainedNelderMeadOptimizer(opts={"maxiter": 30})
+        )
+        local_opt = ScipyConstrainedOptimizer()
+        local_opt._opts["gtol"] = 1e-12
+        opt2 = GroupACVGradientOptimizer(local_opt)
+        
+        return ChainedACVOptimizer(opt1, opt2)
+
     def set_optimizer(
         self, optimizer: Union[GroupACVOptimizer, ChainedACVOptimizer]
     ):
@@ -860,8 +872,9 @@ class GroupACVEstimator:
             The initial guess of the optimal sample allocation passed to the
             optimizer. If None a default initial iterate is used.
         """
-        if self._optimizer is None:
-            raise RuntimeError("must call set_optimizer")
+        if not hasattr(self, "_optimizer"):
+            # raise RuntimeError("must call set_optimizer")
+            self.set_optimizer(self.get_default_optimizer())
         self._optimizer.set_budget(
             target_cost, max(self._stat.min_nsamples(), min_nhf_samples)
         )

@@ -369,7 +369,8 @@ class Model(ABC):
         self._check_sample_shape(sample)
         if self._weighted_hessian_implemented:
             return self._weighted_hessian(sample, weights)
-        return weights.T @ self.hessian(sample)
+        hess = self.hessian(sample)
+        return self._bkd.einsum("il,ijk->jkl", weights, hess)[..., 0]
 
     def _check_apply(
         self,

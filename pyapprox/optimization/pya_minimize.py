@@ -510,7 +510,10 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
                 continue
             con = ScipyModelWrapper(_con)
             jac = con.jac if con._jacobian_implemented else "2-point"
-            if con._weighted_hessian_implemented:
+            if con._weighted_hessian_implemented or con._hessian_implemented:
+                # model impoementation of weighted_hess can use_pseudo_inv
+                # direct implementation of weighted hessian (first condition)
+                # or compute it from 3D hessian tensor (2nd condition)
                 hess = con.weighted_hess
             else:
                 hess = scipy.optimize._hessian_update_strategy.BFGS()

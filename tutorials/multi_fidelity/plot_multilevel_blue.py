@@ -103,7 +103,9 @@ nhf_samples = 1
 
 cv_stats, cv_ests = [], []
 for ii in range(1, nmodels):
-    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin))
+    cv_stats.append(
+        multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
+    )
     cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
     cv_ests.append(get_estimator(
         "cv", cv_stats[ii-1], costs[:ii+1],
@@ -155,7 +157,15 @@ estimators = [
     get_estimator("gmf", cv_stats[-1], costs, tree_depth=4),
     get_estimator("cv", cv_stats[-1], costs,
                   lowfi_stats=benchmark.mean()[1:])]
-est_labels = mathrm_labels(["MC", "MLMC", "MLBLUE", "GRD", "CV"])
+est_labels = mathrm_labels(["MC", "MLMC", "MLBLUE", "GMF", "CV"])
+
+
+# GMF requires scaling of objective function, so modify default optimizer
+optimizer = estimators[3].get_default_optimizer()
+optimizer._opts["scaling"] = 1e-2
+optimizer._optimizer2._opts["method"] = "slsqp"
+estimators[3].set_optimizer(optimizer)
+
 optimized_estimators = compare_estimator_variances(
     target_costs, estimators)
 
@@ -165,7 +175,6 @@ fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
 _ = plot_estimator_variances(
     optimized_estimators, est_labels, axs,
     relative_id=0, cost_normalization=1)
-
 
 #%%
 #Now plot the number of samples allocated for each target cost

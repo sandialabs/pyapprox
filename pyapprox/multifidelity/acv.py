@@ -1415,7 +1415,7 @@ class ACVEstimator(CVEstimator):
         global_optimizer = ScipyConstrainedNelderMeadOptimizer(
             opts={"maxiter": 500}
         )
-        local_optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-9})
+        local_optimizer = ScipyConstrainedOptimizer()
         optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
         optimizer.set_verbosity(0)
         return optimizer
@@ -1540,7 +1540,9 @@ class ACVEstimator(CVEstimator):
         partition_ratios = opt_result.x[:, 0]
         if not opt_result.success:
             raise RuntimeError(
-                "{0} optimizer failed {1}".format(self, opt_result)
+                "{0} optimizer failed {1} with message {2}".format(
+                    self, opt_result, opt_result.message
+                )
             )
         else:
             val = opt_result.fun

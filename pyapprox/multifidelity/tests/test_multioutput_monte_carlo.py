@@ -336,7 +336,6 @@ class TestMOMC:
             optimizer = est.get_default_optimizer()
             optimizer.set_verbosity(0)
             optimizer._optimizer1._opts["maxiter"] = 500
-            del optimizer._optimizer2._opts["gtol"]
             optimizer._optimizer2._opts["method"] = "slsqp"
             est.set_optimizer(optimizer)
 
@@ -1017,7 +1016,6 @@ class TestMOMC:
         optimizer._optimizer1._opts["maxiter"] = 500
         # using trust-constr
         # causes scipy optimization  to violate bounds which should be strictly enforced
-        del optimizer._optimizer2._opts["gtol"]
         optimizer._optimizer2._opts["method"] = "slsqp"
         est.set_optimizer(optimizer)
         # increasing target_cost to say causes test to not pass

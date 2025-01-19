@@ -747,17 +747,7 @@ class TestGroupACV:
         mfmc_est = get_estimator(
             "gmf", stat, costs, recursion_index=recursion_index
         )
-        mfmc_est.allocate_samples(
-            target_cost,
-            {
-                "init_guess": {
-                    "disp": True,
-                    "maxiter": 100,
-                    "lower_bound": 1e-3,
-                },
-                "maxiter": 1000,
-            },
-        )
+        mfmc_est.allocate_samples(target_cost)
 
         funs, cov, costs, benchmark, means = (
             _setup_multioutput_model_subproblem(
