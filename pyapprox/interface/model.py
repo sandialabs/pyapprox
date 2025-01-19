@@ -42,6 +42,7 @@ class Model(ABC):
         self._jacobian_implemented = False
         self._apply_hessian_implemented = False
         self._hessian_implemented = False
+        self._weighted_hessian_implemented = False
         self._apply_weighted_hessian_implemented = False
 
     @abstractmethod
@@ -310,10 +311,14 @@ class Model(ABC):
             return self._apply_jacobian(sample, vec).T @ weights
         return (self.jacobian(sample) @ vec).T @ weights
 
-    def _apply_weighted_hessian(self, sample: Array, vec: Array, weights: Array) -> Array:
+    def _apply_weighted_hessian(
+            self, sample: Array, vec: Array, weights: Array
+    ) -> Array:
         raise NotImplementedError
 
-    def apply_weighted_hessian(self, sample: Array, vec: Array, weights: Array) -> Array:
+    def apply_weighted_hessian(
+            self, sample: Array, vec: Array, weights: Array
+    ) -> Array:
         """
         Compute the matrix vector product of the Hessian,
         of a weighted combinatino of the QoI, with a vector.
@@ -337,6 +342,7 @@ class Model(ABC):
         if (
             not self._apply_weighted_hessian_implemented
             and not self._hessian_implemented
+            and not self._weighted_hessian_implemented
         ):
             raise RuntimeError(
                 "apply_weighted_hessian and hessian are not implemented"
@@ -345,7 +351,25 @@ class Model(ABC):
         self._check_vec_shape(sample, vec)
         if self._apply_weighted_hessian_implemented:
             return self._apply_weighted_hessian(sample, vec, weights)
+        if self._weighted_hessian_implemented:
+            return self._weighted_hessian(sample, weights) @ vec
         return weights.T @ (self.hessian(sample) @ vec[:, 0])
+
+    def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
+        raise NotImplementedError
+
+    def weighted_hessian(self, sample: Array, weights: Array) -> Array:
+        if (
+            not self._weighted_hessian_implemented
+            and not self._hessian_implemented
+        ):
+            raise RuntimeError(
+                "weighted_hessian and hessian are not implemented"
+            )
+        self._check_sample_shape(sample)
+        if self._weighted_hessian_implemented:
+            return self._weighted_hessian(sample, weights)
+        return weights.T @ self.hessian(sample)
 
     def _check_apply(
         self,
@@ -408,7 +432,8 @@ class Model(ABC):
         return self._bkd.asarray(errors)
 
     def check_apply_jacobian(
-        self, sample: Array, fd_eps: Array = None, direction: Array = None, relative: bool = True, disp: bool = False
+        self, sample: Array, fd_eps: Array = None, direction: Array = None,
+        relative: bool = True, disp: bool = False
     ):
         """
         Compare apply_jacobian with finite difference.
@@ -469,6 +494,7 @@ class Model(ABC):
         if (
             not self._apply_weighted_hessian_implemented
             and not self._hessian_implemented
+            and not self._weighted_hessian_implemented
         ):
             raise RuntimeError(
                 "Cannot check apply_weighted_hessian because not implemented"
@@ -689,6 +715,7 @@ class ScipyModelWrapper:
             "_jacobian_implemented",
             "_hessian_implemented",
             "_apply_hessian_implemented",
+            "_weighted_hessian_implemented",
         ]:
             setattr(self, attr, self._model.__dict__[attr])
 
@@ -732,8 +759,12 @@ class ScipyModelWrapper:
         )
 
     def weighted_hess(self, sample, weights):
-        hess = self._model.hessian(sample[:, None])
-        return np.einsum("i,ijk->jk", weights, self._bkd.to_numpy(hess))
+        sample = self._check_sample(sample)
+        return self._bkd.to_numpy(
+            self._model.weighted_hessian(
+                sample[:, None], self._bkd.asarray(weights)[:, None]
+            )
+        )
 
     def __repr__(self):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)

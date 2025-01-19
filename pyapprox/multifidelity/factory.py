@@ -2,23 +2,44 @@ import copy
 from itertools import combinations
 from functools import partial
 from multiprocessing import Pool
+from typing import List, Union
 
 import numpy as np
 
 from pyapprox.multifidelity.acv import (
-    CVEstimator, MLMCEstimator, MFMCEstimator, GMFEstimator, GISEstimator,
-    GRDEstimator, MCEstimator, ACVEstimator,
+    CVEstimator,
+    MLMCEstimator,
+    MFMCEstimator,
+    GMFEstimator,
+    GISEstimator,
+    GRDEstimator,
+    MCEstimator,
+    ACVEstimator,
 )
 from pyapprox.multifidelity.stats import (
-    MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance,
-    _nqoi_nqoi_subproblem)
+    MultiOutputMean,
+    MultiOutputVariance,
+    MultiOutputMeanAndVariance,
+    MultiOutputStatistic,
+    _nqoi_nqoi_subproblem,
+)
 from pyapprox.multifidelity.groupacv import MLBLUEEstimator
 from pyapprox.util.utilities import get_all_sample_combinations
+from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.multifidelity.etc import AETCBLUE
 
 
-class BestEstimator():
-    def __init__(self, est_types, stat, costs, max_nmodels, **est_kwargs):
+class BestEstimator:
+    def __init__(
+        self,
+        est_types: List[str],
+        stat: MultiOutputStatistic,
+        costs: Union[List, Array],
+        max_nmodels: int,
+        nprocs: int = 1,
+        verbosity: int = 0,
+        **est_kwargs,
+    ):
         """
         Parameters
         ----------
@@ -32,7 +53,9 @@ class BestEstimator():
         self._candidate_costs = self._bkd.asarray(costs)
         # self._ncandidate_nmodels is the number of total models
         self._ncandidate_models = len(self._candidate_costs)
-        self._lf_model_indices = self._bkd.arange(1, self._ncandidate_models, dtype=int)
+        self._lf_model_indices = self._bkd.arange(
+            1, self._ncandidate_models, dtype=int
+        )
         self._nqoi = stat._nqoi
         if max_nmodels is not None and max_nmodels < 2:
             raise ValueError("Ensure max_nmodels > 1")
@@ -43,15 +66,19 @@ class BestEstimator():
         self._kwargs = est_kwargs
         self._best_model_indices = None
         self._all_model_labels = None
+        self._nprocs = nprocs
+        self._verbosity = verbosity
 
         self._save_candidate_estimators = est_kwargs.pop(
-            "save_candidate_estimators", False)
+            "save_candidate_estimators", False
+        )
         self._candidate_estimators = None
 
     @property
     def model_labels(self):
-        return [self._all_model_labels[idx]
-                for idx in self._best_model_indices]
+        return [
+            self._all_model_labels[idx] for idx in self._best_model_indices
+        ]
 
     @model_labels.setter
     def model_labels(self, labels):
@@ -61,8 +88,11 @@ class BestEstimator():
         sub_kwargs = copy.deepcopy(self._kwargs)
         if "recursion_index" in sub_kwargs:
             index = self._bkd.array(sub_kwargs["recursion_index"], dtype=int)
-            if (self._bkd.allclose(index, self._bkd.arange(len(index), dtype=int)) or
-                    self._bkd.allclose(index, self._bkd.zeros(len(index), dtype=int))):
+            if self._bkd.allclose(
+                index, self._bkd.arange(len(index), dtype=int)
+            ) or self._bkd.allclose(
+                index, self._bkd.zeros(len(index), dtype=int)
+            ):
                 sub_kwargs["recursion_index"] = index[:nsubset_lfmodels]
             else:
                 msg = "model selection can only be used with recursion indices"
@@ -75,58 +105,69 @@ class BestEstimator():
                 raise ValueError(msg)
         if "tree_depth" in sub_kwargs:
             sub_kwargs["tree_depth"] = min(
-                sub_kwargs["tree_depth"], nsubset_lfmodels)
+                sub_kwargs["tree_depth"], nsubset_lfmodels
+            )
         return sub_kwargs
 
-    def _get_estimator(self, est_type, subset_costs,
-                       target_cost, sub_stat, sub_kwargs, optim_options):
+    def _get_estimator(
+        self, est_type, subset_costs, target_cost, sub_stat, sub_kwargs
+    ):
         try:
             est = get_estimator(est_type, sub_stat, subset_costs, **sub_kwargs)
         except ValueError as e:
-            if optim_options.get("verbosity", 0) > 0:
+            if self._verbosity > 0:
                 print(e)
             # Some estimators, e.g. MFMC, fail when certain criteria
             # are not satisfied
             return None
         try:
-            est.allocate_samples(target_cost, optim_options)
+            est.allocate_samples(target_cost)
             return est
         except (RuntimeError, ValueError) as e:
-            if optim_options.get("verbosity", 0) > 0:
+            if self._verbosity > 0:
                 print(e)
             if self._allow_failures:
                 return None
             raise e
 
     def _get_model_subset_estimator(
-            self, qoi_idx, nsubset_lfmodels, optim_options,
-            target_cost, lf_model_subset_indices):
+        self, qoi_idx, nsubset_lfmodels, target_cost, lf_model_subset_indices
+    ):
         """
         Compute estimator covariance for all estimator types in
         self._estimator_types
         """
         idx = self._bkd.array(
-            self._bkd.hstack((self._bkd.array([0]), self._bkd.array(lf_model_subset_indices))),
-            dtype=int
+            self._bkd.hstack(
+                (
+                    self._bkd.array([0]),
+                    self._bkd.array(lf_model_subset_indices),
+                )
+            ),
+            dtype=int,
         )
         subset_costs = self._candidate_costs[idx]
         sub_stat = self._stat.__class__(self._stat._nqoi, self._bkd)
-        sub_stat.set_pilot_quantities(*self._stat.get_pilot_quantities_subset(
-            self._ncandidate_models, self._nqoi, idx))
+        sub_stat.set_pilot_quantities(
+            *self._stat.get_pilot_quantities_subset(
+                self._ncandidate_models, self._nqoi, idx
+            )
+        )
         sub_kwargs = self._validate_kwargs(nsubset_lfmodels)
 
         best_est = None
         best_criteria = np.inf
         for est_type in self._estimator_types:
             est = self._get_estimator(
-                est_type, subset_costs, target_cost,
-                sub_stat, sub_kwargs, optim_options)
-            if optim_options.get("verbosity", 0) > 1:
+                est_type, subset_costs, target_cost, sub_stat, sub_kwargs
+            )
+            if self._verbosity > 1:
                 msg = "\t Models {0}".format(idx)
                 print(msg)
             if self._save_candidate_estimators:
                 self._candidate_estimators.append(
-                    [est, lf_model_subset_indices])
+                    [est, lf_model_subset_indices]
+                )
             if est is not None and est._optimized_criteria < best_criteria:
                 best_est = est
                 if hasattr(est._optimized_criteria, "item"):
@@ -136,24 +177,38 @@ class BestEstimator():
         return best_est
 
     def _get_best_model_subset_for_estimator_pool(
-            self, nsubset_lfmodels, target_cost,
-            best_criteria, best_model_indices, best_est, nprocs,
-            optim_options):
+        self,
+        nsubset_lfmodels,
+        target_cost,
+        best_criteria,
+        best_model_indices,
+        best_est,
+        nprocs,
+    ):
         """
         Compute estimator covariances for all model subets
         """
         qoi_idx = self._bkd.arange(self._nqoi, dtype=int)
         pool = Pool(nprocs)
-        indices = list(
-            combinations(self._lf_model_indices, nsubset_lfmodels))
+        indices = list(combinations(self._lf_model_indices, nsubset_lfmodels))
         result = pool.map(
-            partial(self._get_model_subset_estimator,
-                    qoi_idx, nsubset_lfmodels, optim_options,
-                    target_cost), indices)
+            partial(
+                self._get_model_subset_estimator,
+                qoi_idx,
+                nsubset_lfmodels,
+                target_cost,
+            ),
+            indices,
+        )
         pool.close()
         criteria = [
-            self._bkd.array(est._optimized_criteria)
-            if est is not None else np.inf for est in result]
+            (
+                self._bkd.array(est._optimized_criteria)
+                if est is not None
+                else np.inf
+            )
+            for est in result
+        ]
         II = self._bkd.argmin(criteria)
         if not self._bkd.isfinite(criteria[II]):
             best_est = None
@@ -166,37 +221,43 @@ class BestEstimator():
         return best_criteria, best_model_indices, best_est
 
     def _get_best_model_subset_for_estimator_serial(
-            self, nsubset_lfmodels, target_cost,
-            best_criteria, best_model_indices, best_est, optim_options):
+        self,
+        nsubset_lfmodels,
+        target_cost,
+        best_criteria,
+        best_model_indices,
+        best_est,
+    ):
         qoi_idx = self._bkd.arange(self._nqoi, dtype=int)
         for lf_model_subset_indices in combinations(
-                self._lf_model_indices, nsubset_lfmodels):
+            self._lf_model_indices, nsubset_lfmodels
+        ):
             est = self._get_model_subset_estimator(
-                qoi_idx, nsubset_lfmodels, optim_options,
-                target_cost, lf_model_subset_indices)
+                qoi_idx, nsubset_lfmodels, target_cost, lf_model_subset_indices
+            )
             if est is not None and est._optimized_criteria < best_criteria:
                 best_est = est
                 best_model_indices = self._bkd.array(
                     self._bkd.hstack(
-                        (self._bkd.array([0]),
-                         self._bkd.array(lf_model_subset_indices))
-                    ), dtype=int
+                        (
+                            self._bkd.array([0]),
+                            self._bkd.array(lf_model_subset_indices),
+                        )
+                    ),
+                    dtype=int,
                 )
                 best_criteria = best_est._optimized_criteria
         return best_criteria, best_model_indices, best_est
 
-    def _get_best_estimator(self, target_cost, optim_options):
+    def _get_best_estimator(self, target_cost):
         best_criteria = np.inf
         best_est, best_model_indices = None, None
-        nprocs = optim_options.get("nprocs", 1)
 
-        if optim_options.get("verbosity", 0) > 0:
-            print(f"Finding best model using {nprocs} processors")
-        if "nprocs" in optim_options:
-            del optim_options["nprocs"]
+        if self._verbosity > 0:
+            print(f"Finding best model using {self._nprocs} processors")
 
         if self._max_nmodels is None:
-            min_nlfmodels = self._ncandidate_models-1
+            min_nlfmodels = self._ncandidate_models - 1
             max_nmodels = self._ncandidate_models
         else:
             min_nlfmodels = 1
@@ -205,21 +266,31 @@ class BestEstimator():
         best_est = None
         best_criteria = np.inf
         for nsubset_lfmodels in range(min_nlfmodels, max_nmodels):
-            if nprocs > 1:
+            if self._nprocs > 1:
                 criteria, model_indices, est = (
                     self._get_best_model_subset_for_estimator_pool(
-                        nsubset_lfmodels, target_cost,
-                        best_criteria, best_model_indices, best_est, nprocs,
-                        optim_options))
+                        nsubset_lfmodels,
+                        target_cost,
+                        best_criteria,
+                        best_model_indices,
+                        best_est,
+                        self._nprocs,
+                    )
+                )
             else:
                 criteria, model_indices, est = (
                     self._get_best_model_subset_for_estimator_serial(
-                        nsubset_lfmodels, target_cost,
-                        best_criteria, best_model_indices, best_est,
-                        optim_options))
-            if optim_options.get("verbosity", 0) > 0:
+                        nsubset_lfmodels,
+                        target_cost,
+                        best_criteria,
+                        best_model_indices,
+                        best_est,
+                    )
+                )
+            if self._verbosity > 0:
                 msg = "\t No of lf models {0}: {1} best criteria {2}".format(
-                    nsubset_lfmodels, est, best_criteria)
+                    nsubset_lfmodels, est, best_criteria
+                )
                 print(msg)
             if criteria < best_criteria:
                 best_criteria = criteria
@@ -230,11 +301,10 @@ class BestEstimator():
             raise RuntimeError("No solutions found for any model subset")
         return best_est, best_model_indices
 
-    def allocate_samples(self, target_cost, optim_options={}):
+    def allocate_samples(self, target_cost):
         if self._save_candidate_estimators:
             self._candidate_estimators = []
-        best_est, best_model_indices = self._get_best_estimator(
-            target_cost, optim_options)
+        best_est, best_model_indices = self._get_best_estimator(target_cost)
         self.best_est = best_est
         self._best_model_indices = best_model_indices
         self._set_best_est_attributes()
@@ -254,16 +324,22 @@ class BestEstimator():
             "_separate_values_per_model",
             "_covariance_from_npartition_samples",
             "_covariance_from_partition_ratios",
-            "_rounded_partition_ratios", "_stat",
-            "_nmodels", "_cov", "_rounded_npartition_samples",
-            "_rounded_nsamples_per_model", "_costs",
-            "_optimized_criteria", "_get_discrepancy_covariances",
+            "_rounded_partition_ratios",
+            "_stat",
+            "_nmodels",
+            "_cov",
+            "_rounded_npartition_samples",
+            "_rounded_nsamples_per_model",
+            "_costs",
+            "_optimized_criteria",
+            "_get_discrepancy_covariances",
             "_rounded_target_cost",
             "_get_allocation_matrix",
             "_optimization_criteria",
             "_optimized_covariance",
             "_allocation_mat",
-            "_npartitions"]
+            "_npartitions",
+        ]
         for attr in attr_list:
             # Improve this function so that it works without the following
             # hack for MLBLUE
@@ -274,7 +350,8 @@ class BestEstimator():
         if self._optimized_criteria is None:
             return "{0}".format(self.__class__.__name__)
         return "{0}(est={1}, subset={2})".format(
-            self.__class__.__name__, self.best_est, self._best_model_indices)
+            self.__class__.__name__, self.best_est, self._best_model_indices
+        )
 
     def __call__(self, values):
         return self.best_est(values)
@@ -288,7 +365,8 @@ multioutput_estimators = {
     "mfmc": MFMCEstimator,
     "mlmc": MLMCEstimator,
     "mc": MCEstimator,
-    "mlblue": MLBLUEEstimator}
+    "mlblue": MLBLUEEstimator,
+}
 
 
 multioutput_stats = {
@@ -298,8 +376,9 @@ multioutput_stats = {
 }
 
 
-def get_estimator(estimator_types, stat, costs,
-                  max_nmodels=None, **est_kwargs):
+def get_estimator(
+    estimator_types, stat, costs, max_nmodels=None, **est_kwargs
+):
     """
     Parameters
     ----------
@@ -328,8 +407,7 @@ def get_estimator(estimator_types, stat, costs,
         if not isinstance(estimator_types, list):
             estimator_types = [estimator_types]
         return BestEstimator(
-            estimator_types, stat, costs,
-            max_nmodels, **est_kwargs
+            estimator_types, stat, costs, max_nmodels, **est_kwargs
         )
 
     if isinstance(estimator_types, list):
@@ -342,8 +420,7 @@ def get_estimator(estimator_types, stat, costs,
         msg += f"Must be one of {multioutput_estimators.keys()}"
         raise ValueError(msg)
 
-    return multioutput_estimators[estimator_type](
-        stat, costs, **est_kwargs)
+    return multioutput_estimators[estimator_type](stat, costs, **est_kwargs)
 
 
 def _estimate_components(variable, est, funs, ii):
@@ -365,40 +442,50 @@ def _estimate_components(variable, est, funs, ii):
     https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
     """
     bkd = est._bkd
-    random_states = [np.random.RandomState(ii*variable.num_vars()+jj)
-                     for jj in range(variable.num_vars())]
+    random_states = [
+        np.random.RandomState(ii * variable.num_vars() + jj)
+        for jj in range(variable.num_vars())
+    ]
     samples_per_model = est.generate_samples_per_model(
-        partial(variable.rvs, random_states=random_states))
+        partial(variable.rvs, random_states=random_states)
+    )
     values_per_model = [
         bkd.array(fun(samples))
         for fun, samples in zip(funs, samples_per_model)
     ]
 
     mc_est = est._stat.sample_estimate
-    if ((isinstance(est, ACVEstimator) or isinstance(est, BestEstimator))):
+    if isinstance(est, ACVEstimator) or isinstance(est, BestEstimator):
         # the above condition does not allow BestEstimator to be
         # applied to CVEstimator
         est_val = est(values_per_model)
         acv_values = est._separate_values_per_model(values_per_model)
         Q = mc_est(acv_values[1])
-        delta = bkd.hstack([mc_est(acv_values[2*ii]) -
-                           mc_est(acv_values[2*ii+1])
-                           for ii in range(1, est._nmodels)])
+        delta = bkd.hstack(
+            [
+                mc_est(acv_values[2 * ii]) - mc_est(acv_values[2 * ii + 1])
+                for ii in range(1, est._nmodels)
+            ]
+        )
     elif isinstance(est, CVEstimator):
         est_val = est(values_per_model)
         Q = mc_est(values_per_model[0])
         delta = bkd.hstack(
-            [mc_est(values_per_model[ii]) - est._lowfi_stats[ii-1]
-             for ii in range(1, est._nmodels)])
+            [
+                mc_est(values_per_model[ii]) - est._lowfi_stats[ii - 1]
+                for ii in range(1, est._nmodels)
+            ]
+        )
     else:
         est_val = est(values_per_model[0])
         Q = mc_est(values_per_model[0])
-        delta = Q*0
+        delta = Q * 0
     return est_val, Q, delta
 
 
 def _estimate_components_loop(
-        variable, ntrials, est, funs, max_eval_concurrency):
+    variable, ntrials, est, funs, max_eval_concurrency
+):
     bkd = est._bkd
     if max_eval_concurrency == 1:
         Q = []
@@ -406,7 +493,8 @@ def _estimate_components_loop(
         estimator_vals = []
         for ii in range(ntrials):
             est_val, Q_val, delta_val = _estimate_components(
-                variable, est, funs, ii)
+                variable, est, funs, ii
+            )
             estimator_vals.append(est_val)
             Q.append(Q_val)
             delta.append(delta_val)
@@ -427,8 +515,13 @@ def _estimate_components_loop(
 
 
 def numerically_compute_estimator_variance(
-        funs, variable, est, ntrials=int(1e3), max_eval_concurrency=1,
-        return_all=False):
+    funs,
+    variable,
+    est,
+    ntrials=int(1e3),
+    max_eval_concurrency=1,
+    return_all=False,
+):
     r"""
     Numerically estimate the variance of an approximate control variate
     estimator.
@@ -484,22 +577,25 @@ def numerically_compute_estimator_variance(
     """
     ntrials = int(ntrials)
     est_vals, Q0, delta = _estimate_components_loop(
-        variable, ntrials, est, funs, max_eval_concurrency)
+        variable, ntrials, est, funs, max_eval_concurrency
+    )
 
     hf_covar_numer = est._bkd.cov(Q0, ddof=1, rowvar=False)
     hf_covar = est._stat.high_fidelity_estimator_covariance(
-        est._rounded_npartition_samples[0])
+        est._rounded_npartition_samples[0]
+    )
 
     covar_numer = est._bkd.cov(est_vals, ddof=1, rowvar=False)
     covar = est._covariance_from_npartition_samples(
-        est._rounded_npartition_samples)
+        est._rounded_npartition_samples
+    )
 
     if not return_all:
         return hf_covar_numer, hf_covar, covar_numer, covar
     return hf_covar_numer, hf_covar, covar_numer, covar, est_vals, Q0, delta
 
 
-def compare_estimator_variances(target_costs, estimators, optim_opts={}):
+def compare_estimator_variances(target_costs, estimators):
     """
     Compute the variances of different Monte-Carlo like estimators.
 
@@ -522,14 +618,13 @@ def compare_estimator_variances(target_costs, estimators, optim_opts={}):
         est_copies = []
         for target_cost in target_costs:
             est_copy = copy.deepcopy(est)
-            est_copy.allocate_samples(
-                target_cost, optim_options=optim_opts)
+            est_copy.allocate_samples(target_cost)
             est_copies.append(est_copy)
         optimized_estimators.append(est_copies)
     return optimized_estimators
 
 
-class ComparisonCriteria():
+class ComparisonCriteria:
     def __init__(self, criteria_type=None):
         self._criteria_type = criteria_type
 
@@ -549,11 +644,13 @@ class ComparisonCriteria():
         if self._criteria_type == "trace":
             return self.trace_variance(est_covariance, est._bkd)
         raise ValueError(
-            "Criteria {0} not supported".format(self._criteria_type))
+            "Criteria {0} not supported".format(self._criteria_type)
+        )
 
     def __repr__(self):
         return "{0}(citeria={1})".format(
-            self.__class__.__name__, self._criteria_type)
+            self.__class__.__name__, self._criteria_type
+        )
 
 
 class SingleQoiAndStatComparisonCriteria(ComparisonCriteria):
@@ -576,24 +673,30 @@ class SingleQoiAndStatComparisonCriteria(ComparisonCriteria):
 
     def __call__(self, est_covariance, est):
         if self._stat_type != "mean" and isinstance(
-                est._stat, MultiOutputMeanAndVariance):
-            return (
-                est_covariance[est._nqoi+self._qoi_idx,
-                               est._nqoi+self._qoi_idx])
-        elif (isinstance(
-                est._stat, (MultiOutputVariance, MultiOutputMean)) or
-              self._stat_type == "mean"):
+            est._stat, MultiOutputMeanAndVariance
+        ):
+            return est_covariance[
+                est._nqoi + self._qoi_idx, est._nqoi + self._qoi_idx
+            ]
+        elif (
+            isinstance(est._stat, (MultiOutputVariance, MultiOutputMean))
+            or self._stat_type == "mean"
+        ):
             return est_covariance[self._qoi_idx, self._qoi_idx]
         raise ValueError("{0} not supported".format(est._stat))
 
     def __repr__(self):
         return "{0}(stat={1}, qoi={2})".format(
-            self.__class__.__name__, self._stat_type, self._qoi_idx)
+            self.__class__.__name__, self._stat_type, self._qoi_idx
+        )
 
 
-def compute_variance_reductions(optimized_estimators,
-                                criteria=ComparisonCriteria("det"),
-                                nhf_samples=None, pilot_cost=None):
+def compute_variance_reductions(
+    optimized_estimators,
+    criteria=ComparisonCriteria("det"),
+    nhf_samples=None,
+    pilot_cost=None,
+):
     """
     Compute the variance reduction (relative to single model MC) for a
     list of optimized estimtors.
@@ -632,31 +735,40 @@ def compute_variance_reductions(optimized_estimators,
     nestimators = len(optimized_estimators)
     for ii in range(nestimators):
         est = optimized_estimators[ii]
-        est_criteria = criteria(est._covariance_from_npartition_samples(
-            est._rounded_npartition_samples), est)
+        est_criteria = criteria(
+            est._covariance_from_npartition_samples(
+                est._rounded_npartition_samples
+            ),
+            est,
+        )
         if nhf_samples is None:
             if pilot_cost is None:
-                nhf_samples = int(est._rounded_target_cost/est._costs[0])
+                nhf_samples = int(est._rounded_target_cost / est._costs[0])
             else:
                 nhf_samples = int(
-                    (est._rounded_target_cost+pilot_cost)/est._costs[0])
+                    (est._rounded_target_cost + pilot_cost) / est._costs[0]
+                )
         else:
             if pilot_cost is not None:
                 msg = "pilot cost was specified even though nhf_samples was "
                 msg += "not None"
                 raise ValueError(msg)
         sf_criteria = criteria(
-            est._stat.high_fidelity_estimator_covariance(
-                nhf_samples), est)
-        var_red.append(sf_criteria/est_criteria)
+            est._stat.high_fidelity_estimator_covariance(nhf_samples), est
+        )
+        var_red.append(sf_criteria / est_criteria)
         sf_criterias.append(sf_criteria)
         est_criterias.append(est_criteria)
-    return (bkd.asarray(var_red), bkd.asarray(est_criterias),
-            bkd.asarray(sf_criterias))
+    return (
+        bkd.asarray(var_red),
+        bkd.asarray(est_criterias),
+        bkd.asarray(sf_criterias),
+    )
 
 
-def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
-                                       model_ensemble, nmodels):
+def estimate_model_ensemble_covariance(
+    npilot_samples, generate_samples, model_ensemble, nmodels
+):
     r"""
     Estimate the covariance of a model ensemble from a set of pilot samples
 
@@ -699,11 +811,11 @@ def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
     config_vars = np.arange(nmodels)[np.newaxis, :]
     # append model ids to pilot smaples
     pilot_samples = get_all_sample_combinations(
-        pilot_random_samples, config_vars)
+        pilot_random_samples, config_vars
+    )
     # evaluate models at pilot samples
     pilot_values = model_ensemble(pilot_samples)
-    pilot_values = np.reshape(
-        pilot_values, (npilot_samples, nmodels))
+    pilot_values = np.reshape(pilot_values, (npilot_samples, nmodels))
     # compute covariance
     cov = np.cov(pilot_values, rowvar=False)
     return cov, pilot_random_samples, pilot_values

@@ -18,7 +18,7 @@ MLBLUE assumes that each model :math:`f_1,\ldots,f_M` is linearly dependent on t
 
 .. math:: Y=Hq+\epsilon,
 
-where :math:`Y=[Y_1,\ldots,Y_{K}]` are evaluations of models within all :math:`K=2^{M}-1` nonempty subset :math:`S^k\in2^{\{1,\ldots,M\}}\setminus\emptyset` , that is :math:`Y_k=[f_{S_k, 1}^{(1)},\ldots,f_{S_k, |S_k|}^{(1)},\ldots,f_{S_k, 1}^{(m_k)},\ldots,f_{S_k, |S_k|}^{(m_k)}]`. An example of such sets is shown in the figure above where :math:`m_k` denotes the number of samples of each model in the subset :math:`S_k`. 
+where :math:`Y=[Y_1,\ldots,Y_{K}]` are evaluations of models within all :math:`K=2^{M}-1` nonempty subset :math:`S^k\in2^{\{1,\ldots,M\}}\setminus\emptyset` , that is :math:`Y_k=[f_{S_k, 1}^{(1)},\ldots,f_{S_k, |S_k|}^{(1)},\ldots,f_{S_k, 1}^{(m_k)},\ldots,f_{S_k, |S_k|}^{(m_k)}]`. An example of such sets is shown in the figure above where :math:`m_k` denotes the number of samples of each model in the subset :math:`S_k`.
 
 Here :math:`H` is a restriction opeator that specifies the means that produce the data in each set, that is
 
@@ -87,13 +87,14 @@ from pyapprox.benchmarks.multifidelity_benchmarks import PolynomialModelEnsemble
 from pyapprox.multifidelity.factory import (
     get_estimator, compare_estimator_variances, compute_variance_reductions,
     multioutput_stats)
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 #%%
 #First, plot the variance reduction of the optimal control variates using known low-fidelity means.
 #
 #Second, plot the variance reduction of multi-fidelity estimators that do not assume known low-fidelity means. The code below repeatedly doubles the number of low-fidelity samples according to the initial allocation defined by nsample_ratios_base=[2,4,8,16].
 
-benchmark = PolynomialModelEnsemble()
+benchmark = PolynomialModelEnsemble(backend=TorchLinAlgMixin)
 
 nmodels = 5
 cov = benchmark.covariance()
@@ -102,7 +103,7 @@ nhf_samples = 1
 
 cv_stats, cv_ests = [], []
 for ii in range(1, nmodels):
-    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi()))
+    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin))
     cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
     cv_ests.append(get_estimator(
         "cv", cv_stats[ii-1], costs[:ii+1],

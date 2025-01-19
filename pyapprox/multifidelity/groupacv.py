@@ -7,7 +7,9 @@ import numpy as np
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.stats import (
-    MultiOutputMean, MultiOutputVariance, MultiOutputStatistic
+    MultiOutputMean,
+    MultiOutputVariance,
+    MultiOutputStatistic,
 )
 from pyapprox.interface.model import Model
 from pyapprox.optimization.pya_minimize import (
@@ -87,9 +89,7 @@ def _grouped_acv_sigma_block(
 ):
     nsubset0 = len(subset0)
     nsubset1 = len(subset1)
-    zero_block = stat._bkd.full(
-        (nsubset0, nsubset1), 0.0
-    )
+    zero_block = stat._bkd.full((nsubset0, nsubset1), 0.0)
     if (nsamples_subset0 * nsamples_subset1) == 0:
         return zero_block
     if (
@@ -146,7 +146,7 @@ class GroupACVObjective(Model):
             )
         )
         # necessary for torch
-        return self._bkd.hstack((trace, ))[:, None]
+        return self._bkd.hstack((trace,))[:, None]
 
     def _values(self, npartition_samples):
         return self._trace_covariance_wrapper(npartition_samples[:, 0])
@@ -158,7 +158,8 @@ class GroupACVObjective(Model):
 
     def _hessian(self, npartition_samples):
         return self._bkd.hessian(
-            self._trace_covariance_wrapper, npartition_samples[:, 0],
+            self._trace_covariance_wrapper,
+            npartition_samples[:, 0],
         )[None, ...]
 
 
@@ -184,7 +185,7 @@ class MLBLUEObjective(GroupACVObjective):
         Rmats = self._est._restriction_matrices
         jacobian = 0
         for kk in range(self._est._stat.nstats()):
-            gamma = psi_inv @ self._est._asketch[kk:kk+1].T
+            gamma = psi_inv @ self._est._asketch[kk : kk + 1].T
             jacobian += self._bkd.hstack(
                 [
                     self._bkd.multidot(
@@ -193,8 +194,8 @@ class MLBLUEObjective(GroupACVObjective):
                             Rmats[ii],
                             self._est._inv(Sigma_blocks[ii][ii]),
                             Rmats[ii].T,
-                            gamma
-                         )
+                            gamma,
+                        )
                     )
                     for ii in range(len(Sigma_blocks))
                 ]
@@ -235,14 +236,16 @@ class MLBLUEObjective(GroupACVObjective):
             for ii in range(len(Sigma_blocks))
         ]
         for kk in range(self._est._stat.nstats()):
-            gamma = psi_inv @ self._est._asketch[kk:kk+1].T
+            gamma = psi_inv @ self._est._asketch[kk : kk + 1].T
             for ii in range(len(Sigma_blocks)):
                 xi = self._bkd.multidot((psi_inv, psi_derivs[ii], gamma))
                 for jj in range(ii, len(Sigma_blocks)):
                     eta = self._bkd.multidot((xi.T, psi_derivs[jj], gamma))
                     hess[ii][jj] += eta.T + eta
                     hess[jj][ii] = hess[ii][jj]
-        hess = self._bkd.vstack([self._bkd.hstack(row) for row in hess])[None, ...]
+        hess = self._bkd.vstack([self._bkd.hstack(row) for row in hess])[
+            None, ...
+        ]
         return hess
 
 
@@ -518,16 +521,16 @@ class GroupACVEstimator:
         #     raise ValueError("GroupACV only supports nqoi=1")
         self._stat = stat
 
-        self._model_subsets, self._subsets, self._allocation_mat = self._set_subsets(
-            model_subsets, est_type
+        self._model_subsets, self._subsets, self._allocation_mat = (
+            self._set_subsets(model_subsets, est_type)
         )
         self._npartitions = self._allocation_mat.shape[1]
         self._partitions_per_model = self._get_partitions_per_model()
         self._partitions_intersect = self._get_subset_intersecting_partitions()
         self._restriction_matrices = [
-                self._restriction_matrix(subset).T
-                for ii, subset in enumerate(self._subsets)
-            ]
+            self._restriction_matrix(subset).T
+            for ii, subset in enumerate(self._subsets)
+        ]
         self._R = self._bkd.hstack(self._restriction_matrices)
         # set npatition_samples above small constant,
         # otherwise gradient will not be defined.
@@ -579,12 +582,15 @@ class GroupACVEstimator:
                 if not isinstance(subset, self._bkd.array_type()):
                     raise ValueError(
                         "subset must be an instance of {0}".format(
-                            self._bkd.array_type())
+                            self._bkd.array_type()
+                        )
                     )
                 if self._bkd.allclose(subset, zero):
                     del model_subsets[ii]
                     break
-            model_subsets = _nest_subsets(model_subsets, self.nmodels(), self._bkd)[0]
+            model_subsets = _nest_subsets(
+                model_subsets, self.nmodels(), self._bkd
+            )[0]
             get_allocation_mat = _get_allocation_matrix_nested
         else:
             raise ValueError(
@@ -672,9 +678,10 @@ class GroupACVEstimator:
     def _psi_matrix_from_sigma(self, Sigma):
         # TODO instead of applying R matrices just collect correct rows
         # and columns
-        reg_mat = self._bkd.eye(
-            self.nmodels() * self._stat.nstats()
-        ) * self._reg_blue
+        reg_mat = (
+            self._bkd.eye(self.nmodels() * self._stat.nstats())
+            * self._reg_blue
+        )
         return (
             self._bkd.multidot((self._R, self._inv(Sigma), self._R.T))
             + reg_mat
@@ -690,9 +697,7 @@ class GroupACVEstimator:
 
     def _covariance_from_npartition_samples(self, npartition_samples):
         psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
-        return self._bkd.multidot(
-            (self._asketch, psi_inv, self._asketch.T)
-        )
+        return self._bkd.multidot((self._asketch, psi_inv, self._asketch.T))
 
     def _get_model_subset_costs(self, subsets, costs):
         subset_costs = self._bkd.array(
@@ -766,7 +771,7 @@ class GroupACVEstimator:
         self._opt_sample_splits = self._sample_splits_per_model()
         self._optimized_sigma = self._sigma(self._rounded_npartition_samples)
         self._optimized_covariance = self._covariance_from_npartition_samples(
-                self._rounded_npartition_samples
+            self._rounded_npartition_samples
         )
         self._optimized_criteria = self._bkd.trace(self._optimized_covariance)
 
@@ -795,18 +800,22 @@ class GroupACVEstimator:
         #     asketch = asketch[None, :]
         asketch = self._bkd.asarray(asketch)
         if asketch.shape != (
-                self._stat.nstats(), self._stat.nstats() * self.nmodels()
+            self._stat.nstats(),
+            self._stat.nstats() * self.nmodels(),
         ):
             raise ValueError(
                 "aksetch shape {0} must be {1}".format(
                     asketch.shape,
-                    (self._stat.nstats(), self._stat.nstats() * self.nmodels()),
+                    (
+                        self._stat.nstats(),
+                        self._stat.nstats() * self.nmodels(),
+                    ),
                 )
             )
         return asketch
 
     def set_optimizer(
-            self, optimizer: Union[GroupACVOptimizer, ChainedACVOptimizer]
+        self, optimizer: Union[GroupACVOptimizer, ChainedACVOptimizer]
     ):
         if not isinstance(optimizer, GroupACVOptimizer) and not isinstance(
             optimizer, ChainedACVOptimizer
@@ -862,6 +871,7 @@ class GroupACVEstimator:
 
         if not result.success or self._bkd.any(result.x < 0):
             print(result)
+            print(result.message)
             raise RuntimeError("optimization not successful")
 
         self._set_optimized_params(result.x[:, 0], round_nsamples)
@@ -994,7 +1004,8 @@ class GroupACVEstimator:
                     )
                 )
                 for asketch in self._asketch
-            ], axis=0
+            ],
+            axis=0,
         )
         return beta
 
@@ -1177,13 +1188,14 @@ class MLBLUEEstimator(GroupACVEstimator):
         return submats
 
     def _psi_matrix(self, npartition_samples):
-        psi = self._bkd.eye(
-            self.nmodels() * self._stat.nstats()
-        ) * self._reg_blue
+        psi = (
+            self._bkd.eye(self.nmodels() * self._stat.nstats())
+            * self._reg_blue
+        )
         psi += (self._psi_blocks_flat @ npartition_samples).reshape(
             (
                 self.nmodels() * self._stat.nstats(),
-                self.nmodels() * self._stat.nstats()
+                self.nmodels() * self._stat.nstats(),
             )
         )
         return psi
@@ -1201,7 +1213,6 @@ class MLBLUEEstimator(GroupACVEstimator):
             means[ii] = self._estimate(values_per_subset)
         self._asketch = asketch
         return means
-
 
 
 # cvxpy requires cmake

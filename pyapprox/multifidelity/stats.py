@@ -56,7 +56,9 @@ def _get_acv_mean_discrepancy_covariances_multipliers(
 ):
     nmodels = allocation_mat.shape[0]
     if bkd.any(npartition_samples < 0):
-        raise RuntimeError("An entry in npartition samples was negative")
+        raise RuntimeError(
+            "An entry in npartition samples {0} was negative".format(npartition_samples)
+        )
     nsamples_intersect = _get_nsamples_intersect(
         allocation_mat, npartition_samples, bkd
     )

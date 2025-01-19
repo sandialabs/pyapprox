@@ -43,6 +43,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks.multifidelity_benchmarks import MultiOutputModelEnsemble
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 np.random.seed(1)
 benchmark = MultiOutputModelEnsemble()
@@ -58,7 +59,7 @@ W = benchmark.covariance_of_centered_values_kronker_product()[:9, :9]
 B = benchmark.covariance_of_mean_and_variance_estimators()[:3, :9]
 
 target_cost = 10
-stat = multioutput_stats["mean_variance"](nqoi)
+stat = multioutput_stats["mean_variance"](nqoi, backend=NumpyLinAlgMixin)
 stat.set_pilot_quantities(cov, W, B)
 est = get_estimator("mc", stat, costs)
 est.allocate_samples(target_cost)
@@ -152,7 +153,7 @@ _ = plot_correlation_matrix(
 #%%
 #We can plot the diagonal, which contains the estimator variances that would be obtained if each statistic was treated individually.
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-est_variances = np.diag(est.optimized_covariance().numpy())
+est_variances = np.diag(est.optimized_covariance())
 _ = plt.bar(labels, est_variances)
 
 #%%

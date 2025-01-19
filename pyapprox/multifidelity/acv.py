@@ -1,11 +1,9 @@
-import warnings
 import copy
 from abc import abstractmethod, ABC
 from functools import partial
 from typing import List, Union, Tuple
 
 import numpy as np
-from scipy.optimize import minimize, Bounds
 
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.multifidelity.stats import (
@@ -27,6 +25,17 @@ from pyapprox.multifidelity._optim import (
 )
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.interface.model import SingleSampleModel
+from pyapprox.optimization.pya_minimize import (
+    # ConstrainedMultiStartOptimizer,
+    # RandomUniformOptimzerIterateGenerator,
+    Constraint,
+    Optimizer,
+    ScipyConstrainedOptimizer,
+    ScipyConstrainedNelderMeadOptimizer,
+    ChainedOptimizer,
+    OptimizationResult,
+)
 
 
 def _combine_acv_values(
@@ -750,14 +759,10 @@ class CVEstimator(MCEstimator):
         return (bootstrap_values_mean, bootstrap_values_covar)
 
 
-from pyapprox.interface.model import SingleSampleModel
-from pyapprox.optimization.pya_minimize import Constraint
-
-
 class ACVObjective(SingleSampleModel, ABC):
     def __init__(
         self,
-        scaling: float = 1e-2,
+        scaling: float = 1,
         backend: LinAlgMixin = TorchLinAlgMixin,
     ):
         self._scaling = scaling
@@ -777,6 +782,8 @@ class ACVObjective(SingleSampleModel, ABC):
         self._est = est
         self._bkd = est._bkd
         self._jacobian_implemented = True
+        # autograd implementation is slow so turn off
+        self._apply_hessian_implemented = False # self._bkd.hvp_implemented()
 
     @abstractmethod
     def _optimization_criteria(self, est_covariance: Array) -> float:
@@ -798,12 +805,19 @@ class ACVObjective(SingleSampleModel, ABC):
     def _jacobian(self, partition_ratios: Array) -> Array:
         return self._bkd.jacobian(self._objective_value, partition_ratios).T
 
+    def _apply_hessian(self, partition_ratios: Array, vvec: Array) -> Array:
+        return self._bkd.hvp(self._objective_value, partition_ratios, vvec)
+
     def nqoi(self) -> int:
         return 1
 
 
 class ACVLogDeterminantObjective(ACVObjective):
     def _optimization_criteria(self, est_covariance: Array) -> float:
+        # Only compute large eigvalues as the variance will
+        # be singular when estimating variance or mean+variance
+        # because of the duplicate entries in
+        # the covariance matrix
         eigvals = self._bkd.eigh(est_covariance)[0]
         return self._bkd.log(eigvals[eigvals > 1e-14]).sum()
 
@@ -831,18 +845,43 @@ class ACVPartitionConstraint(Constraint):
             ),
             axis=1,
         )
-        print(bounds.shape)
-        super().__init__(bounds, keep_feasible=False, backend=est._bkd)
+        super().__init__(bounds, keep_feasible=True, backend=est._bkd)
+        self._jacobian_implemented = True
+        # autograd implementation is slow so turn off
+        self._weighted_hessian_implemented = False # self._bkd.hessian_implemented()
 
-    def _values(self, partition_ratios: Array) -> Array:
+    def _eval_constraint(self, partition_ratios: Array) -> Array:
+        if partition_ratios.ndim != 1:
+            raise ValueError("partition_ratios.ndim != 1")
         nsamples = self._est._npartition_samples_from_partition_ratios(
-            self._target_cost, partition_ratios[:, 0]
+            self._target_cost, partition_ratios
         )
         vals = nsamples - self._est._stat.min_nsamples()
-        return vals[None, :]
+        return vals
+
+    def _values(self, partition_ratios: Array) -> Array:
+        return self._eval_constraint(partition_ratios[:, 0])[None, :]
 
     def _jacobian(self, partition_ratios: Array) -> Array:
-        return self._bkd.jacobian(self._values, partition_ratios)
+        return self._bkd.jacobian(
+            self._eval_constraint, partition_ratios[:, 0]
+        )
+
+    def _constraint_dot_product(
+        self, weights: Array, partition_ratios: Array
+    ) -> Array:
+        if weights.ndim != 1:
+            raise ValueError("weights.ndim != 1")
+        return weights @ self._eval_constraint(partition_ratios)
+
+    def _weighted_hessian(
+        self, partition_ratios: Array, weights: Array
+    ) -> Array:
+        hess = self._bkd.hessian(
+            partial(self._constraint_dot_product, weights[:, 0]),
+            partition_ratios[:, 0],
+        )
+        return hess
 
     def nqoi(self):
         return self._est._npartitions
@@ -910,7 +949,7 @@ class ACVEstimator(CVEstimator):
 
         self._rounded_partition_ratios = None
         self._npartitions = self._nmodels
-        self._objective_scaling = 1.0
+        self._optimizer = None
 
     def _get_discrepancy_covariances(self, npartition_samples: Array) -> Array:
         return self._stat._get_acv_discrepancy_covariances(
@@ -1075,6 +1114,8 @@ class ACVEstimator(CVEstimator):
         npartition_samples = self._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios
         )
+        # if self._bkd.any(npartition_samples < 0):
+        #     print(partition_ratios, "SSSS")
         return self._covariance_from_npartition_samples(npartition_samples)
 
     def _separate_values_per_model(
@@ -1235,8 +1276,12 @@ class ACVEstimator(CVEstimator):
 
     def __repr__(self):
         if self._optimized_criteria is None:
+            if not hasattr(self, "_recursion_index"):
+                return "{0}(stat={1})".format(
+                    self.__class__.__name__, self._stat
+            )
             return "{0}(stat={1}, recursion_index={2})".format(
-                self.__class__.__name__, self._stat, self._recursion_index
+                    self.__class__.__name__, self._stat, self._recursion_index
             )
         rep = "{0}(stat={1}, recursion_index={2}, criteria={3:.3g}".format(
             self.__class__.__name__,
@@ -1329,36 +1374,26 @@ class ACVEstimator(CVEstimator):
         )
 
     def plot_recursion_dag(self, ax):
-        return _plot_model_recursion(self._recursion_index, ax)
+        return _plot_model_recursion(self._bkd.to_numpy(self._recursion_index), ax)
 
-    def _objective(self, target_cost, x, return_grad=True):
-        partition_ratios = self._bkd.asarray(x)
-        if return_grad:
-            partition_ratios.requires_grad = True
-        covariance = self._covariance_from_partition_ratios(
-            target_cost, partition_ratios
-        )
-        val = self._optimization_criteria(covariance) * self._objective_scaling
-        if not return_grad:
-            return val.item()
-        val.backward()
-        grad = partition_ratios.grad.detach().numpy().copy()
-        partition_ratios.grad.zero_()
-        return val.item(), grad
+    # def _objective(self, target_cost, x, return_grad=True):
+    #     partition_ratios = self._bkd.asarray(x)
+    #     if return_grad:
+    #         partition_ratios.requires_grad = True
+    #     covariance = self._covariance_from_partition_ratios(
+    #         target_cost, partition_ratios
+    #     )
+    #     val = self._optimization_criteria(covariance) * self._objective_scaling
+    #     if not return_grad:
+    #         return val.item()
+    #     val.backward()
+    #     grad = partition_ratios.grad.detach().numpy().copy()
+    #     partition_ratios.grad.zero_()
+    #     return val.item(), grad
 
-    def _allocate_samples_minimize(
-        self, costs: Array, target_cost: float, cons, optim_options
-    ):
-
-        # TODO Pass in optimizer once tests pass
-        from pyapprox.optimization.pya_minimize import (
-            ScipyConstrainedOptimizer,
-            ConstrainedMultiStartOptimizer,
-            RandomUniformOptimzerIterateGenerator,
-        )
-
+    def get_npartition_bounds(self) -> Array:
         nunknowns = self._npartitions - 1
-        lower_bound = 1e-10
+        lower_bound = 1e-3 # this can impact the ability to find a solution
         bounds = self._bkd.stack(
             (
                 self._bkd.full((nunknowns,), lower_bound),
@@ -1366,200 +1401,149 @@ class ACVEstimator(CVEstimator):
             ),
             axis=1,
         )
+        return bounds
 
-        optimizer = None
-        if optimizer is None:
-            local_optimizer = ScipyConstrainedOptimizer(opts={})
-            init_gen = RandomUniformOptimzerIterateGenerator(
-                nunknowns, backend=self._bkd
-            )
-            init_gen.set_bounds(bounds)
-            optimizer = ConstrainedMultiStartOptimizer(local_optimizer)
-            optimizer.set_initial_iterate_generator(init_gen)
-        objective = ACVLogDeterminantObjective()
-        objective.set_target_cost(target_cost)
-        objective.set_estimator(self)
-        optimizer.set_objective_function(objective)
-        constraints = [ACVPartitionConstraint(self, target_cost)]
-        optimizer.set_constraints(constraints)
-        lower_bound = 1e-10
-        optimizer.set_bounds(bounds)
-        init_iterate = self._bkd.full((self._nmodels - 1, 1), 1.0)
-        result = optimizer.minimize(init_iterate)
-        result.x = result.x[:, 0]
-        return result
-
-        # take copy of options so do not effect options dictionary
-        # provided by user. Items will then be popped from opts
-        # so that remaining opts are those needed for scipy opt
-        optim_opts_copy = optim_options.copy()
-        # default guess is to use nedler mead
-        init_guess = optim_opts_copy.pop(
-            "init_guess", {"disp": False, "maxiter": 500}
+    def get_default_optimizer(self) -> Optimizer:
+        # nunknowns = self._npartitions - 1
+        # local_optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-9})
+        # init_gen = RandomUniformOptimzerIterateGenerator(
+        #     nunknowns, backend=self._bkd
+        # )
+        # init_gen.set_bounds(self.get_npartition_bounds())
+        # optimizer = ConstrainedMultiStartOptimizer(local_optimizer)
+        # optimizer.set_initial_iterate_generator(init_gen)
+        global_optimizer = ScipyConstrainedNelderMeadOptimizer(
+            opts={"maxiter": 500}
         )
-        lower_bound = optim_opts_copy.pop("lower_bound", 1e-10)
-        optim_method = optim_opts_copy.pop("method", "SLSQP")
-        if optim_method != "SLSQP" and optim_method != "trust-constr":
-            raise ValueError(f"{optim_method} not supported")
+        local_optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-9})
+        optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
+        optimizer.set_verbosity(0)
+        return optimizer
 
-        # the robustness of optimization can be improved by scaling
-        # the objective.
-        self._objective_scaling = optim_opts_copy.pop("scaling", 1e-2)
+    def set_optimizer(self, optimizer: Optimizer):
+        if not isinstance(optimizer, Optimizer):
+            raise ValueError("Optimizer must be an instance of Optimizer")
+        self._optimizer = optimizer
 
-        if target_cost < costs.sum():
+    def _allocate_samples_minimize(
+            self, target_cost: float
+    ) -> OptimizationResult:
+        if target_cost < self._bkd.sum(self._costs):
             msg = "Target cost does not allow at least one sample from "
             msg += "each model"
             raise ValueError(msg)
 
-        nunknowns = self._nmodels - 1
-        # lower and upper bounds can cause some edge cases to
-        # not solve reliably
-        bounds = Bounds(
-            np.zeros((nunknowns,)) + lower_bound,
-            np.full((nunknowns,), np.inf),
-            keep_feasible=True,
-        )
-
-        return_grad = True
-        with warnings.catch_warnings():
-            # ignore scipy warnings
-            warnings.simplefilter("ignore")
-            if isinstance(init_guess, dict):
-                # get rough initial guess from global optimizer
-                default_init_guess = TorchLinAlgMixin.asarray(
-                    np.full((self._nmodels - 1,), 1.0)
-                )
-                # sometimes nelder-mead has trouble when lower-bound is close
-                # to zero. It finds a solution but then gradient solve may
-                # fail so allow user to pass in lower-bound
-                nm_lower_bound = init_guess.get("lower_bound", 1e-3)
-                nm_bounds = Bounds(
-                    np.zeros((nunknowns,)) + nm_lower_bound,
-                    np.full((nunknowns,), np.inf),
-                    keep_feasible=True,
-                )
-                opt = minimize(
-                    partial(self._objective, target_cost, return_grad=False),
-                    default_init_guess,
-                    method="nelder-mead",
-                    jac=False,
-                    bounds=nm_bounds,
-                    constraints=cons,
-                    options=init_guess,
-                )
-                init_guess = opt.x
-            if init_guess.shape[0] != self._nmodels - 1:
-                raise ValueError(
-                    "init_guess {0} has the wrong shape".format(init_guess)
-                )
-            opt = minimize(
-                partial(self._objective, target_cost, return_grad=return_grad),
-                init_guess,
-                method=optim_method,
-                jac=return_grad,
-                bounds=bounds,
-                constraints=cons,
-                options=optim_options,
-            )
-        return opt
+        # TODO Pass in optimizer once tests pass
+        if self._optimizer is None:
+            self.set_optimizer(self.get_default_optimizer())
+        scaling = self._optimizer._opts.get("scaling", 1)
+        objective = ACVLogDeterminantObjective(scaling=scaling)
+        objective.set_target_cost(target_cost)
+        objective.set_estimator(self)
+        self._optimizer.set_objective_function(objective)
+        constraints = [ACVPartitionConstraint(self, target_cost)]
+        self._optimizer.set_constraints(constraints)
+        self._optimizer.set_bounds(self.get_npartition_bounds())
+        init_iterate = self._bkd.full((self._nmodels - 1, 1), 1.0)
+        result = self._optimizer.minimize(init_iterate)
+        return result
 
     @abstractmethod
     def _get_specific_constraints(self, target_cost: float):
         raise NotImplementedError()
 
-    def _constraint_jacobian(
-        self, constraint_fun, partition_ratios_np: Array, *args
-    ):
-        partition_ratios = self._bkd.asarray(partition_ratios_np)
-        partition_ratios.requires_grad = True
-        val = constraint_fun(partition_ratios, *args, return_numpy=False)
-        val.backward()
-        jac = partition_ratios.grad.detach().numpy().copy()
-        partition_ratios.grad.zero_()
-        return jac
+    # def _constraint_jacobian(
+    #     self, constraint_fun, partition_ratios_np: Array, *args
+    # ):
+    #     partition_ratios = self._bkd.asarray(partition_ratios_np)
+    #     partition_ratios.requires_grad = True
+    #     val = constraint_fun(partition_ratios, *args, return_numpy=False)
+    #     val.backward()
+    #     jac = partition_ratios.grad.detach().numpy().copy()
+    #     partition_ratios.grad.zero_()
+    #     return jac
 
-    def _acv_npartition_samples_constraint(
-        self,
-        partition_ratios_np,
-        target_cost,
-        min_nsamples,
-        partition_id,
-        return_numpy=True,
-    ):
-        partition_ratios = self._bkd.asarray(partition_ratios_np)
-        nsamples = self._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios
-        )[partition_id]
-        val = nsamples - min_nsamples
-        if return_numpy:
-            return val.item()
-        return val
+    # def _acv_npartition_samples_constraint(
+    #     self,
+    #     partition_ratios_np,
+    #     target_cost,
+    #     min_nsamples,
+    #     partition_id,
+    #     return_numpy=True,
+    # ):
+    #     partition_ratios = self._bkd.asarray(partition_ratios_np)
+    #     nsamples = self._npartition_samples_from_partition_ratios(
+    #         target_cost, partition_ratios
+    #     )[partition_id]
+    #     val = nsamples - min_nsamples
+    #     if return_numpy:
+    #         return val.item()
+    #     return val
 
-    def _acv_npartition_samples_constraint_jac(
-        self, partition_ratios_np, target_cost, min_nsamples, partition_id
-    ):
-        return self._constraint_jacobian(
-            self._acv_npartition_samples_constraint,
-            partition_ratios_np,
-            target_cost,
-            min_nsamples,
-            partition_id,
-        )
+    # def _acv_npartition_samples_constraint_jac(
+    #     self, partition_ratios_np, target_cost, min_nsamples, partition_id
+    # ):
+    #     return self._constraint_jacobian(
+    #         self._acv_npartition_samples_constraint,
+    #         partition_ratios_np,
+    #         target_cost,
+    #         min_nsamples,
+    #         partition_id,
+    #     )
 
-    def _npartition_ratios_constaint(self, partition_ratios_np, ratio_id):
-        # needs to be positive
-        return partition_ratios_np[ratio_id] - 0
+    # def _npartition_ratios_constaint(self, partition_ratios_np, ratio_id):
+    #     # needs to be positive
+    #     return partition_ratios_np[ratio_id] - 0
 
-    def _npartition_ratios_constaint_jac(self, partition_ratios_np, ratio_id):
-        jac = self._bkd.zeros(partition_ratios_np.shape[0], dtype=float)
-        jac[ratio_id] = 1.0
-        return jac
+    # def _npartition_ratios_constaint_jac(self, partition_ratios_np, ratio_id):
+    #     jac = self._bkd.zeros(partition_ratios_np.shape[0], dtype=float)
+    #     jac[ratio_id] = 1.0
+    #     return jac
 
-    def _get_constraints(self, target_cost):
-        # Ensure the each partition has enough samples to compute
-        # the desired statistic. Techinically we only need the number
-        # of samples in each acv subset have enough. But this constraint
-        # is easy to implement and not really restrictive practically
-        if isinstance(
-            self._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)
-        ):
-            partition_min_nsamples = 2.0
+    # def _get_constraints(self, target_cost):
+    #     # Ensure the each partition has enough samples to compute
+    #     # the desired statistic. Techinically we only need the number
+    #     # of samples in each acv subset have enough. But this constraint
+    #     # is easy to implement and not really restrictive practically
+    #     if isinstance(
+    #         self._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)
+    #     ):
+    #         partition_min_nsamples = 2.0
+    #     else:
+    #         partition_min_nsamples = 1.0
+    #     cons = [
+    #         {
+    #             "type": "ineq",
+    #             "fun": self._acv_npartition_samples_constraint,
+    #             "jac": self._acv_npartition_samples_constraint_jac,
+    #             "args": (target_cost, partition_min_nsamples, ii),
+    #         }
+    #         for ii in range(self._nmodels)
+    #     ]
+
+    #     # Better to enforce this with bounds
+    #     # Ensure ratios are positive
+    #     # cons += [
+    #     #     {'type': 'ineq',
+    #     #      'fun': self._npartition_ratios_constaint,
+    #     #      'jac': self._npartition_ratios_constaint_jac,
+    #     #      'args': (ii,)}
+    #     #     for ii in range(self._nmodels-1)]
+
+    #     # Note target cost is satisfied by construction using the above
+    #     # constraints because nsamples is determined based on target cost
+    #     cons += self._get_specific_constraints(target_cost)
+    #     return cons
+
+    def _allocate_samples(self, target_cost: float):
+        opt_result = self._allocate_samples_minimize(target_cost)
+        partition_ratios = opt_result.x[:, 0]
+        if not opt_result.success:
+            raise RuntimeError(
+                "{0} optimizer failed {1}".format(self, opt_result)
+            )
         else:
-            partition_min_nsamples = 1.0
-        cons = [
-            {
-                "type": "ineq",
-                "fun": self._acv_npartition_samples_constraint,
-                "jac": self._acv_npartition_samples_constraint_jac,
-                "args": (target_cost, partition_min_nsamples, ii),
-            }
-            for ii in range(self._nmodels)
-        ]
-
-        # Better to enforce this with bounds
-        # Ensure ratios are positive
-        # cons += [
-        #     {'type': 'ineq',
-        #      'fun': self._npartition_ratios_constaint,
-        #      'jac': self._npartition_ratios_constaint_jac,
-        #      'args': (ii,)}
-        #     for ii in range(self._nmodels-1)]
-
-        # Note target cost is satisfied by construction using the above
-        # constraints because nsamples is determined based on target cost
-        cons += self._get_specific_constraints(target_cost)
-        return cons
-
-    def _allocate_samples(self, target_cost: float, optim_options):
-        cons = self._get_constraints(target_cost)
-        opt = self._allocate_samples_minimize(
-            self._costs, target_cost, cons, optim_options
-        )
-        partition_ratios = self._bkd.asarray(opt.x)
-        if not opt.success:
-            raise RuntimeError("{0} optimizer failed {1}".format(self, opt))
-        else:
-            val = opt.fun
+            val = opt_result.fun
         return partition_ratios, val
 
     def _round_partition_ratios(
@@ -1588,7 +1572,7 @@ class ACVEstimator(CVEstimator):
 
     def _estimator_cost(self, npartition_samples: Array) -> float:
         nsamples_per_model = self._compute_nsamples_per_model(
-            TorchLinAlgMixin.asarray(npartition_samples)
+            npartition_samples
         )
         return (nsamples_per_model * self._costs).sum()
 
@@ -1645,38 +1629,31 @@ class ACVEstimator(CVEstimator):
             rounded_target_cost,
         )
 
-    def _allocate_samples_for_single_recursion(
-        self, target_cost: float, optim_options
-    ):
-        partition_ratios, obj_val = self._allocate_samples(
-            target_cost, optim_options
-        )
+    def _allocate_samples_for_single_recursion(self, target_cost: float):
+        partition_ratios, obj_val = self._allocate_samples(target_cost)
         self._set_optimized_params(partition_ratios, target_cost)
 
     def get_all_recursion_indices(self) -> List[Array]:
         return _get_acv_recursion_indices(self._nmodels, self._tree_depth)
 
     def _allocate_samples_for_all_recursion_indices(
-        self, target_cost: float, optim_options
+        self, target_cost: float
     ):
-        verbosity = optim_options.get("verbosity", 0)
         best_criteria = self._bkd.asarray(np.inf)
         best_result = None
         for index in self.get_all_recursion_indices():
             self._set_recursion_index(index)
             try:
-                self._allocate_samples_for_single_recursion(
-                    target_cost, optim_options
-                )
+                self._allocate_samples_for_single_recursion(target_cost)
             except RuntimeError as e:
                 # typically solver fails because trying to use
                 # uniformative model as a recursive control variate
                 if not self._allow_failures:
                     raise e
                 self._optimized_criteria = self._bkd.asarray(np.inf)
-                if verbosity > 0:
+                if self._optimizer._verbosity > 0:
                     print("Optimizer failed")
-            if verbosity > 2:
+            if self._optimizer._verbosity > 2:
                 msg = "\t\t Recursion: {0} Objective: best {1}, current {2}".format(
                     index,
                     best_criteria.item(),
@@ -1698,13 +1675,13 @@ class ACVEstimator(CVEstimator):
             self._bkd.asarray(best_result[0]), target_cost
         )
 
-    def allocate_samples(self, target_cost: float, optim_options={}):
+    def allocate_samples(self, target_cost: float):
         if self._tree_depth is not None:
             return self._allocate_samples_for_all_recursion_indices(
-                target_cost, optim_options
+                target_cost
             )
         return self._allocate_samples_for_single_recursion(
-            target_cost, optim_options
+            target_cost
         )
 
 
@@ -1766,7 +1743,7 @@ class MFMCEstimator(GMFEstimator):
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
 
-    def _allocate_samples(self, target_cost: float, optim_options={}):
+    def _allocate_samples(self, target_cost: float):
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
         nqoi = self._cov.shape[0] // len(self._costs)
@@ -1841,7 +1818,7 @@ class MLMCEstimator(GRDEstimator):
             cf,
         )
 
-    def _allocate_samples(self, target_cost: float, optim_options={}):
+    def _allocate_samples(self, target_cost: float):
         nqoi = self._cov.shape[0] // len(self._costs)
         nsample_ratios, val = _allocate_samples_mlmc(
             self._cov[self._opt_qoi :: nqoi, self._opt_qoi :: nqoi],

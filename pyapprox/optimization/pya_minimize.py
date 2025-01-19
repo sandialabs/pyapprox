@@ -1,8 +1,11 @@
+from typing import List
+
 import numpy as np
 from scipy.optimize import minimize as scipy_minimize
 import scipy
 
 from pyapprox.util.sys_utilities import package_available
+from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 if package_available("ROL"):
@@ -171,6 +174,7 @@ class Constraint(Model):
             raise ValueError("bounds must be 2D np.ndarray with two columns")
         self._bounds = bounds
         self._keep_feasible = keep_feasible
+        self._hessian_implemented = False
 
 
 class ConstraintFromModel(Constraint):
@@ -298,7 +302,7 @@ class Optimizer(ABC):
             )
         return result
 
-    def set_verbosity(self, verbosity):
+    def set_verbosity(self, verbosity: int):
         """
         Set the verbosity.
 
@@ -423,6 +427,10 @@ class MultiStartOptimizer(OptimizerWithObjective):
         super().set_bounds(bounds)
         self._optimizer.set_bounds(bounds)
 
+    def set_verbosity(self, verbosity):
+        self._verbosity = verbosity
+        self._optimizer.set_verbosity(verbosity)
+
     def set_initial_iterate_generator(self, gen):
         if not isinstance(gen, OptimizerIterateGenerator):
             raise ValueError("gen is not an OptimizerIterateGenerator.")
@@ -502,7 +510,7 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
                 continue
             con = ScipyModelWrapper(_con)
             jac = con.jac if con._jacobian_implemented else "2-point"
-            if (con._hessian_implemented):
+            if con._weighted_hessian_implemented:
                 hess = con.weighted_hess
             else:
                 hess = scipy.optimize._hessian_update_strategy.BFGS()
@@ -554,8 +562,9 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             if self._verbosity > 0:
                 opts["disp"] = True
                 opts["iprint"] = self._verbosity
+        else:
+            raise ValueError("method {0} is not supported".format(method))
 
-        print(bounds, init_guess.shape)
         scipy_result = scipy_minimize(
             objective,
             init_guess[:, 0],
@@ -652,6 +661,23 @@ class ChainedOptimizer(Optimizer):
         result2 = self._optimizer2.minimize(result1.x)
         return result2
 
+    def set_bounds(self, bounds: Array):
+        self._optimizer1.set_bounds(bounds)
+        self._optimizer2.set_bounds(bounds)
+
+    def set_objective_function(self, objective: Model):
+        self._optimizer1.set_objective_function(objective)
+        self._optimizer2.set_objective_function(objective)
+
+    def set_constraints(self, constraints: List[Constraint]):
+        self._optimizer1.set_constraints(constraints)
+        self._optimizer2.set_constraints(constraints)
+
+    def set_verbosity(self, verbosity: int):
+        self._verbosity = verbosity
+        self._optimizer1.set_verbosity(verbosity)
+        self._optimizer2.set_verbosity(verbosity)
+
 
 # TODO consider merging with multifidelity.stat
 class SampleAverageStat(ABC):
@@ -691,7 +717,7 @@ class SampleAverageStat(ABC):
 
         jac_values: array (nsamples, nqoi, nvars)
            function values at each sample
-        
+
         weights: array(nsamples, 1)
             qudrature weight for each sample
 

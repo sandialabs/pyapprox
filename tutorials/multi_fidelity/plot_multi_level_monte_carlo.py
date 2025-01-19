@@ -146,18 +146,19 @@ from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions, plot_estimator_variances,
     plot_estimator_sample_allocation_comparison
 )
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 
 #%%
 #The following code computes the variance of the MLMC estimator for different target costs using the optimal sample allocation using an exact estimate of the covariance between models and an approximation.
 
 np.random.seed(1)
-benchmark = PolynomialModelEnsemble()
+benchmark = PolynomialModelEnsemble(backend=TorchLinAlgMixin)
 cov = benchmark.covariance()
 target_costs = np.array([1e1, 1e2, 1e3], dtype=int)
 costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
 model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
-stat = multioutput_stats["mean"](benchmark.nqoi())
+stat = multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
 stat.set_pilot_quantities(cov)
 estimators = [
     get_estimator("mc", stat, costs),

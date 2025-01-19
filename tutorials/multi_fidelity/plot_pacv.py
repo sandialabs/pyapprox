@@ -38,14 +38,16 @@ from pyapprox.benchmarks.multifidelity_benchmarks import PolynomialModelEnsemble
 from pyapprox.multifidelity.factory import (
     get_estimator, compare_estimator_variances, compute_variance_reductions,
     multioutput_stats)
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 nmodels = 4
+bkd = TorchLinAlgMixin
 np.random.seed(1)
 benchmark = PolynomialModelEnsemble()
 cov = benchmark.covariance()[:nmodels, :nmodels]
-costs = np.asarray([10**-ii for ii in range(nmodels)])
+costs = bkd.asarray([10**-ii for ii in range(nmodels)])
 
-stat = multioutput_stats["mean"](benchmark.nqoi())
+stat = multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
 stat.set_pilot_quantities(cov)
 gmf_est = get_estimator("gmf", stat, costs, tree_depth=nmodels-1)
 recursion_indices = list(gmf_est.get_all_recursion_indices())
@@ -95,7 +97,9 @@ costs = np.asarray([10**-ii for ii in range(nmodels)])
 nhf_samples = 1
 cv_stats, cv_ests = [], []
 for ii in range(1, nmodels):
-    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi()))
+    cv_stats.append(
+        multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
+    )
     cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
     cv_ests.append(get_estimator(
         "cv", cv_stats[ii-1], costs[:ii+1],
@@ -107,9 +111,10 @@ cv_variance_reductions = compute_variance_reductions(cv_ests)[0]
 
 from util import (
     plot_control_variate_variance_ratios,
-    plot_estimator_variance_ratios_for_polynomial_ensemble)
+    plot_estimator_variance_ratios_for_polynomial_ensemble
+)
 
-stat = multioutput_stats["mean"](benchmark.nqoi())
+stat = multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
 stat.set_pilot_quantities(cov)
 estimators = [
     get_estimator("mlmc", stat, costs),
@@ -141,8 +146,8 @@ est_labels = est_labels = mathrm_labels(
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 plot_control_variate_variance_ratios(cv_variance_reductions, cv_labels, ax)
-_ = plot_estimator_variance_ratios_for_polynomial_ensemble(
-    estimators, est_labels, ax)
+# _ = plot_estimator_variance_ratios_for_polynomial_ensemble(
+#     estimators, est_labels, ax)
 
 #%%
 #Enumerating the PACV estimators allows one to choose the best estimator for any estimator cost. The recursion indices used by MLMC and MFMC are chosen for small numbers of low-fidelity samples and alternative estimators are chosen as the number of low-fidelity sampes is increased. The following compares the best GMF estimamtor against MLMC and MFMC.
@@ -153,12 +158,21 @@ estimators = [
     get_estimator("mlmc", stat, costs),
     get_estimator("mfmc", stat, costs),
     get_estimator("gmf", stat, costs, tree_depth=nmodels-1,
-                  allow_failures=False)]
+                  allow_failures=False)
+]
 est_labels = mathrm_labels(["MC", "MLMC", "MFMC", "GMF"])
 optim_opts = {'ftol': 1e-6, 'maxiter': 10000, "iprint": 0, "scaling": 0.01,
-              "method": "SLSQP", "verbosity": 0}
+              "method": "slsqp"}
+for est in estimators[1:]:
+    optimizer = est.get_default_optimizer()
+    # change optimizer to be slsqp
+    optimizer._opts["scaling"] = 0.01
+    optimizer._optimizer2._opts = optim_opts
+    est.set_optimizer(optimizer)
+    print(est)
 optimized_estimators = compare_estimator_variances(
-    target_costs, estimators, optim_opts)
+    target_costs, estimators
+)
 
 idx = 0
 gmf_est = optimized_estimators[-1][idx]
@@ -168,7 +182,8 @@ model_labels = ["$f_{0}$".format(ii) for ii in range(nmodels)]
 est_labels[-1] += " ${0}$".format(gmf_est._recursion_index)
 fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
 from pyapprox.multifidelity.visualize import (
-    plot_estimator_sample_allocation_comparison, plot_estimator_variances)
+    plot_estimator_sample_allocation_comparison, plot_estimator_variances
+)
 plot_estimator_sample_allocation_comparison(
     [est[0] for est in optimized_estimators[1:]], model_labels, axs[0],
     xlabels=est_labels[1:])

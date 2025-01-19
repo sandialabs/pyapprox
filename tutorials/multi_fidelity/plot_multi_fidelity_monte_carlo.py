@@ -68,15 +68,17 @@ from pyapprox.multifidelity.factory import (
     multioutput_stats)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions)
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 np.random.seed(1)
-benchmark = PolynomialModelEnsemble()
+bkd = TorchLinAlgMixin
+benchmark = PolynomialModelEnsemble(backend=bkd)
 cov = benchmark.covariance()
 target_costs = np.array([1e1, 1e2, 1e3, 1e4], dtype=int)
-costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
+costs = bkd.asarray([10**-ii for ii in range(cov.shape[0])])
 model_labels = [r'$f_0$', r'$f_1$', r'$f_2$', r'$f_3$', r'$f_4$']
 
-stat = multioutput_stats["mean"](benchmark.nqoi())
+stat = multioutput_stats["mean"](benchmark.nqoi(), backend=bkd)
 stat.set_pilot_quantities(cov)
 estimators = [
     get_estimator("mlmc", stat, costs),
@@ -118,7 +120,7 @@ nmodels = costs.shape[0]
 
 cv_stats, cv_ests = [], []
 for ii in range(1, nmodels):
-    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi()))
+    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi(), backend=bkd))
     cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
     cv_ests.append(get_estimator(
         "cv", cv_stats[ii-1], costs[:ii+1],

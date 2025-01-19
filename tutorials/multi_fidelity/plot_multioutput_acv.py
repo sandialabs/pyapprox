@@ -12,9 +12,10 @@ import matplotlib.pyplot as plt
 from pyapprox import multifidelity as mf
 from pyapprox.benchmarks.multifidelity_benchmarks import MultiOutputModelEnsemble
 from pyapprox.util.visualization import mathrm_labels
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 np.random.seed(1)
-benchmark = MultiOutputModelEnsemble()
+benchmark = MultiOutputModelEnsemble(backend=TorchLinAlgMixin)
 costs = np.array([1, 0.01, 0.001])
 nmodels = 3
 
@@ -25,23 +26,22 @@ labels = ([r"$(f_{0})_{%d}$" % (ii+1) for ii in range(benchmark.nqoi())] +
           [r"$(f_{2})_{%d}$" % (ii+1) for ii in range(benchmark.nqoi())])
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 _ = mf.plot_correlation_matrix(
-    mf.get_correlation_from_covariance(cov), ax=ax, model_names=labels,
-    label_fontsize=20)
+    mf.get_correlation_from_covariance(cov, bkd=TorchLinAlgMixin),
+    ax=ax, model_names=labels,
+    label_fontsize=20
+)
 
 target_cost = 30
-stat = mf.multioutput_stats["mean"](benchmark.nqoi())
+stat = mf.multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
 stat.set_pilot_quantities(cov)
 est = mf.get_estimator("gmf", stat, costs)
-est.allocate_samples(
-    target_cost, {"scaling": 1.,
-                  "init_guess": {"disp": True, "maxiter": 300,
-                                 "lower_bound": 1e-10}})
+est.allocate_samples(target_cost)
 
 # get covariance of just first qoi
 qoi_idx = [0]
 cov_0 = stat.get_pilot_quantities_subset(
     nmodels, benchmark.nqoi(), [0, 1, 2], qoi_idx)[0]
-stat_0 = mf.multioutput_stats["mean"](benchmark.nqoi())
+stat_0 = mf.multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
 stat_0.set_pilot_quantities(cov_0)
 est_0 = mf.get_estimator("gmf", stat_0, costs)
 est_0.allocate_samples(target_cost)

@@ -31,6 +31,7 @@ from pyapprox.benchmarks.multifidelity_benchmarks import PolynomialModelEnsemble
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.util.visualization import mathrm_label
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 np.random.seed(1)
 
@@ -39,8 +40,9 @@ np.random.seed(1)
 #that is the exact model covariance. We will use MFMC because the optimal sample allocation can be obtained analytically which speeds up this tutorial. However other estimators can be used. Also note that if using MFMC to estimate variance or other stats its allocation it still uses the allocation that is only guaranteed to be optimal when estimating the mean. This is not true of any other estimator except MLMC.
 target_cost = 100
 est_name = "mfmc"
-benchmark = PolynomialModelEnsemble(nmodels=3)
-costs = np.array([1, 0.1, 0.05])
+bkd = TorchLinAlgMixin
+benchmark = PolynomialModelEnsemble(nmodels=3, backend=TorchLinAlgMixin)
+costs = bkd.array([1, 0.1, 0.05])
 
 stat_type = "mean"
 # stat_type = "variance"
@@ -54,9 +56,9 @@ else:
     oracle_stat_args = [
         cov, benchmark().fun.covariance_of_centered_values_kronker_product()]
 
-print(get_correlation_from_covariance(benchmark.covariance()))
+print(get_correlation_from_covariance(benchmark.covariance(), bkd=bkd))
 
-oracle_stat = multioutput_stats[stat_type](benchmark.nqoi())
+oracle_stat = multioutput_stats[stat_type](benchmark.nqoi(), backend=bkd)
 oracle_stat.set_pilot_quantities(*oracle_stat_args)
 
 oracle_est = get_estimator(est_name, oracle_stat, costs)
@@ -82,13 +84,14 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
     # instead of np.random.seed(seed)
     pilot_samples = variable.rvs(npilot_samples, random_states=random_states)
     pilot_values_per_model = [fun(pilot_samples) for fun in funs]
-    stat_class = multioutput_stats[stat_type]
+    stat_class = multioutput_stats[stat_type](benchmark.nqoi(), backend=bkd)
     pilot_quantities = stat_class.compute_pilot_quantities(
-        pilot_values_per_model)
+        pilot_values_per_model
+    )
     # print(get_correlation_from_covariance(pilot_cov))
 
     # optimize the ACV estimator
-    stat = multioutput_stats[stat_type](benchmark.nqoi())
+    stat = multioutput_stats[stat_type](benchmark.nqoi(), backend=bkd)
     stat.set_pilot_quantities(*pilot_quantities)
     est = get_estimator(est_name, stat, costs)
     # remaining_budget_after_pilot
@@ -120,7 +123,7 @@ def build_acv(funs, variable, target_cost, npilot_samples, adjust_cost=True,
         # Rounding will cause nhf samples to be zero tensor
         # when nhf samples is below 1.
         print(e)
-        return [np.inf]
+        return bkd.array([np.inf])
 
 #%%
 #Now define a function to compute the MSE. Note nprocs cannot be set > 1 unless all of this code is placed inside a function, e.g. called main,  which is then
@@ -142,12 +145,12 @@ def compute_mse(build_acv, funs, variable, target_cost, npilot_samples,
         est_vals = pool.map(build, list(range(ntrials)))
         pool.close()
     else:
-        est_vals = np.asarray([build(ii) for ii in range(ntrials)])
+        est_vals = bkd.hstack([build(ii) for ii in range(ntrials)])
 
     # exclude failed MCMC runs
-    est_vals = np.array(est_vals)[np.isfinite(est_vals)]
+    est_vals = bkd.array(est_vals)[np.isfinite(est_vals)]
     # make sure random seed is getting set correctly on each processor
-    assert np.unique(est_vals).shape[0] == len(est_vals)
+    assert bkd.unique(est_vals).shape[0] == len(est_vals)
     mse = ((est_vals-exact_stats)**2).mean()
     return mse
 
@@ -174,9 +177,9 @@ for npilot_samples in npilot_samples_list:
 
 mc_est = get_estimator("mc", oracle_stat, costs)
 mc_est.allocate_samples(target_cost)
-mc_mse = mc_est._optimized_covariance[0, 0].item()
+mc_mse = mc_est._optimized_covariance[0, 0]
 
-oracle_mse = oracle_est._optimized_covariance[0, 0].item()
+oracle_mse = oracle_est._optimized_covariance[0, 0]
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 ax.axhline(y=oracle_mse, ls='--', color='k', label=mathrm_label("Oracle MSE"))
 ax.axhline(y=mc_mse, ls=':', color='r', label=mathrm_label("Oracle MC MSE"))
@@ -198,7 +201,7 @@ target_cost = 100
 npilot_samples_list = [5, 10, 20, 40, 60, 70, 80]
 for npilot_samples in npilot_samples_list:
     # The cost of evaluating all models once is np.sum(costs)
-    pilot_cost = np.sum(costs)*npilot_samples
+    pilot_cost = bkd.sum(costs)*npilot_samples
     print(npilot_samples)
     mse_list.append(compute_mse(
         build_acv, benchmark.models(), benchmark.variable(), target_cost-pilot_cost,
