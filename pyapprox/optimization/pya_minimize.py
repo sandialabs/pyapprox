@@ -13,13 +13,6 @@ from pyapprox.interface.model import (
 )
 from scipy.optimize import Bounds, NonlinearConstraint, LinearConstraint
 
-# from pyapprox.util.sys_utilities import package_available
-# if package_available("ROL"):
-#     has_ROL = True
-#     from pyapprox.optimization._rol_minimize import rol_minimize
-# else:
-#     has_ROL = False
-
 
 class OptimizationResult(dict):
     """

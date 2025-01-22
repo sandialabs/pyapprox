@@ -10,10 +10,18 @@ from pyapprox.optimization.pya_minimize import (
     SampleAverageConstraint,
     SampleAverageConditionalValueAtRisk, CVaRSampleAverageConstraint,
     ObjectiveWithCVaRConstraints)
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.benchmarks import RosenbrockBenchmark
 from pyapprox.interface.model import ModelFromCallable
 from pyapprox.variables.risk import gaussian_cvar
 from pyapprox.interface.model import Model
+
+from pyapprox.util.sys_utilities import package_available
+if package_available("pyrol"):
+    has_pyrol = True
+    from pyapprox.optimization.rol_minimize import ROLConstrainedOptimizer
+else:
+    has_pyrol = False
+
 
 
 class TestMinimize(unittest.TestCase):
@@ -23,7 +31,7 @@ class TestMinimize(unittest.TestCase):
     def test_constrained_scipy(self):
         # check that no bounds is handled correctly
         nvars = 2
-        benchmark = setup_benchmark("rosenbrock", nvars=nvars)
+        benchmark = RosenbrockBenchmark(nvars=nvars)
         optimizer = ScipyConstrainedOptimizer(benchmark.fun)
         result = optimizer.minimize(benchmark.variable.get_statistics("mean"))
         assert np.allclose(result.x, np.full(nvars, 1))
@@ -288,6 +296,17 @@ class TestMinimize(unittest.TestCase):
         assert np.allclose(result.x, exact_opt_x, rtol=2e-3, atol=1e-3)
         # print(-sigma1-result.fun)
         assert np.allclose(-sigma1, result.fun, rtol=1e-4)
+
+    @unittest.skipIf(has_pyrol, "pyrol cannot be imported")
+    def test_rol_minimize_rosenbrock(self):
+        nvars = 2
+        benchmark = RosenbrockBenchmark(nvars=nvars)
+        optimizer = ROLConstrainedOptimizer(benchmark.model())
+        result = optimizer.minimize(
+            benchmark.variable().get_statistics("mean")
+        )
+        assert np.allclose(result.x, np.full(nvars, 1))
+        
 
 
 if __name__ == '__main__':
