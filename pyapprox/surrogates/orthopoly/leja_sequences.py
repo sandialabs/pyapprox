@@ -4,12 +4,11 @@
 
 import numpy as np
 import os
-from scipy.optimize import Bounds
+from scipy.optimize import Bounds, minimize
 from scipy.linalg import solve_triangular
 from functools import partial
 from warnings import warn
 
-from pyapprox.optimization.pya_minimize import pyapprox_minimize
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d
 )
@@ -826,7 +825,11 @@ def get_christoffel_leja_sequence_1d(
             # that is not normalized appropriately
             bounds = Bounds([lb], [ub])
             # print(jj, bounds)
-            res = pyapprox_minimize(
+            # I removed pyapprox_minimize and replaced with minimize here
+            # eventually need to use Optimizers in pya_minimize.
+            # This change may cause errors in other tests because options
+            # get converted inside pya_minimize
+            res = minimize(
                 fun, initial_guess, jac=jac, hess=hess, bounds=bounds,
                 options=opts, method='slsqp')
             new_samples[0, jj] = res.x[0]
@@ -922,7 +925,7 @@ def get_pdf_weighted_leja_sequence_1d(
         for jj in range(initial_guesses.shape[1]):
             initial_guess = initial_guesses[:, jj]
             bounds = Bounds([intervals[jj]], [intervals[jj+1]])
-            res = pyapprox_minimize(
+            res = minimize(
                 fun, initial_guess, jac=jac, hess=hess, bounds=bounds,
                 options=options, method='slsqp')
             new_samples[0, jj] = res.x[0]

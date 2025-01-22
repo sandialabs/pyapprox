@@ -2,18 +2,23 @@ import numpy as np
 from functools import partial
 from scipy.optimize import NonlinearConstraint, Bounds
 
-from pyapprox.optimization.pya_minimize import pyapprox_minimize, has_ROL
 from pyapprox.util.pya_numba import njit
+from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.interface.model import SingleSampleModel
+from pyapprox.optimization.pya_minimize import (
+    Constraint,
+    ScipyConstrainedOptimizer,
+)
 
 
 def smooth_max_function_log(eps, shift, x):
-    x = x+shift
-    x_div_eps = x/eps
+    x = x + shift
+    x_div_eps = x / eps
     # vals = (x + eps*np.log(1+np.exp(-x_div_eps)))
     # avoid overflow
     vals = np.zeros_like(x)
     II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
-    vals[II] = x[II]+eps*np.log(1+np.exp(-x_div_eps[II]))
+    vals[II] = x[II] + eps * np.log(1 + np.exp(-x_div_eps[II]))
     J = np.where(x_div_eps >= 1e2)
     vals[J] = x[J]
     assert np.all(np.isfinite(vals))
@@ -21,42 +26,47 @@ def smooth_max_function_log(eps, shift, x):
 
 
 def smooth_max_function_first_derivative_log(eps, shift, x):
-    x = x+shift
-    x_div_eps = x/eps
+    x = x + shift
+    x_div_eps = x / eps
     # vals = 1./(1+np.exp(-x_div_eps+shift))
     # Avoid overflow.
     II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
     vals = np.zeros(x.shape)
-    vals[II] = 1./(1+np.exp(-x_div_eps[II]-shift/eps))
-    vals[x_div_eps >= 1e2] = 1.
+    vals[II] = 1.0 / (1 + np.exp(-x_div_eps[II] - shift / eps))
+    vals[x_div_eps >= 1e2] = 1.0
     assert np.all(np.isfinite(vals))
     return vals
 
 
 def smooth_max_function_second_derivative_log(eps, shift, x):
-    x = x+shift
-    x_div_eps = x/eps
+    x = x + shift
+    x_div_eps = x / eps
     vals = np.zeros(x.shape)
     # Avoid overflow.
     II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
-    vals[II] = np.exp(x_div_eps[II]+shift/eps)/(
-        eps*(np.exp(x_div_eps[II]+shift/eps)+1)**2)
+    vals[II] = np.exp(x_div_eps[II] + shift / eps) / (
+        eps * (np.exp(x_div_eps[II] + shift / eps) + 1) ** 2
+    )
     assert np.all(np.isfinite(vals))
     return vals
 
 
 def smooth_max_function_third_derivative_log(eps, shift, x):
-    x = x+shift
-    x_div_eps = x/eps
+    x = x + shift
+    x_div_eps = x / eps
     vals = np.zeros_like(x)
     # Avoid overflow.
     II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
     # vals[II] = np.exp(-x_div_eps[II])*(np.exp(-x_div_eps[II])-1)/(
     #    eps**2*(1+np.exp(-x_div_eps[II]))**3)
-    vals[II] = np.exp(x_div_eps[II]+shift/eps)/(
-        eps**2*(1+np.exp(x_div_eps[II]+shift/eps))**2)
-    vals[II] -= 2*np.exp(x_div_eps[II]+shift/eps)**2/(
-        eps**2*(1+np.exp(x_div_eps[II]+shift/eps))**3)
+    vals[II] = np.exp(x_div_eps[II] + shift / eps) / (
+        eps**2 * (1 + np.exp(x_div_eps[II] + shift / eps)) ** 2
+    )
+    vals[II] -= (
+        2
+        * np.exp(x_div_eps[II] + shift / eps) ** 2
+        / (eps**2 * (1 + np.exp(x_div_eps[II] + shift / eps)) ** 3)
+    )
     return vals
 
 
@@ -75,116 +85,141 @@ def smooth_left_heaviside_function_second_derivative_log(eps, shift, x):
 @njit(cache=True)
 def numba_smooth_left_heaviside_function_quartic(eps, shift, x):
     assert shift == 0  # need to employ chain rule to accound for shift
-    x = x+shift
+    x = x + shift
     vals = np.ones_like(x)
     for ii in range(x.shape[0]):
         for jj in range(x.shape[1]):
-            if (x[ii, jj] < 0 and x[ii, jj] > -eps):
-                vals[ii, jj] = 6*(-x[ii, jj]/eps)**2-8*(-x[ii, jj]/eps)**3 +\
-                    3*(-x[ii, jj]/eps)**4
-            elif (x[ii, jj] >= 0):
+            if x[ii, jj] < 0 and x[ii, jj] > -eps:
+                vals[ii, jj] = (
+                    6 * (-x[ii, jj] / eps) ** 2
+                    - 8 * (-x[ii, jj] / eps) ** 3
+                    + 3 * (-x[ii, jj] / eps) ** 4
+                )
+            elif x[ii, jj] >= 0:
                 vals[ii, jj] = 0
     return vals
 
 
 @njit(cache=True)
 def numba_smooth_left_heaviside_function_first_derivative_quartic(
-        eps, shift, x):
+    eps, shift, x
+):
     assert shift == 0  # need to employ chain rule to accound for shift
-    x = x+shift
+    x = x + shift
     vals = np.zeros_like(x)
     for ii in range(x.shape[0]):
         for jj in range(x.shape[1]):
-            if (x[ii, jj] < 0 and x[ii, jj] > -eps):
-                vals[ii, jj] = 12*x[ii, jj]*(eps+x[ii, jj])**2/eps**4
+            if x[ii, jj] < 0 and x[ii, jj] > -eps:
+                vals[ii, jj] = 12 * x[ii, jj] * (eps + x[ii, jj]) ** 2 / eps**4
     return vals
 
 
 @njit(cache=True)
 def numba_smooth_left_heaviside_function_second_derivative_quartic(
-        eps, shift, x):
+    eps, shift, x
+):
     assert shift == 0  # need to employ chain rule to accound for shift
-    x = x+shift
+    x = x + shift
     vals = np.zeros_like(x)
     for ii in range(x.shape[0]):
         for jj in range(x.shape[1]):
-            if (x[ii, jj] < 0 and x[ii, jj] > -eps):
-                vals[ii, jj] = 12*(eps**2+4*eps*x[ii, jj] +
-                                   3*x[ii, jj]**2)/eps**4
+            if x[ii, jj] < 0 and x[ii, jj] > -eps:
+                vals[ii, jj] = (
+                    12
+                    * (eps**2 + 4 * eps * x[ii, jj] + 3 * x[ii, jj] ** 2)
+                    / eps**4
+                )
     return vals
 
 
 @njit(cache=True)
 def numba_smooth_left_heaviside_function_quintic(eps, shift, x):
     assert shift == 0  # need to employ chain rule to accound for shift
-    x = x+shift
+    x = x + shift
     vals = np.ones_like(x)
     c3, c4, c5 = 10, -15, 6
     for ii in range(x.shape[0]):
         for jj in range(x.shape[1]):
-            if (x[ii, jj] < 0 and x[ii, jj] > -eps):
-                xe = -x[ii, jj]/eps
-                vals[ii, jj] = c3*xe**3 + c4*xe**4 + c5*xe**5
-            elif (x[ii, jj] >= 0):
+            if x[ii, jj] < 0 and x[ii, jj] > -eps:
+                xe = -x[ii, jj] / eps
+                vals[ii, jj] = c3 * xe**3 + c4 * xe**4 + c5 * xe**5
+            elif x[ii, jj] >= 0:
                 vals[ii, jj] = 0
     return vals
 
 
 @njit(cache=True)
 def numba_smooth_left_heaviside_function_first_derivative_quintic(
-        eps, shift, x):
+    eps, shift, x
+):
     assert shift == 0  # need to employ chain rule to accound for shift
-    x = x+shift
+    x = x + shift
     vals = np.zeros_like(x)
     c3, c4, c5 = 10, -15, 6
     for ii in range(x.shape[0]):
         for jj in range(x.shape[1]):
-            if (x[ii, jj] < 0 and x[ii, jj] > -eps):
-                xe = -x[ii, jj]/eps
-                vals[ii, jj] = -(3*c3*xe**2 + 4*c4*xe**3 + 5*c5*xe**4)/eps
+            if x[ii, jj] < 0 and x[ii, jj] > -eps:
+                xe = -x[ii, jj] / eps
+                vals[ii, jj] = (
+                    -(3 * c3 * xe**2 + 4 * c4 * xe**3 + 5 * c5 * xe**4) / eps
+                )
     return vals
 
 
 @njit(cache=True)
 def numba_smooth_left_heaviside_function_second_derivative_quintic(
-        eps, shift, x):
+    eps, shift, x
+):
     assert shift == 0  # need to employ chain rule to accound for shift
-    x = x+shift
+    x = x + shift
     vals = np.zeros_like(x)
     c3, c4, c5 = 10, -15, 6
     for ii in range(x.shape[0]):
         for jj in range(x.shape[1]):
-            if (x[ii, jj] < 0 and x[ii, jj] > -eps):
-                xe = -x[ii, jj]/eps
-                vals[ii, jj] = (6*c3*xe + 12*c4*xe**2 + 20*c5*xe**3)/eps**2
+            if x[ii, jj] < 0 and x[ii, jj] > -eps:
+                xe = -x[ii, jj] / eps
+                vals[ii, jj] = (
+                    6 * c3 * xe + 12 * c4 * xe**2 + 20 * c5 * xe**3
+                ) / eps**2
     return vals
 
 
 def compute_quartic_spline_of_right_heaviside_function():
     r"""
-    Get spline approximation of step function enforcing all derivatives 
+    Get spline approximation of step function enforcing all derivatives
     at 0 and 1 are zero
     """
     from scipy.interpolate import BPoly
-    poly = BPoly.from_derivatives(
-        [0, 1], [[0, 0, 0, 0], [1, 0, 0, 0]], orders=[4])
-    poly = BPoly.from_derivatives([0, 1], [[0, 0, 0], [1, 0, 0]], orders=[3])
-    def basis(x, p): return x[:, np.newaxis]**np.arange(p+1)[np.newaxis, :]
 
-    interp_nodes = (-np.cos(np.linspace(0, np.pi, 5))+1)/2
+    poly = BPoly.from_derivatives(
+        [0, 1], [[0, 0, 0, 0], [1, 0, 0, 0]], orders=[4]
+    )
+    poly = BPoly.from_derivatives([0, 1], [[0, 0, 0], [1, 0, 0]], orders=[3])
+
+    def basis(x, p):
+        return x[:, np.newaxis] ** np.arange(p + 1)[np.newaxis, :]
+
+    interp_nodes = (-np.cos(np.linspace(0, np.pi, 5)) + 1) / 2
     basis_mat = basis(interp_nodes, 4)
     coef = np.linalg.inv(basis_mat).dot(poly(interp_nodes))
     print(coef)
     xx = np.linspace(0, 1, 101)
-    print(np.absolute(basis(xx, 4).dot(coef)-poly(xx)).max())
+    print(np.absolute(basis(xx, 4).dot(coef) - poly(xx)).max())
     # plt.plot(xx,basis(xx,4).dot(coef))
     # plt.plot(xx,poly(xx))
 
     eps = 0.1
     a, b = 0, eps
     xx = np.linspace(a, b, 101)
-    plt.plot(xx, basis((xx-a)/(b-a), 4).dot(coef))
-    def f(x): return 6*((xx)/eps)**2-8*((xx)/eps)**3+3*((xx)/eps)**4
+    plt.plot(xx, basis((xx - a) / (b - a), 4).dot(coef))
+
+    def f(x):
+        return (
+            6 * ((xx) / eps) ** 2
+            - 8 * ((xx) / eps) ** 3
+            + 3 * ((xx) / eps) ** 4
+        )
+
     plt.plot(xx, f(xx))
     plt.show()
 
@@ -197,7 +232,51 @@ def linear_model_jac(basis_matrix, coef):
     return basis_matrix
 
 
-class FSDOptProblem(object):
+class FSDObjective(SingleSampleModel):
+    def __init__(self):
+        super().__init__()
+        self._jacobian_implemented = True
+        self._apply_hessian_implemented = True
+
+    def nqoi(self) -> int:
+        return 1
+
+    def set_opt_problem(self, opt_prob: "FSDOptProblem"):
+        self._opt_prob = opt_prob
+
+    def _evaluate(self, sample: Array) -> Array:
+        return self._bkd.atleast2d(self._opt_prob.objective_fun(sample[:, 0]))
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._opt_prob.objective_jac(sample[:, 0])[None, :]
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        return self._opt_prob.objective_hessp(sample[:, 0], vec[:, 0])
+
+
+class FSDConstraint(Constraint):
+    def __init__(self, keep_feasible=False):
+        super().__init__(keep_feasible=keep_feasible)
+        self._jacobian_implemented = True
+        self._weighted_hessian_implemented = True
+
+    def set_opt_problem(self, opt_prob: "FSDOptProblem"):
+        self._opt_prob = opt_prob
+
+    def _values(self, sample: Array) -> Array:
+        return self._opt_prob.constraint_fun(sample[:, 0])[None, :]
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._opt_prob.constraint_jac(sample[:, 0])
+
+    def _weighted_hessian(self, sample: Array, wvec: Array) -> Array:
+        return self._opt_prob.constraint_hess(sample[:, 0], wvec[:, 0])
+
+    def nqoi(self) -> int:
+        return self._opt_prob.eta_indices.shape[0]
+
+
+class FSDOptProblem:
     r"""
     Optimization problem used to solve least squares regression with first
     order dominance constraints.
@@ -212,7 +291,7 @@ class FSDOptProblem(object):
 
         `fun(coef) -> np.ndarray(nvalues)`
 
-        The approximation evaluated at the training data with the coefficient 
+        The approximation evaluated at the training data with the coefficient
         values `coef np.ndarray (ncoef)`
 
     jac : callable
@@ -220,7 +299,7 @@ class FSDOptProblem(object):
 
         `jac(coef) -> np.ndarray(ncoef)`
 
-        The Jacobian of the approximation evaluated at the training data with 
+        The Jacobian of the approximation evaluated at the training data with
         the coefficient values `coef np.ndarray (ncoef)`
 
     hessp : callable
@@ -228,7 +307,7 @@ class FSDOptProblem(object):
 
         `hessp(coef, v) -> np.ndarray(ncoef)`
 
-        The Hessian of the approximation applied to a vector 
+        The Hessian of the approximation applied to a vector
         `v np.ndarray (ncoef)`
 
     eta_indices : np.ndarray (neta)
@@ -254,8 +333,18 @@ class FSDOptProblem(object):
         The number of unknowns of the approximation `fun`
     """
 
-    def __init__(self, values, fun, jac, hessp, eta_indices, probabilities,
-                 smoother_type, eps, ncoef):
+    def __init__(
+        self,
+        values,
+        fun,
+        jac,
+        hessp,
+        eta_indices,
+        probabilities,
+        smoother_type,
+        eps,
+        ncoef,
+    ):
         self.values = values
         self.values = self.values.squeeze()
         assert self.values.ndim == 1
@@ -274,54 +363,61 @@ class FSDOptProblem(object):
         self.eps = eps
 
         smoothers = {}
-        smoothers['quartic'] = [
+        smoothers["quartic"] = [
             numba_smooth_left_heaviside_function_quartic,
             numba_smooth_left_heaviside_function_first_derivative_quartic,
-            numba_smooth_left_heaviside_function_second_derivative_quartic]
-        smoothers['quintic'] = [
+            numba_smooth_left_heaviside_function_second_derivative_quartic,
+        ]
+        smoothers["quintic"] = [
             numba_smooth_left_heaviside_function_quintic,
             numba_smooth_left_heaviside_function_first_derivative_quintic,
-            numba_smooth_left_heaviside_function_second_derivative_quintic]
-        smoothers['log'] = [
+            numba_smooth_left_heaviside_function_second_derivative_quintic,
+        ]
+        smoothers["log"] = [
             smooth_left_heaviside_function_log,
             smooth_left_heaviside_function_first_derivative_log,
-            smooth_left_heaviside_function_second_derivative_log]
+            smooth_left_heaviside_function_second_derivative_log,
+        ]
 
         if smoother_type not in smoothers:
-            raise Exception(f'Smoother {smoother_type} not found')
+            raise Exception(f"Smoother {smoother_type} not found")
 
-        self.smooth_fun, self.smooth_jac, self.smooth_hess = \
-            [partial(f, self.eps, -self.eps) for f in smoothers[smoother_type]]
+        self.smooth_fun, self.smooth_jac, self.smooth_hess = [
+            partial(f, self.eps, -self.eps) for f in smoothers[smoother_type]
+        ]
 
     def objective_fun(self, x):
         __approx_values = self.fun(x)
         assert __approx_values.shape == self.values.shape
-        val = 0.5*np.sum(self.probabilities*(self.values-__approx_values)**2)
+        val = 0.5 * np.sum(
+            self.probabilities * (self.values - __approx_values) ** 2
+        )
         assert np.isfinite(val)
         return val
 
     def objective_jac(self, x):
-        coef = x[:self.ncoef]
+        coef = x[: self.ncoef]
         grad = np.zeros((x.shape[0]))
         # TODO reuse __approx_values from objective_fun
         __approx_values = self.fun(coef)
         __jac = self.jac(coef)
         assert __jac.shape == (self.values.shape[0], self.ncoef)
-        grad[:self.ncoef] = - \
-            __jac.T.dot(self.probabilities*(self.values-__approx_values))
+        grad[: self.ncoef] = -__jac.T.dot(
+            self.probabilities * (self.values - __approx_values)
+        )
         assert np.all(np.isfinite(grad))
         return grad
 
     def objective_hessp(self, x, v):
         # TODO reuse __jac from objective_grad
-        coef = x[:self.ncoef]
+        coef = x[: self.ncoef]
         res = np.zeros((x.shape[0]))
         __jac = self.jac(coef)
-        res = __jac.T.dot((self.probabilities[:, None]*__jac).dot(v))
+        res = __jac.T.dot((self.probabilities[:, None] * __jac).dot(v))
         if self.hessp is None:
             return res
         else:
-            msg = 'support for nonzero self.hess is not currently supported'
+            msg = "support for nonzero self.hess is not currently supported"
             raise Exception(msg)
 
     def constraint_fun(self, x):
@@ -348,14 +444,16 @@ class FSDOptProblem(object):
             The Jacobian of the constraints
         """
 
-        coef = x[:self.ncoef]
+        coef = x[: self.ncoef]
         __approx_values = self.fun(coef)
         assert __approx_values.shape == self.values.shape
         tmp1 = self.smooth_fun(
-            __approx_values[:, None]-__approx_values[None, self.eta_indices])
+            __approx_values[:, None] - __approx_values[None, self.eta_indices]
+        )
         tmp2 = self.smooth_fun(
-            self.values[:, None]-__approx_values[None, self.eta_indices])
-        val = self.probabilities.dot(tmp1-tmp2)
+            self.values[:, None] - __approx_values[None, self.eta_indices]
+        )
+        val = self.probabilities.dot(tmp1 - tmp2)
         assert np.all(np.isfinite(val))
         return val
 
@@ -384,19 +482,31 @@ class FSDOptProblem(object):
         jac : np.ndarray(nconstraints, ncoef)
             The Jacobian of the constraints
         """
-        coef = x[:self.ncoef]
+        coef = x[: self.ncoef]
         __approx_values = self.fun(coef)
         __jac = self.jac(coef)
-        hder1 = self.smooth_jac(
-            (__approx_values[None, :] -
-             __approx_values[self.eta_indices, None]))*self.probabilities
-        fder1 = (__jac[None, :, :]-__jac[self.eta_indices, None, :])
-        con_jac = np.sum(hder1[:, :, None]*fder1, axis=1)
-        hder2 = self.smooth_jac(
-            (self.values[None, :]-__approx_values[self.eta_indices, None])) *\
-            self.probabilities
-        fder2 = 0*__jac[None, :, :]-__jac[self.eta_indices, None, :]
-        con_jac -= np.sum(hder2[:, :, None]*fder2, axis=1)
+        hder1 = (
+            self.smooth_jac(
+                (
+                    __approx_values[None, :]
+                    - __approx_values[self.eta_indices, None]
+                )
+            )
+            * self.probabilities
+        )
+        fder1 = __jac[None, :, :] - __jac[self.eta_indices, None, :]
+        con_jac = np.sum(hder1[:, :, None] * fder1, axis=1)
+        hder2 = (
+            self.smooth_jac(
+                (
+                    self.values[None, :]
+                    - __approx_values[self.eta_indices, None]
+                )
+            )
+            * self.probabilities
+        )
+        fder2 = 0 * __jac[None, :, :] - __jac[self.eta_indices, None, :]
+        con_jac -= np.sum(hder2[:, :, None] * fder2, axis=1)
 
         # con_jac2 = np.zeros((self.values.shape[0],self.ncoef))
         # for ii in range(self.values.shape[0]):
@@ -443,26 +553,40 @@ class FSDOptProblem(object):
         """
         # only linear approximations currently supported
         assert self.hessp is None
-        coef = x[:self.ncoef]
+        coef = x[: self.ncoef]
         # Todo store the next two values in and reuse
         __approx_values = self.fun(coef)
         __jac = self.jac(coef)
-        hder1 = self.smooth_hess(
-            (__approx_values[None, :] -
-             __approx_values[self.eta_indices, None]))*self.probabilities
-        hder2 = self.smooth_hess(
-            (self.values[None, :]-__approx_values[self.eta_indices, None])) *\
-            self.probabilities
+        hder1 = (
+            self.smooth_hess(
+                (
+                    __approx_values[None, :]
+                    - __approx_values[self.eta_indices, None]
+                )
+            )
+            * self.probabilities
+        )
+        hder2 = (
+            self.smooth_hess(
+                (
+                    self.values[None, :]
+                    - __approx_values[self.eta_indices, None]
+                )
+            )
+            * self.probabilities
+        )
         # Todo fder1 and fder2 can be stored when computing Jacobian and
         # reused
-        fder1 = (__jac[None, :, :]-__jac[self.eta_indices, None, :])
-        fder2 = 0*__jac[None, :, :]-__jac[self.eta_indices, None, :]
+        fder1 = __jac[None, :, :] - __jac[self.eta_indices, None, :]
+        fder2 = 0 * __jac[None, :, :] - __jac[self.eta_indices, None, :]
         hessian = np.zeros((self.ncoef, self.ncoef))
         for ii in range(lmult.shape[0]):
-            hessian += lmult[ii]*(
-                hder1[ii, :, None]*fder1[ii, :]).T.dot(fder1[ii, :])
-            hessian -= lmult[ii]*(
-                hder2[ii, :, None]*fder2[ii, :]).T.dot(fder2[ii, :])
+            hessian += lmult[ii] * (hder1[ii, :, None] * fder1[ii, :]).T.dot(
+                fder1[ii, :]
+            )
+            hessian -= lmult[ii] * (hder2[ii, :, None] * fder2[ii, :]).T.dot(
+                fder2[ii, :]
+            )
             # for jj in range(self.ncoef):
             #     for kk in range(jj, self.ncoef):
             #         hessian[jj, kk] += lmult[ii]*np.sum(
@@ -475,18 +599,17 @@ class FSDOptProblem(object):
         return hessian
 
     def get_unknowns_bounds(self):
-        lb = -np.inf*np.ones(self.ncoef)
-        ub = np.inf*np.ones(self.ncoef)
-        bounds = Bounds(lb, ub)
-        return bounds
+        lb = -np.inf * np.ones(self.ncoef)
+        ub = np.inf * np.ones(self.ncoef)
+        return np.stack((lb, ub), axis=1)
 
     def get_constraint_bounds(self):
         nconstraints = self.eta_indices.shape[0]
-        lb = -np.inf*np.ones(nconstraints)
+        lb = -np.inf * np.ones(nconstraints)
         ub = np.zeros(nconstraints)
-        return lb, ub
+        return np.stack((lb, ub), axis=1)
 
-    def solve(self, x0, optim_options={}, method=None):
+    def solve(self, x0, optim_options={}, method="trust-constr"):
         r"""
         Returns
         -------
@@ -496,64 +619,68 @@ class FSDOptProblem(object):
             flag indicating if the optimizer exited successfully and message
             which describes the cause of the termination.
         """
-        x_grad = x0  # use rol to check_gradients
-        if method is None:
-            if has_ROL:
-                method = 'rol-trust-constr'
-            else:
-                method = 'trust-constr'
-        if method == 'trust_constr':
-            x_grad = None
+        # x_grad = x0  # use rol to check_gradients
+        # if method == 'trust_constr':
+        #     x_grad = None
 
-        bounds = self.get_unknowns_bounds()
-
-        keep_feasible = True
-        constr_lb, constr_ub = self.get_constraint_bounds()
-        constraint = NonlinearConstraint(
-            self.constraint_fun, constr_lb, constr_ub,
-            jac=self.constraint_jac, hess=self.constraint_hess,
-            keep_feasible=keep_feasible)
-        res = pyapprox_minimize(
-            self.objective_fun, x0, method=method,
-            jac=self.objective_jac, hessp=self.objective_hessp,
-            constraints=[constraint], bounds=bounds, options=optim_options,
-            x_grad=x_grad)
-
-        return res
+        objective = FSDObjective()
+        objective.set_opt_problem(self)
+        constraint = FSDConstraint(keep_feasible=True)
+        constraint.set_bounds(self.get_constraint_bounds())
+        constraint.set_opt_problem(self)
+        opts = optim_options.copy()
+        opts["method"] = method
+        optimizer = ScipyConstrainedOptimizer(
+            objective,
+            [constraint],
+            self.get_unknowns_bounds(),
+            opts=opts,
+        )
+        return optimizer.minimize(x0)
 
     def debug_plot(self, coef, samples):
         approx_values = self.fun(coef)
         import matplotlib.pyplot as plt
+
         if samples.shape[0] == 1:
-            fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+            fig, axs = plt.subplots(1, 2, figsize=(2 * 8, 6))
             xx = samples
-            axs[1].plot(xx, approx_values, 'o-')
-            axs[1].plot(xx, self.values, 's-')
+            axs[1].plot(xx, approx_values, "o-")
+            axs[1].plot(xx, self.values, "s-")
         else:
             fig, axs = plt.subplots(1, 1, figsize=(8, 6))
             axs = [axs]
-        yy = np.linspace(min(self.values.min(), approx_values.min()),
-                         max(self.values.max(), approx_values.max()), 101)
+        yy = np.linspace(
+            min(self.values.min(), approx_values.min()),
+            max(self.values.max(), approx_values.max()),
+            101,
+        )
 
-        def cdf1(zz): return self.probabilities.dot(
-            self.smooth_fun(approx_values[:, None]-zz[None, :]))
+        def cdf1(zz):
+            return self.probabilities.dot(
+                self.smooth_fun(approx_values[:, None] - zz[None, :])
+            )
 
-        def cdf2(zz): return self.probabilities.dot(
-            self.smooth_fun(self.values[:, None]-zz[None, :]))
+        def cdf2(zz):
+            return self.probabilities.dot(
+                self.smooth_fun(self.values[:, None] - zz[None, :])
+            )
 
         # from pyapprox.variables.density import EmpiricalCDF
         # cdf3 = EmpiricalCDF(self.values)
-        def cdf3(zz): return self.probabilities.dot(
-            np.heaviside(-(self.values[:, None]-zz[None, :]), 1))
+        def cdf3(zz):
+            return self.probabilities.dot(
+                np.heaviside(-(self.values[:, None] - zz[None, :]), 1)
+            )
 
-        color = next(axs[0]._get_lines.prop_cycler)['color']
-        axs[0].plot(yy, cdf1(yy), '-', c=color, label='approx-approx')
-        axs[0].plot(approx_values, cdf1(approx_values), 'o', c=color)
-        color = next(axs[0]._get_lines.prop_cycler)['color']
-        axs[0].plot(yy, cdf2(yy), '-', c=color, label='values-approx')
-        axs[0].plot(approx_values, cdf2(approx_values), 's', c=color)
-        #color = next(axs[0]._get_lines.prop_cycler)['color']
-        #axs[0].plot(yy, cdf3(yy), '--', c=color)
+        color = next(axs[0]._get_lines.prop_cycler)["color"]
+        axs[0].plot(yy, cdf1(yy), "-", c=color, label="approx-approx")
+        axs[0].plot(approx_values, cdf1(approx_values), "o", c=color)
+        color = next(axs[0]._get_lines.prop_cycler)["color"]
+        axs[0].plot(yy, cdf2(yy), "-", c=color, label="values-approx")
+        axs[0].plot(approx_values, cdf2(approx_values), "s", c=color)
+        # color = next(axs[0]._get_lines.prop_cycler)['color']
+        # axs[0].plot(yy, cdf3(yy), '--', c=color)
         # print(approx_values[np.where((cdf2(approx_values[self.eta_indices])-cdf3(approx_values[self.eta_indices]))>0)])
         # print(approx_values[np.where((cdf1(approx_values[self.eta_indices])-cdf3(approx_values[self.eta_indices]))>0)])
         plt.legend()
@@ -562,9 +689,18 @@ class FSDOptProblem(object):
 
 
 def solve_FSD_constrained_least_squares_smooth(
-        samples, values, eval_basis_matrix, eta_indices=None,
-        probabilities=None, eps=1e-1, optim_options={}, return_full=False,
-        method='trust-constr', smoother_type='log', scale_data=False):
+    samples,
+    values,
+    eval_basis_matrix,
+    eta_indices=None,
+    probabilities=None,
+    eps=1e-1,
+    optim_options={},
+    return_full=False,
+    method="trust-constr",
+    smoother_type="log",
+    scale_data=False,
+):
     r"""
     Solve first order stochastic dominance (FSD) constrained least squares
 
@@ -630,7 +766,7 @@ def solve_FSD_constrained_least_squares_smooth(
 
     num_samples = samples.shape[1]
     if probabilities is None:
-        probabilities = np.ones((num_samples))/num_samples
+        probabilities = np.ones((num_samples)) / num_samples
 
     if eta_indices is None:
         eta_indices = np.arange(num_samples)
@@ -639,22 +775,30 @@ def solve_FSD_constrained_least_squares_smooth(
 
     fun = partial(linear_model_fun, basis_matrix)
     jac = partial(linear_model_jac, basis_matrix)
-    probabilities = np.ones((num_samples))/num_samples
+    probabilities = np.ones((num_samples)) / num_samples
     ncoef = basis_matrix.shape[1]
 
     if scale_data is True:
         values_std = values.std()
     else:
         values_std = 1
-    scaled_values = values.copy()/values_std
+    scaled_values = values.copy() / values_std
 
     x0 = np.linalg.lstsq(basis_matrix, scaled_values, rcond=None)[0]
-    residual = scaled_values-basis_matrix.dot(x0)
-    x0[0] += max(0, residual.max()+eps)
+    residual = scaled_values - basis_matrix.dot(x0)
+    x0[0] += max(0, residual.max() + eps)
 
     fsd_opt_problem = FSDOptProblem(
-        scaled_values, fun, jac, None, eta_indices, probabilities,
-        smoother_type, eps, ncoef)
+        scaled_values,
+        fun,
+        jac,
+        None,
+        eta_indices,
+        probabilities,
+        smoother_type,
+        eps,
+        ncoef,
+    )
     # print(fsd_opt_problem.constraint_fun(x0))
 
     # fsd_opt_problem.debug_plot(x0, samples[0, :])
@@ -664,7 +808,7 @@ def solve_FSD_constrained_least_squares_smooth(
 
     # fsd_opt_problem.debug_plot(result.x, samples[0, :])
 
-    coef = result.x*values_std
+    coef = result.x[:, 0] * values_std
 
     # xx = np.linspace(-1.5,2,100)
     # import matplotlib.pyplot as plt

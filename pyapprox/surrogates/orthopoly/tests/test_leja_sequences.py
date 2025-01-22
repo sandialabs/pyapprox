@@ -207,7 +207,7 @@ class TestLeja1DSequences(unittest.TestCase):
 
         leja_sequence = get_christoffel_leja_sequence_1d(
             max_nsamples, initial_points, [-1, 1], basis_fun,
-            {'gtol': 1e-8, 'verbose': False}, callback=None)
+            {'ftol': 1e-8}, callback=None)
 
         level = 3
         __basis_fun = partial(basis_fun, nmax=max_nsamples-1, deriv_order=0)
@@ -255,7 +255,7 @@ class TestLeja1DSequences(unittest.TestCase):
 
         leja_sequence = get_christoffel_leja_sequence_1d(
             max_nsamples, initial_points, [-np.inf, np.inf], basis_fun,
-            {'gtol': 1e-8, 'verbose': False, 'iprint': 2,
+            {'ftol': 1e-8, 'iprint': 2,
              "artificial_bounds": (-1e2, 1e2)}, callback=None)
 
         # compare to lu based leja samples
@@ -354,7 +354,7 @@ class TestLeja1DSequences(unittest.TestCase):
         leja_sequence = get_pdf_weighted_leja_sequence_1d(
             max_nsamples, initial_points, [-np.inf, np.inf], basis_fun,
             pdf, pdf_jac,
-            {'gtol': 1e-8, 'verbose': False}, callback=None)
+            {'ftol': 1e-8}, callback=None)
 
         # compare to lu based leja samples
         # given the same set of initial samples the next sample chosen
