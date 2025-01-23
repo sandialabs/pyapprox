@@ -550,4 +550,3 @@ class AdjointSolver:
         return "{0}(functional={1})".format(
             self.__class__.__name__, self._functional
         )
-    

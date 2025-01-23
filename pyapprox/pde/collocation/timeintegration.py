@@ -635,7 +635,7 @@ class TransientMSEAdjointFunctional(TransientAdjointFunctional):
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         self._nstates = nstates
-        self._nparams = nresidual_params + 1
+        self._nparams = nresidual_params + self.nunique_functional_params()
         self._obs_state_indices = backend.array(
             [tup[0] for tup in obs_tuples], dtype=int
         )

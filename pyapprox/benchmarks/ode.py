@@ -1,5 +1,4 @@
 from scipy import stats
-import numpy as np
 
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
