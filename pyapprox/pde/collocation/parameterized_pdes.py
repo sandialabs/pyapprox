@@ -20,6 +20,7 @@ from pyapprox.pde.collocation.solvers import (
 from pyapprox.pde.collocation.newton import (
     NewtonSolver,
     ParameterizedNewtonResidualMixin,
+    AdjointFunctional,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunction,
@@ -97,7 +98,7 @@ class SteadyDiffusionModel(SteadyAdjointCollocationModel):
     def __init__(
         self,
         newton_solver: NewtonSolver = None,
-        functional: TransientAdjointFunctional = None,
+        functional: AdjointFunctional = None,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         super().__init__(newton_solver, functional, backend)
@@ -152,23 +153,31 @@ class SteadyDiffusionModel(SteadyAdjointCollocationModel):
 
 
 class ParameterizedDiffusionFixedAdvectionPhysics(
-    AdvectionDiffusionReactionPhysics
+        AdvectionDiffusionReactionPhysics, ParameterizedNewtonResidualMixin
 ):
     def __init__(
         self,
         forcing: ScalarFunction,
         velocity_field: VectorFunction,
+        nvars: int = 3,
+        sigma: float = 0.1,
+        lenscale: float = 0.1,
+        mean_field: float = -2.0,
     ):
+        self._nvars = nvars
+        self._sigma = sigma
+        self._mean_field = mean_field
+        self._lenscale = lenscale
         diffusion = self._setup_diffusion(forcing.basis())
         super().__init__(forcing, diffusion, None, velocity_field)
 
     def _setup_diffusion(self, basis: OrthogonalCoordinateCollocationBasis):
         return ScalarKLEFunction(
             basis,
-            0.1,
+            self._lenscale,
             self.nvars(),
-            sigma=0.1,
-            mean_field=ConstantScalarFunction(basis, -2.0, 1),
+            sigma=self._sigma,
+            mean_field=ConstantScalarFunction(basis, self._mean_field, 1),
             ninput_funs=basis.mesh().nphys_vars() + 1,
             use_log=True,
         )
@@ -178,7 +187,134 @@ class ParameterizedDiffusionFixedAdvectionPhysics(
         self._diffusion.set_param(param)
 
     def nvars(self) -> int:
-        return 3
+        return self._nvars
+
+
+class SteadyParameterizedDiffusionFixedAdvectionPhysics(
+    ParameterizedDiffusionFixedAdvectionPhysics,
+    SteadyPhysicsNewtonResidualMixin,
+):
+    pass
+
+
+class PyApproxPaperAdvectionDiffusionKLEInversionModel(
+    SteadyAdjointCollocationModel
+):
+    def __init__(
+        self,
+        nmesh_pts_1d: Tuple = [21, 21],
+        nvars: int = 3,
+        sigma: float = 0.1,
+        lenscale: float = 0.1,
+        mean_field: float = 0.0,
+        source_amp: float = 100.0,
+        source_loc: Tuple = [0.25, 0.75],
+        source_scale: float = 0.1,
+        newton_solver: NewtonSolver = None,
+        functional: AdjointFunctional = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._nmesh_pts_1d = backend.asarray(nmesh_pts_1d, dtype=int)
+        self._nvars = nvars
+        self._sigma = sigma
+        self._mean_field = mean_field
+        self._lenscale = lenscale
+        self._source_amp = source_amp
+        self._source_loc = backend.asarray(source_loc)
+        self._source_scale = source_scale
+        super().__init__(newton_solver, functional, backend)
+        self._jacobian_implemented = True
+        self._apply_hessian_implemented = self._bkd.hvp_implemented()
+
+    def nvars(self) -> int:
+        return self._physics.nvars()
+
+    def setup_physics(self):
+        self._nominal_val = 0.0
+        self.setup_velocity()
+        self.setup_forcing()
+        self._physics = SteadyParameterizedDiffusionFixedAdvectionPhysics(
+            self._forcing,
+            self._vel_field,
+            self._nvars,
+            self._sigma,
+            self._lenscale,
+            self._mean_field,
+        )
+
+    def setup_basis(self):
+        Lx, Ly = 1, 1
+        bounds = self._bkd.array([0, Lx, 0, Ly])
+        transform = ScaleAndTranslationTransform2D(
+            [-1, 1, -1, 1], bounds, self._bkd
+        )
+        mesh = ChebyshevCollocationMesh2D(self._nmesh_pts_1d, transform)
+        self._basis = ChebyshevCollocationBasis2D(mesh)
+
+    def setup_velocity(self):
+        self._vel_field = VectorFunctionFromCallable(
+            self._basis,
+            1,
+            self._basis.nphys_vars(),
+            # rotates in a circle
+            # lambda x: 10 * self._bkd.stack((-(2*x[1]-1), 2*x[0]-1, axis=1))
+            lambda x: self._bkd.stack(
+                (self._bkd.ones(x.shape[1]), self._bkd.zeros(x.shape[1])),
+                axis=1,
+            ),
+        )
+
+    def _gaussian_forcing(self, xx: Array) -> Array:
+        return (
+            self._source_amp
+            * self._bkd.exp(
+                -self._bkd.sum(
+                    (xx - self._source_loc[:, None]) ** 2
+                    / self._source_scale**2,
+                    axis=0,
+                )
+            )
+        )
+
+    def setup_forcing(self):
+        self._forcing = ScalarFunctionFromCallable(
+            self._basis,
+            self._gaussian_forcing,
+            ninput_funs=1,
+        )
+
+    def get_initial_iterate(self) -> ScalarFunction:
+        return ConstantScalarFunction(
+            self._basis, self._nominal_val, ninput_funs=1
+        ).get_flattened_values()
+
+    def setup_boundaries(self):
+        # make flux depend on solution's value relative to a nominal_val
+        # beta * flux(u(x)) @ n = u(x) - nominal_val
+        # beta * flux(u(x)) @ n - u(x) = nominal_val
+        # beta * flux(u(x)) @ n + alpha * u(x) = nominal_val, alpha = -1
+
+        # Conservative rules are written as
+        # du/dt = -div(F) + g for flux F.
+        bndrys = []
+        alpha, beta = 0.1, 1.0
+        for (
+            bndry_name,
+            mesh_bndry,
+        ) in (
+            self._basis.mesh().get_boundaries().items()
+        ):
+            bndrys.append(
+                ConstantRobinBoundary(
+                    mesh_bndry, self._nominal_val, alpha, beta, 0, 0
+                )
+            )
+        self._physics.set_boundaries(bndrys)
+
+    def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
+        self._adjoint_solver.set_initial_iterate(self.get_initial_iterate())
+        super().forward_solve(sample)
+        return self._sols
 
 
 class TransientParameterizedDiffusionFixedAdvectionPhysics(
@@ -199,8 +335,15 @@ class TransientDiffusionAdvectionModel(TransientAdjointCollocationModel):
         functional: TransientAdjointFunctional = None,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(init_time, final_time, deltat, time_residual_cls, newton_solver,
-                         functional, backend)
+        super().__init__(
+            init_time,
+            final_time,
+            deltat,
+            time_residual_cls,
+            newton_solver,
+            functional,
+            backend,
+        )
         self._jacobian_implemented = True
 
     def nvars(self) -> int:
@@ -601,7 +744,7 @@ class ParameterizedShallowShelfVelocityPhysics(
     def _param_jacobian(self, sol: Array) -> Array:
         # use chain rule for exp(g(p)) = exp(g(p))g'(p)
         friction_vals = self._friction.get_values()[:, None]
-        eig_vecs = self._friction._kle._normalized_eig_vecs
+        eig_vecs = self._friction._kle._eig_vecs
         jac = self._bkd.vstack(
             (friction_vals * eig_vecs, friction_vals * eig_vecs)
         )
@@ -621,7 +764,7 @@ class ParameterizedShallowShelfVelocityPhysics(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
     ) -> Array:
         friction = self._friction.get_values()
-        eigvecs = self._friction._kle._normalized_eig_vecs
+        eigvecs = self._friction._kle._eig_vecs
         # stack kle quantities for each component
         eigvecs_stack = self._bkd.vstack((eigvecs, eigvecs))
         friction_stack = self._bkd.hstack((friction, friction))
@@ -642,7 +785,7 @@ class ParameterizedShallowShelfVelocityPhysics(
         self, fwd_sol: Array, adj_sol: Array, wvec: Array
     ) -> Array:
         friction = self._friction.get_values()
-        eigvecs = self._friction._kle._normalized_eig_vecs
+        eigvecs = self._friction._kle._eig_vecs
         eigvecs_stack = self._bkd.vstack((eigvecs, eigvecs))
         friction_stack = self._bkd.hstack((friction, friction))
         # must set jac to zero on boundaries since
@@ -656,7 +799,7 @@ class ParameterizedShallowShelfVelocityPhysics(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
     ) -> Array:
         friction = self._friction.get_values()
-        eigvecs = self._friction._kle._normalized_eig_vecs
+        eigvecs = self._friction._kle._eig_vecs
         eigvecs_stack = self._bkd.vstack((eigvecs, eigvecs))
         friction_stack = self._bkd.hstack((friction, friction))
         # must set jac to zero on boundaries since

@@ -320,18 +320,22 @@ class Functional(ABC):
 
 
 class AdjointFunctional(Functional):
-    def _qoi_sol_jacobian(self, sol: Array) -> Array:
+    def _qoi_state_jacobian(self, sol: Array) -> Array:
         if not self._bkd.jacobian_implemented():
             raise NotImplementedError
         return self._bkd.jacobian(self._value, sol)
 
-    def qoi_sol_jacobian(self, sol: Array) -> Array:
+    def qoi_state_jacobian(self, sol: Array) -> Array:
         """Gradient of qoi with respect to solution"""
         if sol.ndim != 1 or sol.shape[0] != self.nstates():
             raise ValueError("sol must be a 1d Array")
-        jac = self._qoi_sol_jacobian(sol)
+        jac = self._qoi_state_jacobian(sol)
         if jac.shape != (self.nqoi(), sol.shape[0]):
-            raise RuntimeError("jac has the wrong shape")
+            raise RuntimeError(
+                "jac shape {0} should be {1}".format(
+                    jac.shape, (self.nqoi(), sol.shape[0])
+                )
+            )
         return jac
 
     def _qoi_param_wrapper(self, sol: Array, param: Array) -> Array:
@@ -464,7 +468,7 @@ class AdjointSolver:
                 "Adjoint can only be applied to a scalar Functional"
             )
         self._drdy = self._residual.jacobian(self._fwd_sol)
-        dqdy = self._functional.qoi_sol_jacobian(self._fwd_sol)
+        dqdy = self._functional.qoi_state_jacobian(self._fwd_sol)
         self._adj_sol = self._bkd.solve(self._drdy.T, -dqdy[0])
         self._adj_sol_param = self._bkd.copy(self._param)
         return self._adj_sol
@@ -484,7 +488,7 @@ class AdjointSolver:
         # useful when then number of QoI is commensurate with the
         # number of parameters
         sens = self.solve_sensitivities()
-        dqdy = self._functional.qoi_sol_jacobian(self._fwd_sol)
+        dqdy = self._functional.qoi_state_jacobian(self._fwd_sol)
         dqdp = self._functional.qoi_param_jacobian(self._fwd_sol)
         return dqdy @ sens + dqdp
 

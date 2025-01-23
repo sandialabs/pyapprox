@@ -1,14 +1,16 @@
 from typing import List, Tuple
 
+import numpy as np
 from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.interface.model import Model
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.benchmarks.base import MultiModelBenchmark
+from pyapprox.benchmarks.base import SingleModelBenchmark
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.collocation.adjoint_models import AdjointFunctional
-
+from pyapprox.pde.collocation.parameterized_pdes import (
+    PyApproxPaperAdvectionDiffusionKLEInversionModel
+)
 
 class SteadyMSEAdjointFunctional(AdjointFunctional):
     def __init__(
@@ -28,12 +30,14 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
     def nunique_functional_params(self) -> int:
         return 0
 
+    def set_observations(self, observations: Array):
+        self._obs = observations
+
     def observations_from_solution(self, sol: Array) -> Array:
         return sol[self._obs_state_indices]
 
     def set_param(self, param: Array):
         self._param = param
-        self._sigma = self._unique_functional_params(self._param)[0]
 
     def nqoi(self) -> int:
         return 1
@@ -49,59 +53,72 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
         dqdu[self._obs_state_indices] = (
             2 * (sol[self._obs_state_indices] - self._obs) / self._sigma**2
         )
-        return dqdu
+        return dqdu[None, :]
 
     def _qoi_param_jacobian(self, sol: Array) -> Array:
         return self._bkd.zeros((self.nparams(),))
 
+    def nstates(self) -> int:
+        return self._nstates
+
+    def nparams(self) -> int:
+        return self._nparams
+
 
 class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
-    MultiModelBenchmark
+    SingleModelBenchmark
 ):
     def __init__(
         self, nmodels: int = 5, backend: LinAlgMixin = NumpyLinAlgMixin
     ):
         self._nmodels = nmodels
-        self._source_loc = self._bkd.array([0.25, 0.75])
-        self._source_amp = 100
-        self._source_width = 0.1
-        self._kle_lscale = 0.5
-        self._kle_std = 1.0
+        self._mesh_npts_1d = backend.array([20, 20], dtype=int)
         self._kle_nvars = 3
+        self._kle_std = 1.0
+        self._kle_lenscale = 0.5
+        self._kle_mean_field = 0.
+        self._source_loc = backend.array([0.25, 0.75])
+        self._source_amp = 100.
+        self._source_scale = 0.1
         self._nobs = 3
         self._noise_stdev = 1.0
-        self._mesh_nterms = self._bkd.array([20, 20])
         super().__init__(backend)
         self._set_model_functional()
 
     def _set_model_functional(self):
-        ndof = self._bkd.prod(self._mesh_nterms)
+        ndof = self._bkd.prod(self._mesh_npts_1d)
         bndry_indices = self._bkd.hstack(
             [
-                self._bkd.arange(0, self._mesh_nterms[0]),
-                self._bkd.arange(ndof - self._mesh_nterms[0] - 2, ndof),
+                self._bkd.arange(0, self._mesh_npts_1d[0]),
+                self._bkd.arange(ndof - self._mesh_npts_1d[0] - 2, ndof),
             ]
             + [
-                jj * (self._mesh_nterms[0])
-                for jj in range(1, self._mesh_nterms[1] - 1)
+                jj * (self._mesh_npts_1d[0])
+                for jj in range(1, self._mesh_npts_1d[1] - 1)
             ]
             + [
-                jj * (self._mesh_nterms[0]) + self._mesh_nterms[0] - 1
-                for jj in range(1, self._mesh_nterms[1] - 1)
+                jj * (self._mesh_npts_1d[0]) + self._mesh_npts_1d[0] - 1
+                for jj in range(1, self._mesh_npts_1d[1] - 1)
             ]
         )
-        obs_indices = self._bkd.random.permutation(
-            self._bkd.delete(self._bkd.arange(ndof), bndry_indices)
+        obs_indices = self._bkd.asarray(
+            np.random.permutation(
+                self._bkd.delete(self._bkd.arange(ndof), bndry_indices)
+            ), dtype=int
         )[: self._nobs]
         self._functional = SteadyMSEAdjointFunctional(
-            ndof, self._kle_nvars, obs_indices, self._noise_stdev
+            ndof, self._kle_nvars, obs_indices, self._noise_stdev,
+            backend=self._bkd
         )
         # run model at true param
-        true_kle_params = self._variable.rvs(1)
-        self._model.set_param(true_kle_params)
-        sol = self._model.forward_solve()
+        self._true_kle_params = self._variable.rvs(1)
+        sol = self._model.forward_solve(self._true_kle_params)
         obs = self._functional.observations_from_solution(sol)
         self._functional.set_observations(obs)
+        self._model.set_functional(self._functional)
+
+    def true_params(self) -> Array:
+        return self._true_kle_params
 
     def nmodels(self) -> int:
         return self._nmodels
@@ -110,5 +127,20 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         return self._functional.nqoi()
 
     def _set_variable(self):
-        marginals = stats.normal([stats.norm(0, 1)]*self._kle_nvars)
-        self._variable = IndependentMarginalsVariable(marginals)
+        marginals = [stats.norm(0, 1)]*self._kle_nvars
+        self._variable = IndependentMarginalsVariable(
+            marginals, backend=self._bkd
+        )
+
+    def _set_model(self):
+        self._model = PyApproxPaperAdvectionDiffusionKLEInversionModel(
+            self._mesh_npts_1d,
+            self._kle_nvars,
+            self._kle_std,
+            self._kle_lenscale,
+            self._kle_mean_field,
+            self._source_amp,
+            self._source_loc,
+            self._source_scale,
+            backend=self._bkd,
+        )

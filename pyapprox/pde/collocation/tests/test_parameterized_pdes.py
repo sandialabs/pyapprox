@@ -56,7 +56,7 @@ class SumFunctional(AdjointFunctional):
     def nunique_functional_params(self) -> int:
         return 0
 
-    def _qoi_sol_jacobian(self, sol: Array) -> Array:
+    def _qoi_state_jacobian(self, sol: Array) -> Array:
         return self._bkd.ones((1, sol.shape[0]))
 
     def _qoi_param_jacobian(self, sol: Array) -> Array:

@@ -382,7 +382,8 @@ class AbstractKLE(ABC):
         coef : np.ndarray (nterms, nsamples)
             The coefficients of the KLE basis
         """
-        assert coef.ndim == 2
+        if coef.ndim != 2:
+            raise ValueError(f"{coef.ndim=} but should be 2")
         if coef.shape[0] != self._nterms:
             raise ValueError(
                 "coef.shape[0] {0} != self._nterms {1}".format(

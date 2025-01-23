@@ -145,7 +145,7 @@ class ScalarSumFunctionalAuto(AdjointFunctional):
 
 
 class ScalarSumFunctional(ScalarSumFunctionalAuto):
-    def _qoi_sol_jacobian(self, sol: Array) -> Array:
+    def _qoi_state_jacobian(self, sol: Array) -> Array:
         dqdu = 3 * sol**2
         return dqdu[None, :]
 
@@ -328,4 +328,3 @@ class TestTorchNewton(TestNewton, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-    
