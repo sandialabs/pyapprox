@@ -42,6 +42,9 @@ class SingleModelBenchmark(ABC):
         """Return the model"""
         return self._model
 
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
 
 class MultiModelBenchmark(ABC):
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
@@ -321,4 +324,10 @@ class ConstrainedUncertainOptimizationBenchmark(
         The position of the design variables in a combined
         uncertain + design variable array
         """
+        raise NotImplementedError
+
+
+class SingleModelBayesianInferenceBenchmark(SingleModelBenchmark):
+    @abstractmethod
+    def negloglike(self) -> Model:
         raise NotImplementedError

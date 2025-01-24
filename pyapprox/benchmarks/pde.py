@@ -1,3 +1,4 @@
+import math
 from typing import List, Tuple
 
 import numpy as np
@@ -5,12 +6,15 @@ from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.benchmarks.base import SingleModelBenchmark
+from pyapprox.benchmarks.base import SingleModelBayesianInferenceBenchmark
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.interface.model import Model
 from pyapprox.pde.collocation.adjoint_models import AdjointFunctional
 from pyapprox.pde.collocation.parameterized_pdes import (
-    PyApproxPaperAdvectionDiffusionKLEInversionModel
+    PyApproxPaperAdvectionDiffusionKLEInversionModel,
+    ScalarFunction,
 )
+
 
 class SteadyMSEAdjointFunctional(AdjointFunctional):
     def __init__(
@@ -18,7 +22,7 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
         nstates: int,
         nresidual_params: int,
         obs_state_indices: List[Tuple[int, Array]],
-        sigma: float = 1.,
+        sigma: float = 1.0,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         self._nstates = nstates
@@ -48,10 +52,13 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
 
     def _value(self, sol: Array) -> Array:
         pred_obs = self.observations_from_solution(sol)
-        return self._bkd.sum(
-            (pred_obs[:, None] - self._obs[:, None]) ** 2,
-            axis=0,
-        ) / self._sigma**2
+        return (
+            self._bkd.sum(
+                (pred_obs[:, None] - self._obs[:, None]) ** 2,
+                axis=0,
+            )
+            / self._sigma**2
+        )
 
     def _qoi_state_jacobian(self, sol: Array) -> Array:
         dqdu = self._bkd.zeros(sol.shape)
@@ -69,9 +76,30 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
     def nparams(self) -> int:
         return self._nparams
 
+    def nobservations(self):
+        return self._obs.shape[0]
+
+
+class SteadyGaussianNegLogLikelihoodAdjointFunctional(
+    SteadyMSEAdjointFunctional
+):
+    """
+    The negative log likelihood associated with I.I.D. Gaussian noise
+    """
+
+    def _value(self, sol: Array) -> Array:
+        return super()._value(
+            sol
+        ) / 2.0 + self.nobservations() / 2 * math.log(
+            2 * self._sigma**2 * math.pi
+        )
+
+    def _qoi_state_jacobian(self, sol: Array) -> Array:
+        return super()._qoi_state_jacobian(sol) / 2
+
 
 class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
-    SingleModelBenchmark
+    SingleModelBayesianInferenceBenchmark
 ):
     def __init__(
         self, nmodels: int = 5, backend: LinAlgMixin = NumpyLinAlgMixin
@@ -81,9 +109,9 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         self._kle_nvars = 3
         self._kle_std = 1.0
         self._kle_lenscale = 0.5
-        self._kle_mean_field = 0.
+        self._kle_mean_field = 0.0
         self._source_loc = backend.array([0.25, 0.75])
-        self._source_amp = 100.
+        self._source_amp = 100.0
         self._source_scale = 0.1
         self._nobs = 3
         self._noise_stdev = 1.0
@@ -109,11 +137,15 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         obs_indices = self._bkd.asarray(
             np.random.permutation(
                 self._bkd.delete(self._bkd.arange(ndof), bndry_indices)
-            ), dtype=int
+            ),
+            dtype=int,
         )[: self._nobs]
-        self._functional = SteadyMSEAdjointFunctional(
-            ndof, self._kle_nvars, obs_indices, self._noise_stdev,
-            backend=self._bkd
+        self._functional = SteadyGaussianNegLogLikelihoodAdjointFunctional(
+            ndof,
+            self._kle_nvars,
+            obs_indices,
+            self._noise_stdev,
+            backend=self._bkd,
         )
         # run model at true param
         self._true_kle_params = self._variable.rvs(1)
@@ -132,7 +164,7 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         return self._functional.nqoi()
 
     def _set_variable(self):
-        marginals = [stats.norm(0, 1)]*self._kle_nvars
+        marginals = [stats.norm(0, 1)] * self._kle_nvars
         self._variable = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
@@ -149,3 +181,9 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
             self._source_scale,
             backend=self._bkd,
         )
+
+    def diffusion_function(self) -> ScalarFunction:
+        return self._model._physics._diffusion
+
+    def negloglike(self) -> Model:
+        return self._model

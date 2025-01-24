@@ -1461,6 +1461,12 @@ class ScalarKLEFunction(ScalarFunction):
     def set_param(self, param):
         self.set_values(self._kle(param[:, None])[:, 0])
 
+    def normalized_eigenfunctions(self):
+        return [
+            ScalarFunction(self._basis, self._kle.normalized_eigenvectors()[:, ii])
+            for ii in range(self._kle.nvars())
+        ]
+
 
 def remove_3d_axis_panels(ax):
     ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))

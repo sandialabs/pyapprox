@@ -23,6 +23,10 @@ from pyapprox.benchmarks.ode import (
     HastingsEcologyBenchmark,
 )
 
+from pyapprox.benchmarks.pde import (
+    PyApproxPaperAdvectionDiffusionKLEInversionBenchmark
+)
+
 __all__ = [
     "IshigamiBenchmark",
     "OakleyBenchmark",
@@ -39,4 +43,5 @@ __all__ = [
     "LotkaVolterraBenchmark",
     "CoupledSpringsBenchmark",
     "HastingsEcologyBenchmark",
+    "PyApproxPaperAdvectionDiffusionKLEInversionBenchmark",
 ]

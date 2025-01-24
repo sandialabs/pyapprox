@@ -401,6 +401,10 @@ class AbstractKLE(ABC):
             return "{0}()".format(self.__class__.__name__)
         return "{0}(nterms={1})".format(self.__class__.__name__, self._nterms)
 
+    def normalized_eigenvectors(self) -> Array:
+        """Return the eigenvectors multiplied by associated eigenvalue"""
+        return self._eig_vecs
+
 
 class MeshKLE(AbstractKLE):
     """

@@ -16,11 +16,12 @@ import time
 from pyapprox.util.visualization import mathrm_label
 from pyapprox.variables import (
     IndependentMarginalsVariable, print_statistics, AffineTransform)
-from pyapprox.benchmarks import setup_benchmark, list_benchmarks
+from pyapprox.benchmarks import (
+    PyApproxPaperAdvectionDiffusionKLEInversionBenchmark
+)
 from pyapprox.interface.wrappers import (
     TimerModel, WorkTrackingModel,
     evaluate_1darray_function_on_2d_array)
-from pyapprox.surrogates import adaptive_approximate
 from pyapprox.analysis.sensitivity_analysis import (
     run_sensitivity_analysis, plot_sensitivity_indices)
 from pyapprox.bayes.metropolis import (
@@ -96,20 +97,18 @@ print(model.work_tracker())
 #determining the true coefficients of the Karhunene Loeve expansion (KLE)
 #used to characterize the uncertain diffusivity field of an advection
 #diffusion equation. See documentation of the benchmark for more details).
-print(list_benchmarks())
 noise_stdev = 1  # 1e-1
-inv_benchmark = setup_benchmark(
-    "advection_diffusion_kle_inversion", kle_nvars=3,
-    noise_stdev=noise_stdev, nobs=5, kle_length_scale=0.5)
+inv_benchmark = PyApproxPaperAdvectionDiffusionKLEInversionBenchmark()
 print(inv_benchmark)
 
 #%%
 #The following plots the modes of the KLE
+from pyapprox.pde.collocation.functions import ScalarFunction
+eigvecs = inv_benchmark.diffusion_function().normalized_eigenfunctions()
 fig, axs = plt.subplots(
-    1, inv_benchmark.KLE._nterms, figsize=(8*inv_benchmark.KLE._nterms, 6))
-for ii in range(inv_benchmark.KLE._nterms):
-    inv_benchmark.mesh.plot(inv_benchmark.KLE._eig_vecs[:, ii:ii+1], 50,
-                            ax=axs[ii])
+    1, len(eigvecs), figsize=(8*len(eigvecs), 6))
+for ii in range(len(eigvecs)):
+    eigvecs[ii].plot(axs[ii], cmap=plt.cm.coolwarm, levels=50)
 
 #%%
 #PyApprox provides many popular methods for constructing surrogates
@@ -120,8 +119,8 @@ for ii in range(inv_benchmark.KLE._nterms):
 #Here we use to compute the error of the surrogate as it is constructed using
 #validation data. Uncomment the code to use a polynomial based surrogate instead
 #of a GP. The user does not have to change any subsequent code
-validation_samples = inv_benchmark.variable.rvs(100)
-validation_values = inv_benchmark.negloglike(validation_samples)
+validation_samples = inv_benchmark.variable().rvs(100)
+validation_values = inv_benchmark.negloglike()(validation_samples)
 nsamples, errors = [], []
 def callback(approx):
     nsamples.append(approx.num_training_samples())
