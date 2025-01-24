@@ -1223,17 +1223,19 @@ class ObjectiveWithCVaRConstraints(Model):
         return hess
 
 
-def approx_jacobian(func, x, epsilon=np.sqrt(np.finfo(float).eps)):
-    x0 = np.asfarray(x)
+def approx_jacobian(
+        func, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
+):
+    x0 = bkd.asarray(x)
     assert x0.ndim == 1 or x0.shape[1] == 1
-    f0 = np.atleast_2d(func(x0))
+    f0 = bkd.atleast2d(func(x0))
     assert f0.shape[0] == 1
     f0 = f0[0, :]
-    jac = np.zeros([len(f0), len(x0)])
-    dx = np.zeros(x0.shape)
+    jac = bkd.zeros([len(f0), len(x0)])
+    dx = bkd.zeros(x0.shape)
     for ii in range(len(x0)):
         dx[ii] = epsilon
-        f1 = np.atleast_2d(func(x0 + dx))
+        f1 = bkd.atleast2d(func(x0 + dx))
         assert f1.shape[0] == 1
         f1 = f1[0, :]
         jac[:, ii] = (f1 - f0) / epsilon
@@ -1241,5 +1243,7 @@ def approx_jacobian(func, x, epsilon=np.sqrt(np.finfo(float).eps)):
     return jac
 
 
-def approx_hessian(jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps)):
-    return approx_jacobian(lambda y: jac_fun(y).T, x, epsilon)
+def approx_hessian(
+        jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
+):
+    return approx_jacobian(lambda y: jac_fun(y).T, x, epsilon, bkd=bkd)

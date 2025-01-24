@@ -305,9 +305,12 @@ class Functional(ABC):
         raise NotImplementedError
 
     def __call__(self, sol: Array) -> Array:
-        if sol.ndim != 2 or sol.shape[0] != self.nstates():
+        # there seems to be an inconsistency of using sol.ndim == 2
+        # here and ndim ==1 below.  I think this is currently time dependent
+        # sols are 2D but steady sols are 2d
+        if sol.ndim != 1 or sol.shape[0] != self.nstates():
             print(sol.shape, self.nstates())
-            raise ValueError("sol must has the wrong shape")
+            raise ValueError("sol has the wrong shape")
         val = self._value(sol)
         if val.ndim != 1 or val.shape[0] != self.nqoi():
             raise RuntimeError(f"{self} must return a 1D array")

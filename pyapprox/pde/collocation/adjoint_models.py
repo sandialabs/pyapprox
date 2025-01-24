@@ -107,9 +107,7 @@ class SteadyAdjointModel(AdjointModel):
         return self._sols
 
     def _eval_functional(self) -> Array:
-        return self._adjoint_solver._functional(
-            self._adjoint_solver._fwd_sol[:, None]
-        )[None, :]
+        return self._adjoint_solver._functional(self._sols)[None, :]
 
     def _jacobian(self, sample: Array) -> Array:
         self.set_param(sample[:, 0])

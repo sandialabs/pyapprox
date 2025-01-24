@@ -17,10 +17,11 @@ class TestPDEBenchmarks:
         benchmark = PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
             backend=bkd
         )
-        x0 = benchmark.true_params()+1e-3
-        benchmark.model().check_apply_jacobian(x0, disp=True)
-        print(bkd.jacobian(benchmark.model(), x0))
-        print( benchmark.model().jacobian(x0))
+        x0 = benchmark.true_params() + 1e-3
+        errors = benchmark.model().check_apply_jacobian(x0)
+        assert errors.min() / errors.max() > 1e-7
+        errors = benchmark.model().check_apply_hessian(x0)
+        assert errors.min() / errors.max() > 1e-7
 
 
 class TestTorchPDEBenchmarks(TestPDEBenchmarks, unittest.TestCase):

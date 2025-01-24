@@ -30,10 +30,14 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
     def nunique_functional_params(self) -> int:
         return 0
 
-    def set_observations(self, observations: Array):
-        self._obs = observations
+    def set_observations(self, obs: Array):
+        if obs.ndim != 1:
+            raise ValueError("obs must be 1D array")
+        self._obs = obs
 
     def observations_from_solution(self, sol: Array) -> Array:
+        if sol.ndim != 1:
+            raise ValueError("sol must be a 1D array")
         return sol[self._obs_state_indices]
 
     def set_param(self, param: Array):
@@ -44,9 +48,10 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
 
     def _value(self, sol: Array) -> Array:
         pred_obs = self.observations_from_solution(sol)
-        return self._bkd.atleast1d(
-            self._bkd.sum((pred_obs - self._obs) ** 2) / self._sigma**2
-        )
+        return self._bkd.sum(
+            (pred_obs[:, None] - self._obs[:, None]) ** 2,
+            axis=0,
+        ) / self._sigma**2
 
     def _qoi_state_jacobian(self, sol: Array) -> Array:
         dqdu = self._bkd.zeros(sol.shape)

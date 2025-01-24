@@ -544,11 +544,20 @@ class TransientFunctionalMixin:
         self._quadw = quadw
 
 
-class TransientFuncional(Functional, TransientFunctionalMixin):
+class TransientFunctional(Functional, TransientFunctionalMixin):
     pass
 
 
 class TransientAdjointFunctional(AdjointFunctional, TransientFunctionalMixin):
+    def __call__(self, sol: Array) -> Array:
+        if sol.ndim != 2 or sol.shape[0] != self.nstates():
+            print(sol.shape, self.nstates())
+            raise ValueError("sol has the wrong shape")
+        val = self._value(sol)
+        if val.ndim != 1 or val.shape[0] != self.nqoi():
+            raise RuntimeError(f"{self} must return a 1D array")
+        return val
+
     def qoi_state_jacobian(self, sol: Array) -> Array:
         """Gradient of qoi with respect to solution"""
         if sol.ndim != 2 or sol.shape[0] != self.nstates():
