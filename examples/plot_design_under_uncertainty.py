@@ -90,15 +90,15 @@ np.random.seed(1)
 benchmark = CantileverBeamDeterminsticOptimizationBenchmark()
 optimizer = ScipyConstrainedOptimizer(
     benchmark.objective(),
-    constraints=[benchmark.constraint()],
+    constraints=benchmark.constraints(),
     bounds=benchmark.design_variable().bounds(),
 )
-result = optimizer.minimize(np.array([3, 3])[:, None])
+result = optimizer.minimize(benchmark.init_iterate())
 print("Optimal design vars", result.x)
 print("Optimal objective", result.fun)
 # M. Eldred. FORMULATIONS FOR SURROGATE-BASED OPTIMIZATION UNDER UNCERTAINTY.
 # AIAA-2002-5585
-print("Optimal design vars from literature", [2.35, 3.33])
+print("Optimal design vars from literature", benchmark.optimal_iterate())
 print("Optimal objective from literature", 7.82)
 
 #%%
@@ -113,7 +113,7 @@ im = plt.contourf(X, Y, Z_o, levels=40, cmap="coolwarm")
 plt.colorbar(im)
 for ii in range(2):
     X, Y, Z_c = get_meshgrid_function_data(
-        benchmark.constraint(),
+        benchmark.constraints()[0],
         np.hstack([benchmark.design_variable().bounds()[:, :1],
                    benchmark.design_variable().bounds()[:, 1:2]]).flatten(),
         301, qoi=ii)
@@ -137,10 +137,10 @@ print("###")
 benchmark = CantileverBeamUncertainOptimizationBenchmark()
 optimizer = ScipyConstrainedOptimizer(
     benchmark.objective(),
-    constraints=[benchmark.constraint()],
+    constraints=benchmark.constraints(),
     bounds=benchmark.design_variable().bounds()
 )
-result = optimizer.minimize(np.array([3, 3])[:, None])
+result = optimizer.minimize(benchmark.init_iterate())
 print("optimal design vars", result.x)
 print("optimal objective", result.fun)
 # M. Eldred. FORMULATIONS FOR SURROGATE-BASED OPTIMIZATION UNDER UNCERTAINTY.
@@ -166,7 +166,7 @@ im = plt.contourf(X, Y, Z_o, levels=40, cmap="coolwarm")
 plt.colorbar(im)
 from pyapprox.interface.model import ModelFromSingleSampleCallable
 # contraint can only be evaluated at one sample so wrap it
-batch_constraint_model = ModelFromSingleSampleCallable(2, benchmark.constraint())
+batch_constraint_model = ModelFromSingleSampleCallable(2, benchmark.constraints()[0])
 for ii in range(2):
     X, Y, Z_c = get_meshgrid_function_data(
         batch_constraint_model,
@@ -181,7 +181,7 @@ for ii in range(2):
     Z_c[JJ] = np.nan
     im = plt.contourf(X, Y, Z_c, levels=40, cmap="gray")
 plt.plot(*result.x, 'og')
-plt.show()
+# plt.show()
 
 # robust design
 # min f subject to variance<tol

@@ -56,7 +56,7 @@ class ScipyOptimizationResult(OptimizationResult):
 
 class Constraint(Model):
     def __init__(
-            self, bounds=None, keep_feasible=False, backend=NumpyLinAlgMixin
+        self, bounds=None, keep_feasible=False, backend=NumpyLinAlgMixin
     ):
         super().__init__(backend)
         if bounds is not None:
@@ -74,7 +74,7 @@ class Constraint(Model):
 
 class ConstraintFromModel(Constraint):
     def __init__(
-            self, model, bounds=None, keep_feasible=False, backend=NumpyLinAlgMixin
+        self, model, bounds=None, keep_feasible=False, backend=NumpyLinAlgMixin
     ):
         super().__init__(bounds, keep_feasible, backend)
         if not isinstance(model, Model):
@@ -102,7 +102,10 @@ class ConstraintFromModel(Constraint):
 
     def _check_sample(self, sample):
         if sample.shape[1] > 1:
-            raise ValueError("Constraint can only be evaluated at one sample")
+            raise ValueError(
+                "Constraint can only be evaluated at one sample "
+                f"but {sample.shape=}"
+            )
 
     def _values(self, sample):
         return self._model(sample)
@@ -405,8 +408,12 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
                 continue
             con = ScipyModelWrapper(_con)
             jac = con.jac if con._jacobian_implemented else "2-point"
-            if con._weighted_hessian_implemented or con._hessian_implemented:
-                # model impoementation of weighted_hess can use_pseudo_inv
+            if (
+                    con._weighted_hessian_implemented
+                    or con._hessian_implemented
+                    or con._apply_weighted_hessian_implemented
+            ):
+                # model implementation of weighted_hess can use
                 # direct implementation of weighted hessian (first condition)
                 # or compute it from 3D hessian tensor (2nd condition)
                 hess = con.weighted_hess

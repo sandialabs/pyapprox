@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import List
+from typing import List, Union
 
 from pyapprox.interface.model import Model
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.variables.joint import JointVariable
+from pyapprox.variables.joint import JointVariable, DesignVariable
 from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
 from pyapprox.surrogates.bases.basis import FixedTensorProductQuadratureRule
+from scipy.optimize import LinearConstraint
+from pyapprox.optimization.pya_minimize import Constraint
 
 
 class SingleModelBenchmark(ABC):
@@ -275,6 +277,48 @@ class ACVBenchmark(MultiModelBenchmark):
             self.__class__.__name__, self.nmodels(), self.nqoi()
         )
 
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         # samples must include model id in last row
         return self._model_ensemble(samples)
+
+
+class OptimizationBenchmark(ABC):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        self._bkd = backend
+
+    def objective(self) -> Model:
+        raise NotImplementedError
+
+    @abstractmethod
+    def design_variable(self) -> DesignVariable:
+        raise NotImplementedError
+
+
+class ConstrainedOptimizationBenchmark(OptimizationBenchmark):
+    @abstractmethod
+    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def optimal_iterate(self) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def init_iterate(self) -> Array:
+        raise NotImplementedError
+
+
+class ConstrainedUncertainOptimizationBenchmark(
+        ConstrainedOptimizationBenchmark
+):
+    @abstractmethod
+    def variable(self) -> JointVariable:
+        raise NotImplementedError
+
+    @abstractmethod
+    def design_var_indices(self) -> Array:
+        """
+        The position of the design variables in a combined
+        uncertain + design variable array
+        """
+        raise NotImplementedError

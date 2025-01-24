@@ -6,7 +6,7 @@ from pyapprox.benchmarks import (
     IshigamiBenchmark,
     OakleyBenchmark,
     SobolGBenchmark,
-    RosenbrockBenchmark,
+    RosenbrockUnconstrainedOptimizationBenchmark,
     CantileverBeamDeterminsticOptimizationBenchmark,
     CantileverBeamUncertainOptimizationBenchmark,
     PistonBenchmark,
@@ -87,15 +87,17 @@ class TestBenchmarks:
 
     def test_rosenbrock(self):
         bkd = self.get_backend()
-        benchmark = RosenbrockBenchmark(nvars=2, backend=bkd)
+        benchmark = RosenbrockUnconstrainedOptimizationBenchmark(
+            nvars=2, backend=bkd
+        )
         init_guess = benchmark.variable().get_statistics('mean') +\
             benchmark.variable().get_statistics('std')
-        errors = benchmark.model().check_apply_jacobian(init_guess)
+        errors = benchmark.objective().check_apply_jacobian(init_guess)
         assert errors.min() < 7e-6
-        errors = benchmark.model().check_apply_hessian(init_guess)
+        errors = benchmark.objective().check_apply_hessian(init_guess)
         assert errors.min() < 2e-7
         samples = benchmark.variable().rvs(1e5)
-        values = benchmark.model()(samples)
+        values = benchmark.objective()(samples)
         assert bkd.allclose(bkd.mean(values), benchmark.mean(), rtol=1e-2)
 
     def test_cantileverbeam_optimization_benchmarks(self):

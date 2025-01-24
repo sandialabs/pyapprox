@@ -362,6 +362,7 @@ class Model(ABC):
         if (
             not self._weighted_hessian_implemented
             and not self._hessian_implemented
+            and not self._apply_weighted_hessian_implemented
         ):
             raise RuntimeError(
                 "weighted_hessian and hessian are not implemented"
@@ -369,6 +370,17 @@ class Model(ABC):
         self._check_sample_shape(sample)
         if self._weighted_hessian_implemented:
             return self._weighted_hessian(sample, weights)
+        if self._apply_weighted_hessian_implemented:
+            actions = []
+            nvars = sample.shape[0]
+            for ii in range(nvars):
+                vec = self._bkd.zeros((nvars, 1))
+                vec[ii] = 1.0
+                actions.append(
+                    self._apply_weighted_hessian(sample, vec, weights)[:, 0]
+                )
+            hess = np.stack(actions, axis=1)
+            return hess
         hess = self.hessian(sample)
         return self._bkd.einsum("il,ijk->jkl", weights, hess)[..., 0]
 
@@ -625,19 +637,21 @@ class ModelFromCallable(Model):
     def nqoi(self):
         return self._nqoi
 
-    def _jacobian(self, sample):
+    def _jacobian(self, sample: Array) -> Array:
         return self._eval_fun(self._user_jacobian, sample)
 
-    def _apply_jacobian(self, sample, vec):
+    def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
         return self._eval_fun(self._user_apply_jacobian, sample, vec)
 
-    def _apply_hessian(self, sample, vec):
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         return self._eval_fun(self._user_apply_hessian, sample, vec)
 
-    def _hessian(self, sample):
+    def _hessian(self, sample: Array) -> Array:
         return self._eval_fun(self._user_hessian, sample)
 
-    def _apply_weighted_hessian(self, sample, vec, weights):
+    def _apply_weighted_hessian(
+            self, sample: Array, vec: Array, weights: Array
+    ) -> Array:
         return self._eval_fun(
             self._user_apply_weighted_hessian, sample, vec, weights
         )
@@ -681,12 +695,12 @@ class ModelFromVectorizedCallable(ModelFromCallable):
 
 
 class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
-    def _eval_fun(self, fun, sample, *args):
+    def _eval_fun(self, fun: callable, sample: Array, *args) -> Array:
         if self._sample_ndim == 2:
             return fun(sample, *args)
         return fun(sample[:, 0], *args)
 
-    def _evaluate(self, sample):
+    def _evaluate(self, sample: Array) -> Array:
         values = self._eval_fun(self._user_function, sample)
         if self._values_ndim != values.ndim:
             raise RuntimeError("function returned values with the wrong ndim")
@@ -717,6 +731,7 @@ class ScipyModelWrapper:
             "_hessian_implemented",
             "_apply_hessian_implemented",
             "_weighted_hessian_implemented",
+            "_apply_weighted_hessian_implemented",
         ]:
             setattr(self, attr, self._model.__dict__[attr])
 
@@ -1200,7 +1215,7 @@ class ChangeModelSignWrapper(Model):
         return -self._model.jacobian(sample)
 
     def _apply_jacobian(self, sample, vec):
-        return -self._model.jacobian(sample, vec)
+        return -self._model.apply_jacobian(sample, vec)
 
     def _hessian(self, sample):
         return -self._model.hessian(sample)

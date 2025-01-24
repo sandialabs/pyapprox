@@ -1,8 +1,9 @@
 import math
+from typing import List, Union
 
 import numpy as np
 from scipy import stats
-from scipy.optimize import rosen, rosen_der, rosen_hess_prod
+from scipy.optimize import rosen, rosen_der, rosen_hess_prod, LinearConstraint
 
 from pyapprox.interface.model import (
     Model,
@@ -17,7 +18,12 @@ from pyapprox.variables.joint import (
     DesignVariable,
     IndependentMarginalsVariable,
 )
-from pyapprox.benchmarks.base import SingleModelBenchmark
+from pyapprox.benchmarks.base import (
+    SingleModelBenchmark,
+    OptimizationBenchmark,
+    ConstrainedOptimizationBenchmark,
+    ConstrainedUncertainOptimizationBenchmark,
+)
 from pyapprox.util.utilities import evaluate_quadratic_form
 from pyapprox.optimization.pya_minimize import (
     SampleAverageConstraint,
@@ -767,7 +773,8 @@ class SobolGBenchmark(SingleModelBenchmark):
         self._acoefs = (
             self._bkd.arange(
                 1, self.nvars() + 1, dtype=self._bkd.double_type()
-            ) - 2
+            )
+            - 2
         ) / 2
         self._set_statistics()
 
@@ -781,8 +788,8 @@ class SobolGBenchmark(SingleModelBenchmark):
         for ii in range(self.nvars()):
             for jj in range(ii + 1, self.nvars()):
                 self._interaction_indices.append([ii, jj])
-        zero = self._acoefs[0] * 0.  # necessary for torch
-        self._mean = zero + 1.
+        zero = self._acoefs[0] * 0.0  # necessary for torch
+        self._mean = zero + 1.0
         unnormalized_main_effects = 1 / (3 * (1 + self._acoefs) ** 2)
         self._variance = self._bkd.prod(unnormalized_main_effects + 1) - 1
         self._main_effects = unnormalized_main_effects / self._variance
@@ -855,12 +862,14 @@ class RosenbrockModel(Model):
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         return self._bkd.asarray(
-            rosen_hess_prod(self._bkd.to_numpy(sample[:, 0]), self._bkd.to_numpy(vec[:, 0]))
+            rosen_hess_prod(
+                self._bkd.to_numpy(sample[:, 0]), self._bkd.to_numpy(vec[:, 0])
+            )
         )[:, None]
 
 
-class RosenbrockBenchmark(SingleModelBenchmark):
-    r"""The Rosenbrock function becnmark
+class RosenbrockUnconstrainedOptimizationBenchmark(OptimizationBenchmark):
+    r"""The Rosenbrock function benchmark
 
     .. math:: f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]
 
@@ -877,14 +886,17 @@ class RosenbrockBenchmark(SingleModelBenchmark):
         self._nvars = nvars
         super().__init__(backend)
 
-    def _set_model(self):
-        self._model = RosenbrockModel(self._nvars, self._bkd)
+    def objective(self) -> Model:
+        return RosenbrockModel(self._nvars, self._bkd)
 
-    def _set_variable(self) -> JointVariable:
+    def design_variable(self) -> DesignVariable:
+        design_bounds = self._bkd.full((self._nvars, 2), -2.0)
+        design_bounds[:, 1] = 2.0
+        return DesignVariable(design_bounds)
+
+    def variable(self) -> IndependentMarginalsVariable:
         marginals = [stats.uniform(-2, 4)] * self._nvars
-        self._variable = IndependentMarginalsVariable(
-            marginals, backend=self._bkd
-        )
+        return IndependentMarginalsVariable(marginals, backend=self._bkd)
 
     def mean(self) -> float:
         """
@@ -908,6 +920,82 @@ class RosenbrockBenchmark(SingleModelBenchmark):
             / (4**self._nvars)
         )
         return exact_mean * self._bkd.ones((1,))[0]
+
+    def optimal_iterate(self) -> Array:
+        return self._bkd.ones((self._nvars, 1))
+
+    def init_iterate(self) -> Array:
+        return self._bkd.ones((self._nvars, 1)) + 0.5
+
+
+class RosenbrockConstraint(Constraint):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        super().__init__(backend.array([[0.0, np.inf]]), True, backend)
+        self._jacobian_implemented = True
+        self._hessian_implemented = True
+
+    def nqoi(self) -> int:
+        return 2
+
+    def _values(self, samples: Array) -> Array:
+        return self._bkd.stack(
+            [
+                -((samples[0] - 1) ** 3) + samples[1] - 1,
+                2 - samples[0] - samples[1],
+            ],
+            axis=1,
+        )
+
+    def _jacobian(self, sample: Array) -> Array:
+
+        return self._bkd.stack(
+            (
+                self._bkd.hstack(
+                    [-3 * (sample[0] - 1) ** 2, self._bkd.ones((1,))]
+                ),
+                self._bkd.full((2,), -1),
+            ),
+            axis=0,
+        )
+
+    def _hessian(self, sample: Array) -> Array:
+        zero = self._bkd.zeros((1,))
+        hess = self._bkd.zeros((self.nqoi(), 2, 2))
+        hess[0] = self._bkd.stack(
+            (
+                self._bkd.hstack((-6 * (sample[0] - 1), zero)),
+                self._bkd.zeros((2,)),
+            ),
+            axis=0,
+        )
+        return hess
+
+
+class RosenbrockConstrainedOptimizationBenchmark(
+    ConstrainedOptimizationBenchmark
+):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        self._nvars = 2
+        super().__init__(backend)
+
+    def optimal_iterate(self) -> Array:
+        return self._bkd.ones((self._nvars, 1))
+
+    def init_iterate(self) -> Array:
+        eps = 0.2 # initial iterate on constraint
+        # need to shift x coord because of issues with scipy trust-constr solver
+        return self._bkd.array([1-eps-1e-16, 1+eps])[:, None]
+
+    def objective(self) -> Model:
+        return RosenbrockModel(2, self._bkd)
+
+    def design_variable(self) -> DesignVariable:
+        design_bounds = self._bkd.full((self._nvars, 2), -2.0)
+        design_bounds[:, 1] = 2.0
+        return DesignVariable(design_bounds)
+
+    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
+        return [RosenbrockConstraint(self._bkd)]
 
 
 class CantileverBeamModel(SingleSampleModel):
@@ -988,47 +1076,46 @@ class CantileverBeamConstraintsModel(CantileverBeamModel):
         return self._bkd.copy(super()._hessian(sample)[1:, ...])
 
 
-class CantileverBeamDeterminsticOptimizationBenchmark(SingleModelBenchmark):
-    def _set_objective(self):
-        self._objective = ActiveSetVariableModel(
+class CantileverBeamDeterminsticOptimizationBenchmark(
+    ConstrainedUncertainOptimizationBenchmark
+):
+    def objective(self) -> Model:
+        return ActiveSetVariableModel(
             CantileverBeamObjectiveModel(self._bkd),
             self.variable().num_vars() + self.design_variable().nvars(),
             self._nominal_values,
             self._design_var_indices,
         )
 
-    def _set_constraint(self):
+    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
         constraint_model = ActiveSetVariableModel(
             CantileverBeamConstraintsModel(self._bkd),
             self.variable().num_vars() + self.design_variable().nvars(),
             self._nominal_values,
             self._design_var_indices,
         )
-        self._constraint = ConstraintFromModel(
-            constraint_model, self.constraint_bounds()
-        )
+        return [
+            ConstraintFromModel(constraint_model, self.constraint_bounds())
+        ]
 
-    def _set_model(self):
-        self._nominal_values = self.variable().get_statistics("mean")
-        self._set_objective()
-        self._set_constraint()
-
-    def _set_variable(self) -> JointVariable:
+    def variable(self) -> JointVariable:
         # traditional parameterization
         X = stats.norm(loc=500, scale=np.sqrt(100) ** 2)
         Y = stats.norm(loc=1000, scale=np.sqrt(100) ** 2)
         E = stats.norm(loc=2.9e7, scale=np.sqrt(1.45e6) ** 2)
         R = stats.norm(loc=40000, scale=np.sqrt(2000) ** 2)
-        design_bounds = self._bkd.stack(
-            [self._bkd.ones((2,)), self._bkd.full((2,), 4.)], axis=1
-        )
-        self._design_variable = DesignVariable(design_bounds)
-        self._design_var_indices = self._bkd.array([4, 5], dtype=int)
         self._variable = IndependentMarginalsVariable(
             [X, Y, E, R], backend=self._bkd
         )
+        self._nominal_values = self._variable.get_statistics("mean")
+        return self._variable
 
     def design_variable(self) -> DesignVariable:
+        design_bounds = self._bkd.stack(
+            [self._bkd.ones((2,)), self._bkd.full((2,), 4.0)], axis=1
+        )
+        self._design_variable = DesignVariable(design_bounds)
+        self._design_var_indices = self._bkd.array([4, 5], dtype=int)
         return self._design_variable
 
     def constraint_bounds(self) -> Array:
@@ -1036,17 +1123,21 @@ class CantileverBeamDeterminsticOptimizationBenchmark(SingleModelBenchmark):
             [self._bkd.zeros((2, 1)), self._bkd.full((2, 1), np.inf)]
         )
 
-    def objective(self) -> Model:
-        return self._objective
+    def design_var_indices(self) -> Array:
+        return self._design_var_indices
 
-    def constraint(self) -> Constraint:
-        return self._constraint
+    def init_iterate(self) -> Array:
+        return self._bkd.array([3.0, 3.0])[:, None]
+
+    def optimal_iterate(self) -> Array:
+        # Optimal design vars from literature
+        return self._bkd.array([2.35, 3.33])[:, None]
 
 
 class CantileverBeamUncertainOptimizationBenchmark(
     CantileverBeamDeterminsticOptimizationBenchmark
 ):
-    def _set_constraint(self):
+    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
         # TODO change weights to create unbiased estimators of mean and variance
         from pyapprox.surrogates.bases.basis import (
             FixedTensorProductQuadratureRule,
@@ -1066,20 +1157,26 @@ class CantileverBeamUncertainOptimizationBenchmark(
             CantileverBeamConstraintsModel(self._bkd)
         )
         stat = SampleAverageMeanPlusStdev(3)
-        self._constraint = SampleAverageConstraint(
-            constraint_model,
-            samples,
-            weights,
-            stat,
-            self.constraint_bounds(),
-            self.variable().num_vars() + self.design_variable().nvars(),
-            self._design_var_indices,
-        )
+        return [
+            SampleAverageConstraint(
+                constraint_model,
+                samples,
+                weights,
+                stat,
+                self.constraint_bounds(),
+                self.variable().num_vars() + self.design_variable().nvars(),
+                self._design_var_indices,
+            )
+        ]
 
     def constraint_bounds(self) -> Array:
         return self._bkd.hstack(
             [self._bkd.full((2, 1), -np.inf), self._bkd.zeros((2, 1))]
         )
+
+    def optimal_iterate(self) -> Array:
+        # Optimal design vars from literature are not accurate enough
+        raise NotImplementedError
 
 
 class PistonModel(Model):
@@ -1256,7 +1353,11 @@ class WingWeightModel(Model):
         grad[0] = 0.758 * vals / S_w + W_p
         grad[1] = 0.0035 * vals / W_fw
         grad[2] = 0.6 * vals / A
-        grad[3] = (0.9 * vals * self._bkd.sin(Lamda) / self._bkd.cos(Lamda)) * np.pi / 180
+        grad[3] = (
+            (0.9 * vals * self._bkd.sin(Lamda) / self._bkd.cos(Lamda))
+            * np.pi
+            / 180
+        )
         grad[4] = 0.006 * vals / q
         grad[5] = 0.04 * vals / lamda
         grad[6] = -0.3 * vals / tc
@@ -1286,3 +1387,114 @@ class WingWeightBenchmark(SingleModelBenchmark):
         self._variable = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
+
+
+class EvtushenkoObjective(Model):
+    r"""Objective of the constrained optimization benchmark from Evtushenko.
+
+    The objective is
+    .. math:: f(z) = (z_1+3z_2+z_3)^2 +4(z_1-z_2)^2
+    """
+
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        super().__init__(backend)
+        self._jacobian_implemented = True
+        self._apply_hessian_implemented = True
+
+    def nqoi(self) -> int:
+        return 1
+
+    def _values(self, samples: Array) -> Array:
+        return (
+            (samples[0] + 3 * samples[1] + samples[2]) ** 2
+            + 4 * (samples[0] - samples[1]) ** 2
+        )[:, None]
+
+    def nvars(self):
+        return 3
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.stack(
+            (
+                2 * (sample[0] + 3 * sample[1] + sample[2])
+                + 8 * (sample[0] - sample[1]),
+                6 * (sample[0] + 3 * sample[1] + sample[2])
+                - 8 * (sample[0] - sample[1]),
+                2 * (sample[0] + 3 * sample[1] + sample[2]),
+            ),
+            axis=1,
+        )
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        return self._bkd.stack(
+            (
+                10 * vec[0] - 2 * vec[1] + 2 * vec[2],
+                -2 * vec[0] + 26 * vec[1] + 6 * vec[2],
+                2 * vec[0] + 6 * vec[1] + 2 * vec[2],
+            ),
+            axis=0,
+        )
+
+
+class EvtushenkoNonLinearConstraint(Constraint):
+    r"""
+    The nonlinear Constraint of the constrained optimization benchmark from
+    Evtushenko.
+
+    The constraints are
+    .. math:: c(z) = (z_1+3z_2+z_3)^2 +4(z_1-z_2)^2
+    """
+
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        super().__init__(backend.array([[0.0, np.inf]]), True, backend)
+        self._jacobian_implemented = True
+        self._apply_weighted_hessian_implemented = True
+
+    def nqoi(self) -> int:
+        return 1
+
+    def _values(self, samples: Array) -> Array:
+        return (6 * samples[1] + 4 * samples[2] - samples[0] ** 3 - 3)[:, None]
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.stack(
+            (
+                -3.0 * sample[0] ** 2,
+                self._bkd.array([6.0]),
+                self._bkd.array([4.0]),
+            ),
+            axis=1,
+        )
+
+    def _apply_weighted_hessian(
+        self, sample: Array, vec: Array, weights: Array
+    ) -> Array:
+        return self._bkd.hstack(
+            [-6 * sample[0] * vec[0] * weights[0], 0.0, 0.0]
+        )[:, None]
+
+
+class EvtushenkoConstrainedOptimizationBenchmark(
+    ConstrainedOptimizationBenchmark
+):
+    def objective(self) -> Model:
+        return EvtushenkoObjective(self._bkd)
+
+    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
+        nonlinear_con = EvtushenkoNonLinearConstraint(self._bkd)
+        linear_con = LinearConstraint(
+            self._bkd.ones((1, 3)), 1, 1, keep_feasible=True
+        )
+        return [nonlinear_con, linear_con]
+
+    def design_variable(self) -> DesignVariable:
+        design_bounds = self._bkd.stack(
+            [self._bkd.zeros((3,)), self._bkd.full((3,), np.inf)], axis=1
+        )
+        return DesignVariable(design_bounds)
+
+    def init_iterate(self) -> Array:
+        return self._bkd.array([0.1, 0.7, 0.2])[:, None]
+
+    def optimal_iterate(self) -> Array:
+        return self._bkd.array([0.0, 0.0, 1.0])[:, None]
