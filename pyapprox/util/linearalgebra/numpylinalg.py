@@ -359,7 +359,8 @@ class NumpyLinAlgMixin(LinAlgMixin):
             return matrix
         if axis == -1:
             matrix[..., indices] = submatrix
-        raise ValueError("axis must be in (0, 1, -1)")
+            return matrix
+        raise ValueError(f"{axis=} but must be in (0, 1, -1)")
 
     @staticmethod
     def moveaxis(array, source, destination):

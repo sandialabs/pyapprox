@@ -18,6 +18,7 @@ from pyapprox.optimization.pya_minimize import (
     OptimizerIterateGenerator,
     RandomUniformOptimzerIterateGenerator,
 )
+from pyapprox.interface.model import ScipyModelWrapper, Model
 
 
 class GPNegLogLikelihoodLoss(LossFunction):
@@ -42,8 +43,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         trend: BasisExpansion = None,
         kernel_reg: float = 0,
     ):
-        super().__init__()
-        self._bkd = kernel._bkd
+        super().__init__(kernel._bkd)
         self.kernel = kernel
         self.trend = trend
         self.kernel_reg = kernel_reg
@@ -108,6 +108,9 @@ class ExactGaussianProcess(OptimizedRegressor):
         kmat = kmat + self._bkd.eye(kmat.shape[0]) * float(self.kernel_reg)
         return kmat
 
+    def _training_kernel_jacobian(self):
+        return self.kernel.jac(self._ctrain_samples)
+
     def _factor_training_kernel_matrix(self):
         # can be specialized
         kmat = self._training_kernel_matrix()
@@ -160,6 +163,22 @@ class ExactGaussianProcess(OptimizedRegressor):
             + self._log_determinant(coef_args)
             + nsamples * np.log(2 * np.pi)
         ).sum(axis=1)
+
+    def _cholesky_inverse(self, Lmat):
+        rhs = self._bkd.eye(Lmat.shape[0])
+        Linv = self._bkd.solve_triangular(Lmat, rhs, lower=True)
+        return Linv
+
+    def _jacobian_neg_log_likelihood_with_hyperparameter_trend(self) -> Array:
+        # TODO this recomputes cholesky factorization
+        coef_args = self._factor_training_kernel_matrix()
+        Linv = self._cholesky_inverse(coef_args[0])
+        Linv_y = self._Linv_y(coef_args[0])
+        Kinv = Linv.T @ Linv
+        Mat = (Linv_y @ Linv_y.T - Kinv)
+        Kjac = self._training_kernel_jacobian()
+        jac = 0.5 * self._bkd.einsum("ij,jik->k", Mat, Kjac)
+        return jac[None, :]
 
     def _neg_log_likelihood_with_uncertain_trend(self) -> float:
         # See Equation 2.45 in Rasmussen's Book

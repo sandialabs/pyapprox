@@ -19,6 +19,7 @@ from pyapprox.benchmarks import (
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+
 # TODO relplace integrate with new version once implemented
 from pyapprox.surrogates.integrate import integrate
 from pyapprox.pde.collocation.newton import NewtonSolver
@@ -41,8 +42,9 @@ class TestBenchmarks:
     def test_ishigami(self):
         bkd = self.get_backend()
         benchmark = IshigamiBenchmark(a=7, b=0.1, backend=bkd)
-        init_guess = benchmark.variable().get_statistics('mean') +\
-            benchmark.variable().get_statistics('std')
+        init_guess = benchmark.variable().get_statistics(
+            "mean"
+        ) + benchmark.variable().get_statistics("std")
         errors = benchmark.model().check_apply_jacobian(init_guess)
         assert errors.min() < 7e-6
         errors = benchmark.model().check_apply_hessian(init_guess)
@@ -90,8 +92,9 @@ class TestBenchmarks:
         benchmark = RosenbrockUnconstrainedOptimizationBenchmark(
             nvars=2, backend=bkd
         )
-        init_guess = benchmark.variable().get_statistics('mean') +\
-            benchmark.variable().get_statistics('std')
+        init_guess = benchmark.variable().get_statistics(
+            "mean"
+        ) + benchmark.variable().get_statistics("std")
         errors = benchmark.objective().check_apply_jacobian(init_guess)
         assert errors.min() < 7e-6
         errors = benchmark.objective().check_apply_hessian(init_guess)
@@ -106,64 +109,73 @@ class TestBenchmarks:
         objective = benchmark.objective()
         init_guess = bkd.ones((2, 1))
         errors = objective.check_apply_jacobian(init_guess)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
         errors = objective.check_apply_hessian(init_guess)
         assert errors.min() < 2e-7
         constraint = benchmark.objective()
         init_guess = bkd.ones((2, 1))
         errors = constraint.check_apply_jacobian(init_guess)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
 
         benchmark = CantileverBeamUncertainOptimizationBenchmark(bkd)
         objective = benchmark.objective()
         init_guess = bkd.ones((2, 1))
         errors = objective.check_apply_jacobian(init_guess)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
         errors = objective.check_apply_hessian(init_guess)
         assert errors.min() < 2e-7
         constraint = benchmark.objective()
         init_guess = bkd.ones((2, 1))
         errors = constraint.check_apply_jacobian(init_guess)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
 
     def test_piston(self):
         bkd = self.get_backend()
         benchmark = PistonBenchmark(bkd)
-        init_guess = benchmark.variable().get_statistics('mean')
+        init_guess = benchmark.variable().get_statistics("mean")
         errors = benchmark.model().check_apply_jacobian(init_guess)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
 
     def test_wing_weight(self):
         bkd = self.get_backend()
         benchmark = WingWeightBenchmark(bkd)
-        init_guess = benchmark.variable().get_statistics('mean')
+        init_guess = benchmark.variable().get_statistics("mean")
         errors = benchmark.model().check_apply_jacobian(init_guess)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
 
     def _check_genz(self, name, nvars, decay):
         bkd = self.get_backend()
-        cfactor, wfactor = 1, .5
-        benchmark = GenzBenchmark(name, nvars, decay, cfactor, wfactor, bkd)
+        cfactor, wfactor = 1, 0.5
+        benchmark = GenzBenchmark(
+            name, nvars, decay, cfactor, wfactor, backend=bkd
+        )
         integral = benchmark.integral()
 
         samples, weights = integrate(
-            "quasimontecarlo", benchmark.variable(), rule="sobol", nsamples=1e4)
+            "quasimontecarlo", benchmark.variable(), rule="sobol", nsamples=1e4
+        )
         samples = bkd.array(samples)
         weights = bkd.array(weights)
         vals = benchmark.model()(samples)
         qmc_integral = vals.T @ weights
-        #print(integral, qmc_integral)
-        #print((qmc_integral-integral)/integral)
+        # print(integral, qmc_integral)
+        # print((qmc_integral-integral)/integral)
         assert np.allclose(qmc_integral, integral, rtol=7e-4)
 
         if benchmark.model()._jacobian_implemented:
-            sample = benchmark.variable().get_statistics('mean')*0.25
+            sample = benchmark.variable().get_statistics("mean") * 0.25
             errors = benchmark.model().check_apply_jacobian(sample)
-            assert errors.min()/errors.max() < 1e-6
+            assert errors.min() / errors.max() < 1e-6
 
     def test_genz(self):
-        names = ["oscillatory", "product_peak", "corner_peak", "gaussian",
-                 "c0continuous", "discontinuous"]
+        names = [
+            "oscillatory",
+            "product_peak",
+            "corner_peak",
+            "gaussian",
+            "c0continuous",
+            "discontinuous",
+        ]
         nvars = np.arange(2, 7)
         decays = ["none", "quadratic", "quartic", "exp", "sqexp"]
         test_scenarios = itertools.product(*[names, nvars, decays])
@@ -175,13 +187,13 @@ class TestBenchmarks:
     def test_chemical_reaction(self):
         bkd = self.get_backend()
         benchmark = ChemicalReactionBenchmark(bkd)
-        init_guess = benchmark.variable().get_statistics('mean')
+        init_guess = benchmark.variable().get_statistics("mean")
 
         # some variable ranges are small so restrict fd sizes else
         # solve will not converge
         fd_eps = bkd.flip(bkd.logspace(-13, -2, 12))
         errors = benchmark.model().check_apply_jacobian(init_guess, fd_eps)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
 
     def _check_lotka_volterra(self, time_residual_cls):
         bkd = self.get_backend()
@@ -191,7 +203,9 @@ class TestBenchmarks:
         )
         # The error in check apply jacobian depend on newton tolerance
         # because finite difference is only accurate to that tolerance
-        sample = bkd.array(np.random.uniform(0.3, 0.7, benchmark.model().nvars()))[:, None]
+        sample = bkd.array(
+            np.random.uniform(0.3, 0.7, benchmark.model().nvars())
+        )[:, None]
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = benchmark.model().check_apply_jacobian(sample, fd_eps)
         # print(errors.min() / errors.max())
@@ -212,7 +226,7 @@ class TestBenchmarks:
     def test_coupled_springs(self):
         bkd = self.get_backend()
         benchmark = CoupledSpringsBenchmark(bkd)
-        sample = benchmark.variable().get_statistics('mean')
+        sample = benchmark.variable().get_statistics("mean")
         errors = benchmark.model().check_apply_jacobian(sample)
         # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 5e-6
@@ -222,7 +236,7 @@ class TestBenchmarks:
         benchmark = HastingsEcologyBenchmark(bkd)
         # The error in check apply jacobian depend on newton tolerance
         # because finite difference is only accurate to that tolerance
-        sample = benchmark.variable().get_statistics('mean')
+        sample = benchmark.variable().get_statistics("mean")
         errors = benchmark.model().check_apply_jacobian(sample)
         # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.4e-6
@@ -237,8 +251,6 @@ class TestTorchBenchmarks(TestBenchmarks, unittest.TestCase):
     def get_backend(self):
         return TorchLinAlgMixin
 
-        
+
 if __name__ == "__main__":
-    benchmarks_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestBenchmarks)
-    unittest.TextTestRunner(verbosity=2).run(benchmarks_test_suite)
+    unittest.main(verbosity=2)

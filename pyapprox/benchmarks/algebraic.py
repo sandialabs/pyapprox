@@ -851,7 +851,8 @@ class RosenbrockModel(Model):
         return 1
 
     def _values(self, samples: Array) -> Array:
-        # note torch back prop wont work this function because rosen is a numpy function
+        # note torch back prop wont work this function because rosen is a
+        # numpy function
         return self._bkd.asarray(rosen(self._bkd.to_numpy(samples)))[:, None]
 
     def nvars(self):

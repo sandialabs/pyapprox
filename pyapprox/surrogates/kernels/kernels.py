@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
 import math
 
-from pyapprox.util.linearalgebra.numpylinalg import (
-    LinAlgMixin,
-    NumpyLinAlgMixin,
-)
+from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.hyperparameter import (
     CombinedHyperParameter,
     HyperParameter,
@@ -51,11 +49,16 @@ class Kernel(ABC):
         self.hyp_list.set_active_opt_params(active_opt_params)
         return self(self._samples)
 
-    def jacobian(self, samples):
+    def jacobian(self, samples: Array) -> Array:
         self._samples = samples
         return self._bkd.jacobian(
             self._params_eval, self.hyp_list.get_active_opt_params()
         )
+
+    def jacobian_implemented(self) -> bool:
+        if self._bkd.jacobian_implemented():
+            return True
+        return False
 
 
 class CompositionKernel(Kernel):
@@ -71,6 +74,15 @@ class CompositionKernel(Kernel):
         if hasattr(self.kernel1, "nvars"):
             return self.kernel1.nvars()
         return self.kernel2.nvars()
+
+    def jacobian_implemented(self) -> bool:
+        return (
+            self.kernel1.jacobian_implemented()
+            and self.kernel2.jacobian_implemented()
+        )
+
+    def jacobian(self, samples: Array) -> Array:
+        raise NotImplementedError
 
 
 class ProductKernel(CompositionKernel):
@@ -157,16 +169,44 @@ class MaternKernel(Kernel):
         lenscale = self._lenscale.get_values()
         if X2 is None:
             X2 = X1
+            # note using sqaureform(pdist(X1).T) is likely faster than
+            # cdist(X1.T, X1.T) but torch does not have squareform
         distances = self._bkd.cdist(X1.T / lenscale, X2.T / lenscale)
         return self._eval_distance_form(distances)
 
     def nvars(self):
         return self._nvars
 
+    def jacobian(self, samples: Array) -> Array:
+        self._samples = samples
+        if self.nu == self._bkd.inf():
+            # todo save and load K during __call__
+            lenscale = self._lenscale.get_values()
+            distances = self._bkd.cdist(
+                samples.T / lenscale, samples.T / lenscale
+            )
+            Kmat = self._eval_distance_form(distances)
+            distances = (
+                samples.T[:, None, :] - samples.T[None, ...]
+            ) ** 2 / lenscale**2
+            return distances * Kmat[..., None]
+        # TODO compute gradient analytically for nu = 0.5, 1.5, 2.5
+        return super().jacobian(samples)
+
+    def jacobian_implemented(self) -> bool:
+        if self.nu == self._bkd.inf():
+            return True
+        return super().jacobian_implemented()
+
 
 class ConstantKernel(Kernel):
     def __init__(
-        self, constant, constant_bounds=None, transform=None, fixed=False, backend=None
+        self,
+        constant,
+        constant_bounds=None,
+        transform=None,
+        fixed=False,
+        backend=None,
     ):
         if backend is None and transform is not None:
             backend = transform._bkd
@@ -176,14 +216,18 @@ class ConstantKernel(Kernel):
         if constant_bounds is None:
             constant_bounds = [-self._bkd.inf(), self._bkd.inf()]
         self._const = HyperParameter(
-            "const", 1, constant, constant_bounds, transform, fixed=fixed, backend=self._bkd
+            "const",
+            1,
+            constant,
+            constant_bounds,
+            transform,
+            fixed=fixed,
+            backend=self._bkd,
         )
         self.hyp_list = HyperParameterList([self._const])
 
     def diag(self, X1):
-        return self._bkd.full(
-            (X1.shape[1],), self.hyp_list.get_values()[0]
-        )
+        return self._bkd.full((X1.shape[1],), self.hyp_list.get_values()[0])
 
     def __call__(self, X1, X2=None):
         if X2 is None:
@@ -200,9 +244,17 @@ class ConstantKernel(Kernel):
         )
         return const
 
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def jacobian(self, samples: Array) -> Array:
+        return self._bkd.full((samples.shape[1], samples.shape[1], 1), 1.0)
+
 
 class GaussianNoiseKernel(Kernel):
-    def __init__(self, constant, constant_bounds=None, fixed=False, backend=None):
+    def __init__(
+        self, constant, constant_bounds=None, fixed=False, backend=None
+    ):
         super().__init__(backend)
         self._const = HyperParameter(
             "const",
@@ -225,6 +277,12 @@ class GaussianNoiseKernel(Kernel):
         # return full((X.shape[1], Y.shape[1]), self._const.get_values()[0])
         const = self._bkd.full((X.shape[1], Y.shape[1]), 0.0)
         return const
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def jacobian(self, samples: Array) -> Array:
+        return self._bkd.eye(samples.shape[1])[..., None]
 
 
 class PeriodicMaternKernel(MaternKernel):
@@ -263,8 +321,13 @@ class PeriodicMaternKernel(MaternKernel):
 
 class HilbertSchmidtKernel(Kernel):
     def __init__(
-        self, basis1, basis2, weights, weight_bounds, transform=None,
-        normalize: bool = False
+        self,
+        basis1,
+        basis2,
+        weights,
+        weight_bounds,
+        transform=None,
+        normalize: bool = False,
     ):
         super().__init__(basis1._bkd)
         self._nvars = basis1.nvars()
@@ -292,9 +355,11 @@ class HilbertSchmidtKernel(Kernel):
         )
 
     def _get_basis_matrices(self, X1, X2):
-        if (self._X1 is not None and
-            self._X1.shape == X2.shape and
-            self._bkd.allclose(self._X1, X2, atol=1e-15)):
+        if (
+            self._X1 is not None
+            and self._X1.shape == X2.shape
+            and self._bkd.allclose(self._X1, X2, atol=1e-15)
+        ):
             X1basis_mat = self._X1basis_mat
         else:
             X1basis_mat = self._basis1(X1)
@@ -302,9 +367,11 @@ class HilbertSchmidtKernel(Kernel):
                 X1basis_mat /= self._bkd.norm(X1basis_mat, axis=1)[:, None]
             self._X1 = self._bkd.copy(X1)
             self._X1basis_mat = self._bkd.copy(X1basis_mat)
-        if (self._X2 is not None and
-            self._X2.shape == X2.shape and
-            self._bkd.allclose(self._X2, X2, atol=1e-15)):
+        if (
+            self._X2 is not None
+            and self._X2.shape == X2.shape
+            and self._bkd.allclose(self._X2, X2, atol=1e-15)
+        ):
             X2basis_mat = self._X2basis_mat
         else:
             X2basis_mat = self._basis2(X2)
@@ -313,8 +380,6 @@ class HilbertSchmidtKernel(Kernel):
             self._X2 = self._bkd.copy(X2)
             self._X2basis_mat = self._bkd.copy(X2basis_mat)
         return X1basis_mat, X2basis_mat
-
-
 
     def __call__(self, X1, X2=None):
         weights = self._get_weights()
@@ -326,8 +391,11 @@ class HilbertSchmidtKernel(Kernel):
 
     def __repr__(self):
         return "{0}({1}, inbasis={2}, outbasis={3}, bkd={4})".format(
-            self.__class__.__name__, self.hyp_list._short_repr(),
-            self._basis2, self._basis1, self._bkd
+            self.__class__.__name__,
+            self.hyp_list._short_repr(),
+            self._basis2,
+            self._basis1,
+            self._bkd,
         )
 
 
@@ -428,9 +496,7 @@ class SphericalCovariance:
         radii_bounds = radii_bounds.reshape((radii_bounds.shape[0] // 2, 2))
         if self._bkd.any(
             radii_bounds[:, 0] < bounds[: self.noutputs, 0]
-        ) or self._bkd.any(
-            radii_bounds[:, 1] > bounds[: self.noutputs, 1]
-        ):
+        ) or self._bkd.any(radii_bounds[:, 1] > bounds[: self.noutputs, 1]):
             raise ValueError("radii bounds are inconsistent")
         # all theoretical angle_bounds are the same so just check one
         angle_bounds = self._bkd.atleast1d(angle_bounds)
@@ -441,9 +507,7 @@ class SphericalCovariance:
         angle_bounds = angle_bounds.reshape((angle_bounds.shape[0] // 2, 2))
         if self._bkd.any(
             angle_bounds[:, 0] < bounds[self.noutputs :, 0]
-        ) or self._bkd.any(
-            angle_bounds[:, 1] > bounds[self.noutputs :, 1]
-        ):
+        ) or self._bkd.any(angle_bounds[:, 1] > bounds[self.noutputs :, 1]):
             raise ValueError("angle bounds are inconsistent")
 
     def get_covariance_matrix(self):

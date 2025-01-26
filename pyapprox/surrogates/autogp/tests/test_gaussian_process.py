@@ -123,7 +123,7 @@ class TestGaussianProcess:
 
         if trend:
             basis = MultiIndexBasis(
-                [Monomial1D(backend=bkd) for ii in range(nvars)]
+                [Monomial1D(backend=bkd) for ii in range(nvars)],
             )
             basis.set_indices(bkd.arange(3, dtype=int)[None, :])
             trend = BasisExpansion(basis, None, 1.0, (-1e3, 1e3))

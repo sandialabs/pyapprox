@@ -143,7 +143,7 @@ class TestMinimize(unittest.TestCase):
                 design_sample, weights=np.ones((constraint.nqoi(), 1))
             )
             assert errors.min() / errors.max() < 1.3e-6 and errors.max() > 0.2
-
+            
     def test_conditional_value_at_risk_gradients(self):
         benchmark = CantileverBeamUncertainOptimizationBenchmark()
         constraint_model = benchmark.constraints()[0]._model
@@ -368,7 +368,4 @@ class TestMinimize(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    minimize_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestMinimize
-    )
-    unittest.TextTestRunner(verbosity=2).run(minimize_test_suite)
+    unittest.main(verbosity=2)

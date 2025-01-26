@@ -9,7 +9,10 @@ from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 from pyapprox.interface.model import (
-    Model, ScipyModelWrapper, ActiveSetVariableModel
+    Model,
+    ScipyModelWrapper,
+    ActiveSetVariableModel,
+    ModelFromSingleSampleCallable,
 )
 from scipy.optimize import Bounds, NonlinearConstraint, LinearConstraint
 
@@ -20,6 +23,7 @@ class OptimizationResult(dict):
     the iterate and objective function value at the minima,
     which can be accessed via res.x and res.fun, respectively.
     """
+
     def __getattr__(self, name):
         try:
             return self[name]
@@ -35,7 +39,9 @@ class OptimizationResult(dict):
     def __repr__(self):
         return self.__class__.__name__ + (
             "(\n\t x[:, 0]={0}, \n\t fun={1}, \n\t attr={2})".format(
-                self.x[:, 0], self.fun, list(self.keys())))
+                self.x[:, 0], self.fun, list(self.keys())
+            )
+        )
 
 
 class ScipyOptimizationResult(OptimizationResult):
@@ -65,9 +71,7 @@ class Constraint(Model):
         self._hessian_implemented = False
 
     def set_bounds(self, bounds: Array):
-        if (
-            bounds.ndim != 2 or bounds.shape[1] != 2
-        ):
+        if bounds.ndim != 2 or bounds.shape[1] != 2:
             raise ValueError("bounds must be 2D np.ndarray with two columns")
         self._bounds = bounds
 
@@ -79,7 +83,7 @@ class ConstraintFromModel(Constraint):
         super().__init__(bounds, keep_feasible, backend)
         if not isinstance(model, Model):
             raise ValueError(
-                "objective must be an instance of {0}".format(
+                "constraint must be an instance of {0}".format(
                     "pyapprox.interface.model.Model"
                 )
             )
@@ -159,7 +163,8 @@ class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
         bounds[bounds == -np.inf] = -self._numeric_upper_bound
         bounds[bounds == np.inf] = self._numeric_upper_bound
         return self._bkd.asarray(
-            np.random.uniform(bounds[:, 0], bounds[:, 1]))[:, None]
+            np.random.uniform(bounds[:, 0], bounds[:, 1])
+        )[:, None]
 
 
 # TODO Some optimizer classes here are duplicated in
@@ -262,7 +267,7 @@ class OptimizerWithObjective(Optimizer):
         bounds : array (ndesign_vars, 2)
             The upper and lower bounds of each design variable
         """
-        if (bounds.ndim != 2 or bounds.shape[1] != 2):
+        if bounds.ndim != 2 or bounds.shape[1] != 2:
             raise ValueError("Bounds has the wrong shape")
         self._bounds = bounds
 
@@ -281,10 +286,10 @@ class OptimizerWithObjective(Optimizer):
             where `x` and `val` are 1D arrays with shape (ndesign_vars,) and
             `val` is a float.
         """
-        if not isinstance(objective, Model):
+        if not isinstance(objective, Model) and objective.nqoi() == 1:
             raise ValueError(
                 "objective must be an instance of {0}".format(
-                    "pyapprox.interface.model.Model"
+                    "pyapprox.interface.model.Model with nqoi() == 1"
                 )
             )
         self._bkd = objective._bkd
@@ -297,8 +302,8 @@ class OptimizerWithObjective(Optimizer):
         bounds = self._bkd.to_numpy(self._bounds)
         iterate = self._bkd.to_numpy(iterate)
         return np.logical_and(
-            iterate >= bounds[:, 0],
-            iterate <= bounds[:, 1]).all()
+            iterate >= bounds[:, 0], iterate <= bounds[:, 1]
+        ).all()
 
 
 class MultiStartOptimizer(OptimizerWithObjective):
@@ -350,8 +355,10 @@ class MultiStartOptimizer(OptimizerWithObjective):
             if res.fun < best_res.fun:
                 best_res = res
             if self._verbosity > 1:
-                print("it {0}: objective {1}".format(ii+1, res.fun))
-                print("it {0}: best objective {1}".format(ii+1, best_res.fun))
+                print("it {0}: objective {1}".format(ii + 1, res.fun))
+                print(
+                    "it {0}: best objective {1}".format(ii + 1, best_res.fun)
+                )
         if self._verbosity > 0:
             print("{0}\n\t {1}".format(self, best_res))
         return best_res
@@ -409,9 +416,9 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             con = ScipyModelWrapper(_con)
             jac = con.jac if con._jacobian_implemented else "2-point"
             if (
-                    con._weighted_hessian_implemented
-                    or con._hessian_implemented
-                    or con._apply_weighted_hessian_implemented
+                con._weighted_hessian_implemented
+                or con._hessian_implemented
+                or con._apply_weighted_hessian_implemented
             ):
                 # model implementation of weighted_hess can use
                 # direct implementation of weighted hessian (first condition)
@@ -444,8 +451,8 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
         objective = ScipyModelWrapper(self._objective)
         jac = objective.jac if objective._jacobian_implemented else None
         if (
-                objective._apply_hessian_implemented
-                or objective._hessian_implemented
+            objective._apply_hessian_implemented
+            or objective._hessian_implemented
         ):
             hessp = objective.hessp
         else:
@@ -454,9 +461,9 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
         method = opts.pop("method", "trust-constr")
         if method == "L-BFGS-B":
             if self._verbosity < 3:
-                opts['iprint'] = self._verbosity-1
+                opts["iprint"] = self._verbosity - 1
             else:
-                opts['iprint'] = 200
+                opts["iprint"] = 200
             if len(self._raw_constraints) > 0:
                 raise ValueError(
                     "{0} cannot be used with constraints".format(method)
@@ -751,9 +758,9 @@ class SampleAverageVariance(SampleAverageStat):
 
     def jacobian(self, values, jac_values, weights):
         # jac_values.shape (nsamples, ncontraints, ndesign_vars)
-        mean_jac = self._mean_stat.jacobian(
-            values, jac_values, weights
-        )[None, :]
+        mean_jac = self._mean_stat.jacobian(values, jac_values, weights)[
+            None, :
+        ]
         tmp = jac_values - mean_jac
         tmp = 2 * self._diff(values, weights).T[..., None] * tmp
         return self._bkd.einsum("ijk,i->jk", tmp, weights[:, 0])
@@ -765,9 +772,9 @@ class SampleAverageVariance(SampleAverageStat):
         return self._bkd.einsum("ij,i->j", tmp, weights[:, 0])
 
     def hessian(self, values, jac_values, hess_values, weights):
-        mean_jac = self._mean_stat.jacobian(
-            values, jac_values, weights
-        )[None, :]
+        mean_jac = self._mean_stat.jacobian(values, jac_values, weights)[
+            None, :
+        ]
         mean_hess = self._mean_stat.hessian(
             values, jac_values, hess_values, weights
         )[None, :]
@@ -775,7 +782,7 @@ class SampleAverageVariance(SampleAverageStat):
         tmp_hess = hess_values - mean_hess
         tmp1 = 2 * self._diff(values, weights).T[..., None, None] * tmp_hess
         tmp2 = 2 * self._bkd.einsum("ijk, ijl->ijkl", tmp_jac, tmp_jac)
-        return self._bkd.einsum("ijkl,i->jkl", tmp1+tmp2, weights[:, 0])
+        return self._bkd.einsum("ijkl,i->jkl", tmp1 + tmp2, weights[:, 0])
 
 
 class SampleAverageStdev(SampleAverageVariance):
@@ -804,11 +811,12 @@ class SampleAverageStdev(SampleAverageVariance):
         # g(x)=sqrt(x), g'(x) = 1/(2x^{1/2}), g''(x)=-1/(4x^{3/2})
         tmp0 = self._bkd.sqrt(super().__call__(values, weights).T)
         tmp1 = (
-            1. / (4. * tmp0[..., None]**3.)
+            1.0
+            / (4.0 * tmp0[..., None] ** 3.0)
             * self._bkd.einsum("ij,ik->ijk", variance_jac, variance_jac)
         )
-        tmp2 = 1./(2. * tmp0[..., None]) * variance_hess
-        return tmp2-tmp1
+        tmp2 = 1.0 / (2.0 * tmp0[..., None]) * variance_hess
+        return tmp2 - tmp1
 
 
 class SampleAverageMeanPlusStdev(SampleAverageStat):
@@ -854,9 +862,10 @@ class SampleAverageEntropicRisk(SampleAverageStat):
 
     def __call__(self, values, weights):
         # values (nsamples, noutputs)
-        return self._bkd.log(
-            self._bkd.exp(self._alpha * values.T) @ weights
-        ).T / self._alpha
+        return (
+            self._bkd.log(self._bkd.exp(self._alpha * values.T) @ weights).T
+            / self._alpha
+        )
 
     def jacobian(self, values, jac_values, weights):
         # jac_values (nsamples, noutputs, nvars)
@@ -871,7 +880,7 @@ class SampleAverageEntropicRisk(SampleAverageStat):
             * self._bkd.einsum(
                 "ijk,i->jk",
                 (self._alpha * exp_values[..., None] * jac_values),
-                weights[:, 0]
+                weights[:, 0],
             )
         )
         return jac / self._alpha
@@ -885,7 +894,7 @@ class SampleAverageEntropicRisk(SampleAverageStat):
             * self._bkd.einsum(
                 "ij,i->j",
                 (self._alpha * exp_values * jv_values[..., 0]),
-                weights[:, 0]
+                weights[:, 0],
             )[:, None]
         )
         return jv / self._alpha
@@ -893,13 +902,9 @@ class SampleAverageEntropicRisk(SampleAverageStat):
     def hessian(self, values, jac_values, hess_values, weights):
         exp_values = self._bkd.exp(self._alpha * values)
         exp_jac = self._alpha * self._bkd.einsum(
-            "ijk,i->jk",
-            (exp_values[..., None] * jac_values),
-            weights[:, 0]
+            "ijk,i->jk", (exp_values[..., None] * jac_values), weights[:, 0]
         )
-        exp_jac_outprod = self._bkd.einsum(
-            "ij,ik->ijk", exp_jac, exp_jac
-        )
+        exp_jac_outprod = self._bkd.einsum("ij,ik->ijk", exp_jac, exp_jac)
         jac_values_outprod = self._bkd.einsum(
             "ijk,ijl->ijkl", jac_values, jac_values
         )
@@ -907,15 +912,15 @@ class SampleAverageEntropicRisk(SampleAverageStat):
             "ijkl,i->jkl",
             (exp_values[..., None, None] * hess_values),
             weights[:, 0],
-        ) + self._alpha ** 2 * self._bkd.einsum(
+        ) + self._alpha**2 * self._bkd.einsum(
             "ijkl,i->jkl",
             (exp_values[..., None, None] * jac_values_outprod),
-            weights[:, 0]
+            weights[:, 0],
         )
         tmp0 = exp_values.T @ weights
-        tmp1 = 1. / tmp0[..., None] * exp_hess
-        tmp2 = 1. / tmp0[..., None]**2 * exp_jac_outprod
-        return (tmp1-tmp2)/self._alpha
+        tmp1 = 1.0 / tmp0[..., None] * exp_hess
+        tmp2 = 1.0 / tmp0[..., None] ** 2 * exp_jac_outprod
+        return (tmp1 - tmp2) / self._alpha
 
 
 class SmoothLogBasedMaxFunction:
@@ -937,8 +942,12 @@ class SmoothLogBasedMaxFunction:
         x_div_eps = x / self._eps
         # avoid overflow
         vals = self._bkd.zeros(x.shape)
-        II = self._bkd.where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
-        vals[II] = x[II] + self._eps * self._bkd.log(1 + self._bkd.exp(-x_div_eps[II]))
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
+        vals[II] = x[II] + self._eps * self._bkd.log(
+            1 + self._bkd.exp(-x_div_eps[II])
+        )
         J = self._bkd.where(x_div_eps >= self._thresh)
         vals[J] = x[J]
         return vals
@@ -952,7 +961,9 @@ class SmoothLogBasedMaxFunction:
         x = samples
         x_div_eps = x / self._eps
         # Avoid overflow.
-        II = self._bkd.where((x_div_eps < self._thresh) & (x_div_eps > -self._thresh))
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
         jac = self._bkd.zeros((x_div_eps.shape))
         jac[II] = 1.0 / (1 + self._bkd.exp(-x_div_eps[II]))
         jac[x_div_eps >= self._thresh] = 1.0
@@ -989,13 +1000,11 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
         # grad withe respect to parameters of x
         max_jac = self._max.jacobians(values - self._t)
         param_jac = self._bkd.einsum(
-            "ijk,i->jk", (max_jac * jac_values), weights[:, 0]) / (
-            1 - self._alpha[:, None]
-        )
+            "ijk,i->jk", (max_jac * jac_values), weights[:, 0]
+        ) / (1 - self._alpha[:, None])
         t_jac = 1 - self._bkd.einsum(
-            "ij,i->j", max_jac[..., 0], weights[:, 0]) / (
-            1 - self._alpha
-        )
+            "ij,i->j", max_jac[..., 0], weights[:, 0]
+        ) / (1 - self._alpha)
         return self._bkd.hstack((param_jac, self._bkd.diag(t_jac)))
 
 
@@ -1010,7 +1019,7 @@ class SampleAverageConstraint(ConstraintFromModel):
         nvars,
         design_indices,
         keep_feasible=False,
-        backend=NumpyLinAlgMixin
+        backend=NumpyLinAlgMixin,
     ):
         self._stat = stat
         super().__init__(model, design_bounds, keep_feasible, backend=backend)
@@ -1027,17 +1036,20 @@ class SampleAverageConstraint(ConstraintFromModel):
         )
         # warning self._joint_samples must be recomputed if self._samples
         # is changed.
-        self._joint_samples = ActiveSetVariableModel._expand_samples_from_indices(
-            self._samples,
-            self._random_indices,
-            self._design_indices,
-            self._bkd.zeros((design_indices.shape[0], 1)),
+        self._joint_samples = (
+            ActiveSetVariableModel._expand_samples_from_indices(
+                self._samples,
+                self._random_indices,
+                self._design_indices,
+                self._bkd.zeros((design_indices.shape[0], 1)),
+            )
         )
 
     def _update_attributes(self):
         self._jacobian_implemented = self._model._jacobian_implemented
         self._apply_jacobian_implemented = (
-            self._model._apply_jacobian_implemented)
+            self._model._apply_jacobian_implemented
+        )
         self._hessian_implemented = (
             self._model._hessian_implemented
             and self._stat._hessian_implemented
@@ -1197,7 +1209,7 @@ class ObjectiveWithCVaRConstraints(Model):
     def _apply_jacobian(self, design_sample, vec):
         return self._model.apply_jacobian(
             design_sample[: -self._ncvar_constraints],
-            vec[: -self._ncvar_constraints]
+            vec[: -self._ncvar_constraints],
         )
 
     def _jacobian(self, design_sample):
@@ -1212,10 +1224,11 @@ class ObjectiveWithCVaRConstraints(Model):
         )
         nvars = model_hess.shape[-1]
         hess = self._bkd.zeros(
-            (self.nqoi(),
-             nvars+self._ncvar_constraints,
-             nvars+self._ncvar_constraints,
-             )
+            (
+                self.nqoi(),
+                nvars + self._ncvar_constraints,
+                nvars + self._ncvar_constraints,
+            )
         )
         idx = np.ix_(self._bkd.arange(nvars), self._bkd.arange(nvars))
         hess[:, idx[0], idx[1]] = model_hess
@@ -1224,7 +1237,7 @@ class ObjectiveWithCVaRConstraints(Model):
 
 
 def approx_jacobian(
-        func, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
+    func, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
 ):
     x0 = bkd.asarray(x)
     assert x0.ndim == 1 or x0.shape[1] == 1
@@ -1244,6 +1257,6 @@ def approx_jacobian(
 
 
 def approx_hessian(
-        jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
+    jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
 ):
     return approx_jacobian(lambda y: jac_fun(y).T, x, epsilon, bkd=bkd)

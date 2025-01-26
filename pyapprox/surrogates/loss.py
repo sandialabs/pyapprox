@@ -48,13 +48,12 @@ class LossFunction(Model):
         for hyp in self._model.hyp_list.hyper_params:
             self._bkd.detach(hyp)
         return self._bkd.detach(grad).T
-        # return grad.T
 
     def _apply_hessian(self, active_opt_params: Array, vec: Array) -> Array:
         val, grad = self._bkd.hvp(self._loss_values, active_opt_params)
 
     def _values(self, active_opt_params: Array) -> Array:
-        return self._loss_values(active_opt_params)
+        return self._bkd.detach(self._loss_values(active_opt_params))
 
 
 class RMSELoss(LossFunction):

@@ -18,6 +18,7 @@ if package_available("jax"):
     from pyapprox.util.linearalgebra.jaxlinalg import JaxLinAlgMixin
 
 import warnings
+
 warnings.filterwarnings("error")
 
 
@@ -55,7 +56,9 @@ class TestKernels:
         assert bkd.allclose(
             kernel_sum.diag(X), bkd.get_diagonal(kernel_sum(X, X))
         )
-        assert bkd.allclose(kernel_sum(X, Y), const0 * kernel_inf(X, Y) + const1)
+        assert bkd.allclose(
+            kernel_sum(X, Y), const0 * kernel_inf(X, Y) + const1
+        )
 
         kernel_periodic = PeriodicMaternKernel(
             0.5, 1.0, [1e-1, 1], 1, [1e-1, 1], backend=bkd
@@ -67,10 +70,12 @@ class TestKernels:
             kernel_periodic.diag(X), bkd.get_diagonal(kernel_periodic(X, X))
         )
 
-    def _check_kernel_jacobian(self, kernel, nsamples):
+    def _check_kernel_jacobian(self, kernel, nsamples, nvars):
+        if not kernel.jacobian_implemented():
+            return
         bkd = kernel._bkd
         kernel_copy = copy.deepcopy(kernel)
-        X = bkd.array(np.random.uniform(-1, 1, (kernel.nvars(), nsamples)))
+        X = bkd.array(np.random.uniform(-1, 1, (nvars, nsamples)))
         jacobian = kernel.jacobian(X)
         # The following loop prevents torch from throwing error
         # RuntimeError: Only Tensors created explicitly by the user...
@@ -88,23 +93,24 @@ class TestKernels:
         )
 
     def test_kernel_jacobian(self):
-        if not self.jacobian_implemented():
-            self.skipTest("Jacobian not implemented")
         bkd = self.get_backend()
         nvars, nsamples = 2, 3
         kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
-        self._check_kernel_jacobian(kernel, nsamples)
+        self._check_kernel_jacobian(kernel, nsamples, nvars)
 
         const = 1
         kernel = ConstantKernel(const, backend=bkd) * MaternKernel(
             np.inf, 1.0, [1e-1, 1], nvars, backend=bkd
         )
-        self._check_kernel_jacobian(kernel, nsamples)
-        const = 1
+        self._check_kernel_jacobian(kernel, nsamples, nvars)
+
+        kernel = GaussianNoiseKernel(1, [1e-2, 10], backend=bkd)
+        self._check_kernel_jacobian(kernel, nsamples, nvars)
+
         kernel = MaternKernel(
             np.inf, 1.0, [1e-1, 1], nvars, backend=bkd
         ) + GaussianNoiseKernel(1, [1e-2, 10], backend=bkd)
-        self._check_kernel_jacobian(kernel, nsamples)
+        self._check_kernel_jacobian(kernel, nsamples, nvars)
 
 
 class TestNumpyKernels(TestKernels, unittest.TestCase):
