@@ -357,13 +357,11 @@ class TestMinimize(unittest.TestCase):
         assert np.allclose(-sigma1, result.fun, rtol=7e-3)
 
     @unittest.skipIf(not has_pyrol, "pyrol cannot be imported")
-    def test_rol_minimize_rosenbrock(self):
+    def test_rol_minimize_constrained_rosenbrock(self):
         nvars = 2
-        benchmark = RosenbrockConstrainedOptimizationBenchmark(nvars=nvars)
-        optimizer = ROLConstrainedOptimizer(benchmark.model())
-        result = optimizer.minimize(
-            benchmark.variable().get_statistics("mean")
-        )
+        benchmark = RosenbrockConstrainedOptimizationBenchmark()
+        optimizer = ROLConstrainedOptimizer(benchmark.objective())
+        result = optimizer.minimize(benchmark.init_iterate())
         assert np.allclose(result.x, np.full(nvars, 1))
 
 
