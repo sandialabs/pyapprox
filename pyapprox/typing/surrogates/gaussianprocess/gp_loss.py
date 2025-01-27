@@ -57,6 +57,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         self._fit_args = fit_args
         self._bkd = gp.bkd()
         self._hyp_list = gp.hyp_list()
+        self._setup_derivative_methods()
 
     def nvars(self) -> int:
         """Number of active hyperparameters."""
@@ -102,10 +103,37 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         # Compute NLL (same formula for both single and multi-output)
         nll = self._gp.neg_log_marginal_likelihood()
 
-        # Return as (1, 1) array
-        return self._bkd.reshape(self._bkd.array([nll]), (1, 1))
+        # Return as (1, 1) array, preserving autograd graph
+        # nll may be a scalar tensor; reshape preserves the graph
+        nll_array = self._bkd.reshape(nll, (1,)) if hasattr(nll, 'shape') else self._bkd.array([nll])
+        return self._bkd.reshape(nll_array, (1, 1))
 
-    def jacobian(self, params: Array) -> Array:
+    def _setup_derivative_methods(self) -> None:
+        """Bind jacobian method.
+
+        Uses analytical gradients if kernel supports jacobian_wrt_params.
+        Falls back to autograd for TorchBkd backends.
+        """
+        kernel = self._gp._kernel
+        if hasattr(kernel, 'jacobian_wrt_params'):
+            self.jacobian = self._jacobian_analytical
+        elif hasattr(self._bkd, 'jacobian'):
+            # Autograd fallback for torch backend
+            self.jacobian = self._jacobian_autograd
+
+    def _jacobian_autograd(self, params: Array) -> Array:
+        """Compute gradient via autograd through __call__."""
+        # Ensure params is 1D
+        if len(params.shape) == 2 and params.shape[1] == 1:
+            params = params[:, 0]
+
+        def loss_func(p: Array) -> Array:
+            return self(p)[0, 0]
+
+        jac = self._bkd.jacobian(loss_func, params)
+        return self._bkd.reshape(jac, (1, len(params)))
+
+    def _jacobian_analytical(self, params: Array) -> Array:
         """
         Compute gradient of NLML w.r.t. hyperparameters.
 
@@ -142,12 +170,6 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         kernel_hyps = kernel.hyp_list()
 
         if kernel_hyps.nparams() > 0:
-            if not hasattr(kernel, 'jacobian_wrt_params'):
-                raise NotImplementedError(
-                    f"Kernel {type(kernel).__name__} does not implement "
-                    "jacobian_wrt_params() method"
-                )
-
             # Get kernel gradients
             # For single-output: K_grad = kernel.jacobian_wrt_params(X)
             # For multi-output: K_grad = kernel.jacobian_wrt_params(X_list)

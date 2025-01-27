@@ -5,6 +5,8 @@ This module provides the ExactGaussianProcess class which performs
 full GP regression using Cholesky factorization for numerical stability.
 """
 
+import math
+
 import numpy as np
 from typing import Generic, Optional
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -1015,15 +1017,16 @@ class ExactGaussianProcess(Generic[Array]):
         n = self._data.n_samples()
 
         # Data fit term: (y - m)^T (K + σ²I)^{-1} (y - m) = (y - m)^T α
+        # Avoid float() to preserve autograd graph for torch backend
         mean_pred = self._mean(self._data.X())
         residual = self._data.y() - mean_pred
-        data_fit = float(self._bkd.sum(residual * self._alpha))
+        data_fit = self._bkd.sum(residual * self._alpha)
 
         # Complexity penalty: log|K + σ²I|
         log_det = self._cholesky.log_determinant()
 
         # Constant term
-        constant = n * np.log(2 * np.pi)
+        constant = n * math.log(2 * math.pi)
 
         # Total negative log marginal likelihood
         nlml = 0.5 * (data_fit + log_det + constant)
