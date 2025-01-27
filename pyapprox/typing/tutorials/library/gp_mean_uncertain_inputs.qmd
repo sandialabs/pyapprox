@@ -22,9 +22,9 @@ jupyter: python3
 
 After completing this tutorial, you will be able to:
 
-- Define the kernel integral $\vc{\tau}$ and understand its role in GP statistics
-- Compute the expected value $\eta = \vc{\tau}^\top \mt{A}^{-1} \vc{y}$ of the GP mean
-- Compute the variance $s^2 \varsigma^2$ of the GP mean over uncertain inputs
+- Define the kernel integral $\vc{\tau}_K$ and understand its role in GP statistics
+- Compute the expected value $\eta = \vc{\tau}_K^\top \mt{A}^{-1} \vc{y}$ of the GP mean
+- Compute the variance $\Var[\mu_f] = u_K - \vc{\tau}_K^\top \mt{A}^{-1} \vc{\tau}_K$ of the GP mean over uncertain inputs
 - Verify formulas using Monte Carlo simulation
 
 ## Prerequisites
@@ -37,7 +37,7 @@ When using a Gaussian Process (GP) as a surrogate model for uncertainty quantifi
 
 > **Note:** This tutorial assumes a GP with zero prior mean. Extension to non-zero constant mean is future work.
 
-Given a GP posterior $f \sim \mathcal{GP}(m^*, s^2 C^*)$ and an input distribution with density $\rho(\vc{z})$, we want to compute:
+Given a GP with covariance kernel $K(\vc{z}, \vc{z}') = s^2 C(\vc{z}, \vc{z}')$ where $C$ is a unit-variance correlation function and $s^2$ is the kernel variance, the posterior is $f \sim \mathcal{GP}(m^*, K^*)$ where $K^* = s^2 C^*$. Given an input distribution with density $\rho(\vc{z})$, we want to compute:
 
 $$
 \mu_f = \int f(\vc{z}) \, \rho(\vc{z}) \, d\vc{z}
@@ -56,54 +56,66 @@ np.random.seed(42)
 
 ## Key Quantities
 
-### The Correlation Vector $\vc{t}(\vc{z})$
+### The Covariance Kernel and Kernel Matrix
 
-For a GP with correlation function $C(\vc{z}, \vc{z}')$ and $N$ training points $\{\vc{x}^{(j)}\}_{j=1}^N$, the correlation vector is:
+The GP covariance kernel is $K(\vc{z}, \vc{z}') = s^2 C(\vc{z}, \vc{z}')$, where $C$ is the unit-variance correlation function ($C(\vc{z}, \vc{z}) = 1$) and $s^2$ is the kernel variance hyperparameter.
 
-$$
-[\vc{t}(\vc{z})]_j = C(\vc{z}, \vc{x}^{(j)}) \in \mathbb{R}^N
-$$
-
-This vector measures the correlation between a new point $\vc{z}$ and all training points.
-
-### The Kernel Integral $\vc{\tau}$
-
-The **integrated correlation vector** is:
+The kernel matrix $\mt{A}$ used in the GP is:
 
 $$
-\vc{\tau} = \int \vc{t}(\vc{z}) \, \rho(\vc{z}) \, d\vc{z} \in \mathbb{R}^N
+\mt{A} = s^2 \mt{C} + \sigma^2 \mt{I}
 $$
 
-with elements:
+where $\mt{C}_{ij} = C(\vc{x}^{(i)}, \vc{x}^{(j)})$ and $\sigma^2$ is the noise variance.
+
+### The Kernel Vector $\vc{k}(\vc{z})$
+
+For $N$ training points $\{\vc{x}^{(j)}\}_{j=1}^N$, the kernel vector is:
 
 $$
-\tau_j = \int C(\vc{z}, \vc{x}^{(j)}) \, \rho(\vc{z}) \, d\vc{z}
+[\vc{k}(\vc{z})]_j = K(\vc{z}, \vc{x}^{(j)}) = s^2 C(\vc{z}, \vc{x}^{(j)}) \in \mathbb{R}^N
 $$
 
-This measures how each training point "contributes" after averaging over the input distribution.
+This vector measures the covariance between a new point $\vc{z}$ and all training points.
 
-### The Double Integral $u$
+### The Kernel Integral $\vc{\tau}_K$
 
-The scalar quantity $u$ represents the integrated prior covariance:
+The **integrated kernel vector** is:
 
 $$
-u = \int \int C(\vc{z}, \vc{w}) \, \rho(\vc{z}) \, \rho(\vc{w}) \, d\vc{z} \, d\vc{w}
+\vc{\tau}_K = \int \vc{k}(\vc{z}) \, \rho(\vc{z}) \, d\vc{z} = s^2 \vc{\tau}_C \in \mathbb{R}^N
 $$
+
+where $\vc{\tau}_C$ is the integrated correlation vector with elements:
+
+$$
+\tau_{C,j} = \int C(\vc{z}, \vc{x}^{(j)}) \, \rho(\vc{z}) \, d\vc{z}
+$$
+
+### The Double Integral $u_K$
+
+The scalar quantity $u_K$ represents the integrated prior covariance:
+
+$$
+u_K = \int \int K(\vc{z}, \vc{w}) \, \rho(\vc{z}) \, \rho(\vc{w}) \, d\vc{z} \, d\vc{w} = s^2 u_C
+$$
+
+where $u_C = \int \int C(\vc{z}, \vc{w}) \, \rho(\vc{z}) \, \rho(\vc{w}) \, d\vc{z} \, d\vc{w}$.
 
 ## Mean of the GP Mean
 
 The GP posterior mean at a point $\vc{z}$ is:
 
 $$
-m^*(\vc{z}) = \vc{t}(\vc{z})^\top \mt{A}^{-1} \vc{y}
+m^*(\vc{z}) = \vc{k}(\vc{z})^\top \mt{A}^{-1} \vc{y}
 $$
 
-where $\mt{A}$ is the kernel matrix and $\vc{y}$ are the training values.
+where $\mt{A} = s^2 \mt{C} + \sigma^2 \mt{I}$ is the kernel matrix and $\vc{y}$ are the training values.
 
 Taking the expectation over the input distribution:
 
 $$
-\eta = \E_{\vc{z}}[\mu_f] = \int m^*(\vc{z}) \, \rho(\vc{z}) \, d\vc{z} = \vc{\tau}^\top \mt{A}^{-1} \vc{y}
+\eta = \E_{\vc{z}}[\mu_f] = \int m^*(\vc{z}) \, \rho(\vc{z}) \, d\vc{z} = \vc{\tau}_K^\top \mt{A}^{-1} \vc{y}
 $$
 
 ```{python}
@@ -111,6 +123,7 @@ $$
 N = 5  # training points
 length_scale = 1.0
 kernel_var = 1.5  # s²
+nugget = 1e-8     # σ²
 
 # Training data
 train_x = np.random.randn(N)
@@ -123,15 +136,19 @@ def rbf_corr(x1, x2, l):
     x2 = np.atleast_1d(x2)
     return np.exp(-0.5 * (x1[:, None] - x2[None, :])**2 / l**2)
 
-# Kernel matrix A (correlation, not covariance)
-A = rbf_corr(train_x, train_x, length_scale) + 1e-8 * np.eye(N)
+# Correlation matrix
+C = rbf_corr(train_x, train_x, length_scale)
+
+# Kernel matrix A = s²C + σ²I (covariance, not correlation)
+A = kernel_var * C + nugget * np.eye(N)
 A_inv = np.linalg.inv(A)
 
 print(f"Training points: {N}")
+print(f"Kernel variance s² = {kernel_var}")
 print(f"Kernel matrix shape: {A.shape}")
 ```
 
-### Computing $\vc{\tau}$ with Gauss-Hermite Quadrature
+### Computing $\vc{\tau}_K$ with Gauss-Hermite Quadrature
 
 For a standard normal input distribution, we use Gauss-Hermite quadrature:
 
@@ -142,19 +159,23 @@ quad_x, quad_w = np.polynomial.hermite.hermgauss(Q)
 quad_x = quad_x * np.sqrt(2)  # scale for N(0, 1)
 quad_w = quad_w / np.sqrt(np.pi)  # normalize weights
 
-# Compute τ: τ_j = ∫ C(z, x_j) ρ(z) dz
+# Compute τ_C: τ_{C,j} = ∫ C(z, x_j) ρ(z) dz
 K_quad_train = rbf_corr(quad_x, train_x, length_scale)
-tau = quad_w @ K_quad_train
+tau_C = quad_w @ K_quad_train
 
-print(f"τ shape: {tau.shape}")
-print(f"τ values: {tau.round(4)}")
+# Scale to K-quantity: τ_K = s² τ_C
+tau_K = kernel_var * tau_C
+
+print(f"τ_C shape: {tau_C.shape}")
+print(f"τ_C values: {tau_C.round(4)}")
+print(f"τ_K = s² τ_C: {tau_K.round(4)}")
 ```
 
 ### Computing $\eta$
 
 ```{python}
-# η = τᵀ A⁻¹ y
-eta = tau @ A_inv @ train_y
+# η = τ_Kᵀ A⁻¹ y
+eta = tau_K @ A_inv @ train_y
 
 print(f"η = E[μ_f] = {eta:.6f}")
 ```
@@ -164,37 +185,33 @@ print(f"η = E[μ_f] = {eta:.6f}")
 The variance of $\mu_f$ is:
 
 $$
-\Var_{\vc{z}}[\mu_f] = s^2 \varsigma^2 = s^2 (u - \varpi)
+\Var_{\vc{z}}[\mu_f] = u_K - \vc{\tau}_K^\top \mt{A}^{-1} \vc{\tau}_K
 $$
 
-where:
+where $u_K = s^2 u_C$ and $\vc{\tau}_K = s^2 \vc{\tau}_C$.
 
-$$
-\varpi = \vc{\tau}^\top \mt{A}^{-1} \vc{\tau}
-$$
-
-### Computing $u$
+### Computing $u_K$
 
 ```{python}
-# u = ∫∫ C(z, w) ρ(z) ρ(w) dz dw
+# u_C = ∫∫ C(z, w) ρ(z) ρ(w) dz dw
 K_quad_quad = rbf_corr(quad_x, quad_x, length_scale)
-u = quad_w @ K_quad_quad @ quad_w
+u_C = quad_w @ K_quad_quad @ quad_w
 
-print(f"u = {u:.6f}")
+# Scale to K-quantity: u_K = s² u_C
+u_K = kernel_var * u_C
+
+print(f"u_C = {u_C:.6f}")
+print(f"u_K = s² u_C = {u_K:.6f}")
 ```
 
-### Computing $\varpi$ and $\varsigma^2$
+### Computing $\Var[\mu_f]$
 
 ```{python}
-# ϖ = τᵀ A⁻¹ τ
-varpi = tau @ A_inv @ tau
+# Var[μ_f] = u_K - τ_Kᵀ A⁻¹ τ_K
+var_mu = u_K - tau_K @ A_inv @ tau_K
 
-# ς² = u - ϖ
-varsigma_sq = u - varpi
-
-print(f"ϖ = {varpi:.6f}")
-print(f"ς² = u - ϖ = {varsigma_sq:.6f}")
-print(f"Var[μ_f] = s² ς² = {kernel_var * varsigma_sq:.6f}")
+print(f"τ_Kᵀ A⁻¹ τ_K = {tau_K @ A_inv @ tau_K:.6f}")
+print(f"Var[μ_f] = u_K - τ_Kᵀ A⁻¹ τ_K = {var_mu:.6f}")
 ```
 
 ## Monte Carlo Verification
@@ -206,8 +223,8 @@ Let's verify our formulas using Monte Carlo sampling from the GP posterior:
 n_mc = 50000
 mc_samples = np.random.randn(n_mc)
 
-# GP posterior mean at MC samples: m*(z) = t(z)ᵀ A⁻¹ y
-K_mc_train = rbf_corr(mc_samples, train_x, length_scale)
+# GP posterior mean at MC samples: m*(z) = k(z)ᵀ A⁻¹ y
+K_mc_train = kernel_var * rbf_corr(mc_samples, train_x, length_scale)
 posterior_means = K_mc_train @ A_inv @ train_y
 
 # MC estimate of E[μ_f]
@@ -227,12 +244,14 @@ To verify $\Var[\mu_f]$, we need to sample functions from the GP posterior:
 
 ```{python}
 # Sample GP posterior at quadrature points
-# f(quad_x) ~ N(m*(quad_x), s² C*(quad_x, quad_x))
-m_star_quad = K_quad_train @ A_inv @ train_y
-C_star_quad = kernel_var * (K_quad_quad - K_quad_train @ A_inv @ K_quad_train.T)
-C_star_quad += 1e-10 * np.eye(Q)  # numerical stability
+# f(quad_x) ~ N(m*(quad_x), K*(quad_x, quad_x))
+# where K* = s²C - s²C A⁻¹ s²C = s²(C - s²C A⁻¹ C) is the posterior covariance
+K_qt_full = kernel_var * K_quad_train  # s² C(quad, train)
+m_star_quad = K_qt_full @ A_inv @ train_y
+K_star_quad = kernel_var * K_quad_quad - K_qt_full @ A_inv @ K_qt_full.T
+K_star_quad += 1e-10 * np.eye(Q)  # numerical stability
 
-L_quad = np.linalg.cholesky(C_star_quad)
+L_quad = np.linalg.cholesky(K_star_quad)
 
 # Draw GP realizations and compute μ_f for each
 n_realizations = 10000
@@ -244,11 +263,10 @@ for r in range(n_realizations):
     mu_samples[r] = quad_w @ f_r    # μ_f = ∫ f(z) ρ(z) dz
 
 mc_var_mu = np.var(mu_samples)
-analytical_var_mu = kernel_var * varsigma_sq
 
 print(f"\nMC estimate of Var[μ_f] (n={n_realizations}): {mc_var_mu:.6f}")
-print(f"Analytical Var[μ_f] = s²ς²:                   {analytical_var_mu:.6f}")
-print(f"Relative error:                               {abs(mc_var_mu - analytical_var_mu)/analytical_var_mu:.2%}")
+print(f"Analytical Var[μ_f]:                           {var_mu:.6f}")
+print(f"Relative error:                               {abs(mc_var_mu - var_mu)/var_mu:.2%}")
 ```
 
 ## Distribution of $\mu_f$
@@ -256,8 +274,10 @@ print(f"Relative error:                               {abs(mc_var_mu - analytica
 Since $\mu_f$ is a linear functional of the GP posterior, it is Gaussian:
 
 $$
-\mu_f \mid \vc{\theta}, \vc{y} \sim \normal(\eta, s^2 \varsigma^2)
+\mu_f \mid \vc{\theta}, \vc{y} \sim \normal(\eta, \Var[\mu_f])
 $$
+
+where $\Var[\mu_f] = u_K - \vc{\tau}_K^\top \mt{A}^{-1} \vc{\tau}_K$.
 
 ```{python}
 fig, ax = plt.subplots(figsize=(10, 5))
@@ -267,10 +287,10 @@ ax.hist(mu_samples, bins=50, density=True, alpha=0.7, label='MC samples')
 
 # Analytical Gaussian
 x_range = np.linspace(mu_samples.min(), mu_samples.max(), 200)
-std_mu = np.sqrt(analytical_var_mu)
+std_mu = np.sqrt(var_mu)
 gaussian_pdf = (1 / (std_mu * np.sqrt(2 * np.pi)) *
                 np.exp(-0.5 * ((x_range - eta) / std_mu)**2))
-ax.plot(x_range, gaussian_pdf, 'r-', linewidth=2, label='Analytical N(η, s²ς²)')
+ax.plot(x_range, gaussian_pdf, 'r-', linewidth=2, label=r'Analytical N($\eta$, Var[$\mu_f$])')
 
 ax.axvline(eta, color='green', linestyle='--', label=f'η = {eta:.3f}')
 ax.set_xlabel('μ_f')
@@ -285,18 +305,20 @@ plt.show()
 
 ## Summary of Key Formulas
 
+All formulas use K-quantities (kernel integrals that absorb powers of $s^2$), where $\mt{A} = s^2 \mt{C} + \sigma^2 \mt{I}$.
+
 | Quantity | Formula | Meaning |
 |----------|---------|---------|
-| $\tau_j$ | $\int C(\vc{z}, \vc{x}^{(j)}) \rho(\vc{z}) d\vc{z}$ | Integrated correlation |
-| $u$ | $\int \int C(\vc{z}, \vc{w}) \rho(\vc{z}) \rho(\vc{w}) d\vc{z} d\vc{w}$ | Integrated prior covariance |
-| $\eta$ | $\vc{\tau}^\top \mt{A}^{-1} \vc{y}$ | Mean of GP mean |
-| $\varsigma^2$ | $u - \vc{\tau}^\top \mt{A}^{-1} \vc{\tau}$ | Scaled variance of GP mean |
-| $\Var[\mu_f]$ | $s^2 \varsigma^2$ | Variance of GP mean |
+| $\tau_{K,j}$ | $s^2 \int C(\vc{z}, \vc{x}^{(j)}) \rho(\vc{z}) d\vc{z}$ | Integrated kernel vector |
+| $u_K$ | $s^2 \int \int C(\vc{z}, \vc{w}) \rho(\vc{z}) \rho(\vc{w}) d\vc{z} d\vc{w}$ | Integrated prior covariance |
+| $\eta$ | $\vc{\tau}_K^\top \mt{A}^{-1} \vc{y}$ | Mean of GP mean |
+| $\Var[\mu_f]$ | $u_K - \vc{\tau}_K^\top \mt{A}^{-1} \vc{\tau}_K$ | Variance of GP mean |
 
 ## Key Takeaways
 
-- The **mean of the GP mean** $\eta$ is computed analytically using the kernel integral $\vc{\tau}$
-- The **variance of the GP mean** $s^2 \varsigma^2$ measures uncertainty due to the GP approximation
+- The **mean of the GP mean** $\eta$ is computed analytically using the kernel integral $\vc{\tau}_K$
+- The **variance of the GP mean** $u_K - \vc{\tau}_K^\top \mt{A}^{-1} \vc{\tau}_K$ measures uncertainty due to the GP approximation
+- K-quantities absorb the kernel variance $s^2$, so $\mt{A} = s^2 \mt{C} + \sigma^2 \mt{I}$ is the full kernel matrix
 - The GP mean $\mu_f$ follows a **Gaussian distribution** since it's a linear functional
 - Gauss-Hermite quadrature provides accurate numerical integration for Gaussian inputs
 - Monte Carlo verification confirms the analytical formulas

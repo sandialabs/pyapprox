@@ -109,6 +109,7 @@ verify_isserlis()
 N = 5
 length_scale = 1.0
 kernel_var = 1.5  # s²
+nugget = 1e-8     # σ²
 
 train_x = np.random.randn(N)
 train_y = np.sin(train_x) + 0.1 * np.random.randn(N)
@@ -117,7 +118,9 @@ def rbf_corr(x1, x2, l):
     x1, x2 = np.atleast_1d(x1), np.atleast_1d(x2)
     return np.exp(-0.5 * (x1[:, None] - x2[None, :])**2 / l**2)
 
-A = rbf_corr(train_x, train_x, length_scale) + 1e-8 * np.eye(N)
+# Correlation matrix and kernel matrix A = s²C + σ²I
+C_mat = rbf_corr(train_x, train_x, length_scale)
+A = kernel_var * C_mat + nugget * np.eye(N)
 A_inv = np.linalg.inv(A)
 
 # Quadrature
@@ -126,25 +129,31 @@ quad_x, quad_w = np.polynomial.hermite.hermgauss(Q)
 quad_x = quad_x * np.sqrt(2)
 quad_w = quad_w / np.sqrt(np.pi)
 
-# Basic quantities
+# Basic C-quantities
 K_qt = rbf_corr(quad_x, train_x, length_scale)
 K_qq = rbf_corr(quad_x, quad_x, length_scale)
-tau = quad_w @ K_qt
-u = quad_w @ K_qq @ quad_w
-P = K_qt.T @ (quad_w[:, None] * K_qt)
+tau_C = quad_w @ K_qt
+u_C = quad_w @ K_qq @ quad_w
+P_C = K_qt.T @ (quad_w[:, None] * K_qt)
+
+# Scale to K-quantities
+s2 = kernel_var
+s4 = s2 * s2
+tau_K = s2 * tau_C
+u_K = s2 * u_C
+P_K = s4 * P_C
 
 alpha = A_inv @ train_y
-eta = tau @ alpha
-varpi = tau @ A_inv @ tau
-varsigma_sq = u - varpi
-zeta = train_y @ A_inv @ P @ alpha
-v_sq = 1 - np.trace(P @ A_inv)
+eta = tau_K @ alpha
+var_mu = u_K - tau_K @ A_inv @ tau_K
+zeta_K = train_y @ A_inv @ P_K @ alpha
+v_sq_K = s2 - np.trace(P_K @ A_inv)
 
-E_gamma = zeta + kernel_var * v_sq - eta**2 - kernel_var * varsigma_sq
+E_gamma = zeta_K + v_sq_K - eta**2 - var_mu
 
 print(f"Previous quantities:")
-print(f"  η = {eta:.6f}, ς² = {varsigma_sq:.6f}")
-print(f"  ζ = {zeta:.6f}, v² = {v_sq:.6f}")
+print(f"  η = {eta:.6f}, Var[μ_f] = {var_mu:.6f}")
+print(f"  ζ_K = {zeta_K:.6f}, v²_K = {v_sq_K:.6f}")
 print(f"  E[γ_f] = {E_gamma:.6f}")
 ```
 
@@ -162,213 +171,179 @@ $$
 \vartheta_1 = \E[\kappa_f^2] = 4\phi s^2 + 2\chi s^4 + (\zeta + v^2 s^2)^2
 $$
 
-### Computing $\chi$
+### Computing $\chi_K$
 
 $$
-\chi = \int \int C^*(\vc{x}, \vc{z})^2 \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z} = \nu + \varphi - 2\psi
+\chi_K = \int \int K^*(\vc{x}, \vc{z})^2 \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z} = \nu_K + \varphi_K - 2\psi_K
 $$
 
 where:
 
 $$
-\nu = \int \int C(\vc{x}, \vc{z})^2 \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
+\nu_K = s^4 \int \int C(\vc{x}, \vc{z})^2 \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
 $$
 
 ```{python}
-# ν = ∫∫ C(x,z)² ρ(x)ρ(z) dx dz
-nu = quad_w @ (K_qq ** 2) @ quad_w
+# ν_C = ∫∫ C(x,z)² ρ(x)ρ(z) dx dz
+nu_C = quad_w @ (K_qq ** 2) @ quad_w
+# Scale to K-quantity: ν_K = s⁴ ν_C
+nu_K = s4 * nu_C
 
-print(f"ν = {nu:.6f}")
+print(f"ν_C = {nu_C:.6f}")
+print(f"ν_K = s⁴ ν_C = {nu_K:.6f}")
 ```
 
 $$
-\varphi = \mathrm{Trace}[\mt{A}^{-1} \mt{P} \mt{A}^{-1} \mt{P}]
+\varphi_K = \mathrm{Trace}[\mt{A}^{-1} \mt{P}_K \mt{A}^{-1} \mt{P}_K]
 $$
 
 ```{python}
-# φ = Trace[A⁻¹ P A⁻¹ P]
-AinvP = A_inv @ P
-varphi = np.trace(AinvP @ AinvP)
+# φ_K = Trace[A⁻¹ P_K A⁻¹ P_K]
+AinvP_K = A_inv @ P_K
+varphi_K = np.trace(AinvP_K @ AinvP_K)
 
-print(f"φ = {varphi:.6f}")
+print(f"φ_K = {varphi_K:.6f}")
 ```
 
-For $\psi$, we need the $\mt{\Pi}$ matrix:
+For $\psi_K$, we need the $\mt{\Pi}_K$ matrix:
 
 $$
-\mt{\Pi}_{ij} = \int \int \vc{t}(\vc{z}) C(\vc{z}, \vc{x}) \vc{t}(\vc{x})^\top \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
+\mt{\Pi}_{K} = s^6 \mt{\Pi}_C
 $$
 
+where $\mt{\Pi}_{C,ij} = \int \int C(\vc{z}, \vc{x}^{(i)}) C(\vc{z}, \vc{x}) C(\vc{x}, \vc{x}^{(j)}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}$.
+
 $$
-\psi = \mathrm{Trace}[\mt{A}^{-1} \mt{\Pi}]
+\psi_K = \mathrm{Trace}[\mt{A}^{-1} \mt{\Pi}_K]
 $$
 
 ```{python}
-# Π_ij = ∫∫ C(x,x_i) C(x,z) C(z,x_j) ρ(x)ρ(z) dx dz
-# Using 2D quadrature
-Pi = np.zeros((N, N))
+# Π_{C,ij} = ∫∫ C(x,x_i) C(x,z) C(z,x_j) ρ(x)ρ(z) dx dz
+Pi_C = np.zeros((N, N))
 for i in range(N):
     for j in range(N):
-        # For each (i,j), integrate over x and z
         integrand = (K_qt[:, i, None] * K_qq * K_qt[None, :, j])
-        Pi[i, j] = quad_w @ integrand @ quad_w
+        Pi_C[i, j] = quad_w @ integrand @ quad_w
 
-psi = np.trace(A_inv @ Pi)
+# Scale to K-quantity: Π_K = s⁶ Π_C
+Pi_K = s4 * s2 * Pi_C
+psi_K = np.trace(A_inv @ Pi_K)
 
-print(f"Π shape: {Pi.shape}")
-print(f"ψ = Trace[A⁻¹Π] = {psi:.6f}")
+print(f"Π_K shape: {Pi_K.shape}")
+print(f"ψ_K = Trace[A⁻¹Π_K] = {psi_K:.6f}")
 ```
 
 ```{python}
-# χ = ν + φ - 2ψ
-chi = nu + varphi - 2 * psi
+# χ_K = ν_K + φ_K - 2ψ_K
+chi_K = nu_K + varphi_K - 2 * psi_K
 
-print(f"χ = ν + φ - 2ψ = {nu:.4f} + {varphi:.4f} - 2×{psi:.4f} = {chi:.6f}")
+print(f"χ_K = ν_K + φ_K - 2ψ_K = {nu_K:.4f} + {varphi_K:.4f} - 2×{psi_K:.4f} = {chi_K:.6f}")
 ```
 
-### Computing $\phi$ (the other one)
+### Computing $\phi_K$ (the mean-covariance cross term)
 
 $$
-\phi = \int \int m^*(\vc{x}) m^*(\vc{z}) C^*(\vc{x}, \vc{z}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
+\phi_K = \int \int m^*(\vc{x}) m^*(\vc{z}) K^*(\vc{x}, \vc{z}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
 $$
 
 $$
-\phi = \vc{y}^\top \mt{A}^{-1} \mt{\Pi} \mt{A}^{-1} \vc{y} - \vc{y}^\top \mt{A}^{-1} \mt{P} \mt{A}^{-1} \mt{P} \mt{A}^{-1} \vc{y}
+\phi_K = \vc{y}^\top \mt{A}^{-1} \mt{\Pi}_K \mt{A}^{-1} \vc{y} - \vc{y}^\top \mt{A}^{-1} \mt{P}_K \mt{A}^{-1} \mt{P}_K \mt{A}^{-1} \vc{y}
 $$
 
 ```{python}
-# φ (the product with m*) - note: different from varphi above!
-phi_term = train_y @ A_inv @ Pi @ alpha - train_y @ A_inv @ P @ AinvP @ alpha
+# φ_K (the product with m*) - note: different from varphi_K above!
+phi_K = train_y @ A_inv @ Pi_K @ alpha - train_y @ A_inv @ P_K @ AinvP_K @ alpha
 
-print(f"φ (m*m*C* term) = {phi_term:.6f}")
+print(f"φ_K (m*m*K* term) = {phi_K:.6f}")
 ```
 
 ### Computing $\vartheta_1$
 
+With K-quantities, the formula simplifies (no explicit $s^2$ multipliers):
+
+$$
+\vartheta_1 = \E[\kappa_f^2] = 4\phi_K + 2\chi_K + (\zeta_K + v_K^2)^2
+$$
+
 ```{python}
-# ϑ₁ = E[κ_f²] = 4φ s² + 2χ s⁴ + (ζ + v²s²)²
-theta_1 = (4 * phi_term * kernel_var +
-           2 * chi * kernel_var**2 +
-           (zeta + v_sq * kernel_var)**2)
+# ϑ₁ = E[κ_f²] = 4φ_K + 2χ_K + (ζ_K + v²_K)²
+theta_1 = (4 * phi_K +
+           2 * chi_K +
+           (zeta_K + v_sq_K)**2)
 
 print(f"ϑ₁ = {theta_1:.6f}")
 ```
 
 ## Term 2: $\E[\mu_f^2 \kappa_f]$
 
-### The $\vc{\lambda}$ Vector
+### The $\vc{\Gamma}_K$ Vector
+
+For computing $\vartheta_2 = \E[\mu_f^2 \kappa_f]$, we need:
 
 $$
-\vc{\lambda} = \int \int C(\vc{x}, \vc{z}) \vc{t}(\vc{x}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
+\Gamma_{K,i} = s^4 \int \int C(\vc{x}^{(i)}, \vc{z}) C(\vc{z}, \vc{v}) \rho(\vc{z}) \rho(\vc{v}) \, d\vc{z} \, d\vc{v}
 $$
 
 ```{python}
-# λ = ∫∫ C(x,z) t(x) ρ(x)ρ(z) dx dz
-# = ∫∫ C(x,z) C(x, train) ρ(x)ρ(z) dx dz
-lam = np.zeros(N)
+# Γ_{C,i} = ∫∫ C(xᵢ, z) C(z, v) ρ(z)ρ(v) dz dv
+Gamma_C = np.zeros(N)
 for i in range(N):
-    integrand = K_qq * K_qt[:, i, None]
-    lam[i] = quad_w @ integrand @ quad_w
+    for j in range(Q):
+        for l in range(Q):
+            Gamma_C[i] += quad_w[j] * quad_w[l] * K_qt[j, i] * K_qq[j, l]
 
-print(f"λ shape: {lam.shape}")
-print(f"λ values: {lam.round(4)}")
+# Scale to K-quantity: Γ_K = s⁴ Γ_C
+Gamma_K = s4 * Gamma_C
+
+print(f"Γ_K shape: {Gamma_K.shape}")
+print(f"Γ_C values: {Gamma_C.round(4)}")
 ```
 
-### Computing $\varrho$
+### Computing $\xi_{1,K}$
 
 $$
-\varrho = \int \int m^*(\vc{x}) C^*(\vc{x}, \vc{z}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
-$$
-
-$$
-\varrho = \vc{\lambda}^\top \mt{A}^{-1} \vc{y} - \vc{\tau}^\top \mt{A}^{-1} \mt{P} \mt{A}^{-1} \vc{y}
+\xi_{1,K} = s^4 \int \int \int C(\vc{w}, \vc{x}) C(\vc{w}, \vc{z}) \rho(\vc{w}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{w} \, d\vc{x} \, d\vc{z}
 $$
 
 ```{python}
-# ϱ = λᵀA⁻¹y - τᵀA⁻¹PA⁻¹y
-varrho = lam @ alpha - tau @ A_inv @ P @ alpha
-
-print(f"ϱ = {varrho:.6f}")
-```
-
-### Computing $\xi$
-
-$$
-\xi = \int \int \int C^*(\vc{w}, \vc{x}) C^*(\vc{w}, \vc{z}) \rho(\vc{w}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{w} \, d\vc{x} \, d\vc{z}
-$$
-
-$$
-\xi = \xi_1 - 2\xi_2 + \xi_3
-$$
-
-```{python}
-# ξ₁ = ∫∫∫ C(w,x)C(w,z) ρ(w)ρ(x)ρ(z) dw dx dz
-# For 1D with tensor quadrature, this is a triple sum
-xi_1 = 0.0
+# ξ₁_C = ∫∫∫ C(w,x)C(w,z) ρ(w)ρ(x)ρ(z) dw dx dz
+xi_1_C = 0.0
 for q1 in range(Q):  # w
     for q2 in range(Q):  # x
         for q3 in range(Q):  # z
-            xi_1 += (quad_w[q1] * quad_w[q2] * quad_w[q3] *
-                     K_qq[q1, q2] * K_qq[q1, q3])
+            xi_1_C += (quad_w[q1] * quad_w[q2] * quad_w[q3] *
+                       K_qq[q1, q2] * K_qq[q1, q3])
 
-# ξ₂ = λᵀA⁻¹τ
-xi_2 = lam @ A_inv @ tau
+# Scale to K-quantity: ξ₁_K = s⁴ ξ₁_C
+xi1_K = s4 * xi_1_C
 
-# ξ₃ = τᵀA⁻¹PA⁻¹τ
-xi_3 = tau @ A_inv @ P @ A_inv @ tau
-
-xi = xi_1 - 2 * xi_2 + xi_3
-
-print(f"ξ₁ = {xi_1:.6f}")
-print(f"ξ₂ = {xi_2:.6f}")
-print(f"ξ₃ = {xi_3:.6f}")
-print(f"ξ = ξ₁ - 2ξ₂ + ξ₃ = {xi:.6f}")
+print(f"ξ₁_C = {xi_1_C:.6f}")
+print(f"ξ₁_K = s⁴ ξ₁_C = {xi1_K:.6f}")
 ```
 
 ### Computing $\vartheta_2$
 
-The correct formula for $\vartheta_2 = \E[\mu_f^2 \kappa_f]$ requires a new integral $\vc{\Gamma}$:
+With K-quantities, the formula for $\vartheta_2 = \E[\mu_f^2 \kappa_f]$ uses:
 
 $$
-\Gamma_i = \int \int C(\vc{x}^{(i)}, \vc{z}) C(\vc{z}, \vc{v}) \rho(\vc{z}) \rho(\vc{v}) \, d\vc{z} \, d\vc{v}
+\vartheta_2 = \E[\kappa_f] \cdot \E[\mu_f^2] + 4\eta (\vc{\alpha}^\top \vc{\Gamma}_K - \vc{\alpha}^\top \mt{P}_K \vc{\beta}_K) + 2 (\xi_{1,K} - 2\vc{\beta}_K^\top \vc{\Gamma}_K + \vc{\beta}_K^\top \mt{P}_K \vc{\beta}_K)
 $$
 
-This is a double integral where one argument is the training point and the other two are integration variables.
-
-```{python}
-# Γᵢ = ∫∫ C(xᵢ, z) C(z, v) ρ(z)ρ(v) dz dv
-# For 1D: Γᵢ = Σⱼ Σₗ wⱼ wₗ C(xᵢ, zⱼ) C(zⱼ, vₗ)
-Gamma = np.zeros(N)
-for i in range(N):
-    for j in range(Q):
-        for l in range(Q):
-            Gamma[i] += quad_w[j] * quad_w[l] * K_qt[j, i] * K_qq[j, l]
-
-print(f"Γ shape: {Gamma.shape}")
-print(f"Γ values: {Gamma.round(4)}")
-```
-
-The correct $\vartheta_2$ formula is:
-
-$$
-\vartheta_2 = \E[\kappa_f] \cdot \E[\mu_f^2] + 4\eta s^2 (\vc{\alpha}^\top \vc{\Gamma} - \vc{\alpha}^\top \mt{P} \vc{\beta}) + 2s^4 (\xi_1 - 2\vc{\beta}^\top \vc{\Gamma} + \vc{\beta}^\top \mt{P} \vc{\beta})
-$$
-
-where $\vc{\alpha} = \mt{A}^{-1}\vc{y}$, $\vc{\beta} = \mt{A}^{-1}\vc{\tau}$, $\E[\kappa_f] = \zeta + s^2 v^2$, and $\E[\mu_f^2] = \eta^2 + s^2 \varsigma^2$.
+where $\vc{\alpha} = \mt{A}^{-1}\vc{y}$, $\vc{\beta}_K = \mt{A}^{-1}\vc{\tau}_K$, $\E[\kappa_f] = \zeta_K + v_K^2$, and $\E[\mu_f^2] = \eta^2 + \Var[\mu_f]$.
 
 ```{python}
 # ϑ₂ = E[κ]·E[μ²] + Term_B + Term_C
-E_kappa = zeta + kernel_var * v_sq
-E_mu_sq = eta**2 + kernel_var * varsigma_sq
+E_kappa = zeta_K + v_sq_K
+E_mu_sq = eta**2 + var_mu
 
-# α = A⁻¹y, β = A⁻¹τ
-beta = A_inv @ tau
+# α = A⁻¹y, β_K = A⁻¹τ_K
+beta_K = A_inv @ tau_K
 
-# Term_B = 4ηs² · (αᵀΓ - αᵀPβ)
-term_B = 4 * eta * kernel_var * (alpha @ Gamma - alpha @ (P @ beta))
+# Term_B = 4η · (αᵀΓ_K - αᵀP_K β_K)
+term_B = 4 * eta * (alpha @ Gamma_K - alpha @ (P_K @ beta_K))
 
-# Term_C = 2s⁴ · (ξ₁ - 2βᵀΓ + βᵀPβ)
-term_C = 2 * kernel_var**2 * (xi_1 - 2 * (beta @ Gamma) + (beta @ (P @ beta)))
+# Term_C = 2 · (ξ₁_K - 2β_Kᵀ Γ_K + β_Kᵀ P_K β_K)
+term_C = 2 * (xi1_K - 2 * (beta_K @ Gamma_K) + (beta_K @ (P_K @ beta_K)))
 
 theta_2 = E_kappa * E_mu_sq + term_B + term_C
 
@@ -387,17 +362,17 @@ $$
 \E[X^4] = \mu^4 + 6\mu^2\sigma^2 + 3\sigma^4
 $$
 
-With $\mu = \eta$ and $\sigma^2 = s^2 \varsigma^2$:
+With $\mu = \eta$ and $\sigma^2 = \Var[\mu_f]$:
 
 $$
-\vartheta_3 = \E[\mu_f^4] = \eta^4 + 6\eta^2 s^2 \varsigma^2 + 3 s^4 \varsigma^4
+\vartheta_3 = \E[\mu_f^4] = \eta^4 + 6\eta^2 \Var[\mu_f] + 3 \Var[\mu_f]^2
 $$
 
 ```{python}
-# ϑ₃ = E[μ_f⁴] = η⁴ + 6η²s²ς² + 3s⁴ς⁴
+# ϑ₃ = E[μ_f⁴] = η⁴ + 6η² Var[μ_f] + 3 Var[μ_f]²
 theta_3 = (eta**4 +
-           6 * eta**2 * kernel_var * varsigma_sq +
-           3 * kernel_var**2 * varsigma_sq**2)
+           6 * eta**2 * var_mu +
+           3 * var_mu**2)
 
 print(f"ϑ₃ = {theta_3:.6f}")
 ```
@@ -422,11 +397,13 @@ print(f"Std[γ_f] = {np.sqrt(max(0, Var_gamma)):.6f}")
 
 ```{python}
 # Sample GP posterior at quadrature points
-m_star_quad = K_qt @ alpha
-C_star_quad = kernel_var * (K_qq - K_qt @ A_inv @ K_qt.T)
-C_star_quad += 1e-10 * np.eye(Q)
+# K* = s²C - s²C A⁻¹ s²C
+K_qt_full = kernel_var * K_qt  # k(z) = s² t(z)
+m_star_quad = K_qt_full @ alpha
+K_star_quad = kernel_var * K_qq - K_qt_full @ A_inv @ K_qt_full.T
+K_star_quad += 1e-10 * np.eye(Q)
 
-L_quad = np.linalg.cholesky(C_star_quad)
+L_quad = np.linalg.cholesky(K_star_quad)
 
 # Draw GP realizations
 n_realizations = 20000
@@ -474,18 +451,18 @@ plt.tight_layout()
 plt.show()
 ```
 
-## Summary of Auxiliary Quantities
+## Summary of Auxiliary K-Quantities
 
-| Quantity | Formula | Meaning |
-|----------|---------|---------|
-| $\nu$ | $\int\int C(\vc{x},\vc{z})^2 \rho^2 d\vc{x}d\vc{z}$ | Squared prior correlation |
-| $\varphi$ | $\mathrm{Tr}[\mt{A}^{-1}\mt{P}\mt{A}^{-1}\mt{P}]$ | Squared posterior correction |
-| $\psi$ | $\mathrm{Tr}[\mt{A}^{-1}\mt{\Pi}]$ | Cross term |
-| $\chi$ | $\nu + \varphi - 2\psi$ | Integrated squared posterior covariance |
-| $\vc{\lambda}$ | $\int\int C(\vc{x},\vc{z})\vc{t}(\vc{x}) \rho^2 d\vc{x}d\vc{z}$ | Kernel-correlation product |
-| $\vc{\Gamma}$ | $\int\int C(\vc{x}^{(i)},\vc{z})C(\vc{z},\vc{v}) \rho^2 d\vc{z}d\vc{v}$ | Double kernel integral for $\vartheta_2$ |
-| $\xi_1$ | $\int\int\int C(\vc{w},\vc{x})C(\vc{w},\vc{z}) \rho^3$ | Triple integral term |
-| $\varrho$ | $\vc{\lambda}^\top\mt{A}^{-1}\vc{y} - \vc{\tau}^\top\mt{A}^{-1}\mt{P}\mt{A}^{-1}\vc{y}$ | Mean-covariance cross term |
+All quantities use K-scaling, where $\mt{A} = s^2 \mt{C} + \sigma^2 \mt{I}$.
+
+| Quantity | Formula | K-Scaling |
+|----------|---------|-----------|
+| $\nu_K$ | $s^4 \int\int C(\vc{x},\vc{z})^2 \rho^2 d\vc{x}d\vc{z}$ | $s^4 \nu_C$ |
+| $\varphi_K$ | $\mathrm{Tr}[\mt{A}^{-1}\mt{P}_K\mt{A}^{-1}\mt{P}_K]$ | Uses $\mt{P}_K = s^4 \mt{P}_C$ |
+| $\psi_K$ | $\mathrm{Tr}[\mt{A}^{-1}\mt{\Pi}_K]$ | Uses $\mt{\Pi}_K = s^6 \mt{\Pi}_C$ |
+| $\chi_K$ | $\nu_K + \varphi_K - 2\psi_K$ | Integrated squared posterior covariance |
+| $\vc{\Gamma}_K$ | $s^4 \int\int C(\vc{x}^{(i)},\vc{z})C(\vc{z},\vc{v}) \rho^2 d\vc{z}d\vc{v}$ | $s^4 \vc{\Gamma}_C$ |
+| $\xi_{1,K}$ | $s^4 \int\int\int C(\vc{w},\vc{x})C(\vc{w},\vc{z}) \rho^3$ | $s^4 \xi_{1,C}$ |
 
 ## Key Takeaways
 

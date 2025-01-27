@@ -95,16 +95,18 @@ train_y = true_function(train_X) + 0.05 * np.random.randn(N)
 # GP hyperparameters
 length_scales = [1.0, 1.0, 1.0]
 kernel_var = 1.5  # s²
+nugget = 1e-6     # σ²
 
-# Build kernel matrix A
+# Build kernel matrix A = s²C + σ²I
 def rbf_nd(X1, X2, length_scales):
-    """N-D product RBF kernel."""
+    """N-D product RBF correlation kernel."""
     K = np.ones((X1.shape[0], X2.shape[0]))
     for k in range(X1.shape[1]):
         K *= rbf_1d(X1[:, k], X2[:, k], length_scales[k])
     return K
 
-A = rbf_nd(train_X, train_X, length_scales) + 1e-6 * np.eye(N)
+C_mat = rbf_nd(train_X, train_X, length_scales)
+A = kernel_var * C_mat + nugget * np.eye(N)
 A_inv = np.linalg.inv(A)
 
 print(f"Dimensions: {d}")
@@ -119,12 +121,13 @@ We compute all 1D building blocks needed for the GP statistics.
 ```{python}
 quad_x, quad_w = setup_quadrature(50)
 
-# Storage for 1D quantities
-tau_1d = []  # τ_k: (N,) for each k
-P_1d = []    # P_k: (N, N) for each k
-u_1d = []    # u_k: scalar for each k
-nu_1d = []   # ν_k: scalar for each k
-xi1_1d = []  # ξ₁_k: scalar for each k
+s2 = kernel_var
+s4 = s2 * s2
+
+# Storage for 1D C-quantities
+tau_C_1d = []  # τ_{C,k}: (N,) for each k
+P_C_1d = []    # P_{C,k}: (N, N) for each k
+u_C_1d = []    # u_{C,k}: scalar for each k
 
 for k in range(d):
     train_k = train_X[:, k]
@@ -134,84 +137,70 @@ for k in range(d):
     # K(quad, quad): (Q, Q)
     K_qq = rbf_1d(quad_x, quad_x, length_scales[k])
 
-    # τ_k: ∫ C(z, x_i) ρ(z) dz
+    # τ_{C,k}: ∫ C(z, x_i) ρ(z) dz
     tau_k = quad_w @ K_qt
-    tau_1d.append(tau_k)
+    tau_C_1d.append(tau_k)
 
-    # P_k: ∫ C(z, x_i) C(z, x_j) ρ(z) dz = K_qt.T @ diag(w) @ K_qt
+    # P_{C,k}: ∫ C(z, x_i) C(z, x_j) ρ(z) dz
     P_k = K_qt.T @ np.diag(quad_w) @ K_qt
-    P_1d.append(P_k)
+    P_C_1d.append(P_k)
 
-    # u_k: ∫∫ C(z, w) ρ(z) ρ(w) dz dw
+    # u_{C,k}: ∫∫ C(z, w) ρ(z) ρ(w) dz dw
     u_k = quad_w @ K_qq @ quad_w
-    u_1d.append(u_k)
+    u_C_1d.append(u_k)
 
-    # ν_k: ∫∫ C(z, w)² ρ(z) ρ(w) dz dw
-    K_qq_sq = K_qq ** 2
-    nu_k = quad_w @ K_qq_sq @ quad_w
-    nu_1d.append(nu_k)
-
-    # ξ₁_k: ∫∫∫ C(w,x) C(w,z) ρ³ dwdxdz
-    # = (∫ C(w,x) ρ dw) · (∫ C(w,z) ρ dw) integrated over x,z
-    # = (w @ K_qq)² summed = (w @ K_qq @ w)² but need triple integral
-    tau_wrt_x = quad_w @ K_qq  # (Q,) - τ(x) for each quad point
-    xi1_k = quad_w @ (tau_wrt_x ** 2)  # ∫ τ(x)² ρ(x) dx
-    xi1_1d.append(xi1_k)
-
-print("1D quantities computed:")
+print("1D C-quantities computed:")
 for k in range(d):
-    print(f"  Dim {k}: τ shape {tau_1d[k].shape}, u={u_1d[k]:.4f}, ν={nu_1d[k]:.4f}")
+    print(f"  Dim {k}: τ_C shape {tau_C_1d[k].shape}, u_C={u_C_1d[k]:.4f}")
 ```
 
 ## Stage 3: Compute GP Moments
 
-### Mean of GP Mean ($\eta$) and Variance of GP Mean ($s^2 \varsigma^2$)
+### Mean of GP Mean ($\eta$) and Variance of GP Mean
 
 ```{python}
-# Full τ: element-wise product
-tau = np.ones(N)
+# Full C-quantities: element-wise products
+tau_C = np.ones(N)
 for k in range(d):
-    tau *= tau_1d[k]
+    tau_C *= tau_C_1d[k]
+u_C = np.prod(u_C_1d)
+P_C = np.ones((N, N))
+for k in range(d):
+    P_C *= P_C_1d[k]
 
-# Full u: product
-u = np.prod(u_1d)
+# Scale to K-quantities
+tau_K = s2 * tau_C
+u_K = s2 * u_C
+P_K = s4 * P_C
 
-# η = τ^T A^{-1} y
-eta = tau @ A_inv @ train_y
+# η = τ_K^T A^{-1} y
+eta = tau_K @ A_inv @ train_y
 
-# ς² = u - τ^T A^{-1} τ
-varpi = tau @ A_inv @ tau
-varsigma_sq = u - varpi
-var_mu = kernel_var * varsigma_sq
+# Var[μ_f] = u_K - τ_K^T A^{-1} τ_K
+var_mu = u_K - tau_K @ A_inv @ tau_K
 
 print("Mean of GP mean:")
 print(f"  η = E[μ_f] = {eta:.4f}")
 print(f"\nVariance of GP mean:")
-print(f"  ς² = {varsigma_sq:.4f}")
-print(f"  Var[μ_f] = s²ς² = {var_mu:.4f}")
+print(f"  Var[μ_f] = {var_mu:.4f}")
 ```
 
 ### Mean of GP Variance ($\E[\gamma_f]$)
 
 ```{python}
-# Full P: element-wise product
-P = np.ones((N, N))
-for k in range(d):
-    P *= P_1d[k]
-
-# ζ = y^T A^{-1} P A^{-1} y
+# ζ_K = y^T A^{-1} P_K A^{-1} y
 A_inv_y = A_inv @ train_y
-zeta = A_inv_y @ P @ A_inv_y
+zeta_K = A_inv_y @ P_K @ A_inv_y
 
-# v² = 1 - Trace[P A^{-1}]
-v_sq = 1.0 - np.trace(P @ A_inv)
+# v²_K = s² - Trace[P_K A^{-1}]
+v_sq_K = s2 - np.trace(P_K @ A_inv)
 
-# E[γ_f] = ζ + s²v² - η² - s²ς²
-E_gamma = zeta + kernel_var * v_sq - eta**2 - kernel_var * varsigma_sq
+# E[γ_f] = ζ_K + v²_K - η² - Var[μ_f]
+E_gamma = zeta_K + v_sq_K - eta**2 - var_mu
 
 print("Mean of GP variance:")
-print(f"  ζ = {zeta:.4f}")
-print(f"  v² = {v_sq:.4f}")
+print(f"  ζ_K = {zeta_K:.4f}")
+print(f"  v²_K = {v_sq_K:.4f}")
 print(f"  E[γ_f] = {E_gamma:.4f}")
 ```
 
@@ -232,23 +221,23 @@ print(f"  Var[f]   = {total_var:.4f}")
 ### First-Order Indices ($S_i$)
 
 ```{python}
-def compute_conditional_P(active_dims, tau_1d, P_1d, d):
-    """Compute P matrix conditioned on active dimensions."""
-    N = tau_1d[0].shape[0]
+def compute_conditional_P_C(active_dims, tau_C_1d, P_C_1d, d):
+    """Compute C-quantity P matrix conditioned on active dimensions."""
+    N = tau_C_1d[0].shape[0]
     P_cond = np.ones((N, N))
     for k in range(d):
         if k in active_dims:
-            P_cond *= P_1d[k]
+            P_cond *= P_C_1d[k]
         else:
-            P_cond *= np.outer(tau_1d[k], tau_1d[k])
+            P_cond *= np.outer(tau_C_1d[k], tau_C_1d[k])
     return P_cond
 
-def compute_conditional_u(active_dims, u_1d, d):
-    """Compute u conditioned on active dimensions."""
+def compute_conditional_u_C(active_dims, u_C_1d, d):
+    """Compute C-quantity u conditioned on active dimensions."""
     u_cond = 1.0
     for k in range(d):
         if k in active_dims:
-            u_cond *= u_1d[k]
+            u_cond *= u_C_1d[k]
     return u_cond
 
 # Compute V_i for each dimension
@@ -256,14 +245,16 @@ V_first = np.zeros(d)
 S_first = np.zeros(d)
 
 for i in range(d):
-    # P conditioned on dimension i
-    P_i = compute_conditional_P({i}, tau_1d, P_1d, d)
-    u_i = compute_conditional_u({i}, u_1d, d)
+    # Conditional C-quantities, then scale to K
+    P_C_i = compute_conditional_P_C({i}, tau_C_1d, P_C_1d, d)
+    u_C_i = compute_conditional_u_C({i}, u_C_1d, d)
+    P_K_i = s4 * P_C_i
+    u_K_i = s2 * u_C_i
 
-    # V_i = y^T A^{-1} P_i A^{-1} y + s²(u_i - Tr[P_i A^{-1}]) - η²
-    zeta_i = A_inv_y @ P_i @ A_inv_y
-    v_sq_i = u_i - np.trace(P_i @ A_inv)
-    V_first[i] = zeta_i + kernel_var * v_sq_i - eta**2 - kernel_var * varsigma_sq
+    # V_i = ζ_{K,i} + v²_{K,i} - η² - Var[μ_f]
+    zeta_K_i = A_inv_y @ P_K_i @ A_inv_y
+    v_sq_K_i = u_K_i - np.trace(P_K_i @ A_inv)
+    V_first[i] = zeta_K_i + v_sq_K_i - eta**2 - var_mu
 
     # First-order Sobol index
     S_first[i] = V_first[i] / total_var
@@ -286,12 +277,14 @@ for i in range(d):
     # All dimensions except i
     not_i = set(range(d)) - {i}
 
-    P_not_i = compute_conditional_P(not_i, tau_1d, P_1d, d)
-    u_not_i = compute_conditional_u(not_i, u_1d, d)
+    P_C_not_i = compute_conditional_P_C(not_i, tau_C_1d, P_C_1d, d)
+    u_C_not_i = compute_conditional_u_C(not_i, u_C_1d, d)
+    P_K_not_i = s4 * P_C_not_i
+    u_K_not_i = s2 * u_C_not_i
 
-    zeta_not_i = A_inv_y @ P_not_i @ A_inv_y
-    v_sq_not_i = u_not_i - np.trace(P_not_i @ A_inv)
-    V_not_i[i] = zeta_not_i + kernel_var * v_sq_not_i - eta**2 - kernel_var * varsigma_sq
+    zeta_K_not_i = A_inv_y @ P_K_not_i @ A_inv_y
+    v_sq_K_not_i = u_K_not_i - np.trace(P_K_not_i @ A_inv)
+    V_not_i[i] = zeta_K_not_i + v_sq_K_not_i - eta**2 - var_mu
 
     # Total effect: T_i = 1 - V_~i / Var[f]
     T_total[i] = 1.0 - V_not_i[i] / total_var
@@ -338,7 +331,7 @@ print(f"  Kernel variance:   {kernel_var}")
 
 print(f"\nMoments:")
 print(f"  E[μ_f] = η         = {eta:.4f}")
-print(f"  Var[μ_f] = s²ς²    = {var_mu:.4f}")
+print(f"  Var[μ_f]            = {var_mu:.4f}")
 print(f"  E[γ_f]             = {E_gamma:.4f}")
 print(f"  Var[f]             = {total_var:.4f}")
 

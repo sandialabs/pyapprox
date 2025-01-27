@@ -67,6 +67,7 @@ d = 2
 N = 15
 length_scales = [1.0, 1.2]
 kernel_var = 1.5  # s²
+nugget = 1e-8     # σ²
 
 # Training data
 train_X = np.random.randn(N, d)
@@ -79,19 +80,22 @@ def rbf_1d(x1, x2, l):
     x1, x2 = np.atleast_1d(x1), np.atleast_1d(x2)
     return np.exp(-0.5 * (x1[:, None] - x2[None, :])**2 / l**2)
 
-# Full kernel matrix
+# Full kernel matrix (covariance, not correlation)
 def rbf_nd(X1, X2, ls):
     K = np.ones((X1.shape[0], X2.shape[0]))
     for k in range(X1.shape[1]):
         K *= rbf_1d(X1[:, k], X2[:, k], ls[k])
     return K
 
-A = rbf_nd(train_X, train_X, length_scales) + 1e-8 * np.eye(N)
+# A = s²C + σ²I
+C_mat = rbf_nd(train_X, train_X, length_scales)
+A = kernel_var * C_mat + nugget * np.eye(N)
 A_inv = np.linalg.inv(A)
 alpha = A_inv @ train_y
 
 print(f"Training points: {N}")
 print(f"Dimensions: {d}")
+print(f"Kernel variance s² = {kernel_var}")
 ```
 
 ## Computing 1D Quantities
@@ -103,10 +107,13 @@ quad_x, quad_w = np.polynomial.hermite.hermgauss(Q)
 quad_x = quad_x * np.sqrt(2)
 quad_w = quad_w / np.sqrt(np.pi)
 
-# Compute 1D quantities for each dimension
-tau_1d = []
-P_1d = []
-u_1d = []
+s2 = kernel_var
+s4 = s2 * s2
+
+# Compute 1D C-quantities for each dimension
+tau_C_1d = []
+P_C_1d = []
+u_C_1d = []
 
 for k in range(d):
     K_qt = rbf_1d(quad_x, train_X[:, k], length_scales[k])
@@ -116,25 +123,29 @@ for k in range(d):
     P_k = K_qt.T @ (quad_w[:, None] * K_qt)
     u_k = quad_w @ K_qq @ quad_w
 
-    tau_1d.append(tau_k)
-    P_1d.append(P_k)
-    u_1d.append(u_k)
+    tau_C_1d.append(tau_k)
+    P_C_1d.append(P_k)
+    u_C_1d.append(u_k)
 
-    print(f"Dimension {k}: u_{k} = {u_k:.4f}")
+    print(f"Dimension {k}: u_C,{k} = {u_k:.4f}")
 
-# Full quantities
-tau = np.prod(tau_1d, axis=0)
-P = np.prod(P_1d, axis=0)
-u = np.prod(u_1d)
+# Full C-quantities (element-wise products)
+tau_C = np.prod(tau_C_1d, axis=0)
+P_C = np.prod(P_C_1d, axis=0)
+u_C = np.prod(u_C_1d)
+
+# Scale to K-quantities
+tau_K = s2 * tau_C
+P_K = s4 * P_C
+u_K = s2 * u_C
 
 # Statistics
-eta = tau @ alpha
-zeta = train_y @ A_inv @ P @ alpha
-varpi = tau @ A_inv @ tau
-varsigma_sq = u - varpi
-v_sq = 1 - np.trace(P @ A_inv)
+eta = tau_K @ alpha
+zeta_K = train_y @ A_inv @ P_K @ alpha
+var_mu = u_K - tau_K @ A_inv @ tau_K
+v_sq_K = s2 - np.trace(P_K @ A_inv)
 
-E_gamma = zeta + kernel_var * v_sq - eta**2 - kernel_var * varsigma_sq
+E_gamma = zeta_K + v_sq_K - eta**2 - var_mu
 
 print(f"\nOverall statistics:")
 print(f"  E[μ_f] = η = {eta:.4f}")
@@ -172,24 +183,27 @@ P_{k,ij} = \int C_k(z_k, x_k^{(i)}) C_k(z_k, x_k^{(j)}) \rho_k(z_k) \, dz_k
 $$
 
 ```{python}
-# Compute conditional P (outer product of τ)
-cond_P_1d = []
+# Compute conditional P_C (outer product of τ_C)
+cond_P_C_1d = []
 for k in range(d):
-    cond_P_k = np.outer(tau_1d[k], tau_1d[k])  # τ_k τ_k^T
-    cond_P_1d.append(cond_P_k)
-    print(f"Conditional P̃_{k} is rank-1: {np.linalg.matrix_rank(cond_P_k)}")
+    cond_P_k = np.outer(tau_C_1d[k], tau_C_1d[k])  # τ_{C,k} τ_{C,k}^T
+    cond_P_C_1d.append(cond_P_k)
+    print(f"Conditional P̃_C,{k} is rank-1: {np.linalg.matrix_rank(cond_P_k)}")
 
-print(f"\nKey difference: P_k vs P̃_k")
-print(f"  P_0 diagonal: {np.diag(P_1d[0])[:3].round(4)}")
-print(f"  P̃_0 diagonal: {np.diag(cond_P_1d[0])[:3].round(4)}")
-print(f"  P_k[i,i] ≥ P̃_k[i,i] (Cauchy-Schwarz): {np.all(np.diag(P_1d[0]) >= np.diag(cond_P_1d[0]) - 1e-10)}")
+print(f"\nKey difference: P_C,k vs P̃_C,k")
+print(f"  P_C,0 diagonal: {np.diag(P_C_1d[0])[:3].round(4)}")
+print(f"  P̃_C,0 diagonal: {np.diag(cond_P_C_1d[0])[:3].round(4)}")
+print(f"  P_C,k[i,i] ≥ P̃_C,k[i,i] (Cauchy-Schwarz): {np.all(np.diag(P_C_1d[0]) >= np.diag(cond_P_C_1d[0]) - 1e-10)}")
 ```
 
 ### Computing Conditional Variance
 
 ```{python}
-def conditional_variance(index, tau_1d, P_1d, cond_P_1d, u_1d, A_inv, train_y, kernel_var):
+def conditional_variance(index, tau_C_1d, P_C_1d, cond_P_C_1d, u_C_1d,
+                         A_inv, train_y, kernel_var):
     """Compute E[conditional variance] for given index set.
+
+    Uses K-quantities: P_K = s⁴ P_C, u_K = s² u_C, τ_K = s² τ_C.
 
     Parameters
     ----------
@@ -197,38 +211,43 @@ def conditional_variance(index, tau_1d, P_1d, cond_P_1d, u_1d, A_inv, train_y, k
         Binary vector: index[k] = 1 if k is conditioned on
     """
     d = len(index)
+    s2 = kernel_var
+    s4 = s2 * s2
 
-    # Build conditional P and u
-    P_p = np.ones((len(train_y), len(train_y)))
-    u_p = 1.0
+    # Build conditional P_C and u_C
+    P_C_p = np.ones((len(train_y), len(train_y)))
+    u_C_p = 1.0
 
     for k in range(d):
         if index[k] == 1:  # Conditioned on (kept)
-            P_p = P_p * P_1d[k]
-            # u_p *= 1 (no change, since C_k(z_k, z_k) = 1)
+            P_C_p = P_C_p * P_C_1d[k]
+            # u_C_p *= 1 (no change, since C_k(z_k, z_k) = 1)
         else:  # Integrated out
-            P_p = P_p * cond_P_1d[k]
-            u_p *= u_1d[k]
+            P_C_p = P_C_p * cond_P_C_1d[k]
+            u_C_p *= u_C_1d[k]
+
+    # Scale to K-quantities
+    P_K_p = s4 * P_C_p
+    u_K_p = s2 * u_C_p
 
     # Compute conditional statistics
     alpha = A_inv @ train_y
-    zeta_p = train_y @ A_inv @ P_p @ alpha
-    v_p_sq = u_p - np.trace(P_p @ A_inv)
+    zeta_K_p = train_y @ A_inv @ P_K_p @ alpha
+    v_sq_K_p = u_K_p - np.trace(P_K_p @ A_inv)
 
-    # Same formula, but with conditional quantities
-    tau = np.prod(tau_1d, axis=0)
-    eta = tau @ alpha
-    varpi = tau @ A_inv @ tau
-    varsigma_sq = np.prod(u_1d) - varpi
+    # Full quantities (same for all index sets)
+    tau_K = s2 * np.prod(tau_C_1d, axis=0)
+    eta = tau_K @ alpha
+    var_mu = s2 * np.prod(u_C_1d) - tau_K @ A_inv @ tau_K
 
-    E_cond_var = zeta_p + kernel_var * v_p_sq - eta**2 - kernel_var * varsigma_sq
+    E_cond_var = zeta_K_p + v_sq_K_p - eta**2 - var_mu
 
     return E_cond_var
 
 
 # Full variance (nothing conditioned): index = [0, 0]
 index_full = np.array([0, 0])
-E_gamma_check = conditional_variance(index_full, tau_1d, P_1d, cond_P_1d, u_1d,
+E_gamma_check = conditional_variance(index_full, tau_C_1d, P_C_1d, cond_P_C_1d, u_C_1d,
                                       A_inv, train_y, kernel_var)
 print(f"E[γ_f] (full variance, index=[0,0]): {E_gamma_check:.6f}")
 print(f"E[γ_f] (computed earlier):           {E_gamma:.6f}")
@@ -250,7 +269,7 @@ for i in range(d):
     index = np.zeros(d, dtype=int)
     index[i] = 1  # Only condition on z_i
 
-    E_Vi = conditional_variance(index, tau_1d, P_1d, cond_P_1d, u_1d,
+    E_Vi = conditional_variance(index, tau_C_1d, P_C_1d, cond_P_C_1d, u_C_1d,
                                  A_inv, train_y, kernel_var)
     main_effects.append(E_Vi)
     print(f"E[V_{i}] = {E_Vi:.6f}")
@@ -280,7 +299,7 @@ for i in range(d):
     index = np.ones(d, dtype=int)
     index[i] = 0  # Condition on all except z_i
 
-    E_VTi = E_gamma - conditional_variance(index, tau_1d, P_1d, cond_P_1d, u_1d,
+    E_VTi = E_gamma - conditional_variance(index, tau_C_1d, P_C_1d, cond_P_C_1d, u_C_1d,
                                             A_inv, train_y, kernel_var)
     total_effects.append(E_VTi)
     print(f"E[V_T,{i}] = {E_VTi:.6f}")
@@ -338,14 +357,16 @@ quad_W_2d = (quad_W1 * quad_W2).flatten()
 quad_X_2d = np.column_stack([quad_X1.flatten(), quad_X2.flatten()])
 
 # GP posterior at quadrature points
-K_quad_train = rbf_nd(quad_X_2d, train_X, length_scales)
-K_quad_quad = rbf_nd(quad_X_2d, quad_X_2d, length_scales)
+# k(z) = s² C(z, train), K* = s²C - k A⁻¹ kᵀ
+C_quad_train = rbf_nd(quad_X_2d, train_X, length_scales)
+C_quad_quad = rbf_nd(quad_X_2d, quad_X_2d, length_scales)
+K_quad_train_full = kernel_var * C_quad_train
 
-m_star = K_quad_train @ alpha
-C_star = kernel_var * (K_quad_quad - K_quad_train @ A_inv @ K_quad_train.T)
-C_star += 1e-8 * np.eye(len(quad_X_2d))
+m_star = K_quad_train_full @ alpha
+K_star = kernel_var * C_quad_quad - K_quad_train_full @ A_inv @ K_quad_train_full.T
+K_star += 1e-8 * np.eye(len(quad_X_2d))
 
-L = np.linalg.cholesky(C_star)
+L = np.linalg.cholesky(K_star)
 
 # Sample GP realizations
 n_realizations = 500
@@ -389,7 +410,7 @@ for i in range(d):
 
 | Index Type | Index Vector | Formula |
 |------------|--------------|---------|
-| Main effect $V_i$ | $e_i$ (1 at position $i$) | $\zeta_p + s^2 v_p^2 - \eta^2 - s^2\varsigma^2$ |
+| Main effect $V_i$ | $e_i$ (1 at position $i$) | $\zeta_{K,p} + v_{K,p}^2 - \eta^2 - \Var[\mu_f]$ |
 | Total effect $V_{T,i}$ | $\vc{1} - e_i$ (0 at position $i$) | $\gamma_f - V_{\sim i}$ |
 | Full variance | $\vc{0}$ | Standard $\E[\gamma_f]$ formula |
 

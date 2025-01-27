@@ -313,15 +313,19 @@ for name, (naive, factorized, speedup) in results.items():
 
 ## Summary Table of 1D Integrals
 
-| Quantity | 1D Formula | Quadrature Dim | Full Form |
-|----------|------------|----------------|-----------|
-| $\tau_{k,i}$ | $\int C_k(z_k, x_k^{(i)}) \rho_k dz_k$ | 1D | $\tau_i = \prod_k \tau_{k,i}$ |
-| $P_{k,ij}$ | $\int C_k(z_k, x_k^{(i)}) C_k(z_k, x_k^{(j)}) \rho_k dz_k$ | 1D | $P_{ij} = \prod_k P_{k,ij}$ |
-| $u_k$ | $\int\int C_k(z_k, w_k) \rho_k(z_k) \rho_k(w_k) dz_k dw_k$ | 2D | $u = \prod_k u_k$ |
-| $\nu_k$ | $\int\int C_k(z_k, w_k)^2 \rho_k^2 dz_k dw_k$ | 2D | $\nu = \prod_k \nu_k$ |
-| $\lambda_{k,i}$ | $\int C_k(z_k, z_k) C_k(z_k, x_k^{(i)}) \rho_k dz_k$ | 1D | $\lambda_i = \prod_k \lambda_{k,i}$ |
-| $\Pi_{k,ij}$ | $\int\int C_k(x_k, x_k^{(i)}) C_k(x_k, z_k) C_k(z_k, x_k^{(j)}) \rho_k^2 dx_k dz_k$ | 2D | $\Pi_{ij} = \prod_k \Pi_{k,ij}$ |
-| $\xi_{1,k}$ | $\int\int\int C_k(w_k, x_k) C_k(w_k, z_k) \rho_k^3 dw_k dx_k dz_k$ | 3D | $\xi_1 = \prod_k \xi_{1,k}$ |
+These are **C-quantities** (correlation kernel integrals). The production code uses **K-quantities** that absorb powers of $s^2$:
+
+| Quantity | 1D Formula | Full C-Form | K-Quantity |
+|----------|------------|-------------|------------|
+| $\tau_{k,i}$ | $\int C_k(z_k, x_k^{(i)}) \rho_k dz_k$ | $\tau_{C,i} = \prod_k \tau_{k,i}$ | $\tau_{K} = s^2 \tau_C$ |
+| $P_{k,ij}$ | $\int C_k(z_k, x_k^{(i)}) C_k(z_k, x_k^{(j)}) \rho_k dz_k$ | $P_{C,ij} = \prod_k P_{k,ij}$ | $P_K = s^4 P_C$ |
+| $u_k$ | $\int\int C_k(z_k, w_k) \rho_k^2 dz_k dw_k$ | $u_C = \prod_k u_k$ | $u_K = s^2 u_C$ |
+| $\nu_k$ | $\int\int C_k(z_k, w_k)^2 \rho_k^2 dz_k dw_k$ | $\nu_C = \prod_k \nu_k$ | $\nu_K = s^4 \nu_C$ |
+| $\Pi_{k,ij}$ | $\int\int C_k(\cdot) C_k(\cdot) C_k(\cdot) \rho_k^2$ | $\Pi_{C,ij} = \prod_k \Pi_{k,ij}$ | $\Pi_K = s^6 \Pi_C$ |
+| $\xi_{1,k}$ | $\int\int\int C_k C_k \rho_k^3$ | $\xi_{1,C} = \prod_k \xi_{1,k}$ | $\xi_{1,K} = s^4 \xi_{1,C}$ |
+| $\Gamma_{k,i}$ | $\int\int C_k C_k \rho_k^2$ | $\Gamma_{C,i} = \prod_k \Gamma_{k,i}$ | $\Gamma_K = s^4 \Gamma_C$ |
+
+The K-quantity scaling ensures that the statistics formulas (e.g., $\E[\gamma_f] = \zeta_K + v_K^2 - \eta^2 - \Var[\mu_f]$) have no explicit $s^2$ multipliers, with $\mt{A} = s^2 \mt{C} + \sigma^2 \mt{I}$.
 
 ## Implementation Pattern
 
