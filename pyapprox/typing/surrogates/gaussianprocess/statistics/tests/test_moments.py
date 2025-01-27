@@ -365,7 +365,7 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
         X_train = self._bkd.array([[-1.0, 0.0, 1.0]])  # Only 3 points
         # Use bkd.sin for backend compatibility
         y_train = self._bkd.reshape(
-            self._bkd.sin(3.14159 * X_train[0, :]), (-1, 1)
+            self._bkd.sin(3.14159 * X_train[0, :]), (1, -1)
         )
 
         self._X_train = X_train
@@ -453,7 +453,7 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
 
         # Compute GP posterior mean and covariance at quadrature points
         X_train = self._gp.data().X()  # (1, n_train)
-        y_train = self._gp.data().y()  # (n_train, 1)
+        y_train = self._gp.data().y()  # (nqoi, n_train)
 
         # Prior covariance matrices
         K_qq = self._gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
@@ -461,7 +461,7 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
 
         # Posterior mean: m* = K_qt @ A^{-1} @ y
         chol = self._gp.cholesky()
-        alpha = chol.solve(y_train)  # A^{-1} @ y, shape (n_train, 1)
+        alpha = chol.solve(y_train.T)  # A^{-1} @ y.T, shape (n_train, 1)
         m_star = K_qt @ alpha  # (nquad, 1)
         m_star = self._bkd.reshape(m_star, (-1,))  # (nquad,)
 
@@ -532,7 +532,7 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
 
         # Compute GP posterior mean and covariance at quadrature points
         X_train = self._gp.data().X()  # (1, n_train)
-        y_train = self._gp.data().y()  # (n_train, 1)
+        y_train = self._gp.data().y()  # (nqoi, n_train)
 
         # Prior covariance matrices
         K_qq = self._gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
@@ -540,7 +540,7 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
 
         # Posterior mean: m* = K_qt @ A^{-1} @ y
         chol = self._gp.cholesky()
-        alpha = chol.solve(y_train)  # A^{-1} @ y, shape (n_train, 1)
+        alpha = chol.solve(y_train.T)  # A^{-1} @ y.T, shape (n_train, 1)
         m_star = K_qt @ alpha  # (nquad, 1)
         m_star = self._bkd.reshape(m_star, (-1,))  # (nquad,)
 
@@ -723,7 +723,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
 
         # Evaluate function
         y_train = bkd.reshape(
-            a * X_train[0, :] + b * X_train[1, :] + c, (-1, 1)
+            a * X_train[0, :] + b * X_train[1, :] + c, (1, -1)
         )
 
         gp.fit(X_train, y_train)

@@ -576,16 +576,13 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
         # Tolerance for GP interpolation (relaxed for Sobol sampling)
         interp_tol = 5e-4
 
-        # Create GP with separable product kernel on [-pi, pi]^3
-        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
-        k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
-        k3 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
-        kernel = SeparableProductKernel([k1, k2, k3], bkd)
+        # Create GP with multivariate SE kernel (supports jacobian_wrt_params
+        # for hyperparameter optimization, unlike SeparableProductKernel)
+        kernel = SquaredExponentialKernel(
+            [1.0, 1.0, 1.0], (0.1, 10.0), 3, bkd
+        )
 
         gp = ExactGaussianProcess(kernel, nvars=3, bkd=bkd, nugget=1e-10)
-        # Skip hyperparameter optimization since SeparableProductKernel
-        # doesn't implement jacobian_wrt_params yet
-        gp.hyp_list().set_all_inactive()
 
         # Create training data using Sobol sequence on [-pi, pi]^3
         marginals = [UniformMarginal(-pi, pi, bkd) for _ in range(3)]
@@ -595,7 +592,7 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
         X_train, _ = sampler.sample(n_train)
 
         # Evaluate Ishigami function
-        y_train = ishigami(X_train).T  # Shape: (n_train, 1)
+        y_train = ishigami(X_train)  # Shape: (nqoi, n_train)
         gp.fit(X_train, y_train)
 
         # Generate test points
