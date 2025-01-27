@@ -11,6 +11,12 @@ from typing import Protocol, Optional, runtime_checkable, Generic
 from pyapprox.typing.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
+from pyapprox.typing.surrogates.gaussianprocess.input_transform import (
+    InputAffineTransformProtocol,
+)
+from pyapprox.typing.surrogates.gaussianprocess.input_transform import (
+    InputAffineTransformProtocol,
+)
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.kernels.protocols import Kernel
 from pyapprox.typing.util.hyperparameter import HyperParameterList
@@ -255,6 +261,22 @@ class PredictiveGPProtocol(FittableGPProtocol[Array], Protocol):
         Optional[OutputAffineTransformProtocol[Array]]
             The output transform used to map between scaled and
             original output spaces.
+        """
+        ...
+
+    def input_transform(
+        self,
+    ) -> "InputAffineTransformProtocol[Array]":
+        """
+        Return the input affine transform (never None).
+
+        Returns an IdentityInputTransform if no input scaling was provided.
+
+        Returns
+        -------
+        InputAffineTransformProtocol[Array]
+            The input transform used to map between original and
+            scaled input spaces.
         """
         ...
 

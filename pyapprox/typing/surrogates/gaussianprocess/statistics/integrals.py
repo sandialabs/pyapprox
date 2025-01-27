@@ -245,15 +245,23 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         self._train_samples = gp.data().X()  # Shape: (nvars, N)
         self._n_train = gp.data().n_samples()
 
+        # Get input transform from GP (never None — identity if not set)
+        input_transform = gp.input_transform()
+
         # Get quadrature rules from the bases (points in physical domain)
+        # and transform to scaled space for kernel evaluation
         self._quad_samples: List[Array] = []
         self._quad_weights: List[Array] = []
         for dim in range(nvars):
             basis = quadrature_bases[dim]
             samples, weights = basis.quadrature_rule()
             # samples shape: (1, nquad), weights shape: (nquad, 1)
+            # Transform quadrature points to scaled space per-dimension
+            shift_d = input_transform.shift()[dim]
+            scale_d = input_transform.scale()[dim]
+            samples = (samples - shift_d) / scale_d
             self._quad_samples.append(samples)
-            # Flatten weights to (nquad,)
+            # Flatten weights to (nquad,) — unchanged (integrate ρ in original space)
             self._quad_weights.append(bkd.reshape(weights, (-1,)))
 
         # Cache for computed integrals

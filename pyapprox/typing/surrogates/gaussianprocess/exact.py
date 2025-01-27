@@ -13,6 +13,10 @@ from pyapprox.typing.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.typing.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
+from pyapprox.typing.surrogates.gaussianprocess.input_transform import (
+    InputAffineTransformProtocol,
+    IdentityInputTransform,
+)
 from pyapprox.typing.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
     ZeroMean
@@ -136,6 +140,9 @@ class ExactGaussianProcess(Generic[Array]):
         self._output_transform: Optional[
             OutputAffineTransformProtocol[Array]
         ] = None
+        self._input_transform: InputAffineTransformProtocol[Array] = (
+            IdentityInputTransform(nvars, bkd)
+        )
 
         # Optimizer for hyperparameter tuning (None means use default)
         self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
@@ -183,12 +190,17 @@ class ExactGaussianProcess(Generic[Array]):
 
     def data(self) -> GPTrainingData[Array]:
         """
-        Return the training data container.
+        Return the training data container in scaled (internal) space.
+
+        Both X and y are in scaled space: X has input transform applied,
+        y has output inverse_transform applied. To recover original-space
+        data, use ``input_transform().inverse_transform(data().X())`` and
+        ``output_transform().transform(data().y())``.
 
         Returns
         -------
         GPTrainingData[Array]
-            Training data (X, y) used to fit the GP.
+            Training data (X, y) in scaled space.
 
         Raises
         ------
@@ -252,6 +264,13 @@ class ExactGaussianProcess(Generic[Array]):
         """Return the output transform, or None if not set."""
         return self._output_transform
 
+    def input_transform(self) -> InputAffineTransformProtocol[Array]:
+        """Return the input transform (never None).
+
+        Returns an IdentityInputTransform if no input scaling was provided.
+        """
+        return self._input_transform
+
     def hyp_list(self) -> HyperParameterList:
         """
         Return combined hyperparameter list.
@@ -314,6 +333,9 @@ class ExactGaussianProcess(Generic[Array]):
         output_transform: Optional[
             OutputAffineTransformProtocol[Array]
         ] = None,
+        input_transform: Optional[
+            InputAffineTransformProtocol[Array]
+        ] = None,
     ) -> None:
         """Fit GP to data and optimize active hyperparameters.
 
@@ -334,6 +356,10 @@ class ExactGaussianProcess(Generic[Array]):
             If provided, y_train is assumed to be in original space and
             will be scaled internally. Predictions will be returned in
             original space.
+        input_transform : Optional[InputAffineTransformProtocol[Array]]
+            If provided, X_train is assumed to be in original space and
+            will be scaled internally. Prediction inputs will be
+            automatically transformed. If None, uses identity transform.
 
         Raises
         ------
@@ -354,11 +380,29 @@ class ExactGaussianProcess(Generic[Array]):
         >>> scaler = OutputStandardScaler.from_data(y_train, bkd)
         >>> gp.fit(X_train, y_train, output_transform=scaler)
 
+        >>> # Fit with input scaling
+        >>> from pyapprox.typing.surrogates.gaussianprocess.input_transform import (
+        ...     InputStandardScaler,
+        ... )
+        >>> input_scaler = InputStandardScaler.from_data(X_train, bkd)
+        >>> gp.fit(X_train, y_train, input_transform=input_scaler)
+
         >>> # Skip optimization (fixed hyperparameters)
         >>> gp.hyp_list().set_all_inactive()
         >>> gp.fit(X_train, y_train)
         """
         self._output_transform = output_transform
+
+        # Store input transform (identity if not provided)
+        if input_transform is not None:
+            self._input_transform = input_transform
+        else:
+            self._input_transform = IdentityInputTransform(
+                self._nvars, self._bkd
+            )
+
+        # Scale X if transform provided
+        X_train = self._input_transform.transform(X_train)
 
         # Scale y if transform provided
         if output_transform is not None:
@@ -491,6 +535,9 @@ class ExactGaussianProcess(Generic[Array]):
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before making predictions")
 
+        # Transform inputs to scaled space
+        X = self._input_transform.transform(X)
+
         # Prior mean: shape (1, n_test)
         mean_prior = self._mean(X)
 
@@ -538,6 +585,9 @@ class ExactGaussianProcess(Generic[Array]):
         """
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before making predictions")
+
+        # Transform inputs to scaled space
+        X = self._input_transform.transform(X)
 
         # Compute k(X*, X)
         K_star = self._kernel(X, self._data.X())
@@ -611,8 +661,11 @@ class ExactGaussianProcess(Generic[Array]):
                 f"got {sample.shape}. Use jacobian_batch() for multiple samples."
             )
 
+        # Transform input to scaled space
+        sample_scaled = self._input_transform.transform(sample)
+
         # Kernel Jacobian: ∂k(x, X)/∂x has shape (1, n_train, nvars)
-        K_jac = self._kernel.jacobian(sample, self._data.X())
+        K_jac = self._kernel.jacobian(sample_scaled, self._data.X())
 
         # Compute: α @ ∂k(x, X)^T/∂x
         # K_jac shape: (1, n_train, nvars), α shape: (nqoi, n_train)
@@ -620,7 +673,11 @@ class ExactGaussianProcess(Generic[Array]):
         jac = self._bkd.einsum("lj,ijk->ilk", self._alpha, K_jac)
         result = jac[0, :, :]  # (nqoi, nvars)
 
-        # Scale to original space if transform is set
+        # Apply input transform chain rule: ∂f/∂z = (1/σ_z) * ∂f/∂z̃
+        jac_factor = self._input_transform.jacobian_factor()  # (nvars,)
+        result = result * jac_factor[None, :]
+
+        # Scale to original space if output transform is set
         if self._output_transform is not None:
             scale = self._output_transform.scale()  # (nqoi,)
             result = scale[:, None] * result
@@ -649,15 +706,22 @@ class ExactGaussianProcess(Generic[Array]):
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before computing Jacobian")
 
+        # Transform inputs to scaled space
+        samples_scaled = self._input_transform.transform(samples)
+
         # Kernel Jacobian: ∂k(x, X)/∂x has shape (n_samples, n_train, nvars)
-        K_jac = self._kernel.jacobian(samples, self._data.X())
+        K_jac = self._kernel.jacobian(samples_scaled, self._data.X())
 
         # For each sample point, compute: α @ ∂k(x, X)^T/∂x
         # K_jac shape: (n_samples, n_train, nvars), α shape: (nqoi, n_train)
         # Result shape: (n_samples, nqoi, nvars)
         jac = self._bkd.einsum("lj,ijk->ilk", self._alpha, K_jac)
 
-        # Scale to original space if transform is set
+        # Apply input transform chain rule: ∂f/∂z = (1/σ_z) * ∂f/∂z̃
+        jac_factor = self._input_transform.jacobian_factor()  # (nvars,)
+        jac = jac * jac_factor[None, None, :]
+
+        # Scale to original space if output transform is set
         if self._output_transform is not None:
             scale = self._output_transform.scale()  # (nqoi,)
             jac = scale[None, :, None] * jac
@@ -763,20 +827,33 @@ class ExactGaussianProcess(Generic[Array]):
                 "HVP currently only supports single-output GPs (nqoi=1)"
             )
 
-        # Get training data
+        # Get training data (already in scaled space)
         X_train = self._data.X()  # (nvars, n_train)
         n_train = X_train.shape[1]
 
         # Get α - shape: (nqoi, n_train) = (1, n_train)
         alpha = self._bkd.reshape(self._alpha, (n_train,))  # (n_train,)
 
-        # Reshape inputs
-        V = self._bkd.reshape(vec, (nvars,))  # (nvars,)
-        x_star = self._bkd.reshape(sample, (nvars,))  # (nvars,)
+        # Transform sample to scaled space
+        sample_scaled = self._input_transform.transform(sample)
+
+        # Apply input transform chain rule for HVP:
+        # (Hv)_j = (1/σ_j) Σ_k H̃_jk (v_k/σ_k)
+        jac_factor = self._input_transform.jacobian_factor()  # (nvars,)
+
+        # Scale direction vector: v_scaled = (1/σ) * v
+        vec_scaled = jac_factor[:, None] * vec  # (nvars, 1)
+
+        # Reshape inputs for kernel HVP
+        V = self._bkd.reshape(vec_scaled, (nvars,))  # (nvars,)
+        x_star = self._bkd.reshape(sample_scaled, (nvars,))  # (nvars,)
 
         hvp = self._hvp_using_kernel_hvp(x_star, V, X_train, alpha)
 
-        # Scale to original space if transform is set
+        # Scale result by jacobian_factor: (1/σ) * hvp_scaled
+        hvp = jac_factor * hvp
+
+        # Scale to original space if output transform is set
         if self._output_transform is not None:
             scale = self._output_transform.scale()  # (nqoi,)
             hvp = scale[0] * hvp
@@ -864,6 +941,9 @@ class ExactGaussianProcess(Generic[Array]):
         """
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before making predictions")
+
+        # Transform inputs to scaled space
+        X = self._input_transform.transform(X)
 
         n_test = X.shape[1]
         nqoi = self._data.nqoi()
