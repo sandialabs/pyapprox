@@ -106,12 +106,12 @@ class TestSeparableKernelIntegralCalculator(Generic[Array], unittest.TestCase):
 
     def test_tau_shape(self) -> None:
         """Test tau has correct shape (N,)."""
-        tau = self._calc.tau()
+        tau = self._calc.tau_C()
         self.assertEqual(tau.shape, (self._n_train,))
 
     def test_tau_positive(self) -> None:
         """Test tau values are positive (kernel is positive)."""
-        tau = self._calc.tau()
+        tau = self._calc.tau_C()
         self.assertTrue(self._bkd.all_bool(tau > 0))
 
     def test_P_shape(self) -> None:
@@ -138,8 +138,8 @@ class TestSeparableKernelIntegralCalculator(Generic[Array], unittest.TestCase):
 
     def test_caching(self) -> None:
         """Test that results are cached."""
-        tau1 = self._calc.tau()
-        tau2 = self._calc.tau()
+        tau1 = self._calc.tau_C()
+        tau2 = self._calc.tau_C()
         # Same object (cached)
         self.assertIs(tau1, tau2)
 

@@ -156,12 +156,13 @@ class GaussianProcessSensitivity(Generic[Array]):
         index = bkd.asarray([0.0, 1.0, 1.0])  # nvars=3
         V_not_0 = sens.conditional_variance(index)
         """
-        # Get conditional P and u from integral calculator
-        P_p = self._calc.conditional_P(index)  # Shape: (n_train, n_train)
-        u_p = self._calc.conditional_u(index)  # Scalar
-
-        # Get kernel variance
+        # Scale C-integrals to K-quantities
         s2 = self._get_kernel_variance()
+        s4 = s2 * s2
+        P_C_p = self._calc.conditional_P(index)  # C-quantity
+        u_C_p = self._calc.conditional_u(index)  # C-quantity
+        P_K_p = s4 * P_C_p
+        u_K_p = s2 * u_C_p
 
         # Get alpha = A^{-1} y from GP
         alpha = self._stats._gp.alpha()  # Shape: (nqoi, n_train)
@@ -174,28 +175,23 @@ class GaussianProcessSensitivity(Generic[Array]):
                 "conditional_variance currently only supports single-output GPs (nqoi=1)"
             )
 
-        # Compute ζ_p = y^T A^{-1} P_p A^{-1} y = α^T P_p α
-        P_p_alpha = P_p @ alpha_1d  # Shape: (n_train,)
-        zeta_p = alpha_1d @ P_p_alpha  # Scalar
+        # ζ_p = αᵀ P_K_p α
+        P_K_p_alpha = P_K_p @ alpha_1d
+        zeta_p = alpha_1d @ P_K_p_alpha
 
-        # Compute v_p² = u_p - Tr[P_p A^{-1}]
-        A_inv_P_p = self._stats._solve(P_p)  # Shape: (n_train, n_train)
-        trace_P_p_A_inv = self._bkd.trace(A_inv_P_p)
-        v_p_sq = u_p - trace_P_p_A_inv
+        # v_p² = u_K_p - tr[P_K_p A⁻¹]
+        A_inv_P_K_p = self._stats._solve(P_K_p)
+        trace_P_K_p_A_inv = self._bkd.trace(A_inv_P_K_p)
+        v_p_sq = u_K_p - trace_P_K_p_A_inv
 
-        # Get η = E[μ_f] (mean of mean, cached)
+        # η (cached)
         eta = self._stats.mean_of_mean()
 
-        # Compute ς² = u - τ^T A^{-1} τ
-        tau = self._calc.tau()  # Shape: (n_train,)
-        u = self._calc.u()  # Scalar
-        tau_col = self._bkd.reshape(tau, (-1, 1))
-        A_inv_tau = self._stats._solve(tau_col)
-        A_inv_tau = self._bkd.reshape(A_inv_tau, (-1,))
-        varsigma_sq = u - tau @ A_inv_tau
+        # var_mu = u_K - τ_Kᵀ A⁻¹ τ_K (cached from variance_of_mean)
+        var_mu = self._stats.variance_of_mean()
 
-        # E[γ_f^(p)] = ζ_p + s² v_p² - η² - s² ς²
-        cond_var = zeta_p + s2 * v_p_sq - eta * eta - s2 * varsigma_sq
+        # E[γ_f^(p)] = ζ_p + v_p² - η² - var_mu
+        cond_var = zeta_p + v_p_sq - eta * eta - var_mu
 
         # Ensure non-negative (numerical stability)
         cond_var = cond_var * (cond_var >= 0.0)

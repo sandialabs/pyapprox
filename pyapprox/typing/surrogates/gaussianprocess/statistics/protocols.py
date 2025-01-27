@@ -87,17 +87,24 @@ class KernelIntegralCalculatorProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def tau(self) -> Array:
+    def tau_C(self) -> Array:
         """
-        Compute the tau vector for E[f] computation.
+        Compute the tau vector using the correlation kernel C (unit variance).
 
-        tau_i = integral C(x, x^(i)) rho(x) dx
+        tau_C_i = integral C(x, x^(i)) rho(x) dx
 
-        This is the integral of the kernel between the input x and
-        training point x^(i), weighted by the input density rho(x).
+        Returns
+        -------
+        Array
+            Shape (N,) where N is the number of training points.
+        """
+        ...
 
-        For separable kernels, the full tau is: tau = prod_k tau_k
-        where tau_k is the 1D factor for dimension k.
+    def tau_K(self) -> Array:
+        """
+        Compute the tau vector using the full kernel K = s² C.
+
+        tau_K = s² tau_C
 
         Returns
         -------

@@ -10,6 +10,14 @@ from pyapprox.typing.surrogates.kernels.protocols import (
     KernelProtocol,
     SeparableKernelProtocol,
 )
+from pyapprox.typing.surrogates.kernels.composition import (
+    ProductKernel,
+    SumKernel,
+)
+from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.typing.surrogates.kernels.iid_gaussian_noise import (
+    IIDGaussianNoise,
+)
 from pyapprox.typing.surrogates.gaussianprocess.protocols import (
     GaussianProcessProtocol,
 )
@@ -58,6 +66,16 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
     >>> kernel = SquaredExponentialKernel([1.0, 2.0], (0.1, 10.0), 2, bkd)
     >>> validate_separable_kernel(kernel)  # OK - SE kernel is separable
     """
+    # Strip IIDGaussianNoise from SumKernel and validate the signal part
+    if isinstance(kernel, SumKernel):
+        k1 = getattr(kernel, '_kernel1', None)
+        k2 = getattr(kernel, '_kernel2', None)
+        if k1 is not None and k2 is not None:
+            for signal, noise in [(k1, k2), (k2, k1)]:
+                if isinstance(noise, IIDGaussianNoise):
+                    validate_separable_kernel(signal)
+                    return
+
     # Check if kernel satisfies SeparableKernelProtocol
     if isinstance(kernel, SeparableKernelProtocol):
         return
@@ -66,12 +84,23 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
     if kernel.nvars() == 1:
         return
 
+    # Check for ProductKernel(PolynomialScaling(degree=0), SeparableKernel)
+    if isinstance(kernel, ProductKernel):
+        k1 = getattr(kernel, '_kernel1', None)
+        k2 = getattr(kernel, '_kernel2', None)
+        if k1 is not None and k2 is not None:
+            for a, b in [(k1, k2), (k2, k1)]:
+                if (isinstance(a, PolynomialScaling) and a.degree() == 0
+                        and isinstance(b, SeparableKernelProtocol)):
+                    return
+
     # Otherwise, kernel is not separable
     raise TypeError(
         f"Kernel must satisfy SeparableKernelProtocol for GP statistics "
         f"computations, but got {type(kernel).__name__}. "
         f"Separable kernels include: SeparableProductKernel, "
-        f"SquaredExponentialKernel (with ARD). "
+        f"SquaredExponentialKernel (with ARD), or "
+        f"PolynomialScaling(degree=0) * SeparableKernel. "
         f"Note: Matern 3/2 and 5/2 are NOT separable. "
         f"For non-separable kernels, wrap 1D kernels in SeparableProductKernel."
     )

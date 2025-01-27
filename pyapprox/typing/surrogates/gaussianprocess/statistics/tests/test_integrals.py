@@ -465,7 +465,7 @@ class TestConditionalMethods(Generic[Array], unittest.TestCase):
         """When no dims conditioned (index=[0,0]), P_p = τ τᵀ."""
         index = self._bkd.array([0.0, 0.0])
         P_p = self._calc.conditional_P(index)
-        tau = self._calc.tau()
+        tau = self._calc.tau_C()
         expected = self._bkd.outer(tau, tau)
 
         self._bkd.assert_allclose(P_p, expected, rtol=1e-12)

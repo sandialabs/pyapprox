@@ -59,20 +59,30 @@ from pyapprox.typing.surrogates.kernels.protocols import (
     KernelProtocol,
     SeparableKernelProtocol,
 )
+from pyapprox.typing.surrogates.gaussianprocess.statistics.decompose import (
+    _decompose_kernel,
+)
 from pyapprox.typing.surrogates.affine.protocols.quadrature import (
     QuadratureRuleStatefulProtocol,
 )
 from pyapprox.typing.probability.protocols.distribution import MarginalProtocol
 
 
-def _extract_1d_kernels(kernel: KernelProtocol[Array]) -> List[KernelProtocol[Array]]:
+def _extract_1d_kernels(kernel: KernelProtocol[Array], bkd: Backend[Array]) -> List[KernelProtocol[Array]]:
     """
     Extract 1D kernel components from a separable kernel.
+
+    Supports both bare SeparableKernelProtocol and scaled kernels
+    (PolynomialScaling * SeparableKernel). The variance scaling is
+    handled separately by _decompose_kernel in the statistics formulas.
 
     Parameters
     ----------
     kernel : KernelProtocol[Array]
-        A kernel satisfying SeparableKernelProtocol, or a single 1D kernel.
+        A kernel satisfying SeparableKernelProtocol, a single 1D kernel,
+        or PolynomialScaling(degree=0) * SeparableKernel.
+    bkd : Backend[Array]
+        Numerical backend.
 
     Returns
     -------
@@ -82,11 +92,14 @@ def _extract_1d_kernels(kernel: KernelProtocol[Array]) -> List[KernelProtocol[Ar
     Raises
     ------
     TypeError
-        If kernel does not satisfy SeparableKernelProtocol.
+        If kernel cannot be decomposed into separable 1D components.
     """
-    # Check for SeparableKernelProtocol
-    if isinstance(kernel, SeparableKernelProtocol):
-        return [kernel.get_kernel_1d(dim) for dim in range(kernel.nvars())]
+    # Use decomposition to unwrap scaled kernels
+    try:
+        base_kernel, _ = _decompose_kernel(kernel, bkd)
+        return [base_kernel.get_kernel_1d(dim) for dim in range(base_kernel.nvars())]
+    except TypeError:
+        pass
 
     # Single 1D kernel
     if kernel.nvars() == 1:
@@ -95,7 +108,8 @@ def _extract_1d_kernels(kernel: KernelProtocol[Array]) -> List[KernelProtocol[Ar
     # Not separable
     raise TypeError(
         f"Cannot extract 1D kernels from {type(kernel).__name__}. "
-        f"Kernel must satisfy SeparableKernelProtocol (implement get_kernel_1d)."
+        f"Kernel must satisfy SeparableKernelProtocol (implement get_kernel_1d) "
+        f"or be PolynomialScaling(degree=0) * SeparableKernel."
     )
 
 
@@ -165,7 +179,7 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
     ...     b.set_nterms(20)  # Number of quadrature points
     >>>
     >>> calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
-    >>> tau = calc.tau()  # Shape: (10,)
+    >>> tau_C = calc.tau_C()  # Shape: (10,), C-integrals
     >>> P = calc.P()      # Shape: (10, 10)
     >>> u = calc.u()      # Scalar
     """
@@ -214,8 +228,10 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
             bkd = gp.bkd()
         self._bkd = bkd
 
-        # Extract 1D kernel components
-        self._kernels_1d = _extract_1d_kernels(gp.kernel())
+        # Extract 1D kernel components (unwraps variance scaling if present)
+        # and store kernel variance s² for scaling integrals
+        self._kernels_1d = _extract_1d_kernels(gp.kernel(), self._bkd)
+        _, self._kernel_variance = _decompose_kernel(gp.kernel(), self._bkd)
 
         # Validate we have the right number of 1D kernels
         if len(self._kernels_1d) != nvars:
@@ -284,21 +300,21 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         """
         return self._train_samples[dim:dim+1, :]
 
-    def tau(self) -> Array:
+    def tau_C(self) -> Array:
         """
-        Compute the tau vector for E[f] computation.
+        Compute the tau vector using the correlation kernel C (unit variance).
 
-        tau_i = integral C(x, x^(i)) rho(x) dx
+        tau_C_i = integral C(x, x^(i)) rho(x) dx
 
-        For separable kernels: tau = prod_k tau_k (element-wise product).
+        For separable kernels: tau_C = prod_k tau_k (element-wise product).
 
         Returns
         -------
         Array
             Shape (N,) where N is the number of training points.
         """
-        if 'tau' in self._cache:
-            return self._cache['tau']
+        if 'tau_C' in self._cache:
+            return self._cache['tau_C']
 
         nvars = len(self._kernels_1d)
 
@@ -314,8 +330,26 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
             )
             tau = tau * tau_1d
 
-        self._cache['tau'] = tau
+        self._cache['tau_C'] = tau
         return tau
+
+    def tau_K(self) -> Array:
+        """
+        Compute the tau vector using the full kernel K = s² C.
+
+        tau_K = s² tau_C
+
+        Returns
+        -------
+        Array
+            Shape (N,) where N is the number of training points.
+        """
+        if 'tau_K' in self._cache:
+            return self._cache['tau_K']
+
+        tau_K = self._kernel_variance * self.tau_C()
+        self._cache['tau_K'] = tau_K
+        return tau_K
 
     def P(self) -> Array:
         """

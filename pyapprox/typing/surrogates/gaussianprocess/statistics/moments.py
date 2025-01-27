@@ -20,6 +20,9 @@ from pyapprox.typing.surrogates.gaussianprocess.protocols import (
 from pyapprox.typing.surrogates.gaussianprocess.statistics.protocols import (
     KernelIntegralCalculatorProtocol,
 )
+from pyapprox.typing.surrogates.gaussianprocess.statistics.decompose import (
+    _decompose_kernel,
+)
 
 
 class GaussianProcessStatistics(Generic[Array]):
@@ -132,21 +135,16 @@ class GaussianProcessStatistics(Generic[Array]):
         """
         Get the kernel variance hyperparameter (s^2).
 
-        For standard kernels, this is typically 1.0 (built into length scale).
-        For kernels with explicit variance, extract it from hyperparameters.
+        For standard separable kernels, this is 1.0. For kernels composed as
+        PolynomialScaling([s]) * SeparableKernel, this extracts s^2.
 
         Returns
         -------
         s2 : Array
             Kernel variance (scalar).
         """
-        # Most kernels in pyapprox.typing have unit variance by default
-        # The variance is absorbed into the kernel evaluation
-        # For now, assume s^2 = 1.0 (this is correct for SE kernels
-        # where the variance is 1 and length scales control correlation)
-        #
-        # TODO: Support explicit variance hyperparameter for kernels that have it
-        return self._bkd.asarray(1.0)
+        _, s2 = _decompose_kernel(self._gp.kernel(), self._bkd)
+        return s2
 
     def mean_of_mean(self) -> Array:
         """
@@ -164,15 +162,16 @@ class GaussianProcessStatistics(Generic[Array]):
         if 'mean_of_mean' in self._cache:
             return self._cache['mean_of_mean']
 
-        tau = self._calc.tau()  # Shape: (n_train,)
+        tau_K = self._calc.tau_K()  # Shape: (n_train,), includes s²
 
         # Compute A^{-1} y (already computed in GP as alpha)
         alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
 
-        # eta = tau^T * alpha^T = alpha @ tau
-        # For single output: tau shape (n_train,), alpha shape (1, n_train)
+        # eta = tau_K^T * alpha^T = alpha @ tau_K
+        # = s² tau_C^T A^{-1} y
+        # For single output: tau_K shape (n_train,), alpha shape (1, n_train)
         # Result: (nqoi,)
-        eta = alpha @ tau  # Shape: (nqoi,)
+        eta = alpha @ tau_K  # Shape: (nqoi,)
 
         # Squeeze to scalar if nqoi=1
         if eta.shape[0] == 1:
@@ -198,21 +197,17 @@ class GaussianProcessStatistics(Generic[Array]):
         if 'variance_of_mean' in self._cache:
             return self._cache['variance_of_mean']
 
-        tau = self._calc.tau()  # Shape: (n_train,)
-        u = self._calc.u()      # Scalar
-
-        # Compute A^{-1} tau
-        # Need to reshape tau to (n_train, 1) for solve
-        tau_col = self._bkd.reshape(tau, (-1, 1))
-        A_inv_tau = self._solve(tau_col)  # Shape: (n_train, 1)
-        A_inv_tau = self._bkd.reshape(A_inv_tau, (-1,))  # Shape: (n_train,)
-
-        # varsigma^2 = u - tau^T A^{-1} tau
-        varsigma_sq = u - tau @ A_inv_tau
-
-        # Var[mu] = s^2 * varsigma^2
+        # Scale integrals to K-quantities
         s2 = self._get_kernel_variance()
-        var_of_mean = s2 * varsigma_sq
+        tau_K = self._calc.tau_K()  # s² τ_C, shape: (n_train,)
+        u_K = s2 * self._calc.u()  # s² u_C, scalar
+
+        # Var[μ_f | y] = u_K - τ_K^T A⁻¹ τ_K
+        # where A = K(X,X) + σ²I is the actual GP kernel matrix
+        tau_K_col = self._bkd.reshape(tau_K, (-1, 1))
+        A_inv_tau_K = self._solve(tau_K_col)  # Shape: (n_train, 1)
+        A_inv_tau_K = self._bkd.reshape(A_inv_tau_K, (-1,))
+        var_of_mean = u_K - tau_K @ A_inv_tau_K
 
         # Ensure non-negative (numerical stability)
         var_of_mean = var_of_mean * (var_of_mean >= 0.0)
@@ -242,11 +237,13 @@ class GaussianProcessStatistics(Generic[Array]):
         if 'mean_of_variance' in self._cache:
             return self._cache['mean_of_variance']
 
-        # Get required quantities
-        P = self._calc.P()      # Shape: (n_train, n_train)
-        tau = self._calc.tau()  # Shape: (n_train,)
-        u = self._calc.u()      # Scalar
+        # Scale C-integrals to K-quantities
         s2 = self._get_kernel_variance()
+        s4 = s2 * s2
+        P_C = self._calc.P()        # Shape: (n_train, n_train)
+        P_K = s4 * P_C              # s⁴ P_C
+        tau_K = self._calc.tau_K()   # s² τ_C, shape: (n_train,)
+        u_K = s2 * self._calc.u()   # s² u_C, scalar
 
         # Compute A^{-1} y (already have as alpha)
         alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
@@ -259,29 +256,23 @@ class GaussianProcessStatistics(Generic[Array]):
                 "mean_of_variance currently only supports single-output GPs (nqoi=1)"
             )
 
-        # Compute zeta = y^T A^{-1} P A^{-1} y = alpha^T P alpha
-        P_alpha = P @ alpha_1d  # Shape: (n_train,)
-        zeta = alpha_1d @ P_alpha  # Scalar
+        # zeta = αᵀ P_K α
+        P_K_alpha = P_K @ alpha_1d
+        zeta = alpha_1d @ P_K_alpha
 
-        # Compute v^2 = 1 - Tr[P A^{-1}]
-        # A^{-1} = L^{-T} L^{-1}, so Tr[P A^{-1}] = Tr[P L^{-T} L^{-1}]
-        # We can compute this as: Tr[P A^{-1}] = sum_i (A^{-1} P)_ii
-        # But more efficiently: solve A Z = P, then Tr[Z] = Tr[A^{-1} P]
-        A_inv_P = self._solve(P)  # Shape: (n_train, n_train)
-        trace_P_A_inv = self._bkd.trace(A_inv_P)
-        v_sq = 1.0 - trace_P_A_inv
+        # integrated_post_var = s² - tr[P_K A⁻¹]
+        A_inv_P_K = self._solve(P_K)
+        trace_P_K_A_inv = self._bkd.trace(A_inv_P_K)
+        integrated_post_var = s2 - trace_P_K_A_inv
 
-        # Compute eta = mean of mean
+        # eta = τ_Kᵀ A⁻¹ y (cached from mean_of_mean)
         eta = self.mean_of_mean()
 
-        # Compute varsigma^2 = u - tau^T A^{-1} tau
-        tau_col = self._bkd.reshape(tau, (-1, 1))
-        A_inv_tau = self._solve(tau_col)
-        A_inv_tau = self._bkd.reshape(A_inv_tau, (-1,))
-        varsigma_sq = u - tau @ A_inv_tau
+        # var_mu = u_K - τ_Kᵀ A⁻¹ τ_K (cached from variance_of_mean)
+        var_mu = self.variance_of_mean()
 
-        # E[gamma] = zeta + s^2 * v^2 - eta^2 - s^2 * varsigma^2
-        mean_of_var = zeta + s2 * v_sq - eta * eta - s2 * varsigma_sq
+        # E[γ] = ζ + integrated_post_var - η² - var_mu
+        mean_of_var = zeta + integrated_post_var - eta * eta - var_mu
 
         # Ensure non-negative (numerical stability)
         mean_of_var = mean_of_var * (mean_of_var >= 0.0)
@@ -312,24 +303,22 @@ class GaussianProcessStatistics(Generic[Array]):
         if 'variance_of_variance' in self._cache:
             return self._cache['variance_of_variance']
 
-        # Get kernel variance (s²)
+        # Scale C-integrals to K-quantities
         s2 = self._get_kernel_variance()
         s4 = s2 * s2
 
-        # === Prerequisite quantities from earlier phases ===
-        # η = τᵀA⁻¹y (mean of mean)
-        eta = self.mean_of_mean()
+        P_C = self._calc.P()
+        P_K = s4 * P_C
+        tau_K = self._calc.tau_K()        # s² τ_C
+        u_K = s2 * self._calc.u()         # s² u_C
+        nu_K = s4 * self._calc.nu()       # s⁴ ν_C
+        Pi_K = s4 * s2 * self._calc.Pi()  # s⁶ Π_C
+        xi1_K = s4 * self._calc.xi1()     # s⁴ ξ₁_C
+        Gamma_K = s4 * self._calc.Gamma() # s⁴ Γ_C
 
-        # ς² = u - τᵀA⁻¹τ (from variance_of_mean, need raw varsigma_sq)
-        tau = self._calc.tau()
-        u = self._calc.u()
-        tau_col = self._bkd.reshape(tau, (-1, 1))
-        A_inv_tau = self._solve(tau_col)
-        A_inv_tau = self._bkd.reshape(A_inv_tau, (-1,))
-        varsigma_sq = u - tau @ A_inv_tau  # ς²
-
-        # Get P matrix
-        P = self._calc.P()
+        # === Prerequisite quantities ===
+        eta = self.mean_of_mean()           # η
+        var_mu = self.variance_of_mean()    # u_K - τ_Kᵀ A⁻¹ τ_K
 
         # A⁻¹y (already computed as alpha)
         alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
@@ -340,98 +329,57 @@ class GaussianProcessStatistics(Generic[Array]):
                 "variance_of_variance currently only supports single-output GPs (nqoi=1)"
             )
 
-        # ζ = yᵀA⁻¹PA⁻¹y = αᵀPα
-        P_alpha = P @ alpha_1d
-        zeta = alpha_1d @ P_alpha
+        # β_K = A⁻¹ τ_K
+        tau_K_col = self._bkd.reshape(tau_K, (-1, 1))
+        beta_K = self._bkd.reshape(self._solve(tau_K_col), (-1,))
 
-        # v² = 1 - Tr[PA⁻¹]
-        A_inv_P = self._solve(P)
-        trace_P_A_inv = self._bkd.trace(A_inv_P)
-        v_sq = 1.0 - trace_P_A_inv
+        # ζ = αᵀ P_K α
+        P_K_alpha = P_K @ alpha_1d
+        zeta = alpha_1d @ P_K_alpha
 
-        # === Extended integral quantities from calculator ===
-        nu = self._calc.nu()  # ν
-        Pi = self._calc.Pi()  # Π
-        xi1 = self._calc.xi1()  # ξ₁
+        # v² = s² - tr[P_K A⁻¹]
+        A_inv_P_K = self._solve(P_K)
+        trace_P_K_A_inv = self._bkd.trace(A_inv_P_K)
+        v_sq = s2 - trace_P_K_A_inv
 
         # === Intermediate quantities for ϑ₁ ===
 
-        # varphi = ∫∫(t(x)ᵀA⁻¹t(z))²dFdF = Σ_{ik} P_{ik} (A⁻¹PA⁻¹)_{ik}
-        # This is the Hadamard (element-wise) product trace: Tr[P ∘ (A⁻¹PA⁻¹)]
-        #
-        # Derivation:
-        # (t(x)ᵀA⁻¹t(z))² = Σ_{ijkl} (A⁻¹)_{ij} (A⁻¹)_{kl} t_i(x) t_j(z) t_k(x) t_l(z)
-        # Integrating: ∫t_i(x)t_k(x)dF = P_{ik}, ∫t_j(z)t_l(z)dF = P_{jl}
-        # So: ∫∫ = Σ_{ijkl} (A⁻¹)_{ij} (A⁻¹)_{kl} P_{ik} P_{jl}
-        #       = Σ_{ik} P_{ik} (A⁻¹PA⁻¹)_{ik} = Tr[P ∘ (A⁻¹PA⁻¹)]
-        #
-        # Efficiently computed as: A⁻¹PA⁻¹ = (A⁻¹P) @ A⁻¹ = A_inv_P @ A⁻¹
-        # We need A⁻¹ = L⁻ᵀL⁻¹. Using solve: A⁻¹ = solve(I).
-        # Then: varphi = sum(P * (A_inv_P @ A_inv))
-        A_inv = self._solve(self._bkd.eye(self._n_train))
-        A_inv_P_A_inv = A_inv_P @ A_inv
-        varphi = self._bkd.sum(P * A_inv_P_A_inv)
-
-        # ψ = Tr[A⁻¹Π]
-        A_inv_Pi = self._solve(Pi)
-        psi = self._bkd.trace(A_inv_Pi)
-
-        # χ = ν + varphi - 2ψ
-        chi = nu + varphi - 2 * psi
-
-        # phi = yᵀA⁻¹ΠA⁻¹y - yᵀA⁻¹PA⁻¹PA⁻¹y
-        # First term: αᵀΠα
-        Pi_alpha = Pi @ alpha_1d
-        phi_term1 = alpha_1d @ Pi_alpha
-        # Second term: αᵀP(A⁻¹P)α = αᵀP·(A⁻¹P·α)
-        P_A_inv_P_alpha = P @ (A_inv_P @ alpha_1d)
-        phi_term2 = alpha_1d @ P_A_inv_P_alpha
+        # φ = αᵀ Π_K α - αᵀ P_K A⁻¹ P_K α
+        Pi_K_alpha = Pi_K @ alpha_1d
+        phi_term1 = alpha_1d @ Pi_K_alpha
+        P_K_A_inv_P_K_alpha = P_K @ (A_inv_P_K @ alpha_1d)
+        phi_term2 = alpha_1d @ P_K_A_inv_P_K_alpha
         phi = phi_term1 - phi_term2
 
-        # === Compute ϑ₁, ϑ₂, ϑ₃ ===
+        # φ̃ = sum(P_K * (A⁻¹ P_K A⁻¹))
+        A_inv = self._solve(self._bkd.eye(self._n_train))
+        A_inv_P_K_A_inv = A_inv_P_K @ A_inv
+        varphi = self._bkd.sum(P_K * A_inv_P_K_A_inv)
 
-        # ϑ₁ = 4φs² + 2χs⁴ + (ζ + v²s²)²
-        vartheta1 = 4 * phi * s2 + 2 * chi * s4 + (zeta + v_sq * s2) ** 2
+        # ψ = tr[A⁻¹ Π_K]
+        A_inv_Pi_K = self._solve(Pi_K)
+        psi = self._bkd.trace(A_inv_Pi_K)
 
-        # === Correct ϑ₂ formula ===
-        # The old formula was incorrect. The correct formula is:
-        #
-        # ϑ₂ = E[κ]·E[μ²] + Term_B + Term_C
-        #
-        # where:
-        #   E[κ] = ζ + s²v²
-        #   E[μ²] = η² + s²ς²
-        #   Term_B = 4ηs² · (αᵀΓ - αᵀPβ)
-        #   Term_C = 2s⁴ · (ξ₁ - 2βᵀΓ + βᵀPβ)
-        #   α = A⁻¹y, β = A⁻¹τ
-        #   Γᵢ = ∫∫ k(xᵢ, z) k(z, v) ρ(z)ρ(v) dz dv
-        #
-        # This was verified against Monte Carlo with <1% error.
+        # χ = ν_K + φ̃ - 2ψ
+        chi = nu_K + varphi - 2 * psi
 
-        E_kappa = zeta + s2 * v_sq
-        E_mu_sq = eta * eta + s2 * varsigma_sq
+        # ϑ₁ = 4φ + 2χ + (ζ + v²)²
+        vartheta1 = 4 * phi + 2 * chi + (zeta + v_sq) ** 2
 
-        # Get Gamma integral (new quantity needed for correct formula)
-        Gamma = self._calc.Gamma()
+        # === ϑ₂ ===
+        E_kappa = zeta + v_sq
+        E_mu_sq = eta * eta + var_mu
 
-        # beta = A^{-1} tau (already have A_inv_tau)
-        beta = A_inv_tau
+        # Term_B = 4η · (αᵀ Γ_K - αᵀ P_K β_K)
+        term_B = 4 * eta * (alpha_1d @ Gamma_K - alpha_1d @ (P_K @ beta_K))
 
-        # Term_B = 4ηs² · (αᵀΓ - αᵀPβ)
-        term_B = 4 * eta * s2 * (alpha_1d @ Gamma - alpha_1d @ (P @ beta))
-
-        # Term_C = 2s⁴ · (ξ₁ - 2βᵀΓ + βᵀPβ)
-        term_C = 2 * s4 * (xi1 - 2 * (beta @ Gamma) + (beta @ (P @ beta)))
+        # Term_C = 2 · (ξ₁_K - 2 β_Kᵀ Γ_K + β_Kᵀ P_K β_K)
+        term_C = 2 * (xi1_K - 2 * (beta_K @ Gamma_K) + (beta_K @ (P_K @ beta_K)))
 
         vartheta2 = E_kappa * E_mu_sq + term_B + term_C
 
-        # ϑ₃ = 6η²ς²s² + 3ς⁴s⁴ + η⁴
-        # NOTE: Correct formula is 3ς⁴s⁴, NOT 3ς²s² (typo in original)
-        vartheta3 = (
-            6 * eta * eta * varsigma_sq * s2
-            + 3 * varsigma_sq * varsigma_sq * s4
-            + eta ** 4
-        )
+        # ϑ₃ = η⁴ + 6η² var_mu + 3 var_mu²
+        vartheta3 = eta ** 4 + 6 * eta * eta * var_mu + 3 * var_mu * var_mu
 
         # === Final result ===
         # From the definition of variance:
