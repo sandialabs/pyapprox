@@ -7,6 +7,10 @@ and covariance predictions.
 """
 
 from typing import Protocol, Optional, runtime_checkable, Generic
+
+from pyapprox.typing.surrogates.gaussianprocess.output_transform import (
+    OutputAffineTransformProtocol,
+)
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.kernels.protocols import Kernel
 from pyapprox.typing.util.hyperparameter import HyperParameterList
@@ -237,6 +241,20 @@ class PredictiveGPProtocol(FittableGPProtocol[Array], Protocol):
         ------
         RuntimeError
             If the GP has not been fitted yet.
+        """
+        ...
+
+    def output_transform(
+        self,
+    ) -> Optional["OutputAffineTransformProtocol[Array]"]:
+        """
+        Return the output affine transform, or None if not set.
+
+        Returns
+        -------
+        Optional[OutputAffineTransformProtocol[Array]]
+            The output transform used to map between scaled and
+            original output spaces.
         """
         ...
 

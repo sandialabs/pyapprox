@@ -5,8 +5,11 @@ This module provides the GPTrainingData class which encapsulates and
 validates training data for GP regression.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.surrogates.gaussianprocess.output_transform import (
+    OutputAffineTransformProtocol,
+)
 
 
 class GPTrainingData(Generic[Array]):
@@ -48,9 +51,11 @@ class GPTrainingData(Generic[Array]):
         self,
         X_train: Array,
         y_train: Array,
-        bkd: Backend[Array]
+        bkd: Backend[Array],
+        output_transform: Optional[OutputAffineTransformProtocol[Array]] = None,
     ):
         self._bkd = bkd
+        self._output_transform = output_transform
         self._validate_and_store(X_train, y_train)
 
     def _validate_and_store(self, X_train: Array, y_train: Array) -> None:
@@ -158,6 +163,19 @@ class GPTrainingData(Generic[Array]):
             Number of output dimensions (quantities of interest).
         """
         return self._nqoi
+
+    def output_transform(
+        self,
+    ) -> Optional[OutputAffineTransformProtocol[Array]]:
+        """
+        Return the output transform, or None if not set.
+
+        Returns
+        -------
+        Optional[OutputAffineTransformProtocol[Array]]
+            The output affine transform used to scale training outputs.
+        """
+        return self._output_transform
 
     def __repr__(self) -> str:
         """

@@ -7,13 +7,21 @@ statistical quantities from fitted Gaussian Processes:
 - E[mu_f]: Mean of the GP mean (expected value of posterior mean)
 - Var[mu_f]: Variance of the GP mean (uncertainty in posterior mean)
 - E[gamma_f]: Mean of the GP variance (expected posterior variance)
+- Var[gamma_f]: Variance of the GP variance
 
 These statistics quantify uncertainty in GP predictions integrated over
 the input space according to the input distribution.
+
+All public methods return values in the original (user) output space
+when an output transform is set on the GP. Internal computations use
+private ``_*_scaled()`` methods that operate in scaled (kernel) space.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.surrogates.gaussianprocess.output_transform import (
+    OutputAffineTransformProtocol,
+)
 from pyapprox.typing.surrogates.gaussianprocess.protocols import (
     PredictiveGPProtocol,
 )
@@ -56,6 +64,9 @@ class GaussianProcessStatistics(Generic[Array]):
     - A = K(X, X) + nugget * I is the noisy kernel matrix
     - s^2 is the kernel variance hyperparameter
     - rho(x) is the input probability density
+
+    If an output transform is set on the GP, all statistics are returned
+    in the original (unscaled) output space.
 
     Parameters
     ----------
@@ -146,64 +157,54 @@ class GaussianProcessStatistics(Generic[Array]):
         _, s2 = _decompose_kernel(self._gp.kernel(), self._bkd)
         return s2
 
-    def mean_of_mean(self) -> Array:
-        """
-        Compute the expected value of the GP posterior mean.
+    def _get_output_transform(self) -> Optional[OutputAffineTransformProtocol[Array]]:
+        """Get output transform from GP, or None."""
+        return self._gp.output_transform()
 
-        eta = E[mu(X)] = tau^T A^{-1} y
+    # ===== Private methods: compute in scaled (kernel) space =====
 
-        This is the mean prediction integrated over the input space.
+    def _mean_of_mean_scaled(self) -> Array:
+        """Compute η in scaled (internal) space.
+
+        eta_scaled = tau_K^T A^{-1} y
 
         Returns
         -------
         Array
-            Scalar or shape (nqoi,) for multi-output GPs.
+            Scalar η_scaled.
         """
-        if 'mean_of_mean' in self._cache:
-            return self._cache['mean_of_mean']
+        if 'eta_scaled' in self._cache:
+            return self._cache['eta_scaled']
 
         tau_K = self._calc.tau_K()  # Shape: (n_train,), includes s²
-
-        # Compute A^{-1} y (already computed in GP as alpha)
         alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
 
-        # eta = tau_K^T * alpha^T = alpha @ tau_K
-        # = s² tau_C^T A^{-1} y
-        # For single output: tau_K shape (n_train,), alpha shape (1, n_train)
-        # Result: (nqoi,)
         eta = alpha @ tau_K  # Shape: (nqoi,)
 
         # Squeeze to scalar if nqoi=1
         if eta.shape[0] == 1:
             eta = eta[0]
 
-        self._cache['mean_of_mean'] = eta
+        self._cache['eta_scaled'] = eta
         return eta
 
-    def variance_of_mean(self) -> Array:
-        """
-        Compute the variance of the GP posterior mean.
+    def _variance_of_mean_scaled(self) -> Array:
+        """Compute Var[μ_f] in scaled (internal) space.
 
-        Var[mu(X)] = s^2 * varsigma^2
-        where varsigma^2 = u - tau^T A^{-1} tau
-
-        This quantifies uncertainty in the mean prediction due to limited data.
+        Var[μ]_scaled = u_K - τ_K^T A^{-1} τ_K
 
         Returns
         -------
         Array
-            Scalar (non-negative).
+            Scalar Var[μ]_scaled (non-negative).
         """
-        if 'variance_of_mean' in self._cache:
-            return self._cache['variance_of_mean']
+        if 'var_mu_scaled' in self._cache:
+            return self._cache['var_mu_scaled']
 
-        # Scale integrals to K-quantities
         s2 = self._get_kernel_variance()
         tau_K = self._calc.tau_K()  # s² τ_C, shape: (n_train,)
         u_K = s2 * self._calc.u()  # s² u_C, scalar
 
-        # Var[μ_f | y] = u_K - τ_K^T A⁻¹ τ_K
-        # where A = K(X,X) + σ²I is the actual GP kernel matrix
         tau_K_col = self._bkd.reshape(tau_K, (-1, 1))
         A_inv_tau_K = self._solve(tau_K_col)  # Shape: (n_train, 1)
         A_inv_tau_K = self._bkd.reshape(A_inv_tau_K, (-1,))
@@ -212,30 +213,21 @@ class GaussianProcessStatistics(Generic[Array]):
         # Ensure non-negative (numerical stability)
         var_of_mean = var_of_mean * (var_of_mean >= 0.0)
 
-        self._cache['variance_of_mean'] = var_of_mean
+        self._cache['var_mu_scaled'] = var_of_mean
         return var_of_mean
 
-    def mean_of_variance(self) -> Array:
-        """
-        Compute the expected value of the GP posterior variance.
+    def _mean_of_variance_scaled(self) -> Array:
+        """Compute E[γ_f] in scaled (internal) space.
 
-        E[gamma(X)] = zeta + s^2 * v^2 - eta^2 - s^2 * varsigma^2
-
-        where:
-        - zeta = y^T A^{-1} P A^{-1} y
-        - v^2 = 1 - Tr[P A^{-1}]
-        - eta = E[mu(X)] (mean of mean)
-        - varsigma^2 = u - tau^T A^{-1} tau
-
-        This quantifies the expected prediction uncertainty over the input space.
+        E[γ]_scaled = ζ + integrated_post_var - η² - var_mu
 
         Returns
         -------
         Array
-            Scalar (non-negative).
+            Scalar E[γ]_scaled (non-negative).
         """
-        if 'mean_of_variance' in self._cache:
-            return self._cache['mean_of_variance']
+        if 'E_gamma_scaled' in self._cache:
+            return self._cache['E_gamma_scaled']
 
         # Scale C-integrals to K-quantities
         s2 = self._get_kernel_variance()
@@ -265,11 +257,9 @@ class GaussianProcessStatistics(Generic[Array]):
         trace_P_K_A_inv = self._bkd.trace(A_inv_P_K)
         integrated_post_var = s2 - trace_P_K_A_inv
 
-        # eta = τ_Kᵀ A⁻¹ y (cached from mean_of_mean)
-        eta = self.mean_of_mean()
-
-        # var_mu = u_K - τ_Kᵀ A⁻¹ τ_K (cached from variance_of_mean)
-        var_mu = self.variance_of_mean()
+        # Use scaled versions of eta and var_mu
+        eta = self._mean_of_mean_scaled()
+        var_mu = self._variance_of_mean_scaled()
 
         # E[γ] = ζ + integrated_post_var - η² - var_mu
         mean_of_var = zeta + integrated_post_var - eta * eta - var_mu
@@ -277,31 +267,21 @@ class GaussianProcessStatistics(Generic[Array]):
         # Ensure non-negative (numerical stability)
         mean_of_var = mean_of_var * (mean_of_var >= 0.0)
 
-        self._cache['mean_of_variance'] = mean_of_var
+        self._cache['E_gamma_scaled'] = mean_of_var
         return mean_of_var
 
-    def variance_of_variance(self) -> Array:
-        """
-        Compute the variance of the GP posterior variance.
+    def _variance_of_variance_scaled(self) -> Array:
+        """Compute Var[γ_f] in scaled (internal) space.
 
         Var[γ_f] = ϑ₁ - 2ϑ₂ + ϑ₃ - E[γ_f]²
-
-        where:
-        - ϑ₁ = 4φs² + 2χs⁴ + (ζ + v²s²)²
-        - ϑ₂ = 4ηϱs² + 2ξs⁴ + ζς²s² + ς²v²s⁴ + η²ζ + η²v²s²
-        - ϑ₃ = 6η²ς²s² + 3ς⁴s⁴ + η⁴
-
-        This quantifies the uncertainty in the prediction variance.
-
-        Math Reference: docs/plans/gp_integration/02_2_2_variance_of_variance.qmd
 
         Returns
         -------
         Array
-            Scalar (non-negative).
+            Scalar Var[γ]_scaled (non-negative).
         """
-        if 'variance_of_variance' in self._cache:
-            return self._cache['variance_of_variance']
+        if 'var_gamma_scaled' in self._cache:
+            return self._cache['var_gamma_scaled']
 
         # Scale C-integrals to K-quantities
         s2 = self._get_kernel_variance()
@@ -316,9 +296,9 @@ class GaussianProcessStatistics(Generic[Array]):
         xi1_K = s4 * self._calc.xi1()     # s⁴ ξ₁_C
         Gamma_K = s4 * self._calc.Gamma() # s⁴ Γ_C
 
-        # === Prerequisite quantities ===
-        eta = self.mean_of_mean()           # η
-        var_mu = self.variance_of_mean()    # u_K - τ_Kᵀ A⁻¹ τ_K
+        # === Prerequisite quantities (in scaled space) ===
+        eta = self._mean_of_mean_scaled()
+        var_mu = self._variance_of_mean_scaled()
 
         # A⁻¹y (already computed as alpha)
         alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
@@ -382,12 +362,7 @@ class GaussianProcessStatistics(Generic[Array]):
         vartheta3 = eta ** 4 + 6 * eta * eta * var_mu + 3 * var_mu * var_mu
 
         # === Final result ===
-        # From the definition of variance:
-        # Var[γ_f] = E[(κ_f - μ_f²)²] - E[γ_f]²
-        #          = ϑ₁ - 2ϑ₂ + ϑ₃ - E[γ_f]²
-        #
-        # where E[γ_f] = ζ + s²v² - η² - s²ς² (the full mean_of_variance formula)
-        E_gamma = self.mean_of_variance()
+        E_gamma = self._mean_of_variance_scaled()
 
         # Var[γ_f] = ϑ₁ - 2ϑ₂ + ϑ₃ - E[γ_f]²
         var_of_var = vartheta1 - 2 * vartheta2 + vartheta3 - E_gamma ** 2
@@ -395,5 +370,111 @@ class GaussianProcessStatistics(Generic[Array]):
         # Ensure non-negative (numerical stability)
         var_of_var = var_of_var * (var_of_var >= 0.0)
 
-        self._cache['variance_of_variance'] = var_of_var
+        self._cache['var_gamma_scaled'] = var_of_var
         return var_of_var
+
+    # ===== Public methods: apply output transform =====
+
+    def mean_of_mean(self) -> Array:
+        """
+        Compute the expected value of the GP posterior mean.
+
+        eta = E[mu(X)] = tau^T A^{-1} y
+
+        This is the mean prediction integrated over the input space.
+        Returns values in the original output space if an output
+        transform is set on the GP.
+
+        Returns
+        -------
+        Array
+            Scalar or shape (nqoi,) for multi-output GPs.
+        """
+        eta_scaled = self._mean_of_mean_scaled()
+
+        transform = self._get_output_transform()
+        if transform is None:
+            return eta_scaled
+
+        # η_orig = σ_y * η_scaled + μ_y
+        sigma_y = transform.scale()
+        mu_y = transform.shift()
+        return sigma_y[0] * eta_scaled + mu_y[0]
+
+    def variance_of_mean(self) -> Array:
+        """
+        Compute the variance of the GP posterior mean.
+
+        Var[mu(X)] = s^2 * varsigma^2
+        where varsigma^2 = u - tau^T A^{-1} tau
+
+        This quantifies uncertainty in the mean prediction due to limited data.
+        Returns values in the original output space if an output
+        transform is set on the GP.
+
+        Returns
+        -------
+        Array
+            Scalar (non-negative).
+        """
+        var_mu_scaled = self._variance_of_mean_scaled()
+
+        transform = self._get_output_transform()
+        if transform is None:
+            return var_mu_scaled
+
+        # Var[μ]_orig = σ_y² * Var[μ]_scaled
+        sigma_y_sq = transform.scale()[0] ** 2
+        return sigma_y_sq * var_mu_scaled
+
+    def mean_of_variance(self) -> Array:
+        """
+        Compute the expected value of the GP posterior variance.
+
+        E[gamma(X)] = zeta + s^2 * v^2 - eta^2 - s^2 * varsigma^2
+
+        This quantifies the expected prediction uncertainty over the input space.
+        Returns values in the original output space if an output
+        transform is set on the GP.
+
+        Returns
+        -------
+        Array
+            Scalar (non-negative).
+        """
+        E_gamma_scaled = self._mean_of_variance_scaled()
+
+        transform = self._get_output_transform()
+        if transform is None:
+            return E_gamma_scaled
+
+        # E[γ]_orig = σ_y² * E[γ]_scaled
+        sigma_y_sq = transform.scale()[0] ** 2
+        return sigma_y_sq * E_gamma_scaled
+
+    def variance_of_variance(self) -> Array:
+        """
+        Compute the variance of the GP posterior variance.
+
+        Var[γ_f] = ϑ₁ - 2ϑ₂ + ϑ₃ - E[γ_f]²
+
+        This quantifies the uncertainty in the prediction variance.
+        Returns values in the original output space if an output
+        transform is set on the GP.
+
+        Math Reference: docs/plans/gp_integration/02_2_2_variance_of_variance.qmd
+
+        Returns
+        -------
+        Array
+            Scalar (non-negative).
+        """
+        var_gamma_scaled = self._variance_of_variance_scaled()
+
+        transform = self._get_output_transform()
+        if transform is None:
+            return var_gamma_scaled
+
+        # Var[γ]_orig = σ_y⁴ * Var[γ]_scaled
+        sigma_y_4 = transform.scale()[0] ** 4
+        return sigma_y_4 * var_gamma_scaled

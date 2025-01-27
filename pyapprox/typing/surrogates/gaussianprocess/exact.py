@@ -10,6 +10,9 @@ from typing import Generic, Optional
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.kernels.protocols import Kernel
 from pyapprox.typing.surrogates.gaussianprocess.data import GPTrainingData
+from pyapprox.typing.surrogates.gaussianprocess.output_transform import (
+    OutputAffineTransformProtocol,
+)
 from pyapprox.typing.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
     ZeroMean
@@ -130,6 +133,9 @@ class ExactGaussianProcess(Generic[Array]):
         self._setup_derivative_methods()
 
         self._alpha: Optional[Array] = None
+        self._output_transform: Optional[
+            OutputAffineTransformProtocol[Array]
+        ] = None
 
         # Optimizer for hyperparameter tuning (None means use default)
         self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
@@ -240,6 +246,12 @@ class ExactGaussianProcess(Generic[Array]):
         """
         return self._mean
 
+    def output_transform(
+        self,
+    ) -> Optional[OutputAffineTransformProtocol[Array]]:
+        """Return the output transform, or None if not set."""
+        return self._output_transform
+
     def hyp_list(self) -> HyperParameterList:
         """
         Return combined hyperparameter list.
@@ -295,7 +307,14 @@ class ExactGaussianProcess(Generic[Array]):
         """
         return self._optimizer
 
-    def fit(self, X_train: Array, y_train: Array) -> None:
+    def fit(
+        self,
+        X_train: Array,
+        y_train: Array,
+        output_transform: Optional[
+            OutputAffineTransformProtocol[Array]
+        ] = None,
+    ) -> None:
         """Fit GP to data and optimize active hyperparameters.
 
         This method:
@@ -311,6 +330,10 @@ class ExactGaussianProcess(Generic[Array]):
             Training input data, shape (nvars, n_train).
         y_train : Array
             Training output data, shape (nqoi, n_train).
+        output_transform : Optional[OutputAffineTransformProtocol[Array]]
+            If provided, y_train is assumed to be in original space and
+            will be scaled internally. Predictions will be returned in
+            original space.
 
         Raises
         ------
@@ -324,17 +347,23 @@ class ExactGaussianProcess(Generic[Array]):
         >>> # Standard fit with optimization
         >>> gp.fit(X_train, y_train)
 
-        >>> # Custom optimizer
-        >>> from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
-        ...     ScipyTrustConstrOptimizer
+        >>> # Fit with output scaling
+        >>> from pyapprox.typing.surrogates.gaussianprocess.output_transform import (
+        ...     OutputStandardScaler,
         ... )
-        >>> gp.set_optimizer(ScipyTrustConstrOptimizer(maxiter=500))
-        >>> gp.fit(X_train, y_train)
+        >>> scaler = OutputStandardScaler.from_data(y_train, bkd)
+        >>> gp.fit(X_train, y_train, output_transform=scaler)
 
         >>> # Skip optimization (fixed hyperparameters)
         >>> gp.hyp_list().set_all_inactive()
         >>> gp.fit(X_train, y_train)
         """
+        self._output_transform = output_transform
+
+        # Scale y if transform provided
+        if output_transform is not None:
+            y_train = output_transform.inverse_transform(y_train)
+
         # Initial fit
         self._fit_internal(X_train, y_train)
 
@@ -402,7 +431,10 @@ class ExactGaussianProcess(Generic[Array]):
             If Cholesky factorization fails (matrix not positive definite).
         """
         # Validate and store training data
-        self._data = GPTrainingData(X_train, y_train, self._bkd)
+        self._data = GPTrainingData(
+            X_train, y_train, self._bkd,
+            output_transform=self._output_transform,
+        )
 
         # Check nvars matches
         if self._data.nvars() != self._nvars:
@@ -470,6 +502,10 @@ class ExactGaussianProcess(Generic[Array]):
         # Result: (nqoi, n_test)
         mean_posterior = mean_prior + self._alpha @ K_star.T
 
+        # Unscale to original space if transform is set
+        if self._output_transform is not None:
+            mean_posterior = self._output_transform.transform(mean_posterior)
+
         return mean_posterior
 
     def __call__(self, X: Array) -> Array:
@@ -529,6 +565,11 @@ class ExactGaussianProcess(Generic[Array]):
         std = self._bkd.reshape(std, (1, std.shape[0]))
         std = self._bkd.tile(std, (nqoi, 1))
 
+        # Scale std to original space if transform is set
+        if self._output_transform is not None:
+            scale = self._output_transform.scale()  # (nqoi,)
+            std = scale[:, None] * std
+
         return std
 
     def jacobian(self, sample: Array) -> Array:
@@ -577,8 +618,14 @@ class ExactGaussianProcess(Generic[Array]):
         # K_jac shape: (1, n_train, nvars), α shape: (nqoi, n_train)
         # Result shape: (1, nqoi, nvars) -> squeeze to (nqoi, nvars)
         jac = self._bkd.einsum("lj,ijk->ilk", self._alpha, K_jac)
+        result = jac[0, :, :]  # (nqoi, nvars)
 
-        return jac[0, :, :]
+        # Scale to original space if transform is set
+        if self._output_transform is not None:
+            scale = self._output_transform.scale()  # (nqoi,)
+            result = scale[:, None] * result
+
+        return result
 
     def jacobian_batch(self, samples: Array) -> Array:
         """
@@ -609,6 +656,11 @@ class ExactGaussianProcess(Generic[Array]):
         # K_jac shape: (n_samples, n_train, nvars), α shape: (nqoi, n_train)
         # Result shape: (n_samples, nqoi, nvars)
         jac = self._bkd.einsum("lj,ijk->ilk", self._alpha, K_jac)
+
+        # Scale to original space if transform is set
+        if self._output_transform is not None:
+            scale = self._output_transform.scale()  # (nqoi,)
+            jac = scale[None, :, None] * jac
 
         return jac
 
@@ -724,6 +776,11 @@ class ExactGaussianProcess(Generic[Array]):
 
         hvp = self._hvp_using_kernel_hvp(x_star, V, X_train, alpha)
 
+        # Scale to original space if transform is set
+        if self._output_transform is not None:
+            scale = self._output_transform.scale()  # (nqoi,)
+            hvp = scale[0] * hvp
+
         # Reshape to (nvars, 1)
         return self._bkd.reshape(hvp, (nvars, 1))
 
@@ -829,8 +886,18 @@ class ExactGaussianProcess(Generic[Array]):
         cov_posterior = 0.5 * (cov_posterior + cov_posterior.T)
 
         if nqoi == 1:
+            # Scale covariance to original space if transform is set
+            if self._output_transform is not None:
+                s = self._output_transform.scale()  # (nqoi,)
+                cov_posterior = s[0] ** 2 * cov_posterior
             return cov_posterior
         else:
+            if self._output_transform is not None:
+                raise NotImplementedError(
+                    "Output transform with multi-output covariance is not "
+                    "yet supported. Use single-output GPs or access scaled "
+                    "covariance without a transform."
+                )
             # For multiple outputs, create block diagonal structure
             # Each output has the same covariance
             cov_full = self._bkd.zeros((n_test * nqoi, n_test * nqoi))

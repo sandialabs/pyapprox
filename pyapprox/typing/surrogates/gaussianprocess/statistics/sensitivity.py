@@ -118,13 +118,73 @@ class GaussianProcessSensitivity(Generic[Array]):
         """
         return self._stats._get_kernel_variance()
 
+    def _conditional_variance_scaled(self, index: Array) -> Array:
+        """Compute conditional variance in scaled (internal) space.
+
+        E[γ_f^(p)]_scaled = ζ_p + v_p² - η² - var_mu
+
+        All quantities are in scaled (kernel) space.
+
+        Parameters
+        ----------
+        index : Array
+            Binary vector of shape (nvars,).
+            index[k] = 1: dimension k is CONDITIONED ON
+            index[k] = 0: dimension k is INTEGRATED OUT
+
+        Returns
+        -------
+        Array
+            Conditional variance in scaled space (scalar, non-negative).
+        """
+        # Scale C-integrals to K-quantities
+        s2 = self._get_kernel_variance()
+        s4 = s2 * s2
+        P_C_p = self._calc.conditional_P(index)  # C-quantity
+        u_C_p = self._calc.conditional_u(index)  # C-quantity
+        P_K_p = s4 * P_C_p
+        u_K_p = s2 * u_C_p
+
+        # Get alpha = A^{-1} y from GP
+        alpha = self._stats._gp.alpha()  # Shape: (nqoi, n_train)
+
+        # For single output, squeeze to 1D
+        if alpha.shape[0] == 1:
+            alpha_1d = self._bkd.reshape(alpha, (-1,))  # Shape: (n_train,)
+        else:
+            raise NotImplementedError(
+                "conditional_variance currently only supports single-output GPs (nqoi=1)"
+            )
+
+        # ζ_p = αᵀ P_K_p α
+        P_K_p_alpha = P_K_p @ alpha_1d
+        zeta_p = alpha_1d @ P_K_p_alpha
+
+        # v_p² = u_K_p - tr[P_K_p A⁻¹]
+        A_inv_P_K_p = self._stats._solve(P_K_p)
+        trace_P_K_p_A_inv = self._bkd.trace(A_inv_P_K_p)
+        v_p_sq = u_K_p - trace_P_K_p_A_inv
+
+        # Use scaled versions (no output transform applied)
+        eta = self._stats._mean_of_mean_scaled()
+        var_mu = self._stats._variance_of_mean_scaled()
+
+        # E[γ_f^(p)] = ζ_p + v_p² - η² - var_mu
+        cond_var = zeta_p + v_p_sq - eta * eta - var_mu
+
+        # Ensure non-negative (numerical stability)
+        cond_var = cond_var * (cond_var >= 0.0)
+
+        return cond_var
+
     def conditional_variance(self, index: Array) -> Array:
         """
         Compute the conditional variance E[γ_f^(p)].
 
         This computes the expected GP variance when variables in the index set
         p are conditioned on (fixed) and the remaining variables are integrated
-        out.
+        out. Returns values in the original output space if an output
+        transform is set on the GP.
 
         E[γ_f^(p)] = ζ_p + s² v_p² - η² - s² ς²
 
@@ -156,47 +216,15 @@ class GaussianProcessSensitivity(Generic[Array]):
         index = bkd.asarray([0.0, 1.0, 1.0])  # nvars=3
         V_not_0 = sens.conditional_variance(index)
         """
-        # Scale C-integrals to K-quantities
-        s2 = self._get_kernel_variance()
-        s4 = s2 * s2
-        P_C_p = self._calc.conditional_P(index)  # C-quantity
-        u_C_p = self._calc.conditional_u(index)  # C-quantity
-        P_K_p = s4 * P_C_p
-        u_K_p = s2 * u_C_p
+        cond_var_scaled = self._conditional_variance_scaled(index)
 
-        # Get alpha = A^{-1} y from GP
-        alpha = self._stats._gp.alpha()  # Shape: (nqoi, n_train)
+        transform = self._stats._get_output_transform()
+        if transform is None:
+            return cond_var_scaled
 
-        # For single output, squeeze to 1D
-        if alpha.shape[0] == 1:
-            alpha_1d = self._bkd.reshape(alpha, (-1,))  # Shape: (n_train,)
-        else:
-            raise NotImplementedError(
-                "conditional_variance currently only supports single-output GPs (nqoi=1)"
-            )
-
-        # ζ_p = αᵀ P_K_p α
-        P_K_p_alpha = P_K_p @ alpha_1d
-        zeta_p = alpha_1d @ P_K_p_alpha
-
-        # v_p² = u_K_p - tr[P_K_p A⁻¹]
-        A_inv_P_K_p = self._stats._solve(P_K_p)
-        trace_P_K_p_A_inv = self._bkd.trace(A_inv_P_K_p)
-        v_p_sq = u_K_p - trace_P_K_p_A_inv
-
-        # η (cached)
-        eta = self._stats.mean_of_mean()
-
-        # var_mu = u_K - τ_Kᵀ A⁻¹ τ_K (cached from variance_of_mean)
-        var_mu = self._stats.variance_of_mean()
-
-        # E[γ_f^(p)] = ζ_p + v_p² - η² - var_mu
-        cond_var = zeta_p + v_p_sq - eta * eta - var_mu
-
-        # Ensure non-negative (numerical stability)
-        cond_var = cond_var * (cond_var >= 0.0)
-
-        return cond_var
+        # V_p_orig = σ_y² * V_p_scaled
+        sigma_y_sq = transform.scale()[0] ** 2
+        return sigma_y_sq * cond_var_scaled
 
     def main_effect_indices(self) -> Dict[int, Array]:
         """
