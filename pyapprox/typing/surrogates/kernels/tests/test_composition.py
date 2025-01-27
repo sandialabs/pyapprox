@@ -24,6 +24,10 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.typing.surrogates.gaussianprocess.exact import (
+    ExactGaussianProcess,
+)
+from pyapprox.typing.util.test_utils import slow_test
 
 
 class TestProductKernel(Generic[Array], unittest.TestCase):
@@ -672,6 +676,77 @@ class TestSeparableProductKernel(Generic[Array], unittest.TestCase):
         sample = kernel.hyp_list().get_active_values()[:, None]
         errors = checker.check_derivatives(sample, verbosity=0)
         self.assertLess(checker.error_ratio(errors[0]), 1e-6)
+
+    def test_jacobian_wrt_params_matches_se_kernel(self) -> None:
+        """Verify SeparableProductKernel jacobian_wrt_params matches SE kernel."""
+        bkd = self._bkd
+        np.random.seed(42)
+
+        ls = [1.5, 2.5]
+        bounds = (0.01, 100.0)
+
+        # Multi-dim SE kernel
+        se_kernel = SquaredExponentialKernel(ls, bounds, 2, bkd)
+
+        # Equivalent separable product kernel from 1D SE kernels
+        k1 = SquaredExponentialKernel([ls[0]], bounds, 1, bkd)
+        k2 = SquaredExponentialKernel([ls[1]], bounds, 1, bkd)
+        sep_kernel = SeparableProductKernel([k1, k2], bkd)
+
+        samples = bkd.array(np.random.rand(2, 7))
+
+        jac_se = se_kernel.jacobian_wrt_params(samples)
+        jac_sep = sep_kernel.jacobian_wrt_params(samples)
+
+        bkd.assert_allclose(jac_sep, jac_se, rtol=1e-12)
+
+    @slow_test
+    def test_optimal_hyperparameters_match_se_kernel(self) -> None:
+        """Verify GP fitting with SeparableProductKernel matches SE kernel."""
+        bkd = self._bkd
+        np.random.seed(42)
+
+        nvars = 2
+        ntrain = 30
+        bounds = (0.1, 10.0)
+        init_ls = [5.0, 5.0]
+
+        # Training data
+        X_train = bkd.array(np.random.uniform(-2, 2, (nvars, ntrain)))
+        y_train_np = (
+            np.sin(2 * np.random.RandomState(42).uniform(-2, 2, ntrain))
+            * np.cos(np.random.RandomState(43).uniform(-2, 2, ntrain))
+        )
+        # Use deterministic function of training points
+        X_np = bkd.to_numpy(X_train)
+        y_np = np.sin(2 * X_np[0, :]) * np.cos(X_np[1, :])
+        y_train = bkd.array(y_np[None, :])
+
+        # GP with multi-dim SE kernel
+        se_kernel = SquaredExponentialKernel(init_ls, bounds, nvars, bkd)
+        gp_se = ExactGaussianProcess(se_kernel, nvars, bkd, nugget=1e-8)
+        gp_se.fit(X_train, y_train)
+
+        # GP with separable product kernel
+        k1 = SquaredExponentialKernel([init_ls[0]], bounds, 1, bkd)
+        k2 = SquaredExponentialKernel([init_ls[1]], bounds, 1, bkd)
+        sep_kernel = SeparableProductKernel([k1, k2], bkd)
+        gp_sep = ExactGaussianProcess(sep_kernel, nvars, bkd, nugget=1e-8)
+        gp_sep.fit(X_train, y_train)
+
+        # Compare optimal hyperparameters
+        params_se = gp_se.hyp_list().get_values()
+        params_sep = gp_sep.hyp_list().get_values()
+        bkd.assert_allclose(params_sep, params_se, atol=1e-2)
+
+        # Compare NLL values (should be very close)
+        nll_se = gp_se.neg_log_marginal_likelihood()
+        nll_sep = gp_sep.neg_log_marginal_likelihood()
+        bkd.assert_allclose(
+            bkd.asarray([nll_sep]),
+            bkd.asarray([nll_se]),
+            atol=1e-4,
+        )
 
     def test_hyperparameters_combined(self) -> None:
         """Test hyperparameters are combined from all 1D kernels."""
