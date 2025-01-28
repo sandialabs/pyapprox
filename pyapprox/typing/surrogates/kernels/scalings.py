@@ -211,7 +211,9 @@ class PolynomialScaling(Generic[Array]):
 
         if self._degree == 0:
             n_samples = X.shape[1]
-            return self._bkd.full((n_samples, 1), coeffs[0])
+            # Use ones * value instead of full to preserve autograd graph
+            # when coeffs[0] is a tensor scalar
+            return self._bkd.ones((n_samples, 1)) * coeffs[0]
         else:
             intercept = coeffs[0]
             slopes = self._bkd.stack(coeffs[1:])

@@ -424,6 +424,7 @@ class ExactGaussianProcess(Generic[Array]):
         loss = GPNegativeLogMarginalLikelihoodLoss(
             self, (self._data.X(), self._data.y())
         )
+        self._configure_loss(loss)
 
         # Get bounds for active hyperparameters
         bounds = self.hyp_list().get_active_bounds()
@@ -456,6 +457,15 @@ class ExactGaussianProcess(Generic[Array]):
 
         # Final refit with optimal hyperparameters
         self._fit_internal(X_train, y_train)
+
+    def _configure_loss(self, loss) -> None:
+        """Configure loss function after creation.
+
+        Override in subclasses to customize gradient computation.
+        For example, TorchExactGaussianProcess overrides this to bind
+        autograd-based jacobian on the loss.
+        """
+        pass
 
     def _fit_internal(self, X_train: Array, y_train: Array) -> None:
         """Internal fit: store data, compute Cholesky, compute alpha.

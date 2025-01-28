@@ -427,13 +427,14 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
         y_train = torch.sin(X_train[0])[None, :]
 
-        # Create loss and verify autograd jacobian is bound
+        # Create loss and configure via GP hook (as fit() would do)
         gp._fit_internal(X_train, y_train)
         loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
+        gp._configure_loss(loss)
 
         self.assertFalse(hasattr(kernel, 'jacobian_wrt_params'))
         self.assertTrue(hasattr(loss, 'jacobian'),
-                       "Autograd jacobian should be bound for torch backend")
+                       "Autograd jacobian should be bound by _configure_loss")
 
         # Compute loss and gradient
         params = gp.hyp_list().get_active_values()

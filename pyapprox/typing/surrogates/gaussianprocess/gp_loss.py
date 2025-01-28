@@ -109,29 +109,10 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         return self._bkd.reshape(nll_array, (1, 1))
 
     def _setup_derivative_methods(self) -> None:
-        """Bind jacobian method.
-
-        Uses analytical gradients if kernel supports jacobian_wrt_params.
-        Falls back to autograd for TorchBkd backends.
-        """
+        """Bind jacobian method if kernel supports analytical gradients."""
         kernel = self._gp._kernel
         if hasattr(kernel, 'jacobian_wrt_params'):
             self.jacobian = self._jacobian_analytical
-        elif hasattr(self._bkd, 'jacobian'):
-            # Autograd fallback for torch backend
-            self.jacobian = self._jacobian_autograd
-
-    def _jacobian_autograd(self, params: Array) -> Array:
-        """Compute gradient via autograd through __call__."""
-        # Ensure params is 1D
-        if len(params.shape) == 2 and params.shape[1] == 1:
-            params = params[:, 0]
-
-        def loss_func(p: Array) -> Array:
-            return self(p)[0, 0]
-
-        jac = self._bkd.jacobian(loss_func, params)
-        return self._bkd.reshape(jac, (1, len(params)))
 
     def _jacobian_analytical(self, params: Array) -> Array:
         """

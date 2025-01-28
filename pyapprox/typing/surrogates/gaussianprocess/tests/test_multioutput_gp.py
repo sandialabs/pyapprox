@@ -23,6 +23,15 @@ from pyapprox.typing.surrogates.kernels.multioutput import (
     LinearCoregionalizationKernel,
 )
 from pyapprox.typing.surrogates.gaussianprocess.multioutput import MultiOutputGP
+from pyapprox.typing.surrogates.gaussianprocess.gp_loss import (
+    GPNegativeLogMarginalLikelihoodLoss,
+)
+from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.typing.surrogates.gaussianprocess.torch_multioutput import (
+    TorchMultiOutputGP,
+)
 
 
 class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
@@ -450,6 +459,204 @@ class TestMultiOutputGPWithLMCKernelTorch(
 
     def bkd(self) -> TorchBkd:
         return self._bkd
+
+
+class TestMultiOutputGPOptimization(unittest.TestCase):
+    """Torch-only tests for multi-output GP hyperparameter optimization."""
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        np.random.seed(42)
+        self._bkd = TorchBkd()
+        self.nvars = 2
+        self.noutputs = 2
+
+    def _create_test_data(self, n_train: int):
+        X_np = np.random.randn(self.nvars, n_train)
+        X = self._bkd.array(X_np)
+        y1 = np.sin(X_np[0, :] + X_np[1, :])
+        y2 = np.cos(X_np[0, :] - X_np[1, :])
+        y_stacked = self._bkd.array(
+            np.concatenate([y1, y2])[:, np.newaxis]
+        )
+        return X, y_stacked
+
+    def test_independent_kernel_optimization(self) -> None:
+        """Test optimization with IndependentMultiOutputKernel."""
+        n_train = 30
+        X_train, y_stacked = self._create_test_data(n_train)
+
+        kernels = []
+        for _ in range(self.noutputs):
+            matern = Matern52Kernel(
+                [0.3] * self.nvars, (0.1, 10.0),
+                self.nvars, self._bkd
+            )
+            constant = PolynomialScaling(
+                [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars
+            )
+            kernels.append(constant * matern)
+
+        mo_kernel = IndependentMultiOutputKernel(kernels)
+        gp = TorchMultiOutputGP(mo_kernel, nugget=1e-6)
+
+        initial_params = gp.hyp_list().get_active_values().clone()
+
+        X_list = [X_train] * self.noutputs
+        gp.fit(X_list, y_stacked)
+
+        final_params = gp.hyp_list().get_active_values()
+        self.assertFalse(
+            self._bkd.allclose(initial_params, final_params),
+            "Hyperparameters should change during optimization"
+        )
+
+    def test_lmc_kernel_optimization(self) -> None:
+        """Test optimization with LinearCoregionalizationKernel."""
+        n_train = 30
+        X_train, y_stacked = self._create_test_data(n_train)
+
+        base_kernels = []
+        for _ in range(2):
+            matern = Matern52Kernel(
+                [0.3] * self.nvars, (0.1, 10.0),
+                self.nvars, self._bkd
+            )
+            constant = PolynomialScaling(
+                [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars
+            )
+            base_kernels.append(constant * matern)
+
+        B1 = self._bkd.array(np.array([[1.0, 0.5], [0.5, 1.0]]))
+        B2 = self._bkd.array(np.array([[0.5, 0.0], [0.0, 0.5]]))
+        coreg_matrices = [B1, B2]
+
+        lmc_kernel = LinearCoregionalizationKernel(
+            base_kernels, coreg_matrices, self.noutputs
+        )
+        gp = TorchMultiOutputGP(lmc_kernel, nugget=1e-6)
+
+        initial_params = gp.hyp_list().get_active_values().clone()
+
+        X_list = [X_train] * self.noutputs
+        gp.fit(X_list, y_stacked)
+
+        final_params = gp.hyp_list().get_active_values()
+        self.assertFalse(
+            self._bkd.allclose(initial_params, final_params),
+            "Hyperparameters should change during optimization"
+        )
+
+    def test_independent_kernel_loss_gradient_accuracy(self) -> None:
+        """Test loss gradient accuracy with DerivativeChecker for independent kernel."""
+        n_train = 20
+        X_train, y_stacked = self._create_test_data(n_train)
+        bkd = self._bkd
+
+        kernels = []
+        for _ in range(self.noutputs):
+            matern = Matern52Kernel(
+                [1.0] * self.nvars, (0.1, 10.0),
+                self.nvars, bkd
+            )
+            constant = PolynomialScaling(
+                [1.0], (0.1, 10.0), bkd, nvars=self.nvars
+            )
+            kernels.append(constant * matern)
+
+        mo_kernel = IndependentMultiOutputKernel(kernels)
+        gp = TorchMultiOutputGP(mo_kernel, nugget=1e-6)
+
+        X_list = [X_train] * self.noutputs
+        gp._fit_internal(X_list, y_stacked)
+
+        loss = GPNegativeLogMarginalLikelihoodLoss(
+            gp, (X_list, y_stacked)
+        )
+        gp._configure_loss(loss)
+
+        checker = DerivativeChecker(loss)
+        params = gp.hyp_list().get_active_values()
+
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
+
+        errors = checker.check_derivatives(
+            params[:, None],
+            fd_eps=fd_eps,
+            relative=True,
+            verbosity=0,
+        )
+
+        grad_error = errors[0]
+        self.assertTrue(
+            bkd.all_bool(bkd.isfinite(grad_error)),
+            "Gradient errors contain non-finite values",
+        )
+        min_error = float(bkd.min(grad_error))
+        self.assertLess(min_error, 1e-6,
+                       f"Min gradient error {min_error} exceeds threshold")
+
+        error_ratio = float(checker.error_ratio(grad_error))
+        self.assertLess(error_ratio, 1e-6,
+                       f"Error ratio {error_ratio:.2e} suggests poor convergence")
+
+    def test_lmc_kernel_loss_gradient_accuracy(self) -> None:
+        """Test loss gradient accuracy with DerivativeChecker for LMC kernel."""
+        n_train = 20
+        X_train, y_stacked = self._create_test_data(n_train)
+        bkd = self._bkd
+
+        base_kernels = []
+        for _ in range(2):
+            matern = Matern52Kernel(
+                [1.0] * self.nvars, (0.1, 10.0),
+                self.nvars, bkd
+            )
+            constant = PolynomialScaling(
+                [1.0], (0.1, 10.0), bkd, nvars=self.nvars
+            )
+            base_kernels.append(constant * matern)
+
+        B1 = bkd.array(np.array([[1.0, 0.5], [0.5, 1.0]]))
+        B2 = bkd.array(np.array([[0.5, 0.0], [0.0, 0.5]]))
+
+        lmc_kernel = LinearCoregionalizationKernel(
+            base_kernels, [B1, B2], self.noutputs
+        )
+        gp = TorchMultiOutputGP(lmc_kernel, nugget=1e-6)
+
+        X_list = [X_train] * self.noutputs
+        gp._fit_internal(X_list, y_stacked)
+
+        loss = GPNegativeLogMarginalLikelihoodLoss(
+            gp, (X_list, y_stacked)
+        )
+        gp._configure_loss(loss)
+
+        checker = DerivativeChecker(loss)
+        params = gp.hyp_list().get_active_values()
+
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
+
+        errors = checker.check_derivatives(
+            params[:, None],
+            fd_eps=fd_eps,
+            relative=True,
+            verbosity=0,
+        )
+
+        grad_error = errors[0]
+        self.assertTrue(
+            bkd.all_bool(bkd.isfinite(grad_error)),
+            "Gradient errors contain non-finite values",
+        )
+        min_error = float(bkd.min(grad_error))
+        self.assertLess(min_error, 1e-6,
+                       f"Min gradient error {min_error} exceeds threshold")
+
+        error_ratio = float(checker.error_ratio(grad_error))
+        self.assertLess(error_ratio, 1e-6,
+                       f"Error ratio {error_ratio:.2e} suggests poor convergence")
 
 
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401

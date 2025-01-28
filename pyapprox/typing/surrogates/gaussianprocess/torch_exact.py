@@ -195,6 +195,22 @@ class TorchExactGaussianProcess(ExactGaussianProcess[torch.Tensor]):
 
         return torch.stack(jacs, dim=0)  # (n_samples, nqoi, nvars)
 
+    def _configure_loss(self, loss) -> None:
+        """Bind autograd-based jacobian on the loss function."""
+        bkd = self._bkd
+
+        def _jacobian_autograd(params: torch.Tensor) -> torch.Tensor:
+            if len(params.shape) == 2 and params.shape[1] == 1:
+                params = params[:, 0]
+
+            def loss_func(p: torch.Tensor) -> torch.Tensor:
+                return loss(p)[0, 0]
+
+            jac = bkd.jacobian(loss_func, params)
+            return bkd.reshape(jac, (1, len(params)))
+
+        loss.jacobian = _jacobian_autograd
+
     def __repr__(self) -> str:
         fitted_str = "fitted" if self.is_fitted() else "not fitted"
         return (

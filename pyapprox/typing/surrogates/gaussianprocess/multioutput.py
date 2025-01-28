@@ -6,6 +6,7 @@ multi-output kernels (IndependentMultiOutputKernel or LinearCoregionalizationKer
 """
 
 from typing import List, Optional, Tuple, Union, Generic
+import math
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -324,6 +325,7 @@ class MultiOutputGP(Generic[Array]):
         loss = GPNegativeLogMarginalLikelihoodLoss(
             self, (self._X_train_list, self._y_train_stacked)
         )
+        self._configure_loss(loss)
 
         # Get bounds for active hyperparameters
         bounds = self.hyp_list().get_active_bounds()
@@ -356,6 +358,13 @@ class MultiOutputGP(Generic[Array]):
 
         # Final refit with optimal hyperparameters
         self._fit_internal(X_train_list, y_train)
+
+    def _configure_loss(self, loss) -> None:
+        """Configure loss function after creation.
+
+        Override in subclasses to customize gradient computation.
+        """
+        pass
 
     def _fit_internal(
         self,
@@ -469,12 +478,12 @@ class MultiOutputGP(Generic[Array]):
 
         # Constant term: n * log(2π)
         n_total = self._y_train_stacked.shape[0]
-        constant = n_total * np.log(2.0 * np.pi)
+        constant = n_total * math.log(2.0 * math.pi)
 
         # Negative log marginal likelihood
         nll = 0.5 * (data_fit + log_det + constant)
 
-        return float(nll)
+        return nll
 
     def _unstack_predictions(
         self, stacked: Array, n_samples_list: List[int]
