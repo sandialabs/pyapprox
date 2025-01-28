@@ -303,7 +303,7 @@ class AdvectionDiffusionReactionPhysics(ScalarPhysicsMixin, Physics):
             self._velocity_field is not None or self._diffusion is not None
         )
 
-    def residual(self, sol: ScalarSolution):
+    def residual(self, sol: ScalarSolution) -> ScalarOperator:
         if not isinstance(sol, ScalarSolution):
             raise ValueError("sol must be an instance of ScalarSolution")
         residual = 0.0
@@ -315,7 +315,7 @@ class AdvectionDiffusionReactionPhysics(ScalarPhysicsMixin, Physics):
             residual += -div(self._flux(sol))
         return residual
 
-    def _flux(self, sol: ScalarSolution):
+    def _flux(self, sol: ScalarSolution) -> VectorOperator:
         # Implement conservative form of flux that includes both diffusion
         # and velocity field.
         # The non conservative version does not include velocity field
@@ -1060,6 +1060,53 @@ class SteadyIsotropic2DLinearElasticityPhysics(
         Isotropic2DLinearElasticityPhysics, SteadyPhysicsNewtonResidualMixin
 ):
     pass
+
+
+class BurgersPhysics1D(ScalarPhysicsMixin, Physics):
+    def __init__(
+        self,
+        viscosity: ScalarFunction,
+        forcing: ScalarFunction = None,
+        conservative: bool = True,
+    ):
+        self._check_is_scalar_function(viscosity, "viscosity")
+        self._check_is_scalar_function(forcing, "forcing")
+        self._viscosity = viscosity
+        self._forcing = forcing
+        self._conservative = conservative
+        super().__init__(viscosity.basis())
+
+    def residual(self, sol: MatrixOperator) -> MatrixOperator:
+        if self._conservative:
+            res = -div(self._flux(sol))
+            if self._forcing is None:
+                return res
+            res += self._forcing
+            return res
+        res = div(self._viscosity * nabla(sol)) - sol * nabla(sol)
+        if self._forcing is None:
+            return res
+        res += self._forcing
+        return res
+
+    def _flux(self, sol: ScalarSolution) -> VectorOperator:
+        flux = 0
+        flux = -self._viscosity * nabla(sol) + sol ** 2 / 2.
+        return flux
+
+    def get_functions(self) -> Dict:
+        funs = super().get_functions()
+        if self._forcing is not None:
+            funs["forcing"] = self._forcing
+        funs["viscosity"] = self._viscosity
+        return funs
+
+
+class TransientBurgersPhysics1D(
+        BurgersPhysics1D, TransientPhysicsNewtonResidualMixin
+):
+    pass
+
 
 
 # Not Yet Tested

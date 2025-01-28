@@ -35,12 +35,14 @@ from pyapprox.pde.collocation.functions import (
     TransientVectorFunctionFromCallable,
     ConstantVectorFunction,
     nabla,
+    ScalarPeriodicReiszGaussianRandomField,
 )
 from pyapprox.pde.collocation.boundaryconditions import (
     DirichletBoundaryFromOperator,
     RobinBoundaryFromOperator,
     ConstantRobinBoundary,
     ConstantDirichletBoundary,
+    PeriodicBoundary,
 )
 from pyapprox.pde.collocation.physics import (
     Physics,
@@ -50,13 +52,19 @@ from pyapprox.pde.collocation.physics import (
     TransientShallowWavePhysics,
     FitzHughNagumoPhysics,
     ShallowShelfVelocityPhysics,
+    TransientBurgersPhysics1D,
 )
-from pyapprox.pde.collocation.mesh import ChebyshevCollocationMesh2D
+from pyapprox.pde.collocation.mesh import (
+    ChebyshevCollocationMesh1D,
+    ChebyshevCollocationMesh2D,
+)
 from pyapprox.pde.collocation.basis import (
+    ChebyshevCollocationBasis1D,
     ChebyshevCollocationBasis2D,
     OrthogonalCoordinateCollocationBasis,
 )
 from pyapprox.pde.collocation.mesh_transforms import (
+    ScaleAndTranslationTransform1D,
     ScaleAndTranslationTransform2D,
 )
 
@@ -64,7 +72,7 @@ from pyapprox.pde.collocation.mesh_transforms import (
 class ParameterizedDiffusionPhysics(
     AdvectionDiffusionReactionPhysics, ParameterizedNewtonResidualMixin
 ):
-    def __init__(self, basis):
+    def __init__(self, basis: OrthogonalCoordinateCollocationBasis):
         diffusion = self._setup_diffusion(basis)
         super().__init__(None, diffusion, None, None)
 
@@ -1082,3 +1090,101 @@ def compute_shallow_shelf_surface():
         [a, b, c, d],
     )
     print(result)
+
+
+class TransientViscousBurgers1DModel(TransientAdjointCollocationModel):
+    def __init__(
+        self,
+        init_time: float,
+        final_time: float,
+        deltat: float,
+        nmesh_pts_1d: int,
+        viscosity: float,
+        nkle_eigs: int,
+        kle_sigma: float,
+        kle_tau: float,
+        kle_gamma: float,
+        time_residual_cls: TimeIntegratorNewtonResidual,
+        newton_solver: NewtonSolver = None,
+        functional: TransientAdjointFunctional = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._nmesh_pts_1d = nmesh_pts_1d
+        self._visc = viscosity
+        self._nkle_eigs = nkle_eigs
+        self._kle_sigma = kle_sigma
+        self._kle_tau = kle_tau
+        self._kle_gamma = kle_gamma
+        super().__init__(
+            init_time,
+            final_time,
+            deltat,
+            time_residual_cls,
+            newton_solver,
+            functional,
+            backend,
+        )
+        self._jacobian_implemented = True
+
+    def nvars(self) -> int:
+        return self._physics.nvars()
+
+    def setup_physics(self):
+        self.setup_initial_condition()
+        self._physics = TransientBurgersPhysics1D(
+            viscosity=ConstantScalarFunction(self._basis, self._visc),
+            forcing=None,
+        )
+
+    def setup_basis(self):
+        Lx = 1
+        bounds = self._bkd.array([0, Lx])
+        transform = ScaleAndTranslationTransform1D([-1, 1], bounds, self._bkd)
+        mesh = ChebyshevCollocationMesh1D([self._nmesh_pts_1d], transform)
+        self._basis = ChebyshevCollocationBasis1D(mesh)
+
+    def setup_initial_condition(self):
+        self._init_cond = ScalarPeriodicReiszGaussianRandomField(
+            self._basis,
+            self._nkle_eigs,
+            self._kle_sigma,
+            self._kle_tau,
+            self._kle_gamma,
+            False,
+            1
+        )
+
+    def set_param(self, param: Array):
+        self._init_cond.set_param(param)
+        super().set_param(param)
+
+    def get_initial_condition(self):
+        return self._init_cond.get_flattened_values()
+
+    def setup_boundaries(self):
+        bndrys = []
+        boundaries = self._basis.mesh().get_boundaries()
+        mesh_bndry = boundaries[list(boundaries.keys())[0]]
+        bndry_pair_names_dict = mesh_bndry.names_of_boundary_pairs()
+        for (
+            bndry_name,
+            mesh_bndry,
+        ) in (
+            self._basis.mesh().get_boundaries().items()
+        ):
+            if bndry_name not in bndry_pair_names_dict:
+                continue
+            partner_mesh_bndry = boundaries[bndry_pair_names_dict[bndry_name]]
+            bndrys.append(
+                PeriodicBoundary(mesh_bndry, partner_mesh_bndry, self._basis)
+            )
+        self._physics.set_boundaries(bndrys)
+
+    def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
+        sols, times = super().forward_solve(sample)
+        return (
+            self._sols.reshape(
+                (self._basis.mesh().nmesh_pts(), self._times.shape[0])
+            ),
+            self._times,
+        )

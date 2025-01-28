@@ -6,14 +6,20 @@ from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.benchmarks.base import SingleModelBayesianInferenceBenchmark
+from pyapprox.benchmarks.base import (
+    SingleModelBayesianInferenceBenchmark,
+    OperatorBenchmark,
+)
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.interface.model import Model
+from pyapprox.interface.model import Model, SingleSampleModel
 from pyapprox.pde.collocation.adjoint_models import AdjointFunctional
 from pyapprox.pde.collocation.parameterized_pdes import (
     PyApproxPaperAdvectionDiffusionKLEInversionModel,
     ScalarFunction,
+    TransientViscousBurgers1DModel,
 )
+from pyapprox.pde.kle.kle import PeriodicReiszGaussianRandomField
+from pyapprox.pde.collocation.timeintegration import CrankNicholsonResidual
 
 
 class SteadyMSEAdjointFunctional(AdjointFunctional):
@@ -88,14 +94,38 @@ class SteadyGaussianNegLogLikelihoodAdjointFunctional(
     """
 
     def _value(self, sol: Array) -> Array:
-        return super()._value(
-            sol
-        ) / 2.0 + self.nobservations() / 2 * math.log(
+        return super()._value(sol) / 2.0 + self.nobservations() / 2 * math.log(
             2 * self._sigma**2 * math.pi
         )
 
     def _qoi_state_jacobian(self, sol: Array) -> Array:
         return super()._qoi_state_jacobian(sol) / 2
+
+
+class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
+    def nvars(self) -> int:
+        neigs = 1024 // 2
+        return neigs * 2
+
+    def variable(self) -> IndependentMarginalsVariable:
+        return IndependentMarginalsVariable(
+            [stats.norm(0, 1)] * self.nvars(), backend=self._bkd
+        )
+
+    def model(self) -> Model:
+        return TransientViscousBurgers1DModel(
+            0.0,
+            1.0,
+            1 / 200,
+            1024 // 2,
+            0.1,
+            self.nvars() // 2,
+            49,
+            7,
+            2.5,
+            CrankNicholsonResidual,
+            backend=self._bkd,
+        )
 
 
 class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(

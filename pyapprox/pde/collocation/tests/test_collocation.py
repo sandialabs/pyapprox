@@ -20,6 +20,7 @@ from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedShallowShelfVelocityEquations,
     ManufacturedShallowShelfVelocityAndDepthEquations,
     ManufacturedLinearElasticityEquations,
+    ManufacturedBurgers1D,
 )
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
@@ -38,6 +39,7 @@ from pyapprox.pde.collocation.physics import (
     SteadyShallowShelfVelocityPhysics,
     TransientShallowShelfDepthVelocityPhysics,
     SteadyIsotropic2DLinearElasticityPhysics,
+    TransientBurgersPhysics1D,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunctionFromCallable,
@@ -1817,6 +1819,52 @@ class TestCollocation:
         ]
         for test_case in itertools.product(*test_case_args):
             self._check_steady_state_linear_elasticity_2d(*test_case)
+
+    def test_burgers_1d(self):
+        bkd = self.get_backend()
+        sol_string = "sin(2*pi*x) * (T+1)"
+        viscosity_string = "1"
+        bndry_types = "P"
+        # must be crank nicholson because the forcing is quadratic in time
+        timestep_cls = CrankNicholsonResidual
+        man_sol = ManufacturedBurgers1D(
+            sol_string,
+            viscosity_string,
+            bkd=bkd,
+            oned=True,
+        )
+        print(man_sol)
+        basis = self._setup_cheby_basis_1d([15], [0, 1])
+        exact_sol = self._setup_scalar_solution(basis, man_sol)
+        viscosity = self._setup_scalar_function("viscosity", basis, man_sol)
+        forcing = self._setup_scalar_function("forcing", basis, man_sol)
+        physics = TransientBurgersPhysics1D(viscosity, forcing)
+        boundaries = self._setup_boundary_conditions(
+            basis,
+            bndry_types,
+            man_sol,
+        )
+        physics.set_boundaries(boundaries)
+        init_time, final_time, deltat = 0.0, 1.0, 0.5
+        newton_solver = NewtonSolver(
+            verbosity=2,
+            maxiters=10,
+            atol=1e-8,
+            rtol=1e-8,
+        )
+        model = TransientForwardCollocationModelFromPhysics(
+            init_time, final_time, deltat, timestep_cls, physics, newton_solver
+        )
+        init_sol = copy.deepcopy(exact_sol)
+        init_sol.set_time(init_time)
+        sols, times = model.forward_solve(init_sol)
+        exact_sols = []
+        for time in times:
+            exact_sol.set_time(time)
+            exact_sols.append(exact_sol.get_values())
+        exact_sols = bkd.stack(exact_sols, axis=1)
+        # print(bkd.abs(sols-exact_sols).max())
+        assert bkd.allclose(sols, exact_sols, atol=1e-11)
 
 
 class TestNumpyCollocation(TestCollocation, unittest.TestCase):

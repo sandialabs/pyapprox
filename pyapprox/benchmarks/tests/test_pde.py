@@ -4,7 +4,8 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.benchmarks.pde import (
-    PyApproxPaperAdvectionDiffusionKLEInversionBenchmark
+    PyApproxPaperAdvectionDiffusionKLEInversionBenchmark,
+    TransientViscousBurgers1DOperatorBenchmark,
 )
 
 
@@ -22,6 +23,11 @@ class TestPDEBenchmarks:
         assert errors.min() / errors.max() > 1e-7
         errors = benchmark.model().check_apply_hessian(x0)
         assert errors.min() / errors.max() > 1e-7
+
+    def test_transient_viscous_burgers_1d_benchmark(self):
+        bkd = self.get_backend()
+        benchmark = TransientViscousBurgers1DOperatorBenchmark(backend=bkd)
+        benchmark.model().forward_solve(benchmark.variable().rvs(1))
 
 
 class TestTorchPDEBenchmarks(TestPDEBenchmarks, unittest.TestCase):

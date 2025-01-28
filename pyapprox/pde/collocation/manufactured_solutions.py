@@ -801,3 +801,27 @@ class ManufacturedLinearElasticityEquations(
         self._expressions["forcing"] = [
             f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
         ]
+
+
+class ManufacturedBurgers1D(ScalarSolutionMixin, ManufacturedSolution):
+    def __init__(
+        self,
+        sol_str: str,
+        visc_str: str,
+        bkd=NumpyLinAlgMixin,
+        oned: bool = False,
+    ):
+        self._visc_str = visc_str
+        super().__init__(sol_str, 1, bkd, oned)
+
+    def sympy_expressions(self):
+        cartesian_symbs = self.cartesian_symbols()
+        visc_expr = sp.sympify(self._visc_str)
+        sol_expr = self._expressions["solution"]
+        flux_exprs = [
+            sol_expr ** 2 / 2 - visc_expr * sol_expr.diff(cartesian_symbs[0]),
+        ]
+        forc_expr = flux_exprs[0].diff(cartesian_symbs[0], 1)
+        self._set_expression("viscosity", visc_expr, self._visc_str)
+        self._set_expression("flux", flux_exprs, self._sol_str)
+        self._expressions["forcing"] += forc_expr

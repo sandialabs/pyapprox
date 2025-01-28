@@ -11,7 +11,7 @@ from matplotlib.gridspec import GridSpec
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
-from pyapprox.pde.kle.kle import MeshKLE
+from pyapprox.pde.kle.kle import MeshKLE, PeriodicReiszGaussianRandomField
 from pyapprox.pde.collocation.sparsejac import (
     SparseJacobian,
     ZeroJac,
@@ -1466,6 +1466,47 @@ class ScalarKLEFunction(ScalarFunction):
             ScalarFunction(self._basis, self._kle.normalized_eigenvectors()[:, ii])
             for ii in range(self._kle.nvars())
         ]
+
+
+class ScalarPeriodicReiszGaussianRandomField(ScalarFunction):
+    def __init__(
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        neigs: int,
+        sigma: float,
+        tau: float,
+        gamma: float,
+        use_log: bool = False,
+        ninput_funs: int = 1,
+    ):
+        super().__init__(basis, ninput_funs=ninput_funs)
+        self._setup_kle(sigma, tau, gamma, use_log, neigs)
+
+    def _setup_kle(
+        self,
+        sigma: float,
+        tau: float,
+        gamma: float,
+        use_log: bool,
+        neigs: int,
+    ):
+        self._kle = PeriodicReiszGaussianRandomField(
+            sigma,
+            tau,
+            gamma,
+            neigs,
+            self.basis().mesh()._trans._ranges,
+            backend=self.basis()._bkd,
+        )
+        self._kle.set_domain_samples(self.basis().mesh().mesh_pts())
+        # initialize to mean
+        self.set_param(self._bkd.zeros(self._kle.nterms(),))
+
+    def kle(self) -> PeriodicReiszGaussianRandomField:
+        return self._kle
+
+    def set_param(self, param):
+        self.set_values(self._kle.values(param[:, None])[:, 0])
 
 
 def remove_3d_axis_panels(ax):

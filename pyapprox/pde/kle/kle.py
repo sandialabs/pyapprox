@@ -709,16 +709,21 @@ class PeriodicReiszGaussianRandomField(JointVariable):
         self._gamma = gamma
         self._bounds = bounds
 
-        self._nvars = None
         self._neigs = None
         self._eigs = None
         self._trig_exp = None
-        self._domain_samples = None
 
         self.set_neigs(neigs)
 
     def nvars(self):
+        """The dimension of prediction points that the KLE is evaluated at"""
+        if not hasattr(self, "_nvars"):
+            raise RuntimeError("Must call set_domain_samples")
         return self._nvars
+
+    def nterms(self):
+        """The number of terms in the KLE"""
+        return self._trig_exp.nterms()-1
 
     def set_neigs(self, neigs):
         self._neigs = neigs
@@ -748,10 +753,11 @@ class PeriodicReiszGaussianRandomField(JointVariable):
             or samples.ndim != 2
         ):
             raise ValueError(
-                "samples has the wrong shape of {0}".format(samples.shape)
+                "samples has the wrong shape of {0} should be {1}".format(
+                    samples.shape, (self._trig_exp.nterms() - 1, 1))
             )
-        if self._domain_samples is None:
-            raise ValueError("Must call set_domain_samples")
+        if not hasattr(self, "_domain_samples"):
+            raise RuntimeError("Must call set_domain_samples")
         alpha = self._eigs * samples[: samples.shape[0] // 2]
         beta = self._eigs * samples[samples.shape[0] // 2 :]
         trig_coefs = self._bkd.vstack(

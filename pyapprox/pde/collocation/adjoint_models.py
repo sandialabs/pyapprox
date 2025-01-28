@@ -96,6 +96,7 @@ class SteadyAdjointModel(AdjointModel):
         self._adjoint_solver.set_functional(self._functional)
 
     def set_param(self, param: Array):
+        self._param = param
         self._adjoint_solver.set_param(param)
 
     def _fwd_solve(self):
@@ -213,15 +214,18 @@ class TransientAdjointModel(AdjointModel):
         raise NotImplementedError
 
     def set_param(self, param: Array):
+        self._param = param
         if hasattr(self, "_functional"):
             # pass functional all parameters
             self._functional.set_param(param)
             # do not pass parameters unique to functional to native residual
-            self._time_residual.native_residual.set_param(
-                self._functional._residual_param(param)
-            )
+            if hasattr(self._time_residual.native_residual, "set_param"):
+                self._time_residual.native_residual.set_param(
+                    self._functional._residual_param(param)
+                )
         else:
-            self._time_residual.native_residual.set_param(param)
+            if hasattr(self._time_residual.native_residual, "set_param"):
+                self._time_residual.native_residual.set_param(param)
 
     def _eval_functional(self) -> Array:
         self._functional.set_quadrature_sample_weights(

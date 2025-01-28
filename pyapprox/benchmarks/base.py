@@ -331,3 +331,23 @@ class SingleModelBayesianInferenceBenchmark(SingleModelBenchmark):
     @abstractmethod
     def negloglike(self) -> Model:
         raise NotImplementedError
+
+
+# TODO make bencmhar base class then derive different types of benchmarks from
+# that class to better reuse code
+class OperatorBenchmark(ABC):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        self._bkd = backend
+
+    @abstractmethod
+    def variable(self) -> JointVariable:
+        """Return the random variable parameterizing the model uncertainty."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def model(self) -> Model:
+        """Return the model"""
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
