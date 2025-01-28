@@ -102,6 +102,40 @@ class ExactGaussianProcess(Generic[Array]):
 
     This class follows the dynamic binding pattern for optional methods.
     See docs/OPTIONAL_METHODS_CONVENTION.md for details.
+
+    **Noise and Prediction Behavior:**
+
+    This GP treats the kernel as a black box — it does not distinguish
+    between signal and noise components. What ``predict_std()`` returns
+    depends entirely on the kernel provided:
+
+    - **Kernel without noise** (e.g., ``Matern52Kernel``): Predictions
+      are for the latent function f. Use ``nugget`` for numerical
+      stability during training; it does not appear in ``predict_std()``.
+
+    - **Kernel with noise** (e.g., ``SumKernel(Matern52, IIDGaussianNoise)``):
+      Predictions include observation noise because the GP cannot
+      separate signal from noise in the kernel. ``predict_std()``
+      returns std[y*] = sqrt(var[f*] + σ²). There is currently no
+      logic to strip noise from predictions in this case.
+
+    For the ``VariationalGaussianProcess``, noise is always separate
+    from the kernel (managed by ``InducingSamples``), so predictions
+    are always for the latent function f.
+
+    **GP Statistics:**
+
+    The statistics module (moments, sensitivity) computes statistics of
+    the function represented by the GP's kernel. When using a noise
+    kernel, the statistics include the noise contribution. For
+    statistics of the latent function f only, use a kernel without
+    noise (and use ``nugget`` or ``VariationalGaussianProcess`` for
+    noise regularization during training).
+
+    .. todo::
+       Allow users to obtain latent predictions when using a kernel+noise
+       composition (e.g., detect ``SumKernel`` with ``IIDGaussianNoise``
+       and subtract noise variance from ``predict_std()``).
     """
 
     def __init__(

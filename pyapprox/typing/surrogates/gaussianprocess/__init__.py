@@ -26,6 +26,12 @@ from pyapprox.typing.surrogates.gaussianprocess.multioutput import (
 from pyapprox.typing.surrogates.gaussianprocess.loss import (
     NegativeLogMarginalLikelihoodLoss
 )
+from pyapprox.typing.surrogates.gaussianprocess.inducing_samples import (
+    InducingSamples
+)
+from pyapprox.typing.surrogates.gaussianprocess.variational import (
+    VariationalGaussianProcess
+)
 
 __all__ = [
     # Protocols
@@ -42,6 +48,9 @@ __all__ = [
     # GP implementations
     "ExactGaussianProcess",
     "MultiOutputGP",
+    "VariationalGaussianProcess",
+    # Inducing samples
+    "InducingSamples",
     # Loss functions
     "NegativeLogMarginalLikelihoodLoss",
 ]
