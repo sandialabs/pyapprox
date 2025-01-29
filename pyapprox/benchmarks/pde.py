@@ -11,14 +11,13 @@ from pyapprox.benchmarks.base import (
     OperatorBenchmark,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.interface.model import Model, SingleSampleModel
+from pyapprox.interface.model import Model
 from pyapprox.pde.collocation.adjoint_models import AdjointFunctional
 from pyapprox.pde.collocation.parameterized_pdes import (
     PyApproxPaperAdvectionDiffusionKLEInversionModel,
     ScalarFunction,
     TransientViscousBurgers1DModel,
 )
-from pyapprox.pde.kle.kle import PeriodicReiszGaussianRandomField
 from pyapprox.pde.collocation.timeintegration import CrankNicholsonResidual
 
 
@@ -103,6 +102,22 @@ class SteadyGaussianNegLogLikelihoodAdjointFunctional(
 
 
 class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        super().__init__(backend)
+        self._model = TransientViscousBurgers1DModel(
+            0.0,
+            1.0,
+            1 / 200,
+            1024 // 2,  # 1024 ~6 times faster than 1024 // 2
+            0.1,
+            self.nvars() // 2,
+            49,
+            7,
+            2.5,
+            CrankNicholsonResidual,
+            backend=self._bkd,
+        )
+
     def nvars(self) -> int:
         neigs = 1024 // 2
         return neigs * 2
@@ -112,20 +127,8 @@ class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
             [stats.norm(0, 1)] * self.nvars(), backend=self._bkd
         )
 
-    def model(self) -> Model:
-        return TransientViscousBurgers1DModel(
-            0.0,
-            1.0,
-            1 / 200,
-            1024 // 2,
-            0.1,
-            self.nvars() // 2,
-            49,
-            7,
-            2.5,
-            CrankNicholsonResidual,
-            backend=self._bkd,
-        )
+    def model(self) -> TransientViscousBurgers1DModel:
+        return self._model
 
 
 class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
