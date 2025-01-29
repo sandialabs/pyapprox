@@ -501,10 +501,10 @@ class MeshKLE(AbstractKLE):
             return "{0}(nterms={1}, mu={2})".format(
                 self.___class__.__name__, self._nterms, self._matern_nu
             )
-        return "{0}(mu={1}, nterms={2}, lenscale={3}, sigma={4})".format(
+        return "{0}(nu={1}, nterms={2}, lenscale={3}, sigma={4})".format(
             self.__class__.__name__,
-            self._nterms,
             self._matern_nu,
+            self._nterms,
             self._lenscale,
             self._sigma,
         )

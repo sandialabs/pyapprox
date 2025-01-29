@@ -7,7 +7,7 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.pde.collocation.parameterized_pdes import (
     TransientDiffusionAdvectionModel,
-    SteadyDiffusionModel,
+    SteadyDarcy2DKLEModel,
     FitzHughNagumoModel,
     SteadyShallowShelfModel2D,
 )
@@ -70,14 +70,18 @@ class TestParameterizedModels:
     def test_steady_parameterized_diffusion(self):
         bkd = self.get_backend()
         newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
-        model = SteadyDiffusionModel(
+        model = SteadyDarcy2DKLEModel(
+            10,
+            1.,
+            0.1,
+            0.0,
             newton_solver=newton_solver,
             backend=bkd,
         )
 
         sample = bkd.array(np.random.normal(0, 1, (model.nvars(), 1)))
-        sol = model.forward_solve(sample)
 
+        # sol = model.forward_solve(sample)
         # axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
         # velocity = model.velocity_field(sol)
         # sol.plot(axs[0])

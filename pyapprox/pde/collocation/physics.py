@@ -313,6 +313,7 @@ class AdvectionDiffusionReactionPhysics(ScalarPhysicsMixin, Physics):
             residual += self._reaction_op(sol)
         if self._flux_jacobian_from_array:
             residual += -div(self._flux(sol))
+            # residual += div(self._diffusion * nabla(sol)) - div(sol *self._velocity_field)
         return residual
 
     def _flux(self, sol: ScalarSolution) -> VectorOperator:

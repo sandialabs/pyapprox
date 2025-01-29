@@ -1426,10 +1426,12 @@ class ScalarKLEFunction(ScalarFunction):
         matern_nu: float = np.inf,
         mean_field: ScalarFunction = None,
         ninput_funs: int = 1,
+        use_quadrature: bool = True,
     ):
         super().__init__(basis, ninput_funs=ninput_funs)
         self._setup_kle(
-            lenscale, sigma, use_log, matern_nu, nterms, mean_field
+            lenscale, sigma, use_log, matern_nu, nterms, mean_field,
+            use_quadrature
         )
 
     def _setup_kle(
@@ -1440,7 +1442,12 @@ class ScalarKLEFunction(ScalarFunction):
         matern_nu: float,
         nterms: int,
         mean_field: ScalarFunction,
+        use_quadrature: bool,
     ):
+        if use_quadrature:
+            quad_weights = self.basis().quadrature_rule_at_mesh_pts()[1][:, 0]
+        else:
+            quad_weights = None
         self._kle = MeshKLE(
             self.basis().mesh().mesh_pts(),
             lenscale,
@@ -1448,7 +1455,7 @@ class ScalarKLEFunction(ScalarFunction):
             0. if mean_field is None else mean_field.get_values(),
             use_log,
             matern_nu,
-            self.basis().quadrature_rule_at_mesh_pts()[1][:, 0],
+            quad_weights,
             nterms,
             backend=self.basis()._bkd,
         )

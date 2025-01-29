@@ -17,6 +17,7 @@ from pyapprox.pde.collocation.parameterized_pdes import (
     PyApproxPaperAdvectionDiffusionKLEInversionModel,
     ScalarFunction,
     TransientViscousBurgers1DModel,
+    SteadyDarcy2DKLEModel,
 )
 from pyapprox.pde.collocation.timeintegration import CrankNicholsonResidual
 
@@ -44,7 +45,7 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
             raise ValueError("obs must be 1D array")
         self._obs = obs
 
-    def observations_from_solution(self, sol: Array) -> Array:
+    def noiseless_observations_from_solution(self, sol: Array) -> Array:
         if sol.ndim != 1:
             raise ValueError("sol must be a 1D array")
         return sol[self._obs_state_indices]
@@ -56,7 +57,7 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
         return 1
 
     def _value(self, sol: Array) -> Array:
-        pred_obs = self.observations_from_solution(sol)
+        pred_obs = self.noiseless_observations_from_solution(sol)
         return (
             self._bkd.sum(
                 (pred_obs[:, None] - self._obs[:, None]) ** 2,
@@ -108,7 +109,7 @@ class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
             0.0,
             1.0,
             1 / 200,
-            1024 // 2,  # 1024 ~6 times faster than 1024 // 2
+            1024 // 2 + 1,  # 1025 ~6 times faster than 1024 + 1
             0.1,
             self.nvars() // 2,
             49,
@@ -131,6 +132,26 @@ class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
         return self._model
 
 
+class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        super().__init__(backend)
+        self._model = SteadyDarcy2DKLEModel(
+            self.nvars(), 1.0, 0.25, 0., backend=self._bkd,
+        )
+
+    def nvars(self) -> int:
+        return 100
+
+    def variable(self) -> IndependentMarginalsVariable:
+        return IndependentMarginalsVariable(
+            [stats.norm(0, 1)] * self.nvars(), backend=self._bkd
+        )
+
+    def model(self) -> SteadyDarcy2DKLEModel:
+        return self._model
+
+
+
 class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
     SingleModelBayesianInferenceBenchmark
 ):
@@ -138,7 +159,7 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         self, nmodels: int = 5, backend: LinAlgMixin = NumpyLinAlgMixin
     ):
         self._nmodels = nmodels
-        self._mesh_npts_1d = backend.array([20, 20], dtype=int)
+        self._mesh_npts_1d = backend.array([21, 21], dtype=int)
         self._kle_nvars = 3
         self._kle_std = 1.0
         self._kle_lenscale = 0.5
@@ -146,7 +167,7 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         self._source_loc = backend.array([0.25, 0.75])
         self._source_amp = 100.0
         self._source_scale = 0.1
-        self._nobs = 3
+        self._nobs = 5
         self._noise_stdev = 1.0
         super().__init__(backend)
         self._set_model_functional()
@@ -156,7 +177,7 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         bndry_indices = self._bkd.hstack(
             [
                 self._bkd.arange(0, self._mesh_npts_1d[0]),
-                self._bkd.arange(ndof - self._mesh_npts_1d[0] - 2, ndof),
+                self._bkd.arange(ndof - self._mesh_npts_1d[0], ndof),
             ]
             + [
                 jj * (self._mesh_npts_1d[0])
@@ -173,6 +194,7 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
             ),
             dtype=int,
         )[: self._nobs]
+        # print(bndry_indices.shape)
         self._functional = SteadyGaussianNegLogLikelihoodAdjointFunctional(
             ndof,
             self._kle_nvars,
@@ -183,7 +205,13 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         # run model at true param
         self._true_kle_params = self._variable.rvs(1)
         sol = self._model.forward_solve(self._true_kle_params)
-        obs = self._functional.observations_from_solution(sol)
+        noiseless_obs = self._functional.noiseless_observations_from_solution(
+            sol
+        )
+        noise = self._bkd.asarray(
+            np.random.normal(0, self._noise_stdev, (obs_indices.shape[0]))
+        )
+        obs = noiseless_obs + noise
         self._functional.set_observations(obs)
         self._model.set_functional(self._functional)
 
