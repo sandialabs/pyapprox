@@ -383,7 +383,11 @@ class TestMinimize(unittest.TestCase):
     def test_rol_minimize_constrained_rosenbrock(self):
         nvars = 2
         benchmark = RosenbrockConstrainedOptimizationBenchmark()
-        optimizer = ROLConstrainedOptimizer(benchmark.objective())
+        optimizer = ROLConstrainedOptimizer(
+            benchmark.objective(),
+            constraints=benchmark.constraints(),
+            bounds=benchmark.design_variable().bounds(),
+        )
         result = optimizer.minimize(benchmark.init_iterate())
         assert np.allclose(result.x, np.full(nvars, 1))
 

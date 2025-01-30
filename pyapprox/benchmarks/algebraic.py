@@ -931,7 +931,8 @@ class RosenbrockUnconstrainedOptimizationBenchmark(OptimizationBenchmark):
 
 class RosenbrockConstraint(Constraint):
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
-        super().__init__(backend.array([[0.0, np.inf]]), True, backend)
+        bounds = backend.array([[0.0, np.inf], [0.0, np.inf]])
+        super().__init__(bounds, True, backend)
         self._jacobian_implemented = True
         self._hessian_implemented = True
 
