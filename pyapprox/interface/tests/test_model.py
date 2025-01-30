@@ -7,69 +7,140 @@ import numpy as np
 import sympy as sp
 
 from pyapprox.interface.model import (
-    ModelFromSingleSampleCallable, ScipyModelWrapper, UmbridgeModelWrapper, umbridge,
-    IOModel, UmbridgeIOModelWrapper)
+    ModelFromSingleSampleCallable,
+    ScipyModelWrapper,
+    UmbridgeModelWrapper,
+    umbridge,
+    IOModel,
+    UmbridgeIOModelWrapper,
+)
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 
-class TestModel(unittest.TestCase):
+class TestModel:
     def setUp(self):
         np.random.seed(1)
 
     def _evaluate_sp_lambda(self, sp_lambda, sample):
         # sp_lambda returns a single function output
+        bkd = self.get_backend()
         assert sample.ndim == 2 and sample.shape[1] == 1
-        vals = np.atleast_2d(sp_lambda(*sample[:, 0]))
+        vals = bkd.atleast2d(sp_lambda(*bkd.to_numpy(sample[:, 0])))
         return vals
 
     def test_scalar_model_from_callable_2D_sample(self):
+        bkd = self.get_backend()
         symbs = sp.symbols(["x", "y", "z"])
         nvars = len(symbs)
-        sp_fun = sum([s*(ii+1) for ii, s in enumerate(symbs)])**4
+        sp_fun = sum([s * (ii + 1) for ii, s in enumerate(symbs)]) ** 4
         sp_grad = [sp_fun.diff(x) for x in symbs]
         sp_hessian = [[sp_fun.diff(x).diff(y) for x in symbs] for y in symbs]
+
+        # check when jac and hessian are defined
         model = ModelFromSingleSampleCallable(
             1,
             lambda sample: self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_fun, "numpy"), sample),
-            apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_grad, "numpy"), sample) @ vec,
-            apply_hessian=lambda sample, vec: self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_hessian), sample) @ vec)
-        sample = np.random.uniform(0, 1, (nvars, 1))
+                sp.lambdify(symbs, sp_fun, "numpy"), sample
+            ),
+            jacobian=lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_grad, "numpy"), sample
+            ),
+            hessian=lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_hessian), sample
+            )[None, ...],
+            backend=bkd,
+        )
+        sample = bkd.asarray(np.random.uniform(0, 1, (nvars, 1)))
         model.check_apply_jacobian(sample, disp=True)
+        # check that when jac is used to compute jvp the number of
+        # evaluations is updated correctly
+        assert model.work_tracker().nevaluations("jac") == 1
+        assert model.work_tracker().nevaluations("jvp") == 0
         # check full jacobian is computed correctly from apply_jacobian
         # when jacobian() is not provided
         assert np.allclose(
-           model.jacobian(sample), self._evaluate_sp_lambda(
-               sp.lambdify(symbs, sp_grad, "numpy"), sample))
+            model.jacobian(sample),
+            self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_grad, "numpy"), sample
+            ),
+        )
+        assert model.work_tracker().nevaluations("jac") == 2
         model.check_apply_hessian(sample, disp=True)
+        # previous 2 + 14 different finite difference step sizes + 1
+        # grad at the nominal point used in the finite difference
+        assert model.work_tracker().nevaluations("jac") == 17
+        # check that when hess is used to compute hvp the number of
+        # evaluations is updated correctly
+        assert model.work_tracker().nevaluations("hess") == 1
+        assert model.work_tracker().nevaluations("hvp") == 0
         # check full jacobian is computed correctly from apply_jacobian
         # when hessian() is not provided
-        assert np.allclose(model.hessian(sample), self._evaluate_sp_lambda(
-               sp.lambdify(symbs, sp_hessian, "numpy"), sample))
+        assert np.allclose(
+            model.hessian(sample),
+            self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_hessian, "numpy"), sample
+            ),
+        )
+
+        # check when apply_jac and apply_hessian are defined
+        model = ModelFromSingleSampleCallable(
+            1,
+            lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_fun, "numpy"), sample
+            ),
+            apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_grad, "numpy"), sample
+            )
+            @ vec,
+            apply_hessian=lambda sample, vec: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_hessian), sample
+            )
+            @ vec,
+            backend=bkd,
+        )
+        model.check_apply_jacobian(sample, disp=True)
+        assert model.work_tracker().nevaluations("jac") == 0
+        assert model.work_tracker().nevaluations("jvp") == 1
+        model.check_apply_hessian(sample, disp=True)
+        # previous 1 + 14 different finite difference step sizes + 1
+        # grad at the nominal point used in the finite difference.
+        # Each of these latter 15 requies 3 jvp (one for each variable)
+        # TODO: Can i reduce the number of jvp in cases such as this
+        assert model.work_tracker().nevaluations("jvp") == 1 + 14*3 + 3
+        assert model.work_tracker().nevaluations("hess") == 0
+        assert model.work_tracker().nevaluations("hvp") == 1
 
     def test_scalar_model_from_callable_1D_sample(self):
         # check jacobian with 1D samples
+        bkd = self.get_backend()
         model = ModelFromSingleSampleCallable(
             1,
-            lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
-            jacobian=lambda x: np.array([[2*(x[0] - 1), 2*(x[1] - 2.5)]]),
-            sample_ndim=1, values_ndim=0)
-        sample = np.array([2, 0])[:, None]
+            lambda x: ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2),
+            jacobian=lambda x: bkd.array([[2 * (x[0] - 1), 2 * (x[1] - 2.5)]]),
+            sample_ndim=1,
+            values_ndim=0,
+            backend=bkd,
+        )
+        sample = bkd.array([2, 0])[:, None]
         errors = model.check_apply_jacobian(sample)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
 
         # check apply_jacobian and apply_hessian with 1D samples
         model = ModelFromSingleSampleCallable(
             1,
-            lambda x: ((x[0] - 1)**2 + (x[1] - 2.5)**2),
-            jacobian=lambda x: np.array([[2*(x[0] - 1), 2*(x[1] - 2.5)]]),
-            apply_jacobian=lambda x, v: 2*(x[0] - 1)*v[0]+2*(x[1] - 2.5)*v[1],
-            apply_hessian=lambda x, v: np.array(np.diag([2, 2])) @ v,
-            sample_ndim=1, values_ndim=0)
-        sample = np.array([2, 0])[:, None]
+            lambda x: ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2),
+            jacobian=lambda x: bkd.array([[2 * (x[0] - 1), 2 * (x[1] - 2.5)]]),
+            apply_jacobian=lambda x, v: 2 * (x[0] - 1) * v[0]
+            + 2 * (x[1] - 2.5) * v[1],
+            hessian=lambda x: bkd.diag(bkd.array([2, 2]))[None, ...],
+            sample_ndim=1,
+            values_ndim=0,
+            backend=bkd,
+        )
+        sample = bkd.array([2, 0])[:, None]
         errors = model.check_apply_jacobian(sample)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
         # hessian is constant diagonal matrix so check first
         # finite difference is exact
         errors = model.check_apply_hessian(sample)
@@ -79,24 +150,29 @@ class TestModel(unittest.TestCase):
         assert np.allclose(model.hessian(sample), np.diag([2, 2])[None, :])
 
     def test_vector_model_from_callable(self):
+        bkd = self.get_backend()
         symbs = sp.symbols(["x", "y", "z"])
         nvars = len(symbs)
-        sp_fun = [sum([s*(ii+1) for ii, s in enumerate(symbs)])**4,
-                  sum([s*(ii+1) for ii, s in enumerate(symbs)])**5]
+        sp_fun = [
+            sum([s * (ii + 1) for ii, s in enumerate(symbs)]) ** 4,
+            sum([s * (ii + 1) for ii, s in enumerate(symbs)]) ** 5,
+        ]
         sp_grad = [[fun.diff(x) for x in symbs] for fun in sp_fun]
         sp_hess = [
             [[fun.diff(_x).diff(_y) for _x in symbs] for _y in symbs]
             for fun in sp_fun
         ]
-        sample = np.random.uniform(0, 1, (nvars, 1))
+        sample = bkd.asarray(np.random.uniform(0, 1, (nvars, 1)))
 
         def hessian(sample):
             return self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_hess, "numpy"), sample)
+                sp.lambdify(symbs, sp_hess, "numpy"), sample
+            )
 
         def apply_weighted_hessian(sample, vec, weights):
             hess = hessian(sample)
-            return np.sum(weights[..., None]*hess, axis=0) @ vec
+            return bkd.sum(weights[..., None] * hess, axis=0) @ vec
+
         model = ModelFromSingleSampleCallable(
             2,
             lambda sample: self._evaluate_sp_lambda(
@@ -107,99 +183,122 @@ class TestModel(unittest.TestCase):
             ),
             apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_grad, "numpy"), sample
-            ) @ vec,
+            )
+            @ vec,
             hessian=hessian,
             apply_weighted_hessian=apply_weighted_hessian,
+            backend=bkd,
         )
-        sample = np.random.uniform(0, 1, (nvars, 1))
+        sample = bkd.asarray(np.random.uniform(0, 1, (nvars, 1)))
         errors = model.check_apply_jacobian(sample)
         # turn off apply_jacobian to check that it can be reconstructed
         # from jacobian
         model._apply_jacobian_implemented = False
         errors = model.check_apply_jacobian(sample, disp=True)
 
-        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.1
+        assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
         model._apply_jacobian_implemented = True
-        model._jacobian_implemented = False
-        # check full jacobian is computed correctly from apply_jacobian
-        # when jacobian() is not provided
-        assert np.allclose(
-           model.jacobian(sample), self._evaluate_sp_lambda(
-               sp.lambdify(symbs, sp_grad, "numpy"), sample))
 
         errors = model.check_apply_hessian(
-            sample, weights=np.ones((model.nqoi(), 1)), disp=True
+            sample, weights=bkd.ones((model.nqoi(), 1)), disp=True
         )
-        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.3
+        assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.3
         # turn off apply_weighted_hessian to check that it can be reconstructed
         # from hessian
         model._apply_weighted_hessian_implemented = False
         errors = model.check_apply_hessian(
-            sample, weights=np.ones((model.nqoi(), 1)), disp=True
+            sample, weights=bkd.ones((model.nqoi(), 1)), disp=True
         )
 
         # check full hessian is correct
         assert np.allclose(model.hessian(sample), hessian(sample))
 
     def test_scipy_wrapper(self):
+        bkd = self.get_backend()
         symbs = sp.symbols(["x", "y", "z"])
         nvars = len(symbs)
-        sp_fun = sum([s*(ii+1) for ii, s in enumerate(symbs)])**4
+        sp_fun = sum([s * (ii + 1) for ii, s in enumerate(symbs)]) ** 4
         sp_grad = [sp_fun.diff(x) for x in symbs]
         sp_hessian = [[sp_fun.diff(x).diff(y) for x in symbs] for y in symbs]
         model = ModelFromSingleSampleCallable(
             1,
             lambda sample: self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_fun, "numpy"), sample),
-            apply_jacobian=lambda sample, vec: self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_grad, "numpy"), sample) @ vec,
-            apply_hessian=lambda sample, vec: self._evaluate_sp_lambda(
-                sp.lambdify(symbs, sp_hessian), sample) @ vec)
+                sp.lambdify(symbs, sp_fun, "numpy"), sample
+            ),
+            jacobian=lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_grad, "numpy"), sample
+            ),
+            hessian=lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_hessian), sample
+            )[None, ...],
+            backend=bkd,
+        )
         scipy_model = ScipyModelWrapper(model)
         # check scipy model works with 1D sample array
-        sample = np.random.uniform(0, 1, (nvars))
+        sample = bkd.asarray(np.random.uniform(0, 1, (nvars)))
         assert np.allclose(
-           scipy_model.jac(sample), self._evaluate_sp_lambda(
-               sp.lambdify(symbs, sp_grad, "numpy"), sample[:, None]))
-        assert np.allclose(scipy_model.hess(sample), self._evaluate_sp_lambda(
-               sp.lambdify(symbs, sp_hessian, "numpy"), sample[:, None]))
+            scipy_model.jac(sample),
+            self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_grad, "numpy"), sample[:, None]
+            ),
+        )
+        assert np.allclose(
+            scipy_model.hess(sample),
+            self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_hessian, "numpy"), sample[:, None]
+            ),
+        )
 
     def test_umbridge_model(self):
+        from genz_umbridge_server import GenzUMBModel, GenzIntegral
+        config = {"name": "oscillatory", "nvars": 2, "coef_type": "none"}
+        sample = np.random.uniform(0, 1, (config["nvars"], 1))
+        model = GenzUMBModel()
+        # check model runs
+        model(sample.T, config)
+        model.gradient(1, config["nvars"], sample.T, None, config)
+        model = GenzIntegral()
+        model(sample.T, config)
+
+        bkd = self.get_backend()
         server_dir = os.path.dirname(__file__)
-        url = 'http://localhost:4242'
+        url = "http://localhost:4242"
         run_server_string = "python {0}".format(
-            os.path.join(server_dir, "genz_umbridge_server.py"))
+            os.path.join(server_dir, "genz_umbridge_server.py")
+        )
         process, out = UmbridgeModelWrapper.start_server(
-            run_server_string, url=url)
+            run_server_string, url=url
+        )
         umb_model = umbridge.HTTPModel(url, "genz")
         config = {"name": "oscillatory", "nvars": 2, "coef_type": "none"}
-        model = UmbridgeModelWrapper(umb_model, config)
-        sample = np.random.uniform(0, 1, (config["nvars"], 1))
+        model = UmbridgeModelWrapper(umb_model, config, backend=bkd)
+        sample = bkd.asarray(np.random.uniform(0, 1, (config["nvars"], 1)))
         model.check_apply_jacobian(sample, disp=True)
         UmbridgeModelWrapper.kill_server(process, out)
 
     def test_io_model(self):
+        bkd = self.get_backend()
         intmpdir = tempfile.TemporaryDirectory()
 
         infilenames = [os.path.join(intmpdir.name, "vec.npz")]
 
         nvars = 2
-        vec = np.random.uniform(0., 1., (1, nvars))
+        vec = bkd.asarray(np.random.uniform(0.0, 1.0, (1, nvars)))
         np.savez(infilenames[0], vec=vec)
 
         class TestIOModel(IOModel):
             def _run(self, sample, linked_filenames, outdirname):
                 vec = np.load(linked_filenames[0])["vec"]
                 # save a file to check cleaning of directories works
-                np.savez(os.path.join(outdirname, "out.npz"), sample+1)
+                np.savez(os.path.join(outdirname, "out.npz"), sample + 1)
                 return np.atleast_2d(vec.dot(sample))
 
         nsamples = 10
-        samples = np.random.uniform(0., 1., (nvars, nsamples))
-        test_values = np.array([vec @ sample for sample in samples.T])
+        samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
+        test_values = bkd.stack([vec @ sample for sample in samples.T], axis=0)
 
         # test when temp work directories are used
-        model = TestIOModel(1, infilenames)
+        model = TestIOModel(1, infilenames, backend=bkd)
         values = model(samples)
         assert np.allclose(values, test_values)
 
@@ -208,11 +307,16 @@ class TestModel(unittest.TestCase):
         outdir_basename = outtmpdir.name
         datafilename = "data.npz"
         model = TestIOModel(
-            1, infilenames, outdir_basename, save="full",
-            datafilename=datafilename)
+            1,
+            infilenames,
+            outdir_basename,
+            save="full",
+            datafilename=datafilename,
+            backend=bkd,
+        )
         values = model(samples)
         assert np.allclose(values, test_values)
-        for outdirname in glob.glob(os.path.join(outdir_basename, '*')):
+        for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
             filenames = glob.glob(os.path.join(outdirname, "*"))
             filenames = [os.path.basename(fname) for fname in filenames]
             filenames.sort()
@@ -226,11 +330,17 @@ class TestModel(unittest.TestCase):
         outtmpdir = tempfile.TemporaryDirectory()
         outdir_basename = outtmpdir.name
         datafilename = "data.npz"
-        model = TestIOModel(1, infilenames, outdir_basename, save="limited",
-                            datafilename=datafilename)
+        model = TestIOModel(
+            1,
+            infilenames,
+            outdir_basename,
+            save="limited",
+            datafilename=datafilename,
+            backend=bkd,
+        )
         values = model(samples)
         assert np.allclose(values, test_values)
-        for outdirname in glob.glob(os.path.join(outdir_basename, '*')):
+        for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
             filenames = glob.glob(os.path.join(outdirname, "*"))
             assert len(filenames) == 1
             assert os.path.basename(filenames[0]) == datafilename
@@ -278,38 +388,44 @@ if __name__ == "__main__":
     models = [UMBModel()]
     umbridge.serve_models(models, 4242)
 """
+        bkd = self.get_backend()
         intmpdir = tempfile.TemporaryDirectory()
         server_filename = os.path.join(intmpdir.name, "server.py")
         out = open(os.path.join(intmpdir.name, "out"), "w")
 
-        with open(server_filename, 'w') as writefile:
+        with open(server_filename, "w") as writefile:
             writefile.write(server_string)
         nvars = 2
-        vec = np.random.uniform(0., 1., (1, nvars))
+        vec = bkd.array(np.random.uniform(0.0, 1.0, (1, nvars)))
         infilenames = [os.path.join(intmpdir.name, "vec.npz")]
         np.savez(infilenames[0], vec=vec)
 
-        url = 'http://localhost:4242'
+        url = "http://localhost:4242"
         run_server_string = "python {0}".format(server_filename)
         process, out = UmbridgeIOModelWrapper.start_server(
-           run_server_string, url=url, out=out)
+            run_server_string, url=url, out=out
+        )
         umb_model = umbridge.HTTPModel(url, "umbmodel")
 
         nsamples = 10
-        samples = np.random.uniform(0, 1, (nvars, nsamples))
+        samples = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples)))
 
         # test limited save
         outtmpdir = tempfile.TemporaryDirectory()
         config = {
-            "infilenames": infilenames, "save": "limited", "nvars": nvars,
-            "datafilename": "data.npz"}
+            "infilenames": infilenames,
+            "save": "limited",
+            "nvars": nvars,
+            "datafilename": "data.npz",
+        }
         outdir_basename = os.path.join(outtmpdir.name, "results")
         model = UmbridgeIOModelWrapper(
-            umb_model, config, outdir_basename=outdir_basename)
+            umb_model, config, outdir_basename=outdir_basename, backend=bkd
+        )
         values = model(samples)
-        test_values = np.array([vec @ sample for sample in samples.T])
+        test_values = bkd.stack([vec @ sample for sample in samples.T], axis=0)
         assert np.allclose(values, test_values)
-        for outdirname in glob.glob(os.path.join(outdir_basename, '*')):
+        for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
             # UmbridgeIOModelWrapper creates folders
             # join(self._outdir_basename, "wdir-{0}".format(sample_id)
             # but then TestIOModel also creates wdir-0 so look two levels
@@ -322,15 +438,19 @@ if __name__ == "__main__":
         # test full save
         outtmpdir = tempfile.TemporaryDirectory()
         config = {
-            "infilenames": infilenames, "save": "full", "nvars": nvars,
-            "datafilename": "data.npz"}
+            "infilenames": infilenames,
+            "save": "full",
+            "nvars": nvars,
+            "datafilename": "data.npz",
+        }
         outdir_basename = os.path.join(outtmpdir.name, "results")
         model = UmbridgeIOModelWrapper(
-            umb_model, config, outdir_basename=outdir_basename)
+            umb_model, config, outdir_basename=outdir_basename, backend=bkd
+        )
         values = model(samples)
-        test_values = np.array([vec @ sample for sample in samples.T])
+        test_values = bkd.stack([vec @ sample for sample in samples.T], axis=0)
         assert np.allclose(values, test_values)
-        for outdirname in glob.glob(os.path.join(outdir_basename, '*')):
+        for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
             # UmbridgeIOModelWrapper creates folders
             # join(self._outdir_basename, "wdir-{0}".format(sample_id)
             # but then TestIOModel also creates wdir-0 so look two levels
@@ -344,11 +464,18 @@ if __name__ == "__main__":
         out.close()
 
 
-if __name__ == "__main__":
-    model_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestModel)
-    unittest.TextTestRunner(verbosity=2).run(model_test_suite)
+class TestNumpyModel(TestModel, unittest.TestCase):
+    def get_backend(self):
+        return NumpyLinAlgMixin
 
+
+class TestTorchModel(TestModel, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
 
 # Note if port is not closed properly look for PID using
 # lsof -i -P -n | grep 4242

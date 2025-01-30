@@ -1,13 +1,13 @@
 import umbridge
 import numpy as np
 
-from pyapprox.benchmarks.genz import GenzFunction
+from pyapprox.benchmarks.genz import GenzModel
 
 
-class GenzModel(umbridge.Model):
+class GenzUMBModel(umbridge.Model):
     def __init__(self):
         super().__init__("genz")
-        self._model = GenzFunction()
+        self._model = GenzModel("product_peak")
 
     def get_input_sizes(self, config):
         return [config.get("nvars", 5)]
@@ -24,7 +24,9 @@ class GenzModel(umbridge.Model):
             config.get("coef_type", "sqexp"),
             config.get("w_factor", 0.5))
         name = config.get("name", "oscillatory")
-        val = self._model(name, sample)[0, 0]
+        self._model.set_name(name)
+        # val = self._model(name, sample)[0, 0]
+        val = self._model(sample)[0, 0]
         return [[val]]
 
     def supports_evaluate(self):
@@ -38,8 +40,8 @@ class GenzModel(umbridge.Model):
             config.get("coef_type", "sqexp"),
             config.get("w_factor", 0.5))
         name = config.get("name", "oscillatory")
-        grad = np.atleast_1d(
-            self._model(name, sample, return_grad=True)[1]).tolist()
+        self._model.set_name(name)
+        grad = self._model.jacobian(sample).T.tolist()
         return grad
 
     def supports_gradient(self):
@@ -49,7 +51,7 @@ class GenzModel(umbridge.Model):
 class GenzIntegral(umbridge.Model):
     def __init__(self):
         super().__init__("genz-integral")
-        self._model = GenzFunction()
+        self._model = GenzModel("product_peak")
 
     def get_input_sizes(self, config):
         return [0]
@@ -64,7 +66,8 @@ class GenzIntegral(umbridge.Model):
             config.get("coef_type", "sqexp"),
             config.get("w_factor", 0.5))
         name = config.get("name", "oscillatory")
-        val = np.atleast_1d(self._model.integrate(name))[0]
+        self._model.set_name(name)
+        val = np.atleast_1d(self._model.integrate())[0]
         return [[val]]
 
     def supports_evaluate(self):
@@ -72,5 +75,5 @@ class GenzIntegral(umbridge.Model):
 
 
 if __name__ == "__main__":
-    models = [GenzModel(), GenzIntegral()]
+    models = [GenzUMBModel(), GenzIntegral()]
     umbridge.serve_models(models, 4242)

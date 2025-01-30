@@ -887,8 +887,8 @@ class RosenbrockUnconstrainedOptimizationBenchmark(OptimizationBenchmark):
         self._nvars = nvars
         super().__init__(backend)
 
-    def objective(self) -> Model:
-        return RosenbrockModel(self._nvars, self._bkd)
+    def _set_objective(self):
+        self._objective = RosenbrockModel(self._nvars, self._bkd)
 
     def design_variable(self) -> DesignVariable:
         design_bounds = self._bkd.full((self._nvars, 2), -2.0)
@@ -987,16 +987,16 @@ class RosenbrockConstrainedOptimizationBenchmark(
         # need to shift x coord because of issues with scipy trust-constr solver
         return self._bkd.array([1-eps-1e-16, 1+eps])[:, None]
 
-    def objective(self) -> Model:
-        return RosenbrockModel(2, self._bkd)
+    def _set_objective(self):
+        self._objective = RosenbrockModel(2, self._bkd)
 
     def design_variable(self) -> DesignVariable:
         design_bounds = self._bkd.full((self._nvars, 2), -2.0)
         design_bounds[:, 1] = 2.0
         return DesignVariable(design_bounds)
 
-    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
-        return [RosenbrockConstraint(self._bkd)]
+    def _set_constraints(self):
+        self._constraints = [RosenbrockConstraint(self._bkd)]
 
 
 class CantileverBeamModel(SingleSampleModel):
@@ -1080,22 +1080,22 @@ class CantileverBeamConstraintsModel(CantileverBeamModel):
 class CantileverBeamDeterminsticOptimizationBenchmark(
     ConstrainedUncertainOptimizationBenchmark
 ):
-    def objective(self) -> Model:
-        return ActiveSetVariableModel(
+    def _set_objective(self):
+        self._objective = ActiveSetVariableModel(
             CantileverBeamObjectiveModel(self._bkd),
             self.variable().num_vars() + self.design_variable().nvars(),
             self._nominal_values,
             self._design_var_indices,
         )
 
-    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
+    def _set_constraints(self):
         constraint_model = ActiveSetVariableModel(
             CantileverBeamConstraintsModel(self._bkd),
             self.variable().num_vars() + self.design_variable().nvars(),
             self._nominal_values,
             self._design_var_indices,
         )
-        return [
+        self._constraints = [
             ConstraintFromModel(constraint_model, self.constraint_bounds())
         ]
 
@@ -1138,7 +1138,7 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
 class CantileverBeamUncertainOptimizationBenchmark(
     CantileverBeamDeterminsticOptimizationBenchmark
 ):
-    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
+    def _set_constraints(self):
         # TODO change weights to create unbiased estimators of mean and variance
         from pyapprox.surrogates.bases.basis import (
             FixedTensorProductQuadratureRule,
@@ -1158,7 +1158,7 @@ class CantileverBeamUncertainOptimizationBenchmark(
             CantileverBeamConstraintsModel(self._bkd)
         )
         stat = SampleAverageMeanPlusStdev(3)
-        return [
+        self._constraints = [
             SampleAverageConstraint(
                 constraint_model,
                 samples,
@@ -1450,6 +1450,7 @@ class EvtushenkoNonLinearConstraint(Constraint):
         super().__init__(backend.array([[0.0, np.inf]]), True, backend)
         self._jacobian_implemented = True
         self._apply_weighted_hessian_implemented = True
+        self._weighted_hessian_implemented = True
 
     def nqoi(self) -> int:
         return 1
@@ -1474,19 +1475,24 @@ class EvtushenkoNonLinearConstraint(Constraint):
             [-6 * sample[0] * vec[0] * weights[0], 0.0, 0.0]
         )[:, None]
 
+    def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
+        hess = self._bkd.zeros((3, 3))
+        hess[0, 0] = -6 * sample[0] * weights[0]
+        return hess
+
 
 class EvtushenkoConstrainedOptimizationBenchmark(
     ConstrainedOptimizationBenchmark
 ):
-    def objective(self) -> Model:
-        return EvtushenkoObjective(self._bkd)
+    def _set_objective(self):
+        self._objective = EvtushenkoObjective(self._bkd)
 
-    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
+    def _set_constraints(self):
         nonlinear_con = EvtushenkoNonLinearConstraint(self._bkd)
         linear_con = LinearConstraint(
             self._bkd.ones((1, 3)), 1, 1, keep_feasible=True
         )
-        return [nonlinear_con, linear_con]
+        self._constraints = [nonlinear_con, linear_con]
 
     def design_variable(self) -> DesignVariable:
         design_bounds = self._bkd.stack(

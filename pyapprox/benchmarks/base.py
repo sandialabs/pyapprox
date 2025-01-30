@@ -288,9 +288,17 @@ class ACVBenchmark(MultiModelBenchmark):
 class OptimizationBenchmark(ABC):
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         self._bkd = backend
+        # must use set_objective here to make sure model
+        # is only created once and not everytime self.objective is called
+        # so that internal model variables persist, e.g. _work_tracker
+        self._set_objective()
+
+    @abstractmethod
+    def _set_objective(self):
+        raise NotImplementedError
 
     def objective(self) -> Model:
-        raise NotImplementedError
+        return self._objective
 
     @abstractmethod
     def design_variable(self) -> DesignVariable:
@@ -298,9 +306,19 @@ class OptimizationBenchmark(ABC):
 
 
 class ConstrainedOptimizationBenchmark(OptimizationBenchmark):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        super().__init__(backend)
+        # must use set_constraints here to make sure model
+        # is only created once and not everytime self.objective is called
+        # so that internal model variables persist, e.g. _work_tracker
+        self._set_constraints()
+
     @abstractmethod
-    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
+    def _set_constraints(self):
         raise NotImplementedError
+
+    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
+        return self._constraints
 
     @abstractmethod
     def optimal_iterate(self) -> Array:
@@ -338,6 +356,10 @@ class SingleModelBayesianInferenceBenchmark(SingleModelBenchmark):
 class OperatorBenchmark(ABC):
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         self._bkd = backend
+        # must use set_model here to make sure model
+        # is only created once and not everytime self.objective is called
+        # so that internal model variables persist, e.g. _work_tracker
+        self._set_model()
 
     @abstractmethod
     def variable(self) -> JointVariable:
@@ -345,9 +367,12 @@ class OperatorBenchmark(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def _set_model(self) -> Model:
+        raise NotImplementedError
+
     def model(self) -> Model:
         """Return the model"""
-        raise NotImplementedError
+        return self._model
 
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)

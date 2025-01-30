@@ -105,6 +105,17 @@ class SteadyGaussianNegLogLikelihoodAdjointFunctional(
 class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
+
+    def nvars(self) -> int:
+        neigs = 1024 // 2
+        return neigs * 2
+
+    def variable(self) -> IndependentMarginalsVariable:
+        return IndependentMarginalsVariable(
+            [stats.norm(0, 1)] * self.nvars(), backend=self._bkd
+        )
+
+    def _set_model(self):
         self._model = TransientViscousBurgers1DModel(
             0.0,
             1.0,
@@ -119,25 +130,10 @@ class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
             backend=self._bkd,
         )
 
-    def nvars(self) -> int:
-        neigs = 1024 // 2
-        return neigs * 2
-
-    def variable(self) -> IndependentMarginalsVariable:
-        return IndependentMarginalsVariable(
-            [stats.norm(0, 1)] * self.nvars(), backend=self._bkd
-        )
-
-    def model(self) -> TransientViscousBurgers1DModel:
-        return self._model
-
 
 class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
-        self._model = SteadyDarcy2DKLEModel(
-            self.nvars(), 1.0, 0.25, 0., backend=self._bkd,
-        )
 
     def nvars(self) -> int:
         return 100
@@ -147,9 +143,10 @@ class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
             [stats.norm(0, 1)] * self.nvars(), backend=self._bkd
         )
 
-    def model(self) -> SteadyDarcy2DKLEModel:
-        return self._model
-
+    def _set_model(self) -> SteadyDarcy2DKLEModel:
+        self._model = SteadyDarcy2DKLEModel(
+            self.nvars(), 1.0, 0.25, 0., backend=self._bkd,
+        )
 
 
 class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(

@@ -43,7 +43,9 @@ class TestMinimize(unittest.TestCase):
     def test_unconstrained_scipy_rosenbrock(self):
         # check that no bounds is handled correctly
         for nvars in range(2, 4):
-            benchmark = RosenbrockUnconstrainedOptimizationBenchmark(nvars=nvars)
+            benchmark = RosenbrockUnconstrainedOptimizationBenchmark(
+                nvars=nvars
+            )
             optimizer = ScipyConstrainedOptimizer(benchmark.objective())
             result = optimizer.minimize(benchmark.init_iterate())
             assert np.allclose(result.x, benchmark.optimal_iterate())
@@ -55,31 +57,51 @@ class TestMinimize(unittest.TestCase):
             constraints=benchmark.constraints(),
             bounds=benchmark.design_variable().bounds(),
             opts={"gtol": 1e-15},
-
         )
         init_iterate = benchmark.init_iterate()
         assert np.allclose(benchmark.objective()(init_iterate), 7.2)
         errors = benchmark.objective().check_apply_jacobian(init_iterate)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
         errors = benchmark.objective().check_apply_hessian(init_iterate)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
         errors = benchmark.constraints()[0].check_apply_jacobian(init_iterate)
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
         errors = benchmark.constraints()[0].check_apply_hessian(
             init_iterate, weights=np.ones((1, 1))
         )
-        assert errors.min()/errors.max() < 1e-6
+        assert (
+            benchmark.constraints()[0].work_tracker().nevaluations("whvp") == 1
+        )
+        assert errors.min() / errors.max() < 1e-6
         errors = benchmark.constraints()[0].check_apply_hessian(
             init_iterate, weights=np.ones((1, 1))
         )
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
+
+        # turn of apply_weighed_hessian and make sure weighted_hessian
+        # function is used
+        benchmark.constraints()[0]._apply_weighted_hessian_implemented = False
+        assert (
+            benchmark.constraints()[0].work_tracker().nevaluations("whess")
+            == 0
+        )
+        errors = benchmark.constraints()[0].check_apply_hessian(
+            init_iterate, weights=np.ones((1, 1))
+        )
+        assert (
+            benchmark.constraints()[0].work_tracker().nevaluations("whess")
+            == 1
+        )
+        # turn apply_weighed_hessian back on
+        benchmark.constraints()[0]._apply_weighted_hessian_implemented = False
+
         optimizer.set_verbosity(0)
         result = optimizer.minimize(init_iterate)
         assert result.nhev > 0
         assert np.any(np.asarray(result.constr_nhev) > 0)
-        assert np.allclose(result.fun, 1.)
+        assert np.allclose(result.fun, 1.0)
         assert np.allclose(
-            result.x, np.array([0., 0., 1.])[:, None], atol=1e-5
+            result.x, np.array([0.0, 0.0, 1.0])[:, None], atol=1e-5
         )
 
     def test_constrained_scipy_rosenbrock(self):
@@ -88,16 +110,16 @@ class TestMinimize(unittest.TestCase):
         errors = benchmark.constraints()[0].check_apply_jacobian(
             benchmark.init_iterate()
         )
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
         errors = benchmark.constraints()[0].check_apply_hessian(
             benchmark.init_iterate(), weights=np.ones(2)
         )
-        assert errors.min()/errors.max() < 1e-6
+        assert errors.min() / errors.max() < 1e-6
         optimizer = ScipyConstrainedOptimizer(
             benchmark.objective(),
             constraints=benchmark.constraints(),
             bounds=benchmark.design_variable().bounds(),
-            opts={"gtol": 1e-16}
+            opts={"gtol": 1e-16},
         )
         result = optimizer.minimize(benchmark.init_iterate())
         assert np.allclose(result.x, benchmark.optimal_iterate())
@@ -143,7 +165,7 @@ class TestMinimize(unittest.TestCase):
                 design_sample, weights=np.ones((constraint.nqoi(), 1))
             )
             assert errors.min() / errors.max() < 1.3e-6 and errors.max() > 0.2
-            
+
     def test_conditional_value_at_risk_gradients(self):
         benchmark = CantileverBeamUncertainOptimizationBenchmark()
         constraint_model = benchmark.constraints()[0]._model
@@ -230,8 +252,8 @@ class TestMinimize(unittest.TestCase):
 
             def _hessian(self, x):
                 hess = np.zeros((self.nqoi(), x.shape[0], x.shape[0]))
-                hess[0, 0, 2] = 1.
-                hess[0, 2, 0] = 1.
+                hess[0, 0, 2] = 1.0
+                hess[0, 2, 0] = 1.0
                 return hess
 
         constraint_model = CustomModel(nrandom_vars)
@@ -324,7 +346,8 @@ class TestMinimize(unittest.TestCase):
         # (smoothed) max function
         # print(constraint(exact_opt_x)[0, :] - np.array([CVaR1, CVaR2]))
         assert np.allclose(
-           constraint(exact_opt_x)[0, :], [CVaR1, CVaR2], rtol=5e-3)
+            constraint(exact_opt_x)[0, :], [CVaR1, CVaR2], rtol=5e-3
+        )
 
         bounds = np.stack(
             (
