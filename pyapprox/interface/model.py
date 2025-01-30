@@ -6,7 +6,7 @@ import time
 import glob
 import tempfile
 from abc import ABC, abstractmethod
-from multiprocessing.pool import ThreadPool
+from multiprocessing.pool import ThreadPool, Pool
 
 import numpy as np
 import umbridge
@@ -1299,3 +1299,36 @@ class ChangeModelSignWrapper(Model):
 
     def __repr__(self):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
+
+
+class PoolModelWrapper(Model):
+    r"""
+    Wrap a Model so that it can be evaluated at multiple samples
+    in parallel using multiprocessing.Pool
+    """
+    def __init__(self, model: Model, nprocs: int, assert_omp: bool = True):
+        print(model)
+        if not isinstance(model, SingleSampleModelMixin):
+            raise ValueError("model must be an instance of SingleSampleModel")
+        super().__init__(model._bkd)
+        if assert_omp and nprocs > 1:
+            if ('OMP_NUM_THREADS' not in os.environ or
+                    not int(os.environ['OMP_NUM_THREADS']) == 1):
+                msg = "User set assert_omp=True but OMP_NUM_THREADS "
+                "has not been set to 1. Run script with "
+                "OMP_NUM_THREADS=1 python script.py"
+            raise Exception(msg)
+
+        self._model = model
+        self._nprocs = nprocs
+
+    def nqoi(self) -> int:
+        return self._model.nqoi()
+
+    def _values(self, samples: Array) -> Array:
+        pool = Pool(self._nprocs)
+        result = pool.map(
+            self._model._evaluate,
+            [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
+        pool.close()
+        return self._bkd.stack(result, axis=0)

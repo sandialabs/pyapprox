@@ -13,6 +13,7 @@ from pyapprox.interface.model import (
     umbridge,
     IOModel,
     UmbridgeIOModelWrapper,
+    PoolModelWrapper,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -462,6 +463,31 @@ if __name__ == "__main__":
         intmpdir.cleanup()
         UmbridgeIOModelWrapper.kill_server(process)
         out.close()
+
+
+    def test_pool_model_wrapper(self):
+        bkd = self.get_backend()
+        symbs = sp.symbols(["x", "y", "z"])
+        sp_fun = sum([s * (ii + 1) for ii, s in enumerate(symbs)]) ** 4
+        sp_grad = [sp_fun.diff(x) for x in symbs]
+        sp_hessian = [[sp_fun.diff(x).diff(y) for x in symbs] for y in symbs]
+        model = ModelFromSingleSampleCallable(
+            1,
+            lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_fun, "numpy"), sample
+            ),
+            jacobian=lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_grad, "numpy"), sample
+            ),
+            hessian=lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_hessian), sample
+            )[None, ...],
+            backend=bkd,
+        )
+        pool_model = PoolModelWrapper(model, nprocs=2, assert_omp=False)
+        nvars = len(symbs)
+        samples = bkd.asarray(np.random.uniform(0, 1, (nvars, 2)))
+        values = pool_model(samples)
 
 
 class TestNumpyModel(TestModel, unittest.TestCase):
