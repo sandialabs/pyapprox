@@ -355,7 +355,8 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         super().__init__()
         if not isinstance(optimizer, ConstrainedOptimizer):
             raise ValueError(
-                "optimizer must be an instance of ConstrainedOptimizer"
+                "optimizer must be an instance of ConstrainedOptimizer "
+                f"but was {type(optimizer)}"
             )
         self._optimizer = optimizer
 

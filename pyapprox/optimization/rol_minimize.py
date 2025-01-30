@@ -204,14 +204,12 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
         con = ROLLinearConstraintWrapper(_con)
         emul = NumPyVector(self._bkd.zeros(con.nres()))
         if self._bkd.all(_con._bounds[:, 0] == _con._bounds[:, 1]):
-            print("C")
             # equality constraints
             problem.addLinearConstraint(
                 f"EqLinearConstraint_{self._neqlincons}", con, emul
             )
             self._neqlincons += 1
         else:
-            print("D")
             bounds = ROLBounds(
                 NumPyVector(_con._bounds[:, 0]),
                 NumPyVector(_con._bounds[:, 1]),
@@ -224,16 +222,13 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
     def _set_nonlinear_constraint(self, problem: Problem, _con: Constraint):
         con = ROLNonLinearConstraintWrapper(_con)
         emul = NumPyVector(self._bkd.zeros(con.nres()))
-        print(con.nres())
         if self._bkd.all(_con._bounds[:, 0] == _con._bounds[:, 1]):
             # equality constraints
             problem.addConstraint(
                 f"EqNonLinearConstraint_{self._neqnonlincons}", con, emul
             )
             self._neqnonlincons += 1
-            print("A")
         else:
-            print("B")
             bounds = ROLBounds(
                 NumPyVector(_con._bounds[:, 0]),
                 NumPyVector(_con._bounds[:, 1]),
@@ -253,7 +248,6 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
         self._nineqlincons = 0
         self._neqnonlincons = 0
         self._nineqnonlincons = 0
-        print(constraints)
         for _con in constraints:
             if isinstance(_con, LinearConstraint):
                 self._set_linear_constraint(problem, _con)
@@ -264,7 +258,6 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
         tol = 0
         x0 = NumPyVector(init_guess[:, 0])
         objective = ROLObjectiveWrapper(self._objective)
-        print(objective.value(x0, tol))
         problem = Problem(objective, x0, x0.dual())
         if self._verbosity > 0:
             stream = getCout()

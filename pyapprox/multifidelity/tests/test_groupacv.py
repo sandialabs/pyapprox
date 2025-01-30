@@ -214,6 +214,8 @@ class TestGroupACV:
 
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
         # opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        # from pyapprox.optimization.rol_minimize import ROLConstrainedOptimizer        
+        # local_opt = ROLConstrainedOptimizer()
         local_opt = ScipyConstrainedOptimizer()
         local_opt.set_verbosity(3)
         opt = MLBLUEGradientOptimizer(local_opt)
@@ -863,6 +865,8 @@ class TestGroupACV:
 class TestTorchGroupACV(TestGroupACV, unittest.TestCase):
     def get_backend(self):
         return TorchLinAlgMixin
+        # from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+        # return NumpyLinAlgMixin
 
 
 if __name__ == "__main__":
