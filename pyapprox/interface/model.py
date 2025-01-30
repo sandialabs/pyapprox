@@ -6,6 +6,7 @@ import time
 import glob
 import tempfile
 from abc import ABC, abstractmethod
+import multiprocessing
 from multiprocessing.pool import ThreadPool, Pool
 
 import numpy as np
@@ -19,15 +20,20 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 class ModelWorkTracker:
     def __init__(self, backend=NumpyLinAlgMixin):
         self._bkd = backend
-        self._wall_times = {
-            "val": self._bkd.empty((0,)),
-            "jac": self._bkd.empty((0,)),
-            "jvp": self._bkd.empty((0,)),
-            "hess": self._bkd.empty((0,)),
-            "hvp": self._bkd.empty((0,)),
-            "whess": self._bkd.empty((0,)),
-            "whvp": self._bkd.empty((0,))
-        }
+        # use multiprocessing.Manager() so that the dictionary
+        # can be updated by multiple processes when calling
+        # multiprocessing.pool
+        self._wall_times = multiprocessing.Manager().dict(
+            {
+                "val": self._bkd.empty((0,)),
+                "jac": self._bkd.empty((0,)),
+                "jvp": self._bkd.empty((0,)),
+                "hess": self._bkd.empty((0,)),
+                "hvp": self._bkd.empty((0,)),
+                "whess": self._bkd.empty((0,)),
+                "whvp": self._bkd.empty((0,))
+            }
+        )
 
     def update(self, eval_name: str, times: Array):
         self._wall_times[eval_name] = self._bkd.hstack(
@@ -39,6 +45,9 @@ class ModelWorkTracker:
 
     def nevaluations(self, eval_name: str) -> int:
         return self._wall_times[eval_name].shape[0]
+
+    def wall_times(self) -> dict:
+        return self._wall_times
 
     def __repr__(self) -> str:
         return "{0}(\n{1}\n\ttimes=({2})\n)".format(
@@ -93,6 +102,14 @@ class Model(ABC):
     def _values(self, samples: Array) -> Array:
         raise NotImplementedError("Must implement self._values")
 
+    def _check_values_shape(self, samples: Array, vals: Array):
+        if vals.shape != (samples.shape[1], self.nqoi()):
+            raise RuntimeError(
+                "values had shape {0} but should have shape {1}".format(
+                    vals.shape, (samples.shape[1], self.nqoi())
+                )
+            )
+
     def __call__(self, samples: Array) -> Array:
         """
         Evaluate the model at a set of samples.
@@ -114,12 +131,7 @@ class Model(ABC):
         # Make assumption that each sample took the same time
         times = self._bkd.full((nsamples,), (t1-t0) / nsamples)
         self._work_tracker.update("val", times)
-        if vals.shape != (samples.shape[1], self.nqoi()):
-            raise RuntimeError(
-                "values had shape {0} but should have shape {1}".format(
-                    vals.shape, (samples.shape[1], self.nqoi())
-                )
-            )
+        self._check_values_shape(samples, vals)
         return vals
 
     def _check_sample_shape(self, sample: Array):
@@ -1304,12 +1316,15 @@ class ChangeModelSignWrapper(Model):
 class PoolModelWrapper(Model):
     r"""
     Wrap a Model so that it can be evaluated at multiple samples
-    in parallel using multiprocessing.Pool
+    in parallel using multiprocessing.Pool.
+
+    For now just supports parallelizing values, i.g. gradient computations
+    are not yet supported
     """
     def __init__(self, model: Model, nprocs: int, assert_omp: bool = True):
         print(model)
-        if not isinstance(model, SingleSampleModelMixin):
-            raise ValueError("model must be an instance of SingleSampleModel")
+        if not isinstance(model, Model):
+            raise ValueError("model must be an instance of Model")
         super().__init__(model._bkd)
         if assert_omp and nprocs > 1:
             if ('OMP_NUM_THREADS' not in os.environ or
@@ -1328,7 +1343,15 @@ class PoolModelWrapper(Model):
     def _values(self, samples: Array) -> Array:
         pool = Pool(self._nprocs)
         result = pool.map(
-            self._model._evaluate,
+            self._model,
             [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
         pool.close()
-        return self._bkd.stack(result, axis=0)
+        return self._bkd.vstack(result)
+
+    def model(self) -> Model:
+        return self._model
+
+    def work_tracker(self) -> ModelWorkTracker:
+        # do not call self._work_tracker as it will contain incorrect
+        # information, must return self._model._work_tracker instead
+        return self._model._work_tracker
