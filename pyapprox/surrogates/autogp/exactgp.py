@@ -36,9 +36,11 @@ class GPNegLogLikelihoodLoss(LossFunction):
         super()._check_model(model)
 
     def _jacobian(self, active_opt_params: Array) -> Array:
-        return self._model._jacobian_neg_log_likelihood_with_hyperparameter_trend(
-            active_opt_params[:, 0]
-        )
+        if self._model._analytical_neg_log_likelihood_jacobian_implemented:
+            return self._model._jacobian_neg_log_likelihood_with_hyperparameter_trend(
+                active_opt_params[:, 0]
+            )
+        return super()._jacobian(active_opt_params)
 
 
 class ExactGaussianProcess(OptimizedRegressor):
@@ -50,24 +52,31 @@ class ExactGaussianProcess(OptimizedRegressor):
         kernel_reg: float = 0,
     ):
         super().__init__(kernel._bkd)
-        self.kernel = kernel
-        self.trend = trend
-        self.kernel_reg = kernel_reg
+        self._kernel = kernel
+        self._trend = trend
+        self._kernel_reg = kernel_reg
 
         self._coef = None
         self._coef_args = None
 
-        self.hyp_list = self.kernel.hyp_list
+        self._hyp_list = self._kernel.hyp_list()
         if trend is not None:
-            self.hyp_list += self.trend.hyp_list
+            self._hyp_list += self._trend.hyp_list()
         self.set_optimizer()
+        self._analytical_neg_log_likelihood_jacobian_implemented = True
+
+    def kernel(self) -> Kernel:
+        return self._kernel
+
+    def trend(self) -> BasisExpansion:
+        return self._trend
 
     def _default_iterator_gen(self):
         iterate_gen = RandomUniformOptimzerIterateGenerator(
-            self.hyp_list.nactive_vars(), backend=self._bkd
+            self._hyp_list.nactive_vars(), backend=self._bkd
         )
         iterate_gen.set_bounds(
-            self._bkd.to_numpy(self.hyp_list.get_active_opt_bounds())
+            self._bkd.to_numpy(self._hyp_list.get_active_opt_bounds())
         )
         return iterate_gen
 
@@ -106,16 +115,16 @@ class ExactGaussianProcess(OptimizedRegressor):
     def _training_kernel_matrix(self) -> Tuple:
         # must only pass in X and not Y to kernel otherwise if noise kernel
         # is present it will not be evaluted correctly.
-        kmat = self.kernel(self._ctrain_samples)
+        kmat = self._kernel(self._ctrain_samples)
         # Below is an inplace operation that will not work with autograd
-        # kmat[np.diag_indices_from(kmat)] += self.kernel_reg
+        # kmat[np.diag_indices_from(kmat)] += self._kernel_reg
         # This also does not work
-        # kmat += diag(full((kmat.shape[0], 1), float(self.kernel_reg)))
-        kmat = kmat + self._bkd.eye(kmat.shape[0]) * float(self.kernel_reg)
+        # kmat += diag(full((kmat.shape[0], 1), float(self._kernel_reg)))
+        kmat = kmat + self._bkd.eye(kmat.shape[0]) * float(self._kernel_reg)
         return kmat
 
     def _training_kernel_jacobian(self):
-        return self.kernel.jacobian(self._ctrain_samples)
+        return self._kernel.jacobian(self._ctrain_samples)
 
     def _factor_training_kernel_matrix(self):
         # can be specialized
@@ -155,12 +164,12 @@ class ExactGaussianProcess(OptimizedRegressor):
         # can be specialized when _factor_training_kernel_matrix is specialized
         tmp = self._bkd.solve_triangular(self._coef_args[0], kmat_pred.T)
         update = self._bkd.einsum("ji,ji->i", tmp, tmp)
-        return (self.kernel.diag(canonical_samples) - update)[:, None]
+        return (self._kernel.diag(canonical_samples) - update)[:, None]
 
     def _canonical_trend(self, canonical_samples: Array):
-        if self.trend is None:
+        if self._trend is None:
             return self._bkd.full((canonical_samples.shape[1], 1), 0.0)
-        return self.trend(canonical_samples)
+        return self._trend(canonical_samples)
 
     def _neg_log_likelihood_with_hyperparameter_trend(self) -> float:
         # this can also be used if treating the trend as hyper_params
@@ -184,7 +193,7 @@ class ExactGaussianProcess(OptimizedRegressor):
     def _jacobian_neg_log_likelihood_with_hyperparameter_trend(
             self, active_opt_params: Array
     ) -> Array:
-        self.hyp_list.set_active_opt_params(active_opt_params)
+        self._hyp_list.set_active_opt_params(active_opt_params)
         # First compute jacobian with respect to kernel parameters
         # TODO this recomputes cholesky factorization
         coef_args = self._factor_training_kernel_matrix()
@@ -194,14 +203,19 @@ class ExactGaussianProcess(OptimizedRegressor):
         Mat = (Kinv_y @ Kinv_y.T - Kinv)
         Kjac = self._training_kernel_jacobian()
         kernel_jac = -0.5 * self._bkd.einsum("ij,jik->k", Mat, Kjac)
-        if self.trend is None:
+        kernel_jac = kernel_jac[
+            ..., self._kernel.hyp_list().get_active_indices()
+        ]
+        if self._trend is None:
             return kernel_jac[None, :]
         # Second compute jacobian with respect to trend parameters
         # __init__ adds trend parameters to hyperlist last so
         # just concatenate trend jacobian at the end of kernel jacobian
-        trend_jac = -Kinv_y.T @ self.trend.basis(
+        trend_jac = -Kinv_y.T @ self._trend.basis(
             self._ctrain_samples
-        )
+        )[
+            ..., self._trend.hyp_list().get_active_indices()
+        ]
         jac = self._bkd.hstack((kernel_jac[None, :],  trend_jac))
         return jac
 
@@ -222,7 +236,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         raise NotImplementedError
 
     def _neg_log_likelihood(self, active_opt_params: Array):
-        self.hyp_list.set_active_opt_params(active_opt_params)
+        self._hyp_list.set_active_opt_params(active_opt_params)
         return self._neg_log_likelihood_with_hyperparameter_trend()
 
     def _evaluate_canonical_prior(self, samples: Array, return_std: bool):
@@ -231,7 +245,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         ).T
         if not return_std:
             return canonical_trend, None
-        canonical_std = self._bkd.sqrt(self.kernel.diag(samples))
+        canonical_std = self._bkd.sqrt(self._kernel.diag(samples))
         return canonical_trend, canonical_std
 
     def _evaluate_canonical_posterior(self, samples: Array, return_std: bool):
@@ -240,7 +254,7 @@ class ExactGaussianProcess(OptimizedRegressor):
             self._coef = self._solve_coefficients(*self._coef_args)
 
         canonical_samples = self._in_trans.map_to_canonical(samples)
-        kmat_pred = self.kernel(
+        kmat_pred = self._kernel(
             canonical_samples, self._ctrain_samples
         )
         canonical_trend = self._canonical_trend(
@@ -291,7 +305,7 @@ class ExactGaussianProcess(OptimizedRegressor):
 
     def __repr__(self):
         return "{0}({1})".format(
-            self.__class__.__name__, self.hyp_list._short_repr()
+            self.__class__.__name__, self._hyp_list._short_repr()
         )
 
     def _plot_1d(
@@ -370,6 +384,10 @@ class ExactGaussianProcess(OptimizedRegressor):
 
 class MOExactGaussianProcess(ExactGaussianProcess):
     def _set_training_data(self, train_samples: list, train_values: list):
+        # For now analytical neg log like from exact gaussian process
+        # does not pass tests when used here so turn off.
+        self._analytical_neg_log_likelihood_jacobian_implemented = False
+        
         self._ctrain_samples = [
             s for s in self._map_samples_to_canonical(train_samples)
         ]
@@ -381,7 +399,7 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         return [self._in_trans.map_to_canonical(s) for s in samples]
 
     def _canonical_trend(self, canonical_samples):
-        if self.trend is not None:
+        if self._trend is not None:
             raise ValueError("Non-zero trend not supported for mulitoutput")
         return self._bkd.full(
             (sum([s.shape[1] for s in canonical_samples]), 1), 0.0
@@ -467,11 +485,11 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
     def _training_kernel_matrix(self) -> Tuple:
         # must only pass in X and not Y to kernel otherwise if noise kernel
         # is present it will not be evaluted correctly.
-        blocks = self.kernel(self._ctrain_samples, block_format=True)
+        blocks = self._kernel(self._ctrain_samples, block_format=True)
         for ii in range(len(blocks)):
             blocks[ii][ii] = blocks[ii][ii] + self._bkd.eye(
                 blocks[ii][ii].shape[0]
-            ) * float(self.kernel_reg)
+            ) * float(self._kernel_reg)
         return blocks
 
     def _factor_training_kernel_matrix(self):
@@ -494,4 +512,4 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
             *self._coef_args, kmat_pred.T, self._bkd
         )
         update = self._bkd.einsum("ji,ji->i", tmp, tmp)
-        return (self.kernel.diag(canonical_samples) - update)[:, None]
+        return (self._kernel.diag(canonical_samples) - update)[:, None]

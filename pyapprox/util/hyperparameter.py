@@ -373,7 +373,6 @@ class CombinedHyperParameter(HyperParameter):
             hyp.set_bounds(bounds[cnt : cnt + hyp.nvars()])
             cnt += hyp.nvars()
 
-
     def get_active_opt_params(self):
         return self._bkd.hstack(
             [hyp.get_active_opt_params() for hyp in self.hyper_params]
@@ -399,3 +398,8 @@ class CombinedHyperParameter(HyperParameter):
         for hyp in self.hyper_params:
             hyp.set_values(values[cnt : cnt + hyp.nvars()])
             cnt += hyp.nvars()
+
+    def get_active_indices(self):
+        return self._bkd.hstack(
+            [hyp.get_active_indices() for hyp in self.hyper_params]
+        )

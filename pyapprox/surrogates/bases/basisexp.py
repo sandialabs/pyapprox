@@ -53,6 +53,9 @@ class BasisExpansion(Regressor):
         self._hessian_implemented = basis._hessian_implemented
         self._solver = solver
 
+    def hyp_list(self) -> HyperParameterList:
+        return self._hyp_list
+
     def set_basis(self, basis, coef_bounds=None):
         self.basis = basis
         self._bkd = self.basis._bkd
@@ -66,7 +69,7 @@ class BasisExpansion(Regressor):
             None,
             backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._coef])
+        self._hyp_list = HyperParameterList([self._coef])
 
     def _parse_coef_bounds(self, coef_bounds):
         if coef_bounds is None:

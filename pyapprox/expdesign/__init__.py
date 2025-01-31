@@ -2,8 +2,8 @@
 for designing experiments
 """
 
-from pyapprox.expdesign.low_discrepancy_sequences import (
-    sobol_sequence, halton_sequence
+from pyapprox.expdesign.sequences import (
+    SobolSequence, HaltonSequence
 )
 from pyapprox.expdesign.linear_oed import (
     optimal_experimental_design, AlphabetOptimalDesign,
@@ -17,7 +17,7 @@ from pyapprox.expdesign.bayesian_oed import (
 )
 
 
-__all__ = ["sobol_sequence", "halton_sequence", "optimal_experimental_design",
+__all__ = ["SobolSequence", "HaltonSequence", "optimal_experimental_design",
            "AlphabetOptimalDesign", "NonLinearAlphabetOptimalDesign",
            "get_bayesian_oed_optimizer", "BayesianBatchKLOED",
            "BayesianBatchDeviationOED", "BayesianSequentialOED",

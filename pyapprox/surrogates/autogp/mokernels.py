@@ -13,7 +13,7 @@ class MultiOutputKernel(Kernel):
         self.kernels = kernels
         self.nkernels = len(kernels)
         self.noutputs = noutputs
-        self.hyp_list = sum([kernel.hyp_list for kernel in kernels])
+        self._hyp_list = sum([kernel.hyp_list() for kernel in kernels])
 
         self.nsamples_per_output_0 = None
         self.nsamples_per_output_1 = None
@@ -135,7 +135,7 @@ class MultiOutputKernel(Kernel):
             return super().__repr__()
         return "{0}({1}, nsamples_per_output={2})".format(
             self.__class__.__name__,
-            self.hyp_list._short_repr(),
+            self._hyp_list._short_repr(),
             self.nsamples_per_output_0,
         )
 
@@ -145,8 +145,8 @@ class SpatiallyScaledMultiOutputKernel(MultiOutputKernel):
         super().__init__(kernels, len(kernels))
         self._validate_kernels_and_scalings(kernels, scalings)
         self.scalings = scalings
-        self.hyp_list = self.hyp_list + sum(
-            [scaling.hyp_list for scaling in scalings]
+        self._hyp_list = self._hyp_list + sum(
+            [scaling.hyp_list() for scaling in scalings]
         )
 
     @abstractmethod
@@ -350,8 +350,8 @@ class LMCKernel(MultiOutputKernel):
         super().__init__(kernels, noutputs)
         self.output_kernels = output_kernels
         self._validate_kernels()
-        self.hyp_list = self.hyp_list + sum(
-            [kernel.hyp_list for kernel in self.output_kernels]
+        self._hyp_list = self._hyp_list + sum(
+            [kernel.hyp_list() for kernel in self.output_kernels]
         )
 
     def _validate_kernels(self):
@@ -397,7 +397,7 @@ class LMCKernel(MultiOutputKernel):
 
         This function is used for testing only
         """
-        hyp_values = self.output_kernels[kk].hyp_list.get_values()
+        hyp_values = self.output_kernels[kk].hyp_list().get_values()
         psi = self.output_kernels[kk]._trans.map_theta_to_spherical(hyp_values)
         return self._bkd.cos(psi[1:, 1])
 

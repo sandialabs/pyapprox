@@ -25,6 +25,9 @@ class Kernel(ABC):
         # used when computing a Jacobian
         self._samples = None
 
+    def hyp_list(self) -> HyperParameterList:
+        return self._hyp_list
+
     def diag(self, X1):
         """Return the diagonal of the kernel matrix."""
         return self._bkd.get_diagonal(self(X1))
@@ -41,18 +44,18 @@ class Kernel(ABC):
 
     def __repr__(self):
         return "{0}({1}, bkd={2})".format(
-            self.__class__.__name__, self.hyp_list._short_repr(), self._bkd
+            self.__class__.__name__, self._hyp_list._short_repr(), self._bkd
         )
 
     def _params_eval(self, active_opt_params):
         # define function that evaluates the kernel for different parameters
-        self.hyp_list.set_active_opt_params(active_opt_params)
+        self._hyp_list.set_active_opt_params(active_opt_params)
         return self(self._samples)
 
     def jacobian(self, samples: Array) -> Array:
         self._samples = samples
         return self._bkd.jacobian(
-            self._params_eval, self.hyp_list.get_active_opt_params()
+            self._params_eval, self._hyp_list.get_active_opt_params()
         )
 
     def jacobian_implemented(self) -> bool:
@@ -65,7 +68,7 @@ class CompositionKernel(Kernel):
     def __init__(self, kernel1, kernel2):
         self.kernel1 = kernel1
         self.kernel2 = kernel2
-        self.hyp_list = kernel1.hyp_list + kernel2.hyp_list
+        self._hyp_list = kernel1.hyp_list() + kernel2.hyp_list()
         if not kernel1._bkd.bkd_equal(kernel1._bkd, kernel2._bkd):
             raise ValueError("Kernels must have the same backend.")
         self._bkd = kernel1._bkd
@@ -145,7 +148,7 @@ class MaternKernel(Kernel):
             fixed=fixed,
             backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._lenscale])
+        self._hyp_list = HyperParameterList([self._lenscale])
 
     def diag(self, X1):
         return self._bkd.full((X1.shape[1],), 1)
@@ -224,10 +227,10 @@ class ConstantKernel(Kernel):
             fixed=fixed,
             backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._const])
+        self._hyp_list = HyperParameterList([self._const])
 
     def diag(self, X1):
-        return self._bkd.full((X1.shape[1],), self.hyp_list.get_values()[0])
+        return self._bkd.full((X1.shape[1],), self._hyp_list.get_values()[0])
 
     def __call__(self, X1, X2=None):
         if X2 is None:
@@ -265,10 +268,10 @@ class GaussianNoiseKernel(Kernel):
             fixed=fixed,
             backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._const])
+        self._hyp_list = HyperParameterList([self._const])
 
     def diag(self, X):
-        return self._bkd.full((X.shape[1],), self.hyp_list.get_values()[0])
+        return self._bkd.full((X.shape[1],), self._hyp_list.get_values()[0])
 
     def __call__(self, X, Y=None):
         if Y is None:
@@ -305,7 +308,7 @@ class PeriodicMaternKernel(MaternKernel):
             period_transform,
             backend=self._bkd,
         )
-        self.hyp_list += HyperParameterList([self._period])
+        self._hyp_list += HyperParameterList([self._period])
 
     def __call__(self, X, Y=None):
         if Y is None:
@@ -343,7 +346,7 @@ class HilbertSchmidtKernel(Kernel):
             transform,
             backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._weights])
+        self._hyp_list = HyperParameterList([self._weights])
 
         self._X1, self._X2 = None, None
         self._X1basis_mat, self._X2basis_mat = None, None
@@ -392,7 +395,7 @@ class HilbertSchmidtKernel(Kernel):
     def __repr__(self):
         return "{0}({1}, inbasis={2}, outbasis={3}, bkd={4})".format(
             self.__class__.__name__,
-            self.hyp_list._short_repr(),
+            self._hyp_list._short_repr(),
             self._basis2,
             self._basis1,
             self._bkd,
@@ -483,9 +486,12 @@ class SphericalCovariance:
             angle_transform,
             backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList(
+        self._hyp_list = HyperParameterList(
             [SphericalCovarianceHyperParameter([self._radii, self._angles])]
         )
+
+    def hyp_list(self) -> HyperParameterList:
+        return self._hyp_list
 
     def _validate_bounds(self, radii_bounds, angle_bounds):
         bounds = self._trans.get_spherical_bounds()
@@ -511,12 +517,12 @@ class SphericalCovariance:
             raise ValueError("angle bounds are inconsistent")
 
     def get_covariance_matrix(self):
-        return self.hyp_list.hyper_params[0].cov_matrix
+        return self._hyp_list.hyper_params[0].cov_matrix
 
     def __call__(self, ii, jj):
         # chol factor must be recomputed each time even if hyp_values have not
         # changed otherwise gradient graph becomes inconsistent
-        return self.hyp_list.hyper_params[0].cov_matrix[ii, jj]
+        return self._hyp_list.hyper_params[0].cov_matrix[ii, jj]
 
     def __repr__(self):
         return "{0}(radii={1}, angles={2} cov={3})".format(

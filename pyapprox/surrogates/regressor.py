@@ -8,6 +8,7 @@ from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.transforms import Transform, IdentityTransform
 from pyapprox.util.visualization import get_meshgrid_samples
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class Surrogate(Model):
@@ -164,7 +165,7 @@ class OptimizedRegressor(Regressor):
         self._loss = loss
         self._loss.set_model(self)
         self._optimizer.set_objective_function(loss)
-        self._optimizer.set_bounds(self.hyp_list.get_active_opt_bounds())
+        self._optimizer.set_bounds(self.hyp_list().get_active_opt_bounds())
 
     def set_optimizer(self, optimizer: MultiStartOptimizer):
         if not isinstance(optimizer, MultiStartOptimizer):
@@ -175,6 +176,9 @@ class OptimizedRegressor(Regressor):
             )
         self._optimizer = optimizer
 
+    def hyp_list(self) -> HyperParameterList:
+        return self._hyp_list
+
     def _fit(self, iterate):
         if self._optimizer is None:
             raise RuntimeError("must call set_optimizer")
@@ -182,7 +186,7 @@ class OptimizedRegressor(Regressor):
             iterate = self._optimizer._initial_interate_gen()
         res = self._optimizer.minimize(iterate)
         active_opt_params = res.x[:, 0]
-        self.hyp_list.set_active_opt_params(active_opt_params)
+        self.hyp_list().set_active_opt_params(active_opt_params)
 
     def hyperparam_jacobian(self, active_opt_params: Array) -> Array:
         if active_opt_params.ndim != 2 and active_opt_params.shape[1] != 1:
@@ -192,7 +196,7 @@ class OptimizedRegressor(Regressor):
         return self._hyperparam_jacobian(active_opt_params)
 
     def _hyperparam_jacobian(self, active_opt_params: Array) -> Array:
-        self.hyp_list.set_active_opt_params(active_opt_params[:, 0])
+        self.hyp_list().set_active_opt_params(active_opt_params[:, 0])
         return self.basis(self._ctrain_values)
 
 

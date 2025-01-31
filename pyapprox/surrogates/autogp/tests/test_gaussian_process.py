@@ -375,7 +375,7 @@ class TestGaussianProcess:
             noise=noise,
             backend=bkd,
         )
-        inducing_samples.hyp_list.set_all_inactive()
+        inducing_samples.hyp_list().set_all_inactive()
         # use correlation length learnt by exact gp
         vi_kernel = kernel
         vi_gp = InducingGaussianProcess(
@@ -423,7 +423,7 @@ class TestGaussianProcess:
         )
         kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
 
-        nsamples_per_output = [12, 12]
+        nsamples_per_output = [40, 40]
         samples_per_output = [
             bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output
@@ -443,11 +443,19 @@ class TestGaussianProcess:
 
         # check correlation between models is estimated correctly.
         # SphericalCovariance is not guaranteed to recover the statistical
-        # correlation, but for this case it can
+        # correlation, but for this case it can (Even for cases it works it
+        # recovery depends on the number of samples per output)
         cov_matrix = output_kernel.get_covariance_matrix()
         corr_matrix = bkd.get_correlation_from_covariance(cov_matrix)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 101)))
         values = bkd.hstack([fun(samples) for fun in funs])
+        print(values.shape)
+        print(corr_matrix)
+        print(
+            bkd.get_correlation_from_covariance(
+                bkd.cov(values.T, ddof=1)
+            )
+        )
         assert np.allclose(
             corr_matrix,
             bkd.get_correlation_from_covariance(
@@ -612,13 +620,13 @@ class TestGaussianProcess:
             co_kernel,
             kernel_reg=0,
         )
-        gp_params = gp.hyp_list.get_active_opt_params()
+        gp_params = gp.hyp_list().get_active_opt_params()
 
         gp._set_training_data(samples_per_output, values_per_output)
         errors = gp._loss.check_apply_jacobian(
             gp._optimizer._initial_interate_gen()
         )
-        gp.hyp_list.set_active_opt_params(gp_params)
+        gp.hyp_list().set_active_opt_params(gp_params)
         assert errors.min() / errors.max() < 1e-6
 
         # slsqp requires feasiable initial guess. It does not throw an

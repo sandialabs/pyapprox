@@ -54,7 +54,7 @@ class LossFunction(Model):
 class RMSELoss(LossFunction):
     def _loss_values(self, active_opt_params: Array) -> Array:
         self._check_model(self._model)
-        self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
+        self._model.hyp_list().set_active_opt_params(active_opt_params[:, 0])
         return self._bkd.atleast2d(
             self._bkd.mean(
                 self._bkd.norm(

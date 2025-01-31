@@ -15,10 +15,10 @@ from pyapprox.util.linearalgebra.numpylinalg import (
     NumpyLinAlgMixin,
     LinAlgMixin,
 )
-from pyapprox.expdesign.low_discrepancy_sequences import halton_sequence
 from pyapprox.variables.transforms import IndependentMarginalsVariable
 from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
 from pyapprox.surrogates.kernels.kernels import SumKernel, Kernel
+from pyapprox.expdesign.sequences import HaltonSequence
 
 
 def _log_prob_gaussian_with_noisy_nystrom_covariance(
@@ -82,9 +82,12 @@ class InducingSamples:
                 LogHyperParameterTransform(backend=self._bkd),
             )
         self._noise = noise
-        self.hyp_list = HyperParameterList(
+        self._hyp_list = HyperParameterList(
             [self._noise, self._inducing_samples]
         )
+
+    def hyp_list(self) -> HyperParameterList:
+        return self._hyp_list
 
     def _init_inducing_samples(
         self, inducing_variable, inducing_samples, inducing_sample_bounds
@@ -96,9 +99,8 @@ class InducingSamples:
         if not inducing_variable.is_bounded_continuous_variable():
             raise ValueError("unbounded variables currently not supported")
         if inducing_samples is None:
-            inducing_samples = halton_sequence(
-                self.nvars, self.ninducing_samples
-            )
+            seq = HaltonSequence(self.nvars)
+            inducing_samples = seq.samples(self.ninducing_samples)
         if inducing_samples.shape != (self.nvars, self.ninducing_samples):
             raise ValueError("inducing_samples shape is incorrect")
 
@@ -165,31 +167,32 @@ class InducingGaussianProcess(ExactGaussianProcess):
             raise ValueError(msg)
 
         self.inducing_samples = inducing_samples
-        self.hyp_list += self.inducing_samples.hyp_list
+        self._hyp_list += self.inducing_samples.hyp_list()
         self.set_optimizer()
+        self._analytical_neg_log_likelihood_jacobian_implemented = False
 
     def _K_XU(self) -> Tuple:
-        kmat = self.kernel(
+        kmat = self._kernel(
             self._ctrain_samples, self.inducing_samples.get_samples()
         )
         return kmat
 
     def _K_UU(self) -> Tuple:
         inducing_samples = self.inducing_samples.get_samples()
-        kmat = self.kernel(inducing_samples, inducing_samples)
-        kmat = kmat + self._bkd.eye(kmat.shape[0]) * float(self.kernel_reg)
+        kmat = self._kernel(inducing_samples, inducing_samples)
+        kmat = kmat + self._bkd.eye(kmat.shape[0]) * float(self._kernel_reg)
         return kmat
 
     def _training_kernel_matrix(self):
         # there is no need for K_XX to be regularized because it is not
         # inverted. K_UU must be regularized
-        # return self.kernel(self._ctrain_samples)
+        # return self._kernel(self._ctrain_samples)
         msg = "This function should never be called because we only need "
         msg += "the diagonal of the training matrix"
         raise RuntimeError(msg)
 
     def _neg_log_likelihood(self, active_opt_params):
-        self.hyp_list.set_active_opt_params(active_opt_params)
+        self._hyp_list.set_active_opt_params(active_opt_params)
         noise_std = self.inducing_samples.get_noise()
         K_XU = self._K_XU()
         K_UU = self._K_UU()
@@ -201,7 +204,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
         )
         # add a regularization term to regularize variance noting that
         # trace of matrix sum is sum of traces
-        K_XX_diag = self.kernel.diag(self._ctrain_samples)
+        K_XX_diag = self._kernel.diag(self._ctrain_samples)
         tmp = self._bkd.solve_triangular(L_UU, K_XU.T)
         K_tilde_trace = K_XX_diag.sum() - self._bkd.trace(
             self._bkd.multidot((tmp.T, tmp))
@@ -234,8 +237,8 @@ class InducingGaussianProcess(ExactGaussianProcess):
 
         # TODO replace lamnda inv with use of cholesky factors
 
-        K_ZU = self.kernel(Z, self.inducing_samples.get_samples())
-        K_ZZ = self.kernel(Z, Z)
+        K_ZU = self._kernel(Z, self.inducing_samples.get_samples())
+        K_ZZ = self._kernel(Z, Z)
 
         # Equation (6) in Titsias 2009 or
         # Equation (11) in Vanderwilk 2020

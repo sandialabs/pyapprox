@@ -14,6 +14,7 @@ from pyapprox.surrogates.regressor import OptimizedRegressor
 from pyapprox.optimization.pya_minimize import (
     OptimizerWithObjective, MultiStartOptimizer, OptimizationResult
 )
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class FunctionTrainCore:
@@ -21,9 +22,12 @@ class FunctionTrainCore:
         self._bkd = basisexps[0][0]._bkd
         self._ranks = (len(basisexps), len(basisexps[0]))
         self._basisexps = basisexps
-        self.hyp_list = sum(
-            [bexp.hyp_list for bexps in self._basisexps for bexp in bexps]
+        self._hyp_list = sum(
+            [bexp.hyp_list() for bexps in self._basisexps for bexp in bexps]
         )
+
+    def hyp_list(self) -> HyperParameterList:
+        return self._hyp_list
 
     def __call__(self, samples):
         values = []
@@ -67,8 +71,8 @@ class FunctionTrain(OptimizedRegressor):
             if cores[ii]._ranks[-1] != cores[ii + 1]._ranks[0]:
                 raise ValueError("The inner core ranks do not match")
         self._cores = cores
-        self.hyp_list = sum([core.hyp_list for core in self._cores])
-        self._bkd = self.hyp_list._bkd
+        self._hyp_list = sum([core.hyp_list() for core in self._cores])
+        self._bkd = self._hyp_list._bkd
         self._nqoi = nqoi
         self._samples = None
 
@@ -79,20 +83,20 @@ class FunctionTrain(OptimizedRegressor):
         return self._nqoi
 
     def _core_params_eval(self, active_opt_params: Array) -> Array:
-        self.hyp_list.set_active_opt_params(active_opt_params)
+        self._hyp_list.set_active_opt_params(active_opt_params)
         return self(self._samples)
 
     def _core_jacobian_ad(self, samples: Array, core_id: int) -> List[Array]:
         """Compute Jacobian with automatic differentiation."""
         self._samples = samples
-        active_indices = self.hyp_list.get_active_indices()
+        active_indices = self._hyp_list.get_active_indices()
         for ii in range(self.nvars()):
             if ii != core_id:
-                self._cores[ii].hyp_list.set_all_inactive()
+                self._cores[ii]._hyp_list.set_all_inactive()
         jac = self._bkd.jacobian(
-            self._core_params_eval, self.hyp_list.get_active_opt_params()
+            self._core_params_eval, self._hyp_list.get_active_opt_params()
         )
-        self.hyp_list.set_active_indices(active_indices)
+        self._hyp_list.set_active_indices(active_indices)
         # create list of jacobians for each qoi
         # jac will be of shape (nsamples, nqoi, ntotal_core_active_parameters)
         # so if using basis expansion with same expansion for each core and
@@ -245,7 +249,7 @@ class AdditiveFunctionTrain(FunctionTrain):
             constant_basis, coef_bounds=[fill_value, fill_value], nqoi=nqoi
         )
         # set as inactive so they cannot be changed during optimization
-        fun.hyp_list.set_all_inactive()
+        fun.hyp_list().set_all_inactive()
         fun.set_coefficients(self._bkd.full((1, nqoi), fill_value))
         return fun
 
@@ -338,7 +342,7 @@ class AlternatingLstSqOptimizer(OptimizerWithObjective):
 
     def _create_result(self, ft, it):
         result = OptimizationResult()
-        result.x = ft.hyp_list.get_active_opt_params()[:, None]
+        result.x = ft.hyp_list().get_active_opt_params()[:, None]
         result.fun = self._objective(result.x)
         result.niters = it
         if self._verbosity > 0:
@@ -346,19 +350,19 @@ class AlternatingLstSqOptimizer(OptimizerWithObjective):
         return result
 
     def _check_active_opt_params(self, ft):
-        if ft.hyp_list.nvars() != ft.hyp_list.nactive_vars():
+        if ft.hyp_list().nvars() != ft.hyp_list().nactive_vars():
             raise ValueError(
                 "{0} only works if all hyperparameters are active {1}".format(
                     self,
                     "but nvars {0} != nactive_vars {1}".format(
-                        ft.hyp_list.nvars(), ft.hyp_list.nactive_vars()
+                        ft.hyp_list().nvars(), ft.hyp_list().nactive_vars()
                     ),
                 )
             )
 
     def _minimize(self, iterate):
         ft = self._objective._model
-        ft.hyp_list.set_active_opt_params(iterate[:, 0])
+        ft.hyp_list().set_active_opt_params(iterate[:, 0])
         samples = ft._ctrain_samples
         values = ft._ctrain_values
         self._bkd = ft._bkd
@@ -370,14 +374,14 @@ class AlternatingLstSqOptimizer(OptimizerWithObjective):
         while True:
             for ii in range(ft.nvars()):
                 coefs = self._solve_core(samples, values, ii)
-                ft._cores[ii].hyp_list.set_active_opt_params(coefs)
+                ft._cores[ii].hyp_list().set_active_opt_params(coefs)
             it += 1
             if it >= self._maxiters:
                 if self._verbosity > 0:
                     print(f"Terminating: maxiters {self._maxiters} reached")
                 break
             loss = self._objective(
-                ft.hyp_list.get_active_opt_params()[:, None]
+                ft.hyp_list().get_active_opt_params()[:, None]
             )
             if self._verbosity > 1:
                 print("it {0}: \t loss {1}".format(it, loss))
