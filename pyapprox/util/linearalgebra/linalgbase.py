@@ -831,3 +831,7 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def split(mat, splits, axis=0):
         raise NotImplementedError
+
+    @staticmethod
+    def isbackend():
+        return True

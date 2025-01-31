@@ -498,8 +498,7 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
 
 class ConstraintPenalizedObjective(Model):
     def __init__(self, unconstrained_objective, constraints):
-        super().__init__(self)
-        self._bkd = unconstrained_objective._bkd
+        super().__init__(unconstrained_objective._bkd)
         self._unconstrained_objective = unconstrained_objective
         self._constraints = constraints
         self._penalty = None

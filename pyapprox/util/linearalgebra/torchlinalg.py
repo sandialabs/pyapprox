@@ -193,7 +193,10 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def copy(mat: torch.Tensor) -> torch.Tensor:
-        return mat.clone()
+        # return mat.clone() will copy requires_grad field so that
+        # gradients will flow back from the result of this operation to
+        # instead detach copy from graph
+        return mat.detach().clone()
 
     @staticmethod
     def get_diagonal(mat: torch.Tensor) -> torch.Tensor:

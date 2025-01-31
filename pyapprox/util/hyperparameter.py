@@ -135,12 +135,11 @@ class HyperParameter:
         """
         Set the values of the active parameters in the optimization space.
         """
-        # The copy ensures that the error
-        # "a leaf Variable that requires grad is being used in an in-place
-        # operation is not thrown
+        if active_params.ndim != 1:
+            raise ValueError("active_params must be a 1D array")
+        # Copy detaches self._values from graph as we only want gradient
+        # with respect to active_opt_params
         self._values = self._bkd.copy(self._values)
-        # self._values[self._active_indices] = self.transform.from_opt_space(
-        #    active_params)
         self._values = self._bkd.up(
             self._values,
             self._active_indices,

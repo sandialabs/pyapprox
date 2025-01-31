@@ -82,6 +82,8 @@ class Model(ABC):
     """
 
     def __init__(self, backend=NumpyLinAlgMixin):
+        if not hasattr(backend, "isbackend"):
+            raise ValueError("backend must be derived from LinAlgBase")
         self._bkd = backend
 
         # TODO: Make variables below functions that can be overwritten

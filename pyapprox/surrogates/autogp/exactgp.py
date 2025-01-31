@@ -23,9 +23,10 @@ from pyapprox.interface.model import ScipyModelWrapper, Model
 
 class GPNegLogLikelihoodLoss(LossFunction):
     def _loss_values(self, active_opt_params):
-        return self._model._neg_log_likelihood(
+        vals = self._model._neg_log_likelihood(
             active_opt_params[:, 0]
         )[:, None]
+        return vals
 
     def _check_model(self, model):
         if not isinstance(ExactGaussianProcess):
@@ -33,6 +34,11 @@ class GPNegLogLikelihoodLoss(LossFunction):
                 "model must be an instance of ExactGaussianProcess"
             )
         super()._check_model(model)
+
+    def _jacobian(self, active_opt_params: Array) -> Array:
+        return self._model._jacobian_neg_log_likelihood_with_hyperparameter_trend(
+            active_opt_params[:, 0]
+        )
 
 
 class ExactGaussianProcess(OptimizedRegressor):
@@ -109,7 +115,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         return kmat
 
     def _training_kernel_jacobian(self):
-        return self.kernel.jac(self._ctrain_samples)
+        return self.kernel.jacobian(self._ctrain_samples)
 
     def _factor_training_kernel_matrix(self):
         # can be specialized
@@ -126,11 +132,17 @@ class ExactGaussianProcess(OptimizedRegressor):
         )
         return self._bkd.cholesky_solve(args[0], diff)
 
-    def _Linv_y(self, *args):
+    def _Linv_y(self, *args) -> Array:
         diff = self._ctrain_values - self._canonical_trend(
             self._ctrain_samples
         )
         return self._bkd.solve_triangular(args[0], diff)
+
+    def _Kinv_y(self, Kinv: Array) -> Array:
+        diff = self._ctrain_values - self._canonical_trend(
+            self._ctrain_samples
+        )
+        return Kinv @ diff
 
     def _log_determinant(self, coef_res: Tuple) -> float:
         # can be specialized when _factor_training_kernel_matrix is specialized
@@ -169,16 +181,29 @@ class ExactGaussianProcess(OptimizedRegressor):
         Linv = self._bkd.solve_triangular(Lmat, rhs, lower=True)
         return Linv
 
-    def _jacobian_neg_log_likelihood_with_hyperparameter_trend(self) -> Array:
+    def _jacobian_neg_log_likelihood_with_hyperparameter_trend(
+            self, active_opt_params: Array
+    ) -> Array:
+        self.hyp_list.set_active_opt_params(active_opt_params)
+        # First compute jacobian with respect to kernel parameters
         # TODO this recomputes cholesky factorization
         coef_args = self._factor_training_kernel_matrix()
         Linv = self._cholesky_inverse(coef_args[0])
-        Linv_y = self._Linv_y(coef_args[0])
         Kinv = Linv.T @ Linv
-        Mat = (Linv_y @ Linv_y.T - Kinv)
+        Kinv_y = self._Kinv_y(Kinv)
+        Mat = (Kinv_y @ Kinv_y.T - Kinv)
         Kjac = self._training_kernel_jacobian()
-        jac = 0.5 * self._bkd.einsum("ij,jik->k", Mat, Kjac)
-        return jac[None, :]
+        kernel_jac = -0.5 * self._bkd.einsum("ij,jik->k", Mat, Kjac)
+        if self.trend is None:
+            return kernel_jac[None, :]
+        # Second compute jacobian with respect to trend parameters
+        # __init__ adds trend parameters to hyperlist last so
+        # just concatenate trend jacobian at the end of kernel jacobian
+        trend_jac = -Kinv_y.T @ self.trend.basis(
+            self._ctrain_samples
+        )
+        jac = self._bkd.hstack((kernel_jac[None, :],  trend_jac))
+        return jac
 
     def _neg_log_likelihood_with_uncertain_trend(self) -> float:
         # See Equation 2.45 in Rasmussen's Book

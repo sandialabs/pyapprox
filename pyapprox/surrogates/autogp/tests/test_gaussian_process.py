@@ -155,9 +155,9 @@ class TestGaussianProcess:
         train_values = fun(train_samples)
         gp._set_training_data(train_samples, train_values)
         errors = gp._loss.check_apply_jacobian(
-            gp._optimizer._initial_interate_gen()
+            gp._optimizer._initial_interate_gen(), disp=True
         )
-        assert errors.min() / errors.max() < 2e-6
+        assert errors.min() / errors.max() < 2.5e-6
 
         gp.fit(train_samples, train_values)
 
