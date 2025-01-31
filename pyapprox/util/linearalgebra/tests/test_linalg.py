@@ -11,6 +11,9 @@ from pyapprox.util.linearalgebra.linalg import (
 
 
 class TestLinalg:
+    def setUp(self):
+        np.random.seed(1)
+    
     def test_update_cholesky_decomposition(self):
         bkd = self.get_backend()
         nvars = 5
@@ -103,18 +106,12 @@ class TestLinalg:
         assert np.allclose(factorizer2.pivots(), factorizer1.pivots())
 
 
-class TestNumpyLinalg(unittest.TestCase, TestLinalg):
-    def setUp(self):
-        np.random.seed(1)
-
+class TestNumpyLinalg(TestLinalg, unittest.TestCase):
     def get_backend(self):
         return NumpyLinAlgMixin
 
 
-class TestTorchLinalg(unittest.TestCase, TestLinalg):
-    def setUp(self):
-        np.random.seed(1)
-
+class TestTorchLinalg(TestLinalg, unittest.TestCase):
     def get_backend(self):
         return TorchLinAlgMixin
 
