@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-
-# from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.bases.multiindex import (
     DoublePlusOneIndexGrowthRule,
     IterativeIndexGenerator,
@@ -133,7 +132,6 @@ class TestCombination:
         sg = AdaptiveCombinationSparseGrid(nqoi)
         sg.set_basis(basis)
         subspace_gen = IterativeIndexGenerator(nvars, backend=bkd)
-        subspace_gen.set_verbosity(0)
         # TODO add admissiblity function that sets max budget on sparse grid
         sg.set_subspace_generator(subspace_gen, growth_rule)
         sg.set_subspace_admissibility_criteria(
@@ -141,6 +139,7 @@ class TestCombination:
         )
         sg.set_refinement_criteria(LevelRefinementCriteria())
         sg.set_initial_subspace_indices()
+        sg.set_verbosity(0)
         sg.build(fun)
 
         assert sg.train_samples().shape[1] == fun.nterms()
@@ -156,7 +155,7 @@ class TestCombination:
     ):
         bkd = self.get_backend()
         bounds = [-1, 1]
-        node_gen = DydadicEquidistantNodeGenerator()
+        node_gen = DydadicEquidistantNodeGenerator(bkd)
         bases_1d = [
             setup_univariate_piecewise_polynomial_basis(
                 bt, bounds, backend=bkd, node_gen=node_gen
@@ -164,7 +163,7 @@ class TestCombination:
             for bt in ["linear"] * nvars
         ]
         basis = TensorProductInterpolatingBasis(bases_1d)
-        sg = LocallyAdaptiveCombinationSparseGrid(nqoi)
+        sg = LocallyAdaptiveCombinationSparseGrid(nqoi, backend=bkd)
 
         class CustomLocalRefinementCriteria(LocalRefinementCriteria):
             def _priority(self, subspace_index):
@@ -286,13 +285,10 @@ class TestCombination:
                 and key not in sg._basis_gen._cand_basis_indices_dict
             ):
                 idx.append(sg._basis_gen._basis_indices_dict[key][0])
-                print(basis_index)
         assert bkd.allclose(
             sg.train_values()[idx], bkd.zeros((len(idx), sg.nqoi()))
         )
         sg.plot_grid(plt.figure().gca())
-
-
 
 
 class TestNumpyCombination(TestCombination, unittest.TestCase):
@@ -300,9 +296,9 @@ class TestNumpyCombination(TestCombination, unittest.TestCase):
         return NumpyLinAlgMixin
 
 
-# class TestTorchCombination(TestCombination, unittest.TestCase):
-#     def get_backend(self):
-#         return TorchLinAlgMixin
+class TestTorchCombination(TestCombination, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

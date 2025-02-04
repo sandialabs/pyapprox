@@ -126,9 +126,9 @@ class PivotedCholeskyFactorizer:
         return pivot
 
     def _is_positive_semi_definite(self, ii: int) -> bool:
-        if self._diag[self._pivots[ii]] <= 0:
+        if self._diag[self._pivots[ii]] <= 1e-14:
             self._chol_flag = 3
-            raise Exception("matrix is not positive definite")
+            raise RuntimeError("matrix is not positive definite")
         return True
 
     def update(self, npivots: int) -> Array:
@@ -141,8 +141,7 @@ class PivotedCholeskyFactorizer:
         for ii in self._bkd.arange(self._ncompleted_pivots, npivots):
             pivot = self._compute_pivot(Amat, ii)
             swap_rows(self._pivots, ii, pivot, self._bkd)
-            if not self._is_positive_semi_definite(ii):
-                return self._L
+            self._is_positive_semi_definite(ii)
 
             self._L[self._pivots[ii], ii] = self._bkd.sqrt(
                 self._diag[self._pivots[ii]]

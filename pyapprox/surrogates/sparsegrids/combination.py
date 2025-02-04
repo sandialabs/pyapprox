@@ -1,10 +1,10 @@
-import math
 import heapq
 from abc import ABC, abstractmethod
 
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.surrogates.bases.multiindex import (
     HyperbolicIndexGenerator,
@@ -14,7 +14,8 @@ from pyapprox.surrogates.bases.multiindex import (
 )
 from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
 from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
-from pyapprox.surrogates.regressor import Regressor
+from pyapprox.surrogates.regressor import Regressor, AdaptiveRegressorMixin
+from pyapprox.interface.model import Model
 
 
 class PriorityQueue:
@@ -72,8 +73,9 @@ def _compute_smolyak_coefficients(sg, indices):
 
 
 class CombinationSparseGrid(Regressor):
-    def __init__(self, nqoi, backend=NumpyLinAlgMixin):
+    def __init__(self, nqoi, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend=backend)
+        self._verbosity = 0
         self._nqoi = nqoi
 
         self._subspace_gen = None
@@ -99,11 +101,20 @@ class CombinationSparseGrid(Regressor):
 
     def set_subspace_generator(self, subspace_gen, growth_rules):
         self._subspace_gen = subspace_gen
-        self._set_basis_index_generator(growth_rules)
         self._bkd = self._subspace_gen._bkd
+        self._set_basis_index_generator(growth_rules)
         self._smolyak_coefs = self._bkd.zeros(0)
         self._train_samples = self._bkd.zeros((self.nvars(), 0))
         self._train_values = self._bkd.zeros((0, self.nqoi()))
+
+    def set_verbosity(self, verbosity: int):
+        self._verbosity = verbosity
+        if self._subspace_gen is None:
+            raise ValueError(
+                "Cannot set verbosity until self.set_subspace_generator()"
+                " is called"
+            )
+        self._subspace_gen.set_verbosity(verbosity-1)
 
     def set_basis(self, basis):
         if not isinstance(basis, TensorProductInterpolatingBasis):
@@ -230,17 +241,17 @@ class CombinationSparseGrid(Regressor):
 class IsotropicCombinationSparseGrid(CombinationSparseGrid):
     def __init__(
         self,
-        nqoi,
-        nvars,
-        max_level,
+        nqoi: int,
+        nvars: int,
+        max_level: int,
         growth_rules,
         basis,
-        backend=NumpyLinAlgMixin,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         super().__init__(nqoi, backend=backend)
         self._set_basis(basis)
         self._set_subspace_generator(
-            HyperbolicIndexGenerator(nvars, max_level, 1.0, self._bkd),
+            HyperbolicIndexGenerator(nvars, max_level, 1.0, backend=self._bkd),
             growth_rules,
         )
 
@@ -290,7 +301,7 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid):
                 verticalalignment="center",
             )
 
-    def _fit(self, iterate):
+    def _fit(self, iterate: Array):
         self._train_values = self._out_trans.map_from_canonical(
             self._ctrain_values
         )
@@ -357,14 +368,16 @@ class SparseGridMaxCostBasisAdmissibilityCriteria(
 
     def _sparse_grid_cost(self):
         return self._bkd.sum(
-            [
-                self.cost_per_sample(
-                    self._sg._basis_gen._subspace_index_from_basis_index(
-                        basis_index
+            self._bkd.asarray(
+                [
+                    self.cost_per_sample(
+                        self._sg._basis_gen._subspace_index_from_basis_index(
+                            basis_index
+                        )
                     )
-                )
-                for basis_index in self._sg._basis_gen.get_indices().T
-            ]
+                    for basis_index in self._sg._basis_gen.get_indices().T
+                ]
+            )
         )
 
     def __call__(self, basis_index, subspace_index):
@@ -418,7 +431,9 @@ class LevelRefinementCriteria(RefinementCriteria):
         error = np.inf
         # priority queue gives higher priority to smaler values
         # so this will add subspaces wih lower l1 norm first
-        priority = self._bkd.sum(subspace_index)
+        priority = self._bkd.sum(
+            self._bkd.asarray(subspace_index, dtype=self._bkd.double_type())
+        )
         return error, priority
 
 
@@ -426,12 +441,12 @@ class VarianceRefinementCriteria(RefinementCriteria):
     def _priority(self, subspace_index):
         # priority queue gives higher priority to smaler values
         # so this will add subspaces wih lower l1 norm first
-        priority = self._bkd.sum(subspace_index)
-        error = np.inf
-        return error, priority
+        raise NotImplementedError
 
 
-class AdaptiveCombinationSparseGrid(CombinationSparseGrid):
+class AdaptiveCombinationSparseGrid(
+        CombinationSparseGrid, AdaptiveRegressorMixin
+):
     def __init__(self, nqoi, backend=NumpyLinAlgMixin):
         super().__init__(nqoi, backend)
         self._last_subspace_indices = None
@@ -547,7 +562,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid):
                 return self._setup_subspaces(new_subspace_indices, True)
         return None
 
-    def step_samples(self):
+    def step_samples(self) -> Array:
         if self._first_step:
             return self._first_step_samples()
         return self._step_samples()
@@ -568,7 +583,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid):
             self._subspace_surrogates[subspace_idx].fit(subspace_values)
         self._prioritize_candidate_subspaces()
 
-    def step(self, fun):
+    def step(self, fun: Model) -> bool:
         unique_samples = self.step_samples()
         if unique_samples is None:
             return False
@@ -576,17 +591,14 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid):
         self.step_values(unique_values)
         return True
 
-    def build(self, fun):
-        while self.step(fun):
-            pass
-
 
 class LocalIndexGenerator(BasisIndexGenerator):
-    def __init__(self, gen, growth_rules):
+    def __init__(self, gen, growth_rules, verbosity=0):
         super().__init__(gen, growth_rules)
         self._sel_basis_indices_dict = dict()
         self._cand_basis_indices_dict = dict()
         self._admis_fun = None
+        self._verbosity = verbosity
 
     def _subspace_index_from_basis_index(self, basis_index):
         subspace_idx = self._basis_indices_dict[
@@ -696,12 +708,14 @@ class LocalIndexGenerator(BasisIndexGenerator):
             if self._is_admissible(left_basis, left_subspace):
                 new_cand_basis_indices.append(left_basis)
                 subspace_indices_of_cand_bases.append(left_subspace)
-                print("Add left", basis_index, left_basis, dim_id)
+                if self._verbosity > 1:
+                    print("Add left", basis_index, left_basis, dim_id)
             right_basis, right_subspace = self._right_neighbor(
                 basis_index, subspace_index, dim_id
             )
             if self._is_admissible(right_basis, right_subspace):
-                print("Add right", basis_index, right_basis, dim_id)
+                if self._verbosity > 1:
+                    print("Add right", basis_index, right_basis, dim_id)
                 new_cand_basis_indices.append(right_basis)
                 subspace_indices_of_cand_bases.append(right_subspace)
         if len(new_cand_basis_indices) > 0:
@@ -715,12 +729,12 @@ class LocalIndexGenerator(BasisIndexGenerator):
         )
 
     def refine_basis_index(self, basis_index):
-        # if self._verbosity > 0:
         subspace_index = self._subspace_index_from_basis_index(
             basis_index
         )[0]
-        print(f"Refining basis index {basis_index} from subspace"
-              f" {subspace_index}")
+        if self._verbosity > 0:
+            print(f"Refining basis index {basis_index} from subspace"
+                  f" {subspace_index}")
         basis_key = self._hash_index(basis_index)
         # update candidate subspaces
         if (
@@ -929,7 +943,9 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         self._refine_criteria.set_sparse_grid(self)
 
     def _set_basis_index_generator(self, growth_rules):
-        self._basis_gen = LocalIndexGenerator(self._subspace_gen, growth_rules)
+        self._basis_gen = LocalIndexGenerator(
+            self._subspace_gen, growth_rules, self._verbosity
+        )
 
     def set_subspace_generator(self, subspace_gen):
         super().set_subspace_generator(

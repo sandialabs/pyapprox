@@ -131,8 +131,9 @@ class ExactGaussianProcess(OptimizedRegressor):
         kmat = self._training_kernel_matrix()
         try:
             return (self._bkd.cholesky(kmat),)
-        except:
-            return None, kmat
+        except Exception as e:
+            raise e
+            # return None, kmat
 
     def _solve_coefficients(self, *args) -> Tuple:
         # can be specialized when _factor_training_kernel_matrix is specialized

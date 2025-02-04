@@ -979,7 +979,7 @@ def setup_univariate_piecewise_polynomial_basis(
                 basis_type, list(basis_dict.keys())
             )
         )
-    return basis_dict[basis_type](bounds, node_gen, trans, backend)
+    return basis_dict[basis_type](bounds, node_gen, trans, backend=backend)
 
 
 class UnivariateIntegrator(ABC):

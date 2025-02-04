@@ -223,7 +223,7 @@ class IterativeIndexGenerator(IndexGenerator):
                         return False
         return True
 
-    def set_verbosity(self, verbosity):
+    def set_verbosity(self, verbosity: int):
         self._verbosity = verbosity
 
     def set_admissibility_function(self, fun):
@@ -301,8 +301,8 @@ class IterativeIndexGenerator(IndexGenerator):
         return len(self._cand_indices_dict)
 
     def _get_selected_idx(self):
-        return self._bkd.hstack(
-            [item for key, item in self._sel_indices_dict.items()])
+        return self._bkd.atleast1d(
+            [item for key, item in self._sel_indices_dict.items()], dtype=int)
 
     def get_selected_indices(self):
         idx = self._get_selected_idx()
@@ -368,7 +368,7 @@ class MaxLevelAdmissibilityCriteria(AdmissibilityCriteria):
         ):
             return False
         if (
-                self._max_1d_levels is not None and 
+                self._max_1d_levels is not None and
                 self._bkd.where(
                     index[index > 0] == self._max_1d_levels[index > 0]
                 )[0].shape[0] > 1
@@ -384,7 +384,7 @@ class HyperbolicIndexGenerator(IterativeIndexGenerator):
         super().__init__(nvars, backend=backend)
         self.set_admissibility_function(
             MaxLevelAdmissibilityCriteria(
-                max_level, pnorm, max_1d_levels, backend
+                max_level, pnorm, max_1d_levels, backend=backend
             )
         )
 
@@ -615,7 +615,7 @@ class IsotropicSGIndexGenerator(BasisIndexGenerator):
     def __init__(
             self, nvars, max_level, growth_rules, backend=NumpyLinAlgMixin
     ):
-        gen = HyperbolicIndexGenerator(nvars, max_level, 1., backend)
+        gen = HyperbolicIndexGenerator(nvars, max_level, 1., backend=backend)
         super().__init__(gen, growth_rules)
 
     def step(self):

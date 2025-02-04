@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 import pickle
 
 from pyapprox.interface.model import Model
@@ -149,6 +149,29 @@ class Regressor(Surrogate):
 
     def get_train_values(self):
         return self._out_trans.map_to_canonical(self._ctrain_samples)
+
+
+class AdaptiveRegressorMixin(ABC):
+    @abstractmethod
+    def step_samples(self) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def step_values(self, values: Array):
+        raise NotImplementedError
+
+    def step(self, fun: Model) -> bool:
+        unique_samples = self.step_samples()
+        if unique_samples is None:
+            return False
+        unique_values = fun(unique_samples)
+        self.step_values(unique_values)
+        return True
+
+    def build(self, fun: Model):
+        # step implements termination criteria
+        while self.step(fun):
+            pass
 
 
 class OptimizedRegressor(Regressor):
