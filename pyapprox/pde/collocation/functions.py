@@ -363,11 +363,6 @@ class ScalarOperator:
         return self.basis().interpolate(values, eval_samples)[:, 0]
 
     def integrate(self):
-        # self.basis().quadrature_rule() return Gauss Legendre rule
-        # use this to integrate lagrange basis
-        # xx, ww = self.basis().quadrature_rule()
-        # values = self(xx)
-        # return self._bkd.sum(values * ww[:, 0])
         return self.get_values() @ self.basis().quadrature_rule_at_mesh_pts()[1]
 
     def _plot_1d(self, ax, nplot_pts_1d, **kwargs):

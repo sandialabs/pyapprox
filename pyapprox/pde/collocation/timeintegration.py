@@ -896,11 +896,11 @@ class ImplicitTimeIntegrator:
 
     def __repr__(self):
         return (
-            "{0}(init_time={1}, final_time={2}, deltat={3}, residual={4})"
+            "{0}(init_time={1}, final_time={2}, deltat={3}, timestep={4})"
         ).format(
             self.__class__.__name__,
             self._init_time,
             self._final_time,
             self._deltat,
-            self.time_residual._residual,
+            self.time_residual
         )

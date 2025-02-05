@@ -7,6 +7,7 @@ from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.collocation.adjoint_models import (
     TransientAdjointFunctional,
+    AdjointFunctional,
     TransientAdjointModel,
 )
 from pyapprox.pde.collocation.timeintegration import (
@@ -67,6 +68,51 @@ from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
     ScaleAndTranslationTransform2D,
 )
+
+
+class TransientSolutionTimeSnapshotFunctional(TransientAdjointFunctional):
+    """Return all the states at one time step"""
+    def __init__(
+            self, model: TransientAdjointCollocationModel, timestep_idx: int
+    ):
+        self._model = model
+        self._timestep_idx = timestep_idx
+
+    def nqoi(self) -> int:
+        return self._model._basis.mesh().nmesh_pts()
+
+    def nparams(self) -> int:
+        self._model.nvars()
+
+    def nstates(self) -> int:
+        return self._model._basis.mesh().nmesh_pts()
+
+    def nunique_functional_params(self) -> int:
+        return 0
+
+    def _value(self, sol: Array) -> Array:
+        return sol[:, self._timestep_idx]
+
+
+class SteadySolutionFunctional(AdjointFunctional):
+    """Return all the states."""
+    def __init__(self, model: SteadyAdjointCollocationModel):
+        self._model = model
+
+    def nqoi(self) -> int:
+        return self._model._basis.mesh().nmesh_pts()
+
+    def nparams(self) -> int:
+        self._model.nvars()
+
+    def nstates(self) -> int:
+        return self._model._basis.mesh().nmesh_pts()
+
+    def nunique_functional_params(self) -> int:
+        return 0
+
+    def _value(self, sol: Array) -> Array:
+        return sol
 
 
 class ParameterizedDiffusionPhysics(
@@ -1098,7 +1144,7 @@ class TransientViscousBurgers1DModel(TransientAdjointCollocationModel):
         self._jacobian_implemented = True
 
     def nvars(self) -> int:
-        return self._physics.nvars()
+        return self._init_cond.kle().nterms()
 
     def setup_physics(self):
         self.setup_initial_condition()
@@ -1197,7 +1243,7 @@ class SteadyDarcy2DKLEModel(SteadyAdjointCollocationModel):
         transform = ScaleAndTranslationTransform2D(
             [-1, 1, -1, 1], bounds, self._bkd
         )
-        mesh = ChebyshevCollocationMesh2D([16, 16], transform)
+        mesh = ChebyshevCollocationMesh2D([20, 20], transform)
         self._basis = ChebyshevCollocationBasis2D(mesh)
 
     def setup_boundaries(self):

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-from scipy.linalg import eigh
 from scipy.spatial.distance import pdist, squareform
 import numpy as np
 from scipy.optimize import brenth
@@ -340,37 +339,52 @@ class AbstractKLE(ABC):
         """
         K = self._compute_kernel_matrix()
         if self._quad_weights is None:
-            # always compute eigenvalue decomposition using scipy because
-            # it can be used to only compute subset of eigenvectors
-            # then we cast these back to correct linalg type. The downside
-            # is that we cannot use autograd on quantities used to construct K.
-            # but the need for this is unlikely
-            eig_vals, eig_vecs = eigh(
-                self._bkd.to_numpy(K),  # turbo=False,
-                subset_by_index=(K.shape[0] - self._nterms, K.shape[0] - 1),
+            # scipy.linalg.eigh is inconsisent across platforms. Found
+            # this running test_pde.test_pyapprox_paper_inversion_benchmark
+            # always compute eigenvalue decomposition using numpy to
+            # ensure results do not vary across platforms. Ordering
+            # of eigenvectors for repeated eigenvalues matters to KLE.
+            # The downside is that we cannot use autograd on quantities
+            # used to construct K but the need for this is unlikely
+            eig_vals, eig_vecs = np.linalg.eigh(
+                self._bkd.to_numpy(K)
             )
+            eig_vals = eig_vals[-self._nterms:]
+            eig_vecs = eig_vecs[:, -self._nterms:]
             eig_vals = self._bkd.atleast1d(eig_vals)
             eig_vecs = self._bkd.atleast2d(eig_vecs)
         else:
             # see https://etheses.lse.ac.uk/2950/1/U615901.pdf
             # page 42
             sqrt_weights = self._bkd.sqrt(self._quad_weights)
-            sym_eig_vals, sym_eig_vecs = eigh(
+            sym_eig_vals, sym_eig_vecs = np.linalg.eigh(
                 self._bkd.to_numpy(sqrt_weights[:, None] * K * sqrt_weights),
-                subset_by_index=(K.shape[0] - self._nterms, K.shape[0] - 1),
             )
+            sym_eig_vals = sym_eig_vals[-self._nterms:]
+            sym_eig_vecs = sym_eig_vecs[:, -self._nterms:]
             sym_eig_vals = self._bkd.atleast1d(sym_eig_vals)
             sym_eig_vecs = self._bkd.atleast2d(sym_eig_vecs)
             eig_vecs = 1 / sqrt_weights[:, None] * sym_eig_vecs
             eig_vals = sym_eig_vals
-        eig_vecs = adjust_sign_eig(eig_vecs)
-        II = self._bkd.flip(self._bkd.argsort(eig_vals))[: self._nterms]
+        II = self._bkd.flip(self._bkd.argsort(eig_vals))
+        # sort eigvals for repeated eigvals up to 1e-12 sort by magnitude
+        # of first entry in the eigvec. This avoids some cross platform
+        # differences. However running some kle with numpy and torch
+        # can still cause differences due to rounding error
+        tuples = zip(
+            np.arange(self._nterms, dtype=int),
+            np.round(eig_vals, decimals=12),
+            -self._bkd.abs(eig_vecs[0, :]),
+        )
+        tuples = sorted(tuples, key=lambda tup: (tup[1], tup[2]), reverse=True)
+        II = [tup[0] for tup in tuples]
+        eig_vecs = adjust_sign_eig(eig_vecs[:, II])
         assert self._bkd.all(eig_vals[II] > 0), (
             eig_vals[II],
             self._bkd.where(eig_vals[II] <= 0)[0],
         )
         self._sqrt_eig_vals = self._bkd.sqrt(eig_vals[II])
-        self._eig_vecs = eig_vecs[:, II]
+        self._eig_vecs = eig_vecs
         self._eig_vecs *= self._sqrt_eig_vals
 
     def __call__(self, coef):

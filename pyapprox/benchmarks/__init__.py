@@ -26,6 +26,7 @@ from pyapprox.benchmarks.ode import (
 from pyapprox.benchmarks.pde import (
     PyApproxPaperAdvectionDiffusionKLEInversionBenchmark,
     TransientViscousBurgers1DOperatorBenchmark,
+    SteadyDarcy2DOperatorBenchmark,
 )
 
 __all__ = [
@@ -46,4 +47,5 @@ __all__ = [
     "HastingsEcologyBenchmark",
     "PyApproxPaperAdvectionDiffusionKLEInversionBenchmark",
     "TransientViscousBurgers1DOperatorBenchmark",
+    "SteadyDarcy2DOperatorBenchmark",
 ]

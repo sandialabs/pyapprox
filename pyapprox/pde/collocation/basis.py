@@ -52,7 +52,9 @@ class OrthogonalCoordinateCollocationBasis(ABC):
     def _set_quadrature_rule(self):
         self._orth_quadrature_rule = FixedTensorProductQuadratureRule(
             self.nphys_vars(),
-            [GaussLegendreQuadratureRule([-1, 1], backend=self._bkd)] * self.nphys_vars(),
+            [
+                GaussLegendreQuadratureRule([-1, 1], backend=self._bkd)
+            ] * self.nphys_vars(),
             self._bkd.asarray(self.mesh()._npts_1d)+1,
         )
 
@@ -147,8 +149,12 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
         )
 
     def quadrature_rule(self):
-        # This will integrate with respect to chebyshev measures
+        # Compute quadrature points and weight respect to lebesque measure
+
+        # do not use the following which computes a chebyshev quadrule
+        # with respect to chebyshev measure
         # orth_xx, orth_ww = self._bexp._basis.quadrature_rule()
+
         orth_xx, orth_ww = self._orth_quadrature_rule()
         xx = self.mesh().trans().map_from_orthogonal(orth_xx)
         ww = self.mesh().trans().modify_quadrature_weights(orth_xx, orth_ww)

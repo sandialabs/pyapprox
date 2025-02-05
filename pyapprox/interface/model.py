@@ -1324,17 +1324,17 @@ class PoolModelWrapper(Model):
     are not yet supported
     """
     def __init__(self, model: Model, nprocs: int, assert_omp: bool = True):
-        print(model)
         if not isinstance(model, Model):
             raise ValueError("model must be an instance of Model")
         super().__init__(model._bkd)
         if assert_omp and nprocs > 1:
             if ('OMP_NUM_THREADS' not in os.environ or
                     not int(os.environ['OMP_NUM_THREADS']) == 1):
-                msg = "User set assert_omp=True but OMP_NUM_THREADS "
-                "has not been set to 1. Run script with "
-                "OMP_NUM_THREADS=1 python script.py"
-            raise Exception(msg)
+                raise Exception(
+                    "User set assert_omp=True but OMP_NUM_THREADS "
+                    "has not been set to 1. Run script with "
+                    "OMP_NUM_THREADS=1 python script.py"
+                )
 
         self._model = model
         self._nprocs = nprocs
@@ -1344,8 +1344,10 @@ class PoolModelWrapper(Model):
 
     def _values(self, samples: Array) -> Array:
         pool = Pool(self._nprocs)
+        # call _values (instead of __call__) so times are not recorded twice)
+        # once by the wrapper and once by model.__call__
         result = pool.map(
-            self._model,
+            self._model._values,
             [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
         pool.close()
         return self._bkd.vstack(result)

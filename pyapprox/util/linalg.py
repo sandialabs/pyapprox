@@ -112,8 +112,8 @@ def adjust_sign_svd(U, V, adjust_based_upon_U=True):
 
 def adjust_sign_eig(U):
     r"""
-    Ensure uniquness of eigenvalue decompotision by ensuring the first entry
-    of the first singular vector of U is positive.
+    Ensure uniquness of eigenvalue decompotision by ensuring the largest
+    (magnitude) entry of the first singular vector of U is positive.
 
     Parameters
     ----------
@@ -127,7 +127,8 @@ def adjust_sign_eig(U):
        left singular vectors with first entry of the first
        singular vector always being positive.
     """
-    s = np.sign(U[0, :])
+    idx = np.argmax(np.abs(U[0, :]))
+    s = np.sign(U[idx, :])
     II = np.where(s == 0)[0]
     s[II] = 1.0
     U *= s

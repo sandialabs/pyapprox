@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 import matplotlib.pyplot as plt
 
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.benchmarks.pde import (
     PyApproxPaperAdvectionDiffusionKLEInversionBenchmark,
@@ -16,6 +17,10 @@ class TestPDEBenchmarks:
         np.random.seed(1)
 
     def test_pyapprox_paper_inversion_benchmark(self):
+        # This test picked up cross platform differences in KLE
+        # caused by differences in scipy.linalg.eigh. That function
+        # was replaced but keep test as is here to make sure that issue
+        # does not resurface
         bkd = self.get_backend()
         np.random.seed(1)
         benchmark = PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
@@ -24,13 +29,18 @@ class TestPDEBenchmarks:
         sample = benchmark.variable().rvs(1)
         sol = benchmark.model().forward_solve(sample)
         # regression test
-        assert np.allclose(bkd.max(sol), -3.2342921)
-        assert np.allclose(bkd.norm(sol), 166.6196595)
+        # import torch
+        # torch.set_printoptions(precision=8)
+        assert np.allclose(bkd.max(sol), -2.82280765)
+        assert np.allclose(bkd.norm(sol), 167.32975628280943)
         # test plots run
         ax = plt.subplots(1)[1]
         benchmark.model().physics().solution_from_array(sol).plot(
             ax, npts_1d=100, levels=20, cmap="coolwarm"
         )
+
+        if not bkd.jacobian_implemented():
+            return
         # test gradient and hessian
         x0 = benchmark.true_params() + 1e-2
         errors = benchmark.model().check_apply_jacobian(x0)
@@ -53,13 +63,21 @@ class TestPDEBenchmarks:
         sample = benchmark.variable().rvs(1)
         sol = benchmark.model().forward_solve(sample)
         # regression test
-        assert np.allclose(bkd.max(sol.get_values()), 0.0502538)
-        assert np.allclose(bkd.norm(sol.get_values()), 0.3568277)
+        print(bkd.max(sol.get_values()), bkd.norm(sol.get_values()))
+        # difference between torch and numpy when computing kle eig
+        # decomposition mean that we can only achieve consistenty to 4 digits
+        assert np.allclose(bkd.max(sol.get_values()), 0.0436, atol=1e-4)
+        assert np.allclose(bkd.norm(sol.get_values()), 0.2935, atol=1e-4)
 
 
 class TestTorchPDEBenchmarks(TestPDEBenchmarks, unittest.TestCase):
     def get_backend(self):
         return TorchLinAlgMixin
+
+
+class TestNumpyPDEBenchmarks(TestPDEBenchmarks, unittest.TestCase):
+    def get_backend(self):
+        return NumpyLinAlgMixin
 
 
 if __name__ == "__main__":

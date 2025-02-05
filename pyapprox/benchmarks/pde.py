@@ -18,6 +18,8 @@ from pyapprox.pde.collocation.parameterized_pdes import (
     ScalarFunction,
     TransientViscousBurgers1DModel,
     SteadyDarcy2DKLEModel,
+    TransientSolutionTimeSnapshotFunctional,
+    SteadySolutionFunctional,
 )
 from pyapprox.pde.collocation.timeintegration import CrankNicholsonResidual
 
@@ -120,7 +122,7 @@ class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
             0.0,
             1.0,
             1 / 200,
-            1024 // 2 + 1,  # 1025 ~6 times faster than 1024 + 1
+            self.nvars() // 2 + 1,  # 1025 ~6 times faster than 1024 + 1
             0.1,
             self.nvars() // 2,
             49,
@@ -128,6 +130,9 @@ class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
             2.5,
             CrankNicholsonResidual,
             backend=self._bkd,
+        )
+        self._model.set_functional(
+            TransientSolutionTimeSnapshotFunctional(self._model, -1)
         )
 
 
@@ -147,6 +152,7 @@ class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
         self._model = SteadyDarcy2DKLEModel(
             self.nvars(), 1.0, 0.25, 0., backend=self._bkd,
         )
+        self._model.set_functional(SteadySolutionFunctional(self._model))
 
 
 class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
