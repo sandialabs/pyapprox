@@ -384,8 +384,8 @@ class AbstractKLE(ABC):
             self._bkd.where(eig_vals[II] <= 0)[0],
         )
         self._sqrt_eig_vals = self._bkd.sqrt(eig_vals[II])
-        self._eig_vecs = eig_vecs
-        self._eig_vecs *= self._sqrt_eig_vals
+        self._eig_vecs = eig_vecs * self._sqrt_eig_vals
+        self._unweighted_eig_vecs = eig_vecs
 
     def __call__(self, coef):
         """
@@ -415,9 +415,12 @@ class AbstractKLE(ABC):
             return "{0}()".format(self.__class__.__name__)
         return "{0}(nterms={1})".format(self.__class__.__name__, self._nterms)
 
-    def normalized_eigenvectors(self) -> Array:
+    def weighted_eigenvectors(self) -> Array:
         """Return the eigenvectors multiplied by associated eigenvalue"""
         return self._eig_vecs
+
+    def eigenvectors(self):
+        return self._unweighted_eig_vecs
 
 
 class MeshKLE(AbstractKLE):
@@ -576,15 +579,16 @@ class DataDrivenKLE(AbstractKLE):
             sqrt_weights = self._bkd.sqrt(self._quad_weights)
             field_samples = sqrt_weights[:, None] * self._field_samples
         U, S, Vh = self._bkd.svd(field_samples)
-        self._eig_vecs = adjust_sign_eig(U[:, : self._nterms])
+        eig_vecs = adjust_sign_eig(U[:, : self._nterms])
         if self._quad_weights is not None:
-            self._eig_vecs = 1 / sqrt_weights[:, None] * self._eig_vecs
+            eig_vecs = 1 / sqrt_weights[:, None] * eig_vecs
         # divide S by sqrt(1/(n-1)) to be consistent with computing covariance
         # of C=A^TA/(n-1) then taking eigdecomp
         self._sqrt_eig_vals = S[: self._nterms] / np.sqrt(
             self._field_samples.shape[1] - 1
         )
-        self._eig_vecs *= self._sqrt_eig_vals
+        self._eig_vecs = eig_vecs * self._sqrt_eig_vals
+        self._unweighted_eig_vecs = eig_vecs
 
 
 def multivariate_chain_rule(jac_yu, jac_ux):

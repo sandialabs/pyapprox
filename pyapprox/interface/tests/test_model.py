@@ -481,6 +481,7 @@ if __name__ == "__main__":
         samples = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples)))
         values = pool_model(samples)
         assert bkd.allclose(values, _pickable_function(bkd, samples))
+        print(pool_model.work_tracker().nevaluations("val"))
         assert pool_model.work_tracker().nevaluations("val") == 4
 
 

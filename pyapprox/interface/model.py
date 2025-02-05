@@ -18,13 +18,12 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 class ModelWorkTracker:
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend=NumpyLinAlgMixin, multiproc=False):
         self._bkd = backend
         # use multiprocessing.Manager() so that the dictionary
         # can be updated by multiple processes when calling
         # multiprocessing.pool
-        self._wall_times = multiprocessing.Manager().dict(
-            {
+        wt_dict = {
                 "val": self._bkd.empty((0,)),
                 "jac": self._bkd.empty((0,)),
                 "jvp": self._bkd.empty((0,)),
@@ -33,7 +32,14 @@ class ModelWorkTracker:
                 "whess": self._bkd.empty((0,)),
                 "whvp": self._bkd.empty((0,))
             }
-        )
+        if multiproc:
+            self._wall_times = multiprocessing.Manager().dict(wt_dict)
+            # Do not create work_tracker with shared memory
+            # unless necessary (e.g. do not do for models that dont use pool)
+            # as  multiprocessing.Manager().dict slows down code substantially
+            # I think because of lock it places on data access
+        else:
+            self._wall_times = wt_dict
 
     def update(self, eval_name: str, times: Array):
         self._wall_times[eval_name] = self._bkd.hstack(
@@ -1338,6 +1344,9 @@ class PoolModelWrapper(Model):
 
         self._model = model
         self._nprocs = nprocs
+        # overwrite model work_tracker with one that shares memory
+        # between processes.
+        self._model._work_tracker = ModelWorkTracker(model._bkd, True)
 
     def nqoi(self) -> int:
         return self._model.nqoi()
@@ -1358,4 +1367,4 @@ class PoolModelWrapper(Model):
     def work_tracker(self) -> ModelWorkTracker:
         # do not call self._work_tracker as it will contain incorrect
         # information, must return self._model._work_tracker instead
-        return self._model._work_tracker
+        return self._work_tracker

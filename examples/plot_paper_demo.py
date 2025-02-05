@@ -104,7 +104,7 @@ print(inv_benchmark)
 #%%
 #The following plots the modes of the KLE
 from pyapprox.pde.collocation.functions import ScalarFunction
-eigvecs = inv_benchmark.diffusion_function().normalized_eigenfunctions()
+eigvecs = inv_benchmark.diffusion_function().eigenfunctions()
 fig, axs = plt.subplots(
     1, len(eigvecs), figsize=(8*len(eigvecs), 6))
 for ii in range(len(eigvecs)):

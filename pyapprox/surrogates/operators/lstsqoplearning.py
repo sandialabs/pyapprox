@@ -388,7 +388,7 @@ class PCABasis(Basis):
         )
         basis_mat = self._basis(self._quad_rule()[0])
         basis_coef = self._bkd.einsum(
-            "ij,ik->jk", self._quad_rule()[1] * basis_mat, kle._eig_vecs
+            "ij,ik->jk", self._quad_rule()[1] * basis_mat, kle.eigenvectors()
         )
         self._bexp = BasisExpansion(self._basis, nqoi=self._nterms)
         self._bexp.set_coefficients(basis_coef)
