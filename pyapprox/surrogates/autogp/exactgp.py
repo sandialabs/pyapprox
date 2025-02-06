@@ -387,7 +387,7 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         # For now analytical neg log like from exact gaussian process
         # does not pass tests when used here so turn off.
         self._analytical_neg_log_likelihood_jacobian_implemented = False
-        
+
         self._ctrain_samples = [
             s for s in self._map_samples_to_canonical(train_samples)
         ]
@@ -513,3 +513,57 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
         )
         update = self._bkd.einsum("ji,ji->i", tmp, tmp)
         return (self._kernel.diag(canonical_samples) - update)[:, None]
+
+
+class GaussianProcessStatistics:
+    def __init__(self, gp):
+        self._gp = gp
+        self._bkd = self._gp._bkd
+
+        # todo consider storing this in gp once it is trained
+        coef_args = self._gp._factor_training_kernel_matrix()
+        Linv = self._gp._self._cholesky_inverse(coef_args[0])
+        self._Kinv = Linv.T @ Linv
+
+        # for now assume out_trans is the identity
+        if not isinstance(gp._out_trans, IdentityTransform):
+            raise ValueError("gp._out_trans must be the identity")
+
+        # for now assume no trend
+        if gp._trend is None:
+            raise ValueError("gp._out_trans must be the identity")
+
+        # store train samples in user space for ease of reference
+        self._train_samples = self._gp._trans.map_from_canonical(
+            self._gp._ctrain_samples
+        )
+
+    def _integrate_tau_P_1d(self, xtr_ii, lscale_ii) -> Tuple[float, float]:
+        # specific to squared exponential kernel. Move to kernel
+        dists_1d_x1_xtr = self._bkd.cdist(
+            self._quadx_1d[:, None]/lscale_ii,
+            xtr_ii.T/lscale_ii,
+            metric='sqeuclidean'
+        )
+        K = self._bkd.exp(-.5*dists_1d_x1_xtr)
+        tau = self._quadx @ (K)
+        P = K.T @ (self._quadw_1d[:, None] * K)
+        return tau, P
+
+    def _tau_P(self) -> Tuple[float, float]:
+        lscale = self.kernel.length_scale
+        tau, P = [], []
+        for ii in range(self._gp.nvars()):
+            tau_ii, P_ii = self._integrate_tau_P_1d(
+                self._train_samples[ii:ii+1, :], lscale[ii]
+            )
+            tau.append(tau_ii)
+            P.append(P_ii)
+        return self._bkd.asarray(tau), self._bkd.asarray(P)
+
+    def expected_mean(self) -> Array:
+        tau = self._tau_P()
+        expected_random_mean = tau.dot(self._gp.Kinv_y(self._Kinv))
+        # for now out_trans is the identity
+        # expected_random_mean += y_train_mean
+        return expected_random_mean
