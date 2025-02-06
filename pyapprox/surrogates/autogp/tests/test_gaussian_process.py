@@ -545,8 +545,8 @@ class TestGaussianProcess:
         peer_gp = MOPeerExactGaussianProcess(nvars, kernel, kernel_reg=0)
         peer_gp._set_training_data(samples_per_output, values_per_output)
         assert np.allclose(
-            gp._neg_log_likelihood_with_hyperparameter_trend(),
-            peer_gp._neg_log_likelihood_with_hyperparameter_trend(),
+            gp._neg_log_like_with_hyperparam_trend(),
+            peer_gp._neg_log_like_with_hyperparam_trend(),
         )
         xx = bkd.linspace(-1, 1, 31)[None, :]
         gp_mean, gp_std = gp.evaluate([xx] * noutputs, return_std=True)

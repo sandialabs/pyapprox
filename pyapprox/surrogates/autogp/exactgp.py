@@ -2,14 +2,11 @@ from typing import Tuple
 import warnings
 
 import numpy as np
-import torch
-import scipy
 
 from pyapprox.surrogates.regressor import OptimizedRegressor
 from pyapprox.surrogates.autogp.mokernels import MultiPeerKernel
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.surrogates.kernels.kernels import Kernel
-from pyapprox.util.transforms import Transform, IdentityTransform
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.surrogates.loss import LossFunction
 from pyapprox.optimization.pya_minimize import (
@@ -18,12 +15,11 @@ from pyapprox.optimization.pya_minimize import (
     OptimizerIterateGenerator,
     RandomUniformOptimzerIterateGenerator,
 )
-from pyapprox.interface.model import ScipyModelWrapper, Model
 
 
 class GPNegLogLikelihoodLoss(LossFunction):
     def _loss_values(self, active_opt_params):
-        vals = self._model._neg_log_likelihood(
+        vals = self._model._neg_log_like(
             active_opt_params[:, 0]
         )[:, None]
         return vals
@@ -36,8 +32,8 @@ class GPNegLogLikelihoodLoss(LossFunction):
         super()._check_model(model)
 
     def _jacobian(self, active_opt_params: Array) -> Array:
-        if self._model._analytical_neg_log_likelihood_jacobian_implemented:
-            return self._model._jacobian_neg_log_likelihood_with_hyperparameter_trend(
+        if self._model._analytical_neg_log_like_jacobian_implemented:
+            return self._model._jacobian_neg_log_like_with_hyperparam_trend(
                 active_opt_params[:, 0]
             )
         return super()._jacobian(active_opt_params)
@@ -63,7 +59,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         if trend is not None:
             self._hyp_list += self._trend.hyp_list()
         self.set_optimizer()
-        self._analytical_neg_log_likelihood_jacobian_implemented = True
+        self._analytical_neg_log_like_jacobian_implemented = True
 
     def kernel(self) -> Kernel:
         return self._kernel
@@ -171,7 +167,7 @@ class ExactGaussianProcess(OptimizedRegressor):
             return self._bkd.full((canonical_samples.shape[1], 1), 0.0)
         return self._trend(canonical_samples)
 
-    def _neg_log_likelihood_with_hyperparameter_trend(self) -> float:
+    def _neg_log_like_with_hyperparam_trend(self) -> float:
         # this can also be used if treating the trend as hyper_params
         # but cannot be used if assuming a prior on the coefficients
         coef_args = self._factor_training_kernel_matrix()
@@ -190,7 +186,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         Linv = self._bkd.solve_triangular(Lmat, rhs, lower=True)
         return Linv
 
-    def _jacobian_neg_log_likelihood_with_hyperparameter_trend(
+    def _jacobian_neg_log_like_with_hyperparam_trend(
             self, active_opt_params: Array
     ) -> Array:
         self._hyp_list.set_active_opt_params(active_opt_params)
@@ -219,7 +215,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         jac = self._bkd.hstack((kernel_jac[None, :],  trend_jac))
         return jac
 
-    def _neg_log_likelihood_with_uncertain_trend(self) -> float:
+    def _neg_log_like_with_uncertain_trend(self) -> float:
         # See Equation 2.45 in Rasmussen's Book
         # trend cannot be passed as a HyperParameter but is estimated
         # probabilistically.
@@ -235,9 +231,9 @@ class ExactGaussianProcess(OptimizedRegressor):
         # i.e. the prior uncertainty does not add to prior variance
         raise NotImplementedError
 
-    def _neg_log_likelihood(self, active_opt_params: Array):
+    def _neg_log_like(self, active_opt_params: Array):
         self._hyp_list.set_active_opt_params(active_opt_params)
-        return self._neg_log_likelihood_with_hyperparameter_trend()
+        return self._neg_log_like_with_hyperparam_trend()
 
     def _evaluate_canonical_prior(self, samples: Array, return_std: bool):
         canonical_trend = self._canonical_trend(
@@ -386,8 +382,7 @@ class MOExactGaussianProcess(ExactGaussianProcess):
     def _set_training_data(self, train_samples: list, train_values: list):
         # For now analytical neg log like from exact gaussian process
         # does not pass tests when used here so turn off.
-        self._analytical_neg_log_likelihood_jacobian_implemented = False
-
+        self._analytical_neg_log_like_jacobian_implemented = False
         self._ctrain_samples = [
             s for s in self._map_samples_to_canonical(train_samples)
         ]

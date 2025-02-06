@@ -40,8 +40,9 @@ def _log_prob_gaussian_with_noisy_nystrom_covariance(
     return log_pdf
 
 
-# see Alvarez Efficient Multioutput Gaussian Processes through Variational Inducing Kernels for details how to generaize from noise covariance sigma^2I to \Sigma
-
+# see Alvarez Efficient Multioutput Gaussian Processes through Variational
+# Inducing Kernels for details how to generaize from noise covariance sigma^2I
+# to \Sigma
 
 class InducingSamples:
     def __init__(
@@ -169,7 +170,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
         self.inducing_samples = inducing_samples
         self._hyp_list += self.inducing_samples.hyp_list()
         self.set_optimizer()
-        self._analytical_neg_log_likelihood_jacobian_implemented = False
+        self._analytical_neg_log_like_jacobian_implemented = False
 
     def _K_XU(self) -> Tuple:
         kmat = self._kernel(
@@ -191,7 +192,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
         msg += "the diagonal of the training matrix"
         raise RuntimeError(msg)
 
-    def _neg_log_likelihood(self, active_opt_params):
+    def _neg_log_like(self, active_opt_params):
         self._hyp_list.set_active_opt_params(active_opt_params)
         noise_std = self.inducing_samples.get_noise()
         K_XU = self._K_XU()
