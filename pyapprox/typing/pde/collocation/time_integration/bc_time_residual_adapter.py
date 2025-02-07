@@ -42,18 +42,10 @@ class BCEnforcingTimeResidual(Generic[Array]):
         self._physics = physics
         self._bkd = bkd
         self._t_np1 = 0.0
-        self._bc_indices = self._collect_bc_indices()
+        bc_class = self._physics.bc_dof_classification()
+        self._essential = bc_class.essential
+        self._row_replaced = bc_class.row_replaced
         self._setup_methods()
-
-    def _collect_bc_indices(self):
-        """Collect all boundary DOF indices from physics BCs."""
-        indices = []
-        if hasattr(self._physics, "boundary_conditions"):
-            for bc in self._physics.boundary_conditions():
-                bc_idx = bc.boundary_indices()
-                for ii in range(bc_idx.shape[0]):
-                    indices.append(int(bc_idx[ii]))
-        return indices
 
     def _setup_methods(self):
         """Dynamic binding based on wrapped stepper capabilities."""
@@ -130,10 +122,22 @@ class BCEnforcingTimeResidual(Generic[Array]):
     def sensitivity_off_diag_jacobian(
         self, fsol_nm1: Array, fsol_n: Array, deltat: float
     ) -> Array:
-        """Compute dR_n/dy_{n-1} for forward sensitivity."""
-        return self._inner.sensitivity_off_diag_jacobian(
+        """Forward sensitivity off-diagonal block with BC rows zeroed.
+
+        B_n[b,:] = 0 at row-replaced DOFs (BCs depend only on current
+        state). The inner stepper returns the raw -M without BC enforcement,
+        so we must zero those rows explicitly.
+
+        Symmetric to the adjoint fix: adjoint zeros columns of B_n^T,
+        forward zeros rows of B_n.
+        """
+        result = self._inner.sensitivity_off_diag_jacobian(
             fsol_nm1, fsol_n, deltat
         )
+        result = self._bkd.copy(result)
+        for idx in self._row_replaced:
+            result[idx, :] = 0.0
+        return result
 
     def is_explicit(self) -> bool:
         """Return whether scheme is explicit."""
@@ -156,18 +160,13 @@ class BCEnforcingTimeResidual(Generic[Array]):
     ) -> Array:
         """Compute adjoint at initial time using BC-enforced mass matrix.
 
-        The inner adjoint_final_solution uses the raw mass matrix without
-        BC enforcement. We must apply BC rows/cols to the mass matrix
-        and zero dqdu at BC DOFs.
+        Delegates mass matrix modification to the physics layer via
+        apply_bc_to_mass(), which applies identity rows/columns at
+        essential (Dirichlet) DOFs only.
         """
         dqdu_0 = self.zero_adjoint_rhs(dqdu_0)
-        # Mass matrix with BC enforcement: identity at BC rows/cols
         mass = self._inner._residual.mass_matrix(fsol_0.shape[0]).T
-        mass = self._bkd.copy(mass)
-        for idx in self._bc_indices:
-            mass[idx, :] = 0.0
-            mass[:, idx] = 0.0
-            mass[idx, idx] = 1.0
+        mass = self._physics.apply_bc_to_mass(mass)
         drduT_offdiag = self._adjoint_off_diag_jacobian_impl(
             fsol_0, deltat_1
         )
@@ -183,37 +182,54 @@ class BCEnforcingTimeResidual(Generic[Array]):
     # BC zeroing helpers
     # =========================================================================
 
-    def _zero_bc_rows(self, matrix: Array) -> Array:
-        """Zero rows of a matrix at boundary DOF indices."""
-        matrix = self._bkd.copy(matrix)
-        for idx in self._bc_indices:
-            if matrix.ndim == 1:
-                matrix[idx] = 0.0
-            else:
-                matrix[idx, :] = 0.0
+    def _zero_bc_rows(
+        self, matrix: Array, zero_bc_rows: bool = True
+    ) -> Array:
+        """Zero rows at row-replaced DOFs.
+
+        Parameters
+        ----------
+        matrix : Array
+            The parameter Jacobian dR/dp or similar.
+        zero_bc_rows : bool, default True
+            If True, zero rows at row_replaced DOFs. Valid when BCs
+            are independent of the parameter vector p.
+            Set to False when computing dR/dp_bc.
+        """
+        if zero_bc_rows:
+            matrix = self._bkd.copy(matrix)
+            for idx in self._row_replaced:
+                if matrix.ndim == 1:
+                    matrix[idx] = 0.0
+                else:
+                    matrix[idx, :] = 0.0
         return matrix
 
-    def zero_adjoint_rhs(self, dqdu: Array) -> Array:
-        """Zero BC DOFs in adjoint RHS to enforce lambda[bc] = 0.
-
-        Without this, the adjoint equation at BC DOFs becomes
-        ``1 * lambda[bc] = -dqdu[bc]`` instead of ``lambda[bc] = 0``,
-        contaminating the gradient at all DOFs.
+    def zero_adjoint_rhs(
+        self, dqdu: Array, zero_essential: bool = True
+    ) -> Array:
+        """Zero dQ/dy at essential (Dirichlet) BC DOFs.
 
         Parameters
         ----------
         dqdu : Array
             Functional derivative dQ/dy at a single time step.
             Shape: (nstates,).
+        zero_essential : bool, default True
+            If True, zero dQ/dy at essential BC DOFs, forcing
+            lambda[b] = 0. Correct when differentiating w.r.t.
+            PDE parameters (essential DOFs are prescribed).
+            Set to False when computing gradients w.r.t. BC parameters.
 
         Returns
         -------
         Array
-            Copy with BC DOFs zeroed. Shape: (nstates,).
+            Copy with essential BC DOFs zeroed. Shape: (nstates,).
         """
         dqdu = self._bkd.copy(dqdu)
-        for idx in self._bc_indices:
-            dqdu[idx] = 0.0
+        if zero_essential:
+            for idx in self._essential:
+                dqdu[idx] = 0.0
         return dqdu
 
     # =========================================================================
@@ -228,21 +244,31 @@ class BCEnforcingTimeResidual(Generic[Array]):
         return self._zero_bc_rows(result)
 
     def _adjoint_diag_jacobian_impl(self, fsol_n: Array) -> Array:
-        """Compute (dR/dy_n)^T with BC rows/cols zeroed."""
-        result = self._inner.adjoint_diag_jacobian(fsol_n)
-        result = self._zero_bc_rows(result)
-        result = self._bkd.copy(result)
-        for idx in self._bc_indices:
-            result[:, idx] = 0.0
-            result[idx, idx] = 1.0
-        return result
+        """Adjoint diagonal block: transpose of BC-enforced forward Jacobian.
+
+        self.jacobian() calls physics.apply_boundary_conditions(), producing
+        the correct BC-enforced forward Jacobian for ALL BC types and ALL
+        solver types. Its transpose is the correct adjoint diagonal block:
+
+        - Dirichlet: identity rows -> identity columns in transpose
+        - Robin (collocation): coupling rows -> correct coupling columns
+        - Robin (Galerkin): weak-form rows -> correct weak-form columns
+        """
+        return self.jacobian(fsol_n).T
 
     def _adjoint_off_diag_jacobian_impl(
         self, fsol_n: Array, deltat_np1: float
     ) -> Array:
-        """Compute off-diagonal adjoint coupling with BC rows zeroed."""
+        """Adjoint off-diagonal block: B_{n+1}^T with BC columns zeroed.
+
+        B_n[b,:] = 0 at DOFs where the solver replaced the residual row.
+        In the transpose, this means B_n^T[:,b] = 0 -- zero columns, not rows.
+        """
         result = self._inner.adjoint_off_diag_jacobian(fsol_n, deltat_np1)
-        return self._zero_bc_rows(result)
+        result = self._bkd.copy(result)
+        for idx in self._row_replaced:
+            result[:, idx] = 0.0
+        return result
 
     def _adjoint_initial_condition_impl(
         self, final_fwd_sol: Array, final_dqdu: Array
@@ -273,12 +299,15 @@ class BCEnforcingTimeResidual(Generic[Array]):
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        """Compute (d^2R/dy_n^2)w contracted with adjoint, BC entries zeroed."""
+        """Compute (d^2R/dy_n^2)w contracted with adjoint, BC entries zeroed.
+
+        Second derivatives of replaced BC rows are zero for all BC types.
+        """
         result = self._inner.state_state_hvp(
             fsol_nm1, fsol_n, adj_state, wvec
         )
         result = self._bkd.copy(result)
-        for idx in self._bc_indices:
+        for idx in self._row_replaced:
             result[idx] = 0.0
         return result
 
@@ -289,12 +318,15 @@ class BCEnforcingTimeResidual(Generic[Array]):
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        """Compute (d^2R/dy_n dp)v contracted with adjoint, BC entries zeroed."""
+        """Compute (d^2R/dy_n dp)v contracted with adjoint, BC entries zeroed.
+
+        Second derivatives of replaced BC rows are zero for all BC types.
+        """
         result = self._inner.state_param_hvp(
             fsol_nm1, fsol_n, adj_state, vvec
         )
         result = self._bkd.copy(result)
-        for idx in self._bc_indices:
+        for idx in self._row_replaced:
             result[idx] = 0.0
         return result
 
@@ -327,5 +359,6 @@ class BCEnforcingTimeResidual(Generic[Array]):
             f"{self.__class__.__name__}("
             f"inner={type(self._inner).__name__}, "
             f"physics={type(self._physics).__name__}, "
-            f"bc_indices={self._bc_indices})"
+            f"essential={self._essential}, "
+            f"row_replaced={self._row_replaced})"
         )

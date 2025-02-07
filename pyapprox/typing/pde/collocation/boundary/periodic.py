@@ -69,6 +69,10 @@ class PeriodicBC(Generic[Array]):
         """Return indices of mesh points on the primary boundary."""
         return self._boundary_indices
 
+    def is_essential(self) -> bool:
+        """Return True: periodic BCs directly constrain DOF values."""
+        return True
+
     def partner_indices(self) -> Array:
         """Return indices of mesh points on the partner boundary."""
         return self._partner_indices

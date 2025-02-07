@@ -4,9 +4,49 @@ Defines interfaces for boundary conditions that modify PDE residuals
 and Jacobians.
 """
 
+from dataclasses import dataclass
 from typing import Protocol, Generic, List, runtime_checkable, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+
+
+@dataclass(frozen=True)
+class BCDofClassification:
+    """Classification of boundary DOFs for adjoint operations.
+
+    Produced by the physics/solver layer, consumed by the time
+    integration layer. The time integration layer uses these index
+    sets without knowing solver internals.
+
+    Attributes
+    ----------
+    essential : list[int]
+        DOFs where the solution is prescribed (e.g., Dirichlet).
+        The adjoint variable is zero at these DOFs (lambda[b] = 0)
+        when differentiating w.r.t. PDE parameters. When differentiating
+        w.r.t. BC parameters, lambda[b] = -dq/dy[b] acts as the
+        Lagrange multiplier for the constraint.
+        Always a subset of row_replaced.
+    row_replaced : list[int]
+        DOFs where the solver replaced the PDE residual row with a BC
+        equation. At these DOFs: B_n[b,:] = 0 (no dependence on
+        previous time step) and dR_n/dp[b,:] = 0 (assuming BCs are
+        independent of PDE parameters).
+
+        For collocation: all BC DOFs (both Dirichlet and Robin).
+        For Galerkin FEM: only strongly-enforced Dirichlet DOFs.
+        Natural BCs in Galerkin are assembled into the weak form
+        without row replacement.
+    """
+    essential: list
+    row_replaced: list
+
+    def __post_init__(self):
+        if not set(self.essential) <= set(self.row_replaced):
+            raise ValueError(
+                "essential must be a subset of row_replaced: "
+                "every prescribed-value BC must replace its residual row"
+            )
 
 
 @runtime_checkable
@@ -74,6 +114,25 @@ class BoundaryConditionProtocol(Protocol, Generic[Array]):
         -------
         Array
             Modified Jacobian. Shape: (nstates, nstates)
+        """
+        ...
+
+    def is_essential(self) -> bool:
+        """Return True if this BC directly constrains DOF values.
+
+        Essential BCs (Dirichlet-like) prescribe the solution value at
+        boundary DOFs. In the adjoint equation, the adjoint variable at
+        essential BC DOFs is zero: lambda[bc] = 0.
+
+        Natural BCs (Robin, Neumann) couple boundary DOFs through
+        derivative operators. The adjoint variable at natural BC DOFs
+        evolves freely according to the adjoint equation.
+
+        Returns
+        -------
+        bool
+            True for essential BCs (Dirichlet, periodic value-matching),
+            False for natural BCs (Robin, Neumann).
         """
         ...
 

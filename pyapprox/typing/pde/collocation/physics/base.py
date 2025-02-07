@@ -8,6 +8,7 @@ from typing import Generic, List, Tuple, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.protocols import (
+    BCDofClassification,
     BasisProtocol,
     BoundaryConditionProtocol,
 )
@@ -140,6 +141,58 @@ class AbstractPhysics(ABC, Generic[Array]):
             residual = bc.apply_to_residual(residual, state, time)
             jacobian = bc.apply_to_jacobian(jacobian, state, time)
         return residual, jacobian
+
+    def bc_dof_classification(self) -> BCDofClassification:
+        """Classify boundary DOFs for adjoint operations.
+
+        For collocation: all BCs replace residual rows, so row_replaced
+        contains all BC DOFs. Essential contains only Dirichlet/periodic
+        DOFs (where is_essential() returns True).
+
+        For a future Galerkin solver, this method would classify
+        differently: only strongly-enforced Dirichlet DOFs would appear
+        in row_replaced, while weakly-enforced natural BCs would not
+        appear in either list.
+
+        Returns
+        -------
+        BCDofClassification
+            Classification with essential and row_replaced index lists.
+        """
+        essential, row_replaced = [], []
+        for bc in self._boundary_conditions:
+            bc_idx = bc.boundary_indices()
+            for ii in range(bc_idx.shape[0]):
+                idx = int(bc_idx[ii])
+                row_replaced.append(idx)
+                if bc.is_essential():
+                    essential.append(idx)
+        return BCDofClassification(essential, row_replaced)
+
+    def apply_bc_to_mass(self, mass: Array) -> Array:
+        """Apply BC enforcement to mass matrix for adjoint at t=0.
+
+        At t=0, the adjoint system uses M instead of A_n. Essential
+        (Dirichlet) DOFs need identity rows/columns because the forward
+        equation at t=0 is y_0[b] = g(0), which has identity Jacobian
+        w.r.t. y_0. Natural (Robin) DOFs keep their normal mass row.
+
+        Parameters
+        ----------
+        mass : Array
+            The mass matrix M. Shape: (nstates, nstates).
+
+        Returns
+        -------
+        Array
+            Modified mass matrix with identity at essential BC DOFs.
+        """
+        mass = self._bkd.copy(mass)
+        for idx in self.bc_dof_classification().essential:
+            mass[idx, :] = 0.0
+            mass[:, idx] = 0.0
+            mass[idx, idx] = 1.0
+        return mass
 
     def mass_matrix(self) -> Array:
         """Return mass matrix for time integration.

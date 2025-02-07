@@ -34,6 +34,7 @@ from pyapprox.typing.optimization.linear_solvers.protocols import (
     PreconditionerWithSetupProtocol,
 )
 from pyapprox.typing.pde.collocation.protocols.boundary import (
+    BCDofClassification,
     BoundaryConditionProtocol,
     BoundaryConditionWithParamJacobianProtocol,
     DirichletBCProtocol,
@@ -69,6 +70,7 @@ __all__ = [
     "PreconditionerProtocol",
     "PreconditionerWithSetupProtocol",
     # Boundary conditions
+    "BCDofClassification",
     "BoundaryConditionProtocol",
     "BoundaryConditionWithParamJacobianProtocol",
     "DirichletBCProtocol",
