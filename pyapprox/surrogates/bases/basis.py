@@ -14,7 +14,8 @@ from pyapprox.surrogates.bases.orthopoly import (
     TrigonometricPolynomial1D,
     FourierBasis1D,
 )
-
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
 from pyapprox.util.visualization import get_meshgrid_samples, plot_surface
 
 
@@ -455,6 +456,9 @@ class TensorProductQuadratureRule(QuadratureRule):
             self._quad_weights[nnodes] = weights
         return samples, weights
 
+    def univariate_quad_rules(self):
+        return self._univariate_quad_rules
+
 
 class FixedTensorProductQuadratureRule(TensorProductQuadratureRule):
     def __init__(
@@ -469,6 +473,21 @@ class FixedTensorProductQuadratureRule(TensorProductQuadratureRule):
     # TODO fix class inheritance to either require arguments to call or no args
     def __call__(self):
         return super().__call__(self._nnodes_1d)
+
+
+class FixedGaussianTensorProductQuadratureRuleFromVariable(
+        FixedTensorProductQuadratureRule
+):
+    def __init__(
+            self,
+            variable: IndependentMarginalsVariable,
+            nnodes_1d: List[int],
+    ):
+        marginal_quad_rules = [
+            GaussQuadratureRule(marginal, backend=variable._bkd)
+            for marginal in variable.marginals()
+        ]
+        super().__init__(variable.num_vars(), marginal_quad_rules, nnodes_1d)
 
 
 class TrigonometricBasis(MultiIndexBasis):

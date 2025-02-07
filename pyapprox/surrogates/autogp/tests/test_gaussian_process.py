@@ -23,6 +23,7 @@ from pyapprox.surrogates.autogp.exactgp import (
     ExactGaussianProcess,
     MOExactGaussianProcess,
     MOPeerExactGaussianProcess,
+    GaussianProcessStatistics,
 )
 from pyapprox.surrogates.autogp.mokernels import (
     ICMKernel,
@@ -38,9 +39,13 @@ from pyapprox.util.transforms import (
     IdentityTransform,
     StandardDeviationTransform,
 )
+from pyapprox.variables.joint import IndependentMarginalsVariable
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.surrogates.bases.basis import (
+    FixedGaussianTensorProductQuadratureRuleFromVariable,
+)
 
 
 class TestNystrom:
@@ -87,8 +92,7 @@ class TestNystrom:
         coef = Q_inv @ values
         assert np.allclose(
             values.T @ coef,
-            values.T @ values / noise_std**2
-            - gamma.T @ gamma / noise_std**2,
+            values.T @ values / noise_std**2 - gamma.T @ gamma / noise_std**2,
         )
 
         mll = -0.5 * (
@@ -142,9 +146,7 @@ class TestGaussianProcess:
             )
             kernel = constant_kernel * kernel
 
-        gp = ExactGaussianProcess(
-            nvars, kernel, trend=trend
-        )
+        gp = ExactGaussianProcess(nvars, kernel, trend=trend)
         gp.set_output_transform(out_trans)
 
         def fun(xx):
@@ -249,9 +251,7 @@ class TestGaussianProcess:
 
         pyagp_vals, pyagp_std = pyagp(test_samples, return_std=True)
         gp_vals, gp_std = gp.evaluate(test_samples, return_std=True)
-        assert np.allclose(
-            bkd.to_numpy(gp_std[:, 0]), pyagp_std, atol=1e-6
-        )
+        assert np.allclose(bkd.to_numpy(gp_std[:, 0]), pyagp_std, atol=1e-6)
 
         # test plot runs
         ax = plt.subplots(1, 1)[1]
@@ -259,7 +259,7 @@ class TestGaussianProcess:
         pyagp.plot_1d(101, [-1, 1], ax=ax)
         xx = np.linspace(-1, 1, 101)[None, :]
         plt.plot(xx[0], fun(xx, False))
-        plt.plot(gp.get_train_samples()[0], gp.get_train_values(), 'o')
+        plt.plot(gp.get_train_samples()[0], gp.get_train_values(), "o")
 
     def test_variational_gp_training(self):
         bkd = self.get_backend()
@@ -305,16 +305,24 @@ class TestGaussianProcess:
 
         # test plot runs
         xx = np.linspace(-1, 1, 101)[None, :]
-        plt.plot(xx[0], gp.evaluate(xx, False), '--')
-        plt.plot(gp.inducing_samples.get_samples(),
-                 0*gp.inducing_samples.get_samples(), 's')
-        plt.plot(xx[0], fun(xx)[:, 0], 'k-')
-        plt.plot(gp.get_train_samples()[0], gp.get_train_values(), 'o')
+        plt.plot(xx[0], gp.evaluate(xx, False), "--")
+        plt.plot(
+            gp.inducing_samples.get_samples(),
+            0 * gp.inducing_samples.get_samples(),
+            "s",
+        )
+        plt.plot(xx[0], fun(xx)[:, 0], "k-")
+        plt.plot(gp.get_train_samples()[0], gp.get_train_values(), "o")
         gp_mu, gp_std = gp.evaluate(xx, return_std=True)
         gp_mu = gp_mu[:, 0]
         gp_std = gp_std[:, 0]
-        plt.fill_between(xx[0], gp_mu-3*gp_std, gp_mu+3*gp_std, alpha=0.1,
-                         color='blue')
+        plt.fill_between(
+            xx[0],
+            gp_mu - 3 * gp_std,
+            gp_mu + 3 * gp_std,
+            alpha=0.1,
+            color="blue",
+        )
 
         ntest_samples = 10
         test_samples = bkd.asarray(
@@ -451,16 +459,10 @@ class TestGaussianProcess:
         values = bkd.hstack([fun(samples) for fun in funs])
         print(values.shape)
         print(corr_matrix)
-        print(
-            bkd.get_correlation_from_covariance(
-                bkd.cov(values.T, ddof=1)
-            )
-        )
+        print(bkd.get_correlation_from_covariance(bkd.cov(values.T, ddof=1)))
         assert np.allclose(
             corr_matrix,
-            bkd.get_correlation_from_covariance(
-                bkd.cov(values.T, ddof=1)
-            ),
+            bkd.get_correlation_from_covariance(bkd.cov(values.T, ddof=1)),
             atol=1e-2,
         )
 
@@ -469,10 +471,10 @@ class TestGaussianProcess:
         gp.plot(ax, [-1, 1], output_id=0, plt_kwargs={"c": "r", "ls": "-"})
         gp.plot(ax, [-1, 1], output_id=1)
         xx = np.linspace(-1, 1, 101)[None, :]
-        ax.plot(xx[0], funs[0](xx), '--')
-        ax.plot(xx[0], funs[1](xx), ':')
-        ax.plot(gp.get_train_samples()[0][0], gp.get_train_values()[0], 'o')
-        ax.plot(gp.get_train_samples()[1][0], gp.get_train_values()[1], 's')
+        ax.plot(xx[0], funs[0](xx), "--")
+        ax.plot(xx[0], funs[1](xx), ":")
+        ax.plot(gp.get_train_samples()[0][0], gp.get_train_values()[0], "o")
+        ax.plot(gp.get_train_samples()[1][0], gp.get_train_values()[1], "s")
 
     def test_peer_gaussian_process(self):
         bkd = self.get_backend()
@@ -531,13 +533,14 @@ class TestGaussianProcess:
 
         # test plots run
         axs = plt.subplots(
-            1, noutputs, figsize=(noutputs*8, 6), sharey=True)[1]
+            1, noutputs, figsize=(noutputs * 8, 6), sharey=True
+        )[1]
         xx = bkd.linspace(-1, 1, 101)[None, :]
         for ii in range(noutputs):
             gp.plot(axs[ii], [-1, 1], output_id=ii)
-            axs[ii].plot(xx[0], funs[ii](xx), '--')
+            axs[ii].plot(xx[0], funs[ii](xx), "--")
             axs[ii].plot(
-                gp.get_train_samples()[ii][0], gp.get_train_values()[ii], 'o'
+                gp.get_train_samples()[ii][0], gp.get_train_values()[ii], "o"
             )
 
         # check that when using hyperparameters found by dense GP the PeerGP
@@ -644,15 +647,127 @@ class TestGaussianProcess:
 
         # test plot runs
         axs = plt.subplots(
-            1, noutputs, figsize=(noutputs*8, 6), sharey=True)[1]
+            1, noutputs, figsize=(noutputs * 8, 6), sharey=True
+        )[1]
         xx = bkd.linspace(-1, 1, 101)[None, :]
         for ii in range(noutputs):
             gp.plot(axs[ii], [-1, 1], output_id=ii)
-            axs[ii].plot(xx[0], funs[ii](xx), '--')
+            axs[ii].plot(xx[0], funs[ii](xx), "--")
             axs[ii].plot(
-                gp.get_train_samples()[ii][0], gp.get_train_values()[ii], 'o'
+                gp.get_train_samples()[ii][0], gp.get_train_values()[ii], "o"
             )
         plt.show()
+
+    def test_gaussian_process_statistics_high_accuracy_gp(self):
+        # test that mean and variance of GP are accurate when GP is accurate
+        # When GP is highly accurate, the values of the variance_of_variance
+        # can be poor, especially when condition number of training kernel
+        # matrix is poor (large)
+        bkd = self.get_backend()
+        constant = 1e3
+
+        def fun(x):
+            return constant * bkd.sum((2 * x - 0.5) ** 2, axis=0)[:, None]
+
+        marginals = [stats.uniform(0, 1)]
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+
+        kernel = MaternKernel(
+            np.inf, 0.1, [1e-1, 1], variable.num_vars(), backend=bkd
+        )
+        gp = ExactGaussianProcess(
+            variable.num_vars(), kernel, trend=None, kernel_reg=1e-8
+        )
+        gp.set_optimizer(ncandidates=4, verbosity=0)
+        ntrain_samples = 25
+        train_samples = (
+            1-bkd.cos(bkd.linspace(0, np.pi, ntrain_samples))[None, :]
+        ) / 2
+        train_values = fun(train_samples)
+        gp.fit(train_samples, train_values)
+
+        test_samples = variable.rvs(1000)
+        test_values = fun(test_samples)
+        rel_l2_error = bkd.norm(gp(test_samples) - test_values) / bkd.norm(
+            test_values
+        )
+        assert rel_l2_error < 5e-5
+
+        true_mean = bkd.array([constant * 7 / 12])
+        true_variance = constant**2 * 61 / 80 - true_mean**2
+
+        gp_stat = GaussianProcessStatistics(gp, variable)
+        expected_mean = gp_stat.expectation_of_mean()
+        expected_variance = gp_stat.expectation_of_variance()
+        assert bkd.allclose(expected_mean, true_mean)
+        assert bkd.allclose(
+            expected_variance, true_variance
+        )
+        
+    def test_gaussian_process_statistics_low_accuracy_gp(self):
+        # test that expectation and variance of the mean and variance of GP
+        # are accurate when GP is inaccurate
+        bkd = self.get_backend()
+        constant = 1e3
+
+        def fun(x):
+            return constant * bkd.sum((2 * x - 0.5) ** 2, axis=0)[:, None]
+
+        marginals = [stats.uniform(0, 1)]
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+
+        kernel = MaternKernel(
+            np.inf, 0.1, [1e-1, 1], variable.num_vars(), backend=bkd
+        )
+        gp = ExactGaussianProcess(
+            variable.num_vars(), kernel, trend=None, kernel_reg=0
+        )
+        gp.set_optimizer(ncandidates=4, verbosity=0)
+        ntrain_samples = 10
+        train_samples = (
+            1-bkd.cos(bkd.linspace(0, np.pi, ntrain_samples))[None, :]
+        ) / 2
+        train_values = fun(train_samples)
+        gp.fit(train_samples, train_values)
+
+        quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
+            variable, [50] * variable.num_vars()
+        )
+        # test gp covariance matches that computed emprically from
+        # random realizations
+        gp_realizations = gp.predict_random_realizations(quad_rule()[0], 1e6)
+        assert bkd.allclose(
+            gp.covariance(quad_rule()[0]), bkd.cov(gp_realizations), atol=1e-3
+        )
+
+        gp_stat = GaussianProcessStatistics(gp, variable)       
+        #  test expectation of gp means matches that computed emprically from
+        # random realizations
+        realization_expectations = gp_realizations.T @ quad_rule()[1]
+        expected_mean = gp_stat.expectation_of_mean()
+        assert bkd.allclose(bkd.mean(realization_expectations), expected_mean)
+
+        realization_variances = (gp_realizations**2).T @ quad_rule()[
+            1
+        ] - realization_expectations**2
+        variance_of_mean = gp_stat.variance_of_mean()
+        print(bkd.var(realization_expectations, ddof=1), variance_of_mean)
+        assert bkd.allclose(
+            variance_of_mean, bkd.var(realization_expectations, ddof=1),
+            rtol=1e-3
+        )
+
+        expected_variance = gp_stat.expectation_of_variance()
+        print(bkd.mean(realization_variances), expected_variance)
+        assert bkd.allclose(expected_variance, bkd.mean(realization_variances))
+
+        variance_of_variance = gp_stat.variance_of_variance()
+        print(variance_of_variance, bkd.var(realization_variances, ddof=1))
+        assert bkd.allclose(
+            variance_of_variance,
+            bkd.var(realization_variances, ddof=1),
+            rtol=1e-3,
+        )
 
 
 class TestNumpyNystrom(TestNystrom, unittest.TestCase):

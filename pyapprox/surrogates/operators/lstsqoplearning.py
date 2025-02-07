@@ -8,11 +8,12 @@ from pyapprox.surrogates.bases.orthopoly import (
 )
 from pyapprox.surrogates.bases.basis import (
     OrthonormalPolynomialBasis,
-    FixedTensorProductQuadratureRule,
+    FixedGaussianTensorProductQuadratureRuleFromVariable
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.kle.kle import DataDrivenKLE
 from pyapprox.variables.marginals import get_distribution_info
+from pyapprox.variables.joint import IndependentMarginalsVariable
 
 
 class MultiLinearOperatorBasis:
@@ -264,12 +265,8 @@ class TensorOrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
     ):
         nfuns = len(marginals_per_fun)
         quad_rules = [
-            FixedTensorProductQuadratureRule(
-                len(marginals_per_fun[ii]),
-                [
-                    GaussQuadratureRule(marginal)
-                    for marginal in marginals_per_fun[ii]
-                ],
+            FixedGaussianTensorProductQuadratureRuleFromVariable(
+                IndependentMarginalsVariable(marginals_per_fun[ii]),
                 2 * bkd.array(nterms_1d_per_fun[ii], dtype=int),
             )
             for ii in range(nfuns)

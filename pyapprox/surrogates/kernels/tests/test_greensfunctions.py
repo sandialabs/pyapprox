@@ -20,7 +20,6 @@ from pyapprox.surrogates.kernels.greensfunctions import (
 )
 from pyapprox.surrogates.bases.basis import FixedTensorProductQuadratureRule
 from pyapprox.util.visualization import get_meshgrid_samples
-from pyapprox.util.print_wrapper import *
 
 
 class TestGreensFunctions:

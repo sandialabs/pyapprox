@@ -340,11 +340,12 @@ class AlternatingLstSqOptimizer(OptimizerWithObjective):
             coefs.append(self._bkd.lstsq(jac[qq], values[:, qq : qq + 1]))
         return self._bkd.hstack(coefs).flatten()
 
-    def _create_result(self, ft, it):
+    def _create_result(self, ft, it, success):
         result = OptimizationResult()
         result.x = ft.hyp_list().get_active_opt_params()[:, None]
         result.fun = self._objective(result.x)
         result.niters = it
+        result.success = success
         if self._verbosity > 0:
             print(result)
         return result
@@ -371,12 +372,14 @@ class AlternatingLstSqOptimizer(OptimizerWithObjective):
             print(self)
             print(ft)
         it = 0
+        success = True
         while True:
             for ii in range(ft.nvars()):
                 coefs = self._solve_core(samples, values, ii)
                 ft._cores[ii].hyp_list().set_active_opt_params(coefs)
             it += 1
             if it >= self._maxiters:
+                success = False
                 if self._verbosity > 0:
                     print(f"Terminating: maxiters {self._maxiters} reached")
                 break
@@ -389,5 +392,5 @@ class AlternatingLstSqOptimizer(OptimizerWithObjective):
                 if self._verbosity > 0:
                     print(f"Terminating: tolerance {self._tol} reached")
                 break
-        result = self._create_result(ft, it)
+        result = self._create_result(ft, it, success)
         return result

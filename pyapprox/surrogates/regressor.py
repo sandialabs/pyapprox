@@ -130,7 +130,8 @@ class Regressor(Surrogate):
     def fit(self, train_samples, train_values, iterate=None):
         """fit the regressor"""
         self._set_training_data(train_samples, train_values)
-        self._fit(iterate)
+        if self.hyp_list().nactive_vars() > 0:
+            self._fit(iterate)
 
     def save(self, filename):
         '''
@@ -206,7 +207,8 @@ class OptimizedRegressor(Regressor):
         if self._optimizer is None:
             raise RuntimeError("must call set_optimizer")
         if iterate is None:
-            iterate = self._optimizer._initial_interate_gen()
+            # iterate = self._optimizer._initial_interate_gen()
+            iterate = self.hyp_list().get_active_opt_params()[:, None]
         res = self._optimizer.minimize(iterate)
         active_opt_params = res.x[:, 0]
         self.hyp_list().set_active_opt_params(active_opt_params)

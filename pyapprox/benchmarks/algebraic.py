@@ -1142,16 +1142,10 @@ class CantileverBeamUncertainOptimizationBenchmark(
     def _set_constraints(self):
         # TODO change weights to create unbiased estimators of mean and variance
         from pyapprox.surrogates.bases.basis import (
-            FixedTensorProductQuadratureRule,
+            FixedGaussianTensorProductQuadratureRuleFromVariable
         )
-        from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
-
-        quad_rule = FixedTensorProductQuadratureRule(
-            self.variable().num_vars(),
-            [
-                GaussQuadratureRule(marginal, backend=self._bkd)
-                for marginal in self.variable().marginals()
-            ],
+        quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
+            self.variable(),
             [5 for ii in range(self.variable().num_vars())],
         )
         samples, weights = quad_rule()

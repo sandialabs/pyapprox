@@ -7,7 +7,9 @@ from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.joint import JointVariable, DesignVariable
 from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
-from pyapprox.surrogates.bases.basis import FixedTensorProductQuadratureRule
+from pyapprox.surrogates.bases.basis import (
+    FixedGaussianTensorProductQuadratureRuleFromVariable
+)
 from scipy.optimize import LinearConstraint
 from pyapprox.optimization.pya_minimize import Constraint
 
@@ -90,12 +92,8 @@ class ACVBenchmark(MultiModelBenchmark):
         raise NotImplementedError
 
     def _set_quadrature_samples_weights(self):
-        univariate_quad_rules = [
-            GaussQuadratureRule(variable, backend=self._bkd)
-            for variable in self.variable().marginals()
-        ]
-        quad_rule = FixedTensorProductQuadratureRule(
-            self.nvars(), univariate_quad_rules, [21] * self.nvars()
+        quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
+            self.variable(), [21] * self.nvars()
         )
         self._quadx, self._quadw = quad_rule()
         self._quadw = self._quadw[:, 0]

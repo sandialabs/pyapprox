@@ -347,11 +347,14 @@ class MultiStartOptimizer(OptimizerWithObjective):
         if self._initial_interate_gen is None:
             raise ValueError("Must call set_initial_iterate_generator")
         best_res = self._optimizer.minimize(x0_global)
+        sucess = best_res.success
         if self._verbosity > 1:
             print("it {0}: best objective {1}".format(0, best_res.fun))
         for ii in range(1, self._ncandidates):
             iterate = self._initial_interate_gen()
             res = self._optimizer.minimize(iterate, **kwargs)
+            if res.success:
+                sucess = True
             if res.fun < best_res.fun:
                 best_res = res
             if self._verbosity > 1:
@@ -361,6 +364,8 @@ class MultiStartOptimizer(OptimizerWithObjective):
                 )
         if self._verbosity > 0:
             print("{0}\n\t {1}".format(self, best_res))
+        if not sucess:
+            raise RuntimeError("All optimizations failed")
         return best_res
 
     def __repr__(self):
