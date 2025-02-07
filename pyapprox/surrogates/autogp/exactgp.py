@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import Tuple, List
 import warnings
 
@@ -20,7 +21,98 @@ from pyapprox.surrogates.bases.basis import (
     FixedTensorProductQuadratureRule,
     GaussQuadratureRule,
 )
-from pyapprox.util.transforms import IdentityTransform
+from pyapprox.util.transforms import (
+    IdentityTransform,
+    StandardDeviationTransform,
+)
+
+
+class GaussianProcessTransform:
+    @abstractmethod
+    def map_stdev_from_canonical(self, canonical_stdevs: Array) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def map_covariance_from_canonical(self, canonical_cov: Array) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def adjust_expectation_of_mean(self, expected_mean: float) -> float:
+        raise NotImplementedError
+
+    @abstractmethod
+    def adjust_zeta(self, zeta: float) -> float:
+        raise NotImplementedError
+
+    @abstractmethod
+    def adjust_phi(
+        self, phi: float, varrho: float, varsigma_sq: float
+    ) -> float:
+        raise NotImplementedError
+
+    @abstractmethod
+    def adjust_varrho(self, varrho: float, varsigma_sq: float) -> float:
+        raise NotImplementedError
+
+
+class GaussianProcessIdentityTransform(
+    IdentityTransform, GaussianProcessTransform
+):
+    def map_stdev_from_canonical(self, canonical_stdevs: Array) -> Array:
+        return canonical_stdevs
+
+    def map_covariance_from_canonical(self, canonical_cov: Array) -> Array:
+        return canonical_cov
+
+    def adjust_expectation_of_mean(self, expected_mean: float) -> float:
+        return expected_mean
+
+    def adjust_zeta(self, zeta: float, tau: Array, Ainv_y: Array) -> float:
+        return zeta
+
+    def adjust_phi(
+        self, phi: float, varrho: float, varsigma_sq: float
+    ) -> float:
+        return phi
+
+    def adjust_varrho(self, varrho: float, varsigma_sq: float) -> float:
+        return varrho
+
+
+class GaussianProcessStandardDeviationTransform(
+    StandardDeviationTransform, GaussianProcessTransform
+):
+    def map_stdev_from_canonical(self, canonical_stdevs: Array) -> Array:
+        return canonical_stdevs * self._stdevs
+
+    def map_covariance_from_canonical(self, canonical_cov: Array) -> Array:
+        return canonical_cov * self._stdevs**2
+
+    def adjust_expectation_of_mean(self, expected_mean: float) -> float:
+        # accounting for trend may just requred + gp.trend.mean()
+        return expected_mean * self._stdevs + self._means
+
+    def adjust_zeta(self, zeta: float, tau: Array, Ainv_y: Array) -> float:
+        # Need to determine how to account for trend
+        return (
+            zeta * self._stdevs**2
+            + 2 * tau @ Ainv_y * self._means * self._stdevs
+            + self._means**2
+        )
+
+    def adjust_phi(
+        self, phi: float, varrho: float, varsigma_sq: float
+    ) -> float:
+        raise NotImplementedError("Tests do not pass")
+        return (
+            phi * self._stdevs**2
+            + 2 * varrho * self._means * self._stdevs
+            + self._means**2 * varsigma_sq
+        )
+
+    def adjust_varrho(self, varrho: float, varsigma_sq: float) -> float:
+        raise NotImplementedError("Tests do not pass")
+        return varrho * self._stdevs + self._means * varsigma_sq
 
 
 class GPNegLogLikelihoodLoss(LossFunction):
@@ -65,6 +157,18 @@ class ExactGaussianProcess(OptimizedRegressor):
         self.set_optimizer()
         self._analytical_neg_log_like_jacobian_implemented = True
 
+    def _set_default_transforms(self):
+        self.set_input_transform(IdentityTransform())
+        self.set_output_transform(GaussianProcessIdentityTransform())
+
+    def set_output_transform(self, out_trans: GaussianProcessTransform):
+        if not isinstance(out_trans, GaussianProcessTransform):
+            raise ValueError(
+                f"out_trans {out_trans} must be an instance of "
+                "GaussianProcessTransform"
+            )
+        self._out_trans = out_trans
+
     def kernel(self) -> Kernel:
         return self._kernel
 
@@ -94,7 +198,7 @@ class ExactGaussianProcess(OptimizedRegressor):
             # method="L-BFGS-B",
             method="trust-constr",
         )
-        local_optimizer.set_verbosity(verbosity-1)
+        local_optimizer.set_verbosity(verbosity - 1)
         ms_optimizer = MultiStartOptimizer(
             local_optimizer, ncandidates=ncandidates
         )
@@ -303,14 +407,11 @@ class ExactGaussianProcess(OptimizedRegressor):
         return self._evaluate_canonical_posterior(samples, return_std)
 
     def covariance(self, samples: Array):
-        # for now assume out_trans is the identity
-        if not isinstance(self._out_trans, IdentityTransform):
-            raise ValueError("_out_trans must be the identity")
         canonical_samples = self._in_trans.map_to_canonical(samples)
         kmat_pred = self._kernel(canonical_samples, self._ctrain_samples)
         tmp = self._bkd.solve_triangular(self._coef_args[0], kmat_pred.T)
-        cov = self._kernel(canonical_samples) - tmp.T @ tmp
-        return cov
+        canonical_cov = self._kernel(canonical_samples) - tmp.T @ tmp
+        return self._out_trans.map_covariance_from_canonical(canonical_cov)
 
     def evaluate(self, samples: Array, return_std: bool):
         """
@@ -321,7 +422,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         if return_std:
             return (
                 self._out_trans.map_from_canonical(can_vals),
-                self._out_trans.map_from_canonical(can_std),
+                self._out_trans.map_stdev_from_canonical(can_std),
             )
         return self._out_trans.map_from_canonical(can_vals)
 
@@ -571,9 +672,11 @@ class GaussianProcessStatistics:
         # todo consider storing this in gp once it is trained
         coef_args = self._gp._factor_training_kernel_matrix()
         Linv = self._gp._cholesky_inverse(coef_args[0])
-        self._Kinv = Linv.T @ Linv
+        # store kernel matrix inverse that is not scaled by the
+        # kernel variance
+        self._Ainv = Linv.T @ Linv * self._get_kernel_variance()
 
-        condition_number = self._bkd.cond(self._Kinv)
+        condition_number = self._bkd.cond(self._Ainv)
         if condition_number > 1e8:
             warnings.warn(
                 "\nCondition number of kernel training matrix is "
@@ -583,8 +686,13 @@ class GaussianProcessStatistics:
             )
 
         # for now assume out_trans is the identity
-        if not isinstance(self._gp._out_trans, IdentityTransform):
-            raise ValueError("gp._out_trans must be the identity")
+        # if not isinstance(
+        #         self._gp._out_trans, GaussianProcessIdentityTransform
+        # ):
+        #     raise ValueError(
+        #         "gp._out_trans must be an instance of "
+        #         "GaussianProcessIdentityTransform"
+        #     )
 
         # for now assume no trend
         if self._gp._trend is not None:
@@ -735,14 +843,13 @@ class GaussianProcessStatistics:
 
     def expectation_of_mean(self) -> Array:
         tau = self._tau_P()[0]
-        expected_random_mean = tau @ self._gp._Kinv_y(self._Kinv)
+        expected_mean = tau @ self._gp._Kinv_y(self._Ainv)
         # for now out_trans is the identity
-        # expected_random_mean += y_train_mean
-        return expected_random_mean
+        return self._gp._out_trans.adjust_expectation_of_mean(expected_mean)
 
     def variance_of_mean(self) -> Array:
         tau = self._tau_P()[0]
-        varpi = tau @ self._Kinv @ tau
+        varpi = tau @ self._Ainv @ tau
         u = self._u_lamda_Pi_nu()[0]
         varsigma_sq = u - varpi
         # todo extract kernel variance from kernel
@@ -750,12 +857,11 @@ class GaussianProcessStatistics:
 
     def expectation_of_variance(self):
         tau, P = self._tau_P()
-        Kinv_P = self._Kinv @ P
-        v_sq = 1.0 - self._bkd.sum(self._Kinv * P)
-        Kinv_y = self._gp._Kinv_y(self._Kinv)
-        zeta = self._train_values.T @ (Kinv_P @ Kinv_y)
+        v_sq = 1.0 - self._bkd.sum(self._Ainv * P)
+        Ainv_y = self._gp._Kinv_y(self._Ainv)
+        zeta = Ainv_y.T @ P @ Ainv_y
         # reactivate once allow for out_trans to be not None
-        # zeta += 2*tau.dot(Kinv_y)*y_train_mean+y_train_mean**2
+        zeta = self._gp._out_trans.adjust_zeta(zeta, tau, Ainv_y)
 
         kernel_var = self._get_kernel_variance()
         expected_mean = self.expectation_of_mean()
@@ -793,33 +899,37 @@ class GaussianProcessStatistics:
 
     def variance_of_variance(self):
         tau, P = self._tau_P()
-        Kinv_P = self._Kinv @ P
-        varphi = self._bkd.sum(Kinv_P.T * Kinv_P)
+        Ainv_P = self._Ainv @ P
+        varphi = self._bkd.sum(Ainv_P.T * Ainv_P)
         u, lamda, Pi, nu = self._u_lamda_Pi_nu()
-        psi = self._bkd.sum(self._Kinv.T * Pi)
+        psi = self._bkd.sum(self._Ainv.T * Pi)
         chi = nu + varphi - 2.0 * psi
         eta = self.expectation_of_mean()
-        Kinv_y = self._gp._Kinv_y(self._Kinv)
-        varrho = lamda @ Kinv_y - tau @ Kinv_P @ Kinv_y
-        phi = Kinv_y.T @ Pi @ Kinv_y - self._bkd.multidot(
-            (Kinv_y.T, P, Kinv_P, Kinv_y)
+        Ainv_y = self._gp._Kinv_y(self._Ainv)
+        varrho = lamda @ Ainv_y - tau @ Ainv_P @ Ainv_y
+        phi = Ainv_y.T @ Pi @ Ainv_y - self._bkd.multidot(
+            (Ainv_y.T, P, Ainv_P, Ainv_y)
         )
         # add back in once out_trans is not None
         # adjust phi with unadjusted varrho
         # phi += 2*y_train_mean*varrho+y_train_mean**2*varsigma_sq
         # now adjust varrho
         # varrho += y_train_mean*varsigma_sq
-
-        Kinv_tau = self._Kinv @ tau
-        xi_1 = self._xi_1()
-        xi = xi_1 + tau @ Kinv_P @ Kinv_tau - 2.0 * lamda @ Kinv_tau
-        kernel_var = self._get_kernel_variance()
-        v_sq = 1.0 - self._bkd.sum(self._Kinv * P)
-        Kinv_y = self._gp._Kinv_y(self._Kinv)
-        zeta = self._train_values.T @ (Kinv_P @ Kinv_y)
-        varpi = tau @ self._Kinv @ tau
+        varpi = tau @ self._Ainv @ tau
         u = self._u_lamda_Pi_nu()[0]
         varsigma_sq = u - varpi
+        phi = self._gp._out_trans.adjust_phi(phi, varrho, varsigma_sq)
+        varrho = self._gp._out_trans.adjust_varrho(varrho, varsigma_sq)
+
+        Ainv_tau = self._Ainv @ tau
+        xi_1 = self._xi_1()
+        xi = xi_1 + tau @ Ainv_P @ Ainv_tau - 2.0 * lamda @ Ainv_tau
+        v_sq = 1.0 - self._bkd.sum(self._Ainv * P)
+        Ainv_y = self._gp._Kinv_y(self._Ainv)
+        zeta = Ainv_y.T @ P @ Ainv_y
+        zeta = self._gp._out_trans.adjust_zeta(zeta, tau, Ainv_y)
+        kernel_var = self._get_kernel_variance()
+
         # E[I_2^2] (term1)
         term1 = (
             4 * phi * kernel_var

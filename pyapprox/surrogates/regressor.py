@@ -76,8 +76,7 @@ class Surrogate(Model):
 class Regressor(Surrogate):
     def __init__(self, backend=NumpyLinAlgMixin):
         super().__init__(backend)
-        self._in_trans = IdentityTransform()
-        self._out_trans = IdentityTransform()
+        self._set_default_transforms()
         # canonical traning samples after transformation
         self._ctrain_samples = None
         # canonical traning values after transformation
@@ -99,6 +98,10 @@ class Regressor(Surrogate):
             self._apply_jacobian_implemented = False
             self._hessian_implemented = False
             self._apply_hessian_implemented = False
+
+    def _set_default_transforms(self):
+        self.set_input_transform(IdentityTransform())
+        self.set_output_transform(IdentityTransform())
 
     def set_input_transform(self, in_trans: Transform):
         if not isinstance(in_trans, Transform):

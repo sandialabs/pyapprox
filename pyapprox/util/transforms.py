@@ -36,9 +36,6 @@ class IdentityTransform(Transform):
     def derivatives_to_canonical(self, derivs, order=1):
         return derivs
 
-    def map_stdev_from_canonical(self, canonical_stdevs):
-        return canonical_stdevs
-
 
 class StandardDeviationTransform(Transform):
     def __init__(self, trans=False, backend=None):
@@ -63,9 +60,6 @@ class StandardDeviationTransform(Transform):
     def map_from_canonical(self, canonical_values):
         values = canonical_values*self._stdevs + self._means
         return values
-
-    def map_stdev_from_canonical(self, canonical_stdevs):
-        return canonical_stdevs*self._stdevs
 
 
 class NSphereCoordinateTransform(Transform):
