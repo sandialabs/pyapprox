@@ -48,6 +48,7 @@ from .weighting import (
 from .univariate import (
     ScipyTrustConstrMinimizer,
     LejaObjective,
+    TwoPointLejaObjective,
     LejaSequence1D,
 )
 
@@ -72,6 +73,7 @@ __all__ = [
     # Univariate implementations
     "ScipyTrustConstrMinimizer",
     "LejaObjective",
+    "TwoPointLejaObjective",
     "LejaSequence1D",
     # Multivariate implementations
     "LejaSampler",

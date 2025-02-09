@@ -5,7 +5,8 @@ Leja sequences are nested sequences of points optimal for polynomial
 interpolation.
 
 Key classes:
-- LejaObjective: Objective function for Leja point optimization
+- LejaObjective: One-point objective function for Leja point optimization
+- TwoPointLejaObjective: Two-point objective optimizing pairs simultaneously
 - LejaSequence1D: Univariate Leja sequence with internal caching
 - ScipyTrustConstrMinimizer: Default optimizer factory using scipy trust-constr
 
@@ -205,7 +206,7 @@ class LejaObjective(Generic[Array]):
         Returns
         -------
         Array
-            Objective values. Shape: (nsamples, 1)
+            Objective values. Shape: (1, nsamples)
         """
         basis_vals = self._basis(samples)
         basis_mat = basis_vals[:, :-1]
@@ -214,7 +215,8 @@ class LejaObjective(Generic[Array]):
 
         pvals = basis_mat @ self._coefficients
         residual = new_basis - pvals
-        return -weights * self._bkd.sum(residual ** 2, axis=1)[:, None]
+        vals = -weights * self._bkd.sum(residual ** 2, axis=1)[:, None]
+        return vals.T
 
     def jacobian(self, sample: Array) -> Array:
         """Compute Jacobian of objective.
@@ -318,12 +320,190 @@ class LejaObjective(Generic[Array]):
         )
 
 
+class TwoPointLejaObjective(LejaObjective[Array]):
+    """Two-point objective function for Leja sequence optimization.
+
+    Optimizes pairs of points simultaneously by maximizing the squared
+    determinant of the 2x2 weighted residual matrix. This produces
+    better-conditioned sequences than adding one point at a time.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+    basis : Basis1DProtocol[Array]
+        Univariate polynomial basis.
+    weighting : LejaWeightingProtocol[Array]
+        Weighting strategy.
+    bounds : Tuple[float, float]
+        Domain bounds (lower, upper).
+    """
+
+    def nvars(self) -> int:
+        """Return number of optimization variables (2 for two-point)."""
+        return 2
+
+    def _update_cached_data(self) -> None:
+        """Update cached basis matrix and coefficients for two new terms."""
+        nterms = self.nsamples() + 2
+        self._basis.set_nterms(nterms)
+        basis_vals = self._basis(self._sequence)
+        self._basis_mat = basis_vals[:, :-2]
+        self._basis_vec = basis_vals[:, -2:]
+
+        # Compute weights at sequence points
+        self._weights = self._weighting(self._sequence, self._basis_mat)
+
+        # Compute interpolation coefficients using weighted least squares
+        sqrt_weights = self._bkd.sqrt(self._weights)
+        self._coefficients = self._bkd.lstsq(
+            sqrt_weights * self._basis_mat,
+            sqrt_weights * self._basis_vec,
+        )
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate two-point objective at sample pairs.
+
+        The objective is the negative squared determinant of the 2x2
+        weighted residual matrix.
+
+        Parameters
+        ----------
+        samples : Array
+            Pairs of points. Shape: (2, nsamples).
+            Row 0 = first point of each pair, row 1 = second point.
+
+        Returns
+        -------
+        Array
+            Objective values. Shape: (1, nsamples)
+        """
+        if samples.shape[0] != 2:
+            raise ValueError("samples must have shape (2, nsamples)")
+        nsamples = samples.shape[1]
+
+        # Flatten to (1, 2*nsamples) for basis evaluation
+        flat_samples = self._bkd.reshape(samples, (1, nsamples * 2))
+        basis_vals = self._basis(flat_samples)
+        basis_mat = basis_vals[:, :-2]
+        new_basis = basis_vals[:, -2:]
+
+        sqrt_weights = self._bkd.sqrt(
+            self._weighting(flat_samples, basis_mat)
+        )
+        pvals = basis_mat @ self._coefficients
+        residuals = sqrt_weights * (new_basis - pvals)
+
+        # Compute 2x2 determinant for each pair
+        det = (
+            residuals[:nsamples, 0] * residuals[nsamples:, 1]
+            - residuals[:nsamples, 1] * residuals[nsamples:, 0]
+        )
+        return -(det[None, :] ** 2)
+
+    def jacobian(self, sample: Array) -> Array:
+        """Compute Jacobian of two-point objective.
+
+        Parameters
+        ----------
+        sample : Array
+            Single pair of points. Shape: (2, 1)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (1, 2) — (nqoi, nvars)
+        """
+        # Flatten to (1, 2)
+        flat_sample = self._bkd.reshape(sample, (1, 2))
+
+        # Get basis values and derivatives
+        basis_vals = self._basis(flat_sample)
+        basis_jac = self._basis.derivatives(flat_sample, order=1)
+
+        bvals = basis_vals[:, -2:]
+        pvals = basis_vals[:, :-2] @ self._coefficients
+        bderivs = basis_jac[:, -2:]
+        pderivs = basis_jac[:, :-2] @ self._coefficients
+
+        sqrt_weights = self._bkd.sqrt(
+            self._weighting(flat_sample, basis_vals[:, :-2])
+        )
+
+        # Compute weight jacobian for sqrt_weights
+        if hasattr(self._weighting, "jacobian"):
+            weights_jac = self._weighting.jacobian(
+                flat_sample, basis_vals[:, :-2], basis_jac[:, :-2]
+            )
+        else:
+            weights_jac = self._bkd.zeros((2, 1))
+
+        sqrt_weights_jac = weights_jac / (2 * sqrt_weights[:, 0:1])
+
+        # Weighted residuals and their jacobians
+        residuals = sqrt_weights * (bvals - pvals)
+        residuals_jac = sqrt_weights * (bderivs - pderivs) + (
+            sqrt_weights_jac * (bvals - pvals)
+        )
+
+        # Determinant and its jacobian
+        # det = r[0,0]*r[1,1] - r[0,1]*r[1,0]
+        determinant = (
+            residuals[:1, 0] * residuals[1:, 1]
+            - residuals[:1, 1] * residuals[1:, 0]
+        )
+        determinant_jac = self._bkd.stack(
+            (
+                residuals_jac[:1, 0] * residuals[1:2, 1]
+                - residuals_jac[:1, 1] * residuals[1:2, 0],
+                residuals[:1, 0] * residuals_jac[1:2, 1]
+                - residuals[:1, 1] * residuals_jac[1:2, 0],
+            ),
+            axis=1,
+        )
+        # d/dx (-(det)^2) = -2 * det * d(det)/dx
+        # Shape: (1, 2) = (nqoi, nvars)
+        jac = -2 * determinant * determinant_jac
+        return jac
+
+    def initial_iterates_and_bounds(self) -> Tuple[Array, list]:
+        """Generate initial guesses as pairs of 1D interval midpoints.
+
+        Returns
+        -------
+        Tuple[Array, list]
+            (iterates, bounds_list) where iterates has shape (2, n_pairs)
+            and bounds_list contains per-pair bounds arrays of shape (2, 2).
+        """
+        iterates_1d, bounds_1d = super().initial_iterates_and_bounds()
+        iterates = []
+        bounds = []
+        for ii in range(iterates_1d.shape[1]):
+            for jj in range(ii + 1, iterates_1d.shape[1]):
+                iterates.append(
+                    self._bkd.vstack(
+                        (iterates_1d[:, ii:ii+1], iterates_1d[:, jj:jj+1])
+                    )
+                )
+                bounds.append(
+                    self._bkd.vstack((bounds_1d[ii], bounds_1d[jj]))
+                )
+        return self._bkd.hstack(iterates), bounds
+
+    def __repr__(self) -> str:
+        return (
+            f"TwoPointLejaObjective(nsamples={self.nsamples()}, "
+            f"bounds={self._bounds})"
+        )
+
+
 class LejaSequence1D(Generic[Array]):
     """Univariate Leja sequence with internal caching.
 
     Leja sequences are nested sequences of points optimal for polynomial
-    interpolation. Points are added one at a time by solving an optimization
-    problem to find the best next point.
+    interpolation. Points are added by solving an optimization problem to
+    find the best next point(s). Supports both one-point and two-point
+    objectives via the ``objective_class`` parameter.
 
     Parameters
     ----------
@@ -340,6 +520,9 @@ class LejaSequence1D(Generic[Array]):
     optimizer : callable, optional
         Optimizer factory that accepts (objective, bounds) and returns an
         optimizer with a minimize() method. Defaults to ScipyTrustConstrMinimizer().
+    objective_class : Type[LejaObjective], optional
+        Objective class to use. Defaults to LejaObjective (one-point).
+        Use TwoPointLejaObjective for two-point optimization.
 
     Examples
     --------
@@ -361,6 +544,16 @@ class LejaSequence1D(Generic[Array]):
     >>> from pyapprox.typing.surrogates.affine.leja import ScipyTrustConstrMinimizer
     >>> optimizer = ScipyTrustConstrMinimizer(gtol=1e-8, maxiter=500)
     >>> leja = LejaSequence1D(bkd, basis, weighting, bounds, optimizer=optimizer)
+
+    Two-point Leja sequence:
+
+    >>> from pyapprox.typing.surrogates.affine.leja.univariate import (
+    ...     TwoPointLejaObjective,
+    ... )
+    >>> leja2 = LejaSequence1D(
+    ...     bkd, basis, weighting, bounds,
+    ...     objective_class=TwoPointLejaObjective,
+    ... )
     """
 
     def __init__(
@@ -371,6 +564,7 @@ class LejaSequence1D(Generic[Array]):
         bounds: Tuple[float, float],
         initial_points: Optional[Array] = None,
         optimizer: Optional[Callable] = None,
+        objective_class: Optional[Type[LejaObjective]] = None,
     ):
         self._bkd = bkd
         self._basis = basis
@@ -383,7 +577,11 @@ class LejaSequence1D(Generic[Array]):
         self._optimizer_factory = optimizer
 
         # Initialize objective
-        self._objective = LejaObjective(bkd, basis, weighting, bounds)
+        if objective_class is None:
+            objective_class = LejaObjective
+        self._objective: LejaObjective[Array] = objective_class(
+            bkd, basis, weighting, bounds
+        )
 
         # Cache for quadrature weights: {npoints: weights_array}
         self._cached_weights: Dict[int, Array] = {}
@@ -408,7 +606,11 @@ class LejaSequence1D(Generic[Array]):
         return self._objective.nsamples()
 
     def _step(self) -> None:
-        """Add one new point to the sequence."""
+        """Add new point(s) to the sequence.
+
+        For one-point objectives, adds 1 point. For two-point objectives,
+        adds 2 points per step.
+        """
         iterates, bounds_list = self._objective.initial_iterates_and_bounds()
 
         # Try optimization from each initial guess
@@ -426,8 +628,9 @@ class LejaSequence1D(Generic[Array]):
         best_idx = int(self._bkd.argmin(fun_arr))
         best_point = results[best_idx].optima()
 
-        # Reshape best point to (1, 1) and add to sequence
-        chosen = self._bkd.reshape(best_point, (1, best_point.shape[0]))
+        # Reshape to (1, nopt_vars) for hstack with sequence
+        nopt_vars = self._objective.nvars()
+        chosen = self._bkd.reshape(best_point, (1, nopt_vars))
         new_sequence = self._bkd.hstack([self._objective.sequence(), chosen])
         self._objective.set_sequence(new_sequence)
 
@@ -447,9 +650,22 @@ class LejaSequence1D(Generic[Array]):
         Parameters
         ----------
         n_new_points : int
-            Number of new points to add.
+            Number of new points to add. Must be divisible by the
+            objective's nvars() (1 for one-point, 2 for two-point).
+
+        Raises
+        ------
+        ValueError
+            If n_new_points is not divisible by objective.nvars().
         """
-        for _ in range(n_new_points):
+        nopt_vars = self._objective.nvars()
+        if n_new_points % nopt_vars != 0:
+            raise ValueError(
+                f"n_new_points ({n_new_points}) must be divisible by "
+                f"objective nvars ({nopt_vars})"
+            )
+        n_steps = n_new_points // nopt_vars
+        for _ in range(n_steps):
             self._step()
 
     def quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
