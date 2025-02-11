@@ -58,8 +58,12 @@ class ParameterizedNewtonResidualMixin(ABC):
         if sol.ndim != 1:
             raise ValueError("sol must be a 1d Array")
         jac = self._param_jacobian(sol)
-        if jac.ndim != 2 or jac.shape[0] != sol.shape[0]:
-            raise RuntimeError(f"jac has the wrong shape {jac.shape}")
+        if jac.ndim != 2 or jac.shape != (sol.shape[0], self._param.shape[0]):
+            raise RuntimeError(
+                "jac has the wrong shape {0} should be {1}".format(
+                    jac.shape, (sol.shape[0], self._param.shape[0])
+                )
+            )
         return jac
 
     def _adjoint_dot_residual_param_wrapper(
