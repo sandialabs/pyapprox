@@ -228,16 +228,52 @@ class DOptimalQuantileCriterion(
             )[None, :]
         )
 
+from pyapprox.pde.collocation.adjoint_models import SteadyAdjointModel
+from pyapprox.pde.collocation.newton import (
+    NewtonResidual,
+    ParameterizedNewtonResidualMixin,
+)
+class COptimalMixin:
+    def __init__(
+        self,
+        design_factors: Array,
+        vec: Array,
+        noise_mult: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(design_factors, noise_mult, backend)
+        residual = CoptimalParameterizedNewtonResidual(vec)
+        residual.set_criterion(self)
+        self._adj_model = SteadyAdjointModel(residual)
 
-class AOptimalMixin:
-    def _evaluate(self, design_prob_measure: Array) -> Array:
+
+
+class CoptimalParameterizedNewtonResidual(
+        ParameterizedNewtonResidualMixin, NewtonResidual
+):
+    def __init__(self, vec: Array, backend: LinAlgMixin):
+        self._bkd = backend
+        self._vec = vec
+
+    def nstates(self) -> int:
+        return 3
+
+    def set_param(self, param: Array):
+        if param.shape[0] != self.nvars():
+            raise ValueError("param has the wrong shape")
+        self._param = param
+
+    def set_criterion(self, criterion: LinearOEDCriterion):
+        self._crit = criterion
+
+    def __call__(self, iterate: Array) -> Array:
+        return self._jacobian(iterate) @ iterate - self._vec
+
+    def _jacobian(self, iterate: Array) -> Array:
         M0, M1, M0_inv, M1_inv = self._recall_design_matrices(
-            design_prob_measure
+            iterate
         )
-        if self.is_homoscedastic():
-            return self._bkd.zeros((1, 1)) + self._bkd.log(
-                self._bkd.trace(M1_inv)
-            )
-        gamma = M0.dot(M1_inv)
-        return self._bkd.zeros((1, 1)) + self._bkd.trace(M1_inv @ gamma)
+        return M0
 
+    def _param_jacobian(self, sol: Array) -> Array:
+        return self._bkd.sum(self._crit._homos_outer_prods, axis=0)
