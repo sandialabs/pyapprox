@@ -1,9 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Tuple, List
 
+import numpy as np
+from scipy.optimize import LinearConstraint
+
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.interface.model import SingleSampleModel
+from pyapprox.optimization.pya_minimize import (
+    ConstrainedOptimizer, ScipyConstrainedOptimizer
+)
 
 
 class LocalOEDCriterionMixin(SingleSampleModel):
@@ -87,6 +93,7 @@ class LocalOEDCriterionMixin(SingleSampleModel):
 
     def nvars(self) -> int:
         """Number of uncertain model parameters"""
+        return self._design_factors.shape[0]
 
     def nqoi(self) -> int:
         """The dimension of the vector returned by objective function."""
@@ -133,6 +140,14 @@ class QuantileLocalOEDRegressionMixin(LocalOEDRegressionMixin):
 
 
 class DOptimalMixin:
+    def __init__(
+        self,
+        design_factors: Array,
+        noise_mult: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(design_factors, noise_mult, backend)
+
     def _evaluate(self, design_prob_measure: Array) -> Array:
         M1 = self._M1(design_prob_measure)
         if self.is_homoscedastic():
@@ -149,6 +164,13 @@ class DOptimalMixin:
         if self.is_homoscedastic():
             return self._homoscedastic_jacobian(design_prob_measure)
         return self._hetroscedastic_jacobian(design_prob_measure)
+
+    def _hessian(self, design_prob_measure: Array) -> Array:
+        if not self.is_homoscedastic():
+            raise RuntimeError(
+                "Hessian not supported for heteroscedastic noise"
+            )
+        return self._homoscedastic_hessian(design_prob_measure)
 
     @abstractmethod
     def _hetroscedastic_jacobian(self, design_prob_measure: Array) -> Array:
@@ -406,6 +428,21 @@ class COptimalLstSqCriterion(
         super().__init__(design_factors, vec[None, :], noise_mult, backend)
 
 
+class COptimalQuantileCriterion(
+    QuantileLocalOEDRegressionMixin,
+    LocalOEDCriterionAdjointMixin,
+    LocalOEDCriterionMixin,
+):
+    def __init__(
+        self,
+        design_factors: Array,
+        vec: Array,
+        noise_mult: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(design_factors, vec[None, :], noise_mult, backend)
+
+
 class AOptimalLstSqCriterion(
     LstSqLocalOEDRegressionMixin,
     LocalOEDCriterionAdjointMixin,
@@ -419,3 +456,102 @@ class AOptimalLstSqCriterion(
     ):
         vecs = backend.eye(design_factors.shape[1])
         super().__init__(design_factors, vecs, noise_mult, backend)
+
+
+class AOptimalQuantileCriterion(
+    QuantileLocalOEDRegressionMixin,
+    LocalOEDCriterionAdjointMixin,
+    LocalOEDCriterionMixin,
+):
+    def __init__(
+        self,
+        design_factors: Array,
+        noise_mult: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        vecs = backend.eye(design_factors.shape[1])
+        super().__init__(design_factors, vecs, noise_mult, backend)
+
+
+class IOptimalLstSqCriterion(
+        LstSqLocalOEDRegressionMixin,
+        LocalOEDCriterionAdjointMixin,
+        LocalOEDCriterionMixin,
+):
+    def __init__(
+        self,
+        design_factors: Array,
+        pred_factors: Array,
+        pred_prob_measure: Array = None,
+        noise_mult: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        self._integrate_pred_factors(pred_factors, pred_prob_measure)
+        vecs = self._Bchol.T
+        super().__init__(design_factors, vecs, noise_mult, backend)
+
+    def _integrate_pred_factors(
+            self, pred_factors: Array, pred_prob_measure: Array
+    ):
+        npred_pts = pred_factors.shape[0]
+        if pred_prob_measure is None:
+            pred_prob_measure = self._bkd.full((npred_pts,), 1/npred_pts)
+        if pred_prob_measure.shape != (npred_pts,):
+            raise ValueError("pred_prob_measure has the wrong shape")
+        self._pred_prob_measure = pred_prob_measure
+        self._pred_factors = pred_factors
+        self._Bmat = pred_factors.T @ (
+            pred_prob_measure[:, None] * pred_factors
+        )
+        self._Bchol = self._bkd.cholesky(self._Bmat)
+
+
+class LocalOptimalExperimentalDesign:
+    def __init__(self, criterion: LocalOEDCriterionMixin):
+        if not isinstance(criterion, LocalOEDCriterionMixin):
+            raise ValueError(
+                "crit must be an instance of LocalOEDCriterionMixin"
+            )
+        self._crit = criterion
+        self._bkd = self._crit._bkd
+
+    def set_optimizer(self, optimizer: ConstrainedOptimizer):
+        if not isinstance(optimizer, ConstrainedOptimizer):
+            raise ValueError(
+                "optimizer must be instance of ConstrainedOptimizer"
+            )
+        self._optimizer = optimizer
+        self._optimizer.set_objective_function(self._crit)
+        print(self._crit.nvars())
+        self._optimizer.set_bounds(
+            self._bkd.stack(
+                (
+                    self._bkd.zeros((self._crit.nvars(),)),
+                    self._bkd.full((self._crit.nvars(),), np.inf),
+                ),
+                axis=1,
+            )
+        )
+        linear_con = LinearConstraint(
+            self._bkd.ones((1, self._crit.nvars())),
+            1.0,
+            1.0,
+            keep_feasible=True,
+        )
+        self._optimizer.set_constraints([linear_con])
+
+    def default_optimizer(self) -> ScipyConstrainedOptimizer:
+        return ScipyConstrainedOptimizer()
+
+    def construct(self, init_iterate: Array = None) -> Array:
+        if not hasattr(self, "_optimizer"):
+            self.set_optimizer(self.default_optimizer())
+        if init_iterate is None:
+            init_iterate = self._bkd.full(
+                (self._crit.nvars(), 1), 1./self._crit.nvars()
+            )
+        if init_iterate.shape != (self._crit.nvars(), 1):
+            raise ValueError("init_iterate has the wrong shape")
+        self._res = self._optimizer.minimize(init_iterate)
+        return self._res.x

@@ -984,9 +984,9 @@ class RosenbrockConstrainedOptimizationBenchmark(
         return self._bkd.ones((self._nvars, 1))
 
     def init_iterate(self) -> Array:
-        eps = 0.2 # initial iterate on constraint
+        eps = 0.2  # initial iterate on constraint
         # need to shift x coord because of issues with scipy trust-constr solver
-        return self._bkd.array([1-eps-1e-16, 1+eps])[:, None]
+        return self._bkd.array([1 - eps - 1e-16, 1 + eps])[:, None]
 
     def _set_objective(self):
         self._objective = RosenbrockModel(2, self._bkd)
@@ -1142,8 +1142,9 @@ class CantileverBeamUncertainOptimizationBenchmark(
     def _set_constraints(self):
         # TODO change weights to create unbiased estimators of mean and variance
         from pyapprox.surrogates.bases.basis import (
-            FixedGaussianTensorProductQuadratureRuleFromVariable
+            FixedGaussianTensorProductQuadratureRuleFromVariable,
         )
+
         quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
             self.variable(),
             [5 for ii in range(self.variable().num_vars())],
@@ -1500,3 +1501,28 @@ class EvtushenkoConstrainedOptimizationBenchmark(
 
     def optimal_iterate(self) -> Array:
         return self._bkd.array([0.0, 0.0, 1.0])[:, None]
+
+
+class MichaelisMentenModel(SingleSampleModel):
+    def __init__(self, mesh: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+        super().__init__(backend)
+        if mesh.ndim != 2 or mesh.shape[0] != 1:
+            raise ValueError("mesh must be 2D array with one row")
+        self._mesh = mesh
+        self._jacobian_implemented = True
+
+    def nqoi(self) -> int:
+        return self._mesh.shape[1]
+
+    def _evaluate(self, sample: Array) -> Array:
+        theta_1, theta_2 = sample
+        return (theta_1 * self._mesh[0] / (theta_2 + self._mesh[0]))[None, :]
+
+    def _jacobian(self, sample: Array) -> Array:
+        theta_1, theta_2 = sample
+        return self._bkd.stack(
+            (
+                self._mesh[0] / (theta_2 + self._mesh[0]),
+                -theta_1 * self._mesh[0] / (theta_2 + self._mesh[0]) ** 2,
+            ), axis=1
+        )
