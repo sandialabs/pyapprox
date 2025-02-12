@@ -5,14 +5,14 @@ import numpy as np
 from scipy.optimize import minimize as scipy_minimize
 import scipy
 
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 from pyapprox.interface.model import (
     Model,
     ScipyModelWrapper,
     ActiveSetVariableModel,
-    ModelFromSingleSampleCallable,
+    SingleSampleModel,
 )
 from scipy.optimize import Bounds, NonlinearConstraint, LinearConstraint
 
@@ -103,20 +103,20 @@ class ConstraintFromModel(Constraint):
         ]:
             setattr(self, attr, getattr(self._model, attr))
 
-    def _check_sample(self, sample):
+    def _check_sample(self, sample: Array):
         if sample.shape[1] > 1:
             raise ValueError(
                 "Constraint can only be evaluated at one sample "
                 f"but {sample.shape=}"
             )
 
-    def _values(self, sample):
+    def _values(self, sample: Array) -> Array:
         return self._model(sample)
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return self._model.nqoi()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
 
 
@@ -178,10 +178,10 @@ class Optimizer(ABC):
         self._opts = opts
 
     @abstractmethod
-    def _minimize(self, iterate):
+    def _minimize(self, iterate: Array) -> OptimizationResult:
         raise NotImplementedError
 
-    def minimize(self, iterate):
+    def minimize(self, iterate: Array) -> OptimizationResult:
         """
         Minimize the objective function.
 
@@ -218,7 +218,7 @@ class Optimizer(ABC):
         """
         self._verbosity = verbosity
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(verbosity={1})".format(
             self.__class__.__name__, self._verbosity
         )
@@ -377,10 +377,10 @@ class ConstrainedOptimizer(OptimizerWithObjective):
     def __init__(self, objective=None, constraints=[], bounds=None, opts={}):
         super().__init__(objective, bounds, opts)
         self._raw_constraints = None
-        self._constraints = constraints
+        # self._constraints = constraints
         self.set_constraints(constraints)
 
-    def set_constraints(self, constraints):
+    def set_constraints(self, constraints: List[Constraint]):
         self._raw_constraints = constraints
         for con in constraints:
             if not isinstance(con, Constraint) and not isinstance(
@@ -1274,3 +1274,162 @@ def approx_hessian(
     jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
 ):
     return approx_jacobian(lambda y: jac_fun(y).T, x, epsilon, bkd=bkd)
+
+
+class MiniMaxObjective(SingleSampleModel):
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
+
+    def nqoi(self) -> int:
+        return 1
+
+    def _evaluate(self, sample: Array) -> Array:
+        return sample[:1]
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.hstack(
+            (self._bkd.ones((1,)), self._bkd.zeros((sample.shape[0] - 1,)))
+        )[None, :]
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        return self._bkd.zeros((sample.shape[0],))
+
+
+class MiniMaxConstraintFromModel(Constraint):
+    def __init__(self, model, keep_feasible=False):
+        bounds = model._bkd.stack(
+            (
+                model._bkd.zeros((model.nqoi(),)),
+                model._bkd.full((model.nqoi(),), np.inf),
+            ),
+            axis=1,
+        )
+        super().__init__(bounds, keep_feasible, model._bkd)
+        if not isinstance(model, Model):
+            raise ValueError(
+                "constraint must be an instance of {0}".format(
+                    "pyapprox.interface.model.Model"
+                )
+            )
+        self._model = model
+
+        for attr in [
+            "jacobian_implemented",
+            "hessian_implemented",
+            "apply_hessian_implemented",
+            "weighted_hessian_implemented",
+            "apply_weighted_hessian_implemented",
+        ]:
+            setattr(self, attr, getattr(self._model, attr))
+
+    def _values(self, sample: Array) -> Array:
+        return sample[0] - self._model(sample[1:])
+
+    def _jacobian(self, sample: Array) -> Array:
+        model_jac = self._model.jacobian(sample[1:])
+        return self._bkd.hstack(
+            (self._bkd.ones((model_jac.shape[0], 1)), model_jac)
+        )
+
+    def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
+        model_jvp = self._model.apply_jacobian(sample[1:], vec[1:])
+        return self._bkd.hstack((vec[:1], model_jvp))
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        model_hvp = self._model.apply_hessian(sample[1:], vec[1:])
+        return self._bkd.hstack((vec[:1] * 0, model_hvp))
+
+    def _hessian(self, sample: Array) -> Array:
+        model_hess = self._model.hessian(sample[1:])
+        hess = self._bkd.zeros((self.nqoi(), sample.shape[0], sample.shape[0]))
+        hess[:, 1:, 1:] = model_hess
+        return hess
+
+    def nqoi(self) -> int:
+        return self._model.nqoi()
+
+    def __repr__(self):
+        return "{0}(model={1})".format(self.__class__.__name__, self._model)
+
+
+class MiniMaxAdjustedConstraint(Constraint):
+    def __init__(self, constraint: Constraint):
+        if not isinstance(constraint, Constraint):
+            raise ValueError("constraint must be an instance of Constraint")
+        self._constraint = constraint
+        super().__init__(
+            constraint._bounds, constraint._keep_feasible, constraint._bkd
+        )
+        for attr in [
+            "jacobian_implemented",
+            "hessian_implemented",
+            "apply_hessian_implemented",
+            "weighted_hessian_implemented",
+            "apply_weighted_hessian_implemented",
+        ]:
+            setattr(self, attr, getattr(self._constraint, attr))
+
+    def _values(self, sample: Array) -> Array:
+        return self._constraint(sample[1:])
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.stack(
+            (self._bkd.zeros((1,)), self._constraint.jacobian(sample[1:]))
+        )
+
+
+class MiniMaxOptimizer:
+    def __init__(
+        self,
+        optimizer: ConstrainedOptimizer,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        if not isinstance(optimizer, ConstrainedOptimizer):
+            raise ValueError(
+                "optimizer must be an instance of ConstrainedOptimizer"
+            )
+        self._bkd = backend
+        self._optimizer = optimizer
+        objective = MiniMaxObjective(backend=self._bkd)
+        self._optimizer.set_objective_function(objective)
+
+    def set_max_constraint_model(self, model: Model):
+        if not isinstance(model, Model):
+            raise ValueError("model must be an instance of Model")
+        self._max_constraint = MiniMaxConstraintFromModel(model)
+
+    def _adjust_constraints(
+        self, constraints: List[Constraint]
+    ) -> List[Constraint]:
+        adjusted_constraints = []
+        for con in constraints:
+            if isinstance(con, LinearConstraint):
+                A = self._bkd.hstack(
+                    (self._bkd.zeros((con.A.shape[0], 1)), con.A)
+                )
+                adjusted_constraints.append(
+                    LinearConstraint(A, con.lb, con.ub, con.keep_feasible)
+                )
+            else:
+                adjusted_constraints.append(MiniMaxAdjustedConstraint(con))
+        return adjusted_constraints
+
+    def set_constraints(self, constraints: List[Constraint]):
+        if not hasattr(self, "_max_constraint"):
+            raise RuntimeError("Must first call set_max_constraint_model")
+        self._optimizer.set_constraints(
+            [self._max_constraint] + self._adjust_constraints(constraints)
+        )
+
+    def __repr__(self):
+        return "{0}(optimizer={1})".format(
+            self.__class__.__name__, self._optimizer
+        )
+
+    def minimize(self, iterate: Array):
+        # if iterate.shape != (self._max_constraint._model.nvars() + 1, 1):
+        #     raise ValueError("iterate must have len model.nvars() + 1")
+        return self._optimizer.minimize(iterate)

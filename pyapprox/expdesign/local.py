@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, List
+from typing import Tuple
 
-import numpy as np
 from scipy.optimize import LinearConstraint
 
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
@@ -507,24 +506,6 @@ class IOptimalLstSqCriterion(
         self._Bchol = self._bkd.cholesky(self._Bmat)
 
 
-class MiniMaxObjective(SingleSampleModel):
-    def nvars(self) -> int:
-        return 1
-
-    def _evaluate(self, sample: Array) -> Array:
-        return sample[:1, 0]
-
-    def _jacobian(self, sample: Array) -> Array:
-        return self._bkd.hstack(
-            (self._bkd.ones((1,)), self._bkd.zeros((sample.shape[0]-1,)))
-        )
-
-    def _hessian(self, sample: Array) -> Array:
-        return self._bkd.hstack(
-            (self._bkd.ones((1,)), self._bkd.zeros((sample.shape[0]-1,)))
-        )
-
-
 class LocalOptimalExperimentalDesign:
     def __init__(self, criterion: LocalOEDCriterionMixin):
         if not isinstance(criterion, LocalOEDCriterionMixin):
@@ -545,7 +526,7 @@ class LocalOptimalExperimentalDesign:
             self._bkd.stack(
                 (
                     self._bkd.zeros((self._crit.nvars(),)),
-                    self._bkd.full((self._crit.nvars(),), np.inf),
+                    self._bkd.full((self._crit.nvars(),), 1.0),
                 ),
                 axis=1,
             )

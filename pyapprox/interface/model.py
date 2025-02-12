@@ -24,14 +24,14 @@ class ModelWorkTracker:
         # can be updated by multiple processes when calling
         # multiprocessing.pool
         wt_dict = {
-                "val": self._bkd.empty((0,)),
-                "jac": self._bkd.empty((0,)),
-                "jvp": self._bkd.empty((0,)),
-                "hess": self._bkd.empty((0,)),
-                "hvp": self._bkd.empty((0,)),
-                "whess": self._bkd.empty((0,)),
-                "whvp": self._bkd.empty((0,))
-            }
+            "val": self._bkd.empty((0,)),
+            "jac": self._bkd.empty((0,)),
+            "jvp": self._bkd.empty((0,)),
+            "hess": self._bkd.empty((0,)),
+            "hvp": self._bkd.empty((0,)),
+            "whess": self._bkd.empty((0,)),
+            "whvp": self._bkd.empty((0,)),
+        }
         if multiproc:
             self._wall_times = multiprocessing.Manager().dict(wt_dict)
             # Do not create work_tracker with shared memory
@@ -65,7 +65,7 @@ class ModelWorkTracker:
             ", ".join(
                 "{0}={1}".format(name, self.average_wall_time(name))
                 for name in self._wall_times.keys()
-            )
+            ),
         )
 
 
@@ -157,7 +157,7 @@ class Model(ABC):
         t1 = time.time()
         nsamples = samples.shape[1]
         # Make assumption that each sample took the same time
-        times = self._bkd.full((nsamples,), (t1-t0) / nsamples)
+        times = self._bkd.full((nsamples,), (t1 - t0) / nsamples)
         self._work_tracker.update("val", times)
         self._check_values_shape(samples, vals)
         return vals
@@ -222,15 +222,13 @@ class Model(ABC):
         jac : np.ndarray (nqoi, nvars)
             The Jacobian matrix
         """
-        if (
-            not self.jacobian_implemented()
-        ):
+        if not self.jacobian_implemented():
             raise NotImplementedError("_jacobian not implemented")
         self._check_sample_shape(sample)
         t0 = time.time()
         jac = self._jacobian(sample)
         t1 = time.time()
-        times = self._bkd.array([t1-t0])
+        times = self._bkd.array([t1 - t0])
         self._work_tracker.update("jac", times)
         self._check_jacobian_shape(jac, sample)
         return jac
@@ -268,7 +266,7 @@ class Model(ABC):
             t0 = time.time()
             jvp = self._apply_jacobian(sample, vec)
             t1 = time.time()
-            times = self._bkd.array([t1-t0])
+            times = self._bkd.array([t1 - t0])
             self._work_tracker.update("jvp", times)
             return jvp
         return self.jacobian(sample) @ vec
@@ -312,7 +310,7 @@ class Model(ABC):
             t0 = time.time()
             hvp = self._apply_hessian(sample, vec)
             t1 = time.time()
-            times = self._bkd.array([t1-t0])
+            times = self._bkd.array([t1 - t0])
             self._work_tracker.update("hvp", times)
             return hvp
         return self.hessian(sample)[0] @ vec
@@ -325,8 +323,7 @@ class Model(ABC):
             raise RuntimeError(
                 "Hessian returned by _hessian has the wrong shape. "
                 "was {0} but must be {1}".format(
-                    hess.shape,
-                    (self.nqoi(), sample.shape[0], sample.shape[0])
+                    hess.shape, (self.nqoi(), sample.shape[0], sample.shape[0])
                 )
             )
 
@@ -353,7 +350,7 @@ class Model(ABC):
         t0 = time.time()
         hess = self._hessian(sample)
         t1 = time.time()
-        times = self._bkd.array([t1-t0])
+        times = self._bkd.array([t1 - t0])
         self._work_tracker.update("hess", times)
         self._check_hessian_shape(hess, sample)
         return hess
@@ -362,7 +359,7 @@ class Model(ABC):
         return "{0}()".format(self.__class__.__name__)
 
     def apply_weighted_jacobian(
-            self, sample: Array, vec: Array, weights: Array
+        self, sample: Array, vec: Array, weights: Array
     ) -> Array:
         """
         Compute the matrix vector product of the Jacobian,
@@ -399,12 +396,12 @@ class Model(ABC):
         return (self.jacobian(sample) @ vec).T @ weights
 
     def _apply_weighted_hessian(
-            self, sample: Array, vec: Array, weights: Array
+        self, sample: Array, vec: Array, weights: Array
     ) -> Array:
         raise NotImplementedError
 
     def apply_weighted_hessian(
-            self, sample: Array, vec: Array, weights: Array
+        self, sample: Array, vec: Array, weights: Array
     ) -> Array:
         """
         Compute the matrix vector product of the Hessian,
@@ -440,7 +437,7 @@ class Model(ABC):
             t0 = time.time()
             hvp = self._apply_weighted_hessian(sample, vec, weights)
             t1 = time.time()
-            times = self._bkd.array([t1-t0])
+            times = self._bkd.array([t1 - t0])
             self._work_tracker.update("whvp", times)
             return hvp
         if self.weighted_hessian_implemented():
@@ -463,7 +460,7 @@ class Model(ABC):
             t0 = time.time()
             hess = self._weighted_hessian(sample, weights)
             t1 = time.time()
-            times = self._bkd.array([t1-t0])
+            times = self._bkd.array([t1 - t0])
             self._work_tracker.update("whess", times)
             return hess
         hess = self.hessian(sample)
@@ -530,8 +527,12 @@ class Model(ABC):
         return self._bkd.asarray(errors)
 
     def check_apply_jacobian(
-        self, sample: Array, fd_eps: Array = None, direction: Array = None,
-        relative: bool = True, disp: bool = False
+        self,
+        sample: Array,
+        fd_eps: Array = None,
+        direction: Array = None,
+        relative: bool = True,
+        disp: bool = False,
     ):
         """
         Compare apply_jacobian with finite difference.
@@ -626,7 +627,7 @@ class Model(ABC):
         )
 
     def approx_jacobian(
-            self, sample: Array, eps: float = np.sqrt(np.finfo(float).eps)
+        self, sample: Array, eps: float = np.sqrt(np.finfo(float).eps)
     ) -> Array:
         self._check_sample_shape(sample)
         nvars = sample.shape[0]
@@ -669,7 +670,7 @@ class SingleSampleModelMixin:
         t0 = time.time()
         values_0 = self._evaluate(samples[:, :1])
         t1 = time.time()
-        times = [t1-t0]
+        times = [t1 - t0]
         if values_0.ndim != 2 or values_0.shape[0] != 1:
             msg = "values returned by self._model has the wrong shape."
             msg += " shape is {0} but must be 2D array with single row".format(
@@ -683,7 +684,7 @@ class SingleSampleModelMixin:
             t0 = time.time()
             values[ii, :] = self._evaluate(samples[:, ii : ii + 1])
             t1 = time.time()
-            times.append(t1-t0)
+            times.append(t1 - t0)
         self._work_tracker.update("val", self._bkd.array(times))
         return values
 
@@ -760,7 +761,7 @@ class ModelFromCallable(Model):
         return self._eval_fun(self._user_hessian, sample)
 
     def _apply_weighted_hessian(
-            self, sample: Array, vec: Array, weights: Array
+        self, sample: Array, vec: Array, weights: Array
     ) -> Array:
         return self._eval_fun(
             self._user_apply_weighted_hessian, sample, vec, weights
@@ -1292,9 +1293,9 @@ class ActiveSetVariableModel(Model):
         # matvec product  so they do not contribute to sum
         expanded_vec = self._bkd.zeros((self._nvars, 1))
         expanded_vec[self._active_var_indices] = vec
-        return self._model.apply_hessian(
-            samples, expanded_vec
-        )[self._active_var_indices]
+        return self._model.apply_hessian(samples, expanded_vec)[
+            self._active_var_indices
+        ]
 
     def nactive_vars(self):
         return len(self._active_var_indices)
@@ -1349,13 +1350,16 @@ class PoolModelWrapper(Model):
     For now just supports parallelizing values, i.g. gradient computations
     are not yet supported
     """
+
     def __init__(self, model: Model, nprocs: int, assert_omp: bool = True):
         if not isinstance(model, Model):
             raise ValueError("model must be an instance of Model")
         super().__init__(model._bkd)
         if assert_omp and nprocs > 1:
-            if ('OMP_NUM_THREADS' not in os.environ or
-                    not int(os.environ['OMP_NUM_THREADS']) == 1):
+            if (
+                "OMP_NUM_THREADS" not in os.environ
+                or not int(os.environ["OMP_NUM_THREADS"]) == 1
+            ):
                 raise Exception(
                     "User set assert_omp=True but OMP_NUM_THREADS "
                     "has not been set to 1. Run script with "
@@ -1377,7 +1381,8 @@ class PoolModelWrapper(Model):
         # once by the wrapper and once by model.__call__
         result = pool.map(
             self._model._values,
-            [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
+            [(samples[:, ii : ii + 1]) for ii in range(samples.shape[1])],
+        )
         pool.close()
         return self._bkd.vstack(result)
 

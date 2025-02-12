@@ -16,6 +16,8 @@ from pyapprox.optimization.pya_minimize import (
     SampleAverageConditionalValueAtRisk,
     CVaRSampleAverageConstraint,
     ObjectiveWithCVaRConstraints,
+    LinearConstraint,
+    MiniMaxOptimizer,
 )
 from pyapprox.benchmarks import (
     RosenbrockUnconstrainedOptimizationBenchmark,
@@ -28,6 +30,7 @@ from pyapprox.variables.risk import gaussian_cvar
 from pyapprox.interface.model import Model
 
 from pyapprox.util.sys_utilities import package_available
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 if package_available("pyrol"):
     has_pyrol = True
@@ -390,6 +393,21 @@ class TestMinimize(unittest.TestCase):
         )
         result = optimizer.minimize(benchmark.init_iterate())
         assert np.allclose(result.x, np.full(nvars, 1))
+
+    def test_minimax_optimizer(self):
+        bkd = NumpyLinAlgMixin
+        model = ModelFromSingleSampleCallable(
+            3, lambda x: x.T, lambda x: bkd.eye(3), backend=bkd
+        )
+        optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})
+        minimax = MiniMaxOptimizer(optimizer)
+        minimax.set_max_constraint_model(model)
+        minimax.set_constraints(
+            [LinearConstraint(bkd.ones((3,)), 15, 15, keep_feasible=True)]
+        )
+        res = minimax.minimize(bkd.ones((4, 1)))
+        assert bkd.allclose(res.x, bkd.full((4,), 5.0))
+        assert bkd.allclose(res.fun, bkd.full((1,), 5.0))
 
 
 if __name__ == "__main__":
