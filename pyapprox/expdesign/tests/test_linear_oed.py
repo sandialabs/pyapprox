@@ -605,8 +605,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         Modelsvia Convex Programming, Ph.D. Thesis, 2012
         """
         poly_degree = 2
-        ndesign_pts = 7
-        design_samples = np.linspace(-1, 1, ndesign_pts)
+        num_design_pts = 7
+        design_samples = np.linspace(-1, 1, num_design_pts)
         # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
@@ -621,8 +621,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # Models 2007. For how to derive analytical solution for this test case
 
         poly_degree = 3
-        ndesign_pts = 60
-        design_samples = np.linspace(-1, 1, ndesign_pts)
+        num_design_pts = 60
+        design_samples = np.linspace(-1, 1, num_design_pts)
         # include theoretical optima see Boon paper
         design_samples = np.sort(np.hstack(
             (design_samples, -1/np.sqrt(5), 1/np.sqrt(5))))
@@ -647,9 +647,9 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         Regression Models https://doi.org/10.1080/01621459.2012.695665
         """
         # poly_degree = 2
-        ndesign_pts = 17
+        num_design_pts = 17
         lb, ub = 2, 10
-        design_samples = np.linspace(lb, ub, ndesign_pts)
+        design_samples = np.linspace(lb, ub, num_design_pts)
         theta = np.array([1, 2])
         n = 1  # possible values -2,1,0,1
         def link_function(z): return 1/z**n
@@ -677,14 +677,14 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         Create G-optimal design
         """
         poly_degree = 2
-        ndesign_pts = 7
-        design_samples = np.linspace(-1, 1, ndesign_pts)
+        num_design_pts = 7
+        design_samples = np.linspace(-1, 1, num_design_pts)
         # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         # pred_factors = design_factors
         pred_factors = univariate_monomial_basis_matrix(
-            poly_degree, np.linspace(-1, 1, ndesign_pts))
+            poly_degree, np.linspace(-1, 1, num_design_pts))
 
         opts = {'pred_factors': pred_factors}
         opt_problem = AlphabetOptimalDesign('G', design_factors, opts=opts)
@@ -704,7 +704,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             design_samples[np.newaxis, :], design_factors, 'D',
             regression_type='lstsq', noise_multiplier=None)
         assert np.allclose(selected_pts, design_samples[II])
-        assert np.allclose(mu_d, np.round(mu[II]*ndesign_pts))
+        assert np.allclose(mu_d, np.round(mu[II]*num_design_pts))
 
         # test high-level api for G optimality
         selected_pts, mu_g = optimal_experimental_design(
@@ -712,19 +712,19 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             regression_type='lstsq', noise_multiplier=None,
             pred_factors=pred_factors)
         assert np.allclose(selected_pts, design_samples[II])
-        assert np.allclose(mu_g, np.round(mu[II]*ndesign_pts))
+        assert np.allclose(mu_g, np.round(mu[II]*num_design_pts))
 
     def test_homoscedastic_roptimality_criterion(self):
         beta = 0.5  # when beta=0 we get I optimality
         poly_degree = 10
-        ndesign_pts = 101
+        num_design_pts = 101
         num_pred_pts = 51
         pred_samples = np.random.uniform(-1, 1, num_pred_pts)
         # TODO check if design factors may have to be a subset of pred_factors
         # pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
-        # assert ndesign_pts<=pred_factors.shape[0]
-        # design_factors = pred_factors[:ndesign_pts,:]
-        design_samples = np.linspace(-1, 1, ndesign_pts)
+        # assert num_design_pts<=pred_factors.shape[0]
+        # design_factors = pred_factors[:num_design_pts,:]
+        design_samples = np.linspace(-1, 1, num_design_pts)
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         pred_factors = univariate_monomial_basis_matrix(
@@ -734,21 +734,21 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         roptimality_criterion_wrapper = partial(
             roptimality_criterion, beta, homog_outer_prods, design_factors,
             pred_factors)
-        diffs = check_derivative(roptimality_criterion_wrapper, ndesign_pts)
+        diffs = check_derivative(roptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
 
     def test_homoscedastic_roptimality_criterion_smooth(self):
         eps = 1e-2
         beta = 0.5  # when beta=0 we get I optimality
         poly_degree = 10
-        ndesign_pts = 101
+        num_design_pts = 101
         num_pred_pts = 51
         pred_samples = np.random.uniform(-1, 1, num_pred_pts)
         # TODO check if design factors may have to be a subset of pred_factors
         # pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
-        # assert ndesign_pts<=pred_factors.shape[0]
-        # design_factors = pred_factors[:ndesign_pts,:]
-        design_samples = np.linspace(-1, 1, ndesign_pts)
+        # assert num_design_pts<=pred_factors.shape[0]
+        # design_factors = pred_factors[:num_design_pts,:]
+        design_samples = np.linspace(-1, 1, num_design_pts)
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         pred_factors = univariate_monomial_basis_matrix(
@@ -758,7 +758,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         roptimality_criterion_wrapper = partial(
             roptimality_criterion, beta, homog_outer_prods, design_factors,
             pred_factors, eps=eps)
-        design_prob_measure = np.random.uniform(0, 1, (ndesign_pts, 1))
+        design_prob_measure = np.random.uniform(0, 1, (num_design_pts, 1))
         tt = 0.1
         x0 = np.vstack((design_prob_measure, tt))
         diffs = check_gradients(
@@ -769,8 +769,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
     def test_heteroscedastic_roptimality_criterion(self):
         poly_degree = 10
         beta = 0.5
-        ndesign_pts = 101
-        design_samples = np.linspace(-1, 1, ndesign_pts)
+        num_design_pts = 101
+        design_samples = np.linspace(-1, 1, num_design_pts)
         noise_multiplier = design_samples**2+1
         pred_samples = np.random.uniform(-1, 1, 51)
         design_factors = univariate_monomial_basis_matrix(
@@ -784,15 +784,15 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             pred_factors, noise_multiplier=noise_multiplier)
 
         # Test heteroscedastic API gradients are correct
-        diffs = check_derivative(roptimality_criterion_wrapper, ndesign_pts)
+        diffs = check_derivative(roptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
 
     def test_heteroscedastic_roptimality_criterion_smooth(self):
         eps = 1e-2
         poly_degree = 10
         beta = 0.5
-        ndesign_pts = 101
-        design_samples = np.linspace(-1, 1, ndesign_pts)
+        num_design_pts = 101
+        design_samples = np.linspace(-1, 1, num_design_pts)
         noise_multiplier = design_samples**2+1
         pred_samples = np.random.uniform(-1, 1, 51)
         design_factors = univariate_monomial_basis_matrix(
@@ -806,7 +806,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             pred_factors, noise_multiplier=noise_multiplier, eps=eps)
 
         # Test heteroscedastic API gradients are correct
-        design_prob_measure = np.random.uniform(0, 1, (ndesign_pts, 1))
+        design_prob_measure = np.random.uniform(0, 1, (num_design_pts, 1))
         tt = 0.1
         x0 = np.vstack((design_prob_measure, tt))
         diffs = check_gradients(
@@ -820,8 +820,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         Check R (beta=0) and I optimal designs are the same
         """
         poly_degree = 1
-        ndesign_pts = 2
-        design_samples = np.linspace(-1, 1, ndesign_pts)
+        num_design_pts = 2
+        design_samples = np.linspace(-1, 1, num_design_pts)
         # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
@@ -840,7 +840,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # solver_opts = {'solver':'ipopt','print_level':0,
         #              'tol':1e-8,'acceptable_obj_change_tol':1e-8,
         #               'derivative_test':'first-order','maxiter':1000}
-        # solver_opts.update({'constraint_jacobianstructure':partial(get_r_oed_jacobian_structure,num_pred_pts,ndesign_pts)})
+        # solver_opts.update({'constraint_jacobianstructure':partial(get_r_oed_jacobian_structure,num_pred_pts,num_design_pts)})
         mu_R, res = opt_problem.solve(solver_opts, return_full=True)
         homog_outer_prods = compute_homoscedastic_outer_products(
             design_factors)
@@ -878,10 +878,10 @@ def help_check_michaelis_menten_model_minimax_optimal_design(
     with increasing theta_2.
     """
     iprint = 0
-    ndesign_pts = 20
-    design_samples = np.linspace(1e-3, 1, ndesign_pts)
+    num_design_pts = 20
+    design_samples = np.linspace(1e-3, 1, num_design_pts)
     # pred_samples = design_samples
-    pred_samples = np.linspace(0, 1, ndesign_pts+10)
+    pred_samples = np.linspace(0, 1, num_design_pts+10)
     if heteroscedastic:
         n = 1
         def link_function(z): return 1/z**n
@@ -1010,8 +1010,8 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         jac = michaelis_menten_model_grad_parameters(theta, samples)
         assert np.allclose(fish_mat, jac.dot(jac.T))
 
-        ndesign_pts = 5
-        design_samples = np.linspace(0, 1, ndesign_pts)
+        num_design_pts = 5
+        design_samples = np.linspace(0, 1, num_design_pts)
         # noise_multiplier = None
         design_factors = michaelis_menten_model_grad_parameters(
             theta, design_samples[np.newaxis, :]).T
@@ -1037,8 +1037,8 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         show that the determinant of the fihser information matrix decreases
         with increasing theta_2.
         """
-        ndesign_pts = 7
-        design_samples = np.linspace(0, 1, ndesign_pts)
+        num_design_pts = 7
+        design_samples = np.linspace(0, 1, num_design_pts)
         # noise_multiplier = None
 
         local_design_factors = \
@@ -1064,9 +1064,9 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         Regression Models https://doi.org/10.1080/01621459.2012.695665
         """
         # poly_degree = 2
-        ndesign_pts = 100
+        num_design_pts = 100
         x_lb, x_ub = 1e-3, 2000
-        design_samples = np.linspace(x_lb, x_ub, ndesign_pts)
+        design_samples = np.linspace(x_lb, x_ub, num_design_pts)
         design_samples = np.sort(np.concatenate([design_samples, [754.4]]))
         n = 1  # possible values -2,1,0,1
         def link_function(z): return 1/z**n
@@ -1146,13 +1146,13 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         On the number of support points of maximin and Bayesian optimal designs,
         2007 dx.doi.org/10.1214/009053606000001307
         """
-        ndesign_pts = 50
+        num_design_pts = 50
         optimal_design_samples = {10: ([0.182], [1.0]), 40: ([0.048, 0.354], [0.981, 0.019]), 50: ([0.038, 0.318], [0.973, 0.027]), 100: ([0.019, 0.215], [.962, 0.038]), 200: (
             [0.010, 0.134], [0.959, 0.041]), 300: ([0.006, 0.084, 0.236], [0.957, 0.037, 0.006]), 3000: ([0.0006, 0.009, 0.055, 1.000], [0.951, 0.039, 0.006, 0.004])}
         lb2 = 1
         for ub2 in optimal_design_samples.keys():
             # assuming middle of parameter domain is used to find local design
-            design_samples = np.linspace(0, 1, ndesign_pts)
+            design_samples = np.linspace(0, 1, num_design_pts)
             design_samples = np.sort(np.unique(np.concatenate(
                 [design_samples, optimal_design_samples[ub2][0]])))
             # noise_multiplier = None

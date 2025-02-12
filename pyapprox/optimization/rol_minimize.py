@@ -46,11 +46,11 @@ class ROLObjectiveWrapper(Objective):
             raise ValueError("model must be derived from Model")
         self._model = model
         for attr in [
-            "_jacobian_implemented",
-            "_hessian_implemented",
-            "_apply_hessian_implemented",
+            "jacobian_implemented",
+            "hessian_implemented",
+            "apply_hessian_implemented",
         ]:
-            setattr(self, attr, self._model.__dict__[attr])
+            setattr(self, attr, getattr(self._model, attr))
         super().__init__()
 
     def value(self, x: Vector, tol: float) -> NumPyVector:

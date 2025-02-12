@@ -92,11 +92,10 @@ class ConstraintFromModel(Constraint):
 
     def _update_attributes(self):
         for attr in [
-            "_apply_jacobian_implemented",
-            "_jacobian_implemented",
-            "_jacobian_implemented",
-            "_hessian_implemented",
-            "_apply_hessian_implemented",
+            "apply_jacobian_implemented",
+            "jacobian_implemented",
+            "hessian_implemented",
+            "apply_hessian_implemented",
             "jacobian",
             "apply_jacobian",
             "apply_hessian",
@@ -419,11 +418,11 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
                 scipy_constraints.append(_con)
                 continue
             con = ScipyModelWrapper(_con)
-            jac = con.jac if con._jacobian_implemented else "2-point"
+            jac = con.jac if con.jacobian_implemented() else "2-point"
             if (
-                con._weighted_hessian_implemented
-                or con._hessian_implemented
-                or con._apply_weighted_hessian_implemented
+                con.weighted_hessian_implemented()
+                or con.hessian_implemented()
+                or con.apply_weighted_hessian_implemented()
             ):
                 # model implementation of weighted_hess can use
                 # direct implementation of weighted hessian (first condition)
@@ -454,10 +453,10 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
         bounds = self._get_bounds(nvars)
 
         objective = ScipyModelWrapper(self._objective)
-        jac = objective.jac if objective._jacobian_implemented else None
+        jac = objective.jac if objective.jacobian_implemented() else None
         if (
-            objective._apply_hessian_implemented
-            or objective._hessian_implemented
+            objective.apply_hessian_implemented()
+            or objective.hessian_implemented()
         ):
             hessp = objective.hessp
         else:
@@ -599,8 +598,9 @@ class ChainedOptimizer(Optimizer):
 class SampleAverageStat(ABC):
     def __init__(self, backend=NumpyLinAlgMixin):
         self._bkd = backend
-        # allow some stats to not implement stats
-        self._hessian_implemented = False
+
+    def hessian_implemented(self) -> bool:
+        return False
 
     @abstractmethod
     def __call__(self, values, weights):
@@ -728,7 +728,9 @@ class SampleAverageStat(ABC):
 class SampleAverageMean(SampleAverageStat):
     def __init__(self, backend=NumpyLinAlgMixin):
         super().__init__(backend)
-        self._hessian_implemented = True
+
+    def hessian_implemented(self) -> bool:
+        return True
 
     def __call__(self, values, weights):
         # values.shape (nsamples, ncontraints)
@@ -750,7 +752,9 @@ class SampleAverageVariance(SampleAverageStat):
     def __init__(self, backend=NumpyLinAlgMixin):
         super().__init__(backend=backend)
         self._mean_stat = SampleAverageMean(backend=backend)
-        self._hessian_implemented = True
+
+    def hessian_implemented(self) -> bool:
+        return True
 
     def _diff(self, values, weights):
         mean = self._mean_stat(values, weights).T
@@ -829,7 +833,9 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
         self._mean_stat = SampleAverageMean()
         self._stdev_stat = SampleAverageStdev()
         self._safety_factor = safety_factor
-        self._hessian_implemented = True
+
+    def hessian_implemented(self) -> bool:
+        return True
 
     def __call__(self, values, weights):
         return self._mean_stat(
@@ -862,7 +868,9 @@ class SampleAverageEntropicRisk(SampleAverageStat):
     def __init__(self, alpha, backend=NumpyLinAlgMixin):
         super().__init__(backend)
         self._alpha = alpha
-        self._hessian_implemented = True
+
+    def hessian_implemented(self) -> bool:
+        return True
 
     def __call__(self, values, weights):
         # values (nsamples, noutputs)
@@ -934,7 +942,9 @@ class SmoothLogBasedMaxFunction:
         if threshold is None:
             threshold = 1e2
         self._thresh = threshold
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def _check_samples(self, samples):
         if samples.ndim != 2:
@@ -1050,13 +1060,13 @@ class SampleAverageConstraint(ConstraintFromModel):
         )
 
     def _update_attributes(self):
-        self._jacobian_implemented = self._model._jacobian_implemented
+        self._jacobian_implemented = self._model.jacobian_implemented()
         self._apply_jacobian_implemented = (
-            self._model._apply_jacobian_implemented
+            self._model.apply_jacobian_implemented()
         )
         self._hessian_implemented = (
-            self._model._hessian_implemented
-            and self._stat._hessian_implemented
+            self._model.hessian_implemented()
+            and self._stat.hessian_implemented()
         )
 
     def _random_samples_at_design_sample(self, design_sample):
@@ -1196,13 +1206,13 @@ class ObjectiveWithCVaRConstraints(Model):
         if model.nqoi() != 1:
             raise ValueError("objective can only have one QoI")
         self._ncvar_constraints = ncvar_constraints
-        self._jacobian_implemented = self._model._jacobian_implemented
+        self._jacobian_implemented = self._model.jacobian_implemented()
         self._apply_jacobian_implemented = (
-            self._model._apply_jacobian_implemented
+            self._model.apply_jacobian_implemented()
         )
         # until sampleaveragecvar.hessian is implemented turn
         # off objective hessian
-        # self._hessian_implemented = self._model._hessian_implemented
+        # self._hessian_implemented = self._model.hessian_implemented()
 
     def nqoi(self):
         return self._model.nqoi()

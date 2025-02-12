@@ -102,6 +102,26 @@ class Model(ABC):
 
         self._work_tracker = ModelWorkTracker(self._bkd)
 
+    def apply_jacobian_implemented(self) -> bool:
+        # todo remove member variables returned here and
+        # just require user to overide this function and those similar
+        return self._apply_jacobian_implemented
+
+    def jacobian_implemented(self) -> bool:
+        return self._jacobian_implemented
+
+    def apply_hessian_implemented(self) -> bool:
+        return self._apply_hessian_implemented
+
+    def hessian_implemented(self) -> bool:
+        return self._hessian_implemented
+
+    def apply_weighted_hessian_implemented(self) -> bool:
+        return self._apply_weighted_hessian_implemented
+
+    def weighted_hessian_implemented(self) -> bool:
+        return self._weighted_hessian_implemented
+
     @abstractmethod
     def nqoi(self) -> int:
         raise NotImplementedError
@@ -203,7 +223,7 @@ class Model(ABC):
             The Jacobian matrix
         """
         if (
-            not self._jacobian_implemented
+            not self.jacobian_implemented()
         ):
             raise NotImplementedError("_jacobian not implemented")
         self._check_sample_shape(sample)
@@ -236,15 +256,15 @@ class Model(ABC):
             The dot product of the Jacobian with the vector
         """
         if (
-            not self._apply_jacobian_implemented
-            and not self._jacobian_implemented
+            not self.apply_jacobian_implemented()
+            and not self.jacobian_implemented()
         ):
             raise RuntimeError(
                 "apply_jacobian and jacobian are not implemented"
             )
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
-        if self._apply_jacobian_implemented:
+        if self.apply_jacobian_implemented():
             t0 = time.time()
             jvp = self._apply_jacobian(sample, vec)
             t1 = time.time()
@@ -280,15 +300,15 @@ class Model(ABC):
             The dot product of the Hessian with the vector
         """
         if (
-            not self._apply_hessian_implemented
-            and not self._hessian_implemented
+            not self.apply_hessian_implemented()
+            and not self.hessian_implemented()
         ):
             raise RuntimeError("apply_hessian and hessian are not implemented")
         if self.nqoi() > 1:
             raise ValueError("apply_hessian cannot be used when nqoi > 1")
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
-        if self._apply_hessian_implemented:
+        if self.apply_hessian_implemented():
             t0 = time.time()
             hvp = self._apply_hessian(sample, vec)
             t1 = time.time()
@@ -324,9 +344,9 @@ class Model(ABC):
         hess : np.ndarray (nqoi, nvars, nvars)
             The Jacobian matrix
         """
-        if not self._hessian_implemented:
+        if not self.hessian_implemented():
             raise NotImplementedError("Hessian not implemented")
-        if not self._hessian_implemented and self.nqoi() > 1:
+        if not self.hessian_implemented() and self.nqoi() > 1:
             raise ValueError("apply_hessian cannot be used when nqoi > 1")
 
         self._check_sample_shape(sample)
@@ -365,8 +385,8 @@ class Model(ABC):
             The dot product of the weighted Jacobian with the vector
         """
         if (
-            not self._apply_jacobian_implemented
-            and not self._jacobian_implemented
+            not self.apply_jacobian_implemented()
+            and not self.jacobian_implemented()
         ):
             raise RuntimeError(
                 "apply_jacobian and jacobian are not implemented"
@@ -374,7 +394,7 @@ class Model(ABC):
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
         self._check_weights_shape(weights)
-        if self._apply_jacobian_implemented:
+        if self.apply_jacobian_implemented():
             return self.apply_jacobian(sample, vec).T @ weights
         return (self.jacobian(sample) @ vec).T @ weights
 
@@ -407,23 +427,23 @@ class Model(ABC):
             The dot product of the weighted Hessian with the vector
         """
         if (
-            not self._apply_weighted_hessian_implemented
-            and not self._hessian_implemented
-            and not self._weighted_hessian_implemented
+            not self.apply_weighted_hessian_implemented()
+            and not self.hessian_implemented()
+            and not self.weighted_hessian_implemented()
         ):
             raise RuntimeError(
                 "apply_weighted_hessian and hessian are not implemented"
             )
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
-        if self._apply_weighted_hessian_implemented:
+        if self.apply_weighted_hessian_implemented():
             t0 = time.time()
             hvp = self._apply_weighted_hessian(sample, vec, weights)
             t1 = time.time()
             times = self._bkd.array([t1-t0])
             self._work_tracker.update("whvp", times)
             return hvp
-        if self._weighted_hessian_implemented:
+        if self.weighted_hessian_implemented():
             return self.weighted_hessian(sample, weights) @ vec
         return weights.T @ (self.hessian(sample) @ vec[:, 0])
 
@@ -432,14 +452,14 @@ class Model(ABC):
 
     def weighted_hessian(self, sample: Array, weights: Array) -> Array:
         if (
-            not self._weighted_hessian_implemented
-            and not self._hessian_implemented
+            not self.weighted_hessian_implemented()
+            and not self.hessian_implemented()
         ):
             raise RuntimeError(
                 "weighted_hessian and hessian are not implemented"
             )
         self._check_sample_shape(sample)
-        if self._weighted_hessian_implemented:
+        if self.weighted_hessian_implemented():
             t0 = time.time()
             hess = self._weighted_hessian(sample, weights)
             t1 = time.time()
@@ -517,8 +537,8 @@ class Model(ABC):
         Compare apply_jacobian with finite difference.
         """
         if (
-            not self._apply_jacobian_implemented
-            and not self._jacobian_implemented
+            not self.apply_jacobian_implemented()
+            and not self.jacobian_implemented()
         ):
             raise RuntimeError(
                 "Cannot check apply_jacobian because it not implemented"
@@ -544,7 +564,7 @@ class Model(ABC):
         # to check apply_hessian. We do not want to support this for their
         # user as it can lead to large numbers of apply_jacobians
         # in typical model analyses.
-        if self._jacobian_implemented:
+        if self.jacobian_implemented():
             return self.jacobian(sample)
         nvars = sample.shape[0]
         actions = []
@@ -568,8 +588,8 @@ class Model(ABC):
         """
         if weights is None:
             if (
-                not self._apply_hessian_implemented
-                and not self._hessian_implemented
+                not self.apply_hessian_implemented()
+                and not self.hessian_implemented()
             ):
                 raise RuntimeError(
                     "Cannot check apply_hessian because it is not implemented"
@@ -586,9 +606,9 @@ class Model(ABC):
             )
 
         if (
-            not self._apply_weighted_hessian_implemented
-            and not self._hessian_implemented
-            and not self._weighted_hessian_implemented
+            not self.apply_weighted_hessian_implemented()
+            and not self.hessian_implemented()
+            and not self.weighted_hessian_implemented()
         ):
             raise RuntimeError(
                 "Cannot check apply_weighted_hessian because not implemented"
@@ -817,13 +837,13 @@ class ScipyModelWrapper:
             raise ValueError("model must be derived from Model")
         self._model = model
         for attr in [
-            "_jacobian_implemented",
-            "_hessian_implemented",
-            "_apply_hessian_implemented",
-            "_weighted_hessian_implemented",
-            "_apply_weighted_hessian_implemented",
+            "jacobian_implemented",
+            "hessian_implemented",
+            "apply_hessian_implemented",
+            "weighted_hessian_implemented",
+            "apply_weighted_hessian_implemented",
         ]:
-            setattr(self, attr, self._model.__dict__[attr])
+            setattr(self, attr, getattr(self._model, attr))
 
     def _check_sample(self, sample):
         if sample.ndim != 1:
@@ -1207,13 +1227,13 @@ class ActiveSetVariableModel(Model):
             base_model = model
         self._base_model = base_model
 
-        self._jacobian_implemented = self._base_model._jacobian_implemented
+        self._jacobian_implemented = self._base_model.jacobian_implemented()
         self._apply_jacobian_implemented = (
-            self._base_model._apply_jacobian_implemented
+            self._base_model.apply_jacobian_implemented()
         )
         self._apply_hessian_implemented = (
-            self._base_model._apply_hessian_implemented
-            or self._base_model._hessian_implemented
+            self._base_model.apply_hessian_implemented()
+            or self._base_model.hessian_implemented()
         )
 
     def nqoi(self):
@@ -1290,13 +1310,13 @@ class ChangeModelSignWrapper(Model):
             raise ValueError("model must be derived from Model")
         self._model = model
         for attr in [
-            "_jacobian_implemented",
-            "_apply_jacobian_implemented",
-            "_hessian_implemented",
-            "_apply_hessian_implemented",
-            "_apply_weighted_hessian_implemented",
+            "jacobian_implemented",
+            "hessian_implemented",
+            "apply_hessian_implemented",
+            "weighted_hessian_implemented",
+            "apply_weighted_hessian_implemented",
         ]:
-            setattr(self, attr, self._model.__dict__[attr])
+            setattr(self, attr, getattr(self._model, attr))
 
     def nqoi(self):
         return self._model.nqoi()

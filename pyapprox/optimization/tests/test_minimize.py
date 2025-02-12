@@ -158,7 +158,7 @@ class TestMinimize(unittest.TestCase):
             # print(errors.min()/errors.max())
             assert errors.min() / errors.max() < 1.3e-6 and errors.max() > 0.2
 
-            if not stat._hessian_implemented:
+            if not stat.hessian_implemented():
                 continue
             # assert False
             errors = constraint.check_apply_hessian(

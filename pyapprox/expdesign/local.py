@@ -507,6 +507,24 @@ class IOptimalLstSqCriterion(
         self._Bchol = self._bkd.cholesky(self._Bmat)
 
 
+class MiniMaxObjective(SingleSampleModel):
+    def nvars(self) -> int:
+        return 1
+
+    def _evaluate(self, sample: Array) -> Array:
+        return sample[:1, 0]
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.hstack(
+            (self._bkd.ones((1,)), self._bkd.zeros((sample.shape[0]-1,)))
+        )
+
+    def _hessian(self, sample: Array) -> Array:
+        return self._bkd.hstack(
+            (self._bkd.ones((1,)), self._bkd.zeros((sample.shape[0]-1,)))
+        )
+
+
 class LocalOptimalExperimentalDesign:
     def __init__(self, criterion: LocalOEDCriterionMixin):
         if not isinstance(criterion, LocalOEDCriterionMixin):
@@ -523,7 +541,6 @@ class LocalOptimalExperimentalDesign:
             )
         self._optimizer = optimizer
         self._optimizer.set_objective_function(self._crit)
-        print(self._crit.nvars())
         self._optimizer.set_bounds(
             self._bkd.stack(
                 (
