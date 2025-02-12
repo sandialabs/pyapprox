@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Tuple, List
 
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -16,14 +16,14 @@ class LocalOEDCriterionMixin(SingleSampleModel):
         super().__init__(backend)
         self.set_design_factors(design_factors, noise_mult)
         self._jacobian_implemented = True
+        self._stored_design_prob_measure = dict()
 
     def set_design_factors(self, design_factors: Array, noise_mult: Array):
         if design_factors.ndim != 2:
             raise ValueError("design_factors must be a 3D array")
         ndesign_pts, ndesign_vars = design_factors.shape
         if noise_mult is not None and (
-                noise_mult.ndim != 1
-                or noise_mult.shape != (ndesign_pts,)
+            noise_mult.ndim != 1 or noise_mult.shape != (ndesign_pts,)
         ):
             raise ValueError("noise multiplier has the wrong shape")
         self._design_factors = design_factors
@@ -43,14 +43,43 @@ class LocalOEDCriterionMixin(SingleSampleModel):
             )
         self._M0k, self._M1k = M0k, M1k
 
-    def _M0(self,  design_prob_measure: Array) -> Array:
-        return self._bkd.einsum(
-            "i,ijk->jk", design_prob_measure[:, 0], self._M0k)
+    def _M0(self, design_prob_measure: Array) -> Array:
+        if self._design_measure_changed("M0", design_prob_measure):
+            M0 = self._bkd.einsum(
+                "i,ijk->jk", design_prob_measure[:, 0], self._M0k
+            )
+            self._stored_design_prob_measure["M0"] = (design_prob_measure, M0)
+        return self._stored_design_prob_measure["M0"][1]
 
-    def _M1(self,  design_prob_measure: Array) -> Array:
-        return self._bkd.einsum(
-            "i,ijk->jk", design_prob_measure[:, 0], self._M1k
+    def _M1(self, design_prob_measure: Array) -> Array:
+        if self._design_measure_changed("M1", design_prob_measure):
+            M1 = self._bkd.einsum(
+                "i,ijk->jk", design_prob_measure[:, 0], self._M1k
+            )
+            self._stored_design_prob_measure["M1"] = (design_prob_measure, M1)
+        return self._stored_design_prob_measure["M1"][1]
+
+    def _design_measure_changed(
+        self, name: str, design_prob_measure: Array
+    ) -> bool:
+        return True  # hack
+        if name not in self._stored_design_prob_measure:
+            return True
+        return not self._bkd.allclose(
+            self._stored_design_prob_measure[name][0],
+            design_prob_measure,
+            atol=1e-15,
+            rtol=1e-15,
         )
+
+    def _M1inv(self, design_prob_measure: Array) -> Array:
+        if self._design_measure_changed("M1inv", design_prob_measure):
+            M1inv = self._bkd.inv(self._M1(design_prob_measure))
+            self._stored_design_prob_measure["M1inv"] = (
+                design_prob_measure,
+                M1inv,
+            )
+        return self._stored_design_prob_measure["M1inv"][1]
 
     def ndesign_candidates(self) -> int:
         """The number of candidate design configurations"""
@@ -83,7 +112,7 @@ class LstSqLocalOEDRegressionMixin(LocalOEDRegressionMixin):
         M0k = self._bkd.einsum(
             "ij,il->ijl",
             self._design_factors,
-            self._noise_mult[:, None] ** 2 * self._design_factors
+            self._noise_mult[:, None] ** 2 * self._design_factors,
         )
         return M0k, M1k
 
@@ -98,15 +127,12 @@ class QuantileLocalOEDRegressionMixin(LocalOEDRegressionMixin):
         M1k = self._bkd.einsum(
             "ij,il->ijl",
             self._design_factors,
-            1 / self._noise_mult[..., None] * self._design_factors
+            1 / self._noise_mult[..., None] * self._design_factors,
         )
         return M0k, M1k
 
 
 class DOptimalMixin:
-    def _M0inv_required(self) -> bool:
-        return not self.is_homoscedastic()
-
     def _evaluate(self, design_prob_measure: Array) -> Array:
         M1 = self._M1(design_prob_measure)
         if self.is_homoscedastic():
@@ -172,12 +198,7 @@ class DOptimalQuantileCriterion(
                 self._design_factors.T
                 * (
                     M1_inv
-                    @ (
-                        (
-                            self._design_factors
-                            / self._noise_mult[:, None]
-                        ).T
-                    )
+                    @ ((self._design_factors / self._noise_mult[:, None]).T)
                 ),
                 axis=0,
             )[None, :]
@@ -187,12 +208,15 @@ class DOptimalQuantileCriterion(
             )[None, :]
         )
 
+
 from pyapprox.pde.collocation.adjoint_models import SteadyAdjointModel
 from pyapprox.pde.collocation.newton import (
     NewtonResidual,
     ParameterizedNewtonResidualMixin,
     AdjointFunctional,
 )
+
+
 class LocalOEDAdjointFunctional(AdjointFunctional):
     def __init__(self, criterion: LocalOEDCriterionMixin):
         self._bkd = criterion._bkd
@@ -211,7 +235,7 @@ class LocalOEDAdjointFunctional(AdjointFunctional):
         return 0
 
 
-class COptimalAdjointFunctional(LocalOEDAdjointFunctional):
+class LocalOEDAdjointFunctional(LocalOEDAdjointFunctional):
     def _value(self, states: Array) -> Array:
         M0 = self._crit._M0(self._param[:, None])
         return states[None, :] @ M0 @ states
@@ -221,9 +245,7 @@ class COptimalAdjointFunctional(LocalOEDAdjointFunctional):
         return (2 * M0 @ states)[None, :]
 
     def _qoi_param_jacobian(self, states: Array) -> Array:
-        return self._bkd.einsum(
-            "i,ji->j", states, self._crit._M0k @ states
-        )
+        return self._bkd.einsum("i,ji->j", states, self._crit._M0k @ states)
 
     def _qoi_param_param_hvp(self, state: Array, vvec: Array) -> Array:
         return self._bkd.zeros((self.nparams(),))
@@ -238,11 +260,13 @@ class COptimalAdjointFunctional(LocalOEDAdjointFunctional):
         return 2 * self._bkd.einsum("ijk,k->ij", self._crit._M0k, wvec) @ state
 
 
-class CoptimalParameterizedNewtonResidual(
-        ParameterizedNewtonResidualMixin, NewtonResidual
+class LocalOEDParameterizedNewtonResidual(
+    ParameterizedNewtonResidualMixin, NewtonResidual
 ):
-    def __init__(self, vec: Array, backend: LinAlgMixin):
+    def __init__(self, backend: LinAlgMixin):
         self._bkd = backend
+
+    def set_vector(self, vec: Array):
         self._vec = vec
 
     def nstates(self) -> int:
@@ -263,6 +287,9 @@ class CoptimalParameterizedNewtonResidual(
     def set_criterion(self, criterion: LocalOEDCriterionMixin):
         self._crit = criterion
 
+    def linsolve(self, iterate: Array, res: Array) -> Array:
+        return self._crit._M1inv(self._param[:, None]) @ res
+
     def __call__(self, iterate: Array) -> Array:
         return self._jacobian(iterate) @ iterate - self._vec
 
@@ -270,12 +297,10 @@ class CoptimalParameterizedNewtonResidual(
         return self._crit._M1(self._param[:, None])
 
     def _param_jacobian(self, states: Array) -> Array:
-        return self._bkd.einsum(
-            "i,jik->kj", states,  self._crit._M1k
-        )
+        return self._bkd.einsum("i,jik->kj", states, self._crit._M1k)
 
     def _state_state_hvp(
-            self, fwd_sol: Array, adj_sol: Array, vvec: Array
+        self, fwd_sol: Array, adj_sol: Array, vvec: Array
     ) -> Array:
         return self._bkd.zeros((self.nstates(),))
 
@@ -287,16 +312,12 @@ class CoptimalParameterizedNewtonResidual(
     def _param_state_hvp(
         self, fwd_sol: Array, adj_sol: Array, wvec: Array
     ) -> Array:
-        return self._bkd.einsum(
-            "i,ji->j", adj_sol, self._crit._M1k @ wvec
-        )
+        return self._bkd.einsum("i,ji->j", adj_sol, self._crit._M1k @ wvec)
 
     def _state_param_hvp(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
     ) -> Array:
-        return self._bkd.einsum(
-            "i,ij->j", vvec, self._crit._M1k @ adj_sol
-        )
+        return self._bkd.einsum("i,ij->j", vvec, self._crit._M1k @ adj_sol)
 
 
 class LocalOEDAdjointModel(SteadyAdjointModel):
@@ -309,11 +330,11 @@ class LocalOEDAdjointModel(SteadyAdjointModel):
         self._residual.nvars()
 
 
-class COptimalMixin:
+class LocalOEDCriterionAdjointMixin:
     def __init__(
         self,
         design_factors: Array,
-        vec: Array,
+        vecs: Array,
         noise_mult: Array = None,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
@@ -322,33 +343,79 @@ class COptimalMixin:
         if noise_mult is None:
             noise_mult = backend.ones((design_factors.shape[0],))
         super().__init__(design_factors, noise_mult, backend)
-        self._vec = vec
-        residual = CoptimalParameterizedNewtonResidual(vec, self._bkd)
-        residual.set_criterion(self)
-        functional = COptimalAdjointFunctional(self)
+        if vecs.ndim != 2 or vecs.shape[1] != design_factors.shape[1]:
+            raise ValueError("vecs has the wrong shape")
+        self._vecs = vecs
+        self._residual = LocalOEDParameterizedNewtonResidual(self._bkd)
+        self._residual.set_criterion(self)
+        functional = LocalOEDAdjointFunctional(self)
         self._adj_model = LocalOEDAdjointModel(
-            residual,
+            self._residual,
         )
         self._adj_model._adjoint_solver.set_initial_iterate(
-            self._bkd.zeros((residual.nstates(),))
+            self._bkd.zeros((self._residual.nstates(),))
         )
         self._adj_model.set_functional(functional)
-        self._apply_hessian_implemented = self._adj_model._apply_hessian_implemented
+        self._apply_hessian_implemented = (
+            self._adj_model._apply_hessian_implemented
+        )
 
     def _evaluate(self, sample: Array) -> Array:
-        return self._adj_model._evaluate(sample)
+        val = 0
+        for vec in self._vecs:
+            self._residual.set_vector(vec)
+            # must make adj solver recompute forward solution
+            self._adj_model._adjoint_solver._fwd_sol_param = None
+            self._adj_model._adjoint_solver._adj_sol_param = None
+            val += self._adj_model._evaluate(sample)
+        return val
 
     def _jacobian(self, sample: Array) -> Array:
-        return self._adj_model.jacobian(sample)
+        jac = 0
+        for vec in self._vecs:
+            self._residual.set_vector(vec)
+            # must make adj solver recompute forward solution
+            self._adj_model._adjoint_solver._fwd_sol_param = None
+            self._adj_model._adjoint_solver._adj_sol_param = None
+            jac += self._adj_model.jacobian(sample)
+        return jac
 
-    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        return self._adj_model.apply_hessian(sample, vec)
-
-    def _M0inv_required(self) -> bool:
-        return not self.is_homoscedastic()
+    def _apply_hessian(self, sample: Array, vvec: Array) -> Array:
+        hvp = 0
+        for vec in self._vecs:
+            self._residual.set_vector(vec)
+            # must make adj solver recompute forward solution
+            self._adj_model._adjoint_solver._fwd_sol_param = None
+            self._adj_model._adjoint_solver._adj_sol_param = None
+            hvp += self._adj_model.apply_hessian(sample, vvec)
+        return hvp
 
 
 class COptimalLstSqCriterion(
-    LstSqLocalOEDRegressionMixin, COptimalMixin, LocalOEDCriterionMixin
+    LstSqLocalOEDRegressionMixin,
+    LocalOEDCriterionAdjointMixin,
+    LocalOEDCriterionMixin,
 ):
-    pass
+    def __init__(
+        self,
+        design_factors: Array,
+        vec: Array,
+        noise_mult: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(design_factors, vec[None, :], noise_mult, backend)
+
+
+class AOptimalLstSqCriterion(
+    LstSqLocalOEDRegressionMixin,
+    LocalOEDCriterionAdjointMixin,
+    LocalOEDCriterionMixin,
+):
+    def __init__(
+        self,
+        design_factors: Array,
+        noise_mult: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        vecs = backend.eye(design_factors.shape[1])
+        super().__init__(design_factors, vecs, noise_mult, backend)
