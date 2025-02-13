@@ -18,6 +18,7 @@ from pyapprox.optimization.pya_minimize import (
     ObjectiveWithCVaRConstraints,
     LinearConstraint,
     MiniMaxOptimizer,
+    AVaRSlackBasedOptimizer,
 )
 from pyapprox.benchmarks import (
     RosenbrockUnconstrainedOptimizationBenchmark,
@@ -410,19 +411,73 @@ class TestMinimize(unittest.TestCase):
             [LinearConstraint(bkd.ones((3,)), 15, 15, keep_feasible=True)]
         )
 
-        iterate = bkd.ones((4, 1))
+        iterate = bkd.array([10000, 4, 10, 1])[:, None]
+        # if get warning and optimization does not converge
+        # actual_reduction = merit_function - merit_function_next
+        # it is likely because _constraint_from_objective.keep_feasible=True
+        # and initial guess is infeasiable
         weights = bkd.ones((3, 1))
-        errors = minimax._max_constraint.check_apply_jacobian(iterate)
+        errors = minimax._constraint_from_objective.check_apply_jacobian(
+            iterate
+        )
         assert errors.min() / errors.max() < 1e-6
-        errors = minimax._max_constraint.check_apply_hessian(
+        errors = minimax._constraint_from_objective.check_apply_hessian(
             iterate, weights=weights, disp=True
         )
         assert errors.min() / errors.max() < 1e-6
 
         res = minimax.minimize(iterate)
         # Constraint is active and max is found when all original variables = 5
+        print(res.x)
         assert bkd.allclose(res.x, bkd.full((3,), 5.0))
         assert bkd.allclose(res.fun, bkd.full((1,), 125.0), rtol=1e-2)
+
+    def test_avar_optimizer(self):
+        bkd = NumpyLinAlgMixin
+        nsamples = 3
+        mesh = bkd.arange(1, nsamples + 1)
+        model = ModelFromSingleSampleCallable(
+            nsamples,
+            lambda x: mesh * x**3,
+            lambda x: 3 * mesh * bkd.diag(x**2),
+            weighted_hessian=lambda x, w: 6 * mesh * bkd.diag(x * w[:, 0]),
+            sample_ndim=1,
+            values_ndim=1,
+            backend=bkd,
+        )
+        optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})
+        quadw = bkd.full((nsamples,), 1 / nsamples)
+        beta = 0.5
+        minimax = AVaRSlackBasedOptimizer(optimizer, beta, quadw, backend=bkd)
+        minimax.set_objective_function(model)
+        minimax.set_constraints(
+            [
+                LinearConstraint(
+                    bkd.ones((nsamples,)), 15, 15, keep_feasible=True
+                )
+            ]
+        )
+
+        iterate = bkd.ones((nsamples * 2 + 1, 1))
+        weights = bkd.ones((nsamples, 1))
+        errors = minimax._constraint_from_objective.check_apply_jacobian(
+            iterate
+        )
+        assert errors.min() / errors.max() < 1e-6
+        errors = minimax._constraint_from_objective.check_apply_hessian(
+            iterate, weights=weights, disp=True
+        )
+        assert errors.min() / errors.max() < 1e-6
+
+        iterate[0] = 1e6
+        res = minimax.minimize(iterate)
+        # Constraint is active and max is found when all original variables = 5
+        print(res.x)
+        print(res.slack)
+        print(res.fun, "f")
+        print(np.mean(model(res.x)))
+        print(np.median(model(res.x)))
+        raise NotImplementedError
 
 
 if __name__ == "__main__":

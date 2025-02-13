@@ -25,11 +25,12 @@ def entropic_risk_measure(samples, weights=None):
     risk_measure_vals : np.ndarray (nqoi, 1)
     """
     if weights is None:
-        weights = np.ones((samples.shape[0], 1))/samples.shape[0]
+        weights = np.ones((samples.shape[0], 1)) / samples.shape[0]
     assert weights.ndim == 2 and weights.shape[1] == 1
     assert weights.shape[0] == samples.shape[0]
-    risk_measure_vals = np.log(
-        np.sum(np.exp(samples)*weights, axis=0))[:, None]
+    risk_measure_vals = np.log(np.sum(np.exp(samples) * weights, axis=0))[
+        :, None
+    ]
     return risk_measure_vals
 
 
@@ -93,12 +94,13 @@ def weighted_quantiles(samples, weights, qq, samples_sorted=False, prob=True):
         xx, ww = samples[II], weights[II]
     else:
         xx, ww = samples, weights
-    ecdf = ww.cumsum()-0.5*weights
+    ecdf = ww.cumsum() - 0.5 * weights
     return np.interp(qq, ecdf, xx)
 
 
-def value_at_risk(samples, alpha, weights=None, samples_sorted=False,
-                  prob=True):
+def value_at_risk(
+    samples, alpha, weights=None, samples_sorted=False, prob=True
+):
     """
     Compute the value at risk of a variable Y using a set of samples.
 
@@ -125,7 +127,7 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False,
     assert samples.ndim == 1
     num_samples = samples.shape[0]
     if weights is None:
-        weights = np.ones(num_samples)/num_samples
+        weights = np.ones(num_samples) / num_samples
     if prob:
         factor = 1
         assert np.allclose(weights.sum(), 1)
@@ -141,7 +143,7 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False,
         xx, ww = samples[II], weights[II]
     else:
         xx, ww = samples, weights
-    ecdf = ww.cumsum()/factor
+    ecdf = ww.cumsum() / factor
     index = np.arange(num_samples)[ecdf >= alpha][0]
     VaR = xx[index]
     if not samples_sorted:
@@ -151,11 +153,12 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False,
 
 
 @njit(cache=True)
-def conditional_value_at_risk_vectorized(samples, alpha, weights=None,
-                                         samples_sorted=False):
+def conditional_value_at_risk_vectorized(
+    samples, alpha, weights=None, samples_sorted=False
+):
     nvars, nsamples = samples.shape
     if weights is None:
-        weights = np.full((nvars, nsamples), 1/nsamples)
+        weights = np.full((nvars, nsamples), 1 / nsamples)
     assert weights.shape == samples.shape
     samples_sort = np.empty((nsamples))
     weights_sort = np.empty_like(samples_sort)
@@ -178,17 +181,19 @@ def conditional_value_at_risk_vectorized(samples, alpha, weights=None,
         ecdf /= ecdf[-1]
         indices[ii] = np.argmax(ecdf >= alpha)
         quantiles[ii] = samples[ii, indices[ii]]
-        CVaR[ii] = quantiles[ii]+1/((1-alpha))*np.sum(
-            (samples[ii, indices[ii]+1:]-quantiles[ii]) *
-            weights[ii, indices[ii]+1:])
+        CVaR[ii] = quantiles[ii] + 1 / ((1 - alpha)) * np.sum(
+            (samples[ii, indices[ii] + 1 :] - quantiles[ii])
+            * weights[ii, indices[ii] + 1 :]
+        )
     return CVaR
 
 
-def value_at_risk_np_vectorized(samples, alpha, weights=None,
-                                samples_sorted=False):
+def value_at_risk_np_vectorized(
+    samples, alpha, weights=None, samples_sorted=False
+):
     nvars, nsamples = samples.shape
     if weights is None:
-        weights = np.full((nvars, nsamples), 1/nsamples)
+        weights = np.full((nvars, nsamples), 1 / nsamples)
     assert weights.shape == samples.shape
     II = np.arange(nvars).reshape(nvars, 1)
     if not samples_sorted:
@@ -203,12 +208,12 @@ def value_at_risk_np_vectorized(samples, alpha, weights=None,
     return quantiles, indices
 
 
-def conditional_value_at_risk_np_vectorized(samples, alpha, weights=None,
-                                            samples_sorted=False,
-                                            return_var=False):
+def conditional_value_at_risk_np_vectorized(
+    samples, alpha, weights=None, samples_sorted=False, return_var=False
+):
     nvars, nsamples = samples.shape
     if weights is None:
-        weights = np.full((nvars, nsamples), 1/nsamples)
+        weights = np.full((nvars, nsamples), 1 / nsamples)
     assert weights.shape == samples.shape
     if not samples_sorted:
         # argsort does not work with numba
@@ -219,25 +224,33 @@ def conditional_value_at_risk_np_vectorized(samples, alpha, weights=None,
         II = np.arange(nvars).reshape(nvars, 1)
         samples, weights = samples[II, sorted_idx], weights[II, sorted_idx]
     VaR, indices = value_at_risk_np_vectorized(
-        samples, alpha, weights, samples_sorted=True)
+        samples, alpha, weights, samples_sorted=True
+    )
     # quantile indices will be different for each row
     # only need to sum above quantiles. So ignore all entries of
     # samples and weights < imin. Then set to zero any entries > imin
     # but less than indices[row] for each row
     imin = indices.min()
-    mask = (np.arange(imin, nsamples) < indices.reshape(indices.shape[0], 1))
+    mask = np.arange(imin, nsamples) < indices.reshape(indices.shape[0], 1)
     samples[:, imin:][mask], weights[:, imin:][mask] = 0.0, 0.0
-    CVaR = VaR+1/((1-alpha))*np.sum(
-        (samples[:, imin+1:]-VaR.reshape(nvars, 1))*weights[:, imin+1:],
-        axis=1)
+    CVaR = VaR + 1 / ((1 - alpha)) * np.sum(
+        (samples[:, imin + 1 :] - VaR.reshape(nvars, 1))
+        * weights[:, imin + 1 :],
+        axis=1,
+    )
     if return_var:
         return CVaR, VaR
     return CVaR
 
 
-def conditional_value_at_risk(samples, alpha, weights=None,
-                              samples_sorted=False, return_var=False,
-                              prob=True):
+def conditional_value_at_risk(
+    samples,
+    alpha,
+    weights=None,
+    samples_sorted=False,
+    return_var=False,
+    prob=True,
+):
     """
     Compute conditional value at risk of a variable Y using a set of samples.
 
@@ -268,9 +281,9 @@ def conditional_value_at_risk(samples, alpha, weights=None,
     samples = samples.squeeze()
     num_samples = samples.shape[0]
     if weights is None:
-        weights = np.ones(num_samples)/num_samples
+        weights = np.ones(num_samples) / num_samples
     if prob:
-        assert np.allclose(weights.sum(), 1), (weights.sum())
+        assert np.allclose(weights.sum(), 1), weights.sum()
     assert weights.ndim == 1
     if not samples_sorted:
         II = np.argsort(samples)
@@ -278,7 +291,9 @@ def conditional_value_at_risk(samples, alpha, weights=None,
     else:
         xx, ww = samples, weights
     VaR, index = value_at_risk(xx, alpha, ww, samples_sorted=True, prob=prob)
-    CVaR = VaR+1/((1-alpha))*np.sum((xx[index+1:]-VaR)*ww[index+1:])
+    CVaR = VaR + 1 / ((1 - alpha)) * np.sum(
+        (xx[index + 1 :] - VaR) * ww[index + 1 :]
+    )
     # The above one line can be used instead of the following
     # # number of support points above VaR
     # n_plus = num_samples-index-1
@@ -349,13 +364,14 @@ def cvar_importance_sampling_biasing_density(pdf, function, beta, VaR, tau, x):
     assert y.ndim == 1 or y.shape[1] == 1
     II = np.where(y < VaR)[0]
     JJ = np.where(y >= VaR)[0]
-    vals[II] *= beta/tau
-    vals[JJ] *= (1-beta)/(1-tau)
+    vals[II] *= beta / tau
+    vals[JJ] *= (1 - beta) / (1 - tau)
     return vals
 
 
 def generate_samples_from_cvar_importance_sampling_biasing_density(
-        function, beta, VaR, generate_candidate_samples, nsamples):
+    function, beta, VaR, generate_candidate_samples, nsamples
+):
     """
     Draw samples from the biasing density used to compute CVaR of the variable
     Y=f(X), for some function f, vector X and scalar Y.
@@ -407,21 +423,22 @@ def generate_samples_from_cvar_importance_sampling_biasing_density(
         assert vals.ndim == 1 or vals.shape[1] == 1
         II = np.where(vals < VaR)[0]
         JJ = np.where(vals >= VaR)[0]
-        Iend = min(II.shape[0], Ir.shape[0]-Icnt)
-        Jend = min(JJ.shape[0], Jr.shape[0]-Jcnt)
-        samples[:, Ir[Icnt:Icnt+Iend]] = candidate_samples[:, II[:Iend]]
-        samples[:, Jr[Jcnt:Jcnt+Jend]] = candidate_samples[:, JJ[:Jend]]
+        Iend = min(II.shape[0], Ir.shape[0] - Icnt)
+        Jend = min(JJ.shape[0], Jr.shape[0] - Jcnt)
+        samples[:, Ir[Icnt : Icnt + Iend]] = candidate_samples[:, II[:Iend]]
+        samples[:, Jr[Jcnt : Jcnt + Jend]] = candidate_samples[:, JJ[:Jend]]
         Icnt += Iend
         Jcnt += Jend
         if Icnt == Ir.shape[0] and Jcnt == Jr.shape[0]:
             break
         candidate_samples = generate_candidate_samples(nsamples)
-    assert Icnt+Jcnt == nsamples
+    assert Icnt + Jcnt == nsamples
     return samples
 
 
 def compute_conditional_expectations(
-        eta, samples, disutility_formulation=True):
+    eta, samples, disutility_formulation=True
+):
     r"""
     Compute the conditional expectation of :math:`Y`
     .. math::
@@ -456,10 +473,12 @@ def compute_conditional_expectations(
     assert eta.ndim == 1
     if disutility_formulation:
         values = np.maximum(
-            0, samples[:, np.newaxis]+eta[np.newaxis, :]).mean(axis=0)
+            0, samples[:, np.newaxis] + eta[np.newaxis, :]
+        ).mean(axis=0)
     else:
         values = np.maximum(
-            0, eta[np.newaxis, :]-samples[:, np.newaxis]).mean(axis=0)
+            0, eta[np.newaxis, :] - samples[:, np.newaxis]
+        ).mean(axis=0)
     return values
 
 
@@ -471,36 +490,46 @@ def univariate_cdf_continuous_variable(pdf, lb, ub, x, quad_opts={}):
     for jj in range(x.shape[0]):
         integral, err = scipy.integrate.quad(pdf, lb, x[jj], **quad_opts)
         vals[jj] = integral
-        if vals[jj] > 1 and vals[jj]-1 < quad_opts.get("epsabs", 1.49e-8):
-            vals[jj] = 1.
+        if vals[jj] > 1 and vals[jj] - 1 < quad_opts.get("epsabs", 1.49e-8):
+            vals[jj] = 1.0
     return vals
 
 
-def univariate_quantile_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
-                                            quad_opts={}):
+def univariate_quantile_continuous_variable(
+    pdf, bounds, beta, opt_tol=1e-8, quad_opts={}
+):
     if quad_opts.get("epsabs", 1.49e-8) > opt_tol:
         raise ValueError("epsabs must be smaller than opt_tol")
-    func = partial(univariate_cdf_continuous_variable,
-                   pdf, bounds[0], bounds[1], quad_opts=quad_opts)
-    method = 'bisect'
+    func = partial(
+        univariate_cdf_continuous_variable,
+        pdf,
+        bounds[0],
+        bounds[1],
+        quad_opts=quad_opts,
+    )
+    method = "bisect"
     quantile = invert_monotone_function(
-        func, bounds, np.array([beta]), method, opt_tol)
+        func, bounds, np.array([beta]), method, opt_tol
+    )
     return quantile
 
 
 def _univariate_cvar_continuous_variable_integrand(pdf, x):
-    return x*pdf(x)
+    return x * pdf(x)
 
 
-def univariate_cvar_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
-                                        quad_opts={}, return_quantile=False):
+def univariate_cvar_continuous_variable(
+    pdf, bounds, beta, opt_tol=1e-8, quad_opts={}, return_quantile=False
+):
     quantile = univariate_quantile_continuous_variable(
-        pdf, bounds, beta, opt_tol, quad_opts)
+        pdf, bounds, beta, opt_tol, quad_opts
+    )
 
     integrand = partial(_univariate_cvar_continuous_variable_integrand, pdf)
     integral, err = scipy.integrate.quad(
-        integrand, quantile, bounds[1], **quad_opts)
-    cvar = integral*1/(1-beta)
+        integrand, quantile, bounds[1], **quad_opts
+    )
+    cvar = integral * 1 / (1 - beta)
     if not return_quantile:
         return cvar
     return cvar, quantile
@@ -510,7 +539,7 @@ def lognormal_mean(mu, sigma_sq):
     """
     Compute the mean of a univariate lognormal variable
     """
-    return np.exp(mu+sigma_sq/2)
+    return np.exp(mu + sigma_sq / 2)
 
 
 def lognormal_cvar(p, mu, sigma_sq):
@@ -526,12 +555,15 @@ def lognormal_cvar(p, mu, sigma_sq):
     if sigma_sq < 0 and sigma_sq > -1e-16:
         sigma_sq = 0
     sigma = np.sqrt(sigma_sq)
-    quantile = np.exp(mu+sigma*np.sqrt(2)*erfinv(2*p-1))
+    quantile = np.exp(mu + sigma * np.sqrt(2) * erfinv(2 * p - 1))
     if sigma == 0:
         print("Warning: sigma is zero", quantile)
         return quantile
-    cvar = mean*stats.norm.cdf(
-        (mu+sigma_sq-np.log(quantile))/sigma)/(1-p)
+    cvar = (
+        mean
+        * stats.norm.cdf((mu + sigma_sq - np.log(quantile)) / sigma)
+        / (1 - p)
+    )
     return cvar
 
 
@@ -542,38 +574,46 @@ def lognormal_cvar_deviation(p, mu, sigma_sq):
     """
     mean = lognormal_mean(mu, sigma_sq)
     cvar = lognormal_cvar(p, mu, sigma_sq)
-    return cvar-mean
+    return cvar - mean
 
 
 def gaussian_entropic_risk(mu, sigma):
-    return sigma**2/2+mu
+    return sigma**2 / 2 + mu
 
 
 def gaussian_entropic_deviation(sigma):
-    return sigma**2/2
+    return sigma**2 / 2
 
 
 def lognormal_variance(mu, sigma_sq):
     """
     Compute the variance of a univariate lognormal variable
     """
-    return (np.exp(sigma_sq)-1)*np.exp(2*mu+sigma_sq)
+    return (np.exp(sigma_sq) - 1) * np.exp(2 * mu + sigma_sq)
 
 
 def beta_entropic_risk(alpha, beta):
     # x in [0, 1]
     from mpmath import hyp1f1
-    return np.log(float(hyp1f1(alpha, alpha+beta, 1)))
+
+    return np.log(float(hyp1f1(alpha, alpha + beta, 1)))
 
 
 def chi_squared_cvar(k, quantile):
     """
     Compute the conditional value at risk of a univariate Chi-squared variable
     """
+
     def upper_gammainc(a, b):
-        return gamma_fn(a)*(1 - gammainc(a, b))
+        return gamma_fn(a) * (1 - gammainc(a, b))
+
     VaR = stats.chi2.ppf(quantile, k)
-    cvar = 2*upper_gammainc(1+k/2, VaR/2)/gamma_fn(k/2)/(1-quantile)
+    cvar = (
+        2
+        * upper_gammainc(1 + k / 2, VaR / 2)
+        / gamma_fn(k / 2)
+        / (1 - quantile)
+    )
     return cvar
 
 
@@ -585,7 +625,9 @@ def gaussian_cvar(mu, sigma, quantile):
     distributions with application to portfolio optimization
     and density estimation.
     """
-    val = mu+sigma*stats.norm.pdf(stats.norm.ppf(quantile))/(1-quantile)
+    val = mu + sigma * stats.norm.pdf(stats.norm.ppf(quantile)) / (
+        1 - quantile
+    )
     return val
 
 
@@ -601,8 +643,9 @@ def lognormal_kl_divergence(mu1, sigma1, mu2, sigma2):
     The Kullback-Leibler between two loggormals is the same as the pdf between
     the corresponding Gaussians
     """
-    kl_div = (1/(2*sigma2**2)*((mu1-mu2)**2+sigma1**2-sigma2**2) +
-              np.log(sigma2/sigma1))
+    kl_div = 1 / (2 * sigma2**2) * (
+        (mu1 - mu2) ** 2 + sigma1**2 - sigma2**2
+    ) + np.log(sigma2 / sigma1)
     return kl_div
 
 
@@ -619,10 +662,11 @@ def gaussian_kl_divergence(mean1, cov1, mean2, cov2):
         raise ValueError("means must have shape (nvars, 1)")
     nvars = mean1.shape[0]
     cov2_inv = np.linalg.inv(cov2)
-    val = np.log(np.linalg.det(cov2)/np.linalg.det(cov1))-float(nvars)
+    val = np.log(np.linalg.det(cov2) / np.linalg.det(cov1)) - float(nvars)
     val += np.trace(cov2_inv.dot(cov1))
-    val += (mean2-mean1).T.dot(cov2_inv.dot(mean2-mean1))
-    return 0.5*val.item()
+    val += (mean2 - mean1).T.dot(cov2_inv.dot(mean2 - mean1))
+    return 0.5 * val.item()
+
 
 # Useful thesis with derivations of KL and Renyi divergences for a number
 # of canonical distributions
@@ -630,8 +674,9 @@ def gaussian_kl_divergence(mean1, cov1, mean2, cov2):
 # SOURCES. https://mast.queensu.ca/~communications/Papers/gil-msc11.pdf
 
 
-def compute_f_divergence(density1, density2, quad_rule, div_type,
-                         normalize=False):
+def compute_f_divergence(
+    density1, density2, quad_rule, div_type, normalize=False
+):
     r"""
     Compute f divergence between two densities
 
@@ -680,33 +725,42 @@ def compute_f_divergence(density1, density2, quad_rule, div_type,
 
     # normalize densities. May be needed if density is
     # Unnormalized Bayesian Posterior
-    def d1(x): return density1(x)/const1
-    def d2(x): return density2(x)/const2
+    def d1(x):
+        return density1(x) / const1
 
-    if div_type == 'KL':
+    def d2(x):
+        return density2(x) / const2
+
+    if div_type == "KL":
         # Kullback-Leibler
-        def f(t): return t*np.log(t)
-    elif div_type == 'TV':
+        def f(t):
+            return t * np.log(t)
+
+    elif div_type == "TV":
         # Total variation
-        def f(t): return 0.5*np.absolute(t-1)
-    elif div_type == 'hellinger':
+        def f(t):
+            return 0.5 * np.absolute(t - 1)
+
+    elif div_type == "hellinger":
         # Squared hellinger int (p(z)**0.5-q(z)**0.5)**2 dz
         # Note some formulations use 0.5 times above integral. We do not
         # do that here
-        def f(t): return (np.sqrt(t)-1)**2
+        def f(t):
+            return (np.sqrt(t) - 1) ** 2
+
     else:
-        raise Exception(f'Divergence type {div_type} not supported')
+        raise Exception(f"Divergence type {div_type} not supported")
 
     d1_vals, d2_vals = d1(x), d2(x)
     II = np.where(d2_vals > 1e-15)[0]
-    ratios = np.zeros_like(d2_vals)+1e-15
-    ratios[II] = d1_vals[II]/d2_vals[II]
+    ratios = np.zeros_like(d2_vals) + 1e-15
+    ratios[II] = d1_vals[II] / d2_vals[II]
     if not np.all(np.isfinite(ratios)):
         print(d1_vals[II], d2_vals[II])
-        msg = 'Densities are not absolutely continuous. '
-        msg += 'Ensure that density2(z)=0 implies density1(z)=0'
+        msg = "Densities are not absolutely continuous. "
+        msg += "Ensure that density2(z)=0 implies density1(z)=0"
         raise Exception(msg)
 
-    divergence_integrand = f(ratios)*d2_vals
+    divergence_integrand = f(ratios) * d2_vals
 
     return divergence_integrand.dot(w)

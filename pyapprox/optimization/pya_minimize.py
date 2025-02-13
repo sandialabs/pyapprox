@@ -1301,8 +1301,47 @@ class MiniMaxObjective(SingleSampleModel):
         return self._bkd.zeros((sample.shape[0],))
 
 
-class MiniMaxConstraintFromModel(Constraint):
-    def __init__(self, model, keep_feasible=False):
+class AVaRObjective(SingleSampleModel):
+    def set_beta(self, beta: float):
+        self._beta = beta
+
+    def set_quadrature_weights(self, quadw: Array):
+        if quadw.ndim != 1:
+            raise ValueError("quadw has the wrong shape")
+        self._quadw = quadw
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nslack(self) -> int:
+        return 1 + self._quadw.shape[0]
+
+    def _evaluate(self, sample: Array) -> Array:
+        t_slack = sample[:1]
+        gamma_slack = sample[1 : self._quadw.shape[0] + 1]
+        return t_slack + 1.0 / (1.0 - self._beta) * self._quadw @ gamma_slack
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.hstack(
+            (
+                self._bkd.ones((1,)),
+                self._quadw / (1.0 - self._beta),
+                self._bkd.zeros((sample.shape[0] - self.nslack(),)),
+            ),
+        )[None, :]
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        return self._bkd.zeros((sample.shape[0],))
+
+
+class SlackBasedConstraintFromModel(Constraint):
+    def __init__(self, model: Model, keep_feasible: bool = False):
         bounds = model._bkd.stack(
             (
                 model._bkd.zeros((model.nqoi(),)),
@@ -1320,13 +1359,88 @@ class MiniMaxConstraintFromModel(Constraint):
         self._model = model
 
         for attr in [
-            "apply_jacobian_implemented",
             "jacobian_implemented",
             "hessian_implemented",
             "weighted_hessian_implemented",
             "apply_weighted_hessian_implemented",
         ]:
             setattr(self, attr, getattr(self._model, attr))
+
+    @abstractmethod
+    def nslack(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _values(self, sample: Array) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _jacobian(self, sample: Array) -> Array:
+        raise NotImplementedError
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        model_hvp = self._model.apply_hessian(
+            sample[self.nslack() :], vec[self.nslack() :]
+        )
+        return self._bkd.hstack((vec[: self.nslack()] * 0, -model_hvp))
+
+    def apply_weighted_hessian(
+        self, sample: Array, vec: Array, weights: Array
+    ) -> Array:
+        model_whvp = self._model.apply_weighted_hessian(
+            sample[self.nslack() :], vec[self.nslack() :], weights
+        )
+        return self._bkd.vstack(
+            (self._bkd.zeros((self.nslack(), 1)), -model_whvp)
+        )
+
+    def _hessian(self, sample: Array) -> Array:
+        model_hess = self._model.hessian(sample[self.nslack() :])
+        hess = self._bkd.zeros((self.nqoi(), sample.shape[0], sample.shape[0]))
+        hess[:, self.nslack() :, self.nslack() :] = -model_hess
+        return hess
+
+    def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
+        model_whess = self._model.weighted_hessian(
+            sample[self.nslack() :], weights
+        )
+        whess = self._bkd.zeros((sample.shape[0], sample.shape[0]))
+        whess[self.nslack() :, self.nslack() :] = -model_whess
+        return whess
+
+    def nqoi(self) -> int:
+        return self._model.nqoi()
+
+    def __repr__(self):
+        return "{0}(model={1})".format(self.__class__.__name__, self._model)
+
+
+class AVaRConstraintFromModel(SlackBasedConstraintFromModel):
+    def nslack(self) -> int:
+        return 1 + self._model.nqoi()
+
+    def _values(self, sample: Array) -> Array:
+        return (
+            sample[:1].T
+            + sample[1 : self.nslack()].T
+            - self._model(sample[self.nslack() :])
+        )
+
+    def _jacobian(self, sample: Array) -> Array:
+        model_jac = self._model.jacobian(sample[self.nslack() :])
+        jac = self._bkd.hstack(
+            (
+                self._bkd.ones((model_jac.shape[0], 1)),
+                self._bkd.eye(model_jac.shape[0]),
+                -model_jac,
+            )
+        )
+        return jac
+
+
+class MiniMaxConstraintFromModel(SlackBasedConstraintFromModel):
+    def nslack(self) -> int:
+        return 1
 
     def _values(self, sample: Array) -> Array:
         return sample[0] - self._model(sample[1:])
@@ -1337,42 +1451,8 @@ class MiniMaxConstraintFromModel(Constraint):
             (self._bkd.ones((model_jac.shape[0], 1)), -model_jac)
         )
 
-    def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
-        model_jvp = self._model.apply_jacobian(sample[1:], vec[1:])
-        return self._bkd.hstack((vec[:1], -model_jvp))
 
-    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        model_hvp = self._model.apply_hessian(sample[1:], vec[1:])
-        return self._bkd.hstack((vec[:1] * 0, -model_hvp))
-
-    def apply_weighted_hessian(
-        self, sample: Array, vec: Array, weights: Array
-    ) -> Array:
-        model_whvp = self._model.apply_weighted_hessian(
-            sample[1:], vec[1:], weights
-        )
-        return self._bkd.vstack((self._bkd.zeros((1, 1)), -model_whvp))
-
-    def _hessian(self, sample: Array) -> Array:
-        model_hess = self._model.hessian(sample[1:])
-        hess = self._bkd.zeros((self.nqoi(), sample.shape[0], sample.shape[0]))
-        hess[:, 1:, 1:] = -model_hess
-        return hess
-
-    def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
-        model_whess = self._model.weighted_hessian(sample[1:], weights)
-        whess = self._bkd.zeros((sample.shape[0], sample.shape[0]))
-        whess[1:, 1:] = -model_whess
-        return whess
-
-    def nqoi(self) -> int:
-        return self._model.nqoi()
-
-    def __repr__(self):
-        return "{0}(model={1})".format(self.__class__.__name__, self._model)
-
-
-class MiniMaxAdjustedConstraint(Constraint):
+class SlackBasedAdjustedConstraint(Constraint):
     def __init__(self, constraint: Constraint):
         if not isinstance(constraint, Constraint):
             raise ValueError("constraint must be an instance of Constraint")
@@ -1390,15 +1470,34 @@ class MiniMaxAdjustedConstraint(Constraint):
             setattr(self, attr, getattr(self._constraint, attr))
 
     def _values(self, sample: Array) -> Array:
-        return self._constraint(sample[1:])
+        return self._constraint(sample[self.nslack() :])
 
     def _jacobian(self, sample: Array) -> Array:
-        return self._bkd.stack(
-            (self._bkd.zeros((1,)), self._constraint.jacobian(sample[1:]))
+        con_jac = self._constraint.jacobian(sample[self.nslack() :])
+        jac = self._bkd.hstack(
+            (
+                self._bkd.zeros((con_jac.shape[0], self.nslack())),
+                con_jac,
+            ),
         )
+        return jac
+
+    @abstractmethod
+    def nslack(self) -> int:
+        raise NotImplementedError
 
 
-class MiniMaxOptimizer:
+class MiniMaxAdjustedConstraint(SlackBasedAdjustedConstraint):
+    def nslack(self) -> int:
+        return 1
+
+
+class AVaRAdjustedConstraint(SlackBasedAdjustedConstraint):
+    def nslack(self) -> int:
+        return 1
+
+
+class SlackBasedOptimizer:
     """
     Use slack variables to solve a minimax problem with gradient
     based optimizers
@@ -1407,6 +1506,7 @@ class MiniMaxOptimizer:
     def __init__(
         self,
         optimizer: ConstrainedOptimizer,
+        nslack: int,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         if not isinstance(optimizer, ConstrainedOptimizer):
@@ -1415,14 +1515,27 @@ class MiniMaxOptimizer:
             )
         self._bkd = backend
         self._optimizer = optimizer
-        objective = MiniMaxObjective(backend=self._bkd)
-        self._optimizer.set_objective_function(objective)
-        self.set_slack_bounds(self._bkd.array([-np.inf, np.inf]))
+        self._nslack = nslack
+        self.set_slack_bounds(
+            self._bkd.stack([[-np.inf, np.inf]] * nslack, axis=0)
+        )
+        self._set_objective()
+
+    def nslack(self) -> int:
+        return self._nslack
 
     def set_slack_bounds(self, slack_bounds: Array):
-        if slack_bounds.shape != (2,):
+        if slack_bounds.shape != (self.nslack(), 2):
             raise ValueError("slack_bounds has the wrong shape")
         self._slack_bounds = slack_bounds
+
+    @abstractmethod
+    def _set_objective(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _convert_objective_function(self, model: Model):
+        raise NotImplementedError
 
     def set_objective_function(self, model: Model):
         """
@@ -1433,7 +1546,12 @@ class MiniMaxOptimizer:
             raise ValueError("model must be an instance of Model")
         # create slack based constraints. Model has no knowledge of slack
         # variable so wrapper is created.
-        self._max_constraint = MiniMaxConstraintFromModel(model)
+        self._constraint_from_objective = self._convert_objective_function(
+            model
+        )
+
+    def _adjust_nonlinear_constraint(self, con: Constraint):
+        return MiniMaxAdjustedConstraint(con)
 
     def _adjust_constraints(
         self, constraints: List[Constraint]
@@ -1444,7 +1562,7 @@ class MiniMaxOptimizer:
             if isinstance(con, LinearConstraint):
                 A = self._bkd.hstack(
                     (
-                        self._bkd.zeros((con.A.shape[0], 1)),
+                        self._bkd.zeros((con.A.shape[0], self.nslack())),
                         self._bkd.asarray(con.A),
                     )
                 )
@@ -1452,14 +1570,19 @@ class MiniMaxOptimizer:
                     LinearConstraint(A, con.lb, con.ub, con.keep_feasible)
                 )
             else:
-                adjusted_constraints.append(MiniMaxAdjustedConstraint(con))
+                adjusted_constraints.append(
+                    self._adjust_nonlinear_constraint(con)
+                )
         return adjusted_constraints
 
     def set_constraints(self, constraints: List[Constraint]):
-        if not hasattr(self, "_max_constraint"):
-            raise RuntimeError("Must first call set_max_constraint_model")
+        if not hasattr(self, "_constraint_from_objective"):
+            raise RuntimeError(
+                "Must first call set_constraint_from_objective_model"
+            )
         self._optimizer.set_constraints(
-            [self._max_constraint] + self._adjust_constraints(constraints)
+            [self._constraint_from_objective]
+            + self._adjust_constraints(constraints)
         )
 
     def __repr__(self):
@@ -1468,11 +1591,9 @@ class MiniMaxOptimizer:
         )
 
     def minimize(self, iterate: Array):
-        # if iterate.shape != (self._max_constraint._model.nvars() + 1, 1):
-        #     raise ValueError("iterate must have len model.nvars() + 1")
         res = self._optimizer.minimize(iterate)
-        res.x = res.x[1:]
-        # value of slack variable is in res.fun
+        res.slack = res.x[: self.nslack()]
+        res.x = res.x[self.nslack() :]
         return res
 
     def set_bounds(self, bounds: Array):
@@ -1480,3 +1601,62 @@ class MiniMaxOptimizer:
         self._optimizer.set_bounds(
             self._bkd.vstack((self._slack_bounds[None, :], bounds))
         )
+
+
+class MiniMaxOptimizer(SlackBasedOptimizer):
+    """
+    MinMax optimization with only one slack variable.
+    The slack variable replaces the objective. Cannot be used with constraints
+    That require additional slack variables
+    """
+
+    def __init__(
+        self,
+        optimizer: ConstrainedOptimizer,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(optimizer, 1, backend)
+
+    def _convert_objective_function(
+        self, model: Model
+    ) -> MiniMaxConstraintFromModel:
+        return MiniMaxConstraintFromModel(model, keep_feasible=True)
+
+    def _set_objective(self):
+        objective = MiniMaxObjective(backend=self._bkd)
+        self._optimizer.set_objective_function(objective)
+
+
+class AVaRSlackBasedOptimizer(SlackBasedOptimizer):
+    """
+    AVaR optimization with only slack variables arising from replacing the
+    objective. Cannot be used with constraints that require additional
+    slack variables.
+    """
+
+    def __init__(
+        self,
+        optimizer: ConstrainedOptimizer,
+        beta: float,
+        quadrature_weights: Array,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._beta = beta
+        self.set_quadrature_weights(quadrature_weights)
+        super().__init__(optimizer, 1 + self._quadw.shape[0], backend)
+
+    def set_quadrature_weights(self, quadw: Array):
+        if quadw.ndim != 1:
+            raise ValueError("quadw has the wrong shape")
+        self._quadw = quadw
+
+    def _convert_objective_function(
+        self, model: Model
+    ) -> AVaRConstraintFromModel:
+        return AVaRConstraintFromModel(model, keep_feasible=True)
+
+    def _set_objective(self):
+        objective = AVaRObjective(backend=self._bkd)
+        objective.set_beta(self._beta)
+        objective.set_quadrature_weights(self._quadw)
+        self._optimizer.set_objective_function(objective)

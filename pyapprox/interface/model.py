@@ -87,7 +87,7 @@ class Model(ABC):
     _apply_weighted_hessian_implemented
     """
 
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         if not hasattr(backend, "isbackend"):
             raise ValueError("backend must be derived from LinAlgBase")
         self._bkd = backend

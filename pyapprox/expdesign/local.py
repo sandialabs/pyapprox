@@ -561,6 +561,12 @@ class GOptimalLstSqCriterion(
         return False
 
 
+class ROEDOptimizer(MiniMaxOptimizer):
+    def _set_objective(self):
+        objective = MiniMaxObjective(backend=self._bkd)
+        self._optimizer.set_objective_function(objective)
+
+
 class LocalOptimalExperimentalDesign:
     def __init__(self, criterion: LocalOEDCriterionMixin):
         if not isinstance(criterion, LocalOEDCriterionMixin):
