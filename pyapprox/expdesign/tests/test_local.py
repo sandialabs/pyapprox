@@ -11,9 +11,13 @@ from pyapprox.expdesign.local import (
     AOptimalQuantileCriterion,
     IOptimalLstSqCriterion,
     LocalOptimalExperimentalDesign,
+    GOptimalLstSqCriterion,
 )
 from pyapprox.surrogates.bases.univariate import Monomial1D
-from pyapprox.optimization.pya_minimize import ScipyConstrainedOptimizer
+from pyapprox.optimization.pya_minimize import (
+    ScipyConstrainedOptimizer,
+    MiniMaxOptimizer,
+)
 from pyapprox.benchmarks.algebraic import MichaelisMentenModel
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -184,6 +188,36 @@ class TestLocalOED:
         II = np.where(mu > 1e-5)[0]
         assert np.allclose(mu[II], bkd.array([0.5, 0.5]))
         assert np.allclose(design_samples[0, II], exact_nonzero_design_samples)
+
+    def test_homoscedastic_least_squares_goptimal_design(self):
+        """
+        Check G gives same as D optimality. This holds due to equivalence
+        theorem.
+        """
+        bkd = self.get_backend()
+        poly_degree = 2
+        ndesign_pts = 7
+        design_samples = bkd.linspace(-1, 1, ndesign_pts)[None, :]
+        monomial = Monomial1D(poly_degree + 1, backend=bkd)
+        design_factors = monomial(design_samples)
+        noise_mult = None
+        opt = ScipyConstrainedOptimizer(opts={"gtol": 1e-12})
+
+        # # construct d-optimal design
+        # crit = DOptimalLstSqCriterion(design_factors, noise_mult, backend=bkd)
+        # d_oed = LocalOptimalExperimentalDesign(crit)
+        # d_oed.set_optimizer(opt)
+        # d_mu = d_oed.construct()
+
+        # construct g-optimal design
+        pred_factors = bkd.copy(design_factors)
+        crit = GOptimalLstSqCriterion(
+            design_factors, pred_factors, noise_mult, backend=bkd
+        )
+        g_oed = LocalOptimalExperimentalDesign(crit)
+        g_oed.set_optimizer(MiniMaxOptimizer(opt))
+        g_mu = g_oed.construct()
+        assert bkd.allclose(g_mu, d_mu)
 
 
 # class TestNumpyLocalOED(TestLocalOED, unittest.TestCase):

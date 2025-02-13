@@ -699,6 +699,7 @@ class ModelFromCallable(Model):
         apply_hessian: callable = None,
         hessian: callable = None,
         apply_weighted_hessian: callable = None,
+        weighted_hessian: callable = None,
         sample_ndim: int = 2,
         values_ndim: int = 2,
         backend: LinAlgMixin = NumpyLinAlgMixin,
@@ -742,6 +743,12 @@ class ModelFromCallable(Model):
                 raise ValueError("apply_weighed_hessian must be callable")
             self._user_apply_weighted_hessian = apply_weighted_hessian
             self._apply_weighted_hessian_implemented = True
+        if weighted_hessian is not None:
+            if not callable(weighted_hessian):
+                raise ValueError("weighed_hessian must be callable")
+            self._user_weighted_hessian = weighted_hessian
+            self._weighted_hessian_implemented = True
+
         self._sample_ndim = sample_ndim
         self._values_ndim = values_ndim
 
@@ -767,6 +774,9 @@ class ModelFromCallable(Model):
             self._user_apply_weighted_hessian, sample, vec, weights
         )
 
+    def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
+        return self._eval_fun(self._user_weighted_hessian, sample, weights)
+
 
 class ModelFromVectorizedCallable(ModelFromCallable):
     def __init__(
@@ -778,6 +788,7 @@ class ModelFromVectorizedCallable(ModelFromCallable):
         apply_hessian: callable = None,
         hessian: callable = None,
         apply_weighted_hessian: callable = None,
+        weighted_hessian: callable = None,
         values_ndim: int = 2,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
@@ -789,6 +800,7 @@ class ModelFromVectorizedCallable(ModelFromCallable):
             apply_hessian,
             hessian,
             apply_weighted_hessian,
+            weighted_hessian,
             2,
             values_ndim,
             backend,

@@ -257,7 +257,7 @@ class OptimizerWithObjective(Optimizer):
             raise RuntimeError("Must call set_objective_function")
         return super().minimize(iterate)
 
-    def set_bounds(self, bounds):
+    def set_bounds(self, bounds: Array):
         """
         Set the bounds of the design variables.
 
@@ -1317,9 +1317,9 @@ class MiniMaxConstraintFromModel(Constraint):
         self._model = model
 
         for attr in [
+            "apply_jacobian_implemented",
             "jacobian_implemented",
             "hessian_implemented",
-            "apply_hessian_implemented",
             "weighted_hessian_implemented",
             "apply_weighted_hessian_implemented",
         ]:
@@ -1342,11 +1342,25 @@ class MiniMaxConstraintFromModel(Constraint):
         model_hvp = self._model.apply_hessian(sample[1:], vec[1:])
         return self._bkd.hstack((vec[:1] * 0, model_hvp))
 
+    def apply_weighted_hessian(
+        self, sample: Array, vec: Array, weights: Array
+    ) -> Array:
+        model_whvp = self._model.apply_weighted_hessian(
+            sample[1:], vec[1:], weights
+        )
+        return self._bkd.hstack((self._bkd.zeros((1,)), model_whvp))
+
     def _hessian(self, sample: Array) -> Array:
         model_hess = self._model.hessian(sample[1:])
         hess = self._bkd.zeros((self.nqoi(), sample.shape[0], sample.shape[0]))
         hess[:, 1:, 1:] = model_hess
         return hess
+
+    def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
+        model_whess = self._model.weighted_hessian(sample[1:], weights)
+        whess = self._bkd.zeros((sample.shape[0], sample.shape[0]))
+        whess[1:, 1:] = model_whess
+        return whess
 
     def nqoi(self) -> int:
         return self._model.nqoi()
@@ -1382,6 +1396,11 @@ class MiniMaxAdjustedConstraint(Constraint):
 
 
 class MiniMaxOptimizer:
+    """
+    Use slack variables to solve a minimax problem with gradient
+    based optimizers
+    """
+
     def __init__(
         self,
         optimizer: ConstrainedOptimizer,
@@ -1396,14 +1415,21 @@ class MiniMaxOptimizer:
         objective = MiniMaxObjective(backend=self._bkd)
         self._optimizer.set_objective_function(objective)
 
-    def set_max_constraint_model(self, model: Model):
+    def set_objective_function(self, model: Model):
+        """
+        Set the model that returns the value of the objective at each
+        element in the set the maximum (of the min max) is taken over.
+        """
         if not isinstance(model, Model):
             raise ValueError("model must be an instance of Model")
+        # create slack based constraints. Model has no knowledge of slack
+        # variable so wrapper is created.
         self._max_constraint = MiniMaxConstraintFromModel(model)
 
     def _adjust_constraints(
         self, constraints: List[Constraint]
     ) -> List[Constraint]:
+        # adjust constraints to take in slack variable
         adjusted_constraints = []
         for con in constraints:
             if isinstance(con, LinearConstraint):
@@ -1433,3 +1459,11 @@ class MiniMaxOptimizer:
         # if iterate.shape != (self._max_constraint._model.nvars() + 1, 1):
         #     raise ValueError("iterate must have len model.nvars() + 1")
         return self._optimizer.minimize(iterate)
+
+    def set_bounds(self, bounds: Array):
+        # convert bounds to include bounds over slack variable
+        self._optimizer.set_bounds(
+            self._bkd.vstack(
+                (self._bkd.array([np.inf, np.inf])[None, :], bounds)
+            )
+        )

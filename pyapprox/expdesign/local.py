@@ -7,7 +7,9 @@ from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.interface.model import SingleSampleModel
 from pyapprox.optimization.pya_minimize import (
-    ConstrainedOptimizer, ScipyConstrainedOptimizer
+    ConstrainedOptimizer,
+    ScipyConstrainedOptimizer,
+    MiniMaxOptimizer,
 )
 
 
@@ -381,34 +383,49 @@ class LocalOEDCriterionAdjointMixin:
             self._adj_model._apply_hessian_implemented
         )
 
+    def _store_intermediate_values(self) -> bool:
+        return False
+
     def _evaluate(self, sample: Array) -> Array:
         val = 0
+        self._vals = []
         for vec in self._vecs:
             self._residual.set_vector(vec)
             # must make adj solver recompute forward solution
             self._adj_model._adjoint_solver._fwd_sol_param = None
             self._adj_model._adjoint_solver._adj_sol_param = None
-            val += self._adj_model._evaluate(sample)
+            val_ii = self._adj_model._evaluate(sample)
+            val += val_ii
+            if self._store_intermediate_values():
+                self._vals.append(val_ii)
         return val
 
     def _jacobian(self, sample: Array) -> Array:
         jac = 0
+        self._jacs = []
         for vec in self._vecs:
             self._residual.set_vector(vec)
             # must make adj solver recompute forward solution
             self._adj_model._adjoint_solver._fwd_sol_param = None
             self._adj_model._adjoint_solver._adj_sol_param = None
-            jac += self._adj_model.jacobian(sample)
+            jac_ii = self._adj_model.jacobian(sample)
+            if self._store_intermediate_values():
+                self._jacs.append(jac_ii)
+            jac += jac_ii
         return jac
 
     def _apply_hessian(self, sample: Array, vvec: Array) -> Array:
         hvp = 0
+        self._hvps = []
         for vec in self._vecs:
             self._residual.set_vector(vec)
             # must make adj solver recompute forward solution
             self._adj_model._adjoint_solver._fwd_sol_param = None
             self._adj_model._adjoint_solver._adj_sol_param = None
-            hvp += self._adj_model.apply_hessian(sample, vvec)
+            hvp_ii = self._adj_model.apply_hessian(sample, vvec)
+            if self._store_intermediate_values():
+                self._hvps.append(hvp_ii)
+            hvp += hvp_ii
         return hvp
 
 
@@ -473,9 +490,9 @@ class AOptimalQuantileCriterion(
 
 
 class IOptimalLstSqCriterion(
-        LstSqLocalOEDRegressionMixin,
-        LocalOEDCriterionAdjointMixin,
-        LocalOEDCriterionMixin,
+    LstSqLocalOEDRegressionMixin,
+    LocalOEDCriterionAdjointMixin,
+    LocalOEDCriterionMixin,
 ):
     def __init__(
         self,
@@ -491,11 +508,11 @@ class IOptimalLstSqCriterion(
         super().__init__(design_factors, vecs, noise_mult, backend)
 
     def _integrate_pred_factors(
-            self, pred_factors: Array, pred_prob_measure: Array
+        self, pred_factors: Array, pred_prob_measure: Array
     ):
         npred_pts = pred_factors.shape[0]
         if pred_prob_measure is None:
-            pred_prob_measure = self._bkd.full((npred_pts,), 1/npred_pts)
+            pred_prob_measure = self._bkd.full((npred_pts,), 1 / npred_pts)
         if pred_prob_measure.shape != (npred_pts,):
             raise ValueError("pred_prob_measure has the wrong shape")
         self._pred_prob_measure = pred_prob_measure
@@ -504,6 +521,38 @@ class IOptimalLstSqCriterion(
             pred_prob_measure[:, None] * pred_factors
         )
         self._Bchol = self._bkd.cholesky(self._Bmat)
+
+
+class GOptimalLstSqCriterion(
+    LstSqLocalOEDRegressionMixin,
+    LocalOEDCriterionAdjointMixin,
+    LocalOEDCriterionMixin,
+):
+    def __init__(
+        self,
+        design_factors: Array,
+        pred_factors: Array,
+        noise_mult: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        self._pred_factors = pred_factors
+        vecs = self._bkd.copy(self._pred_factors)
+        super().__init__(design_factors, vecs, noise_mult, backend)
+
+    def nqoi(self) -> int:
+        return self._pred_factors.shape[0]
+
+    def _store_intermediate_values(self) -> bool:
+        return True
+
+    def _evaluate(self, sample: Array) -> Array:
+        super()._evaluate(sample)
+        return self._bkd.hstack((self._vals))
+
+    def _jacobian(self, sample: Array) -> Array:
+        super()._jacobian(sample)
+        return self._bkd.stack((self._vals), axis=0)
 
 
 class LocalOptimalExperimentalDesign:
@@ -516,9 +565,15 @@ class LocalOptimalExperimentalDesign:
         self._bkd = self._crit._bkd
 
     def set_optimizer(self, optimizer: ConstrainedOptimizer):
-        if not isinstance(optimizer, ConstrainedOptimizer):
+        if isinstance(self._crit, GOptimalLstSqCriterion) and not isinstance(
+            optimizer, MiniMaxOptimizer
+        ):
+            raise ValueError("Goptimal designs require MiniMaxOptimizer")
+        if not isinstance(self._crit, GOptimalLstSqCriterion) and isinstance(
+            optimizer, MiniMaxOptimizer
+        ):
             raise ValueError(
-                "optimizer must be instance of ConstrainedOptimizer"
+                "{0} requires a ConstrainedOptimizer".format(self._crit)
             )
         self._optimizer = optimizer
         self._optimizer.set_objective_function(self._crit)
@@ -547,9 +602,11 @@ class LocalOptimalExperimentalDesign:
             self.set_optimizer(self.default_optimizer())
         if init_iterate is None:
             init_iterate = self._bkd.full(
-                (self._crit.nvars(), 1), 1./self._crit.nvars()
+                (self._crit.nvars(), 1), 1.0 / self._crit.nvars()
             )
-        if init_iterate.shape != (self._crit.nvars(), 1):
-            raise ValueError("init_iterate has the wrong shape")
+            if isinstance(self._optimizer, MiniMaxOptimizer):
+                init_iterate = self._bkd.vstack(
+                    (self._bkd.ones((1, 1)), init_iterate)
+                )
         self._res = self._optimizer.minimize(init_iterate)
         return self._res.x
