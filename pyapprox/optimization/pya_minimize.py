@@ -1390,6 +1390,7 @@ class SlackBasedConstraintFromModel(Constraint):
         model_whvp = self._model.apply_weighted_hessian(
             sample[self.nslack() :], vec[self.nslack() :], weights
         )
+        print(self._bkd.zeros((self.nslack(), 1)).shape, model_whvp.shape)
         return self._bkd.vstack(
             (self._bkd.zeros((self.nslack(), 1)), -model_whvp)
         )
@@ -1660,3 +1661,58 @@ class AVaRSlackBasedOptimizer(SlackBasedOptimizer):
         objective.set_beta(self._beta)
         objective.set_quadrature_weights(self._quadw)
         self._optimizer.set_objective_function(objective)
+
+
+class _AVaRDummyModel(Model):
+    """
+    Model with no parameters to be used to compute AVaR from a set of samples.
+    Only to be used by EmpiricalAVaRSlackBasedOptimizer
+    """
+
+    def __init__(
+        self, samples: Array, backend: LinAlgMixin = NumpyLinAlgMixin
+    ):
+        super().__init__(backend)
+        if samples.ndim != 2 or samples.shape[0] != 1:
+            raise ValueError("samples must be 2D row vector")
+        self._samples = samples
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    # def hessian_implemented(self) -> bool:
+    #     return True
+
+    def nqoi(self) -> int:
+        return self._samples.shape[1]
+
+    def nvars(self) -> int:
+        return 0
+
+    def _values(self, samples) -> Array:
+        return self._samples
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.zeros((self.nqoi(), self.nvars()))
+
+    def _hessian(self, sample: Array) -> Array:
+        return self._bkd.zeros((self.nqoi(), self.nvars(), self.nvars()))
+
+
+class EmpiricalAVaRSlackBasedOptimizer(AVaRSlackBasedOptimizer):
+    """
+    Compute AVaR from a set of samples using the optimization based formulation
+    Only intended for testing and tutorials
+    """
+
+    def __init__(
+        self,
+        optimizer: ConstrainedOptimizer,
+        beta: float,
+        samples: Array,
+        quadrature_weights: Array,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(optimizer, beta, quadrature_weights, backend=backend)
+        self.set_objective_function(_AVaRDummyModel(samples))
+        self.set_constraints([])

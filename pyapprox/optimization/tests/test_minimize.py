@@ -18,6 +18,7 @@ from pyapprox.optimization.pya_minimize import (
     ObjectiveWithCVaRConstraints,
     LinearConstraint,
     MiniMaxOptimizer,
+    EmpiricalAVaRSlackBasedOptimizer,
     AVaRSlackBasedOptimizer,
 )
 from pyapprox.benchmarks import (
@@ -29,6 +30,7 @@ from pyapprox.benchmarks import (
 from pyapprox.interface.model import ModelFromSingleSampleCallable
 from pyapprox.variables.risk import gaussian_cvar
 from pyapprox.interface.model import Model
+from pyapprox.optimization.risk import AverageValueAtRisk
 
 from pyapprox.util.sys_utilities import package_available
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -422,7 +424,7 @@ class TestMinimize(unittest.TestCase):
         )
         assert errors.min() / errors.max() < 1e-6
         errors = minimax._constraint_from_objective.check_apply_hessian(
-            iterate, weights=weights, disp=True
+            iterate, weights=weights
         )
         assert errors.min() / errors.max() < 1e-6
 
@@ -431,6 +433,43 @@ class TestMinimize(unittest.TestCase):
         print(res.x)
         assert bkd.allclose(res.x, bkd.full((3,), 5.0))
         assert bkd.allclose(res.fun, bkd.full((1,), 125.0), rtol=1e-2)
+
+    def test_compute_avar_from_samples(self):
+        bkd = NumpyLinAlgMixin
+        nsamples = 10
+        optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})
+        beta = 0.5
+
+        mu, sigma = 0, 2
+        rv = stats.norm(mu, sigma)
+        nsamples = int(1e1)
+        samples = rv.rvs(nsamples)[None, :]
+        quadw = bkd.full((nsamples,), 1 / nsamples)
+
+        minimax = EmpiricalAVaRSlackBasedOptimizer(
+            optimizer, beta, samples, quadw, backend=bkd
+        )
+        iterate = bkd.ones((nsamples + 1, 1))
+        iterate[0] = 1e3
+        errors = minimax._constraint_from_objective.check_apply_jacobian(
+            iterate, disp=True
+        )
+        assert errors.min() / errors.max() < 1e-6
+        # weights = bkd.ones((nsamples, 1))
+        # errors = minimax._constraint_from_objective.check_apply_hessian(
+        #     iterate, weights=weights, disp=True
+        # )
+        # assert errors.min() / errors.max() < 1e-6
+
+        res = minimax.minimize(iterate)
+        opt_avar = res.fun
+        opt_var = res.slack[0]
+
+        AVaR = AverageValueAtRisk(beta, backend=bkd)
+        AVaR.set_samples(samples)
+        print(opt_var)
+        print(opt_avar, AVaR())
+        assert bkd.allclose(opt_avar, AVaR())
 
     def test_avar_optimizer(self):
         bkd = NumpyLinAlgMixin
