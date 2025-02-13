@@ -398,23 +398,31 @@ class TestMinimize(unittest.TestCase):
         bkd = NumpyLinAlgMixin
         model = ModelFromSingleSampleCallable(
             3,
-            lambda x: x.T,
-            lambda x: bkd.eye(3),
-            # hessian=lambda x: bkd.zeros((3, 3, 3)),
-            weighted_hessian=lambda x, w: bkd.zeros((3, 3)),
+            lambda x: x.T**3,
+            lambda x: 3 * bkd.diag(x[:, 0] ** 2),
+            weighted_hessian=lambda x, w: 6 * bkd.diag(x[:, 0] * w[:, 0]),
             backend=bkd,
         )
         optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})
-        minimax = MiniMaxOptimizer(optimizer)
+        minimax = MiniMaxOptimizer(optimizer, backend=bkd)
         minimax.set_objective_function(model)
         minimax.set_constraints(
             [LinearConstraint(bkd.ones((3,)), 15, 15, keep_feasible=True)]
         )
-        res = minimax.minimize(bkd.ones((4, 1)))
-        assert bkd.allclose(res.x[1:], bkd.full((3,), 5.0))
-        # it is normal for scipy optimizer not to return slack variable
-        # exactly equal t0 5
-        assert bkd.allclose(res.fun, bkd.full((1,), 5.0), rtol=1e-2)
+
+        iterate = bkd.ones((4, 1))
+        weights = bkd.ones((3, 1))
+        errors = minimax._max_constraint.check_apply_jacobian(iterate)
+        assert errors.min() / errors.max() < 1e-6
+        errors = minimax._max_constraint.check_apply_hessian(
+            iterate, weights=weights, disp=True
+        )
+        assert errors.min() / errors.max() < 1e-6
+
+        res = minimax.minimize(iterate)
+        # Constraint is active and max is found when all original variables = 5
+        assert bkd.allclose(res.x, bkd.full((3,), 5.0))
+        assert bkd.allclose(res.fun, bkd.full((1,), 125.0), rtol=1e-2)
 
 
 if __name__ == "__main__":

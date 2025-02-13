@@ -552,7 +552,13 @@ class GOptimalLstSqCriterion(
 
     def _jacobian(self, sample: Array) -> Array:
         super()._jacobian(sample)
-        return self._bkd.stack((self._vals), axis=0)
+        return self._bkd.stack((self._jacs), axis=0)[:, 0, :]
+
+    def apply_hessian_implemented(self) -> bool:
+        return False
+
+    def hessian_implemented(self) -> bool:
+        return False
 
 
 class LocalOptimalExperimentalDesign:
@@ -608,5 +614,7 @@ class LocalOptimalExperimentalDesign:
                 init_iterate = self._bkd.vstack(
                     (self._bkd.ones((1, 1)), init_iterate)
                 )
+        # if isinstance(self._optimizer, MiniMaxOptimizer):
+        #    self._optimizer.set_slack_bounds(self._bkd.array([0, np.inf]))
         self._res = self._optimizer.minimize(init_iterate)
         return self._res.x

@@ -62,7 +62,10 @@ class ScipyOptimizationResult(OptimizationResult):
 
 class Constraint(Model):
     def __init__(
-        self, bounds=None, keep_feasible=False, backend=NumpyLinAlgMixin
+        self,
+        bounds=None,
+        keep_feasible=False,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         super().__init__(backend)
         if bounds is not None:
@@ -1331,16 +1334,16 @@ class MiniMaxConstraintFromModel(Constraint):
     def _jacobian(self, sample: Array) -> Array:
         model_jac = self._model.jacobian(sample[1:])
         return self._bkd.hstack(
-            (self._bkd.ones((model_jac.shape[0], 1)), model_jac)
+            (self._bkd.ones((model_jac.shape[0], 1)), -model_jac)
         )
 
     def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
         model_jvp = self._model.apply_jacobian(sample[1:], vec[1:])
-        return self._bkd.hstack((vec[:1], model_jvp))
+        return self._bkd.hstack((vec[:1], -model_jvp))
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         model_hvp = self._model.apply_hessian(sample[1:], vec[1:])
-        return self._bkd.hstack((vec[:1] * 0, model_hvp))
+        return self._bkd.hstack((vec[:1] * 0, -model_hvp))
 
     def apply_weighted_hessian(
         self, sample: Array, vec: Array, weights: Array
@@ -1348,18 +1351,18 @@ class MiniMaxConstraintFromModel(Constraint):
         model_whvp = self._model.apply_weighted_hessian(
             sample[1:], vec[1:], weights
         )
-        return self._bkd.hstack((self._bkd.zeros((1,)), model_whvp))
+        return self._bkd.vstack((self._bkd.zeros((1, 1)), -model_whvp))
 
     def _hessian(self, sample: Array) -> Array:
         model_hess = self._model.hessian(sample[1:])
         hess = self._bkd.zeros((self.nqoi(), sample.shape[0], sample.shape[0]))
-        hess[:, 1:, 1:] = model_hess
+        hess[:, 1:, 1:] = -model_hess
         return hess
 
     def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
         model_whess = self._model.weighted_hessian(sample[1:], weights)
         whess = self._bkd.zeros((sample.shape[0], sample.shape[0]))
-        whess[1:, 1:] = model_whess
+        whess[1:, 1:] = -model_whess
         return whess
 
     def nqoi(self) -> int:
@@ -1414,6 +1417,12 @@ class MiniMaxOptimizer:
         self._optimizer = optimizer
         objective = MiniMaxObjective(backend=self._bkd)
         self._optimizer.set_objective_function(objective)
+        self.set_slack_bounds(self._bkd.array([-np.inf, np.inf]))
+
+    def set_slack_bounds(self, slack_bounds: Array):
+        if slack_bounds.shape != (2,):
+            raise ValueError("slack_bounds has the wrong shape")
+        self._slack_bounds = slack_bounds
 
     def set_objective_function(self, model: Model):
         """
@@ -1434,7 +1443,10 @@ class MiniMaxOptimizer:
         for con in constraints:
             if isinstance(con, LinearConstraint):
                 A = self._bkd.hstack(
-                    (self._bkd.zeros((con.A.shape[0], 1)), con.A)
+                    (
+                        self._bkd.zeros((con.A.shape[0], 1)),
+                        self._bkd.asarray(con.A),
+                    )
                 )
                 adjusted_constraints.append(
                     LinearConstraint(A, con.lb, con.ub, con.keep_feasible)
@@ -1458,12 +1470,13 @@ class MiniMaxOptimizer:
     def minimize(self, iterate: Array):
         # if iterate.shape != (self._max_constraint._model.nvars() + 1, 1):
         #     raise ValueError("iterate must have len model.nvars() + 1")
-        return self._optimizer.minimize(iterate)
+        res = self._optimizer.minimize(iterate)
+        res.x = res.x[1:]
+        # value of slack variable is in res.fun
+        return res
 
     def set_bounds(self, bounds: Array):
         # convert bounds to include bounds over slack variable
         self._optimizer.set_bounds(
-            self._bkd.vstack(
-                (self._bkd.array([np.inf, np.inf])[None, :], bounds)
-            )
+            self._bkd.vstack((self._slack_bounds[None, :], bounds))
         )

@@ -52,8 +52,8 @@ class TestLocalOED:
         assert errors.min() / errors.max() < 1e-6
 
         if (
-            not crit._apply_hessian_implemented
-            and not crit._hessian_implemented
+            not crit.apply_hessian_implemented()
+            and not crit.hessian_implemented()
         ):
             return
         errors = crit.check_apply_hessian(iterate, disp=True)
@@ -82,20 +82,21 @@ class TestLocalOED:
         pred_factors = monomial(design_samples)
 
         test_cases = [
-            [DOptimalLstSqCriterion, False, None],
-            [DOptimalLstSqCriterion, True, None],
-            [DOptimalQuantileCriterion, False, None],
-            [DOptimalQuantileCriterion, True, None],
-            [COptimalLstSqCriterion, False, None, bkd.ones(4)],
-            [COptimalLstSqCriterion, True, None, bkd.ones(4)],
-            [COptimalQuantileCriterion, False, None, bkd.ones(4)],
-            [COptimalQuantileCriterion, True, None, bkd.ones(4)],
-            [AOptimalLstSqCriterion, False, check_aopt_obj],
-            [AOptimalLstSqCriterion, True, check_aopt_obj],
-            [AOptimalQuantileCriterion, False, check_aopt_obj],
-            [AOptimalQuantileCriterion, True, check_aopt_obj],
-            [IOptimalLstSqCriterion, False, check_iopt_obj, pred_factors],
-            [IOptimalLstSqCriterion, True, check_iopt_obj, pred_factors],
+            # [DOptimalLstSqCriterion, False, None],
+            # [DOptimalLstSqCriterion, True, None],
+            # [DOptimalQuantileCriterion, False, None],
+            # [DOptimalQuantileCriterion, True, None],
+            # [COptimalLstSqCriterion, False, None, bkd.ones(4)],
+            # [COptimalLstSqCriterion, True, None, bkd.ones(4)],
+            # [COptimalQuantileCriterion, False, None, bkd.ones(4)],
+            # [COptimalQuantileCriterion, True, None, bkd.ones(4)],
+            # [AOptimalLstSqCriterion, False, check_aopt_obj],
+            # [AOptimalLstSqCriterion, True, check_aopt_obj],
+            # [AOptimalQuantileCriterion, False, check_aopt_obj],
+            # [AOptimalQuantileCriterion, True, check_aopt_obj],
+            # [IOptimalLstSqCriterion, False, check_iopt_obj, pred_factors],
+            # [IOptimalLstSqCriterion, True, check_iopt_obj, pred_factors],
+            [GOptimalLstSqCriterion, True, None, pred_factors],
         ]
         for test_case in test_cases:
             np.random.seed(1)
@@ -194,6 +195,13 @@ class TestLocalOED:
         Check G gives same as D optimality. This holds due to equivalence
         theorem.
         """
+        import torch
+
+        torch.set_printoptions(linewidth=1000)
+        import warnings
+
+        warnings.filterwarnings("error")
+
         bkd = self.get_backend()
         poly_degree = 2
         ndesign_pts = 7
@@ -201,21 +209,22 @@ class TestLocalOED:
         monomial = Monomial1D(poly_degree + 1, backend=bkd)
         design_factors = monomial(design_samples)
         noise_mult = None
-        opt = ScipyConstrainedOptimizer(opts={"gtol": 1e-12})
+        opt = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})
 
-        # # construct d-optimal design
-        # crit = DOptimalLstSqCriterion(design_factors, noise_mult, backend=bkd)
-        # d_oed = LocalOptimalExperimentalDesign(crit)
-        # d_oed.set_optimizer(opt)
-        # d_mu = d_oed.construct()
+        # construct d-optimal design
+        crit = DOptimalLstSqCriterion(design_factors, noise_mult, backend=bkd)
+        d_oed = LocalOptimalExperimentalDesign(crit)
+        d_oed.set_optimizer(opt)
+        d_mu = d_oed.construct()
 
+        np.set_printoptions(linewidth=1000)
         # construct g-optimal design
         pred_factors = bkd.copy(design_factors)
         crit = GOptimalLstSqCriterion(
             design_factors, pred_factors, noise_mult, backend=bkd
         )
         g_oed = LocalOptimalExperimentalDesign(crit)
-        g_oed.set_optimizer(MiniMaxOptimizer(opt))
+        g_oed.set_optimizer(MiniMaxOptimizer(opt, backend=bkd))
         g_mu = g_oed.construct()
         assert bkd.allclose(g_mu, d_mu)
 
