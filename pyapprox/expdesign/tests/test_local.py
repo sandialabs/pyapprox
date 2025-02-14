@@ -12,11 +12,13 @@ from pyapprox.expdesign.local import (
     IOptimalLstSqCriterion,
     LocalOptimalExperimentalDesign,
     GOptimalLstSqCriterion,
+    ROptimalLstSqCriterion,
 )
 from pyapprox.surrogates.bases.univariate import Monomial1D
 from pyapprox.optimization.pya_minimize import (
     ScipyConstrainedOptimizer,
     MiniMaxOptimizer,
+    AVaRSlackBasedOptimizer,
 )
 from pyapprox.benchmarks.algebraic import MichaelisMentenModel
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -195,13 +197,6 @@ class TestLocalOED:
         Check G gives same as D optimality. This holds due to equivalence
         theorem.
         """
-        import torch
-
-        torch.set_printoptions(linewidth=1000)
-        import warnings
-
-        warnings.filterwarnings("error")
-
         bkd = self.get_backend()
         poly_degree = 2
         ndesign_pts = 7
@@ -217,7 +212,6 @@ class TestLocalOED:
         d_oed.set_optimizer(opt)
         d_mu = d_oed.construct()
 
-        np.set_printoptions(linewidth=1000)
         # construct g-optimal design
         pred_factors = bkd.copy(design_factors)
         crit = GOptimalLstSqCriterion(
@@ -227,6 +221,39 @@ class TestLocalOED:
         g_oed.set_optimizer(MiniMaxOptimizer(opt, backend=bkd))
         g_mu = g_oed.construct()
         assert bkd.allclose(g_mu, d_mu)
+
+    def test_leastsquares_roptimal_design(self):
+        """
+        Test r-optimal design with beta=0 is the same as I optimal design.
+        """
+        bkd = self.get_backend()
+        beta = 0.0
+        poly_degree = 2
+        ndesign_pts = 7
+        design_samples = bkd.linspace(-1, 1, ndesign_pts)[None, :]
+        monomial = Monomial1D(poly_degree + 1, backend=bkd)
+        design_factors = monomial(design_samples)
+        noise_mult = None
+        pred_factors = bkd.copy(design_factors)
+        npred_pts = pred_factors.shape[0]
+        scipy_opt = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})
+
+        r_crit = ROptimalLstSqCriterion(
+            design_factors, pred_factors, noise_mult, backend=bkd
+        )
+        quadw = bkd.full((npred_pts,), 1 / npred_pts)
+        r_opt = AVaRSlackBasedOptimizer(scipy_opt, beta, quadw, backend=bkd)
+        r_oed = LocalOptimalExperimentalDesign(r_crit)
+        r_oed.set_optimizer(r_opt)
+        r_mu = r_oed.construct()
+
+        i_crit = IOptimalLstSqCriterion(
+            design_factors, pred_factors, quadw, noise_mult, bkd
+        )
+        i_oed = LocalOptimalExperimentalDesign(i_crit)
+        i_oed.set_optimizer(scipy_opt)
+        i_mu = i_oed.construct()
+        assert bkd.allclose(r_mu, i_mu)
 
 
 # class TestNumpyLocalOED(TestLocalOED, unittest.TestCase):

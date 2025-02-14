@@ -1324,7 +1324,7 @@ class AVaRObjective(SingleSampleModel):
 
     def _evaluate(self, sample: Array) -> Array:
         t_slack = sample[:1]
-        gamma_slack = sample[1 : self._quadw.shape[0] + 1]
+        gamma_slack = sample[1 : self.nslack()]
         return t_slack + 1.0 / (1.0 - self._beta) * self._quadw @ gamma_slack
 
     def _jacobian(self, sample: Array) -> Array:
@@ -1390,7 +1390,6 @@ class SlackBasedConstraintFromModel(Constraint):
         model_whvp = self._model.apply_weighted_hessian(
             sample[self.nslack() :], vec[self.nslack() :], weights
         )
-        print(self._bkd.zeros((self.nslack(), 1)).shape, model_whvp.shape)
         return self._bkd.vstack(
             (self._bkd.zeros((self.nslack(), 1)), -model_whvp)
         )
@@ -1518,7 +1517,7 @@ class SlackBasedOptimizer:
         self._optimizer = optimizer
         self._nslack = nslack
         self.set_slack_bounds(
-            self._bkd.stack([[-np.inf, np.inf]] * nslack, axis=0)
+            self._bkd.tile(self._bkd.array([-np.inf, np.inf]), (nslack, 1))
         )
         self._set_objective()
 
@@ -1592,6 +1591,8 @@ class SlackBasedOptimizer:
         )
 
     def minimize(self, iterate: Array):
+        if not hasattr(self, "_bounds_set"):
+            raise ValueError("must call set_bounds")
         res = self._optimizer.minimize(iterate)
         res.slack = res.x[: self.nslack()]
         res.x = res.x[self.nslack() :]
@@ -1599,9 +1600,13 @@ class SlackBasedOptimizer:
 
     def set_bounds(self, bounds: Array):
         # convert bounds to include bounds over slack variable
-        self._optimizer.set_bounds(
-            self._bkd.vstack((self._slack_bounds[None, :], bounds))
-        )
+        self._bounds_set = True
+        if bounds is not None:
+            self._optimizer.set_bounds(
+                self._bkd.vstack((self._slack_bounds, bounds))
+            )
+        else:
+            self._optimizer.set_bounds(self._bkd.vstack(self._slack_bounds))
 
 
 class MiniMaxOptimizer(SlackBasedOptimizer):
@@ -1621,7 +1626,7 @@ class MiniMaxOptimizer(SlackBasedOptimizer):
     def _convert_objective_function(
         self, model: Model
     ) -> MiniMaxConstraintFromModel:
-        return MiniMaxConstraintFromModel(model, keep_feasible=True)
+        return MiniMaxConstraintFromModel(model, keep_feasible=False)
 
     def _set_objective(self):
         objective = MiniMaxObjective(backend=self._bkd)
@@ -1645,6 +1650,16 @@ class AVaRSlackBasedOptimizer(SlackBasedOptimizer):
         self._beta = beta
         self.set_quadrature_weights(quadrature_weights)
         super().__init__(optimizer, 1 + self._quadw.shape[0], backend)
+        self.set_slack_bounds(
+            self._bkd.vstack(
+                (
+                    self._bkd.array([[-np.inf, np.inf]]),
+                    self._bkd.tile(
+                        self._bkd.array([0, np.inf]), (self.nslack() - 1, 1)
+                    ),
+                ),
+            )
+        )
 
     def set_quadrature_weights(self, quadw: Array):
         if quadw.ndim != 1:
@@ -1654,7 +1669,7 @@ class AVaRSlackBasedOptimizer(SlackBasedOptimizer):
     def _convert_objective_function(
         self, model: Model
     ) -> AVaRConstraintFromModel:
-        return AVaRConstraintFromModel(model, keep_feasible=True)
+        return AVaRConstraintFromModel(model, keep_feasible=False)
 
     def _set_objective(self):
         objective = AVaRObjective(backend=self._bkd)
@@ -1680,8 +1695,8 @@ class _AVaRDummyModel(Model):
     def jacobian_implemented(self) -> bool:
         return True
 
-    # def hessian_implemented(self) -> bool:
-    #     return True
+    def weighted_hessian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return self._samples.shape[1]
@@ -1695,14 +1710,18 @@ class _AVaRDummyModel(Model):
     def _jacobian(self, sample: Array) -> Array:
         return self._bkd.zeros((self.nqoi(), self.nvars()))
 
-    def _hessian(self, sample: Array) -> Array:
-        return self._bkd.zeros((self.nqoi(), self.nvars(), self.nvars()))
+    def _weighted_hessian(self, sample: Array, weights) -> Array:
+        return self._bkd.zeros((self.nvars(), self.nvars()))
 
 
 class EmpiricalAVaRSlackBasedOptimizer(AVaRSlackBasedOptimizer):
     """
     Compute AVaR from a set of samples using the optimization based formulation
-    Only intended for testing and tutorials
+    Only intended for testing and tutorials. If one wants to solve with
+    optimization one should solve the equivalent linear program.
+    The use of nonlinear optimization here is just to check important
+    components of non-linear constrained avar minimization without adding
+    the complexity of a model
     """
 
     def __init__(

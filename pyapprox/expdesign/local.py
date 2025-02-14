@@ -10,6 +10,7 @@ from pyapprox.optimization.pya_minimize import (
     ConstrainedOptimizer,
     ScipyConstrainedOptimizer,
     MiniMaxOptimizer,
+    AVaRSlackBasedOptimizer,
 )
 
 
@@ -561,10 +562,8 @@ class GOptimalLstSqCriterion(
         return False
 
 
-class ROEDOptimizer(MiniMaxOptimizer):
-    def _set_objective(self):
-        objective = MiniMaxObjective(backend=self._bkd)
-        self._optimizer.set_objective_function(objective)
+class ROptimalLstSqCriterion(GOptimalLstSqCriterion):
+    pass
 
 
 class LocalOptimalExperimentalDesign:
@@ -577,8 +576,16 @@ class LocalOptimalExperimentalDesign:
         self._bkd = self._crit._bkd
 
     def set_optimizer(self, optimizer: ConstrainedOptimizer):
-        if isinstance(self._crit, GOptimalLstSqCriterion) and not isinstance(
-            optimizer, MiniMaxOptimizer
+        if isinstance(self._crit, ROptimalLstSqCriterion) and not isinstance(
+            optimizer, AVaRSlackBasedOptimizer
+        ):
+            raise ValueError(
+                "Roptimal designs require AVaRSlackBasedOptimizer"
+            )
+        if (
+            isinstance(self._crit, GOptimalLstSqCriterion)
+            and not isinstance(self._crit, ROptimalLstSqCriterion)
+            and not isinstance(optimizer, MiniMaxOptimizer)
         ):
             raise ValueError("Goptimal designs require MiniMaxOptimizer")
         if not isinstance(self._crit, GOptimalLstSqCriterion) and isinstance(
@@ -618,7 +625,20 @@ class LocalOptimalExperimentalDesign:
             )
             if isinstance(self._optimizer, MiniMaxOptimizer):
                 init_iterate = self._bkd.vstack(
-                    (self._bkd.ones((1, 1)), init_iterate)
+                    (self._bkd.full((1, 1), 1e3), init_iterate)
+                )
+            elif isinstance(self._optimizer, AVaRSlackBasedOptimizer):
+                init_iterate = self._bkd.vstack(
+                    (
+                        self._bkd.full(
+                            (
+                                self._optimizer._optimizer._objective.nslack(),
+                                1,
+                            ),
+                            100,
+                        ),
+                        init_iterate,
+                    )
                 )
         # if isinstance(self._optimizer, MiniMaxOptimizer):
         #    self._optimizer.set_slack_bounds(self._bkd.array([0, np.inf]))

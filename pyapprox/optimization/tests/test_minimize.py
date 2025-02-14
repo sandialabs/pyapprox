@@ -35,6 +35,8 @@ from pyapprox.optimization.risk import AverageValueAtRisk
 from pyapprox.util.sys_utilities import package_available
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
+# from pyapprox.util.print_wrapper import *
+
 if package_available("pyrol"):
     has_pyrol = True
     from pyapprox.optimization.rol_minimize import ROLConstrainedOptimizer
@@ -436,21 +438,32 @@ class TestMinimize(unittest.TestCase):
 
     def test_compute_avar_from_samples(self):
         bkd = NumpyLinAlgMixin
-        nsamples = 10
+        nsamples = 6
         optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})
-        beta = 0.5
+        # sub eps tp avoid numerical issue with beta falling exactly at sample
+        eps = 1e-8
+        beta = 4 / 6 - eps
 
         mu, sigma = 0, 2
         rv = stats.norm(mu, sigma)
-        nsamples = int(1e1)
         samples = rv.rvs(nsamples)[None, :]
+        samples = bkd.sort(samples)  # hack
         quadw = bkd.full((nsamples,), 1 / nsamples)
 
         minimax = EmpiricalAVaRSlackBasedOptimizer(
             optimizer, beta, samples, quadw, backend=bkd
         )
-        iterate = bkd.ones((nsamples + 1, 1))
-        iterate[0] = 1e3
+
+        AVaR = AverageValueAtRisk(beta, backend=bkd)
+        AVaR.set_samples(samples)
+        # check objective function returns correct value when
+        # correct value of slack variables is passed
+        iterate = bkd.empty((nsamples + 1, 1))
+        iterate[0] = AVaR()[1]
+        iterate[1:, 0] = bkd.maximum(samples[0] - iterate[0], 0)
+        assert bkd.allclose(minimax._optimizer._objective(iterate), AVaR()[0])
+
+        # check gradients
         errors = minimax._constraint_from_objective.check_apply_jacobian(
             iterate, disp=True
         )
@@ -461,15 +474,23 @@ class TestMinimize(unittest.TestCase):
         # )
         # assert errors.min() / errors.max() < 1e-6
 
+        iterate = bkd.full((nsamples + 1, 1), bkd.max(samples))
+        print(minimax._constraint_from_objective(iterate))
+        minimax.set_bounds(None)
+        optimizer.set_verbosity(3)
         res = minimax.minimize(iterate)
         opt_avar = res.fun
         opt_var = res.slack[0]
 
-        AVaR = AverageValueAtRisk(beta, backend=bkd)
-        AVaR.set_samples(samples)
-        print(opt_var)
-        print(opt_avar, AVaR())
-        assert bkd.allclose(opt_avar, AVaR())
+        lin_avar, lin_var = AVaR.optimize()
+
+        print(opt_var, lin_var, AVaR()[1], "VAR")
+        print(opt_avar, lin_avar, AVaR()[0], "AVAR")
+
+        assert bkd.allclose(lin_avar, AVaR()[0])
+        assert bkd.allclose(lin_var, AVaR()[1])
+        assert bkd.allclose(opt_avar, AVaR()[0])
+        assert bkd.allclose(opt_var, AVaR()[1])
 
     def test_avar_optimizer(self):
         bkd = NumpyLinAlgMixin

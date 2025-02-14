@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 
 import numpy as np
-from scipy import stats
+from scipy import stats, optimize
 from scipy.special import erfinv, gamma as gamma_fn, gammainc
 
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
@@ -60,13 +60,12 @@ class ValueAtRisk(ValueAtRiskMixin):
     def _value(self) -> Tuple[Array, int]:
         weights_sum = self._bkd.sum(self._quadw)
         ecdf = self._quadw.cumsum() / weights_sum
-        print(self._samples.shape[0], ecdf.shape)
         idx = self._bkd.arange(self._samples.shape[0])[ecdf >= self._beta][0]
         return self._samples[idx], idx
 
 
 class AverageValueAtRisk(ValueAtRiskMixin):
-    def _value(self) -> Array:
+    def _value(self) -> Tuple[Array, Array]:
         VaR = ValueAtRisk(self._beta, False, self._bkd)
         VaR.set_samples(self._samples[None, :], self._quadw)
         var, idx = VaR()
@@ -77,7 +76,36 @@ class AverageValueAtRisk(ValueAtRiskMixin):
             * ((self._samples[idx + 1 :] - var))
             @ self._quadw[idx + 1 :]
         )
-        return cvar
+        return cvar, var
+
+    def optimize(self):
+        """
+        Compute AVaR by solving linear program.
+
+        Warning
+        -------
+        When beta is very close to corresponding to a sample
+        e.g. beta=4/6, nsamples = 6
+        then VaR computed may be the next largest sample after the true AVaR
+        E.g. beta=4/6-1e-8 will work but beta=4/6 will not
+        """
+        nsamples = self._samples.shape[0]
+        c = np.hstack((np.array([1]), 1 / (1 - self._beta) * self._quadw))
+        A_ineq = -np.hstack((np.ones((nsamples, 1)), np.eye(nsamples)))
+        b_ineq = -self._samples
+        bounds = [(-np.inf, np.inf)] + [(0, np.inf)] * nsamples
+        lin_res = optimize.linprog(
+            c,
+            A_ineq,
+            b_ineq,
+            bounds=bounds,
+            options={
+                "dual_feasibility_tolerance": 1e-10,
+                "primal_feasibility_tolerance": 1e-10,
+                "ipm_optimality_tolerance": 1e-12,
+            },
+        )
+        return lin_res.fun, lin_res.x[0]
 
 
 class AnalyticalAVaR:
