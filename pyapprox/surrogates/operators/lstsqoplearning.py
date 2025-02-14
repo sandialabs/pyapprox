@@ -8,7 +8,7 @@ from pyapprox.surrogates.bases.orthopoly import (
 )
 from pyapprox.surrogates.bases.basis import (
     OrthonormalPolynomialBasis,
-    FixedGaussianTensorProductQuadratureRuleFromVariable
+    FixedGaussianTensorProductQuadratureRuleFromVariable,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.kle.kle import DataDrivenKLE
@@ -227,8 +227,7 @@ class TensorOrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
             out_quad_rules,
         )
 
-    def setup_bases(
-            self, nterms_1d_per_infun, nterms_1d_per_outfun):
+    def setup_bases(self, nterms_1d_per_infun, nterms_1d_per_outfun):
         in_bases = self._setup_function_domain_bases(
             self._marginals_per_infun, nterms_1d_per_infun
         )

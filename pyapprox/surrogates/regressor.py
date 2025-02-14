@@ -1,5 +1,7 @@
 from abc import abstractmethod, ABC
 import pickle
+import warnings
+from typing import Tuple
 
 from pyapprox.interface.model import Model
 from pyapprox.surrogates.loss import LossFunction
@@ -34,9 +36,7 @@ class Surrogate(Model):
     def _plot_surface_2d(self, ax, qoi, plot_limits, npts_1d, **kwargs):
         if ax.name != "3d":
             raise ValueError("ax must use 3d projection")
-        X, Y, pts = get_meshgrid_samples(
-            plot_limits, npts_1d, bkd=self._bkd
-        )
+        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
         vals = self.__call__(pts)
         Z = self._bkd.reshape(vals[:, qoi], X.shape)
         # X = self._bkd.to_numpy(X)
@@ -49,7 +49,7 @@ class Surrogate(Model):
             raise RuntimeError("Cannot plot indices when nvars >= 3.")
 
         if not isinstance(npts_1d, list):
-            npts_1d = [npts_1d]*self.nvars()
+            npts_1d = [npts_1d] * self.nvars()
 
         if len(npts_1d) != self.nvars():
             raise ValueError("npts_1d must be a list")
@@ -65,9 +65,7 @@ class Surrogate(Model):
     def plot_contours(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
         if self.nvars() != 2:
             raise ValueError("Can only plot contours for 2D functions")
-        X, Y, pts = get_meshgrid_samples(
-            plot_limits, npts_1d, bkd=self._bkd
-        )
+        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
         vals = self.__call__(pts)
         Z = self._bkd.reshape(vals[:, qoi], X.shape)
         return ax.contourf(X, Y, Z, **kwargs)
@@ -113,7 +111,7 @@ class Regressor(Surrogate):
             raise ValueError("out_trans must be an instance of Transform")
         self._out_trans = out_trans
 
-    def _set_training_data(self, train_samples, train_values):
+    def _set_training_data(self, train_samples: Array, train_values: Array):
         if train_samples.shape[1] != train_values.shape[0]:
             raise ValueError(
                 (
@@ -127,31 +125,32 @@ class Regressor(Surrogate):
         ).T
 
     @abstractmethod
-    def _fit(self, iterate):
+    def _fit(self, iterate: Array):
         raise NotImplementedError
 
-    def fit(self, train_samples, train_values, iterate=None):
+    def fit(
+        self, train_samples: Array, train_values: Array, iterate: Array = None
+    ):
         """fit the regressor"""
         self._set_training_data(train_samples, train_values)
-        if self.hyp_list().nactive_vars() > 0:
-            self._fit(iterate)
+        self._fit(iterate)
 
     def save(self, filename):
-        '''
+        """
         To load, use pyapprox.sciml.network.load(filename)
-        '''
-        pickle.dump(self, open(filename, 'wb'))
+        """
+        pickle.dump(self, open(filename, "wb"))
 
-    def __call__(self, samples):
+    def __call__(self, samples) -> Array:
         return self._out_trans.map_from_canonical(super().__call__(samples))
 
-    def nvars(self):
+    def nvars(self) -> int:
         return self._ctrain_samples.shape[0]
 
-    def get_train_samples(self):
+    def get_train_samples(self) -> Array:
         return self._in_trans.map_to_canonical(self._ctrain_samples)
 
-    def get_train_values(self):
+    def get_train_values(self) -> Array:
         return self._out_trans.map_to_canonical(self._ctrain_samples)
 
 
@@ -179,7 +178,7 @@ class AdaptiveRegressorMixin(ABC):
 
 
 class OptimizedRegressor(Regressor):
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
         self._loss = None
         self._optimizer = None
@@ -206,7 +205,10 @@ class OptimizedRegressor(Regressor):
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
 
-    def _fit(self, iterate):
+    def _fit(self, iterate: Array):
+        if self.hyp_list().nactive_vars() == 0:
+            warnings.warn("No active parameters so fit was not called")
+            return
         if self._optimizer is None:
             raise RuntimeError("must call set_optimizer")
         if iterate is None:
@@ -253,5 +255,5 @@ def TensorProductQuadratureRule(QuadratureRule):
         self._samples = self._bkd.cartesian_product(samples_1d)
         self._weights = self._bkd.outer_product(weights_1d)
 
-    def __call__(self):
+    def __call__(self) -> Tuple[Array, Array]:
         return self._samples, self._weights
