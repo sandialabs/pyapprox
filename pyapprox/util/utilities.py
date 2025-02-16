@@ -124,7 +124,7 @@ def ind2sub(sizes, scalar_index, num_elems):
     denom = num_elems
     num_sets = len(sizes)
     multi_index = np.empty((num_sets), dtype=int)
-    for ii in range(num_sets-1, -1, -1):
+    for ii in range(num_sets - 1, -1, -1):
         denom /= sizes[ii]
         multi_index[ii] = scalar_index / denom
         scalar_index = scalar_index % denom
@@ -156,6 +156,7 @@ def cartesian_product(input_sets, elem_size=1):
         result.dtype will be set to the first entry of the first input_set
     """
     import itertools
+
     out = []
     # ::-1 reverse order to be backwards compatiable with old
     # function below
@@ -163,6 +164,7 @@ def cartesian_product(input_sets, elem_size=1):
         out.append(r)
     out = np.asarray(out).T[::-1, :]
     return out
+
 
 def outer_product(input_sets, axis=0):
     r"""
@@ -304,6 +306,7 @@ def get_2d_cartesian_grid(num_pts_1d, ranges):
     """
     # from math_tools_cpp import cartesian_product_double as cartesian_product
     from PyDakota.math_tools import cartesian_product
+
     x1 = np.linspace(ranges[0], ranges[1], num_pts_1d)
     x2 = np.linspace(ranges[2], ranges[3], num_pts_1d)
     abscissa_1d = []
@@ -347,8 +350,8 @@ def lists_of_lists_of_arrays_equal(list1, list2):
 def get_all_primes_less_than_or_equal_to_n(n):
     primes = list()
     primes.append(2)
-    for num in range(3, n+1, 2):
-        if all(num % i != 0 for i in range(2, int(num**.5) + 1)):
+    for num in range(3, n + 1, 2):
+        if all(num % i != 0 for i in range(2, int(num**0.5) + 1)):
             primes.append(num)
     return np.asarray(primes)
 
@@ -362,8 +365,8 @@ def get_first_n_primes(n):
         # np.all does not work with numba
         # if np.all([num % i != 0 for i in range(2, int(num**.5) + 1)]):
         flag = True
-        for i in range(2, int(num**.5) + 1):
-            if (num % i == 0):
+        for i in range(2, int(num**0.5) + 1):
+            if num % i == 0:
                 flag = False
                 break
         if flag is True:
@@ -389,15 +392,19 @@ def approx_fprime(x, func, eps=np.sqrt(np.finfo(float).eps), forward=True):
             x_plus_eps[ii] += eps
         else:
             x_plus_eps[ii] -= eps
-        fprime.append((func(x_plus_eps).squeeze()-func_at_x)/eps)
+        fprime.append((func(x_plus_eps).squeeze() - func_at_x) / eps)
     return np.array(fprime)
 
 
 def partial_functions_equal(func1, func2):
     if not (isinstance(func1, partial) and isinstance(func2, partial)):
         return False
-    are_equal = all([getattr(func1, attr) == getattr(func2, attr)
-                     for attr in ['func', 'args', 'keywords']])
+    are_equal = all(
+        [
+            getattr(func1, attr) == getattr(func2, attr)
+            for attr in ["func", "args", "keywords"]
+        ]
+    )
     return are_equal
 
 
@@ -420,6 +427,7 @@ def get_all_sample_combinations(samples1, samples2, bkd=NumpyLinAlgMixin):
 
     """
     import itertools
+
     samples = []
     for r in itertools.product(*[samples1.T, samples2.T]):
         samples.append(bkd.hstack(r))
@@ -427,7 +435,7 @@ def get_all_sample_combinations(samples1, samples2, bkd=NumpyLinAlgMixin):
 
 
 def get_correlation_from_covariance(
-        cov: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    cov: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
 ) -> Array:
     r"""
     Compute the correlation matrix from a covariance matrix
@@ -449,13 +457,17 @@ def get_correlation_from_covariance(
     array([[ 1. , -0.5],
            [-0.5,  1. ]])
     """
-    stdev_inv = 1/bkd.sqrt(bkd.diag(cov))
-    cor = stdev_inv[None, :]*cov*stdev_inv[:, None]
+    stdev_inv = 1 / bkd.sqrt(bkd.diag(cov))
+    cor = stdev_inv[None, :] * cov * stdev_inv[:, None]
     return cor
 
 
+def correlation_to_covariance(corr: Array, stdevs: Array) -> Array:
+    return stdevs[None, :] * corr * stdevs[:, None]
+
+
 def evaluate_quadratic_form(
-        matrix: Array, samples: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    matrix: Array, samples: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
 ) -> Array:
     r"""
     Evaluate x.T @ A @  x for several vectors x
@@ -473,7 +485,7 @@ def evaluate_quadratic_form(
     vals : Array (nsamples)
         Evaluations of the quadratic form for each vector x
     """
-    return bkd.sum(samples.T @ (matrix)*samples.T, axis=1)
+    return bkd.sum(samples.T @ (matrix) * samples.T, axis=1)
 
 
 def split_dataset(samples, values, ndata1):
@@ -517,7 +529,7 @@ def split_dataset(samples, values, ndata1):
 
 
 def leave_one_out_lsq_cross_validation(
-        basis_mat, values, alpha=0, coef=None, bkd=NumpyLinAlgMixin
+    basis_mat, values, alpha=0, coef=None, bkd=NumpyLinAlgMixin
 ):
     """
     let :math:`x_i` be the ith row of :math:`X` and let
@@ -535,35 +547,36 @@ def leave_one_out_lsq_cross_validation(
     :math:`h_i = x_i^\top(X^\top X)^{-1}x_i`
     """
     assert values.ndim == 2
-    assert basis_mat.shape[0] > basis_mat.shape[1]+2
+    assert basis_mat.shape[0] > basis_mat.shape[1] + 2
     gram_mat = basis_mat.T @ basis_mat
-    gram_mat += alpha*bkd.eye(gram_mat.shape[0])
+    gram_mat += alpha * bkd.eye(gram_mat.shape[0])
     H_mat = basis_mat @ (bkd.inv(gram_mat) @ basis_mat.T)
     H_diag = bkd.diag(H_mat)
     if coef is None:
         coef = bkd.lstsq(gram_mat, basis_mat.T @ values)
     assert coef.ndim == 2
     residuals = basis_mat @ coef - values
-    cv_errors = residuals / (1-H_diag[:, None])
-    cv_score = bkd.sqrt(
-        bkd.sum(cv_errors**2, axis=0)/basis_mat.shape[0]
-    )
+    cv_errors = residuals / (1 - H_diag[:, None])
+    cv_score = bkd.sqrt(bkd.sum(cv_errors**2, axis=0) / basis_mat.shape[0])
     return cv_errors, cv_score, coef
 
 
 def leave_many_out_lsq_cross_validation(
-        basis_mat, values, fold_sample_indices, alpha=0, coef=None,
-        bkd=NumpyLinAlgMixin
+    basis_mat,
+    values,
+    fold_sample_indices,
+    alpha=0,
+    coef=None,
+    bkd=NumpyLinAlgMixin,
 ):
     nfolds = len(fold_sample_indices)
     nsamples = basis_mat.shape[0]
     cv_errors = []
     cv_score = 0
     gram_mat = basis_mat.T @ basis_mat
-    gram_mat += alpha*bkd.eye(gram_mat.shape[0])
+    gram_mat += alpha * bkd.eye(gram_mat.shape[0])
     if coef is None:
-        coef = bkd.lstsq(
-            gram_mat, basis_mat.T @ values)
+        coef = bkd.lstsq(gram_mat, basis_mat.T @ values)
     residuals = basis_mat @ coef - values
     gram_mat_inv = bkd.inv(gram_mat)
     for kk in range(nfolds):
@@ -574,28 +587,32 @@ def leave_many_out_lsq_cross_validation(
         residuals_kk = residuals[indices_kk, :]
 
         H_mat = bkd.eye(nvalidation_samples_kk) - basis_mat_kk @ (
-            gram_mat_inv @ basis_mat_kk.T)
+            gram_mat_inv @ basis_mat_kk.T
+        )
         # print('gram_mat cond number', np.linalg.cond(gram_mat))
         # print('H_mat cond number', np.linalg.cond(H_mat))
         H_mat_inv = bkd.inv(H_mat)
         cv_errors.append(H_mat_inv @ residuals_kk)
-        cv_score += bkd.sum(cv_errors[-1]**2, axis=0)
-    return cv_errors, math.sqrt(cv_score/basis_mat.shape[0]), coef
+        cv_score += bkd.sum(cv_errors[-1] ** 2, axis=0)
+    return cv_errors, math.sqrt(cv_score / basis_mat.shape[0]), coef
 
 
 def get_random_k_fold_sample_indices(
-        nsamples, nfolds, random=True, bkd=NumpyLinAlgMixin
+    nsamples, nfolds, random=True, bkd=NumpyLinAlgMixin
 ):
     sample_indices = bkd.arange(nsamples, dtype=int)
     if random is True:
-        sample_indices = bkd.asarray(np.random.permutation(sample_indices), dtype=int)
+        sample_indices = bkd.asarray(
+            np.random.permutation(sample_indices), dtype=int
+        )
 
     fold_sample_indices = [bkd.empty(0, dtype=int) for kk in range(nfolds)]
     nn = 0
     while nn < nsamples:
         for jj in range(nfolds):
-            fold_sample_indices[jj] = bkd.hstack([
-                fold_sample_indices[jj], sample_indices[nn]])
+            fold_sample_indices[jj] = bkd.hstack(
+                [fold_sample_indices[jj], sample_indices[nn]]
+            )
             nn += 1
             if nn >= nsamples:
                 break
@@ -605,7 +622,8 @@ def get_random_k_fold_sample_indices(
 
 
 def get_cross_validation_rsquared_coefficient_of_variation(
-        cv_score, train_vals):
+    cv_score, train_vals
+):
     r"""
     cv_score = :math:`N^{-1/2}\left(\sum_{n=1}^N e_n\right^{1/2}` where
     :math:`e_n` are the cross  validation residues at each test point and
@@ -619,13 +637,21 @@ def get_cross_validation_rsquared_coefficient_of_variation(
     # total sum of squares (proportional to variance)
     denom = np.std(train_vals)
     # the factors of 1/N in numerator and denominator cancel out
-    rsq = 1-(cv_score/denom)**2
+    rsq = 1 - (cv_score / denom) ** 2
     return rsq
 
 
 def __integrate_using_univariate_gauss_legendre_quadrature_bounded(
-        integrand, lb, ub, nquad_samples, rtol=1e-8, atol=1e-8,
-        verbose=0, adaptive=True, tabulated_quad_rules=None):
+    integrand,
+    lb,
+    ub,
+    nquad_samples,
+    rtol=1e-8,
+    atol=1e-8,
+    verbose=0,
+    adaptive=True,
+    tabulated_quad_rules=None,
+):
     """
     tabulated_quad_rules : dictionary
         each entry is a tuple (x,w) of gauss legendre with weight
@@ -639,32 +665,48 @@ def __integrate_using_univariate_gauss_legendre_quadrature_bounded(
     prev_res = np.inf
     it = 0
     while True:
-        if (tabulated_quad_rules is None or
-                nquad_samples not in tabulated_quad_rules):
+        if (
+            tabulated_quad_rules is None
+            or nquad_samples not in tabulated_quad_rules
+        ):
             xx_canonical, ww_canonical = leggauss(nquad_samples)
         else:
             xx_canonical, ww_canonical = tabulated_quad_rules[nquad_samples]
-        xx = (xx_canonical+1)/2*(ub-lb)+lb
-        ww = ww_canonical*(ub-lb)/2
+        xx = (xx_canonical + 1) / 2 * (ub - lb) + lb
+        ww = ww_canonical * (ub - lb) / 2
         res = integrand(xx).T.dot(ww).T
-        diff = np.absolute(prev_res-res)
+        diff = np.absolute(prev_res - res)
         if verbose > 1:
             print(it, nquad_samples, diff)
-        if (np.all(np.absolute(prev_res-res) < rtol*np.absolute(res)+atol) or
-                adaptive is False):
+        if (
+            np.all(
+                np.absolute(prev_res - res) < rtol * np.absolute(res) + atol
+            )
+            or adaptive is False
+        ):
             break
         prev_res = res
         nquad_samples *= 2
         it += 1
     if verbose > 0:
-        print(f'adaptive quadrature converged in {it} iterations')
+        print(f"adaptive quadrature converged in {it} iterations")
     return res
 
 
 def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
-        integrand, lb, ub, nquad_samples, atol=1e-8, rtol=1e-8,
-        interval_size=2, max_steps=1000, verbose=0, adaptive=True,
-        soft_error=False, tabulated_quad_rules=None):
+    integrand,
+    lb,
+    ub,
+    nquad_samples,
+    atol=1e-8,
+    rtol=1e-8,
+    interval_size=2,
+    max_steps=1000,
+    verbose=0,
+    adaptive=True,
+    soft_error=False,
+    tabulated_quad_rules=None,
+):
     """
     Compute unbounded integrals by moving left and right from origin.
     Assume that integral decays towards +/- infinity. And that once integral
@@ -677,32 +719,55 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
     if np.isfinite(lb) and np.isfinite(ub):
         partial_lb, partial_ub = lb, ub
     elif np.isfinite(lb) and not np.isfinite(ub):
-        partial_lb, partial_ub = lb, lb+interval_size
+        partial_lb, partial_ub = lb, lb + interval_size
     elif not np.isfinite(lb) and np.isfinite(ub):
-        partial_lb, partial_ub = ub-interval_size, ub
+        partial_lb, partial_ub = ub - interval_size, ub
     else:
-        partial_lb, partial_ub = -interval_size/2, interval_size/2
+        partial_lb, partial_ub = -interval_size / 2, interval_size / 2
 
     result = __integrate_using_univariate_gauss_legendre_quadrature_bounded(
-        integrand, partial_lb, partial_ub, nquad_samples, rtol,
-        atol, verbose-1, adaptive, tabulated_quad_rules)
+        integrand,
+        partial_lb,
+        partial_ub,
+        nquad_samples,
+        rtol,
+        atol,
+        verbose - 1,
+        adaptive,
+        tabulated_quad_rules,
+    )
 
     step = 0
     partial_result = np.inf
-    plb, pub = partial_lb-interval_size, partial_lb
-    while (np.any(np.absolute(partial_result) >= rtol*np.absolute(result)+atol)
-           and (plb >= lb) and step < max_steps):
-        partial_result = \
+    plb, pub = partial_lb - interval_size, partial_lb
+    while (
+        np.any(
+            np.absolute(partial_result) >= rtol * np.absolute(result) + atol
+        )
+        and (plb >= lb)
+        and step < max_steps
+    ):
+        partial_result = (
             __integrate_using_univariate_gauss_legendre_quadrature_bounded(
-                integrand, plb, pub, nquad_samples, rtol, atol,
-                verbose-1, adaptive, tabulated_quad_rules)
+                integrand,
+                plb,
+                pub,
+                nquad_samples,
+                rtol,
+                atol,
+                verbose - 1,
+                adaptive,
+                tabulated_quad_rules,
+            )
+        )
         result += partial_result
         pub = plb
         plb -= interval_size
         step += 1
         if verbose > 1:
-            print('Left', step, result, partial_result, plb, pub,
-                  interval_size)
+            print(
+                "Left", step, result, partial_result, plb, pub, interval_size
+            )
         if verbose > 0:
             if step >= max_steps:
                 msg = "Early termination when computing left integral"
@@ -711,27 +776,44 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
                     warn(msg, UserWarning)
                 else:
                     raise RuntimeError(msg)
-            if np.all(np.abs(partial_result) < rtol*np.absolute(result)+atol):
-                msg = f'Tolerance {atol} {rtol} for left integral reached in '
-                msg += f'{step} iterations'
+            if np.all(
+                np.abs(partial_result) < rtol * np.absolute(result) + atol
+            ):
+                msg = f"Tolerance {atol} {rtol} for left integral reached in "
+                msg += f"{step} iterations"
                 print(msg)
 
     step = 0
     partial_result = np.inf
-    plb, pub = partial_ub, partial_ub+interval_size
-    while (np.any(np.absolute(partial_result) >= rtol*np.absolute(result)+atol)
-           and (pub <= ub) and step < max_steps):
-        partial_result = \
+    plb, pub = partial_ub, partial_ub + interval_size
+    while (
+        np.any(
+            np.absolute(partial_result) >= rtol * np.absolute(result) + atol
+        )
+        and (pub <= ub)
+        and step < max_steps
+    ):
+        partial_result = (
             __integrate_using_univariate_gauss_legendre_quadrature_bounded(
-                integrand, plb, pub, nquad_samples, rtol, atol,
-                verbose-1, adaptive, tabulated_quad_rules)
+                integrand,
+                plb,
+                pub,
+                nquad_samples,
+                rtol,
+                atol,
+                verbose - 1,
+                adaptive,
+                tabulated_quad_rules,
+            )
+        )
         result += partial_result
         plb = pub
         pub += interval_size
         step += 1
         if verbose > 1:
-            print('Right', step, result, partial_result, plb, pub,
-                  interval_size)
+            print(
+                "Right", step, result, partial_result, plb, pub, interval_size
+            )
         if verbose > 0:
             if step >= max_steps:
                 msg = "Early termination when computing right integral. "
@@ -740,9 +822,11 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
                     warn(msg, UserWarning)
                 else:
                     raise RuntimeError(msg)
-            if np.all(np.abs(partial_result) < rtol*np.absolute(result)+atol):
-                msg = f'Tolerance {atol} {rtol} for right integral reached in '
-                msg += f'{step} iterations'
+            if np.all(
+                np.abs(partial_result) < rtol * np.absolute(result) + atol
+            ):
+                msg = f"Tolerance {atol} {rtol} for right integral reached in "
+                msg += f"{step} iterations"
                 print(msg)
         # print(partial_result, plb, pub)
 
@@ -858,11 +942,12 @@ def flatten_2D_list(list_2d):
     return [item for sub in list_2d for item in sub]
 
 
-def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps),
-                    bkd=NumpyLinAlgMixin):
+def approx_jacobian(
+    func, x, *args, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
+):
     x0 = bkd.array(x)
     assert x0.ndim == 1 or x0.shape[1] == 1
-    f0 = bkd.atleast1d(func(*((x0,)+args)))
+    f0 = bkd.atleast1d(func(*((x0,) + args)))
     if f0.ndim == 2:
         assert f0.shape[1] == 1
         f0 = f0[:, 0]
@@ -870,11 +955,11 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps),
     dx = bkd.zeros(x0.shape)
     for i in range(len(x0)):
         dx[i] = epsilon
-        f1 = func(*((x0+dx,)+args))
+        f1 = func(*((x0 + dx,) + args))
         if f1.ndim == 2:
             assert f1.shape[1] == 1
             f1 = f1[:, 0]
-        jac[i] = (f1 - f0)/epsilon
+        jac[i] = (f1 - f0) / epsilon
         dx[i] = 0.0
     return jac.T
 
@@ -893,17 +978,18 @@ def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps),
 #     return jacobian
 
 
-def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps),
-                       bkd=NumpyLinAlgMixin):
+def approx_jacobian_3D(
+    f, x0, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
+):
     fval = f(x0)
-    jacobian = bkd.full(
-        (fval.shape[0], fval.shape[1], x0.shape[0]), 0.)
+    jacobian = bkd.full((fval.shape[0], fval.shape[1], x0.shape[0]), 0.0)
     for ii in range(len(x0)):
-        dx = bkd.full((x0.shape[0],), 0.)
+        dx = bkd.full((x0.shape[0],), 0.0)
         dx = bkd.up(dx, ii, epsilon)
-        fval_perturbed = f(x0+dx)
+        fval_perturbed = f(x0 + dx)
         jacobian = bkd.up(
-            jacobian, ii, (fval_perturbed - fval) / epsilon, axis=-1)
+            jacobian, ii, (fval_perturbed - fval) / epsilon, axis=-1
+        )
     return jacobian
 
 
@@ -920,15 +1006,18 @@ def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
         if rel:
             print(
                 row_format.format(
-                    "Eps", "norm(jv)", "norm(jv_fd)",
-                    "Rel. Errors"))
+                    "Eps", "norm(jv)", "norm(jv_fd)", "Rel. Errors"
+                )
+            )
         else:
-            print(row_format.format(
-                "Eps", "norm(jv)", "norm(jv_fd)",
-                "Abs. Errors"))
+            print(
+                row_format.format(
+                    "Eps", "norm(jv)", "norm(jv_fd)", "Abs. Errors"
+                )
+            )
     row_format = "{:<12.2e} {:<25} {:<25} {:<25}"
     for ii in range(fd_eps.shape[0]):
-        zz_perturbed = zz.copy()+fd_eps[ii]*direction
+        zz_perturbed = zz.copy() + fd_eps[ii] * direction
         # perturbed_function_val = fun(zz_perturbed)
         # add jac=False so that exact gradient is not always computed
         perturbed_function_val = fun(zz_perturbed, direction=None)
@@ -937,40 +1026,53 @@ def _check_gradients(fun, zz, direction, plot, disp, rel, fd_eps):
         # print(inspect.getfullargspec(fun).args)
         # print(perturbed_function_val, function_val, fd_eps[ii])
         fd_directional_derivative = (
-            perturbed_function_val-function_val)/fd_eps[ii]
+            perturbed_function_val - function_val
+        ) / fd_eps[ii]
         # print(fd_directional_derivative)
-        errors.append(np.linalg.norm(
-            fd_directional_derivative.reshape(directional_derivative.shape) -
-            directional_derivative))
+        errors.append(
+            np.linalg.norm(
+                fd_directional_derivative.reshape(directional_derivative.shape)
+                - directional_derivative
+            )
+        )
         if rel:
             errors[-1] /= np.linalg.norm(directional_derivative)
 
         if disp:
-            print(row_format.format(
-                fd_eps[ii],
-                np.linalg.norm(directional_derivative),
-                np.linalg.norm(fd_directional_derivative),
-                errors[ii]))
+            print(
+                row_format.format(
+                    fd_eps[ii],
+                    np.linalg.norm(directional_derivative),
+                    np.linalg.norm(fd_directional_derivative),
+                    errors[ii],
+                )
+            )
 
     if plot:
-        plt.loglog(fd_eps, errors, 'o-')
-        plt.ylabel(r'$\lvert\nabla_\epsilon f\cdot p-\nabla f\cdot p\rvert$')
-        plt.xlabel(r'$\epsilon$')
+        plt.loglog(fd_eps, errors, "o-")
+        plt.ylabel(r"$\lvert\nabla_\epsilon f\cdot p-\nabla f\cdot p\rvert$")
+        plt.xlabel(r"$\epsilon$")
         plt.show()
 
     return np.asarray(errors)
 
 
 def _wrap_function_with_gradient(fun, return_grad):
-    if ((return_grad is not None) and not callable(return_grad) and
-            (return_grad != "return_gradp") and (return_grad != True)):
+    if (
+        (return_grad is not None)
+        and not callable(return_grad)
+        and (return_grad != "return_gradp")
+        and (return_grad != True)
+    ):
         raise ValueError("return_grad must be callable, 'jacp', or None")
 
     if callable(return_grad):
+
         def fun_wrapper(x, direction=None):
             if direction is None:
                 return fun(x)
             return fun(x), return_grad(x).dot(direction)
+
         return fun_wrapper
 
     if return_grad == True and has_kwarg(fun, "return_grad"):
@@ -981,30 +1083,36 @@ def _wrap_function_with_gradient(fun, return_grad):
                 return val
             vals, grad = fun(x, return_grad=True)
             return vals, grad.dot(direction)
+
         return fun_wrapper
 
     if return_grad == True:
+
         def fun_wrapper(x, direction=None):
             if direction is None:
                 return fun(x)[0]
             vals, grad = fun(x)
             return vals, grad.dot(direction)
+
         return fun_wrapper
 
     if return_grad == "jacp":
         assert has_kwarg(fun, "return_grad")
+
         # this is PyApprox's other preferred convention
         def fun_wrapper(x, direction=None):
             if direction is None:
                 return fun(x, return_grad=False)
             val, grad = fun(x, return_grad=True)
             return fun(x), grad.dot(direction)
+
         return fun_wrapper
     return fun
 
 
-def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
-                    direction=None, fd_eps=None):
+def check_gradients(
+    fun, jac, zz, plot=False, disp=True, rel=True, direction=None, fd_eps=None
+):
     """
     Compare a user specified jacobian with the jacobian computed with finite
     difference with multiple step sizes.
@@ -1085,11 +1193,20 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
     assert direction.ndim == 2 and direction.shape[1] == 1
 
     return _check_gradients(
-        fun_wrapper, zz, direction, plot, disp, rel, fd_eps)
+        fun_wrapper, zz, direction, plot, disp, rel, fd_eps
+    )
 
 
-def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,
-                  direction=None, fd_eps=np.logspace(-13, 0, 14)[::-1]):
+def check_hessian(
+    jac,
+    hessian_matvec,
+    zz,
+    plot=False,
+    disp=True,
+    rel=True,
+    direction=None,
+    fd_eps=np.logspace(-13, 0, 14)[::-1],
+):
     """
     Compare a user specified Hessian matrix-vector product with the
     Hessian matrix vector produced computed with finite
@@ -1154,34 +1271,44 @@ def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,
         if rel:
             print(
                 row_format.format(
-                    "Eps", "norm(jv)", "norm(jv_fd)",
-                    "Rel. Errors"))
+                    "Eps", "norm(jv)", "norm(jv_fd)", "Rel. Errors"
+                )
+            )
         else:
-            print(row_format.format(
-                "Eps", "norm(jv)", "norm(jv_fd)",
-                "Abs. Errors"))
+            print(
+                row_format.format(
+                    "Eps", "norm(jv)", "norm(jv_fd)", "Abs. Errors"
+                )
+            )
     for ii in range(fd_eps.shape[0]):
-        zz_perturbed = zz.copy()+fd_eps[ii]*direction
+        zz_perturbed = zz.copy() + fd_eps[ii] * direction
         perturbed_grad = jac(zz_perturbed)
-        fd_directional_derivative = (perturbed_grad-grad)/fd_eps[ii]
+        fd_directional_derivative = (perturbed_grad - grad) / fd_eps[ii]
         # print(directional_derivative, fd_directional_derivative)
-        errors.append(np.linalg.norm(
-            fd_directional_derivative.reshape(directional_derivative.shape) -
-            directional_derivative))
+        errors.append(
+            np.linalg.norm(
+                fd_directional_derivative.reshape(directional_derivative.shape)
+                - directional_derivative
+            )
+        )
         if rel:
             errors[-1] /= np.linalg.norm(directional_derivative)
         if disp:
-            print(row_format.format(fd_eps[ii],
-                                    np.linalg.norm(directional_derivative),
-                                    np.linalg.norm(fd_directional_derivative),
-                                    errors[ii]))
+            print(
+                row_format.format(
+                    fd_eps[ii],
+                    np.linalg.norm(directional_derivative),
+                    np.linalg.norm(fd_directional_derivative),
+                    errors[ii],
+                )
+            )
             # print(fd_directional_derivative,directional_derivative)
 
     if plot:
-        plt.loglog(fd_eps, errors, 'o-')
-        label = r'$\lvert\nabla^2_\epsilon \cdot p f-\nabla^2 f\cdot p\rvert$'
+        plt.loglog(fd_eps, errors, "o-")
+        label = r"$\lvert\nabla^2_\epsilon \cdot p f-\nabla^2 f\cdot p\rvert$"
         plt.ylabel(label)
-        plt.xlabel(r'$\epsilon$')
+        plt.xlabel(r"$\epsilon$")
         plt.show()
 
     return np.asarray(errors)
@@ -1189,7 +1316,7 @@ def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,
 
 def scipy_gauss_hermite_pts_wts_1D(nn):
     x, w = roots_hermitenorm(nn)
-    w /= np.sqrt(2*np.pi)
+    w /= np.sqrt(2 * np.pi)
     return x, w
 
 
@@ -1200,8 +1327,12 @@ def scipy_gauss_legendre_pts_wts_1D(nn):
 
 
 def get_tensor_product_quadrature_rule(
-        nsamples, num_vars, univariate_quadrature_rules,
-        transform_samples=None, density_function=None):
+    nsamples,
+    num_vars,
+    univariate_quadrature_rules,
+    transform_samples=None,
+    density_function=None,
+):
     r"""
     if get error about outer product failing it may be because
     univariate_quadrature rule is returning a weights array for every level,
@@ -1209,10 +1340,10 @@ def get_tensor_product_quadrature_rule(
     """
     nsamples = np.atleast_1d(nsamples)
     if nsamples.shape[0] == 1 and num_vars > 1:
-        nsamples = np.array([nsamples[0]]*num_vars, dtype=int)
+        nsamples = np.array([nsamples[0]] * num_vars, dtype=int)
 
     if callable(univariate_quadrature_rules):
-        univariate_quadrature_rules = [univariate_quadrature_rules]*num_vars
+        univariate_quadrature_rules = [univariate_quadrature_rules] * num_vars
 
     x_1d = []
     w_1d = []
@@ -1231,7 +1362,10 @@ def get_tensor_product_quadrature_rule(
 
 
 def split_indices(nelems, nsplits):
-    indices = np.hstack((
-        np.full((nelems % nsplits), nelems//nsplits+1),
-        np.full(nsplits-(nelems % nsplits), nelems//nsplits)))
+    indices = np.hstack(
+        (
+            np.full((nelems % nsplits), nelems // nsplits + 1),
+            np.full(nsplits - (nelems % nsplits), nelems // nsplits),
+        )
+    )
     return np.hstack((0, np.cumsum(indices)))

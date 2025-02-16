@@ -19,26 +19,31 @@ class LowDiscrepancySequence(ABC):
     ):
         self._bkd = bkd
         self._nvars = nvars
-        self._start_idx = start_idx
+        self.set_start_idx(start_idx)
         if variable is not None:
             if not isinstance(variable, IndependentMarginalsVariable):
                 raise ValueError(
                     "variable must be an instance of "
                     "IndependentMarginalsVariable"
                 )
-            if variable.num_vars() != nvars:
+            if variable.nvars() != nvars:
                 raise ValueError("nvars and variable are inconsistent")
         self._variable = variable
 
+    def set_start_idx(self, idx: int):
+        self._start_idx = idx
+
     def __repr__(self) -> str:
-        return "{0}".format(self.__class__.__name__)
+        return "{0}(startd_idx={1})".format(
+            self.__class__.__name__, self._start_idx
+        )
 
     @abstractmethod
     def _canonical_samples(self, nsamples: int) -> Array:
         # return samples in [0, 1]
         raise NotImplementedError
 
-    def samples(self, nsamples: int) -> Array:
+    def rvs(self, nsamples: int) -> Array:
         can_samples = self._canonical_samples(nsamples)
         if self._variable is None:
             return can_samples
@@ -48,8 +53,8 @@ class LowDiscrepancySequence(ABC):
 class HaltonSequence(LowDiscrepancySequence):
     @njit(cache=True)
     def _sequence(nvars, index1, index2, primes):
-        num_samples = index2 - index1
-        sequence = np.zeros((nvars, num_samples))
+        nsamples = index2 - index1
+        sequence = np.zeros((nvars, nsamples))
         ones = np.ones(nvars)
 
         kk = 0
@@ -211,4 +216,4 @@ class SobolSequence(LowDiscrepancySequence):
                 tmp1 = tmp2
         assert samples.max() <= 1 and samples.min() >= 0
         # assume we do not need to differentiate through sequence creation
-        return self._bkd.asarray(samples[:, self._start_idx:])
+        return self._bkd.asarray(samples[:, self._start_idx :])

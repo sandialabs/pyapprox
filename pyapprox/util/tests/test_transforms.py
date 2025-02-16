@@ -5,6 +5,7 @@ import torch
 from pyapprox.util.transforms import (
     NSphereCoordinateTransform,
     SphericalCorrelationTransform,
+    AffineBoundedTransform,
 )
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -15,6 +16,19 @@ class TestTransforms:
     def setUp(self):
         np.random.seed(1)
 
+    def test_affine_bounded_transform(self):
+        bkd = self.get_backend()
+        nvars, nsamples = 2, 10
+        user_ranges = [0, 1, 0, 1]
+        canonical_ranges = [-1, 1, -1, 1]
+        trans = AffineBoundedTransform(canonical_ranges, user_ranges, bkd=bkd)
+        user_samples = np.random.uniform(0, 1, (nvars, nsamples))
+        trans_canonical_samples = trans.map_to_canonical(user_samples)
+        assert trans_canonical_samples.min() >= -1.0
+        assert trans_canonical_samples.max() <= 1.0
+        trans_user_samples = trans.map_from_canonical(trans_canonical_samples)
+        assert np.allclose(trans_user_samples, user_samples)
+
     def _check_nsphere_coordinate_transform(self, nvars):
         bkd = self.get_backend()
         nsamples = 10
@@ -22,9 +36,7 @@ class TestTransforms:
         psi = bkd.vstack(
             (
                 bkd.array(np.random.uniform(1, 2, (1, nsamples))),
-                bkd.array(
-                    np.random.uniform(0, np.pi, (nvars - 2, nsamples))
-                ),
+                bkd.array(np.random.uniform(0, np.pi, (nvars - 2, nsamples))),
                 bkd.array(np.random.uniform(0, 2 * np.pi, (1, nsamples))),
             )
         )

@@ -1,14 +1,20 @@
+from abc import ABC, abstractmethod
+from typing import List
+
 import numpy as np
 from scipy import stats
-from abc import ABC, abstractmethod
 
 from pyapprox.variables.marginals import (
-    get_unique_variables, get_distribution_info,
-    is_bounded_continuous_variable, get_truncated_range
+    get_unique_variables,
+    get_distribution_info,
+    is_bounded_continuous_variable,
+    get_truncated_range,
 )
-from pyapprox.variables.nataf import (
-    nataf_joint_density, generate_x_samples_using_gaussian_copula,
-    transform_correlations, scipy_gauss_hermite_pts_wts_1D
+from pyapprox.variables._nataf import (
+    nataf_joint_density,
+    generate_x_samples_using_gaussian_copula,
+    transform_correlations,
+    scipy_gauss_hermite_pts_wts_1D,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
@@ -18,6 +24,7 @@ class JointVariable(ABC):
     r"""
     Base class for multivariate variables.
     """
+
     def __init__(self, backend: LinAlgMixin):
         self._bkd = backend
 
@@ -38,10 +45,10 @@ class JointVariable(ABC):
         """
         raise NotImplementedError()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
 
@@ -62,12 +69,13 @@ class IndependentMarginalsVariable(JointVariable):
         norm(loc=0,scale=1): z0, z2
         beta(a=0,b=1,loc=0,scale=1): z1
     """
+
     def __init__(
-            self,
-            unique_variables,
-            unique_variable_indices=None,
-            variable_labels=None,
-            backend=NumpyLinAlgMixin,
+        self,
+        unique_marginals: List,
+        unique_variable_indices: Array = None,
+        variable_labels=None,
+        backend=NumpyLinAlgMixin,
     ):
         """
         Constructor method
@@ -75,23 +83,25 @@ class IndependentMarginalsVariable(JointVariable):
         super().__init__(backend)
         self._bkd = backend
         if unique_variable_indices is None:
-            self.unique_variables, self.unique_variable_indices =\
-                get_unique_variables(unique_variables)
+            self._unique_marginals, self._unique_variable_indices = (
+                get_unique_variables(unique_marginals)
+            )
         else:
-            self.unique_variables = unique_variables.copy()
-            self.unique_variable_indices = unique_variable_indices.copy()
-        self.nunique_vars = len(self.unique_variables)
-        assert self.nunique_vars == len(self.unique_variable_indices)
-        self.nvars = 0
-        for ii in range(self.nunique_vars):
-            self.unique_variable_indices[ii] = np.asarray(
-                self.unique_variable_indices[ii])
-            self.nvars += self.unique_variable_indices[ii].shape[0]
+            self._unique_marginals = unique_marginals.copy()
+            self._unique_variable_indices = unique_variable_indices.copy()
+        self._nunique_vars = len(self._unique_marginals)
+        assert self._nunique_vars == len(self._unique_variable_indices)
+        self._nvars = 0
+        for ii in range(self._nunique_vars):
+            self._unique_variable_indices[ii] = np.asarray(
+                self._unique_variable_indices[ii]
+            )
+            self._nvars += self._unique_variable_indices[ii].shape[0]
         if unique_variable_indices is None:
-            assert self.nvars == len(unique_variables)
-        self.variable_labels = variable_labels
+            assert self._nvars == len(unique_marginals)
+        self._variable_labels = variable_labels
 
-    def num_vars(self) -> int:
+    def nvars(self) -> int:
         """
         Return The number of independent 1D variables
 
@@ -100,7 +110,7 @@ class IndependentMarginalsVariable(JointVariable):
         nvars : integer
             The number of independent 1D variables
         """
-        return self.nvars
+        return self._nvars
 
     def marginals(self) -> list:
         """
@@ -111,10 +121,10 @@ class IndependentMarginalsVariable(JointVariable):
         variables : list
             List of :class:`scipy.stats.dist` variables
         """
-        all_variables = [None for ii in range(self.nvars)]
-        for ii in range(self.nunique_vars):
-            for jj in self.unique_variable_indices[ii]:
-                all_variables[jj] = self.unique_variables[ii]
+        all_variables = [None for ii in range(self.nvars())]
+        for ii in range(self._nunique_vars):
+            for jj in self._unique_variable_indices[ii]:
+                all_variables[jj] = self._unique_marginals[ii]
         return all_variables
 
     def get_statistics(self, function_name: str, *args, **kwargs) -> Array:
@@ -139,8 +149,8 @@ class IndependentMarginalsVariable(JointVariable):
         --------
         >>> import pyapprox as pya
         >>> from scipy.stats import uniform
-        >>> num_vars = 2
-        >>> variable = pya.IndependentMarginalsVariable([uniform(-2, 3)], [np.arange(num_vars)])
+        >>> nvars = 2
+        >>> variable = pya.IndependentMarginalsVariable([uniform(-2, 3)], [np.arange(nvars)])
         >>> variable.get_statistics("interval", confidence=1)
         array([[-2.,  1.],
                [-2.,  1.]])
@@ -149,16 +159,15 @@ class IndependentMarginalsVariable(JointVariable):
                [0.33333333, 0.33333333, 0.33333333]])
 
         """
-        for ii in range(self.nunique_vars):
-            var = self.unique_variables[ii]
-            indices = self.unique_variable_indices[ii]
-            stats_ii = self._bkd.atleast1d(getattr(var, function_name)(
-                *args, **kwargs))
+        for ii in range(self._nunique_vars):
+            var = self._unique_marginals[ii]
+            indices = self._unique_variable_indices[ii]
+            stats_ii = self._bkd.atleast1d(
+                getattr(var, function_name)(*args, **kwargs)
+            )
             assert stats_ii.ndim == 1
             if ii == 0:
-                stats = self._bkd.empty(
-                    (self.num_vars(), stats_ii.shape[0])
-                )
+                stats = self._bkd.empty((self.nvars(), stats_ii.shape[0]))
             stats[indices] = stats_ii
         return stats
 
@@ -181,18 +190,16 @@ class IndependentMarginalsVariable(JointVariable):
             The outputs of the stat function for each variable
         """
         stats = None
-        for ii in range(self.nunique_vars):
-            var = self.unique_variables[ii]
-            indices = self.unique_variable_indices[ii]
+        for ii in range(self._nunique_vars):
+            var = self._unique_marginals[ii]
+            indices = self._unique_variable_indices[ii]
             for jj in indices:
                 stats_jj = self._bkd.atleast1d(
                     getattr(var, function_name)(x[jj, :])
                 )
                 assert stats_jj.ndim == 1
                 if stats is None:
-                    stats = self._bkd.empty(
-                        (self.num_vars(), stats_jj.shape[0])
-                    )
+                    stats = self._bkd.empty((self.nvars(), stats_jj.shape[0]))
                 stats[jj] = stats_jj
         return stats
 
@@ -214,7 +221,7 @@ class IndependentMarginalsVariable(JointVariable):
         values : np.ndarray (nsamples, 1)
             The values of the PDF at x
         """
-        assert x.shape[0] == self.num_vars()
+        assert x.shape[0] == self.nvars()
         if log is False:
             marginal_vals = self.evaluate("pdf", x)
             return self._bkd.prod(marginal_vals, axis=0)[:, None]
@@ -244,21 +251,20 @@ class IndependentMarginalsVariable(JointVariable):
             The outputs of the stat function for each variable
         """
         stats = None
-        for ii in range(self.nunique_vars):
-            var = self.unique_variables[ii]
-            indices = self.unique_variable_indices[ii]
+        for ii in range(self._nunique_vars):
+            var = self._unique_marginals[ii]
+            indices = self._unique_variable_indices[ii]
             for jj in indices:
                 stats_jj = self._bkd.atleast1d(
-                    getattr(var.dist, function_name)(x[jj, :]))
+                    getattr(var.dist, function_name)(x[jj, :])
+                )
                 assert stats_jj.ndim == 1
                 if stats is None:
-                    stats = self._bkd.empty(
-                        (self.num_vars(), stats_jj.shape[0])
-                    )
+                    stats = self._bkd.empty((self.nvars(), stats_jj.shape[0]))
                 stats[jj] = stats_jj
         return stats
 
-    def _pdf(self, x: Array, log: bool = False):
+    def _pdf(self, x: Array, log: bool = False) -> Array:
         if not log:
             marginal_vals = self._evaluate("_pdf", x)
             return self._bkd.prod(marginal_vals, axis=0)[:, None]
@@ -266,30 +272,31 @@ class IndependentMarginalsVariable(JointVariable):
         marginal_vals = self._evaluate("_logpdf", x)
         return self._bkd.sum(marginal_vals, axis=0)[:, None]
 
-    def __str__(self):
-        variable_labels = self.variable_labels
+    def __str__(self) -> str:
+        variable_labels = self._variable_labels
         if variable_labels is None:
-            variable_labels = ["z%d" % ii for ii in range(self.num_vars())]
+            variable_labels = ["z%d" % ii for ii in range(self.nvars())]
         string = "Independent Marginal Variable\n"
-        string += f"Number of variables: {self.num_vars()}\n"
+        string += f"Number of variables: {self.nvars()}\n"
         string += "Unique variables and global id:\n"
-        for ii in range(self.nunique_vars):
-            var = self.unique_variables[ii]
-            indices = self.unique_variable_indices[ii]
+        for ii in range(self._nunique_vars):
+            var = self._unique_marginals[ii]
+            indices = self._unique_variable_indices[ii]
             name, scales, shapes = get_distribution_info(var)
             shape_string = ",".join(
-                [f"{name}={val}" for name, val in shapes.items()])
+                [f"{name}={val}" for name, val in shapes.items()]
+            )
             scales_string = ",".join(
-                [f"{name}={val}" for name, val in scales.items()])
-            string += "    "+var.dist.name + "("
+                [f"{name}={val}" for name, val in scales.items()]
+            )
+            string += "    " + var.dist.name + "("
             if len(shapes) > 0:
                 string += ",".join([shape_string, scales_string])
             else:
                 string += scales_string
             string += "): "
-            string += ", ".join(
-                [variable_labels[idx] for idx in indices])
-            if ii < self.nunique_vars-1:
+            string += ", ".join([variable_labels[idx] for idx in indices])
+            if ii < self._nunique_vars - 1:
                 string += "\n"
         return string
 
@@ -303,12 +310,12 @@ class IndependentMarginalsVariable(JointVariable):
             True - all 1D variables are continuous and bounded
             False - otherwise
         """
-        for rv in self.unique_variables:
+        for rv in self._unique_marginals:
             if not is_bounded_continuous_variable(rv):
                 return False
         return True
 
-    def rvs(self, num_samples, random_states=None) -> Array:
+    def rvs(self, num_samples: int, random_states=None) -> Array:
         """
         Generate samples from a tensor-product probability measure.
 
@@ -319,20 +326,18 @@ class IndependentMarginalsVariable(JointVariable):
 
         Returns
         -------
-        samples : np.ndarray (num_vars, num_samples)
+        samples : np.ndarray (nvars, num_samples)
             Independent samples from the target distribution
         """
         num_samples = int(num_samples)
-        samples = self._bkd.empty(
-            (self.num_vars(), num_samples), dtype=float
-        )
+        samples = self._bkd.empty((self.nvars(), num_samples), dtype=float)
         if random_states is not None:
-            assert len(random_states) == self.num_vars()
+            assert len(random_states) == self.nvars()
         else:
-            random_states = [None]*self.num_vars()
-        for ii in range(self.nunique_vars):
-            var = self.unique_variables[ii]
-            indices = self.unique_variable_indices[ii]
+            random_states = [None] * self.nvars()
+        for ii in range(self._nunique_vars):
+            var = self._unique_marginals[ii]
+            indices = self._unique_variable_indices[ii]
             # samples[indices, :] = self._bkd.asarray(
             samples = self._bkd.up(
                 samples,
@@ -340,7 +345,7 @@ class IndependentMarginalsVariable(JointVariable):
                 self._bkd.asarray(
                     var.rvs(
                         size=(indices.shape[0], num_samples),
-                        random_state=random_states[ii]
+                        random_state=random_states[ii],
                     )
                 ),
                 axis=0,
@@ -355,43 +360,65 @@ class GaussCopulaVariable(JointVariable):
     """
 
     def __init__(
-            self, marginals, x_correlation, bisection_opts={}, backend=NumpyLinAlgMixin
+        self,
+        marginals: List,
+        x_correlation: Array,
+        bisection_opts: dict = {},
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         super().__init__(backend)
-        self.nvars = len(marginals)
+        self._nvars = len(marginals)
         self._marginals = marginals
-        self.x_correlation = x_correlation
-        self.x_marginal_means = np.array([m.mean() for m in self._marginals])
-        self.x_marginal_stdevs = np.array([m.std() for m in self._marginals])
-        self.x_marginal_pdfs = [m.pdf for m in self._marginals]
-        self.x_marginal_cdfs = [m.cdf for m in self._marginals]
-        self.x_marginal_inv_cdfs = [m.ppf for m in self._marginals]
+        self._x_correlation = x_correlation
+        self._x_marginal_means = self._bkd.array(
+            [m.mean() for m in self._marginals]
+        )
+        self._x_marginal_stdevs = self._bkd.array(
+            [m.std() for m in self._marginals]
+        )
+        self._x_marginal_pdfs = [m.pdf for m in self._marginals]
+        self._x_marginal_cdfs = [m.cdf for m in self._marginals]
+        self._x_marginal_inv_cdfs = [m.ppf for m in self._marginals]
 
         quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
-        self.z_correlation = transform_correlations(
-            self.x_correlation, self.x_marginal_inv_cdfs,
-            self.x_marginal_means, self.x_marginal_stdevs, quad_rule,
-            bisection_opts)
-        self.z_variable = stats.multivariate_normal(
-            mean=np.zeros((self.nvars)), cov=self.z_correlation)
+        self._z_correlation = transform_correlations(
+            self._x_correlation,
+            self._x_marginal_inv_cdfs,
+            self._x_marginal_means,
+            self._x_marginal_stdevs,
+            quad_rule,
+            bisection_opts,
+        )
+        self._z_variable = stats.multivariate_normal(
+            mean=self._bkd.zeros((self._nvars)), cov=self._z_correlation
+        )
 
     def z_joint_density(self, z_samples: Array) -> Array:
-        return self.z_variable.pdf(z_samples.T)
+        return self._z_variable.pdf(z_samples.T)
 
     def pdf(self, x_samples: Array, log: bool = False) -> Array:
         vals = nataf_joint_density(
-            x_samples, self.x_marginal_cdfs, self.x_marginal_pdfs,
-            self.z_joint_density)
+            x_samples,
+            self._x_marginal_cdfs,
+            self._x_marginal_pdfs,
+            self.z_joint_density,
+            self._bkd,
+        )
         if not log:
             return vals
-        return np.log(vals)
+        return self._bkd.log(vals)
 
-    def num_vars(self) -> int:
-        return self.nvars
+    def nvars(self) -> int:
+        return self._nvars
 
     def rvs(self, nsamples: int, return_all: bool = False) -> Array:
         out = generate_x_samples_using_gaussian_copula(
-            self.nvars, self.z_correlation, self.x_marginal_inv_cdfs, nsamples)
+            self.nvars(),
+            self._z_correlation,
+            self._x_marginal_inv_cdfs,
+            nsamples,
+            bkd=self._bkd,
+        )
         if not return_all:
             return out[0]
         return out
@@ -400,9 +427,7 @@ class GaussCopulaVariable(JointVariable):
         return self._marginals
 
 
-def define_iid_random_variable(
-        rv, num_vars: int
-) -> IndependentMarginalsVariable:
+def define_iid_random_variable(rv, nvars: int) -> IndependentMarginalsVariable:
     """
     Create independent identically distributed variables
 
@@ -411,7 +436,7 @@ def define_iid_random_variable(
     rv : :class:`scipy.stats.dist`
         A 1D random variable object
 
-    num_vars : integer
+    nvars : integer
         The number of 1D variables
 
     Returns
@@ -419,16 +444,15 @@ def define_iid_random_variable(
     variable : :class:`pyapprox.variables.IndependentMarginalsVariable`
         The multivariate random variable
     """
-    unique_variables = [rv]
-    unique_var_indices = [np.arange(num_vars)]
-    return IndependentMarginalsVariable(
-        unique_variables, unique_var_indices)
+    unique_marginals = [rv]
+    unique_var_indices = [np.arange(nvars)]
+    return IndependentMarginalsVariable(unique_marginals, unique_var_indices)
 
 
 def get_truncated_ranges(
-        variable: JointVariable,
-        unbounded_alpha: float = 0.99,
-        bounded_alpha: float = 1.0
+    variable: JointVariable,
+    unbounded_alpha: float = 0.99,
+    bounded_alpha: float = 1.0,
 ) -> Array:
     r"""
     Get truncated ranges for independent random variables or Copulas
@@ -463,7 +487,8 @@ def get_truncated_ranges(
 
 
 def combine_uncertain_and_bounded_design_variables(
-        random_variable, design_variable, random_variable_indices=None):
+    random_variable, design_variable, random_variable_indices=None
+):
     """
     Convert design variables to random variables defined over them
     optimization bounds.
@@ -476,25 +501,26 @@ def combine_uncertain_and_bounded_design_variables(
     """
 
     if random_variable_indices is None:
-        random_variable_indices = np.arange(random_variable.num_vars())
+        random_variable_indices = np.arange(random_variable.nvars())
 
-    if len(random_variable_indices) != random_variable.num_vars():
+    if len(random_variable_indices) != random_variable.nvars():
         raise ValueError
 
-    nvars = random_variable.num_vars() + design_variable.num_vars()
+    nvars = random_variable.nvars() + design_variable.nvars()
     design_variable_indices = np.setdiff1d(
-        np.arange(nvars), random_variable_indices)
+        np.arange(nvars), random_variable_indices
+    )
 
     variable_list = [None for ii in range(nvars)]
     all_random_variables = random_variable.marginals()
-    for ii in range(random_variable.num_vars()):
+    for ii in range(random_variable.nvars()):
         variable_list[random_variable_indices[ii]] = all_random_variables[ii]
-    for ii in range(design_variable.num_vars()):
+    for ii in range(design_variable.nvars()):
         lb = design_variable.bounds.lb[ii]
         ub = design_variable.bounds.ub[ii]
         if not np.isfinite(lb) or not np.isfinite(ub):
             raise ValueError(f"Design variable {ii} is not bounded")
-        rv = stats.uniform(lb, ub-lb)
+        rv = stats.uniform(lb, ub - lb)
         variable_list[design_variable_indices[ii]] = rv
     return IndependentMarginalsVariable(variable_list)
 
@@ -503,6 +529,7 @@ class DesignVariable:
     """
     Design variables with no probability information
     """
+
     def __init__(self, bounds):
         """
         Constructor method
@@ -533,7 +560,13 @@ class DesignVariable:
 
 
 class FiniteSamplesVariable(JointVariable):
-    def __init__(self, samples, randomness="replacement", weights=None, backend=NumpyLinAlgMixin):
+    def __init__(
+        self,
+        samples,
+        randomness="replacement",
+        weights=None,
+        backend=NumpyLinAlgMixin,
+    ):
         super().__init__(backend)
         self._samples = samples.copy()
         self._nvars = samples.shape[0]
@@ -541,22 +574,25 @@ class FiniteSamplesVariable(JointVariable):
         randomness_names = ["none", "replacement"]
         if randomness not in randomness_names:
             raise ValueError(
-                "randomness must be one of {0}".format(randomness_names))
+                "randomness must be one of {0}".format(randomness_names)
+            )
         self._randomness = randomness
         self._sample_cnt = 0
         if randomness == "replacement" and weights is not None:
             raise ValueError(
-                "weights must be none when randomly sampling with replacement")
+                "weights must be none when randomly sampling with replacement"
+            )
 
     def _rvs_deterministic(self, nsamples):
-        if self._sample_cnt+nsamples > self._samples.shape[1]:
+        if self._sample_cnt + nsamples > self._samples.shape[1]:
             msg = "Too many samples requested when randomness is None. "
             msg += f"self._sample+cnt_nsamples={self._sample_cnt+nsamples}"
             msg += f" but only {self._samples.shape[1]} samples available"
             msg += " This can be overidden by reseting self._sample_cnt=0"
             raise ValueError(msg)
         indices = np.arange(
-            self._sample_cnt, self._sample_cnt+nsamples, dtype=int)
+            self._sample_cnt, self._sample_cnt + nsamples, dtype=int
+        )
         self._sample_cnt += nsamples
         return self._samples[:, indices], indices
 
@@ -565,8 +601,11 @@ class FiniteSamplesVariable(JointVariable):
             return self._rvs_deterministic(nsamples)
 
         indices = np.random.choice(
-            np.arange(self._samples.shape[1]), nsamples,
-            p=self._weights, replace=True)
+            np.arange(self._samples.shape[1]),
+            nsamples,
+            p=self._weights,
+            replace=True,
+        )
         return self._samples[:, indices], indices
 
     def rvs(self, nsamples):

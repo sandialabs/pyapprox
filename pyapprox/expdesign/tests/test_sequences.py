@@ -16,7 +16,7 @@ class TestSequences:
     def test_sobol_sequence(self):
         bkd = self.get_backend()
         seq = SobolSequence(3, bkd=bkd)
-        samples = seq.samples(10)
+        samples = seq.rvs(10)
         true_samples = bkd.asarray(
             [
                 [0, 0, 0],
@@ -36,7 +36,7 @@ class TestSequences:
     def test_sobol_sequence_nonzero_start_index(self):
         bkd = self.get_backend()
         seq = SobolSequence(3, 2, bkd=bkd)
-        samples = seq.samples(8)
+        samples = seq.rvs(8)
         true_samples = bkd.asarray(
             [
                 [0, 0, 0],
@@ -60,7 +60,7 @@ class TestSequences:
             backend=bkd,
         )
         seq = SobolSequence(3, variable=variable, bkd=bkd)
-        samples = seq.samples(10)
+        samples = seq.rvs(10)
         true_samples = bkd.asarray(
             [
                 [0, 0, 0],
@@ -82,7 +82,7 @@ class TestSequences:
     def test_halton_sequence(self):
         bkd = self.get_backend()
         seq = HaltonSequence(3, bkd=bkd)
-        samples = seq.samples(10)
+        samples = seq.rvs(10)
         true_samples = bkd.asarray(
             [
                 [0.0, 0.0, 0.0],
@@ -102,7 +102,7 @@ class TestSequences:
     def test_halton_sequence_nonzero_start_index(self):
         bkd = self.get_backend()
         seq = HaltonSequence(3, 2, bkd=bkd)
-        samples = seq.samples(8)
+        samples = seq.rvs(8)
         true_samples = bkd.asarray(
             [
                 [0.0, 0.0, 0.0],

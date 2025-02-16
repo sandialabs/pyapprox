@@ -48,14 +48,10 @@ class GenzModel(Model):
             return 1.0 / (ind + 1.0) ** 4
         if decay == "exp":
             # smallest value will be self._min_c
-            return self._bkd.exp(
-                (ind + 1) * math.log(self._min_c) / nvars
-            )
+            return self._bkd.exp((ind + 1) * math.log(self._min_c) / nvars)
         if decay == "sqexp":
             # smallest value will be self._min_c
-            return 10 ** (
-                math.log10(self._min_c) * ((ind + 1) / nvars) ** 2
-            )
+            return 10 ** (math.log10(self._min_c) * ((ind + 1) / nvars) ** 2)
         msg = f"decay: {decay} not supported"
         raise ValueError(msg)
 
@@ -353,7 +349,7 @@ class GenzBenchmark(SingleModelBenchmark):
         self,
         name: str,
         nvars: int,
-        decay: str = None,
+        decay: str = "none",
         cfactor: float = 1.0,
         wfactor: float = 0.25,
         coefs: Tuple[Array, Array] = None,

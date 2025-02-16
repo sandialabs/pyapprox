@@ -8,7 +8,7 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.joint import JointVariable, DesignVariable
 from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
 from pyapprox.surrogates.bases.basis import (
-    FixedGaussianTensorProductQuadratureRuleFromVariable
+    FixedGaussianTensorProductQuadratureRuleFromVariable,
 )
 from scipy.optimize import LinearConstraint
 from pyapprox.optimization.pya_minimize import Constraint
@@ -22,7 +22,7 @@ class SingleModelBenchmark(ABC):
 
     def nvars(self) -> int:
         """Return the number of uncertain variables."""
-        return self._variable.num_vars()
+        return self._variable.nvars()
 
     def variable(self) -> JointVariable:
         """Return the random variable parameterizing the model uncertainty."""
@@ -56,7 +56,7 @@ class MultiModelBenchmark(ABC):
 
     def nvars(self) -> int:
         """Return the number of uncertain variables."""
-        return self._variable.num_vars()
+        return self._variable.nvars()
 
     @abstractmethod
     def nmodels(self) -> int:
@@ -146,9 +146,8 @@ class ACVBenchmark(MultiModelBenchmark):
             jj = 0
             for fj, mj in zip(self._flat_funs, means):
                 cov[ii, jj] = (
-                    ((fi(self._quadx) - mi) * (fj(self._quadx) - mj))
-                    @ (self._quadw)
-                )
+                    (fi(self._quadx) - mi) * (fj(self._quadx) - mj)
+                ) @ (self._quadw)
                 jj += 1
             ii += 1
         return cov
@@ -328,7 +327,7 @@ class ConstrainedOptimizationBenchmark(OptimizationBenchmark):
 
 
 class ConstrainedUncertainOptimizationBenchmark(
-        ConstrainedOptimizationBenchmark
+    ConstrainedOptimizationBenchmark
 ):
     @abstractmethod
     def variable(self) -> JointVariable:

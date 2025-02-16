@@ -1,25 +1,32 @@
+from typing import List
+
 import numpy as np
 
-from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.util.linearalgebra.linalgbase import Array
 
 
-def print_statistics(samples, values=None, sample_labels=None, value_labels=None):
+def print_statistics(
+    samples: Array,
+    values: Array = None,
+    sample_labels: List = None,
+    value_labels: List = None,
+):
     """
     Print statistics about a set of samples and associated values
 
     Parameters
     ----------
-    samples : np.ndarray (num_vars,num_samples)
+    samples : np.ndarray (nvars,nsamples)
         Random samples
 
-    values : np.ndarray (num_samples,num_qoi)
+    values : np.ndarray (nsamples,nqoi)
        Function values at samples
 
     Examples
     --------
-    >>> num_vars = 2
+    >>> nvars = 2
     >>> np.random.seed(1)
-    >>> samples = np.random.normal(0, 1, (num_vars, 100))
+    >>> samples = np.random.normal(0, 1, (nvars, 100))
     >>> values = np.array([np.sum(samples**2, axis=0), 2*np.sum(samples**2, axis=0)]).T
     >>> print_statistics(samples, values)
                z0         z1         y0         y1
@@ -29,17 +36,17 @@ def print_statistics(samples, values=None, sample_labels=None, value_labels=None
     min     -2.301539  -2.434838   0.031229   0.062458
     max      2.185575   2.528326   9.575905  19.151810
     """
-    num_vars, nsamples = samples.shape
+    nvars, nsamples = samples.shape
     if values is None:
         values = np.empty((nsamples, 0))
     if values.ndim == 1:
         values = values[:, np.newaxis]
-    num_qoi = values.shape[1]
+    nqoi = values.shape[1]
     assert nsamples == values.shape[0]
     if sample_labels is None:
-        sample_labels = ['z%d' % ii for ii in range(num_vars)]
+        sample_labels = ["z%d" % ii for ii in range(nvars)]
     if value_labels is None:
-        value_labels = ['y%d' % ii for ii in range(num_qoi)]
+        value_labels = ["y%d" % ii for ii in range(nqoi)]
     data = [(label, s) for s, label in zip(samples, sample_labels)]
     data += [(label, s) for s, label in zip(values.T, value_labels)]
 
@@ -49,43 +56,35 @@ def print_statistics(samples, values=None, sample_labels=None, value_labels=None
     # df = DataFrame(index=np.arange(nsamples), data=data)
     # print(df.describe())
 
-    str_format = ' '.join(["{:<6}"]+["{:^10}"]*(len(data)))
-    print(str_format.format(*([" "]+[dat[0] for dat in data])))
-    stat_funs = [lambda x: x.shape[0], lambda x: x.mean(), lambda x: x.std(),
-                 lambda x: x.min(), lambda x: x.max()]
+    str_format = " ".join(["{:<6}"] + ["{:^10}"] * (len(data)))
+    print(str_format.format(*([" "] + [dat[0] for dat in data])))
+    stat_funs = [
+        lambda x: x.shape[0],
+        lambda x: x.mean(),
+        lambda x: x.std(),
+        lambda x: x.min(),
+        lambda x: x.max(),
+    ]
     stat_labels = ["count", "mean", "std", "min", "max"]
-    str_format = ' '.join(["{:<6}"]+["{:10.6f}"]*(len(data)))
+    str_format = " ".join(["{:<6}"] + ["{:10.6f}"] * (len(data)))
     for stat_fun, stat_label in zip(stat_funs, stat_labels):
-        print(str_format.format(
-            *([stat_label]+[stat_fun(dat[1]) for dat in data])))
+        print(
+            str_format.format(
+                *([stat_label] + [stat_fun(dat[1]) for dat in data])
+            )
+        )
 
 
-def generate_independent_random_samples(variable, num_samples,
-                                        random_state=None):
-    """
-    Generate samples from a tensor-product probability measure. This function
-    still exists to maintain backwards compatability. Please use
-    variable.rvs() instead
-
-    Parameters
-    ----------
-    num_samples : integer
-        The number of samples to generate
-
-    Returns
-    -------
-    samples : np.ndarray (num_vars, num_samples)
-        Independent samples from the target distribution
-    """
-    assert type(variable) == IndependentMarginalsVariable, \
-        "`variable` must be of IndependentMarginalsVariable type"
-    return variable.rvs(num_samples, random_state)
-
-
-def rejection_sampling(target_density, proposal_density,
-                       generate_proposal_samples, envelope_factor,
-                       num_vars, num_samples, verbose=False,
-                       batch_size=None):
+def rejection_sampling(
+    target_density: callable,
+    proposal_density: callable,
+    generate_proposal_samples: callable,
+    envelope_factor: float,
+    nvars: int,
+    nsamples: int,
+    verbose: bool = False,
+    batch_size: int = None,
+) -> Array:
     """
     Obtain samples from a density f(x) using samples from a proposal
     distribution g(x).
@@ -98,17 +97,17 @@ def rejection_sampling(target_density, proposal_density,
     proposal_density : callable vals = proposal_density(samples)
         The proposal density g(x)
 
-    generate_proposal_samples : callable samples = generate_samples(num_samples)
+    generate_proposal_samples : callable samples = generate_samples(nsamples)
         Generate samples from the proposal density
 
     envelope_factor : double
         Factor M that satifies f(x)<=Mg(x). Set M such that inequality is as
         close to equality as possible
 
-    num_vars : integer
+    nvars : integer
         The number of variables
 
-    num_samples : integer
+    nsamples : integer
         The number of samples required
 
     verbose : boolean
@@ -116,56 +115,68 @@ def rejection_sampling(target_density, proposal_density,
 
     batch_size : integer
         The number of evaluations of each density to be performed in a batch.
-        Almost always we should set batch_size=num_samples
+        Almost always we should set batch_size=nsamples
 
     Returns
     -------
-    samples : np.ndarray (num_vars, num_samples)
+    samples : np.ndarray (nvars, nsamples)
         Independent samples from the target distribution
     """
     if batch_size is None:
-        batch_size = num_samples
+        batch_size = nsamples
 
     cntr = 0
-    num_proposal_samples = 0
-    samples = np.empty((num_vars, num_samples), dtype=float)
-    while cntr < num_samples:
+    nproposal_samples = 0
+    samples = np.empty((nvars, nsamples), dtype=float)
+    while cntr < nsamples:
         proposal_samples = generate_proposal_samples(batch_size)
         target_density_vals = target_density(proposal_samples)
         proposal_density_vals = proposal_density(proposal_samples)
         assert target_density_vals.shape[0] == batch_size
         assert proposal_density_vals.shape[0] == batch_size
-        urand = np.random.uniform(0., 1., (batch_size))
+        urand = np.random.uniform(0.0, 1.0, (batch_size))
 
         # ensure envelop_factor is large enough
-        if np.any(target_density_vals > (envelope_factor*proposal_density_vals)):
-            I = np.argmax(
-                target_density_vals/(envelope_factor*proposal_density_vals))
-            msg = 'proposal_density*envelop factor does not bound target '
-            msg += 'density: %f,%f' % (
-                target_density_vals[I],
-                (envelope_factor*proposal_density_vals)[I])
+        if np.any(
+            target_density_vals > (envelope_factor * proposal_density_vals)
+        ):
+            idx = np.argmax(
+                target_density_vals / (envelope_factor * proposal_density_vals)
+            )
+            msg = "proposal_density*envelop factor does not bound target "
+            msg += "density: %f,%f" % (
+                target_density_vals[idx],
+                (envelope_factor * proposal_density_vals)[idx],
+            )
             raise ValueError(msg)
 
-        I = np.where(
-            urand < target_density_vals/(envelope_factor*proposal_density_vals))[0]
+        idx = np.where(
+            urand
+            < target_density_vals / (envelope_factor * proposal_density_vals)
+        )[0]
 
-        num_batch_samples_accepted = min(I.shape[0], num_samples-cntr)
-        I = I[:num_batch_samples_accepted]
-        samples[:, cntr:cntr+num_batch_samples_accepted] = proposal_samples[:, I]
-        cntr += num_batch_samples_accepted
-        num_proposal_samples += batch_size
+        nbatch_samples_accepted = min(idx.shape[0], nsamples - cntr)
+        idx = idx[:nbatch_samples_accepted]
+        samples[:, cntr : cntr + nbatch_samples_accepted] = proposal_samples[
+            :, idx
+        ]
+        cntr += nbatch_samples_accepted
+        nproposal_samples += batch_size
 
     if verbose:
-        print(('num accepted', num_samples))
-        print(('num rejected', num_proposal_samples-num_samples))
-        print(('inverse envelope factor', 1/envelope_factor))
-        print(('acceptance probability', float(
-            num_samples)/float(num_proposal_samples)))
+        print(("num accepted", nsamples))
+        print(("num rejected", nproposal_samples - nsamples))
+        print(("inverse envelope factor", 1 / envelope_factor))
+        print(
+            (
+                "acceptance probability",
+                float(nsamples) / float(nproposal_samples),
+            )
+        )
     return samples
 
 
-def discrete_sampling(N, probs, states=None):
+def discrete_sampling(N: int, probs: Array, states: Array = None) -> Array:
     r"""
     discrete_sampling -- samples iid from a discrete probability measure
 
@@ -179,15 +190,19 @@ def discrete_sampling(N, probs, states=None):
     If states is not given, the states are gives by 1 <= state <= length(prob)
     """
 
-    p = probs.squeeze()/np.sum(probs)
+    p = probs.squeeze() / np.sum(probs)
 
-    bins = np.digitize(
-        np.random.uniform(0., 1., (N, 1)), np.hstack((0, np.cumsum(p))))-1
+    bins = (
+        np.digitize(
+            np.random.uniform(0.0, 1.0, (N, 1)), np.hstack((0, np.cumsum(p)))
+        )
+        - 1
+    )
 
     if states is None:
         x = bins
     else:
-        assert(states.shape[0] == probs.shape[0])
+        assert states.shape[0] == probs.shape[0]
         x = states[bins]
 
     return x.squeeze()

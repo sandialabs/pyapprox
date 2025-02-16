@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import itertools
 from typing import TypeVar
 
-Array = TypeVar('Array')
+Array = TypeVar("Array")
 
 
 class LinAlgMixin(ABC):
@@ -89,6 +89,11 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def empty(*args):
         """Return a matrix with uniitialized values"""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def empty_like(*args, dtype=float):
         raise NotImplementedError
 
     @staticmethod
@@ -429,14 +434,17 @@ class LinAlgMixin(ABC):
 
     @classmethod
     def block_cholesky_engine(cls, L_A, L_A_inv_B, B, D, return_blocks):
-        schur_comp = D-cls.multidot((L_A_inv_B.T, L_A_inv_B))
+        schur_comp = D - cls.multidot((L_A_inv_B.T, L_A_inv_B))
         L_S = cls.cholesky(schur_comp)
         chol_blocks = [L_A, L_A_inv_B.T, L_S]
         if return_blocks:
             return chol_blocks
-        return cls.vstack([
-            cls.hstack([chol_blocks[0], 0*L_A_inv_B]),
-            cls.hstack([chol_blocks[1], chol_blocks[2]])])
+        return cls.vstack(
+            [
+                cls.hstack([chol_blocks[0], 0 * L_A_inv_B]),
+                cls.hstack([chol_blocks[1], chol_blocks[2]]),
+            ]
+        )
 
     @classmethod
     def block_cholesky(cls, blocks, return_blocks=False):
@@ -444,16 +452,15 @@ class LinAlgMixin(ABC):
         D = blocks[1][1]
         L_A = cls.cholesky(A)
         L_A_inv_B = cls.solve_triangular(L_A, B)
-        return cls.block_cholesky_engine(
-            L_A, L_A_inv_B, B, D, return_blocks)
+        return cls.block_cholesky_engine(L_A, L_A_inv_B, B, D, return_blocks)
 
     @classmethod
     def get_correlation_from_covariance(cls, cov):
         r"""
         Compute the correlation matrix from a covariance matrix
         """
-        stdev_inv = 1/cls.sqrt(cls.get_diagonal(cov))
-        cor = stdev_inv[None, :]*cov*stdev_inv[:, None]
+        stdev_inv = 1 / cls.sqrt(cls.get_diagonal(cov))
+        cor = stdev_inv[None, :] * cov * stdev_inv[:, None]
         return cor
 
     @staticmethod
@@ -534,20 +541,20 @@ class LinAlgMixin(ABC):
             return cls.cholesky(A_22), True
 
         nrows, ncols = A_12.shape
-        if (A_22.shape != (ncols, ncols) or L_11.shape != (nrows, nrows)):
+        if A_22.shape != (ncols, ncols) or L_11.shape != (nrows, nrows):
             raise ValueError(
                 "A_12 shape {0} and/or A_22 shape {1} insconsistent".format(
-                    A_12.shape, A_22.shape))
+                    A_12.shape, A_22.shape
+                )
+            )
         L_12 = cls.solve_triangular(L_11, A_12, lower=True)
         if A_22.shape[0] == 1 and A_22 - cls.dot(L_12.T, L_12) < 1e-12:
             return L_11, False
         try:
-            L_22 = cls.cholesky(
-                A_22 - cls.dot(L_12.T, L_12))
+            L_22 = cls.cholesky(A_22 - cls.dot(L_12.T, L_12))
         except:
             return L_11, False
-        L = cls.block(
-            [[L_11, cls.full((nrows, ncols), 0.)], [L_12.T, L_22]])
+        L = cls.block([[L_11, cls.full((nrows, ncols), 0.0)], [L_12.T, L_22]])
         return L, True
 
     @staticmethod

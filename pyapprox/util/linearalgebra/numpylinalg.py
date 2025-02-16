@@ -36,8 +36,9 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.linalg.det(matrix)
 
     @staticmethod
-    def cholesky_solve(chol: np.ndarray, bvec: np.ndarray,
-                       lower: bool = True) -> np.ndarray:
+    def cholesky_solve(
+        chol: np.ndarray, bvec: np.ndarray, lower: bool = True
+    ) -> np.ndarray:
         return scipy.linalg.cho_solve((chol, lower), bvec)
 
     @staticmethod
@@ -45,8 +46,9 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.linalg.qr(mat, mode=mode)
 
     @staticmethod
-    def solve_triangular(Amat: np.ndarray, bvec: np.ndarray,
-                         lower: bool = True) -> np.ndarray:
+    def solve_triangular(
+        Amat: np.ndarray, bvec: np.ndarray, lower: bool = True
+    ) -> np.ndarray:
         return scipy.linalg.solve_triangular(Amat, bvec, lower=lower)
 
     @staticmethod
@@ -64,6 +66,10 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def empty(*args, dtype=float):
         return np.empty(*args, dtype=dtype)
+
+    @staticmethod
+    def empty_like(*args, dtype=float):
+        return np.empty_like(*args, dtype=dtype)
 
     @staticmethod
     def exp(matrix: np.ndarray) -> np.ndarray:
@@ -254,8 +260,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.var(mat, axis=axis, ddof=ddof)
 
     @staticmethod
-    def std(mat: np.ndarray, axis: int = None,
-            ddof: int = 0) -> np.ndarray:
+    def std(mat: np.ndarray, axis: int = None, ddof: int = 0) -> np.ndarray:
         return np.std(mat, axis=axis, ddof=ddof)
 
     @staticmethod
@@ -283,8 +288,7 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.flip(mat, axis=axis)
 
     @staticmethod
-    def allclose(Amat: np.ndarray, Bmat: np.ndarray,
-                 **kwargs) -> bool:
+    def allclose(Amat: np.ndarray, Bmat: np.ndarray, **kwargs) -> bool:
         return np.allclose(Amat, Bmat, **kwargs)
 
     @staticmethod

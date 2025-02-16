@@ -39,8 +39,9 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.linalg.det(matrix)
 
     @staticmethod
-    def cholesky_solve(chol: torch.Tensor, bvec: torch.Tensor,
-                       lower: bool = True) -> torch.Tensor:
+    def cholesky_solve(
+        chol: torch.Tensor, bvec: torch.Tensor, lower: bool = True
+    ) -> torch.Tensor:
         return torch.cholesky_solve(bvec, chol, upper=(not lower))
 
     @staticmethod
@@ -48,8 +49,9 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.linalg.qr(mat, mode=mode)
 
     @staticmethod
-    def solve_triangular(Amat: torch.Tensor, bvec: torch.Tensor,
-                         lower: bool = True) -> torch.Tensor:
+    def solve_triangular(
+        Amat: torch.Tensor, bvec: torch.Tensor, lower: bool = True
+    ) -> torch.Tensor:
         return torch.linalg.solve_triangular(Amat, bvec, upper=(not lower))
 
     @staticmethod
@@ -67,6 +69,10 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def empty(*args, dtype=torch.double):
         return torch.empty(*args, dtype=dtype)
+
+    @staticmethod
+    def empty_like(*args, dtype=float):
+        return torch.empty_like(*args, dtype=dtype)
 
     @staticmethod
     def exp(matrix: torch.Tensor) -> torch.Tensor:
@@ -179,8 +185,7 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.tile(mat, nreps)
 
     @staticmethod
-    def cdist(Amat: torch.tensor,
-              Bmat: torch.tensor) -> torch.Tensor:
+    def cdist(Amat: torch.tensor, Bmat: torch.tensor) -> torch.Tensor:
         return torch.cdist(Amat, Bmat, p=2)
 
     @staticmethod
@@ -215,15 +220,13 @@ class TorchLinAlgMixin(LinAlgMixin):
         # warning use of as_tensor causes autograd to fail
         # as it removes _requires_grad. TODO when all tests are passing again
         # remove copy from atleast1d or provide a flag to use copy or not
-        return torch.atleast_1d(
-            torch.as_tensor(val, dtype=dtype))
+        return torch.atleast_1d(torch.as_tensor(val, dtype=dtype))
 
     @staticmethod
     def atleast2d(val, dtype=torch.double) -> torch.Tensor:
         # warning use of as_tensor causes autograd to fail
         # as it removes _requires_grad
-        return torch.atleast_2d(
-            torch.as_tensor(val, dtype=dtype))
+        return torch.atleast_2d(torch.as_tensor(val, dtype=dtype))
 
     @staticmethod
     def reshape(mat: torch.Tensor, newshape) -> torch.Tensor:
@@ -275,14 +278,17 @@ class TorchLinAlgMixin(LinAlgMixin):
             return torch.mean(mat)
         return torch.mean(mat, dim=axis)
 
-    def var(mat: torch.Tensor, axis: int = None, ddof: int = 0) -> torch.Tensor:
+    def var(
+        mat: torch.Tensor, axis: int = None, ddof: int = 0
+    ) -> torch.Tensor:
         if axis is None:
             return torch.var(mat, correction=ddof)
         return torch.var(mat, dim=axis, correction=ddof)
 
     @staticmethod
-    def std(mat: torch.Tensor, axis: int = None,
-            ddof: int = 0) -> torch.Tensor:
+    def std(
+        mat: torch.Tensor, axis: int = None, ddof: int = 0
+    ) -> torch.Tensor:
         if axis is None:
             return torch.std(mat, correction=ddof)
         return torch.std(mat, dim=axis, correction=ddof)
@@ -316,8 +322,7 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.flip(mat, dims=axis)
 
     @staticmethod
-    def allclose(Amat: torch.Tensor, Bmat: torch.Tensor,
-                 **kwargs) -> bool:
+    def allclose(Amat: torch.Tensor, Bmat: torch.Tensor, **kwargs) -> bool:
         return torch.allclose(Amat, Bmat, **kwargs)
 
     @staticmethod

@@ -72,6 +72,10 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.empty(*args, dtype=dtype)
 
     @staticmethod
+    def empty_like(*args, dtype=float):
+        return np.empty_like(*args, dtype=dtype)
+
+    @staticmethod
     def exp(matrix: np.ndarray) -> np.ndarray:
         return np.exp(matrix)
 

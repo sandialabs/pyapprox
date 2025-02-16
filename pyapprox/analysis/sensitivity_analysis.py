@@ -5,24 +5,24 @@ from itertools import combinations
 from functools import partial
 
 from pyapprox.surrogates.interp.indexing import (
-    hash_array, argsort_indices_leixographically, compute_hyperbolic_indices
+    hash_array,
+    argsort_indices_leixographically,
+    compute_hyperbolic_indices,
 )
 from pyapprox.util.utilities import nchoosek
-from pyapprox.expdesign.low_discrepancy_sequences import (
-    sobol_sequence, halton_sequence
-)
-from pyapprox.variables.sampling import (
-    generate_independent_random_samples
-)
+from pyapprox.expdesign.sequences import SobolSequence, HaltonSequence
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-    _compute_expected_sobol_indices, generate_gp_realizations,
-    extract_gaussian_process_attributes_for_integration, GaussianProcess
+    _compute_expected_sobol_indices,
+    generate_gp_realizations,
+    extract_gaussian_process_attributes_for_integration,
+    GaussianProcess,
 )
 from pyapprox.surrogates.polychaos.gpc import (
-    define_poly_options_from_variable_transformation, PolynomialChaosExpansion
+    define_poly_options_from_variable_transformation,
+    PolynomialChaosExpansion,
 )
 from pyapprox.surrogates.polychaos.sparse_grid_to_gpc import (
-    convert_sparse_grid_to_polynomial_chaos_expansion
+    convert_sparse_grid_to_polynomial_chaos_expansion,
 )
 
 
@@ -54,7 +54,7 @@ def get_main_and_total_effect_indices_from_pce(coefficients, indices):
         index = indices[:, ii]
 
         # calculate contribution to variance of the index
-        var_contribution = coefficients[ii, :]**2
+        var_contribution = coefficients[ii, :] ** 2
 
         # get number of dimensions involved in interaction, also known
         # as order
@@ -65,7 +65,7 @@ def get_main_and_total_effect_indices_from_pce(coefficients, indices):
             variance += var_contribution
 
         # update main effects
-        if (order == 1):
+        if order == 1:
             var = non_constant_vars[0]
             main_effects[var, :] += var_contribution
 
@@ -91,7 +91,7 @@ def get_sobol_indices(coefficients, indices, max_order=2):
     kk = 0
     for ii in range(num_terms):
         index = indices[:, ii]
-        var_contribution = coefficients[ii, :]**2
+        var_contribution = coefficients[ii, :] ** 2
         non_constant_vars = np.where(index > 0)[0]
         key = hash_array(non_constant_vars)
 
@@ -110,11 +110,12 @@ def get_sobol_indices(coefficients, indices, max_order=2):
     # interaction_terms = np.asarray(interaction_terms).T
     interaction_values = np.asarray(interaction_values)
 
-    return interaction_terms, interaction_values/variance
+    return interaction_terms, interaction_values / variance
 
 
-def plot_main_effects(main_effects, ax, truncation_pct=0.95,
-                      max_slices=5, rv='z', qoi=0):
+def plot_main_effects(
+    main_effects, ax, truncation_pct=0.95, max_slices=5, rv="z", qoi=0
+):
     r"""
     Plot the main effects in a pie chart showing relative size.
 
@@ -143,7 +144,7 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
     if main_effects.ndim == 1:
         main_effects = main_effects[:, None]
     main_effects = main_effects[:, qoi]
-    assert main_effects.sum() <= 1.+np.finfo(float).eps
+    assert main_effects.sum() <= 1.0 + np.finfo(float).eps
     main_effects_sum = main_effects.sum()
 
     # sort main_effects in descending order
@@ -151,10 +152,10 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
     main_effects = main_effects[II]
 
     labels = []
-    partial_sum = 0.
+    partial_sum = 0.0
     for i in range(II.shape[0]):
-        if partial_sum/main_effects_sum < truncation_pct and i < max_slices:
-            labels.append('$%s_{%d}$' % (rv, II[i]+1))
+        if partial_sum / main_effects_sum < truncation_pct and i < max_slices:
+            labels.append("$%s_{%d}$" % (rv, II[i] + 1))
             partial_sum += main_effects[i]
         else:
             break
@@ -162,21 +163,34 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
     main_effects.resize(i + 1)
     if abs(partial_sum - main_effects_sum) > 0.5:
         explode = np.zeros(main_effects.shape[0])
-        labels.append(r'$\mathrm{other}$')
+        labels.append(r"$\mathrm{other}$")
         main_effects[-1] = main_effects_sum - partial_sum
         explode[-1] = 0.1
     else:
         main_effects.resize(i)
         explode = np.zeros(main_effects.shape[0])
 
-    p = ax.pie(main_effects, labels=labels, autopct='%1.1f%%',
-               shadow=True, explode=explode)
+    p = ax.pie(
+        main_effects,
+        labels=labels,
+        autopct="%1.1f%%",
+        shadow=True,
+        explode=explode,
+    )
     return p
 
 
 def plot_sensitivity_indices_with_confidence_intervals(
-        labels, ax, sa_indices_median, sa_indices_q1, sa_indices_q3,
-        sa_indices_min, sa_indices_max, reference_values=None, fliers=None):
+    labels,
+    ax,
+    sa_indices_median,
+    sa_indices_q1,
+    sa_indices_q3,
+    sa_indices_min,
+    sa_indices_max,
+    reference_values=None,
+    fliers=None,
+):
     nindices = len(sa_indices_median)
     assert len(labels) == nindices
     if reference_values is not None:
@@ -185,16 +199,16 @@ def plot_sensitivity_indices_with_confidence_intervals(
     for nn in range(nindices):
         # use boxplot stats mean entry to store reference values.
         if reference_values is not None:
-            stats[nn]['mean'] = reference_values[nn]
-        stats[nn]['med'] = sa_indices_median[nn]
-        stats[nn]['q1'] = sa_indices_q1[nn]
-        stats[nn]['q3'] = sa_indices_q3[nn]
-        stats[nn]['label'] = labels[nn]
+            stats[nn]["mean"] = reference_values[nn]
+        stats[nn]["med"] = sa_indices_median[nn]
+        stats[nn]["q1"] = sa_indices_q1[nn]
+        stats[nn]["q3"] = sa_indices_q3[nn]
+        stats[nn]["label"] = labels[nn]
         # use whiskers for min and max instead of fliers
-        stats[nn]['whislo'] = sa_indices_min[nn]
-        stats[nn]['whishi'] = sa_indices_max[nn]
+        stats[nn]["whislo"] = sa_indices_min[nn]
+        stats[nn]["whishi"] = sa_indices_max[nn]
         if fliers is not None:
-            stats[nn]['fliers'] = fliers[nn]
+            stats[nn]["fliers"] = fliers[nn]
 
     if reference_values is not None:
         showmeans = True
@@ -206,22 +220,29 @@ def plot_sensitivity_indices_with_confidence_intervals(
     else:
         showfliers = False
 
-    bp = ax.bxp(stats, showfliers=showfliers, showmeans=showmeans,
-                patch_artist=True,
-                meanprops=dict(marker='o', markerfacecolor='blue',
-                               markeredgecolor='blue', markersize=12),
-                medianprops=dict(color='red'))
-    ax.tick_params(axis='x', labelrotation=45)
+    bp = ax.bxp(
+        stats,
+        showfliers=showfliers,
+        showmeans=showmeans,
+        patch_artist=True,
+        meanprops=dict(
+            marker="o",
+            markerfacecolor="blue",
+            markeredgecolor="blue",
+            markersize=12,
+        ),
+        medianprops=dict(color="red"),
+    )
+    ax.tick_params(axis="x", labelrotation=45)
 
-    colors = ['gray']*nindices
-    for patch, color in zip(bp['boxes'], colors):
+    colors = ["gray"] * nindices
+    for patch, color in zip(bp["boxes"], colors):
         patch.set_facecolor(color)
-    colors = ['red']*nindices
+    colors = ["red"] * nindices
     return bp
 
 
-def plot_total_effects(total_effects, ax, truncation_pct=0.95,
-                       rv='z', qoi=0):
+def plot_total_effects(total_effects, ax, truncation_pct=0.95, rv="z", qoi=0):
     r"""
     Plot the total effects in a bar chart showing relative size.
 
@@ -248,17 +269,26 @@ def plot_total_effects(total_effects, ax, truncation_pct=0.95,
         total_effects = total_effects[:, None]
     total_effects = total_effects[:, qoi]
 
-    width = .95
+    width = 0.95
     locations = np.arange(total_effects.shape[0])
-    p = ax.bar(locations-width/2, total_effects, width, align='edge')
-    labels = ['$%s_{%d}$' % (rv, ii+1) for ii in range(total_effects.shape[0])]
+    p = ax.bar(locations - width / 2, total_effects, width, align="edge")
+    labels = [
+        "$%s_{%d}$" % (rv, ii + 1) for ii in range(total_effects.shape[0])
+    ]
     ax.set_xticks(locations)
     ax.set_xticklabels(labels, rotation=0)
     return p
 
 
-def plot_interaction_values(interaction_values, interaction_terms, ax,
-                            truncation_pct=0.95, max_slices=5, rv='z', qoi=0):
+def plot_interaction_values(
+    interaction_values,
+    interaction_terms,
+    ax,
+    truncation_pct=0.95,
+    max_slices=5,
+    rv="z",
+    qoi=0,
+):
     r"""
     Plot sobol indices in a pie chart showing relative size.
 
@@ -297,29 +327,35 @@ def plot_interaction_values(interaction_values, interaction_terms, ax,
     interaction_terms = [interaction_terms[ii] for ii in II]
 
     labels = []
-    partial_sum = 0.
+    partial_sum = 0.0
     for i in range(interaction_values.shape[0]):
         if partial_sum < truncation_pct and i < max_slices:
-            label = '($'
-            for j in range(len(interaction_terms[i])-1):
-                label += '%s_{%d},' % (rv, interaction_terms[i][j]+1)
-            label += '%s_{%d}$)' % (rv, interaction_terms[i][-1]+1)
+            label = "($"
+            for j in range(len(interaction_terms[i]) - 1):
+                label += "%s_{%d}," % (rv, interaction_terms[i][j] + 1)
+            label += "%s_{%d}$)" % (rv, interaction_terms[i][-1] + 1)
             labels.append(label)
             partial_sum += interaction_values[i]
         else:
             break
 
     interaction_values = interaction_values[:i]
-    if abs(partial_sum - 1.) > 10 * np.finfo(np.double).eps:
-        labels.append(r'$\mathrm{other}$')
+    if abs(partial_sum - 1.0) > 10 * np.finfo(np.double).eps:
+        labels.append(r"$\mathrm{other}$")
         interaction_values = np.concatenate(
-            [interaction_values, [1.-partial_sum]])
+            [interaction_values, [1.0 - partial_sum]]
+        )
 
     explode = np.zeros(interaction_values.shape[0])
     explode[-1] = 0.1
     assert interaction_values.shape[0] == len(labels)
-    p = ax.pie(interaction_values, labels=labels, autopct='%1.1f%%',
-               shadow=True, explode=explode)
+    p = ax.pie(
+        interaction_values,
+        labels=labels,
+        autopct="%1.1f%%",
+        shadow=True,
+        explode=explode,
+    )
     return p
 
 
@@ -346,23 +382,25 @@ def get_morris_trajectory(nvars, nlevels, eps=0):
         The Morris trajectory which consists of nvars+1 samples
     """
     assert nlevels % 2 == 0
-    delta = nlevels/((nlevels-1)*2)
-    samples_1d = np.linspace(eps, 1-eps, nlevels)
+    delta = nlevels / ((nlevels - 1) * 2)
+    samples_1d = np.linspace(eps, 1 - eps, nlevels)
 
     initial_point = np.random.choice(samples_1d, nvars)
     shifts = np.diag(np.random.choice([-delta, delta], nvars))
-    trajectory = np.empty((nvars, nvars+1))
+    trajectory = np.empty((nvars, nvars + 1))
     trajectory[:, 0] = initial_point
     for ii in range(nvars):
-        trajectory[:, ii+1] = trajectory[:, ii].copy()
-        if (trajectory[ii, ii]-delta) >= 0 and (trajectory[ii, ii]+delta) <= 1:
-            trajectory[ii, ii+1] += shifts[ii]
-        elif (trajectory[ii, ii]-delta) >= 0:
-            trajectory[ii, ii+1] -= delta
-        elif (trajectory[ii, ii]+delta) <= 1:
-            trajectory[ii, ii+1] += delta
+        trajectory[:, ii + 1] = trajectory[:, ii].copy()
+        if (trajectory[ii, ii] - delta) >= 0 and (
+            trajectory[ii, ii] + delta
+        ) <= 1:
+            trajectory[ii, ii + 1] += shifts[ii]
+        elif (trajectory[ii, ii] - delta) >= 0:
+            trajectory[ii, ii + 1] -= delta
+        elif (trajectory[ii, ii] + delta) <= 1:
+            trajectory[ii, ii + 1] += delta
         else:
-            raise Exception('This should not happen')
+            raise Exception("This should not happen")
     return trajectory
 
 
@@ -403,11 +441,15 @@ def get_morris_samples(nvars, nlevels, ntrajectories, eps=0, icdfs=None):
         The Morris trajectories
     """
     if icdfs is None:
-        icdfs = [lambda x: x]*nvars
+        icdfs = [lambda x: x] * nvars
     assert len(icdfs) == nvars
 
-    trajectories = np.hstack([get_morris_trajectory(nvars, nlevels, eps)
-                              for n in range(ntrajectories)])
+    trajectories = np.hstack(
+        [
+            get_morris_trajectory(nvars, nlevels, eps)
+            for n in range(ntrajectories)
+        ]
+    )
     for ii in range(nvars):
         trajectories[ii, :] = icdfs[ii](trajectories[ii, :])
     return trajectories
@@ -433,17 +475,21 @@ def get_morris_elementary_effects(samples, values):
     """
     nvars = samples.shape[0]
     nqoi = values.shape[1]
-    assert samples.shape[1] % (nvars+1) == 0
+    assert samples.shape[1] % (nvars + 1) == 0
     assert samples.shape[1] == values.shape[0]
-    ntrajectories = samples.shape[1]//(nvars+1)
+    ntrajectories = samples.shape[1] // (nvars + 1)
     elem_effects = np.empty((nvars, ntrajectories, nqoi))
     ix1 = 0
     for ii in range(ntrajectories):
-        ix2 = ix1+nvars
-        delta = np.diff(samples[:, ix1+1:ix2+1]-samples[:, ix1:ix2]).max()
+        ix2 = ix1 + nvars
+        delta = np.diff(
+            samples[:, ix1 + 1 : ix2 + 1] - samples[:, ix1:ix2]
+        ).max()
         assert delta > 0
-        elem_effects[:, ii] = (values[ix1+1:ix2+1]-values[ix1:ix2])/delta
-        ix1 = ix2+1
+        elem_effects[:, ii] = (
+            values[ix1 + 1 : ix2 + 1] - values[ix1:ix2]
+        ) / delta
+        ix1 = ix2 + 1
     return elem_effects
 
 
@@ -484,41 +530,48 @@ def print_morris_sensitivity_indices(mu, sigma, qoi=0):
     print(str_format.format(" ", "mu*", "sigma"))
     str_format = "{:<3} {:10.5f} {:10.5f}"
     for ii in range(mu.shape[0]):
-        print(str_format.format(f'Z_{ii+1}', mu[ii, qoi], sigma[ii, qoi]))
+        print(str_format.format(f"Z_{ii+1}", mu[ii, qoi], sigma[ii, qoi]))
 
 
 def downselect_morris_trajectories(samples, ntrajectories):
     nvars = samples.shape[0]
-    assert samples.shape[1] % (nvars+1) == 0
-    ncandidate_trajectories = samples.shape[1]//(nvars+1)
+    assert samples.shape[1] % (nvars + 1) == 0
+    ncandidate_trajectories = samples.shape[1] // (nvars + 1)
     # assert 10*ntrajectories<=ncandidate_trajectories
 
     trajectories = np.reshape(
-        samples, (nvars, nvars+1, ncandidate_trajectories), order='F')
+        samples, (nvars, nvars + 1, ncandidate_trajectories), order="F"
+    )
 
     distances = np.zeros((ncandidate_trajectories, ncandidate_trajectories))
     for ii in range(ncandidate_trajectories):
-        for jj in range(ii+1):
+        for jj in range(ii + 1):
             distances[ii, jj] = cdist(
-                trajectories[:, :, ii].T, trajectories[:, :, jj].T).sum()
+                trajectories[:, :, ii].T, trajectories[:, :, jj].T
+            ).sum()
             distances[jj, ii] = distances[ii, jj]
 
     get_combinations = combinations(
-        np.arange(ncandidate_trajectories), ntrajectories)
+        np.arange(ncandidate_trajectories), ntrajectories
+    )
     ncombinations = nchoosek(ncandidate_trajectories, ntrajectories)
-    print('ncombinations', ncombinations)
+    print("ncombinations", ncombinations)
     # values = np.empty(ncombinations)
     best_index = None
     best_value = -np.inf
     for ii, index in enumerate(get_combinations):
-        value = np.sqrt(np.sum(
-            [distances[ix[0], ix[1]]**2 for ix in combinations(index, 2)]))
+        value = np.sqrt(
+            np.sum(
+                [distances[ix[0], ix[1]] ** 2 for ix in combinations(index, 2)]
+            )
+        )
         if value > best_value:
             best_value = value
             best_index = index
 
     samples = trajectories[:, :, best_index].reshape(
-        nvars, ntrajectories*(nvars+1), order='F')
+        nvars, ntrajectories * (nvars + 1), order="F"
+    )
     return samples
 
 
@@ -526,8 +579,7 @@ class SensitivityResult(OptimizeResult):
     pass
 
 
-def morris_sensitivities(fun, variable, ntrajectories,
-                         nlevels=4):
+def morris_sensitivities(fun, variable, ntrajectories, nlevels=4):
     r"""
     Compute sensitivity indices by constructing an adaptive polynomial chaos
     expansion.
@@ -585,9 +637,13 @@ def morris_sensitivities(fun, variable, ntrajectories,
     mu, sigma = get_morris_sensitivity_indices(elem_effects)
 
     return SensitivityResult(
-        {'morris_mu': mu,
-         'morris_sigma': sigma,
-         'samples': samples, 'values': values})
+        {
+            "morris_mu": mu,
+            "morris_sigma": sigma,
+            "samples": samples,
+            "values": values,
+        }
+    )
 
 
 def sparse_grid_sobol_sensitivities(sparse_grid, max_order=2):
@@ -630,22 +686,30 @@ def sparse_grid_sobol_sensitivities(sparse_grid, max_order=2):
        The pce respresentation of the sparse grid ``approx``
     """
     pce_opts = define_poly_options_from_variable_transformation(
-        sparse_grid.var_trans)
+        sparse_grid.var_trans
+    )
     pce = convert_sparse_grid_to_polynomial_chaos_expansion(
-        sparse_grid, pce_opts)
-    pce_main_effects, pce_total_effects =\
+        sparse_grid, pce_opts
+    )
+    pce_main_effects, pce_total_effects = (
         get_main_and_total_effect_indices_from_pce(
-            pce.get_coefficients(), pce.get_indices())
+            pce.get_coefficients(), pce.get_indices()
+        )
+    )
 
     interaction_terms, pce_sobol_indices = get_sobol_indices(
-        pce.get_coefficients(), pce.get_indices(), max_order=max_order)
+        pce.get_coefficients(), pce.get_indices(), max_order=max_order
+    )
 
     return SensitivityResult(
-        {'main_effects': pce_main_effects,
-         'total_effects': pce_total_effects,
-         'sobol_indices': pce_sobol_indices,
-         'sobol_interaction_indices': interaction_terms,
-         'pce': pce})
+        {
+            "main_effects": pce_main_effects,
+            "total_effects": pce_total_effects,
+            "sobol_indices": pce_sobol_indices,
+            "sobol_interaction_indices": interaction_terms,
+            "pce": pce,
+        }
+    )
 
 
 def gpc_sobol_sensitivities(pce, variable, max_order=2):
@@ -693,19 +757,24 @@ def gpc_sobol_sensitivities(pce, variable, max_order=2):
         msg += "used to build the PCE"
         raise ValueError(msg)
 
-    pce_main_effects, pce_total_effects =\
+    pce_main_effects, pce_total_effects = (
         get_main_and_total_effect_indices_from_pce(
-            pce.get_coefficients(), pce.get_indices())
+            pce.get_coefficients(), pce.get_indices()
+        )
+    )
 
     interaction_terms, pce_sobol_indices = get_sobol_indices(
-        pce.get_coefficients(), pce.get_indices(),
-        max_order=max_order)
+        pce.get_coefficients(), pce.get_indices(), max_order=max_order
+    )
 
     return SensitivityResult(
-        {'main_effects': pce_main_effects,
-         'total_effects': pce_total_effects,
-         'sobol_indices': pce_sobol_indices,
-         'sobol_interaction_indices': interaction_terms})
+        {
+            "main_effects": pce_main_effects,
+            "total_effects": pce_total_effects,
+            "sobol_indices": pce_sobol_indices,
+            "sobol_interaction_indices": interaction_terms,
+        }
+    )
 
 
 def generate_sobol_index_sample_sets(samplesA, samplesB, index):
@@ -731,17 +800,21 @@ def generate_sobol_index_sample_sets(samplesA, samplesB, index):
 
 
 def get_AB_sample_sets_for_sobol_sensitivity_analysis(
-        variables, nsamples, method, qmc_start_index=0):
-    if method == 'random':
+    variables, nsamples, method, qmc_start_index=0
+):
+    if method == "random":
         samplesA = generate_independent_random_samples(variables, nsamples)
         samplesB = generate_independent_random_samples(variables, nsamples)
-    elif method == 'halton' or 'sobol':
+    elif method == "halton" or "sobol":
         nvars = variables.num_vars()
-        if method == 'halton':
-            qmc_samples = halton_sequence(
-                2*nvars, nsamples, qmc_start_index)
+        if method == "halton":
+            seq = HaltonSequence(2 * nvars, start_index=qmc_start_index)
+            qmc_samples = seq(nsamples)
+            # qmc_samples = halton_sequence(2 * nvars, nsamples, qmc_start_index)
         else:
-            qmc_samples = sobol_sequence(2*nvars, nsamples, qmc_start_index)
+            seq = SobolSequence(2 * nvars, start_index=qmc_start_index)
+            qmc_samples = seq(nsamples)
+            # qmc_samples = sobol_sequence(2 * nvars, nsamples, qmc_start_index)
         samplesA = qmc_samples[:nvars, :]
         samplesB = qmc_samples[nvars:, :]
         for ii, rv in enumerate(variables.marginals()):
@@ -750,7 +823,7 @@ def get_AB_sample_sets_for_sobol_sensitivity_analysis(
             # random variables
             # create bounds for unbounded interval that exclude 1e-8
             # of the total probability
-            t1, t2 = rv.interval(1-1e-8)
+            t1, t2 = rv.interval(1 - 1e-8)
             nlb, nub = rv.cdf([t1, t2])
             if not np.isfinite(lb):
                 samplesA[ii, samplesA[ii, :] == 0] = nlb
@@ -761,13 +834,18 @@ def get_AB_sample_sets_for_sobol_sensitivity_analysis(
             samplesA[ii, :] = rv.ppf(samplesA[ii, :])
             samplesB[ii, :] = rv.ppf(samplesB[ii, :])
     else:
-        raise Exception(f'Sampling method {method} not supported')
+        raise Exception(f"Sampling method {method} not supported")
     return samplesA, samplesB
 
 
 def sampling_based_sobol_indices(
-        fun, variables, interaction_terms, nsamples, sampling_method='sobol',
-        qmc_start_index=0):
+    fun,
+    variables,
+    interaction_terms,
+    nsamples,
+    sampling_method="sobol",
+    qmc_start_index=0,
+):
     """
     See I.M. Sobol. Mathematics and Computers in Simulation 55 (2001) 271–280
 
@@ -788,7 +866,8 @@ def sampling_based_sobol_indices(
     nvars = interaction_terms.shape[0]
     nterms = interaction_terms.shape[1]
     samplesA, samplesB = get_AB_sample_sets_for_sobol_sensitivity_analysis(
-        variables, nsamples, sampling_method, qmc_start_index)
+        variables, nsamples, sampling_method, qmc_start_index
+    )
     assert nvars == samplesA.shape[0]
     valuesA = fun(samplesA)
     valuesB = fun(samplesB)
@@ -800,18 +879,19 @@ def sampling_based_sobol_indices(
     for ii in range(nterms):
         index = interaction_terms[:, ii]
         assert index.sum() > 0
-        samplesAB = generate_sobol_index_sample_sets(
-            samplesA, samplesB, index)
+        samplesAB = generate_sobol_index_sample_sets(samplesA, samplesB, index)
         valuesAB = fun(samplesAB)
         # entry b in Table 2 of Saltelli, Annoni et. al
-        interaction_values[ii, :] = \
-            (valuesB*(valuesAB-valuesA)).mean(axis=0)/variance
+        interaction_values[ii, :] = (valuesB * (valuesAB - valuesA)).mean(
+            axis=0
+        ) / variance
         interaction_values_dict[tuple(np.where(index > 0)[0])] = ii
         if index.sum() == 1:
             dd = np.where(index == 1)[0][0]
             # entry f in Table 2 of Saltelli, Annoni et. al
-            total_effect_values[dd] = 0.5 * \
-                np.mean((valuesA-valuesAB)**2, axis=0)/variance
+            total_effect_values[dd] = (
+                0.5 * np.mean((valuesA - valuesAB) ** 2, axis=0) / variance
+            )
 
     # must substract of contributions from lower-dimensional terms from
     # each interaction value For example, let R_ij be interaction_values
@@ -825,11 +905,12 @@ def sampling_based_sobol_indices(
         nactive_vars = index.sum()
         sobol_indices_dict[tuple(active_vars)] = II[ii]
         if nactive_vars > 1:
-            for jj in range(nactive_vars-1):
-                indices = combinations(active_vars, jj+1)
+            for jj in range(nactive_vars - 1):
+                indices = combinations(active_vars, jj + 1)
                 for key in indices:
-                    sobol_indices[II[ii]] -= \
-                        sobol_indices[sobol_indices_dict[key]]
+                    sobol_indices[II[ii]] -= sobol_indices[
+                        sobol_indices_dict[key]
+                    ]
 
     total_effect_values = np.asarray(total_effect_values)
     assert np.all(variance >= 0)
@@ -851,21 +932,28 @@ def sampling_based_sobol_indices(
 
 
 def _repeat_sampling_based_sobol_indices(
-        fun, variable, interaction_terms=None,
-        nsamples=1000,
-        sampling_method="random",
-        nsobol_realizations=10,
-        qmc_start_index=1):
+    fun,
+    variable,
+    interaction_terms=None,
+    nsamples=1000,
+    sampling_method="random",
+    nsobol_realizations=10,
+    qmc_start_index=1,
+):
     if interaction_terms is None:
-        interaction_terms = get_isotropic_anova_indices(
-            variable.num_vars(), 2)
+        interaction_terms = get_isotropic_anova_indices(variable.num_vars(), 2)
 
-    means, variances, sobol_values,  total_values = [], [], [], []
+    means, variances, sobol_values, total_values = [], [], [], []
     # qmc_start_index = 0
     for ii in range(nsobol_realizations):
         sv, tv, vr, me = sampling_based_sobol_indices(
-            fun, variable, interaction_terms, nsamples,
-            sampling_method='sobol', qmc_start_index=qmc_start_index)
+            fun,
+            variable,
+            interaction_terms,
+            nsamples,
+            sampling_method="sobol",
+            qmc_start_index=qmc_start_index,
+        )
         means.append(me)
         variances.append(vr)
         sobol_values.append(sv)
@@ -877,19 +965,28 @@ def _repeat_sampling_based_sobol_indices(
     total_values = np.asarray(total_values)
 
     interaction_terms = [
-        np.where(index > 0)[0]
-        for index in interaction_terms.T]
+        np.where(index > 0)[0] for index in interaction_terms.T
+    ]
     return sobol_values, total_values, variances, means
 
 
 def repeat_sampling_based_sobol_indices(
-        fun, variable, interaction_terms=None,
-        nsamples=1000,
-        sampling_method="random",
-        nsobol_realizations=10,
-        summary_stats=["mean", "median", "min", "max", "quantile-0.25",
-                       "quantile-0.75"],
-        qmc_start_index=1):
+    fun,
+    variable,
+    interaction_terms=None,
+    nsamples=1000,
+    sampling_method="random",
+    nsobol_realizations=10,
+    summary_stats=[
+        "mean",
+        "median",
+        "min",
+        "max",
+        "quantile-0.25",
+        "quantile-0.75",
+    ],
+    qmc_start_index=1,
+):
     """
     Compute sobol indices for different sample sets. This allows estimation
     of error due to finite sample sizes. This function requires evaluting
@@ -901,20 +998,26 @@ def repeat_sampling_based_sobol_indices(
     """
     sobol_values, total_values, variances, means = (
         _repeat_sampling_based_sobol_indices(
-            fun, variable, interaction_terms,
-            nsamples, sampling_method, nsobol_realizations,
-            qmc_start_index))
+            fun,
+            variable,
+            interaction_terms,
+            nsamples,
+            sampling_method,
+            nsobol_realizations,
+            qmc_start_index,
+        )
+    )
 
     stat_functions = _get_stats_functions(summary_stats)
     result = dict()
     result["sobol_interaction_indices"] = interaction_terms
     data = [sobol_values, total_values, variances, means]
-    data_names = ['sobol_indices', 'total_effects', 'variance', 'mean']
+    data_names = ["sobol_indices", "total_effects", "variance", "mean"]
     for item, name in zip(data, data_names):
         subdict = dict()
         for ii, sfun in enumerate(stat_functions):
             subdict[sfun.__name__] = sfun(item, axis=(0))
-        subdict['values'] = item
+        subdict["values"] = item
         result[name] = subdict
 
     return result
@@ -924,15 +1027,17 @@ def _get_stats_functions(summary_stats):
     quantile_stats = []
     for q in [0.25, 0.75]:
         sfun = partial(np.quantile, q=q)
-        sfun.__name__ = f'quantile-{q}'
+        sfun.__name__ = f"quantile-{q}"
         quantile_stats.append(sfun)
-    stat_functions_dict = {"mean": np.mean,
-                           "median": np.median,
-                           "min": np.min,
-                           "max": np.max,
-                           "std": np.std,
-                           "quantile-0.25": quantile_stats[0],
-                           "quantile-0.75": quantile_stats[1]}
+    stat_functions_dict = {
+        "mean": np.mean,
+        "median": np.median,
+        "min": np.min,
+        "max": np.max,
+        "std": np.std,
+        "quantile-0.25": quantile_stats[0],
+        "quantile-0.75": quantile_stats[1],
+    }
     stat_functions_dict["min"].__name__ = "amin"
     stat_functions_dict["max"].__name__ = "amax"
     for name in summary_stats:
@@ -945,16 +1050,31 @@ def _get_stats_functions(summary_stats):
 
 
 def analytic_sobol_indices_from_gaussian_process(
-        gp, variable, interaction_terms=None, ngp_realizations=1000,
-        summary_stats=["mean", "median", "min", "max", "quantile-0.25",
-                       "quantile-0.75"],
-        ninterpolation_samples=None, nvalidation_samples=100,
-        ncandidate_samples=1000, nquad_samples=50, use_cholesky=True,
-        alpha=1e-8, verbosity=0):
+    gp,
+    variable,
+    interaction_terms=None,
+    ngp_realizations=1000,
+    summary_stats=[
+        "mean",
+        "median",
+        "min",
+        "max",
+        "quantile-0.25",
+        "quantile-0.75",
+    ],
+    ninterpolation_samples=None,
+    nvalidation_samples=100,
+    ncandidate_samples=1000,
+    nquad_samples=50,
+    use_cholesky=True,
+    alpha=1e-8,
+    verbosity=0,
+):
 
     if ninterpolation_samples is None:
         ninterpolation_samples = min(
-            5*gp.num_training_samples(), ncandidate_samples)
+            5 * gp.num_training_samples(), ncandidate_samples
+        )
 
     if not issubclass(gp.__class__, GaussianProcess):
         raise ValueError("Argument gp must be a Gaussian process")
@@ -962,20 +1082,27 @@ def analytic_sobol_indices_from_gaussian_process(
     stat_functions = _get_stats_functions(summary_stats)
 
     if interaction_terms is None:
-        interaction_terms = get_isotropic_anova_indices(
-            variable.num_vars(), 2)
+        interaction_terms = get_isotropic_anova_indices(variable.num_vars(), 2)
 
-    x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules = \
+    x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules = (
         extract_gaussian_process_attributes_for_integration(gp)
+    )
 
     if ngp_realizations > 0:
         gp_realizations = generate_gp_realizations(
-            gp, ngp_realizations, ninterpolation_samples, nvalidation_samples,
-            ncandidate_samples, variable, use_cholesky, alpha, verbosity)
+            gp,
+            ngp_realizations,
+            ninterpolation_samples,
+            nvalidation_samples,
+            ncandidate_samples,
+            variable,
+            use_cholesky,
+            alpha,
+            verbosity,
+        )
 
         # Check how accurate realizations
-        validation_samples = generate_independent_random_samples(
-            variable, 1000)
+        validation_samples = variable.rvs(1000)
         mean_vals, std = gp(validation_samples, return_std=True)
         realization_vals = gp_realizations(validation_samples)
         # print(mean_vals[:, 0].mean())
@@ -983,55 +1110,81 @@ def analytic_sobol_indices_from_gaussian_process(
         # this checks the accuracy of the number of realizations.
         # error will decrease with number of samples
         if verbosity > 0:
-            print('std of realizations error',
-                  np.linalg.norm(std-realization_vals.std(axis=1)) /
-                  np.linalg.norm(std))
-            print('var of realizations error',
-                  np.linalg.norm(std**2-realization_vals.var(axis=1)) /
-                  np.linalg.norm(std**2))
-            print('mean interpolation error',
-                  np.linalg.norm((mean_vals[:, 0]-realization_vals[:, -1])) /
-                  np.linalg.norm(mean_vals[:, 0]))
+            print(
+                "std of realizations error",
+                np.linalg.norm(std - realization_vals.std(axis=1))
+                / np.linalg.norm(std),
+            )
+            print(
+                "var of realizations error",
+                np.linalg.norm(std**2 - realization_vals.var(axis=1))
+                / np.linalg.norm(std**2),
+            )
+            print(
+                "mean interpolation error",
+                np.linalg.norm((mean_vals[:, 0] - realization_vals[:, -1]))
+                / np.linalg.norm(mean_vals[:, 0]),
+            )
 
         x_train = gp_realizations.selected_canonical_samples
         # gp_realizations.train_vals is normalized so unnormalize
-        y_train = gp._y_train_std*gp_realizations.train_vals
+        y_train = gp._y_train_std * gp_realizations.train_vals
         # kernel_var has already been adjusted by call to
         # extract_gaussian_process_attributes_for_integration
         K_inv = np.linalg.inv(gp_realizations.L.dot(gp_realizations.L.T))
         K_inv /= gp._y_train_std**2
 
-    sobol_values, total_values, means, variances = \
+    sobol_values, total_values, means, variances = (
         _compute_expected_sobol_indices(
-            gp, variable, interaction_terms, nquad_samples,
-            x_train, y_train, K_inv, lscale, kernel_var,
-            transform_quad_rules, gp._y_train_mean)
+            gp,
+            variable,
+            interaction_terms,
+            nquad_samples,
+            x_train,
+            y_train,
+            K_inv,
+            lscale,
+            kernel_var,
+            transform_quad_rules,
+            gp._y_train_mean,
+        )
+    )
     sobol_values = sobol_values.T
     total_values = total_values.T
 
     result = dict()
     interaction_terms = [
-        np.where(index > 0)[0]
-        for index in interaction_terms.T]
+        np.where(index > 0)[0] for index in interaction_terms.T
+    ]
 
     result["sobol_interaction_indices"] = interaction_terms
     data = [sobol_values, total_values, variances, means]
-    data_names = ['sobol_indices', 'total_effects', 'variance', 'mean']
+    data_names = ["sobol_indices", "total_effects", "variance", "mean"]
     for item, name in zip(data, data_names):
         subdict = dict()
         for ii, sfun in enumerate(stat_functions):
             subdict[sfun.__name__] = sfun(item, axis=(0))
-        subdict['values'] = item
+        subdict["values"] = item
         result[name] = subdict
     return result
 
 
 def sampling_based_sobol_indices_from_gaussian_process(
-    gp, variables, interaction_terms, nsamples, sampling_method='sobol',
-        ngp_realizations=1, normalize=True, nsobol_realizations=1,
-        stat_functions=(np.mean, np.median, np.min, np.max),
-        ninterpolation_samples=500, nvalidation_samples=100,
-        ncandidate_samples=1000, use_cholesky=True, alpha=0):
+    gp,
+    variables,
+    interaction_terms,
+    nsamples,
+    sampling_method="sobol",
+    ngp_realizations=1,
+    normalize=True,
+    nsobol_realizations=1,
+    stat_functions=(np.mean, np.median, np.min, np.max),
+    ninterpolation_samples=500,
+    nvalidation_samples=100,
+    ncandidate_samples=1000,
+    use_cholesky=True,
+    alpha=0,
+):
     """
     Compute sobol indices from Gaussian process using sampling.
     This function returns the mean and variance of these values with
@@ -1094,58 +1247,74 @@ def sampling_based_sobol_indices_from_gaussian_process(
     if ngp_realizations > 0:
         assert ncandidate_samples > ninterpolation_samples
         gp_realizations = generate_gp_realizations(
-            gp, ngp_realizations, ninterpolation_samples, nvalidation_samples,
-            ncandidate_samples, variables, use_cholesky, alpha)
+            gp,
+            ngp_realizations,
+            ninterpolation_samples,
+            nvalidation_samples,
+            ncandidate_samples,
+            variables,
+            use_cholesky,
+            alpha,
+        )
         fun = gp_realizations
     else:
         fun = gp
 
-    sobol_values, total_values, variances, means = \
+    sobol_values, total_values, variances, means = (
         _repeat_sampling_based_sobol_indices(
-            fun, variables, interaction_terms, nsamples,
-            sampling_method, nsobol_realizations)
+            fun,
+            variables,
+            interaction_terms,
+            nsamples,
+            sampling_method,
+            nsobol_realizations,
+        )
+    )
 
     result = dict()
     data = [sobol_values, total_values, variances, means]
-    data_names = ['sobol_indices', 'total_effects', 'variance', 'mean']
+    data_names = ["sobol_indices", "total_effects", "variance", "mean"]
     for item, name in zip(data, data_names):
         subdict = dict()
         for ii, sfun in enumerate(stat_functions):
             # have to deal with averaging over axis = (0, 1) and axis = (0, 2)
             # for mean, variance and sobol_indices, total_effects respectively
             subdict[sfun.__name__] = sfun(item, axis=(0, -1))
-        subdict['values'] = item
+        subdict["values"] = item
         result[name] = subdict
     return result
 
 
-def _borgonovo_estimation(
-        samples, values, marginal_icdfs, nbins=None):
+def _borgonovo_estimation(samples, values, marginal_icdfs, nbins=None):
 
     nvars, nsamples = samples.shape
     nqoi = values.shape[1]
     assert values.shape[0] == nsamples
 
     if nbins is None:
-        nbins = max(2, int(1/3*(nsamples)**(1./3)))
-        print('Number of bins', nbins)
+        nbins = max(2, int(1 / 3 * (nsamples) ** (1.0 / 3)))
+        print("Number of bins", nbins)
     mean = values.mean(axis=0)
     variance = values.var(axis=0)
     sa_indices = np.zeros((nvars, nqoi))
     for ii in range(nvars):
-        bin_bounds = marginal_icdfs[ii](np.linspace(0, 1, nbins+1))
+        bin_bounds = marginal_icdfs[ii](np.linspace(0, 1, nbins + 1))
         for jj in range(nbins):
-            inds = np.where((samples[ii, :] >= bin_bounds[jj]) &
-                            (samples[ii, :] < bin_bounds[jj+1]))[0]
+            inds = np.where(
+                (samples[ii, :] >= bin_bounds[jj])
+                & (samples[ii, :] < bin_bounds[jj + 1])
+            )[0]
             nsamples_ii = inds.shape[0]
-            sa_indices[ii] += nsamples_ii/nsamples*(
-                values[inds, :].mean()-mean)**2
+            sa_indices[ii] += (
+                nsamples_ii / nsamples * (values[inds, :].mean() - mean) ** 2
+            )
         sa_indices[ii] /= variance
     return sa_indices
 
 
 def bootstrapped_borgonovo_sensivities(
-        fun, variable, nsamples, nbins=None, nbootstraps=10):
+    fun, variable, nsamples, nbins=None, nbootstraps=10
+):
     """
     Compute main-effect sensitivity indices for a model using
     algorithm from [BHPRA2016]_
@@ -1187,16 +1356,18 @@ def bootstrapped_borgonovo_sensivities(
     samples = variable.rvs(nsamples)
     values = fun(samples)
     nqoi = values.shape[1]
-    sa_indices = np.zeros((nbootstraps+1, nvars, nqoi))
+    sa_indices = np.zeros((nbootstraps + 1, nvars, nqoi))
     marginal_icdfs = [v.ppf for v in variable.marginals()]
     sa_indices[0, :] = _borgonovo_estimation(
-        samples, values, marginal_icdfs, nbins)
-    for kk in range(1, nbootstraps+1):
+        samples, values, marginal_icdfs, nbins
+    )
+    for kk in range(1, nbootstraps + 1):
         permuted_inds = np.random.choice(np.arange(nsamples), nsamples)
         psamples = samples[:, permuted_inds]
         pvalues = values[permuted_inds, :]
         sa_indices[kk, :] = _borgonovo_estimation(
-            psamples, pvalues, marginal_icdfs, nbins)
+            psamples, pvalues, marginal_icdfs, nbins
+        )
     return sa_indices
 
 
@@ -1248,9 +1419,12 @@ def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
        Object containing the sensitivity indices
     """
     from pyapprox.surrogates.polychaos.adaptive_polynomial_chaos import (
-        AdaptiveInducedPCE)
+        AdaptiveInducedPCE,
+    )
     from pyapprox.surrogates.interp.adaptive_sparse_grid import (
-        CombinationSparseGrid)
+        CombinationSparseGrid,
+    )
+
     if method == "surrogate_sobol":
         if issubclass(type(fun), GaussianProcess):
             method = "gp_sobol"
@@ -1272,7 +1446,8 @@ def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
         "morris": morris_sensitivities,
         "pce_sobol": gpc_sobol_sensitivities,
         "gp_sobol": analytic_sobol_indices_from_gaussian_process,
-        "sg_sobol": sparse_grid_sobol_sensitivities}
+        "sg_sobol": sparse_grid_sobol_sensitivities,
+    }
 
     if method not in methods:
         msg = f'Method "{method}" not found.\n Available methods are:\n'
@@ -1285,8 +1460,9 @@ def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
 
 def get_isotropic_anova_indices(nvars, order):
     interaction_terms = compute_hyperbolic_indices(nvars, order)
-    interaction_terms = interaction_terms[:, np.where(
-        interaction_terms.max(axis=0) == 1)[0]]
+    interaction_terms = interaction_terms[
+        :, np.where(interaction_terms.max(axis=0) == 1)[0]
+    ]
     return interaction_terms
 
 
@@ -1302,60 +1478,68 @@ def _plot_sensitivity_indices(labels, ax, sa_indices):
 
 def _get_sobol_indices_labels(result):
     interaction_terms = result["sobol_interaction_indices"]
-    rv = 'z'
+    rv = "z"
     labels = []
     for ii in range(len(interaction_terms)):
-        ll = '($'
-        for jj in range(len(interaction_terms[ii])-1):
-            ll += '%s_{%d},' % (rv, interaction_terms[ii][jj]+1)
-        ll += '%s_{%d}$)' % (rv, interaction_terms[ii][-1]+1)
+        ll = "($"
+        for jj in range(len(interaction_terms[ii]) - 1):
+            ll += "%s_{%d}," % (rv, interaction_terms[ii][jj] + 1)
+        ll += "%s_{%d}$)" % (rv, interaction_terms[ii][-1] + 1)
         labels.append(ll)
     return labels
 
 
 def plot_sensitivity_indices(result, axs=None, include_vars=None):
     import matplotlib.pyplot as plt
+
     if axs is None:
-        fig, axs = plt.subplots(1, 3, figsize=(3*8, 6), sharey=True)
+        fig, axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)
 
     rv = "z"
 
     if type(result["sobol_indices"]) == np.ndarray:
-        nvars = len(result['total_effects'])
+        nvars = len(result["total_effects"])
         if include_vars is None:
             include_vars = np.arange(nvars, dtype=int)
 
-        labels = [r'$%s_{%d}$' % (rv, ii+1) for ii in include_vars]
+        labels = [r"$%s_{%d}$" % (rv, ii + 1) for ii in include_vars]
         im0 = _plot_sensitivity_indices(
-            labels, axs[0], result["sobol_indices"][:nvars][include_vars])
+            labels, axs[0], result["sobol_indices"][:nvars][include_vars]
+        )
         im1 = _plot_sensitivity_indices(
-            labels, axs[1], result["total_effects"][include_vars])
+            labels, axs[1], result["total_effects"][include_vars]
+        )
         II = np.argsort(result["sobol_indices"][:, 0])[-10:][::-1]
         labels = _get_sobol_indices_labels(result)
         labels = [labels[ii] for ii in II]
         im2 = _plot_sensitivity_indices(
-            labels, axs[2], result["sobol_indices"][II])
+            labels, axs[2], result["sobol_indices"][II]
+        )
         return [im0, im1, im2], axs
 
-    nvars = len(result['total_effects']['median'])
+    nvars = len(result["total_effects"]["median"])
     if include_vars is None:
         include_vars = np.arange(nvars, dtype=int)
 
     im0 = plot_sensitivity_indices_with_confidence_intervals(
-        [r'$%s_{%d}$' % (rv, ii+1) for ii in include_vars], axs[0],
+        [r"$%s_{%d}$" % (rv, ii + 1) for ii in include_vars],
+        axs[0],
         result["sobol_indices"]["median"][:nvars][include_vars],
         result["sobol_indices"]["quantile-0.25"][:nvars][include_vars],
         result["sobol_indices"]["quantile-0.75"][:nvars][include_vars],
         result["sobol_indices"]["amin"][:nvars][include_vars],
-        result["sobol_indices"]["amax"][:nvars][include_vars])
+        result["sobol_indices"]["amax"][:nvars][include_vars],
+    )
 
     im1 = plot_sensitivity_indices_with_confidence_intervals(
-        [r'$%s_{%d}$' % (rv, ii+1) for ii in include_vars], axs[1],
+        [r"$%s_{%d}$" % (rv, ii + 1) for ii in include_vars],
+        axs[1],
         result["total_effects"]["median"][include_vars],
         result["total_effects"]["quantile-0.25"][include_vars],
         result["total_effects"]["quantile-0.75"][include_vars],
         result["total_effects"]["amin"][include_vars],
-        result["total_effects"]["amax"][include_vars])
+        result["total_effects"]["amax"][include_vars],
+    )
 
     # sort sobol indices largest to smallest values left to right
     II = np.argsort(result["sobol_indices"]["median"].squeeze())[-10:][::-1]
@@ -1367,6 +1551,12 @@ def plot_sensitivity_indices(result, axs=None, include_vars=None):
     min_sobol_indices = result["sobol_indices"]["amin"][II]
     max_sobol_indices = result["sobol_indices"]["amax"][II]
     im2 = plot_sensitivity_indices_with_confidence_intervals(
-        labels, axs[2], median_sobol_indices, q1_sobol_indices,
-        q3_sobol_indices, min_sobol_indices, max_sobol_indices)
+        labels,
+        axs[2],
+        median_sobol_indices,
+        q1_sobol_indices,
+        q3_sobol_indices,
+        min_sobol_indices,
+        max_sobol_indices,
+    )
     return [im0, im1, im2], axs
