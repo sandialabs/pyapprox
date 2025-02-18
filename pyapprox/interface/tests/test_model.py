@@ -27,6 +27,15 @@ def _pickable_function(bkd, sample):
     )
 
 
+def raise_exception(condition, msg):
+    """
+    To allow exception to be raised with a conditional statment on one line
+    Useful when calling chain of statemnts from command line with python -c
+    """
+    if condition:
+        raise Exception(msg)
+
+
 class TestModel:
     def setUp(self):
         np.random.seed(1)
@@ -504,7 +513,7 @@ if __name__ == "__main__":
         # vec is only loaded but not used for anything just to test that linked files are
         # linked correctly
         shell_command = (
-            """python -c "import numpy as np; np.load('vec.npz')['vec']; target_function = lambda x: np.array([x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]); sample = np.loadtxt('params.in'); u=np.random.uniform(0.,1.); from pyapprox.interface.tests.test_async_model import raise_exception; raise_exception(u<%f/100., 'fault occurred'); vals = target_function(sample); np.savetxt('results.out',vals); delay=%f; import time; time.sleep(delay);" """
+            """python -c "import numpy as np; np.load('vec.npz')['vec']; target_function = lambda x: np.array([x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]); sample = np.loadtxt('params.in'); u=np.random.uniform(0.,1.); from pyapprox.interface.tests.test_model import raise_exception; raise_exception(u<%f/100., 'fault occurred'); vals = target_function(sample); np.savetxt('results.out',vals); delay=%f; print(delay); import time; time.sleep(delay);" """
             % (
                 fault_percentage,
                 delay + np.random.uniform(-1.0, 1.0) * delay * 0.1,
@@ -528,21 +537,31 @@ if __name__ == "__main__":
         bkd = self.get_backend()
         nvars = 2
         intmpdir = tempfile.TemporaryDirectory()
-        inttmpdir = "pde/"
         infilenames = [os.path.join(intmpdir.name, "vec.npz")]
         vec = bkd.asarray(np.random.uniform(0.0, 1.0, (1, nvars)))
         np.savez(infilenames[0], vec=vec)
+        outtmpdir = tempfile.TemporaryDirectory()
+        outdir_basename = outtmpdir.name
 
         shell_command, target_model = self._get_shell_command_for_io_model()
         model = ShellCommandIOModel(
-            2, nvars, infilenames, shell_command, backend=bkd
+            2,
+            nvars,
+            infilenames,
+            shell_command,
+            outdir_basename=outdir_basename,
+            verbosity=1,
+            backend=bkd,
         )
 
-        nsamples = 10
+        nsamples = 3
         samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
         test_values = target_model(samples)
         values = model(samples)
+        print(model.work_tracker())
+        assert model.work_tracker().nevaluations("val") == 3
         assert np.allclose(values, test_values)
+        outtmpdir.cleanup()
         intmpdir.cleanup()
 
 

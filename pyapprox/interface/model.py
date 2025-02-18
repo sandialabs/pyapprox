@@ -691,6 +691,12 @@ class SingleSampleModelMixin:
         self._work_tracker.update("val", self._bkd.array(times))
         return values
 
+    def __call__(self, samples: Array) -> Array:
+        # overwrite call from model so not to count model evaluation twice
+        vals = self._values(samples)
+        self._check_values_shape(samples, vals)
+        return vals
+
 
 class ModelFromCallable(Model):
     def __init__(
@@ -1184,8 +1190,9 @@ class IOModel(SingleSampleModelMixin, Model):
             os.remove(filename)
 
     def _save_samples_and_values(self, sample, values, outdirname, tmpfile):
-        filename = os.path.join(outdirname, self._datafilename)
-        np.savez(filename, sample=sample, values=values)
+        if self._datafilename is not None:
+            filename = os.path.join(outdirname, self._datafilename)
+            np.savez(filename, sample=sample, values=values)
 
     def _process_outdir(self, sample, values, outdirname, tmpfile):
         if tmpfile is not None:
@@ -1239,7 +1246,7 @@ class ShellCommandIOModel(IOModel):
         self._shell_command = shell_command
         self._results_filename = results_filename
         self._params_filename = params_filename
-        self._verbosity = 0
+        self._verbosity = verbosity
 
     def _run_shell_command(self):
         if self._verbosity == 0:
@@ -1260,10 +1267,69 @@ class ShellCommandIOModel(IOModel):
     def _run(
         self, sample: Array, linked_filenames: List[str], outdirname: str
     ) -> Array:
+        curdirname = os.getcwd()
+        os.chdir(outdirname)
+        print(self._params_filename)
         np.savetxt(self._params_filename, sample)
         self._run_shell_command()
         vals = np.loadtxt(self._results_filename, usecols=[0])
+        os.chdir(curdirname)
         return self._bkd.atleast2d(vals)
+
+
+class AsyncModel(ShellCommandIOModel):
+    def _run_shell_command(self):
+        if self._verbosity == 0:
+            with open(os.devnull, "w") as f:
+                subprocess.Popen(
+                    self._shell_command,
+                    shell=True,
+                    stdout=f,
+                    stderr=f,
+                    env=None,
+                )
+        else:
+            filename = "shell_command.out"
+            with open(filename, "w") as f:
+                subprocess.Popen(
+                    self._shell_command,
+                    shell=True,
+                    stdout=f,
+                    stderr=f,
+                    env=None,
+                )
+
+    def __call__(self, samples: Array, opts: Dict = dict()) -> Array:
+        self._current_vals = []
+        self._current_samples = []
+        self._completed_ids = []
+        nsamples = samples.shape[1]
+        for ii in range(nsamples):
+            while len(self._running_procs) >= self._max_eval_concurrency:
+                self._cleanup_threads(opts)
+            self._asynchronous_evaluate_using_shell_command(
+                samples[:, ii], opts
+            )
+
+        while len(self._running_procs) > 0:
+            self._cleanup_threads(opts)
+
+        if self._saved_data_basename is not None:
+            data_filename = self._saved_data_basename + "-%d-%d.npz" % (
+                self._function_eval_id - nsamples,
+                self._function_eval_id,
+            )
+        else:
+            data_filename = None
+
+        vals = self._prepare_values(
+            self._current_samples,
+            self._current_vals,
+            self._completed_ids,
+            data_filename,
+        )
+
+        return vals
 
 
 class ActiveSetVariableModel(Model):
