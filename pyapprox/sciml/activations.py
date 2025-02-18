@@ -35,7 +35,7 @@ class RELUActivation(Activation):
 class GELUActivation(Activation):
     def _evaluate(self, values):
         '''Use GELU approximation'''
-        pi = self._bkd.arccos(-1)
+        pi = self._bkd.arccos(self._bkd.asarray(-1))
         return 0.5*values*(1.0 + self._bkd.tanh(self._bkd.sqrt(2.0 / pi)) * (
                    values + 0.044715*values**3))
 

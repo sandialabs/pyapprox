@@ -208,6 +208,11 @@ class ScipyLBFGSB(Optimizer):
         else:
             self._options["iprint"] = 200
 
+        if self._verbosity > 1:
+            callback = (
+                lambda intermediate_result: print(intermediate_result.fun))
+        else:
+            callback = None
         scipy_res = scipy.optimize.minimize(
             self._np_objective_fun_wrapper,
             self._bkd.to_numpy(iterate),
@@ -215,6 +220,7 @@ class ScipyLBFGSB(Optimizer):
             jac=True,
             bounds=self._bkd.to_numpy(self._bounds),
             tol=self._tol,
+            callback=callback,
             options=self._options,
         )
 
