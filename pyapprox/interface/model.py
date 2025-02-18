@@ -8,6 +8,7 @@ import tempfile
 from abc import ABC, abstractmethod
 import multiprocessing
 from multiprocessing.pool import ThreadPool, Pool
+from typing import List
 
 import numpy as np
 import umbridge
@@ -18,7 +19,9 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 class ModelWorkTracker:
-    def __init__(self, backend=NumpyLinAlgMixin, multiproc=False):
+    def __init__(
+        self, backend: LinAlgMixin = NumpyLinAlgMixin, multiproc: bool = False
+    ):
         self._bkd = backend
         # use multiprocessing.Manager() so that the dictionary
         # can be updated by multiple processes when calling
@@ -826,7 +829,10 @@ class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
     def _evaluate(self, sample: Array) -> Array:
         values = self._eval_fun(self._user_function, sample)
         if self._values_ndim != values.ndim:
-            raise RuntimeError("function returned values with the wrong ndim")
+            raise RuntimeError(
+                "function returned values with the wrong ndim. "
+                "Was {0} must be {1}".format(values.ndim, self._values_ndim)
+            )
         if self._values_ndim != 2:
             return self._bkd.atleast2d(values)
         return values
@@ -1106,18 +1112,20 @@ class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
 class IOModel(SingleSampleModelMixin, Model):
     def __init__(
         self,
-        nqoi,
-        infilenames,
-        outdir_basename=None,
-        save="no",
-        datafilename=None,
-        backend=NumpyLinAlgMixin,
+        nqoi: int,
+        nvars: int,
+        infilenames: List[str],
+        outdir_basename: str = None,
+        save: str = "no",
+        datafilename: str = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         """
         Base class for models that require loading and or writing of files
         """
         super().__init__(backend=backend)
         self._nqoi = nqoi
+        self._nvars = nvars
         self._infilenames = infilenames
         save_values = ["full", "limited", "no"]
         if save not in save_values:
@@ -1134,8 +1142,11 @@ class IOModel(SingleSampleModelMixin, Model):
         self._datafilename = datafilename
         self._nmodel_evaluations = 0
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return self._nqoi
+
+    def nvars(self) -> int:
+        return self._nvars
 
     def _create_outdir(self):
         if self._outdir_basename is None:
@@ -1185,10 +1196,12 @@ class IOModel(SingleSampleModelMixin, Model):
         self._save_samples_and_values(sample, values, outdirname, tmpfile)
 
     @abstractmethod
-    def _run(self, sample, linked_filenames, outdirname):
+    def _run(
+        self, sample: Array, linked_filenames: List[str], outdirname: str
+    ) -> Array:
         raise NotImplementedError
 
-    def _evaluate(self, sample):
+    def _evaluate(self, sample: Array):
         outdirname, tmpfile = self._create_outdir()
         self._nmodel_evaluations += 1
         linked_filenames = self._link_files(outdirname)
@@ -1197,6 +1210,60 @@ class IOModel(SingleSampleModelMixin, Model):
         )
         self._process_outdir(sample, values, outdirname, tmpfile)
         return values
+
+
+class ShellCommandIOModel(IOModel):
+    def __init__(
+        self,
+        nqoi: int,
+        nvars: int,
+        infilenames: List[str],
+        shell_command: str,
+        params_filename: str = "params.in",
+        results_filename: str = "results.out",
+        outdir_basename: str = None,
+        save: str = "no",
+        datafilename: str = None,
+        verbosity: int = 0,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(
+            nqoi,
+            nvars,
+            infilenames,
+            outdir_basename,
+            save,
+            datafilename,
+            backend,
+        )
+        self._shell_command = shell_command
+        self._results_filename = results_filename
+        self._params_filename = params_filename
+        self._verbosity = 0
+
+    def _run_shell_command(self):
+        if self._verbosity == 0:
+            subprocess.check_output(self._shell_command, shell=True, env=None)
+        elif self._verbosity == 1:
+            filename = "shell_command.out"
+            with open(filename, "w") as f:
+                subprocess.call(
+                    self._shell_command,
+                    shell=True,
+                    stdout=f,
+                    stderr=f,
+                    env=None,
+                )
+        else:
+            subprocess.call(self._shell_command, shell=True, env=None)
+
+    def _run(
+        self, sample: Array, linked_filenames: List[str], outdirname: str
+    ) -> Array:
+        np.savetxt(self._params_filename, sample)
+        self._run_shell_command()
+        vals = np.loadtxt(self._results_filename, usecols=[0])
+        return self._bkd.atleast2d(vals)
 
 
 class ActiveSetVariableModel(Model):

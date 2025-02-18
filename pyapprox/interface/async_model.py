@@ -1,13 +1,19 @@
 import os
-import numpy as np
 import tempfile
 import subprocess
 import shutil
 import re
 import glob
+from typing import List, Dict, Tuple
+
+import numpy as np
+
+from pyapprox.interface.model import Model
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
-class AynchModel(object):
+class AsyncModel(Model):
     """
     Evaluate a model in parallel when model instances are invoked by a shell
     script.
@@ -70,219 +76,286 @@ class AynchModel(object):
         required by some scripts.
     """
 
-    def __init__(self, shell_command, max_eval_concurrency=1,
-                 workdir_basename=None, link_filenames=[],
-                 params_filename='params.in', results_filename='results.out',
-                 params_file_header='', process_sample=None,
-                 load_results=None, saved_data_basename=None,
-                 save_workdirs='yes', model_name=None):
-
-        self.shell_command = shell_command
-        self.max_eval_concurrency = max_eval_concurrency
-        self.workdir_basename = workdir_basename
-        self.link_filenames = link_filenames
-        self.params_filename = params_filename
-        self.results_filename = results_filename
-        self.params_file_header = params_file_header
+    def __init__(
+        self,
+        nqoi: int,
+        nvars: int,
+        shell_command: str,
+        max_eval_concurrency: int = 1,
+        workdir_basename: str = None,
+        link_filenames: List = [],
+        params_filename: str = "params.in",
+        results_filename: str = "results.out",
+        params_file_header: str = "",
+        process_sample: callable = None,
+        load_results: callable = None,
+        saved_data_basename: str = None,
+        save_workdirs: str = "yes",
+        model_name: "str" = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(backend)
+        self._nqoi = nqoi
+        self._nvars = nvars
+        self._shell_command = shell_command
+        self._max_eval_concurrency = max_eval_concurrency
+        self._workdir_basename = workdir_basename
+        self._link_filenames = link_filenames
+        self._params_filename = params_filename
+        self._results_filename = results_filename
+        self._params_file_header = params_file_header
         # ensure process sample is not a member function. If it is
         # this model will not pikcle
-        self.process_sample = process_sample
-        self.load_results = load_results
-        self.saved_data_basename = saved_data_basename
-        self.save_workdirs = save_workdirs
-        if (not ((save_workdirs == 'no') or (save_workdirs == 'yes') or
-                 (save_workdirs == 'limited'))):
+        self._process_sample = process_sample
+        self._load_results = load_results
+        self._saved_data_basename = saved_data_basename
+        self._save_workdirs = save_workdirs
+        if not (
+            (save_workdirs == "no")
+            or (save_workdirs == "yes")
+            or (save_workdirs == "limited")
+        ):
             raise Exception('save_workdirs must be ["no","yes","limited"]')
-        self.model_name = model_name
-        if self.saved_data_basename is not None:
+        self._model_name = model_name
+        if self._saved_data_basename is not None:
             saved_data_dir = os.path.split(saved_data_basename)[0]
-            if not saved_data_dir == '' and not os.path.exists(saved_data_dir):
+            if not saved_data_dir == "" and not os.path.exists(saved_data_dir):
                 os.makedirs(saved_data_dir)
 
-        self.running_procs = []
-        self.running_workdirs = []
-        self.function_eval_id = 0
-        self.num_qoi = 0
+        self._running_procs = []
+        self._running_workdirs = []
+        self._function_eval_id = 0
 
-        self.current_vals = []
+        self._current_vals = []
 
-    def cleanup_threads(self, opts):
+    def nqoi(self) -> int:
+        return self._nqoi
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def cleanup_threads(self, opts: Dict):
         verbosity = opts.get("verbosity", 0)
         finished_proc_indices = []
-        for i in range(len(self.running_procs)):
-            proc = self.running_procs[i]
+        for i in range(len(self._running_procs)):
+            proc = self._running_procs[i]
             if proc.poll() is not None:
                 finished_proc_indices.append(i)
 
         curdir = os.getcwd()
         for i in range(len(finished_proc_indices)):
 
-            workdir = self.running_workdirs[finished_proc_indices[i]]
+            workdir = self._running_workdirs[finished_proc_indices[i]]
             os.chdir(workdir)
 
-            function_eval_id = int(re.findall(
-                r'[0-9]+', os.path.split(workdir)[1])[-1])
+            function_eval_id = int(
+                re.findall(r"[0-9]+", os.path.split(workdir)[1])[-1]
+            )
 
-            if self.load_results is None:
-                if not os.path.exists(self.results_filename):
+            if self._load_results is None:
+                if not os.path.exists(self._results_filename):
                     if verbosity > 0:
-                        print('Eval %d: %s was not found in directory %s' % (
-                            function_eval_id, self.results_filename, workdir))
+                        print(
+                            "Eval %d: %s was not found in directory %s"
+                            % (
+                                function_eval_id,
+                                self._results_filename,
+                                workdir,
+                            )
+                        )
                     vals = None
                 else:
-                    vals = np.loadtxt(self.results_filename, usecols=[0])
+                    vals = np.loadtxt(self._results_filename, usecols=[0])
                     shutil.copy(
-                        self.results_filename,
-                        self.results_filename+'.%d' % function_eval_id)
+                        self._results_filename,
+                        self._results_filename + ".%d" % function_eval_id,
+                    )
             else:
                 try:
-                    vals = self.load_results(opts)
+                    vals = self._load_results(opts)
                 except ImportError:
                     vals = None
                 # load results may not have generated a results file
                 # so write one here
                 if vals is not None:
                     np.savetxt(
-                        self.results_filename+'.%d' % function_eval_id, vals)
-            sample = np.loadtxt(self.params_filename+'.%d' % function_eval_id)
+                        self._results_filename + ".%d" % function_eval_id, vals
+                    )
+            sample = np.loadtxt(
+                self._params_filename + ".%d" % function_eval_id
+            )
 
-            if (self.workdir_basename is not None and
-                    self.save_workdirs == 'limited'):
-                filenames_to_delete = glob.glob('*')
+            if (
+                self._workdir_basename is not None
+                and self._save_workdirs == "limited"
+            ):
+                filenames_to_delete = glob.glob("*")
                 if vals is not None:
                     filenames_to_delete.remove(
-                        self.results_filename+'.%d' % function_eval_id)
+                        self._results_filename + ".%d" % function_eval_id
+                    )
                 filenames_to_delete.remove(
-                    self.params_filename+'.%d' % function_eval_id)
+                    self._params_filename + ".%d" % function_eval_id
+                )
                 if verbosity > 0:
-                    filenames_to_delete.remove('stdout.txt')
+                    filenames_to_delete.remove("stdout.txt")
                 for filename in filenames_to_delete:
                     os.remove(filename)
 
             if verbosity > 0:
-                print('Model %s: completed eval %d' % (
-                    self.model_name, function_eval_id))
+                print(
+                    "Model %s: completed eval %d"
+                    % (self._model_name, function_eval_id)
+                )
 
-            self.current_vals.append(vals)
-            self.current_samples.append(sample)
-            self.completed_function_eval_ids.append(function_eval_id)
+            self._current_vals.append(vals)
+            self._current_samples.append(sample)
+            self._completed_function_eval_ids.append(function_eval_id)
 
             os.chdir(curdir)
-            if self.workdir_basename is None or self.save_workdirs == 'no':
+            if self._workdir_basename is None or self._save_workdirs == "no":
                 shutil.rmtree(workdir)
 
-        self.running_procs = [v for i, v in enumerate(
-            self.running_procs) if i not in finished_proc_indices]
-        self.running_workdirs = [v for i, v in enumerate(
-            self.running_workdirs) if i not in finished_proc_indices]
+        self._running_procs = [
+            v
+            for i, v in enumerate(self._running_procs)
+            if i not in finished_proc_indices
+        ]
+        self._running_workdirs = [
+            v
+            for i, v in enumerate(self._running_workdirs)
+            if i not in finished_proc_indices
+        ]
 
-    def create_work_dir(self):
-        if self.workdir_basename is None:
+    def create_work_dir(self) -> Tuple[tempfile.TemporaryDirectory, str]:
+        if self._workdir_basename is None:
             tmpdir = tempfile.TemporaryDirectory(
-                suffix='.%d' % self.function_eval_id)
+                suffix=".%d" % self._function_eval_id
+            )
             tmpdirname = tmpdir.name
         else:
-            tmpdirname = self.workdir_basename+'.%d' % self.function_eval_id
+            tmpdirname = (
+                self._workdir_basename + ".%d" % self._function_eval_id
+            )
             if not os.path.exists(tmpdirname):
                 os.makedirs(tmpdirname)
             else:
-                msg = 'work_dir %s already exists. ' % (tmpdirname)
-                msg += 'Exiting so as not to overwrite previous results'
+                msg = "work_dir %s already exists. " % (tmpdirname)
+                msg += "Exiting so as not to overwrite previous results"
                 raise Exception(msg)
             tmpdir = None
         return tmpdir, tmpdirname
 
-    def asynchronous_evaluate_using_shell_command(self, sample, opts):
+    def asynchronous_evaluate_using_shell_command(
+        self, sample: Array, opts: Dict
+    ):
         verbosity = opts.get("verbosity", 0)
 
         curdir = os.getcwd()
-        workdir, workdirname = self.create_work_dir()
+        workdir, workdirname = self._create_work_dir()
         os.chdir(workdirname)
 
-        for filename in self.link_filenames:
+        for filename in self._link_filenames:
             if not os.path.exists(os.path.split(filename)[1]):
-                os.symlink(
-                    filename, os.path.split(filename)[1])
+                os.symlink(filename, os.path.split(filename)[1])
             else:
-                msg = '%s exists in %s cannot create soft link' % (
-                    filename, workdirname)
+                msg = "%s exists in %s cannot create soft link" % (
+                    filename,
+                    workdirname,
+                )
                 raise Exception(msg)
         # default of savetxt is to write header with # at start of line
         # comments='' removes the #
-        if self.process_sample is not None:
-            self.process_sample(sample)
+        if self._process_sample is not None:
+            self._process_sample(sample)
         else:
-            np.savetxt(self.params_filename, sample,
-                       header=self.params_file_header,
-                       comments='')
+            np.savetxt(
+                self._params_filename,
+                sample,
+                header=self._params_file_header,
+                comments="",
+            )
 
         if verbosity > 0:
             out = open("stdout.txt", "wb")
         else:
-            out = open(os.devnull, 'w')
+            out = open(os.devnull, "w")
         proc = subprocess.Popen(
-            self.shell_command, shell=True, stdout=out, stderr=out)
+            self._shell_command, shell=True, stdout=out, stderr=out
+        )
 
         out.close()
 
-        self.running_procs.append(proc)
-        self.running_workdirs.append(workdirname)
+        self._running_procs.append(proc)
+        self._running_workdirs.append(workdirname)
 
         # store a copy of the parameters and return values with
         # a unique filename
         shutil.copy(
-            self.params_filename,
-            self.params_filename+'.%d' % self.function_eval_id)
+            self._params_filename,
+            self._params_filename + ".%d" % self._function_eval_id,
+        )
 
-        self.function_eval_id += 1
+        self._function_eval_id += 1
         os.chdir(curdir)
         if workdir is not None:
             workdir.cleanup()
 
-    def __call__(self, samples, opts=dict()):
+    def __call__(self, samples: Array, opts: Dict = dict()) -> Array:
 
-        self.current_vals = []
-        self.current_samples = []
-        self.completed_function_eval_ids = []
+        self._current_vals = []
+        self._current_samples = []
+        self._completed_function_eval_ids = []
         nsamples = samples.shape[1]
         for i in range(nsamples):
-            while len(self.running_procs) >= self.max_eval_concurrency:
-                self.cleanup_threads(opts)
-            self.asynchronous_evaluate_using_shell_command(
-                samples[:, i], opts)
+            while len(self._running_procs) >= self._max_eval_concurrency:
+                self._cleanup_threads(opts)
+            self._asynchronous_evaluate_using_shell_command(
+                samples[:, i], opts
+            )
 
-        while len(self.running_procs) > 0:
-            self.cleanup_threads(opts)
+        while len(self._running_procs) > 0:
+            self._cleanup_threads(opts)
 
-        if self.saved_data_basename is not None:
-            data_filename = self.saved_data_basename+'-%d-%d.npz' % (
-                self.function_eval_id-nsamples, self.function_eval_id)
+        if self._saved_data_basename is not None:
+            data_filename = self._saved_data_basename + "-%d-%d.npz" % (
+                self._function_eval_id - nsamples,
+                self._function_eval_id,
+            )
         else:
             data_filename = None
 
-        vals = self.prepare_values(
-            self.current_samples, self.current_vals,
-            self.completed_function_eval_ids, data_filename)
+        vals = self._prepare_values(
+            self._current_samples,
+            self._current_vals,
+            self._completed_function_eval_ids,
+            data_filename,
+        )
 
         return vals
 
-    def prepare_values(self, samples, vals, completed_function_eval_ids,
-                       data_filename):
+    def prepare_values(
+        self,
+        samples: Array,
+        vals: Array,
+        completed_function_eval_ids: Array,
+        data_filename: str,
+    ) -> Array:
         nsamples = len(vals)
         # get number of QoI
-        num_qoi = 0
+        nqoi = 0
         for i in range(nsamples):
             if vals[i] is not None:
-                num_qoi = vals[i].shape[0]
+                nqoi = vals[i].shape[0]
                 break
 
-        if num_qoi == 0 and vals[0] is None:
-            raise Exception('All model evaluations failed')
+        if nqoi == 0 and vals[0] is None:
+            raise Exception("All model evaluations failed")
 
         # return nan for failed function evaluations
         for i in range(nsamples):
             if vals[i] is None:
-                vals[i] = np.zeros((num_qoi))+np.nan
+                vals[i] = np.zeros((nqoi)) + np.nan
 
         II = np.argsort(np.array(completed_function_eval_ids))
         prepared_vals = np.array(vals)[II, :]

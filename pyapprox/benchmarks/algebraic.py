@@ -1524,5 +1524,6 @@ class MichaelisMentenModel(SingleSampleModel):
             (
                 self._mesh[0] / (theta_2 + self._mesh[0]),
                 -theta_1 * self._mesh[0] / (theta_2 + self._mesh[0]) ** 2,
-            ), axis=1
+            ),
+            axis=1,
         )

@@ -15,6 +15,7 @@ from pyapprox.interface.model import (
     IOModel,
     UmbridgeIOModelWrapper,
     PoolModelWrapper,
+    ShellCommandIOModel,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -115,7 +116,7 @@ class TestModel:
         # grad at the nominal point used in the finite difference.
         # Each of these latter 15 requies 3 jvp (one for each variable)
         # TODO: Can i reduce the number of jvp in cases such as this
-        assert model.work_tracker().nevaluations("jvp") == 1 + 14*3 + 3
+        assert model.work_tracker().nevaluations("jvp") == 1 + 14 * 3 + 3
         assert model.work_tracker().nevaluations("hess") == 0
         assert model.work_tracker().nevaluations("hvp") == 1
 
@@ -259,6 +260,7 @@ class TestModel:
 
     def test_umbridge_model(self):
         from genz_umbridge_server import GenzUMBModel, GenzIntegral
+
         config = {"name": "oscillatory", "nvars": 2, "coef_type": "none"}
         sample = np.random.uniform(0, 1, (config["nvars"], 1))
         model = GenzUMBModel()
@@ -306,7 +308,7 @@ class TestModel:
         test_values = bkd.stack([vec @ sample for sample in samples.T], axis=0)
 
         # test when temp work directories are used
-        model = TestIOModel(1, infilenames, backend=bkd)
+        model = TestIOModel(1, nvars, infilenames, backend=bkd)
         values = model(samples)
         assert np.allclose(values, test_values)
 
@@ -316,6 +318,7 @@ class TestModel:
         datafilename = "data.npz"
         model = TestIOModel(
             1,
+            nvars,
             infilenames,
             outdir_basename,
             save="full",
@@ -340,6 +343,7 @@ class TestModel:
         datafilename = "data.npz"
         model = TestIOModel(
             1,
+            nvars,
             infilenames,
             outdir_basename,
             save="limited",
@@ -384,8 +388,12 @@ class UMBModel(umbridge.Model):
 
     def __call__(self, parameters, config):
         model = TestIOModel(
-            1, config["infilenames"], config["outdir_basename"],
-            save=config["save"], datafilename=config["datafilename"])
+            1,
+            self.get_input_sizes(config)[0],
+            config["infilenames"],
+            config["outdir_basename"],
+            save=config["save"],
+            datafilename=config["datafilename"])
         return [model(np.array(parameters).T)[0].tolist()]
 
     def supports_evaluate(self):
@@ -475,7 +483,9 @@ if __name__ == "__main__":
         bkd = self.get_backend()
         nvars, nsamples = 3, 4
         model = ModelFromSingleSampleCallable(
-            2, partial(_pickable_function, bkd), backend=bkd,
+            2,
+            partial(_pickable_function, bkd),
+            backend=bkd,
         )
         pool_model = PoolModelWrapper(model, nprocs=2, assert_omp=False)
         samples = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples)))
@@ -483,6 +493,57 @@ if __name__ == "__main__":
         assert bkd.allclose(values, _pickable_function(bkd, samples))
         print(pool_model.work_tracker().nevaluations("val"))
         assert pool_model.work_tracker().nevaluations("val") == 4
+
+    def _get_shell_command_for_io_model(
+        self, delay: float = 0.0, fault_percentage: float = 0.0
+    ):
+        """
+        Return a FileIOModel that wrapts a call to the 2D target function
+        [x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]) with two QoI.
+        """
+        # vec is only loaded but not used for anything just to test that linked files are
+        # linked correctly
+        shell_command = (
+            """python -c "import numpy as np; np.load('vec.npz')['vec']; target_function = lambda x: np.array([x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]); sample = np.loadtxt('params.in'); u=np.random.uniform(0.,1.); from pyapprox.interface.tests.test_async_model import raise_exception; raise_exception(u<%f/100., 'fault occurred'); vals = target_function(sample); np.savetxt('results.out',vals); delay=%f; import time; time.sleep(delay);" """
+            % (
+                fault_percentage,
+                delay + np.random.uniform(-1.0, 1.0) * delay * 0.1,
+            )
+        )
+
+        def target_function(x):
+            return np.array(
+                [x[0] ** 2 + 2 * x[1] ** 3, x[0] ** 3 + x[0] * x[1]]
+            )
+
+        target_model = ModelFromSingleSampleCallable(
+            2,
+            target_function,
+            sample_ndim=1,
+            values_ndim=1,
+        )
+        return shell_command, target_model
+
+    def test_shell_command_io_model(self):
+        bkd = self.get_backend()
+        nvars = 2
+        intmpdir = tempfile.TemporaryDirectory()
+        inttmpdir = "pde/"
+        infilenames = [os.path.join(intmpdir.name, "vec.npz")]
+        vec = bkd.asarray(np.random.uniform(0.0, 1.0, (1, nvars)))
+        np.savez(infilenames[0], vec=vec)
+
+        shell_command, target_model = self._get_shell_command_for_io_model()
+        model = ShellCommandIOModel(
+            2, nvars, infilenames, shell_command, backend=bkd
+        )
+
+        nsamples = 10
+        samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
+        test_values = target_model(samples)
+        values = model(samples)
+        assert np.allclose(values, test_values)
+        intmpdir.cleanup()
 
 
 class TestNumpyModel(TestModel, unittest.TestCase):

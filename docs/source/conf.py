@@ -13,22 +13,21 @@
 import os
 import sys
 import pkg_resources
-from sphinx_gallery.sorting import (
-    _SortKey,  ExplicitOrder, ExampleTitleSortKey)
+from sphinx_gallery.sorting import _SortKey, ExplicitOrder, ExampleTitleSortKey
 import warnings
 
 
-sys.path.append(os.path.abspath('../../'))
+sys.path.append(os.path.abspath("../../"))
 sys.setrecursionlimit(1500)
 
 # -- Project information -----------------------------------------------------
 
-project = 'PyApprox'
-copyright = '2019 National Technology & Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.'
-author = 'John D. Jakeman'
+project = "PyApprox"
+copyright = "2019 National Technology & Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software."
+author = "John D. Jakeman"
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.3'
+release = "1.0.3"
 
 
 # -- General configuration ---------------------------------------------------
@@ -37,94 +36,99 @@ release = '1.0.3'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.viewcode',
-    'numpydoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.doctest',
-    'sphinx.ext.inheritance_diagram']
+    "sphinx.ext.autodoc",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.viewcode",
+    "numpydoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.doctest",
+    "sphinx.ext.inheritance_diagram",
+]
 
-# wrong siyntax for new versions
-# extensions += [
-#     'matplotlib.sphinxext.only_directives',
-#     'matplotlib.sphinxext.plot_directive']
-#     'matplotlib.sphinxext.ipython_directive',
-#     'matplotlib.sphinxext.ipython_console_highlighting']
+extensions += [
+    "matplotlib.sphinxext.plot_directive",
+    "IPython.sphinxext.ipython_console_highlighting",
+    "IPython.sphinxext.ipython_directive",
+]
 
-extensions += ['matplotlib.sphinxext.plot_directive',
-               'IPython.sphinxext.ipython_console_highlighting',
-               'IPython.sphinxext.ipython_directive']
+# TODO: disable until can resolve error it causes
+# extensions += ["sphinx_automodapi.automodapi"]
 
-extensions += ['sphinx_automodapi.automodapi']
-
-extensions += ['sphinx_gallery.gen_gallery']
+extensions += ["sphinx_gallery.gen_gallery"]
 
 example_filenames_in_order = [
     # Analysis
-    'plot_sensitivity_analysis.py',
+    "plot_sensitivity_analysis.py",
     # Inference
-    'plot_bayesian_inference.py',
-    'plot_bayesian_networks.py',
-    'plot_push_forward_based_inference.py',
+    "plot_bayesian_inference.py",
+    "plot_bayesian_networks.py",
+    "plot_push_forward_based_inference.py",
     # ExpDesign
-    'plot_bayesian_oed.py',
+    "plot_bayesian_oed.py",
     # Surrogates
-    'plot_univariate_interpolation.py',
-    'plot_tensor_product_interpolation.py',
-    'plot_sparse_grids.py',
-    'plot_adaptive_leja_interpolation.py',
-    'plot_gaussian_processes.py',
+    "plot_univariate_interpolation.py",
+    "plot_tensor_product_interpolation.py",
+    "plot_sparse_grids.py",
+    "plot_adaptive_leja_interpolation.py",
+    "plot_gaussian_processes.py",
     # 'plot_integrated_surrogates.py',
     # Multi-fidelity
-    'plot_monte_carlo.py',
-    'plot_multioutput_monte_carlo.py',
-    'plot_control_variate_monte_carlo.py',
-    'plot_approximate_control_variates.py',
-    'plot_many_model_acv.py',
-    'acv_covariances.py',
-    'plot_allocation_matrices.py',
-    'plot_multi_level_monte_carlo.py',
-    'plot_multi_fidelity_monte_carlo.py',
-    'plot_pacv.py',
-    'plot_multioutput_acv.py',
-    'plot_pilot_studies.py',
-    'plot_ensemble_selection.py',
-    'plot_multilevel_blue.py',
-    'plot_multiindex_collocation.py',
-    'plot_multifidelity_gp.py',
-    'plot_gaussian_mfnets.py',
+    "plot_monte_carlo.py",
+    "plot_multioutput_monte_carlo.py",
+    "plot_control_variate_monte_carlo.py",
+    "plot_approximate_control_variates.py",
+    "plot_many_model_acv.py",
+    "acv_covariances.py",
+    "plot_allocation_matrices.py",
+    "plot_multi_level_monte_carlo.py",
+    "plot_multi_fidelity_monte_carlo.py",
+    "plot_pacv.py",
+    "plot_multioutput_acv.py",
+    "plot_pilot_studies.py",
+    "plot_ensemble_selection.py",
+    "plot_multilevel_blue.py",
+    "plot_multiindex_collocation.py",
+    "plot_multifidelity_gp.py",
+    "plot_gaussian_mfnets.py",
     # SciML
-    'plot_derive_certann.py',
-    'plot_fourier_transform.py',
-    'plot_derive_dct.py',
-    'plot_dct_properties.py',
-    'plot_neural_operator_cases.py',
-    'plot_greens_functions.py',
-    'plot_kernels.py',
-    'plot_learning_greens_functions.py',
-    'plot_wave_equation.py',
-    'plot_neural_network_backprop.py',
+    "plot_derive_certann.py",
+    "plot_fourier_transform.py",
+    "plot_derive_dct.py",
+    "plot_dct_properties.py",
+    "plot_neural_operator_cases.py",
+    "plot_greens_functions.py",
+    "plot_kernels.py",
+    "plot_learning_greens_functions.py",
+    "plot_wave_equation.py",
+    "plot_neural_network_backprop.py",
 ]
 
-example_dirs = ['../../tutorials', '../../examples']
-gallery_dirs = ['auto_tutorials', 'auto_examples']
+# TODO enable once ready to port over tutorials to new API
+# example_dirs = ["../../tutorials", "../../examples"]
+# gallery_dirs = ["auto_tutorials", "auto_examples"]
+
+example_dirs = ["../../examples"]
+gallery_dirs = ["auto_examples"]
 
 
 installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
 
 example_filenames_in_order += [
-    'plot_variables.py', 'plot_setup_model.py',
-    'plot_interface.py', 'plot_parameter_sweeps.py',
-    'plot_low_discrepancy_quadrature.py', 'plot_gaussian_quadrature.py',
-    'plot_barycentric_interpolation.py',
-    'plot_multivariate_piecewise_polynomial_interpolation.py',
-    'plot_pde_convergence.py',
-    'plot_sparse_grid_uq.py',
-    'plot_paper_demo.py',
-    'plot_multifidelity_quadrature.py',
-    'plot_multiindex_collocation_ex.py',
-    'plot_design_under_uncertainty.py']
+    "plot_variables.py",
+    "plot_setup_model.py",
+    "plot_model_timing.py",
+    "plot_pool_model.py" "plot_parameter_sweeps.py",
+    "plot_low_discrepancy_quadrature.py",
+    "plot_gaussian_quadrature.py",
+    "plot_barycentric_interpolation.py",
+    "plot_multivariate_piecewise_polynomial_interpolation.py",
+    "plot_pde_convergence.py",
+    "plot_sparse_grid_uq.py",
+    "plot_paper_demo.py",
+    "plot_multifidelity_quadrature.py",
+    "plot_multiindex_collocation_ex.py",
+    "plot_design_under_uncertainty.py",
+]
 
 # print(installed_pkgs)
 # print(example_filenames_in_order)
@@ -143,22 +147,22 @@ class ExamplesExplicitOrder(_SortKey):
 # gallery_dirs and example_dirs must be the same length
 sphinx_gallery_conf = {
     # path to your example scripts
-    'examples_dirs': example_dirs,
+    "examples_dirs": example_dirs,
     # path to where to save gallery generated output
-    'gallery_dirs': gallery_dirs,
+    "gallery_dirs": gallery_dirs,
     # 'first_notebook_cell' : "%matplotlib inline",
-    'subsection_order': ExplicitOrder([
-        '../../tutorials/analysis',
-        '../../tutorials/inference',
-        '../../tutorials/expdesign',
-        '../../tutorials/surrogates',
-        '../../tutorials/multi_fidelity',
-        '../../tutorials/sciml',
-        '../../examples']),
-    'within_subsection_order': ExamplesExplicitOrder,
-    'ignore_pattern': r'util',
+    # 'subsection_order': ExplicitOrder([
+    #     '../../tutorials/analysis',
+    #     '../../tutorials/inference',
+    #     '../../tutorials/expdesign',
+    #     '../../tutorials/surrogates',
+    #     '../../tutorials/multi_fidelity',
+    #     '../../tutorials/sciml',
+    #     '../../examples']),
+    # 'within_subsection_order': ExamplesExplicitOrder,
+    "ignore_pattern": r"util",
     # 'ignore_pattern': r'util|plot_bayesian_oed\.py',  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
-    'matplotlib_animations': True,
+    "matplotlib_animations": True,
 }
 try:
     # old versions of sphinx gallery do not use the keyword nested_sections
@@ -166,7 +170,8 @@ try:
     # for newer versions
     # the following import will fail for older versions
     from sphinx_gallery.gen_gallery import _fill_gallery_conf_defaults
-    sphinx_gallery_conf['nested_sections'] = False
+
+    sphinx_gallery_conf["nested_sections"] = False
 except ImportError:
     pass
 
@@ -179,7 +184,9 @@ except ImportError:
 #     add_markdown_cell(work_notebook, first_cell)#jdj
 #     add_code_cell(work_notebook,"%matplotlib inline")#jdj
 # then add user defs like so
-sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}\newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}$$"
+sphinx_gallery_conf["first_notebook_cell"] = (
+    r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}\newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}$$"
+)
 
 # if change conf make sure to remove source/auto_examples, using make clean
 # Note sphinx can use align with single line, e.g. a=1 & & b=1 if \\ is added to the end of the line, i.e  a=1 & & b=1\\
@@ -194,25 +201,26 @@ sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}
 numpydoc_show_class_members = False
 
 # allow easy reference of headers in other .rst files
-extensions += ['sphinx.ext.autosectionlabel']
+extensions += ["sphinx.ext.autosectionlabel"]
 autosectionlabel_prefix_document = True
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 # temporarily do not create function documentation
-exclude_patterns = ['cantilever_beam.rst', 'plot_bayesian_oed.py']
+# exclude_patterns = ["cantilever_beam.rst", "plot_bayesian_oed.py"]
 
-# use the following temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
-exclude_patterns += ["modules.rst"]  # , 'user_reference_guide.rst']
+# # use the following temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
+# exclude_patterns += ["modules.rst"]  # , 'user_reference_guide.rst']
+exclude_patterns = ["*.py"]
 
 
 # only add documented functions to manual. If not used then the api of functions
 # without a docstring will be added with no information.
-autodoc_default_flags = ['members']
+autodoc_default_flags = ["members"]
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -222,26 +230,26 @@ autodoc_default_flags = ['members']
 # html_theme = 'alabaster'
 # html_theme = 'sphinxdoc'
 # html_theme = 'scipy-sphinx-theme'
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 
 html_theme_options = {
-    'logo_only': False,
-#    'navigation_depth': 5 # if this is set it seems to overide maxdepth set in .rst files such as index.rst
+    "logo_only": False,
+    #    'navigation_depth': 5 # if this is set it seems to overide maxdepth set in .rst files such as index.rst
 }
-html_logo = './figures/pyapprox-logo.png'
+html_logo = "./figures/pyapprox-logo.png"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = "sphinx"
 
 
 # used when building latex and pdf versions
 latex_elements = {
-     'preamble': r'''
+    "preamble": r"""
 \newcommand\sphinxbackoftitlepage{%
      Copyright 2019 National Technology \& Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
 
@@ -285,7 +293,7 @@ SOFTWARE.\par
 \newcommand{\dx}[1]{\;\text{d}#1}
 \newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}
 \newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}
-''',
+""",
 }
 
 # rst_prolog = r"""
@@ -324,45 +332,49 @@ SOFTWARE.\par
 # mathjax 3
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 mathjax3_config = {
-  "tex": {
-      "macros": {
-          "V": [r'{\boldsymbol{#1}}', 1],
-          "mean": [r'{\mathbb{E}\left[#1\right]}', 1],
-          "var": [r'{\mathbb{V}\left[#1\right]}', 1],
-          "rv": r'{z}',
-          "rvset": r'{\mathcal{Z}}',
-          "reals": r'\mathbb{R}',
-          "pdf": r'\rho',
-          "rvdom": r'\Gamma',
-          "coloneqq": r'\colon=',
-          "norm": [r'{\lVert #1 \rVert}', 1],
-          "argmax": [r'\operatorname{argmax}'],
-          "argmin": [r'\operatorname{argmin}'],
-          "covar": [r'\mathbb{C}\text{ov}\left[#1,#2\right]', 2],
-          "corr": [r'\mathbb{C}\text{or}\left[#1,#2\right]', 2],
-          "ai": r'\alpha',
-          "bi": r'\beta',
-          "dx": [r'\;\text{d}#1', 1],
-          "mat": [r'{\boldsymbol{\mathrm{#1}}}', 1],
-          "dydx": [r'\frac{\partial #1}{\partial #2}', 2]
-      },
-  },
+    "tex": {
+        "macros": {
+            "V": [r"{\boldsymbol{#1}}", 1],
+            "mean": [r"{\mathbb{E}\left[#1\right]}", 1],
+            "var": [r"{\mathbb{V}\left[#1\right]}", 1],
+            "rv": r"{z}",
+            "rvset": r"{\mathcal{Z}}",
+            "reals": r"\mathbb{R}",
+            "pdf": r"\rho",
+            "rvdom": r"\Gamma",
+            "coloneqq": r"\colon=",
+            "norm": [r"{\lVert #1 \rVert}", 1],
+            "argmax": [r"\operatorname{argmax}"],
+            "argmin": [r"\operatorname{argmin}"],
+            "covar": [r"\mathbb{C}\text{ov}\left[#1,#2\right]", 2],
+            "corr": [r"\mathbb{C}\text{or}\left[#1,#2\right]", 2],
+            "ai": r"\alpha",
+            "bi": r"\beta",
+            "dx": [r"\;\text{d}#1", 1],
+            "mat": [r"{\boldsymbol{\mathrm{#1}}}", 1],
+            "dydx": [r"\frac{\partial #1}{\partial #2}", 2],
+        },
+    },
 }
 
 # Supress all warnings so they do not appear in the documentation
 warnings.filterwarnings("ignore")
 
 
-#-----
-# only document locally defined functions and classes and not imports
-def patch_automodapi(app):
-    """Monkey-patch the automodapi extension to exclude imported members"""
-    from sphinx_automodapi import automodsumm
-    from sphinx_automodapi.utils import find_mod_objs
-    automodsumm.find_mod_objs = lambda *args: find_mod_objs(
-        args[0], onlylocals=True)
+# # -----
+# # only document locally defined functions and classes and not imports
+# def patch_automodapi(app):
+#     """Monkey-patch the automodapi extension to exclude imported members"""
+#     from sphinx_automodapi import automodsumm
+#     from sphinx_automodapi.utils import find_mod_objs
+
+#     automodsumm.find_mod_objs = lambda *args: find_mod_objs(
+#         args[0], onlylocals=True
+#     )
 
 
-def setup(app):
-    app.connect("builder-inited", patch_automodapi)
-#------
+# def setup(app):
+#     app.connect("builder-inited", patch_automodapi)
+
+
+# # ------

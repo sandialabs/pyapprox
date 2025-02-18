@@ -2,13 +2,32 @@
 interfacing with numerical models
 """
 
-from pyapprox.interface.wrappers import (
-    evaluate_1darray_function_on_2d_array, WorkTrackingModel,
-    TimerModel, ModelEnsemble, PoolModel, DataFunctionModel, MultiIndexModel
+from pyapprox.interface.model import (
+    ModelFromVectorizedCallable,
+    ModelFromSingleSampleCallable,
+    ScipyModelWrapper,
+    UmbridgeModelWrapper,
+    UmbridgeIOModelWrapper,
+    UmbridgeIOModelEnsembleWrapper,
+    IOModel,
+    ActiveSetVariableModel,
+    ChangeModelSignWrapper,
+    PoolModelWrapper,
 )
-from pyapprox.interface.async_model import AynchModel
+from pyapprox.interface.async_model import AsyncModel
 from pyapprox.interface.file_io_model import FileIOModel
 
-__all__ = ["evaluate_1darray_function_on_2d_array", "WorkTrackingModel",
-           "TimerModel", "ModelEnsemble", "PoolModel",
-           "AynchModel", "FileIOModel", "DataFunctionModel", "MultiIndexModel"]
+__all__ = [
+    "ModelFromVectorizedCallable",
+    "ModelFromSingleSampleCallable",
+    "ScipyModelWrapper",
+    "UmbridgeModelWrapper",
+    "UmbridgeIOModelWrapper",
+    "UmbridgeIOModelEnsembleWrapper",
+    "IOModel",
+    "ActiveSetVariableModel",
+    "ChangeModelSignWrapper",
+    "PoolModelWrapper",
+    "AsyncModel",
+    "FileIOModel",
+]

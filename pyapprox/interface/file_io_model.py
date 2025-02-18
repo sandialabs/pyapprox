@@ -1,22 +1,32 @@
 import numpy as np
 import shutil
 import os
+import subprocess
 
-from pyapprox.interface.wrappers import (
-    evaluate_1darray_function_on_2d_array, run_shell_command
-)
+from pyapprox.interface.model import SingleSampleModel
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
-class FileIOModel(object):
+class FileIOModel(SingleSampleModel):
     """
     Evaluate a model by writing parameters to file,
     running a shell script and reading the results from the file
     created by the shell script.
     """
 
-    def __init__(self, shell_command, params_filename='params.in',
-                 results_filename='results.out', process_sample_override=None,
-                 load_results_override=None):
+    def __init__(
+        self,
+        nqoi: int,
+        nvars: int,
+        shell_command: str,
+        params_filename: str = "params.in",
+        results_filename: str = "results.out",
+        process_sample_override: callable = None,
+        load_results_override: callable = None,
+        verbosity: int = 0,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
         """
         Parameters
         ----------
@@ -35,59 +45,83 @@ class FileIOModel(object):
             of the params_filename will be made in the current
             directory called results_filename.function_eval_id
         """
-        self.params_filename = params_filename
-        self.results_filename = results_filename
-        self.shell_command = shell_command
+        super().__init__(backend)
+        self._nqoi = nqoi
+        self._nvars = nvars
+        self._params_filename = params_filename
+        self._results_filename = results_filename
+        self._shell_command = shell_command
+        self._verbosity = verbosity
 
         if process_sample_override is not None:
             assert callable(process_sample_override)
-            self.process_sample = process_sample_override
+            self._process_sample = process_sample_override
         else:
-            self.process_sample = None
+            self._process_sample = None
         if load_results_override is not None:
             assert callable(load_results_override)
-            self.load_results = load_results_override
+            self._load_results = load_results_override
         else:
-            self.load_results = None
+            self._load_results = None
 
-        self.set_function_evaluation_id(0)
+        self._set_function_evaluation_id(0)
 
-    def set_function_evaluation_id(self, eval_id):
+    def nqoi(self) -> int:
+        return self._nqoi
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def set_function_evaluation_id(self, eval_id: int):
         assert type(eval_id) == int
-        self.function_eval_id = eval_id
+        self._function_eval_id = eval_id
 
-    def run(self, sample):
-        np.savetxt(self.params_filename, sample)
-        if self.process_sample is not None:
-            self.process_sample(sample)
-
-        model_output_verbosity = 0
-        run_shell_command(
-            self.shell_command, {'verbosity': model_output_verbosity})
-        if self.load_results is not None:
-            vals = self.load_results()
+    def _run_shell_command(self):
+        if self._verbosity == 0:
+            subprocess.check_output(self._shell_command, shell=True, env=env)
+        elif self._verbosity == 1:
+            filename = "shell_command.out"
+            with open(filename, "w") as f:
+                subprocess.call(
+                    self._shell_command,
+                    shell=True,
+                    stdout=f,
+                    stderr=f,
+                    env=None,
+                )
         else:
-            vals = np.loadtxt(self.results_filename, usecols=[0])
+            subprocess.call(self._shell_command, shell=True, env=None)
+
+    def _evaluate(self, sample: Array):
+        np.savetxt(self._params_filename, sample)
+        if self._process_sample is not None:
+            self._process_sample(sample)
+        self._run_shell_command()
+        if self._load_results is not None:
+            vals = self._load_results()
+        else:
+            vals = np.loadtxt(self._results_filename, usecols=[0])
         assert vals.ndim == 1
 
         # store a copy of the parameters and return values with
         # a unique filename
         shutil.copy(
-            self.params_filename,
-            self.params_filename+'.%d' % self.function_eval_id)
-        if os.path.exists(self.results_filename):
-            shutil.copy(self.results_filename,
-                        self.results_filename+'.%d' % self.function_eval_id)
+            self._params_filename,
+            self._params_filename + ".%d" % self._function_eval_id,
+        )
+        if os.path.exists(self._results_filename):
+            shutil.copy(
+                self._results_filename,
+                self._results_filename + ".%d" % self._function_eval_id,
+            )
         else:
             # load_results must have been set but the function provided
             # did not create a file with vals inside. So create for sake
             # of consistency here
-            np.savetxt(self.results_filename+'.%d' %
-                       self.function_eval_id, vals)
+            np.savetxt(
+                self._results_filename + ".%d" % self._function_eval_id, vals
+            )
         return vals
 
     def get(self, key, assert_exists=True):
-        return self.model.get(key, assert_exists)
-
-    def __call__(self, samples):
-        return evaluate_1darray_function_on_2d_array(self.run, samples)
+        return self._model.get(key, assert_exists)
