@@ -9,13 +9,12 @@ from pyapprox.interface.model import (
     UmbridgeModelWrapper,
     UmbridgeIOModelWrapper,
     UmbridgeIOModelEnsembleWrapper,
-    IOModel,
+    SerialIOModel,
+    AsyncIOModel,
     ActiveSetVariableModel,
     ChangeModelSignWrapper,
     PoolModelWrapper,
 )
-from pyapprox.interface.async_model import AsyncModel
-from pyapprox.interface.file_io_model import FileIOModel
 
 __all__ = [
     "ModelFromVectorizedCallable",
@@ -24,10 +23,9 @@ __all__ = [
     "UmbridgeModelWrapper",
     "UmbridgeIOModelWrapper",
     "UmbridgeIOModelEnsembleWrapper",
-    "IOModel",
+    "SerialIOModel",
+    "AsyncIOModel",
     "ActiveSetVariableModel",
     "ChangeModelSignWrapper",
     "PoolModelWrapper",
-    "AsyncModel",
-    "FileIOModel",
 ]

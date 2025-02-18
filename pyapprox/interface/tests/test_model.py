@@ -15,7 +15,8 @@ from pyapprox.interface.model import (
     IOModel,
     UmbridgeIOModelWrapper,
     PoolModelWrapper,
-    ShellCommandIOModel,
+    SerialIOModel,
+    AsyncIOModel,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -533,7 +534,7 @@ if __name__ == "__main__":
         )
         return shell_command, target_model
 
-    def test_shell_command_io_model(self):
+    def test_serial_io_model(self):
         bkd = self.get_backend()
         nvars = 2
         intmpdir = tempfile.TemporaryDirectory()
@@ -544,7 +545,7 @@ if __name__ == "__main__":
         outdir_basename = outtmpdir.name
 
         shell_command, target_model = self._get_shell_command_for_io_model()
-        model = ShellCommandIOModel(
+        model = SerialIOModel(
             2,
             nvars,
             infilenames,
@@ -562,6 +563,93 @@ if __name__ == "__main__":
         assert model.work_tracker().nevaluations("val") == 3
         assert np.allclose(values, test_values)
         outtmpdir.cleanup()
+        intmpdir.cleanup()
+
+    def test_asynchronous_io_model(self):
+        bkd = self.get_backend()
+        nvars = 2
+        intmpdir = tempfile.TemporaryDirectory()
+        infilenames = [os.path.join(intmpdir.name, "vec.npz")]
+        vec = bkd.asarray(np.random.uniform(0.0, 1.0, (1, nvars)))
+        np.savez(infilenames[0], vec=vec)
+        outtmpdir = tempfile.TemporaryDirectory()
+        outdir_basename = outtmpdir.name
+        datafilename = "data.npz"
+        shell_command, target_model = self._get_shell_command_for_io_model()
+
+        # test with save="full"
+        model = AsyncIOModel(
+            2,
+            nvars,
+            infilenames,
+            shell_command,
+            outdir_basename=outdir_basename,
+            verbosity=0,
+            save="full",
+            datafilename=datafilename,
+            nprocs=2,
+            backend=bkd,
+        )
+
+        nsamples = 3
+        samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
+        test_values = target_model(samples)
+        values = model(samples)
+        assert model.work_tracker().nevaluations("val") == 3
+        assert np.allclose(values, test_values)
+
+        for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
+            filenames = glob.glob(os.path.join(outdirname, "*"))
+            filenames = [os.path.basename(fname) for fname in filenames]
+            filenames.sort()
+            print(filenames, os.path.join(outdir_basename, "*"))
+            assert len(filenames) == 4  # this will be 5 if verbosity > 0
+            assert os.path.basename(filenames[0]) == datafilename
+            assert os.path.basename(filenames[1]) == "params.in"
+            assert os.path.basename(filenames[2]) == "results.out"
+            assert os.path.basename(filenames[3]) == "vec.npz"
+
+        outtmpdir.cleanup()
+
+        # test with save="limited"
+        outtmpdir = tempfile.TemporaryDirectory()
+        outdir_basename = outtmpdir.name
+        model = AsyncIOModel(
+            2,
+            nvars,
+            infilenames,
+            shell_command,
+            outdir_basename=outdir_basename,
+            verbosity=1,
+            save="limited",
+            datafilename=datafilename,
+            nprocs=2,
+            backend=bkd,
+        )
+
+        nsamples = 3
+        samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
+        test_values = target_model(samples)
+        values = model(samples)
+        assert model.work_tracker().nevaluations("val") == 3
+        assert np.allclose(values, test_values)
+
+        # evalaute another batch of samples to make sure counter is
+        # still updated correctly
+        nsamples = 3
+        samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
+        test_values = target_model(samples)
+        values = model(samples)
+        assert model.work_tracker().nevaluations("val") == 6
+        assert np.allclose(values, test_values)
+
+        assert np.allclose(values, test_values)
+        for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
+            filenames = glob.glob(os.path.join(outdirname, "*"))
+            assert len(filenames) == 1
+            assert os.path.basename(filenames[0]) == datafilename
+        outtmpdir.cleanup()
+
         intmpdir.cleanup()
 
 
