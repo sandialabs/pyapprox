@@ -25,7 +25,7 @@ np.random.seed(1)
 benchmark = OakleyBenchmark()
 mean = benchmark.variable().get_statistics("mean")
 stdev = benchmark.variable().get_statistics("std")
-cov = np.diag(stdev[:, 0])
+cov = np.diag(stdev[:, 0] ** 2)
 gaussian_sweeper = analysis.GaussianParameterSweeper(
     mean,
     lambda x: np.linalg.cholesky(cov) @ x,
