@@ -7,7 +7,8 @@ from pyapprox.util.linearalgebra.numpylinalg import (
 )
 from pyapprox.surrogates.bases.multiindex import compute_hyperbolic_indices
 from pyapprox.surrogates.bases.univariate import (
-    UnivariateInterpolatingBasis, UnivariateQuadratureRule
+    UnivariateInterpolatingBasis,
+    UnivariateQuadratureRule,
 )
 from pyapprox.surrogates.bases.orthopoly import (
     OrthonormalPolynomial1D,
@@ -138,7 +139,7 @@ class MultiIndexBasis(Basis):
                 )
             )
         self._indices = self._bkd.array(indices, dtype=int)
-        self._set_nterms(self._bkd.max(self._indices, axis=1)+1)
+        self._set_nterms(self._bkd.max(self._indices, axis=1) + 1)
 
     def get_indices(self):
         """Return the indices defining the basis terms."""
@@ -156,19 +157,21 @@ class MultiIndexBasis(Basis):
 
     def _basis_vals_1d(self, samples):
         return [
-            poly(samples[dd:dd+1, :]) for dd, poly in enumerate(self._bases_1d)
+            poly(samples[dd : dd + 1, :])
+            for dd, poly in enumerate(self._bases_1d)
         ]
 
     def _basis_derivs_1d(self, samples, order):
         return [
-            poly.derivatives(samples[dd:dd+1, :], order)
+            poly.derivatives(samples[dd : dd + 1, :], order)
             for dd, poly in enumerate(self._bases_1d)
         ]
 
     def __call__(self, samples):
         if samples.shape[0] != self.nvars():
-            raise ValueError("samples must have nrows={0}".format(
-                self.nvars()))
+            raise ValueError(
+                "samples must have nrows={0}".format(self.nvars())
+            )
         basis_vals_1d = self._basis_vals_1d(samples)
         basis_matrix = basis_vals_1d[0][:, self._indices[0, :]]
         for dd in range(1, self.nvars()):
@@ -211,11 +214,8 @@ class MultiIndexBasis(Basis):
                 hess[dd][kk] = hess_dk
                 hess[kk][dd] = hess_dk
         hess = self._bkd.stack(
-            [
-                self._bkd.stack(hess[dd], axis=-1)
-                for dd in range(self.nvars())
-            ],
-            axis=-1
+            [self._bkd.stack(hess[dd], axis=-1) for dd in range(self.nvars())],
+            axis=-1,
         )
         return hess
 
@@ -250,7 +250,7 @@ class OrthonormalPolynomialBasis(MultiIndexBasis):
         requested.
         """
         return self._bases_1d[poly_id].gauss_quadrature_rule(
-            self._bkd.max(self._indices[poly_id])+1
+            self._bkd.max(self._indices[poly_id]) + 1
         )
 
 
@@ -281,8 +281,8 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
     def nterms(self):
         return self._bkd.prod(
             self._bkd.array(
-                [basis.nterms() for basis in self._bases_1d],
-                dtype=int),
+                [basis.nterms() for basis in self._bases_1d], dtype=int
+            ),
         )
 
     def quadrature_rule(self):
@@ -296,67 +296,120 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         return samples, weights
 
     def _plot_single_basis(
-            self, ax, ii, jj, nterms_1d,
-            plot_limits, num_pts_1d, surface_cmap, contour_cmap):
+        self,
+        ax,
+        ii,
+        jj,
+        nterms_1d,
+        plot_limits,
+        num_pts_1d,
+        surface_cmap,
+        contour_cmap,
+    ):
         X, Y, pts = get_meshgrid_samples(
             plot_limits, num_pts_1d, bkd=self._bkd
         )
-        idx = jj*nterms_1d[0]+ii
+        idx = jj * nterms_1d[0] + ii
         basis_vals = self(pts)
         Z = self._bkd.reshape(basis_vals[:, idx], X.shape)
         if surface_cmap is not None:
-            plot_surface(X, Y, Z, ax, axis_labels=None, limit_state=None,
-                         alpha=0.3, cmap=surface_cmap, zorder=3,
-                         plot_axes=False)
+            plot_surface(
+                X,
+                Y,
+                Z,
+                ax,
+                axis_labels=None,
+                limit_state=None,
+                alpha=0.3,
+                cmap=surface_cmap,
+                zorder=3,
+                plot_axes=False,
+            )
         if contour_cmap is not None:
             num_contour_levels = 30
-            offset = -(Z.max()-Z.min())/2
+            offset = -(Z.max() - Z.min()) / 2
             ax.contourf(
-                X, Y, Z, zdir='z', offset=offset,
+                X,
+                Y,
+                Z,
+                zdir="z",
+                offset=offset,
                 levels=self._bkd.linspace(
                     Z.min(), Z.max(), num_contour_levels
                 ),
-                cmap=contour_cmap, zorder=-1)
+                cmap=contour_cmap,
+                zorder=-1,
+            )
         return offset, idx, nterms_1d, X, Y
 
     def _plot_nodes(self, ax, offset, X, Y, idx, nterms_1d):
         nodes = self.tensor_product_grid()
         nodes_1d = [basis.quadrature_rule()[0] for basis in self._bases_1d]
-        ax.plot(nodes[0, :], nodes[1, :],
-                offset*self._bkd.ones(nodes.shape[1]), 'o',
-                zorder=100, color='b')
+        ax.plot(
+            nodes[0, :],
+            nodes[1, :],
+            offset * self._bkd.ones(nodes.shape[1]),
+            "o",
+            zorder=100,
+            color="b",
+        )
 
         x = self._bkd.linspace(-1, 1, 100)
-        y = nodes[1, idx]*self._bkd.ones((x.shape[0],))
+        y = nodes[1, idx] * self._bkd.ones((x.shape[0],))
         z = self(self._bkd.vstack((x[None, :], y[None, :])))[:, idx]
-        ax.plot(x, Y.max()*self._bkd.ones((x.shape[0],)), z, '-r')
-        ax.plot(nodes_1d[0][0], Y.max()*self._bkd.ones(
-            (nterms_1d[0],)), self._bkd.zeros(nterms_1d[0],), 'or')
+        ax.plot(x, Y.max() * self._bkd.ones((x.shape[0],)), z, "-r")
+        ax.plot(
+            nodes_1d[0][0],
+            Y.max() * self._bkd.ones((nterms_1d[0],)),
+            self._bkd.zeros(
+                nterms_1d[0],
+            ),
+            "or",
+        )
 
         y = self._bkd.linspace(-1, 1, 100)
-        x = nodes[0, idx]*self._bkd.ones((y.shape[0],))
+        x = nodes[0, idx] * self._bkd.ones((y.shape[0],))
         z = self(self._bkd.vstack((x[None, :], y[None, :])))[:, idx]
-        ax.plot(X.min()*self._bkd.ones((x.shape[0],)), y, z, '-r')
-        ax.plot(X.min()*self._bkd.ones(
-            (nterms_1d[1],)), nodes_1d[1][0],
-                self._bkd.zeros(nterms_1d[1],), 'or')
+        ax.plot(X.min() * self._bkd.ones((x.shape[0],)), y, z, "-r")
+        ax.plot(
+            X.min() * self._bkd.ones((nterms_1d[1],)),
+            nodes_1d[1][0],
+            self._bkd.zeros(
+                nterms_1d[1],
+            ),
+            "or",
+        )
 
     def plot_single_basis(
-            self, ax, ii, jj,
-            plot_limits=[-1, 1, -1, 1],
-            num_pts_1d=101, surface_cmap="coolwarm",
-            contour_cmap="gray",
-            plot_nodes=False):
+        self,
+        ax,
+        ii,
+        jj,
+        plot_limits=[-1, 1, -1, 1],
+        num_pts_1d=101,
+        surface_cmap="coolwarm",
+        contour_cmap="gray",
+        plot_nodes=False,
+    ):
         if self.nvars() != 2:
             raise ValueError("Can only be used when nvars == 2")
         # evaluate 1D basis functions once to get number of basis functions
-        sample = self._bkd.reshape(
-            self._bkd.asarray(plot_limits), (2, 2)
-        ).T[:, :1].T
+        sample = (
+            self._bkd.reshape(self._bkd.asarray(plot_limits), (2, 2))
+            .T[:, :1]
+            .T
+        )
         nterms_1d = [basis(sample).shape[1] for basis in self._bases_1d]
         offset, idx, nterms_1d, X, Y = self._plot_single_basis(
-            ax, ii, jj, nterms_1d,
-            plot_limits, num_pts_1d, surface_cmap, contour_cmap)
+            ax,
+            ii,
+            jj,
+            nterms_1d,
+            plot_limits,
+            num_pts_1d,
+            surface_cmap,
+            contour_cmap,
+        )
         if plot_nodes is None:
             return
         self._plot_nodes(ax, offset, X, Y, idx, nterms_1d)
@@ -365,7 +418,7 @@ class TensorProductInterpolatingBasis(MultiIndexBasis):
         if self.nvars() != 1:
             raise ValueError("Can only be used when nvars == 2")
         plot_xx = self._bkd.linspace(*plot_limits, 101)[None, :]
-        ax.plot(plot_xx[0], self.__call__(plot_xx), 'k--')
+        ax.plot(plot_xx[0], self.__call__(plot_xx), "k--")
 
     def _semideep_copy(self):
         # this function can be dangerous so should be used with caution
@@ -416,7 +469,7 @@ class TensorProductQuadratureRule(QuadratureRule):
     def __init__(self, nvars, univariate_quad_rules, store=False):
         super().__init__(univariate_quad_rules[0]._bkd)
         if isinstance(univariate_quad_rules, UnivariateQuadratureRule):
-            univariate_quad_rules = [univariate_quad_rules]*nvars
+            univariate_quad_rules = [univariate_quad_rules] * nvars
         if len(univariate_quad_rules) != nvars:
             raise ValueError(
                 "must specify a single quadrature rule or"
@@ -462,10 +515,10 @@ class TensorProductQuadratureRule(QuadratureRule):
 
 class FixedTensorProductQuadratureRule(TensorProductQuadratureRule):
     def __init__(
-            self,
-            nvars: int,
-            univariate_quad_rules: List[UnivariateQuadratureRule],
-            nnodes_1d: List[int],
+        self,
+        nvars: int,
+        univariate_quad_rules: List[UnivariateQuadratureRule],
+        nnodes_1d: List[int],
     ):
         super().__init__(nvars, univariate_quad_rules, store=True)
         self._nnodes_1d = self._bkd.asarray(nnodes_1d)
@@ -476,18 +529,18 @@ class FixedTensorProductQuadratureRule(TensorProductQuadratureRule):
 
 
 class FixedGaussianTensorProductQuadratureRuleFromVariable(
-        FixedTensorProductQuadratureRule
+    FixedTensorProductQuadratureRule
 ):
     def __init__(
-            self,
-            variable: IndependentMarginalsVariable,
-            nnodes_1d: List[int],
+        self,
+        variable: IndependentMarginalsVariable,
+        nnodes_1d: List[int],
     ):
         marginal_quad_rules = [
             GaussQuadratureRule(marginal, backend=variable._bkd)
             for marginal in variable.marginals()
         ]
-        super().__init__(variable.num_vars(), marginal_quad_rules, nnodes_1d)
+        super().__init__(variable.nvars(), marginal_quad_rules, nnodes_1d)
 
 
 class TrigonometricBasis(MultiIndexBasis):

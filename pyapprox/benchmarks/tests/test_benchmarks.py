@@ -19,9 +19,6 @@ from pyapprox.benchmarks import (
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-
-# TODO relplace integrate with new version once implemented
-from pyapprox.surrogates.integrate import integrate
 from pyapprox.pde.collocation.newton import NewtonSolver
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
@@ -29,6 +26,7 @@ from pyapprox.pde.collocation.timeintegration import (
     CrankNicholsonResidual,
     HeunResidual,
 )
+from pyapprox.expdesign.sequences import SobolSequence
 
 
 class TestBenchmarks:
@@ -151,18 +149,17 @@ class TestBenchmarks:
         )
         integral = benchmark.integral()
 
-        samples, weights = integrate(
-            "quasimontecarlo", benchmark.variable(), rule="sobol", nsamples=1e4
-        )
-        samples = bkd.array(samples)
-        weights = bkd.array(weights)
+        nsamples = int(1e4)
+        seq = SobolSequence(nvars, 0, benchmark.variable(), bkd)
+        samples = seq.rvs(nsamples)
+        weights = bkd.full((nsamples, 1), 1.0 / nsamples)
         vals = benchmark.model()(samples)
         qmc_integral = vals.T @ weights
         # print(integral, qmc_integral)
         # print((qmc_integral-integral)/integral)
         assert np.allclose(qmc_integral, integral, rtol=7e-4)
 
-        if benchmark.model()._jacobian_implemented:
+        if benchmark.model().jacobian_implemented():
             sample = benchmark.variable().get_statistics("mean") * 0.25
             errors = benchmark.model().check_apply_jacobian(sample)
             assert errors.min() / errors.max() < 1e-6

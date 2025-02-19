@@ -5,7 +5,7 @@ from typing import Tuple
 
 from pyapprox.interface.model import Model
 from pyapprox.surrogates.loss import LossFunction
-from pyapprox.optimization.pya_minimize import MultiStartOptimizer
+from pyapprox.optimization.minimize import MultiStartOptimizer
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.transforms import Transform, IdentityTransform

@@ -18,7 +18,7 @@ from pyrol import (
 
 from pyrol.vectors import NumPyVector
 from pyapprox.interface.model import Model
-from pyapprox.optimization.pya_minimize import (
+from pyapprox.optimization.minimize import (
     ConstrainedOptimizer,
     OptimizationResult,
     Constraint,

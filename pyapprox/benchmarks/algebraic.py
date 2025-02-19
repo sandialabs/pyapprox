@@ -25,7 +25,7 @@ from pyapprox.benchmarks.base import (
     ConstrainedUncertainOptimizationBenchmark,
 )
 from pyapprox.util.utilities import evaluate_quadratic_form
-from pyapprox.optimization.pya_minimize import (
+from pyapprox.optimization.minimize import (
     SampleAverageConstraint,
     SampleAverageMeanPlusStdev,
     ConstraintFromModel,
@@ -49,8 +49,12 @@ class IshigamiModel(Model):
         self._a = a
         self._b = b
         super().__init__(backend)
-        self._jacobian_implemented = True
-        self._hessian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def hessian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return 1
@@ -62,7 +66,7 @@ class IshigamiModel(Model):
             + self._b * samples[2, :] ** 4 * self._bkd.sin(samples[0, :])
         )[:, None]
 
-    def nvars(self):
+    def nvars(self) -> int:
         return 3
 
     def _jacobian(self, sample: Array) -> Array:
@@ -742,6 +746,9 @@ class SobolGModel(Model):
     def nqoi(self) -> int:
         return 1
 
+    def nvars(self) -> int:
+        return self._nvars
+
     def _values(self, samples: Array) -> Array:
         """
         The coefficients control the sensitivity of each variable. Specifically
@@ -844,11 +851,19 @@ class RosenbrockModel(Model):
 
     def __init__(self, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
-        self._jacobian_implemented = True
-        self._apply_hessian_implemented = True
+        self._nvars = nvars
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return 1
+
+    def nvars(self) -> int:
+        return self._nvars
 
     def _values(self, samples: Array) -> Array:
         # note torch back prop wont work this function because rosen is a
@@ -933,8 +948,12 @@ class RosenbrockConstraint(Constraint):
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         bounds = backend.array([[0.0, np.inf], [0.0, np.inf]])
         super().__init__(bounds, True, backend)
-        self._jacobian_implemented = True
-        self._hessian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def hessian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return 2
@@ -1005,9 +1024,6 @@ class CantileverBeamModel(SingleSampleModel):
         import sympy as sp
 
         super().__init__(backend)
-        self._jacobian_implemented = True
-        self._hessian_implemented = True
-        self._apply_jacobian_implemented = True
         symbs = sp.symbols(["X", "Y", "E", "R", "w", "t"])
         X, Y, E, R, w, t = symbs
         L, D0 = 100, 2.2535
@@ -1026,8 +1042,20 @@ class CantileverBeamModel(SingleSampleModel):
         self._lam_jac = sp.lambdify(symbs, sp_grad, "numpy")
         self._lam_hess = sp.lambdify(symbs, sp_hess, "numpy")
 
-    def nqoi(self):
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_jacobian_implemented(self) -> bool:
+        return True
+
+    def hessian_implemented(self) -> bool:
+        return True
+
+    def nqoi(self) -> int:
         return 2
+
+    def nvars(self) -> int:
+        return 6
 
     def _evaluate_sp_lambda(self, sp_lambda, sample):
         assert sample.ndim == 2 and sample.shape[1] == 1
@@ -1084,7 +1112,7 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
     def _set_objective(self):
         self._objective = ActiveSetVariableModel(
             CantileverBeamObjectiveModel(self._bkd),
-            self.variable().num_vars() + self.design_variable().nvars(),
+            self.variable().nvars() + self.design_variable().nvars(),
             self._nominal_values,
             self._design_var_indices,
         )
@@ -1092,7 +1120,7 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
     def _set_constraints(self):
         constraint_model = ActiveSetVariableModel(
             CantileverBeamConstraintsModel(self._bkd),
-            self.variable().num_vars() + self.design_variable().nvars(),
+            self.variable().nvars() + self.design_variable().nvars(),
             self._nominal_values,
             self._design_var_indices,
         )
@@ -1147,7 +1175,7 @@ class CantileverBeamUncertainOptimizationBenchmark(
 
         quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
             self.variable(),
-            [5 for ii in range(self.variable().num_vars())],
+            [5 for ii in range(self.variable().nvars())],
         )
         samples, weights = quad_rule()
         constraint_model = ChangeModelSignWrapper(
@@ -1161,7 +1189,7 @@ class CantileverBeamUncertainOptimizationBenchmark(
                 weights,
                 stat,
                 self.constraint_bounds(),
-                self.variable().num_vars() + self.design_variable().nvars(),
+                self.variable().nvars() + self.design_variable().nvars(),
                 self._design_var_indices,
             )
         ]
@@ -1181,10 +1209,15 @@ class PistonModel(Model):
 
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return 1
+
+    def nvars(self) -> int:
+        return 7
 
     def _values(self, samples: Array) -> Array:
         M, S, V_0, k, P_0, T_a, T_0 = samples
@@ -1318,10 +1351,15 @@ class WingWeightModel(Model):
 
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return 1
+
+    def nvars(self) -> int:
+        return 10
 
     def _values(self, samples: Array) -> Array:
         S_w, W_fw, A, Lamda, q, lamda, tc, N_z, W_dg, W_p = samples
@@ -1395,8 +1433,12 @@ class EvtushenkoObjective(Model):
 
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend)
-        self._jacobian_implemented = True
-        self._apply_hessian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return 1
@@ -1444,12 +1486,21 @@ class EvtushenkoNonLinearConstraint(Constraint):
 
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(backend.array([[0.0, np.inf]]), True, backend)
-        self._jacobian_implemented = True
-        self._apply_weighted_hessian_implemented = True
-        self._weighted_hessian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_weighted_hessian_implemented(self) -> bool:
+        return True
+
+    def weighted_hessian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return 1
+
+    def nvars(self) -> int:
+        return 3
 
     def _values(self, samples: Array) -> Array:
         return (6 * samples[1] + 4 * samples[2] - samples[0] ** 3 - 3)[:, None]
@@ -1509,10 +1560,15 @@ class MichaelisMentenModel(SingleSampleModel):
         if mesh.ndim != 2 or mesh.shape[0] != 1:
             raise ValueError("mesh must be 2D array with one row")
         self._mesh = mesh
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return self._mesh.shape[1]
+
+    def nvars(self) -> int:
+        return 2
 
     def _evaluate(self, sample: Array) -> Array:
         theta_1, theta_2 = sample

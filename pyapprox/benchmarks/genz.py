@@ -33,7 +33,9 @@ class GenzModel(Model):
 
     def set_name(self, name: str):
         self._name = name
-        self._jacobian_implemented = self._name not in [
+
+    def jacobian_implemented(self) -> bool:
+        return self._name not in [
             "c0continuous",
             "discontinuous",
         ]

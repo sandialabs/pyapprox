@@ -44,7 +44,7 @@ class LowDiscrepancySequence(ABC):
         raise NotImplementedError
 
     def rvs(self, nsamples: int) -> Array:
-        can_samples = self._canonical_samples(nsamples)
+        can_samples = self._canonical_samples(int(nsamples))
         if self._variable is None:
             return can_samples
         return self._variable.evaluate("ppf", can_samples)

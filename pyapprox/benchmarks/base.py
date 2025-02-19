@@ -11,7 +11,7 @@ from pyapprox.surrogates.bases.basis import (
     FixedGaussianTensorProductQuadratureRuleFromVariable,
 )
 from scipy.optimize import LinearConstraint
-from pyapprox.optimization.pya_minimize import Constraint
+from pyapprox.optimization.minimize import Constraint
 
 
 class SingleModelBenchmark(ABC):

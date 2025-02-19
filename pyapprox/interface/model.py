@@ -8,7 +8,7 @@ import tempfile
 from abc import ABC, abstractmethod
 import multiprocessing
 from multiprocessing.pool import ThreadPool, Pool
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 import umbridge
@@ -77,6 +77,75 @@ class ModelWorkTracker:
         )
 
 
+class ModelDataBase:
+    # TODO Add option to save results to file at certain frequency
+    # TODO support different file systems, e.g. pickle, HDF5 etc.
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        self._bkd = backend
+        self._samples_dict = {}
+        self._values_dict = {
+            "val": {},
+            "jac": {},
+            "jvp": {},
+            "hess": {},
+            "hvp": {},
+            "whess": {},
+            "whvp": {},
+        }
+        self._samples = []
+        self._active = False
+
+    def activate(self):
+        """
+        Using a database has a overhead which can slow down computationally
+        fast model evaluations.
+        Use this function to activate the use of a database
+        """
+        self._active = True
+
+    def isactive(self) -> bool:
+        return self._active
+
+    def _hash_sample(self, sample: Array) -> int:
+        return hash(sample.tobytes())
+
+    def _add_sample(self, eval_name: str, key, sample):
+        if key not in self._samples_dict:
+            self._samples_dict[key] = len(self._samples)
+            self._samples.append(sample)
+
+    def _add_values(self, eval_name: str, key: int, values: Array):
+        # append values to a list
+        self._values_dict[eval_name][key] = self._bkd.copy(values)
+
+    def add_data(self, eval_name: str, samples: Array, values: Array):
+        for ii in range(samples.shape[1]):
+            key = self._hash_sample(samples[:, ii])
+            self._add_sample(eval_name, key, samples[:, ii])
+            if eval_name == "val":
+                self._add_values(eval_name, key, values[ii, :])
+            else:
+                if samples.shape[1] != 1:
+                    raise ValueError("Only supports adding one sample at time")
+                self._add_values(eval_name, key, values)
+
+    def get_data(self, eval_name: str, samples: Array) -> Tuple[List, List]:
+        if not self.isactive():
+            return None, [], self._bkd.arange(samples.shape[1])
+        new_sample_idx = []
+        stored_sample_idx = []
+        stored_values = []
+        for ii in range(samples.shape[1]):
+            key = self._hash_sample(samples[:, ii])
+            values = self._values_dict[eval_name].get(key, None)
+            if values is None:
+                new_sample_idx.append(ii)
+            else:
+                stored_values.append(values)
+                stored_sample_idx.append(ii)
+        return stored_values, stored_sample_idx, new_sample_idx
+
+
 class Model(ABC):
     """
     Evaluate a model at a single sample.
@@ -87,51 +156,75 @@ class Model(ABC):
     Optional functions:
     _jacobian, _apply_jacobian, _hessian _apply_hessian
 
-    If optional functions are implemented set the corresponding flag
+    If optional functions are implemented set the corresponding functions to return True
     to True:
-    _jacobian_implemented,
-    _apply_jacobian_implemented,
-    _apply_hessian_implemented,
-    _apply_weighted_hessian_implemented
+    jacobian_implemented,
+    apply_jacobian_implemented,
+    apply_hessian_implemented,
+    apply_weighted_hessian_implemented
     """
 
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         if not hasattr(backend, "isbackend"):
             raise ValueError("backend must be derived from LinAlgBase")
         self._bkd = backend
-
-        # TODO: Make variables below functions that can be overwritten
-        self._apply_jacobian_implemented = False
-        self._jacobian_implemented = False
-        self._apply_hessian_implemented = False
-        self._hessian_implemented = False
-        self._weighted_hessian_implemented = False
-        self._apply_weighted_hessian_implemented = False
-
         self._work_tracker = ModelWorkTracker(self._bkd)
+        self._database = ModelDataBase(self._bkd)
+
+    def activate_model_data_base(self):
+        """
+        Using a database has a overhead which can slow down computationally
+        fast model evaluations. Also using a database will corrupt auto
+        differentiation results if used.
+        Use this function to activate the use of a database.
+        """
+        self._database.activate()
+        for key, item in self._work_tracker._wall_times.items():
+            if len(item) > 0:
+                raise RuntimeError(
+                    "Activating model data base but some samples have"
+                    "already been requested"
+                )
+
+    def set_model_history(
+        self, database: ModelDataBase, work_tracker: ModelWorkTracker
+    ):
+        "Load in a database and worktracker from a previous study"
+        for key in work_tracker._wt_dict:
+            if not work_tracker.nevaluations(key) != len(
+                database._values_dict[key]
+            ):
+                raise RuntimeError(
+                    "Database and worktracker must be consistent, but have "
+                    "different numbers of evaluations"
+                )
+        self._database = database
+        self._work_tracker = work_tracker
 
     def apply_jacobian_implemented(self) -> bool:
-        # todo remove member variables returned here and
-        # just require user to overide this function and those similar
-        return self._apply_jacobian_implemented
+        return False
 
     def jacobian_implemented(self) -> bool:
-        return self._jacobian_implemented
+        return False
 
     def apply_hessian_implemented(self) -> bool:
-        return self._apply_hessian_implemented
+        return False
 
     def hessian_implemented(self) -> bool:
-        return self._hessian_implemented
+        return False
 
     def apply_weighted_hessian_implemented(self) -> bool:
-        return self._apply_weighted_hessian_implemented
+        return False
 
     def weighted_hessian_implemented(self) -> bool:
-        return self._weighted_hessian_implemented
+        return False
 
     @abstractmethod
     def nqoi(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def nvars(self) -> int:
         raise NotImplementedError
 
     @abstractmethod
@@ -146,20 +239,7 @@ class Model(ABC):
                 )
             )
 
-    def __call__(self, samples: Array) -> Array:
-        """
-        Evaluate the model at a set of samples.
-
-        Parameters
-        ----------
-        samples : np.ndarray (nvars, nsamples)
-            The model inputs used to evaluate the model
-
-        Returns
-        -------
-        values : np.ndarray (nsamples, nqoi)
-            The model outputs returned by the model at each sample
-        """
+    def _new_values(self, samples: Array) -> Array:
         t0 = time.time()
         vals = self._values(samples)
         t1 = time.time()
@@ -168,17 +248,38 @@ class Model(ABC):
         times = self._bkd.full((nsamples,), (t1 - t0) / nsamples)
         self._work_tracker.update("val", times)
         self._check_values_shape(samples, vals)
+        self._database.add_data("val", samples, vals)
+
+    def __call__(self, samples: Array) -> Array:
+        """
+        Evaluate the model at a set of samples.
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            The model inputs used to evaluate the model
+
+        Returns
+        -------
+        values : Array (nsamples, nqoi)
+            The model outputs returned by the model at each sample
+        """
+        stored_values, stored_idx, new_idx = self._database.get_data(
+            "val", samples
+        )
+        vals = self._bkd.empty((samples.shape[1], self.nqoi()))
+        if len(new_idx) > 0:
+            new_samples = samples[:, new_idx]
+            vals[new_idx] = self._new_values(new_samples)
+        if len(stored_idx) > 0:
+            vals[stored_idx] = self._bkd.vstack(stored_values)
         return vals
 
     def _check_sample_shape(self, sample: Array):
-        if sample.ndim != 2:
+        if sample.shape != (self.nvars(), 1):
             raise ValueError(
-                "sample is not a 2D array, has shape {0}".format(sample.shape)
-            )
-        if sample.shape[1] != 1:
-            raise ValueError(
-                "sample is not a 2D array with 1 column, has shape {0}".format(
-                    sample.shape
+                "sample must have shape {0} but had shape {1}".format(
+                    (self.nvars(), 1), sample.shape
                 )
             )
 
@@ -222,23 +323,28 @@ class Model(ABC):
 
         Parameters
         ----------
-        sample : np.ndarray (nvars, 1)
+        sample : Array (nvars, 1)
             The sample at which to compute the Jacobian
 
         Returns
         -------
-        jac : np.ndarray (nqoi, nvars)
+        jac : Array (nqoi, nvars)
             The Jacobian matrix
         """
         if not self.jacobian_implemented():
             raise NotImplementedError("_jacobian not implemented")
         self._check_sample_shape(sample)
+        jac, stored_idx, new_idx = self._database.get_data("jac", sample)
+        if len(stored_idx) == 1:
+            self._check_jacobian_shape(jac[0], sample)
+            return jac[0]
         t0 = time.time()
         jac = self._jacobian(sample)
         t1 = time.time()
         times = self._bkd.array([t1 - t0])
         self._work_tracker.update("jac", times)
         self._check_jacobian_shape(jac, sample)
+        self._database.add_data("jac", sample, jac)
         return jac
 
     def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
@@ -250,7 +356,7 @@ class Model(ABC):
 
         Parameters
         ----------
-        sample : np.ndarray (nvars, 1)
+        sample : Array (nvars, 1)
             The sample at which to compute the Jacobian
 
         vec : np.narray (nvars, 1)
@@ -258,7 +364,7 @@ class Model(ABC):
 
         Returns
         -------
-        result : np.ndarray (nqoi, 1)
+        result : Array (nqoi, 1)
             The dot product of the Jacobian with the vector
         """
         if (
@@ -271,16 +377,23 @@ class Model(ABC):
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
         if self.apply_jacobian_implemented():
+            jvp, stored_idx, new_idx = self._database.get_data("jvp", sample)
+            if len(stored_idx) == 1:
+                return jvp[0]
             t0 = time.time()
             jvp = self._apply_jacobian(sample, vec)
             t1 = time.time()
             times = self._bkd.array([t1 - t0])
             self._work_tracker.update("jvp", times)
+            self._database.add_data("jvp", sample, jvp)
             return jvp
         return self.jacobian(sample) @ vec
 
     def work_tracker(self) -> ModelWorkTracker:
         return self._work_tracker
+
+    def model_database(self) -> ModelDataBase:
+        return self._database
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         raise NotImplementedError
@@ -315,11 +428,15 @@ class Model(ABC):
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
         if self.apply_hessian_implemented():
+            hvp, stored_idx, new_idx = self._database.get_data("hvp", sample)
+            if len(stored_idx) == 1:
+                return hvp[0]
             t0 = time.time()
             hvp = self._apply_hessian(sample, vec)
             t1 = time.time()
             times = self._bkd.array([t1 - t0])
             self._work_tracker.update("hvp", times)
+            self._database.add_data("hvp", sample, hvp)
             return hvp
         return self.hessian(sample)[0] @ vec
 
@@ -341,12 +458,12 @@ class Model(ABC):
 
         Parameters
         ----------
-        sample : np.ndarray (nvars, 1)
+        sample : Array (nvars, 1)
             The sample at which to compute the Jacobian
 
         Returns
         -------
-        hess : np.ndarray (nqoi, nvars, nvars)
+        hess : Array (nqoi, nvars, nvars)
             The Jacobian matrix
         """
         if not self.hessian_implemented():
@@ -355,11 +472,17 @@ class Model(ABC):
             raise ValueError("apply_hessian cannot be used when nqoi > 1")
 
         self._check_sample_shape(sample)
+
+        hess, stored_idx, new_idx = self._database.get_data("hess", sample)
+        if len(stored_idx) == 1:
+            return hess[0]
+
         t0 = time.time()
         hess = self._hessian(sample)
         t1 = time.time()
         times = self._bkd.array([t1 - t0])
         self._work_tracker.update("hess", times)
+        self._database.add_data("hess", sample, hess)
         self._check_hessian_shape(hess, sample)
         return hess
 
@@ -375,7 +498,7 @@ class Model(ABC):
 
         Parameters
         ----------
-        sample : np.ndarray (nvars, 1)
+        sample : Array (nvars, 1)
             The sample at which to compute the Jacobian
 
         vec : np.narray (nvars, 1)
@@ -442,12 +565,16 @@ class Model(ABC):
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
         if self.apply_weighted_hessian_implemented():
+            whvp, stored_idx, new_idx = self._database.get_data("whvp", sample)
+            if len(stored_idx) == 1:
+                return whvp[0]
             t0 = time.time()
-            hvp = self._apply_weighted_hessian(sample, vec, weights)
+            whvp = self._apply_weighted_hessian(sample, vec, weights)
             t1 = time.time()
             times = self._bkd.array([t1 - t0])
             self._work_tracker.update("whvp", times)
-            return hvp
+            self._database.add_data("whvp", sample, whvp)
+            return whvp
         if self.weighted_hessian_implemented():
             return self.weighted_hessian(sample, weights) @ vec
         return weights.T @ (self.hessian(sample) @ vec[:, 0])
@@ -465,14 +592,20 @@ class Model(ABC):
             )
         self._check_sample_shape(sample)
         if self.weighted_hessian_implemented():
+            whess, stored_idx, new_idx = self._database.get_data(
+                "whess", sample
+            )
+            if len(stored_idx) == 1:
+                return whess[0]
             t0 = time.time()
             hess = self._weighted_hessian(sample, weights)
             t1 = time.time()
             times = self._bkd.array([t1 - t0])
             self._work_tracker.update("whess", times)
+            self._database.add_data("whess", sample, whess)
             return hess
         hess = self.hessian(sample)
-        return self._bkd.einsum("il,ijk->jkl", weights, hess)[..., 0]
+        return self._bkd.einsum("il,ijk->jkl", weights, hess)
 
     def _check_apply(
         self,
@@ -662,18 +795,18 @@ class SingleSampleModelMixin:
 
         Parameters
         ----------
-        sample: np.ndarray (nvars, 1)
+        sample: Array (nvars, 1)
             The sample use to evaluate the model
 
         Returns
         -------
-        values : np.ndarray (1, nqoi)
+        values : Array (1, nqoi)
             The model outputs returned by the model when evaluated
             at the sample
         """
         raise NotImplementedError
 
-    def _values(self, samples):
+    def _new_values(self, samples: Array) -> Array:
         nvars, nsamples = samples.shape
         t0 = time.time()
         values_0 = self._evaluate(samples[:, :1])
@@ -685,8 +818,7 @@ class SingleSampleModelMixin:
                 values_0.shape
             )
             raise ValueError(msg)
-        nqoi = values_0.shape[1]
-        values = self._bkd.empty((nsamples, nqoi))
+        values = self._bkd.empty((nsamples, self.nqoi()))
         values[0, :] = values_0
         for ii in range(1, nsamples):
             t0 = time.time()
@@ -694,7 +826,21 @@ class SingleSampleModelMixin:
             t1 = time.time()
             times.append(t1 - t0)
         self._work_tracker.update("val", self._bkd.array(times))
+        self._database.add_data("val", samples, values)
         return values
+
+    def _values(self, samples: Array):
+        stored_vals, stored_idx, new_idx = self._database.get_data(
+            "val", samples
+        )
+        vals = self._bkd.empty((samples.shape[1], self.nqoi()))
+        if len(new_idx) > 0:
+            new_samples = samples[:, new_idx]
+            new_vals = self._new_values(new_samples)
+            vals[new_idx] = new_vals
+        if len(stored_idx) > 0:
+            vals[stored_idx] = self._bkd.vstack(stored_vals)
+        return vals
 
     def __call__(self, samples: Array) -> Array:
         # overwrite call from model so not to count model evaluation twice
@@ -707,6 +853,7 @@ class ModelFromCallable(Model):
     def __init__(
         self,
         nqoi: int,
+        nvars: int,
         function: callable,
         jacobian: callable = None,
         apply_jacobian: callable = None,
@@ -722,13 +869,22 @@ class ModelFromCallable(Model):
         Parameters
         ----------
         samples_ndim : integer
-            The dimension of the np.ndarray accepted by function in [1, 2]
+            The dimension of the Array accepted by function in [1, 2]
 
         values_ndim : integer
-            The dimension of the np.ndarray returned by function in [0, 1, 2]
+            The dimension of the Array returned by function in [0, 1, 2]
         """
-        super().__init__(backend=backend)
         self._nqoi = nqoi
+        self._nvars = nvars
+        super().__init__(backend=backend)
+
+        self._apply_jacobian_implemented = False
+        self._jacobian_implemented = False
+        self._apply_hessian_implemented = False
+        self._hessian_implemented = False
+        self._weighted_hessian_implemented = False
+        self._apply_weighted_hessian_implemented = False
+
         if not callable(function):
             raise ValueError("function must be callable")
         self._user_function = function
@@ -766,8 +922,29 @@ class ModelFromCallable(Model):
         self._sample_ndim = sample_ndim
         self._values_ndim = values_ndim
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return self._nqoi
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def apply_jacobian_implemented(self) -> bool:
+        return self._apply_jacobian_implemented
+
+    def jacobian_implemented(self) -> bool:
+        return self._jacobian_implemented
+
+    def apply_hessian_implemented(self) -> bool:
+        return self._apply_hessian_implemented
+
+    def hessian_implemented(self) -> bool:
+        return self._hessian_implemented
+
+    def apply_weighted_hessian_implemented(self) -> bool:
+        return self._apply_weighted_hessian_implemented
+
+    def weighted_hessian_implemented(self) -> bool:
+        return self._weighted_hessian_implemented
 
     def _jacobian(self, sample: Array) -> Array:
         return self._eval_fun(self._user_jacobian, sample)
@@ -796,6 +973,7 @@ class ModelFromVectorizedCallable(ModelFromCallable):
     def __init__(
         self,
         nqoi: int,
+        nvars: int,
         function: callable,
         jacobian: callable = None,
         apply_jacobian: callable = None,
@@ -808,6 +986,7 @@ class ModelFromVectorizedCallable(ModelFromCallable):
     ):
         super().__init__(
             nqoi,
+            nvars,
             function,
             jacobian,
             apply_jacobian,
@@ -856,9 +1035,9 @@ class SingleSampleModel(SingleSampleModelMixin, Model):
 class ScipyModelWrapper:
     def __init__(self, model):
         """
-        Create a API that takes a sample as a 1D np.ndarray and returns
+        Create a API that takes a sample as a 1D Array and returns
         the objects needed by scipy optimizers. E.g.
-        jac will return np.ndarray
+        jac will return Array
         even when model accepts and returns arrays associated with a
         different backend
         """
@@ -943,15 +1122,22 @@ class UmbridgeModelWrapper(Model):
         self._model = umb_model
         self._config = config
         self._nprocs = nprocs
-        self._jacobian_implemented = self._model.supports_gradient()
-        self._apply_jacobian_implemented = (
-            self._model.supports_apply_jacobian()
-        )
-        self._apply_hessian_implemented = self._model.supports_apply_hessian()
         self._nmodel_evaluations = 0
 
-    def nqoi(self):
-        return self._model.get_output_sizes()[0]
+    def nqoi(self) -> int:
+        return self._model.get_output_sizes(self._config)[0]
+
+    def nvars(self) -> int:
+        return self._model.get_input_sizes(self._config)[0]
+
+    def apply_jacobian_implemented(self) -> bool:
+        return self._model.supports_apply_jacobian()
+
+    def jacobian_implemented(self) -> bool:
+        return self._model.supports_gradient()
+
+    def apply_hessian_implemented(self) -> bool:
+        return self._model.supports_apply_hessian()
 
     def _check_sample(self, sample):
         if sample.ndim != 2:
@@ -1396,19 +1582,21 @@ class AsyncIOModel(SerialIOModel):
             del self._running_workdirs[sample_id]
         os.chdir(curdirname)
 
-    def _prepare_values(self) -> Array:
+    def _prepare_values(self, samples: Array) -> Array:
         # sort values so that they are returned in the order samples
         # was given to call. Asnchornous call will usually result
         # in samples being completed out of order.
         sorted_idx = self._bkd.argsort(
-            self._bkd.array(self._completed_sample_ids)
+            self._bkd.array(self._completed_sample_ids, dtype=int)
         )
         self._work_tracker.update(
             "val", self._bkd.asarray(self._completed_wall_times)[sorted_idx]
         )
-        return self._bkd.asarray(self._completed_vals)[sorted_idx]
+        vals = self._bkd.asarray(np.array(self._completed_vals))[sorted_idx]
+        self._database.add_data("val", samples, vals)
+        return vals
 
-    def __call__(self, samples: Array) -> Array:
+    def _values(self, samples: Array) -> Array:
         self._running_workdirs = dict()
         self._completed_vals = []
         self._completed_sample_ids = []
@@ -1426,7 +1614,19 @@ class AsyncIOModel(SerialIOModel):
                 break
         if len(self._completed_vals) != samples.shape[1]:
             raise RuntimeError("This should not happen")
-        return self._prepare_values()
+        return self._prepare_values(samples)
+
+    def __call__(self, samples: Array) -> Array:
+        stored_values, stored_idx, new_idx = self._database.get_data(
+            "val", samples
+        )
+        vals = self._bkd.empty((samples.shape[1], self.nqoi()))
+        if len(new_idx) > 0:
+            new_samples = self._bkd.array(samples)[:, new_idx]
+            vals[new_idx] = self._values(new_samples)
+        if len(stored_idx) > 0:
+            vals[stored_idx] = self._bkd.vstack(stored_values)
+        return vals
 
 
 class ActiveSetVariableModel(Model):
@@ -1461,26 +1661,33 @@ class ActiveSetVariableModel(Model):
             + self._inactive_var_values.shape[0]
             == nvars
         )
-        self._nvars = nvars
-        assert self._bkd.all(self._active_var_indices < self._nvars)
+        self._norignal_vars = nvars
+        assert self._bkd.all(self._active_var_indices < self._norignal_vars)
         self._inactive_var_indices = self._bkd.delete(
-            self._bkd.arange(self._nvars, dtype=int), active_var_indices
+            self._bkd.arange(self._norignal_vars, dtype=int),
+            active_var_indices,
         )
         if base_model is None:
             base_model = model
         self._base_model = base_model
 
-        self._jacobian_implemented = self._base_model.jacobian_implemented()
-        self._apply_jacobian_implemented = (
-            self._base_model.apply_jacobian_implemented()
-        )
-        self._apply_hessian_implemented = (
+    def apply_jacobian_implemented(self) -> bool:
+        return self._base_model.apply_jacobian_implemented()
+
+    def jacobian_implemented(self) -> bool:
+        return self._base_model.jacobian_implemented()
+
+    def apply_hessian_implemented(self) -> bool:
+        return (
             self._base_model.apply_hessian_implemented()
             or self._base_model.hessian_implemented()
         )
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return self._model.nqoi()
+
+    def nvars(self) -> int:
+        return self._active_var_indices.shape[0]
 
     @staticmethod
     def _expand_samples_from_indices(
@@ -1525,7 +1732,7 @@ class ActiveSetVariableModel(Model):
         samples = self._expand_samples(reduced_samples)
         # set inactive entries of vec to zero when peforming
         # matvec product so they do not contribute to sum
-        expanded_vec = self._bkd.zeros((self._nvars, 1))
+        expanded_vec = self._bkd.zeros((self._norignal_vars, 1))
         expanded_vec[self._active_var_indices] = vec
         return self._model.apply_jacobian(samples, expanded_vec)
 
@@ -1533,14 +1740,14 @@ class ActiveSetVariableModel(Model):
         samples = self._expand_samples(reduced_samples)
         # set inactive entries of vec to zero when peforming
         # matvec product  so they do not contribute to sum
-        expanded_vec = self._bkd.zeros((self._nvars, 1))
+        expanded_vec = self._bkd.zeros((self._norignal_vars, 1))
         expanded_vec[self._active_var_indices] = vec
         return self._model.apply_hessian(samples, expanded_vec)[
             self._active_var_indices
         ]
 
-    def nactive_vars(self):
-        return len(self._active_var_indices)
+    def noriginal_vars(self) -> int:
+        return self._norignal_vars
 
     def __repr__(self):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
@@ -1561,23 +1768,26 @@ class ChangeModelSignWrapper(Model):
         ]:
             setattr(self, attr, getattr(self._model, attr))
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return self._model.nqoi()
 
-    def _values(self, samples):
+    def nvars(self) -> int:
+        return self._model.nvars()
+
+    def _values(self, samples: Array) -> Array:
         vals = -self._model(samples)
         return vals
 
-    def _jacobian(self, sample):
+    def _jacobian(self, sample: Array) -> Array:
         return -self._model.jacobian(sample)
 
-    def _apply_jacobian(self, sample, vec):
+    def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
         return -self._model.apply_jacobian(sample, vec)
 
-    def _hessian(self, sample):
+    def _hessian(self, sample: Array) -> Array:
         return -self._model.hessian(sample)
 
-    def _apply_hessian(self, sample, vec):
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         return -self._model.hessian(sample, vec)
 
     def __repr__(self):
@@ -1617,6 +1827,9 @@ class PoolModelWrapper(Model):
     def nqoi(self) -> int:
         return self._model.nqoi()
 
+    def nvars(self) -> int:
+        return self._model.nvars()
+
     def _values(self, samples: Array) -> Array:
         pool = Pool(self._nprocs)
         # call _values (instead of __call__) so times are not recorded twice)
@@ -1635,3 +1848,6 @@ class PoolModelWrapper(Model):
         # do not call self._work_tracker as it will contain incorrect
         # information, must return self._model._work_tracker instead
         return self._work_tracker
+
+    def model_database(self) -> ModelDataBase:
+        return self._model.model_database()

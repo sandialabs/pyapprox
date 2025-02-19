@@ -77,12 +77,16 @@ class ParameterizedChemicalReactionResidual(
     def _param_jacobian(self, sol: Array) -> Array:
         a, b, c, d, e, f = self._param
         z = 1.0 - sol[0] - sol[1] - sol[2]
-        zero = sol[0] * 0.  # needed to be compatable with torch hstack
+        zero = sol[0] * 0.0  # needed to be compatable with torch hstack
         # if asarray is used instead, autograd graph will be wrong
         return self._bkd.stack(
             [
-                self._bkd.hstack([z, zero, -sol[0], -4 * sol[0] * sol[1], zero, zero]),
-                self._bkd.hstack([zero, 2 * z**2, zero, -4 * sol[0] * sol[1], zero, zero]),
+                self._bkd.hstack(
+                    [z, zero, -sol[0], -4 * sol[0] * sol[1], zero, zero]
+                ),
+                self._bkd.hstack(
+                    [zero, 2 * z**2, zero, -4 * sol[0] * sol[1], zero, zero]
+                ),
                 self._bkd.hstack([zero, zero, zero, zero, z, -sol[2]]),
             ],
             axis=0,
@@ -130,7 +134,9 @@ class ChemicalReactionModel(TransientAdjointModel):
             newton_solver,
             backend=backend,
         )
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def get_initial_condition(self) -> Array:
         return self._bkd.zeros(self._residual.nstates())
@@ -236,7 +242,9 @@ class LotkaVolterraModel(TransientAdjointModel):
             newton_solver,
             backend=backend,
         )
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def get_initial_condition(self) -> Array:
         return self._bkd.array([0.3, 0.4, 0.3])
@@ -341,8 +349,8 @@ class ParameterizedCoupledSpringsResidual(
     def _jacobian(self, sol: Array) -> Array:
         x1, y1, x2, y2 = sol
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
-        zero = x1 * 0.  # needed to be compatable with torch hstack
-        one = x1 * 0 + 1.
+        zero = x1 * 0.0  # needed to be compatable with torch hstack
+        one = x1 * 0 + 1.0
         # if asarray is used instead, autograd graph will be wrong
         jac = self._bkd.stack(
             [
@@ -358,7 +366,7 @@ class ParameterizedCoupledSpringsResidual(
     def _param_jacobian(self, sol: Array) -> Array:
         x1, y1, x2, y2 = sol
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
-        zero = x1 * 0.  # needed to be compatable with torch hstack
+        zero = x1 * 0.0  # needed to be compatable with torch hstack
         # if asarray is used instead, autograd graph will be wrong
         numer1 = -b1 * y1 - k1 * (x1 - L1) + k2 * (x2 - x1 - L2)
         numer2 = -b2 * y2 - k2 * (x2 - x1 - L2)
@@ -378,7 +386,7 @@ class ParameterizedCoupledSpringsResidual(
                 zero,
                 zero,
             ]
-            )
+        )
         row2 = self._bkd.zeros((self.nvars(),))
         row3 = self._bkd.hstack(
             [
@@ -447,7 +455,9 @@ class CoupledSpringsModel(TransientAdjointModel):
             newton_solver,
             backend=backend,
         )
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def get_initial_condition(self) -> Array:
         return self._residual._param[8:]
@@ -509,7 +519,7 @@ class CoupledSpringsBenchmark(SingleModelBenchmark):
 
 
 class ParameterizedHastingsEcologyResidual(
-        TransientNewtonResidual, ParameterizedNewtonResidualMixin
+    TransientNewtonResidual, ParameterizedNewtonResidualMixin
 ):
     """
     http://www.jstor.org/stable/1940591
@@ -544,6 +554,7 @@ class ParameterizedHastingsEcologyResidual(
     d_1 = D_1/R_0
     d_2 = D_2/R_0
     """
+
     def set_time(self, time: float):
         self._time = time
 
@@ -568,49 +579,55 @@ class ParameterizedHastingsEcologyResidual(
                 - a2 * y2 * y3 / (1.0 + b2 * y2)
                 - d1 * y2,
                 a2 * y2 * y3 / (1.0 + b2 * y2) - d2 * y3,
-            ], axis=0
+            ],
+            axis=0,
         )
 
     def _jacobian(self, sol: Array) -> Array:
         y1, y2, y3 = sol
         a1, b1, a2, b2, d1, d2 = self._param[:6]
-        zero = y1 * 0.  # needed to be compatable with torch hstack
+        zero = y1 * 0.0  # needed to be compatable with torch hstack
         # if asarray is used instead, autograd graph will be wrong
         jac = self._bkd.stack(
             [
                 self._bkd.hstack(
                     [
-                        1 - (a1 * y2)/(1 + b1 * y1) + y1 * (-2 + (a1*b1*y2)/(1 + b1*y1)**2),
-                        -((a1*y1)/(1 + b1*y1)),
+                        1
+                        - (a1 * y2) / (1 + b1 * y1)
+                        + y1 * (-2 + (a1 * b1 * y2) / (1 + b1 * y1) ** 2),
+                        -((a1 * y1) / (1 + b1 * y1)),
                         zero,
                     ]
                 ),
                 self._bkd.hstack(
                     [
-                        (a1*y2)/(1. + b1*y1)**2,
-                        -d1 + (a1*y1)/(1. + b1*y1) - (a2*y3)/(1. + b2 * y2) ** 2,
-                        (-a2*y2)/(1. + b2 * y2),
+                        (a1 * y2) / (1.0 + b1 * y1) ** 2,
+                        -d1
+                        + (a1 * y1) / (1.0 + b1 * y1)
+                        - (a2 * y3) / (1.0 + b2 * y2) ** 2,
+                        (-a2 * y2) / (1.0 + b2 * y2),
                     ]
                 ),
                 self._bkd.hstack(
                     [
                         zero,
-                        (1.*a2*y3)/(1. + b2 * y2)**2,
-                        -d2 + (a2*y2)/(1. + b2*y2)
+                        (1.0 * a2 * y3) / (1.0 + b2 * y2) ** 2,
+                        -d2 + (a2 * y2) / (1.0 + b2 * y2),
                     ]
                 ),
-            ], axis=0
+            ],
+            axis=0,
         )
         return jac
 
     def _param_jacobian(self, sol: Array) -> Array:
         y1, y2, y3 = sol
         a1, b1, a2, b2, d1, d2 = self._param[:6]
-        zero = y1 * 0.  # needed to be compatable with torch hstack
+        zero = y1 * 0.0  # needed to be compatable with torch hstack
         row0 = self._bkd.hstack(
             [
                 -y1 * y2 / (1 + b1 * y1),
-                (a1 * y1 ** 2 * y2) / (1 + b1 * y1) ** 2,
+                (a1 * y1**2 * y2) / (1 + b1 * y1) ** 2,
                 zero,
                 zero,
                 zero,
@@ -618,15 +635,14 @@ class ParameterizedHastingsEcologyResidual(
                 zero,
                 zero,
                 zero,
-                
             ]
         )
         row1 = self._bkd.hstack(
             [
-                y1*y2/(b1*y1+1),
-                -(a1 * y1 ** 2 * y2)/(1 + b1 * y1) ** 2,
-                -y2*y3/(b2*y2+1),
-                (a2 * y2 ** 2 * y3)/(1 + b2 * y2) ** 2,
+                y1 * y2 / (b1 * y1 + 1),
+                -(a1 * y1**2 * y2) / (1 + b1 * y1) ** 2,
+                -y2 * y3 / (b2 * y2 + 1),
+                (a2 * y2**2 * y3) / (1 + b2 * y2) ** 2,
                 -y2,
                 zero,
                 zero,
@@ -638,8 +654,8 @@ class ParameterizedHastingsEcologyResidual(
             [
                 zero,
                 zero,
-                y2*y3/(b2*y2+1),
-                -(a2 * y2 ** 2 * y3)/(1 + b2 * y2) ** 2,
+                y2 * y3 / (b2 * y2 + 1),
+                -(a2 * y2**2 * y3) / (1 + b2 * y2) ** 2,
                 zero,
                 -y3,
                 zero,
@@ -683,7 +699,9 @@ class HastingsEcologyModel(TransientAdjointModel):
             newton_solver,
             backend=backend,
         )
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def get_initial_condition(self) -> Array:
         return self._residual._param[6:]
@@ -699,7 +717,9 @@ class HastingsEcologyModel(TransientAdjointModel):
 
 class HastingsEcologyBenchmark(SingleModelBenchmark):
     def _variable_ranges(self):
-        nominal_values = self._bkd.array([5.0, 3, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0])
+        nominal_values = self._bkd.array(
+            [5.0, 3, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0]
+        )
         ranges = self._bkd.zeros((2 * len(nominal_values)))
         ranges[::2] = nominal_values * 0.95
         ranges[1::2] = nominal_values * 1.05
@@ -718,6 +738,8 @@ class HastingsEcologyBenchmark(SingleModelBenchmark):
     def _set_model(self):
         newton_solver = NewtonSolver(verbosity=0, rtol=1e-12, atol=1e-12)
         self._model = HastingsEcologyModel(
-            BackwardEulerResidual, None, newton_solver=newton_solver,
-            backend=self._bkd
+            BackwardEulerResidual,
+            None,
+            newton_solver=newton_solver,
+            backend=self._bkd,
         )

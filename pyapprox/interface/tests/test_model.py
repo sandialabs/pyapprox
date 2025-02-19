@@ -38,7 +38,8 @@ def raise_exception(condition, msg):
 
 
 def get_shell_command_for_io_model(
-    delay: float = 0.0, fault_percentage: float = 0.0
+    delay: float = 0.0,
+    fault_percentage: float = 0.0,
 ):
     """
     Return a FileIOModel that wrapts a call to the 2D target function
@@ -58,6 +59,7 @@ def get_shell_command_for_io_model(
         return np.array([x[0] ** 2 + 2 * x[1] ** 3, x[0] ** 3 + x[0] * x[1]])
 
     target_model = ModelFromSingleSampleCallable(
+        2,
         2,
         target_function,
         sample_ndim=1,
@@ -88,6 +90,7 @@ class TestModel:
         # check when jac and hessian are defined
         model = ModelFromSingleSampleCallable(
             1,
+            3,
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample
             ),
@@ -134,6 +137,7 @@ class TestModel:
         # check when apply_jac and apply_hessian are defined
         model = ModelFromSingleSampleCallable(
             1,
+            3,
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample
             ),
@@ -159,11 +163,53 @@ class TestModel:
         assert model.work_tracker().nevaluations("hess") == 0
         assert model.work_tracker().nevaluations("hvp") == 1
 
+        # check use of database
+        model = ModelFromSingleSampleCallable(
+            1,
+            3,
+            lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_fun, "numpy"), sample
+            ),
+            jacobian=lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_grad, "numpy"), sample
+            ),
+            hessian=lambda sample: self._evaluate_sp_lambda(
+                sp.lambdify(symbs, sp_hessian), sample
+            )[None, ...],
+            backend=bkd,
+        )
+        # check values are updated correctly
+        model.activate_model_data_base()
+        samples = bkd.asarray(np.random.uniform(0, 1, (nvars, 3)))
+        two_values = model(samples[:, :2])
+        three_values = model(samples[:, :3])
+        assert bkd.allclose(two_values, three_values[:2])
+        assert model.work_tracker().nevaluations("val") == 3
+
+        # check jacobians are updated correctly
+        for ii in [0, 2]:
+            model.jacobian(samples[:, ii : ii + 1])
+
+        for ii in [0, 1, 2]:
+            model.jacobian(samples[:, ii : ii + 1])
+        print(model.work_tracker())
+        assert model.work_tracker().nevaluations("jac") == 3
+
+        # check hessians are updated correctly
+        for ii in [0, 2]:
+            model.hessian(samples[:, ii : ii + 1])
+
+        for ii in [0, 1, 2]:
+            model.hessian(samples[:, ii : ii + 1])
+        print(model.work_tracker())
+        assert model.work_tracker().nevaluations("hess") == 3
+
     def test_scalar_model_from_callable_1D_sample(self):
         # check jacobian with 1D samples
         bkd = self.get_backend()
         model = ModelFromSingleSampleCallable(
             1,
+            2,
             lambda x: ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2),
             jacobian=lambda x: bkd.array([[2 * (x[0] - 1), 2 * (x[1] - 2.5)]]),
             sample_ndim=1,
@@ -177,6 +223,7 @@ class TestModel:
         # check apply_jacobian and apply_hessian with 1D samples
         model = ModelFromSingleSampleCallable(
             1,
+            2,
             lambda x: ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2),
             jacobian=lambda x: bkd.array([[2 * (x[0] - 1), 2 * (x[1] - 2.5)]]),
             apply_jacobian=lambda x, v: 2 * (x[0] - 1) * v[0]
@@ -223,6 +270,7 @@ class TestModel:
 
         model = ModelFromSingleSampleCallable(
             2,
+            3,
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample
             ),
@@ -270,6 +318,7 @@ class TestModel:
         sp_hessian = [[sp_fun.diff(x).diff(y) for x in symbs] for y in symbs]
         model = ModelFromSingleSampleCallable(
             1,
+            3,
             lambda sample: self._evaluate_sp_lambda(
                 sp.lambdify(symbs, sp_fun, "numpy"), sample
             ),
@@ -523,6 +572,7 @@ if __name__ == "__main__":
         nvars, nsamples = 3, 4
         model = ModelFromSingleSampleCallable(
             2,
+            nvars,
             partial(_pickable_function, bkd),
             backend=bkd,
         )
@@ -595,19 +645,18 @@ if __name__ == "__main__":
         test_values = target_model(samples)
         values = model(samples)
         assert model.work_tracker().nevaluations("val") == 3
+        print(values, test_values)
         assert np.allclose(values, test_values)
 
         for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
             filenames = glob.glob(os.path.join(outdirname, "*"))
             filenames = [os.path.basename(fname) for fname in filenames]
             filenames.sort()
-            print(filenames, os.path.join(outdir_basename, "*"))
             assert len(filenames) == 4  # this will be 5 if verbosity > 0
             assert os.path.basename(filenames[0]) == datafilename
             assert os.path.basename(filenames[1]) == "params.in"
             assert os.path.basename(filenames[2]) == "results.out"
             assert os.path.basename(filenames[3]) == "vec.npz"
-
         outtmpdir.cleanup()
 
         # test with save="limited"
@@ -649,6 +698,73 @@ if __name__ == "__main__":
             assert os.path.basename(filenames[0]) == datafilename
         outtmpdir.cleanup()
 
+        # test database is used correctly
+        outtmpdir = tempfile.TemporaryDirectory()
+        outdir_basename = outtmpdir.name
+        model = AsyncIOModel(
+            2,
+            nvars,
+            infilenames,
+            shell_command,
+            outdir_basename=outdir_basename,
+            verbosity=1,
+            save="limited",
+            datafilename=datafilename,
+            nprocs=2,
+            backend=bkd,
+        )
+        model.activate_model_data_base()
+        nsamples = 3
+        samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
+        test_values = target_model(samples)
+        values = model(samples[:, [0, 2]])
+        assert model.work_tracker().nevaluations("val") == 2
+        assert np.allclose(values, test_values[[0, 2]])
+        values = model(samples)
+        assert model.work_tracker().nevaluations("val") == 3
+        assert np.allclose(values, test_values)
+        outtmpdir.cleanup()
+
+        intmpdir.cleanup()
+
+    def test_asynchronous_io_model_with_hard_faults(self):
+        # note seed does not control which samples fail. As shell command uses
+        # a seed independent of this script to determine if a sample fails.
+        #  TODO: stop this being a stochastic test.
+        bkd = self.get_backend()
+        nvars = 2
+        intmpdir = tempfile.TemporaryDirectory()
+        infilenames = [os.path.join(intmpdir.name, "vec.npz")]
+        vec = bkd.asarray(np.random.uniform(0.0, 1.0, (1, nvars)))
+        np.savez(infilenames[0], vec=vec)
+        outtmpdir = tempfile.TemporaryDirectory()
+        outdir_basename = outtmpdir.name
+        datafilename = "data.npz"
+        shell_command, target_model = get_shell_command_for_io_model()
+        # test with save="full"
+        model = AsyncIOModel(
+            2,
+            nvars,
+            infilenames,
+            shell_command,
+            outdir_basename=outdir_basename,
+            verbosity=0,
+            save="full",
+            datafilename=datafilename,
+            nprocs=2,
+            backend=bkd,
+        )
+
+        nsamples = 3
+        samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
+        test_values = bkd.asarray(target_model(samples))
+        values = model(samples)
+        assert model.work_tracker().nevaluations("val") == 3
+        # regression test (using np.random.seed(1)) that last value fails and
+        # is recorded as a failure
+        pass_idx = bkd.asarray(np.isfinite(values), dtype=bool)
+        assert np.allclose(values[pass_idx], test_values[pass_idx])
+        outtmpdir.cleanup()
         intmpdir.cleanup()
 
 
