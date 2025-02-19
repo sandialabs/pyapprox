@@ -5,7 +5,7 @@ Model Timing
 This tutorial demonstrats how to use model to time function calls.
 All model class can track time.
 
-First Lets define a model that takes a random amount of time.
+First, let's define a model that takes a random amount of time.
 """
 
 import time
@@ -16,12 +16,6 @@ from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.interface.model import (
     ModelFromSingleSampleCallable,
 )
-
-
-# %%
-# Timing function evaluations
-# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#
 
 
 # Setup function

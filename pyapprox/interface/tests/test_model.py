@@ -37,6 +37,35 @@ def raise_exception(condition, msg):
         raise Exception(msg)
 
 
+def get_shell_command_for_io_model(
+    delay: float = 0.0, fault_percentage: float = 0.0
+):
+    """
+    Return a FileIOModel that wrapts a call to the 2D target function
+    [x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]) with two QoI.
+    """
+    # vec is only loaded but not used for anything just to test that linked files are
+    # linked correctly
+    shell_command = (
+        """python -c "import numpy as np; np.load('vec.npz')['vec']; target_function = lambda x: np.array([x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]); sample = np.loadtxt('params.in'); u=np.random.uniform(0.,1.); from pyapprox.interface.tests.test_model import raise_exception; raise_exception(u<%f/100., 'fault occurred'); vals = target_function(sample); np.savetxt('results.out',vals); delay=%f; print(delay); import time; time.sleep(delay);" """
+        % (
+            fault_percentage,
+            delay + np.random.uniform(-1.0, 1.0) * delay * 0.1,
+        )
+    )
+
+    def target_function(x):
+        return np.array([x[0] ** 2 + 2 * x[1] ** 3, x[0] ** 3 + x[0] * x[1]])
+
+    target_model = ModelFromSingleSampleCallable(
+        2,
+        target_function,
+        sample_ndim=1,
+        values_ndim=1,
+    )
+    return shell_command, target_model
+
+
 class TestModel:
     def setUp(self):
         np.random.seed(1)
@@ -504,36 +533,6 @@ if __name__ == "__main__":
         print(pool_model.work_tracker().nevaluations("val"))
         assert pool_model.work_tracker().nevaluations("val") == 4
 
-    def _get_shell_command_for_io_model(
-        self, delay: float = 0.0, fault_percentage: float = 0.0
-    ):
-        """
-        Return a FileIOModel that wrapts a call to the 2D target function
-        [x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]) with two QoI.
-        """
-        # vec is only loaded but not used for anything just to test that linked files are
-        # linked correctly
-        shell_command = (
-            """python -c "import numpy as np; np.load('vec.npz')['vec']; target_function = lambda x: np.array([x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]); sample = np.loadtxt('params.in'); u=np.random.uniform(0.,1.); from pyapprox.interface.tests.test_model import raise_exception; raise_exception(u<%f/100., 'fault occurred'); vals = target_function(sample); np.savetxt('results.out',vals); delay=%f; print(delay); import time; time.sleep(delay);" """
-            % (
-                fault_percentage,
-                delay + np.random.uniform(-1.0, 1.0) * delay * 0.1,
-            )
-        )
-
-        def target_function(x):
-            return np.array(
-                [x[0] ** 2 + 2 * x[1] ** 3, x[0] ** 3 + x[0] * x[1]]
-            )
-
-        target_model = ModelFromSingleSampleCallable(
-            2,
-            target_function,
-            sample_ndim=1,
-            values_ndim=1,
-        )
-        return shell_command, target_model
-
     def test_serial_io_model(self):
         bkd = self.get_backend()
         nvars = 2
@@ -544,7 +543,7 @@ if __name__ == "__main__":
         outtmpdir = tempfile.TemporaryDirectory()
         outdir_basename = outtmpdir.name
 
-        shell_command, target_model = self._get_shell_command_for_io_model()
+        shell_command, target_model = get_shell_command_for_io_model()
         model = SerialIOModel(
             2,
             nvars,
@@ -575,7 +574,7 @@ if __name__ == "__main__":
         outtmpdir = tempfile.TemporaryDirectory()
         outdir_basename = outtmpdir.name
         datafilename = "data.npz"
-        shell_command, target_model = self._get_shell_command_for_io_model()
+        shell_command, target_model = get_shell_command_for_io_model()
 
         # test with save="full"
         model = AsyncIOModel(
