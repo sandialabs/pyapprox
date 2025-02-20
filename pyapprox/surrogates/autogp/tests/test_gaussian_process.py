@@ -126,9 +126,7 @@ class TestGaussianProcess:
         if not out_trans:
             out_trans = GaussianProcessIdentityTransform(backend=bkd)
         else:
-            out_trans = GaussianProcessStandardDeviationTransform(
-                backend=bkd
-            )
+            out_trans = GaussianProcessStandardDeviationTransform(backend=bkd)
 
         if trend:
             basis = MultiIndexBasis(
@@ -678,10 +676,10 @@ class TestGaussianProcess:
         variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
         kernel = MaternKernel(
-            np.inf, 0.1, [1e-1, 1], variable.num_vars(), backend=bkd
+            np.inf, 0.1, [1e-1, 1], variable.nvars(), backend=bkd
         )
         gp = ExactGaussianProcess(
-            variable.num_vars(), kernel, trend=None, kernel_reg=1e-8
+            variable.nvars(), kernel, trend=None, kernel_reg=1e-8
         )
         gp.set_optimizer(ncandidates=4, verbosity=0)
         ntrain_samples = 25
@@ -708,7 +706,7 @@ class TestGaussianProcess:
         assert bkd.allclose(expected_variance, true_variance)
 
     def _check_gaussian_process_statistics_low_accuracy_gp(
-            self, kernel, out_trans
+        self, kernel, out_trans
     ):
         # test that expectation and variance of the mean and variance of GP
         # are accurate when GP is inaccurate
@@ -722,7 +720,7 @@ class TestGaussianProcess:
         variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
         gp = ExactGaussianProcess(
-            variable.num_vars(), kernel, trend=None, kernel_reg=1e-7
+            variable.nvars(), kernel, trend=None, kernel_reg=1e-7
         )
         gp.set_output_transform(out_trans)
         gp.set_optimizer(ncandidates=4, verbosity=0)
@@ -734,7 +732,7 @@ class TestGaussianProcess:
         gp.fit(train_samples, train_values)
 
         quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
-            variable, [50] * variable.num_vars()
+            variable, [50] * variable.nvars()
         )
         # test gp covariance matches that computed emprically from
         # random realizations
@@ -744,7 +742,7 @@ class TestGaussianProcess:
         )
         assert bkd.allclose(
             bkd.diag(gp.covariance(quad_rule()[0])),
-            gp.evaluate(quad_rule()[0], True)[1][:, 0]**2,
+            gp.evaluate(quad_rule()[0], True)[1][:, 0] ** 2,
         )
 
         gp_stat = GaussianProcessStatistics(gp, variable)
@@ -786,9 +784,7 @@ class TestGaussianProcess:
     def test_gaussian_process_statistics_low_accuracy_gp(self):
         bkd = self.get_backend()
 
-        kernel1 = MaternKernel(
-            np.inf, 0.1, [1e-1, 1], 1, backend=bkd
-        )
+        kernel1 = MaternKernel(np.inf, 0.1, [1e-1, 1], 1, backend=bkd)
         constant_kernel = ConstantKernel(
             0.1,
             (1e-3, 1e1),
@@ -805,9 +801,7 @@ class TestGaussianProcess:
         ]
 
         for test_case in itertools.product(kernels, out_trans):
-            self._check_gaussian_process_statistics_low_accuracy_gp(
-                *test_case
-            )
+            self._check_gaussian_process_statistics_low_accuracy_gp(*test_case)
 
 
 class TestNumpyNystrom(TestNystrom, unittest.TestCase):

@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from typing import Tuple, List
+import warnings
 
 import numpy as np
 
@@ -9,8 +10,8 @@ from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.surrogates.kernels.kernels import Kernel
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.surrogates.loss import LossFunction
-from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer,
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.optimization.minimize import (
     MultiStartOptimizer,
     OptimizerIterateGenerator,
     RandomUniformOptimzerIterateGenerator,
@@ -127,7 +128,7 @@ class GPNegLogLikelihoodLoss(LossFunction):
         super()._check_model(model)
 
     def _jacobian(self, active_opt_params: Array) -> Array:
-        if self._model._analytical_neg_log_like_jacobian_implemented:
+        if self._model.analytical_neg_log_like_jacobian_implemented():
             return self._model._jacobian_neg_log_like_with_hyperparam_trend(
                 active_opt_params[:, 0]
             )
@@ -154,7 +155,9 @@ class ExactGaussianProcess(OptimizedRegressor):
         if trend is not None:
             self._hyp_list += self._trend.hyp_list()
         self.set_optimizer()
-        self._analytical_neg_log_like_jacobian_implemented = True
+
+    def analytical_neg_log_like_jacobian_implemented(self) -> bool:
+        return True
 
     def _set_default_transforms(self):
         self.set_input_transform(IdentityTransform())
@@ -211,8 +214,9 @@ class ExactGaussianProcess(OptimizedRegressor):
         ms_optimizer.set_verbosity(verbosity)
         super().set_optimizer(ms_optimizer)
         self.set_loss(GPNegLogLikelihoodLoss())
-        self._loss._hessian_implemented = False
-        self._loss._apply_hessian_implemented = False
+
+        self._loss.hessian_implemented = lambda: False
+        self._loss.apply_hessian_implemented = lambda: False
 
     def nqoi(self):
         return 1
@@ -328,7 +332,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         # just concatenate trend jacobian at the end of kernel jacobian
         trend_jac = (
             -Kinv_y.T
-            @ self._trend.basis(self._ctrain_samples)[
+            @ self._trend.basis()(self._ctrain_samples)[
                 ..., self._trend.hyp_list().get_active_indices()
             ]
         )
@@ -524,10 +528,12 @@ class ExactGaussianProcess(OptimizedRegressor):
 
 
 class MOExactGaussianProcess(ExactGaussianProcess):
-    def _set_training_data(self, train_samples: list, train_values: list):
+    def analytical_neg_log_like_jacobian_implemented(self) -> bool:
         # For now analytical neg log like from exact gaussian process
         # does not pass tests when used here so turn off.
-        self._analytical_neg_log_like_jacobian_implemented = False
+        return False
+
+    def _set_training_data(self, train_samples: list, train_values: list):
         self._ctrain_samples = [
             s for s in self._map_samples_to_canonical(train_samples)
         ]
@@ -711,7 +717,7 @@ class GaussianProcessStatistics:
         nquad_nodes_1d: List[int] = None,
     ):
         if nquad_nodes_1d is None:
-            nquad_nodes_1d = [30] * variable.num_vars()
+            nquad_nodes_1d = [30] * variable.nvars()
         marginal_quad_rules = [
             GaussQuadratureRule(marginal, backend=variable._bkd)
             for marginal in variable.marginals()
@@ -727,14 +733,14 @@ class GaussianProcessStatistics:
             FixedTensorProductQuadratureRule(
                 2, [marginal_quad_rules[ii]] * 2, [nquad_nodes_1d[ii]] * 2
             )
-            for ii in range(variable.num_vars())
+            for ii in range(variable.nvars())
         ]
 
         self._threedim_quadrules = [
             FixedTensorProductQuadratureRule(
                 3, [marginal_quad_rules[ii]] * 3, [nquad_nodes_1d[ii]] * 3
             )
-            for ii in range(variable.num_vars())
+            for ii in range(variable.nvars())
         ]
 
     def _get_kernel_length_scale(self):

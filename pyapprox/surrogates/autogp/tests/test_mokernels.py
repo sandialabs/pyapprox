@@ -33,13 +33,13 @@ class TestMultiOutputKernels:
         bexp = BasisExpansion(
             MultiIndexBasis(
                 [Monomial1D(backend=bkd) for ii in range(nvars)],
-                indices=scaling_indices
+                indices=scaling_indices,
             ),
             None,
             1,
             bounds,
         )
-        bexp.set_coefficients(bkd.full((bexp.basis.nterms(), 1), val))
+        bexp.set_coefficients(bkd.full((bexp.basis().nterms(), 1), val))
         return bexp
 
     def _check_multilevel_kernel_scaling_matrix(self, noutputs):
@@ -153,12 +153,8 @@ class TestMultiOutputKernels:
                 rtol=1e-2,
             )
             for jj in range(ii + 1, kernel.noutputs):
-                vals_ii = bkd.full(
-                    (nsamples_per_output[ii], nsamples), 0.0
-                )
-                vals_jj = bkd.full(
-                    (nsamples_per_output[jj], nsamples), 0.0
-                )
+                vals_ii = bkd.full((nsamples_per_output[ii], nsamples), 0.0)
+                vals_jj = bkd.full((nsamples_per_output[jj], nsamples), 0.0)
                 for kk in range(kernel.nkernels):
                     wmat_iikk = kernel._get_kernel_combination_matrix_entry(
                         samples_per_output[ii], ii, kk

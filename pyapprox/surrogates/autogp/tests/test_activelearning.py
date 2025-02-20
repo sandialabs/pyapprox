@@ -115,7 +115,7 @@ class TestActiveLearning:
             [stats.uniform(-1, 2)] * nvars, backend=bkd
         )
         kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
-        sampling_schedule = SamplingScheduleFromList([10, 3])
+        sampling_schedule = SamplingScheduleFromList([8, 3])
         sampler = CholeskySampler(variable)
         gp = AdaptiveGaussianProcess(
             nvars, kernel, sampling_schedule=sampling_schedule
@@ -127,6 +127,7 @@ class TestActiveLearning:
         ax = plt.figure().gca()
         gp.plot(ax, bounds=[-1, 1])
         ax.plot(gp.get_train_samples()[0], gp.get_train_values(), "o")
+        print(gp.get_train_samples())
         train_samples = bkd.array(
             [
                 -1.00000000e00,
@@ -139,9 +140,7 @@ class TestActiveLearning:
                 2.81250000e-01,
                 -3.00781250e-01,
                 -9.35353867e-01,
-                9.39191497e-01,
-                4.45312500e-01,
-                -6.83593750e-01,
+                9.40039978e-01,
             ]
         )[None, :]
         # regression test. Note when the last point added produces

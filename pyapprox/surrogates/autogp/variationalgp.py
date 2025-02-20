@@ -28,9 +28,9 @@ def _log_prob_gaussian_with_noisy_nystrom_covariance(
     Delta = bkd.solve_triangular(L_UU, K_XU.T) / noise_std
     Omega = bkd.eye(M) + Delta @ Delta.T
     L_Omega = bkd.cholesky(Omega)
-    log_det = 2 * bkd.log(
-        bkd.get_diagonal(L_Omega)
-    ).sum() + 2 * N * bkd.log(bkd.atleast1d(noise_std))
+    log_det = 2 * bkd.log(bkd.get_diagonal(L_Omega)).sum() + 2 * N * bkd.log(
+        bkd.atleast1d(noise_std)
+    )
     gamma = bkd.solve_triangular(L_Omega, Delta @ values)
     log_pdf = -0.5 * (
         N * np.log(2 * np.pi)
@@ -43,6 +43,7 @@ def _log_prob_gaussian_with_noisy_nystrom_covariance(
 # see Alvarez Efficient Multioutput Gaussian Processes through Variational
 # Inducing Kernels for details how to generaize from noise covariance sigma^2I
 # to \Sigma
+
 
 class InducingSamples:
     def __init__(
@@ -170,7 +171,9 @@ class InducingGaussianProcess(ExactGaussianProcess):
         self.inducing_samples = inducing_samples
         self._hyp_list += self.inducing_samples.hyp_list()
         self.set_optimizer()
-        self._analytical_neg_log_like_jacobian_implemented = False
+
+    def analytical_neg_log_like_jacobian_implemented(self) -> bool:
+        return False
 
     def _K_XU(self) -> Tuple:
         kmat = self._kernel(

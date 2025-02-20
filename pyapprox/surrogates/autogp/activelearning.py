@@ -13,10 +13,10 @@ from pyapprox.surrogates.kernels.kernels import Kernel
 
 class CholeskySampler:
     def __init__(
-            self,
-            variable: IndependentMarginalsVariable,
-            nugget: float = 0.,
-            econ: bool = True,
+        self,
+        variable: IndependentMarginalsVariable,
+        nugget: float = 0.0,
+        econ: bool = True,
     ):
         if not isinstance(variable, IndependentMarginalsVariable):
             raise ValueError(
@@ -26,21 +26,19 @@ class CholeskySampler:
         self._variable = variable
         self._nugget = nugget
         self._econ = econ
-        self._train_samples = self._bkd.zeros((self._variable.num_vars(), 0))
+        self._train_samples = self._bkd.zeros((self._variable.nvars(), 0))
         self._kernel_changed = True
 
     def default_candidate_samples(self, ncandidates: int) -> Array:
         nhalton_candidates = ncandidates // 2
         nrandom_candidates = ncandidates - nhalton_candidates
-        seq = HaltonSequence(
-            self._variable.num_vars(), variable=self._variable
-        )
-        halton_samples = seq.samples(nhalton_candidates)
+        seq = HaltonSequence(self._variable.nvars(), variable=self._variable)
+        halton_samples = seq.rvs(nhalton_candidates)
         random_samples = self._variable.rvs(nrandom_candidates)
         return self._bkd.hstack((halton_samples, random_samples))
 
     def set_candidate_samples(
-            self, candidate_samples: Array,  init_pivots: Array = None
+        self, candidate_samples: Array, init_pivots: Array = None
     ):
         if not hasattr(self, "_gp"):
             raise RuntimeError("Must call set_gaussian_process first")
@@ -75,8 +73,10 @@ class CholeskySampler:
         return self._train_samples.shape[1]
 
     def _add_nugget(self):
-        self._Amat[self._bkd.arange(self._Amat.shape[0]),
-                   self._bkd.arange(self._Amat.shape[1])] += self._nugget
+        self._Amat[
+            self._bkd.arange(self._Amat.shape[0]),
+            self._bkd.arange(self._Amat.shape[1]),
+        ] += self._nugget
 
     def _restart_factorization(self, nsamples: int):
         # GP optimizes kernel hyperparameters when the training samples
@@ -140,13 +140,11 @@ class CholeskySampler:
                 self.default_candidate_samples(1000), None
             )
         if not hasattr(self, "_weight_function"):
-            self.set_weight_function(
-                self._uniform_weight_function
-            )
+            self.set_weight_function(self._uniform_weight_function)
 
     def __call__(self, nsamples: int):
-        if not hasattr(self, '_gp'):
-            raise RuntimeError('Must call set_gaussian_process')
+        if not hasattr(self, "_gp"):
+            raise RuntimeError("Must call set_gaussian_process")
         if self.ntrain_samples() == 0:
             self._setup_before_first_step()
 
@@ -157,10 +155,10 @@ class CholeskySampler:
             raise ValueError(msg)
 
         if (
-                self._weight_function_changed
-                or self._kernel_changed
-                or self._init_pivots_changed
-                or self._candidate_samples_changed
+            self._weight_function_changed
+            or self._kernel_changed
+            or self._init_pivots_changed
+            or self._candidate_samples_changed
         ):
             self._restart_factorization(nsamples)
         else:
@@ -169,7 +167,7 @@ class CholeskySampler:
         nprev_train_samples = self.ntrain_samples()
         # return samples in user space
         new_samples = self._candidate_samples[
-            :, self._factorizer.pivots()[nprev_train_samples : nsamples]
+            :, self._factorizer.pivots()[nprev_train_samples:nsamples]
         ]
         self._train_samples = self._bkd.hstack(
             (self._train_samples, new_samples)
