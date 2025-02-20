@@ -270,12 +270,16 @@ class Model(ABC):
         stored_values, stored_idx, new_idx = self._database.get_data(
             "val", samples
         )
+        if len(stored_idx) == 0:
+            return self._new_values(samples)
+
+        if len(new_idx) == 0:
+            return self._bkd.vstack(stored_values)
+
         vals = self._bkd.empty((samples.shape[1], self.nqoi()))
-        if len(new_idx) > 0:
-            new_samples = samples[:, new_idx]
-            vals[new_idx] = self._new_values(new_samples)
-        if len(stored_idx) > 0:
-            vals[stored_idx] = self._bkd.vstack(stored_values)
+        new_samples = samples[:, new_idx]
+        vals[new_idx] = self._new_values(new_samples)
+        vals[stored_idx] = self._bkd.vstack(stored_values)
         return vals
 
     def _check_sample_shape(self, sample: Array):
@@ -837,13 +841,16 @@ class SingleSampleModelMixin:
         stored_vals, stored_idx, new_idx = self._database.get_data(
             "val", samples
         )
+        if len(stored_idx) == 0:
+            return self._new_values(samples)
+
+        if len(new_idx) == 0:
+            return self._bkd.vstack(stored_vals)
+
         vals = self._bkd.empty((samples.shape[1], self.nqoi()))
-        if len(new_idx) > 0:
-            new_samples = samples[:, new_idx]
-            new_vals = self._new_values(new_samples)
-            vals[new_idx] = new_vals
-        if len(stored_idx) > 0:
-            vals[stored_idx] = self._bkd.vstack(stored_vals)
+        new_samples = samples[:, new_idx]
+        vals[new_idx] = self._new_values(new_samples)
+        vals[stored_idx] = self._bkd.vstack(stored_vals)
         return vals
 
     def __call__(self, samples: Array) -> Array:

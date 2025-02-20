@@ -49,21 +49,28 @@ class BasisExpansion(Regressor):
             solver._bkd, basis._bkd
         ):
             raise ValueError("Basis and solver must have the same backend.")
-        self._jacobian_implemented = basis._jacobian_implemented
-        self._hessian_implemented = basis._hessian_implemented
         self._solver = solver
+
+    def jacobian_implemented(self) -> bool:
+        return self._basis._jacobian_implemented
+
+    def hessian_implemented(self) -> bool:
+        return self._basis._hessian_implemented
 
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
 
+    def basis(self) -> Basis:
+        return self._basis
+
     def set_basis(self, basis, coef_bounds=None):
-        self.basis = basis
-        self._bkd = self.basis._bkd
-        init_coef = self._bkd.full((self.basis.nterms() * self.nqoi(),), 0.0)
+        self._basis = basis
+        self._bkd = self._basis._bkd
+        init_coef = self._bkd.full((self._basis.nterms() * self.nqoi(),), 0.0)
         self._transform = IdentityHyperParameterTransform(backend=self._bkd)
         self._coef = HyperParameter(
             "coef",
-            self.basis.nterms() * self._nqoi,
+            self._basis.nterms() * self._nqoi,
             init_coef,
             self._parse_coef_bounds(coef_bounds),
             None,
@@ -86,13 +93,13 @@ class BasisExpansion(Regressor):
         """
         Return the number of terms in the expansion.
         """
-        return self.basis.nterms()
+        return self._basis.nterms()
 
     def nvars(self) -> int:
         """
         Return the number of inputs to the basis.
         """
-        return self.basis.nvars()
+        return self._basis.nvars()
 
     def set_coefficients(self, coef: Array):
         """
@@ -103,10 +110,10 @@ class BasisExpansion(Regressor):
         coef : array (nterms, nqoi)
             The basis coefficients for each quantity of interest (QoI)
         """
-        if coef.ndim != 2 or coef.shape != (self.basis.nterms(), self.nqoi()):
+        if coef.ndim != 2 or coef.shape != (self._basis.nterms(), self.nqoi()):
             raise ValueError(
                 "coef shape is {0} but must be {1}".format(
-                    coef.shape, (self.basis.nterms(), self.nqoi())
+                    coef.shape, (self._basis.nterms(), self.nqoi())
                 )
             )
         self._coef.set_values(coef.flatten())
@@ -121,7 +128,7 @@ class BasisExpansion(Regressor):
             The basis coefficients for each quantity of interest (QoI)
         """
         return self._coef.get_values().reshape(
-            self.basis.nterms(), self.nqoi()
+            self._basis.nterms(), self.nqoi()
         )
 
     def _values(self, samples: Array) -> Array:
@@ -136,13 +143,13 @@ class BasisExpansion(Regressor):
         -------
             The values of the expansion for each QoI and sample
         """
-        return self.basis(samples) @ self.get_coefficients()
+        return self._basis(samples) @ self.get_coefficients()
 
     def _many_jacobian(self, samples: Array) -> Array:
         # jacobian shape (nsamples, nqoi, nvars)
         return self._bkd.einsum(
             "ijk, jl->ilk",
-            self.basis.jacobian(samples),
+            self._basis.jacobian(samples),
             self.get_coefficients(),
         )
 
@@ -150,7 +157,7 @@ class BasisExpansion(Regressor):
         return self._many_jacobian(sample)[0]
 
     def _many_hessian(self, samples):
-        hess = self.basis.hessian(samples)
+        hess = self._basis.hessian(samples)
         # hess shape is (nsamples, nterms, nvars, nvars)
         # coef shape is (nterms, nqoi)
         return self._bkd.einsum(
@@ -162,7 +169,7 @@ class BasisExpansion(Regressor):
 
     def __repr__(self):
         return "{0}(basis={1}, nqoi={2})".format(
-            self.__class__.__name__, self.basis, self.nqoi()
+            self.__class__.__name__, self._basis, self.nqoi()
         )
 
     def _fit(self, iterate: Array):
@@ -176,7 +183,7 @@ class BasisExpansion(Regressor):
                 )
             )
         coef = self._solver.solve(
-            self.basis(self._ctrain_samples), self._ctrain_values
+            self._basis(self._ctrain_samples), self._ctrain_values
         )
         self.set_coefficients(coef)
 
@@ -259,14 +266,14 @@ class MonomialExpansion(BasisExpansion):
     def _signed_add(
         self, other: "MonomialExpansion", other_sign: float
     ) -> "MonomialExpansion":
-        indices_list = [self.basis.get_indices(), other.basis.get_indices()]
+        indices_list = [self._basis.get_indices(), other.basis().get_indices()]
         coefs_list = [
             self.get_coefficients(),
             other_sign * other.get_coefficients(),
         ]
         indices, coefs = add_polynomials(indices_list, coefs_list)
         poly = copy.deepcopy(self)
-        poly.basis.set_indices(indices)
+        poly.basis().set_indices(indices)
         poly.set_coefficients(coefs)
         return poly
 
@@ -342,13 +349,13 @@ class MonomialExpansion(BasisExpansion):
             poly1 = other
             poly2 = self
         indices, coefs = self._multiply_monomials(
-            poly1.basis.get_indices(),
+            poly1.basis().get_indices(),
             poly1.get_coefficients(),
-            poly2.basis.get_indices(),
+            poly2.basis().get_indices(),
             poly2.get_coefficients(),
         )
         poly = copy.deepcopy(self)
-        poly.basis.set_indices(indices)
+        poly.basis().set_indices(indices)
         poly.set_coefficients(coefs)
         return poly
 
@@ -369,7 +376,7 @@ class MonomialExpansion(BasisExpansion):
     def __pow__(self, order: int) -> "MonomialExpansion":
         poly = copy.deepcopy(self)
         if order == 0:
-            poly.basis.set_indices(
+            poly.basis().set_indices(
                 self._bkd.full([self.nvars(), 1], 0.0, dtype=int)
             )
             poly.set_coefficients(self._bkd.full([1, self.nqoi()], 1.0))
@@ -382,7 +389,7 @@ class MonomialExpansion(BasisExpansion):
 
     def _constant_basis_coefficient_idx(self) -> Array:
         return self._bkd.where(
-            ~self._bkd.any(self.basis.get_indices(), axis=0)
+            ~self._bkd.any(self._basis.get_indices(), axis=0)
         )[0]
 
 
@@ -439,7 +446,7 @@ class PolynomialChaosExpansion(MonomialExpansion):
         max_degrees2: Array,
     ) -> List[Array]:
         product_coefs_1d = []
-        for ii, poly in enumerate(self.basis._bases_1d):
+        for ii, poly in enumerate(self._basis._bases_1d):
             max_degree1 = max_degrees1[ii]
             max_degree2 = max_degrees2[ii]
             assert max_degree1 >= max_degree2
@@ -475,7 +482,7 @@ class PolynomialChaosExpansion(MonomialExpansion):
     def _mul(
         self, other: "PolynomialChaosExpansion"
     ) -> "PolynomialChaosExpansion":
-        if self.basis.nterms() > other.nterms():
+        if self._basis.nterms() > other.nterms():
             poly1 = self
             poly2 = other
         else:
@@ -483,8 +490,8 @@ class PolynomialChaosExpansion(MonomialExpansion):
             poly2 = self
         poly1 = copy.deepcopy(poly1)
         poly2 = copy.deepcopy(poly2)
-        max_degrees1 = self._bkd.max(poly1.basis.get_indices(), axis=1)
-        max_degrees2 = self._bkd.max(poly2.basis.get_indices(), axis=1)
+        max_degrees1 = self._bkd.max(poly1.basis().get_indices(), axis=1)
+        max_degrees2 = self._bkd.max(poly2.basis().get_indices(), axis=1)
         product_coefs_1d = self._compute_product_coeffs_1d(
             poly1, max_degrees1, max_degrees2
         )
@@ -492,16 +499,16 @@ class PolynomialChaosExpansion(MonomialExpansion):
         indices, coefs = (
             multiply_multivariate_orthonormal_polynomial_expansions(
                 product_coefs_1d,
-                poly1.basis.get_indices(),
+                poly1.basis().get_indices(),
                 poly1.get_coefficients(),
-                poly2.basis.get_indices(),
+                poly2.basis().get_indices(),
                 poly2.get_coefficients(),
                 backend=self._bkd,
             )
         )
 
         poly = copy.deepcopy(self)
-        poly.basis.set_indices(indices)
+        poly.basis().set_indices(indices)
         poly.set_coefficients(coefs)
         return poly
 
@@ -509,7 +516,7 @@ class PolynomialChaosExpansion(MonomialExpansion):
         self, inactive_idx: Array, center: bool = True
     ) -> "PolynomialChaosExpansion":
         inactive_idx = self._bkd.array(inactive_idx, dtype=int)
-        if self.basis.get_indices() is None:
+        if self._basis.get_indices() is None:
             raise ValueError("PCE cannot be marginalizd as no indices are set")
         if self.get_coefficients() is None:
             raise ValueError(
@@ -522,11 +529,11 @@ class PolynomialChaosExpansion(MonomialExpansion):
             dtype=int,
         )
         marginalized_polys_1d = [
-            copy.deepcopy(self.basis._bases_1d[ii]) for ii in active_idx
+            copy.deepcopy(self._basis._bases_1d[ii]) for ii in active_idx
         ]
         marginalized_basis = OrthonormalPolynomialBasis(marginalized_polys_1d)
         marginalized_array_indices = []
-        for ii, index in enumerate(self.basis.get_indices().T):
+        for ii, index in enumerate(self._basis.get_indices().T):
             if (
                 (self._bkd.sum(index) == 0 and center is False)
                 or self._bkd.any(index[active_idx])
@@ -534,7 +541,7 @@ class PolynomialChaosExpansion(MonomialExpansion):
             ):
                 marginalized_array_indices.append(ii)
         marginalized_basis.set_indices(
-            self.basis.get_indices()[
+            self._basis.get_indices()[
                 np.ix_(
                     self._bkd.to_numpy(active_idx),
                     np.array(marginalized_array_indices),
@@ -559,15 +566,15 @@ class PolynomialChaosExpansion(MonomialExpansion):
         basis.set_indices(self._bkd.arange(self.nterms())[None, :])
         basis_mono_coefs = self._bkd.array(
             convert_orthonormal_polynomials_to_monomials_1d(
-                self._bkd.to_numpy(self.basis._bases_1d[0]._rcoefs),
+                self._bkd.to_numpy(self._basis._bases_1d[0]._rcoefs),
                 self.nterms() - 1,
             )
         )
         mono_coefs = basis_mono_coefs.T @ self.get_coefficients()
         mono_coefs = shift_momomial_expansion(
             mono_coefs,
-            self.basis._bases_1d[0]._trans._loc,
-            self.basis._bases_1d[0]._trans._scale,
+            self._basis._bases_1d[0]._trans._loc,
+            self._basis._bases_1d[0]._trans._scale,
             bkd=self._bkd,
         )
         mono = MonomialExpansion(basis, nqoi=mono_coefs.shape[1])
@@ -665,7 +672,7 @@ class TrigonometricExpansion(BasisExpansion):
         return coefs
 
     def quadrature_samples(self) -> Array:
-        bounds = self.basis._bases_1d[0]._bounds
+        bounds = self._basis._bases_1d[0]._bounds
         return self._bkd.linspace(*bounds, self.nterms() + 1)[None, :-1]
 
 
@@ -681,7 +688,7 @@ class FourierExpansion(BasisExpansion):
         if trig_coefs.ndim != 2:
             raise ValueError("trig_coefs must be a 2d array")
         const_coefs = trig_coefs[:1]
-        Kmax = self.basis._bases_1d[0]._Kmax
+        Kmax = self._basis._bases_1d[0]._Kmax
         cos_coefs = trig_coefs[1 : Kmax + 1]
         sin_coefs = trig_coefs[Kmax + 1 :]
         left_coefs = self._bkd.flip(
@@ -691,11 +698,11 @@ class FourierExpansion(BasisExpansion):
         return self._bkd.vstack((left_coefs, const_coefs, right_coefs))
 
     def quadrature_samples(self) -> Array:
-        bounds = self.basis._bases_1d[0]._bounds
+        bounds = self._basis._bases_1d[0]._bounds
         return self._bkd.linspace(
             *bounds, self.nterms() + 1, dtype=self._bkd.complex_dtype()
         )[None, :-1]
 
     def compute_coefficients(self, values: Array) -> Array:
         quad_samples = self.quadrature_samples()
-        return (self.basis(quad_samples).T) @ values / self.nterms()
+        return (self._basis(quad_samples).T) @ values / self.nterms()

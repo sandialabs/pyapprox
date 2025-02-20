@@ -9,10 +9,11 @@ from pyapprox.surrogates.bases.basisexp import (
     BasisExpansion,
     MonomialExpansion,
 )
-from pyapprox.surrogates.loss import LossFunction, RMSELoss
+from pyapprox.surrogates.loss import RMSELoss
 from pyapprox.surrogates.regressor import OptimizedRegressor
-from pyapprox.optimization.pya_minimize import (
-    OptimizerWithObjective, MultiStartOptimizer, OptimizationResult
+from pyapprox.optimization.minimize import (
+    OptimizerWithObjective,
+    OptimizationResult,
 )
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -137,7 +138,7 @@ class FunctionTrain(OptimizedRegressor):
         return values
 
     def _core_function_jacobians(
-            self, core_id: int, samples: Array
+        self, core_id: int, samples: Array
     ) -> List[Array]:
         core = self._cores[core_id]
         jacs = []
@@ -177,7 +178,7 @@ class FunctionTrain(OptimizedRegressor):
         return jacs
 
     def _interior_core_jacobian(
-            self, samples: Array, core_id: int
+        self, samples: Array, core_id: int
     ) -> List[Array]:
         core = self._cores[core_id]
         Lmat = self._eval_left_cores(core_id, samples)
@@ -303,13 +304,17 @@ class FunctionTrainAlternatingLstSqLoss(RMSELoss):
         super().__init__()
         self._jacobian_implemented = False
 
-    def set_model(self, model):
+    def set_model(self, model: FunctionTrain):
         self._bkd = model._bkd
         self._model = model
 
-    def _jacobian(self, samples):
+    def nvars(self) -> int:
+        return self._model.hyp_list().nactive_vars()
+
+    def _jacobian(self, samples: Array) -> Array:
         raise NotImplementedError(
-            "AlternatingLstSqOptimizer will never call _jacobian")
+            "AlternatingLstSqOptimizer will never call _jacobian"
+        )
 
 
 class AlternatingLstSqOptimizer(OptimizerWithObjective):

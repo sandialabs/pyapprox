@@ -2,18 +2,20 @@ from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.surrogates.loss import LossFunction
 from pyapprox.surrogates.regressor import OptimizedRegressor
 from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
-from pyapprox.optimization.pya_minimize import MultiStartOptimizer
+from pyapprox.optimization.minimize import MultiStartOptimizer
 from pyapprox.interface.model import Model
 
 
 class CrossEntropyLoss(LossFunction):
     def set_model(self, model: Model):
         super().set_model(model)
-        self._jacobian_implemented = model._jacobian_implemented
+
+    def jacobian_implemented(self) -> bool:
+        return self._model._jacobian_implemented
 
     def _loss_values(self, active_opt_params: Array) -> Array:
         self._check_model(self._model)
-        self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
+        self._model.hyp_list().set_active_opt_params(active_opt_params[:, 0])
         # always pass in _ctrain samples which is data after processing
         # by surrogate. Surrogates such as PCE may have additional
         # transformations under that operate on _ctrain_sampels
@@ -30,7 +32,7 @@ class CrossEntropyLoss(LossFunction):
         )
 
     def _jacobian(self, active_opt_params: Array) -> Array:
-        self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
+        self._model.hyp_list().set_active_opt_params(active_opt_params[:, 0])
         prob = self._model(self._model._ctrain_samples)
         obs = self._model._ctrain_values
         return -self._bkd.mean(
@@ -50,18 +52,18 @@ class CrossEntropyLossLogisticRegression(CrossEntropyLoss):
 
     def _loss_values(self, active_opt_params: Array) -> Array:
         loss = super()._loss_values(active_opt_params)
-        penalty = self._bkd.sum(active_opt_params ** 2)
+        penalty = self._bkd.sum(active_opt_params**2)
         nsamples = self._model._ctrain_samples.shape[1]
         return loss + 0.5 * self._penalty_weight * penalty / nsamples
 
     def _jacobian(self, active_opt_params: Array) -> Array:
-        self._model.hyp_list.set_active_opt_params(active_opt_params[:, 0])
+        self._model.hyp_list().set_active_opt_params(active_opt_params[:, 0])
         prob = self._model(self._model._ctrain_samples)
         obs = self._model._ctrain_values
         basis = self._model._bexp.basis(self._model._ctrain_samples)
         nsamples = self._model._ctrain_samples.shape[1]
         return (
-            (basis.T @ (prob-obs)).T / nsamples
+            (basis.T @ (prob - obs)).T / nsamples
             + self._penalty_weight / nsamples * active_opt_params.T
         )
 
@@ -70,14 +72,18 @@ class CrossEntropyLossLogisticRegression(CrossEntropyLoss):
         prob = self._model(self._model._ctrain_samples)
         nsamples = self._model._ctrain_samples.shape[1]
         return (
-            basis.T @ (prob * (1. - prob) * basis @ vec) / nsamples
+            basis.T @ (prob * (1.0 - prob) * basis @ vec) / nsamples
             + self._penalty_weight / nsamples * vec
         )
 
     def set_model(self, model: Model):
         super().set_model(model)
-        self.jacobian_implemented = True
-        self._apply_hessian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
 
 
 class LogisticClassifier(OptimizedRegressor):
@@ -89,7 +95,7 @@ class LogisticClassifier(OptimizedRegressor):
         self._apply_hessian_implemented = True
 
     def set_optimizer(
-            self, optimizer: MultiStartOptimizer, penalty_weight: float = 1.
+        self, optimizer: MultiStartOptimizer, penalty_weight: float = 1.0
     ):
         # penalty needed if data classes are perfectly separated
         super().set_optimizer(optimizer)
@@ -108,7 +114,7 @@ class LogisticClassifier(OptimizedRegressor):
         return 1.0 / (1.0 + self._bkd.exp(-self._bexp(samples)))
 
     def hyperparam_jacobian(self, active_opt_params: Array) -> Array:
-        self._bexp.hyp_list.set_active_opt_params(active_opt_params[:, 0])
+        self._bexp.hyp_list().set_active_opt_params(active_opt_params[:, 0])
         exp_vals = self._bkd.exp(self._bexp(self._ctrain_samples))
         return (
             exp_vals

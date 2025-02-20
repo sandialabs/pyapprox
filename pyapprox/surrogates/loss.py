@@ -8,26 +8,33 @@ class LossFunction(Model):
         self._bkd = None
         self._model = None
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return 1
+
+    def nvars(self) -> int:
+        return self._model.hyp_list().nactive_vars()
 
     def set_model(self, model: Model):
         self._bkd = model._bkd
-        self._jacobian_implemented = self._bkd.jacobian_implemented()
-        self._apply_hessian_implemented = self._bkd.jacobian_implemented()
         self._model = model
+
+    def jacobian_implemented(self) -> bool:
+        return self._bkd.jacobian_implemented()
+
+    def apply_hessian_implemented(self) -> bool:
+        return self._bkd.jacobian_implemented()
 
     def _check_model(self, model: Model):
         if not isinstance(model, Model):
             raise ValueError("model must be an instance of Model")
         if (
-            not hasattr(model, "_ctrain_samples") or
-            model._ctrain_samples is None
+            not hasattr(model, "_ctrain_samples")
+            or model._ctrain_samples is None
         ):
             raise ValueError("model must have attribute _ctrain_samples")
         if (
-                not hasattr(model, "_ctrain_values")
-                or model._ctrain_values is None
+            not hasattr(model, "_ctrain_values")
+            or model._ctrain_values is None
         ):
             raise ValueError("model must have attribute _ctrain_values")
 
@@ -36,7 +43,7 @@ class LossFunction(Model):
             raise ValueError("active_opt_params must be a 2D column array")
         jac = self._bkd.jacobian(
             lambda p: self._loss_values(p[:, None])[:, 0],
-            active_opt_params[:, 0]
+            active_opt_params[:, 0],
         )
         return jac
 
@@ -59,8 +66,8 @@ class RMSELoss(LossFunction):
             self._bkd.mean(
                 self._bkd.norm(
                     (
-                        self._model(self._model._ctrain_samples) -
-                        self._model._ctrain_values
+                        self._model(self._model._ctrain_samples)
+                        - self._model._ctrain_values
                     ),
                     axis=1,
                 )

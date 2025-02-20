@@ -17,7 +17,7 @@ from pyapprox.surrogates.bases.univariate import (
     UnivariatePiecewisePolynomialNodeGenerator,
     UnivariatePiecewisePolynomialQuadratureRule,
 )
-from pyapprox.interface.model import ModelFromCallable
+from pyapprox.interface.model import ModelFromVectorizedCallable
 
 
 class TestUnivariateBasis:
@@ -55,9 +55,7 @@ class TestUnivariateBasis:
         values = fun(nodes[None, :])
         basis = irregular_piecewise_linear_basis(nodes, samples, bkd=bkd)
         # check basis interpolates values at nodes
-        assert bkd.allclose(
-            basis @ values, fun(samples[None, :]), atol=2e-4
-        )
+        assert bkd.allclose(basis @ values, fun(samples[None, :]), atol=2e-4)
 
         def fun(xx):
             return bkd.sum(xx**3, axis=0)[:, None]
@@ -87,9 +85,7 @@ class TestUnivariateBasis:
         values = fun(nodes[None, :])
         basis = irregular_piecewise_quadratic_basis(nodes, samples, bkd=bkd)
         # check basis interpolates values at nodes
-        assert bkd.allclose(
-            basis @ values, fun(samples[None, :]), atol=1e-5
-        )
+        assert bkd.allclose(basis @ values, fun(samples[None, :]), atol=1e-5)
 
         nnodes = 10
         nodes = bkd.linspace(lb, ub, nnodes * 2)
@@ -109,9 +105,7 @@ class TestUnivariateBasis:
         values = fun(nodes[None, :])
         basis = irregular_piecewise_cubic_basis(nodes, samples, bkd=bkd)
         # check basis interpolates values at nodes
-        assert bkd.allclose(
-            basis @ values, fun(samples[None, :]), atol=1e-15
-        )
+        assert bkd.allclose(basis @ values, fun(samples[None, :]), atol=1e-15)
 
     def _check_univariate_piecewise_polynomial_quadrature(
         self, name, degree, nterms, tol
@@ -201,10 +195,8 @@ class TestUnivariateBasis:
                 return 1 / 5
 
         samples, weights = basis.quadrature_rule()
-        degree = nterms-1
-        assert np.allclose(
-            fun(degree, samples).T @ weights, integral(degree)
-        )
+        degree = nterms - 1
+        assert np.allclose(fun(degree, samples).T @ weights, integral(degree))
 
         # test semideep copy
         other = basis._semideep_copy()
@@ -217,8 +209,8 @@ class TestUnivariateBasis:
         bounds = [0, 1]
         integrator = ScipyUnivariateIntegrator(backend=bkd)
         integrator.set_bounds(bounds)
-        integrand = ModelFromCallable(
-            1, lambda x: bkd.cos(x[0])[:, None], backend=bkd
+        integrand = ModelFromVectorizedCallable(
+            1, 1, lambda x: bkd.cos(x[0])[:, None], backend=bkd
         )
         integrator.set_integrand(integrand)
         # use np to compare floats
@@ -236,14 +228,16 @@ class TestUnivariateBasis:
 
         def integrand(sample):
             np_sample = bkd.to_numpy(sample)
-            val = bkd.asarray(
-                np_sample[0]**2*marginal.pdf(np_sample[0])
-            )[:, None]
+            val = bkd.asarray(np_sample[0] ** 2 * marginal.pdf(np_sample[0]))[
+                :, None
+            ]
             return val
+
         quad_rule = ClenshawCurtisQuadratureRule(
-            prob_measure=False, backend=bkd, store=True, bounds=[-1, 1])
+            prob_measure=False, backend=bkd, store=True, bounds=[-1, 1]
+        )
         integrator = UnivariateUnboundedIntegrator(quad_rule, backend=bkd)
-        integrator.set_options(nquad_samples=2**3+1, maxiters=1000)
+        integrator.set_options(nquad_samples=2**3 + 1, maxiters=1000)
         integrator.set_bounds(marginal.interval(1))
         integrator.set_integrand(integrand)
         assert np.allclose(integrator(), 1)
@@ -254,17 +248,19 @@ class TestUnivariateBasis:
 
         def integrand(sample):
             np_sample = bkd.to_numpy(sample)
-            val1 = bkd.asarray(np_sample[0]**2*marginal1.pdf(np_sample[0]))
-            val2 = bkd.asarray(np_sample[0]**2*marginal2.pdf(np_sample[0]))
+            val1 = bkd.asarray(np_sample[0] ** 2 * marginal1.pdf(np_sample[0]))
+            val2 = bkd.asarray(np_sample[0] ** 2 * marginal2.pdf(np_sample[0]))
             return bkd.stack([val1, val2], axis=1)
+
         quad_rule = ClenshawCurtisQuadratureRule(
-            prob_measure=False, backend=bkd, store=True, bounds=[-1, 1])
+            prob_measure=False, backend=bkd, store=True, bounds=[-1, 1]
+        )
         integrator = UnivariateUnboundedIntegrator(quad_rule, backend=bkd)
         integrator.set_options(
-            nquad_samples=2**3+1,
+            nquad_samples=2**3 + 1,
             maxiters=1000,
             maxinner_iters=6,
-            interval_size=2
+            interval_size=2,
         )
         integrator.set_bounds(marginal.interval(1))
         integrator.set_integrand(integrand)
@@ -272,10 +268,11 @@ class TestUnivariateBasis:
         assert np.allclose(
             integrals,
             [
-                marginal1.var()+marginal1.mean()**2,
-                marginal2.var()+marginal2.mean()**2
-            ]
+                marginal1.var() + marginal1.mean() ** 2,
+                marginal2.var() + marginal2.mean() ** 2,
+            ],
         )
+
 
 class TestNumpyUnivariateBasis(TestUnivariateBasis, unittest.TestCase):
     def get_backend(self):

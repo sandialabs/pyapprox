@@ -14,8 +14,8 @@ from pyapprox.surrogates.bases.functiontrain import (
     AlternatingLstSqOptimizer,
     FunctionTrainAlternatingLstSqLoss,
 )
-from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer,
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.optimization.minimize import (
     MultiStartOptimizer,
     RandomUniformOptimzerIterateGenerator,
 )
@@ -40,9 +40,7 @@ class TestFunctionTrain:
         basisexp = MonomialExpansion(basis, solver=None, nqoi=nqoi)
         univariate_funs = [copy.deepcopy(basisexp) for ii in range(nvars)]
         ft = AdditiveFunctionTrain(univariate_funs, nqoi)
-        true_active_opt_params = bkd.full(
-            (ft.hyp_list().nactive_vars(),), 1.0
-        )
+        true_active_opt_params = bkd.full((ft.hyp_list().nactive_vars(),), 1.0)
         ft.hyp_list().set_active_opt_params(true_active_opt_params)
         ft_vals = ft(train_samples)
         univariate_vals = [

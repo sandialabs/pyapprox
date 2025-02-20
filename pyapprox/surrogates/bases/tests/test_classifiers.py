@@ -11,8 +11,8 @@ from pyapprox.surrogates.bases.orthopoly import (
 )
 from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.bases.classifiers import LogisticClassifier
-from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer,
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.optimization.minimize import (
     MultiStartOptimizer,
     RandomUniformOptimzerIterateGenerator,
 )
@@ -36,7 +36,7 @@ class TestClassifiers(unittest.TestCase):
             for marginal in marginals
         ]
         basis = OrthonormalPolynomialBasis(bases_1d)
-        basis.set_tensor_product_indices([nterms_1d] * variable.num_vars())
+        basis.set_tensor_product_indices([nterms_1d] * variable.nvars())
         nqoi = 1
         bexp = PolynomialChaosExpansion(basis, None, nqoi=nqoi)
         return bexp
@@ -45,12 +45,14 @@ class TestClassifiers(unittest.TestCase):
         bkd = clf._bkd
         optimizer = ScipyConstrainedOptimizer()
         optimizer.set_options(
-            gtol=1e-8, maxiter=100, method="trust-constr",
+            gtol=1e-8,
+            maxiter=100,
+            method="trust-constr",
         )
         optimizer.set_verbosity(2)
         ms_optimizer = MultiStartOptimizer(optimizer, ncandidates=2)
         iterate_gen = RandomUniformOptimzerIterateGenerator(
-            clf.hyp_list.nactive_vars(), backend=bkd
+            clf.hyp_list().nactive_vars(), backend=bkd
         )
         # need to set bounds to be small because initial guess effects
         # optimization
@@ -68,27 +70,36 @@ class TestClassifiers(unittest.TestCase):
 
         def label_fun(xx):
             # return bkd.array(xx > 0.5, dtype=bkd.double_type()).T
-            return bkd.array(bkd.abs(xx-0.5) > 0.25, dtype=bkd.double_type()).T
+            return bkd.array(
+                bkd.abs(xx - 0.5) > 0.25, dtype=bkd.double_type()
+            ).T
+
         train_values = label_fun(train_samples)
 
         clf._set_training_data(train_samples, train_values)
         penalty_weight = 1e-2
         clf.set_optimizer(self._setup_optimizer(clf), penalty_weight)
         iterate = bkd.asarray(
-            np.random.normal(0, 1, (clf.hyp_list.nactive_vars(), 1))
+            np.random.normal(0, 1, (clf.hyp_list().nactive_vars(), 1))
         )
         print(clf._optimizer._objective(iterate))
-        errors = clf._optimizer._objective.check_apply_jacobian(iterate, disp=True)
-        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.1
-        errors = clf._optimizer._objective.check_apply_hessian(iterate, disp=True)
-        assert errors.min()/errors.max() < 1e-6 and errors.max() > 0.1
+        errors = clf._optimizer._objective.check_apply_jacobian(
+            iterate, disp=True
+        )
+        assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
+        errors = clf._optimizer._objective.check_apply_hessian(
+            iterate, disp=True
+        )
+        assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
         clf.fit(train_samples, train_values)
 
         test_samples = bkd.array(np.random.uniform(0.0, 1.0, 101))[None, :]
         test_labels = label_fun(test_samples)
         clf_labels = clf.labels(test_samples)
-        nwrong = np.where(bkd.abs(clf_labels - test_labels) > 1e-14)[0].shape[0]
-        label_acuracy = 1-nwrong / test_labels.shape[0]
+        nwrong = np.where(bkd.abs(clf_labels - test_labels) > 1e-14)[0].shape[
+            0
+        ]
+        label_acuracy = 1 - nwrong / test_labels.shape[0]
         print("NWRONG", nwrong)
         print("Label accuracy", label_acuracy)
         assert nwrong == 1

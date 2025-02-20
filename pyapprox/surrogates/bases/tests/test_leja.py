@@ -16,7 +16,7 @@ from pyapprox.surrogates.bases.leja import (
     OnePointChristoffelLejaObjective,
     TwoPointChristoffelLejaObjective,
 )
-from pyapprox.interface.model import ModelFromCallable
+from pyapprox.interface.model import ModelFromSingleSampleCallable
 
 
 def _sp_beta_pdf_01(alpha, beta, x):
@@ -37,8 +37,8 @@ class TestLeja:
         bkd = self.get_backend()
         # use model infasttucture to test gradients
         marginal = BetaMarginal(stats.beta(2, 2), backend=bkd)
-        model = ModelFromCallable(
-            1, marginal.pdf, jacobian=marginal.pdf_jacobian, backend=bkd
+        model = ModelFromSingleSampleCallable(
+            1, 1, marginal.pdf, jacobian=marginal.pdf_jacobian, backend=bkd
         )
         iterate = bkd.array([[marginal._marginal.interval(0.75)[1]]])
         # make sure not to step outside bounds
@@ -47,16 +47,16 @@ class TestLeja:
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
 
         marginal = GaussianMarginal(stats.norm(0, 1), backend=bkd)
-        model = ModelFromCallable(
-            1, marginal.pdf, jacobian=marginal.pdf_jacobian, backend=bkd
+        model = ModelFromSingleSampleCallable(
+            1, 1, marginal.pdf, jacobian=marginal.pdf_jacobian, backend=bkd
         )
         iterate = bkd.array([[marginal._marginal.interval(0.75)[1]]])
         errors = model.check_apply_jacobian(iterate)
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
 
         marginal = UniformMarginal(stats.uniform(-1, 2), backend=bkd)
-        model = ModelFromCallable(
-            1, marginal.pdf, jacobian=marginal.pdf_jacobian, backend=bkd
+        model = ModelFromSingleSampleCallable(
+            1, 1, marginal.pdf, jacobian=marginal.pdf_jacobian, backend=bkd
         )
         iterate = bkd.array([[marginal._marginal.interval(0.75)[1]]])
         # make sure not to step outside bounds
@@ -148,9 +148,7 @@ class TestLeja:
         for test_case in test_cases:
             self._check_two_point_leja_objective(*test_case)
 
-    def _check_leja_sequence(
-        self, objective_class, marginal, exact_integral
-    ):
+    def _check_leja_sequence(self, objective_class, marginal, exact_integral):
         bkd = self.get_backend()
         leja = setup_univariate_leja_sequence(
             marginal, objective_class, backend=bkd

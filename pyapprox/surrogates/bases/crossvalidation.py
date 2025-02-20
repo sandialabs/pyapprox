@@ -42,10 +42,10 @@ class PolynomialDegreeIterator(StructureParameterIterator):
     ):
         degree = structure_params[0]
         pnorm = structure_params[1]
-        regressor.basis.set_hyperbolic_indices(degree, pnorm)
+        regressor.basis().set_hyperbolic_indices(degree, pnorm)
         # need to call regressor.set_basis to make sure hyperparameter
         # list is updated correctly
-        regressor.set_basis(regressor.basis)
+        regressor.set_basis(regressor.basis())
 
 
 class OMPNTermsIterator(StructureParameterIterator):
@@ -128,16 +128,10 @@ class KFoldCrossValidation(CrossValidation):
             test_samples = self._bkd.delete(
                 self._train_samples, indices, axis=1
             )
-            test_values = self._bkd.delete(
-                self._train_values, indices, axis=0
-            )
+            test_values = self._bkd.delete(self._train_values, indices, axis=0)
             fold_residuals.append(self.regressor(test_samples) - test_values)
-            sum_sq_residuals += self._bkd.sum(
-                fold_residuals[-1] ** 2, axis=0
-            )
-        cv_score = self._bkd.sqrt(
-            sum_sq_residuals / self._ntrain_samples    
-        )
+            sum_sq_residuals += self._bkd.sum(fold_residuals[-1] ** 2, axis=0)
+        cv_score = self._bkd.sqrt(sum_sq_residuals / self._ntrain_samples)
         return cv_score
 
     def __repr__(self):
