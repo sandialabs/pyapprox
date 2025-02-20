@@ -15,7 +15,7 @@ from pyapprox.optimization.second_order_stochastic_dominance import (
 from pyapprox.variables.risk import compute_conditional_expectations
 
 
-# from pyapprox.optimization.pya_minimize import has_ROL
+# from pyapprox.optimization.minimize import has_ROL
 # skiptest_rol = unittest.skipIf(
 #     not has_ROL, reason="rol package not found")
 

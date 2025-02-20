@@ -40,6 +40,7 @@ def raise_exception(condition, msg):
 def get_shell_command_for_io_model(
     delay: float = 0.0,
     fault_percentage: float = 0.0,
+    backend=NumpyLinAlgMixin,
 ):
     """
     Return a FileIOModel that wrapts a call to the 2D target function
@@ -59,11 +60,7 @@ def get_shell_command_for_io_model(
         return np.array([x[0] ** 2 + 2 * x[1] ** 3, x[0] ** 3 + x[0] * x[1]])
 
     target_model = ModelFromSingleSampleCallable(
-        2,
-        2,
-        target_function,
-        sample_ndim=1,
-        values_ndim=1,
+        2, 2, target_function, sample_ndim=1, values_ndim=1, backend=backend
     )
     return shell_command, target_model
 
@@ -289,11 +286,11 @@ class TestModel:
         errors = model.check_apply_jacobian(sample)
         # turn off apply_jacobian to check that it can be reconstructed
         # from jacobian
-        model._apply_jacobian_implemented = False
+        model.apply_jacobian_implemented = lambda: False
         errors = model.check_apply_jacobian(sample, disp=True)
 
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
-        model._apply_jacobian_implemented = True
+        model.apply_jacobian_implemented = lambda: True
 
         errors = model.check_apply_hessian(
             sample, weights=bkd.ones((model.nqoi(), 1)), disp=True
@@ -301,7 +298,7 @@ class TestModel:
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.3
         # turn off apply_weighted_hessian to check that it can be reconstructed
         # from hessian
-        model._apply_weighted_hessian_implemented = False
+        model.apply_weighted_hessian_implemented = lambda: False
         errors = model.check_apply_hessian(
             sample, weights=bkd.ones((model.nqoi(), 1)), disp=True
         )
@@ -347,7 +344,10 @@ class TestModel:
         )
 
     def test_umbridge_model(self):
-        from genz_umbridge_server import GenzUMBModel, GenzIntegral
+        from pyapprox.interface.tests.genz_umbridge_server import (
+            GenzUMBModel,
+            GenzIntegral,
+        )
 
         config = {"name": "oscillatory", "nvars": 2, "coef_type": "none"}
         sample = np.random.uniform(0, 1, (config["nvars"], 1))
@@ -593,7 +593,9 @@ if __name__ == "__main__":
         outtmpdir = tempfile.TemporaryDirectory()
         outdir_basename = outtmpdir.name
 
-        shell_command, target_model = get_shell_command_for_io_model()
+        shell_command, target_model = get_shell_command_for_io_model(
+            backend=bkd
+        )
         model = SerialIOModel(
             2,
             nvars,
@@ -624,7 +626,9 @@ if __name__ == "__main__":
         outtmpdir = tempfile.TemporaryDirectory()
         outdir_basename = outtmpdir.name
         datafilename = "data.npz"
-        shell_command, target_model = get_shell_command_for_io_model()
+        shell_command, target_model = get_shell_command_for_io_model(
+            backend=bkd
+        )
 
         # test with save="full"
         model = AsyncIOModel(
@@ -740,7 +744,9 @@ if __name__ == "__main__":
         outtmpdir = tempfile.TemporaryDirectory()
         outdir_basename = outtmpdir.name
         datafilename = "data.npz"
-        shell_command, target_model = get_shell_command_for_io_model()
+        shell_command, target_model = get_shell_command_for_io_model(
+            backend=bkd
+        )
         # test with save="full"
         model = AsyncIOModel(
             2,

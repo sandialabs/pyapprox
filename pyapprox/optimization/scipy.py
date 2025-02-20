@@ -7,7 +7,7 @@ from scipy.optimize import (
 )
 import scipy
 
-from pyapprox.optimize.minimize import (
+from pyapprox.optimization.minimize import (
     OptimizationResult,
     ConstrainedOptimizer,
     ConstraintPenalizedObjective,

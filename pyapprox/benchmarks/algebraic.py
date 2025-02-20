@@ -870,9 +870,6 @@ class RosenbrockModel(Model):
         # numpy function
         return self._bkd.asarray(rosen(self._bkd.to_numpy(samples)))[:, None]
 
-    def nvars(self):
-        return self._nvars
-
     def _jacobian(self, sample: Array) -> Array:
         return self._bkd.asarray(rosen_der(self._bkd.to_numpy(sample))).T
 
@@ -955,6 +952,9 @@ class RosenbrockConstraint(Constraint):
     def hessian_implemented(self) -> bool:
         return True
 
+    def nvars(self) -> int:
+        return 2
+
     def nqoi(self) -> int:
         return 2
 
@@ -974,18 +974,18 @@ class RosenbrockConstraint(Constraint):
                 self._bkd.hstack(
                     [-3 * (sample[0] - 1) ** 2, self._bkd.ones((1,))]
                 ),
-                self._bkd.full((2,), -1),
+                self._bkd.full((self.nvars(),), -1),
             ),
             axis=0,
         )
 
     def _hessian(self, sample: Array) -> Array:
         zero = self._bkd.zeros((1,))
-        hess = self._bkd.zeros((self.nqoi(), 2, 2))
+        hess = self._bkd.zeros((self.nqoi(), self.nvars(), self.nvars()))
         hess[0] = self._bkd.stack(
             (
                 self._bkd.hstack((-6 * (sample[0] - 1), zero)),
-                self._bkd.zeros((2,)),
+                self._bkd.zeros((self.nvars(),)),
             ),
             axis=0,
         )
@@ -1004,7 +1004,8 @@ class RosenbrockConstrainedOptimizationBenchmark(
 
     def init_iterate(self) -> Array:
         eps = 0.2  # initial iterate on constraint
-        # need to shift x coord because of issues with scipy trust-constr solver
+        # need to shift x coord because of issues with scipy
+        # trust-constr solver
         return self._bkd.array([1 - eps - 1e-16, 1 + eps])[:, None]
 
     def _set_objective(self):

@@ -107,7 +107,7 @@ class ModelDataBase:
         return self._active
 
     def _hash_sample(self, sample: Array) -> int:
-        return hash(sample.tobytes())
+        return hash(self._bkd.to_numpy(sample).tobytes())
 
     def _add_sample(self, eval_name: str, key, sample):
         if key not in self._samples_dict:
@@ -119,6 +119,8 @@ class ModelDataBase:
         self._values_dict[eval_name][key] = self._bkd.copy(values)
 
     def add_data(self, eval_name: str, samples: Array, values: Array):
+        if not self.isactive():
+            return
         for ii in range(samples.shape[1]):
             key = self._hash_sample(samples[:, ii])
             self._add_sample(eval_name, key, samples[:, ii])
@@ -249,6 +251,7 @@ class Model(ABC):
         self._work_tracker.update("val", times)
         self._check_values_shape(samples, vals)
         self._database.add_data("val", samples, vals)
+        return vals
 
     def __call__(self, samples: Array) -> Array:
         """
@@ -476,7 +479,6 @@ class Model(ABC):
         hess, stored_idx, new_idx = self._database.get_data("hess", sample)
         if len(stored_idx) == 1:
             return hess[0]
-
         t0 = time.time()
         hess = self._hessian(sample)
         t1 = time.time()
@@ -564,6 +566,7 @@ class Model(ABC):
             )
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
+        self._check_weights_shape(weights)
         if self.apply_weighted_hessian_implemented():
             whvp, stored_idx, new_idx = self._database.get_data("whvp", sample)
             if len(stored_idx) == 1:
@@ -591,6 +594,7 @@ class Model(ABC):
                 "weighted_hessian and hessian are not implemented"
             )
         self._check_sample_shape(sample)
+        self._check_weights_shape(weights)
         if self.weighted_hessian_implemented():
             whess, stored_idx, new_idx = self._database.get_data(
                 "whess", sample
@@ -598,14 +602,14 @@ class Model(ABC):
             if len(stored_idx) == 1:
                 return whess[0]
             t0 = time.time()
-            hess = self._weighted_hessian(sample, weights)
+            whess = self._weighted_hessian(sample, weights)
             t1 = time.time()
             times = self._bkd.array([t1 - t0])
             self._work_tracker.update("whess", times)
             self._database.add_data("whess", sample, whess)
-            return hess
+            return whess
         hess = self.hessian(sample)
-        return self._bkd.einsum("il,ijk->jkl", weights, hess)
+        return self._bkd.einsum("i,ijk->jk", weights[:, 0], hess)
 
     def _check_apply(
         self,
@@ -1164,14 +1168,18 @@ class UmbridgeModelWrapper(Model):
 
     def _apply_jacobian(self, sample, vec):
         parameters = self._check_sample(sample)
-        self._model.apply_jacobian(
-            None, None, parameters, vec, config=self._config
+        return self._bkd.asarray(
+            self._model.apply_jacobian(
+                None, None, parameters, vec, config=self._config
+            )
         )
 
     def _apply_hessian(self, sample, vec):
         parameters = self._check_sample(sample)
-        self._model.apply_hessian(
-            None, None, None, parameters, vec, None, config=self._config
+        return self._bkd.asarray(
+            self._model.apply_hessian(
+                None, None, None, parameters, vec, None, config=self._config
+            )
         )
 
     def _evaluate_single_thread(self, sample, sample_id):
@@ -1207,7 +1215,7 @@ class UmbridgeModelWrapper(Model):
     def _values(self, samples):
         if self._nprocs > 1:
             return self._bkd.asarray(self._evaluate_parallel(samples))
-        return self._bkd.array(self._evaluate_serial(samples))
+        return self._bkd.asarray(self._evaluate_serial(samples))
 
     @staticmethod
     def start_server(
@@ -1435,7 +1443,7 @@ class SerialIOModel(IOModel):
             outdir_basename,
             save,
             datafilename,
-            backend,
+            backend=backend,
         )
         self._shell_command = shell_command
         self._results_filename = results_filename
@@ -1498,7 +1506,7 @@ class AsyncIOModel(SerialIOModel):
             save,
             datafilename,
             verbosity,
-            backend,
+            backend=backend,
         )
 
     def _run_shell_command(self):
@@ -1622,7 +1630,7 @@ class AsyncIOModel(SerialIOModel):
         )
         vals = self._bkd.empty((samples.shape[1], self.nqoi()))
         if len(new_idx) > 0:
-            new_samples = self._bkd.array(samples)[:, new_idx]
+            new_samples = samples[:, new_idx]
             vals[new_idx] = self._values(new_samples)
         if len(stored_idx) > 0:
             vals[stored_idx] = self._bkd.vstack(stored_values)

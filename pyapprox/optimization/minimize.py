@@ -11,6 +11,7 @@ from pyapprox.interface.model import (
     ActiveSetVariableModel,
     SingleSampleModel,
 )
+from scipy.optimize import LinearConstraint
 
 
 class OptimizationResult(dict):
@@ -51,7 +52,9 @@ class Constraint(Model):
         if bounds is not None:
             self.set_bounds(bounds)
         self._keep_feasible = keep_feasible
-        self._hessian_implemented = False
+
+    def hessian_implemented(self) -> bool:
+        return False
 
     def set_bounds(self, bounds: Array):
         if bounds.ndim != 2 or bounds.shape[1] != 2:
@@ -926,12 +929,20 @@ class SampleAverageConstraint(ConstraintFromModel):
             )
         )
 
+    def nvars(self) -> int:
+        # optimizers obtain nvars from here so must be size
+        # of design variables
+        return self._design_indices.shape[0]
+
     def _update_attributes(self):
-        self._jacobian_implemented = self._model.jacobian_implemented()
-        self._apply_jacobian_implemented = (
-            self._model.apply_jacobian_implemented()
-        )
-        self._hessian_implemented = (
+        for attr in [
+            "apply_jacobian_implemented",
+            "jacobian_implemented",
+        ]:
+            setattr(self, attr, getattr(self._model, attr))
+
+    def hessian_implemented(self) -> bool:
+        return (
             self._model.hessian_implemented()
             and self._stat.hessian_implemented()
         )
@@ -1039,10 +1050,17 @@ class CVaRSampleAverageConstraint(SampleAverageConstraint):
             design_indices,
             keep_feasible,
         )
+
+    def nvars(self) -> int:
+        # optimizers obtain nvars from here so must be size
+        # of design variables
+        return self._design_indices.shape[0] + self._nconstraints
+
+    def apply_jacobian_implemented(self) -> bool:
         # even if model has apply jacobian sample_average_constraint does not
         # so turn off. If it is True then use of jacobian to compute
         # jacobian apply will fail due to passing around VaR
-        self._apply_jacobian_implemented = False
+        return False
 
     def __call__(self, design_sample):
         # have to ovewrite call instead of just defining values
@@ -1067,22 +1085,29 @@ class ObjectiveWithCVaRConstraints(Model):
     Assumes samples consist of vstack(random_vars, t)
     """
 
-    def __init__(self, model, ncvar_constraints):
+    def __init__(
+        self, model: Model, ncvar_constraints: int, ndesign_vars: int
+    ):
         super().__init__()
         self._model = model
+        self._ndesign_vars = ndesign_vars
         if model.nqoi() != 1:
             raise ValueError("objective can only have one QoI")
         self._ncvar_constraints = ncvar_constraints
-        self._jacobian_implemented = self._model.jacobian_implemented()
-        self._apply_jacobian_implemented = (
-            self._model.apply_jacobian_implemented()
-        )
+        for attr in [
+            "apply_jacobian_implemented",
+            "jacobian_implemented",
+        ]:
+            setattr(self, attr, getattr(self._model, attr))
         # until sampleaveragecvar.hessian is implemented turn
         # off objective hessian
         # self._hessian_implemented = self._model.hessian_implemented()
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return self._model.nqoi()
+
+    def nvars(self) -> int:
+        return self._ndesign_vars + self._ncvar_constraints
 
     def _values(self, design_samples):
         return self._model(design_samples[: -self._ncvar_constraints])
@@ -1144,6 +1169,15 @@ def approx_hessian(
 
 
 class MiniMaxObjective(SingleSampleModel):
+    def __init__(
+        self, nmodel_vars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+    ):
+        self._nmodel_vars = nmodel_vars
+        super().__init__(backend)
+
+    def nslack(self) -> int:
+        return 1
+
     def jacobian_implemented(self) -> bool:
         return True
 
@@ -1152,6 +1186,9 @@ class MiniMaxObjective(SingleSampleModel):
 
     def nqoi(self) -> int:
         return 1
+
+    def nvars(self) -> int:
+        return self._nmodel_vars + self.nslack()
 
     def _evaluate(self, sample: Array) -> Array:
         return sample[:1]
@@ -1166,6 +1203,12 @@ class MiniMaxObjective(SingleSampleModel):
 
 
 class AVaRObjective(SingleSampleModel):
+    def __init__(
+        self, nmodel_vars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+    ):
+        self._nmodel_vars = nmodel_vars
+        super().__init__(backend)
+
     def set_beta(self, beta: float):
         self._beta = beta
 
@@ -1185,6 +1228,9 @@ class AVaRObjective(SingleSampleModel):
 
     def nslack(self) -> int:
         return 1 + self._quadw.shape[0]
+
+    def nvars(self) -> int:
+        return self.nslack() + self._nmodel_vars
 
     def _evaluate(self, sample: Array) -> Array:
         t_slack = sample[:1]
@@ -1274,6 +1320,9 @@ class SlackBasedConstraintFromModel(Constraint):
 
     def nqoi(self) -> int:
         return self._model.nqoi()
+
+    def nvars(self) -> int:
+        return self._model.nvars() + self.nslack()
 
     def __repr__(self):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
@@ -1383,7 +1432,6 @@ class SlackBasedOptimizer:
         self.set_slack_bounds(
             self._bkd.tile(self._bkd.array([-np.inf, np.inf]), (nslack, 1))
         )
-        self._set_objective()
 
     def nslack(self) -> int:
         return self._nslack
@@ -1413,6 +1461,7 @@ class SlackBasedOptimizer:
         self._constraint_from_objective = self._convert_objective_function(
             model
         )
+        self._set_objective()
 
     def _adjust_nonlinear_constraint(self, con: Constraint):
         return MiniMaxAdjustedConstraint(con)
@@ -1493,7 +1542,10 @@ class MiniMaxOptimizer(SlackBasedOptimizer):
         return MiniMaxConstraintFromModel(model, keep_feasible=False)
 
     def _set_objective(self):
-        objective = MiniMaxObjective(backend=self._bkd)
+        objective = MiniMaxObjective(
+            self._constraint_from_objective._model.nvars(),
+            backend=self._bkd,
+        )
         self._optimizer.set_objective_function(objective)
 
 
@@ -1536,7 +1588,9 @@ class AVaRSlackBasedOptimizer(SlackBasedOptimizer):
         return AVaRConstraintFromModel(model, keep_feasible=False)
 
     def _set_objective(self):
-        objective = AVaRObjective(backend=self._bkd)
+        objective = AVaRObjective(
+            self._constraint_from_objective._model.nvars(), backend=self._bkd
+        )
         objective.set_beta(self._beta)
         objective.set_quadrature_weights(self._quadw)
         self._optimizer.set_objective_function(objective)

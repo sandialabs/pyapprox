@@ -3,10 +3,8 @@ import unittest
 import numpy as np
 from scipy import stats
 
-from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer,
-    Bounds,
-    ConstraintFromModel,
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.optimization.minimize import (
     SampleAverageMean,
     SampleAverageVariance,
     SampleAverageStdev,
@@ -88,7 +86,9 @@ class TestMinimize(unittest.TestCase):
 
         # turn of apply_weighed_hessian and make sure weighted_hessian
         # function is used
-        benchmark.constraints()[0]._apply_weighted_hessian_implemented = False
+        benchmark.constraints()[
+            0
+        ].apply_weighted_hessian_implemented = lambda: False
         assert (
             benchmark.constraints()[0].work_tracker().nevaluations("whess")
             == 0
@@ -96,12 +96,15 @@ class TestMinimize(unittest.TestCase):
         errors = benchmark.constraints()[0].check_apply_hessian(
             init_iterate, weights=np.ones((1, 1))
         )
+        print(benchmark.constraints()[0].work_tracker())
         assert (
             benchmark.constraints()[0].work_tracker().nevaluations("whess")
             == 1
         )
         # turn apply_weighed_hessian back on
-        benchmark.constraints()[0]._apply_weighted_hessian_implemented = False
+        benchmark.constraints()[
+            0
+        ].apply_weighted_hessian_implemented = lambda: False
 
         optimizer.set_verbosity(0)
         result = optimizer.minimize(init_iterate)
@@ -115,12 +118,20 @@ class TestMinimize(unittest.TestCase):
     def test_constrained_scipy_rosenbrock(self):
         # check that constraints are handled correctly
         benchmark = RosenbrockConstrainedOptimizationBenchmark()
+        errors = benchmark.objective().check_apply_jacobian(
+            benchmark.init_iterate()
+        )
+        assert errors.min() / errors.max() < 1e-6
+        errors = benchmark.objective().check_apply_hessian(
+            benchmark.init_iterate()
+        )
+        assert errors.min() / errors.max() < 1e-6
         errors = benchmark.constraints()[0].check_apply_jacobian(
             benchmark.init_iterate()
         )
         assert errors.min() / errors.max() < 1e-6
         errors = benchmark.constraints()[0].check_apply_hessian(
-            benchmark.init_iterate(), weights=np.ones(2)
+            benchmark.init_iterate(), weights=np.ones((2, 1))
         )
         assert errors.min() / errors.max() < 1e-6
         optimizer = ScipyConstrainedOptimizer(
@@ -156,7 +167,7 @@ class TestMinimize(unittest.TestCase):
                 weights,
                 stat,
                 constraint_bounds,
-                benchmark.variable().num_vars()
+                benchmark.variable().nvars()
                 + benchmark.design_variable().nvars(),
                 benchmark.design_var_indices(),
             )
@@ -197,7 +208,7 @@ class TestMinimize(unittest.TestCase):
                 weights,
                 stat,
                 constraint_bounds,
-                benchmark.variable().num_vars()
+                benchmark.variable().nvars()
                 + benchmark.design_variable().nvars(),
                 benchmark.design_var_indices(),
             )
@@ -220,18 +231,25 @@ class TestMinimize(unittest.TestCase):
         class CustomModel(Model):
             def __init__(self, nrandom_vars):
                 super().__init__()
-                self._jacobian_implemented = True
-                self._hessian_implemented = True
                 self._nrandom_vars = nrandom_vars
                 self._ndesign_vars = 1
                 self._ident = np.eye(self._nrandom_vars - 1)
                 self._jac = np.zeros(
                     (
                         self._nrandom_vars,
-                        self._nrandom_vars + self._ndesign_vars,
+                        self.nvars(),
                     )
                 )
                 self._jac[1, 1 : self._nrandom_vars] = self._ident
+
+            def jacobian_implemented(self):
+                return True
+
+            def hessian_implemented(self):
+                return True
+
+            def nvars(self):
+                return self._nrandom_vars + self._ndesign_vars
 
             def nqoi(self):
                 return self._nrandom_vars
@@ -278,6 +296,7 @@ class TestMinimize(unittest.TestCase):
         # no random variables are passed
         design_x0 = constraint_x0[nrandom_vars : nrandom_vars + 1]
         objective_model = ModelFromSingleSampleCallable(
+            1,
             1,
             lambda x: -x.T,
             jacobian=lambda x: -np.ones((1, 1)),
@@ -336,7 +355,9 @@ class TestMinimize(unittest.TestCase):
             nrandom_vars + ndesign_vars,
             np.arange(nrandom_vars, nrandom_vars + ndesign_vars),
         )
-        objective = ObjectiveWithCVaRConstraints(objective_model, nconstraints)
+        objective = ObjectiveWithCVaRConstraints(
+            objective_model, nconstraints, ndesign_vars
+        )
         opt_x0 = np.vstack((design_x0, np.full((nconstraints, 1), 0.5)))
         errors = objective.check_apply_jacobian(opt_x0)
         assert errors.min() / errors.max() < 1e-6
@@ -403,6 +424,7 @@ class TestMinimize(unittest.TestCase):
         bkd = NumpyLinAlgMixin
         model = ModelFromSingleSampleCallable(
             3,
+            3,
             lambda x: x.T**3,
             lambda x: 3 * bkd.diag(x[:, 0] ** 2),
             weighted_hessian=lambda x, w: 6 * bkd.diag(x[:, 0] * w[:, 0]),
@@ -413,6 +435,13 @@ class TestMinimize(unittest.TestCase):
         minimax.set_objective_function(model)
         minimax.set_constraints(
             [LinearConstraint(bkd.ones((3,)), 15, 15, keep_feasible=True)]
+        )
+        # Set bounds on model. Slack bounds are set separately
+        minimax.set_bounds(
+            bkd.stack(
+                (bkd.full((3,), -np.inf), bkd.full((3,), np.inf)),
+                axis=1,
+            )
         )
 
         iterate = bkd.array([10000, 4, 10, 1])[:, None]
@@ -498,6 +527,7 @@ class TestMinimize(unittest.TestCase):
         mesh = bkd.arange(1, nsamples + 1)
         model = ModelFromSingleSampleCallable(
             nsamples,
+            nsamples,
             lambda x: mesh * x**3,
             lambda x: 3 * mesh * bkd.diag(x**2),
             weighted_hessian=lambda x, w: 6 * mesh * bkd.diag(x * w[:, 0]),
@@ -516,6 +546,15 @@ class TestMinimize(unittest.TestCase):
                     bkd.ones((nsamples,)), 15, 15, keep_feasible=True
                 )
             ]
+        )
+        minimax.set_bounds(
+            bkd.stack(
+                (
+                    bkd.full((nsamples,), -np.inf),
+                    bkd.full((nsamples,), np.inf),
+                ),
+                axis=1,
+            )
         )
 
         iterate = bkd.ones((nsamples * 2 + 1, 1))
