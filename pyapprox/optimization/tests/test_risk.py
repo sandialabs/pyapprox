@@ -4,7 +4,17 @@ from scipy import stats
 import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.optimization.risk import AverageValueAtRisk, AnalyticalAVaR
+from pyapprox.optimization.risk import (
+    AverageValueAtRisk,
+    GaussianAnalyticalRiskMeasures,
+    ChiSquaredAnalyticalRiskMeasures,
+    LogNormalAnalyticalRiskMeasures,
+    BetaAnalyticalRiskMeasures,
+    DisutilitySSD,
+    UtilitySSD,
+    KLDivergence,
+    HellingerDivergence,
+)
 
 
 class TestRiskMeasures:
@@ -55,10 +65,11 @@ class TestRiskMeasures:
         assert bkd.allclose(AVaR()[0], AVaR._samples[5])
         assert bkd.allclose(AVaR()[1], AVaR._samples[5])
 
-    def test_average_value_at_risk_gaussian(self):
+    def test_average_value_at_risk(self):
         bkd = self.get_backend()
         mu, sigma, beta = 0, 2, 0.5
-        exact_avar = AnalyticalAVaR.gaussian(mu, sigma, beta)
+        risks = GaussianAnalyticalRiskMeasures(mu, sigma)
+        exact_avar = risks.AVaR(beta)
         AVaR = AverageValueAtRisk(beta, backend=bkd)
         rv = stats.norm(mu, sigma)
         nsamples = int(1e5)
@@ -67,7 +78,8 @@ class TestRiskMeasures:
         assert bkd.allclose(AVaR()[0], exact_avar, rtol=1e-2)
 
         mu, sigma, beta = 0, 1, 0.5
-        exact_avar = AnalyticalAVaR.lognormal(mu, sigma, beta)
+        risks = LogNormalAnalyticalRiskMeasures(mu, sigma)
+        exact_avar = risks.AVaR(beta)
         AVaR = AverageValueAtRisk(beta, backend=bkd)
         rv = stats.lognorm(scale=np.exp(mu), s=sigma)
         nsamples = int(1e5)
@@ -78,11 +90,74 @@ class TestRiskMeasures:
         gaussian_samples = np.random.normal(
             mu, sigma, (ngaussian_vars, nsamples)
         )
-        exact_avar = AnalyticalAVaR.chi_squared(ngaussian_vars, beta)
+        risks = ChiSquaredAnalyticalRiskMeasures(ngaussian_vars)
+        exact_avar = risks.AVaR(beta)
         AVaR = AverageValueAtRisk(beta, backend=bkd)
         samples = np.sum(gaussian_samples.T**2, axis=1)
         AVaR.set_samples(samples[None, :])
         assert bkd.allclose(AVaR()[0], exact_avar, rtol=1e-2)
+
+        a, b, beta = 1, 1, 0.5
+        loc, scale = 0, 2.0
+        risks = BetaAnalyticalRiskMeasures(a, b, loc, scale)
+        exact_avar = risks.AVaR(beta)
+        AVaR = AverageValueAtRisk(beta, backend=bkd)
+        rv = stats.beta(a, b, loc=loc, scale=scale)
+        nsamples = int(1e5)
+        AVaR.set_samples(rv.rvs(nsamples)[None, :])
+        assert bkd.allclose(AVaR()[0], exact_avar, rtol=1e-2)
+
+    def test_expectation_with_thresholds(self):
+        # TODO check disutility and utility are not back to fron
+        bkd = self.get_backend()
+        mu, sigma, eta = 0, 2, bkd.array([0.25, 0.5])
+        risks = LogNormalAnalyticalRiskMeasures(mu, sigma)
+        exp_val = risks.disutility_SSD(eta)
+        stat = DisutilitySSD(bkd)
+        rv = stats.lognorm(scale=np.exp(mu), s=sigma)
+        nsamples = int(1e5)
+        stat.set_samples(rv.rvs(nsamples)[None, :])
+        stat.set_eta(eta)
+        assert bkd.allclose(stat(), exp_val, rtol=1e-2)
+
+        exp_val = risks.utility_SSD(eta)
+        stat = UtilitySSD(bkd)
+        rv = stats.lognorm(scale=np.exp(mu), s=sigma)
+        nsamples = int(1e5)
+        stat.set_samples(rv.rvs(nsamples)[None, :])
+        stat.set_eta(eta)
+        assert bkd.allclose(stat(), exp_val, rtol=1e-2)
+
+    def test_compute_f_divergences(self):
+        # KL divergence
+        mu1, sigma1 = 1, 1
+        mu2, sigma2 = 0, 2
+        rv1 = stats.norm(mu1, sigma1)
+        rv2 = stats.norm(mu2, sigma2)
+
+        # Integrate on [-radius,radius]
+        # Note this induces small error by truncating domain..
+        # Need to integrate with respect to Lebesque measure
+        radius = 10
+        quadx, quadw = np.polynomial.legendre.leggauss(400)
+        quadx = quadx[None, :] * radius
+        quadw = quadw * radius
+        div = KLDivergence(rv1.pdf, rv2.pdf, [quadx, quadw])()
+        risks = GaussianAnalyticalRiskMeasures(mu1, sigma1)
+        true_div = risks.kl_divergence(mu2, sigma2)
+        assert np.allclose(div, true_div, rtol=1e-12)
+
+        # Hellinger divergence
+        a1, b1, a2, b2 = 1, 1, 2, 3
+        rv1, rv2 = stats.beta(a1, b1), stats.beta(a2, b2)
+        quadx, quadw = np.polynomial.legendre.leggauss(500)
+        quadx = (quadx[None, :] + 1) / 2
+        quadw /= 2
+        div = HellingerDivergence(rv1.pdf, rv2.pdf, [quadx, quadw])()
+        risks = BetaAnalyticalRiskMeasures(a1, b1)
+        true_div = risks.hellinger_divergence(a2, b2)
+        print(div, true_div)
+        assert np.allclose(div, true_div, rtol=1e-10)
 
 
 class TestNumpyRiskMeasures(TestRiskMeasures, unittest.TestCase):

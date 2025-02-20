@@ -3,31 +3,30 @@ from typing import Tuple
 
 import numpy as np
 from scipy import stats, optimize
-from scipy.special import erfinv, gamma as gamma_fn, gammainc
+from scipy.special import (
+    erfinv,
+    gamma as gamma_fn,
+    gammainc,
+    beta as beta_fn,
+    betainc,
+)
 
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
-class ValueAtRiskMixin(ABC):
+class RiskMixin(ABC):
     """
     Compute the value at risk of a variable Y using a set of samples.
     """
 
     def __init__(
         self,
-        beta: float,
         sort: bool = True,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        self.set_beta(beta)
         self._sort = sort
         self._bkd = backend
-
-    def set_beta(self, beta: float):
-        if beta < 0 or beta >= 1:
-            raise ValueError("beta must be in [0, 1)")
-        self._beta = beta
 
     def set_samples(self, samples: Array, quadw: Array = None):
         if samples.ndim != 2 or samples.shape[0] != 1:
@@ -54,6 +53,22 @@ class ValueAtRiskMixin(ABC):
     @abstractmethod
     def _value(self):
         raise NotImplementedError
+
+
+class ValueAtRiskMixin(RiskMixin):
+    def __init__(
+        self,
+        beta: float,
+        sort: bool = True,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self.set_beta(beta)
+        super().__init__(sort, backend)
+
+    def set_beta(self, beta: float):
+        if beta < 0 or beta >= 1:
+            raise ValueError("beta must be in [0, 1)")
+        self._beta = beta
 
 
 class ValueAtRisk(ValueAtRiskMixin):
@@ -108,9 +123,120 @@ class AverageValueAtRisk(ValueAtRiskMixin):
         return lin_res.fun, lin_res.x[0]
 
 
-class AnalyticalAVaR:
-    @staticmethod
-    def gaussian(mu: float, sigma: float, beta: float) -> float:
+class EntropicRisk(RiskMixin):
+    def __init__(
+        self,
+        beta: float,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._beta = beta
+        super().__init__(False, backend)
+
+    def _value(self):
+        return (
+            self._bkd.log(
+                self._bkd.exp(self._beta * self._samples) @ self.quadw
+            ).T
+            / self._beta
+        )
+
+
+class UtilitySSD(RiskMixin):
+    r"""
+    Compute the conditional expectation of :math:`Y`
+    (sutility form of second order stochastic dominance)
+
+    .. math::
+      \mathbb{E}\left[\max(0,\eta-Y)\right]
+
+    where \math:`\eta\in Y' in the domain of :math:`Y'
+
+    The conditional expectation is convex non-negative and non-decreasing.
+    """
+
+    def __init__(
+        self,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(False, backend)
+
+    def set_eta(self, eta: Array):
+        if eta.ndim != 1:
+            raise ValueError("eta must be a 1D array")
+        self._eta = eta
+
+    def _value(self):
+        return (
+            self._bkd.maximum(0, self._eta[:, None] - self._samples[None, :])
+            @ self._quadw
+        )
+
+
+class DisutilitySSD(UtilitySSD):
+    r"""
+    Compute the conditional expectation of :math:`-Y`
+    (disutility form of second order stochastic dominance)
+
+    .. math::
+      \mathbb{E}\left[\max(0,Y-\eta)\right]
+
+    where \math:`\eta\in Y' in the domain of :math:`Y'
+
+    The conditional expectation is convex non-negative and non-decreasing.
+    """
+
+    def _value(self):
+        return (
+            self._bkd.maximum(0, self._eta[:, None] + self._samples[None, :])
+            @ self._quadw
+        )
+
+
+class BetaAnalyticalRiskMeasures:
+    def __init__(
+        self,
+        a: float,
+        b: float,
+        loc: float = 0,
+        scale: float = 1,
+    ):
+        self._a = a
+        self._b = b
+        self._loc = loc
+        self._scale = float(scale)
+        self._marginal = stats.beta(a=a, b=b, loc=loc, scale=scale)
+
+    def AVaR(self, beta: float) -> float:
+        qq = self._marginal.ppf(beta)
+        qq = (qq - self._loc) / self._scale
+        cvar01 = (
+            (1 - betainc(1 + self._a, self._b, qq))
+            * gamma_fn(1 + self._a)
+            * gamma_fn(self._b)
+            / gamma_fn(1 + self._a + self._b)
+        ) / (beta_fn(self._a, self._b) * (1 - beta))
+        return cvar01 * self._scale + self._loc
+
+    def hellinger_divergence(self, a2, b2):
+        if self._loc != 0 or self._scale != 1:
+            raise RuntimeError("can only compute for variable on [0, 1]")
+        return 2 * (
+            1
+            - beta_fn((self._a + a2) / 2, (self._b + b2) / 2)
+            / np.sqrt(beta_fn(self._a, self._b) * beta_fn(a2, b2))
+        )
+
+
+class GaussianAnalyticalRiskMeasures:
+    def __init__(
+        self,
+        mu: float,
+        sigma: float,
+    ):
+        self._mu = mu
+        self._sigma = sigma
+
+    def AVaR(self, beta: float) -> float:
         """
         Compute the average value at risk of a univariate Gaussian variable
         See https://doi.org/10.1007/s10479-019-03373-1
@@ -118,50 +244,233 @@ class AnalyticalAVaR:
         distributions with application to portfolio optimization
         and density estimation.
         """
-        return mu + sigma * stats.norm.pdf(stats.norm.ppf(beta)) / (1 - beta)
+        return self._mu + self._sigma * stats.norm.pdf(
+            stats.norm.ppf(beta)
+        ) / (1 - beta)
 
-    @staticmethod
-    def _upper_gammainc(a, b):
+    def entropic(self, beta: float) -> float:
+        return np.exp(self._mu + self._sigma**2 / 2)
+
+    def kl_divergence(self, mu2: float, sigma2: float) -> float:
+        return multivariate_gaussian_kl_divergence(
+            np.array([[self._mu]]),
+            np.array([[self._sigma**2]]),
+            np.array([[mu2]]),
+            np.array([[sigma2**2]]),
+        )
+
+
+class ChiSquaredAnalyticalRiskMeasures:
+    def __init__(
+        self,
+        k: int,
+    ):
+        self._k = k
+
+    def _upper_gammainc(self, a: float, b: float):
         return gamma_fn(a) * (1 - gammainc(a, b))
 
-    @staticmethod
-    def chi_squared(k: int, beta: float) -> float:
+    def AVaR(self, beta: float) -> float:
         """
         Compute the average value at risk of a univariate Chi-squared
         variable
         """
 
-        VaR = stats.chi2.ppf(beta, k)
-        cvar = (
+        VaR = stats.chi2.ppf(beta, self._k)
+        avar = (
             2
-            * AnalyticalAVaR._upper_gammainc(1 + k / 2, VaR / 2)
-            / gamma_fn(k / 2)
+            * self._upper_gammainc(1 + self._k / 2, VaR / 2)
+            / gamma_fn(self._k / 2)
             / (1 - beta)
         )
-        return cvar
+        return avar
 
-    @staticmethod
-    def lognormal_mean(mu, sigma_sq):
+
+class LogNormalAnalyticalRiskMeasures:
+    def __init__(
+        self,
+        mu: float,
+        sigma: float,
+    ):
+        self._mu = mu
+        self._sigma = sigma
+        self._marginal = stats.lognorm(scale=np.exp(mu), s=sigma)
+
+    def mean(self) -> float:
         """
         Compute the mean of a univariate lognormal variable
         """
-        return np.exp(mu + sigma_sq / 2)
+        return np.exp(self._mu + self._sigma**2 / 2)
 
-    @staticmethod
-    def lognormal(mu: float, sigma_sq: float, beta: float) -> float:
+    def VaR(self, beta: float) -> float:
+        return self._marginal.ppf(beta)
+
+    def AVaR(self, beta: float) -> float:
         """
         Compute the average value at risk of a univariate lognormal
         variable
         """
-        mean = AnalyticalAVaR.lognormal_mean(mu, sigma_sq)
+        mean = self.mean()
         if beta == 0:
             return mean
-        if sigma_sq < 0 and sigma_sq > -1e-16:
-            sigma_sq = 0
-        sigma = np.sqrt(sigma_sq)
-        quantile = np.exp(mu + sigma * np.sqrt(2) * erfinv(2 * beta - 1))
+        quantile = np.exp(
+            self._mu + self._sigma * np.sqrt(2) * erfinv(2 * beta - 1)
+        )
         return (
             mean
-            * stats.norm.cdf((mu + sigma_sq - np.log(quantile)) / sigma)
+            * stats.norm.cdf(
+                (self._mu + self._sigma**2 - np.log(quantile)) / self._sigma
+            )
             / (1 - beta)
         )
+
+    def _expectation_lte_eta(self, eta: float) -> float:
+        vals = np.zeros((eta.shape[0],))
+        idx = np.where(eta > 0)[0]
+        vals[idx] = (
+            self.mean()
+            * stats.norm.cdf(
+                (np.log(eta[idx]) - self._mu - self._sigma**2) / self._sigma
+            )
+            / self._marginal.cdf(eta[idx])
+        )
+        return vals
+
+    def _expectation_gte_eta(self, eta: float) -> float:
+        vals = np.full((eta.shape[0],), self.mean())
+        idx = np.where(eta > 0)[0]
+        vals[idx] = (
+            self.mean()
+            * stats.norm.cdf(
+                -(np.log(eta[idx]) - self._mu - self._sigma**2) / self._sigma
+            )
+            / (1 - self._marginal.cdf(eta[idx]))
+        )
+        return vals
+
+    def utility_SSD(self, eta: float) -> float:
+        return self._marginal.cdf(eta) * (eta - self._expectation_lte_eta(eta))
+
+    def disutility_SSD(self, eta: float) -> float:
+        return (1 - self._marginal.cdf(-eta)) * (
+            eta + self._expectation_gte_eta(-eta)
+        )
+
+    def kl_divergence(self, mu2: float, sigma2: float) -> float:
+        return multivariate_gaussian_kl_divergence(
+            np.array([[self._mu]]),
+            np.array([[self._sigma**2]]),
+            np.array([[mu2]]),
+            np.array([[sigma2**2]]),
+        )
+
+
+def multivariate_gaussian_kl_divergence(
+    mean1: Array, cov1: Array, mean2: Array, cov2: Array
+) -> float:
+    r"""
+    Compute KL( N(mean1, cov1) || N(mean2, cov2) )
+
+    :math:`\int p_1(x)\log\left(\frac{p_1(x)}{p_2(x)}\right)dx`
+
+    :math:`p_2(x)` must dominate :math:`p_1(x)`, e.g. for Bayesian inference
+    the :math:`p_2(x)` is the posterior and :math:`p_1(x)` is the prior
+    """
+    if mean1.ndim != 2 or mean2.ndim != 2:
+        raise ValueError("means must have shape (nvars, 1)")
+    nvars = mean1.shape[0]
+    cov2_inv = np.linalg.inv(cov2)
+    val = np.log(np.linalg.det(cov2) / np.linalg.det(cov1)) - float(nvars)
+    val += np.trace(cov2_inv.dot(cov1))
+    val += (mean2 - mean1).T.dot(cov2_inv.dot(mean2 - mean1))
+    return 0.5 * val.item()
+
+
+# Useful thesis with derivations of KL and Renyi divergences for a number
+# of canonical distributions
+# Manuel Gil. 2011. ON RÉNYI DIVERGENCE MEASURES FOR CONTINUOUS ALPHABET
+# SOURCES. https://mast.queensu.ca/~communications/Papers/gil-msc11.pdf
+
+
+class FDivergence(ABC):
+    r"""
+    Compute f divergence between two densities
+
+    .. math:: \int_\Gamma f\left(\frac{p(z)}{q(z)}\right)q(x)\,dx
+    """
+
+    def __init__(
+        self,
+        density1: callable,
+        density2: callable,
+        quad_rule_tuple: Tuple[Array, Array],
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        r"""
+        Parameters
+        ----------
+        density1 : callable
+            The density p(z)
+
+        density2 : callable
+            The density q(z)
+
+        quad_rule : tuple
+            x,w - quadrature points and weights
+            x : np.ndarray (num_vars,num_samples)
+            w : np.ndarray (num_samples)
+        """
+        self._quad_rule_tuple = quad_rule_tuple
+        self._density1 = density1
+        self._density2 = density2
+        self._bkd = backend
+
+    @abstractmethod
+    def _divergence_function(self, ratios: Array) -> Array:
+        raise NotImplementedError
+
+    def __call__(self) -> float:
+        quadx, quadw = self._quad_rule_tuple
+        assert quadw.ndim == 1
+
+        d1_vals, d2_vals = self._density1(quadx), self._density2(quadx)
+        II = self._bkd.where(d2_vals > 1e-15)[0]
+        ratios = self._bkd.zeros(d2_vals.shape) + 1e-15
+        ratios[II] = d1_vals[II] / d2_vals[II]
+        if not np.all(np.isfinite(ratios)):
+            print(d1_vals[II], d2_vals[II])
+            msg = "Densities are not absolutely continuous. "
+            msg += "Ensure that density2(z)=0 implies density1(z)=0"
+            raise Exception(msg)
+
+        divergence_integrand = self._divergence_function(ratios) * d2_vals
+
+        return divergence_integrand @ quadw
+
+
+class KLDivergence(FDivergence):
+    def _divergence_function(self, ratios: Array) -> Array:
+        return ratios * self._bkd.log(ratios)
+
+
+class TVDivergence(FDivergence):
+    # Total variation
+    def _divergence_function(self, ratios: Array) -> Array:
+        return 0.5 * self._bkd.abs(ratios - 1)
+
+
+class HellingerDivergence(FDivergence):
+    # Squared hellinger int (p(z)**0.5-q(z)**0.5)**2 dz
+    def _divergence_function(self, ratios: Array) -> Array:
+        # Note some formulations use 0.5 times above integral. We do not
+        # do that here
+        return (self._bkd.sqrt(ratios) - 1) ** 2
+
+
+#  See https://link.springer.com/article/10.1007/s10287-014-0225-7
+#  Port over from new code if needed
+# def cvar_importance_sampling_biasing_density(pdf, function, beta, VaR, tau, x):
+#
+# def generate_samples_from_cvar_importance_sampling_biasing_density(
+#     function, beta, VaR, generate_candidate_samples, nsamples
+# ):
