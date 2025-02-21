@@ -1862,7 +1862,9 @@ class PoolModelWrapper(Model):
         self._nprocs = nprocs
         # overwrite model work_tracker with one that shares memory
         # between processes.
-        self._model._work_tracker = ModelWorkTracker(model._bkd, True)
+        self._model._work_tracker = ModelWorkTracker(
+            model._bkd, self._nprocs > 1
+        )
 
     def nqoi(self) -> int:
         return self._model.nqoi()
@@ -1871,6 +1873,8 @@ class PoolModelWrapper(Model):
         return self._model.nvars()
 
     def _values(self, samples: Array) -> Array:
+        if self._nprocs == 1:
+            return self._model(samples)
         pool = Pool(self._nprocs)
         # call _values (instead of __call__) so times are not recorded twice)
         # once by the wrapper and once by model.__call__

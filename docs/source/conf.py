@@ -114,10 +114,14 @@ gallery_dirs = ["auto_examples"]
 installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
 
 example_filenames_in_order += [
+    # inteface
     "plot_variables.py",
     "plot_setup_model.py",
     "plot_model_timing.py",
-    "plot_pool_model.py" "plot_parameter_sweeps.py",
+    "plot_async_model.py",
+    "plot_pool_model.py",
+    # analysis
+    "plot_parameter_sweeps.py",
     "plot_low_discrepancy_quadrature.py",
     "plot_gaussian_quadrature.py",
     "plot_barycentric_interpolation.py",
@@ -151,15 +155,20 @@ sphinx_gallery_conf = {
     # path to where to save gallery generated output
     "gallery_dirs": gallery_dirs,
     # 'first_notebook_cell' : "%matplotlib inline",
-    # 'subsection_order': ExplicitOrder([
-    #     '../../tutorials/analysis',
-    #     '../../tutorials/inference',
-    #     '../../tutorials/expdesign',
-    #     '../../tutorials/surrogates',
-    #     '../../tutorials/multi_fidelity',
-    #     '../../tutorials/sciml',
-    #     '../../examples']),
-    # 'within_subsection_order': ExamplesExplicitOrder,
+    "subsection_order": ExplicitOrder(
+        [
+            #     '../../tutorials/analysis',
+            #     '../../tutorials/inference',
+            #     '../../tutorials/expdesign',
+            #     '../../tutorials/surrogates',
+            #     '../../tutorials/multi_fidelity',
+            #     '../../tutorials/sciml',
+            "../../examples/interface",
+            "../../examples/analysis",
+            "../../examples/",
+        ]
+    ),
+    "within_subsection_order": ExamplesExplicitOrder,
     "ignore_pattern": r"util",
     # 'ignore_pattern': r'util|plot_bayesian_oed\.py',  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
     "matplotlib_animations": True,

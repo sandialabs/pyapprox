@@ -151,7 +151,7 @@ class TestCombination:
         assert bkd.allclose(sg.integrate(), fun.get_coefficients()[0])
 
     def _setup_locally_adaptive_sparse_grid(
-            self, nvars, level, nqoi, max_cost
+        self, nvars, level, nqoi, max_cost
     ):
         bkd = self.get_backend()
         bounds = [-1, 1]
@@ -168,8 +168,8 @@ class TestCombination:
         class CustomLocalRefinementCriteria(LocalRefinementCriteria):
             def _priority(self, subspace_index):
                 if subspace_index[1] > 0:
-                    return 1., 1.
-                return 1., -1.
+                    return 1.0, 1.0
+                return 1.0, -1.0
 
         # criteria = CustomLocalRefinementCriteria()
         criteria = LocalHierarchicalRefinementCriteria()
@@ -189,16 +189,17 @@ class TestCombination:
         return sg
 
     def _check_isotropic_locally_adaptive_sparse_grid(
-            self, nvars, level, nqoi
+        self, nvars, level, nqoi
     ):
         """Test locally adaptive sparse grid recovers isotropic sparse grid"""
         bkd = self.get_backend()
         sg = self._setup_locally_adaptive_sparse_grid(nvars, level, nqoi, 100)
 
         def fun(samples):
-            return bkd.sum(samples**2, axis=0)[:, None]*bkd.arange(
-                1, nqoi+1
-            )[None, :]
+            return (
+                bkd.sum(samples**2, axis=0)[:, None]
+                * bkd.arange(1, nqoi + 1)[None, :]
+            )
 
         iso_sg = IsotropicCombinationSparseGrid(
             nqoi,
@@ -270,9 +271,10 @@ class TestCombination:
         sg = self._setup_locally_adaptive_sparse_grid(nvars, level, nqoi, 100)
 
         def fun(samples):
-            return bkd.sum(samples**2, axis=0)[:, None]*bkd.arange(
-                1, nqoi+1
-            )[None, :]
+            return (
+                bkd.sum(samples**2, axis=0)[:, None]
+                * bkd.arange(1, nqoi + 1)[None, :]
+            )
 
         for ii in range(4):
             sg.step(fun)

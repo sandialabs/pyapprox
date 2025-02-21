@@ -13,7 +13,7 @@ def _get_nsamples_intersect(allocation_mat, npartition_samples, bkd):
     r"""
     Returns
     -------
-    nsamples_intersect : np.ndarray (2*nmodels, 2*nmodels)
+    nsamples_intersect : Array (2*nmodels, 2*nmodels)
         The i,j entry contains contains
         :math:`|z^\star_i\cap\z^\star_j|` when i%2==0 and j%2==0
         :math:`|z_i\cap\z^\star_j|` when i%2==1 and j%2==0
@@ -37,7 +37,7 @@ def _get_nsamples_subset(allocation_mat, npartition_samples, bkd):
     Get the number of samples allocated to the sample subsets
     :math:`|z^\star_i` and :math:`|z_i|`
 
-    npartition_samples : np.ndarray (nmodels)
+    npartition_samples : Array (nmodels)
         The size of the partitions that make up the subsets
         :math:`z_i, i=0\ldots, M-1`. These are represented by different
         color blocks in the ACV papers figures of sample allocation
@@ -138,15 +138,15 @@ def _get_multioutput_acv_mean_discrepancy_covariances(cov, Gmat, gvec, bkd):
 
     Parameters
     ----------
-    cov : np.ndarray (nmodels*nqoi, nmodels)
+    cov : Array (nmodels*nqoi, nmodels)
         The covariance C between each of the models. The highest fidelity
         model is the first model, i.e. covariance between its QoI
         is cov[:nqoi, :nqoi]
 
-    Gmat : np.ndarray (nmodels, nmodels)
+    Gmat : Array (nmodels, nmodels)
         Encodes sample partition into mean-based delta covariances
 
-    gvec : np.ndarray (nmodels, nmodels)
+    gvec : Array (nmodels, nmodels)
         Encodes sample partition into covariances between high-fidelity mean
         and deltas
 
@@ -205,23 +205,23 @@ def _get_multioutput_acv_variance_discrepancy_covariances(
 
     Parameters
     ----------
-    V : np.ndarray (nmodels*nqoi**2, nmodels**nqoi**2)
+    V : Array (nmodels*nqoi**2, nmodels**nqoi**2)
         Kroneker product of flattened covariance with itself
 
-    W : np.ndarray (nmodels*nqoi**2, nmodels**nqoi**2)
+    W : Array (nmodels*nqoi**2, nmodels**nqoi**2)
         Covariance of Kroneker product of mean-centered values
 
-    Gmat : np.ndarray (nmodels, nmodels)
+    Gmat : Array (nmodels, nmodels)
         Encodes sample partition into mean-based delta covariances
 
-    gvec : np.ndarray (nmodels, nmodels)
+    gvec : Array (nmodels, nmodels)
         Encodes sample partition into covariances between high-fidelity mean
         and deltas
 
-    Hmat : np.ndarray (nmodels, nmodels)
+    Hmat : Array (nmodels, nmodels)
         Encodes sample partition into variance-based delta covariances
 
-    hvec : np.ndarray (nmodels, nmodels)
+    hvec : Array (nmodels, nmodels)
         Encodes sample partition into covariances between
         high-fidelity variance and deltas
 
@@ -332,14 +332,12 @@ def _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
             CF[
                 jj * stride + nqoi : (jj + 1) * stride,
                 ii * stride : ii * stride + nqoi,
-            ] = (
-                bkd.copy(
-                    CF[
-                        ii * stride : ii * stride + nqoi,
-                        jj * stride + nqoi : (jj + 1) * stride,
-                    ]
-                ).T
-            )
+            ] = bkd.copy(
+                CF[
+                    ii * stride : ii * stride + nqoi,
+                    jj * stride + nqoi : (jj + 1) * stride,
+                ]
+            ).T
             CF[
                 ii * stride + nqoi : (ii + 1) * stride,
                 jj * stride + nqoi : (jj + 1) * stride,
@@ -585,13 +583,11 @@ class MultiOutputStatistic(ABC):
             if not isinstance(vals, self._bkd.array_type()):
                 raise ValueError(
                     "pilot_values entry must be {0}".format(
-                         self._bkd.array_type()
+                        self._bkd.array_type()
                     )
                 )
             if vals.ndim != 2:
-                raise ValueError(
-                    "pilot_values entry must be 2D array"
-                )
+                raise ValueError("pilot_values entry must be 2D array")
 
 
 class MultiOutputMean(MultiOutputStatistic):
@@ -668,18 +664,15 @@ class MultiOutputMean(MultiOutputStatistic):
         if self._cov is None:
             raise RuntimeError("must call set_pilot_quantities")
         cov = self._cov[np.ix_(subset0, subset1)]
-        return (
-            cov
-            * nsamples_intersect
-            / (nsamples_subset0 * nsamples_subset1)
-        )
+        return cov * nsamples_intersect / (nsamples_subset0 * nsamples_subset1)
 
 
 class MultiOutputVariance(MultiOutputStatistic):
     def __init__(
-            self, nqoi: int,
-            backend: LinAlgMixin,
-            return_cov: bool = True,
+        self,
+        nqoi: int,
+        backend: LinAlgMixin,
+        return_cov: bool = True,
     ):
         super().__init__(nqoi, backend)
 
@@ -873,7 +866,15 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
 
     def _get_discrepancy_covariances(self, Gmat, gvec, Hmat, hvec):
         return _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
-            self._cov, self._V, self._W, self._B, Gmat, gvec, Hmat, hvec, self._bkd
+            self._cov,
+            self._V,
+            self._W,
+            self._B,
+            Gmat,
+            gvec,
+            Hmat,
+            hvec,
+            self._bkd,
         )
 
     def _get_cv_discrepancy_covariances(self, npartition_samples):

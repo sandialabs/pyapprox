@@ -13,9 +13,7 @@ import numpy as np
 from scipy import stats
 
 from pyapprox.variables import IndependentMarginalsVariable
-from pyapprox.interface.model import (
-    ModelFromSingleSampleCallable,
-)
+from pyapprox.interface.model import ModelFromSingleSampleCallable
 
 
 # Setup function
@@ -32,8 +30,9 @@ def jac_pause(sample):
 
 
 # Make it a model
+nvars = 2
 model = ModelFromSingleSampleCallable(
-    1, fun_pause, jacobian=jac_pause, sample_ndim=1, values_ndim=0
+    1, nvars, fun_pause, jacobian=jac_pause, sample_ndim=1, values_ndim=0
 )
 # activate the work tracker
 model.work_tracker().set_active(True)
