@@ -35,6 +35,8 @@ def jac_pause(sample):
 model = ModelFromSingleSampleCallable(
     1, fun_pause, jacobian=jac_pause, sample_ndim=1, values_ndim=0
 )
+# activate the work tracker
+model.work_tracker().set_active(True)
 
 # Define the distrbution of the input variables
 marginals = [stats.uniform(-2, 4), stats.uniform(-2, 4)]

@@ -72,8 +72,9 @@ from pyapprox.pde.collocation.mesh_transforms import (
 
 class TransientSolutionTimeSnapshotFunctional(TransientAdjointFunctional):
     """Return all the states at one time step"""
+
     def __init__(
-            self, model: TransientAdjointCollocationModel, timestep_idx: int
+        self, model: TransientAdjointCollocationModel, timestep_idx: int
     ):
         self._model = model
         self._timestep_idx = timestep_idx
@@ -96,6 +97,7 @@ class TransientSolutionTimeSnapshotFunctional(TransientAdjointFunctional):
 
 class SteadySolutionFunctional(AdjointFunctional):
     """Return all the states."""
+
     def __init__(self, model: SteadyAdjointCollocationModel):
         self._model = model
 
@@ -119,12 +121,12 @@ class ParameterizedDiffusionPhysics(
     AdvectionDiffusionReactionPhysics, ParameterizedNewtonResidualMixin
 ):
     def __init__(
-            self,
-            basis: OrthogonalCoordinateCollocationBasis,
-            kle_nvars: int,
-            kle_sigma: float,
-            kle_lenscale: float,
-            kle_mean_field: float,
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        kle_nvars: int,
+        kle_sigma: float,
+        kle_lenscale: float,
+        kle_mean_field: float,
     ):
         self._nvars = kle_nvars
         diffusion = self._setup_diffusion(
@@ -135,11 +137,11 @@ class ParameterizedDiffusionPhysics(
         )
 
     def _setup_diffusion(
-            self,
-            basis: OrthogonalCoordinateCollocationBasis,
-            kle_sigma: float,
-            kle_lenscale: float,
-            kle_mean_field: float,
+        self,
+        basis: OrthogonalCoordinateCollocationBasis,
+        kle_sigma: float,
+        kle_lenscale: float,
+        kle_mean_field: float,
     ):
         return ScalarKLEFunction(
             basis,
@@ -167,7 +169,7 @@ class SteadyParameterizedDiffusionPhysics(
 
 
 class ParameterizedDiffusionFixedAdvectionPhysics(
-        AdvectionDiffusionReactionPhysics, ParameterizedNewtonResidualMixin
+    AdvectionDiffusionReactionPhysics, ParameterizedNewtonResidualMixin
 ):
     def __init__(
         self,
@@ -240,8 +242,6 @@ class PyApproxPaperAdvectionDiffusionKLEInversionModel(
         self._source_loc = backend.asarray(source_loc)
         self._source_scale = source_scale
         super().__init__(newton_solver, functional, backend)
-        self._jacobian_implemented = True
-        self._apply_hessian_implemented = self._bkd.hvp_implemented()
 
         # original paper defiend velocity field as [1, 0] everywhere
         # however the code used to produce that paper defined flux
@@ -251,6 +251,12 @@ class PyApproxPaperAdvectionDiffusionKLEInversionModel(
         # residual = div(self._diffusion * nabla(sol))
         #     - div(sol *self._velocity_field) + self._forcing
         # and flux=self._diffusion * nabla(sol)
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return self._bkd.hvp_implemented()
 
     def nvars(self) -> int:
         return self._physics.nvars()
@@ -284,20 +290,19 @@ class PyApproxPaperAdvectionDiffusionKLEInversionModel(
             1,
             self._basis.nphys_vars(),
             lambda x: self._bkd.stack(
-                (0.01*self._bkd.ones(x.shape[1]), self._bkd.zeros(x.shape[1])),
+                (
+                    0.01 * self._bkd.ones(x.shape[1]),
+                    self._bkd.zeros(x.shape[1]),
+                ),
                 axis=1,
             ),
         )
 
     def _gaussian_forcing(self, xx: Array) -> Array:
-        return (
-            self._source_amp
-            * self._bkd.exp(
-                -self._bkd.sum(
-                    (xx - self._source_loc[:, None]) ** 2
-                    / self._source_scale**2,
-                    axis=0,
-                )
+        return self._source_amp * self._bkd.exp(
+            -self._bkd.sum(
+                (xx - self._source_loc[:, None]) ** 2 / self._source_scale**2,
+                axis=0,
             )
         )
 
@@ -369,7 +374,9 @@ class TransientDiffusionAdvectionModel(TransientAdjointCollocationModel):
             functional,
             backend,
         )
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def nvars(self) -> int:
         return self._physics.nvars()
@@ -867,7 +874,9 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         super().__init__(newton_solver, functional, backend)
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def setup_physics(self):
         # one part of hessian (state_state_hvp) still relies on auto diff
@@ -1141,7 +1150,9 @@ class TransientViscousBurgers1DModel(TransientAdjointCollocationModel):
             functional,
             backend,
         )
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def nvars(self) -> int:
         return self._init_cond.kle().nterms()
@@ -1168,7 +1179,7 @@ class TransientViscousBurgers1DModel(TransientAdjointCollocationModel):
             self._kle_tau,
             self._kle_gamma,
             False,
-            1
+            1,
         )
 
     def set_param(self, param: Array):

@@ -99,6 +99,7 @@ class TestModel:
             )[None, ...],
             backend=bkd,
         )
+        model.work_tracker().set_active(True)
         sample = bkd.asarray(np.random.uniform(0, 1, (nvars, 1)))
         model.check_apply_jacobian(sample, disp=True)
         # check that when jac is used to compute jvp the number of
@@ -148,6 +149,7 @@ class TestModel:
             @ vec,
             backend=bkd,
         )
+        model.work_tracker().set_active(True)
         model.check_apply_jacobian(sample, disp=True)
         assert model.work_tracker().nevaluations("jac") == 0
         assert model.work_tracker().nevaluations("jvp") == 1
@@ -177,6 +179,7 @@ class TestModel:
         )
         # check values are updated correctly
         model.activate_model_data_base()
+        model.work_tracker().set_active(True)
         samples = bkd.asarray(np.random.uniform(0, 1, (nvars, 3)))
         two_values = model(samples[:, :2])
         three_values = model(samples[:, :3])
@@ -577,11 +580,13 @@ if __name__ == "__main__":
             backend=bkd,
         )
         pool_model = PoolModelWrapper(model, nprocs=2, assert_omp=False)
+        pool_model.model().work_tracker().set_active(True)
+        pool_model.work_tracker().set_active(True)
         samples = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples)))
         values = pool_model(samples)
         assert bkd.allclose(values, _pickable_function(bkd, samples))
-        print(pool_model.work_tracker().nevaluations("val"))
         assert pool_model.work_tracker().nevaluations("val") == 4
+        assert pool_model.model().work_tracker().nevaluations("val") == 4
 
     def test_serial_io_model(self):
         bkd = self.get_backend()
@@ -605,7 +610,7 @@ if __name__ == "__main__":
             verbosity=1,
             backend=bkd,
         )
-
+        model.work_tracker().set_active(True)
         nsamples = 3
         samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
         test_values = target_model(samples)
@@ -643,13 +648,12 @@ if __name__ == "__main__":
             nprocs=2,
             backend=bkd,
         )
-
+        model.work_tracker().set_active(True)
         nsamples = 3
         samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
         test_values = target_model(samples)
         values = model(samples)
         assert model.work_tracker().nevaluations("val") == 3
-        print(values, test_values)
         assert np.allclose(values, test_values)
 
         for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
@@ -678,6 +682,7 @@ if __name__ == "__main__":
             nprocs=2,
             backend=bkd,
         )
+        model.work_tracker().set_active(True)
 
         nsamples = 3
         samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
@@ -717,6 +722,7 @@ if __name__ == "__main__":
             nprocs=2,
             backend=bkd,
         )
+        model.work_tracker().set_active(True)
         model.activate_model_data_base()
         nsamples = 3
         samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
@@ -760,7 +766,7 @@ if __name__ == "__main__":
             nprocs=2,
             backend=bkd,
         )
-
+        model.work_tracker().set_active(True)
         nsamples = 3
         samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
         test_values = bkd.asarray(target_model(samples))

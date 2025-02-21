@@ -400,19 +400,24 @@ class ConstrainedMultiStartOptimizer(MultiStartOptimizer):
 
 
 class ConstraintPenalizedObjective(Model):
-    def __init__(self, unconstrained_objective, constraints):
+    def __init__(
+        self, unconstrained_objective: Model, constraints: List[Constraint]
+    ):
         super().__init__(unconstrained_objective._bkd)
         self._unconstrained_objective = unconstrained_objective
         self._constraints = constraints
         self._penalty = None
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return 1
+
+    def nvars(self) -> int:
+        return self._unconstrained_objective.nvars()
 
     def set_penalty(self, penalty):
         self._penalty = penalty
 
-    def _values(self, samples):
+    def _values(self, samples: Array) -> Array:
         cons_term = 0
         for con in self._constraints:
             con_vals = con(samples)
@@ -424,7 +429,7 @@ class ConstraintPenalizedObjective(Model):
 
 
 class ChainedOptimizer(Optimizer):
-    def __init__(self, optimizer1, optimizer2):
+    def __init__(self, optimizer1: Optimizer, optimizer2: Optimizer):
         super().__init__()
         if not isinstance(optimizer1, Optimizer):
             raise ValueError(
@@ -441,7 +446,7 @@ class ChainedOptimizer(Optimizer):
         self._optimizer1 = optimizer1
         self._optimizer2 = optimizer2
 
-    def _minimize(self, iterate):
+    def _minimize(self, iterate: Array) -> OptimizationResult:
         result1 = self._optimizer1.minimize(iterate)
         result2 = self._optimizer2.minimize(result1.x)
         return result2

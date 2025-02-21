@@ -12,14 +12,16 @@ from pyapprox.multifidelity.stats import (
     MultiOutputStatistic,
 )
 from pyapprox.interface.model import Model
-from pyapprox.optimization.pya_minimize import (
+from pyapprox.optimization.scipy import (
+    ScipyConstrainedOptimizer,
+    ScipyConstrainedNelderMeadOptimizer,
+)
+from pyapprox.optimization.minimize import (
     Constraint,
     ConstrainedOptimizer,
     OptimizationResult,
     ChainedOptimizer,
     Optimizer,
-    ScipyConstrainedOptimizer,
-    ScipyConstrainedNelderMeadOptimizer,
 )
 
 
@@ -132,16 +134,23 @@ class GroupACVObjective(Model):
         self._est = None
         self._bkd = None
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return 1
+
+    def nvars(self) -> int:
+        return self._est.npartitions()
 
     def set_estimator(self, estimator):
         self._est = estimator
         self._bkd = self._est._bkd
-        self._jacobian_implemented = self._bkd.jacobian_implemented()
-        self._hessian_implemented = self._bkd.hessian_implemented()
 
-    def _trace_covariance_wrapper(self, npartition_samples_1d):
+    def jacobian_implemented(self) -> bool:
+        return self._bkd.jacobian_implemented()
+
+    def hessian_implemented(self) -> bool:
+        return self._bkd.hessian_implemented()
+
+    def _trace_covariance_wrapper(self, npartition_samples_1d: Array) -> Array:
         trace = self._bkd.trace(
             self._est._covariance_from_npartition_samples(
                 npartition_samples_1d
@@ -150,15 +159,15 @@ class GroupACVObjective(Model):
         # necessary for torch
         return self._bkd.hstack((trace,))[:, None]
 
-    def _values(self, npartition_samples):
+    def _values(self, npartition_samples: Array) -> Array:
         return self._trace_covariance_wrapper(npartition_samples[:, 0])
 
-    def _jacobian(self, npartition_samples):
+    def _jacobian(self, npartition_samples: Array) -> Array:
         return self._bkd.grad(
             self._trace_covariance_wrapper, npartition_samples[:, 0]
         )[1][None, ...]
 
-    def _hessian(self, npartition_samples):
+    def _hessian(self, npartition_samples: Array) -> Array:
         return self._bkd.hessian(
             self._trace_covariance_wrapper,
             npartition_samples[:, 0],
@@ -255,7 +264,6 @@ class GroupACVConstraint(Constraint):
     def __init__(self, bounds, keep_feasible=True):
         super().__init__(bounds, keep_feasible)
         self._est = None
-        # self._jacobian_implemented = self. jacobian_implemented()
 
     def set_estimator(self, estimator):
         self._est = estimator
@@ -263,17 +271,24 @@ class GroupACVConstraint(Constraint):
 
 
 class GroupACVCostContstraint(GroupACVConstraint):
-    def __init__(self, bounds, keep_feasible=True):
+    def __init__(self, bounds: Array, keep_feasible: bool = True):
         if bounds.shape[0] != self.nqoi():
             # the number of columns is checked with call to super().__init__
             raise ValueError("Bounds must have shape (2, 2)")
         super().__init__(bounds, keep_feasible)
         self._target_cost = None
         self._min_nhf_samples = None
-        self._jacobian_implemented = True
-        self._hessian_implemented = True
 
-    def set_budget(self, target_cost, min_nhf_samples):
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def hessian_implemented(self) -> bool:
+        return True
+
+    def nvars(self) -> int:
+        return self._est.npartitions()
+
+    def set_budget(self, target_cost: float, min_nhf_samples: int):
         self._target_cost = target_cost
         self._min_nhf_samples = min_nhf_samples
         self._validate_target_cost_min_nhf_samples()
@@ -288,10 +303,10 @@ class GroupACVCostContstraint(GroupACVConstraint):
             msg += "are inconsistent"
             raise ValueError(msg)
 
-    def nqoi(self):
+    def nqoi(self) -> int:
         return 2
 
-    def _values(self, npartition_samples):
+    def _values(self, npartition_samples: Array) -> Array:
         return self._bkd.array(
             [
                 self._target_cost
@@ -304,7 +319,7 @@ class GroupACVCostContstraint(GroupACVConstraint):
             ]
         )[None, :]
 
-    def _jacobian(self, npartition_samples):
+    def _jacobian(self, npartition_samples: Array) -> Array:
         return self._bkd.vstack(
             (
                 -(self._est._costs[None, :] @ self._est._partitions_per_model),
@@ -312,7 +327,7 @@ class GroupACVCostContstraint(GroupACVConstraint):
             )
         )
 
-    def _hessian(self, npartition_samples):
+    def _hessian(self, npartition_samples: Array) -> Array:
         return self._bkd.zeros(
             (
                 self.nqoi(),
@@ -338,10 +353,10 @@ class GroupACVOptimizer(Optimizer):
         self._bkd = self._est._bkd
 
     @abstractmethod
-    def _minimize(self, iterate: Array):
+    def _minimize(self, iterate: Array) -> OptimizationResult:
         raise NotImplementedError
 
-    def minimize(self, iterate: Array):
+    def minimize(self, iterate: Array) -> OptimizationResult:
         result = self._minimize(iterate)
         if not isinstance(result, OptimizationResult):
             raise RuntimeError(
@@ -360,7 +375,7 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
             )
         self._optimizer = optimizer
 
-    def _minimize(self, iterate: Array):
+    def _minimize(self, iterate: Array) -> OptimizationResult:
         return self._optimizer.minimize(iterate)
 
     def set_budget(self, target_cost: float, min_nhf_samples: int = 1):
@@ -371,7 +386,7 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         super().set_budget(target_cost, min_nhf_samples)
         self._constraint.set_budget(target_cost, min_nhf_samples)
 
-    def get_objective(self):
+    def get_objective(self) -> GroupACVObjective:
         return GroupACVObjective()
 
     def set_estimator(self, est: "GroupACVEstimator"):
@@ -542,16 +557,16 @@ class GroupACVEstimator:
         self._asketch = self._validate_asketch(asketch)
         self._objective = None
 
-    def nsubsets(self):
+    def nsubsets(self) -> int:
         return len(self._subsets)
 
-    def npartitions(self):
+    def npartitions(self) -> int:
         return self._npartitions
 
-    def nmodels(self):
+    def nmodels(self) -> int:
         return self._nmodels
 
-    def _restriction_matrix(self, subset):
+    def _restriction_matrix(self, subset: Array) -> Array:
         # TODO Consider replacing _restriction_matrix.T.dot(A) with
         # special indexing applied to A
         nsubset = len(subset)
@@ -824,7 +839,7 @@ class GroupACVEstimator:
         local_opt = ScipyConstrainedOptimizer()
         local_opt._opts["gtol"] = 1e-12
         opt2 = GroupACVGradientOptimizer(local_opt)
-        
+
         return ChainedACVOptimizer(opt1, opt2)
 
     def set_optimizer(

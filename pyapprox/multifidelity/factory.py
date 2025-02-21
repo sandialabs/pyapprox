@@ -443,8 +443,8 @@ def _estimate_components(variable, est, funs, ii):
     """
     bkd = est._bkd
     random_states = [
-        np.random.RandomState(ii * variable.num_vars() + jj)
-        for jj in range(variable.num_vars())
+        np.random.RandomState(ii * variable.nvars() + jj)
+        for jj in range(variable.nvars())
     ]
     samples_per_model = est.generate_samples_per_model(
         partial(variable.rvs, random_states=random_states)

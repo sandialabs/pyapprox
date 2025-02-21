@@ -44,9 +44,11 @@ class TestPDEBenchmarks:
         # test gradient and hessian
         x0 = benchmark.true_params() + 1e-2
         errors = benchmark.model().check_apply_jacobian(x0)
-        assert errors.min() / errors.max() > 1e-7
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1e-7
         errors = benchmark.model().check_apply_hessian(x0)
-        assert errors.min() / errors.max() > 1e-7
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 3e-6
 
     def test_transient_viscous_burgers_1d_benchmark(self):
         bkd = self.get_backend()

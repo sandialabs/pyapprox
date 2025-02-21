@@ -71,7 +71,9 @@ class PolynomialModelEnsemble(ACVBenchmark):
     def _set_models(self):
         funs = [self.m0, self.m1, self.m2, self.m3, self.m4][: self.nmodels()]
         self._models = [
-            ModelFromVectorizedCallable(self.nqoi(), fun, backend=self._bkd)
+            ModelFromVectorizedCallable(
+                self.nqoi(), self.nvars(), fun, backend=self._bkd
+            )
             for fun in funs
         ]
 
@@ -160,7 +162,9 @@ class TunableModelEnsemble(ACVBenchmark):
         assert self._theta0 > self._theta1 and self._theta1 > self._theta2
         funs = [self.m0, self.m1, self.m2]
         self._models = [
-            ModelFromVectorizedCallable(self.nqoi(), fun, backend=self._bkd)
+            ModelFromVectorizedCallable(
+                self.nqoi(), self.nvars(), fun, backend=self._bkd
+            )
             for fun in funs
         ]
 
@@ -401,7 +405,9 @@ class ShortColumnModelEnsemble(ACVBenchmark):
     def _set_models(self):
         funs = [self.m0, self.m1, self.m2, self.m3, self.m4][: self.nmodels()]
         self._models = [
-            ModelFromVectorizedCallable(self.nqoi(), fun, backend=self._bkd)
+            ModelFromVectorizedCallable(
+                self.nqoi(), self.nvars(), fun, backend=self._bkd
+            )
             for fun in funs
         ]
 
@@ -500,7 +506,9 @@ class MultiOutputModelEnsemble(ACVBenchmark):
 
     def _set_models(self):
         self._models = [
-            ModelFromVectorizedCallable(self.nqoi(), fun, backend=self._bkd)
+            ModelFromVectorizedCallable(
+                self.nqoi(), self.nvars(), fun, backend=self._bkd
+            )
             for fun in [self.f0, self.f1, self.f2]
         ]
 
@@ -688,7 +696,8 @@ class PSDMultiOutputModelEnsemble(ACVBenchmark):
         return self._bkd.hstack(
             [
                 math.sqrt(3) / 2 * samples.T**2 + samples.T,
-                math.sqrt(3) / 2 * samples.T + self._bkd.cos(math.pi * samples.T * 2.1),
+                math.sqrt(3) / 2 * samples.T
+                + self._bkd.cos(math.pi * samples.T * 2.1),
                 self._bkd.cos(3 * math.pi * samples.T + math.pi / 4),
             ]
         )
@@ -700,7 +709,9 @@ class PSDMultiOutputModelEnsemble(ACVBenchmark):
 
     def _set_models(self):
         self._models = [
-            ModelFromVectorizedCallable(self.nqoi(), fun, backend=self._bkd)
+            ModelFromVectorizedCallable(
+                self.nqoi(), self._variable.nvars(), fun, backend=self._bkd
+            )
             for fun in [self.f0, self.f1, self.f2]
         ]
 

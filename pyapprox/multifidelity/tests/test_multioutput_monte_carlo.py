@@ -13,8 +13,10 @@ from pyapprox.multifidelity._optim import (
     _allocate_samples_mlmc,
 )
 from pyapprox.multifidelity.acv import (
-    MFMCEstimator, MLMCEstimator, ACVLogDeterminantObjective,
-    ACVPartitionConstraint
+    MFMCEstimator,
+    MLMCEstimator,
+    ACVLogDeterminantObjective,
+    ACVPartitionConstraint,
 )
 from pyapprox.multifidelity.factory import (
     get_estimator,
@@ -33,6 +35,7 @@ from pyapprox.benchmarks.multifidelity_benchmarks import (
     PolynomialModelEnsemble,
 )
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+
 # from pyapprox.util.print_wrapper import *
 
 
@@ -468,7 +471,7 @@ class TestMOMC:
         bkd = self.get_backend()
         model_idx, qoi_idx = [0, 1, 2], [0]
         recursion_index = [0, 1]
-        target_cost = 10.
+        target_cost = 10.0
         funs, cov, costs, benchmark, means = (
             _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd)
         )
@@ -502,7 +505,7 @@ class TestMOMC:
             fd_eps=bkd.flip(bkd.logspace(-12, 1, 14)),
         )
         assert errors.min() / errors.max() < 3.0e-6
-        objective._apply_hessian_implemented = True
+        objective.apply_hessian_implemented = lambda: True
         errors = objective.check_apply_hessian(
             partition_ratios[:, None] + 1,
             fd_eps=bkd.flip(bkd.logspace(-12, 1, 14)),
@@ -515,11 +518,11 @@ class TestMOMC:
             fd_eps=bkd.flip(bkd.logspace(-12, 1, 14)),
         )
         assert errors.min() / errors.max() < 1.0e-6
-        constraint._weighted_hessian_implemented = True
+        constraint.weighted_hessian_implemented = lambda: True
         errors = constraint.check_apply_hessian(
             partition_ratios[:, None] + 1,
             fd_eps=bkd.flip(bkd.logspace(-12, 1, 14)),
-            weights=bkd.ones((partition_ratios.shape[0]+1, 1)),
+            weights=bkd.ones((partition_ratios.shape[0] + 1, 1)),
         )
         assert errors.min() / errors.max() < 1.0e-6
 
@@ -648,7 +651,7 @@ class TestMOMC:
             fd_eps=bkd.flip(bkd.logspace(-12, 1, 14)),
         )
         assert errors.min() / errors.max() < 3.0e-6
-        objective._apply_hessian_implemented = True
+        objective.apply_hessian_implemented = lambda: True
         errors = objective.check_apply_hessian(
             partition_ratios[:, None] + 1,
             fd_eps=bkd.flip(bkd.logspace(-12, 0, 13)),
@@ -661,11 +664,11 @@ class TestMOMC:
             fd_eps=bkd.flip(bkd.logspace(-12, 1, 14)),
         )
         assert errors.min() / errors.max() < 1.0e-6
-        constraint._weighted_hessian_implemented = True
+        constraint.weighted_hessian_implemented = lambda: True
         errors = constraint.check_apply_hessian(
             partition_ratios[:, None] + 1,
             fd_eps=bkd.flip(bkd.logspace(-12, 1, 14)),
-            weights=bkd.ones((partition_ratios.shape[0]+1, 1)),
+            weights=bkd.ones((partition_ratios.shape[0] + 1, 1)),
         )
         assert errors.min() / errors.max() < 1.0e-6
 
@@ -694,7 +697,12 @@ class TestMOMC:
         stat = multioutput_stats["mean"](3, backend=bkd)
         stat.set_pilot_quantities(cov)
         est = get_estimator(
-            ["gmf", "mfmc", "gis"], stat, costs, max_nmodels=3, nprocs=1, verbosity=1
+            ["gmf", "mfmc", "gis"],
+            stat,
+            costs,
+            max_nmodels=3,
+            nprocs=1,
+            verbosity=1,
         )
         target_cost = 10
         est._save_candidate_estimators = True
@@ -799,7 +807,7 @@ class TestMOMC:
         # start from same seed so samples will be generated in the same order
         # as above
         # variable.rvs() does not create nested samples when starting from
-        # the same randomstate and num_vars() > 1, e.g.
+        # the same randomstate and nvars() > 1, e.g.
         # partial(variable.rvs, random_state=random_state)(3) !=
         # partial(variable.rvs, random_state=random_state)(4)[:, :3]
         np.random.seed(1)

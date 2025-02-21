@@ -26,13 +26,13 @@ from pyapprox.multifidelity._optim import (
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.interface.model import SingleSampleModel
-from pyapprox.optimization.pya_minimize import (
-    # ConstrainedMultiStartOptimizer,
-    # RandomUniformOptimzerIterateGenerator,
-    Constraint,
-    Optimizer,
+from pyapprox.optimization.scipy import (
     ScipyConstrainedOptimizer,
     ScipyConstrainedNelderMeadOptimizer,
+)
+from pyapprox.optimization.minimize import (
+    Constraint,
+    Optimizer,
     ChainedOptimizer,
     OptimizationResult,
 )
@@ -771,6 +771,9 @@ class ACVObjective(SingleSampleModel, ABC):
     def set_target_cost(self, target_cost: float):
         self._target_cost = target_cost
 
+    def nvars(self) -> int:
+        return self._est._nmodels - 1
+
     def set_estimator(self, est: "ACVEstimator"):
         if not isinstance(est, ACVEstimator):
             raise ValueError("est must be an instance of ACVEstimator")
@@ -781,9 +784,13 @@ class ACVObjective(SingleSampleModel, ABC):
             )
         self._est = est
         self._bkd = est._bkd
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
         # autograd implementation is slow so turn off
-        self._apply_hessian_implemented = False # self._bkd.hvp_implemented()
+        return False  # self._bkd.hvp_implemented()
 
     @abstractmethod
     def _optimization_criteria(self, est_covariance: Array) -> float:
@@ -846,9 +853,16 @@ class ACVPartitionConstraint(Constraint):
             axis=1,
         )
         super().__init__(bounds, keep_feasible=True, backend=est._bkd)
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
         # autograd implementation is slow so turn off
-        self._weighted_hessian_implemented = False # self._bkd.hessian_implemented()
+        return False  # self._bkd.hvp_implemented()
+
+    def nvars(self) -> int:
+        return self._est._nmodels - 1
 
     def _eval_constraint(self, partition_ratios: Array) -> Array:
         if partition_ratios.ndim != 1:
@@ -1279,9 +1293,9 @@ class ACVEstimator(CVEstimator):
             if not hasattr(self, "_recursion_index"):
                 return "{0}(stat={1})".format(
                     self.__class__.__name__, self._stat
-            )
+                )
             return "{0}(stat={1}, recursion_index={2})".format(
-                    self.__class__.__name__, self._stat, self._recursion_index
+                self.__class__.__name__, self._stat, self._recursion_index
             )
         rep = "{0}(stat={1}, recursion_index={2}, criteria={3:.3g}".format(
             self.__class__.__name__,
@@ -1374,7 +1388,9 @@ class ACVEstimator(CVEstimator):
         )
 
     def plot_recursion_dag(self, ax):
-        return _plot_model_recursion(self._bkd.to_numpy(self._recursion_index), ax)
+        return _plot_model_recursion(
+            self._bkd.to_numpy(self._recursion_index), ax
+        )
 
     # def _objective(self, target_cost, x, return_grad=True):
     #     partition_ratios = self._bkd.asarray(x)
@@ -1393,7 +1409,7 @@ class ACVEstimator(CVEstimator):
 
     def get_npartition_bounds(self) -> Array:
         nunknowns = self._npartitions - 1
-        lower_bound = 1e-3 # this can impact the ability to find a solution
+        lower_bound = 1e-3  # this can impact the ability to find a solution
         bounds = self._bkd.stack(
             (
                 self._bkd.full((nunknowns,), lower_bound),
@@ -1426,7 +1442,7 @@ class ACVEstimator(CVEstimator):
         self._optimizer = optimizer
 
     def _allocate_samples_minimize(
-            self, target_cost: float
+        self, target_cost: float
     ) -> OptimizationResult:
         if target_cost < self._bkd.sum(self._costs):
             msg = "Target cost does not allow at least one sample from "
@@ -1638,9 +1654,7 @@ class ACVEstimator(CVEstimator):
     def get_all_recursion_indices(self) -> List[Array]:
         return _get_acv_recursion_indices(self._nmodels, self._tree_depth)
 
-    def _allocate_samples_for_all_recursion_indices(
-        self, target_cost: float
-    ):
+    def _allocate_samples_for_all_recursion_indices(self, target_cost: float):
         best_criteria = self._bkd.asarray(np.inf)
         best_result = None
         for index in self.get_all_recursion_indices():
@@ -1682,9 +1696,7 @@ class ACVEstimator(CVEstimator):
             return self._allocate_samples_for_all_recursion_indices(
                 target_cost
             )
-        return self._allocate_samples_for_single_recursion(
-            target_cost
-        )
+        return self._allocate_samples_for_single_recursion(target_cost)
 
 
 class GMFEstimator(ACVEstimator):

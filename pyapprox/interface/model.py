@@ -23,45 +23,70 @@ class ModelWorkTracker:
         self, backend: LinAlgMixin = NumpyLinAlgMixin, multiproc: bool = False
     ):
         self._bkd = backend
+        self.set_active(False)
         # use multiprocessing.Manager() so that the dictionary
         # can be updated by multiple processes when calling
         # multiprocessing.pool
-        wt_dict = {
-            "val": self._bkd.empty((0,)),
-            "jac": self._bkd.empty((0,)),
-            "jvp": self._bkd.empty((0,)),
-            "hess": self._bkd.empty((0,)),
-            "hvp": self._bkd.empty((0,)),
-            "whess": self._bkd.empty((0,)),
-            "whvp": self._bkd.empty((0,)),
-        }
         if multiproc:
-            self._wall_times = multiprocessing.Manager().dict(wt_dict)
+            manager = multiprocessing.Manager()
+            self._wall_times = manager.dict(
+                {
+                    "val": manager.list([]),
+                    "jac": manager.list([]),
+                    "jvp": manager.list([]),
+                    "hess": manager.list([]),
+                    "hvp": manager.list([]),
+                    "whess": manager.list([]),
+                    "whvp": manager.list([]),
+                }
+            )
             # Do not create work_tracker with shared memory
             # unless necessary (e.g. do not do for models that dont use pool)
             # as  multiprocessing.Manager().dict slows down code substantially
             # I think because of lock it places on data access
         else:
-            self._wall_times = wt_dict
+            self._wall_times = {
+                "val": [],
+                "jac": [],
+                "jvp": [],
+                "hess": [],
+                "hvp": [],
+                "whess": [],
+                "whvp": [],
+            }
+
+    def set_active(self, active: bool):
+        self._active = active
 
     def update(self, eval_name: str, times: Array):
-        self._wall_times[eval_name] = self._bkd.hstack(
-            (self._wall_times[eval_name], times)
-        )
+        # use list of arrays because hstacking arrays continually is slow
+        # only hstack arrays when accessing wall_times
+        if self._active:
+            self._wall_times[eval_name].append(times)
 
     def average_wall_time(self, eval_name: str) -> float:
         if self.nevaluations(eval_name) == 0:
             return "?"
-        wall_times = self._wall_times[eval_name]
+        # call self.walltimes() so _wall_times lists are concatenated into
+        # an array
+        wall_times = self.wall_times()[eval_name]
         # exclude failures from calculation
         wall_times = wall_times[wall_times != np.nan]
         return self._bkd.mean(wall_times)
 
     def nevaluations(self, eval_name: str) -> int:
-        return self._wall_times[eval_name].shape[0]
+        return self.wall_times()[eval_name].shape[0]
 
     def wall_times(self) -> dict:
-        return self._wall_times
+        wtimes = {}
+        for key, item in self._wall_times.items():
+            if len(self._wall_times[key]) > 0:
+                # must loop over list item so can call hstack with torch
+                # when item is a manger.list
+                wtimes[key] = self._bkd.hstack([t for t in item])
+            else:
+                wtimes[key] = self._bkd.zeros((0,))
+        return wtimes
 
     def __repr__(self) -> str:
         return "{0}(\n{1}\n\ttimes=({2})\n)".format(
@@ -1860,9 +1885,19 @@ class PoolModelWrapper(Model):
         return self._model
 
     def work_tracker(self) -> ModelWorkTracker:
-        # do not call self._work_tracker as it will contain incorrect
-        # information, must return self._model._work_tracker instead
+        # self._work_tracker as it will contain different data than
+        # self._model._work_tracker. For a set of samples passed to
+        # __call__, the former reports the total time / nsamples. The later
+        # reports the time taken by each model without the overhead of
+        # multiprocessing pickling everything
         return self._work_tracker
 
     def model_database(self) -> ModelDataBase:
-        return self._model.model_database()
+        # multiprocessing makes copies of the model which all update
+        # their own database. Need to make them share memory like for
+        # work_tracker. However, this will slow down computations alot
+        # (for cheap models)
+        raise NotImplementedError("database not support for PoolModelWrapper")
+
+    def activate_model_data_base(self):
+        raise NotImplementedError("database not support for PoolModelWrapper")

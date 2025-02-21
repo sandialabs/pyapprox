@@ -1,14 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from pyapprox.util.linearalgebra.numpylinalg import (
-    LinAlgMixin,
-    NumpyLinAlgMixin,
-)
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.surrogates.bases.multiindex import compute_hyperbolic_indices
 from pyapprox.surrogates.bases.univariate import (
     UnivariateInterpolatingBasis,
     UnivariateQuadratureRule,
+    UnivariateBasis,
 )
 from pyapprox.surrogates.bases.orthopoly import (
     OrthonormalPolynomial1D,
@@ -30,21 +29,21 @@ class Basis(ABC):
         self._jacobian_implemented = False
 
     @abstractmethod
-    def nterms(self):
+    def nterms(self) -> int:
         """
         Return the number of basis functions.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def nvars(self):
+    def nvars(self) -> int:
         """
         Return the number of inputs to the basis.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate a multivariate basis at a set of samples.
 
@@ -60,7 +59,7 @@ class Basis(ABC):
         """
         raise NotImplementedError()
 
-    def jacobian(self, samples):
+    def jacobian(self, samples: Array) -> Array:
         """
         Compute the Jacobians of multivariate basis at a set of samples.
 
@@ -83,7 +82,7 @@ class Basis(ABC):
 class MultiIndexBasis(Basis):
     """Multivariate basis defined by multi-indices."""
 
-    def __init__(self, bases_1d, indices=None):
+    def __init__(self, bases_1d: List[UnivariateBasis], indices: Array = None):
         # check that bases_1d are not exactly the same object
         # e.g. created using MultiIndexBasis[basis(nterms)]*nvars)
         # as this will create shallow copies preventing storage of different
@@ -101,14 +100,14 @@ class MultiIndexBasis(Basis):
         self._jacobian_implemented = True
         self._hessian_implemented = True
 
-    def set_hyperbolic_indices(self, level, pnorm):
+    def set_hyperbolic_indices(self, level: int, pnorm: float):
         indices = self._bkd.asarray(
             compute_hyperbolic_indices(self.nvars(), level, pnorm),
             dtype=int,
         )
         self.set_indices(indices)
 
-    def set_tensor_product_indices(self, nterms):
+    def set_tensor_product_indices(self, nterms: List[int]):
         if len(nterms) != self.nvars():
             raise ValueError("must specify nterms for each dimension")
         self.set_indices(
@@ -117,11 +116,11 @@ class MultiIndexBasis(Basis):
             )
         )
 
-    def _set_nterms(self, nterms_per_1d_basis):
+    def _set_nterms(self, nterms_per_1d_basis: List[int]):
         for ii, basis_1d in enumerate(self._bases_1d):
             basis_1d.set_nterms(nterms_per_1d_basis[ii])
 
-    def set_indices(self, indices):
+    def set_indices(self, indices: Array):
         """
         Set the multivariate indices of the basis functions.
 
@@ -141,33 +140,33 @@ class MultiIndexBasis(Basis):
         self._indices = self._bkd.array(indices, dtype=int)
         self._set_nterms(self._bkd.max(self._indices, axis=1) + 1)
 
-    def get_indices(self):
+    def get_indices(self) -> Array:
         """Return the indices defining the basis terms."""
         return self._indices
 
-    def nterms(self):
+    def nterms(self) -> int:
         if self._indices is None:
             return 0
         return self._indices.shape[1]
 
-    def nvars(self):
+    def nvars(self) -> int:
         # use bases_1d so do not have to set indices to determine nvars
         # like is done for base class
         return len(self._bases_1d)
 
-    def _basis_vals_1d(self, samples):
+    def _basis_vals_1d(self, samples: Array) -> List[Array]:
         return [
             poly(samples[dd : dd + 1, :])
             for dd, poly in enumerate(self._bases_1d)
         ]
 
-    def _basis_derivs_1d(self, samples, order):
+    def _basis_derivs_1d(self, samples: Array, order: int) -> List[Array]:
         return [
             poly.derivatives(samples[dd : dd + 1, :], order)
             for dd, poly in enumerate(self._bases_1d)
         ]
 
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         if samples.shape[0] != self.nvars():
             raise ValueError(
                 "samples must have nrows={0}".format(self.nvars())
@@ -178,7 +177,7 @@ class MultiIndexBasis(Basis):
             basis_matrix *= basis_vals_1d[dd][:, self._indices[dd, :]]
         return basis_matrix
 
-    def jacobian(self, samples):
+    def jacobian(self, samples: Array) -> Array:
         # return jac with shape (nsamples, nterms, nvars)
         basis_vals_1d = self._basis_vals_1d(samples)
         basis_derivs_1d = self._basis_derivs_1d(samples, 1)
@@ -191,7 +190,7 @@ class MultiIndexBasis(Basis):
             jac.append(jac_dd)
         return self._bkd.moveaxis(self._bkd.stack(jac, axis=0), 0, -1)
 
-    def hessian(self, samples):
+    def hessian(self, samples: Array) -> Array:
         basis_vals_1d = self._basis_vals_1d(samples)
         # todo allow basis derivs to return vals and derivs of all
         # order so bases like orthopoly do not recompute data
@@ -219,7 +218,7 @@ class MultiIndexBasis(Basis):
         )
         return hess
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(nvars={1}, nterms={2})".format(
             self.__class__.__name__, self.nvars(), self.nterms()
         )

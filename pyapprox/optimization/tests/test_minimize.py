@@ -19,6 +19,7 @@ from pyapprox.optimization.minimize import (
     EmpiricalAVaRSlackBasedOptimizer,
     AVaRSlackBasedOptimizer,
 )
+from pyapprox.optimization.risk import GaussianAnalyticalRiskMeasures
 from pyapprox.benchmarks import (
     RosenbrockUnconstrainedOptimizationBenchmark,
     RosenbrockConstrainedOptimizationBenchmark,
@@ -26,7 +27,6 @@ from pyapprox.benchmarks import (
     EvtushenkoConstrainedOptimizationBenchmark,
 )
 from pyapprox.interface.model import ModelFromSingleSampleCallable
-from pyapprox.variables.risk import gaussian_cvar
 from pyapprox.interface.model import Model
 from pyapprox.optimization.risk import AverageValueAtRisk
 
@@ -64,6 +64,8 @@ class TestMinimize(unittest.TestCase):
             bounds=benchmark.design_variable().bounds(),
             opts={"gtol": 1e-15},
         )
+        benchmark.objective().work_tracker().set_active(True)
+        benchmark.constraints()[0].work_tracker().set_active(True)
         init_iterate = benchmark.init_iterate()
         assert np.allclose(benchmark.objective()(init_iterate), 7.2)
         errors = benchmark.objective().check_apply_jacobian(init_iterate)
@@ -339,12 +341,14 @@ class TestMinimize(unittest.TestCase):
         samples = np.vstack([nodes[None, :], nodes[None, :] * sigma2 + mu2])
         stat = SampleAverageConditionalValueAtRisk([0.5, 0.85], eps=1e-3)
 
-        CVaR1 = gaussian_cvar(mu1, sigma1, stat._alpha[0])
-        CVaR2 = gaussian_cvar(mu2, sigma2, stat._alpha[1])
+        risks1 = GaussianAnalyticalRiskMeasures(mu1, sigma1)
+        risks2 = GaussianAnalyticalRiskMeasures(mu2, sigma2)
+        AVaR1 = risks1.AVaR(stat._alpha[0])
+        AVaR2 = risks2.AVaR(stat._alpha[1])
         VaR1 = stats.norm(mu1, sigma1).ppf(stat._alpha[0])
         VaR2 = stats.norm(mu2, sigma2).ppf(stat._alpha[1])
         constraint_bounds = np.hstack(
-            [np.zeros((2, 1)), np.hstack([CVaR1, CVaR2])[:, None]]
+            [np.zeros((2, 1)), np.hstack([AVaR1, AVaR2])[:, None]]
         )
         constraint = CVaRSampleAverageConstraint(
             constraint_model,
@@ -375,7 +379,7 @@ class TestMinimize(unittest.TestCase):
         # (smoothed) max function
         # print(constraint(exact_opt_x)[0, :] - np.array([CVaR1, CVaR2]))
         assert np.allclose(
-            constraint(exact_opt_x)[0, :], [CVaR1, CVaR2], rtol=5e-3
+            constraint(exact_opt_x)[0, :], [AVaR1, AVaR2], rtol=5e-3
         )
 
         bounds = np.stack(
@@ -397,7 +401,7 @@ class TestMinimize(unittest.TestCase):
 
         # errors in sample based estimate of CVaR will cause
         # optimal solution to be biased.
-        assert np.allclose(constraint(result.x), [CVaR1, CVaR2], rtol=1e-2)
+        assert np.allclose(constraint(result.x), [AVaR1, AVaR2], rtol=1e-2)
         # print(constraint(exact_opt_x), [CVaR1, CVaR2])
         # print(result.x-exact_opt_x[:, 0], exact_opt_x[:, 0])
 

@@ -23,7 +23,7 @@ from pyapprox.multifidelity.groupacv import (
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.multifidelity.factory import multioutput_stats, get_estimator
-from pyapprox.optimization.pya_minimize import (
+from pyapprox.optimization.scipy import (
     ScipyConstrainedOptimizer,
     ScipyConstrainedNelderMeadOptimizer,
 )
@@ -214,7 +214,7 @@ class TestGroupACV:
 
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
         # opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
-        # from pyapprox.optimization.rol_minimize import ROLConstrainedOptimizer        
+        # from pyapprox.optimization.rol_minimize import ROLConstrainedOptimizer
         # local_opt = ROLConstrainedOptimizer()
         local_opt = ScipyConstrainedOptimizer()
         local_opt.set_verbosity(3)
