@@ -601,8 +601,11 @@ class TransientAdjointFunctional(AdjointFunctional, TransientFunctionalMixin):
 
 class TransientSingleStateFinalTimeFunctional(TransientAdjointFunctional):
     def __init__(
-        self, state_id: int, nstates: int, nparams: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin
+        self,
+        state_id: int,
+        nstates: int,
+        nparams: int,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         self._state_id = state_id
         self._nstates = nstates
@@ -823,7 +826,7 @@ class ImplicitTimeIntegrator:
 
     def solve_adjoint(self, fwd_sols: Array, times: Array) -> Array:
         if not self._bkd.allclose(
-            times[-1], self._bkd.atleast1d(self._final_time), atol=1e-12
+            times[-1], self._bkd.asarray(self._final_time), atol=1e-12
         ):
             raise ValueError("times array is inconsistent with final_time")
         # copy required when using torch
@@ -902,5 +905,5 @@ class ImplicitTimeIntegrator:
             self._init_time,
             self._final_time,
             self._deltat,
-            self.time_residual
+            self.time_residual,
         )

@@ -301,13 +301,13 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def atleast1d(val, dtype=None):
+    def atleast1d(val):
         """Make an object at least a 1D tensor."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def atleast2d(val, dtype=None):
+    def atleast2d(val):
         """Make an object at least a 2D tensor."""
         raise NotImplementedError
 

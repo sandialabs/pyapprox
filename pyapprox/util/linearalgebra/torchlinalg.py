@@ -216,17 +216,12 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.isnan(mat)
 
     @staticmethod
-    def atleast1d(val, dtype=torch.double) -> torch.Tensor:
-        # warning use of as_tensor causes autograd to fail
-        # as it removes _requires_grad. TODO when all tests are passing again
-        # remove copy from atleast1d or provide a flag to use copy or not
-        return torch.atleast_1d(torch.as_tensor(val, dtype=dtype))
+    def atleast1d(val) -> torch.Tensor:
+        return torch.atleast_1d(val)
 
     @staticmethod
-    def atleast2d(val, dtype=torch.double) -> torch.Tensor:
-        # warning use of as_tensor causes autograd to fail
-        # as it removes _requires_grad
-        return torch.atleast_2d(torch.as_tensor(val, dtype=dtype))
+    def atleast2d(val) -> torch.Tensor:
+        return torch.atleast_2d(val)
 
     @staticmethod
     def reshape(mat: torch.Tensor, newshape) -> torch.Tensor:

@@ -208,12 +208,12 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.isnan(mat)
 
     @staticmethod
-    def atleast1d(val, dtype=float) -> np.ndarray:
-        return np.atleast_1d(val).astype(dtype)
+    def atleast1d(val) -> np.ndarray:
+        return np.atleast_1d(val)
 
     @staticmethod
-    def atleast2d(val, dtype=float) -> np.ndarray:
-        return np.atleast_2d(val).astype(dtype)
+    def atleast2d(val) -> np.ndarray:
+        return np.atleast_2d(val)
 
     @staticmethod
     def reshape(mat: np.ndarray, newshape) -> np.ndarray:

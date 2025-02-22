@@ -143,16 +143,20 @@ class IshigamiBenchmark(SingleModelBenchmark):
             marginals, backend=self._bkd
         )
 
-    def mean(self) -> float:
-        return self._a / 2 * self._bkd.ones((1,))[0]
+    def mean(self) -> Array:
+        # Must have 1 entry for each qoi. Here nqoi = 1
+        return self._bkd.atleast1d(self._bkd.asarray(self._a / 2))
 
-    def variance(self) -> float:
-        return (
-            self._a**2 / 8
-            + self._b * np.pi**4 / 5
-            + self._b**2 * np.pi**8 / 18
-            + 0.5
-        ) * self._bkd.ones((1,))[0]
+    def variance(self) -> Array:
+        # Must have 1 entry for each qoi. Here nqoi = 1
+        return self._bkd.atleast1d(
+            self._bkd.asarray(
+                self._a**2 / 8
+                + self._b * np.pi**4 / 5
+                + self._b**2 * np.pi**8 / 18
+                + 0.5
+            )
+        )
 
     def _unnormalized_sobol_indices(self):
         zero = self._bkd.zeros((1,))[0]
@@ -167,12 +171,14 @@ class IshigamiBenchmark(SingleModelBenchmark):
         return D_1, D_2, D_3, D_12, D_13, D_23, D_123
 
     def main_effects(self) -> Array:
+        # Must have 1 column for each qoi. Here nqoi = 1
         return (
             self._bkd.hstack(self._unnormalized_sobol_indices()[:3])
             / self.variance()
-        )
+        )[:, None]
 
     def total_effects(self) -> Array:
+        # Must have 1 column for each qoi. Here nqoi = 1
         D_1, D_2, D_3, D_12, D_13, D_23, D_123 = (
             self._unnormalized_sobol_indices()
         )
@@ -195,23 +201,32 @@ class IshigamiBenchmark(SingleModelBenchmark):
             / self.variance()
         )
         assert np.allclose(total_effects1, total_effects)
-        return total_effects
+        return total_effects[:, None]
 
     def sobol_indices(self) -> Array:
         sobol_indices = (
             self._bkd.hstack(self._unnormalized_sobol_indices())
             / self.variance()
         )
-        sobol_interaction_indices = [
-            [0],
-            [1],
-            [2],
-            [0, 1],
-            [0, 2],
-            [1, 2],
-            [0, 1, 2],
-        ]
-        return sobol_indices[:, None], sobol_interaction_indices
+        print(
+            self._unnormalized_sobol_indices(), self.variance(), sobol_indices
+        )
+        return sobol_indices[:, None]
+
+    def sobol_interaction_indices(self) -> Array:
+        sobol_interaction_indices = self._bkd.array(
+            [
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1],
+                [1, 1, 0],
+                [1, 0, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+            ],
+            dtype=int,
+        ).T
+        return sobol_interaction_indices
 
 
 def get_oakley_function_data(bkd=NumpyLinAlgMixin) -> Array:
@@ -633,7 +648,7 @@ class OakleyModel(Model):
 
     def _values(self, samples: Array) -> Array:
         a1, a2, a3, M = get_oakley_function_data(self._bkd)
-        term1, term2 = a1 @ (samples), a2 @ (self._bkd.sin(samples))
+        term1, term2 = a1 @ samples, a2 @ self._bkd.sin(samples)
         term3 = a3 @ self._bkd.cos(samples)
         term4 = evaluate_quadratic_form(M, samples, self._bkd)
         vals = term1 + term2 + term3 + term4
@@ -720,12 +735,13 @@ class OakleyBenchmark(SingleModelBenchmark):
             self._main_effects[ii] = (
                 var1 + var2 + var3 + var4 + 2 * cov12 + 2 * cov34
             )
+        self._main_effects /= self._variance
 
-    def mean(self) -> float:
-        return self._mean
+    def mean(self) -> Array:
+        return self._bkd.atleast1d(self._bkd.asarray(self._mean))
 
-    def variance(self) -> float:
-        return self._variance
+    def variance(self) -> Array:
+        return self._bkd.atleast1d(self._bkd.asarray(self._variance))
 
     def main_effects(self) -> Array:
         return self._main_effects
@@ -827,17 +843,17 @@ class SobolGBenchmark(SingleModelBenchmark):
             marginals, backend=self._bkd
         )
 
-    def mean(self) -> float:
-        return self._mean
+    def mean(self) -> Array:
+        return self._bkd.atleast1d(self._bkd.asarray(self._mean))
 
-    def variance(self) -> float:
-        return self._variance
+    def variance(self) -> Array:
+        return self._bkd.atleast1d(self._bkd.asarray(self._variance))
 
     def main_effects(self) -> Array:
-        return self._main_effects
+        return self._main_effects[:, None]
 
     def total_effects(self) -> Array:
-        return self._total_effects
+        return self._total_effects[:, None]
 
     def sobol_indices(self) -> Array:
         return self._sobol_indices
@@ -911,7 +927,7 @@ class RosenbrockUnconstrainedOptimizationBenchmark(OptimizationBenchmark):
         marginals = [stats.uniform(-2, 4)] * self._nvars
         return IndependentMarginalsVariable(marginals, backend=self._bkd)
 
-    def mean(self) -> float:
+    def mean(self) -> Array:
         """
         Mean of rosenbrock function with uniform variables in [-2,2]^d
         """
@@ -932,7 +948,7 @@ class RosenbrockUnconstrainedOptimizationBenchmark(OptimizationBenchmark):
             )
             / (4**self._nvars)
         )
-        return exact_mean * self._bkd.ones((1,))[0]
+        return self._bkd.atleast1d(self._bkd.asarray(exact_mean))
 
     def optimal_iterate(self) -> Array:
         return self._bkd.ones((self._nvars, 1))
@@ -1060,7 +1076,7 @@ class CantileverBeamModel(SingleSampleModel):
 
     def _evaluate_sp_lambda(self, sp_lambda, sample):
         assert sample.ndim == 2 and sample.shape[1] == 1
-        vals = self._bkd.atleast2d(sp_lambda(*sample[:, 0]))
+        vals = self._bkd.atleast2d(self._bkd.asarray(sp_lambda(*sample[:, 0])))
         return vals
 
     def _evaluate(self, sample):

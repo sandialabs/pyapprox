@@ -163,7 +163,7 @@ class IndependentMarginalsVariable(JointVariable):
             var = self._unique_marginals[ii]
             indices = self._unique_variable_indices[ii]
             stats_ii = self._bkd.atleast1d(
-                getattr(var, function_name)(*args, **kwargs)
+                self._bkd.asarray(getattr(var, function_name)(*args, **kwargs))
             )
             assert stats_ii.ndim == 1
             if ii == 0:
@@ -195,7 +195,7 @@ class IndependentMarginalsVariable(JointVariable):
             indices = self._unique_variable_indices[ii]
             for jj in indices:
                 stats_jj = self._bkd.atleast1d(
-                    getattr(var, function_name)(x[jj, :])
+                    self._bkd.asarray(getattr(var, function_name)(x[jj, :]))
                 )
                 assert stats_jj.ndim == 1
                 if stats is None:
