@@ -30,6 +30,7 @@ from pyapprox.surrogates.bases.basisexp import (
     TensorProductInterpolant,
     TrigonometricExpansion,
     FourierExpansion,
+    setup_polynomial_chaos_expansion_from_variable,
 )
 from pyapprox.surrogates.bases.linearsystemsolvers import (
     LstSqSolver,
@@ -474,19 +475,24 @@ class TestBasis:
         bkd = self.get_backend()
         marginals = [stats.uniform(0, 1), stats.uniform(-2, 3)]
         variable = IndependentMarginalsVariable(marginals, backend=bkd)
-        bases_1d = [
-            setup_univariate_orthogonal_polynomial_from_marginal(
-                marginal, backend=bkd
-            )
-            for marginal in marginals
-        ]
-        nterms_1d = 3
-        basis = OrthonormalPolynomialBasis(bases_1d)
-        basis.set_tensor_product_indices([nterms_1d] * variable.nvars())
-        nqoi = 1
-        bexp = PolynomialChaosExpansion(
-            basis, solver=LstSqSolver(backend=bkd), nqoi=nqoi
+        bexp = setup_polynomial_chaos_expansion_from_variable(
+            variable, 1, backend=bkd
         )
+        nterms_1d = 3
+        bexp.basis().set_tensor_product_indices([nterms_1d] * variable.nvars())
+        # bases_1d = [
+        #     setup_univariate_orthogonal_polynomial_from_marginal(
+        #         marginal, backend=bkd
+        #     )
+        #     for marginal in marginals
+        # ]
+        # nterms_1d = 3
+        # basis = OrthonormalPolynomialBasis(bases_1d)
+        # basis.set_tensor_product_indices([nterms_1d] * variable.nvars())
+        # nqoi = 1
+        # bexp = PolynomialChaosExpansion(
+        #     basis, solver=LstSqSolver(backend=bkd), nqoi=nqoi
+        # )
         ntrain_samples = 20
 
         def fun(sample):
@@ -532,7 +538,7 @@ class TestBasis:
         train_samples = variable.rvs(ntrain_samples)
         train_values = fun(train_samples)
         bexp = PolynomialChaosExpansion(
-            basis, solver=LstSqSolver(backend=bkd), nqoi=nqoi
+            bexp.basis(), solver=LstSqSolver(backend=bkd), nqoi=nqoi
         )
         bexp.fit(train_samples, train_values)
 

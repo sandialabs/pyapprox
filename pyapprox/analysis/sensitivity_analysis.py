@@ -33,91 +33,152 @@ from pyapprox.surrogates.polychaos.sparse_grid_to_gpc import (
 )
 
 
-def get_main_and_total_effect_indices_from_pce(coefficients, indices):
-    r"""
-    Assume basis is orthonormal
-    Assume first coefficient is the coefficient of the constant basis. Remove
-    this assumption by extracting array index of constant term from indices
+class VarianceBasedSensitivityAnalysis(ABC):
+    def __init__(self, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin):
+        self._nvars = nvars
+        self._bkd = backend
 
-    Returns
-    -------
-    main_effects : Array(num_vars)
-        Contribution to variance of each variable acting alone
+    def nvars(self) -> int:
+        return self._nvars
 
-    total_effects : Array(num_vars)
-        Contribution to variance of each variable acting alone or with
-        other variables
+    def isotropic_interaction_terms(self, order: int) -> Array:
+        gen = HyperbolicIndexGenerator(
+            self.nvars(), order, 1.0, backend=self._bkd
+        )
+        interaction_terms = gen.get_indices()
+        interaction_terms = interaction_terms[
+            :, self._bkd.where(interaction_terms.max(axis=0) == 1)[0]
+        ]
+        return interaction_terms
 
-    """
-    num_vars = indices.shape[0]
-    num_terms, num_qoi = coefficients.shape
-    assert num_terms == indices.shape[1]
+    def _default_interaction_terms(self) -> Array:
+        return self.isotropic_interaction_terms(2)
 
-    main_effects = np.zeros((num_vars, num_qoi), np.double)
-    total_effects = np.zeros((num_vars, num_qoi), np.double)
-    variance = np.zeros(num_qoi)
+    def set_interaction_terms_of_interest(self, interaction_terms: Array):
+        """
+        Parameters
+        ----------
+        interaction_terms : Array (nvars, nterms)
+        Index defining the active terms in each interaction. If the
+        ith  variable is active interaction_terms[i] == 1 and zero otherwise
+        This index must be downward closed due to way sobol indices are
+        computed
+        """
+        main_effect_indices = interaction_terms[
+            :, interaction_terms.sum(axis=0) == 1
+        ]
+        if main_effect_indices.shape[1] != self.nvars():
+            # This is not required by computation of sobol indices
+            # but only to ensure all main effects are computed
+            raise ValueError(
+                "interaction_terms must contain all main effect indices"
+            )
+        self._interaction_terms = interaction_terms
 
-    for ii in range(num_terms):
-        index = indices[:, ii]
-
-        # calculate contribution to variance of the index
-        var_contribution = coefficients[ii, :] ** 2
-
-        # get number of dimensions involved in interaction, also known
-        # as order
-        non_constant_vars = np.where(index > 0)[0]
-        order = non_constant_vars.shape[0]
-
-        if order > 0:
-            variance += var_contribution
-
-        # update main effects
-        if order == 1:
-            var = non_constant_vars[0]
-            main_effects[var, :] += var_contribution
-
-        # update total effects
-        for ii in range(order):
-            var = non_constant_vars[ii]
-            total_effects[var, :] += var_contribution
-
-    assert np.all(np.isfinite(variance))
-    assert np.all(variance > 0)
-    main_effects /= variance
-    total_effects /= variance
-    return main_effects, total_effects
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
 
 
-def get_sobol_indices(coefficients, indices, max_order=2):
-    num_terms, num_qoi = coefficients.shape
-    variance = np.zeros(num_qoi)
-    assert num_terms == indices.shape[1]
-    interactions = dict()
-    interaction_values = []
-    interaction_terms = []
-    kk = 0
-    for ii in range(num_terms):
-        index = indices[:, ii]
-        var_contribution = coefficients[ii, :] ** 2
-        non_constant_vars = np.where(index > 0)[0]
-        key = hash_array(non_constant_vars)
+class PolynomialChaosSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
+    def _compute_main_and_total_effects(self):
+        r"""
+        Assume basis is orthonormal
+        Assume first coefficient is the coefficient of the constant basis. Remove
+        this assumption by extracting array index of constant term from indices
 
-        if len(non_constant_vars) > 0:
-            variance += var_contribution
+        Returns
+        -------
+        main_effects : Array(num_vars)
+            Contribution to variance of each variable acting alone
 
-        if len(non_constant_vars) > 0 and len(non_constant_vars) <= max_order:
-            if key in interactions:
-                interaction_values[interactions[key]] += var_contribution
-            else:
-                interactions[key] = kk
-                interaction_values.append(var_contribution)
-                interaction_terms.append(non_constant_vars)
-                kk += 1
+        total_effects : Array(num_vars)
+            Contribution to variance of each variable acting alone or with
+            other variables
 
-    # interaction_terms = np.asarray(interaction_terms).T
-    interaction_values = np.asarray(interaction_values)
+        """
+        main_effects = self._bkd.zeros((self._pce.nvars(), self._pce.nqoi()))
+        total_effects = self._bkd.zeros((self._pce.nvars(), self._pce.nqoi()))
+        variance = self._bkd.zeros(self._pce.nqoi())
 
-    return interaction_terms, interaction_values / variance
+        for ii in range(self._pce.basis().nterms()):
+            index = self._pce.basis().get_indices()[:, ii]
+
+            # calculate contribution to variance of the index
+            var_contribution = self._pce.get_coefficients()[ii, :] ** 2
+
+            # get number of dimensions involved in interaction, also known
+            # as order
+            non_constant_vars = self._bkd.where(index > 0)[0]
+            order = non_constant_vars.shape[0]
+
+            if order > 0:
+                variance += var_contribution
+
+            # update main effects
+            if order == 1:
+                var = non_constant_vars[0]
+                main_effects[var, :] += var_contribution
+
+            # update total effects
+            for ii in range(order):
+                var = non_constant_vars[ii]
+                total_effects[var, :] += var_contribution
+
+        if not self._bkd.all(self._bkd.isfinite(variance)):
+            raise RuntimeError("Variance was not finite")
+        if self._bkd.any(variance <= 0):
+            raise RuntimeError("Variance was not positive")
+        main_effects /= variance
+        total_effects /= variance
+        return main_effects, total_effects
+
+    def _compute_sobol_indices(self, max_order=2):
+        variance = self._bkd.zeros(self._pce.nqoi())
+        interaction_values = self._bkd.zeros(
+            (self._interaction_terms.shape[1], self._pce.nqoi())
+        )
+        interaction_terms_dict = dict(
+            zip(
+                [hash_array(index) for index in self._interaction_terms.T],
+                self._bkd.arange(self._interaction_terms.shape[1], dtype=int),
+            )
+        )
+        for ii in range(self._pce.nterms()):
+            basis_index = self._pce.basis().get_indices()[:, ii]
+            var_contribution = self._pce.get_coefficients()[ii, :] ** 2
+            non_constant_vars = self._bkd.where(basis_index > 0)[0]
+            index = self._bkd.zeros((self.nvars(),), dtype=int)
+            index[non_constant_vars] = 1
+            key = hash_array(index)
+            if len(non_constant_vars) > 0:
+                variance += var_contribution
+            if key in interaction_terms_dict:
+                interaction_values[
+                    interaction_terms_dict[key]
+                ] += var_contribution
+        interaction_values = self._bkd.asarray(interaction_values)
+        return interaction_values / variance
+
+    def compute(self, pce: PolynomialChaosExpansion):
+        self._pce = pce
+        if not hasattr(self, "_interaction_terms"):
+            self.set_interaction_terms_of_interest(
+                self._default_interaction_terms()
+            )
+
+        self._main_effects, self._total_effects = (
+            self._compute_main_and_total_effects()
+        )
+        self._sobol_indices = self._compute_sobol_indices()
+
+    def main_effects(self) -> Array:
+        return self._main_effects
+
+    def total_effects(self) -> Array:
+        return self._total_effects
+
+    def sobol_indices(self) -> Array:
+        return self._sobol_indices
 
 
 def plot_main_effects(
@@ -649,73 +710,6 @@ class SensitivityResult(OptimizeResult):
     pass
 
 
-def morris_sensitivities(fun, variable, ntrajectories, nlevels=4):
-    r"""
-    Compute sensitivity indices by constructing an adaptive polynomial chaos
-    expansion.
-
-    Parameters
-    ----------
-    fun : callable
-        The function being analyzed
-
-        ``fun(z) -> Array``
-
-        where ``z`` is a 2D Array with shape (nvars,nsamples) and the
-        output is a 2D Array with shape (nsamples,nqoi)
-
-    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`
-         Object containing information of the joint density of the inputs z
-         which is the tensor product of independent and identically distributed
-         uniform variables.
-
-    ntrajectories : integer
-        The number of Morris trajectories requested
-
-
-    nlevels : integer
-        The number of levels used for to define the morris grid.
-
-    Returns
-    -------
-    result : :class:`pyapprox.analysis.sensitivity_analysis.SensitivityResult`
-         Result object with the following attributes
-
-    mu : Array (nvars,nqoi)
-        The sensitivity of each output to each input. Larger mu corresponds to
-        higher sensitivity
-
-    sigma: Array (nvars,nqoi)
-        A measure of the non-linearity and/or interaction effects of each input
-        for each output. Low values suggest a linear realationship between
-        the input and output. Larger values suggest a that the output is
-        nonlinearly dependent on the input and/or the input interacts with
-        other inputs
-
-    samples : Array(nvars,ntrajectories*(nvars+1))
-        The coordinates of each morris trajectory
-
-    values : Array(nvars,nqoi)
-        The values of ``fun`` at each sample in ``samples``
-    """
-
-    nvars = variable.num_vars()
-    icdfs = [v.ppf for v in variable.marginals()]
-    samples = get_morris_samples(nvars, nlevels, ntrajectories, icdfs=icdfs)
-    values = fun(samples)
-    elem_effects = get_morris_elementary_effects(samples, values)
-    mu, sigma = get_morris_sensitivity_indices(elem_effects)
-
-    return SensitivityResult(
-        {
-            "morris_mu": mu,
-            "morris_sigma": sigma,
-            "samples": samples,
-            "values": values,
-        }
-    )
-
-
 def sparse_grid_sobol_sensitivities(sparse_grid, max_order=2):
     r"""
     Compute sensitivity indices from a sparse grid
@@ -778,71 +772,6 @@ def sparse_grid_sobol_sensitivities(sparse_grid, max_order=2):
             "sobol_indices": pce_sobol_indices,
             "sobol_interaction_indices": interaction_terms,
             "pce": pce,
-        }
-    )
-
-
-def gpc_sobol_sensitivities(pce, variable, max_order=2):
-    r"""
-    Compute variance based sensitivity metrics from a polynomial chaos
-    expansion
-
-    Parameters
-    ----------
-    pce :class:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion`
-       The polynomial chaos expansion
-
-    max_order : integer
-        The maximum interaction order of Sobol indices to compute. A value
-        of 2 will compute all pairwise interactions, a value of 3 will
-        compute indices for all interactions involving 3 variables. The number
-        of indices returned will be nchoosek(nvars+max_order,nvars). Warning
-        when nvars is high the number of indices will increase rapidly with
-        max_order.
-
-    Returns
-    -------
-    result : :class:`pyapprox.analysis.sensitivity_analysis.SensitivityResult`
-         Result object with the following attributes
-
-    main_effects : Array (nvars, nqoi)
-        The variance based main effect sensitivity indices
-
-    total_effects : Array (nvars, nqoi)
-        The variance based total effect sensitivity indices
-
-    sobol_indices : Array (nchoosek(nvars+max_order,nvars), nqoi)
-        The variance based Sobol sensitivity indices
-
-    sobol_interaction_indices : Array(nvars, nchoosek(nvars+max_order, nvars))
-        Indices specifying the variables in each interaction in
-        ``sobol_indices``
-    """
-    if not issubclass(pce.__class__, PolynomialChaosExpansion):
-        raise ValueError("Must provide a PCE")
-
-    if variable.marginals() != pce.var_trans.variable.marginals():
-        msg = "variable is inconsistent with PCE. "
-        msg += "Can only compute sensitivities with respect to variable "
-        msg += "used to build the PCE"
-        raise ValueError(msg)
-
-    pce_main_effects, pce_total_effects = (
-        get_main_and_total_effect_indices_from_pce(
-            pce.get_coefficients(), pce.get_indices()
-        )
-    )
-
-    interaction_terms, pce_sobol_indices = get_sobol_indices(
-        pce.get_coefficients(), pce.get_indices(), max_order=max_order
-    )
-
-    return SensitivityResult(
-        {
-            "main_effects": pce_main_effects,
-            "total_effects": pce_total_effects,
-            "sobol_indices": pce_sobol_indices,
-            "sobol_interaction_indices": interaction_terms,
         }
     )
 
@@ -1001,7 +930,7 @@ class SampleBasedSensivitityAnalysis(ABC):
         nterms = self._interaction_terms.shape[1]
         nvars = self._variable.nvars()
         interaction_values = self._bkd.empty((nterms, valuesA.shape[1]))
-        total_effects = self._bkd.empty((nvars, valuesA.shape[1]))
+        self._total_effects = self._bkd.empty((nvars, valuesA.shape[1]))
         for ii in range(nterms):
             sobol_index = self._interaction_terms[:, ii]
             interaction_values[ii, :] = (
@@ -1011,7 +940,7 @@ class SampleBasedSensivitityAnalysis(ABC):
             if sobol_index.sum() == 1:
                 idx = self._bkd.where(sobol_index == 1)[0][0]
                 # entry f in Table 2 of Saltelli, Annoni et. al
-                total_effects[idx] = (
+                self._total_effects[idx] = (
                     0.5
                     * self._bkd.mean((valuesA - valuesAB[ii]) ** 2, axis=0)
                     / variance
@@ -1021,7 +950,7 @@ class SampleBasedSensivitityAnalysis(ABC):
         # each interaction value For example, let R_ij be interaction_values
         # the sobol index S_ij satisfies R_ij = S_i + S_j + S_ij
         idx = argsort_indices_leixographically(self._interaction_terms)
-        sobol_indices = interaction_values.copy()
+        self._sobol_indices = interaction_values.copy()
         sobol_indices_dict = dict()
         for ii in range(idx.shape[0]):
             index = self._interaction_terms[:, idx[ii]]
@@ -1032,23 +961,22 @@ class SampleBasedSensivitityAnalysis(ABC):
                 for jj in range(nactive_vars - 1):
                     indices = combinations(active_vars, jj + 1)
                     for key in indices:
-                        sobol_indices[idx[ii]] -= sobol_indices[
+                        self._ssobol_indices[idx[ii]] -= self._sobol_indices[
                             sobol_indices_dict[key]
                         ]
 
-        main_effects = sobol_indices[
+        self._main_effects = self._sobol_indices[
             self._interaction_terms.sum(axis=0) == 1, :
         ]
-        return SensitivityResult(
-            {
-                "main_effects": main_effects,
-                "total_effects": total_effects,
-                "sobol_indices": sobol_indices,
-                "sobol_interaction_indices": self._interaction_terms,
-                "mean": mean,
-                "variance": variance,
-            }
-        )
+
+    def main_effects(self) -> Array:
+        return self._main_effects
+
+    def total_effects(self) -> Array:
+        return self._total_effects
+
+    def sobol_indices(self) -> Array:
+        return self._sobol_indices
 
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
@@ -1425,7 +1353,7 @@ def sampling_based_sobol_indices_from_gaussian_process(
     return result
 
 
-class BinnedVarianceBasedSensitivityAnalysis:
+class BinBasedVarianceSensitivityAnalysis:
     def __init__(
         self,
         variable: IndependentMarginalsVariable,
@@ -1492,6 +1420,7 @@ class BinnedVarianceBasedSensitivityAnalysis:
                     * (values[inds, :].mean() - mean) ** 2
                 )
             main_effects[ii] /= variance
+        return main_effects
 
     def compute(self, samples: Array, values: Array) -> Array:
         self._main_effects = self._compute(samples, values)

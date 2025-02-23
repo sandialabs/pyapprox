@@ -4,6 +4,11 @@ from typing import Tuple, List, Union
 import numpy as np
 
 from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.surrogates.bases.orthopoly import (
+    setup_univariate_orthogonal_polynomial_from_marginal,
+)
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.bases.basis import (
     Basis,
     OrthonormalPolynomialBasis,
@@ -12,7 +17,10 @@ from pyapprox.surrogates.bases.basis import (
     TrigonometricBasis,
     FourierBasis,
 )
-from pyapprox.surrogates.bases.linearsystemsolvers import LinearSystemSolver
+from pyapprox.surrogates.bases.linearsystemsolvers import (
+    LinearSystemSolver,
+    LstSqSolver,
+)
 from pyapprox.util.hyperparameter import (
     HyperParameter,
     HyperParameterList,
@@ -580,6 +588,24 @@ class PolynomialChaosExpansion(MonomialExpansion):
         mono = MonomialExpansion(basis, nqoi=mono_coefs.shape[1])
         mono.set_coefficients(mono_coefs)
         return mono
+
+
+def setup_polynomial_chaos_expansion_from_variable(
+    variable: IndependentMarginalsVariable,
+    nqoi: int,
+    solver: LinearSystemSolver = None,
+    backend=NumpyLinAlgMixin,
+) -> PolynomialChaosExpansion:
+    bases_1d = [
+        setup_univariate_orthogonal_polynomial_from_marginal(
+            marginal, backend=backend
+        )
+        for marginal in variable.marginals()
+    ]
+    basis = OrthonormalPolynomialBasis(bases_1d)
+    if solver is None:
+        solver = LstSqSolver(backend=backend)
+    return PolynomialChaosExpansion(basis, solver=solver, nqoi=nqoi)
 
 
 class TensorProductInterpolant(Surrogate):

@@ -208,9 +208,6 @@ class IshigamiBenchmark(SingleModelBenchmark):
             self._bkd.hstack(self._unnormalized_sobol_indices())
             / self.variance()
         )
-        print(
-            self._unnormalized_sobol_indices(), self.variance(), sobol_indices
-        )
         return sobol_indices[:, None]
 
     def sobol_interaction_indices(self) -> Array:
@@ -801,6 +798,14 @@ class SobolGBenchmark(SingleModelBenchmark):
         ) / 2
         self._set_statistics()
 
+    def sobol_interaction_indices(self) -> Array:
+        indices = []
+        for compressed_index in self._interaction_indices:
+            index = self._bkd.zeros((self.nvars(),), dtype=int)
+            index[compressed_index] = 1
+            indices.append(index)
+        return self._bkd.stack(indices, axis=1)
+
     def _set_statistics(self):
         """
         See article: Variance based sensitivity analysis of model output.
@@ -832,7 +837,7 @@ class SobolGBenchmark(SingleModelBenchmark):
                 unnormalized_main_effects[index].prod() / self._variance
                 for index in self._interaction_indices
             ]
-        )
+        )[:, None]
 
     def _set_model(self):
         self._model = SobolGModel(self._nvars, self._bkd)

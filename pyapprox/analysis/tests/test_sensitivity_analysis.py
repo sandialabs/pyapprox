@@ -8,19 +8,21 @@ from pyapprox.benchmarks import (
     OakleyBenchmark,
     SobolGBenchmark,
 )
-
+from pyapprox.expdesign.sequences import SobolSequence
 from pyapprox.analysis.sensitivity_analysis import (
     SobolSequenceBasedSensitivityAnalysis,
     HaltonSequenceBasedSensitivityAnalysis,
     MonteCarloBasedSensitivityAnalysis,
     MorrisSensitivityAnalysis,
-    get_sobol_indices,
-    get_main_and_total_effect_indices_from_pce,
-    gpc_sobol_sensitivities,
+    BinBasedVarianceSensitivityAnalysis,
+    PolynomialChaosSensivitityAnalysis,
     sparse_grid_sobol_sensitivities,
     sampling_based_sobol_indices_from_gaussian_process,
     analytic_sobol_indices_from_gaussian_process,
     run_sensitivity_analysis,
+)
+from pyapprox.surrogates.bases.basisexp import (
+    setup_polynomial_chaos_expansion_from_variable,
 )
 
 # from pyapprox.benchmarks.benchmarks import setup_benchmark
@@ -111,7 +113,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
                 *test_case
             )
 
-    def test_morris_elementary_effects(self):
+    def test_morris_method(self):
         benchmark = IshigamiBenchmark()
 
         nlevels, ncandidate_trajectories, ntrajectories = 4, None, 20
@@ -136,230 +138,68 @@ class TestSensitivityAnalysis(unittest.TestCase):
             np.array([5.55220104, 8.03908012, 9.31270356]),
         )
 
-    def test_get_sobol_indices_from_pce(self):
-        nvars = 5
-        degree = 5
-        indices = compute_hyperbolic_indices(nvars, degree, 1.0)
-        coefficients = np.ones((indices.shape[1], 2), float)
-        coefficients[:, 1] *= 2
-        interaction_indices, interaction_values = get_sobol_indices(
-            coefficients, indices, max_order=nvars
+    def test_bin_based_variance_sensivitity_analysis(self):
+        benchmark = IshigamiBenchmark()
+        analyzer = BinBasedVarianceSensitivityAnalysis(benchmark.variable())
+        nsamples = int(1e6)
+        seq = SobolSequence(
+            benchmark.variable().nvars(), variable=benchmark.variable()
         )
-        assert np.allclose(interaction_values.sum(axis=0), np.ones(2))
-
-    def test_pce_sensitivities_of_ishigami_function(self):
-        nsamples = 1500
-        nvars, degree = 3, 18
-        univariate_variables = [stats.uniform(-np.pi, 2 * np.pi)] * nvars
-        variable = IndependentMarginalsVariable(univariate_variables)
-
-        var_trans = AffineTransform(variable)
-        poly = PolynomialChaosExpansion()
-        poly_opts = define_poly_options_from_variable_transformation(var_trans)
-        poly.configure(poly_opts)
-        indices = compute_hyperbolic_indices(nvars, degree, 1.0)
-        poly.set_indices(indices)
-        # print('No. PCE Terms',indices.shape[1])
-
-        samples = variable.rvs(nsamples)
-        values = ishigami_function(samples)
-
-        basis_matrix = poly.basis_matrix(samples)
-        coef = np.linalg.lstsq(basis_matrix, values, rcond=None)[0]
-        poly.set_coefficients(coef)
-
-        # nvalidation_samples = 1000
-        # validation_samples = generate_independent_random_samples(
-        #     var_trans.variable, nvalidation_samples)
-        # validation_values = ishigami_function(validation_samples)
-        # poly_validation_vals = poly(validation_samples)
-        # abs_error = np.linalg.norm(
-        #     poly_validation_vals-validation_values)/np.sqrt(nvalidation_samples)
-        # print('Abs. Error',abs_error)
-
-        pce_main_effects, pce_total_effects = (
-            get_main_and_total_effect_indices_from_pce(
-                poly.get_coefficients(), poly.get_indices()
-            )
+        samples = seq.rvs(nsamples)
+        values = benchmark.model()(samples)
+        analyzer.compute(samples, values)
+        assert np.allclose(
+            analyzer.main_effects(),
+            benchmark.main_effects(),
+            rtol=1e-2,
+            atol=1e-3,
         )
 
-        (
-            mean,
-            variance,
-            main_effects,
-            total_effects,
-            sobol_indices,
-            sobol_interaction_indices,
-        ) = get_ishigami_funciton_statistics()
-        assert np.allclose(poly.mean(), mean)
-        assert np.allclose(poly.variance(), variance)
-        assert np.allclose(pce_main_effects, main_effects)
-        assert np.allclose(pce_total_effects, total_effects)
-
-        interaction_terms, pce_sobol_indices = get_sobol_indices(
-            poly.get_coefficients(), poly.get_indices(), max_order=3
+    def _check_pce_sensitivities(
+        self, benchmark, degree, nsamples, l2_tol, sa_tol
+    ):
+        pce = setup_polynomial_chaos_expansion_from_variable(
+            benchmark.variable(), benchmark.model().nqoi()
         )
-        assert np.allclose(pce_sobol_indices, sobol_indices)
-
-    def test_pce_sensitivities_of_sobol_g_function(self):
-        nsamples = 2000
-        nvars, degree = 3, 8
-        a = np.array([1, 2, 5])[:nvars]
-        univariate_variables = [stats.uniform(0, 1)] * nvars
-        variable = IndependentMarginalsVariable(univariate_variables)
-
-        var_trans = AffineTransform(variable)
-        poly = PolynomialChaosExpansion()
-        poly_opts = define_poly_options_from_variable_transformation(var_trans)
-        poly.configure(poly_opts)
-        indices = tensor_product_indices([degree] * nvars)
-        poly.set_indices(indices)
-        # print('No. PCE Terms',indices.shape[1])
-
-        samples = variable.rvs(nsamples)
-        samples = (
-            np.cos(np.random.uniform(0, np.pi, (nvars, nsamples))) + 1
-        ) / 2
-        values = sobol_g_function(a, samples)
-
-        basis_matrix = poly.basis_matrix(samples)
-        weights = 1 / np.sum(basis_matrix**2, axis=1)[:, np.newaxis]
-        coef = np.linalg.lstsq(
-            basis_matrix * weights, values * weights, rcond=None
-        )[0]
-        poly.set_coefficients(coef)
-
+        pce.basis().set_hyperbolic_indices(degree, 1.0)
+        assert nsamples > pce.basis().nterms()
+        samples = benchmark.variable().rvs(nsamples)
+        values = benchmark.model()(samples)
+        pce.fit(samples, values)
         nvalidation_samples = 1000
-        validation_samples = variable.rvs(nvalidation_samples)
-        validation_values = sobol_g_function(a, validation_samples)
-
-        poly_validation_vals = poly(validation_samples)
-        rel_error = np.linalg.norm(
-            poly_validation_vals - validation_values
-        ) / np.linalg.norm(validation_values)
-        print("Rel. Error", rel_error)
-
-        pce_main_effects, pce_total_effects = (
-            get_main_and_total_effect_indices_from_pce(
-                poly.get_coefficients(), poly.get_indices()
-            )
+        validation_samples = benchmark.variable().rvs(nvalidation_samples)
+        validation_values = benchmark.model()(validation_samples)
+        pce_vals = pce(validation_samples)
+        abs_error = np.linalg.norm(pce_vals - validation_values) / np.sqrt(
+            nvalidation_samples
         )
-        interaction_terms, pce_sobol_indices = get_sobol_indices(
-            poly.get_coefficients(), poly.get_indices(), max_order=3
-        )
+        # print("Abs. Error", abs_error)
+        assert abs_error < l2_tol
 
-        mean, variance, main_effects, total_effects, sobol_indices = (
-            get_sobol_g_function_statistics(a, interaction_terms)
+        analyzer = PolynomialChaosSensivitityAnalysis(pce.nvars())
+        analyzer.set_interaction_terms_of_interest(
+            benchmark.sobol_interaction_indices()
         )
-        assert np.allclose(poly.mean(), mean, atol=1e-2)
-        # print((poly.variance(),variance))
-        assert np.allclose(poly.variance(), variance, atol=1e-2)
-        # print(pce_main_effects,main_effects)
-        assert np.allclose(pce_main_effects, main_effects, atol=1e-2)
-        # print(pce_total_effects,total_effects)
-        assert np.allclose(pce_total_effects, total_effects, atol=1e-2)
-        assert np.allclose(pce_sobol_indices, sobol_indices, atol=1e-2)
-
-    def test_get_sobol_indices_from_pce_max_order(self):
-        nvars = 3
-        degree = 4
-        max_order = 2
-        indices = compute_hyperbolic_indices(nvars, degree, 1.0)
-        coefficients = np.ones((indices.shape[1], 2), float)
-        coefficients[:, 1] *= 2
-        interaction_indices, interaction_values = get_sobol_indices(
-            coefficients, indices, max_order
+        analyzer.compute(pce)
+        assert np.allclose(pce.mean(), benchmark.mean(), rtol=sa_tol)
+        assert np.allclose(pce.variance(), benchmark.variance(), rtol=sa_tol)
+        assert np.allclose(
+            analyzer.main_effects(), benchmark.main_effects(), rtol=sa_tol
+        )
+        assert np.allclose(
+            analyzer.total_effects(), benchmark.total_effects(), rtol=sa_tol
+        )
+        assert np.allclose(
+            analyzer.sobol_indices(), benchmark.sobol_indices(), rtol=sa_tol
         )
 
-        assert len(interaction_indices) == 6
-        true_interaction_indices = [[0], [1], [2], [0, 1], [0, 2], [1, 2]]
-        for ii in range(len(interaction_indices)):
-            assert np.allclose(
-                true_interaction_indices[ii], interaction_indices[ii]
-            )
-
-        true_variance = np.asarray(
-            [indices.shape[1] - 1, 2**2 * (indices.shape[1] - 1)]
-        )
-
-        # get the number of interactions involving variables 0 and 1
-        # test problem is symmetric so number is the same for all variables
-        num_pairwise_interactions = np.where(
-            np.all(indices[0:2, :] > 0, axis=0) & (indices[2, :] == 0)
-        )[0].shape[0]
-        # II = np.where(np.all(indices[0:2, :] > 0, axis=0))[0]
-
-        true_interaction_values = np.vstack(
-            (
-                np.tile(np.arange(1, 3)[np.newaxis, :], (nvars, 1)) ** 2
-                * degree
-                / true_variance,
-                np.tile(np.arange(1, 3)[np.newaxis, :], (nvars, 1)) ** 2
-                * num_pairwise_interactions
-                / true_variance,
-            )
-        )
-
-        assert np.allclose(true_interaction_values, interaction_values)
-
-        # plot_interaction_values( interaction_values, interaction_indices)
-
-    def test_get_main_and_total_effect_indices_from_pce(self):
-        nvars = 3
-        degree = nvars
-        # max_order = 2
-        indices = compute_hyperbolic_indices(nvars, degree, 1.0)
-        coefficients = np.ones((indices.shape[1], 2), float)
-        coefficients[:, 1] *= 2
-        main_effects, total_effects = (
-            get_main_and_total_effect_indices_from_pce(coefficients, indices)
-        )
-        true_variance = np.asarray(
-            [indices.shape[1] - 1, 2**2 * (indices.shape[1] - 1)]
-        )
-        true_main_effects = (
-            np.tile(np.arange(1, 3)[np.newaxis, :], (nvars, 1)) ** 2
-            * degree
-            / true_variance
-        )
-        assert np.allclose(main_effects, true_main_effects)
-
-        # get the number of interactions variable 0 is involved in
-        # test problem is symmetric so number is the same for all variables
-        num_interactions_per_variable = np.where(indices[0, :] > 0)[0].shape[0]
-        true_total_effects = (
-            np.tile(np.arange(1, 3)[np.newaxis, :], (nvars, 1)) ** 2
-            * num_interactions_per_variable
-            / true_variance
-        )
-        assert np.allclose(true_total_effects, total_effects)
-
-        # plot_total_effects(total_effects)
-        # plot_main_effects(main_effects)
-
-    def test_gpc_sobol_sensitivities(self):
-        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
-
-        num_samples = 1000
-        train_samples = benchmark.variable.rvs(num_samples)
-        train_vals = benchmark.fun(train_samples)
-
-        pce = approximate(
-            train_samples,
-            train_vals,
-            "polynomial_chaos",
-            {
-                "basis_type": "hyperbolic_cross",
-                "variable": benchmark.variable,
-                "options": {"max_degree": 8},
-            },
-        ).approx
-
-        res = gpc_sobol_sensitivities(pce, benchmark.variable)
-        assert np.allclose(res.main_effects, benchmark.main_effects, atol=2e-3)
-
-        res = run_sensitivity_analysis("pce_sobol", pce, benchmark.variable)
-        assert np.allclose(res.main_effects, benchmark.main_effects, atol=2e-3)
+    def test_pce_sensitivities(self):
+        test_cases = [
+            [IshigamiBenchmark(), 18, 2000, 1e-5, 1e-7],
+            [SobolGBenchmark(nvars=2), 20, 4000, 3e-2, 5e-3],
+        ]
+        for test_case in test_cases:
+            self._check_pce_sensitivities(*test_case)
 
     def test_sparse_grid_sobol_sensitivities(self):
         benchmark = setup_benchmark("oakley")
@@ -590,84 +430,6 @@ class TestSensitivityAnalysis(unittest.TestCase):
             "gp_sobol", approx, benchmark.variable, interaction_terms
         )
         assert np.allclose(mean_mean, benchmark.mean, rtol=1e-3, atol=3e-3)
-
-    def test_marginalize_polynomial_chaos_expansions(self):
-        univariate_variables = [
-            stats.uniform(-1, 2),
-            stats.norm(0, 1),
-            stats.uniform(-1, 2),
-        ]
-        variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineTransform(variable)
-        nvars = len(univariate_variables)
-
-        poly = PolynomialChaosExpansion()
-        poly_opts = define_poly_options_from_variable_transformation(var_trans)
-        poly.configure(poly_opts)
-
-        degree = 2
-        indices = compute_hyperbolic_indices(nvars, degree, 1)
-        poly.set_indices(indices)
-        poly.set_coefficients(np.ones((indices.shape[1], 1)))
-
-        pce_main_effects, pce_total_effects = (
-            get_main_and_total_effect_indices_from_pce(
-                poly.get_coefficients(), poly.get_indices()
-            )
-        )
-        print(poly.num_terms())
-
-        for ii in range(nvars):
-            # Marginalize out 2 variables
-            xx = np.linspace(-1, 1, 101)
-            inactive_idx = np.hstack((np.arange(ii), np.arange(ii + 1, nvars)))
-            marginalized_pce = marginalize_polynomial_chaos_expansion(
-                poly, inactive_idx, center=True
-            )
-            mvals = marginalized_pce(xx[None, :])
-            variable_ii = variable.marginals()[ii : ii + 1]
-            var_trans_ii = AffineTransform(variable_ii)
-            poly_ii = PolynomialChaosExpansion()
-            poly_opts_ii = define_poly_options_from_variable_transformation(
-                var_trans_ii
-            )
-            poly_ii.configure(poly_opts_ii)
-            indices_ii = compute_hyperbolic_indices(1, degree, 1.0)
-            poly_ii.set_indices(indices_ii)
-            poly_ii.set_coefficients(np.ones((indices_ii.shape[1], 1)))
-            pvals = poly_ii(xx[None, :])
-            # import matplotlib.pyplot as plt
-            # plt.plot(xx, pvals)
-            # plt.plot(xx, mvals, '--')
-            # plt.show()
-            assert np.allclose(mvals, pvals - poly.mean())
-            assert np.allclose(
-                poly_ii.variance() / poly.variance(), pce_main_effects[ii]
-            )
-            poly_ii.coefficients /= np.sqrt(poly.variance())
-            assert np.allclose(poly_ii.variance(), pce_main_effects[ii])
-
-            # Marginalize out 1 variable
-            xx = cartesian_product([xx] * 2)
-            inactive_idx = np.array([ii])
-            marginalized_pce = marginalize_polynomial_chaos_expansion(
-                poly, inactive_idx, center=True
-            )
-            mvals = marginalized_pce(xx)
-            variable_ii = (
-                variable.marginals()[:ii] + variable.marginals()[ii + 1 :]
-            )
-            var_trans_ii = AffineTransform(variable_ii)
-            poly_ii = PolynomialChaosExpansion()
-            poly_opts_ii = define_poly_options_from_variable_transformation(
-                var_trans_ii
-            )
-            poly_ii.configure(poly_opts_ii)
-            indices_ii = compute_hyperbolic_indices(2, degree, 1.0)
-            poly_ii.set_indices(indices_ii)
-            poly_ii.set_coefficients(np.ones((indices_ii.shape[1], 1)))
-            pvals = poly_ii(xx)
-            assert np.allclose(mvals, pvals - poly.mean())
 
 
 if __name__ == "__main__":
