@@ -112,16 +112,28 @@ class TestSensitivityAnalysis(unittest.TestCase):
             )
 
     def test_morris_elementary_effects(self):
-        benchmark = SobolGBenchmark()
-        benchmark.model()._acefs = np.array([78, 12, 0.5, 2, 97, 33])
+        benchmark = IshigamiBenchmark()
 
-        nlevels, ncandidate_trajectories, ntrajectories = 4, 40, 4
+        nlevels, ncandidate_trajectories, ntrajectories = 4, None, 20
         analyzer = MorrisSensitivityAnalysis(benchmark.variable(), nlevels)
-        samples = analyzer.generate_samples(ntrajectories)
+        samples = analyzer.generate_samples(
+            ntrajectories, ncandidate_trajectories
+        )
         values = benchmark.model()(samples)
         analyzer.compute(values)
-        raise NotImplementedError(
-            "Find values from literature to use a regression test"
+        analyzer.print_sensitivity_indices()
+        # regression test
+        assert np.allclose(
+            analyzer.mu()[:, 0],
+            np.array([10.82845216, 0.7875, 1.87463883]),
+        )
+        assert np.allclose(
+            analyzer.mu_star()[:, 0],
+            np.array([10.82845216, 7.875, 6.87367571]),
+        )
+        assert np.allclose(
+            analyzer.sigma()[:, 0],
+            np.array([5.55220104, 8.03908012, 9.31270356]),
         )
 
     def test_get_sobol_indices_from_pce(self):

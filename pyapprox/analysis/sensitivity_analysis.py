@@ -433,7 +433,46 @@ class MorrisSensitivityAnalysis:
                 raise Exception("This should not happen")
         return trajectory
 
-    def generate_samples(self, ntrajectories: int) -> Array:
+    def _downselect_trajectories(self, candidate_samples: Array) -> Array:
+        """Find trajectories that best 'fill the space'"""
+        distances = self._bkd.zeros(
+            (self._ncandidate_trajectories, self._ncandidate_trajectories)
+        )
+        for ii in range(self._ncandidate_trajectories):
+            for jj in range(ii + 1):
+                distances[ii, jj] = cdist(
+                    candidate_samples[ii].T,
+                    candidate_samples[jj].T,
+                ).sum()
+                distances[jj, ii] = distances[ii, jj]
+
+        get_combinations = combinations(
+            self._bkd.arange(self._ncandidate_trajectories),
+            self._ntrajectories,
+        )
+        best_index = None
+        best_value = -np.inf
+        for ii, index in enumerate(get_combinations):
+            value = self._bkd.sqrt(
+                self._bkd.sum(
+                    [
+                        distances[ix[0], ix[1]] ** 2
+                        for ix in combinations(index, 2)
+                    ]
+                )
+            )
+            if value > best_value:
+                best_value = value
+                best_index = index
+
+        samples = self._bkd.hstack(
+            [candidate_samples[ii, :, :] for ii in best_index]
+        )
+        return samples
+
+    def generate_samples(
+        self, ntrajectories: int, ncandidate_trajectories: int = None
+    ) -> Array:
         r"""
         Compute a set of Morris trajectories used to compute elementary effects
 
@@ -455,10 +494,30 @@ class MorrisSensitivityAnalysis:
         samples : Array (nvars, ntrajectories * (nvars + 1))
             The samples of the Morris trajectories
         """
+        if (
+            ncandidate_trajectories is not None
+            and ncandidate_trajectories <= ntrajectories
+        ):
+            raise ValueError("ncandidate_trajectories msut be > ntrajectories")
+        self._ncandidate_trajectories = ncandidate_trajectories
+        if self._ncandidate_trajectories is None:
+            ncandidate_trajectories = ntrajectories
+        else:
+            ncandidate_trajectories = self._ncandidate_trajectories
         self._ntrajectories = ntrajectories
-        self._samples = self._bkd.hstack(
-            [self._get_trajectory() for n in range(ntrajectories)]
+        candidate_samples = self._bkd.stack(
+            [self._get_trajectory() for n in range(ncandidate_trajectories)],
+            axis=0,
         )
+        if self._ncandidate_trajectories is not None:
+            self._samples = self._downselect_trajectories(candidate_samples)
+        else:
+            self._samples = self._bkd.hstack(
+                [
+                    candidate_samples[ii]
+                    for ii in range(ncandidate_trajectories)
+                ]
+            )
         for ii, marginal in enumerate(self._variable.marginals()):
             self._samples[ii, :] = marginal.ppf(self._samples[ii, :])
         return self._samples
@@ -488,17 +547,30 @@ class MorrisSensitivityAnalysis:
         self._elem_effects = self._bkd.empty(
             (self._nvars, ntrajectories, nqoi)
         )
-        ix1 = 0
+        abs_delta = self._nlevels / ((self._nlevels - 1) * 2)
         for ii in range(ntrajectories):
-            ix2 = ix1 + self._nvars
-            delta = self._bkd.diff(
-                self._samples[:, ix1 + 1 : ix2 + 1] - self._samples[:, ix1:ix2]
-            ).max()
-            assert delta > 0
+            # Use delta (d) in [0, 1]. Not clear from literature
+            # if this should be scaled to true variable distributions
+            # when dividing (f(x)-f(x+d)) / d
+            trajectory_samples = self._samples[
+                :, ii * (self._nvars + 1) : (ii + 1) * (self._nvars + 1)
+            ]
+            delta = (
+                abs_delta
+                * self._bkd.sign(
+                    self._bkd.diag(
+                        trajectory_samples[:, 1:] - trajectory_samples[:, :-1]
+                    )
+                )[:, None]
+            )
             self._elem_effects[:, ii] = (
-                values[ix1 + 1 : ix2 + 1] - values[ix1:ix2]
-            ) / delta
-            ix1 = ix2 + 1
+                self._bkd.diff(
+                    values[
+                        ii * (self._nvars + 1) : (ii + 1) * (self._nvars + 1)
+                    ].T
+                ).T
+                / delta
+            )
         self._elem_effects
 
     def compute(self, values: Array):
@@ -506,18 +578,19 @@ class MorrisSensitivityAnalysis:
         self._compute_sensitivity_indices()
 
     def _compute_sensitivity_indices(self):
-        self._mu = self._bkd.abs(self._elem_effects).mean(axis=1)
+        self._mu = self._elem_effects.mean(axis=1)
+        self._mu_star = self._bkd.abs(self._elem_effects).mean(axis=1)
         assert self._mu.shape == (
             self._elem_effects.shape[0],
             self._elem_effects.shape[2],
         )
-        self._sigma = self._bkd.std(self._elem_effects, axis=1)
+        self._sigma = self._bkd.std(self._elem_effects, ddof=1, axis=1)
 
     def mu(self) -> Array:
         r"""
-        Return the Morris sensitivity indices mu
+        Return the Morris sensitivity indices mu_star
 
-        Mu is the mu^\star from Campolongo et al.
+        Mu_star is the mu^\star from Campolongo et al.
 
         Returns
         -------
@@ -526,6 +599,20 @@ class MorrisSensitivityAnalysis:
             to higher sensitivity
         """
         return self._mu
+
+    def mu_star(self) -> Array:
+        r"""
+        Return the Morris sensitivity indices mu_star
+
+        Mu_star is the mu^\star from Campolongo et al.
+
+        Returns
+        -------
+        mu : Array (nvars, nqoi)
+            The sensitivity of each output to each input. Larger mu corresponds
+            to higher sensitivity
+        """
+        return self._mu_star
 
     def sigma(self) -> Array:
         r"""
@@ -544,13 +631,16 @@ class MorrisSensitivityAnalysis:
         return self._sigma
 
     def print_sensitivity_indices(self, qoi: int = 0):
-        str_format = "{:<3} {:>10} {:>10}"
-        print(str_format.format(" ", "mu*", "sigma"))
-        str_format = "{:<3} {:10.5f} {:10.5f}"
+        str_format = "{:<3} {:>10} {:>10} {:>10}"
+        print(str_format.format(" ", "mu", "mu*", "sigma"))
+        str_format = "{:<3} {:10.5f} {:10.5f} {:10.5f}"
         for ii in range(self._mu.shape[0]):
             print(
                 str_format.format(
-                    f"Z_{ii+1}", self._mu[ii, qoi], self._sigma[ii, qoi]
+                    f"Z_{ii+1}",
+                    self._mu[ii, qoi],
+                    self._mu_star[ii, qoi],
+                    self._sigma[ii, qoi],
                 )
             )
 
@@ -1335,90 +1425,121 @@ def sampling_based_sobol_indices_from_gaussian_process(
     return result
 
 
-def _borgonovo_estimation(samples, values, marginal_icdfs, nbins=None):
+class BinnedVarianceBasedSensitivityAnalysis:
+    def __init__(
+        self,
+        variable: IndependentMarginalsVariable,
+        nbins: int = None,
+        eps: float = 0.0,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        """
+        Compute main-effect sensitivity indices for a model using
+        algorithm from [BHPRA2016]_
 
-    nvars, nsamples = samples.shape
-    nqoi = values.shape[1]
-    assert values.shape[0] == nsamples
+        Parameters
+        ----------
+        variable : pya.IndependentMarginalsVariable
+            Object containing information of the joint density of the inputs z.
+            This is used to generate random samples from this join density
 
-    if nbins is None:
-        nbins = max(2, int(1 / 3 * (nsamples) ** (1.0 / 3)))
-        print("Number of bins", nbins)
-    mean = values.mean(axis=0)
-    variance = values.var(axis=0)
-    sa_indices = np.zeros((nvars, nqoi))
-    for ii in range(nvars):
-        bin_bounds = marginal_icdfs[ii](np.linspace(0, 1, nbins + 1))
-        for jj in range(nbins):
-            inds = np.where(
-                (samples[ii, :] >= bin_bounds[jj])
-                & (samples[ii, :] < bin_bounds[jj + 1])
-            )[0]
-            nsamples_ii = inds.shape[0]
-            sa_indices[ii] += (
-                nsamples_ii / nsamples * (values[inds, :].mean() - mean) ** 2
+        nbins : integer
+            The number of bins used to divide the domain of each marginal
+            variable
+
+        eps: float
+            Tolerance when used to map [eps,1-eps] to variable domain using
+            inverse transform sampling.
+            Transform is not defined when eps is 0 for unbouned variables
+
+        References
+        ----------
+        `Borgonovo, E., Hazen, G. and Plischke, E. A Common Rationale for Global Sensitivity Measures and Their Estimation. 36(10):1871-1895, 2016. <https://doi.org/10.1111/risa.12555>`_
+        """
+        self._variable = variable
+        self._bkd = backend
+        self._nbins = None
+        self._eps = eps
+
+    def _compute(self, samples: Array, values: Array) -> Array:
+        # TODO currently only supports main effects.
+        # Make 2D and 3D binning o compute 2d and 3d interactions
+        nvars, nsamples = samples.shape
+        nqoi = values.shape[1]
+        assert values.shape[0] == nsamples
+
+        if self._nbins is None:
+            nbins = max(2, int(1 / 3 * (nsamples) ** (1.0 / 3)))
+        else:
+            nbins = self._nbins
+
+        mean = self._bkd.mean(values, axis=0)
+        variance = self._bkd.var(values, axis=0)
+        main_effects = self._bkd.zeros((nvars, nqoi))
+        for ii, marginal in enumerate(self._variable.marginals()):
+            bin_bounds = marginal.ppf(
+                self._bkd.linspace(self._eps, 1 - self._eps, nbins + 1)
             )
-        sa_indices[ii] /= variance
-    return sa_indices
+            for jj in range(nbins):
+                inds = self._bkd.where(
+                    (samples[ii, :] >= bin_bounds[jj])
+                    & (samples[ii, :] < bin_bounds[jj + 1])
+                )[0]
+                nsamples_ii = inds.shape[0]
+                main_effects[ii] += (
+                    nsamples_ii
+                    / nsamples
+                    * (values[inds, :].mean() - mean) ** 2
+                )
+            main_effects[ii] /= variance
 
+    def compute(self, samples: Array, values: Array) -> Array:
+        self._main_effects = self._compute(samples, values)
 
-def bootstrapped_borgonovo_sensivities(
-    fun, variable, nsamples, nbins=None, nbootstraps=10
-):
-    """
-    Compute main-effect sensitivity indices for a model using
-    algorithm from [BHPRA2016]_
+    def main_effects(self) -> Array:
+        return self._main_effects
 
-    Parameters
-    ----------
-        fun : callable
-        The function to be approximated
+    def bootstrap(
+        self, samples: Array, values: Array, nbootstraps: int = 10
+    ) -> Array:
+        """
 
-        ``fun(z) -> Array``
-
-        where ``z`` is a 2D Array with shape (nvars, nsamples) and the
-        output is a 2D Array with shape (nsamples, nqoi)
-
-    variable : pya.IndependentMarginalsVariable
-        Object containing information of the joint density of the inputs z.
-        This is used to generate random samples from this join density
-
-    nsamples : integer
-        The number of samples used to compute the sensitivity indices
-
-    nbins : integer
-        The number of bins used to divide the domain of each marginal variable
-
-    nbootstraps : integer
-        The number of bootstraps used to obtain estimates of error in the
-        sensitivity indices
-
-    Returns
-    -------
-    result : SensitivityResult
-       Object containing the sensitivity indices
-
-    References
-    ----------
-    `Borgonovo, E., Hazen, G. and Plischke, E. A Common Rationale for Global Sensitivity Measures and Their Estimation. 36(10):1871-1895, 2016. <https://doi.org/10.1111/risa.12555>`_
-    """
-    nvars = variable.num_vars()
-    samples = variable.rvs(nsamples)
-    values = fun(samples)
-    nqoi = values.shape[1]
-    sa_indices = np.zeros((nbootstraps + 1, nvars, nqoi))
-    marginal_icdfs = [v.ppf for v in variable.marginals()]
-    sa_indices[0, :] = _borgonovo_estimation(
-        samples, values, marginal_icdfs, nbins
-    )
-    for kk in range(1, nbootstraps + 1):
-        permuted_inds = np.random.choice(np.arange(nsamples), nsamples)
-        psamples = samples[:, permuted_inds]
-        pvalues = values[permuted_inds, :]
-        sa_indices[kk, :] = _borgonovo_estimation(
-            psamples, pvalues, marginal_icdfs, nbins
+        Parameters
+        ----------
+        nbootstraps : integer
+            The number of bootstraps used to obtain estimates of error in the
+            sensitivity indices
+        """
+        nsamples, nqoi = values.shape
+        main_effects = self._bkd.zeros(
+            (nbootstraps + 1, self._variable.nvars(), nqoi)
         )
-    return sa_indices
+        main_effects[0, :] = self._compute_borgonovo_estimation(
+            samples, values
+        )
+        for kk in range(1, nbootstraps + 1):
+            # sample with replacement
+            permuted_inds = self._bkd.array(
+                np.random.choice(self._bkd.arange(nsamples), nsamples)
+            )
+            psamples = samples[:, permuted_inds]
+            pvalues = values[permuted_inds, :]
+            main_effects[kk, :] = self._compute(psamples, pvalues)
+
+        bootstrapped_stats = SensitivityResult(
+            {
+                "median": self._bkd.median(main_effects, axis=0),
+                "min": self._bkd.max(main_effects, axis=0),
+                "max": self._bkd.max(main_effects, axis=0),
+                "quantile-0.25": self._bkd.quantile(
+                    main_effects, q=0.25, axis=0
+                ),
+                "quantile-0.75": self._bkd.quantile(
+                    main_effects, q=0.75, axis=0
+                ),
+            }
+        )
+        return bootstrapped_stats
 
 
 def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):

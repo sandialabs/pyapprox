@@ -477,3 +477,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def split(mat, splits, axis=0):
         return np.split(max, splits, axis=axis)
+
+    @staticmethod
+    def sign(mat):
+        return np.sign(mat)

@@ -842,3 +842,8 @@ class LinAlgMixin(ABC):
     @staticmethod
     def isbackend():
         return True
+
+    @staticmethod
+    @abstractmethod
+    def sign(mat: Array) -> Array:
+        raise NotImplementedError

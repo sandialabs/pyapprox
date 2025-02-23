@@ -535,3 +535,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def split(mat, splits, axis=0):
         return torch.tensor_split(mat, splits.tolist(), dim=axis)
+
+    @staticmethod
+    def sign(mat):
+        return torch.sign(mat)
