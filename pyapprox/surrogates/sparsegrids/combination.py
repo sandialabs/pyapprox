@@ -1,5 +1,6 @@
 import heapq
 from abc import ABC, abstractmethod
+from typing import List
 
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
@@ -95,6 +96,7 @@ class CombinationSparseGrid(Regressor):
         self._subspace_surrogates = []
         # TODO: Move queue to subspace_gen
         self._cand_subspace_queue = None
+        self._subspace_errors = []
 
     def _set_basis_index_generator(self, growth_rules):
         self._basis_gen = BasisIndexGenerator(self._subspace_gen, growth_rules)
@@ -135,6 +137,9 @@ class CombinationSparseGrid(Regressor):
                 subspace_index, is_cand_subspace
             )
             unique_samples.append(subspace_unique_samples)
+        self._subspace_errors += [
+            0.0 for ii in range(subspace_indices.shape[1])
+        ]
         return self._bkd.hstack(unique_samples)
 
     def nvars(self) -> int:
@@ -340,11 +345,7 @@ class SparseGridSubSpaceAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
     pass
 
 
-class SparseGridBasisAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
-    pass
-
-
-class SparseGridMaxLevelAdmissibilityCriteria(
+class MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
     SparseGridSubSpaceAdmissibilityCriteria
 ):
     def __init__(self, max_level: int, pnorm: float):
@@ -363,7 +364,7 @@ class SparseGridMaxLevelAdmissibilityCriteria(
         return False
 
 
-class SparseGridMaxNSamplesAdmissibilityCriteria(
+class MaxNSamplesSparseGridSubspaceAdmissibilityCriteria(
     SparseGridSubSpaceAdmissibilityCriteria
 ):
     def __init__(self, max_nsamples: int):
@@ -376,7 +377,53 @@ class SparseGridMaxNSamplesAdmissibilityCriteria(
         return False
 
 
-class SparseGridMaxCostBasisAdmissibilityCriteria(
+class MaxErrorSparseGridSubspaceAdmissibilityCriteria(
+    SparseGridSubSpaceAdmissibilityCriteria
+):
+    def __init__(self, max_error: float):
+        super().__init__()
+        self._max_error = max_error
+
+    def __call__(self, index: Array) -> bool:
+        if len(self._sg._subspace_errors) == 0:
+            return True
+        if self._sg.error() > self._max_error:
+            return True
+        return False
+
+
+class MultipleSparseGridSubSpaceAdmissibilityCriteria(
+    SparseGridSubSpaceAdmissibilityCriteria
+):
+    def __init__(
+        self, criterion: List[SparseGridSubSpaceAdmissibilityCriteria]
+    ):
+        for criteria in criterion:
+            if not isinstance(
+                criteria, SparseGridSubSpaceAdmissibilityCriteria
+            ):
+                raise ValueError(
+                    "Criteria must be an instance of "
+                    "SparseGridSubSpaceAdmissibilityCriteria"
+                )
+        self._criterion = criterion
+
+    def set_sparse_grid(self, sg: CombinationSparseGrid):
+        for criteria in self._criterion:
+            criteria.set_sparse_grid(sg)
+
+    def __call__(self, index: Array) -> bool:
+        for criteria in self._criterion:
+            if not criteria(index):
+                return False
+        return True
+
+
+class SparseGridBasisAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
+    pass
+
+
+class MaxCostSparseGridBasisAdmissibilityCriteria(
     SparseGridBasisAdmissibilityCriteria
 ):
     def __init__(self, max_cost):
@@ -559,6 +606,7 @@ class AdaptiveCombinationSparseGrid(
             self._cand_subspace_queue.put(
                 (subspace_indicator, subspace_error, subspace_idx)
             )
+            self._subspace_errors[subspace_idx] = subspace_error
 
     def _get_best_cand_subspace(self):
         priority, error, best_subspace_idx = self._cand_subspace_queue.get()
@@ -567,9 +615,11 @@ class AdaptiveCombinationSparseGrid(
         ]
         if self._verbosity > 0:
             print(
-                f"Refining subspace {best_cand_subspace_index} with {priority=}"
+                f"Refining subspace {best_cand_subspace_index} with "
+                f"{priority=}"
             )
-        return best_cand_subspace_index
+        self._subspace_errors[best_subspace_idx] *= 0.0
+        return best_cand_subspace_index, best_subspace_idx
 
     def _update_smolyak_coefficients(self, new_index):
         new_smolyak_coefs = self._bkd.copy(self._smolyak_coefs)
@@ -582,7 +632,9 @@ class AdaptiveCombinationSparseGrid(
 
     def _step_samples(self):
         while len(self._subspace_gen._cand_indices_dict) > 0:
-            best_subspace_index = self._get_best_cand_subspace()
+            best_subspace_index, best_subspace_idx = (
+                self._get_best_cand_subspace()
+            )
             new_subspace_indices = self._basis_gen.refine_subspace_index(
                 best_subspace_index
             )
@@ -630,6 +682,9 @@ class AdaptiveCombinationSparseGrid(
         unique_values = fun(unique_samples)
         self.step_values(unique_values)
         return True
+
+    def error(self):
+        return self._bkd.sum(self._subspace_errors)
 
 
 class LocalIndexGenerator(BasisIndexGenerator):

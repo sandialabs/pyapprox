@@ -32,12 +32,14 @@ from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
 from pyapprox.surrogates.sparsegrids.combination import (
     IsotropicCombinationSparseGrid,
     AdaptiveCombinationSparseGrid,
-    LevelRefinementCriteria,
+    L2NormRefinementCriteria,
     LocallyAdaptiveCombinationSparseGrid,
     LocalRefinementCriteria,
     LocalHierarchicalRefinementCriteria,
-    SparseGridMaxLevelAdmissibilityCriteria,
-    SparseGridMaxCostBasisAdmissibilityCriteria,
+    MaxLevelSparseGridSubSpaceAdmissibilityCriteria,
+    MaxErrorSparseGridSubspaceAdmissibilityCriteria,
+    MultipleSparseGridSubSpaceAdmissibilityCriteria,
+    MaxCostSparseGridBasisAdmissibilityCriteria,
 )
 from pyapprox.surrogates.bases.univariate.local import (
     setup_univariate_piecewise_polynomial_basis,
@@ -134,17 +136,39 @@ class TestCombination:
         sg = AdaptiveCombinationSparseGrid(nqoi)
         sg.set_basis(basis)
         subspace_gen = IterativeIndexGenerator(nvars, backend=bkd)
-        # TODO add admissiblity function that sets max budget on sparse grid
         sg.set_subspace_generator(subspace_gen, growth_rule)
+        max_error = 1e-10
         sg.set_subspace_admissibility_criteria(
-            SparseGridMaxLevelAdmissibilityCriteria(level, 1.0)
+            MultipleSparseGridSubSpaceAdmissibilityCriteria(
+                (
+                    # Candidates will be generated on level+1 but should not be
+                    # generated on level+2
+                    MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
+                        level + 2, 1.0
+                    ),
+                    MaxErrorSparseGridSubspaceAdmissibilityCriteria(max_error),
+                )
+            )
         )
-        sg.set_refinement_criteria(LevelRefinementCriteria())
+        sg.set_refinement_criteria(L2NormRefinementCriteria())
         sg.set_initial_subspace_indices()
         sg.set_verbosity(0)
         sg.build(fun)
 
-        assert sg.train_samples().shape[1] == fun.nterms()
+        # Candidates will be generated on level+1 but should not be
+        # generated on level+2
+        assert bkd.max(sg._subspace_gen.get_indices()) <= level + 1
+        # regression test
+        assert bkd.allclose(
+            sg._subspace_gen.get_indices(),
+            bkd.array(
+                [
+                    [0, 1, 0, 2, 3, 1, 0, 2, 1, 0, 4, 3, 2],
+                    [0, 0, 1, 0, 0, 1, 2, 1, 2, 3, 0, 1, 2],
+                ],
+                dtype=int,
+            ),
+        )
 
         test_samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, 101)))
         sg_test_values = sg(test_samples)
@@ -179,13 +203,12 @@ class TestCombination:
         sg.set_basis(basis)
         subspace_gen = IterativeIndexGenerator(nvars, backend=bkd)
         subspace_gen.set_verbosity(0)
-        # TODO add admissiblity function that sets max budget on sparse grid
         sg.set_subspace_generator(subspace_gen)
         sg.set_subspace_admissibility_criteria(
-            SparseGridMaxLevelAdmissibilityCriteria(level, 1.0)
+            MaxLevelSparseGridSubSpaceAdmissibilityCriteria(level, 1.0)
         )
         sg.set_basis_admissibility_criteria(
-            SparseGridMaxCostBasisAdmissibilityCriteria(max_cost)
+            MaxCostSparseGridBasisAdmissibilityCriteria(max_cost)
         )
         sg.set_initial_subspace_indices()
         return sg

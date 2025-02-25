@@ -15,13 +15,15 @@ from pyapprox.surrogates.bases.multiindex import (
     DoublePlusOneIndexGrowthRule,
     IterativeIndexGenerator,
 )
-from pyapprox.surrogates.bases.univariate import (
-    UnivariateLagrangeBasis,
+from pyapprox.surrogates.bases.univariate.base import (
     ClenshawCurtisQuadratureRule,
+)
+from pyapprox.surrogates.bases.univariate.lagrange import (
+    UnivariateLagrangeBasis,
 )
 from pyapprox.surrogates.sparsegrids.combination import (
     AdaptiveCombinationSparseGrid,
-    SparseGridMaxNSamplesAdmissibilityCriteria,
+    MaxNSamplesSparseGridSubspaceAdmissibilityCriteria,
     L2NormRefinementCriteria,
 )
 from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
@@ -53,7 +55,7 @@ sg.set_basis(basis)
 subspace_gen = IterativeIndexGenerator(nvars)
 sg.set_subspace_generator(subspace_gen, growth_rule)
 sg.set_subspace_admissibility_criteria(
-    SparseGridMaxNSamplesAdmissibilityCriteria(max_nsamples)
+    MaxNSamplesSparseGridSubspaceAdmissibilityCriteria(max_nsamples)
 )
 sg.set_refinement_criteria(L2NormRefinementCriteria())
 sg.set_initial_subspace_indices()
