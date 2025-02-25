@@ -297,6 +297,11 @@ class MonomialExpansion(BasisExpansion):
             return self._add_constant(other)
         return self._signed_add(other, 1.0)
 
+    def __radd__(
+        self, other: Union["MonomialExpansion", float]
+    ) -> "MonomialExpansion":
+        return self.__add__(other)
+
     def _add_constant(self, other: float) -> "MonomialExpansion":
         poly = copy.deepcopy(self)
         coefs = self.get_coefficients()

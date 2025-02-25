@@ -15,6 +15,7 @@ from pyapprox.surrogates.bases.univariate.leja import (
     setup_univariate_leja_sequence,
     OnePointChristoffelLejaObjective,
     TwoPointChristoffelLejaObjective,
+    TwoPointChristoffelLejaQuadratureRule,
 )
 from pyapprox.interface.model import ModelFromSingleSampleCallable
 
@@ -170,6 +171,12 @@ class TestLeja:
         # test quadrature weights
         quad_weights = leja.quadrature_weights(leja.sequence())
         integral = (leja.sequence() ** 4) @ quad_weights
+        assert np.allclose(integral, exact_integral)
+
+        # test quadratulre rule wrapper
+        quad_rule = TwoPointChristoffelLejaQuadratureRule(marginal)
+        quadx, quadw = quad_rule(5)
+        integral = (quadx**4) @ quadw
         assert np.allclose(integral, exact_integral)
 
     def _exact_beta_integral(self, alpha, beta, lb, ub):

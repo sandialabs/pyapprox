@@ -12,11 +12,26 @@ from pyapprox.surrogates.bases.multiindex import (
     BasisIndexGenerator,
     DoublePlusOneIndexGrowthRule,
     AdmissibilityCriteria,
+    IndexGrowthRule,
+    LinearGrowthRule,
+    IterativeIndexGenerator,
 )
 from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
-from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
+from pyapprox.surrogates.bases.basisexp import (
+    TensorProductInterpolant,
+    TensorProductLagrangeInterpolantToPolynomialChaosExpansionConverter,
+    PolynomialChaosExpansion,
+    TensorProductQuadratureRule,
+)
 from pyapprox.surrogates.regressor import Regressor, AdaptiveRegressorMixin
 from pyapprox.interface.model import Model
+from pyapprox.surrogates.bases.univariate.lagrange import (
+    UnivariateLagrangeBasis,
+)
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.surrogates.bases.univariate.leja import (
+    TwoPointChristoffelLejaQuadratureRule,
+)
 
 
 class PriorityQueue:
@@ -154,9 +169,9 @@ class CombinationSparseGrid(Regressor):
         nsubspace_nodes_1d = self._basis_gen.nunivariate_basis(subspace_index)
         basis = self._basis._semideep_copy()
         basis.set_tensor_product_indices(nsubspace_nodes_1d)
-        basis.set_indices(
-            self._basis_gen._subspace_basis_indices(subspace_index)
-        )
+        # basis.set_indices(
+        #     self._basis_gen._subspace_basis_indices(subspace_index)
+        # )
         self._subspace_surrogates.append(TensorProductInterpolant(basis))
         subspace_key = self._basis_gen._hash_index(subspace_index)
         if is_cand_subspace:
@@ -1188,8 +1203,10 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
 
 
 class SparseGridToOrthonormalPolynomialChaosExpansionConverter:
-    def __init__():
-        pass
+    def __init__(self, quad_rule: TensorProductQuadratureRule):
+        self._tp_converter = TensorProductLagrangeInterpolantToPolynomialChaosExpansionConverter(
+            quad_rule
+        )
 
     def _check_sparse_grid(self, sg: CombinationSparseGrid):
         if not isinstance(sg, CombinationSparseGrid):
@@ -1203,6 +1220,44 @@ class SparseGridToOrthonormalPolynomialChaosExpansionConverter:
 
     def convert(self, sg: CombinationSparseGrid) -> PolynomialChaosExpansion:
         self._check_sparse_grid(sg)
+        pce = 0.0
+        for subspace_idx in range(sg._subspace_gen.nindices()):
+            pce += sg._smolyak_coefs[
+                subspace_idx
+            ] * self._tp_converter.convert(
+                sg._subspace_surrogates[subspace_idx]
+            )
+        return pce
+
+
+def setup_leja_lagrange_sparse_grid_from_variable(
+    nqoi: int,
+    variable: IndependentMarginalsVariable,
+    subspace_admissibility_criteria: SparseGridSubSpaceAdmissibilityCriteria,
+    refinement_criteria: RefinementCriteria = L2NormRefinementCriteria(),
+) -> AdaptiveCombinationSparseGrid:
+    quad_rules = [
+        TwoPointChristoffelLejaQuadratureRule(marginal)
+        for marginal in variable.marginals()
+    ]
+    # just initialize quadrature rules to have 1 point
+    # this will be updated as needed
+    bases_1d = [
+        UnivariateLagrangeBasis(quad_rule, 1) for quad_rule in quad_rules
+    ]
+    basis = TensorProductInterpolatingBasis(bases_1d)
+    sg = AdaptiveCombinationSparseGrid(nqoi)
+    sg.set_basis(basis)
+    subspace_gen = IterativeIndexGenerator(
+        variable.nvars(), backend=variable._bkd
+    )
+    growth_rule = LinearGrowthRule(2, 1)
+    print(growth_rule(1), growth_rule(2))
+    sg.set_subspace_generator(subspace_gen, growth_rule)
+    sg.set_subspace_admissibility_criteria(subspace_admissibility_criteria)
+    sg.set_refinement_criteria(refinement_criteria)
+    sg.set_initial_subspace_indices()
+    return sg
 
 
 # TODO mix locally adaptive basis with global polynomial basis in another

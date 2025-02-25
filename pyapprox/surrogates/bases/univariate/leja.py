@@ -14,6 +14,7 @@ from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.surrogates.bases.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
+from pyapprox.surrogates.bases.univariate.base import UnivariateQuadratureRule
 from pyapprox.util.visualization import get_meshgrid_function_data
 
 
@@ -482,7 +483,7 @@ class LejaSequence:
         sqrt_weights = self._bkd.sqrt(self._obj._compute_weights(sequence))
         # ignore last basis which exists for when new points
         # are added to sequence
-        basis_mat = self._obj._poly(sequence)[:, : -self._obj._nopt_vars()]
+        basis_mat = self._obj._poly(sequence)[:, : sequence.shape[1]]
         basis_mat_inv = self._bkd.inv(sqrt_weights * basis_mat)
         # make sure to adjust weights to account for preconditioning
         quad_weights = (basis_mat_inv[0, :] * sqrt_weights[:, 0])[:, None]
@@ -512,3 +513,39 @@ def setup_univariate_leja_sequence(
     obj = objective_class(marginal, poly)
     obj.set_sequence(init_sequence)
     return LejaSequence(obj, optimizer)
+
+
+class TwoPointChristoffelLejaQuadratureRule(UnivariateQuadratureRule):
+    def __init__(
+        self,
+        marginal,
+        optimizer: Optimizer = None,
+        init_sequence: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+        store: bool = False,
+    ):
+        self._leja_seq = setup_univariate_leja_sequence(
+            marginal,
+            TwoPointChristoffelLejaObjective,
+            optimizer=optimizer,
+            init_sequence=init_sequence,
+            backend=backend,
+        )
+        super().__init__(backend, store)
+
+    def _quad_rule(self, nnodes: int) -> Tuple[Array, Array]:
+        if self._leja_seq.nsamples() < nnodes:
+            self._leja_seq.step(nnodes)
+        return (
+            self._leja_seq.sequence()[:, :nnodes],
+            self._leja_seq.quadrature_weights(
+                self._leja_seq.sequence()[:, :nnodes]
+            ),
+        )
+
+    def __repr__(self) -> str:
+        return "{0}(poly={1}, bkd={2})".format(
+            self.__class__.__name__,
+            self._seq._objective._poly,
+            self._bkd.__name__,
+        )

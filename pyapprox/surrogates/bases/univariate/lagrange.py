@@ -48,6 +48,9 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
 
     def set_nterms(self, nterms: int):
         self._quad_samples, self._quad_weights = self._quad_rule(nterms)
+        if self._quad_samples.shape[1] != nterms:
+            print(nterms, "a", self._quad_samples.shape)
+            raise RuntimeError("quad samples have the wrong shape")
 
     def _values(self, samples):
         return univariate_lagrange_polynomial(

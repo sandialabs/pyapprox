@@ -23,10 +23,12 @@ from pyapprox.surrogates.bases.univariate.lagrange import (
 )
 from pyapprox.surrogates.bases.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
+    GaussQuadratureRule,
 )
 from pyapprox.surrogates.bases.basis import (
     TensorProductInterpolatingBasis,
     MultiIndexBasis,
+    TensorProductQuadratureRule,
 )
 from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
 from pyapprox.surrogates.sparsegrids.combination import (
@@ -40,10 +42,13 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MaxErrorSparseGridSubspaceAdmissibilityCriteria,
     MultipleSparseGridSubSpaceAdmissibilityCriteria,
     MaxCostSparseGridBasisAdmissibilityCriteria,
+    setup_leja_lagrange_sparse_grid_from_variable,
+    SparseGridToOrthonormalPolynomialChaosExpansionConverter,
 )
 from pyapprox.surrogates.bases.univariate.local import (
     setup_univariate_piecewise_polynomial_basis,
 )
+from pyapprox.benchmarks.genz import GenzBenchmark
 
 
 class TestCombination:
@@ -175,6 +180,44 @@ class TestCombination:
         assert bkd.allclose(sg_test_values, fun(test_samples), atol=1e-15)
 
         assert bkd.allclose(sg.integrate(), fun.get_coefficients()[0])
+
+    def test_sparse_grid_to_polynomial_chaos_expansion(self):
+        bkd = self.get_backend()
+        nvars = 2
+        benchmark = GenzBenchmark("oscillatory", nvars, backend=bkd)
+        level = 5
+        admissibility_criteria = (
+            MultipleSparseGridSubSpaceAdmissibilityCriteria(
+                (
+                    MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
+                        level, 1.0
+                    ),
+                    MaxErrorSparseGridSubspaceAdmissibilityCriteria(1e-8),
+                )
+            )
+        )
+        sg = setup_leja_lagrange_sparse_grid_from_variable(
+            benchmark.model().nqoi(),
+            benchmark.variable(),
+            admissibility_criteria,
+        )
+        sg.build(benchmark.model())
+        test_samples = benchmark.variable().rvs(100)
+        test_values = benchmark.model()(test_samples)
+        assert bkd.allclose(sg(test_samples), test_values)
+
+        pce_quad_rule = TensorProductQuadratureRule(
+            nvars,
+            [
+                GaussQuadratureRule(marginal)
+                for marginal in benchmark.variable().marginals()
+            ],
+        )
+        converter = SparseGridToOrthonormalPolynomialChaosExpansionConverter(
+            pce_quad_rule
+        )
+        pce = converter.convert(sg)
+        assert bkd.allclose(pce(test_samples), sg(test_samples))
 
     def _setup_locally_adaptive_sparse_grid(
         self, nvars, level, nqoi, max_cost
