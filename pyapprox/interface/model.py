@@ -715,6 +715,7 @@ class Model(ABC):
             not self.apply_jacobian_implemented()
             and not self.jacobian_implemented()
         ):
+            print(self)
             raise RuntimeError(
                 "Cannot check apply_jacobian because it not implemented"
             )

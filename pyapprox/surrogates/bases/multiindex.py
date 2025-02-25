@@ -13,9 +13,9 @@ def hash_index(array, bkd):
 
 
 def _unique_values_per_row(a):
-    N = a.max()+1
-    a_offs = a + np.arange(a.shape[0])[:, None]*N
-    return np.bincount(a_offs.ravel(), minlength=a.shape[0]*N).reshape(-1, N)
+    N = a.max() + 1
+    a_offs = a + np.arange(a.shape[0])[:, None] * N
+    return np.bincount(a_offs.ravel(), minlength=a.shape[0] * N).reshape(-1, N)
 
 
 def _compute_hyperbolic_level_indices(nvars, level, pnorm, bkd):
@@ -26,26 +26,19 @@ def _compute_hyperbolic_level_indices(nvars, level, pnorm, bkd):
     # combinations_with_replacement. I can see no reason
     # why one would want to differentiate through this functino
     tmp = np.asarray(
-        list(
-            itertools.combinations_with_replacement(
-                np.arange(nvars), level
-            )
-        )
+        list(itertools.combinations_with_replacement(np.arange(nvars), level))
     )
     # count number of times each element appears in tmp1
     indices = _unique_values_per_row(tmp).T
-    p_norms = np.sum(indices**pnorm, axis=0)**(1.0/pnorm)
-    II = np.where(p_norms <= level+eps)[0]
+    p_norms = np.sum(indices**pnorm, axis=0) ** (1.0 / pnorm)
+    II = np.where(p_norms <= level + eps)[0]
     return bkd.asarray(indices[:, II], dtype=int)
 
 
-def compute_hyperbolic_indices(
-        nvars, max_level, pnorm, bkd=NumpyLinAlgMixin
-):
+def compute_hyperbolic_indices(nvars, max_level, pnorm, bkd=NumpyLinAlgMixin):
     indices = bkd.empty((nvars, 0), dtype=int)
-    for dd in range(max_level+1):
-        new_indices = _compute_hyperbolic_level_indices(
-            nvars, dd, pnorm, bkd)
+    for dd in range(max_level + 1):
+        new_indices = _compute_hyperbolic_level_indices(nvars, dd, pnorm, bkd)
         indices = bkd.hstack((indices, new_indices))
     return indices
 
@@ -54,8 +47,8 @@ def argsort_indices_lexiographically(indices, bkd=NumpyLinAlgMixin):
     np_indices = bkd.to_numpy(indices)
     index_tuple = (indices[0, :],)
     for ii in range(1, np_indices.shape[0]):
-        index_tuple = index_tuple+(np_indices[ii, :],)
-    index_tuple = index_tuple+(np_indices.sum(axis=0),)
+        index_tuple = index_tuple + (np_indices[ii, :],)
+    index_tuple = index_tuple + (np_indices.sum(axis=0),)
     return bkd.asarray(np.lexsort(index_tuple), dtype=int)
 
 
@@ -69,22 +62,29 @@ def sort_indices_lexiographically(indices, bkd=NumpyLinAlgMixin):
 
 
 def _plot_2d_index(ax, index):
-    box = np.array([[index[0]-1, index[1]-1],
-                    [index[0], index[1]-1],
-                    [index[0], index[1]],
-                    [index[0]-1, index[1]],
-                    [index[0]-1, index[1]-1]]).T + 0.5
-    ax.plot(box[0, :], box[1, :], '-k', lw=1)
-    ax.fill(box[0, :], box[1, :], color='gray', alpha=0.5, edgecolor='k')
+    box = (
+        np.array(
+            [
+                [index[0] - 1, index[1] - 1],
+                [index[0], index[1] - 1],
+                [index[0], index[1]],
+                [index[0] - 1, index[1]],
+                [index[0] - 1, index[1] - 1],
+            ]
+        ).T
+        + 0.5
+    )
+    ax.plot(box[0, :], box[1, :], "-k", lw=1)
+    ax.fill(box[0, :], box[1, :], color="gray", alpha=0.5, edgecolor="k")
 
 
 def _plot_index_voxels(ax, data):
     # color: [r,g,b,alpha]
-    color = [1, 1, 1, .9]
+    color = [1, 1, 1, 0.9]
     # ax.patch.set_alpha(0.5)  # Set semi-opacity
     colors = np.zeros((data.shape[0], data.shape[1], data.shape[2], 4))
     colors[np.where(data)] = color
-    ax.voxels(data, facecolors=colors, edgecolor='gray')
+    ax.voxels(data, facecolors=colors, edgecolor="gray")
 
 
 class IndexGenerator(ABC):
@@ -132,7 +132,7 @@ class IndexGenerator(ABC):
             raise ValueError(
                 "ax must be an instance of  mpl_toolkits.mplot3d.Axes3D"
             )
-        shape = tuple(self._bkd.max(indices, axis=1)+1)
+        shape = tuple(self._bkd.max(indices, axis=1) + 1)
         filled = self._bkd.zeros(shape, dtype=int)
         for nn in range(indices.shape[1]):
             ii, jj, kk = indices[:, nn]
@@ -193,8 +193,8 @@ class IterativeIndexGenerator(IndexGenerator):
             raise RuntimeError("selected_indices must be integers")
 
         if (
-                selected_indices.ndim != 2
-                or selected_indices.shape[0] != self.nvars()
+            selected_indices.ndim != 2
+            or selected_indices.shape[0] != self.nvars()
         ):
             raise ValueError(
                 "selected_indices must be a 2D array with nrows=nvars"
@@ -217,8 +217,8 @@ class IterativeIndexGenerator(IndexGenerator):
                 if index[dim_id] > 0:
                     neighbor = self._get_backward_neighbor(index, dim_id)
                     if (
-                            self._hash_index(neighbor)
-                            not in self._sel_indices_dict
+                        self._hash_index(neighbor)
+                        not in self._sel_indices_dict
                     ):
                         return False
         return True
@@ -252,8 +252,8 @@ class IterativeIndexGenerator(IndexGenerator):
             if index[dim_id] > 0:
                 neighbor_index = self._get_backward_neighbor(index, dim_id)
                 if (
-                        self._hash_index(neighbor_index)
-                        not in self._sel_indices_dict
+                    self._hash_index(neighbor_index)
+                    not in self._sel_indices_dict
                 ):
                     return False
         return self._admis_fun(index)
@@ -264,7 +264,7 @@ class IterativeIndexGenerator(IndexGenerator):
         new_cand_indices = []
         for dim_id in range(self.nvars()):
             neighbor_index = self._get_forward_neighbor(index, dim_id)
-            if (self._is_admissible(neighbor_index)):
+            if self._is_admissible(neighbor_index):
                 new_cand_indices.append(neighbor_index)
                 if self._verbosity > 1:
                     msg = f"Adding candidate index {neighbor_index}"
@@ -289,9 +289,7 @@ class IterativeIndexGenerator(IndexGenerator):
             self._cand_indices_dict[self._hash_index(new_index)] = idx
             idx += 1
         if new_cand_indices.shape[1] > 0:
-            self._indices = self._bkd.hstack(
-                (self._indices, new_cand_indices)
-            )
+            self._indices = self._bkd.hstack((self._indices, new_cand_indices))
         return new_cand_indices
 
     def nselected_indices(self):
@@ -301,8 +299,9 @@ class IterativeIndexGenerator(IndexGenerator):
         return len(self._cand_indices_dict)
 
     def _get_selected_idx(self):
-        return self._bkd.atleast1d(
-            [item for key, item in self._sel_indices_dict.items()], dtype=int)
+        return self._bkd.asarray(
+            [item for key, item in self._sel_indices_dict.items()], dtype=int
+        )
 
     def get_selected_indices(self):
         idx = self._get_selected_idx()
@@ -311,7 +310,8 @@ class IterativeIndexGenerator(IndexGenerator):
     def _get_candidate_idx(self):
         # return  elements in self._indices that contain candidate indices
         return self._bkd.asarray(
-            [item for key, item in self._cand_indices_dict.items()], dtype=int)
+            [item for key, item in self._cand_indices_dict.items()], dtype=int
+        )
 
     def get_candidate_indices(self):
         if self.ncandidate_indices() > 0:
@@ -320,8 +320,10 @@ class IterativeIndexGenerator(IndexGenerator):
 
     def __repr__(self):
         return "{0}(nvars={1}, nsel_indices={2}, ncand_indices={3})".format(
-            self.__class__.__name__, self.nvars(), self.nselected_indices(),
-            self.ncandidate_indices()
+            self.__class__.__name__,
+            self.nvars(),
+            self.nselected_indices(),
+            self.ncandidate_indices(),
         )
 
     def step(self):
@@ -345,33 +347,35 @@ class AdmissibilityCriteria(ABC):
 
 class MaxLevelAdmissibilityCriteria(AdmissibilityCriteria):
     def __init__(
-            self, max_level, pnorm, max_1d_levels, levels=None, backend=None
+        self, max_level, pnorm, max_1d_levels, levels=None, backend=None
     ):
-        self._max_level = max_level
-        self._max_1d_levels = max_1d_levels
-        self._pnorm = pnorm
         if backend is None:
             backend = NumpyLinAlgMixin
         self._bkd = backend
+        self._max_level = max_level
+        if max_1d_levels is not None:
+            max_1d_levels = self._bkd.asarray(max_1d_levels, dtype=int)
+        self._max_1d_levels = max_1d_levels
+        self._pnorm = pnorm
 
     def _indices_norm(self, indices):
-        return (
-            self._bkd.sum(indices**self._pnorm, axis=0)**(1.0/self._pnorm)
+        return self._bkd.sum(indices**self._pnorm, axis=0) ** (
+            1.0 / self._pnorm
         )
 
     def __call__(self, index):
         if self._indices_norm(index) > self._max_level:
             return False
-        if (
-                self._max_1d_levels is not None
-                and self._bkd.any(index > self._max_1d_levels)
+        if self._max_1d_levels is not None and self._bkd.any(
+            index > self._max_1d_levels
         ):
             return False
         if (
-                self._max_1d_levels is not None and
-                self._bkd.where(
-                    index[index > 0] == self._max_1d_levels[index > 0]
-                )[0].shape[0] > 1
+            self._max_1d_levels is not None
+            and self._bkd.where(
+                index[index > 0] == self._max_1d_levels[index > 0]
+            )[0].shape[0]
+            > 1
         ):
             return False
         return True
@@ -379,8 +383,13 @@ class MaxLevelAdmissibilityCriteria(AdmissibilityCriteria):
 
 class HyperbolicIndexGenerator(IterativeIndexGenerator):
     def __init__(
-            self, nvars, max_level, pnorm, max_1d_levels=None,
-            backend=NumpyLinAlgMixin):
+        self,
+        nvars,
+        max_level,
+        pnorm,
+        max_1d_levels=None,
+        backend=NumpyLinAlgMixin,
+    ):
         super().__init__(nvars, backend=backend)
         self.set_admissibility_function(
             MaxLevelAdmissibilityCriteria(
@@ -394,13 +403,14 @@ class HyperbolicIndexGenerator(IterativeIndexGenerator):
             idx = self._bkd.argmin(
                 self._admis_fun._indices_norm(self.get_candidate_indices())
             )
-            index = self._indices[:,  self._get_candidate_idx()[idx]]
+            index = self._indices[:, self._get_candidate_idx()[idx]]
             self.refine_index(index)
 
     def _get_indices(self):
         if self.nindices() == 0:
-            self.set_selected_indices(self._bkd.zeros(
-                (self.nvars(), 1), dtype=int))
+            self.set_selected_indices(
+                self._bkd.zeros((self.nvars(), 1), dtype=int)
+            )
             self._compute_indices()
         return self._indices
 
@@ -424,7 +434,7 @@ class LinearGrowthRule(IndexGrowthRule):
     def __call__(self, level):
         if level == 0:
             return 1
-        return self._scale*level + self._shift
+        return self._scale * level + self._shift
 
 
 class DoublePlusOneIndexGrowthRule(IndexGrowthRule):
@@ -450,11 +460,12 @@ class BasisIndexGenerator:
         self._hash_index = self._subspace_gen._hash_index
 
         if isinstance(growth_rules, IndexGrowthRule):
-            growth_rules = [growth_rules]*self.nvars()
+            growth_rules = [growth_rules] * self.nvars()
 
         if len(growth_rules) != self.nvars():
             raise ValueError(
-                "Must specify a single growth rule or one per dimension")
+                "Must specify a single growth rule or one per dimension"
+            )
 
         for dim_id in range(self.nvars()):
             if not isinstance(growth_rules[dim_id], IndexGrowthRule):
@@ -485,7 +496,7 @@ class BasisIndexGenerator:
             self._set_unique_subspace_basis_indices(subspace_index, True)
 
     def _set_unique_subspace_basis_indices(
-            self, subspace_index, cand_subspace
+        self, subspace_index, cand_subspace
     ):
         # if cand_subsapce is true: search for subspace_index in
         # self._subspace_gen._cand_indices_dict
@@ -524,9 +535,7 @@ class BasisIndexGenerator:
             else:
                 global_basis_idx.append(self._basis_indices_dict[basis_key][0])
         unique_basis_indices = self._bkd.stack(unique_basis_indices, axis=1)
-        self._unique_subspace_basis_idx.append(
-            unique_subspace_sample_idx
-        )
+        self._unique_subspace_basis_idx.append(unique_subspace_sample_idx)
         self._basis_indices = self._bkd.hstack(
             (self._basis_indices, unique_basis_indices)
         )
@@ -538,7 +547,8 @@ class BasisIndexGenerator:
         basis_indices_1d = []
         nbasis_1d = self.nunivariate_basis(subspace_index)
         basis_indices_1d = [
-            self._bkd.arange(n_1d, dtype=int) for n_1d in nbasis_1d]
+            self._bkd.arange(n_1d, dtype=int) for n_1d in nbasis_1d
+        ]
         return self._bkd.cartesian_product(basis_indices_1d)
 
     def _get_basis_indices(self, subspace_indices, return_all=False):
@@ -578,11 +588,11 @@ class BasisIndexGenerator:
     def _subspace_indices_changed(self):
         subspace_indices = self._subspace_gen.get_indices()
         if (
-                self._subspace_indices is None
-                or subspace_indices.shape != self._subspace_indices.shape
-                or not self._bkd.allclose(
-                    subspace_indices, self._subspace_indices, atol=1e-15
-                )
+            self._subspace_indices is None
+            or subspace_indices.shape != self._subspace_indices.shape
+            or not self._bkd.allclose(
+                subspace_indices, self._subspace_indices, atol=1e-15
+            )
         ):
             self._subspace_indices = subspace_indices
             return True
@@ -613,9 +623,9 @@ class BasisIndexGenerator:
 
 class IsotropicSGIndexGenerator(BasisIndexGenerator):
     def __init__(
-            self, nvars, max_level, growth_rules, backend=NumpyLinAlgMixin
+        self, nvars, max_level, growth_rules, backend=NumpyLinAlgMixin
     ):
-        gen = HyperbolicIndexGenerator(nvars, max_level, 1., backend=backend)
+        gen = HyperbolicIndexGenerator(nvars, max_level, 1.0, backend=backend)
         super().__init__(gen, growth_rules)
 
     def step(self):

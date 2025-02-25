@@ -11,7 +11,7 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.marginals import get_pdf, get_distribution_info
 from pyapprox.optimization.minimize import Optimizer
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.bases.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
 from pyapprox.util.visualization import get_meshgrid_function_data

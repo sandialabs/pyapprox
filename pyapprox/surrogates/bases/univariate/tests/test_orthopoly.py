@@ -11,7 +11,7 @@ from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
 from pyapprox.variables.marginals import float_rv_discrete
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.bases.univariate.orthopoly import (
     LegendrePolynomial1D,
     JacobiPolynomial1D,
     HermitePolynomial1D,
@@ -30,9 +30,14 @@ from pyapprox.surrogates.bases.orthopoly import (
     Chebyshev1stKindGaussLobattoQuadratureRule,
     Chebyshev2ndKindGaussLobattoQuadratureRule,
 )
-from pyapprox.surrogates.bases.univariate import (
-    Monomial1D, UnivariateLagrangeBasis, ScipyUnivariateIntegrator,
-    UnivariateUnboundedIntegrator, ClenshawCurtisQuadratureRule
+from pyapprox.surrogates.bases.univariate.base import (
+    Monomial1D,
+    ScipyUnivariateIntegrator,
+    UnivariateUnboundedIntegrator,
+    ClenshawCurtisQuadratureRule,
+)
+from pyapprox.surrogates.bases.univariate.lagrange import (
+    UnivariateLagrangeBasis,
 )
 from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import MonomialExpansion
@@ -64,14 +69,14 @@ class TestOrthonormalPolynomials1D:
         poly.set_nterms(degree + 1)
         # polys are not orhtonormal only orthogonal so cannot use:
         # self._check_orthonormal_poly(poly)
-        quad_x, quad_w = sp.roots_chebyt(degree+1, mu=False)
+        quad_x, quad_w = sp.roots_chebyt(degree + 1, mu=False)
         quad_x = bkd.array(quad_x)
         quad_w = bkd.array(quad_w)
         pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
         assert bkd.allclose(pquad_x, quad_x)
         assert bkd.allclose(pquad_w, quad_w)
         vals_exact = bkd.stack(
-            [sp.eval_chebyt(ii, quad_x) for ii in range(degree+1)], axis=1
+            [sp.eval_chebyt(ii, quad_x) for ii in range(degree + 1)], axis=1
         )
         vals = poly(pquad_x)
         assert bkd.allclose(vals, vals_exact)
@@ -80,14 +85,14 @@ class TestOrthonormalPolynomials1D:
         poly.set_nterms(degree + 1)
         # polys are not orhtonormal only orthogonal so cannot use:
         # self._check_orthonormal_poly(poly)
-        quad_x, quad_w = sp.roots_chebyu(degree+1, mu=False)
+        quad_x, quad_w = sp.roots_chebyu(degree + 1, mu=False)
         quad_x = bkd.array(quad_x)[None, :]
         quad_w = bkd.array(quad_w)[:, None]
         pquad_x, pquad_w = poly.gauss_quadrature_rule(degree + 1)
         assert bkd.allclose(pquad_x, quad_x)
         assert bkd.allclose(pquad_w, quad_w)
         vals_exact = bkd.stack(
-            [sp.eval_chebyu(ii, quad_x[0]) for ii in range(degree+1)], axis=1
+            [sp.eval_chebyu(ii, quad_x[0]) for ii in range(degree + 1)], axis=1
         )
         vals = poly(pquad_x)
         assert bkd.allclose(vals, vals_exact)
@@ -186,9 +191,7 @@ class TestOrthonormalPolynomials1D:
             [1.0, -3.0 / 7.0, 2.0 / 7.0, -4.0 / 21.0, 1.0 / 7.0]
         )
         for ii in range(degree + 1):
-            assert bkd.allclose(
-                (pquad_x**ii) @ pquad_w, true_moments[ii]
-            )
+            assert bkd.allclose((pquad_x**ii) @ pquad_w, true_moments[ii])
 
         degree = 2
         rho = 2
@@ -230,10 +233,12 @@ class TestOrthonormalPolynomials1D:
         vals = poly(quad_x)
         vals_exact = bkd.stack(
             [1 + 0.0 * x, 2 * x, 4.0 * x**2 - 2], axis=1
-        ) / bkd.sqrt(bkd.asarray(
-            sp.factorial(np.arange(degree + 1))
-            * np.sqrt(np.pi)
-            * 2 ** np.arange(degree + 1))
+        ) / bkd.sqrt(
+            bkd.asarray(
+                sp.factorial(np.arange(degree + 1))
+                * np.sqrt(np.pi)
+                * 2 ** np.arange(degree + 1)
+            )
         )
         assert bkd.allclose(vals, vals_exact)
 
@@ -259,8 +264,7 @@ class TestOrthonormalPolynomials1D:
         poly.set_nterms(degree + 1)
         quad_x, quad_w = poly.gauss_quadrature_rule(degree + 1)
 
-        probability_mesh = bkd.arange(
-            0, num_trials + 1, dtype=float)[None, :]
+        probability_mesh = bkd.arange(0, num_trials + 1, dtype=float)[None, :]
         probability_masses = bkd.array(
             stats.binom.pmf(probability_mesh[0], num_trials, prob_success)
         )[:, None]
@@ -385,9 +389,9 @@ class TestOrthonormalPolynomials1D:
         true_basis_mono_coefs[3, [1, 3]] = bkd.array(
             [-3 / np.sqrt(6), 1 / np.sqrt(6)]
         )
-        true_basis_mono_coefs[4, [0, 2, 4]] = bkd.array(
-            [3, -6, 1]
-        ) / np.sqrt(24)
+        true_basis_mono_coefs[4, [0, 2, 4]] = bkd.array([3, -6, 1]) / np.sqrt(
+            24
+        )
 
         assert bkd.allclose(basis_mono_coefs, true_basis_mono_coefs)
 
@@ -428,16 +432,16 @@ class TestOrthonormalPolynomials1D:
     def test_continuous_numeric_orthonormal_polynomial(self):
         bkd = self.get_backend()
         a = 3
-        rho = a-1
+        rho = a - 1
         degree = 5
         poly = LaguerrePolynomial1D(rho, backend=bkd)
-        poly.set_nterms(degree+1)
+        poly.set_nterms(degree + 1)
         marginal = stats.gamma(a)
 
         num_poly = ContinuousNumericOrthonormalPolynomial1D(
             marginal, backend=bkd
         )
-        num_poly.set_nterms(degree+1)
+        num_poly.set_nterms(degree + 1)
         # The last coefficient of ab[:, 0] is never used so it is not computed
         # by the numerical routine
         assert bkd.allclose(num_poly._rcoefs, poly._rcoefs)
@@ -445,13 +449,13 @@ class TestOrthonormalPolynomials1D:
         rho = 0
         marginal = stats.expon()
         poly = LaguerrePolynomial1D(rho, backend=bkd)
-        poly.set_nterms(degree+1)
+        poly.set_nterms(degree + 1)
         # check ability to pass in integrator
         integrator = ScipyUnivariateIntegrator(backend=bkd)
         num_poly = ContinuousNumericOrthonormalPolynomial1D(
             marginal, integrator, backend=bkd
         )
-        num_poly.set_nterms(degree+1)
+        num_poly.set_nterms(degree + 1)
         assert bkd.allclose(num_poly._rcoefs, poly._rcoefs)
 
     def test_discrete_numeric_orthonormal_polynomial(self):
@@ -471,7 +475,7 @@ class TestOrthonormalPolynomials1D:
         num_poly = DiscreteNumericOrthonormalPolynomial1D(
             xk, pk, tol, backend=bkd
         )
-        num_poly.set_nterms(degree+1)
+        num_poly.set_nterms(degree + 1)
         # The last coefficient of ab[-1, 0] is never used so it is not computed
         # by the numerical routine
         assert bkd.allclose(num_poly._rcoefs[:-1, :], poly._rcoefs[:-1, :])
@@ -481,7 +485,8 @@ class TestOrthonormalPolynomials1D:
         bkd = self.get_backend()
         marginal = stats.uniform(-1, 2)
         basis = UnivariateLagrangeBasis(
-            GaussQuadratureRule(marginal, backend=bkd), nterms)
+            GaussQuadratureRule(marginal, backend=bkd), nterms
+        )
 
         def fun(degree, xx):
             return bkd.sum(xx**degree, axis=0)[:, None]
@@ -495,38 +500,36 @@ class TestOrthonormalPolynomials1D:
                 return 1 / 5
 
         samples, weights = basis.quadrature_rule()
-        degree = nterms-1
-        assert np.allclose(
-            fun(degree, samples).T @ weights, integral(degree)
-        )
+        degree = nterms - 1
+        assert np.allclose(fun(degree, samples).T @ weights, integral(degree))
 
     def test_affine_variable_transformation(self):
         bkd = self.get_backend()
         nsamples = 10
         lb, ub = 0, 3
         # marginal = stats.uniform(0, 1)
-        marginal = stats.uniform(lb, ub-lb)
+        marginal = stats.uniform(lb, ub - lb)
         trans = AffineMarginalTransform(
             marginal, enforce_bounds=True, backend=bkd
         )
         samples = bkd.asarray(np.random.uniform(lb, ub, (1, nsamples)))
         lb, ub = marginal.interval(1)
         canonical_samples = trans.map_to_canonical(samples)
-        assert bkd.allclose(canonical_samples, (samples+lb)/(ub-lb)*2-1)
         assert bkd.allclose(
-            trans.map_from_canonical(canonical_samples),
-            samples
+            canonical_samples, (samples + lb) / (ub - lb) * 2 - 1
         )
-        derivs = bkd.stack([2*samples, 3*samples**2], axis=0)
-        canonical_derivs = trans.derivatives_to_canonical(derivs)
-        assert bkd.allclose(canonical_derivs, (ub-lb)*derivs/2)
         assert bkd.allclose(
-            trans.derivatives_from_canonical(canonical_derivs),
-            derivs
+            trans.map_from_canonical(canonical_samples), samples
+        )
+        derivs = bkd.stack([2 * samples, 3 * samples**2], axis=0)
+        canonical_derivs = trans.derivatives_to_canonical(derivs)
+        assert bkd.allclose(canonical_derivs, (ub - lb) * derivs / 2)
+        assert bkd.allclose(
+            trans.derivatives_from_canonical(canonical_derivs), derivs
         )
 
         # test error thown when samples outside bounded domain
-        samples = bkd.asarray(np.random.uniform(ub, ub+1, (1, nsamples)))
+        samples = bkd.asarray(np.random.uniform(ub, ub + 1, (1, nsamples)))
         self.assertRaises(ValueError, trans.map_to_canonical, samples)
 
     def test_setup_discrete_univariate_orthopoly_from_marginal(self):
@@ -560,7 +563,8 @@ class TestOrthonormalPolynomials1D:
             marginal = getattr(stats, name)(**shapes)
             opts = {"ptol": 2e-8}
             poly = setup_univariate_orthogonal_polynomial_from_marginal(
-                marginal, opts=opts, backend=bkd)
+                marginal, opts=opts, backend=bkd
+            )
             self._check_orthonormal_poly(poly)
 
     def test_setup_continuous_univariate_orthopoly_from_marginal(self):
@@ -611,15 +615,18 @@ class TestOrthonormalPolynomials1D:
 
         # scipy is continually adding names just test a subset
         scipy_continuous_marginal_names = [
-            n for n in stats._continuous_distns._distn_names]
+            n for n in stats._continuous_distns._distn_names
+        ]
 
         # do not support :
         #    levy_stable as there is a bug when interval is called
         #       from a frozen variable
         #    vonmises a circular distribution
         unsupported_continuous_marginal_names = [
-            name for name in ["levy_stable", "vonmises"]
-            if name in scipy_continuous_marginal_names]
+            name
+            for name in ["levy_stable", "vonmises"]
+            if name in scipy_continuous_marginal_names
+        ]
         # Throw overflow warnings
         # fmt: off
         unsupported_continuous_marginal_names += [
@@ -642,8 +649,10 @@ class TestOrthonormalPolynomials1D:
         # fmt: on
 
         unsupported_continuous_marginal_names += [
-            n for n in continuous_marginal_names
-            if n not in scipy_continuous_marginal_names]
+            n
+            for n in continuous_marginal_names
+            if n not in scipy_continuous_marginal_names
+        ]
 
         for name in unsupported_continuous_marginal_names:
             ii = continuous_marginal_names.index(name)
@@ -662,28 +671,30 @@ class TestOrthonormalPolynomials1D:
 
         # test distributions that can use ScipyUnivariateIntegrator
         for name, shapes in zip(
-                continuous_marginal_names, continuous_marginal_shapes
+            continuous_marginal_names, continuous_marginal_shapes
         ):
             if name in fat_tail_continuous_marginal_names:
                 continue
             marginal = getattr(stats, name)(**shapes)
             poly = setup_univariate_orthogonal_polynomial_from_marginal(
-                marginal, backend=bkd)
+                marginal, backend=bkd
+            )
             self._check_orthonormal_poly(poly)
 
         # test fat-tailed distributions that cannot use
         # ScipyUnivariateIntegrator
         for name, shapes in zip(
-                continuous_marginal_names, continuous_marginal_shapes
+            continuous_marginal_names, continuous_marginal_shapes
         ):
             if name not in fat_tail_continuous_marginal_names:
                 continue
             marginal = getattr(stats, name)(**shapes)
             quad_rule = ClenshawCurtisQuadratureRule(
-                prob_measure=False, backend=bkd, store=True)
+                prob_measure=False, backend=bkd, store=True
+            )
             integrator = UnivariateUnboundedIntegrator(quad_rule, backend=bkd)
             integrator.set_options(
-                nquad_samples=2**3+1,
+                nquad_samples=2**3 + 1,
                 maxiters=1000,
                 maxinner_iters=10,
                 interval_size=2,
@@ -693,7 +704,8 @@ class TestOrthonormalPolynomials1D:
             integrator.set_bounds(marginal.interval(1))
             opts = {"integrator": integrator}
             poly = setup_univariate_orthogonal_polynomial_from_marginal(
-                marginal, opts=opts, backend=bkd)
+                marginal, opts=opts, backend=bkd
+            )
             self._check_orthonormal_poly(poly)
 
     def test_chebyshev_gauss_lobatto_quadrature(self):
@@ -706,28 +718,42 @@ class TestOrthonormalPolynomials1D:
         )
         quadx, quadw = quad_rule(5)
 
-        sp_x = sympy.Symbol('x')
-        wfun = 1/sympy.sqrt(1-sp_x**2)
+        sp_x = sympy.Symbol("x")
+        wfun = 1 / sympy.sqrt(1 - sp_x**2)
 
         def fun(x):
             return x**2
-        exact_mean = bkd.array([float(
-            sympy.integrate(wfun*fun(sp_x), (sp_x, bounds[0], bounds[1]))
-        )])
+
+        exact_mean = bkd.array(
+            [
+                float(
+                    sympy.integrate(
+                        wfun * fun(sp_x), (sp_x, bounds[0], bounds[1])
+                    )
+                )
+            ]
+        )
         assert bkd.allclose(fun(quadx) @ quadw, exact_mean)
 
         quad_rule = Chebyshev2ndKindGaussLobattoQuadratureRule(
             bounds, backend=bkd
         )
         quadx, quadw = quad_rule(5)
-        sp_x = sympy.Symbol('x')
-        wfun = (1-sp_x**2)**0.5
+        sp_x = sympy.Symbol("x")
+        wfun = (1 - sp_x**2) ** 0.5
 
         def fun(x):
             return x**2
-        exact_mean = bkd.array([float(
-            sympy.integrate(wfun*fun(sp_x), (sp_x, bounds[0], bounds[1]))
-        )])
+
+        exact_mean = bkd.array(
+            [
+                float(
+                    sympy.integrate(
+                        wfun * fun(sp_x), (sp_x, bounds[0], bounds[1])
+                    )
+                )
+            ]
+        )
         assert bkd.allclose(fun(quadx) @ quadw, exact_mean)
 
 

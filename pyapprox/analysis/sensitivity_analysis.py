@@ -171,6 +171,12 @@ class PolynomialChaosSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
         )
         self._sobol_indices = self._compute_sobol_indices()
 
+    def mean(self) -> Array:
+        return self._pce.mean()
+
+    def variance(self) -> Array:
+        return self._pce.variance()
+
     def main_effects(self) -> Array:
         return self._main_effects
 
@@ -925,8 +931,8 @@ class SampleBasedSensivitityAnalysis(ABC):
         # We also cannot guarantee that the sobol indices will be non-negative.
 
         valuesA, valuesB, valuesAB = self._unpack_values(values)
-        mean = self._bkd.mean(valuesA, axis=0)
-        variance = self._bkd.var(valuesA, axis=0)
+        self._mean = self._bkd.mean(valuesA, axis=0)
+        self._variance = self._bkd.var(valuesA, axis=0)
         nterms = self._interaction_terms.shape[1]
         nvars = self._variable.nvars()
         interaction_values = self._bkd.empty((nterms, valuesA.shape[1]))
@@ -935,7 +941,7 @@ class SampleBasedSensivitityAnalysis(ABC):
             sobol_index = self._interaction_terms[:, ii]
             interaction_values[ii, :] = (
                 self._bkd.mean(valuesB * (valuesAB[ii] - valuesA), axis=0)
-                / variance
+                / self._variance
             )
             if sobol_index.sum() == 1:
                 idx = self._bkd.where(sobol_index == 1)[0][0]
@@ -943,7 +949,7 @@ class SampleBasedSensivitityAnalysis(ABC):
                 self._total_effects[idx] = (
                     0.5
                     * self._bkd.mean((valuesA - valuesAB[ii]) ** 2, axis=0)
-                    / variance
+                    / self._variance
                 )
 
         # must substract of contributions from lower-dimensional terms from
@@ -961,7 +967,7 @@ class SampleBasedSensivitityAnalysis(ABC):
                 for jj in range(nactive_vars - 1):
                     indices = combinations(active_vars, jj + 1)
                     for key in indices:
-                        self._ssobol_indices[idx[ii]] -= self._sobol_indices[
+                        self._sobol_indices[idx[ii]] -= self._sobol_indices[
                             sobol_indices_dict[key]
                         ]
 
@@ -971,6 +977,12 @@ class SampleBasedSensivitityAnalysis(ABC):
 
     def main_effects(self) -> Array:
         return self._main_effects
+
+    def mean(self) -> Array:
+        return self._mean
+
+    def variance(self) -> Array:
+        return self._variance
 
     def total_effects(self) -> Array:
         return self._total_effects

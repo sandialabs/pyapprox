@@ -5,7 +5,7 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.bases.univariate.base import Monomial1D
 from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import MonomialExpansion
 from pyapprox.surrogates.loss import RMSELoss

@@ -4,7 +4,7 @@ import scipy
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.bases.univariate.base import Monomial1D
 from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.surrogates.kernels import (
@@ -116,7 +116,7 @@ class TestMultiOutputKernels:
 
         nsamples = int(5e6)
         DD_list_0 = [
-            bkd.atleast2d(
+            bkd.asarray(
                 np.linalg.cholesky(
                     kernel.kernels[kk](samples_per_output[0])
                 ).dot(
@@ -196,7 +196,7 @@ class TestMultiOutputKernels:
             self._init_monomial(nvars, degree, -3, [-3, 3], bkd),
         ]
         kernel = MOKernel(kernels, scalings)
-        base_training_samples = bkd.atleast2d(
+        base_training_samples = bkd.asarray(
             np.random.uniform(-1, 1, (nvars, nsamples_per_output[0]))
         )
         # samples must be nested for tests to work
@@ -248,7 +248,7 @@ class TestMultiOutputKernels:
         )
         # samples must be nested for tests to work
         samples_per_output = [
-            bkd.atleast2d(base_training_samples[:, :nsamples])
+            base_training_samples[:, :nsamples]
             for nsamples in nsamples_per_output_0
         ]
         kmat_diag = kernel.diag(samples_per_output)
@@ -268,7 +268,7 @@ class TestMultiOutputKernels:
         # Test that when all samples are the same the kernel matrix is
         # equivalent to kronker-product of cov_matrix with kernels[0] matrix
         nsamples_per_output_0 = np.full((noutputs,), 2)
-        base_training_samples = bkd.atleast2d(
+        base_training_samples = bkd.asarray(
             np.random.uniform(-1, 1, (nvars, nsamples_per_output_0[0]))
         )
         samples_per_output = [
@@ -409,7 +409,7 @@ class TestMultiOutputKernels:
             for ii in range(noutputs - 1)
         ]
         kernel = MultiPeerKernel(kernels, scalings)
-        base_training_samples = bkd.atleast2d(
+        base_training_samples = bkd.asarray(
             np.random.uniform(-1, 1, (nvars, nsamples_per_output[0]))
         )
         # samples must be nested for tests to work

@@ -5,7 +5,7 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.bases.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
@@ -31,7 +31,7 @@ from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions,
 )
 from pyapprox.surrogates.regressor import Regressor, Surrogate
-from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.bases.univariate.base import Monomial1D
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     convert_orthonormal_polynomials_to_monomials_1d,
     shift_momomial_expansion,

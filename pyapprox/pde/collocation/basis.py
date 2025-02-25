@@ -3,15 +3,18 @@ import textwrap
 
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.surrogates.bases.basis import (
-    TensorProductInterpolatingBasis, FixedTensorProductQuadratureRule
+    TensorProductInterpolatingBasis,
+    FixedTensorProductQuadratureRule,
 )
-from pyapprox.surrogates.bases.orthopoly import GaussLegendreQuadratureRule
+from pyapprox.surrogates.bases.univariate.orthopoly import (
+    GaussLegendreQuadratureRule,
+)
 from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 from pyapprox.pde.collocation.mesh import (
     OrthogonalCoordinateMesh,
     ChebyshevCollocationMesh,
 )
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.bases.univariate.lagrange import (
     UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis,
 )
 
@@ -38,8 +41,8 @@ class OrthogonalCoordinateCollocationBasis(ABC):
         orth_deriv_mats = self._form_orth_derivative_matrices(
             orth_deriv_mats_1d
         )
-        gradient_factors = self.mesh().trans().gradient_factors(
-            self.mesh()._orth_mesh_pts
+        gradient_factors = (
+            self.mesh().trans().gradient_factors(self.mesh()._orth_mesh_pts)
         )
         self._deriv_mats = []
         for dd in range(self.nphys_vars()):
@@ -52,10 +55,9 @@ class OrthogonalCoordinateCollocationBasis(ABC):
     def _set_quadrature_rule(self):
         self._orth_quadrature_rule = FixedTensorProductQuadratureRule(
             self.nphys_vars(),
-            [
-                GaussLegendreQuadratureRule([-1, 1], backend=self._bkd)
-            ] * self.nphys_vars(),
-            self._bkd.asarray(self.mesh()._npts_1d)+1,
+            [GaussLegendreQuadratureRule([-1, 1], backend=self._bkd)]
+            * self.nphys_vars(),
+            self._bkd.asarray(self.mesh()._npts_1d) + 1,
         )
 
     def nphys_vars(self):
@@ -165,8 +167,10 @@ class ChebyshevCollocationBasis(OrthogonalCoordinateCollocationBasis):
         # lagrange basis exactly for lebesque measure
         orth_xx, orth_ww = self._orth_quadrature_rule()
         ww = self._bexp._basis(orth_xx).T @ orth_ww[:, 0]
-        ww = self.mesh().trans().modify_quadrature_weights(
-            self.mesh()._orth_mesh_pts, ww[:, None]
+        ww = (
+            self.mesh()
+            .trans()
+            .modify_quadrature_weights(self.mesh()._orth_mesh_pts, ww[:, None])
         )
         self._quad_weights_at_mesh_pts = ww
 

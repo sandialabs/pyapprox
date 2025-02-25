@@ -67,13 +67,13 @@ class ParameterizedNewtonResidualMixin(ABC):
         return jac
 
     def _adjoint_dot_residual_param_wrapper(
-            self, adj_sol: Array, fwd_sol: Array, param: Array
+        self, adj_sol: Array, fwd_sol: Array, param: Array
     ):
         self.set_param(param)
         return adj_sol @ self(fwd_sol)
 
     def _adjoint_dot_residual_state_wrapper(
-            self, adj_sol: Array, fwd_sol: Array
+        self, adj_sol: Array, fwd_sol: Array
     ):
         return adj_sol @ self(fwd_sol)
 
@@ -83,7 +83,9 @@ class ParameterizedNewtonResidualMixin(ABC):
         if not self._bkd.hvp_implemented():
             raise NotImplementedError
         return self._bkd.hvp(
-            partial(self._adjoint_dot_residual_param_wrapper, adj_sol, fwd_sol),
+            partial(
+                self._adjoint_dot_residual_param_wrapper, adj_sol, fwd_sol
+            ),
             self._param,
             vvec,
         )
@@ -118,9 +120,7 @@ class ParameterizedNewtonResidualMixin(ABC):
     def _adjoint_dot_residual_state_jvp(self, adj_sol, wvec, fwd_sol, param):
         self.set_param(param)
         return self._bkd.jvp(
-            partial(
-                self._adjoint_dot_residual_state_wrapper, adj_sol
-            ),
+            partial(self._adjoint_dot_residual_state_wrapper, adj_sol),
             fwd_sol,
             wvec,
         )
@@ -135,7 +135,7 @@ class ParameterizedNewtonResidualMixin(ABC):
             partial(
                 self._adjoint_dot_residual_state_jvp, adj_sol, wvec, fwd_sol
             ),
-            self._param
+            self._param,
         )
 
     def param_state_hvp(
@@ -163,9 +163,12 @@ class ParameterizedNewtonResidualMixin(ABC):
         # if using torch requires result of jvp to be differentiable
         return self._bkd.jacobian(
             partial(
-                self._adjoint_dot_residual_param_jvp, adj_sol, vvec, self._param
+                self._adjoint_dot_residual_param_jvp,
+                adj_sol,
+                vvec,
+                self._param,
             ),
-            fwd_sol
+            fwd_sol,
         )
 
     def state_param_hvp(
@@ -218,7 +221,7 @@ class NewtonSolver:
                 print("\t Linesearch Iter", ii, "rnorm", residual_norm)
             if residual_norm < prev_residual_norm:
                 return sol, residual, residual_norm
-            step_size /= 2.
+            step_size /= 2.0
             ii += 1
         raise RuntimeError("Max linesearch iterations reached")
 
@@ -227,14 +230,14 @@ class NewtonSolver:
             raise ValueError("init_guess must be 1D array")
         if not hasattr(self, "_residual"):
             raise ValueError("must call set_residual")
-        sol = self._bkd.copy(init_guess)
+        sol = init_guess  # self._bkd.copy(init_guess)
         residual = self._residual(sol)
         residual_norms = [self._bkd.norm(residual)]
         it = 0
         if self._verbosity > 1:
             print("Iter", it, "rnorm", residual_norms[0])
         while True:
-            prev_sol = self._bkd.copy(sol)
+            prev_sol = sol  # self._bkd.copy(sol)
             prev_residual = residual
             sol = prev_sol - self._step_size * self._residual.linsolve(
                 sol, prev_residual
@@ -322,7 +325,10 @@ class Functional(ABC):
 
     def __repr__(self):
         return "{0}(nstates={1}, nparams={2}, nqoi={3})".format(
-            self.__class__.__name__, self.nstates(), self.nparams(), self.nqoi()
+            self.__class__.__name__,
+            self.nstates(),
+            self.nparams(),
+            self.nqoi(),
         )
 
 
@@ -467,7 +473,7 @@ class AdjointSolver:
 
     def solve_adjoint(self) -> Array:
         if self._fwd_sol_param is None or not self._bkd.allclose(
-             self._fwd_sol_param, self._param, atol=3e-16, rtol=3e-16
+            self._fwd_sol_param, self._param, atol=3e-16, rtol=3e-16
         ):
             self.forward_solve()
         if self._functional.nqoi() != 1:

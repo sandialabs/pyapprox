@@ -70,7 +70,7 @@ class HyperParameter:
         self.name = name
         self._nvars = nvars
 
-        self._values = self._bkd.atleast1d(values)
+        self._values = self._bkd.atleast1d(self._bkd.asarray(values))
         if self._values.shape[0] == 1:
             self._values = self._bkd.repeat(self._values, self.nvars())
         if self._values.ndim == 2:
@@ -102,7 +102,7 @@ class HyperParameter:
         return self._active_indices
 
     def set_all_inactive(self):
-        self.set_active_indices(self._bkd.zeros((0, ), dtype=int))
+        self.set_active_indices(self._bkd.zeros((0,), dtype=int))
 
     def set_all_active(self):
         frozen_indices = self._bkd.isnan(self.bounds[:, 0])
@@ -111,7 +111,7 @@ class HyperParameter:
         )
 
     def set_bounds(self, bounds):
-        self.bounds = self._bkd.atleast1d(bounds)
+        self.bounds = self._bkd.atleast1d(self._bkd.asarray(bounds))
         if self.bounds.shape[0] == 2:
             self.bounds = self._bkd.repeat(self.bounds, self.nvars())
         if self.bounds.shape[0] != 2 * self.nvars():
@@ -137,9 +137,9 @@ class HyperParameter:
         """
         if active_params.ndim != 1:
             raise ValueError("active_params must be a 1D array")
-        # Copy detaches self._values from graph as we only want gradient
-        # with respect to active_opt_params
-        self._values = self._bkd.copy(self._values)
+        # Copy does not detaches self._values from graph,
+        # but we only want gradient with respect to active_opt_params
+        self._values = self._bkd.copy(self._bkd.detach(self._values))
         self._values = self._bkd.up(
             self._values,
             self._active_indices,
@@ -263,7 +263,7 @@ class HyperParameterList:
         cnt = 0
         active_indices = []
         for hyp in self.hyper_params:
-            active_indices.append(hyp.get_active_indices()+cnt)
+            active_indices.append(hyp.get_active_indices() + cnt)
             cnt += hyp.nvars()
         return self._bkd.hstack(active_indices)
 
@@ -271,8 +271,9 @@ class HyperParameterList:
         cnt = 0
         for hyp in self.hyper_params:
             hyp_indices = self._bkd.where(
-                (active_indices>=cnt)&(active_indices<cnt+hyp.nvars()))[0]
-            hyp.set_active_indices(active_indices[hyp_indices]-cnt)
+                (active_indices >= cnt) & (active_indices < cnt + hyp.nvars())
+            )[0]
+            hyp.set_active_indices(active_indices[hyp_indices] - cnt)
             cnt += hyp.nvars()
 
     def set_all_inactive(self):
@@ -325,8 +326,8 @@ class HyperParameterList:
             raise ValueError(msg)
         cnt = 0
         for hyp in self.hyper_params:
-            hyp.set_bounds(bounds[cnt : cnt + 2*hyp.nvars()])
-            cnt += 2*hyp.nvars()
+            hyp.set_bounds(bounds[cnt : cnt + 2 * hyp.nvars()])
+            cnt += 2 * hyp.nvars()
 
 
 class CombinedHyperParameter(HyperParameter):

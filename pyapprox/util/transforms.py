@@ -154,7 +154,7 @@ class SphericalCorrelationTransform(Transform):
                 #     self.noutputs+((ii-1)*(ii))//2 + (jj-1))
                 self._theta_indices[
                     self.noutputs + ((ii - 1) * (ii)) // 2 + (jj - 1)
-                ] = self._bkd.atleast1d([ii, jj])
+                ] = self._bkd.asarray([ii, jj])
         self.nsphere_trans = NSphereCoordinateTransform(backend=backend)
         # unconstrained formulation does not seem unique.
         self._unconstrained = False
@@ -165,19 +165,23 @@ class SphericalCorrelationTransform(Transform):
             # l_{i1} > 0,  i = 0,...,noutputs-1
             # l_{ij} in (0, math.pi),    i = 1,...,noutputs-1, j=1,...,i
             eps = 0
-            bounds = self._bkd.atleast2d(
-                [[eps, inf] for ii in range(self.noutputs)]
+            bounds = self._bkd.stack(
+                [self._bkd.asarray([eps, inf]) for ii in range(self.noutputs)],
+                axis=0,
             )
-            other_bounds = self._bkd.atleast2d(
+            other_bounds = self._bkd.stack(
                 [
-                    [eps, math.pi - eps]
+                    self._bkd.asarray([eps, math.pi - eps])
                     for ii in range(self.noutputs, self.ntheta)
-                ]
+                ],
+                axis=0,
             )
             bounds = self._bkd.vstack((bounds, other_bounds))
             return bounds
 
-        return self._bkd.atleast2d([[-inf, inf] for ii in range(self.theta)])
+        return self._bkd.stack(
+            [self._bkd.asarray([-inf, inf]) for ii in range(self.theta)]
+        )
 
     def map_cholesky_to_spherical(self, L):
         psi = self._bkd.empty(L.shape)

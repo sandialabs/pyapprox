@@ -496,7 +496,7 @@ class SphericalCovariance:
     def _validate_bounds(self, radii_bounds, angle_bounds):
         bounds = self._trans.get_spherical_bounds()
         # all theoretical radii_bounds are the same so just check one
-        radii_bounds = self._bkd.atleast1d(radii_bounds)
+        radii_bounds = self._bkd.asarray(radii_bounds)
         if radii_bounds.shape[0] == 2:
             radii_bounds = self._bkd.repeat(radii_bounds, self.noutputs)
         radii_bounds = radii_bounds.reshape((radii_bounds.shape[0] // 2, 2))
@@ -505,7 +505,7 @@ class SphericalCovariance:
         ) or self._bkd.any(radii_bounds[:, 1] > bounds[: self.noutputs, 1]):
             raise ValueError("radii bounds are inconsistent")
         # all theoretical angle_bounds are the same so just check one
-        angle_bounds = self._bkd.atleast1d(angle_bounds)
+        angle_bounds = self._bkd.asarray(angle_bounds)
         if angle_bounds.shape[0] == 2:
             angle_bounds = self._bkd.repeat(
                 angle_bounds, self._trans.ntheta - self.noutputs

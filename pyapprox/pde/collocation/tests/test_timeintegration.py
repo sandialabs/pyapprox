@@ -23,7 +23,7 @@ from pyapprox.pde.collocation.newton import ParameterizedNewtonResidualMixin
 
 
 class LinearDecoupledODE(
-        TransientNewtonResidual, ParameterizedNewtonResidualMixin
+    TransientNewtonResidual, ParameterizedNewtonResidualMixin
 ):
     def __init__(self, nstates, transient_coef, backend):
         super().__init__(backend)
@@ -88,7 +88,7 @@ class LinearDecoupledODE(
 
 
 class NonLinearDecoupledODE(
-        TransientNewtonResidual, ParameterizedNewtonResidualMixin
+    TransientNewtonResidual, ParameterizedNewtonResidualMixin
 ):
     def __init__(self, nstates, transient_coef, backend):
         self._nstates = nstates
@@ -222,7 +222,9 @@ class LinearDecoupledODEModel(TransientAdjointModel):
             None,
             backend,
         )
-        self._jacobian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def nvars(self) -> int:
         return self._time_residual.native_residual.nvars()
@@ -555,7 +557,6 @@ class TestTimeIntegration:
             + exact_sols[1],
         )
         exact_sols = bkd.stack(exact_sols, axis=1)
-        print(exact_sols)
         assert bkd.allclose(sols, exact_sols, atol=1e-15, rtol=1e-15)
 
         # time_residual = model._time_int.time_residual
@@ -633,14 +634,17 @@ class TestTimeIntegration:
         exact_adj_sols = bkd.stack(
             [
                 bkd.array([-0.260400614400000, 0, 0]),
-                -deltat1 / 2 - deltat2 - deltat2**3*scale**2*b**4 / 4 + deltat2**2*scale*b**2 / 2,
-                bkd.full((model._functional.nstates(),), -deltat2 / 2)
+                -deltat1 / 2
+                - deltat2
+                - deltat2**3 * scale**2 * b**4 / 4
+                + deltat2**2 * scale * b**2 / 2,
+                bkd.full((model._functional.nstates(),), -deltat2 / 2),
             ],
             axis=1,
         )
         # The qoi only depends on the first state at each time step
         exact_adj_sols[1:] = 0.0
-        #print(exact_sols[:, 2])
+        # print(exact_sols[:, 2])
         # print(adj_sols)
         # print(exact_adj_sols, "exact adj sols")
         # print(deltat2 * (-(b**2) * (-deltat2 * b**2 + 1) - b**2) / 2 + 1, "1")
@@ -824,6 +828,7 @@ class TestTimeIntegration:
         assert bkd.allclose(adj_sols, exact_adj_sols, atol=1e-15, rtol=1e-15)
 
         if bkd.jacobian_implemented():
+
             assert bkd.allclose(
                 model.jacobian(sample),
                 bkd.grad(model._evaluate, sample)[1].T,
@@ -1093,13 +1098,7 @@ class TestTimeIntegration:
             return False
 
         if bkd.jacobian_implemented():
-            # print(model.jacobian(sample))
-            # print(bkd.grad(model._evaluate, sample)[1].T)
-            # print(
-            #     model.jacobian(sample)
-            #     - bkd.grad(model._evaluate, sample)[1].T,
-            #     time_residual_cls,
-            # )
+
             # For some reason autograd with torch produces a slightly different
             # grad than that computed with adjoints here as newton tolerances
             # are relaxed

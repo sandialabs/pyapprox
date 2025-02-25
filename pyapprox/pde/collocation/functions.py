@@ -92,7 +92,10 @@ class ScalarOperator:
             self.set_jacobian(jac)
 
     def _jacobian_shape(self, basis, ninput_funs) -> tuple:
-        return (basis.mesh().nmesh_pts(), basis.mesh().nmesh_pts() * ninput_funs)
+        return (
+            basis.mesh().nmesh_pts(),
+            basis.mesh().nmesh_pts() * ninput_funs,
+        )
 
     def ninput_funs(self) -> int:
         return self._ninput_funs
@@ -149,7 +152,6 @@ class ScalarOperator:
                 self.get_values() + other,
                 self.sparse_jacobian().copy(),
             )
-
         return ScalarOperator(
             self.basis(),
             self.ninput_funs(),
@@ -228,12 +230,10 @@ class ScalarOperator:
     #     )
 
     def _is_float(self, other):
-        return (
-            isinstance(other, float)
-            or (
-                isinstance(other, self._bkd.array_type())
-                and other.ndim == 0 and other.dtype == self._bkd.double_type()
-            )
+        return isinstance(other, float) or (
+            isinstance(other, self._bkd.array_type())
+            and other.ndim == 0
+            and other.dtype == self._bkd.double_type()
         )
 
     def _multiply_functions(
@@ -363,7 +363,9 @@ class ScalarOperator:
         return self.basis().interpolate(values, eval_samples)[:, 0]
 
     def integrate(self):
-        return self.get_values() @ self.basis().quadrature_rule_at_mesh_pts()[1]
+        return (
+            self.get_values() @ self.basis().quadrature_rule_at_mesh_pts()[1]
+        )
 
     def _plot_1d(self, ax, nplot_pts_1d, **kwargs):
         plot_samples = self._bkd.linspace(
@@ -398,7 +400,7 @@ class ScalarOperator:
             Z = (Z - zmin) / (zmax - zmin)
         if ax.name != "3d":
             kwargs_copy = kwargs.copy()
-            if Z.max()-Z.min() < 1e-12:
+            if Z.max() - Z.min() < 1e-12:
                 kwargs_copy["levels"] = 1
             return ax.contourf(X, Y, Z, **kwargs_copy)
         return ax.plot_surface(X, Y, Z, **kwargs)
@@ -860,12 +862,10 @@ class MatrixOperator:
         return sum(ops)
 
     def _is_float(self, other):
-        return (
-            isinstance(other, float)
-            or (
-                isinstance(other, self._bkd.array_type())
-                and other.ndim == 0 and other.dtype == self._bkd.double_type()
-            )
+        return isinstance(other, float) or (
+            isinstance(other, self._bkd.array_type())
+            and other.ndim == 0
+            and other.dtype == self._bkd.double_type()
         )
 
     def _multiply_functions(
@@ -874,10 +874,9 @@ class MatrixOperator:
         if not hasattr(self, "_components"):
             raise RuntimeError("must call set_commponents()")
 
-        if (
-                not isinstance(other, (MatrixOperator, ScalarOperator))
-                and not self._is_float(other)
-        ):
+        if not isinstance(
+            other, (MatrixOperator, ScalarOperator)
+        ) and not self._is_float(other):
             raise ValueError(
                 f"cannot multiply MatrixOperator by {type(other)}"
             )
@@ -1092,7 +1091,8 @@ class MatrixOperator:
                 f"values.shape {values.shape} must be {values_shape}"
             )
         reshaped_values = self._bkd.reshape(
-            values, (self.nrows(), self.ncols(), self.basis().mesh().nmesh_pts())
+            values,
+            (self.nrows(), self.ncols(), self.basis().mesh().nmesh_pts()),
         )
         components = []
         for ii in range(self.nrows()):
@@ -1145,7 +1145,7 @@ class MatrixOperator:
         xvel = self._components[0][0](pts)
         yvel = self._components[1][0](pts)
         return ax.quiver(
-            pts[0], pts[1], xvel, yvel, scale_units='xy', angles='xy'
+            pts[0], pts[1], xvel, yvel, scale_units="xy", angles="xy"
         )
 
 
@@ -1261,7 +1261,7 @@ class ConstantVectorFunction(VectorFunction):
                 basis._bkd.full((basis.mesh().nmesh_pts(),), const)
                 for const in consts
             ],
-            axis=0
+            axis=0,
         )
         super().__init__(basis, ninput_funs, nrows)
         self.set_values(values)
@@ -1373,7 +1373,10 @@ def vector_nabla(vec_op: VectorOperator) -> MatrixOperator:
     because we want each row to correspond to a unique equation
     """
     mat_op = MatrixOperator(
-        vec_op.basis(), vec_op.ninput_funs(), vec_op.nrows(), vec_op.nphys_vars()
+        vec_op.basis(),
+        vec_op.ninput_funs(),
+        vec_op.nrows(),
+        vec_op.nphys_vars(),
     )
     comps = [
         [comp.deriv(dd) for dd in range(comp.nphys_vars())]
@@ -1425,8 +1428,13 @@ class ScalarKLEFunction(ScalarFunction):
     ):
         super().__init__(basis, ninput_funs=ninput_funs)
         self._setup_kle(
-            lenscale, sigma, use_log, matern_nu, nterms, mean_field,
-            use_quadrature
+            lenscale,
+            sigma,
+            use_log,
+            matern_nu,
+            nterms,
+            mean_field,
+            use_quadrature,
         )
 
     def _setup_kle(
@@ -1447,7 +1455,7 @@ class ScalarKLEFunction(ScalarFunction):
             self.basis().mesh().mesh_pts(),
             lenscale,
             sigma,
-            0. if mean_field is None else mean_field.get_values(),
+            0.0 if mean_field is None else mean_field.get_values(),
             use_log,
             matern_nu,
             quad_weights,
@@ -1455,7 +1463,11 @@ class ScalarKLEFunction(ScalarFunction):
             backend=self.basis()._bkd,
         )
         # initialize to mean
-        self.set_param(self._bkd.zeros(self._kle.nvars(),))
+        self.set_param(
+            self._bkd.zeros(
+                self._kle.nvars(),
+            )
+        )
 
     def kle(self) -> MeshKLE:
         return self._kle
@@ -1502,7 +1514,11 @@ class ScalarPeriodicReiszGaussianRandomField(ScalarFunction):
         )
         self._kle.set_domain_samples(self.basis().mesh().mesh_pts())
         # initialize to mean
-        self.set_param(self._bkd.zeros(self._kle.nterms(),))
+        self.set_param(
+            self._bkd.zeros(
+                self._kle.nterms(),
+            )
+        )
 
     def kle(self) -> PeriodicReiszGaussianRandomField:
         return self._kle
@@ -1579,8 +1595,8 @@ def animate_transient_2d_scalar_solution(
         # at ii = times.shape[0]-1 because all values
         # in the plot are the same. To avoid this set colormap
         # at final time to be the correct value
-        if ii == times.shape[0]-1:
-            cmap = truncate_colormap(plt.cm.binary, minval=1.)
+        if ii == times.shape[0] - 1:
+            cmap = truncate_colormap(plt.cm.binary, minval=1.0)
         else:
             cmap = truncate_colormap(plt.cm.binary, minval=0.1)
         timebar = bkd.zeros((times.shape[0] - 1))
@@ -1697,8 +1713,8 @@ def animate_transient_2d_vector_solution(
         # at ii = times.shape[0]-1 because all values
         # in the plot are the same. To avoid this set colormap
         # at final time to be the correct value
-        if ii == times.shape[0]-1:
-            cmap = truncate_colormap(plt.cm.binary, minval=1.)
+        if ii == times.shape[0] - 1:
+            cmap = truncate_colormap(plt.cm.binary, minval=1.0)
         else:
             cmap = truncate_colormap(plt.cm.binary, minval=0.1)
         timebar = bkd.zeros(times.shape[0] - 1)
@@ -1787,9 +1803,7 @@ def plot_vector_function(
     levels = [bkd.linspace(*bounds, 51) for bounds in state_bounds]
     components = vec.get_components()
     for kk, component_id in enumerate(components_as_surface_plots):
-        components[component_id].plot(
-            axs[kk], npts1d, **surface_plot_kwargs
-        )
+        components[component_id].plot(axs[kk], npts1d, **surface_plot_kwargs)
         axs[kk].set_zlim(state_bounds[component_id])
         axs[kk] = remove_3d_axis_panels(axs[kk])
     for jj, component_id in enumerate(components_as_contour_plots):

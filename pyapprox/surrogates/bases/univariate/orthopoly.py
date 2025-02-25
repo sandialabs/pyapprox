@@ -1,8 +1,8 @@
 import math
 from abc import abstractmethod
 from warnings import warn
+from typing import Tuple
 
-import scipy.special as sp
 from scipy import stats
 
 from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
@@ -14,13 +14,11 @@ from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
     discrete_chebyshev_recurrence,
     laguerre_recurrence,
 )
-from pyapprox.surrogates.bases.univariate import (
+from pyapprox.surrogates.bases.univariate.base import (
     UnivariateBasis,
     UnivariateQuadratureRule,
     UnivariateIntegrator,
     ScipyUnivariateIntegrator,
-    UnivariateLagrangeBasis,
-    UnivariateBarycentricLagrangeBasis,
 )
 from pyapprox.variables.marginals import (
     get_distribution_info,
@@ -33,11 +31,15 @@ from pyapprox.variables.marginals import (
 from pyapprox.util.transforms import (
     UnivariateAffineTransform,
     IdentityTransform,
+    Transform,
 )
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
-def _evaluate_orthonormal_polynomial_1d(rcoefs, bkd, samples):
+def _evaluate_orthonormal_polynomial_1d(
+    rcoefs: Array, bkd: LinAlgMixin, samples: Array
+) -> Array:
     # samples passed in is 2D array with shape [1, nsamples]
     # so squeeze to 1D array
     samples = samples[0]
@@ -62,7 +64,7 @@ def _evaluate_orthonormal_polynomial_1d(rcoefs, bkd, samples):
 
 
 class OrthonormalPolynomial1D(UnivariateBasis):
-    def __init__(self, trans, backend):
+    def __init__(self, trans: Transform, backend: LinAlgMixin):
         super().__init__(trans, backend)
         if isinstance(self._trans, IdentityTransform):
             msg = (
@@ -74,13 +76,13 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         self._rcoefs = None
         self._prob_meas = True
 
-    def _ncoefs(self):
+    def _ncoefs(self) -> int:
         if self._rcoefs is None:
             raise ValueError("recursion_coefs have not been set")
         return self._rcoefs.shape[0]
 
     @abstractmethod
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         raise NotImplementedError
 
     def set_nterms(self, nterms):
@@ -93,25 +95,25 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         elif self._rcoefs is not None or self._ncoefs() >= nterms:
             self._rcoefs = self._rcoefs[:nterms, :]
 
-    def nterms(self):
+    def nterms(self) -> int:
         if self._rcoefs is None:
             return 0
         return self._rcoefs.shape[0]
 
-    def _opts_equal(self, other):
+    def _opts_equal(self, other: "OrthonormalPolynomial1D"):
         return True
 
-    def __eq__(self, other):
+    def __eq__(self, other: "OrthonormalPolynomial1D") -> bool:
         return (
             self.__class__.__name__ == self.__class__.__name__
-            and self._opts_equal(other)
+            and self._opts(other)
             and self._rcoefs == other._self._rcoefs
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(nterms={1})".format(self.__class__.__name__, self.nterms())
 
-    def _values(self, samples):
+    def _values(self, samples: Array) -> Array:
         can_samples = self._trans.map_to_canonical(samples)
         if self._rcoefs is None:
             raise ValueError("Must set recursion coefficients.")
@@ -119,7 +121,9 @@ class OrthonormalPolynomial1D(UnivariateBasis):
             self._rcoefs, self._bkd, can_samples
         )
 
-    def _derivatives(self, samples, order, return_all=False):
+    def _derivatives(
+        self, samples: Array, order: int, return_all: bool = False
+    ) -> Array:
         """
         Compute the first n dervivatives of the polynomial.
         """
@@ -176,7 +180,9 @@ class OrthonormalPolynomial1D(UnivariateBasis):
             return self._bkd.hstack(result)
         return result[-1]
 
-    def _canonical_gauss_quadrature_rule(self, npoints):
+    def _canonical_gauss_quadrature_rule(
+        self, npoints: int
+    ) -> Tuple[Array, Array]:
         if self._rcoefs is None:
             raise ValueError(
                 "{0}: Must set recursion coefficients".format(self)
@@ -192,7 +198,9 @@ class OrthonormalPolynomial1D(UnivariateBasis):
             npoints, self._rcoefs
         )
 
-    def _canonical_gauss_quadrature_rule_from_rcoefs(self, npoints, rcoefs):
+    def _canonical_gauss_quadrature_rule_from_rcoefs(
+        self, npoints: int, rcoefs: Array
+    ) -> Tuple[Array, Array]:
         a = rcoefs[:, 0]
         b = rcoefs[:, 1]
 
@@ -211,7 +219,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         # w[~self._bkd.isfinite(w)] = 0.
         return x[None, :], w[:, None]
 
-    def gauss_quadrature_rule(self, npoints):
+    def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         r"""Computes Gauss quadrature from recurrence coefficients
 
         x, w = gauss_quadrature(npoints)
@@ -238,7 +246,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         can_quad_x, can_quad_w = self._canonical_gauss_quadrature_rule(npoints)
         return self._trans.map_from_canonical(can_quad_x), can_quad_w
 
-    def _three_term_recurence(self):
+    def _three_term_recurence(self) -> Array:
         r"""
         Convert two term recursion coefficients
 
@@ -264,12 +272,18 @@ class OrthonormalPolynomial1D(UnivariateBasis):
 
 
 class JacobiPolynomial1D(OrthonormalPolynomial1D):
-    def __init__(self, alpha, beta, trans=None, backend=None):
+    def __init__(
+        self,
+        alpha: float,
+        beta: float,
+        trans: Transform = None,
+        backend: LinAlgMixin = None,
+    ):
         super().__init__(trans, backend)
         self._alpha = alpha
         self._beta = beta
 
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         return jacobi_recurrence(
             ncoefs,
             alpha=self._alpha,
@@ -277,15 +291,17 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D):
             probability=self._prob_meas,
         )
 
-    def _opts_equal(self, other):
+    def _opts_equal(self, other: OrthonormalPolynomial1D) -> bool:
         return self._alpha == other._alpha and self._beta == other._beta
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(alpha={1}, beta={2}, nterms={3})".format(
             self.__class__.__name__, self._alpha, self._beta, self.nterms()
         )
 
-    def _canonical_gauss_lobatto_quadrature_rule(self, npoints):
+    def _canonical_gauss_lobatto_quadrature_rule(
+        self, npoints: int
+    ) -> Tuple[Array, Array]:
         if npoints == 1:
             return self.gauss_quadrature_rule(npoints)
         if npoints < 3:
@@ -310,8 +326,9 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D):
             (self._alpha + self._beta + 1.0) * math.log(2.0)
             + self._bkd.gammaln(self._bkd.asarray(self._alpha) + 1.0)
             + self._bkd.gammaln(self._bkd.asarray(self._beta) + 1.0)
-            - self._bkd.gammaln(self._bkd.asarray(self._alpha + self._beta)
-                                + 2.0)
+            - self._bkd.gammaln(
+                self._bkd.asarray(self._alpha + self._beta) + 2.0
+            )
         )
         rcoefs[npoints - 1, 0] = (self._alpha - self._beta) / (
             2 * N + self._alpha + self._beta + 2
@@ -330,7 +347,7 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D):
             npoints, rcoefs
         )
 
-    def gauss_lobatto_quadrature_rule(self, npoints):
+    def gauss_lobatto_quadrature_rule(self, npoints) -> Tuple[Array, Array]:
         can_quad_x, can_quad_w = self._canonical_gauss_lobatto_quadrature_rule(
             npoints
         )
@@ -338,7 +355,7 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D):
 
 
 class LegendrePolynomial1D(JacobiPolynomial1D):
-    def __init__(self, trans=None, backend=None):
+    def __init__(self, trans: Transform = None, backend: LinAlgMixin = None):
         super().__init__(0.0, 0.0, trans=trans, backend=backend)
 
     def __repr__(self):
@@ -346,7 +363,13 @@ class LegendrePolynomial1D(JacobiPolynomial1D):
 
 
 class HermitePolynomial1D(OrthonormalPolynomial1D):
-    def __init__(self, rho=0.0, prob_meas=True, trans=None, backend=None):
+    def __init__(
+        self,
+        rho: float = 0.0,
+        prob_meas: bool = True,
+        trans: Transform = None,
+        backend: LinAlgMixin = None,
+    ):
         super().__init__(trans, backend)
         self._prob_meas = prob_meas
         self._rho = rho
@@ -358,13 +381,20 @@ class HermitePolynomial1D(OrthonormalPolynomial1D):
 
 
 class KrawtchoukPolynomial1D(OrthonormalPolynomial1D):
-    def __init__(self, n, p, raisewarn=True, trans=None, backend=None):
+    def __init__(
+        self,
+        n: int,
+        p: int,
+        raisewarn: bool = True,
+        trans: Transform = None,
+        backend: LinAlgMixin = None,
+    ):
         super().__init__(trans, backend)
         self._n = n
         self._p = p
         self._warn = raisewarn
 
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         msg = "Although bounded the Krawtchouk polynomials are not defined "
         msg += "on the canonical domain [-1,1]. Must use numeric recursion "
         msg += "to generate polynomials on [-1,1] for consistency"
@@ -373,10 +403,10 @@ class KrawtchoukPolynomial1D(OrthonormalPolynomial1D):
         ncoefs = min(ncoefs, self._n)
         return krawtchouk_recurrence(ncoefs, self._n, self._p)
 
-    def _opts_equal(self, other):
+    def _opts_equal(self, other: OrthonormalPolynomial1D) -> bool:
         return self._n == other._n and self._p == other._p
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(n={1}, p={2}, nterms={3})".format(
             self.__class__.__name__, self._n, self._p, self.nterms()
         )
@@ -384,7 +414,13 @@ class KrawtchoukPolynomial1D(OrthonormalPolynomial1D):
 
 class HahnPolynomial1D(OrthonormalPolynomial1D):
     def __init__(
-        self, N, alpha, beta, raisewarn=True, trans=None, backend=None
+        self,
+        N: int,
+        alpha: float,
+        beta: float,
+        raisewarn: bool = True,
+        trans: Transform = None,
+        backend: LinAlgMixin = None,
     ):
         super().__init__(trans, backend)
         self._N = N
@@ -392,7 +428,7 @@ class HahnPolynomial1D(OrthonormalPolynomial1D):
         self._beta = beta
         self._warn = raisewarn
 
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         msg = "Although bounded the Hahn polynomials are not defined "
         msg += "on the canonical domain [-1,1]. Must use numeric recursion "
         msg += "to generate polynomials on [-1,1] for consistency"
@@ -401,14 +437,14 @@ class HahnPolynomial1D(OrthonormalPolynomial1D):
         ncoefs = min(ncoefs, self._N)
         return hahn_recurrence(ncoefs, self._N, self._alpha, self._beta)
 
-    def _opts_equal(self, other):
+    def _opts_equal(self, other: OrthonormalPolynomial1D) -> bool:
         return (
             self._N == other._N
             and self._alpha == other._alpha
             and self._beta == other._beta
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(N={1}, alpha={2}, beta={3}, nterms={4})".format(
             self.__class__.__name__,
             self._N,
@@ -419,39 +455,45 @@ class HahnPolynomial1D(OrthonormalPolynomial1D):
 
 
 class CharlierPolynomial1D(OrthonormalPolynomial1D):
-    def __init__(self, mu, trans=None, backend=None):
+    def __init__(
+        self, mu: float, trans: Transform = None, backend: LinAlgMixin = None
+    ):
         super().__init__(trans, backend)
         self._mu = mu
 
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         return charlier_recurrence(ncoefs, self._mu)
 
 
 class DiscreteChebyshevPolynomial1D(OrthonormalPolynomial1D):
-    def __init__(self, N, trans=None, backend=None):
+    def __init__(
+        self, N: int, trans: Transform = None, backend: LinAlgMixin = None
+    ):
         super().__init__(trans, backend)
         self._N = N
 
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         return discrete_chebyshev_recurrence(ncoefs, self._N)
 
 
 class LaguerrePolynomial1D(OrthonormalPolynomial1D):
-    def __init__(self, rho, trans=None, backend=None):
+    def __init__(
+        self, rho: float, trans: Transform = None, backend: LinAlgMixin = None
+    ):
         super().__init__(trans, backend)
         self._rho = rho
 
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         return laguerre_recurrence(ncoefs, self._rho)
 
 
 class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D):
-    def __init__(self, trans=None, backend=None):
+    def __init__(self, trans: Transform = None, backend: LinAlgMixin = None):
         # TODO: not sure if I have the naming of first and second correct.
         super().__init__(-0.5, -0.5, trans=trans, backend=backend)
         self._prob_meas = True
 
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         rcoefs = jacobi_recurrence(
             ncoefs,
             alpha=self._alpha,
@@ -460,36 +502,41 @@ class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D):
         )
         return rcoefs
 
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         vals = super().__call__(samples)
         vals[:, 1:] /= 2**0.5
         return vals
 
-    def gauss_quadrature_rule(self, npoints):
+    def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         quad_x, quad_w = super().gauss_quadrature_rule(npoints)
         return quad_x, quad_w * math.pi
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(nterms={1})".format(self.__class__.__name__, self.nterms())
 
 
 class Chebyshev2ndKindPolynomial1D(JacobiPolynomial1D):
-    def __init__(self, trans=None, backend=None):
+    def __init__(self, trans: Transform = None, backend: LinAlgMixin = None):
         # TODO: not sure if I have the naming of first and second correct.
         super().__init__(0.5, 0.5, trans, backend=backend)
         self._prob_meas = True
 
-    def gauss_quadrature_rule(self, npoints):
+    def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         quad_x, quad_w = super().gauss_quadrature_rule(npoints)
         return quad_x, quad_w * math.pi / 2
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(nterms={1})".format(self.__class__.__name__, self.nterms())
 
 
 class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
     def __init__(
-        self, samples, weights, ortho_tol=1e-8, prob_tol=0, backend=None
+        self,
+        samples: Array,
+        weights: Array,
+        ortho_tol: float = 1e-8,
+        prob_tol: float = 0,
+        backend: LinAlgMixin = None,
     ):
         """Compure recurrence coefficients from samples."""
         super().__init__(None, backend)
@@ -499,7 +546,7 @@ class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
         self._samples = samples
         self._weights = weights
 
-    def _check_samples_weights(self, samples, weights):
+    def _check_samples_weights(self, samples: Array, weights: Array):
         if samples.ndim != 2 and samples.shape[0] != 1:
             raise ValueError("weights must be 2D column vector")
         if weights.ndim != 2 and weights.shape[1] != 1:
@@ -511,7 +558,7 @@ class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
         if weights.shape[0] != samples.shape[1]:
             raise ValueError("weights and samples are inconsistent")
 
-    def _lanczos(self, nterms):
+    def _lanczos(self, nterms: int) -> Array:
         nnodes = self._samples.shape[1]
         if nterms > nnodes:
             raise ValueError("Too many coefficients requested")
@@ -546,7 +593,7 @@ class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
                 qii[:, ii + 1] = vec
         return self._bkd.stack((alpha, beta), axis=1)
 
-    def _check_orthonormality(self, rcoefs):
+    def _check_orthonormality(self, rcoefs: Array) -> Array:
         poly_vals = _evaluate_orthonormal_polynomial_1d(
             rcoefs, self._bkd, self._samples
         )
@@ -566,7 +613,7 @@ class DiscreteNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
             raise ValueError(msg)
         return rcoefs
 
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         rcoefs = self._lanczos(ncoefs)
         self._check_orthonormality(rcoefs)
         return rcoefs
@@ -582,16 +629,16 @@ class PredictorCorrector:
             backend = NumpyLinAlgMixin
         self._bkd = backend
 
-    def set_measure(self, measure):
+    def set_measure(self, measure: callable):
         self._measure = measure
 
     def set_integrator(self, integrator):
         self._integrator = integrator
 
-    def _integrand_0(self, x):
+    def _integrand_0(self, x: Array) -> Array:
         return self._measure(x)
 
-    def _integrand_1(self, x):
+    def _integrand_1(self, x: Array) -> Array:
         pvals = _evaluate_orthonormal_polynomial_1d(self._ab, self._bkd, x)
         return (
             self._measure(x)[:, 0]
@@ -599,11 +646,11 @@ class PredictorCorrector:
             * pvals[:, self._idx - 1]
         )[:, None]
 
-    def _integrand_2(self, x):
+    def _integrand_2(self, x: Array) -> Array:
         pvals = _evaluate_orthonormal_polynomial_1d(self._ab, self._bkd, x)
         return (self._measure(x)[:, 0] * pvals[:, self._idx] ** 2)[:, None]
 
-    def __call__(self, nterms):
+    def __call__(self, nterms: int) -> Array:
         ab = self._bkd.zeros((nterms + 1, 2))
 
         self._integrator.set_integrand(self._integrand_0)
@@ -630,7 +677,13 @@ class PredictorCorrector:
 
 
 class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
-    def __init__(self, marginal, integrator=None, trans=None, backend=None):
+    def __init__(
+        self,
+        marginal,
+        integrator=None,
+        trans: Transform = None,
+        backend: LinAlgMixin = None,
+    ):
         """Compure recurrence coefficients from a known PDF
         using predictor corrector method."""
         super().__init__(trans, backend)
@@ -652,7 +705,9 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
         self._rcoefs_gen.set_integrator(integrator)
         self._rcoefs_gen.set_measure(self._canonical_pdf)
 
-    def _parse_marginal(self, marginal):
+    def _parse_marginal(
+        self, marginal
+    ) -> Tuple[callable, float, float, float, float]:
         pdf = get_pdf(marginal)
         loc, scale = transform_scale_parameters(marginal)
         lb, ub = marginal.interval(1)
@@ -665,26 +720,26 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
             raise ValueError("variable must be a continuous variable")
         return pdf, loc, scale, can_lb, can_ub
 
-    def _parse_quad_opts(self, quad_opts, integrate_fun):
+    def _parse_quad_opts(self, quad_opts: dict, integrate_fun: callable):
         if not isinstance(quad_opts, dict):
             raise ValueError("quad_opts must be a dictionary")
         if integrate_fun is not None:
             quad_opts["integrate_fun"] = integrate_fun
         return quad_opts
 
-    def _canonical_pdf(self, x):
+    def _canonical_pdf(self, x: Array) -> Array:
         # pdf is from scipy so x must be converted to one d array
         return self._bkd.asarray(
             self._pdf(x[0] * self._scale + self._loc) * self._scale
         )[:, None]
 
-    def _get_recursion_coefficients(self, ncoefs):
+    def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         return self._rcoefs_gen(ncoefs)
 
 
 def setup_univariate_orthogonal_polynomial_from_marginal(
-    marginal, opts={}, backend=None
-):
+    marginal, opts: dict = {}, backend: LinAlgMixin = None
+) -> OrthonormalPolynomial1D:
     var_name, scales, shapes = get_distribution_info(marginal)
 
     trans = AffineMarginalTransform(
@@ -740,18 +795,24 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
 
 
 class GaussQuadratureRule(UnivariateQuadratureRule):
-    def __init__(self, marginal, opts=None, backend=None, store=False):
+    def __init__(
+        self,
+        marginal,
+        opts: dict = None,
+        backend: LinAlgMixin = None,
+        store: bool = False,
+    ):
         super().__init__(backend, store)
         self._poly = setup_univariate_orthogonal_polynomial_from_marginal(
             marginal, opts=opts, backend=backend
         )
 
-    def _quad_rule(self, nnodes):
+    def _quad_rule(self, nnodes: int) -> Tuple[Array, Array]:
         if self._poly.nterms() < nnodes:
             self._poly.set_nterms(nnodes)
         return self._poly.gauss_quadrature_rule(nnodes)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(poly={1}, bkd={2})".format(
             self.__class__.__name__, self._poly, self._bkd.__name__
         )
@@ -763,12 +824,14 @@ class GaussLegendreQuadratureRule(GaussQuadratureRule):
     (not uniform probability measure)
     """
 
-    def __init__(self, bounds, backend=None, store=False):
+    def __init__(
+        self, bounds: Array, backend: LinAlgMixin = None, store: bool = False
+    ):
         self._bounds = bounds
         marginal = stats.uniform(bounds[0], bounds[1] - bounds[0])
         super().__init__(marginal, opts=None, backend=backend, store=store)
 
-    def _quad_rule(self, nnodes):
+    def _quad_rule(self, nnodes: int) -> Tuple[Array, Array]:
         if self._poly.nterms() < nnodes:
             self._poly.set_nterms(nnodes)
         quad_x, quad_w = self._poly.gauss_quadrature_rule(nnodes)
@@ -778,7 +841,9 @@ class GaussLegendreQuadratureRule(GaussQuadratureRule):
 class Chebyshev1stKindGaussLobattoQuadratureRule(GaussQuadratureRule):
     """Integrates functions on [a, b] with weight 1/sqrt(1-x^2)."""
 
-    def __init__(self, bounds, backend=None, store=False):
+    def __init__(
+        self, bounds: Array, backend: LinAlgMixin = None, store: bool = False
+    ):
         UnivariateQuadratureRule.__init__(self, backend, store)
         self._bounds = bounds
         loc = sum(bounds) / 2
@@ -790,7 +855,7 @@ class Chebyshev1stKindGaussLobattoQuadratureRule(GaussQuadratureRule):
             trans=self._trans, backend=self._bkd
         )
 
-    def _quad_rule(self, nnodes):
+    def _quad_rule(self, nnodes: int) -> Tuple[Array, Array]:
         self._poly.set_nterms(nnodes)
         return self._poly.gauss_lobatto_quadrature_rule(nnodes)
 
@@ -798,7 +863,9 @@ class Chebyshev1stKindGaussLobattoQuadratureRule(GaussQuadratureRule):
 class Chebyshev2ndKindGaussLobattoQuadratureRule(GaussQuadratureRule):
     """Integrates functions on [a, b] with weight sqrt(1-x^2)."""
 
-    def __init__(self, bounds, backend=None, store=False):
+    def __init__(
+        self, bounds: Array, backend: LinAlgMixin = None, store: bool = False
+    ):
         UnivariateQuadratureRule.__init__(self, backend, store)
         self._bounds = bounds
         loc = sum(bounds) / 2
@@ -810,30 +877,18 @@ class Chebyshev2ndKindGaussLobattoQuadratureRule(GaussQuadratureRule):
             trans=self._trans, backend=self._bkd
         )
 
-    def _quad_rule(self, nnodes):
+    def _quad_rule(self, nnodes) -> Tuple[Array, Array]:
         self._poly.set_nterms(nnodes)
         return self._poly.gauss_lobatto_quadrature_rule(nnodes)
 
 
-class UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis(
-    UnivariateBarycentricLagrangeBasis
-):
-    # TODO: not sure if I have the naming of first and second correct.
-    def __init__(self, bounds, nterms=None, backend=NumpyLinAlgMixin):
-        super().__init__(
-            Chebyshev1stKindGaussLobattoQuadratureRule(
-                bounds, backend=backend
-            ), nterms
-        )
-
-    def _set_barycentric_weights(self):
-        self._bary_weights = (-1.0) ** (self._bkd.arange(self.nterms()) % 2)
-        self._bary_weights[0] /= 2
-        self._bary_weights[-1] /= 2
-
-
 class AffineMarginalTransform(UnivariateAffineTransform):
-    def __init__(self, marginal, enforce_bounds=False, backend=None):
+    def __init__(
+        self,
+        marginal,
+        enforce_bounds: bool = False,
+        backend: LinAlgMixin = None,
+    ):
         super().__init__(
             *transform_scale_parameters(marginal), enforce_bounds, backend
         )
@@ -856,7 +911,7 @@ class TrigonometricPolynomial1D(UnivariateBasis):
         b_k &= 1\pi \int_{-\pi}^\pi f(x)cos(kx)dx
     """
 
-    def __init__(self, bounds, backend=None):
+    def __init__(self, bounds: Array, backend: LinAlgMixin = None):
         super().__init__(None, backend)
         self._bounds = None
         self._trans = None
@@ -865,7 +920,7 @@ class TrigonometricPolynomial1D(UnivariateBasis):
         self._jacobian_implemented = False
         self._hessian_implemented = False
 
-    def set_bounds(self, bounds):
+    def set_bounds(self, bounds: Array):
         # canonical domain is [-pi, pi]
         self._bounds = bounds
         loc = sum(bounds) / 2
@@ -874,7 +929,7 @@ class TrigonometricPolynomial1D(UnivariateBasis):
             loc, scale, enforce_bounds=False, backend=self._bkd
         )
 
-    def set_nterms(self, nterms):
+    def set_nterms(self, nterms: int):
         if nterms % 2 != 1:
             raise ValueError("nterms bust be an odd number")
         # half_indices is k in a_0 + \sum_{k=1}^K a_k \cos(kx) + b_k \sin(kx)
@@ -882,10 +937,10 @@ class TrigonometricPolynomial1D(UnivariateBasis):
             None, :
         ]
 
-    def nterms(self):
+    def nterms(self) -> int:
         return self._half_indices.shape[1] * 2 + 1
 
-    def _values(self, samples):
+    def _values(self, samples: Array) -> Array:
         can_samples = self._trans.map_to_canonical(samples)
         return self._bkd.hstack(
             (
@@ -898,7 +953,9 @@ class TrigonometricPolynomial1D(UnivariateBasis):
 
 class FourierBasis1D(UnivariateBasis):
     # p(x) = sum_{k=-K}^K c_k e^{ikx}
-    def __init__(self, bounds, inverse=True, backend=None):
+    def __init__(
+        self, bounds: Array, inverse: bool = True, backend: LinAlgMixin = None
+    ):
         super().__init__(None, backend)
         self._bounds = None
         self._trans = None
@@ -913,7 +970,7 @@ class FourierBasis1D(UnivariateBasis):
             # compute basis needed to compute fourier coefs with quadrature
             self._const = -1j
 
-    def set_bounds(self, bounds):
+    def set_bounds(self, bounds: Array):
         # canonical domain is [-pi, pi]
         self._bounds = bounds
         loc = sum(bounds) / 2
@@ -922,62 +979,19 @@ class FourierBasis1D(UnivariateBasis):
             loc, scale, enforce_bounds=False, backend=self._bkd
         )
 
-    def set_nterms(self, nterms):
+    def set_nterms(self, nterms: int):
         if nterms % 2 != 1:
             raise ValueError("nterms bust be an odd number")
         # half_indices is k in a_0 + \sum_{k=1}^K a_k \cos(kx) + b_k \sin(kx)
         self._Kmax = (nterms - 1) // 2
 
-    def nterms(self):
+    def nterms(self) -> int:
         return self._Kmax * 2 + 1
 
-    def _values(self, samples):
+    def _values(self, samples: Array) -> Array:
         can_samples = self._trans.map_to_canonical(samples)
         return self._bkd.exp(
             self._const
             * can_samples.T
             * self._bkd.arange(-self._Kmax, self._Kmax + 1)[None, :]
         )
-
-
-def setup_lagrange_basis(
-    basis_type,
-    quadrature_rule=None,
-    bounds=None,
-    backend=NumpyLinAlgMixin,
-):
-    if bounds is None and quadrature_rule is None:
-        raise ValueError("must specify either bounds or quadrature_rule")
-    # bases that use barycentric interpolation with barycentric weights
-    # numerically, can be used with any quadrature rule
-    basis_dict_from_quad = {
-        "lagrange": UnivariateLagrangeBasis,
-        "barycentric": UnivariateBarycentricLagrangeBasis,
-    }
-    # bases that use barycentric interpolation with barycentric weights
-    # computed exactly
-    basis_dict_from_bounds = {
-        "chebyhsev1":
-        UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis
-    }
-    if (
-        basis_type not in basis_dict_from_quad
-        and basis_type not in basis_dict_from_bounds
-    ):
-        raise ValueError(
-            "basis_type {0} not supported must be in {1}".format(
-                basis_type,
-                list(basis_dict_from_quad.keys())
-                + list(basis_dict_from_bounds.keys()),
-            )
-        )
-    if basis_type in basis_dict_from_quad:
-        if quadrature_rule is None:
-            raise ValueError(
-                "{0} requires quadratrure_rule".format(basis_type)
-            )
-        return basis_dict_from_quad[basis_type](quadrature_rule)
-
-    if bounds is None:
-        raise ValueError("{0} requires bounds".format(basis_type))
-    return basis_dict_from_bounds[basis_type](bounds, backend=backend)

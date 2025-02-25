@@ -22,7 +22,7 @@ class TestTransforms:
         user_ranges = [0, 1, 0, 1]
         canonical_ranges = [-1, 1, -1, 1]
         trans = AffineBoundedTransform(canonical_ranges, user_ranges, bkd=bkd)
-        user_samples = np.random.uniform(0, 1, (nvars, nsamples))
+        user_samples = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples)))
         trans_canonical_samples = trans.map_to_canonical(user_samples)
         assert trans_canonical_samples.min() >= -1.0
         assert trans_canonical_samples.max() <= 1.0
@@ -40,7 +40,7 @@ class TestTransforms:
                 bkd.array(np.random.uniform(0, 2 * np.pi, (1, nsamples))),
             )
         )
-        samples = trans.map_from_nsphere(bkd.atleast2d(psi))
+        samples = trans.map_from_nsphere(psi)
         psi_recovered = trans.map_to_nsphere(samples)
         assert np.allclose(psi_recovered, psi, rtol=1e-12)
 
@@ -81,9 +81,9 @@ class TestTransforms:
         noutputs = 3
         trans = SphericalCorrelationTransform(noutputs, backend=bkd)
         trans._unconstrained = True
-        L = bkd.atleast2d([[1, 0, 0], [1, 2, 0], [1, 2, 3]])
+        L = bkd.asarray([[1, 0, 0], [1, 2, 0], [1, 2, 3]])
         theta_recovered = trans.map_from_cholesky(bkd.atleast2d(L))
-        theta = bkd.atleast1d(
+        theta = bkd.asarray(
             [0, np.log(5) / 2, np.log(14) / 2, -0.608, -0.348, -0.787]
         )
         # answer is only reported to 3 decimals

@@ -7,7 +7,7 @@ from scipy import stats
 from torch.distributions import MultivariateNormal as TorchMultivariateNormal
 import matplotlib.pyplot as plt
 
-from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.bases.univariate.base import Monomial1D
 from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.util.hyperparameter import (
@@ -382,7 +382,7 @@ class TestGaussianProcess:
             nvars,
             ninducing_samples,
             inducing_samples=inducing_samples,
-            inducing_sample_bounds=bkd.atleast1d([-1, 1]),
+            inducing_sample_bounds=bkd.asarray([-1, 1]),
             noise=noise,
             backend=bkd,
         )
@@ -434,7 +434,7 @@ class TestGaussianProcess:
         )
         kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
 
-        nsamples_per_output = [40, 40]
+        nsamples_per_output = [60, 60]
         samples_per_output = [
             bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output

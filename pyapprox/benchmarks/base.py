@@ -6,7 +6,6 @@ from pyapprox.interface.model import Model
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.joint import JointVariable, DesignVariable
-from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
 from pyapprox.surrogates.bases.basis import (
     FixedGaussianTensorProductQuadratureRuleFromVariable,
 )

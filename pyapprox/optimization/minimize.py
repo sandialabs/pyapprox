@@ -129,7 +129,7 @@ class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
         self._numeric_upper_bound = 100
 
     def set_bounds(self, bounds):
-        bounds = self._bkd.atleast1d(bounds)
+        bounds = self._bkd.asarray(bounds)
         if bounds.shape[0] == 2 and bounds.ndim != 2:
             bounds = self._bkd.reshape(
                 self._bkd.repeat(bounds, self._nvars), (self._nvars, 2)
@@ -862,7 +862,7 @@ class SmoothLogBasedMaxFunction:
 class SampleAverageConditionalValueAtRisk(SampleAverageStat):
     def __init__(self, alpha, eps=1e-2, backend=NumpyLinAlgMixin):
         super().__init__(backend)
-        alpha = self._bkd.atleast1d(alpha)
+        alpha = self._bkd.atleast1d(self._bkd.asarray(alpha))
         self._alpha = alpha
         self._max = SmoothLogBasedMaxFunction(eps, backend=self._bkd)
         self._t = None
@@ -1170,7 +1170,7 @@ def approx_jacobian(
 def approx_hessian(
     jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
 ):
-    return approx_jacobian(lambda y: jac_fun(y).T, x, epsilon, bkd=bkd)
+    return approx_jacobian(lambda y: jac_fun(y), x, epsilon, bkd=bkd)
 
 
 class MiniMaxObjective(SingleSampleModel):

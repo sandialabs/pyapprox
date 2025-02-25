@@ -141,7 +141,7 @@ class OMPSolver(LinearSystemSolver):
 
         correlation = self._bkd.dot(self._Amat.T, self._bvec)
         nindices = self._Amat.shape[1]
-        inactive_indices_mask = self._bkd.atleast1d(
+        inactive_indices_mask = self._bkd.asarray(
             [True] * nindices, dtype=bool
         )
         bnorm = self._bkd.norm(self._bvec)

@@ -29,7 +29,7 @@ def _log_prob_gaussian_with_noisy_nystrom_covariance(
     Omega = bkd.eye(M) + Delta @ Delta.T
     L_Omega = bkd.cholesky(Omega)
     log_det = 2 * bkd.log(bkd.get_diagonal(L_Omega)).sum() + 2 * N * bkd.log(
-        bkd.atleast1d(noise_std)
+        bkd.atleast1d(bkd.asarray(noise_std))
     )
     gamma = bkd.solve_triangular(L_Omega, Delta @ values)
     log_pdf = -0.5 * (

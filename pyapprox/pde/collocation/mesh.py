@@ -9,7 +9,9 @@ from pyapprox.pde.collocation.mesh_transforms import (
     OrthogonalCoordinateTransform,
     ScaleAndTranslationTransform1D,
 )
-from pyapprox.surrogates.bases.orthopoly import GaussLegendreQuadratureRule
+from pyapprox.surrogates.bases.univariate.orthopoly import (
+    GaussLegendreQuadratureRule,
+)
 
 
 class OrthogonalCoordinateMesh(ABC):

@@ -5,9 +5,7 @@ import numpy as np
 from scipy.optimize import brenth
 
 from pyapprox.util.linalg import adjust_sign_eig
-from pyapprox.util.linearalgebra.linalgbase import (
-    LinAlgMixin, Array
-)
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.joint import JointVariable
 from pyapprox.surrogates.bases.basis import TrigonometricBasis
@@ -346,13 +344,11 @@ class AbstractKLE(ABC):
             # of eigenvectors for repeated eigenvalues matters to KLE.
             # The downside is that we cannot use autograd on quantities
             # used to construct K but the need for this is unlikely
-            eig_vals, eig_vecs = np.linalg.eigh(
-                self._bkd.to_numpy(K)
-            )
-            eig_vals = eig_vals[-self._nterms:]
-            eig_vecs = eig_vecs[:, -self._nterms:]
-            eig_vals = self._bkd.atleast1d(eig_vals)
-            eig_vecs = self._bkd.atleast2d(eig_vecs)
+            eig_vals, eig_vecs = np.linalg.eigh(self._bkd.to_numpy(K))
+            eig_vals = eig_vals[-self._nterms :]
+            eig_vecs = eig_vecs[:, -self._nterms :]
+            eig_vals = self._bkd.asarray(eig_vals)
+            eig_vecs = self._bkd.asarray(eig_vecs)
         else:
             # see https://etheses.lse.ac.uk/2950/1/U615901.pdf
             # page 42
@@ -360,10 +356,10 @@ class AbstractKLE(ABC):
             sym_eig_vals, sym_eig_vecs = np.linalg.eigh(
                 self._bkd.to_numpy(sqrt_weights[:, None] * K * sqrt_weights),
             )
-            sym_eig_vals = sym_eig_vals[-self._nterms:]
-            sym_eig_vecs = sym_eig_vecs[:, -self._nterms:]
-            sym_eig_vals = self._bkd.atleast1d(sym_eig_vals)
-            sym_eig_vecs = self._bkd.atleast2d(sym_eig_vecs)
+            sym_eig_vals = sym_eig_vals[-self._nterms :]
+            sym_eig_vecs = sym_eig_vecs[:, -self._nterms :]
+            sym_eig_vals = self._bkd.asarray(sym_eig_vals)
+            sym_eig_vecs = self._bkd.asarray(sym_eig_vecs)
             eig_vecs = 1 / sqrt_weights[:, None] * sym_eig_vecs
             eig_vals = sym_eig_vals
         II = self._bkd.flip(self._bkd.argsort(eig_vals))
@@ -481,7 +477,7 @@ class MeshKLE(AbstractKLE):
         self._mesh_coords = mesh_coords
 
     def _set_lenscale(self, length_scale):
-        length_scale = self._bkd.atleast1d(length_scale)
+        length_scale = self._bkd.atleast1d(self._bkd.asarray(length_scale))
         if length_scale.shape[0] == 1:
             length_scale = self._bkd.full(
                 (self._mesh_coords.shape[0],), length_scale[0]
@@ -497,7 +493,7 @@ class MeshKLE(AbstractKLE):
             )
             K = squareform(np.exp(-0.5 * dists))
             np.fill_diagonal(K, 1)
-            return self._bkd.atleast2d(K)
+            return self._bkd.asarray(K)
 
         dists = pdist(
             self._bkd.to_numpy(self._mesh_coords.T / self._lenscale),
@@ -511,7 +507,7 @@ class MeshKLE(AbstractKLE):
         elif self._matern_nu == 2.5:
             K = squareform((1 + dists + dists**2 / 3) * np.exp(-dists))
         np.fill_diagonal(K, 1)
-        return self._bkd.atleast2d(K)
+        return self._bkd.asarray(K)
 
     def __repr__(self):
         if self._nterms is None:
@@ -741,7 +737,7 @@ class PeriodicReiszGaussianRandomField(JointVariable):
 
     def nterms(self):
         """The number of terms in the KLE"""
-        return self._trig_exp.nterms()-1
+        return self._trig_exp.nterms() - 1
 
     def set_neigs(self, neigs):
         self._neigs = neigs
@@ -772,7 +768,8 @@ class PeriodicReiszGaussianRandomField(JointVariable):
         ):
             raise ValueError(
                 "samples has the wrong shape of {0} should be {1}".format(
-                    samples.shape, (self._trig_exp.nterms() - 1, 1))
+                    samples.shape, (self._trig_exp.nterms() - 1, 1)
+                )
             )
         if not hasattr(self, "_domain_samples"):
             raise RuntimeError("Must call set_domain_samples")

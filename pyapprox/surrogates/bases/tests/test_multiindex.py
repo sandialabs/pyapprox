@@ -24,13 +24,11 @@ class TestMultiIndex:
         nvars, pnorm, level = 2, 1, 2
         gen = HyperbolicIndexGenerator(nvars, level, pnorm, backend=bkd)
         indices = bkd.asarray(
-            [[0, 0], [1, 0], [0, 1], [2, 0], [1, 1], [0, 2]],
-            dtype=int
+            [[0, 0], [1, 0], [0, 1], [2, 0], [1, 1], [0, 2]], dtype=int
         ).T
         assert bkd.allclose(gen.get_indices(), indices)
         assert bkd.allclose(
-            compute_hyperbolic_indices(nvars, level, pnorm, bkd),
-            indices
+            compute_hyperbolic_indices(nvars, level, pnorm, bkd), indices
         )
 
         on_margin = bkd.array(
@@ -38,7 +36,7 @@ class TestMultiIndex:
         )
         assert bkd.allclose(
             on_margin,
-            bkd.array([False, False, False, True, True, True], dtype=bool)
+            bkd.array([False, False, False, True, True, True], dtype=bool),
         )
 
         gen.step()
@@ -84,9 +82,9 @@ class TestMultiIndex:
             sort_indices_lexiographically(gen.get_indices()),
             sort_indices_lexiographically(
                 bkd.array(
-                    [[0, 0], [1, 0], [0, 1], [0, 2], [1, 1]]
+                    [[0, 0], [1, 0], [0, 1], [0, 2], [1, 1]], dtype=int
                 ).T,
-            )
+            ),
         )
 
     def test_isotropic_sg_index_generator(self):
@@ -96,11 +94,26 @@ class TestMultiIndex:
             nvars, level, DoublePlusOneIndexGrowthRule(), backend=bkd
         )
         indices = bkd.array(
-            [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [1, 0], [2, 0], [3, 0],
-             [4, 0], [1, 1], [1, 2], [2, 1], [2, 2]], dtype=int).T
+            [
+                [0, 0],
+                [0, 1],
+                [0, 2],
+                [0, 3],
+                [0, 4],
+                [1, 0],
+                [2, 0],
+                [3, 0],
+                [4, 0],
+                [1, 1],
+                [1, 2],
+                [2, 1],
+                [2, 2],
+            ],
+            dtype=int,
+        ).T
         assert bkd.allclose(
             sort_indices_lexiographically(gen.get_indices()),
-            sort_indices_lexiographically(indices)
+            sort_indices_lexiographically(indices),
         )
         # check plot runs
         gen.plot_indices(plt.subplots(1, 1)[1])
@@ -120,10 +133,10 @@ class TestMultiIndex:
         gen1 = IsotropicSGIndexGenerator(
             nvars, level, LinearGrowthRule(1, 1), backend=bkd
         )
-        gen2 = HyperbolicIndexGenerator(nvars, level, 1., backend=bkd)
+        gen2 = HyperbolicIndexGenerator(nvars, level, 1.0, backend=bkd)
         assert bkd.allclose(
             sort_indices_lexiographically(gen1.get_indices()),
-            sort_indices_lexiographically(gen2.get_indices())
+            sort_indices_lexiographically(gen2.get_indices()),
         )
 
 

@@ -293,13 +293,13 @@ class MultiLinearOperatorExpansion(BasisExpansion):
         """Fit the expansion by finding the optimal coefficients."""
         if iterate is not None:
             raise ValueError("iterate will be ignored set to None")
-        out_fun_coefs = self.basis._out_coef_from_outfun_values(
+        out_fun_coefs = self.basis()._out_coef_from_outfun_values(
             self._ctrain_values
         )
-        infun_coefs = self.basis._in_coef_from_infun_values(
+        infun_coefs = self.basis()._in_coef_from_infun_values(
             self._ctrain_samples
         )
-        coef_mat = self.basis._coef_basis(infun_coefs)
+        coef_mat = self.basis()._coef_basis(infun_coefs)
         ntrain_samples = out_fun_coefs.shape[1]
         # TODO add weights to grammian and rhs construction
         grammian = coef_mat.T @ coef_mat / ntrain_samples
@@ -321,7 +321,7 @@ class MultiLinearOperatorExpansion(BasisExpansion):
     def _values_mat_vec(self, infun_values, out_samples):
         # traditional method of computing dot product of basis functions
         # and coefficients
-        basis_mat = self.basis(infun_values, out_samples)
+        basis_mat = self.basis()(infun_values, out_samples)
         # for now assume only one output function
         assert len(out_samples) == 1
         basis_mat = basis_mat[0]
@@ -338,12 +338,12 @@ class MultiLinearOperatorExpansion(BasisExpansion):
         # fortran reshape is needed because c contains the coeficients
         # of \psi_0 for all \xi then of psi_1 for all \xi and so on
         # finally compute \psi(y) @ t
-        if self.basis.nout_functions() != 1:
+        if self.basis().nout_functions() != 1:
             raise ValueError("Currently only supports 1 output function")
         ii = 0  # hack to just one funciton for now
-        in_coef = self.basis._in_coef_from_infun_values(infun_values)
-        coef_basis_mat = self.basis._coef_basis(in_coef)
-        out_basis_mat = self.basis._out_bases[ii](out_samples[ii])
+        in_coef = self.basis()._in_coef_from_infun_values(infun_values)
+        coef_basis_mat = self.basis()._coef_basis(in_coef)
+        out_basis_mat = self.basis()._out_bases[ii](out_samples[ii])
         exp_coefs = self.get_coefficients()
         # taking transpose of the reshaped matrix belwo is equivalent to
         # reorder with order="F", but the former does not require a copy
@@ -518,8 +518,8 @@ class PCATensorOrthoPolyMultiLinearOperatorBasis(PCAMultiLinearOperatorBasis):
         nout_pca_modes,
         coef_base_marginals,
     ):
-        nin_pca_modes = self._bkd.atleast1d(nin_pca_modes, dtype=int)
-        nout_pca_modes = self._bkd.atleast1d(nout_pca_modes, dtype=int)
+        nin_pca_modes = self._bkd.atleast1d(nin_pca_modes)
+        nout_pca_modes = self._bkd.atleast1d(nout_pca_modes)
         if nin_pca_modes.shape[0] != self.nin_functions():
             raise ValueError(
                 "must specify the number of PCA modes for each input function"

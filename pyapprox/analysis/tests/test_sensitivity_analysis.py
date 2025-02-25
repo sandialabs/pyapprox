@@ -63,17 +63,17 @@ class TestSensitivityAnalysis(unittest.TestCase):
         )
         samples = analyzer.generate_samples(nsamples)
         values = benchmark.model()(samples)
-        result = analyzer.compute(values)
+        analyzer.compute(values)
 
-        assert np.allclose(result.mean, benchmark.mean(), atol=2e-3)
+        assert np.allclose(analyzer.mean(), benchmark.mean(), atol=2e-3)
         assert np.allclose(
-            result.main_effects, benchmark.main_effects(), atol=2e-3
+            analyzer.main_effects(), benchmark.main_effects(), atol=2e-3
         )
         assert np.allclose(
-            result.total_effects, benchmark.total_effects(), atol=2e-3
+            analyzer.total_effects(), benchmark.total_effects(), atol=2e-3
         )
         assert np.allclose(
-            result.sobol_indices,
+            analyzer.sobol_indices(),
             benchmark.sobol_indices(),
             rtol=5e-3,
             atol=1e-3,
@@ -91,15 +91,17 @@ class TestSensitivityAnalysis(unittest.TestCase):
         )
         samples = analyzer.generate_samples(nsamples)
         values = benchmark.model()(samples)
-        result = analyzer.compute(values)
+        analyzer.compute(values)
 
         # print(result.mean-benchmark.mean())
-        assert np.allclose(result.mean, benchmark.mean(), atol=2e-2)
+        assert np.allclose(analyzer.mean(), benchmark.mean(), atol=2e-2)
         # print(result.variance-benchmark.variance())
-        assert np.allclose(result.variance, benchmark.variance(), rtol=2e-2)
+        assert np.allclose(
+            analyzer.variance(), benchmark.variance(), rtol=2e-2
+        )
         # print(result.main_effects-benchmark.main_effects)
         assert np.allclose(
-            result.main_effects, benchmark.main_effects(), atol=2e-2
+            analyzer.main_effects(), benchmark.main_effects(), atol=2e-2
         )
 
     def test_sample_based_sobol_sensitivity_analysis_oakley(self):

@@ -375,27 +375,6 @@ def get_first_n_primes(n):
     return np.asarray(primes)
 
 
-def approx_fprime(x, func, eps=np.sqrt(np.finfo(float).eps), forward=True):
-    r"""Approx the gradient of a vector valued function at a single
-    sample using finite_difference
-    """
-    assert x.shape[1] == 1
-    nvars = x.shape[0]
-    fprime = []
-    func_at_x = func(x).squeeze()
-    # if func_at_x.ndim == 2:
-    #     func_at_x = func_at_x[:, 0]
-    assert func_at_x.ndim < 2
-    for ii in range(nvars):
-        x_plus_eps = x.copy()
-        if forward:
-            x_plus_eps[ii] += eps
-        else:
-            x_plus_eps[ii] -= eps
-        fprime.append((func(x_plus_eps).squeeze() - func_at_x) / eps)
-    return np.array(fprime)
-
-
 def partial_functions_equal(func1, func2):
     if not (isinstance(func1, partial) and isinstance(func2, partial)):
         return False
@@ -940,42 +919,6 @@ def flatten_2D_list(list_2d):
         The unique items
     """
     return [item for sub in list_2d for item in sub]
-
-
-def approx_jacobian(
-    func, x, *args, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
-):
-    x0 = bkd.array(x)
-    assert x0.ndim == 1 or x0.shape[1] == 1
-    f0 = bkd.atleast1d(func(*((x0,) + args)))
-    if f0.ndim == 2:
-        assert f0.shape[1] == 1
-        f0 = f0[:, 0]
-    jac = bkd.zeros([len(x0), len(f0)])
-    dx = bkd.zeros(x0.shape)
-    for i in range(len(x0)):
-        dx[i] = epsilon
-        f1 = func(*((x0 + dx,) + args))
-        if f1.ndim == 2:
-            assert f1.shape[1] == 1
-            f1 = f1[:, 0]
-        jac[i] = (f1 - f0) / epsilon
-        dx[i] = 0.0
-    return jac.T
-
-
-# Does not work with Jax
-# def approx_jacobian_3D(f, x0, epsilon=np.sqrt(np.finfo(float).eps),
-#                        bkd=NumpyLinAlgMixin):
-#     fval = f(x0)
-#     jacobian = bkd.full(
-#         (fval.shape[0], fval.shape[1], x0.shape[0]), 0.)
-#     for ii in range(len(x0)):
-#         dx = bkd.full((x0.shape[0],), 0.)
-#         dx[ii] = epsilon
-#         fval_perturbed = f(x0+dx)
-#         jacobian[..., ii] = (fval_perturbed - fval) / epsilon
-#     return jacobian
 
 
 def approx_jacobian_3D(

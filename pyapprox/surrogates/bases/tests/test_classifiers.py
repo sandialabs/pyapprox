@@ -6,7 +6,7 @@ import numpy as np
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.bases.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
 from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis

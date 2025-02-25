@@ -3,7 +3,7 @@ from typing import List
 
 # from pyapprox.interface.model import ModelFromCallable
 from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.bases.univariate.base import Monomial1D
 from pyapprox.surrogates.bases.basis import MultiIndexBasis
 from pyapprox.surrogates.bases.basisexp import (
     BasisExpansion,
@@ -146,7 +146,7 @@ class FunctionTrain(OptimizedRegressor):
             jacs.append([])
             for jj in range(core._ranks[1]):
                 jacs[-1].append(
-                    core._basisexps[ii][jj].basis(
+                    core._basisexps[ii][jj].basis()(
                         samples[core_id : core_id + 1]
                     )
                 )

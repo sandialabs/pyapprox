@@ -8,11 +8,9 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.pde.collocation.adjoint_models import (
     TransientAdjointFunctional,
     AdjointFunctional,
-    TransientAdjointModel,
 )
 from pyapprox.pde.collocation.timeintegration import (
     TimeIntegratorNewtonResidual,
-    TransientNewtonResidual,
 )
 from pyapprox.pde.collocation.solvers import (
     SteadyAdjointCollocationModel,
@@ -21,7 +19,6 @@ from pyapprox.pde.collocation.solvers import (
 from pyapprox.pde.collocation.newton import (
     NewtonSolver,
     ParameterizedNewtonResidualMixin,
-    AdjointFunctional,
 )
 from pyapprox.pde.collocation.functions import (
     ScalarFunction,
@@ -854,6 +851,7 @@ class ParameterizedShallowShelfVelocityPhysics(
         # torch. However applying torch.hvp directly to model.__call__ is many
         # times slower than only using auto diff to compute state_state_hvp,
         # state_param_jvp etc.
+        self(fwd_sol)
         return self._bkd.jvp(
             lambda x: (adj_sol[None, :] @ self.jacobian(x))[0], fwd_sol, wvec
         )
@@ -903,7 +901,7 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
     def setup_basis(self):
         # distances in meters
         Lx, Ly = 100 * 1000, 100 * 1000
-        self._bounds = self._bkd.array([0, Lx, 0, Ly])
+        self._bounds = self._bkd.asarray([0, Lx, 0, Ly])
         transform = ScaleAndTranslationTransform2D(
             [-1, 1, -1, 1], self._bounds, self._bkd
         )

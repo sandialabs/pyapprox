@@ -9,8 +9,10 @@ from pyapprox.pde.collocation.newton import (
     Functional,
     AdjointFunctional,
 )
-from pyapprox.surrogates.bases.univariate import (
+from pyapprox.surrogates.bases.univariate.base import (
     UnivariatePiecewisePolynomialNodeGenerator,
+)
+from pyapprox.surrogates.bases.univariate.local import (
     UnivariatePiecewisePolynomialQuadratureRule,
 )
 
@@ -750,7 +752,7 @@ class ImplicitTimeIntegrator:
 
     def step(self, sol: Array, deltat: float) -> Array:
         self.time_residual.set_time(self._time, deltat, sol)
-        sol = self.newton_solver.solve(self._bkd.copy(sol))
+        sol = self.newton_solver.solve(sol)  # self._bkd.copy(sol))
         self._time += deltat
         if self._verbosity >= 1:
             print("Time", self._time)
@@ -760,7 +762,9 @@ class ImplicitTimeIntegrator:
         sols, times = [], []
         self._time = self._init_time
         times.append(self._time)
-        sol = self._bkd.copy(init_sol)
+        sol = init_sol
+        # do not use copy as torch will not set requires grad correctly
+        # self._bkd.copy(init_sol)
         sols.append(init_sol)
         while self._time < self._final_time - 1e-12:
             deltat = min(self._deltat, self._final_time - self._time)
@@ -768,7 +772,7 @@ class ImplicitTimeIntegrator:
             sols.append(sol)
             times.append(self._time)
         sols = self._bkd.stack(sols, axis=1)
-        return sols, self._bkd.array(times)
+        return sols, self._bkd.asarray(times)
 
     def adjoint_step(
         self,
@@ -882,7 +886,6 @@ class ImplicitTimeIntegrator:
                 drdp
             )
         )
-        # print(drdp.shape, adj_sols.shape, dqdp.shape, (adj_sols[:, 0] @ drdp).shape)
         grad += adj_sols[:, 0] @ drdp
         for ii, time in enumerate(times[:-1], start=0):
             self.time_residual.set_time(

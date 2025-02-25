@@ -4,16 +4,15 @@ from scipy import stats
 import numpy as np
 import sympy as sp
 
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.bases.univariate.orthopoly import (
     LegendrePolynomial1D,
     setup_univariate_orthogonal_polynomial_from_marginal,
     AffineMarginalTransform,
     GaussQuadratureRule,
-    setup_lagrange_basis,
     Chebyshev1stKindGaussLobattoQuadratureRule,
 )
-from pyapprox.surrogates.bases.univariate import (
-    Monomial1D,
+from pyapprox.surrogates.bases.univariate.base import Monomial1D
+from pyapprox.surrogates.bases.univariate.local import (
     setup_univariate_piecewise_polynomial_basis,
 )
 from pyapprox.surrogates.bases.basis import (
@@ -24,6 +23,7 @@ from pyapprox.surrogates.bases.basis import (
     TrigonometricBasis,
     FourierBasis,
 )
+from pyapprox.surrogates.bases.univariate.lagrange import setup_lagrange_basis
 from pyapprox.surrogates.bases.basisexp import (
     MonomialExpansion,
     PolynomialChaosExpansion,
@@ -132,7 +132,7 @@ class TestBasis:
             # true_coef[nonzero_indices, ii] = ii+1
             true_coef = bkd.up(true_coef, (nonzero_indices, ii), ii + 1)
         assert bkd.allclose(coef, true_coef)
-        samples = bkd.atleast2d(np.random.uniform(-1, 1, (nvars, 1000)))
+        samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, 1000)))
         assert bkd.allclose(basisexp(samples), fun(samples))
 
     def test_fit_monomial_expansion(self):

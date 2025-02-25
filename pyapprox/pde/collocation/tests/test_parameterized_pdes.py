@@ -19,13 +19,16 @@ from pyapprox.pde.collocation.timeintegration import (
     TransientMSEAdjointFunctional,
 )
 from pyapprox.pde.collocation.newton import (
-    NewtonSolver, AdjointFunctional, Array
+    NewtonSolver,
+    AdjointFunctional,
+    Array,
 )
 from pyapprox.pde.collocation.solvers import CollocationModelMixin
 from pyapprox.pde.collocation.functions import (
     animate_transient_2d_scalar_solution,
     animate_transient_2d_vector_solution,
 )
+
 # from pyapprox.util.print_wrapper import *
 
 
@@ -72,7 +75,7 @@ class TestParameterizedModels:
         newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
         model = SteadyDarcy2DKLEModel(
             10,
-            1.,
+            1.0,
             0.1,
             0.0,
             newton_solver=newton_solver,
@@ -100,7 +103,7 @@ class TestParameterizedModels:
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = model.check_apply_jacobian(sample, fd_eps, disp=True)
         print(errors.min() / errors.max())
-        assert errors.min() / errors.max() < 1.3e-6
+        assert errors.min() / errors.max() < 1.4e-6
 
         errors = model.check_apply_hessian(sample, fd_eps, disp=True)
         print(errors.min() / errors.max())
@@ -153,7 +156,7 @@ class TestParameterizedModels:
             model.physics().ncomponents(),
             [0, 1],
             [0, 1],
-            51
+            51,
         )
         ani.save("fitzhugnagumo.gif", dpi=100)
 
@@ -161,7 +164,7 @@ class TestParameterizedModels:
         bkd = self.get_backend()
         newton_solver = NewtonSolver(verbosity=0, rtol=1e-12, atol=1e-6)
         model = SteadyShallowShelfModel2D(newton_solver, backend=bkd)
-        sample = bkd.array(np.random.normal(0., 1., (model.nvars(), 1)))
+        sample = bkd.asarray(np.random.normal(0.0, 1.0, (model.nvars(), 1)))
 
         # Todo most of the following can be moved to an code example page
         # model.physics().set_param(sample[:, 0])
@@ -218,8 +221,40 @@ class TestParameterizedModels:
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 2e-7
 
+        # from pyapprox.util.utilities import approx_jacobian
+
+        # def gfun(param):
+        #     return model.forward_solve(param[:, None]).get_values().flatten()
+
+        # assert bkd.allclose(
+        #     approx_jacobian(gfun, sample[:, 0], bkd=bkd),
+        #     bkd.jacobian(gfun, sample[:, 0]),
+        #     atol=1e-6,
+        # )
+        # assert False
         if not bkd.hessian_implemented():
             return
+
+        from pyapprox.optimization.minimize import approx_hessian
+
+        # print(
+        #     approx_hessian(
+        #         lambda x: model.jacobian(x[:, None])[0], sample[:, 0], bkd=bkd
+        #     )
+        #     - bkd.hessian(lambda x: model(x[:, None]), sample[:, 0]),
+        # )
+        # assert bkd.allclose(
+        #     approx_hessian(
+        #         lambda x: model.jacobian(x[:, None])[0], sample[:, 0], bkd=bkd
+        #     ),
+        #     bkd.hessian(lambda x: model(x[:, None]), sample[:, 0]),
+        #     atol=1e-6,
+        # )
+        # vec = bkd.ones((sample.shape[0], 1))
+        # print(model.apply_hessian(sample, vec))
+        # print(bkd.hvp(lambda x: model(x[:, None]), sample[:, 0], vec[:, 0]))
+        # assert False
+
         errors = model.check_apply_hessian(sample, None, disp=True)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 4e-7

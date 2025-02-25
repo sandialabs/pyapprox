@@ -16,7 +16,9 @@ from pyapprox.pde.collocation.mesh_transforms import (
     FixedScaleAndTranslationTransform3D,
 )
 from pyapprox.util.utilities import approx_fprime
-from pyapprox.surrogates.bases.orthopoly import GaussLegendreQuadratureRule
+from pyapprox.surrogates.bases.univariate.orthopoly import (
+    GaussLegendreQuadratureRule,
+)
 from pyapprox.surrogates.bases.basis import FixedTensorProductQuadratureRule
 
 

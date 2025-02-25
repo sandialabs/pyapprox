@@ -4,18 +4,18 @@ from typing import List
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.surrogates.bases.multiindex import compute_hyperbolic_indices
-from pyapprox.surrogates.bases.univariate import (
+from pyapprox.surrogates.bases.univariate.base import (
     UnivariateInterpolatingBasis,
     UnivariateQuadratureRule,
     UnivariateBasis,
 )
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.bases.univariate.orthopoly import (
     OrthonormalPolynomial1D,
     TrigonometricPolynomial1D,
     FourierBasis1D,
+    GaussQuadratureRule,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
 from pyapprox.util.visualization import get_meshgrid_samples, plot_surface
 
 

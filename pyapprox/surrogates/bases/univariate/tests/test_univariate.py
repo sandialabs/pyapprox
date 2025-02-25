@@ -5,17 +5,21 @@ import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.univariate import (
+from pyapprox.surrogates.bases.univariate.local import (
     irregular_piecewise_linear_basis,
     irregular_piecewise_quadratic_basis,
     irregular_piecewise_cubic_basis,
     setup_univariate_piecewise_polynomial_basis,
+    UnivariatePiecewisePolynomialQuadratureRule,
+)
+from pyapprox.surrogates.bases.univariate.base import (
     ClenshawCurtisQuadratureRule,
-    UnivariateLagrangeBasis,
     ScipyUnivariateIntegrator,
     UnivariateUnboundedIntegrator,
     UnivariatePiecewisePolynomialNodeGenerator,
-    UnivariatePiecewisePolynomialQuadratureRule,
+)
+from pyapprox.surrogates.bases.univariate.lagrange import (
+    UnivariateLagrangeBasis,
 )
 from pyapprox.interface.model import ModelFromVectorizedCallable
 

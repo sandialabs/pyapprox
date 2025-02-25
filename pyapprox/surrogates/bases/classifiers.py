@@ -60,7 +60,7 @@ class CrossEntropyLossLogisticRegression(CrossEntropyLoss):
         self._model.hyp_list().set_active_opt_params(active_opt_params[:, 0])
         prob = self._model(self._model._ctrain_samples)
         obs = self._model._ctrain_values
-        basis = self._model._bexp.basis(self._model._ctrain_samples)
+        basis = self._model._bexp.basis()(self._model._ctrain_samples)
         nsamples = self._model._ctrain_samples.shape[1]
         return (
             (basis.T @ (prob - obs)).T / nsamples
@@ -68,7 +68,7 @@ class CrossEntropyLossLogisticRegression(CrossEntropyLoss):
         )
 
     def _apply_hessian(self, active_opt_params: Array, vec: Array) -> Array:
-        basis = self._model._bexp.basis(self._model._ctrain_samples)
+        basis = self._model._bexp.basis()(self._model._ctrain_samples)
         prob = self._model(self._model._ctrain_samples)
         nsamples = self._model._ctrain_samples.shape[1]
         return (
@@ -119,7 +119,7 @@ class LogisticClassifier(OptimizedRegressor):
         return (
             exp_vals
             / (1 + exp_vals) ** 2
-            * self._bexp.basis(self._ctrain_samples)
+            * self._bexp.basis()(self._ctrain_samples)
         )
 
     def labels(self, samples: Array, threshold: float = 0.5) -> Array:

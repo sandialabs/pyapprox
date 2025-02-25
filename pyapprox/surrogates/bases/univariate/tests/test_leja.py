@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import sympy as sp
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.surrogates.bases.leja import (
+from pyapprox.surrogates.bases.univariate.leja import (
     OnePointPDFLejaObjective,
     BetaMarginal,
     UniformMarginal,

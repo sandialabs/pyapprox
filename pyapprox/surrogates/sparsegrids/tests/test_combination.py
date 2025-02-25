@@ -14,12 +14,14 @@ from pyapprox.surrogates.bases.multiindex import (
     sort_indices_lexiographically,
     argsort_indices_lexiographically,
 )
-from pyapprox.surrogates.bases.univariate import (
-    UnivariateLagrangeBasis,
+from pyapprox.surrogates.bases.univariate.base import (
     ClenshawCurtisQuadratureRule,
     DydadicEquidistantNodeGenerator,
 )
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.bases.univariate.lagrange import (
+    UnivariateLagrangeBasis,
+)
+from pyapprox.surrogates.bases.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
 from pyapprox.surrogates.bases.basis import (
@@ -37,7 +39,7 @@ from pyapprox.surrogates.sparsegrids.combination import (
     SparseGridMaxLevelAdmissibilityCriteria,
     SparseGridMaxCostBasisAdmissibilityCriteria,
 )
-from pyapprox.surrogates.bases.univariate import (
+from pyapprox.surrogates.bases.univariate.local import (
     setup_univariate_piecewise_polynomial_basis,
 )
 

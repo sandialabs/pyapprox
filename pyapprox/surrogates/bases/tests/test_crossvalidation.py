@@ -3,8 +3,9 @@ import unittest
 import numpy as np
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+
 # from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.orthopoly import LegendrePolynomial1D
+from pyapprox.surrogates.bases.univariate.orthopoly import LegendrePolynomial1D
 from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
 from pyapprox.surrogates.bases.linearsystemsolvers import (
@@ -58,7 +59,7 @@ class TestCrossValidation:
         degree = 3
         polys_1d = [LegendrePolynomial1D(backend=bkd) for dd in range(nvars)]
         basis = OrthonormalPolynomialBasis(polys_1d)
-        basis.set_hyperbolic_indices(degree, 1.)
+        basis.set_hyperbolic_indices(degree, 1.0)
         pce = PolynomialChaosExpansion(
             basis, solver=OMPSolver(backend=bkd, verbosity=2, rtol=0), nqoi=1
         )
@@ -73,11 +74,11 @@ class TestCrossValidation:
 
         kcv = KFoldCrossValidation(train_samples, train_values, pce)
         search1 = PolynomialDegreeIterator([1, 2, 3], [0.1, 1.0])
-        search2 = OMPNTermsIterator([2, 3**nvars+1, np.inf])
+        search2 = OMPNTermsIterator([2, 3**nvars + 1, np.inf])
         search = GridSearchStructureParameterIterator([search1, search2])
         cv_search = CrossValidationStructureSearch(kcv, search)
         best_structure_params, results, best_idx = cv_search.run()
-        self.assertEqual(best_structure_params, ((3, 0.1), 3**nvars+1))
+        self.assertEqual(best_structure_params, ((3, 0.1), 3**nvars + 1))
         assert results[best_idx][0] < 1e-15
         print(pce._solver._termination_flag)
         # if ntrain_samples is too small then algorithm may termite with

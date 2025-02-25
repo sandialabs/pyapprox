@@ -87,7 +87,6 @@ class CholeskySampler:
                 self._canonical_candidate_samples
             )
         if self._weight_function_changed:
-            print(self._weight_function)
             self._pivot_weights = self._weight_function(
                 self._candidate_samples
             )
