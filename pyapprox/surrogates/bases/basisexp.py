@@ -7,6 +7,10 @@ from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.surrogates.bases.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
+    GaussQuadratureRule,
+)
+from pyapprox.surrogates.bases.univariate.lagrange import (
+    UnivariateLagrangeBasis,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.bases.basis import (
@@ -16,6 +20,7 @@ from pyapprox.surrogates.bases.basis import (
     TensorProductInterpolatingBasis,
     TrigonometricBasis,
     FourierBasis,
+    TensorProductQuadratureRule,
 )
 from pyapprox.surrogates.bases.linearsystemsolvers import (
     LinearSystemSolver,
@@ -654,6 +659,9 @@ class TensorProductInterpolant(Surrogate):
     def get_train_values(self) -> Array:
         return self._train_values
 
+    def basis(self) -> TensorProductInterpolatingBasis:
+        return self._basis
+
 
 class TrigonometricExpansion(BasisExpansion):
     def set_basis(self, basis, coef_bounds=None):
@@ -732,3 +740,111 @@ class FourierExpansion(BasisExpansion):
     def compute_coefficients(self, values: Array) -> Array:
         quad_samples = self.quadrature_samples()
         return (self._basis(quad_samples).T) @ values / self.nterms()
+
+
+class TensorProductLagrangeInterpolantToPolynomialChaosExpansionConverter:
+    def __init__(self, quad_rule: TensorProductQuadratureRule):
+        self._check_quadrature_rule(quad_rule)
+        self._quad_rule = quad_rule
+        self._bkd = self._quad_rule._bkd
+        marginals = [
+            quad_rule1d._marginal
+            for quad_rule1d in self._quad_rule._univariate_quad_rules
+        ]
+        self._variable = IndependentMarginalsVariable(marginals)
+
+    def _check_interpolant(self, interp: TensorProductInterpolant):
+        if not isinstance(interp, TensorProductInterpolant):
+            raise ValueError(
+                "interp must be an instance of TensorProductInterpolant"
+            )
+
+    def _check_quadrature_rule(self, quad_rule: TensorProductQuadratureRule):
+        for quad_rule1d in quad_rule._univariate_quad_rules:
+            if not isinstance(quad_rule1d, GaussQuadratureRule):
+                raise ValueError(
+                    "quad_rule must be an instance of GaussQuadratureRule"
+                )
+
+    def univariate_lagrange_basis_to_univariate_orthopoly_coefs(
+        self, basis: UnivariateLagrangeBasis, quad_rule: GaussQuadratureRule
+    ) -> Array:
+        if not isinstance(basis, UnivariateLagrangeBasis):
+            raise Exception(
+                "Basis must be an instance of UnivariateLagrangeBasis"
+            )
+        # Use spectral projection to compute the coefficients of an orthonormal
+        # polynomial that represent each lagrange basis function. The
+        # orthonormal polynomial is defined implicitly by the
+        # GaussQuadratureRule
+        nterms = basis._quad_samples.shape[1]
+        nsamples = nterms + 1
+        quadx, quadw = quad_rule(nsamples)
+        # sets quad_rule._poly internally to have nterms=nsamples
+        ortho_basis_mat = quad_rule._poly(quadx)[:, :nterms]
+        lagrange_basis_mat = basis(quadx)
+        coefs = []
+        for ii in range(lagrange_basis_mat.shape[1]):
+            coefs_ii = quadw[:, 0] @ (
+                lagrange_basis_mat[:, ii : ii + 1] * ortho_basis_mat
+            )
+            coefs.append(coefs_ii)
+        return self._bkd.stack(coefs, axis=1)
+
+    def multivariate_lagrange_basis_to_univariate_orthopoly_coefs(
+        self,
+        basis: TensorProductInterpolatingBasis,
+    ) -> List[Array]:
+        coefs_1d = []
+        for basis1d, quad_rule1d in zip(
+            basis._bases_1d, self._quad_rule._univariate_quad_rules
+        ):
+            coefs_1d.append(
+                self.univariate_lagrange_basis_to_univariate_orthopoly_coefs(
+                    basis1d, quad_rule1d
+                )
+            )
+        return coefs_1d
+
+    def polynomial_chaos_expansion_coefficients(
+        self,
+        basis: TensorProductInterpolatingBasis,
+        values: Array,
+    ):
+        coefs_1d = (
+            self.multivariate_lagrange_basis_to_univariate_orthopoly_coefs(
+                basis
+            )
+        )
+        basis_index = self._bkd.array(
+            [basis1d.nterms() for basis1d in basis._bases_1d], dtype=int
+        )
+        active_idx = self._bkd.where(basis_index > 0)[0]
+        basis_indices = basis.get_indices()
+        nqoi = values.shape[1]
+        ortho_poly_coefs = self._bkd.zeros((basis.nterms(), nqoi))
+        for ii in range(basis.nterms()):
+            active_coefs_1d = [
+                coefs_1d[idx][:, basis_indices[idx, ii]] for idx in active_idx
+            ]
+            ortho_basis_coefs = self._bkd.outer_product(active_coefs_1d)
+            ortho_poly_coefs += ortho_basis_coefs[:, None] * values[ii]
+        return ortho_poly_coefs
+
+    def convert(
+        self,
+        interp: TensorProductInterpolant,
+    ) -> PolynomialChaosExpansion:
+        self._check_interpolant(interp)
+        poly = setup_polynomial_chaos_expansion_from_variable(
+            self._variable, interp.nqoi()
+        )
+        poly.basis().set_indices(interp.basis().get_indices())
+        pce_coef = self.polynomial_chaos_expansion_coefficients(
+            interp.basis(), interp.get_train_values()
+        )
+        poly.set_coefficients(pce_coef)
+        return poly
+
+    def variable(self) -> IndependentMarginalsVariable:
+        return self._variable

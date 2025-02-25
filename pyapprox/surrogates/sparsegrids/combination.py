@@ -1187,6 +1187,24 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         self._basis_gen.set_admissibility_function(admis_criteria)
 
 
+class SparseGridToOrthonormalPolynomialChaosExpansionConverter:
+    def __init__():
+        pass
+
+    def _check_sparse_grid(self, sg: CombinationSparseGrid):
+        if not isinstance(sg, CombinationSparseGrid):
+            raise Exception("Can only convert a sparse grid")
+
+    def _univariate_lagrange_basis_to_orthopoly(
+        self, sg: CombinationSparseGrid
+    ):
+        for basis1d in sg._basis._bases_1d:
+            basis1d.orthonormal_polynomial_coefficients()
+
+    def convert(self, sg: CombinationSparseGrid) -> PolynomialChaosExpansion:
+        self._check_sparse_grid(sg)
+
+
 # TODO mix locally adaptive basis with global polynomial basis in another
 # dimension. Do this by adding all left and right neigbours in dimensions
 # with global basis

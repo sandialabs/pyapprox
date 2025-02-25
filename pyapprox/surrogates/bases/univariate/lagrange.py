@@ -62,24 +62,6 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
         # dimensions of a tensor product and subspaces in a sparse grid
         return UnivariateLagrangeBasis(self._quad_rule, self.nterms())
 
-    def orthonormal_polynomial_coefficients(
-        self, quad_rule: GaussQuadratureRule
-    ):
-        # Use spectral projection to compute the coefficients of an orthonormal polynomial that represent each lagrange basis function. The orthonormal polynomial is defined implicitly by the GaussQuadratureRule
-        nterms = self._quad_samples.shape[1]
-        nsamples = nterms + 1
-        quadx, quadw = quad_rule(nsamples)
-        # sets quad_rule._poly internally to have nterms=nsampels
-        ortho_basis_mat = quad_rule._poly(quadx)[:, nterms]
-        lagrange_basis_mat = self(quadx)
-        coefs = []
-        for ii in range(lagrange_basis_mat.shape[0]):
-            coefs_ii = quadw[:, 0] @ (
-                lagrange_basis_mat[:, ii : ii + 1] * ortho_basis_mat
-            )
-            coefs.append(coefs_ii)
-        return self._bkd.stack(coefs, axis=1)
-
 
 class UnivariateBarycentricLagrangeBasis(UnivariateLagrangeBasis):
     def set_nterms(self, nterms: int, interval_length: float = None):

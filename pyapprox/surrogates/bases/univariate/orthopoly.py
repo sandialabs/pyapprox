@@ -803,8 +803,9 @@ class GaussQuadratureRule(UnivariateQuadratureRule):
         store: bool = False,
     ):
         super().__init__(backend, store)
+        self._marginal = marginal
         self._poly = setup_univariate_orthogonal_polynomial_from_marginal(
-            marginal, opts=opts, backend=backend
+            self._marginal, opts=opts, backend=backend
         )
 
     def _quad_rule(self, nnodes: int) -> Tuple[Array, Array]:
