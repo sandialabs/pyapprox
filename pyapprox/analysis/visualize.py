@@ -284,8 +284,8 @@ def plot_discrete_measure_1d(samples, weights, ax=None):
     """
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-    plt.plot(samples, weights, "o")
-    for s, w in zip(samples, weights):
+    plt.plot(samples[0], weights[:, 0], "o")
+    for s, w in zip(samples[0], weights[:, 0]):
         ax.vlines(x=s, ymin=0, ymax=w)
     return ax
 

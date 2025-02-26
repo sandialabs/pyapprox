@@ -801,7 +801,7 @@ class GaussQuadratureRule(UnivariateQuadratureRule):
     def __init__(
         self,
         marginal,
-        opts: dict = None,
+        opts: dict = {},
         backend: LinAlgMixin = None,
         store: bool = False,
     ):

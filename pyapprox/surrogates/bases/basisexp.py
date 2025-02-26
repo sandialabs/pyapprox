@@ -658,9 +658,15 @@ class TensorProductInterpolant(Surrogate):
     def __repr__(self):
         return "{0}(basis={1})".format(self.__class__.__name__, self._basis)
 
-    def integrate(self) -> Array:
+    def mean(self) -> Array:
         quad_weights = self._basis.quadrature_rule()[1]
         return (self._train_values.T @ quad_weights)[:, 0]
+
+    def variance(self) -> Array:
+        quad_weights = self._basis.quadrature_rule()[1]
+        return ((self._train_values**2).T @ quad_weights)[
+            :, 0
+        ] - self.mean() ** 2
 
     def get_train_samples(self) -> Array:
         return self._basis.tensor_product_grid()

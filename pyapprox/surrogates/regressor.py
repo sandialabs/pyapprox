@@ -3,6 +3,8 @@ import pickle
 import warnings
 from typing import Tuple
 
+import matplotlib.pyplot as plt
+
 from pyapprox.interface.model import Model
 from pyapprox.surrogates.loss import LossFunction
 from pyapprox.optimization.minimize import MultiStartOptimizer
@@ -61,6 +63,13 @@ class Surrogate(Model):
         plot_surface_funs[self.nvars()](
             ax, qoi, plot_limits, npts_1d, **kwargs
         )
+
+    def get_plot_axis(self, figsize=(8, 6), surface=False):
+        if self.nvars() < 3 and not surface:
+            fig = plt.figure(figsize=figsize)
+            return fig, fig.gca()
+        fig = plt.figure(figsize=figsize)
+        return fig, fig.add_subplot(111, projection="3d")
 
     def plot_contours(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
         if self.nvars() != 2:

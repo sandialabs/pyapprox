@@ -9,27 +9,33 @@ benchmark. The function interpolates functions on tensor-products of
 Here levels specifies the level of each 1D grid
 
 """
+
 import numpy as np
-from functools import partial
-from pyapprox.benchmarks import setup_benchmark
-from pyapprox.analysis import visualize
-from pyapprox import surrogates
+import matplotlib.pyplot as plt
+from pyapprox.benchmarks import GenzBenchmark
+from pyapprox.surrogates.bases.univariate.local import (
+    setup_univariate_piecewise_polynomial_basis,
+)
+from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 
-benchmark = setup_benchmark("genz", test_name="discontinuous", nvars=2)
+nvars = 2
+benchmark = GenzBenchmark(name="discontinuous", nvars=nvars)
 
-levels = [5, 5]
-interp_fun = partial(
-    surrogates.tensor_product_piecewise_polynomial_interpolation,
-    levels=levels, fun=benchmark.fun, basis_type="quadratic")
+nnodes_1d = np.array([5] * nvars)
+bounds = [0, 1]
+basis_types = ["quadratic"] * nvars
+bases_1d = [
+    setup_univariate_piecewise_polynomial_basis(bt, bounds)
+    for bt in basis_types
+]
+basis = TensorProductInterpolatingBasis(bases_1d)
+interp = TensorProductInterpolant(basis)
+basis.set_tensor_product_indices(nnodes_1d)
 
-X, Y, Z = visualize.get_meshgrid_function_data_from_variable(
-    interp_fun, benchmark.variable, 50)
-fig, axs = visualize.plt.subplots(1, 2, figsize=(2*8, 6))
-axs[0].contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 20))
+train_samples = basis.tensor_product_grid()
+train_values = benchmark.model()(train_samples)
+interp.fit(train_values)
 
-#%%
-#To plot the difference between the interpolant and the target function use
-X, Y, Z = visualize.get_meshgrid_function_data_from_variable(
-    lambda x: interp_fun(x)-benchmark.fun(x), benchmark.variable, 50)
-axs[1].contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 20))
-visualize.plt.show()
+fig, axs = interp.get_plot_axis(surface=True)
+_ = interp.plot_surface(axs, [0, 1, 0, 1])

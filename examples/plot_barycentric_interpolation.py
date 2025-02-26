@@ -11,45 +11,51 @@ tensor product grid. While technically Lagrange interpolation can be used with
 any 1D grids, it is better to use points well suited to polynomial
 interpolation. Here we use the samples of a Gaussian quadrature rule.
 """
+
 from scipy import stats
 import numpy as np
 import matplotlib.pyplot as plt
-from functools import partial
-from pyapprox import surrogates
-from pyapprox.analysis import visualize
-from pyapprox import variables
-from pyapprox import util
+from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.surrogates.bases.univariate.lagrange import (
+    UnivariateLagrangeBasis,
+)
+from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
+from pyapprox.interface.model import ModelFromSingleSampleCallable
 
 degree = 10
 marginals = [stats.uniform(-1, 2), stats.uniform(-1, 2)]
-grid_samples_1d = [surrogates.get_gauss_quadrature_rule_from_marginal(
-    rv, degree+1)(degree+1)[0] for rv in marginals]
+quad_rules_1d = [GaussQuadratureRule(marginal) for marginal in marginals]
+bases_1d = [
+    UnivariateLagrangeBasis(quad_rule, 1) for quad_rule in quad_rules_1d
+]
 
 
-#%%
-#Now lets define the function we want to interpolate, e.g.
+# %%
+# Now lets define the function we want to interpolate, e.g.
 #:math:`f(\rv)=\rv_1^2+\rv_2^2`
 def fun(samples):
     return np.sum(samples**2, axis=0)[:, None]
 
 
-##%
-#Now we will use partial to create a callable function that just takes
-#the samples at which we want to evaluate the interpolant
-#This function will evaluate fun on a tensor product grid internally
-interp_fun = partial(
-    surrogates.tensor_product_barycentric_lagrange_interpolation,
-    grid_samples_1d, fun)
-variable = variables.IndependentMarginalsVariable(marginals)
-X, Y, Z = visualize.get_meshgrid_function_data_from_variable(
-    interp_fun, variable, 50)
-fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-ax.contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 20))
-util.plot_2d_samples(
-    util.cartesian_product(grid_samples_1d), ax, marker='o', c='r')
-plt.show()
+model = ModelFromSingleSampleCallable(1, 2, fun)
 
-#%%
-#Barycentric interpolation can be used for any number of variables. However,
-#the number of evaluations of the target function grows exponentially with
-#the number of variables
+##%
+# Now create the interpolant
+nnodes_1d = np.array([5] * 2)
+basis = TensorProductInterpolatingBasis(bases_1d)
+interp = TensorProductInterpolant(basis)
+basis.set_tensor_product_indices(nnodes_1d)
+
+train_samples = basis.tensor_product_grid()
+train_values = model(train_samples)
+interp.fit(train_values)
+
+# %% Now plot the interpolant
+fig, axs = interp.get_plot_axis(surface=True)
+_ = interp.plot_surface(axs, [-1, 1, -1, 1])
+
+# %%
+# Multivariate Lagrange interpolation can be used for any number of variables. However,
+# the number of evaluations of the target function grows exponentially with
+# the number of variables

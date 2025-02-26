@@ -1906,3 +1906,34 @@ class PoolModelWrapper(Model):
 
     def activate_model_data_base(self):
         raise NotImplementedError("database not support for PoolModelWrapper")
+
+
+class MultiIndexModelEnsemble(ABC):
+    def __init__(
+        self, nrefinement_vars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+    ):
+        self._nrefinement_vars = nrefinement_vars
+        self._models = dict()
+        self._bkd = backend
+
+    def _hash_model_id(self, model_id: Array) -> int:
+        return hash(self._bkd.to_numpy(model_id).tobytes())
+
+    def get_model(self, model_id: Array) -> Model:
+        if model_id.shape != (self.nrefinement_vars(),):
+            raise ValueError("model_id does not match nrefinement_vars")
+        key = self._hash_model_id(model_id)
+        if key in self._models:
+            return self._models[key]
+        model = self.setup_model(model_id)
+        if not isinstance(model, Model):
+            raise RuntimeError("setup_model did not return a Model")
+        self._models[key] = model
+        return model
+
+    @abstractmethod
+    def setup_model(self, model_id: Array):
+        raise NotImplementedError
+
+    def nrefinement_vars(self) -> int:
+        return self._nrefinement_vars
