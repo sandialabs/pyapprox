@@ -16,7 +16,6 @@ from pyapprox.util.misc import argsort_indices_leixographically
 from pyapprox.util.sys_utilities import hash_array
 
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
-from pyapprox.util.utilities import nchoosek
 from pyapprox.expdesign.sequences import SobolSequence, HaltonSequence
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     _compute_expected_sobol_indices,
@@ -24,12 +23,12 @@ from pyapprox.surrogates.gaussianprocess.gaussian_process import (
     extract_gaussian_process_attributes_for_integration,
     GaussianProcess,
 )
-from pyapprox.surrogates.polychaos.gpc import (
-    define_poly_options_from_variable_transformation,
-    PolynomialChaosExpansion,
-)
-from pyapprox.surrogates.polychaos.sparse_grid_to_gpc import (
-    convert_sparse_grid_to_polynomial_chaos_expansion,
+from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.surrogates.bases.basis import TensorProductQuadratureRule
+from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
+from pyapprox.surrogates.sparsegrids.combination import (
+    CombinationSparseGrid,
+    SparseGridToOrthonormalPolynomialChaosExpansionConverter,
 )
 
 
@@ -187,6 +186,32 @@ class PolynomialChaosSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
         return self._sobol_indices
 
 
+class LagrangeSparseGridSensitivityAnalysis(
+    PolynomialChaosSensivitityAnalysis
+):
+    def __init__(
+        self,
+        variable: IndependentMarginalsVariable,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._variable = variable
+        super().__init__(self._variable.nvars(), backend)
+
+    def compute(self, sg: CombinationSparseGrid):
+        pce_quad_rule = TensorProductQuadratureRule(
+            self._variable.nvars(),
+            [
+                GaussQuadratureRule(marginal)
+                for marginal in self._variable.marginals()
+            ],
+        )
+        converter = SparseGridToOrthonormalPolynomialChaosExpansionConverter(
+            pce_quad_rule
+        )
+        pce = converter.convert(sg)
+        return super().compute(pce)
+
+
 def plot_main_effects(
     main_effects, ax, truncation_pct=0.95, max_slices=5, rv="z", qoi=0
 ):
@@ -218,7 +243,8 @@ def plot_main_effects(
     if main_effects.ndim == 1:
         main_effects = main_effects[:, None]
     main_effects = main_effects[:, qoi]
-    assert main_effects.sum() <= 1.0 + np.finfo(float).eps
+    if main_effects.sum() > 1.0 + np.finfo(float).eps:
+        raise ValueError("main_effects sum was greater than 1")
     main_effects_sum = main_effects.sum()
 
     # sort main_effects in descending order
@@ -234,14 +260,15 @@ def plot_main_effects(
         else:
             break
 
-    main_effects.resize(i + 1)
     if abs(partial_sum - main_effects_sum) > 0.5:
+        main_effects.resize(i + 1)
         explode = np.zeros(main_effects.shape[0])
         labels.append(r"$\mathrm{other}$")
         main_effects[-1] = main_effects_sum - partial_sum
         explode[-1] = 0.1
     else:
         main_effects.resize(i)
+        labels = labels[:i]
         explode = np.zeros(main_effects.shape[0])
 
     p = ax.pie(
@@ -714,72 +741,6 @@ class MorrisSensitivityAnalysis:
 
 class SensitivityResult(OptimizeResult):
     pass
-
-
-def sparse_grid_sobol_sensitivities(sparse_grid, max_order=2):
-    r"""
-    Compute sensitivity indices from a sparse grid
-    by converting it to a polynomial chaos expansion
-
-    Parameters
-    ----------
-    sparse_grid :class:`pyapprox.adaptive_sparse_grid:CombinationSparseGrid`
-       The sparse grid
-
-    max_order : integer
-        The maximum interaction order of Sobol indices to compute. A value
-        of 2 will compute all pairwise interactions, a value of 3 will
-        compute indices for all interactions involving 3 variables. The number
-        of indices returned will be nchoosek(nvars+max_order,nvars). Warning
-        when nvars is high the number of indices will increase rapidly with
-        max_order.
-
-    Returns
-    -------
-    result : :class:`pyapprox.analysis.sensitivity_analysis.SensitivityResult`
-         Result object with the following attributes
-
-    main_effects : Array (nvars)
-        The variance based main effect sensitivity indices
-
-    total_effects : Array (nvars)
-        The variance based total effect sensitivity indices
-
-    sobol_indices : Array (nchoosek(nvars+max_order,nvars),nqoi)
-        The variance based Sobol sensitivity indices
-
-    sobol_interaction_indices : Array(nvars,nchoosek(nvars+max_order,nvars))
-        Indices specifying the variables in each interaction in
-        ``sobol_indices``
-
-    pce : :class:`multivariate_polynomials.PolynomialChaosExpansion`
-       The pce respresentation of the sparse grid ``approx``
-    """
-    pce_opts = define_poly_options_from_variable_transformation(
-        sparse_grid.var_trans
-    )
-    pce = convert_sparse_grid_to_polynomial_chaos_expansion(
-        sparse_grid, pce_opts
-    )
-    pce_main_effects, pce_total_effects = (
-        get_main_and_total_effect_indices_from_pce(
-            pce.get_coefficients(), pce.get_indices()
-        )
-    )
-
-    interaction_terms, pce_sobol_indices = get_sobol_indices(
-        pce.get_coefficients(), pce.get_indices(), max_order=max_order
-    )
-
-    return SensitivityResult(
-        {
-            "main_effects": pce_main_effects,
-            "total_effects": pce_total_effects,
-            "sobol_indices": pce_sobol_indices,
-            "sobol_interaction_indices": interaction_terms,
-            "pce": pce,
-        }
-    )
 
 
 # def _repeat_sampling_based_sobol_indices(
@@ -1481,93 +1442,6 @@ class BinBasedVarianceSensitivityAnalysis:
             }
         )
         return bootstrapped_stats
-
-
-def run_sensitivity_analysis(method, fun, variable, *args, **kwargs):
-    """
-    Compute sensitivity indices for a model.
-
-    Parameters
-    ----------
-    method : string
-        The name of the sensitivity method
-
-    fun : callable
-        The function to be approximated
-
-        ``fun(z) -> Array``
-
-        where ``z`` is a 2D Array with shape (nvars, nsamples) and the
-        output is a 2D Array with shape (nsamples, nqoi)
-
-
-    variable : pya.IndependentMarginalsVariable
-        Object containing information of the joint density of the inputs z.
-        This is used to generate random samples from this join density
-
-    args: kwargs
-        optional keyword arguments
-
-    kwargs: kwargs
-        optional keyword arguments
-
-    For more details on method specfici args, kwargs and results attributes see
-
-        - :func:`pyapprox.analysis.sensitivity_analysis.sampling_based_sobol_indices`
-
-        - :func:`pyapprox.analysis.sensitivity_analysis.bootstrapped_borgonovo_sensivities`
-
-        - :func:`pyapprox.analysis.sensitivity_analysis.morris_sensitivities`
-
-        - :func:`pyapprox.analysis.sensitivity_analysis.gpc_sobol_sensitivities`
-
-        - :func:`pyapprox.analysis.sensitivity_analysis.analytic_sobol_indices_from_gaussian_process`
-
-        - : func:`pyapprox.analysis.sensitivity_analysis.sparse_grid_sobol_sensitivities`
-
-    Returns
-    -------
-    result : SensitivityResult
-       Object containing the sensitivity indices
-    """
-    from pyapprox.surrogates.polychaos.adaptive_polynomial_chaos import (
-        AdaptiveInducedPCE,
-    )
-    from pyapprox.surrogates.interp.adaptive_sparse_grid import (
-        CombinationSparseGrid,
-    )
-
-    if method == "surrogate_sobol":
-        if issubclass(type(fun), GaussianProcess):
-            method = "gp_sobol"
-        elif issubclass(type(fun), AdaptiveInducedPCE):
-            method = "pce_sobol"
-            fun = fun.pce
-        elif type(fun) == PolynomialChaosExpansion:
-            method = "pce_sobol"
-        elif type(fun) == CombinationSparseGrid:
-            method = "sg_sobol"
-        else:
-            msg = "Surrogate specific computation requested, but fun"
-            msg += "is not a type of surrogate supported"
-            raise ValueError(msg)
-
-    methods = {
-        "sobol": repeat_sampling_based_sobol_indices,
-        "bin_sobol": bootstrapped_borgonovo_sensivities,
-        "morris": morris_sensitivities,
-        "pce_sobol": gpc_sobol_sensitivities,
-        "gp_sobol": analytic_sobol_indices_from_gaussian_process,
-        "sg_sobol": sparse_grid_sobol_sensitivities,
-    }
-
-    if method not in methods:
-        msg = f'Method "{method}" not found.\n Available methods are:\n'
-        for key in methods.keys():
-            msg += f"\t{key}\n"
-        raise Exception(msg)
-
-    return methods[method](fun, variable, *args, **kwargs)
 
 
 def get_isotropic_anova_indices(nvars, order):

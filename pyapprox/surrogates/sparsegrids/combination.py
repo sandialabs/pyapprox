@@ -1210,6 +1210,7 @@ class SparseGridToOrthonormalPolynomialChaosExpansionConverter:
 
     def _check_sparse_grid(self, sg: CombinationSparseGrid):
         if not isinstance(sg, CombinationSparseGrid):
+            print(sg)
             raise Exception("Can only convert a sparse grid")
 
     def _univariate_lagrange_basis_to_orthopoly(

@@ -16,36 +16,19 @@ from pyapprox.analysis.sensitivity_analysis import (
     MorrisSensitivityAnalysis,
     BinBasedVarianceSensitivityAnalysis,
     PolynomialChaosSensivitityAnalysis,
-    sparse_grid_sobol_sensitivities,
+    LagrangeSparseGridSensitivityAnalysis,
     sampling_based_sobol_indices_from_gaussian_process,
     analytic_sobol_indices_from_gaussian_process,
-    run_sensitivity_analysis,
 )
 from pyapprox.surrogates.bases.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
-
-# from pyapprox.benchmarks.benchmarks import setup_benchmark
-# from pyapprox.benchmarks.sensitivity_benchmarks import (
-#     ishigami_function,
-#     get_ishigami_funciton_statistics,
-#     sobol_g_function,
-#     get_sobol_g_function_statistics,
-# )
-# from pyapprox.surrogates.approximate import approximate, adaptive_approximate
-# from pyapprox.surrogates.interp.indexing import (
-#     compute_hyperbolic_indices,
-#     tensor_product_indices,
-# )
-# from pyapprox.variables.joint import IndependentMarginalsVariable
-# from pyapprox.variables.transforms import AffineTransform
-# from pyapprox.surrogates.polychaos.gpc import (
-#     define_poly_options_from_variable_transformation,
-#     PolynomialChaosExpansion,
-#     marginalize_polynomial_chaos_expansion,
-# )
-# from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
-# from pyapprox.util.utilities import cartesian_product
+from pyapprox.surrogates.sparsegrids.combination import (
+    MaxLevelSparseGridSubSpaceAdmissibilityCriteria,
+    MaxErrorSparseGridSubspaceAdmissibilityCriteria,
+    MultipleSparseGridSubSpaceAdmissibilityCriteria,
+    setup_leja_lagrange_sparse_grid_from_variable,
+)
 
 
 class TestSensitivityAnalysis(unittest.TestCase):
@@ -204,31 +187,41 @@ class TestSensitivityAnalysis(unittest.TestCase):
             self._check_pce_sensitivities(*test_case)
 
     def test_sparse_grid_sobol_sensitivities(self):
-        benchmark = setup_benchmark("oakley")
-
-        options = {"max_nsamples": 2000, "verbose": 0}
-        approx = adaptive_approximate(
-            benchmark.fun,
-            benchmark.variable.marginals(),
-            "sparse_grid",
-            options,
-        ).approx
-
-        from pyapprox.surrogates.approximate import compute_l2_error
-
-        nsamples = 100
-        error = compute_l2_error(
-            approx,
-            benchmark.fun,
-            approx.var_trans.variable,
-            nsamples,
-            rel=True,
+        benchmark = IshigamiBenchmark()
+        level = 8
+        admissibility_criteria = (
+            MultipleSparseGridSubSpaceAdmissibilityCriteria(
+                (
+                    MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
+                        level, 1.0
+                    ),
+                    MaxErrorSparseGridSubspaceAdmissibilityCriteria(1e-8),
+                )
+            )
         )
-        # print(error)
-        assert error < 7e-3
-
-        res = sparse_grid_sobol_sensitivities(approx)
-        assert np.allclose(res.main_effects, benchmark.main_effects, atol=4e-4)
+        sg = setup_leja_lagrange_sparse_grid_from_variable(
+            benchmark.model().nqoi(),
+            benchmark.variable(),
+            admissibility_criteria,
+        )
+        sg.build(benchmark.model())
+        print(sg.get_train_samples().shape)
+        analyzer = LagrangeSparseGridSensitivityAnalysis(benchmark.variable())
+        analyzer.set_interaction_terms_of_interest(
+            benchmark.sobol_interaction_indices()
+        )
+        analyzer.compute(sg)
+        sa_tol = 1e-5
+        print(analyzer.main_effects(), benchmark.main_effects())
+        assert np.allclose(
+            analyzer.main_effects(), benchmark.main_effects(), rtol=sa_tol
+        )
+        assert np.allclose(
+            analyzer.total_effects(), benchmark.total_effects(), rtol=sa_tol
+        )
+        assert np.allclose(
+            analyzer.sobol_indices(), benchmark.sobol_indices(), rtol=sa_tol
+        )
 
     def test_sampling_based_sobol_indices_from_gaussian_process(self):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
