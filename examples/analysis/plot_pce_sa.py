@@ -1,6 +1,7 @@
 r"""
-Polynomial Chaos Sensitivity Analysis
--------------------------------------
+Polynomial Chaos Expansion Sensitivity Analysis
+-----------------------------------------------
+First Build the PCE surrogate
 """
 
 import numpy as np
@@ -17,13 +18,7 @@ from pyapprox.surrogates.bases.basisexp import (
 )
 
 np.random.seed(1)
-
 benchmark = IshigamiBenchmark(a=7, b=0.1)
-analyzer = PolynomialChaosSensivitityAnalysis(benchmark.variable().nvars())
-analyzer.set_interaction_terms_of_interest(
-    benchmark.sobol_interaction_indices()
-)
-
 nsamples = 1000
 degree = 15
 pce = setup_polynomial_chaos_expansion_from_variable(
@@ -34,7 +29,12 @@ samples = benchmark.variable().rvs(nsamples)
 values = benchmark.model()(samples)
 pce.fit(samples, values)
 
-values = benchmark.model()(samples)
+# %%
+# Now compute the sensivitity indices
+analyzer = PolynomialChaosSensivitityAnalysis(benchmark.variable().nvars())
+analyzer.set_interaction_terms_of_interest(
+    benchmark.sobol_interaction_indices()
+)
 analyzer.compute(pce)
 
 # %%

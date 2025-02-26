@@ -25,12 +25,14 @@ from pyapprox.surrogates.bases.basisexp import (
 )
 from pyapprox.surrogates.regressor import Regressor, AdaptiveRegressorMixin
 from pyapprox.interface.model import Model
+from pyapprox.surrogates.bases.univariate.base import UnivariateBasis
 from pyapprox.surrogates.bases.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.bases.univariate.leja import (
     TwoPointChristoffelLejaQuadratureRule,
+    LejaQuadratureRule,
 )
 
 
@@ -82,10 +84,22 @@ def _compute_smolyak_coefficients(sg, indices):
     return smolyak_coefs
 
 
-# class CombinationSparseGridSubSpace:
-#     def __init__(self):
-#         self._subspace_index = None
-#         self._global_data_idx = None
+class SparseGridAdmissibilityCriteria(AdmissibilityCriteria):
+    def __init__(self):
+        self._sg = None
+        self._bkd = None
+
+    def set_sparse_grid(self, sg: "CombinationSparseGrid"):
+        self._sg = sg
+        self._bkd = self._sg._bkd
+
+    @abstractmethod
+    def __call__(self, index: Array) -> bool:
+        raise NotImplementedError
+
+
+class SparseGridSubSpaceAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
+    pass
 
 
 class CombinationSparseGrid(Regressor):
@@ -251,7 +265,9 @@ class CombinationSparseGrid(Regressor):
     def train_values(self):
         return self._train_values
 
-    def set_subspace_admissibility_criteria(self, admis_criteria):
+    def set_subspace_admissibility_criteria(
+        self, admis_criteria: SparseGridSubSpaceAdmissibilityCriteria
+    ):
         if not isinstance(
             admis_criteria, SparseGridSubSpaceAdmissibilityCriteria
         ):
@@ -340,24 +356,6 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid):
             ]
             self._subspace_surrogates[subspace_idx].fit(subspace_values)
             self._set_smolyak_coefficients()
-
-
-class SparseGridAdmissibilityCriteria(AdmissibilityCriteria):
-    def __init__(self):
-        self._sg = None
-        self._bkd = None
-
-    def set_sparse_grid(self, sg: CombinationSparseGrid):
-        self._sg = sg
-        self._bkd = self._sg._bkd
-
-    @abstractmethod
-    def __call__(self, index: Array) -> bool:
-        raise NotImplementedError
-
-
-class SparseGridSubSpaceAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
-    pass
 
 
 class MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
@@ -544,7 +542,7 @@ class L2NormRefinementCriteria(RefinementCriteria):
 class AdaptiveCombinationSparseGrid(
     CombinationSparseGrid, AdaptiveRegressorMixin
 ):
-    def __init__(self, nqoi, backend=NumpyLinAlgMixin):
+    def __init__(self, nqoi: int, backend: LinAlgMixin = NumpyLinAlgMixin):
         super().__init__(nqoi, backend)
         self._last_subspace_indices = None
         self._refine_criteria = None
@@ -554,7 +552,7 @@ class AdaptiveCombinationSparseGrid(
         # TODO make adaptive regressor class
         raise NotImplementedError("Adaptive regressors do not call fit")
 
-    def set_refinement_criteria(self, refine_criteria):
+    def set_refinement_criteria(self, refine_criteria: RefinementCriteria):
         if not isinstance(refine_criteria, RefinementCriteria):
             raise ValueError(
                 "refine_criteria must be and instance of RefinementCriteria"
@@ -699,7 +697,26 @@ class AdaptiveCombinationSparseGrid(
         return True
 
     def error(self):
-        return self._bkd.sum(self._subspace_errors)
+        return self._bkd.sum(self._bkd.asarray(self._subspace_errors))
+
+    def setup(
+        self,
+        subspace_admissibility_criteria: SparseGridSubSpaceAdmissibilityCriteria,
+        refinement_criteria: RefinementCriteria = L2NormRefinementCriteria(),
+        univariate_bases: List[UnivariateBasis] = None,
+        growth_rule: IndexGrowthRule = LinearGrowthRule(2, 1),
+    ):
+        basis = TensorProductInterpolatingBasis(univariate_bases)
+        self.set_basis(basis)
+        subspace_gen = IterativeIndexGenerator(
+            self._variable.nvars(), backend=self._bkd
+        )
+        self.set_subspace_generator(subspace_gen, growth_rule)
+        self.set_subspace_admissibility_criteria(
+            subspace_admissibility_criteria
+        )
+        self.set_refinement_criteria(refinement_criteria)
+        self.set_initial_subspace_indices()
 
 
 class LocalIndexGenerator(BasisIndexGenerator):
@@ -1222,7 +1239,7 @@ class SparseGridToOrthonormalPolynomialChaosExpansionConverter:
     def convert(self, sg: CombinationSparseGrid) -> PolynomialChaosExpansion:
         self._check_sparse_grid(sg)
         pce = 0.0
-        for subspace_idx in range(sg._subspace_gen.nindices()):
+        for subspace_idx in range(1, sg._subspace_gen.nindices()):
             pce += sg._smolyak_coefs[
                 subspace_idx
             ] * self._tp_converter.convert(
@@ -1231,34 +1248,81 @@ class SparseGridToOrthonormalPolynomialChaosExpansionConverter:
         return pce
 
 
-def setup_leja_lagrange_sparse_grid_from_variable(
-    nqoi: int,
-    variable: IndependentMarginalsVariable,
-    subspace_admissibility_criteria: SparseGridSubSpaceAdmissibilityCriteria,
-    refinement_criteria: RefinementCriteria = L2NormRefinementCriteria(),
-) -> AdaptiveCombinationSparseGrid:
-    quad_rules = [
-        TwoPointChristoffelLejaQuadratureRule(marginal)
-        for marginal in variable.marginals()
-    ]
-    # just initialize quadrature rules to have 1 point
-    # this will be updated as needed
-    bases_1d = [
-        UnivariateLagrangeBasis(quad_rule, 1) for quad_rule in quad_rules
-    ]
-    basis = TensorProductInterpolatingBasis(bases_1d)
-    sg = AdaptiveCombinationSparseGrid(nqoi)
-    sg.set_basis(basis)
-    subspace_gen = IterativeIndexGenerator(
-        variable.nvars(), backend=variable._bkd
-    )
-    growth_rule = LinearGrowthRule(2, 1)
-    print(growth_rule(1), growth_rule(2))
-    sg.set_subspace_generator(subspace_gen, growth_rule)
-    sg.set_subspace_admissibility_criteria(subspace_admissibility_criteria)
-    sg.set_refinement_criteria(refinement_criteria)
-    sg.set_initial_subspace_indices()
-    return sg
+class LejaLagrangeAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
+    def __init__(
+        self,
+        variable: IndependentMarginalsVariable,
+        nqoi: int,
+    ):
+        self._variable = variable
+        super().__init__(nqoi, variable._bkd)
+
+    def unique_univariate_leja_quadrature_rules(
+        self,
+        init_sequences: List[Array] = None,
+        leja_quad_rule_cls: LejaQuadratureRule = TwoPointChristoffelLejaQuadratureRule,
+    ) -> List[TwoPointChristoffelLejaQuadratureRule]:
+        # Constructing Leja sequence has a non-trivial cost so just create
+        # once per unique marginal
+        if init_sequences is not None:
+            for ii in range(self._variable._nunique_vars):
+                kk = self._variable._unique_variable_indices[ii][0]
+                for jj in self._variable._unique_variable_indices[ii][1:]:
+                    if not self._variable._bkd.allclose(
+                        init_sequences[kk], init_sequences[jj], atol=1e-15
+                    ):
+                        raise ValueError(
+                            "init_sequences differed for the same marginal"
+                        )
+        else:
+            init_sequences = [None] * self._variable.nvars()
+
+        unique_quad_rules = [
+            leja_quad_rule_cls(
+                marginal, init_sequence=init_seq, backend=self._bkd, store=True
+            )
+            for marginal, init_seq in zip(
+                self._variable._unique_marginals, init_sequences
+            )
+        ]
+        quad_rules = [None for marginal in self._variable.marginals()]
+        for ii in range(len(unique_quad_rules)):
+            for jj in self._variable._unique_variable_indices[ii]:
+                quad_rules[jj] = unique_quad_rules[ii]
+        return quad_rules
+
+    def _check_quad_rules(
+        self, univariate_quad_rules: List[LejaQuadratureRule]
+    ):
+        for quad_rule in univariate_quad_rules:
+            if not isinstance(quad_rule, LejaQuadratureRule):
+                raise ValueError(
+                    "Univariate quadrature rules must be an instance of "
+                    "LejaQuadratureRule"
+                )
+
+    def setup(
+        self,
+        subspace_admissibility_criteria: SparseGridSubSpaceAdmissibilityCriteria,
+        refinement_criteria: RefinementCriteria = L2NormRefinementCriteria(),
+        univariate_quad_rules: List[LejaQuadratureRule] = None,
+        growth_rule: IndexGrowthRule = LinearGrowthRule(2, 1),
+    ):
+        if univariate_quad_rules is None:
+            univariate_quad_rules = (
+                self.unique_univariate_leja_quadrature_rules()
+            )
+        self._check_quad_rules(univariate_quad_rules)
+        bases_1d = [
+            UnivariateLagrangeBasis(quad_rule, 1)
+            for quad_rule in univariate_quad_rules
+        ]
+        super().setup(
+            subspace_admissibility_criteria,
+            refinement_criteria,
+            bases_1d,
+            growth_rule,
+        )
 
 
 # TODO mix locally adaptive basis with global polynomial basis in another

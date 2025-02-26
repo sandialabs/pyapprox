@@ -344,6 +344,9 @@ class AdmissibilityCriteria(ABC):
     def __call__(self, index):
         raise NotImplementedError
 
+    def __repr__(self) -> int:
+        return "{0}".format(self.__class__.__name__)
+
 
 class MaxLevelAdmissibilityCriteria(AdmissibilityCriteria):
     def __init__(

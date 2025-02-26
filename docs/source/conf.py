@@ -124,6 +124,7 @@ example_filenames_in_order += [
     "plot_parameter_sweeps.py",
     "plot_sample_sa.py",
     "plot_pce_sa.py",
+    "plot_sg_sa.py",
     "plot_low_discrepancy_quadrature.py",
     "plot_gaussian_quadrature.py",
     "plot_barycentric_interpolation.py",

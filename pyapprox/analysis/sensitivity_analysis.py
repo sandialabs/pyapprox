@@ -17,12 +17,13 @@ from pyapprox.util.sys_utilities import hash_array
 
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.expdesign.sequences import SobolSequence, HaltonSequence
-from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-    _compute_expected_sobol_indices,
-    generate_gp_realizations,
-    extract_gaussian_process_attributes_for_integration,
-    GaussianProcess,
-)
+
+# from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+#     _compute_expected_sobol_indices,
+#     generate_gp_realizations,
+#     extract_gaussian_process_attributes_for_integration,
+#     GaussianProcess,
+# )
 from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
 from pyapprox.surrogates.bases.basis import TensorProductQuadratureRule
 from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion

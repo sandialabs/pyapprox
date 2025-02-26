@@ -481,3 +481,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def sign(mat):
         return np.sign(mat)
+
+    @staticmethod
+    def is_scalar_array(array) -> bool:
+        return isinstance(array, np.ndarray) and array.ndim == 0

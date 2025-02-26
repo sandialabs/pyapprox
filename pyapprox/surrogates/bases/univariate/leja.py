@@ -504,18 +504,18 @@ def setup_univariate_leja_sequence(
 ):
     if optimizer is None:
         optimizer = ScipyConstrainedOptimizer()
-        optimizer.set_options(gtol=1e-8, maxiter=1000, method="trust-constr")
+        optimizer.set_options(gtol=1e-6, maxiter=1000, method="trust-constr")
     if init_sequence is None:
         init_sequence = backend.array([[marginal.mean()]])
     poly = setup_univariate_orthogonal_polynomial_from_marginal(
-        marginal, backend=backend
+        marginal, backend=backend, transform_enforce_bounds=True
     )
     obj = objective_class(marginal, poly)
     obj.set_sequence(init_sequence)
     return LejaSequence(obj, optimizer)
 
 
-class TwoPointChristoffelLejaQuadratureRule(UnivariateQuadratureRule):
+class LejaQuadratureRule(UnivariateQuadratureRule):
     def __init__(
         self,
         marginal,
@@ -526,12 +526,16 @@ class TwoPointChristoffelLejaQuadratureRule(UnivariateQuadratureRule):
     ):
         self._leja_seq = setup_univariate_leja_sequence(
             marginal,
-            TwoPointChristoffelLejaObjective,
+            self._leja_objective_class(),
             optimizer=optimizer,
             init_sequence=init_sequence,
             backend=backend,
         )
         super().__init__(backend, store)
+
+    @abstractmethod
+    def _leja_objective_class(self) -> LejaObjective:
+        raise NotImplementedError
 
     def _quad_rule(self, nnodes: int) -> Tuple[Array, Array]:
         if self._leja_seq.nsamples() < nnodes:
@@ -549,3 +553,13 @@ class TwoPointChristoffelLejaQuadratureRule(UnivariateQuadratureRule):
             self._seq._objective._poly,
             self._bkd.__name__,
         )
+
+
+class OnePointChristoffelLejaQuadratureRule(LejaQuadratureRule):
+    def _leja_objective_class(self) -> LejaObjective:
+        return OnePointChristoffelLejaObjective
+
+
+class TwoPointChristoffelLejaQuadratureRule(LejaQuadratureRule):
+    def _leja_objective_class(self) -> LejaObjective:
+        return TwoPointChristoffelLejaObjective

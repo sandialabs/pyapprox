@@ -27,7 +27,7 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MaxLevelSparseGridSubSpaceAdmissibilityCriteria,
     MaxErrorSparseGridSubspaceAdmissibilityCriteria,
     MultipleSparseGridSubSpaceAdmissibilityCriteria,
-    setup_leja_lagrange_sparse_grid_from_variable,
+    LejaLagrangeAdaptiveCombinationSparseGrid,
 )
 
 
@@ -188,7 +188,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
     def test_sparse_grid_sobol_sensitivities(self):
         benchmark = IshigamiBenchmark()
-        level = 8
+        level = 7
+
         admissibility_criteria = (
             MultipleSparseGridSubSpaceAdmissibilityCriteria(
                 (
@@ -199,20 +200,28 @@ class TestSensitivityAnalysis(unittest.TestCase):
                 )
             )
         )
-        sg = setup_leja_lagrange_sparse_grid_from_variable(
-            benchmark.model().nqoi(),
-            benchmark.variable(),
-            admissibility_criteria,
+        sg = LejaLagrangeAdaptiveCombinationSparseGrid(
+            benchmark.variable(), benchmark.model().nqoi()
+        )
+        # Must not use default of mean or the refinement will terminate early
+        # in the 3rd dimension
+        init_sequences = [
+            np.array([[marginal.ppf(0.6)]])
+            for marginal in benchmark.variable().marginals()
+        ]
+        univariate_quad_rules = sg.unique_univariate_leja_quadrature_rules(
+            init_sequences
+        )
+        sg.setup(
+            admissibility_criteria, univariate_quad_rules=univariate_quad_rules
         )
         sg.build(benchmark.model())
-        print(sg.get_train_samples().shape)
         analyzer = LagrangeSparseGridSensitivityAnalysis(benchmark.variable())
         analyzer.set_interaction_terms_of_interest(
             benchmark.sobol_interaction_indices()
         )
         analyzer.compute(sg)
         sa_tol = 1e-5
-        print(analyzer.main_effects(), benchmark.main_effects())
         assert np.allclose(
             analyzer.main_effects(), benchmark.main_effects(), rtol=sa_tol
         )

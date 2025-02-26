@@ -380,16 +380,21 @@ class MonomialExpansion(BasisExpansion):
     def __mul__(
         self, other: Union["MonomialExpansion", float]
     ) -> "MonomialExpansion":
-        if isinstance(other, float) or isinstance(other, int):
+        if (
+            isinstance(other, float)
+            or isinstance(other, int)
+            or self._bkd.is_scalar_array(other)
+        ):
             return self._mul_constant(other)
         return self._mul(other)
 
     def __rmul__(
         self, other: Union["MonomialExpansion", float]
     ) -> "MonomialExpansion":
-        if isinstance(other, float) or isinstance(other, int):
-            return self._mul_constant(other)
-        return self._mul(other)
+        # if isinstance(other, float) or isinstance(other, int):
+        #     return self._mul_constant(other)
+        # return self._mul(other)
+        return self.__mul__(other)
 
     def __pow__(self, order: int) -> "MonomialExpansion":
         poly = copy.deepcopy(self)
@@ -604,17 +609,16 @@ def setup_polynomial_chaos_expansion_from_variable(
     variable: IndependentMarginalsVariable,
     nqoi: int,
     solver: LinearSystemSolver = None,
-    backend=NumpyLinAlgMixin,
 ) -> PolynomialChaosExpansion:
     bases_1d = [
         setup_univariate_orthogonal_polynomial_from_marginal(
-            marginal, backend=backend
+            marginal, backend=variable._bkd
         )
         for marginal in variable.marginals()
     ]
     basis = OrthonormalPolynomialBasis(bases_1d)
     if solver is None:
-        solver = LstSqSolver(backend=backend)
+        solver = LstSqSolver(backend=variable._bkd)
     return PolynomialChaosExpansion(basis, solver=solver, nqoi=nqoi)
 
 
@@ -756,7 +760,9 @@ class TensorProductLagrangeInterpolantToPolynomialChaosExpansionConverter:
             quad_rule1d._marginal
             for quad_rule1d in self._quad_rule._univariate_quad_rules
         ]
-        self._variable = IndependentMarginalsVariable(marginals)
+        self._variable = IndependentMarginalsVariable(
+            marginals, backend=self._bkd
+        )
 
     def _check_interpolant(self, interp: TensorProductInterpolant):
         if not isinstance(interp, TensorProductInterpolant):

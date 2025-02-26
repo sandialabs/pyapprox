@@ -536,3 +536,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def sign(mat):
         return torch.sign(mat)
+
+    @staticmethod
+    def is_scalar_array(array) -> bool:
+        return isinstance(array, torch.Tensor) and array.ndim == 0

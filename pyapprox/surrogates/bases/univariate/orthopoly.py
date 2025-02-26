@@ -738,12 +738,15 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
 
 
 def setup_univariate_orthogonal_polynomial_from_marginal(
-    marginal, opts: dict = {}, backend: LinAlgMixin = None
+    marginal,
+    opts: dict = {},
+    backend: LinAlgMixin = None,
+    transform_enforce_bounds: bool = True,
 ) -> OrthonormalPolynomial1D:
     var_name, scales, shapes = get_distribution_info(marginal)
 
     trans = AffineMarginalTransform(
-        marginal, enforce_bounds=True, backend=backend
+        marginal, enforce_bounds=transform_enforce_bounds, backend=backend
     )
 
     # Askey polynomials that do not need scale or shape
@@ -894,9 +897,17 @@ class AffineMarginalTransform(UnivariateAffineTransform):
             *transform_scale_parameters(marginal), enforce_bounds, backend
         )
         self._marginal = marginal
+        # is_bounded_continuous_variable calls ppf which is expensive
+        # so just call once here at initialization and not repeatedly
+        # in _check_bounds
+        self._marginal_is_bounded = is_bounded_continuous_variable(
+            self._marginal
+        )
 
     def _check_bounds(self, user_samples):
-        if not is_bounded_continuous_variable(self._marginal):
+        if not self._enforce_bounds:
+            return
+        if not self._marginal_is_bounded:
             return
         super()._check_bounds(user_samples)
 

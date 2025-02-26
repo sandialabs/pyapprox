@@ -847,3 +847,8 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def sign(mat: Array) -> Array:
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def is_scalar_array(array) -> bool:
+        raise NotImplementedError

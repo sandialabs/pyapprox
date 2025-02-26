@@ -42,7 +42,7 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MaxErrorSparseGridSubspaceAdmissibilityCriteria,
     MultipleSparseGridSubSpaceAdmissibilityCriteria,
     MaxCostSparseGridBasisAdmissibilityCriteria,
-    setup_leja_lagrange_sparse_grid_from_variable,
+    LejaLagrangeAdaptiveCombinationSparseGrid,
     SparseGridToOrthonormalPolynomialChaosExpansionConverter,
 )
 from pyapprox.surrogates.bases.univariate.local import (
@@ -196,11 +196,10 @@ class TestCombination:
                 )
             )
         )
-        sg = setup_leja_lagrange_sparse_grid_from_variable(
-            benchmark.model().nqoi(),
-            benchmark.variable(),
-            admissibility_criteria,
+        sg = LejaLagrangeAdaptiveCombinationSparseGrid(
+            benchmark.variable(), benchmark.model().nqoi()
         )
+        sg.setup(admissibility_criteria)
         sg.build(benchmark.model())
         test_samples = benchmark.variable().rvs(100)
         test_values = benchmark.model()(test_samples)
@@ -209,7 +208,7 @@ class TestCombination:
         pce_quad_rule = TensorProductQuadratureRule(
             nvars,
             [
-                GaussQuadratureRule(marginal)
+                GaussQuadratureRule(marginal, backend=bkd)
                 for marginal in benchmark.variable().marginals()
             ],
         )
