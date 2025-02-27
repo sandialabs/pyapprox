@@ -448,11 +448,12 @@ class DoublePlusOneIndexGrowthRule(IndexGrowthRule):
 
 
 class BasisIndexGenerator:
-    def __init__(self, gen, growth_rules):
+    def __init__(self, nvars: int, gen, growth_rules):
         if not isinstance(gen, IterativeIndexGenerator):
             raise ValueError(
                 "gen must be an instance of IterativeIndexGenerator"
             )
+        self._nvars = nvars
         self._subspace_gen = gen
         self._bkd = self._subspace_gen._bkd
         self._subspace_indices = None
@@ -478,7 +479,7 @@ class BasisIndexGenerator:
         self._growth_rules = growth_rules
 
     def nvars(self):
-        return self._subspace_gen.nvars()
+        return self._nvars
 
     def nindices(self):
         # must call get_indices so that if step has been called nindices
@@ -518,10 +519,11 @@ class BasisIndexGenerator:
         global_basis_idx = []
         idx = len(self._basis_indices_dict)
         basis_indices = self._subspace_basis_indices(subspace_index)
+        subspace_key = self._hash_index(subspace_index)
+        print(self._basis_indices, self._basis_indices_dict)
         for sample_idx, basis_index in enumerate(basis_indices.T):
             basis_key = self._hash_index(basis_index)
             if basis_key not in self._basis_indices_dict:
-                subspace_key = self._hash_index(subspace_index)
                 if cand_subspace:
                     subspace_idx = self._subspace_gen._cand_indices_dict[
                         subspace_key
@@ -629,7 +631,7 @@ class IsotropicSGIndexGenerator(BasisIndexGenerator):
         self, nvars, max_level, growth_rules, backend=NumpyLinAlgMixin
     ):
         gen = HyperbolicIndexGenerator(nvars, max_level, 1.0, backend=backend)
-        super().__init__(gen, growth_rules)
+        super().__init__(nvars, gen, growth_rules)
 
     def step(self):
         self._subspace_gen.step()

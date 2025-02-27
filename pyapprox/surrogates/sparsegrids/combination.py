@@ -103,10 +103,13 @@ class SparseGridSubSpaceAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
 
 
 class CombinationSparseGrid(Regressor):
-    def __init__(self, nqoi, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(
+        self, nqoi: int, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+    ):
         super().__init__(backend=backend)
         self._verbosity = 0
         self._nqoi = nqoi
+        self._nvars = nvars
 
         self._subspace_gen = None
         self._basis_gen = None
@@ -127,10 +130,21 @@ class CombinationSparseGrid(Regressor):
         self._cand_subspace_queue = None
         self._subspace_errors = []
 
-    def _set_basis_index_generator(self, growth_rules):
-        self._basis_gen = BasisIndexGenerator(self._subspace_gen, growth_rules)
+    def _set_basis_index_generator(self, growth_rules: List[IndexGrowthRule]):
+        self._basis_gen = BasisIndexGenerator(
+            self.nvars(), self._subspace_gen, growth_rules
+        )
+
+    def nsubspace_vars(self) -> int:
+        return self.nvars()
 
     def set_subspace_generator(self, subspace_gen, growth_rules):
+        if subspace_gen.nvars() != self.nsubspace_vars():
+            raise ValueError(
+                "subspace_gen has the wrong nvars {0} should be {1}".format(
+                    subspace_gen.nvars(), self.nsubspace_vars()
+                )
+            )
         self._subspace_gen = subspace_gen
         self._bkd = self._subspace_gen._bkd
         self._set_basis_index_generator(growth_rules)
@@ -172,7 +186,7 @@ class CombinationSparseGrid(Regressor):
         return self._bkd.hstack(unique_samples)
 
     def nvars(self) -> int:
-        return self._subspace_gen.nvars()
+        return self._nvars
 
     def nqoi(self) -> int:
         return self._nqoi
@@ -182,6 +196,7 @@ class CombinationSparseGrid(Regressor):
     ):
         nsubspace_nodes_1d = self._basis_gen.nunivariate_basis(subspace_index)
         basis = self._basis._semideep_copy()
+        print(basis.nvars(), "bnvarfs", nsubspace_nodes_1d)
         basis.set_tensor_product_indices(nsubspace_nodes_1d)
         # basis.set_indices(
         #     self._basis_gen._subspace_basis_indices(subspace_index)
@@ -255,7 +270,7 @@ class CombinationSparseGrid(Regressor):
 
             values += (
                 self._smolyak_coefs[subspace_idx]
-                * self._subspace_surrogates[subspace_idx].integrate()
+                * self._subspace_surrogates[subspace_idx].mean()
             )
         return values
 
@@ -291,7 +306,7 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid):
         basis,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(nqoi, backend=backend)
+        super().__init__(nqoi, nvars, backend=backend)
         self._set_basis(basis)
         self._set_subspace_generator(
             HyperbolicIndexGenerator(nvars, max_level, 1.0, backend=self._bkd),
@@ -542,8 +557,10 @@ class L2NormRefinementCriteria(RefinementCriteria):
 class AdaptiveCombinationSparseGrid(
     CombinationSparseGrid, AdaptiveRegressorMixin
 ):
-    def __init__(self, nqoi: int, backend: LinAlgMixin = NumpyLinAlgMixin):
-        super().__init__(nqoi, backend)
+    def __init__(
+        self, nqoi: int, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+    ):
+        super().__init__(nqoi, nvars, backend)
         self._last_subspace_indices = None
         self._refine_criteria = None
         self._first_step = True
@@ -562,7 +579,9 @@ class AdaptiveCombinationSparseGrid(
 
     def set_initial_subspace_indices(self, subspace_indices=None):
         if subspace_indices is None:
-            subspace_indices = self._bkd.zeros((self.nvars(), 1), dtype=int)
+            subspace_indices = self._bkd.zeros(
+                (self.nsubspace_vars(), 1), dtype=int
+            )
         # TODO change set selected indices to only allow generation of
         # candidate indices accorging to variable ordering.
         # allow group based ordering, where dimensions in a group
@@ -709,7 +728,7 @@ class AdaptiveCombinationSparseGrid(
         basis = TensorProductInterpolatingBasis(univariate_bases)
         self.set_basis(basis)
         subspace_gen = IterativeIndexGenerator(
-            self._variable.nvars(), backend=self._bkd
+            self.nsubspace_vars(), backend=self._bkd
         )
         self.set_subspace_generator(subspace_gen, growth_rule)
         self.set_subspace_admissibility_criteria(
@@ -720,8 +739,8 @@ class AdaptiveCombinationSparseGrid(
 
 
 class LocalIndexGenerator(BasisIndexGenerator):
-    def __init__(self, gen, growth_rules, verbosity=0):
-        super().__init__(gen, growth_rules)
+    def __init__(self, nvars: int, gen, growth_rules, verbosity=0):
+        super().__init__(nvars, gen, growth_rules)
         self._sel_basis_indices_dict = dict()
         self._cand_basis_indices_dict = dict()
         self._admis_fun = None
@@ -1048,8 +1067,10 @@ class LocalHierarchicalRefinementCriteria(LocalRefinementCriteria):
 
 
 class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
-    def __init__(self, nqoi, backend=NumpyLinAlgMixin):
-        super().__init__(nqoi, backend)
+    def __init__(
+        self, nqoi: int, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+    ):
+        super().__init__(nqoi, nvars, backend)
         self._cand_basis_queue = None
         self._last_basis_indices = None
         self._last_nunique_samples = None
@@ -1068,7 +1089,10 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
 
     def _set_basis_index_generator(self, growth_rules):
         self._basis_gen = LocalIndexGenerator(
-            self._subspace_gen, growth_rules, self._verbosity
+            self.nsubspace_vars(),
+            self._subspace_gen,
+            growth_rules,
+            self._verbosity,
         )
 
     def set_subspace_generator(self, subspace_gen):
@@ -1255,7 +1279,7 @@ class LejaLagrangeAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         nqoi: int,
     ):
         self._variable = variable
-        super().__init__(nqoi, variable._bkd)
+        super().__init__(nqoi, variable.nvars(), variable._bkd)
 
     def unique_univariate_leja_quadrature_rules(
         self,
@@ -1323,6 +1347,30 @@ class LejaLagrangeAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
             bases_1d,
             growth_rule,
         )
+
+
+# class MultiIndexBasisGenerator(BasisIndexGenerator):
+
+
+class MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
+    LejaLagrangeAdaptiveCombinationSparseGrid
+):
+    # TODO make MultiIndex Mixin so can use with other types of
+    # sparse grids
+    def __init__(
+        self,
+        variable: IndependentMarginalsVariable,
+        nqoi: int,
+        nrefinement_vars: int,
+    ):
+        self._nrefinement_vars = nrefinement_vars
+        super().__init__(variable, nqoi)
+
+    def nrefinement_vars(self) -> int:
+        return self._nrefinement_vars
+
+    def nsubspace_vars(self) -> int:
+        return self.nvars() + self.nrefinement_vars()
 
 
 # TODO mix locally adaptive basis with global polynomial basis in another

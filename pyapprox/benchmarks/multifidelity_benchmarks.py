@@ -4,10 +4,13 @@ import math
 from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.interface.model import ModelFromVectorizedCallable
+from pyapprox.interface.model import ModelFromVectorizedCallable, Model
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.benchmarks.base import ACVBenchmark
+from pyapprox.benchmarks.base import ACVBenchmark, MultiModelBenchmark
+from pyapprox.surrogates.bases.basisexp import (
+    setup_polynomial_chaos_expansion_from_variable,
+)
 
 
 class PolynomialModelEnsemble(ACVBenchmark):
@@ -728,3 +731,46 @@ class PSDMultiOutputModelEnsemble(ACVBenchmark):
             Model costs
         """
         return self._bkd.array([1.0, 0.01, 0.001])
+
+
+class MultiIndexPolynomialModel(Model):
+    def __init__(
+        self, variable, nterms: int, backend: LinAlgMixin = NumpyLinAlgMixin
+    ):
+        if len(nterms) != variable.nvars():
+            raise ValueError("nterms must have nvar entries")
+        self._nterms = nterms
+        super().__init__(backend)
+        self._poly = setup_polynomial_chaos_expansion_from_variable(
+            variable, 1
+        )
+        self._poly.basis().set_tensor_product_indices(self._nterms)
+        self._poly.set_coefficients(
+            1.0 / (10 ** self._bkd.arange(0, self._poly.nterms()))[:, None]
+        )
+
+    def _values(self, samples: Array) -> Array:
+        return self._poly(samples)
+
+    def nqoi(self) -> int:
+        return self._poly.nqoi()
+
+    def nvars(self) -> int:
+        return self._poly.nvars()
+
+
+class MultiLevelPolynomialBenchmark(MultiModelBenchmark):
+    def nqoi(self) -> int:
+        return 1
+
+    def _set_variable(self):
+        self._variable = IndependentMarginalsVariable([stats.uniform(0, 1)])
+
+    def _set_models(self):
+        self._models = [
+            MultiIndexPolynomialModel(self.variable(), nterms, self._bkd)
+            for nterms in [[3], [5], [7]]
+        ]
+
+    def nmodels(self) -> int:
+        return 3

@@ -44,11 +44,15 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MaxCostSparseGridBasisAdmissibilityCriteria,
     LejaLagrangeAdaptiveCombinationSparseGrid,
     SparseGridToOrthonormalPolynomialChaosExpansionConverter,
+    MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid,
 )
 from pyapprox.surrogates.bases.univariate.local import (
     setup_univariate_piecewise_polynomial_basis,
 )
-from pyapprox.benchmarks.genz import GenzBenchmark
+from pyapprox.benchmarks import (
+    GenzBenchmark,
+    MultiLevelPolynomialBenchmark,
+)
 
 
 class TestCombination:
@@ -138,7 +142,7 @@ class TestCombination:
             bkd.asarray(np.random.normal(0, 1, (fun.nterms(), nqoi)))
         )
 
-        sg = AdaptiveCombinationSparseGrid(nqoi)
+        sg = AdaptiveCombinationSparseGrid(nqoi, nvars)
         sg.set_basis(basis)
         subspace_gen = IterativeIndexGenerator(nvars, backend=bkd)
         sg.set_subspace_generator(subspace_gen, growth_rule)
@@ -231,7 +235,7 @@ class TestCombination:
             for bt in ["linear"] * nvars
         ]
         basis = TensorProductInterpolatingBasis(bases_1d)
-        sg = LocallyAdaptiveCombinationSparseGrid(nqoi, backend=bkd)
+        sg = LocallyAdaptiveCombinationSparseGrid(nqoi, nvars, backend=bkd)
 
         class CustomLocalRefinementCriteria(LocalRefinementCriteria):
             def _priority(self, subspace_index):
@@ -358,6 +362,41 @@ class TestCombination:
             sg.train_values()[idx], bkd.zeros((len(idx), sg.nqoi()))
         )
         sg.plot_grid(plt.figure().gca())
+
+    def test_multi_index_leja_lagrange_sparse_grid(self):
+        bkd = self.get_backend()
+        benchmark = MultiLevelPolynomialBenchmark(backend=bkd)
+        nrefinement_vars = 1
+        level = 5
+        admissibility_criteria = (
+            MultipleSparseGridSubSpaceAdmissibilityCriteria(
+                (
+                    MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
+                        level, 1.0
+                    ),
+                    MaxErrorSparseGridSubspaceAdmissibilityCriteria(1e-8),
+                )
+            )
+        )
+        sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
+            benchmark.variable(), benchmark.nqoi(), nrefinement_vars
+        )
+        sg.setup(admissibility_criteria)
+
+        unique_samples_per_model = sg.step_samples()
+        unique_values_per_model = [
+            model(unique_samples) if unique_samples is not None else None
+            for model, unique_samples in zip(
+                self.benchmark.models(), unique_samples_per_model
+            )
+        ]
+        self.step_values(unique_values_per_model)
+
+        # sg.build(benchmark.model())
+
+        test_samples = benchmark.variable().rvs(100)
+        test_values = benchmark.model()(test_samples)
+        assert bkd.allclose(sg(test_samples), test_values)
 
 
 class TestNumpyCombination(TestCombination, unittest.TestCase):

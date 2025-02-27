@@ -276,9 +276,8 @@ class ACVBenchmark(MultiModelBenchmark):
             self.__class__.__name__, self.nmodels(), self.nqoi()
         )
 
-    def __call__(self, samples: Array) -> Array:
-        # samples must include model id in last row
-        return self._model_ensemble(samples)
+    def models(self) -> List[Model]:
+        return self._models
 
 
 class OptimizationBenchmark(ABC):

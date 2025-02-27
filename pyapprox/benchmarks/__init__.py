@@ -15,6 +15,14 @@ from pyapprox.benchmarks.algebraic import (
     EvtushenkoConstrainedOptimizationBenchmark,
 )
 from pyapprox.benchmarks.genz import GenzBenchmark
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    PolynomialModelEnsemble,
+    TunableModelEnsemble,
+    ShortColumnModelEnsemble,
+    MultiOutputModelEnsemble,
+    PSDMultiOutputModelEnsemble,
+    MultiLevelPolynomialBenchmark,
+)
 
 from pyapprox.benchmarks.ode import (
     ChemicalReactionBenchmark,
@@ -41,6 +49,12 @@ __all__ = [
     "WingWeightBenchmark",
     "EvtushenkoConstrainedOptimizationBenchmark",
     "GenzBenchmark",
+    "PolynomialModelEnsemble",
+    "TunableModelEnsemble",
+    "ShortColumnModelEnsemble",
+    "MultiOutputModelEnsemble",
+    "PSDMultiOutputModelEnsemble",
+    "MultiLevelPolynomialBenchmark",
     "ChemicalReactionBenchmark",
     "LotkaVolterraBenchmark",
     "CoupledSpringsBenchmark",

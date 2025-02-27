@@ -521,9 +521,8 @@ class GroupACVEstimator:
         est_type: str = "is",
         asketch: Array = None,
         use_pseudo_inv: bool = True,
-        backend: LinAlgMixin = TorchLinAlgMixin,
     ):
-        self._bkd = backend
+        self._bkd = stat._bkd
         self._use_pseudo_inv = use_pseudo_inv
         # self._cov, self._costs = self._check_cov(stat._cov, costs)
         self._costs = self._bkd.array(costs)
@@ -792,6 +791,9 @@ class GroupACVEstimator:
             self._rounded_npartition_samples
         )
         self._optimized_criteria = self._bkd.trace(self._optimized_covariance)
+
+    def optimized_covariance(self) -> Array:
+        return self._optimized_covariance
 
     def _set_optimized_params(self, npartition_samples, round_nsamples=True):
         # expected scalar type Double but found Float error can occur
@@ -1179,7 +1181,6 @@ class MLBLUEEstimator(GroupACVEstimator):
         reg_blue: float = 0,
         subsets: List[Array] = None,
         asketch: Array = None,
-        backend: LinAlgMixin = TorchLinAlgMixin,
     ):
         # Currently stats is ignored.
         super().__init__(
@@ -1189,7 +1190,6 @@ class MLBLUEEstimator(GroupACVEstimator):
             subsets,
             est_type="is",
             asketch=asketch,
-            backend=backend,
         )
         self._best_model_indices = self._bkd.arange(len(costs))
 
