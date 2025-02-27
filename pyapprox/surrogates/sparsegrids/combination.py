@@ -1,6 +1,6 @@
 import heapq
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
@@ -40,7 +40,7 @@ class PriorityQueue:
     def __init__(self):
         self.list = []
 
-    def empty(self):
+    def empty(self) -> bool:
         return len(self.list) == 0
 
     def put(self, item):
@@ -52,16 +52,16 @@ class PriorityQueue:
         item = heapq.heappop(self.list)
         return item
 
-    def __eq__(self, other):
+    def __eq__(self, other: "PriorityQueue") -> bool:
         return other.list == self.list
 
-    def __neq__(self, other):
+    def __neq__(self, other: "PriorityQueue") -> bool:
         return not self.__eq__(other)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self.list)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.list)
 
 
@@ -132,13 +132,21 @@ class CombinationSparseGrid(Regressor):
 
     def _set_basis_index_generator(self, growth_rules: List[IndexGrowthRule]):
         self._basis_gen = BasisIndexGenerator(
-            self.nvars(), self._subspace_gen, growth_rules
+            self.nvars(),
+            self.nrefinement_vars(),
+            self._subspace_gen,
+            growth_rules,
         )
 
     def nsubspace_vars(self) -> int:
-        return self.nvars()
+        return self.nvars() + self.nrefinement_vars()
 
-    def set_subspace_generator(self, subspace_gen, growth_rules):
+    def nrefinement_vars(self) -> int:
+        return 0
+
+    def set_subspace_generator(
+        self, subspace_gen, growth_rules: List[IndexGrowthRule]
+    ):
         if subspace_gen.nvars() != self.nsubspace_vars():
             raise ValueError(
                 "subspace_gen has the wrong nvars {0} should be {1}".format(
@@ -235,7 +243,7 @@ class CombinationSparseGrid(Regressor):
     def _values(self, samples: Array) -> Array:
         return self._values_using_smolyak_coefs(samples, self._smolyak_coefs)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
 
     def _plot_grid_1d(self, ax):
@@ -262,7 +270,7 @@ class CombinationSparseGrid(Regressor):
         }
         plot_grid_funs[self.nvars()](ax)
 
-    def integrate(self):
+    def integrate(self) -> Array:
         values = 0
         for subspace_idx in range(self._subspace_gen.nindices()):
             if abs(self._smolyak_coefs[subspace_idx]) <= np.finfo(float).eps:
@@ -274,10 +282,10 @@ class CombinationSparseGrid(Regressor):
             )
         return values
 
-    def train_samples(self):
+    def train_samples(self) -> Array:
         return self._train_samples
 
-    def train_values(self):
+    def train_values(self) -> Array:
         return self._train_values
 
     def set_subspace_admissibility_criteria(
@@ -302,8 +310,8 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid):
         nqoi: int,
         nvars: int,
         max_level: int,
-        growth_rules,
-        basis,
+        growth_rules: List[IndexGrowthRule],
+        basis: TensorProductInterpolatingBasis,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         super().__init__(nqoi, nvars, backend=backend)
@@ -313,13 +321,15 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid):
             growth_rules,
         )
 
-    def _set_basis(self, basis):
+    def _set_basis(self, basis: TensorProductInterpolatingBasis):
         super().set_basis(basis)
 
     def set_basis(self, basis):
         raise RuntimeError("Do not set basis as it has already been set")
 
-    def set_subspace_generator(self, subspace_gen, growth_rules):
+    def set_subspace_generator(
+        self, subspace_gen, growth_rules: List[IndexGrowthRule]
+    ):
         raise RuntimeError(
             "Do not call set_subspace_generator as it has already been set"
         )
@@ -330,7 +340,9 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid):
             "already been set"
         )
 
-    def _set_subspace_generator(self, subspace_gen, growth_rules):
+    def _set_subspace_generator(
+        self, subspace_gen, growth_rules: List[IndexGrowthRule]
+    ):
         super().set_subspace_generator(subspace_gen, growth_rules)
         # must call get_indices to generate basis indices
         subspace_indices = self._subspace_gen.get_indices()
@@ -454,14 +466,14 @@ class SparseGridBasisAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
 class MaxCostSparseGridBasisAdmissibilityCriteria(
     SparseGridBasisAdmissibilityCriteria
 ):
-    def __init__(self, max_cost):
+    def __init__(self, max_cost: float):
         super().__init__()
         self._max_cost = max_cost
 
-    def cost_per_sample(self, subspace_index):
+    def cost_per_sample(self, subspace_index: Array) -> float:
         return 1
 
-    def _sparse_grid_cost(self):
+    def _sparse_grid_cost(self) -> float:
         return self._bkd.sum(
             self._bkd.asarray(
                 [
@@ -475,7 +487,7 @@ class MaxCostSparseGridBasisAdmissibilityCriteria(
             )
         )
 
-    def __call__(self, basis_index, subspace_index):
+    def __call__(self, basis_index: Array, subspace_index: Array) -> bool:
         # We cannot guarantee that this bound will be satisfied exactly
         # as we canno take into account other points that may be added
         # as candidates from the same best_basis_index
@@ -490,14 +502,14 @@ class RefinementCriteria(ABC):
         self._sg = None
         self._bkd = None
 
-    def set_sparse_grid(self, sg):
+    def set_sparse_grid(self, sg: CombinationSparseGrid):
         self._sg = sg
         self._bkd = self._sg._bkd
 
-    def cost_per_sample(self, subspace_index):
+    def cost_per_sample(self, subspace_index: Array) -> float:
         return 1
 
-    def cost(self, subspace_index):
+    def cost(self, subspace_index: Array) -> float:
         """Computational cost of collecting the unique training data."""
         key = self._sg._subspace_gen._hash_index(subspace_index)
         subspace_idx = self._sg._subspace_gen._cand_indices_dict[key]
@@ -506,10 +518,10 @@ class RefinementCriteria(ABC):
         ] * self.cost_per_sample(subspace_index)
 
     @abstractmethod
-    def _priority(self, subspace_index):
+    def _priority(self, subspace_index: Array) -> float:
         raise NotImplementedError
 
-    def __call__(self, subspace_index):
+    def __call__(self, subspace_index: Array) -> Tuple[float, float]:
         # divide priority by cost so to choose subspaces
         # that require smaller training data collection costs first
         error, priority = self._priority(subspace_index)
@@ -521,7 +533,7 @@ class RefinementCriteria(ABC):
 
 
 class LevelRefinementCriteria(RefinementCriteria):
-    def _priority(self, subspace_index):
+    def _priority(self, subspace_index: Array) -> Tuple[float, float]:
         # Avoid computing error which requires specifying a metric
         # and can slow criteria evaluation down
         error = np.inf
@@ -534,7 +546,7 @@ class LevelRefinementCriteria(RefinementCriteria):
 
 
 class L2NormRefinementCriteria(RefinementCriteria):
-    def _priority(self, subspace_index):
+    def _priority(self, subspace_index: Array) -> Tuple[float, float]:
         subspace_key = self._sg._basis_gen._hash_index(subspace_index)
         subspace_idx = self._sg._subspace_gen._cand_indices_dict[subspace_key]
         # This computes l2 norm over samples already in sparse grid
@@ -577,7 +589,7 @@ class AdaptiveCombinationSparseGrid(
         self._refine_criteria = refine_criteria
         self._refine_criteria.set_sparse_grid(self)
 
-    def set_initial_subspace_indices(self, subspace_indices=None):
+    def set_initial_subspace_indices(self, subspace_indices: Array = None):
         if subspace_indices is None:
             subspace_indices = self._bkd.zeros(
                 (self.nsubspace_vars(), 1), dtype=int
@@ -598,19 +610,19 @@ class AdaptiveCombinationSparseGrid(
             )
         )
 
-    def _setup_first_selected_subspaces(self):
+    def _setup_first_selected_subspaces(self) -> Array:
         unique_sel_samples = self._setup_subspaces(
             self._subspace_gen.get_selected_indices(), False
         )
         return unique_sel_samples
 
-    def _setup_first_candidate_subspaces(self):
+    def _setup_first_candidate_subspaces(self) -> Array:
         unique_cand_samples = self._setup_subspaces(
             self._subspace_gen.get_candidate_indices(), True
         )
         return unique_cand_samples
 
-    def _first_step_samples(self):
+    def _first_step_samples(self) -> Array:
         if self._subspace_gen is None:
             raise RuntimeError("Must call set_subspace_generator")
         if self._refine_criteria is None:
@@ -640,7 +652,7 @@ class AdaptiveCombinationSparseGrid(
             )
             self._subspace_errors[subspace_idx] = subspace_error
 
-    def _get_best_cand_subspace(self):
+    def _get_best_cand_subspace(self) -> Tuple[Array, int]:
         priority, error, best_subspace_idx = self._cand_subspace_queue.get()
         best_cand_subspace_index = self._subspace_gen._indices[
             :, best_subspace_idx
@@ -653,7 +665,7 @@ class AdaptiveCombinationSparseGrid(
         self._subspace_errors[best_subspace_idx] *= 0.0
         return best_cand_subspace_index, best_subspace_idx
 
-    def _update_smolyak_coefficients(self, new_index):
+    def _update_smolyak_coefficients(self, new_index: Array) -> Array:
         new_smolyak_coefs = self._bkd.copy(self._smolyak_coefs)
         selected_idx = self._subspace_gen._get_selected_idx()
         for idx in selected_idx:
@@ -662,7 +674,7 @@ class AdaptiveCombinationSparseGrid(
                 new_smolyak_coefs[idx] += (-1.0) ** self._bkd.sum(diff)
         return new_smolyak_coefs
 
-    def _step_samples(self):
+    def _step_samples(self) -> Array:
         while len(self._subspace_gen._cand_indices_dict) > 0:
             best_subspace_index, best_subspace_idx = (
                 self._get_best_cand_subspace()
@@ -691,7 +703,7 @@ class AdaptiveCombinationSparseGrid(
             return self._first_step_samples()
         return self._step_samples()
 
-    def step_values(self, values):
+    def step_values(self, values: Array):
         # set training data sets ctrain samples and values
         self._train_values = self._bkd.vstack((self._train_values, values))
         self._set_training_data(self._train_samples, self._train_values)
@@ -739,20 +751,24 @@ class AdaptiveCombinationSparseGrid(
 
 
 class LocalIndexGenerator(BasisIndexGenerator):
-    def __init__(self, nvars: int, gen, growth_rules, verbosity=0):
-        super().__init__(nvars, gen, growth_rules)
+    def __init__(
+        self, nvars: int, nrefinement_vars: int, gen, growth_rules, verbosity=0
+    ):
+        super().__init__(nvars, nrefinement_vars, gen, growth_rules)
         self._sel_basis_indices_dict = dict()
         self._cand_basis_indices_dict = dict()
         self._admis_fun = None
         self._verbosity = verbosity
 
-    def _subspace_index_from_basis_index(self, basis_index):
+    def _subspace_index_from_basis_index(
+        self, basis_index: Array
+    ) -> Tuple[Array, int]:
         subspace_idx = self._basis_indices_dict[self._hash_index(basis_index)][
             1
         ]
         return self._subspace_gen._indices[:, subspace_idx], subspace_idx
 
-    def _set_selected_subspace_indices(self, subspace_indices):
+    def _set_selected_subspace_indices(self, subspace_indices: Array):
         super()._set_selected_subspace_indices(subspace_indices)
         for _, subspace_idx in self._subspace_gen._sel_indices_dict.items():
             basis_idxs = self._subspace_basis_idx[subspace_idx][
@@ -787,7 +803,9 @@ class LocalIndexGenerator(BasisIndexGenerator):
     #                 int(round(math.log(basis_index[dim_id], 2), 0)))
     #     return self._bkd.array(subspace_index, dtype=int)
 
-    def _left_neighbor(self, basis_index, subspace_index, dim_id):
+    def _left_neighbor(
+        self, basis_index: Array, subspace_index: Array, dim_id: int
+    ) -> Array:
         subspace_neighbor = self._bkd.copy(subspace_index)
         subspace_neighbor[dim_id] += 1
         if basis_index[dim_id] == 1:
@@ -801,7 +819,9 @@ class LocalIndexGenerator(BasisIndexGenerator):
             basis_neighbor[dim_id] = 2 * basis_index[dim_id] - 1
         return basis_neighbor, subspace_neighbor
 
-    def _right_neighbor(self, basis_index, subspace_index, dim_id):
+    def _right_neighbor(
+        self, basis_index: Array, subspace_index: Array, dim_id: int
+    ) -> Array:
         subspace_neighbor = self._bkd.copy(subspace_index)
         subspace_neighbor[dim_id] += 1
         if basis_index[dim_id] == 2:
@@ -815,12 +835,14 @@ class LocalIndexGenerator(BasisIndexGenerator):
             basis_neighbor[dim_id] = 2 * basis_index[dim_id]
         return basis_neighbor, subspace_neighbor
 
-    def _parent(self, basis_index, dim_id):
+    def _parent(self, basis_index: Array, dim_id: int) -> Array:
         parent = self._bkd.copy(basis_index)
         parent[dim_id] = (basis_index[dim_id] + (basis_index[dim_id] % 2)) / 2
         return parent
 
-    def _is_admissible(self, basis_index, subspace_index):
+    def _is_admissible(
+        self, basis_index: Array, subspace_index: Array
+    ) -> bool:
         if basis_index is None:
             return False
         key = self._subspace_gen._hash_index(subspace_index)
@@ -845,7 +867,9 @@ class LocalIndexGenerator(BasisIndexGenerator):
                 break
         return self._admis_fun(basis_index, subspace_index)
 
-    def get_candidate_basis_indices(self, basis_index, subspace_index):
+    def get_candidate_basis_indices(
+        self, basis_index: Array, subspace_index: Array
+    ) -> Tuple[Array, Array]:
         new_cand_basis_indices, subspace_indices_of_cand_bases = [], []
         for dim_id in range(self.nvars()):
             left_basis, left_subspace = self._left_neighbor(
@@ -874,7 +898,9 @@ class LocalIndexGenerator(BasisIndexGenerator):
             self._bkd.zeros((self.nvars(), 0)),
         )
 
-    def refine_basis_index(self, basis_index):
+    def refine_basis_index(
+        self, basis_index: Array
+    ) -> Tuple[Array, Array, Array]:
         subspace_index = self._subspace_index_from_basis_index(basis_index)[0]
         if self._verbosity > 0:
             print(
@@ -951,35 +977,35 @@ class LocalIndexGenerator(BasisIndexGenerator):
             sel_subspace_added,
         )
 
-    def get_indices(self):
+    def get_indices(self) -> Array:
         return self._basis_indices
 
-    def nselected_indices(self):
+    def nselected_indices(self) -> int:
         return len(self._sel_basis_indices_dict)
 
-    def ncandidate_indices(self):
+    def ncandidate_indices(self) -> int:
         return len(self._cand_basis_indices_dict)
 
-    def _get_candidate_idx(self):
+    def _get_candidate_idx(self) -> Array:
         # return  elements in self._indices that contain candidate indices
         return self._bkd.asarray(
             [item for key, item in self._cand_basis_indices_dict.items()],
             dtype=int,
         )
 
-    def _get_selected_idx(self):
+    def _get_selected_idx(self) -> Array:
         # return  elements in self._indices that contain selected indices
         return self._bkd.asarray(
             [item for key, item in self._sel_basis_indices_dict.items()],
             dtype=int,
         )
 
-    def get_candidate_indices(self):
+    def get_candidate_indices(self) -> Array:
         if self.ncandidate_indices() > 0:
             return self._basis_indices[:, self._get_candidate_idx()]
         return None
 
-    def _find_candidate_indices(self, basis_indices):
+    def _find_candidate_indices(self, basis_indices: Array) -> Array:
         new_cand_basis_indices = []
         idx = basis_indices.shape[1]
         for basis_index in basis_indices.T:
@@ -1021,14 +1047,14 @@ class LocalRefinementCriteria(ABC):
         self._sg = None
         self._bkd = None
 
-    def set_sparse_grid(self, sg):
+    def set_sparse_grid(self, sg: CombinationSparseGrid):
         self._sg = sg
         self._bkd = self._sg._bkd
 
-    def cost_per_sample(self, subspace_index):
+    def cost_per_sample(self, subspace_index: Array) -> float:
         return 1
 
-    def cost(self, basis_index):
+    def cost(self, basis_index: Array) -> float:
         """Computational cost of collecting the single training data."""
         subspace_index = self._sg._basis_gen._subspace_index_from_basis_index(
             basis_index
@@ -1036,10 +1062,10 @@ class LocalRefinementCriteria(ABC):
         return self.cost_per_sample(subspace_index)
 
     @abstractmethod
-    def _priority(self, basis_index):
+    def _priority(self, basis_index: Array) -> float:
         raise NotImplementedError
 
-    def __call__(self, basis_index):
+    def __call__(self, basis_index: Array) -> Tuple[float, float]:
         # divide priority by cost so to choose subspaces
         # that require smaller training data collection costs first
         error, priority = self._priority(basis_index)
@@ -1048,12 +1074,12 @@ class LocalRefinementCriteria(ABC):
         priority /= self.cost_per_sample(basis_index)
         return error, priority
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
 
 class LocalHierarchicalRefinementCriteria(LocalRefinementCriteria):
-    def _priority(self, basis_index):
+    def _priority(self, basis_index: Array) -> Tuple[float, float]:
         # todo consider prioritizing all candidate basis indices at once
         # for local hierarhical surplus.
         key = self._sg._basis_gen._hash_index(basis_index)
@@ -1076,7 +1102,9 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         self._last_nunique_samples = None
         self._refine_criteria = None
 
-    def set_refinement_criteria(self, refine_criteria):
+    def set_refinement_criteria(
+        self, refine_criteria: LocalRefinementCriteria
+    ):
         if refine_criteria is None:
             refine_criteria = LocalHierarchicalRefinementCriteria()
         if not isinstance(refine_criteria, LocalRefinementCriteria):
@@ -1087,9 +1115,10 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         self._refine_criteria = refine_criteria
         self._refine_criteria.set_sparse_grid(self)
 
-    def _set_basis_index_generator(self, growth_rules):
+    def _set_basis_index_generator(self, growth_rules: List[IndexGrowthRule]):
         self._basis_gen = LocalIndexGenerator(
-            self.nsubspace_vars(),
+            self.nvars(),
+            self.nrefinement_vars(),
             self._subspace_gen,
             growth_rules,
             self._verbosity,
@@ -1100,14 +1129,14 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
             subspace_gen, DoublePlusOneIndexGrowthRule()
         )
 
-    def _get_best_cand_basis(self):
+    def _get_best_cand_basis(self) -> Array:
         priority, best_basis_idx, error = self._cand_basis_queue.get()
         best_cand_basis_index = self._basis_gen._basis_indices[
             :, best_basis_idx
         ]
         return best_cand_basis_index
 
-    def _first_step_samples(self):
+    def _first_step_samples(self) -> Array:
         unique_samples = super()._first_step_samples()
         self._last_nunique_samples = unique_samples.shape[1]
         self._last_global_data_idx = self._bkd.arange(
@@ -1115,7 +1144,7 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         )
         return unique_samples
 
-    def _global_data_idx(self, new_basis_indices):
+    def _global_data_idx(self, new_basis_indices: Array) -> List[int]:
         global_data_idx = [
             self._basis_gen._cand_basis_indices_dict[
                 self._subspace_gen._hash_index(basis_index)
@@ -1124,7 +1153,7 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         ]
         return global_data_idx
 
-    def _step_samples(self):
+    def _step_samples(self) -> Array:
         while len(self._basis_gen._cand_basis_indices_dict) > 0:
             best_basis_index = self._get_best_cand_basis()
             new_basis_indices, new_subspace_indices, sel_subspace_added = (
@@ -1174,7 +1203,7 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
                 (basis_indicator, basis_idx, subspace_error)
             )
 
-    def step_values(self, values):
+    def step_values(self, values: Array):
         # nunique_samples is the number of all samples in recently
         # added subspaces
         subspace_values = self._bkd.zeros(
@@ -1198,11 +1227,11 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
             self._subspace_surrogates[subspace_idx].fit(subspace_values)
         self._prioritize_candidate_bases()
 
-    def _candidate_train_samples(self):
+    def _candidate_train_samples(self) -> Array:
         idx = self._basis_gen._get_candidate_idx()
         return self.train_samples()[:, idx]
 
-    def _selected_train_samples(self):
+    def _selected_train_samples(self) -> Array:
         idx = self._basis_gen._get_selected_idx()
         return self.train_samples()[:, idx]
 
@@ -1229,7 +1258,9 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         cand_samples = self._candidate_train_samples()
         ax.plot(*cand_samples, "X")
 
-    def set_basis_admissibility_criteria(self, admis_criteria):
+    def set_basis_admissibility_criteria(
+        self, admis_criteria: SparseGridBasisAdmissibilityCriteria
+    ):
         if not isinstance(
             admis_criteria, SparseGridBasisAdmissibilityCriteria
         ):
@@ -1368,9 +1399,6 @@ class MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
 
     def nrefinement_vars(self) -> int:
         return self._nrefinement_vars
-
-    def nsubspace_vars(self) -> int:
-        return self.nvars() + self.nrefinement_vars()
 
 
 # TODO mix locally adaptive basis with global polynomial basis in another
