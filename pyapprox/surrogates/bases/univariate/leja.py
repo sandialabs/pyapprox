@@ -563,3 +563,13 @@ class OnePointChristoffelLejaQuadratureRule(LejaQuadratureRule):
 class TwoPointChristoffelLejaQuadratureRule(LejaQuadratureRule):
     def _leja_objective_class(self) -> LejaObjective:
         return TwoPointChristoffelLejaObjective
+
+
+class OnePointPDFLejaQuadratureRule(LejaQuadratureRule):
+    def _leja_objective_class(self) -> LejaObjective:
+        return OnePointPDFLejaObjective
+
+
+class TwoPointPDFLejaQuadratureRule(LejaQuadratureRule):
+    def _leja_objective_class(self) -> LejaObjective:
+        return TwoPointPDFLejaObjective

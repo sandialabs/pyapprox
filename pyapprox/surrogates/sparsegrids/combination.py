@@ -24,7 +24,7 @@ from pyapprox.surrogates.bases.basisexp import (
     TensorProductQuadratureRule,
 )
 from pyapprox.surrogates.regressor import Regressor, AdaptiveRegressorMixin
-from pyapprox.interface.model import Model
+from pyapprox.interface.model import Model, MultiIndexModelEnsemble
 from pyapprox.surrogates.bases.univariate.base import UnivariateBasis
 from pyapprox.surrogates.bases.univariate.lagrange import (
     UnivariateLagrangeBasis,
@@ -64,6 +64,19 @@ class PriorityQueue:
     def __len__(self) -> int:
         return len(self.list)
 
+    def items(self) -> List:
+        """
+        Get shallow copy of all items in the queue
+        """
+        # cannot extract items without destroying queue so destroy the recreate
+        items = []
+        while not self.empty():
+            items.append(self.get())
+        # restore queue
+        for item in items:
+            self.put(item)
+        return items
+
 
 def _compute_smolyak_coefficients(sg, indices):
     smolyak_coefs = sg._bkd.zeros((indices.shape[1]), dtype=float)
@@ -96,6 +109,9 @@ class SparseGridAdmissibilityCriteria(AdmissibilityCriteria):
     @abstractmethod
     def __call__(self, index: Array) -> bool:
         raise NotImplementedError
+
+    def failure_message(self) -> str:
+        return "{0} not met".format(self.__class__.__name__)
 
 
 class SparseGridSubSpaceAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
@@ -157,7 +173,7 @@ class CombinationSparseGrid(Regressor):
         self._bkd = self._subspace_gen._bkd
         self._set_basis_index_generator(growth_rules)
         self._smolyak_coefs = self._bkd.zeros(0)
-        self._train_samples = self._bkd.zeros((self.nvars(), 0))
+        self._train_samples = self._bkd.zeros((self.nsubspace_vars(), 0))
         self._train_values = self._bkd.zeros((0, self.nqoi()))
 
     def set_verbosity(self, verbosity: int):
@@ -199,16 +215,28 @@ class CombinationSparseGrid(Regressor):
     def nqoi(self) -> int:
         return self._nqoi
 
+    def _add_refinement_id(
+        self, subspace_index: Array, samples: Array
+    ) -> Array:
+        if self.nrefinement_vars() == 0:
+            return samples
+
+        return self._bkd.vstack(
+            (
+                samples,
+                self._bkd.tile(
+                    subspace_index[-self._nrefinement_vars :][:, None],
+                    (samples.shape[1],),
+                ),
+            )
+        )
+
     def _setup_tensor_product_interpolant(
         self, subspace_index: Array, is_cand_subspace: bool
     ):
         nsubspace_nodes_1d = self._basis_gen.nunivariate_basis(subspace_index)
         basis = self._basis._semideep_copy()
-        print(basis.nvars(), "bnvarfs", nsubspace_nodes_1d)
         basis.set_tensor_product_indices(nsubspace_nodes_1d)
-        # basis.set_indices(
-        #     self._basis_gen._subspace_basis_indices(subspace_index)
-        # )
         self._subspace_surrogates.append(TensorProductInterpolant(basis))
         subspace_key = self._basis_gen._hash_index(subspace_index)
         if is_cand_subspace:
@@ -219,6 +247,9 @@ class CombinationSparseGrid(Regressor):
             subspace_idx
         ]
         unique_samples = basis.tensor_product_grid()[:, unique_samples_idx]
+        unique_samples = self._add_refinement_id(
+            subspace_index, unique_samples
+        )
         self._train_samples = self._bkd.hstack(
             (self._train_samples, unique_samples)
         )
@@ -227,21 +258,40 @@ class CombinationSparseGrid(Regressor):
     def _values_using_smolyak_coefs(
         self, samples: Array, smolyak_coefs: Array
     ) -> Array:
+        if samples.shape[0] != self.nvars():
+            raise ValueError("samples have the wrong shape")
         values = 0
         for subspace_idx in range(self._subspace_gen.nindices()):
             # TODO store smolyak coefficients for candidate & selected indices
             # but set can_indices coefs to zero. Have option to evaluate sparse
             # grid with and without can indices
-            if abs(self._smolyak_coefs[subspace_idx]) <= np.finfo(float).eps:
+            if abs(smolyak_coefs[subspace_idx]) <= np.finfo(float).eps:
                 continue
-
             values += smolyak_coefs[subspace_idx] * self._subspace_surrogates[
                 subspace_idx
             ](samples)
         return values
 
-    def _values(self, samples: Array) -> Array:
+    def _values_using_only_selected_subspaces(self, samples: Array) -> Array:
         return self._values_using_smolyak_coefs(samples, self._smolyak_coefs)
+
+    def _values_using_all_subspaces(self, samples: Array) -> Array:
+        queue_items = self._cand_subspace_queue.items()
+        smolyak_coefs = self._smolyak_coefs
+        selected_idx = self._subspace_gen._get_selected_idx()
+        for item in queue_items:
+            subspace_idx = item[2]
+            subspace_index = self._subspace_gen._indices[:, subspace_idx]
+            selected_idx = self._bkd.hstack((selected_idx, subspace_idx))
+            smolyak_coefs = self._adjust_smolyak_coefficients(
+                smolyak_coefs, subspace_index, selected_idx
+            )
+        return self._values_using_smolyak_coefs(samples, smolyak_coefs)
+
+    def _values(self, samples: Array) -> Array:
+        if self._cand_subspace_queue is None:
+            return self._values_using_only_selected_subspaces(samples)
+        return self._values_using_all_subspaces(samples)
 
     def __repr__(self) -> str:
         return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
@@ -270,17 +320,23 @@ class CombinationSparseGrid(Regressor):
         }
         plot_grid_funs[self.nvars()](ax)
 
-    def integrate(self) -> Array:
+    def _compute_moment(self, moment: str, smolyak_coefs: Array) -> Array:
         values = 0
         for subspace_idx in range(self._subspace_gen.nindices()):
-            if abs(self._smolyak_coefs[subspace_idx]) <= np.finfo(float).eps:
+            if abs(smolyak_coefs[subspace_idx]) <= np.finfo(float).eps:
                 continue
 
-            values += (
-                self._smolyak_coefs[subspace_idx]
-                * self._subspace_surrogates[subspace_idx].mean()
-            )
+            subspace_moment = getattr(
+                self._subspace_surrogates[subspace_idx], moment
+            )()
+            values += smolyak_coefs[subspace_idx] * subspace_moment
         return values
+
+    def mean(self) -> Array:
+        return self._compute_moment("mean", self._smolyak_coefs)
+
+    def variance(self) -> Array:
+        return self._compute_moment("variance", self._smolyak_coefs)
 
     def train_samples(self) -> Array:
         return self._train_samples
@@ -385,6 +441,19 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid):
             self._set_smolyak_coefficients()
 
 
+class Max1DLevelSparseGridSubSpaceAdmissibilityCriteria(
+    SparseGridSubSpaceAdmissibilityCriteria
+):
+    def __init__(self, max_levels_1d: List[int]):
+        super().__init__()
+        self._max_levels_1d = max_levels_1d
+
+    def __call__(self, index: Array) -> bool:
+        if self._bkd.any(index > self._bkd.asarray(self._max_levels_1d)):
+            return False
+        return True
+
+
 class MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
     SparseGridSubSpaceAdmissibilityCriteria
 ):
@@ -438,6 +507,8 @@ class MultipleSparseGridSubSpaceAdmissibilityCriteria(
     def __init__(
         self, criterion: List[SparseGridSubSpaceAdmissibilityCriteria]
     ):
+        if not isinstance(criterion, list):
+            raise ValueError("criterion must be a list")
         for criteria in criterion:
             if not isinstance(
                 criteria, SparseGridSubSpaceAdmissibilityCriteria
@@ -455,8 +526,18 @@ class MultipleSparseGridSubSpaceAdmissibilityCriteria(
     def __call__(self, index: Array) -> bool:
         for criteria in self._criterion:
             if not criteria(index):
+                self._failed_criteria = criteria
                 return False
         return True
+
+    def failure_message(self) -> str:
+        return "{0} not met".format(self._failed_criteria)
+
+    def __repr__(self) -> str:
+        return "{0}({1})".format(
+            self.__class__.__name__,
+            ", ".join([criteria.__repr__() for criteria in self._criterion]),
+        )
 
 
 class SparseGridBasisAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
@@ -555,14 +636,48 @@ class L2NormRefinementCriteria(RefinementCriteria):
             self._sg._basis_gen._subspace_basis_idx[subspace_idx], :
         ]
         subspace_samples = self._sg._train_samples[
-            :, self._sg._basis_gen._subspace_basis_idx[subspace_idx]
+            : self._sg.nvars(),  # ignore refinement vars when evaluating
+            self._sg._basis_gen._subspace_basis_idx[subspace_idx],
         ]
         error = (
-            self._bkd.norm(subspace_values - self._sg(subspace_samples))
+            self._bkd.norm(
+                subspace_values
+                - self._sg._values_using_only_selected_subspaces(
+                    subspace_samples
+                )
+            )
             / subspace_values.shape[0]
         )
+        # print("####", subspace_index)
+        # print(error)
+        # print(subspace_values[:, 0])
+        # print(self._sg(subspace_samples)[:, 0])
         # priority queue gives higher priority to smaler values so set
         # priority = -error
+        return -error, error
+
+
+class VarianceRefinementCriteria(RefinementCriteria):
+    def _priority(self, subspace_index: Array) -> Tuple[float, float]:
+        current_mean = self._sg.mean()
+        current_variance = self._sg.variance()
+        new_smolyak_coefs = (
+            self._sg._adjust_smolyak_coefficients_with_candidate_index(
+                self._sg._smolyak_coefs, subspace_index
+            )
+        )
+        new_mean = self._sg._compute_moment("mean", new_smolyak_coefs)
+        new_variance = self._sg._compute_moment("variance", new_smolyak_coefs)
+        error = (
+            self._bkd.abs(new_mean - current_mean)
+            + self._bkd.sqrt(self._bkd.abs(new_variance - current_variance))
+        ).max()
+        # print("####", subspace_index)
+        # print(self._sg._smolyak_coefs)
+        # print(new_smolyak_coefs)
+        # print(
+        #     current_mean, new_mean, current_variance, new_variance, "V", error
+        # )
         return -error, error
 
 
@@ -662,17 +777,51 @@ class AdaptiveCombinationSparseGrid(
                 f"Refining subspace {best_cand_subspace_index} with "
                 f"{priority=}"
             )
-        self._subspace_errors[best_subspace_idx] *= 0.0
+        # self._subspace_errors[best_subspace_idx] *= 0.0
         return best_cand_subspace_index, best_subspace_idx
 
-    def _update_smolyak_coefficients(self, new_index: Array) -> Array:
-        new_smolyak_coefs = self._bkd.copy(self._smolyak_coefs)
-        selected_idx = self._subspace_gen._get_selected_idx()
+    def _adjust_smolyak_coefficients(
+        self, smolyak_coefs: Array, new_index: Array, selected_idx: Array
+    ) -> Array:
+        new_smolyak_coefs = self._bkd.copy(smolyak_coefs)
         for idx in selected_idx:
             diff = new_index - self._subspace_gen._indices[:, idx]
             if self._bkd.all(diff >= 0) and self._bkd.max(diff) <= 1:
                 new_smolyak_coefs[idx] += (-1.0) ** self._bkd.sum(diff)
         return new_smolyak_coefs
+
+    def _adjust_smolyak_coefficients_with_selected_index(
+        self, new_index: Array
+    ):
+        """
+        For use when smolyak_coefficient has been added to the selected
+        set
+        """
+        key = self._subspace_gen._hash_index(new_index)
+        if key not in self._subspace_gen._sel_indices_dict:
+            raise RuntimeError("new_index has not been selected")
+        selected_idx = self._subspace_gen._get_selected_idx()
+        return self._adjust_smolyak_coefficients(
+            self._smolyak_coefs, new_index, selected_idx
+        )
+
+    def _adjust_smolyak_coefficients_with_candidate_index(
+        self, smolyak_coefs: Array, new_index: Array
+    ):
+        """
+        For use when smolyak_coefficient is still in candidate set.
+        Typically used when computing subspace priorities
+        """
+        key = self._subspace_gen._hash_index(new_index)
+        if key not in self._subspace_gen._cand_indices_dict:
+            raise RuntimeError("new_index is not a candidate index")
+        new_index_idx = self._subspace_gen._cand_indices_dict[key]
+        selected_idx = self._bkd.hstack(
+            (self._subspace_gen._get_selected_idx(), new_index_idx)
+        )
+        return self._adjust_smolyak_coefficients(
+            smolyak_coefs, new_index, selected_idx
+        )
 
     def _step_samples(self) -> Array:
         while len(self._subspace_gen._cand_indices_dict) > 0:
@@ -690,9 +839,12 @@ class AdaptiveCombinationSparseGrid(
             )
             # update smolyak coefs must occur here even
             # if no candidates are added
-            self._smolyak_coefs = self._update_smolyak_coefficients(
-                best_subspace_index
+            self._smolyak_coefs = (
+                self._adjust_smolyak_coefficients_with_selected_index(
+                    best_subspace_index
+                )
             )
+            self._subspace_errors[best_subspace_idx] *= 0.0
             if new_subspace_indices.shape[1] > 0:
                 self._last_subspace_indices = new_subspace_indices
                 return self._setup_subspaces(new_subspace_indices, True)
@@ -1171,8 +1323,10 @@ class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
                         self._bkd.zeros((new_subspace_indices.shape[1],)),
                     )
                 )
-                self._smolyak_coefs = self._update_smolyak_coefficients(
-                    best_subspace_index
+                self._smolyak_coefs = (
+                    self._adjust_smolyak_coefficients_with_selected_index(
+                        best_subspace_index
+                    )
                 )
             if new_basis_indices.shape[1] == 0:
                 continue
@@ -1393,12 +1547,87 @@ class MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
         variable: IndependentMarginalsVariable,
         nqoi: int,
         nrefinement_vars: int,
+        refinement_bounds: Array,
     ):
         self._nrefinement_vars = nrefinement_vars
+        self._refinement_bounds = refinement_bounds
         super().__init__(variable, nqoi)
 
     def nrefinement_vars(self) -> int:
         return self._nrefinement_vars
+
+    def default_max_level_1d_admissibility_criteria(
+        self,
+    ) -> Max1DLevelSparseGridSubSpaceAdmissibilityCriteria:
+        return Max1DLevelSparseGridSubSpaceAdmissibilityCriteria(
+            self._bkd.hstack(
+                (
+                    self._bkd.asarray([np.inf] * self.nvars()),
+                    self._refinement_bounds,
+                ),
+            )
+        )
+
+    def step(self, model_ensemble: MultiIndexModelEnsemble) -> bool:
+        unique_ensemble_samples_per_model = self.step_samples()
+        if unique_ensemble_samples_per_model is None:
+            return False
+        # print(unique_ensemble_samples_per_model)
+        model_ids, unique_samples_per_model, sample_idx_per_model = (
+            model_ensemble.split_ensemble_samples(
+                unique_ensemble_samples_per_model
+            )
+        )
+        unique_values_per_model = []
+        for ii, model_id in enumerate(model_ids.T):
+            unique_values_per_model.append(
+                model_ensemble.get_model(model_id)(
+                    unique_samples_per_model[ii]
+                )
+            )
+        ensemble_values = model_ensemble.combine_values(
+            unique_values_per_model, sample_idx_per_model
+        )
+        self.step_values(ensemble_values)
+        return True
+
+    def set_subspace_admissibility_criteria(
+        self, admis_criteria: SparseGridSubSpaceAdmissibilityCriteria
+    ):
+        # Make sure there is an upper bound on the refinement variables
+        if isinstance(
+            admis_criteria, MultipleSparseGridSubSpaceAdmissibilityCriteria
+        ):
+            criterion = admis_criteria._criterion
+        elif isinstance(
+            admis_criteria, SparseGridSubSpaceAdmissibilityCriteria
+        ):
+            criterion = [admis_criteria]
+        else:
+            raise ValueError(
+                "criteria must be an instance of "
+                "SparseGridSubSpaceAdmissibilityCriteria"
+            )
+        found = False
+        for criteria in criterion:
+            if isinstance(
+                admis_criteria,
+                Max1DLevelSparseGridSubSpaceAdmissibilityCriteria,
+            ):
+                found = True
+                break
+        print(found)
+        print(criterion)
+        if not found:
+            criterion.append(
+                self.default_max_level_1d_admissibility_criteria()
+            )
+        print(criterion)
+        admis_criteria = MultipleSparseGridSubSpaceAdmissibilityCriteria(
+            criterion
+        )
+        print(admis_criteria)
+        super().set_subspace_admissibility_criteria(admis_criteria)
 
 
 # TODO mix locally adaptive basis with global polynomial basis in another

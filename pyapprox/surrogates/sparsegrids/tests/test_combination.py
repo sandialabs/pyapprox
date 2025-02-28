@@ -38,6 +38,7 @@ from pyapprox.surrogates.sparsegrids.combination import (
     LocallyAdaptiveCombinationSparseGrid,
     LocalRefinementCriteria,
     LocalHierarchicalRefinementCriteria,
+    Max1DLevelSparseGridSubSpaceAdmissibilityCriteria,
     MaxLevelSparseGridSubSpaceAdmissibilityCriteria,
     MaxErrorSparseGridSubspaceAdmissibilityCriteria,
     MultipleSparseGridSubSpaceAdmissibilityCriteria,
@@ -45,13 +46,14 @@ from pyapprox.surrogates.sparsegrids.combination import (
     LejaLagrangeAdaptiveCombinationSparseGrid,
     SparseGridToOrthonormalPolynomialChaosExpansionConverter,
     MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid,
+    VarianceRefinementCriteria,
 )
 from pyapprox.surrogates.bases.univariate.local import (
     setup_univariate_piecewise_polynomial_basis,
 )
 from pyapprox.benchmarks import (
     GenzBenchmark,
-    MultiLevelPolynomialBenchmark,
+    MultiLevelCosineBenchmark,
 )
 
 
@@ -106,7 +108,7 @@ class TestCombination:
         sg_test_values = sg(test_samples)
         assert bkd.allclose(sg_test_values, fun(test_samples), atol=1e-15)
 
-        assert bkd.allclose(sg.integrate(), fun.get_coefficients()[0])
+        assert bkd.allclose(sg.mean(), fun.get_coefficients()[0])
 
         # test plot runs
         sg.plot_grid(plt.figure().gca())
@@ -183,7 +185,7 @@ class TestCombination:
         sg_test_values = sg(test_samples)
         assert bkd.allclose(sg_test_values, fun(test_samples), atol=1e-15)
 
-        assert bkd.allclose(sg.integrate(), fun.get_coefficients()[0])
+        assert bkd.allclose(sg.mean(), fun.get_coefficients()[0])
 
     def test_sparse_grid_to_polynomial_chaos_expansion(self):
         bkd = self.get_backend()
@@ -221,6 +223,8 @@ class TestCombination:
         )
         pce = converter.convert(sg)
         assert bkd.allclose(pce(test_samples), sg(test_samples))
+        assert bkd.allclose(sg.mean(), pce.mean())
+        assert bkd.allclose(sg.variance(), pce.variance())
 
     def _setup_locally_adaptive_sparse_grid(
         self, nvars, level, nqoi, max_cost
@@ -365,37 +369,68 @@ class TestCombination:
 
     def test_multi_index_leja_lagrange_sparse_grid(self):
         bkd = self.get_backend()
-        benchmark = MultiLevelPolynomialBenchmark(backend=bkd)
+        benchmark = MultiLevelCosineBenchmark(backend=bkd)
         nrefinement_vars = 1
-        level = 5
+
+        sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
+            benchmark.variable(),
+            benchmark.nqoi(),
+            nrefinement_vars,
+            benchmark.models()._index_bounds,
+        )
         admissibility_criteria = (
             MultipleSparseGridSubSpaceAdmissibilityCriteria(
-                (
-                    MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
-                        level, 1.0
-                    ),
-                    MaxErrorSparseGridSubspaceAdmissibilityCriteria(1e-8),
-                )
+                [
+                    MaxErrorSparseGridSubspaceAdmissibilityCriteria(1e-5),
+                    MaxLevelSparseGridSubSpaceAdmissibilityCriteria(6, 1.0),
+                ]
             )
         )
-        sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
-            benchmark.variable(), benchmark.nqoi(), nrefinement_vars
+        sg.setup(
+            admissibility_criteria,
+            refinement_criteria=VarianceRefinementCriteria(),
         )
-        sg.setup(admissibility_criteria)
+        sg.set_verbosity(0)
 
-        unique_samples_per_model = sg.step_samples()
-        unique_values_per_model = [
-            model(unique_samples) if unique_samples is not None else None
-            for model, unique_samples in zip(
-                self.benchmark.models(), unique_samples_per_model
-            )
-        ]
-        self.step_values(unique_values_per_model)
+        model_ensemble = benchmark.models()
 
-        # sg.build(benchmark.model())
+        sg.build(model_ensemble)
+
+        # for step_id in range(5):
+        #     sg.step(model_ensemble)
+        #     import matplotlib
+
+        #     matplotlib.use("TKAgg")
+        #     fig = plt.figure()
+        #     colors = ["k", "b", "g"]
+        #     xx = np.linspace(-1, 1, 101)[None, :]
+        #     plt.plot(
+        #         xx[0],
+        #         model_ensemble.highest_fidelity_model()(xx),
+        #         ls="-",
+        #         color=colors[2],
+        #     )
+        #     for ii, model_id in enumerate(
+        #         bkd.array([[0], [1], [2]], dtype=int)
+        #     ):
+        #         plt.plot(
+        #             xx[0],
+        #             model_ensemble.get_model(model_id)(xx),
+        #             ls="--",
+        #             color=colors[model_id[0]],
+        #         )
+        #         idx = bkd.where(sg.get_train_samples()[-1] == model_id[0])[0]
+        #         plt.plot(
+        #             sg.get_train_samples()[0, idx],
+        #             sg.get_train_values()[idx],
+        #             "o",
+        #             color=colors[model_id[0]],
+        #         )
+        #         plt.plot(xx[0], sg(xx), "r:")
+        #     print(sg._cand_subspace_queue, sg._subspace_errors)
 
         test_samples = benchmark.variable().rvs(100)
-        test_values = benchmark.model()(test_samples)
+        test_values = benchmark.models().highest_fidelity_model()(test_samples)
         assert bkd.allclose(sg(test_samples), test_values)
 
 

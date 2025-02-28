@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from functools import partial
 from typing import List, Union
 
-from pyapprox.interface.model import Model
+from pyapprox.interface.model import Model, MultiIndexModelEnsemble
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.joint import JointVariable, DesignVariable
@@ -48,6 +48,7 @@ class SingleModelBenchmark(ABC):
 
 
 class MultiModelBenchmark(ABC):
+    # Unordered set of models
     def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         self._bkd = backend
         self._set_variable()
@@ -77,6 +78,15 @@ class MultiModelBenchmark(ABC):
 
     def models(self) -> List[Model]:
         return self._models
+
+
+class MultiIndexModelBenchmark(MultiModelBenchmark):
+    # Ordered set of models in a multi-dimensional hierarchy
+    def models(self) -> MultiIndexModelEnsemble:
+        return self._models
+
+    def nmodels(self) -> int:
+        return self._models.nmodels()
 
 
 class ACVBenchmark(MultiModelBenchmark):

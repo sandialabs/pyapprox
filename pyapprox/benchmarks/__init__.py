@@ -21,7 +21,7 @@ from pyapprox.benchmarks.multifidelity_benchmarks import (
     ShortColumnModelEnsemble,
     MultiOutputModelEnsemble,
     PSDMultiOutputModelEnsemble,
-    MultiLevelPolynomialBenchmark,
+    MultiLevelCosineBenchmark,
 )
 
 from pyapprox.benchmarks.ode import (

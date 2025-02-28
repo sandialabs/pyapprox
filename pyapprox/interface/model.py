@@ -13,7 +13,10 @@ from typing import List, Tuple
 import numpy as np
 import umbridge
 
-from pyapprox.util.utilities import get_all_sample_combinations
+from pyapprox.util.misc import (
+    get_all_sample_combinations,
+    unique_matrix_row_indices,
+)
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
@@ -292,6 +295,8 @@ class Model(ABC):
         values : Array (nsamples, nqoi)
             The model outputs returned by the model at each sample
         """
+        if samples.shape[0] != self.nvars():
+            raise ValueError("samples has the wrong number of rows")
         stored_values, stored_idx, new_idx = self._database.get_data(
             "val", samples
         )
@@ -1910,11 +1915,15 @@ class PoolModelWrapper(Model):
 
 class MultiIndexModelEnsemble(ABC):
     def __init__(
-        self, nrefinement_vars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+        self, index_bounds: List[int], backend: LinAlgMixin = NumpyLinAlgMixin
     ):
-        self._nrefinement_vars = nrefinement_vars
-        self._models = dict()
         self._bkd = backend
+        self._models = dict()
+        self._index_bounds = self._bkd.asarray(index_bounds, dtype=int)
+        # index bounds supports values in [0, N]
+        # Note upper and lower bounds are both included
+        if self._index_bounds.min() < 1:
+            raise ValueError("index bounds must have entries > 0")
 
     def _hash_model_id(self, model_id: Array) -> int:
         return hash(self._bkd.to_numpy(model_id).tobytes())
@@ -1922,6 +1931,8 @@ class MultiIndexModelEnsemble(ABC):
     def get_model(self, model_id: Array) -> Model:
         if model_id.shape != (self.nrefinement_vars(),):
             raise ValueError("model_id does not match nrefinement_vars")
+        if self._bkd.any(model_id > self._index_bounds):
+            raise ValueError("model_id exceeds index_bounds")
         key = self._hash_model_id(model_id)
         if key in self._models:
             return self._models[key]
@@ -1936,4 +1947,39 @@ class MultiIndexModelEnsemble(ABC):
         raise NotImplementedError
 
     def nrefinement_vars(self) -> int:
-        return self._nrefinement_vars
+        return len(self._index_bounds)
+
+    def nmodels(self) -> int:
+        return self._bkd.prod(self._index_bounds)
+
+    def split_ensemble_samples(
+        self, ensemble_samples: Array
+    ) -> Tuple[Array, List[Array], List[Array]]:
+        # split into samples and model_ids
+        samples = ensemble_samples[: self.nrefinement_vars()]
+        sample_model_ids = self._bkd.asarray(
+            ensemble_samples[-self.nrefinement_vars() :], dtype=int
+        )
+        unique_model_idx, sample_idx_per_unique_model = (
+            unique_matrix_row_indices(sample_model_ids.T)
+        )
+        unique_model_ids = sample_model_ids[:, unique_model_idx]
+        samples_per_model = []
+        for ii in range(unique_model_ids.shape[1]):
+            samples_per_model.append(
+                samples[:, sample_idx_per_unique_model[ii]]
+            )
+        return unique_model_ids, samples_per_model, sample_idx_per_unique_model
+
+    def combine_values(
+        self, values_per_model: List[Array], sample_idx_per_model: List[Array]
+    ):
+        # values reordered to match the order the samples entered
+        # split_ensemble_samples
+        ensemble_values = self._bkd.vstack(values_per_model)[
+            self._bkd.hstack(sample_idx_per_model)
+        ]
+        return ensemble_values
+
+    def highest_fidelity_model(self):
+        return self.get_model(self._index_bounds)

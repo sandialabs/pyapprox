@@ -160,7 +160,7 @@ class Regressor(Surrogate):
         return self._in_trans.map_to_canonical(self._ctrain_samples)
 
     def get_train_values(self) -> Array:
-        return self._out_trans.map_to_canonical(self._ctrain_samples)
+        return self._out_trans.map_to_canonical(self._ctrain_values)
 
 
 class AdaptiveRegressorMixin(ABC):

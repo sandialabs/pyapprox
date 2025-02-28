@@ -7,10 +7,15 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.interface.model import ModelFromVectorizedCallable, Model
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.benchmarks.base import ACVBenchmark, MultiModelBenchmark
+from pyapprox.benchmarks.base import (
+    ACVBenchmark,
+    MultiIndexModelBenchmark,
+    MultiIndexModelEnsemble,
+)
 from pyapprox.surrogates.bases.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
+from pyapprox.util.misc import argsort_indices_leixographically
 
 
 class PolynomialModelEnsemble(ACVBenchmark):
@@ -733,44 +738,59 @@ class PSDMultiOutputModelEnsemble(ACVBenchmark):
         return self._bkd.array([1.0, 0.01, 0.001])
 
 
-class MultiIndexPolynomialModel(Model):
-    def __init__(
-        self, variable, nterms: int, backend: LinAlgMixin = NumpyLinAlgMixin
-    ):
-        if len(nterms) != variable.nvars():
-            raise ValueError("nterms must have nvar entries")
-        self._nterms = nterms
+class MultiIndexCosineModel(Model):
+    def __init__(self, shifts: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+        self._shifts = shifts
+        self._nrefinement_vars = len(shifts)
         super().__init__(backend)
-        self._poly = setup_polynomial_chaos_expansion_from_variable(
-            variable, 1
-        )
-        self._poly.basis().set_tensor_product_indices(self._nterms)
-        self._poly.set_coefficients(
-            1.0 / (10 ** self._bkd.arange(0, self._poly.nterms()))[:, None]
-        )
 
     def _values(self, samples: Array) -> Array:
-        return self._poly(samples)
+        vals = 0
+        for shift in self._shifts:
+            vals += self._bkd.cos(math.pi * (samples[0] + 1) / 2 + shift)[
+                :, None
+            ]
+        return vals
 
     def nqoi(self) -> int:
-        return self._poly.nqoi()
+        return 1
 
     def nvars(self) -> int:
-        return self._poly.nvars()
+        return 1
+
+    def __repr__(self) -> str:
+        return "{0}(shifts={1})".format(self.__class__.__name__, self._shifts)
 
 
-class MultiLevelPolynomialBenchmark(MultiModelBenchmark):
+class MultiLevelCosineModelEnsemble(MultiIndexModelEnsemble):
+    def __init__(
+        self,
+        index_bounds: List[int],
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(index_bounds, backend)
+
+    def _model_id_to_shifts(self, model_id: Array) -> Array:
+        possible_shifts = self._bkd.array([0.25, 0.125, 0.0])
+        print(model_id)
+        shifts = possible_shifts[model_id]
+        return shifts
+
+    def setup_model(self, model_id: Array) -> Model:
+        return MultiIndexCosineModel(
+            self._model_id_to_shifts(model_id), self._bkd
+        )
+
+
+class MultiLevelCosineBenchmark(MultiIndexModelBenchmark):
     def nqoi(self) -> int:
         return 1
 
     def _set_variable(self):
-        self._variable = IndependentMarginalsVariable([stats.uniform(0, 1)])
+        self._variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
 
     def _set_models(self):
-        self._models = [
-            MultiIndexPolynomialModel(self.variable(), nterms, self._bkd)
-            for nterms in [[3], [5], [7]]
-        ]
+        self._models = MultiLevelCosineModelEnsemble([2], self._bkd)
 
     def nmodels(self) -> int:
         return 3

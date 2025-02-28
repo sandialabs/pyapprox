@@ -257,9 +257,14 @@ class IterativeIndexGenerator(IndexGenerator):
         return neighbor
 
     def _is_admissible(self, index: Array) -> bool:
+        fail_msg = f"Index {index} is not admissible: "
         if self._hash_index(index) in self._sel_indices_dict:
+            if self._verbosity > 1:
+                print(fail_msg + "already in the selected index set")
             return False
         if self._hash_index(index) in self._cand_indices_dict:
+            if self._verbosity > 1:
+                print(fail_msg + "already in the candidate index set")
             return False
         for dim_id in range(self.nvars()):
             if index[dim_id] > 0:
@@ -268,8 +273,13 @@ class IterativeIndexGenerator(IndexGenerator):
                     self._hash_index(neighbor_index)
                     not in self._sel_indices_dict
                 ):
+                    if self._verbosity > 1:
+                        print(fail_msg + "Index is not downward_closed")
                     return False
-        return self._admis_fun(index)
+        is_admisible = self._admis_fun(index)
+        if not is_admisible and self._verbosity > 1:
+            print(fail_msg + self._admis_fun.failure_message())
+        return is_admisible
 
     def _get_new_candidate_indices(self, index: Array) -> Array:
         if self._admis_fun is None:
@@ -281,10 +291,6 @@ class IterativeIndexGenerator(IndexGenerator):
                 new_cand_indices.append(neighbor_index)
                 if self._verbosity > 1:
                     msg = f"Adding candidate index {neighbor_index}"
-                    print(msg)
-            else:
-                if self._verbosity > 1:
-                    msg = f"Index {neighbor_index} is not admissible"
                     print(msg)
         if len(new_cand_indices) > 0:
             return self._bkd.stack(new_cand_indices, axis=1)
@@ -475,7 +481,9 @@ class BasisIndexGenerator:
         self._subspace_gen = gen
         self._bkd = self._subspace_gen._bkd
         self._subspace_indices = None
-        self._basis_indices = self._bkd.zeros((self.nvars(), 0), dtype=int)
+        self._basis_indices = self._bkd.zeros(
+            (self.nindex_vars(), 0), dtype=int
+        )
         self._basis_indices_dict = dict()
         self._unique_subspace_basis_idx = []
         self._subspace_basis_idx = []
@@ -495,6 +503,12 @@ class BasisIndexGenerator:
                     "growth_rule must be an instance of IndexGrowthRule"
                 )
         self._growth_rules = growth_rules
+
+    def nindex_vars(self) -> int:
+        return self.nvars() + self.nrefinement_vars()
+
+    def nrefinement_vars(self) -> int:
+        return self._nrefinement_vars
 
     def nvars(self) -> int:
         return self._nvars
@@ -538,7 +552,6 @@ class BasisIndexGenerator:
         idx = len(self._basis_indices_dict)
         basis_indices = self._subspace_basis_indices(subspace_index)
         subspace_key = self._hash_index(subspace_index)
-        print(basis_indices, subspace_index)  # elf._basis_indices_dict)
         for sample_idx, basis_index in enumerate(basis_indices.T):
             basis_key = self._hash_index(basis_index)
             if basis_key not in self._basis_indices_dict:
@@ -572,7 +585,18 @@ class BasisIndexGenerator:
         basis_indices_1d = [
             self._bkd.arange(n_1d, dtype=int) for n_1d in nbasis_1d
         ]
-        return self._bkd.cartesian_product(basis_indices_1d)
+        basis_indices = self._bkd.cartesian_product(basis_indices_1d)
+        if self.nrefinement_vars() == 0:
+            return basis_indices
+        return self._bkd.vstack(
+            (
+                basis_indices,
+                self._bkd.tile(
+                    subspace_index[-self._nrefinement_vars :][:, None],
+                    (basis_indices.shape[1],),
+                ),
+            )
+        )
 
     def _get_basis_indices(
         self, subspace_indices: Array, return_all: bool = False
