@@ -7,7 +7,11 @@ import numpy as np
 from pyapprox.surrogates.regressor import OptimizedRegressor
 from pyapprox.surrogates.autogp.mokernels import MultiPeerKernel
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
-from pyapprox.surrogates.kernels.kernels import Kernel
+from pyapprox.surrogates.kernels.kernels import (
+    Kernel,
+    MaternKernel,
+    ConstantKernel,
+)
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.surrogates.loss import LossFunction
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
@@ -25,6 +29,7 @@ from pyapprox.util.transforms import (
     IdentityTransform,
     StandardDeviationTransform,
 )
+from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
 
 
 class GaussianProcessTransform:
@@ -144,6 +149,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         kernel_reg: float = 0,
     ):
         super().__init__(kernel._bkd)
+        self._nvars = nvars
         self._kernel = kernel
         self._trend = trend
         self._kernel_reg = kernel_reg
@@ -155,6 +161,9 @@ class ExactGaussianProcess(OptimizedRegressor):
         if trend is not None:
             self._hyp_list += self._trend.hyp_list()
         self.set_optimizer()
+
+    def nvars(self) -> int:
+        return self._nvars
 
     def analytical_neg_log_like_jacobian_implemented(self) -> bool:
         return True
@@ -217,6 +226,19 @@ class ExactGaussianProcess(OptimizedRegressor):
 
         self._loss.hessian_implemented = lambda: False
         self._loss.apply_hessian_implemented = lambda: False
+
+    def _set_coef(self):
+        self._coef_args = self._factor_training_kernel_matrix()
+        if self._coef_args[0] is None:
+            raise RuntimeError(
+                "Cholesky Factorization failed. "
+                "Look at Optimization history, likely failed"
+            )
+        self._coef = self._solve_coefficients(*self._coef_args)
+
+    def _fit(self, iterate: Array):
+        super()._fit(iterate)
+        self._set_coef()
 
     def nqoi(self):
         return 1
@@ -369,15 +391,6 @@ class ExactGaussianProcess(OptimizedRegressor):
         return canonical_trend, canonical_std
 
     def _evaluate_canonical_posterior(self, samples: Array, return_std: bool):
-        if self._coef is None:
-            self._coef_args = self._factor_training_kernel_matrix()
-            if self._coef_args[0] is None:
-                raise RuntimeError(
-                    "Cholesky Factorization failed. "
-                    "Look at Optimization history, likely failed"
-                )
-            self._coef = self._solve_coefficients(*self._coef_args)
-
         canonical_samples = self._in_trans.map_to_canonical(samples)
         kmat_pred = self._kernel(canonical_samples, self._ctrain_samples)
         canonical_trend = self._canonical_trend(
@@ -422,6 +435,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         Otherwise use __call__
         """
         can_vals, can_std = self._canonical_evaluate(samples, return_std)
+        print(self._out_trans)
         if return_std:
             return (
                 self._out_trans.map_from_canonical(can_vals),
@@ -505,26 +519,32 @@ class ExactGaussianProcess(OptimizedRegressor):
             )
         nvars = len(bounds) // 2
         if nvars > 1:
-            raise ValueError("plot was called but gp is not 1D")
-            return
-        if self._ctrain_samples.shape[0] != nvars:
-            raise ValueError("nvars is inconsistent with training data")
+            return super().plot_contours(ax, bounds, **kwargs)
+        # if self._ctrain_samples.shape[0] != nvars:
+        #     raise ValueError("nvars is inconsistent with training data")
         return self.plot_1d(ax, bounds, **kwargs)
 
-    def predict_random_realizations(
-        self, samples: Array, nrealizations: int
+    def _predict_random_realizations_from_rand_noise(
+        self, samples: Array, rand_noise: Array
     ) -> Array:
         mean = self(samples)
         cov = self.covariance(samples)
         U, S, V = self._bkd.svd(cov)
         L = U * np.sqrt(S)
+        vals = mean + L @ rand_noise
+        return vals
+
+    def predict_random_realizations(
+        self, samples: Array, nrealizations: int
+    ) -> Array:
         # create nsamples x nvars then transpose so same samples
         # are produced if this function is called repeatedly with nsamples=1
         rand_noise = self._bkd.asarray(
-            np.random.normal(0, 1, (int(nrealizations), mean.shape[0])).T
+            np.random.normal(0, 1, (int(nrealizations), samples.shape[1])).T
         )
-        vals = mean + L @ rand_noise
-        return vals
+        return self._predict_random_realizations_from_rand_noise(
+            samples, rand_noise
+        )
 
 
 class MOExactGaussianProcess(ExactGaussianProcess):
@@ -782,7 +802,7 @@ class GaussianProcessStatistics:
         P = K.T @ (self._quadw_1d[ii] * K)
         return tau, P
 
-    def _tau_P(self) -> Tuple[Array, Array]:
+    def _univariate_tau_P(self) -> Tuple[Array, Array]:
         lscale = self._get_kernel_length_scale()
         tau, P = [], []
         for ii in range(self._gp.nvars()):
@@ -791,10 +811,11 @@ class GaussianProcessStatistics:
             )
             tau.append(tau_ii)
             P.append(P_ii)
-        return (
-            self._bkd.prod(self._bkd.stack(tau, axis=0), axis=0),
-            self._bkd.prod(self._bkd.stack(P, axis=0), axis=0),
-        )
+        return self._bkd.stack(tau, axis=0), self._bkd.stack(P, axis=0)
+
+    def _tau_P(self) -> Tuple[Array, Array]:
+        tau, P = self._univariate_tau_P()
+        return self._bkd.prod(tau, axis=0), self._bkd.prod(P, axis=0)
 
     def _integrate_u_lamda_Pi_nu_1d(
         self, xtr_ii: Array, lscale_ii: float, ii: int
@@ -828,7 +849,7 @@ class GaussianProcessStatistics:
         nu = self._bkd.exp(-dists_2d_x1_x2)[:, 0] @ ww_2d
         return u, lamda, Pi, nu
 
-    def _u_lamda_Pi_nu(self) -> Tuple[Array, Array, Array, Array]:
+    def _univariate_u_lamda_Pi_nu(self) -> Tuple[Array, Array, Array, Array]:
         lscale = self._get_kernel_length_scale()
         u, lamda, Pi, nu = [], [], [], []
         for ii in range(self._gp.nvars()):
@@ -840,10 +861,19 @@ class GaussianProcessStatistics:
             Pi.append(Pi_ii)
             nu.append(nu_ii)
         return (
-            self._bkd.prod(self._bkd.stack(u, axis=0), axis=0),
-            self._bkd.prod(self._bkd.stack(lamda, axis=0), axis=0),
-            self._bkd.prod(self._bkd.stack(Pi, axis=0), axis=0),
-            self._bkd.prod(self._bkd.stack(nu, axis=0), axis=0),
+            self._bkd.stack(u, axis=0),
+            self._bkd.stack(lamda, axis=0),
+            self._bkd.stack(Pi, axis=0),
+            self._bkd.stack(nu, axis=0),
+        )
+
+    def _u_lamda_Pi_nu(self) -> Tuple[Array, Array, Array, Array]:
+        u, lamda, Pi, nu = self._univariate_u_lamda_Pi_nu()
+        return (
+            self._bkd.prod(u, axis=0),
+            self._bkd.prod(lamda, axis=0),
+            self._bkd.prod(Pi, axis=0),
+            self._bkd.prod(nu, axis=0),
         )
 
     def expectation_of_mean(self) -> Array:
@@ -959,3 +989,79 @@ class GaussianProcessStatistics:
         expected_variance = self.expectation_of_variance()
         variance_of_variance = term1 - 2 * term2 + term3 - expected_variance**2
         return variance_of_variance
+
+
+class MarginalizedGaussianProcessKernel(Kernel):
+    def __init__(self, stat: GaussianProcessStatistics, active_id: int):
+        super().__init__(stat._bkd)
+        if stat._gp.nvars() == 1:
+            raise ValueError("Cannot marginalize a 1D Gaussian Process")
+        gp_kernel = stat._gp.kernel()
+        # if gp_kernel._nu != np.inf:
+        #     raise ValueError("Must be squared exponential kernel")
+        # TODO deal with composition kernels
+        self._kernel = MaternKernel(
+            np.inf,
+            lenscale=stat._get_kernel_length_scale()[active_id],
+            # bounds are not important becaues variable is fixed
+            lenscale_bounds=[0.1, 1],
+            nvars=1,
+            fixed=True,
+            backend=gp_kernel._bkd,
+        )
+        self._stat = stat
+        self._active_id = active_id
+        self._marginalize()
+        self._hyp_list = self._kernel.hyp_list()
+
+    def _marginalize(self) -> ExactGaussianProcess:
+        tau_1d, P_1d = self._stat._univariate_tau_P()
+        self._tau = self._bkd.prod(
+            tau_1d[: self._active_id], axis=0
+        ) * self._bkd.prod(tau_1d[self._active_id + 1 :], axis=0)
+        u_1d, lamda_1d, Pi_1d, nu_1d = self._stat._univariate_u_lamda_Pi_nu()
+        self._u = self._bkd.prod(
+            u_1d[: self._active_id], axis=0
+        ) * self._bkd.prod(u_1d[self._active_id + 1 :], axis=0)
+
+    def diag(self, X):
+        return self._kernel.diag(X) * self._u
+
+    def __call__(self, X1: Array, X2: Array = None) -> Array:
+        return self._kernel(X1, X2) * self._tau
+
+
+def marginalize_gaussian_process(
+    gp: ExactGaussianProcess,
+    variable: IndependentMarginalsVariable,
+    active_id: int,
+) -> ExactGaussianProcess:
+    # TODO: allow marginalization to have more than one active variable
+    # not much should change except
+    # MarginalizedGaussianProcessKernel._marginalize spliting over more
+    # than one variable and gp._ctrain_samples below also having
+    # multiple active ids
+    stat = GaussianProcessStatistics(gp, variable)
+    marginalized_kernel = MarginalizedGaussianProcessKernel(stat, active_id)
+    kernel_var = stat._get_kernel_variance()
+    constant_kernel = ConstantKernel(
+        kernel_var,
+        (1e-3, 1e1),  # bounds do not matter because params fixed
+        fixed=True,
+        backend=gp._bkd,
+    )
+    marginalized_kernel = constant_kernel * marginalized_kernel
+    marginalized_gp = ExactGaussianProcess(
+        1,
+        marginalized_kernel,
+        trend=gp.trend(),
+        kernel_reg=1e-7,
+    )
+    marginalized_gp.set_output_transform(gp._out_trans)
+    marginalized_gp._ctrain_samples = gp._ctrain_samples[
+        active_id : active_id + 1
+    ]
+    marginalized_gp._ctrain_values = gp._ctrain_values
+    marginalized_gp._coef_args = gp._coef_args
+    marginalized_gp._coef = gp._coef
+    return marginalized_gp

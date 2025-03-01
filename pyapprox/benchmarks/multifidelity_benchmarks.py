@@ -794,3 +794,6 @@ class MultiLevelCosineBenchmark(MultiIndexModelBenchmark):
 
     def nmodels(self) -> int:
         return 3
+
+    def nrefinement_vars(self) -> int:
+        return 1

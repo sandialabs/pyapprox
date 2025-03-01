@@ -172,6 +172,9 @@ class InducingGaussianProcess(ExactGaussianProcess):
         self._hyp_list += self.inducing_samples.hyp_list()
         self.set_optimizer()
 
+    def _set_coef(self):
+        return
+
     def analytical_neg_log_like_jacobian_implemented(self) -> bool:
         return False
 

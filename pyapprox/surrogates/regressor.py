@@ -3,15 +3,12 @@ import pickle
 import warnings
 from typing import Tuple
 
-import matplotlib.pyplot as plt
-
 from pyapprox.interface.model import Model
 from pyapprox.surrogates.loss import LossFunction
 from pyapprox.optimization.minimize import MultiStartOptimizer
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.transforms import Transform, IdentityTransform
-from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.util.hyperparameter import HyperParameterList
 
 
@@ -30,54 +27,6 @@ class Surrogate(Model):
     @abstractmethod
     def get_train_values(self):
         raise NotImplementedError
-
-    def _plot_surface_1d(self, ax, qoi, plot_limits, npts_1d, **kwargs):
-        plot_xx = self._bkd.linspace(*plot_limits, npts_1d[0])[None, :]
-        ax.plot(plot_xx[0], self.__call__(plot_xx), **kwargs)
-
-    def _plot_surface_2d(self, ax, qoi, plot_limits, npts_1d, **kwargs):
-        if ax.name != "3d":
-            raise ValueError("ax must use 3d projection")
-        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
-        vals = self.__call__(pts)
-        Z = self._bkd.reshape(vals[:, qoi], X.shape)
-        # X = self._bkd.to_numpy(X)
-        # Y = self._bkd.to_numpy(Y)
-        # Z = self._bkd.to_numpy(Z)
-        return ax.plot_surface(X, Y, Z, **kwargs)
-
-    def plot_surface(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
-        if self.nvars() > 3:
-            raise RuntimeError("Cannot plot indices when nvars >= 3.")
-
-        if not isinstance(npts_1d, list):
-            npts_1d = [npts_1d] * self.nvars()
-
-        if len(npts_1d) != self.nvars():
-            raise ValueError("npts_1d must be a list")
-
-        plot_surface_funs = {
-            1: self._plot_surface_1d,
-            2: self._plot_surface_2d,
-        }
-        plot_surface_funs[self.nvars()](
-            ax, qoi, plot_limits, npts_1d, **kwargs
-        )
-
-    def get_plot_axis(self, figsize=(8, 6), surface=False):
-        if self.nvars() < 3 and not surface:
-            fig = plt.figure(figsize=figsize)
-            return fig, fig.gca()
-        fig = plt.figure(figsize=figsize)
-        return fig, fig.add_subplot(111, projection="3d")
-
-    def plot_contours(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
-        if self.nvars() != 2:
-            raise ValueError("Can only plot contours for 2D functions")
-        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
-        vals = self.__call__(pts)
-        Z = self._bkd.reshape(vals[:, qoi], X.shape)
-        return ax.contourf(X, Y, Z, **kwargs)
 
 
 class Regressor(Surrogate):

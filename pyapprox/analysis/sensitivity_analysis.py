@@ -1547,3 +1547,31 @@ def plot_sensitivity_indices(result, axs=None, include_vars=None):
         max_sobol_indices,
     )
     return [im0, im1, im2], axs
+
+
+from pyapprox.surrogates.regressor import Regressor
+from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
+
+
+class GaussianProcessRandomRealizations(Regressor):
+    def __init__(self, gp: ExactGaussianProcess, alpha: float = 0):
+        self._gp = gp
+        self._bkd = gp._bkd
+        self._alpha = alpha
+
+    def generate_training_values(self, samples: Array, nrealizations: int):
+        rand_noise = self._bkd.asarray(
+            np.random.normal(0, 1, (int(nrealizations), samples.shape[1])).T
+        )
+        # make last sample mean of gaussian process
+        rand_noise = self._bkd.hstack(
+            (self._rand_noise, self._bkd.zeros((rand_noise.shape[0])))
+        )
+        return self._gp._predict_random_realizations_from_rand_noise(
+            samples, rand_noise
+        )
+
+
+class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
+    def __init__(self):
+        raise NotImplementedError

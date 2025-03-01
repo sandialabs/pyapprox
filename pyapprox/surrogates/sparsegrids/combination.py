@@ -648,12 +648,6 @@ class L2NormRefinementCriteria(RefinementCriteria):
             )
             / subspace_values.shape[0]
         )
-        # print("####", subspace_index)
-        # print(error)
-        # print(subspace_values[:, 0])
-        # print(self._sg(subspace_samples)[:, 0])
-        # priority queue gives higher priority to smaler values so set
-        # priority = -error
         return -error, error
 
 
@@ -672,12 +666,6 @@ class VarianceRefinementCriteria(RefinementCriteria):
             self._bkd.abs(new_mean - current_mean)
             + self._bkd.sqrt(self._bkd.abs(new_variance - current_variance))
         ).max()
-        # print("####", subspace_index)
-        # print(self._sg._smolyak_coefs)
-        # print(new_smolyak_coefs)
-        # print(
-        #     current_mean, new_mean, current_variance, new_variance, "V", error
-        # )
         return -error, error
 
 
@@ -777,7 +765,6 @@ class AdaptiveCombinationSparseGrid(
                 f"Refining subspace {best_cand_subspace_index} with "
                 f"{priority=}"
             )
-        # self._subspace_errors[best_subspace_idx] *= 0.0
         return best_cand_subspace_index, best_subspace_idx
 
     def _adjust_smolyak_coefficients(
@@ -1616,17 +1603,13 @@ class MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
             ):
                 found = True
                 break
-        print(found)
-        print(criterion)
         if not found:
             criterion.append(
                 self.default_max_level_1d_admissibility_criteria()
             )
-        print(criterion)
         admis_criteria = MultipleSparseGridSubSpaceAdmissibilityCriteria(
             criterion
         )
-        print(admis_criteria)
         super().set_subspace_admissibility_criteria(admis_criteria)
 
 

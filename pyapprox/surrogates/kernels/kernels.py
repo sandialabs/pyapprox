@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import math
+from typing import Tuple
 
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -28,26 +29,26 @@ class Kernel(ABC):
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
 
-    def diag(self, X1):
+    def diag(self, X1: Array) -> Array:
         """Return the diagonal of the kernel matrix."""
         return self._bkd.get_diagonal(self(X1))
 
     @abstractmethod
-    def __call__(self, X1, X2=None):
+    def __call__(self, X1: Array, X2: Array = None) -> Array:
         raise NotImplementedError()
 
-    def __mul__(self, kernel):
+    def __mul__(self, kernel: "Kernel") -> "ProductKernel":
         return ProductKernel(self, kernel)
 
-    def __add__(self, kernel):
+    def __add__(self, kernel: "Kernel") -> "SumKernel":
         return SumKernel(self, kernel)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, bkd={2})".format(
             self.__class__.__name__, self._hyp_list._short_repr(), self._bkd
         )
 
-    def _params_eval(self, active_opt_params):
+    def _params_eval(self, active_opt_params: Array):
         # define function that evaluates the kernel for different parameters
         self._hyp_list.set_active_opt_params(active_opt_params)
         return self(self._samples)
@@ -65,7 +66,7 @@ class Kernel(ABC):
 
 
 class CompositionKernel(Kernel):
-    def __init__(self, kernel1, kernel2):
+    def __init__(self, kernel1: Kernel, kernel2: Kernel):
         self.kernel1 = kernel1
         self.kernel2 = kernel2
         self._hyp_list = kernel1.hyp_list() + kernel2.hyp_list()
@@ -73,7 +74,7 @@ class CompositionKernel(Kernel):
             raise ValueError("Kernels must have the same backend.")
         self._bkd = kernel1._bkd
 
-    def nvars(self):
+    def nvars(self) -> int:
         if hasattr(self.kernel1, "nvars"):
             return self.kernel1.nvars()
         return self.kernel2.nvars()
@@ -89,16 +90,16 @@ class CompositionKernel(Kernel):
 
 
 class ProductKernel(CompositionKernel):
-    def diag(self, X1):
+    def diag(self, X1: Array) -> Array:
         return self.kernel1.diag(X1) * self.kernel2.diag(X1)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0} * {1}".format(self.kernel1, self.kernel2)
 
-    def __call__(self, X1, X2=None):
+    def __call__(self, X1: Array, X2: Array = None) -> Array:
         return self.kernel1(X1, X2) * self.kernel2(X1, X2)
 
-    def jacobian(self, X):
+    def jacobian(self, X) -> Array:
         Kmat1 = self.kernel1(X)
         Kmat2 = self.kernel2(X)
         jac1 = self.kernel1.jacobian(X)
@@ -109,16 +110,16 @@ class ProductKernel(CompositionKernel):
 
 
 class SumKernel(CompositionKernel):
-    def diag(self, X1):
+    def diag(self, X1) -> Array:
         return self.kernel1.diag(X1) + self.kernel2.diag(X1)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0} + {1}".format(self.kernel1, self.kernel2)
 
-    def __call__(self, X1, X2=None):
+    def __call__(self, X1, X2=None) -> Array:
         return self.kernel1(X1, X2) + self.kernel2(X1, X2)
 
-    def jacobian(self, X):
+    def jacobian(self, X) -> Array:
         jac1 = self.kernel1.jacobian(X)
         jac2 = self.kernel2.jacobian(X)
         return self._bkd.dstack([jac1, jac2])
@@ -128,8 +129,8 @@ class MaternKernel(Kernel):
     def __init__(
         self,
         nu: float,
-        lenscale,
-        lenscale_bounds,
+        lenscale: float,
+        lenscale_bounds: Tuple[float, float],
         nvars: int,
         fixed: bool = False,
         backend: LinAlgMixin = None,
@@ -137,7 +138,7 @@ class MaternKernel(Kernel):
         """The matern kernel for varying levels of smoothness."""
         super().__init__(backend)
         self._nvars = nvars
-        self.nu = nu
+        self._nu = nu
         transform = LogHyperParameterTransform(backend=self._bkd)
         self._lenscale = HyperParameter(
             "lenscale",
@@ -150,25 +151,25 @@ class MaternKernel(Kernel):
         )
         self._hyp_list = HyperParameterList([self._lenscale])
 
-    def diag(self, X1):
+    def diag(self, X1: Array) -> Array:
         return self._bkd.full((X1.shape[1],), 1)
 
-    def _eval_distance_form(self, distances):
-        if self.nu == self._bkd.inf():
+    def _eval_distance_form(self, distances: Array) -> Array:
+        if self._nu == self._bkd.inf():
             return self._bkd.exp(-(distances**2) / 2.0)
-        if self.nu == 5 / 2:
+        if self._nu == 5 / 2:
             tmp = self._bkd.sqrt(5) * distances
             return (1.0 + tmp + tmp**2 / 3.0) * self._bkd.exp(-tmp)
-        if self.nu == 3 / 2:
+        if self._nu == 3 / 2:
             tmp = self._bkd.sqrt(3) * distances
             return (1.0 + tmp) * self._bkd.exp(-tmp)
-        if self.nu == 1 / 2:
+        if self._nu == 1 / 2:
             return self._bkd.exp(-distances)
         raise ValueError(
-            "Matern kernel with nu={0} not supported".format(self.nu)
+            "Matern kernel with nu={0} not supported".format(self._nu)
         )
 
-    def __call__(self, X1, X2=None):
+    def __call__(self, X1: Array, X2: Array = None) -> Array:
         lenscale = self._lenscale.get_values()
         if X2 is None:
             X2 = X1
@@ -177,12 +178,12 @@ class MaternKernel(Kernel):
         distances = self._bkd.cdist(X1.T / lenscale, X2.T / lenscale)
         return self._eval_distance_form(distances)
 
-    def nvars(self):
+    def nvars(self) -> int:
         return self._nvars
 
     def jacobian(self, samples: Array) -> Array:
         self._samples = samples
-        if self.nu == self._bkd.inf():
+        if self._nu == self._bkd.inf():
             # todo save and load K during __call__
             lenscale = self._lenscale.get_values()
             distances = self._bkd.cdist(
@@ -197,7 +198,7 @@ class MaternKernel(Kernel):
         return super().jacobian(samples)
 
     def jacobian_implemented(self) -> bool:
-        if self.nu == self._bkd.inf():
+        if self._nu == self._bkd.inf():
             return True
         return super().jacobian_implemented()
 
@@ -205,11 +206,11 @@ class MaternKernel(Kernel):
 class ConstantKernel(Kernel):
     def __init__(
         self,
-        constant,
-        constant_bounds=None,
-        transform=None,
-        fixed=False,
-        backend=None,
+        constant: float,
+        constant_bounds: Tuple[float, float] = None,
+        transform: HyperParameterTransform = None,
+        fixed: bool = False,
+        backend: LinAlgMixin = None,
     ):
         if backend is None and transform is not None:
             backend = transform._bkd
@@ -229,10 +230,10 @@ class ConstantKernel(Kernel):
         )
         self._hyp_list = HyperParameterList([self._const])
 
-    def diag(self, X1):
+    def diag(self, X1) -> Array:
         return self._bkd.full((X1.shape[1],), self._hyp_list.get_values()[0])
 
-    def __call__(self, X1, X2=None):
+    def __call__(self, X1, X2=None) -> Array:
         if X2 is None:
             X2 = X1
         # full does not work when const value requires grad
@@ -256,7 +257,11 @@ class ConstantKernel(Kernel):
 
 class GaussianNoiseKernel(Kernel):
     def __init__(
-        self, constant, constant_bounds=None, fixed=False, backend=None
+        self,
+        constant: float,
+        constant_bounds: Tuple[float, float] = None,
+        fixed: bool = False,
+        backend: LinAlgMixin = None,
     ):
         super().__init__(backend)
         self._const = HyperParameter(
@@ -270,10 +275,10 @@ class GaussianNoiseKernel(Kernel):
         )
         self._hyp_list = HyperParameterList([self._const])
 
-    def diag(self, X):
+    def diag(self, X: Array) -> Array:
         return self._bkd.full((X.shape[1],), self._hyp_list.get_values()[0])
 
-    def __call__(self, X, Y=None):
+    def __call__(self, X: Array, Y: Array = None) -> Array:
         if Y is None:
             return self._const.get_values()[0] * self._bkd.eye(X.shape[1])
         # full does not work when const value requires grad
@@ -293,9 +298,9 @@ class PeriodicMaternKernel(MaternKernel):
         self,
         nu: float,
         period,
-        period_bounds,
+        period_bounds: Tuple[float, float],
         lenscale,
-        lenscale_bounds,
+        lenscale_bounds: Tuple[float, float],
         backend=None,
     ):
         super().__init__(nu, lenscale, lenscale_bounds, 1, backend=backend)
@@ -310,7 +315,7 @@ class PeriodicMaternKernel(MaternKernel):
         )
         self._hyp_list += HyperParameterList([self._period])
 
-    def __call__(self, X, Y=None):
+    def __call__(self, X: Array, Y: Array = None) -> Array:
         if Y is None:
             Y = X
         lenscale = self._lenscale.get_values()
@@ -318,7 +323,7 @@ class PeriodicMaternKernel(MaternKernel):
         distances = self._bkd.cdist(X.T / period, Y.T / period) / lenscale
         return super()._eval_distance_form(distances)
 
-    def diag(self, X):
+    def diag(self, X) -> Array:
         return super().diag(X)
 
 
@@ -328,7 +333,7 @@ class HilbertSchmidtKernel(Kernel):
         basis1,
         basis2,
         weights,
-        weight_bounds,
+        weight_bounds: Tuple[float, float],
         transform=None,
         normalize: bool = False,
     ):
@@ -351,13 +356,13 @@ class HilbertSchmidtKernel(Kernel):
         self._X1, self._X2 = None, None
         self._X1basis_mat, self._X2basis_mat = None, None
 
-    def _get_weights(self):
+    def _get_weights(self) -> Array:
         return self._bkd.reshape(
             self._weights.get_values(),
             (self._basis1.nterms(), self._basis2.nterms()),
         )
 
-    def _get_basis_matrices(self, X1, X2):
+    def _get_basis_matrices(self, X1: Array, X2: Array) -> Tuple[Array, Array]:
         if (
             self._X1 is not None
             and self._X1.shape == X2.shape
@@ -384,7 +389,7 @@ class HilbertSchmidtKernel(Kernel):
             self._X2basis_mat = self._bkd.copy(X2basis_mat)
         return X1basis_mat, X2basis_mat
 
-    def __call__(self, X1, X2=None):
+    def __call__(self, X1: Array, X2: Array = None) -> Array:
         weights = self._get_weights()
         if X2 is None:
             X2 = X1
@@ -392,7 +397,7 @@ class HilbertSchmidtKernel(Kernel):
         K = (X1basis_mat @ weights) @ (X2basis_mat.T)
         return K
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, inbasis={2}, outbasis={3}, bkd={4})".format(
             self.__class__.__name__,
             self._hyp_list._short_repr(),
@@ -418,11 +423,11 @@ class SphericalCovarianceHyperParameter(CombinedHyperParameter):
         L = self._trans.map_to_cholesky(self.get_values())
         self.cov_matrix = L @ L.T
 
-    def set_active_opt_params(self, active_params):
+    def set_active_opt_params(self, active_params: Array):
         super().set_active_opt_params(active_params)
         self._set_covariance_matrix()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(name={1}, nvars={2}, transform={3}, nactive={4})".format(
             self.__class__.__name__,
             self.name,
@@ -438,10 +443,10 @@ class SphericalCovariance:
         noutputs: int,
         radii_transform: HyperParameterTransform = None,
         angle_transform: HyperParameterTransform = None,
-        radii=1,
-        radii_bounds=[1e-1, 1],
-        angles=math.pi / 2,
-        angle_bounds=[0, math.pi],
+        radii: float = 1,
+        radii_bounds: Tuple[float, float] = [1e-1, 1],
+        angles: float = math.pi / 2,
+        angle_bounds: Tuple[float, float] = [0, math.pi],
         backend: LinAlgMixin = None,
     ):
         if backend is None:
@@ -493,7 +498,11 @@ class SphericalCovariance:
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
 
-    def _validate_bounds(self, radii_bounds, angle_bounds):
+    def _validate_bounds(
+        self,
+        radii_bounds: Tuple[float, float],
+        angle_bounds: Tuple[float, float],
+    ):
         bounds = self._trans.get_spherical_bounds()
         # all theoretical radii_bounds are the same so just check one
         radii_bounds = self._bkd.asarray(radii_bounds)
@@ -516,15 +525,15 @@ class SphericalCovariance:
         ) or self._bkd.any(angle_bounds[:, 1] > bounds[self.noutputs :, 1]):
             raise ValueError("angle bounds are inconsistent")
 
-    def get_covariance_matrix(self):
+    def get_covariance_matrix(self) -> Array:
         return self._hyp_list.hyper_params[0].cov_matrix
 
-    def __call__(self, ii, jj):
+    def __call__(self, ii: int, jj: int) -> float:
         # chol factor must be recomputed each time even if hyp_values have not
         # changed otherwise gradient graph becomes inconsistent
         return self._hyp_list.hyper_params[0].cov_matrix[ii, jj]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(radii={1}, angles={2} cov={3})".format(
             self.__class__.__name__,
             self._radii,

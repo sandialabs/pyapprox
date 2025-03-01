@@ -370,12 +370,11 @@ class TestCombination:
     def test_multi_index_leja_lagrange_sparse_grid(self):
         bkd = self.get_backend()
         benchmark = MultiLevelCosineBenchmark(backend=bkd)
-        nrefinement_vars = 1
 
         sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
             benchmark.variable(),
             benchmark.nqoi(),
-            nrefinement_vars,
+            benchmark.nrefinement_vars(),
             benchmark.models()._index_bounds,
         )
         admissibility_criteria = (

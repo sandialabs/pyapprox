@@ -848,7 +848,7 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
     nquad_samples=50,
     skip_xi_1=False,
 ):
-    nvars = variable.num_vars()
+    nvars = variable.nvars()
     degrees = [nquad_samples] * nvars
     univariate_quad_rules = get_univariate_quadrature_rules_from_variable(
         variable, np.asarray(degrees) + 1, True
@@ -1147,7 +1147,7 @@ class CholeskySampler(object):
 
     Parameters
     ----------
-    num_vars : integer
+    nvars : integer
         The number of variables
 
     num_candidate_samples : integer
@@ -1165,7 +1165,7 @@ class CholeskySampler(object):
 
         ``weight_function(samples) -> np.ndarray (num_samples)``
 
-        where samples is a np.ndarray (num_vars,num_samples)
+        where samples is a np.ndarray (nvars,num_samples)
 
     generate_random_samples : callable
         Function with signature
@@ -1187,7 +1187,7 @@ class CholeskySampler(object):
 
     def __init__(
         self,
-        num_vars,
+        nvars,
         num_candidate_samples,
         variable=None,
         generate_random_samples=None,
@@ -1197,7 +1197,7 @@ class CholeskySampler(object):
         gen_candidate_samples=None,
         var_trans=None,
     ):
-        self.nvars = num_vars
+        self.nvars = nvars
         self.kernel_theta = None
         self.chol_flag = None
         self.variable = variable
@@ -1772,7 +1772,7 @@ class IVARSampler(object):
     """
     Parameters
     ----------
-    num_vars : integer
+    nvars : integer
         The number of dimensions
 
     nquad_samples : integer
@@ -1824,7 +1824,7 @@ class IVARSampler(object):
 
     def __init__(
         self,
-        num_vars,
+        nvars,
         nquad_samples,
         ncandidate_samples,
         generate_random_samples,
@@ -1833,7 +1833,7 @@ class IVARSampler(object):
         use_gauss_quadrature=False,
         nugget=0,
     ):
-        self.nvars = num_vars
+        self.nvars = nvars
         self.nquad_samples = nquad_samples
         self.greedy_method = greedy_method
         self.use_gauss_quadrature = use_gauss_quadrature
@@ -1843,7 +1843,7 @@ class IVARSampler(object):
         self.generate_random_samples = generate_random_samples
         self.nugget = nugget
         self.ntraining_samples = 0
-        self.training_samples = np.empty((num_vars, self.ntraining_samples))
+        self.training_samples = np.empty((nvars, self.ntraining_samples))
         self.nsamples_requested = []
         self.set_optimization_options(
             {"gtol": 1e-8, "ftol": 0, "disp": False, "iprint": 0}
@@ -2156,7 +2156,7 @@ class GreedyVarianceOfMeanSampler(object):
     """
     Parameters
     ----------
-    num_vars : integer
+    nvars : integer
         The number of dimensions
 
     nquad_samples : integer
@@ -2169,7 +2169,7 @@ class GreedyVarianceOfMeanSampler(object):
 
     def __init__(
         self,
-        num_vars,
+        nvars,
         nquad_samples,
         ncandidate_samples,
         generate_random_samples,
@@ -2181,11 +2181,11 @@ class GreedyVarianceOfMeanSampler(object):
         candidate_samples=None,
         quadrature_rule=None,
     ):
-        self.nvars = num_vars
+        self.nvars = nvars
         self.nquad_samples = nquad_samples
         self.variable = variable
         self.ntraining_samples = 0
-        self.training_samples = np.empty((num_vars, self.ntraining_samples))
+        self.training_samples = np.empty((nvars, self.ntraining_samples))
         self.generate_random_samples = generate_random_samples
         self.use_gauss_quadrature = use_gauss_quadrature
         self.econ = econ
@@ -2258,7 +2258,7 @@ class GreedyVarianceOfMeanSampler(object):
         return xx_1d, ww_1d
 
     def precompute_gauss_quadrature(self):
-        nvars = self.variable.num_vars()
+        nvars = self.variable.nvars()
         length_scale = self.kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = [length_scale] * nvars
@@ -2616,7 +2616,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
     """
     Parameters
     ----------
-    num_vars : integer
+    nvars : integer
         The number of dimensions
 
     nquad_samples : integer
@@ -2852,9 +2852,10 @@ class UnivariateMarginalizedGaussianProcess:
         assert samples.shape[0] == 1
         canonical_samples = self.map_to_canonical(samples)
         K_pred = self.kernel_(canonical_samples.T, self.X_train_)
+        # print(self.K_inv_y[:5], "B")
         mean = K_pred.dot(self.K_inv_y)
         mean = self._y_train_std * mean + self._y_train_mean - self.mean
-
+        # print(K_pred[:5, :5], canonical_samples[:, :5], self.X_train_.T[:, :5])
         if not return_std:
             return mean
 
@@ -2933,7 +2934,7 @@ def marginalize_gaussian_process(gp, variable, center=True):
     kernel_var /= float(gp._y_train_std**2)
 
     length_scale = np.atleast_1d(kernel_length_scale)
-    nvars = variable.num_vars()
+    nvars = variable.nvars()
     marginalized_gps = []
     for ii in range(nvars):
         tau = np.prod(np.array(tau_list)[:ii], axis=0) * np.prod(
@@ -3034,7 +3035,7 @@ def _compute_expected_sobol_indices(
     )
 
     lscale = np.atleast_1d(lscale)  # for 1D gps
-    nvars = variable.num_vars()
+    nvars = variable.nvars()
     degrees = [nquad_samples] * nvars
     univariate_quad_rules = get_univariate_quadrature_rules_from_variable(
         variable, np.asarray(degrees) + 1, True
@@ -3250,7 +3251,7 @@ def generate_gp_realizations(
     )
 
     candidate_samples = generate_gp_candidate_samples(
-        variable.num_vars(),
+        variable.nvars(),
         ncandidate_samples,
         generate_random_samples,
         variable,
