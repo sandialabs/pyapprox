@@ -298,7 +298,10 @@ class Model(ABC):
             The model outputs returned by the model at each sample
         """
         if samples.shape[0] != self.nvars():
-            raise ValueError("samples has the wrong number of rows")
+            raise ValueError(
+                f"{self}: samples has the wrong number of rows. "
+                f"Was {samples.shape[0]}, should be {self.nvars()}"
+            )
         stored_values, stored_idx, new_idx = self._database.get_data(
             "val", samples
         )

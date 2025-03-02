@@ -29,7 +29,6 @@ from pyapprox.util.transforms import (
     IdentityTransform,
     StandardDeviationTransform,
 )
-from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
 
 
 class GaussianProcessTransform:
@@ -125,6 +124,12 @@ class GPNegLogLikelihoodLoss(LossFunction):
         vals = self._model._neg_log_like(active_opt_params[:, 0])[:, None]
         return vals
 
+    def jacobian_implemented(self) -> bool:
+        return (
+            self._model.analytical_neg_log_like_jacobian_implemented()
+            or self._bkd.jacobian_implemented()
+        )
+
     def _check_model(self, model):
         if not isinstance(ExactGaussianProcess):
             raise ValueError(
@@ -133,10 +138,10 @@ class GPNegLogLikelihoodLoss(LossFunction):
         super()._check_model(model)
 
     def _jacobian(self, active_opt_params: Array) -> Array:
-        if self._model.analytical_neg_log_like_jacobian_implemented():
-            return self._model._jacobian_neg_log_like_with_hyperparam_trend(
-                active_opt_params[:, 0]
-            )
+        # if self._model.analytical_neg_log_like_jacobian_implemented():
+        #     return self._model._jacobian_neg_log_like_with_hyperparam_trend(
+        #         active_opt_params[:, 0]
+        #     )
         return super()._jacobian(active_opt_params)
 
 
@@ -202,12 +207,13 @@ class ExactGaussianProcess(OptimizedRegressor):
         iterate_gen: OptimizerIterateGenerator = None,
     ):
         local_optimizer = ScipyConstrainedOptimizer()
+        # L-BFGS-Bseems to require less iterations than trust-constr when
+        # building GPs
         local_optimizer.set_options(
             gtol=1e-8,
-            # ftol=1e-12,
             maxiter=1000,
-            # method="L-BFGS-B",
-            method="trust-constr",
+            method="L-BFGS-B",
+            # method="trust-constr",
         )
         local_optimizer.set_verbosity(verbosity - 1)
         ms_optimizer = MultiStartOptimizer(
@@ -393,6 +399,7 @@ class ExactGaussianProcess(OptimizedRegressor):
     def _evaluate_canonical_posterior(self, samples: Array, return_std: bool):
         canonical_samples = self._in_trans.map_to_canonical(samples)
         kmat_pred = self._kernel(canonical_samples, self._ctrain_samples)
+        print(kmat_pred[:3, :3], "KTrans2")
         canonical_trend = self._canonical_trend(
             canonical_samples
         ) + self._bkd.multidot((kmat_pred, self._coef))
@@ -435,7 +442,6 @@ class ExactGaussianProcess(OptimizedRegressor):
         Otherwise use __call__
         """
         can_vals, can_std = self._canonical_evaluate(samples, return_std)
-        print(self._out_trans)
         if return_std:
             return (
                 self._out_trans.map_from_canonical(can_vals),
@@ -813,6 +819,31 @@ class GaussianProcessStatistics:
             P.append(P_ii)
         return self._bkd.stack(tau, axis=0), self._bkd.stack(P, axis=0)
 
+    def _integrate_conditional_P_1d(
+        self, xtr_ii: Array, lscale_ii: float, ii: int
+    ) -> Array:
+        xx_2d, ww_2d = self._twodim_quadrules[ii]()
+        dists_2d_x2_xtr = self._bkd.cdist(
+            xx_2d[1:2, :].T / lscale_ii, xtr_ii.T / lscale_ii
+        )
+        dists_2d_x1_xtr = self._bkd.cdist(
+            xx_2d[0:1, :].T / lscale_ii, xtr_ii.T / lscale_ii
+        )
+        cond_P = self._bkd.exp(-0.5 * dists_2d_x1_xtr).T @ (
+            ww_2d * self._bkd.exp(-0.5 * dists_2d_x2_xtr)
+        )
+        return cond_P
+
+    def _univariate_conditional_P(self) -> Array:
+        lscale = self._get_kernel_length_scale()
+        cond_P = []
+        for ii in range(self._gp.nvars()):
+            cond_P_ii = self._integrate_conditional_P_1d(
+                self._train_samples[ii : ii + 1, :], lscale[ii], ii
+            )
+            cond_P.append(cond_P_ii)
+        return self._bkd.stack(cond_P, axis=0)
+
     def _tau_P(self) -> Tuple[Array, Array]:
         tau, P = self._univariate_tau_P()
         return self._bkd.prod(tau, axis=0), self._bkd.prod(P, axis=0)
@@ -890,9 +921,7 @@ class GaussianProcessStatistics:
         # todo extract kernel variance from kernel
         return self._get_kernel_variance() * varsigma_sq
 
-    def expectation_of_variance(self):
-        tau, P = self._tau_P()
-        v_sq = 1.0 - self._bkd.sum(self._Ainv * P)
+    def _expectation_of_variance(self, P, tau, v_sq):
         Ainv_y = self._gp._Kinv_y(self._Ainv)
         zeta = Ainv_y.T @ P @ Ainv_y
         # reactivate once allow for out_trans to be not None
@@ -905,6 +934,11 @@ class GaussianProcessStatistics:
             zeta + v_sq * kernel_var - expected_mean**2 - variance_mean
         )
         return expected_variance
+
+    def expectation_of_variance(self):
+        tau, P = self._tau_P()
+        v_sq = 1.0 - self._bkd.sum(self._Ainv * P)
+        return self._expectation_of_variance(P, tau, v_sq)
 
     def _integrate_xi_1_1d(
         self, xtr_ii: Array, lscale_ii: float, ii: int
@@ -932,7 +966,7 @@ class GaussianProcessStatistics:
             xi_1.append(xi_1_ii)
         return self._bkd.prod(self._bkd.stack(xi_1, axis=0), axis=0)
 
-    def variance_of_variance(self):
+    def variance_of_variance(self) -> float:
         tau, P = self._tau_P()
         Ainv_P = self._Ainv @ P
         varphi = self._bkd.sum(Ainv_P.T * Ainv_P)
@@ -989,6 +1023,23 @@ class GaussianProcessStatistics:
         expected_variance = self.expectation_of_variance()
         variance_of_variance = term1 - 2 * term2 + term3 - expected_variance**2
         return variance_of_variance
+
+    def conditional_variance(self, index: Array) -> float:
+        tau_1d, P_1d = self._univariate_tau_P()
+        tau = self._bkd.prod(tau_1d, axis=0)
+        cond_P_1d = self._univariate_conditional_P()
+        u_1d = self._univariate_u_lamda_Pi_nu()[0]
+        P_p, U_p = 1, 1
+        for ii in range(self._gp.nvars()):
+            if index[ii] == 1:
+                P_p *= P_1d[ii]
+                U_p *= 1
+            else:
+                P_p *= cond_P_1d[ii]
+                U_p *= u_1d[ii]
+        trace_A_inv_Pp = np.sum(self._Ainv * P_p)
+        v_sq = U_p - trace_A_inv_Pp
+        return self._expectation_of_variance(P_p, tau, v_sq)
 
 
 class MarginalizedGaussianProcessKernel(Kernel):

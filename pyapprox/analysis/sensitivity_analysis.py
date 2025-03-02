@@ -31,6 +31,10 @@ from pyapprox.surrogates.sparsegrids.combination import (
     CombinationSparseGrid,
     SparseGridToOrthonormalPolynomialChaosExpansionConverter,
 )
+from pyapprox.surrogates.autogp.exactgp import (
+    ExactGaussianProcess,
+    GaussianProcessStatistics,
+)
 
 
 class VarianceBasedSensitivityAnalysis(ABC):
@@ -78,13 +82,35 @@ class VarianceBasedSensitivityAnalysis(ABC):
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
+    def _correct_interaction_variances(self, interaction_variances: Array):
+        # must substract of contributions from lower-dimensional terms from
+        # each interaction value For example, let R_ij be interaction_variances
+        # the sobol index S_ij satisfies R_ij = S_i + S_j + S_ij
+        idx = argsort_indices_leixographically(self._interaction_terms)
+        sobol_indices = interaction_variances.copy()
+        sobol_indices_dict = dict()
+        for ii in range(idx.shape[0]):
+            index = self._interaction_terms[:, idx[ii]]
+            active_vars = self._bkd.where(index > 0)[0]
+            nactive_vars = index.sum()
+            sobol_indices_dict[tuple(active_vars)] = idx[ii]
+            if nactive_vars > 1:
+                for jj in range(nactive_vars - 1):
+                    indices = combinations(active_vars, jj + 1)
+                    for key in indices:
+                        sobol_indices[idx[ii]] -= sobol_indices[
+                            sobol_indices_dict[key]
+                        ]
+        return sobol_indices
+
 
 class PolynomialChaosSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
     def _compute_main_and_total_effects(self):
         r"""
         Assume basis is orthonormal
-        Assume first coefficient is the coefficient of the constant basis. Remove
-        this assumption by extracting array index of constant term from indices
+        Assume first coefficient is the coefficient of the constant basis.
+        Remove this assumption by extracting array index of constant term
+        from indices
 
         Returns
         -------
@@ -132,9 +158,9 @@ class PolynomialChaosSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
         total_effects /= variance
         return main_effects, total_effects
 
-    def _compute_sobol_indices(self, max_order=2):
+    def _compute_sobol_indices(self):
         variance = self._bkd.zeros(self._pce.nqoi())
-        interaction_values = self._bkd.zeros(
+        interaction_variances = self._bkd.zeros(
             (self._interaction_terms.shape[1], self._pce.nqoi())
         )
         interaction_terms_dict = dict(
@@ -153,11 +179,11 @@ class PolynomialChaosSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
             if len(non_constant_vars) > 0:
                 variance += var_contribution
             if key in interaction_terms_dict:
-                interaction_values[
+                interaction_variances[
                     interaction_terms_dict[key]
                 ] += var_contribution
-        interaction_values = self._bkd.asarray(interaction_values)
-        return interaction_values / variance
+        interaction_variances = self._bkd.asarray(interaction_variances)
+        return interaction_variances / variance
 
     def compute(self, pce: PolynomialChaosExpansion):
         self._pce = pce
@@ -783,7 +809,7 @@ class SensitivityResult(OptimizeResult):
 #     return sobol_values, total_values, variances, means
 
 
-class SampleBasedSensivitityAnalysis(ABC):
+class SampleBasedSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
     """
     See I.M. Sobol. Mathematics and Computers in Simulation 55 (2001) 271–280
 
@@ -799,30 +825,9 @@ class SampleBasedSensivitityAnalysis(ABC):
         variable: IndependentMarginalsVariable,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        self._bkd = backend
+        super().__init__(variable.nvars(), backend)
         self._variable = variable
         self._all_idx = self._bkd.arange(self._variable.nvars(), dtype=int)
-
-    def set_interaction_terms_of_interest(self, interaction_terms: Array):
-        """
-        Parameters
-        ----------
-        interaction_terms : Array (nvars, nterms)
-        Index defining the active terms in each interaction. If the
-        ith  variable is active interaction_terms[i] == 1 and zero otherwise
-        This index must be downward closed due to way sobol indices are
-        computed
-        """
-        main_effect_indices = interaction_terms[
-            :, interaction_terms.sum(axis=0) == 1
-        ]
-        if main_effect_indices.shape[1] != self._variable.nvars():
-            # This is not required by computation of sobol indices
-            # but only to ensure all main effects are computed
-            raise ValueError(
-                "interaction_terms must contain all main effect indices"
-            )
-        self._interaction_terms = interaction_terms
 
     @abstractmethod
     def _get_AB_samples(self, nsamples: int) -> Tuple[Array, Array]:
@@ -841,19 +846,6 @@ class SampleBasedSensivitityAnalysis(ABC):
         idx = np.hstack([self._all_idx[~mask], self._all_idx[mask]])
         samples = samples[self._bkd.argsort(idx), :]
         return samples
-
-    def isotropic_interaction_terms(self, order: int) -> Array:
-        gen = HyperbolicIndexGenerator(
-            self._variable.nvars(), order, 1.0, backend=self._bkd
-        )
-        interaction_terms = gen.get_indices()
-        interaction_terms = interaction_terms[
-            :, self._bkd.where(interaction_terms.max(axis=0) == 1)[0]
-        ]
-        return interaction_terms
-
-    def _default_interaction_terms(self) -> Array:
-        return self.isotropic_interaction_terms(2)
 
     def generate_samples(self, nsamples: int) -> Array:
         if not hasattr(self, "_interaction_terms"):
@@ -913,26 +905,9 @@ class SampleBasedSensivitityAnalysis(ABC):
                     * self._bkd.mean((valuesA - valuesAB[ii]) ** 2, axis=0)
                     / self._variance
                 )
-
-        # must substract of contributions from lower-dimensional terms from
-        # each interaction value For example, let R_ij be interaction_values
-        # the sobol index S_ij satisfies R_ij = S_i + S_j + S_ij
-        idx = argsort_indices_leixographically(self._interaction_terms)
-        self._sobol_indices = interaction_values.copy()
-        sobol_indices_dict = dict()
-        for ii in range(idx.shape[0]):
-            index = self._interaction_terms[:, idx[ii]]
-            active_vars = self._bkd.where(index > 0)[0]
-            nactive_vars = index.sum()
-            sobol_indices_dict[tuple(active_vars)] = idx[ii]
-            if nactive_vars > 1:
-                for jj in range(nactive_vars - 1):
-                    indices = combinations(active_vars, jj + 1)
-                    for key in indices:
-                        self._sobol_indices[idx[ii]] -= self._sobol_indices[
-                            sobol_indices_dict[key]
-                        ]
-
+        self._sobol_indices = self._correct_interaction_variances(
+            interaction_values
+        )
         self._main_effects = self._sobol_indices[
             self._interaction_terms.sum(axis=0) == 1, :
         ]
@@ -1553,7 +1528,7 @@ from pyapprox.surrogates.regressor import Regressor
 from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
 
 
-class GaussianProcessRandomRealizations(Regressor):
+class FixedGaussianProcess(ExactGaussianProcess):
     def __init__(self, gp: ExactGaussianProcess, alpha: float = 0):
         self._gp = gp
         self._bkd = gp._bkd
@@ -1573,5 +1548,68 @@ class GaussianProcessRandomRealizations(Regressor):
 
 
 class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
-    def __init__(self):
-        raise NotImplementedError
+    def __init__(
+        self,
+        variable: IndependentMarginalsVariable,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._variable = variable
+        super().__init__(self._variable.nvars(), backend)
+
+    def compute(self, gp: ExactGaussianProcess):
+        self._gp = gp
+        self._stat = GaussianProcessStatistics(self._gp, self._variable)
+        self._mean = self._stat.expectation_of_mean()
+        self._variance = self._stat.expectation_of_variance()
+        if not hasattr(self, "_interaction_terms"):
+            self.set_interaction_terms_of_interest(
+                self._default_interaction_terms()
+            )
+
+        self._sobol_indices = self._compute_sobol_indices()
+        self._main_effects = self._compute_main_effects()
+        self._total_effects = self._compute_total_effects()
+
+    def _compute_sobol_indices(self):
+        interaction_variances = self._bkd.zeros(
+            (self._interaction_terms.shape[1], self._gp.nqoi())
+        )
+        for ii in range(self._interaction_terms.shape[1]):
+            index = self._interaction_terms[:, ii]
+            interaction_variances[ii] = self._stat.conditional_variance(index)
+        return self._correct_interaction_variances(interaction_variances)
+
+    def _compute_main_effects(self):
+        main_effect_idx = self._bkd.where(
+            self._interaction_terms.sum(axis=0) == 1
+        )[0]
+        return self._sobol_indices[main_effect_idx]
+
+    def _compute_total_effects(self):
+        total_effect_interaction_variances = self._bkd.zeros(
+            (self._interaction_terms.shape[1], self._gp.nqoi())
+        )
+        total_effect_interaction_terms = self._bkd.ones(
+            (self._gp.nvars(), self._gp.nvars()), dtype=int
+        ) - np.eye(self._gp.nvars(), dtype=int)
+        for ii in range(self._gp.nvars()):
+            index = total_effect_interaction_terms[:, ii]
+            total_effect_interaction_variances[ii] = (
+                self._stat.conditional_variance(index)
+            )
+        return (1 - total_effect_interaction_variances) / self._variance
+
+    def mean(self) -> Array:
+        return self._mean
+
+    def variance(self) -> Array:
+        return self._variance
+
+    def main_effects(self) -> Array:
+        return self._main_effects
+
+    def total_effects(self) -> Array:
+        return self._total_effects
+
+    def sobol_indices(self) -> Array:
+        return self._sobol_indices

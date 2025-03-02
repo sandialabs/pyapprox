@@ -641,7 +641,7 @@ class OakleyModel(Model):
         return 1
 
     def nvars(self) -> int:
-        15
+        return 15
 
     def _values(self, samples: Array) -> Array:
         a1, a2, a3, M = get_oakley_function_data(self._bkd)

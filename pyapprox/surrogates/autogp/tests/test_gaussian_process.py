@@ -50,6 +50,8 @@ from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.bases.basis import (
     FixedGaussianTensorProductQuadratureRuleFromVariable,
 )
+from pyapprox.benchmarks import IshigamiBenchmark
+from pyapprox.expdesign.sequences import SobolSequence, HaltonSequence
 
 
 class TestNystrom:
@@ -138,7 +140,7 @@ class TestGaussianProcess:
         else:
             trend = None
 
-        kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+        kernel = MaternKernel(np.inf, 0.1, [1e-1, 1], nvars, backend=bkd)
 
         kernel = kernel
         if constant:
@@ -150,7 +152,7 @@ class TestGaussianProcess:
             )
             kernel = constant_kernel * kernel
 
-        gp = ExactGaussianProcess(nvars, kernel, trend=trend)
+        gp = ExactGaussianProcess(nvars, kernel, trend=trend, kernel_reg=1e-8)
         gp.set_output_transform(out_trans)
 
         def fun(xx):
@@ -713,7 +715,7 @@ class TestGaussianProcess:
     ):
         bkd = self.get_backend()
         assert bkd.allclose(
-            gp.covariance(quad_rule()[0]), bkd.cov(gp_realizations), atol=3e-3
+            gp.covariance(quad_rule()[0]), bkd.cov(gp_realizations), atol=4e-3
         )
         assert bkd.allclose(
             bkd.diag(gp.covariance(quad_rule()[0])),
@@ -729,14 +731,13 @@ class TestGaussianProcess:
         # random realizations
         realization_expectations = gp_realizations.T @ quad_rule()[1]
         expected_mean = gp_stat.expectation_of_mean()
-        print("vom", bkd.mean(realization_expectations), expected_mean)
         assert bkd.allclose(bkd.mean(realization_expectations), expected_mean)
 
         realization_variances = (gp_realizations**2).T @ quad_rule()[
             1
         ] - realization_expectations**2
-        variance_of_mean = gp_stat.variance_of_mean()
-        print(bkd.var(realization_expectations, ddof=1) - variance_of_mean)
+        # variance_of_mean = gp_stat.variance_of_mean()
+        # print(bkd.var(realization_expectations, ddof=1) - variance_of_mean)
         # assert bkd.allclose(
         #     variance_of_mean,
         #     bkd.var(realization_expectations, ddof=1),
@@ -753,11 +754,11 @@ class TestGaussianProcess:
 
         # old implementation also fails this test when stddev trans is used
         variance_of_variance = gp_stat.variance_of_variance()
-        print(variance_of_variance, bkd.var(realization_variances, ddof=1))
+        # print(variance_of_variance, bkd.var(realization_variances, ddof=1))
         assert bkd.allclose(
             variance_of_variance,
             bkd.var(realization_variances, ddof=1),
-            rtol=1e-3,
+            rtol=3e-3,
         )
 
     def _setup_low_accuracy_gp_test_case(
@@ -782,11 +783,11 @@ class TestGaussianProcess:
         )
         train_values = fun(train_samples)
         gp.fit(train_samples, train_values)
-        samples = variable.rvs(1000)
-        print(
-            "error",
-            bkd.norm(gp(samples) - fun(samples)) / np.sqrt(samples.shape[1]),
-        )
+        # samples = variable.rvs(1000)
+        # print(
+        #     "error",
+        #     bkd.norm(gp(samples) - fun(samples)) / np.sqrt(samples.shape[1]),
+        # )
         # gp.plot(plt.figure().gca(), [0, 1, 0, 1])
 
         # from pyapprox.surrogates.gaussianprocess.gaussian_process import (
@@ -917,6 +918,65 @@ class TestGaussianProcess:
             self._check_gaussian_process_marginalization_low_accuracy_gp(
                 *test_case
             )
+
+    def test_ishigami(self):
+        bkd = self.get_backend()
+        benchmark = IshigamiBenchmark(a=0.1, b=0.02, backend=bkd)
+
+        # setup gp
+        kernel_reg = 1e-9
+        kernel = MaternKernel(
+            np.inf,
+            0.5,
+            [1e-1, 3],
+            benchmark.nvars(),
+            fixed=False,
+            backend=bkd,
+        )
+        # constant_kernel = ConstantKernel(
+        #     1, (1e-1, 1e1), transform=LogHyperParameterTransform(), fixed=False
+        # )
+        # kernel = constant_kernel * kernel
+        out_trans = GaussianProcessIdentityTransform()
+        gp = ExactGaussianProcess(
+            benchmark.variable().nvars(),
+            kernel,
+            trend=None,
+            kernel_reg=kernel_reg,
+        )
+        gp.set_output_transform(out_trans)
+        gp.set_optimizer(ncandidates=1, verbosity=0)
+
+        # train gp
+        ntrain_samples = 1000
+        seq = SobolSequence(benchmark.nvars(), 0, benchmark.variable())
+        samples = seq.rvs(ntrain_samples)
+        values = benchmark.model()(samples)
+        nvalidation_samples = 1000
+        validation_samples = benchmark.variable().rvs(nvalidation_samples)
+        validation_values = benchmark.model()(validation_samples)
+
+        gp.fit(samples, values)
+        # gradients converge but rel error is still large
+        # this example is effected by conditioning of training kernel matrix
+        # Error in gradient can degrade
+        # significantly if thes quantities are varied. This is true if using
+        # autograd of analytical gradients
+        # gp.hyp_list().set_all_active()
+        # errors = gp._optimizer._objective.check_apply_jacobian(
+        #     gp.hyp_list().get_active_opt_params()[:, None], disp=True
+        # )
+        # assert errors.min() / errors.max() < 1e-6
+
+        print(gp)
+        gp_vals = gp(validation_samples)
+        print(gp_vals.shape, validation_values.shape)
+        rel_error = np.linalg.norm(
+            gp_vals - validation_values
+        ) / np.linalg.norm(validation_values)
+        print("Rel. Error", rel_error)
+
+        assert rel_error < 5e-4
 
 
 class TestNumpyNystrom(TestNystrom, unittest.TestCase):

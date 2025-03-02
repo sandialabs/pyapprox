@@ -2852,10 +2852,8 @@ class UnivariateMarginalizedGaussianProcess:
         assert samples.shape[0] == 1
         canonical_samples = self.map_to_canonical(samples)
         K_pred = self.kernel_(canonical_samples.T, self.X_train_)
-        # print(self.K_inv_y[:5], "B")
         mean = K_pred.dot(self.K_inv_y)
         mean = self._y_train_std * mean + self._y_train_mean - self.mean
-        # print(K_pred[:5, :5], canonical_samples[:, :5], self.X_train_.T[:, :5])
         if not return_std:
             return mean
 

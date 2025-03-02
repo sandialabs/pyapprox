@@ -17,8 +17,8 @@ from pyapprox.analysis.sensitivity_analysis import (
     BinBasedVarianceSensitivityAnalysis,
     PolynomialChaosSensivitityAnalysis,
     LagrangeSparseGridSensitivityAnalysis,
+    GaussianProcessSensivitityAnalysis,
     sampling_based_sobol_indices_from_gaussian_process,
-    analytic_sobol_indices_from_gaussian_process,
 )
 from pyapprox.surrogates.bases.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
@@ -29,6 +29,16 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MultipleSparseGridSubSpaceAdmissibilityCriteria,
     LejaLagrangeAdaptiveCombinationSparseGrid,
 )
+from pyapprox.surrogates.kernels import (
+    MaternKernel,
+    ConstantKernel,
+)
+from pyapprox.util.hyperparameter import LogHyperParameterTransform
+from pyapprox.surrogates.autogp.exactgp import (
+    ExactGaussianProcess,
+    GaussianProcessIdentityTransform,
+)
+from pyapprox.variables.transforms import AffineTransform
 
 
 class TestSensitivityAnalysis(unittest.TestCase):
@@ -231,6 +241,115 @@ class TestSensitivityAnalysis(unittest.TestCase):
         assert np.allclose(
             analyzer.sobol_indices(), benchmark.sobol_indices(), rtol=sa_tol
         )
+
+    def _check_gp_sensitivities(self, benchmark, nsamples, l2_tol, sa_tol):
+
+        # samples = benchmark.variable().rvs(nsamples)
+        seq = SobolSequence(benchmark.nvars(), 0, benchmark.variable())
+        samples = seq.rvs(nsamples)
+        values = benchmark.model()(samples)
+        nvalidation_samples = 1000
+        validation_samples = benchmark.variable().rvs(nvalidation_samples)
+        validation_values = benchmark.model()(validation_samples)
+
+        kernel_reg = 1e-9
+        from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+            GaussianProcess,
+            Matern,
+            ConstantKernel as CKernel,
+            WhiteKernel,
+            marginalize_gaussian_process,
+        )
+
+        pyakernel = Matern(np.array([0.5, 0.5, 0.5]), (1e-2, 2), nu=np.inf)
+        pyagp = GaussianProcess(pyakernel, alpha=kernel_reg)
+        pyagp.fit(samples, values)
+        print(
+            "pya error",
+            np.linalg.norm(
+                (pyagp(validation_samples))
+                - benchmark.model()(validation_samples)
+            )
+            / np.sqrt(nvalidation_samples),
+        )
+        print(pyagp.kernel_)
+        print(
+            pyagp.log_marginal_likelihood(
+                pyagp.kernel_.theta, eval_gradient=True
+            ),
+            pyagp.kernel_.theta,
+            "obj",
+        )
+
+        # setup gp
+        kernel = MaternKernel(
+            np.inf,
+            pyagp.kernel_.length_scale,
+            [1e-1, 2],
+            benchmark.nvars(),
+            fixed=True,
+        )
+        # constant_kernel = ConstantKernel(
+        #     1, (1e-1, 1e1), transform=LogHyperParameterTransform(), fixed=False
+        # )
+        # kernel = constant_kernel * kernel
+        out_trans = GaussianProcessIdentityTransform()
+        print(benchmark.nvars(), benchmark.variable().nvars())
+        gp = ExactGaussianProcess(
+            benchmark.variable().nvars(),
+            kernel,
+            trend=None,
+            kernel_reg=kernel_reg,
+        )
+        # in_trans = AffineTransform(benchmark.variable())
+        # gp.set_input_transform(in_trans)
+        gp.set_output_transform(out_trans)
+        gp.set_optimizer(ncandidates=1, verbosity=0)
+        # train gp
+
+        gp.fit(samples, values)
+
+        gp_vals = gp(validation_samples)
+        abs_error = np.linalg.norm(gp_vals - validation_values) / np.sqrt(
+            nvalidation_samples
+        )
+        print("Abs. Error", abs_error)
+
+        assert abs_error < l2_tol
+
+        # compute sensivitity indices from gp
+        analyzer = GaussianProcessSensivitityAnalysis(benchmark.variable())
+        analyzer.set_interaction_terms_of_interest(
+            benchmark.sobol_interaction_indices()
+        )
+        analyzer.compute(gp)
+        print((analyzer.mean() - benchmark.mean()) / benchmark.mean(), sa_tol)
+        assert np.allclose(analyzer.mean(), benchmark.mean(), rtol=sa_tol)
+        print(
+            (analyzer.variance() - benchmark.variance())
+            / benchmark.variance(),
+            sa_tol,
+        )
+        assert np.allclose(
+            analyzer.variance(), benchmark.variance(), rtol=sa_tol
+        )
+        print(analyzer.main_effects(), benchmark.main_effects())
+        assert np.allclose(
+            analyzer.main_effects(), benchmark.main_effects(), rtol=sa_tol
+        )
+        assert np.allclose(
+            analyzer.total_effects(), benchmark.total_effects(), rtol=sa_tol
+        )
+        assert np.allclose(
+            analyzer.sobol_indices(), benchmark.sobol_indices(), rtol=sa_tol
+        )
+
+    def test_gp_sensitivities(self):
+        test_cases = [
+            [IshigamiBenchmark(a=0.1, b=0.02), 1000, 7e-4, 5e-5],
+        ]
+        for test_case in test_cases:
+            self._check_gp_sensitivities(*test_case)
 
     def test_sampling_based_sobol_indices_from_gaussian_process(self):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
