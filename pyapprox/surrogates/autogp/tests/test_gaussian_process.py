@@ -44,6 +44,7 @@ from pyapprox.util.transforms import (
     StandardDeviationTransform,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.transforms import AffineTransform
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -463,9 +464,9 @@ class TestGaussianProcess:
         corr_matrix = bkd.get_correlation_from_covariance(cov_matrix)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 101)))
         values = bkd.hstack([fun(samples) for fun in funs])
-        print(values.shape)
-        print(corr_matrix)
-        print(bkd.get_correlation_from_covariance(bkd.cov(values.T, ddof=1)))
+        # print(values.shape)
+        # print(corr_matrix)
+        # print(bkd.get_correlation_from_covariance(bkd.cov(values.T, ddof=1)))
         assert np.allclose(
             corr_matrix,
             bkd.get_correlation_from_covariance(bkd.cov(values.T, ddof=1)),
@@ -648,7 +649,7 @@ class TestGaussianProcess:
         gp.fit(samples_per_output, values_per_output)
         cov_matrix = output_kernel.get_covariance_matrix()
         bkd.cholesky(cov_matrix)
-        print(cov_matrix)
+        # print(cov_matrix)
         for ii in range(2, noutputs):
             for jj in range(1, ii):
                 assert True  # np.abs(cov_matrix[ii, jj]) < 1e-10
@@ -731,6 +732,7 @@ class TestGaussianProcess:
         # random realizations
         realization_expectations = gp_realizations.T @ quad_rule()[1]
         expected_mean = gp_stat.expectation_of_mean()
+        print(bkd.mean(realization_expectations), expected_mean, gp._in_trans)
         assert bkd.allclose(bkd.mean(realization_expectations), expected_mean)
 
         realization_variances = (gp_realizations**2).T @ quad_rule()[
@@ -748,13 +750,27 @@ class TestGaussianProcess:
         print(bkd.mean(realization_variances), expected_variance)
         assert bkd.allclose(expected_variance, bkd.mean(realization_variances))
 
+        # realization_means = gp_stat.expectation_of_realizations(1e1)
+        # import torch
+
+        # torch.set_printoptions(precision=8)
+        # print(realization_expectations[:10] - realization_expectations[0])
+        # print(realization_means - realization_means[0])
+        # print(bkd.var(realization_means, ddof=1))
+        # print(gp_stat.variance_of_mean())
+        # print(bkd.var(realization_expectations, ddof=1))
+        # assert False
+
         if isinstance(out_trans, GaussianProcessStandardDeviationTransform):
             self.assertRaises(RuntimeError, gp_stat.variance_of_variance)
             return
 
         # old implementation also fails this test when stddev trans is used
         variance_of_variance = gp_stat.variance_of_variance()
-        # print(variance_of_variance, bkd.var(realization_variances, ddof=1))
+        print(gp._in_trans)
+        print(
+            variance_of_variance, bkd.var(realization_variances, ddof=1), "v"
+        )
         assert bkd.allclose(
             variance_of_variance,
             bkd.var(realization_variances, ddof=1),
@@ -762,7 +778,7 @@ class TestGaussianProcess:
         )
 
     def _setup_low_accuracy_gp_test_case(
-        self, kernel, out_trans, nvars, ntrain_samples
+        self, variable, kernel, out_trans, in_trans, ntrain_samples
     ):
         bkd = self.get_backend()
         constant = 1e3
@@ -770,61 +786,27 @@ class TestGaussianProcess:
         def fun(x):
             return constant * bkd.sum((2 * x - 0.5) ** 2, axis=0)[:, None]
 
-        marginals = [stats.uniform(0, 1)] * nvars
-        variable = IndependentMarginalsVariable(marginals, backend=bkd)
-
         gp = ExactGaussianProcess(
             variable.nvars(), kernel, trend=None, kernel_reg=1e-7
         )
         gp.set_output_transform(out_trans)
+        gp.set_input_transform(in_trans)
         gp.set_optimizer(ncandidates=4, verbosity=0)
         train_samples = bkd.cartesian_product(
-            [(1 - bkd.cos(bkd.linspace(0, np.pi, ntrain_samples))) / 2] * nvars
+            [(1 - bkd.cos(bkd.linspace(0, np.pi, ntrain_samples))) / 2]
+            * variable.nvars()
         )
         train_values = fun(train_samples)
         gp.fit(train_samples, train_values)
-        # samples = variable.rvs(1000)
-        # print(
-        #     "error",
-        #     bkd.norm(gp(samples) - fun(samples)) / np.sqrt(samples.shape[1]),
-        # )
-        # gp.plot(plt.figure().gca(), [0, 1, 0, 1])
-
-        # from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-        #     GaussianProcess,
-        #     Matern,
-        #     ConstantKernel as CKernel,
-        #     WhiteKernel,
-        #     marginalize_gaussian_process,
-        # )
-
-        # pyakernel = CKernel(sigma, "fixed") * Matern(
-        #     lenscale, length_scale_bounds="fixed", nu=np.inf
-        # ) + WhiteKernel(noise, "fixed")
-        # pyakernel = Matern(
-        #     bkd.to_numpy(kernel._lenscale.get_values()),
-        #     length_scale_bounds="fixed",
-        #     nu=np.inf,
-        # )
-        # pyagp = GaussianProcess(pyakernel, alpha=1e-7)
-        # pyagp.fit(train_samples, train_values)
-        # print(
-        #     "pya error",
-        #     bkd.norm(bkd.asarray(pyagp(bkd.to_numpy(samples))) - fun(samples))
-        #     / np.sqrt(samples.shape[1]),
-        # )
-        # pyagps = marginalize_gaussian_process(pyagp, variable, center=False)
-        # xx = np.linspace(0, 1, 101)[None, :]
-        # plt.plot(xx[0], pyagps[0](xx))
-        return gp, variable
+        return gp
 
     def _check_gaussian_process_statistics_low_accuracy_gp(
-        self, kernel, out_trans
+        self, variable, kernel, out_trans, in_trans
     ):
         # test that expectation and variance of the mean and variance of GP
         # are accurate when GP is inaccurate
-        gp, variable = self._setup_low_accuracy_gp_test_case(
-            kernel, out_trans, 1, 10
+        gp = self._setup_low_accuracy_gp_test_case(
+            variable, kernel, out_trans, in_trans, 10
         )
 
         quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
@@ -843,7 +825,7 @@ class TestGaussianProcess:
 
     def test_gaussian_process_statistics_low_accuracy_gp(self):
         bkd = self.get_backend()
-
+        nvars = 1
         kernel1 = MaternKernel(np.inf, 0.1, [1e-1, 1], 1, backend=bkd)
         constant_kernel = ConstantKernel(
             0.1,
@@ -856,11 +838,16 @@ class TestGaussianProcess:
         )
         kernels = [kernel1, kernel2]
         out_trans = [
-            GaussianProcessIdentityTransform(),
+            GaussianProcessIdentityTransform(backend=bkd),
             GaussianProcessStandardDeviationTransform(backend=bkd),
         ]
-
-        for test_case in itertools.product(kernels, out_trans):
+        marginals = [stats.uniform(0, 1)] * nvars
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        in_trans = [IdentityTransform(backend=bkd), AffineTransform(variable)]
+        variables = [variable]
+        for test_case in itertools.product(
+            variables, kernels, out_trans, in_trans
+        ):
             self._check_gaussian_process_statistics_low_accuracy_gp(*test_case)
 
     def _check_marginalized_gaussian_process(self, gp, variable):
@@ -874,7 +861,11 @@ class TestGaussianProcess:
 
         samples = bkd.linspace(0, 1, 101)[None, :]
         print(
-            bkd.abs(marginalized_gp(samples) - marginalized_fun(samples)).max()
+            bkd.abs(
+                marginalized_gp(samples) - marginalized_fun(samples)
+            ).max(),
+            "diff",
+            gp._in_trans,
         )
         marginalized_gp.plot(
             plt.figure().gca(),
@@ -886,13 +877,11 @@ class TestGaussianProcess:
         )
 
     def _check_gaussian_process_marginalization_low_accuracy_gp(
-        self, kernel, out_trans
+        self, variable, kernel, out_trans, in_trans
     ):
-        nvars = 2
-        gp, variable = self._setup_low_accuracy_gp_test_case(
-            kernel, out_trans, nvars, 20
+        gp = self._setup_low_accuracy_gp_test_case(
+            variable, kernel, out_trans, in_trans, 20
         )
-        print(kernel, out_trans)
         self._check_marginalized_gaussian_process(gp, variable)
 
     def test_gaussian_process_marginalization_low_accuracy_gp(self):
@@ -910,11 +899,17 @@ class TestGaussianProcess:
         )
         kernels = [kernel1, kernel2]
         out_trans = [
-            GaussianProcessIdentityTransform(),
+            GaussianProcessIdentityTransform(backend=bkd),
             GaussianProcessStandardDeviationTransform(backend=bkd),
         ]
+        marginals = [stats.uniform(0, 1)] * nvars
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        in_trans = [IdentityTransform(backend=bkd), AffineTransform(variable)]
+        variables = [variable]
 
-        for test_case in itertools.product(kernels, out_trans):
+        for test_case in itertools.product(
+            variables, kernels, out_trans, in_trans
+        ):
             self._check_gaussian_process_marginalization_low_accuracy_gp(
                 *test_case
             )

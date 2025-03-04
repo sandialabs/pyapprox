@@ -12,29 +12,37 @@ class Transform(ABC):
         self._bkd = backend
 
     @abstractmethod
-    def map_from_canonical(self, values):
+    def map_from_canonical(self, values: Array) -> Array:
         raise NotImplementedError
 
     @abstractmethod
-    def map_to_canonical(self, values):
+    def map_to_canonical(self, values: Array) -> Array:
         raise NotImplementedError
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
 
 
 class IdentityTransform(Transform):
-    def map_from_canonical(self, values):
+    def map_from_canonical(self, values: Array) -> Array:
         return values
 
-    def map_to_canonical(self, values):
+    def map_to_canonical(self, values: Array) -> Array:
         return values
 
-    def derivatives_from_canonical(self, canonical_derivs, order=1):
+    def derivatives_from_canonical(
+        self, canonical_derivs: Array, order: int = 1
+    ) -> Array:
         return canonical_derivs
 
-    def derivatives_to_canonical(self, derivs, order=1):
+    def derivatives_to_canonical(self, derivs: Array, order=1) -> Array:
         return derivs
+
+    def map_from_canonical_1d(self, values: Array, dim_id: int) -> Array:
+        return values
+
+    def map_to_canonical_1d(self, values: Array, dim_id: int) -> Array:
+        return values
 
 
 class AffineBoundedTransform(Transform):
@@ -77,6 +85,22 @@ class AffineBoundedTransform(Transform):
     def nvars(self) -> int:
         return self._nvars
 
+    def map_from_canonical_1d(
+        self, canonical_samples: Array, dim_id: int
+    ) -> Array:
+        return self._map_hypercube_samples(
+            canonical_samples,
+            self._canonical_ranges[2 * dim_id : 2 * (dimid + 1)],
+            self._user_ranges[2 * dim_id : 2 * (dimid + 1)],
+        )
+
+    def map_to_canonical_1d(self, user_samples: Array, dim_id: int) -> Array:
+        return self._map_hypercube_samples(
+            user_samples,
+            self._user_ranges[2 * dim_id : 2 * (dimid + 1)],
+            self._canonical_ranges[2 * dim_id : 2 * (dimid + 1)],
+        )
+
 
 class StandardDeviationTransform(Transform):
     def __init__(self, trans=False, backend=None):
@@ -88,19 +112,36 @@ class StandardDeviationTransform(Transform):
         self._means = None
         self._stdevs = None
 
-    def map_to_canonical(self, values):
-        if not self._trans:
-            self._means = self._bkd.mean(values, axis=1)[:, None]
-            self._stdevs = self._bkd.std(values, axis=1, ddof=1)[:, None]
-        else:
-            self._means = self._bkd.mean(values, axis=0)[:, None]
-            self._stdevs = self._bkd.std(values, axis=0, ddof=1)[:, None]
+    def map_to_canonical(self, values: Array) -> Array:
+        # Assume that first call to map_to_canonical defines the mean
+        # and standar deviation
+        if self._means is None:
+            if not self._trans:
+                self._means = self._bkd.mean(values, axis=1)[:, None]
+                self._stdevs = self._bkd.std(values, axis=1, ddof=1)[:, None]
+            else:
+                self._means = self._bkd.mean(values, axis=0)[:, None]
+                self._stdevs = self._bkd.std(values, axis=0, ddof=1)[:, None]
         canonical_values = (values - self._means) / self._stdevs
         return canonical_values
 
-    def map_from_canonical(self, canonical_values):
+    def map_from_canonical(self, canonical_values: Array) -> Array:
         values = canonical_values * self._stdevs + self._means
         return values
+
+    def map_from_canonical_1d(
+        self, canonical_values: Array, dim_id: int
+    ) -> Array:
+        values = canonical_values * self._stdevs[dim_id] + self._means[dim_id]
+        return values
+
+    def map_to_canonical_1d(self, user_values: Array, dim_id: int) -> Array:
+        # assumes that map_to canonical has already been called and
+        # used to define self._means, self._stdevs
+        canonical_values = (values - self._means[dim_id]) / self._stdevs[
+            dim_id
+        ]
+        return canonical_values
 
 
 class NSphereCoordinateTransform(Transform):

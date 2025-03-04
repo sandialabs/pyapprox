@@ -26,6 +26,7 @@ from pyapprox.surrogates.bases.basis import (
     GaussQuadratureRule,
 )
 from pyapprox.util.transforms import (
+    Transform,
     IdentityTransform,
     StandardDeviationTransform,
 )
@@ -399,7 +400,6 @@ class ExactGaussianProcess(OptimizedRegressor):
     def _evaluate_canonical_posterior(self, samples: Array, return_std: bool):
         canonical_samples = self._in_trans.map_to_canonical(samples)
         kmat_pred = self._kernel(canonical_samples, self._ctrain_samples)
-        print(kmat_pred[:3, :3], "KTrans2")
         canonical_trend = self._canonical_trend(
             canonical_samples
         ) + self._bkd.multidot((kmat_pred, self._coef))
@@ -499,7 +499,9 @@ class ExactGaussianProcess(OptimizedRegressor):
         prior_kwargs=None,
         plot_samples=None,
     ):
-        test_samples = np.linspace(bounds[0], bounds[1], npts_1d)[None, :]
+        test_samples = self._bkd.linspace(bounds[0], bounds[1], npts_1d)[
+            None, :
+        ]
         gp_trend, gp_std = self.evaluate(test_samples, return_std=True)
         ims = self._plot_1d(
             ax,
@@ -706,6 +708,8 @@ class GaussianProcessStatistics:
         # store kernel matrix inverse that is not scaled by the
         # kernel variance
         self._Ainv = Linv.T @ Linv * self._get_kernel_variance()
+        self._Ainv_y = self._Ainv_y_gp
+        self._tau_1d, self._cond_P_1d, self._u_1d = None, None, None
 
         condition_number = self._bkd.cond(self._Ainv)
         if condition_number > 1e8:
@@ -730,12 +734,12 @@ class GaussianProcessStatistics:
             raise ValueError("gp._trend must be None")
 
         # store train samples in user space for ease of reference
-        self._train_samples = self._gp._in_trans.map_from_canonical(
-            self._gp._ctrain_samples
-        )
-        self._train_values = self._gp._out_trans.map_from_canonical(
-            self._gp._ctrain_values
-        )
+        # self._train_samples = self._gp._in_trans.map_from_canonical(
+        #     self._gp._ctrain_samples
+        # )
+        # self._train_values = self._gp._out_trans.map_from_canonical(
+        #     self._gp._ctrain_values
+        # )
 
     def set_quadrature_rule(
         self,
@@ -752,9 +756,18 @@ class GaussianProcessStatistics:
             quad_rule(nnodes)
             for quad_rule, nnodes in zip(marginal_quad_rules, nquad_nodes_1d)
         ]
-        self._quadx_1d = [data[0] for data in marginal_quad_data]
+        # kernel operates in canonical space so map 1d quadrature rules
+        # to canonical space
+        self._canonical_quadx_1d = [
+            self._gp._in_trans.map_to_canonical_1d(data[0], ii)
+            for ii, data in enumerate(marginal_quad_data)
+        ]
+        # self._canonical_quadx_1d = [
+        #     data[0] for ii, data in enumerate(marginal_quad_data)
+        # ]
         self._quadw_1d = [data[1] for data in marginal_quad_data]
 
+        # Map 2D quadrature rules to canonical space
         self._twodim_quadrules = [
             FixedTensorProductQuadratureRule(
                 2, [marginal_quad_rules[ii]] * 2, [nquad_nodes_1d[ii]] * 2
@@ -762,12 +775,43 @@ class GaussianProcessStatistics:
             for ii in range(variable.nvars())
         ]
 
+        # Map 3D quadrature rules to canonical space
         self._threedim_quadrules = [
             FixedTensorProductQuadratureRule(
                 3, [marginal_quad_rules[ii]] * 3, [nquad_nodes_1d[ii]] * 3
             )
             for ii in range(variable.nvars())
         ]
+
+    def _two_dim_canonical_quadrature_tuple(
+        self, ii: int
+    ) -> Tuple[Array, Array]:
+        xx_2d, ww_2d = self._twodim_quadrules[ii]()
+        return (
+            self._bkd.stack(
+                [
+                    self._gp._in_trans.map_to_canonical_1d(xx_2d[jj], ii)
+                    for jj in range(2)
+                ],
+                axis=0,
+            ),
+            ww_2d,
+        )
+
+    def _three_dim_canonical_quadrature_tuple(
+        self, ii: int
+    ) -> Tuple[Array, Array]:
+        xx_3d, ww_3d = self._threedim_quadrules[ii]()
+        return (
+            self._bkd.stack(
+                [
+                    self._gp._in_trans.map_to_canonical_1d(xx_3d[jj], ii)
+                    for jj in range(3)
+                ],
+                axis=0,
+            ),
+            ww_3d,
+        )
 
     def _get_kernel_length_scale(self):
         found = False
@@ -793,30 +837,32 @@ class GaussianProcessStatistics:
         return const
 
     def _integrate_tau_P_1d(
-        self, xtr_ii: Array, lscale_ii: float, ii: int
+        self, can_xtr_ii: Array, lscale_ii: float, ii: int
     ) -> Tuple[Array, Array]:
         # specific to squared exponential kernel. Move to kernel
-        dists_1d_x1_xtr = (
+        dists_1d_x1_can_xtr = (
             self._bkd.cdist(
-                self._quadx_1d[ii].T / lscale_ii,
-                xtr_ii.T / lscale_ii,
+                self._canonical_quadx_1d[ii].T / lscale_ii,
+                can_xtr_ii.T / lscale_ii,
             )
             ** 2
         )
-        K = self._bkd.exp(-0.5 * dists_1d_x1_xtr)
+        K = self._bkd.exp(-0.5 * dists_1d_x1_can_xtr)
         tau = self._quadw_1d[ii][:, 0] @ K
         P = K.T @ (self._quadw_1d[ii] * K)
         return tau, P
 
     def _univariate_tau_P(self) -> Tuple[Array, Array]:
-        if hasattr(self, "tau_1d"):
+        if self._tau_1d is not None:
             # store to avoid recomputation
             return self._tau_1d, self._P_1d
         lscale = self._get_kernel_length_scale()
         tau, P = [], []
         for ii in range(self._gp.nvars()):
             tau_ii, P_ii = self._integrate_tau_P_1d(
-                self._train_samples[ii : ii + 1, :], lscale[ii], ii
+                self._gp._ctrain_samples[ii : ii + 1, :],
+                lscale[ii],
+                ii,
             )
             tau.append(tau_ii)
             P.append(P_ii)
@@ -825,31 +871,37 @@ class GaussianProcessStatistics:
         return self._tau_1d, self._P_1d
 
     def _integrate_conditional_P_1d(
-        self, xtr_ii: Array, lscale_ii: float, ii: int
+        self, can_xtr_ii: Array, lscale_ii: float, ii: int
     ) -> Array:
-        xx_2d, ww_2d = self._twodim_quadrules[ii]()
-        dists_2d_x2_xtr = (
-            self._bkd.cdist(xx_2d[1:2, :].T / lscale_ii, xtr_ii.T / lscale_ii)
+        can_xx_2d, ww_2d = self._two_dim_canonical_quadrature_tuple(ii)
+        dists_2d_x2_can_xtr = (
+            self._bkd.cdist(
+                can_xx_2d[1:2, :].T / lscale_ii, can_xtr_ii.T / lscale_ii
+            )
             ** 2
         )
-        dists_2d_x1_xtr = (
-            self._bkd.cdist(xx_2d[0:1, :].T / lscale_ii, xtr_ii.T / lscale_ii)
+        dists_2d_x1_can_xtr = (
+            self._bkd.cdist(
+                can_xx_2d[0:1, :].T / lscale_ii, can_xtr_ii.T / lscale_ii
+            )
             ** 2
         )
-        cond_P = self._bkd.exp(-0.5 * dists_2d_x1_xtr).T @ (
-            ww_2d * self._bkd.exp(-0.5 * dists_2d_x2_xtr)
+        cond_P = self._bkd.exp(-0.5 * dists_2d_x1_can_xtr).T @ (
+            ww_2d * self._bkd.exp(-0.5 * dists_2d_x2_can_xtr)
         )
         return cond_P
 
     def _univariate_conditional_P(self) -> Array:
-        if hasattr(self, "cond_P_1d"):
+        if self._cond_P_1d is not None:
             # store to avoid recomputation
             return self._cond_P_1d
         lscale = self._get_kernel_length_scale()
         cond_P = []
         for ii in range(self._gp.nvars()):
             cond_P_ii = self._integrate_conditional_P_1d(
-                self._train_samples[ii : ii + 1, :], lscale[ii], ii
+                self._gp._ctrain_samples[ii : ii + 1, :],
+                lscale[ii],
+                ii,
             )
             cond_P.append(cond_P_ii)
         self._cond_P_1d = self._bkd.stack(cond_P, axis=0)
@@ -860,46 +912,54 @@ class GaussianProcessStatistics:
         return self._bkd.prod(tau, axis=0), self._bkd.prod(P, axis=0)
 
     def _integrate_u_lamda_Pi_nu_1d(
-        self, xtr_ii: Array, lscale_ii: float, ii: int
+        self, can_xtr_ii: Array, lscale_ii: float, ii: int
     ) -> Tuple[Array, Array]:
         # TODO pass in 1D kernel objects to remove need to pass around lscale
-        xx_2d, ww_2d = self._twodim_quadrules[ii]()
+        can_xx_2d, ww_2d = self._two_dim_canonical_quadrature_tuple(ii)
         dists_2d_x1_x2 = (
-            xx_2d[0, :] / lscale_ii - xx_2d[1, :] / lscale_ii
+            can_xx_2d[0, :] / lscale_ii - can_xx_2d[1, :] / lscale_ii
         ) ** 2
         K = self._bkd.exp(-0.5 * dists_2d_x1_x2)
         u = ww_2d[:, 0] @ K
         dists_2d_x1_x2 = (
-            xx_2d[0:1, :].T / lscale_ii - xx_2d[1:2, :].T / lscale_ii
+            can_xx_2d[0:1, :].T / lscale_ii - can_xx_2d[1:2, :].T / lscale_ii
         ) ** 2
-        dists_2d_x2_xtr = (
-            self._bkd.cdist(xx_2d[1:2, :].T / lscale_ii, xtr_ii.T / lscale_ii)
+        dists_2d_x2_can_xtr = (
+            self._bkd.cdist(
+                can_xx_2d[1:2, :].T / lscale_ii, can_xtr_ii.T / lscale_ii
+            )
             ** 2
         )
         lamda = (
-            self._bkd.exp(-0.5 * dists_2d_x1_x2.T - 0.5 * dists_2d_x2_xtr.T)
+            self._bkd.exp(
+                -0.5 * dists_2d_x1_x2.T - 0.5 * dists_2d_x2_can_xtr.T
+            )
             @ ww_2d[:, 0]
         )
-        dists_2d_x1_xtr = (
-            self._bkd.cdist(xx_2d[0:1, :].T / lscale_ii, xtr_ii.T / lscale_ii)
+        dists_2d_x1_can_xtr = (
+            self._bkd.cdist(
+                can_xx_2d[0:1, :].T / lscale_ii, can_xtr_ii.T / lscale_ii
+            )
             ** 2
         )
         w = self._bkd.exp(-0.5 * dists_2d_x1_x2[:, 0]) * ww_2d[:, 0]
-        Pi = self._bkd.exp(-0.5 * dists_2d_x1_xtr).T @ (
-            w[:, None] * self._bkd.exp(-0.5 * dists_2d_x2_xtr)
+        Pi = self._bkd.exp(-0.5 * dists_2d_x1_can_xtr).T @ (
+            w[:, None] * self._bkd.exp(-0.5 * dists_2d_x2_can_xtr)
         )
         nu = self._bkd.exp(-dists_2d_x1_x2)[:, 0] @ ww_2d
         return u, lamda, Pi, nu
 
     def _univariate_u_lamda_Pi_nu(self) -> Tuple[Array, Array, Array, Array]:
-        if hasattr(self, "_u_1d"):
+        if self._u_1d is not None:
             # store to avoid recomputation
-            return self._u_1d, self._lamda_1d, self._P_1d, self._nu_1d
+            return self._u_1d, self._lamda_1d, self._Pi_1d, self._nu_1d
         lscale = self._get_kernel_length_scale()
         u, lamda, Pi, nu = [], [], [], []
         for ii in range(self._gp.nvars()):
             u_ii, lamda_ii, Pi_ii, nu_ii = self._integrate_u_lamda_Pi_nu_1d(
-                self._train_samples[ii : ii + 1, :], lscale[ii], ii
+                self._gp._ctrain_samples[ii : ii + 1, :],
+                lscale[ii],
+                ii,
             )
             u.append(u_ii)
             lamda.append(lamda_ii)
@@ -912,6 +972,9 @@ class GaussianProcessStatistics:
         self._nu_1d = self._bkd.stack(nu, axis=0)
         return self._u_1d, self._lamda_1d, self._Pi_1d, self._nu_1d
 
+    def _reset_memory(self):
+        self._tau_1d, self._cond_P_1d, self._u_1d = None, None, None
+
     def _u_lamda_Pi_nu(self) -> Tuple[Array, Array, Array, Array]:
         u, lamda, Pi, nu = self._univariate_u_lamda_Pi_nu()
         return (
@@ -923,7 +986,7 @@ class GaussianProcessStatistics:
 
     def expectation_of_mean(self) -> Array:
         tau = self._tau_P()[0]
-        expected_mean = tau @ self._gp._Kinv_y(self._Ainv)
+        expected_mean = tau @ self._Ainv_y()
         # for now out_trans is the identity
         return self._gp._out_trans.adjust_expectation_of_mean(expected_mean)
 
@@ -936,7 +999,7 @@ class GaussianProcessStatistics:
         return self._get_kernel_variance() * varsigma_sq
 
     def _expectation_of_variance(self, P, tau, v_sq):
-        Ainv_y = self._gp._Kinv_y(self._Ainv)
+        Ainv_y = self._Ainv_y()
         zeta = Ainv_y.T @ P @ Ainv_y
         # reactivate once allow for out_trans to be not None
         zeta = self._gp._out_trans.adjust_zeta(zeta, tau, Ainv_y)
@@ -953,15 +1016,13 @@ class GaussianProcessStatistics:
         v_sq = 1.0 - self._bkd.sum(self._Ainv * P)
         return self._expectation_of_variance(P, tau, v_sq)
 
-    def _integrate_xi_1_1d(
-        self, xtr_ii: Array, lscale_ii: float, ii: int
-    ) -> Array:
-        xx_3d, ww_3d = self._threedim_quadrules[ii]()
+    def _integrate_xi_1_1d(self, lscale_ii: float, ii: int) -> Array:
+        can_xx_3d, ww_3d = self._three_dim_canonical_quadrature_tuple(ii)
         dists_3d_x1_x2 = (
-            xx_3d[0, :] / lscale_ii - xx_3d[1, :] / lscale_ii
+            can_xx_3d[0, :] / lscale_ii - can_xx_3d[1, :] / lscale_ii
         ) ** 2
         dists_3d_x2_x3 = (
-            xx_3d[1, :] / lscale_ii - xx_3d[2, :] / lscale_ii
+            can_xx_3d[1, :] / lscale_ii - can_xx_3d[2, :] / lscale_ii
         ) ** 2
         xi_1 = (
             self._bkd.exp(-0.5 * dists_3d_x1_x2 - 0.5 * dists_3d_x2_x3)
@@ -973,9 +1034,7 @@ class GaussianProcessStatistics:
         lscale = self._get_kernel_length_scale()
         xi_1 = []
         for ii in range(self._gp.nvars()):
-            xi_1_ii = self._integrate_xi_1_1d(
-                self._train_samples[ii : ii + 1, :], lscale[ii], ii
-            )
+            xi_1_ii = self._integrate_xi_1_1d(lscale[ii], ii)
             xi_1.append(xi_1_ii)
         return self._bkd.prod(self._bkd.stack(xi_1, axis=0), axis=0)
 
@@ -987,7 +1046,7 @@ class GaussianProcessStatistics:
         psi = self._bkd.sum(self._Ainv.T * Pi)
         chi = nu + varphi - 2.0 * psi
         eta = self.expectation_of_mean()
-        Ainv_y = self._gp._Kinv_y(self._Ainv)
+        Ainv_y = self._Ainv_y()
         varrho = lamda @ Ainv_y - tau @ Ainv_P @ Ainv_y
         phi = Ainv_y.T @ Pi @ Ainv_y - self._bkd.multidot(
             (Ainv_y.T, P, Ainv_P, Ainv_y)
@@ -1007,7 +1066,7 @@ class GaussianProcessStatistics:
         xi_1 = self._xi_1()
         xi = xi_1 + tau @ Ainv_P @ Ainv_tau - 2.0 * lamda @ Ainv_tau
         v_sq = 1.0 - self._bkd.sum(self._Ainv * P)
-        Ainv_y = self._gp._Kinv_y(self._Ainv)
+        Ainv_y = self._Ainv_y()
         zeta = Ainv_y.T @ P @ Ainv_y
         zeta = self._gp._out_trans.adjust_zeta(zeta, tau, Ainv_y)
         kernel_var = self._get_kernel_variance()
@@ -1035,6 +1094,10 @@ class GaussianProcessStatistics:
         )
         expected_variance = self.expectation_of_variance()
         variance_of_variance = term1 - 2 * term2 + term3 - expected_variance**2
+        import torch
+
+        torch.set_printoptions(precision=16)
+        print(term1, term2, term3, expected_variance)
         return variance_of_variance
 
     def conditional_variance(self, index: Array) -> float:
@@ -1053,6 +1116,34 @@ class GaussianProcessStatistics:
         trace_A_inv_Pp = np.sum(self._Ainv * P_p)
         v_sq = U_p - trace_A_inv_Pp
         return self._expectation_of_variance(P_p, tau, v_sq)
+
+    def _Ainv_y_gp(self) -> Array:
+        return self._gp._Kinv_y(self._Ainv)
+
+    def _Ainv_y_realization(self) -> Array:
+        return self._Ainv @ self._realization
+
+    def expectation_of_realizations(self, nrealizations: int) -> Array:
+        train_samples = self._gp.get_train_samples()
+        rand_noise = self._bkd.asarray(
+            np.random.normal(
+                0, 1, (int(nrealizations), train_samples.shape[1])
+            ).T
+        )
+        realizations = self._gp._predict_random_realizations_from_rand_noise(
+            train_samples, rand_noise
+        )
+        # modify Ainv_y function to apply to realization
+        self._Ainv_y = self._Ainv_y_realization
+        means = []
+        for ii in range(realizations.shape[1]):
+            self._realization = self._gp._out_trans.map_to_canonical(
+                realizations[:, ii : ii + 1]
+            )
+            means.append(self.expectation_of_mean())
+        # reset Ainv_y function
+        self._Ainv_y = self._Ainv_y_gp
+        return self._bkd.hstack(means)
 
 
 class MarginalizedGaussianProcessKernel(Kernel):
@@ -1095,6 +1186,21 @@ class MarginalizedGaussianProcessKernel(Kernel):
         return self._kernel(X1, X2) * self._tau
 
 
+class MarginalizedGaussianProcessInputTransform(Transform):
+    def __init__(self, trans: Transform, active_id: int):
+        self._trans = trans
+        self._active_id = active_id
+        super().__init__(trans._bkd)
+
+    def map_from_canonical(self, canonical_samples: Array) -> Array:
+        return self._trans.map_from_canonical_1d(
+            canonical_samples, self._active_id
+        )
+
+    def map_to_canonical(self, user_samples: Array) -> Array:
+        return self._trans.map_to_canonical_1d(user_samples, self._active_id)
+
+
 def marginalize_gaussian_process(
     gp: ExactGaussianProcess,
     variable: IndependentMarginalsVariable,
@@ -1122,6 +1228,9 @@ def marginalize_gaussian_process(
         kernel_reg=1e-7,
     )
     marginalized_gp.set_output_transform(gp._out_trans)
+    marginalized_gp.set_input_transform(
+        MarginalizedGaussianProcessInputTransform(gp._in_trans, active_id)
+    )
     marginalized_gp._ctrain_samples = gp._ctrain_samples[
         active_id : active_id + 1
     ]

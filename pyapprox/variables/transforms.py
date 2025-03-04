@@ -37,14 +37,13 @@ class AffineTransform(Transform):
         self,
         variable: IndependentMarginalsVariable,
         enforce_bounds: bool = False,
-        bkd: LinAlgMixin = NumpyLinAlgMixin,
     ):
         """
         Variable uniquness dependes on both the type of random variable
         e.g. beta, gaussian, etc. and the parameters of that distribution
         e.g. loc and scale parameters as well as any additional parameters
         """
-        super().__init__(bkd)
+        super().__init__(variable._bkd)
         if not isinstance(variable, IndependentMarginalsVariable):
             variable = IndependentMarginalsVariable(variable)
         self._variable = variable
@@ -136,7 +135,8 @@ class AffineTransform(Transform):
                     return (samples - loc) / scale
                 else:
                     return samples
-        raise Exception()
+        print(ii, self._variable._unique_variable_indices)
+        raise Exception("Should not happen")
 
     def map_from_canonical_1d(self, canonical_samples: Array, ii: int):
         for jj in range(self._variable._nunique_vars):
@@ -146,7 +146,7 @@ class AffineTransform(Transform):
                     return canonical_samples * scale + loc
                 else:
                     return canonical_samples
-        raise Exception()
+        raise Exception("Should not happen")
 
     def map_derivatives_from_canonical_space(
         self, derivatives: Array
