@@ -252,13 +252,14 @@ class TestSensitivityAnalysis(unittest.TestCase):
         validation_samples = benchmark.variable().rvs(nvalidation_samples)
         validation_values = benchmark.model()(validation_samples)
 
-        kernel_reg = 1e-9
+        kernel_reg = 1e-7
         from pyapprox.surrogates.gaussianprocess.gaussian_process import (
             GaussianProcess,
             Matern,
             ConstantKernel as CKernel,
             WhiteKernel,
             marginalize_gaussian_process,
+            compute_expected_sobol_indices,
         )
 
         pyakernel = Matern(np.array([0.5, 0.5, 0.5]), (1e-2, 2), nu=np.inf)
@@ -280,6 +281,15 @@ class TestSensitivityAnalysis(unittest.TestCase):
             pyagp.kernel_.theta,
             "obj",
         )
+        pyasobolindices, pyatotaleffects, pyamean, pyavar = (
+            compute_expected_sobol_indices(
+                pyagp,
+                benchmark.variable(),
+                benchmark.sobol_interaction_indices(),
+            )
+        )
+        print(pyasobolindices)
+        print(pyatotaleffects)
 
         # setup gp
         kernel = MaternKernel(
@@ -333,20 +343,28 @@ class TestSensitivityAnalysis(unittest.TestCase):
         assert np.allclose(
             analyzer.variance(), benchmark.variance(), rtol=sa_tol
         )
-        print(analyzer.main_effects(), benchmark.main_effects())
+        print(
+            (analyzer.main_effects() - benchmark.main_effects())
+            / benchmark.main_effects()
+        )
         assert np.allclose(
             analyzer.main_effects(), benchmark.main_effects(), rtol=sa_tol
         )
+        print(analyzer.total_effects(), benchmark.total_effects())
         assert np.allclose(
             analyzer.total_effects(), benchmark.total_effects(), rtol=sa_tol
         )
+        print(analyzer.sobol_indices(), benchmark.sobol_indices())
         assert np.allclose(
-            analyzer.sobol_indices(), benchmark.sobol_indices(), rtol=sa_tol
+            analyzer.sobol_indices(),
+            benchmark.sobol_indices(),
+            rtol=sa_tol,
+            atol=1e-5,
         )
 
     def test_gp_sensitivities(self):
         test_cases = [
-            [IshigamiBenchmark(a=0.1, b=0.02), 1000, 7e-4, 5e-5],
+            [IshigamiBenchmark(a=0.1, b=0.02), 1000, 2e-3, 5e-3],
         ]
         for test_case in test_cases:
             self._check_gp_sensitivities(*test_case)

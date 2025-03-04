@@ -49,7 +49,9 @@ growth_rule = DoublePlusOneIndexGrowthRule()
 #  Build the sparse grid with at approximately 100 samples. Sparse grids
 # cannot guarantee budget will be satisfied exactly
 max_nsamples = 100
-sg = AdaptiveCombinationSparseGrid(benchmark.model().nqoi())
+sg = AdaptiveCombinationSparseGrid(
+    benchmark.model().nqoi(), benchmark.variable().nvars()
+)
 basis = TensorProductInterpolatingBasis(bases_1d)
 sg.set_basis(basis)
 subspace_gen = IterativeIndexGenerator(nvars)
@@ -92,4 +94,3 @@ yy = np.linspace(true_values.min(), true_values.max(), 101)
 ax.plot(yy, true_kde(yy), "-k", label="True PDF")
 ax.plot(yy, sg_kde(yy), "--r", label="Sparse Grid PDF")
 _ = ax.legend()
-plt.show()

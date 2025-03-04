@@ -1577,7 +1577,9 @@ class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
         for ii in range(self._interaction_terms.shape[1]):
             index = self._interaction_terms[:, ii]
             interaction_variances[ii] = self._stat.conditional_variance(index)
-        return self._correct_interaction_variances(interaction_variances)
+        return self._correct_interaction_variances(
+            interaction_variances / self._variance
+        )
 
     def _compute_main_effects(self):
         main_effect_idx = self._bkd.where(
@@ -1587,7 +1589,7 @@ class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
 
     def _compute_total_effects(self):
         total_effect_interaction_variances = self._bkd.zeros(
-            (self._interaction_terms.shape[1], self._gp.nqoi())
+            (self._gp.nvars(), self._gp.nqoi())
         )
         total_effect_interaction_terms = self._bkd.ones(
             (self._gp.nvars(), self._gp.nvars()), dtype=int
@@ -1597,7 +1599,7 @@ class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
             total_effect_interaction_variances[ii] = (
                 self._stat.conditional_variance(index)
             )
-        return (1 - total_effect_interaction_variances) / self._variance
+        return 1 - total_effect_interaction_variances / self._variance
 
     def mean(self) -> Array:
         return self._mean

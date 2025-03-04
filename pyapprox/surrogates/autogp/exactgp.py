@@ -809,6 +809,9 @@ class GaussianProcessStatistics:
         return tau, P
 
     def _univariate_tau_P(self) -> Tuple[Array, Array]:
+        if hasattr(self, "tau_1d"):
+            # store to avoid recomputation
+            return self._tau_1d, self._P_1d
         lscale = self._get_kernel_length_scale()
         tau, P = [], []
         for ii in range(self._gp.nvars()):
@@ -817,17 +820,21 @@ class GaussianProcessStatistics:
             )
             tau.append(tau_ii)
             P.append(P_ii)
-        return self._bkd.stack(tau, axis=0), self._bkd.stack(P, axis=0)
+        self._tau_1d = self._bkd.stack(tau, axis=0)
+        self._P_1d = self._bkd.stack(P, axis=0)
+        return self._tau_1d, self._P_1d
 
     def _integrate_conditional_P_1d(
         self, xtr_ii: Array, lscale_ii: float, ii: int
     ) -> Array:
         xx_2d, ww_2d = self._twodim_quadrules[ii]()
-        dists_2d_x2_xtr = self._bkd.cdist(
-            xx_2d[1:2, :].T / lscale_ii, xtr_ii.T / lscale_ii
+        dists_2d_x2_xtr = (
+            self._bkd.cdist(xx_2d[1:2, :].T / lscale_ii, xtr_ii.T / lscale_ii)
+            ** 2
         )
-        dists_2d_x1_xtr = self._bkd.cdist(
-            xx_2d[0:1, :].T / lscale_ii, xtr_ii.T / lscale_ii
+        dists_2d_x1_xtr = (
+            self._bkd.cdist(xx_2d[0:1, :].T / lscale_ii, xtr_ii.T / lscale_ii)
+            ** 2
         )
         cond_P = self._bkd.exp(-0.5 * dists_2d_x1_xtr).T @ (
             ww_2d * self._bkd.exp(-0.5 * dists_2d_x2_xtr)
@@ -835,6 +842,9 @@ class GaussianProcessStatistics:
         return cond_P
 
     def _univariate_conditional_P(self) -> Array:
+        if hasattr(self, "cond_P_1d"):
+            # store to avoid recomputation
+            return self._cond_P_1d
         lscale = self._get_kernel_length_scale()
         cond_P = []
         for ii in range(self._gp.nvars()):
@@ -842,7 +852,8 @@ class GaussianProcessStatistics:
                 self._train_samples[ii : ii + 1, :], lscale[ii], ii
             )
             cond_P.append(cond_P_ii)
-        return self._bkd.stack(cond_P, axis=0)
+        self._cond_P_1d = self._bkd.stack(cond_P, axis=0)
+        return self._cond_P_1d
 
     def _tau_P(self) -> Tuple[Array, Array]:
         tau, P = self._univariate_tau_P()
@@ -881,6 +892,9 @@ class GaussianProcessStatistics:
         return u, lamda, Pi, nu
 
     def _univariate_u_lamda_Pi_nu(self) -> Tuple[Array, Array, Array, Array]:
+        if hasattr(self, "_u_1d"):
+            # store to avoid recomputation
+            return self._u_1d, self._lamda_1d, self._P_1d, self._nu_1d
         lscale = self._get_kernel_length_scale()
         u, lamda, Pi, nu = [], [], [], []
         for ii in range(self._gp.nvars()):
@@ -891,12 +905,12 @@ class GaussianProcessStatistics:
             lamda.append(lamda_ii)
             Pi.append(Pi_ii)
             nu.append(nu_ii)
-        return (
-            self._bkd.stack(u, axis=0),
-            self._bkd.stack(lamda, axis=0),
-            self._bkd.stack(Pi, axis=0),
-            self._bkd.stack(nu, axis=0),
-        )
+
+        self._u_1d = self._bkd.stack(u, axis=0)
+        self._lamda_1d = self._bkd.stack(lamda, axis=0)
+        self._Pi_1d = self._bkd.stack(Pi, axis=0)
+        self._nu_1d = self._bkd.stack(nu, axis=0)
+        return self._u_1d, self._lamda_1d, self._Pi_1d, self._nu_1d
 
     def _u_lamda_Pi_nu(self) -> Tuple[Array, Array, Array, Array]:
         u, lamda, Pi, nu = self._univariate_u_lamda_Pi_nu()
@@ -926,7 +940,6 @@ class GaussianProcessStatistics:
         zeta = Ainv_y.T @ P @ Ainv_y
         # reactivate once allow for out_trans to be not None
         zeta = self._gp._out_trans.adjust_zeta(zeta, tau, Ainv_y)
-
         kernel_var = self._get_kernel_variance()
         expected_mean = self.expectation_of_mean()
         variance_mean = self.variance_of_mean()

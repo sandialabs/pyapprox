@@ -59,10 +59,8 @@ class TensorProductIntegrationModel(SingleSampleModel):
         ]
         basis = TensorProductInterpolatingBasis(bases_1d)
         self._interp = TensorProductInterpolant(basis)
-        print(self._nnodes_1d)
         basis.set_tensor_product_indices(self._nnodes_1d)
         train_samples = basis.tensor_product_grid()
-        print(train_samples.shape)
         train_values = self._train_model(train_samples)
         self._interp.fit(train_values)
 
@@ -74,7 +72,7 @@ class TensorProductIntegrationModelEnsemble(MultiIndexModelEnsemble):
     def __init__(self, train_model, basis_type, nrefinement_vars):
         self._basis_type = basis_type
         self._train_model = train_model
-        super().__init__(nrefinement_vars)
+        super().__init__([5] * nvars)
 
     def model_id_to_grid_resolutions(self, model_id):
         resolutions = 2**model_id + 1
@@ -114,8 +112,7 @@ study.run()
 # %%
 # Plot the convergence
 axs = plt.subplots(1, 2, figsize=(2 * 8, 6))[1]
-study.plot(axs)
-plt.show()
+_ = study.plot(axs)
 
 # %%
 # The left plots depicts the convergence of the estimated integral as the number of quadrature points in the first dimension :math:`n_1` are increased for varying values of the number of quadrature points in the second dimension :math:`n_2`. The roles of the discretizations are reveresed in the right plot. These plots confirm that the estimated intergral converges as the expected quadratic rate,  until the error introduced by fixing the discretization in one dimension dominates the discretization error introduced by the other dimension.

@@ -32,11 +32,16 @@ class ConvergenceStudy:
         self._bkd = model_ensemble._bkd
         self._model_ensemble = model_ensemble
         self._error_est = error_est
-        print(multi_index_bounds.shape)
         if multi_index_bounds.shape != (model_ensemble.nrefinement_vars(), 2):
             raise ValueError("multi_index_bounds has the wrong shape ")
         if self._bkd.any(multi_index_bounds[:, 0] >= multi_index_bounds[:, 1]):
             raise ValueError("multi_index_bounds must be increasing")
+        if self._bkd.any(
+            multi_index_bounds[:, 1] > self._model_ensemble._index_bounds
+        ):
+            raise ValueError(
+                "multi_index_bounds must exceed bounds of model enesmble"
+            )
         self._multi_index_bounds = multi_index_bounds
         self._indices_1d = [
             self._bkd.arange(bounds[0], bounds[1] + 1)

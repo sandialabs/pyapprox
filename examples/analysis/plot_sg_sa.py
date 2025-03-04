@@ -25,10 +25,10 @@ np.random.seed(1)
 benchmark = IshigamiBenchmark(a=7, b=0.1)
 level = 7
 admissibility_criteria = MultipleSparseGridSubSpaceAdmissibilityCriteria(
-    (
+    [
         MaxLevelSparseGridSubSpaceAdmissibilityCriteria(level, 1.0),
         MaxErrorSparseGridSubspaceAdmissibilityCriteria(1e-8),
-    )
+    ]
 )
 sg = LejaLagrangeAdaptiveCombinationSparseGrid(
     benchmark.variable(), benchmark.model().nqoi()

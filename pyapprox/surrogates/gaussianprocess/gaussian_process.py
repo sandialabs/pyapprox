@@ -3128,6 +3128,8 @@ def _compute_expected_sobol_indices(
                 expected_random_mean[ii],
                 variance_random_mean[ii],
             )
+
+    print(unnormalized_interaction_values[-3:], "i")
     unnormalized_total_effect_values = unnormalized_interaction_values[
         interaction_terms.shape[1] :
     ]
