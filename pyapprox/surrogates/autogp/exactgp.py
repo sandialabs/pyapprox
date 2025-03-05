@@ -100,7 +100,7 @@ class GaussianProcessStandardDeviationTransform(
     def adjust_phi(
         self, phi: float, varrho: float, varsigma_sq: float
     ) -> float:
-        raise NotImplementedError("Tests do not pass")
+        # raise NotImplementedError("Tests do not pass")
         return (
             phi * self._stdevs**2
             + 2 * varrho * self._means * self._stdevs
@@ -108,7 +108,7 @@ class GaussianProcessStandardDeviationTransform(
         )
 
     def adjust_varrho(self, varrho: float, varsigma_sq: float) -> float:
-        raise NotImplementedError("Tests do not pass")
+        # raise NotImplementedError("Tests do not pass")
         return varrho * self._stdevs + self._means * varsigma_sq
 
 
@@ -554,7 +554,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         mean = self(samples)
         cov = self.covariance(samples)
         U, S, V = self._bkd.svd(cov)
-        L = U * np.sqrt(S)
+        L = U * self._bkd.sqrt(S)
         return mean + L @ rand_noise
 
     def predict_random_realizations(

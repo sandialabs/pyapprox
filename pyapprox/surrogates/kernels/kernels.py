@@ -67,22 +67,22 @@ class Kernel(ABC):
 
 class CompositionKernel(Kernel):
     def __init__(self, kernel1: Kernel, kernel2: Kernel):
-        self.kernel1 = kernel1
-        self.kernel2 = kernel2
+        self._kernel1 = kernel1
+        self._kernel2 = kernel2
         self._hyp_list = kernel1.hyp_list() + kernel2.hyp_list()
         if not kernel1._bkd.bkd_equal(kernel1._bkd, kernel2._bkd):
             raise ValueError("Kernels must have the same backend.")
         self._bkd = kernel1._bkd
 
     def nvars(self) -> int:
-        if hasattr(self.kernel1, "nvars"):
-            return self.kernel1.nvars()
-        return self.kernel2.nvars()
+        if hasattr(self._kernel1, "nvars"):
+            return self._kernel1.nvars()
+        return self._kernel2.nvars()
 
     def jacobian_implemented(self) -> bool:
         return (
-            self.kernel1.jacobian_implemented()
-            and self.kernel2.jacobian_implemented()
+            self._kernel1.jacobian_implemented()
+            and self._kernel2.jacobian_implemented()
         )
 
     def jacobian(self, samples: Array) -> Array:
@@ -91,19 +91,19 @@ class CompositionKernel(Kernel):
 
 class ProductKernel(CompositionKernel):
     def diag(self, X1: Array) -> Array:
-        return self.kernel1.diag(X1) * self.kernel2.diag(X1)
+        return self._kernel1.diag(X1) * self._kernel2.diag(X1)
 
     def __repr__(self) -> str:
-        return "{0} * {1}".format(self.kernel1, self.kernel2)
+        return "{0} * {1}".format(self._kernel1, self._kernel2)
 
     def __call__(self, X1: Array, X2: Array = None) -> Array:
-        return self.kernel1(X1, X2) * self.kernel2(X1, X2)
+        return self._kernel1(X1, X2) * self._kernel2(X1, X2)
 
     def jacobian(self, X) -> Array:
-        Kmat1 = self.kernel1(X)
-        Kmat2 = self.kernel2(X)
-        jac1 = self.kernel1.jacobian(X)
-        jac2 = self.kernel2.jacobian(X)
+        Kmat1 = self._kernel1(X)
+        Kmat2 = self._kernel2(X)
+        jac1 = self._kernel1.jacobian(X)
+        jac2 = self._kernel2.jacobian(X)
         return self._bkd.dstack(
             [jac1 * Kmat2[..., None], jac2 * Kmat1[..., None]]
         )
@@ -111,17 +111,17 @@ class ProductKernel(CompositionKernel):
 
 class SumKernel(CompositionKernel):
     def diag(self, X1) -> Array:
-        return self.kernel1.diag(X1) + self.kernel2.diag(X1)
+        return self._kernel1.diag(X1) + self._kernel2.diag(X1)
 
     def __repr__(self) -> str:
-        return "{0} + {1}".format(self.kernel1, self.kernel2)
+        return "{0} + {1}".format(self._kernel1, self._kernel2)
 
     def __call__(self, X1, X2=None) -> Array:
-        return self.kernel1(X1, X2) + self.kernel2(X1, X2)
+        return self._kernel1(X1, X2) + self._kernel2(X1, X2)
 
     def jacobian(self, X) -> Array:
-        jac1 = self.kernel1.jacobian(X)
-        jac2 = self.kernel2.jacobian(X)
+        jac1 = self._kernel1.jacobian(X)
+        jac2 = self._kernel2.jacobian(X)
         return self._bkd.dstack([jac1, jac2])
 
 
