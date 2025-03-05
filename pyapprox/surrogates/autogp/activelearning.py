@@ -73,9 +73,9 @@ class CholeskySampler:
         return self._train_samples.shape[1]
 
     def _add_nugget(self):
-        self._Amat[
-            self._bkd.arange(self._Amat.shape[0]),
-            self._bkd.arange(self._Amat.shape[1]),
+        self._Kmatrix[
+            self._bkd.arange(self._Kmatrix.shape[0]),
+            self._bkd.arange(self._Kmatrix.shape[1]),
         ] += self._nugget
 
     def _restart_factorization(self, nsamples: int):
@@ -86,6 +86,7 @@ class CholeskySampler:
             self._Kmatrix = self._gp.kernel()(
                 self._canonical_candidate_samples
             )
+            self._add_nugget()
         if self._weight_function_changed:
             self._pivot_weights = self._weight_function(
                 self._candidate_samples
@@ -110,8 +111,8 @@ class CholeskySampler:
             raise RuntimeError(
                 "Too many samples requested. Likely need to reduce "
                 "kernel lenscale to generated the specified number of samples."
-                f" Alternatively request at most {self._factorizer.npivots()} "
-                "total number samples"
+                " Alternatively request at most "
+                f"{self._factorizer.npivots()-1} total number samples"
             )
 
         self._weight_function_changed = False

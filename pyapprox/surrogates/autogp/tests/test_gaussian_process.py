@@ -24,9 +24,12 @@ from pyapprox.surrogates.autogp.exactgp import (
     ExactGaussianProcess,
     MOExactGaussianProcess,
     MOPeerExactGaussianProcess,
-    GaussianProcessStatistics,
     GaussianProcessIdentityTransform,
     GaussianProcessStandardDeviationTransform,
+)
+from pyapprox.surrogates.autogp.stats import (
+    GaussianProcessStatistics,
+    EnsembleGaussianProcessStatistics,
     marginalize_gaussian_process,
 )
 from pyapprox.surrogates.autogp.mokernels import (
@@ -41,7 +44,7 @@ from pyapprox.surrogates.autogp.variationalgp import (
 )
 from pyapprox.util.transforms import (
     IdentityTransform,
-    StandardDeviationTransform,
+    # StandardDeviationTransform,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import AffineTransform
@@ -52,7 +55,7 @@ from pyapprox.surrogates.bases.basis import (
     FixedGaussianTensorProductQuadratureRuleFromVariable,
 )
 from pyapprox.benchmarks import IshigamiBenchmark
-from pyapprox.expdesign.sequences import SobolSequence, HaltonSequence
+from pyapprox.expdesign.sequences import SobolSequence
 
 
 class TestNystrom:
@@ -715,8 +718,15 @@ class TestGaussianProcess:
         self, gp, gp_realizations, quad_rule
     ):
         bkd = self.get_backend()
+
         assert bkd.allclose(
-            gp.covariance(quad_rule()[0]), bkd.cov(gp_realizations), atol=4e-3
+            gp.covariance(quad_rule()[0]),
+            bkd.cov(gp_realizations, ddof=1),
+            atol=4e-3,
+        )
+        print(
+            bkd.diag(gp.covariance(quad_rule()[0])),
+            gp.evaluate(quad_rule()[0], True)[1][:, 0] ** 2,
         )
         assert bkd.allclose(
             bkd.diag(gp.covariance(quad_rule()[0])),
@@ -724,58 +734,74 @@ class TestGaussianProcess:
         )
 
     def _check_gaussian_process_statistics(
-        self, gp, gp_realizations, variable, quad_rule, out_trans
+        self, gp, nrealizations, variable, quad_rule, out_trans
     ):
         bkd = self.get_backend()
         gp_stat = GaussianProcessStatistics(gp, variable)
-        #  test expectation of gp means matches that computed emprically from
+        gp_ensemble_stat = EnsembleGaussianProcessStatistics(
+            gp, variable, ninterpolation_samples=100
+        )
+        means_of_realizations = gp_ensemble_stat.means_of_realizations(
+            nrealizations
+        )
+
+        # test expectation of gp mean matches that computed emprically from
         # random realizations
-        realization_expectations = gp_realizations.T @ quad_rule()[1]
         expected_mean = gp_stat.expectation_of_mean()
-        print(bkd.mean(realization_expectations), expected_mean, gp._in_trans)
-        assert bkd.allclose(bkd.mean(realization_expectations), expected_mean)
+        print(bkd.mean(means_of_realizations), expected_mean)
+        assert bkd.allclose(bkd.mean(means_of_realizations), expected_mean)
 
-        realization_variances = (gp_realizations**2).T @ quad_rule()[
-            1
-        ] - realization_expectations**2
-        # variance_of_mean = gp_stat.variance_of_mean()
-        # print(bkd.var(realization_expectations, ddof=1) - variance_of_mean)
-        # assert bkd.allclose(
-        #     variance_of_mean,
-        #     bkd.var(realization_expectations, ddof=1),
-        #     rtol=2e-3,
-        # )
-
-        expected_variance = gp_stat.expectation_of_variance()
-        print(bkd.mean(realization_variances), expected_variance)
-        assert bkd.allclose(expected_variance, bkd.mean(realization_variances))
-
-        # realization_means = gp_stat.expectation_of_realizations(1e1)
-        # import torch
-
-        # torch.set_printoptions(precision=8)
-        # print(realization_expectations[:10] - realization_expectations[0])
-        # print(realization_means - realization_means[0])
-        # print(bkd.var(realization_means, ddof=1))
-        # print(gp_stat.variance_of_mean())
-        # print(bkd.var(realization_expectations, ddof=1))
-        # assert False
-
-        if isinstance(out_trans, GaussianProcessStandardDeviationTransform):
-            self.assertRaises(RuntimeError, gp_stat.variance_of_variance)
-            return
-
-        # old implementation also fails this test when stddev trans is used
-        variance_of_variance = gp_stat.variance_of_variance()
-        print(gp._in_trans)
+        # test variance of gp mean matches that computed emprically from
+        # random realizations
+        variance_of_mean = gp_stat.variance_of_mean()
         print(
-            variance_of_variance, bkd.var(realization_variances, ddof=1), "v"
+            gp._kernel,
+            gp._in_trans,
+            gp._out_trans,
+        )
+        print(bkd.var(means_of_realizations, ddof=1), variance_of_mean)
+        print(
+            (bkd.var(means_of_realizations, ddof=1) - variance_of_mean)
+            / bkd.var(means_of_realizations, ddof=1)
+        )
+        assert bkd.allclose(
+            variance_of_mean,
+            bkd.var(means_of_realizations, ddof=1),
+            rtol=7e-3,
+        )
+
+        variances_of_realizations = gp_ensemble_stat.variances_of_realizations(
+            nrealizations
+        )
+        # test expectation of gp variance matches that computed emprically from
+        # random realizations
+        expected_variance = gp_stat.expectation_of_variance()
+        print(
+            bkd.mean(variances_of_realizations),
+            expected_variance,
+        )
+        assert bkd.allclose(
+            expected_variance, bkd.mean(variances_of_realizations)
+        )
+
+        # test variance of gp variance matches that computed emprically from
+        # random realizations
+        variance_of_variance = gp_stat.variance_of_variance()
+        print(variance_of_variance, bkd.var(variances_of_realizations, ddof=1))
+        print(
+            (variance_of_variance - bkd.var(variances_of_realizations, ddof=1))
+            / bkd.var(variances_of_realizations, ddof=1)
         )
         assert bkd.allclose(
             variance_of_variance,
-            bkd.var(realization_variances, ddof=1),
-            rtol=3e-3,
+            bkd.var(variances_of_realizations, ddof=1),
+            rtol=7e-3,
         )
+        # if isinstance(out_trans, GaussianProcessStandardDeviationTransform):
+        #     self.assertRaises(RuntimeError, gp_stat.variance_of_variance)
+        #     return
+
+        # # old implementation also fails this test when stddev trans is used
 
     def _setup_low_accuracy_gp_test_case(
         self, variable, kernel, out_trans, in_trans, ntrain_samples
@@ -798,6 +824,13 @@ class TestGaussianProcess:
         )
         train_values = fun(train_samples)
         gp.fit(train_samples, train_values)
+
+        test_samples = variable.rvs(1000)
+        test_values = fun(test_samples)
+        error = bkd.norm(gp(test_samples) - test_values) / bkd.norm(
+            test_values
+        )
+        print("ERROR", error)
         return gp
 
     def _check_gaussian_process_statistics_low_accuracy_gp(
@@ -819,8 +852,9 @@ class TestGaussianProcess:
         self._check_gp_realizations_and_covariance(
             gp, gp_realizations, quad_rule
         )
+        nrealizations = 1e5
         self._check_gaussian_process_statistics(
-            gp, gp_realizations, variable, quad_rule, out_trans
+            gp, nrealizations, variable, quad_rule, out_trans
         )
 
     def test_gaussian_process_statistics_low_accuracy_gp(self):
