@@ -850,5 +850,10 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def is_scalar_array(array) -> bool:
+    def is_scalar_array(array: Array) -> bool:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def quantile(array: Array, q: float, axis=None) -> Array:
         raise NotImplementedError

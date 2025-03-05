@@ -1,7 +1,7 @@
 import unittest
-from scipy import stats
+
 import numpy as np
-from functools import partial
+import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks import (
     IshigamiBenchmark,
@@ -17,8 +17,7 @@ from pyapprox.analysis.sensitivity_analysis import (
     BinBasedVarianceSensitivityAnalysis,
     PolynomialChaosSensivitityAnalysis,
     LagrangeSparseGridSensitivityAnalysis,
-    GaussianProcessSensivitityAnalysis,
-    sampling_based_sobol_indices_from_gaussian_process,
+    EnsembleGaussianProcessSensivitityAnalysis,
 )
 from pyapprox.surrogates.bases.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
@@ -29,16 +28,11 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MultipleSparseGridSubSpaceAdmissibilityCriteria,
     LejaLagrangeAdaptiveCombinationSparseGrid,
 )
-from pyapprox.surrogates.kernels import (
-    MaternKernel,
-    ConstantKernel,
-)
-from pyapprox.util.hyperparameter import LogHyperParameterTransform
+from pyapprox.surrogates.kernels import MaternKernel
 from pyapprox.surrogates.autogp.exactgp import (
     ExactGaussianProcess,
     GaussianProcessIdentityTransform,
 )
-from pyapprox.variables.transforms import AffineTransform
 
 
 class TestSensitivityAnalysis(unittest.TestCase):
@@ -202,12 +196,12 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         admissibility_criteria = (
             MultipleSparseGridSubSpaceAdmissibilityCriteria(
-                (
+                [
                     MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
                         level, 1.0
                     ),
                     MaxErrorSparseGridSubspaceAdmissibilityCriteria(1e-8),
-                )
+                ]
             )
         )
         sg = LejaLagrangeAdaptiveCombinationSparseGrid(
@@ -328,33 +322,31 @@ class TestSensitivityAnalysis(unittest.TestCase):
         assert abs_error < l2_tol
 
         # compute sensivitity indices from gp
-        analyzer = GaussianProcessSensivitityAnalysis(benchmark.variable())
+        # analyzer = GaussianProcessSensivitityAnalysis(benchmark.variable())
+        analyzer = EnsembleGaussianProcessSensivitityAnalysis(
+            benchmark.variable(), nrealizations=100
+        )
         analyzer.set_interaction_terms_of_interest(
             benchmark.sobol_interaction_indices()
         )
         analyzer.compute(gp)
-        print((analyzer.mean() - benchmark.mean()) / benchmark.mean(), sa_tol)
+
         assert np.allclose(analyzer.mean(), benchmark.mean(), rtol=sa_tol)
-        print(
-            (analyzer.variance() - benchmark.variance())
-            / benchmark.variance(),
-            sa_tol,
-        )
         assert np.allclose(
             analyzer.variance(), benchmark.variance(), rtol=sa_tol
         )
-        print(
-            (analyzer.main_effects() - benchmark.main_effects())
-            / benchmark.main_effects()
-        )
+        # make sure there is variation in the computed statistics
+        print(analyzer.variance("min"), analyzer.variance("max"))
+        assert analyzer.variance("min") != analyzer.variance("max")
         assert np.allclose(
-            analyzer.main_effects(), benchmark.main_effects(), rtol=sa_tol
+            analyzer.main_effects(),
+            benchmark.main_effects(),
+            rtol=sa_tol,
+            atol=1e-5,
         )
-        print(analyzer.total_effects(), benchmark.total_effects())
         assert np.allclose(
             analyzer.total_effects(), benchmark.total_effects(), rtol=sa_tol
         )
-        print(analyzer.sobol_indices(), benchmark.sobol_indices())
         assert np.allclose(
             analyzer.sobol_indices(),
             benchmark.sobol_indices(),
@@ -362,215 +354,18 @@ class TestSensitivityAnalysis(unittest.TestCase):
             atol=1e-5,
         )
 
+        # make sure plots run
+        axs = plt.subplots(1, 3, figsize=(3 * 8, 6))[1]
+        analyzer.plot_main_effects(axs[0])
+        analyzer.plot_total_effects(axs[1])
+        analyzer.plot_sobol_indices(axs[2])
+
     def test_gp_sensitivities(self):
         test_cases = [
             [IshigamiBenchmark(a=0.1, b=0.02), 1000, 2e-3, 5e-3],
         ]
         for test_case in test_cases:
             self._check_gp_sensitivities(*test_case)
-
-    def test_sampling_based_sobol_indices_from_gaussian_process(self):
-        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
-        nvars = benchmark.variable.nvars()
-
-        # nsobol_samples and ntrain_samples effect assert tolerances
-        ntrain_samples = 500
-        nsobol_samples = int(1e4)
-        train_samples = benchmark.variable.rvs(ntrain_samples)
-        # from pyapprox import CholeskySampler
-        # sampler = CholeskySampler(nvars, 10000, benchmark.variable)
-        # kernel = Matern(
-        #     np.array([1]*nvars), length_scale_bounds='fixed', nu=np.inf)
-        # sampler.set_kernel(kernel)
-        # train_samples = sampler(ntrain_samples)[0]
-
-        train_vals = benchmark.fun(train_samples)
-        approx = approximate(
-            train_samples,
-            train_vals,
-            "gaussian_process",
-            {"nu": np.inf, "normalize_y": True},
-        ).approx
-
-        from pyapprox.surrogates.approximate import compute_l2_error
-
-        error = compute_l2_error(
-            approx, benchmark.fun, benchmark.variable, nsobol_samples, rel=True
-        )
-        print("error", error)
-        # assert error < 4e-2
-
-        order = 2
-        interaction_terms = compute_hyperbolic_indices(nvars, order)
-        interaction_terms = interaction_terms[
-            :, np.where(interaction_terms.max(axis=0) == 1)[0]
-        ]
-
-        result = sampling_based_sobol_indices_from_gaussian_process(
-            approx,
-            benchmark.variable,
-            interaction_terms,
-            nsobol_samples,
-            sampling_method="sobol",
-            ngp_realizations=1000,
-            normalize=True,
-            nsobol_realizations=3,
-            stat_functions=(np.mean, np.std),
-            ninterpolation_samples=1000,
-            ncandidate_samples=2000,
-        )
-
-        mean_mean = result["mean"]["mean"]
-        mean_sobol_indices = result["sobol_indices"]["mean"]
-        mean_total_effects = result["total_effects"]["mean"]
-        mean_main_effects = mean_sobol_indices[:nvars]
-
-        print(benchmark.mean - mean_mean)
-        print(benchmark.main_effects[:, 0] - mean_main_effects)
-        print(benchmark.total_effects[:, 0] - mean_total_effects)
-        print(benchmark.sobol_indices[:-1, 0] - mean_sobol_indices)
-        assert np.allclose(mean_mean, benchmark.mean, atol=3e-2)
-        assert np.allclose(
-            mean_main_effects, benchmark.main_effects[:, 0], atol=1e-2
-        )
-        assert np.allclose(
-            mean_total_effects, benchmark.total_effects[:, 0], atol=1e-2
-        )
-        assert np.allclose(
-            mean_sobol_indices, benchmark.sobol_indices[:-1, 0], atol=1e-2
-        )
-
-        # import matplotlib.pyplot as plt
-        # fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
-        # mean_main_effects = mean_sobol_indices[:nvars]
-        # std_main_effects = std_sobol_indices[:nvars]
-        # axs[0].set_title(r'$\mathrm{Main\;Effects}$')
-        # axs[2].set_title(r'$\mathrm{Total\;Effects}$')
-        # axs[1].set_title(r'$\mathrm{Sobol\;Indices}$')
-        # bp0 = plot_sensitivity_indices_with_confidence_intervals(
-        #     mean_main_effects, std_main_effects,
-        #     [r'$z_{%d}$'%(ii+1) for ii in range(nvars)], axs[0],
-        #     benchmark.main_effects)
-        # # axs[0].legend([bp0['means'][0]], ['$\mathrm{Truth}$'])
-        # bp2 = plot_sensitivity_indices_with_confidence_intervals(
-        #     mean_total_effects, std_total_effects,
-        #     [r'$z_{%d}$'%(ii+1) for ii in range(nvars)], axs[2],
-        #     benchmark.total_effects)
-        # axs[2].legend([bp2['means'][0]], ['$\mathrm{Truth}$'])
-        # I = np.argsort(mean_sobol_indices+2*std_sobol_indices)
-        # mean_sobol_indices = mean_sobol_indices[I]
-        # std_sobol_indices = std_sobol_indices[I]
-        # rv = 'z'
-        # labels = []
-        # interaction_terms = [
-        #     np.where(index>0)[0] for index in interaction_terms.T]
-        # for ii in range(I.shape[0]):
-        #     l = '($'
-        #     for jj in range(len(interaction_terms[ii])-1):
-        #         l += '%s_{%d},' % (rv, interaction_terms[ii][jj]+1)
-        #     l += '%s_{%d}$)' % (rv, interaction_terms[ii][-1]+1)
-        #     labels.append(l)
-        # labels = [labels[ii] for ii in I]
-        # bp1 = plot_sensitivity_indices_with_confidence_intervals(
-        #     mean_sobol_indices, std_sobol_indices, labels, axs[1],
-        #     benchmark.sobol_indices[I])
-        # # axs[1].legend([bp1['means'][0]], ['$\mathrm{Truth}$'])
-        # plt.tight_layout()
-        # plt.show()
-
-    def test_analytic_sobol_indices_from_gaussian_process(self):
-        from pyapprox.benchmarks.benchmarks import setup_benchmark
-        from pyapprox.surrogates.approximate import approximate
-
-        benchmark = setup_benchmark("ishigami", a=0.1, b=0.1)
-
-        # def fun(xx):
-        #     vals = np.sum(xx, axis=0)[:, None]
-        #     return vals
-        # benchmark.variable = IndependentMarginalsVariable(
-        #     [stats.norm(0, 1)]*1)
-        #     #[stats.uniform(0, 1)]*1)
-        # benchmark.fun = fun
-
-        nvars = benchmark.variable.nvars()
-        ntrain_samples = 500
-        train_samples = sobol_sequence(
-            nvars, ntrain_samples, variable=benchmark.variable, start_index=1
-        )
-
-        train_vals = benchmark.fun(train_samples)
-        # print(train_vals)
-        approx = approximate(
-            train_samples,
-            train_vals,
-            "gaussian_process",
-            {"nu": np.inf, "normalize_y": False, "alpha": 1e-6},
-        ).approx
-
-        nsobol_samples = int(1e4)
-        from pyapprox.surrogates.approximate import compute_l2_error
-
-        error = compute_l2_error(
-            approx, benchmark.fun, benchmark.variable, nsobol_samples, rel=True
-        )
-        print("error", error)
-
-        order = 2
-        interaction_terms = compute_hyperbolic_indices(nvars, order)
-        interaction_terms = interaction_terms[
-            :, np.where(interaction_terms.max(axis=0) == 1)[0]
-        ]
-
-        result = analytic_sobol_indices_from_gaussian_process(
-            approx,
-            benchmark.variable,
-            interaction_terms,
-            # ngp_realizations=0,
-            ngp_realizations=1000,
-            summary_stats=["mean", "std"],
-            ninterpolation_samples=2000,
-            ncandidate_samples=3000,
-            use_cholesky=False,
-            alpha=1e-7,
-            nquad_samples=50,
-        )
-
-        mean_mean = result["mean"]["mean"]
-        mean_sobol_indices = result["sobol_indices"]["mean"]
-        mean_total_effects = result["total_effects"]["mean"]
-        mean_main_effects = mean_sobol_indices[:nvars]
-        # print(mean_sobol_indices[:nvars], 's')
-        # print(benchmark.main_effects[:, 0])
-
-        # print(result['mean']['values'][-1])
-        # print(result['variance']['values'][-1])
-        # print(benchmark.main_effects[:, 0]-mean_main_effects)
-        # print(benchmark.total_effects[:, 0]-mean_total_effects)
-        # print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
-        assert np.allclose(mean_mean, benchmark.mean, rtol=1e-3, atol=3e-3)
-        assert np.allclose(
-            mean_main_effects,
-            benchmark.main_effects[:, 0],
-            rtol=1e-3,
-            atol=3e-3,
-        )
-        assert np.allclose(
-            mean_total_effects,
-            benchmark.total_effects[:, 0],
-            rtol=1e-3,
-            atol=3e-3,
-        )
-        assert np.allclose(
-            mean_sobol_indices,
-            benchmark.sobol_indices[:-1, 0],
-            rtol=1e-3,
-            atol=3e-3,
-        )
-
-        result = run_sensitivity_analysis(
-            "gp_sobol", approx, benchmark.variable, interaction_terms
-        )
-        assert np.allclose(mean_mean, benchmark.mean, rtol=1e-3, atol=3e-3)
 
 
 if __name__ == "__main__":

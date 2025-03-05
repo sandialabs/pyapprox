@@ -485,3 +485,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def is_scalar_array(array) -> bool:
         return isinstance(array, np.ndarray) and array.ndim == 0
+
+    @staticmethod
+    def quantile(array: np.ndarray, q: float, axis=None) -> np.ndarray:
+        return np.quantile(array, q, axis)

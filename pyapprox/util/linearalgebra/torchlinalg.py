@@ -540,3 +540,7 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def is_scalar_array(array) -> bool:
         return isinstance(array, torch.Tensor) and array.ndim == 0
+
+    @staticmethod
+    def quantile(array: torch.tensor, q: float, axis=None) -> torch.tensor:
+        return torch.quantile(array, q, dim=axis)

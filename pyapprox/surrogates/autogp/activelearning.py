@@ -137,7 +137,7 @@ class CholeskySampler:
     def _setup_before_first_step(self):
         if not hasattr(self, "_candidate_samples"):
             self.set_candidate_samples(
-                self.default_candidate_samples(1000), None
+                self.default_candidate_samples(2000), None
             )
         if not hasattr(self, "_weight_function"):
             self.set_weight_function(self._uniform_weight_function)

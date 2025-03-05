@@ -1,5 +1,6 @@
 from itertools import combinations
 from functools import partial
+from typing import List, Dict
 
 import numpy as np
 from scipy.optimize import OptimizeResult
@@ -24,9 +25,10 @@ from pyapprox.surrogates.sparsegrids.combination import (
     CombinationSparseGrid,
     SparseGridToOrthonormalPolynomialChaosExpansionConverter,
 )
-from pyapprox.surrogates.autogp.exactgp import (
+from pyapprox.surrogates.autogp.stats import (
     ExactGaussianProcess,
     GaussianProcessStatistics,
+    EnsembleGaussianProcessStatistics,
 )
 
 
@@ -75,7 +77,9 @@ class VarianceBasedSensitivityAnalysis(ABC):
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
-    def _correct_interaction_variances(self, interaction_variances: Array):
+    def _correct_interaction_variance_ratios(
+        self, interaction_variances: Array
+    ):
         # must substract of contributions from lower-dimensional terms from
         # each interaction value For example, let R_ij be interaction_variances
         # the sobol index S_ij satisfies R_ij = S_i + S_j + S_ij
@@ -212,10 +216,9 @@ class LagrangeSparseGridSensitivityAnalysis(
     def __init__(
         self,
         variable: IndependentMarginalsVariable,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         self._variable = variable
-        super().__init__(self._variable.nvars(), backend)
+        super().__init__(self._variable.nvars(), variable._bkd)
 
     def compute(self, sg: CombinationSparseGrid):
         pce_quad_rule = TensorProductQuadratureRule(
@@ -232,6 +235,9 @@ class LagrangeSparseGridSensitivityAnalysis(
         return super().compute(pce)
 
 
+# TODO consider making this a member function of variance based sensivitity
+# classes. Similarly for plotting total effects and sobol indices.
+# Use EnsembleGaussianProcessSensivitityAnalysis as an example
 def plot_main_effects(
     main_effects, ax, truncation_pct=0.95, max_slices=5, rv="z", qoi=0
 ):
@@ -486,7 +492,6 @@ class MorrisSensitivityAnalysis:
         variable: IndependentMarginalsVariable,
         nlevels: int,
         eps: float = 0,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         """
         Parameters
@@ -508,7 +513,7 @@ class MorrisSensitivityAnalysis:
             raise ValueError("nlevels must be an even integer")
         self._nlevels = nlevels
         self._eps = eps
-        self._bkd = backend
+        self._bkd = variable._bkd
 
     def _get_trajectory(self) -> Array:
         r"""
@@ -816,9 +821,8 @@ class SampleBasedSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
     def __init__(
         self,
         variable: IndependentMarginalsVariable,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(variable.nvars(), backend)
+        super().__init__(variable.nvars(), variable._bkd)
         self._variable = variable
         self._all_idx = self._bkd.arange(self._variable.nvars(), dtype=int)
 
@@ -898,7 +902,7 @@ class SampleBasedSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
                     * self._bkd.mean((valuesA - valuesAB[ii]) ** 2, axis=0)
                     / self._variance
                 )
-        self._sobol_indices = self._correct_interaction_variances(
+        self._sobol_indices = self._correct_interaction_variance_ratios(
             interaction_values
         )
         self._main_effects = self._sobol_indices[
@@ -936,9 +940,8 @@ class LowDiscrepancySequenceBasedSensitivityAnalysis(
         self,
         variable: IndependentMarginalsVariable,
         seq_start_idx: int = 0,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(variable, backend)
+        super().__init__(variable)
         # need to create sobol sequence that is twice the dimenion of
         # the variable
         self._seq_variable = IndependentMarginalsVariable(
@@ -1065,7 +1068,6 @@ class BinBasedVarianceSensitivityAnalysis:
         variable: IndependentMarginalsVariable,
         nbins: int = None,
         eps: float = 0.0,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         """
         Compute main-effect sensitivity indices for a model using
@@ -1091,7 +1093,7 @@ class BinBasedVarianceSensitivityAnalysis:
         `Borgonovo, E., Hazen, G. and Plischke, E. A Common Rationale for Global Sensitivity Measures and Their Estimation. 36(10):1871-1895, 2016. <https://doi.org/10.1111/risa.12555>`_
         """
         self._variable = variable
-        self._bkd = backend
+        self._bkd = variable._bkd
         self._nbins = None
         self._eps = eps
 
@@ -1304,16 +1306,28 @@ class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
     def __init__(
         self,
         variable: IndependentMarginalsVariable,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         self._variable = variable
-        super().__init__(self._variable.nvars(), backend)
+        super().__init__(self._variable.nvars(), variable._bkd)
 
-    def compute(self, gp: ExactGaussianProcess):
+    def _set_gp(self, gp: ExactGaussianProcess):
         self._gp = gp
         self._stat = GaussianProcessStatistics(self._gp, self._variable)
-        self._mean = self._stat.expectation_of_mean()
-        self._variance = self._stat.expectation_of_variance()
+        self._nrealizations = 1
+
+    def _conditional_variance(self, index: Array) -> Array:
+        return self._stat.conditional_variance(index)
+
+    def _mean(self) -> Array:
+        return self._stat.expectation_of_mean()
+
+    def _variance(self) -> Array:
+        return self._stat.expectation_of_variance()
+
+    def compute(self, gp: ExactGaussianProcess):
+        self._set_gp(gp)
+        self._mean = self._mean()
+        self._variance = self._variance()
         if not hasattr(self, "_interaction_terms"):
             self.set_interaction_terms_of_interest(
                 self._default_interaction_terms()
@@ -1325,24 +1339,24 @@ class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
 
     def _compute_sobol_indices(self):
         interaction_variances = self._bkd.zeros(
-            (self._interaction_terms.shape[1], self._gp.nqoi())
+            (self._interaction_terms.shape[1], self._nrealizations)
         )
         for ii in range(self._interaction_terms.shape[1]):
             index = self._interaction_terms[:, ii]
-            interaction_variances[ii] = self._stat.conditional_variance(index)
-        return self._correct_interaction_variances(
+            interaction_variances[ii] = self._conditional_variance(index)
+        return self._correct_interaction_variance_ratios(
             interaction_variances / self._variance
         )
 
+    def _main_effect_idx(self):
+        return self._bkd.where(self._interaction_terms.sum(axis=0) == 1)[0]
+
     def _compute_main_effects(self):
-        main_effect_idx = self._bkd.where(
-            self._interaction_terms.sum(axis=0) == 1
-        )[0]
-        return self._sobol_indices[main_effect_idx]
+        return self._sobol_indices[self._main_effect_idx()]
 
     def _compute_total_effects(self):
         total_effect_interaction_variances = self._bkd.zeros(
-            (self._gp.nvars(), self._gp.nqoi())
+            (self._gp.nvars(), self._nrealizations)
         )
         total_effect_interaction_terms = self._bkd.ones(
             (self._gp.nvars(), self._gp.nvars()), dtype=int
@@ -1350,7 +1364,7 @@ class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
         for ii in range(self._gp.nvars()):
             index = total_effect_interaction_terms[:, ii]
             total_effect_interaction_variances[ii] = (
-                self._stat.conditional_variance(index)
+                self._conditional_variance(index)
             )
         return 1 - total_effect_interaction_variances / self._variance
 
@@ -1368,3 +1382,177 @@ class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
 
     def sobol_indices(self) -> Array:
         return self._sobol_indices
+
+
+class EnsembleGaussianProcessSensivitityAnalysis(
+    GaussianProcessSensivitityAnalysis
+):
+    def __init__(
+        self,
+        variable: IndependentMarginalsVariable,
+        nrealizations: int = 100,
+    ):
+        self._nrealizations = nrealizations
+        super().__init__(variable)
+
+    def _set_gp(self, gp: ExactGaussianProcess):
+        self._gp = gp
+        self._stat = EnsembleGaussianProcessStatistics(
+            self._gp, self._variable
+        )
+
+    def _mean(self) -> Array:
+        return self._stat.means_of_realizations(self._nrealizations)
+
+    def _variance(self) -> Array:
+        return self._stat.variances_of_realizations(self._nrealizations)
+
+    def _conditional_variance(self, index: Array) -> Array:
+        return self._stat.conditional_variances_of_realizations(
+            index, self._nrealizations
+        )
+
+    def _get_stat_function(self, statname: str) -> callable:
+        if "quantile" in statname:
+            if len(statname) != 10:
+                raise ValueError(
+                    "statname must have two digits indicating quantile"
+                    "e.g. statname='quantile95' returns the 95th quantile"
+                )
+            quantile = int(statname[-2]) / 100
+            statname = statname[:-2]
+            print(quantile)
+        else:
+            quantile = None
+        stats = {
+            "mean": self._bkd.mean,
+            "median": self._bkd.mean,
+            "min": self._bkd.min,
+            "max": self._bkd.max,
+            "quantile": partial(self._bkd.quantile, q=quantile),
+        }
+        return stats[statname]
+
+    def mean(self, statname: str = "mean") -> Array:
+        stat_fun = self._get_stat_function(statname)
+        return self._bkd.atleast1d(stat_fun(self._mean))
+
+    def variance(self, statname: str = "mean") -> Array:
+        stat_fun = self._get_stat_function(statname)
+        return self._bkd.atleast1d(stat_fun(self._variance))
+
+    def main_effects(self, statname: str = "mean") -> Array:
+        stat_fun = self._get_stat_function(statname)
+        return stat_fun(self._main_effects, axis=1)[:, None]
+
+    def total_effects(self, statname: str = "mean") -> Array:
+        stat_fun = self._get_stat_function(statname)
+        return stat_fun(self._total_effects, axis=1)[:, None]
+
+    def sobol_indices(self, statname: str = "mean") -> Array:
+        stat_fun = self._get_stat_function(statname)
+        return stat_fun(self._sobol_indices, axis=1)[:, None]
+
+    def _prepare_boxplot_stats(
+        self, sensitivity_indices: Array, labels: List[str]
+    ) -> List[Dict]:
+        nindices = sensitivity_indices.shape[0]
+        if len(labels) != nindices:
+            raise ValueError("must provide lable for each index")
+        stats = [dict() for nn in range(nindices)]
+        med = self._get_stat_function("quantile50")(
+            sensitivity_indices, axis=1
+        )
+        q1 = self._get_stat_function("quantile25")(sensitivity_indices, axis=1)
+        q3 = self._get_stat_function("quantile75")(sensitivity_indices, axis=1)
+        whislo = self._get_stat_function("min")(sensitivity_indices, axis=1)
+        whishi = self._get_stat_function("max")(sensitivity_indices, axis=1)
+        for nn in range(nindices):
+            stats[nn]["med"] = med[nn]
+            stats[nn]["q1"] = q1[nn]
+            stats[nn]["q3"] = q3[nn]
+            # use whiskers for min and max instead of fliers
+            stats[nn]["whislo"] = whislo[nn]
+            stats[nn]["whishi"] = whishi[nn]
+            stats[nn]["label"] = labels[nn]
+        return stats
+
+    def _plot_indices(self, ax, sensitivity_indices: Array, labels: List[str]):
+        stats = self._prepare_boxplot_stats(sensitivity_indices, labels)
+        bp = ax.bxp(
+            stats,
+            showfliers=False,
+            showmeans=False,
+            patch_artist=True,
+            meanprops=dict(
+                marker="o",
+                markerfacecolor="blue",
+                markeredgecolor="blue",
+                markersize=12,
+            ),
+            medianprops=dict(color="red"),
+        )
+        ax.tick_params(axis="x", labelrotation=45)
+        nindices = sensitivity_indices.shape[0]
+        colors = ["gray"] * nindices
+        for patch, color in zip(bp["boxes"], colors):
+            patch.set_facecolor(color)
+        colors = ["red"] * nindices
+        return bp
+
+    def plot_main_effects(self, ax, labels: List[str] = None, nindices=None):
+        if nindices is None:
+            nindices = min(self._gp.nvars(), 5)
+        if nindices > self._gp.nvars():
+            raise ValueError("You cannot plot that many indices")
+        # sort lagest to smallest by mean value of indices
+        idx = self._bkd.flip(
+            self._bkd.argsort(self.main_effects("mean")[:, 0])
+        )
+        main_effects = self._main_effects[idx, :]
+        if labels is None:
+            main_effect_indices = self._bkd.where(
+                self._interaction_terms[:, self._main_effect_idx()] == 1
+            )[0]
+            # add 1 to use base 1 indexing of variables for plotting
+            labels = [f"$z_{ii+1}$" for ii in main_effect_indices]
+        return self._plot_indices(ax, main_effects, labels)
+
+    def plot_total_effects(self, ax, labels: List[str] = None, nindices=None):
+        if nindices is None:
+            nindices = min(self._gp.nvars(), 5)
+        if nindices > self._gp.nvars():
+            raise ValueError("You cannot plot that many indices")
+        # sort largest to smallest by mean value of indices
+        idx = self._bkd.flip(
+            self._bkd.argsort(self.total_effects("mean")[:, 0])
+        )
+        total_effects = self._total_effects[idx, :]
+        if labels is None:
+            # total effects are presorted by increasing variable index
+            # so just get value from idx
+            labels = [f"$z_{ii+1}$" for ii in idx]
+        return self._plot_indices(ax, total_effects, labels)
+
+    def _sobol_index_label(self, index: Array) -> str:
+        active_varables = self._bkd.where(index > 0)[0]
+        label = "({0})".format(",".join([str(idx) for idx in active_varables]))
+        return label
+
+    def plot_sobol_indices(self, ax, labels: List[str] = None, nindices=None):
+        if nindices is None:
+            nindices = min(self._interaction_terms.shape[1], 5)
+        if nindices > self._interaction_terms.shape[1]:
+            raise ValueError("You cannot plot that many indices")
+        # sort largest to smallest by mean value of indices
+        idx = self._bkd.flip(
+            self._bkd.argsort(self.sobol_indices("mean")[:, 0])
+        )
+        sobol_indices = self._sobol_indices[idx, :]
+        if labels is None:
+            labels = []
+            for ii in idx:
+                labels.append(
+                    self._sobol_index_label(self._interaction_terms[:, ii])
+                )
+        return self._plot_indices(ax, sobol_indices, labels)
