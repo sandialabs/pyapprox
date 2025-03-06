@@ -259,8 +259,8 @@ class ExactGaussianProcess(OptimizedRegressor):
         kmat = kmat + self._bkd.eye(kmat.shape[0]) * float(self._kernel_reg)
         return kmat
 
-    def _training_kernel_jacobian(self):
-        return self._kernel.jacobian(self._ctrain_samples)
+    def _training_kernel_param_jacobian(self):
+        return self._kernel.param_jacobian(self._ctrain_samples)
 
     def _factor_training_kernel_matrix(self):
         # can be specialized
@@ -341,7 +341,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         Kinv = Linv.T @ Linv
         Kinv_y = self._Kinv_y(Kinv)
         Mat = Kinv_y @ Kinv_y.T - Kinv
-        Kjac = self._training_kernel_jacobian()
+        Kjac = self._training_kernel_param_jacobian()
         kernel_jac = -0.5 * self._bkd.einsum("ij,jik->k", Mat, Kjac)
         kernel_jac = kernel_jac[
             ..., self._kernel.hyp_list().get_active_indices()

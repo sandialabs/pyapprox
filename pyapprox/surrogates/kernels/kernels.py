@@ -53,16 +53,36 @@ class Kernel(ABC):
         self._hyp_list.set_active_opt_params(active_opt_params)
         return self(self._samples)
 
-    def jacobian(self, samples: Array) -> Array:
+    def param_jacobian(self, samples: Array) -> Array:
         self._samples = samples
         return self._bkd.jacobian(
             self._params_eval, self._hyp_list.get_active_opt_params()
         )
 
-    def jacobian_implemented(self) -> bool:
+    def param_jacobian_implemented(self) -> bool:
         if self._bkd.jacobian_implemented():
             return True
         return False
+
+    def input_jacobian_implemented(self) -> bool:
+        if self._bkd.jacobian_implemented():
+            return True
+        return False
+
+    def _input_eval(self, X1: Array):
+        return self(X1, self._X2)
+
+    def input_jacobian(self, X1: Array, X2: Array) -> Array:
+        self._X2 = X2
+        return self._bkd.jacobian(
+            self._input_eval, self._hyp_list.get_active_opt_params()
+        )
+
+    def input_apply_hessian(self, X1: Array, X2: Array) -> Array:
+        self._X2 = X2
+        return self._bkd.hvp(
+            self._input_eval, self._hyp_list.get_active_opt_params()
+        )
 
 
 class CompositionKernel(Kernel):
@@ -79,13 +99,22 @@ class CompositionKernel(Kernel):
             return self._kernel1.nvars()
         return self._kernel2.nvars()
 
-    def jacobian_implemented(self) -> bool:
+    def param_jacobian_implemented(self) -> bool:
         return (
-            self._kernel1.jacobian_implemented()
-            and self._kernel2.jacobian_implemented()
+            self._kernel1.param_jacobian_implemented()
+            and self._kernel2.param_jacobian_implemented()
         )
 
-    def jacobian(self, samples: Array) -> Array:
+    def input_jacobian_implemented(self) -> bool:
+        return (
+            self._kernel1.input_jacobian_implemented()
+            and self._kernel2.input_jacobian_implemented()
+        )
+
+    def param_jacobian(self, samples: Array) -> Array:
+        raise NotImplementedError
+
+    def input_jacobian(self, samples: Array) -> Array:
         raise NotImplementedError
 
 
@@ -99,7 +128,7 @@ class ProductKernel(CompositionKernel):
     def __call__(self, X1: Array, X2: Array = None) -> Array:
         return self._kernel1(X1, X2) * self._kernel2(X1, X2)
 
-    def jacobian(self, X) -> Array:
+    def param_jacobian(self, X) -> Array:
         Kmat1 = self._kernel1(X)
         Kmat2 = self._kernel2(X)
         jac1 = self._kernel1.jacobian(X)
@@ -119,7 +148,7 @@ class SumKernel(CompositionKernel):
     def __call__(self, X1, X2=None) -> Array:
         return self._kernel1(X1, X2) + self._kernel2(X1, X2)
 
-    def jacobian(self, X) -> Array:
+    def param_jacobian(self, X) -> Array:
         jac1 = self._kernel1.jacobian(X)
         jac2 = self._kernel2.jacobian(X)
         return self._bkd.dstack([jac1, jac2])
@@ -181,7 +210,7 @@ class MaternKernel(Kernel):
     def nvars(self) -> int:
         return self._nvars
 
-    def jacobian(self, samples: Array) -> Array:
+    def param_jacobian(self, samples: Array) -> Array:
         self._samples = samples
         if self._nu == self._bkd.inf():
             # todo save and load K during __call__
@@ -197,10 +226,35 @@ class MaternKernel(Kernel):
         # TODO compute gradient analytically for nu = 0.5, 1.5, 2.5
         return super().jacobian(samples)
 
-    def jacobian_implemented(self) -> bool:
+    def param_jacobian_implemented(self) -> bool:
         if self._nu == self._bkd.inf():
             return True
-        return super().jacobian_implemented()
+        return super().param_jacobian_implemented()
+
+    def input_jacobian(self, X1: Array, X2: Array) -> Array:
+        lenscale = self._lenscale.get_values()
+        distances = self._bkd.cdist(X1.T / lenscale, X2.T / lenscale)
+        if self._nu == self._bkd.inf():
+            tmp2 = (self._bkd.tile(X1.T, (X2.shape[1], 1)) - X2.T) / (
+                lenscale**2
+            )
+            K = self._bkd.exp(-0.5 * distances**2)
+            return -K.T * tmp2
+        if self._nu == 3 / 2:
+            tmp1 = math.sqrt(3) * distances
+            tmp2 = (self._bkd.tile(X1.T, (X2.shape[1], 1)) - X2.T) / (
+                lenscale**2
+            )
+            K = self._bkd.exp(-tmp1)
+            return -3 * K.T * tmp2
+        if self._nu == 5 / 2:
+            tmp1 = math.sqrt(5) * distances
+            K = self._bkd.exp(-tmp1)
+            tmp2 = (self._bkd.tile(X1.T, (X2.shape[1], 1)) - X2.T) / (
+                lenscale**2
+            )
+            return -5 / 3 * K.T * tmp2 * (math.sqrt(5) * distances.T + 1)
+        return super().input_jacobian(X1, X2)
 
 
 class ConstantKernel(Kernel):
@@ -248,10 +302,10 @@ class ConstantKernel(Kernel):
         )
         return const
 
-    def jacobian_implemented(self) -> bool:
+    def param_jacobian_implemented(self) -> bool:
         return True
 
-    def jacobian(self, samples: Array) -> Array:
+    def param_jacobian(self, samples: Array) -> Array:
         return self._bkd.full((samples.shape[1], samples.shape[1], 1), 1.0)
 
 
@@ -286,10 +340,10 @@ class GaussianNoiseKernel(Kernel):
         const = self._bkd.full((X.shape[1], Y.shape[1]), 0.0)
         return const
 
-    def jacobian_implemented(self) -> bool:
+    def param_jacobian_implemented(self) -> bool:
         return True
 
-    def jacobian(self, samples: Array) -> Array:
+    def param_jacobian(self, samples: Array) -> Array:
         return self._bkd.eye(samples.shape[1])[..., None]
 
 
