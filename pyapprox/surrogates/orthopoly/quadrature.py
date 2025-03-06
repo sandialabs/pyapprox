@@ -2,13 +2,15 @@ import numpy as np
 from functools import partial
 
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
-    gauss_quadrature, define_orthopoly_options_from_marginal
+    gauss_quadrature,
+    define_orthopoly_options_from_marginal,
 )
 from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
-    jacobi_recurrence, hermite_recurrence
+    jacobi_recurrence,
+    hermite_recurrence,
 )
 from pyapprox.surrogates.orthopoly.recursion_factory import (
-    get_recursion_coefficients_from_variable
+    get_recursion_coefficients_from_variable,
 )
 from pyapprox.variables.transforms import AffineTransform
 
@@ -31,7 +33,7 @@ def clenshaw_curtis_rule_growth(level):
     if level == 0:
         return 1
     else:
-        return 2**level+1
+        return 2**level + 1
 
 
 def clenshaw_curtis_hierarchical_to_nodal_index(level, ll, ii):
@@ -65,15 +67,15 @@ def clenshaw_curtis_hierarchical_to_nodal_index(level, ll, ii):
     num_indices = clenshaw_curtis_rule_growth(level)
     # mid point
     if ll == 0:
-        return num_indices/2
+        return num_indices / 2
     # boundaries
     elif ll == 1:
         if ii == 0:
             return 0
         else:
-            return num_indices-1
+            return num_indices - 1
     # higher level points
-    return (2*ii+1)*2**(level-ll)
+    return (2 * ii + 1) * 2 ** (level - ll)
 
 
 def clenshaw_curtis_poly_indices_to_quad_rule_indices(level):
@@ -94,19 +96,22 @@ def clenshaw_curtis_poly_indices_to_quad_rule_indices(level):
     """
     quad_rule_indices = []
     num_previous_hier_indices = 0
-    for ll in range(level+1):
-        num_hierarchical_indices =\
-            clenshaw_curtis_rule_growth(ll)-num_previous_hier_indices
+    for ll in range(level + 1):
+        num_hierarchical_indices = (
+            clenshaw_curtis_rule_growth(ll) - num_previous_hier_indices
+        )
         for ii in range(num_hierarchical_indices):
             quad_index = clenshaw_curtis_hierarchical_to_nodal_index(
-                level, ll, ii)
+                level, ll, ii
+            )
             quad_rule_indices.append(quad_index)
         num_previous_hier_indices += num_hierarchical_indices
     return np.asarray(quad_rule_indices, dtype=int)
 
 
-def clenshaw_curtis_in_polynomial_order(level,
-                                        return_weights_for_all_levels=True):
+def clenshaw_curtis_in_polynomial_order(
+    level, return_weights_for_all_levels=True
+):
     """
     Return the samples and weights of the Clenshaw-Curtis rule using
     polynomial ordering.
@@ -137,10 +142,11 @@ def clenshaw_curtis_in_polynomial_order(level,
 
     if return_weights_for_all_levels:
         ordered_weights_1d = []
-        for ll in range(level+1):
+        for ll in range(level + 1):
             x, w = clenshaw_curtis_pts_wts_1D(ll)
             quad_indices = clenshaw_curtis_poly_indices_to_quad_rule_indices(
-                ll)
+                ll
+            )
             ordered_weights_1d.append(w[quad_indices])
         # ordered samples for last x
         ordered_samples_1d = x[quad_indices]
@@ -173,51 +179,55 @@ def clenshaw_curtis_pts_wts_1D(level):
     w : np.ndarray(num_samples)
         Quadrature weights
     """
-
-    try:
-        from pyapprox.cython.univariate_quadrature import \
-            clenshaw_curtis_pts_wts_1D_pyx
-        return clenshaw_curtis_pts_wts_1D_pyx(level)
-        # from pyapprox.weave.univariate_quadrature import \
-        #     c_clenshaw_curtis_pts_wts_1D
-        # return c_clenshaw_curtis_pts_wts_1D(level)
-    except ImportError:
-        print('clenshaw_curtis_pts_wts failed')
-
     return __clenshaw_curtis_pts_wts_1D(level)
 
 
 def __clenshaw_curtis_pts_wts_1D(level):
     num_samples = clenshaw_curtis_rule_growth(level)
 
-    wt_factor = 1./2.
+    wt_factor = 1.0 / 2.0
 
     x = np.empty((num_samples))
     w = np.empty_like(x)
 
-    if (level == 0):
-        x[0] = 0.
-        w[0] = 1.
+    if level == 0:
+        x[0] = 0.0
+        w[0] = 1.0
     else:
         for jj in range(num_samples):
-            if (jj == 0):
-                x[jj] = -1.
-                w[jj] = wt_factor / float(num_samples*(num_samples - 2.))
-            elif (jj == num_samples-1):
-                x[jj] = 1.
-                w[jj] = wt_factor / float(num_samples*(num_samples-2.))
+            if jj == 0:
+                x[jj] = -1.0
+                w[jj] = wt_factor / float(num_samples * (num_samples - 2.0))
+            elif jj == num_samples - 1:
+                x[jj] = 1.0
+                w[jj] = wt_factor / float(num_samples * (num_samples - 2.0))
             else:
-                x[jj] = -np.cos(np.pi*float(jj)/float(num_samples-1))
+                x[jj] = -np.cos(np.pi * float(jj) / float(num_samples - 1))
                 mysum = 0.0
-                for kk in range(1, (num_samples-3)//2+1):
-                    mysum += 1. / float(4.*kk*kk-1.) *\
-                        np.cos(2.*np.pi*float(kk*jj)/float(num_samples-1.))
-                w[jj] = 2./float(num_samples-1.)*(
-                    1.-np.cos(np.pi*float(jj)) /
-                    float(num_samples*(num_samples - 2.))-2.*(mysum))
+                for kk in range(1, (num_samples - 3) // 2 + 1):
+                    mysum += (
+                        1.0
+                        / float(4.0 * kk * kk - 1.0)
+                        * np.cos(
+                            2.0
+                            * np.pi
+                            * float(kk * jj)
+                            / float(num_samples - 1.0)
+                        )
+                    )
+                w[jj] = (
+                    2.0
+                    / float(num_samples - 1.0)
+                    * (
+                        1.0
+                        - np.cos(np.pi * float(jj))
+                        / float(num_samples * (num_samples - 2.0))
+                        - 2.0 * (mysum)
+                    )
+                )
                 w[jj] *= wt_factor
-            if (abs(x[jj]) < 2.*np.finfo(float).eps):
-                x[jj] = 0.
+            if abs(x[jj]) < 2.0 * np.finfo(float).eps:
+                x[jj] = 0.0
     return x, w
 
 
@@ -286,7 +296,8 @@ def gauss_jacobi_pts_wts_1D(num_samples, alpha_poly, beta_poly):
         Quadrature weights
     """
     ab = jacobi_recurrence(
-        num_samples, alpha=alpha_poly, beta=beta_poly, probability=True)
+        num_samples, alpha=alpha_poly, beta=beta_poly, probability=True
+    )
     return gauss_quadrature(ab, num_samples)
 
 
@@ -302,7 +313,7 @@ def one_point_growth_rule(level):
     num_samples_1d : integer
         The number of samples in the quadrature rule
     """
-    return level+1
+    return level + 1
 
 
 def leja_growth_rule(level):
@@ -324,7 +335,7 @@ def leja_growth_rule(level):
     """
     if level == 0:
         return 1
-    return level+2
+    return level + 2
 
 
 def constant_increment_growth_rule(increment, level):
@@ -344,12 +355,12 @@ def constant_increment_growth_rule(increment, level):
     """
     if level == 1:
         return 3
-    nsamples_1d = increment*level+1
+    nsamples_1d = increment * level + 1
     return nsamples_1d
 
 
 def algebraic_growth(rate, level):
-    return (level)**rate+1
+    return (level) ** rate + 1
 
 
 def exponential_growth(level, constant=1):
@@ -369,7 +380,7 @@ def exponential_growth(level, constant=1):
     """
     if level == 0:
         return 1
-    return constant*2**(level+1)-1
+    return constant * 2 ** (level + 1) - 1
 
 
 def exponential_growth_rule(quad_rule, level):
@@ -384,7 +395,8 @@ def transformed_quadrature_rule(marginal, recursion_coeffs, nsamples):
 
 
 def get_gauss_quadrature_rule_from_marginal(
-        marginal, max_nsamples, canonical=False):
+    marginal, max_nsamples, canonical=False
+):
     """
     Return the quadrature rule associated with the marginal.
 
@@ -417,7 +429,8 @@ def get_gauss_quadrature_rule_from_marginal(
     """
     basis_opts = define_orthopoly_options_from_marginal(marginal)
     recursion_coeffs = get_recursion_coefficients_from_variable(
-        marginal, max_nsamples, basis_opts)
+        marginal, max_nsamples, basis_opts
+    )
     univariate_quad_rule = partial(gauss_quadrature, recursion_coeffs)
     if canonical:
         return univariate_quad_rule

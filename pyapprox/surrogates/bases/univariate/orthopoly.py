@@ -76,6 +76,12 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         self._rcoefs = None
         self._prob_meas = True
 
+    def first_derivatives_implemented(self) -> bool:
+        return True
+
+    def second_derivatives_implemented(self) -> bool:
+        return True
+
     def _ncoefs(self) -> int:
         if self._rcoefs is None:
             raise ValueError("recursion_coefs have not been set")
@@ -929,8 +935,6 @@ class TrigonometricPolynomial1D(UnivariateBasis):
         self._trans = None
         self.set_bounds(bounds)
         self._half_indices = None
-        self._jacobian_implemented = False
-        self._hessian_implemented = False
 
     def set_bounds(self, bounds: Array):
         # canonical domain is [-pi, pi]
@@ -972,8 +976,6 @@ class FourierBasis1D(UnivariateBasis):
         self._bounds = None
         self._trans = None
         self._Kmax = None
-        self._jacobian_implemented = False
-        self._hessian_implemented = False
         self.set_bounds(bounds)
         if inverse:
             # compute basis to evaluate function from fourier coefs

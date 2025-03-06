@@ -65,10 +65,10 @@ class BasisExpansion(Regressor):
         self._solver = solver
 
     def jacobian_implemented(self) -> bool:
-        return self._basis._jacobian_implemented
+        return self._basis.jacobian_implemented()
 
     def hessian_implemented(self) -> bool:
-        return self._basis._hessian_implemented
+        return self._basis.hessian_implemented()
 
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
@@ -634,6 +634,32 @@ class TensorProductInterpolant(Surrogate):
             )
         self._basis = basis
         super().__init__(self._basis._bkd)
+
+    def jacobian_implemented(self) -> bool:
+        return self._basis.jacobian_implemented()
+
+    def hessian_implemented(self) -> bool:
+        return self._basis.hessian_implemented()
+
+    def _many_jacobian(self, samples: Array) -> Array:
+        # jacobian shape (nsamples, nqoi, nvars)
+        return self._bkd.einsum(
+            "ijk, jl->ilk",
+            self._basis.jacobian(samples),
+            self._train_values,
+        )
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._many_jacobian(sample)[0]
+
+    def _many_hessian(self, samples):
+        hess = self._basis.hessian(samples)
+        # hess shape is (nsamples, nterms, nvars, nvars)
+        # coef shape is (nterms, nqoi)
+        return self._bkd.einsum("ijkl, jm->imkl", hess, self._train_values)
+
+    def _hessian(self, sample: Array) -> Array:
+        return self._many_hessian(sample)[0]
 
     def fit(self, train_values: Array):
         # fit does not have samples like most surrogates because the samples

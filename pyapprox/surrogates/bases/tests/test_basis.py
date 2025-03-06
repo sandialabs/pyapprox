@@ -479,24 +479,9 @@ class TestBasis:
         bkd = self.get_backend()
         marginals = [stats.uniform(0, 1), stats.uniform(-2, 3)]
         variable = IndependentMarginalsVariable(marginals, backend=bkd)
-        bexp = setup_polynomial_chaos_expansion_from_variable(
-            variable, 1, backend=bkd
-        )
+        bexp = setup_polynomial_chaos_expansion_from_variable(variable, 1)
         nterms_1d = 3
         bexp.basis().set_tensor_product_indices([nterms_1d] * variable.nvars())
-        # bases_1d = [
-        #     setup_univariate_orthogonal_polynomial_from_marginal(
-        #         marginal, backend=bkd
-        #     )
-        #     for marginal in marginals
-        # ]
-        # nterms_1d = 3
-        # basis = OrthonormalPolynomialBasis(bases_1d)
-        # basis.set_tensor_product_indices([nterms_1d] * variable.nvars())
-        # nqoi = 1
-        # bexp = PolynomialChaosExpansion(
-        #     basis, solver=LstSqSolver(backend=bkd), nqoi=nqoi
-        # )
         ntrain_samples = 20
 
         def fun(sample):
@@ -748,10 +733,14 @@ class TestBasis:
         nvars = 2
         bkd = self.get_backend()
         bounds = [[0, 1], [0, 2]]
-        lagrange_quad_rule = ClenshawCurtisQuadratureRule()
         nnodes_1d = bkd.array([3] * nvars)
         bases_1d = [
-            setup_lagrange_basis("lagrange", lagrange_quad_rule, b, bkd)
+            setup_lagrange_basis(
+                "lagrange",
+                ClenshawCurtisQuadratureRule(bounds=b, backend=bkd),
+                b,
+                bkd,
+            )
             for b in bounds
         ]
         bases_1d[0].set_nterms(5)
@@ -770,7 +759,11 @@ class TestBasis:
 
         marginals = [stats.uniform(b[0], b[1] - b[0]) for b in bounds]
         pce_quad_rule = TensorProductQuadratureRule(
-            nvars, [GaussQuadratureRule(marginal) for marginal in marginals]
+            nvars,
+            [
+                GaussQuadratureRule(marginal, backend=bkd)
+                for marginal in marginals
+            ],
         )
         converter = TensorProductLagrangeInterpolantToPolynomialChaosExpansionConverter(
             pce_quad_rule
@@ -781,7 +774,64 @@ class TestBasis:
         pce_vals = pce(test_samples)
         interp_vals = interp(test_samples)
         assert bkd.allclose(pce_vals, interp_vals)
-        assert bkd.allclose(pce.mean(), 1 / 3 + 4 / 3)
+        assert bkd.allclose(pce.mean(), bkd.array([1 / 3 + 4 / 3]))
+
+    def test_lagrange_basis_derivatives(self):
+        import warnings
+
+        warnings.filterwarnings("error")
+        bkd = self.get_backend()
+        nvars = 2
+        bounds = [[0, 1], [-2, 1]]
+        marginals = [stats.uniform(0, 1), stats.uniform(-2, 3)]
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        lagrange_quad_rule = ClenshawCurtisQuadratureRule
+        nnodes_1d = bkd.array([5] * nvars)
+        bases_1d = [
+            setup_lagrange_basis(
+                "lagrange",
+                ClenshawCurtisQuadratureRule(bounds=b, backend=bkd),
+                b,
+                bkd,
+            )
+            for b in bounds
+        ]
+        # bases_1d[0].set_nterms(5)
+        basis = TensorProductInterpolatingBasis(bases_1d)
+        interp = TensorProductInterpolant(basis)
+        basis.set_tensor_product_indices(nnodes_1d)
+
+        def fun(samples):
+            # when nnodes_1d is zero to test interpolation make sure
+            # function is constant in that direction
+            return bkd.sum(samples**2, axis=0)[:, None]
+
+        def fun(sample):
+            return (bkd.sum(sample**2, axis=0) + bkd.prod(sample, axis=0))[
+                :, None
+            ]
+
+        def jac(sample):
+            return 2 * sample.T + bkd.flip(sample).T
+
+        def hess(sample):
+            return bkd.array([[2.0, 1.0], [1.0, 2.0]])
+
+        train_samples = basis.tensor_product_grid()
+        train_values = fun(train_samples)
+        interp.fit(train_values)
+
+        ntest_samples = 10
+        test_samples = variable.rvs(ntest_samples)
+        assert bkd.allclose(fun(test_samples), interp(test_samples))
+
+        test_samples = bkd.array([[0.5, 1]]).T
+        assert bkd.allclose(
+            jac(test_samples[:, :1]), interp.jacobian(test_samples[:, :1])
+        )
+        assert bkd.allclose(
+            hess(test_samples[:, :1]), interp.hessian(test_samples[:, :1])[0]
+        )
 
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):

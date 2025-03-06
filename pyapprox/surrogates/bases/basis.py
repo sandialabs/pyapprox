@@ -26,7 +26,12 @@ class Basis(ABC):
         if backend is None:
             backend = NumpyLinAlgMixin
         self._bkd = backend
-        self._jacobian_implemented = False
+
+    def jacobian_implemented(self) -> bool:
+        return False
+
+    def hessian_implemented(self) -> bool:
+        return False
 
     @abstractmethod
     def nterms(self) -> int:
@@ -97,8 +102,18 @@ class MultiIndexBasis(Basis):
         self._indices = None
         if indices is not None:
             self.set_indices(indices)
-        self._jacobian_implemented = True
-        self._hessian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        for basis_1d in self._bases_1d:
+            if not basis_1d.first_derivatives_implemented():
+                return False
+        return True
+
+    def hessian_implemented(self) -> bool:
+        for basis_1d in self._bases_1d:
+            if not basis_1d.second_derivatives_implemented():
+                return False
+        return True
 
     def set_hyperbolic_indices(self, level: int, pnorm: float):
         indices = self._bkd.asarray(
@@ -545,12 +560,8 @@ class FixedGaussianTensorProductQuadratureRuleFromVariable(
 class TrigonometricBasis(MultiIndexBasis):
     def __init__(self, bounds, indices=None, backend=None):
         super().__init__([TrigonometricPolynomial1D(bounds, backend)])
-        self._jacobian_implemented = False
-        self._hessian_implemented = False
 
 
 class FourierBasis(MultiIndexBasis):
     def __init__(self, bounds, inverse=True, indices=None, backend=None):
         super().__init__([FourierBasis1D(bounds, inverse, backend)])
-        self._jacobian_implemented = False
-        self._hessian_implemented = False

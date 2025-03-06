@@ -451,7 +451,7 @@ class TorchLinAlgMixin(LinAlgMixin):
         if axis is None:
             axis = 0
         mask = __class__.ones(array.shape[axis], dtype=bool)
-        mask[obj] = False
+        mask[torch.asarray(obj, dtype=int)] = False
         if axis == 0:
             return array[mask]
         if axis == 1:

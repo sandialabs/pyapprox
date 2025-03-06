@@ -46,10 +46,15 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
         if nterms is not None:
             self.set_nterms(nterms)
 
+    def first_derivatives_implemented(self) -> bool:
+        return True
+
+    def second_derivatives_implemented(self) -> bool:
+        return True
+
     def set_nterms(self, nterms: int):
         self._quad_samples, self._quad_weights = self._quad_rule(nterms)
         if self._quad_samples.shape[1] != nterms:
-            print(nterms, "a", self._quad_samples.shape)
             raise RuntimeError("quad samples have the wrong shape")
 
     def _values(self, samples):
@@ -64,6 +69,58 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
         # do not copy quadrature rule as it may be used in multiple
         # dimensions of a tensor product and subspaces in a sparse grid
         return UnivariateLagrangeBasis(self._quad_rule, self.nterms())
+
+    def _derivatives(self, samples: Array, order: int) -> Array:
+        if order == 1:
+            return self._first_derivatives(samples)
+        return self._second_derivatives(samples)
+
+    def _first_derivatives(self, samples: Array) -> Array:
+        abscissa = self._quad_samples[0]
+        samples = samples[0]
+        nsamples = samples.shape[0]
+        nabscissa = abscissa.shape[0]
+        denoms = abscissa[:, None] - abscissa[None, :]
+        numers = samples[:, None] - abscissa[None, :]
+        derivs = self._bkd.empty((nsamples, nabscissa))
+        for ii in range(nabscissa):
+            denom = self._bkd.prod(denoms[ii, :ii]) * self._bkd.prod(
+                denoms[ii, ii + 1 :]
+            )
+            # product rule for the jth 1D basis function
+            numer_deriv = 0
+            for jj in range(nabscissa):
+                # compute deriv of kth component of product rule sum
+                if ii != jj:
+                    numer_deriv += self._bkd.prod(
+                        self._bkd.delete(numers, (ii, jj), axis=1),
+                        axis=1,
+                    )
+            derivs[:, ii] = numer_deriv / denom
+        return derivs
+
+    def _second_derivatives(self, samples: Array) -> Array:
+        abscissa = self._quad_samples[0]
+        samples = samples[0]
+        nsamples = samples.shape[0]
+        nabscissa = abscissa.shape[0]
+        denoms = abscissa[:, None] - abscissa[None, :]
+        numers = samples[:, None] - abscissa[None, :]
+        derivs = self._bkd.empty((nsamples, nabscissa))
+        for ii in range(nabscissa):
+            denom = self._bkd.prod(denoms[ii, :ii]) * self._bkd.prod(
+                denoms[ii, ii + 1 :]
+            )
+            numer_deriv = 0
+            for jj in range(nabscissa):
+                for kk in range(nabscissa):
+                    if ii != jj and ii != kk and jj != kk:
+                        numer_deriv += self._bkd.prod(
+                            self._bkd.delete(numers, (ii, jj, kk), axis=1),
+                            axis=1,
+                        )
+            derivs[:, ii] = numer_deriv / denom
+        return derivs
 
 
 class UnivariateBarycentricLagrangeBasis(UnivariateLagrangeBasis):
