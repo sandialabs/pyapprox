@@ -160,6 +160,21 @@ class ExactGaussianProcess(OptimizedRegressor):
             self._hyp_list += self._trend.hyp_list()
         self.set_optimizer()
 
+    def jacobian_implemented(self) -> bool:
+        return (
+            self._kernel.input_jacobian_implemented()
+            or self._bkd.jacobian_implemented()
+        )
+
+    def _jacobian(self, sample: Array) -> Array:
+        if not self._kernel.input_jacobian_implemented():
+            return self._bkd.jacobian(
+                lambda x: self(x[:, None])[:, 0], sample[:, 0]
+            )
+        sample = self._in_trans.map_to_canonical(sample)
+        gradK = self._kernel.input_jacobian(sample, self._ctrain_samples)
+        return gradK.T @ self._coef
+
     def nvars(self) -> int:
         return self._nvars
 

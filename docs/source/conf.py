@@ -126,15 +126,19 @@ example_filenames_in_order += [
     "plot_pce_sa.py",
     "plot_sg_sa.py",
     "plot_convergence.py",
+    # expdesign
     "plot_low_discrepancy_quadrature.py",
+    # surrogates
     "plot_gaussian_quadrature.py",
     "plot_barycentric_interpolation.py",
     "plot_multivariate_piecewise_polynomial_interpolation.py",
     "plot_sparse_grid_uq.py",
-    "plot_paper_demo.py",
-    "plot_mlblue.py",
     "plot_multiindex_collocation_ex.py",
+    # multifidelity
+    "plot_mlblue.py",
+    # optimization
     "plot_design_under_uncertainty.py",
+    "plot_paper_demo.py",
 ]
 
 # print(installed_pkgs)
@@ -168,6 +172,10 @@ sphinx_gallery_conf = {
             #     '../../tutorials/sciml',
             "../../examples/interface",
             "../../examples/analysis",
+            "../../examples/expdesign",
+            "../../examples/surrogates",
+            "../../examples/multifidelity",
+            "../../examples/optimization",
             "../../examples/",
         ]
     ),

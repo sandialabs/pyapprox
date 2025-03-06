@@ -14,6 +14,7 @@ from pyapprox.surrogates.kernels.kernels import (
     Kernel,
     MaternKernel,
     ConstantKernel,
+    SumKernel,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.bases.basis import (
@@ -30,6 +31,11 @@ class GaussianProcessStatistics:
         variable: IndependentMarginalsVariable,
         nquad_nodes_1d: List[int] = None,
     ):
+        if isinstance(gp._kernel, SumKernel):
+            raise NotImplementedError(
+                "kernel with white noise is not currently supported"
+            )
+
         if not isinstance(gp._out_trans, GaussianProcessIdentityTransform):
             # TODO There are bugs which I have yet to find
             raise ValueError(
