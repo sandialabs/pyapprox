@@ -141,7 +141,9 @@ class DenseMatrixLaplacePosteriorApproximation:
 
     def posterior_variable(self) -> MultivariateGaussian:
         return MultivariateGaussian(
-            self.posterior_mean(), self.posterior_covariance()
+            self.posterior_mean(),
+            self.posterior_covariance(),
+            backend=self._bkd,
         )
 
 

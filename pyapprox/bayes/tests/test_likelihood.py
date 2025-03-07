@@ -9,8 +9,7 @@ from pyapprox.interface.model import DenseMatrixLinearModel
 from pyapprox.bayes.likelihood import (
     ModelBasedGaussianLogLikelihood,
     ModelBasedIndependentGaussianLogLikelihood,
-    # IndependentExponentialLogLikelihood,
-    # SingleObsIndependentGaussianLogLikelihood,
+    ModelBasedIndependentExponentialLogLikelihood,
 )
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.util.utilities import cartesian_product
@@ -28,7 +27,6 @@ class Linear1DRegressionModel(DenseMatrixLinearModel):
         matrix = self._design.T ** (
             backend.arange(min_degree, self._degree + 1)[None, :]
         )
-        print("A")
         super().__init__(matrix, None, backend=backend)
 
 
@@ -64,6 +62,7 @@ class TestLikelihood:
             prior_cov,
             loglike.noise_covariance(),  # weighted_noise_cov,
             obs_model.vector(),
+            backend=bkd,
         )
         laplace.compute(obs)
 
@@ -85,7 +84,7 @@ class TestLikelihood:
 
         n_xx = 100
         bounds = prior_variable.get_statistics("interval", confidence=0.99)
-        xx = cartesian_product(
+        xx = bkd.cartesian_product(
             [bkd.linspace(*bound, n_xx) for bound in bounds]
         )
         numerator = bkd.exp(loglike(xx)) * prior_variable.pdf(xx)
@@ -106,13 +105,13 @@ class TestLikelihood:
         degree = 1
         nvars = degree + 1
         prior_variable = IndependentMarginalsVariable(
-            [stats.norm(0, 1)] * nvars
+            [stats.norm(0, 1)] * nvars, backend=bkd
         )
 
         nobs = 4
         design = bkd.linspace(-1, 1, nobs)[None, :]
         noise_cov = bkd.diag(bkd.full((nobs,), 0.3))
-        obs_model = Linear1DRegressionModel(design, degree)
+        obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
         loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
 
         self._check_model_based_gaussian_loglike_fun(loglike, prior_variable)
@@ -122,22 +121,22 @@ class TestLikelihood:
         )
         self._check_model_based_gaussian_loglike_fun(loglike, prior_variable)
 
-    def test_exponential_likelihood(self):
+    def test_model_based_exponential_likelihood(self):
         bkd = self.get_backend()
         nobs = 2
+        degree = 2
+        nvars = degree + 1
+        design = bkd.linspace(-1, 1, nobs)[None, :]
+        obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
         # noise_scale_diag = bkd.full((nobs, 1), .5)
         noise_scale_diag = bkd.asarray(np.random.uniform(0.5, 1, (nobs, 1)))
         design_weights = bkd.ones((nobs, 1))
-        loglike = IndependentExponentialLogLikelihood(
-            noise_scale_diag, tile_obs=False
+        loglike = ModelBasedIndependentExponentialLogLikelihood(
+            obs_model, noise_scale_diag, tile_obs=False
         )
         loglike.set_design_weights(design_weights)
-        design = bkd.linspace(-1, 1, nobs)[None, :]
-        degree = 2
-        obs_model = Linear1DRegressionModel(design, degree)
-        nvars = degree + 1
         prior_variable = IndependentMarginalsVariable(
-            [stats.norm(0, 1)] * nvars
+            [stats.norm(0, 1)] * nvars, backend=bkd
         )
         nsamples = int(1e5)
         true_sample = prior_variable.rvs(1)
@@ -153,13 +152,15 @@ class TestLikelihood:
         many_pred_obs = bkd.repeat(true_pred_obs, nsamples, axis=1)
         obs = loglike._make_noisy(many_pred_obs, noise)
         loglike.set_observations(obs)
-        like_vals = bkd.exp(loglike(many_pred_obs))
+        like_vals = bkd.exp(loglike._loglike(many_pred_obs))
         assert bkd.allclose(
             bkd.prod(
                 bkd.vstack(
                     [
-                        stats.expon(scale=1 / noise_scale_diag[ii, 0]).pdf(
-                            obs[ii] - true_pred_obs[ii]
+                        bkd.asarray(
+                            stats.expon(scale=1 / noise_scale_diag[ii, 0]).pdf(
+                                obs[ii] - true_pred_obs[ii]
+                            )
                         )
                         for ii in range(nobs)
                     ]
@@ -170,49 +171,15 @@ class TestLikelihood:
         )
         assert like_vals.shape == (nsamples, 1)
 
-    def test_many_obs_independent_gaussian_likelihood_many_obs(self):
-        degree = 1
-        nvars = degree + 1
-        prior_variable = IndependentMarginalsVariable(
-            [stats.norm(0, 1)] * nvars
-        )
-
-        nobs = 4
-        design = bkd.linspace(-1, 1, nobs)[None, :]
-        noise_cov = bkd.full((nobs, 1), 0.3)
-        obs_model = Linear1DRegressionModel(design, degree)
-        loglike = IndependentGaussianLogLikelihood(noise_cov)
-
-        ntrue_samples = 10
-        true_samples = prior_variable.rvs(ntrue_samples)
-        obs = loglike._make_noisy(
-            obs_model(true_samples).T, loglike._sample_noise(ntrue_samples)
-        )
-        loglike.set_observations(obs)
-
-        quad_rule = setup_tensor_product_gauss_quadrature_rule(prior_variable)
-        samples, ww_gauss = quad_rule([40] * nvars)
-        many_pred_obs = obs_model(samples).T
-        vals = loglike(many_pred_obs)
-        assert vals.shape[0] == many_pred_obs.shape[1] * obs.shape[1]
-
-        single_loglike = SingleObsIndependentGaussianLogLikelihood(noise_cov)
-        NN = many_pred_obs.shape[1]
-        for ii in range(ntrue_samples):
-            single_loglike.set_observations(obs[:, ii : ii + 1])
-            assert bkd.allclose(
-                single_loglike(many_pred_obs), vals[ii * NN : (ii + 1) * NN]
-            )
-
 
 class TestNumpyLikelihood(TestLikelihood, unittest.TestCase):
     def get_backend(self):
         return NumpyLinAlgMixin
 
 
-# class TestTorchLikelihood(TestLikelihood, unittest.TestCase):
-#     def get_backend(self):
-#         return TorchLinAlgMixin
+class TestTorchLikelihood(TestLikelihood, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
 
 
 if __name__ == "__main__":

@@ -20,6 +20,25 @@ class LogLikelihood(Model):
         self._obs = None
         self._nobs = None
 
+    def _set_tile_obs(self, tile_obs: bool):
+        self._tile_obs = tile_obs
+
+    def _parse_obs(self, obs: Array, many_pred_obs: Array) -> Array:
+        if not hasattr(self, "_loglike_const"):
+            raise RuntimeError("must call _setup()")
+        if not hasattr(self, "_tile_obs"):
+            raise RuntimeError("must call _set_tile_obs()")
+        if self._tile_obs:
+            # stack vals for each obs vertically
+            return (
+                self._bkd.repeat(self._obs, many_pred_obs.shape[1], axis=1),
+                self._bkd.tile(many_pred_obs, (1, self._obs.shape[1])),
+            )
+        if many_pred_obs.shape != self._obs.shape:
+            msg = "many_pred_obs shape does not match self._obs shape"
+            raise ValueError(msg)
+        return (self._obs, many_pred_obs)
+
     def nobs(self) -> int:
         return self._nobs
 
@@ -112,9 +131,6 @@ class GaussianLogLikelihood(LogLikelihood):
             self._nobs * np.log(2 * np.pi) + self._log_wnoise_cov_det
         )
 
-    def _set_tile_obs(self, tile_obs: bool):
-        self._tile_obs = tile_obs
-
     def _setup(self, noise_cov: Array):
         if noise_cov.ndim != 2 or noise_cov.shape[0] != noise_cov.shape[1]:
             raise ValueError(
@@ -145,24 +161,8 @@ class GaussianLogLikelihood(LogLikelihood):
     def _loglike_many(self, many_obs: Array, many_pred_obs: Array) -> Array:
         residual = many_obs - many_pred_obs
         L_inv_res = self._wnoise_chol_inv @ residual
-        vals = diag_of_mat_mat_product(L_inv_res.T, L_inv_res)
+        vals = diag_of_mat_mat_product(L_inv_res.T, L_inv_res, bkd=self._bkd)
         return (-0.5 * (vals + self._loglike_const))[:, None]
-
-    def _parse_obs(self, obs: Array, many_pred_obs: Array) -> Array:
-        if not hasattr(self, "_loglike_const"):
-            raise RuntimeError("must call _setup()")
-        if not hasattr(self, "_tile_obs"):
-            raise RuntimeError("must call _set_tile_obs()")
-        if self._tile_obs:
-            # stack vals for each obs vertically
-            return (
-                self._bkd.repeat(self._obs, many_pred_obs.shape[1], axis=1),
-                self._bkd.tile(many_pred_obs, (1, self._obs.shape[1])),
-            )
-        if many_pred_obs.shape != self._obs.shape:
-            msg = "many_pred_obs shape does not match self._obs shape"
-            raise ValueError(msg)
-        return (self._obs, many_pred_obs)
 
     def _loglike(self, many_pred_obs: Array) -> Array:
         return self._loglike_many(*self._parse_obs(self._obs, many_pred_obs))
@@ -304,6 +304,11 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
     log p(y|z) = log(\lambda)-\lambda*(y-f(z))
     """
 
+    def set_design_weights(self, design_weights):
+        self._design_weights = design_weights
+        self._wnoise_scale_diag = self._noise_scale_diag * self._design_weights
+        self._loglike_const = self._bkd.log(self._wnoise_scale_diag).sum()
+
     def _setup(self, noise_scale_diag):
         if noise_scale_diag.ndim != 2 or noise_scale_diag.shape[1] != 1:
             raise ValueError(
@@ -314,14 +319,7 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
         self._nobs = noise_scale_diag.shape[0]
         self._noise_scale_diag = noise_scale_diag
         self._noise_log_scale_diag = self._bkd.log(self._noise_scale_diag)
-        self._weighted_noise_scale_diag = None
-        self._loglike_const = self._bkd.log(self._noise_scale_diag).sum()
-
-    def set_design_weights(self, design_weights):
-        self._design_weights = design_weights
-        self._weighted_noise_scale_diag = (
-            self._noise_scale_diag * self._design_weights
-        )
+        self.set_design_weights(self._bkd.ones((self._nobs, 1)))
 
     def _parse_obs(self, obs, many_pred_obs):
         if self._tile_obs:
@@ -341,9 +339,9 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
     def _loglike_many(self, many_obs, many_pred_obs):
         return (
             self._loglike_const
-            - (
-                self._weighted_noise_scale_diag * (many_obs - many_pred_obs)
-            ).sum(axis=0)[:, None]
+            - (self._wnoise_scale_diag * (many_obs - many_pred_obs)).sum(
+                axis=0
+            )[:, None]
         )
 
     def _make_noisy(self, noiseless_obs, noise):
@@ -361,7 +359,19 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
         exponential_samples = self._bkd.asarray(
             np.random.exponential(1, (nsamples, self.nobs()))
         ).T
-        return 1 / self._noise_scale_diag * exponential_samples
+        return 1 / self._wnoise_scale_diag * exponential_samples
+
+
+class ModelBasedIndependentExponentialLogLikelihood(
+    ModelBasedLogLikelihoodMixin, IndependentExponentialLogLikelihood
+):
+    def __init__(
+        self, model: Model, noise_scale_diag: Array, tile_obs: bool = True
+    ):
+        super().__init__(backend=model._bkd)
+        self._model = model
+        self._setup(noise_scale_diag)
+        self._set_tile_obs(tile_obs)
 
 
 class LogUnormalizedPosterior(Model):
