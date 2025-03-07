@@ -670,13 +670,7 @@ class TestGaussianProcess:
             )
         plt.show()
 
-    def _check_gaussian_process_high_accuracy_gp_statistics_and_jacobian(
-        self, kernel, variable
-    ):
-        # test that mean and variance of GP are accurate when GP is accurate
-        # When GP is highly accurate, the values of the variance_of_variance
-        # can be poor, especially when condition number of training kernel
-        # matrix is poor (large)
+    def _setup_high_acccuracy_gp(self, kernel, variable):
         bkd = self.get_backend()
         constant = 1e3
 
@@ -701,7 +695,16 @@ class TestGaussianProcess:
         )
         print(rel_l2_error)
         assert rel_l2_error < 8e-5
+        return gp, train_samples
 
+    def _check_high_accuracy_gp_statistics(self, kernel, variable):
+        # test that mean and variance of GP are accurate when GP is accurate
+        # When GP is highly accurate, the values of the variance_of_variance
+        # can be poor, especially when condition number of training kernel
+        # matrix is poor (large)
+        bkd = self.get_backend()
+        constant = 1e3
+        gp, train_samples = self._setup_high_acccuracy_gp(kernel, variable)
         true_mean = bkd.array([constant * 7 / 12])
         true_variance = constant**2 * 61 / 80 - true_mean**2
 
@@ -712,9 +715,27 @@ class TestGaussianProcess:
         assert bkd.allclose(expected_mean, true_mean)
         assert bkd.allclose(expected_variance, true_variance)
 
-        errors = gp.check_apply_jacobian(train_samples[:, :1], disp=True)
+    def test_high_accuracy_gp_statistics(self):
+        bkd = self.get_backend()
+        marginals = [stats.uniform(0, 1)]
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
-    def test_gaussian_process_high_accuracy_gp_statistics_and_jacobian(self):
+        kernel1 = MaternKernel(
+            np.inf, 0.1, [1e-1, 1], variable.nvars(), backend=bkd
+        )
+        constant_kernel = ConstantKernel(
+            0.1,
+            (1e-3, 1e1),
+            transform=LogHyperParameterTransform(backend=bkd),
+            backend=bkd,
+        )
+        kernel2 = constant_kernel * kernel1
+        test_cases = [[kernel1, variable], [kernel2, variable]]
+
+        for test_case in test_cases:
+            self._check_high_accuracy_gp_statistics(*test_case)
+
+    def test_high_accuracy_gp_input_jacobian(self):
         bkd = self.get_backend()
         marginals = [stats.uniform(0, 1)]
         variable = IndependentMarginalsVariable(marginals, backend=bkd)
@@ -735,9 +756,8 @@ class TestGaussianProcess:
         test_cases = [[kernel1, variable], [kernel2, variable]]
 
         for test_case in test_cases:
-            self._check_gaussian_process_high_accuracy_gp_statistics_and_jacobian(
-                *test_case
-            )
+            gp, train_samples = self._setup_high_acccuracy_gp(*test_case)
+            errors = gp.check_apply_jacobian(train_samples[:, :1], disp=True)
 
     def _check_gp_realizations_and_covariance(
         self, gp, gp_realizations, quad_rule
@@ -833,7 +853,7 @@ class TestGaussianProcess:
         print("error", error)
         return gp
 
-    def _check_gaussian_process_statistics_low_accuracy_gp(
+    def _check_statistics_low_accuracy_gp(
         self, variable, kernel, out_trans, in_trans, rtol
     ):
         # test that expectation and variance of the mean and variance of GP
@@ -858,7 +878,7 @@ class TestGaussianProcess:
             gp, nrealizations, variable, quad_rule, out_trans, rtol
         )
 
-    def test_gaussian_process_statistics_low_accuracy_gp(self):
+    def test_statistics_low_accuracy_gp(self):
         bkd = self.get_backend()
         nvars = 1
         kernel1 = MaternKernel(np.inf, 0.1, [1e-1, 1], 1, backend=bkd)
@@ -875,9 +895,7 @@ class TestGaussianProcess:
             variables, kernels, out_trans, in_trans
         ):
             np.random.seed(1)
-            self._check_gaussian_process_statistics_low_accuracy_gp(
-                *test_case, 1e-2
-            )
+            self._check_statistics_low_accuracy_gp(*test_case, 1e-2)
 
         constant_kernel = ConstantKernel(
             0.1,
@@ -893,9 +911,7 @@ class TestGaussianProcess:
             variables, kernels, out_trans, in_trans
         ):
             np.random.seed(1)
-            self._check_gaussian_process_statistics_low_accuracy_gp(
-                *test_case, 2e-2
-            )
+            self._check_statistics_low_accuracy_gp(*test_case, 2e-2)
 
     def _check_marginalized_gaussian_process(self, gp, variable):
         bkd = self.get_backend()

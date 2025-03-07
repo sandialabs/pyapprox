@@ -6,8 +6,8 @@ import numpy as np
 from pyapprox.util.sys_utilities import package_available
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.univariate import (
-    UnivariatePiecewisePolynomialQuadratureRule
+from pyapprox.surrogates.bases.univariate.local import (
+    UnivariatePiecewisePolynomialQuadratureRule,
 )
 from pyapprox.surrogates.kernels.greensfunctions import (
     GreensFunctionSolver,

@@ -72,7 +72,7 @@ class HyperParameter:
 
         self._values = self._bkd.atleast1d(self._bkd.asarray(values))
         if self._values.shape[0] == 1:
-            self._values = self._bkd.repeat(self._values, self.nvars())
+            self._values = self._bkd.tile(self._values, (self.nvars(),))
         if self._values.ndim == 2:
             raise ValueError("values is not a 1D array")
         if self._values.shape[0] != self.nvars():
@@ -113,7 +113,7 @@ class HyperParameter:
     def set_bounds(self, bounds):
         self.bounds = self._bkd.atleast1d(self._bkd.asarray(bounds))
         if self.bounds.shape[0] == 2:
-            self.bounds = self._bkd.repeat(self.bounds, self.nvars())
+            self.bounds = self._bkd.tile(self.bounds, (self.nvars(),))
         if self.bounds.shape[0] != 2 * self.nvars():
             msg = "bounds shape {0} inconsistent with 2*nvars={1}".format(
                 self.bounds.shape, 2 * self.nvars()
@@ -318,7 +318,7 @@ class HyperParameterList:
         # used to turn params inactive to active or vice-versa
         bounds = self._bkd.atleast1d(bounds)
         if bounds.shape[0] == 2:
-            bounds = self._bkd.repeat(bounds, self.nvars())
+            bounds = self._bkd.tile(bounds, (self.nvars(),))
         if bounds.shape[0] != 2 * self.nvars():
             msg = "bounds shape {0} inconsistent with 2*nvars={1}".format(
                 bounds.shape, 2 * self.nvars()
@@ -362,7 +362,7 @@ class CombinedHyperParameter(HyperParameter):
         # used to turn params inactive to active or vice-versa
         bounds = self._bkd.atleast1d(bounds)
         if bounds.shape[0] == 2:
-            bounds = self._bkd.repeat(bounds, self.nvars())
+            bounds = self._bkd.tile(bounds, (self.nvars(),))
         if bounds.shape[0] != 2 * self.nvars():
             msg = "bounds shape {0} inconsistent with 2*nvars={1}".format(
                 self.bounds.shape, 2 * self.nvars()

@@ -29,9 +29,9 @@ class TestKernels:
     def test_kernels(self):
         bkd = self.get_backend()
         kernel_inf = MaternKernel(np.inf, 1.0, [1e-1, 1], 2, backend=bkd)
-        values = bkd.atleast1d([0.5, 0.5])
-        kernel_inf.hyp_list.set_active_opt_params(bkd.log(values))
-        assert bkd.allclose(kernel_inf.hyp_list.get_values(), values)
+        values = bkd.asarray([0.5, 0.5])
+        kernel_inf.hyp_list().set_active_opt_params(bkd.log(values))
+        assert bkd.allclose(kernel_inf.hyp_list().get_values(), values)
 
         nsamples1, nsamples2 = 5, 3
         X = bkd.array(np.random.normal(0, 1, (2, nsamples1)))
@@ -63,32 +63,33 @@ class TestKernels:
         kernel_periodic = PeriodicMaternKernel(
             0.5, 1.0, [1e-1, 1], 1, [1e-1, 1], backend=bkd
         )
-        values = bkd.atleast1d([0.5, 0.5])
-        kernel_periodic.hyp_list.set_active_opt_params(bkd.log(values))
-        assert bkd.allclose(kernel_periodic.hyp_list.get_values(), values)
+        values = bkd.asarray([0.5, 0.5])
+        kernel_periodic.hyp_list().set_active_opt_params(bkd.log(values))
+        assert bkd.allclose(kernel_periodic.hyp_list().get_values(), values)
         assert bkd.allclose(
             kernel_periodic.diag(X), bkd.get_diagonal(kernel_periodic(X, X))
         )
 
-    def _check_kernel_jacobian(self, kernel, nsamples, nvars):
-        if not kernel.jacobian_implemented():
+    def _check_kernel_param_jacobian(self, kernel, nsamples, nvars):
+        if not kernel.param_jacobian_implemented():
             return
         bkd = kernel._bkd
         kernel_copy = copy.deepcopy(kernel)
         X = bkd.array(np.random.uniform(-1, 1, (nvars, nsamples)))
-        jacobian = kernel.jacobian(X)
+        jacobian = kernel.param_jacobian(X)
         # The following loop prevents torch from throwing error
         # RuntimeError: Only Tensors created explicitly by the user...
-        for hyp in kernel.hyp_list.hyper_params:
+        for hyp in kernel.hyp_list().hyper_params:
             hyp._values = bkd.copy(bkd.detach(hyp._values))
 
         def fun(active_params_opt):
-            kernel_copy.hyp_list.set_active_opt_params(active_params_opt)
+            kernel_copy.hyp_list().set_active_opt_params(active_params_opt)
             return kernel_copy(X)
+
         assert bkd.allclose(
             jacobian,
             approx_jacobian_3D(
-                fun, kernel_copy.hyp_list.get_active_opt_params(), bkd=bkd
+                fun, kernel_copy.hyp_list().get_active_opt_params(), bkd=bkd
             ),
         )
 
@@ -96,21 +97,21 @@ class TestKernels:
         bkd = self.get_backend()
         nvars, nsamples = 2, 3
         kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
-        self._check_kernel_jacobian(kernel, nsamples, nvars)
+        self._check_kernel_param_jacobian(kernel, nsamples, nvars)
 
         const = 1
         kernel = ConstantKernel(const, backend=bkd) * MaternKernel(
             np.inf, 1.0, [1e-1, 1], nvars, backend=bkd
         )
-        self._check_kernel_jacobian(kernel, nsamples, nvars)
+        self._check_kernel_param_jacobian(kernel, nsamples, nvars)
 
         kernel = GaussianNoiseKernel(1, [1e-2, 10], backend=bkd)
-        self._check_kernel_jacobian(kernel, nsamples, nvars)
+        self._check_kernel_param_jacobian(kernel, nsamples, nvars)
 
         kernel = MaternKernel(
             np.inf, 1.0, [1e-1, 1], nvars, backend=bkd
         ) + GaussianNoiseKernel(1, [1e-2, 10], backend=bkd)
-        self._check_kernel_jacobian(kernel, nsamples, nvars)
+        self._check_kernel_param_jacobian(kernel, nsamples, nvars)
 
 
 class TestNumpyKernels(TestKernels, unittest.TestCase):

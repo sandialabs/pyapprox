@@ -116,8 +116,8 @@ class InducingSamples:
             if inducing_sample_bounds.ndim == 1:
                 if inducing_sample_bounds.shape[0] != 2:
                     raise ValueError(msg)
-                inducing_sample_bounds = self._bkd.repeat(
-                    inducing_sample_bounds, self.ninducing_samples
+                inducing_sample_bounds = self._bkd.tile(
+                    inducing_sample_bounds, (self.ninducing_samples,)
                 ).reshape(self.ninducing_samples, 2)
         if inducing_sample_bounds.shape != (
             self.nvars * self.ninducing_samples,

@@ -193,7 +193,7 @@ class ScaleAndTranslationTransformMixIn:
     def unit_curvelinear_basis(self, orth_samples: Array) -> Array:
         nsamples = orth_samples.shape[1]
         return self._bkd.reshape(
-            self._bkd.repeat(self._bkd.eye(self.nphys_vars()), (nsamples, 1)),
+            self._bkd.tile(self._bkd.eye(self.nphys_vars()), (nsamples, 1)),
             (nsamples, self.nphys_vars(), self.nphys_vars()),
         )
 
@@ -207,6 +207,7 @@ class ScaleAndTranslationTransformMixIn:
         return self._bkd.stack(
             [self._bkd.full((nsamples,), ratio) for ratio in ratios], axis=1
         )
+
 
 # scale and translation are the only things you can do in 1D
 class ScaleAndTranslationTransform1D(
@@ -245,10 +246,10 @@ class FixedScaleAndTranslationTransform3D(ScaleAndTranslationTransform3D):
         self._orthog_ranges = self._bkd.asarray(orthog_ranges)
         self._ranges = self._bkd.asarray(ranges)
         self._fixed_idx = self._bkd.where(
-            self._bkd.abs(self._ranges[::2]-self._ranges[1::2]) == 0
+            self._bkd.abs(self._ranges[::2] - self._ranges[1::2]) == 0
         )[0]
         self._active_idx = self._bkd.where(
-            self._bkd.abs(self._ranges[::2]-self._ranges[1::2]) != 0
+            self._bkd.abs(self._ranges[::2] - self._ranges[1::2]) != 0
         )[0]
 
     def _map_hypercube_samples(
@@ -261,8 +262,10 @@ class FixedScaleAndTranslationTransform3D(ScaleAndTranslationTransform3D):
         new_samples[self._fixed_idx] = self._ranges[self._fixed_idx]
         idx = self._active_idx
         new_samples[idx] = (
-            (current_samples[idx].T - clbs[idx]) / (
-                cubs[idx] - clbs[idx]) * (nubs[idx] - nlbs[idx]) + nlbs[idx]
+            (current_samples[idx].T - clbs[idx])
+            / (cubs[idx] - clbs[idx])
+            * (nubs[idx] - nlbs[idx])
+            + nlbs[idx]
         ).T
         return new_samples
 
@@ -649,14 +652,15 @@ class SphericalTransform(OrthogonalCoordinateTransform3D):
 
 class SurfaceTransform(OrthogonalCoordinateTransform):
     """
-    Surface transform for maps on surfaces and integration. 
+    Surface transform for maps on surfaces and integration.
     Unlike other transforms this does not support gradients or normals
     """
+
     def __init__(
-            self,
-            trans: OrthogonalCoordinateTransform3D,
-            inactive_idx: int,
-            inactive_val: float,
+        self,
+        trans: OrthogonalCoordinateTransform3D,
+        inactive_idx: int,
+        inactive_val: float,
     ):
         self._trans = trans
         self._bkd = trans._bkd
@@ -670,7 +674,8 @@ class SurfaceTransform(OrthogonalCoordinateTransform):
     def _expand_orth(self, orth_samples_2d: Array) -> Array:
         orth_samples_3d = self._bkd.empty((3, orth_samples_2d.shape[1]))
         orth_samples_3d[self._inactive_idx] = self._bkd.full(
-            (orth_samples_2d.shape[1],), -1,
+            (orth_samples_2d.shape[1],),
+            -1,
         )
         orth_samples_3d[self._active_idx] = orth_samples_2d
         return orth_samples_3d
@@ -691,6 +696,6 @@ class SurfaceTransform(OrthogonalCoordinateTransform):
         raise NotImplementedError
 
     def scale_factors(self, orth_samples: Array) -> Array:
-        return self._trans.scale_factors(
-            self._expand_orth(orth_samples)
-        )[:, self._active_idx]
+        return self._trans.scale_factors(self._expand_orth(orth_samples))[
+            :, self._active_idx
+        ]

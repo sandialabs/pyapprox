@@ -70,13 +70,11 @@ class Kernel(ABC):
         return False
 
     def _input_eval(self, X1: Array):
-        return self(X1, self._X2)
+        return self(X1[:, None], self._X2)[0]
 
     def input_jacobian(self, X1: Array, X2: Array) -> Array:
         self._X2 = X2
-        return self._bkd.jacobian(
-            self._input_eval, self._hyp_list.get_active_opt_params()
-        )
+        return self._bkd.jacobian(self._input_eval, X1[:, 0])
 
     def input_apply_hessian(self, X1: Array, X2: Array) -> Array:
         self._X2 = X2
@@ -111,12 +109,6 @@ class CompositionKernel(Kernel):
             and self._kernel2.input_jacobian_implemented()
         )
 
-    def param_jacobian(self, samples: Array) -> Array:
-        raise NotImplementedError
-
-    def input_jacobian(self, samples: Array) -> Array:
-        raise NotImplementedError
-
 
 class ProductKernel(CompositionKernel):
     def diag(self, X1: Array) -> Array:
@@ -131,11 +123,18 @@ class ProductKernel(CompositionKernel):
     def param_jacobian(self, X) -> Array:
         Kmat1 = self._kernel1(X)
         Kmat2 = self._kernel2(X)
-        jac1 = self._kernel1.jacobian(X)
-        jac2 = self._kernel2.jacobian(X)
+        jac1 = self._kernel1.param_jacobian(X)
+        jac2 = self._kernel2.param_jacobian(X)
         return self._bkd.dstack(
             [jac1 * Kmat2[..., None], jac2 * Kmat1[..., None]]
         )
+
+    def input_jacobian(self, X1: Array, X2: Array) -> Array:
+        K1 = self._kernel1(X1, X2)
+        K2 = self._kernel2(X1, X2)
+        jac1 = self._kernel1.input_jacobian(X1, X2)
+        jac2 = self._kernel2.input_jacobian(X1, X2)
+        return K2.T * jac1 + K1.T * jac2
 
 
 class SumKernel(CompositionKernel):
@@ -149,9 +148,14 @@ class SumKernel(CompositionKernel):
         return self._kernel1(X1, X2) + self._kernel2(X1, X2)
 
     def param_jacobian(self, X) -> Array:
-        jac1 = self._kernel1.jacobian(X)
-        jac2 = self._kernel2.jacobian(X)
+        jac1 = self._kernel1.param_jacobian(X)
+        jac2 = self._kernel2.param_jacobian(X)
         return self._bkd.dstack([jac1, jac2])
+
+    def input_jacobian(self, X1: Array, X2: Array) -> Array:
+        jac1 = self._kernel1.input_jacobian(X1, X2)
+        jac2 = self._kernel2.input_jacobian(X1, X2)
+        return jac1 + jac2
 
 
 class MaternKernel(Kernel):
@@ -224,7 +228,7 @@ class MaternKernel(Kernel):
             ) ** 2 / lenscale**2
             return distances * Kmat[..., None]
         # TODO compute gradient analytically for nu = 0.5, 1.5, 2.5
-        return super().jacobian(samples)
+        return super().param_jacobian(samples)
 
     def param_jacobian_implemented(self) -> bool:
         if self._nu == self._bkd.inf():
@@ -561,7 +565,7 @@ class SphericalCovariance:
         # all theoretical radii_bounds are the same so just check one
         radii_bounds = self._bkd.asarray(radii_bounds)
         if radii_bounds.shape[0] == 2:
-            radii_bounds = self._bkd.repeat(radii_bounds, self.noutputs)
+            radii_bounds = self._bkd.tile(radii_bounds, (self.noutputs,))
         radii_bounds = radii_bounds.reshape((radii_bounds.shape[0] // 2, 2))
         if self._bkd.any(
             radii_bounds[:, 0] < bounds[: self.noutputs, 0]
@@ -570,8 +574,8 @@ class SphericalCovariance:
         # all theoretical angle_bounds are the same so just check one
         angle_bounds = self._bkd.asarray(angle_bounds)
         if angle_bounds.shape[0] == 2:
-            angle_bounds = self._bkd.repeat(
-                angle_bounds, self._trans.ntheta - self.noutputs
+            angle_bounds = self._bkd.tile(
+                angle_bounds, (self._trans.ntheta - self.noutputs,)
             )
         angle_bounds = angle_bounds.reshape((angle_bounds.shape[0] // 2, 2))
         if self._bkd.any(

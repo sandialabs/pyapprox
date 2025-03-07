@@ -132,7 +132,7 @@ class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
         bounds = self._bkd.asarray(bounds)
         if bounds.shape[0] == 2 and bounds.ndim != 2:
             bounds = self._bkd.reshape(
-                self._bkd.repeat(bounds, self._nvars), (self._nvars, 2)
+                self._bkd.tile(bounds, (self._nvars,)), (self._nvars, 2)
             )
         if bounds.ndim != 2 or bounds.shape[1] != 2:
             raise ValueError("Bounds has the wrong shape")
@@ -1148,7 +1148,11 @@ class ObjectiveWithCVaRConstraints(Model):
 
 
 def approx_jacobian(
-    func, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
+    func,
+    x,
+    epsilon=np.sqrt(np.finfo(float).eps),
+    bkd=NumpyLinAlgMixin,
+    forward=True,
 ):
     x0 = bkd.asarray(x)
     assert x0.ndim == 1 or x0.shape[1] == 1
@@ -1159,7 +1163,11 @@ def approx_jacobian(
     dx = bkd.zeros(x0.shape)
     for ii in range(len(x0)):
         dx[ii] = epsilon
-        f1 = bkd.atleast2d(func(x0 + dx))
+        if forward:
+            xdx = x0 + dx
+        else:
+            xdx = x0 - dx
+        f1 = bkd.atleast2d(func(xdx))
         assert f1.shape[0] == 1
         f1 = f1[0, :]
         jac[:, ii] = (f1 - f0) / epsilon

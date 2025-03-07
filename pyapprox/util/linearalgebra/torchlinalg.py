@@ -187,7 +187,7 @@ class TorchLinAlgMixin(LinAlgMixin):
         return mat.repeat(nreps)
 
     @staticmethod
-    def tile(mat: torch.Tensor, nreps) -> torch.Tensor:
+    def tile(mat: torch.Tensor, nreps: tuple) -> torch.Tensor:
         return torch.tile(mat, nreps)
 
     @staticmethod

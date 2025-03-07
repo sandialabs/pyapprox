@@ -296,23 +296,21 @@ class ActiveGreensKernel:
     def __init__(self, kernel: Kernel, inactive_X1: Array, inactive_X2: Array):
         self._bkd = kernel._bkd
         self._kernel = kernel
-        self._inactive_X1 = self._bkd.atleast2d(inactive_X1)
-        self._inactive_X2 = self._bkd.atleast2d(inactive_X2)
+        self._inactive_X1 = self._bkd.atleast2d(self._bkd.asarray(inactive_X1))
+        self._inactive_X2 = self._bkd.atleast2d(self._bkd.asarray(inactive_X2))
 
     def __call__(self, X1, X2):
         X1 = self._bkd.vstack(
             (
                 X1,
-                self._bkd.repeat(
-                    self._inactive_X1, (X1.shape[0], X1.shape[1])
-                ),
+                self._bkd.tile(self._inactive_X1, (X1.shape[0], X1.shape[1])),
             )
         )
         if X2 is not None:
             X2 = self._bkd.vstack(
                 (
                     X2,
-                    self._bkd.repeat(
+                    self._bkd.tile(
                         self._inactive_X2, (X2.shape[0], X2.shape[1])
                     ),
                 )

@@ -15,7 +15,7 @@ from pyapprox.pde.collocation.mesh_transforms import (
     SurfaceTransform,
     FixedScaleAndTranslationTransform3D,
 )
-from pyapprox.util.utilities import approx_fprime
+from pyapprox.optimization.minimize import approx_jacobian
 from pyapprox.surrogates.bases.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
 )
@@ -35,9 +35,11 @@ class TestMeshTransforms:
         grad_fd = []
         for sample in samples.T:
             grad_fd.append(
-                approx_fprime(sample[:, None], _fun, forward=forward)
+                approx_jacobian(
+                    _fun, sample[:, None], bkd=bkd, forward=forward
+                )
             )
-        grad_fd = bkd.asarray(grad_fd)
+        grad_fd = bkd.vstack(grad_fd)
 
         def _orth_fun(orth_samples):
             return _fun(transform.map_from_orthogonal(orth_samples))
@@ -45,9 +47,11 @@ class TestMeshTransforms:
         orth_grad_fd = []
         for orth_sample in orth_samples.T:
             orth_grad_fd.append(
-                approx_fprime(orth_sample[:, None], _orth_fun, forward=forward)
+                approx_jacobian(
+                    _orth_fun, orth_sample[:, None], bkd=bkd, forward=forward
+                )
             )
-        orth_grad_fd = bkd.asarray(orth_grad_fd)
+        orth_grad_fd = bkd.vstack(orth_grad_fd)
         grad = transform.scale_orthogonal_gradients(orth_samples, orth_grad_fd)
         tol = 3e-7
         # print(grad, 'f_x')
@@ -73,7 +77,7 @@ class TestMeshTransforms:
         integral = fun(transform.map_from_orthogonal(orth_samples)).dot(
             weights
         )
-        print(integral, exact_integral)
+        # print(integral, exact_integral)
         assert bkd.allclose(integral, exact_integral)
 
     def _get_orthogonal_boundary_samples_2d(self, npts):
