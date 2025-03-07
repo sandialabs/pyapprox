@@ -178,6 +178,12 @@ class TorchLinAlgMixin(LinAlgMixin):
 
     @staticmethod
     def repeat(mat: torch.Tensor, nreps: int) -> torch.Tensor:
+        # in 2d with axis=1
+        # b.view(-1, 1).repeat(1,nreps).view(b.shape[0], -1)
+        # for axis=0
+        # b.repeat(1, nreps).view(-1, nreps)
+        # todo all instance of repeat in code to bkd.tile and then
+        # test
         return mat.repeat(nreps)
 
     @staticmethod

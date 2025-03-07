@@ -2,6 +2,9 @@ import numpy as np
 from scipy.linalg import solve_triangular
 from scipy.linalg import lapack
 
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+
 
 def invert_permutation_vector(p, dtype=int):
     r"""
@@ -59,7 +62,7 @@ def get_low_rank_matrix(num_rows, num_cols, rank):
     eigvals, eigvecs = np.linalg.eigh(Amatrix.copy())
     # Set smallest eigenvalues to zero. Note eigenvals are in
     # ascending order
-    eigvals[:(eigvals.shape[0]-rank)] = 0.
+    eigvals[: (eigvals.shape[0] - rank)] = 0.0
     # Construct rank r A matrix
     Amatrix = np.dot(eigvecs, np.dot(np.diag(eigvals), eigvecs.T))
     # Resize matrix to have requested size
@@ -97,8 +100,8 @@ def adjust_sign_svd(U, V, adjust_based_upon_U=True):
         right singular vectors consistent with sign adjustment applied to U.
     """
     if U.shape[1] != V.shape[0]:
-        msg = 'U.shape[1] must equal V.shape[0]. If using np.linalg.svd set '
-        msg += 'full_matrices=False'
+        msg = "U.shape[1] must equal V.shape[0]. If using np.linalg.svd set "
+        msg += "full_matrices=False"
         raise ValueError(msg)
 
     if adjust_based_upon_U:
@@ -165,12 +168,13 @@ def sorted_eigh(C):
     W = W[:, ind[::-1]]
     s = np.sign(W[0, :])
     s[s == 0] = 1
-    W = W*s
+    W = W * s
     return e.reshape((e.size, 1)), W
 
 
-def continue_pivoted_lu_factorization(LU_factor, raw_pivots, current_iter,
-                                      max_iters, num_initial_rows=0):
+def continue_pivoted_lu_factorization(
+    LU_factor, raw_pivots, current_iter, max_iters, num_initial_rows=0
+):
     it = current_iter
     for it in range(current_iter, max_iters):
 
@@ -178,11 +182,12 @@ def continue_pivoted_lu_factorization(LU_factor, raw_pivots, current_iter,
         if np.isscalar(num_initial_rows) and (it < num_initial_rows):
             # pivot=np.argmax(np.absolute(LU_factor[it:num_initial_rows,it]))+it
             pivot = it
-        elif (not np.isscalar(num_initial_rows) and
-              (it < num_initial_rows.shape[0])):
+        elif not np.isscalar(num_initial_rows) and (
+            it < num_initial_rows.shape[0]
+        ):
             pivot = num_initial_rows[it]
         else:
-            pivot = np.argmax(np.absolute(LU_factor[it:, it]))+it
+            pivot = np.argmax(np.absolute(LU_factor[it:, it])) + it
 
         # update pivots vector
         # swap_rows(pivots,it,pivot)
@@ -199,14 +204,14 @@ def continue_pivoted_lu_factorization(LU_factor, raw_pivots, current_iter,
             break
 
         # update L_factor
-        LU_factor[it+1:, it] /= LU_factor[it, it]
+        LU_factor[it + 1 :, it] /= LU_factor[it, it]
 
         # udpate U_factor
-        col_vector = LU_factor[it+1:, it]
-        row_vector = LU_factor[it, it+1:]
+        col_vector = LU_factor[it + 1 :, it]
+        row_vector = LU_factor[it, it + 1 :]
 
         update = np.outer(col_vector, row_vector)
-        LU_factor[it+1:, it+1:] -= update
+        LU_factor[it + 1 :, it + 1 :] -= update
     return LU_factor, raw_pivots, it
 
 
@@ -226,13 +231,13 @@ def unprecondition_LU_factor(LU_factor, precond_weights, num_pivots=None):
     # and inv(W).dot(U)
 
     # `np.array` creates a new copy of LU_factor, faster than `.copy()`
-    LU_factor = np.array(LU_factor)/precond_weights
+    LU_factor = np.array(LU_factor) / precond_weights
 
     # right multiply L by W, i.e. compute L.dot(W)
     # Do not overwrite columns past num_pivots. If not all pivots have been
     # performed the columns to the right of this point contain U factor
     for ii in range(num_pivots):
-        LU_factor[ii+1:, ii] *= precond_weights[ii, 0]
+        LU_factor[ii + 1 :, ii] *= precond_weights[ii, 0]
 
     return LU_factor
 
@@ -252,20 +257,21 @@ def split_lu_factorization_matrix(LU_factor, num_pivots=None):
     L_factor = np.tril(LU_factor)
     if L_factor.shape[1] < L_factor.shape[0]:
         # if matrix over-determined ensure L is a square matrix
-        n0 = L_factor.shape[0]-L_factor.shape[1]
+        n0 = L_factor.shape[0] - L_factor.shape[1]
         L_factor = np.hstack([L_factor, np.zeros((L_factor.shape[0], n0))])
     if num_pivots < np.min(L_factor.shape):
-        n1 = L_factor.shape[0]-num_pivots
-        n2 = L_factor.shape[1]-num_pivots
+        n1 = L_factor.shape[0] - num_pivots
+        n2 = L_factor.shape[1] - num_pivots
         L_factor[num_pivots:, num_pivots:] = np.eye(n1, n2)
-    np.fill_diagonal(L_factor, 1.)
+    np.fill_diagonal(L_factor, 1.0)
     U_factor = np.triu(LU_factor)
     U_factor[num_pivots:, num_pivots:] = LU_factor[num_pivots:, num_pivots:]
     return L_factor, U_factor
 
 
-def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
-                                       truncate_L_factor=True):
+def truncated_pivoted_lu_factorization(
+    A, max_iters, num_initial_rows=0, truncate_L_factor=True
+):
     r"""
     Compute a incomplete pivoted LU decompostion of a matrix.
 
@@ -305,7 +311,7 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
     num_rows, num_cols = A.shape
     min_num_rows_cols = min(num_rows, num_cols)
     max_iters = min(max_iters, min_num_rows_cols)
-    if (A.shape[1] < max_iters):
+    if A.shape[1] < max_iters:
         msg = "truncated_pivoted_lu_factorization: "
         msg += " A is inconsistent with max_iters. Try deceasing max_iters or "
         msg += " increasing the number of columns of A"
@@ -317,16 +323,16 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
     LU_factor = np.array(A)
     raw_pivots = np.arange(num_rows)
     LU_factor, raw_pivots, it = continue_pivoted_lu_factorization(
-        LU_factor, raw_pivots, 0, max_iters, num_initial_rows)
+        LU_factor, raw_pivots, 0, max_iters, num_initial_rows
+    )
 
     if not truncate_L_factor:
         return LU_factor, raw_pivots
     else:
-        pivots = get_final_pivots_from_sequential_pivots(
-            raw_pivots)[:it+1]
-        L_factor, U_factor = split_lu_factorization_matrix(LU_factor, it+1)
-        L_factor = L_factor[:it+1, :it+1]
-        U_factor = U_factor[:it+1, :it+1]
+        pivots = get_final_pivots_from_sequential_pivots(raw_pivots)[: it + 1]
+        L_factor, U_factor = split_lu_factorization_matrix(LU_factor, it + 1)
+        L_factor = L_factor[: it + 1, : it + 1]
+        U_factor = U_factor[: it + 1, : it + 1]
         return L_factor, U_factor, pivots
 
 
@@ -356,15 +362,15 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
         # (0,4),(1,2),(2,4) then LU_factor[:,0] here will be col_vector
         # in LU algorithm with the second and third permutations
         # so undo these permutations in reverse order
-        next_idx = it+1
+        next_idx = it + 1
 
         # `col_vector` is a copy of the LU_factor subset
         col_vector = np.array(LU_factor[next_idx:, it])
-        for ii in range(num_pivots-it-1):
+        for ii in range(num_pivots - it - 1):
             # (it+1) necessary in two lines below because only dealing
             # with compressed col vector which starts at row it in LU_factor
-            jj = raw_pivots[num_pivots-1-ii]-next_idx
-            kk = num_pivots-ii-1-next_idx
+            jj = raw_pivots[num_pivots - 1 - ii] - next_idx
+            kk = num_pivots - ii - 1 - next_idx
 
             # inlined swap_rows()
             col_vector[jj], col_vector[kk] = col_vector[kk], col_vector[jj]
@@ -382,9 +388,9 @@ def add_rows_to_pivoted_lu_factorization(LU_factor, new_rows, num_pivots):
     for it in range(num_pivots):
         LU_factor_extra[:, it] /= LU_factor[it, it]
         col_vector = LU_factor_extra[:, it]
-        row_vector = LU_factor[it, it+1:]
+        row_vector = LU_factor[it, it + 1 :]
         update = np.outer(col_vector, row_vector)
-        LU_factor_extra[:, it+1:] -= update
+        LU_factor_extra[:, it + 1 :] -= update
 
     return np.vstack([LU_factor, LU_factor_extra])
 
@@ -404,7 +410,8 @@ def pivot_rows(pivots, matrix, in_place=True):
 
 
 def get_final_pivots_from_sequential_pivots(
-        sequential_pivots, num_pivots=None):
+    sequential_pivots, num_pivots=None
+):
     if num_pivots is None:
         num_pivots = sequential_pivots.shape[0]
     assert num_pivots >= sequential_pivots.shape[0]
@@ -419,22 +426,27 @@ def cholesky_decomposition(Amat):
 
     L = np.zeros((nrows, nrows))
     for ii in range(nrows):
-        temp = Amat[ii, ii]-np.sum(L[ii, :ii]**2)
+        temp = Amat[ii, ii] - np.sum(L[ii, :ii] ** 2)
         if temp <= 0:
-            raise Exception('matrix is not positive definite')
+            raise Exception("matrix is not positive definite")
         L[ii, ii] = np.sqrt(temp)
-        L[ii+1:, ii] =\
-            (Amat[ii+1:, ii]-np.sum(
-                L[ii+1:, :ii]*L[ii, :ii], axis=1))/L[ii, ii]
+        L[ii + 1 :, ii] = (
+            Amat[ii + 1 :, ii] - np.sum(L[ii + 1 :, :ii] * L[ii, :ii], axis=1)
+        ) / L[ii, ii]
 
     return L
 
 
-def pivoted_cholesky_decomposition(A, npivots, init_pivots=None, tol=0.,
-                                   error_on_small_tol=False,
-                                   pivot_weights=None,
-                                   return_full=False,
-                                   econ=True):
+def pivoted_cholesky_decomposition(
+    A,
+    npivots,
+    init_pivots=None,
+    tol=0.0,
+    error_on_small_tol=False,
+    pivot_weights=None,
+    return_full=False,
+    econ=True,
+):
     r"""
     Return a low-rank pivoted Cholesky decomposition of matrix A.
 
@@ -457,33 +469,63 @@ def pivoted_cholesky_decomposition(A, npivots, init_pivots=None, tol=0.,
     # L = np.zeros(((nrows,npivots)))
     L = np.zeros(((nrows, nrows)))
     # diag1 = np.diag(Amat).copy() # returns a copy of diag
-    diag = Amat.ravel()[::Amat.shape[0]+1]  # returns a view of diag
+    diag = Amat.ravel()[:: Amat.shape[0] + 1]  # returns a view of diag
     # assert np.allclose(diag,diag1)
     pivots = np.arange(nrows)
     init_error = np.absolute(diag).sum()
-    L, pivots, diag, chol_flag, ncompleted_pivots, error = \
+    L, pivots, diag, chol_flag, ncompleted_pivots, error = (
         continue_pivoted_cholesky_decomposition(
-            Amat, L, npivots, init_pivots, tol,
+            Amat,
+            L,
+            npivots,
+            init_pivots,
+            tol,
             error_on_small_tol,
-            pivot_weights, pivots, diag,
-            0, init_error, econ)
+            pivot_weights,
+            pivots,
+            diag,
+            0,
+            init_error,
+            econ,
+        )
+    )
 
     if not return_full:
-        return L[:, :ncompleted_pivots], pivots[:ncompleted_pivots], error,\
-            chol_flag
+        return (
+            L[:, :ncompleted_pivots],
+            pivots[:ncompleted_pivots],
+            error,
+            chol_flag,
+        )
     else:
-        return L, pivots, error, chol_flag, diag.copy(), init_error, \
-            ncompleted_pivots
+        return (
+            L,
+            pivots,
+            error,
+            chol_flag,
+            diag.copy(),
+            init_error,
+            ncompleted_pivots,
+        )
 
 
-def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
-                                            error_on_small_tol,
-                                            pivot_weights, pivots, diag,
-                                            ncompleted_pivots, init_error,
-                                            econ):
+def continue_pivoted_cholesky_decomposition(
+    Amat,
+    L,
+    npivots,
+    init_pivots,
+    tol,
+    error_on_small_tol,
+    pivot_weights,
+    pivots,
+    diag,
+    ncompleted_pivots,
+    init_error,
+    econ,
+):
     Amat = Amat.copy()  # Do not overwrite incoming Amat
     if econ is False and pivot_weights is not None:
-        msg = 'pivot weights not used when econ is False'
+        msg = "pivot weights not used when econ is False"
         raise Exception(msg)
     chol_flag = 0
     assert ncompleted_pivots < npivots
@@ -491,17 +533,22 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
         if init_pivots is None or ii >= len(init_pivots):
             if econ:
                 if pivot_weights is None:
-                    pivot = np.argmax(diag[pivots[ii:]])+ii
+                    pivot = np.argmax(diag[pivots[ii:]]) + ii
                 else:
-                    pivot = np.argmax(
-                        pivot_weights[pivots[ii:]]*diag[pivots[ii:]])+ii
+                    pivot = (
+                        np.argmax(
+                            pivot_weights[pivots[ii:]] * diag[pivots[ii:]]
+                        )
+                        + ii
+                    )
             else:
-                schur_complement = (
-                    Amat[np.ix_(pivots[ii:], pivots[ii:])] -
-                    L[pivots[ii:], :ii].dot(L[pivots[ii:], :ii].T))
+                schur_complement = Amat[np.ix_(pivots[ii:], pivots[ii:])] - L[
+                    pivots[ii:], :ii
+                ].dot(L[pivots[ii:], :ii].T)
                 schur_diag = np.diagonal(schur_complement)
                 pivot = np.argmax(
-                    np.linalg.norm(schur_complement, axis=0)**2/schur_diag)
+                    np.linalg.norm(schur_complement, axis=0) ** 2 / schur_diag
+                )
                 pivot += ii
         else:
             pivot = np.where(pivots == init_pivots[ii])[0][0]
@@ -509,7 +556,7 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
 
         swap_rows(pivots, ii, pivot)
         if diag[pivots[ii]] <= 0:
-            msg = 'matrix is not positive definite'
+            msg = "matrix is not positive definite"
             if error_on_small_tol:
                 raise Exception(msg)
             else:
@@ -519,20 +566,21 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
 
         L[pivots[ii], ii] = np.sqrt(diag[pivots[ii]])
 
-        L[pivots[ii+1:], ii] = (
-            Amat[pivots[ii+1:], pivots[ii]] -
-            L[pivots[ii+1:], :ii].dot(L[pivots[ii], :ii]))/L[pivots[ii], ii]
-        diag[pivots[ii+1:]] -= L[pivots[ii+1:], ii]**2
+        L[pivots[ii + 1 :], ii] = (
+            Amat[pivots[ii + 1 :], pivots[ii]]
+            - L[pivots[ii + 1 :], :ii].dot(L[pivots[ii], :ii])
+        ) / L[pivots[ii], ii]
+        diag[pivots[ii + 1 :]] -= L[pivots[ii + 1 :], ii] ** 2
 
         # for jj in range(ii+1,nrows):
         #     L[pivots[jj],ii]=(Amat[pivots[ii],pivots[jj]]-
         #         L[pivots[ii],:ii].dot(L[pivots[jj],:ii]))/L[pivots[ii],ii]
         #     diag[pivots[jj]] -= L[pivots[jj],ii]**2
-        error = diag[pivots[ii+1:]].sum()/init_error
+        error = diag[pivots[ii + 1 :]].sum() / init_error
         # print(ii, 'error', error)
         if error < tol:
-            msg = 'Tolerance reached. '
-            msg += f'Iteration:{ii}. Tol={tol}. Error={error}'
+            msg = "Tolerance reached. "
+            msg += f"Iteration:{ii}. Tol={tol}. Error={error}"
             # If matrix is rank r then then error will be machine precision
             # In such a case exiting without an error is the right thing to do
             if error_on_small_tol:
@@ -542,7 +590,7 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
                 print(msg)
                 break
 
-    return L, pivots, diag, chol_flag, ii+1, error
+    return L, pivots, diag, chol_flag, ii + 1, error
 
 
 def get_pivot_matrix_from_vector(pivots, nrows):
@@ -557,7 +605,7 @@ def determinant_triangular_matrix(matrix):
 
 def log_determinant_from_cholesky_factor(L):
     """Get determinant of LL@.T"""
-    return 2*np.sum(np.log(np.diag(L)))
+    return 2 * np.sum(np.log(np.diag(L)))
 
 
 def cholesky_solve_linear_system(L, rhs):
@@ -619,13 +667,17 @@ def update_cholesky_factorization_inverse(L_11_inv, L_12, L_22):
     nrows, ncols = L_12.shape
     L_22_inv = np.linalg.inv(L_22)
     L_inv = np.block(
-        [[L_11_inv, np.zeros((nrows, ncols))],
-         [-L_22_inv.dot(L_12.T.dot(L_11_inv)), L_22_inv]])
+        [
+            [L_11_inv, np.zeros((nrows, ncols))],
+            [-L_22_inv.dot(L_12.T.dot(L_11_inv)), L_22_inv],
+        ]
+    )
     return L_inv
 
 
-def update_trace_involving_cholesky_inverse(L_11_inv, L_12, L_22_inv, B,
-                                            prev_trace):
+def update_trace_involving_cholesky_inverse(
+    L_11_inv, L_12, L_22_inv, B, prev_trace
+):
     r"""
     Update the trace of matrix matrix product involving the inverse of a
     matrix with a cholesky factorization.
@@ -637,7 +689,7 @@ def update_trace_involving_cholesky_inverse(L_11_inv, L_12, L_22_inv, B,
     where :math:`A=LL^T`
     """
     nrows, ncols = L_12.shape
-    assert B.shape == (nrows+ncols, nrows+ncols)
+    assert B.shape == (nrows + ncols, nrows + ncols)
     B_11 = B[:nrows, :nrows]
     B_12 = B[:nrows, nrows:]
     B_21 = B[nrows:, :nrows]
@@ -646,18 +698,22 @@ def update_trace_involving_cholesky_inverse(L_11_inv, L_12, L_22_inv, B,
 
     C = -np.dot(L_22_inv.dot(L_12.T), L_11_inv)
     C_T_L_22_inv = C.T.dot(L_22_inv)
-    trace = prev_trace + np.sum(C.T.dot(C)*B_11) + \
-        np.sum(C_T_L_22_inv*B_12) + np.sum(C_T_L_22_inv.T*B_21) +  \
-        np.sum(L_22_inv.T.dot(L_22_inv)*B_22)
+    trace = (
+        prev_trace
+        + np.sum(C.T.dot(C) * B_11)
+        + np.sum(C_T_L_22_inv * B_12)
+        + np.sum(C_T_L_22_inv.T * B_21)
+        + np.sum(L_22_inv.T.dot(L_22_inv) * B_22)
+    )
     return trace
 
 
 def num_entries_square_triangular_matrix(N, include_diagonal=True):
     r"""Num entries in upper (or lower) NxN traingular matrix"""
     if include_diagonal:
-        return int(N*(N+1)/2)
+        return int(N * (N + 1) / 2)
     else:
-        return int(N*(N-1)/2)
+        return int(N * (N - 1) / 2)
 
 
 def num_entries_rectangular_triangular_matrix(M, N, upper=True):
@@ -679,8 +735,9 @@ def num_entries_rectangular_triangular_matrix(M, N, upper=True):
     if upper:
         return num_entries_square_triangular_matrix(N)
     else:
-        return num_entries_square_triangular_matrix(M) -\
-            num_entries_square_triangular_matrix(M-N)
+        return num_entries_square_triangular_matrix(
+            M
+        ) - num_entries_square_triangular_matrix(M - N)
 
 
 def flattened_rectangular_lower_triangular_matrix_index(ii, jj, M, N):
@@ -693,7 +750,7 @@ def flattened_rectangular_lower_triangular_matrix_index(ii, jj, M, N):
     if ii == 0:
         return 0
     T = num_entries_rectangular_triangular_matrix(ii, min(ii, N), upper=False)
-    kk = T+jj
+    kk = T + jj
     return kk
 
 
@@ -752,21 +809,25 @@ def equality_constrained_linear_least_squares(A, B, y, z):
     return lapack.dgglse(A, B, y, z)[3]
 
 
-def trace_of_mat_mat_product(Amat, Bmat):
+def trace_of_mat_mat_product(
+    Amat: Array, Bmat: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+) -> Array:
     """
     Compute Trace(A @ B)
     """
     assert Amat.shape == Bmat.T.shape
     # use einsum because unlike other approaches, e.g. np.sum(A*B.T)
     # it does not use any explicit intermediate storage
-    return np.einsum("ij,ji->", Amat, Bmat)
+    return bkd.einsum("ij,ji->", Amat, Bmat)
 
 
-def diag_of_mat_mat_product(Amat, Bmat):
+def diag_of_mat_mat_product(
+    Amat: Array, Bmat: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+) -> Array:
     """
     Compute Diag(A @ B)
     """
     assert Amat.shape == Bmat.T.shape
     # use einsum because unlike other approaches, e.g. np.diag(A*B.T)
     # it does not use any explicit intermediate storage
-    return np.einsum("ij,ji->i", Amat, Bmat)
+    return bkd.einsum("ij,ji->i", Amat, Bmat)

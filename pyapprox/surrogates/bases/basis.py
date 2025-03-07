@@ -507,7 +507,7 @@ class TensorProductQuadratureRule(QuadratureRule):
     def __call__(self, nnodes_1d):
         if len(nnodes_1d) != self.nvars():
             raise ValueError("must specify nnodes for each dimension")
-        np_array = self._bkd.to_numpy(nnodes_1d)
+        np_array = self._bkd.to_numpy(self._bkd.asarray(nnodes_1d, dtype=int))
         key = hash(np_array.tobytes())
         if self._store and key in self._quad_samples:
             return self._quad_samples[key], self._quad_weights[key]
@@ -565,3 +565,15 @@ class TrigonometricBasis(MultiIndexBasis):
 class FourierBasis(MultiIndexBasis):
     def __init__(self, bounds, inverse=True, indices=None, backend=None):
         super().__init__([FourierBasis1D(bounds, inverse, backend)])
+
+
+def setup_tensor_product_gauss_quadrature_rule(
+    variable: IndependentMarginalsVariable,
+) -> TensorProductQuadratureRule:
+    return TensorProductQuadratureRule(
+        variable.nvars(),
+        [
+            GaussQuadratureRule(marginal, backend=variable._bkd)
+            for marginal in variable.marginals()
+        ],
+    )
