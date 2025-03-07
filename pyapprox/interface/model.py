@@ -1094,6 +1094,11 @@ class ModelFromVectorizedCallable(ModelFromCallable):
             backend,
         )
 
+    def _eval_fun(self, fun: callable, sample: Array, *args) -> Array:
+        if self._sample_ndim == 2:
+            return fun(sample, *args)
+        return fun(sample[:, 0], *args)
+
     def _values(self, samples: Array) -> Array:
         values = self._user_function(samples)
         if self._values_ndim != values.ndim:
@@ -2036,3 +2041,57 @@ class MultiIndexModelEnsemble(ABC):
 
     def highest_fidelity_model(self):
         return self.get_model(self._index_bounds)
+
+
+class DenseMatrixLinearModel(Model):
+    def __init__(
+        self,
+        matrix: Array,
+        vec: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._nqoi, self._nvars = matrix.shape
+        self._matrix = matrix
+        if vec is None:
+            vec = backend.zeros((self.nqoi(), 1))
+        self._vec = vec
+        super().__init__(backend=backend)
+
+    def jacobian_implemented(self):
+        return True
+
+    def apply_jacobian_implemented(self):
+        return True
+
+    def hessian_implemented(self):
+        return True
+
+    def apply_hessian_implemented(self):
+        return True
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def nqoi(self) -> int:
+        return self._nqoi
+
+    def _values(self, samples: Array) -> Array:
+        return (self._matrix @ (samples) + self._vec).T
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._matrix
+
+    def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
+        return self._matrix @ vec
+
+    def _hessian(self, sample: Array) -> Array:
+        return self._bkd.zeros((self.nvars(), self.nvars()))
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        return self._bkd.zeros((self.nvars(), 1))
+
+    def matrix(self) -> Array:
+        return self._matrix
+
+    def vector(self) -> Array:
+        return self._vec

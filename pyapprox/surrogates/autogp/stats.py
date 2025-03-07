@@ -57,7 +57,7 @@ class GaussianProcessStatistics:
         self._ctrain_samples = self._gp._ctrain_samples
         self._train_values = self._gp.get_train_values()
         coef_args = self._gp._factor_training_kernel_matrix()
-        Linv = self._gp._cholesky_inverse(coef_args[0])
+        Linv = self._gp._inverse_of_cholesky_factor(coef_args[0])
         # store kernel matrix inverse that is not scaled by the
         # kernel variance
         self._Ainv = Linv.T @ Linv * self._get_kernel_variance()

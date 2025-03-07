@@ -337,7 +337,7 @@ class ExactGaussianProcess(OptimizedRegressor):
             + nsamples * np.log(2 * np.pi)
         ).sum(axis=1)
 
-    def _cholesky_inverse(self, Lmat):
+    def _inverse_of_cholesky_factor(self, Lmat):
         rhs = self._bkd.eye(Lmat.shape[0])
         Linv = self._bkd.solve_triangular(Lmat, rhs, lower=True)
         return Linv
@@ -352,7 +352,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         if coef_args[0] is None:
             # cholesky factorization failed
             return self._bkd.full((1, active_opt_params.shape[0]), np.inf)
-        Linv = self._cholesky_inverse(coef_args[0])
+        Linv = self._inverse_of_cholesky_factor(coef_args[0])
         Kinv = Linv.T @ Linv
         Kinv_y = self._Kinv_y(Kinv)
         Mat = Kinv_y @ Kinv_y.T - Kinv

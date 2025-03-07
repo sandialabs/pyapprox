@@ -299,10 +299,12 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.std(mat, dim=axis, correction=ddof)
 
     @staticmethod
-    def cov(mat: torch.Tensor, ddof=0, rowvar=True) -> torch.Tensor:
+    def cov(
+        mat: torch.Tensor, ddof=0, rowvar=True, aweights=None
+    ) -> torch.Tensor:
         if rowvar:
-            return torch.cov(mat, correction=ddof)
-        return torch.cov(mat.T, correction=ddof)
+            return torch.cov(mat, correction=ddof, aweights=aweights)
+        return torch.cov(mat.T, correction=ddof, aweights=aweights)
 
     @staticmethod
     def abs(mat: torch.Tensor) -> torch.Tensor:

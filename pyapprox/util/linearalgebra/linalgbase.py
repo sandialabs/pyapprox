@@ -385,7 +385,7 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def cov(mat, ddof=0, rowvar=True):
+    def cov(mat, ddof=0, rowvar=True, aweights=None):
         """Compute the covariance matrix from samples of variables
         in a matrix."""
         raise NotImplementedError

@@ -603,9 +603,11 @@ def determinant_triangular_matrix(matrix):
     return np.prod(np.diag(matrix))
 
 
-def log_determinant_from_cholesky_factor(L):
+def log_determinant_from_cholesky_factor(
+    L, bkd: LinAlgMixin = NumpyLinAlgMixin
+):
     """Get determinant of LL@.T"""
-    return 2 * np.sum(np.log(np.diag(L)))
+    return 2 * bkd.sum(bkd.log(bkd.diag(L)))
 
 
 def cholesky_solve_linear_system(L, rhs):
@@ -619,48 +621,21 @@ def cholesky_solve_linear_system(L, rhs):
     return x
 
 
-def cholesky_inverse(L):
-    rhs = np.eye(L.shape[0])
-    L_inv = solve_triangular(L, rhs, lower=True)
-    return L_inv
-
-
-def update_cholesky_factorization(L_11, A_12, A_22):
-    r"""
-    Update a Cholesky factorization.
-
-    Specifically compute the Cholesky factorization of
-
-    .. math:: A=\begin{bmatrix} A_{11} & A_{12}\\ A_{12}^T &
-              A_{22}\end{bmatrix}
-
-    where :math:`L_{11}` is the Cholesky factorization of :math:`A_{11}`.
-    Noting that
-
-    .. math::
-
-      \begin{bmatrix} A_{11} & A_{12}\\ A_{12}^T & A_{22}\end{bmatrix} =
-      \begin{bmatrix} L_{11} & 0\\ L_{12}^T & L_{22}\end{bmatrix}
-      \begin{bmatrix} L_{11}^T & L_{12}\\ 0 & L_{22}^T\end{bmatrix}
-
-    we can equate terms to find
-
-    .. math::
-
-        L_{12} = L_{11}^{-1}A_{12}, \quad
-        L_{22}L_{22}^T = A_{22}-L_{12}^TL_{12}
+def cholesky_inverse(L, bkd: LinAlgMixin = NumpyLinAlgMixin):
     """
-    if L_11.shape[0] == 0:
-        return np.linalg.cholesky(A_22)
+    Inverse of a matrix using its cholesky factor
+    I.e. compute inv(A) A =L@L.T
+    """
+    rhs = bkd.eye(L.shape[0])
+    A_inv = bkd.cholesky_solve(L, rhs, lower=True)
+    return A_inv
 
-    nrows, ncols = A_12.shape
-    assert A_22.shape == (ncols, ncols)
-    assert L_11.shape == (nrows, nrows)
-    L_12 = solve_triangular(L_11, A_12, lower=True)
-    print(A_22 - L_12.T.dot(L_12))
-    L_22 = np.linalg.cholesky(A_22 - L_12.T.dot(L_12))
-    L = np.block([[L_11, np.zeros((nrows, ncols))], [L_12.T, L_22]])
-    return L
+
+def inverse_of_cholesky_factor(L, bkd: LinAlgMixin = NumpyLinAlgMixin):
+    """Compute inveres of cholesy factor"""
+    rhs = bkd.eye(L.shape[0])
+    L_inv = bkd.solve_triangular(L, rhs, lower=True)
+    return L_inv
 
 
 def update_cholesky_factorization_inverse(L_11_inv, L_12, L_22):

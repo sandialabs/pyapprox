@@ -274,8 +274,8 @@ class JaxLinAlgMixin(LinAlgMixin):
         return np.std(mat, axis=axis, ddof=ddof)
 
     @staticmethod
-    def cov(mat: np.ndarray, ddof=0, rowvar=True) -> np.ndarray:
-        return np.cov(mat, ddof=ddof, rowvar=rowvar)
+    def cov(mat: np.ndarray, ddof=0, rowvar=True, aweights=None) -> np.ndarray:
+        return np.cov(mat, ddof=ddof, rowvar=rowvar, aweights=aweights)
 
     @staticmethod
     def abs(mat: np.ndarray) -> np.ndarray:

@@ -4,11 +4,12 @@ import numpy as np
 from pyapprox.util.pya_numba import njit
 
 from pyapprox.util.linalg import (
-    cholesky_inverse,
+    inverse_of_cholesky_factor,
     log_determinant_from_cholesky_factor,
     diag_of_mat_mat_product,
 )
 from pyapprox.interface.model import Model
+from pyapprox.variables.joint import JointVariable
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
@@ -19,14 +20,11 @@ class LogLikelihood(Model):
         self._obs = None
         self._nobs = None
 
-    def _get_nobs(self) -> int:
+    def nobs(self) -> int:
         return self._nobs
 
     def nqoi(self) -> int:
         return 1
-
-    def nvars(self) -> int:
-        return self._get_nobs()
 
     def set_observations(self, obs: Array):
         """
@@ -35,7 +33,7 @@ class LogLikelihood(Model):
         obs : np.ndarray (nobs, 1)
             The observations
         """
-        if obs.ndim != 2 or obs.shape[0] != self._get_nobs():
+        if obs.ndim != 2 or obs.shape[0] != self.nobs():
             raise ValueError("obs has the wrong shape {0}".format(obs.shape))
         self._obs = obs
 
@@ -43,52 +41,89 @@ class LogLikelihood(Model):
     def _loglike(self, many_pred_obs: Array) -> Array:
         raise NotImplementedError
 
-    def _values(self, many_pred_obs: Array) -> Array:
-        if many_pred_obs.shape[0] != self._get_nobs():
+    def _check_many_pred_obs(self, many_pred_obs: Array):
+        if many_pred_obs.shape[0] != self.nobs():
             raise ValueError(
                 "many_pred_obs has the wrong shape {0}".format(
                     many_pred_obs.shape
                 )
-                + " nobs is {0}".format(self._get_nobs())
+                + " nobs is {0}".format(self.nobs())
             )
+
+    def _loglike_from_pred_obs(self, many_pred_obs: Array) -> Array:
+        self._check_many_pred_obs(many_pred_obs)
         return self._loglike(many_pred_obs)
+
+    @abstractmethod
+    def _make_noisy(self, noiseless_obs: Array, noise, Array):
+        raise NotImplementedError
+
+
+class ModelBasedLogLikelihoodMixin:
+    def model(self) -> Model:
+        return self._model
+
+    def nvars(self) -> int:
+        return self._model.nvars()
+
+    def _values(self, samples: Array):
+        many_pred_obs = self._model(samples).T
+        self._last_sample = samples[:, -1:]
+        self._last_pred_obs = many_pred_obs[:, -1:]
+        return self._loglike_from_pred_obs(many_pred_obs)
+
+    def rvs(self, sample: Array) -> Array:
+        """Draw a realization from the likelihood"""
+        if sample.ndim != 2 or sample.shape[1] != 1:
+            raise ValueError("samples has the wrong shape")
+        noiseless_obs = self._model(sample).T
+        noise = self._sample_noise(1)
+        return self._make_noisy(noiseless_obs, noise)
+
+    def __repr__(self) -> str:
+        return "{0}(nobs={1}, model={2})".format(
+            self.__class__.__name__, self.nobs(), self._model
+        )
 
 
 class GaussianLogLikelihood(LogLikelihood):
-    def __init__(
-        self,
-        noise_cov: Array,
-        tile_obs: bool = True,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
-    ):
-        """
-        Correlated Gaussian noise. Takes pred_obs as argument to call
-        """
-        super().__init__(backend=backend)
-        self._loglike_consts = self._setup(noise_cov)
+    """GaussianLikelihood with dense noise covariance matrix"""
+
+    # TODO this code uses a lot of Multivariate Gaussian. Merge
+    # MultivariateGaussian(obs, loglike.noise_covariance())
+
+    def set_design_weights(self, design_weights: Array) -> Array:
+        self._design_weights = design_weights
+        self._noise_chol = self._bkd.cholesky(self._noise_cov)
+        self._noise_chol_inv = inverse_of_cholesky_factor(
+            self._noise_chol, self._bkd
+        )
+        self._wnoise_chol_inv = self._noise_chol_inv * self._bkd.sqrt(
+            self._design_weights
+        )
+        # Todo avoid inverting and just apply weights is possible
+        self._wnoise_chol = inverse_of_cholesky_factor(
+            self._wnoise_chol_inv, self._bkd
+        )
+        self._log_wnoise_cov_det = log_determinant_from_cholesky_factor(
+            self._wnoise_chol, self._bkd
+        )
+        self._loglike_const = (
+            self._nobs * np.log(2 * np.pi) + self._log_wnoise_cov_det
+        )
+
+    def _set_tile_obs(self, tile_obs: bool):
         self._tile_obs = tile_obs
 
-    def _setup(self, noise_cov: Array) -> float:
+    def _setup(self, noise_cov: Array):
         if noise_cov.ndim != 2 or noise_cov.shape[0] != noise_cov.shape[1]:
             raise ValueError(
                 "noise_cov has the wrong shape {0}".format(noise_cov.shape)
             )
-        self._nobs = noise_cov.shape[0]
         self._noise_cov = noise_cov
-        self._noise_chol = np.linalg.cholesky(self._noise_cov)
-        self._noise_chol_inv = cholesky_inverse(self._noise_chol)
-        self._log_noise_cov_det = log_determinant_from_cholesky_factor(
-            self._noise_chol
-        )
+        self._nobs = noise_cov.shape[0]
         self._last_L_inv_res = None
-        self.set_design_weights(np.ones((self._nobs, 1)))
-        return self._nobs * np.log(2 * np.pi) + self._log_noise_cov_det
-
-    def set_design_weights(self, design_weights: Array) -> Array:
-        self._design_weights = design_weights
-        self._weighted_noise_chol_inv = self._noise_chol_inv * np.sqrt(
-            self._design_weights
-        )
+        self.set_design_weights(self._bkd.ones((self._nobs, 1)))
 
     def _make_noisy(self, noiseless_obs: Array, noise: Array) -> Array:
         if noiseless_obs.shape != noise.shape:
@@ -103,22 +138,26 @@ class GaussianLogLikelihood(LogLikelihood):
         # to ensure same noise is used for ith sample
         # regardless of size of nsam
         normal_samples = self._bkd.asarray(
-            np.random.normal(0, 1, (nsamples, self._get_nobs()))
+            np.random.normal(0, 1, (nsamples, self.nobs()))
         ).T
-        return self._noise_chol @ normal_samples
+        return self._wnoise_chol @ normal_samples
 
     def _loglike_many(self, many_obs: Array, many_pred_obs: Array) -> Array:
         residual = many_obs - many_pred_obs
-        L_inv_res = self._weighted_noise_chol_inv @ residual
+        L_inv_res = self._wnoise_chol_inv @ residual
         vals = diag_of_mat_mat_product(L_inv_res.T, L_inv_res)
-        return (-0.5 * (vals + self._loglike_consts))[:, None]
+        return (-0.5 * (vals + self._loglike_const))[:, None]
 
     def _parse_obs(self, obs: Array, many_pred_obs: Array) -> Array:
+        if not hasattr(self, "_loglike_const"):
+            raise RuntimeError("must call _setup()")
+        if not hasattr(self, "_tile_obs"):
+            raise RuntimeError("must call _set_tile_obs()")
         if self._tile_obs:
             # stack vals for each obs vertically
             return (
-                np.repeat(self._obs, many_pred_obs.shape[1], axis=1),
-                np.tile(many_pred_obs, (1, self._obs.shape[1])),
+                self._bkd.repeat(self._obs, many_pred_obs.shape[1], axis=1),
+                self._bkd.tile(many_pred_obs, (1, self._obs.shape[1])),
             )
         if many_pred_obs.shape != self._obs.shape:
             msg = "many_pred_obs shape does not match self._obs shape"
@@ -129,31 +168,35 @@ class GaussianLogLikelihood(LogLikelihood):
         return self._loglike_many(*self._parse_obs(self._obs, many_pred_obs))
 
     def noise_covariance(self) -> Array:
-        return self._noise_cov
+        """Return weighted noise covariance"""
+        return self._wnoise_chol @ self._wnoise_chol.T
 
 
 class IndependentGaussianLogLikelihood(GaussianLogLikelihood):
-    def __init__(
-        self,
-        noise_cov_diag: Array,
-        tile_obs: bool = True,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
-    ):
-        """
-        Independent but not necessarily identically distributed Gaussian noise.
-        Evaluating this is faster than GaussianLikelihood if noise covariance
-        is a diagonal matrix
-        """
-        super().__init__(noise_cov_diag, tile_obs, backend=backend)
+    """
+    Independent but not necessarily identically distributed Gaussian noise.
+    Evaluating this is faster than GaussianLikelihood if noise covariance
+    is a diagonal matrix
+    """
 
-    def set_design_weights(self, design_weights):
+    def set_design_weights(self, design_weights: Array):
         self._design_weights = design_weights
         assert self._bkd.all(design_weights >= 0), design_weights
-        self._weighted_noise_cov_inv_diag = (
+        self._noise_cov_inv_diag = 1 / (self._noise_cov_diag)
+        self._wnoise_cov_inv_diag = (
             self._noise_cov_inv_diag * self._design_weights
         )
+        self._wnoise_std_diag = self._bkd.sqrt(1 / self._wnoise_cov_inv_diag)
+        self._log_wnoise_cov_det = (
+            2 * self._bkd.log(self._wnoise_std_diag).sum()
+        )
+        self._r_noise_cov_inv = None
+        self._loglike_const = (
+            self._nobs * np.log(2 * np.pi) + self._log_wnoise_cov_det
+        )
 
-    def _setup(self, noise_cov_diag):
+    def _setup(self, noise_cov_diag: Array):
+        print(noise_cov_diag.shape)
         if noise_cov_diag.ndim != 2 or noise_cov_diag.shape[1] != 1:
             raise ValueError(
                 "noise_cov_diag has the wrong shape {0}".format(
@@ -162,23 +205,18 @@ class IndependentGaussianLogLikelihood(GaussianLogLikelihood):
             )
         self._nobs = noise_cov_diag.shape[0]
         self._noise_cov_diag = noise_cov_diag
-        self._noise_std_diag = self._bkd.sqrt(self._noise_cov_diag)
-        self._log_noise_cov_det = self._bkd.log(self._noise_cov_diag).sum()
-        self._noise_cov_inv_diag = 1 / (self._noise_cov_diag)
-        self._r_noise_cov_inv = None
         self.set_design_weights(self._bkd.ones((self._nobs, 1)))
-        return self._nobs * np.log(2 * np.pi) + self._log_noise_cov_det
 
     def _loglike_many(self, many_obs, many_pred_obs):
-        weighted_residual = self._bkd.sqrt(
-            self._weighted_noise_cov_inv_diag
-        ) * (many_obs - many_pred_obs)
+        weighted_residual = self._bkd.sqrt(self._wnoise_cov_inv_diag) * (
+            many_obs - many_pred_obs
+        )
         vals = (
             -0.5
             * diag_of_mat_mat_product(
                 weighted_residual.T, weighted_residual, bkd=self._bkd
             )
-            - 0.5 * self._loglike_consts
+            - 0.5 * self._loglike_const
         )[:, None]
         return vals
 
@@ -187,144 +225,84 @@ class IndependentGaussianLogLikelihood(GaussianLogLikelihood):
         # to ensure same noise is used for ith sample
         # regardless of size of nsam
         normal_samples = self._bkd.asarray(
-            np.random.normal(0, 1, (nsamples, self._get_nobs()))
+            np.random.normal(0, 1, (nsamples, self.nobs()))
         ).T
-        return self._noise_std_diag * normal_samples
+        return self._wnoise_std_diag * normal_samples
 
     def noise_covariance(self):
-        return self._bkd.diag(self._noise_cov_diag[:, 0])
+        return self._bkd.diag(1 / self._wnoise_cov_inv_diag[:, 0])
 
     def __repr__(self):
         return "{0}(nobs={1}, sigma={2})".format(
             self.__class__.__name__,
-            self._get_nobs(),
+            self.nobs(),
             self._noise_std_diag[:, 0],
         )
 
 
-class SingleObsIndependentGaussianLogLikelihood(
-    IndependentGaussianLogLikelihood
+class ModelBasedGaussianLogLikelihood(
+    ModelBasedLogLikelihoodMixin, GaussianLogLikelihood
 ):
-
-    def _loglike(self, many_pred_obs):
-        return self._loglike_many(
-            self._bkd.repeat(self._obs, many_pred_obs.shape[1], axis=1),
-            many_pred_obs,
-        )
-
-    def set_observations(self, obs: Array):
-        """
-        Parameters
-        ----------
-        obs : self._bkd.ndarray (nobs, 1)
-            The observations
-        """
-        if (
-            obs.ndim != 2
-            or obs.shape[1] != 1
-            or obs.shape[0] != self._get_nobs()
-        ):
-            raise ValueError(
-                "obs has shape {0}".format(obs.shape)
-                + f" but nobs={self._get_nobs()}"
-            )
-        self._obs = obs
-
-
-class ModelBasedLogLikelihood(LogLikelihood):
-    def __init__(self, model: Model, loglike: LogLikelihood):
-        super().__init__(model._bkd)
+    def __init__(self, model: Model, noise_cov: Array, tile_obs: bool = True):
+        super().__init__(backend=model._bkd)
         self._model = model
-        self._loglike = loglike
-        self._last_sample = None
-        self._last_pred_obs = None
+        self._setup(noise_cov)
+        self._set_tile_obs(tile_obs)
 
-    def _get_nobs(self):
-        return self._loglike._get_nobs()
+    def jacobian_implemented(self) -> bool:
+        return self._model.jacobian_implemented()
 
-    def set_observations(self, obs):
-        # if (obs.ndim != 2 or obs.shape[1] != 1 or
-        #         obs.shape[0] != self._model._nobs):
-        #     raise ValueError("obs has the wrong shape {0}".format(
-        #         obs.shape))
-        self._model._obs = obs
-
-    def _loglike(self, many_pred_obs):
-        return self._loglike._loglike(many_pred_obs)
-
-    def __call__(self, samples):
-        many_pred_obs = self._model(samples).T
-        self._last_sample = samples[:, -1:]
-        self._last_pred_obs = many_pred_obs[:, -1:]
-        return self._loglike(many_pred_obs)
-
-    def rvs(self, sample):
-        """Draw a realization from the likelihood"""
-        if sample.ndim != 2 or sample.shape[1] != 1:
-            raise ValueError("samples has the wrong shape")
-        noiseless_obs = self._model(sample).T
-        noise = self._loglike._sample_noise(1)
-        return self._loglike._make_noisy(noiseless_obs, noise)
-
-    def __repr__(self):
-        return "{0}(nobs={1}, model={2})".format(
-            self.__class__.__name__, self._get_nobs(), self._model
-        )
-
-
-class ModelBasedGaussianLogLikelihood(ModelBasedLogLikelihood):
-    def __init__(self, model, loglike):
-        super().__init__(model, loglike)
-        self._jacobian_implemented = model._jacobian_implemented
-
-    def _jacobian(self, sample):
+    def _jacobian(self, sample: Array) -> Array:
         if self._last_sample is None or not self._bkd.allclose(
             sample, self._last_sample
         ):
             self._last_sample = sample.copy()
             self._last_pred_obs = self._model(sample).T
-        residual = self._loglike._obs - self._last_pred_obs
-        L_inv_res = self._loglike._weighted_noise_chol_inv @ residual
-        return self._bkd.linalg.multi_dot(
+        residual = self._obs - self._last_pred_obs
+        L_inv_res = self._wnoise_chol_inv @ residual
+        return self._bkd.multidot(
             (
                 L_inv_res.T,
-                self._loglike._weighted_noise_chol_inv,
+                self._wnoise_chol_inv,
                 self._model.jacobian(sample),
             )
         )
 
+    # TODO implement apply_hessian using same idea as used in local
+    # optimaility criteria in expdesign
 
-class ModelBasedIndependentGaussianLogLikelihood(ModelBasedLogLikelihood):
-    def __init__(self, model, loglike):
-        super().__init__(model, loglike)
-        self._jacobian_implemented = model._jacobian_implemented
 
-    def _jacobian(self, sample):
+class ModelBasedIndependentGaussianLogLikelihood(
+    ModelBasedLogLikelihoodMixin, IndependentGaussianLogLikelihood
+):
+    def __init__(
+        self, model: Model, noise_cov_diag: Array, tile_obs: bool = True
+    ):
+        super().__init__(backend=model._bkd)
+        self._model = model
+        self._setup(noise_cov_diag)
+        self._set_tile_obs(tile_obs)
+
+    def jacobian_implemented(self) -> bool:
+        return self._model.jacobian_implemented()
+
+    def _jacobian(self, sample: Array) -> Array:
         if self._last_sample is None or not self._bkd.allclose(
             sample, self._last_sample
         ):
             self._last_sample = sample.copy()
             self._last_pred_obs = self._model(sample).T
-        residual = self._loglike._obs - self._last_pred_obs
-        tmp = self._loglike._weighted_noise_cov_inv_diag * residual
+        residual = self._obs - self._last_pred_obs
+        tmp = self._wnoise_cov_inv_diag * residual
         return tmp.T @ self._model.jacobian(sample)
 
 
 class IndependentExponentialLogLikelihood(LogLikelihood):
-    def __init__(
-        self,
-        noise_scale_diag: Array,
-        tile_obs: bool = True,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
-    ):
-        r"""
-        p(y|z)=\lambda\exp(-\lambda (y-f(z)))
-        lambda = scale
-        log p(y|z) = log(\lambda)-\lambda*(y-f(z))
-        """
-        super().__init__(backend=backend)
-        self._loglike_consts = self._setup(noise_scale_diag)
-        self._tile_obs = tile_obs
+    r"""
+    p(y|z)=\lambda\exp(-\lambda (y-f(z)))
+    lambda = scale
+    log p(y|z) = log(\lambda)-\lambda*(y-f(z))
+    """
 
     def _setup(self, noise_scale_diag):
         if noise_scale_diag.ndim != 2 or noise_scale_diag.shape[1] != 1:
@@ -337,7 +315,7 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
         self._noise_scale_diag = noise_scale_diag
         self._noise_log_scale_diag = self._bkd.log(self._noise_scale_diag)
         self._weighted_noise_scale_diag = None
-        return self._bkd.log(self._noise_scale_diag).sum()
+        self._loglike_const = self._bkd.log(self._noise_scale_diag).sum()
 
     def set_design_weights(self, design_weights):
         self._design_weights = design_weights
@@ -362,7 +340,7 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
 
     def _loglike_many(self, many_obs, many_pred_obs):
         return (
-            self._loglike_consts
+            self._loglike_const
             - (
                 self._weighted_noise_scale_diag * (many_obs - many_pred_obs)
             ).sum(axis=0)[:, None]
@@ -381,6 +359,38 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
         # to ensure same noise is used for ith sample
         # regardless of size of nsam
         exponential_samples = self._bkd.asarray(
-            np.random.exponential(1, (nsamples, self._get_nobs()))
+            np.random.exponential(1, (nsamples, self.nobs()))
         ).T
         return 1 / self._noise_scale_diag * exponential_samples
+
+
+class LogUnormalizedPosterior(Model):
+    def __init__(self, loglike: LogLikelihood, prior: JointVariable):
+        self._loglike = loglike
+        self._prior = prior
+        super().__init__(loglike._bkd)
+
+    def jacobian_implemented(self) -> bool:
+        return (
+            self._prior.pdf_jacobian_implemented()
+            and self._loglike.jacobian_implemented()
+        )
+
+    def hessian_implemented(self) -> bool:
+        return (
+            self._prior.pdf_hessian_implemented()
+            and self._loglike.hessian_implemented()
+        )
+
+    def _values(self, samples: Array) -> Array:
+        return self._loglike(samples) + self._prior.pdf(samples)
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._loglike.jacobian(sample) + self._prior.log_pdf_jacobian(
+            sample
+        )
+
+    def _hessian(self, sample: Array) -> Array:
+        return self._loglike.hessian(sample) + self._prior.log_pdf_hessian(
+            sample
+        )

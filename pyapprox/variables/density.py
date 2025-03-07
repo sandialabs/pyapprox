@@ -5,13 +5,15 @@ from scipy.linalg import cholesky, solve_triangular
 from scipy.special import erf, beta as beta_fn, gammaln
 
 from pyapprox.util.visualization import (
-    get_meshgrid_function_data, plot_contours, plt
+    get_meshgrid_function_data,
+    plot_contours,
+    plt,
 )
 
 
-class Density:
-    def __init__(self, num_vars, plot_limits=None):
-        self.num_dims = num_vars
+class Density(Model):
+    def __init__(self, nvars, plot_limits=None):
+        self.num_dims = nvars
         self.plot_limits = plot_limits
 
     def pdf(self, samples):
@@ -20,8 +22,15 @@ class Density:
     def generate_samples(self, num_samples, rng=np.random):
         assert "Virtual class. must define generate_samples() function"
 
-    def plot_density(self, num_samples_1d=100, plot_limits=None, show=False,
-                     figname=None, ax=None, **kwargs):
+    def plot_density(
+        self,
+        num_samples_1d=100,
+        plot_limits=None,
+        show=False,
+        figname=None,
+        ax=None,
+        **kwargs,
+    ):
         if plot_limits is None:
             plot_limits = self.plot_limits
 
@@ -29,11 +38,13 @@ class Density:
             ax = plt
         if len(plot_limits) == 4:
             X, Y, Z = get_meshgrid_function_data(
-                self.pdf, plot_limits, num_samples_1d)
+                self.pdf, plot_limits, num_samples_1d
+            )
             im = ax.contourf(X, Y, Z, **kwargs)
         else:
             plot_grid = np.linspace(
-                plot_limits[0], plot_limits[1], num_samples_1d)
+                plot_limits[0], plot_limits[1], num_samples_1d
+            )
             data = self.pdf(plot_grid.reshape(1, num_samples_1d))
             im = ax.plot(plot_grid.squeeze(), data.squeeze(), **kwargs)
 
@@ -48,7 +59,7 @@ class Density:
     def __call__(self, samples):
         return self.pdf(samples)
 
-    def num_vars(self):
+    def nvars(self):
         return self.num_dims
 
 
@@ -59,10 +70,10 @@ class UniformDensity(Density):
         # variance = (self.ranges[1]-self.ranges[0])**2/12.
         self.covariance = np.eye(num_dims)  # hack*variance
         self.chol_factor = cholesky(self.covariance, lower=True)
-        self.mean = 0.5*(self.ranges[::2]+self.ranges[1::2])
-        self.volume = 1.
+        self.mean = 0.5 * (self.ranges[::2] + self.ranges[1::2])
+        self.volume = 1.0
         for d in range(num_dims):
-            self.volume *= (self.ranges[2*d+1] - self.ranges[2*d])
+            self.volume *= self.ranges[2 * d + 1] - self.ranges[2 * d]
         Density.__init__(self, num_dims, plot_limits=self.ranges)
 
     def pdf(self, samples):
@@ -85,14 +96,15 @@ class UniformDensity(Density):
             elif self.num_dims == samples.shape[0]:
                 samples = samples.reshape(samples.shape[0], 1)
             else:
-                raise Exception('samples inconsistent with dimension')
+                raise Exception("samples inconsistent with dimension")
         num_samples = samples.shape[1]
-        density_vals = 1. / self.volume * np.ones(num_samples)
+        density_vals = 1.0 / self.volume * np.ones(num_samples)
         for i in range(self.num_dims):
             II = np.where(
-                (samples[i, :] < self.ranges[2*i]) |
-                (samples[i, :] > self.ranges[2*i+1]))[0]
-            density_vals[II] = 0.
+                (samples[i, :] < self.ranges[2 * i])
+                | (samples[i, :] > self.ranges[2 * i + 1])
+            )[0]
+            density_vals[II] = 0.0
         return density_vals
 
     def generate_samples(self, num_samples):
@@ -112,7 +124,8 @@ class UniformDensity(Density):
         samples = np.empty((self.num_dims, num_samples), float)
         for i in range(self.num_dims):
             samples[i, :] = np.random.uniform(
-                self.ranges[2*i], self.ranges[2*i+1], (num_samples))
+                self.ranges[2 * i], self.ranges[2 * i + 1], (num_samples)
+            )
         return samples
 
     def gradient(self, samples):
@@ -135,7 +148,7 @@ class UniformDensity(Density):
             elif self.num_dims == samples.shape[0]:
                 samples = samples.reshape(samples.shape[0], 1)
             else:
-                raise Exception('samples inconsistent with dimension')
+                raise Exception("samples inconsistent with dimension")
         num_dims, num_samples = samples.shape
         return np.zeros((self.num_dims, num_samples))
 
@@ -161,9 +174,9 @@ class UniformDensity(Density):
             elif self.num_dims == samples.shape[0]:
                 samples = samples.reshape(samples.shape[0], 1)
             else:
-                raise Exception('samples inconsistent with dimension')
+                raise Exception("samples inconsistent with dimension")
         num_dims, num_samples = samples.shape
-        log_density_vals = -np.ones((num_samples), float)*np.log(self.volume)
+        log_density_vals = -np.ones((num_samples), float) * np.log(self.volume)
         return log_density_vals
 
     def log_pdf_gradient(self, samples):
@@ -186,14 +199,14 @@ class UniformDensity(Density):
             elif self.num_dims == samples.shape[0]:
                 samples = samples.reshape(samples.shape[0], 1)
             else:
-                raise Exception('samples inconsistent with dimension')
+                raise Exception("samples inconsistent with dimension")
         num_dims, num_samples = samples.shape
         return np.zeros((self.num_dims, num_samples))
 
 
-def map_from_canonical_gaussian(stdnormal_samples, mean,
-                                covariance_chol_factor=None,
-                                covariance_sqrt=None):
+def map_from_canonical_gaussian(
+    stdnormal_samples, mean, covariance_chol_factor=None, covariance_sqrt=None
+):
     """
     Transform independent stanard Normal to samples drawn from a correlated
     multivariate Gaussian distribution.
@@ -203,14 +216,14 @@ def map_from_canonical_gaussian(stdnormal_samples, mean,
 
     Parameters
     ----------
-    stdnormal_samples : np.ndarray (num_vars,num_samples)
+    stdnormal_samples : np.ndarray (nvars,num_samples)
         The independent standard Normal samples
 
 
-    mean : np.ndarray (num_vars)
+    mean : np.ndarray (nvars)
         The mean of the multivariate Gaussian
 
-    covariance_chol_factor : np.ndarray (num_vars,num_vars)
+    covariance_chol_factor : np.ndarray (nvars,nvars)
         The cholesky factorization of the Gaussian covariance.
 
     covariance_sqrt : callable
@@ -220,42 +233,49 @@ def map_from_canonical_gaussian(stdnormal_samples, mean,
 
     Returns
     -------
-    correlated_samples : np.ndarray (num_vars,num_samples)
+    correlated_samples : np.ndarray (nvars,num_samples)
         The generated correlated samples
 
     """
     assert mean.ndim == 1
     if covariance_chol_factor is not None and covariance_sqrt is not None:
-        raise Exception('cannot specify both covariance_chol_factor and sqrt')
+        raise Exception("cannot specify both covariance_chol_factor and sqrt")
 
     if covariance_chol_factor is None and covariance_sqrt is None:
         correlated_samples = stdnormal_samples
-        return mean[:, None]+correlated_samples
+        return mean[:, None] + correlated_samples
 
     if covariance_sqrt is None:
         if covariance_chol_factor.ndim == 2:
-            def covariance_sqrt(x): return np.dot(covariance_chol_factor, x)
+
+            def covariance_sqrt(x):
+                return np.dot(covariance_chol_factor, x)
+
         else:
-            def covariance_sqrt(x): return (x.T*covariance_chol_factor).T
+
+            def covariance_sqrt(x):
+                return (x.T * covariance_chol_factor).T
 
     correlated_samples = covariance_sqrt(stdnormal_samples)
-    return mean[:, np.newaxis]+correlated_samples
+    return mean[:, np.newaxis] + correlated_samples
 
 
-def map_to_canonical_gaussian(correlated_samples, mean, covariance_chol_factor):
+def map_to_canonical_gaussian(
+    correlated_samples, mean, covariance_chol_factor
+):
     """
     Transform samples drawn from a correlated multivariate Gaussian distribution
     into a set of independent standard Normal samples.
 
     Parameters
     ----------
-    correlated_samples : np.ndarray (num_vars,num_samples)
+    correlated_samples : np.ndarray (nvars,num_samples)
         The correlated samples
 
-    mean : np.ndarray (num_vars)
+    mean : np.ndarray (nvars)
         The mean of the multivariate Gaussian
 
-    covariance_chol_factor : np.ndarray (num_vars,num_vars)
+    covariance_chol_factor : np.ndarray (nvars,nvars)
         The cholesky factorization of the Gaussian covariance.
         If argument is a 1D array then covariance_chol_factor is the diagonal
         of the cholesky factorization. This is useful for independent
@@ -263,23 +283,25 @@ def map_to_canonical_gaussian(correlated_samples, mean, covariance_chol_factor):
 
     Returns
     -------
-    stdnormal_samples : np.ndarray (num_vars,num_samples)
+    stdnormal_samples : np.ndarray (nvars,num_samples)
         The independent standard Normal samples
     """
     assert mean.ndim == 1
-    stdnormal_samples = correlated_samples-mean[:, np.newaxis]
+    stdnormal_samples = correlated_samples - mean[:, np.newaxis]
     if covariance_chol_factor.ndim == 2:
         # stdnormal_samples = np.linalg.solve_triangular(
         stdnormal_samples = solve_triangular(
-            covariance_chol_factor, stdnormal_samples, lower=True)
+            covariance_chol_factor, stdnormal_samples, lower=True
+        )
     else:
-        stdnormal_samples = (stdnormal_samples.T/covariance_chol_factor).T
+        stdnormal_samples = (stdnormal_samples.T / covariance_chol_factor).T
     return stdnormal_samples
 
 
 class NormalDensity(Density):
-    def __init__(self, mean=None, covariance=None,
-                 covariance_chol_factor=None):
+    def __init__(
+        self, mean=None, covariance=None, covariance_chol_factor=None
+    ):
         Density.__init__(self, None, None)
 
         # allow for density to be initialized empty
@@ -317,37 +339,58 @@ class NormalDensity(Density):
             self.covariance = np.dot(self.chol_factor, self.chol_factor.T)
         self.covariance_determinant = np.linalg.det(self.covariance)
         try:
-            self.normalization_factor = 1./(np.sqrt(
-                (2.*np.pi)**self.num_dims*self.covariance_determinant))
+            self.normalization_factor = 1.0 / (
+                np.sqrt(
+                    (2.0 * np.pi) ** self.num_dims
+                    * self.covariance_determinant
+                )
+            )
         except:
-            print(('normalization_factor of Gaussian PDF could not be ',))
-            print('computed. Dimensionality is likely to large')
+            print(("normalization_factor of Gaussian PDF could not be ",))
+            print("computed. Dimensionality is likely to large")
             self.normalization_factor = 1
         self.covariance_inv = np.linalg.inv(self.covariance)
 
         intervals = []
         for i in range(self.num_dims):
-            interval = stats.norm.interval(.999, 0., 1.)
+            interval = stats.norm.interval(0.999, 0.0, 1.0)
             intervals.append([interval[0], interval[1]])
         intervals = np.array(intervals)
 
-        intervals = np.dot(self.chol_factor, intervals) +\
-            np.tile(self.mean.reshape(self.mean.shape[0], 1), (1, 2))
+        intervals = np.dot(self.chol_factor, intervals) + np.tile(
+            self.mean.reshape(self.mean.shape[0], 1), (1, 2)
+        )
 
         # rotation can make max min and vice-versa
         # when density is correlated plot limits are the limits along the
         # rotated axes. I could project back onto original axes but I have
         # not bothered
-        self.plot_limits = np.empty((2*self.num_dims), float)
+        self.plot_limits = np.empty((2 * self.num_dims), float)
         for i in range(self.num_dims):
-            self.plot_limits[2*i] = intervals[i, :].min()
-            self.plot_limits[2*i+1] = intervals[i, :].max()
+            self.plot_limits[2 * i] = intervals[i, :].min()
+            self.plot_limits[2 * i + 1] = intervals[i, :].max()
 
-    def plot_contours(self, show=False, ls='-', color='k', label=None,
-                      num_contours=4, ax=None, plot_mean=True):
+    def plot_contours(
+        self,
+        show=False,
+        ls="-",
+        color="k",
+        label=None,
+        num_contours=4,
+        ax=None,
+        plot_mean=True,
+    ):
         return plot_gaussian_contours(
-            self.mean, self.chol_factor, show, ls, color, label, num_contours,
-            ax, plot_mean)[0]
+            self.mean,
+            self.chol_factor,
+            show,
+            ls,
+            color,
+            label,
+            num_contours,
+            ax,
+            plot_mean,
+        )[0]
 
     def pdf(self, samples):
         """
@@ -369,9 +412,9 @@ class NormalDensity(Density):
             elif self.num_dims == samples.shape[0]:
                 samples = samples.reshape(samples.shape[0], 1)
             else:
-                raise Exception('samples inconsistent with dimension')
+                raise Exception("samples inconsistent with dimension")
 
-        #from scipy.stats import multivariate_normal
+        # from scipy.stats import multivariate_normal
         # return multivariate_normal.pdf(samples.T, mean=self.mean, cov=self.covariance);
 
         # scipy.stats.norm() scale parameter is the np.sqrt(variance)
@@ -381,8 +424,9 @@ class NormalDensity(Density):
         scaled_res = np.dot(self.covariance_inv, res)
         density_vals = np.empty((num_samples, 1), float)
         for i in range(num_samples):
-            density_vals[i] = np.exp(-0.5*np.dot(res[:, i].T,
-                                                 scaled_res[:, i]))
+            density_vals[i] = np.exp(
+                -0.5 * np.dot(res[:, i].T, scaled_res[:, i])
+            )
         density_vals *= self.normalization_factor
         return density_vals
 
@@ -406,13 +450,13 @@ class NormalDensity(Density):
             elif self.num_dims == samples.shape[0]:
                 samples = samples.reshape(samples.shape[0], 1)
             else:
-                raise Exception('samples inconsistent with dimension')
+                raise Exception("samples inconsistent with dimension")
         num_samples = samples.shape[1]
         gradients = np.empty((self.num_dims, num_samples))
         for i in range(num_samples):
-            gradients[:, i] = self.pdf(
-                samples[:, i])*np.dot(
-                    self.covariance_inv, (self.mean-samples[:, i]))
+            gradients[:, i] = self.pdf(samples[:, i]) * np.dot(
+                self.covariance_inv, (self.mean - samples[:, i])
+            )
         return gradients
 
     def log_pdf(self, samples):
@@ -437,13 +481,13 @@ class NormalDensity(Density):
             elif self.num_dims == samples.shape[0]:
                 samples = samples.reshape(samples.shape[0], 1)
             else:
-                raise Exception('samples inconsistent with dimension')
+                raise Exception("samples inconsistent with dimension")
         num_dims, num_samples = samples.shape
-        res = samples-self.mean[:, np.newaxis]
+        res = samples - self.mean[:, np.newaxis]
         scaled_res = np.dot(self.covariance_inv, res)
         log_density_vals = np.empty((num_samples, 1), float)
         for i in range(num_samples):
-            log_density_vals[i] = -0.5*np.dot(res[:, i], scaled_res[:, i])
+            log_density_vals[i] = -0.5 * np.dot(res[:, i], scaled_res[:, i])
         log_density_vals += np.log(self.normalization_factor)
         return log_density_vals
 
@@ -467,12 +511,13 @@ class NormalDensity(Density):
             elif self.num_dims == samples.shape[0]:
                 samples = samples.reshape(samples.shape[0], 1)
             else:
-                raise Exception('samples inconsistent with dimension')
+                raise Exception("samples inconsistent with dimension")
         num_dims, num_samples = samples.shape
         gradients = np.empty((self.num_dims, num_samples))
         for i in range(num_samples):
             gradients[:, i] = -np.dot(
-                self.covariance_inv, (samples[:, i]-self.mean))
+                self.covariance_inv, (samples[:, i] - self.mean)
+            )
         return gradients
 
     def generate_samples(self, num_samples, return_iid_samples=False):
@@ -499,9 +544,10 @@ class NormalDensity(Density):
             were used to generate samples. Only returned if
             return_iid_samples is True
         """
-        iid_samples = np.random.normal(0., 1., (self.num_dims, num_samples))
+        iid_samples = np.random.normal(0.0, 1.0, (self.num_dims, num_samples))
         samples = map_from_canonical_gaussian(
-            iid_samples, self.mean, self.chol_factor)
+            iid_samples, self.mean, self.chol_factor
+        )
         if not return_iid_samples:
             return samples
         else:
@@ -509,8 +555,14 @@ class NormalDensity(Density):
 
 
 class ObsDataDensity(Density):
-    def __init__(self, obs_data=None, obs_data_filename=None,
-                 trans=True, marginalize_dims=None, num_skip_columns=0):
+    def __init__(
+        self,
+        obs_data=None,
+        obs_data_filename=None,
+        trans=True,
+        marginalize_dims=None,
+        num_skip_columns=0,
+    ):
         """
         Parameters
         ----------
@@ -528,8 +580,9 @@ class ObsDataDensity(Density):
         self.data = obs_data
 
         if self.obs_data_filename is not None:
-            self.data = self.get_data(self.obs_data_filename, trans,
-                                      num_skip_columns)
+            self.data = self.get_data(
+                self.obs_data_filename, trans, num_skip_columns
+            )
 
         if marginalize_dims is not None:
             self.data = self.data[marginalize_dims, :]
@@ -538,7 +591,7 @@ class ObsDataDensity(Density):
 
         # data is num_samples x num_qoi, kde needs num_qoi x num_samples
         # print 'building kde...',
-        self.kde = stats.gaussian_kde(self.data, 'silverman')
+        self.kde = stats.gaussian_kde(self.data, "silverman")
         # print 'kde built'
 
         num_dims = self.data.shape[0]
@@ -596,7 +649,8 @@ class TensorProductDensity(Density):
         for i in range(self.num_independent_densities):
             num_dims_i = self.densities[i].num_dims
             density_vals *= self.densities[i].pdf(
-                samples[shift:shift+num_dims_i, :])
+                samples[shift : shift + num_dims_i, :]
+            )
             shift += num_dims_i
         return density_vals
 
@@ -605,8 +659,9 @@ class TensorProductDensity(Density):
         shift = 0
         for i in range(self.num_independent_densities):
             num_dims_i = self.densities[i].num_dims
-            samples[shift:shift+num_dims_i, :] =\
-                self.densities[i].generate_samples(num_samples)
+            samples[shift : shift + num_dims_i, :] = self.densities[
+                i
+            ].generate_samples(num_samples)
             shift += num_dims_i
         return samples
 
@@ -617,11 +672,13 @@ class TensorProductDensity(Density):
             if num_dims_i == 1:
                 plt.figure(k)
                 density = self.densities[i]
-                plot_grid = np.linspace(density.plot_limits[0],
-                                        density.plot_limits[1],
-                                        num_samples)
-                plt.plot(plot_grid, density.pdf(
-                    plot_grid.reshape(1, num_samples)).squeeze())
+                plot_grid = np.linspace(
+                    density.plot_limits[0], density.plot_limits[1], num_samples
+                )
+                plt.plot(
+                    plot_grid,
+                    density.pdf(plot_grid.reshape(1, num_samples)).squeeze(),
+                )
                 k += 1
         plt.show()
 
@@ -633,32 +690,32 @@ def tensor_product_pdf(samples, univariate_pdfs):
     jacobi polynomial  on [-1,1] if beta_pdf is not mapped to [-1,1]
     by user.
     """
-    num_vars, num_samples = samples.shape
+    nvars, num_samples = samples.shape
 
     if callable(univariate_pdfs):
-        univariate_pdfs = [univariate_pdfs]*num_vars
+        univariate_pdfs = [univariate_pdfs] * nvars
     if len(univariate_pdfs) == 1:
-        univariate_pdfs = [univariate_pdfs[0]]*num_vars
+        univariate_pdfs = [univariate_pdfs[0]] * nvars
 
     vals = np.ones((num_samples), dtype=float)
-    for dd in range(num_vars):
+    for dd in range(nvars):
         vals *= univariate_pdfs[dd](samples[dd, :])
     return vals
 
 
 def multivariate_student_t_density(samples, mean, covariance, df, log=False):
-    '''
+    """
     Evaluate the Multivariate t-student density.
 
     Parameters:
     -----------
-    samples : np.ndarray (num_vars, num_samples)
+    samples : np.ndarray (nvars, num_samples)
         The samples at which to evaluate the PDF
 
-    mean : np.ndarray (num_vars)
+    mean : np.ndarray (nvars)
         The mean of the distribution
 
-    covariance : np.ndarray(num_vars,num_vars)
+    covariance : np.ndarray(nvars,nvars)
         The covariance of the distribution
 
     df : integer
@@ -667,24 +724,37 @@ def multivariate_student_t_density(samples, mean, covariance, df, log=False):
     log : boolean
         True  - return log of density
         False - return density
-    '''
-    num_vars = samples.shape[0]
+    """
+    nvars = samples.shape[0]
     L = np.linalg.cholesky(covariance)
-    Lres = solve_triangular(L, samples-mean[:, np.newaxis], lower=True)
+    Lres = solve_triangular(L, samples - mean[:, np.newaxis], lower=True)
     sum_squares = np.sum(Lres**2, axis=0)
-    logretval = gammaln(1.0*(num_vars + df)/2.) - \
-        (gammaln(1.*df/2.) + np.sum(np.log(L.diagonal()))
-         + num_vars/2. * np.log(np.pi * df)) - \
-        0.5 * (df + num_vars) * np.log1p((sum_squares/df))
+    logretval = (
+        gammaln(1.0 * (nvars + df) / 2.0)
+        - (
+            gammaln(1.0 * df / 2.0)
+            + np.sum(np.log(L.diagonal()))
+            + nvars / 2.0 * np.log(np.pi * df)
+        )
+        - 0.5 * (df + nvars) * np.log1p((sum_squares / df))
+    )
     if log == False:
-        return(np.exp(logretval))
+        return np.exp(logretval)
     else:
-        return(logretval)
+        return logretval
 
 
-def plot_gaussian_contours(mean, chol_factor, show=False,
-                           ls='-', color='k', label=None, num_contours=3, ax=None,
-                           plot_mean=True):
+def plot_gaussian_contours(
+    mean,
+    chol_factor,
+    show=False,
+    ls="-",
+    color="k",
+    label=None,
+    num_contours=3,
+    ax=None,
+    plot_mean=True,
+):
 
     if ax is None:
         f, ax = plt.subplots(1, 1)
@@ -697,21 +767,22 @@ def plot_gaussian_contours(mean, chol_factor, show=False,
     for i in range(min(len(alpha), num_contours)):
         # Get endpoints of the range that contains
         # alpha percent of the distribution
-        interval = stats.norm.interval(alpha[i], 0., 1.)
-        radius = (interval[1]-interval[0])/2.
+        interval = stats.norm.interval(alpha[i], 0.0, 1.0)
+        radius = (interval[1] - interval[0]) / 2.0
         x = np.linspace(-radius, +radius, 200)
-        y = np.hstack((np.sqrt(radius**2-x**2), -np.sqrt(radius**2-x**2)))
+        y = np.hstack((np.sqrt(radius**2 - x**2), -np.sqrt(radius**2 - x**2)))
         x = np.hstack((x, -x))
         samples = np.vstack((x[np.newaxis, :], y[np.newaxis, :]))
         assert samples.shape[0] == 2
-        samples = np.dot(chol_factor, samples)+mean
+        samples = np.dot(chol_factor, samples) + mean
         if i > 0:
             label = None
-        ellips = ax.plot(samples[0, :], samples[1, :], ls, color=color,
-                         lw=2, label=label)
+        ellips = ax.plot(
+            samples[0, :], samples[1, :], ls, color=color, lw=2, label=label
+        )
         ellips_list.append(ellips[0])
         if plot_mean:
-            ax.plot(mean[0], mean[1], 'o', color=color, ms=5)
+            ax.plot(mean[0], mean[1], "o", color=color, ms=5)
     if show:
         plt.show()
     return ellips_list, ax
@@ -724,34 +795,39 @@ class EmpiricalCDF(object):
         self.sorted_samples = np.sort(self.samples)
         if weights is None:
             self.ecdf = [
-                (ii+1)/self.sorted_samples.shape[0]
-                for ii in range(self.sorted_samples.shape[0])]
+                (ii + 1) / self.sorted_samples.shape[0]
+                for ii in range(self.sorted_samples.shape[0])
+            ]
         else:
             assert weights.ndim == 1
             II = np.argsort(self.samples)
             self.ecdf = np.cumsum(weights[II])
 
         self.interp = interp1d(
-            self.sorted_samples, self.ecdf, kind="zero", fill_value=(0, 1),
-            bounds_error=False)
+            self.sorted_samples,
+            self.ecdf,
+            kind="zero",
+            fill_value=(0, 1),
+            bounds_error=False,
+        )
 
     def __call__(self, samples):
         assert np.isscalar(samples) or samples.ndim == 1
         return self.interp(samples)
 
     def integrate_cdf(self):
-        vals = np.cumsum(np.diff(self.sorted_samples)*self.ecdf[:-1])
+        vals = np.cumsum(np.diff(self.sorted_samples) * self.ecdf[:-1])
         return np.append(0, vals)
 
 
 def beta_pdf(alpha_stat, beta_stat, x):
     # scipy implementation is slow
-    const = 1./beta_fn(alpha_stat, beta_stat)
-    return const*(x**(alpha_stat-1)*(1-x)**(beta_stat-1))
+    const = 1.0 / beta_fn(alpha_stat, beta_stat)
+    return const * (x ** (alpha_stat - 1) * (1 - x) ** (beta_stat - 1))
 
 
 def pdf_under_affine_map(pdf, loc, scale, y):
-    return pdf((y-loc)/scale)/scale
+    return pdf((y - loc) / scale) / scale
 
 
 def beta_pdf_on_ab(alpha_stat, beta_stat, a, b, x):
@@ -759,8 +835,9 @@ def beta_pdf_on_ab(alpha_stat, beta_stat, a, b, x):
     # const /= (b-a)**(alpha_stat+beta_stat-1)
     # return const*((x-a)**(alpha_stat-1)*(b-x)**(beta_stat-1))
     from functools import partial
+
     pdf = partial(beta_pdf, alpha_stat, beta_stat)
-    return pdf_under_affine_map(pdf, a, (b-a), x)
+    return pdf_under_affine_map(pdf, a, (b - a), x)
 
 
 def beta_pdf_derivative(alpha_stat, beta_stat, x):
@@ -770,29 +847,36 @@ def beta_pdf_derivative(alpha_stat, beta_stat, x):
     # beta_const = gamma_fn(alpha_stat+beta_stat)/(
     # gamma_fn(alpha_stat)*gamma_fn(beta_stat))
 
-    beta_const = 1./beta_fn(alpha_stat, beta_stat)
+    beta_const = 1.0 / beta_fn(alpha_stat, beta_stat)
     deriv = 0
     if alpha_stat > 1:
-        deriv += (alpha_stat-1)*(x**(alpha_stat-2)*(1-x)**(beta_stat-1))
+        deriv += (alpha_stat - 1) * (
+            x ** (alpha_stat - 2) * (1 - x) ** (beta_stat - 1)
+        )
     if beta_stat > 1:
-        deriv -= (beta_stat - 1)*(x**(alpha_stat-1)*(1-x)**(beta_stat-2))
+        deriv -= (beta_stat - 1) * (
+            x ** (alpha_stat - 1) * (1 - x) ** (beta_stat - 2)
+        )
     deriv *= beta_const
     return deriv
 
 
 def gaussian_cdf(mean, var, x):
-    return 0.5*(1+erf((x-mean)/(np.sqrt(var*2))))
+    return 0.5 * (1 + erf((x - mean) / (np.sqrt(var * 2))))
 
 
 def gaussian_pdf(mean, var, x, package=np):
     r"""
     set package=sympy if want to use for symbolic calculations
     """
-    return package.exp(-(x-mean)**2/(2*var)) / (2*package.pi*var)**.5
+    return (
+        package.exp(-((x - mean) ** 2) / (2 * var))
+        / (2 * package.pi * var) ** 0.5
+    )
 
 
 def gaussian_pdf_derivative(mean, var, x):
-    return -gaussian_pdf(mean, var, x)*(x-mean)/var
+    return -gaussian_pdf(mean, var, x) * (x - mean) / var
 
 
 def pdf_derivative_under_affine_map(pdf_deriv, loc, scale, y):
@@ -801,4 +885,4 @@ def pdf_derivative_under_affine_map(pdf_deriv, loc, scale, y):
     p_Y(y)=p_X(v(y))*|dv/dy(y)|=p_X((y-loc)/scale))/scale
     dp_Y(y)/dy = dv/dy(y)*dp_X/dx(v(y))/scale = dp_X/dx(v(y))/scale**2
     """
-    return pdf_deriv((y-loc)/scale)/scale**2
+    return pdf_deriv((y - loc) / scale) / scale**2
