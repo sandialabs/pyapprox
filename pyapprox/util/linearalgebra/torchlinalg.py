@@ -177,14 +177,20 @@ class TorchLinAlgMixin(LinAlgMixin):
         return mat.ndim
 
     @staticmethod
-    def repeat(mat: torch.Tensor, nreps: int) -> torch.Tensor:
-        # in 2d with axis=1
-        # b.view(-1, 1).repeat(1,nreps).view(b.shape[0], -1)
-        # for axis=0
-        # b.repeat(1, nreps).view(-1, nreps)
-        # todo all instance of repeat in code to bkd.tile and then
-        # test
-        return mat.repeat(nreps)
+    def repeat(
+        mat: torch.Tensor, nreps: int, axis: int = None
+    ) -> torch.Tensor:
+        if mat.ndim == 1:
+            return mat.repeat_interleave(nreps)
+        if mat.ndim > 2:
+            raise ValueError("ndim must be <= 2")
+        if axis is None:
+            return mat.repeat_interleave(nreps)
+        if axis == 0:
+            return mat.repeat(1, nreps).view(-1, mat.shape[1])
+        if axis == 1:
+            return mat.view(-1, 1).repeat(1, nreps).view(mat.shape[0], -1)
+        raise ValueError("axis > 2 but mat.ndim == 2")
 
     @staticmethod
     def tile(mat: torch.Tensor, nreps: tuple) -> torch.Tensor:

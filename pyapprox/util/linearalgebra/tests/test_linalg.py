@@ -13,7 +13,7 @@ from pyapprox.util.linearalgebra.linalg import (
 class TestLinalg:
     def setUp(self):
         np.random.seed(1)
-    
+
     def test_update_cholesky_decomposition(self):
         bkd = self.get_backend()
         nvars = 5
@@ -94,7 +94,7 @@ class TestLinalg:
         L1 = factorizer1.factorize(A.shape[0], pivot_weights=pivot_weights)
 
         # perform partial facorization
-        npivots = A.shape[0]-2
+        npivots = A.shape[0] - 2
         factorizer2 = PivotedCholeskyFactorizer(A, bkd=bkd)
         factorizer2.factorize(npivots, pivot_weights=pivot_weights)
         assert factorizer2.npivots() == npivots
@@ -109,6 +109,37 @@ class TestLinalg:
 class TestNumpyLinalg(TestLinalg, unittest.TestCase):
     def get_backend(self):
         return NumpyLinAlgMixin
+
+    def test_repeat(self):
+        # I had to implement torch repeat to be consistent with numpy
+        # so test here
+        np_bkd = self.get_backend()
+        torch_bkd = TorchLinAlgMixin
+        nreps = 5
+
+        # 1D array
+        np_Amat = np_bkd.arange(12)
+        torch_Amat = torch_bkd.asarray(np_Amat, dtype=int)
+        assert np.allclose(
+            np_bkd.repeat(np_Amat, nreps),
+            torch_bkd.repeat(torch_Amat, nreps).numpy(),
+        )
+
+        # 2D array
+        np_Amat = np_bkd.arange(12).reshape(4, 3)
+        torch_Amat = torch_bkd.asarray(np_Amat, dtype=int)
+        assert np.allclose(
+            np_bkd.repeat(np_Amat, nreps),
+            torch_bkd.repeat(torch_Amat, nreps).numpy(),
+        )
+        assert np.allclose(
+            np_bkd.repeat(np_Amat, nreps, axis=0),
+            torch_bkd.repeat(torch_Amat, nreps, axis=0).numpy(),
+        )
+        assert np.allclose(
+            np_bkd.repeat(np_Amat, nreps, axis=1),
+            torch_bkd.repeat(torch_Amat, nreps, axis=1).numpy(),
+        )
 
 
 class TestTorchLinalg(TestLinalg, unittest.TestCase):

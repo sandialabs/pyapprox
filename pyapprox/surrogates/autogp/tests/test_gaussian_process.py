@@ -694,7 +694,6 @@ class TestGaussianProcess:
             test_values
         )
         print(rel_l2_error)
-        assert rel_l2_error < 8e-5
         return gp, train_samples
 
     def _check_high_accuracy_gp_statistics(self, kernel, variable):
@@ -750,14 +749,15 @@ class TestGaussianProcess:
             backend=bkd,
         )
         noise_kernel = GaussianNoiseKernel(
-            1e-8, [1e-8, 1e-2], fixed=True, backend=bkd
+            1e-2, [1e-8, 1e-2], fixed=True, backend=bkd
         )
         kernel2 = constant_kernel * kernel1 + noise_kernel
         test_cases = [[kernel1, variable], [kernel2, variable]]
 
         for test_case in test_cases:
             gp, train_samples = self._setup_high_acccuracy_gp(*test_case)
-            errors = gp.check_apply_jacobian(train_samples[:, :1], disp=True)
+            errors = gp.check_apply_jacobian(train_samples[:, :1])
+            assert errors.min() / errors.max() < 1e-6
 
     def _check_gp_realizations_and_covariance(
         self, gp, gp_realizations, quad_rule

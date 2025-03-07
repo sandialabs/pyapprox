@@ -172,8 +172,8 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return mat.ndim
 
     @staticmethod
-    def repeat(mat: np.ndarray, nreps: int) -> np.ndarray:
-        return np.tile(mat, nreps)
+    def repeat(mat: np.ndarray, nreps: int, axis: int = None) -> np.ndarray:
+        return np.repeat(mat, nreps, axis=axis)
 
     @staticmethod
     def tile(mat: np.ndarray, nreps) -> np.ndarray:
