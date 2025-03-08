@@ -15,11 +15,10 @@ from pyapprox.util.randomized_svd import (
 )
 from pyapprox.variables.joint import MultivariateGaussian
 from pyapprox.variables.gaussian import (
-    CholeskySqrtCovarianceOperator,
+    DenseCholeskySqrtCovarianceOperator,
     CovarianceOperator,
-    get_operator_diagonal,
 )
-from pyapprox.interface.model import DenseMatrixLinearModel
+from pyapprox.interface.model import DenseMatrixLinearModel, Model
 from pyapprox.bayes.laplace import (
     get_laplace_covariance_sqrt_operator,
     get_pointwise_laplace_variance_using_prior_variance,
@@ -34,89 +33,7 @@ from pyapprox.bayes.laplace import (
     compute_posterior_mean_covar_optimal_for_prediction,
 )
 from pyapprox.util.visualization import plot_multiple_2d_gaussian_slices
-
-
-class QuadraticMisfitModel(object):
-    def __init__(
-        self,
-        num_vars,
-        rank,
-        num_qoi,
-        obs=None,
-        noise_covariance=None,
-        Amatrix=None,
-    ):
-        self.num_vars = num_vars
-        self.rank = rank
-        self.num_qoi = num_qoi
-        if Amatrix is None:
-            self.Amatrix = get_low_rank_matrix(num_qoi, num_vars, rank)
-        else:
-            self.Amatrix = Amatrix
-
-        if obs is None:
-            self.obs = np.zeros(num_qoi)
-        else:
-            self.obs = obs
-        if noise_covariance is None:
-            self.noise_covariance = np.eye(num_qoi)
-        else:
-            self.noise_covariance = noise_covariance
-
-        self.noise_covariance_inv = np.linalg.inv(self.noise_covariance)
-
-    def value(self, sample):
-        assert sample.ndim == 1
-        residual = np.dot(self.Amatrix, sample) - self.obs
-        return np.asarray(
-            [
-                0.5
-                * np.dot(
-                    residual.T, np.dot(self.noise_covariance_inv, residual)
-                )
-            ]
-        )
-
-    def gradient(self, sample):
-        assert sample.ndim == 1
-        grad = np.dot(
-            self.Amatrix.T,
-            np.dot(
-                self.noise_covariance_inv,
-                np.dot(self.Amatrix, sample) - self.obs,
-            ),
-        )
-        return grad
-
-    def gradient_set(self, samples):
-        assert samples.ndim == 2
-        num_vars, num_samples = samples.shape
-        gradients = np.empty((num_vars, num_samples), dtype=float)
-        for i in range(num_samples):
-            gradients[:, i] = self.gradient(samples[:, i])
-        return gradients
-
-    def hessian(self, sample):
-        assert sample.ndim == 1 or sample.shape[1] == 1
-        return np.dot(
-            np.dot(self.Amatrix.T, self.noise_covariance_inv), self.Amatrix
-        )
-
-    def __call__(self, samples, opts=dict()):
-        eval_type = opts.get("eval_type", "value")
-        if eval_type == "value":
-            return evaluate_1darray_function_on_2d_array(
-                self.value, samples, opts
-            )
-        elif eval_type == "value_grad":
-            vals = evaluate_1darray_function_on_2d_array(
-                self.value, samples, opts
-            )
-            return np.hstack((vals, self.gradient_set(samples).T))
-        elif eval_type == "grad":
-            return self.gradient_set(samples).T
-        else:
-            raise Exception("%s is not a valid eval_type" % eval_type)
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 def assert_ndarray_allclose(matrix1, matrix2, atol=1e-8, rtol=1e-5, msg=None):
@@ -143,25 +60,25 @@ def assert_ndarray_allclose(matrix1, matrix2, atol=1e-8, rtol=1e-5, msg=None):
 
 def setup_quadratic_misfit_problem(prior, rank, noise_sigma2=1):
     # Define observations
-    num_qoi = 2 * rank
-    # assert num_qoi>=rank
+    nqoi = 2 * rank
+    # assert nqoi>=rank
 
-    noise_covariance = np.eye(num_qoi) * noise_sigma2
+    noise_covariance = np.eye(nqoi) * noise_sigma2
     noise_covariance_inv = np.linalg.inv(noise_covariance)
     # In high dimensions computing cholesky factor is too expensive.
     # That is why we use PDE based operator
     noise_covariance_chol_factor = np.linalg.cholesky(noise_covariance)
     truth_sample = prior.generate_samples(1)[:, 0]
-    num_vars = truth_sample.shape[0]
-    Amatrix = get_low_rank_matrix(num_qoi, num_vars, rank)
+    nvars = truth_sample.shape[0]
+    Amatrix = get_low_rank_matrix(nqoi, nvars, rank)
     noise = np.dot(
         noise_covariance_chol_factor,
-        np.random.normal(0.0, noise_sigma2, num_qoi),
+        np.random.normal(0.0, noise_sigma2, nqoi),
     )
     obs = np.dot(Amatrix, truth_sample) + noise
 
     # Define mistit model
-    misfit_model = QuadraticMisfitModel(num_vars, rank, num_qoi, Amatrix)
+    misfit_model = QuadraticMisfitModel(nvars, rank, nqoi, Amatrix)
 
     return misfit_model, noise_covariance_inv, obs
 
@@ -192,10 +109,10 @@ def posterior_covariance_helper(
 
     # Extract prior information required for computing exact posterior
     # mean and covariance
-    num_vars = prior.num_vars()
-    prior_mean = np.zeros((num_vars), float)
-    L = L_op(np.eye(num_vars), False)
-    L_T = L_op(np.eye(num_vars), True)
+    nvars = prior.nvars()
+    prior_mean = np.zeros((nvars), float)
+    L = L_op(np.eye(nvars), False)
+    L_T = L_op(np.eye(nvars), True)
     assert_ndarray_allclose(
         L.T,
         L_T,
@@ -231,7 +148,7 @@ def posterior_covariance_helper(
     )
 
     # Define prior conditioned misfit operator
-    sample = np.zeros(num_vars)
+    sample = np.zeros(nvars)
     misfit_hessian_operator = MisfitHessianVecOperator(
         misfit_model, sample, fd_eps=None
     )
@@ -241,7 +158,7 @@ def posterior_covariance_helper(
 
     # For testing purposes build entire L*H*L matrix using operator
     # and compare to result based upon explicit matrix mutiplication
-    LHL_op = LHL_op.apply(np.eye(num_vars), transpose=False)
+    LHL_op = LHL_op.apply(np.eye(nvars), transpose=False)
     H = misfit_model.hessian(sample)
     assert np.allclose(
         H,
@@ -262,7 +179,7 @@ def posterior_covariance_helper(
     # are the same as those obtained using singular decomposition
     Utrue, Strue, Vtrue = np.linalg.svd(LHL_mat)
     Utrue, Vtrue = adjust_sign_svd(Utrue, Vtrue)
-    standard_svd_opts = {"num_singular_values": rank, "num_extra_samples": 10}
+    standard_svd_opts = {"nsingular_values": rank, "nextra_samples": 10}
     svd_opts = {"single_pass": True, "standard_opts": standard_svd_opts}
     L_post_op = get_laplace_covariance_sqrt_operator(
         L_op,
@@ -286,8 +203,8 @@ def posterior_covariance_helper(
     # Test posterior sqrt covariance operator transpose is the same as
     # explicit matrix transpose of matrix obtained by prior sqrt
     # covariance operator
-    L_post = L_post_op.apply(np.eye(num_vars), transpose=False)
-    L_post_T = L_post_op.apply(np.eye(num_vars), transpose=True)
+    L_post = L_post_op.apply(np.eye(nvars), transpose=False)
+    L_post_T = L_post_op.apply(np.eye(nvars), transpose=True)
     assert_ndarray_allclose(
         L_post.T,
         L_post_T,
@@ -297,7 +214,7 @@ def posterior_covariance_helper(
 
     # Test posterior covariance operator produced matrix is the same
     # as the exact posterior covariance obtained using analytical formula
-    if rank == num_vars:
+    if rank == nvars:
         # this test only makes sense if entire set of directions is found
         # if low rank approx is used then this will ofcourse induce errors
         post_covariance = np.dot(L_post, L_post_T)
@@ -325,9 +242,9 @@ def posterior_covariance_helper(
 
     if not test_sampling:
         return
-    num_samples = int(2e5)
+    nsamples = int(2e5)
     posterior_samples = sample_from_laplace_posterior(
-        exact_laplace_mean, L_post_op, num_vars, num_samples, weights=None
+        exact_laplace_mean, L_post_op, nvars, nsamples, weights=None
     )
     assert_ndarray_allclose(
         exact_laplace_covariance,
@@ -375,7 +292,7 @@ def posterior_covariance_helper(
         )
 
 
-class TestLaplace(unittest.TestCase):
+class TestLaplace:
 
     def setUp(self):
         np.random.seed(2)
@@ -399,28 +316,28 @@ class TestLaplace(unittest.TestCase):
             os.remove(filename)
 
     def test_operator_diagonal(self):
-        num_vars = 4
-        eval_concurrency = 2
-        randn = np.random.normal(0.0, 1.0, (num_vars, num_vars))
-        prior_covariance = np.dot(randn.T, randn)
-        sqrt_covar_op = CholeskySqrtCovarianceOperator(
-            prior_covariance, eval_concurrency
+        bkd = self.get_backend()
+        nvars = 4
+        randn = bkd.asarray(np.random.normal(0.0, 1.0, (nvars, nvars)))
+        prior_covariance = randn.T @ randn
+        sqrt_covar_op = DenseCholeskySqrtCovarianceOperator(
+            prior_covariance, backend=bkd
         )
-        covariance_operator = CovarianceOperator(sqrt_covar_op)
-        diagonal = get_operator_diagonal(
-            covariance_operator, num_vars, eval_concurrency, transpose=None
-        )
-        assert np.allclose(diagonal, np.diag(prior_covariance))
+
+        batch_size = 3
+        cov_op = CovarianceOperator(sqrt_covar_op)
+        diagonal = cov_op.diagonal(batch_size)
+        assert bkd.allclose(diagonal, bkd.diag(prior_covariance))
 
     def test_posterior_dense_matrix_covariance_operator(self):
-        num_vars = 121
+        nvars = 121
         rank = 10
         eval_concurrency = 20
-        # randn = np.random.normal(0.,1.,(num_vars,num_vars))
+        # randn = np.random.normal(0.,1.,(nvars,nvars))
         # prior_covariance = np.dot(randn.T,randn)
-        prior_covariance = np.eye(num_vars)
+        prior_covariance = np.eye(nvars)
         prior_sqrt_covariance_op = CholeskySqrtCovarianceOperator(
-            prior_covariance, eval_concurrency
+            prior_covariance, eval_concurrency, backend=bkd
         )
         prior = MultivariateGaussian(prior_sqrt_covariance_op)
         comparison_tol = 6e-7
@@ -455,19 +372,6 @@ class TestLaplace(unittest.TestCase):
             rtol=1e-2,
         )
 
-    def test_laplace_posterior_hessian_vec_operator(self):
-        nvars = 10
-        rank = 3
-        nqoi = 3
-        model = QuadraticMisfitModel(nvars, rank, nqoi)
-        map_point = np.zeros(nvars)
-        # map_point_misfit_gradient = model.gradient(map_point)
-        operator = MisfitHessianVecOperator(model, map_point)
-        vectors = np.random.normal(0.0, 1.0, (nvars, 2))
-        hess_vec_prods = operator.apply(vectors)
-        true_hess_vec_prods = np.dot(model.hessian(map_point), vectors)
-        assert np.allclose(true_hess_vec_prods, hess_vec_prods)
-
     def test_hessian_vector_multiply_operator_with_randomized_svd(self):
         nvars = 100
         rank = 21
@@ -484,10 +388,10 @@ class TestLaplace(unittest.TestCase):
         operator = MatVecOperator(np.dot(Amatrix.T, Amatrix))
         adaptive_svd_opts = {
             "tolerance": 1e-8,
-            "num_extra_samples": 10,
-            "max_num_iter_error_increase": 20,
+            "nextra_samples": 10,
+            "max_niter_error_increase": 20,
             "verbosity": 0,
-            "max_num_samples": 100,
+            "max_nsamples": 100,
             "concurrency": concurrency,
         }
         svd_opts = {"adaptive_opts": adaptive_svd_opts}
@@ -575,8 +479,8 @@ class TestLaplace(unittest.TestCase):
             misfit_model, sample, fd_eps=1e-7
         )
         standard_svd_opts = {
-            "num_singular_values": rank,
-            "num_extra_samples": 10,
+            "nsingular_values": rank,
+            "nextra_samples": 10,
         }
         svd_opts = {"single_pass": False, "standard_opts": standard_svd_opts}
         laplace_covariance_sqrt = get_laplace_covariance_sqrt_operator(
@@ -605,8 +509,8 @@ class TestLaplace(unittest.TestCase):
         covariance_operator = CovarianceOperator(sqrt_covariance_operator)
         kle = KLE()
         standard_svd_opts = {
-            "num_singular_values": mesh.shape[0],
-            "num_extra_samples": 10,
+            "nsingular_values": mesh.shape[0],
+            "nextra_samples": 10,
         }
         svd_opts = {"single_pass": False, "standard_opts": standard_svd_opts}
         kle.solve_eigenvalue_problem(
@@ -631,10 +535,10 @@ class TestLaplace(unittest.TestCase):
         if os.path.exists(posterior_variance_filename):
             os.remove(posterior_variance_filename)
 
-        num_vars = 121
+        nvars = 121
         rank = 20
         eval_concurrency = 2
-        prior_covariance = np.eye(num_vars)
+        prior_covariance = np.eye(nvars)
         prior_sqrt_covariance_op = CholeskySqrtCovarianceOperator(
             prior_covariance, eval_concurrency, fault_percentage=2
         )
@@ -660,15 +564,15 @@ class TestLaplace(unittest.TestCase):
         # map
         misfit_model.map_point = lambda: exact_laplace_mean
 
-        num_singular_values = prior.num_vars()
+        nsingular_values = prior.nvars()
         try:
             L_post_op = generate_and_save_laplace_posterior(
                 prior,
                 misfit_model,
-                num_singular_values,
+                nsingular_values,
                 svd_history_filename=svd_history_filename,
                 Lpost_op_filename=Lpost_op_filename,
-                num_extra_svd_samples=30,
+                nextra_svd_samples=30,
                 fd_eps=None,
             )
         except:
@@ -680,8 +584,8 @@ class TestLaplace(unittest.TestCase):
             Y = Y[:, I]
             Q, R = np.linalg.qr(Y)
             U, S, V = svd_using_orthogonal_basis(None, Q, X, Y, True)
-            U = U[:, :num_singular_values]
-            S = S[:num_singular_values]
+            U = U[:, :nsingular_values]
+            S = S[:nsingular_values]
             L_post_op = LaplaceSqrtMatVecOperator(
                 prior_sqrt_covariance_op, e_r=S, V_r=U
             )
@@ -693,8 +597,8 @@ class TestLaplace(unittest.TestCase):
 
         # turn off faults in prior to allow easy comparison
         prior_sqrt_covariance_op.fault_percentage = 0
-        L_post = L_post_op_from_file.apply(np.eye(num_vars), transpose=False)
-        L_post_T = L_post_op_from_file.apply(np.eye(num_vars), transpose=True)
+        L_post = L_post_op_from_file.apply(np.eye(nvars), transpose=False)
+        L_post_T = L_post_op_from_file.apply(np.eye(nvars), transpose=True)
         assert_ndarray_allclose(L_post.T, L_post_T, rtol=1e-12)
 
         # Test posterior covariance operator produced matrix is the same
@@ -749,20 +653,20 @@ class TestLaplace(unittest.TestCase):
 class TestGoalOrientedInference(unittest.TestCase):
 
     def help_compute_posterior_mean_covar_optimal_for_prediction(
-        self, nvars, num_obs_qoi, num_pred_qoi
+        self, nvars, nobs_qoi, npred_qoi
     ):
-        # print nvars,num_obs_qoi,num_pred_qoi
-        obs_matrix = np.random.normal(0.0, 1.0, (num_obs_qoi, nvars))
+        # print nvars,nobs_qoi,npred_qoi
+        obs_matrix = np.random.normal(0.0, 1.0, (nobs_qoi, nvars))
         # prior_mean = np.zeros((nvars),float)
         prior_mean = np.ones((nvars), float)
         prior_cov = np.eye(nvars)
-        noise_cov = np.eye(num_obs_qoi)
+        noise_cov = np.eye(nobs_qoi)
         truth_sample = np.random.normal(0.0, 1.0, nvars)
         obs = np.dot(obs_matrix, truth_sample) + np.random.normal(
-            0.0, 1.0, num_obs_qoi
+            0.0, 1.0, nobs_qoi
         )
-        pred_matrix = np.random.normal(0.0, 1.0, (num_pred_qoi, nvars))
-        pred_offset = 0.0  # *np.random.normal(0.,1.,(num_pred_qoi))
+        pred_matrix = np.random.normal(0.0, 1.0, (npred_qoi, nvars))
+        pred_offset = 0.0  # *np.random.normal(0.,1.,(npred_qoi))
 
         # prior_chol_factor = np.linalg.cholesky(prior_cov)
         prior_hessian = np.linalg.inv(prior_cov)
@@ -816,45 +720,45 @@ class TestGoalOrientedInference(unittest.TestCase):
 
     def test_goal_oriented_inference(self):
         nvars = 10
-        num_obs_qoi = 5
-        num_pred_qoi = 3
+        nobs_qoi = 5
+        npred_qoi = 3
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, num_obs_qoi, num_pred_qoi
+            nvars, nobs_qoi, npred_qoi
         )
 
         nvars = 10
-        num_obs_qoi = 15
-        num_pred_qoi = 2
+        nobs_qoi = 15
+        npred_qoi = 2
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, num_obs_qoi, num_pred_qoi
+            nvars, nobs_qoi, npred_qoi
         )
 
         nvars = 10
-        num_obs_qoi = 2
-        num_pred_qoi = 5
+        nobs_qoi = 2
+        npred_qoi = 5
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, num_obs_qoi, num_pred_qoi
+            nvars, nobs_qoi, npred_qoi
         )
 
         nvars = 2
-        num_obs_qoi = 3
-        num_pred_qoi = 2
+        nobs_qoi = 3
+        npred_qoi = 2
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, num_obs_qoi, num_pred_qoi
+            nvars, nobs_qoi, npred_qoi
         )
 
         nvars = 3
-        num_obs_qoi = 2
-        num_pred_qoi = 3
+        nobs_qoi = 2
+        npred_qoi = 3
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, num_obs_qoi, num_pred_qoi
+            nvars, nobs_qoi, npred_qoi
         )
+
+
+class TestNumpyLaplace(TestLaplace, unittest.TestCase):
+    def get_backend(self):
+        return NumpyLinAlgMixin
 
 
 if __name__ == "__main__":
     unittest.main()
-
-    # suite = unittest.TestSuite()
-    # suite.addTest( TestLaplace("test_log_unnormalized_posterior"))
-    # runner = unittest.TextTestRunner()
-    # runner.run( suite )

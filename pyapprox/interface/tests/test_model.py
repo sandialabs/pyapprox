@@ -17,6 +17,9 @@ from pyapprox.interface.model import (
     PoolModelWrapper,
     SerialIOModel,
     AsyncIOModel,
+    ForwardFiniteDifference,
+    BackwardFiniteDifference,
+    CenteredFiniteDifference,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -778,6 +781,112 @@ if __name__ == "__main__":
         assert np.allclose(values[pass_idx], test_values[pass_idx])
         outtmpdir.cleanup()
         intmpdir.cleanup()
+
+    def _check_finite_differences(self, FD_cls):
+        bkd = self.get_backend()
+        nvars = 3
+        model = ModelFromSingleSampleCallable(
+            2,
+            nvars,
+            lambda x: bkd.hstack(
+                [
+                    1 * ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2),
+                    2 * ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2),
+                ],
+            ),
+            jacobian=lambda x: bkd.stack(
+                [
+                    1 * bkd.array([2 * (x[0] - 1), 2 * (x[1] - 2.5), 0]),
+                    2 * bkd.array([2 * (x[0] - 1), 2 * (x[1] - 2.5), 0]),
+                ],
+                axis=0,
+            ),
+            apply_jacobian=lambda x, v: bkd.asarray(
+                [
+                    1 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1]),
+                    2 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1]),
+                ]
+            ),
+            hessian=lambda x: bkd.stack(
+                [
+                    bkd.diag(bkd.array([2, 2, 0])),
+                    bkd.diag(bkd.array([4, 4, 0])),
+                ]
+            ),
+            apply_hessian=lambda x, v: bkd.asarray(
+                [
+                    bkd.diag(bkd.array([2, 2, 0])) @ v,
+                    bkd.diag(bkd.array([4, 4, 0])) @ v,
+                ]
+            ),
+            sample_ndim=1,
+            values_ndim=1,
+            backend=bkd,
+        )
+        rtol = 1e-6
+        fd = FD_cls(model)
+        nvecs = 3
+        sample = bkd.array(np.random.uniform(0, 1, (nvars, 1)))
+        vec = bkd.array(np.random.normal(0, 1, (nvars, nvecs)))
+        print(fd.jacobian(sample), model.jacobian(sample))
+        assert bkd.allclose(
+            fd.jacobian(sample), model.jacobian(sample), rtol=rtol
+        )
+        print(
+            fd.apply_jacobian(sample, vec), model.apply_jacobian(sample, vec)
+        )
+        assert bkd.allclose(
+            fd.apply_jacobian(sample, vec),
+            model.apply_jacobian(sample, vec),
+            rtol=rtol,
+        )
+        # print(fd.hessian(sample), model.hessian(sample), "a")
+        assert bkd.allclose(
+            fd.hessian(sample), model.hessian(sample), rtol=rtol
+        )
+
+        # model.apply_hessian only works for nqoi == 1
+        # so create a new model
+        model = ModelFromSingleSampleCallable(
+            1,
+            nvars,
+            lambda x: bkd.hstack(
+                [1 * ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2)],
+            ),
+            jacobian=lambda x: bkd.stack(
+                [1 * bkd.array([2 * (x[0] - 1), 2 * (x[1] - 2.5), 0])],
+                axis=0,
+            ),
+            apply_jacobian=lambda x, v: bkd.asarray(
+                [1 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1])]
+            ),
+            hessian=lambda x: bkd.stack([bkd.diag(bkd.array([2, 2, 0]))]),
+            apply_hessian=lambda x, v: bkd.asarray(
+                [bkd.diag(bkd.array([2, 2, 0])) @ v]
+            ),
+            sample_ndim=1,
+            values_ndim=1,
+            backend=bkd,
+        )
+        fd = FD_cls(model)
+        # print(
+        #     fd.apply_hessian(sample, vec[:, :1]),
+        #     model.apply_hessian(sample, vec[:, :1]),
+        # )
+        assert bkd.allclose(
+            fd.apply_hessian(sample, vec[:, :1]),
+            model.apply_hessian(sample, vec[:, :1]),
+            rtol=rtol,
+        )
+
+    def test_finite_differences(self):
+        test_cases = [
+            # ForwardFiniteDifference,
+            # BackwardFiniteDifference,
+            CenteredFiniteDifference,
+        ]
+        for test_case in test_cases:
+            self._check_finite_differences(test_case)
 
 
 class TestNumpyModel(TestModel, unittest.TestCase):

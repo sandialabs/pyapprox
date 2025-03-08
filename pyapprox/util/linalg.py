@@ -32,16 +32,21 @@ def invert_permutation_vector(p, dtype=int):
     return pt
 
 
-def get_low_rank_matrix(num_rows, num_cols, rank):
+def get_low_rank_matrix(
+    nrows: int,
+    ncols: int,
+    rank: int,
+    bkd: LinAlgMixin = NumpyLinAlgMixin,
+):
     r"""
-    Construct a matrix of size num_rows x num_cols with a given rank.
+    Construct a matrix of size nrows x ncols with a given rank.
 
     Parameters
     ----------
-    num_rows : integer
+    nrows : integer
         The number rows in the matrix
 
-    num_cols : integer
+    ncols : integer
         The number columns in the matrix
 
     rank : integer
@@ -49,24 +54,24 @@ def get_low_rank_matrix(num_rows, num_cols, rank):
 
     Returns
     -------
-    Amatrix : np.ndarray (num_rows,num_cols)
+    Amatrix : np.ndarray (nrows,ncols)
         The low-rank matrix generated
     """
-    assert rank <= min(num_rows, num_cols)
+    assert rank <= min(nrows, ncols)
     # Generate a matrix with normally distributed entries
-    N = max(num_rows, num_cols)
-    Amatrix = np.random.normal(0, 1, (N, N))
+    N = max(nrows, ncols)
+    Amatrix = bkd.asrrray(np.random.normal(0, 1, (N, N)))
     # Make A symmetric positive definite
-    Amatrix = np.dot(Amatrix.T, Amatrix)
+    Amatrix = Amatrix.T @ Amatrix
     # Construct low rank approximation of A
-    eigvals, eigvecs = np.linalg.eigh(Amatrix.copy())
+    eigvals, eigvecs = bkd.eigh(bkd.copy(Amatrix))
     # Set smallest eigenvalues to zero. Note eigenvals are in
     # ascending order
     eigvals[: (eigvals.shape[0] - rank)] = 0.0
     # Construct rank r A matrix
-    Amatrix = np.dot(eigvecs, np.dot(np.diag(eigvals), eigvecs.T))
+    Amatrix = bkd.multi_dot(eigvecs, bkd.diag(eigvals), eigvecs.T)
     # Resize matrix to have requested size
-    Amatrix = Amatrix[:num_rows, :num_cols]
+    Amatrix = Amatrix[:nrows, :ncols]
     return Amatrix
 
 

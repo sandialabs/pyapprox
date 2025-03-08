@@ -300,7 +300,7 @@ class ModelBasedIndependentGaussianLogLikelihood(
 
 
 class WeightBasedLogLikelihoodMixin:
-    def (self) -> int:
+    def nvars(self) -> int:
         return self._model.nvars()
 
 

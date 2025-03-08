@@ -1,116 +1,119 @@
-import numpy as np
 import copy
+from abc import ABC, abstractmethod
+
+import numpy as np
+
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
-def get_operator_diagonal(
-        operator, num_vars, eval_concurrency, transpose=False,
-        active_indices=None):
-    r"""
-    Dont want to solve for all vectors at once because this will
-    likely be to large to fit in memory.
+class GaussianSqrtCovarianceOperator(ABC):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        self._bkd = backend
 
-    active indices: np.ndarray
-       only do some entries of diagonal
-    """
-    if active_indices is None:
-        active_indices = np.arange(num_vars)
-    else:
-        assert active_indices.shape[0] <= num_vars
+    @abstractmethod
+    def _apply(self, vector: Array) -> Array:
+        raise NotImplementedError
 
-    num_active_indices = active_indices.shape[0]
+    def _check_vectors(self, vectors: Array):
+        if vectors.ndim != 2:
+            raise ValueError("vectors must be a 2D array")
+        if vectors.shape[0] != self.nvars():
+            raise ValueError("vectors had wrong number of rows")
 
-    # diagonal = np.empty((num_vars),float)
-    diagonal = np.empty((num_active_indices), float)
-    cnt = 0
-    # while cnt<num_vars:
-    while cnt < num_active_indices:
-        # num_vectors = min(eval_concurrency, num_vars-cnt)
-        num_vectors = min(eval_concurrency, num_active_indices-cnt)
-        vectors = np.zeros((num_vars, num_vectors), dtype=float)
-        for j in range(num_vectors):
-            # vectors[cnt+j,j]=1.0
-            vectors[active_indices[cnt+j], j] = 1.0
-        tmp = operator(vectors, transpose=transpose)
-        for j in range(num_vectors):
-            diagonal[cnt+j] = tmp[active_indices[cnt+j], j]
-        cnt += num_vectors
-    return diagonal
-
-
-class GaussianSqrtCovarianceOperator(object):
-    def apply(self, vectors):
+    def apply(self, vectors: Array) -> Array:
         r"""
-        Apply the sqrt of the covariance to a set of vectors x.
+        Apply the the sqrt of the covariance to a set of vectors x.
         If the vectors are standard normal samples then the result
         will be a samples from the Gaussian.
 
         Parameters
         ----------
-        vector : np.ndarray (num_vars x num_vectors)
+        vector : np.ndarray (nvars x num_vectors)
             The vectors x
         """
-        raise Exception('Derived classes must implement this function')
+        self._check_vectors(vectors)
+        return self._apply(vectors)
 
-    def num_vars(self):
-        raise Exception('Derived classes must implement this function')
+    @abstractmethod
+    def _apply_transpose(self, vectors: Array) -> Array:
+        raise NotImplementedError
 
-    def __call__(self, vectors, transpose):
-        return self.apply(vectors, transpose)
-
-
-class CholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
-    def __init__(self, covariance, eval_concurrency=1, fault_percentage=0):
-        super(CholeskySqrtCovarianceOperator, self).__init__()
-
-        assert fault_percentage < 100
-        self.fault_percentage = fault_percentage
-
-        self.covariance = covariance
-        self.chol_factor = np.linalg.cholesky(self.covariance)
-        self.eval_concurrency = eval_concurrency
-
-    def apply(self, vectors, transpose):
+    def apply_transpose(self, vectors: Array) -> Array:
         r"""
-
-        Apply the sqrt of the covariance to a st of vectors x.
-        If a vector is a standard normal sample then the result
-        will be a sample from the prior.
-
-        C_sqrt*x
+        Apply the tranpose of the sqrt of the covariance to a set of vectors x.
+        If the vectors are standard normal samples then the result
+        will be a samples from the Gaussian.
 
         Parameters
         ----------
-        vectors : np.ndarray (num_vars x num_vectors)
-           The vectors x
-
-        transpose : boolean
-            Whether to apply the action of the sqrt of the covariance
-            or its tranpose.
-
-        Returns
-        -------
-        result : np.ndarray (num_vars x num_vectors)
-            The vectors C_sqrt*x
+        vector : np.ndarray (nvars x num_vectors)
+            The vectors x
         """
-        assert vectors.ndim == 2
-        num_vectors = vectors.shape[1]
-        if transpose:
-            result = np.dot(self.chol_factor.T, vectors)
-        else:
-            result = np.dot(self.chol_factor, vectors)
-        u = np.random.uniform(0., 1., (num_vectors))
-        I = np.where(u < self.fault_percentage/100.)[0]
-        result[:, I] = np.nan
-        return result
+        self._check_vectors(vectors)
+        return self._apply_transpose(vectors)
 
-    def num_vars(self):
+    @abstractmethod
+    def nvars(self) -> int:
+        raise NotImplementedError
+
+    # def __call__(self, vectors: Array, transpose):
+    #     return self.apply(vectors, transpose)
+
+
+class DenseCholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
+    def __init__(
+        self,
+        covariance: Array,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(backend=backend)
+
+        self._cov = covariance
+        self._chol_factor = self._bkd.cholesky(self._cov)
+
+    def _apply(self, vectors: Array) -> Array:
+        return self._chol_factor @ vectors
+
+    def _apply_transpose(self, vectors: Array) -> Array:
+        return self._chol_factor.T @ vectors
+
+    def nvars(self):
         r"""
         Return the number of variables of the multivariate Gaussian
         """
-        return self.covariance.shape[0]
+        return self._cov.shape[0]
 
 
-class CovarianceOperator(object):
+class FaultyDenseCholeskySqrtCovarianceOperator(
+    DenseCholeskySqrtCovarianceOperator
+):
+    # FOR testing robustness to failures on hpc machines
+    def __init__(
+        self,
+        covariance: Array,
+        fault_percentage: int = 0,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(covariance, backend=backend)
+        assert fault_percentage < 100
+        self._fault_percentage = fault_percentage
+
+    def _simulate_failures(self, result: Array):
+        nvectors = result.shape[1]
+        u = np.random.uniform(0.0, 1.0, (nvectors))
+        idx = np.where(u < self.fault_percentage / 100.0)[0]
+        result[:, idx] = np.nan
+        return result
+
+    def _apply(self, vectors: Array) -> Array:
+        return self._simulate_failures(super().apply(vectors))
+
+    def _apply_tranpose(self, vectors: Array) -> Array:
+        return self._simulate_failures(super().apply_transpose(vectors))
+
+
+class CovarianceOperator:
     r"""
     Class to compute the action of the a covariance opearator on a
     vector.
@@ -119,53 +122,89 @@ class CovarianceOperator(object):
     where I is the identity matrix.
     """
 
-    def __init__(self, sqrt_covariance_operator):
-        self.sqrt_covariance_operator = sqrt_covariance_operator
+    def __init__(self, sqrt_cov_op: GaussianSqrtCovarianceOperator):
+        if not isinstance(sqrt_cov_op, GaussianSqrtCovarianceOperator):
+            raise ValueError(
+                "sqrt_cov_op must be instance of "
+                "GaussianSqrtCovarianceOperator"
+            )
+        self._sqrt_cov_op = sqrt_cov_op
+        self._bkd = sqrt_cov_op._bkd
 
-    def apply(self, vectors, transpose):
+    def apply(self, vectors: Array) -> Array:
         r"""
         Compute action of covariance C by applying action of sqrt_covariance L
         twice, where C=L*L.T. E.g.
         C(x) = L(L.T(x))
         Tranpose is ignored because covariance operators are symmetric
         """
-        tmp = self.sqrt_covariance_operator.apply(vectors, True)
-        result = self.sqrt_covariance_operator.apply(tmp, False)
-        return result
+        tmp = self._sqrt_cov_op.apply_transpose(vectors)
+        return self._sqrt_cov_op.apply(tmp)
 
-    def __call__(self, vectors, transpose):
+    def nvars(self) -> Array:
+        return self._sqrt_cov_op.nvars()
+
+    def diagonal(
+        self, batch_size: int = None, active_indices: Array = None
+    ) -> Array:
         r"""
-        Tranpose is ignored because covariance operators are symmetric
+
+        Parameters
+        ----------
+        batch_size: int
+            The sizes of the batches used to compute diagonal terms.
+            Sometimes dont want to solve for all vectors at once because
+            this may be to large to fit in memory.
+
+        active indices: Array
+            Indices of the desired diagonal terms. If none all are returned
         """
-        return self.apply(vectors, None)
+        if active_indices is None:
+            active_indices = np.arange(self.nvars())
 
-    def num_rows(self):
-        return self.sqrt_covariance_operator.num_vars()
+        if self._bkd.max(active_indices) >= self.nvars():
+            raise ValueError("active indices to large")
+        nactive_indices = active_indices.shape[0]
 
-    def num_cols(self):
-        return self.num_rows()
+        if batch_size is None:
+            batch_size = nactive_indices
+
+        diagonal = self._bkd.empty((nactive_indices))
+        cnt = 0
+        while cnt < nactive_indices:
+            nvectors = min(batch_size, nactive_indices - cnt)
+            # create unit vectors
+            vectors = self._bkd.zeros((self.nvars(), nvectors))
+            for jj in range(nvectors):
+                vectors[active_indices[cnt + jj], jj] = 1.0
+            tmp = self.apply(vectors)
+            for jj in range(nvectors):
+                diagonal[cnt + jj] = tmp[active_indices[cnt + jj], jj]
+            cnt += nvectors
+        return diagonal
 
 
 class MultivariateGaussian(object):
-    def __init__(self, sqrt_covariance_operator, mean=0.):
-        self.sqrt_covariance_operator = sqrt_covariance_operator
+    def __init__(self, sqrt_cov_op, mean=0.0):
+        self._sqrt_cov_op = sqrt_cov_op
         if np.isscalar(mean):
-            mean = mean*np.ones((self.num_vars()))
-        assert mean.ndim == 1 and mean.shape[0] == self.num_vars()
+            mean = mean * np.ones((self.nvars()))
+        assert mean.ndim == 1 and mean.shape[0] == self.nvars()
         self.mean = mean
 
-    def num_vars(self):
+    def nvars(self):
         r"""
         Return the number of variables of the multivariate Gaussian
         """
-        return self.sqrt_covariance_operator.num_vars()
+        return self._sqrt_cov_op.nvars()
 
     def apply_covariance_sqrt(self, vectors, transpose):
-        return self.sqrt_covariance_operator(vectors, transpose)
+        return self._sqrt_cov_op(vectors, transpose)
 
     def generate_samples(self, nsamples):
         std_normal_samples = np.random.normal(
-            0., 1., (self.num_vars(), nsamples))
+            0.0, 1.0, (self.nvars(), nsamples)
+        )
         samples = self.apply_covariance_sqrt(std_normal_samples, False)
         samples += self.mean[:, np.newaxis]
         return samples
@@ -175,11 +214,13 @@ class MultivariateGaussian(object):
         Get the diagonal of the Gaussian covariance matrix.
         Default implementation is two apply the sqrt operator twice.
         """
-        covariance_operator = CovarianceOperator(self.sqrt_covariance_operator)
+        covariance_operator = CovarianceOperator(self._sqrt_cov_op)
         return get_operator_diagonal(
-            covariance_operator, self.num_vars(),
-            self.sqrt_covariance_operator.eval_concurrency,
-            active_indices=active_indices)
+            covariance_operator,
+            self.nvars(),
+            self._sqrt_cov_op.eval_concurrency,
+            active_indices=active_indices,
+        )
 
 
 def subselect_matrix_blocks(selected_block_indices, nentries_per_block):
@@ -205,13 +246,17 @@ def subselect_matrix_blocks(selected_block_indices, nentries_per_block):
     block_starts = np.append(0, np.cumsum(nentries_per_block))
     matrix_indices = np.arange(nrows, dtype=int)
     selected_matrix_indices = np.concatenate(
-        [matrix_indices[block_starts[ii]:block_starts[ii+1]]
-         for ii in selected_block_indices])
+        [
+            matrix_indices[block_starts[ii] : block_starts[ii + 1]]
+            for ii in selected_block_indices
+        ]
+    )
     return selected_matrix_indices
 
 
-def get_matrix_partition_indices(selected_block_ids, block_ids,
-                                 nentries_per_block, issubset=True):
+def get_matrix_partition_indices(
+    selected_block_ids, block_ids, nentries_per_block, issubset=True
+):
     r"""
     Select a subset of blocks from a block vector from unique block ids.
 
@@ -241,20 +286,27 @@ def get_matrix_partition_indices(selected_block_ids, block_ids,
         The indices, of the individual vector entries selected,
         into a vector consisting of only the selected blocks
     """
-    nvector_entries, nblocks = np.sum(
-        nentries_per_block), len(nentries_per_block)
+    nvector_entries, nblocks = np.sum(nentries_per_block), len(
+        nentries_per_block
+    )
     nselected_blocks = len(selected_block_ids)
     assert len(nentries_per_block) == len(block_ids)
     nentries_per_block = np.asarray(nentries_per_block)
 
-    __, relevant_block_indices, relevant_selected_block_indices =\
+    __, relevant_block_indices, relevant_selected_block_indices = (
         np.intersect1d(block_ids, selected_block_ids, return_indices=True)
+    )
 
     selected_vector_indices = subselect_matrix_blocks(
-        relevant_block_indices, nentries_per_block)
+        relevant_block_indices, nentries_per_block
+    )
 
     selected_vector_indices_reduced = subselect_matrix_blocks(
-        relevant_selected_block_indices, nentries_per_block[relevant_block_indices][np.argsort(relevant_selected_block_indices)])
+        relevant_selected_block_indices,
+        nentries_per_block[relevant_block_indices][
+            np.argsort(relevant_selected_block_indices)
+        ],
+    )
 
     return selected_vector_indices, selected_vector_indices_reduced
 
@@ -283,10 +335,10 @@ def condition_gaussian_on_data(mean, covariance, fixed_indices, values):
 
     Parameters
     ----------
-    mean : np.ndarray (num_vars)
+    mean : np.ndarray (nvars)
         The mean m
 
-    covariance : np.ndarray (num_vars, num_vars)
+    covariance : np.ndarray (nvars, nvars)
         The covariance matrix C
 
     fixed_indices : np.ndarray (num_fixed_vars)
@@ -310,14 +362,15 @@ def condition_gaussian_on_data(mean, covariance, fixed_indices, values):
     ind_remain = list(indices.difference(set(fixed_indices)))
     diff = values - mean[fixed_indices]
     sigma_11 = np.array(covariance[np.ix_(ind_remain, ind_remain)], ndmin=2)
-    sigma_12 = np.array(
-        covariance[np.ix_(ind_remain, fixed_indices)], ndmin=2)
+    sigma_12 = np.array(covariance[np.ix_(ind_remain, fixed_indices)], ndmin=2)
     sigma_22 = np.array(
-        covariance[np.ix_(fixed_indices, fixed_indices)], ndmin=2)
+        covariance[np.ix_(fixed_indices, fixed_indices)], ndmin=2
+    )
     update = np.dot(sigma_12, np.linalg.solve(sigma_22, diff)).flatten()
     new_mean = mean[ind_remain] + update
-    new_cov = sigma_11 - \
-        np.dot(sigma_12, np.linalg.solve(sigma_22, sigma_12.T))
+    new_cov = sigma_11 - np.dot(
+        sigma_12, np.linalg.solve(sigma_22, sigma_12.T)
+    )
     return new_mean, new_cov
 
 
@@ -331,36 +384,37 @@ def multiply_gaussian_densities(mean1, covariance1, mean2, covariance2):
 
     Parameters
     ----------
-    mean1 : np.ndarray (num_vars)
+    mean1 : np.ndarray (nvars)
         The mean m1
 
-    covariance1 : np.ndarray (num_vars, num_vars)
+    covariance1 : np.ndarray (nvars, nvars)
         The covariance matrix C1
 
 
-    mean2 : np.ndarray (num_vars)
+    mean2 : np.ndarray (nvars)
         The mean m1
 
-    covariance2 : np.ndarray (num_vars, num_vars)
+    covariance2 : np.ndarray (nvars, nvars)
         The covariance matrix C1
 
     Returns
     -------
-    new_mean : np.ndarray (num_vars)
+    new_mean : np.ndarray (nvars)
         The mean of the conditional Gaussian
 
 
-    new_covariance : np.ndarray (num_vars, num_vars)
+    new_covariance : np.ndarray (nvars, nvars)
         The matrix C of the new Gaussian
     """
     assert covariance1.shape == covariance2.shape
     assert mean1.shape == mean2.shape
     assert mean1.shape[0] == covariance1.shape[0]
 
-    C1pC2_inv = np.linalg.inv(covariance1+covariance2)     # inv(C1+C2)
+    C1pC2_inv = np.linalg.inv(covariance1 + covariance2)  # inv(C1+C2)
     covariance = covariance1.dot(C1pC2_inv).dot(covariance2)
-    mean = covariance2.dot(C1pC2_inv).dot(mean1) +\
-        covariance1.dot(C1pC2_inv).dot(mean2)
+    mean = covariance2.dot(C1pC2_inv).dot(mean1) + covariance1.dot(
+        C1pC2_inv
+    ).dot(mean2)
 
     # Above is faster as it only requires one matrix inversion instead of the
     # three used below.
@@ -371,7 +425,9 @@ def multiply_gaussian_densities(mean1, covariance1, mean2, covariance2):
     return mean, covariance
 
 
-def get_unique_variable_blocks(var1_ids, nvars_per_var1, var2_ids, nvars_per_var2):
+def get_unique_variable_blocks(
+    var1_ids, nvars_per_var1, var2_ids, nvars_per_var2
+):
     r"""
     Get the unique variable blocks in two multivariate variables x1 and x2.
 
@@ -406,13 +462,15 @@ def get_unique_variable_blocks(var1_ids, nvars_per_var1, var2_ids, nvars_per_var
         if not var_id in var1_ids:
             all_var_ids = np.append(all_var_ids, var_id)
             nvars_per_all_vars = np.append(
-                nvars_per_all_vars, nvars_per_var2[ii])
+                nvars_per_all_vars, nvars_per_var2[ii]
+            )
 
     return all_var_ids, nvars_per_all_vars
 
 
-def expand_scope_of_gaussian(old_var_ids, new_var_ids, nvars_per_new_var, matrix,
-                             vector):
+def expand_scope_of_gaussian(
+    old_var_ids, new_var_ids, nvars_per_new_var, matrix, vector
+):
     r"""
     Expand a compact representation of a multivariate Gaussian to include
     a new set of inactive variables. This function can be used for Gaussians
@@ -451,11 +509,13 @@ def expand_scope_of_gaussian(old_var_ids, new_var_ids, nvars_per_new_var, matrix
 
     """
     selected_rows_expanded, selected_rows = get_matrix_partition_indices(
-        old_var_ids, new_var_ids, nvars_per_new_var)
+        old_var_ids, new_var_ids, nvars_per_new_var
+    )
     num_new_vars = sum(nvars_per_new_var)
     new_matrix = np.zeros((num_new_vars, num_new_vars))
-    new_matrix[np.ix_(selected_rows_expanded, selected_rows_expanded)] = \
+    new_matrix[np.ix_(selected_rows_expanded, selected_rows_expanded)] = (
         matrix[np.ix_(selected_rows, selected_rows)]
+    )
     new_vector = np.zeros((num_new_vars))
     new_vector[selected_rows_expanded] = vector[selected_rows]
     return new_matrix, new_vector
@@ -494,8 +554,11 @@ def compute_gaussian_pdf_canonical_form_normalization(mean, shift, precision):
         The normalization constant g
     """
     nvars = precision.shape[0]
-    g = 0.5*(-mean.T.dot(shift)-nvars*np.log(2*np.pi) +
-             np.linalg.slogdet(precision)[1])
+    g = 0.5 * (
+        -mean.T.dot(shift)
+        - nvars * np.log(2 * np.pi)
+        + np.linalg.slogdet(precision)[1]
+    )
     return g
 
 
@@ -572,13 +635,19 @@ def convert_gaussian_to_canonical_form(mean, covariance):
     precision_matrix = np.linalg.inv(covariance)
     shift = precision_matrix.dot(mean)
     normalization = compute_gaussian_pdf_canonical_form_normalization(
-        mean, shift, precision_matrix)
+        mean, shift, precision_matrix
+    )
     return precision_matrix, shift, normalization
 
 
-def condition_gaussian_in_canonical_form(fixed_indices, precision_matrix,
-                                         shift, normalization, data,
-                                         remain_indices=None):
+def condition_gaussian_in_canonical_form(
+    fixed_indices,
+    precision_matrix,
+    shift,
+    normalization,
+    data,
+    remain_indices=None,
+):
     r"""
     Compute conditional density
 
@@ -669,15 +738,16 @@ def condition_gaussian_in_canonical_form(fixed_indices, precision_matrix,
     hy = shift[np.ix_(fixed_indices)]
     new_shift = hx - np.dot(KXY, data)
 
-    new_normalization = normalization + \
-        hy.dot(data)-0.5*data.T.dot(KYY.dot(data))
+    new_normalization = (
+        normalization + hy.dot(data) - 0.5 * data.T.dot(KYY.dot(data))
+    )
 
     return new_precision_matrix, new_shift, new_normalization
 
 
-def marginalize_gaussian_in_canonical_form(marg_indices, precision_matrix,
-                                           shift, normalization,
-                                           remain_indices=None):
+def marginalize_gaussian_in_canonical_form(
+    marg_indices, precision_matrix, shift, normalization, remain_indices=None
+):
     r"""
     Compute marginal density
 
@@ -765,13 +835,15 @@ def marginalize_gaussian_in_canonical_form(marg_indices, precision_matrix,
 
     logdet = np.linalg.slogdet(KYY)[1]
     new_normalization = normalization + 0.5 * (
-        len(marg_indices) * np.log(2.0*np.pi) + logdet + hyKhy)
+        len(marg_indices) * np.log(2.0 * np.pi) + logdet + hyKhy
+    )
 
     return new_precision_matrix, new_shift, new_normalization
 
 
-def joint_density_from_linear_conditional_relationship(mean1, cov1, cov2g1,
-                                                       Amat, bvec):
+def joint_density_from_linear_conditional_relationship(
+    mean1, cov1, cov2g1, Amat, bvec
+):
     r"""
     Compute joint density :math:`P(x_1,x_2)`
 
@@ -848,7 +920,8 @@ def joint_density_from_linear_conditional_relationship(mean1, cov1, cov2g1,
 
 
 def marginal_density_from_linear_conditional_relationship(
-        mean1, cov1, cov2g1, Amat, bvec):
+    mean1, cov1, cov2g1, Amat, bvec
+):
     r"""
     Compute the marginal density of P(x2)
 
@@ -886,13 +959,14 @@ def marginal_density_from_linear_conditional_relationship(
        The covariance (C_2) of P(x2)
     """
     AC1 = np.dot(Amat, cov1)
-    mean2 = Amat.dot(mean1)+bvec
-    cov2 = cov2g1+AC1.dot(Amat.T)
+    mean2 = Amat.dot(mean1) + bvec
+    cov2 = cov2g1 + AC1.dot(Amat.T)
     return mean2, cov2
 
 
 def conditional_density_from_linear_conditional_relationship(
-        mean1, cov1, cov2g1, Amat, bvec, values):
+    mean1, cov1, cov2g1, Amat, bvec, values
+):
     r"""
     Compute conditional density P(x1|x2)
 
@@ -936,20 +1010,21 @@ def conditional_density_from_linear_conditional_relationship(
     AC1 = np.dot(Amat, cov1)
 
     # Compute marginal mean and covariance of P(x2)
-    mean2 = Amat.dot(mean1)+bvec
-    cov2 = cov2g1+AC1.dot(Amat.T)
+    mean2 = Amat.dot(mean1) + bvec
+    cov2 = cov2g1 + AC1.dot(Amat.T)
 
     C2_inv_AC1 = np.linalg.solve(cov2, AC1)
 
     # Compute conditioanl mean and covariance of P(x1|x2)
-    mean_1g2 = mean1+C2_inv_AC1.T.dot(values-mean2)
-    cov_1g2 = cov1-AC1.T.dot(C2_inv_AC1)
+    mean_1g2 = mean1 + C2_inv_AC1.T.dot(values - mean2)
+    cov_1g2 = cov1 - AC1.T.dot(C2_inv_AC1)
 
     return mean_1g2, cov_1g2
 
 
 def convert_conditional_probability_density_to_canonical_form(
-        Amat, bvec, cov, var1_ids, nvars_per_var1, var2_ids, nvars_per_var2):
+    Amat, bvec, cov, var1_ids, nvars_per_var1, var2_ids, nvars_per_var2
+):
     r"""
     Convert a Gaussian conditional density (CPD) of the form
     :math:`P(x2|x1)`  with mean and covariance
@@ -1015,19 +1090,33 @@ def convert_conditional_probability_density_to_canonical_form(
     Cinv = np.linalg.inv(cov)
     CinvA = Cinv.dot(Amat)
     precision_matrix = np.block(
-        [[Amat.T.dot(CinvA), -CinvA.T], [-CinvA, Cinv]])
+        [[Amat.T.dot(CinvA), -CinvA.T], [-CinvA, Cinv]]
+    )
     shift = np.concatenate([-CinvA.T.dot(bvec), Cinv.dot(bvec)])
     normalization = compute_gaussian_pdf_canonical_form_normalization(
-        bvec, shift[Amat.shape[1]:], Cinv)
+        bvec, shift[Amat.shape[1] :], Cinv
+    )
     all_var_ids, nvars_per_all_vars = get_unique_variable_blocks(
-        var1_ids, nvars_per_var1, var2_ids, nvars_per_var2)
+        var1_ids, nvars_per_var1, var2_ids, nvars_per_var2
+    )
 
-    return precision_matrix, shift, normalization, all_var_ids, nvars_per_all_vars
+    return (
+        precision_matrix,
+        shift,
+        normalization,
+        all_var_ids,
+        nvars_per_all_vars,
+    )
 
 
 def multiply_gaussian_densities_in_canonical_form(
-        precision_matrix1, shift1, normalization1,
-        precision_matrix2, shift2, normalization2):
+    precision_matrix1,
+    shift1,
+    normalization1,
+    precision_matrix2,
+    shift2,
+    normalization2,
+):
     r"""
     Multiply two multivariate Gaussian in canonical form.
 
@@ -1062,16 +1151,25 @@ def multiply_gaussian_densities_in_canonical_form(
     new_normalization : float
         The new normalization g
     """
-    new_precision_matrix = precision_matrix1+precision_matrix2
-    new_shift = shift1+shift2
-    new_normalization = normalization1+normalization2
+    new_precision_matrix = precision_matrix1 + precision_matrix2
+    new_shift = shift1 + shift2
+    new_normalization = normalization1 + normalization2
 
     return new_precision_matrix, new_shift, new_normalization
 
 
 def multiply_gaussian_densities_in_compact_canonical_form(
-        precision_matrix1, shift1, normalization1, var1_ids, nvars_per_var1,
-        precision_matrix2, shift2, normalization2, var2_ids, nvars_per_var2):
+    precision_matrix1,
+    shift1,
+    normalization1,
+    var1_ids,
+    nvars_per_var1,
+    precision_matrix2,
+    shift2,
+    normalization2,
+    var2_ids,
+    nvars_per_var2,
+):
     r"""
     Multiply the compact representations of two multivariate Gaussian in
     canonical form.
@@ -1129,27 +1227,40 @@ def multiply_gaussian_densities_in_compact_canonical_form(
         Sizes of the variable blocks in the product P(x1)*P(x2)
     """
     all_var_ids, nvars_per_all_vars = get_unique_variable_blocks(
-        var1_ids, nvars_per_var1, var2_ids, nvars_per_var2)
+        var1_ids, nvars_per_var1, var2_ids, nvars_per_var2
+    )
 
-    expanded_precision_matrix1, expanded_shift1 = \
-        expand_scope_of_gaussian(
-            var1_ids, all_var_ids, nvars_per_all_vars, precision_matrix1, shift1)
+    expanded_precision_matrix1, expanded_shift1 = expand_scope_of_gaussian(
+        var1_ids, all_var_ids, nvars_per_all_vars, precision_matrix1, shift1
+    )
 
-    expanded_precision_matrix2, expanded_shift2 = \
-        expand_scope_of_gaussian(
-            var2_ids, all_var_ids, nvars_per_all_vars, precision_matrix2, shift2)
+    expanded_precision_matrix2, expanded_shift2 = expand_scope_of_gaussian(
+        var2_ids, all_var_ids, nvars_per_all_vars, precision_matrix2, shift2
+    )
 
-    new_precision_matrix, new_shift, new_normalization = \
+    new_precision_matrix, new_shift, new_normalization = (
         multiply_gaussian_densities_in_canonical_form(
-            expanded_precision_matrix1, expanded_shift1, normalization1,
-            expanded_precision_matrix2, expanded_shift2, normalization2)
+            expanded_precision_matrix1,
+            expanded_shift1,
+            normalization1,
+            expanded_precision_matrix2,
+            expanded_shift2,
+            normalization2,
+        )
+    )
 
-    return new_precision_matrix, new_shift, new_normalization, all_var_ids, \
-        nvars_per_all_vars
+    return (
+        new_precision_matrix,
+        new_shift,
+        new_normalization,
+        all_var_ids,
+        nvars_per_all_vars,
+    )
 
 
 def compute_joint_density_from_canonical_conditional_probability_densities(
-        cpds):
+    cpds,
+):
     r"""
     Compute the joint density from a factorization expressed as the
     products of conditional probability densities (CPDs).
@@ -1194,8 +1305,9 @@ class GaussianFactor(object):
     where m is the mean of the Gaussian distribution
     """
 
-    def __init__(self, precision_matrix, shift, normalization, var_ids,
-                 nvars_per_var):
+    def __init__(
+        self, precision_matrix, shift, normalization, var_ids, nvars_per_var
+    ):
         r"""
         Initialize the PDF.
 
@@ -1211,10 +1323,12 @@ class GaussianFactor(object):
              The normalization factor (g) of the canoical form.
         """
         self._initialize(
-            precision_matrix, shift, normalization, var_ids, nvars_per_var)
+            precision_matrix, shift, normalization, var_ids, nvars_per_var
+        )
 
-    def _initialize(self, precision_matrix, shift, normalization, var_ids,
-                    nvars_per_var):
+    def _initialize(
+        self, precision_matrix, shift, normalization, var_ids, nvars_per_var
+    ):
         assert np.asarray(nvars_per_var).ndim == 1
         assert shift.shape[0] == precision_matrix.shape[0]
         assert np.sum(nvars_per_var) == precision_matrix.shape[0]
@@ -1232,8 +1346,12 @@ class GaussianFactor(object):
         assert self.var_ids.shape[0] == self.nvars_per_var.shape[0]
 
     def __str__(self):
-        return 'Factor'+str([(self.var_ids[ii], self.nvars_per_var[ii])
-                             for ii in range(len(self.var_ids))])
+        return "Factor" + str(
+            [
+                (self.var_ids[ii], self.nvars_per_var[ii])
+                for ii in range(len(self.var_ids))
+            ]
+        )
 
     def __repr__(self):
         return self.__str__()
@@ -1250,20 +1368,34 @@ class GaussianFactor(object):
 
         exponent = np.empty(samples.shape[1])
         for ii in range(samples.shape[1]):
-            exponent[ii] = -0.5*np.dot(samples[:, ii].T, self.precision_matrix.dot(
-                samples[:, ii]))+np.dot(self.shift.T, samples[:, ii]) +\
-                self.normalization
+            exponent[ii] = (
+                -0.5
+                * np.dot(
+                    samples[:, ii].T, self.precision_matrix.dot(samples[:, ii])
+                )
+                + np.dot(self.shift.T, samples[:, ii])
+                + self.normalization
+            )
         return np.exp(exponent)
 
     def _multiply(self, gauss1, gauss2):
-        precision_matrix, shift, normalization, var_ids, nvars_per_var = \
+        precision_matrix, shift, normalization, var_ids, nvars_per_var = (
             multiply_gaussian_densities_in_compact_canonical_form(
-                gauss1.precision_matrix, gauss1.shift, gauss1.normalization,
-                gauss1.var_ids, gauss1.nvars_per_var,
-                gauss2.precision_matrix, gauss2.shift, gauss2.normalization,
-                gauss2.var_ids, gauss2.nvars_per_var)
-        gauss1._initialize(precision_matrix, shift, normalization, var_ids,
-                           nvars_per_var)
+                gauss1.precision_matrix,
+                gauss1.shift,
+                gauss1.normalization,
+                gauss1.var_ids,
+                gauss1.nvars_per_var,
+                gauss2.precision_matrix,
+                gauss2.shift,
+                gauss2.normalization,
+                gauss2.var_ids,
+                gauss2.nvars_per_var,
+            )
+        )
+        gauss1._initialize(
+            precision_matrix, shift, normalization, var_ids, nvars_per_var
+        )
 
     def __mul__(self, other):
         new = copy.deepcopy(self)
@@ -1276,21 +1408,33 @@ class GaussianFactor(object):
 
     def marginalize(self, marg_ids):
         marg_indices, __ = get_matrix_partition_indices(
-            marg_ids, self.var_ids, self.nvars_per_var)
+            marg_ids, self.var_ids, self.nvars_per_var
+        )
         mask = np.asarray(
-            [(self.var_ids[ii] in marg_ids) for ii in range(len(self.var_ids))])
-        precision_matrix, shift, normalization = \
+            [(self.var_ids[ii] in marg_ids) for ii in range(len(self.var_ids))]
+        )
+        precision_matrix, shift, normalization = (
             marginalize_gaussian_in_canonical_form(
-                marg_indices, self.precision_matrix,
-                self.shift, self.normalization, remain_indices=None)
+                marg_indices,
+                self.precision_matrix,
+                self.shift,
+                self.normalization,
+                remain_indices=None,
+            )
+        )
         self._initialize(
-            precision_matrix, shift, normalization, self.var_ids[~mask],
-            self.nvars_per_var[~mask])
+            precision_matrix,
+            shift,
+            normalization,
+            self.var_ids[~mask],
+            self.nvars_per_var[~mask],
+        )
 
     def condition(self, data_ids, data):
         # Find array indices of any data_ids found in self.var_ids.
-        relevant_data_ids, relevant_data_indices, relevant_var_indices = \
+        relevant_data_ids, relevant_data_indices, relevant_var_indices = (
             np.intersect1d(data_ids, self.var_ids, return_indices=True)
+        )
 
         if relevant_var_indices.shape[0] == 0:
             # No data is relevant to this factor
@@ -1302,16 +1446,28 @@ class GaussianFactor(object):
         remove_indices = np.sort(relevant_var_indices)
         # Get array indices of self.var_ids that will remain after conditioning
         remain_indices = np.setdiff1d(
-            np.arange(len(self.var_ids)), remove_indices)
+            np.arange(len(self.var_ids)), remove_indices
+        )
         # Get indices of rows in precision matrix that correspond to data blocks
         remove_matrix_indices = subselect_matrix_blocks(
-            remove_indices, self.nvars_per_var)
+            remove_indices, self.nvars_per_var
+        )
 
-        precision_matrix, shift, normalization = \
+        precision_matrix, shift, normalization = (
             condition_gaussian_in_canonical_form(
-                remove_matrix_indices, self.precision_matrix, self.shift,
-                self.normalization, relevant_data, remain_indices=None)
+                remove_matrix_indices,
+                self.precision_matrix,
+                self.shift,
+                self.normalization,
+                relevant_data,
+                remain_indices=None,
+            )
+        )
 
         self._initialize(
-            precision_matrix, shift, normalization, self.var_ids[remain_indices],
-            self.nvars_per_var[remain_indices])
+            precision_matrix,
+            shift,
+            normalization,
+            self.var_ids[remain_indices],
+            self.nvars_per_var[remain_indices],
+        )

@@ -551,7 +551,10 @@ class MisfitHessianVecOperator(object):
     """
 
     def __init__(
-        self, model, map_point, fd_eps=2 * np.sqrt(np.finfo(float).eps)
+        self,
+        model: GaussianLogLikelihood,
+        map_point: Array,
+        fd_eps=2 * np.sqrt(np.finfo(float).eps),
     ):
         r"""
         Initialize the MisfitHessianVecOperator
@@ -570,91 +573,13 @@ class MisfitHessianVecOperator(object):
             Then action of hessian will be computed with finite
             difference even if model has a hessian attribute
         """
-        self.model = model
-        self.map_point = map_point
-        self.fd_eps = fd_eps
+        self._model = model
+        if map_point.shape != (model.nvars(), 1):
+            raise ValueError("map point has the wrong shape")
+        self._map_point = map_point
+        self._fd_eps = fd_eps
 
-        self.map_point_misfit_gradient = None
-
-        if not hasattr(self.model, "hessian") or fd_eps is not None:
-            assert fd_eps is not None
-            assert fd_eps >= 2 * np.sqrt(np.finfo(float).eps)
-            if hasattr(self.model, "gradient_set"):
-                self.map_point_misfit_gradient = self.model.gradient_set(
-                    map_point[:, np.newaxis]
-                )[:, 0]
-                assert (
-                    self.map_point_misfit_gradient.shape[0]
-                    == self.map_point.shape[0]
-                )
-            else:
-                msg = "model does not have member function called gradient"
-                raise Exception(msg)
-
-    def num_rows(self):
-        return self.map_point.shape[0]
-
-    def num_cols(self):
-        return self.num_rows()
-
-    def apply(self, vectors, transpose=None):
-        r"""
-        Compute action of hessian on a vector
-
-        If self.model has no function hessian() then
-        use first-order finite difference of gradient to compute action
-        of Hessian on a vector, e.g
-
-        H(x)v = (g(x+v*h)-g(x))/h
-
-        Notes
-        -----
-        Laplace posterior is only defined for Gaussian prior
-        so we do not have to worry about exceeding bounds
-        with finite difference, so always use forward finite difference.
-
-        Parameters
-        ----------
-        vectors : (num_dimx,num_vectors) matrix
-            Vectors to which the action of the Hessian will be applied
-
-        transpose : boolean
-            Hessian is symmetric so transpose is a needless parameter
-            But randomized svd  assumes operator has a function
-            apply(x, transpose)
-
-        Returns
-        -------
-        hessian_vector_products : (num_dims,num_vectors) matrix
-            The Hessian vector products
-        """
-        if hasattr(self.model, "hessian") and self.fd_eps is None:
-            print(
-                "TODO replace by opearator hess_vec_prod = model.hess.apply(map_point,vectors). first arg says where to evaluate hessian opearator"
-            )
-            H = self.model.hessian(self.map_point)
-            hessian_vector_products = np.dot(H, vectors)
-        elif hasattr(self.model, "gradient_set"):
-
-            def grad_func(x):
-                return self.model.gradient_set(x).T
-
-            # function passed to directional_derivatives function must return
-            # np.ndarray with shape (num_samples,num_vars)
-            # each gradient entry is considered a qoi of a function
-            # directional_derivatives function also returns np.ndarray of shape
-            # (num_vectors,num_dims) so must transpose result
-            hessian_vector_products = directional_derivatives(
-                grad_func,
-                self.map_point,
-                self.map_point_misfit_gradient,
-                vectors,
-                self.fd_eps,
-            ).T
-        else:
-            msg = "To implement action of hessian you need to specify hessian function or gradient_set function"
-            raise Exception(msg)
-        return hessian_vector_products
+        self._map_point_misfit_gradient = None
 
 
 def directional_derivatives(
