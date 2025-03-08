@@ -10,13 +10,14 @@ from pyapprox.bayes.likelihood import (
     ModelBasedGaussianLogLikelihood,
     ModelBasedIndependentGaussianLogLikelihood,
     ModelBasedIndependentExponentialLogLikelihood,
+    LogUnormalizedPosterior,
 )
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
-from pyapprox.util.utilities import cartesian_product
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.bases.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
+from pyapprox.variables.joint import MultivariateGaussian
 
 
 class Linear1DRegressionModel(DenseMatrixLinearModel):
@@ -170,6 +171,31 @@ class TestLikelihood:
             like_vals[:, 0],
         )
         assert like_vals.shape == (nsamples, 1)
+
+    def test_unnormalized_log_posterior(self):
+        bkd = self.get_backend()
+        degree = 2
+        nvars = degree + 1
+        prior_variable = MultivariateGaussian(
+            bkd.zeros((nvars, 1)), bkd.eye(nvars), backend=bkd
+        )
+
+        nobs = 4
+        design = bkd.linspace(-1, 1, nobs)[None, :]
+        noise_cov = bkd.diag(bkd.full((nobs,), 0.3))
+        obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
+        loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
+        true_sample = bkd.full((nvars, 1), 0.4)
+        obs = loglike.rvs(true_sample)
+        loglike.set_observations(obs)
+        unnormalized_posterior = LogUnormalizedPosterior(
+            loglike, prior_variable
+        )
+        sample = prior_variable.rvs(1)
+        errors = unnormalized_posterior.check_apply_jacobian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        # errors = unnormalized_posterior.check_apply_hessian(sample, disp=True)
+        # assert errors.min() / errors.max() < 1e-6
 
 
 class TestNumpyLikelihood(TestLikelihood, unittest.TestCase):

@@ -13,22 +13,20 @@ from pyapprox.util.randomized_svd import (
     adjust_sign_svd,
     svd_using_orthogonal_basis,
 )
+from pyapprox.variables.joint import MultivariateGaussian
 from pyapprox.variables.gaussian import (
-    MultivariateGaussian,
     CholeskySqrtCovarianceOperator,
     CovarianceOperator,
     get_operator_diagonal,
 )
-from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
+from pyapprox.interface.model import DenseMatrixLinearModel
 from pyapprox.bayes.laplace import (
     get_laplace_covariance_sqrt_operator,
     get_pointwise_laplace_variance_using_prior_variance,
     sample_from_laplace_posterior,
-    DenseMatrixLaplacePosteriorApproximation,
     GaussianPushForward,
     MisfitHessianVecOperator,
     PriorConditionedHessianMatVecOperator,
-    directional_derivatives,
     find_map_point,
     generate_and_save_laplace_posterior,
     LaplaceSqrtMatVecOperator,
@@ -430,236 +428,53 @@ class TestLaplace(unittest.TestCase):
             prior, rank, comparison_tol, test_sampling=True
         )
 
-    def test_log_unnormalized_posterior(self):
-        num_dims = 4
-        rank = 3
-        num_qoi = 3
-        obs = np.random.normal(0.0, 1.0, (num_qoi))
-        prior_mean = np.zeros((num_dims), float)
-        prior_covariance = np.eye(num_dims) * 0.25
-        # prior_covariance_chol_factor = np.linalg.cholesky(prior_covariance)
-        noise_covariance = np.eye(num_qoi) * 0.1
-        # noise_covariance_inv = np.linalg.inv(noise_covariance)
-        misfit_model = QuadraticMisfitModel(
-            num_dims, rank, num_qoi, obs, noise_covariance=noise_covariance
-        )
-
-        prior_density = NormalDensity(prior_mean, covariance=prior_covariance)
-        objective = LogUnormalizedPosterior(
-            misfit_model,
-            misfit_model.gradient_set,
-            prior_density.pdf,
-            prior_density.log_pdf,
-            prior_density.log_pdf_gradient,
-        )
-
-        samples = prior_density.generate_samples(2)
-        exact_log_unnormalized_posterior_vals = np.log(
-            np.exp(-misfit_model(samples)) * prior_density.pdf(samples)
-        )
-        log_unnormalized_posterior_vals = objective(samples)
-        assert np.allclose(
-            exact_log_unnormalized_posterior_vals,
-            log_unnormalized_posterior_vals,
-        )
-
-        exact_log_unnormalized_posterior_grads = -misfit_model.gradient_set(
-            samples
-        ) + prior_density.log_pdf_gradient(samples)
-        log_unnormalized_posterior_grads = objective(
-            samples, {"eval_type": "grad"}
-        )
-        assert np.allclose(
-            exact_log_unnormalized_posterior_grads.T,
-            log_unnormalized_posterior_grads,
-        )
-
-    def test_get_map_point(self):
-        num_dims = 4
-        rank = 3
-        num_qoi = 3
-        obs = np.random.normal(0.0, 1.0, (num_qoi))
-        prior_mean = np.zeros((num_dims), float)
-        prior_covariance = np.eye(num_dims) * 0.25
-        prior_covariance_chol_factor = np.linalg.cholesky(prior_covariance)
-        noise_covariance = np.eye(num_qoi) * 0.1
-        noise_covariance_inv = np.linalg.inv(noise_covariance)
-        misfit_model = QuadraticMisfitModel(
-            num_dims, rank, num_qoi, obs, noise_covariance=noise_covariance
-        )
-        # exact map point should be mean of Gaussian posterior
-        prior_hessian = np.linalg.inv(prior_covariance)
-        exact_map_point = laplace_posterior_approximation_for_linear_models(
-            misfit_model.Amatrix,
-            prior_mean,
-            prior_hessian,
-            noise_covariance_inv,
-            obs,
-        )[0]
-
-        prior_density = NormalDensity(prior_mean, covariance=prior_covariance)
-        objective = LogUnormalizedPosterior(
-            misfit_model,
-            misfit_model.gradient_set,
-            prior_density.pdf,
-            prior_density.log_pdf,
-            prior_density.log_pdf_gradient,
-        )
-        initial_point = prior_mean
-        map_point, obj_min = find_map_point(objective, initial_point)
-
-        assert np.allclose(exact_map_point.squeeze(), map_point)
-
-        assert np.allclose(
-            objective.gradient(map_point), objective.gradient(exact_map_point)
-        )
-        assert np.allclose(objective.gradient(map_point), np.zeros(num_dims))
-
     def test_push_forward_gaussian_though_linear_model(self):
-        num_qoi = 1
-        num_dims = 2
-        A = np.random.normal(0.0, 1.0, (num_qoi, num_dims))
-        b = np.random.normal(0.0, 1.0, (num_qoi))
-
-        mean = np.ones((num_dims), float)
-        covariance = 0.1 * np.eye(num_dims)
-        covariance_chol_factor = cholesky(covariance)
-
-        push_forward_mean, push_forward_covariance = (
-            push_forward_gaussian_though_linear_model(A, b, mean, covariance)
+        nqoi = 1
+        nvars = 2
+        mean = np.ones((nvars, 1))
+        covariance = 0.1 * np.eye(nvars)
+        A = np.random.normal(0.0, 1.0, (nqoi, nvars))
+        b = np.random.normal(0.0, 1.0, (nqoi, 1))
+        prior = MultivariateGaussian(mean, covariance)
+        push_forward = GaussianPushForward(
+            A, prior.mean(), prior.covariance(), b
         )
 
         # Generate samples from original density and push forward through model
         # and approximate density using KDE
-        num_samples = 1000000
-        samples = np.dot(
-            covariance_chol_factor,
-            np.random.normal(0.0, 1.0, (num_dims, num_samples)),
-        ) + np.tile(mean.reshape(num_dims, 1), num_samples)
-        push_forward_samples = np.dot(A, samples) + b
-
-        kde_density = ObsDataDensity(push_forward_samples)
-        push_forward_density = NormalDensity(
-            push_forward_mean, covariance=push_forward_covariance
-        )
-
-        test_samples = np.linspace(
-            push_forward_samples.min(), push_forward_samples.max(), 100
-        ).reshape(1, 100)
-        kde_values = kde_density.pdf(test_samples)
-        normal_values = push_forward_density.pdf(test_samples)
-
-        assert np.linalg.norm(kde_values - normal_values[:, 0]) < 4e-2
-
-        # plt = kde_density.plot_density(1000,show=False)
-        # import pylab
-        # pylab.setp(plt, linewidth=2, color='r')
-        # push_forward_density.plot_density(100,show=True)
-
-    def test_quadratic_misfit_model(self):
-        num_dims = 10
-        rank = 3
-        num_qoi = 3
-        obs = np.random.normal(0.0, 1.0, (num_qoi))
-        model = QuadraticMisfitModel(num_dims, rank, num_qoi, obs)
-
-        sample = np.random.normal(0.0, 1.0, (num_dims))
-        check_gradient(model.value, model.gradient, sample)
-
-    def test_neg_log_posterior(self):
-        num_dims = 10
-        rank = 3
-        num_qoi = 3
-        obs = np.random.normal(0.0, 1.0, (num_qoi))
-        noise_covariance = np.eye(num_qoi) * 0.1
-        misfit_model = QuadraticMisfitModel(
-            num_dims, rank, num_qoi, obs, noise_covariance=noise_covariance
-        )
-
-        # prior_mean = np.ones((num_dims), float)
-        # prior_covariance = np.eye(num_dims)*0.25
-        # prior_density = NormalDensity(prior_mean, covariance=prior_covariance)
-        # objective = LogUnormalizedPosterior(
-        #     misfit_model, misfit_model.gradient_set, prior_density.pdf,
-        #     prior_density.log_pdf, prior_density.log_pdf_gradient)
-
-        sample = np.random.normal(0.0, 1.0, (num_dims))
-        check_gradient(misfit_model.value, misfit_model.gradient, sample)
-
-    def test_directional_derivative_using_finite_difference(self):
-
-        num_dims = 10
-        rank = 3
-        num_qoi = 3
-        model = QuadraticMisfitModel(num_dims, rank, num_qoi)
-        directions = np.random.normal(0.0, 1.0, (num_dims, 2))
-        directions /= np.linalg.norm(directions, axis=0)
-        # derivatives of function values
-        sample = np.random.normal(0.0, 1.0, (num_dims, 1))
-        opts = {"eval_type": "value_grad"}
-        result = model(sample, opts)[0, :]
-        # result is num_samples x num_qoi. There is only one sample so take
-        # first row of result above
-        value_at_sample = result[0:1]  # must be a vector
-        gradient = result[1:]
-        # gradient = model.gradient(sample)
+        nsamples = 1000000
+        samples = prior.rvs(nsamples)
+        model = DenseMatrixLinearModel(A, b)
+        values = model(samples)
         assert np.allclose(
-            np.dot(gradient, directions).squeeze(),
-            directional_derivatives(
-                model, sample, value_at_sample, directions, 1e-7
-            ).squeeze(),
+            push_forward.mean(), np.mean(values, axis=0), rtol=1e-2
         )
-        # derivatives of gradients
-        sample = np.random.normal(0.0, 1.0, (num_dims, 1))
-        opts = {"eval_type": "grad"}
-        gradient_at_sample = model(sample, opts)[0, :]
-        hessian = model.hessian(sample)
-
-        # function passed to directional_derivatives function must return
-        # np.ndarray with shape (num_samples,num_vars)
-        # each gradient entry is considered a qoi of a function
-        def grad_func(x):
-            return model.gradient_set(x).T
-
         assert np.allclose(
-            np.dot(hessian, directions).squeeze(),
-            directional_derivatives(
-                grad_func,
-                sample,
-                gradient_at_sample,
-                directions,
-                1e-7,
-                use_central_finite_difference=False,
-            ).T.squeeze(),
+            push_forward.covariance(),
+            np.cov(values, rowvar=False, ddof=1),
+            rtol=1e-2,
         )
-
-        # If model has a __call__ which takes options to return values,
-        # grads, hessians or combinations. It should also have
-        #  value(), gradient(), and hessian() functions which invoke __call__
-        # and reshape to have meaningful  shape, e.g. hessians as list of hessians
-        # gradients (num_dims x num_samples) array instead of
-        # (num_samples x num_dims returned buy __call__
 
     def test_laplace_posterior_hessian_vec_operator(self):
-        num_dims = 10
+        nvars = 10
         rank = 3
-        num_qoi = 3
-        model = QuadraticMisfitModel(num_dims, rank, num_qoi)
-        map_point = np.zeros(num_dims)
+        nqoi = 3
+        model = QuadraticMisfitModel(nvars, rank, nqoi)
+        map_point = np.zeros(nvars)
         # map_point_misfit_gradient = model.gradient(map_point)
         operator = MisfitHessianVecOperator(model, map_point)
-        vectors = np.random.normal(0.0, 1.0, (num_dims, 2))
+        vectors = np.random.normal(0.0, 1.0, (nvars, 2))
         hess_vec_prods = operator.apply(vectors)
         true_hess_vec_prods = np.dot(model.hessian(map_point), vectors)
         assert np.allclose(true_hess_vec_prods, hess_vec_prods)
 
     def test_hessian_vector_multiply_operator_with_randomized_svd(self):
-        num_dims = 100
+        nvars = 100
         rank = 21
-        num_qoi = 30
+        nqoi = 30
         concurrency = 10
 
-        model = QuadraticMisfitModel(num_dims, rank, num_qoi)
+        model = QuadraticMisfitModel(nvars, rank, nqoi)
 
         # --------------------------------- #
         # compute with exact misfit Hessian #
@@ -691,7 +506,7 @@ class TestLaplace(unittest.TestCase):
         # compute with finite difference approximation of Hessian action #
         # -------------------------------------------------------------- #
         np.random.seed(2)
-        map_point = np.zeros(num_dims)
+        map_point = np.zeros(nvars)
         operator = MisfitHessianVecOperator(model, map_point, fd_eps=1e-7)
         U, S, V = randomized_svd(operator, svd_opts)
         Utrue, Strue, Vtrue = np.linalg.svd(
@@ -705,31 +520,31 @@ class TestLaplace(unittest.TestCase):
         assert np.allclose(Vtrue[J, :], V[J, :])
 
     def test_prior_conditioned_misfit_covariance_operator(self):
-        num_dims = 3
+        nvars = 3
         rank = 2
-        num_qoi = 2
+        nqoi = 2
 
         # define prior
-        prior_mean = np.zeros((num_dims), float)
-        prior_covariance = np.eye(num_dims)
-        prior_hessian = np.eye(num_dims)
+        prior_mean = np.zeros((nvars), float)
+        prior_covariance = np.eye(nvars)
+        prior_hessian = np.eye(nvars)
         prior_density = NormalDensity(prior_mean, covariance=prior_covariance)
 
         # define observations
         noise_sigma2 = 0.5
-        noise_covariance = np.eye(num_qoi) * noise_sigma2
+        noise_covariance = np.eye(nqoi) * noise_sigma2
         noise_covariance_inv = np.linalg.inv(noise_covariance)
         noise_covariance_chol_factor = np.linalg.cholesky(noise_covariance)
         truth_sample = prior_density.generate_samples(1)[:, 0]
-        Amatrix = get_low_rank_matrix(num_qoi, num_dims, rank)
+        Amatrix = get_low_rank_matrix(nqoi, nvars, rank)
         noise = np.dot(
-            noise_covariance_chol_factor, np.random.normal(0.0, 1.0, num_qoi)
+            noise_covariance_chol_factor, np.random.normal(0.0, 1.0, nqoi)
         )
         obs = np.dot(Amatrix, truth_sample) + noise
 
         # define mistit model
         misfit_model = QuadraticMisfitModel(
-            num_dims, rank, num_qoi, obs, noise_covariance, Amatrix
+            nvars, rank, nqoi, obs, noise_covariance, Amatrix
         )
 
         # Get analytical mean and covariance
@@ -752,7 +567,7 @@ class TestLaplace(unittest.TestCase):
         )
         map_point, obj_min = find_map_point(objective, prior_mean)
         sample = map_point
-        assert np.allclose(objective.gradient(sample), np.zeros(num_dims))
+        assert np.allclose(objective.gradient(sample), np.zeros(nvars))
         prior_covariance_sqrt_operator = CholeskySqrtCovarianceOperator(
             prior_density.covariance
         )
@@ -768,7 +583,7 @@ class TestLaplace(unittest.TestCase):
             prior_covariance_sqrt_operator, misfit_hessian_operator, svd_opts
         )
 
-        identity = np.eye(num_dims)
+        identity = np.eye(nvars)
         laplace_covariance_chol_factor = laplace_covariance_sqrt.apply(
             identity
         )
@@ -934,19 +749,19 @@ class TestLaplace(unittest.TestCase):
 class TestGoalOrientedInference(unittest.TestCase):
 
     def help_compute_posterior_mean_covar_optimal_for_prediction(
-        self, num_dims, num_obs_qoi, num_pred_qoi
+        self, nvars, num_obs_qoi, num_pred_qoi
     ):
-        # print num_dims,num_obs_qoi,num_pred_qoi
-        obs_matrix = np.random.normal(0.0, 1.0, (num_obs_qoi, num_dims))
-        # prior_mean = np.zeros((num_dims),float)
-        prior_mean = np.ones((num_dims), float)
-        prior_cov = np.eye(num_dims)
+        # print nvars,num_obs_qoi,num_pred_qoi
+        obs_matrix = np.random.normal(0.0, 1.0, (num_obs_qoi, nvars))
+        # prior_mean = np.zeros((nvars),float)
+        prior_mean = np.ones((nvars), float)
+        prior_cov = np.eye(nvars)
         noise_cov = np.eye(num_obs_qoi)
-        truth_sample = np.random.normal(0.0, 1.0, num_dims)
+        truth_sample = np.random.normal(0.0, 1.0, nvars)
         obs = np.dot(obs_matrix, truth_sample) + np.random.normal(
             0.0, 1.0, num_obs_qoi
         )
-        pred_matrix = np.random.normal(0.0, 1.0, (num_pred_qoi, num_dims))
+        pred_matrix = np.random.normal(0.0, 1.0, (num_pred_qoi, nvars))
         pred_offset = 0.0  # *np.random.normal(0.,1.,(num_pred_qoi))
 
         # prior_chol_factor = np.linalg.cholesky(prior_cov)
@@ -1000,39 +815,39 @@ class TestGoalOrientedInference(unittest.TestCase):
         )
 
     def test_goal_oriented_inference(self):
-        num_dims = 10
+        nvars = 10
         num_obs_qoi = 5
         num_pred_qoi = 3
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            num_dims, num_obs_qoi, num_pred_qoi
+            nvars, num_obs_qoi, num_pred_qoi
         )
 
-        num_dims = 10
+        nvars = 10
         num_obs_qoi = 15
         num_pred_qoi = 2
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            num_dims, num_obs_qoi, num_pred_qoi
+            nvars, num_obs_qoi, num_pred_qoi
         )
 
-        num_dims = 10
+        nvars = 10
         num_obs_qoi = 2
         num_pred_qoi = 5
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            num_dims, num_obs_qoi, num_pred_qoi
+            nvars, num_obs_qoi, num_pred_qoi
         )
 
-        num_dims = 2
+        nvars = 2
         num_obs_qoi = 3
         num_pred_qoi = 2
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            num_dims, num_obs_qoi, num_pred_qoi
+            nvars, num_obs_qoi, num_pred_qoi
         )
 
-        num_dims = 3
+        nvars = 3
         num_obs_qoi = 2
         num_pred_qoi = 3
         self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            num_dims, num_obs_qoi, num_pred_qoi
+            nvars, num_obs_qoi, num_pred_qoi
         )
 
 

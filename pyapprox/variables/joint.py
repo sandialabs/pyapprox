@@ -758,6 +758,12 @@ class MultivariateGaussian(JointVariable):
     def pdf_hessian_implemented(self) -> bool:
         return True
 
+    def mean(self) -> Array:
+        return self._mean
+
+    def covariance(self) -> Array:
+        return self._cov
+
 
 class IndependentMultivariateGaussian(MultivariateGaussian):
     def _set_covariance(self, cov_diag: Array):

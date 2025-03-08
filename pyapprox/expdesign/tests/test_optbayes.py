@@ -8,7 +8,6 @@ from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.interface.model import Model
 from pyapprox.bayes.likelihood import (
     IndependentGaussianLogLikelihood,
-    SingleObsIndependentGaussianLogLikelihood,
 )
 from pyapprox.expdesign.optbayes import (
     OEDGaussianLogLikelihood,
@@ -22,15 +21,9 @@ from pyapprox.expdesign.optbayes import (
     NoiseStatistic,
 )
 from pyapprox.bayes.laplace import (
-    laplace_posterior_approximation_for_linear_models,
-    laplace_evidence,
+    DenseMatrixLaplacePosteriorApproximation,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.expdesign.tests.test_bayesian_oed import (
-    expected_kl_divergence_gaussian_inference,
-    posterior_mean_data_stats,
-    # gaussian_kl_divergence,
-)
 from pyapprox.optimization.minimize import (
     LinearConstraint,
     SampleAverageMean,
@@ -213,7 +206,9 @@ class TestBayesOED:
         )
         design = bkd.linspace(-1, 1, nobs - 2)[None, :]
         design = bkd.sort(
-            bkd.hstack((design[0], [-1 / bkd.sqrt(5), 1 / bkd.sqrt(5)]))
+            bkd.hstack(
+                (design[0], bkd.asarray([-1 / np.sqrt(5), 1 / np.sqrt(5)]))
+            )
         )[None, :]
         noise_cov_diag = bkd.full((nobs, 1), noise_std**2)
         obs_model = Linear1DRegressionModel(

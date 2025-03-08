@@ -97,6 +97,8 @@ class DenseMatrixLaplacePosteriorApproximation:
         temp = self._matrix.T @ (self._noise_cov_inv @ residual)
         self._posterior_mean = self._prior_mean + self._posterior_cov @ temp
         self._compute_evidence()
+        self._compute_expected_posterior_statistics()
+        self._compute_expected_kl_divergence()
 
     def _compute_evidence(self) -> Array:
         """
@@ -146,6 +148,49 @@ class DenseMatrixLaplacePosteriorApproximation:
             backend=self._bkd,
         )
 
+    def _compute_expected_posterior_statistics(self):
+        """
+        Compute the mean and variance of the posterior mean with respect to
+        uncertainty in the observation data. The posterior mean is a
+        Gaussian variable
+        """
+        Rmat = np.linalg.multi_dot(
+            (self.posterior_covariance(), self._matrix.T, self._noise_cov_inv)
+        )
+        ROmat = Rmat.dot(self._matrix)
+        self._nu_vec = (ROmat @ self._prior_mean) + self._bkd.multi_dot(
+            (
+                self.posterior_covariance(),
+                self._prior_hessian,
+                self._prior_mean,
+            )
+        )
+        self._Cmat = self._bkd.multi_dot(
+            (ROmat, self._prior_cov, ROmat.T)
+        ) + np.linalg.multi_dot((Rmat, self._noise_cov, Rmat.T))
+
+    def _compute_expected_kl_divergence(self):
+        """
+        Compute the expected KL divergence between a Gaussian posterior
+        and prior, where average is taken with respect to the data
+        """
+        kl_div = (
+            self._bkd.trace(self._prior_hessian @ self.posterior_covariance())
+            - self.nvars()
+        )
+        kl_div += self._bkd.log(
+            self.bkd.det(self._prior_cov)
+            / self._bkd.det(self.posterior_covariance())
+        )
+        kl_div += self._bkd.trace(self._prior_hessian @ self._Cmat)
+        xi = self._prior_mean - self._nu_vec
+        kl_div += self._bkd.multi_dot((xi.T, self._prior_hessian, xi))
+        kl_div *= 0.5
+        self._kl_div = kl_div[0, 0]
+
+    def expected_kl_divergence(self) -> float:
+        return self._kl_div
+
 
 class GaussianPushForward:
     def __init__(
@@ -153,6 +198,8 @@ class GaussianPushForward:
         matrix: Array,
         mean: Array,
         cov: Array,
+        vec: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         r"""
         Find the mean and covariance of a gaussian distribution when it
@@ -168,6 +215,7 @@ class GaussianPushForward:
         Distribution of resulting gaussian
         y~N(Ax+b,A\Sigma A^T)
         """
+        self._bkd = backend
         self._nqoi, self._nvars = matrix.shape
         self._mat = matrix
         if mean.shape != (self.nvars(), 1):
@@ -176,6 +224,12 @@ class GaussianPushForward:
         if cov.shape != (self.nvars(), self.nvars()):
             raise ValueError("cov has the wrong shape")
         self._cov = cov
+        if vec is None:
+            vec = self._bkd.zeros((self.nqoi(), 1))
+        if vec.shape != (self.nqoi(), 1):
+            raise ValueError("vec has the wrong shape")
+        self._vec = vec
+        self._compute()
 
     def nqoi(self) -> int:
         return self._nqoi
@@ -183,18 +237,16 @@ class GaussianPushForward:
     def nvars(self) -> int:
         return self._nvars
 
-    def compute(self, matrix: Array) -> Array:
-        if not hasattr(self, "_posterior_mean"):
-            raise RuntimeError("must first call compute()")
+    def _compute(self) -> Array:
         self._pushforward_mean = self._mat @ self._mean + self._vec
         self._pushforward_cov = self._mat @ self._cov @ self._mat.T
 
-    def pushforward_mean(self) -> Array:
+    def mean(self) -> Array:
         if not hasattr(self, "_pushforward_mean"):
             raise RuntimeError("must first call compute()")
         return self._pushforward_mean
 
-    def pushforward_covariance(self) -> Array:
+    def covariance(self) -> Array:
         if not hasattr(self, "_pushforward_mean"):
             raise RuntimeError("must first call compute()")
         return self._pushforward_cov

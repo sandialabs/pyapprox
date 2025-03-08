@@ -165,6 +165,8 @@ class GaussianLogLikelihood(LogLikelihood):
         return (-0.5 * (vals + self._loglike_const))[:, None]
 
     def _loglike(self, many_pred_obs: Array) -> Array:
+        if self._obs is None:
+            raise RuntimeError("must call set_observations()")
         return self._loglike_many(*self._parse_obs(self._obs, many_pred_obs))
 
     def noise_covariance(self) -> Array:
@@ -297,6 +299,17 @@ class ModelBasedIndependentGaussianLogLikelihood(
         return tmp.T @ self._model.jacobian(sample)
 
 
+class WeightBasedLogLikelihoodMixin:
+    def (self) -> int:
+        return self._model.nvars()
+
+
+class WeightBasedGaussianLogLikelihood(
+    WeightBasedLogLikelihoodMixin, GaussianLogLikelihood
+):
+    pass
+
+
 class IndependentExponentialLogLikelihood(LogLikelihood):
     r"""
     p(y|z)=\lambda\exp(-\lambda (y-f(z)))
@@ -380,6 +393,12 @@ class LogUnormalizedPosterior(Model):
         self._prior = prior
         super().__init__(loglike._bkd)
 
+    def nqoi(self) -> int:
+        return 1
+
+    def nvars(self) -> int:
+        return self._loglike.nvars()
+
     def jacobian_implemented(self) -> bool:
         return (
             self._prior.pdf_jacobian_implemented()
@@ -387,13 +406,17 @@ class LogUnormalizedPosterior(Model):
         )
 
     def hessian_implemented(self) -> bool:
+        print(
+            self._prior.pdf_hessian_implemented(),
+            self._loglike.hessian_implemented(),
+        )
         return (
             self._prior.pdf_hessian_implemented()
             and self._loglike.hessian_implemented()
         )
 
     def _values(self, samples: Array) -> Array:
-        return self._loglike(samples) + self._prior.pdf(samples)
+        return self._loglike(samples) + self._prior._log_pdf(samples)
 
     def _jacobian(self, sample: Array) -> Array:
         return self._loglike.jacobian(sample) + self._prior.log_pdf_jacobian(
