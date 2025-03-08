@@ -828,19 +828,14 @@ if __name__ == "__main__":
         nvecs = 3
         sample = bkd.array(np.random.uniform(0, 1, (nvars, 1)))
         vec = bkd.array(np.random.normal(0, 1, (nvars, nvecs)))
-        print(fd.jacobian(sample), model.jacobian(sample))
         assert bkd.allclose(
             fd.jacobian(sample), model.jacobian(sample), rtol=rtol
-        )
-        print(
-            fd.apply_jacobian(sample, vec), model.apply_jacobian(sample, vec)
         )
         assert bkd.allclose(
             fd.apply_jacobian(sample, vec),
             model.apply_jacobian(sample, vec),
             rtol=rtol,
         )
-        # print(fd.hessian(sample), model.hessian(sample), "a")
         assert bkd.allclose(
             fd.hessian(sample), model.hessian(sample), rtol=rtol
         )
@@ -869,10 +864,6 @@ if __name__ == "__main__":
             backend=bkd,
         )
         fd = FD_cls(model)
-        # print(
-        #     fd.apply_hessian(sample, vec[:, :1]),
-        #     model.apply_hessian(sample, vec[:, :1]),
-        # )
         assert bkd.allclose(
             fd.apply_hessian(sample, vec[:, :1]),
             model.apply_hessian(sample, vec[:, :1]),

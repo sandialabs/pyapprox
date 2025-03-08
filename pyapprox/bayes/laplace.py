@@ -158,14 +158,14 @@ class DenseMatrixLaplacePosteriorApproximation:
             (self.posterior_covariance(), self._matrix.T, self._noise_cov_inv)
         )
         ROmat = Rmat.dot(self._matrix)
-        self._nu_vec = (ROmat @ self._prior_mean) + self._bkd.multi_dot(
+        self._nu_vec = (ROmat @ self._prior_mean) + self._bkd.multidot(
             (
                 self.posterior_covariance(),
                 self._prior_hessian,
                 self._prior_mean,
             )
         )
-        self._Cmat = self._bkd.multi_dot(
+        self._Cmat = self._bkd.multidot(
             (ROmat, self._prior_cov, ROmat.T)
         ) + np.linalg.multi_dot((Rmat, self._noise_cov, Rmat.T))
 
@@ -179,12 +179,12 @@ class DenseMatrixLaplacePosteriorApproximation:
             - self.nvars()
         )
         kl_div += self._bkd.log(
-            self.bkd.det(self._prior_cov)
+            self._bkd.det(self._prior_cov)
             / self._bkd.det(self.posterior_covariance())
         )
         kl_div += self._bkd.trace(self._prior_hessian @ self._Cmat)
         xi = self._prior_mean - self._nu_vec
-        kl_div += self._bkd.multi_dot((xi.T, self._prior_hessian, xi))
+        kl_div += self._bkd.multidot((xi.T, self._prior_hessian, xi))
         kl_div *= 0.5
         self._kl_div = kl_div[0, 0]
 
@@ -255,9 +255,7 @@ class GaussianPushForward:
         return "{0}".format(self.__class__.__name__)
 
     def pushfowward_variable(self) -> MultivariateGaussian:
-        return MultivariateGaussian(
-            self.pushforward_mean(), self.pushforward_covariance()
-        )
+        return MultivariateGaussian(self.mean(), self.covariance())
 
 
 class PriorConditionedHessianMatVecOperator(object):
@@ -542,167 +540,6 @@ def get_low_rank_prior_conditioned_misfit_hessian(
     return e_r, V_r
 
 
-class MisfitHessianVecOperator(object):
-    r"""
-    Operator which computes the Hessian vector product. The Hessian
-    is the Hessian of a misfit function and if not available
-    the action of the Hessian is computed using finite differences of
-    gradients of the misfit of from function evaluations.
-    """
-
-    def __init__(
-        self,
-        model: GaussianLogLikelihood,
-        map_point: Array,
-        fd_eps=2 * np.sqrt(np.finfo(float).eps),
-    ):
-        r"""
-        Initialize the MisfitHessianVecOperator
-
-        Parameters
-        ----------
-        model : Model object
-            A model which must allow model.gradient_set()
-            and possess model.rv_trans object
-
-        map_point : (num_dims) vector
-           The point x that maximizes likelihood(x)*prior(x)
-
-        fd_eps : float (default=2*mach_eps)
-            The finite difference step size. If not None
-            Then action of hessian will be computed with finite
-            difference even if model has a hessian attribute
-        """
-        self._model = model
-        if map_point.shape != (model.nvars(), 1):
-            raise ValueError("map point has the wrong shape")
-        self._map_point = map_point
-        self._fd_eps = fd_eps
-
-        self._map_point_misfit_gradient = None
-
-
-def directional_derivatives(
-    function,
-    sample,
-    value_at_sample,
-    vectors,
-    fd_eps,
-    normalize_vectors=False,
-    use_central_finite_difference=False,
-):
-    r"""
-    Compute the first-order forward difference directional derivative of a
-    vector valued function.
-
-    Parameters
-    ----------
-    function : callable_function
-        Vector valued function of interest. If function returns a gradient.
-        then function must return matrix (num_samples, num_dims)
-
-    sample : (num_dims,1) vector
-        The sample at which the directional derivative needs to be computed
-
-    value_at_sample : (1,num_qoi) vector
-        The function value(s) at sample
-
-    vectors : (num_dims,num_vectors) matrix
-        The direction vectors of the directional finite differences
-
-    fd_eps : float
-        The finite difference step size
-
-    normalize_vectors : bool
-        Normalize the directional derivatives by the l2 norms of the
-        direction vectors
-
-    use_central_finite_difference : bool
-        True: use central finite difference (value_at_sample is ignored)
-        False: use forward finite difference (using value_at_sample)
-
-    Returns
-    -------
-    directional_derivatives : (num_dims,num_vectors) matrix
-        The directional derivatives in the direction of the vectors
-    """
-    if sample.ndim == 1:
-        sample = sample[:, np.newaxis]
-    else:
-        assert sample.shape[1] == 1
-    assert vectors.ndim == 2
-
-    if not use_central_finite_difference:
-        if value_at_sample.ndim == 1:
-            value_at_sample = value_at_sample[np.newaxis, :]
-        else:
-            assert value_at_sample.shape[0] == 1
-        num_perturbed_samples = vectors.shape[1]
-        perturbed_samples = np.tile(sample, (1, num_perturbed_samples))
-        perturbed_samples += fd_eps * vectors
-        perturbed_values = function(perturbed_samples)
-        assert perturbed_values.shape[0] == vectors.shape[1]
-        directional_derivatives = (perturbed_values - value_at_sample) / (
-            fd_eps
-        )
-        assert directional_derivatives.shape[1] == value_at_sample.shape[1]
-    else:
-        num_perturbed_samples = 2 * vectors.shape[1]
-        perturbed_samples = np.tile(sample, (1, num_perturbed_samples))
-        perturbed_samples[:, : num_perturbed_samples / 2] += fd_eps * vectors
-        perturbed_samples[:, num_perturbed_samples / 2 :] -= fd_eps * vectors
-        perturbed_values = function(perturbed_samples)
-        assert perturbed_values.shape[0] == 2 * vectors.shape[1]
-        directional_derivatives = (
-            perturbed_values[: num_perturbed_samples / 2, :]
-            - perturbed_values[num_perturbed_samples / 2 :, :]
-        ) / (2 * fd_eps)
-
-    if normalize_vectors:
-        directional_derivatives /= np.linalg.norm(vectors, axis=0)
-    assert directional_derivatives.shape[0] == vectors.shape[1]
-    return directional_derivatives
-
-
-def sample_from_laplace_posterior(
-    laplace_mean, laplace_covariance_sqrt, num_dims, num_samples, weights=None
-):
-    r"""
-    Parameters
-    -------
-    laplace_mean : vector (num_dims)
-        The mean of the Laplace posterior distribution
-
-    laplace_covariance_sqrt :  Matrix vector multiplication operator
-        The action of the sqrt of the covariance on a vector
-
-    num_dims : integer
-       The number of random variables
-
-    num_samples : integer
-       The desired number of posterior samples
-
-    weights : vector (num_dims) (default=None)
-       weights defining a weighted inner product
-
-    Returns
-    -------
-    posterior_samples : matrix (num_dims,num_samples)
-        Samples from the posterior
-    """
-    assert laplace_mean.ndim == 2 and laplace_mean.shape[1] == 1
-    std_normal_samples = np.random.normal(0.0, 1.0, (num_dims, num_samples))
-    if weights is not None:
-        assert weights.ndim == 1 and weights.shape[0] == num_dims
-        std_normal_samples /= np.sqrt(weights)
-
-    posterior_samples = (
-        laplace_covariance_sqrt.apply(std_normal_samples, transpose=False)
-        + laplace_mean
-    )
-    return posterior_samples
-
-
 def get_pointwise_laplace_variance(prior, laplace_covariance_sqrt):
     prior_pointwise_variance = prior.pointwise_variance()
     return get_pointwise_laplace_variance_using_prior_variance(
@@ -809,137 +646,69 @@ def generate_and_save_pointwise_variance(
     return prior_pointwise_variance, posterior_pointwise_variance
 
 
-def compute_posterior_mean_covar_optimal_for_prediction(
-    obs,
-    obs_matrix,
-    prior_mean,
-    prior_covar,
-    obs_noise_covar,
-    pred_matrix,
-    economical=False,
-):
+class DenseMatrixLaplaceApproximationForPrediction:
+    def __init__(
+        self,
+        obs_matrix: Array,
+        pred_matrix: Array,
+        prior_mean: Array,
+        prior_cov: Array,
+        obs_noise_cov: Array,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        self._obs_matrix = obs_matrix
+        self._pred_matrix = pred_matrix
+        self._prior_mean = prior_mean
+        self._prior_cov = prior_cov
+        self._obs_noise_cov = obs_noise_cov
 
-    assert pred_matrix.shape[0] <= prior_mean.shape[0]
-
-    # step 1
-    OP = np.dot(pred_matrix, prior_covar)
-    # step 2
-    C = np.dot(OP, obs_matrix.T)
-    # step 3
-    Pz = np.dot(OP, pred_matrix.T)
-    # step 4
-    Pz_inv = np.linalg.inv(Pz)
-    # step 5
-    A = np.dot(C.T, np.dot(Pz_inv, C))
-    # step 6
-    data_covar = (
-        np.dot(np.dot(obs_matrix, prior_covar), obs_matrix.T) + obs_noise_covar
-    )
-    # step 7
-    # print 'TODO replace generalized_eigevalue_decomp by my subspace iteration'
-    evals, evecs = generalized_eigevalue_decomp(A, data_covar)
-    evecs = evecs[:, ::-1]
-    evals = evals[::-1]
-    rank = min(pred_matrix.shape[0], obs_matrix.shape[0])
-    evecs = evecs[:, :rank]
-    evals = evals[:rank]
-    # step 8
-    ppf_covar_evecs = np.dot(C, evecs)
-
-    residual = obs - np.dot(obs_matrix, prior_mean)
-    opt_pf_covar = Pz - np.dot(ppf_covar_evecs, ppf_covar_evecs.T)
-    opt_pf_mean = np.dot(ppf_covar_evecs, np.dot(evecs.T, residual)) + np.dot(
-        pred_matrix, prior_mean
-    )
-
-    if economical:
-        return opt_pf_mean, opt_pf_covar
-    else:
-        posterior_evec = np.dot(np.dot(OP.T, Pz_inv), ppf_covar_evecs)
-        posterior_covar = prior_covar - np.dot(
-            posterior_evec, posterior_evec.T
+    def compute(self, obs: Array):
+        # step 1
+        OP = self._pred_matrix @ self._prior_cov
+        # step 2
+        C = OP @ self._obs_matrix.T
+        # step 3
+        Pz = OP @ self._pred_matrix.T
+        # step 4
+        Pz_inv = self._bkd.inv(Pz)
+        # step 5
+        A = C.T @ Pz_inv @ C
+        # step 6
+        data_cov = (
+            self._obs_matrix @ self._prior_cov @ self._obs_matrix.T
+            + self._obs_noise_cov
         )
-        posterior_mean = (
-            np.dot(np.dot(posterior_evec, evecs.T), residual) + prior_mean
+        # step 7
+        # print 'TODO replace generalized_eigevalue_decomp by my
+        # subspace iteration'
+        evals, evecs = generalized_eigevalue_decomp(A, data_cov)
+        evecs = evecs[:, ::-1]
+        evals = evals[::-1]
+        rank = min(self._pred_matrix.shape[0], self._obs_matrix.shape[0])
+        evecs = evecs[:, :rank]
+        evals = evals[:rank]
+        # step 8
+        ppf_cov_evecs = C @ evecs
+
+        residual = obs - self._obs_matrix @ self._prior_mean
+        self._opt_pf_cov = Pz - ppf_cov_evecs @ ppf_cov_evecs.T
+        self._opt_pf_mean = (ppf_cov_evecs @ (evecs.T @ residual)) + (
+            self._pred_matrix @ self._prior_mean
         )
 
-        return opt_pf_mean, opt_pf_covar, posterior_mean, posterior_covar
+    def mean(self) -> Array:
+        if not hasattr(self, "_opt_pf_mean"):
+            raise RuntimeError("must first call compute()")
+        return self._opt_pf_mean
 
+    def covariance(self) -> Array:
+        if not hasattr(self, "_opt_pf_mean"):
+            raise RuntimeError("must first call compute()")
+        return self._opt_pf_cov
 
-def laplace_evidence(likelihood_fun, prior_pdf, post_covariance, map_point):
-    """
-    References
-    ----------
-    Ryan, K. (2003). Estimating Expected Information Gains for Experimental
-    Designs with Application to the Random Fatigue-Limit Model. Journal of
-    Computational and Graphical Statistics, 12(3), 585-603.
-    http://www.jstor.org/stable/1391040
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
 
-    Friel, N. and Wyse, J. (2012), Estimating the evidence – a review.
-    Statistica Neerlandica, 66: 288-308.
-    https://doi.org/10.1111/j.1467-9574.2011.00515.x
-    """
-    assert map_point.ndim == 2
-    nvars = post_covariance.shape[0]
-    lval = likelihood_fun(map_point)
-    prior_val = prior_pdf(map_point)
-    assert lval.ndim == 1
-    assert prior_val.ndim == 2
-    evidence = (2 * np.pi) ** (nvars / 2) * np.sqrt(
-        np.linalg.det(post_covariance)
-    )
-    evidence *= lval[0] * prior_val[0, 0]
-    return evidence
-
-
-def find_map_point(objective, initial_guess, opts=None):
-    r"""
-    Find the maximum of the log posterior of Bayes rule.
-
-    Parameters
-    ----------
-    objective : Model object
-        The log of the posterior using Bayes rule. Does not need to be
-        normalized e.g, can simply be
-           misfit(x) + log(prior(x)),
-        Objective must implement with .evaluate()
-        and .gradient() functions
-
-    initial guess : (num_dims,1) vector
-        The initial point to start the local optimization
-
-    opts : dictionary (default=None)
-        Options for the optimizer
-        If None opts is set to opts = {'maxiter':1000,'gtol':1e-10}
-
-    Returns
-    -------
-    map_point : (num_dims,1) vector
-        The coordinates of the maximum of the log posterior
-
-    obj_max : float
-        The maximum of the log posterior
-    """
-    if opts is None:
-        opts = {"maxiter": 1000, "gtol": 1e-10}
-
-    def obj_func(x):
-        return -objective(x[:, np.newaxis], {"eval_type": "value"})[0, :]
-
-    def obj_grad(x):
-        return -objective(x[:, np.newaxis], {"eval_type": "grad"})[0, :]
-
-    from scipy.optimize import fmin_bfgs
-
-    out = fmin_bfgs(
-        obj_func,
-        fprime=obj_grad,
-        x0=initial_guess,
-        gtol=opts["gtol"],
-        maxiter=opts["maxiter"],
-        disp=False,
-        full_output=True,
-    )
-    map_point = out[0]
-    obj_max = out[1]
-    return map_point, obj_max
+    def pushfowward_variable(self) -> MultivariateGaussian:
+        return MultivariateGaussian(self.mean(), self.covariance())

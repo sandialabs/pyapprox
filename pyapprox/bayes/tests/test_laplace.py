@@ -22,15 +22,11 @@ from pyapprox.interface.model import DenseMatrixLinearModel, Model
 from pyapprox.bayes.laplace import (
     get_laplace_covariance_sqrt_operator,
     get_pointwise_laplace_variance_using_prior_variance,
-    sample_from_laplace_posterior,
     GaussianPushForward,
-    MisfitHessianVecOperator,
+    DenseMatrixLaplacePosteriorApproximation,
+    DenseMatrixLaplaceApproximationForPrediction,
     PriorConditionedHessianMatVecOperator,
-    find_map_point,
-    generate_and_save_laplace_posterior,
     LaplaceSqrtMatVecOperator,
-    generate_and_save_pointwise_variance,
-    compute_posterior_mean_covar_optimal_for_prediction,
 )
 from pyapprox.util.visualization import plot_multiple_2d_gaussian_slices
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -346,30 +342,70 @@ class TestLaplace:
         )
 
     def test_push_forward_gaussian_though_linear_model(self):
+        bkd = self.get_backend()
         nqoi = 1
         nvars = 2
-        mean = np.ones((nvars, 1))
-        covariance = 0.1 * np.eye(nvars)
-        A = np.random.normal(0.0, 1.0, (nqoi, nvars))
-        b = np.random.normal(0.0, 1.0, (nqoi, 1))
-        prior = MultivariateGaussian(mean, covariance)
+        mean = bkd.ones((nvars, 1))
+        covariance = 0.1 * bkd.eye(nvars)
+        A = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, nvars)))
+        b = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, 1)))
+        prior = MultivariateGaussian(mean, covariance, backend=bkd)
         push_forward = GaussianPushForward(
-            A, prior.mean(), prior.covariance(), b
+            A, prior.mean(), prior.covariance(), b, backend=bkd
         )
 
         # Generate samples from original density and push forward through model
         # and approximate density using KDE
         nsamples = 1000000
         samples = prior.rvs(nsamples)
-        model = DenseMatrixLinearModel(A, b)
+        model = DenseMatrixLinearModel(A, b, backend=bkd)
         values = model(samples)
-        assert np.allclose(
+        assert bkd.allclose(
             push_forward.mean(), np.mean(values, axis=0), rtol=1e-2
         )
-        assert np.allclose(
+        assert bkd.allclose(
             push_forward.covariance(),
-            np.cov(values, rowvar=False, ddof=1),
+            bkd.cov(values, rowvar=False, ddof=1),
             rtol=1e-2,
+        )
+
+    def test_posterior_push_forward_gaussian_though_linear_model(self):
+        bkd = self.get_backend()
+        nqoi = 1
+        nvars = 2
+        nobs = 3
+        mean = np.ones((nvars, 1))
+        covariance = 0.1 * np.eye(nvars)
+        noise_std = 0.01
+        noise_cov = noise_std**2 * np.eye(nobs)
+        obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
+        pred_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, nvars)))
+        prior = MultivariateGaussian(mean, covariance, backend=bkd)
+        laplace = DenseMatrixLaplacePosteriorApproximation(
+            obs_mat, prior.mean(), prior.covariance(), noise_cov, backend=bkd
+        )
+        true_sample = bkd.asarray(np.random.uniform(-1, 1, (nvars, 1)))
+        noise = bkd.asarray(np.random.normal(0, noise_std, (nobs, 1)))
+        obs = obs_mat @ true_sample + noise
+        laplace.compute(obs)
+        posterior_push_forward = GaussianPushForward(
+            pred_mat,
+            laplace.posterior_mean(),
+            laplace.posterior_covariance(),
+            backend=bkd,
+        )
+        laplace4pred = DenseMatrixLaplaceApproximationForPrediction(
+            obs_mat,
+            pred_mat,
+            prior.mean(),
+            prior.covariance(),
+            noise_cov,
+            backend=bkd,
+        )
+        laplace4pred.compute(obs)
+        assert bkd.allclose(laplace4pred.mean(), posterior_push_forward.mean())
+        assert bkd.allclose(
+            laplace4pred.covariance(), posterior_push_forward.covariance()
         )
 
     def test_hessian_vector_multiply_operator_with_randomized_svd(self):
