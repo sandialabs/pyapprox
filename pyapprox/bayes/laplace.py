@@ -192,6 +192,55 @@ class DenseMatrixLaplacePosteriorApproximation:
         return self._kl_div
 
 
+class DenseMatrixLaplacePosteriorLowRankApproximation:
+    def __init__(
+        self,
+        prior: MultivariateGaussian,
+        hess_mat: Array,
+        rank: int,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        # mainly useful for testing
+        if not isinstance(prior, MultivariateGaussian):
+            raise ValueError(
+                "prior must be an instance of MultivariateGaussian"
+            )
+        if rank > self.nvars():
+            raise ValueError("rank requested was to high")
+        self._rank = rank
+        self._hess_mat = hess_mat
+        self._bkd = backend
+
+    def nvars(self) -> int:
+        return self._prior.nvars()
+
+    def __repr__(self) -> str:
+        return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
+
+    def compute(self):
+        U, S = self._bkd.svd()[:2]
+        self._Sr = S[: self._rank]
+        self._Ur = U[:, : self._rank]
+        P = 1 / self._bkd.sqrt(self._Sr + 1)
+        self._post_cov_sqrt = self._prior.apply(
+            self._Ur @ (P[:, None] * self._Ur.T)
+        )
+
+    def rvs(self, nsamples: int) -> Array:
+        std_normal_samples = self._bkd.asarray(
+            np.random.normal(0, 1, (self.nvars(), nsamples))
+        )
+        return self._post_cov_sqrt @ std_normal_samples + self._mean
+
+    def covariance_diagonal(self) -> Array:
+        # compute L*V_r
+        tmp1 = self._apply_prior_cov_sqrt(self._Ur)
+        # compute D*(L*V_r)**2
+        tmp2 = self._Sr / (1.0 + self._Sr)
+        tmp3 = self._bkd.sum(tmp1**2 * tmp2, axis=1)
+        return self._prior.diagonal() - tmp3
+
+
 class GaussianPushForward:
     def __init__(
         self,

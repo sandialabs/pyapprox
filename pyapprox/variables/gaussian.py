@@ -2,9 +2,16 @@ import copy
 from abc import ABC, abstractmethod
 
 import numpy as np
+from scipy import stats
 
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.variables.joint import JointVariable
+from pyapprox.util.linalg import (
+    inverse_of_cholesky_factor,
+    diag_of_mat_mat_product,
+    log_determinant_from_cholesky_factor,
+)
 
 
 class GaussianSqrtCovarianceOperator(ABC):
@@ -54,11 +61,44 @@ class GaussianSqrtCovarianceOperator(ABC):
         return self._apply_transpose(vectors)
 
     @abstractmethod
-    def nvars(self) -> int:
+    def _apply_inv(self, vectors: Array) -> Array:
         raise NotImplementedError
 
-    # def __call__(self, vectors: Array, transpose):
-    #     return self.apply(vectors, transpose)
+    def apply_inv(self, vectors: Array) -> Array:
+        r"""
+        Apply the tranpose of the sqrt of the covariance to a set of vectors x.
+        If the vectors are standard normal samples then the result
+        will be a samples from the Gaussian.
+
+        Parameters
+        ----------
+        vector : np.ndarray (nvars x num_vectors)
+            The vectors x
+        """
+        self._check_vectors(vectors)
+        return self._apply_inv(vectors)
+
+    @abstractmethod
+    def _apply_inv_tranpose(self, vectors: Array) -> Array:
+        raise NotImplementedError
+
+    def apply_inv_transpose(self, vectors: Array) -> Array:
+        r"""
+        Apply the tranpose of the sqrt of the covariance to a set of vectors x.
+        If the vectors are standard normal samples then the result
+        will be a samples from the Gaussian.
+
+        Parameters
+        ----------
+        vector : np.ndarray (nvars x num_vectors)
+            The vectors x
+        """
+        self._check_vectors(vectors)
+        return self._apply_inv_tranpose(vectors)
+
+    @abstractmethod
+    def nvars(self) -> int:
+        raise NotImplementedError
 
 
 class DenseCholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
@@ -70,19 +110,68 @@ class DenseCholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
         super().__init__(backend=backend)
 
         self._cov = covariance
-        self._chol_factor = self._bkd.cholesky(self._cov)
+        self._cov_sqrt = self._bkd.cholesky(self._cov)
+        self._cov_sqrt_inv = inverse_of_cholesky_factor(
+            self._cov_sqrt, self._bkd
+        )
+        self._cov_inv = self._cov_sqrt_inv.T @ self._cov_sqrt_inv
 
     def _apply(self, vectors: Array) -> Array:
-        return self._chol_factor @ vectors
+        return self._cov_sqrt @ vectors
 
     def _apply_transpose(self, vectors: Array) -> Array:
-        return self._chol_factor.T @ vectors
+        return self._cov_sqrt.T @ vectors
+
+    def _apply_inv(self, vec: Array) -> Array:
+        return self._cov_sqrt_inv @ vec
+
+    def _apply_inv_tranpose(self, vec: Array) -> Array:
+        return self._cov_sqrt_inv.T @ vec
+
+    def covariance_inverse(self) -> Array:
+        return self._cov_inv
 
     def nvars(self):
         r"""
         Return the number of variables of the multivariate Gaussian
         """
         return self._cov.shape[0]
+
+
+class DiagonalCholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
+    def __init__(
+        self,
+        covariance_diag: Array,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(backend=backend)
+
+        self._cov_diag = covariance_diag
+        self._cov_diag_sqrt = self._bkd.sqrt(self._cov_diag)
+        self._cov_diag_sqrt_inv = 1 / self._cov_diag_sqrt
+        self._cov_diag_inv = 1 / self._cov_diag
+        self._log_cov_det = self._bkd.prod(self._cov_diag)
+
+    def _apply(self, vectors: Array) -> Array:
+        return self._cov_diag_sqrt[:, None] * vectors
+
+    def _apply_transpose(self, vectors: Array) -> Array:
+        return self._apply(vectors)
+
+    def _apply_inv(self, vec: Array) -> Array:
+        return self._cov_diag_sqrt_inv[:, None] * vec
+
+    def _apply_inv_tranpose(self, vec: Array) -> Array:
+        return self._apply_inv(vec)
+
+    def _covariance_inverse(self) -> Array:
+        return self._bkd.diag(1 / self._cov_diag)
+
+    def nvars(self):
+        r"""
+        Return the number of variables of the multivariate Gaussian
+        """
+        return self._cov_diag.shape[0]
 
 
 class FaultyDenseCholeskySqrtCovarianceOperator(
@@ -184,43 +273,179 @@ class CovarianceOperator:
         return diagonal
 
 
-class MultivariateGaussian(object):
-    def __init__(self, sqrt_cov_op, mean=0.0):
-        self._sqrt_cov_op = sqrt_cov_op
-        if np.isscalar(mean):
-            mean = mean * np.ones((self.nvars()))
-        assert mean.ndim == 1 and mean.shape[0] == self.nvars()
-        self.mean = mean
+class MultivariateGaussian(JointVariable):
+    def __init__(
+        self,
+        mean: Array,
+        cov_sqrt: GaussianSqrtCovarianceOperator,
+    ):
+        if not isinstance(cov_sqrt, GaussianSqrtCovarianceOperator):
+            raise ValueError(
+                "cov_sqrt must be an instance of CovarianceSqrtOpertor"
+            )
+        self._bkd = cov_sqrt._bkd
+        self._cov_sqrt = cov_sqrt
+        self._nvars = mean.shape[0]
+        if mean.shape != (cov_sqrt.nvars(), 1):
+            raise ValueError("mean has the wrong shape")
+        self._mean = mean
 
-    def nvars(self):
-        r"""
-        Return the number of variables of the multivariate Gaussian
-        """
-        return self._sqrt_cov_op.nvars()
+    def nvars(self) -> int:
+        return self._mean.shape[0]
 
-    def apply_covariance_sqrt(self, vectors, transpose):
-        return self._sqrt_cov_op(vectors, transpose)
-
-    def generate_samples(self, nsamples):
-        std_normal_samples = np.random.normal(
-            0.0, 1.0, (self.nvars(), nsamples)
+    def rvs(self, nsamples: int) -> Array:
+        std_normal_samples = self._bkd.asarray(
+            np.random.normal(0, 1, (self.nvars(), nsamples))
         )
-        samples = self.apply_covariance_sqrt(std_normal_samples, False)
-        samples += self.mean[:, np.newaxis]
-        return samples
+        return self._cov_sqrt.apply(std_normal_samples) + self._mean
 
-    def pointwise_variance(self, active_indices=None):
+    def _log_pdf(self, samples: Array) -> Array:
+        diff = samples - self._mean
+        scaled_diff = self._cov_sqrt.apply_inv(diff)
+        return (
+            self._log_pdf_const
+            + (
+                -0.5
+                * diag_of_mat_mat_product(
+                    scaled_diff.T, scaled_diff, self._bkd
+                )
+            )[:, None]
+        )
+
+    def log_pdf_jacobian(self, samples: Array) -> Array:
+        return -self._cov_sqrt.apply_inv_transpose(
+            self._cov_sqrt.apply_inv(samples - self._mean)
+        ).T
+
+    def log_pdf_hessian(self, samples: Array) -> Array:
+        return -self.covariance_inverse()
+
+    def pdf_jacobian(self, samples: Array) -> Array:
+        return self._pdf(samples) * self.log_pdf_jacobian(samples)
+
+    def pdf_hessian(self, samples: Array) -> Array:
+        jac = self.log_pdf_jacobian(samples)
+        return self._pdf(samples) * (
+            jac.T @ jac + self.log_pdf_hessian(samples)
+        )
+
+    def _pdf(self, samples: Array) -> Array:
+        return self._bkd.exp(self._log_pdf(samples))
+
+    def pdf(self, samples: Array, log: bool = False) -> Array:
+        if log:
+            return self._log_pdf(samples)
+        return self._pdf(samples)
+
+    def plot_gaussian_contours(self, ax, ncontours=3, **plot_kwargs):
+        if ncontours > 4:
+            raise ValueError("Can only plot up to 4 contours")
+        alpha = [0.67, 0.95, 0.99, 0.999]
+        ellips_list = []
+        for ii in range(ncontours):
+            # Get endpoints of the range that contains
+            # alpha percent of the distribution
+            interval = self._bkd.asarray(
+                stats.norm.interval(alpha[ii], 0.0, 1.0)
+            )
+            radius = (interval[1] - interval[0]) / 2.0
+            x = self._bkd.linspace(-radius, +radius, 200)
+            y = self._bkd.hstack(
+                (
+                    self._bkd.sqrt(radius**2 - x**2),
+                    -self._bkd.sqrt(radius**2 - x**2),
+                )
+            )
+            x = self._bkd.hstack((x, -x))
+            samples = self._bkd.stack((x, y), axis=0)
+            samples = self._apply_cov_sqrt(samples) + self._mean
+            ellips = ax.plot(*samples, **plot_kwargs)
+            ellips_list.append(ellips[0])
+        return ellips_list
+
+    def pdf_jacobian_implemented(self) -> bool:
+        return True
+
+    def pdf_hessian_implemented(self) -> bool:
+        return True
+
+    def mean(self) -> Array:
+        return self._mean
+
+    def covariance_diagonal(
+        self, batch_size: int = None, active_indices: Array = None
+    ) -> Array:
         r"""
         Get the diagonal of the Gaussian covariance matrix.
         Default implementation is two apply the sqrt operator twice.
         """
-        covariance_operator = CovarianceOperator(self._sqrt_cov_op)
-        return get_operator_diagonal(
-            covariance_operator,
-            self.nvars(),
-            self._sqrt_cov_op.eval_concurrency,
-            active_indices=active_indices,
+        covariance_operator = CovarianceOperator(self._cov_sqrt)
+        return covariance_operator.diagonal(batch_size, active_indices)
+
+
+class DenseMatrixMultivariateGaussian(MultivariateGaussian):
+    def __init__(
+        self,
+        mean: Array,
+        cov: Array,
+        backend=NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        self._set_covariance(cov)
+        super().__init__(mean, self._cov_sqrt)
+        self._log_pdf_const = -0.5 * (
+            self.nvars() * np.log(2 * np.pi) + self._log_cov_det
         )
+
+    def _set_covariance(self, cov: Array):
+        self._cov_sqrt = DenseCholeskySqrtCovarianceOperator(
+            cov, backend=self._bkd
+        )
+        self._log_cov_det = log_determinant_from_cholesky_factor(
+            self._cov_sqrt._cov_sqrt, self._bkd
+        )
+
+    def covariance_inverse(self) -> Array:
+        return self._cov_sqrt._cov_inv
+
+    def covariance(self) -> Array:
+        return self._cov_sqrt._cov
+
+
+class DenseMatrixIndependentMultivariateGaussian(MultivariateGaussian):
+    def __init__(
+        self,
+        mean: Array,
+        cov_diag: Array,
+        backend=NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        self._set_covariance(cov_diag)
+        super().__init__(mean, self._cov_sqrt)
+        self._log_pdf_const = -0.5 * (
+            self.nvars() * np.log(2 * np.pi) + self._log_cov_det
+        )
+
+    def _set_covariance(self, cov_diag: Array):
+        self._cov_sqrt = DiagonalCholeskySqrtCovarianceOperator(
+            cov_diag, self._bkd
+        )
+        self._log_cov_det = self._bkd.sum(self._bkd.log(cov_diag))
+
+    def _apply_cov_sqrt(self, vec: Array) -> Array:
+        return self._cov_diag_sqrt[:, None] * vec
+
+    def _apply_cov_sqrt_inv(self, vec: Array) -> Array:
+        return self._cov_diag_sqrt_inv[:, None] * vec
+
+    def _apply_cov_inv(self, vec: Array) -> Array:
+        return self._cov_diag_inv[:, None] * vec
+
+    def covariance_inverse(self) -> Array:
+        return self._bkd.diag(1 / self._cov_sqrt._cov_diag)
+
+    def covariance(self) -> Array:
+        return self._bkd.diag(self._cov_sqrt._cov_diag)
 
 
 def subselect_matrix_blocks(selected_block_indices, nentries_per_block):

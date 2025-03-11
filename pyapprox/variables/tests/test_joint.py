@@ -11,8 +11,6 @@ from pyapprox.variables.joint import (
     GaussCopulaVariable,
     define_iid_random_variable,
     FiniteSamplesVariable,
-    IndependentMultivariateGaussian,
-    MultivariateGaussian,
 )
 
 
@@ -132,47 +130,6 @@ class TestJoint(unittest.TestCase):
         assert nsamples % 2 == 0
         valid_samples1, II = model._rvs(nsamples // 2)
         valid_samples0, JJ = model._rvs(nsamples)
-
-    def test_multivariate_gaussian(self):
-        nvars = 2
-        mean = np.random.normal(0, 1, (nvars, 1))
-        tmp = np.random.normal(0, 1, (nvars, nvars))
-        cov = tmp.T @ tmp
-        variable = MultivariateGaussian(mean, cov)
-        scipy_variable = stats.multivariate_normal(mean[:, 0], cov)
-        samples = variable.rvs(100000)
-        assert np.allclose(np.mean(samples, axis=1), mean[:, 0], atol=1e-2)
-        assert np.allclose(
-            np.cov(samples, rowvar=True, ddof=1), cov, atol=1e-2
-        )
-        assert np.allclose(
-            variable.pdf(samples)[:, 0], scipy_variable.pdf(samples.T)
-        )
-        from pyapprox.interface.model import ModelFromVectorizedCallable
-
-        model = ModelFromVectorizedCallable(
-            1,
-            variable.nvars(),
-            variable.pdf,
-            jacobian=variable.pdf_jacobian,
-            hessian=lambda x: variable.pdf_hessian(x)[None, ...],
-        )
-        errors = model.check_apply_jacobian(samples[:, :1])
-        assert errors.min() / errors.max() < 1e-6
-        errors = model.check_apply_hessian(samples[:, :1])
-        assert errors.min() / errors.max() < 1e-6
-
-        model = ModelFromVectorizedCallable(
-            1,
-            variable.nvars(),
-            variable._log_pdf,
-            jacobian=variable.log_pdf_jacobian,
-            hessian=lambda x: variable.log_pdf_hessian(x)[None, ...],
-        )
-        errors = model.check_apply_jacobian(samples[:, :1])
-        assert errors.min() / errors.max() < 1e-6
-        errors = model.check_apply_hessian(samples[:, :1])
-        assert errors.min() / errors.max() < 1e-6
 
 
 if __name__ == "__main__":

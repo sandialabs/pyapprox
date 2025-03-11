@@ -28,10 +28,14 @@ from pyapprox.util.linalg import (
     log_determinant_from_cholesky_factor,
     trace_of_mat_mat_product,
     diag_of_mat_mat_product,
+    DenseSymmetricMatrixDoublePassRandomizedSVD,
+    DenseMatrixSinglePassRandomizedSVD,
 )
 
 
 class TestLinalg(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
 
     def test_truncated_pivoted_lu_factorization(self):
         np.random.seed(2)
@@ -894,6 +898,53 @@ class TestLinalg(unittest.TestCase):
 
         diag_true = np.diag(Amat @ Bmat)
         assert np.allclose(diag_of_mat_mat_product(Amat, Bmat), diag_true)
+
+    def test_randomized_svd_double_pass(self):
+        nrows, ncols = 10, 8
+        rank = min(nrows, ncols)
+        # result will only be exact if
+        # rank + noversampling == min(nrows, ncols)
+        # can also increase accuracy by increasing npower_iters
+        noversampling = min(nrows, ncols) - rank
+        rank, noversampling = 3, 0
+        tmp = np.random.normal(0.0, 1.0, (nrows, ncols))
+        mat = tmp @ tmp.T
+        svd_solver = DenseSymmetricMatrixDoublePassRandomizedSVD(
+            mat, noversampling, 10
+        )
+        U, S, Vh = svd_solver.compute(rank)
+        U_true, S_true, Vh_true = np.linalg.svd(mat)
+        U_true, Vh_true = svd_solver.adjust_sign(U_true, Vh_true)
+        print(S, S_true)
+        print(U - U_true[:, :rank])
+        # print(Vh)
+        # print(Vh_true)
+        assert np.allclose(S, S_true[:rank])
+        assert np.allclose(U, U_true[:, :rank])
+        assert np.allclose(Vh, Vh_true[:rank])
+        if rank == min(nrows, ncols):
+            assert np.allclose(U @ (S[:, None] * Vh), mat)
+
+    def test_randomized_svd_single_pass(self):
+        nrows, ncols = 5, 3
+        rank = min(nrows, ncols)
+        noversampling = 0
+        mat = np.random.normal(0.0, 1.0, (nrows, ncols))
+        svd_solver = DenseMatrixSinglePassRandomizedSVD(mat, noversampling)
+        U, S, Vh = svd_solver.compute(rank)
+        U_true, S_true, Vh_true = np.linalg.svd(mat)
+        U_true, Vh_true = svd_solver.adjust_sign(
+            U_true[:, :rank], Vh_true[:rank]
+        )
+        # print(S, S_true)
+        # print(U)
+        # print(U_true)
+        # print(Vh)
+        # print(Vh_true)
+        assert np.allclose(S, S_true[:rank])
+        assert np.allclose(U, U_true)
+        assert np.allclose(Vh, Vh_true)
+        assert np.allclose(U @ (S[:, None] * Vh), mat)
 
 
 if __name__ == "__main__":

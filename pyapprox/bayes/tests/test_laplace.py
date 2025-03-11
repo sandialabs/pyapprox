@@ -325,22 +325,6 @@ class TestLaplace:
         diagonal = cov_op.diagonal(batch_size)
         assert bkd.allclose(diagonal, bkd.diag(prior_covariance))
 
-    def test_posterior_dense_matrix_covariance_operator(self):
-        nvars = 121
-        rank = 10
-        eval_concurrency = 20
-        # randn = np.random.normal(0.,1.,(nvars,nvars))
-        # prior_covariance = np.dot(randn.T,randn)
-        prior_covariance = np.eye(nvars)
-        prior_sqrt_covariance_op = CholeskySqrtCovarianceOperator(
-            prior_covariance, eval_concurrency, backend=bkd
-        )
-        prior = MultivariateGaussian(prior_sqrt_covariance_op)
-        comparison_tol = 6e-7
-        posterior_covariance_helper(
-            prior, rank, comparison_tol, test_sampling=True
-        )
-
     def test_push_forward_gaussian_though_linear_model(self):
         bkd = self.get_backend()
         nqoi = 1
@@ -406,6 +390,22 @@ class TestLaplace:
         assert bkd.allclose(laplace4pred.mean(), posterior_push_forward.mean())
         assert bkd.allclose(
             laplace4pred.covariance(), posterior_push_forward.covariance()
+        )
+
+    def test_posterior_dense_matrix_covariance_operator(self):
+        nvars = 121
+        rank = 10
+        eval_concurrency = 20
+        # randn = np.random.normal(0.,1.,(nvars,nvars))
+        # prior_covariance = np.dot(randn.T,randn)
+        prior_covariance = np.eye(nvars)
+        prior_sqrt_covariance_op = CholeskySqrtCovarianceOperator(
+            prior_covariance, eval_concurrency, backend=bkd
+        )
+        prior = MultivariateGaussian(prior_sqrt_covariance_op)
+        comparison_tol = 6e-7
+        posterior_covariance_helper(
+            prior, rank, comparison_tol, test_sampling=True
         )
 
     def test_hessian_vector_multiply_operator_with_randomized_svd(self):

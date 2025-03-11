@@ -1,3 +1,6 @@
+from typing import Tuple
+from abc import ABC, abstractmethod
+
 import numpy as np
 from scipy.linalg import solve_triangular
 from scipy.linalg import lapack
@@ -811,3 +814,123 @@ def diag_of_mat_mat_product(
     # use einsum because unlike other approaches, e.g. np.diag(A*B.T)
     # it does not use any explicit intermediate storage
     return bkd.einsum("ij,ji->i", Amat, Bmat)
+
+
+class RandomizedSVD(ABC):
+    def __init__(
+        self,
+        noversampling: int = 10,
+        npower_iters: int = 1,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        self._noversampling = noversampling
+        self._npower_iters = npower_iters
+
+    @abstractmethod
+    def nrows(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def ncols(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _apply_mat(self, vecs) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _apply_mat_transpose(self, vecs) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def compute(self, rank: int) -> Tuple[Array, Array, Array]:
+        raise NotImplementedError
+
+    def adjust_sign(self, U: Array, Vh: Array) -> Tuple[Array, Array]:
+        return adjust_sign_svd(U, Vh)
+
+    def _sample_column_space(self, rank):
+        nsamples = rank + self._noversampling
+        # use transpose so omega samples are nested if nsamples are increased
+        omega = self._bkd.asarray(
+            np.random.normal(0, 1, (nsamples, self.ncols()))
+        ).T
+        # sample column space
+        Y = self._apply_mat(omega)
+        for ii in range(self._npower_iters):
+            G = self._apply_mat_transpose(Y)
+            Y = self._apply_mat(G)
+        return Y
+
+
+class RandomizedSVDDenseMatrixMixin:
+    def nrows(self) -> int:
+        return self._mat.shape[0]
+
+    def ncols(self) -> int:
+        return self._mat.shape[1]
+
+    def _apply_mat(self, vecs) -> Array:
+        return self._mat @ vecs
+
+    def _apply_mat_transpose(self, vecs) -> Array:
+        return self._mat.T @ vecs
+
+
+class DenseMatrixSinglePassRandomizedSVD(
+    RandomizedSVDDenseMatrixMixin, RandomizedSVD
+):
+    def __init__(
+        self,
+        mat: Array,
+        noversampling: int = 10,
+        npower_iters: int = 1,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._mat = mat
+        super().__init__(noversampling, npower_iters, backend)
+
+    def compute(self, rank: int) -> Tuple[Array, Array, Array]:
+        cspace_samples = self._sample_column_space(rank)
+        # ortogonalize column space samples
+        Q = self._bkd.qr(cspace_samples, mode="reduced")[0]
+        B = Q.T @ self._mat
+        U, S, Vh = self._bkd.svd(B)
+        U = Q @ U
+        U, Vh = self.adjust_sign(U[:, :rank], Vh[:rank])
+        return U, S[:rank], Vh
+
+
+class DenseSymmetricMatrixDoublePassRandomizedSVD(
+    RandomizedSVDDenseMatrixMixin, RandomizedSVD
+):
+    def __init__(
+        self,
+        mat: Array,
+        noversampling: int = 10,
+        npower_iters: int = 1,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        if mat.shape[0] != mat.shape[1] or not backend.allclose(
+            mat, mat.T, atol=1e-15
+        ):
+            raise ValueError("Currently only support symmetric matrices")
+        self._mat = mat
+        super().__init__(noversampling, npower_iters, backend)
+
+    def compute(self, rank: int) -> Tuple[Array, Array, Array]:
+        # first pass
+        cspace_samples = self._sample_column_space(rank)
+        Q1 = self._bkd.qr(cspace_samples, mode="reduced")[0]
+        # second pass
+        rspace_samples = self._apply_mat_transpose(Q1)
+        Q2 = self._bkd.qr(rspace_samples, mode="reduced")[0]
+        # svd of compressed row space samples
+        U, S, Vh = self._bkd.svd(Q2.T @ rspace_samples)
+        # Project row space
+        Vh = ((Q1 @ Vh.T).T)[:rank]
+        # Project column space
+        U = (Q2 @ U)[:, :rank]
+        U, Vh = self.adjust_sign(U, Vh)
+        return U, S[:rank], Vh

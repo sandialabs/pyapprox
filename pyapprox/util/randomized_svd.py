@@ -77,9 +77,11 @@ def randomized_range_finder(operator, opts, num_power_iterations):
     """
 
     num_singular_values = get_from_dict_or_apply_default(
-        opts, "num_singular_values", None)
+        opts, "num_singular_values", None
+    )
     num_extra_samples = get_from_dict_or_apply_default(
-        opts, "num_extra_samples", 5)
+        opts, "num_extra_samples", 5
+    )
     assert num_singular_values > 0
     assert num_extra_samples > 0
     if num_singular_values is None:
@@ -87,7 +89,7 @@ def randomized_range_finder(operator, opts, num_power_iterations):
     num_samples = num_singular_values + num_extra_samples
 
     # Draw an (n x r) Gaussian random matrix X
-    X = np.random.normal(0., 1., (operator.num_cols(), num_samples))
+    X = np.random.normal(0.0, 1.0, (operator.num_cols(), num_samples))
 
     # Construct an (m x r) matrix Q whose columns form an orthonormal
     # basis for the range of Y , e.g., using the QR factorization Y = QR.
@@ -106,11 +108,22 @@ def randomized_range_finder(operator, opts, num_power_iterations):
 
 
 def terminate_adaptive_randomized_range_finder(
-        Q, X, Y, Z, it, num_extra_samples,
-        method, tolerance, min_singular_value,
-        verbosity, num_samples, max_num_samples,
-        best_error, num_iter_error_increase,
-        max_num_iter_error_increase):
+    Q,
+    X,
+    Y,
+    Z,
+    it,
+    num_extra_samples,
+    method,
+    tolerance,
+    min_singular_value,
+    verbosity,
+    num_samples,
+    max_num_samples,
+    best_error,
+    num_iter_error_increase,
+    max_num_iter_error_increase,
+):
     """
     Evaluate termination condition of random range finder.
 
@@ -180,35 +193,41 @@ def terminate_adaptive_randomized_range_finder(
     """
     error = np.max(np.linalg.norm(Z[:, -num_extra_samples:], axis=0))
     terminate = False
-    if (error < tolerance):
+    if error < tolerance:
         terminate = True
         if verbosity > 0:
-            print('terminating range finder. tolerance reached')
+            print("terminating range finder. tolerance reached")
 
     if error >= best_error:
         num_iter_error_increase += 1
         if num_iter_error_increase >= max_num_iter_error_increase:
             terminate = True
             if verbosity > 0:
-                print(('terminating range finder. error did not ',
-                       'decrease in %d iterations' % max_num_iter_error_increase))
+                print(
+                    (
+                        "terminating range finder. error did not ",
+                        "decrease in %d iterations"
+                        % max_num_iter_error_increase,
+                    )
+                )
     else:
         best_error = error
         num_iter_error_increase = 0
 
-    if method == 'min_singular_value':
+    if method == "min_singular_value":
         if Q.shape[1] > 0:
             U, S, V = svd_using_orthogonal_basis(
-                None, Q, X[:, :Q.shape[1]], Y[:, :Q.shape[1]], True)
+                None, Q, X[:, : Q.shape[1]], Y[:, : Q.shape[1]], True
+            )
             current_min_singular_value = S.min()
-            if (current_min_singular_value < min_singular_value):
+            if current_min_singular_value < min_singular_value:
                 terminate = True
-                print('terminating range finder. min singular value reached')
+                print("terminating range finder. min singular value reached")
 
     if num_samples >= max_num_samples:
         terminate = True
         if verbosity > 0:
-            print('terminating range finder. max num samples reached')
+            print("terminating range finder. max num samples reached")
 
     return terminate, error, best_error, num_iter_error_increase
 
@@ -282,23 +301,28 @@ def adaptive_randomized_range_finder(operator, opts):
     """
 
     num_extra_samples = get_from_dict_or_apply_default(
-        opts, "num_extra_samples", 10)
+        opts, "num_extra_samples", 10
+    )
     assert num_extra_samples > 0
     concurrency = get_from_dict_or_apply_default(opts, "concurrency", 1)
     verbosity = get_from_dict_or_apply_default(opts, "verbosity", 0)
     termination_method = get_from_dict_or_apply_default(
-        opts, "termination_method", "error_in_approx_range")
+        opts, "termination_method", "error_in_approx_range"
+    )
     max_num_iter_error_increase = get_from_dict_or_apply_default(
-        opts, "max_num_iter_error_increase", 10)
+        opts, "max_num_iter_error_increase", 10
+    )
 
     min_singular_value = get_from_dict_or_apply_default(
-        opts, "min_singular_value", None)
+        opts, "min_singular_value", None
+    )
     if termination_method == "min_singular_value" and min_singular is None:
         raise Exception("option 'min_singular value' must be specifed in opts")
     tolerance = get_from_dict_or_apply_default(opts, "tolerance", 1e-4)
 
     max_num_samples = get_from_dict_or_apply_default(
-        opts, "max_num_samples", None)
+        opts, "max_num_samples", None
+    )
     if max_num_samples is None:
         raise Exception("'max_num_samples' must be specified")
     # first step applys operator to num_extra_samples then
@@ -308,7 +332,7 @@ def adaptive_randomized_range_finder(operator, opts):
 
     num_samples = 0
 
-    X = np.random.normal(0., 1., (operator.num_cols(), num_extra_samples))
+    X = np.random.normal(0.0, 1.0, (operator.num_cols(), num_extra_samples))
     num_samples = X.shape[1]
     Y = operator.apply(X, transpose=False)
     Z = Y.copy()
@@ -320,48 +344,77 @@ def adaptive_randomized_range_finder(operator, opts):
     errors = []
     it_count_since_last_error_decrease = 0
 
-    tol = 0.
+    tol = 0.0
 
-    terminate, error, best_error, num_iter_error_increase = \
+    terminate, error, best_error, num_iter_error_increase = (
         terminate_adaptive_randomized_range_finder(
-            Q, X, Y, Z, it, num_extra_samples, termination_method, tol,
-            min_singular_value, verbosity, num_samples, max_num_samples,
-            best_error, num_iter_error_increase, max_num_iter_error_increase)
+            Q,
+            X,
+            Y,
+            Z,
+            it,
+            num_extra_samples,
+            termination_method,
+            tol,
+            min_singular_value,
+            verbosity,
+            num_samples,
+            max_num_samples,
+            best_error,
+            num_iter_error_increase,
+            max_num_iter_error_increase,
+        )
+    )
 
     # tolerance specifies relative decrease in error from first error estimates
-    tol = tolerance*error
+    tol = tolerance * error
 
     errors.append(error)
     if verbosity > 1:
-        print(('iter %d,\terror: %1.2e' % (it+1, error)))
+        print(("iter %d,\terror: %1.2e" % (it + 1, error)))
 
     while not terminate:
-        num_new_samples = min(concurrency, max_num_samples-num_samples)
-        #Xnew = np.random.normal(0.,1.,(operator.num_cols(),num_new_samples))
+        num_new_samples = min(concurrency, max_num_samples - num_samples)
+        # Xnew = np.random.normal(0.,1.,(operator.num_cols(),num_new_samples))
         # create transpose of matrix we actually need so that for a given seed
         # the first column of Xnew  will be the same regardless of whether
         # num_new_samples=1 or num_new_samples>1. np.random.normal(a,b,(n,m))
         # produces stores values in cmajor ordering but we need fortran major
         # ordering to be the same.
         Xnew = np.random.normal(
-            0., 1., (num_new_samples, operator.num_cols())).T
+            0.0, 1.0, (num_new_samples, operator.num_cols())
+        ).T
         Ynew = operator.apply(Xnew, transpose=False)
         for k in range(num_new_samples):
             it += 1
             y = Ynew[:, k]
             Z, Q = adaptive_range_finder_update(Z, Q, y, it, num_extra_samples)
-            X = np.hstack((X, Xnew[:, k:k+1]))
+            X = np.hstack((X, Xnew[:, k : k + 1]))
             Y = np.hstack((Y, y[:, np.newaxis]))
             num_samples = X.shape[1]
 
-        terminate, error, best_error, num_iter_error_increase = \
+        terminate, error, best_error, num_iter_error_increase = (
             terminate_adaptive_randomized_range_finder(
-                Q, X, Y, Z, it, num_extra_samples, termination_method, tol,
-                min_singular_value, verbosity, num_samples, max_num_samples,
-                best_error, num_iter_error_increase, max_num_iter_error_increase)
+                Q,
+                X,
+                Y,
+                Z,
+                it,
+                num_extra_samples,
+                termination_method,
+                tol,
+                min_singular_value,
+                verbosity,
+                num_samples,
+                max_num_samples,
+                best_error,
+                num_iter_error_increase,
+                max_num_iter_error_increase,
+            )
+        )
         errors.append(error)
         if verbosity > 1:
-            print(('iter %d,\terror: %1.2e' % (it+1, error)))
+            print(("iter %d,\terror: %1.2e" % (it + 1, error)))
 
     return Q, X, Y, np.array(errors)
 
@@ -423,22 +476,24 @@ def randomized_svd(operator, opts):
         right singular vectors of A = USV
     """
 
-    standard_opts = get_from_dict_or_apply_default(opts, 'standard_opts', None)
-    adaptive_opts = get_from_dict_or_apply_default(opts, 'adaptive_opts', None)
+    standard_opts = get_from_dict_or_apply_default(opts, "standard_opts", None)
+    adaptive_opts = get_from_dict_or_apply_default(opts, "adaptive_opts", None)
     if standard_opts is None and adaptive_opts is None:
         raise Exception("must specify 'standard_opts' or 'adaptive_opts'")
     if standard_opts is not None and adaptive_opts is not None:
         raise Exception("must only specify 'standard_opts' or 'adaptive_opts'")
     if standard_opts is not None:
-        range_finder = 'standard'
+        range_finder = "standard"
     else:
-        range_finder = 'adaptive'
+        range_finder = "adaptive"
 
     single_pass = get_from_dict_or_apply_default(opts, "single_pass", True)
     num_power_iterations = get_from_dict_or_apply_default(
-        opts, "num_power_iterations", 0)
+        opts, "num_power_iterations", 0
+    )
     history_filename = get_from_dict_or_apply_default(
-        opts, "history_filename", None)
+        opts, "history_filename", None
+    )
 
     if single_pass:
         assert num_power_iterations == 0
@@ -446,30 +501,33 @@ def randomized_svd(operator, opts):
         # helpful
         assert operator.num_rows() == operator.num_cols()
 
-    if range_finder == 'standard':
+    if range_finder == "standard":
         Q, X, Y = randomized_range_finder(
-            operator, standard_opts, num_power_iterations)
+            operator, standard_opts, num_power_iterations
+        )
         if Q is None:
             # evaluations of Y failed so save data to file for recovery
-            np.savez('randomized_svd_recovery_data.npz', X=X, Y=Y)
-            raise Exception('evaluations of Y failed')
+            np.savez("randomized_svd_recovery_data.npz", X=X, Y=Y)
+            raise Exception("evaluations of Y failed")
 
-    elif range_finder == 'adaptive':
+    elif range_finder == "adaptive":
         Q, X_all, Y_all, errors = adaptive_randomized_range_finder(
-            operator, adaptive_opts)
+            operator, adaptive_opts
+        )
         # not all X, Y samples are used to compute svd
         # truncate to correct X and Y here
-        X = X_all[:, :Q.shape[1]]
-        Y = Y_all[:, :Q.shape[1]]
+        X = X_all[:, : Q.shape[1]]
+        Y = Y_all[:, : Q.shape[1]]
     else:
-        raise Exception('incorrect range_finder specified')
+        raise Exception("incorrect range_finder specified")
 
     U, S, V = svd_using_orthogonal_basis(operator, Q, X, Y, single_pass)
 
     # Resize matrices
-    if range_finder == 'standard':
+    if range_finder == "standard":
         num_singular_values = get_from_dict_or_apply_default(
-            standard_opts, "num_singular_values", None)
+            standard_opts, "num_singular_values", None
+        )
         U = U[:, :num_singular_values]
         S = S[:num_singular_values]
         V = V[:num_singular_values, :]
@@ -477,7 +535,7 @@ def randomized_svd(operator, opts):
     U, V = adjust_sign_svd(U, V)
 
     if history_filename is not None:
-        if range_finder == 'adaptive':
+        if range_finder == "adaptive":
             X = X_all
             Y = Y_all
         np.savez(history_filename, Q=Q, X=X, Y=Y, U=U, S=S, V=V)
@@ -531,7 +589,7 @@ def svd_using_orthogonal_basis(operator, Q, X, Y, single_pass):
     else:
         XTQ = np.dot(X.T, Q)
         YTQ = np.dot(Y.T, Q)
-        #B = qr_solve(XTQ,YTQ,0)
+        # B = qr_solve(XTQ,YTQ,0)
         B = np.linalg.lstsq(XTQ, YTQ, rcond=None)[0]
 
     # Compute an SVD of the small matrix B
@@ -553,32 +611,33 @@ def adaptive_range_finder_update(Z, Q, y, it, num_extra_samples):
     # range( Q^(it-1) ) complement
     if it > 0:
         Z[:, it] = Z[:, it] - np.dot(Q, np.dot(Q.T, Z[:, it]))
-    Qit = Z[:, it]/np.linalg.norm(Z[:, it])
+    Qit = Z[:, it] / np.linalg.norm(Z[:, it])
 
     Q = np.hstack((Q, Qit[:, np.newaxis]))
-    z = y-np.dot(Q, np.dot(Q.T, y))
-    for i in range(it+1, it+num_extra_samples):
-        Z[:, i] = Z[:, i]-Qit*np.dot(Qit, Z[:, i])
+    z = y - np.dot(Q, np.dot(Q.T, y))
+    for i in range(it + 1, it + num_extra_samples):
+        Z[:, i] = Z[:, i] - Qit * np.dot(Qit, Z[:, i])
 
     Z = np.hstack((Z, z[:, np.newaxis]))
     return Z, Q
 
 
 def load_svd_data(history_filename):
-    if history_filename[-4:] != '.npz':
-        history_filename += '.npz'
+    if history_filename[-4:] != ".npz":
+        history_filename += ".npz"
     svd_data = np.load(history_filename)
-    U = svd_data['U']
-    S = svd_data['S']
-    V = svd_data['V']
-    X = svd_data['X']
-    Y = svd_data['Y']
-    Q = svd_data['Q']
+    U = svd_data["U"]
+    S = svd_data["S"]
+    V = svd_data["V"]
+    X = svd_data["X"]
+    Y = svd_data["Y"]
+    Q = svd_data["Q"]
     return U, S, V, X, Y, Q
 
 
 def compute_single_pass_adaptive_randomized_svd_from_file(
-        history_filename, num_extra_samples, max_num_samples):
+    history_filename, num_extra_samples, max_num_samples
+):
     """
     Compute the SVD of a matrix from the history or a previous
     randomized svd computation.
@@ -586,14 +645,14 @@ def compute_single_pass_adaptive_randomized_svd_from_file(
     Parameters
     ----------
     history_filename : string, default=None
-        If filename of the file containing the data used to compute the svd 
+        If filename of the file containing the data used to compute the svd
         (stored in a .npz file)
 
     num_extra_samples : integer
         The number of columns, k, of Q that required to have a norm less than
         the specified error tolerance. TODO:
         Currently we are not computing an error but rather using max_num_samples
-        to limit size of Q. This allows us to compute svd for different 
+        to limit size of Q. This allows us to compute svd for different
         num_samples which can help debugging
 
     max_num_samples : integer, default=None
@@ -611,23 +670,23 @@ def compute_single_pass_adaptive_randomized_svd_from_file(
     Q = np.empty((Qfile.shape[0], 0), float)
     Z = Y[:, :num_extra_samples].copy()
 
-    for j in range(num_samples-num_extra_samples):
+    for j in range(num_samples - num_extra_samples):
 
-        y = Y[:, num_extra_samples+j]
+        y = Y[:, num_extra_samples + j]
         Z, Q = adaptive_range_finder_update(Z, Q, y, j, num_extra_samples)
 
         # Recall not all X, Y samples are used to compute svd when adaptive
         # range finder is used. X.shape[1] = Q.shape[1]+num_extra_samples
         # this step here accounts for this inconsistency
-        Xj = X[:, :Q.shape[1]]
-        Yj = Y[:, :Q.shape[1]]
+        Xj = X[:, : Q.shape[1]]
+        Yj = Y[:, : Q.shape[1]]
 
     # Compute current svd
     XTQ = np.dot(Xj.T, Q)
     YTQ = np.dot(Yj.T, Q)
-    #B = qr_solve(XTQ,YTQ,0)
+    # B = qr_solve(XTQ,YTQ,0)
     B = np.linalg.lstsq(XTQ, YTQ, rcond=None)[0]
     U, S, V = np.linalg.svd(B, full_matrices=False)
     U = np.dot(Q, U)
-    V = U.copy().T         # Single pass assumes A is hermitian so V=U.T
+    V = U.copy().T  # Single pass assumes A is hermitian so V=U.T
     return U, S, V
