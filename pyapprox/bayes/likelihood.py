@@ -111,6 +111,12 @@ class GaussianLogLikelihood(LogLikelihood):
     # TODO this code uses a lot of Multivariate Gaussian. Merge
     # MultivariateGaussian(obs, loglike.noise_covariance())
 
+    def jacobian_implemented(self) -> bool:
+        return self._model.jacobian_implemented()
+
+    def apply_hessian_implemented(self) -> bool:
+        return self._model.jacobian_implemented()
+
     def set_design_weights(self, design_weights: Array) -> Array:
         self._design_weights = design_weights
         self._noise_chol = self._bkd.cholesky(self._noise_cov)
@@ -149,6 +155,18 @@ class GaussianLogLikelihood(LogLikelihood):
             raise ValueError(msg)
         return noiseless_obs + noise
 
+    def _noise_cov_sqrt_apply(self, vecs: Array) -> Array:
+        return self._wnoise_chol @ vecs
+
+    def _noise_cov_sqrt_apply_transpose(self, vecs: Array) -> Array:
+        return self._wnoise_chol.T @ vecs
+
+    def _noise_cov_sqrt_inv_apply(self, vecs: Array) -> Array:
+        return self._wnoise_chol_inv @ vecs
+
+    def _noise_cov_sqrt_inv_apply_transpose(self, vecs: Array) -> Array:
+        return self._wnoise_chol_inv.T @ vecs
+
     def _sample_noise(self, nsamples: int) -> Array:
         # create samples (nsamples, nobs) then take transpose
         # to ensure same noise is used for ith sample
@@ -156,11 +174,11 @@ class GaussianLogLikelihood(LogLikelihood):
         normal_samples = self._bkd.asarray(
             np.random.normal(0, 1, (nsamples, self.nobs()))
         ).T
-        return self._wnoise_chol @ normal_samples
+        return self._noise_cov_sqrt_apply(normal_samples)
 
     def _loglike_many(self, many_obs: Array, many_pred_obs: Array) -> Array:
         residual = many_obs - many_pred_obs
-        L_inv_res = self._wnoise_chol_inv @ residual
+        L_inv_res = self._noise_cov_sqrt_inv_apply(residual)
         vals = diag_of_mat_mat_product(L_inv_res.T, L_inv_res, bkd=self._bkd)
         return (-0.5 * (vals + self._loglike_const))[:, None]
 
@@ -172,6 +190,37 @@ class GaussianLogLikelihood(LogLikelihood):
     def noise_covariance(self) -> Array:
         """Return weighted noise covariance"""
         return self._wnoise_chol @ self._wnoise_chol.T
+
+    def _jacobian(self, sample: Array) -> Array:
+        pred_obs = self._model(sample).T
+        residual = self._obs - pred_obs
+        L_inv_res = self._noise_cov_sqrt_inv_apply(residual)
+        return self._bkd.multidot(
+            (
+                L_inv_res.T,
+                self._noise_cov_sqrt_inv_apply(self._model.jacobian(sample)),
+            )
+        )
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        pred_obs = self._model(sample).T
+        # use adjoint method to compute hvp with
+        # objective f(s,z) = -1/2 s.T @ s
+        residual = self._obs - pred_obs
+        # solve forward equation for state s
+        # c(s,z) = Gs - obs + model(z) = 0, G=wnoise_chol_inv
+        state = self._noise_cov_sqrt_inv_apply(residual)
+        # solve adjoint solution
+        # lambda = -inv(c_s.T)f_s = -inv(G.T)s
+        lamda = self._noise_cov_sqrt_inv_apply_transpose(state)
+        tmp1 = self._noise_cov_sqrt_inv_apply(self._model.jacobian(sample))
+        # Hvp = c_z.T @ p + L_zs @ w + L_zz @ v
+        # w = inv(c_s)@ c_z @ v = inv(G) @ model.jacobian(z) @ v
+        # L_ss = -I, L_zs = 0, L_sz = 0, L_zz = lamda.T @ model.hessian(z)
+        # p = -inv(G.T) @ w
+        return -tmp1.T @ (tmp1 @ vec) + self._model.apply_weighted_hessian(
+            sample, vec, lamda
+        )
 
 
 class IndependentGaussianLogLikelihood(GaussianLogLikelihood):
@@ -209,27 +258,17 @@ class IndependentGaussianLogLikelihood(GaussianLogLikelihood):
         self._noise_cov_diag = noise_cov_diag
         self.set_design_weights(self._bkd.ones((self._nobs, 1)))
 
-    def _loglike_many(self, many_obs, many_pred_obs):
-        weighted_residual = self._bkd.sqrt(self._wnoise_cov_inv_diag) * (
-            many_obs - many_pred_obs
-        )
-        vals = (
-            -0.5
-            * diag_of_mat_mat_product(
-                weighted_residual.T, weighted_residual, bkd=self._bkd
-            )
-            - 0.5 * self._loglike_const
-        )[:, None]
-        return vals
+    def _noise_cov_sqrt_apply(self, vecs: Array) -> Array:
+        return self._wnoise_std_diag * vecs
 
-    def _sample_noise(self, nsamples):
-        # create samples (nsamples, nobs) then take transpose
-        # to ensure same noise is used for ith sample
-        # regardless of size of nsam
-        normal_samples = self._bkd.asarray(
-            np.random.normal(0, 1, (nsamples, self.nobs()))
-        ).T
-        return self._wnoise_std_diag * normal_samples
+    def _noise_cov_sqrt_apply_transpose(self, vecs: Array) -> Array:
+        return self._noise_cov_sqrt_apply(vecs)
+
+    def _noise_cov_sqrt_inv_apply(self, vecs: Array) -> Array:
+        return self._bkd.sqrt(self._wnoise_cov_inv_diag) * vecs
+
+    def _noise_cov_sqrt_inv_apply_transpose(self, vecs: Array) -> Array:
+        return self._noise_cov_sqrt_inv_apply(vecs)
 
     def noise_covariance(self):
         return self._bkd.diag(1 / self._wnoise_cov_inv_diag[:, 0])
@@ -251,28 +290,6 @@ class ModelBasedGaussianLogLikelihood(
         self._setup(noise_cov)
         self._set_tile_obs(tile_obs)
 
-    def jacobian_implemented(self) -> bool:
-        return self._model.jacobian_implemented()
-
-    def _jacobian(self, sample: Array) -> Array:
-        if self._last_sample is None or not self._bkd.allclose(
-            sample, self._last_sample
-        ):
-            self._last_sample = sample.copy()
-            self._last_pred_obs = self._model(sample).T
-        residual = self._obs - self._last_pred_obs
-        L_inv_res = self._wnoise_chol_inv @ residual
-        return self._bkd.multidot(
-            (
-                L_inv_res.T,
-                self._wnoise_chol_inv,
-                self._model.jacobian(sample),
-            )
-        )
-
-    # TODO implement apply_hessian using same idea as used in local
-    # optimaility criteria in expdesign
-
 
 class ModelBasedIndependentGaussianLogLikelihood(
     ModelBasedLogLikelihoodMixin, IndependentGaussianLogLikelihood
@@ -284,19 +301,6 @@ class ModelBasedIndependentGaussianLogLikelihood(
         self._model = model
         self._setup(noise_cov_diag)
         self._set_tile_obs(tile_obs)
-
-    def jacobian_implemented(self) -> bool:
-        return self._model.jacobian_implemented()
-
-    def _jacobian(self, sample: Array) -> Array:
-        if self._last_sample is None or not self._bkd.allclose(
-            sample, self._last_sample
-        ):
-            self._last_sample = sample.copy()
-            self._last_pred_obs = self._model(sample).T
-        residual = self._obs - self._last_pred_obs
-        tmp = self._wnoise_cov_inv_diag * residual
-        return tmp.T @ self._model.jacobian(sample)
 
 
 class WeightBasedLogLikelihoodMixin:

@@ -5,7 +5,10 @@ from scipy import stats
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.interface.model import DenseMatrixLinearModel
+from pyapprox.interface.model import (
+    DenseMatrixLinearModel,
+    QuadraticMatrixModel,
+)
 from pyapprox.bayes.likelihood import (
     ModelBasedGaussianLogLikelihood,
     ModelBasedIndependentGaussianLogLikelihood,
@@ -17,7 +20,7 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.bases.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
-from pyapprox.variables.joint import MultivariateGaussian
+from pyapprox.variables.gaussian import DenseMatrixMultivariateGaussian
 
 
 class Linear1DRegressionModel(DenseMatrixLinearModel):
@@ -101,7 +104,12 @@ class TestLikelihood:
         errors = loglike.check_apply_jacobian(true_sample, disp=True)
         assert errors.min() / errors.max() < 1e-6
 
-    def test_model_based_gaussian_likelihood(self):
+        errors = loglike.check_apply_hessian(true_sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
+        vec = bkd.ones((obs_model.nvars(), 1))
+
+    def test_linear_model_based_gaussian_likelihood(self):
         bkd = self.get_backend()
         degree = 1
         nvars = degree + 1
@@ -121,6 +129,28 @@ class TestLikelihood:
             obs_model, bkd.diag(noise_cov)[:, None]
         )
         self._check_model_based_gaussian_loglike_fun(loglike, prior_variable)
+
+    def test_quadratic_model_based_gaussian_likelihood(self):
+        # tests apply_hessian when model hessian is non-zero
+        bkd = self.get_backend()
+        degree = 1
+        nvars = degree + 1
+        prior_variable = IndependentMarginalsVariable(
+            [stats.norm(0, 1)] * nvars, backend=bkd
+        )
+        nobs = 4
+        noise_cov = bkd.diag(bkd.full((nobs,), 0.3))
+        obs_model = QuadraticMatrixModel(
+            bkd.asarray(np.random.uniform(-1, 1, (nobs, nvars))), backend=bkd
+        )
+        loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
+        true_sample = prior_variable.rvs(1)
+        obs = loglike.rvs(true_sample)
+        loglike.set_observations(obs)
+        errors = loglike.check_apply_jacobian(true_sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        errors = loglike.check_apply_hessian(true_sample, disp=True)
+        assert errors.min() / errors[0] < 1e-6
 
     def test_model_based_exponential_likelihood(self):
         bkd = self.get_backend()
@@ -176,7 +206,7 @@ class TestLikelihood:
         bkd = self.get_backend()
         degree = 2
         nvars = degree + 1
-        prior_variable = MultivariateGaussian(
+        prior_variable = DenseMatrixMultivariateGaussian(
             bkd.zeros((nvars, 1)), bkd.eye(nvars), backend=bkd
         )
 

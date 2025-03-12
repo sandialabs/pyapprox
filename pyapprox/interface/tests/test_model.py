@@ -20,6 +20,8 @@ from pyapprox.interface.model import (
     ForwardFiniteDifference,
     BackwardFiniteDifference,
     CenteredFiniteDifference,
+    DenseMatrixLinearModel,
+    QuadraticMatrixModel,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
@@ -878,6 +880,29 @@ if __name__ == "__main__":
         ]
         for test_case in test_cases:
             self._check_finite_differences(test_case)
+
+    def test_linear_matrix_model(self):
+        bkd = self.get_backend()
+        nrows, ncols = 3, 2
+        matrix = bkd.asarray(np.random.normal(0, 1, (nrows, ncols)))
+        model = DenseMatrixLinearModel(matrix, backend=bkd)
+        sample = bkd.asarray(np.random.uniform(-1, 1, (ncols, 1)))
+        errors = model.check_apply_jacobian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
+    def test_quadratic_matrix_model(self):
+        bkd = self.get_backend()
+        nrows, ncols = 3, 2
+        matrix = bkd.asarray(np.random.normal(0, 1, (nrows, ncols)))
+        model = QuadraticMatrixModel(matrix, backend=bkd)
+        sample = bkd.asarray(np.random.uniform(-1, 1, (ncols, 1)))
+        errors = model.check_apply_jacobian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
+        errors = model.check_apply_hessian(
+            sample, weights=bkd.ones((nrows, 1)), disp=True
+        )
+        assert errors.min() / errors.max() < 1e-6
 
 
 class TestNumpyModel(TestModel, unittest.TestCase):

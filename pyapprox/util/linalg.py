@@ -816,16 +816,20 @@ def diag_of_mat_mat_product(
     return bkd.einsum("ij,ji->i", Amat, Bmat)
 
 
-class RandomizedSVD(ABC):
-    def __init__(
-        self,
-        noversampling: int = 10,
-        npower_iters: int = 1,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
-    ):
-        self._bkd = backend
-        self._noversampling = noversampling
-        self._npower_iters = npower_iters
+class MatVecOperator(ABC):
+    @abstractmethod
+    def apply(self, vecs: Array) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def apply_transpose(self, vecs: Array) -> Array:
+        raise NotImplementedError
+
+    def right_apply(self, vecs: Array) -> Array:
+        raise NotImplementedError("right_apply is not implemented")
+
+    def right_apply_implemented(self) -> bool:
+        return False
 
     @abstractmethod
     def nrows(self) -> int:
@@ -835,13 +839,71 @@ class RandomizedSVD(ABC):
     def ncols(self) -> int:
         raise NotImplementedError
 
-    @abstractmethod
-    def _apply_mat(self, vecs) -> Array:
-        raise NotImplementedError
 
-    @abstractmethod
-    def _apply_mat_transpose(self, vecs) -> Array:
-        raise NotImplementedError
+class SymmetricMatVecOperator(MatVecOperator):
+    def apply_transpose(self, vecs: Array) -> Array:
+        return self.apply(vecs)
+
+    def ncols(self) -> int:
+        return self.nrows()
+
+
+class DenseMatVecOperator(MatVecOperator):
+    def __init__(self, mat: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+        self._mat = mat
+        self._bkd = backend
+
+    def apply(self, vecs: Array) -> Array:
+        return self._mat @ vecs
+
+    def apply_transpose(self, vecs: Array) -> Array:
+        return self._mat.T @ vecs
+
+    def right_apply(self, vecs: Array) -> Array:
+        return vecs @ self._mat
+
+    def right_apply_implemented(self) -> bool:
+        return True
+
+    def nrows(self) -> int:
+        return self._mat.shape[0]
+
+    def ncols(self) -> int:
+        return self._mat.shape[1]
+
+
+class DenseSymmetricMatVecOperator(SymmetricMatVecOperator):
+    def __init__(self, mat: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+        if mat.shape[0] != mat.shape[1] or not backend.allclose(
+            mat, mat.T, atol=1e-16
+        ):
+            raise ValueError("matrix must be symmetric")
+        self._mat = mat
+        self._bkd = backend
+
+    def apply(self, vecs: Array) -> Array:
+        return self._mat @ vecs
+
+    def nrows(self) -> int:
+        return self._mat.shape[0]
+
+
+class RandomizedSVD(ABC):
+    def __init__(
+        self,
+        matvec: MatVecOperator,
+        noversampling: int = 10,
+        npower_iters: int = 1,
+    ):
+        self._check_matvec(matvec)
+        self._bkd = matvec._bkd
+        self._matvec = matvec
+        self._noversampling = noversampling
+        self._npower_iters = npower_iters
+
+    def _check_matvec(self, matvec: MatVecOperator):
+        if not isinstance(matvec, MatVecOperator):
+            raise ValueError("matvec must be an instance of MatVecOperator")
 
     @abstractmethod
     def compute(self, rank: int) -> Tuple[Array, Array, Array]:
@@ -854,77 +916,43 @@ class RandomizedSVD(ABC):
         nsamples = rank + self._noversampling
         # use transpose so omega samples are nested if nsamples are increased
         omega = self._bkd.asarray(
-            np.random.normal(0, 1, (nsamples, self.ncols()))
+            np.random.normal(0, 1, (nsamples, self._matvec.ncols()))
         ).T
         # sample column space
-        Y = self._apply_mat(omega)
+        Y = self._matvec.apply(omega)
         for ii in range(self._npower_iters):
-            G = self._apply_mat_transpose(Y)
-            Y = self._apply_mat(G)
+            G = self._matvec.apply_transpose(Y)
+            Y = self._matvec.apply(G)
         return Y
 
 
-class RandomizedSVDDenseMatrixMixin:
-    def nrows(self) -> int:
-        return self._mat.shape[0]
-
-    def ncols(self) -> int:
-        return self._mat.shape[1]
-
-    def _apply_mat(self, vecs) -> Array:
-        return self._mat @ vecs
-
-    def _apply_mat_transpose(self, vecs) -> Array:
-        return self._mat.T @ vecs
-
-
-class DenseMatrixSinglePassRandomizedSVD(
-    RandomizedSVDDenseMatrixMixin, RandomizedSVD
-):
-    def __init__(
-        self,
-        mat: Array,
-        noversampling: int = 10,
-        npower_iters: int = 1,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
-    ):
-        self._mat = mat
-        super().__init__(noversampling, npower_iters, backend)
-
+class SinglePassRandomizedSVD(RandomizedSVD):
     def compute(self, rank: int) -> Tuple[Array, Array, Array]:
+        if not self._matvec.right_apply_implemented():
+            raise ValueError("matvec must implement right_apply")
         cspace_samples = self._sample_column_space(rank)
         # ortogonalize column space samples
         Q = self._bkd.qr(cspace_samples, mode="reduced")[0]
-        B = Q.T @ self._mat
+        B = self._matvec.right_apply(Q.T)
         U, S, Vh = self._bkd.svd(B)
         U = Q @ U
         U, Vh = self.adjust_sign(U[:, :rank], Vh[:rank])
         return U, S[:rank], Vh
 
 
-class DenseSymmetricMatrixDoublePassRandomizedSVD(
-    RandomizedSVDDenseMatrixMixin, RandomizedSVD
-):
-    def __init__(
-        self,
-        mat: Array,
-        noversampling: int = 10,
-        npower_iters: int = 1,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
-    ):
-        if mat.shape[0] != mat.shape[1] or not backend.allclose(
-            mat, mat.T, atol=1e-15
-        ):
-            raise ValueError("Currently only support symmetric matrices")
-        self._mat = mat
-        super().__init__(noversampling, npower_iters, backend)
+class SymmetricMatrixDoublePassRandomizedSVD(RandomizedSVD):
+    def _check_matvec(self, matvec: SymmetricMatVecOperator):
+        if not isinstance(matvec, SymmetricMatVecOperator):
+            raise ValueError(
+                "matvec must be an instance of SymmetricMatVecOperator"
+            )
 
     def compute(self, rank: int) -> Tuple[Array, Array, Array]:
         # first pass
         cspace_samples = self._sample_column_space(rank)
         Q1 = self._bkd.qr(cspace_samples, mode="reduced")[0]
         # second pass
-        rspace_samples = self._apply_mat_transpose(Q1)
+        rspace_samples = self._matvec.apply_transpose(Q1)
         Q2 = self._bkd.qr(rspace_samples, mode="reduced")[0]
         # svd of compressed row space samples
         U, S, Vh = self._bkd.svd(Q2.T @ rspace_samples)

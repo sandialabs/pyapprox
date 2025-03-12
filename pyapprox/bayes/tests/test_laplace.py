@@ -13,20 +13,18 @@ from pyapprox.util.randomized_svd import (
     adjust_sign_svd,
     svd_using_orthogonal_basis,
 )
-from pyapprox.variables.joint import MultivariateGaussian
 from pyapprox.variables.gaussian import (
     DenseCholeskySqrtCovarianceOperator,
     CovarianceOperator,
+    DenseMatrixMultivariateGaussian,
 )
 from pyapprox.interface.model import DenseMatrixLinearModel, Model
 from pyapprox.bayes.laplace import (
-    get_laplace_covariance_sqrt_operator,
-    get_pointwise_laplace_variance_using_prior_variance,
     GaussianPushForward,
     DenseMatrixLaplacePosteriorApproximation,
     DenseMatrixLaplaceApproximationForPrediction,
     PriorConditionedHessianMatVecOperator,
-    LaplaceSqrtMatVecOperator,
+    DenseMatrixLaplacePosteriorLowRankApproximation,
 )
 from pyapprox.util.visualization import plot_multiple_2d_gaussian_slices
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -333,7 +331,7 @@ class TestLaplace:
         covariance = 0.1 * bkd.eye(nvars)
         A = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, nvars)))
         b = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, 1)))
-        prior = MultivariateGaussian(mean, covariance, backend=bkd)
+        prior = DenseMatrixMultivariateGaussian(mean, covariance, backend=bkd)
         push_forward = GaussianPushForward(
             A, prior.mean(), prior.covariance(), b, backend=bkd
         )
@@ -364,7 +362,7 @@ class TestLaplace:
         noise_cov = noise_std**2 * np.eye(nobs)
         obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
         pred_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, nvars)))
-        prior = MultivariateGaussian(mean, covariance, backend=bkd)
+        prior = DenseMatrixMultivariateGaussian(mean, covariance, backend=bkd)
         laplace = DenseMatrixLaplacePosteriorApproximation(
             obs_mat, prior.mean(), prior.covariance(), noise_cov, backend=bkd
         )
@@ -392,20 +390,38 @@ class TestLaplace:
             laplace4pred.covariance(), posterior_push_forward.covariance()
         )
 
-    def test_posterior_dense_matrix_covariance_operator(self):
-        nvars = 121
-        rank = 10
-        eval_concurrency = 20
-        # randn = np.random.normal(0.,1.,(nvars,nvars))
-        # prior_covariance = np.dot(randn.T,randn)
-        prior_covariance = np.eye(nvars)
-        prior_sqrt_covariance_op = CholeskySqrtCovarianceOperator(
-            prior_covariance, eval_concurrency, backend=bkd
+    def test_low_rank_laplace_posterior_approximation(self):
+        bkd = self.get_backend()
+        nvars = 2
+        nobs = 3
+        mean = np.ones((nvars, 1))
+        covariance = 0.2 * np.eye(nvars)
+        noise_std = 0.01
+        noise_cov = noise_std**2 * np.eye(nobs)
+        obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
+        prior = DenseMatrixMultivariateGaussian(mean, covariance, backend=bkd)
+        full_laplace = DenseMatrixLaplacePosteriorApproximation(
+            obs_mat, prior.mean(), prior.covariance(), noise_cov, backend=bkd
         )
-        prior = MultivariateGaussian(prior_sqrt_covariance_op)
-        comparison_tol = 6e-7
-        posterior_covariance_helper(
-            prior, rank, comparison_tol, test_sampling=True
+        true_sample = bkd.asarray(np.random.uniform(-1, 1, (nvars, 1)))
+        noise = bkd.asarray(np.random.normal(0, noise_std, (nobs, 1)))
+        obs = obs_mat @ true_sample + noise
+        full_laplace.compute(obs)
+
+        hess_mat = obs_mat.T @ bkd.inv(noise_cov) @ obs_mat
+        # make low-rank laplace full rank and compare to full rank
+        # laplace approx
+        lr_laplace = DenseMatrixLaplacePosteriorLowRankApproximation(
+            prior, hess_mat, rank=prior.nvars()
+        )
+        lr_laplace.compute()
+        assert bkd.allclose(
+            lr_laplace.posterior_covariance(),
+            full_laplace.posterior_covariance(),
+        )
+        assert bkd.allclose(
+            lr_laplace.covariance_diagonal(),
+            bkd.diag(full_laplace.posterior_covariance()),
         )
 
     def test_hessian_vector_multiply_operator_with_randomized_svd(self):
@@ -684,111 +700,6 @@ class TestLaplace:
             self.help_generate_and_save_laplace_posterior(fault_precentage)
 
             os.chdir(curdir)
-
-
-class TestGoalOrientedInference(unittest.TestCase):
-
-    def help_compute_posterior_mean_covar_optimal_for_prediction(
-        self, nvars, nobs_qoi, npred_qoi
-    ):
-        # print nvars,nobs_qoi,npred_qoi
-        obs_matrix = np.random.normal(0.0, 1.0, (nobs_qoi, nvars))
-        # prior_mean = np.zeros((nvars),float)
-        prior_mean = np.ones((nvars), float)
-        prior_cov = np.eye(nvars)
-        noise_cov = np.eye(nobs_qoi)
-        truth_sample = np.random.normal(0.0, 1.0, nvars)
-        obs = np.dot(obs_matrix, truth_sample) + np.random.normal(
-            0.0, 1.0, nobs_qoi
-        )
-        pred_matrix = np.random.normal(0.0, 1.0, (npred_qoi, nvars))
-        pred_offset = 0.0  # *np.random.normal(0.,1.,(npred_qoi))
-
-        # prior_chol_factor = np.linalg.cholesky(prior_cov)
-        prior_hessian = np.linalg.inv(prior_cov)
-        noise_cov_inv = np.linalg.inv(noise_cov)
-
-        # Compute true posterior
-        exact_post_mean, exact_post_cov = (
-            laplace_posterior_approximation_for_linear_models(
-                obs_matrix, prior_mean, prior_hessian, noise_cov_inv, obs
-            )
-        )
-
-        # Compute true posterior push-forward
-        exact_pf_mean, exact_pf_cov = (
-            push_forward_gaussian_though_linear_model(
-                pred_matrix, pred_offset, exact_post_mean, exact_post_cov
-            )
-        )
-
-        # Compute optimal push forward of the posterior
-        opt_pf_mean, opt_pf_cov, posterior_mean, opt_post_cov = (
-            compute_posterior_mean_covar_optimal_for_prediction(
-                obs,
-                obs_matrix,
-                prior_mean,
-                prior_cov,
-                noise_cov,
-                pred_matrix,
-                economical=False,
-            )
-        )
-
-        # print opt_pf_mean, exact_pf_mean
-
-        # check prediction mean is exact
-        assert np.allclose(opt_pf_mean, exact_pf_mean.squeeze())
-        # check posterior mean pushed through prediction model is exact
-        assert np.allclose(
-            np.dot(pred_matrix, posterior_mean),
-            np.dot(pred_matrix, exact_post_mean.squeeze()),
-        )
-        # check prediction covariance is exact
-        # print opt_pf_cov
-        # print exact_pf_cov
-        assert np.allclose(opt_pf_cov, exact_pf_cov)
-        # check covariance pushed through prediction model is exact
-        assert np.allclose(
-            np.dot(pred_matrix, np.dot(opt_post_cov, pred_matrix.T)),
-            exact_pf_cov,
-        )
-
-    def test_goal_oriented_inference(self):
-        nvars = 10
-        nobs_qoi = 5
-        npred_qoi = 3
-        self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, nobs_qoi, npred_qoi
-        )
-
-        nvars = 10
-        nobs_qoi = 15
-        npred_qoi = 2
-        self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, nobs_qoi, npred_qoi
-        )
-
-        nvars = 10
-        nobs_qoi = 2
-        npred_qoi = 5
-        self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, nobs_qoi, npred_qoi
-        )
-
-        nvars = 2
-        nobs_qoi = 3
-        npred_qoi = 2
-        self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, nobs_qoi, npred_qoi
-        )
-
-        nvars = 3
-        nobs_qoi = 2
-        npred_qoi = 3
-        self.help_compute_posterior_mean_covar_optimal_for_prediction(
-            nvars, nobs_qoi, npred_qoi
-        )
 
 
 class TestNumpyLaplace(TestLaplace, unittest.TestCase):

@@ -28,8 +28,10 @@ from pyapprox.util.linalg import (
     log_determinant_from_cholesky_factor,
     trace_of_mat_mat_product,
     diag_of_mat_mat_product,
-    DenseSymmetricMatrixDoublePassRandomizedSVD,
-    DenseMatrixSinglePassRandomizedSVD,
+    SymmetricMatrixDoublePassRandomizedSVD,
+    SinglePassRandomizedSVD,
+    DenseMatVecOperator,
+    DenseSymmetricMatVecOperator,
 )
 
 
@@ -909,8 +911,9 @@ class TestLinalg(unittest.TestCase):
         rank, noversampling = 3, 0
         tmp = np.random.normal(0.0, 1.0, (nrows, ncols))
         mat = tmp @ tmp.T
-        svd_solver = DenseSymmetricMatrixDoublePassRandomizedSVD(
-            mat, noversampling, 10
+        matvec = DenseSymmetricMatVecOperator(mat)
+        svd_solver = SymmetricMatrixDoublePassRandomizedSVD(
+            matvec, noversampling, 10
         )
         U, S, Vh = svd_solver.compute(rank)
         U_true, S_true, Vh_true = np.linalg.svd(mat)
@@ -930,7 +933,8 @@ class TestLinalg(unittest.TestCase):
         rank = min(nrows, ncols)
         noversampling = 0
         mat = np.random.normal(0.0, 1.0, (nrows, ncols))
-        svd_solver = DenseMatrixSinglePassRandomizedSVD(mat, noversampling)
+        matvec = DenseMatVecOperator(mat)
+        svd_solver = SinglePassRandomizedSVD(matvec, noversampling)
         U, S, Vh = svd_solver.compute(rank)
         U_true, S_true, Vh_true = np.linalg.svd(mat)
         U_true, Vh_true = svd_solver.adjust_sign(

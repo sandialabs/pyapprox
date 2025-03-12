@@ -619,7 +619,7 @@ class Model(ABC):
             return whvp
         if self.weighted_hessian_implemented():
             return self.weighted_hessian(sample, weights) @ vec
-        return weights.T @ (self.hessian(sample) @ vec[:, 0])
+        return (weights.T @ (self.hessian(sample) @ vec[:, 0])).T
 
     def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
         raise NotImplementedError
@@ -2069,6 +2069,9 @@ class DenseMatrixLinearModel(Model):
     def apply_hessian_implemented(self):
         return True
 
+    def apply_weighted_hessian_implemented(self):
+        return True
+
     def nvars(self) -> int:
         return self._nvars
 
@@ -2085,9 +2088,14 @@ class DenseMatrixLinearModel(Model):
         return self._matrix @ vec
 
     def _hessian(self, sample: Array) -> Array:
-        return self._bkd.zeros((self.nvars(), self.nvars()))
+        return self._bkd.zeros((self.nqoi(), self.nvars(), self.nvars()))
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        return self._bkd.zeros((self.nvars(), 1))
+
+    def _apply_weighted_hessian(
+        self, sample: Array, vec: Array, weights: Array
+    ) -> Array:
         return self._bkd.zeros((self.nvars(), 1))
 
     def matrix(self) -> Array:
@@ -2095,6 +2103,41 @@ class DenseMatrixLinearModel(Model):
 
     def vector(self) -> Array:
         return self._vec
+
+
+class QuadraticMatrixModel(Model):
+    def __init__(self, matrix: Array, backend=NumpyLinAlgMixin):
+        self._matrix = matrix
+        super().__init__(backend)
+
+    def jacobian_implemented(self):
+        return True
+
+    def hessian_implemented(self):
+        return True
+
+    def apply_hessian_implemented(self):
+        return True
+
+    # def apply_weighted_hessian_implemented(self):
+    #     return True
+
+    def nvars(self) -> int:
+        return self._matrix.shape[1]
+
+    def nqoi(self) -> int:
+        return self._matrix.shape[0]
+
+    def _values(self, samples: Array) -> Array:
+        return (self._matrix @ (samples)).T ** 2
+
+    def _jacobian(self, sample: Array) -> Array:
+        return 2 * (self._matrix @ sample) * self._matrix
+
+    def _hessian(self, sample: Array) -> Array:
+        return 2 * self._bkd.stack(
+            [row[:, None] * row[None, :] for row in self._matrix], axis=0
+        )
 
 
 class FiniteDifference(ABC):
@@ -2145,7 +2188,7 @@ class FiniteDifference(ABC):
 
 class ForwardFiniteDifference(FiniteDifference):
     def _perturbed_samples(self, sample: Array) -> Array:
-        perturbed_samples = self._bkd.tile(sample, self.nvars())
+        perturbed_samples = self._bkd.tile(sample, (self.nvars(),))
         for ii in range(self.nvars()):
             perturbed_samples[ii, ii] += self._fd_eps
         return perturbed_samples
@@ -2185,7 +2228,7 @@ class ForwardFiniteDifference(FiniteDifference):
 
 class BackwardFiniteDifference(FiniteDifference):
     def _perturbed_samples(self, sample: Array) -> Array:
-        perturbed_samples = self._bkd.tile(sample, self.nvars())
+        perturbed_samples = self._bkd.tile(sample, (self.nvars(),))
         for ii in range(self.nvars()):
             perturbed_samples[ii, ii] -= self._fd_eps
         return perturbed_samples
@@ -2225,8 +2268,8 @@ class BackwardFiniteDifference(FiniteDifference):
 
 class CenteredFiniteDifference(FiniteDifference):
     def _perturbed_samples(self, sample: Array) -> Array:
-        perturbed_samples1 = self._bkd.tile(sample, self.nvars())
-        perturbed_samples2 = self._bkd.tile(sample, self.nvars())
+        perturbed_samples1 = self._bkd.tile(sample, (self.nvars(),))
+        perturbed_samples2 = self._bkd.tile(sample, (self.nvars(),))
         for ii in range(self.nvars()):
             perturbed_samples1[ii, ii] -= self._fd_eps
             perturbed_samples2[ii, ii] += self._fd_eps
