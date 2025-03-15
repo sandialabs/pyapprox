@@ -35,6 +35,7 @@ from pyapprox.benchmarks.pde import (
     PyApproxPaperAdvectionDiffusionKLEInversionBenchmark,
     TransientViscousBurgers1DOperatorBenchmark,
     SteadyDarcy2DOperatorBenchmark,
+    ParameterizedNonlinearSystemOfEquationsBenchmark,
 )
 
 __all__ = [
@@ -54,7 +55,7 @@ __all__ = [
     "ShortColumnModelEnsemble",
     "MultiOutputModelEnsemble",
     "PSDMultiOutputModelEnsemble",
-    "MultiLevelPolynomialBenchmark",
+    "MultiLevelCosineBenchmark",
     "ChemicalReactionBenchmark",
     "LotkaVolterraBenchmark",
     "CoupledSpringsBenchmark",
@@ -62,4 +63,5 @@ __all__ = [
     "PyApproxPaperAdvectionDiffusionKLEInversionBenchmark",
     "TransientViscousBurgers1DOperatorBenchmark",
     "SteadyDarcy2DOperatorBenchmark",
+    "ParameterizedNonlinearSystemOfEquationsBenchmark",
 ]

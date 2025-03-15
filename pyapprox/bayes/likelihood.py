@@ -74,7 +74,7 @@ class LogLikelihood(Model):
         return self._loglike(many_pred_obs)
 
     @abstractmethod
-    def _make_noisy(self, noiseless_obs: Array, noise, Array):
+    def _make_noisy(self, noiseless_obs: Array, noise, Array) -> Array:
         raise NotImplementedError
 
 
@@ -391,7 +391,7 @@ class ModelBasedIndependentExponentialLogLikelihood(
         self._set_tile_obs(tile_obs)
 
 
-class LogUnormalizedPosterior(Model):
+class LogUnNormalizedPosterior(Model):
     def __init__(self, loglike: LogLikelihood, prior: JointVariable):
         self._loglike = loglike
         self._prior = prior
@@ -420,7 +420,7 @@ class LogUnormalizedPosterior(Model):
         )
 
     def _values(self, samples: Array) -> Array:
-        return self._loglike(samples) + self._prior._log_pdf(samples)
+        return self._loglike(samples) + self._prior.log_pdf(samples)
 
     def _jacobian(self, sample: Array) -> Array:
         return self._loglike.jacobian(sample) + self._prior.log_pdf_jacobian(

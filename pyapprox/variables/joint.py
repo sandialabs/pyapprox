@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Union
 
 import numpy as np
 from scipy import stats
+import matplotlib.pyplot as plt
 
 from pyapprox.variables.marginals import (
     get_unique_variables,
@@ -16,6 +17,7 @@ from pyapprox.variables._nataf import (
     transform_correlations,
     scipy_gauss_hermite_pts_wts_1D,
 )
+from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 
@@ -46,7 +48,7 @@ class JointVariable(ABC):
         raise NotImplementedError()
 
     def __str__(self) -> str:
-        return "{0}".format(self.__class__.__name__)
+        return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -64,6 +66,48 @@ class JointVariable(ABC):
     def pdf_hessian(self, samples: Array) -> Array:
         # if true then both log pdf and pdf hessian are implemented
         raise NotImplementedError
+
+    def get_plot_axis(self, figsize=(8, 6), surface=False):
+        if self.nvars() < 3 and not surface:
+            fig = plt.figure(figsize=figsize)
+            return fig, fig.gca()
+        fig = plt.figure(figsize=figsize)
+        return fig, fig.add_subplot(111, projection="3d")
+
+    def _plot_pdf_1d(self, ax, npts_1d: Array, plot_limits: Array, **kwargs):
+        plot_xx = self._bkd.linspace(*plot_limits, npts_1d[0])[None, :]
+        ax.plot(plot_xx[0], self.pdf(plot_xx), **kwargs)
+
+    def meshgrid_samples(
+        self, plot_limits: Array, npts_1d: Union[Array, int] = 51
+    ) -> Array:
+        if self.nvars() != 2:
+            raise RuntimeError("nvars !=2.")
+        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
+        return X, Y, pts
+
+    def plot_pdf(
+        self, ax, plot_limits: Array, npts_1d: Union[Array, int] = 51, **kwargs
+    ):
+        if self.nvars() > 3:
+            raise RuntimeError("Cannot plot PDF when nvars >= 3.")
+        if len(plot_limits) != self.nvars() * 2:
+            raise ValueError("plot_limits has the wrong shape")
+        if not isinstance(npts_1d, list):
+            npts_1d = [npts_1d] * self.nvars()
+        if self.nvars() == 1:
+            return self._plot_pdf_1d(ax, npts_1d, plot_limits, **kwargs)
+        X, Y, pts = self.meshgrid_samples(plot_limits, npts_1d)
+        Z = self._bkd.reshape(self.pdf(pts), X.shape)
+        if kwargs.get("levels", None) is None:
+            if ax.name != "3d":
+                raise ValueError(
+                    "levels not specified so trying to plot surface but not"
+                    " given 3d axis"
+                )
+            return ax.plot_surface(X, Y, Z, **kwargs)
+        print(kwargs)
+        return ax.contourf(X, Y, Z, **kwargs)
 
 
 class IndependentMarginalsVariable(JointVariable):
@@ -217,7 +261,7 @@ class IndependentMarginalsVariable(JointVariable):
                 stats[jj] = stats_jj
         return stats
 
-    def pdf(self, x: Array, log: bool = False) -> Array:
+    def pdf(self, x: Array) -> Array:
         """
         Evaluate the joint probability distribution function.
 
@@ -236,10 +280,11 @@ class IndependentMarginalsVariable(JointVariable):
             The values of the PDF at x
         """
         assert x.shape[0] == self.nvars()
-        if log is False:
-            marginal_vals = self.evaluate("pdf", x)
-            return self._bkd.prod(marginal_vals, axis=0)[:, None]
+        marginal_vals = self.evaluate("pdf", x)
+        return self._bkd.prod(marginal_vals, axis=0)[:, None]
 
+    def log_pdf(self, x: Array, log: bool = False) -> Array:
+        assert x.shape[0] == self.nvars()
         marginal_vals = self.evaluate("logpdf", x)
         return self._bkd.sum(marginal_vals, axis=0)[:, None]
 

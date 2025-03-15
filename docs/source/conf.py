@@ -104,11 +104,11 @@ example_filenames_in_order = [
 ]
 
 # TODO enable once ready to port over tutorials to new API
-# example_dirs = ["../../tutorials", "../../examples"]
-# gallery_dirs = ["auto_tutorials", "auto_examples"]
+example_dirs = ["../../tutorials", "../../examples"]
+gallery_dirs = ["auto_tutorials", "auto_examples"]
 
-example_dirs = ["../../examples"]
-gallery_dirs = ["auto_examples"]
+# example_dirs = ["../../examples"]
+# gallery_dirs = ["auto_examples"]
 
 
 installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
@@ -164,12 +164,12 @@ sphinx_gallery_conf = {
     # 'first_notebook_cell' : "%matplotlib inline",
     "subsection_order": ExplicitOrder(
         [
-            #     '../../tutorials/analysis',
-            #     '../../tutorials/inference',
-            #     '../../tutorials/expdesign',
-            #     '../../tutorials/surrogates',
-            #     '../../tutorials/multi_fidelity',
-            #     '../../tutorials/sciml',
+            "../../tutorials/analysis",
+            "../../tutorials/inference",
+            "../../tutorials/expdesign",
+            "../../tutorials/surrogates",
+            "../../tutorials/multi_fidelity",
+            "../../tutorials/sciml",
             "../../examples/interface",
             "../../examples/analysis",
             "../../examples/expdesign",

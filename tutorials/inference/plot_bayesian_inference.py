@@ -95,84 +95,95 @@ is the covariance between the parameters and data.
 
 Now let us setup this problem in Python
 """
+
 from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 from pyapprox.bayes.tests.test_metropolis import (
-    ExponentialQuarticLogLikelihoodModel)
-from pyapprox.variables.density import NormalDensity
+    ExponentialQuarticLogLikelihoodModel,
+)
+from pyapprox.variables.gaussian import DenseMatrixMultivariateGaussian
 from scipy import stats
 import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
 from functools import partial
 import matplotlib as mpl
+
 np.random.seed(1)
 
-A = np.array([[.5]])
+A = np.array([[0.5]])
 b = 0.0
 # define the prior
 prior_covariance = np.atleast_2d(1.0)
-prior = NormalDensity(0., prior_covariance)
+prior = DenseMatrixMultivariateGaussian(np.atleast_2d(0.0), prior_covariance)
 # define the noise
 noise_covariance = np.atleast_2d(0.1)
-noise = NormalDensity(0, noise_covariance)
+noise = DenseMatrixMultivariateGaussian(np.atleast_2d(0.0), noise_covariance)
 # compute the covariance between the prior and data
-C_12 = np.dot(A, prior_covariance)
+C_12 = A @ prior_covariance
 # define the data marginal distribution
-data_covariance = noise_covariance+np.dot(C_12, A.T)
-data = NormalDensity(np.dot(A, prior.mean)+b,
-                         data_covariance)
+data_covariance = noise_covariance + C_12 @ A.T
+data = DenseMatrixMultivariateGaussian(A @ prior.mean() + b, data_covariance)
 # define the covariance of the joint distribution of the prior and data
 
 
 def form_normal_joint_covariance(C_11, C_22, C_12):
-    num_vars1 = C_11.shape[0]
-    num_vars2 = C_22.shape[0]
-    joint_covariance = np.empty((num_vars1+num_vars2, num_vars1+num_vars2))
-    joint_covariance[:num_vars1, :num_vars1] = C_11
-    joint_covariance[num_vars1:, num_vars1:] = C_22
-    joint_covariance[:num_vars1, num_vars1:] = C_12
-    joint_covariance[num_vars1:, :num_vars1] = C_12
+    nvars1 = C_11.shape[0]
+    nvars2 = C_22.shape[0]
+    joint_covariance = np.empty((nvars1 + nvars2, nvars1 + nvars2))
+    joint_covariance[:nvars1, :nvars1] = C_11
+    joint_covariance[nvars1:, nvars1:] = C_22
+    joint_covariance[:nvars1, nvars1:] = C_12
+    joint_covariance[nvars1:, :nvars1] = C_12
     return joint_covariance
 
 
-joint_mean = np.hstack((prior.mean, data.mean))
+joint_mean = np.vstack((prior.mean(), data.mean()))
 joint_covariance = form_normal_joint_covariance(
-    prior_covariance, data_covariance, C_12)
-joint = NormalDensity(joint_mean, joint_covariance)
+    prior_covariance, data_covariance, C_12
+)
+joint = DenseMatrixMultivariateGaussian(joint_mean, joint_covariance)
 
-#%%
-#Now we can plot the joint distribution and some samples from that distribution
-#and print the sample covariance of the joint distribution
+# %%
+# Now we can plot the joint distribution and some samples from that distribution
+# and print the sample covariance of the joint distribution
 
-num_samples = 10000
-theta_samples = prior.generate_samples(num_samples)
-noise_samples = noise.generate_samples(num_samples)
-data_samples = np.dot(A, theta_samples) + b + noise_samples
-plot_limits = [theta_samples.min(), theta_samples.max(),
-               data_samples.min(), data_samples.max()]
-fig, ax = plt.subplots(1, 1)
-joint.plot_density(plot_limits=plot_limits, ax=ax)
-_ = plt.plot(theta_samples[0, :100], data_samples[0, :100], 'o')
+nsamples = 10000
+theta_samples = prior.rvs(nsamples)
+noise_samples = noise.rvs(nsamples)
+data_samples = A @ theta_samples + b + noise_samples
+plot_limits = [
+    theta_samples.min(),
+    theta_samples.max(),
+    data_samples.min(),
+    data_samples.max(),
+]
+joint.plot_pdf(
+    joint.get_plot_axis()[1],
+    plot_limits=plot_limits,
+    cmap=mpl.cm.coolwarm,
+    levels=20,
+)
+_ = plt.plot(theta_samples[0, :100], data_samples[0, :100], "o")
 
-#%%
-#Conditional probability of multivariate Gaussians
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#For multivariate Gaussians the dsitribution of :math:`x` conditional on observing the data :math:`d^\star=d_\text{truth}+\eta^\star`, :math:`\pi(x\mid d=d^\star)\sim N(m_\text{post},\Sigma_\text{post})` is a multivariate Gaussian with mean and covariance
+# %%
+# Conditional probability of multivariate Gaussians
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# For multivariate Gaussians the dsitribution of :math:`x` conditional on observing the data :math:`d^\star=d_\text{truth}+\eta^\star`, :math:`\pi(x\mid d=d^\star)\sim N(m_\text{post},\Sigma_\text{post})` is a multivariate Gaussian with mean and covariance
 #
-#.. math::
+# .. math::
 #
 #  \boldsymbol{m}_\text{post}&=\boldsymbol m_\text{prior} + \boldsymbol\Sigma_\text{prior,data} \boldsymbol\Sigma_{data}^{-1}\left( \mathbf{d}^\star - \boldsymbol m_\text{data}\right),\\
 #  \boldsymbol \Sigma_\text{post}&=\boldsymbol \Sigma_\text{prior}-\boldsymbol \Sigma_\text{prior,data}\boldsymbol\Sigma_\text{data}^{-1}\boldsymbol\Sigma_\text{data,prior}^T.
 #
-#where :math:`\eta^\star` is a random sample from the noise variable :math:`\eta`. In the case of one parameter and one QoI we have
+# where :math:`\eta^\star` is a random sample from the noise variable :math:`\eta`. In the case of one parameter and one QoI we have
 #
-#.. math:: \pi(x\mid d=d^\star) \sim\ N\left(m_\text{prior}+\frac{\sigma_\text{prior}}{\sigma_\text{data}}\rho( d^\star - m_\text{data}),\, (1-\rho^2)\sigma_\text{prior}^2\right).
+# .. math:: \pi(x\mid d=d^\star) \sim\ N\left(m_\text{prior}+\frac{\sigma_\text{prior}}{\sigma_\text{data}}\rho( d^\star - m_\text{data}),\, (1-\rho^2)\sigma_\text{prior}^2\right).
 #
-#where the correlation coefficient between the parameter and data is
+# where the correlation coefficient between the parameter and data is
 #
-#.. math: \rho=\frac{\Sigma_\text{prior,data}}{\sigma_\text{prior}\sigma_\text{data}}
+# .. math: \rho=\frac{\Sigma_\text{prior,data}}{\sigma_\text{prior}\sigma_\text{data}}
 #
-#Lets use this formula to update the prior when one data :math:`d^\star` becomes available.
+# Lets use this formula to update the prior when one data :math:`d^\star` becomes available.
 
 
 def condition_normal_on_data(mean, covariance, fixed_indices, values):
@@ -183,125 +194,147 @@ def condition_normal_on_data(mean, covariance, fixed_indices, values):
     sigma_11 = np.array(covariance[ind_remain, ind_remain], ndmin=2)
     sigma_12 = np.array(covariance[ind_remain, fixed_indices], ndmin=2)
     sigma_22 = np.array(covariance[fixed_indices, fixed_indices], ndmin=2)
-    update = np.dot(sigma_12, np.linalg.solve(sigma_22, diff)).flatten()
+    update = (sigma_12 @ np.linalg.solve(sigma_22, diff)).flatten()
     new_mean = new_mean + update
-    new_cov = sigma_11-np.dot(sigma_12, np.linalg.solve(sigma_22, sigma_12.T))
+    new_cov = sigma_11 - (sigma_12 @ np.linalg.solve(sigma_22, sigma_12.T))
     return new_mean, new_cov
 
 
-x_truth = 0.2
-data_obs = np.dot(A, x_truth)+b+noise.generate_samples(1)
+x_truth = np.atleast_2d(0.2)
+data_obs = A @ x_truth + b + noise.rvs(1)
 
 new_mean, new_cov = condition_normal_on_data(
-    joint_mean, joint_covariance, [1], data_obs)
-posterior = NormalDensity(new_mean, new_cov)
+    joint_mean, joint_covariance, [1], data_obs
+)
+posterior = DenseMatrixMultivariateGaussian(new_mean, new_cov)
 
-#%%
-#Now lets plot the prior and posterior of the parameters as well as the joint distribution and the data.
+# %%
+# Now lets plot the prior and posterior of the parameters as well as the joint distribution and the data.
 
 f, axs = plt.subplots(1, 2, figsize=(16, 6))
-prior.plot_density(label='prior', ax=axs[0])
-axs[0].axvline(x=x_truth, lw=3, label=r'$x_\text{truth}$')
-posterior.plot_density(plot_limits=prior.plot_limits,
-                       ls='-', label='posterior', ax=axs[0])
-joint.plot_density(ax=axs[1])
-axhline = axs[1].axhline(y=data_obs, color='k')
-axplot = axs[1].plot(x_truth, data_obs, 'ok', ms=10)
+prior_plot_limits = [-3, 3]
+prior.plot_pdf(axs[0], prior_plot_limits, label="prior")
+axs[0].axvline(x=x_truth, lw=3, label=r"$x_\text{truth}$")
+posterior.plot_pdf(
+    plot_limits=prior_plot_limits, ls="-", label="posterior", ax=axs[0]
+)
+print(joint)
+joint.plot_pdf(axs[1], [-3, 3, -3, 3], cmap=mpl.cm.coolwarm, levels=20)
+axhline = axs[1].axhline(y=data_obs, color="k")
+axplot = axs[1].plot(x_truth, data_obs, "ok", ms=10)
 
-#%%
-#Lets also plot the joint distribution and marginals in a 3d plot
+# %%
+# Lets also plot the joint distribution and marginals in a 3d plot
 
 
 def data_obs_limit_state(samples, vals, data_obs):
-    vals = np.ones((samples.shape[1]), float)
-    I = np.where(samples[1, :] <= data_obs[0, 0])[0]
-    return I, 0.
+    idx = np.where(samples[1, :] <= data_obs[0, 0])[0]
+    return idx, 0.0
 
 
-from pyapprox.util.visualization import (
-    get_meshgrid_function_data, create_3d_axis, plot_surface, plot_contours)
-num_pts_1d = 100
+from pyapprox.util.visualization import _turn_off_3d_axes
+
+npts_1d = 100
 limit_state = partial(data_obs_limit_state, data_obs=data_obs)
-X, Y, Z = get_meshgrid_function_data(
-    joint.pdf, joint.plot_limits, num_pts_1d, qoi=0)
-offset = -(Z.max()-Z.min())
-samples = np.array([[x_truth, data_obs[0, 0], offset]]).T
-ax = create_3d_axis()
-plot_surface(X, Y, Z, ax, axis_labels=[r'$x_1$', r'$d$', ''],
-             limit_state=limit_state,
-             alpha=0.3, cmap=mpl.cm.coolwarm, zorder=3, plot_axes=False)
-num_contour_levels = 30
-cset = plot_contours(X, Y, Z, ax, num_contour_levels=num_contour_levels,
-                     offset=offset, cmap=mpl.cm.coolwarm, zorder=-1)
-Z_prior = prior.pdf(X.flatten()).reshape(X.shape[0], X.shape[1])
-ax.contour(X, Y, Z_prior, zdir='y', offset=Y.max(), cmap=mpl.cm.coolwarm)
-Z_data = data.pdf(Y.flatten()).reshape(Y.shape[0], Y.shape[1])
-ax.contour(X, Y, Z_data, zdir='x', offset=X.min(), cmap=mpl.cm.coolwarm)
-ax.set_zlim(Z.min()+offset, max(Z_prior.max(), Z_data.max()))
-x = np.linspace(X.min(), X.max(), num_pts_1d)
-y = data_obs[0, 0]*np.ones(num_pts_1d)
-z = offset*np.ones(num_pts_1d)
-ax.plot(x, y, z, zorder=100, color='k')
-_ = ax.plot([x_truth], [data_obs[0, 0]], [offset],
-            zorder=100, color='k', marker='o')
+ax = joint.get_plot_axis(surface=True)[1]
+joint.plot_pdf(
+    ax,
+    [-3, 3, -3, 3],
+    npts_1d=101,
+    cmap=mpl.cm.coolwarm,
+    zorder=3,
+    alpha=0.5,
+)
+ax.set_xlabel(r"$x_1$")
+ax.set_ylabel(r"$x_2$")
+_turn_off_3d_axes(ax)
+offset = -0.5
+samples = np.hstack([[x_truth, data_obs, np.atleast_2d(offset)]]).T
+joint.plot_pdf(
+    ax,
+    [-3, 3, -3, 3],
+    offset=offset,
+    zorder=-1,
+    cmap=mpl.cm.coolwarm,
+    levels=30,
+    zdir="z",
+)
+X, Y, pts = joint.meshgrid_samples([-3, 3, -3, 3])
+Z_prior = prior.pdf(pts[0]).reshape(X.shape)
+ax.contour(X, Y, Z_prior, zdir="y", offset=Y.max(), cmap=mpl.cm.coolwarm)
+Z_data = data.pdf(pts[1]).reshape(Y.shape)
+ax.contour(X, Y, Z_data, zdir="x", offset=X.min(), cmap=mpl.cm.coolwarm)
+x = np.linspace(X.min(), X.max(), npts_1d)
+y = np.full((npts_1d,), data_obs[0, 0])
+z = np.full((npts_1d,), offset)
+ax.plot(x, y, z, zorder=100, color="k")
+_ = ax.plot(
+    [x_truth], [data_obs[0, 0]], [offset], zorder=100, color="k", marker="o"
+)
 
-#%%
-#Now lets assume another piece of observational data becomes available we can use the posterior as a new prior.
+# %%
+# Now lets assume another piece of observational data becomes available we can use the posterior as a new prior.
 
-num_obs = 5
-posteriors = [None]*num_obs
+nobs = 5
+posteriors = [None] * nobs
 posteriors[0] = posterior
-for ii in range(1, num_obs):
-    new_prior = posteriors[ii-1]
-    data_obs = np.dot(A, x_truth)+b+noise.generate_samples(1)
-    C_12 = np.dot(A, new_prior.covariance)
+for ii in range(1, nobs):
+    new_prior = posteriors[ii - 1]
+    data_obs = A @ x_truth + b + noise.rvs(1)
+    C_12 = A @ new_prior.covariance()
     new_joint_covariance = form_normal_joint_covariance(
-        new_prior.covariance, data.covariance, C_12)
-    new_joint = NormalDensity(np.hstack((new_prior.mean, data.mean)),
-                                  new_joint_covariance)
+        new_prior.covariance(), data.covariance(), C_12
+    )
+    new_joint = DenseMatrixMultivariateGaussian(
+        np.vstack((new_prior.mean(), data.mean())), new_joint_covariance
+    )
     new_mean, new_cov = condition_normal_on_data(
-        new_joint.mean, new_joint.covariance,
-        np.arange(new_prior.num_vars(), new_prior.num_vars()+data.num_vars()),
-        data_obs)
-    posteriors[ii] = NormalDensity(new_mean, new_cov)
+        new_joint.mean(),
+        new_joint.covariance(),
+        np.arange(new_prior.nvars(), new_prior.nvars() + data.nvars()),
+        data_obs,
+    )
+    posteriors[ii] = DenseMatrixMultivariateGaussian(new_mean, new_cov)
 
-#%%
-#And now lets again plot the joint density before the last data was added and final posterior and the intermediate priors.
+# %%
+# And now lets again plot the joint density before the last data was added and final posterior and the intermediate priors.
 
 f, axs = plt.subplots(1, 2, figsize=(16, 6))
-prior.plot_density(label='prior', ax=axs[0])
-axs[0].axvline(x=x_truth, lw=3, label=r'$x_\text{truth}$')
-for ii in range(num_obs):
-    posteriors[ii].plot_density(
-        plot_limits=prior.plot_limits, ls='-', label='posterior', ax=axs[0])
+prior.plot_pdf(axs[0], plot_limits=prior_plot_limits, label="prior")
+axs[0].axvline(x=x_truth, lw=3, label=r"$x_\text{truth}$")
+for ii in range(nobs):
+    posteriors[ii].plot_pdf(
+        plot_limits=prior_plot_limits, ls="-", label="posterior", ax=axs[0]
+    )
 
-new_joint.plot_density(ax=axs[1], plot_limits=joint.plot_limits)
-axhline = axs[1].axhline(y=data_obs, color='k')
-axplot = axs[1].plot(x_truth, data_obs, 'ok', ms=10)
+new_joint.plot_pdf(ax=axs[1], plot_limits=[-3, 3, -3, 3], levels=20)
+axhline = axs[1].axhline(y=data_obs, color="k")
+axplot = axs[1].plot(x_truth, data_obs, "ok", ms=10)
 
-#%%
-#As you can see the variance of the joint density decreases as more data is added. The posterior variance also decreases and the posterior will converge to a Dirac-delta function as the number of observations tends to infinity. Currently the mean of the posterior is not near the true parameter value (the horizontal line). Try increasing ``num_obs1`` to see what happens.
+# %%
+# As you can see the variance of the joint density decreases as more data is added. The posterior variance also decreases and the posterior will converge to a Dirac-delta function as the number of observations tends to infinity. Currently the mean of the posterior is not near the true parameter value (the horizontal line). Try increasing ``nobs1`` to see what happens.
 
-#%%
-#Inexact Inference using Markov Chain Monte Carlo
-#------------------------------------------------
+# %%
+# Inexact Inference using Markov Chain Monte Carlo
+# ------------------------------------------------
 #
-#When using non-linear or non-Gaussian priors, a functional representation of the posterior distribution :math:`\pi_\text{post}` cannot be computed analytically. Instead the the posterior is characterized by samples drawn from the posterior using Markov-chain Monte Carlo (MCMC) sampling methods.
+# When using non-linear or non-Gaussian priors, a functional representation of the posterior distribution :math:`\pi_\text{post}` cannot be computed analytically. Instead the the posterior is characterized by samples drawn from the posterior using Markov-chain Monte Carlo (MCMC) sampling methods.
 #
-#Lets consider non-linear model with two uncertain parameters with independent uniform priors on [-2,2] and the negative log likelihood function
+# Lets consider non-linear model with two uncertain parameters with independent uniform priors on [-2,2] and the negative log likelihood function
 #
-#.. math:: -\log\left(\pi(d\mid\rv)\right)=\frac{1}{10}\rv_1^4 + \frac{1}{2}(2\rv_2-\rv_1^2)^2
+# .. math:: -\log\left(\pi(d\mid\rv)\right)=\frac{1}{10}\rv_1^4 + \frac{1}{2}(2\rv_2-\rv_1^2)^2
 #
-#We can sample the posterior using Delayed Rejection Adaptive Metropolis (DRAM) Markov Chain Monte Carlo using the following code.
+# We can sample the posterior using Delayed Rejection Adaptive Metropolis (DRAM) Markov Chain Monte Carlo using the following code.
 np.random.seed(1)
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-univariate_variables = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
-plot_range = np.asarray([-1, 1, -1, 1])*2
-prior_variable = IndependentMarginalsVariable(univariate_variables)
+
+prior_marginals = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
+plot_range = np.asarray([-1, 1, -1, 1]) * 2
+prior = IndependentMarginalsVariable(prior_marginals)
 
 loglike = ExponentialQuarticLogLikelihoodModel()
-mcmc_variable = MetropolisMCMCVariable(prior_variable, loglike)
+mcmc_variable = MetropolisMCMCVariable(prior, loglike)
 
 # number of draws from the distribution
 ndraws = 500
@@ -310,52 +343,55 @@ burn_fraction = 0.1
 map_sample = mcmc_variable.maximum_aposteriori_point()
 samples = mcmc_variable.rvs(ndraws)
 
-print('MAP sample', map_sample.squeeze())
+print("MAP sample", map_sample.squeeze())
 
-#%%
-#Lets plot the posterior distribution and the MCMC samples. First we must compute the evidence
+# %%
+# Lets plot the posterior distribution and the MCMC samples. First we must compute the evidence
 
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.surrogates.interp.tensorprod import (
-    get_tensor_product_quadrature_rule
+from pyapprox.surrogates.bases.basis import (
+    setup_tensor_product_gauss_quadrature_rule,
 )
+from pyapprox.bayes.likelihood import LogUnNormalizedPosterior
+
+log_unnormalized_posterior = LogUnNormalizedPosterior(loglike, prior)
 
 
-def unnormalized_posterior(x):
-    vals = np.exp(loglike(x))
-    rvs = prior_variable.marginals()
-    for ii in range(prior_variable.num_vars()):
-        vals[:, 0] *= rvs[ii].pdf(x[ii, :])
-    return vals
+marginals = [stats.uniform(-2, 4)] * 2
+quad_rule = setup_tensor_product_gauss_quadrature_rule(
+    IndependentMarginalsVariable(marginals)
+)
+xquad, wquad = quad_rule([100, 100])
+wquad *= 2.0  # adjust for Lebsesque integration
+print(xquad.shape)
+evidence = np.exp(log_unnormalized_posterior(xquad))[:, 0] @ wquad[:, 0]
+print("evidence", evidence)
 
-
-def univariate_quadrature_rule(n):
-    x, w = gauss_jacobi_pts_wts_1D(n, 0, 0)
-    x *= 2
-    return x, w
-
-
-x, w = get_tensor_product_quadrature_rule(
-    100, prior_variable.num_vars(), univariate_quadrature_rule)
-evidence = unnormalized_posterior(x)[:, 0].dot(w)
-print('evidence', evidence)
+from pyapprox.util.visualization import get_meshgrid_function_data
 
 plt.figure()
 X, Y, Z = get_meshgrid_function_data(
-    lambda x: unnormalized_posterior(x)/evidence, plot_range, 50)
+    lambda x: np.exp(log_unnormalized_posterior(x)) / evidence, plot_range, 50
+)
 plt.contourf(
-    X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30),
-    cmap=matplotlib.cm.coolwarm)
-_ = plt.plot(samples[0, :], samples[1, :], 'ko')
+    X,
+    Y,
+    Z,
+    levels=np.linspace(Z.min(), Z.max(), 30),
+    cmap=matplotlib.cm.coolwarm,
+)
+_ = plt.plot(samples[0, :], samples[1, :], "ko")
 
-#%%
-#Now lets compute the mean of the posterior using a highly accurate quadrature rule and compars this to the mean estimated using MCMC samples.
+# %%
+# Now lets compute the mean of the posterior using a highly accurate quadrature rule and compars this to the mean estimated using MCMC samples.
 
-exact_mean = ((x*unnormalized_posterior(x)[:, 0]).dot(w)/evidence)
-print('mcmc mean', samples.mean(axis=1))
-print('exact mean', exact_mean.squeeze())
+exact_mean = (xquad * np.exp(log_unnormalized_posterior(xquad))[:, 0]).dot(
+    wquad
+) / evidence
+print("mcmc mean", samples.mean(axis=1))
+print("exact mean", exact_mean.squeeze())
 
-#%%
-#References
-#^^^^^^^^^^
-#.. [KAIPO2005] `J. Kaipio and E. Somersalo. Statistical and Computational Inverse Problems. 2005 <https://link.springer.com/book/10.1007/b138659>`_
+# %%
+# References
+# ^^^^^^^^^^
+# .. [KAIPO2005] `J. Kaipio and E. Somersalo. Statistical and Computational Inverse Problems. 2005 <https://link.springer.com/book/10.1007/b138659>`_

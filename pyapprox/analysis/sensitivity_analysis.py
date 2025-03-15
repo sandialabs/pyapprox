@@ -446,12 +446,16 @@ def plot_interaction_values(
         The index 0<qoi<nqoi of the quantitiy of interest to plot
     """
 
-    assert interaction_values.shape[0] == len(interaction_terms)
+    if interaction_values.shape[0] != interaction_terms.shape[1]:
+        print(interaction_values.shape, interaction_terms.shape)
+        raise ValueError(
+            "interaction_values and interaction_terms are inconsistent"
+        )
     interaction_values = interaction_values[:, qoi]
 
     II = np.argsort(interaction_values)[::-1]
     interaction_values = interaction_values[II]
-    interaction_terms = [interaction_terms[ii] for ii in II]
+    interaction_terms = [interaction_terms[:, ii] for ii in II]
 
     labels = []
     partial_sum = 0.0

@@ -9,6 +9,7 @@ from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.benchmarks.base import (
     SingleModelBayesianInferenceBenchmark,
     OperatorBenchmark,
+    SingleModelBenchmark,
 )
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.interface.model import Model
@@ -20,8 +21,12 @@ from pyapprox.pde.collocation.parameterized_pdes import (
     SteadyDarcy2DKLEModel,
     TransientSolutionTimeSnapshotFunctional,
     SteadySolutionFunctional,
+    SteadySingleStateFunctional,
 )
 from pyapprox.pde.collocation.timeintegration import CrankNicholsonResidual
+from pyapprox.pde.collocation.parameterized_pdes import (
+    ParameterizedNonlinearSystemOfEquationsModel,
+)
 
 
 class SteadyMSEAdjointFunctional(AdjointFunctional):
@@ -150,7 +155,11 @@ class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
 
     def _set_model(self) -> SteadyDarcy2DKLEModel:
         self._model = SteadyDarcy2DKLEModel(
-            self.nvars(), 1.0, 0.25, 0., backend=self._bkd,
+            self.nvars(),
+            1.0,
+            0.25,
+            0.0,
+            backend=self._bkd,
         )
         self._model.set_functional(SteadySolutionFunctional(self._model))
 
@@ -251,3 +260,21 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
 
     def negloglike(self) -> Model:
         return self._model
+
+
+class ParameterizedNonlinearSystemOfEquationsBenchmark(SingleModelBenchmark):
+    def _set_variable(self):
+        marginals = [
+            stats.uniform(0.79, 0.99 - 0.79),
+            stats.uniform(
+                1 - 4.5 * np.sqrt(0.1),
+                1 + 4.5 * np.sqrt(0.1) - (1 - 4.5 * np.sqrt(0.1)),
+            ),
+        ]
+        self._variable = IndependentMarginalsVariable(marginals)
+
+    def _set_model(self):
+        functional = SteadySingleStateFunctional(1, 2, 2, backend=self._bkd)
+        self._model = ParameterizedNonlinearSystemOfEquationsModel(
+            functional=functional, backend=self._bkd
+        )

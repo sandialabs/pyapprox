@@ -6,8 +6,6 @@ from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.pde.collocation.newton import (
-    NewtonResidual,
-    ParameterizedNewtonResidualMixin,
     NewtonSolver,
     AdjointFunctional,
     AdjointSolver,
@@ -15,116 +13,10 @@ from pyapprox.pde.collocation.newton import (
 from pyapprox.pde.collocation.adjoint_models import (
     SteadyAdjointModelFixedInitialIterate,
 )
-
-
-class NonLinearCoupledResidualAuto(
-        NewtonResidual, ParameterizedNewtonResidualMixin
-):
-    def __call__(self, iterate: Array) -> Array:
-        # do not use bkd.array or asarray use stack
-        return self._bkd.stack(
-            [
-                self._a**2 * iterate[0] ** 2 + iterate[1] ** 2 - 1,
-                iterate[0] ** 2 - self._b**3 * iterate[1] ** 2 - 1,
-            ],
-            axis=0,
-        )
-
-    def set_param(self, param: Array):
-        self._param = param
-        self._a, self._b = self._param
-
-    def nvars(self) -> int:
-        return 2
-
-    def __repr__(self):
-        return "{0}(a={1}, b={2})".format(
-            self.__class__.__name__, self._a, self._b
-        )
-
-
-class NonLinearCoupledResidual(NonLinearCoupledResidualAuto):
-    def _jacobian(self, iterate: Array) -> Array:
-        # return super()._jacobian(iterate)
-        # do not use bkd.array or asarray use stack
-        return self._bkd.stack(
-            [
-                self._bkd.hstack(
-                    [2 * self._a**2 * iterate[0], 2 * iterate[1]]
-                ),
-                self._bkd.hstack(
-                    [2 * iterate[0], -2 * self._b**3 * iterate[1]]
-                ),
-            ],
-            axis=0,
-        )
-
-    def _param_jacobian(self, iterate: Array) -> Array:
-        # super()._param_jacobian(iterate)
-        zero = self._bkd.zeros((1,))
-        return self._bkd.stack(
-            [
-                self._bkd.hstack([2 * self._a * iterate[0] ** 2, zero]),
-                self._bkd.hstack([zero, -3 * self._b**2 * iterate[1] ** 2]),
-            ],
-            axis=0,
-        )
-
-    def _param_param_hvp(
-        self, fwd_sol: Array, adj_sol: Array, vvec: Array
-    ) -> Array:
-        # return super()._param_param_hvp(fwd_sol, adj_sol, vvec)
-        return (
-            self._bkd.array(
-                [
-                    [2 * adj_sol[0] * fwd_sol[0] ** 2, 0],
-                    [0, -6 * adj_sol[1] * self._b * fwd_sol[1] ** 2],
-                ]
-            )
-            @ vvec
-        )
-
-    def _state_state_hvp(
-        self, fwd_sol: Array, adj_sol: Array, wvec: Array
-    ) -> Array:
-        # return super()._state_state_hvp(fwd_sol, adj_sol, wvec)
-        return (
-            self._bkd.array(
-                [
-                    [2 * adj_sol[0] * self._a**2 + 2 * adj_sol[1], 0],
-                    [0, 2 * adj_sol[0] - 2 * adj_sol[1] * self._b**3],
-                ]
-            )
-            @ wvec
-        )
-
-    def _state_param_hvp(
-        self, fwd_sol: Array, adj_sol: Array, vvec: Array
-    ) -> Array:
-        # return super()._state_param_hvp(fwd_sol, adj_sol, vvec)
-        return (
-            self._bkd.array(
-                [
-                    [4 * adj_sol[0] * self._a * fwd_sol[0], 0],
-                    [0, -6 * adj_sol[1] * self._b**2 * fwd_sol[1]],
-                ]
-            )
-            @ vvec
-        )
-
-    def _param_state_hvp(
-        self, fwd_sol: Array, adj_sol: Array, wvec: Array
-    ) -> Array:
-        # return super()._param_state_hvp(fwd_sol, adj_sol, wvec)
-        return (
-            self._bkd.array(
-                [
-                    [4 * adj_sol[0] * self._a * fwd_sol[0], 0],
-                    [0, -6 * adj_sol[1] * self._b**2 * fwd_sol[1]],
-                ]
-            )
-            @ wvec
-        )
+from pyapprox.pde.collocation.parameterized_pdes import (
+    NonLinearCoupledResidual,
+    NonLinearCoupledResidualAuto,
+)
 
 
 class ScalarSumFunctionalAuto(AdjointFunctional):
@@ -178,9 +70,7 @@ class VectorSumFunctionalAuto(AdjointFunctional):
         return 2
 
     def _value(self, sol: Array) -> Array:
-        return self._bkd.hstack(
-            (self._bkd.sum(sol**3), self._bkd.sum(sol**2))
-        )
+        return self._bkd.hstack((self._bkd.sum(sol**3), self._bkd.sum(sol**2)))
 
     def nqoi(self) -> int:
         return 2
@@ -255,9 +145,12 @@ class TestNewton:
         assert bkd.allclose(adj_hess_sol, exact_adj_hess_sol)
 
         model = SteadyAdjointModelFixedInitialIterate(
-            res, init_iterate, 2, functional,
+            res,
+            init_iterate,
+            2,
+            functional,
             jacobian_implemented=True,
-            apply_hessian_implemented=True
+            apply_hessian_implemented=True,
         )
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
@@ -283,9 +176,9 @@ class TestNewton:
         self._check_nonlinear_coupled_residual(res, functional)
 
         if (
-                not bkd.hvp_implemented()
-                or not bkd.jvp_implemented()
-                or not bkd.jacobian_implemented()
+            not bkd.hvp_implemented()
+            or not bkd.jvp_implemented()
+            or not bkd.jacobian_implemented()
         ):
             return
         res = NonLinearCoupledResidualAuto(bkd)
@@ -298,10 +191,13 @@ class TestNewton:
         init_iterate = bkd.array([-1, -1])
         functional = ScalarSumFunctional(backend=bkd)
         model = SteadyAdjointModelFixedInitialIterate(
-            res, init_iterate, 2, functional,
+            res,
+            init_iterate,
+            2,
+            functional,
             jacobian_implemented=True,
             apply_hessian_implemented=True,
-            jacobian_mode="forward"
+            jacobian_mode="forward",
         )
         sample = bkd.array([0.8, 1.1])[:, None]
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))

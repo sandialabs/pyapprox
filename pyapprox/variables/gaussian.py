@@ -287,7 +287,7 @@ class MultivariateGaussian(JointVariable):
         self._cov_sqrt = cov_sqrt
         self._nvars = mean.shape[0]
         if mean.shape != (cov_sqrt.nvars(), 1):
-            raise ValueError("mean has the wrong shape")
+            raise ValueError(f"mean has the wrong shape: {mean.shape}")
         self._mean = mean
 
     def nvars(self) -> int:

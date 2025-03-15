@@ -13,7 +13,7 @@ from pyapprox.bayes.likelihood import (
     ModelBasedGaussianLogLikelihood,
     ModelBasedIndependentGaussianLogLikelihood,
     ModelBasedIndependentExponentialLogLikelihood,
-    LogUnormalizedPosterior,
+    LogUnNormalizedPosterior,
 )
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.variables.joint import IndependentMarginalsVariable
@@ -218,7 +218,7 @@ class TestLikelihood:
         true_sample = bkd.full((nvars, 1), 0.4)
         obs = loglike.rvs(true_sample)
         loglike.set_observations(obs)
-        unnormalized_posterior = LogUnormalizedPosterior(
+        unnormalized_posterior = LogUnNormalizedPosterior(
             loglike, prior_variable
         )
         sample = prior_variable.rvs(1)

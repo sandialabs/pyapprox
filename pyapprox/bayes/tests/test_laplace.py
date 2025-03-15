@@ -514,7 +514,7 @@ class TestLaplace:
             )
         )
 
-        objective = LogUnormalizedPosterior(
+        objective = LogUnNormalizedPosterior(
             misfit_model,
             misfit_model.gradient_set,
             prior_density.pdf,
