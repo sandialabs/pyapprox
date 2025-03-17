@@ -299,7 +299,7 @@ class MultivariateGaussian(JointVariable):
         )
         return self._cov_sqrt.apply(std_normal_samples) + self._mean
 
-    def _log_pdf(self, samples: Array) -> Array:
+    def log_pdf(self, samples: Array) -> Array:
         diff = samples - self._mean
         scaled_diff = self._cov_sqrt.apply_inv(diff)
         return (
@@ -330,11 +330,11 @@ class MultivariateGaussian(JointVariable):
         )
 
     def _pdf(self, samples: Array) -> Array:
-        return self._bkd.exp(self._log_pdf(samples))
+        return self._bkd.exp(self.log_pdf(samples))
 
     def pdf(self, samples: Array, log: bool = False) -> Array:
         if log:
-            return self._log_pdf(samples)
+            return self.log_pdf(samples)
         return self._pdf(samples)
 
     def plot_gaussian_contours(self, ax, ncontours=3, **plot_kwargs):

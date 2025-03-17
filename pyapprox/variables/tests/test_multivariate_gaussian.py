@@ -59,7 +59,7 @@ class TestGaussian(unittest.TestCase):
         model = ModelFromVectorizedCallable(
             1,
             variable.nvars(),
-            variable._log_pdf,
+            variable.log_pdf,
             jacobian=variable.log_pdf_jacobian,
             hessian=lambda x: variable.log_pdf_hessian(x)[None, ...],
         )

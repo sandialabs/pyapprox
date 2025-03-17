@@ -14,7 +14,9 @@ from pyapprox.interface.model import DenseMatrixLinearModel
 from pyapprox.variables.gaussian import (
     DenseMatrixMultivariateGaussian,
     GaussianSqrtCovarianceOperator,
+    MultivariateGaussian,
 )
+from pyapprox.bayes.likelihood import GaussianLogLikelihood
 
 
 class DenseMatrixLaplacePosteriorApproximation:
@@ -199,6 +201,24 @@ class DenseMatrixLaplacePosteriorApproximation:
         return self._kl_div
 
 
+class ApplyNegLogLikelihoodHessian:
+    def __init__(self, loglike: GaussianLogLikelihood, sample: Array):
+        self._loglike = loglike
+        self._bkd = loglike._bkd
+        if not loglike.apply_hessian_implemented():
+            # TODO allow computation of directional finite differences of jac
+            raise ValueError(
+                "loglike.apply_hessian_implemented() must be True"
+            )
+        self.set_sample(sample)
+
+    def set_sample(self, sample: Array):
+        self._sample = sample
+
+    def __call__(self, vecs: Array) -> Array:
+        return -self._loglike.apply_hessian(self._sample, vecs)
+
+
 class PriorConditionedHessianMatVecOperator(SymmetricMatVecOperator):
     r"""
     Compute the action of prior conditioned misfit Hessian on a vector.
@@ -217,6 +237,9 @@ class PriorConditionedHessianMatVecOperator(SymmetricMatVecOperator):
         self._prior_sqrt = prior_sqrt
         self._apply_hessian = apply_hessian
 
+    def nvars(self) -> int:
+        return self._prior_sqrt.nvars()
+
     def apply(self, vecs: Array) -> Array:
         Lv = self._prior_sqrt.apply(vecs)
         HLv = self._apply_hessian(Lv)
@@ -232,9 +255,13 @@ class PriorConditionedHessianMatVecOperator(SymmetricMatVecOperator):
 class LaplacePosteriorLowRankApproximation:
     def __init__(
         self,
+        prior: MultivariateGaussian,
         prior_conditioned_hessian: PriorConditionedHessianMatVecOperator,
         rank: int,
     ):
+        if not isinstance(prior, MultivariateGaussian):
+            raise ValueError("prior must be instance of MultivariateGaussian")
+        self._prior = prior
         if not isinstance(
             prior_conditioned_hessian, PriorConditionedHessianMatVecOperator
         ):
@@ -249,18 +276,20 @@ class LaplacePosteriorLowRankApproximation:
         self._rank = rank
 
     def nvars(self) -> int:
-        return self._prior.nvars()
+        return self._prior_condition_hess_op.nvars()
 
     def __repr__(self) -> str:
         return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
 
-    def compute(self):
+    def compute(self, noversampling: int = 10, npower_iters: int = 1):
         svd_solver = SymmetricMatrixDoublePassRandomizedSVD(
-            self._prior_condition_hess_op
+            self._prior_condition_hess_op, noversampling, npower_iters
         )
         self._Ur, self._Sr = svd_solver.compute(self._rank)[:2]
+        print(self._Sr, "S1")
+        print(self._Ur)
         P = 1 / self._bkd.sqrt(self._Sr + 1)
-        self._post_cov_sqrt = self._prior._cov_sqrt.apply(
+        self._post_cov_sqrt = self._prior_condition_hess_op._prior_sqrt.apply(
             self._Ur @ (P[:, None] * self._Ur.T)
         )
 
@@ -296,11 +325,11 @@ class DenseMatrixLaplacePosteriorLowRankApproximation(
             raise ValueError(
                 "prior must be an instance of DenseMatrixMultivariateGaussian"
             )
-        self._prior = prior
         self._hess_mat = hess_mat
         super().__init__(
+            prior,
             PriorConditionedHessianMatVecOperator(
-                self._prior._cov_sqrt, self._apply_hessian
+                prior._cov_sqrt, self._apply_hessian
             ),
             rank,
         )

@@ -115,7 +115,7 @@ class GaussianLogLikelihood(LogLikelihood):
         return self._model.jacobian_implemented()
 
     def apply_hessian_implemented(self) -> bool:
-        return self._model.jacobian_implemented()
+        return self._model.hessian_implemented()
 
     def set_design_weights(self, design_weights: Array) -> Array:
         self._design_weights = design_weights
@@ -410,13 +410,15 @@ class LogUnNormalizedPosterior(Model):
         )
 
     def hessian_implemented(self) -> bool:
-        print(
-            self._prior.pdf_hessian_implemented(),
-            self._loglike.hessian_implemented(),
-        )
         return (
             self._prior.pdf_hessian_implemented()
             and self._loglike.hessian_implemented()
+        )
+
+    def apply_hessian_implemented(self) -> bool:
+        return (
+            self._prior.pdf_hessian_implemented()
+            and self._loglike.apply_hessian_implemented()
         )
 
     def _values(self, samples: Array) -> Array:
@@ -430,4 +432,10 @@ class LogUnNormalizedPosterior(Model):
     def _hessian(self, sample: Array) -> Array:
         return self._loglike.hessian(sample) + self._prior.log_pdf_hessian(
             sample
+        )
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        return (
+            self._loglike.apply_hessian(sample, vec)
+            + self._prior.log_pdf_hessian(sample) @ vec
         )

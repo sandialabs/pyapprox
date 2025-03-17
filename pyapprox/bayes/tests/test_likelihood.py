@@ -224,8 +224,8 @@ class TestLikelihood:
         sample = prior_variable.rvs(1)
         errors = unnormalized_posterior.check_apply_jacobian(sample, disp=True)
         assert errors.min() / errors.max() < 1e-6
-        # errors = unnormalized_posterior.check_apply_hessian(sample, disp=True)
-        # assert errors.min() / errors.max() < 1e-6
+        errors = unnormalized_posterior.check_apply_hessian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
 
 
 class TestNumpyLikelihood(TestLikelihood, unittest.TestCase):

@@ -1892,7 +1892,7 @@ class ChangeModelSignWrapper(Model):
         return -self._model.hessian(sample)
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        return -self._model.hessian(sample, vec)
+        return -self._model.apply_hessian(sample, vec)
 
     def __repr__(self):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
@@ -2132,6 +2132,7 @@ class QuadraticMatrixModel(Model):
         return (self._matrix @ (samples)).T ** 2
 
     def _jacobian(self, sample: Array) -> Array:
+        # warning jacobian will be zero when sample is zero
         return 2 * (self._matrix @ sample) * self._matrix
 
     def _hessian(self, sample: Array) -> Array:

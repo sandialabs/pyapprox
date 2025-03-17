@@ -63,7 +63,7 @@ def get_low_rank_matrix(
     assert rank <= min(nrows, ncols)
     # Generate a matrix with normally distributed entries
     N = max(nrows, ncols)
-    Amatrix = bkd.asrrray(np.random.normal(0, 1, (N, N)))
+    Amatrix = bkd.asarray(np.random.normal(0, 1, (N, N)))
     # Make A symmetric positive definite
     Amatrix = Amatrix.T @ Amatrix
     # Construct low rank approximation of A
@@ -72,7 +72,7 @@ def get_low_rank_matrix(
     # ascending order
     eigvals[: (eigvals.shape[0] - rank)] = 0.0
     # Construct rank r A matrix
-    Amatrix = bkd.multi_dot(eigvecs, bkd.diag(eigvals), eigvecs.T)
+    Amatrix = bkd.multidot((eigvecs, bkd.diag(eigvals), eigvecs.T))
     # Resize matrix to have requested size
     Amatrix = Amatrix[:nrows, :ncols]
     return Amatrix
