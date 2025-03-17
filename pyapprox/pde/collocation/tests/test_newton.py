@@ -14,8 +14,9 @@ from pyapprox.pde.collocation.adjoint_models import (
     SteadyAdjointModelFixedInitialIterate,
 )
 from pyapprox.pde.collocation.parameterized_pdes import (
-    NonLinearCoupledResidual,
-    NonLinearCoupledResidualAuto,
+    NonLinearCoupledEquationsResidual,
+    NonLinearCoupledEquationsResidualAuto,
+    NonLinearCoupledEquationsAffineParamResidual,
 )
 
 
@@ -161,17 +162,12 @@ class TestNewton:
         assert bkd.allclose(
             model.apply_hessian(sample, vec[:, None]), hvp_exact
         )
-
         errors = model.check_apply_hessian(sample, fd_eps=fd_eps, disp=True)
         assert errors.min() / errors.max() < 1e-6
 
-        model(sample)
-        model.jacobian(sample)
-        model.apply_hessian(sample, vec[:, None])
-
     def test_nonlinear_coupled_residual(self):
         bkd = self.get_backend()
-        res = NonLinearCoupledResidual(bkd)
+        res = NonLinearCoupledEquationsResidual(bkd)
         functional = ScalarSumFunctional(backend=bkd)
         self._check_nonlinear_coupled_residual(res, functional)
 
@@ -181,13 +177,33 @@ class TestNewton:
             or not bkd.jacobian_implemented()
         ):
             return
-        res = NonLinearCoupledResidualAuto(bkd)
+        res = NonLinearCoupledEquationsResidualAuto(bkd)
         functional = ScalarSumFunctionalAuto(backend=bkd)
         self._check_nonlinear_coupled_residual(res, functional)
 
+    def test_nonlinear_coupled_residual_affine_params(self):
+        bkd = self.get_backend()
+        init_iterate = bkd.array([-1, -1])
+        sample = bkd.array([0.8, 1.1])[:, None]
+        res = NonLinearCoupledEquationsAffineParamResidual(bkd)
+        functional = ScalarSumFunctional(backend=bkd)
+        model = SteadyAdjointModelFixedInitialIterate(
+            res,
+            init_iterate,
+            2,
+            functional,
+            jacobian_implemented=True,
+            apply_hessian_implemented=True,
+        )
+        fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
+        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        errors = model.check_apply_hessian(sample, fd_eps=fd_eps, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
     def test_forward_parameter_jacobian(self):
         bkd = self.get_backend()
-        res = NonLinearCoupledResidual(bkd)
+        res = NonLinearCoupledEquationsResidual(bkd)
         init_iterate = bkd.array([-1, -1])
         functional = ScalarSumFunctional(backend=bkd)
         model = SteadyAdjointModelFixedInitialIterate(

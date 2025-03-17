@@ -28,10 +28,10 @@ from scipy import stats
 # Specifically we choose :math:`f(\rv)=x_2(\rv)`.
 
 from pyapprox.benchmarks import (
-    ParameterizedNonlinearSystemOfEquationsBenchmark,
+    NonlinearSystemOfEquationsBenchmark,
 )
 
-benchmark = ParameterizedNonlinearSystemOfEquationsBenchmark()
+benchmark = NonlinearSystemOfEquationsBenchmark()
 model = benchmark.model()
 
 
@@ -108,7 +108,7 @@ posterior_prob = prior_prob_at_samples_for_posterior_eval * (
     obs_prob_at_samples_for_posterior_eval
     / response_prob_at_samples_for_posterior_eval
 )
-raise NotImplementedError("Need to debug forward model")
+
 # Plot the posterior density
 p = plt.contourf(
     X,

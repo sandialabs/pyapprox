@@ -1605,11 +1605,3 @@ class MichaelisMentenModel(SingleSampleModel):
             ),
             axis=1,
         )
-
-
-class ParameterizedNonlinearSystemOfEquationsModel(Model):
-    def nqoi(self) -> int:
-        return self._mesh.shape[1]
-
-    def nvars(self) -> int:
-        return 2

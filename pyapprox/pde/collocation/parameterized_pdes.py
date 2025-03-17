@@ -1272,15 +1272,25 @@ class SteadyDarcy2DKLEModel(SteadyAdjointCollocationModel):
         return nabla(-self.physics()._diffusion * sol)
 
 
-class NonLinearCoupledResidualAuto(
+class NonLinearCoupledEquationsResidualAuto(
     NewtonResidual, ParameterizedNewtonResidualMixin
 ):
+    def __init__(self, backend):
+        super().__init__(backend)
+        self._set_param_powers()
+        if self._apow < 1 or self._bpow < 1:
+            raise RuntimeError("apow and bpow must be >= 1")
+
+    def _set_param_powers(self):
+        self._apow = 2
+        self._bpow = 3
+
     def __call__(self, iterate: Array) -> Array:
         # do not use bkd.array or asarray use stack
         return self._bkd.stack(
             [
-                self._a**2 * iterate[0] ** 2 + iterate[1] ** 2 - 1,
-                iterate[0] ** 2 - self._b**3 * iterate[1] ** 2 - 1,
+                self._a**self._apow * iterate[0] ** 2 + iterate[1] ** 2 - 1,
+                iterate[0] ** 2 - self._b**self._bpow * iterate[1] ** 2 - 1,
             ],
             axis=0,
         )
@@ -1298,17 +1308,17 @@ class NonLinearCoupledResidualAuto(
         )
 
 
-class NonLinearCoupledResidual(NonLinearCoupledResidualAuto):
+class NonLinearCoupledEquationsResidual(NonLinearCoupledEquationsResidualAuto):
     def _jacobian(self, iterate: Array) -> Array:
         # return super()._jacobian(iterate)
         # do not use bkd.array or asarray use stack
         return self._bkd.stack(
             [
                 self._bkd.hstack(
-                    [2 * self._a**2 * iterate[0], 2 * iterate[1]]
+                    [2 * self._a**self._apow * iterate[0], 2 * iterate[1]]
                 ),
                 self._bkd.hstack(
-                    [2 * iterate[0], -2 * self._b**3 * iterate[1]]
+                    [2 * iterate[0], -2 * self._b**self._bpow * iterate[1]]
                 ),
             ],
             axis=0,
@@ -1319,21 +1329,44 @@ class NonLinearCoupledResidual(NonLinearCoupledResidualAuto):
         zero = self._bkd.zeros((1,))
         return self._bkd.stack(
             [
-                self._bkd.hstack([2 * self._a * iterate[0] ** 2, zero]),
-                self._bkd.hstack([zero, -3 * self._b**2 * iterate[1] ** 2]),
+                self._bkd.hstack(
+                    [
+                        self._apow
+                        * self._a ** (self._apow - 1)
+                        * iterate[0] ** 2,
+                        zero,
+                    ]
+                ),
+                self._bkd.hstack(
+                    [
+                        zero,
+                        -self._bpow
+                        * self._b ** (self._bpow - 1)
+                        * iterate[1] ** 2,
+                    ]
+                ),
             ],
             axis=0,
         )
+
+    def _param_second_deriv_factor(self, power: int, val: float) -> float:
+        if power == 1:
+            return 0.0
+        const = (power - 1) * power
+        return const * val ** (power - 2)
 
     def _param_param_hvp(
         self, fwd_sol: Array, adj_sol: Array, vvec: Array
     ) -> Array:
         # return super()._param_param_hvp(fwd_sol, adj_sol, vvec)
+
+        aconst = self._param_second_deriv_factor(self._apow, self._a)
+        bconst = self._param_second_deriv_factor(self._bpow, self._b)
         return (
             self._bkd.array(
                 [
-                    [2 * adj_sol[0] * fwd_sol[0] ** 2, 0],
-                    [0, -6 * adj_sol[1] * self._b * fwd_sol[1] ** 2],
+                    [aconst * adj_sol[0] * fwd_sol[0] ** 2, 0],
+                    [0, -adj_sol[1] * bconst * fwd_sol[1] ** 2],
                 ]
             )
             @ vvec
@@ -1346,8 +1379,8 @@ class NonLinearCoupledResidual(NonLinearCoupledResidualAuto):
         return (
             self._bkd.array(
                 [
-                    [2 * adj_sol[0] * self._a**2 + 2 * adj_sol[1], 0],
-                    [0, 2 * adj_sol[0] - 2 * adj_sol[1] * self._b**3],
+                    [2 * adj_sol[0] * self._a**self._apow + 2 * adj_sol[1], 0],
+                    [0, 2 * adj_sol[0] - 2 * adj_sol[1] * self._b**self._bpow],
                 ]
             )
             @ wvec
@@ -1360,8 +1393,22 @@ class NonLinearCoupledResidual(NonLinearCoupledResidualAuto):
         return (
             self._bkd.array(
                 [
-                    [4 * adj_sol[0] * self._a * fwd_sol[0], 0],
-                    [0, -6 * adj_sol[1] * self._b**2 * fwd_sol[1]],
+                    [
+                        2
+                        * self._apow
+                        * adj_sol[0]
+                        * self._a ** (self._apow - 1)
+                        * fwd_sol[0],
+                        0,
+                    ],
+                    [
+                        0,
+                        -2
+                        * self._bpow
+                        * adj_sol[1]
+                        * self._b ** (self._bpow - 1)
+                        * fwd_sol[1],
+                    ],
                 ]
             )
             @ vvec
@@ -1374,22 +1421,46 @@ class NonLinearCoupledResidual(NonLinearCoupledResidualAuto):
         return (
             self._bkd.array(
                 [
-                    [4 * adj_sol[0] * self._a * fwd_sol[0], 0],
-                    [0, -6 * adj_sol[1] * self._b**2 * fwd_sol[1]],
+                    [
+                        2
+                        * self._apow
+                        * adj_sol[0]
+                        * self._a ** (self._apow - 1)
+                        * fwd_sol[0],
+                        0,
+                    ],
+                    [
+                        0,
+                        -2
+                        * self._bpow
+                        * adj_sol[1]
+                        * self._b ** (self._bpow - 1)
+                        * fwd_sol[1],
+                    ],
                 ]
             )
             @ wvec
         )
 
 
-class ParameterizedNonlinearSystemOfEquationsModel(SteadyAdjointModel):
+class NonLinearCoupledEquationsAffineParamResidual(
+    NonLinearCoupledEquationsResidual
+):
+    def _set_param_powers(self):
+        self._apow = 1
+        self._bpow = 1
+
+
+class NonlinearSystemOfEquationsModel(SteadyAdjointModel):
     def __init__(
         self,
         newton_solver: NewtonSolver = None,
         functional: TransientAdjointFunctional = None,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        residual = NonLinearCoupledResidual(backend=backend)
+        residual = NonLinearCoupledEquationsAffineParamResidual(
+            backend=backend
+        )
         super().__init__(residual, functional, newton_solver)
         init_iterate = self._bkd.array([1, 1])
         self._adjoint_solver.set_initial_iterate(init_iterate)

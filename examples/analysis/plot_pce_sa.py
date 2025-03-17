@@ -42,7 +42,7 @@ analyzer.compute(pce)
 axs = plt.subplots(1, 2, figsize=(2 * 8, 6))[1]
 plot_main_effects(analyzer.main_effects(), axs[0])
 _ = plot_total_effects(analyzer.total_effects(), axs[1])
-plt.show()
+# plt.show()
 
 # %%
 # The benchmark contains the exact values of these indices which can be used

@@ -23,9 +23,10 @@ from pyapprox.pde.collocation.parameterized_pdes import (
     SteadySolutionFunctional,
     SteadySingleStateFunctional,
 )
+from pyapprox.pde.collocation.newton import NewtonSolver
 from pyapprox.pde.collocation.timeintegration import CrankNicholsonResidual
 from pyapprox.pde.collocation.parameterized_pdes import (
-    ParameterizedNonlinearSystemOfEquationsModel,
+    NonlinearSystemOfEquationsModel,
 )
 
 
@@ -262,19 +263,17 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         return self._model
 
 
-class ParameterizedNonlinearSystemOfEquationsBenchmark(SingleModelBenchmark):
+class NonlinearSystemOfEquationsBenchmark(SingleModelBenchmark):
     def _set_variable(self):
         marginals = [
-            stats.uniform(0.79, 0.99 - 0.79),
-            stats.uniform(
-                1 - 4.5 * np.sqrt(0.1),
-                1 + 4.5 * np.sqrt(0.1) - (1 - 4.5 * np.sqrt(0.1)),
-            ),
+            stats.uniform(0.79, 0.2),
+            stats.uniform(1 - 4.5 * np.sqrt(0.1), 2 * 4.5 * np.sqrt(0.1)),
         ]
         self._variable = IndependentMarginalsVariable(marginals)
 
     def _set_model(self):
         functional = SteadySingleStateFunctional(1, 2, 2, backend=self._bkd)
-        self._model = ParameterizedNonlinearSystemOfEquationsModel(
-            functional=functional, backend=self._bkd
+        newton_solver = NewtonSolver(atol=1e-10, rtol=1e-10)
+        self._model = NonlinearSystemOfEquationsModel(
+            newton_solver, functional=functional, backend=self._bkd
         )

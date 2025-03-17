@@ -35,7 +35,7 @@ from pyapprox.benchmarks.pde import (
     PyApproxPaperAdvectionDiffusionKLEInversionBenchmark,
     TransientViscousBurgers1DOperatorBenchmark,
     SteadyDarcy2DOperatorBenchmark,
-    ParameterizedNonlinearSystemOfEquationsBenchmark,
+    NonlinearSystemOfEquationsBenchmark,
 )
 
 __all__ = [
@@ -63,5 +63,5 @@ __all__ = [
     "PyApproxPaperAdvectionDiffusionKLEInversionBenchmark",
     "TransientViscousBurgers1DOperatorBenchmark",
     "SteadyDarcy2DOperatorBenchmark",
-    "ParameterizedNonlinearSystemOfEquationsBenchmark",
+    "NonlinearSystemOfEquationsBenchmark",
 ]
