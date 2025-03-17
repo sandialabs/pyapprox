@@ -51,76 +51,83 @@ Piecewise polynomial interpolation
 
 A proof of this lemma can be found `here <https://eng.libretexts.org/Workbench/Math%2C_Numerics%2C_and_Programming_(Ethan's)/01%3A_Unit_I_-_(Numerical)_Calculus_and_Elementary_Programming_Concepts/1.02%3A_Interpolation/1.2.01%3A_Interpolation_of_Univariate_Functions>`_
 """
+
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.surrogates.bases.univariate import (
-    UnivariatePiecewiseQuadraticBasis,
-    UnivariateLagrangeBasis,
+from pyapprox.surrogates.bases.univariate.base import (
     ClenshawCurtisQuadratureRule,
+)
+from pyapprox.surrogates.bases.univariate.local import (
+    UnivariatePiecewiseQuadraticBasis,
+)
+from pyapprox.surrogates.bases.univariate.lagrange import (
+    UnivariateLagrangeBasis,
 )
 from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
 from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
 
 
-#The following code compares polynomial and piecewise polynomial univariate basis functions.
+# The following code compares polynomial and piecewise polynomial univariate basis functions.
 nnodes = 5
 bounds = [-1, 1]
 samples = np.linspace(*bounds, 201)[None, :]
-ax = plt.subplots(1, 2, figsize=(2*8, 6), sharey=True)[1]
+ax = plt.subplots(1, 2, figsize=(2 * 8, 6), sharey=True)[1]
 quad_rule = ClenshawCurtisQuadratureRule(store=True, bounds=bounds)
 lagrange_basis = UnivariateLagrangeBasis(quad_rule)
 lagrange_basis.set_nterms(nnodes)
 lagrange_basis_vals = lagrange_basis(samples)
 ax[0].plot(samples[0], lagrange_basis_vals)
 cheby_nodes = lagrange_basis.quadrature_rule()[0]
-ax[0].plot(cheby_nodes[0], cheby_nodes[0]*0, 'ko')
+ax[0].plot(cheby_nodes[0], cheby_nodes[0] * 0, "ko")
 quadratic_basis = UnivariatePiecewiseQuadraticBasis(bounds)
 quadratic_basis.set_nterms(nnodes)
 equidistant_nodes = quadratic_basis.quadrature_rule()[0]
 piecewise_basis_vals = quadratic_basis(samples)
 _ = ax[1].plot(samples[0], piecewise_basis_vals)
-_ = ax[1].plot(equidistant_nodes[0], equidistant_nodes[0]*0, 'ko')
+_ = ax[1].plot(equidistant_nodes[0], equidistant_nodes[0] * 0, "ko")
 
-#%%
-#Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.
+# %%
+# Notice that the unlike the lagrange basis the picewise polynomial basis is non-zero only on a local region of the input space.
 #
-#The compares the accuracy of lagrange basis the picewise polynomial approximations for a piecewise continuous function
+# The compares the accuracy of lagrange basis the picewise polynomial approximations for a piecewise continuous function
 
 
 def fun(samples):
     yy = samples[0].copy()
-    yy[yy > 1/3] = 1.0
-    yy[yy <= 1/3] = 0.
+    yy[yy > 1 / 3] = 1.0
+    yy[yy <= 1 / 3] = 0.0
     return yy[:, None]
 
 
 lagrange_interpolant = TensorProductInterpolant(
-    TensorProductInterpolatingBasis([lagrange_basis]))
+    TensorProductInterpolatingBasis([lagrange_basis])
+)
 quadratic_interpolant = TensorProductInterpolant(
-    TensorProductInterpolatingBasis([quadratic_basis]))
-axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
+    TensorProductInterpolatingBasis([quadratic_basis])
+)
+axs = plt.subplots(1, 2, figsize=(2 * 8, 6))[1]
 [ax.plot(samples[0], fun(samples)) for ax in axs]
 lagrange_interpolant._basis.set_tensor_product_indices([nnodes])
 cheby_nodes = lagrange_interpolant._basis.tensor_product_grid()
 cheby_values = fun(cheby_nodes)
 lagrange_interpolant.fit(cheby_values)
 quadratic_interpolant._basis.set_tensor_product_indices([nnodes])
-equidistant_nodes = lagrange_interpolant._basis.tensor_product_grid()
+equidistant_nodes = quadratic_interpolant._basis.tensor_product_grid()
 equidistant_values = fun(equidistant_nodes)
 quadratic_interpolant.fit(equidistant_values)
-axs[0].plot(samples[0], lagrange_interpolant(samples), ':')
-axs[0].plot(cheby_nodes[0], cheby_values, 'o')
-axs[1].plot(samples[0], quadratic_interpolant(samples), '--')
-_ = axs[1].plot(equidistant_nodes[0], equidistant_values, 's')
+axs[0].plot(samples[0], lagrange_interpolant(samples), ":")
+axs[0].plot(cheby_nodes[0], cheby_values, "o")
+axs[1].plot(samples[0], quadratic_interpolant(samples), "--")
+_ = axs[1].plot(equidistant_nodes[0], equidistant_values, "s")
 
-#%%
-#The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.
+# %%
+# The Lagrange polynomials induce oscillations around the discontinuity, which significantly decreases the convergence rate of the approximation. The picewise quadratic also over and undershoots around the discontinuity, but the phenomena is localized.
 
-#%%
-#Now lets see how the error changes as we increase the number of nodes
+# %%
+# Now lets see how the error changes as we increase the number of nodes
 
-axs = plt.subplots(1, 2, figsize=(2*8, 6))[1]
+axs = plt.subplots(1, 2, figsize=(2 * 8, 6))[1]
 [ax.plot(samples[0], fun(samples)) for ax in axs]
 for nnodes in [3, 5, 9, 17]:
     lagrange_interpolant._basis.set_tensor_product_indices([nnodes])
@@ -128,31 +135,32 @@ for nnodes in [3, 5, 9, 17]:
     cheby_values = fun(cheby_nodes)
     lagrange_interpolant.fit(cheby_values)
     quadratic_interpolant._basis.set_tensor_product_indices([nnodes])
-    equidistant_nodes = lagrange_interpolant._basis.tensor_product_grid()
+    equidistant_nodes = quadratic_interpolant._basis.tensor_product_grid()
     equidistant_values = fun(equidistant_nodes)
     quadratic_interpolant.fit(equidistant_values)
-    axs[0].plot(samples[0], lagrange_interpolant(samples), ':')
-    _ = axs[1].plot(samples[0], quadratic_interpolant(samples), '--')
+    axs[0].plot(samples[0], lagrange_interpolant(samples), ":")
+    axs[1].plot(equidistant_nodes[0], equidistant_values, "o")
+    _ = axs[1].plot(samples[0], quadratic_interpolant(samples), "--")
 
-#%%
-#Probability aware interpolation for UQ
-#--------------------------------------
-#When interpolants are used for UQ we do not need the approximation to be accurate everywhere but rather only in regions of high-probability. First lets see what happens when we approximate a function using an interpolant that targets accuracy with respect to a dominating measure :math:`\nu` when really needed an approximation that targets accuracy with respect to a different measure :math:`w` [XJD2013]_
+# %%
+# Probability aware interpolation for UQ
+# --------------------------------------
+# When interpolants are used for UQ we do not need the approximation to be accurate everywhere but rather only in regions of high-probability. First lets see what happens when we approximate a function using an interpolant that targets accuracy with respect to a dominating measure :math:`\nu` when really needed an approximation that targets accuracy with respect to a different measure :math:`w` [XJD2013]_
 
 from scipy import stats
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
-from pyapprox.benchmarks import setup_benchmark
+from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.benchmarks import GenzBenchmark
 
 nvars = 1
-c = np.array([20])
-w = np.array([0])
-benchmark = setup_benchmark(
-    "genz", test_name="oscillatory", nvars=nvars, coeff=[c, w])
+c = np.array([[20]])
+w = np.array([[0]])
+benchmark = GenzBenchmark("oscillatory", nvars, coefs=[c, w])
 
 alpha_stat, beta_stat = 11, 11
 true_rv = IndependentMarginalsVariable(
-    [stats.beta(a=alpha_stat, b=beta_stat)]*nvars)
+    [stats.beta(a=alpha_stat, b=beta_stat)] * nvars
+)
 
 alpha_poly, beta_poly = 0, 0
 ntrain_samples = 7
@@ -161,46 +169,64 @@ opt_quad_rule = GaussQuadratureRule(stats.beta(alpha_stat, beta_stat, 0, 1))
 uniform_lagrange_basis = UnivariateLagrangeBasis(uniform_quad_rule)
 opt_lagrange_basis = UnivariateLagrangeBasis(opt_quad_rule)
 uniform_interp = TensorProductInterpolant(
-    TensorProductInterpolatingBasis([uniform_lagrange_basis]))
-uniform_interp._basis.set_tensor_product_indices([ntrain_samples-1])
+    TensorProductInterpolatingBasis([uniform_lagrange_basis])
+)
+uniform_interp._basis.set_tensor_product_indices([ntrain_samples - 1])
 opt_interp = TensorProductInterpolant(
-    TensorProductInterpolatingBasis([opt_lagrange_basis]))
-opt_interp._basis.set_tensor_product_indices([ntrain_samples-1])
+    TensorProductInterpolatingBasis([opt_lagrange_basis])
+)
+opt_interp._basis.set_tensor_product_indices([ntrain_samples - 1])
 train_samples = uniform_interp._basis.tensor_product_grid()
-train_values = benchmark.fun(train_samples)
+train_values = benchmark.model()(train_samples)
 uniform_interp.fit(train_values)
 
 opt_train_samples = opt_interp._basis.tensor_product_grid()
-opt_train_values = benchmark.fun(opt_train_samples)
+opt_train_values = benchmark.model()(opt_train_samples)
 opt_interp.fit(opt_train_values)
 
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 plot_xx = np.linspace(0, 1, 101)
-true_vals = benchmark.fun(plot_xx[None, :])
+true_vals = benchmark.model()(plot_xx[None, :])
 pbwt = r"\pi"
-ax.plot(plot_xx, true_vals, '-r', label=r'$f(z)$')
-ax.plot(plot_xx, uniform_interp(plot_xx[None, :]), ':k', label=r'$f_M^\nu$')
-ax.plot(train_samples[0], train_values[:, 0], 'ko', ms=10,
-        label=r'$\mathcal{Z}_{M}^{\nu}$')
-ax.plot(plot_xx, opt_interp(plot_xx[None, :]), '--b', label=r'$f_M^%s$' % pbwt)
-ax.plot(opt_train_samples[0], opt_train_values[:, 0], 'bs',
-        ms=10, label=r'$\mathcal{Z}_M^%s$' % pbwt)
+ax.plot(plot_xx, true_vals, "-r", label=r"$f(z)$")
+ax.plot(plot_xx, uniform_interp(plot_xx[None, :]), ":k", label=r"$f_M^\nu$")
+ax.plot(
+    train_samples[0],
+    train_values[:, 0],
+    "ko",
+    ms=10,
+    label=r"$\mathcal{Z}_{M}^{\nu}$",
+)
+ax.plot(plot_xx, opt_interp(plot_xx[None, :]), "--b", label=r"$f_M^%s$" % pbwt)
+ax.plot(
+    opt_train_samples[0],
+    opt_train_values[:, 0],
+    "bs",
+    ms=10,
+    label=r"$\mathcal{Z}_M^%s$" % pbwt,
+)
 
 pdf_vals = true_rv.pdf(plot_xx[None, :])[:, 0]
-ax.set_ylim(true_vals.min()-0.1*abs(true_vals.min()),
-            max(true_vals.max(), pdf_vals.max())*1.1)
+ax.set_ylim(
+    true_vals.min() - 0.1 * abs(true_vals.min()),
+    max(true_vals.max(), pdf_vals.max()) * 1.1,
+)
 ax.fill_between(
-    plot_xx, ax.get_ylim()[0], pdf_vals+ax.get_ylim()[0],
-    alpha=0.3, visible=True,
-    label=r'$%s(z)$' % pbwt)
-ax.set_xlabel(r'$M$', fontsize=24)
+    plot_xx,
+    ax.get_ylim()[0],
+    pdf_vals + ax.get_ylim()[0],
+    alpha=0.3,
+    visible=True,
+    label=r"$%s(z)$" % pbwt,
+)
+ax.set_xlabel(r"$M$", fontsize=24)
 _ = ax.legend(fontsize=18, loc="upper right")
 
-#%%
-#As you can see the approximation that targets the uniform norm is "more accurate" on average over the domain, but the interpolant that directly targets accuracy with respect to the desired Beta distribution is more accurate in the regions of non-negligible probability.
+# %%
+# As you can see the approximation that targets the uniform norm is "more accurate" on average over the domain, but the interpolant that directly targets accuracy with respect to the desired Beta distribution is more accurate in the regions of non-negligible probability.
 
-#%%
-#References
-#----------
-#.. [XJD2013] `Chen Xiaoxiao, Park Eun-Jae, Xiu Dongbin. A flexible numerical approach for quantification of epistemic uncertainty. J. Comput. Phys., 240 (2013), pp. 211-224 <https://doi.org/10.1016/j.jcp.2013.01.018>`_
+# %%
+# References
+# ----------
+# .. [XJD2013] `Chen Xiaoxiao, Park Eun-Jae, Xiu Dongbin. A flexible numerical approach for quantification of epistemic uncertainty. J. Comput. Phys., 240 (2013), pp. 211-224 <https://doi.org/10.1016/j.jcp.2013.01.018>`_

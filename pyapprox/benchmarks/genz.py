@@ -63,13 +63,22 @@ class GenzModel(Model):
     def nqoi(self) -> int:
         return 1
 
+    def _set_coefficients(self, nvars, c, w):
+        if c.shape != (nvars, 1):
+            raise ValueError("c has the wrong shape")
+        if not (w.ndim == 2 and w.shape[1] == 1):
+            raise ValueError("w has the wrong shape")
+        self._nvars = nvars
+        self._w = w
+        self._c = c
+
     def set_coefficients(
         self, nvars: int, cfactor: float, decay: str, wfactor: float = 0.5
     ):
-        self._nvars = nvars
-        self._w = self._bkd.full((self._nvars, 1), wfactor)
-        self._c = self._get_c_coefficients(decay, self._nvars)
-        self._c *= cfactor / self._c.sum()
+        w = self._bkd.full((nvars, 1), wfactor)
+        c = self._get_c_coefficients(decay, nvars)
+        c *= cfactor / c.sum()
+        self._set_coefficients(nvars, c, w)
 
     def _oscillatory(self, samples: Array, return_grad: bool) -> Array:
         tmp = 2.0 * math.pi * self._w[0] + samples.T @ self._c
@@ -372,7 +381,7 @@ class GenzBenchmark(SingleModelBenchmark):
                 self.nvars(), self._cfactor, self._decay, self._wfactor
             )
         else:
-            self._model._c, self._model._w = self._coefs
+            self._model._set_coefficients(self._nvars, *self._coefs)
 
     def _set_variable(self):
         marginals = [stats.uniform(0, 1)] * self._nvars
