@@ -170,8 +170,50 @@ class UnivariateEquidistantNodeGenerator(
         return self._bkd.linspace(*self._bounds, nnodes)[None, :]
 
 
+class ClenshawCurtisGrowthRuleMixin:
+    def _growth_rule(self, level: int) -> int:
+        if level == 0:
+            return 1
+        else:
+            return 2**level + 1
+
+    def _hierarchical_to_nodal_index(
+        self, level: int, ll: int, ii: int
+    ) -> int:
+        nindices = self._growth_rule(level)
+        # mid point
+        if ll == 0:
+            return nindices / 2
+        # boundaries
+        if ll == 1:
+            if ii == 0:
+                return 0
+            return nindices - 1
+        # higher level points
+        return (2 * ii + 1) * 2 ** (level - ll)
+
+    def _poly_indices_to_quad_rule_indices(self, level: int) -> Array:
+        """
+        Convert all 1D polynomial indices of up to and including a given level
+        to their equivalent nodal index for lookup in a Clenshaw-Curtis
+        quadrature rule.
+        """
+
+        quad_rule_indices = []
+        nprevious_hier_indices = 0
+        for ll in range(level + 1):
+            nhierarchical_indices = (
+                self._growth_rule(ll) - nprevious_hier_indices
+            )
+            for ii in range(nhierarchical_indices):
+                quad_index = self._hierarchical_to_nodal_index(level, ll, ii)
+                quad_rule_indices.append(quad_index)
+            nprevious_hier_indices += nhierarchical_indices
+        return self._bkd.asarray(quad_rule_indices, dtype=int)
+
+
 class DydadicEquidistantNodeGenerator(
-    UnivariatePiecewisePolynomialNodeGenerator
+    ClenshawCurtisGrowthRuleMixin, UnivariatePiecewisePolynomialNodeGenerator
 ):
     # useful for adaptive interpolation
     def _nodes(self, nnodes: int) -> Array:
@@ -183,7 +225,7 @@ class DydadicEquidistantNodeGenerator(
             raise ValueError("nnodes-1 must be a power of 2")
 
         level = int(round(math.log(nnodes - 1, 2), 0))
-        idx = clenshaw_curtis_poly_indices_to_quad_rule_indices(level)
+        idx = self._poly_indices_to_quad_rule_indices(level)
         return self._bkd.linspace(*self._bounds, nnodes)[None, idx]
 
 
@@ -237,7 +279,9 @@ def _is_power_of_two(integer: int) -> bool:
     return (integer & (integer - 1) == 0) and integer != 0
 
 
-class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
+class ClenshawCurtisQuadratureRule(
+    ClenshawCurtisGrowthRuleMixin, UnivariateQuadratureRule
+):
     """Integrates functions on [-1, 1] with weight function 1/2 or 1."""
 
     def __init__(
@@ -259,12 +303,6 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
             warnings.warn(msg, UserWarning)
             bounds = [-1, 1]
         self._bounds = bounds
-
-    def _growth_rule(self, level: int) -> int:
-        if level == 0:
-            return 1
-        else:
-            return 2**level + 1
 
     def _unordered_pts_wts(self, level: int) -> Tuple[Array, Array]:
         nsamples = self._growth_rule(level)
@@ -301,40 +339,6 @@ class ClenshawCurtisQuadratureRule(UnivariateQuadratureRule):
             )
         )
         return x, w
-
-    def _hierarchical_to_nodal_index(
-        self, level: int, ll: int, ii: int
-    ) -> int:
-        nindices = self._growth_rule(level)
-        # mid point
-        if ll == 0:
-            return nindices / 2
-        # boundaries
-        if ll == 1:
-            if ii == 0:
-                return 0
-            return nindices - 1
-        # higher level points
-        return (2 * ii + 1) * 2 ** (level - ll)
-
-    def _poly_indices_to_quad_rule_indices(self, level: int) -> Array:
-        """
-        Convert all 1D polynomial indices of up to and including a given level
-        to their equivalent nodal index for lookup in a Clenshaw-Curtis
-        quadrature rule.
-        """
-
-        quad_rule_indices = []
-        nprevious_hier_indices = 0
-        for ll in range(level + 1):
-            nhierarchical_indices = (
-                self._growth_rule(ll) - nprevious_hier_indices
-            )
-            for ii in range(nhierarchical_indices):
-                quad_index = self._hierarchical_to_nodal_index(level, ll, ii)
-                quad_rule_indices.append(quad_index)
-            nprevious_hier_indices += nhierarchical_indices
-        return self._bkd.asarray(quad_rule_indices, dtype=int)
 
     def _ordered_pts_wts(self, level: int) -> Tuple[Array, Array]:
         """

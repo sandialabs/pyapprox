@@ -31,7 +31,6 @@ from pyapprox.util.hyperparameter import (
     HyperParameterList,
     IdentityHyperParameterTransform,
 )
-from pyapprox.surrogates.interp.manipulate_polynomials import add_polynomials
 from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions,
 )
@@ -218,7 +217,7 @@ class MonomialExpansion(BasisExpansion):
         if coeffs.ndim == 1:
             coeffs = coeffs[:, None]
 
-        unique_indices, repeated_idx = self._bk.unique(
+        unique_indices, repeated_idx = self._bkd.unique(
             indices, axis=1, return_inverse=True
         )
 
@@ -284,7 +283,7 @@ class MonomialExpansion(BasisExpansion):
             self.get_coefficients(),
             other_sign * other.get_coefficients(),
         ]
-        indices, coefs = add_polynomials(indices_list, coefs_list)
+        indices, coefs = self._add_polynomials(indices_list, coefs_list)
         poly = copy.deepcopy(self)
         poly.basis().set_indices(indices)
         poly.set_coefficients(coefs)

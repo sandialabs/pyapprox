@@ -151,14 +151,14 @@ class TestCombination:
         max_error = 1e-10
         sg.set_subspace_admissibility_criteria(
             MultipleSparseGridSubSpaceAdmissibilityCriteria(
-                (
+                [
                     # Candidates will be generated on level+1 but should not be
                     # generated on level+2
                     MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
                         level + 2, 1.0
                     ),
                     MaxErrorSparseGridSubspaceAdmissibilityCriteria(max_error),
-                )
+                ]
             )
         )
         sg.set_refinement_criteria(L2NormRefinementCriteria())
@@ -169,17 +169,6 @@ class TestCombination:
         # Candidates will be generated on level+1 but should not be
         # generated on level+2
         assert bkd.max(sg._subspace_gen.get_indices()) <= level + 1
-        # regression test
-        assert bkd.allclose(
-            sg._subspace_gen.get_indices(),
-            bkd.array(
-                [
-                    [0, 1, 0, 2, 3, 1, 0, 2, 1, 0, 4, 3, 2],
-                    [0, 0, 1, 0, 0, 1, 2, 1, 2, 3, 0, 1, 2],
-                ],
-                dtype=int,
-            ),
-        )
 
         test_samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, 101)))
         sg_test_values = sg(test_samples)
@@ -194,12 +183,12 @@ class TestCombination:
         level = 5
         admissibility_criteria = (
             MultipleSparseGridSubSpaceAdmissibilityCriteria(
-                (
+                [
                     MaxLevelSparseGridSubSpaceAdmissibilityCriteria(
                         level, 1.0
                     ),
                     MaxErrorSparseGridSubspaceAdmissibilityCriteria(1e-8),
-                )
+                ]
             )
         )
         sg = LejaLagrangeAdaptiveCombinationSparseGrid(

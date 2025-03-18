@@ -8,7 +8,7 @@ import tempfile
 from abc import ABC, abstractmethod
 import multiprocessing
 from multiprocessing.pool import ThreadPool, Pool
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 import umbridge
@@ -831,10 +831,18 @@ class Model(ABC):
         plot_xx = self._bkd.linspace(*plot_limits, npts_1d[0])[None, :]
         ax.plot(plot_xx[0], self.__call__(plot_xx), **kwargs)
 
+    def meshgrid_samples(
+        self, plot_limits: Array, npts_1d: Union[Array, int] = 51
+    ) -> Array:
+        if self.nvars() != 2:
+            raise RuntimeError(f"nvars = {self.nvars()} but must be 2")
+        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
+        return X, Y, pts
+
     def _plot_surface_2d(self, ax, qoi, plot_limits, npts_1d, **kwargs):
         if ax.name != "3d":
             raise ValueError("ax must use 3d projection")
-        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
+        X, Y, pts = self.meshgrid_samples(plot_limits, npts_1d)
         vals = self.__call__(pts)
         Z = self._bkd.reshape(vals[:, qoi], X.shape)
         # X = self._bkd.to_numpy(X)
@@ -870,7 +878,7 @@ class Model(ABC):
     def plot_contours(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
         if self.nvars() != 2:
             raise ValueError("Can only plot contours for 2D functions")
-        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
+        X, Y, pts = self.meshgrid_samples(plot_limits, npts_1d)
         vals = self.__call__(pts)
         Z = self._bkd.reshape(vals[:, qoi], X.shape)
         return ax.contourf(X, Y, Z, **kwargs)
@@ -2019,7 +2027,7 @@ class MultiIndexModelEnsemble(ABC):
             ensemble_samples[-self.nrefinement_vars() :], dtype=int
         )
         unique_model_idx, sample_idx_per_unique_model = (
-            unique_matrix_row_indices(sample_model_ids.T)
+            unique_matrix_row_indices(sample_model_ids.T, bkd=self._bkd)
         )
         unique_model_ids = sample_model_ids[:, unique_model_idx]
         samples_per_model = []

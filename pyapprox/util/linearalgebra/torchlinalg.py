@@ -457,8 +457,8 @@ class TorchLinAlgMixin(LinAlgMixin):
         return torch.as_tensor(array, dtype=dtype)
 
     @staticmethod
-    def unique(array, **kwargs):
-        return torch.unique(array, **kwargs)
+    def unique(array, axis=None, **kwargs):
+        return torch.unique(array, dim=axis, **kwargs)
 
     @staticmethod
     def delete(array, obj, axis=None):

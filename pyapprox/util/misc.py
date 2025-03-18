@@ -54,7 +54,7 @@ def unique_matrix_row_indices(
     # the row number of each row equal to the ith unique_row
     idx_per_unique_row = []
     for ii in range(matrix.shape[0]):
-        key = hash_array(matrix[ii, :])
+        key = hash_array(matrix[ii, :], bkd)
         if key not in unique_rows_dict:
             unique_rows_dict[key] = len(unique_rows_dict)
             unique_row_indices.append(ii)

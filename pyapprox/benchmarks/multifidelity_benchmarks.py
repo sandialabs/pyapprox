@@ -787,7 +787,9 @@ class MultiLevelCosineBenchmark(MultiIndexModelBenchmark):
         return 1
 
     def _set_variable(self):
-        self._variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
+        self._variable = IndependentMarginalsVariable(
+            [stats.uniform(-1, 2)], backend=self._bkd
+        )
 
     def _set_models(self):
         self._models = MultiLevelCosineModelEnsemble([2], self._bkd)

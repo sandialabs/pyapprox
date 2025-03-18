@@ -528,6 +528,9 @@ class BasisIndexGenerator:
         self._subspace_gen.set_selected_indices(subspace_indices)
         for subspace_index in subspace_indices.T:
             self._set_unique_subspace_basis_indices(subspace_index, False)
+        if self._subspace_gen.ncandidate_indices() == 0:
+            # needed if no new subspaces satsify admissibility criteria
+            return
         for subspace_index in self._subspace_gen.get_candidate_indices().T:
             self._set_unique_subspace_basis_indices(subspace_index, True)
 

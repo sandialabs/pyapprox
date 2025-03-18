@@ -259,7 +259,10 @@ class CombinationSparseGrid(Regressor):
         self, samples: Array, smolyak_coefs: Array
     ) -> Array:
         if samples.shape[0] != self.nvars():
-            raise ValueError("samples have the wrong shape")
+            raise ValueError(
+                "samples have the wrong number of rows."
+                f"Was {samples.shape[0]}, should be {self.nvars()}"
+            )
         values = 0
         for subspace_idx in range(self._subspace_gen.nindices()):
             # TODO store smolyak coefficients for candidate & selected indices
@@ -275,7 +278,7 @@ class CombinationSparseGrid(Regressor):
     def _values_using_only_selected_subspaces(self, samples: Array) -> Array:
         return self._values_using_smolyak_coefs(samples, self._smolyak_coefs)
 
-    def _values_using_all_subspaces(self, samples: Array) -> Array:
+    def values_using_all_subspaces(self, samples: Array) -> Array:
         queue_items = self._cand_subspace_queue.items()
         smolyak_coefs = self._smolyak_coefs
         selected_idx = self._subspace_gen._get_selected_idx()
@@ -291,7 +294,7 @@ class CombinationSparseGrid(Regressor):
     def _values(self, samples: Array) -> Array:
         if self._cand_subspace_queue is None:
             return self._values_using_only_selected_subspaces(samples)
-        return self._values_using_all_subspaces(samples)
+        return self.values_using_all_subspaces(samples)
 
     def __repr__(self) -> str:
         return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
@@ -626,6 +629,19 @@ class LevelRefinementCriteria(RefinementCriteria):
         return priority, error
 
 
+class TensorProductRefinementCriteria(RefinementCriteria):
+    def _priority(self, subspace_index: Array) -> Tuple[float, float]:
+        # Avoid computing error which requires specifying a metric
+        # and can slow criteria evaluation down
+        error = np.inf
+        # priority queue gives higher priority to smaler values
+        # so this will add subspaces wih lower l1 norm first
+        priority = self._bkd.max(
+            self._bkd.asarray(subspace_index, dtype=self._bkd.double_type())
+        )
+        return priority, error
+
+
 class L2NormRefinementCriteria(RefinementCriteria):
     def _priority(self, subspace_index: Array) -> Tuple[float, float]:
         subspace_key = self._sg._basis_gen._hash_index(subspace_index)
@@ -733,16 +749,21 @@ class AdaptiveCombinationSparseGrid(
         if self._subspace_gen.nselected_indices() == 0:
             raise RuntimeError("must call set_initial_subspace_indices")
         unique_sel_samples = self._setup_first_selected_subspaces()
-        unique_cand_samples = self._setup_first_candidate_subspaces()
-        unique_samples = self._bkd.hstack(
-            (unique_sel_samples, unique_cand_samples)
-        )
+        if self._subspace_gen.ncandidate_indices() > 0:
+            unique_cand_samples = self._setup_first_candidate_subspaces()
+            unique_samples = self._bkd.hstack(
+                (unique_sel_samples, unique_cand_samples)
+            )
+        else:
+            unique_samples = unique_sel_samples
         self._last_subspace_indices = self._subspace_gen.get_indices()
         self._first_step = False
         return unique_samples
 
     def _prioritize_candidate_subspaces(self):
         # reset priority of all candidate subspace indices
+        if self._subspace_gen.ncandidate_indices() == 0:
+            return 0
         self._cand_subspace_queue = PriorityQueue()
         for subspace_index in self._subspace_gen.get_candidate_indices().T:
             subspace_indicator, subspace_error = self._refine_criteria(
@@ -804,7 +825,10 @@ class AdaptiveCombinationSparseGrid(
             raise RuntimeError("new_index is not a candidate index")
         new_index_idx = self._subspace_gen._cand_indices_dict[key]
         selected_idx = self._bkd.hstack(
-            (self._subspace_gen._get_selected_idx(), new_index_idx)
+            (
+                self._subspace_gen._get_selected_idx(),
+                self._bkd.array([new_index_idx], dtype=int),
+            )
         )
         return self._adjust_smolyak_coefficients(
             smolyak_coefs, new_index, selected_idx
