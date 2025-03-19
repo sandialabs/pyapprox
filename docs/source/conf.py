@@ -69,6 +69,7 @@ example_filenames_in_order = [
     "plot_univariate_interpolation.py",
     "plot_tensor_product_interpolation.py",
     "plot_sparse_grids.py",
+    "plot_adaptive_sparse_grid.py",
     "plot_adaptive_leja_interpolation.py",
     "plot_gaussian_processes.py",
     # 'plot_integrated_surrogates.py',
