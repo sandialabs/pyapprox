@@ -131,10 +131,10 @@ class GPNegLogLikelihoodLoss(LossFunction):
         super()._check_model(model)
 
     def _jacobian(self, active_opt_params: Array) -> Array:
-        # if self._model.analytical_neg_log_like_jacobian_implemented():
-        #     return self._model._jacobian_neg_log_like_with_hyperparam_trend(
-        #         active_opt_params[:, 0]
-        #     )
+        if self._model.analytical_neg_log_like_jacobian_implemented():
+            return self._model._jacobian_neg_log_like_with_hyperparam_trend(
+                active_opt_params[:, 0]
+            )
         return super()._jacobian(active_opt_params)
 
 
@@ -450,7 +450,10 @@ class ExactGaussianProcess(OptimizedRegressor):
 
     def covariance(self, samples: Array) -> Array:
         canonical_samples = self._in_trans.map_to_canonical(samples)
-        canonical_cov = self._canonical_covariance(canonical_samples)
+        if self._ctrain_samples is None:
+            canonical_cov = self._kernel(canonical_samples)
+        else:
+            canonical_cov = self._canonical_covariance(canonical_samples)
         return self._out_trans.map_covariance_from_canonical(canonical_cov)
 
     def evaluate(
@@ -551,17 +554,21 @@ class ExactGaussianProcess(OptimizedRegressor):
         #     raise ValueError("nvars is inconsistent with training data")
         return self.plot_1d(ax, bounds, **kwargs)
 
-    def _predict_random_canonical_realizations(
-        self, canonical_samples: Array, rand_noise: Array
-    ) -> Array:
-        canonical_mean = self._evaluate_canonical_posterior(
-            canonical_samples, False
-        )[0]
-        canonical_cov = self._canonical_covariance(canonical_samples)
-        U, S, V = self._bkd.svd(canonical_cov)
-        L = U * np.sqrt(S)
-        canonical_vals = canonical_mean + L @ rand_noise
-        return canonical_vals
+    # def _predict_random_canonical_realizations(
+    #     self, canonical_samples: Array, rand_noise: Array
+    # ) -> Array:
+    #     if self._ctrain_samples is None:
+    #         canonical_mean = self._canonical_trend(canonical_samples)
+    #         canonical_cov = self._kernel(canonical_samples)
+    #     else:
+    #         canonical_mean = self._evaluate_canonical_posterior(
+    #             canonical_samples, False
+    #         )[0]
+    #         canonical_cov = self._canonical_covariance(canonical_samples)
+    #     U, S, V = self._bkd.svd(canonical_cov)
+    #     L = U * np.sqrt(S)
+    #     canonical_vals = canonical_mean + L @ rand_noise
+    #     return canonical_vals
 
     def _predict_random_realizations(
         self, samples: Array, rand_noise: Array

@@ -45,7 +45,9 @@ class Kernel(ABC):
 
     def __repr__(self) -> str:
         return "{0}({1}, bkd={2})".format(
-            self.__class__.__name__, self._hyp_list._short_repr(), self._bkd
+            self.__class__.__name__,
+            self._hyp_list._short_repr(),
+            self._bkd.__name__,
         )
 
     def _params_eval(self, active_opt_params: Array):
@@ -260,6 +262,14 @@ class MaternKernel(Kernel):
             return -5 / 3 * K.T * tmp2 * (math.sqrt(5) * distances.T + 1)
         return super().input_jacobian(X1, X2)
 
+    def __repr__(self) -> str:
+        return "{0}(nu={1}, {2}, bkd={3})".format(
+            self.__class__.__name__,
+            self._nu,
+            self._hyp_list._short_repr(),
+            self._bkd.__name__,
+        )
+
 
 class ConstantKernel(Kernel):
     def __init__(
@@ -461,7 +471,7 @@ class HilbertSchmidtKernel(Kernel):
             self._hyp_list._short_repr(),
             self._basis2,
             self._basis1,
-            self._bkd,
+            self._bkd.__name__,
         )
 
 

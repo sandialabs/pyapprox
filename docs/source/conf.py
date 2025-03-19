@@ -72,6 +72,7 @@ example_filenames_in_order = [
     "plot_adaptive_sparse_grid.py",
     "plot_adaptive_leja_interpolation.py",
     "plot_gaussian_processes.py",
+    "plot_gp_expdesign.py",
     # 'plot_integrated_surrogates.py',
     # Multi-fidelity
     "plot_monte_carlo.py",
