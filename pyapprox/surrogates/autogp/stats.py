@@ -9,7 +9,6 @@ from pyapprox.surrogates.autogp.exactgp import (
     ExactGaussianProcess,
     GaussianProcessIdentityTransform,
 )
-from pyapprox.surrogates.autogp.activelearning import CholeskySampler
 from pyapprox.surrogates.kernels.kernels import (
     Kernel,
     MaternKernel,
@@ -24,13 +23,15 @@ from pyapprox.surrogates.bases.basis import (
 from pyapprox.util.transforms import Transform
 
 
-class GaussianProcessStatistics:
+class KernelStatistics:
     def __init__(
         self,
         gp: ExactGaussianProcess,
         variable: IndependentMarginalsVariable,
+        ctrain_samples: Array,
         nquad_nodes_1d: List[int] = None,
     ):
+        self._ctrain_samples = ctrain_samples
         if isinstance(gp._kernel, SumKernel):
             raise NotImplementedError(
                 "kernel with white noise is not currently supported"
@@ -44,7 +45,6 @@ class GaussianProcessStatistics:
         self._gp = gp
         self._bkd = self._gp._bkd
         self.set_quadrature_rule(variable, nquad_nodes_1d)
-        self._set_Ainv()
         self._tau_1d, self._cond_P_1d, self._u_1d = None, None, None
         # out trans for GP can be useful for scaling optimization objective
         # when training. However, I see little value of this transformation
@@ -52,28 +52,6 @@ class GaussianProcessStatistics:
         # easier
         self._out_trans = self._gp._out_trans
         # self._out_trans = GaussianProcessIdentityTransform(self._gp._bkd)
-
-    def _set_Ainv(self):
-        self._ctrain_samples = self._gp._ctrain_samples
-        self._train_values = self._gp.get_train_values()
-        coef_args = self._gp._factor_training_kernel_matrix()
-        Linv = self._gp._inverse_of_cholesky_factor(coef_args[0])
-        # store kernel matrix inverse that is not scaled by the
-        # kernel variance
-        self._Ainv = Linv.T @ Linv * self._get_kernel_variance()
-
-        condition_number = self._bkd.cond(self._Ainv)
-        if condition_number > 1e8:
-            warnings.warn(
-                "\nCondition number of kernel training matrix is "
-                f"large {condition_number=}.\n"
-                "Accuracy of statistics may be effected (especially "
-                "variance).\nIncreasing gp kernel_reg parameter may help."
-            )
-
-        # for now assume no trend
-        if self._gp._trend is not None:
-            raise ValueError("gp._trend must be None")
 
     def set_quadrature_rule(
         self,
@@ -319,6 +297,65 @@ class GaussianProcessStatistics:
             self._bkd.prod(nu, axis=0),
         )
 
+    def _integrate_xi_1_1d(self, lscale_ii: float, ii: int) -> Array:
+        can_xx_3d, ww_3d = self._three_dim_canonical_quadrature_tuple(ii)
+        dists_3d_x1_x2 = (
+            can_xx_3d[0, :] / lscale_ii - can_xx_3d[1, :] / lscale_ii
+        ) ** 2
+        dists_3d_x2_x3 = (
+            can_xx_3d[1, :] / lscale_ii - can_xx_3d[2, :] / lscale_ii
+        ) ** 2
+        xi_1 = (
+            self._bkd.exp(-0.5 * dists_3d_x1_x2 - 0.5 * dists_3d_x2_x3)
+            @ ww_3d[:, 0]
+        )
+        return xi_1
+
+    def _xi_1(self):
+        lscale = self._get_kernel_length_scale()
+        xi_1 = []
+        for ii in range(self._gp.nvars()):
+            xi_1_ii = self._integrate_xi_1_1d(lscale[ii], ii)
+            xi_1.append(xi_1_ii)
+        return self._bkd.prod(self._bkd.stack(xi_1, axis=0), axis=0)
+
+
+class GaussianProcessStatistics(KernelStatistics):
+    # Kernel statistics does not depend on function values
+    # useful for experimental design
+    # whereas GuassianProcessStatistics does depend on function values
+    def __init__(
+        self,
+        gp: ExactGaussianProcess,
+        variable: IndependentMarginalsVariable,
+        nquad_nodes_1d: List[int] = None,
+    ):
+        super().__init__(gp, variable, gp._ctrain_samples, nquad_nodes_1d)
+        self._set_Ainv()
+
+    def _set_ctrain_samples(self):
+        self._ctrain_samples = self._gp._ctrain_samples
+
+    def _set_Ainv(self):
+        coef_args = self._gp._factor_training_kernel_matrix()
+        Linv = self._gp._inverse_of_cholesky_factor(coef_args[0])
+        # store kernel matrix inverse that is not scaled by the
+        # kernel variance
+        self._Ainv = Linv.T @ Linv * self._get_kernel_variance()
+
+        condition_number = self._bkd.cond(self._Ainv)
+        if condition_number > 1e8:
+            warnings.warn(
+                "\nCondition number of kernel training matrix is "
+                f"large {condition_number=}.\n"
+                "Accuracy of statistics may be effected (especially "
+                "variance).\nIncreasing gp kernel_reg parameter may help."
+            )
+
+        # for now assume no trend
+        if self._gp._trend is not None:
+            raise ValueError("gp._trend must be None")
+
     def expectation_of_mean(self) -> Array:
         tau = self._tau_P()[0]
         expected_mean = tau @ self._Ainv_y()
@@ -350,28 +387,6 @@ class GaussianProcessStatistics:
         tau, P = self._tau_P()
         v_sq = 1.0 - self._bkd.sum(self._Ainv * P)
         return self._expectation_of_variance(P, tau, v_sq)
-
-    def _integrate_xi_1_1d(self, lscale_ii: float, ii: int) -> Array:
-        can_xx_3d, ww_3d = self._three_dim_canonical_quadrature_tuple(ii)
-        dists_3d_x1_x2 = (
-            can_xx_3d[0, :] / lscale_ii - can_xx_3d[1, :] / lscale_ii
-        ) ** 2
-        dists_3d_x2_x3 = (
-            can_xx_3d[1, :] / lscale_ii - can_xx_3d[2, :] / lscale_ii
-        ) ** 2
-        xi_1 = (
-            self._bkd.exp(-0.5 * dists_3d_x1_x2 - 0.5 * dists_3d_x2_x3)
-            @ ww_3d[:, 0]
-        )
-        return xi_1
-
-    def _xi_1(self):
-        lscale = self._get_kernel_length_scale()
-        xi_1 = []
-        for ii in range(self._gp.nvars()):
-            xi_1_ii = self._integrate_xi_1_1d(lscale[ii], ii)
-            xi_1.append(xi_1_ii)
-        return self._bkd.prod(self._bkd.stack(xi_1, axis=0), axis=0)
 
     def variance_of_variance(self) -> float:
         tau, P = self._tau_P()
@@ -452,7 +467,7 @@ class GaussianProcessStatistics:
         # operator in user space for values
         # this means cannot call self._gp._Kinv_y(self._Ainv)
         # because if operats on _ctrain_values
-        return self._Ainv @ self._train_values
+        return self._Ainv @ self._gp.get_train_values()
 
 
 class EnsembleGaussianProcessStatistics(GaussianProcessStatistics):
@@ -484,6 +499,9 @@ class EnsembleGaussianProcessStatistics(GaussianProcessStatistics):
                 2 * self._gp._ctrain_samples.shape[1], 1000
             )
             print(self._ninterpolation_samples, "S")
+        # import here to avoid circular import. TODO remove circular import
+        from pyapprox.surrogates.autogp.activelearning import CholeskySampler
+
         sampler = CholeskySampler(self._variable, nugget=self._gp._kernel_reg)
         sampler.set_gaussian_process(self._gp)
         self._train_samples = sampler(self._ninterpolation_samples)

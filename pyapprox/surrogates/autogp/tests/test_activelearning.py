@@ -8,6 +8,7 @@ from pyapprox.surrogates.kernels import MaternKernel
 from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
 from pyapprox.surrogates.autogp.activelearning import (
     CholeskySampler,
+    GreedyIntegratedVarianceSampler,
     AdaptiveGaussianProcess,
     SamplingScheduleFromList,
 )
@@ -104,6 +105,40 @@ class TestActiveLearning:
         samples2 = bkd.hstack([samples2, sampler2(nsamples)])
         assert not bkd.allclose(samples2, samples)
 
+    def test_greedy_ivar_sampling_update(self):
+        bkd = self.get_backend()
+        nvars = 1
+        variable = IndependentMarginalsVariable(
+            [stats.uniform(-1, 2)] * nvars, backend=bkd
+        )
+        kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+        gp = ExactGaussianProcess(nvars, kernel)
+        # sampler = CholeskySampler(nvars, 100, variables)
+        sampler = GreedyIntegratedVarianceSampler(variable)
+        sampler.set_gaussian_process(gp)
+
+        nsamples = 10
+        samples = sampler(nsamples)
+
+        # set seed so that random candidates are the same
+        np.random.seed(1)
+        sampler2 = GreedyIntegratedVarianceSampler(variable)
+        sampler2.set_gaussian_process(gp)
+        # generate half the required samples
+        samples2 = sampler2(nsamples // 2)
+        # make sure sample can generate the correct remaining samples
+        # via an update
+        samples2 = bkd.hstack([samples2, sampler2(nsamples)])
+        assert np.allclose(samples2, samples)
+
+        import matplotlib.pyplot as plt
+
+        # plt.plot(samples[0], 0 * samples[0], "o")
+        # plt.show()
+        raise NotImplementedError(
+            "Test runs but points are not distributed correctly"
+        )
+
     def test_adaptive_gaussian_process(self):
         bkd = self.get_backend()
         nvars = 1
@@ -127,7 +162,6 @@ class TestActiveLearning:
         ax = plt.figure().gca()
         gp.plot(ax, bounds=[-1, 1])
         ax.plot(gp.get_train_samples()[0], gp.get_train_values(), "o")
-        print(gp.get_train_samples())
         train_samples = bkd.array(
             [
                 -1.00000000e00,
@@ -146,6 +180,8 @@ class TestActiveLearning:
         # regression test. Note when the last point added produces
         # a matrix that is close to singular then there can be differences
         # between numpy and torch train samples
+        print(gp.get_train_samples())
+        print(train_samples)
         assert bkd.allclose(gp.get_train_samples(), train_samples)
 
 

@@ -1,17 +1,20 @@
 from abc import ABC, abstractmethod
 from typing import Union, List
 
+import numpy as np
+
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.util.linearalgebra.linalg import PivotedCholeskyFactorizer
 from pyapprox.expdesign.sequences import HaltonSequence
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
+from pyapprox.surrogates.autogp.stats import KernelStatistics
 from pyapprox.surrogates.regressor import AdaptiveRegressorMixin
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.surrogates.kernels.kernels import Kernel
 
 
-class CholeskySampler:
+class GreedyGaussianProcessSampler(ABC):
     def __init__(
         self,
         variable: IndependentMarginalsVariable,
@@ -49,13 +52,8 @@ class CholeskySampler:
         self._candidate_samples_changed = True
         self._set_initial_pivots(init_pivots)
 
-    def set_weight_function(self, weight_function: callable):
-        self._weight_function = weight_function
-        # weight function must take samples in user space (not canonical space)
-        # This is the correct thing to do even though kernel is evaluated in
-        # canonical space (see note in restart factorization). User should not
-        # have to know about canonical space.
-        self._weight_function_changed = True
+    def ncandidates(self) -> int:
+        return self._candidate_samples.shape[1]
 
     def set_gaussian_process(self, gp):
         self._gp = gp
@@ -78,6 +76,44 @@ class CholeskySampler:
             self._bkd.arange(self._Kmatrix.shape[1]),
         ] += self._nugget
 
+    @abstractmethod
+    def pivots(self) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _update_pivots(self, nsamples: int) -> Array:
+        raise NotImplementedError
+
+    def _setup_before_first_step(self):
+        if not hasattr(self, "_candidate_samples"):
+            self.set_candidate_samples(
+                self.default_candidate_samples(2000), None
+            )
+
+    def __call__(self, nsamples: int):
+        if not hasattr(self, "_gp"):
+            raise RuntimeError("Must call set_gaussian_process")
+        if self.ntrain_samples() == 0:
+            self._setup_before_first_step()
+        if nsamples < self.ntrain_samples():
+            msg = f"Requesting number of samples {nsamples} which is less "
+            "than number of train samples already generated "
+            f"{self.ntrain_samples()}"
+            raise ValueError(msg)
+        new_pivots = self._update_pivots(nsamples)
+        # return samples in user space
+        new_samples = self._candidate_samples[:, new_pivots]
+        self._train_samples = self._bkd.hstack(
+            (self._train_samples, new_samples)
+        )
+        # update pivots so that they are available if kernel matrix
+        # needs to be recomputed
+        self._set_initial_pivots(self.pivots())
+        return new_samples
+
+
+class CholeskySampler(GreedyGaussianProcessSampler):
+
     def _restart_factorization(self, nsamples: int):
         # GP optimizes kernel hyperparameters when the training samples
         # are mapped to the canonical space. So, to be consistent
@@ -96,7 +132,9 @@ class CholeskySampler:
 
         if not self._econ:
             sqrt_weights = self._bkd.sqrt(self._pivot_weights)
-            self.Kmatrix = sqrt_weights[:, None] * self._Kmatrix * sqrt_weights
+            self._Kmatrix = (
+                sqrt_weights[:, None] * self._Kmatrix * sqrt_weights
+            )
             self._pivot_weights = None
         self._factorizer = PivotedCholeskyFactorizer(
             self._Kmatrix, econ=self._econ, bkd=self._bkd
@@ -134,26 +172,20 @@ class CholeskySampler:
     def _uniform_weight_function(self, samples: Array) -> Array:
         return self._bkd.ones(samples.shape[1])
 
+    def set_weight_function(self, weight_function: callable):
+        self._weight_function = weight_function
+        # weight function must take samples in user space (not canonical space)
+        # This is the correct thing to do even though kernel is evaluated in
+        # canonical space (see note in restart factorization). User should not
+        # have to know about canonical space.
+        self._weight_function_changed = True
+
     def _setup_before_first_step(self):
-        if not hasattr(self, "_candidate_samples"):
-            self.set_candidate_samples(
-                self.default_candidate_samples(2000), None
-            )
+        super()._setup_before_first_step()
         if not hasattr(self, "_weight_function"):
             self.set_weight_function(self._uniform_weight_function)
 
-    def __call__(self, nsamples: int):
-        if not hasattr(self, "_gp"):
-            raise RuntimeError("Must call set_gaussian_process")
-        if self.ntrain_samples() == 0:
-            self._setup_before_first_step()
-
-        if nsamples < self.ntrain_samples():
-            msg = f"Requesting number of samples {nsamples} which is less "
-            "than number of train samples already generated "
-            f"{self.ntrain_samples()}"
-            raise ValueError(msg)
-
+    def _update_pivots(self, nsamples: int) -> Array:
         if (
             self._weight_function_changed
             or self._kernel_changed
@@ -163,19 +195,66 @@ class CholeskySampler:
             self._restart_factorization(nsamples)
         else:
             self._update_factorization(nsamples)
-
         nprev_train_samples = self.ntrain_samples()
-        # return samples in user space
-        new_samples = self._candidate_samples[
-            :, self._factorizer.pivots()[nprev_train_samples:nsamples]
-        ]
-        self._train_samples = self._bkd.hstack(
-            (self._train_samples, new_samples)
+        return self._factorizer.pivots()[nprev_train_samples:nsamples]
+
+    def pivots(self) -> Array:
+        return self._factorizer.pivots()
+
+
+class GreedyIntegratedVarianceSampler(GreedyGaussianProcessSampler):
+    def __init__(
+        self,
+        variable: IndependentMarginalsVariable,
+        nugget: float = 0.0,
+        econ: bool = True,
+        nquad_nodes_1d: List[int] = None,
+    ):
+        super().__init__(variable, nugget, econ)
+        self._nquad_nodes_1d = nquad_nodes_1d
+
+    def _priority(self, new_idx: int):
+        indices = self._bkd.hstack(
+            [self._pivots, self._bkd.array([new_idx], dtype=int)]
         )
-        # update pivots so that they are available if kernel matrix
-        # needs to be recomputed
-        self._set_initial_pivots(self._factorizer.pivots())
-        return new_samples
+        Kmat = self._Kmatrix[np.ix_(indices, indices)]
+        Pmat = self._P[np.ix_(indices, indices)]
+        # Kmat_inv = self._bkd.inv(Kmat)
+        # return -self._trace(Kmat_inv @ P)
+        return -self._bkd.trace(self._bkd.solve(Kmat, Pmat))
+
+    def _priorities(self):
+        priorities = self._bkd.full((self.ncandidates(),), np.inf)
+        for mm in range(self.ncandidates()):
+            if mm not in self._pivots:
+                priorities[mm] = self._priority(mm)
+        return priorities
+
+    def _update_pivots(self, nsamples: int) -> Array:
+        new_pivots = self._bkd.empty(
+            nsamples - self.ntrain_samples(), dtype=int
+        )
+        for ii in range(nsamples - self.ntrain_samples()):
+            priorities = self._priorities()
+            new_pivots[ii] = self._bkd.argmin(priorities)
+            self._pivots = self._bkd.hstack([self._pivots, new_pivots[ii]])
+        return new_pivots
+
+    def pivots(self) -> Array:
+        return self._pivots
+
+    def _setup_before_first_step(self):
+        super()._setup_before_first_step()
+        self._stat = KernelStatistics(
+            self._gp,
+            self._variable,
+            self._candidate_samples,
+            self._nquad_nodes_1d,
+        )
+        self._P = self._stat._tau_P()[1]
+        self._Kmatrix = self._gp.kernel()(self._canonical_candidate_samples)
+        self._add_nugget()
+        self._pivots = self._bkd.zeros((0,), dtype=int)
 
 
 class SamplingSchedule(ABC):
