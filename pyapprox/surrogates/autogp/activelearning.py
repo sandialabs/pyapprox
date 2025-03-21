@@ -30,7 +30,10 @@ class GreedyGaussianProcessSampler(ABC):
         self._nugget = nugget
         self._econ = econ
         self._train_samples = self._bkd.zeros((self._variable.nvars(), 0))
+        self._pivots = None
         self._kernel_changed = True
+        self._initialized = False
+        self._init_pivots = None
 
     def default_candidate_samples(self, ncandidates: int) -> Array:
         nhalton_candidates = ncandidates // 2
@@ -40,9 +43,7 @@ class GreedyGaussianProcessSampler(ABC):
         random_samples = self._variable.rvs(nrandom_candidates)
         return self._bkd.hstack((halton_samples, random_samples))
 
-    def set_candidate_samples(
-        self, candidate_samples: Array, init_pivots: Array = None
-    ):
+    def set_candidate_samples(self, candidate_samples: Array):
         if not hasattr(self, "_gp"):
             raise RuntimeError("Must call set_gaussian_process first")
         self._candidate_samples = candidate_samples
@@ -50,7 +51,6 @@ class GreedyGaussianProcessSampler(ABC):
             self._gp._in_trans.map_to_canonical(self._candidate_samples)
         )
         self._candidate_samples_changed = True
-        self._set_initial_pivots(init_pivots)
 
     def ncandidates(self) -> int:
         return self._candidate_samples.shape[1]
@@ -58,14 +58,10 @@ class GreedyGaussianProcessSampler(ABC):
     def set_gaussian_process(self, gp):
         self._gp = gp
 
-    def _set_initial_pivots(self, init_pivots: Array):
+    def set_initial_pivots(self, init_pivots: Array):
         if not hasattr(self, "_candidate_samples"):
             raise RuntimeError("must call set_candidate_samples first")
         self._init_pivots = init_pivots
-        if init_pivots is not None:
-            # return samples in user space
-            self._train_samples = self._candidate_samples[:, self._init_pivots]
-        self._init_pivots_changed = True
 
     def ntrain_samples(self) -> int:
         return self._train_samples.shape[1]
@@ -85,15 +81,14 @@ class GreedyGaussianProcessSampler(ABC):
         raise NotImplementedError
 
     def _setup_before_first_step(self):
-        if not hasattr(self, "_candidate_samples"):
-            self.set_candidate_samples(
-                self.default_candidate_samples(2000), None
-            )
-
-    def __call__(self, nsamples: int):
         if not hasattr(self, "_gp"):
             raise RuntimeError("Must call set_gaussian_process")
-        if self.ntrain_samples() == 0:
+        if not hasattr(self, "_candidate_samples"):
+            self.set_candidate_samples(self.default_candidate_samples(2000))
+        self._initialized = True
+
+    def __call__(self, nsamples: int):
+        if not self._initialized:
             self._setup_before_first_step()
         if nsamples < self.ntrain_samples():
             msg = f"Requesting number of samples {nsamples} which is less "
@@ -106,13 +101,18 @@ class GreedyGaussianProcessSampler(ABC):
         self._train_samples = self._bkd.hstack(
             (self._train_samples, new_samples)
         )
-        # update pivots so that they are available if kernel matrix
-        # needs to be recomputed
-        self._set_initial_pivots(self.pivots())
+        self._train_samples = self._candidate_samples[:, self.pivots()]
         return new_samples
 
 
 class CholeskySampler(GreedyGaussianProcessSampler):
+
+    def set_initial_pivots(self, init_pivots: Array):
+        super().set_initial_pivots(init_pivots)
+        if init_pivots is not None:
+            # return samples in user space
+            self._train_samples = self._candidate_samples[:, self._init_pivots]
+            self._pivots = self._init_pivots
 
     def _restart_factorization(self, nsamples: int):
         # GP optimizes kernel hyperparameters when the training samples
@@ -142,9 +142,10 @@ class CholeskySampler(GreedyGaussianProcessSampler):
         try:
             self._factorizer.factorize(
                 nsamples,
-                init_pivots=self._init_pivots,
+                init_pivots=self._pivots,
                 pivot_weights=self._pivot_weights,
             )
+            self._pivots = self._factorizer.pivots()
         except RuntimeError:
             raise RuntimeError(
                 "Too many samples requested. Likely need to reduce "
@@ -155,7 +156,6 @@ class CholeskySampler(GreedyGaussianProcessSampler):
 
         self._weight_function_changed = False
         self._kernel_changed = False
-        self._init_pivots_changed = False
         self._candidate_samples_changed = False
 
     def _update_factorization(self, nsamples: int):
@@ -187,9 +187,9 @@ class CholeskySampler(GreedyGaussianProcessSampler):
 
     def _update_pivots(self, nsamples: int) -> Array:
         if (
-            self._weight_function_changed
+            not self._initialized
+            or self._weight_function_changed
             or self._kernel_changed
-            or self._init_pivots_changed
             or self._candidate_samples_changed
         ):
             self._restart_factorization(nsamples)
@@ -207,38 +207,134 @@ class GreedyIntegratedVarianceSampler(GreedyGaussianProcessSampler):
         self,
         variable: IndependentMarginalsVariable,
         nugget: float = 0.0,
-        econ: bool = True,
         nquad_nodes_1d: List[int] = None,
     ):
-        super().__init__(variable, nugget, econ)
+        super().__init__(variable, nugget, True)
         self._nquad_nodes_1d = nquad_nodes_1d
 
-    def _priority(self, new_idx: int):
-        indices = self._bkd.hstack(
-            [self._pivots, self._bkd.array([new_idx], dtype=int)]
-        )
-        Kmat = self._Kmatrix[np.ix_(indices, indices)]
-        Pmat = self._P[np.ix_(indices, indices)]
-        # Kmat_inv = self._bkd.inv(Kmat)
-        # return -self._trace(Kmat_inv @ P)
-        return -self._bkd.trace(self._bkd.solve(Kmat, Pmat))
+    def _priorities(self) -> Array:
+        if self._L_inv.shape[0] == 0:
+            return -self._bkd.diag(self._P) / self._bkd.diag(self._Kmatrix)
 
-    def _priorities(self):
-        priorities = self._bkd.full((self.ncandidates(),), np.inf)
-        for mm in range(self.ncandidates()):
-            if mm not in self._pivots:
-                priorities[mm] = self._priority(mm)
-        return priorities
+        A_12 = self._bkd.atleast2d(self._Kmatrix[self._pivots, :])
+        L_12 = self._bkd.solve_triangular(self._L, A_12, lower=True)
+        J = self._bkd.where(
+            (
+                self._bkd.diag(self._Kmatrix)
+                - self._bkd.sum(L_12 * L_12, axis=0)
+            )
+            <= 0
+        )[0]
+        self._temp = self._bkd.diag(self._Kmatrix) - self._bkd.sum(
+            L_12 * L_12, axis=0
+        )
+        useful_candidates = self._bkd.ones(
+            (self._candidate_samples.shape[1]), dtype=bool
+        )
+        useful_candidates[J] = False
+        useful_candidates[self._pivots] = False
+        L_12 = L_12[:, useful_candidates]
+        L_22 = self._bkd.sqrt(
+            self._bkd.diag(self._Kmatrix)[useful_candidates]
+            - self._bkd.sum(L_12 * L_12, axis=0)
+        )
+
+        P_11 = self._P[np.ix_(self._pivots, self._pivots)]
+        P_12 = self._P[np.ix_(self._pivots, useful_candidates)]
+        P_22 = self._bkd.diag(self._P)[useful_candidates]
+
+        C = -self._bkd.dot((L_12 / L_22).T, self._L_inv)
+        vals = self._bkd.full((self._candidate_samples.shape[1],), np.inf)
+
+        # reimplementaion is incomplete. Need to finish porting over old code in gaussianprocess/gaussian_process. Consider creating seperate class for econominal version rather than just providing a flag
+        vals[useful_candidates] = -(
+            -self._best_priorities[-1]
+            + self._bkd.sum(C.T * P_11.dot(C.T), axis=0)
+            + 2 * self._bkd.sum(C.T / L_22 * P_12, axis=0)
+            + 1 / L_22**2 * P_22
+        )
+
+        return vals
+
+    def _update_cholesky_factorization(self, pivot: int):
+        if self._L_inv.shape[0] == 0:
+            self._L = self._bkd.atleast2d(
+                self._bkd.sqrt(self._Kmatrix[pivot, pivot])
+            )
+            self._L_inv = 1 / self._L
+            return
+
+        A_12 = self._Kmatrix[self._pivots, pivot : pivot + 1]
+        L_12 = self._bkd.solve_triangular(self._L, A_12, lower=True)
+        L_22_sq = self._Kmatrix[pivot, pivot] - L_12.T.dot(L_12)
+        if L_22_sq <= 0:
+            # recompute Cholesky from scratch to make sure roundoff error
+            # is not causing L_22_sq to be negative
+            indices = self._bkd.hstack(
+                [self._pivots, self._bkd.array([pivot], dtype=int)]
+            )
+            try:
+                self._L = self._bkd.cholesky(
+                    self._Kmatrix[np.ix_(indices, indices)]
+                )
+            except Exception:
+                raise RuntimeError(
+                    "cholesky factorization failed. Decrease correlation "
+                    "length to add more points"
+                )
+            self._L_inv = self._bkd.inv(self._L)
+            return
+
+        L_22 = self._bkd.sqrt(L_22_sq)
+
+        self._L = self._bkd.block(
+            [[self._L, self._bkd.zeros(L_12.shape)], [L_12.T, L_22]]
+        )
+        indices = self._bkd.hstack(
+            [self._pivots, self._bkd.array([pivot], dtype=int)]
+        )
+        L_22_inv = self._bkd.inv(L_22)
+        self._L_inv = self._bkd.block(
+            [
+                [self._L_inv, self._bkd.zeros(L_12.shape)],
+                [-(L_22_inv @ L_12.T) @ self._L_inv, L_22_inv],
+            ]
+        )
 
     def _update_pivots(self, nsamples: int) -> Array:
-        new_pivots = self._bkd.empty(
+        if self._kernel_changed:
+            self._Kmatrix = self._gp.kernel()(
+                self._canonical_candidate_samples
+            )
+            self._add_nugget()
+
+        new_pivots = self._bkd.zeros(
             nsamples - self.ntrain_samples(), dtype=int
         )
-        for ii in range(nsamples - self.ntrain_samples()):
+        nprev_train_samples = self.ntrain_samples()
+        if self._init_pivots is not None:
+            for ii in range(
+                self.ntrain_samples(),
+                min(self._init_pivots.shape[0], nsamples),
+            ):
+                self._update_cholesky_factorization(self._init_pivots[ii])
+                if ii < min(self._init_pivots.shape[0], nsamples) - 1:
+                    self._best_priorities.append(None)
+                else:
+                    self._best_priorities.append(
+                        self._brute_force_priority(self._init_pivots[ii])
+                    )
+                self._pivots = self._bkd.hstack(
+                    [self._pivots, self._init_pivots[ii]]
+                )
+
+        for ii in range(nsamples - self._pivots.shape[0]):
             priorities = self._priorities()
             new_pivots[ii] = self._bkd.argmin(priorities)
+            self._best_priorities.append(priorities[new_pivots[ii]])
+            self._update_cholesky_factorization(new_pivots[ii])
             self._pivots = self._bkd.hstack([self._pivots, new_pivots[ii]])
-        return new_pivots
+        return self._pivots[nprev_train_samples:nsamples]
 
     def pivots(self) -> Array:
         return self._pivots
@@ -248,13 +344,40 @@ class GreedyIntegratedVarianceSampler(GreedyGaussianProcessSampler):
         self._stat = KernelStatistics(
             self._gp,
             self._variable,
-            self._candidate_samples,
+            self._canonical_candidate_samples,
             self._nquad_nodes_1d,
         )
         self._P = self._stat._tau_P()[1]
         self._Kmatrix = self._gp.kernel()(self._canonical_candidate_samples)
         self._add_nugget()
-        self._pivots = self._bkd.zeros((0,), dtype=int)
+        if self._pivots is None:
+            self._pivots = self._bkd.zeros((0,), dtype=int)
+
+        self._L = self._bkd.zeros((0, 0))
+        self._L_inv = self._bkd.zeros((0, 0))
+        self._Kmatrix_inv = self._bkd.zeros((0, 0))
+        self._best_priorities = []
+
+    def _brute_force_priority(self, new_idx: int) -> float:
+        indices = self._bkd.hstack(
+            [self._pivots, self._bkd.array([new_idx], dtype=int)]
+        )
+        Kmat = self._Kmatrix[np.ix_(indices, indices)]
+        Pmat = self._P[np.ix_(indices, indices)]
+        return -self._bkd.trace(self._bkd.solve(Kmat, Pmat))
+
+
+class BruteForceGreedyIntegratedVarianceSampler(
+    GreedyIntegratedVarianceSampler
+):
+    # Should only be used for testing default implementation which
+    # is much faster but has more complicated code
+    def _priorities(self) -> Array:
+        priorities = self._bkd.full((self.ncandidates(),), np.inf)
+        for mm in range(self.ncandidates()):
+            if mm not in self._pivots:
+                priorities[mm] = self._brute_force_priority(mm)
+        return priorities
 
 
 class SamplingSchedule(ABC):

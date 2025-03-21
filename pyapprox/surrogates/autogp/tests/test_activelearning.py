@@ -9,6 +9,7 @@ from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
 from pyapprox.surrogates.autogp.activelearning import (
     CholeskySampler,
     GreedyIntegratedVarianceSampler,
+    BruteForceGreedyIntegratedVarianceSampler,
     AdaptiveGaussianProcess,
     SamplingScheduleFromList,
 )
@@ -28,7 +29,6 @@ class TestActiveLearning:
         )
         kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
         gp = ExactGaussianProcess(nvars, kernel)
-        # sampler = CholeskySampler(nvars, 100, variables)
         sampler = CholeskySampler(variable)
         sampler.set_gaussian_process(gp)
 
@@ -111,19 +111,53 @@ class TestActiveLearning:
         variable = IndependentMarginalsVariable(
             [stats.uniform(-1, 2)] * nvars, backend=bkd
         )
-        kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+        kernel = MaternKernel(np.inf, 0.1, [1e-1, 1], nvars, backend=bkd)
         gp = ExactGaussianProcess(nvars, kernel)
-        # sampler = CholeskySampler(nvars, 100, variables)
-        sampler = GreedyIntegratedVarianceSampler(variable)
+        sampler = BruteForceGreedyIntegratedVarianceSampler(variable)
         sampler.set_gaussian_process(gp)
+        ncandidates = 101
+        candidate_samples = bkd.linspace(-1, 1, ncandidates)[None, :]
+        sampler.set_candidate_samples(candidate_samples)
+        init_pivots = bkd.array([ncandidates // 2], dtype=int)
+        sampler.set_initial_pivots(init_pivots)
 
-        nsamples = 10
+        nsamples = 11
         samples = sampler(nsamples)
+
+        assert bkd.allclose(
+            samples,
+            bkd.array(
+                [
+                    [
+                        0.0,
+                        0.48,
+                        -0.48,
+                        -0.78,
+                        0.78,
+                        -0.24,
+                        0.24,
+                        -0.92,
+                        0.92,
+                        0.62,
+                        -0.62,
+                    ]
+                ]
+            ),
+        )
+        print(samples)
+
+        sorted_samples = bkd.sort(samples)
+        # samples should be symmetric
+        assert bkd.allclose(
+            sorted_samples[: nsamples // 2], sorted_samples[nsamples // 2 :]
+        )
 
         # set seed so that random candidates are the same
         np.random.seed(1)
-        sampler2 = GreedyIntegratedVarianceSampler(variable)
+        sampler2 = BruteForceGreedyIntegratedVarianceSampler(variable)
         sampler2.set_gaussian_process(gp)
+        sampler2.set_candidate_samples(candidate_samples)
+        sampler2.set_initial_pivots(init_pivots)
         # generate half the required samples
         samples2 = sampler2(nsamples // 2)
         # make sure sample can generate the correct remaining samples
@@ -131,13 +165,23 @@ class TestActiveLearning:
         samples2 = bkd.hstack([samples2, sampler2(nsamples)])
         assert np.allclose(samples2, samples)
 
-        import matplotlib.pyplot as plt
+        nsamples = 11
+        brute_sampler = BruteForceGreedyIntegratedVarianceSampler(variable)
+        brute_sampler.set_gaussian_process(gp)
+        brute_sampler.set_candidate_samples(candidate_samples)
+        brute_sampler.set_initial_pivots(init_pivots)
+        sampler = GreedyIntegratedVarianceSampler(variable)
+        sampler.set_gaussian_process(gp)
+        sampler.set_candidate_samples(candidate_samples)
+        sampler.set_initial_pivots(init_pivots)
+        brute_samples = brute_sampler(nsamples)
+        samples = sampler(nsamples)
+        print(brute_samples)
+        print(samples)
+        print(brute_samples - samples, "d")
+        assert bkd.allclose(samples, brute_samples)
 
-        # plt.plot(samples[0], 0 * samples[0], "o")
-        # plt.show()
-        raise NotImplementedError(
-            "Test runs but points are not distributed correctly"
-        )
+        raise NotImplementedError("Implement and tests economical update")
 
     def test_adaptive_gaussian_process(self):
         bkd = self.get_backend()
@@ -182,6 +226,8 @@ class TestActiveLearning:
         # between numpy and torch train samples
         print(gp.get_train_samples())
         print(train_samples)
+        # plt.show()
+
         assert bkd.allclose(gp.get_train_samples(), train_samples)
 
 
