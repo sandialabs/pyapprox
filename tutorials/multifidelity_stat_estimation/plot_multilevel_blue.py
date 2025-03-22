@@ -79,84 +79,115 @@ The following code compares MLBLUE to other multif-fidelity esimators when the n
 
 First setup the polynomial benchmark
 """
+
 import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
-from pyapprox.benchmarks.multifidelity_benchmarks import PolynomialModelEnsemble
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    PolynomialModelEnsemble,
+)
 from pyapprox.multifidelity.factory import (
-    get_estimator, compare_estimator_variances, compute_variance_reductions,
-    multioutput_stats)
+    get_estimator,
+    compare_estimator_variances,
+    compute_variance_reductions,
+    multioutput_stats,
+)
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
-#%%
-#First, plot the variance reduction of the optimal control variates using known low-fidelity means.
+# %%
+# First, plot the variance reduction of the optimal control variates using known low-fidelity means.
 #
-#Second, plot the variance reduction of multi-fidelity estimators that do not assume known low-fidelity means. The code below repeatedly doubles the number of low-fidelity samples according to the initial allocation defined by nsample_ratios_base=[2,4,8,16].
+# Second, plot the variance reduction of multi-fidelity estimators that do not assume known low-fidelity means. The code below repeatedly doubles the number of low-fidelity samples according to the initial allocation defined by nsample_ratios_base=[2,4,8,16].
 
-benchmark = PolynomialModelEnsemble(backend=TorchLinAlgMixin)
+bkd = TorchLinAlgMixin
+benchmark = PolynomialModelEnsemble(backend=bkd)
 
 nmodels = 5
 cov = benchmark.covariance()
-costs = np.asarray([10**-ii for ii in range(nmodels)])
+costs = bkd.asarray([10**-ii for ii in range(nmodels)])
 nhf_samples = 1
 
 cv_stats, cv_ests = [], []
 for ii in range(1, nmodels):
-    cv_stats.append(
-        multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
+    cv_stats.append(multioutput_stats["mean"](benchmark.nqoi(), backend=bkd))
+    cv_stats[ii - 1].set_pilot_quantities(cov[: ii + 1, : ii + 1])
+    cv_ests.append(
+        get_estimator(
+            "cv",
+            cv_stats[ii - 1],
+            costs[: ii + 1],
+            lowfi_stats=benchmark.mean()[1 : ii + 1],
+        )
     )
-    cv_stats[ii-1].set_pilot_quantities(cov[:ii+1, :ii+1])
-    cv_ests.append(get_estimator(
-        "cv", cv_stats[ii-1], costs[:ii+1],
-        lowfi_stats=benchmark.mean()[1:ii+1]))
 cv_labels = mathrm_labels(["CV-{%d}" % ii for ii in range(1, nmodels)])
-target_cost = nhf_samples*sum(costs)
+target_cost = nhf_samples * sum(costs)
 [est.allocate_samples(target_cost) for est in cv_ests]
 cv_variance_reductions = compute_variance_reductions(cv_ests)[0]
 
 from util import (
     plot_control_variate_variance_ratios,
-    plot_estimator_variance_ratios_for_polynomial_ensemble)
+    plot_estimator_variance_ratios_for_polynomial_ensemble,
+)
 
 estimators = [
     get_estimator("mlmc", cv_stats[-1], costs),
     get_estimator("mfmc", cv_stats[-1], costs),
     get_estimator("grd", cv_stats[-1], costs, tree_depth=4),
-    get_estimator("mlblue", cv_stats[-1], costs, subsets=[
-        np.array([0, 1, 2, 3, 4]),  np.array([1, 2, 3, 4]),
-        np.array([2, 3, 4]), np.array([3, 4]), np.array([4,])])]
+    get_estimator(
+        "mlblue",
+        cv_stats[-1],
+        costs,
+        subsets=[
+            bkd.array([0, 1, 2, 3, 4], dtype=int),
+            bkd.array([1, 2, 3, 4], dtype=int),
+            bkd.array([2, 3, 4], dtype=int),
+            bkd.array([3, 4], dtype=int),
+            bkd.array([4], dtype=int),
+        ],
+    ),
+]
 est_labels = est_labels = mathrm_labels(["MLMC", "MFMC", "PACV", "MLBLUE"])
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 plot_control_variate_variance_ratios(cv_variance_reductions, cv_labels, ax)
 _ = plot_estimator_variance_ratios_for_polynomial_ensemble(
-    estimators, est_labels, ax)
+    estimators, est_labels, ax
+)
 
 
-#%%
-#Optimal sample allocation
-#-------------------------
-#In the following we show how to optimize the sample allocation of MLBLUE and compare the optimized estimator to other alternatives.
+# %%
+# Optimal sample allocation
+# -------------------------
+# In the following we show how to optimize the sample allocation of MLBLUE and compare the optimized estimator to other alternatives.
 #
-#The optimal sample allocation is obtained by solving
+# The optimal sample allocation is obtained by solving
 #
-#.. math:: \min_{m\in\mathbb{N}_0^K}\var{Q^B_\beta(m)}\quad\text{such that}\quad\sum_{k=1}^K m_k \sum_{j=1}^{|S_k|} W_j \le W_{\max},
+# .. math:: \min_{m\in\mathbb{N}_0^K}\var{Q^B_\beta(m)}\quad\text{such that}\quad\sum_{k=1}^K m_k \sum_{j=1}^{|S_k|} W_j \le W_{\max},
 #
-#where :math:`W_j` denotes the cost of evaluating the jth model and :math:`W_{\max}` is the total budget.
+# where :math:`W_j` denotes the cost of evaluating the jth model and :math:`W_{\max}` is the total budget.
 #
 # This optimization problem can be solved effectively using semi-definite programming [CWARXIV2023]_.
 
-target_costs = np.array([1e1, 1e2, 1e3], dtype=int)
+target_costs = bkd.array([1e1, 1e2, 1e3], dtype=int)
 estimators = [
     get_estimator("mc", cv_stats[-1], costs),
     get_estimator("mlmc", cv_stats[-1], costs),
-    get_estimator("mlblue", cv_stats[-1], costs, subsets=[
-        np.array([0, 1, 2, 3, 4]),  np.array([1, 2, 3, 4]),
-        np.array([2, 3, 4]), np.array([3, 4]), np.array([4,])]),
+    get_estimator(
+        "mlblue",
+        cv_stats[-1],
+        costs,
+        subsets=[
+            bkd.array([0, 1, 2, 3, 4], dtype=int),
+            bkd.array([1, 2, 3, 4], dtype=int),
+            bkd.array([2, 3, 4], dtype=int),
+            bkd.array([3, 4], dtype=int),
+            bkd.array([4], dtype=int),
+        ],
+    ),
     get_estimator("gmf", cv_stats[-1], costs, tree_depth=4),
-    get_estimator("cv", cv_stats[-1], costs,
-                  lowfi_stats=benchmark.mean()[1:])]
+    get_estimator("cv", cv_stats[-1], costs, lowfi_stats=benchmark.mean()[1:]),
+]
 est_labels = mathrm_labels(["MC", "MLMC", "MLBLUE", "GMF", "CV"])
 
 
@@ -166,28 +197,31 @@ optimizer._opts["scaling"] = 1e-2
 optimizer._optimizer2._opts["method"] = "slsqp"
 estimators[3].set_optimizer(optimizer)
 
-optimized_estimators = compare_estimator_variances(
-    target_costs, estimators)
+optimized_estimators = compare_estimator_variances(target_costs, estimators)
 
 from pyapprox.multifidelity.visualize import (
-    plot_estimator_variances, plot_estimator_sample_allocation_comparison)
-fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
+    plot_estimator_variances,
+    plot_estimator_sample_allocation_comparison,
+)
+
+fig, axs = plt.subplots(1, 1, figsize=(1 * 8, 6))
 _ = plot_estimator_variances(
-    optimized_estimators, est_labels, axs,
-    relative_id=0, cost_normalization=1)
+    optimized_estimators, est_labels, axs, relative_id=0, cost_normalization=1
+)
 
-#%%
-#Now plot the number of samples allocated for each target cost
+# %%
+# Now plot the number of samples allocated for each target cost
 model_labels = [r"$M_{0}$".format(ii) for ii in range(cov.shape[0])]
-fig, axs = plt.subplots(1, 1, figsize=(1*8, 6))
-_= plot_estimator_sample_allocation_comparison(
-    optimized_estimators[-1], model_labels, axs)
+fig, axs = plt.subplots(1, 1, figsize=(1 * 8, 6))
+_ = plot_estimator_sample_allocation_comparison(
+    optimized_estimators[-1], model_labels, axs
+)
 
-#%%
-#References
-#^^^^^^^^^^
-#.. [SUSIAMUQ2020] `D. Schaden, E. Ullmann. On multilevel best linear unbiased estimators, SIAM/ASA J. Uncertainty Quantification 8 (2): 601 - 635, 2020. <https://doi.org/10.1137/19M1263534>`_
+# %%
+# References
+# ^^^^^^^^^^
+# .. [SUSIAMUQ2020] `D. Schaden, E. Ullmann. On multilevel best linear unbiased estimators, SIAM/ASA J. Uncertainty Quantification 8 (2): 601 - 635, 2020. <https://doi.org/10.1137/19M1263534>`_
 #
-#.. [SUSIAMUQ2021] `D. Schaden, E. Ullmann. Asymptotic Analysis of Multilevel Best Linear Unbiased Estimators. SIAM/ASA Journal on Uncertainty Quantification 9 (3):953-978, 2021. <https://doi.org/10.1137/20M1321607>`_
+# .. [SUSIAMUQ2021] `D. Schaden, E. Ullmann. Asymptotic Analysis of Multilevel Best Linear Unbiased Estimators. SIAM/ASA Journal on Uncertainty Quantification 9 (3):953-978, 2021. <https://doi.org/10.1137/20M1321607>`_
 #
-#.. [CWARXIV2023] `M. Croci, K. Willcox, S. Wright. Multi-output multilevel best linear unbiased estimators via semidefinite programming. (2023)  <https://doi.org/10.1016/j.cma.2023.116130>`_
+# .. [CWARXIV2023] `M. Croci, K. Willcox, S. Wright. Multi-output multilevel best linear unbiased estimators via semidefinite programming. (2023)  <https://doi.org/10.1016/j.cma.2023.116130>`_

@@ -31,7 +31,6 @@ First import the necessary modules and define the function we will approximate a
 .. math:: f(\rv) = \cos(\pi\rv_1)\cos(\pi\rv_2/2)
 """
 
-import copy
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
@@ -44,8 +43,6 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MaxLevelSparseGridSubSpaceAdmissibilityCriteria,
     TensorProductRefinementCriteria,
     LevelRefinementCriteria,
-    VarianceRefinementCriteria,
-    MaxNSamplesSparseGridSubspaceAdmissibilityCriteria,
 )
 from pyapprox.surrogates.bases.multiindex import (
     DoublePlusOneIndexGrowthRule,
@@ -57,7 +54,6 @@ from pyapprox.surrogates.bases.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
 from pyapprox.interface.model import ModelFromVectorizedCallable
-from pyapprox.benchmarks import GenzBenchmark
 
 variable = IndependentMarginalsVariable([stats.uniform(-1, 2)] * 2)
 

@@ -74,7 +74,7 @@ example_filenames_in_order = [
     "plot_gaussian_processes.py",
     "plot_gp_expdesign.py",
     # 'plot_integrated_surrogates.py',
-    # Multi-fidelity
+    # Multi-fidelity Stat Estimation
     "plot_monte_carlo.py",
     "plot_multioutput_monte_carlo.py",
     "plot_control_variate_monte_carlo.py",
@@ -89,6 +89,7 @@ example_filenames_in_order = [
     "plot_pilot_studies.py",
     "plot_ensemble_selection.py",
     "plot_multilevel_blue.py",
+    # Multi-fidelity Surrogates
     "plot_multiindex_collocation.py",
     "plot_multifidelity_gp.py",
     "plot_gaussian_mfnets.py",
@@ -170,7 +171,8 @@ sphinx_gallery_conf = {
             "../../tutorials/inference",
             "../../tutorials/expdesign",
             "../../tutorials/surrogates",
-            "../../tutorials/multi_fidelity",
+            "../../tutorials/multifidelity_stat_estimation",
+            "../../tutorials/multifidelity_surrogates",
             "../../tutorials/sciml",
             "../../examples/interface",
             "../../examples/analysis",

@@ -97,8 +97,8 @@ gp_vals, gp_std = gp.evaluate(validation_samples, return_std=True)
 plt.plot(validation_samples[0, :], gp_vals[:, 0], "b-", label="GP prior mean")
 _ = plt.fill_between(
     validation_samples[0, :],
-    gp_vals[:, 0] - 2 * gp_std,
-    gp_vals[:, 0] + 2 * gp_std,
+    gp_vals[:, 0] - 2 * gp_std[:, 0],
+    gp_vals[:, 0] + 2 * gp_std[:, 0],
     alpha=0.2,
     color="blue",
     label="GP prior uncertainty",

@@ -30,64 +30,73 @@ The following code demonstrates this observation for a simple 1D model with two 
 .. math:: f_\alpha = \cos(\pi (\rv+1)/2+\epsilon_\alpha)
 """
 
-import numpy as np
 from functools import partial
+
+import numpy as np
 from scipy import stats
-from pyapprox.variables.joint import IndependentMarginalsVariable
 import matplotlib.pyplot as plt
-from pyapprox.surrogates.approximate import adaptive_approximate
-from pyapprox.surrogates.interp.adaptive_sparse_grid import (
-    tensor_product_refinement_indicator,
-    isotropic_refinement_indicator,
-    variance_refinement_indicator,
+
+from pyapprox.interface.model import ModelFromVectorizedCallable
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.benchmarks import MultiLevelCosineBenchmark
+from pyapprox.surrogates.sparsegrids.combination import (
+    AdaptiveCombinationSparseGrid,
+    Max1DLevelSparseGridSubSpaceAdmissibilityCriteria,
+    MaxLevelSparseGridSubSpaceAdmissibilityCriteria,
+    TensorProductRefinementCriteria,
+    LevelRefinementCriteria,
+    MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid,
 )
-from pyapprox.variables.transforms import ConfigureVariableTransformation
-from pyapprox.interface.wrappers import MultiIndexModel
+from pyapprox.surrogates.bases.univariate.base import (
+    ClenshawCurtisQuadratureRule,
+)
+from pyapprox.surrogates.bases.univariate.lagrange import (
+    UnivariateLagrangeBasis,
+)
+from pyapprox.surrogates.bases.multiindex import (
+    DoublePlusOneIndexGrowthRule,
+)
 
-
-def fun(eps, zz):
-    return np.cos(np.pi * (zz[0] + 1) / 2 + eps)[:, None]
-
-
-funs = [partial(fun, 0.25), partial(fun, 0)]
+benchmark = MultiLevelCosineBenchmark()
 variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
-ranges = variable.get_statistics("interval", 1.0).flatten()
-zz = np.linspace(*ranges, 101)
-axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
+ranges = benchmark.variable().get_statistics("interval", 1.0).flatten()
+# Set the univariate quarature rules and bases
+quad_rule = ClenshawCurtisQuadratureRule(store=True, bounds=[-1, 1])
+# Set the univriate bases
+bases_1d = [
+    UnivariateLagrangeBasis(quad_rule, 3) for dim_id in range(variable.nvars())
+]
+growth_rule = DoublePlusOneIndexGrowthRule()
 
 
-def build_tp(fun, max_level_1d):
-    tp = adaptive_approximate(
-        fun,
-        variable,
-        "sparse_grid",
-        {
-            "refinement_indicator": tensor_product_refinement_indicator,
-            "max_level_1d": max_level_1d,
-            "univariate_quad_rule_info": None,
-        },
-    ).approx
+def build_tp(model, max_level_1d):
+    tp = AdaptiveCombinationSparseGrid(model.nqoi(), variable.nvars())
+    tp.setup(
+        Max1DLevelSparseGridSubSpaceAdmissibilityCriteria(max_level_1d),
+        TensorProductRefinementCriteria(),
+        bases_1d,
+        growth_rule,
+    )
+    tp.build(model)
     return tp
 
 
-lf_approx = build_tp(funs[0], 2)
-axs[0].plot(zz, funs[0](zz[None, :]), "k", label=r"$f_0$")
-axs[0].plot(zz, funs[1](zz[None, :]), "r", label=r"$f_1$")
-axs[0].plot(lf_approx.samples[0], lf_approx.values[:, 0], "ko")
-axs[0].plot(
-    zz, lf_approx(zz[None])[:, 0], "g:", label=r"$f_{0,\mathcal{I}_0}$"
-)
+model_0 = benchmark.models().get_model(np.array([0]))
+model_1 = benchmark.models().get_model(np.array([1]))
+model_2 = benchmark.models().get_model(np.array([2]))
+axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
+lf_approx = build_tp(model_0, 2)
+model_0.plot_surface(axs[0], ranges, "k", label=r"$f_0$")
+model_1.plot_surface(axs[0], ranges, "r", label=r"$f_1$")
+lf_approx.plot_surface(axs[0], ranges, "g:", label=r"$f_{0,\mathcal{I}_0}$")
+axs[0].plot(lf_approx.train_samples()[0], lf_approx.train_values()[:, 0], "ko")
 axs[0].legend(fontsize=18)
 
-hf_approx = build_tp(funs[1], 1)
-axs[1].plot(zz, funs[1](zz[None, :]), "r", label=r"$f_1$")
-axs[1].plot(hf_approx.samples[0], hf_approx.values[:, 0], "ro")
-axs[1].plot(
-    zz,
-    hf_approx(zz[None])[:, 0],
-    ":",
-    color="gray",
-    label=r"$f_{1,\mathcal{I}_1}$",
+hf_approx = build_tp(model_1, 1)
+model_1.plot_surface(axs[1], ranges, "r", label=r"$f_1$")
+axs[1].plot(hf_approx.train_samples()[0], hf_approx.train_values()[:, 0], "ro")
+hf_approx.plot_surface(
+    axs[1], ranges, ":", color="gray", label=r"$f_{1,\mathcal{I}_1}$"
 )
 axs[1].legend(fontsize=18)
 
@@ -96,23 +105,25 @@ def discrepancy_fun(fun1, fun0, zz):
     return fun1(zz) - fun0(zz)
 
 
-discp_approx = build_tp(partial(discrepancy_fun, funs[1], lf_approx), 1)
-axs[2].plot(zz, funs[1](zz[None, :]), "r", label=r"$f_1$")
-axs[2].plot(
-    zz,
-    funs[1](zz[None, :]) - funs[0](zz[None, :]),
-    "k",
-    label=r"$\delta=f_1-f_0$",
+discrapancy_model = ModelFromVectorizedCallable(
+    1, 1, partial(discrepancy_fun, model_1, model_0)
 )
-axs[2].plot(discp_approx.samples[0], discp_approx.values[:, 0], "ko")
+
+
+discp_approx = build_tp(discrapancy_model, 1)
+model_1.plot_surface(axs[2], ranges, "r", label=r"$f_1$")
+discrapancy_model.plot_surface(axs[2], ranges, "k", label=r"$\delta=f_1-f_0$")
 axs[2].plot(
-    zz, discp_approx(zz[None, :]), "g:", label=r"$\delta_{\mathcal{I}_1}$"
+    discp_approx.train_samples()[0], discp_approx.train_values()[:, 0], "ko"
 )
-axs[2].plot(
-    zz,
-    lf_approx(zz[None]) + discp_approx(zz[None, :]),
-    "b:",
-    label=r"$f_{0,\mathcal{I}_1}+\delta_{\mathcal{I}_1}$",
+discp_approx.plot_surface(
+    axs[2], ranges, "g:", label=r"$\delta_{\mathcal{I}_1}$"
+)
+additive_model = ModelFromVectorizedCallable(
+    1, 1, lambda x: lf_approx(x) + discp_approx(x)
+)
+additive_model.plot_surface(
+    axs[2], ranges, "b:", label=r"$f_{0,\mathcal{I}_1}+\delta_{\mathcal{I}_1}$"
 )
 [ax.set_xlabel(r"$z$") for ax in axs]
 _ = axs[2].legend(fontsize=18)
@@ -123,22 +134,10 @@ _ = axs[2].legend(fontsize=18)
 # %%
 # The following code plots different interpolations :math:`f_{\alpha,\beta}` of :math:`f_\alpha` for various :math:`\alpha` and number of interpolation points (controled by :math:`\beta`). Instead of building each interpolant with a custom function, we just build a multi-index sparse grid that uses a tensor-product refinement criterion to define the set :math:`\mathcal{I}=\{[\alpha,\beta]:\alpha \le l_0, \; \beta\le l_1\}`
 max_level = 2
-nvars = 1
-config_values = [np.asarray([0.25, 0])]
-# config_values = [np.asarray([0.25, 0.125, 0])]
-config_var_trans = ConfigureVariableTransformation(config_values)
-
-
-def setup_model(config_values):
-    eps = config_values[0]
-    return partial(fun, eps)
-
-
-mi_model = MultiIndexModel(setup_model, config_values)
 
 # cannot let max_level_1d for configure variables be larger
 # than number of configure variables
-max_level_1d = [max_level, len(config_values[0]) - 1]  # [l_0, l_1]
+max_level_1d = [max_level, 1]  # [l_0, l_1]
 
 fig, axs = plt.subplots(
     max_level_1d[1] + 1,
@@ -147,58 +146,47 @@ fig, axs = plt.subplots(
     sharey=True,
 )
 
-tp_approx = adaptive_approximate(
-    mi_model,
-    variable,
-    "sparse_grid",
-    {
-        "refinement_indicator": tensor_product_refinement_indicator,
-        "max_level_1d": max_level_1d,
-        "config_variables_idx": nvars,
-        "config_var_trans": config_var_trans,
-        "univariate_quad_rule_info": None,
-    },
-).approx
-
-from pyapprox.surrogates.interp.sparse_grid import (
-    get_subspace_values,
-    evaluate_sparse_grid_subspace,
+model_ensemble = benchmark.models()
+tp = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
+    benchmark.variable(),
+    benchmark.nqoi(),
+    benchmark.nrefinement_vars(),
+    benchmark.models()._index_bounds,
 )
+tp.setup(
+    Max1DLevelSparseGridSubSpaceAdmissibilityCriteria(max_level_1d),
+    TensorProductRefinementCriteria(),
+)
+tp.build(model_ensemble)
+
 
 fun_colors = ["r", "k", "cyan"]
 approx_colors = ["b", "g", "pink"]
-for ii, subspace_index in enumerate(tp_approx.subspace_indices.T):
-    subspace_values = get_subspace_values(
-        tp_approx.values, tp_approx.subspace_values_indices_list[ii]
-    )
+subspace_indices = tp._subspace_gen.get_indices()
+for ii, subspace_index in enumerate(subspace_indices.T):
     jj, kk = subspace_index
-    subspace_samples = tp_approx.samples_1d[0][jj]
     ax = axs[max_level_1d[1] - kk, jj]
-    ax.plot(subspace_samples, subspace_values, "o", color=fun_colors[kk])
     for ll in range(max_level_1d[1] + 1):
-        ax.plot(
-            zz,
-            mi_model._model_ensemble.functions[ll](zz[None, :]),
-            "-",
-            color=fun_colors[ll],
-            label=r"$f_{%d}$" % (jj),
+        model_ll = benchmark.models().get_model(np.array([ll]))
+        model_ll.plot_surface(
+            ax, ranges, "-", color=fun_colors[ll], label=r"$f_{%d}$" % (jj)
         )
-    subspace_approx_vals = evaluate_sparse_grid_subspace(
-        zz[None, :],
-        subspace_index,
-        subspace_values,
-        tp_approx.samples_1d,
-        tp_approx.config_variables_idx,
-    )
-    ax.plot(
-        zz,
-        subspace_approx_vals,
+    tp._subspace_surrogates[ii].plot_surface(
+        ax,
+        ranges,
         "--",
         color=approx_colors[kk],
         label=r"$f_{%d,%d}$" % (kk, jj),
     )
+    ax.plot(
+        tp._subspace_surrogates[ii].get_train_samples()[0],
+        tp._subspace_surrogates[ii].get_train_values(),
+        "o",
+        color=fun_colors[kk],
+    )
     ax.legend(fontsize=18)
 _ = [[ax.set_ylim([-1, 1]), ax.set_xlabel(r"$z$")] for ax in axs.flatten()]
+
 
 # %%
 # Multi-level Collocation
