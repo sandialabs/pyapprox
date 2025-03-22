@@ -404,7 +404,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         if not return_std:
             return canonical_trend, None
         canonical_std = self._bkd.sqrt(self._kernel.diag(samples))
-        return canonical_trend, canonical_std
+        return canonical_trend, canonical_std[:, None]
 
     def _evaluate_canonical_posterior(
         self, samples: Array, return_std: bool
@@ -422,7 +422,7 @@ class ExactGaussianProcess(OptimizedRegressor):
                 canonical_samples, kmat_pred
             )
         )
-        if canonical_pointwise_variance.min() < 0:
+        if canonical_pointwise_variance.min() < -2 * np.finfo(float).eps:
             msg = "Some pointwise variances were negative. The largest "
             msg += "magnitude of the negative values was {0}".format(
                 canonical_pointwise_variance.min()

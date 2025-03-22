@@ -144,7 +144,6 @@ class TestActiveLearning:
                 ]
             ),
         )
-        print(samples)
 
         sorted_samples = bkd.sort(samples)
         # samples should be symmetric
@@ -166,6 +165,9 @@ class TestActiveLearning:
         assert np.allclose(samples2, samples)
 
         nsamples = 11
+        ncandidates = 35
+        candidate_samples = bkd.linspace(-1, 1, ncandidates)[None, :]
+        init_pivots = bkd.array([ncandidates // 2], dtype=int)
         brute_sampler = BruteForceGreedyIntegratedVarianceSampler(variable)
         brute_sampler.set_gaussian_process(gp)
         brute_sampler.set_candidate_samples(candidate_samples)
@@ -176,12 +178,10 @@ class TestActiveLearning:
         sampler.set_initial_pivots(init_pivots)
         brute_samples = brute_sampler(nsamples)
         samples = sampler(nsamples)
-        print(brute_samples)
-        print(samples)
-        print(brute_samples - samples, "d")
-        assert bkd.allclose(samples, brute_samples)
-
-        raise NotImplementedError("Implement and tests economical update")
+        # sort samples because there are small variations in priotities
+        # of approximately machine precision between two methods that causes
+        # syymetric points to be chosen in different order
+        assert bkd.allclose(bkd.sort(samples), bkd.sort(brute_samples))
 
     def test_adaptive_gaussian_process(self):
         bkd = self.get_backend()

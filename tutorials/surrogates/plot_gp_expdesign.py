@@ -19,75 +19,70 @@ from a set of candidate samples :math:`\mathcal{Z}_\mathrm{cand}`. Because the a
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
+
 from pyapprox.surrogates.kernels.kernels import MaternKernel
-from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-    IVARSampler,
+from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
+from pyapprox.surrogates.autogp.activelearning import (
     GreedyIntegratedVarianceSampler,
+    BruteForceGreedyIntegratedVarianceSampler,
     CholeskySampler,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable, stats
 
+nvars = 1
 variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
+
 ncandidate_samples = 101
-sampler = GreedyIntegratedVarianceSampler(
-    1,
-    100,
-    ncandidate_samples,
-    variable.rvs,
-    variable,
-    use_gauss_quadrature=True,
-    econ=False,
-    candidate_samples=np.linspace(
-        *variable.get_statistics("interval", 1)[0, :], 101
-    )[None, :],
+sampler = BruteForceGreedyIntegratedVarianceSampler(
+    variable, nquad_nodes_1d=[100], nugget=1e-8
 )
+kernel = MaternKernel(np.inf, 0.5, (0.1, 1), fixed=True, nvars=nvars)
+gp = ExactGaussianProcess(nvars, kernel)
+sampler.set_gaussian_process(gp)
+ncandidates = 101
+candidate_samples = np.linspace(-1, 1, ncandidates)[None, :]
+sampler.set_candidate_samples(candidate_samples)
+init_pivots = np.array([ncandidates // 2], dtype=int)
+sampler.set_initial_pivots(init_pivots)
 
-kernel = MaternKernel(np.inf, 0.5, (0.1, 1), fixed=True, nvars=1)
-sampler.set_kernel(kernel)
 
-
-def plot_gp_samples(ntrain_samples, kernel, variable):
+def plot_gp_samples(sampler, ntrain_samples, kernel, variable):
     axs = plt.subplots(1, ntrain_samples, figsize=(ntrain_samples * 8, 6))[1]
-    gp = gps.GaussianProcess(kernel)
+    gp = ExactGaussianProcess(nvars, kernel)
     for ii in range(1, ntrain_samples + 1):
         gp.plot_1d(
-            101, variable.get_statistics("interval", 1)[0, :], ax=axs[ii - 1]
+            axs[ii - 1],
+            variable.get_statistics("interval", 1)[0, :],
+            npts_1d=101,
         )
 
-    train_samples = sampler(ntrain_samples)[0]
-    train_values = func(train_samples) * 0
+    train_samples = sampler(ntrain_samples)
+    # set train values to zero to make difference in GP variance clearer
+    train_values = np.zeros((ntrain_samples, 1))
     for ii in range(1, ntrain_samples + 1):
         gp.fit(train_samples[:, :ii], train_values[:ii])
         gp.plot_1d(
-            101, variable.get_statistics("interval", 1)[0, :], ax=axs[ii - 1]
+            axs[ii - 1],
+            variable.get_statistics("interval", 1)[0, :],
+            npts_1d=101,
         )
         axs[ii - 1].plot(
-            train_samples[0, :ii], train_values[:ii, 0], "ko", ms=15
+            train_samples[0, : ii - 1], train_values[: ii - 1, 0], "ko", ms=15
+        )
+        axs[ii - 1].plot(
+            train_samples[0, ii - 1 : ii],
+            train_values[ii - 1 : ii, 0],
+            "rs",
+            ms=15,
         )
 
 
 ntrain_samples = 5
-plot_gp_samples(ntrain_samples, kernel, variable)
+plot_gp_samples(sampler, ntrain_samples, kernel, variable)
 
 # %%
-# The following plots the variance obtained by a global optimiaztion of IVAR,
-# starting from the greedy IVAR samples as the intial guess. The samples are plotted sequentially, however this is just for visualization as the global optimization does not produce a nested sequence of samples.
-sampler = IVARSampler(
-    1,
-    100,
-    ncandidate_samples,
-    variable.rvs,
-    variable,
-    "ivar",
-    use_gauss_quadrature=True,
-    nugget=1e-14,
-)
-sampler.set_kernel(kernel)
-ntrain_samples = 5
-plot_gp_samples(ntrain_samples, kernel, variable)
-
-# %%
-# Computing IVAR designs can be computationally expensive. An alternative cheaper algorithm called active learning Mckay (ALM) greedily chooses samples that minimizes the maximum variance of the Gaussian process. That is, given M training samples the next sample is chosen via
+# As an alternative to integrated variance sampling, active learning Mckay (ALM) greedily chooses samples that minimizes the maximum variance of the Gaussian process. That is, given M training samples the next sample is chosen via
 #
 # .. math:: \rv^{(n+1)}=\argmax_{\mathcal{Z}\subset\Omega\subset\rvdom} C^\star(\rv, \rv\mid \mathcal{Z}_M)
 #
@@ -100,20 +95,22 @@ plot_gp_samples(ntrain_samples, kernel, variable)
 # Finally we remark that while ALM and ALC are the most popular experimental design strategies for GPs, alternative methods have been proposed. Of note are those methods which approximately minimize the mutual information between the Gaussian process evaluated at the training data and the Gaussian process evaluated at the remaining candidate samples [KSG2008]_, [BG2016]_. We do not consider these methods in our numerical comparisons.
 #
 # The following code shows how to use pivoted Cholesky factorization to greedily choose trainig samples for a GP.
-sampler = CholeskySampler(1, 100, variable)
-sampler.set_kernel(kernel)
+kernel = MaternKernel(np.inf, 0.5, (0.1, 1), fixed=True, nvars=nvars)
+gp = ExactGaussianProcess(nvars, kernel)
+sampler = CholeskySampler(variable)
+sampler.set_gaussian_process(gp)
+ncandidate_samples = 101
+candidate_samples = np.linspace(-1, 1, ncandidates)[None, :]
+sampler.set_candidate_samples(candidate_samples)
+init_pivots = np.array([ncandidates // 2], dtype=int)
+sampler.set_initial_pivots(init_pivots)
 ntrain_samples = 5
-plot_gp_samples(ntrain_samples, kernel, variable)
+plot_gp_samples(sampler, ntrain_samples, kernel, variable)
 
 # %%
 # Active Learning
 # ---------------
 # The samples selected by the aforementioned methods depends on the kernel specified. Change the length_scale of the kernel above to see how the selected samples changes. Active learning chooses a small initial sample set then trains the GP to learn the best kernel hyper-parameters. These parameters are then used to increment the training set and then used to train the GP hyper-parameters again and so until a sufficient accuracy or computational budget is reached. PyApprox's AdaptiveGaussianProcess implements this procedure [HJZ2021]_.
-
-# %%
-# Constrained Gaussian processes
-# ------------------------------
-# For certain application is it desirable for GPs to satisfy certain properties, e.g. positivity or monotonicity. See [SGFSJ2020]_ for a review of methods to construct constrained GPs.
 
 # %%
 # References
@@ -123,8 +120,6 @@ plot_gp_samples(ntrain_samples, kernel, variable)
 # .. [SWMW1989] `J. Sacks, W.J. Welch, T.J.Mitchell, H.P. Wynn Designs and analysis of computer experiments (with discussion). Statistical Science, 4:409-435 (1989) <http://www.jstor.org/stable/2245858>`_
 #
 # .. [HJZ2021] `H. Harbrecht, J.D. Jakeman, P. Zaspel. Cholesky-based experimental design for Gaussian process and kernel-based emulation and calibration . Communications in Computational Physics (2021) In press <https://edoc.unibas.ch/79042/>`_
-#
-# .. [SGFSJ2020] `L.P. Swiler, M. Gulian, A. Frankel, C. Safta, J.D. Jakeman. A Survey of Constrained Gaussian Process Regression: Approaches and Implementation Challenges. Journal of Machine Learning for Modeling and Computing (2020) <http://www.dl.begellhouse.com/journals/558048804a15188a,2cbcbe11139f18e5,0776649265326db4.html>`_
 #
 # .. [GM2016] `A. Gorodetsky, Y. Marzouk. Mercer kernels and integrated variance experimental design. Connec- tions between Gaussian process regression and polynomial approximation. SIAM/ASA J. Uncertain. Quantif., 4(1):796–828 (2016) <https://doi.org/10.1137/15M1017119>`_
 #
