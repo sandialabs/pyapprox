@@ -46,6 +46,10 @@ from pyapprox.surrogates.sparsegrids.combination import (
     TensorProductRefinementCriteria,
     LevelRefinementCriteria,
     MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid,
+    MultipleSparseGridSubSpaceAdmissibilityCriteria,
+    MaxNSamplesSparseGridSubspaceAdmissibilityCriteria,
+    VarianceRefinementCriteria,
+    CostFunction,
 )
 from pyapprox.surrogates.bases.univariate.base import (
     ClenshawCurtisQuadratureRule,
@@ -200,29 +204,31 @@ _ = [[ax.set_ylim([-1, 1]), ax.set_xlabel(r"$z$")] for ax in axs.flatten()]
 #
 # A level-one isotropic collocation algorithm uses top-left, bottom-left and bottom middle interpolants in the previous plot, i.e. :math:`f_{1, 0}, f_{0, 0}, f_{0, 1}`, respectively. The level 2 approximation is plotted below. Note it is not a true isotropic grid because it cannot reach level 2 in the configuration variable which only uses two models. This is not true if more than 2 models are provided.
 
-mi_approx = adaptive_approximate(
-    mi_model,
-    variable,
-    "sparse_grid",
-    {
-        "refinement_indicator": isotropic_refinement_indicator,
-        "max_level_1d": max_level_1d,
-        "config_variables_idx": nvars,
-        "max_level": 2,
-        "config_var_trans": config_var_trans,
-        "univariate_quad_rule_info": None,
-    },
-).approx
+sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
+    benchmark.variable(),
+    benchmark.nqoi(),
+    benchmark.nrefinement_vars(),
+    benchmark.models()._index_bounds,
+)
+sg.setup(
+    MultipleSparseGridSubSpaceAdmissibilityCriteria(
+        [
+            Max1DLevelSparseGridSubSpaceAdmissibilityCriteria(max_level_1d),
+            MaxLevelSparseGridSubSpaceAdmissibilityCriteria(2, 1.0),
+        ]
+    ),
+    LevelRefinementCriteria(),
+)
+sg.build(model_ensemble)
+
 
 ax = plt.subplots(figsize=(8, 6))[1]
-ax.plot(zz, mi_approx(zz[None]), "--", label=r"$f_\mathcal{I}$")
+sg.plot_surface(ax, ranges, "--", label=r"$f_\mathcal{I}$")
+print(max_level_1d)
 for ll in range(max_level_1d[1] + 1):
-    ax.plot(
-        zz,
-        mi_model._model_ensemble.functions[ll](zz[None, :]),
-        "-",
-        color=fun_colors[ll],
-        label=r"$f_{%d}$" % (jj),
+    model_ll = benchmark.models().get_model(np.array([ll]))
+    model_ll.plot_surface(
+        ax, ranges, "-", color=fun_colors[ll], label=r"$f_{%d}$" % (ll)
     )
 ax.legend()
 _ = ax.set_xlabel(r"$z$")
@@ -236,90 +242,102 @@ _ = ax.set_xlabel(r"$z$")
 # The the algorithm that adapts the sparse grid index set :math:`\mathcal{I}` to the importance of each variable be modified for use with multi-index collocation [JEGG2019]_. The algorithm is highly effective as it balances the interpolation error due to using a finite number of training points with the cost of evaluating the models of varying accuracy.
 #
 # Lets build a multi-level sparse grid
-import copy
-from pyapprox.surrogates.interp.adaptive_sparse_grid import (
-    plot_adaptive_sparse_grid_2d,
-)
-from pyapprox.util.visualization import get_meshgrid_function_data
-
-config_values = [np.asarray([0.25, 0.125, 0])]
-config_var_trans = ConfigureVariableTransformation(config_values)
-mi_model = MultiIndexModel(setup_model, config_values)
-
 # The sparse grid uses the wall time of the model execution as a cost function by default, but here we will use a custom cost function because all models are trivial to evaluate.
 
 
-def cost_function(config_sample):
-    canonical_config_sample = config_var_trans.map_to_canonical(config_sample)
-    return (1 + canonical_config_sample[0]) ** 2
+class CustomCostFunction(CostFunction):
+    def __call__(self, subspace_index):
+        model_id = subspace_index[-1]
+        return (1 + model_id) ** 2
+
+
+import copy
 
 
 class AdaptiveCallback:
     def __init__(self, validation_samples, validation_values):
-        self.validation_samples = validation_samples
-        self.validation_values = validation_values
+        self._validation_samples = validation_samples
+        self._validation_values = validation_values
 
-        self.nsamples = []
-        self.errors = []
-        self.sparse_grids = []
+        self._nsamples = []
+        self._errors = []
+        self._sparse_grids = []
 
     def __call__(self, approx):
-        self.nsamples.append(approx.samples.shape[1])
-        approx_values = approx.evaluate_using_all_data(self.validation_samples)
-        error = (
-            np.linalg.norm(self.validation_values - approx_values)
-            / self.validation_samples.shape[1]
+        self._nsamples.append(approx.train_samples().shape[1])
+        approx_values = approx.values_using_all_subspaces(
+            self._validation_samples
         )
-        self.errors.append(error)
-        self.sparse_grids.append(copy.deepcopy(approx))
+        error = (
+            np.linalg.norm(self._validation_values - approx_values)
+            / self._validation_samples.shape[1]
+        )
+        self._errors.append(error)
+        self._sparse_grids.append(copy.deepcopy(approx))
+
+    def errors(self):
+        return self._errors
+
+    def nsamples(self):
+        return self._nsamples
+
+    def sparse_grids(self):
+        return self._sparse_grids
 
 
 validation_samples = variable.rvs(100)
-validation_values = mi_model._model_ensemble.functions[-1](validation_samples)
+validation_values = model_ensemble.highest_fidelity_model()(validation_samples)
 adaptive_callback = AdaptiveCallback(validation_samples, validation_values)
-sg = adaptive_approximate(
-    mi_model,
-    variable,
-    "sparse_grid",
-    {
-        "refinement_indicator": variance_refinement_indicator,
-        "max_level_1d": [10, len(config_values[0]) - 1],
-        "univariate_quad_rule_info": None,
-        "max_level": np.inf,
-        "max_nsamples": 80,
-        "config_variables_idx": nvars,
-        "config_var_trans": config_var_trans,
-        "cost_function": cost_function,
-        "callback": adaptive_callback,
-    },
-).approx
-
-from pyapprox.interface.wrappers import SingleFidelityWrapper
-
-hf_model = SingleFidelityWrapper(mi_model, config_values[0][2:3])
-mf_model = SingleFidelityWrapper(mi_model, config_values[0][1:2])
-lf_model = SingleFidelityWrapper(mi_model, config_values[0][:1])
+sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
+    benchmark.variable(),
+    benchmark.nqoi(),
+    benchmark.nrefinement_vars(),
+    benchmark.models()._index_bounds,
+)
+sg.setup(
+    MultipleSparseGridSubSpaceAdmissibilityCriteria(
+        [
+            Max1DLevelSparseGridSubSpaceAdmissibilityCriteria([10, 2]),
+            MaxNSamplesSparseGridSubspaceAdmissibilityCriteria(20),  # 80
+        ]
+    ),
+    VarianceRefinementCriteria(CustomCostFunction()),
+)
+while sg.step(model_ensemble):
+    adaptive_callback(sg)
+adaptive_callback(sg)
+# todo activate cost function
 
 # %%
 # Now plot the adaptive algorithm
 fig, axs = plt.subplots(1, 3, sharey=False, figsize=(3 * 8, 6))
-plot_xx = np.linspace(-1, 1, 101)
 
 
 def animate(ii):
     [ax.clear() for ax in axs]
-    sg = adaptive_callback.sparse_grids[ii]
-    plot_adaptive_sparse_grid_2d(sg, axs=axs[:2])
+    sg = adaptive_callback.sparse_grids()[ii]
+    sel_samples = sg.selected_train_samples()
+    cand_samples = sg.candidate_train_samples()
+    axs[1].plot(*sel_samples, "ko", ms=20)
+    axs[1].plot(*cand_samples, "rX", ms=20)
+    # axs[1].plot(*sg.train_samples(), "o")
+    sg._subspace_gen.plot_indices(axs[0])
+    sg.plot_surface(axs[2], ranges, ls="--", color="b", label=r"$f_{I}(z_1)$")
     axs[0].set_xlim([0, 10])
-    axs[0].set_ylim([0, len(config_values[0]) - 1])
-    axs[1].set_ylim([0, len(config_values[0]) - 1])
+    axs[0].set_ylim([0, 2])
+    axs[1].set_ylim([0, 2])
     axs[1].set_ylabel(r"$\alpha_1$")
-    axs[2].plot(plot_xx, lf_model(plot_xx[None, :]), "r", label=r"$f_0(z_1)$")
-    axs[2].plot(plot_xx, mf_model(plot_xx[None, :]), "g", label=r"$f_1(z_1)$")
-    axs[2].plot(plot_xx, hf_model(plot_xx[None, :]), "k", label=r"$f_2(z_1)$")
-    axs[2].plot(plot_xx, sg(plot_xx[None, :]), "--b", label=r"$f_{I}(z_1)$")
+    model_0.plot_surface(axs[2], ranges, color="r", label=r"$f_0(z_1)$")
+    model_1.plot_surface(axs[2], ranges, color="g", label=r"$f_1(z_1)$")
+    model_2.plot_surface(axs[2], ranges, color="k", label=r"$f_2(z_1)$")
     axs[2].set_xlabel(r"$z_1$")
     axs[2].legend(fontsize=18)
+
+
+# animate(0)
+# plt.show()
+# animate(1)
+# assert False
 
 
 import matplotlib.animation as animation
@@ -328,7 +346,7 @@ ani = animation.FuncAnimation(
     fig,
     animate,
     interval=500,
-    frames=len(adaptive_callback.sparse_grids),
+    frames=len(adaptive_callback.sparse_grids()),
     repeat_delay=1000,
 )
 ani.save("adaptive_misc.gif", dpi=100)

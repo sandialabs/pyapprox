@@ -145,6 +145,7 @@ class CombinationSparseGrid(Regressor):
         # TODO: Move queue to subspace_gen
         self._cand_subspace_queue = None
         self._subspace_errors = []
+        self._nunique_subspace_samples = []
 
     def _set_basis_index_generator(self, growth_rules: List[IndexGrowthRule]):
         self._basis_gen = BasisIndexGenerator(
@@ -202,6 +203,9 @@ class CombinationSparseGrid(Regressor):
         for subspace_index in subspace_indices.T:
             subspace_unique_samples = self._setup_tensor_product_interpolant(
                 subspace_index, is_cand_subspace
+            )
+            self._nunique_subspace_samples.append(
+                subspace_unique_samples.shape[1]
             )
             unique_samples.append(subspace_unique_samples)
         self._subspace_errors += [
@@ -303,14 +307,18 @@ class CombinationSparseGrid(Regressor):
         ax.plot(self.train_samples()[0], self.train_samples()[0] * 0, "o")
 
     def _plot_grid_2d(self, ax):
-        ax.plot(*self.train_samples(), "o")
+        ax.plot(*self.selected_train_samples(), "o")
+        if self._subspace_gen.ncandidate_indices() > 0:
+            ax.plot(*self.candidate_train_samples(), "X")
 
     def _plot_grid_3d(self, ax):
         if not isinstance(ax, Axes3D):
             raise ValueError(
                 "ax must be an instance of  mpl_toolkits.mplot3d.Axes3D"
             )
-        ax.plot(*self.train_samples(), "o")
+        ax.plot(*self.selected_train_samples(), "o")
+        if self._subspace_gen.ncandidate_indices() > 0:
+            ax.plot(*self.candidate_train_samples(), "X")
 
     def plot_grid(self, ax):
         if self.nvars() > 3:
@@ -442,6 +450,12 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid):
             ]
             self._subspace_surrogates[subspace_idx].fit(subspace_values)
             self._set_smolyak_coefficients()
+
+    def candidate_train_samples(self) -> Array:
+        return self._bkd.zeros((self.nvars(), 0))
+
+    def selected_train_samples(self) -> Array:
+        return self.get_train_samples()
 
 
 class Max1DLevelSparseGridSubSpaceAdmissibilityCriteria(
@@ -581,17 +595,34 @@ class MaxCostSparseGridBasisAdmissibilityCriteria(
         )
 
 
+class CostFunction:
+    def set_nrefinement_vars(self, nrefinement_vars: int):
+        self._nrefinement_vars = nrefinement_vars
+
+    def __call__(self, subspace_index: Array):
+        return 1
+
+
 class RefinementCriteria(ABC):
-    def __init__(self):
+    def __init__(self, cost_function: CostFunction = None):
         self._sg = None
         self._bkd = None
+        if cost_function is not None:
+            if not isinstance(cost_function, CostFunction):
+                raise ValueError(
+                    "cost_function must be an instance of CostFunction"
+                )
+        else:
+            cost_function = CostFunction()
+        self._cost_function = cost_function
 
     def set_sparse_grid(self, sg: CombinationSparseGrid):
         self._sg = sg
         self._bkd = self._sg._bkd
+        self._cost_function.set_nrefinement_vars(self._sg.nrefinement_vars())
 
     def cost_per_sample(self, subspace_index: Array) -> float:
-        return 1
+        return self._cost_function(subspace_index)
 
     def cost(self, subspace_index: Array) -> float:
         """Computational cost of collecting the unique training data."""
@@ -609,7 +640,7 @@ class RefinementCriteria(ABC):
         # divide priority by cost so to choose subspaces
         # that require smaller training data collection costs first
         error, priority = self._priority(subspace_index)
-        priority /= self.cost_per_sample(subspace_index)
+        priority /= self.cost(subspace_index)
         return error, priority
 
     def __repr__(self):
@@ -911,6 +942,44 @@ class AdaptiveCombinationSparseGrid(
         )
         self.set_refinement_criteria(refinement_criteria)
         self.set_initial_subspace_indices()
+
+    def candidate_train_samples(self) -> Array:
+        if self._subspace_gen.ncandidate_indices() == 0:
+            return self._bkd.zeros((self.nvars(), 0))
+        train_samples = []
+        for subspace_index in self._subspace_gen.get_indices().T:
+            subspace_key = self._subspace_gen._hash_index(subspace_index)
+            if subspace_key not in self._subspace_gen._cand_indices_dict:
+                continue
+            subspace_idx = self._subspace_gen._cand_indices_dict[subspace_key]
+            idx = self._basis_gen._unique_subspace_basis_idx[subspace_idx]
+            train_samples.append(
+                self._add_refinement_id(
+                    subspace_index,
+                    self._subspace_surrogates[
+                        subspace_idx
+                    ].get_train_samples()[:, idx],
+                )
+            )
+        return self._bkd.hstack(train_samples)
+
+    def selected_train_samples(self) -> Array:
+        train_samples = []
+        for subspace_index in self._subspace_gen.get_indices().T:
+            subspace_key = self._subspace_gen._hash_index(subspace_index)
+            if subspace_key not in self._subspace_gen._sel_indices_dict:
+                continue
+            subspace_idx = self._subspace_gen._sel_indices_dict[subspace_key]
+            idx = self._basis_gen._unique_subspace_basis_idx[subspace_idx]
+            train_samples.append(
+                self._add_refinement_id(
+                    subspace_index,
+                    self._subspace_surrogates[
+                        subspace_idx
+                    ].get_train_samples()[:, idx],
+                )
+            )
+        return self._bkd.hstack(train_samples)
 
 
 class LocalIndexGenerator(BasisIndexGenerator):

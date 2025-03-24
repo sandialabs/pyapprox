@@ -139,15 +139,18 @@ To obtain the solution to the wave equation we must apply the inverse fourier tr
 
 
 """
+
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.surrogates.bases.orthopoly import GaussLegendreQuadratureRule
+from pyapprox.surrogates.bases.univariate.orthopoly import (
+    GaussLegendreQuadratureRule,
+)
 from pyapprox.sciml.util import NumpyLinAlgMixin
 
 
 def _greens_function(k, L, X, Y):
-    return np.sin(k*(X.T-L))*np.sin(k*Y)/(k*np.sin(k*L))
+    return np.sin(k * (X.T - L)) * np.sin(k * Y) / (k * np.sin(k * L))
 
 
 def greens_function(k, L, X, Y):
@@ -163,25 +166,27 @@ def greens_function(k, L, X, Y):
 def greens_function_series(nterms, k, L, X, Y):
     series_sum = 0
     for nn in range(nterms):
-        series_sum += (np.sin(nn*np.pi*X.T/L)*np.sin(nn*np.pi*Y/L) /
-                       (k**2-(nn*np.pi/L)**2))
-    return 2/L*series_sum
+        series_sum += (
+            np.sin(nn * np.pi * X.T / L)
+            * np.sin(nn * np.pi * Y / L)
+            / (k**2 - (nn * np.pi / L) ** 2)
+        )
+    return 2 / L * series_sum
 
 
 def greens_solution(quad_rule, kernel, forc, xx):
     quad_xx, quad_ww = quad_rule()
-    return (kernel(xx, quad_xx)*forc(quad_xx)[:, 0] @
-            quad_ww)
+    return kernel(xx, quad_xx) * forc(quad_xx)[:, 0] @ quad_ww
 
 
 L = 1
 wave_number = 10
 # x_freq must be a integer multiple of np.pi otherwise BC will be violated
-x_freq = 2*np.pi
-t_freq = 3*np.pi
+x_freq = 2 * np.pi
+t_freq = 3 * np.pi
 plot_xx = np.linspace(0, L, 101)[None, :]
 
-axs = plt.subplots(1, 3, figsize=(3*8, 6))[1]
+axs = plt.subplots(1, 3, figsize=(3 * 8, 6))[1]
 X, Y = np.meshgrid(plot_xx[0], plot_xx[0])
 G = greens_function(wave_number, L, plot_xx, plot_xx)
 greens_plot = axs[0].imshow(G, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
@@ -215,57 +220,70 @@ greens_plot = axs[0].imshow(G, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
 
 
 def exact_wave_sol(k, a, w0, time, xx):
-    return np.sin(a*xx.T)*np.cos(w0*time)
+    return np.sin(a * xx.T) * np.cos(w0 * time)
 
 
 def wave_forcing_const(k, a, w0):
-    return a**2*w0**2/k**2-w0**2
+    return a**2 * w0**2 / k**2 - w0**2
 
 
 def wave_forcing_fun(k, a, w0, time, xx):
     const = wave_forcing_const(k, a, w0)
-    return const*np.sin(a*xx.T)*np.cos(w0*time)
+    return const * np.sin(a * xx.T) * np.cos(w0 * time)
 
 
 def helmholtz_forcing_const(a, k):
-    return np.sqrt(np.pi/2)*(a**2-k**2)
+    return np.sqrt(np.pi / 2) * (a**2 - k**2)
 
 
 def exact_helmholtz_sol(k, a, w0, xx):
-    const = np.sqrt(np.pi/2)
-    return -const*(-np.sin(a*xx.T) + 1/np.sin(k)*np.sin(a)*np.sin(k*xx.T))
+    const = np.sqrt(np.pi / 2)
+    return -const * (
+        -np.sin(a * xx.T) + 1 / np.sin(k) * np.sin(a) * np.sin(k * xx.T)
+    )
 
 
 def helmholtz_forcing_fun(k, a, w0, xx):
     const = helmholtz_forcing_const(k, a)
-    return const*np.sin(a*xx.T)
+    return const * np.sin(a * xx.T)
 
-quad_rule = GaussLegendreQuadratureRule(bounds=[0, L],
-                                        backend=NumpyLinAlgMixin)
+
+quad_rule = GaussLegendreQuadratureRule(
+    bounds=[0, L], backend=NumpyLinAlgMixin
+)
 quad_rule.set_nnodes(100)
 axs[1].plot(
-   plot_xx[0],
-   exact_helmholtz_sol(wave_number, x_freq, t_freq, plot_xx),
-   label="Exact Helmholtz Solution")
+    plot_xx[0],
+    exact_helmholtz_sol(wave_number, x_freq, t_freq, plot_xx),
+    label="Exact Helmholtz Solution",
+)
 sol_plot = axs[1].plot(
     plot_xx[0],
     greens_solution(
         quad_rule,
         lambda X, Y: greens_function(wave_number, L, X, Y),
         lambda xx: helmholtz_forcing_fun(wave_number, x_freq, t_freq, xx),
-        plot_xx), '--', label="Greens Helmholtz Solution")
+        plot_xx,
+    ),
+    "--",
+    label="Greens Helmholtz Solution",
+)
 # axs[1].plot(plot_xx[0], forcing_fun(wave_number, freq, plot_xx))
 axs[1].legend()
 
-time = 3/4
+time = 3 / 4
 axs[2].plot(
     plot_xx[0],
     exact_wave_sol(wave_number, x_freq, t_freq, time, plot_xx),
-    '-', label="Wave Exact Solution")
-const = 2/np.sqrt(2*np.pi)*np.cos(t_freq*time)
+    "-",
+    label="Wave Exact Solution",
+)
+const = 2 / np.sqrt(2 * np.pi) * np.cos(t_freq * time)
 axs[2].plot(
     plot_xx[0],
-    exact_helmholtz_sol(wave_number, x_freq, t_freq, plot_xx)*const,
-    '--', label="Fourier Transform Solution")
+    exact_helmholtz_sol(wave_number, x_freq, t_freq, plot_xx) * const,
+    "--",
+    label="Fourier Transform Solution",
+)
 axs[2].legend()
 plt.show()

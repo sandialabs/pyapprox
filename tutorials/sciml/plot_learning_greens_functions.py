@@ -42,23 +42,33 @@ The following code computes the solution to the Laplace equation by using the
 trapezoid rule to compute the integral of the Green's function with the forcing
 function and compares the result against the exact solution.
 """
+
 from functools import partial
 import matplotlib.pyplot as plt
 
 from pyapprox.util.hyperparameter import LogHyperParameterTransform
 from pyapprox.util.transforms import UnivariateBoundedAffineTransform
 
-from pyapprox.surrogates.bases.orthopoly import (
-    GaussLegendreQuadratureRule, LegendrePolynomial1D)
+from pyapprox.surrogates.bases.univariate.orthopoly import (
+    GaussLegendreQuadratureRule,
+    LegendrePolynomial1D,
+)
 from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.kernels.kernels import (
-    ConstantKernel, MaternKernel, HilbertSchmidtKernel)
+    ConstantKernel,
+    MaternKernel,
+    HilbertSchmidtKernel,
+)
 from pyapprox.surrogates.kernels.greensfunctions import (
-    HomogeneousLaplace1DGreensKernel)
+    HomogeneousLaplace1DGreensKernel,
+)
 
 from pyapprox.sciml.integraloperators import (
-    KernelIntegralOperator, ChebyshevIntegralOperator,
-    DenseAffineIntegralOperator, FourierHSOperator)
+    KernelIntegralOperator,
+    ChebyshevIntegralOperator,
+    DenseAffineIntegralOperator,
+    FourierHSOperator,
+)
 from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.activations import TanhActivation, IdentityActivation
 from pyapprox.sciml.util import TorchLinAlgMixin, FCT
@@ -72,30 +82,32 @@ nquad = 100
 greens_fun = HomogeneousLaplace1DGreensKernel(kappa, [1e-3, 1], backend=bkd)
 # TODO currently quadrature rules defined on [0, 1] need to pass
 # a transform that defines them on a user specified domain
-quad_rule = GaussLegendreQuadratureRule(bounds=[0., 1.],
-                                        backend=bkd)
+quad_rule = GaussLegendreQuadratureRule(bounds=[0.0, 1.0], backend=bkd)
 quad_rule.set_nnodes(nquad)
 
 
 def forc_fun(xx):
-    return (-19.2*xx**4*(1 - xx)**2 + 51.2*xx**3*(1 - xx)**3 -
-            19.2*xx**2*(1 - xx)**4).T
+    return (
+        -19.2 * xx**4 * (1 - xx) ** 2
+        + 51.2 * xx**3 * (1 - xx) ** 3
+        - 19.2 * xx**2 * (1 - xx) ** 4
+    ).T
 
 
 def exact_solution(xx):
-    return (16*xx**4*(1 - xx)**4).T
+    return (16 * xx**4 * (1 - xx) ** 4).T
 
 
 def greens_solution(kernel, forc, xx):
     quad_xx, quad_ww = quad_rule()
-    return kernel(xx, quad_xx)*forc(quad_xx)[:, 0] @ quad_ww
+    return kernel(xx, quad_xx) * forc(quad_xx)[:, 0] @ quad_ww
 
 
 plot_xx = bkd.linspace(0, 1, 101)[None, :]
 green_sol = greens_solution(greens_fun, forc_fun, plot_xx)
 ax = plt.figure().gca()
 ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
-ax.plot(plot_xx[0], green_sol, '--', label=r"$u_G(x)$")
+ax.plot(plot_xx[0], green_sol, "--", label=r"$u_G(x)$")
 ax.plot(plot_xx[0], forc_fun(plot_xx), label=r"$f(x)=-\kappa\nabla^2 u(x)$")
 ax.legend()
 plt.show()
@@ -121,21 +133,22 @@ plt.show()
 # Now plot the linear integral operator (not CERTANN) with fixed kernel
 # hyper-parameters (the weights of the terms in the Hilbert-Schmidt sum)
 nterms = 25
-trans = UnivariateBoundedAffineTransform([0., 1.], backend=bkd)
-basis = OrthonormalPolynomialBasis([
-    LegendrePolynomial1D(trans=trans, backend=bkd)],
-    indices=bkd.arange(5, dtype=float)[None, :])
-hs_kernel = HilbertSchmidtKernel(basis, basis,
-                                 1/bkd.arange(1, nterms+1, dtype=float),
-                                 [1e-2, 1])
+trans = UnivariateBoundedAffineTransform([0.0, 1.0], backend=bkd)
+basis = OrthonormalPolynomialBasis(
+    [LegendrePolynomial1D(trans=trans, backend=bkd)],
+    indices=bkd.arange(5, dtype=float)[None, :],
+)
+hs_kernel = HilbertSchmidtKernel(
+    basis, basis, 1 / bkd.arange(1, nterms + 1, dtype=float), [1e-2, 1]
+)
 const_kernel = ConstantKernel(
-    10, [1e-2, 1e4], transform=LogHyperParameterTransform(),
-    backend=bkd)
-final_kernel = const_kernel*hs_kernel
+    10, [1e-2, 1e4], transform=LogHyperParameterTransform(), backend=bkd
+)
+final_kernel = const_kernel * hs_kernel
 green_sol_hs = greens_solution(final_kernel, forc_fun, plot_xx)
 ax = plt.figure().gca()
 ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
-ax.plot(plot_xx[0], green_sol_hs, '--', label=r"$u_{HS}(x)$")
+ax.plot(plot_xx[0], green_sol_hs, "--", label=r"$u_{HS}(x)$")
 ax.legend()
 plt.show()
 
@@ -145,8 +158,7 @@ plt.show()
 ax = plt.figure().gca()
 X, Y = bkd.meshgrid(plot_xx[0], plot_xx[0])
 Z = final_kernel(plot_xx, plot_xx)
-im = ax.imshow(
-    Z, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
+im = ax.imshow(Z, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
 plt.colorbar(im, ax=ax)
 plt.show()
 
@@ -160,8 +172,9 @@ nfterms = 4  # the number of unknown coefficients parameterizing the forcing
 
 
 def parameterized_forc_fun(coef, xx):
-    return ((xx.T**bkd.arange(
-                len(coef), dtype=float)[None, :]) @ coef)[:, None]
+    return ((xx.T ** bkd.arange(len(coef), dtype=float)[None, :]) @ coef)[
+        :, None
+    ]
     # coef = coef.reshape(coef.shape[0]//2, 2)
     # return np.hstack([np.cos(2*c[0]*np.pi*xx.T+c[1])
     #                  for c in coef]).sum(axis=1)[:, None]
@@ -176,12 +189,14 @@ abscissa = bkd.linspace(0, 1, ninputs)[None, :]
 noutputs = abscissa.shape[1]
 train_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
 train_forc_funs = [
-    partial(parameterized_forc_fun, coef) for coef in train_coef.T]
+    partial(parameterized_forc_fun, coef) for coef in train_coef.T
+]
 # The training samples shape is (ninputs, nntrain_samples)
 train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
 # The training samples shape is (nntrain_samples, noutputs)
 train_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs]
+)
 
 
 # Set the number of CERTANN layers
@@ -189,30 +204,35 @@ nlayers = 2
 # Set the matern smoothness parameter of the first kernel
 nu = bkd.inf()
 # Set the kernels for each layer
-kernels = [MaternKernel(nu, [0.1], [1e-5, 1], nphys_vars, backend=bkd)
-           for ii in range(nlayers-1)]+[final_kernel]
+kernels = [
+    MaternKernel(nu, [0.1], [1e-5, 1], nphys_vars, backend=bkd)
+    for ii in range(nlayers - 1)
+] + [final_kernel]
 
 # Use Gauss-Legendre Quadrature
 # Set the quadrature rules for each layer. Note Last quad rule is only
 # used to set the locations X of the kernel(X,Y) in the final integral operator
-quad_rules = (nlayers+1)*[GaussLegendreQuadratureRule(bounds=[0., 1.],
-                                                      backend=bkd)]
+quad_rules = (nlayers + 1) * [
+    GaussLegendreQuadratureRule(bounds=[0.0, 1.0], backend=bkd)
+]
 quad_rules[0].set_nnodes(ninputs)
-for kl in range(nlayers-1):
+for kl in range(nlayers - 1):
     quad_rules[kl].set_nnodes(nquad)
 quad_rules[-1].set_nnodes(noutputs)
 
 # Set the integral operators for each layer. They each need to know
 # two quadrature rules
-integral_ops = (
-    [KernelIntegralOperator(
-        kernels[kk], quad_rules[kk], quad_rules[kk+1], backend=bkd)
-     for kk in range(len(kernels))])
+integral_ops = [
+    KernelIntegralOperator(
+        kernels[kk], quad_rules[kk], quad_rules[kk + 1], backend=bkd
+    )
+    for kk in range(len(kernels))
+]
 
 # Set the activations for each layer. The last layer has no activation function
-activations = (
-    [TanhActivation() for ii in range(nlayers-1)] +
-    [IdentityActivation()])
+activations = [TanhActivation() for ii in range(nlayers - 1)] + [
+    IdentityActivation()
+]
 
 # Initialize the CERTANN
 ctn = CERTANN(ninputs, integral_ops, activations)
@@ -231,21 +251,23 @@ print(ctn, ctn._hyp_list.get_values().shape)
 ctn_sol = ctn(train_samples)
 exact_sol = train_values
 ax = plt.figure().gca()
-ax.plot(abscissa[0], exact_sol, '-k')
-ax.plot(abscissa[0], ctn_sol.numpy(), 'r--')
+ax.plot(abscissa[0], exact_sol, "-k")
+ax.plot(abscissa[0], ctn_sol.numpy(), "r--")
 plt.show()
 
 
 val_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
-val_forc_funs = [
-    partial(parameterized_forc_fun, coef) for coef in val_coef.T]
+val_forc_funs = [partial(parameterized_forc_fun, coef) for coef in val_coef.T]
 val_samples = bkd.hstack([f(abscissa) for f in val_forc_funs])
 val_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in val_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in val_forc_funs]
+)
 ctn_sol = ctn(val_samples)
 exact_sol = val_values
-print(bkd.norm(ctn_sol.flatten()-exact_sol.flatten()) /
-      bkd.norm(exact_sol.flatten()))
+print(
+    bkd.norm(ctn_sol.flatten() - exact_sol.flatten())
+    / bkd.norm(exact_sol.flatten())
+)
 
 # %%
 # Plot the learned kernel
@@ -253,8 +275,7 @@ plot_xx = bkd.linspace(0, 1, 101)[None, :]
 ax = plt.figure().gca()
 X, Y = bkd.meshgrid(plot_xx[0], plot_xx[0])
 Z = final_kernel(plot_xx, plot_xx)
-im = ax.imshow(
-    Z, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
+im = ax.imshow(Z, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
 plt.colorbar(im, ax=ax)
 plt.show()
 
@@ -288,18 +309,18 @@ def greens_solution_fourier(kernel, forc, xx, N):
     if N == 0:
         coefs[:, 1:] = 0
     else:
-        coefs[:, N:-N+1] = 0
+        coefs[:, N : -N + 1] = 0
     kvals = bkd.ifft(coefs[..., None], axis=(-2,))[..., 0].T.real
-    return kvals*forc(quad_xx)[:, 0] @ quad_ww
+    return kvals * forc(quad_xx)[:, 0] @ quad_ww
 
 
-plot_xx = bkd.arange(101, dtype=float)[None, :]/101
+plot_xx = bkd.arange(101, dtype=float)[None, :] / 101
 green_sol = greens_solution_fourier(greens_fun, forc_fun, plot_xx, N=4)
 ax = plt.figure().gca()
 ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
-ax.plot(plot_xx[0], green_sol, '--', label=r"$\tilde{u}_F(x)$")
+ax.plot(plot_xx[0], green_sol, "--", label=r"$\tilde{u}_F(x)$")
 ax.plot(plot_xx[0], forc_fun(plot_xx), label=r"$f(x)=-\kappa\nabla^2 u(x)$")
-ax.set_title(r'Truncated Fourier expansion, 7 terms')
+ax.set_title(r"Truncated Fourier expansion, 7 terms")
 ax.legend()
 plt.show()
 
@@ -308,20 +329,20 @@ plt.show()
 
 
 def greens_solution_chebyshev(kernel, forc, xx, N):
-    pts = (bkd.cos(bkd.arange(101, dtype=float)*pi/100)+1)/2
+    pts = (bkd.cos(bkd.arange(101, dtype=float) * pi / 100) + 1) / 2
     coefs = fct.fct(kernel(xx, pts[None, :]).T)[:N, :]
     quad_xx, quad_ww = quad_rule()
-    basis = fct.chebyshev_poly_basis(2*quad_xx-1, N)
-    return (basis.T @ coefs).T*(forc(quad_xx)[:, 0]) @ quad_ww
+    basis = fct.chebyshev_poly_basis(2 * quad_xx - 1, N)
+    return (basis.T @ coefs).T * (forc(quad_xx)[:, 0]) @ quad_ww
 
 
 plot_xx = bkd.linspace(0, 1, 101)[None, :]
 green_sol = greens_solution_chebyshev(greens_fun, forc_fun, plot_xx, N=7)
 ax = plt.figure().gca()
 ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
-ax.plot(plot_xx[0], green_sol, '--', label=r"$\tilde{u}_C(x)$")
+ax.plot(plot_xx[0], green_sol, "--", label=r"$\tilde{u}_C(x)$")
 ax.plot(plot_xx[0], forc_fun(plot_xx), label=r"$f(x)=-\kappa\nabla^2 u(x)$")
-ax.set_title(r'Truncated Chebyshev expansion, 7 terms')
+ax.set_title(r"Truncated Chebyshev expansion, 7 terms")
 ax.legend()
 plt.show()
 
@@ -340,20 +361,25 @@ plt.show()
 ntrain_samples = 10
 level = 5
 nx = 2**level + 1
-abscissa = 0.5*(1+bkd.cos(pi*bkd.arange(nx, dtype=float)/(nx-1))[None, :])
+abscissa = 0.5 * (
+    1 + bkd.cos(pi * bkd.arange(nx, dtype=float) / (nx - 1))[None, :]
+)
 kmax = 6
 noutputs = abscissa.shape[1]
 train_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
 train_forc_funs = [
-    partial(parameterized_forc_fun, coef) for coef in train_coef.T]
+    partial(parameterized_forc_fun, coef) for coef in train_coef.T
+]
 train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
 train_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs]
+)
 train_samples = train_samples[:, None, :]
 train_values = train_values[:, None, :]
 
-ctn = CERTANN(nx, [ChebyshevIntegralOperator(kmax, chol=False)],
-              [IdentityActivation()])
+ctn = CERTANN(
+    nx, [ChebyshevIntegralOperator(kmax, chol=False)], [IdentityActivation()]
+)
 ctn.fit(train_samples, train_values, verbosity=1, tol=1e-14)
 
 print(ctn)
@@ -364,10 +390,12 @@ print(ctn)
 ntest_samples = 5
 test_coef = bkd.normal(0, 1, (nfterms, ntest_samples))
 test_forc_funs = [
-    partial(parameterized_forc_fun, coef) for coef in test_coef.T]
+    partial(parameterized_forc_fun, coef) for coef in test_coef.T
+]
 test_samples = bkd.hstack([f(abscissa) for f in test_forc_funs])
 test_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs]
+)
 test_samples = test_samples[:, None, :]
 test_values = test_values[:, None, :]
 
@@ -375,16 +403,19 @@ ctn_sol = ctn(test_samples)[:, 0, :]
 exact_sol = test_values[:, 0, :]
 
 ax = plt.figure().gca()
-ax.plot(abscissa[0], exact_sol, '-k')
-ax.plot(abscissa[0], ctn_sol.numpy(), 'r--')
-plt.xlabel(r'$x$')
-plt.title(r'Exact $u$ (black), predicted $u$ (red), $k_\mathrm{max} = %d$' %
-          kmax)
+ax.plot(abscissa[0], exact_sol, "-k")
+ax.plot(abscissa[0], ctn_sol.numpy(), "r--")
+plt.xlabel(r"$x$")
+plt.title(
+    r"Exact $u$ (black), predicted $u$ (red), $k_\mathrm{max} = %d$" % kmax
+)
 plt.show()
 
-print('Relative error:', bkd.norm(
-    ctn_sol.flatten() - exact_sol.flatten()) / bkd.norm(
-    exact_sol.flatten()))
+print(
+    "Relative error:",
+    bkd.norm(ctn_sol.flatten() - exact_sol.flatten())
+    / bkd.norm(exact_sol.flatten()),
+)
 
 
 # %%
@@ -403,32 +434,35 @@ print('Relative error:', bkd.norm(
 
 # Convert parameters to matrix form
 cheb_U = ctn._hyp_list.get_values()
-U = bkd.zeros((kmax+1, kmax+1))
+U = bkd.zeros((kmax + 1, kmax + 1))
 c = 0
-diag_idx = range(kmax+1)
+diag_idx = range(kmax + 1)
 for k in diag_idx:
-    U[k, k:] = cheb_U[c:c+kmax+1-k]
-    c += kmax+1-k
+    U[k, k:] = cheb_U[c : c + kmax + 1 - k]
+    c += kmax + 1 - k
 A = U.T + U
 A[diag_idx, diag_idx] = U[diag_idx, diag_idx]
 
-w = 1.0 / (1e-14+bkd.sqrt(1-(2*plot_xx[0]-1)**2))
-w[0] = (w[1] + (plot_xx[0, 2] - plot_xx[0, 1]) / (
-    plot_xx[0, 0] - plot_xx[0, 1]) * (w[2] - w[1]))
+w = 1.0 / (1e-14 + bkd.sqrt(1 - (2 * plot_xx[0] - 1) ** 2))
+w[0] = w[1] + (plot_xx[0, 2] - plot_xx[0, 1]) / (
+    plot_xx[0, 0] - plot_xx[0, 1]
+) * (w[2] - w[1])
 w[-1] = w[0]
-Phi = fct.chebyshev_poly_basis(2*plot_xx-1.0, kmax+1)
+Phi = fct.chebyshev_poly_basis(2 * plot_xx - 1.0, kmax + 1)
 fig, ax = plt.subplots(1, 2)
 K = 2 * bkd.diag(w) @ (Phi.T @ (A @ Phi)) @ bkd.diag(w)
 ax[0].imshow(
-    K, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5)
+    K, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5
+)
 ax[1].imshow(
-    G, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5)
-ax[0].set_title(r'Learned $K(x,y)$, with $k_\mathrm{max} = %d$' % kmax)
-ax[1].set_title(r'True $G(x,y)$')
-ax[0].set_xlabel(r'$x$')
-ax[1].set_xlabel(r'$x$')
-ax[0].set_ylabel(r'$y$')
-ax[1].set_ylabel(r'$y$')
+    G, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5
+)
+ax[0].set_title(r"Learned $K(x,y)$, with $k_\mathrm{max} = %d$" % kmax)
+ax[1].set_title(r"True $G(x,y)$")
+ax[0].set_xlabel(r"$x$")
+ax[1].set_xlabel(r"$x$")
+ax[0].set_ylabel(r"$y$")
+ax[1].set_ylabel(r"$y$")
 fig.set_size_inches(10, 5)
 plt.show()
 
@@ -443,17 +477,21 @@ plt.show()
 
 # Use 9 nodes and 40 training samples of the forcing function
 level = 3
-nx = 2**level+1
+nx = 2**level + 1
 ntrain_samples = 40
-abscissa = 0.5*(1+bkd.cos(pi*bkd.arange(nx, dtype=float)/(nx-1))[None, :])
+abscissa = 0.5 * (
+    1 + bkd.cos(pi * bkd.arange(nx, dtype=float) / (nx - 1))[None, :]
+)
 kmax = 6
 noutputs = abscissa.shape[1]
 train_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
 train_forc_funs = [
-    partial(parameterized_forc_fun, coef) for coef in train_coef.T]
+    partial(parameterized_forc_fun, coef) for coef in train_coef.T
+]
 train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
 train_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs]
+)
 train_samples = train_samples[:, None, :]
 train_values = train_values[:, None, :]
 
@@ -461,64 +499,74 @@ train_values = train_values[:, None, :]
 ntest_samples = 10
 test_coef = bkd.normal(0, 1, (nfterms, ntest_samples))
 test_forc_funs = [
-    partial(parameterized_forc_fun, coef) for coef in test_coef.T]
+    partial(parameterized_forc_fun, coef) for coef in test_coef.T
+]
 test_samples = bkd.hstack([f(abscissa) for f in test_forc_funs])
 test_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs]
+)
 test_samples = test_samples[:, None, :]
 test_values = test_values[:, None, :]
 
 # %%
 # With data in hand, let's run the experiments. First up: Chebyshev.
-print('CHEBYSHEV TENSOR-PRODUCT KERNEL\n')
-print('Network size | Rel test err')
-print('---------------------------')
+print("CHEBYSHEV TENSOR-PRODUCT KERNEL\n")
+print("Network size | Rel test err")
+print("---------------------------")
 cheb_size, cheb_err = [], []
 for kmax in range(0, 9, 2):
     ctn = CERTANN(
-        nx, [ChebyshevIntegralOperator(kmax, backend=bkd)],
-        [IdentityActivation()])
+        nx,
+        [ChebyshevIntegralOperator(kmax, backend=bkd)],
+        [IdentityActivation()],
+    )
     ctn.fit(train_samples, train_values, tol=1e-10)
     approx_values = ctn(test_samples)
     cheb_size.append(ctn._hyp_list.get_values().shape[0])
     cheb_err.append(
-        bkd.norm((approx_values-test_values).flatten()) /
-        bkd.norm(test_values.flatten()))
-    print('%8d     | %10.3e' % (cheb_size[-1], cheb_err[-1]))
+        bkd.norm((approx_values - test_values).flatten())
+        / bkd.norm(test_values.flatten())
+    )
+    print("%8d     | %10.3e" % (cheb_size[-1], cheb_err[-1]))
 
 
 # %%
 # Now, let's do the MLP.
 
-print('SINGLE-LAYER MLP\n')
-print('Network size | Rel test err')
-print('---------------------------')
+print("SINGLE-LAYER MLP\n")
+print("Network size | Rel test err")
+print("---------------------------")
 mlp_size, mlp_err = [], []
 for width in range(4):
-    integralops = [DenseAffineIntegralOperator(nx, width, backend=bkd),
-                   DenseAffineIntegralOperator(width, nx, backend=bkd)]
-    activations = 2*[IdentityActivation()]
+    integralops = [
+        DenseAffineIntegralOperator(nx, width, backend=bkd),
+        DenseAffineIntegralOperator(width, nx, backend=bkd),
+    ]
+    activations = 2 * [IdentityActivation()]
     ctn = CERTANN(nx, integralops, activations)
     ctn.fit(train_samples, train_values, tol=1e-14)
     approx_values = ctn(test_samples)
     mlp_size.append(ctn._hyp_list.get_values().shape[0])
     mlp_err.append(
-        bkd.norm((approx_values-test_values).flatten()) /
-        bkd.norm(test_values.flatten()))
-    print('%8d     | %10.3e' % (mlp_size[-1], mlp_err[-1]))
+        bkd.norm((approx_values - test_values).flatten())
+        / bkd.norm(test_values.flatten())
+    )
+    print("%8d     | %10.3e" % (mlp_size[-1], mlp_err[-1]))
 
 # %%
 # A side-by-side plot shows a that the prediction error is an order of
 # magnitude lower with Chebyshev kernels than with a dense MLP. Axes are chosen
 # for consistency with later convergence plots.
 
-plt.semilogy(cheb_size, cheb_err, 'ko-', label='Chebyshev kernel', linewidth=2)
-plt.semilogy(mlp_size, mlp_err, 'bs--', label='Single-layer MLP', linewidth=2)
+plt.semilogy(cheb_size, cheb_err, "ko-", label="Chebyshev kernel", linewidth=2)
+plt.semilogy(mlp_size, mlp_err, "bs--", label="Single-layer MLP", linewidth=2)
 plt.grid()
-plt.title(r'Approximation of $f \mapsto u$: %d training polynomials, %d nodes'
-          % (ntrain_samples, nx))
-plt.xlabel('Learnable parameters')
-plt.ylabel('Relative validation error in $u$')
+plt.title(
+    r"Approximation of $f \mapsto u$: %d training polynomials, %d nodes"
+    % (ntrain_samples, nx)
+)
+plt.xlabel("Learnable parameters")
+plt.ylabel("Relative validation error in $u$")
 plt.tight_layout()
 plt.xlim([0, 250])
 plt.ylim([1e-4, 1.2])
@@ -542,7 +590,7 @@ A = fct.chebyshev_poly_basis(xx, nfterms).T
 plt.plot(xx, A @ c)
 plt.ylim([-5, 25])
 plt.grid()
-plt.title(r'Chebyshev series for $\delta(x)$ with %d terms' % nfterms)
+plt.title(r"Chebyshev series for $\delta(x)$ with %d terms" % nfterms)
 plt.show()
 
 # %%
@@ -551,36 +599,41 @@ plt.show()
 
 def dirac_delta_approx(mass_points, eval_points):
     nterms = 50  # num Chebyshev polynomials to approximate Dirac delta
-    mass_points_transformed = 2.0*mass_points-1.0
+    mass_points_transformed = 2.0 * mass_points - 1.0
     c = fct.chebyshev_poly_basis(mass_points_transformed, nterms)
-    eval_points_transformed = 2.0*eval_points-1.0
+    eval_points_transformed = 2.0 * eval_points - 1.0
     Phi = fct.chebyshev_poly_basis(eval_points_transformed, nterms).T
-    return (Phi @ c)
+    return Phi @ c
 
 
 nphys_vars = 1
 # Set the number of evaluations of the forcing function per random sample
 level = 5
-nx = 2**level+1
+nx = 2**level + 1
 # Set the number of random training samples.
 ntrain_samples = 50
-abscissa = 0.5*(1+bkd.cos(pi*bkd.arange(nx, dtype=float)/(nx-1))[None, :])
+abscissa = 0.5 * (
+    1 + bkd.cos(pi * bkd.arange(nx, dtype=float) / (nx - 1))[None, :]
+)
 kmax = 20
 noutputs = abscissa.shape[1]
 train_mass_pts = bkd.uniform(0, 1, (ntrain_samples,))
 train_forc_funs = [
-    partial(dirac_delta_approx, mass_pt) for mass_pt in train_mass_pts]
+    partial(dirac_delta_approx, mass_pt) for mass_pt in train_mass_pts
+]
 train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
 train_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs]
+)
 train_samples = train_samples[:, None, :]
 train_values = train_values[:, None, :]
 
 # %%
 # Now, train the CERTANN
 
-ctn = CERTANN(nx, [ChebyshevIntegralOperator(kmax, backend=bkd)],
-              [IdentityActivation()])
+ctn = CERTANN(
+    nx, [ChebyshevIntegralOperator(kmax, backend=bkd)], [IdentityActivation()]
+)
 ctn.fit(train_samples, train_values, tol=1e-12)
 
 # %%
@@ -588,10 +641,12 @@ ctn.fit(train_samples, train_values, tol=1e-12)
 
 test_mass_pts = bkd.uniform(0, 1, (5,))
 test_forc_funs = [
-    partial(dirac_delta_approx, mass_pt) for mass_pt in test_mass_pts]
+    partial(dirac_delta_approx, mass_pt) for mass_pt in test_mass_pts
+]
 test_samples = bkd.hstack([f(abscissa) for f in test_forc_funs])
 test_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs]
+)
 test_samples = test_samples[:, None, :]
 test_values = test_values[:, None, :]
 
@@ -599,16 +654,19 @@ ctn_sol = ctn(test_samples)[:, 0, :]
 exact_sol = test_values[:, 0, :]
 
 ax = plt.figure().gca()
-ax.plot(abscissa[0], exact_sol, '-k')
-ax.plot(abscissa[0], ctn_sol.numpy(), 'r--')
-plt.xlabel(r'$x$')
-plt.title(r'Exact $u$ (black), predicted $u$ (red), $k_\mathrm{max} = %d$' %
-          kmax)
+ax.plot(abscissa[0], exact_sol, "-k")
+ax.plot(abscissa[0], ctn_sol.numpy(), "r--")
+plt.xlabel(r"$x$")
+plt.title(
+    r"Exact $u$ (black), predicted $u$ (red), $k_\mathrm{max} = %d$" % kmax
+)
 plt.show()
 
-print('Relative error:', bkd.norm(
-    ctn_sol.flatten() - exact_sol.flatten()) / bkd.norm(
-    exact_sol.flatten()))
+print(
+    "Relative error:",
+    bkd.norm(ctn_sol.flatten() - exact_sol.flatten())
+    / bkd.norm(exact_sol.flatten()),
+)
 
 # %%
 # We do very well on out-of-training predictions. Now plot the learned
@@ -616,32 +674,35 @@ print('Relative error:', bkd.norm(
 
 # Convert parameters to matrix form
 cheb_U = ctn._hyp_list.get_values()
-U = bkd.zeros((kmax+1, kmax+1))
+U = bkd.zeros((kmax + 1, kmax + 1))
 c = 0
-diag_idx = range(kmax+1)
+diag_idx = range(kmax + 1)
 for k in diag_idx:
-    U[k, k:] = cheb_U[c:c+kmax+1-k]
-    c += kmax+1-k
+    U[k, k:] = cheb_U[c : c + kmax + 1 - k]
+    c += kmax + 1 - k
 A = U.T + U
 A[diag_idx, diag_idx] = U[diag_idx, diag_idx]
 
-w = 1.0 / (1e-14+bkd.sqrt(1-(2*plot_xx[0]-1)**2))
-w[0] = (w[1] + (plot_xx[0, 2] - plot_xx[0, 1]) / (
-    plot_xx[0, 0] - plot_xx[0, 1]) * (w[2] - w[1]))
+w = 1.0 / (1e-14 + bkd.sqrt(1 - (2 * plot_xx[0] - 1) ** 2))
+w[0] = w[1] + (plot_xx[0, 2] - plot_xx[0, 1]) / (
+    plot_xx[0, 0] - plot_xx[0, 1]
+) * (w[2] - w[1])
 w[-1] = w[0]
-Phi = fct.chebyshev_poly_basis(2*plot_xx-1.0, kmax+1)
+Phi = fct.chebyshev_poly_basis(2 * plot_xx - 1.0, kmax + 1)
 fig, ax = plt.subplots(1, 2)
 K = 2 * bkd.diag(w) @ (Phi.T @ (A @ Phi)) @ bkd.diag(w)
 ax[0].imshow(
-    K, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5)
+    K, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5
+)
 ax[1].imshow(
-    G, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5)
-ax[0].set_title(r'Learned $K(x,y)$, with $k_\mathrm{max} = %d$' % kmax)
-ax[1].set_title(r'True $G(x,y)$')
-ax[0].set_xlabel(r'$x$')
-ax[1].set_xlabel(r'$x$')
-ax[0].set_ylabel(r'$y$')
-ax[1].set_ylabel(r'$y$')
+    G, origin="lower", extent=[0, 1, 0, 1], cmap="jet", vmin=0, vmax=2.5
+)
+ax[0].set_title(r"Learned $K(x,y)$, with $k_\mathrm{max} = %d$" % kmax)
+ax[1].set_title(r"True $G(x,y)$")
+ax[0].set_xlabel(r"$x$")
+ax[1].set_xlabel(r"$x$")
+ax[0].set_ylabel(r"$y$")
+ax[1].set_ylabel(r"$y$")
 fig.set_size_inches(10, 5)
 plt.show()
 
@@ -651,47 +712,55 @@ plt.show()
 #
 # We now perform a convergence study for Chebyshev kernels vs. MLP.
 
-print('CHEBYSHEV TENSOR-PRODUCT KERNEL\n')
-print('Network size | Rel test err')
-print('---------------------------')
+print("CHEBYSHEV TENSOR-PRODUCT KERNEL\n")
+print("Network size | Rel test err")
+print("---------------------------")
 cheb_size, cheb_err = [], []
 for kmax in range(0, 21, 2):
     ctn = CERTANN(
-        nx, [ChebyshevIntegralOperator(kmax, backend=bkd)],
-        [IdentityActivation()])
+        nx,
+        [ChebyshevIntegralOperator(kmax, backend=bkd)],
+        [IdentityActivation()],
+    )
     ctn.fit(train_samples, train_values, tol=1e-10)
     approx_values = ctn(test_samples)
     cheb_size.append(ctn._hyp_list.get_values().shape[0])
     cheb_err.append(
-        bkd.norm((approx_values-test_values).flatten()) /
-        bkd.norm(test_values.flatten()))
+        bkd.norm((approx_values - test_values).flatten())
+        / bkd.norm(test_values.flatten())
+    )
     cheb_U = ctn._hyp_list.get_values()
-    print('%8d     | %10.3e' % (cheb_size[-1], cheb_err[-1]))
+    print("%8d     | %10.3e" % (cheb_size[-1], cheb_err[-1]))
 
-print('\n\nSINGLE-LAYER MLP\n')
-print('Network size | Rel test err')
-print('---------------------------')
+print("\n\nSINGLE-LAYER MLP\n")
+print("Network size | Rel test err")
+print("---------------------------")
 mlp_size, mlp_err = [], []
 for width in range(1, 4):
-    integralops = [DenseAffineIntegralOperator(nx, width, backend=bkd),
-                   DenseAffineIntegralOperator(width, nx, backend=bkd)]
-    activations = 2*[IdentityActivation()]
+    integralops = [
+        DenseAffineIntegralOperator(nx, width, backend=bkd),
+        DenseAffineIntegralOperator(width, nx, backend=bkd),
+    ]
+    activations = 2 * [IdentityActivation()]
     ctn = CERTANN(nx, integralops, activations)
     ctn.fit(train_samples, train_values, tol=1e-10)
     approx_values = ctn(test_samples)
     mlp_size.append(ctn._hyp_list.get_values().shape[0])
     mlp_err.append(
-        bkd.norm((approx_values-test_values).flatten()) /
-        bkd.norm(test_values.flatten()))
-    print('%8d     | %10.3e' % (mlp_size[-1], mlp_err[-1]))
+        bkd.norm((approx_values - test_values).flatten())
+        / bkd.norm(test_values.flatten())
+    )
+    print("%8d     | %10.3e" % (mlp_size[-1], mlp_err[-1]))
 
-plt.semilogy(cheb_size, cheb_err, 'ko-', label='Chebyshev kernel', linewidth=2)
-plt.semilogy(mlp_size, mlp_err, 'bs--', label='Single-layer MLP', linewidth=2)
+plt.semilogy(cheb_size, cheb_err, "ko-", label="Chebyshev kernel", linewidth=2)
+plt.semilogy(mlp_size, mlp_err, "bs--", label="Single-layer MLP", linewidth=2)
 plt.grid()
-plt.title(r'Approximation of $f \mapsto u$: %d Dirac deltas, %d nodes' %
-          (ntrain_samples, nx))
-plt.xlabel('Learnable parameters')
-plt.ylabel('Relative validation error in $u$')
+plt.title(
+    r"Approximation of $f \mapsto u$: %d Dirac deltas, %d nodes"
+    % (ntrain_samples, nx)
+)
+plt.xlabel("Learnable parameters")
+plt.ylabel("Relative validation error in $u$")
 plt.legend()
 plt.xlim([0, 250])
 plt.ylim([1e-4, 1.2])
@@ -715,15 +784,20 @@ kmax = 12
 noutputs = abscissa.shape[1]
 train_mass_pts = bkd.uniform(0, 1, (ntrain_samples,))
 train_forc_funs = [
-    partial(dirac_delta_approx, mass_pt) for mass_pt in train_mass_pts]
+    partial(dirac_delta_approx, mass_pt) for mass_pt in train_mass_pts
+]
 train_samples = bkd.hstack([f(abscissa) for f in train_forc_funs])
 train_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in train_forc_funs]
+)
 train_samples = train_samples[:, None, :]
 train_values = train_values[:, None, :]
 
-ctn = CERTANN(nx, [FourierHSOperator(kmax, channel_coupling='diag')],
-              [IdentityActivation()])
+ctn = CERTANN(
+    nx,
+    [FourierHSOperator(kmax, channel_coupling="diag")],
+    [IdentityActivation()],
+)
 
 ctn.fit(train_samples, train_values, tol=1e-6)
 
@@ -732,10 +806,12 @@ ctn.fit(train_samples, train_values, tol=1e-6)
 
 test_mass_pts = bkd.uniform(0, 1, (5,))
 test_forc_funs = [
-    partial(dirac_delta_approx, mass_pt) for mass_pt in test_mass_pts]
+    partial(dirac_delta_approx, mass_pt) for mass_pt in test_mass_pts
+]
 test_samples = bkd.hstack([f(abscissa) for f in test_forc_funs])
 test_values = bkd.hstack(
-    [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs])
+    [greens_solution(greens_fun, f, abscissa) for f in test_forc_funs]
+)
 test_samples = test_samples[:, None, :]
 test_values = test_values[:, None, :]
 
@@ -743,14 +819,18 @@ ctn_sol = ctn(test_samples)[:, 0, :]
 exact_sol = test_values[:, 0, :]
 
 ax = plt.figure().gca()
-ax.plot(abscissa[0], exact_sol, '-k')
-ax.plot(abscissa[0], ctn_sol.numpy(), 'r--')
-plt.xlabel(r'$x$')
-plt.title('Fourier basis \n Exact $u$ (black), predicted $u$ (red), ' +
-          r'$k_\mathrm{max} = %d$' % kmax)
+ax.plot(abscissa[0], exact_sol, "-k")
+ax.plot(abscissa[0], ctn_sol.numpy(), "r--")
+plt.xlabel(r"$x$")
+plt.title(
+    "Fourier basis \n Exact $u$ (black), predicted $u$ (red), "
+    + r"$k_\mathrm{max} = %d$" % kmax
+)
 plt.show()
 
-print('Relative error:', bkd.norm(
-    ctn_sol.flatten() - exact_sol.flatten()) / bkd.norm(
-    exact_sol.flatten()))
-print('Network size:', ctn._hyp_list.get_values().shape[0])
+print(
+    "Relative error:",
+    bkd.norm(ctn_sol.flatten() - exact_sol.flatten())
+    / bkd.norm(exact_sol.flatten()),
+)
+print("Network size:", ctn._hyp_list.get_values().shape[0])

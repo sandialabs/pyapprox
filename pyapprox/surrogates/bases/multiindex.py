@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import itertools
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
@@ -74,7 +74,7 @@ def sort_indices_lexiographically(
     return indices[:, argsort_indices_lexiographically(indices, bkd)]
 
 
-def _plot_2d_index(ax, index: Array):
+def _plot_2d_index(ax, index: Array, color: str = "gray"):
     box = (
         np.array(
             [
@@ -88,12 +88,11 @@ def _plot_2d_index(ax, index: Array):
         + 0.5
     )
     ax.plot(box[0, :], box[1, :], "-k", lw=1)
-    ax.fill(box[0, :], box[1, :], color="gray", alpha=0.5, edgecolor="k")
+    ax.fill(box[0, :], box[1, :], color=color, alpha=0.5, edgecolor="k")
 
 
-def _plot_index_voxels(ax, data: Array):
+def _plot_index_voxels(ax, data: Array, color: Tuple = [1, 1, 1, 0.9]):
     # color: [r,g,b,alpha]
-    color = [1, 1, 1, 0.9]
     # ax.patch.set_alpha(0.5)  # Set semi-opacity
     colors = np.zeros((data.shape[0], data.shape[1], data.shape[2], 4))
     colors[np.where(data)] = color
@@ -131,16 +130,16 @@ class IndexGenerator(ABC):
             self.__class__.__name__, self.nvars(), self.nindices()
         )
 
-    def _plot_indices_2d(self, ax, indices: Array):
+    def _plot_indices_2d(self, ax, indices: Array, color: str = "gray"):
         for index in indices.T:
-            _plot_2d_index(ax, index)
+            _plot_2d_index(ax, index, color)
         lim = self._bkd.max(indices)
         ax.set_xticks(np.arange(0, lim + 1))
         ax.set_yticks(np.arange(0, lim + 1))
         ax.set_xlim(-0.5, lim + 1)
         ax.set_ylim(-0.5, lim + 1)
 
-    def _plot_indices_3d(self, ax, indices: Array):
+    def _plot_indices_3d(self, ax, indices: Array, color: str = "gray"):
         if not isinstance(ax, Axes3D):
             raise ValueError(
                 "ax must be an instance of  mpl_toolkits.mplot3d.Axes3D"
@@ -160,9 +159,19 @@ class IndexGenerator(ABC):
             raise RuntimeError("Cannot plot indices when nvars not in [2, 3].")
 
         if self.nvars() == 2:
-            return self._plot_indices_2d(ax, self.get_indices())
+            im1 = self._plot_indices_2d(ax, self.get_selected_indices())
+            if self.get_candidate_indices() is None:
+                return (im1,)
+            im2 = self._plot_indices_2d(ax, self.get_candidate_indices(), "r")
+            return (im1, im2)
 
-        return self._plot_indices_3d(ax, self.get_indices())
+        im1 = self._plot_indices_3d(ax, self.get_selected_indices)
+        if self.get_candidate_indices() is None:
+            return (im1,)
+        im2 = self._plot_indices_3d(
+            ax, self.get_candidate_indices(), [0.5, 0.5, 0.5, 0.9]
+        )
+        return (im1, im2)
 
 
 class IterativeIndexGenerator(IndexGenerator):
