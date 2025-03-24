@@ -733,3 +733,47 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
         )
         update = self._bkd.einsum("ji,ji->i", tmp, tmp)
         return (self._kernel.diag(canonical_samples) - update)[:, None]
+
+
+class SequentialMultiLevelGaussianProcess(MOExactGaussianProcess):
+    def __init__(
+        self,
+        nvars: int,
+        kernels: Kernel,
+        kernel_reg: float = 0,
+    ):
+        if not isinstance(kernels, list) or len(kernels) < 2:
+            raise ValueError("Must provide a list of at least 2 kernels")
+        self._gps = [ExactGaussianProcess(nvars, kernel) for kernel in kernels]
+        self._nmodels = len(kernels)
+        super().__init__(nvars, kernels[0], None, kernel_reg)
+
+    def _fit(self, iterate: Array):
+        train_samples_per_model = self.get_train_samples()
+        train_values_per_model = self.get_train_values()
+        self._gps[0].fit(train_samples_per_model[0], train_values_per_model[0])
+        for ii in range(1, self._nmodels):
+            shift = self._gps[ii - 1](train_samples_per_model[ii])
+            self._gps[ii].fit(
+                train_samples_per_model[ii], train_values_per_model[ii] - shift
+            )
+
+    def _canonical_evaluate(
+        self, canonical_samples: Array, return_std: bool
+    ) -> Array:
+        vals = [0.0 for jj in range(self._nmodels)]
+        for jj in range(self._nmodels):
+            vals[jj] = self._gps[0]._canonical_evaluate(
+                canonical_samples[jj], False
+            )[0]
+
+        for ii in range(1, self._nmodels - 1):
+            for jj in range(ii, self._nmodels):
+                vals[jj] += self._gps[ii]._canonical_evaluate(
+                    canonical_samples[jj], False
+                )[0]
+        result = self._gps[self._nmodels - 1]._canonical_evaluate(
+            canonical_samples[-1], return_std
+        )
+        vals[-1] += result[0]
+        return vals, result[1]

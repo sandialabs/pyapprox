@@ -11,7 +11,7 @@ class MultiOutputKernel(Kernel):
             if type(kernel._bkd) is not type(self._bkd):
                 raise ValueError("kernels do not have the same backend")
         self.kernels = kernels
-        self.nkernels = len(kernels)
+        self._nkernels = len(kernels)
         self.noutputs = noutputs
         self._hyp_list = sum([kernel.hyp_list() for kernel in kernels])
 
@@ -45,7 +45,7 @@ class MultiOutputKernel(Kernel):
     ):
         block = 0
         nonzero = False
-        for kk in range(self.nkernels):
+        for kk in range(self._nkernels):
             block_kk = self._scale_block(
                 samples_per_output_ii,
                 ii,
@@ -108,8 +108,7 @@ class MultiOutputKernel(Kernel):
                 )
         if not block_format:
             rows = [
-                self._bkd.hstack(matrix_blocks[ii])
-                for ii in range(noutputs_0)
+                self._bkd.hstack(matrix_blocks[ii]) for ii in range(noutputs_0)
             ]
             return self._bkd.vstack(rows)
         return matrix_blocks
@@ -123,7 +122,7 @@ class MultiOutputKernel(Kernel):
         for ii in range(noutputs_0):
             diag_ii = 0
             idx = active_outputs_0[ii]
-            for kk in range(self.nkernels):
+            for kk in range(self._nkernels):
                 diag_iikk = self._scale_diag(samples_0[idx], idx, kk)
                 if diag_iikk is not None:
                     diag_ii += diag_iikk
@@ -236,9 +235,7 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         D = blocks[-1][-1]
         L_A_inv_B = bkd.vstack(L_A_inv_B_list)
         if not block_format:
-            L_A = bkd.vstack(
-                [bkd.hstack(row[:-1]) for row in chol_blocks]
-            )
+            L_A = bkd.vstack([bkd.hstack(row[:-1]) for row in chol_blocks])
             return bkd.block_cholesky_engine(
                 L_A, L_A_inv_B, B, D, block_format
             )
@@ -285,9 +282,7 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         coefs = bkd.vstack(
             (
                 coefs,
-                bkd.solve_triangular(
-                    D, values[cnt:] - C @ coefs, lower=True
-                ),
+                bkd.solve_triangular(D, values[cnt:] - C @ coefs, lower=True),
             )
         )
         return coefs
@@ -440,7 +435,7 @@ class CollaborativeKernel(LMCKernel):
         kk,
         symmetric,
     ):
-        if kk < self.nkernels - self.noutputs:
+        if kk < self._nkernels - self.noutputs:
             # Evaluate latent kernel
             return super()._scale_block(
                 samples_per_output_ii,
@@ -450,7 +445,7 @@ class CollaborativeKernel(LMCKernel):
                 kk,
                 symmetric,
             )
-        if kk - self.nkernels + self.noutputs == min(ii, jj):
+        if kk - self._nkernels + self.noutputs == min(ii, jj):
             # evaluate discrepancy kernel
             if ii != jj or not symmetric:
                 return self.kernels[kk](
@@ -460,9 +455,9 @@ class CollaborativeKernel(LMCKernel):
         return None
 
     def _scale_diag(self, samples_per_output_ii, ii, kk):
-        if kk < self.nkernels - self.noutputs:
+        if kk < self._nkernels - self.noutputs:
             return super()._scale_diag(samples_per_output_ii, ii, kk)
-        if kk - self.nkernels + self.noutputs == ii:
+        if kk - self._nkernels + self.noutputs == ii:
             return self.kernels[kk].diag(samples_per_output_ii)
         return None
 

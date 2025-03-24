@@ -92,6 +92,7 @@ example_filenames_in_order = [
     # Multi-fidelity Surrogates
     "plot_multiindex_collocation.py",
     "plot_multifidelity_gp.py",
+    "plot_mfgp_expdesign.py",
     "plot_gaussian_mfnets.py",
     # SciML
     "plot_derive_certann.py",
