@@ -318,7 +318,13 @@ _ = ax.legend()
 sml_kernels = [
     MaternKernel(np.inf, 0.1, (1e-10, 1), nvars) for ii in range(nmodels)
 ]
-sml_gp = SequentialMultiLevelGaussianProcess(nvars, sml_kernels)
+sml_scaling_basis = MultiIndexBasis([Monomial1D() for ii in range(nvars)])
+sml_scaling_basis.set_tensor_product_indices([1] * nvars)
+sml_scalings = [
+    MonomialExpansion(sml_scaling_basis) for nn in range(nmodels - 1)
+]
+[scaling.set_coefficients(np.array([[1.0]])) for scaling in sml_scalings]
+sml_gp = SequentialMultiLevelGaussianProcess(sml_kernels, sml_scalings)
 sml_gp.fit(train_samples_per_model, train_values_per_model)
 # gps = sml_gp.gaussian_processes_per_level()
 
@@ -331,7 +337,7 @@ gp.plot_1d(
     [0, 1],
     1,
     101,
-    plt_kwargs={"ls": "--", "label": "Co-kriging", "c": "b"},
+    plt_kwargs={"ls": "--", "label": "Co-kriging HF", "c": "b"},
     fill_kwargs={"color": "b", "alpha": 0.3},
 )
 _ = sml_gp.plot_1d(
@@ -339,10 +345,23 @@ _ = sml_gp.plot_1d(
     [0, 1],
     1,
     101,
-    plt_kwargs={"ls": "--", "label": "Sequential", "c": "g"},
+    plt_kwargs={"ls": "--", "label": "Sequential HF", "c": "b"},
     fill_kwargs={"color": "g", "alpha": 0.3},
 )
 
+_ = sml_gp.plot_1d(
+    ax,
+    [0, 1],
+    0,
+    101,
+    plt_kwargs={"ls": "--", "label": "Sequential LF", "c": "g"},
+    fill_kwargs={"color": "g", "alpha": 0.3},
+)
+ax.plot(train_samples_per_model[0][0], train_values_per_model[0], "ko")
+plt.show()
+raise NotImplementedError(
+    "Implement and test jacobian of neg log likelihood for sequential gp. Also test sequential with nested points recovers co-kriging"
+)
 
 # %%
 # Remarks

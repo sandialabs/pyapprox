@@ -1,10 +1,10 @@
 from abc import abstractmethod
-from typing import Tuple
+from typing import Tuple, List, Union
 import warnings
 
 import numpy as np
 
-from pyapprox.surrogates.regressor import OptimizedRegressor
+from pyapprox.surrogates.regressor import OptimizedRegressor, Regressor
 from pyapprox.surrogates.autogp.mokernels import MultiPeerKernel
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.surrogates.kernels.kernels import (
@@ -208,6 +208,9 @@ class ExactGaussianProcess(OptimizedRegressor):
         )
         return iterate_gen
 
+    def get_loss(self):
+        return GPNegLogLikelihoodLoss()
+
     def set_optimizer(
         self,
         ncandidates: int = 1,
@@ -236,7 +239,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         ms_optimizer.set_initial_iterate_generator(iterate_gen)
         ms_optimizer.set_verbosity(verbosity)
         super().set_optimizer(ms_optimizer)
-        self.set_loss(GPNegLogLikelihoodLoss())
+        self.set_loss(self.get_loss())
 
         self._loss.hessian_implemented = lambda: False
         self._loss.apply_hessian_implemented = lambda: False
@@ -718,7 +721,7 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
             len(blocks[0]), blocks, self._bkd, block_format=True
         )
 
-    def _Linv_y(self, *args):
+    def _Linv_y(self, *args) -> Array:
         diff = self._ctrain_values - self._canonical_trend(
             self._ctrain_samples
         )
@@ -735,45 +738,140 @@ class MOPeerExactGaussianProcess(MOExactGaussianProcess):
         return (self._kernel.diag(canonical_samples) - update)[:, None]
 
 
-class SequentialMultiLevelGaussianProcess(MOExactGaussianProcess):
+class SequentialGaussianProcess(ExactGaussianProcess):
     def __init__(
         self,
         nvars: int,
-        kernels: Kernel,
+        kernel: Kernel,
+        scaling: BasisExpansion,
+        low_fidelity_gp: Union[
+            ExactGaussianProcess, "SequentialGaussianProcess"
+        ],
+        trend: BasisExpansion = None,
+        kernel_reg: float = 0,
+    ):
+        super().__init__(nvars, kernel, trend, kernel_reg)
+        self._scaling = scaling
+        self._hyp_list += self._scaling.hyp_list()
+        self._lf_gp = low_fidelity_gp
+
+    def analytical_neg_log_like_jacobian_implemented(self) -> bool:
+        return False
+
+    def _Linv_y(self, *args):
+        diff = (
+            self._ctrain_values
+            - self._canonical_trend(self._ctrain_samples)
+            - self._scaling(self._ctrain_samples)
+            * self._lf_gp._canonical_evaluate(self._ctrain_samples, False)[0]
+        )
+        return self._bkd.solve_triangular(args[0], diff)
+
+    def _jacobian_neg_log_like_with_hyperparam_trend(
+        self, active_opt_params: Array
+    ) -> Array:
+        jac = super()._jacobian_neg_log_like_with_hyperparam_trend(
+            active_opt_params
+        )
+        scaling_jac = None
+        raise NotImplementedError
+        return self._bkd.hstack((jac, scaling_jac))
+
+
+class SequentialMultiLevelGaussianProcess(Regressor):
+    # This surrogate is not truely a GP so just inherit from regressor
+    def __init__(
+        self,
+        kernels: List[Kernel],
+        scalings: List[BasisExpansion],
+        trends: List[BasisExpansion] = None,
         kernel_reg: float = 0,
     ):
         if not isinstance(kernels, list) or len(kernels) < 2:
             raise ValueError("Must provide a list of at least 2 kernels")
-        self._gps = [ExactGaussianProcess(nvars, kernel) for kernel in kernels]
         self._nmodels = len(kernels)
-        super().__init__(nvars, kernels[0], None, kernel_reg)
+        if len(scalings) != self._nmodels - 1:
+            raise ValueError("len(scalings) != len(kernels)-1")
+        if trends is None:
+            trends = [None] * len(kernels)
+        self._gps = [
+            ExactGaussianProcess(
+                kernels[0].nvars(), kernels[0], kernel_reg=kernel_reg
+            )
+        ]
+        for kernel, scaling in zip(kernels[1:], scalings):
+            self._gps.append(
+                SequentialGaussianProcess(
+                    kernel.nvars(), kernel, scaling, self._gps[-1]
+                )
+            )
+        super().__init__(backend=kernels[0]._bkd)
+
+    def nqoi(self) -> int:
+        return 1
+
+    def _set_training_data(self, train_samples: list, train_values: list):
+        self._ctrain_samples = [
+            self._in_trans.map_to_canonical(s) for s in train_samples
+        ]
+        self._ctrain_values = [
+            self._out_trans.map_to_canonical(v.T).T for v in train_values
+        ]
 
     def _fit(self, iterate: Array):
         train_samples_per_model = self.get_train_samples()
         train_values_per_model = self.get_train_values()
         self._gps[0].fit(train_samples_per_model[0], train_values_per_model[0])
         for ii in range(1, self._nmodels):
-            shift = self._gps[ii - 1](train_samples_per_model[ii])
             self._gps[ii].fit(
-                train_samples_per_model[ii], train_values_per_model[ii] - shift
+                train_samples_per_model[ii], train_values_per_model[ii]
             )
 
-    def _canonical_evaluate(
-        self, canonical_samples: Array, return_std: bool
-    ) -> Array:
-        vals = [0.0 for jj in range(self._nmodels)]
-        for jj in range(self._nmodels):
-            vals[jj] = self._gps[0]._canonical_evaluate(
-                canonical_samples[jj], False
-            )[0]
+    def gaussian_processes(self) -> List[ExactGaussianProcess]:
+        return self._gps
 
-        for ii in range(1, self._nmodels - 1):
-            for jj in range(ii, self._nmodels):
-                vals[jj] += self._gps[ii]._canonical_evaluate(
-                    canonical_samples[jj], False
-                )[0]
-        result = self._gps[self._nmodels - 1]._canonical_evaluate(
-            canonical_samples[-1], return_std
-        )
-        vals[-1] += result[0]
+    def evaluate(
+        self, samples: Array, return_std: bool, model_id: int = 0
+    ) -> Tuple[Array, Array]:
+        # just return standard deviation of gp[model_id]
+        result = self._gps[0].evaluate(samples, model_id == 0 and return_std)
+        if model_id == 0:
+            return result
+        vals = result[0]
+        for ii in range(1, model_id):
+            vals = (
+                self._gps[ii]._scaling(samples) * vals
+                + self._gps[ii].evaluate(samples, False)[0]
+            )
+        result = self._gps[model_id].evaluate(samples, return_std)
+        vals = self._gps[ii]._scaling(samples) * vals + result[0]
+        if not return_std:
+            return vals
         return vals, result[1]
+
+    def _values(self, samples: Array) -> Array:
+        return self.evaluate(samples, False)
+
+    def plot_1d(
+        self,
+        ax,
+        bounds,
+        output_id,
+        npts_1d=101,
+        nstdevs=2,
+        plt_kwargs={},
+        fill_kwargs={"alpha": 0.3},
+        prior_kwargs=None,
+        plot_samples=None,
+    ):
+        gp = self._gps[output_id]
+        return gp.plot_1d(
+            ax,
+            bounds,
+            npts_1d,
+            nstdevs,
+            plt_kwargs,
+            fill_kwargs,
+            prior_kwargs,
+            plot_samples,
+        )
