@@ -1,19 +1,27 @@
+import math
+from functools import partial
+
 from scipy.stats._distn_infrastructure import rv_sample, rv_continuous
 from scipy.stats import _continuous_distns
 from scipy.stats import _discrete_distns
+from scipy import interpolate
 import numpy as np
-from functools import partial
+
+from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 def is_continuous_variable(rv):
     """
     Is variable continuous
     """
-    return bool((rv.dist.name in _continuous_distns._distn_names) or
-                rv.dist.name == "continuous_rv_sample" or
-                rv.dist.name == "continuous_monomial" or
-                rv.dist.name == "rv_function_indpndt_vars" or
-                rv.dist.name == "rv_product_indpndt_vars")
+    return bool(
+        (rv.dist.name in _continuous_distns._distn_names)
+        or rv.dist.name == "continuous_rv_sample"
+        or rv.dist.name == "continuous_monomial"
+        or rv.dist.name == "rv_function_indpndt_vars"
+        or rv.dist.name == "rv_product_indpndt_vars"
+    )
 
 
 def is_bounded_continuous_variable(rv):
@@ -21,9 +29,12 @@ def is_bounded_continuous_variable(rv):
     Is variable bounded and continuous
     """
     interval = rv.interval(1)
-    return bool(is_continuous_variable(rv) and
-                rv.dist.name != "continuous_rv_sample"
-                and np.isfinite(interval[0]) and np.isfinite(interval[1]))
+    return bool(
+        is_continuous_variable(rv)
+        and rv.dist.name != "continuous_rv_sample"
+        and np.isfinite(interval[0])
+        and np.isfinite(interval[1])
+    )
 
 
 def is_bounded_discrete_variable(rv):
@@ -31,10 +42,15 @@ def is_bounded_discrete_variable(rv):
     Is variable bounded and discrete
     """
     interval = rv.interval(1)
-    return bool(((rv.dist.name in _discrete_distns._distn_names) or
-                (rv.dist.name == "float_rv_discrete") or
-                 (rv.dist.name == "discrete_chebyshev")) and
-                np.isfinite(interval[0]) and np.isfinite(interval[1]))
+    return bool(
+        (
+            (rv.dist.name in _discrete_distns._distn_names)
+            or (rv.dist.name == "float_rv_discrete")
+            or (rv.dist.name == "discrete_chebyshev")
+        )
+        and np.isfinite(interval[0])
+        and np.isfinite(interval[1])
+    )
 
 
 def get_probability_masses(rv, tol=0):
@@ -49,25 +65,35 @@ def get_probability_masses(rv, tol=0):
     """
     # assert is_bounded_discrete_variable(rv)
     name, scales, shapes = get_distribution_info(rv)
-    if (name == "float_rv_discrete" or name == "discrete_chebyshev" or
-            name == "continuous_rv_sample"):
+    if (
+        name == "float_rv_discrete"
+        or name == "discrete_chebyshev"
+        or name == "continuous_rv_sample"
+    ):
         return rv.dist.xk.copy(), rv.dist.pk.copy()
     elif name == "hypergeom":
         M, n, N = [shapes[key] for key in ["M", "n", "N"]]
-        xk = np.arange(max(0, N-M+n), min(n, N)+1, dtype=float)
+        xk = np.arange(max(0, N - M + n), min(n, N) + 1, dtype=float)
         pk = rv.pmf(xk)
         return xk, pk
     elif name == "binom":
         n = shapes["n"]
-        xk = np.arange(0, n+1, dtype=float)
+        xk = np.arange(0, n + 1, dtype=float)
         pk = rv.pmf(xk)
         return xk, pk
-    elif (name == "nbinom" or name == "geom" or name == "logser" or
-          name == "poisson" or name == "planck" or name == "zipf" or
-          name == "dlaplace" or name == "skellam"):
+    elif (
+        name == "nbinom"
+        or name == "geom"
+        or name == "logser"
+        or name == "poisson"
+        or name == "planck"
+        or name == "zipf"
+        or name == "dlaplace"
+        or name == "skellam"
+    ):
         if tol <= 0:
             raise ValueError("interval is unbounded so specify probability<1")
-        lb, ub = rv.interval(1-tol)
+        lb, ub = rv.interval(1 - tol)
         xk = np.arange(int(lb), int(ub), dtype=float)
         pk = rv.pmf(xk)
         return xk, pk
@@ -97,10 +123,12 @@ def get_distribution_info(rv):
     if shape_names is not None:
         shape_names = [name.strip() for name in shape_names.split(",")]
         shape_values = [
-            rv.args[ii] for ii in range(min(len(rv.args), len(shape_names)))]
+            rv.args[ii] for ii in range(min(len(rv.args), len(shape_names)))
+        ]
         shape_values += [
             rv.kwds[shape_names[ii]]
-            for ii in range(len(rv.args), len(shape_names))]
+            for ii in range(len(rv.args), len(shape_names))
+        ]
         shapes = dict(zip(shape_names, shape_values))
     else:
         shapes = dict()
@@ -123,11 +151,11 @@ def get_distribution_info(rv):
         # else:
         scale_values = [0, 1]
     elif len(scale_values) == 1 and len(rv.args) > len(shapes):
-        scale_values += [1.]
+        scale_values += [1.0]
     elif len(scale_values) == 1 and "scale" not in rv.kwds:
-        scale_values += [1.]
+        scale_values += [1.0]
     elif len(scale_values) == 1 and "loc" not in rv.kwds:
-        scale_values = [0]+scale_values
+        scale_values = [0] + scale_values
     scale_names = ["loc", "scale"]
     scales = dict(zip(scale_names, [np.atleast_1d(s) for s in scale_values]))
 
@@ -145,7 +173,7 @@ def scipy_raw_pdf(pdf, loc, scale, shapes, x):
     Evaluating this function avoids error checking which can
     slow evaluation significantly. Use with caution
     """
-    return pdf((x - loc)/scale, **shapes)/scale
+    return pdf((x - loc) / scale, **shapes) / scale
 
 
 def get_pdf(rv, log=False):
@@ -160,13 +188,17 @@ def get_pdf(rv, log=False):
 
     if not log:
         pdf = partial(
-            scipy_raw_pdf, rv.dist._pdf, scales['loc'], scales['scale'],
-            shapes)
+            scipy_raw_pdf, rv.dist._pdf, scales["loc"], scales["scale"], shapes
+        )
         return pdf
     else:
         return partial(
-            scipy_raw_pdf, rv.dist._logpdf, scales['loc'], scales['scale'],
-            shapes)
+            scipy_raw_pdf,
+            rv.dist._logpdf,
+            scales["loc"],
+            scales["scale"],
+            shapes,
+        )
 
 
 def transform_scale_parameters(var):
@@ -174,18 +206,18 @@ def transform_scale_parameters(var):
     Transform scale parameters so that when any bounded variable is transformed
     to the canonical domain [-1, 1]
     """
-    if (is_bounded_continuous_variable(var)):
+    if is_bounded_continuous_variable(var):
         a, b = var.interval(1)
-        loc = (a+b)/2
-        scale = b-loc
+        loc = (a + b) / 2
+        scale = b - loc
         return loc, scale
 
     if is_bounded_discrete_variable(var):
         # var.interval(1) can return incorrect bounds
         xk, pk = get_probability_masses(var)
         a, b = xk.min(), xk.max()
-        loc = (a+b)/2
-        scale = b-loc
+        loc = (a + b) / 2
+        scale = b - loc
         return loc, scale
 
     scale_dict = get_distribution_info(var)[1]
@@ -246,7 +278,8 @@ def variable_shapes_equivalent(rv1, rv2):
     if "xk" in shapes1:
         # xk and pk shapes are list so != comparison will not work
         not_equiv = np.any(shapes1["xk"] != shapes2["xk"]) or np.any(
-            shapes1["pk"] != shapes2["pk"])
+            shapes1["pk"] != shapes2["pk"]
+        )
         return not not_equiv
     else:
         return shapes1 == shapes2
@@ -262,14 +295,34 @@ class float_rv_discrete(rv_sample):
     moment work and are tested
     """
 
-    def __init__(self, a=0, b=np.inf, name=None, badvalue=None,
-                 moment_tol=1e-8, values=None, inc=1, longname=None,
-                 shapes=None, seed=None, extradoc=None):
+    def __init__(
+        self,
+        a=0,
+        b=np.inf,
+        name=None,
+        badvalue=None,
+        moment_tol=1e-8,
+        values=None,
+        inc=1,
+        longname=None,
+        shapes=None,
+        seed=None,
+        extradoc=None,
+    ):
         # extradoc must appear in __init__ above even though it is not
         # used for backwards capability.
         super(float_rv_discrete, self).__init__(
-            a, b, name, badvalue, moment_tol, values, inc, longname, shapes,
-            seed=seed)
+            a,
+            b,
+            name,
+            badvalue,
+            moment_tol,
+            values,
+            inc,
+            longname,
+            shapes,
+            seed=seed,
+        )
         self.xk = self.xk.astype(dtype=float)
 
     def __new__(cls, *args, **kwds):
@@ -313,12 +366,13 @@ class float_rv_discrete(rv_sample):
             raise ValueError("Domain error in arguments.")
 
         if np.all(scale == 0):
-            return loc*np.ones(size, "d")
+            return loc * np.ones(size, "d")
 
         # extra gymnastics needed for a custom random_state
         if rndm is not None:
             random_state_saved = self._random_state
             from scipy._lib._util import check_random_state
+
             self._random_state = check_random_state(rndm)
 
         # `size` should just be an argument to _rvs(), but for, um,
@@ -350,7 +404,8 @@ class float_rv_discrete(rv_sample):
         for jj in range(x.shape[0]):
             for ii in range(self.xk.shape[0]):
                 if np.allclose(
-                        self.xk[ii], x[jj], atol=np.finfo(float).eps*2):
+                    self.xk[ii], x[jj], atol=np.finfo(float).eps * 2
+                ):
                     vals[jj] = self.pk[ii]
                     break
         return vals
@@ -363,6 +418,7 @@ class rv_function_indpndt_vars_gen(rv_continuous):
     Used to create 1D polynomial chaos basis orthogonal to the PDFs
     of the scalar function of the 1D variables.
     """
+
     def _argcheck(self, fun, init_variables, quad_rules):
         return True
 
@@ -372,7 +428,8 @@ class rv_function_indpndt_vars_gen(rv_continuous):
 
 rv_function_indpndt_vars = rv_function_indpndt_vars_gen(
     shapes="fun, initial_variables, quad_rules",
-    name="rv_function_indpndt_vars")
+    name="rv_function_indpndt_vars",
+)
 
 
 class rv_product_indpndt_vars_gen(rv_continuous):
@@ -382,6 +439,7 @@ class rv_product_indpndt_vars_gen(rv_continuous):
     Used to create 1D polynomial chaos basis orthogonal to the PDFs
     of the scalar product of the 1D variables.
     """
+
     def _argcheck(self, funs, init_variables, quad_rules):
         return True
 
@@ -391,7 +449,8 @@ class rv_product_indpndt_vars_gen(rv_continuous):
 
 rv_product_indpndt_vars = rv_product_indpndt_vars_gen(
     shapes="funs, initial_variables, quad_rules",
-    name="rv_product_indpndt_vars")
+    name="rv_product_indpndt_vars",
+)
 
 
 def get_truncated_range(var, unbounded_alpha=0.99, bounded_alpha=1.0):
@@ -417,8 +476,160 @@ def get_truncated_range(var, unbounded_alpha=0.99, bounded_alpha=1.0):
     range : iterable
         The finite (possibly truncated) range of the random variable
     """
-    if (is_bounded_continuous_variable(var) or
-            is_bounded_discrete_variable(var)):
+    if is_bounded_continuous_variable(var) or is_bounded_discrete_variable(
+        var
+    ):
         return var.interval(bounded_alpha)
 
     return var.interval(unbounded_alpha)
+
+
+def pdf_under_affine_map(
+    pdf: callable, loc: float, scale: float, y: Array
+) -> Array:
+    return pdf((y - loc) / scale) / scale
+
+
+def pdf_derivative_under_affine_map(
+    pdf_deriv: callable, loc: float, scale: float, y: Array
+) -> Array:
+    r"""
+    Let y=g(x)=x*scale+loc and x = g^{-1}(y) = v(y) = (y-loc)/scale, scale>0
+    p_Y(y)=p_X(v(y))*|dv/dy(y)|=p_X((y-loc)/scale))/scale
+    dp_Y(y)/dy = dv/dy(y)*dp_X/dx(v(y))/scale = dp_X/dx(v(y))/scale**2
+    """
+    return pdf_deriv((y - loc) / scale) / scale**2
+
+
+def beta_function(
+    alpha_stat: float, beta_stat: float, bkd: LinAlgMixin = NumpyLinAlgMixin
+):
+    return bkd.exp(
+        bkd.gammaln(alpha_stat)
+        + bkd.gammaln(beta_stat)
+        - bkd.gammaln(alpha_stat + beta_stat)
+    )
+
+
+def beta_pdf(
+    alpha_stat: float,
+    beta_stat: float,
+    x: Array,
+    bkd: LinAlgMixin = NumpyLinAlgMixin,
+) -> Array:
+    # scipy implementation is slow
+    const = 1.0 / beta_function(alpha_stat, beta_stat, bkd)
+    return const * (x ** (alpha_stat - 1) * (1 - x) ** (beta_stat - 1))
+
+
+def beta_pdf_on_ab(
+    alpha_stat: float,
+    beta_stat: float,
+    a: float,
+    b: float,
+    x: Array,
+    bkd: LinAlgMixin = NumpyLinAlgMixin,
+) -> Array:
+    # const = 1./beta_fn(alpha_stat,beta_stat)
+    # const /= (b-a)**(alpha_stat+beta_stat-1)
+    # return const*((x-a)**(alpha_stat-1)*(b-x)**(beta_stat-1))
+    pdf = partial(beta_pdf, alpha_stat, beta_stat)
+    return pdf_under_affine_map(pdf, a, (b - a), x)
+
+
+def beta_pdf_derivative(
+    alpha_stat: float,
+    beta_stat: float,
+    x: Array,
+    bkd: LinAlgMixin = NumpyLinAlgMixin,
+) -> Array:
+    r"""
+    x in [0, 1]
+    """
+    # beta_const = gamma_fn(alpha_stat+beta_stat)/(
+    # gamma_fn(alpha_stat)*gamma_fn(beta_stat))
+
+    beta_const = 1.0 / beta_function(alpha_stat, beta_stat, bkd)
+    deriv = 0
+    if alpha_stat > 1:
+        deriv += (alpha_stat - 1) * (
+            x ** (alpha_stat - 2) * (1 - x) ** (beta_stat - 1)
+        )
+    if beta_stat > 1:
+        deriv -= (beta_stat - 1) * (
+            x ** (alpha_stat - 1) * (1 - x) ** (beta_stat - 2)
+        )
+    deriv *= beta_const
+    return deriv
+
+
+def beta_pdf_derivative_on_ab(
+    alpha_stat: float,
+    beta_stat: float,
+    a: float,
+    b: float,
+    x: Array,
+    bkd: LinAlgMixin = NumpyLinAlgMixin,
+) -> Array:
+
+    pdf_deriv = partial(beta_pdf_derivative, alpha_stat, beta_stat)
+    return pdf_derivative_under_affine_map(pdf_deriv, a, b - a, x)
+
+
+def gaussian_pdf(
+    mean: float, var: float, x: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+) -> Array:
+    r"""
+    set package=sympy if want to use for symbolic calculations
+    """
+    return bkd.exp(-((x - mean) ** 2) / (2 * var)) / (2 * math.pi * var) ** 0.5
+
+
+def gaussian_pdf_derivative(
+    mean: float, var: float, x: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+) -> Array:
+    return -gaussian_pdf(mean, var, x, bkd) * (x - mean) / var
+
+
+class EmpiricalCDF:
+    def __init__(
+        self,
+        samples: Array,
+        weights: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        if samples.ndim != 1:
+            raise ValueError("samples must be a 1d array")
+        self._samples = samples
+        self._sorted_samples = self._bkd.sort(self._samples)
+        if weights is None:
+            self._ecdf = self._bkd.asarray(
+                [(ii + 1) / self.nmasses() for ii in range(self.nmasses())]
+            )
+        else:
+            assert weights.ndim == 1
+            II = np.argsort(self.samples)
+            self._ecdf = np.cumsum(weights[II])
+
+        self._interp = interpolate.interp1d(
+            self._sorted_samples,
+            self._ecdf,
+            kind="zero",
+            fill_value=(0, 1),
+            bounds_error=False,
+        )
+
+    def nmasses(self) -> int:
+        return self._samples.shape[0]
+
+    def __call__(self, samples: Array) -> Array:
+        if samples.ndim != 1:
+            raise ValueError("samples must be a 1d array")
+        return self._bkd.asarray(self._interp(samples))
+
+    def integrate_cdf(self) -> Array:
+        vals = self._bkd.cumsum(
+            self._bkd.diff(self._sorted_samples) * self._ecdf[:-1]
+        )
+        return self._bkd.hstack(self._bkd.zeros((1,)), vals)

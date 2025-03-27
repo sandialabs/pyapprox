@@ -331,7 +331,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         coef_args = self._factor_training_kernel_matrix()
         if coef_args[0] is None:
             # cholesky factorization failed
-            return coef_args[1][0, 0] * 0 + self._bkd.atleast1d(np.inf)
+            return coef_args[1][0, 0] * 0 + self._bkd.full((1,), np.inf)
         Linv_y = self._Linv_y(*coef_args)
         nsamples = self._ctrain_values.shape[0]
         return 0.5 * (
@@ -643,6 +643,33 @@ class MOExactGaussianProcess(ExactGaussianProcess):
             cnt += s.shape[1]
         return train_values
 
+    def _expand_values(
+        self, nsamples_per_model: List, vals: Array
+    ) -> List[Array]:
+        # super().evaluate() returns vals as a concatenated array
+        # separate evaluations of each model into a list
+        vals_list = []
+        cnt = 0
+        for nsamples in nsamples_per_model:
+            if nsamples > 0:
+                vals_list.append(vals[cnt : cnt + nsamples])
+                cnt += nsamples
+        return vals_list
+
+    def evaluate(
+        self, samples: List[Array], return_std: bool
+    ) -> Tuple[List[Array], Array]:
+        # just return standard deviation of gp[model_id]
+
+        nsamples_per_model = [s.shape[1] for s in samples]
+        result = super().evaluate(samples, return_std)
+        if not return_std:
+            return self._expand_values(nsamples_per_model, result)
+        return (
+            self._expand_values(nsamples_per_model, result[0]),
+            self._expand_values(nsamples_per_model, result[1]),
+        )
+
     def plot_1d(
         self,
         ax,
@@ -750,10 +777,15 @@ class SequentialGaussianProcess(ExactGaussianProcess):
         trend: BasisExpansion = None,
         kernel_reg: float = 0,
     ):
+        # scaling operates on canonical space
         super().__init__(nvars, kernel, trend, kernel_reg)
         self._scaling = scaling
         self._hyp_list += self._scaling.hyp_list()
         self._lf_gp = low_fidelity_gp
+
+    def _set_training_data(self, train_samples: Array, train_values: Array):
+        self._train_samples = train_samples
+        super()._set_training_data(train_samples, train_values)
 
     def analytical_neg_log_like_jacobian_implemented(self) -> bool:
         return False
@@ -762,10 +794,33 @@ class SequentialGaussianProcess(ExactGaussianProcess):
         diff = (
             self._ctrain_values
             - self._canonical_trend(self._ctrain_samples)
-            - self._scaling(self._ctrain_samples)
+            # scaling operates on canonical space
+            - self._scaling(self._train_samples)
             * self._lf_gp._canonical_evaluate(self._ctrain_samples, False)[0]
         )
         return self._bkd.solve_triangular(args[0], diff)
+
+    def _canonical_evaluate(
+        self, samples: Array, return_std: bool
+    ) -> Tuple[Array, Array]:
+        # evaluate discrepancy
+        vals, std = super()._canonical_evaluate(samples, return_std)
+        # add scaled lowfidelity gp to discrepancy
+        vals += (
+            self._scaling(samples)
+            * self._lf_gp._canonical_evaluate(samples, False)[0]
+        )
+        return vals, std
+
+    def _solve_coefficients(self, *args) -> Tuple:
+        diff = (
+            self._ctrain_values
+            - self._canonical_trend(self._ctrain_samples)
+            # scaling operates on canonical space
+            - self._scaling(self._ctrain_samples)
+            * self._lf_gp._canonical_evaluate(self._ctrain_samples, False)[0]
+        )
+        return self._bkd.cholesky_solve(args[0], diff)
 
     def _jacobian_neg_log_like_with_hyperparam_trend(
         self, active_opt_params: Array
@@ -787,6 +842,7 @@ class SequentialMultiLevelGaussianProcess(Regressor):
         trends: List[BasisExpansion] = None,
         kernel_reg: float = 0,
     ):
+        # scalings operate on canonical space
         if not isinstance(kernels, list) or len(kernels) < 2:
             raise ValueError("Must provide a list of at least 2 kernels")
         self._nmodels = len(kernels)
@@ -831,23 +887,15 @@ class SequentialMultiLevelGaussianProcess(Regressor):
         return self._gps
 
     def evaluate(
-        self, samples: Array, return_std: bool, model_id: int = 0
+        self, samples: Array, return_std: bool, model_id: int = None
     ) -> Tuple[Array, Array]:
         # just return standard deviation of gp[model_id]
-        result = self._gps[0].evaluate(samples, model_id == 0 and return_std)
-        if model_id == 0:
-            return result
-        vals = result[0]
-        for ii in range(1, model_id):
-            vals = (
-                self._gps[ii]._scaling(samples) * vals
-                + self._gps[ii].evaluate(samples, False)[0]
-            )
-        result = self._gps[model_id].evaluate(samples, return_std)
-        vals = self._gps[ii]._scaling(samples) * vals + result[0]
-        if not return_std:
-            return vals
-        return vals, result[1]
+
+        if model_id is None:
+            model_id = len(self._gps) - 1
+        if model_id >= len(self._gps):
+            raise ValueError(f"model_id must be < {len(self._gps)}")
+        return self._gps[model_id].evaluate(samples, return_std)
 
     def _values(self, samples: Array) -> Array:
         return self.evaluate(samples, False)
@@ -864,14 +912,19 @@ class SequentialMultiLevelGaussianProcess(Regressor):
         prior_kwargs=None,
         plot_samples=None,
     ):
-        gp = self._gps[output_id]
-        return gp.plot_1d(
+        test_samples = self._bkd.linspace(bounds[0], bounds[1], npts_1d)[
+            None, :
+        ]
+        gp_trend, gp_std = self.evaluate(
+            test_samples, return_std=True, model_id=output_id
+        )
+        return self._gps[output_id]._plot_1d(
             ax,
-            bounds,
-            npts_1d,
+            test_samples,
+            gp_trend[:, 0],
+            gp_std[:, 0],
             nstdevs,
-            plt_kwargs,
             fill_kwargs,
-            prior_kwargs,
+            plt_kwargs,
             plot_samples,
         )

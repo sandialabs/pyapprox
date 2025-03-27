@@ -75,10 +75,18 @@ class BasisExpansion(Regressor):
     def basis(self) -> Basis:
         return self._basis
 
-    def set_basis(self, basis, coef_bounds=None):
+    def set_basis(self, basis: Basis, coef_bounds: Array = None):
         self._basis = basis
         self._bkd = self._basis._bkd
         init_coef = self._bkd.full((self._basis.nterms() * self.nqoi(),), 0.0)
+        self.set_coefficient_bounds(init_coef, coef_bounds)
+
+    def _parse_coef_bounds(self, coef_bounds: Array):
+        if coef_bounds is None:
+            return [-self._bkd.inf(), self._bkd.inf()]
+        return coef_bounds
+
+    def set_coefficient_bounds(self, init_coef: Array, coef_bounds: Array):
         self._transform = IdentityHyperParameterTransform(backend=self._bkd)
         self._coef = HyperParameter(
             "coef",
@@ -89,11 +97,6 @@ class BasisExpansion(Regressor):
             backend=self._bkd,
         )
         self._hyp_list = HyperParameterList([self._coef])
-
-    def _parse_coef_bounds(self, coef_bounds):
-        if coef_bounds is None:
-            return [-self._bkd.inf(), self._bkd.inf()]
-        return coef_bounds
 
     def nqoi(self) -> int:
         """

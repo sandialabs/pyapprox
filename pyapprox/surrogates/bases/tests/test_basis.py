@@ -44,7 +44,7 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 from pyapprox.surrogates.interp.indexing import sort_indices_lexiographically
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.variables.density import beta_pdf_on_ab, gaussian_pdf
+from pyapprox.variables.marginals import beta_pdf_on_ab, gaussian_pdf
 
 # from pyapprox.util.sys_utilities import package_available
 # if package_available("jax"):

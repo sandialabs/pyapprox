@@ -1,48 +1,63 @@
 from abc import abstractmethod
+from typing import List
+
 import numpy as np
 
 from pyapprox.surrogates.kernels.kernels import Kernel, SphericalCovariance
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.surrogates.bases.basisexp import BasisExpansion
 
 
 class MultiOutputKernel(Kernel):
-    def __init__(self, kernels, noutputs):
+    def __init__(self, kernels: List[Kernel], noutputs: int):
         self._bkd = kernels[0]._bkd
         for kernel in kernels[1:]:
             if type(kernel._bkd) is not type(self._bkd):
                 raise ValueError("kernels do not have the same backend")
-        self.kernels = kernels
+        self._kernels = kernels
         self._nkernels = len(kernels)
-        self.noutputs = noutputs
+        self._noutputs = noutputs
         self._hyp_list = sum([kernel.hyp_list() for kernel in kernels])
 
-        self.nsamples_per_output_0 = None
-        self.nsamples_per_output_1 = None
+        self._nsamples_per_output_0 = None
+        self._nsamples_per_output_1 = None
+
+    def noutputs(self) -> int:
+        return self._noutputs
+
+    def kernels(self) -> List[Kernel]:
+        return self._kernels
+
+    def nkernels(self) -> int:
+        return self._nkernels
 
     @abstractmethod
     def _scale_block(
         self,
-        samples_per_output_ii,
-        ii,
-        samples_per_output_jj,
-        jj,
-        kk,
-        symmetric,
-    ):
+        samples_per_output_ii: Array,
+        ii: int,
+        samples_per_output_jj: Array,
+        jj: int,
+        kk: int,
+        symmetric: bool,
+    ) -> Array:
         raise NotImplementedError
 
     @abstractmethod
-    def _scale_diag(self, samples_per_output_ii, ii, kk):
+    def _scale_diag(
+        self, samples_per_output_ii: Array, ii: int, kk: int
+    ) -> Array:
         raise NotImplementedError
 
     def _evaluate_block(
         self,
-        samples_per_output_ii,
-        ii,
-        samples_per_output_jj,
-        jj,
-        block_format,
-        symmetric,
-    ):
+        samples_per_output_ii: Array,
+        ii: int,
+        samples_per_output_jj: Array,
+        jj: int,
+        block_format: bool,
+        symmetric: bool,
+    ) -> Array:
         block = 0
         nonzero = False
         for kk in range(self._nkernels):
@@ -71,7 +86,12 @@ class MultiOutputKernel(Kernel):
             return block
         return None
 
-    def __call__(self, samples_0, samples_1=None, block_format=False):
+    def __call__(
+        self,
+        samples_0: Array,
+        samples_1: Array = None,
+        block_format: bool = False,
+    ) -> Array:
         """
         Parameters
         ----------
@@ -113,7 +133,7 @@ class MultiOutputKernel(Kernel):
             return self._bkd.vstack(rows)
         return matrix_blocks
 
-    def diag(self, samples_0):
+    def diag(self, samples_0: Array) -> Array:
         # samples_0 = [asarray(s) for s in samples_0]
         nsamples_0 = np.asarray([s.shape[1] for s in samples_0])
         active_outputs_0 = np.where(nsamples_0 > 0)[0]
@@ -129,31 +149,35 @@ class MultiOutputKernel(Kernel):
             diags.append(diag_ii)
         return self._bkd.hstack(diags)
 
-    def __repr__(self):
-        if self.nsamples_per_output_0 is None:
+    def __repr__(self) -> str:
+        if self._nsamples_per_output_0 is None:
             return super().__repr__()
         return "{0}({1}, nsamples_per_output={2})".format(
             self.__class__.__name__,
             self._hyp_list._short_repr(),
-            self.nsamples_per_output_0,
+            self._nsamples_per_output_0,
         )
 
 
 class SpatiallyScaledMultiOutputKernel(MultiOutputKernel):
-    def __init__(self, kernels, scalings):
+    def __init__(self, kernels: List[Kernel], scalings: List[BasisExpansion]):
         super().__init__(kernels, len(kernels))
         self._validate_kernels_and_scalings(kernels, scalings)
-        self.scalings = scalings
+        self._scalings = scalings
         self._hyp_list = self._hyp_list + sum(
             [scaling.hyp_list() for scaling in scalings]
         )
 
     @abstractmethod
-    def _validate_kernels_and_scalings(self, kernels, scalings):
+    def _validate_kernels_and_scalings(
+        self, kernels: List[Kernel], scalings: List[BasisExpansion]
+    ):
         raise NotImplementedError
 
     @abstractmethod
-    def _get_kernel_combination_matrix_entry(self, samples, ii, kk):
+    def _get_kernel_combination_matrix_entry(
+        self, samples: Array, ii: int, kk: int
+    ):
         raise NotImplementedError
 
     def _scale_block(
@@ -163,8 +187,8 @@ class SpatiallyScaledMultiOutputKernel(MultiOutputKernel):
         samples_per_output_jj,
         jj,
         kk,
-        symmetric,
-    ):
+        symmetric: bool,
+    ) -> Array:
         wmat_iikk = self._get_kernel_combination_matrix_entry(
             samples_per_output_ii, ii, kk
         )
@@ -173,27 +197,31 @@ class SpatiallyScaledMultiOutputKernel(MultiOutputKernel):
         )
         if wmat_iikk is not None and wmat_jjkk is not None:
             if ii != jj or not symmetric:
-                kmat = self.kernels[kk](
+                kmat = self.kernels()[kk](
                     samples_per_output_ii, samples_per_output_jj
                 )
             else:
-                kmat = self.kernels[kk](samples_per_output_ii)
+                kmat = self.kernels()[kk](samples_per_output_ii)
             return wmat_iikk * kmat * wmat_jjkk.T
         return None
 
-    def _scale_diag(self, samples_per_output_ii, ii, kk):
+    def _scale_diag(
+        self, samples_per_output_ii: Array, ii: int, kk: int
+    ) -> Array:
         wmat_iikk = self._get_kernel_combination_matrix_entry(
             samples_per_output_ii, ii, kk
         )
         if wmat_iikk is not None:
-            return wmat_iikk[:, 0] ** 2 * self.kernels[kk].diag(
+            return wmat_iikk[:, 0] ** 2 * self.kernels()[kk].diag(
                 samples_per_output_ii
             )
         return None
 
 
 class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
-    def _validate_kernels_and_scalings(self, kernels, scalings):
+    def _validate_kernels_and_scalings(
+        self, kernels: List[Kernel], scalings: List[BasisExpansion]
+    ):
         if len(scalings) != len(kernels) - 1:
             msg = "The number of scalings {0} must be one less than ".format(
                 len(scalings)
@@ -201,17 +229,24 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
             msg += "the number of kernels {0}".format(len(kernels))
             raise ValueError(msg)
 
-    def _get_kernel_combination_matrix_entry(self, samples, ii, kk):
-        if ii == self.noutputs - 1:
-            if kk < self.noutputs - 1:
-                return self.scalings[kk](samples)
+    def _get_kernel_combination_matrix_entry(
+        self, samples: Array, ii: int, kk: int
+    ) -> Array:
+        if ii == self.noutputs() - 1:
+            if kk < self.noutputs() - 1:
+                return self._scalings[kk](samples)
             return self._bkd.full((samples.shape[1], 1), 1.0)
         if ii == kk:
             return self._bkd.full((samples.shape[1], 1), 1.0)
         return None
 
     @staticmethod
-    def _cholesky(noutputs, blocks, bkd, block_format=False):
+    def _cholesky(
+        noutputs: int,
+        blocks: List[List[Array]],
+        bkd: LinAlgMixin,
+        block_format: bool = False,
+    ) -> Array:
         chol_blocks = []
         L_A_inv_B_list = []
         for ii in range(noutputs - 1):
@@ -244,7 +279,9 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         )
 
     @staticmethod
-    def _cholesky_blocks_to_dense(A, C, D, bkd):
+    def _cholesky_blocks_to_dense(
+        A: Array, C: Array, D: Array, bkd: LinAlgMixin
+    ) -> Array:
         shape = sum([A[ii][ii].shape[0] for ii in range(len(A))])
         L = bkd.full((shape + C.shape[0], shape + D.shape[1]), 0.0)
         cnt = 0
@@ -258,7 +295,7 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         return L
 
     @staticmethod
-    def _logdet(A, C, D, bkd):
+    def _logdet(A: Array, C: Array, D: Array, bkd: LinAlgMixin) -> float:
         log_det = 0
         for ii, row in enumerate(A):
             log_det += 2 * bkd.log(bkd.get_diagonal(row[ii])).sum()
@@ -266,7 +303,9 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         return log_det
 
     @staticmethod
-    def _lower_solve_triangular(A, C, D, values, bkd):
+    def _lower_solve_triangular(
+        A: Array, C: Array, D: Array, values: Array, bkd: LinAlgMixin
+    ) -> Array:
         # Solve Lx=y when L is the cholesky factor
         # of a peer kernel
         coefs = []
@@ -288,7 +327,9 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         return coefs
 
     @staticmethod
-    def _upper_solve_triangular(A, C, D, values, bkd):
+    def _upper_solve_triangular(
+        A: Array, C: Array, D: Array, values: Array, bkd: LinAlgMixin
+    ) -> Array:
         # Solve L^Tx=y when L is the cholesky factor
         # of a peer kernel.
         # A, C, D all are from lower-triangular factor L (not L^T)
@@ -311,13 +352,17 @@ class MultiPeerKernel(SpatiallyScaledMultiOutputKernel):
         return coefs
 
     @staticmethod
-    def _cholesky_solve(A, C, D, values, bkd):
+    def _cholesky_solve(
+        A: Array, C: Array, D: Array, values: Array, bkd: LinAlgMixin
+    ) -> Array:
         gamma = MultiPeerKernel._lower_solve_triangular(A, C, D, values, bkd)
         return MultiPeerKernel._upper_solve_triangular(A, C, D, gamma, bkd)
 
 
 class MultiLevelKernel(SpatiallyScaledMultiOutputKernel):
-    def _validate_kernels_and_scalings(self, kernels, scalings):
+    def _validate_kernels_and_scalings(
+        self, kernels: List[Kernel], scalings: List[BasisExpansion]
+    ):
         if len(scalings) != len(kernels) - 1:
             msg = "The number of scalings {0} must be one less than ".format(
                 len(scalings)
@@ -325,14 +370,16 @@ class MultiLevelKernel(SpatiallyScaledMultiOutputKernel):
             msg += "the number of kernels {0}".format(len(kernels))
             raise ValueError(msg)
 
-    def _get_kernel_combination_matrix_entry(self, samples, ii, kk):
+    def _get_kernel_combination_matrix_entry(
+        self, samples: Array, ii: int, kk: int
+    ) -> Array:
         if ii == kk:
             return self._bkd.full((samples.shape[1], 1), 1.0)
         if ii < kk:
             return None
-        val = self.scalings[kk](samples)
+        val = self._scalings[kk](samples)
         for jj in range(kk + 1, ii):
-            val *= self.scalings[jj](samples)
+            val *= self._scalings[jj](samples)
         return val
 
 
@@ -341,7 +388,9 @@ class LMCKernel(MultiOutputKernel):
     Linear model of coregionalization (LMC)
     """
 
-    def __init__(self, kernels, output_kernels, noutputs):
+    def __init__(
+        self, kernels: List[Kernel], output_kernels: List[Kernel], noutputs
+    ):
         super().__init__(kernels, noutputs)
         self.output_kernels = output_kernels
         self._validate_kernels()
@@ -350,9 +399,9 @@ class LMCKernel(MultiOutputKernel):
         )
 
     def _validate_kernels(self):
-        if len(self.output_kernels) != len(self.kernels):
+        if len(self.output_kernels) != len(self.kernels()):
             msg = "The number of kernels {0} and output_kernels {1}".format(
-                len(self.kernels), len(self.output_kernels)
+                len(self.kernels()), len(self.output_kernels)
             ) + (" are inconsistent")
             raise ValueError(msg)
         for ii, kernel in enumerate(self.output_kernels):
@@ -363,27 +412,27 @@ class LMCKernel(MultiOutputKernel):
 
     def _scale_block(
         self,
-        samples_per_output_ii,
-        ii,
-        samples_per_output_jj,
-        jj,
-        kk,
-        symmetric,
-    ):
+        samples_per_output_ii: Array,
+        ii: int,
+        samples_per_output_jj: Array,
+        jj: int,
+        kk: int,
+        symmetric: bool,
+    ) -> Array:
         if ii != jj or not symmetric:
-            kmat = self.kernels[kk](
+            kmat = self.kernels()[kk](
                 samples_per_output_ii, samples_per_output_jj
             )
         else:
-            kmat = self.kernels[kk](samples_per_output_ii)
+            kmat = self.kernels()[kk](samples_per_output_ii)
         return self.output_kernels[kk](ii, jj) * kmat
 
-    def _scale_diag(self, samples_per_output_ii, ii, kk):
-        return self.output_kernels[kk](ii, ii) * self.kernels[kk].diag(
+    def _scale_diag(self, samples_per_output_ii: Array, ii: int, kk: int):
+        return self.output_kernels[kk](ii, ii) * self.kernels()[kk].diag(
             samples_per_output_ii
         )
 
-    def get_output_kernel_correlations_from_psi(self, kk):
+    def get_output_kernel_correlations_from_psi(self, kk: int) -> Array:
         """
         Compute the correlation between the first output and all other outputs.
 
@@ -408,16 +457,20 @@ class ICMKernel(LMCKernel):
 
 class CollaborativeKernel(LMCKernel):
     def __init__(
-        self, latent_kernels, output_kernels, discrepancy_kernels, noutputs
+        self,
+        latent_kernels: List[Kernel],
+        output_kernels: List[Kernel],
+        discrepancy_kernels: List[Kernel],
+        noutputs: int,
     ):
         super().__init__(
             latent_kernels + discrepancy_kernels, output_kernels, noutputs
         )
 
     def _validate_kernels(self):
-        if len(self.output_kernels) + self.noutputs != len(self.kernels):
+        if len(self.output_kernels) + self.noutputs() != len(self.kernels()):
             msg = "The number of kernels {0} and output_kernels {1}".format(
-                len(self.kernels), len(self.output_kernels)
+                len(self.kernels()), len(self.output_kernels)
             ) + (" are inconsistent")
             raise ValueError(msg)
         for ii, kernel in enumerate(self.output_kernels):
@@ -428,14 +481,14 @@ class CollaborativeKernel(LMCKernel):
 
     def _scale_block(
         self,
-        samples_per_output_ii,
-        ii,
-        samples_per_output_jj,
-        jj,
-        kk,
-        symmetric,
-    ):
-        if kk < self._nkernels - self.noutputs:
+        samples_per_output_ii: Array,
+        ii: int,
+        samples_per_output_jj: Array,
+        jj: int,
+        kk: int,
+        symmetric: bool,
+    ) -> Array:
+        if kk < self._nkernels - self.noutputs():
             # Evaluate latent kernel
             return super()._scale_block(
                 samples_per_output_ii,
@@ -445,24 +498,26 @@ class CollaborativeKernel(LMCKernel):
                 kk,
                 symmetric,
             )
-        if kk - self._nkernels + self.noutputs == min(ii, jj):
+        if kk - self._nkernels + self.noutputs() == min(ii, jj):
             # evaluate discrepancy kernel
             if ii != jj or not symmetric:
-                return self.kernels[kk](
+                return self.kernels()[kk](
                     samples_per_output_ii, samples_per_output_jj
                 )
-            return self.kernels[kk](samples_per_output_ii)
+            return self.kernels()[kk](samples_per_output_ii)
         return None
 
-    def _scale_diag(self, samples_per_output_ii, ii, kk):
-        if kk < self._nkernels - self.noutputs:
+    def _scale_diag(self, samples_per_output_ii: Array, ii, kk):
+        if kk < self._nkernels - self.noutputs():
             return super()._scale_diag(samples_per_output_ii, ii, kk)
-        if kk - self._nkernels + self.noutputs == ii:
-            return self.kernels[kk].diag(samples_per_output_ii)
+        if kk - self._nkernels + self.noutputs() == ii:
+            return self.kernels()[kk].diag(samples_per_output_ii)
         return None
 
 
-def _recursive_latent_coefs(scaling_vals, noutputs, level, bkd):
+def _recursive_latent_coefs(
+    scaling_vals: Array, noutputs: int, level: int, bkd: LinAlgMixin
+) -> Array:
     val = bkd.zeros(noutputs)
     val[level] = 1.0
     if level == 0:
@@ -472,7 +527,9 @@ def _recursive_latent_coefs(scaling_vals, noutputs, level, bkd):
     )
 
 
-def _get_recursive_scaling_matrix(scaling_vals, noutputs, bkd):
+def _get_recursive_scaling_matrix(
+    scaling_vals: Array, noutputs: int, bkd: LinAlgMixin
+) -> Array:
     # for scalar scalings only
     rows = [
         _recursive_latent_coefs(scaling_vals, noutputs, ll, bkd)[None, :]

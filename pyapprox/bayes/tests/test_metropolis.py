@@ -5,8 +5,6 @@ from functools import partial
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
 
-# from pyapprox.bayes.laplace import (
-#     laplace_posterior_approximation_for_linear_models, laplace_evidence)
 from pyapprox.bayes.metropolis import (
     MetropolisMCMCVariable,
     compute_mvn_cholesky_based_data,
@@ -271,13 +269,6 @@ class TestMetropolis(unittest.TestCase):
         print(np.cov(mcmc_samples, ddof=1), "Samples COV")
         print("mean error", exact_post_mean[:, 0] - mcmc_samples.mean(axis=1))
         print("cov_error", exact_post_covariance - np.cov(mcmc_samples))
-        # import matplotlib.pyplot as plt
-        # from pyapprox.variables.density import NormalDensity
-        # ax = plt.subplots(1, 1)[1]
-        # pdf = NormalDensity(exact_post_mean, exact_post_covariance)
-        # pdf.plot_contours(ax=ax)
-        # ax.plot(*mcmc_samples, 'o')
-        # plt.show()
         assert np.allclose(
             exact_post_mean[:, 0], mcmc_samples.mean(axis=1), atol=4.0e-2
         )

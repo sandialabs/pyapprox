@@ -360,7 +360,7 @@ _ = sml_gp.plot_1d(
 ax.plot(train_samples_per_model[0][0], train_values_per_model[0], "ko")
 plt.show()
 raise NotImplementedError(
-    "Implement and test jacobian of neg log likelihood for sequential gp. Also test sequential with nested points recovers co-kriging"
+    "Implement and test jacobian of neg log likelihood for sequential gp. Also test sequential with nested points recovers co-kriging. If possible, check true scalings are recovered"
 )
 
 # %%

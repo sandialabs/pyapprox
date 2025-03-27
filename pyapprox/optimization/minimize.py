@@ -337,7 +337,7 @@ class MultiStartOptimizer(OptimizerWithObjective):
         best_res = self._optimizer.minimize(x0_global)
         sucess = best_res.success
         if self._verbosity > 1:
-            print("it {0}: best objective {1}".format(0, best_res.fun))
+            print("it {0}: best objective {1}".format(1, best_res.fun))
         for ii in range(1, self._ncandidates):
             iterate = self._initial_interate_gen()
             res = self._optimizer.minimize(iterate, **kwargs)

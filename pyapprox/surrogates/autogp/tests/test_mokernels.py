@@ -56,18 +56,18 @@ class TestMultiOutputKernels:
         ]
         kernel = MultiLevelKernel(kernels, scalings)
 
-        W = bkd.zeros((kernel.noutputs, kernel.nkernels))
+        W = bkd.zeros((kernel.noutputs(), kernel.nkernels()))
         sample = bkd.zeros((nvars, 1))
-        for ii in range(kernel.noutputs):
+        for ii in range(kernel.noutputs()):
             for kk in range(ii + 1):
                 W[ii, kk] = kernel._get_kernel_combination_matrix_entry(
                     sample, ii, kk
                 )[0, 0]
-            for kk in range(ii + 1, kernel.noutputs):
+            for kk in range(ii + 1, kernel.noutputs()):
                 W[ii, kk] = 0.0
 
         W_true = _get_recursive_scaling_matrix(
-            scaling_vals, kernel.noutputs, bkd
+            scaling_vals, kernel.noutputs(), bkd
         )
         assert np.allclose(W_true, W)
 
@@ -118,22 +118,22 @@ class TestMultiOutputKernels:
         DD_list_0 = [
             bkd.asarray(
                 np.linalg.cholesky(
-                    kernel.kernels[kk](samples_per_output[0])
+                    kernel.kernels()[kk](samples_per_output[0])
                 ).dot(
                     np.random.normal(0, 1, (nsamples_per_output[0], nsamples))
                 )
             )
-            for kk in range(kernel.nkernels)
+            for kk in range(kernel.nkernels())
         ]
         # samples must be nested for tests to work
         DD_lists = [
             [DD[: nsamples_per_output[ii], :] for DD in DD_list_0]
-            for ii in range(kernel.noutputs)
+            for ii in range(kernel.noutputs())
         ]
 
-        for ii in range(kernel.noutputs):
+        for ii in range(kernel.noutputs()):
             vals = 0
-            for kk in range(kernel.nkernels):
+            for kk in range(kernel.nkernels()):
                 wmat_iikk = kernel._get_kernel_combination_matrix_entry(
                     samples_per_output[ii], ii, kk
                 )
@@ -152,16 +152,16 @@ class TestMultiOutputKernels:
                 ),
                 rtol=1e-2,
             )
-            for jj in range(ii + 1, kernel.noutputs):
+            for jj in range(ii + 1, kernel.noutputs()):
                 vals_ii = bkd.full((nsamples_per_output[ii], nsamples), 0.0)
                 vals_jj = bkd.full((nsamples_per_output[jj], nsamples), 0.0)
-                for kk in range(kernel.nkernels):
+                for kk in range(kernel.nkernels()):
                     wmat_iikk = kernel._get_kernel_combination_matrix_entry(
                         samples_per_output[ii], ii, kk
                     )
                     if wmat_iikk is not None:
                         vals_ii += wmat_iikk * DD_lists[ii][kk]
-                for kk in range(kernel.nkernels):
+                for kk in range(kernel.nkernels()):
                     wmat_jjkk = kernel._get_kernel_combination_matrix_entry(
                         samples_per_output[jj], jj, kk
                     )

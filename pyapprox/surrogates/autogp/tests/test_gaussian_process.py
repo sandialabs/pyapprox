@@ -9,7 +9,10 @@ import matplotlib.pyplot as plt
 
 from pyapprox.surrogates.bases.univariate.base import Monomial1D
 from pyapprox.surrogates.bases.basis import MultiIndexBasis
-from pyapprox.surrogates.bases.basisexp import BasisExpansion
+from pyapprox.surrogates.bases.basisexp import (
+    BasisExpansion,
+    MonomialExpansion,
+)
 from pyapprox.util.hyperparameter import (
     LogHyperParameterTransform,
     HyperParameter,
@@ -26,6 +29,7 @@ from pyapprox.surrogates.autogp.exactgp import (
     MOPeerExactGaussianProcess,
     GaussianProcessIdentityTransform,
     GaussianProcessStandardDeviationTransform,
+    SequentialMultiLevelGaussianProcess,
 )
 from pyapprox.surrogates.autogp.stats import (
     GaussianProcessStatistics,
@@ -36,6 +40,7 @@ from pyapprox.surrogates.autogp.mokernels import (
     ICMKernel,
     MultiPeerKernel,
     CollaborativeKernel,
+    MultiLevelKernel,
 )
 from pyapprox.surrogates.autogp.variationalgp import (
     _log_prob_gaussian_with_noisy_nystrom_covariance,
@@ -56,6 +61,7 @@ from pyapprox.surrogates.bases.basis import (
 )
 from pyapprox.benchmarks import IshigamiBenchmark
 from pyapprox.expdesign.sequences import SobolSequence
+from pyapprox.interface.model import ModelFromVectorizedCallable
 
 
 class TestNystrom:
@@ -668,7 +674,7 @@ class TestGaussianProcess:
             axs[ii].plot(
                 gp.get_train_samples()[ii][0], gp.get_train_values()[ii], "o"
             )
-        plt.show()
+        # plt.show()
 
     def _setup_high_acccuracy_gp(self, kernel, variable):
         bkd = self.get_backend()
@@ -1034,6 +1040,137 @@ class TestGaussianProcess:
         print("Rel. Error", rel_error)
 
         assert rel_error < 5e-4
+
+    def _setup_multilevel_model_ensemble(self, degree, nmodels):
+        bkd = self.get_backend()
+        rho = bkd.full(((nmodels - 1) * (degree + 1),), 0.9)
+
+        def scale(x, rho, kk):
+            if degree == 0:
+                return rho[kk]
+            return rho[2 * kk] + x.T * rho[2 * kk + 1]
+
+        def f1(x):
+            y = x[0:1].T
+            return ((y * 6 - 2) ** 2) * bkd.sin((y * 6 - 2) * 2) / 5
+
+        def f2(x):
+            y = x[0:1].T
+            return scale(x, rho, 0) * f1(x) + bkd.cos(y * 2) / 10
+
+        def f3(x):
+            y = x[0:1].T
+            return scale(x, rho, -1) * f2(x) + ((y - 0.5) * 1.0 - 5) / 5
+
+        model1 = ModelFromVectorizedCallable(1, 1, f1, backend=bkd)
+        model2 = ModelFromVectorizedCallable(1, 1, f2, backend=bkd)
+        model3 = ModelFromVectorizedCallable(1, 1, f3, backend=bkd)
+        if nmodels == 3:
+            return rho, (model1, model2, model3)
+        return rho, (model1, model2)
+
+    def _check_multilevel_gaussian_process(self, nmodels, degree, tol):
+        bkd = self.get_backend()
+        nvars = 1
+        rho, models = self._setup_multilevel_model_ensemble(degree, nmodels)
+        sml_kernels = [
+            MaternKernel(np.inf, 0.5, (5e-2, 1), nvars, backend=bkd)
+            for ii in range(nmodels)
+        ]
+        sml_scaling_basis = MultiIndexBasis(
+            [Monomial1D(backend=bkd) for ii in range(nvars)]
+        )
+        sml_scaling_basis.set_tensor_product_indices([degree + 1] * nvars)
+        sml_scalings = [
+            MonomialExpansion(sml_scaling_basis) for nn in range(nmodels - 1)
+        ]
+        [
+            scaling.set_coefficient_bounds(
+                bkd.array([1.0] * (degree + 1)), (0.0, 1.0)
+            )
+            for scaling in sml_scalings
+        ]
+        sml_gp = SequentialMultiLevelGaussianProcess(sml_kernels, sml_scalings)
+        for gp in sml_gp.gaussian_processes():
+            gp.set_optimizer(ncandidates=10, verbosity=0)
+        # create nested samples
+        ntrain_samples_per_model = [2**5 + 1, 2**4 + 1, 2**3][:nmodels]
+        train_samples_per_model = [
+            bkd.linspace(0, 1, nsamples)[None, :]
+            for nsamples in ntrain_samples_per_model
+        ]
+        train_values_per_model = [
+            model(samples)
+            for model, samples in zip(models, train_samples_per_model)
+        ]
+
+        sml_gp.fit(train_samples_per_model, train_values_per_model)
+
+        test_samples_per_model = [
+            bkd.asarray(np.random.uniform(0, 1, (1, 10)))
+        ] * nmodels
+        test_values_per_model = [
+            model(samples)
+            for model, samples in zip(models, test_samples_per_model)
+        ]
+        sml_gp_values = [
+            sml_gp.evaluate(test_samples_per_model[ii], False, ii)
+            for ii in range(nmodels)
+        ]
+
+        ml_kernel = MultiLevelKernel(sml_kernels, sml_scalings)
+        ml_gp = MOExactGaussianProcess(nvars, ml_kernel, kernel_reg=1e-10)
+        ml_gp.set_optimizer(ncandidates=10)
+        ml_gp.fit(train_samples_per_model, train_values_per_model)
+        ml_gp_values = ml_gp.evaluate(test_samples_per_model, False)
+
+        for ii in range(nmodels):
+            assert bkd.allclose(
+                sml_gp_values[ii],
+                test_values_per_model[ii],
+                rtol=tol,
+                atol=tol,
+            )
+            # for 3 models with degree = 1
+            # lenscale0, lenscale1, lenscale2, rho10, rho11, rho20, rho21
+            ml_hypparam_vals = ml_gp.hyp_list().get_values()
+            # for 3 models with degree = 1
+            # lenscale0, lenscale1, rho10, rho11, lenscale2, rho20, rho12
+            sml_hypparam_vals = bkd.hstack(
+                [
+                    gp.hyp_list().get_values()
+                    for gp in sml_gp.gaussian_processes()
+                ]
+            )
+            # reorder to match ml_hypparam_vals ordering
+            print(sml_hypparam_vals)
+            mask = bkd.ones((sml_hypparam_vals.shape[0]), dtype=bool)
+            mask[0] = False
+            mask[1 :: degree + 2] = False
+            sml_hypparam_vals = bkd.hstack(
+                (
+                    sml_hypparam_vals[:1],
+                    sml_hypparam_vals[1 :: degree + 2],
+                    sml_hypparam_vals[mask],
+                )
+            )
+            print(sml_hypparam_vals - ml_hypparam_vals)
+            print(sml_hypparam_vals, ml_hypparam_vals)
+            assert bkd.allclose(
+                ml_gp_values[ii],
+                test_values_per_model[ii],
+                rtol=tol,
+                atol=tol,
+            )
+            # check sequential and co-criggking gps are the same
+            # when points are nested and values noiseless
+            assert bkd.allclose(ml_hypparam_vals, sml_hypparam_vals, atol=1e-4)
+
+    def test_multilevel_gaussian_process(self):
+        test_cases = [[2, 0, 1e-5], [2, 1, 2e-4], [3, 0, 1e-3], [3, 1, 1e-3]]
+        for test_case in test_cases:
+            np.random.seed(1)
+            self._check_multilevel_gaussian_process(*test_case)
 
 
 class TestNumpyNystrom(TestNystrom, unittest.TestCase):

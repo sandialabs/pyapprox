@@ -3,7 +3,7 @@ import numpy as np
 from functools import partial
 from scipy import stats
 
-from pyapprox.variables.density import NormalDensity
+from pyapprox.variables.gaussian import DenseMatrixMultivariateGaussian
 from pyapprox.variables.sampling import rejection_sampling
 from pyapprox.variables._rosenblatt import (
     invert_cdf,
@@ -311,8 +311,8 @@ class TestRosenblattTransform:
 
         # independent normals all variables active
         nvars = 2
-        variable = NormalDensity(
-            mean=np.zeros((nvars)), covariance=np.eye(nvars)
+        variable = DenseMatrixMultivariateGaussian(
+            mean=np.zeros((nvars, 1)), cov=np.eye(nvars)
         )
         joint_density = variable.pdf
         limits = np.asarray([-5, 5, -5, 5])
