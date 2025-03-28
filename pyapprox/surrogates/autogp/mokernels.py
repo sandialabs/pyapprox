@@ -1,10 +1,11 @@
 from abc import abstractmethod
-from typing import List
-
-import numpy as np
+from typing import List, Tuple
 
 from pyapprox.surrogates.kernels.kernels import Kernel, SphericalCovariance
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.surrogates.bases.univariate.base import Monomial1D
+from pyapprox.surrogates.bases.basis import MultiIndexBasis, Basis
 from pyapprox.surrogates.bases.basisexp import BasisExpansion
 
 
@@ -88,27 +89,27 @@ class MultiOutputKernel(Kernel):
 
     def __call__(
         self,
-        samples_0: Array,
-        samples_1: Array = None,
+        samples_0: List[Array],
+        samples_1: List[Array] = None,
         block_format: bool = False,
     ) -> Array:
         """
         Parameters
         ----------
-        block_format : list[list]
+        block_format : bool
             only return upper-traingular blocks, and set lower-triangular
             blocks to None
         """
-        samples_0 = [s for s in samples_0]
+        # samples_0 = [s for s in samples_0]
         if samples_1 is None:
             samples_1 = samples_0
             symmetric = True
         else:
             symmetric = False
-        nsamples_0 = np.asarray([s.shape[1] for s in samples_0])
-        nsamples_1 = np.asarray([s.shape[1] for s in samples_1])
-        active_outputs_0 = np.where(nsamples_0 > 0)[0]
-        active_outputs_1 = np.where(nsamples_1 > 0)[0]
+        nsamples_0 = self._bkd.asarray([s.shape[1] for s in samples_0])
+        nsamples_1 = self._bkd.asarray([s.shape[1] for s in samples_1])
+        active_outputs_0 = self._bkd.where(nsamples_0 > 0)[0]
+        active_outputs_1 = self._bkd.where(nsamples_1 > 0)[0]
         noutputs_0 = active_outputs_0.shape[0]
         noutputs_1 = active_outputs_1.shape[0]
         matrix_blocks = [
@@ -135,8 +136,8 @@ class MultiOutputKernel(Kernel):
 
     def diag(self, samples_0: Array) -> Array:
         # samples_0 = [asarray(s) for s in samples_0]
-        nsamples_0 = np.asarray([s.shape[1] for s in samples_0])
-        active_outputs_0 = np.where(nsamples_0 > 0)[0]
+        nsamples_0 = self._bkd.asarray([s.shape[1] for s in samples_0])
+        active_outputs_0 = self._bkd.where(nsamples_0 > 0)[0]
         noutputs_0 = active_outputs_0.shape[0]
         diags = []
         for ii in range(noutputs_0):
@@ -536,3 +537,25 @@ def _get_recursive_scaling_matrix(
         for ll in range(noutputs)
     ]
     return bkd.vstack(rows)
+
+
+def _construct_scaling_from_basis(
+    basis: Basis, bounds: Tuple[float, float], val: float, fixed: bool
+) -> BasisExpansion:
+    # set bounds on scaling
+    bexp = BasisExpansion(basis, None, 1, bounds, fixed)
+    bexp.set_coefficients(basis._bkd.full((bexp.basis().nterms(), 1), val))
+    return bexp
+
+
+def construct_tensor_product_monomial_scaling(
+    nvars: int,
+    nterms_1d: List[int],
+    val: float,
+    bounds: Tuple[float, float],
+    fixed: bool = False,
+    bkd: LinAlgMixin = NumpyLinAlgMixin,
+) -> BasisExpansion:
+    basis = MultiIndexBasis([Monomial1D(backend=bkd) for ii in range(nvars)])
+    basis.set_tensor_product_indices(nterms_1d)
+    return _construct_scaling_from_basis(basis, bounds, val, fixed)

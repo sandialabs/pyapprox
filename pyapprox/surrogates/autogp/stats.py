@@ -1,6 +1,7 @@
 import warnings
 from typing import Tuple, List
 from functools import partial
+from abc import ABC, abstractmethod
 
 import numpy as np
 
@@ -23,7 +24,7 @@ from pyapprox.surrogates.bases.basis import (
 from pyapprox.util.transforms import Transform
 
 
-class KernelStatistics:
+class KernelStatistics(ABC):
     def __init__(
         self,
         gp: ExactGaussianProcess,
@@ -31,6 +32,7 @@ class KernelStatistics:
         ctrain_samples: Array,
         nquad_nodes_1d: List[int] = None,
     ):
+        self._variable = variable
         self._ctrain_samples = ctrain_samples
         if isinstance(gp._kernel, SumKernel):
             raise NotImplementedError(
@@ -44,7 +46,6 @@ class KernelStatistics:
             )
         self._gp = gp
         self._bkd = self._gp._bkd
-        self.set_quadrature_rule(variable, nquad_nodes_1d)
         self._tau_1d, self._cond_P_1d, self._u_1d = None, None, None
         # out trans for GP can be useful for scaling optimization objective
         # when training. However, I see little value of this transformation
@@ -53,21 +54,102 @@ class KernelStatistics:
         self._out_trans = self._gp._out_trans
         # self._out_trans = GaussianProcessIdentityTransform(self._gp._bkd)
 
-    def set_quadrature_rule(
+    def _get_kernel_length_scale(self):
+        found = False
+        for hyperparam in self._gp.kernel().hyp_list().hyper_params:
+            if hyperparam.name == "lenscale":
+                lscale = hyperparam.get_values()
+                found = True
+        if not found:
+            raise RuntimeError(
+                "kernel does not have hyperparameter with name lenscale"
+            )
+        return lscale
+
+    def _get_kernel_variance(self):
+        found = False
+        for hyperparam in self._gp.kernel().hyp_list().hyper_params:
+            if hyperparam.name == "const":
+                const = hyperparam.get_values()
+                found = True
+        if not found:
+            # kernel does not have hyperparameter with name const
+            const = 1.0
+        return const
+
+    @abstractmethod
+    def _tau_P(self) -> Tuple[Array, Array]:
+        raise NotImplementedError
+
+
+class MonteCarloKernelStatistics(KernelStatistics):
+    def __init__(
         self,
+        gp: ExactGaussianProcess,
         variable: IndependentMarginalsVariable,
+        ctrain_samples: Array,
+        nquad_samples: int = 10000,
+    ):
+        super().__init__(gp, variable, ctrain_samples)
+        self._set_quadrature_sample_weights(nquad_samples)
+
+    def _set_quadrature_sample_weights(self, nquad_samples: int):
+        self._nquad_samples = nquad_samples
+        self._cquadx = self._gp._in_trans.map_to_canonical(
+            self._variable.rvs(self._nquad_samples)
+        )
+        self._cquadw = self._bkd.full(
+            (self._nquad_samples, 1), 1 / self._nquad_samples
+        )
+
+    def _tau_P(self) -> Tuple[Array, Array]:
+        Kmat = self._gp.kernel()(self._cquadx, self._ctrain_samples)
+        tau = self._bkd.sum(self._cquadw * Kmat, axis=0)
+        Pmat = Kmat.T @ (self._cquadw * Kmat)
+        return tau, Pmat
+
+
+class MonteCarloMultiFidelityKernelStatistics(MonteCarloKernelStatistics):
+    def _set_quadrature_sample_weights(self, nquad_samples: int):
+        self._nquad_samples = nquad_samples
+        # must only evaluate highest fidelity kernel at quadrature points
+        # assumes last model is the high fidelity model
+        empty = self._bkd.zeros((self._gp.nvars(), 0))
+        hf_cquadx = self._gp._in_trans.map_to_canonical(
+            self._variable.rvs(self._nquad_samples)
+        )
+        self._cquadx = [
+            empty for nn in range(self._gp.kernel().noutputs() - 1)
+        ] + [hf_cquadx]
+        self._cquadw = self._bkd.full(
+            (self._nquad_samples, 1), 1 / self._nquad_samples
+        )
+
+
+class TensorProductQuadratureKernelStatistics(KernelStatistics):
+    def __init__(
+        self,
+        gp: ExactGaussianProcess,
+        variable: IndependentMarginalsVariable,
+        ctrain_samples: Array,
         nquad_nodes_1d: List[int] = None,
     ):
-        self._variable = variable
         if nquad_nodes_1d is None:
             nquad_nodes_1d = [30] * variable.nvars()
+        self._nquad_nodes_1d = nquad_nodes_1d
+        super().__init__(gp, variable, ctrain_samples)
+        self._set_quadrature_rule()
+
+    def _set_quadrature_rule(self):
         marginal_quad_rules = [
-            GaussQuadratureRule(marginal, backend=variable._bkd)
-            for marginal in variable.marginals()
+            GaussQuadratureRule(marginal, backend=self._variable._bkd)
+            for marginal in self._variable.marginals()
         ]
         marginal_quad_data = [
             quad_rule(nnodes)
-            for quad_rule, nnodes in zip(marginal_quad_rules, nquad_nodes_1d)
+            for quad_rule, nnodes in zip(
+                marginal_quad_rules, self._nquad_nodes_1d
+            )
         ]
         # kernel operates in canonical space so map 1d quadrature rules
         # to canonical space
@@ -80,20 +162,27 @@ class KernelStatistics:
         # ]
         self._quadw_1d = [data[1] for data in marginal_quad_data]
 
+        # following quadrature rules only needed for gaussian process
+        # stats but include here anyway for now
+
         # Map 2D quadrature rules to canonical space
         self._twodim_quadrules = [
             FixedTensorProductQuadratureRule(
-                2, [marginal_quad_rules[ii]] * 2, [nquad_nodes_1d[ii]] * 2
+                2,
+                [marginal_quad_rules[ii]] * 2,
+                [self._nquad_nodes_1d[ii]] * 2,
             )
-            for ii in range(variable.nvars())
+            for ii in range(self._variable.nvars())
         ]
 
         # Map 3D quadrature rules to canonical space
         self._threedim_quadrules = [
             FixedTensorProductQuadratureRule(
-                3, [marginal_quad_rules[ii]] * 3, [nquad_nodes_1d[ii]] * 3
+                3,
+                [marginal_quad_rules[ii]] * 3,
+                [self._nquad_nodes_1d[ii]] * 3,
             )
-            for ii in range(variable.nvars())
+            for ii in range(self._variable.nvars())
         ]
 
     def _two_dim_canonical_quadrature_tuple(
@@ -125,29 +214,6 @@ class KernelStatistics:
             ),
             ww_3d,
         )
-
-    def _get_kernel_length_scale(self):
-        found = False
-        for hyperparam in self._gp.kernel().hyp_list().hyper_params:
-            if hyperparam.name == "lenscale":
-                lscale = hyperparam.get_values()
-                found = True
-        if not found:
-            raise RuntimeError(
-                "kernel does not have hyperparameter with name lenscale"
-            )
-        return lscale
-
-    def _get_kernel_variance(self):
-        found = False
-        for hyperparam in self._gp.kernel().hyp_list().hyper_params:
-            if hyperparam.name == "const":
-                const = hyperparam.get_values()
-                found = True
-        if not found:
-            # kernel does not have hyperparameter with name const
-            const = 1.0
-        return const
 
     def _integrate_tau_P_1d(
         self, can_xtr_ii: Array, lscale_ii: float, ii: int
@@ -320,10 +386,14 @@ class KernelStatistics:
         return self._bkd.prod(self._bkd.stack(xi_1, axis=0), axis=0)
 
 
-class GaussianProcessStatistics(KernelStatistics):
-    # Kernel statistics does not depend on function values
-    # useful for experimental design
-    # whereas GuassianProcessStatistics does depend on function values
+class GaussianProcessStatistics(TensorProductQuadratureKernelStatistics):
+    # GuassianProcessStatistics does depend on function values
+    # Only derive from TensorProductQuadratureKernelStatistics
+    # as high-accuracy is needed when computing stats of GP
+
+    # Base KernelStatistics does not depend on function values
+    # useful for experimental design which does not need super high accuracy
+    # and so can be used with MC or gauss quadrature
     def __init__(
         self,
         gp: ExactGaussianProcess,
@@ -498,7 +568,6 @@ class EnsembleGaussianProcessStatistics(GaussianProcessStatistics):
             self._ninterpolation_samples = min(
                 2 * self._gp._ctrain_samples.shape[1], 1000
             )
-            print(self._ninterpolation_samples, "S")
         # import here to avoid circular import. TODO remove circular import
         from pyapprox.surrogates.autogp.activelearning import CholeskySampler
 

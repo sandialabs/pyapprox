@@ -334,12 +334,6 @@ def animate(ii):
     axs[2].legend(fontsize=18)
 
 
-# animate(0)
-# plt.show()
-# animate(1)
-# assert False
-
-
 import matplotlib.animation as animation
 
 ani = animation.FuncAnimation(

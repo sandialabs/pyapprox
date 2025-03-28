@@ -654,6 +654,8 @@ class MOExactGaussianProcess(ExactGaussianProcess):
             if nsamples > 0:
                 vals_list.append(vals[cnt : cnt + nsamples])
                 cnt += nsamples
+            else:
+                vals_list.append(self._bkd.zeros((nsamples, 0)))
         return vals_list
 
     def evaluate(
@@ -692,8 +694,8 @@ class MOExactGaussianProcess(ExactGaussianProcess):
         ims = self._plot_1d(
             ax,
             test_samples[output_id],
-            gp_trend[:, 0],
-            gp_std[:, 0],
+            gp_trend[output_id][:, 0],
+            gp_std[output_id][:, 0],
             nstdevs,
             fill_kwargs,
             plt_kwargs,

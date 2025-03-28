@@ -52,11 +52,12 @@ class BasisExpansion(Regressor):
         solver: LinearSystemSolver = None,
         nqoi=1,
         coef_bounds=None,
+        fixed: bool = False,
     ):
         # todo make model accept backend and pass in through with call to super
         super().__init__()
         self._nqoi = int(nqoi)
-        self.set_basis(basis, coef_bounds)
+        self.set_basis(basis, coef_bounds, fixed)
         if solver is not None and not basis._bkd.bkd_equal(
             solver._bkd, basis._bkd
         ):
@@ -75,18 +76,22 @@ class BasisExpansion(Regressor):
     def basis(self) -> Basis:
         return self._basis
 
-    def set_basis(self, basis: Basis, coef_bounds: Array = None):
+    def set_basis(
+        self, basis: Basis, coef_bounds: Array = None, fixed: bool = False
+    ):
         self._basis = basis
         self._bkd = self._basis._bkd
         init_coef = self._bkd.full((self._basis.nterms() * self.nqoi(),), 0.0)
-        self.set_coefficient_bounds(init_coef, coef_bounds)
+        self.set_coefficient_bounds(init_coef, coef_bounds, fixed)
 
     def _parse_coef_bounds(self, coef_bounds: Array):
         if coef_bounds is None:
             return [-self._bkd.inf(), self._bkd.inf()]
         return coef_bounds
 
-    def set_coefficient_bounds(self, init_coef: Array, coef_bounds: Array):
+    def set_coefficient_bounds(
+        self, init_coef: Array, coef_bounds: Array, fixed: bool = False
+    ):
         self._transform = IdentityHyperParameterTransform(backend=self._bkd)
         self._coef = HyperParameter(
             "coef",
@@ -94,6 +99,7 @@ class BasisExpansion(Regressor):
             init_coef,
             self._parse_coef_bounds(coef_bounds),
             None,
+            fixed,
             backend=self._bkd,
         )
         self._hyp_list = HyperParameterList([self._coef])

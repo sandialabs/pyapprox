@@ -2332,3 +2332,30 @@ class CenteredFiniteDifference(FiniteDifference):
             axis=-1,
         )
         return (perturbed_values2 - perturbed_values1) / (2 * self._fd_eps)
+
+
+class CostFunction:
+    def set_nrefinement_vars(self, nrefinement_vars: int):
+        self._nrefinement_vars = nrefinement_vars
+
+    def __call__(self, subspace_index: Array) -> float:
+        if not hasattr(self._nrefinement_vars):
+            raise RuntimeError("must call set_nrefinement_vars()")
+        return 1
+
+
+class ModelListCostFunction(CostFunction):
+    def __init__(self, costs: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+        "Cost function for a list of models indexed by an integer"
+        self._bkd = backend
+        self._costs = self._bkd.asarray(costs)
+        self._nmodels = self._costs.shape[0]
+        self.set_nrefinement_vars(1)
+
+    def __call__(self, subspace_index: int) -> float:
+        if subspace_index >= self._nmodels:
+            raise ValueError("subspace_index >= nmodels")
+        return self._costs[subspace_index]
+
+    def cost_per_model(self) -> Array:
+        return self._costs

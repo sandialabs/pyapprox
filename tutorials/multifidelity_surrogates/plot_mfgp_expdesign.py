@@ -6,50 +6,90 @@ Experimental Design for Multi-fidelity Gaussian Processes
  The following code demonstrates the additional complexity faced when desigining experimental designs for multi-fidelity GPs, specifically one must not only choose what input to sample but also what model to sample.
 """
 
-ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-kernel = MultifidelityPeerKernel(
-    nvars,
-    kernels,
-    kernel_scalings,
-    length_scale=length_scale,
-    length_scale_bounds="fixed",
-    rho=rho,
-    rho_bounds="fixed",
-    sigma=sigma,
-    sigma_bounds="fixed",
+from functools import partial
+
+import numpy as np
+from scipy import stats
+import matplotlib.pyplot as plt
+
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.surrogates.autogp.exactgp import (
+    MOExactGaussianProcess,
+    ExactGaussianProcess,
 )
+from pyapprox.surrogates.kernels.kernels import (
+    MaternKernel,
+    ConstantKernel,
+    LogHyperParameterTransform,
+)
+from pyapprox.surrogates.autogp.mokernels import (
+    MultiLevelKernel,
+    construct_tensor_product_monomial_scaling,
+)
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.interface.model import ModelListCostFunction
+from pyapprox.surrogates.autogp.activelearning import (
+    MultiOutputMonteCarloGreedyIntegratedVarianceSampler,
+    MonteCarloGreedyIntegratedVarianceSampler,
+)
+
+bkd = NumpyLinAlgMixin
+np.random.seed(1)
+nvars = 1
+nmodels = 2
+variable = IndependentMarginalsVariable(
+    [stats.uniform(0, 1)] * nvars, backend=bkd
+)
+degree = 0
+# fix hyperparams so fit does not adjust them, otherwise comparison
+# of posterior variance will not be correct
+kernels = [
+    MaternKernel(np.inf, 0.3, [1e-1, 1], nvars, fixed=True, backend=bkd)
+    for nn in range(nmodels)
+]
+# Changing the default value of scaling will change how points are placed
+# As will changing relative model costs. Decreasing scaling will mean
+# more high-fidelity points are added for a given cost ratio. Reducing the high-fdielity model cost will also have the same affect.
+scalings = [
+    construct_tensor_product_monomial_scaling(
+        nvars, [degree + 1] * nvars, 1, [0.8, 1], fixed=True, bkd=bkd
+    )
+]
+kernel = MultiLevelKernel(kernels, scalings)
 
 # build GP using only one low-fidelity data point. The values of the function
 # do not matter as we are just going to plot the pointwise variance of the GP.
-gp_2 = MultifidelityGaussianProcess(kernel)
-gp_2.set_data(
+gp = MOExactGaussianProcess(nvars, kernel)
+gp.fit(
     [np.full((nvars, 1), 0.5), np.empty((nvars, 0))],
     [np.zeros((1, 1)), np.empty((0, 1))],
 )
-gp_2.fit()
 
 # plot the variance of the multi-fidelity GP approximation of the
 # high-fidelity model
-gp_2.plot_1d(
-    101,
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+gp.plot_1d(
+    ax,
     [0, 1],
+    nmodels - 1,
+    npts_1d=101,
     plt_kwargs={"ls": "--", "label": "1 LF data", "c": "gray"},
-    ax=ax,
     fill_kwargs={"color": "g", "alpha": 0.3},
 )
 ax.plot(0.5, 0, "rs", ms=15)
 
+
 # build GP using only one high-fidelity data point
-gp_2.set_data(
+gp.fit(
     [np.empty((nvars, 0)), np.full((nvars, 1), 0.5)],
     [np.empty((0, 1)), np.zeros((1, 1))],
 )
-gp_2.fit()
-gp_2.plot_1d(
-    101,
+gp.plot_1d(
+    ax,
     [0, 1],
+    nmodels - 1,
+    npts_1d=101,
     plt_kwargs={"ls": "--", "label": "1 HF data", "c": "b"},
-    ax=ax,
     fill_kwargs={"color": "b", "alpha": 0.3},
 )
 ax.plot(0.5, 0, "ko")
@@ -60,29 +100,30 @@ _ = ax.legend()
 #
 # The following shows that two low-fidelity points may produce smaller variance than a single high-fidelity point.
 
-ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 
 # plot one point high-fidelity GP against two low-fidelity points
-gp_2.plot_1d(
-    101,
+ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+gp.plot_1d(
+    ax,
     [0, 1],
+    nmodels - 1,
+    101,
     plt_kwargs={"ls": "--", "label": "1 HF data", "c": "b"},
-    ax=ax,
     fill_kwargs={"color": "b", "alpha": 0.3},
 )
 ax.plot(0.5, 0, "ko")
 
 # build GP using twp low-fidelity data points.
-gp_2.set_data(
+gp.fit(
     [np.array([[0.3, 0.7]]), np.empty((nvars, 0))],
     [np.zeros((2, 1)), np.empty((0, 1))],
 )
-gp_2.fit()
-gp_2.plot_1d(
-    101,
+gp.plot_1d(
+    ax,
     [0, 1],
+    nmodels - 1,
+    101,
     plt_kwargs={"ls": "--", "label": "2 LF data", "c": "gray"},
-    ax=ax,
     fill_kwargs={"color": "g", "alpha": 0.3},
 )
 ax.plot([0.3, 0.7], [0, 0], "rs", ms=15)
@@ -96,97 +137,164 @@ _ = ax.legend()
 # Here :math:`\Omega_m` denotes the candidate samples for the mth model, :math:`W(\rv)` is the cost of evaluating the candidate which is typically constant for all inputs for a given model, but different between models.
 #
 # Now generate a sample set
-nquad_samples = 1000
-model_costs = np.array([1, 3])
-ncandidate_samples_per_model = 101
-sampler = GreedyMultifidelityIntegratedVarianceSampler(
-    nmodels,
-    nvars,
-    nquad_samples,
-    ncandidate_samples_per_model,
-    variable.rvs,
-    variable,
-    econ=True,
-    compute_cond_nums=False,
-    nugget=0,
-    model_costs=model_costs,
+nquad_samples = 10000
+cost_function = ModelListCostFunction(bkd.array([1, 3]))
+sampler = MultiOutputMonteCarloGreedyIntegratedVarianceSampler(
+    variable, cost_function
 )
-
-integrate_args = ["tensorproduct", variable]
-integrate_kwargs = {"rule": "gauss", "levels": 100}
-sampler.set_kernel(kernel, *integrate_args, **integrate_kwargs)
-
-nsamples = 10
-samples = sampler(nsamples)[0]
+sampler.set_gaussian_process(gp)
+model_costs = np.array([1, 3])
+ncandidates_per_model = 101
+candidate_samples = [
+    bkd.linspace(0, 1, ncandidates_per_model)[None, :] for nn in range(nmodels)
+]
+sampler.set_candidate_samples(candidate_samples)
+# init_pivots refer to index in array that concatenates all candidates
+# following adds the midpoint of the highest indexed output
+init_pivots = bkd.array(
+    [ncandidates_per_model * (nmodels - 1) + ncandidates_per_model // 2],
+    dtype=int,
+)
+sampler.set_initial_pivots(init_pivots)
 
 # %%
-# Now fit a GP with the selected samples
-train_samples = np.split(
-    samples, np.cumsum(sampler.nsamples_per_model).astype(int)[:-1], axis=1
-)
-nsamples_per_model = np.array([s.shape[1] for s in train_samples])
-costs = nsamples_per_model * model_costs
+# First plot the variance of the GP. The values of the function
+# do not matter as we are just going to plot the pointwise variance of the GP.
+
+nsamples = 4
+axs = plt.subplots(1, nsamples, sharey=True, figsize=(nsamples * 8, 6))[1]
+for ii in range(nsamples):
+    new_samples = sampler(ii + 1)
+    if ii == 0:
+        samples = new_samples
+    else:
+        samples = [np.hstack((s, n)) for s, n in zip(samples, new_samples)]
+    gp.fit([s for s in samples], [s[0][:, None] * 0 for s in samples])
+    gp.plot_1d(
+        axs[ii],
+        [0, 1],
+        nmodels - 1,
+        101,
+        plt_kwargs={"ls": "--", "c": "gray"},
+        fill_kwargs={"color": "g", "alpha": 0.3},
+    )
+    axs[ii].set_ylim(-3, 3)
+    axs[ii].scatter(
+        samples[0], 0 * samples[0], marker="s", c="r", s=15**2, label="LF"
+    )
+    axs[ii].scatter(
+        samples[1], 0 * samples[1], marker="o", c="k", s=15**2, label="HF"
+    )
+    _ = ax.legend()
+
+
+# %%
+# Now generate more samples and fit a GP with the selected samples
+nsamples = 7
+new_samples = sampler(nsamples)
+train_samples = [np.hstack((s, n)) for s, n in zip(samples, new_samples)]
+
+
+# Activate all hyperparams so they can be optimized
+gp.hyp_list().set_all_active()
+# must recall set_optimizer so that optimizer knows that parameters
+# are now active
+gp.set_optimizer(ncandidates=20)
+
+
+def scale(degree, x, rho, kk):
+    if degree == 0:
+        return rho[kk]
+    if x.shape[0] == 1:
+        return rho[2 * kk] + x.T * rho[2 * kk + 1]
+    return rho[3 * kk] + x[:1].T * rho[3 * kk + 1] + x[1:2].T * rho[3 * kk + 2]
+
+
+def f0(x):
+    # y = x.sum(axis=0)[:, None]
+    y = x[0:1].T
+    return ((y * 3 - 1) ** 2 + 1) * np.sin((y * 10 - 2)) / 5
+
+
+def f1(degree, rho, x):
+    # y = x.sum(axis=0)[:, None]
+    y = x[0:1].T
+    return scale(degree, x, rho, 0) * f0(x) + ((y - 0.5)) / 2
+
+
+true_rho = np.full((nmodels - 1) * degree + 1, 0.9)
+models = [f0, partial(f1, degree, true_rho)]
+costs = sampler.ntrain_samples_per_output() * cost_function.cost_per_model()
 total_cost = costs.sum()
-print("NSAMPLES", nsamples_per_model)
+print("NSAMPLES PER MODEL", sampler.ntrain_samples_per_output())
 print("TOTAL COST", total_cost)
 train_values = [f(x) for f, x in zip(models, train_samples)]
-gp.set_data(train_samples, train_values)
-gp.fit()
+gp.fit(train_samples, train_values)
+
 
 # %%
-# Now build a single-fidelity GP using IVAR.
-from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-    GreedyIntegratedVarianceSampler,
+# Now build a single-fidelity GP using IVAR. Fix the variance of the SF GP to be that of the variance of the highest fidelity model so comparison is fair
+assert degree == 0
+# only works for degree == 0
+sf_prior_var = scalings[0].get_coefficients()[0] ** 2 + 1
+constant_kernel = ConstantKernel(
+    sf_prior_var,
+    (1e-3, 1e1),
+    transform=LogHyperParameterTransform(backend=bkd),
+    fixed=True,
+    backend=bkd,
 )
-
-sf_sampler = GreedyIntegratedVarianceSampler(
-    nvars,
-    2000,
-    1000,
-    variable.rvs,
-    variable,
-    use_gauss_quadrature=True,
-    econ=True,
-    compute_cond_nums=False,
-    nugget=0,
+sf_kernel = constant_kernel * MaternKernel(
+    np.inf, 0.3, [1e-1, 1], nvars, backend=bkd
 )
-sf_sampler.set_kernel(sf_kernel)
+sf_gp = ExactGaussianProcess(nvars, sf_kernel)
+sf_sampler = MonteCarloGreedyIntegratedVarianceSampler(variable)
+sf_sampler.set_gaussian_process(sf_gp)
+sf_sampler.set_candidate_samples(candidate_samples[nmodels - 1])
+init_pivots = bkd.array([ncandidates_per_model // 2], dtype=int)
+sf_sampler.set_initial_pivots(init_pivots)
 nsf_train_samples = int(total_cost // model_costs[1])
 print("NSAMPLES SF", nsf_train_samples)
-sf_train_samples = sf_sampler(nsf_train_samples)[0]
-sf_kernel = 1.0 * RBF(length_scale[0], (1e-3, 1))
-sf_gp = GaussianProcess(sf_kernel)
-sf_train_values = models[1](sf_train_samples)
-_ = sf_gp.fit(sf_train_samples, sf_train_values)
+sf_train_samples = sf_sampler(nsf_train_samples)
+sf_train_values = models[nmodels - 1](sf_train_samples)
+sf_gp.fit(sf_train_samples, sf_train_values)
 
 # %%
 # Compare the multi- and single-fidelity GPs.
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-ax.plot(xx[0], models[1](xx), "r-", label=r"$f_1$")
-ax.plot(train_samples[0][0], train_values[0], "gD")
-ax.plot(train_samples[1][0], train_values[1], "rs")
-ax.plot(sf_train_samples[0], sf_train_values, "kX")
+xx = np.linspace(0, 1, 101)[None, :]
+ax.plot(xx[0], models[1](xx), "r-", label=r"$f_2$")
+ax.scatter(
+    train_samples[1][0], train_values[1], c="r", marker="s", label="MF2"
+)
+ax.scatter(sf_train_samples[0], sf_train_values, c="k", marker="X", label="SF")
 sf_gp.plot_1d(
-    101,
+    ax,
     [0, 1],
+    101,
     plt_kwargs={"label": "SF", "c": "gray"},
-    ax=ax,
     fill_kwargs={"color": "gray", "alpha": 0.3},
 )
 gp.plot_1d(
-    101,
+    ax,
     [0, 1],
+    nmodels - 1,
+    101,
     plt_kwargs={"ls": "--", "label": "MF2", "c": "b"},
-    ax=ax,
     fill_kwargs={"color": "b", "alpha": 0.3},
 )
-gp.plot_1d(
-    101,
-    [0, 1],
-    plt_kwargs={"ls": ":", "label": "MF1", "c": "g"},
-    ax=ax,
-    model_eval_id=0,
-)
+# turn off plot of low fidelity plots to reduce complexity of image
+# ax.plot(xx[0], models[0](xx), "g-", label=r"$f_1$")
+# ax.scatter(
+#     train_samples[0][0], train_values[0], c="g", marker="D", label="MF1"
+# )
+# gp.plot_1d(
+#     ax,
+#     [0, 1],
+#     0,
+#     101,
+#     plt_kwargs={"ls": ":", "label": "MF1", "c": "g"},
+# )
 _ = ax.legend()
 
 # %%

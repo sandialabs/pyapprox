@@ -4,9 +4,6 @@ import scipy
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.univariate.base import Monomial1D
-from pyapprox.surrogates.bases.basis import MultiIndexBasis
-from pyapprox.surrogates.bases.basisexp import BasisExpansion
 from pyapprox.surrogates.kernels import (
     MaternKernel,
     ConstantKernel,
@@ -18,6 +15,7 @@ from pyapprox.surrogates.autogp.mokernels import (
     _get_recursive_scaling_matrix,
     ICMKernel,
     CollaborativeKernel,
+    construct_tensor_product_monomial_scaling,
 )
 from pyapprox.util.sys_utilities import package_available
 
@@ -27,20 +25,9 @@ class TestMultiOutputKernels:
         np.random.seed(1)
 
     def _init_monomial(self, nvars, degree, val, bounds, bkd):
-        scaling_indices = bkd.cartesian_product(
-            [bkd.arange(degree + 1, dtype=int)] * nvars
+        return construct_tensor_product_monomial_scaling(
+            nvars, [degree + 1] * nvars, val, bounds, bkd
         )
-        bexp = BasisExpansion(
-            MultiIndexBasis(
-                [Monomial1D(backend=bkd) for ii in range(nvars)],
-                indices=scaling_indices,
-            ),
-            None,
-            1,
-            bounds,
-        )
-        bexp.set_coefficients(bkd.full((bexp.basis().nterms(), 1), val))
-        return bexp
 
     def _check_multilevel_kernel_scaling_matrix(self, noutputs):
         bkd = self.get_backend()

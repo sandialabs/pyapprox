@@ -24,7 +24,11 @@ from pyapprox.surrogates.bases.basisexp import (
     TensorProductQuadratureRule,
 )
 from pyapprox.surrogates.regressor import Regressor, AdaptiveRegressorMixin
-from pyapprox.interface.model import Model, MultiIndexModelEnsemble
+from pyapprox.interface.model import (
+    Model,
+    MultiIndexModelEnsemble,
+    CostFunction,
+)
 from pyapprox.surrogates.bases.univariate.base import UnivariateBasis
 from pyapprox.surrogates.bases.univariate.lagrange import (
     UnivariateLagrangeBasis,
@@ -593,14 +597,6 @@ class MaxCostSparseGridBasisAdmissibilityCriteria(
             self.cost_per_sample(subspace_index) + self._sparse_grid_cost()
             <= self._max_cost
         )
-
-
-class CostFunction:
-    def set_nrefinement_vars(self, nrefinement_vars: int):
-        self._nrefinement_vars = nrefinement_vars
-
-    def __call__(self, subspace_index: Array):
-        return 1
 
 
 class RefinementCriteria(ABC):

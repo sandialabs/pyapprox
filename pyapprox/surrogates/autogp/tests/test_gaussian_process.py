@@ -35,6 +35,8 @@ from pyapprox.surrogates.autogp.stats import (
     GaussianProcessStatistics,
     EnsembleGaussianProcessStatistics,
     marginalize_gaussian_process,
+    MonteCarloKernelStatistics,
+    TensorProductQuadratureKernelStatistics,
 )
 from pyapprox.surrogates.autogp.mokernels import (
     ICMKernel,
@@ -574,8 +576,8 @@ class TestGaussianProcess:
         peer_gp_mean, peer_gp_std = peer_gp.evaluate(
             [xx] * noutputs, return_std=True
         )
-        assert np.allclose(peer_gp_mean, gp_mean)
-        assert np.allclose(peer_gp_std, gp_std)
+        assert np.allclose(peer_gp_mean[-1], gp_mean[-1])
+        assert np.allclose(peer_gp_std[-1], gp_std[-1])
 
     @unittest.skip("Incomplete")
     def test_collaborative_gp(self):
@@ -1143,7 +1145,6 @@ class TestGaussianProcess:
                 ]
             )
             # reorder to match ml_hypparam_vals ordering
-            print(sml_hypparam_vals)
             mask = bkd.ones((sml_hypparam_vals.shape[0]), dtype=bool)
             mask[0] = False
             mask[1 :: degree + 2] = False
@@ -1154,23 +1155,48 @@ class TestGaussianProcess:
                     sml_hypparam_vals[mask],
                 )
             )
-            print(sml_hypparam_vals - ml_hypparam_vals)
-            print(sml_hypparam_vals, ml_hypparam_vals)
+            # print(sml_hypparam_vals - ml_hypparam_vals)
+            # print(sml_hypparam_vals)
+            # print(ml_hypparam_vals)
+            # check sequential and co-criggking gps are the same
+            # when points are nested and values noiseless
+            assert bkd.allclose(ml_hypparam_vals, sml_hypparam_vals, atol=1e-4)
+            # print(test_values_per_model[ii][:, 0])
+            # print(ml_gp_values)
+            # print(test_values_per_model[ii][:, 0] - ml_gp_values[ii][:, 0])
             assert bkd.allclose(
                 ml_gp_values[ii],
                 test_values_per_model[ii],
                 rtol=tol,
                 atol=tol,
             )
-            # check sequential and co-criggking gps are the same
-            # when points are nested and values noiseless
-            assert bkd.allclose(ml_hypparam_vals, sml_hypparam_vals, atol=1e-4)
 
     def test_multilevel_gaussian_process(self):
         test_cases = [[2, 0, 1e-5], [2, 1, 2e-4], [3, 0, 1e-3], [3, 1, 1e-3]]
         for test_case in test_cases:
             np.random.seed(1)
             self._check_multilevel_gaussian_process(*test_case)
+
+    def test_monte_carlo_kernel_statistic(self):
+        bkd = self.get_backend()
+        marginals = [stats.uniform(0, 1)]
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        kernel = MaternKernel(
+            np.inf, 0.1, [1e-1, 1], variable.nvars(), backend=bkd
+        )
+        gp, train_samples = self._setup_high_acccuracy_gp(kernel, variable)
+        mc_stat = MonteCarloKernelStatistics(
+            gp, variable, train_samples, nquad_samples=1000000
+        )
+        quad_stat = TensorProductQuadratureKernelStatistics(
+            gp, variable, train_samples
+        )
+        assert bkd.allclose(
+            mc_stat._tau_P()[0], quad_stat._tau_P()[0], rtol=1e-2
+        )
+        assert bkd.allclose(
+            mc_stat._tau_P()[1], quad_stat._tau_P()[1], rtol=1e-2
+        )
 
 
 class TestNumpyNystrom(TestNystrom, unittest.TestCase):

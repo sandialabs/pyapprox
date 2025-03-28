@@ -201,7 +201,7 @@ def f0(x):
     return ((y * 3 - 1) ** 2 + 1) * np.sin((y * 10 - 2)) / 5
 
 
-def f1(degree, x):
+def f1(degree, rho, x):
     # y = x.sum(axis=0)[:, None]
     y = x[0:1].T
     return scale(degree, x, rho, 0) * f0(x) + ((y - 0.5)) / 2
@@ -222,7 +222,7 @@ train_samples_per_model = [
 degree = 0
 
 true_rho = np.full((nmodels - 1) * degree + 1, 0.9)
-models = [f0, partial(f1, degree)]
+models = [f0, partial(f1, degree, true_rho)]
 train_values_per_model = [
     f(x) for f, x in zip(models, train_samples_per_model)
 ]
