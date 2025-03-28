@@ -61,7 +61,11 @@ class DenseMatrixLaplacePosteriorApproximation:
         self._nobs, self._nvars = matrix.shape
         self._matrix = matrix
         if prior_mean.shape != (self.nvars(), 1):
-            raise ValueError("prior_mean has the wrong shape")
+            raise ValueError(
+                "prior_mean has the wrong shape {0} must be {1}".format(
+                    prior_mean.shape, (self.nvars(), 1)
+                )
+            )
         self._prior_mean = prior_mean
         if prior_cov.shape != (self.nvars(), self.nvars()):
             raise ValueError("prior_cov has the wrong shape")
