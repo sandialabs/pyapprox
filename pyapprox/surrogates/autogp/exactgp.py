@@ -283,6 +283,7 @@ class ExactGaussianProcess(OptimizedRegressor):
     def _factor_training_kernel_matrix(self):
         # can be specialized
         kmat = self._training_kernel_matrix()
+        # print(self._bkd.cond(kmat))
         try:
             return (self._bkd.cholesky(kmat),)
         except Exception:
@@ -353,11 +354,14 @@ class ExactGaussianProcess(OptimizedRegressor):
         # TODO this recomputes cholesky factorization
         coef_args = self._factor_training_kernel_matrix()
         if coef_args[0] is None:
+            self._jac_failed = True
             # cholesky factorization failed
-            return self._bkd.full((1, active_opt_params.shape[0]), np.inf)
+            return self._bkd.full((1, active_opt_params.shape[0]), 0.0)
+        self._jac_failed = False
         Linv = self._inverse_of_cholesky_factor(coef_args[0])
         Kinv = Linv.T @ Linv
         Kinv_y = self._Kinv_y(Kinv)
+        self._Kinv_y_from_jac = Kinv_y  # store for use later
         Mat = Kinv_y @ Kinv_y.T - Kinv
         Kjac = self._training_kernel_param_jacobian()
         kernel_jac = -0.5 * self._bkd.einsum("ij,jik->k", Mat, Kjac)
@@ -790,17 +794,24 @@ class SequentialGaussianProcess(ExactGaussianProcess):
         super()._set_training_data(train_samples, train_values)
 
     def analytical_neg_log_like_jacobian_implemented(self) -> bool:
-        return False
+        return True
 
-    def _Linv_y(self, *args):
-        diff = (
+    def _neg_log_like_residual(self) -> Array:
+        return (
             self._ctrain_values
             - self._canonical_trend(self._ctrain_samples)
             # scaling operates on canonical space
             - self._scaling(self._train_samples)
             * self._lf_gp._canonical_evaluate(self._ctrain_samples, False)[0]
         )
+
+    def _Linv_y(self, *args):
+        diff = self._neg_log_like_residual()
         return self._bkd.solve_triangular(args[0], diff)
+
+    def _Kinv_y(self, Kinv: Array) -> Array:
+        diff = self._neg_log_like_residual()
+        return Kinv @ diff
 
     def _canonical_evaluate(
         self, samples: Array, return_std: bool
@@ -830,8 +841,20 @@ class SequentialGaussianProcess(ExactGaussianProcess):
         jac = super()._jacobian_neg_log_like_with_hyperparam_trend(
             active_opt_params
         )
-        scaling_jac = None
-        raise NotImplementedError
+        if self._jac_failed:
+            # shape of jac is already correct
+            return jac
+
+        basis_mat = self._scaling.basis()(self._ctrain_samples)[
+            ..., self._scaling.hyp_list().get_active_indices()
+        ]
+        # following requires calling
+        # super()._jacobian_neg_log_like_with_hyperparam_trend before
+        Kinv_y = self._Kinv_y_from_jac
+        scaling_jac = -Kinv_y.T @ (
+            self._lf_gp._canonical_evaluate(self._ctrain_samples, False)[0]
+            * basis_mat
+        )
         return self._bkd.hstack((jac, scaling_jac))
 
 

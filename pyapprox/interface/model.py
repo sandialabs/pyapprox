@@ -2339,7 +2339,7 @@ class CostFunction:
         self._nrefinement_vars = nrefinement_vars
 
     def __call__(self, subspace_index: Array) -> float:
-        if not hasattr(self._nrefinement_vars):
+        if not hasattr(self, "_nrefinement_vars"):
             raise RuntimeError("must call set_nrefinement_vars()")
         return 1
 

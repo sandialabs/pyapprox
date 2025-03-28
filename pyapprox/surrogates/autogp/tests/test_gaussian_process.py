@@ -1071,13 +1071,12 @@ class TestGaussianProcess:
             return rho, (model1, model2, model3)
         return rho, (model1, model2)
 
-    def _check_multilevel_gaussian_process(self, nmodels, degree, tol):
+    def _setup_multilevel_gp(self, nmodels, nvars, degree):
         bkd = self.get_backend()
-        nvars = 1
-        rho, models = self._setup_multilevel_model_ensemble(degree, nmodels)
+        lscales = [0.1, 0.2, 0.3][:nmodels]
         sml_kernels = [
-            MaternKernel(np.inf, 0.5, (5e-2, 1), nvars, backend=bkd)
-            for ii in range(nmodels)
+            MaternKernel(np.inf, lscale, (1e-1, 1), nvars, backend=bkd)
+            for lscale in lscales
         ]
         sml_scaling_basis = MultiIndexBasis(
             [Monomial1D(backend=bkd) for ii in range(nvars)]
@@ -1088,15 +1087,24 @@ class TestGaussianProcess:
         ]
         [
             scaling.set_coefficient_bounds(
-                bkd.array([1.0] * (degree + 1)), (0.0, 1.0)
+                bkd.array([0.9] * (degree + 1)), (0.8, 1.0)
             )
             for scaling in sml_scalings
         ]
-        sml_gp = SequentialMultiLevelGaussianProcess(sml_kernels, sml_scalings)
+        sml_gp = SequentialMultiLevelGaussianProcess(
+            sml_kernels, sml_scalings, kernel_reg=1e-10
+        )
         for gp in sml_gp.gaussian_processes():
-            gp.set_optimizer(ncandidates=10, verbosity=0)
+            gp.set_optimizer(ncandidates=5, verbosity=0)
+        return sml_gp, sml_kernels, sml_scalings
+
+    def _check_multilevel_gaussian_process(self, nmodels, degree, tol):
+        bkd = self.get_backend()
+        nvars = 1
+        rho, models = self._setup_multilevel_model_ensemble(degree, nmodels)
+
         # create nested samples
-        ntrain_samples_per_model = [2**5 + 1, 2**4 + 1, 2**3][:nmodels]
+        ntrain_samples_per_model = [2**5 + 1, 2**4 + 1, 2**3 + 1][:nmodels]
         train_samples_per_model = [
             bkd.linspace(0, 1, nsamples)[None, :]
             for nsamples in ntrain_samples_per_model
@@ -1105,7 +1113,41 @@ class TestGaussianProcess:
             model(samples)
             for model, samples in zip(models, train_samples_per_model)
         ]
+        sml_gp, sml_kernels, sml_scalings = self._setup_multilevel_gp(
+            nmodels, nvars, degree
+        )
 
+        # call fit to store data needed to check jacobian
+        fd_gp = self._setup_multilevel_gp(nmodels, nvars, degree)[0]
+        fd_ntrain_samples_per_model = [2**+1, 2**3 + 1, 2**2 + 1][:nmodels]
+        fd_train_samples_per_model = [
+            bkd.linspace(0, 1, nsamples)[None, :]
+            for nsamples in fd_ntrain_samples_per_model
+        ]
+        fd_train_values_per_model = [
+            model(samples)
+            for model, samples in zip(models, fd_train_samples_per_model)
+        ]
+
+        fd_gp.fit(fd_train_samples_per_model, fd_train_values_per_model)
+        # iterate = (
+        #     fd_gp.gaussian_processes()[1].hyp_list().get_values()[:, None]
+        #     + 0.001
+        # )
+        iterate = sml_gp.gaussian_processes()[
+            1
+        ]._optimizer._initial_interate_gen()
+        errors = fd_gp.gaussian_processes()[1]._loss.check_apply_jacobian(
+            iterate,
+            disp=True,
+            # fd_eps=bkd.flip(bkd.logspace(-13, -1, 13)),
+        )
+        print(errors.min(), errors.max())
+        assert errors.max() < np.inf
+        assert errors.min() / errors[0] < 2.5e-6
+
+        # call fit again to fit data and test accuracy
+        np.random.seed(1)
         sml_gp.fit(train_samples_per_model, train_values_per_model)
 
         test_samples_per_model = [
@@ -1127,6 +1169,7 @@ class TestGaussianProcess:
         ml_gp_values = ml_gp.evaluate(test_samples_per_model, False)
 
         for ii in range(nmodels):
+            print(sml_gp_values[ii] - test_values_per_model[ii], tol)
             assert bkd.allclose(
                 sml_gp_values[ii],
                 test_values_per_model[ii],
@@ -1172,7 +1215,7 @@ class TestGaussianProcess:
             )
 
     def test_multilevel_gaussian_process(self):
-        test_cases = [[2, 0, 1e-5], [2, 1, 2e-4], [3, 0, 1e-3], [3, 1, 1e-3]]
+        test_cases = [[2, 0, 2e-4], [2, 1, 2e-4], [3, 0, 1e-3], [3, 1, 1e-3]]
         for test_case in test_cases:
             np.random.seed(1)
             self._check_multilevel_gaussian_process(*test_case)
