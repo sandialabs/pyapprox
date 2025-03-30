@@ -12,10 +12,7 @@ from pyapprox.surrogates.kernels.kernels import (
 )
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.surrogates.loss import LossFunction
-from pyapprox.optimization.minimize import (
-    OptimizerIterateGenerator,
-    RandomUniformOptimzerIterateGenerator,
-)
+from pyapprox.optimization.minimize import OptimizerIterateGenerator
 from pyapprox.util.transforms import (
     IdentityTransform,
     StandardDeviationTransform,
@@ -196,15 +193,6 @@ class ExactGaussianProcess(OptimizedRegressor):
 
     def trend(self) -> BasisExpansion:
         return self._trend
-
-    def _default_iterator_gen(self):
-        iterate_gen = RandomUniformOptimzerIterateGenerator(
-            self._hyp_list.nactive_vars(), backend=self._bkd
-        )
-        iterate_gen.set_bounds(
-            self._bkd.to_numpy(self._hyp_list.get_active_opt_bounds())
-        )
-        return iterate_gen
 
     def get_loss(self):
         return GPNegLogLikelihoodLoss()

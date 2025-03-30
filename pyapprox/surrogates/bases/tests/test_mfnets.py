@@ -77,7 +77,7 @@ class TestMFNets:
         # models[1].check_apply_jacobian(inputs[:, :1])
         # assert False
 
-        mfnet = MFNetModel(nvars, nx.DiGraph())
+        mfnet = MFNetModel(nvars, nx.DiGraph(), backend=bkd)
 
         nodes = [
             LeafMFNetNode(0, node_models[0], 1.0),
@@ -124,7 +124,7 @@ class TestMFNets:
         nvars = 1
         nscaled_qoi = 1
         model0_level = 5
-        delta_level, scaling_level = 5, 1
+        delta_level, scaling_level = 5, 0
         ndelta_qoi = 1
         node_models = [
             HyperbolicMonomialExpansion(
@@ -140,7 +140,7 @@ class TestMFNets:
         marginals = [stats.uniform(0, 1)] * nvars
         variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
-        mfnet = MFNetModel(nvars, nx.DiGraph())
+        mfnet = MFNetModel(nvars, nx.DiGraph(), backend=bkd)
 
         nodes = [
             LeafMFNetNode(0, node_models[0], 1.0e-8),
@@ -167,14 +167,17 @@ class TestMFNets:
             model(samples)
             for model, samples in zip(models, train_samples_per_model)
         ]
+        print(node_models[1]._scalings[0].get_coefficients())
         mfnet.fit(train_samples_per_model, train_values_per_model)
 
         test_values_per_model = [model(test_samples) for model in models]
         # print(mfnet._subgraph_values(test_samples, 0))
         # print(test_values_per_model[0])
-        print(mfnet(test_samples))
-        print(test_values_per_model[-1])
-        print(mfnet(test_samples) - test_values_per_model[-1])
+        # print(mfnet(test_samples))
+        # print(test_values_per_model[-1])
+        # print(mfnet(test_samples) - test_values_per_model[-1])
+        print(node_models[1]._delta.get_coefficients())
+        print(node_models[1]._scalings[0].get_coefficients())
 
         assert bkd.allclose(
             mfnet._subgraph_values(test_samples, 0),
@@ -184,16 +187,25 @@ class TestMFNets:
         assert bkd.allclose(
             mfnet(test_samples), test_values_per_model[-1], atol=3e-5
         )
+        #  TODO test different numbers of models and graphs
+
+    def test_alternating_least_squares(self):
+        # also test co-regionalization like graphs with latent kernels with no
+        # data and mulitple root nodes.
+        # Use genetic algorithms to get initial guess for other types of node models when I implement them
+        raise NotImplementedError(
+            "TODO implement alternating least squares optimization for additive multiplicative node models"
+        )
 
 
-class TestNumpyMFNets(TestMFNets, unittest.TestCase):
-    def get_backend(self):
-        return NumpyLinAlgMixin
-
-
-# class TestTorchMFNets(TestMFNets, unittest.TestCase):
+# class TestNumpyMFNets(TestMFNets, unittest.TestCase):
 #     def get_backend(self):
-#         return TorchLinAlgMixin
+#         return NumpyLinAlgMixin
+
+
+class TestTorchMFNets(TestMFNets, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
 
 
 # class TestJaxMFNets(TestMFNets, unittest.TestCase):

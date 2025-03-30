@@ -1,7 +1,6 @@
 from abc import abstractmethod
 
 import numpy as np
-from pyapprox.util.pya_numba import njit
 
 from pyapprox.util.linalg import (
     inverse_of_cholesky_factor,

@@ -205,6 +205,7 @@ class OptimizedRegressor(Regressor):
         ncandidates: int = 1,
         verbosity: int = 0,
         gtol: float = 1e-8,
+        maxiter: int = 1000,
         iterate_gen: OptimizerIterateGenerator = None,
     ) -> MultiStartOptimizer:
         local_optimizer = ScipyConstrainedOptimizer()
@@ -212,7 +213,7 @@ class OptimizedRegressor(Regressor):
         # building GPs
         local_optimizer.set_options(
             gtol=gtol,
-            maxiter=1000,
+            maxiter=maxiter,
             method="L-BFGS-B",
             # method="trust-constr",
         )

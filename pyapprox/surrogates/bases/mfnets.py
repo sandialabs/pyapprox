@@ -245,7 +245,11 @@ class MFNetModel(OptimizedRegressor):
 
     def _fit(self, iterate: Array):
         if self._optimizer is None:
-            self.set_optimizer(self.default_optimizer(verbosity=10, gtol=1e-8))
+            # large number required because initial guesses can be bad
+            # implement alternating least squares to get initial guess
+            self.set_optimizer(
+                self.default_optimizer(verbosity=10, maxiter=10000)
+            )
         return super()._fit(iterate)
 
 
@@ -321,10 +325,10 @@ class MFNetNode:
         self._ctrain_values = ctrain_values
 
     def _is_leaf(self) -> bool:
-        return self._children_ids.shape[0] == 0
+        return len(self._children_ids) == 0
 
     def _is_root(self) -> bool:
-        return self._parent_ids.shape[0] == 0
+        return len(self._parent_ids) == 0
 
     def model(self) -> Model:
         return self._model
@@ -346,16 +350,14 @@ class MFNetNode:
                 "mfnet must be an instance of MFNetModel but was type"
                 f"{type(mfnet)}"
             )
-        self._children_ids = self._bkd.asarray(
-            list(mfnet._graph.predecessors(self._node_id)), dtype=int
-        )
-        self._parent_ids = self._bkd.asarray(
-            list(mfnet._graph.successors(self._node_id)),
-            dtype=int,
-        )
-        print(self._node_id, self._children_ids, self._parent_ids)
+        # do not conver lists to array because this will not work due to torch
+        # and networkx interaction
+        self._children_ids = list(mfnet._graph.predecessors(self._node_id))
+        self._parent_ids = list(mfnet._graph.successors(self._node_id))
         if self._active_sample_vars is None:
-            self._active_sample_vars = self._bkd.arange(mfnet.nvars())
+            self._active_sample_vars = self._bkd.arange(
+                mfnet.nvars(), dtype=int
+            )
         if len(self._active_sample_vars) != mfnet.nvars():
             raise ValueError("len(active_sample_vars) != mfnet.nvars()")
         self._active_sample_vars = self._bkd.asarray(
@@ -396,7 +398,7 @@ class MFNetEdge:
         self._parent_node = parent_node
         if child_output_ids is None:
             child_output_ids = self._bkd.arange(
-                self._child_node.model().nqoi()
+                self._child_node.model().nqoi(), dtype=int
             )
         if self._bkd.max(child_output_ids) >= child_node.model().nqoi():
             raise ValueError(

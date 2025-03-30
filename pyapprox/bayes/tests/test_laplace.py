@@ -4,14 +4,12 @@ import glob
 
 import numpy as np
 
-
-from pyapprox.util.linalg import get_low_rank_matrix
-from pyapprox.util.randomized_svd import (
-    randomized_svd,
-    MatVecOperator,
-    adjust_sign_svd,
-    svd_using_orthogonal_basis,
-)
+# from pyapprox.util.randomized_svd import (
+#     randomized_svd,
+#     MatVecOperator,
+#     adjust_sign_svd,
+#     svd_using_orthogonal_basis,
+# )
 from pyapprox.variables.gaussian import (
     DenseCholeskySqrtCovarianceOperator,
     CovarianceOperator,
@@ -19,8 +17,6 @@ from pyapprox.variables.gaussian import (
 )
 from pyapprox.interface.model import (
     DenseMatrixLinearModel,
-    Model,
-    QuadraticMatrixModel,
     ChangeModelSignWrapper,
 )
 from pyapprox.bayes.laplace import (
