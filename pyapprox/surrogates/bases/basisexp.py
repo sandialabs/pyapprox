@@ -8,6 +8,7 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.surrogates.bases.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
     GaussQuadratureRule,
+    OrthonormalPolynomial1D,
 )
 from pyapprox.surrogates.bases.univariate.lagrange import (
     UnivariateLagrangeBasis,
@@ -35,7 +36,10 @@ from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions,
 )
 from pyapprox.surrogates.regressor import Regressor, Surrogate
-from pyapprox.surrogates.bases.univariate.base import Monomial1D
+from pyapprox.surrogates.bases.univariate.base import (
+    Monomial1D,
+    UnivariateBasis,
+)
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     convert_orthonormal_polynomials_to_monomials_1d,
     shift_momomial_expansion,
@@ -713,10 +717,10 @@ class TensorProductInterpolant(Surrogate):
 
 
 class TrigonometricExpansion(BasisExpansion):
-    def set_basis(self, basis, coef_bounds=None):
+    def set_basis(self, basis, coef_bounds=None, fixed: bool = False):
         if not isinstance(basis, TrigonometricBasis):
             raise ValueError("basis must be an instance of TrigonometricBasis")
-        super().set_basis(basis, coef_bounds)
+        super().set_basis(basis, coef_bounds, fixed)
 
     def trig_coefficients_from_fourier_coefficients(
         self, fourier_coefs: Array, real_function: bool = True
@@ -760,10 +764,15 @@ class TrigonometricExpansion(BasisExpansion):
 
 
 class FourierExpansion(BasisExpansion):
-    def set_basis(self, basis: FourierBasis, coef_bounds: bool = None):
+    def set_basis(
+        self,
+        basis: FourierBasis,
+        coef_bounds: bool = None,
+        fixed: bool = False,
+    ):
         if not isinstance(basis, FourierBasis):
             raise ValueError("basis must be an instance of FourierBasis")
-        super().set_basis(basis, coef_bounds)
+        super().set_basis(basis, coef_bounds, fixed)
 
     def fourier_coefficients_from_trig_coefficients(
         self, trig_coefs: Array
@@ -899,3 +908,90 @@ class TensorProductLagrangeInterpolantToPolynomialChaosExpansionConverter:
 
     def variable(self) -> IndependentMarginalsVariable:
         return self._variable
+
+
+# convenience classes that simplify construction
+
+
+class HyperbolicBasisExpansionMixin:
+    def _setup_basis(
+        self, univariate_bases: List[UnivariateBasis], level: int, pnorm: float
+    ):
+        basis = MultiIndexBasis(univariate_bases)
+        basis.set_hyperbolic_indices(level, pnorm)
+        return basis
+
+
+class TensorProductBasisExpansionMixin:
+    def _setup_basis(
+        self, univariate_bases: List[UnivariateBasis], nterms: List[int]
+    ):
+        basis = MultiIndexBasis(univariate_bases)
+        basis.set_tensor_product_indices(nterms)
+        return basis
+
+
+class HyperbolicMonomialExpansion(
+    HyperbolicBasisExpansionMixin, MonomialExpansion
+):
+    def __init__(
+        self,
+        univariate_bases: List[Monomial1D],
+        level: int,
+        pnorm: float = 1.0,
+        solver: LinearSystemSolver = None,
+        nqoi=1,
+        coef_bounds=None,
+        fixed: bool = False,
+    ):
+        basis = self._setup_basis(univariate_bases, level, pnorm)
+        super().__init__(basis, solver, nqoi, coef_bounds, fixed)
+
+
+class HyperbolicPolynomialChaosExpansion(
+    HyperbolicBasisExpansionMixin, PolynomialChaosExpansion
+):
+    def __init__(
+        self,
+        univariate_bases: List[OrthonormalPolynomial1D],
+        level: int,
+        pnorm: float = 1.0,
+        solver: LinearSystemSolver = None,
+        nqoi=1,
+        coef_bounds=None,
+        fixed: bool = False,
+    ):
+        basis = self._setup_basis(univariate_bases, level, pnorm)
+        super().__init__(basis, solver, nqoi, coef_bounds, fixed)
+
+
+class TensorProductMonomialExpansion(
+    TensorProductBasisExpansionMixin, MonomialExpansion
+):
+    def __init__(
+        self,
+        univariate_bases: List[Monomial1D],
+        nterms: List[int],
+        solver: LinearSystemSolver = None,
+        nqoi=1,
+        coef_bounds=None,
+        fixed: bool = False,
+    ):
+        basis = self._setup_basis(univariate_bases, nterms)
+        super().__init__(basis, solver, nqoi, coef_bounds, fixed)
+
+
+class TensorProductPolynomialChaosExpansion(
+    TensorProductBasisExpansionMixin, PolynomialChaosExpansion
+):
+    def __init__(
+        self,
+        univariate_bases: List[OrthonormalPolynomial1D],
+        nterms: List[int],
+        solver: LinearSystemSolver = None,
+        nqoi=1,
+        coef_bounds=None,
+        fixed: bool = False,
+    ):
+        basis = self._setup_basis(univariate_bases, nterms)
+        super().__init__(basis, solver, nqoi, coef_bounds, fixed)

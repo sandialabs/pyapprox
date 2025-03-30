@@ -1866,7 +1866,7 @@ class ActiveSetVariableModel(Model):
 
 
 class ChangeModelSignWrapper(Model):
-    def __init__(self, model):
+    def __init__(self, model: Model):
         super().__init__(model._bkd)
         if not issubclass(model.__class__, Model):
             raise ValueError("model must be derived from Model")

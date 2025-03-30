@@ -12,9 +12,7 @@ from pyapprox.surrogates.kernels.kernels import (
 )
 from pyapprox.util.linearalgebra.linalgbase import Array
 from pyapprox.surrogates.loss import LossFunction
-from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.optimization.minimize import (
-    MultiStartOptimizer,
     OptimizerIterateGenerator,
     RandomUniformOptimzerIterateGenerator,
 )
@@ -217,27 +215,9 @@ class ExactGaussianProcess(OptimizedRegressor):
         verbosity: int = 0,
         iterate_gen: OptimizerIterateGenerator = None,
     ):
-        local_optimizer = ScipyConstrainedOptimizer()
-        # L-BFGS-Bseems to require less iterations than trust-constr when
-        # building GPs
-        local_optimizer.set_options(
-            gtol=1e-8,
-            maxiter=1000,
-            method="L-BFGS-B",
-            # method="trust-constr",
+        ms_optimizer = self.default_optimizer(
+            ncandidates, verbosity, iterate_gen
         )
-        local_optimizer.set_verbosity(verbosity - 1)
-        ms_optimizer = MultiStartOptimizer(
-            local_optimizer, ncandidates=ncandidates
-        )
-        if iterate_gen is None:
-            iterate_gen = self._default_iterator_gen()
-        if not isinstance(iterate_gen, OptimizerIterateGenerator):
-            raise ValueError(
-                "iterate_gen must be an instance of OptimizerIterateGenerator"
-            )
-        ms_optimizer.set_initial_iterate_generator(iterate_gen)
-        ms_optimizer.set_verbosity(verbosity)
         super().set_optimizer(ms_optimizer)
         self.set_loss(self.get_loss())
 

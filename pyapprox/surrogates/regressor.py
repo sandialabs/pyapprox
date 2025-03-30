@@ -1,15 +1,19 @@
 from abc import abstractmethod, ABC
 import pickle
 import warnings
-from typing import Tuple
 
 from pyapprox.interface.model import Model
 from pyapprox.surrogates.loss import LossFunction
-from pyapprox.optimization.minimize import MultiStartOptimizer
+from pyapprox.optimization.minimize import (
+    MultiStartOptimizer,
+    OptimizerIterateGenerator,
+    RandomUniformOptimzerIterateGenerator,
+)
 from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.transforms import Transform, IdentityTransform
 from pyapprox.util.hyperparameter import HyperParameterList
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
 
 class Surrogate(Model):
@@ -186,6 +190,45 @@ class OptimizedRegressor(Regressor):
     def _hyperparam_jacobian(self, active_opt_params: Array) -> Array:
         self.hyp_list().set_active_opt_params(active_opt_params[:, 0])
         return self.basis(self._ctrain_values)
+
+    def _default_iterator_gen(self):
+        iterate_gen = RandomUniformOptimzerIterateGenerator(
+            self._hyp_list.nactive_vars(), backend=self._bkd
+        )
+        iterate_gen.set_bounds(
+            self._bkd.to_numpy(self._hyp_list.get_active_opt_bounds())
+        )
+        return iterate_gen
+
+    def default_optimizer(
+        self,
+        ncandidates: int = 1,
+        verbosity: int = 0,
+        gtol: float = 1e-8,
+        iterate_gen: OptimizerIterateGenerator = None,
+    ) -> MultiStartOptimizer:
+        local_optimizer = ScipyConstrainedOptimizer()
+        # L-BFGS-Bseems to require less iterations than trust-constr when
+        # building GPs
+        local_optimizer.set_options(
+            gtol=gtol,
+            maxiter=1000,
+            method="L-BFGS-B",
+            # method="trust-constr",
+        )
+        local_optimizer.set_verbosity(verbosity - 1)
+        ms_optimizer = MultiStartOptimizer(
+            local_optimizer, ncandidates=ncandidates
+        )
+        if iterate_gen is None:
+            iterate_gen = self._default_iterator_gen()
+        if not isinstance(iterate_gen, OptimizerIterateGenerator):
+            raise ValueError(
+                "iterate_gen must be an instance of OptimizerIterateGenerator"
+            )
+        ms_optimizer.set_initial_iterate_generator(iterate_gen)
+        ms_optimizer.set_verbosity(verbosity)
+        return ms_optimizer
 
 
 def QuadratureRule(ABC):

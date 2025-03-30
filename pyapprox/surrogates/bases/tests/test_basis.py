@@ -35,6 +35,7 @@ from pyapprox.surrogates.bases.basisexp import (
     FourierExpansion,
     setup_polynomial_chaos_expansion_from_variable,
     TensorProductLagrangeInterpolantToPolynomialChaosExpansionConverter,
+    TensorProductMonomialExpansion,
 )
 from pyapprox.surrogates.bases.linearsystemsolvers import (
     LstSqSolver,
@@ -513,13 +514,11 @@ class TestBasis:
         # the following checks that transform of orthonormal basis
         # computes derivatives correctly
         nqoi = 2
-        monomial_basis = MultiIndexBasis(
-            [Monomial1D(backend=bkd) for ii in range(variable.nvars())]
+        fun = TensorProductMonomialExpansion(
+            [Monomial1D(backend=bkd) for ii in range(variable.nvars())],
+            [nterms_1d] * variable.nvars(),
+            nqoi=nqoi,
         )
-        monomial_basis.set_tensor_product_indices(
-            [nterms_1d] * variable.nvars()
-        )
-        fun = MonomialExpansion(monomial_basis, nqoi=nqoi)
         fun.set_coefficients(
             bkd.array(np.random.normal(0, 1, (fun.nterms(), nqoi)))
         )

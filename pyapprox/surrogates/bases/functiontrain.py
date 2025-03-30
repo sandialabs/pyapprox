@@ -369,6 +369,10 @@ class AlternatingLstSqOptimizer(OptimizerWithObjective):
     def _minimize(self, iterate):
         ft = self._objective._model
         ft.hyp_list().set_active_opt_params(iterate[:, 0])
+        # WARNING: TODO: I may not think function train will work with
+        # input_trans that is not the identity. E.g. when PCEs defined on [-1,1]
+        # input_trans must convert ctrain_samples to [-1,1] but not sure how
+        # to enfore this generically to avoid user making mistakes
         samples = ft._ctrain_samples
         values = ft._ctrain_values
         self._bkd = ft._bkd
