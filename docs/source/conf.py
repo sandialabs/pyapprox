@@ -63,6 +63,7 @@ example_filenames_in_order = [
     "plot_bayesian_inference.py",
     "plot_bayesian_networks.py",
     "plot_push_forward_based_inference.py",
+    "plot_elbow.py",
     # ExpDesign
     "plot_bayesian_oed.py",
     # Surrogates
