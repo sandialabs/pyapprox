@@ -474,3 +474,11 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def quantile(array: np.ndarray, q: float, axis=None) -> np.ndarray:
         return np.quantile(array, q, axis)
+
+    @staticmethod
+    def tril(array: np.ndarray, k: int = 0):
+        return np.tril(array, k)
+
+    @staticmethod
+    def triu(array: np.ndarray, k: int = 0):
+        raise np.triu(array, k)

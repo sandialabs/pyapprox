@@ -79,7 +79,7 @@ class TestKernels:
         jacobian = kernel.param_jacobian(X)
         # The following loop prevents torch from throwing error
         # RuntimeError: Only Tensors created explicitly by the user...
-        for hyp in kernel.hyp_list().hyper_params:
+        for hyp in kernel.hyp_list()._hyper_params:
             hyp._values = bkd.copy(bkd.detach(hyp._values))
 
         def fun(active_params_opt):

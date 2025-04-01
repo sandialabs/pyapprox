@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
+from typing import Tuple, Union
 
-from pyapprox.util.linearalgebra.numpylinalg import (
-    LinAlgMixin,
-    NumpyLinAlgMixin,
-)
+import numpy as np
+
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 
 
 class HyperParameterTransform(ABC):
@@ -45,8 +46,8 @@ class HyperParameter:
         self,
         name: str,
         nvars: int,
-        values,
-        bounds,
+        values: Array,
+        bounds: Union[Tuple[float, float], Array],
         transform: HyperParameterTransform = None,
         fixed: bool = False,
         backend: LinAlgMixin = None,
@@ -64,10 +65,10 @@ class HyperParameter:
         else:
             if type(transform._bkd) is not type(backend):
                 raise ValueError("transform._bkd must be the same as backend")
-        self.transform = transform
-        self.transform._bkd = self._bkd
+        self._transform = transform
+        self._transform._bkd = self._bkd
 
-        self.name = name
+        self._name = name
         self._nvars = nvars
 
         self._values = self._bkd.atleast1d(self._bkd.asarray(values))
@@ -105,22 +106,22 @@ class HyperParameter:
         self.set_active_indices(self._bkd.zeros((0,), dtype=int))
 
     def set_all_active(self):
-        frozen_indices = self._bkd.isnan(self.bounds[:, 0])
+        frozen_indices = self._bkd.isnan(self._bounds[:, 0])
         self.set_active_indices(
             self._bkd.arange(self.nvars(), dtype=int)[~frozen_indices]
         )
 
-    def set_bounds(self, bounds):
-        self.bounds = self._bkd.atleast1d(self._bkd.asarray(bounds))
-        if self.bounds.shape[0] == 2:
-            self.bounds = self._bkd.tile(self.bounds, (self.nvars(),))
-        if self.bounds.shape[0] != 2 * self.nvars():
+    def set_bounds(self, bounds: Union[Tuple[float, float], Array]):
+        self._bounds = self._bkd.atleast1d(self._bkd.asarray(bounds))
+        if self._bounds.shape[0] == 2:
+            self._bounds = self._bkd.tile(self._bounds, (self.nvars(),))
+        if self._bounds.shape[0] != 2 * self.nvars():
             msg = "bounds shape {0} inconsistent with 2*nvars={1}".format(
-                self.bounds.shape, 2 * self.nvars()
+                self._bounds.shape, 2 * self.nvars()
             )
             raise ValueError(msg)
-        self.bounds = self._bkd.reshape(
-            self.bounds, (self.bounds.shape[0] // 2, 2)
+        self._bounds = self._bkd.reshape(
+            self._bounds, (self._bounds.shape[0] // 2, 2)
         )
 
     def nvars(self):
@@ -143,23 +144,23 @@ class HyperParameter:
         self._values = self._bkd.up(
             self._values,
             self._active_indices,
-            self.transform.from_opt_space(active_params),
+            self._transform.from_opt_space(active_params),
             axis=0,
         )
 
     def get_active_opt_params(self):
         """Get the values of the active parameters in the optimization space."""
-        return self.transform.to_opt_space(self._values[self._active_indices])
+        return self._transform.to_opt_space(self._values[self._active_indices])
 
     def get_active_opt_bounds(self):
         """Get the bounds of the active parameters in the optimization space."""
-        return self.transform.to_opt_space(
-            self.bounds[self._active_indices, :]
+        return self._transform.to_opt_space(
+            self._bounds[self._active_indices, :]
         )
 
     def get_bounds(self):
         """Get the bounds of the parameters in the user space."""
-        return self.bounds.flatten()
+        return self._bounds.flatten()
 
     def get_values(self):
         """Get the values of the parameters in the user space."""
@@ -173,10 +174,10 @@ class HyperParameter:
 
     def _short_repr(self):
         if self.nvars() > 5:
-            return "{0}:nvars={1}".format(self.name, self.nvars())
+            return "{0}:nvars={1}".format(self._name, self.nvars())
 
         return "{0}={1}".format(
-            self.name,
+            self._name,
             "[" + ", ".join(map("{0:.2g}".format, self._values)) + "]",
         )
 
@@ -185,17 +186,17 @@ class HyperParameter:
             return (
                 "{0}(name={1}, nvars={2}, transform={3}, nactive={4})".format(
                     self.__class__.__name__,
-                    self.name,
+                    self._name,
                     self.nvars(),
-                    self.transform,
+                    self._transform,
                     self.nactive_vars(),
                 )
             )
         return "{0}(name={1}, values={2}, transform={3}, active={4})".format(
             self.__class__.__name__,
-            self.name,
+            self._name,
             "[" + ", ".join(map("{0:.2g}".format, self.get_values())) + "]",
-            self.transform,
+            self._transform,
             "[" + ", ".join(map("{0}".format, self._active_indices)) + "]",
         )
 
@@ -208,13 +209,13 @@ class HyperParameter:
 class HyperParameterList:
     def __init__(self, hyper_params: list):
         """A list of hyper-parameters to be used with optimization."""
-        self.hyper_params = hyper_params
-        self._bkd = self.hyper_params[0]._bkd
+        self._hyper_params = hyper_params
+        self._bkd = self._hyper_params[0]._bkd
 
     def set_active_opt_params(self, active_params):
         """Set the values of the active parameters in the optimization space."""
         cnt = 0
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             hyp.set_active_opt_params(
                 active_params[cnt : cnt + hyp.nactive_vars()]
             )
@@ -223,53 +224,53 @@ class HyperParameterList:
     def nvars(self):
         """Return the total number of hyperparameters (active and inactive)."""
         cnt = 0
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             cnt += hyp.nvars()
         return cnt
 
     def nactive_vars(self):
         """Return the number of active (to be optinized) hyperparameters."""
         cnt = 0
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             cnt += hyp.nactive_vars()
         return cnt
 
     def get_active_opt_params(self):
         """Get the values of the active parameters in the optimization space."""
         return self._bkd.hstack(
-            [hyp.get_active_opt_params() for hyp in self.hyper_params]
+            [hyp.get_active_opt_params() for hyp in self._hyper_params]
         )
 
     def get_active_opt_bounds(self):
         """Get the values of the active parameters in the optimization space."""
         return self._bkd.vstack(
-            [hyp.get_active_opt_bounds() for hyp in self.hyper_params]
+            [hyp.get_active_opt_bounds() for hyp in self._hyper_params]
         )
 
     def get_bounds(self):
         """Get the flattned bounds of the parameters in the user space."""
         # bounds are flat because flat array is passed to set_bounds
         return self._bkd.hstack(
-            [hyp.get_bounds() for hyp in self.hyper_params]
+            [hyp.get_bounds() for hyp in self._hyper_params]
         )
 
     def get_values(self):
         """Get the values of the parameters in the user space."""
         return self._bkd.hstack(
-            [hyp.get_values() for hyp in self.hyper_params]
+            [hyp.get_values() for hyp in self._hyper_params]
         )
 
     def get_active_indices(self):
         cnt = 0
         active_indices = []
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             active_indices.append(hyp.get_active_indices() + cnt)
             cnt += hyp.nvars()
         return self._bkd.hstack(active_indices)
 
     def set_active_indices(self, active_indices):
         cnt = 0
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             hyp_indices = self._bkd.where(
                 (active_indices >= cnt) & (active_indices < cnt + hyp.nvars())
             )[0]
@@ -277,44 +278,46 @@ class HyperParameterList:
             cnt += hyp.nvars()
 
     def set_all_inactive(self):
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             hyp.set_all_inactive()
 
     def set_all_active(self):
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             hyp.set_all_active()
 
     def set_values(self, values):
         cnt = 0
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             hyp.set_values(values[cnt : cnt + hyp.nvars()])
             cnt += hyp.nvars()
 
     def __add__(self, hyp_list):
         # self.__class__ must be because of the use of mixin with derived
         # classes
-        return self.__class__(self.hyper_params + hyp_list.hyper_params)
+        return self.__class__(self._hyper_params + hyp_list._hyper_params)
 
     def __radd__(self, hyp_list):
         if hyp_list == 0:
             # for when sum is called over list of HyperParameterLists
             return self
-        return self.__class__(hyp_list.hyper_params + self.hyper_params)
+        return self.__class__(hyp_list._hyper_params + self._hyper_params)
 
     def _short_repr(self):
         # simpler representation used when printing kernels
         return ", ".join(
-            map("{0}".format, [hyp._short_repr() for hyp in self.hyper_params])
+            map(
+                "{0}".format, [hyp._short_repr() for hyp in self._hyper_params]
+            )
         )
 
     def __repr__(self):
         return (
             "{0}(".format(self.__class__.__name__)
-            + ",\n\t\t   ".join(map("{0}".format, self.hyper_params))
+            + ",\n\t\t   ".join(map("{0}".format, self._hyper_params))
             + ")"
         )
 
-    def set_bounds(self, bounds):
+    def set_bounds(self, bounds: Union[Tuple[float, float], Array]):
         # used to turn params inactive to active or vice-versa
         bounds = self._bkd.atleast1d(bounds)
         if bounds.shape[0] == 2:
@@ -325,7 +328,7 @@ class HyperParameterList:
             )
             raise ValueError(msg)
         cnt = 0
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             hyp.set_bounds(bounds[cnt : cnt + 2 * hyp.nvars()])
             cnt += 2 * hyp.nvars()
 
@@ -338,69 +341,112 @@ class CombinedHyperParameter(HyperParameter):
     # like updating of an internal variable not common to all hyperparameter
     # classes
     def __init__(self, hyper_params: list):
-        self.hyper_params = hyper_params
-        self._bkd = self.hyper_params[0]._bkd
-        self.bounds = self._bkd.vstack(
-            [hyp.bounds for hyp in self.hyper_params]
+        self._hyper_params = hyper_params
+        self._bkd = self._hyper_params[0]._bkd
+        self._bounds = self._bkd.vstack(
+            [hyp.bounds for hyp in self._hyper_params]
         )
 
     def nvars(self):
-        return sum([hyp.nvars() for hyp in self.hyper_params])
+        return sum([hyp.nvars() for hyp in self._hyper_params])
 
     def nactive_vars(self):
-        return sum([hyp.nactive_vars() for hyp in self.hyper_params])
+        return sum([hyp.nactive_vars() for hyp in self._hyper_params])
 
     def set_active_opt_params(self, active_params):
         cnt = 0
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             hyp.set_active_opt_params(
                 active_params[cnt : cnt + hyp.nactive_vars()]
             )
             cnt += hyp.nactive_vars()
 
-    def set_bounds(self, bounds):
+    def set_bounds(self, bounds: Union[Tuple[float, float], Array]):
         # used to turn params inactive to active or vice-versa
         bounds = self._bkd.atleast1d(bounds)
         if bounds.shape[0] == 2:
             bounds = self._bkd.tile(bounds, (self.nvars(),))
         if bounds.shape[0] != 2 * self.nvars():
             msg = "bounds shape {0} inconsistent with 2*nvars={1}".format(
-                self.bounds.shape, 2 * self.nvars()
+                self._bounds.shape, 2 * self.nvars()
             )
             raise ValueError(msg)
 
         cnt = 0
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             hyp.set_bounds(bounds[cnt : cnt + hyp.nvars()])
             cnt += hyp.nvars()
 
     def get_active_opt_params(self):
         return self._bkd.hstack(
-            [hyp.get_active_opt_params() for hyp in self.hyper_params]
+            [hyp.get_active_opt_params() for hyp in self._hyper_params]
         )
 
     def get_active_opt_bounds(self):
         return self._bkd.vstack(
-            [hyp.get_active_opt_bounds() for hyp in self.hyper_params]
+            [hyp.get_active_opt_bounds() for hyp in self._hyper_params]
         )
 
     def get_bounds(self):
         return self._bkd.vstack(
-            [hyp.get_bounds() for hyp in self.hyper_params]
+            [hyp.get_bounds() for hyp in self._hyper_params]
         )
 
     def get_values(self):
         return self._bkd.hstack(
-            [hyp.get_values() for hyp in self.hyper_params]
+            [hyp.get_values() for hyp in self._hyper_params]
         )
 
     def set_values(self, values):
         cnt = 0
-        for hyp in self.hyper_params:
+        for hyp in self._hyper_params:
             hyp.set_values(values[cnt : cnt + hyp.nvars()])
             cnt += hyp.nvars()
 
     def get_active_indices(self):
         return self._bkd.hstack(
-            [hyp.get_active_indices() for hyp in self.hyper_params]
+            [hyp.get_active_indices() for hyp in self._hyper_params]
         )
+
+
+class CholeskyHyperParameter(HyperParameter):
+    def __init__(
+        self,
+        name: str,
+        nrows: int,
+        values: Array,
+        bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
+        fixed: bool = False,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._nrows = nrows
+        # do not use function flattened_lower_diagonal_matrix_entries
+        # to avoid recreating mask each time values are set and get
+        self._mask = backend.tril(
+            backend.ones((self._nrows, self._nrows), dtype=bool)
+        )
+        nnonzero_chol = backend.where(self._mask)[0].shape[0]
+        super().__init__(
+            name,
+            nnonzero_chol,
+            values,
+            bounds,
+            IdentityHyperParameterTransform(backend=backend),
+            fixed,
+            backend,
+        )
+
+    def get_cholesky_factor(self) -> Array:
+        # entire chol matrix must be created here. If a member
+        # variable is updated autograd will not work with torch
+        chol = self._bkd.zeros((self._nrows, self._nrows))
+        chol[self._mask] = self.get_values()
+        return chol
+
+
+def flattened_lower_diagonal_matrix_entries(
+    matrix, bkd: LinAlgMixin = NumpyLinAlgMixin
+):
+    if matrix.shape[0] != matrix.shape[1]:
+        raise ValueError("matrix must be square")
+    return matrix[bkd.tril(bkd.ones(matrix.shape, dtype=bool))]

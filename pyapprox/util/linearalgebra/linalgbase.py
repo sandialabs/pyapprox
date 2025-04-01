@@ -857,3 +857,13 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def quantile(array: Array, q: float, axis=None) -> Array:
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def tril(array: Array, k: int = 0):
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def triu(array: Array, k: int = 0):
+        raise NotImplementedError

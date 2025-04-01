@@ -13,6 +13,10 @@ from scipy.special import (
 
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linalg import (
+    cholesky_inverse,
+    log_determinant_from_cholesky_factor,
+)
 
 
 class RiskMixin(ABC):
@@ -465,6 +469,104 @@ class HellingerDivergence(FDivergence):
         # Note some formulations use 0.5 times above integral. We do not
         # do that here
         return (self._bkd.sqrt(ratios) - 1) ** 2
+
+
+class ExactKLDivergence(ABC):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+        self._bkd = backend
+
+    @abstractmethod
+    def __call__(self) -> float:
+        raise NotImplementedError
+
+
+class IndependentGaussianExactKLDivergence(ExactKLDivergence):
+    def __init__(
+        self,
+        nvars: int,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(backend)
+        self._nvars = nvars
+
+    def _check_vector(self, mean: Array):
+        if mean.shape != (self._nvars, 1):
+            raise ValueError("vector has the wrong shape")
+
+    def set_left_distribution(self, mean1: Array, diag1: Array):
+        self._check_vector(mean1)
+        self._check_vector(diag1)
+        self._mean1 = mean1
+        self._diag1 = diag1[:, 0]
+
+    def set_right_distribution(self, mean2: Array, diag2: Array):
+        self._check_vector(mean2)
+        self._check_vector(diag2)
+        self._mean2 = mean2
+        self._diag2 = diag2[:, 0]
+
+    def __call__(self) -> float:
+        diag2_inv = 1 / self._diag2
+        val = 0.5 * (
+            self._bkd.sum(self._bkd.log(self._diag2))
+            - self._bkd.sum(self._bkd.log(self._diag1))
+            - self._nvars
+            + self._bkd.sum(self._diag1 * diag2_inv)
+            + (self._mean2 - self._mean1).T
+            @ (diag2_inv[:, None] * (self._mean2 - self._mean1))
+        )
+        return val
+
+
+class CholeskyBasedGaussianExactKLDivergence(ExactKLDivergence):
+    def __init__(
+        self,
+        nvars: int,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(backend)
+        self._nvars = nvars
+
+    def _check_mean(self, mean: Array):
+        if mean.shape != (self._nvars, 1):
+            raise ValueError("mean has the wrong shape")
+
+    def set_left_distribution(self, mean1: Array, chol1: Array):
+        self._check_mean(mean1)
+        self._check_chol_factor(chol1)
+        self._mean1 = mean1
+        self._chol1 = chol1
+
+    def set_right_distribution(self, mean2: Array, chol2: Array):
+        self._check_mean(mean2)
+        self._check_chol_factor(chol2)
+        self._mean2 = mean2
+        self._chol2 = chol2
+
+    def _check_chol_factor(self, chol: Array):
+        if chol.shape != (self._nvars, self._nvars):
+            raise ValueError("cholesky factor has the wrong shape")
+
+    def set_cholesky_factors(self, chol1: Array, chol2: Array):
+        self._chol1 = chol1
+        self._check_chol_factor(chol1)
+        self._check_chol_factor(chol2)
+        self._chol2 = chol2
+
+    def __call__(self) -> float:
+        cov2_inv = cholesky_inverse(self._chol2, self._bkd)
+        val = 0.5 * (
+            log_determinant_from_cholesky_factor(self._chol2, self._bkd)
+            - log_determinant_from_cholesky_factor(self._chol1, self._bkd)
+            - self._nvars
+            # + self._bkd.trace(
+            #     cov2_inv @ (self._chol1 @ self._chol1.T)
+            # )  # replace with sum of hadamard prod below
+            + self._bkd.sum(cov2_inv * (self._chol1 @ self._chol1.T))
+            + (self._mean2 - self._mean1).T
+            @ (cov2_inv @ (self._mean2 - self._mean1))
+        )
+        return val
 
 
 #  See https://link.springer.com/article/10.1007/s10287-014-0225-7

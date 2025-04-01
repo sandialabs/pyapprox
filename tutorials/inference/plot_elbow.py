@@ -84,5 +84,5 @@ Thus
 
 .. math::
 
-    \nabla_{\theta, \phi} \mathcal{L}^B = \nabla_{\theta, \phi} \underbrace{\left[ \frac{1}{L} \sum_{l=1}^{L} \left( \log p_{\boldsymbol{\theta}}(x^{(i)} \mid z^{(l)}) \right)\right]}_{\text{Estimate with Monte Carlo}} - \nabla_{\theta, \phi} \underbrace{\left[\text{KL}[q_{\phi}(z \mid x^{(i)}) \lVert p_{\theta}(z)]\right]}_{\text{Analytically evaluate}}
+    \nabla_{\theta, \phi} \mathcal{L}^B = \nabla_{\theta, \phi} \underbrace{\left[ \frac{1}{L} \sum_{l=1}^{L} \left( \log p_{\boldsymbol{\theta}}(x^{(i)} \mid z^{(l)}) \right)\right]}_{\text{Estimate with Monte Carlo}} - \nabla_{\theta, \phi} \underbrace{\left[\text{KL}[q_{\phi}(z) \lVert p_{\theta}(z)]\right]}_{\text{Analytically evaluate}}
 """

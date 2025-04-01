@@ -1,0 +1,272 @@
+from abc import ABC, abstractmethod
+import warnings
+from typing import Tuple, Union
+
+import numpy as np
+
+from pyapprox.variables.joint import JointVariable
+from pyapprox.interface.model import Model
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.optimization.risk import (
+    CholeskyBasedGaussianExactKLDivergence,
+    ExactKLDivergence,
+)
+from pyapprox.bayes.likelihood import ModelBasedLogLikelihoodMixin
+from pyapprox.optimization.minimize import (
+    MultiStartOptimizer,
+    OptimizerIterateGenerator,
+    RandomUniformOptimzerIterateGenerator,
+)
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.util.hyperparameter import (
+    HyperParameter,
+    HyperParameterList,
+    CholeskyHyperParameter,
+)
+from pyapprox.variables.gaussian import MultivariateGaussian
+
+
+# TODO implement diagonal plus low rank Gaussian covariance based divergence see
+# https://proceedings.neurips.cc/paper_files/paper/2020/file/310cc7ca5a76a446f85c1a0d641ba96d-Paper.pdf
+# TODO: Implement KLDivergence when second gaussian is IID standard Normal
+
+
+class VariationalPosterior(ABC):
+    def __init__(
+        self,
+        nvars: int,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        self._bkd = backend
+        self._nvars = nvars
+
+    def hyp_list(self) -> HyperParameterList:
+        return self._hyp_list
+
+    def __repr__(self) -> str:
+        return "{0}({1}, nvars={2}, bkd={3})".format(
+            self.__class__.__name__,
+            self._hyp_list._short_repr(),
+            self._nvars,
+            self._bkd.__name__,
+        )
+
+
+class CholeskyGaussianVariationalPosterior(VariationalPosterior):
+    def __init__(
+        self,
+        nvars: int,
+        flattened_cholesky_values: Array,  # only entries on and below diagonal
+        mean_values: Array = None,
+        cholesky_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
+        mean_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        if mean_values is None:
+            mean_values = backend.zeros((nvars))
+        super().__init__(nvars, backend)
+        self._mean = HyperParameter(
+            "mean",
+            nvars,
+            mean_values,
+            mean_bounds,
+            fixed=False,
+            backend=self._bkd,
+        )
+        self._cholesky = CholeskyHyperParameter(
+            "cholesky",
+            nvars,
+            flattened_cholesky_values,
+            cholesky_bounds,
+            fixed=False,
+            backend=self._bkd,
+        )
+        self._hyp_list = HyperParameterList([self._mean, self._cholesky])
+
+    def mean(self) -> Array:
+        return self._mean.get_values()[:, None]
+
+    def covariance(self) -> Array:
+        chol = self._cholesky.get_cholesky_factor()
+        return chol @ chol.T
+
+
+class KLDivergenceForVariationalInference(ABC):
+    def __init__(self, prior: JointVariable, posterior: VariationalPosterior):
+        self._bkd = posterior._bkd
+        self._prior = prior
+        self._posterior = posterior
+
+    @abstractmethod
+    def _values(self, samples: Array) -> Array:
+        raise NotImplementedError
+
+    def __call__(self) -> float:
+        return self._values()
+
+    def __repr__(self) -> str:
+        return "{0}(prior={1}, posterior={2})".format(
+            self.__class__.__name__,
+            self._prior,
+            self._posterior,
+        )
+
+    def update(self):
+        return
+
+
+class CholeskyGaussianKLDivergenceForVariationalInference(
+    KLDivergenceForVariationalInference
+):
+    def __init__(self, prior: JointVariable, posterior: VariationalPosterior):
+        if not isinstance(prior, MultivariateGaussian):
+            raise ValueError(
+                "prior must be an instance of MultivariateGaussian"
+            )
+        if not isinstance(posterior, CholeskyGaussianVariationalPosterior):
+            raise ValueError(
+                "posterior must be an instance of "
+                "CholeskyBasedFaussianExactKLDivergence"
+            )
+        super().__init__(prior, posterior)
+        self._divergence = CholeskyBasedGaussianExactKLDivergence(
+            prior.nvars(), prior._bkd
+        )
+        self._divergence.set_right_distribution(
+            prior.mean(), prior.covariance()
+        )
+
+    def _values(self) -> float:
+        return self._divergence()
+
+    def update(self):
+        mean1 = self._posterior._mean.get_values()[:, None]
+        chol1 = self._posterior._cholesky.get_cholesky_factor()
+        self._divergence.set_left_distribution(mean1, chol1)
+
+
+class ELBO(Model):
+    def __init__(
+        self,
+        loglike: ModelBasedLogLikelihoodMixin,
+        divergence: ExactKLDivergence,
+        nsamples: int = 1000,
+    ):
+        super().__init__(divergence._bkd)
+        if not isinstance(divergence, KLDivergenceForVariationalInference):
+            raise ValueError(
+                "divergence must be an instance of "
+                "KLDivergenceForVariationalInference"
+            )
+        self._divergence = divergence
+        self._loglike = loglike
+        self._hyp_list = (
+            self._divergence._posterior.hyp_list()  # + self._loglike.hyplist()
+        )
+        self._samples = self._divergence._prior.rvs(nsamples)
+
+    def nvars(self) -> int:
+        return self._hyp_list.nactive_vars()
+
+    def nqoi(self) -> int:
+        return 1
+
+    def jacobian_implemented(self) -> bool:
+        return self._bkd.jacobian_implemented()
+
+    def _jacobian(self, param: Array) -> Array:
+        return self._bkd.jacobian(
+            lambda x: self._values(x[:, None])[:, 0], param[:, 0]
+        )
+
+    def hyp_list(self) -> HyperParameterList:
+        return self._hyp_list
+
+    def _values(self, params: Array) -> Array:
+        self._hyp_list.set_active_opt_params(params[:, 0])
+        self._divergence.update()
+        # TODO make this a sample average objective
+        expected_loglike = self._bkd.mean(self._loglike(self._samples))
+        # TODO change name to negativeelbo because we are minimizing neg elbo intead of maximizing elbo
+        return -(expected_loglike - self._divergence())
+
+
+# class GaussianVariationalInferenceELBO(ELBO):
+#     pass
+
+
+class VariationalInverseProblem:
+    def __init__(
+        self,
+        prior: JointVariable,
+        loglike: ModelBasedLogLikelihoodMixin,
+        divergence: ExactKLDivergence,
+    ):
+        self._bkd = divergence._bkd
+        self._prior = prior
+        self._elbo = ELBO(loglike, divergence)
+        self._optimizer = None
+
+    def fit(self, iterate: Array = None):
+        if self._elbo.hyp_list().nactive_vars() == 0:
+            warnings.warn("No active parameters so fit was not called")
+            return
+        if self._optimizer is None:
+            self.set_optimizer(self.default_optimizer())
+        if iterate is None:
+            # iterate = self._optimizer._initial_interate_gen()
+            iterate = self._elbo.hyp_list().get_active_opt_params()[:, None]
+        res = self._optimizer.minimize(iterate)
+        active_opt_params = res.x[:, 0]
+        self._elbo.hyp_list().set_active_opt_params(active_opt_params)
+
+    def set_optimizer(self, optimizer: MultiStartOptimizer):
+        if not isinstance(optimizer, MultiStartOptimizer):
+            raise ValueError(
+                "optimizer {0} must be instance of MultiStartOptimizer".format(
+                    optimizer
+                )
+            )
+        self._optimizer = optimizer
+        self._optimizer.set_objective_function(self._elbo)
+        self._optimizer.set_bounds(
+            self._elbo.hyp_list().get_active_opt_bounds()
+        )
+
+    def _default_iterator_gen(self):
+        iterate_gen = RandomUniformOptimzerIterateGenerator(
+            self._elbo.hyp_list().nactive_vars(), backend=self._bkd
+        )
+        iterate_gen.set_bounds(
+            self._bkd.to_numpy(self._elbo.hyp_list().get_active_opt_bounds())
+        )
+        return iterate_gen
+
+    def default_optimizer(
+        self,
+        ncandidates: int = 1,
+        verbosity: int = 0,
+        gtol: float = 1e-8,
+        maxiter: int = 1000,
+        iterate_gen: OptimizerIterateGenerator = None,
+    ) -> MultiStartOptimizer:
+        local_optimizer = ScipyConstrainedOptimizer()
+        local_optimizer.set_options(
+            gtol=gtol,
+            maxiter=maxiter,
+            method="L-BFGS-B",
+        )
+        local_optimizer.set_verbosity(verbosity - 1)
+        ms_optimizer = MultiStartOptimizer(
+            local_optimizer, ncandidates=ncandidates
+        )
+        if iterate_gen is None:
+            iterate_gen = self._default_iterator_gen()
+        if not isinstance(iterate_gen, OptimizerIterateGenerator):
+            raise ValueError(
+                "iterate_gen must be an instance of OptimizerIterateGenerator"
+            )
+        ms_optimizer.set_initial_iterate_generator(iterate_gen)
+        ms_optimizer.set_verbosity(verbosity)
+        return ms_optimizer

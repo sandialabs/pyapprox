@@ -14,6 +14,9 @@ from pyapprox.optimization.risk import (
     UtilitySSD,
     KLDivergence,
     HellingerDivergence,
+    multivariate_gaussian_kl_divergence,
+    CholeskyBasedGaussianExactKLDivergence,
+    IndependentGaussianExactKLDivergence,
 )
 
 
@@ -158,6 +161,36 @@ class TestRiskMeasures:
         true_div = risks.hellinger_divergence(a2, b2)
         print(div, true_div)
         assert np.allclose(div, true_div, rtol=1e-10)
+
+    def test_exact_kl_divergence_from_cholesky_factors(self):
+        nvars = 3
+        mu1 = np.random.uniform(-1, 1, (nvars, 1))
+        mu2 = np.random.uniform(-1, 1, (nvars, 1))
+        A1 = np.random.uniform(-1, 1, (nvars, nvars))
+        A2 = np.random.uniform(-1, 1, (nvars, nvars))
+        cov1 = A1.T @ A1
+        cov2 = A2.T @ A2
+        dense_div = multivariate_gaussian_kl_divergence(mu1, cov1, mu2, cov2)
+        chol_div = CholeskyBasedGaussianExactKLDivergence(nvars)
+        chol_div.set_left_distribution(mu1, np.linalg.cholesky(cov1))
+        chol_div.set_right_distribution(mu2, np.linalg.cholesky(cov2))
+        assert np.allclose(chol_div(), dense_div, rtol=1e-12)
+
+    def test_exact_kl_divergence_from_covariance_diagonals(self):
+        nvars = 3
+        mu1 = np.random.uniform(-1, 1, (nvars, 1))
+        mu2 = np.random.uniform(-1, 1, (nvars, 1))
+        d1 = np.random.uniform(-1, 1, (nvars, 1)) ** 2
+        d2 = np.random.uniform(-1, 1, (nvars, 1)) ** 2
+        cov1 = np.diag(d1[:, 0])
+        cov2 = np.diag(d2[:, 0])
+        dense_div = multivariate_gaussian_kl_divergence(mu1, cov1, mu2, cov2)
+        diag_div = IndependentGaussianExactKLDivergence(nvars)
+        diag_div.set_left_distribution(mu1, d1)
+        diag_div.set_right_distribution(mu2, d2)
+        print(diag_div())
+        print(dense_div)
+        assert np.allclose(diag_div(), dense_div, rtol=1e-12)
 
 
 class TestNumpyRiskMeasures(TestRiskMeasures, unittest.TestCase):

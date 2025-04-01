@@ -139,6 +139,7 @@ example_filenames_in_order += [
     "plot_multivariate_piecewise_polynomial_interpolation.py",
     "plot_sparse_grid_uq.py",
     "plot_multiindex_collocation_ex.py",
+    "plot_leja_quadrature.py",
     # multifidelity
     "plot_mlblue.py",
     # optimization

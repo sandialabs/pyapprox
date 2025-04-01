@@ -558,3 +558,11 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def quantile(array: torch.tensor, q: float, axis=None) -> torch.tensor:
         return torch.quantile(array, q, dim=axis)
+
+    @staticmethod
+    def tril(array: torch.tensor, k: int = 0):
+        return torch.tril(array, diagonal=k)
+
+    @staticmethod
+    def triu(array: torch.tensor, k: int = 0):
+        return torch.triu(array, diagonal=k)
