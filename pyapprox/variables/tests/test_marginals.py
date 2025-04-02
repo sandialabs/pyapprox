@@ -11,7 +11,7 @@ from pyapprox.variables.marginals import (
     beta_pdf_on_ab,
     beta_pdf_derivative_on_ab,
     gaussian_pdf,
-    BetaVariable,
+    BetaMarginal,
 )
 
 
@@ -467,7 +467,7 @@ class TestMarginals(unittest.TestCase):
         # bounds = [-1, 2]
         bounds = [0.0, 1.0]
         astat, bstat = bkd.asarray([2.0, 3.0])
-        rv = BetaVariable(astat, bstat, *bounds, backend=bkd)
+        rv = BetaMarginal(astat, bstat, *bounds, backend=bkd)
         samples = bkd.linspace(*bounds, 5)
         scipy_rv = stats.beta(astat, bstat, bounds[0], bounds[1] - bounds[0])
         # cdf vals differ to scipy for noninteger shape params
@@ -476,7 +476,7 @@ class TestMarginals(unittest.TestCase):
         assert np.allclose(rv.ppf(usamples), scipy_rv.ppf(usamples))
 
         astat2, bstat2 = bkd.asarray([3.0, 3.0])
-        rv2 = BetaVariable(astat2, bstat2, *bounds, backend=bkd)
+        rv2 = BetaMarginal(astat2, bstat2, *bounds, backend=bkd)
         scale = bounds[1] - bounds[0]
         quadx, quadw = np.polynomial.legendre.leggauss(100)
         quadx_01 = bkd.asarray((quadx + 1) / 2)

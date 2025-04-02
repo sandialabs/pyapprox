@@ -10,6 +10,7 @@ from pyapprox.variables.marginals import (
     get_distribution_info,
     is_bounded_continuous_variable,
     get_truncated_range,
+    Marginal,
 )
 from pyapprox.variables._nataf import (
     nataf_joint_density,
@@ -674,3 +675,44 @@ class FiniteSamplesVariable(JointVariable):
         otherwise sample according to weights
         """
         return self._rvs(nsamples)[0]
+
+
+class CustomIndependentMarginalsVariable(JointVariable):
+    def __init__(self, marginals: List[Marginal]):
+        super().__init__(marginals[0]._bkd)
+        self._marginals = marginals
+
+    def nvars(self) -> int:
+        return len(self._marginals)
+
+    def rvs(self, nsamples: int) -> Array:
+        marginal_samples = [
+            marginal.rvs(nsamples) for marginal in self._marginals
+        ]
+        return self._bkd.stack(marginal_samples, axis=0)
+
+    def pdf(self, samples: Array) -> Array:
+        marginal_vals = self._bkd.hstack(
+            [
+                marginal.pdf(samples[ii : ii + 1])
+                for ii, marginal in enumerate(self._marginals)
+            ]
+        )
+        return self._bkd.prod(marginal_vals, axis=1)[:, None]
+
+    def log_pdf(self, samples: Array) -> Array:
+        marginal_vals = self._bkd.hstack(
+            [
+                marginal.log_pdf(samples[ii : ii + 1])
+                for ii, marginal in enumerate(self._marginals)
+            ],
+        )
+        return self._bkd.prod(marginal_vals, axis=1)[:, None]
+
+    def kl_divergence(self, other: "CustomIndependentMarginalsVariable"):
+        return sum(
+            [
+                marginal.kl_divergence(other._marginals[ii])
+                for ii, marginal in enumerate(self._marginals)
+            ]
+        )

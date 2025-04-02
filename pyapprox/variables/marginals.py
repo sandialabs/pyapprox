@@ -1,5 +1,6 @@
 import math
 from functools import partial
+from abc import ABC, abstractmethod
 
 from scipy.stats._distn_infrastructure import rv_sample, rv_continuous
 from scipy.stats import _continuous_distns, _discrete_distns
@@ -694,37 +695,81 @@ class MarginalCDFNewtonSolver(NewtonSolver):
         return sol
 
 
-class BetaVariable:
+class Marginal(ABC):
+    # This class implemented to allow for autograd
+    def __init__(self, backend: LinAlgMixin):
+        if backend is None:
+            backend = NumpyLinAlgMixin
+        self._bkd = backend
+
+    @abstractmethod
+    def _pdf(self, samples: Array) -> Array:
+        raise NotImplementedError
+
+    def pdf(self, samples: Array) -> Array:
+        self._check_samples(samples)
+        vals = self._pdf(samples)
+        if vals.ndim != 2 or vals.shape[1] != 1:
+            raise ValueError(
+                "vals must be a 2d column vector but had shape{0}".format(
+                    vals.shape
+                )
+            )
+        return vals
+
+    def _check_samples(self, samples):
+        if samples.ndim != 2 or samples.shape[0] != 1:
+            raise ValueError("samples must be 2d row vector")
+
+    def _pdf_jacobian(self, samples: Array) -> Array:
+        raise NotImplementedError
+
+    def pdf_jacobian(self, samples: Array) -> Array:
+        self._check_samples(samples)
+        jac = self._pdf_jacobian(samples)
+        if jac.shape != (1, samples.shape[1]):
+            raise ValueError("jacobian must be a 2D row vector")
+        return jac
+
+
+class BetaMarginal(Marginal):
     def __init__(
         self,
         alpha: float,
         beta: float,
         lb: float,
         ub: float,
+        nquad_samples: int = 100,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        # This class implemented to allow for autograd
-        self._bkd = backend
-        self._a = alpha
-        self._b = beta
+        super().__init__(backend)
         self._lb = lb
         self._ub = ub
-        self._scipy_rv = stats.beta(
-            self._a, self._b, loc=self._lb, scale=self._ub - self._lb
-        )
-        self._const = 1.0 / beta_function(self._a, self._b, self._bkd)
+        self.set_shapes(alpha, beta)
         # quadx on [-1, 1], w(x) = 1
         # TODO cannot autograd through cdf until native bkd leggauss is called
         # It is implemented but I have to determine how to avoid circular
         # dependices
-        quadx, quadw = np.polynomial.legendre.leggauss(
-            int(self._a + self._b) + 1
-        )
+        if nquad_samples < int(self._a + self._b) + 1:
+            # this condition is only sufficient for integer alpha and beta
+            # but still worth checking
+            raise ValueError(
+                "nquad_samples must be greater than int(alpha + beta) + 1"
+            )
+        quadx, quadw = np.polynomial.legendre.leggauss(nquad_samples)
         self._quadx_01 = self._bkd.asarray((quadx + 1) / 2)
         self._quadw_01 = self._bkd.asarray(quadw / 2)
         self._scale = self._ub - self._lb
         self._newton_solver = MarginalCDFNewtonSolver(verbosity=0, maxiters=20)
         self._newton_solver.set_residual(MarginalCDFNewtonResidual(self))
+
+    def set_shapes(self, alpha: float, beta: float):
+        self._a = alpha
+        self._b = beta
+        self._scipy_rv = stats.beta(
+            self._a, self._b, loc=self._lb, scale=self._ub - self._lb
+        )
+        self._const = 1.0 / beta_function(self._a, self._b, self._bkd)
 
     def rvs(self, nsamples: int) -> Array:
         return self._bkd.asarray(self._scipy_rv.rvs(nsamples))
@@ -733,8 +778,8 @@ class BetaVariable:
         # pdf on [0, 1]
         return beta_pdf(self._a, self._b, samples, self._bkd)
 
-    def pdf(self, samples: Array) -> Array:
-        return self._pdf_01((samples - self._lb) / self._scale) / self._scale
+    def _pdf(self, samples: Array) -> Array:
+        return self._pdf_01((samples.T - self._lb) / self._scale) / self._scale
 
     def cdf(self, samples: Array) -> Array:
         # WARNING increase accuracy of quadrature rule if using non-integer
@@ -806,6 +851,10 @@ class BetaVariable:
 
         .. math:: \psi(x)=\frac{d}{dx}\ln\Gamma(x)=\frac{\Gamma'(x)}{\Gamma(x)}
         """
+        if not self._bkd.allclose(
+            [self._lb, self._ub], [other._lb, other._ub], atol=1e-16
+        ):
+            raise ValueError("marginals must have the same bounds")
         self_sum = self._a + self._b
         other_sum = other._a + other._b
         term1_numer = (

@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 from scipy import stats
 
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.utilities import (
     lists_of_arrays_equal,
     correlation_to_covariance,
@@ -11,7 +12,9 @@ from pyapprox.variables.joint import (
     GaussCopulaVariable,
     define_iid_random_variable,
     FiniteSamplesVariable,
+    CustomIndependentMarginalsVariable,
 )
+from pyapprox.variables.marginals import BetaMarginal
 
 
 class TestJoint(unittest.TestCase):
@@ -130,6 +133,37 @@ class TestJoint(unittest.TestCase):
         assert nsamples % 2 == 0
         valid_samples1, II = model._rvs(nsamples // 2)
         valid_samples0, JJ = model._rvs(nsamples)
+
+    def custom_independent_marginals_variable(self):
+        a1, b1 = 2, 3
+        a2, b2 = 3, 3
+        bounds = [0, 1]
+        marginals1 = [
+            BetaMarginal(a1, b1, *bounds),
+            BetaMarginal(a2, b2, *bounds),
+        ]
+        marginals2 = [
+            BetaMarginal(a2, b2, *bounds),
+            BetaMarginal(a1, b1, *bounds),
+        ]
+        variable1 = CustomIndependentMarginalsVariable(marginals1)
+        variable2 = CustomIndependentMarginalsVariable(marginals2)
+
+        quadx, quadw = np.polynomial.legendre.leggauss(100)
+        bkd = NumpyLinAlgMixin
+        quadx_01 = bkd.asarray((quadx + 1) / 2)
+        quadw_01 = bkd.asarray(quadw / 2)
+        quadx = bkd.cartesian_product([quadx_01] * 2)
+        quadw = bkd.outer_product([quadw_01] * 2)
+        kl_div = (
+            variable1.pdf(quadx)
+            * (bkd.log(variable1.pdf(quadx) / variable2.pdf(quadx)))
+        )[:, 0] @ quadw
+        assert bkd.allclose(
+            variable1.kl_divergence(variable2), kl_div, rtol=1e-5
+        )
+
+        # TODO expand test to other functions
 
 
 if __name__ == "__main__":

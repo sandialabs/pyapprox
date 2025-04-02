@@ -29,6 +29,7 @@ from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
     IndependentMultivariateGaussian,
 )
+from pyapprox.variables.joint import CustomIndependentMarginalsVariable
 
 
 # TODO implement diagonal plus low rank Gaussian covariance based divergence see
@@ -170,6 +171,45 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         )
 
 
+class IndependentBetaVariationalPosterior(VariationalPosterior):
+    def __init__(
+        self,
+        nvars: int,
+        nlatent_samples: int,
+        ashape_values: Array,
+        bshape_values: Array = None,
+        ashape_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
+        bshape_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(nvars, nlatent_samples, backend)
+        self._ashapes = HyperParameter(
+            "ashapes",
+            nvars,
+            ashape_values,
+            ashape_bounds,
+            fixed=False,
+            backend=self._bkd,
+        )
+        self._bshapes = HyperParameter(
+            "bshapes",
+            nvars,
+            bshape_values,
+            bshape_bounds,
+            fixed=False,
+            backend=self._bkd,
+        )
+        self._hyp_list = HyperParameterList([self._ashapes, self._bshapes])
+
+    def _generate_latent_samples(self, nsamples: int):
+        return self._bkd.asarray(
+            np.random.uniform(0, 1, (self._nvars, nsamples))
+        )
+
+    def _map_from_latent_samples(self, latent_samples: Array) -> Array:
+        return self._beta_dist.ppf(latent_samples)
+
+
 class KLDivergenceForVariationalInference(ABC):
     def __init__(self, prior: JointVariable, posterior: VariationalPosterior):
         self._bkd = posterior._bkd
@@ -209,7 +249,7 @@ class CholeskyGaussianKLDivergenceForVariationalInference(
         if not isinstance(posterior, CholeskyGaussianVariationalPosterior):
             raise ValueError(
                 "posterior must be an instance of "
-                "CholeskyBasedGaussianExactKLDivergence"
+                "CholeskyGaussianVariationalPosterior"
             )
         super().__init__(prior, posterior)
         self._divergence = CholeskyBasedGaussianExactKLDivergence(
@@ -244,7 +284,7 @@ class IndependentGaussianKLDivergenceForVariationalInference(
         if not isinstance(posterior, IndependentGaussianVariationalPosterior):
             raise ValueError(
                 "posterior must be an instance of "
-                "IndependentGaussianExactKLDivergence"
+                "IndependentGaussianVariationalPosterior"
             )
         super().__init__(prior, posterior)
         self._divergence = IndependentGaussianExactKLDivergence(
@@ -261,6 +301,36 @@ class IndependentGaussianKLDivergenceForVariationalInference(
         mean1 = self._posterior._mean.get_values()[:, None]
         diag1 = self._posterior._std_diag.get_values()[:, None] ** 2
         self._divergence.set_left_distribution(mean1, diag1)
+
+
+class CustomIndependentMarginalsVariableKLDivergenceForVariationalInference(
+    KLDivergenceForVariationalInference
+):
+    def __init__(
+        self,
+        prior: CustomIndependentMarginalsVariable,
+        posterior: IndependentGaussianVariationalPosterior,
+    ):
+        if not isinstance(prior, CustomIndependentMarginalsVariable):
+            raise ValueError(
+                "prior must be an instance of "
+                "CustomIndependentMarginalsVariable"
+            )
+        if not isinstance(posterior, IndependentBetaVariationalPosterior):
+            raise ValueError(
+                "posterior must be an instance of "
+                "IndependentGaussianExactKLDivergence"
+            )
+        super().__init__(prior, posterior)
+
+    def _values(self) -> float:
+        return self._posterior.kl_divergence(self._prior)
+
+    def update(self):
+        ashapes = self._posterior._ashapes.get_values()[:, None]
+        bshapes = self._posterior._bshapes.get_values()[:, None] ** 2
+        for ii, marginal in enumerate(self._posterior._marginals):
+            marginal.set_shape(ashapes[ii], bshapes[ii])
 
 
 class NegELBO(Model):
@@ -388,3 +458,7 @@ class VariationalInverseProblem:
         ms_optimizer.set_initial_iterate_generator(iterate_gen)
         ms_optimizer.set_verbosity(verbosity)
         return ms_optimizer
+
+
+# TODO: read Variational Gaussian Copula Inference.
+# http://proceedings.mlr.press/v51/han16.pdf
