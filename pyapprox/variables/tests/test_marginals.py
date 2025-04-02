@@ -464,8 +464,8 @@ class TestMarginals(unittest.TestCase):
         from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
         bkd = TorchLinAlgMixin
-        bounds = [-1, 2]
-        # bounds = [0, 1]
+        # bounds = [-1, 2]
+        bounds = [0.0, 1.0]
         astat, bstat = bkd.asarray([2.0, 3.0])
         rv = BetaVariable(astat, bstat, *bounds, backend=bkd)
         samples = bkd.linspace(*bounds, 5)
@@ -473,8 +473,20 @@ class TestMarginals(unittest.TestCase):
         # cdf vals differ to scipy for noninteger shape params
         assert np.allclose(rv.cdf(samples), scipy_rv.cdf(samples))
         usamples = bkd.linspace(0, 1, 50)
-        # print(rv.ppf(usamples) - scipy_rv.ppf(usamples))
         assert np.allclose(rv.ppf(usamples), scipy_rv.ppf(usamples))
+
+        astat2, bstat2 = bkd.asarray([3.0, 3.0])
+        rv2 = BetaVariable(astat2, bstat2, *bounds, backend=bkd)
+        scale = bounds[1] - bounds[0]
+        quadx, quadw = np.polynomial.legendre.leggauss(100)
+        quadx_01 = bkd.asarray((quadx + 1) / 2)
+        quadw_01 = bkd.asarray(quadw / 2)
+        quadx = quadx_01 * scale + bounds[0]
+        quadw = quadw_01 * scale
+        kl_div = (
+            rv.pdf(quadx) * (bkd.log(rv.pdf(quadx)) - bkd.log(rv2.pdf(quadx)))
+        ) @ quadw
+        assert bkd.allclose(rv.kl_divergence(rv2), kl_div)
 
 
 if __name__ == "__main__":

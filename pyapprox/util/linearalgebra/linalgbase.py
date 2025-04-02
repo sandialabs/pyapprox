@@ -860,10 +860,15 @@ class LinAlgMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def tril(array: Array, k: int = 0):
+    def tril(array: Array, k: int = 0) -> Array:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def triu(array: Array, k: int = 0):
+    def triu(array: Array, k: int = 0) -> Array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def digamma(array: Array) -> Array:
         raise NotImplementedError

@@ -657,15 +657,40 @@ class MarginalCDFNewtonResidual(NewtonResidual):
         return self._marginal._cdf_jacobian(iterate)
 
     def linsolve(self, iterate: Array, res: Array) -> Array:
+        # print(iterate)
+        # print(res)
+        # print(self._marginal._cdf_jacobian_diagonal(iterate))
+        # print(self._bkd.diag(super()._jacobian(iterate)))
         return res / self._marginal._cdf_jacobian_diagonal(iterate)
 
 
 class MarginalCDFNewtonSolver(NewtonSolver):
+    def _bounded_line_search(
+        self,
+        idx: Array,
+        sol: Array,
+        prev_sol: Array,
+        delta: Array,
+        prev_residual_norm: float,
+    ) -> Array:
+        step_size = self._step_size
+        ii = 0
+        while ii < self._linesearch_maxiters:
+            step_size = self._step_size / 2
+            sol[idx] = prev_sol[idx] - step_size * delta[idx]
+            residual = self._residual(sol)
+            residual_norm = self._bkd.norm(residual)
+            if residual_norm < prev_residual_norm:
+                return
+            ii += 1
+        raise RuntimeError("Max bounded linesearch iterations reached")
+
     def _update_sol(self, prev_sol: Array, delta: Array) -> Array:
-        # make sure step size does not exceed bounds
         sol = prev_sol - self._step_size * delta
-        sol[sol < self._residual._marginal._lb] = self._residual._marginal._lb
-        sol[sol > self._residual._marginal._ub] = self._residual._marginal._ub
+        # make sure step size does not exceed bounds
+        # (not necessary with good initial guess)
+        # sol[sol < self._residual._marginal._lb] = self._residual._marginal._lb
+        # sol[sol > self._residual._marginal._ub] = self._residual._marginal._ub
         return sol
 
 
@@ -709,7 +734,7 @@ class BetaVariable:
         return beta_pdf(self._a, self._b, samples, self._bkd)
 
     def pdf(self, samples: Array) -> Array:
-        self._canonical_pdf((samples - self._lb) / self._scale) / self._scale
+        return self._pdf_01((samples - self._lb) / self._scale) / self._scale
 
     def cdf(self, samples: Array) -> Array:
         # WARNING increase accuracy of quadrature rule if using non-integer
@@ -729,9 +754,17 @@ class BetaVariable:
         iterate = usamples * self._scale + self._lb
         if self._a == 1.0 and self._b == 1.0:
             return iterate
+        # this funciton is used to compute gradients. Initial
+        # iterate will not effect this computation, unless it is exactly
+        # the answer so just use scipy as initial guess. use shift
+        # smaller than newton_solver.tol
+        iterate = self._bkd.asarray(self._scipy_rv.ppf(usamples) + 1e-4)
         self._newton_solver._residual.set_usamples(usamples)
         iterate = self._bkd.copy(iterate)
-        return self._newton_solver.solve(iterate)
+        vals = self._newton_solver.solve(iterate)
+        vals[usamples == 0.0] = 0.0
+        vals[usamples == 1.0] = 1.0
+        return vals
 
     def _pdf_jacobian_01(self, sample: Array) -> Array:
         deriv = self._bkd.zeros(sample.shape)
@@ -764,3 +797,31 @@ class BetaVariable:
 
     def _cdf_jacobian(self, samples: Array) -> Array:
         return self._bkd.diag(self._cdf_jacobian_diagonal(samples))
+
+    def kl_divergence(self, other: "BetaVariable"):
+        r"""
+        .. math:: \mathrm{KL}(F||G)=\ln\frac{\Gamma(\alpha_{f}+\beta_{f})\Gamma(\alpha_{g})\Gamma(\beta_{g})}{\Gamma(\alpha_{g}+\beta_{g})\Gamma(\alpha_{f})\Gamma(\beta_{f})}+(\alpha_{f}-\alpha_{g})\left(\psi(\alpha_{f})-\psi(\alpha_{f}+\beta_{f})\right)+(\beta_{f}-\beta_{g})\left(\psi(\beta_{f})-\psi(\alpha_{f}+\beta_{f})\right)
+
+        where
+
+        .. math:: \psi(x)=\frac{d}{dx}\ln\Gamma(x)=\frac{\Gamma'(x)}{\Gamma(x)}
+        """
+        self_sum = self._a + self._b
+        other_sum = other._a + other._b
+        term1_numer = (
+            self._bkd.gammaln(other._a)
+            + self._bkd.gammaln(other._b)
+            + self._bkd.gammaln(self_sum)
+        )
+        term1_denom = -(
+            self._bkd.gammaln(self._a)
+            + self._bkd.gammaln(self._b)
+            + self._bkd.gammaln(other_sum)
+        )
+        tmp = self._bkd.digamma(self_sum)
+        term2 = (self._a - other._a) * (self._bkd.digamma(self._a) - tmp)
+        term3 = (self._b - other._b) * (self._bkd.digamma(self._b) - tmp)
+        # term2 = (self._a - other._a) * self._bkd.digamma(self._a)
+        # term3 = (self._b - other._b) * self._bkd.digamma(self._b)
+        # term3 += (self_sum - other_sum) * tmp
+        return term1_numer + term1_denom + term2 + term3

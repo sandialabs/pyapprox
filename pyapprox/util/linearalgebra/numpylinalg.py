@@ -476,9 +476,13 @@ class NumpyLinAlgMixin(LinAlgMixin):
         return np.quantile(array, q, axis)
 
     @staticmethod
-    def tril(array: np.ndarray, k: int = 0):
+    def tril(array: np.ndarray, k: int = 0) -> np.ndarray:
         return np.tril(array, k)
 
     @staticmethod
-    def triu(array: np.ndarray, k: int = 0):
+    def triu(array: np.ndarray, k: int = 0) -> np.ndarray:
         raise np.triu(array, k)
+
+    @staticmethod
+    def digamma(array: np.ndarray) -> np.ndarray:
+        return scipy.special.digamma(array)

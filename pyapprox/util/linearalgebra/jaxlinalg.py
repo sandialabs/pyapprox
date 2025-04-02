@@ -497,3 +497,7 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def triu(array: np.ndarray, k: int = 0):
         return np.triu(array, k)
+
+    @staticmethod
+    def digamma(array: np.ndarray) -> np.ndarray:
+        return jax.scipy.special.digamma(array)
