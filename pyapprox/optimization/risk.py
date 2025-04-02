@@ -491,29 +491,35 @@ class IndependentGaussianExactKLDivergence(ExactKLDivergence):
 
     def _check_vector(self, mean: Array):
         if mean.shape != (self._nvars, 1):
-            raise ValueError("vector has the wrong shape")
+            raise ValueError(
+                "vector has the wrong shape. Was {0} should be {1}".format(
+                    mean.shape, (self._nvars, 1)
+                )
+            )
 
     def set_left_distribution(self, mean1: Array, diag1: Array):
         self._check_vector(mean1)
         self._check_vector(diag1)
         self._mean1 = mean1
         self._diag1 = diag1[:, 0]
+        self._cov1_log_det = self._bkd.sum(self._bkd.log(self._diag1))
 
     def set_right_distribution(self, mean2: Array, diag2: Array):
         self._check_vector(mean2)
         self._check_vector(diag2)
         self._mean2 = mean2
         self._diag2 = diag2[:, 0]
+        self._cov2_log_det = self._bkd.sum(self._bkd.log(self._diag2))
+        self._diag2_inv = 1 / self._diag2
 
     def __call__(self) -> float:
-        diag2_inv = 1 / self._diag2
         val = 0.5 * (
             self._bkd.sum(self._bkd.log(self._diag2))
             - self._bkd.sum(self._bkd.log(self._diag1))
             - self._nvars
-            + self._bkd.sum(self._diag1 * diag2_inv)
+            + self._bkd.sum(self._diag1 * self._diag2_inv)
             + (self._mean2 - self._mean1).T
-            @ (diag2_inv[:, None] * (self._mean2 - self._mean1))
+            @ (self._diag2_inv[:, None] * (self._mean2 - self._mean1))
         )
         return val
 
@@ -531,40 +537,40 @@ class CholeskyBasedGaussianExactKLDivergence(ExactKLDivergence):
         if mean.shape != (self._nvars, 1):
             raise ValueError("mean has the wrong shape")
 
+    def _check_chol_factor(self, chol: Array):
+        if chol.shape != (self._nvars, self._nvars):
+            raise ValueError("cholesky factor has the wrong shape")
+
     def set_left_distribution(self, mean1: Array, chol1: Array):
         self._check_mean(mean1)
         self._check_chol_factor(chol1)
         self._mean1 = mean1
         self._chol1 = chol1
+        self._cov1_log_det = log_determinant_from_cholesky_factor(
+            self._chol1, self._bkd
+        )
 
     def set_right_distribution(self, mean2: Array, chol2: Array):
         self._check_mean(mean2)
         self._check_chol_factor(chol2)
         self._mean2 = mean2
         self._chol2 = chol2
-
-    def _check_chol_factor(self, chol: Array):
-        if chol.shape != (self._nvars, self._nvars):
-            raise ValueError("cholesky factor has the wrong shape")
-
-    def set_cholesky_factors(self, chol1: Array, chol2: Array):
-        self._chol1 = chol1
-        self._check_chol_factor(chol1)
-        self._check_chol_factor(chol2)
-        self._chol2 = chol2
+        self._cov2_inv = cholesky_inverse(self._chol2, self._bkd)
+        self._cov2_log_det = log_determinant_from_cholesky_factor(
+            self._chol2, self._bkd
+        )
 
     def __call__(self) -> float:
-        cov2_inv = cholesky_inverse(self._chol2, self._bkd)
         val = 0.5 * (
-            log_determinant_from_cholesky_factor(self._chol2, self._bkd)
-            - log_determinant_from_cholesky_factor(self._chol1, self._bkd)
+            self._cov2_log_det
+            - self._cov1_log_det
             - self._nvars
             # + self._bkd.trace(
             #     cov2_inv @ (self._chol1 @ self._chol1.T)
             # )  # replace with sum of hadamard prod below
-            + self._bkd.sum(cov2_inv * (self._chol1 @ self._chol1.T))
+            + self._bkd.sum(self._cov2_inv * (self._chol1 @ self._chol1.T))
             + (self._mean2 - self._mean1).T
-            @ (cov2_inv @ (self._mean2 - self._mean1))
+            @ (self._cov2_inv @ (self._mean2 - self._mean1))
         )
         return val
 

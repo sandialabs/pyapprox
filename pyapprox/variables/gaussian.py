@@ -451,6 +451,9 @@ class DenseMatrixIndependentMultivariateGaussian(MultivariateGaussian):
     def covariance(self) -> Array:
         return self._bkd.diag(self._cov_sqrt._cov_diag)
 
+    def covariance_diagonal(self) -> Array:
+        return self._cov_sqrt._cov_diag
+
 
 def subselect_matrix_blocks(selected_block_indices, nentries_per_block):
     r"""
