@@ -36,10 +36,12 @@ class VariationalPosterior(ABC):
     def __init__(
         self,
         nvars: int,
+        nlatent_samples: int,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         self._bkd = backend
         self._nvars = nvars
+        self._latent_samples = self._generate_latent_samples(nlatent_samples)
 
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
@@ -52,20 +54,34 @@ class VariationalPosterior(ABC):
             self._bkd.__name__,
         )
 
+    @abstractmethod
+    def _generate_latent_samples(self, nsamples: int):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _map_from_latent_samples(self, latent_samples: Array) -> Array:
+        raise NotImplementedError
+
+    def rvs(self, nsamples: int) -> Array:
+        return self._map_from_latent_samples(
+            self._generate_latent_samples(nsamples)
+        )
+
 
 class CholeskyGaussianVariationalPosterior(VariationalPosterior):
     def __init__(
         self,
         nvars: int,
+        nlatent_samples: int,
         flattened_cholesky_values: Array,  # only entries on and below diagonal
         mean_values: Array = None,
         cholesky_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         mean_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
+        super().__init__(nvars, nlatent_samples, backend)
         if mean_values is None:
             mean_values = backend.zeros((nvars))
-        super().__init__(nvars, backend)
         self._mean = HyperParameter(
             "mean",
             nvars,
@@ -90,6 +106,15 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
     def covariance(self) -> Array:
         chol = self._cholesky.get_cholesky_factor()
         return chol @ chol.T
+
+    def _generate_latent_samples(self, nsamples: int):
+        return self._bkd.asarray(
+            np.random.normal(0, 1, (self._nvars, nsamples))
+        )
+
+    def _map_from_latent_samples(self, latent_samples: Array) -> Array:
+        chol = self._cholesky.get_cholesky_factor()
+        return self.mean() + chol @ latent_samples
 
 
 class KLDivergenceForVariationalInference(ABC):
@@ -146,7 +171,7 @@ class CholeskyGaussianKLDivergenceForVariationalInference(
         self._divergence.set_left_distribution(mean1, chol1)
 
 
-class ELBO(Model):
+class NegELBO(Model):
     def __init__(
         self,
         loglike: ModelBasedLogLikelihoodMixin,
@@ -164,7 +189,6 @@ class ELBO(Model):
         self._hyp_list = (
             self._divergence._posterior.hyp_list()  # + self._loglike.hyplist()
         )
-        self._samples = self._divergence._prior.rvs(nsamples)
 
     def nvars(self) -> int:
         return self._hyp_list.nactive_vars()
@@ -186,9 +210,11 @@ class ELBO(Model):
     def _values(self, params: Array) -> Array:
         self._hyp_list.set_active_opt_params(params[:, 0])
         self._divergence.update()
+        samples = self._divergence._posterior._map_from_latent_samples(
+            self._divergence._posterior._latent_samples
+        )
         # TODO make this a sample average objective
-        expected_loglike = self._bkd.mean(self._loglike(self._samples))
-        # TODO change name to negativeelbo because we are minimizing neg elbo intead of maximizing elbo
+        expected_loglike = self._bkd.mean(self._loglike(samples))
         return -(expected_loglike - self._divergence())
 
 
@@ -205,21 +231,23 @@ class VariationalInverseProblem:
     ):
         self._bkd = divergence._bkd
         self._prior = prior
-        self._elbo = ELBO(loglike, divergence)
+        self._neg_elbo = NegELBO(loglike, divergence)
         self._optimizer = None
 
     def fit(self, iterate: Array = None):
-        if self._elbo.hyp_list().nactive_vars() == 0:
+        if self._neg_elbo.hyp_list().nactive_vars() == 0:
             warnings.warn("No active parameters so fit was not called")
             return
         if self._optimizer is None:
             self.set_optimizer(self.default_optimizer())
         if iterate is None:
             # iterate = self._optimizer._initial_interate_gen()
-            iterate = self._elbo.hyp_list().get_active_opt_params()[:, None]
+            iterate = self._neg_elbo.hyp_list().get_active_opt_params()[
+                :, None
+            ]
         res = self._optimizer.minimize(iterate)
         active_opt_params = res.x[:, 0]
-        self._elbo.hyp_list().set_active_opt_params(active_opt_params)
+        self._neg_elbo.hyp_list().set_active_opt_params(active_opt_params)
 
     def set_optimizer(self, optimizer: MultiStartOptimizer):
         if not isinstance(optimizer, MultiStartOptimizer):
@@ -229,17 +257,19 @@ class VariationalInverseProblem:
                 )
             )
         self._optimizer = optimizer
-        self._optimizer.set_objective_function(self._elbo)
+        self._optimizer.set_objective_function(self._neg_elbo)
         self._optimizer.set_bounds(
-            self._elbo.hyp_list().get_active_opt_bounds()
+            self._neg_elbo.hyp_list().get_active_opt_bounds()
         )
 
     def _default_iterator_gen(self):
         iterate_gen = RandomUniformOptimzerIterateGenerator(
-            self._elbo.hyp_list().nactive_vars(), backend=self._bkd
+            self._neg_elbo.hyp_list().nactive_vars(), backend=self._bkd
         )
         iterate_gen.set_bounds(
-            self._bkd.to_numpy(self._elbo.hyp_list().get_active_opt_bounds())
+            self._bkd.to_numpy(
+                self._neg_elbo.hyp_list().get_active_opt_bounds()
+            )
         )
         return iterate_gen
 
