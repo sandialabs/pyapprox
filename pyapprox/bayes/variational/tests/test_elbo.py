@@ -13,8 +13,8 @@ from pyapprox.bayes.variational.elbo import (
 from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.variables.gaussian import (
-    DenseMatrixMultivariateGaussian,
-    DenseMatrixIndependentMultivariateGaussian,
+    DenseCholeskyMultivariateGaussian,
+    IndependentMultivariateGaussian,
 )
 from pyapprox.util.hyperparameter import (
     flattened_lower_diagonal_matrix_entries,
@@ -80,7 +80,7 @@ class TestVariationalInference:
         bkd = self.get_backend()
         mean = bkd.ones((nvars, 1))
         covariance = prior_std**2 * bkd.eye(nvars)
-        prior = DenseMatrixMultivariateGaussian(mean, covariance, backend=bkd)
+        prior = DenseCholeskyMultivariateGaussian(mean, covariance, backend=bkd)
         variational_posterior = CholeskyGaussianVariationalPosterior(
             nvars,
             nlatent_samples,
@@ -115,7 +115,7 @@ class TestVariationalInference:
         bkd = self.get_backend()
         mean = bkd.ones((nvars, 1))
         std_diag = bkd.full((nvars,), prior_std)
-        prior = DenseMatrixIndependentMultivariateGaussian(
+        prior = IndependentMultivariateGaussian(
             mean, std_diag**2, backend=bkd
         )
         variational_posterior = IndependentGaussianVariationalPosterior(

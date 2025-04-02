@@ -12,7 +12,7 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
 from pyapprox.interface.model import DenseMatrixLinearModel
 from pyapprox.variables.gaussian import (
-    DenseMatrixMultivariateGaussian,
+    DenseCholeskyMultivariateGaussian,
     GaussianSqrtCovarianceOperator,
     MultivariateGaussian,
 )
@@ -85,7 +85,7 @@ class DenseMatrixLaplacePosteriorApproximation:
             self._matrix, self._vec, backend=self._bkd
         )
         self._loglike = ModelBasedGaussianLogLikelihood(model, self._noise_cov)
-        self._prior = DenseMatrixMultivariateGaussian(
+        self._prior = DenseCholeskyMultivariateGaussian(
             self._prior_mean, self._prior_cov, self._bkd
         )
 
@@ -154,8 +154,8 @@ class DenseMatrixLaplacePosteriorApproximation:
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
-    def posterior_variable(self) -> DenseMatrixMultivariateGaussian:
-        return DenseMatrixMultivariateGaussian(
+    def posterior_variable(self) -> DenseCholeskyMultivariateGaussian:
+        return DenseCholeskyMultivariateGaussian(
             self.posterior_mean(),
             self.posterior_covariance(),
             backend=self._bkd,
@@ -320,14 +320,14 @@ class DenseMatrixLaplacePosteriorLowRankApproximation(
 ):
     def __init__(
         self,
-        prior: DenseMatrixMultivariateGaussian,
+        prior: DenseCholeskyMultivariateGaussian,
         hess_mat: Array,
         rank: int,
     ):
         # mainly useful for testing
-        if not isinstance(prior, DenseMatrixMultivariateGaussian):
+        if not isinstance(prior, DenseCholeskyMultivariateGaussian):
             raise ValueError(
-                "prior must be an instance of DenseMatrixMultivariateGaussian"
+                "prior must be an instance of DenseCholeskyMultivariateGaussian"
             )
         self._hess_mat = hess_mat
         super().__init__(
@@ -404,8 +404,8 @@ class GaussianPushForward:
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
-    def pushfowward_variable(self) -> DenseMatrixMultivariateGaussian:
-        return DenseMatrixMultivariateGaussian(self.mean(), self.covariance())
+    def pushfowward_variable(self) -> DenseCholeskyMultivariateGaussian:
+        return DenseCholeskyMultivariateGaussian(self.mean(), self.covariance())
 
 
 class DenseMatrixLaplaceApproximationForPrediction:
@@ -472,5 +472,5 @@ class DenseMatrixLaplaceApproximationForPrediction:
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
-    def pushfowward_variable(self) -> DenseMatrixMultivariateGaussian:
-        return DenseMatrixMultivariateGaussian(self.mean(), self.covariance())
+    def pushfowward_variable(self) -> DenseCholeskyMultivariateGaussian:
+        return DenseCholeskyMultivariateGaussian(self.mean(), self.covariance())

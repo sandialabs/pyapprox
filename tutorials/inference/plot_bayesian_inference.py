@@ -100,7 +100,7 @@ from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 from pyapprox.bayes.tests.test_metropolis import (
     ExponentialQuarticLogLikelihoodModel,
 )
-from pyapprox.variables.gaussian import DenseMatrixMultivariateGaussian
+from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
 from scipy import stats
 import matplotlib
 import numpy as np
@@ -114,15 +114,15 @@ A = np.array([[0.5]])
 b = 0.0
 # define the prior
 prior_covariance = np.atleast_2d(1.0)
-prior = DenseMatrixMultivariateGaussian(np.atleast_2d(0.0), prior_covariance)
+prior = DenseCholeskyMultivariateGaussian(np.atleast_2d(0.0), prior_covariance)
 # define the noise
 noise_covariance = np.atleast_2d(0.1)
-noise = DenseMatrixMultivariateGaussian(np.atleast_2d(0.0), noise_covariance)
+noise = DenseCholeskyMultivariateGaussian(np.atleast_2d(0.0), noise_covariance)
 # compute the covariance between the prior and data
 C_12 = A @ prior_covariance
 # define the data marginal distribution
 data_covariance = noise_covariance + C_12 @ A.T
-data = DenseMatrixMultivariateGaussian(A @ prior.mean() + b, data_covariance)
+data = DenseCholeskyMultivariateGaussian(A @ prior.mean() + b, data_covariance)
 # define the covariance of the joint distribution of the prior and data
 
 
@@ -141,7 +141,7 @@ joint_mean = np.vstack((prior.mean(), data.mean()))
 joint_covariance = form_normal_joint_covariance(
     prior_covariance, data_covariance, C_12
 )
-joint = DenseMatrixMultivariateGaussian(joint_mean, joint_covariance)
+joint = DenseCholeskyMultivariateGaussian(joint_mean, joint_covariance)
 
 # %%
 # Now we can plot the joint distribution and some samples from that distribution
@@ -206,7 +206,7 @@ data_obs = A @ x_truth + b + noise.rvs(1)
 new_mean, new_cov = condition_normal_on_data(
     joint_mean, joint_covariance, [1], data_obs
 )
-posterior = DenseMatrixMultivariateGaussian(new_mean, new_cov)
+posterior = DenseCholeskyMultivariateGaussian(new_mean, new_cov)
 
 # %%
 # Now lets plot the prior and posterior of the parameters as well as the joint distribution and the data.
@@ -285,7 +285,7 @@ for ii in range(1, nobs):
     new_joint_covariance = form_normal_joint_covariance(
         new_prior.covariance(), data.covariance(), C_12
     )
-    new_joint = DenseMatrixMultivariateGaussian(
+    new_joint = DenseCholeskyMultivariateGaussian(
         np.vstack((new_prior.mean(), data.mean())), new_joint_covariance
     )
     new_mean, new_cov = condition_normal_on_data(
@@ -294,7 +294,7 @@ for ii in range(1, nobs):
         np.arange(new_prior.nvars(), new_prior.nvars() + data.nvars()),
         data_obs,
     )
-    posteriors[ii] = DenseMatrixMultivariateGaussian(new_mean, new_cov)
+    posteriors[ii] = DenseCholeskyMultivariateGaussian(new_mean, new_cov)
 
 # %%
 # And now lets again plot the joint density before the last data was added and final posterior and the intermediate priors.

@@ -26,8 +26,8 @@ from pyapprox.util.hyperparameter import (
     CholeskyHyperParameter,
 )
 from pyapprox.variables.gaussian import (
-    DenseMatrixMultivariateGaussian,
-    DenseMatrixIndependentMultivariateGaussian,
+    DenseCholeskyMultivariateGaussian,
+    IndependentMultivariateGaussian,
 )
 
 
@@ -199,12 +199,12 @@ class CholeskyGaussianKLDivergenceForVariationalInference(
 ):
     def __init__(
         self,
-        prior: DenseMatrixMultivariateGaussian,
+        prior: DenseCholeskyMultivariateGaussian,
         posterior: CholeskyGaussianVariationalPosterior,
     ):
-        if not isinstance(prior, DenseMatrixMultivariateGaussian):
+        if not isinstance(prior, DenseCholeskyMultivariateGaussian):
             raise ValueError(
-                "prior must be an instance of DenseMatrixMultivariateGaussian"
+                "prior must be an instance of DenseCholeskyMultivariateGaussian"
             )
         if not isinstance(posterior, CholeskyGaussianVariationalPosterior):
             raise ValueError(
@@ -233,13 +233,13 @@ class IndependentGaussianKLDivergenceForVariationalInference(
 ):
     def __init__(
         self,
-        prior: DenseMatrixIndependentMultivariateGaussian,
+        prior: IndependentMultivariateGaussian,
         posterior: IndependentGaussianVariationalPosterior,
     ):
-        if not isinstance(prior, DenseMatrixIndependentMultivariateGaussian):
+        if not isinstance(prior, IndependentMultivariateGaussian):
             raise ValueError(
                 "prior must be an instance of "
-                "DenseMatrixIndependentMultivariateGaussian"
+                "IndependentMultivariateGaussian"
             )
         if not isinstance(posterior, IndependentGaussianVariationalPosterior):
             raise ValueError(

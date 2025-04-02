@@ -13,7 +13,7 @@ import numpy as np
 from pyapprox.variables.gaussian import (
     DenseCholeskySqrtCovarianceOperator,
     CovarianceOperator,
-    DenseMatrixMultivariateGaussian,
+    DenseCholeskyMultivariateGaussian,
 )
 from pyapprox.interface.model import (
     DenseMatrixLinearModel,
@@ -82,7 +82,7 @@ class TestLaplace:
         covariance = 0.1 * bkd.eye(nvars)
         A = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, nvars)))
         b = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, 1)))
-        prior = DenseMatrixMultivariateGaussian(mean, covariance, backend=bkd)
+        prior = DenseCholeskyMultivariateGaussian(mean, covariance, backend=bkd)
         push_forward = GaussianPushForward(
             A, prior.mean(), prior.covariance(), b, backend=bkd
         )
@@ -113,7 +113,7 @@ class TestLaplace:
         noise_cov = noise_std**2 * np.eye(nobs)
         obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
         pred_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, nvars)))
-        prior = DenseMatrixMultivariateGaussian(mean, covariance, backend=bkd)
+        prior = DenseCholeskyMultivariateGaussian(mean, covariance, backend=bkd)
         laplace = DenseMatrixLaplacePosteriorApproximation(
             obs_mat, prior.mean(), prior.covariance(), noise_cov, backend=bkd
         )
@@ -150,7 +150,7 @@ class TestLaplace:
         noise_std = 0.01
         noise_cov = noise_std**2 * np.eye(nobs)
         obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
-        prior = DenseMatrixMultivariateGaussian(mean, covariance, backend=bkd)
+        prior = DenseCholeskyMultivariateGaussian(mean, covariance, backend=bkd)
         full_laplace = DenseMatrixLaplacePosteriorApproximation(
             obs_mat, prior.mean(), prior.covariance(), noise_cov, backend=bkd
         )
@@ -183,7 +183,7 @@ class TestLaplace:
         # define prior
         prior_mean = bkd.full((nvars, 1), 0.5)
         prior_covariance = bkd.eye(nvars)
-        prior = DenseMatrixMultivariateGaussian(prior_mean, prior_covariance)
+        prior = DenseCholeskyMultivariateGaussian(prior_mean, prior_covariance)
 
         # define observations
         noise_sigma2 = 0.5

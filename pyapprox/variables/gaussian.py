@@ -387,7 +387,7 @@ class MultivariateGaussian(JointVariable):
         return covariance_operator.diagonal(batch_size, active_indices)
 
 
-class DenseMatrixMultivariateGaussian(MultivariateGaussian):
+class DenseCholeskyMultivariateGaussian(MultivariateGaussian):
     def __init__(
         self,
         mean: Array,
@@ -416,7 +416,7 @@ class DenseMatrixMultivariateGaussian(MultivariateGaussian):
         return self._cov_sqrt._cov
 
 
-class DenseMatrixIndependentMultivariateGaussian(MultivariateGaussian):
+class IndependentMultivariateGaussian(MultivariateGaussian):
     def __init__(
         self,
         mean: Array,

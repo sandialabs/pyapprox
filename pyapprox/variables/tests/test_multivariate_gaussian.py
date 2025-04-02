@@ -19,8 +19,8 @@ from pyapprox.variables.gaussian import (
     multiply_gaussian_densities_in_compact_canonical_form,
     multiply_gaussian_densities,
     expand_scope_of_gaussian,
-    DenseMatrixMultivariateGaussian,
-    DenseMatrixIndependentMultivariateGaussian,
+    DenseCholeskyMultivariateGaussian,
+    IndependentMultivariateGaussian,
 )
 
 
@@ -73,13 +73,13 @@ class TestGaussian(unittest.TestCase):
         mean = np.random.normal(0, 1, (nvars, 1))
         tmp = np.random.normal(0, 1, (nvars, nvars))
         cov = tmp.T @ tmp
-        variable = DenseMatrixMultivariateGaussian(mean, cov)
+        variable = DenseCholeskyMultivariateGaussian(mean, cov)
         self._check_multivariate_gaussian(variable)
 
         nvars = 2
         mean = np.random.normal(0, 1, (nvars, 1))
         cov_diag = np.random.normal(0, 1, (nvars,)) ** 2
-        variable = DenseMatrixIndependentMultivariateGaussian(mean, cov_diag)
+        variable = IndependentMultivariateGaussian(mean, cov_diag)
         self._check_multivariate_gaussian(variable)
 
     def test_eval_pdf_of_gaussian_in_canonical_form(self):

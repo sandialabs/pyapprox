@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
-from pyapprox.variables.gaussian import DenseMatrixMultivariateGaussian
+from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.bayes.gaussian_network import (
     get_total_degree_polynomials,
     plot_1d_lvn_approx,
@@ -133,7 +133,7 @@ values = np.vstack(values_train)
 # In the following we will set the prior mean to zero for all coefficients and first try setting all the coefficients to be independent
 prior_mean = np.zeros((nparams.sum(), 1))
 prior_cov = np.eye(nparams.sum())
-prior = DenseMatrixMultivariateGaussian(prior_mean, prior_cov)
+prior = DenseCholeskyMultivariateGaussian(prior_mean, prior_cov)
 
 # %%
 # With these definition the posterior distribution of the coefficients is (see :ref:`sphx_glr_auto_tutorials_inference_plot_bayesian_inference.py`)
@@ -185,7 +185,7 @@ _ = plt.plot(xx, f3(xx), "k", label=r"$f_3$")
 
 # %%
 # Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data
-hf_prior = DenseMatrixMultivariateGaussian(*hf_prior_shapes)
+hf_prior = DenseCholeskyMultivariateGaussian(*hf_prior_shapes)
 hf_laplace = DenseMatrixLaplacePosteriorApproximation(
     basis_matrices[-1],
     hf_prior.mean(),
@@ -244,7 +244,7 @@ rows = [
 ]
 
 prior_cov = np.vstack(rows)
-prior = DenseMatrixMultivariateGaussian(prior_mean, prior_cov)
+prior = DenseCholeskyMultivariateGaussian(prior_mean, prior_cov)
 
 # %%
 # Plot the structure of the prior covariance

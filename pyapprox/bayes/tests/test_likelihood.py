@@ -20,7 +20,7 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.bases.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
-from pyapprox.variables.gaussian import DenseMatrixMultivariateGaussian
+from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
 
 
 class Linear1DRegressionModel(DenseMatrixLinearModel):
@@ -206,7 +206,7 @@ class TestLikelihood:
         bkd = self.get_backend()
         degree = 2
         nvars = degree + 1
-        prior_variable = DenseMatrixMultivariateGaussian(
+        prior_variable = DenseCholeskyMultivariateGaussian(
             bkd.zeros((nvars, 1)), bkd.eye(nvars), backend=bkd
         )
 
