@@ -50,6 +50,8 @@ class Marginal(ABC):
         return jac
 
 
+# TODO move these classes to variables.marginals
+# and combine with classes there
 class ScipyMarginal(Marginal):
     def __init__(self, marginal, backend=None):
         super().__init__(backend)

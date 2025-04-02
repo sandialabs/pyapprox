@@ -2,8 +2,8 @@ import math
 from functools import partial
 
 from scipy.stats._distn_infrastructure import rv_sample, rv_continuous
-from scipy.stats import _continuous_distns
-from scipy.stats import _discrete_distns
+from scipy.stats import _continuous_distns, _discrete_distns
+from scipy import stats
 from scipy import interpolate
 import numpy as np
 
@@ -633,3 +633,134 @@ class EmpiricalCDF:
             self._bkd.diff(self._sorted_samples) * self._ecdf[:-1]
         )
         return self._bkd.hstack(self._bkd.zeros((1,)), vals)
+
+
+# TODO move similar classes from surrogates.bases.univariate.leja
+# and combine with classes here
+from pyapprox.pde.collocation.newton import NewtonResidual, NewtonSolver
+
+
+class MarginalCDFNewtonResidual(NewtonResidual):
+    def __init__(self, marginal):
+        super().__init__(marginal._bkd)
+        self._marginal = marginal
+
+    def set_usamples(self, usamples: Array):
+        if usamples.ndim != 1:
+            raise ValueError("usamples must be 1D array")
+        self._usamples = usamples
+
+    def __call__(self, iterate: Array) -> Array:
+        return self._marginal.cdf(iterate) - self._usamples
+
+    def _jacobian(self, iterate: Array) -> Array:
+        return self._marginal._cdf_jacobian(iterate)
+
+    def linsolve(self, iterate: Array, res: Array) -> Array:
+        return res / self._marginal._cdf_jacobian_diagonal(iterate)
+
+
+class MarginalCDFNewtonSolver(NewtonSolver):
+    def _update_sol(self, prev_sol: Array, delta: Array) -> Array:
+        # make sure step size does not exceed bounds
+        sol = prev_sol - self._step_size * delta
+        sol[sol < self._residual._marginal._lb] = self._residual._marginal._lb
+        sol[sol > self._residual._marginal._ub] = self._residual._marginal._ub
+        return sol
+
+
+class BetaVariable:
+    def __init__(
+        self,
+        alpha: float,
+        beta: float,
+        lb: float,
+        ub: float,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        # This class implemented to allow for autograd
+        self._bkd = backend
+        self._a = alpha
+        self._b = beta
+        self._lb = lb
+        self._ub = ub
+        self._scipy_rv = stats.beta(
+            self._a, self._b, loc=self._lb, scale=self._ub - self._lb
+        )
+        self._const = 1.0 / beta_function(self._a, self._b, self._bkd)
+        # quadx on [-1, 1], w(x) = 1
+        # TODO cannot autograd through cdf until native bkd leggauss is called
+        # It is implemented but I have to determine how to avoid circular
+        # dependices
+        quadx, quadw = np.polynomial.legendre.leggauss(
+            int(self._a + self._b) + 1
+        )
+        self._quadx_01 = self._bkd.asarray((quadx + 1) / 2)
+        self._quadw_01 = self._bkd.asarray(quadw / 2)
+        self._scale = self._ub - self._lb
+        self._newton_solver = MarginalCDFNewtonSolver(verbosity=0, maxiters=20)
+        self._newton_solver.set_residual(MarginalCDFNewtonResidual(self))
+
+    def rvs(self, nsamples: int) -> Array:
+        return self._bkd.asarray(self._scipy_rv.rvs(nsamples))
+
+    def _pdf_01(self, samples: Array) -> Array:
+        # pdf on [0, 1]
+        return beta_pdf(self._a, self._b, samples, self._bkd)
+
+    def pdf(self, samples: Array) -> Array:
+        self._canonical_pdf((samples - self._lb) / self._scale) / self._scale
+
+    def cdf(self, samples: Array) -> Array:
+        # WARNING increase accuracy of quadrature rule if using non-integer
+        # shape params. Current number of points assumes integrand
+        # is a polynomial which is not true for non-integer shape params
+        # samples s define length of integral interval [0, s] 0<=s<=1
+        # map samples and weights to [-1, 1] by first mapping samples
+        # in [lb, ub] to [0, 1]
+        samples_01 = (samples - self._lb) / self._scale
+        quadx = samples_01[:, None] * self._quadx_01[None, :]
+        quadw = samples_01[:, None] * self._quadw_01[None, :]
+        pdf_01_vals = self._pdf_01(quadx)
+        return self._bkd.sum(pdf_01_vals * quadw, axis=1)
+
+    def ppf(self, usamples: Array) -> Array:
+        # u samples on [0, 1]
+        iterate = usamples * self._scale + self._lb
+        if self._a == 1.0 and self._b == 1.0:
+            return iterate
+        self._newton_solver._residual.set_usamples(usamples)
+        iterate = self._bkd.copy(iterate)
+        return self._newton_solver.solve(iterate)
+
+    def _pdf_jacobian_01(self, sample: Array) -> Array:
+        deriv = self._bkd.zeros(sample.shape)
+        if self._a > 1:
+            deriv += (self._a - 1) * (
+                sample ** (self._a - 2) * (1 - sample) ** (self._b - 1)
+            )
+        if self._b > 1:
+            deriv -= (self._b - 1) * (
+                sample ** (self._a - 1) * (1 - sample) ** (self._b - 2)
+            )
+        return deriv * self._const
+
+    def _pdf_jacobian(self, sample: Array) -> Array:
+        return (
+            self._pdf_jacobian_01((sample - self._lb) / self._scale)
+            / self._scale**2
+        )
+
+    def _cdf_jacobian_diagonal(self, samples: Array) -> Array:
+        samples_01 = (samples - self._lb) / self._scale
+        quadx = samples_01[:, None] * self._quadx_01[None, :]
+        quadw = samples_01[:, None] * self._quadw_01[None, :]
+        pdf_jac = self._pdf_jacobian_01(quadx)
+        cdf_jac = self._bkd.sum(pdf_jac * quadw, axis=1) / self._scale
+        eps = 1e-16
+        cdf_jac[self._bkd.abs(samples_01) < eps] = 1.0
+        cdf_jac[self._bkd.abs(samples_01 - 1.0) < eps] = 1.0
+        return cdf_jac
+
+    def _cdf_jacobian(self, samples: Array) -> Array:
+        return self._bkd.diag(self._cdf_jacobian_diagonal(samples))

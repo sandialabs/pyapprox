@@ -11,6 +11,7 @@ from pyapprox.variables.marginals import (
     beta_pdf_on_ab,
     beta_pdf_derivative_on_ab,
     gaussian_pdf,
+    BetaVariable,
 )
 
 
@@ -458,6 +459,22 @@ class TestMarginals(unittest.TestCase):
         assert np.allclose(
             gaussian_pdf(mean, stdev**2, samples), rv.pdf(samples)
         )
+
+    def test_beta_variable(self):
+        from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+
+        bkd = TorchLinAlgMixin
+        bounds = [-1, 2]
+        # bounds = [0, 1]
+        astat, bstat = bkd.asarray([2.0, 3.0])
+        rv = BetaVariable(astat, bstat, *bounds, backend=bkd)
+        samples = bkd.linspace(*bounds, 5)
+        scipy_rv = stats.beta(astat, bstat, bounds[0], bounds[1] - bounds[0])
+        # cdf vals differ to scipy for noninteger shape params
+        assert np.allclose(rv.cdf(samples), scipy_rv.cdf(samples))
+        usamples = bkd.linspace(0, 1, 50)
+        # print(rv.ppf(usamples) - scipy_rv.ppf(usamples))
+        assert np.allclose(rv.ppf(usamples), scipy_rv.ppf(usamples))
 
 
 if __name__ == "__main__":

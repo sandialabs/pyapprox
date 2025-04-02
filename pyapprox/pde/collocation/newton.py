@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 from functools import partial
 
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 
 
 class NewtonResidual(ABC):
-    def __init__(self, backend):
+    def __init__(self, backend: LinAlgMixin):
         self._bkd = backend
 
     def adjoint_implemented():
@@ -31,7 +31,7 @@ class NewtonResidual(ABC):
         jac = self.jacobian(iterate)
         return self._bkd.solve(jac, res)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
 
@@ -207,7 +207,9 @@ class NewtonSolver:
         self._residual = residual
         self._bkd = residual._bkd
 
-    def _linesearch(self, prev_sol, prev_residual, prev_residual_norm):
+    def _linesearch(
+        self, prev_sol: Array, prev_residual: Array, prev_residual_norm: float
+    ) -> Array:
         # bisection-based linesearch
         step_size = self._step_size / 2
         ii = 0
@@ -225,7 +227,10 @@ class NewtonSolver:
             ii += 1
         raise RuntimeError("Max linesearch iterations reached")
 
-    def solve(self, init_guess):
+    def _update_sol(self, prev_sol: Array, delta: Array) -> Array:
+        return prev_sol - self._step_size * delta
+
+    def solve(self, init_guess: Array) -> Array:
         if init_guess.ndim != 1:
             raise ValueError("init_guess must be 1D array")
         if not hasattr(self, "_residual"):
@@ -239,8 +244,11 @@ class NewtonSolver:
         while True:
             prev_sol = sol  # self._bkd.copy(sol)
             prev_residual = residual
-            sol = prev_sol - self._step_size * self._residual.linsolve(
-                sol, prev_residual
+            # sol = prev_sol - self._step_size * self._residual.linsolve(
+            #     sol, prev_residual
+            # )
+            sol = self._update_sol(
+                prev_sol, self._residual.linsolve(sol, prev_residual)
             )
             residual = self._residual(sol)
             residual_norm = self._bkd.norm(residual)
@@ -273,7 +281,7 @@ class NewtonSolver:
             print(exit_msg)
         return sol
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             "{0}(maxiters={1}, verbosity={2}, step_size={3}, atol={4}, "
             "rol={5})"
@@ -288,7 +296,7 @@ class NewtonSolver:
 
 
 class Functional(ABC):
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         self._bkd = backend
 
     @abstractmethod
