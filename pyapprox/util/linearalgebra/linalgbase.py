@@ -872,3 +872,13 @@ class LinAlgMixin(ABC):
     @abstractmethod
     def digamma(array: Array) -> Array:
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def erf(array: Array) -> Array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def erfinv(array: Array) -> Array:
+        raise NotImplementedError

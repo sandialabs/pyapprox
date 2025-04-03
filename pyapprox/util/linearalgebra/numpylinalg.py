@@ -486,3 +486,11 @@ class NumpyLinAlgMixin(LinAlgMixin):
     @staticmethod
     def digamma(array: np.ndarray) -> np.ndarray:
         return scipy.special.digamma(array)
+
+    @staticmethod
+    def erf(array: np.ndarray) -> np.ndarray:
+        return scipy.special.erf(array)
+
+    @staticmethod
+    def erfinv(array: np.ndarray) -> np.ndarray:
+        return scipy.special.erfinv(array)

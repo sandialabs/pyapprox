@@ -8,7 +8,11 @@ import matplotlib.pyplot as plt
 from pyapprox.interface.model import Model
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.variables.marginals import get_pdf, get_distribution_info
+from pyapprox.variables.marginals import (
+    UniformMarginal,
+    GaussianMarginal,
+    BetaMarginal,
+)
 from pyapprox.optimization.minimize import Optimizer
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.surrogates.bases.univariate.orthopoly import (
@@ -16,114 +20,6 @@ from pyapprox.surrogates.bases.univariate.orthopoly import (
 )
 from pyapprox.surrogates.bases.univariate.base import UnivariateQuadratureRule
 from pyapprox.util.visualization import get_meshgrid_function_data
-
-
-class Marginal(ABC):
-    def __init__(self, backend: LinAlgMixin):
-        if backend is None:
-            backend = NumpyLinAlgMixin
-        self._bkd = backend
-
-    @abstractmethod
-    def _pdf(self, samples: Array) -> Array:
-        raise NotImplementedError
-
-    def pdf(self, samples: Array) -> Array:
-        self._check_samples(samples)
-        vals = self._pdf(samples)
-        if vals.ndim != 2 or vals.shape[1] != 1:
-            raise ValueError("vals must be a 2d column vector")
-        return vals
-
-    def _check_samples(self, samples):
-        if samples.ndim != 2 or samples.shape[0] != 1:
-            raise ValueError("samples must be 2d row vector")
-
-    def _pdf_jacobian(self, samples: Array) -> Array:
-        raise NotImplementedError
-
-    def pdf_jacobian(self, samples: Array) -> Array:
-        self._check_samples(samples)
-        jac = self._pdf_jacobian(samples)
-        if jac.shape != (1, samples.shape[1]):
-            raise ValueError("jacobian must be a 2D row vector")
-        return jac
-
-
-# TODO move these classes to variables.marginals
-# and combine with classes there
-class ScipyMarginal(Marginal):
-    def __init__(self, marginal, backend=None):
-        super().__init__(backend)
-        self._marginal = marginal
-        self._marginal_pdf = get_pdf(marginal)
-        self._name, self._scales, self._shapes = get_distribution_info(
-            marginal
-        )
-
-    def _pdf(self, samples: Array):
-        return self._bkd.asarray(self._marginal_pdf(samples[0]))[:, None]
-
-
-class GaussianMarginal(ScipyMarginal):
-    def __init__(self, marginal, backend: LinAlgMixin = None):
-        super().__init__(marginal, backend)
-        if self._name != "norm":
-            raise ValueError("marginal must be stats.norm")
-
-    def _pdf_jacobian(self, samples: Array) -> Array:
-        mu = self._scales["loc"][0]
-        sigma = self._scales["scale"][0]
-        return (
-            self._marginal_pdf(samples[0]) * (mu - samples[0]) / sigma**2
-        )[None, :]
-
-
-class BetaMarginal(ScipyMarginal):
-    def __init__(self, marginal, backend: LinAlgMixin = None):
-        super().__init__(marginal, backend)
-        self._lb, self._ub = self._marginal.interval(1)
-        if self._name != "beta":
-            raise ValueError("marginal must be stats.beta")
-        self._alpha, self._beta = self._shapes["a"], self._shapes["b"]
-        self._const = 1.0 / special.beta(self._alpha, self._beta)
-
-    def _pdf_01(self, samples: Array) -> Array:
-        return (
-            samples.T ** (self._alpha - 1)
-            * (1 - samples.T) ** (self._beta - 1)
-        ) * self._const
-
-    def _pdf(self, samples: Array) -> Array:
-        denom = self._ub - self._lb
-        return self._pdf_01((samples - self._lb) / denom) / denom
-
-    def _pdf_jacobian_01(self, sample: Array) -> Array:
-        deriv = self._bkd.zeros(sample.shape)
-        if self._alpha > 1:
-            deriv += (self._alpha - 1) * (
-                sample ** (self._alpha - 2) * (1 - sample) ** (self._beta - 1)
-            )
-        if self._beta > 1:
-            deriv -= (self._beta - 1) * (
-                sample ** (self._alpha - 1) * (1 - sample) ** (self._beta - 2)
-            )
-        return deriv * self._const
-
-    def _pdf_jacobian(self, sample: Array) -> Array:
-        denom = self._ub - self._lb
-        return self._pdf_jacobian_01((sample - self._lb) / denom) / denom**2
-
-
-class UniformMarginal(BetaMarginal):
-    def __init__(self, marginal, backend=None):
-        name = get_distribution_info(marginal)[0]
-        if name != "uniform":
-            raise ValueError("marginal must be stats.uniform")
-        lb, ub = marginal.interval(1)
-        super().__init__(
-            stats.beta(1, 1, loc=lb, scale=ub - lb), backend=backend
-        )
 
 
 def _custom_marginal_from_scipy_marginal(scipy_marginal, backend=None):

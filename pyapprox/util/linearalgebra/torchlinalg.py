@@ -570,3 +570,11 @@ class TorchLinAlgMixin(LinAlgMixin):
     @staticmethod
     def digamma(array: torch.tensor) -> torch.tensor:
         return torch.digamma(array)
+
+    @staticmethod
+    def erf(array: torch.tensor) -> torch.tensor:
+        return torch.erf(array)
+
+    @staticmethod
+    def erfinv(array: torch.tensor) -> torch.tensor:
+        return torch.erfinv(array)

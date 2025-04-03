@@ -501,3 +501,11 @@ class JaxLinAlgMixin(LinAlgMixin):
     @staticmethod
     def digamma(array: np.ndarray) -> np.ndarray:
         return jax.scipy.special.digamma(array)
+
+    @staticmethod
+    def erf(array: np.ndarray) -> np.ndarray:
+        return jax.scipy.special.erf(array)
+
+    @staticmethod
+    def erfinv(array: np.ndarray) -> np.ndarray:
+        return jax.scipy.special.erfinv(array)
