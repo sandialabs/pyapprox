@@ -37,29 +37,47 @@ class TestLeja:
     def test_marginals(self):
         bkd = self.get_backend()
         # use model infasttucture to test gradients
-        marginal = BetaMarginal(stats.beta(2, 2), backend=bkd)
+        marginal = BetaMarginal(2, 2, 0, 1, backend=bkd)
         model = ModelFromSingleSampleCallable(
-            1, 1, marginal.pdf, jacobian=marginal.pdf_jacobian, backend=bkd
+            1,
+            1,
+            marginal.pdf,
+            jacobian=marginal.pdf_jacobian,
+            sample_ndim=1,
+            values_ndim=1,
+            backend=bkd,
         )
-        iterate = bkd.array([[marginal._marginal.interval(0.75)[1]]])
+        iterate = bkd.array([[marginal.interval(0.75)[1]]])
         # make sure not to step outside bounds
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
         errors = model.check_apply_jacobian(iterate, fd_eps=fd_eps)
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
 
-        marginal = GaussianMarginal(stats.norm(0, 1), backend=bkd)
+        marginal = GaussianMarginal(0, 1, backend=bkd)
         model = ModelFromSingleSampleCallable(
-            1, 1, marginal.pdf, jacobian=marginal.pdf_jacobian, backend=bkd
+            1,
+            1,
+            marginal.pdf,
+            jacobian=marginal.pdf_jacobian,
+            sample_ndim=1,
+            values_ndim=1,
+            backend=bkd,
         )
-        iterate = bkd.array([[marginal._marginal.interval(0.75)[1]]])
+        iterate = bkd.array([[marginal.interval(0.75)[1]]])
         errors = model.check_apply_jacobian(iterate)
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
 
-        marginal = UniformMarginal(stats.uniform(-1, 2), backend=bkd)
+        marginal = UniformMarginal(-1, 1, backend=bkd)
         model = ModelFromSingleSampleCallable(
-            1, 1, marginal.pdf, jacobian=marginal.pdf_jacobian, backend=bkd
+            1,
+            1,
+            marginal.pdf,
+            jacobian=marginal.pdf_jacobian,
+            sample_ndim=1,
+            values_ndim=1,
+            backend=bkd,
         )
-        iterate = bkd.array([[marginal._marginal.interval(0.75)[1]]])
+        iterate = bkd.array([[marginal.interval(0.75)[1]]])
         # make sure not to step outside bounds
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
         errors = model.check_apply_jacobian(
@@ -70,6 +88,7 @@ class TestLeja:
 
     def _check_one_point_leja_objective(self, objective_class, marginal):
         bkd = self.get_backend()
+        print(marginal)
         leja = setup_univariate_leja_sequence(
             marginal,
             objective_class,

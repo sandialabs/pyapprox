@@ -12,6 +12,9 @@ from pyapprox.variables.marginals import (
     UniformMarginal,
     GaussianMarginal,
     BetaMarginal,
+    parse_marginal,
+    Marginal,
+    ContinuousScipyMarginal,
 )
 from pyapprox.optimization.minimize import Optimizer
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
@@ -22,8 +25,12 @@ from pyapprox.surrogates.bases.univariate.base import UnivariateQuadratureRule
 from pyapprox.util.visualization import get_meshgrid_function_data
 
 
-def _custom_marginal_from_scipy_marginal(scipy_marginal, backend=None):
-    name = scipy_marginal.dist.name
+def _custom_marginal_from_scipy_marginal(scipy_marginal, backend):
+    if not isinstance(scipy_marginal, ContinuousScipyMarginal):
+        raise ValueError(
+            "scipy_marginal must be an instance of ContinuousScipyMarginal"
+        )
+    name = scipy_marginal._name
     marginals = {
         "uniform": UniformMarginal,
         "beta": BetaMarginal,
@@ -31,7 +38,20 @@ def _custom_marginal_from_scipy_marginal(scipy_marginal, backend=None):
     }
     if name not in marginals:
         raise ValueError("{0} not supported".format(name))
-    return marginals[name](scipy_marginal, backend)
+    if name == "norm" or name == "uniform":
+        return marginals[name](
+            scipy_marginal._scales["loc"],
+            scipy_marginal._scales["scale"],
+            backend=backend,
+        )
+    if name == "beta":
+        return marginals[name](
+            scipy_marginal._shapes["a"],
+            scipy_marginal._shapes["b"],
+            scipy_marginal._scales["loc"],
+            scipy_marginal._scales["scale"],
+            backend=backend,
+        )
 
 
 class LejaObjective(Model):
@@ -71,7 +91,9 @@ class LejaObjective(Model):
         raise NotImplementedError
 
     def _plot_bounds(self) -> Tuple[float, float]:
-        return self._marginal.interval(1 - 1e-3)
+        return self._bkd.hstack(
+            [self._marginal.interval(1 - 1e-3)] * self.nvars()
+        )
 
     def __repr__(self):
         return "{0}()".format(self.__class__.__name__)
@@ -237,7 +259,7 @@ class TwoPointLejaObjective(LejaObjective):
         ax.plot(self.sequence()[0], self.sequence()[0], "o")
         X, Y, Z = get_meshgrid_function_data(
             self.__call__,
-            self._plot_bounds() + self._plot_bounds(),
+            self._plot_bounds(),
             51,
             bkd=self._bkd,
         )
@@ -264,17 +286,19 @@ class TwoPointLejaObjective(LejaObjective):
 
 class PDFLejaObjectiveMixin:
     def _set_marginal(self, marginal):
-        custom_marginal = _custom_marginal_from_scipy_marginal(marginal)
+        custom_marginal = _custom_marginal_from_scipy_marginal(
+            marginal, self._bkd
+        )
         if not isinstance(custom_marginal, Marginal):
             raise ValueError("marginal must be an instance of Marginal")
         self._marginal = marginal
         self._custom_marginal = custom_marginal
 
     def _compute_weights(self, samples: Array) -> Array:
-        return self._custom_marginal.pdf(samples)
+        return self._custom_marginal.pdf(samples[0])[:, None]
 
     def _compute_weights_jacobian(self, samples: Array) -> Array:
-        return self._custom_marginal.pdf_jacobian(samples)
+        return self._custom_marginal.pdf_jacobian(samples[0])
 
 
 class ChristoffelLejaObjectiveMixin:
@@ -400,6 +424,7 @@ def setup_univariate_leja_sequence(
     init_sequence: Array = None,
     backend: LinAlgMixin = NumpyLinAlgMixin,
 ):
+    marginal = parse_marginal(marginal, backend)
     if optimizer is None:
         optimizer = ScipyConstrainedOptimizer()
         optimizer.set_options(gtol=1e-6, maxiter=1000, method="trust-constr")

@@ -101,13 +101,19 @@ class Marginal(ABC):
         return vals
 
     def _check_jacobian(self, samples: Array, jac: Array) -> Array:
-        if jac.shape != (1, samples.shape[1]):
-            raise ValueError("jacobian must be a 2D row vector")
+        if jac.shape != (1, samples.shape[0]):
+            raise ValueError(
+                "{0}: jacobian must be 2D row vector but had shape {1}".format(
+                    self, jac.shape
+                )
+            )
         return jac
 
     def pdf_jacobian(self, samples: Array) -> Array:
         if not self.pdf_jacobian_implemented():
-            raise NotImplementedError("pdf_jacobian is not implemented")
+            raise NotImplementedError(
+                f"{self}: pdf_jacobian is not implemented"
+            )
         self._check_samples(samples)
         jac = self._pdf_jacobian(samples)
         return self._check_jacobian(samples, jac)
@@ -566,10 +572,6 @@ class MarginalCDFNewtonResidual(NewtonResidual):
         return self._marginal._cdf_jacobian(iterate)
 
     def linsolve(self, iterate: Array, res: Array) -> Array:
-        # print(iterate)
-        # print(res)
-        # print(self._marginal._cdf_jacobian_diagonal(iterate))
-        # print(self._bkd.diag(super()._jacobian(iterate)))
         return res / self._marginal._cdf_jacobian_diagonal(iterate)
 
 
@@ -613,6 +615,10 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         nquad_samples: int = 100,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
+        if alpha < 1:
+            raise ValueError("alpha must be >= 1")
+        if beta < 1:
+            raise ValueError("beta must be >= 1")
         super().__init__(backend)
         self._lb = lb
         self._ub = ub
@@ -631,7 +637,7 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         self._quadx_01 = self._bkd.asarray((quadx + 1) / 2)
         self._quadw_01 = self._bkd.asarray(quadw / 2)
         self._scale = self._ub - self._lb
-        self._newton_solver = MarginalCDFNewtonSolver(verbosity=0, maxiters=20)
+        self._newton_solver = MarginalCDFNewtonSolver(verbosity=2, maxiters=20)
         self._newton_solver.set_residual(MarginalCDFNewtonResidual(self))
 
     def set_shapes(self, alpha: float, beta: float):
@@ -684,6 +690,12 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         vals[usamples == 0.0] = 0.0
         vals[usamples == 1.0] = 1.0
         return vals
+
+    def pdf_jacobian_implemented(self) -> bool:
+        return True
+
+    def logpdf_jacobian_implemented(self) -> bool:
+        return True
 
     def _pdf_jacobian_01(self, sample: Array) -> Array:
         deriv = self._bkd.zeros(sample.shape)
@@ -790,7 +802,10 @@ class UniformMarginal(BetaMarginal):
         nquad_samples: int = 100,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
-        super().__init__(0, 0, lb, ub, nquad_samples, backend)
+        super().__init__(1, 1, lb, ub, nquad_samples, backend)
+
+    def _ppf(self, usamples: Array) -> Array:
+        return usamples * (self._ub - self._lb) + self._lb
 
 
 class GaussianMarginal(Marginal):
@@ -806,7 +821,10 @@ class GaussianMarginal(Marginal):
         self._var = stdev**2
         self._log_const = self._bkd.log(
             1.0
-            / (math.sqrt((2.0 * math.pi)) * self._bkd.asarray([self._stdev]))
+            / (
+                math.sqrt((2.0 * math.pi))
+                * self._bkd.asarray([self._stdev])[0]
+            )
         )
 
     def is_bounded(self) -> bool:
