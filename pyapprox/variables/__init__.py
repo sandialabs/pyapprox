@@ -2,18 +2,30 @@
 transforming multivariate random variables.
 """
 
-# from pyapprox.variables.joint import (
-#     IndependentMarginalsVariable, GaussCopulaVariable,
-#     combine_uncertain_and_bounded_design_variables, JointVariable
-# )
-# from pyapprox.variables.sampling import print_statistics
-# from pyapprox.variables.transforms import (
-#     AffineTransform, NatafTransform,
-#     RosenblattTransform, ConfigureVariableTransformation
-# )
+from pyapprox.variables.joint import (
+    IndependentMarginalsVariable,
+    combine_uncertain_and_bounded_design_variables,
+    JointVariable,
+)
+from pyapprox.variables.gaussian import (
+    GaussCopulaVariable,
+    DenseCholeskyMultivariateGaussian,
+)
+from pyapprox.variables.transforms import (
+    AffineTransform,
+    NatafTransform,
+    RosenblattTransform,
+    ConfigureVariableTransformation,
+)
 
-# __all__ = ["IndependentMarginalsVariable", "GaussCopulaVariable",
-#            "print_statistics", "JointVariable",
-#            "AffineTransform", "NatafTransform",
-#            "RosenblattTransform", "ConfigureVariableTransformation",
-#            "combine_uncertain_and_bounded_design_variables"]
+__all__ = [
+    "IndependentMarginalsVariable",
+    "GaussCopulaVariable",
+    "DenseCholeskyMultivariateGaussian",
+    "JointVariable",
+    "AffineTransform",
+    "NatafTransform",
+    "RosenblattTransform",
+    "ConfigureVariableTransformation",
+    "combine_uncertain_and_bounded_design_variables",
+]

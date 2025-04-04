@@ -6,9 +6,7 @@ from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 
 
 class Transform(ABC):
-    def __init__(self, backend: LinAlgMixin = None):
-        if backend is None:
-            backend = NumpyLinAlgMixin
+    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
         self._bkd = backend
 
     @abstractmethod

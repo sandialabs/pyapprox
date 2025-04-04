@@ -15,6 +15,7 @@ from pyapprox.variables._nataf import (
     gaussian_copula_compute_x_correlation_from_z_correlation,
     nataf_joint_density,
 )
+from pyapprox.variables.marginals import Marginal
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.util.transforms import Transform
@@ -163,7 +164,7 @@ class AffineTransform(Transform):
         """
         assert derivatives.shape[0] % self.nvars() == 0
         nsamples = int(derivatives.shape[0] / self.nvars())
-        mapped_derivatives = derivatives.copy()
+        mapped_derivatives = self._bkd.copy(derivatives)
         for ii in range(self._variable._nunique_vars):
             var_indices = self._variable._unique_indices[ii]
             idx = np.tile(var_indices * nsamples, nsamples) + np.tile(
@@ -190,7 +191,7 @@ class AffineTransform(Transform):
         """
         assert canonical_derivatives.shape[0] % self.nvars() == 0
         nsamples = int(canonical_derivatives.shape[0] / self.nvars())
-        derivatives = canonical_derivatives.copy()
+        derivatives = self._bkd.copy(canonical_derivatives)
         for ii in range(self._variable._nunique_vars):
             var_indices = self._variable._unique_indices[ii]
             idx = np.tile(var_indices * nsamples, nsamples) + np.tile(
@@ -287,7 +288,13 @@ class RosenblattTransform(Transform):
     random variable.
     """
 
-    def __init__(self, joint_density: callable, nvars: int, opts: Dict):
+    def __init__(
+        self,
+        joint_density: callable,
+        nvars: int,
+        opts: Dict,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
         self._joint_density = joint_density
         self._limits = opts["limits"]
         self._nquad_samples_1d = opts["nquad_samples_1d"]
@@ -295,6 +302,7 @@ class RosenblattTransform(Transform):
         self._nbins = opts.get("nbins", 101)
         self._nvars = nvars
         self._canonical_variable_types = ["uniform"] * self.nvars()
+        super().__init__(backend)
 
     def map_from_canonical(self, canonical_samples: Array) -> Array:
         user_samples = inverse_rosenblatt_transformation(
@@ -330,12 +338,14 @@ class UniformMarginalTransformation(Transform):
         x_marginal_cdfs: List[callable],
         x_marginal_inv_cdfs: List[callable],
         enforce_open_bounds: bool = True,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         """
         enforce_open_bounds: boolean
             If True  - enforce that canonical samples are in (0,1)
             If False - enforce that canonical samples are in [0,1]
         """
+        super().__init__(backend)
         self._nvars = len(x_marginal_cdfs)
         self._x_marginal_cdfs = x_marginal_cdfs
         self._x_marginal_inv_cdfs = x_marginal_inv_cdfs
@@ -346,7 +356,7 @@ class UniformMarginalTransformation(Transform):
         # mapping to the (semi) unbounded distributions
         if self._enforce_open_bounds:
             assert canonical_samples.min() > 0 and canonical_samples.max() < 1
-        user_samples = np.empty_like(canonical_samples)
+        user_samples = self._bkd.empty(canonical_samples.shape)
         for ii in range(self.nvars()):
             user_samples[ii, :] = self._x_marginal_inv_cdfs[ii](
                 canonical_samples[ii, :]
@@ -354,7 +364,7 @@ class UniformMarginalTransformation(Transform):
         return user_samples
 
     def map_to_canonical(self, user_samples: Array) -> Array:
-        canonical_samples = np.empty_like(user_samples)
+        canonical_samples = self._bkd.empty(user_samples.shape)
         for ii in range(self.nvars()):
             canonical_samples[ii, :] = self._x_marginal_cdfs[ii](
                 user_samples[ii, :]
@@ -373,21 +383,16 @@ class NatafTransform(Transform):
 
     def __init__(
         self,
-        x_marginal_cdfs,
-        x_marginal_inv_cdfs,
-        x_marginal_pdfs,
-        x_covariance,
-        x_marginal_means,
-        bisection_opts=dict(),
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        x_marginals: List[Marginal],
+        x_covariance: Array,
+        bisection_opts: dict = dict(),
     ):
-        super().__init__(backend)
-        self._nvars = len(x_marginal_cdfs)
-        self._x_marginal_cdfs = x_marginal_cdfs
-        self._x_marginal_inv_cdfs = x_marginal_inv_cdfs
-        self._x_marginal_pdfs = x_marginal_pdfs
-        self._x_marginal_means = x_marginal_means
-
+        for marginal in x_marginals:
+            if not isinstance(marginal, Marginal):
+                raise ValueError("marginal must be an instance of Marginal")
+        super().__init__(x_marginals[0]._bkd)
+        self._nvars = len(x_marginals)
+        self._x_marginals = x_marginals
         self._x_correlation = get_correlation_from_covariance(
             x_covariance, self._bkd
         )
@@ -396,9 +401,7 @@ class NatafTransform(Transform):
         quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
         self._z_correlation = transform_correlations(
             self._x_correlation,
-            self._x_marginal_inv_cdfs,
-            self._x_marginal_means,
-            self._x_marginal_stdevs,
+            self._x_marginals,
             quad_rule,
             bisection_opts,
             self._bkd,
@@ -411,17 +414,15 @@ class NatafTransform(Transform):
     def map_from_canonical(self, canonical_samples: Array) -> Array:
         return trans_u_to_x(
             canonical_samples,
-            self._x_marginal_inv_cdfs,
+            self._x_marginals,
             self._z_correlation_cholesky_factor,
-            self._bkd,
         )
 
     def map_to_canonical(self, user_samples: Array) -> Array:
         return trans_x_to_u(
             user_samples,
-            self._x_marginal_cdfs,
+            self._x_marginals,
             self._z_correlation_cholesky_factor,
-            self._bkd,
         )
 
     def nvars(self) -> int:
@@ -429,11 +430,7 @@ class NatafTransform(Transform):
 
     def z_correlation_to_x_correlation(self, z_correlation: Array) -> Array:
         return gaussian_copula_compute_x_correlation_from_z_correlation(
-            self._x_marginal_inv_cdfs,
-            self._x_marginal_means,
-            self._x_marginal_stdevs,
-            self._z_correlation,
-            self._bkd,
+            self._x_marginals, self._z_correlation
         )
 
     def pdf(self, samples: Array) -> Array:
@@ -441,11 +438,7 @@ class NatafTransform(Transform):
             mean=self._bkd.zeros((self.nvars())), cov=self._z_correlation
         )
         return nataf_joint_density(
-            samples,
-            self._x_marginal_cdfs,
-            self._x_marginal_pdfs,
-            lambda x: z_variable.pdf(x.T),
-            bkd=self._bkd,
+            samples, self._x_marginals, lambda x: z_variable.pdf(x.T)
         )
 
 
@@ -519,7 +512,7 @@ class ConfigureVariableTransformation(Transform):
         configure values
         """
         assert canonical_samples.shape[0] == self.nvars()
-        samples = np.empty_like(canonical_samples, dtype=float)
+        samples = self._bkd.empty(canonical_samples.shape, dtype=float)
         for ii in range(samples.shape[1]):
             for jj in range(self.nvars()):
                 kk = canonical_samples[jj, ii]
@@ -532,7 +525,7 @@ class ConfigureVariableTransformation(Transform):
         canonical samples to find one that matches each sample provided
         """
         assert samples.shape[0] == self.nvars()
-        canonical_samples = np.empty_like(samples, dtype=float)
+        canonical_samples = self._bkd.empty(samples.shape, dtype=float)
         for ii in range(samples.shape[1]):
             for jj in range(self.nvars()):
                 found = False
@@ -560,7 +553,9 @@ class ConfigureVariableTransformation(Transform):
         )
 
 
-def define_iid_random_variable_transformation(marginal, num_vars):
-    variable = define_iid_random_variable(marginal, num_vars)
+def define_iid_random_variable_transformation(
+    marginal: Marginal, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+):
+    variable = define_iid_random_variable(marginal, nvars, backend=backend)
     var_trans = AffineTransform(variable)
     return var_trans

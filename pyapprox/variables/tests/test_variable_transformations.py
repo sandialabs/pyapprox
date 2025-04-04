@@ -2,7 +2,10 @@ import unittest
 from scipy import stats
 import numpy as np
 
-from pyapprox.variables.marginals import CustomDiscreteMarginal
+from pyapprox.variables.marginals import (
+    CustomDiscreteMarginal,
+    ContinuousScipyMarginal,
+)
 from pyapprox.variables.transforms import (
     AffineTransform,
     RosenblattTransform,
@@ -108,7 +111,8 @@ class TestVariableTransforms:
         assert bkd.allclose(user_samples, true_user_samples)
 
     def test_rosenblatt_transformation(self):
-        bkd = self.get_backend()
+        # todo port rosenblatt transform to use backend
+        bkd = NumpyLinAlgMixin
         true_samples, true_canonical_samples, joint_density, limits = (
             rosenblatt_example_2d(nsamples=10)
         )
@@ -126,7 +130,8 @@ class TestVariableTransforms:
         assert bkd.allclose(true_canonical_samples, canonical_samples)
 
     def test_transformation_composition_I(self):
-        bkd = self.get_backend()
+        bkd = NumpyLinAlgMixin
+        # todo port rosenblatt transform to use backend
         np.random.seed(2)
         true_samples, true_canonical_samples, joint_density, limits = (
             rosenblatt_example_2d(nsamples=10)
@@ -156,26 +161,9 @@ class TestVariableTransforms:
         nvars = 2
         alpha_stat = 5
         beta_stat = 2
-
-        def beta_cdf(x):
-            return stats.beta.cdf(x, a=alpha_stat, b=beta_stat)
-
-        def beta_icdf(x):
-            return stats.beta.ppf(x, a=alpha_stat, b=beta_stat)
-
-        x_marginal_cdfs = [beta_cdf] * nvars
-        x_marginal_inv_cdfs = [beta_icdf] * nvars
-        x_marginal_means = bkd.asarray(
-            [stats.beta.mean(a=alpha_stat, b=beta_stat)] * nvars
-        )
-        x_marginal_stdevs = bkd.asarray(
-            [stats.beta.std(a=alpha_stat, b=beta_stat)] * nvars
-        )
-
-        def beta_pdf(x):
-            return stats.beta.pdf(x, a=alpha_stat, b=beta_stat)
-
-        x_marginal_pdfs = [beta_pdf] * nvars
+        scipy_rv = stats.beta(a=alpha_stat, b=beta_stat)
+        beta = ContinuousScipyMarginal(scipy_rv, backend=bkd)
+        x_marginals = [beta] * nvars
 
         z_correlation = -0.9 * bkd.ones((nvars, nvars))
         for ii in range(nvars):
@@ -183,57 +171,46 @@ class TestVariableTransforms:
 
         x_correlation = (
             gaussian_copula_compute_x_correlation_from_z_correlation(
-                x_marginal_inv_cdfs,
-                x_marginal_means,
-                x_marginal_stdevs,
-                z_correlation,
-                bkd,
+                x_marginals, z_correlation
             )
         )
         x_covariance = correlation_to_covariance(
-            x_correlation, x_marginal_stdevs
+            x_correlation, bkd.array([m.std() for m in x_marginals])
         )
 
-        var_trans_1 = NatafTransform(
-            x_marginal_cdfs,
-            x_marginal_inv_cdfs,
-            x_marginal_pdfs,
-            x_covariance,
-            x_marginal_means,
-            backend=bkd,
-        )
+        var_trans_1 = NatafTransform(x_marginals, x_covariance)
 
         # rosenblatt maps to [0,1] but polynomials of bounded variables
         # are in [-1,1] so add second transformation for this second mapping
-        def normal_cdf(x):
-            return stats.norm.cdf(x)
+        normal = ContinuousScipyMarginal(stats.norm(0, 1), backend=bkd)
 
-        def normal_icdf(x):
-            return stats.norm.ppf(x)
-
-        std_normal_marginal_cdfs = [normal_cdf] * nvars
-        std_normal_marginal_inv_cdfs = [normal_icdf] * nvars
+        std_normal_marginal_cdfs = [normal.cdf] * nvars
+        std_normal_marginal_inv_cdfs = [normal.ppf] * nvars
         var_trans_2 = UniformMarginalTransformation(
-            std_normal_marginal_cdfs, std_normal_marginal_inv_cdfs
+            std_normal_marginal_cdfs, std_normal_marginal_inv_cdfs, backend=bkd
         )
         var_trans = ComposeTransforms([var_trans_1, var_trans_2])
 
         nsamples = 1000
         true_samples, true_canonical_samples = (
             generate_x_samples_using_gaussian_copula(
-                nvars, z_correlation, x_marginal_inv_cdfs, nsamples, bkd
+                nvars, z_correlation, x_marginals, nsamples
             )
         )
-        true_canonical_samples = stats.norm.cdf(true_canonical_samples)
+        true_canonical_samples = bkd.asarray(
+            stats.norm.cdf(true_canonical_samples)
+        )
 
         samples = var_trans.map_from_canonical(true_canonical_samples)
-        assert bkd.allclose(true_samples, samples)
+        assert bkd.allclose(samples, true_samples)
 
         canonical_samples = var_trans.map_to_canonical(samples)
-        assert bkd.allclose(true_canonical_samples, canonical_samples)
+        assert bkd.allclose(canonical_samples, true_canonical_samples)
 
     def test_pickle_rosenblatt_transformation(self):
-        bkd = self.get_backend()
+        # todo port rosenblatt transform to use backend
+        # bkd = self.get_backend()
+        bkd = NumpyLinAlgMixin
         import pickle
         import os
 
@@ -287,12 +264,12 @@ class TestVariableTransforms:
         marginals = [
             CustomDiscreteMarginal(mass_locs, mass_probs, backend=bkd)
         ] * nvars
-
-        variable = IndependentMarginalsVariable(marginals)
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
         var_trans = AffineTransform(variable)
+        print(marginals[0]._bkd, variable._bkd)
 
         samples = bkd.vstack(
-            [mass_locs[bkd.newaxis, :], mass_locs[0] * bkd.ones((1, nmasses))]
+            [mass_locs[None, :], mass_locs[0] * bkd.ones((1, nmasses))]
         )
         canonical_samples = var_trans.map_to_canonical(samples)
 
@@ -310,7 +287,7 @@ class TestVariableTransforms:
         )
         var_trans.set_identity_maps([1])
 
-        samples = np.random.uniform(0, 1, (nvars, 4))
+        samples = bkd.asarray(np.random.uniform(0, 1, (nvars, 4)))
         canonical_samples = var_trans.map_to_canonical(samples)
         assert bkd.allclose(canonical_samples[1, :], samples[1, :])
 
@@ -343,7 +320,7 @@ class TestVariableTransforms:
         bkd = self.get_backend()
         nvars = 2
         nsamples = 10
-        x = np.random.uniform(0, 1, (nvars, nsamples))
+        x = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples)))
         # vals = bkd.sum(x**2, axis=0)[:, None]
         grad = bkd.vstack([2 * x[ii : ii + 1, :] for ii in range(nvars)])
         var_trans = AffineTransform(
@@ -364,14 +341,13 @@ class TestVariableTransforms:
 
     def test_dense_gaussian_transform(self):
         bkd = self.get_backend()
-        bkd = self.get_backend()
         nvars = 2
         mean = bkd.asarray(np.random.uniform(0, 1, (nvars, 1)))
         A = bkd.asarray(np.random.normal(0, 1, (nvars, nvars)))
         cov = A.T @ A
         scipy_rv = stats.multivariate_normal(mean=mean[:, 0], cov=cov)
         nsamples = int(1e5)
-        samples = scipy_rv.rvs(nsamples).T
+        samples = bkd.asarray(scipy_rv.rvs(nsamples).T)
         trans = DenseGaussianTransform(mean, cov, bkd)
         canonical_samples = trans.map_to_canonical(samples)
         assert bkd.allclose(

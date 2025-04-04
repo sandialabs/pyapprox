@@ -376,44 +376,9 @@ def define_iid_random_variable(
             "marginal must be an instance of Marginal or " "stats.rv_frozen"
         )
     unique_indices = [backend.arange(nvars)]
-    return IndependentMarginalsVariable(unique_marginals, unique_indices)
-
-
-def get_truncated_ranges(
-    variable: JointVariable,
-    unbounded_alpha: float = 0.99,
-    bounded_alpha: float = 1.0,
-) -> Array:
-    r"""
-    Get truncated ranges for independent random variables or Copulas
-
-    Parameters
-    ----------
-    variable : :class:`pyapprox.variables.IndependentMarginalsVariable`
-        Variable
-
-    unbounded_alpha : float
-        fraction in (0, 1) of probability captured by ranges for unbounded
-        random variables
-
-    bounded_alpha : float
-        fraction in (0, 1) of probability captured by ranges for bounded
-        random variables. bounded_alpha < 1 is useful when variable is
-        bounded but is used in a copula
-
-    Returns
-    -------
-    ranges : np.ndarray (2*nvars)
-        The finite (possibly truncated) ranges of the random variables
-        [lb0, ub0, lb1, ub1, ...]
-    """
-    ranges = []
-    if isinstance(variable, GaussCopulaVariable) and (bounded_alpha == 1):
-        bounded_alpha = unbounded_alpha
-
-    for rv in variable.marginals():
-        ranges += get_truncated_range(rv, unbounded_alpha, bounded_alpha)
-    return np.array(ranges)
+    return IndependentMarginalsVariable(
+        unique_marginals, unique_indices, backend=backend
+    )
 
 
 def combine_uncertain_and_bounded_design_variables(
@@ -545,3 +510,113 @@ class FiniteSamplesVariable(JointVariable):
         otherwise sample according to weights
         """
         return self._rvs(nsamples)[0]
+
+
+class RejectionSamplingVariable:
+    def __init__(
+        self,
+        target: JointVariable,
+        proposal: JointVariable,
+        envelope_factor: float,
+        verbosity: int = False,
+        batch_size: int = None,
+    ) -> Array:
+        """
+        Obtain samples from a density f(x) using samples from a proposal
+        distribution g(x).
+
+        Parameters
+        ----------
+        target : JointVariable
+            The target density f(x)
+
+        proposal : JointVariable
+            The proposal density g(x)
+
+        envelope_factor : float
+            Factor M that satifies f(x)<=Mg(x). Set M such that inequality is
+            close to equality as possible
+
+        verbosity: integer
+            Flag specifying the amount of diagnostic information printed
+
+        batch_size : integer
+            The number of evaluations of each density to be performed in a batch.
+            Almost always we should set batch_size=nsamples
+        """
+        self._bkd = target._bkd
+        self._target = target
+        self._proposal = proposal
+        self._envelope_factor = envelope_factor
+        self._verbosity = verbosity
+        self._batch_size = batch_size
+        self._nvars = self._proposal.nvars()
+
+    def rvs(self, nsamples: int) -> Array:
+        """
+        Parameters
+        ----------
+
+        nsamples : integer
+            The number of samples required
+
+        Returns
+        -------
+        samples : Array (nvars, nsamples)
+            Independent samples from the target distribution
+        """
+        nsamples = int(nsamples)
+        if self._batch_size is None:
+            batch_size = nsamples
+        else:
+            batch_size = self._batch_size
+
+        cntr = 0
+        nproposal_samples = 0
+        samples = self._bkd.empty((self._nvars, nsamples), dtype=float)
+        while cntr < nsamples:
+            print(cntr)
+            proposal_samples = self._proposal.rvs(batch_size)
+            target_vals = self._target.pdf(proposal_samples)[:, 0]
+            proposal_vals = self._proposal.pdf(proposal_samples)[:, 0]
+            urand = self._bkd.asarray(
+                np.random.uniform(0.0, 1.0, (batch_size))
+            )
+
+            # ensure envelop_factor is large enough
+            if self._bkd.any(
+                target_vals > (self._envelope_factor * proposal_vals)
+            ):
+                idx = self._bkd.argmax(
+                    target_vals / (self._envelope_factor * proposal_vals)
+                )
+                msg = "proposal_density*envelop factor does not bound target "
+                msg += "density: %f,%f" % (
+                    target_vals[idx],
+                    (self._envelope_factor * proposal_vals)[idx],
+                )
+                raise ValueError(msg)
+
+            idx = self._bkd.where(
+                urand < target_vals / (self._envelope_factor * proposal_vals)
+            )[0]
+
+            nbatch_samples_accepted = min(idx.shape[0], nsamples - cntr)
+            idx = idx[:nbatch_samples_accepted]
+            samples[:, cntr : cntr + nbatch_samples_accepted] = (
+                proposal_samples[:, idx]
+            )
+            cntr += nbatch_samples_accepted
+            nproposal_samples += batch_size
+
+        if self._verbosity > 0:
+            print(("num accepted", nsamples))
+            print(("num rejected", nproposal_samples - nsamples))
+            print(("inverse envelope factor", 1 / self._envelope_factor))
+            print(
+                (
+                    "acceptance probability",
+                    float(nsamples) / float(nproposal_samples),
+                )
+            )
+        return samples

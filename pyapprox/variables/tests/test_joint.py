@@ -9,6 +9,7 @@ from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
     define_iid_random_variable,
     FiniteSamplesVariable,
+    RejectionSamplingVariable,
 )
 from pyapprox.variables.marginals import BetaMarginal
 
@@ -170,6 +171,20 @@ class TestJoint:
         )[:, 0] @ quadw
         assert bkd.allclose(
             variable1.kl_divergence(variable2), kl_div, rtol=1e-5
+        )
+
+    def test_rejection_sampling(self):
+        bkd = self.get_backend()
+        proposal = IndependentMarginalsVariable(
+            [stats.uniform(0, 1)], backend=bkd
+        )
+        target = IndependentMarginalsVariable(
+            [stats.beta(2, 2, 0, 1)], backend=bkd
+        )
+        variable = RejectionSamplingVariable(target, proposal, 2.0)
+        nsamples = 1e6
+        assert bkd.allclose(
+            bkd.mean(variable.rvs(nsamples)), target.mean(), rtol=1e-2
         )
 
 
