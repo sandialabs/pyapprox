@@ -4,11 +4,13 @@ from typing import Tuple, List, Union
 import numpy as np
 
 from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.surrogates.bases.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
     GaussQuadratureRule,
     OrthonormalPolynomial1D,
+)
+from pyapprox.util.linalg import (
+    flattened_rectangular_lower_triangular_matrix_index,
 )
 from pyapprox.surrogates.bases.univariate.lagrange import (
     UnivariateLagrangeBasis,
@@ -32,17 +34,10 @@ from pyapprox.util.hyperparameter import (
     HyperParameterList,
     IdentityHyperParameterTransform,
 )
-from pyapprox.surrogates.polychaos.gpc import (
-    multiply_multivariate_orthonormal_polynomial_expansions,
-)
 from pyapprox.surrogates.regressor import Regressor, Surrogate
 from pyapprox.surrogates.bases.univariate.base import (
     Monomial1D,
     UnivariateBasis,
-)
-from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
-    convert_orthonormal_polynomials_to_monomials_1d,
-    shift_momomial_expansion,
 )
 
 
@@ -532,7 +527,7 @@ class PolynomialChaosExpansion(MonomialExpansion):
         )
 
         indices, coefs = (
-            multiply_multivariate_orthonormal_polynomial_expansions(
+            self._multiply_multivariate_orthonormal_polynomial_expansions(
                 product_coefs_1d,
                 poly1.basis().get_indices(),
                 poly1.get_coefficients(),
@@ -593,6 +588,28 @@ class PolynomialChaosExpansion(MonomialExpansion):
         )
         return marginalized_pce
 
+    def _shift_momomial_expansion(
+        self, coef: Array, shift: float, scale: float
+    ) -> Array:
+        shifted_coef = self._bkd.zeros(coef.shape)
+        # shifted_coef[0] = coef[0]
+        shifted_coef = self._bkd.up(shifted_coef, (0,), coef[0], axis=0)
+        nterms = coef.shape[0]
+        for ii in range(1, nterms):
+            temp = self._bkd.array(
+                np.polynomial.polynomial.polypow([1, -shift], ii)
+            )[:, None]
+            # shifted_coef[:ii+1] += coef[ii]*bkd.flip(temp)/scale**ii
+            indices = self._bkd.arange(ii + 1)
+            shifted_coef = self._bkd.up(
+                shifted_coef,
+                indices,
+                shifted_coef[: ii + 1]
+                + coef[ii] * self._bkd.flip(temp) / scale**ii,
+                axis=0,
+            )
+        return shifted_coef
+
     def to_monomial_expansion(self) -> MonomialExpansion:
         if self.nvars() > 1:
             raise NotImplementedError("Only supported for nvars==1")
@@ -600,21 +617,118 @@ class PolynomialChaosExpansion(MonomialExpansion):
         basis = MultiIndexBasis([Monomial1D(backend=self._bkd)])
         basis.set_indices(self._bkd.arange(self.nterms())[None, :])
         basis_mono_coefs = self._bkd.array(
-            convert_orthonormal_polynomials_to_monomials_1d(
+            self._convert_orthonormal_polynomials_to_monomials_1d(
                 self._bkd.to_numpy(self._basis._bases_1d[0]._rcoefs),
                 self.nterms() - 1,
             )
         )
         mono_coefs = basis_mono_coefs.T @ self.get_coefficients()
-        mono_coefs = shift_momomial_expansion(
+        mono_coefs = self._shift_momomial_expansion(
             mono_coefs,
             self._basis._bases_1d[0]._trans._loc,
             self._basis._bases_1d[0]._trans._scale,
-            bkd=self._bkd,
         )
         mono = MonomialExpansion(basis, nqoi=mono_coefs.shape[1])
         mono.set_coefficients(mono_coefs)
         return mono
+
+    def _compute_multivariate_orthonormal_basis_product(
+        self,
+        product_coefs_1d: Array,
+        poly_index_ii: Array,
+        poly_index_jj: Array,
+        max_degrees1: Array,
+        max_degrees2: Array,
+        tol: float = 2 * np.finfo(float).eps,
+    ):
+        """
+        Compute the product of two multivariate orthonormal bases and re-express
+        as an expansion using the orthonormal basis.
+        """
+        nvars = poly_index_ii.shape[0]
+        poly_index = poly_index_ii + poly_index_jj
+        active_vars = self._bkd.where(poly_index > 0)[0]
+        if active_vars.shape[0] > 0:
+            coefs_1d = []
+            for dd in active_vars:
+                pii, pjj = poly_index_ii[dd], poly_index_jj[dd]
+                if pii < pjj:
+                    tmp = pjj
+                    pjj = pii
+                    pii = tmp
+                kk = flattened_rectangular_lower_triangular_matrix_index(
+                    pii, pjj, max_degrees1[dd] + 1, max_degrees2[dd] + 1
+                )
+                coefs_1d.append(product_coefs_1d[dd][kk][:, 0])
+            indices_1d = [
+                self._bkd.arange(poly_index[dd] + 1, dtype=int)
+                for dd in active_vars
+            ]
+            product_coefs = self._bkd.outer_product(coefs_1d)[:, None]
+            active_product_indices = self._bkd.cartesian_product(indices_1d)
+            II = self._bkd.where(self._bkd.abs(product_coefs) > tol)[0]
+            active_product_indices = active_product_indices[:, II]
+            product_coefs = product_coefs[II]
+            product_indices = self._bkd.full(
+                (nvars, active_product_indices.shape[1]), 0.0, dtype=int
+            )
+            # product_indices[active_vars] = active_product_indices
+            product_indices = self._bkd.up(
+                product_indices, active_vars, active_product_indices
+            )
+        else:
+            product_coefs = self._bkd.full((1, 1), 1.0)
+            product_indices = self._bkd.full([nvars, 1], 0.0, dtype=int)
+
+        return product_indices, product_coefs
+
+    def _multiply_multivariate_orthonormal_polynomial_expansions(
+        self,
+        product_coefs_1d: Array,
+        poly_indices1: Array,
+        poly_coefficients1: Array,
+        poly_indices2: Array,
+        poly_coefficients2: Array,
+    ) -> Tuple[Array, Array]:
+        num_indices1 = poly_indices1.shape[1]
+        num_indices2 = poly_indices2.shape[1]
+        assert num_indices2 <= num_indices1
+        assert poly_coefficients1.shape[0] == num_indices1
+        assert poly_coefficients2.shape[0] == num_indices2
+
+        # following assumes the max degrees were used to create product_coefs_1d
+        max_degrees1 = self._bkd.max(poly_indices1, axis=1)
+        max_degrees2 = self._bkd.max(poly_indices2, axis=1)
+        basis_coefs, basis_indices = [], []
+        for ii in range(num_indices1):
+            poly_index_ii = poly_indices1[:, ii]
+            for jj in range(num_indices2):
+                poly_index_jj = poly_indices2[:, jj]
+                product_indices, product_coefs = (
+                    self._compute_multivariate_orthonormal_basis_product(
+                        product_coefs_1d,
+                        poly_index_ii,
+                        poly_index_jj,
+                        max_degrees1,
+                        max_degrees2,
+                    )
+                )
+                # print(ii,jj,product_coefs,poly_index_ii,poly_index_jj)
+                # TODO for unique polynomials the product_coefs and indices
+                # of [0,1,2] is the same as [2,1,0] so perhaps store
+                # sorted active indices and look up to reuse computations
+                product_coefs_iijj = (
+                    product_coefs
+                    * poly_coefficients1[ii, :]
+                    * poly_coefficients2[jj, :]
+                )
+                basis_coefs.append(product_coefs_iijj)
+                basis_indices.append(product_indices)
+
+                assert basis_coefs[-1].shape[0] == basis_indices[-1].shape[1]
+
+        indices, coefs = self._add_polynomials(basis_indices, basis_coefs)
+        return indices, coefs
 
 
 def setup_polynomial_chaos_expansion_from_variable(

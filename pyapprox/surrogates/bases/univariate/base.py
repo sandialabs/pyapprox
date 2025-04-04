@@ -492,12 +492,15 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
             )
 
     def _initial_interval_bounds(self) -> Tuple[float, float]:
-        lb, ub = self._bounds
+        # needs to be copy for torch
+        lb, ub = self._bkd.copy(self._bkd.array(self._bounds))
         if np.isfinite(lb) and not np.isfinite(ub):
-            return lb, lb + self._interval_size
+            return self._bkd.array([lb, lb + self._interval_size])
         elif not np.isfinite(lb) and np.isfinite(ub):
-            return ub - self._interval_size, ub
-        return -self._interval_size / 2, self._interval_size / 2
+            return self._bkd.array([ub - self._interval_size, ub])
+        return self._bkd.array(
+            [-self._interval_size / 2, self._interval_size / 2]
+        )
 
     def _integrate_interval(
         self, lb: float, ub: float, nquad_samples: int
@@ -515,7 +518,7 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         it = 1
         while True:
             nquad_samples = (nquad_samples - 1) * 2 + 1
-            prev_integral = integral
+            prev_integral = self._bkd.copy(integral)
             integral = self._integrate_interval(lb, ub, nquad_samples)
             it += 1
             diff = self._bkd.abs(self._bkd.atleast1d(prev_integral - integral))
@@ -551,11 +554,13 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         ):
             result = self._adaptive_integrate_interval(lb, ub)
             if it == 0:
-                prev_integral = integral
+                prev_integral = self._bkd.copy(self._bkd.asarray([integral]))[
+                    0
+                ]
             else:
                 prev_integral = self._bkd.copy(integral)
             integral += result
-            ub = lb
+            ub = self._bkd.copy(lb)  # needs to be copy for torch
             lb -= self._interval_size
             it += 1
         if self._verbosity > 0:
@@ -593,11 +598,13 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         ):
             result = self._adaptive_integrate_interval(lb, ub)
             if it == 0:
-                prev_integral = integral
+                prev_integral = self._bkd.copy(self._bkd.asarray([integral]))[
+                    0
+                ]
             else:
                 prev_integral = self._bkd.copy(integral)
             integral += result
-            lb = ub
+            lb = self._bkd.copy(ub)  # needs to be copy for torch
             ub += self._interval_size
             it += 1
 

@@ -10,6 +10,7 @@ from pyapprox.variables.marginals import (
     ContinuousMarginalMixin,
     ContinuousScipyMarginal,
     DiscreteScipyMarginal,
+    parse_marginal,
 )
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -131,26 +132,10 @@ class IndependentMarginalsVariable(JointVariable):
         self._bkd = backend
 
         original_marginals = marginals
-        marginals = []
-        for marginal in original_marginals:
-            if isinstance(marginal, Marginal):
-                marginals.append(marginal)
-                continue
-            if not hasattr(marginal, "dist"):
-                raise ValueError(
-                    "marginal must be an instance of Marginal or "
-                    "stats.rv_frozen"
-                )
-            if isinstance(marginal.dist, stats.rv_continuous):
-                marginals.append(
-                    ContinuousScipyMarginal(marginal, backend=backend)
-                )
-            elif isinstance(marginal.dist, stats.rv_discrete):
-                marginals.append(
-                    DiscreteScipyMarginal(marginal, backend=backend)
-                )
-            else:
-                raise RuntimeError("Should not happen")
+        marginals = [
+            parse_marginal(marginal, backend)
+            for marginal in original_marginals
+        ]
         if unique_indices is None:
             self._unique_marginals, self._unique_indices = (
                 self._get_unique_marginals(marginals)
@@ -361,20 +346,7 @@ def define_iid_random_variable(
     variable : :class:`pyapprox.variables.IndependentMarginalsVariable`
         The multivariate random variable
     """
-    if isinstance(marginal, Marginal):
-        unique_marginals = [marginal]
-    elif not hasattr(marginal, "dist"):
-        raise ValueError(
-            "marginal must be an instance of Marginal or " "stats.rv_frozen"
-        )
-    elif isinstance(marginal.dist, stats.rv_continuous):
-        unique_marginals = [ContinuousScipyMarginal(marginal, backend=backend)]
-    elif isinstance(marginal.dist, stats.rv_discrete):
-        unique_marginals = [DiscreteScipyMarginal(marginal, backend=backend)]
-    else:
-        raise ValueError(
-            "marginal must be an instance of Marginal or " "stats.rv_frozen"
-        )
+    unique_marginals = [parse_marginal(marginal, backend)]
     unique_indices = [backend.arange(nvars)]
     return IndependentMarginalsVariable(
         unique_marginals, unique_indices, backend=backend

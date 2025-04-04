@@ -309,7 +309,7 @@ class ScipyMarginal(Marginal):
         if alpha is None and self.is_bounded():
             alpha = 1.0
         elif alpha is None:
-            alpha = 0.99
+            alpha = 1 - 1e-8
         return self._scipy_rv.interval(alpha)
 
     @abstractmethod
@@ -400,7 +400,8 @@ class DiscreteScipyMarginal(DiscreteMarginalMixin, ScipyMarginal):
         ):
             lb, ub = self.truncated_range(alpha)
             xk = self._bkd.arange(int(lb), int(ub), dtype=float)
-            pk = self._scipy_rv.pmf(xk)
+            #  pk = self._scipy_rv.pmf(xk)
+            pk = self.pdf(xk)
             return xk, pk
 
         if self._name == "boltzmann":
@@ -954,7 +955,7 @@ class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
         )
 
     def _probability_masses(self, alpha: float = None) -> Array:
-        if alpha is not None or alpha != 1.0:
+        if alpha is not None and alpha != 1.0:
             raise ValueError("alpha must be 1.0")
         return self._xk, self._pk
 
@@ -978,7 +979,7 @@ class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
 
 class DiscreteChebyshevMarginal(CustomDiscreteMarginal):
     def __init__(self, nmasses: int, backend: LinAlgMixin = NumpyLinAlgMixin):
-        xk = backend.linspace(0.0, nmasses)
+        xk = backend.arange(nmasses, dtype=float)
         pk = backend.ones((nmasses,), dtype=float) / nmasses
         super().__init__(xk, pk, backend)
 
@@ -1026,6 +1027,23 @@ class EmpiricalCDF:
             self._bkd.diff(self._sorted_samples) * self._ecdf[:-1]
         )
         return self._bkd.hstack(self._bkd.zeros((1,)), vals)
+
+
+def parse_marginal(marginal, backend: LinAlgMixin):
+    if isinstance(marginal, Marginal):
+        return marginal
+
+    if not hasattr(marginal, "dist"):
+        raise ValueError(
+            "marginal must be an instance of Marginal or " "stats.rv_frozen"
+        )
+
+    if isinstance(marginal.dist, stats.rv_continuous):
+        return ContinuousScipyMarginal(marginal, backend=backend)
+    elif isinstance(marginal.dist, stats.rv_discrete):
+        return DiscreteScipyMarginal(marginal, backend=backend)
+    else:
+        raise RuntimeError("Should not happen")
 
 
 # TODO: Create these marginals

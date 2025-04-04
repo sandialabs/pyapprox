@@ -1,11 +1,12 @@
 import math
 from abc import abstractmethod
+
 from warnings import warn
 from typing import Tuple
 
 from scipy import stats
 
-from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
+from pyapprox.surrogates.bases.univariate.orthonormal_recursions import (
     jacobi_recurrence,
     hermite_recurrence,
     krawtchouk_recurrence,
@@ -20,18 +21,14 @@ from pyapprox.surrogates.bases.univariate.base import (
     UnivariateIntegrator,
     ScipyUnivariateIntegrator,
 )
-from pyapprox.variables.marginals import (
-    get_distribution_info,
-    get_pdf,
-    transform_scale_parameters,
-    is_continuous_variable,
-    is_bounded_continuous_variable,
-    get_probability_masses,
-)
 from pyapprox.util.transforms import (
     UnivariateAffineTransform,
-    IdentityTransform,
     Transform,
+    # IdentityTransform,
+)
+from pyapprox.variables.marginals import (
+    ContinuousMarginalMixin,
+    parse_marginal,
 )
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -66,13 +63,13 @@ def _evaluate_orthonormal_polynomial_1d(
 class OrthonormalPolynomial1D(UnivariateBasis):
     def __init__(self, trans: Transform, backend: LinAlgMixin):
         super().__init__(trans, backend)
-        if isinstance(self._trans, IdentityTransform):
-            msg = (
-                "No transformation was set. Proceed with caution. "
-                "User is responsible for ensuring samples are in "
-                "canonical domain of the polynomial."
-            )
-            warn(msg, UserWarning)
+        # if isinstance(self._trans, IdentityTransform):
+        #     msg = (
+        #         "No transformation was set. Proceed with caution. "
+        #         "User is responsible for ensuring samples are in "
+        #         "canonical domain of the polynomial."
+        #     )
+        #     warn(msg, UserWarning)
         self._rcoefs = None
         self._prob_meas = True
 
@@ -276,6 +273,31 @@ class OrthonormalPolynomial1D(UnivariateBasis):
         abc[1:, 2] = self._rcoefs[:-1, 1] / self._rcoefs[1:, 1]
         return abc
 
+    def _convert_orthonormal_polynomials_to_monomials_1d(
+        self, ab: Array, nmax: int
+    ) -> Array:
+        assert nmax < ab.shape[0]
+
+        monomial_coefs = self._bkd.zeros((nmax + 1, nmax + 1))
+        monomial_coefs[0, 0] = 1 / ab[0, 1]
+
+        if nmax > 0:
+            monomial_coefs[1, :2] = (
+                self._bkd.array([-ab[0, 0], 1])
+                * monomial_coefs[0, 0]
+                / ab[1, 1]
+            )
+
+        for jj in range(2, nmax + 1):
+            monomial_coefs[jj, :jj] += (
+                -ab[jj - 1, 0] * monomial_coefs[jj - 1, :jj]
+                - ab[jj - 1, 1] * monomial_coefs[jj - 2, :jj]
+            ) / ab[jj, 1]
+            monomial_coefs[jj, 1 : jj + 1] += (
+                monomial_coefs[jj - 1, :jj] / ab[jj, 1]
+            )
+        return monomial_coefs
+
 
 class JacobiPolynomial1D(OrthonormalPolynomial1D):
     def __init__(
@@ -391,7 +413,7 @@ class KrawtchoukPolynomial1D(OrthonormalPolynomial1D):
         self,
         n: int,
         p: int,
-        raisewarn: bool = True,
+        raisewarn: bool = False,
         trans: Transform = None,
         backend: LinAlgMixin = None,
     ):
@@ -424,7 +446,7 @@ class HahnPolynomial1D(OrthonormalPolynomial1D):
         N: int,
         alpha: float,
         beta: float,
-        raisewarn: bool = True,
+        raisewarn: bool = False,
         trans: Transform = None,
         backend: LinAlgMixin = None,
     ):
@@ -642,6 +664,10 @@ class PredictorCorrector:
         self._integrator = integrator
 
     def _integrand_0(self, x: Array) -> Array:
+        if not hasattr(self, "_tmp"):
+            self._tmp = 0
+        else:
+            self._tmp += 1
         return self._measure(x)
 
     def _integrand_1(self, x: Array) -> Array:
@@ -694,7 +720,8 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
         using predictor corrector method."""
         super().__init__(trans, backend)
         # Get version var.pdf without error checking which runs much faster
-        self._pdf, self._loc, self._scale, self._can_lb, self._can_ub = (
+        marginal = parse_marginal(marginal, backend)
+        self._loc, self._scale, self._can_lb, self._can_ub = (
             self._parse_marginal(marginal)
         )
         self._marginal = marginal
@@ -714,17 +741,20 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
     def _parse_marginal(
         self, marginal
     ) -> Tuple[callable, float, float, float, float]:
-        pdf = get_pdf(marginal)
-        loc, scale = transform_scale_parameters(marginal)
+        marginal = parse_marginal(marginal, self._bkd)
+        loc, scale = marginal._transform_scale_parameters()
         lb, ub = marginal.interval(1)
-        if is_bounded_continuous_variable(marginal):
+        if (
+            isinstance(marginal, ContinuousMarginalMixin)
+            and marginal.is_bounded()
+        ):
             can_lb, can_ub = -1, 1
-        elif is_continuous_variable(marginal):
+        elif isinstance(marginal, ContinuousMarginalMixin):
             can_lb = (lb - loc) / scale
             can_ub = (ub - loc) / scale
         else:
             raise ValueError("variable must be a continuous variable")
-        return pdf, loc, scale, can_lb, can_ub
+        return loc, scale, can_lb, can_ub
 
     def _parse_quad_opts(self, quad_opts: dict, integrate_fun: callable):
         if not isinstance(quad_opts, dict):
@@ -733,11 +763,9 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
             quad_opts["integrate_fun"] = integrate_fun
         return quad_opts
 
-    def _canonical_pdf(self, x: Array) -> Array:
-        # pdf is from scipy so x must be converted to one d array
-        return self._bkd.asarray(
-            self._pdf(x[0] * self._scale + self._loc) * self._scale
-        )[:, None]
+    def _canonical_pdf(self, can_x: Array) -> Array:
+        x = can_x[0] * self._scale + self._loc
+        return self._marginal.pdf(x)[:, None] * self._scale
 
     def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         return self._rcoefs_gen(ncoefs)
@@ -749,7 +777,8 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
     backend: LinAlgMixin = None,
     transform_enforce_bounds: bool = True,
 ) -> OrthonormalPolynomial1D:
-    var_name, scales, shapes = get_distribution_info(marginal)
+    marginal = parse_marginal(marginal, backend)
+    var_name, shapes = marginal._name, marginal._shapes
 
     trans = AffineMarginalTransform(
         marginal, enforce_bounds=transform_enforce_bounds, backend=backend
@@ -776,7 +805,7 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
         return CharlierPolynomial1D(shapes["mu"], trans=trans, backend=backend)
 
     # Other continuous marginals
-    if is_continuous_variable(marginal) and var_name != "continuous_rv_sample":
+    if isinstance(marginal, ContinuousMarginalMixin):
         return ContinuousNumericOrthonormalPolynomial1D(
             marginal,
             opts.get("integrator", None),
@@ -790,9 +819,9 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
     if hasattr(shapes, "xk"):
         xk, pk = shapes["xk"], shapes["pk"]
     else:
-        xk, pk = get_probability_masses(marginal, opts.get("ptol", 1e-8))
+        xk, pk = marginal._probability_masses()
 
-    loc, scale = transform_scale_parameters(marginal)
+    loc, scale = marginal._transform_scale_parameters()
     xk = (xk - loc) / scale
     return DiscreteNumericOrthonormalPolynomial1D(
         backend.asarray(xk[None, :]),
@@ -899,16 +928,17 @@ class AffineMarginalTransform(UnivariateAffineTransform):
         enforce_bounds: bool = False,
         backend: LinAlgMixin = None,
     ):
+        marginal = parse_marginal(marginal, backend)
         super().__init__(
-            *transform_scale_parameters(marginal), enforce_bounds, backend
+            *marginal._transform_scale_parameters(),
+            enforce_bounds,
+            backend,
         )
         self._marginal = marginal
         # is_bounded_continuous_variable calls ppf which is expensive
         # so just call once here at initialization and not repeatedly
         # in _check_bounds
-        self._marginal_is_bounded = is_bounded_continuous_variable(
-            self._marginal
-        )
+        self._marginal_is_bounded = marginal.is_bounded()
 
     def _check_bounds(self, user_samples):
         if not self._enforce_bounds:
@@ -1009,3 +1039,45 @@ class FourierBasis1D(UnivariateBasis):
             * can_samples.T
             * self._bkd.arange(-self._Kmax, self._Kmax + 1)[None, :]
         )
+
+
+def evaluate_three_term_recurrence_polynomial_1d(
+    abc: Array, nmax: int, x: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+) -> Array:
+    r"""
+    Evaluate an orthogonal polynomial three recursion coefficient formulation
+
+    .. math:: p_{n+1} = \tilde{a}_{n+1}x - \tilde{b}_np_n - \tilde{c}_n p_{n-1}
+
+    Parameters
+    ----------
+    abc :  array (num_recursion_coeffs,3)
+       The recursion coefficients
+
+    nmax : integer
+       The maximum degree of the polynomials to be evaluated (N+1)
+
+    x :  darray (num_samples)
+       The samples at which to evaluate the polynomials
+
+    Returns
+    -------
+    p :  bkd.ndarray (num_samples, num_indices)
+       The values of the polynomials at the samples
+    """
+    assert x.ndim == 1
+    assert nmax < abc.shape[0]
+
+    p = bkd.zeros((x.shape[0], nmax + 1), dtype=float)
+
+    p[:, 0] = abc[0, 0]
+
+    if nmax > 0:
+        p[:, 1] = (abc[1, 0] * x - abc[1, 1]) * p[:, 0]
+
+    for jj in range(2, nmax + 1):
+        p[:, jj] = (abc[jj, 0] * x - abc[jj, 1]) * p[:, jj - 1] - abc[
+            jj, 2
+        ] * p[:, jj - 2]
+
+    return p
