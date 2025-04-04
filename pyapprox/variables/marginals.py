@@ -3,7 +3,6 @@ from functools import partial
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-from scipy.stats._distn_infrastructure import rv_sample, rv_continuous
 from scipy.stats import _continuous_distns, _discrete_distns
 from scipy import stats
 from scipy import interpolate
@@ -22,7 +21,7 @@ class Marginal(ABC):
     def _check_samples(self, samples: Array) -> Array:
         if samples.ndim != 1:
             raise ValueError(
-                "samples must be 1d array but had shape{0}".format(
+                "samples must be 1d array but had shape {0}".format(
                     samples.shape
                 )
             )
@@ -31,7 +30,7 @@ class Marginal(ABC):
     def _check_values(self, vals: Array) -> Array:
         if vals.ndim != 1:
             raise ValueError(
-                "vals must be a 1d array but had shape{0}".format(vals.shape)
+                "vals must be a 1d array but had shape {0}".format(vals.shape)
             )
         return vals
 
@@ -56,6 +55,22 @@ class Marginal(ABC):
 
     def _logpdf_jacobian(self, samples: Array) -> Array:
         raise NotImplementedError
+
+    def mean(self) -> float:
+        raise NotImplementedError
+
+    def median(self) -> float:
+        return self.ppf(self._bkd.array([0.5]))
+
+    def var(self) -> float:
+        raise NotImplementedError
+
+    def std(self) -> float:
+        return self._bkd.sqrt(self.var())
+
+    def interval(self, alpha: float) -> Array:
+        eps = (1.0 - alpha) / 2.0
+        return self.ppf(self._bkd.array([eps, 1 - eps]))
 
     @abstractmethod
     def _rvs(self, nsamples: int) -> Array:
@@ -120,11 +135,37 @@ class Marginal(ABC):
     def __eq__(self, other: "Marginal") -> bool:
         raise NotImplementedError
 
+    def plot_cdf(self, ax, npts: int = 101, alpha: float = None):
+        samples = self._bkd.linspace(*self.truncated_range(alpha), npts)
+        ax.plot(samples, self.cdf(samples))
+
+    def plot_ppf(self, ax, npts: int = 101, alpha: float = None):
+        ranges = self.truncated_range(alpha)
+        usamples = self.cdf(self._bkd.linspace(*ranges, npts))
+        ax.plot(usamples, self.ppf(usamples))
+
+    def kl_divergence_implemented(self) -> bool:
+        return False
+
+
+class ContinuousMarginalMixin:
+    def plot_pdf(self, ax, npts: int = 101, alpha: float = None):
+        samples = self._bkd.linspace(*self.truncated_range(alpha), npts)
+        ax.plot(samples, self.pdf(samples))
+
+
+class DiscreteMarginalMixin:
+    def plot_pdf(self, ax, alpha=None):
+        xk, pk = self._probability_masses()
+        ax.plot(xk, pk, "o")
+        for s, w in zip(xk, pk):
+            ax.vlines(x=s, ymin=0, ymax=w)
+
 
 class ScipyMarginal(Marginal):
     def __init__(
         self,
-        scipy_rv: stats._distn_infrastructure.rv_frozen,
+        scipy_rv,
         backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         self._scipy_rv = scipy_rv
@@ -133,8 +174,11 @@ class ScipyMarginal(Marginal):
         self._name, self._scales, self._shapes = self._get_distribution_info()
 
     @abstractmethod
-    def _check_marginal(self, marginal: stats._distn_infrastructure.rv_frozen):
+    def _check_marginal(self, marginal: stats.rv_continuous):
         raise NotImplementedError
+
+    def interval(self, alpha: float) -> Array:
+        return self._bkd.asarray(self._scipy_rv.interval(alpha))
 
     def _pdf(self, samples: Array) -> Array:
         return self._scipy_rv.pdf(samples)
@@ -150,6 +194,18 @@ class ScipyMarginal(Marginal):
 
     def _rvs(self, nsamples: int) -> Array:
         return self._scipy_rv.rvs(nsamples)
+
+    def mean(self) -> float:
+        return self._bkd.asarray([self._scipy_rv.mean()]).item()
+
+    def median(self) -> float:
+        return self._bkd.asarray([self._scipy_rv.median()]).item()
+
+    def var(self) -> float:
+        return self._bkd.asarray(self._scipy_rv.var()).item()
+
+    def std(self) -> float:
+        return self._bkd.asarray(self._scipy_rv.std()).item()
 
     def _check_samples(self, samples: Array) -> Array:
         return self._bkd.asarray(super()._check_samples(samples))
@@ -203,13 +259,8 @@ class ScipyMarginal(Marginal):
             scale_values = [0] + scale_values
         scale_names = ["loc", "scale"]
         scales = dict(
-            zip(scale_names, [np.atleast_1d(s) for s in scale_values])
+            zip(scale_names, [self._bkd.asarray([s]) for s in scale_values])
         )
-
-        if isinstance(self._scipy_rv.dist, float_rv_discrete):
-            xk = self._scipy_rv.dist.xk.copy()
-            shapes = {"xk": xk, "pk": self._scipy_rv.dist.pk}
-
         return name, scales, shapes
 
     def _raw_pdf(self, x: Array) -> Array:
@@ -269,8 +320,8 @@ class ScipyMarginal(Marginal):
         return "{0}(name={1})".format(self.__class__.__name__, self._name)
 
 
-class ContinuousScipyMarginal(ScipyMarginal):
-    def _check_marginal(self, marginal: stats._distn_infrastructure.rv_frozen):
+class ContinuousScipyMarginal(ContinuousMarginalMixin, ScipyMarginal):
+    def _check_marginal(self, marginal: stats.rv_continuous):
         if not self._is_continuous_variable():
             raise ValueError("marginal is not a continous scipy variable")
 
@@ -278,13 +329,7 @@ class ContinuousScipyMarginal(ScipyMarginal):
         """
         Is variable continuous
         """
-        return bool(
-            (self._scipy_rv.dist.name in _continuous_distns._distn_names)
-            or self._scipy_rv.dist.name == "continuous_rv_sample"
-            or self._scipy_rv.dist.name == "continuous_monomial"
-            or self._scipy_rv.dist.name == "rv_function_indpndt_vars"
-            or self._scipy_rv.dist.name == "rv_product_indpndt_vars"
-        )
+        return self._scipy_rv.dist.name in _continuous_distns._distn_names
 
     def is_bounded(self) -> bool:
         """
@@ -298,7 +343,7 @@ class ContinuousScipyMarginal(ScipyMarginal):
         Transform scale parameters so that when any bounded variable is transformed
         to the canonical domain [-1, 1]
         """
-        if not self._is_bounded():
+        if not self.is_bounded():
             return super()._transform_scale_parameters()
 
         a, b = self._scipy_rv.interval(1)
@@ -307,8 +352,8 @@ class ContinuousScipyMarginal(ScipyMarginal):
         return loc, scale
 
 
-class DiscreteScipyMarginal(ScipyMarginal):
-    def _check_marginal(self, marginal: stats._distn_infrastructure.rv_frozen):
+class DiscreteScipyMarginal(DiscreteMarginalMixin, ScipyMarginal):
+    def _check_marginal(self, marginal: stats.rv_discrete):
         if not (self._scipy_rv.dist.name in _discrete_distns._distn_names):
             raise ValueError("marginal is not a discrete scipy variable")
 
@@ -319,7 +364,7 @@ class DiscreteScipyMarginal(ScipyMarginal):
         interval = self._scipy_rv.interval(1)
         return np.isfinite(interval[0]) and np.isfinite(interval[1])
 
-    def probability_masses(self, tol: float = 0) -> Array:
+    def _probability_masses(self, alpha: float = None) -> Array:
         """
         Get the the locations and masses of a discrete random variable.
 
@@ -329,23 +374,21 @@ class DiscreteScipyMarginal(ScipyMarginal):
             Fraction of total probability in (0, 1). Can be useful with
             extracting masses when numerical precision becomes a problem
         """
-        if (
-            self._name == "float_rv_discrete"
-            or self._name == "discrete_chebyshev"
-            or self._name == "continuous_rv_sample"
-        ):
-            return self._scipy_rv.dist.xk.copy(), self._scipy_rv.dist.pk.copy()
-        elif self._name == "hypergeom":
+        if self._name == "hypergeom":
             M, n, N = [self._shapes[key] for key in ["M", "n", "N"]]
-            xk = np.arange(max(0, N - M + n), min(n, N) + 1, dtype=float)
+            xk = self._bkd.arange(
+                max(0, N - M + n), min(n, N) + 1, dtype=float
+            )
             pk = self._scipy_rv.pmf(xk)
             return xk, pk
-        elif self._name == "binom":
+
+        if self._name == "binom":
             n = self._shapes["n"]
-            xk = np.arange(0, n + 1, dtype=float)
+            xk = self._bkd.arange(0, n + 1, dtype=float)
             pk = self._scipy_rv.pmf(xk)
             return xk, pk
-        elif (
+
+        if (
             self._name == "nbinom"
             or self._name == "geom"
             or self._name == "logser"
@@ -355,28 +398,26 @@ class DiscreteScipyMarginal(ScipyMarginal):
             or self._name == "dlaplace"
             or self._name == "skellam"
         ):
-            if tol <= 0:
-                raise ValueError(
-                    "interval is unbounded so specify probability<1"
-                )
-            lb, ub = self._scipy_rv.interval(1 - tol)
-            xk = np.arange(int(lb), int(ub), dtype=float)
+            lb, ub = self.truncated_range(alpha)
+            xk = self._bkd.arange(int(lb), int(ub), dtype=float)
             pk = self._scipy_rv.pmf(xk)
             return xk, pk
-        elif self._name == "boltzmann":
-            xk = np.arange(self._shapes["N"], dtype=float)
+
+        if self._name == "boltzmann":
+            xk = self._bkd.arange(self._shapes["N"], dtype=float)
             pk = self._scipy_rv.pmf(xk)
             return xk, pk
-        elif self._name == "randint":
-            xk = np.arange(
+
+        if self._name == "randint":
+            xk = self._bkd.arange(
                 self._shapes["low"], self._shapes["high"], dtype=float
             )
             pk = self._scipy_rv.pmf(xk)
             return xk, pk
-        else:
-            raise ValueError(
-                f"Variable {self._scipy_rv.dist.self._name} not supported"
-            )
+
+        raise NotImplementedError(
+            f"Variable {self._scipy_rv.dist.self._name} not supported"
+        )
 
     def _transform_scale_parameters(self) -> Tuple[float, float]:
         """
@@ -384,7 +425,7 @@ class DiscreteScipyMarginal(ScipyMarginal):
         to the canonical domain [-1, 1]
         """
         # var.interval(1) can return incorrect bounds
-        xk, pk = self.probability_masses()
+        xk, pk = self._probability_masses()
         a, b = xk.min(), xk.max()
         loc = (a + b) / 2
         scale = b - loc
@@ -394,9 +435,9 @@ class DiscreteScipyMarginal(ScipyMarginal):
         if "xk" not in self._shapes:
             return super()._shapes_equal(other)
         # xk and pk shapes are list so != comparison will not work
-        not_equiv = np.any(self._shapes["xk"] != other.shapes["xk"]) or np.any(
-            self._shapes["pk"] != other._shapes["pk"]
-        )
+        not_equiv = self._bkd.any(
+            self._shapes["xk"] != other.shapes["xk"]
+        ) or self._bkd.any(self._shapes["pk"] != other._shapes["pk"])
         return not not_equiv
 
 
@@ -561,7 +602,7 @@ class MarginalCDFNewtonSolver(NewtonSolver):
         return sol
 
 
-class BetaMarginal(Marginal):
+class BetaMarginal(ContinuousMarginalMixin, Marginal):
     def __init__(
         self,
         alpha: float,
@@ -705,6 +746,9 @@ class BetaMarginal(Marginal):
         # term3 += (self_sum - other_sum) * tmp
         return term1_numer + term1_denom + term2 + term3
 
+    def kl_divergence_implemented(self) -> bool:
+        return True
+
     def is_bounded(self) -> bool:
         return True
 
@@ -718,6 +762,23 @@ class BetaMarginal(Marginal):
     def _rvs(self, nsamples: int):
         usamples = self._bkd.asarray(np.random.uniform(0, 1, nsamples))
         return self._ppf(usamples)
+
+    def mean(self) -> float:
+        mean_01 = self._a / (self._a + self._b)
+        return mean_01 * (self._ub - self._lb) + self._lb
+
+    def var(self) -> float:
+        var_01 = (
+            self._a
+            * self._b
+            / ((self._a + self._b) ** 2 * (self._a + self._b + 1.0))
+        )
+        return var_01 * (self._ub - self._lb) ** 2
+
+    def __repr__(self) -> str:
+        return "{0}(alpha={1}, beta={2})".format(
+            self.__class__.__name__, self._a, self._b
+        )
 
 
 class UniformMarginal(BetaMarginal):
@@ -789,8 +850,14 @@ class GaussianMarginal(Marginal):
     def mean(self) -> float:
         return self._mean
 
-    def variance(self) -> float:
+    def median(self) -> float:
+        return self._mean
+
+    def var(self) -> float:
         return self._var
+
+    def std(self) -> float:
+        return self._stdev
 
     def __eq__(self, other: Marginal) -> bool:
         if not isinstance(other, GaussianMarginal):
@@ -803,9 +870,17 @@ class GaussianMarginal(Marginal):
         usamples = self._bkd.asarray(np.random.uniform(0, 1, nsamples))
         return self._ppf(usamples)
 
+    def kl_divergence_implemented(self) -> bool:
+        return True
+
+    def __repr__(self) -> str:
+        return "{0}(mean={1}, stdev={2})".format(
+            self.__class__.__name__, self._mean, self._stdev
+        )
+
 
 # TODO make this a function of a discrete variable from samples class
-class CustomDiscreteMarginal(Marginal):
+class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
     def __init__(
         self, xk: Array, pk: Array, backend: LinAlgMixin = NumpyLinAlgMixin
     ):
@@ -843,10 +918,10 @@ class CustomDiscreteMarginal(Marginal):
 
     def _pdf(self, samples: Array) -> Array:
         nsamples = samples.shape[0]
-        vals = np.zeros(nsamples)
+        vals = self._bkd.zeros(nsamples)
         for jj in range(nsamples):
             for ii in range(self.nmasses()):
-                if np.allclose(
+                if self._bkd.allclose(
                     self._xk[ii], samples[jj], atol=np.finfo(float).eps * 2
                 ):
                     vals[jj] = self._pk[ii]
@@ -878,8 +953,38 @@ class CustomDiscreteMarginal(Marginal):
             np.random.choice(self._xk, size=nsamples, p=self._pk)
         )
 
+    def _probability_masses(self, alpha: float = None) -> Array:
+        if alpha is not None or alpha != 1.0:
+            raise ValueError("alpha must be 1.0")
+        return self._xk, self._pk
+
+    def mean(self) -> float:
+        return self._bkd.sum(self._xk * self._pk)
+
+    def var(self) -> float:
+        return self._bkd.sum(self._xk**2 * self._pk) - self.mean() ** 2
+
+    def ppf(self, usamples: Array) -> Array:
+        return self._sorted_xk[
+            np.searchsorted(self._ecdf, usamples * self._ecdf[-1])
+        ]
+
+    def _transform_scale_parameters(self) -> Tuple[float, float]:
+        a, b = self._sorted_xk[0], self._sorted_xk[-1]
+        loc = (a + b) / 2
+        scale = b - loc
+        return loc, scale
+
+
+class DiscreteChebyshevMarginal(CustomDiscreteMarginal):
+    def __init__(self, nmasses: int, backend: LinAlgMixin = NumpyLinAlgMixin):
+        xk = backend.linspace(0.0, nmasses)
+        pk = backend.ones((nmasses,), dtype=float) / nmasses
+        super().__init__(xk, pk, backend)
+
 
 class EmpiricalCDF:
+    # TODO remove once replaced everywhere by CustomDiscreteMarginal
     def __init__(
         self,
         samples: Array,
@@ -897,8 +1002,8 @@ class EmpiricalCDF:
             )
         else:
             assert weights.ndim == 1
-            II = np.argsort(self.samples)
-            self._ecdf = np.cumsum(weights[II])
+            II = self._bkd.argsort(self.samples)
+            self._ecdf = self._bkd.cumsum(weights[II])
 
         self._interp = interpolate.interp1d(
             self._sorted_samples,
@@ -923,188 +1028,44 @@ class EmpiricalCDF:
         return self._bkd.hstack(self._bkd.zeros((1,)), vals)
 
 
-def get_unique_variables(variables):
-    """
-    Get the unique 1D variables from a list of variables.
-    """
-    nvars = len(variables)
-    unique_variables = [variables[0]]
-    unique_var_indices = [[0]]
-    for ii in range(1, nvars):
-        found = False
-        for jj in range(len(unique_variables)):
-            if variables_equivalent(variables[ii], unique_variables[jj]):
-                unique_var_indices[jj].append(ii)
-                found = True
-                break
-        if not found:
-            unique_variables.append(variables[ii])
-            unique_var_indices.append([ii])
-    return unique_variables, unique_var_indices
+# TODO: Create these marginals
+# class rv_function_indpndt_vars_gen(rv_continuous):
+#     """
+#     Custom variable representing the function of random variables.
+
+#     Used to create 1D polynomial chaos basis orthogonal to the PDFs
+#     of the scalar function of the 1D variables.
+#     """
+
+#     def _argcheck(self, fun, init_variables, quad_rules):
+#         return True
+
+#     def _pdf(self, x, fun, init_variables, quad_rules):
+#         raise NotImplementedError("Expression for PDF not known")
 
 
-class float_rv_discrete(rv_sample):
-    """Discrete distribution defined on locations represented as floats.
-
-    rv_discrete in scipy only allows for integer locations.
-
-    Currently we only guarantee that overloaded functions and cdf, ppf and
-    moment work and are tested
-    """
-
-    def __init__(
-        self,
-        a=0,
-        b=np.inf,
-        name=None,
-        badvalue=None,
-        moment_tol=1e-8,
-        values=None,
-        inc=1,
-        longname=None,
-        shapes=None,
-        seed=None,
-        extradoc=None,
-    ):
-        # extradoc must appear in __init__ above even though it is not
-        # used for backwards capability.
-        super(float_rv_discrete, self).__init__(
-            a,
-            b,
-            name,
-            badvalue,
-            moment_tol,
-            values,
-            inc,
-            longname,
-            shapes,
-            seed=seed,
-        )
-        self.xk = self.xk.astype(dtype=float)
-
-    def __new__(cls, *args, **kwds):
-        return super(float_rv_discrete, cls).__new__(cls)
-
-    def _rvs(self):
-        samples = np.random.choice(self.xk, size=self._size, p=self.pk)
-        return samples
-
-    def rvs(self, *args, **kwds):
-        """
-        Random variates of given type.
-
-        Parameters
-        ----------
-        arg1, arg2, arg3,... : array_like
-            The shape parameter(s) for the distribution (see docstring of the
-            instance object for more information).
-        loc : array_like, optional
-            Location parameter (default=0).
-        scale : array_like, optional
-            Scale parameter (default=1).
-        size : int or tuple of ints, optional
-            Defining number of random variates (default is 1).
-        random_state : None or int or ``np.random.RandomState`` instance,
-            optional
-            If int or RandomState, use it for drawing the random variates.
-            If None, rely on ``self.random_state``.
-            Default is None.
-
-        Returns
-        -------
-        rvs : ndarray or scalar
-            Random variates of given `size`.
-
-        """
-        rndm = kwds.pop("random_state", None)
-        args, loc, scale, size = self._parse_args_rvs(*args, **kwds)
-        cond = np.logical_and(self._argcheck(*args), (scale >= 0))
-        if not np.all(cond):
-            raise ValueError("Domain error in arguments.")
-
-        if np.all(scale == 0):
-            return loc * np.ones(size, "d")
-
-        # extra gymnastics needed for a custom random_state
-        if rndm is not None:
-            random_state_saved = self._random_state
-            from scipy._lib._util import check_random_state
-
-            self._random_state = check_random_state(rndm)
-
-        # `size` should just be an argument to _rvs(), but for, um,
-        # historical reasons, it is made an attribute that is read
-        # by _rvs().
-        self._size = size
-        vals = self._rvs(*args)
-
-        vals = vals * scale + loc
-
-        # do not forget to restore the _random_state
-        if rndm is not None:
-            self._random_state = random_state_saved
-
-        # JDJAKEM: commenting this scipy code out allows for non integer
-        # locations
-        # # Cast to int if discrete
-        # if discrete:
-        #     if size == ():
-        #         vals = int(vals)
-        #     else:
-        #         vals = vals.astype(int)
-
-        return vals
-
-    def pmf(self, x):
-        x = np.atleast_1d(x)
-        vals = np.zeros(x.shape[0])
-        for jj in range(x.shape[0]):
-            for ii in range(self.xk.shape[0]):
-                if np.allclose(
-                    self.xk[ii], x[jj], atol=np.finfo(float).eps * 2
-                ):
-                    vals[jj] = self.pk[ii]
-                    break
-        return vals
+# rv_function_indpndt_vars = rv_function_indpndt_vars_gen(
+#     shapes="fun, initial_variables, quad_rules",
+#     name="rv_function_indpndt_vars",
+# )
 
 
-class rv_function_indpndt_vars_gen(rv_continuous):
-    """
-    Custom variable representing the function of random variables.
+# class rv_product_indpndt_vars_gen(rv_continuous):
+#     """
+#     Custom variable representing the product of random variables.
 
-    Used to create 1D polynomial chaos basis orthogonal to the PDFs
-    of the scalar function of the 1D variables.
-    """
+#     Used to create 1D polynomial chaos basis orthogonal to the PDFs
+#     of the scalar product of the 1D variables.
+#     """
 
-    def _argcheck(self, fun, init_variables, quad_rules):
-        return True
+#     def _argcheck(self, funs, init_variables, quad_rules):
+#         return True
 
-    def _pdf(self, x, fun, init_variables, quad_rules):
-        raise NotImplementedError("Expression for PDF not known")
-
-
-rv_function_indpndt_vars = rv_function_indpndt_vars_gen(
-    shapes="fun, initial_variables, quad_rules",
-    name="rv_function_indpndt_vars",
-)
+#     def _pdf(self, x, funs, init_variables, quad_rules):
+#         raise NotImplementedError("Expression for PDF not known")
 
 
-class rv_product_indpndt_vars_gen(rv_continuous):
-    """
-    Custom variable representing the product of random variables.
-
-    Used to create 1D polynomial chaos basis orthogonal to the PDFs
-    of the scalar product of the 1D variables.
-    """
-
-    def _argcheck(self, funs, init_variables, quad_rules):
-        return True
-
-    def _pdf(self, x, funs, init_variables, quad_rules):
-        raise NotImplementedError("Expression for PDF not known")
-
-
-rv_product_indpndt_vars = rv_product_indpndt_vars_gen(
-    shapes="funs, initial_variables, quad_rules",
-    name="rv_product_indpndt_vars",
-)
+# rv_product_indpndt_vars = rv_product_indpndt_vars_gen(
+#     shapes="funs, initial_variables, quad_rules",
+#     name="rv_product_indpndt_vars",
+# )

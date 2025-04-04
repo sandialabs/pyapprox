@@ -3,21 +3,17 @@ import numpy as np
 from scipy import stats
 
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.utilities import (
-    lists_of_arrays_equal,
-    correlation_to_covariance,
-)
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.utilities import lists_of_arrays_equal
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
-    GaussCopulaVariable,
     define_iid_random_variable,
     FiniteSamplesVariable,
-    CustomIndependentMarginalsVariable,
 )
 from pyapprox.variables.marginals import BetaMarginal
 
 
-class TestJoint(unittest.TestCase):
+class TestJoint:
     def setUp(self):
         np.random.seed(1)
 
@@ -27,7 +23,8 @@ class TestJoint(unittest.TestCase):
         different one-dimensional variables assuming that a given variable type
         the distribution parameters ARE the same
         """
-        univariate_variables = [
+        bkd = self.get_backend()
+        marginals = [
             stats.uniform(-1, 2),
             stats.beta(1, 1, -1, 2),
             stats.norm(0, 1),
@@ -35,11 +32,10 @@ class TestJoint(unittest.TestCase):
             stats.uniform(-1, 2),
             stats.beta(1, 1, -1, 2),
         ]
-        variable = IndependentMarginalsVariable(univariate_variables)
-
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
         assert len(variable._unique_marginals) == 3
         assert lists_of_arrays_equal(
-            variable._unique_variable_indices, [[0, 3, 4], [1, 5], [2]]
+            variable._unique_indices, [[0, 3, 4], [1, 5], [2]]
         )
 
     def test_define_mixed_tensor_product_random_variable_II(self):
@@ -48,7 +44,8 @@ class TestJoint(unittest.TestCase):
         different one-dimensional variables assuming that a given variable
         type the distribution parameters ARE NOT the same
         """
-        univariate_variables = [
+        bkd = self.get_backend()
+        marginals = [
             stats.uniform(-1, 2),
             stats.beta(1, 1, -1, 2),
             stats.norm(-1, 2),
@@ -56,24 +53,33 @@ class TestJoint(unittest.TestCase):
             stats.uniform(-1, 2),
             stats.beta(2, 1, -2, 3),
         ]
-        variable = IndependentMarginalsVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
         assert len(variable._unique_marginals) == 5
         assert lists_of_arrays_equal(
-            variable._unique_variable_indices, [[0, 4], [1], [2], [3], [5]]
+            variable._unique_indices, [[0, 4], [1], [2], [3], [5]]
         )
 
-    def test_get_statistics(self):
-        univariate_variables = [
+    def test_statistics(self):
+        bkd = self.get_backend()
+        marginals = [
             stats.uniform(2, 4),
             stats.beta(1, 1, -1, 2),
             stats.norm(0, 1),
         ]
-        variable = IndependentMarginalsVariable(univariate_variables)
-        mean = variable.get_statistics("mean")
-        assert np.allclose(mean.squeeze(), [4, 0, 0])
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        assert np.allclose(variable.mean()[:, 0], bkd.asarray([4, 0, 0]))
+        assert np.allclose(
+            variable.var()[:, 0], bkd.asarray([m.var() for m in marginals])
+        )
+        assert np.allclose(
+            variable.std()[:, 0], bkd.asarray([m.std() for m in marginals])
+        )
+        assert np.allclose(
+            variable.median()[:, 0], [m.median() for m in marginals]
+        )
 
-        intervals = variable.get_statistics("interval", 1)
+        intervals = variable.interval(1)
         assert np.allclose(
             intervals, np.array([[2, 6], [-1, 1], [-np.inf, np.inf]])
         )
@@ -84,35 +90,20 @@ class TestJoint(unittest.TestCase):
         multivariate random variable from the tensor-product of
         the same one-dimensional variable.
         """
+        bkd = self.get_backend()
         var = stats.norm(loc=2, scale=3)
-        num_vars = 2
-        iid_variable = define_iid_random_variable(var, num_vars)
+        nvars = 2
+        iid_variable = define_iid_random_variable(var, nvars, backend=bkd)
 
         assert len(iid_variable._unique_marginals) == 1
-        assert np.allclose(
-            iid_variable._unique_variable_indices, np.arange(num_vars)
-        )
-
-    def test_gauss_copula_variable(self):
-        num_samples = 10000
-        num_vars, alpha_stat, beta_stat = 2, 2, 5
-        marginals = [stats.beta(a=alpha_stat, b=beta_stat)] * num_vars
-
-        x_correlation = np.array([[1, 0.7], [0.7, 1]])
-        variable = GaussCopulaVariable(marginals, x_correlation)
-        x_samples, true_u_samples = variable.rvs(num_samples, True)
-        x_sample_covariance = np.cov(x_samples)
-
-        true_x_covariance = correlation_to_covariance(
-            x_correlation, np.asarray([m.std() for m in marginals])
-        )
-        assert np.allclose(true_x_covariance, x_sample_covariance, atol=1e-2)
+        assert np.allclose(iid_variable._unique_indices, np.arange(nvars))
 
     def test_archived_data_model(self):
+        bkd = self.get_backend()
         nvars, nsamples = 2, 100
         samples = np.random.normal(0, 1, (nvars, nsamples))
 
-        model = FiniteSamplesVariable(samples, randomness="none")
+        model = FiniteSamplesVariable(samples, randomness="none", backend=bkd)
         valid_samples, II = model._rvs(nsamples)
         assert np.allclose(II, np.arange(nsamples))
         assert np.allclose(valid_samples, samples[:, II])
@@ -122,19 +113,22 @@ class TestJoint(unittest.TestCase):
         self.assertRaises(ValueError, model.rvs, nsamples)
 
         # check repeated calling of deterministic rvs
-        model = FiniteSamplesVariable(samples, randomness="none")
+        model = FiniteSamplesVariable(samples, randomness="none", backend=bkd)
         valid_samples = model.rvs(nsamples // 2)
         valid_samples, II = model._rvs(2)
         assert np.allclose(II, np.arange(nsamples // 2, nsamples // 2 + 2))
 
         # check repeated calling of rvs replacement passes when
         # more than existing samples are requested
-        model = FiniteSamplesVariable(samples, randomness="replacement")
+        model = FiniteSamplesVariable(
+            samples, randomness="replacement", backend=bkd
+        )
         assert nsamples % 2 == 0
         valid_samples1, II = model._rvs(nsamples // 2)
         valid_samples0, JJ = model._rvs(nsamples)
 
-    def custom_independent_marginals_variable(self):
+    def independent_beta_marginals_variable(self):
+        bkd = self.get_backend()
         a1, b1 = 2, 3
         a2, b2 = 3, 3
         bounds = [0, 1]
@@ -142,15 +136,30 @@ class TestJoint(unittest.TestCase):
             BetaMarginal(a1, b1, *bounds),
             BetaMarginal(a2, b2, *bounds),
         ]
+        variable1 = IndependentMarginalsVariable(marginals1, backend=bkd)
+        samples = variable1.rvs(10)
+        assert bkd.allclose(
+            variable1.pdf(samples)[:, 0],
+            marginals1[0].pdf(samples[0]) * marginals1[1].pdf(samples[1]),
+        )
+        assert bkd.allclose(
+            variable1.logpdf(samples)[:, 0],
+            marginals1[0].logpdf(samples[0])
+            * marginals1[1].logpdf(samples[1]),
+        )
+        assert bkd.allclose(
+            bkd.mean(variable1.rvs(int(1e6)), axis=1),
+            variable1.mean()[:, 0],
+            rtol=1e-2,
+        )
+
         marginals2 = [
             BetaMarginal(a2, b2, *bounds),
             BetaMarginal(a1, b1, *bounds),
         ]
-        variable1 = CustomIndependentMarginalsVariable(marginals1)
-        variable2 = CustomIndependentMarginalsVariable(marginals2)
+        variable2 = IndependentMarginalsVariable(marginals2, backend=bkd)
 
-        quadx, quadw = np.polynomial.legendre.leggauss(100)
-        bkd = NumpyLinAlgMixin
+        quadx, quadw = bkd.asarray(np.polynomial.legendre.leggauss(100))
         quadx_01 = bkd.asarray((quadx + 1) / 2)
         quadw_01 = bkd.asarray(quadw / 2)
         quadx = bkd.cartesian_product([quadx_01] * 2)
@@ -163,9 +172,16 @@ class TestJoint(unittest.TestCase):
             variable1.kl_divergence(variable2), kl_div, rtol=1e-5
         )
 
-        # TODO expand test to other functions
+
+class TestNumpyJoint(TestJoint, unittest.TestCase):
+    def get_backend(self):
+        return NumpyLinAlgMixin
+
+
+class TestTorchJoint(TestJoint, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
 
 
 if __name__ == "__main__":
-    joint_test_suite = unittest.TestLoader().loadTestsFromTestCase(TestJoint)
-    unittest.TextTestRunner(verbosity=2).run(joint_test_suite)
+    unittest.main()

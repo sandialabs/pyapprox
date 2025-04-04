@@ -1,7 +1,8 @@
 import unittest
+
 import numpy as np
 from scipy import stats
-from warnings import warn
+import matplotlib.pyplot as plt
 
 from pyapprox.variables.marginals import (
     BetaMarginal,
@@ -25,6 +26,23 @@ class TestMarginals:
         samples = scipy_rv.rvs(nsamples)
         usamples = bkd.linspace(0, 1, 5)
         assert bkd.allclose(
+            bkd.asarray(marginal.median()), bkd.asarray([scipy_rv.median()])
+        )
+
+        if np.isfinite(scipy_rv.var()):
+            # some variables do not have finite mean
+            assert bkd.allclose(
+                bkd.asarray(marginal.mean()), bkd.asarray([scipy_rv.mean()])
+            )
+        if np.isfinite(scipy_rv.var()):
+            # some variables do not have finite variance
+            assert bkd.allclose(
+                bkd.asarray(marginal.std()), bkd.asarray([scipy_rv.std()])
+            )
+            assert bkd.allclose(
+                bkd.asarray(marginal.var()), bkd.asarray([scipy_rv.var()])
+            )
+        assert bkd.allclose(
             marginal.pdf(samples), bkd.asarray(scipy_rv.pdf(samples))
         )
         assert bkd.allclose(
@@ -36,6 +54,12 @@ class TestMarginals:
         assert bkd.allclose(
             marginal.ppf(usamples), bkd.asarray(scipy_rv.ppf(usamples))
         )
+        # tests plots run
+        axs = plt.subplots(1, 3, figsize=(3 * 8, 6))[1]
+        marginal.plot_pdf(axs[0])
+        marginal.plot_cdf(axs[1])
+        marginal.plot_ppf(axs[2])
+        plt.close()
 
     def _check_discrete_scipy_marginal(self, scipy_rv):
         bkd = self.get_backend()
@@ -43,6 +67,18 @@ class TestMarginals:
         nsamples = 3
         samples = scipy_rv.rvs(nsamples)
         usamples = bkd.linspace(0, 1, 5)
+        assert bkd.allclose(
+            bkd.asarray(marginal.median()), bkd.asarray([scipy_rv.median()])
+        )
+        assert bkd.allclose(
+            bkd.asarray(marginal.mean()), bkd.asarray([scipy_rv.mean()])
+        )
+        assert bkd.allclose(
+            bkd.asarray(marginal.std()), bkd.asarray([scipy_rv.std()])
+        )
+        assert bkd.allclose(
+            bkd.asarray(marginal.var()), bkd.asarray([scipy_rv.var()])
+        )
         assert bkd.allclose(
             marginal.pdf(samples), bkd.asarray(scipy_rv.pmf(samples))
         )
@@ -52,6 +88,12 @@ class TestMarginals:
         assert bkd.allclose(
             marginal.ppf(usamples), bkd.asarray(scipy_rv.ppf(usamples))
         )
+        # tests plots run
+        axs = plt.subplots(1, 3, figsize=(3 * 8, 6))[1]
+        marginal.plot_pdf(axs[0])
+        marginal.plot_cdf(axs[1])
+        marginal.plot_ppf(axs[2])
+        plt.close()
 
     def test_continuous_scipy_marginals(self):
         scipy_rvs = []
@@ -102,9 +144,9 @@ class TestMarginals:
             {}, {"kappa": 2}, {"kappa": 2}, {}, {"c": 0.5}, {"beta": 2},
             {"beta": 2}, {"beta": 2, "m": 2}, {"chi": 1}]
 
-        for name in scipy_continuous_marginal_names:
-            if name not in continuous_marginal_names:
-                warn(f"variable {name} is not tested", UserWarning)
+        # for name in scipy_continuous_marginal_names:
+        #     if name not in continuous_marginal_names:
+        #         warn(f"variable {name} is not tested", UserWarning, stacklevel=2)
 
         unsupported_continuous_marginal_names = ["ncf"]
 
@@ -129,7 +171,7 @@ class TestMarginals:
         for scipy_rv in scipy_rvs:
             self._check_continuous_scipy_marginal(scipy_rv)
 
-    def test_discrete_scipy_marginal(self):
+    def test_discrete_scipy_marginals(self):
         # fmt: off
         discrete_marginal_names = [
             "binom", "bernoulli", "nbinom", "geom", "hypergeom", "logser",
@@ -166,54 +208,86 @@ class TestMarginals:
             self._check_discrete_scipy_marginal(scipy_rv)
 
     def test_integer_discrete_variable(self):
+        bkd = self.get_backend()
         nmasses = 10
-        xk = np.geomspace(1.0, 32.0, num=nmasses)
-        pk = np.arange(1, 1 + nmasses, dtype=float)
-        pk /= np.sum(pk)
-        marginal = CustomDiscreteMarginal(xk, pk)
-        var = stats.rv_discrete(values=(xk, pk))
+        xk = bkd.asarray(np.geomspace(1.0, 32.0, num=nmasses))
+        pk = bkd.arange(1, 1 + nmasses, dtype=float)
+        pk /= bkd.sum(pk)
+        marginal = CustomDiscreteMarginal(xk, pk, backend=bkd)
+        scipy_rv = stats.rv_discrete(
+            values=(bkd.to_numpy(xk), bkd.to_numpy(pk))
+        )
         for power in [1, 2, 3]:
-            assert np.allclose(marginal.moment(power), var.moment(power))
+            assert bkd.allclose(
+                marginal.moment(power), bkd.asarray([scipy_rv.moment(power)])
+            )
 
         nsamples = int(1e6)
         samples = marginal.rvs(nsamples)
-        assert np.allclose(samples.mean(), marginal.moment(1), atol=1e-2)
-        assert np.allclose(np.cumsum(pk), marginal.cdf(xk))
+        assert bkd.allclose(samples.mean(), marginal.moment(1), rtol=1e-2)
+        assert bkd.allclose(
+            bkd.var(samples, ddof=1), bkd.asarray([scipy_rv.var()]), rtol=1e-2
+        )
+        assert bkd.allclose(bkd.cumsum(pk), marginal.cdf(xk))
+        assert bkd.allclose(marginal.mean(), bkd.asarray([scipy_rv.mean()]))
+        assert bkd.allclose(
+            marginal.median(), bkd.asarray([scipy_rv.median()])
+        )
+        assert bkd.allclose(marginal.std(), bkd.asarray([scipy_rv.std()]))
+        assert bkd.allclose(marginal.var(), bkd.asarray([scipy_rv.var()]))
+        usamples = bkd.linspace(0.01, 1, 50)
+        print(marginal.ppf(usamples) - bkd.asarray(scipy_rv.ppf(usamples)))
+        assert bkd.allclose(
+            marginal.ppf(usamples), bkd.asarray(scipy_rv.ppf(usamples))
+        )
 
     def test_variable_equivalence(self):
+        bkd = self.get_backend()
         # continuous scipy marginal different bounds
-        marginal1 = ContinuousScipyMarginal(stats.beta(1, 2, 0, 1))
-        marginal2 = ContinuousScipyMarginal(stats.beta(1, 2, 0, 2))
+        marginal1 = ContinuousScipyMarginal(
+            stats.beta(1, 2, 0, 1), backend=bkd
+        )
+        marginal2 = ContinuousScipyMarginal(
+            stats.beta(1, 2, 0, 2), backend=bkd
+        )
         assert marginal1 == marginal1
         assert marginal1 != marginal2
         assert marginal1.is_bounded()
 
         # continuous scipy marginal different shapes
-        marginal1 = ContinuousScipyMarginal(stats.beta(3, 2, 0, 1))
-        marginal2 = ContinuousScipyMarginal(stats.beta(1, 2, 0, 1))
+        marginal1 = ContinuousScipyMarginal(
+            stats.beta(3, 2, 0, 1), backend=bkd
+        )
+        marginal2 = ContinuousScipyMarginal(
+            stats.beta(1, 2, 0, 1), backend=bkd
+        )
         assert marginal1 == marginal1
         assert marginal1 != marginal2
 
         # bounded discrete scipy marginal different shapes
-        marginal1 = DiscreteScipyMarginal(stats.hypergeom(20, 7, 12))
-        marginal2 = DiscreteScipyMarginal(stats.hypergeom(20, 6, 12))
+        marginal1 = DiscreteScipyMarginal(
+            stats.hypergeom(20, 7, 12), backend=bkd
+        )
+        marginal2 = DiscreteScipyMarginal(
+            stats.hypergeom(20, 6, 12), backend=bkd
+        )
         assert marginal1 == marginal1
         assert marginal1 != marginal2
         assert marginal1.is_bounded()
 
         # unbounded discrete scipy marginal different shapes
-        marginal1 = DiscreteScipyMarginal(stats.geom(0.5))
-        marginal2 = DiscreteScipyMarginal(stats.geom(0.6))
+        marginal1 = DiscreteScipyMarginal(stats.geom(0.5), backend=bkd)
+        marginal2 = DiscreteScipyMarginal(stats.geom(0.6), backend=bkd)
         assert not marginal1.is_bounded()
         assert marginal1 == marginal1
         assert marginal1 != marginal2
 
         # custom discrete variable
         nmasses = 10
-        xk1 = np.arange(nmasses, dtype="float")
-        pk1 = np.ones(nmasses) / nmasses
-        xk2 = np.arange(nmasses, dtype="float")
-        pk2 = np.geomspace(1.0, 512.0, num=nmasses)
+        xk1 = bkd.arange(nmasses, dtype=float)
+        pk1 = bkd.ones(nmasses) / nmasses
+        xk2 = bkd.arange(nmasses, dtype=float)
+        pk2 = bkd.asarray(np.geomspace(1.0, 512.0, num=nmasses))
         pk2 /= pk2.sum()
         marginal1 = CustomDiscreteMarginal(xk1, pk1)
         marginal2 = CustomDiscreteMarginal(xk2, pk2)
@@ -222,11 +296,27 @@ class TestMarginals:
         assert marginal1.is_bounded()
 
     def test_gaussian(self):
-        bkd = TorchLinAlgMixin
+        bkd = self.get_backend()
         mean, stdev = 1, 2
         scipy_rv = stats.norm(mean, stdev)
         marginal = GaussianMarginal(mean, stdev, backend=bkd)
         samples = marginal.rvs(5)
+        assert bkd.allclose(
+            bkd.asarray([marginal.mean()]), bkd.asarray([scipy_rv.mean()])
+        )
+        assert bkd.allclose(
+            bkd.asarray(marginal.median()), bkd.asarray([scipy_rv.median()])
+        )
+        assert bkd.allclose(
+            bkd.asarray([marginal.std()]), bkd.asarray([scipy_rv.std()])
+        )
+        assert bkd.allclose(
+            bkd.asarray([marginal.var()]), bkd.asarray([scipy_rv.var()])
+        )
+        assert bkd.allclose(
+            bkd.asarray(marginal.pdf(samples)),
+            bkd.asarray(scipy_rv.pdf(samples)),
+        )
         assert bkd.allclose(
             marginal.pdf(samples), bkd.asarray(scipy_rv.pdf(samples))
         )
@@ -245,13 +335,19 @@ class TestMarginals:
         )
 
     def test_beta_variable(self):
-        bkd = TorchLinAlgMixin
+        bkd = self.get_backend()
         # bounds = [-1, 2]
         bounds = [0.0, 1.0]
         astat, bstat = bkd.asarray([2.0, 3.0])
         marginal = BetaMarginal(astat, bstat, *bounds, backend=bkd)
         samples = bkd.linspace(*bounds, 5)
         scipy_rv = stats.beta(astat, bstat, bounds[0], bounds[1] - bounds[0])
+        assert bkd.allclose(marginal.mean(), bkd.asarray([scipy_rv.mean()]))
+        assert bkd.allclose(
+            bkd.asarray(marginal.median()), bkd.asarray([scipy_rv.median()])
+        )
+        assert bkd.allclose(marginal.std(), bkd.asarray([scipy_rv.std()]))
+        assert bkd.allclose(marginal.var(), bkd.asarray([scipy_rv.var()]))
         assert bkd.allclose(
             marginal.pdf(samples), bkd.asarray(scipy_rv.pdf(samples))
         )

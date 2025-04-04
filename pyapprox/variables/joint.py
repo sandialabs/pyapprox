@@ -1,22 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List, Union, Tuple
 
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
 
 from pyapprox.variables.marginals import (
-    get_unique_variables,
-    get_distribution_info,
-    is_bounded_continuous_variable,
-    get_truncated_range,
     Marginal,
-)
-from pyapprox.variables._nataf import (
-    nataf_joint_density,
-    generate_x_samples_using_gaussian_copula,
-    transform_correlations,
-    scipy_gauss_hermite_pts_wts_1D,
+    ContinuousMarginalMixin,
+    ContinuousScipyMarginal,
+    DiscreteScipyMarginal,
 )
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -47,12 +40,6 @@ class JointVariable(ABC):
             Independent samples from the target distribution
         """
         raise NotImplementedError()
-
-    def __str__(self) -> str:
-        return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
-
-    def __repr__(self) -> str:
-        return self.__str__()
 
     def pdf_jacobian_implemented(self) -> bool:
         return False
@@ -131,234 +118,175 @@ class IndependentMarginalsVariable(JointVariable):
 
     def __init__(
         self,
-        unique_marginals: List,
-        unique_variable_indices: Array = None,
-        variable_labels=None,
-        backend=NumpyLinAlgMixin,
+        marginals: Union[
+            List[Marginal], List[Union[stats.rv_continuous, stats.rv_discrete]]
+        ],
+        unique_indices: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         """
         Constructor method
         """
         super().__init__(backend)
         self._bkd = backend
-        if unique_variable_indices is None:
-            self._unique_marginals, self._unique_variable_indices = (
-                get_unique_variables(unique_marginals)
+
+        original_marginals = marginals
+        marginals = []
+        for marginal in original_marginals:
+            if isinstance(marginal, Marginal):
+                marginals.append(marginal)
+                continue
+            if not hasattr(marginal, "dist"):
+                raise ValueError(
+                    "marginal must be an instance of Marginal or "
+                    "stats.rv_frozen"
+                )
+            if isinstance(marginal.dist, stats.rv_continuous):
+                marginals.append(
+                    ContinuousScipyMarginal(marginal, backend=backend)
+                )
+            elif isinstance(marginal.dist, stats.rv_discrete):
+                marginals.append(
+                    DiscreteScipyMarginal(marginal, backend=backend)
+                )
+            else:
+                raise RuntimeError("Should not happen")
+        if unique_indices is None:
+            self._unique_marginals, self._unique_indices = (
+                self._get_unique_marginals(marginals)
             )
         else:
-            self._unique_marginals = unique_marginals.copy()
-            self._unique_variable_indices = unique_variable_indices.copy()
+            self._unique_marginals = marginals
+            self._unique_indices = unique_indices
         self._nunique_vars = len(self._unique_marginals)
-        assert self._nunique_vars == len(self._unique_variable_indices)
         self._nvars = 0
         for ii in range(self._nunique_vars):
-            self._unique_variable_indices[ii] = np.asarray(
-                self._unique_variable_indices[ii]
-            )
-            self._nvars += self._unique_variable_indices[ii].shape[0]
-        if unique_variable_indices is None:
-            assert self._nvars == len(unique_marginals)
-        self._variable_labels = variable_labels
+            self._unique_indices[ii] = np.asarray(self._unique_indices[ii])
+            self._nvars += self._unique_indices[ii].shape[0]
+        if unique_indices is None and self._nvars != len(marginals):
+            raise ValueError("unique_indices and marginals are inconsistent")
+
+    def _get_unique_marginals(
+        self, marginals: List[Marginal]
+    ) -> Tuple[Marginal, Array]:
+        """
+        Get the unique 1D marginals from a list of marginals.
+        """
+        nvars = len(marginals)
+        unique_marginals = [marginals[0]]
+        unique_var_indices = [[0]]
+        for ii in range(1, nvars):
+            found = False
+            for jj in range(len(unique_marginals)):
+                if marginals[ii] == unique_marginals[jj]:
+                    unique_var_indices[jj].append(ii)
+                    found = True
+                    break
+            if not found:
+                unique_marginals.append(marginals[ii])
+                unique_var_indices.append([ii])
+        return unique_marginals, unique_var_indices
 
     def nvars(self) -> int:
         """
-        Return The number of independent 1D variables
+        Return The number of independent 1D marginals
 
         Returns
         -------
         nvars : integer
-            The number of independent 1D variables
+            The number of independent 1D marginals
         """
         return self._nvars
 
-    def marginals(self) -> list:
+    def marginals(self) -> List[Marginal]:
         """
-        Return a list of all the 1D scipy.stats random variables.
+        Return a list of all the 1D Marginals.
 
         Returns
         -------
-        variables : list
-            List of :class:`scipy.stats.dist` variables
+        marginals : list
+            List of 1D Marginals
         """
         all_variables = [None for ii in range(self.nvars())]
         for ii in range(self._nunique_vars):
-            for jj in self._unique_variable_indices[ii]:
+            for jj in self._unique_indices[ii]:
                 all_variables[jj] = self._unique_marginals[ii]
         return all_variables
 
-    def get_statistics(self, function_name: str, *args, **kwargs) -> Array:
-        """
-        Get a statistic from each univariate random variable.
+    def mean(self) -> Array:
+        return self._bkd.asarray(
+            [marginal.mean() for marginal in self.marginals()]
+        )[:, None]
 
-        Parameters
-        ----------
-        function_name : str
-            The function name of the scipy random variable statistic of
-            interest
+    def std(self) -> Array:
+        return self._bkd.asarray(
+            [marginal.std() for marginal in self.marginals()]
+        )[:, None]
 
-        kwargs : kwargs
-            The arguments to the scipy statistic function
+    def var(self) -> Array:
+        return self._bkd.asarray(
+            [marginal.var() for marginal in self.marginals()]
+        )[:, None]
 
-        Returns
-        -------
-        stat : Array
-            The output of the stat function
+    def median(self) -> Array:
+        return self._bkd.asarray(
+            [marginal.median() for marginal in self.marginals()]
+        )[:, None]
 
-        Examples
-        --------
-        >>> import pyapprox as pya
-        >>> from scipy.stats import uniform
-        >>> nvars = 2
-        >>> variable = pya.IndependentMarginalsVariable([uniform(-2, 3)], [np.arange(nvars)])
-        >>> variable.get_statistics("interval", confidence=1)
-        array([[-2.,  1.],
-               [-2.,  1.]])
-        >>> variable.get_statistics("pdf",x=np.linspace(-2, 1, 3))
-        array([[0.33333333, 0.33333333, 0.33333333],
-               [0.33333333, 0.33333333, 0.33333333]])
+    def interval(self, alpha: float) -> Array:
+        return self._bkd.stack(
+            [marginal.interval(alpha) for marginal in self.marginals()], axis=0
+        )
 
-        """
-        for ii in range(self._nunique_vars):
-            var = self._unique_marginals[ii]
-            indices = self._unique_variable_indices[ii]
-            stats_ii = self._bkd.atleast1d(
-                self._bkd.asarray(getattr(var, function_name)(*args, **kwargs))
-            )
-            assert stats_ii.ndim == 1
-            if ii == 0:
-                stats = self._bkd.empty((self.nvars(), stats_ii.shape[0]))
-            stats[indices] = stats_ii
-        return stats
+    def _check_samples(self, samples: Array):
+        if samples.ndim != 2 or samples.shape[0] != self.nvars():
+            raise ValueError("samples has the wrong shape")
 
-    def evaluate(self, function_name: str, x: Array) -> Array:
-        """
-        Evaluate a frunction for each univariate random variable.
-
-        Parameters
-        ----------
-        function_name : string
-            The function name of the scipy random variable statistic of
-            interest
-
-        x : np.ndarray (nsamples)
-            The input to the scipy statistic function
-
-        Returns
-        -------
-        stat : np.ndarray (nsamples, nqoi)
-            The outputs of the stat function for each variable
-        """
-        stats = None
-        for ii in range(self._nunique_vars):
-            var = self._unique_marginals[ii]
-            indices = self._unique_variable_indices[ii]
-            for jj in indices:
-                stats_jj = self._bkd.atleast1d(
-                    self._bkd.asarray(getattr(var, function_name)(x[jj, :]))
-                )
-                assert stats_jj.ndim == 1
-                if stats is None:
-                    stats = self._bkd.empty((self.nvars(), stats_jj.shape[0]))
-                stats[jj] = stats_jj
-        return stats
-
-    def pdf(self, x: Array) -> Array:
+    def pdf(self, samples: Array) -> Array:
         """
         Evaluate the joint probability distribution function.
 
         Parameters
         ----------
-        x : np.ndarray (nvars, nsamples)
+        samples : np.ndarray (nvars, nsamples)
             Values in the domain of the random variable X
-
-        log : boolean
-            True - return the natural logarithm of the PDF values
-            False - return the PDF values
 
         Returns
         -------
         values : np.ndarray (nsamples, 1)
             The values of the PDF at x
         """
-        assert x.shape[0] == self.nvars()
-        marginal_vals = self.evaluate("pdf", x)
+        self._check_samples(samples)
+        marginal_vals = self._bkd.stack(
+            [
+                marginal.pdf(samples[ii])
+                for ii, marginal in enumerate(self.marginals())
+            ],
+            axis=0,
+        )
         return self._bkd.prod(marginal_vals, axis=0)[:, None]
 
-    def log_pdf(self, x: Array, log: bool = False) -> Array:
-        assert x.shape[0] == self.nvars()
-        marginal_vals = self.evaluate("logpdf", x)
-        return self._bkd.sum(marginal_vals, axis=0)[:, None]
+    def logpdf(self, samples: Array, log: bool = False) -> Array:
+        self._check_samples(samples)
+        marginal_vals = self._bkd.stack(
+            [
+                marginal.logpdf(samples[ii])
+                for ii, marginal in enumerate(self.marginals())
+            ],
+            axis=0,
+        )
+        return self._bkd.prod(marginal_vals, axis=0)[:, None]
 
-    def _evaluate(self, function_name: str, x: Array):
-        """
-        Evaluate a frunction for each univariate random variable using rv.dist
-        This is faster than evaluate because it avoids error checks.
-        Use with caution. dist is only for canonical distribution so
-        user must transform variables before using this function
-
-        Parameters
-        ----------
-        function_name : string
-            The function name of the scipy random variable statistic of
-            interest
-
-        x : np.ndarray (nsamples)
-            The input to the scipy statistic function
-
-        Returns
-        -------
-        stat : np.ndarray (nsamples, nqoi)
-            The outputs of the stat function for each variable
-        """
-        stats = None
-        for ii in range(self._nunique_vars):
-            var = self._unique_marginals[ii]
-            indices = self._unique_variable_indices[ii]
-            for jj in indices:
-                stats_jj = self._bkd.atleast1d(
-                    getattr(var.dist, function_name)(x[jj, :])
-                )
-                assert stats_jj.ndim == 1
-                if stats is None:
-                    stats = self._bkd.empty((self.nvars(), stats_jj.shape[0]))
-                stats[jj] = stats_jj
-        return stats
-
-    def _pdf(self, x: Array, log: bool = False) -> Array:
-        if not log:
-            marginal_vals = self._evaluate("_pdf", x)
-            return self._bkd.prod(marginal_vals, axis=0)[:, None]
-
-        marginal_vals = self._evaluate("_logpdf", x)
-        return self._bkd.sum(marginal_vals, axis=0)[:, None]
-
-    def __str__(self) -> str:
-        variable_labels = self._variable_labels
-        if variable_labels is None:
-            variable_labels = ["z%d" % ii for ii in range(self.nvars())]
-        string = "Independent Marginal Variable\n"
-        string += f"Number of variables: {self.nvars()}\n"
-        string += "Unique variables and global id:\n"
-        for ii in range(self._nunique_vars):
-            var = self._unique_marginals[ii]
-            indices = self._unique_variable_indices[ii]
-            name, scales, shapes = get_distribution_info(var)
-            shape_string = ",".join(
-                [f"{name}={val}" for name, val in shapes.items()]
+    def __repr__(self) -> str:
+        if self.nvars() > 5:
+            return "{0}(nvars={1})".format(
+                self.__class__.__name__, self.nvars()
             )
-            scales_string = ",".join(
-                [f"{name}={val}" for name, val in scales.items()]
-            )
-            string += "    " + var.dist.name + "("
-            if len(shapes) > 0:
-                string += ",".join([shape_string, scales_string])
-            else:
-                string += scales_string
-            string += "): "
-            string += ", ".join([variable_labels[idx] for idx in indices])
-            if ii < self._nunique_vars - 1:
-                string += "\n"
-        return string
+        return "{0}(nvars={1}, {2})".format(
+            self.__class__.__name__,
+            self.nvars(),
+            ", ".join([str(m) for m in self.marginals()]),
+        )
 
     def is_bounded_continuous_variable(self) -> bool:
         """
@@ -370,124 +298,53 @@ class IndependentMarginalsVariable(JointVariable):
             True - all 1D variables are continuous and bounded
             False - otherwise
         """
-        for rv in self._unique_marginals:
-            if not is_bounded_continuous_variable(rv):
+        for marginal in self._unique_marginals:
+            if not marginal.is_bounded() or not isinstance(
+                marginal, ContinuousMarginalMixin
+            ):
                 return False
         return True
 
-    def rvs(self, num_samples: int, random_states=None) -> Array:
+    def rvs(self, nsamples: int) -> Array:
         """
         Generate samples from a tensor-product probability measure.
 
         Parameters
         ----------
-        num_samples : integer
+        nsamples : integer
             The number of samples to generate
 
         Returns
         -------
-        samples : np.ndarray (nvars, num_samples)
+        samples : np.ndarray (nvars, nsamples)
             Independent samples from the target distribution
         """
-        num_samples = int(num_samples)
-        samples = self._bkd.empty((self.nvars(), num_samples), dtype=float)
-        if random_states is not None:
-            assert len(random_states) == self.nvars()
-        else:
-            random_states = [None] * self.nvars()
-        for ii in range(self._nunique_vars):
-            var = self._unique_marginals[ii]
-            indices = self._unique_variable_indices[ii]
-            # samples[indices, :] = self._bkd.asarray(
-            samples = self._bkd.up(
-                samples,
-                indices,
-                self._bkd.asarray(
-                    var.rvs(
-                        size=(indices.shape[0], num_samples),
-                        random_state=random_states[ii],
-                    )
-                ),
-                axis=0,
-            )
-        return samples
+        marginal_samples = [
+            marginal.rvs(nsamples) for marginal in self.marginals()
+        ]
+        return self._bkd.stack(marginal_samples, axis=0)
 
-
-class GaussCopulaVariable(JointVariable):
-    """
-    Multivariate random variable with Gaussian correlation and arbitrary
-    marginals
-    """
-
-    def __init__(
-        self,
-        marginals: List,
-        x_correlation: Array,
-        bisection_opts: dict = {},
-        backend: LinAlgMixin = NumpyLinAlgMixin,
-    ):
-        super().__init__(backend)
-        self._nvars = len(marginals)
-        self._marginals = marginals
-        self._x_correlation = x_correlation
-        self._x_marginal_means = self._bkd.array(
-            [m.mean() for m in self._marginals]
-        )
-        self._x_marginal_stdevs = self._bkd.array(
-            [m.std() for m in self._marginals]
-        )
-        self._x_marginal_pdfs = [m.pdf for m in self._marginals]
-        self._x_marginal_cdfs = [m.cdf for m in self._marginals]
-        self._x_marginal_inv_cdfs = [m.ppf for m in self._marginals]
-
-        quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
-        self._z_correlation = transform_correlations(
-            self._x_correlation,
-            self._x_marginal_inv_cdfs,
-            self._x_marginal_means,
-            self._x_marginal_stdevs,
-            quad_rule,
-            bisection_opts,
-        )
-        self._z_variable = stats.multivariate_normal(
-            mean=self._bkd.zeros((self._nvars)), cov=self._z_correlation
+    def kl_divergence(self, other: "IndependentMarginalsVariable"):
+        for marginal in self.marginals():
+            if not marginal.kl_divergence_implemented():
+                raise NotImplementedError(
+                    f"{marginal} does not support KL divergence so divergence "
+                    "of joint cannot be computed"
+                )
+        other_marginals = other.marginals()
+        return sum(
+            [
+                marginal.kl_divergence(other_marginals[ii])
+                for ii, marginal in enumerate(self.marginals())
+            ]
         )
 
-    def z_joint_density(self, z_samples: Array) -> Array:
-        return self._z_variable.pdf(z_samples.T)
 
-    def pdf(self, x_samples: Array, log: bool = False) -> Array:
-        vals = nataf_joint_density(
-            x_samples,
-            self._x_marginal_cdfs,
-            self._x_marginal_pdfs,
-            self.z_joint_density,
-            self._bkd,
-        )
-        if not log:
-            return vals
-        return self._bkd.log(vals)
-
-    def nvars(self) -> int:
-        return self._nvars
-
-    def rvs(self, nsamples: int, return_all: bool = False) -> Array:
-        out = generate_x_samples_using_gaussian_copula(
-            self.nvars(),
-            self._z_correlation,
-            self._x_marginal_inv_cdfs,
-            nsamples,
-            bkd=self._bkd,
-        )
-        if not return_all:
-            return out[0]
-        return out
-
-    def marginals(self) -> list:
-        return self._marginals
-
-
-def define_iid_random_variable(rv, nvars: int) -> IndependentMarginalsVariable:
+def define_iid_random_variable(
+    marginal: Union[Marginal, stats.rv_continuous, stats.rv_discrete],
+    nvars: int,
+    backend: LinAlgMixin = NumpyLinAlgMixin,
+) -> IndependentMarginalsVariable:
     """
     Create independent identically distributed variables
 
@@ -504,9 +361,22 @@ def define_iid_random_variable(rv, nvars: int) -> IndependentMarginalsVariable:
     variable : :class:`pyapprox.variables.IndependentMarginalsVariable`
         The multivariate random variable
     """
-    unique_marginals = [rv]
-    unique_var_indices = [np.arange(nvars)]
-    return IndependentMarginalsVariable(unique_marginals, unique_var_indices)
+    if isinstance(marginal, Marginal):
+        unique_marginals = [marginal]
+    elif not hasattr(marginal, "dist"):
+        raise ValueError(
+            "marginal must be an instance of Marginal or " "stats.rv_frozen"
+        )
+    elif isinstance(marginal.dist, stats.rv_continuous):
+        unique_marginals = [ContinuousScipyMarginal(marginal, backend=backend)]
+    elif isinstance(marginal.dist, stats.rv_discrete):
+        unique_marginals = [DiscreteScipyMarginal(marginal, backend=backend)]
+    else:
+        raise ValueError(
+            "marginal must be an instance of Marginal or " "stats.rv_frozen"
+        )
+    unique_indices = [backend.arange(nvars)]
+    return IndependentMarginalsVariable(unique_marginals, unique_indices)
 
 
 def get_truncated_ranges(
@@ -622,10 +492,10 @@ class DesignVariable:
 class FiniteSamplesVariable(JointVariable):
     def __init__(
         self,
-        samples,
-        randomness="replacement",
-        weights=None,
-        backend=NumpyLinAlgMixin,
+        samples: Array,
+        randomness: str = "replacement",
+        weights: Array = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
     ):
         super().__init__(backend)
         self._samples = samples.copy()
@@ -643,7 +513,7 @@ class FiniteSamplesVariable(JointVariable):
                 "weights must be none when randomly sampling with replacement"
             )
 
-    def _rvs_deterministic(self, nsamples):
+    def _rvs_deterministic(self, nsamples: int) -> Array:
         if self._sample_cnt + nsamples > self._samples.shape[1]:
             msg = "Too many samples requested when randomness is None. "
             msg += f"self._sample+cnt_nsamples={self._sample_cnt+nsamples}"
@@ -675,44 +545,3 @@ class FiniteSamplesVariable(JointVariable):
         otherwise sample according to weights
         """
         return self._rvs(nsamples)[0]
-
-
-class CustomIndependentMarginalsVariable(JointVariable):
-    def __init__(self, marginals: List[Marginal]):
-        super().__init__(marginals[0]._bkd)
-        self._marginals = marginals
-
-    def nvars(self) -> int:
-        return len(self._marginals)
-
-    def rvs(self, nsamples: int) -> Array:
-        marginal_samples = [
-            marginal.rvs(nsamples) for marginal in self._marginals
-        ]
-        return self._bkd.stack(marginal_samples, axis=0)
-
-    def pdf(self, samples: Array) -> Array:
-        marginal_vals = self._bkd.hstack(
-            [
-                marginal.pdf(samples[ii : ii + 1])
-                for ii, marginal in enumerate(self._marginals)
-            ]
-        )
-        return self._bkd.prod(marginal_vals, axis=1)[:, None]
-
-    def log_pdf(self, samples: Array) -> Array:
-        marginal_vals = self._bkd.hstack(
-            [
-                marginal.log_pdf(samples[ii : ii + 1])
-                for ii, marginal in enumerate(self._marginals)
-            ],
-        )
-        return self._bkd.prod(marginal_vals, axis=1)[:, None]
-
-    def kl_divergence(self, other: "CustomIndependentMarginalsVariable"):
-        return sum(
-            [
-                marginal.kl_divergence(other._marginals[ii])
-                for ii, marginal in enumerate(self._marginals)
-            ]
-        )

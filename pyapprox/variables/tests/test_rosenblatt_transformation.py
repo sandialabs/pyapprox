@@ -212,7 +212,7 @@ def rosenblatt_example_2d(nsamples=10000, density_num=1, run_tests=False):
     for jj in range(nsamples):
         val = invert_cdf(
             trans_samples[0, jj : jj + 1], marginal_cdf_x, limits[:2]
-        )
+        )[0]
         inverse_trans_samples[0, jj] = val
 
     for jj in range(nsamples):
@@ -229,7 +229,7 @@ def rosenblatt_example_2d(nsamples=10000, density_num=1, run_tests=False):
 
         inverse_trans_samples[1, jj] = invert_cdf(
             trans_samples[1, jj : jj + 1], cdffun, limits[2:]
-        )
+        )[0]
     assert np.allclose(inverse_trans_samples, samples)
 
     return samples, trans_samples, joint_density, limits
@@ -439,7 +439,6 @@ class TestRosenblattTransform:
         true_trans_samples = np.empty_like(trans_samples)
         for ii in range(nvars):
             true_trans_samples[ii, :] = stats.norm.cdf(samples[ii, :])
-        print((np.linalg.norm(true_trans_samples - trans_samples)))
         assert np.allclose(true_trans_samples, trans_samples)
 
         samples, true_trans_samples, joint_density, limits = (

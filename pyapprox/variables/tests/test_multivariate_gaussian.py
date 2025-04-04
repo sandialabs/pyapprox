@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 from scipy import stats
 
+from pyapprox.variables.marginals import ContinuousScipyMarginal
 from pyapprox.variables.gaussian import (
     compute_gaussian_pdf_canonical_form_normalization,
     GaussianFactor,
@@ -21,10 +22,14 @@ from pyapprox.variables.gaussian import (
     expand_scope_of_gaussian,
     DenseCholeskyMultivariateGaussian,
     IndependentMultivariateGaussian,
+    GaussCopulaVariable,
 )
+from pyapprox.util.utilities import correlation_to_covariance
+from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
 
 
-class TestGaussian(unittest.TestCase):
+class TestGaussian:
     def setUp(self):
         np.random.seed(1)
 
@@ -557,9 +562,36 @@ class TestGaussian(unittest.TestCase):
         # print(true_new_matrix)
         assert np.allclose(new_matrix, true_new_matrix)
 
+    def test_gauss_copula_variable(self):
+        bkd = self.get_backend()
+        nsamples = 10000
+        nvars, alpha_stat, beta_stat = 2, 2, 5
+        marginals = [
+            ContinuousScipyMarginal(
+                stats.beta(a=alpha_stat, b=beta_stat), backend=bkd
+            )
+        ] * nvars
+
+        x_correlation = bkd.array([[1, 0.7], [0.7, 1]])
+        variable = GaussCopulaVariable(marginals, x_correlation, backend=bkd)
+        x_samples, true_u_samples = variable.rvs(nsamples, True)
+        x_sample_covariance = bkd.cov(x_samples)
+
+        true_x_covariance = correlation_to_covariance(
+            x_correlation, bkd.asarray([m.std() for m in marginals])
+        )
+        assert bkd.allclose(true_x_covariance, x_sample_covariance, atol=1e-2)
+
+
+class TestNumpyGaussian(TestGaussian, unittest.TestCase):
+    def get_backend(self):
+        return NumpyLinAlgMixin
+
+
+class TestTorchGaussian(TestGaussian, unittest.TestCase):
+    def get_backend(self):
+        return TorchLinAlgMixin
+
 
 if __name__ == "__main__":
-    gaussian_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestGaussian
-    )
-    unittest.TextTestRunner(verbosity=2).run(gaussian_test_suite)
+    unittest.main()

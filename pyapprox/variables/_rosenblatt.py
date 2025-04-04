@@ -328,7 +328,7 @@ def inverse_rosenblatt_transformation(
     for jj in range(nsamples):
         trans_samples[0, jj] = invert_cdf(
             samples[0, jj : jj + 1], cdffun, limits[:2], tol, nbins
-        )
+        )[0]
 
     for ii in range(1, nvars):
         active_vars = np.arange(ii)
@@ -376,7 +376,7 @@ def inverse_rosenblatt_transformation(
                 limits[2 * ii : 2 * ii + 2],
                 tol,
                 nbins,
-            )
+            )[0]
             trans_samples[ii, jj] = icdf_val
     return trans_samples
 

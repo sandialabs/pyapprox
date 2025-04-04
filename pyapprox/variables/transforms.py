@@ -3,10 +3,6 @@ from typing import List, Dict
 import numpy as np
 from scipy import stats
 
-from pyapprox.variables.marginals import (
-    is_bounded_continuous_variable,
-    transform_scale_parameters,
-)
 from pyapprox.variables._rosenblatt import (
     rosenblatt_transformation,
     inverse_rosenblatt_transformation,
@@ -54,9 +50,9 @@ class AffineTransform(Transform):
             (self._variable._nunique_vars, 2)
         )
         for ii in range(self._variable._nunique_vars):
-            var = self._variable._unique_marginals[ii]
+            marginal = self._variable._unique_marginals[ii]
             self.scale_parameters[ii, :] = self._bkd.array(
-                transform_scale_parameters(var)
+                marginal._transform_scale_parameters()
             )
 
     def variable(self) -> IndependentMarginalsVariable:
@@ -78,7 +74,7 @@ class AffineTransform(Transform):
     def map_to_canonical(self, user_samples: Array) -> Array:
         canonical_samples = self._bkd.copy(user_samples)
         for ii in range(self._variable._nunique_vars):
-            indices = self._variable._unique_variable_indices[ii]
+            indices = self._variable._unique_indices[ii]
             loc, scale = self.scale_parameters[ii, :]
 
             bounds = [loc - scale, loc + scale]
@@ -113,7 +109,7 @@ class AffineTransform(Transform):
     def map_from_canonical(self, canonical_samples: Array) -> Array:
         user_samples = self._bkd.copy(canonical_samples)
         for ii in range(self._variable._nunique_vars):
-            indices = self._variable._unique_variable_indices[ii]
+            indices = self._variable._unique_indices[ii]
             loc, scale = self.scale_parameters[ii, :]
             if self.identity_map_indices is not None:
                 active_indices = np.setdiff1d(
@@ -169,7 +165,7 @@ class AffineTransform(Transform):
         nsamples = int(derivatives.shape[0] / self.nvars())
         mapped_derivatives = derivatives.copy()
         for ii in range(self._variable._nunique_vars):
-            var_indices = self._variable._unique_variable_indices[ii]
+            var_indices = self._variable._unique_indices[ii]
             idx = np.tile(var_indices * nsamples, nsamples) + np.tile(
                 np.arange(nsamples), var_indices.shape[0]
             )
@@ -196,7 +192,7 @@ class AffineTransform(Transform):
         nsamples = int(canonical_derivatives.shape[0] / self.nvars())
         derivatives = canonical_derivatives.copy()
         for ii in range(self._variable._nunique_vars):
-            var_indices = self._variable._unique_variable_indices[ii]
+            var_indices = self._variable._unique_indices[ii]
             idx = np.tile(var_indices * nsamples, nsamples) + np.tile(
                 np.arange(nsamples), var_indices.shape[0]
             )
@@ -251,7 +247,6 @@ class OperatorBasedGaussianTransform(Transform):
 
     def map_from_canonical(self, canonical_samples: Array) -> Array:
         centered_samples = self._cov_sqrt_op(canonical_samples)
-        print(centered_samples.shape)
         if centered_samples.shape[0] != self._mean.shape[0]:
             raise RuntimeError(
                 "covariance operator returns vector inconsistent with the "
@@ -280,7 +275,6 @@ class DenseGaussianTransform(OperatorBasedGaussianTransform):
         self._cov_sqrt = self._bkd.cholesky(self._cov)
 
     def _cov_sqrt_op(self, samples: Array) -> Array:
-        print(self._cov_sqrt.shape, samples.shape)
         return self._cov_sqrt @ samples
 
     def _inv_cov_sqrt_op(self, samples: Array) -> Array:

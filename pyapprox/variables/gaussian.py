@@ -1,5 +1,6 @@
 import copy
 from abc import ABC, abstractmethod
+from typing import List
 
 import numpy as np
 from scipy import stats
@@ -7,10 +8,17 @@ from scipy import stats
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.variables.joint import JointVariable
+from pyapprox.variables.marginals import Marginal
 from pyapprox.util.linalg import (
     inverse_of_cholesky_factor,
     diag_of_mat_mat_product,
     log_determinant_from_cholesky_factor,
+)
+from pyapprox.variables._nataf import (
+    nataf_joint_density,
+    generate_x_samples_using_gaussian_copula,
+    transform_correlations,
+    scipy_gauss_hermite_pts_wts_1D,
 )
 
 
@@ -1703,3 +1711,86 @@ class GaussianFactor(object):
             self.var_ids[remain_indices],
             self.nvars_per_var[remain_indices],
         )
+
+
+class GaussCopulaVariable(JointVariable):
+    """
+    Multivariate random variable with Gaussian correlation and arbitrary
+    marginals
+    """
+
+    def __init__(
+        self,
+        marginals: List[Marginal],
+        x_correlation: Array,
+        bisection_opts: dict = {},
+        backend: LinAlgMixin = NumpyLinAlgMixin,
+    ):
+        super().__init__(backend)
+        self._nvars = len(marginals)
+        for marginal in marginals:
+            if not isinstance(marginal, Marginal):
+                raise ValueError("marginal must be an instance of Marginal")
+        self._marginals = marginals
+        self._x_correlation = x_correlation
+        self._x_marginal_means = self._bkd.array(
+            [m.mean() for m in self._marginals]
+        )
+        self._x_marginal_stdevs = self._bkd.array(
+            [m.std() for m in self._marginals]
+        )
+        self._x_marginal_pdfs = [m.pdf for m in self._marginals]
+        self._x_marginal_cdfs = [m.cdf for m in self._marginals]
+        self._x_marginal_inv_cdfs = [m.ppf for m in self._marginals]
+
+        quad_rule_tuple = scipy_gauss_hermite_pts_wts_1D(11, self._bkd)
+        self._z_correlation = transform_correlations(
+            self._x_correlation,
+            self._x_marginal_inv_cdfs,
+            self._x_marginal_means,
+            self._x_marginal_stdevs,
+            quad_rule_tuple,
+            bisection_opts,
+            bkd=self._bkd,
+        )
+        # self._z_variable = stats.multivariate_normal(
+        #     mean=self._bkd.zeros((self._nvars)), cov=self._z_correlation
+        # )
+        self._variable = DenseCholeskyMultivariateGaussian(
+            self._bkd.zeros((self._nvars, 1)),
+            cov=self._z_correlation,
+            backend=self._bkd,
+        )
+
+    def z_joint_density(self, z_samples: Array) -> Array:
+        return self._z_variable.pdf(z_samples.T)
+
+    def pdf(self, x_samples: Array, log: bool = False) -> Array:
+        vals = nataf_joint_density(
+            x_samples,
+            self._x_marginal_cdfs,
+            self._x_marginal_pdfs,
+            self.z_joint_density,
+            self._bkd,
+        )
+        if not log:
+            return vals
+        return self._bkd.log(vals)
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def rvs(self, nsamples: int, return_all: bool = False) -> Array:
+        out = generate_x_samples_using_gaussian_copula(
+            self.nvars(),
+            self._z_correlation,
+            self._x_marginal_inv_cdfs,
+            nsamples,
+            bkd=self._bkd,
+        )
+        if not return_all:
+            return out[0]
+        return out
+
+    def marginals(self) -> list:
+        return self._marginals

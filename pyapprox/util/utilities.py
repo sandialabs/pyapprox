@@ -1257,10 +1257,10 @@ def check_hessian(
     return np.asarray(errors)
 
 
-def scipy_gauss_hermite_pts_wts_1D(nn):
+def scipy_gauss_hermite_pts_wts_1D(nn, bkd: LinAlgMixin = NumpyLinAlgMixin):
     x, w = roots_hermitenorm(nn)
     w /= np.sqrt(2 * np.pi)
-    return x, w
+    return bkd.asarray(x), bkd.asarray(w)
 
 
 def scipy_gauss_legendre_pts_wts_1D(nn):

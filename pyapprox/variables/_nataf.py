@@ -10,9 +10,9 @@ from pyapprox.util.utilities import (
     scipy_gauss_hermite_pts_wts_1D,
     get_correlation_from_covariance,
 )
-from pyapprox.util.visualization import get_meshgrid_function_data
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.variables.marginals import GaussianMarginal
 
 
 def corrcoeffij(
@@ -35,11 +35,13 @@ def corrcoeffij(
     chol_factor = bkd.cholesky(corr)
 
     # do the gauss-hermite quadrature
-    u = bkd.empty((2,), dtype=bkd.double_type())
-    x = bkd.empty((2,), dtype=bkd.double_type())
+    u = bkd.empty((2,))
+    x = bkd.empty((2,))
 
     corrij_corrected = 0.0
     quad_x, quad_w = quad_rule
+
+    marginal = GaussianMarginal(0, 1, backend=bkd)
 
     for ii in range(quad_x.shape[0]):
         for jj in range(quad_x.shape[0]):
@@ -49,9 +51,9 @@ def corrcoeffij(
             z = chol_factor @ u  # equation (18)
             # do the nataf transformation: x = F^-1(Phi(z))
             # idim: z -> u -> x
-            x[0] = x_inv_cdfs[0](stats.norm.cdf(z[0]))  # equation (19)
+            x[0] = x_inv_cdfs[0](marginal.cdf(z[0:1]))[0]  # equation (19)
             # jdim: z -> u -> x
-            x[1] = x_inv_cdfs[1](stats.norm.cdf(z[1]))  # equation (19)
+            x[1] = x_inv_cdfs[1](marginal.cdf(z[1:2]))[0]  # equation (19)
 
             # normalize the values to obtain the correlation coefficient
             x[0] = (x[0] - x_means[0]) / x_stdevs[0]
