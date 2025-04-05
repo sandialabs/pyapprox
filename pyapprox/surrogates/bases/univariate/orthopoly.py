@@ -1,9 +1,9 @@
 import math
 from abc import abstractmethod
-
 from warnings import warn
-from typing import Tuple, List
+from typing import Tuple
 
+import numpy as np
 from scipy import stats
 
 from pyapprox.surrogates.bases.univariate.orthonormal_recursions import (
@@ -263,7 +263,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
 
         Returns
         -------
-        abc : array (num_recursion_coeffs,3)
+        abc : array (nrecursion_coeffs,3)
            The three term recursion coefficients
            :math:`\tilde{a}_n,\tilde{b}_n,\tilde{c}_n`
         """
@@ -407,6 +407,41 @@ class HermitePolynomial1D(OrthonormalPolynomial1D):
         return hermite_recurrence(
             ncoefs, rho=self._rho, probability=self._prob_meas
         )
+
+    def _radial_equilibrium_rvs(self, nvars: int, nsamples: int) -> Array:
+        r = self._bkd.asarray(
+            np.random.beta(nvars / 2.0, nvars / 2.0 + 1, size=nsamples)
+        )
+        return math.sqrt(2) * self._bkd.sqrt(r)
+
+    def _equilibrium_rvs(
+        self, nvars: int, degree: int, nsamples: int
+    ) -> Array:
+        """
+        Multivariate scaled sampling from the (conjectured) weighted
+        equilibrium measure on (-Inf, Inf)^num_vars.
+
+        Samples num_pts samples from the multivariate weighted equilibrium
+        measure, whose unnormalized density is
+
+            rho(x) = sqrt( 2 - ||x||^2 )^(num_vars/2),  ||x|| < sqrt(2)
+
+        where ||x|| is the l2 norm of the vector x. The samples from this
+        density are subsequently expanded by sqrt(degree).
+
+        This assumes sampling for Hermite polynomials that are orthonormal
+        under the weight function exp(-0.5*||x||^2).
+        """
+        usamples = self._bkd.asarray(
+            np.random.normal(0.0, 1.0, (nvars, nsamples))
+        )
+        norms = self._bkd.sqrt(self._bkd.sum(usamples**2, axis=0))
+        radial_samples = (
+            self._radial_equilibrium_rvs(nvars, nsamples)
+            * math.sqrt(degree)
+            / norms
+        ) / 0.5
+        return usamples * radial_samples
 
 
 class KrawtchoukPolynomial1D(OrthonormalPolynomial1D):
@@ -1073,18 +1108,18 @@ def evaluate_three_term_recurrence_polynomial_1d(
 
     Parameters
     ----------
-    abc :  array (num_recursion_coeffs,3)
+    abc :  array (nrecursion_coeffs,3)
        The recursion coefficients
 
     nmax : integer
        The maximum degree of the polynomials to be evaluated (N+1)
 
-    x :  darray (num_samples)
+    x :  darray (nsamples)
        The samples at which to evaluate the polynomials
 
     Returns
     -------
-    p :  bkd.ndarray (num_samples, num_indices)
+    p :  bkd.ndarray (nsamples, nindices)
        The values of the polynomials at the samples
     """
     assert x.ndim == 1
