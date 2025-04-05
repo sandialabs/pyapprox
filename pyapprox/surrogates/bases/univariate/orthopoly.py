@@ -819,7 +819,11 @@ def setup_univariate_orthogonal_polynomial_from_marginal(
     if hasattr(shapes, "xk"):
         xk, pk = shapes["xk"], shapes["pk"]
     else:
-        xk, pk = marginal._probability_masses()
+        if marginal.is_bounded():
+            alpha = 1.0
+        else:
+            alpha = 1 - 1e-8
+        xk, pk = marginal._probability_masses(alpha)
 
     loc, scale = marginal._transform_scale_parameters()
     xk = (xk - loc) / scale

@@ -56,9 +56,9 @@ class TestMarginals:
         )
         # tests plots run
         axs = plt.subplots(1, 3, figsize=(3 * 8, 6))[1]
-        marginal.plot_pdf(axs[0], alpha=1 - 1e-2)
-        marginal.plot_cdf(axs[1], alpha=1 - 1e-2)
-        marginal.plot_ppf(axs[2], alpha=1 - 1e-2)
+        marginal.plot_pdf(axs[0])
+        marginal.plot_cdf(axs[1])
+        marginal.plot_ppf(axs[2])
         plt.close()
 
     def _check_discrete_scipy_marginal(self, scipy_rv):

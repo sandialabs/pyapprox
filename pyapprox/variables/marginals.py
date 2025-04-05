@@ -315,7 +315,7 @@ class ScipyMarginal(Marginal):
         if alpha is None and self.is_bounded():
             alpha = 1.0
         elif alpha is None:
-            alpha = 1 - 1e-8
+            alpha = 0.99
         return self._scipy_rv.interval(alpha)
 
     @abstractmethod
@@ -637,7 +637,7 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         self._quadx_01 = self._bkd.asarray((quadx + 1) / 2)
         self._quadw_01 = self._bkd.asarray(quadw / 2)
         self._scale = self._ub - self._lb
-        self._newton_solver = MarginalCDFNewtonSolver(verbosity=2, maxiters=20)
+        self._newton_solver = MarginalCDFNewtonSolver(verbosity=0, maxiters=20)
         self._newton_solver.set_residual(MarginalCDFNewtonResidual(self))
 
     def set_shapes(self, alpha: float, beta: float):
@@ -710,10 +710,13 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         return deriv * self._const
 
     def _pdf_jacobian(self, sample: Array) -> Array:
+        # Note pdf_jacobian_01 returns 1D array necessary for
+        # ppf inversion with newtons method
+        # but here we return 2D row vector
         return (
             self._pdf_jacobian_01((sample - self._lb) / self._scale)
             / self._scale**2
-        )
+        )[None, :]
 
     def _cdf_jacobian_diagonal(self, samples: Array) -> Array:
         samples_01 = (samples - self._lb) / self._scale

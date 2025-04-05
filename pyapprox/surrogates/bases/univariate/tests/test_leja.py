@@ -88,7 +88,6 @@ class TestLeja:
 
     def _check_one_point_leja_objective(self, objective_class, marginal):
         bkd = self.get_backend()
-        print(marginal)
         leja = setup_univariate_leja_sequence(
             marginal,
             objective_class,
