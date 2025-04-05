@@ -262,6 +262,18 @@ class IndependentMarginalsVariable(JointVariable):
         )
         return self._bkd.prod(marginal_vals, axis=0)[:, None]
 
+    def ppf(self, samples: Array) -> Array:
+        """
+        Compute inverse cdf on each marginal independently
+        """
+        return self._bkd.stack(
+            [
+                marginal.ppf(samples[ii])
+                for ii, marginal in enumerate(self.marginals())
+            ],
+            axis=0,
+        )
+
     def __repr__(self) -> str:
         if self.nvars() > 5:
             return "{0}(nvars={1})".format(

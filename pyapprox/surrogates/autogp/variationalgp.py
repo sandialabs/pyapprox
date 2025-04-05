@@ -108,9 +108,7 @@ class InducingSamples:
 
         msg = "inducing_sample_bounds has the wrong shape"
         if inducing_sample_bounds is None:
-            inducing_sample_bounds = inducing_variable.get_statistics(
-                "interval", 1.0
-            )
+            inducing_sample_bounds = inducing_variable.interval(1.0)
         else:
             inducing_sample_bounds = inducing_sample_bounds
             if inducing_sample_bounds.ndim == 1:

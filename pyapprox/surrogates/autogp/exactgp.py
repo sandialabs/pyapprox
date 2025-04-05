@@ -204,7 +204,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         iterate_gen: OptimizerIterateGenerator = None,
     ):
         ms_optimizer = self.default_optimizer(
-            ncandidates, verbosity, iterate_gen
+            ncandidates, verbosity, iterate_gen=iterate_gen
         )
         super().set_optimizer(ms_optimizer)
         self.set_loss(self.get_loss())

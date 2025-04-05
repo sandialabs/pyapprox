@@ -533,7 +533,6 @@ class PolynomialChaosExpansion(MonomialExpansion):
                 poly1.get_coefficients(),
                 poly2.basis().get_indices(),
                 poly2.get_coefficients(),
-                backend=self._bkd,
             )
         )
 
@@ -617,7 +616,9 @@ class PolynomialChaosExpansion(MonomialExpansion):
         basis = MultiIndexBasis([Monomial1D(backend=self._bkd)])
         basis.set_indices(self._bkd.arange(self.nterms())[None, :])
         basis_mono_coefs = self._bkd.array(
-            self._convert_orthonormal_polynomials_to_monomials_1d(
+            self.basis()
+            ._bases_1d[0]
+            ._convert_orthonormal_polynomials_to_monomials_1d(
                 self._bkd.to_numpy(self._basis._bases_1d[0]._rcoefs),
                 self.nterms() - 1,
             )

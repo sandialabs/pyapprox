@@ -47,7 +47,7 @@ class LowDiscrepancySequence(ABC):
         can_samples = self._canonical_samples(int(nsamples))
         if self._variable is None:
             return can_samples
-        return self._variable.evaluate("ppf", can_samples)
+        return self._variable.ppf(can_samples)
 
 
 class HaltonSequence(LowDiscrepancySequence):

@@ -594,12 +594,12 @@ class SphericalCovariance:
             raise ValueError("angle bounds are inconsistent")
 
     def get_covariance_matrix(self) -> Array:
-        return self._hyp_list.hyper_params[0].cov_matrix
+        return self._hyp_list._hyper_params[0].cov_matrix
 
     def __call__(self, ii: int, jj: int) -> float:
         # chol factor must be recomputed each time even if hyp_values have not
         # changed otherwise gradient graph becomes inconsistent
-        return self._hyp_list.hyper_params[0].cov_matrix[ii, jj]
+        return self._hyp_list._hyper_params[0].cov_matrix[ii, jj]
 
     def __repr__(self) -> str:
         return "{0}(radii={1}, angles={2} cov={3})".format(

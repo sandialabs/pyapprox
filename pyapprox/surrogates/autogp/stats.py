@@ -56,8 +56,8 @@ class KernelStatistics(ABC):
 
     def _get_kernel_length_scale(self):
         found = False
-        for hyperparam in self._gp.kernel().hyp_list().hyper_params:
-            if hyperparam.name == "lenscale":
+        for hyperparam in self._gp.kernel().hyp_list()._hyper_params:
+            if hyperparam._name == "lenscale":
                 lscale = hyperparam.get_values()
                 found = True
         if not found:
@@ -68,8 +68,8 @@ class KernelStatistics(ABC):
 
     def _get_kernel_variance(self):
         found = False
-        for hyperparam in self._gp.kernel().hyp_list().hyper_params:
-            if hyperparam.name == "const":
+        for hyperparam in self._gp.kernel().hyp_list()._hyper_params:
+            if hyperparam._name == "const":
                 const = hyperparam.get_values()
                 found = True
         if not found:

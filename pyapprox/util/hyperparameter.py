@@ -344,7 +344,7 @@ class CombinedHyperParameter(HyperParameter):
         self._hyper_params = hyper_params
         self._bkd = self._hyper_params[0]._bkd
         self._bounds = self._bkd.vstack(
-            [hyp.bounds for hyp in self._hyper_params]
+            [hyp._bounds for hyp in self._hyper_params]
         )
 
     def nvars(self):

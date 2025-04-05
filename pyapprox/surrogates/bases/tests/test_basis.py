@@ -832,7 +832,7 @@ class TestBasis:
             hess(test_samples[:, :1]), interp.hessian(test_samples[:, :1])[0]
         )
 
-    @unittest.skiptest("Not implemented yet")
+    @unittest.skip("Not implemented yet")
     def test_pce_product_of_beta_variables(self):
         bkd = self.get_backend()
 

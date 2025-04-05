@@ -126,18 +126,18 @@ class AffineTransform(Transform):
 
     def map_to_canonical_1d(self, samples: Array, ii: int) -> Array:
         for jj in range(self._variable._nunique_vars):
-            if ii in self._variable._unique_variable_indices[jj]:
+            if ii in self._variable._unique_indices[jj]:
                 loc, scale = self.scale_parameters[jj, :]
                 if self.identity_map_indices is None:
                     return (samples - loc) / scale
                 else:
                     return samples
-        print(ii, self._variable._unique_variable_indices)
+        print(ii, self._variable._unique_indices)
         raise Exception("Should not happen")
 
     def map_from_canonical_1d(self, canonical_samples: Array, ii: int):
         for jj in range(self._variable._nunique_vars):
-            if ii in self._variable._unique_variable_indices[jj]:
+            if ii in self._variable._unique_indices[jj]:
                 loc, scale = self.scale_parameters[jj, :]
                 if self.identity_map_indices is None:
                     return canonical_samples * scale + loc
@@ -210,7 +210,7 @@ class AffineTransform(Transform):
         for ii in range(self._variable._nunique_vars):
             var = self._variable._unique_marginals[ii]
             lb, ub = var.interval(1)
-            indices = self._variable._unique_variable_indices[ii]
+            indices = self._variable._unique_indices[ii]
             if samples[indices, :].max() > ub:
                 print(samples[indices, :].max(), ub, "ub violated")
                 return False
@@ -226,7 +226,7 @@ class AffineTransform(Transform):
         for ii in range(self._variable._nunique_vars):
             var = self._variable._unique_marginals[ii]
             lb, ub = var.interval(1)
-            indices = self._variable._unique_variable_indices[ii]
+            indices = self._variable._unique_indices[ii]
             ranges[2 * indices], ranges[2 * indices + 1] = lb, ub
         return ranges
 
