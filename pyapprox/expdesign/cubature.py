@@ -10,7 +10,7 @@ from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
 def CdD2(
     ndim: int, uniform_weight: bool = True, bkd: LinAlgMixin = NumpyLinAlgMixin
 ) -> Tuple[Array, Array]:
-    """Arbitrary Dimensions, Degree 2, d+1 Points (Stroud)"""
+    """Arbitrary Dimensions, Degree 2, d+1 Points (Stroud) x in [-1,1]^D"""
     if not uniform_weight:
         V = 2.0**ndim
     else:
@@ -19,14 +19,14 @@ def CdD2(
     w = bkd.empty(ndim + 1)
     for i in range(ndim + 1):
         for k in range(1, int(ndim) // 2 + 1):
-            x[i, 2 * k - 2] = bkd.sqrt(2.0 / 3.0) * bkd.cos(
+            x[i, 2 * k - 2] = math.sqrt(2.0 / 3.0) * math.cos(
                 2.0 * k * i * math.pi / (ndim + 1)
             )
-            x[i, 2 * k - 1] = bkd.sqrt(2.0 / 3.0) * bkd.sin(
+            x[i, 2 * k - 1] = math.sqrt(2.0 / 3.0) * math.sin(
                 2.0 * k * i * math.pi / (ndim + 1)
             )
         if ndim % 2 == 1:
-            x[i, ndim - 1] = (-1.0) ** i / bkd.sqrt(3.0)
+            x[i, ndim - 1] = (-1.0) ** i / math.sqrt(3.0)
         w[i] = V / (ndim + 1.0)
     return x, w
 
@@ -34,7 +34,7 @@ def CdD2(
 def CdD3(
     ndim: int, uniform_weight: bool = True, bkd: LinAlgMixin = NumpyLinAlgMixin
 ) -> Tuple[Array, Array]:
-    """Arbitrary Dimensions, Degree 3, 2d Points (Stroud)"""
+    """Arbitrary Dimensions, Degree 3, 2d Points (Stroud) x in [-1,1]^D"""
     if not uniform_weight:
         V = 2.0**ndim
     else:
@@ -43,14 +43,14 @@ def CdD3(
         w = bkd.empty(2 * ndim)
     for i in range(1, 2 * ndim + 1):
         for k in range(1, int(ndim) // 2 + 1):
-            x[i - 1, 2 * k - 2] = bkd.sqrt(2.0 / 3.0) * bkd.cos(
+            x[i - 1, 2 * k - 2] = math.sqrt(2.0 / 3.0) * math.cos(
                 (2.0 * k - 1.0) * i * math.pi / (ndim)
             )
-            x[i - 1, 2 * k - 1] = bkd.sqrt(2.0 / 3.0) * bkd.sin(
+            x[i - 1, 2 * k - 1] = math.sqrt(2.0 / 3.0) * math.sin(
                 (2.0 * k - 1.0) * i * math.pi / (ndim)
             )
         if ndim % 2 == 1:
-            x[i - 1, ndim - 1] = (-1.0) ** i / bkd.sqrt(3.0)
+            x[i - 1, ndim - 1] = (-1.0) ** i / math.sqrt(3.0)
         w[i - 1] = V / (2.0 * ndim)
     return x, w
 
@@ -59,10 +59,10 @@ def CdD5(
     ndim: int, uniform_weight: bool = True, bkd: LinAlgMixin = NumpyLinAlgMixin
 ) -> Tuple[Array, Array]:
     """
-    Arbitrary Dimensions, Degree 5, 2^d+1 Points (Hammer and Stroud)
+    Arbitrary Dimensions, Degree 5, 2^d+1 Points (Hammer and Stroud) x in [-1,1]^D
     """
     numPts = 2 * ndim**2 + 1
-    r = bkd.sqrt(3.0 / 5.0)
+    r = math.sqrt(3.0 / 5.0)
     w0 = (25.0 * ndim**2 - 115.0 * ndim + 162.0) / 162.0
     w1 = (70 - 25 * ndim) / 162.0
     w2 = 25.0 / 324.0

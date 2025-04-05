@@ -458,9 +458,10 @@ class MonomialExpansion(BasisExpansion):
         self, marginals: List[Marginal]
     ) -> Array:
         poly = self * self
-        return poly.mean_iid_uniform_marginals(
-            marginals
-        ) - self.mean_iid_uniform_marginals(marginals)
+        return (
+            poly.mean_iid_uniform_marginals(marginals)
+            - self.mean_iid_uniform_marginals(marginals) ** 2
+        )
 
     def mean_iid_gaussian_marginals(self) -> Array:
         indices = self.basis().get_indices()
