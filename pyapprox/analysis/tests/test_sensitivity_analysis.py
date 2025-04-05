@@ -210,7 +210,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         # Must not use default of mean or the refinement will terminate early
         # in the 3rd dimension
         init_sequences = [
-            np.array([[marginal.ppf(0.6)]])
+            marginal.ppf(np.array([0.6]))[None, :]
             for marginal in benchmark.variable().marginals()
         ]
         univariate_quad_rules = sg.unique_univariate_leja_quadrature_rules(
@@ -247,58 +247,19 @@ class TestSensitivityAnalysis(unittest.TestCase):
         validation_values = benchmark.model()(validation_samples)
 
         kernel_reg = 1e-7
-        from pyapprox.surrogates.gaussianprocess.gaussian_process import (
-            GaussianProcess,
-            Matern,
-            ConstantKernel as CKernel,
-            WhiteKernel,
-            marginalize_gaussian_process,
-            compute_expected_sobol_indices,
-        )
-
-        pyakernel = Matern(np.array([0.5, 0.5, 0.5]), (1e-2, 2), nu=np.inf)
-        pyagp = GaussianProcess(pyakernel, alpha=kernel_reg)
-        pyagp.fit(samples, values)
-        print(
-            "pya error",
-            np.linalg.norm(
-                (pyagp(validation_samples))
-                - benchmark.model()(validation_samples)
-            )
-            / np.sqrt(nvalidation_samples),
-        )
-        print(pyagp.kernel_)
-        print(
-            pyagp.log_marginal_likelihood(
-                pyagp.kernel_.theta, eval_gradient=True
-            ),
-            pyagp.kernel_.theta,
-            "obj",
-        )
-        pyasobolindices, pyatotaleffects, pyamean, pyavar = (
-            compute_expected_sobol_indices(
-                pyagp,
-                benchmark.variable(),
-                benchmark.sobol_interaction_indices(),
-            )
-        )
-        print(pyasobolindices)
-        print(pyatotaleffects)
-
         # setup gp
         kernel = MaternKernel(
             np.inf,
-            pyagp.kernel_.length_scale,
+            np.array([0.5, 0.5, 0.5]),
             [1e-1, 2],
             benchmark.nvars(),
-            fixed=True,
+            fixed=False,
         )
         # constant_kernel = ConstantKernel(
         #     1, (1e-1, 1e1), transform=LogHyperParameterTransform(), fixed=False
         # )
         # kernel = constant_kernel * kernel
         out_trans = GaussianProcessIdentityTransform()
-        print(benchmark.nvars(), benchmark.variable().nvars())
         gp = ExactGaussianProcess(
             benchmark.variable().nvars(),
             kernel,
@@ -317,12 +278,10 @@ class TestSensitivityAnalysis(unittest.TestCase):
         abs_error = np.linalg.norm(gp_vals - validation_values) / np.sqrt(
             nvalidation_samples
         )
-        print("Abs. Error", abs_error)
-
+        # print("Abs. Error", abs_error)
         assert abs_error < l2_tol
 
         # compute sensivitity indices from gp
-        # analyzer = GaussianProcessSensivitityAnalysis(benchmark.variable())
         analyzer = EnsembleGaussianProcessSensivitityAnalysis(
             benchmark.variable(), nrealizations=100
         )

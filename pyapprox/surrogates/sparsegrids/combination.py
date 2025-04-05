@@ -1551,8 +1551,8 @@ class LejaLagrangeAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         # once per unique marginal
         if init_sequences is not None:
             for ii in range(self._variable._nunique_vars):
-                kk = self._variable._unique_variable_indices[ii][0]
-                for jj in self._variable._unique_variable_indices[ii][1:]:
+                kk = self._variable._unique_indices[ii][0]
+                for jj in self._variable._unique_indices[ii][1:]:
                     if not self._variable._bkd.allclose(
                         init_sequences[kk], init_sequences[jj], atol=1e-15
                     ):

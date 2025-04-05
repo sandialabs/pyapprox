@@ -16,7 +16,7 @@ from pyapprox.surrogates.bases.multiindex import HyperbolicIndexGenerator
 from pyapprox.util.misc import argsort_indices_leixographically
 from pyapprox.util.sys_utilities import hash_array
 
-from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
+from pyapprox.surrogates.bases.multiindex import compute_hyperbolic_indices
 from pyapprox.expdesign.sequences import SobolSequence, HaltonSequence
 from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
 from pyapprox.surrogates.bases.basis import TensorProductQuadratureRule
