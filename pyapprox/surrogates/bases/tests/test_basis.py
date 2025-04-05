@@ -832,6 +832,39 @@ class TestBasis:
             hess(test_samples[:, :1]), interp.hessian(test_samples[:, :1])[0]
         )
 
+    @unittest.skiptest("Not implemented yet")
+    def test_pce_product_of_beta_variables(self):
+        bkd = self.get_backend()
+
+        def fun(x):
+            return bkd.sqrt(x.prod(axis=0))[:, None]
+
+        dist_alpha1, dist_beta1 = 1, 1
+        dist_alpha2, dist_beta2 = dist_alpha1 + 0.5, dist_beta1
+        nvars = 2
+
+        marginals = [
+            stats.beta(dist_alpha1, dist_beta1),
+            stats.beta(dist_alpha2, dist_beta2),
+        ]
+        quad_rule = TensorProductQuadratureRule(
+            nvars, [GaussQuadratureRule(marginal) for marginal in marginals]
+        )
+        quad_samples, quad_weights = quad_rule([100] * nvars)
+
+        mean = fun(quad_samples)[:, 0] @ quad_weights
+        variance = (fun(quad_samples)[:, 0] ** 2) @ quad_weights - mean**2
+        assert np.allclose(
+            mean, stats.beta(dist_alpha1 * 2, dist_beta1 * 2).mean()
+        )
+        assert np.allclose(
+            variance, stats.beta(dist_alpha1 * 2, dist_beta1 * 2).var()
+        )
+
+        raise NotImplementedError(
+            "Replicate test in old version of pyapprox of the same name"
+        )
+
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):
     def get_backend(self):

@@ -2,7 +2,7 @@ import math
 from abc import abstractmethod
 
 from warnings import warn
-from typing import Tuple
+from typing import Tuple, List
 
 from scipy import stats
 
@@ -29,6 +29,7 @@ from pyapprox.util.transforms import (
 from pyapprox.variables.marginals import (
     ContinuousMarginalMixin,
     parse_marginal,
+    Marginal,
 )
 from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
 from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
@@ -719,12 +720,7 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
         """Compure recurrence coefficients from a known PDF
         using predictor corrector method."""
         super().__init__(trans, backend)
-        # Get version var.pdf without error checking which runs much faster
-        marginal = parse_marginal(marginal, backend)
-        self._loc, self._scale, self._can_lb, self._can_ub = (
-            self._parse_marginal(marginal)
-        )
-        self._marginal = marginal
+        self._set_marginal(marginal)
         self._rcoefs_gen = PredictorCorrector(backend=self._bkd)
         if integrator is None:
             integrator = ScipyUnivariateIntegrator(backend=self._bkd)
@@ -737,6 +733,13 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
         integrator.set_bounds([self._can_lb, self._can_ub])
         self._rcoefs_gen.set_integrator(integrator)
         self._rcoefs_gen.set_measure(self._canonical_pdf)
+
+    def _set_marginal(self, marginal: Marginal):
+        marginal = parse_marginal(marginal, self._bkd)
+        self._loc, self._scale, self._can_lb, self._can_ub = (
+            self._parse_marginal(marginal)
+        )
+        self._marginal = marginal
 
     def _parse_marginal(
         self, marginal
@@ -769,6 +772,21 @@ class ContinuousNumericOrthonormalPolynomial1D(OrthonormalPolynomial1D):
 
     def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         return self._rcoefs_gen(ncoefs)
+
+
+class FunctionIndependentMarginalsNumericOrthonormalPolynomial1D(
+    OrthonormalPolynomial1D
+):
+    def __init__(self, trans: Transform, backend: LinAlgMixin):
+        raise NotImplementedError(
+            "TODO: update implementation in old version of pyapprox"
+        )
+
+
+class ProductIndependentMarginalsNumericOrthonormalPolynomial1D(
+    FunctionIndependentMarginalsNumericOrthonormalPolynomial1D
+):
+    pass
 
 
 def setup_univariate_orthogonal_polynomial_from_marginal(
@@ -841,7 +859,7 @@ class GaussQuadratureRule(UnivariateQuadratureRule):
         self,
         marginal,
         opts: dict = {},
-        backend: LinAlgMixin = None,
+        backend: LinAlgMixin = NumpyLinAlgMixin,
         store: bool = False,
     ):
         super().__init__(backend, store)
