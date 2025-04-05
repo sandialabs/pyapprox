@@ -1572,7 +1572,7 @@ class LejaLagrangeAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
         ]
         quad_rules = [None for marginal in self._variable.marginals()]
         for ii in range(len(unique_quad_rules)):
-            for jj in self._variable._unique_variable_indices[ii]:
+            for jj in self._variable._unique_indices[ii]:
                 quad_rules[jj] = unique_quad_rules[ii]
         return quad_rules
 

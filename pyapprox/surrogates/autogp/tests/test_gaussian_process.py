@@ -63,7 +63,6 @@ from pyapprox.surrogates.bases.basis import (
 from pyapprox.benchmarks import IshigamiBenchmark
 from pyapprox.expdesign.sequences import SobolSequence
 from pyapprox.interface.model import ModelFromVectorizedCallable
-from pyapprox.util.print_wrapper import *
 
 
 class TestNystrom:

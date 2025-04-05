@@ -16,6 +16,11 @@ from pyapprox.surrogates.bases.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.marginals import (
+    Marginal,
+    ScipyMarginal,
+    UniformMarginal,
+)
 from pyapprox.surrogates.bases.basis import (
     Basis,
     OrthonormalPolynomialBasis,
@@ -421,6 +426,56 @@ class MonomialExpansion(BasisExpansion):
         return self._bkd.where(
             ~self._bkd.any(self._basis.get_indices(), axis=0)
         )[0]
+
+    def mean_iid_uniform_marginals(self, marginals: List[Marginal]) -> Array:
+        for marginal in marginals:
+            if (
+                not isinstance(marginal, UniformMarginal)
+                and not isinstance(marginal, ScipyMarginal)
+                and not marginal._name == "uniform"
+            ):
+                raise ValueError("marginals must all be uniform")
+        bounds = self._bkd.stack([m.interval(1) for m in marginals], axis=0)
+        indices = self.basis().get_indices()
+        L = self._bkd.prod(bounds[:, 1] - bounds[:, 0])
+        vals = (
+            self._bkd.prod(
+                (
+                    bounds[:, 1:2] ** (indices + 1.0)
+                    - bounds[:, 0:1] ** (indices + 1.0)
+                )
+                / (indices + 1.0),
+                axis=0,
+            )
+            / L
+        )
+        integral = self._bkd.sum(
+            vals[:, None] * self.get_coefficients(), axis=0
+        )
+        return integral
+
+    def variance_iid_uniform_marginals(
+        self, marginals: List[Marginal]
+    ) -> Array:
+        poly = self * self
+        return poly.mean_iid_uniform_marginals(
+            marginals
+        ) - self.mean_iid_uniform_marginals(marginals)
+
+    def mean_iid_gaussian_marginals(self) -> Array:
+        indices = self.basis().get_indices()
+        vals = self._bkd.prod(
+            (2.0) ** (-indices / 2)
+            * self._bkd.factorial(indices)
+            / self._bkd.factorial(indices / 2),
+            axis=0,
+        )
+        idx = self._bkd.any(indices % 2 == 1, axis=0)
+        vals[idx] = 0
+        integral = self._bkd.sum(
+            vals[:, None] * self.get_coefficients(), axis=0
+        )
+        return integral
 
 
 class PolynomialChaosExpansion(MonomialExpansion):

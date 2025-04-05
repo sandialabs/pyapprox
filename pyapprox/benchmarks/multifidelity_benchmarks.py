@@ -772,7 +772,6 @@ class MultiLevelCosineModelEnsemble(MultiIndexModelEnsemble):
 
     def _model_id_to_shifts(self, model_id: Array) -> Array:
         possible_shifts = self._bkd.array([0.25, 0.125, 0.0])
-        print(model_id)
         shifts = possible_shifts[model_id]
         return shifts
 
