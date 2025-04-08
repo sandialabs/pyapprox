@@ -13,8 +13,8 @@ from pyapprox.variables.marginals import (
     parse_marginal,
 )
 from pyapprox.util.visualization import get_meshgrid_samples
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.template import BackendMixin, Array
 
 
 class JointVariable(ABC):
@@ -22,7 +22,7 @@ class JointVariable(ABC):
     Base class for multivariate variables.
     """
 
-    def __init__(self, backend: LinAlgMixin):
+    def __init__(self, backend: BackendMixin):
         self._bkd = backend
 
     @abstractmethod
@@ -123,7 +123,7 @@ class IndependentMarginalsVariable(JointVariable):
             List[Marginal], List[Union[stats.rv_continuous, stats.rv_discrete]]
         ],
         unique_indices: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         """
         Constructor method
@@ -340,7 +340,7 @@ class IndependentMarginalsVariable(JointVariable):
 def define_iid_random_variable(
     marginal: Union[Marginal, stats.rv_continuous, stats.rv_discrete],
     nvars: int,
-    backend: LinAlgMixin = NumpyLinAlgMixin,
+    backend: BackendMixin = NumpyMixin,
 ) -> IndependentMarginalsVariable:
     """
     Create independent identically distributed variables
@@ -444,7 +444,7 @@ class FiniteSamplesVariable(JointVariable):
         samples: Array,
         randomness: str = "replacement",
         weights: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._samples = samples.copy()

@@ -1,10 +1,10 @@
 from abc import abstractmethod
-from pyapprox.util.linearalgebra import linalgbase, numpylinalg, torchlinalg
+from pyapprox.util.backends import template, numpy, torch
 import numpy as np
 import torch
 
 
-class LinAlgMixin(linalgbase.LinAlgMixin):
+class BackendMixin(template.BackendMixin):
     def __init__(self):
         raise NotImplementedError("Do not instantiate this class")
 
@@ -115,7 +115,7 @@ class LinAlgMixin(linalgbase.LinAlgMixin):
         raise NotImplementedError
 
 
-class NumpyLinAlgMixin(LinAlgMixin, numpylinalg.NumpyLinAlgMixin):
+class NumpyMixin(BackendMixin, numpy.NumpyMixin):
     @staticmethod
     def fft(mat, axis=None, **kwargs):
         if mat.ndim < 3:
@@ -201,7 +201,7 @@ class NumpyLinAlgMixin(LinAlgMixin, numpylinalg.NumpyLinAlgMixin):
         return np.random.permutation(n)
 
 
-class TorchLinAlgMixin(LinAlgMixin, torchlinalg.TorchLinAlgMixin):
+class TorchMixin(BackendMixin, torch.TorchMixin):
     @staticmethod
     def fft(mat, axis=None, **kwargs):
         if mat.ndim < 3:
@@ -305,7 +305,7 @@ class TorchLinAlgMixin(LinAlgMixin, torchlinalg.TorchLinAlgMixin):
 
 
 class FCT:
-    def __init__(self, backend: LinAlgMixin = TorchLinAlgMixin):
+    def __init__(self, backend: BackendMixin = TorchMixin):
         self._bkd = backend
 
     def even_periodic_extension(self, array):

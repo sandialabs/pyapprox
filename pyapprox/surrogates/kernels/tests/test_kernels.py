@@ -3,8 +3,8 @@ import copy
 
 import numpy as np
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.surrogates.kernels import (
     ConstantKernel,
     MaternKernel,
@@ -15,7 +15,7 @@ from pyapprox.util.utilities import approx_jacobian_3D
 from pyapprox.util.sys_utilities import package_available
 
 if package_available("jax"):
-    from pyapprox.util.linearalgebra.jaxlinalg import JaxLinAlgMixin
+    from pyapprox.util.backends.jax import JaxBackendMixin
 
 import warnings
 
@@ -116,7 +116,7 @@ class TestKernels:
 
 class TestNumpyKernels(TestKernels, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
     def jacobian_implemented(self):
         return False
@@ -129,7 +129,7 @@ class TestTorchKernels(TestKernels, unittest.TestCase):
         TestKernels.setUp(self)
 
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
     def jacobian_implemented(self):
         return True
@@ -142,7 +142,7 @@ class TestJaxKernels(TestKernels, unittest.TestCase):
         TestKernels.setUp(self)
 
     def get_backend(self):
-        return JaxLinAlgMixin
+        return JaxBackendMixin
 
     def jacobian_implemented(self):
         return True

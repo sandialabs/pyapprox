@@ -56,22 +56,22 @@ import numpy as np
 
 from pyapprox.util.visualization import get_meshgrid_function_data, plt
 from pyapprox.benchmarks import GenzBenchmark
-from pyapprox.surrogates.bases.basis import (
+from pyapprox.surrogates.affine.basis import (
     TensorProductInterpolatingBasis,
     TensorProductQuadratureRule,
 )
-from pyapprox.surrogates.bases.univariate.lagrange import (
+from pyapprox.surrogates.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
-from pyapprox.surrogates.bases.univariate.local import (
+from pyapprox.surrogates.univariate.local import (
     UnivariatePiecewiseQuadraticBasis,
 )
-from pyapprox.surrogates.bases.univariate.base import (
+from pyapprox.surrogates.univariate.base import (
     ClenshawCurtisQuadratureRule,
 )
-from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
-from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
-from pyapprox.surrogates.bases.multiindex import DoublePlusOneIndexGrowthRule
+from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.surrogates.affine.basisexp import TensorProductInterpolant
+from pyapprox.surrogates.affine.multiindex import DoublePlusOneIndexGrowthRule
 
 
 nnodes_1d = [5, 9]

@@ -5,14 +5,14 @@ from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.interface.model import ModelFromVectorizedCallable, Model
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.benchmarks.base import (
     ACVBenchmark,
     MultiIndexModelBenchmark,
     MultiIndexModelEnsemble,
 )
-from pyapprox.surrogates.bases.basisexp import (
+from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
 from pyapprox.util.misc import argsort_indices_leixographically
@@ -48,7 +48,7 @@ class PolynomialModelEnsemble(ACVBenchmark):
     .. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
     """
 
-    def __init__(self, nmodels: int = 5, backend=NumpyLinAlgMixin):
+    def __init__(self, nmodels: int = 5, backend=NumpyMixin):
         self._nmodels = nmodels
         super().__init__(backend)
 
@@ -103,7 +103,7 @@ class TunableModelEnsemble(ACVBenchmark):
         self,
         theta1: float,
         shifts: List[float] = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         """
         Parameters
@@ -382,7 +382,7 @@ class TunableModelEnsemble(ACVBenchmark):
 
 
 class ShortColumnModelEnsemble(ACVBenchmark):
-    def __init__(self, nmodels: int = 5, backend=NumpyLinAlgMixin):
+    def __init__(self, nmodels: int = 5, backend=NumpyMixin):
         self._nmodels = nmodels
         super().__init__(backend)
 
@@ -739,7 +739,7 @@ class PSDMultiOutputModelEnsemble(ACVBenchmark):
 
 
 class MultiIndexCosineModel(Model):
-    def __init__(self, shifts: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, shifts: Array, backend: BackendMixin = NumpyMixin):
         self._shifts = shifts
         self._nrefinement_vars = len(shifts)
         super().__init__(backend)
@@ -766,7 +766,7 @@ class MultiLevelCosineModelEnsemble(MultiIndexModelEnsemble):
     def __init__(
         self,
         index_bounds: List[int],
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(index_bounds, backend)
 

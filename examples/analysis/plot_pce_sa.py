@@ -13,7 +13,7 @@ from pyapprox.analysis.sensitivity_analysis import (
     plot_main_effects,
     plot_total_effects,
 )
-from pyapprox.surrogates.bases.basisexp import (
+from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
 

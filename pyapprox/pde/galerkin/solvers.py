@@ -61,16 +61,16 @@ def newton_solve(assemble, u_init,
         print(msg)
     return u
 
-from pyapprox.pde.collocation.newton import NewtonSolver, NewtonResidual
+from pyapprox.util.newton import NewtonSolver, NewtonResidual
 from pyapprox.pde.galerkin.physics import Physics
-from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import Array
+from pyapprox.util.backends.numpy import NumpyMixin
 import skfem
 
 
 class SteadyPhysicsNewtonResidual(NewtonResidual):
     def __init__(self, physics: Physics):
-        super().__init__(NumpyLinAlgMixin)
+        super().__init__(NumpyMixin)
         self._physics = physics
 
     def linsolve(self, sol_array: Array, res_array: Array):

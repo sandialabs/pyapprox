@@ -349,7 +349,7 @@ print("MAP sample", map_sample.squeeze())
 # Lets plot the posterior distribution and the MCMC samples. First we must compute the evidence
 
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.surrogates.bases.basis import (
+from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
 from pyapprox.bayes.likelihood import LogUnNormalizedPosterior

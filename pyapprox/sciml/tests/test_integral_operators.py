@@ -1,6 +1,6 @@
 import unittest
 from functools import partial
-from pyapprox.sciml.util import FCT, TorchLinAlgMixin
+from pyapprox.sciml.util import FCT, TorchMixin
 from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.integraloperators import (
     FourierConvolutionOperator, ChebyshevConvolutionOperator,
@@ -11,13 +11,13 @@ from pyapprox.sciml.integraloperators import (
 from pyapprox.sciml.layers import Layer
 from pyapprox.sciml.activations import IdentityActivation
 from pyapprox.surrogates.kernels import MaternKernel
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule, Chebyshev1stKindGaussLobattoQuadratureRule)
 
 
 class TestIntegralOperators(unittest.TestCase):
     def setUp(self):
-        self._bkd = TorchLinAlgMixin
+        self._bkd = TorchMixin
         self._bkd.random_seed(1)
         self._fct = FCT(backend=self._bkd)
         self.pi = 3.1415926535897932

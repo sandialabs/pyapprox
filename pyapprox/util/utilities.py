@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.sys_utilities import hash_array
 from pyapprox.util.sys_utilities import has_kwarg
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 def sub2ind(sizes, multi_index):
@@ -387,7 +387,7 @@ def partial_functions_equal(func1, func2):
     return are_equal
 
 
-def get_all_sample_combinations(samples1, samples2, bkd=NumpyLinAlgMixin):
+def get_all_sample_combinations(samples1, samples2, bkd=NumpyMixin):
     r"""
     For two sample sets of different random variables
     loop over all combinations
@@ -414,7 +414,7 @@ def get_all_sample_combinations(samples1, samples2, bkd=NumpyLinAlgMixin):
 
 
 def get_correlation_from_covariance(
-    cov: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    cov: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
     r"""
     Compute the correlation matrix from a covariance matrix
@@ -446,7 +446,7 @@ def correlation_to_covariance(corr: Array, stdevs: Array) -> Array:
 
 
 def evaluate_quadratic_form(
-    matrix: Array, samples: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    matrix: Array, samples: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
     r"""
     Evaluate x.T @ A @  x for several vectors x
@@ -464,7 +464,8 @@ def evaluate_quadratic_form(
     vals : Array (nsamples)
         Evaluations of the quadratic form for each vector x
     """
-    return bkd.sum(samples.T @ (matrix) * samples.T, axis=1)
+    # computes trace
+    return bkd.sum((samples.T @ matrix) * samples.T, axis=1)
 
 
 def split_dataset(samples, values, ndata1):
@@ -508,7 +509,7 @@ def split_dataset(samples, values, ndata1):
 
 
 def leave_one_out_lsq_cross_validation(
-    basis_mat, values, alpha=0, coef=None, bkd=NumpyLinAlgMixin
+    basis_mat, values, alpha=0, coef=None, bkd=NumpyMixin
 ):
     """
     let :math:`x_i` be the ith row of :math:`X` and let
@@ -546,7 +547,7 @@ def leave_many_out_lsq_cross_validation(
     fold_sample_indices,
     alpha=0,
     coef=None,
-    bkd=NumpyLinAlgMixin,
+    bkd=NumpyMixin,
 ):
     nfolds = len(fold_sample_indices)
     nsamples = basis_mat.shape[0]
@@ -577,7 +578,7 @@ def leave_many_out_lsq_cross_validation(
 
 
 def get_random_k_fold_sample_indices(
-    nsamples, nfolds, random=True, bkd=NumpyLinAlgMixin
+    nsamples, nfolds, random=True, bkd=NumpyMixin
 ):
     sample_indices = bkd.arange(nsamples, dtype=int)
     if random is True:
@@ -922,7 +923,7 @@ def flatten_2D_list(list_2d):
 
 
 def approx_jacobian_3D(
-    f, x0, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
+    f, x0, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyMixin
 ):
     fval = f(x0)
     jacobian = bkd.full((fval.shape[0], fval.shape[1], x0.shape[0]), 0.0)
@@ -1257,7 +1258,7 @@ def check_hessian(
     return np.asarray(errors)
 
 
-def scipy_gauss_hermite_pts_wts_1D(nn, bkd: LinAlgMixin = NumpyLinAlgMixin):
+def scipy_gauss_hermite_pts_wts_1D(nn, bkd: BackendMixin = NumpyMixin):
     x, w = roots_hermitenorm(nn)
     w /= np.sqrt(2 * np.pi)
     return bkd.asarray(x), bkd.asarray(w)

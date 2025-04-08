@@ -15,12 +15,12 @@ interpolation. Here we use the samples of a Gaussian quadrature rule.
 from scipy import stats
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
-from pyapprox.surrogates.bases.univariate.lagrange import (
+from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.surrogates.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
-from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
-from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
+from pyapprox.surrogates.affine.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.affine.basisexp import TensorProductInterpolant
 from pyapprox.interface.model import ModelFromSingleSampleCallable
 
 degree = 10

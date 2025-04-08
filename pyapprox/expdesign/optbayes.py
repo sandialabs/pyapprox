@@ -1,7 +1,7 @@
 import numpy as np
 
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import Model
 from pyapprox.bayes.likelihood import (
     IndependentExponentialLogLikelihood,
@@ -16,7 +16,7 @@ class OEDGaussianLogLikelihood(Model):
         loglike: IndependentGaussianLogLikelihood,
         many_pred_obs: Array,
         pred_weights: Array,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend=backend)
         if not isinstance(loglike, IndependentGaussianLogLikelihood):
@@ -67,7 +67,7 @@ class Evidence(Model):
     def __init__(
         self,
         loglike: OEDGaussianLogLikelihood,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend=backend)
         if not isinstance(loglike, OEDGaussianLogLikelihood):
@@ -188,7 +188,7 @@ class KLOEDObjective(Model):
         inner_pred_obs: Array,
         inner_pred_weights: Array,
         noise_stat: NoiseStatistic = NoiseStatistic(SampleAverageMean()),
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend=backend)
 
@@ -298,7 +298,7 @@ class PredictionOEDDeviation(Model):
         loglike: OEDGaussianLogLikelihood,
         qoi_vals: Array,
         qoi_weights: Array,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._qoi_vals = qoi_vals
         self._qoi_weights = qoi_weights
@@ -345,7 +345,7 @@ class PredictionOEDObjective(KLOEDObjective):
         inner_pred_obs: Array,
         inner_pred_weights: Array,
         noise_stat: NoiseStatistic = NoiseStatistic(SampleAverageMean()),
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(
             noise_cov_diag,
@@ -380,7 +380,7 @@ class WeightsConstraint(Constraint):
         self,
         nobs: int,
         keep_feasible: bool = False,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         model = WeightsConstraintModel()
         bounds = self._bkd.array([[nobs, nobs]])

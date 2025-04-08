@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 from scipy import stats
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.interface.model import (
     DenseMatrixLinearModel,
     QuadraticMatrixModel,
@@ -17,14 +17,14 @@ from pyapprox.bayes.likelihood import (
 )
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.bases.basis import (
+from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
 from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
 
 
 class Linear1DRegressionModel(DenseMatrixLinearModel):
-    def __init__(self, design, degree, min_degree=0, backend=NumpyLinAlgMixin):
+    def __init__(self, design, degree, min_degree=0, backend=NumpyMixin):
         assert degree >= min_degree
         self._design = design
         self._degree = degree
@@ -52,8 +52,8 @@ class TestLikelihood:
         # design_weights = bkd.ones((loglike.nobs(), 1))
         loglike.set_design_weights(design_weights)
 
-        prior_mean = prior_variable.get_statistics("mean")
-        prior_cov = bkd.diag(prior_variable.get_statistics("std")[:, 0] ** 2)
+        prior_mean = prior_variable.mean()
+        prior_cov = bkd.diag(prior_variable.var()[:, 0])
         # noise_cov_inv = bkd.inv(loglike.noise_covariance())
         # sqrt_design_weights = bkd.diag(bkd.sqrt(design_weights[:, 0]))
         # weighted_noise_cov_inv = (
@@ -87,7 +87,7 @@ class TestLikelihood:
         assert bkd.allclose(evidence, laplace.evidence())
 
         n_xx = 100
-        bounds = prior_variable.get_statistics("interval", confidence=0.99)
+        bounds = prior_variable.interval(0.99)
         xx = bkd.cartesian_product(
             [bkd.linspace(*bound, n_xx) for bound in bounds]
         )
@@ -230,12 +230,12 @@ class TestLikelihood:
 
 class TestNumpyLikelihood(TestLikelihood, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchLikelihood(TestLikelihood, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

@@ -40,7 +40,7 @@ Sobol indices can be computed different ways. In the following we will use polyn
 
 import matplotlib.pyplot as plt
 from pyapprox.benchmarks import IshigamiBenchmark
-from pyapprox.surrogates.bases.basisexp import (
+from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
 from pyapprox.analysis.sensitivity_analysis import (

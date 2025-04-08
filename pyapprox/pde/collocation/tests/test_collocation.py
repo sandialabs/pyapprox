@@ -5,11 +5,10 @@ from typing import Tuple, List
 from functools import partial
 
 import numpy as np
-import matplotlib.pyplot as plt
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedSolution,
     ManufacturedAdvectionDiffusionReaction,
@@ -624,14 +623,14 @@ class TestCollocation:
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def _check_transient_state_advection_diffusion_reaction(
-            self,
-            sol_string: str,
-            diff_string: str,
-            vel_strings: List[str],
-            react_tup: Tuple[str, callable, int],
-            bndry_types: str,
-            basis: OrthogonalCoordinateCollocationBasis,
-            timestep_cls: TimeIntegratorNewtonResidual,
+        self,
+        sol_string: str,
+        diff_string: str,
+        vel_strings: List[str],
+        react_tup: Tuple[str, callable, int],
+        bndry_types: str,
+        basis: OrthogonalCoordinateCollocationBasis,
+        timestep_cls: TimeIntegratorNewtonResidual,
     ):
         bkd = self.get_backend()
         react_str, react_fun, react_op_degree = react_tup
@@ -688,7 +687,7 @@ class TestCollocation:
         exact_sols = bkd.stack(exact_sols, axis=1)
         # print(sols)
         # print(exact_sols)
-        print(bkd.abs(sols-exact_sols).max())
+        print(bkd.abs(sols - exact_sols).max())
         assert bkd.allclose(sols, exact_sols, atol=1e-11)
 
     def test_steady_advection_diffusion_reaction_1D(self):
@@ -1086,7 +1085,7 @@ class TestCollocation:
         deltat,
         test_time,
         timestep_cls,
-        jac_atol=2e-12
+        jac_atol=2e-12,
     ):
         # physics must use man_sol["forcing_without_time_deriv"]
 
@@ -1504,7 +1503,9 @@ class TestCollocation:
             self._check_transient_two_species_reaction_diffusion(*test_case)
 
         test_case_args = [
-            [["(-(x-1)*x+x)*(T+1)*(y**2+1)", "(1-(x-1)*x)*(T+1)*(y+1)"]],  # sol_strings
+            [
+                ["(-(x-1)*x+x)*(T+1)*(y**2+1)", "(1-(x-1)*x)*(T+1)*(y+1)"]
+            ],  # sol_strings
             [
                 ["1", "2"],
             ],  # diff_strings
@@ -1600,8 +1601,8 @@ class TestCollocation:
         model = SteadyForwardCollocationModelFromPhysics(
             physics, newton_solver
         )
-        sol = model.forward_solve(1.+exact_sol)
-        print((sol.get_values()-exact_sol.get_values()).max())
+        sol = model.forward_solve(1.0 + exact_sol)
+        print((sol.get_values() - exact_sol.get_values()).max())
         assert bkd.allclose(sol.get_values(), exact_sol.get_values())
 
     def test_steady_shallow_shelf_equation_2d(self):
@@ -1616,14 +1617,14 @@ class TestCollocation:
                 f"{s0}-{alpha}*x**2-{depth}",
             ],  # bed string
             [
-                #f"{depth}+{alpha}*x**2",
+                # f"{depth}+{alpha}*x**2",
                 f"{depth}"
             ],  # depth string
             [
                 "10",
             ],  # friction string
             [
-                1,#1e-4,
+                1,  # 1e-4,
             ],  # A
             [
                 1,
@@ -1668,8 +1669,11 @@ class TestCollocation:
         bed = self._setup_scalar_function("bed", basis, man_sol)
         friction = self._setup_scalar_function("friction", basis, man_sol)
         velocity_forcing = self._setup_vector_function(
-            "velocity_forcing", basis, man_sol, man_sol.ncomponents(),
-            man_sol.ncomponents()-1
+            "velocity_forcing",
+            basis,
+            man_sol,
+            man_sol.ncomponents(),
+            man_sol.ncomponents() - 1,
         )
         depth_forcing = self._setup_scalar_function(
             "depth_forcing", basis, man_sol
@@ -1732,15 +1736,13 @@ class TestCollocation:
                 f"{s0}-{alpha}*x**2-{depth}",
             ],  # bed string
             [
-                #f"{depth}+{alpha}*x**2",
+                # f"{depth}+{alpha}*x**2",
                 f"{depth}*(T+1)"
             ],  # depth string
             [
                 "10",
             ],  # friction string
-            [
-                1#1e-4,
-            ],  # A
+            [1],  # 1e-4,  # A
             [
                 1,
             ],  # rho
@@ -1776,9 +1778,7 @@ class TestCollocation:
         lamda = self._setup_scalar_function("lambda", basis, man_sol)
         mu = self._setup_scalar_function("mu", basis, man_sol)
         forcing = self._setup_vector_function("forcing", basis, man_sol)
-        physics = SteadyIsotropic2DLinearElasticityPhysics(
-            lamda, mu, forcing
-        )
+        physics = SteadyIsotropic2DLinearElasticityPhysics(lamda, mu, forcing)
         residual = physics.residual(exact_sol)
         # np.set_printoptions(linewidth=1000)
         # print(residual.get_values())
@@ -1811,7 +1811,9 @@ class TestCollocation:
         test_case_args = [
             [["(-(x-1)*x+x)*(y+1)", "(1-(x-1)*x)*(y**2+1)"]],  # sol_strings
             ["1", "2"],  # lambda_str
-            ["1",],  # mu_str,
+            [
+                "1",
+            ],  # mu_str,
             ["D", "R", "M"],  # bndry_types
             [
                 self._setup_rect_cheby_basis_2d([4, 4], [0, 1, 0, 1]),
@@ -1869,12 +1871,12 @@ class TestCollocation:
 
 class TestNumpyCollocation(TestCollocation, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchCollocation(TestCollocation, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

@@ -5,8 +5,8 @@ import numpy as np
 from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
 from pyapprox.multifidelity.etc import AETCBLUE
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.multifidelity.groupacv import (
     GroupACVGradientOptimizer,
     ChainedACVOptimizer,
@@ -25,7 +25,7 @@ class TestETC(unittest.TestCase):
 
     @staticmethod
     def _setup_model_ensemble_tunable(
-            shifts=None, angle=np.pi / 4, bkd=NumpyLinAlgMixin
+            shifts=None, angle=np.pi / 4, bkd=NumpyMixin
     ):
         example = TunableModelEnsemble(angle, shifts, bkd)
         cov = example.covariance()
@@ -38,8 +38,8 @@ class TestETC(unittest.TestCase):
         Tests if the optimal loss returned from using oracle stats is the
         same as using without oracle stats given many samples.
         """
-        # bkd = NumpyLinAlgMixin
-        bkd = TorchLinAlgMixin
+        # bkd = NumpyMixin
+        bkd = TorchMixin
         alpha = 1000
         nsamples = int(1e6)
         shifts = bkd.array([1, 2])
@@ -94,8 +94,8 @@ class TestETC(unittest.TestCase):
 
     # @unittest.skipIf(True, "not released yet")
     def test_aetc_blue(self):
-        # bkd = NumpyLinAlgMixin
-        bkd = TorchLinAlgMixin
+        # bkd = NumpyMixin
+        bkd = TorchMixin
         target_cost = 300  # 1e3
         shifts = bkd.array([1, 2])
         funs, cov, costs, variable = self._setup_model_ensemble_tunable(

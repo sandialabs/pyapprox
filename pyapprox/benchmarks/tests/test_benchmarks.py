@@ -17,9 +17,9 @@ from pyapprox.benchmarks import (
     CoupledSpringsBenchmark,
     HastingsEcologyBenchmark,
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.pde.collocation.newton import NewtonSolver
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.util.newton import NewtonSolver
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
     ForwardEulerResidual,
@@ -35,7 +35,7 @@ class TestBenchmarks:
         np.random.seed(1)
 
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
     def test_ishigami(self):
         bkd = self.get_backend()
@@ -241,12 +241,12 @@ class TestBenchmarks:
 
 class TestNumpyBenchmarks(TestBenchmarks, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchBenchmarks(TestBenchmarks, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

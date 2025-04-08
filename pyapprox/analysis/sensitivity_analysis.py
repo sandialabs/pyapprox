@@ -9,23 +9,23 @@ from scipy.spatial.distance import cdist
 
 from abc import ABC, abstractmethod
 from typing import Tuple
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.bases.multiindex import HyperbolicIndexGenerator
+from pyapprox.surrogates.affine.multiindex import HyperbolicIndexGenerator
 from pyapprox.util.misc import argsort_indices_leixographically
 from pyapprox.util.sys_utilities import hash_array
 
-from pyapprox.surrogates.bases.multiindex import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.multiindex import compute_hyperbolic_indices
 from pyapprox.expdesign.sequences import SobolSequence, HaltonSequence
-from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
-from pyapprox.surrogates.bases.basis import TensorProductQuadratureRule
-from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
+from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule
+from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
 from pyapprox.surrogates.sparsegrids.combination import (
     CombinationSparseGrid,
     SparseGridToOrthonormalPolynomialChaosExpansionConverter,
 )
-from pyapprox.surrogates.autogp.stats import (
+from pyapprox.surrogates.gaussianprocess.stats import (
     ExactGaussianProcess,
     GaussianProcessStatistics,
     EnsembleGaussianProcessStatistics,
@@ -33,7 +33,7 @@ from pyapprox.surrogates.autogp.stats import (
 
 
 class VarianceBasedSensitivityAnalysis(ABC):
-    def __init__(self, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, nvars: int, backend: BackendMixin = NumpyMixin):
         self._nvars = nvars
         self._bkd = backend
 

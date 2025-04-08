@@ -3,7 +3,7 @@ import networkx as nx
 import copy
 import itertools
 
-from pyapprox.surrogates.bases.basisexp import (
+from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable

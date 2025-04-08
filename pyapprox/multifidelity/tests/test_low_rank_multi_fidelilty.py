@@ -9,9 +9,9 @@ from pyapprox.multifidelity.low_rank_multifidelity import (
     select_nodes,
     select_nodes_cholesky,
 )
-from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
-from pyapprox.surrogates.bases.orthopoly import LegendrePolynomial1D
-from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
+from pyapprox.surrogates.univariate.orthopoly import LegendrePolynomial1D
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.variables.transforms import AffineTransform
 from pyapprox.util.linalg import get_pivot_matrix_from_vector
 

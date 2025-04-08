@@ -143,10 +143,10 @@ To obtain the solution to the wave equation we must apply the inverse fourier tr
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.surrogates.bases.univariate.orthopoly import (
+from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
 )
-from pyapprox.sciml.util import NumpyLinAlgMixin
+from pyapprox.sciml.util import NumpyMixin
 
 
 def _greens_function(k, L, X, Y):
@@ -249,7 +249,7 @@ def helmholtz_forcing_fun(k, a, w0, xx):
 
 
 quad_rule = GaussLegendreQuadratureRule(
-    bounds=[0, L], backend=NumpyLinAlgMixin
+    bounds=[0, L], backend=NumpyMixin
 )
 quad_rule.set_nnodes(100)
 axs[1].plot(

@@ -13,8 +13,8 @@ from pyapprox.multifidelity.stats import (
 from pyapprox.benchmarks.multifidelity_benchmarks import (
     MultiOutputModelEnsemble, PSDMultiOutputModelEnsemble
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 
 def _single_qoi(qoi, fun, xx):
@@ -230,12 +230,12 @@ class TestMOStats:
 
 class TestNumpyMOStats(TestMOStats, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchMOStats(TestMOStats, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

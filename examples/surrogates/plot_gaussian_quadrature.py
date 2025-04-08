@@ -12,7 +12,7 @@ To generate a univariate quadrature rule for uniform random variables
 from scipy import stats
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
 from pyapprox.analysis import visualize
 from pyapprox.variables import marginals
 

@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 import math
 from typing import Tuple
 
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.hyperparameter import (
     CombinedHyperParameter,
     HyperParameter,
@@ -18,9 +18,9 @@ from pyapprox.util.transforms import SphericalCorrelationTransform
 class Kernel(ABC):
     """The base class for any kernel."""
 
-    def __init__(self, backend: LinAlgMixin):
+    def __init__(self, backend: BackendMixin):
         if backend is None:
-            backend = NumpyLinAlgMixin
+            backend = NumpyMixin
         self._bkd = backend
 
         # used when computing a Jacobian
@@ -168,7 +168,7 @@ class MaternKernel(Kernel):
         lenscale_bounds: Tuple[float, float],
         nvars: int,
         fixed: bool = False,
-        backend: LinAlgMixin = None,
+        backend: BackendMixin = NumpyMixin,
     ):
         """The matern kernel for varying levels of smoothness."""
         super().__init__(backend)
@@ -278,7 +278,7 @@ class ConstantKernel(Kernel):
         constant_bounds: Tuple[float, float] = None,
         transform: HyperParameterTransform = None,
         fixed: bool = False,
-        backend: LinAlgMixin = None,
+        backend: BackendMixin = NumpyMixin,
     ):
         if backend is None and transform is not None:
             backend = transform._bkd
@@ -329,7 +329,7 @@ class GaussianNoiseKernel(Kernel):
         constant: float,
         constant_bounds: Tuple[float, float] = None,
         fixed: bool = False,
-        backend: LinAlgMixin = None,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._const = HyperParameter(
@@ -515,7 +515,7 @@ class SphericalCovariance:
         radii_bounds: Tuple[float, float] = [1e-1, 1],
         angles: float = math.pi / 2,
         angle_bounds: Tuple[float, float] = [0, math.pi],
-        backend: LinAlgMixin = None,
+        backend: BackendMixin = NumpyMixin,
     ):
         if backend is None:
             if radii_transform is not None:
@@ -523,7 +523,7 @@ class SphericalCovariance:
             elif angle_transform is not None:
                 backend = angle_transform._bkd
             else:
-                backend = NumpyLinAlgMixin
+                backend = NumpyMixin
 
         self._bkd = backend
 

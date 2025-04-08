@@ -1,18 +1,18 @@
 from abc import abstractmethod
 from typing import Tuple, List
 
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.pde.collocation.newton import (
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.newton import (
     NewtonSolver,
     NewtonResidual,
     Functional,
     AdjointFunctional,
 )
-from pyapprox.surrogates.bases.univariate.base import (
+from pyapprox.surrogates.univariate.base import (
     UnivariatePiecewisePolynomialNodeGenerator,
 )
-from pyapprox.surrogates.bases.univariate.local import (
+from pyapprox.surrogates.univariate.local import (
     UnivariatePiecewisePolynomialQuadratureRule,
 )
 
@@ -607,7 +607,7 @@ class TransientSingleStateFinalTimeFunctional(TransientAdjointFunctional):
         state_id: int,
         nstates: int,
         nparams: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._state_id = state_id
         self._nstates = nstates
@@ -646,7 +646,7 @@ class TransientMSEAdjointFunctional(TransientAdjointFunctional):
         nstates: int,
         nresidual_params: int,
         obs_tuples: List[Tuple[int, Array]],
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._nstates = nstates
         self._nparams = nresidual_params + self.nunique_functional_params()

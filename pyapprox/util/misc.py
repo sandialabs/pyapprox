@@ -2,12 +2,12 @@
 import itertools
 
 
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 def argsort_indices_leixographically(
-    indices: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    indices: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
     r"""
     Argort a set of indices lexiographically. Sort by SUM of columns then
@@ -36,7 +36,7 @@ def argsort_indices_leixographically(
     return bkd.array(sorted_idx, dtype=int)
 
 
-def hash_array(matrix: Array, bkd: LinAlgMixin = NumpyLinAlgMixin) -> int:
+def hash_array(matrix: Array, bkd: BackendMixin = NumpyMixin) -> int:
     if matrix.ndim != 1:
         raise ValueError("matrix must be 1D array")
     np_array = bkd.to_numpy(matrix)
@@ -44,7 +44,7 @@ def hash_array(matrix: Array, bkd: LinAlgMixin = NumpyLinAlgMixin) -> int:
 
 
 def unique_matrix_row_indices(
-    matrix: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    matrix: Array, bkd: BackendMixin = NumpyMixin
 ):
     """Return the row numbers of the unique rows in a matrix"""
     if matrix.ndim != 2:
@@ -77,7 +77,7 @@ def unique_matrix_columns(matrix) -> Array:
 
 
 def get_all_sample_combinations(
-    samples1: Array, samples2: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    samples1: Array, samples2: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
     r"""
     For two sample sets of different random variables

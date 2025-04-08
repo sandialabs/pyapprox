@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 from scipy import stats
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.interface.model import Model
 from pyapprox.bayes.likelihood import (
     IndependentGaussianLogLikelihood,
@@ -31,13 +31,13 @@ from pyapprox.optimization.minimize import (
     SampleAverageEntropicRisk,
 )
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
-from pyapprox.surrogates.bases.basis import (
+from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
 
 
 class Linear1DRegressionModel(Model):
-    def __init__(self, design, degree, min_degree=0, backend=NumpyLinAlgMixin):
+    def __init__(self, design, degree, min_degree=0, backend=NumpyMixin):
         super().__init__(backend=backend)
         assert degree >= min_degree
         self._design = design
@@ -513,12 +513,12 @@ class TestBayesOED:
 
 # class TestNumpyBayesOED(TestBayesOED, unittest.TestCase):
 #     def get_backend(self):
-#         return NumpyLinAlgMixin
+#         return NumpyMixin
 
 
 class TestTorchBayesOED(TestBayesOED, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

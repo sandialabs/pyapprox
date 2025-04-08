@@ -19,13 +19,13 @@ from pyapprox.util.misc import (
     get_all_sample_combinations,
     unique_matrix_row_indices,
 )
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 class ModelWorkTracker:
     def __init__(
-        self, backend: LinAlgMixin = NumpyLinAlgMixin, multiproc: bool = False
+        self, backend: BackendMixin = NumpyMixin, multiproc: bool = False
     ):
         self._bkd = backend
         self.set_active(False)
@@ -110,7 +110,7 @@ class ModelWorkTracker:
 class ModelDataBase:
     # TODO Add option to save results to file at certain frequency
     # TODO support different file systems, e.g. pickle, HDF5 etc.
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
         self._samples_dict = {}
         self._values_dict = {
@@ -196,7 +196,7 @@ class Model(ABC):
     apply_weighted_hessian_implemented
     """
 
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         if not hasattr(backend, "isbackend"):
             raise ValueError("backend must be derived from LinAlgBase")
         self._bkd = backend
@@ -966,7 +966,7 @@ class ModelFromCallable(Model):
         weighted_hessian: callable = None,
         sample_ndim: int = 2,
         values_ndim: int = 2,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         """
         Parameters
@@ -1085,7 +1085,7 @@ class ModelFromVectorizedCallable(ModelFromCallable):
         apply_weighted_hessian: callable = None,
         weighted_hessian: callable = None,
         values_ndim: int = 2,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(
             nqoi,
@@ -1214,9 +1214,7 @@ class ScipyModelWrapper:
 
 
 class UmbridgeModelWrapper(Model):
-    def __init__(
-        self, umb_model, config={}, nprocs=1, backend=NumpyLinAlgMixin
-    ):
+    def __init__(self, umb_model, config={}, nprocs=1, backend=NumpyMixin):
         """
         Evaluate an umbridge model at multiple samples
 
@@ -1364,7 +1362,7 @@ class UmbridgeIOModelWrapper(UmbridgeModelWrapper):
         config={},
         nprocs=1,
         outdir_basename="modelresults",
-        backend=NumpyLinAlgMixin,
+        backend=NumpyMixin,
     ):
         """
         Evaluate an umbridge model that wraps models that require
@@ -1390,7 +1388,7 @@ class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
         model_configs={},
         nprocs=1,
         outdir_basename="modelresults",
-        backend=NumpyLinAlgMixin,
+        backend=NumpyMixin,
     ):
         """
         Evaluate an umbridge model with multiple configs that wraps models
@@ -1427,7 +1425,7 @@ class IOModel(SingleSampleModelMixin, Model):
         outdir_basename: str = None,
         save: str = "no",
         datafilename: str = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         """
         Base class for models that require loading and or writing of files
@@ -1538,7 +1536,7 @@ class SerialIOModel(IOModel):
         save: str = "no",
         datafilename: str = None,
         verbosity: int = 0,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(
             nqoi,
@@ -1579,7 +1577,7 @@ class SerialIOModel(IOModel):
         self._run_shell_command()
         vals = np.loadtxt(self._results_filename, usecols=[0])
         os.chdir(curdirname)
-        return self._bkd.atleast2d(vals)
+        return self._bkd.atleast2d(self._bkd.asarray(vals))
 
 
 class AsyncIOModel(SerialIOModel):
@@ -1596,7 +1594,7 @@ class AsyncIOModel(SerialIOModel):
         datafilename: str = None,
         verbosity: int = 0,
         nprocs: int = 1,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._nprocs = nprocs
         super().__init__(
@@ -1753,7 +1751,7 @@ class ActiveSetVariableModel(Model):
         inactive_var_values,
         active_var_indices,
         base_model=None,
-        backend=NumpyLinAlgMixin,
+        backend=NumpyMixin,
     ):
         super().__init__(backend=model._bkd)
         # nvars can de determined from inputs but making it
@@ -1807,7 +1805,7 @@ class ActiveSetVariableModel(Model):
         active_var_indices,
         inactive_var_indices,
         inactive_var_values,
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
     ):
         assert reduced_samples.ndim == 2
         raw_samples = get_all_sample_combinations(
@@ -1981,7 +1979,7 @@ class PoolModelWrapper(Model):
 
 class MultiIndexModelEnsemble(ABC):
     def __init__(
-        self, index_bounds: List[int], backend: LinAlgMixin = NumpyLinAlgMixin
+        self, index_bounds: List[int], backend: BackendMixin = NumpyMixin
     ):
         self._bkd = backend
         self._models = dict()
@@ -2056,7 +2054,7 @@ class DenseMatrixLinearModel(Model):
         self,
         matrix: Array,
         vec: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._nqoi, self._nvars = matrix.shape
         self._matrix = matrix
@@ -2114,7 +2112,7 @@ class DenseMatrixLinearModel(Model):
 
 
 class QuadraticMatrixModel(Model):
-    def __init__(self, matrix: Array, backend=NumpyLinAlgMixin):
+    def __init__(self, matrix: Array, backend=NumpyMixin):
         self._matrix = matrix
         super().__init__(backend)
 
@@ -2345,7 +2343,7 @@ class CostFunction:
 
 
 class ModelListCostFunction(CostFunction):
-    def __init__(self, costs: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, costs: Array, backend: BackendMixin = NumpyMixin):
         "Cost function for a list of models indexed by an integer"
         self._bkd = backend
         self._costs = self._bkd.asarray(costs)
@@ -2359,3 +2357,54 @@ class ModelListCostFunction(CostFunction):
 
     def cost_per_model(self) -> Array:
         return self._costs
+
+
+class AdjointModel(SingleSampleModel, ABC):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
+        super().__init__(backend)
+
+    def jacobian_implemented(self) -> bool:
+        return self._bkd.jacobian_implemented()
+
+    def nqoi(self) -> int:
+        return self._functional.nqoi()
+
+    @abstractmethod
+    def nvars(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _fwd_solve(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def forward_solve(self, sample):
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_param(self, param: Array):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _eval_functional(self) -> Array:
+        raise NotImplementedError
+
+    def _evaluate(self, sample: Array) -> Array:
+        self.set_param(sample[:, 0])
+        self._fwd_solve()
+        return self._eval_functional()
+
+    @abstractmethod
+    def _jacobian_from_adjoint(self) -> Array:
+        raise NotImplementedError
+
+    def _jacobian(self, sample: Array) -> Array:
+        self.set_param(sample[:, 0])
+        return self._jacobian_from_adjoint()
+
+    def _apply_hessian_from_adjoint(self, vec: Array) -> Array:
+        raise NotImplementedError("_hessian_from_adjoint not implemented")
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        self.set_param(sample[:, 0])
+        return self._apply_hessian_from_adjoint(vec[:, 0])

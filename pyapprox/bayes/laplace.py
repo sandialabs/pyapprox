@@ -7,8 +7,8 @@ from pyapprox.util.linalg import (
     DenseSymmetricMatVecOperator,
     SymmetricMatVecOperator,
 )
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
 from pyapprox.interface.model import DenseMatrixLinearModel
 from pyapprox.variables.gaussian import (
@@ -27,7 +27,7 @@ class DenseMatrixLaplacePosteriorApproximation:
         prior_cov: Array,
         noise_cov: Array,
         vec: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         r"""
         Compute the mean and covariance of the Laplace posterior of a
@@ -349,7 +349,7 @@ class GaussianPushForward:
         mean: Array,
         cov: Array,
         vec: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         r"""
         Find the mean and covariance of a gaussian distribution when it
@@ -416,7 +416,7 @@ class DenseMatrixLaplaceApproximationForPrediction:
         prior_mean: Array,
         prior_cov: Array,
         obs_noise_cov: Array,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._bkd = backend
         self._obs_matrix = obs_matrix

@@ -14,15 +14,15 @@ from pyapprox.expdesign.local import (
     GOptimalLstSqCriterion,
     ROptimalLstSqCriterion,
 )
-from pyapprox.surrogates.bases.univariate import Monomial1D
+from pyapprox.surrogates.univariate import Monomial1D
 from pyapprox.optimization.pya_minimize import (
     ScipyConstrainedOptimizer,
     MiniMaxOptimizer,
     AVaRSlackBasedOptimizer,
 )
 from pyapprox.benchmarks.algebraic import MichaelisMentenModel
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 
 class TestLocalOED:
@@ -258,12 +258,12 @@ class TestLocalOED:
 
 # class TestNumpyLocalOED(TestLocalOED, unittest.TestCase):
 #     def get_backend(self):
-#         return NumpyLinAlgMixin
+#         return NumpyMixin
 
 
 class TestTorchLocalOED(TestLocalOED, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ from pyapprox.bayes.likelihood import (
 )
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.util.visualization import plot_multiple_2d_gaussian_slices
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 class TestLaplace:
@@ -265,7 +265,7 @@ class TestLaplace:
 
 class TestNumpyLaplace(TestLaplace, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 if __name__ == "__main__":

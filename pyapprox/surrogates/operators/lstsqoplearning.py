@@ -1,19 +1,19 @@
 import itertools
 
-from pyapprox.surrogates.bases.basis import Basis, QuadratureRule
-from pyapprox.surrogates.bases.basisexp import BasisExpansion
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.affine.basis import Basis, QuadratureRule
+from pyapprox.surrogates.affine.basisexp import BasisExpansion
+from pyapprox.surrogates.univariate.orthopoly import (
     GaussQuadratureRule,
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
-from pyapprox.surrogates.bases.basis import (
+from pyapprox.surrogates.affine.basis import (
     OrthonormalPolynomialBasis,
     FixedGaussianTensorProductQuadratureRuleFromVariable,
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.pde.kle.kle import DataDrivenKLE
-from pyapprox.variables.marginals import get_distribution_info
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.surrogates.affine.kle import DataDrivenKLE
 from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.marginals import ContinuousScipyMarginal
 
 
 class MultiLinearOperatorBasis:
@@ -201,7 +201,7 @@ class TensorOrthoPolyMultiLinearOperatorBasis(MultiLinearOperatorBasis):
         backend=None,
     ):
         if backend is None:
-            backend = NumpyLinAlgMixin
+            backend = NumpyMixin
         self._bkd = backend
         self._marginals_per_infun = marginals_per_infun
         self._marginals_per_outfun = marginals_per_outfun
@@ -548,17 +548,28 @@ class PCATensorOrthoPolyMultiLinearOperatorBasis(PCAMultiLinearOperatorBasis):
 
         coef_marginals = []
         for ii, ncoefs in enumerate(ncoefs_per_infun):
-            var_name, scales, shapes = get_distribution_info(
-                coef_base_marginals[ii]
-            )
+            if not isinstance(
+                coef_base_marginals[ii], ContinuousScipyMarginal
+            ):
+                raise ValueError(
+                    "marginal must be instance of ContinuousScipyMarginal"
+                )
             coef_marginals.append([])
             # scale disribution by sqrt of eigenvalues
             for jj in range(ncoefs):
-                marginal = coef_base_marginals[ii].dist(
-                    *shapes,
-                    loc=scales["loc"],
-                    scale=scales["scale"]
-                    * self._in_bases[ii]._sqrt_eig_vals[jj],
+                # marginal = coef_base_marginals[ii].dist(
+                #     *shapes,
+                #     loc=scales["loc"],
+                #     scale=scales["scale"]
+                #     * self._in_bases[ii]._sqrt_eig_vals[jj],
+                # )
+                base_scipy_rv = coef_base_marginals[ii]._scipy_rv
+                scipy_rv = base_scipy_rv.dist(
+                    *base_scipy_rv._shapes,
+                    loc=base_scipy_rv._scales["loc"],
+                    scale=base_scipy_rv._scales["scale"],
+                    *self._in_bases[ii]._sqrt_eig_vals[jj],
                 )
+                marginal = ContinuousScipyMarginal(scipy_rv)
                 coef_marginals[-1].append(marginal)
         self.set_coefficient_basis(coef_marginals)

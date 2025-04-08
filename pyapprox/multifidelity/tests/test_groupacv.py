@@ -21,7 +21,7 @@ from pyapprox.multifidelity.groupacv import (
     MLBLUEGradientOptimizer,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.multifidelity.factory import multioutput_stats, get_estimator
 from pyapprox.optimization.scipy import (
     ScipyConstrainedOptimizer,
@@ -864,9 +864,9 @@ class TestGroupACV:
 
 class TestTorchGroupACV(TestGroupACV, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
-        # from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-        # return NumpyLinAlgMixin
+        return TorchMixin
+        # from pyapprox.util.backends.numpy import NumpyMixin
+        # return NumpyMixin
 
 
 if __name__ == "__main__":

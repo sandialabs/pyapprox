@@ -58,10 +58,10 @@ from pyapprox.surrogates.kernels.greensfunctions import (
     DrivenHarmonicOscillatorGreensKernel,
     WaveEquation1DGreensKernel,
 )
-from pyapprox.surrogates.bases.univariate.orthopoly import (
+from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
 )
-from pyapprox.sciml.util import NumpyLinAlgMixin
+from pyapprox.sciml.util import NumpyMixin
 
 np.random.seed(1)
 
@@ -69,7 +69,7 @@ kappa = 0.1
 nquad = 100
 greens_fun = HomogeneousLaplace1DGreensKernel(kappa, [1e-3, 1])
 bounds = [0, 1]
-backend = NumpyLinAlgMixin
+backend = NumpyMixin
 quad_rule = GaussLegendreQuadratureRule(bounds=bounds, backend=backend)
 quad_rule.set_nnodes(nquad)
 greens_solver = GreensFunctionSolver(greens_fun, quad_rule)

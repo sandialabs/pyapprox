@@ -17,11 +17,11 @@ from pyapprox.interface.model import (
     SingleSampleModel,
     MultiIndexModelEnsemble,
 )
-from pyapprox.surrogates.bases.univariate.local import (
+from pyapprox.surrogates.univariate.local import (
     setup_univariate_piecewise_polynomial_basis,
 )
-from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
-from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
+from pyapprox.surrogates.affine.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.affine.basisexp import TensorProductInterpolant
 
 
 # %%

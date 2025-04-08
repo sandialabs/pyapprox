@@ -4,8 +4,8 @@ from typing import List, Union
 
 import numpy as np
 
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.multifidelity.stats import (
     MultiOutputMean,
     MultiOutputVariance,

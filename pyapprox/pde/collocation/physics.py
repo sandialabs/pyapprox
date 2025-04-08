@@ -2,7 +2,7 @@ from abc import abstractmethod, ABC
 from typing import Dict
 from functools import partial
 
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.backends.template import Array
 from pyapprox.pde.collocation.functions import (
     ScalarSolution,
     VectorSolution,
@@ -24,7 +24,7 @@ from pyapprox.pde.collocation.functions import (
 )
 
 from pyapprox.pde.collocation.timeintegration import TransientNewtonResidual
-from pyapprox.pde.collocation.newton import NewtonResidual
+from pyapprox.util.newton import NewtonResidual
 from pyapprox.pde.collocation.boundaryconditions import (
     BoundaryOperator,
     PeriodicBoundary,

@@ -3,9 +3,9 @@ import math
 
 from scipy.special import beta as beta_fn
 
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.pde.collocation.adjoint_models import (
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.pde.collocation.adjoint import (
     TransientAdjointFunctional,
     AdjointFunctional,
     SteadyAdjointModel,
@@ -17,7 +17,7 @@ from pyapprox.pde.collocation.solvers import (
     SteadyAdjointCollocationModel,
     TransientAdjointCollocationModel,
 )
-from pyapprox.pde.collocation.newton import (
+from pyapprox.util.newton import (
     NewtonSolver,
     ParameterizedNewtonResidualMixin,
     NewtonResidual,
@@ -230,7 +230,7 @@ class PyApproxPaperAdvectionDiffusionKLEInversionModel(
         source_scale: float = 0.1,
         newton_solver: NewtonSolver = None,
         functional: AdjointFunctional = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._nmesh_pts_1d = backend.asarray(nmesh_pts_1d, dtype=int)
         self._nvars = nvars
@@ -362,7 +362,7 @@ class TransientDiffusionAdvectionModel(TransientAdjointCollocationModel):
         time_residual_cls: TimeIntegratorNewtonResidual,
         newton_solver: NewtonSolver = None,
         functional: TransientAdjointFunctional = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(
             init_time,
@@ -871,7 +871,7 @@ class SteadyShallowShelfModel2D(SteadyAdjointCollocationModel):
         self,
         newton_solver: NewtonSolver = None,
         functional: TransientAdjointFunctional = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(newton_solver, functional, backend)
 
@@ -1133,7 +1133,7 @@ class TransientViscousBurgers1DModel(TransientAdjointCollocationModel):
         time_residual_cls: TimeIntegratorNewtonResidual,
         newton_solver: NewtonSolver = None,
         functional: TransientAdjointFunctional = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._nmesh_pts_1d = nmesh_pts_1d
         self._visc = viscosity
@@ -1227,7 +1227,7 @@ class SteadyDarcy2DKLEModel(SteadyAdjointCollocationModel):
         kle_mean_field: float,
         newton_solver: NewtonSolver = None,
         functional: AdjointFunctional = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._kle_nvars = kle_nvars
         self._kle_sigma = kle_sigma
@@ -1456,7 +1456,7 @@ class NonlinearSystemOfEquationsModel(SteadyAdjointModel):
         self,
         newton_solver: NewtonSolver = None,
         functional: TransientAdjointFunctional = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         residual = NonLinearCoupledEquationsAffineParamResidual(
             backend=backend
@@ -1475,7 +1475,7 @@ class SteadySingleStateFunctional(SteadySolutionFunctional):
         state_id: int,
         nstates: int,
         nparams: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._state_id = state_id
         self._nstates = nstates

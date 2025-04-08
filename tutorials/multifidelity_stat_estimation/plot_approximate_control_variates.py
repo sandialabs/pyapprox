@@ -99,12 +99,12 @@ import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
 from pyapprox.util.visualization import mathrm_label
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 np.random.seed(1)
 shifts = [.1, .2]
 benchmark = TunableModelEnsemble(
-    theta1=np.pi/2*.95, shifts=shifts, backend=TorchLinAlgMixin
+    theta1=np.pi/2*.95, shifts=shifts, backend=TorchMixin
 )
 exact_integral_f0 = benchmark.mean()[0]
 
@@ -114,7 +114,7 @@ from pyapprox.multifidelity.factory import (
     get_estimator, numerically_compute_estimator_variance, multioutput_stats)
 # The benchmark has three models, so just extract data for first two models
 costs = benchmark.costs()[:2]
-stat = multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
+stat = multioutput_stats["mean"](benchmark.nqoi(), backend=TorchMixin)
 stat.set_pilot_quantities(benchmark.covariance()[:2, :2])
 est = get_estimator("gis", stat, costs)
 

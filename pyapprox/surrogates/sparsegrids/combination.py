@@ -5,9 +5,9 @@ from typing import List, Tuple
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.surrogates.bases.multiindex import (
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.surrogates.affine.multiindex import (
     HyperbolicIndexGenerator,
     BasisIndexGenerator,
     DoublePlusOneIndexGrowthRule,
@@ -16,8 +16,8 @@ from pyapprox.surrogates.bases.multiindex import (
     LinearGrowthRule,
     IterativeIndexGenerator,
 )
-from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
-from pyapprox.surrogates.bases.basisexp import (
+from pyapprox.surrogates.affine.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.affine.basisexp import (
     TensorProductInterpolant,
     TensorProductLagrangeInterpolantToPolynomialChaosExpansionConverter,
     PolynomialChaosExpansion,
@@ -29,12 +29,12 @@ from pyapprox.interface.model import (
     MultiIndexModelEnsemble,
     CostFunction,
 )
-from pyapprox.surrogates.bases.univariate.base import UnivariateBasis
-from pyapprox.surrogates.bases.univariate.lagrange import (
+from pyapprox.surrogates.univariate.base import UnivariateBasis
+from pyapprox.surrogates.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.bases.univariate.leja import (
+from pyapprox.surrogates.univariate.leja import (
     TwoPointChristoffelLejaQuadratureRule,
     LejaQuadratureRule,
 )
@@ -124,7 +124,7 @@ class SparseGridSubSpaceAdmissibilityCriteria(SparseGridAdmissibilityCriteria):
 
 class CombinationSparseGrid(Regressor):
     def __init__(
-        self, nqoi: int, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+        self, nqoi: int, nvars: int, backend: BackendMixin = NumpyMixin
     ):
         super().__init__(backend=backend)
         self._verbosity = 0
@@ -383,7 +383,7 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid):
         max_level: int,
         growth_rules: List[IndexGrowthRule],
         basis: TensorProductInterpolatingBasis,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(nqoi, nvars, backend=backend)
         self._set_basis(basis)
@@ -716,7 +716,7 @@ class AdaptiveCombinationSparseGrid(
     CombinationSparseGrid, AdaptiveRegressorMixin
 ):
     def __init__(
-        self, nqoi: int, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+        self, nqoi: int, nvars: int, backend: BackendMixin = NumpyMixin
     ):
         super().__init__(nqoi, nvars, backend)
         self._last_subspace_indices = None
@@ -1322,7 +1322,7 @@ class LocalHierarchicalRefinementCriteria(LocalRefinementCriteria):
 
 class LocallyAdaptiveCombinationSparseGrid(AdaptiveCombinationSparseGrid):
     def __init__(
-        self, nqoi: int, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+        self, nqoi: int, nvars: int, backend: BackendMixin = NumpyMixin
     ):
         super().__init__(nqoi, nvars, backend)
         self._cand_basis_queue = None

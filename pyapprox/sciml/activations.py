@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from pyapprox.sciml.util import LinAlgMixin, TorchLinAlgMixin
+from pyapprox.sciml.util import BackendMixin, TorchMixin
 
 
 class Activation(ABC):
-    def __init__(self, backend: LinAlgMixin = TorchLinAlgMixin):
+    def __init__(self, backend: BackendMixin = TorchMixin):
         self._bkd = backend
 
     @abstractmethod

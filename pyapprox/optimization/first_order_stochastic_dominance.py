@@ -3,7 +3,7 @@ from functools import partial
 from scipy.optimize import NonlinearConstraint, Bounds
 
 from pyapprox.util.pya_numba import njit
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.backends.template import Array
 from pyapprox.interface.model import SingleSampleModel
 from pyapprox.optimization.pya_minimize import (
     Constraint,

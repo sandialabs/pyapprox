@@ -3,7 +3,7 @@ import numpy as np
 from pyapprox.util.hyperparameter import (
     HyperParameter, HyperParameterList, HyperParameterTransform,
     IdentityHyperParameterTransform)
-from pyapprox.sciml.util import LinAlgMixin, TorchLinAlgMixin, FCT
+from pyapprox.sciml.util import BackendMixin, TorchMixin, FCT
 
 
 class IntegralOperator(ABC):
@@ -71,7 +71,7 @@ class AffineProjectionOperator(IntegralOperator):
     def __init__(self, channel_in: int, v0=None, nx=None,
                  transform: HyperParameterTransform
                  = IdentityHyperParameterTransform,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         self._channel_in = channel_in
         self._channel_out = 1
         self._format_nx(nx)
@@ -102,7 +102,7 @@ class AffineProjectionOperator(IntegralOperator):
 
 class KernelIntegralOperator(IntegralOperator):
     def __init__(self, kernels, quad_rule_k, quad_rule_kp1, channel_in=1,
-                 channel_out=1, backend: LinAlgMixin = TorchLinAlgMixin):
+                 channel_out=1, backend: BackendMixin = TorchMixin):
         self._bkd = backend
         if not hasattr(kernels, '__iter__'):
             self._kernels = channel_in*[kernels]
@@ -138,7 +138,7 @@ class DenseAffineIntegralOperator(IntegralOperator):
     def __init__(self, ninputs: int, noutputs: int, v0=None, channel_in=1,
                  channel_out=1, transform: HyperParameterTransform
                  = IdentityHyperParameterTransform,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         r"""
         Implements the usual fully connected layer of an MLP:
 
@@ -208,7 +208,7 @@ class DenseAffineIntegralOperatorFixedBias(DenseAffineIntegralOperator):
     def __init__(self, ninputs: int, noutputs: int, v0=None, channel_in=1,
                  channel_out=1, transform: HyperParameterTransform
                  = IdentityHyperParameterTransform,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         super().__init__(ninputs, noutputs, v0, channel_in, channel_out,
                          transform, backend)
 
@@ -228,7 +228,7 @@ class DenseAffinePointwiseOperator(IntegralOperator):
     def __init__(self, v0=None, channel_in=1, channel_out=1,
                  transform: HyperParameterTransform
                  = IdentityHyperParameterTransform,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         r"""
         Implements a pointwise lifting/projection:
 
@@ -291,7 +291,7 @@ class DenseAffinePointwiseOperatorFixedBias(DenseAffinePointwiseOperator):
     def __init__(self, v0=None, channel_in=1, channel_out=1,
                  transform: HyperParameterTransform
                  = IdentityHyperParameterTransform,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         super().__init__(v0, channel_in, channel_out, transform, backend)
 
     def _default_values(self, v0):
@@ -307,7 +307,7 @@ class DenseAffinePointwiseOperatorFixedBias(DenseAffinePointwiseOperator):
 
 
 class Reshape(IntegralOperator):
-    def __init__(self, output_shape, backend: LinAlgMixin = TorchLinAlgMixin):
+    def __init__(self, output_shape, backend: BackendMixin = TorchMixin):
         if not hasattr(output_shape, '__iter__'):
             raise ValueError('output_shape must be iterable')
         self._bkd = backend
@@ -324,7 +324,7 @@ class Reshape(IntegralOperator):
 
 class BaseFourierOperator(IntegralOperator):
     def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         self._kmax = kmax
         self._format_nx(nx)
         self._d = 1 if self._nx is None else len(self._nx)
@@ -385,7 +385,7 @@ class BaseFourierOperator(IntegralOperator):
         conv_shift_lift = self._bkd.zeros((*fft_y.shape[:-2],
                                            self._channel_out, ntrain),
                                           dtype=self._bkd.cfloat())
-        if self._bkd == TorchLinAlgMixin:
+        if self._bkd == TorchMixin:
             conv_shift_lift[freq_slices] = conv_shift
         else:
             conv_shift_lift[*freq_slices] = conv_shift
@@ -399,7 +399,7 @@ class FourierHSOperator(BaseFourierOperator):
                  channel_coupling='full',
                  transform: HyperParameterTransform
                  = IdentityHyperParameterTransform,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         """
         Dense coupling in space (non-radial kernel). Not tested for spatial
         dimension > 1
@@ -500,7 +500,7 @@ class FourierConvolutionOperator(BaseFourierOperator):
                  channel_coupling='full',
                  transform: HyperParameterTransform
                  = IdentityHyperParameterTransform,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         """
         Diagonal coupling in space (radial/convolutional kernel).
 
@@ -575,7 +575,7 @@ class ChebyshevConvolutionOperator(IntegralOperator):
     def __init__(self, kmax, nx=None, v0=None, channel_in=1, channel_out=1,
                  transform: HyperParameterTransform
                  = IdentityHyperParameterTransform,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         # maximum retained degree
         self._kmax = kmax
         self._format_nx(nx)
@@ -677,7 +677,7 @@ class ChebyshevConvolutionOperator(IntegralOperator):
                                     fct_y_proj_precond)
         conv_lift = self._bkd.zeros((*self._nx, self._channel_out,
                                      fct_y.shape[-1]))
-        if self._bkd == TorchLinAlgMixin:
+        if self._bkd == TorchMixin:
             conv_lift[deg_slices] = r_conv_y.real
         else:
             conv_lift[*deg_slices] = r_conv_y.real
@@ -690,7 +690,7 @@ class ChebyshevIntegralOperator(IntegralOperator):
                  chol=False,
                  transform: HyperParameterTransform
                  = IdentityHyperParameterTransform,
-                 backend: LinAlgMixin = TorchLinAlgMixin):
+                 backend: BackendMixin = TorchMixin):
         r"""
         Compute
 

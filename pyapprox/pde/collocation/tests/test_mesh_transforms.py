@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform2D,
     ScaleAndTranslationTransform3D,
@@ -16,10 +16,10 @@ from pyapprox.pde.collocation.mesh_transforms import (
     FixedScaleAndTranslationTransform3D,
 )
 from pyapprox.optimization.minimize import approx_jacobian
-from pyapprox.surrogates.bases.univariate.orthopoly import (
+from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
 )
-from pyapprox.surrogates.bases.basis import FixedTensorProductQuadratureRule
+from pyapprox.surrogates.affine.basis import FixedTensorProductQuadratureRule
 
 
 class TestMeshTransforms:
@@ -670,12 +670,12 @@ class TestMeshTransforms:
 
 class TestNumpyMeshTransforms(TestMeshTransforms, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 # class TestTorchMeshTransforms(TestBasis, unittest.TestCase):
 #     def get_backend(self):
-#         return TorchLinAlgMixin
+#         return TorchMixin
 
 
 if __name__ == "__main__":

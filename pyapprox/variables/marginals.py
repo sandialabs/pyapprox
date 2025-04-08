@@ -8,14 +8,14 @@ from scipy import stats
 from scipy import interpolate
 import numpy as np
 
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.pde.collocation.newton import NewtonResidual, NewtonSolver
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.newton import NewtonResidual, NewtonSolver
 
 
 class Marginal(ABC):
     # This class implemented to allow for autograd
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
 
     def _check_samples(self, samples: Array) -> Array:
@@ -172,7 +172,7 @@ class ScipyMarginal(Marginal):
     def __init__(
         self,
         scipy_rv,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._scipy_rv = scipy_rv
         super().__init__(backend)
@@ -466,7 +466,7 @@ def pdf_derivative_under_affine_map(
 
 
 def beta_function(
-    alpha_stat: float, beta_stat: float, bkd: LinAlgMixin = NumpyLinAlgMixin
+    alpha_stat: float, beta_stat: float, bkd: BackendMixin = NumpyMixin
 ):
     return bkd.exp(
         bkd.gammaln(alpha_stat)
@@ -479,7 +479,7 @@ def beta_pdf(
     alpha_stat: float,
     beta_stat: float,
     x: Array,
-    bkd: LinAlgMixin = NumpyLinAlgMixin,
+    bkd: BackendMixin = NumpyMixin,
 ) -> Array:
     # scipy implementation is slow
     const = 1.0 / beta_function(alpha_stat, beta_stat, bkd)
@@ -492,7 +492,7 @@ def beta_pdf_on_ab(
     a: float,
     b: float,
     x: Array,
-    bkd: LinAlgMixin = NumpyLinAlgMixin,
+    bkd: BackendMixin = NumpyMixin,
 ) -> Array:
     # const = 1./beta_fn(alpha_stat,beta_stat)
     # const /= (b-a)**(alpha_stat+beta_stat-1)
@@ -505,7 +505,7 @@ def beta_pdf_derivative(
     alpha_stat: float,
     beta_stat: float,
     x: Array,
-    bkd: LinAlgMixin = NumpyLinAlgMixin,
+    bkd: BackendMixin = NumpyMixin,
 ) -> Array:
     r"""
     x in [0, 1]
@@ -533,7 +533,7 @@ def beta_pdf_derivative_on_ab(
     a: float,
     b: float,
     x: Array,
-    bkd: LinAlgMixin = NumpyLinAlgMixin,
+    bkd: BackendMixin = NumpyMixin,
 ) -> Array:
 
     pdf_deriv = partial(beta_pdf_derivative, alpha_stat, beta_stat)
@@ -541,7 +541,7 @@ def beta_pdf_derivative_on_ab(
 
 
 def gaussian_pdf(
-    mean: float, var: float, x: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    mean: float, var: float, x: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
     r"""
     set package=sympy if want to use for symbolic calculations
@@ -550,7 +550,7 @@ def gaussian_pdf(
 
 
 def gaussian_pdf_derivative(
-    mean: float, var: float, x: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    mean: float, var: float, x: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
     return -gaussian_pdf(mean, var, x, bkd) * (x - mean) / var
 
@@ -613,7 +613,7 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         lb: float,
         ub: float,
         nquad_samples: int = 100,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         if alpha < 1:
             raise ValueError("alpha must be >= 1")
@@ -803,7 +803,7 @@ class UniformMarginal(BetaMarginal):
         lb: float,
         ub: float,
         nquad_samples: int = 100,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(1, 1, lb, ub, nquad_samples, backend)
 
@@ -816,7 +816,7 @@ class GaussianMarginal(Marginal):
         self,
         mean: float,
         stdev: float,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._mean = mean
@@ -904,7 +904,7 @@ class GaussianMarginal(Marginal):
 # TODO make this a function of a discrete variable from samples class
 class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
     def __init__(
-        self, xk: Array, pk: Array, backend: LinAlgMixin = NumpyLinAlgMixin
+        self, xk: Array, pk: Array, backend: BackendMixin = NumpyMixin
     ):
         super().__init__(backend)
         if xk.ndim != 1 or pk.ndim != 1:
@@ -999,7 +999,7 @@ class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
 
 
 class DiscreteChebyshevMarginal(CustomDiscreteMarginal):
-    def __init__(self, nmasses: int, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, nmasses: int, backend: BackendMixin = NumpyMixin):
         xk = backend.arange(nmasses, dtype=float)
         pk = backend.ones((nmasses,), dtype=float) / nmasses
         super().__init__(xk, pk, backend)
@@ -1011,7 +1011,7 @@ class EmpiricalCDF:
         self,
         samples: Array,
         weights: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._bkd = backend
         if samples.ndim != 1:
@@ -1050,7 +1050,7 @@ class EmpiricalCDF:
         return self._bkd.hstack(self._bkd.zeros((1,)), vals)
 
 
-def parse_marginal(marginal, backend: LinAlgMixin):
+def parse_marginal(marginal, backend: BackendMixin):
     if isinstance(marginal, Marginal):
         return marginal
 

@@ -11,8 +11,8 @@ from scipy.special import (
     betainc,
 )
 
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.linalg import (
     cholesky_inverse,
     log_determinant_from_cholesky_factor,
@@ -27,7 +27,7 @@ class RiskMixin(ABC):
     def __init__(
         self,
         sort: bool = True,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._sort = sort
         self._bkd = backend
@@ -64,7 +64,7 @@ class ValueAtRiskMixin(RiskMixin):
         self,
         beta: float,
         sort: bool = True,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self.set_beta(beta)
         super().__init__(sort, backend)
@@ -131,7 +131,7 @@ class EntropicRisk(RiskMixin):
     def __init__(
         self,
         beta: float,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._beta = beta
         super().__init__(False, backend)
@@ -160,7 +160,7 @@ class UtilitySSD(RiskMixin):
 
     def __init__(
         self,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(False, backend)
 
@@ -408,7 +408,7 @@ class FDivergence(ABC):
         density1: callable,
         density2: callable,
         quad_rule_tuple: Tuple[Array, Array],
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         r"""
         Parameters
@@ -472,7 +472,7 @@ class HellingerDivergence(FDivergence):
 
 
 class ExactKLDivergence(ABC):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
 
     @abstractmethod
@@ -484,7 +484,7 @@ class IndependentGaussianExactKLDivergence(ExactKLDivergence):
     def __init__(
         self,
         nvars: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._nvars = nvars
@@ -528,7 +528,7 @@ class CholeskyBasedGaussianExactKLDivergence(ExactKLDivergence):
     def __init__(
         self,
         nvars: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._nvars = nvars

@@ -5,32 +5,32 @@ from scipy import stats
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.multiindex import (
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.surrogates.affine.multiindex import (
     DoublePlusOneIndexGrowthRule,
     IterativeIndexGenerator,
     IsotropicSGIndexGenerator,
     sort_indices_lexiographically,
     argsort_indices_lexiographically,
 )
-from pyapprox.surrogates.bases.univariate.base import (
+from pyapprox.surrogates.univariate.base import (
     ClenshawCurtisQuadratureRule,
     DydadicEquidistantNodeGenerator,
 )
-from pyapprox.surrogates.bases.univariate.lagrange import (
+from pyapprox.surrogates.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
-from pyapprox.surrogates.bases.univariate.orthopoly import (
+from pyapprox.surrogates.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
     GaussQuadratureRule,
 )
-from pyapprox.surrogates.bases.basis import (
+from pyapprox.surrogates.affine.basis import (
     TensorProductInterpolatingBasis,
     MultiIndexBasis,
     TensorProductQuadratureRule,
 )
-from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
+from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
 from pyapprox.surrogates.sparsegrids.combination import (
     IsotropicCombinationSparseGrid,
     AdaptiveCombinationSparseGrid,
@@ -48,7 +48,7 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid,
     VarianceRefinementCriteria,
 )
-from pyapprox.surrogates.bases.univariate.local import (
+from pyapprox.surrogates.univariate.local import (
     setup_univariate_piecewise_polynomial_basis,
 )
 from pyapprox.benchmarks import (
@@ -424,12 +424,12 @@ class TestCombination:
 
 class TestNumpyCombination(TestCombination, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchCombination(TestCombination, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

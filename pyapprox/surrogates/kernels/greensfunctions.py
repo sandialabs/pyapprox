@@ -3,9 +3,9 @@ from abc import abstractmethod
 from typing import Union, TypeVar
 import math
 
-from pyapprox.util.linearalgebra.numpylinalg import (
-    NumpyLinAlgMixin,
-    LinAlgMixin,
+from pyapprox.util.backends.numpy import (
+    NumpyMixin,
+    BackendMixin,
 )
 from pyapprox.surrogates.kernels.kernels import Kernel
 from pyapprox.util.hyperparameter import (
@@ -58,7 +58,7 @@ class HomogeneousLaplace1DGreensKernel(Kernel):
         self,
         kappa: Union[float, Array],
         kappa_bounds: Array,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._kappa = HyperParameter(
@@ -93,7 +93,7 @@ class DrivenHarmonicOscillatorGreensKernel(Kernel):
         self,
         omega: Union[float, Array],
         omega_bounds: Array,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._omega = HyperParameter(
@@ -129,7 +129,7 @@ class Helmholtz1DGreensKernel(Kernel):
         wavenum: Union[float, Array],
         wavenum_bounds: Array,
         L: float = 1,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._L = L
@@ -184,7 +184,7 @@ class HeatEquation1DGreensKernel(Kernel):
         kappa_bounds: Array,
         L: float = 1,
         nterms: int = 10,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._nterms = nterms
@@ -237,7 +237,7 @@ class WaveEquation1DGreensKernel(Kernel):
         L: float = 1,
         nterms: int = 10,
         pos: bool = True,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._L = L

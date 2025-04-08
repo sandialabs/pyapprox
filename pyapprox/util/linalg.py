@@ -5,8 +5,8 @@ import numpy as np
 from scipy.linalg import solve_triangular
 from scipy.linalg import lapack
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.template import BackendMixin, Array
 
 
 def invert_permutation_vector(p, dtype=int):
@@ -39,7 +39,7 @@ def get_low_rank_matrix(
     nrows: int,
     ncols: int,
     rank: int,
-    bkd: LinAlgMixin = NumpyLinAlgMixin,
+    bkd: BackendMixin = NumpyMixin,
 ):
     r"""
     Construct a matrix of size nrows x ncols with a given rank.
@@ -612,7 +612,7 @@ def determinant_triangular_matrix(matrix):
 
 
 def log_determinant_from_cholesky_factor(
-    L, bkd: LinAlgMixin = NumpyLinAlgMixin
+    L, bkd: BackendMixin = NumpyMixin
 ):
     """Get determinant of LL@.T"""
     return 2 * bkd.sum(bkd.log(bkd.diag(L)))
@@ -629,7 +629,7 @@ def cholesky_solve_linear_system(L, rhs):
     return x
 
 
-def cholesky_inverse(L, bkd: LinAlgMixin = NumpyLinAlgMixin):
+def cholesky_inverse(L, bkd: BackendMixin = NumpyMixin):
     """
     Inverse of a matrix using its cholesky factor
     I.e. compute inv(A) A =L@L.T
@@ -639,7 +639,7 @@ def cholesky_inverse(L, bkd: LinAlgMixin = NumpyLinAlgMixin):
     return A_inv
 
 
-def inverse_of_cholesky_factor(L, bkd: LinAlgMixin = NumpyLinAlgMixin):
+def inverse_of_cholesky_factor(L, bkd: BackendMixin = NumpyMixin):
     """Compute inveres of cholesy factor"""
     rhs = bkd.eye(L.shape[0])
     L_inv = bkd.solve_triangular(L, rhs, lower=True)
@@ -793,7 +793,7 @@ def equality_constrained_linear_least_squares(A, B, y, z):
 
 
 def trace_of_mat_mat_product(
-    Amat: Array, Bmat: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    Amat: Array, Bmat: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
     """
     Compute Trace(A @ B)
@@ -805,7 +805,7 @@ def trace_of_mat_mat_product(
 
 
 def diag_of_mat_mat_product(
-    Amat: Array, Bmat: Array, bkd: LinAlgMixin = NumpyLinAlgMixin
+    Amat: Array, Bmat: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
     """
     Compute Diag(A @ B)
@@ -849,7 +849,7 @@ class SymmetricMatVecOperator(MatVecOperator):
 
 
 class DenseMatVecOperator(MatVecOperator):
-    def __init__(self, mat: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, mat: Array, backend: BackendMixin = NumpyMixin):
         self._mat = mat
         self._bkd = backend
 
@@ -873,7 +873,7 @@ class DenseMatVecOperator(MatVecOperator):
 
 
 class DenseSymmetricMatVecOperator(SymmetricMatVecOperator):
-    def __init__(self, mat: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, mat: Array, backend: BackendMixin = NumpyMixin):
         if mat.shape[0] != mat.shape[1] or not backend.allclose(
             mat, mat.T, atol=1e-16
         ):

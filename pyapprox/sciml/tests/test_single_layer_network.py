@@ -1,8 +1,8 @@
 import unittest
 
-from pyapprox.surrogates.bases.orthopoly import GaussLegendreQuadratureRule
+from pyapprox.surrogates.univariate.orthopoly import GaussLegendreQuadratureRule
 from pyapprox.surrogates.kernels.kernels import MaternKernel
-from pyapprox.sciml.util import TorchLinAlgMixin
+from pyapprox.sciml.util import TorchMixin
 from pyapprox.sciml.activations import IdentityActivation
 from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.integraloperators import (
@@ -10,7 +10,7 @@ from pyapprox.sciml.integraloperators import (
     FourierConvolutionOperator, ChebyshevConvolutionOperator)
 from pyapprox.sciml.layers import Layer
 
-bkd = TorchLinAlgMixin
+bkd = TorchMixin
 pi = 3.1415926535897932
 
 

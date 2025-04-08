@@ -4,16 +4,16 @@ from functools import partial
 import sympy as sp
 import numpy as np
 
-from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.pde.autopde.manufactured_solutions import (
+from pyapprox.util.backends.template import Array
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.sympy import (
     _evaluate_list_of_sp_lambda,
     _evaluate_sp_lambda,
 )
 
 
 class OrthogonalCoordinateTransform(ABC):
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend=NumpyMixin):
         self._bkd = backend
 
     @abstractmethod
@@ -136,7 +136,7 @@ class OrthogonalCoordinateTransform(ABC):
 
 
 class ScaleAndTranslationTransformMixIn:
-    def __init__(self, orthog_ranges, ranges, backend=NumpyLinAlgMixin):
+    def __init__(self, orthog_ranges, ranges, backend=NumpyMixin):
         super().__init__(backend)
         # if following not satisfied it will mess up how normals are computed
         if self._bkd.any(
@@ -241,7 +241,7 @@ class ScaleAndTranslationTransform3D(
 
 class FixedScaleAndTranslationTransform3D(ScaleAndTranslationTransform3D):
     # fix one of the dimensions to a single value
-    def __init__(self, orthog_ranges, ranges, backend=NumpyLinAlgMixin):
+    def __init__(self, orthog_ranges, ranges, backend=NumpyMixin):
         OrthogonalCoordinateTransform3D.__init__(self, backend)
         self._orthog_ranges = self._bkd.asarray(orthog_ranges)
         self._ranges = self._bkd.asarray(ranges)
@@ -330,7 +330,7 @@ class PolarTransform(OrthogonalCoordinateTransform2D):
 
 
 class EllipticalTransform(OrthogonalCoordinateTransform2D):
-    def __init__(self, a, backend=NumpyLinAlgMixin):
+    def __init__(self, a, backend=NumpyMixin):
         super().__init__(backend)
         self._a = a
 
@@ -414,7 +414,7 @@ class SympyTransform2D(OrthogonalCoordinateTransform2D):
         self,
         map_from_orthogonal_strings,
         map_to_orthogonal_strings,
-        backend=NumpyLinAlgMixin,
+        backend=NumpyMixin,
     ):
         super().__init__(backend)
         self._symbs = sp.symbols(["_x_", "_y_"])

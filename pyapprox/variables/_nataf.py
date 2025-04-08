@@ -10,8 +10,8 @@ from pyapprox.util.utilities import (
     scipy_gauss_hermite_pts_wts_1D,
     get_correlation_from_covariance,
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.variables.marginals import GaussianMarginal, Marginal
 
 
@@ -126,7 +126,7 @@ def transform_correlations(
     x_marginals: List[Marginal],
     quad_rule: Tuple[Array, Array],
     bisection_opts: Dict = dict(),
-    bkd: LinAlgMixin = NumpyLinAlgMixin,
+    bkd: BackendMixin = NumpyMixin,
 ) -> Array:
 
     nvars = len(x_marginals)
@@ -169,7 +169,7 @@ def trans_x_to_z(x_samples: Array, x_marginals: List[Marginal]) -> Array:
 
 
 def trans_z_to_u(
-    z_samples: Array, z_correlation_cholesky_factor: Array, bkd: LinAlgMixin
+    z_samples: Array, z_correlation_cholesky_factor: Array, bkd: BackendMixin
 ) -> Array:
     u_samples = bkd.solve_triangular(
         z_correlation_cholesky_factor, z_samples, lower=True
@@ -178,7 +178,7 @@ def trans_z_to_u(
 
 
 def trans_u_to_z(
-    u_samples: Array, correlation_cholesky_factor: Array, bkd: LinAlgMixin
+    u_samples: Array, correlation_cholesky_factor: Array, bkd: BackendMixin
 ) -> Array:
     return bkd.dot(correlation_cholesky_factor, u_samples)
 
@@ -214,7 +214,7 @@ def nataf_transformation(
     x_marginal_means: Array,
     x_marginal_stdevs: Array,
     bisection_opts: Dict = dict(),
-    bkd: LinAlgMixin = NumpyLinAlgMixin,
+    bkd: BackendMixin = NumpyMixin,
 ) -> Array:
     quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
     # x_correlation = covariance_to_correlation(x_covariance)
@@ -242,7 +242,7 @@ def inverse_nataf_transformation(
     x_marginal_means: Array,
     x_marginal_stdevs: Array,
     bisection_opts: Dict = dict(),
-    bkd: LinAlgMixin = NumpyLinAlgMixin,
+    bkd: BackendMixin = NumpyMixin,
 ) -> Array:
     quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
     x_correlation = get_correlation_from_covariance(x_covariance, bkd)

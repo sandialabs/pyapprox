@@ -9,8 +9,8 @@ from pyapprox.util.hyperparameter import (
     CholeskyHyperParameter,
 )
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 
 class TestHyperParameter:
@@ -105,12 +105,12 @@ class TestHyperParameter:
 
 class TestNumpyHyperParameter(TestHyperParameter, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchHyperParameter(TestHyperParameter, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

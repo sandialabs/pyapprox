@@ -24,8 +24,8 @@ from pyapprox.variables._nataf import (
     generate_x_samples_using_gaussian_copula,
 )
 from pyapprox.util.utilities import correlation_to_covariance
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 
 class TestVariableTransforms:
@@ -112,7 +112,7 @@ class TestVariableTransforms:
 
     def test_rosenblatt_transformation(self):
         # todo port rosenblatt transform to use backend
-        bkd = NumpyLinAlgMixin
+        bkd = NumpyMixin
         true_samples, true_canonical_samples, joint_density, limits = (
             rosenblatt_example_2d(nsamples=10)
         )
@@ -130,7 +130,7 @@ class TestVariableTransforms:
         assert bkd.allclose(true_canonical_samples, canonical_samples)
 
     def test_transformation_composition_I(self):
-        bkd = NumpyLinAlgMixin
+        bkd = NumpyMixin
         # todo port rosenblatt transform to use backend
         np.random.seed(2)
         true_samples, true_canonical_samples, joint_density, limits = (
@@ -210,7 +210,7 @@ class TestVariableTransforms:
     def test_pickle_rosenblatt_transformation(self):
         # todo port rosenblatt transform to use backend
         # bkd = self.get_backend()
-        bkd = NumpyLinAlgMixin
+        bkd = NumpyMixin
         import pickle
         import os
 
@@ -364,12 +364,12 @@ class TestVariableTransforms:
 
 class TestNumpyVariableTransforms(TestVariableTransforms, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchVariableTransforms(TestVariableTransforms, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

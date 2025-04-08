@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 import textwrap
 from typing import Tuple, Union
 
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.pde.collocation.physics import (
     Physics,
     SteadyPhysicsNewtonResidualMixin,
@@ -16,13 +16,13 @@ from pyapprox.pde.collocation.functions import (
     TransientOperatorMixin,
     OrthogonalCoordinateCollocationBasis,
 )
-from pyapprox.pde.collocation.newton import NewtonSolver, NewtonResidual
+from pyapprox.util.newton import NewtonSolver, NewtonResidual
 from pyapprox.pde.collocation.timeintegration import (
     TransientNewtonResidual,
     TimeIntegratorNewtonResidual,
     BackwardEulerResidual,
 )
-from pyapprox.pde.collocation.adjoint_models import (
+from pyapprox.pde.collocation.adjoint import (
     TransientAdjointFunctional, TransientAdjointModel, SteadyAdjointModel
 )
 
@@ -87,7 +87,7 @@ class SteadyAdjointCollocationModel(CollocationModelMixin, SteadyAdjointModel):
         self,
         newton_solver: NewtonSolver = None,
         functional: TransientAdjointFunctional = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._bkd = backend
         self.setup_basis()
@@ -122,7 +122,7 @@ class TransientAdjointCollocationModel(
         time_residual_cls: TimeIntegratorNewtonResidual,
         newton_solver: NewtonSolver = None,
         functional: TransientAdjointFunctional = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._bkd = backend
         self.setup_basis()

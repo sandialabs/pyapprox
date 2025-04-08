@@ -9,15 +9,15 @@ from pyapprox.optimization.minimize import (
     OptimizerIterateGenerator,
     RandomUniformOptimzerIterateGenerator,
 )
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.transforms import Transform, IdentityTransform
 from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
 
 class Surrogate(Model):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
 
     @abstractmethod
@@ -34,7 +34,7 @@ class Surrogate(Model):
 
 
 class Regressor(Surrogate):
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend=NumpyMixin):
         super().__init__(backend)
         self._set_default_transforms()
         # canonical traning samples after transformation
@@ -140,7 +140,7 @@ class AdaptiveRegressorMixin(ABC):
 
 
 class OptimizedRegressor(Regressor):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         self._loss = None
         self._optimizer = None

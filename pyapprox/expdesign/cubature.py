@@ -1,14 +1,14 @@
 import math
 from typing import Tuple
 
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 # FIXME: DOES STROUD ASSUME A WEIGHT OF w(x)=1/2**ndim
 
 
 def CdD2(
-    ndim: int, uniform_weight: bool = True, bkd: LinAlgMixin = NumpyLinAlgMixin
+    ndim: int, uniform_weight: bool = True, bkd: BackendMixin = NumpyMixin
 ) -> Tuple[Array, Array]:
     """Arbitrary Dimensions, Degree 2, d+1 Points (Stroud) x in [-1,1]^D"""
     if not uniform_weight:
@@ -32,7 +32,7 @@ def CdD2(
 
 
 def CdD3(
-    ndim: int, uniform_weight: bool = True, bkd: LinAlgMixin = NumpyLinAlgMixin
+    ndim: int, uniform_weight: bool = True, bkd: BackendMixin = NumpyMixin
 ) -> Tuple[Array, Array]:
     """Arbitrary Dimensions, Degree 3, 2d Points (Stroud) x in [-1,1]^D"""
     if not uniform_weight:
@@ -56,7 +56,7 @@ def CdD3(
 
 
 def CdD5(
-    ndim: int, uniform_weight: bool = True, bkd: LinAlgMixin = NumpyLinAlgMixin
+    ndim: int, uniform_weight: bool = True, bkd: BackendMixin = NumpyMixin
 ) -> Tuple[Array, Array]:
     """
     Arbitrary Dimensions, Degree 5, 2^d+1 Points (Hammer and Stroud) x in [-1,1]^D
@@ -106,7 +106,7 @@ def get_cubature_rule(
     nvars: int,
     degree: int,
     uniform_weight: bool = True,
-    bkd: LinAlgMixin = NumpyLinAlgMixin,
+    bkd: BackendMixin = NumpyMixin,
 ) -> Tuple[Array, Array]:
     cases = {2: CdD2, 3: CdD3, 5: CdD5}
     if degree not in cases:

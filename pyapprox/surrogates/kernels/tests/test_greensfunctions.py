@@ -4,9 +4,9 @@ import math
 import numpy as np
 
 from pyapprox.util.sys_utilities import package_available
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.univariate.local import (
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.surrogates.univariate.local import (
     UnivariatePiecewisePolynomialQuadratureRule,
 )
 from pyapprox.surrogates.kernels.greensfunctions import (
@@ -18,7 +18,7 @@ from pyapprox.surrogates.kernels.greensfunctions import (
     ActiveGreensKernel,
     HomogeneousLaplace1DGreensKernel,
 )
-from pyapprox.surrogates.bases.basis import FixedTensorProductQuadratureRule
+from pyapprox.surrogates.affine.basis import FixedTensorProductQuadratureRule
 from pyapprox.util.visualization import get_meshgrid_samples
 
 
@@ -322,7 +322,7 @@ class TestGreensFunctions:
 
 class TestNumpyGreensFunctions(TestGreensFunctions, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchGreensFunctions(TestGreensFunctions, unittest.TestCase):
@@ -332,7 +332,7 @@ class TestTorchGreensFunctions(TestGreensFunctions, unittest.TestCase):
         TestGreensFunctions.setUp(self)
 
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

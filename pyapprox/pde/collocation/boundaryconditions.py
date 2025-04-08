@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Union
 
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.backends.template import Array
 from pyapprox.pde.collocation.mesh import OrthogonalCoordinateMeshBoundary
 from pyapprox.pde.collocation.functions import (
     ScalarOperator,

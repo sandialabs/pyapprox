@@ -106,9 +106,9 @@ from pyapprox.multifidelity.factory import (
     multioutput_stats,
 )
 from pyapprox.multifidelity.visualize import plot_estimator_variance_reductions
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 
-bkd = TorchLinAlgMixin
+bkd = TorchMixin
 np.random.seed(1)
 benchmark = PolynomialModelEnsemble(backend=bkd)
 cov = benchmark.covariance()
@@ -117,7 +117,7 @@ target_costs = bkd.array([1e2], dtype=int)
 costs = bkd.asarray([10**-ii for ii in range(nmodels)])
 model_labels = [r"$f_0$", r"$f_1$", r"$f_2$", r"$f_3$", r"$f_4$"]
 
-stat = multioutput_stats["mean"](benchmark.nqoi(), backend=TorchLinAlgMixin)
+stat = multioutput_stats["mean"](benchmark.nqoi(), backend=TorchMixin)
 stat.set_pilot_quantities(cov)
 estimators = [
     get_estimator("mlmc", stat, costs),

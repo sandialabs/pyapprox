@@ -73,7 +73,7 @@ def _setup_gaussian_linear_inverse_problem(
 
 
 from pyapprox.bayes.likelihood import LogLikelihood
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.backends.template import Array
 
 
 class ExponentialQuarticLogLikelihoodModel(LogLikelihood):

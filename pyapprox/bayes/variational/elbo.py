@@ -6,8 +6,8 @@ import numpy as np
 
 from pyapprox.variables.joint import JointVariable
 from pyapprox.interface.model import Model
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.optimization.risk import (
     CholeskyBasedGaussianExactKLDivergence,
     IndependentGaussianExactKLDivergence,
@@ -42,7 +42,7 @@ class VariationalPosterior(ABC):
         self,
         nvars: int,
         nlatent_samples: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._bkd = backend
         self._nvars = nvars
@@ -82,7 +82,7 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
         mean_values: Array = None,
         cholesky_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         mean_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(nvars, nlatent_samples, backend)
         if mean_values is None:
@@ -131,7 +131,7 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         mean_values: Array = None,
         std_diag_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         mean_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(nvars, nlatent_samples, backend)
         if mean_values is None:
@@ -180,7 +180,7 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         bshape_values: Array = None,
         ashape_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         bshape_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(nvars, nlatent_samples, backend)
         self._ashapes = HyperParameter(

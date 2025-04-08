@@ -5,17 +5,16 @@ import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.operators.lstsqoplearning import (
-    TensorOrthoPolyMultiLinearOperatorBasis, MultiLinearOperatorExpansion
+    TensorOrthoPolyMultiLinearOperatorBasis,
+    MultiLinearOperatorExpansion,
 )
-from pyapprox.surrogates.bases.basis import (
-    FixedTensorProductQuadratureRule
-)
-from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
-from pyapprox.surrogates.bases.orthopoly import GaussQuadratureRule
-from pyapprox.surrogates.bases.linearsystemsolvers import LstSqSolver
+from pyapprox.surrogates.affine.basis import FixedTensorProductQuadratureRule
+from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
+from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.surrogates.affine.linearsystemsolvers import LstSqSolver
 
 
 class BasisExpansionFunction:
@@ -39,10 +38,8 @@ def _evaluate_basis_expansion_functions(funs, coefs):
     cnt = 0
     for ii in range(len(funs)):
         fun = funs[ii]
-        nterms = fun._bexp.basis.nterms()
-        fun_values.append(
-            fun(coefs[cnt:cnt+nterms])
-        )
+        nterms = fun._bexp.basis().nterms()
+        fun_values.append(fun(coefs[cnt : cnt + nterms]))
         cnt += nterms
     return fun_values
 
@@ -52,24 +49,34 @@ class TestLstSqOpLearning:
         np.random.seed(1)
 
     def _setup_op_basis(
-            self, nphys_vars, nin_funs, nout_funs, nin_terms_1d, nout_terms_1d,
-            op_order, phys_marginal, coef_marginal
+        self,
+        nphys_vars,
+        nin_funs,
+        nout_funs,
+        nin_terms_1d,
+        nout_terms_1d,
+        op_order,
+        phys_marginal,
+        coef_marginal,
     ):
         bkd = self.get_backend()
-        nterms_1d_per_infun = [[nin_terms_1d]*nphys_vars]*nin_funs
+        nterms_1d_per_infun = [[nin_terms_1d] * nphys_vars] * nin_funs
 
         op_basis = TensorOrthoPolyMultiLinearOperatorBasis(
-            [[phys_marginal]*nphys_vars]*nin_funs,
-            [[phys_marginal]*nphys_vars]*nout_funs,
-            [[nin_terms_1d]*nphys_vars]*nin_funs,
-            [[nout_terms_1d]*nphys_vars]*nout_funs,
+            [[phys_marginal] * nphys_vars] * nin_funs,
+            [[phys_marginal] * nphys_vars] * nout_funs,
+            [[nin_terms_1d] * nphys_vars] * nin_funs,
+            [[nout_terms_1d] * nphys_vars] * nout_funs,
         )
         ncoefs_per_infun = op_basis.ncoefficients_per_input_function()
         op_basis.set_coefficient_basis(
-            [[coef_marginal]*ncoefs for ncoefs in ncoefs_per_infun]
+            [[coef_marginal] * ncoefs for ncoefs in ncoefs_per_infun]
         )
         indices = bkd.cartesian_product(
-            [bkd.arange(0, nt) for nt in [op_order+1]*sum(ncoefs_per_infun)]
+            [
+                bkd.arange(0, nt)
+                for nt in [op_order + 1] * sum(ncoefs_per_infun)
+            ]
         )
         # if op_order == 1:
         #    # linear op from paper
@@ -85,16 +92,21 @@ class TestLstSqOpLearning:
         phys_marginal = stats.uniform(-1, 2)
         coef_marginal = stats.norm(0, 1)
         op_basis, nterms_1d_per_infun = self._setup_op_basis(
-            nphys_vars, nin_funs, nout_funs, nin_terms_1d, nout_terms_1d,
-            op_order, phys_marginal, coef_marginal
+            nphys_vars,
+            nin_funs,
+            nout_funs,
+            nin_terms_1d,
+            nout_terms_1d,
+            op_order,
+            phys_marginal,
+            coef_marginal,
         )
 
         # check out quad rules integrate output functions exactly.
         for ii in range(nout_funs):
             quad_samples, quad_weights = op_basis._out_quad_rules[ii]()
             basis_mat = op_basis._out_bases[ii](quad_samples)
-            tmp = np.einsum(
-                "ij, ik->jk", basis_mat, quad_weights*basis_mat)
+            tmp = np.einsum("ij, ik->jk", basis_mat, quad_weights * basis_mat)
             assert np.allclose(tmp, bkd.eye(basis_mat.shape[1]))
 
         # Test basis integrates input functions correctly. That is check
@@ -106,7 +118,7 @@ class TestLstSqOpLearning:
             [op_basis._in_bases[ii].nterms() for ii in range(nin_funs)]
         )
         coef_variable = IndependentMarginalsVariable(
-            [coef_marginal]*ncoef_dims, backend=bkd
+            [coef_marginal] * ncoef_dims, backend=bkd
         )
         in_coefs = coef_variable.rvs(nfun_samples)
 
@@ -115,16 +127,14 @@ class TestLstSqOpLearning:
             bexp = PolynomialChaosExpansion(
                 copy.deepcopy(op_basis._in_bases[ii])
             )
-            bexp.basis.set_tensor_product_indices(nterms_1d_per_infun[ii])
+            bexp.basis().set_tensor_product_indices(nterms_1d_per_infun[ii])
             in_funs.append(
                 BasisExpansionFunction(bexp, op_basis._in_quad_rules[ii]()[0])
             )
 
         infun_values = _evaluate_basis_expansion_functions(in_funs, in_coefs)
 
-        recovered_in_coefs = op_basis._in_coef_from_infun_values(
-            infun_values
-        )
+        recovered_in_coefs = op_basis._in_coef_from_infun_values(infun_values)
         assert bkd.allclose(
             recovered_in_coefs, in_coefs, rtol=1e-14, atol=1e-14
         )
@@ -139,7 +149,7 @@ class TestLstSqOpLearning:
         coef_quad_rule = FixedTensorProductQuadratureRule(
             ncoef_dims,
             univariate_coef_quad_rules,
-            bkd.array([op_order*2]*ncoef_dims)
+            bkd.array([op_order * 2] * ncoef_dims),
         )
         in_coef_quad_samples, in_coef_quad_weights = coef_quad_rule()
 
@@ -157,8 +167,9 @@ class TestLstSqOpLearning:
         for basis_mat, weights in zip(basis_mats, out_weights):
             np.set_printoptions(linewidth=1000)
             tmp = np.einsum(
-                "ijk, ijl->jkl", basis_mat, weights[..., None]*basis_mat)
-            gram_mat = (in_coef_quad_weights[..., None]*tmp).sum(axis=0)
+                "ijk, ijl->jkl", basis_mat, weights[..., None] * basis_mat
+            )
+            gram_mat = (in_coef_quad_weights[..., None] * tmp).sum(axis=0)
             assert bkd.allclose(gram_mat, bkd.eye(gram_mat.shape[0]))
 
     def test_multilinear_operator_expansion(self):
@@ -169,8 +180,14 @@ class TestLstSqOpLearning:
         phys_marginal = stats.uniform(-1, 2)
         coef_marginal = stats.norm(0, 1)
         op_basis, nterms_1d_per_infun = self._setup_op_basis(
-            nphys_vars, nin_funs, nout_funs, nin_terms_1d, nout_terms_1d,
-            op_order, phys_marginal, coef_marginal
+            nphys_vars,
+            nin_funs,
+            nout_funs,
+            nin_terms_1d,
+            nout_terms_1d,
+            op_order,
+            phys_marginal,
+            coef_marginal,
         )
 
         in_funs = []
@@ -178,14 +195,14 @@ class TestLstSqOpLearning:
             bexp = PolynomialChaosExpansion(
                 copy.deepcopy(op_basis._in_bases[ii])
             )
-            bexp.basis.set_tensor_product_indices(nterms_1d_per_infun[ii])
+            bexp.basis().set_tensor_product_indices(nterms_1d_per_infun[ii])
             in_funs.append(
                 BasisExpansionFunction(bexp, op_basis._in_quad_rules[ii]()[0])
             )
 
         nmc_samples = int(1e2)
         in_coef_variable = IndependentMarginalsVariable(
-            [coef_marginal]*op_basis._coef_basis.nvars(), backend=bkd
+            [coef_marginal] * op_basis._coef_basis.nvars(), backend=bkd
         )
         in_coef_samples = in_coef_variable.rvs(nmc_samples)
         # in_coef_weights = bkd.full((nmc_samples, 1), 1/nmc_samples)
@@ -202,7 +219,8 @@ class TestLstSqOpLearning:
             out_coef_samples[0, :] += 1
             out_funs = copy.deepcopy(in_funs)
             out_fun_values = _evaluate_basis_expansion_functions(
-                out_funs, out_coef_samples)
+                out_funs, out_coef_samples
+            )
 
         solver = LstSqSolver()
         op_exp = MultiLinearOperatorExpansion(op_basis, solver=solver)
@@ -210,9 +228,7 @@ class TestLstSqOpLearning:
         ntest_samples = 3
         plot_xx = bkd.linspace(-1, 1, 11)[None, :]
         ax = plt.figure().gca()
-        test_infun_values = [
-            vals[:, :ntest_samples] for vals in infun_values
-        ]
+        test_infun_values = [vals[:, :ntest_samples] for vals in infun_values]
         [out_fun.set_domain_points(plot_xx) for out_fun in out_funs]
         test_out_fun_values = _evaluate_basis_expansion_functions(
             out_funs, out_coef_samples
@@ -221,7 +237,7 @@ class TestLstSqOpLearning:
             vals[:, :ntest_samples] for vals in test_out_fun_values
         ]
         ax.plot(plot_xx[0], op_exp(test_infun_values, [plot_xx])[0])
-        ax.plot(plot_xx[0], test_out_fun_values[0], '--')
+        ax.plot(plot_xx[0], test_out_fun_values[0], "--")
         # print(op_exp.basis.nterms())
         assert bkd.allclose(
             op_exp(test_infun_values, [plot_xx]), test_out_fun_values[0]
@@ -231,7 +247,7 @@ class TestLstSqOpLearning:
 
 class TestNumpyLstSqOpLearning(TestLstSqOpLearning, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 if __name__ == "__main__":

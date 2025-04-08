@@ -55,17 +55,17 @@ A proof of this lemma can be found `here <https://eng.libretexts.org/Workbench/M
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.surrogates.bases.univariate.base import (
+from pyapprox.surrogates.univariate.base import (
     ClenshawCurtisQuadratureRule,
 )
-from pyapprox.surrogates.bases.univariate.local import (
+from pyapprox.surrogates.univariate.local import (
     UnivariatePiecewiseQuadraticBasis,
 )
-from pyapprox.surrogates.bases.univariate.lagrange import (
+from pyapprox.surrogates.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
-from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
-from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
+from pyapprox.surrogates.affine.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.affine.basisexp import TensorProductInterpolant
 
 
 # The following code compares polynomial and piecewise polynomial univariate basis functions.
@@ -149,7 +149,7 @@ for nnodes in [3, 5, 9, 17]:
 
 from scipy import stats
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.bases.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
 from pyapprox.benchmarks import GenzBenchmark
 
 nvars = 1

@@ -11,8 +11,8 @@ from pyapprox.variables.marginals import (
     CustomDiscreteMarginal,
     DiscreteScipyMarginal,
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 
 class TestMarginals:
@@ -382,12 +382,12 @@ class TestMarginals:
 
 class TestNumpyMarginals(TestMarginals, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchMarginals(TestMarginals, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ from pyapprox.analysis.sensitivity_analysis import (
     LagrangeSparseGridSensitivityAnalysis,
     EnsembleGaussianProcessSensivitityAnalysis,
 )
-from pyapprox.surrogates.bases.basisexp import (
+from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
 from pyapprox.surrogates.sparsegrids.combination import (
@@ -29,7 +29,7 @@ from pyapprox.surrogates.sparsegrids.combination import (
     LejaLagrangeAdaptiveCombinationSparseGrid,
 )
 from pyapprox.surrogates.kernels import MaternKernel
-from pyapprox.surrogates.autogp.exactgp import (
+from pyapprox.surrogates.gaussianprocess.exactgp import (
     ExactGaussianProcess,
     GaussianProcessIdentityTransform,
 )

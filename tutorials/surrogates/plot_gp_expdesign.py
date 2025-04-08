@@ -22,8 +22,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.surrogates.kernels.kernels import MaternKernel
-from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
-from pyapprox.surrogates.autogp.activelearning import (
+from pyapprox.surrogates.gaussianprocess.exactgp import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.activelearning import (
     GreedyIntegratedVarianceSampler,
     BruteForceGreedyIntegratedVarianceSampler,
     CholeskySampler,

@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 
 from pyapprox.interface.model import (
     Model,
@@ -46,7 +46,7 @@ class Constraint(Model):
         self,
         bounds=None,
         keep_feasible=False,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         if bounds is not None:
@@ -64,7 +64,7 @@ class Constraint(Model):
 
 class ConstraintFromModel(Constraint):
     def __init__(
-        self, model, bounds=None, keep_feasible=False, backend=NumpyLinAlgMixin
+        self, model, bounds=None, keep_feasible=False, backend=NumpyMixin
     ):
         super().__init__(bounds, keep_feasible, backend)
         if not isinstance(model, Model):
@@ -122,7 +122,7 @@ class OptimizerIterateGenerator(ABC):
 
 
 class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
-    def __init__(self, nvars, backend=NumpyLinAlgMixin):
+    def __init__(self, nvars, backend=NumpyMixin):
         super().__init__(backend)
         self._bounds = None
         self._nvars = nvars
@@ -471,7 +471,7 @@ class ChainedOptimizer(Optimizer):
 
 # TODO consider merging with multifidelity.stat
 class SampleAverageStat(ABC):
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend=NumpyMixin):
         self._bkd = backend
 
     def hessian_implemented(self) -> bool:
@@ -601,7 +601,7 @@ class SampleAverageStat(ABC):
 
 
 class SampleAverageMean(SampleAverageStat):
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend=NumpyMixin):
         super().__init__(backend)
 
     def hessian_implemented(self) -> bool:
@@ -624,7 +624,7 @@ class SampleAverageMean(SampleAverageStat):
 
 
 class SampleAverageVariance(SampleAverageStat):
-    def __init__(self, backend=NumpyLinAlgMixin):
+    def __init__(self, backend=NumpyMixin):
         super().__init__(backend=backend)
         self._mean_stat = SampleAverageMean(backend=backend)
 
@@ -740,7 +740,7 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
 
 
 class SampleAverageEntropicRisk(SampleAverageStat):
-    def __init__(self, alpha, backend=NumpyLinAlgMixin):
+    def __init__(self, alpha, backend=NumpyMixin):
         super().__init__(backend)
         self._alpha = alpha
 
@@ -811,7 +811,7 @@ class SampleAverageEntropicRisk(SampleAverageStat):
 
 
 class SmoothLogBasedMaxFunction:
-    def __init__(self, eps, threshold=None, backend=NumpyLinAlgMixin):
+    def __init__(self, eps, threshold=None, backend=NumpyMixin):
         self._bkd = backend
         self._eps = eps
         if threshold is None:
@@ -860,7 +860,7 @@ class SmoothLogBasedMaxFunction:
 
 
 class SampleAverageConditionalValueAtRisk(SampleAverageStat):
-    def __init__(self, alpha, eps=1e-2, backend=NumpyLinAlgMixin):
+    def __init__(self, alpha, eps=1e-2, backend=NumpyMixin):
         super().__init__(backend)
         alpha = self._bkd.atleast1d(self._bkd.asarray(alpha))
         self._alpha = alpha
@@ -908,7 +908,7 @@ class SampleAverageConstraint(ConstraintFromModel):
         nvars,
         design_indices,
         keep_feasible=False,
-        backend=NumpyLinAlgMixin,
+        backend=NumpyMixin,
     ):
         self._stat = stat
         super().__init__(model, design_bounds, keep_feasible, backend=backend)
@@ -1151,7 +1151,7 @@ def approx_jacobian(
     func,
     x,
     epsilon=np.sqrt(np.finfo(float).eps),
-    bkd=NumpyLinAlgMixin,
+    bkd=NumpyMixin,
     forward=True,
 ):
     x0 = bkd.asarray(x)
@@ -1176,14 +1176,14 @@ def approx_jacobian(
 
 
 def approx_hessian(
-    jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyLinAlgMixin
+    jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyMixin
 ):
     return approx_jacobian(lambda y: jac_fun(y), x, epsilon, bkd=bkd)
 
 
 class MiniMaxObjective(SingleSampleModel):
     def __init__(
-        self, nmodel_vars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+        self, nmodel_vars: int, backend: BackendMixin = NumpyMixin
     ):
         self._nmodel_vars = nmodel_vars
         super().__init__(backend)
@@ -1217,7 +1217,7 @@ class MiniMaxObjective(SingleSampleModel):
 
 class AVaRObjective(SingleSampleModel):
     def __init__(
-        self, nmodel_vars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+        self, nmodel_vars: int, backend: BackendMixin = NumpyMixin
     ):
         self._nmodel_vars = nmodel_vars
         super().__init__(backend)
@@ -1433,7 +1433,7 @@ class SlackBasedOptimizer:
         self,
         optimizer: ConstrainedOptimizer,
         nslack: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         if not isinstance(optimizer, ConstrainedOptimizer):
             raise ValueError(
@@ -1545,7 +1545,7 @@ class MiniMaxOptimizer(SlackBasedOptimizer):
     def __init__(
         self,
         optimizer: ConstrainedOptimizer,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(optimizer, 1, backend)
 
@@ -1574,7 +1574,7 @@ class AVaRSlackBasedOptimizer(SlackBasedOptimizer):
         optimizer: ConstrainedOptimizer,
         beta: float,
         quadrature_weights: Array,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._beta = beta
         self.set_quadrature_weights(quadrature_weights)
@@ -1616,7 +1616,7 @@ class _AVaRDummyModel(Model):
     """
 
     def __init__(
-        self, samples: Array, backend: LinAlgMixin = NumpyLinAlgMixin
+        self, samples: Array, backend: BackendMixin = NumpyMixin
     ):
         super().__init__(backend)
         if samples.ndim != 2 or samples.shape[0] != 1:
@@ -1661,7 +1661,7 @@ class EmpiricalAVaRSlackBasedOptimizer(AVaRSlackBasedOptimizer):
         beta: float,
         samples: Array,
         quadrature_weights: Array,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(optimizer, beta, quadrature_weights, backend=backend)
         self.set_objective_function(_AVaRDummyModel(samples))

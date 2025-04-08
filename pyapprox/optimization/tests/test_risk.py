@@ -3,7 +3,7 @@ import unittest
 from scipy import stats
 import numpy as np
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.optimization.risk import (
     AverageValueAtRisk,
     GaussianAnalyticalRiskMeasures,
@@ -195,7 +195,7 @@ class TestRiskMeasures:
 
 class TestNumpyRiskMeasures(TestRiskMeasures, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 if __name__ == "__main__":

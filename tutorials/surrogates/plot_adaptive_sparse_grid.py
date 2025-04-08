@@ -31,13 +31,13 @@ from pyapprox.surrogates.sparsegrids.combination import (
     VarianceRefinementCriteria,
     MaxNSamplesSparseGridSubspaceAdmissibilityCriteria,
 )
-from pyapprox.surrogates.bases.multiindex import (
+from pyapprox.surrogates.affine.multiindex import (
     DoublePlusOneIndexGrowthRule,
 )
-from pyapprox.surrogates.bases.univariate.base import (
+from pyapprox.surrogates.univariate.base import (
     ClenshawCurtisQuadratureRule,
 )
-from pyapprox.surrogates.bases.univariate.lagrange import (
+from pyapprox.surrogates.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
 from pyapprox.benchmarks import GenzBenchmark

@@ -21,7 +21,7 @@ from pyapprox.pde.autopde.tests.test_autopde import _vel_component_fun
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedNonLinearAdvectionDiffusionReaction
 )
-from pyapprox.pde.collocation.newton import NewtonSolver
+from pyapprox.util.newton import NewtonSolver
 
 
 def _normal_flux(flux_funs, normal_fun, xx):

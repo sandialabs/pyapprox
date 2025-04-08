@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 import math
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.template import BackendMixin, Array
 
 
 class Transform(ABC):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
 
     @abstractmethod
@@ -50,7 +50,7 @@ class AffineBoundedTransform(Transform):
         self,
         canonical_ranges: Array,
         user_ranges: Array,
-        bkd: LinAlgMixin = NumpyLinAlgMixin,
+        bkd: BackendMixin = NumpyMixin,
     ):
         super().__init__(bkd)
         if len(user_ranges) != len(canonical_ranges):

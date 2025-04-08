@@ -49,11 +49,11 @@ import matplotlib.pyplot as plt
 from pyapprox.util.hyperparameter import LogHyperParameterTransform
 from pyapprox.util.transforms import UnivariateBoundedAffineTransform
 
-from pyapprox.surrogates.bases.univariate.orthopoly import (
+from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
     LegendrePolynomial1D,
 )
-from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.kernels.kernels import (
     ConstantKernel,
     MaternKernel,
@@ -71,9 +71,9 @@ from pyapprox.sciml.integraloperators import (
 )
 from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.activations import TanhActivation, IdentityActivation
-from pyapprox.sciml.util import TorchLinAlgMixin, FCT
+from pyapprox.sciml.util import TorchMixin, FCT
 
-bkd = TorchLinAlgMixin
+bkd = TorchMixin
 fct = FCT()
 pi = 3.1415926535897932
 

@@ -13,7 +13,7 @@ from scipy import stats
 import matplotlib.pyplot as plt
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.autogp.exactgp import (
+from pyapprox.surrogates.gaussianprocess.exactgp import (
     MOExactGaussianProcess,
     ExactGaussianProcess,
 )
@@ -22,18 +22,18 @@ from pyapprox.surrogates.kernels.kernels import (
     ConstantKernel,
     LogHyperParameterTransform,
 )
-from pyapprox.surrogates.autogp.mokernels import (
+from pyapprox.surrogates.gaussianprocess.mokernels import (
     MultiLevelKernel,
     construct_tensor_product_monomial_scaling,
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import ModelListCostFunction
-from pyapprox.surrogates.autogp.activelearning import (
+from pyapprox.surrogates.gaussianprocess.activelearning import (
     MultiOutputMonteCarloGreedyIntegratedVarianceSampler,
     MonteCarloGreedyIntegratedVarianceSampler,
 )
 
-bkd = NumpyLinAlgMixin
+bkd = NumpyMixin
 np.random.seed(1)
 nvars = 1
 nmodels = 2

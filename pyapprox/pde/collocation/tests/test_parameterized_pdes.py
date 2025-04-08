@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.pde.collocation.parameterized_pdes import (
     TransientDiffusionAdvectionModel,
     SteadyDarcy2DKLEModel,
@@ -18,7 +18,7 @@ from pyapprox.pde.collocation.timeintegration import (
     HeunResidual,
     TransientMSEAdjointFunctional,
 )
-from pyapprox.pde.collocation.newton import (
+from pyapprox.util.newton import (
     NewtonSolver,
     AdjointFunctional,
     Array,
@@ -262,12 +262,12 @@ class TestParameterizedModels:
 
 class TestNumpyParameterizedModels(TestParameterizedModels, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchParameterizedModels(TestParameterizedModels, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

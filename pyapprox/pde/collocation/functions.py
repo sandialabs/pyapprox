@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.gridspec import GridSpec
 
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.backends.template import Array
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
-from pyapprox.pde.kle.kle import MeshKLE, PeriodicReiszGaussianRandomField
+from pyapprox.surrogates.affine.kle import MeshKLE, PeriodicReiszGaussianRandomField
 from pyapprox.pde.collocation.sparsejac import (
     SparseJacobian,
     ZeroJac,

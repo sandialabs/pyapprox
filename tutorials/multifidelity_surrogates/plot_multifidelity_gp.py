@@ -115,7 +115,7 @@ import matplotlib.pyplot as plt
 from functools import partial
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.autogp.exactgp import (
+from pyapprox.surrogates.gaussianprocess.exactgp import (
     # GreedyMultifidelityIntegratedVarianceSampler,
     SequentialMultiLevelGaussianProcess,
     MOExactGaussianProcess,
@@ -123,10 +123,10 @@ from pyapprox.surrogates.autogp.exactgp import (
 )
 from pyapprox.util.hyperparameter import LogHyperParameterTransform
 from pyapprox.surrogates.kernels.kernels import MaternKernel, ConstantKernel
-from pyapprox.surrogates.autogp.mokernels import MultiLevelKernel
-from pyapprox.surrogates.bases.basisexp import MonomialExpansion
-from pyapprox.surrogates.bases.univariate.base import Monomial1D
-from pyapprox.surrogates.bases.basis import MultiIndexBasis
+from pyapprox.surrogates.gaussianprocess.mokernels import MultiLevelKernel
+from pyapprox.surrogates.affine.basisexp import MonomialExpansion
+from pyapprox.surrogates.univariate.base import Monomial1D
+from pyapprox.surrogates.affine.basis import MultiIndexBasis
 from pyapprox.expdesign.sequences import HaltonSequence
 
 np.random.seed(1)

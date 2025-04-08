@@ -7,7 +7,7 @@ from pyapprox.util.utilities import (
     get_tensor_product_quadrature_rule,
     correlation_to_covariance,
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.transforms import NatafTransform
 from pyapprox.variables._nataf import generate_x_samples_using_gaussian_copula
 from pyapprox.variables.marginals import ContinuousScipyMarginal
@@ -137,7 +137,7 @@ class TestNatafTransform:
 
 class TestNumpyNatafTransform(TestNatafTransform, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 if __name__ == "__main__":

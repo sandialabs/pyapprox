@@ -15,7 +15,7 @@ from pyapprox.util.utilities import (
     get_correlation_from_covariance,
     correlation_to_covariance,
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 class TestUtilities(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestUtilities(unittest.TestCase):
         np.random.seed(1)
 
     def test_covariance_to_correlation(self):
-        bkd = NumpyLinAlgMixin
+        bkd = NumpyMixin
         nrows = 3
         A = bkd.asarray(np.random.normal(0, 1, (nrows, nrows)))
         cov = A.T @ A
@@ -68,7 +68,7 @@ class TestUtilities(unittest.TestCase):
 
     def test_evaluate_quadratic_form(self):
         nvars, nsamples = 3, 10
-        A = np.random.normal(0, 1, nvars)
+        A = np.random.normal(0, 1, (2, nvars))
         A = A.T.dot(A)
         samples = np.random.uniform(0, 1, (nvars, nsamples))
         values1 = evaluate_quadratic_form(A, samples)
@@ -77,7 +77,7 @@ class TestUtilities(unittest.TestCase):
         for ii in range(samples.shape[1]):
             values2[ii] = (
                 samples[:, ii : ii + 1].T.dot(A).dot(samples[:, ii : ii + 1])
-            )
+            )[0, 0]
 
         assert np.allclose(values1, values2)
 
@@ -150,8 +150,6 @@ class TestUtilities(unittest.TestCase):
         rsq = get_cross_validation_rsquared_coefficient_of_variation(
             cv_score, values
         )
-
-        print(rsq)
 
     def test_integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         self,

@@ -3,10 +3,10 @@ from functools import partial
 from typing import List, Union
 
 from pyapprox.interface.model import Model, MultiIndexModelEnsemble
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import JointVariable, DesignVariable
-from pyapprox.surrogates.bases.basis import (
+from pyapprox.surrogates.affine.basis import (
     FixedGaussianTensorProductQuadratureRuleFromVariable,
 )
 from scipy.optimize import LinearConstraint
@@ -14,7 +14,7 @@ from pyapprox.optimization.minimize import Constraint
 
 
 class SingleModelBenchmark(ABC):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
         self._set_variable()
         self._set_model()
@@ -49,7 +49,7 @@ class SingleModelBenchmark(ABC):
 
 class MultiModelBenchmark(ABC):
     # Unordered set of models
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
         self._set_variable()
         self._set_models()
@@ -90,7 +90,7 @@ class MultiIndexModelBenchmark(MultiModelBenchmark):
 
 
 class ACVBenchmark(MultiModelBenchmark):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         self._set_quadrature_samples_weights()
         self._flatten_funs()
@@ -291,7 +291,7 @@ class ACVBenchmark(MultiModelBenchmark):
 
 
 class OptimizationBenchmark(ABC):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
         # must use set_objective here to make sure model
         # is only created once and not everytime self.objective is called
@@ -311,7 +311,7 @@ class OptimizationBenchmark(ABC):
 
 
 class ConstrainedOptimizationBenchmark(OptimizationBenchmark):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         # must use set_constraints here to make sure model
         # is only created once and not everytime self.objective is called
@@ -359,7 +359,7 @@ class SingleModelBayesianInferenceBenchmark(SingleModelBenchmark):
 # TODO make bencmhar base class then derive different types of benchmarks from
 # that class to better reuse code
 class OperatorBenchmark(ABC):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
         # must use set_model here to make sure model
         # is only created once and not everytime self.objective is called

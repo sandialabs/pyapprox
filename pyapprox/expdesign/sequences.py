@@ -5,8 +5,8 @@ import numpy as np
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.utilities import get_first_n_primes
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 class LowDiscrepancySequence(ABC):
@@ -15,7 +15,7 @@ class LowDiscrepancySequence(ABC):
         nvars: int,
         start_idx: int = 0,
         variable: IndependentMarginalsVariable = None,
-        bkd: LinAlgMixin = NumpyLinAlgMixin,
+        bkd: BackendMixin = NumpyMixin,
     ):
         self._bkd = bkd
         self._nvars = nvars
@@ -51,6 +51,17 @@ class LowDiscrepancySequence(ABC):
 
 
 class HaltonSequence(LowDiscrepancySequence):
+    def __init__(
+        self,
+        nvars: int,
+        start_idx: int = 0,
+        variable: IndependentMarginalsVariable = None,
+        bkd: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(nvars, start_idx, variable, bkd)
+        self._primes = get_first_n_primes(self._nvars)
+
+    @staticmethod
     @njit(cache=True)
     def _sequence(nvars, index1, index2, primes):
         nsamples = index2 - index1
@@ -72,15 +83,12 @@ class HaltonSequence(LowDiscrepancySequence):
         return sequence
 
     def _canonical_samples(self, nsamples: int) -> Array:
-        end_idx = self._start_idx + nsamples
-        primes = get_first_n_primes(self._nvars)
-        try:
-            from pyapprox.cython.utilities import halton_sequence_pyx
-
-            samples = halton_sequence_pyx(primes, self._start_idx, end_idx)
-        except Exception:
-            samples = self._sequence(self._nvars)
-        # assume we do not need to differentiate through sequence creation
+        samples = self._sequence(
+            self._nvars,
+            self._start_idx,
+            self._start_idx + nsamples,
+            self._primes,
+        )
         return self._bkd.asarray(samples)
 
 

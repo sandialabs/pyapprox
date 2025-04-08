@@ -2,7 +2,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import List
 
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
+from pyapprox.util.backends.template import Array, BackendMixin
 
 
 def block_2x2(blocks, bkd):
@@ -507,7 +507,7 @@ def _nqoi_nqoisq_subproblem(B, nmodels, nqoi, model_idx, qoi_idx, bkd):
 
 
 class MultiOutputStatistic(ABC):
-    def __init__(self, nqoi: int, backend: LinAlgMixin):
+    def __init__(self, nqoi: int, backend: BackendMixin):
         """
         Parameters
         ----------
@@ -591,7 +591,7 @@ class MultiOutputStatistic(ABC):
 
 
 class MultiOutputMean(MultiOutputStatistic):
-    def __init__(self, nqoi: int, backend: LinAlgMixin):
+    def __init__(self, nqoi: int, backend: BackendMixin):
         super().__init__(nqoi, backend)
         self._nmodels = None
         self._cov = None
@@ -671,7 +671,7 @@ class MultiOutputVariance(MultiOutputStatistic):
     def __init__(
         self,
         nqoi: int,
-        backend: LinAlgMixin,
+        backend: BackendMixin,
         return_cov: bool = True,
     ):
         super().__init__(nqoi, backend)
@@ -802,7 +802,7 @@ class MultiOutputVariance(MultiOutputStatistic):
 
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
-    def __init__(self, nqoi: int, backend: LinAlgMixin):
+    def __init__(self, nqoi: int, backend: BackendMixin):
         super().__init__(nqoi, backend)
 
         self._nmodels = None

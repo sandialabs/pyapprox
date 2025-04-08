@@ -12,7 +12,7 @@ To generate a univariate quadrature rule for uniform random variables
 from scipy import stats
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.surrogates.bases.univariate.leja import (
+from pyapprox.surrogates.univariate.leja import (
     TwoPointChristoffelLejaQuadratureRule,
     TwoPointPDFLejaQuadratureRule,
     OnePointPDFLejaQuadratureRule,

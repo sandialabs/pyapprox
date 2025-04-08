@@ -68,10 +68,10 @@ from pyapprox.multifidelity.factory import (
     multioutput_stats)
 from pyapprox.multifidelity.visualize import (
     plot_estimator_variance_reductions)
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 np.random.seed(1)
-bkd = TorchLinAlgMixin
+bkd = TorchMixin
 benchmark = PolynomialModelEnsemble(backend=bkd)
 cov = benchmark.covariance()
 target_costs = np.array([1e1, 1e2, 1e3, 1e4], dtype=int)

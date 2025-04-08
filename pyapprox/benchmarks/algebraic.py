@@ -11,8 +11,8 @@ from pyapprox.interface.model import (
     SingleSampleModel,
     ChangeModelSignWrapper,
 )
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import (
     JointVariable,
     DesignVariable,
@@ -44,7 +44,7 @@ class IshigamiModel(Model):
         self,
         a: float = 7,
         b: float = 0.1,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._a = a
         self._b = b
@@ -125,7 +125,7 @@ class IshigamiBenchmark(SingleModelBenchmark):
         self,
         a: float = 7,
         b: float = 0.1,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._a = a
         self._b = b
@@ -226,7 +226,7 @@ class IshigamiBenchmark(SingleModelBenchmark):
         return sobol_interaction_indices
 
 
-def get_oakley_function_data(bkd=NumpyLinAlgMixin) -> Array:
+def get_oakley_function_data(bkd=NumpyMixin) -> Array:
     r"""
     Get the data :math:`a_1,a_2,a_3` and :math:`M` of the Oakley function
 
@@ -666,7 +666,7 @@ class OakleyBenchmark(SingleModelBenchmark):
     .. [OakelyOJRSB2004] `Oakley, J.E. and O'Hagan, A. (2004), Probabilistic sensitivity analysis of complex models: a Bayesian approach. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 66: 751-769. <https://doi.org/10.1111/j.1467-9868.2004.05304.x>`_
     """
 
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         self._set_statistics()
 
@@ -751,7 +751,7 @@ class SobolGModel(Model):
     .. math:: f(z) = \prod_{i=1}^d\frac{\lvert 4z_i-2\rvert+a_i}{1+a_i}, \quad a_i=\frac{i-2}{2}
     """
 
-    def __init__(self, nvars, backend=NumpyLinAlgMixin):
+    def __init__(self, nvars, backend=NumpyMixin):
         self._nvars = nvars
         super().__init__(backend)
         self._acoefs = (self._bkd.arange(1, self._nvars + 1) - 2) / 2
@@ -787,7 +787,7 @@ class SobolGBenchmark(SingleModelBenchmark):
     .. [Saltelli1995] `Saltelli, A., & Sobol, I. M. About the use of rank transformation in sensitivity analysis of model output. Reliability Engineering & System Safety, 50(3), 225-239, 1995. <https://doi.org/10.1016/0951-8320(95)00099-2>`_
     """
 
-    def __init__(self, nvars=5, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, nvars=5, backend: BackendMixin = NumpyMixin):
         self._nvars = nvars
         super().__init__(backend)
         self._acoefs = (
@@ -870,7 +870,7 @@ class RosenbrockModel(Model):
     .. math:: f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]
     """
 
-    def __init__(self, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, nvars: int, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         self._nvars = nvars
 
@@ -915,7 +915,7 @@ class RosenbrockUnconstrainedOptimizationBenchmark(OptimizationBenchmark):
     def __init__(
         self,
         nvars: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._nvars = nvars
         super().__init__(backend)
@@ -963,7 +963,7 @@ class RosenbrockUnconstrainedOptimizationBenchmark(OptimizationBenchmark):
 
 
 class RosenbrockConstraint(Constraint):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         bounds = backend.array([[0.0, np.inf], [0.0, np.inf]])
         super().__init__(bounds, True, backend)
 
@@ -1016,7 +1016,7 @@ class RosenbrockConstraint(Constraint):
 class RosenbrockConstrainedOptimizationBenchmark(
     ConstrainedOptimizationBenchmark
 ):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._nvars = 2
         super().__init__(backend)
 
@@ -1042,7 +1042,7 @@ class RosenbrockConstrainedOptimizationBenchmark(
 
 
 class CantileverBeamModel(SingleSampleModel):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         import sympy as sp
 
         super().__init__(backend)
@@ -1112,7 +1112,7 @@ class CantileverBeamObjectiveModel(CantileverBeamModel):
 
 
 class CantileverBeamConstraintsModel(CantileverBeamModel):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
 
     def nqoi(self) -> int:
@@ -1191,7 +1191,7 @@ class CantileverBeamUncertainOptimizationBenchmark(
 ):
     def _set_constraints(self):
         # TODO change weights to create unbiased estimators of mean and variance
-        from pyapprox.surrogates.bases.basis import (
+        from pyapprox.surrogates.affine.basis import (
             FixedGaussianTensorProductQuadratureRuleFromVariable,
         )
 
@@ -1229,7 +1229,7 @@ class CantileverBeamUncertainOptimizationBenchmark(
 class PistonModel(Model):
     """Predict cycle time of a piston in a cylinder"""
 
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
 
     def jacobian_implemented(self) -> bool:
@@ -1371,7 +1371,7 @@ class PistonBenchmark(SingleModelBenchmark):
 class WingWeightModel(Model):
     """Weight of a light aircraft wing"""
 
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
 
     def jacobian_implemented(self) -> bool:
@@ -1453,7 +1453,7 @@ class EvtushenkoObjective(Model):
     .. math:: f(z) = (z_1+3z_2+z_3)^2 +4(z_1-z_2)^2
     """
 
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
 
     def jacobian_implemented(self) -> bool:
@@ -1506,7 +1506,7 @@ class EvtushenkoNonLinearConstraint(Constraint):
     .. math:: c(z) = (z_1+3z_2+z_3)^2 +4(z_1-z_2)^2
     """
 
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend.array([[0.0, np.inf]]), True, backend)
 
     def jacobian_implemented(self) -> bool:
@@ -1577,7 +1577,7 @@ class EvtushenkoConstrainedOptimizationBenchmark(
 
 
 class MichaelisMentenModel(SingleSampleModel):
-    def __init__(self, mesh: Array, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, mesh: Array, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         if mesh.ndim != 2 or mesh.shape[0] != 1:
             raise ValueError("mesh must be 2D array with one row")

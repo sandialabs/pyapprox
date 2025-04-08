@@ -3,8 +3,8 @@ from typing import Tuple
 
 from scipy.optimize import LinearConstraint
 
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import SingleSampleModel
 from pyapprox.optimization.pya_minimize import (
     ConstrainedOptimizer,
@@ -19,7 +19,7 @@ class LocalOEDCriterionMixin(SingleSampleModel):
         self,
         design_factors: Array,
         noise_mult: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self.set_design_factors(design_factors, noise_mult)
@@ -146,7 +146,7 @@ class DOptimalMixin:
         self,
         design_factors: Array,
         noise_mult: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(design_factors, noise_mult, backend)
 
@@ -233,8 +233,8 @@ class DOptimalQuantileCriterion(
         )
 
 
-from pyapprox.pde.collocation.adjoint_models import SteadyAdjointModel
-from pyapprox.pde.collocation.newton import (
+from pyapprox.pde.collocation.adjoint import SteadyAdjointModel
+from pyapprox.util.newton import (
     NewtonResidual,
     ParameterizedNewtonResidualMixin,
     AdjointFunctional,
@@ -287,7 +287,7 @@ class LocalOEDAdjointFunctional(LocalOEDAdjointFunctional):
 class LocalOEDParameterizedNewtonResidual(
     ParameterizedNewtonResidualMixin, NewtonResidual
 ):
-    def __init__(self, backend: LinAlgMixin):
+    def __init__(self, backend: BackendMixin):
         self._bkd = backend
 
     def set_vector(self, vec: Array):
@@ -345,7 +345,7 @@ class LocalOEDParameterizedNewtonResidual(
 
 
 class LocalOEDAdjointModel(SteadyAdjointModel):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         self._jacobian_implemented = True
         self._apply_hessian_implemented = True
@@ -360,7 +360,7 @@ class LocalOEDCriterionAdjointMixin:
         design_factors: Array,
         vecs: Array,
         noise_mult: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         # Adjoint calculations require M0 to be computed even
         # when noise is None
@@ -440,7 +440,7 @@ class COptimalLstSqCriterion(
         design_factors: Array,
         vec: Array,
         noise_mult: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(design_factors, vec[None, :], noise_mult, backend)
 
@@ -455,7 +455,7 @@ class COptimalQuantileCriterion(
         design_factors: Array,
         vec: Array,
         noise_mult: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(design_factors, vec[None, :], noise_mult, backend)
 
@@ -469,7 +469,7 @@ class AOptimalLstSqCriterion(
         self,
         design_factors: Array,
         noise_mult: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         vecs = backend.eye(design_factors.shape[1])
         super().__init__(design_factors, vecs, noise_mult, backend)
@@ -484,7 +484,7 @@ class AOptimalQuantileCriterion(
         self,
         design_factors: Array,
         noise_mult: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         vecs = backend.eye(design_factors.shape[1])
         super().__init__(design_factors, vecs, noise_mult, backend)
@@ -501,7 +501,7 @@ class IOptimalLstSqCriterion(
         pred_factors: Array,
         pred_prob_measure: Array = None,
         noise_mult: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._bkd = backend
         self._integrate_pred_factors(pred_factors, pred_prob_measure)
@@ -534,7 +534,7 @@ class GOptimalLstSqCriterion(
         design_factors: Array,
         pred_factors: Array,
         noise_mult: Array = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._bkd = backend
         self._pred_factors = pred_factors

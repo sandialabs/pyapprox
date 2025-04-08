@@ -5,11 +5,11 @@ Shallow Water Wave Equation
 import os
 import sys
 import numpy as np
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.backends.template import Array
 
-# from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.pde.collocation.adjoint_models import TransientAdjointFunctional
+# from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.pde.collocation.adjoint import TransientAdjointFunctional
 from pyapprox.pde.collocation.parameterized_pdes import ShallowWaterWaveModel
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
@@ -21,7 +21,7 @@ from pyapprox.pde.collocation.functions import (
     animate_transient_2d_vector_solution,
     get_water_cmap,
 )
-from pyapprox.pde.collocation.newton import NewtonSolver
+from pyapprox.util.newton import NewtonSolver
 
 # from pyapprox.util.print_wrapper import *
 
@@ -30,8 +30,8 @@ if sys.platform == "darwin":
     matplotlib.use("TKAgg")
 
 # setup domain
-# bkd = NumpyLinAlgMixin
-bkd = TorchLinAlgMixin
+# bkd = NumpyMixin
+bkd = TorchMixin
 np.random.seed(1)
 
 

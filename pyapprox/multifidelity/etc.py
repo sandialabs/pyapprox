@@ -11,8 +11,8 @@ from pyapprox.multifidelity.groupacv import (
     ChainedACVOptimizer,
 )
 from pyapprox.multifidelity.stats import MultiOutputMean
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 class AETC:
@@ -22,7 +22,7 @@ class AETC:
         rvs: callable,
         costs: Array = None,
         oracle_stats: List[Array] = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         r"""
         Parameters
@@ -541,7 +541,7 @@ class AETCBLUE(AETC):
         oracle_stats: List[Array] = None,
         reg_blue: float = 1e-15,
         optimizer: GroupACVOptimizer = None,
-        backend=NumpyLinAlgMixin,
+        backend=NumpyMixin,
     ):
         r"""
         Parameters

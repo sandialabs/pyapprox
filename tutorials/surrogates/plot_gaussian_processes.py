@@ -35,7 +35,7 @@ Note the Cholesky decomposition could also be used instead of the singular value
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.surrogates.autogp.exactgp import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.exactgp import ExactGaussianProcess
 from pyapprox.surrogates.kernels.kernels import MaternKernel
 from pyapprox.interface.model import ModelFromVectorizedCallable
 

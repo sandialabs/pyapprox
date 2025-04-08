@@ -11,14 +11,14 @@ First we must load the benchmark
 import numpy as np
 from scipy import stats
 from pyapprox.benchmarks.genz import GenzBenchmark
-from pyapprox.surrogates.bases.multiindex import (
+from pyapprox.surrogates.affine.multiindex import (
     DoublePlusOneIndexGrowthRule,
     IterativeIndexGenerator,
 )
-from pyapprox.surrogates.bases.univariate.base import (
+from pyapprox.surrogates.univariate.base import (
     ClenshawCurtisQuadratureRule,
 )
-from pyapprox.surrogates.bases.univariate.lagrange import (
+from pyapprox.surrogates.univariate.lagrange import (
     UnivariateLagrangeBasis,
 )
 from pyapprox.surrogates.sparsegrids.combination import (
@@ -26,7 +26,7 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MaxNSamplesSparseGridSubspaceAdmissibilityCriteria,
     L2NormRefinementCriteria,
 )
-from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.affine.basis import TensorProductInterpolatingBasis
 import matplotlib.pyplot as plt
 
 # define the model to be approximated

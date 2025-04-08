@@ -33,7 +33,7 @@ from pyapprox.benchmarks.multifidelity_benchmarks import (
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.util.visualization import mathrm_label
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 np.random.seed(1)
 
@@ -42,8 +42,8 @@ np.random.seed(1)
 # that is the exact model covariance. We will use MFMC because the optimal sample allocation can be obtained analytically which speeds up this tutorial. However other estimators can be used. Also note that if using MFMC to estimate variance or other stats its allocation it still uses the allocation that is only guaranteed to be optimal when estimating the mean. This is not true of any other estimator except MLMC.
 target_cost = 100
 est_name = "mfmc"
-bkd = TorchLinAlgMixin
-benchmark = PolynomialModelEnsemble(nmodels=3, backend=TorchLinAlgMixin)
+bkd = TorchMixin
+benchmark = PolynomialModelEnsemble(nmodels=3, backend=TorchMixin)
 costs = bkd.array([1, 0.1, 0.05])
 
 stat_type = "mean"

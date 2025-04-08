@@ -20,8 +20,8 @@ from pyapprox.pde.autopde.mesh import (
 )
 from pyapprox.variables import IndependentMarginalsVariable
 from pyapprox.variables.transforms import ConfigureVariableTransformation
-from pyapprox.pde.kle.kle import MeshKLE, InterpolatedMeshKLE
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.surrogates.affine.kle import MeshKLE, InterpolatedMeshKLE
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array,
     MultiIndexModel,
@@ -490,7 +490,7 @@ def _setup_advection_diffusion_benchmark(
             nterms=nvars,
             use_log=True,
             mean_field=kle_mean_field,
-            backend=TorchLinAlgMixin,
+            backend=TorchMixin,
         )
     else:
         kle = InterpolatedMeshKLE(kle_args[0], kle_args[1], mesh)
@@ -752,7 +752,7 @@ class DarcyKLE2DModel(SingleSampleModel):
             nterms=100,
             use_log=True,
             mean_field=0.0,
-            backend=TorchLinAlgMixin,
+            backend=TorchMixin,
         )
         forc_fun = partial(full_fun_axis_1, 1.0, oned=False)
         vel_fun = partial(constant_vel_fun, [0.0, 0.0])

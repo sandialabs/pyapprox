@@ -1,10 +1,10 @@
 import unittest
-from pyapprox.sciml.util import FCT, NumpyLinAlgMixin
+from pyapprox.sciml.util import FCT, NumpyMixin
 
 
 class TestFCT(unittest.TestCase):
     def setUp(self):
-        self._bkd = NumpyLinAlgMixin
+        self._bkd = NumpyMixin
         self._bkd.random_seed(1)
         self.fct = FCT(backend=self._bkd)
 

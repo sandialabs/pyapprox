@@ -31,7 +31,7 @@ from pyapprox.interface.model import Model
 from pyapprox.optimization.risk import AverageValueAtRisk
 
 from pyapprox.util.sys_utilities import package_available
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 # from pyapprox.util.print_wrapper import *
 
@@ -425,7 +425,7 @@ class TestMinimize(unittest.TestCase):
         assert np.allclose(result.x, np.full(nvars, 1))
 
     def test_minimax_optimizer(self):
-        bkd = NumpyLinAlgMixin
+        bkd = NumpyMixin
         model = ModelFromSingleSampleCallable(
             3,
             3,
@@ -470,7 +470,7 @@ class TestMinimize(unittest.TestCase):
         assert bkd.allclose(res.fun, bkd.full((1,), 125.0), rtol=1e-2)
 
     def test_compute_avar_from_samples(self):
-        bkd = NumpyLinAlgMixin
+        bkd = NumpyMixin
         nsamples = 6
         optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})
         # sub eps tp avoid numerical issue with beta falling exactly at sample
@@ -526,7 +526,7 @@ class TestMinimize(unittest.TestCase):
         assert bkd.allclose(opt_var, AVaR()[1])
 
     def test_avar_optimizer(self):
-        bkd = NumpyLinAlgMixin
+        bkd = NumpyMixin
         nsamples = 3
         mesh = bkd.arange(1, nsamples + 1)
         model = ModelFromSingleSampleCallable(

@@ -93,14 +93,14 @@ from pyapprox.multifidelity.factory import (
     compute_variance_reductions,
     multioutput_stats,
 )
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 # %%
 # First, plot the variance reduction of the optimal control variates using known low-fidelity means.
 #
 # Second, plot the variance reduction of multi-fidelity estimators that do not assume known low-fidelity means. The code below repeatedly doubles the number of low-fidelity samples according to the initial allocation defined by nsample_ratios_base=[2,4,8,16].
 
-bkd = TorchLinAlgMixin
+bkd = TorchMixin
 benchmark = PolynomialModelEnsemble(backend=bkd)
 
 nmodels = 5

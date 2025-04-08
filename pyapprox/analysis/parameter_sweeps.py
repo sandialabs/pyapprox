@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from pyapprox.util.transforms import Transform
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.transforms import OperatorBasedGaussianTransform
 
 
@@ -16,7 +16,7 @@ class ParameterSweeper(ABC):
         nvars: int,
         trans: Transform,
         nsamples_per_sweep: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         """
         Parameters
@@ -174,7 +174,7 @@ class GaussianParameterSweeper(ParameterSweeper):
         cov_sqrt_op: callable,
         sweep_radius: int,
         nsamples_per_sweep: int,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         """
         Parameters

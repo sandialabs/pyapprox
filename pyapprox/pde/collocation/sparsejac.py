@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Union
 
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
+from pyapprox.util.backends.template import Array, BackendMixin
 
 
 class SparseJacobian(ABC):
@@ -9,7 +9,7 @@ class SparseJacobian(ABC):
     # SparseJacobian by each entry of ndarray separately
     __array_priority__ = 1
     
-    def __init__(self, bkd: LinAlgMixin, shape: tuple, sparse_jac: Array):
+    def __init__(self, bkd: BackendMixin, shape: tuple, sparse_jac: Array):
         self._shape = shape
         self._bkd = bkd
         self.set_sparse_jacobian(sparse_jac)
@@ -246,7 +246,7 @@ class DiagJac(SparseJacobian):
 
 
 class ZeroJac(SparseJacobian):
-    def __init__(self, bkd: LinAlgMixin, shape: tuple):
+    def __init__(self, bkd: BackendMixin, shape: tuple):
         super().__init__(bkd, shape, None)
 
     def copy(self) -> "ZeroJac":

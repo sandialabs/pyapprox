@@ -3,14 +3,12 @@ from typing import Tuple, Union
 
 import numpy as np
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.template import BackendMixin, Array
 
 
 class HyperParameterTransform(ABC):
-    def __init__(self, backend: LinAlgMixin = None):
-        if backend is None:
-            backend = NumpyLinAlgMixin
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
 
     @abstractmethod
@@ -50,12 +48,12 @@ class HyperParameter:
         bounds: Union[Tuple[float, float], Array],
         transform: HyperParameterTransform = None,
         fixed: bool = False,
-        backend: LinAlgMixin = None,
+        backend: BackendMixin = NumpyMixin,
     ):
         """A possibly vector-valued hyper-parameter to be used with
         optimization."""
         if backend is None and transform is None:
-            backend = NumpyLinAlgMixin
+            backend = NumpyMixin
         elif backend is None:
             backend = transform._bkd
         self._bkd = backend
@@ -417,7 +415,7 @@ class CholeskyHyperParameter(HyperParameter):
         values: Array,
         bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         fixed: bool = False,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._nrows = nrows
         # do not use function flattened_lower_diagonal_matrix_entries
@@ -445,7 +443,7 @@ class CholeskyHyperParameter(HyperParameter):
 
 
 def flattened_lower_diagonal_matrix_entries(
-    matrix, bkd: LinAlgMixin = NumpyLinAlgMixin
+    matrix, bkd: BackendMixin = NumpyMixin
 ):
     if matrix.shape[0] != matrix.shape[1]:
         raise ValueError("matrix must be square")

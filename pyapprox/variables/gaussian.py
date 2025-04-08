@@ -5,8 +5,8 @@ from typing import List
 import numpy as np
 from scipy import stats
 
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import JointVariable
 from pyapprox.variables.marginals import Marginal
 from pyapprox.util.linalg import (
@@ -23,7 +23,7 @@ from pyapprox.variables._nataf import (
 
 
 class GaussianSqrtCovarianceOperator(ABC):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
 
     @abstractmethod
@@ -113,7 +113,7 @@ class DenseCholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
     def __init__(
         self,
         covariance: Array,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend=backend)
 
@@ -150,7 +150,7 @@ class DiagonalCholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
     def __init__(
         self,
         covariance_diag: Array,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend=backend)
 
@@ -190,7 +190,7 @@ class FaultyDenseCholeskySqrtCovarianceOperator(
         self,
         covariance: Array,
         fault_percentage: int = 0,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(covariance, backend=backend)
         assert fault_percentage < 100
@@ -400,7 +400,7 @@ class DenseCholeskyMultivariateGaussian(MultivariateGaussian):
         self,
         mean: Array,
         cov: Array,
-        backend=NumpyLinAlgMixin,
+        backend=NumpyMixin,
     ):
         self._bkd = backend
         self._set_covariance(cov)
@@ -429,7 +429,7 @@ class IndependentMultivariateGaussian(MultivariateGaussian):
         self,
         mean: Array,
         cov_diag: Array,
-        backend=NumpyLinAlgMixin,
+        backend=NumpyMixin,
     ):
         self._bkd = backend
         self._set_covariance(cov_diag)
@@ -1724,7 +1724,7 @@ class GaussCopulaVariable(JointVariable):
         marginals: List[Marginal],
         x_correlation: Array,
         bisection_opts: dict = {},
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._nvars = len(marginals)

@@ -1,4 +1,4 @@
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.backends.template import Array
 from pyapprox.interface.model import Model
 
 

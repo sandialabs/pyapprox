@@ -3,8 +3,8 @@ from functools import partial
 
 import numpy as np
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.pde.collocation.basis import (
     ChebyshevCollocationBasis1D,
     ChebyshevCollocationBasis2D,
@@ -646,12 +646,12 @@ class TestOperators:
 
 class TestNumpyOperators(TestOperators, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchOperators(TestOperators, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

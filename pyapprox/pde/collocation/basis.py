@@ -1,20 +1,20 @@
 from abc import ABC, abstractmethod
 import textwrap
 
-from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.surrogates.bases.basis import (
+from pyapprox.util.backends.template import Array
+from pyapprox.surrogates.affine.basis import (
     TensorProductInterpolatingBasis,
     FixedTensorProductQuadratureRule,
 )
-from pyapprox.surrogates.bases.univariate.orthopoly import (
+from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
 )
-from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
+from pyapprox.surrogates.affine.basisexp import TensorProductInterpolant
 from pyapprox.pde.collocation.mesh import (
     OrthogonalCoordinateMesh,
     ChebyshevCollocationMesh,
 )
-from pyapprox.surrogates.bases.univariate.lagrange import (
+from pyapprox.surrogates.univariate.lagrange import (
     UnivariateChebyhsev1stKindGaussLobattoBarycentricLagrangeBasis,
 )
 

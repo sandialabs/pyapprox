@@ -1,39 +1,12 @@
 import setuptools
-from Cython.Build import cythonize
-import sys
-import os
 import numpy as np
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-
-def no_cythonize(extensions, **_ignore):
-    for extension in extensions:
-        sources = []
-        for sfile in extension.sources:
-            path, ext = os.path.splitext(sfile)
-            if ext in ('.pyx', '.py'):
-                if extension.language == 'c++':
-                    ext = '.cpp'
-                else:
-                    ext = '.c'
-                sfile = path + ext
-            sources.append(sfile)
-        extension.sources[:] = sources
-    return extensions
-
-
-USE_CYTHON = True
-print('CYTHONIZING')
-extensions = cythonize(
-    ["pyapprox/cython/*.pyx"],
-    compiler_directives={'language_level': 3},
-    annotate=True)
-
 setuptools.setup(
     name="pyapprox",
-    version="1.0.3",
+    version="1.1.0",
     author="John D. Jakeman",
     author_email="29109026+jdjakem@users.noreply.github.com",
     description="High-dimensional function approximation and estimation",
@@ -41,42 +14,50 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/sandialabs/pyapprox",
     packages=setuptools.find_packages(),
-    python_requires='>=3.8',
+    python_requires=">=3.8",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
     include_dirs=[np.get_include()],
-    setup_requires=['setuptools', 'numpy >= 1.20, <=1.26.4', 'Cython',
-                    'scipy >= 1.0.0'],
+    setup_requires=[
+        "setuptools",
+        "numpy >= 1.20, <=1.26.4",
+        "scipy >= 1.0.0",
+    ],
     install_requires=[
-        'numpy >= 1.20, <=1.26.4',
-        'matplotlib',
-        'scipy >= 1.0.0',
-        'Cython',
-        'sympy',
-        'torch<=2.2.0',
-        'scikit-learn',
-        'coverage>=6.4',
-        'pytest-cov',
-        'pytest>=4.6',
-        'networkx',
-        'numba',
-        'scikit-fem',
-        'umbridge',
+        "numpy >= 1.20, <=1.26.4",
+        "matplotlib",
+        "scipy >= 1.0.0",
+        "sympy",
+        "torch<=2.2.0",
+        "scikit-learn",
+        "coverage>=6.4",
+        "pytest-cov",
+        "pytest>=4.6",
+        "networkx",
+        "numba",
+        "scikit-fem",
+        "umbridge",
     ],
     extras_require={
-        'docs': ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
-                 'sphinx-gallery', 'jupyter'],
+        "docs": [
+            "numpydoc",
+            "sphinx",
+            "sphinx_automodapi",
+            "sphinx_rtd_theme",
+            "sphinx-gallery",
+            "jupyter",
+        ],
         # yapf 0.40.2 has bug that prevents its use with elpy
-        'lint' : ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8"]
+        "lint": ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8"],
     },
-    ext_modules=extensions,
-    license='MIT',
+    # ext_modules=extensions,
+    license="MIT",
 )
 
-#TODO see https://pytest-cov.readthedocs.io/en/latest/config.html
+# TODO see https://pytest-cov.readthedocs.io/en/latest/config.html
 # to add config file for coverage tests to exclude certain files from coverage tests
 
 # to install using specific version of python use, e.g.
@@ -104,8 +85,8 @@ setuptools.setup(
 # To build wheel locally use
 # python -m build
 
-#to create from empty environment use from directory contatining setup
-#pip install twine wheel setuptools numpy scipy cython && python setup.py sdist --format=gztar bdist_wheel
+# to create from empty environment use from directory contatining setup
+# pip install twine wheel setuptools numpy scipy && python setup.py sdist --format=gztar bdist_wheel
 
 # To test wheel locally create virtual environment and install using
 # pip install mypackage-0.31.0-py2.py3-none-any.whl

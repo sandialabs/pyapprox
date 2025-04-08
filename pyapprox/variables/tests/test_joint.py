@@ -2,8 +2,8 @@ import unittest
 import numpy as np
 from scipy import stats
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.util.utilities import lists_of_arrays_equal
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
@@ -190,12 +190,12 @@ class TestJoint:
 
 class TestNumpyJoint(TestJoint, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchJoint(TestJoint, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

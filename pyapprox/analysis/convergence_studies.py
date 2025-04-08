@@ -4,13 +4,13 @@ from pyapprox.interface.model import (
     Model,
     MultiIndexModelEnsemble,
     Array,
-    LinAlgMixin,
-    NumpyLinAlgMixin,
+    BackendMixin,
+    NumpyMixin,
 )
 
 
 class ConvergenceErrorEstimator(ABC):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
 
     @abstractmethod

@@ -4,11 +4,11 @@ import numpy as np
 from scipy import stats
 
 from pyapprox.expdesign.cubature import get_cubature_rule
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
-from pyapprox.surrogates.bases.basisexp import MonomialExpansion
-from pyapprox.surrogates.bases.univariate.base import Monomial1D
-from pyapprox.surrogates.bases.basis import MultiIndexBasis
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.surrogates.affine.basisexp import MonomialExpansion
+from pyapprox.surrogates.univariate.base import Monomial1D
+from pyapprox.surrogates.affine.basis import MultiIndexBasis
 from pyapprox.variables.marginals import ContinuousScipyMarginal
 
 
@@ -62,12 +62,12 @@ class TestCubature:
 
 class TestNumpyCubature(TestCubature, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchCubature(TestCubature, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

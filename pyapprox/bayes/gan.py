@@ -3,20 +3,20 @@ from typing import Tuple, List
 import numpy as np
 
 from abc import ABC, abstractmethod
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.torch import TorchMixin
 from scipy import stats
-from pyapprox.surrogates.bases.basisexp import PolynomialChaosExpansion
+from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.bases.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.bases.orthopoly import (
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
-from pyapprox.surrogates.bases.classifiers import LogisticClassifier
+from pyapprox.surrogates.nonlinear.classifiers import LogisticClassifier
 
 
 class Generator(ABC):
-    def __init__(self, backend: LinAlgMixin = TorchLinAlgMixin):
+    def __init__(self, backend: BackendMixin = TorchMixin):
         self._bkd = backend
 
     @abstractmethod
@@ -76,7 +76,7 @@ class WeinerChaosMixin:
 
 
 class WeinerChaosGenerator(WeinerChaosMixin, GaussianLatentMixin, Generator):
-    def __init__(self, nterms_1d, backend: LinAlgMixin = TorchLinAlgMixin):
+    def __init__(self, nterms_1d, backend: BackendMixin = TorchMixin):
         super().__init__(backend)
         self._setup_expansion(nterms_1d)
 
@@ -85,7 +85,7 @@ class WeinerChaosGenerator(WeinerChaosMixin, GaussianLatentMixin, Generator):
 
 
 class Discriminator(ABC):
-    def __init__(self, backend: LinAlgMixin = TorchLinAlgMixin):
+    def __init__(self, backend: BackendMixin = TorchMixin):
         self._bkd = backend
 
     @abstractmethod
@@ -102,7 +102,7 @@ class LogisticClassifierDiscriminator(
     def __init__(
             self,
             nterms_1d: List[int],
-            backend: LinAlgMixin = TorchLinAlgMixin
+            backend: BackendMixin = TorchMixin
     ):
         self._bkd = backend
         self._setup_expansion(nterms_1d)
@@ -201,7 +201,7 @@ class GenerativeAdvesarialGradientDescent(GradientDescent):
 
 
 class GenerativeAdvesarialModel(ABC):
-    def __init__(self, backend: LinAlgMixin = TorchLinAlgMixin):
+    def __init__(self, backend: BackendMixin = TorchMixin):
         self._bkd = backend
         self.setup_generator_and_discriminator()
 
@@ -346,7 +346,7 @@ class LogisticGenerativeAdvesarialModel(GenerativeAdvesarialModel):
             self,
             gen_nterms_1d: List[int],
             disc_nterms_1d: List[int],
-            backend: LinAlgMixin = TorchLinAlgMixin
+            backend: BackendMixin = TorchMixin
     ):
         self._bkd = backend
         self._gen_nterms_1d = gen_nterms_1d

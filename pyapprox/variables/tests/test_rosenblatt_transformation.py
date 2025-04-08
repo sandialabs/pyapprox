@@ -14,7 +14,7 @@ from pyapprox.variables._rosenblatt import (
     combine_samples_with_fixed_data,
 )
 from pyapprox.variables.transforms import NatafTransform
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 def cwum_2d(x, c=0.0):
@@ -499,7 +499,7 @@ class TestRosenblattTransform:
 
 class TestNumpyRosenblattTransform(TestRosenblattTransform, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 if __name__ == "__main__":

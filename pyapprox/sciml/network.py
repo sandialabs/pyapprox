@@ -1,6 +1,6 @@
 import pickle
 
-from pyapprox.surrogates.bases.optimizers import ScipyLBFGSB
+from pyapprox.surrogates.affine.optimizers import ScipyLBFGSB
 from pyapprox.sciml.integraloperators import (
     DenseAffineIntegralOperator, DenseAffineIntegralOperatorFixedBias,
     FourierConvolutionOperator)

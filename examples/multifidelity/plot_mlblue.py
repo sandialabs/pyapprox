@@ -13,11 +13,11 @@ from pyapprox.multifidelity.factory import (
     multioutput_estimators,
 )
 from pyapprox.multifidelity.groupacv import MLBLUEEstimator
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 # set seed for reproducibility
 np.random.seed(1)
-bkd = NumpyLinAlgMixin
+bkd = NumpyMixin
 
 # %%
 # First define an ensemble of models using using a benchmark, see  :mod:`pyapprox.benchmarks`.

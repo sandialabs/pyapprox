@@ -23,8 +23,8 @@ from pyapprox.multifidelity._optim import (
     _get_sample_allocation_matrix_mfmc,
     _get_acv_recursion_indices,
 )
-from pyapprox.util.linearalgebra.linalgbase import Array, LinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.interface.model import SingleSampleModel
 from pyapprox.optimization.scipy import (
     ScipyConstrainedOptimizer,
@@ -42,7 +42,7 @@ def _combine_acv_values(
     reorder_allocation_mat: Array,
     npartition_samples: Array,
     acv_values: List,
-    bkd: LinAlgMixin,
+    bkd: BackendMixin,
 ) -> List[Array]:
     r"""
     Extract the unique values from the sets
@@ -78,7 +78,7 @@ def _combine_acv_samples(
     reorder_allocation_mat: Array,
     npartition_samples: Array,
     acv_samples: List,
-    bkd: LinAlgMixin,
+    bkd: BackendMixin,
 ) -> List[Array]:
     r"""
     Extract the unique amples from the sets
@@ -110,7 +110,7 @@ def _combine_acv_samples(
 
 
 def _get_allocation_matrix_gmf(
-    recursion_index: Array, bkd: LinAlgMixin
+    recursion_index: Array, bkd: BackendMixin
 ) -> Array:
     nmodels = len(recursion_index) + 1
     mat = bkd.zeros((nmodels, 2 * nmodels))
@@ -125,7 +125,7 @@ def _get_allocation_matrix_gmf(
 
 
 def _get_allocation_matrix_acvis(
-    recursion_index: Array, bkd: LinAlgMixin
+    recursion_index: Array, bkd: BackendMixin
 ) -> Array:
     nmodels = len(recursion_index) + 1
     mat = bkd.zeros((nmodels, 2 * nmodels))
@@ -139,7 +139,7 @@ def _get_allocation_matrix_acvis(
 
 
 def _get_allocation_matrix_acvrd(
-    recursion_index: Array, bkd: LinAlgMixin
+    recursion_index: Array, bkd: BackendMixin
 ) -> Array:
     nmodels = len(recursion_index) + 1
     allocation_mat = bkd.zeros((nmodels, 2 * nmodels))
@@ -763,7 +763,7 @@ class ACVObjective(SingleSampleModel, ABC):
     def __init__(
         self,
         scaling: float = 1,
-        backend: LinAlgMixin = TorchLinAlgMixin,
+        backend: BackendMixin = TorchMixin,
     ):
         self._scaling = scaling
         super().__init__(backend)

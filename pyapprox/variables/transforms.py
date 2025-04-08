@@ -19,8 +19,8 @@ from pyapprox.variables.marginals import Marginal
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.util.transforms import Transform
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.variables.joint import define_iid_random_variable
 
 
@@ -237,7 +237,7 @@ class OperatorBasedGaussianTransform(Transform):
         mean: Array,
         cov_sqrt_op: callable,
         inv_cov_sqrt_op: callable,
-        bkd: LinAlgMixin = NumpyLinAlgMixin,
+        bkd: BackendMixin = NumpyMixin,
     ):
         if mean.ndim != 2 or mean.shape[1] != 1:
             raise ValueError("Mean must be a 2D column vector")
@@ -269,7 +269,7 @@ class DenseGaussianTransform(OperatorBasedGaussianTransform):
         self,
         mean: Array,
         cov: Array,
-        bkd: LinAlgMixin = NumpyLinAlgMixin,
+        bkd: BackendMixin = NumpyMixin,
     ):
         super().__init__(mean, self._cov_sqrt_op, self._inv_cov_sqrt_op, bkd)
         self._cov = cov
@@ -293,7 +293,7 @@ class RosenblattTransform(Transform):
         joint_density: callable,
         nvars: int,
         opts: Dict,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._joint_density = joint_density
         self._limits = opts["limits"]
@@ -338,7 +338,7 @@ class UniformMarginalTransformation(Transform):
         x_marginal_cdfs: List[callable],
         x_marginal_inv_cdfs: List[callable],
         enforce_open_bounds: bool = True,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         """
         enforce_open_bounds: boolean
@@ -554,7 +554,7 @@ class ConfigureVariableTransformation(Transform):
 
 
 def define_iid_random_variable_transformation(
-    marginal: Marginal, nvars: int, backend: LinAlgMixin = NumpyLinAlgMixin
+    marginal: Marginal, nvars: int, backend: BackendMixin = NumpyMixin
 ):
     variable = define_iid_random_variable(marginal, nvars, backend=backend)
     var_trans = AffineTransform(variable)

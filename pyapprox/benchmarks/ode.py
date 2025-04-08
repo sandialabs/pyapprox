@@ -1,10 +1,10 @@
 from scipy import stats
 
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.benchmarks.base import SingleModelBenchmark
-from pyapprox.pde.collocation.newton import (
+from pyapprox.util.newton import (
     ParameterizedNewtonResidualMixin,
     NewtonSolver,
 )
@@ -16,7 +16,7 @@ from pyapprox.pde.collocation.timeintegration import (
     TransientAdjointFunctional,
     TransientMSEAdjointFunctional,
 )
-from pyapprox.pde.collocation.adjoint_models import (
+from pyapprox.pde.collocation.adjoint import (
     TransientAdjointModel,
     TimeIntegratorNewtonResidual,
 )
@@ -117,7 +117,7 @@ class ChemicalReactionModel(TransientAdjointModel):
         final_time: float = 100.0,
         deltat: float = 0.1,
         newton_solver: NewtonSolver = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._init_time = 0
         self._residual = ParameterizedChemicalReactionResidual(backend)
@@ -230,7 +230,7 @@ class LotkaVolterraModel(TransientAdjointModel):
         time_residual_cls: TimeIntegratorNewtonResidual,
         functional: TransientAdjointFunctional = None,
         newton_solver: NewtonSolver = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._residual = ParameterizedLotkaVolterraResidual(backend)
         super().__init__(
@@ -263,7 +263,7 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
         self,
         time_residual_cls: TimeIntegratorNewtonResidual = BackwardEulerResidual,
         newton_solver: NewtonSolver = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._time_residual_cls = time_residual_cls
         self._newton_solver = newton_solver
@@ -438,7 +438,7 @@ class CoupledSpringsModel(TransientAdjointModel):
         final_time: float = 10.0,
         deltat: float = 0.1,
         newton_solver: NewtonSolver = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._init_time = 0
         self._residual = ParameterizedCoupledSpringsResidual(backend)
@@ -682,7 +682,7 @@ class HastingsEcologyModel(TransientAdjointModel):
         final_time: float = 100.0,
         deltat: float = 2.5,
         newton_solver: NewtonSolver = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._init_time = 0
         self._residual = ParameterizedHastingsEcologyResidual(backend)

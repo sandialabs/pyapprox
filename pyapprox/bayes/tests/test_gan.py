@@ -4,7 +4,7 @@ import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
 
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.bayes.gan import (
     LogisticGenerativeAdvesarialModel, GenerativeAdvesarialGradientDescent
 )
@@ -120,7 +120,7 @@ class TestGAN:
 
 class TestTorchMOStats(TestGAN, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

@@ -203,9 +203,9 @@ def plot_3d_indices_latex(
                         tikz_dir, show, remove_all_files)
 
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 def get_meshgrid_samples(
-        plot_limits, num_pts_1d, logspace=False, bkd=NumpyLinAlgMixin
+        plot_limits, num_pts_1d, logspace=False, bkd=NumpyMixin
 ):
     """
     Generate meshgrid samples.
@@ -236,7 +236,7 @@ def get_meshgrid_samples(
 
 
 def get_meshgrid_function_data(function, plot_limits, num_pts_1d, qoi=0,
-                               logspace=False, bkd=NumpyLinAlgMixin):
+                               logspace=False, bkd=NumpyMixin):
     """
     Generate data from a function in the format needed for plotting.
     Samples are generated between specified lower and upper bounds

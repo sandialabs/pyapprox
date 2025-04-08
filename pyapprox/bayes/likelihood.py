@@ -9,12 +9,12 @@ from pyapprox.util.linalg import (
 )
 from pyapprox.interface.model import Model
 from pyapprox.variables.joint import JointVariable
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 class LogLikelihood(Model):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend=backend)
         self._obs = None
         self._nobs = None

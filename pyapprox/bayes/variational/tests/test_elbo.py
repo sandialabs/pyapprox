@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 
 from pyapprox.interface.model import DenseMatrixLinearModel
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.bayes.variational.elbo import (
     VariationalInverseProblem,
     CholeskyGaussianVariationalPosterior,
@@ -197,14 +197,14 @@ class TestVariationalInference:
 #     TestVariationalInference, unittest.TestCase
 # ):
 #     def get_backend(self):
-#         return NumpyLinAlgMixin
+#         return NumpyMixin
 
 
 class TestTorchVariationalInference(
     TestVariationalInference, unittest.TestCase
 ):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

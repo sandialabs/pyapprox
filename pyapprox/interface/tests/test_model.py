@@ -17,14 +17,12 @@ from pyapprox.interface.model import (
     PoolModelWrapper,
     SerialIOModel,
     AsyncIOModel,
-    ForwardFiniteDifference,
-    BackwardFiniteDifference,
     CenteredFiniteDifference,
     DenseMatrixLinearModel,
     QuadraticMatrixModel,
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 
 def _pickable_function(bkd, sample):
@@ -45,7 +43,7 @@ def raise_exception(condition, msg):
 def get_shell_command_for_io_model(
     delay: float = 0.0,
     fault_percentage: float = 0.0,
-    backend=NumpyLinAlgMixin,
+    backend=NumpyMixin,
 ):
     """
     Return a FileIOModel that wrapts a call to the 2D target function
@@ -62,7 +60,9 @@ def get_shell_command_for_io_model(
     )
 
     def target_function(x):
-        return np.array([x[0] ** 2 + 2 * x[1] ** 3, x[0] ** 3 + x[0] * x[1]])
+        return backend.asarray(
+            [x[0] ** 2 + 2 * x[1] ** 3, x[0] ** 3 + x[0] * x[1]]
+        )
 
     target_model = ModelFromSingleSampleCallable(
         2, 2, target_function, sample_ndim=1, values_ndim=1, backend=backend
@@ -78,8 +78,8 @@ class TestModel:
         # sp_lambda returns a single function output
         bkd = self.get_backend()
         assert sample.ndim == 2 and sample.shape[1] == 1
-        vals = bkd.atleast2d(sp_lambda(*bkd.to_numpy(sample[:, 0])))
-        return vals
+        vals = bkd.asarray(sp_lambda(*bkd.to_numpy(sample[:, 0])))
+        return bkd.atleast2d(vals)
 
     def test_scalar_model_from_callable_2D_sample(self):
         bkd = self.get_backend()
@@ -787,6 +787,7 @@ if __name__ == "__main__":
     def _check_finite_differences(self, FD_cls):
         bkd = self.get_backend()
         nvars = 3
+
         model = ModelFromSingleSampleCallable(
             2,
             nvars,
@@ -803,11 +804,12 @@ if __name__ == "__main__":
                 ],
                 axis=0,
             ),
-            apply_jacobian=lambda x, v: bkd.asarray(
+            apply_jacobian=lambda x, v: bkd.stack(
                 [
                     1 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1]),
                     2 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1]),
-                ]
+                ],
+                axis=0,
             ),
             hessian=lambda x: bkd.stack(
                 [
@@ -815,11 +817,12 @@ if __name__ == "__main__":
                     bkd.diag(bkd.array([4, 4, 0])),
                 ]
             ),
-            apply_hessian=lambda x, v: bkd.asarray(
+            apply_hessian=lambda x, v: bkd.stack(
                 [
                     bkd.diag(bkd.array([2, 2, 0])) @ v,
                     bkd.diag(bkd.array([4, 4, 0])) @ v,
-                ]
+                ],
+                axis=0,
             ),
             sample_ndim=1,
             values_ndim=1,
@@ -858,7 +861,7 @@ if __name__ == "__main__":
                 [1 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1])]
             ),
             hessian=lambda x: bkd.stack([bkd.diag(bkd.array([2, 2, 0]))]),
-            apply_hessian=lambda x, v: bkd.asarray(
+            apply_hessian=lambda x, v: bkd.stack(
                 [bkd.diag(bkd.array([2, 2, 0])) @ v]
             ),
             sample_ndim=1,
@@ -907,12 +910,12 @@ if __name__ == "__main__":
 
 class TestNumpyModel(TestModel, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchModel(TestModel, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

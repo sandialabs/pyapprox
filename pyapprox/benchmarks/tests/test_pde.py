@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.benchmarks.pde import (
     PyApproxPaperAdvectionDiffusionKLEInversionBenchmark,
     TransientViscousBurgers1DOperatorBenchmark,
@@ -74,12 +74,12 @@ class TestPDEBenchmarks:
 
 class TestTorchPDEBenchmarks(TestPDEBenchmarks, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 class TestNumpyPDEBenchmarks(TestPDEBenchmarks, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 if __name__ == "__main__":

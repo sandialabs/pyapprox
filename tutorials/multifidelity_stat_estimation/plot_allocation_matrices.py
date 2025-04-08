@@ -215,11 +215,11 @@ import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 benchmark = TunableModelEnsemble(math.pi/2*0.95)
 
-stat = multioutput_stats["mean"](benchmark.nqoi(), backend=NumpyLinAlgMixin)
+stat = multioutput_stats["mean"](benchmark.nqoi(), backend=NumpyMixin)
 stat.set_pilot_quantities(benchmark.covariance())
 est = get_estimator("grd", stat, benchmark.costs(), recursion_index=(2, 0))
 

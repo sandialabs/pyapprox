@@ -4,7 +4,7 @@ from typing import List
 import copy
 
 import sympy as sp
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.pde.autopde.sympy_utils import (
     _evaluate_sp_lambda,
     _evaluate_list_of_sp_lambda,
@@ -19,7 +19,7 @@ class ManufacturedSolution(ABC):
     def __init__(
         self,
         nvars: int,
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
     ):
         self._bkd = bkd
@@ -302,7 +302,7 @@ class ManufacturedAdvectionDiffusionReaction(
         diff_str: str,
         react_str: str,
         vel_strs: list[str],
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
         conservative: bool = True,
     ):
@@ -329,7 +329,7 @@ class ManufacturedNonLinearAdvectionDiffusionReaction(
         nonlinear_diff_op_str: str,
         react_str: str,
         vel_strs: list[str],
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
         conservative: bool = True,
     ):
@@ -361,7 +361,7 @@ class ManufacturedHelmholtz(
         sol_str: str,
         nvars: int,
         sqwavenum_str: str,
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
     ):
         self._diff_str = "1"
@@ -389,7 +389,7 @@ class ManufacturedShallowIce(ScalarSolutionMixin, ManufacturedSolution):
         friction_str: str,
         A: float,
         rho: float,
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
     ):
         self._bed_str = bed_str
@@ -474,7 +474,7 @@ class ManufacturedShallowWave(VectorSolutionMixin, ManufacturedSolution):
         depth_str: str,
         mom_strs: List[str],
         bed_str: str,
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
     ):
         self._depth_str = depth_str
@@ -539,7 +539,7 @@ class ManufacturedTwoSpeciesReactionDiffusion(
         nvars: int,
         diff_strs: List[str],
         react_strs: List[str],
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
     ):
         self._diff_strs = diff_strs
@@ -602,7 +602,7 @@ class ManufacturedShallowShelfVelocityEquations(
         friction_str: str,
         A: float,
         rho: float,
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
     ):
 
@@ -688,7 +688,7 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
         friction_str: str,
         A: float,
         rho: float,
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
     ):
         sol_strs = [depth_str] + vel_strs
@@ -748,7 +748,7 @@ class ManufacturedLinearElasticityEquations(
         lambda_str: int,
         mu_str: int,
         # body_forc_strs: List[str],
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
     ):
         self._lambda_str = lambda_str
@@ -808,7 +808,7 @@ class ManufacturedBurgers1D(ScalarSolutionMixin, ManufacturedSolution):
         self,
         sol_str: str,
         visc_str: str,
-        bkd=NumpyLinAlgMixin,
+        bkd=NumpyMixin,
         oned: bool = False,
     ):
         self._visc_str = visc_str

@@ -34,7 +34,7 @@ from pyapprox.multifidelity.stats import (
 from pyapprox.benchmarks.multifidelity_benchmarks import (
     PolynomialModelEnsemble,
 )
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 # from pyapprox.util.print_wrapper import *
 
@@ -1048,7 +1048,7 @@ class TestMOMC:
 
 class TestTorchMOMC(TestMOMC, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

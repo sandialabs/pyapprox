@@ -4,9 +4,9 @@ from functools import partial
 import numpy as np
 
 # from pyapprox.util.print_wrapper import *
-from pyapprox.util.linearalgebra.linalgbase import Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
-from pyapprox.util.linearalgebra.torchlinalg import TorchLinAlgMixin
+from pyapprox.util.backends.template import Array
+from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.pde.collocation.timeintegration import (
     TransientNewtonResidual,
     BackwardEulerResidual,
@@ -18,8 +18,8 @@ from pyapprox.pde.collocation.timeintegration import (
     TransientAdjointFunctional,
     TimeIntegratorNewtonResidual,
 )
-from pyapprox.pde.collocation.adjoint_models import TransientAdjointModel
-from pyapprox.pde.collocation.newton import ParameterizedNewtonResidualMixin
+from pyapprox.pde.collocation.adjoint import TransientAdjointModel
+from pyapprox.util.newton import ParameterizedNewtonResidualMixin
 
 
 class LinearDecoupledODE(
@@ -154,7 +154,7 @@ class NonLinearDecoupledODE(
 
 
 class TransientSingleStateLinearFunctional(TransientAdjointFunctional):
-    def __init__(self, nstates, nparams, backend=NumpyLinAlgMixin):
+    def __init__(self, nstates, nparams, backend=NumpyMixin):
         self._nstates = nstates
         self._nparams = nparams
         super().__init__(backend)
@@ -207,7 +207,7 @@ class LinearDecoupledODEModel(TransientAdjointModel):
         time_residual_cls: TimeIntegratorNewtonResidual,
         nstates: int = 2,
         transient_coef: bool = False,
-        backend=NumpyLinAlgMixin,
+        backend=NumpyMixin,
     ):
         time_residual = self._setup_residual(
             time_residual_cls, nstates, transient_coef, backend
@@ -1126,12 +1126,12 @@ class TestTimeIntegration:
 
 class TestNumpyTimeIntegration(TestTimeIntegration, unittest.TestCase):
     def get_backend(self):
-        return NumpyLinAlgMixin
+        return NumpyMixin
 
 
 class TestTorchTimeIntegration(TestTimeIntegration, unittest.TestCase):
     def get_backend(self):
-        return TorchLinAlgMixin
+        return TorchMixin
 
 
 if __name__ == "__main__":

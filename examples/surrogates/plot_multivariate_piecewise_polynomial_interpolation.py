@@ -13,11 +13,11 @@ Here levels specifies the level of each 1D grid
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.benchmarks import GenzBenchmark
-from pyapprox.surrogates.bases.univariate.local import (
+from pyapprox.surrogates.univariate.local import (
     setup_univariate_piecewise_polynomial_basis,
 )
-from pyapprox.surrogates.bases.basis import TensorProductInterpolatingBasis
-from pyapprox.surrogates.bases.basisexp import TensorProductInterpolant
+from pyapprox.surrogates.affine.basis import TensorProductInterpolatingBasis
+from pyapprox.surrogates.affine.basisexp import TensorProductInterpolant
 
 nvars = 2
 benchmark = GenzBenchmark(name="discontinuous", nvars=nvars)

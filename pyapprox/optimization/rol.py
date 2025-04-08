@@ -23,7 +23,7 @@ from pyapprox.optimization.minimize import (
     OptimizationResult,
     Constraint,
 )
-from pyapprox.util.linearalgebra.linalgbase import Array
+from pyapprox.util.backends.template import Array
 
 
 class ROLOptimizationResult(OptimizationResult):

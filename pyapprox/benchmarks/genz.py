@@ -4,15 +4,15 @@ from typing import Tuple
 from scipy import stats
 from scipy import special
 
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.benchmarks.base import SingleModelBenchmark
 from pyapprox.interface.model import Model
 from pyapprox.variables.joint import IndependentMarginalsVariable
 
 
 class GenzModel(Model):
-    def __init__(self, name: str, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, name: str, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         self.set_name(name)
         self._min_c = 5e-6
@@ -364,7 +364,7 @@ class GenzBenchmark(SingleModelBenchmark):
         cfactor: float = 1.0,
         wfactor: float = 0.25,
         coefs: Tuple[Array, Array] = None,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._name = name
         self._nvars = nvars

@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 import math
 
-from pyapprox.util.linearalgebra.numpylinalg import (
-    LinAlgMixin,
-    NumpyLinAlgMixin,
+from pyapprox.util.backends.numpy import (
+    BackendMixin,
+    NumpyMixin,
 )
 from pyapprox.pde.collocation.mesh_transforms import (
     OrthogonalCoordinateTransform,
     ScaleAndTranslationTransform1D,
 )
-from pyapprox.surrogates.bases.univariate.orthopoly import (
+from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
 )
 
@@ -91,7 +91,7 @@ class OrthogonalCoordinateMeshBoundary(ABC):
         bndry_name: str,
         trans: OrthogonalCoordinateTransform,
         tol: float = 1e-15,
-        bkd: LinAlgMixin = NumpyLinAlgMixin,
+        bkd: BackendMixin = NumpyMixin,
     ):
         self._bndry_name = bndry_name
         self._trans = trans

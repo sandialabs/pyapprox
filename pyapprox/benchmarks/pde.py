@@ -5,15 +5,15 @@ import numpy as np
 from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.util.linearalgebra.linalgbase import LinAlgMixin, Array
+from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.benchmarks.base import (
     SingleModelBayesianInferenceBenchmark,
     OperatorBenchmark,
     SingleModelBenchmark,
 )
-from pyapprox.util.linearalgebra.numpylinalg import NumpyLinAlgMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import Model
-from pyapprox.pde.collocation.adjoint_models import AdjointFunctional
+from pyapprox.pde.collocation.adjoint import AdjointFunctional
 from pyapprox.pde.collocation.parameterized_pdes import (
     PyApproxPaperAdvectionDiffusionKLEInversionModel,
     ScalarFunction,
@@ -23,7 +23,7 @@ from pyapprox.pde.collocation.parameterized_pdes import (
     SteadySolutionFunctional,
     SteadySingleStateFunctional,
 )
-from pyapprox.pde.collocation.newton import NewtonSolver
+from pyapprox.util.newton import NewtonSolver
 from pyapprox.pde.collocation.timeintegration import CrankNicholsonResidual
 from pyapprox.pde.collocation.parameterized_pdes import (
     NonlinearSystemOfEquationsModel,
@@ -37,7 +37,7 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
         nresidual_params: int,
         obs_state_indices: List[Tuple[int, Array]],
         sigma: float = 1.0,
-        backend: LinAlgMixin = NumpyLinAlgMixin,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._nstates = nstates
         self._nparams = nresidual_params
@@ -111,7 +111,7 @@ class SteadyGaussianNegLogLikelihoodAdjointFunctional(
 
 
 class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
 
     def nvars(self) -> int:
@@ -143,7 +143,7 @@ class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
 
 
 class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
-    def __init__(self, backend: LinAlgMixin = NumpyLinAlgMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
 
     def nvars(self) -> int:
@@ -169,7 +169,7 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
     SingleModelBayesianInferenceBenchmark
 ):
     def __init__(
-        self, nmodels: int = 5, backend: LinAlgMixin = NumpyLinAlgMixin
+        self, nmodels: int = 5, backend: BackendMixin = NumpyMixin
     ):
         self._nmodels = nmodels
         self._mesh_npts_1d = backend.array([21, 21], dtype=int)
