@@ -4,7 +4,11 @@ from functools import partial
 from scipy import stats
 
 from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
-from pyapprox.variables.sampling import rejection_sampling
+from pyapprox.variables.joint import (
+    RejectionSamplingVariable,
+    IndependentMarginalsVariable,
+    JointVariable,
+)
 from pyapprox.variables._rosenblatt import (
     invert_cdf,
     rosenblatt_transformation,
@@ -13,7 +17,6 @@ from pyapprox.variables._rosenblatt import (
     inverse_rosenblatt_transformation,
     combine_samples_with_fixed_data,
 )
-from pyapprox.variables.transforms import NatafTransform
 from pyapprox.util.backends.numpy import NumpyMixin
 
 
@@ -38,18 +41,26 @@ def cwum_2d(x, c=0.0):
     ) / normalization
 
 
-def rosenblatt_example_3d_joint_density(x):
-    """
-    This function must be defined outside of example so that any object that
-    stores this joint density like the RosenblattTransform class can be
-    pickled.
-    """
-    return 80.0 / 21.0 * (x[0, :] ** 4 + x[1, :] ** 3 * x[2, :] ** 3)
+class First3DExampleDensity(JointVariable):
+    def nvars(self):
+        return 3
+
+    def rvs(self, nsamples):
+        raise NotImplementedError
+
+    def pdf(self, samples):
+        return (
+            80.0
+            / 21.0
+            * (samples[0, :] ** 4 + samples[1, :] ** 3 * samples[2, :] ** 3)[
+                :, None
+            ]
+        )
 
 
 def rosenblatt_example_3d(nsamples=10000, run_tests=False):
     nvars = 3
-    joint_density = rosenblatt_example_3d_joint_density
+    joint_density = First3DExampleDensity(NumpyMixin)
 
     def marginal_pdf_x(x):
         return 5.0 / 21.0 * (16.0 * x**4 + 1.0)
@@ -73,21 +84,13 @@ def rosenblatt_example_3d(nsamples=10000, run_tests=False):
     # get samples from joint density using rejection sampling
     envelope_factor = 160.0 / 21.0 * 1.01
 
-    def proposal_density(x):
-        return np.ones(x.shape[1])
-
-    def generate_proposal_samples(nsamples):
-        return np.random.uniform(0.0, 1.0, (nvars, nsamples))
-
-    samples = rejection_sampling(
-        joint_density,
-        proposal_density,
-        generate_proposal_samples,
-        envelope_factor,
-        nvars,
-        nsamples,
-        False,
+    proposal_density = IndependentMarginalsVariable(
+        [stats.uniform(0, 1)] * nvars
     )
+    rej_variable = RejectionSamplingVariable(
+        joint_density, proposal_density, envelope_factor
+    )
+    samples = rej_variable.rvs(nsamples)
     exact_mean = np.asarray([95.0 / 126.0, 4.0 / 7.0, 4.0 / 7.0])
     if run_tests:
         assert np.allclose(exact_mean, samples.mean(axis=1), atol=1e-2)
@@ -111,29 +114,34 @@ def rosenblatt_example_3d(nsamples=10000, run_tests=False):
     return samples, trans_samples, joint_density, limits
 
 
-def rosenblatt_example_2d_joint_density_1(x):
-    """
-    This function must be defined outside of example so that any object that
-    stores this joint density like the RosenblattTransform class can be
-    pickled.
-    """
-    return 20.0 / 9.0 * (x[0, :] ** 4 + x[1, :] ** 3)
+class First2DExampleDensity(JointVariable):
+    def nvars(self):
+        return 2
+
+    def rvs(self, nsamples):
+        raise NotImplementedError
+
+    def pdf(self, samples):
+        return 20.0 / 9.0 * (samples[0, :] ** 4 + samples[1, :] ** 3)[:, None]
 
 
-def rosenblatt_example_2d_joint_density_2(x):
-    """
-    This function must be defined outside of example so that any object that
-    stores this joint density like the RosenblattTransform class can be
-    pickled.
-    """
-    return 6.0 / 5.0 * (x[0, :] ** 2 + x[1, :])
+class Second2DExampleDensity(JointVariable):
+    def nvars(self):
+        return 2
+
+    def rvs(self, nsamples):
+        raise NotImplementedError
+
+    def pdf(self, samples):
+        return 6.0 / 5.0 * (samples[0, :] ** 2 + samples[1, :])[:, None]
 
 
 def rosenblatt_example_2d(nsamples=10000, density_num=1, run_tests=False):
     nvars = 2
     limits = np.asarray([0, 1, 0, 1], dtype=float)
     if density_num == 1:
-        joint_density = rosenblatt_example_2d_joint_density_1
+        # joint_density = rosenblatt_example_2d_joint_density_1
+        joint_density = First2DExampleDensity(NumpyMixin)
 
         def marginal_pdf_x(x):
             return 5.0 / 9.0 * (4.0 * x**4 + 1.0)
@@ -148,7 +156,7 @@ def rosenblatt_example_2d(nsamples=10000, density_num=1, run_tests=False):
         envelope_factor = 40.0 / 9.0 * 1.01
         exact_mean = np.asarray([35.0 / 54.0, 2.0 / 3.0])
     elif density_num == 2:
-        joint_density = rosenblatt_example_2d_joint_density_2
+        joint_density = Second2DExampleDensity(NumpyMixin)
 
         def marginal_pdf_x(x):
             return 3.0 / 5.0 * (2.0 * x**2 + 1.0)
@@ -175,21 +183,14 @@ def rosenblatt_example_2d(nsamples=10000, density_num=1, run_tests=False):
     # plt.show()
 
     # get samples from joint density using rejection sampling
-    def proposal_density(x):
-        return np.ones(x.shape[1])
-
-    def generate_proposal_samples(nsamples):
-        return np.random.uniform(0.0, 1.0, (nvars, nsamples))
-
-    samples = rejection_sampling(
-        joint_density,
-        proposal_density,
-        generate_proposal_samples,
-        envelope_factor,
-        nvars,
-        nsamples,
-        False,
+    proposal_density = IndependentMarginalsVariable(
+        [stats.uniform(0, 1)] * nvars
     )
+    rej_variable = RejectionSamplingVariable(
+        joint_density, proposal_density, envelope_factor
+    )
+    samples = rej_variable.rvs(nsamples)
+
     if run_tests:
         assert np.allclose(exact_mean, samples.mean(axis=1), atol=1e-2)
 
@@ -314,7 +315,6 @@ class TestRosenblattTransform:
         variable = DenseCholeskyMultivariateGaussian(
             mean=np.zeros((nvars, 1)), cov=np.eye(nvars)
         )
-        joint_density = variable.pdf
         limits = np.asarray([-5, 5, -5, 5])
         active_var_samples = np.asarray([[5, 5], [0, 5]]).T
         active_vars = np.arange(nvars)
@@ -322,7 +322,7 @@ class TestRosenblattTransform:
             (0, active_var_samples.shape[1]), dtype=float
         )
         values = marginalized_cumulative_distribution_function(
-            joint_density,
+            lambda x: variable.pdf(x)[:, 0],
             limits,
             active_vars,
             active_var_samples,
@@ -445,7 +445,10 @@ class TestRosenblattTransform:
             rosenblatt_example_2d(nsamples=10)
         )
         trans_samples = rosenblatt_transformation(
-            samples, joint_density, limits, nquad_samples_1d=20
+            samples,
+            lambda x: joint_density.pdf(x)[:, 0],
+            limits,
+            nquad_samples_1d=20,
         )
         assert np.allclose(true_trans_samples, trans_samples)
 
@@ -453,7 +456,10 @@ class TestRosenblattTransform:
             rosenblatt_example_3d(nsamples=10)
         )
         trans_samples = rosenblatt_transformation(
-            samples, joint_density, limits, nquad_samples_1d=20
+            samples,
+            lambda x: joint_density.pdf(x)[:, 0],
+            limits,
+            nquad_samples_1d=20,
         )
         assert np.allclose(true_trans_samples, trans_samples)
 
@@ -492,7 +498,10 @@ class TestRosenblattTransform:
         )
 
         user_samples = inverse_rosenblatt_transformation(
-            true_trans_samples, joint_density, limits, nquad_samples_1d=20
+            true_trans_samples,
+            lambda x: joint_density.pdf(x)[:, 0],
+            limits,
+            nquad_samples_1d=20,
         )
         assert np.allclose(samples, user_samples)
 

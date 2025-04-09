@@ -19,7 +19,8 @@ from pyapprox.bayes.tests.test_likelihood import Linear1DRegressionModel
 def _setup_gaussian_linear_inverse_problem(
     nobs, nvars, noise_stdev, prior_mean, prior_std
 ):
-    design = np.linspace(0.0, 9.0, nobs)[None, :]
+    # design = np.linspace(0.0, 9.0, nobs)[None, :]
+    design = np.linspace(-1.0, 1.0, nobs)[None, :]
     obs_model = Linear1DRegressionModel(design, nvars - 1)
     noise_cov = noise_stdev**2 * np.eye(nobs)
     loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
@@ -28,6 +29,11 @@ def _setup_gaussian_linear_inverse_problem(
     loglike.set_observations(obs)
     prior = IndependentMarginalsVariable(
         [stats.norm(prior_mean, prior_std)] * nvars
+    )
+    from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
+
+    prior = DenseCholeskyMultivariateGaussian(
+        np.full((nvars, 1), prior_mean), np.eye(nvars) * prior_std**2
     )
     laplace = DenseMatrixLaplacePosteriorApproximation(
         obs_model.matrix(), prior.mean(), prior.covariance(), noise_cov
@@ -64,8 +70,8 @@ class TestMetropolis(unittest.TestCase):
         nsamples = 5000
         burn_fraction = 0.2
         nsamples_per_tuning = 20
-        nobs = 3  # number of observations
-        noise_stdev = 2  # standard deviation of noise
+        nobs = 4  # number of observations
+        noise_stdev = np.sqrt(0.3)  # standard deviation of noise
         # init_proposal_cov = np.eye(nvars)
         init_proposal_cov = None
         prior_mean, prior_std = 0, 1
@@ -86,6 +92,7 @@ class TestMetropolis(unittest.TestCase):
             init_proposal_cov=init_proposal_cov,
         )
         map_sample = mcmc_variable.maximum_aposteriori_point(prior.mean())
+        print(map_sample, laplace.posterior_mean())
         assert np.allclose(map_sample, laplace.posterior_mean())
 
         mcmc_samples = mcmc_variable.rvs(nsamples, map_sample)
@@ -128,7 +135,7 @@ class TestMetropolis(unittest.TestCase):
         hmc_opts = {"nsteps": 5, "epsilon": 3e-1}  # 2D distribution
         # hmc_opts = {"nsteps": 50, "epsilon": 0.001}  # 4D
         test_cases = [[2, "DRAM", dram_opts(2)], [2, "hmc", hmc_opts]]
-        for test_case in test_cases[-1:]:
+        for test_case in test_cases[:1]:
             self._check_mcmc_variable(*test_case)
 
 

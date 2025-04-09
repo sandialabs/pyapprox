@@ -258,6 +258,7 @@ def marginalized_cumulative_distribution_function(
         fixed_data = fixed_var_samples[:, jj]
         xx = combine_samples_with_fixed_data(fixed_data, fixed_vars, active_x)
         density_vals = joint_density(xx)
+        assert density_vals.ndim == 1
         values[jj] = density_vals.T @ w
     return values
 

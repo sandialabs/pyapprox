@@ -204,7 +204,7 @@ class TestLikelihood:
         bkd = self.get_backend()
         degree = 2
         nvars = degree + 1
-        prior_variable = DenseCholeskyMultivariateGaussian(
+        prior = DenseCholeskyMultivariateGaussian(
             bkd.zeros((nvars, 1)), bkd.eye(nvars), backend=bkd
         )
 
@@ -216,14 +216,24 @@ class TestLikelihood:
         true_sample = bkd.full((nvars, 1), 0.4)
         obs = loglike.rvs(true_sample)
         loglike.set_observations(obs)
-        unnormalized_posterior = LogUnNormalizedPosterior(
-            loglike, prior_variable
-        )
-        sample = prior_variable.rvs(1)
+        unnormalized_posterior = LogUnNormalizedPosterior(loglike, prior)
+        sample = prior.rvs(1)
         errors = unnormalized_posterior.check_apply_jacobian(sample, disp=True)
         assert errors.min() / errors.max() < 1e-6
         errors = unnormalized_posterior.check_apply_hessian(sample, disp=True)
         assert errors.min() / errors.max() < 1e-6
+
+        laplace = DenseMatrixLaplacePosteriorApproximation(
+            obs_model.matrix(),
+            prior.mean(),
+            prior.covariance(),
+            noise_cov,
+            backend=bkd,
+        )
+        laplace.compute(obs)
+
+        MAP = unnormalized_posterior.maximum_aposteriori_point()
+        assert bkd.allclose(MAP, laplace.posterior_mean())
 
 
 class TestNumpyLikelihood(TestLikelihood, unittest.TestCase):

@@ -42,6 +42,16 @@ class JointVariable(ABC):
         """
         raise NotImplementedError()
 
+    @abstractmethod
+    def nvars(self) -> int:
+        raise NotImplementedError
+
+    def pdf(self, samples: Array) -> Array:
+        raise NotImplementedError
+
+    def logpdf(self, samples: Array) -> Array:
+        raise NotImplementedError
+
     def pdf_jacobian_implemented(self) -> bool:
         return False
 
@@ -95,7 +105,6 @@ class JointVariable(ABC):
                     " given 3d axis"
                 )
             return ax.plot_surface(X, Y, Z, **kwargs)
-        print(kwargs)
         return ax.contourf(X, Y, Z, **kwargs)
 
 
@@ -269,7 +278,7 @@ class IndependentMarginalsVariable(JointVariable):
             ],
             axis=0,
         )
-        return self._bkd.prod(marginal_vals, axis=0)[:, None]
+        return self._bkd.sum(marginal_vals, axis=0)[:, None]
 
     def ppf(self, samples: Array) -> Array:
         """
@@ -568,7 +577,6 @@ class RejectionSamplingVariable:
         nproposal_samples = 0
         samples = self._bkd.empty((self._nvars, nsamples), dtype=float)
         while cntr < nsamples:
-            print(cntr)
             proposal_samples = self._proposal.rvs(batch_size)
             target_vals = self._target.pdf(proposal_samples)[:, 0]
             proposal_vals = self._proposal.pdf(proposal_samples)[:, 0]

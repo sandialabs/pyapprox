@@ -256,6 +256,9 @@ class MetropolisMCMCVariable(JointVariable):
         # will be set each time self.rvs is called
         self._acceptance_rate = None
 
+    def nvars(self) -> int:
+        return self._prior.nvars()
+
     def _rvs_dram(
         self, init_sample, init_proposal_cov, nsamples, nburn_samples
     ):
@@ -279,11 +282,13 @@ class MetropolisMCMCVariable(JointVariable):
         acceptance_rate = accepted[nburn_samples:].sum() / nsamples
         return samples, acceptance_rate
 
+    def maximum_aposteriori_point(self, iterate: Array = None):
+        return self._log_unnormalized_post.maximum_aposteriori_point(iterate)
+
     def _log_bayes_numerator_hmc(self, sample):
-        val, grad = self._log_bayes_numerator(
-            sample[:, None], return_grad=True
-        )
-        return val, grad[0]
+        val = self._log_unnormalized_post(sample[:, None])
+        grad = self._log_unnormalized_post.jacobian(sample[:, None])[0]
+        return val, grad
 
     def _rvs_hmc(self, init_sample, init_momentum, nsamples):
         hmc_opts = self._method_opts.copy()
@@ -303,7 +308,7 @@ class MetropolisMCMCVariable(JointVariable):
         if init_sample is None:
             init_sample = self.maximum_aposteriori_point()
         if self._init_proposal_cov is None:
-            init_proposal_cov = np.diag(self._prior.var()[:, 0] ** 2)
+            init_proposal_cov = self._prior.covariance()
         if init_proposal_cov.shape[0] != self._prior.nvars():
             raise ValueError("init_proposal_cov specified has wrong shape")
         # print(nsamples, self._burn_fraction)
@@ -313,6 +318,7 @@ class MetropolisMCMCVariable(JointVariable):
                 init_sample, init_proposal_cov, nsamples, nburn_samples
             )
         elif self._algorithm == "hmc":
+            raise NotImplementedError("Tests not passing")
             init_momentum = np.random.normal(0, 1, (init_sample.shape[0], 1))
             samples, acceptance_rate = self._rvs_hmc(
                 init_sample, init_momentum, nsamples
@@ -571,141 +577,3 @@ def plot_unnormalized_2d_marginals(
                 )
 
     return fig, axs
-
-
-class GaussianLogLike(object):
-    r"""
-    A Gaussian log-likelihood function for a model with parameters given in
-    sample
-    """
-
-    def __init__(self, model, data, noise_covar, model_jac=None):
-        r"""
-        Initialise the Op with various things that our log-likelihood
-        function requires.
-
-        Parameters
-        ----------
-        model : callable
-            The model relating the data and noise
-
-        data : np.ndarray (nobs)
-            The "observed" data
-
-        noise_covar : float, np.ndarray (nobs), np.ndarray (nobs,nobs)
-            The noise covariance
-
-        model_jac : callable
-            The Jacobian of the model with respect to the parameters
-        """
-        self.model = model
-        self.model_jac = model_jac
-        self.data = data
-        assert self.data.ndim == 1
-        self.ndata = data.shape[0]
-        self.noise_covar_inv, self.log_noise_covar_det = (
-            self.noise_covariance_inverse(noise_covar)
-        )
-
-    def noise_covariance_inverse(self, noise_covar):
-        if np.isscalar(noise_covar):
-            return 1 / noise_covar, np.log(noise_covar)
-        if noise_covar.ndim == 1:
-            assert noise_covar.shape[0] == self.data.shape[0]
-            return 1 / noise_covar, np.log(np.prod(noise_covar))
-        elif noise_covar.ndim == 2:
-            assert noise_covar.shape == (self.ndata, self.ndata)
-            return np.linalg.inv(noise_covar), np.log(
-                np.linalg.det(noise_covar)
-            )
-        raise ValueError("noise_covar has the wrong shape")
-
-    # def noise_covariance_determinant(self, noise_covar):
-    #     r"""The determinant is only necessary in log likelihood if the noise
-    #     covariance has a hyper-parameter which is being inferred which is
-    #     not currently supported"""
-    #     if np.isscalar(noise_covar):
-    #         determinant = noise_covar**self.ndata
-    #     elif noise_covar.ndim==1:
-    #         determinant = np.prod(noise_covar)
-    #     else:
-    #         determinant = np.linalg.det(noise_covar)
-    #     return determinant
-
-    def __call__(self, samples, return_grad=False):
-        nsamples = samples.shape[1]
-        model_vals = self.model(samples)
-        assert model_vals.ndim == 2
-        assert model_vals.shape[1] == self.ndata
-        vals = np.empty((nsamples, 1))
-        for ii in range(nsamples):
-            residual = self.data - model_vals[ii, :]
-            if np.isscalar(self.noise_covar_inv):
-                tmp = self.noise_covar_inv * residual
-            elif self.noise_covar_inv.ndim == 1:
-                tmp = self.noise_covar_inv[:, None] * residual
-                # vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
-            else:
-                tmp = self.noise_covar_inv.dot(residual)
-                # vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
-            vals[ii] = residual.dot(tmp)
-        vals += self.ndata * np.log(2 * np.pi) + self.log_noise_covar_det
-        vals *= -0.5
-        vals = np.atleast_2d(vals)
-        if not return_grad:
-            return vals
-
-        if nsamples != 1:
-            raise ValueError("nsamples must be 1 when return_grad is True")
-        if self.model_jac is None:
-            raise ValueError("model_jac is none but gradient requested")
-        grad = tmp.dot(self.model_jac(samples))
-        return vals, grad
-
-
-def loglike_from_negloglike(negloglike, samples, jac=False):
-    if not jac:
-        return -negloglike(samples)
-    vals, grads = negloglike(samples, jac=jac)
-    return -vals, -grads
-
-
-class MaximumAposteriorPoint:
-    def __init__(
-        self,
-        loglike: LogLikelihood,
-        prior: JointVariable,
-        optimizer: ConstrainedOptimizer = None,
-    ):
-        self._log_unnormalized_post = LogUnNormalizedPosterior(loglike, prior)
-        if optimizer is None:
-            optimizer = self.default_optimizer()
-        self._optimizer = optimizer
-
-    def _compute(self, init_guess: Array = None) -> Array:
-        if init_guess is None:
-            bounds = self._log_unnormalized_post._prior.truncated_ranges(
-                1 - 1e-6
-            )
-            bounds = [(bb[0], bb[1]) for bb in bounds]
-            res = differential_evolution(
-                self._log_unnormalized_post, bounds, maxiter=100, popsize=15
-            )
-            # res = dual_annealing(
-            #     obj, bounds, maxiter=100, maxfun=10000)
-            init_guess = res.x[:, None]
-
-        assert init_guess.ndim == 2 and init_guess.shape[1] == 1
-        assert init_guess.shape[0] == self._prior.nvars()
-        init_guess = init_guess[:, 0]
-        bounds = self._prior.interval(1)
-        res = minimize(
-            obj,
-            init_guess,
-            jac=return_grad,
-            method="l-bfgs-b",
-            options={"disp": False},
-            bounds=bounds,
-        )
-        MAP = res.x[:, None]
-        return MAP

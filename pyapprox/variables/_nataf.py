@@ -126,9 +126,8 @@ def transform_correlations(
     x_marginals: List[Marginal],
     quad_rule: Tuple[Array, Array],
     bisection_opts: Dict = dict(),
-    bkd: BackendMixin = NumpyMixin,
 ) -> Array:
-
+    bkd = x_marginals[0]._bkd
     nvars = len(x_marginals)
     correlation_uspace = bkd.empty((nvars, nvars), dtype=float)
     for ii in range(nvars):

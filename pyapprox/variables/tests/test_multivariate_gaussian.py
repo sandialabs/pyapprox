@@ -64,9 +64,9 @@ class TestGaussian:
         model = ModelFromVectorizedCallable(
             1,
             variable.nvars(),
-            variable.log_pdf,
-            jacobian=variable.log_pdf_jacobian,
-            hessian=lambda x: variable.log_pdf_hessian(x)[None, ...],
+            variable.logpdf,
+            jacobian=variable.logpdf_jacobian,
+            hessian=lambda x: variable.logpdf_hessian(x)[None, ...],
         )
         errors = model.check_apply_jacobian(samples[:, :1])
         assert errors.min() / errors.max() < 1e-6

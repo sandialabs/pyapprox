@@ -407,7 +407,6 @@ class NatafTransform(Transform):
             self._x_marginals,
             quad_rule,
             bisection_opts,
-            self._bkd,
         )
 
         self._z_correlation_cholesky_factor = self._bkd.cholesky(

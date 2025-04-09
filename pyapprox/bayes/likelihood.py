@@ -7,10 +7,12 @@ from pyapprox.util.linalg import (
     log_determinant_from_cholesky_factor,
     diag_of_mat_mat_product,
 )
-from pyapprox.interface.model import Model
+from pyapprox.interface.model import Model, ChangeModelSignWrapper
 from pyapprox.variables.joint import JointVariable
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.optimization.minimize import Optimizer
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
 
 class LogLikelihood(Model):
@@ -421,20 +423,43 @@ class LogUnNormalizedPosterior(Model):
         )
 
     def _values(self, samples: Array) -> Array:
-        return self._loglike(samples) + self._prior.log_pdf(samples)
+        return self._loglike(samples) + self._prior.logpdf(samples)
 
     def _jacobian(self, sample: Array) -> Array:
-        return self._loglike.jacobian(sample) + self._prior.log_pdf_jacobian(
+        return self._loglike.jacobian(sample) + self._prior.logpdf_jacobian(
             sample
         )
 
     def _hessian(self, sample: Array) -> Array:
-        return self._loglike.hessian(sample) + self._prior.log_pdf_hessian(
+        return self._loglike.hessian(sample) + self._prior.logpdf_hessian(
             sample
         )
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         return (
             self._loglike.apply_hessian(sample, vec)
-            + self._prior.log_pdf_hessian(sample) @ vec
+            + self._prior.logpdf_hessian(sample) @ vec
         )
+
+    def set_optimizer(self, optimizer: Optimizer):
+        self._optimizer = optimizer
+        self._optimizer.set_objective_function(ChangeModelSignWrapper(self))
+
+    def default_optimizer(self) -> Optimizer:
+        local_optimizer = ScipyConstrainedOptimizer()
+        # global_optimizer = ScipyConstrainedDifferentialEvolutionOptimizer(
+        #     opts={"maxiter": 100}
+        # )
+        # # only set bounds for differential evolution because it is required
+        # # by algorithm
+        # global_optimizer.set_bounds(self._prior.truncated_ranges(1 - 1e-3))
+        # optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
+        return local_optimizer
+
+    def maximum_aposteriori_point(self, iterate: Array = None) -> Array:
+        if iterate is None:
+            iterate = self._prior.mean()
+        if not hasattr(self, "_optimizer"):
+            self.set_optimizer(self.default_optimizer())
+        res = self._optimizer.minimize(iterate)
+        return res.x

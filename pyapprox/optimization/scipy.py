@@ -187,5 +187,5 @@ class ScipyConstrainedDifferentialEvolutionOptimizer(
         self, objective: ScipyModelWrapper, iterate: Array, bounds: Bounds
     ) -> NativeScipyOptimizationResult:
         return scipy.optimize.differential_evolution(
-            self._log_unnormalized_post, bounds, **self._opts
+            objective, bounds, **self._opts, x0=iterate[:, 0]
         )

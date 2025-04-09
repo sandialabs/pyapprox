@@ -311,11 +311,11 @@ class MultivariateGaussian(JointVariable):
         )
         return self._cov_sqrt.apply(std_normal_samples) + self._mean
 
-    def log_pdf(self, samples: Array) -> Array:
+    def logpdf(self, samples: Array) -> Array:
         diff = samples - self._mean
         scaled_diff = self._cov_sqrt.apply_inv(diff)
         return (
-            self._log_pdf_const
+            self._logpdf_const
             + (
                 -0.5
                 * diag_of_mat_mat_product(
@@ -324,29 +324,29 @@ class MultivariateGaussian(JointVariable):
             )[:, None]
         )
 
-    def log_pdf_jacobian(self, samples: Array) -> Array:
+    def logpdf_jacobian(self, samples: Array) -> Array:
         return -self._cov_sqrt.apply_inv_transpose(
             self._cov_sqrt.apply_inv(samples - self._mean)
         ).T
 
-    def log_pdf_hessian(self, samples: Array) -> Array:
+    def logpdf_hessian(self, samples: Array) -> Array:
         return -self.covariance_inverse()
 
     def pdf_jacobian(self, samples: Array) -> Array:
-        return self._pdf(samples) * self.log_pdf_jacobian(samples)
+        return self._pdf(samples) * self.logpdf_jacobian(samples)
 
     def pdf_hessian(self, samples: Array) -> Array:
-        jac = self.log_pdf_jacobian(samples)
+        jac = self.logpdf_jacobian(samples)
         return self._pdf(samples) * (
-            jac.T @ jac + self.log_pdf_hessian(samples)
+            jac.T @ jac + self.logpdf_hessian(samples)
         )
 
     def _pdf(self, samples: Array) -> Array:
-        return self._bkd.exp(self.log_pdf(samples))
+        return self._bkd.exp(self.logpdf(samples))
 
     def pdf(self, samples: Array, log: bool = False) -> Array:
         if log:
-            return self.log_pdf(samples)
+            return self.logpdf(samples)
         return self._pdf(samples)
 
     def plot_gaussian_contours(self, ax, ncontours=3, **plot_kwargs):
@@ -394,6 +394,31 @@ class MultivariateGaussian(JointVariable):
         covariance_operator = CovarianceOperator(self._cov_sqrt)
         return covariance_operator.diagonal(batch_size, active_indices)
 
+    def truncated_ranges(self, alpha: float) -> Array:
+        can_range = stats.norm(0, 1).interval(alpha)
+        can_samples = []
+        for ii in range(self.nvars()):
+            # fix all samples but current dimension to mean (zero)
+            # in canonical space when estimating range.
+            # This is not perfect for correlated variables but at least will
+            # recover truncated ranges of independent variabels
+            can_sample_lb = self._bkd.zeros((self.nvars(),))
+            can_sample_lb[ii] = can_range[0]
+            can_sample_ub = self._bkd.zeros((self.nvars(),))
+            can_sample_ub[ii] = can_range[0]
+            can_samples += [can_sample_lb, can_sample_ub]
+        can_samples = self._bkd.stack(can_samples, axis=1)
+        samples = self._cov_sqrt.apply(can_samples) + self._mean
+        print(samples.shape)
+        ranges = []
+        for ii in range(self.nvars()):
+            ranges.append(
+                self._bkd.asarray(
+                    [samples[ii, 2 * ii], samples[ii, 2 * ii + 1]]
+                )
+            )
+        return self._bkd.stack(ranges, axis=0)
+
 
 class DenseCholeskyMultivariateGaussian(MultivariateGaussian):
     def __init__(
@@ -405,7 +430,7 @@ class DenseCholeskyMultivariateGaussian(MultivariateGaussian):
         self._bkd = backend
         self._set_covariance(cov)
         super().__init__(mean, self._cov_sqrt)
-        self._log_pdf_const = -0.5 * (
+        self._logpdf_const = -0.5 * (
             self.nvars() * np.log(2 * np.pi) + self._log_cov_det
         )
 
@@ -434,7 +459,7 @@ class IndependentMultivariateGaussian(MultivariateGaussian):
         self._bkd = backend
         self._set_covariance(cov_diag)
         super().__init__(mean, self._cov_sqrt)
-        self._log_pdf_const = -0.5 * (
+        self._logpdf_const = -0.5 * (
             self.nvars() * np.log(2 * np.pi) + self._log_cov_det
         )
 
@@ -1731,27 +1756,15 @@ class GaussCopulaVariable(JointVariable):
         for marginal in marginals:
             if not isinstance(marginal, Marginal):
                 raise ValueError("marginal must be an instance of Marginal")
-        self._marginals = marginals
+        self._xmarginals = marginals
         self._x_correlation = x_correlation
-        self._x_marginal_means = self._bkd.array(
-            [m.mean() for m in self._marginals]
-        )
-        self._x_marginal_stdevs = self._bkd.array(
-            [m.std() for m in self._marginals]
-        )
-        self._x_marginal_pdfs = [m.pdf for m in self._marginals]
-        self._x_marginal_cdfs = [m.cdf for m in self._marginals]
-        self._x_marginal_inv_cdfs = [m.ppf for m in self._marginals]
 
         quad_rule_tuple = scipy_gauss_hermite_pts_wts_1D(11, self._bkd)
         self._z_correlation = transform_correlations(
             self._x_correlation,
-            self._x_marginal_inv_cdfs,
-            self._x_marginal_means,
-            self._x_marginal_stdevs,
+            self._xmarginals,
             quad_rule_tuple,
             bisection_opts,
-            bkd=self._bkd,
         )
         # self._z_variable = stats.multivariate_normal(
         #     mean=self._bkd.zeros((self._nvars)), cov=self._z_correlation
@@ -1768,10 +1781,8 @@ class GaussCopulaVariable(JointVariable):
     def pdf(self, x_samples: Array, log: bool = False) -> Array:
         vals = nataf_joint_density(
             x_samples,
-            self._x_marginal_cdfs,
-            self._x_marginal_pdfs,
+            self._xmarginals,
             self.z_joint_density,
-            self._bkd,
         )
         if not log:
             return vals
@@ -1784,13 +1795,12 @@ class GaussCopulaVariable(JointVariable):
         out = generate_x_samples_using_gaussian_copula(
             self.nvars(),
             self._z_correlation,
-            self._x_marginal_inv_cdfs,
+            self._xmarginals,
             nsamples,
-            bkd=self._bkd,
         )
         if not return_all:
             return out[0]
         return out
 
     def marginals(self) -> list:
-        return self._marginals
+        return self._xmarginals
