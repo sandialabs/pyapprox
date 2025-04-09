@@ -701,3 +701,11 @@ class IsotropicSGIndexGenerator(BasisIndexGenerator):
         # call get_indices to update basis indices once subspace indices
         # have been changed
         self.get_indices()
+
+
+def anova_level_indices(
+    nvars: int, level: int, bkd: BackendMixin = NumpyMixin
+):
+    if level > nvars:
+        raise ValueError(f"level {level} is larger than nvars {nvars}")
+    return list(itertools.combinations(bkd.arange(nvars, dtype=int), level))

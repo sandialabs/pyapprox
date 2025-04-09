@@ -15,7 +15,7 @@ from pyapprox.variables._nataf import (
     gaussian_copula_compute_x_correlation_from_z_correlation,
     nataf_joint_density,
 )
-from pyapprox.variables.marginals import Marginal
+from pyapprox.variables.marginals import Marginal, ContinuousMarginalMixin
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.utilities import get_correlation_from_covariance
 from pyapprox.util.transforms import Transform
@@ -88,7 +88,10 @@ class AffineTransform(Transform):
                 active_indices = indices
             if (
                 (self.enforce_bounds is True)
-                and (is_bounded_continuous_variable(var) is True)
+                and (
+                    var.is_bounded()
+                    and isinstance(var, ContinuousMarginalMixin)
+                )
                 and (
                     (np.any(user_samples[active_indices, :] < bounds[0]))
                     or (np.any(user_samples[active_indices, :] > bounds[1]))

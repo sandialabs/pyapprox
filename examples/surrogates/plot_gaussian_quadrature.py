@@ -17,7 +17,7 @@ from pyapprox.analysis import visualize
 from pyapprox.variables import marginals
 
 nsamples = 11
-marginal = stats.uniform(-1, 2)
+marginal = marginals.ContinuousScipyMarginal(stats.uniform(-1, 2))
 quad_rule = GaussQuadratureRule(marginal)
 x_quad, w_quad = quad_rule(nsamples)
 
@@ -36,7 +36,7 @@ print(integral)
 # %%
 # The function is also capable of generating rules on different intervals.
 # Just change the marginal, for example,
-marginal = stats.uniform(0, 2)
+marginal = marginals.ContinuousScipyMarginal(stats.uniform(0, 2))
 x_quad, w_quad = GaussQuadratureRule(marginal)(nsamples)
 values = x_quad**2
 integral = values @ w_quad
@@ -45,7 +45,7 @@ print(integral)
 # %%
 # Quadrature rules can be created for almost any random variable. Here
 # we will generate a quadrature rule for an exponential random variable
-marginal = stats.expon()
+marginal = marginals.ContinuousScipyMarginal(stats.expon())
 x_quad, w_quad = GaussQuadratureRule(marginal)(nsamples)
 values = x_quad**2
 integral = values @ w_quad
@@ -55,6 +55,6 @@ print(integral)
 # For interest, we plot the quadrature rule against the PDF of the exponential
 # variable
 visualize.plot_discrete_measure_1d(x_quad, w_quad)
-vrange = marginals.get_truncated_range(marginal, 1 - 1e-6)
+vrange = marginal.truncated_range(1 - 1e-6)
 xx = np.linspace(vrange[0], vrange[1], 101)
 _ = plt.fill_between(xx, 0 * xx, marginal.pdf(xx), alpha=0.3)

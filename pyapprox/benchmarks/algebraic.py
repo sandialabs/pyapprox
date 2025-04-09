@@ -1159,7 +1159,7 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
         self._variable = IndependentMarginalsVariable(
             [X, Y, E, R], backend=self._bkd
         )
-        self._nominal_values = self._variable.get_statistics("mean")
+        self._nominal_values = self._variable.mean()
         return self._variable
 
     def design_variable(self) -> DesignVariable:

@@ -1,8 +1,12 @@
+from abc import abstractmethod
+from typing import List, Union
+
 import numpy as np
 from scipy.optimize import (
     Bounds,
     NonlinearConstraint,
     LinearConstraint,
+    OptimizeResult as NativeScipyOptimizationResult,
     minimize as scipy_minimize,
 )
 import scipy
@@ -11,12 +15,16 @@ from pyapprox.optimization.minimize import (
     OptimizationResult,
     ConstrainedOptimizer,
     ConstraintPenalizedObjective,
+    Constraint,
 )
-from pyapprox.interface.model import ScipyModelWrapper
+from pyapprox.interface.model import ScipyModelWrapper, Model
+from pyapprox.util.backends.template import Array, BackendMixin
 
 
 class ScipyOptimizationResult(OptimizationResult):
-    def __init__(self, scipy_result, bkd):
+    def __init__(
+        self, scipy_result: NativeScipyOptimizationResult, bkd: BackendMixin
+    ):
         """
         Parameters
         ----------
@@ -32,7 +40,9 @@ class ScipyOptimizationResult(OptimizationResult):
 
 
 class ScipyConstrainedOptimizer(ConstrainedOptimizer):
-    def _convert_constraints(self, constraints):
+    def _convert_constraints(
+        self, constraints: List[Constraint]
+    ) -> List[Union[LinearConstraint, NonlinearConstraint]]:
         scipy_constraints = []
         for _con in constraints:
             if isinstance(_con, LinearConstraint):
@@ -57,7 +67,7 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             scipy_constraints.append(scipy_con)
         return scipy_constraints
 
-    def _get_bounds(self, nvars):
+    def _get_bounds(self, nvars: int) -> Bounds:
         if self._bounds is None:
             return Bounds(
                 np.full((nvars,), -np.inf),
@@ -68,7 +78,7 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
             self._bounds[:, 0], self._bounds[:, 1], keep_feasible=True
         )
 
-    def _minimize(self, init_guess):
+    def _minimize(self, init_guess: Array) -> ScipyOptimizationResult:
         opts = self._opts.copy()
         nvars = init_guess.shape[0]
         bounds = self._get_bounds(nvars)
@@ -121,12 +131,20 @@ class ScipyConstrainedOptimizer(ConstrainedOptimizer):
         return result
 
 
-class ScipyConstrainedNelderMeadOptimizer(ScipyConstrainedOptimizer):
-    def __init__(self, objective=None, constraints=[], bounds=None, opts={}):
+class ScipyPenaltyConstrainedOptimizer(ScipyConstrainedOptimizer):
+    # wrapper of scipy optimizers that do not support constraints
+    # apply constraints by applying a weighted version to the objective
+    def __init__(
+        self,
+        objective: Model = None,
+        constraints: List[Constraint] = [],
+        bounds: Array = None,
+        opts: dict = {},
+    ):
         super().__init__(objective, constraints, bounds, opts)
         self._penalty = None
 
-    def _minimize(self, iterate):
+    def _minimize(self, iterate: Array) -> ScipyOptimizationResult:
         opts = self._opts.copy()
         nvars = iterate.shape[0]
         bounds = self._get_bounds(nvars)
@@ -135,16 +153,39 @@ class ScipyConstrainedNelderMeadOptimizer(ScipyConstrainedOptimizer):
         )
         constrained_objective.set_penalty(opts.pop("penalty", 1e8))
         objective = ScipyModelWrapper(constrained_objective)
+        scipy_result = self._scipy_minimize(objective, iterate, bounds)
+        scipy_result.x = scipy_result.x[:, None]
+        result = ScipyOptimizationResult(scipy_result, self._bkd)
+        if self._verbosity > 1:
+            print(result)
+        return result
 
-        scipy_result = scipy_minimize(
+    @abstractmethod
+    def _scipy_minimize(
+        self, objective: ScipyModelWrapper, iterate: Array, bounds: Bounds
+    ) -> NativeScipyOptimizationResult:
+        raise NotImplementedError
+
+
+class ScipyConstrainedNelderMeadOptimizer(ScipyPenaltyConstrainedOptimizer):
+    def _scipy_minimize(
+        self, objective: ScipyModelWrapper, iterate: Array, bounds: Bounds
+    ) -> NativeScipyOptimizationResult:
+        return scipy_minimize(
             objective,
             iterate[:, 0],
             method="Nelder-Mead",
             bounds=bounds,
             options=self._opts,
         )
-        scipy_result.x = scipy_result.x[:, None]
-        result = ScipyOptimizationResult(scipy_result, self._bkd)
-        if self._verbosity > 1:
-            print(result)
-        return result
+
+
+class ScipyConstrainedDifferentialEvolutionOptimizer(
+    ScipyPenaltyConstrainedOptimizer
+):
+    def _scipy_minimize(
+        self, objective: ScipyModelWrapper, iterate: Array, bounds: Bounds
+    ) -> NativeScipyOptimizationResult:
+        return scipy.optimize.differential_evolution(
+            self._log_unnormalized_post, bounds, **self._opts
+        )

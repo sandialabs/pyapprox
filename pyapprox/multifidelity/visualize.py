@@ -1,9 +1,15 @@
+from typing import List, Tuple
+
 import numpy as np
 
 from pyapprox.util.visualization import plt, mathrm_label
+from pyapprox.multifidelity.acv import MCEstimator
 from pyapprox.multifidelity._visualize import _autolabel
 from pyapprox.multifidelity.factory import (
-    compute_variance_reductions, ComparisonCriteria)
+    compute_variance_reductions,
+    ComparisonCriteria,
+)
+from pyapprox.util.backends.template import Array
 
 
 def plot_model_costs(costs, model_names=None, ax=None):
@@ -17,10 +23,15 @@ def plot_model_costs(costs, model_names=None, ax=None):
     ax.set_xticklabels(model_names)
 
 
-def plot_estimator_variances(optimized_estimators,
-                             est_labels, ax, ylabel=None,
-                             relative_id=0, cost_normalization=1,
-                             criteria=ComparisonCriteria("det")):
+def plot_estimator_variances(
+    optimized_estimators: List[MCEstimator],
+    est_labels: List[str],
+    ax: plt.Axes,
+    ylabel: str = None,
+    relative_id: int = 0,
+    cost_normalization: float = 1,
+    criteria: ComparisonCriteria = ComparisonCriteria("det"),
+):
     """
     Plot the estimator variance for a list of estimators.
 
@@ -49,21 +60,35 @@ def plot_estimator_variances(optimized_estimators,
 
         where cov is an np.ndarray (nstats, nstats) is the estimator covariance
     """
-    linestyles = ['-', '--', ':', '-.', (0, (5, 10)), '-']
+    linestyles = ["-", "--", ":", "-.", (0, (5, 10)), "-"]
     nestimators = len(est_labels)
     est_criteria = []
     for ii in range(nestimators):
         est_total_costs = np.array(
-            [est._rounded_target_cost for est in optimized_estimators[ii]])
-        est_criteria.append(np.array(
-            [criteria(est._covariance_from_npartition_samples(
-                est._rounded_npartition_samples), est)
-             for est in optimized_estimators[ii]]))
+            [est._rounded_target_cost for est in optimized_estimators[ii]]
+        )
+        est_criteria.append(
+            np.array(
+                [
+                    criteria(
+                        est._covariance_from_npartition_samples(
+                            est._rounded_npartition_samples
+                        ),
+                        est,
+                    )
+                    for est in optimized_estimators[ii]
+                ]
+            )
+        )
     est_total_costs *= cost_normalization
     for ii in range(nestimators):
-        ax.loglog(est_total_costs,
-                  est_criteria[ii]/est_criteria[relative_id][0],
-                  label=est_labels[ii], ls=linestyles[ii], marker='o')
+        ax.loglog(
+            est_total_costs,
+            est_criteria[ii] / est_criteria[relative_id][0],
+            label=est_labels[ii],
+            ls=linestyles[ii],
+            marker="o",
+        )
     if ylabel is None:
         ylabel = mathrm_label("Estimator variance")
     ax.set_xlabel(mathrm_label("Target cost"))
@@ -71,10 +96,14 @@ def plot_estimator_variances(optimized_estimators,
     ax.legend()
 
 
-def plot_estimator_variance_reductions(optimized_estimators,
-                                       est_labels, ax, ylabel=None,
-                                       criteria=ComparisonCriteria("det"),
-                                       **bar_kawrgs):
+def plot_estimator_variance_reductions(
+    optimized_estimators: List[MCEstimator],
+    est_labels: List[str],
+    ax: plt.Axes,
+    ylabel: str = None,
+    criteria: ComparisonCriteria = ComparisonCriteria("det"),
+    **bar_kawrgs,
+):
     """
     Plot the variance reduction (relative to single model MC) for a
     list of optimized estimtors.
@@ -97,19 +126,27 @@ def plot_estimator_variance_reductions(optimized_estimators,
     """
     est_labels = est_labels.copy()
     var_red, est_criterias, sf_criterias = compute_variance_reductions(
-        optimized_estimators, criteria)
+        optimized_estimators, criteria
+    )
     rects = ax.bar(est_labels, var_red, **bar_kawrgs)
     rects = [r for r in rects]  # convert to list
-    _autolabel(ax, rects, ['$%1.2f$' % (v) for v in var_red])
+    _autolabel(ax, rects, ["$%1.2f$" % (v) for v in var_red])
     if ylabel is None:
         ylabel = mathrm_label("Estimator variance reduction")
     ax.set_ylabel(ylabel)
     return var_red, est_criterias, sf_criterias
 
 
-def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
-                            format_string='{:1.3f}', cmap="jet", nqoi=1,
-                            label_fontsize=16, colorbarlabel=None):
+def plot_correlation_matrix(
+    corr_matrix: Array,
+    ax: plt.Axes = None,
+    model_names: List[str] = None,
+    format_string: str = "{:1.3f}",
+    cmap: str = "jet",
+    nqoi: int = 1,
+    label_fontsize: int = 16,
+    colorbarlabel: str = None,
+):
     """
     Plot a correlation matrix
 
@@ -123,23 +160,35 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_names=None,
     im = ax.matshow(corr_matrix, cmap=cmap, aspect="auto")
     for (i, j), z in np.ndenumerate(corr_matrix):
         if format_string is not None:
-            ax.text(j, i, format_string.format(z), ha='center', va='center',
-                    fontsize=12, color='w')
+            ax.text(
+                j,
+                i,
+                format_string.format(z),
+                ha="center",
+                va="center",
+                fontsize=12,
+                color="w",
+            )
     cbar = plt.colorbar(im, ax=ax)
     if colorbarlabel is not None:
         cbar.set_label(colorbarlabel, rotation=270, labelpad=25)
     if model_names is None:
         nmodels = corr_matrix.shape[0]
         model_names = [r"$f_{%d}$" % ii for ii in range(nmodels)]
-    ax.set_xticks(np.arange(len(model_names))*nqoi)
-    ax.set_yticks(np.arange(len(model_names))*nqoi)
+    ax.set_xticks(np.arange(len(model_names)) * nqoi)
+    ax.set_yticks(np.arange(len(model_names)) * nqoi)
     ax.set_yticklabels(model_names, fontsize=label_fontsize)
     ax.set_xticklabels(model_names, rotation=60, fontsize=label_fontsize)
     return ax
 
 
 def plot_estimator_sample_allocation_comparison(
-        estimators, model_labels, ax, legendloc=[0.925, 0.25], xlabels=None):
+    estimators: List[MCEstimator],
+    model_labels: List[str],
+    ax: plt.Axes,
+    legendloc: Tuple[float, float] = [0.925, 0.25],
+    xlabels: List[str] = None,
+):
     """
     Plot the number of samples allocated to each model for a set of estimators
 
@@ -156,6 +205,7 @@ def plot_estimator_sample_allocation_comparison(
     xlocs = np.arange(nestimators)
 
     from matplotlib.pyplot import cm
+
     for jj, est in enumerate(estimators):
         cnt = 0
         # warning currently colors will not match if estimators use different
@@ -168,27 +218,40 @@ def plot_estimator_sample_allocation_comparison(
                 label = est.model_labels[ii]
             else:
                 label = None
-            cost_ratio = (est._costs[ii]*est._rounded_nsamples_per_model[ii] /
-                          est._rounded_target_cost)
+            cost_ratio = (
+                est._costs[ii]
+                * est._rounded_nsamples_per_model[ii]
+                / est._rounded_target_cost
+            )
             rect = ax.bar(
-                xlocs[jj:jj+1], cost_ratio, bottom=cnt, edgecolor='white',
-                label=label, color=colors[ii])
+                xlocs[jj : jj + 1],
+                cost_ratio,
+                bottom=cnt,
+                edgecolor="white",
+                label=label,
+                color=colors[ii],
+            )
             rects.append(rect)
             cnt += cost_ratio
-        _autolabel(ax, rects,
-                   ['$%d$' % int(est._rounded_nsamples_per_model[ii])
-                    for ii in range(est._nmodels)])
+        _autolabel(
+            ax,
+            rects,
+            [
+                "$%d$" % int(est._rounded_nsamples_per_model[ii])
+                for ii in range(est._nmodels)
+            ],
+        )
     ax.set_xticks(xlocs)
     # number of samples are rounded cost est_rounded cost,
     # but target cost is not rounded
     if xlabels is None:
         ax.set_xticklabels(
-            ['$%1.2f$' % est._rounded_target_cost for est in estimators])
+            ["$%1.2f$" % est._rounded_target_cost for est in estimators]
+        )
     else:
         ax.set_xticklabels(xlabels)
     ax.set_xlabel(mathrm_label("Target cost"))
     # / $N_\alpha$')
-    ax.set_ylabel(
-        mathrm_label("Percentage of target cost"))
+    ax.set_ylabel(mathrm_label("Percentage of target cost"))
     if legendloc is not None:
         ax.legend(loc=legendloc)

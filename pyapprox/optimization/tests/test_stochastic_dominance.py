@@ -12,7 +12,7 @@ from pyapprox.optimization.first_order_stochastic_dominance import (
 from pyapprox.optimization.second_order_stochastic_dominance import (
     solve_SSD_constrained_least_squares_smooth,
 )
-from pyapprox.variables.risk import compute_conditional_expectations
+from pyapprox.optimization.risk import DisutilitySSD
 
 
 # from pyapprox.optimization.minimize import has_ROL
@@ -191,11 +191,14 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         assert approx_vals.mean() >= values.mean()
 
         pce_vals = eval_basis_matrix(samples).dot(ssd_coef)
-        pce_econds = compute_conditional_expectations(pce_vals, pce_vals, True)
-        train_econds = compute_conditional_expectations(
-            pce_vals, values[:, 0], True
-        )
-        print(train_econds - pce_econds)
+        DSSD = DisutilitySSD()
+        DSSD.set_samples(pce_vals[None, :])
+        DSSD.set_eta(pce_vals)
+        pce_econds = DSSD()
+        # pce_econds = compute_conditional_expectations(pce_vals, pce_vals, True)
+        DSSD.set_samples(values.T)
+        train_econds = DSSD()
+        # print(train_econds - pce_econds)
         assert np.all(train_econds <= pce_econds + 4e-5)
 
         # import matplotlib.pyplot as plt

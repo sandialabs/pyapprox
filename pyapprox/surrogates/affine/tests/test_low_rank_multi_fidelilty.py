@@ -3,7 +3,7 @@ import numpy as np
 from scipy import stats
 from scipy.special import jv as bessel_function
 
-from pyapprox.multifidelity.low_rank_multifidelity import (
+from pyapprox.surrogates.affine.low_rank_multifidelity import (
     compute_mean_l2_error,
     BiFidelityModel,
     select_nodes,
@@ -13,6 +13,7 @@ from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
 from pyapprox.surrogates.univariate.orthopoly import LegendrePolynomial1D
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.variables.transforms import AffineTransform
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.linalg import get_pivot_matrix_from_vector
 
 
@@ -21,7 +22,10 @@ class OscillatoryPolyLowFidelityModel(object):
         self._mesh = np.linspace(-1.0, 1.0, mesh_dof)
         self._nterms = num_terms
 
-        trans = AffineTransform([stats.uniform(-1, 2)], enforce_bounds=True)
+        trans = AffineTransform(
+            IndependentMarginalsVariable([stats.uniform(-1, 2)]),
+            enforce_bounds=True,
+        )
         polys_1d = [
             LegendrePolynomial1D(trans=trans)
             for ii in range(trans.variable().nvars())

@@ -40,9 +40,7 @@ class TestBenchmarks:
     def test_ishigami(self):
         bkd = self.get_backend()
         benchmark = IshigamiBenchmark(a=7, b=0.1, backend=bkd)
-        init_guess = benchmark.variable().get_statistics(
-            "mean"
-        ) + benchmark.variable().get_statistics("std")
+        init_guess = benchmark.variable().mean() + benchmark.variable().std()
         errors = benchmark.model().check_apply_jacobian(init_guess)
         assert errors.min() < 7e-6
         errors = benchmark.model().check_apply_hessian(init_guess)
@@ -50,6 +48,7 @@ class TestBenchmarks:
         samples = benchmark.variable().rvs(1e5)
         values = benchmark.model()(samples)
         assert bkd.allclose(bkd.mean(values), benchmark.mean(), rtol=1e-2)
+        print(values.shape)
         assert bkd.allclose(
             bkd.var(values, ddof=1), benchmark.variance(), rtol=1e-2
         )
@@ -90,9 +89,7 @@ class TestBenchmarks:
         benchmark = RosenbrockUnconstrainedOptimizationBenchmark(
             nvars=2, backend=bkd
         )
-        init_guess = benchmark.variable().get_statistics(
-            "mean"
-        ) + benchmark.variable().get_statistics("std")
+        init_guess = benchmark.variable().mean() + benchmark.variable().std()
         errors = benchmark.objective().check_apply_jacobian(init_guess)
         assert errors.min() < 7e-6
         errors = benchmark.objective().check_apply_hessian(init_guess)
@@ -130,14 +127,14 @@ class TestBenchmarks:
     def test_piston(self):
         bkd = self.get_backend()
         benchmark = PistonBenchmark(bkd)
-        init_guess = benchmark.variable().get_statistics("mean")
+        init_guess = benchmark.variable().mean()
         errors = benchmark.model().check_apply_jacobian(init_guess)
         assert errors.min() / errors.max() < 1e-6
 
     def test_wing_weight(self):
         bkd = self.get_backend()
         benchmark = WingWeightBenchmark(bkd)
-        init_guess = benchmark.variable().get_statistics("mean")
+        init_guess = benchmark.variable().mean()
         errors = benchmark.model().check_apply_jacobian(init_guess)
         assert errors.min() / errors.max() < 1e-6
 
@@ -160,7 +157,7 @@ class TestBenchmarks:
         assert np.allclose(qmc_integral, integral, rtol=7e-4)
 
         if benchmark.model().jacobian_implemented():
-            sample = benchmark.variable().get_statistics("mean") * 0.25
+            sample = benchmark.variable().mean() * 0.25
             errors = benchmark.model().check_apply_jacobian(sample)
             assert errors.min() / errors.max() < 1e-6
 
@@ -184,7 +181,7 @@ class TestBenchmarks:
     def test_chemical_reaction(self):
         bkd = self.get_backend()
         benchmark = ChemicalReactionBenchmark(bkd)
-        init_guess = benchmark.variable().get_statistics("mean")
+        init_guess = benchmark.variable().mean()
 
         # some variable ranges are small so restrict fd sizes else
         # solve will not converge
@@ -223,7 +220,7 @@ class TestBenchmarks:
     def test_coupled_springs(self):
         bkd = self.get_backend()
         benchmark = CoupledSpringsBenchmark(bkd)
-        sample = benchmark.variable().get_statistics("mean")
+        sample = benchmark.variable().mean()
         errors = benchmark.model().check_apply_jacobian(sample)
         # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 5e-6
@@ -233,7 +230,7 @@ class TestBenchmarks:
         benchmark = HastingsEcologyBenchmark(bkd)
         # The error in check apply jacobian depend on newton tolerance
         # because finite difference is only accurate to that tolerance
-        sample = benchmark.variable().get_statistics("mean")
+        sample = benchmark.variable().mean()
         errors = benchmark.model().check_apply_jacobian(sample)
         # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.4e-6

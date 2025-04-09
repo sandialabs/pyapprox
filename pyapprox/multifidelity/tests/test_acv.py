@@ -3,7 +3,6 @@ import unittest
 import torch
 import numpy as np
 
-from pyapprox.util.utilities import check_gradients
 from pyapprox.multifidelity.stats import (
     _nqoisq_nqoisq_subproblem,
     _nqoi_nqoisq_subproblem,

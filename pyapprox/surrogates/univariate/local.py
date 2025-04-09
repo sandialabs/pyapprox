@@ -432,6 +432,8 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         raise NotImplementedError
 
     def _quadrature_rule(self):
+        if self._quad_samples is None:
+            raise RuntimeError("must call set_nterms()")
         return self._quad_samples, self._quad_weights
 
     def _set_nodes(self, nodes):

@@ -286,7 +286,7 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
             backend=self._bkd,
         )
 
-        obs_sample = self.variable().get_statistics("mean")
+        obs_sample = self.variable().mean()
         model_obs_sol, model_obs_times = self._model.forward_solve(obs_sample)
         obs_time_indices = self._bkd.arange(
             model_obs_times.shape[0], dtype=int

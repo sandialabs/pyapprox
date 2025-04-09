@@ -1,14 +1,12 @@
-import numpy as np
 from functools import partial
-from scipy.optimize import NonlinearConstraint, Bounds
+
+import numpy as np
 
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.backends.template import Array
 from pyapprox.interface.model import SingleSampleModel
-from pyapprox.optimization.pya_minimize import (
-    Constraint,
-    ScipyConstrainedOptimizer,
-)
+from pyapprox.optimization.minimize import Constraint
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
 
 def smooth_max_function_log(eps, shift, x):
@@ -235,11 +233,18 @@ def linear_model_jac(basis_matrix, coef):
 class FSDObjective(SingleSampleModel):
     def __init__(self):
         super().__init__()
-        self._jacobian_implemented = True
-        self._apply_hessian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
 
     def nqoi(self) -> int:
         return 1
+
+    def nvars(self) -> int:
+        return self._opt_prob.ncoef
 
     def set_opt_problem(self, opt_prob: "FSDOptProblem"):
         self._opt_prob = opt_prob
@@ -257,8 +262,15 @@ class FSDObjective(SingleSampleModel):
 class FSDConstraint(Constraint):
     def __init__(self, keep_feasible=False):
         super().__init__(keep_feasible=keep_feasible)
-        self._jacobian_implemented = True
-        self._weighted_hessian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def weighted_hessian_implemented(self) -> bool:
+        return True
+
+    def nvars(self) -> int:
+        return self._opt_prob.ncoef
 
     def set_opt_problem(self, opt_prob: "FSDOptProblem"):
         self._opt_prob = opt_prob

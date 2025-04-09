@@ -3,8 +3,7 @@ from scipy import stats
 import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import get_meshgrid_samples
-from pyapprox.variables.joint import get_truncated_range, get_truncated_ranges
-from pyapprox.surrogates.interp.indexing import compute_anova_level_indices
+from pyapprox.surrogates.affine.multiindex import anova_level_indices
 
 
 def plot_qoi_marginals(values, axs=None):
@@ -31,7 +30,7 @@ def plot_qoi_marginals(values, axs=None):
 def get_meshgrid_samples_from_variable(
     variable, num_pts_1d, logspace=False, unbounded_alpha=0.99
 ):
-    plot_limits = get_truncated_ranges(variable, unbounded_alpha)
+    plot_limits = variable.truncated_range(unbounded_alpha)
     X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
     return X, Y, pts
 
@@ -92,7 +91,7 @@ def plot_1d_cross_section(
     """
     Plot a single 1D cross section of a multivariate function.
     """
-    lb, ub = get_truncated_range(var, 0.99)
+    lb, ub = var.truncated_range(var, 0.99)
     samples = np.tile(nominal_sample, (1, nsamples_1d))
     samples[var_idx, :] = np.linspace(lb, ub, nsamples_1d)
     values = fun(samples)
@@ -146,9 +145,7 @@ def plot_1d_cross_sections(
 
 def setup_2d_cross_section_axes(variable, variable_pairs, subplot_tuple):
     if variable_pairs is None:
-        variable_pairs = np.array(
-            compute_anova_level_indices(variable.num_vars(), 2)
-        )
+        variable_pairs = np.array(anova_level_indices(variable.num_vars(), 2))
         # make first column values vary fastest so we plot lower triangular
         # matrix of subplots
         variable_pairs[:, 0], variable_pairs[:, 1] = (
@@ -200,7 +197,7 @@ def plot_2d_cross_sections(
         plot_samples = [[plot_samples, "ko"]]
 
     for ii, var in enumerate(all_variables):
-        lb, ub = get_truncated_range(var)
+        lb, ub = var.truncated_range()
         if not marginals:
             samples = np.tile(nominal_sample, (1, nsamples_1d))
             samples[ii, :] = np.linspace(lb, ub, nsamples_1d)
@@ -228,8 +225,8 @@ def plot_2d_cross_sections(
         # pairs above
         var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
         axs[pair[1], pair[0]].axis("off")
-        lb1, ub1 = get_truncated_range(var1)
-        lb2, ub2 = get_truncated_range(var2)
+        lb1, ub1 = var1.truncated_range()
+        lb2, ub2 = var2.truncated_range()
         X, Y, samples_2d = get_meshgrid_samples(
             [lb1, ub1, lb2, ub2], nsamples_1d
         )

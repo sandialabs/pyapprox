@@ -1,16 +1,20 @@
-import numpy as np
+from functools import partial
+from typing import Tuple, Union
 
-# from tqdm import tqdm
+import numpy as np
 from scipy.linalg import solve_triangular
 from scipy.optimize import minimize, differential_evolution
 import matplotlib.pyplot as plt
-from functools import partial
 
-from pyapprox.variables.marginals import get_distribution_info
 from pyapprox.variables.joint import JointVariable
-from pyapprox.analysis.visualize import setup_2d_cross_section_axes
-from pyapprox.variables.joint import get_truncated_range
+from pyapprox.analysis.visualize import (
+    setup_2d_cross_section_axes,
+    get_meshgrid_samples,
+)
+from pyapprox.surrogates.affine.multiindex import anova_level_indices
 from pyapprox.bayes.hmc import hmc
+from pyapprox.bayes.likelihood import LogLikelihood, LogUnNormalizedPosterior
+from pyapprox.util.backends.template import Array
 
 
 def update_mean_and_covariance(new_draw, mean, cov, ndraws, sd, nugget):
@@ -26,14 +30,16 @@ def update_mean_and_covariance(new_draw, mean, cov, ndraws, sd, nugget):
     return updated_mean, updated_cov
 
 
-def compute_mvn_cholesky_based_data(C):
+def compute_mvn_cholesky_based_data(C) -> Tuple[Array, Array, Array]:
     L = np.linalg.cholesky(C)
     L_inv = solve_triangular(L, np.eye(C.shape[0]), lower=True)
     logdet = 2 * np.log(np.diag(L)).sum()
     return L, L_inv, logdet
 
 
-def mvn_log_pdf(xx, m, C):
+def mvn_log_pdf(
+    xx: Array, m: Array, C: Union[Tuple[Array, Array, Array], Array]
+) -> Array:
     if m.ndim == 1:
         m = m[:, None]
     if xx.ndim == 1:
@@ -41,7 +47,7 @@ def mvn_log_pdf(xx, m, C):
         assert xx.ndim == 2 and m.ndim == 2
     assert m.shape[1] == 1
 
-    if type(C) != tuple:
+    if not isinstance(C, tuple):
         L, L_inv, logdet = compute_mvn_cholesky_based_data(C)
     else:
         L, L_inv, logdet = C
@@ -54,7 +60,9 @@ def mvn_log_pdf(xx, m, C):
     return log_pdf
 
 
-def mvnrnd(m, C, nsamples=1, is_chol_factor=False):
+def mvnrnd(
+    m: Array, C: Array, nsamples: int = 1, is_chol_factor: bool = False
+) -> Array:
     if is_chol_factor is False:
         L = np.linalg.cholesky(C)
     else:
@@ -63,11 +71,15 @@ def mvnrnd(m, C, nsamples=1, is_chol_factor=False):
         m = m[:, None]
     nvars = m.shape[0]
     white_noise = np.random.normal(0, 1, (nvars, nsamples))
-    return np.dot(L, white_noise) + m
+    return L @ white_noise + m
 
 
 def delayed_rejection(
-    y0, proposal_chol_tuple, logpost_fun, cov_scaling, log_f_y0
+    y0: Array,
+    proposal_chol_tuple: Tuple[Array, Array, Array],
+    logpost_fun,
+    cov_scaling: float,
+    log_f_y0: Array,
 ):
 
     L = proposal_chol_tuple[0]
@@ -220,16 +232,16 @@ def plot_auto_correlations(timeseries, maxlag=100):
 class MetropolisMCMCVariable(JointVariable):
     def __init__(
         self,
-        variable,
-        loglike,
-        burn_fraction=0.1,
-        nsamples_per_tuning=100,
-        algorithm="DRAM",
-        method_opts={},
-        verbosity=1,
-        init_proposal_cov=None,
+        prior: JointVariable,
+        loglike: LogLikelihood,
+        burn_fraction: float = 0.1,
+        nsamples_per_tuning: int = 100,
+        algorithm: str = "DRAM",
+        method_opts: dict = {},
+        verbosity: int = 1,
+        init_proposal_cov: Array = None,
     ):
-        self._variable = variable
+        self._prior = prior
         self._loglike = loglike
         self._burn_fraction = burn_fraction
         self._algorithm = algorithm
@@ -237,49 +249,12 @@ class MetropolisMCMCVariable(JointVariable):
         self._method_opts = method_opts
         self._verbosity = verbosity
         self._init_proposal_cov = init_proposal_cov
+        self._log_unnormalized_post = LogUnNormalizedPosterior(
+            self._loglike, self._prior
+        )
 
         # will be set each time self.rvs is called
         self._acceptance_rate = None
-
-    @staticmethod
-    def _univariate_logprior_grad(rv, x):
-        if rv.dist.name == "beta":
-            # todo only extract this info once
-            scales, shapes = get_distribution_info(rv)[1:]
-            loc, scale = scales["loc"], scales["scale"]
-            a, b = shapes["a"], shapes["b"]
-            val = (
-                loc * (-(a + b - 2)) + x * (a + b - 2) - a * scale + scale
-            ) / ((loc - x) * (loc + scale - x))
-            return val
-        if rv.dist.name == "uniform":
-            return 0
-        if rv.dist.name == "norm":
-            mu, sigma = rv.args
-            return -(x - mu) / sigma**2
-        raise ValueError(f"rv type {rv.name} is not supported")
-
-    def _logprior_grad(self, sample):
-        grad = np.zeros_like(sample)
-        for ii, rv in enumerate(self._variable.marginals()):
-            grad[ii] += self._univariate_logprior_grad(rv, sample[ii, 0])
-        return grad.T
-
-    def _log_bayes_numerator(self, sample, return_grad=False):
-        assert sample.ndim == 2 and sample.shape[1] == 1
-        if not return_grad:
-            loglike = self._loglike(sample)
-        else:
-            loglike, loglike_grad = self._loglike(sample, return_grad)
-        if type(loglike) == np.ndarray:
-            loglike = loglike.squeeze()
-        # _pdf is faster but requires mapping of x to canonical domain
-        logprior = self._variable.log_pdf(sample)[0, 0]
-        if not return_grad:
-            return loglike + logprior
-
-        logprior_grad = self._logprior_grad(sample)
-        return loglike + logprior, loglike_grad + logprior_grad
 
     def _rvs_dram(
         self, init_sample, init_proposal_cov, nsamples, nburn_samples
@@ -289,7 +264,7 @@ class MetropolisMCMCVariable(JointVariable):
         sd = self._method_opts.get("sd", None)
         # hack remove self._sample_covariance
         samples, accepted, self._sample_covariance = DRAM(
-            self._log_bayes_numerator,
+            self._log_unnormalized_post,
             init_sample,
             init_proposal_cov,
             nsamples + nburn_samples,
@@ -326,13 +301,10 @@ class MetropolisMCMCVariable(JointVariable):
 
     def rvs(self, nsamples, init_sample=None):
         if init_sample is None:
-            # init_sample = self._variable.get_statistics("mean")
             init_sample = self.maximum_aposteriori_point()
         if self._init_proposal_cov is None:
-            init_proposal_cov = np.diag(
-                self._variable.get_statistics("std")[:, 0] ** 2
-            )
-        if init_proposal_cov.shape[0] != self._variable.nvars():
+            init_proposal_cov = np.diag(self._prior.var()[:, 0] ** 2)
+        if init_proposal_cov.shape[0] != self._prior.nvars():
             raise ValueError("init_proposal_cov specified has wrong shape")
         # print(nsamples, self._burn_fraction)
         nburn_samples = int(np.ceil(nsamples * self._burn_fraction))
@@ -354,52 +326,6 @@ class MetropolisMCMCVariable(JointVariable):
             raise ValueError(f"Algorithm {self._algorithm} not supported")
         self._acceptance_rate = acceptance_rate
         return samples[:, nburn_samples:]
-
-    def maximum_aposteriori_point(self, init_guess=None):
-        import inspect
-
-        def obj(x):
-            return -self._log_bayes_numerator(x[:, None])
-
-        return_grad = None
-
-        if init_guess is None:
-            bounds = self._variable.get_statistics("interval", 1)
-            trunc_bounds = self._variable.get_statistics("interval", 1 - 1e-6)
-            for ii in range(bounds.shape[0]):
-                if bounds[ii, 0] == -np.inf:
-                    bounds[ii, 0] = trunc_bounds[ii, 0]
-                if bounds[ii, 1] == np.inf:
-                    bounds[ii, 1] = trunc_bounds[ii, 1]
-            bounds = [(bb[0], bb[1]) for bb in bounds]
-            res = differential_evolution(obj, bounds, maxiter=100, popsize=15)
-            # res = dual_annealing(
-            #     obj, bounds, maxiter=100, maxfun=10000)
-            init_guess = res.x[:, None]
-            # init_guess = self._variable.get_statistics("mean")
-
-        if "return_grad" in inspect.getfullargspec(self._loglike).args:
-
-            def obj(x):
-                vals, grad = self._log_bayes_numerator(x[:, None], True)
-                return -vals, -grad[0, :]
-
-            return_grad = True
-
-        assert init_guess.ndim == 2 and init_guess.shape[1] == 1
-        assert init_guess.shape[0] == self._variable.nvars()
-        init_guess = init_guess[:, 0]
-        bounds = self._variable.get_statistics("interval", 1)
-        res = minimize(
-            obj,
-            init_guess,
-            jac=return_grad,
-            method="l-bfgs-b",
-            options={"disp": False},
-            bounds=bounds,
-        )
-        MAP = res.x[:, None]
-        return MAP
 
     @staticmethod
     def plot_traces(samples):
@@ -424,28 +350,20 @@ class MetropolisMCMCVariable(JointVariable):
         true_sample=None,
     ):
         fig, axs, variable_pairs = setup_2d_cross_section_axes(
-            self._variable, variable_pairs, subplot_tuple
+            self._prior, variable_pairs, subplot_tuple
         )
-        all_variables = self._variable.marginals()
-        nsamples = samples.shape[1]
+        all_variables = self._prior.marginals()
 
         for ii, var in enumerate(all_variables):
             axs[ii, ii].axis("off")
-        #     lb, ub = get_truncated_range(var, unbounded_alpha)
-        #     # axs[ii][ii].set_xlim(lb, ub)
-        #     axs[ii][ii].hist(samples[ii, :], bins=max(10, nsamples//100))
-        #     if map_sample is not None:
-        #         axs[ii][ii].plot(map_sample[ii, 0], 0, 'ro')
-        #     if true_sample is not None:
-        #         axs[ii][ii].plot(true_sample[ii, 0], 0, 'gD')
 
         for ii, pair in enumerate(variable_pairs):
             # use pair[1] for x and pair[0] for y because we reverse
             # pairs above
             var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
             axs[pair[1], pair[0]].axis("off")
-            lb1, ub1 = get_truncated_range(var1, unbounded_alpha)
-            lb2, ub2 = get_truncated_range(var2, unbounded_alpha)
+            lb1, ub1 = var1.truncated_range(unbounded_alpha)
+            lb2, ub2 = var2.truncated_range(unbounded_alpha)
             ax = axs[pair[0]][pair[1]]
             # ax.set_xlim(lb1, ub1)
             # ax.set_ylim(lb2, ub2)
@@ -537,14 +455,9 @@ def plot_unnormalized_2d_marginals(
     quad_degree_1d=20,
     quad_degree_2d=10,
 ):
-    from pyapprox.variables.joint import get_truncated_range
-    from pyapprox.surrogates.interp.indexing import compute_anova_level_indices
-    from pyapprox.util.visualization import get_meshgrid_samples
 
     if variable_pairs is None:
-        variable_pairs = np.array(
-            compute_anova_level_indices(variable.nvars(), 2)
-        )
+        variable_pairs = np.array(anova_level_indices(variable.nvars(), 2))
         # make first column values vary fastest so we plot lower triangular
         # matrix of subplots
         variable_pairs[:, 0], variable_pairs[:, 1] = (
@@ -573,7 +486,7 @@ def plot_unnormalized_2d_marginals(
     #         [plot_samples, {"c": "k", "marker": "o", "alpha": 0.4}]]
 
     for ii, var in enumerate(all_variables):
-        lb, ub = get_truncated_range(var, unbounded_alpha=unbounded_alpha)
+        lb, ub = var.truncated_range(unbounded_alpha=unbounded_alpha)
         quad_degrees = np.array([quad_degree_1d] * (variable.nvars() - 1))
         samples_ii = np.linspace(lb, ub, nsamples_1d)
         from pyapprox.surrogates.polychaos.gpc import (
@@ -605,8 +518,8 @@ def plot_unnormalized_2d_marginals(
         # pairs above
         var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
         axs[pair[1], pair[0]].axis("off")
-        lb1, ub1 = get_truncated_range(var1, unbounded_alpha=unbounded_alpha)
-        lb2, ub2 = get_truncated_range(var2, unbounded_alpha=unbounded_alpha)
+        lb1, ub1 = var1.truncated_range(unbounded_alpha)
+        lb2, ub2 = var2.truncated_range(unbounded_alpha)
         X, Y, samples_2d = get_meshgrid_samples(
             [lb1, ub1, lb2, ub2], nsamples_1d
         )
@@ -755,3 +668,44 @@ def loglike_from_negloglike(negloglike, samples, jac=False):
         return -negloglike(samples)
     vals, grads = negloglike(samples, jac=jac)
     return -vals, -grads
+
+
+class MaximumAposteriorPoint:
+    def __init__(
+        self,
+        loglike: LogLikelihood,
+        prior: JointVariable,
+        optimizer: ConstrainedOptimizer = None,
+    ):
+        self._log_unnormalized_post = LogUnNormalizedPosterior(loglike, prior)
+        if optimizer is None:
+            optimizer = self.default_optimizer()
+        self._optimizer = optimizer
+
+    def _compute(self, init_guess: Array = None) -> Array:
+        if init_guess is None:
+            bounds = self._log_unnormalized_post._prior.truncated_ranges(
+                1 - 1e-6
+            )
+            bounds = [(bb[0], bb[1]) for bb in bounds]
+            res = differential_evolution(
+                self._log_unnormalized_post, bounds, maxiter=100, popsize=15
+            )
+            # res = dual_annealing(
+            #     obj, bounds, maxiter=100, maxfun=10000)
+            init_guess = res.x[:, None]
+
+        assert init_guess.ndim == 2 and init_guess.shape[1] == 1
+        assert init_guess.shape[0] == self._prior.nvars()
+        init_guess = init_guess[:, 0]
+        bounds = self._prior.interval(1)
+        res = minimize(
+            obj,
+            init_guess,
+            jac=return_grad,
+            method="l-bfgs-b",
+            options={"disp": False},
+            bounds=bounds,
+        )
+        MAP = res.x[:, None]
+        return MAP

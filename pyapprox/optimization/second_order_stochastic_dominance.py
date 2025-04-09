@@ -1,7 +1,6 @@
 import numpy as np
 from functools import partial
 
-from pyapprox.variables.risk import compute_conditional_expectations
 from pyapprox.optimization.first_order_stochastic_dominance import (
     FSDOptProblem,
     smooth_max_function_log,

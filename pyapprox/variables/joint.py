@@ -213,6 +213,9 @@ class IndependentMarginalsVariable(JointVariable):
             [marginal.var() for marginal in self.marginals()]
         )[:, None]
 
+    def covariance(self) -> Array:
+        return self._bkd.diag(self.var()[:, 0])
+
     def median(self) -> Array:
         return self._bkd.asarray(
             [marginal.median() for marginal in self.marginals()]
@@ -221,6 +224,12 @@ class IndependentMarginalsVariable(JointVariable):
     def interval(self, alpha: float) -> Array:
         return self._bkd.stack(
             [marginal.interval(alpha) for marginal in self.marginals()], axis=0
+        )
+
+    def truncated_ranges(self, alpha: float = None) -> Array:
+        return self._bkd.stack(
+            [marginal.truncated_range(alpha) for marginal in self.marginals()],
+            axis=0,
         )
 
     def _check_samples(self, samples: Array):

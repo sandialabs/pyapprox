@@ -199,7 +199,7 @@ class ScipyMarginal(Marginal):
         return self._scipy_rv.ppf(usamples)
 
     def _rvs(self, nsamples: int) -> Array:
-        return self._scipy_rv.rvs(nsamples)
+        return self._scipy_rv.rvs(int(nsamples))
 
     def mean(self) -> float:
         return self._bkd.asarray([self._scipy_rv.mean()]).item()

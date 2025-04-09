@@ -106,7 +106,7 @@ class ROLNonLinearConstraintWrapper(ROLConstraint):
         hvp = self._constraint.apply_weighted_hessian(
             x[:, None], v[:, None], u[:, None]
         )
-        hv[:] = hvp
+        hv[:] = hvp[:, 0]
 
     def nres(self) -> int:
         return self._constraint.nqoi()

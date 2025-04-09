@@ -107,8 +107,6 @@ class TestLikelihood:
         errors = loglike.check_apply_hessian(true_sample, disp=True)
         assert errors.min() / errors.max() < 1e-6
 
-        vec = bkd.ones((obs_model.nvars(), 1))
-
     def test_linear_model_based_gaussian_likelihood(self):
         bkd = self.get_backend()
         degree = 1

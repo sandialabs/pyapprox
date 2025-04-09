@@ -118,7 +118,9 @@ class Monomial1D(UnivariateBasis):
 
 
 class UnivariateInterpolatingBasis(UnivariateBasis):
-    def __init__(self, trans: Transform = None, backend: BackendMixin = NumpyMixin):
+    def __init__(
+        self, trans: Transform = None, backend: BackendMixin = NumpyMixin
+    ):
         super().__init__(trans, backend)
         self._quad_samples = None
         self._quad_weights = None
@@ -230,7 +232,9 @@ class DydadicEquidistantNodeGenerator(
 
 
 class UnivariateQuadratureRule(ABC):
-    def __init__(self, backend: BackendMixin = NumpyMixin, store: bool = False):
+    def __init__(
+        self, backend: BackendMixin = NumpyMixin, store: bool = False
+    ):
         """
         Parameters
         ----------
@@ -444,7 +448,9 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
     """
 
     def __init__(
-        self, quad_rule: UnivariateQuadratureRule, backend: BackendMixin = NumpyMixin
+        self,
+        quad_rule: UnivariateQuadratureRule,
+        backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
         self._bounds = None

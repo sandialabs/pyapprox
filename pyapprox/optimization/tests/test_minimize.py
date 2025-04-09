@@ -37,7 +37,7 @@ from pyapprox.util.backends.numpy import NumpyMixin
 
 if package_available("pyrol"):
     has_pyrol = True
-    from pyapprox.optimization.rol_minimize import ROLConstrainedOptimizer
+    from pyapprox.optimization.rol import ROLConstrainedOptimizer
 else:
     has_pyrol = False
 
@@ -227,7 +227,7 @@ class TestMinimize(unittest.TestCase):
 
         # 2 random variables 2 design variables
         nrandom_vars, ndesign_vars = 2, 1
-        # Model assumes ith contraint depends on ith variable
+        # Model assumes ith constraint depends on ith variable
         nconstraints = nrandom_vars
 
         class CustomModel(Model):
@@ -330,14 +330,21 @@ class TestMinimize(unittest.TestCase):
         #      gauss_hermite_pts_wts_1D(nsamples)[0]*sigma2+mu2])
         # weights = gauss_hermite_pts_wts_1D(nsamples)[1][:, None]
         nsamples = int(1e3) + 1
-        from pyapprox.surrogates.interp.tensorprod import (
+        from pyapprox.surrogates.univariate.local import (
             UnivariatePiecewiseQuadraticBasis,
+            UnivariateEquidistantNodeGenerator,
         )
 
-        basis = UnivariatePiecewiseQuadraticBasis()
-        nodes = np.linspace(*stats.norm(0, 1).interval(1 - 1e-6), nsamples)
-        weights = basis._quadrature_rule_from_nodes(nodes[None, :])[1][:, 0]
-        weights = (weights * stats.norm(0, 1).pdf(nodes))[:, None]
+        basis = UnivariatePiecewiseQuadraticBasis(
+            stats.norm(0, 1).interval(1 - 1e-6),
+            UnivariateEquidistantNodeGenerator(),
+        )
+        basis.set_nterms(nsamples)
+        nodes, weights = basis.quadrature_rule()
+        nodes = nodes[0]
+        # nodes = np.linspace(*stats.norm(0, 1).interval(1 - 1e-6), nsamples)
+        # weights = basis._quadrature_rule_from_nodes(nodes[None, :])[1][:, 0]
+        weights = weights * stats.norm(0, 1).pdf(nodes)[:, None]
         samples = np.vstack([nodes[None, :], nodes[None, :] * sigma2 + mu2])
         stat = SampleAverageConditionalValueAtRisk([0.5, 0.85], eps=1e-3)
 

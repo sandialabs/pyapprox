@@ -1072,7 +1072,7 @@ class CVaRSampleAverageConstraint(SampleAverageConstraint):
         # to avoid error check that will not work here
         # assumes avar variable t is at the end of design_sample
         self._stat.set_value_at_risk(design_sample[-self._nconstraints :, 0])
-        return super().__call__(design_sample[: -self._nconstraints])
+        return super()._values(design_sample[: -self._nconstraints])
 
     def _jacobian(self, design_sample):
         self._stat.set_value_at_risk(design_sample[-self._nconstraints :, 0])
@@ -1182,9 +1182,7 @@ def approx_hessian(
 
 
 class MiniMaxObjective(SingleSampleModel):
-    def __init__(
-        self, nmodel_vars: int, backend: BackendMixin = NumpyMixin
-    ):
+    def __init__(self, nmodel_vars: int, backend: BackendMixin = NumpyMixin):
         self._nmodel_vars = nmodel_vars
         super().__init__(backend)
 
@@ -1216,9 +1214,7 @@ class MiniMaxObjective(SingleSampleModel):
 
 
 class AVaRObjective(SingleSampleModel):
-    def __init__(
-        self, nmodel_vars: int, backend: BackendMixin = NumpyMixin
-    ):
+    def __init__(self, nmodel_vars: int, backend: BackendMixin = NumpyMixin):
         self._nmodel_vars = nmodel_vars
         super().__init__(backend)
 
@@ -1615,9 +1611,7 @@ class _AVaRDummyModel(Model):
     Only to be used by EmpiricalAVaRSlackBasedOptimizer
     """
 
-    def __init__(
-        self, samples: Array, backend: BackendMixin = NumpyMixin
-    ):
+    def __init__(self, samples: Array, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         if samples.ndim != 2 or samples.shape[0] != 1:
             raise ValueError("samples must be 2D row vector")
