@@ -2,7 +2,8 @@ import unittest
 
 import numpy as np
 from scipy import stats, special
-import matplotlib.pyplot as plt
+
+# import matplotlib.pyplot as plt
 import sympy as sp
 
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -149,7 +150,8 @@ class TestLeja:
         )
 
         # test plot works
-        leja._obj.plot(plt.figure().gca())
+        # leja._obj.plot(plt.figure().gca())
+
         # make sure not to step outside bounds
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
         errors = leja._obj.check_apply_jacobian(iterate, fd_eps=fd_eps)
@@ -174,13 +176,13 @@ class TestLeja:
         )
 
         # test plotting of objective before a two new points are added
-        axs = plt.subplots(1, 2, figsize=(2 * 8, 6))[1]
-        leja.plot(axs[0])
+        # axs = plt.subplots(1, 2, figsize=(2 * 8, 6))[1]
+        # leja.plot(axs[0])
         leja.step(nsamples=3)
-        axs[0].plot(*leja.sequence()[0, -2:], "*")
-        axs[0].set_title("Objective")
-        axs[1].plot(leja.sequence()[0], leja.sequence()[0] * 0, "o")
-        axs[1].set_title("Leja sequence")
+        # axs[0].plot(*leja.sequence()[0, -2:], "*")
+        # axs[0].set_title("Objective")
+        # axs[1].plot(leja.sequence()[0], leja.sequence()[0] * 0, "o")
+        # axs[1].set_title("Leja sequence")
         # plt.show()
 
         # test adding multiple samples

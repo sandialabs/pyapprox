@@ -185,7 +185,7 @@ class ClenshawCurtisGrowthRuleMixin:
         nindices = self._growth_rule(level)
         # mid point
         if ll == 0:
-            return nindices / 2
+            return nindices // 2
         # boundaries
         if ll == 1:
             if ii == 0:

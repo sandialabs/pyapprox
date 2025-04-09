@@ -139,7 +139,9 @@ class AETC:
             self._bkd.multidot((x_Sp, x_Sp.T, self._bkd.inv(Lambda_Sp)))
         )
 
-        Sigma_Sp = self._bkd.zeros((Sigma_S.shape[0] + 1, Sigma_S.shape[1] + 1))
+        Sigma_Sp = self._bkd.zeros(
+            (Sigma_S.shape[0] + 1, Sigma_S.shape[1] + 1)
+        )
         Sigma_Sp[1:, 1:] = Sigma_S
 
         if nmodels == 1:
@@ -236,7 +238,9 @@ class AETC:
             total_budget
             / (
                 explore_cost
-                + self._bkd.sqrt(explore_cost * k2 / (k1 + alpha ** (-nsamples)))
+                + self._bkd.sqrt(
+                    explore_cost * k2 / (k1 + alpha ** (-nsamples))
+                )
             ),
             nsamples,
         )
@@ -393,7 +397,9 @@ class AETC:
                 assert values.ndim == 2
             else:
                 samples = self._bkd.hstack((samples, new_samples))
-                values = self._bkd.vstack((values, self._bkd.hstack(new_values)))
+                values = self._bkd.vstack(
+                    (values, self._bkd.hstack(new_values))
+                )
             nexplore_samples_prev = nexplore_samples
             result = self._explore_step(
                 total_budget, lf_model_subsets, values, alpha
@@ -429,10 +435,11 @@ class AETC:
 
 class AETCMC(AETC):
     def __init__(
-            self, models: List[callable],
-            rvs: callable,
-            costs: Array = None,
-            oracle_stats: List[Array] = None
+        self,
+        models: List[callable],
+        rvs: callable,
+        costs: Array = None,
+        oracle_stats: List[Array] = None,
     ):
         r"""
         Parameters
@@ -575,10 +582,10 @@ class AETCBLUE(AETC):
         self._reg_blue = reg_blue
 
     def set_optimizer(
-            self, optimizer: Union[GroupACVOptimizer, ChainedACVOptimizer]
+        self, optimizer: Union[GroupACVOptimizer, ChainedACVOptimizer]
     ):
         if not isinstance(optimizer, GroupACVOptimizer) and not isinstance(
-                optimizer, ChainedACVOptimizer
+            optimizer, ChainedACVOptimizer
         ):
             raise ValueError(
                 "optimizer must be instance of GroupACVOptimizer"
@@ -587,7 +594,7 @@ class AETCBLUE(AETC):
         self._optimizer = optimizer
 
     def _find_k2(self, beta_Sp, Sigma_S, costs_S, round_nsamples=False):
-        asketch = beta_Sp[1:]  # remove high-fidelity coefficient
+        asketch = beta_Sp[1:].T  # remove high-fidelity coefficient
 
         stat_S = MultiOutputMean(1, self._bkd)
         stat_S.set_pilot_quantities(Sigma_S)
@@ -596,7 +603,6 @@ class AETCBLUE(AETC):
             costs_S,
             asketch=asketch,
             reg_blue=self._reg_blue,
-            backend=self._bkd,
         )
         target_cost = 10 * costs_S[0]
         # opt.set_estimator(est)
@@ -630,8 +636,7 @@ class AETCBLUE(AETC):
             stat_best_S,
             costs_best_S,
             Sigma_best_S,
-            asketch=beta_best_S,
-            backend=self._bkd,
+            asketch=beta_best_S.T,
         )
         est._set_optimized_params(rounded_nsamples_per_subset)
         samples_per_model = est.generate_samples_per_model(rvs)
@@ -651,8 +656,7 @@ class AETCBLUE(AETC):
             stat_best_S,
             costs_best_S,
             Sigma_best_S,
-            asketch=beta_best_S,
-            backend=self._bkd,
+            asketch=beta_best_S.T,
         )
         est._set_optimized_params(rounded_nsamples_per_subset)
         product = est(values_per_model).item()

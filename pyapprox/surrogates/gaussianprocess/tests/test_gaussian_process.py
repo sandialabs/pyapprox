@@ -221,6 +221,7 @@ class TestGaussianProcess:
             1,
             (1e-6, 1),
             LogHyperParameterTransform(backend=bkd),
+            backend=bkd,
         )
         inducing_samples = InducingSamples(
             nvars,
@@ -322,6 +323,7 @@ class TestGaussianProcess:
             [0.1, 1],
             LogHyperParameterTransform(backend=bkd),
             fixed=True,
+            backend=bkd,
         )
         inducing_samples = InducingSamples(
             nvars,
@@ -1193,32 +1195,3 @@ class TestTorchGaussianProcess(TestGaussianProcess, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-
-    # nrealizations = 1000
-    # train_samples = quad_rule()[0]
-    # rand_noise = bkd.asarray(
-    #     np.random.normal(
-    #         0, 1, (int(nrealizations), train_samples.shape[1])
-    #     ).T
-    # )
-    # # make last sample mean of gaussian process
-    # rand_noise = bkd.hstack(
-    #     (rand_noise, bkd.zeros((rand_noise.shape[0], 1)))
-    # )
-    # train_values = gp._predict_random_realizations_from_rand_noise(
-    #     train_samples, rand_noise
-    # )
-    # print(train_values.shape, train_samples.shape)
-    # gp_proxy = ExactGaussianProcess(
-    #     variable.nvars(),
-    #     gp.kernel(),
-    #     trend=gp.trend(),
-    #     kernel_reg=1e-12,
-    # )
-    # gp_proxy._set_training_data(train_samples, train_values)
-    # gp_proxy._check_values_shape = lambda s, v: None
-    # print(
-    #     bkd.norm(gp_proxy(train_samples) - train_values)
-    #     / train_values.shape[1]
-    # )
-    # assert False  # hack once test complete and pass modularize these functions

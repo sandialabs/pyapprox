@@ -952,5 +952,4 @@ class TestLinalg(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    linalg_test_suite = unittest.TestLoader().loadTestsFromTestCase(TestLinalg)
-    unittest.TextTestRunner(verbosity=2).run(linalg_test_suite)
+    unittest.main(verbosity=2)

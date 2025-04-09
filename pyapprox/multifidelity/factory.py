@@ -447,7 +447,7 @@ def _estimate_components(variable, est, funs, ii):
         for jj in range(variable.nvars())
     ]
     samples_per_model = est.generate_samples_per_model(
-        partial(variable.rvs, random_states=random_states)
+        partial(variable._rvs_given_random_states, random_states=random_states)
     )
     values_per_model = [
         bkd.array(fun(samples))

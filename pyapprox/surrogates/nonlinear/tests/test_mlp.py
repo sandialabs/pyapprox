@@ -3,7 +3,7 @@ import numpy as np
 from functools import partial
 
 
-from pyapprox.surrogates.neural.mlp import (
+from pyapprox.surrogates.nonlinear.mlp import (
     NeuralNetwork,
     sigmoid_function,
     sigmoid_gradient,
@@ -11,7 +11,8 @@ from pyapprox.surrogates.neural.mlp import (
     flatten_nn_parameters,
     MultiTaskNeuralNetwork,
 )
-from pyapprox.interface.model import FiniteDifference
+from pyapprox.util.utilities import check_gradients
+from pyapprox.optimization.minimize import approx_jacobian
 
 
 def _approx_fprimeprime(xk, f, epsilon, args=()):
@@ -130,7 +131,7 @@ class TestNeuralNetwork(unittest.TestCase):
         b = np.random.normal(0, 1, (nqoi, 1))
 
         def fun(x):
-            return sigmoid_function(A.dot(x) + b)
+            return sigmoid_function(A.dot(x) + b).T
 
         def jac(x):
             return sigmoid_gradient(A.dot(x) + b) * A
@@ -158,9 +159,7 @@ class TestNeuralNetwork(unittest.TestCase):
         def hess(x):
             return sigmoid_second_derivative(A.dot(x) + b) * A**2
 
-        assert np.allclose(
-            hess(x0), _approx_fprimeprime(x0[:, 0], f, 1e-4)[:, 0, :]
-        )
+        assert np.allclose(hess(x0), _approx_fprimeprime(x0[:, 0], f, 1e-4)[0])
 
     def test_fit(self):
         def fun(x):

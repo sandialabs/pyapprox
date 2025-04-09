@@ -1148,11 +1148,11 @@ class ObjectiveWithCVaRConstraints(Model):
 
 
 def approx_jacobian(
-    func,
-    x,
-    epsilon=np.sqrt(np.finfo(float).eps),
-    bkd=NumpyMixin,
-    forward=True,
+    func: callable,
+    x: Array,
+    epsilon: float = np.sqrt(np.finfo(float).eps),
+    bkd: BackendMixin = NumpyMixin,
+    forward: bool = True,
 ):
     x0 = bkd.asarray(x)
     assert x0.ndim == 1 or x0.shape[1] == 1

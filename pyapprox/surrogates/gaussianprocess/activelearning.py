@@ -529,8 +529,7 @@ class MultiOutputMonteCarloGreedyIntegratedVarianceSampler(
 
     def _output_costs(self, model_ids: Array) -> Array:
         return self._bkd.array(
-            [self._cost_function(model_id) for model_id in model_ids],
-            dtype=int,
+            [self._cost_function(model_id) for model_id in model_ids]
         )
 
     def _priority_from_objective(self, vals: Array) -> Array:

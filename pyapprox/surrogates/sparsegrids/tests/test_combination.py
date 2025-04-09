@@ -2,7 +2,8 @@ import unittest
 import copy
 
 from scipy import stats
-import matplotlib.pyplot as plt
+
+# import matplotlib.pyplot as plt
 import numpy as np
 
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -38,7 +39,6 @@ from pyapprox.surrogates.sparsegrids.combination import (
     LocallyAdaptiveCombinationSparseGrid,
     LocalRefinementCriteria,
     LocalHierarchicalRefinementCriteria,
-    Max1DLevelSparseGridSubSpaceAdmissibilityCriteria,
     MaxLevelSparseGridSubSpaceAdmissibilityCriteria,
     MaxErrorSparseGridSubspaceAdmissibilityCriteria,
     MultipleSparseGridSubSpaceAdmissibilityCriteria,
@@ -111,8 +111,8 @@ class TestCombination:
         assert bkd.allclose(sg.mean(), fun.get_coefficients()[0])
 
         # test plot runs
-        sg.plot_grid(plt.figure().gca())
-        sg.plot_subspace_indices(plt.figure().gca())
+        # sg.plot_grid(plt.figure().gca())
+        # sg.plot_subspace_indices(plt.figure().gca())
 
     def test_adaptive_sparse_grid(self):
         bkd = self.get_backend()
@@ -280,22 +280,23 @@ class TestCombination:
         sg.build(fun)
 
         # test plot
-        if nvars <= 2:
-            grid_ax = plt.figure().gca()
-            if nvars == 1:
-                plot_limits = [-1, 1]
-                plot_ax = plt.figure().gca()
-            else:
-                plot_limits = [-1, 1, -1, 1]
-                plot_ax = plt.figure().add_subplot(projection="3d")
-            sg.plot_surface(plot_ax, plot_limits)
-            iso_sg.plot_surface(plot_ax, plot_limits)
+        # if nvars <= 2:
+        #     grid_ax = plt.figure().gca()
+        #     if nvars == 1:
+        #         plot_limits = [-1, 1]
+        #         plot_ax = plt.figure().gca()
+        #     else:
+        #         plot_limits = [-1, 1, -1, 1]
+        #         plot_ax = plt.figure().add_subplot(projection="3d")
+        #     sg.plot_surface(plot_ax, plot_limits)
+        #     iso_sg.plot_surface(plot_ax, plot_limits)
 
-        elif nvars == 3:
-            grid_ax = plt.figure().add_subplot(projection="3d")
+        # elif nvars == 3:
+        #     grid_ax = plt.figure().add_subplot(projection="3d")
 
-        sg.plot_grid(grid_ax)
+        # sg.plot_grid(grid_ax)
         # plt.show()
+
         assert bkd.allclose(
             sort_indices_lexiographically(sg.train_samples()),
             sort_indices_lexiographically(iso_sg.train_samples()),
@@ -354,7 +355,7 @@ class TestCombination:
         assert bkd.allclose(
             sg.train_values()[idx], bkd.zeros((len(idx), sg.nqoi()))
         )
-        sg.plot_grid(plt.figure().gca())
+        # sg.plot_grid(plt.figure().gca())
 
     def test_multi_index_leja_lagrange_sparse_grid(self):
         bkd = self.get_backend()

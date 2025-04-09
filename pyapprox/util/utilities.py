@@ -574,7 +574,7 @@ def leave_many_out_lsq_cross_validation(
         H_mat_inv = bkd.inv(H_mat)
         cv_errors.append(H_mat_inv @ residuals_kk)
         cv_score += bkd.sum(cv_errors[-1] ** 2, axis=0)
-    return cv_errors, math.sqrt(cv_score / basis_mat.shape[0]), coef
+    return cv_errors, bkd.sqrt(cv_score[0] / basis_mat.shape[0]), coef
 
 
 def get_random_k_fold_sample_indices(

@@ -74,6 +74,7 @@ class InducingSamples:
             self.init_inducing_samples.flatten(),
             inducing_sample_bounds.flatten(),
             IdentityHyperParameterTransform(backend=self._bkd),
+            backend=self._bkd,
         )
         if noise is None:
             noise = HyperParameter(
@@ -82,7 +83,10 @@ class InducingSamples:
                 1e-2,
                 (1e-15, 1e3),
                 LogHyperParameterTransform(backend=self._bkd),
+                backend=self._bkd,
             )
+        if not self._bkd.bkd_equal(self._bkd, noise._bkd):
+            raise ValueError("noise._bkd and backend are different")
         self._noise = noise
         self._hyp_list = HyperParameterList(
             [self._noise, self._inducing_samples]

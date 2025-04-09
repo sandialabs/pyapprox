@@ -120,7 +120,7 @@ class TestVariableTransforms:
         nvars = 2
         opts = {"limits": limits, "nquad_samples_1d": 100}
         var_trans = RosenblattTransform(
-            joint_density, nvars, opts, backend=bkd
+            lambda x: joint_density.pdf(x)[:, 0], nvars, opts, backend=bkd
         )
 
         samples = var_trans.map_from_canonical(true_canonical_samples)
@@ -143,7 +143,7 @@ class TestVariableTransforms:
         nvars = 2
         opts = {"limits": limits, "nquad_samples_1d": 100}
         var_trans_1 = RosenblattTransform(
-            joint_density, nvars, opts, backend=bkd
+            lambda x: joint_density.pdf(x)[:, 0], nvars, opts, backend=bkd
         )
         var_trans_2 = define_iid_random_variable_transformation(
             stats.uniform(0, 1), nvars, backend=bkd

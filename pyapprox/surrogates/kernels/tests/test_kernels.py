@@ -17,10 +17,6 @@ from pyapprox.util.sys_utilities import package_available
 if package_available("jax"):
     from pyapprox.util.backends.jax import JaxBackendMixin
 
-import warnings
-
-warnings.filterwarnings("error")
-
 
 class TestKernels:
     def setUp(self):

@@ -67,8 +67,9 @@ class HomogeneousLaplace1DGreensKernel(Kernel):
             kappa,
             kappa_bounds,
             LogHyperParameterTransform(self._bkd),
+            backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._kappa])
+        self._hyp_list = HyperParameterList([self._kappa])
 
     def nvars(self):
         return 1
@@ -102,8 +103,9 @@ class DrivenHarmonicOscillatorGreensKernel(Kernel):
             omega,
             omega_bounds,
             LogHyperParameterTransform(self._bkd),
+            backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._omega])
+        self._hyp_list = HyperParameterList([self._omega])
 
     def nvars(self):
         return 1
@@ -139,8 +141,9 @@ class Helmholtz1DGreensKernel(Kernel):
             wavenum,
             wavenum_bounds,
             LogHyperParameterTransform(self._bkd),
+            backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._wavenum])
+        self._hyp_list = HyperParameterList([self._wavenum])
 
     def nvars(self):
         return 1
@@ -195,8 +198,9 @@ class HeatEquation1DGreensKernel(Kernel):
             kappa,
             kappa_bounds,
             LogHyperParameterTransform(self._bkd),
+            backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._kappa])
+        self._hyp_list = HyperParameterList([self._kappa])
 
     def nvars(self):
         return 1
@@ -249,8 +253,9 @@ class WaveEquation1DGreensKernel(Kernel):
             coeff,
             coeff_bounds,
             LogHyperParameterTransform(backend),
+            backend=self._bkd,
         )
-        self.hyp_list = HyperParameterList([self._coeff])
+        self._hyp_list = HyperParameterList([self._coeff])
 
     def nvars(self):
         return 1

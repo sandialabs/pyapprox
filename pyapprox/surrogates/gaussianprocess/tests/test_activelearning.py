@@ -138,7 +138,7 @@ class TestActiveLearning:
         nsamples = 11
         np.random.seed(1)
         samples = sampler(nsamples)
-        print(samples)
+        print(samples, "greedy_ivar")
         print(regression_test_samples)
         assert bkd.allclose(samples, regression_test_samples)
 
@@ -314,7 +314,7 @@ class TestActiveLearning:
                 gp.evaluate(sampler._stat._cquadx, True)[1][nmodels - 1] ** 2
             ).mean()
         )
-        print(samples)
+        # print(samples)
         # note use of cquadx above in canonical space this only works
         # because in_trans is the identity
         assert bkd.allclose(sampler._best_obj_vals[-1], obj_val)
@@ -335,13 +335,13 @@ class TestActiveLearning:
         gp = AdaptiveGaussianProcess(
             nvars, kernel, sampling_schedule=sampling_schedule
         )
+        gp.set_optimizer(ncandidates=10)
         gp.set_sampler(sampler)
         gp.build(fun)
-        import matplotlib.pyplot as plt
-
-        ax = plt.figure().gca()
-        gp.plot(ax, bounds=[-1, 1])
-        ax.plot(gp.get_train_samples()[0], gp.get_train_values(), "o")
+        # import matplotlib.pyplot as plt
+        # ax = plt.figure().gca()
+        # gp.plot(ax, bounds=[-1, 1])
+        # ax.plot(gp.get_train_samples()[0], gp.get_train_values(), "o")
         train_samples = bkd.array(
             [
                 -1.00000000e00,
@@ -360,7 +360,7 @@ class TestActiveLearning:
         # regression test. Note when the last point added produces
         # a matrix that is close to singular then there can be differences
         # between numpy and torch train samples
-        print(gp.get_train_samples())
+        print(gp.get_train_samples(), "ADAPTIVE GP TRAIN SAMPLES")
         print(train_samples)
         # plt.show()
 

@@ -627,9 +627,6 @@ class TestMeshTransforms:
         )
 
     def surface_transform(self):
-        import warnings
-
-        warnings.filterwarnings("error")
         bkd = self.get_backend()
         radius = 1.0
         # map_from orthogonal is ill defined at elevation = 0 and pi

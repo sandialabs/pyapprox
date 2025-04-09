@@ -20,8 +20,6 @@ from pyapprox.variables.algebra import (
 from pyapprox.util.utilities import scipy_gauss_hermite_pts_wts_1D
 from pyapprox.variables.marginals import EmpiricalCDF
 
-# from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-
 
 class TestRandomVariableAlgebra(unittest.TestCase):
     def setUp(self):
@@ -224,8 +222,9 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         assert np.allclose(inverse_derivs[1:], 1 / 2 * zz[1:] ** (-1 / 2))
 
     def test_variable_transformation_standard_normal_squared(test):
-        lb, ub = -np.inf, np.inf
         mean, var = [0, 1]
+        # bounds must be finite
+        lb, ub = stats.norm(mean, np.sqrt(var)).interval(1 - 1e-6)
 
         def function(xx):
             return xx**2
@@ -488,9 +487,4 @@ class TestRandomVariableAlgebra(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    random_variable_algebra_test_suite = (
-        unittest.TestLoader().loadTestsFromTestCase(TestRandomVariableAlgebra)
-    )
-    unittest.TextTestRunner(verbosity=2).run(
-        random_variable_algebra_test_suite
-    )
+    unittest.main(verbosity=2)

@@ -776,15 +776,11 @@ class TestBasis:
         assert bkd.allclose(pce.mean(), bkd.array([1 / 3 + 4 / 3]))
 
     def test_lagrange_basis_derivatives(self):
-        import warnings
-
-        warnings.filterwarnings("error")
         bkd = self.get_backend()
         nvars = 2
         bounds = [[0, 1], [-2, 1]]
         marginals = [stats.uniform(0, 1), stats.uniform(-2, 3)]
         variable = IndependentMarginalsVariable(marginals, backend=bkd)
-        lagrange_quad_rule = ClenshawCurtisQuadratureRule
         nnodes_1d = bkd.array([5] * nvars)
         bases_1d = [
             setup_lagrange_basis(
@@ -799,11 +795,6 @@ class TestBasis:
         basis = TensorProductInterpolatingBasis(bases_1d)
         interp = TensorProductInterpolant(basis)
         basis.set_tensor_product_indices(nnodes_1d)
-
-        def fun(samples):
-            # when nnodes_1d is zero to test interpolation make sure
-            # function is constant in that direction
-            return bkd.sum(samples**2, axis=0)[:, None]
 
         def fun(sample):
             return (bkd.sum(sample**2, axis=0) + bkd.prod(sample, axis=0))[

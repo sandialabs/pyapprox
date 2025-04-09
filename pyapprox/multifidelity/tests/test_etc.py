@@ -10,10 +10,9 @@ from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.multifidelity.groupacv import (
     GroupACVGradientOptimizer,
     ChainedACVOptimizer,
-    MLBLUESPDOptimizer,
     MLBLUEGradientOptimizer,
 )
-from pyapprox.optimization.pya_minimize import (
+from pyapprox.optimization.scipy import (
     ScipyConstrainedOptimizer,
     ScipyConstrainedNelderMeadOptimizer,
 )
@@ -25,7 +24,7 @@ class TestETC(unittest.TestCase):
 
     @staticmethod
     def _setup_model_ensemble_tunable(
-            shifts=None, angle=np.pi / 4, bkd=NumpyMixin
+        shifts=None, angle=np.pi / 4, bkd=NumpyMixin
     ):
         example = TunableModelEnsemble(angle, shifts, bkd)
         cov = example.covariance()
@@ -38,6 +37,9 @@ class TestETC(unittest.TestCase):
         Tests if the optimal loss returned from using oracle stats is the
         same as using without oracle stats given many samples.
         """
+        # TODO change test from using spd to using local optimization
+        # The later is better and also does not require cvxopt
+
         # bkd = NumpyMixin
         bkd = TorchMixin
         alpha = 1000
@@ -127,7 +129,6 @@ class TestETC(unittest.TestCase):
             stat,
             costs[subset],
             asketch=result_dict["beta_Sp"][1:].T,
-            backend=bkd,
         )
         unrounded_true_var = mlblue_est._covariance_from_npartition_samples(
             result_dict["nsamples_per_subset"]
@@ -184,7 +185,7 @@ class TestETC(unittest.TestCase):
         # Verifies that the true MSE is close to the theoretical MSE
         # However, the theoretical MSE is not exactly the True anyway
         print(mse, result_dict["loss"])
-        print(mse-result_dict["loss"])
+        print(mse - result_dict["loss"])
         assert bkd.allclose(mse, result_dict["loss"], rtol=3e-2)
 
 

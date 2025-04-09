@@ -545,7 +545,7 @@ class TestMOMC:
             model_ratios * npartition_samples[0],
             bkd.cumsum(npartition_samples)[1:],
         )
-        assert bkd.allclose(bkd.atleast1d(target_cost), est_cost)
+        assert bkd.allclose(bkd.asarray(target_cost), est_cost)
         # get nsample ratios before rounding
         # avoid using est._allocate_samples so we do not start
         # from mfmc exact solution
@@ -558,7 +558,7 @@ class TestMOMC:
         )
         est_cost = (nsamples_per_model * est._costs.numpy()).sum()
         assert bkd.allclose(
-            bkd.exp(bkd.atleast1d(obj_val)), bkd.exp(mfmc_log_variance)
+            bkd.exp(bkd.asarray(obj_val)), bkd.exp(mfmc_log_variance)
         )
         model_ratios = est._partition_ratios_to_model_ratios(partition_ratios)
         torch.set_printoptions(precision=16)
@@ -631,7 +631,7 @@ class TestMOMC:
             ),
         )
         assert bkd.allclose(model_ratios, mlmc_model_ratios)
-        assert bkd.allclose(bkd.atleast1d(target_cost), est_cost)
+        assert bkd.allclose(bkd.asarray(target_cost), est_cost)
 
         objective = ACVLogDeterminantObjective()
         objective.set_target_cost(target_cost)
@@ -683,7 +683,7 @@ class TestMOMC:
         )
         est_cost = (nsamples_per_model * est._costs.numpy()).sum()
         assert bkd.allclose(
-            bkd.exp(bkd.atleast1d(obj_val)), bkd.exp(mlmc_log_variance)
+            bkd.exp(bkd.asarray(obj_val)), bkd.exp(mlmc_log_variance)
         )
         model_ratios = est._partition_ratios_to_model_ratios(partition_ratios)
         assert bkd.allclose(model_ratios, mlmc_model_ratios)
@@ -837,8 +837,8 @@ class TestMOMC:
             # make sure that values_per_model_wo_pilot is not being modified
             # by insert_pilot_values
             assert bkd.allclose(
-                bkd.atleast1d(values_per_model_wo_pilot[ii].shape[0]),
-                bkd.atleast1d(nvalues_per_model_wo_pilot[ii]),
+                bkd.asarray(values_per_model_wo_pilot[ii].shape[0]),
+                bkd.asarray(nvalues_per_model_wo_pilot[ii]),
             )
         est_stats = est(modified_values_per_model)
         assert bkd.allclose(est_stats, est_val)

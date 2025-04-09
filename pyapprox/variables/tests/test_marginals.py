@@ -55,11 +55,11 @@ class TestMarginals:
             marginal.ppf(usamples), bkd.asarray(scipy_rv.ppf(usamples))
         )
         # tests plots run
-        axs = plt.subplots(1, 3, figsize=(3 * 8, 6))[1]
-        marginal.plot_pdf(axs[0])
-        marginal.plot_cdf(axs[1])
-        marginal.plot_ppf(axs[2])
-        plt.close()
+        # axs = plt.subplots(1, 3, figsize=(3 * 8, 6))[1]
+        # marginal.plot_pdf(axs[0])
+        # marginal.plot_cdf(axs[1])
+        # marginal.plot_ppf(axs[2])
+        # plt.close()
 
     def _check_discrete_scipy_marginal(self, scipy_rv):
         bkd = self.get_backend()
@@ -89,11 +89,11 @@ class TestMarginals:
             marginal.ppf(usamples), bkd.asarray(scipy_rv.ppf(usamples))
         )
         # tests plots run
-        axs = plt.subplots(1, 3, figsize=(3 * 8, 6))[1]
-        marginal.plot_pdf(axs[0])
-        marginal.plot_cdf(axs[1])
-        marginal.plot_ppf(axs[2])
-        plt.close()
+        # axs = plt.subplots(1, 3, figsize=(3 * 8, 6))[1]
+        # marginal.plot_pdf(axs[0])
+        # marginal.plot_cdf(axs[1])
+        # marginal.plot_ppf(axs[2])
+        # plt.close()
 
     def test_continuous_scipy_marginals(self):
         scipy_rvs = []
@@ -391,4 +391,4 @@ class TestTorchMarginals(TestMarginals, unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

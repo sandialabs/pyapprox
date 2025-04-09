@@ -421,7 +421,7 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
         except ImportError:
             raise ValueError(
                 "MLBLUESPDOptimizer can only be used when optional dependency"
-                "cvxpy is installed"
+                " cvxpy is installed"
             )
         self._cvxpy = cvxpy
 

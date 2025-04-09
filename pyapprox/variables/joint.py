@@ -339,6 +339,25 @@ class IndependentMarginalsVariable(JointVariable):
         ]
         return self._bkd.stack(marginal_samples, axis=0)
 
+    def _rvs_given_random_states(
+        self, nsamples: int, random_states: List
+    ) -> Array:
+        # needed to avoid race conditions on seed when running rvs
+        # on multiple processors
+        nsamples = int(nsamples)
+        samples = self._bkd.empty((self.nvars(), nsamples), dtype=float)
+        if random_states is not None:
+            assert len(random_states) == self.nvars()
+        else:
+            random_states = [None] * self.nvars()
+        for ii, marginal in enumerate(self.marginals()):
+            samples[ii, :] = self._bkd.asarray(
+                marginal._scipy_rv.rvs(
+                    nsamples, random_state=random_states[ii]
+                )
+            )
+        return samples
+
     def kl_divergence(self, other: "IndependentMarginalsVariable"):
         for marginal in self.marginals():
             if not marginal.kl_divergence_implemented():
@@ -479,6 +498,9 @@ class FiniteSamplesVariable(JointVariable):
             raise ValueError(
                 "weights must be none when randomly sampling with replacement"
             )
+
+    def nvars(self) -> int:
+        return self._nvars
 
     def _rvs_deterministic(self, nsamples: int) -> Array:
         if self._sample_cnt + nsamples > self._samples.shape[1]:

@@ -18,9 +18,7 @@ from pyapprox.util.transforms import SphericalCorrelationTransform
 class Kernel(ABC):
     """The base class for any kernel."""
 
-    def __init__(self, backend: BackendMixin):
-        if backend is None:
-            backend = NumpyMixin
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
 
         # used when computing a Jacobian

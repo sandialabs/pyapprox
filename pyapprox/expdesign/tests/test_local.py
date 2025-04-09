@@ -15,8 +15,8 @@ from pyapprox.expdesign.local import (
     ROptimalLstSqCriterion,
 )
 from pyapprox.surrogates.univariate import Monomial1D
-from pyapprox.optimization.pya_minimize import (
-    ScipyConstrainedOptimizer,
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.optimization.minimize import (
     MiniMaxOptimizer,
     AVaRSlackBasedOptimizer,
 )
