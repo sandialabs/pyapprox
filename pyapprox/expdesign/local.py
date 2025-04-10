@@ -6,12 +6,12 @@ from scipy.optimize import LinearConstraint
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import SingleSampleModel
-from pyapprox.optimization.pya_minimize import (
+from pyapprox.optimization.minimize import (
     ConstrainedOptimizer,
-    ScipyConstrainedOptimizer,
     MiniMaxOptimizer,
     AVaRSlackBasedOptimizer,
 )
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
 
 class LocalOEDCriterionMixin(SingleSampleModel):
@@ -23,8 +23,10 @@ class LocalOEDCriterionMixin(SingleSampleModel):
     ):
         super().__init__(backend)
         self.set_design_factors(design_factors, noise_mult)
-        self._jacobian_implemented = True
         self._stored_design_prob_measure = dict()
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def set_design_factors(self, design_factors: Array, noise_mult: Array):
         if design_factors.ndim != 2:
@@ -347,11 +349,15 @@ class LocalOEDParameterizedNewtonResidual(
 class LocalOEDAdjointModel(SteadyAdjointModel):
     def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
-        self._jacobian_implemented = True
-        self._apply_hessian_implemented = True
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
 
     def nvars(self) -> int:
-        self._residual.nvars()
+        return self._residual.nvars()
 
 
 class LocalOEDCriterionAdjointMixin:
@@ -381,7 +387,7 @@ class LocalOEDCriterionAdjointMixin:
         )
         self._adj_model.set_functional(functional)
         self._apply_hessian_implemented = (
-            self._adj_model._apply_hessian_implemented
+            self._adj_model.apply_hessian_implemented()
         )
 
     def _store_intermediate_values(self) -> bool:

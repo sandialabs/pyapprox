@@ -29,7 +29,7 @@ from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
     IndependentMultivariateGaussian,
 )
-from pyapprox.variables.joint import CustomIndependentMarginalsVariable
+from pyapprox.variables.joint import IndependentMarginalsVariable
 
 
 # TODO implement diagonal plus low rank Gaussian covariance based divergence see
@@ -303,19 +303,21 @@ class IndependentGaussianKLDivergenceForVariationalInference(
         self._divergence.set_left_distribution(mean1, diag1)
 
 
-class CustomIndependentMarginalsVariableKLDivergenceForVariationalInference(
+class IndependentMarginalsVariableKLDivergenceForVariationalInference(
     KLDivergenceForVariationalInference
 ):
     def __init__(
         self,
-        prior: CustomIndependentMarginalsVariable,
+        prior: IndependentMarginalsVariable,
         posterior: IndependentGaussianVariationalPosterior,
     ):
-        if not isinstance(prior, CustomIndependentMarginalsVariable):
+        if not isinstance(prior, IndependentMarginalsVariable):
             raise ValueError(
-                "prior must be an instance of "
-                "CustomIndependentMarginalsVariable"
+                "prior must be an instance of " "IndependentMarginalsVariable"
             )
+        for marginal in prior.marginals():
+            if not marginal.kl_divergence_implemented():
+                raise ValueError("marginal must implement KL divergence")
         if not isinstance(posterior, IndependentBetaVariationalPosterior):
             raise ValueError(
                 "posterior must be an instance of "
@@ -329,7 +331,7 @@ class CustomIndependentMarginalsVariableKLDivergenceForVariationalInference(
     def update(self):
         ashapes = self._posterior._ashapes.get_values()[:, None]
         bshapes = self._posterior._bshapes.get_values()[:, None] ** 2
-        for ii, marginal in enumerate(self._posterior._marginals):
+        for ii, marginal in enumerate(self._posterior.marginals()):
             marginal.set_shape(ashapes[ii], bshapes[ii])
 
 

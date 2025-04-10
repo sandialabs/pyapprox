@@ -302,7 +302,9 @@ class AdditiveFunctionTrain(FunctionTrain):
 class FunctionTrainAlternatingLstSqLoss(RMSELoss):
     def __init__(self):
         super().__init__()
-        self._jacobian_implemented = False
+
+    def jacobian_implemented(self) -> bool:
+        return False
 
     def set_model(self, model: FunctionTrain):
         self._bkd = model._bkd

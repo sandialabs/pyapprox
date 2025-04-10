@@ -14,7 +14,7 @@ from pyapprox.expdesign.local import (
     GOptimalLstSqCriterion,
     ROptimalLstSqCriterion,
 )
-from pyapprox.surrogates.univariate import Monomial1D
+from pyapprox.surrogates.univariate.base import Monomial1D
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.optimization.minimize import (
     MiniMaxOptimizer,
@@ -84,20 +84,20 @@ class TestLocalOED:
         pred_factors = monomial(design_samples)
 
         test_cases = [
-            # [DOptimalLstSqCriterion, False, None],
-            # [DOptimalLstSqCriterion, True, None],
-            # [DOptimalQuantileCriterion, False, None],
-            # [DOptimalQuantileCriterion, True, None],
-            # [COptimalLstSqCriterion, False, None, bkd.ones(4)],
-            # [COptimalLstSqCriterion, True, None, bkd.ones(4)],
-            # [COptimalQuantileCriterion, False, None, bkd.ones(4)],
-            # [COptimalQuantileCriterion, True, None, bkd.ones(4)],
-            # [AOptimalLstSqCriterion, False, check_aopt_obj],
-            # [AOptimalLstSqCriterion, True, check_aopt_obj],
-            # [AOptimalQuantileCriterion, False, check_aopt_obj],
-            # [AOptimalQuantileCriterion, True, check_aopt_obj],
-            # [IOptimalLstSqCriterion, False, check_iopt_obj, pred_factors],
-            # [IOptimalLstSqCriterion, True, check_iopt_obj, pred_factors],
+            [DOptimalLstSqCriterion, False, None],
+            [DOptimalLstSqCriterion, True, None],
+            [DOptimalQuantileCriterion, False, None],
+            [DOptimalQuantileCriterion, True, None],
+            [COptimalLstSqCriterion, False, None, bkd.ones(4)],
+            [COptimalLstSqCriterion, True, None, bkd.ones(4)],
+            [COptimalQuantileCriterion, False, None, bkd.ones(4)],
+            [COptimalQuantileCriterion, True, None, bkd.ones(4)],
+            [AOptimalLstSqCriterion, False, check_aopt_obj],
+            [AOptimalLstSqCriterion, True, check_aopt_obj],
+            [AOptimalQuantileCriterion, False, check_aopt_obj],
+            [AOptimalQuantileCriterion, True, check_aopt_obj],
+            [IOptimalLstSqCriterion, False, check_iopt_obj, pred_factors],
+            [IOptimalLstSqCriterion, True, check_iopt_obj, pred_factors],
             [GOptimalLstSqCriterion, True, None, pred_factors],
         ]
         for test_case in test_cases:
@@ -176,16 +176,16 @@ class TestLocalOED:
         opt = ScipyConstrainedOptimizer(opts={"gtol": 1e-12})
         oed.set_optimizer(opt)
         mu = oed.construct()
-        exact_nonzero_design_samples = bkd.array(
+        exact_nonzero_design_samples = bkd.hstack(
             [
                 max(
-                    lb,
+                    bkd.array([lb]),
                     (power + 1)
                     * ub
                     * theta[1]
                     / ((power + 2) * theta[1] + ub),
                 ),
-                ub,
+                bkd.array([ub]),
             ]
         )
         II = np.where(mu > 1e-5)[0]
@@ -253,12 +253,13 @@ class TestLocalOED:
         i_oed = LocalOptimalExperimentalDesign(i_crit)
         i_oed.set_optimizer(scipy_opt)
         i_mu = i_oed.construct()
+
         assert bkd.allclose(r_mu, i_mu)
 
 
-# class TestNumpyLocalOED(TestLocalOED, unittest.TestCase):
-#     def get_backend(self):
-#         return NumpyMixin
+class TestNumpyLocalOED(TestLocalOED, unittest.TestCase):
+    def get_backend(self):
+        return NumpyMixin
 
 
 class TestTorchLocalOED(TestLocalOED, unittest.TestCase):

@@ -1,18 +1,19 @@
+from abc import ABC, abstractmethod
 from typing import Tuple, List
 
 import numpy as np
+from scipy import stats
 
-from abc import ABC, abstractmethod
+
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.torch import TorchMixin
-from scipy import stats
 from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
-from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
 from pyapprox.surrogates.nonlinear.classifiers import LogisticClassifier
+from pyapprox.optimization.minimize import Optimizer, OptimizationResult
 
 
 class Generator(ABC):
@@ -38,7 +39,7 @@ class Generator(ABC):
                     nsamples,
                     "does not match number of conditional samples {0}".format(
                         conditional_vars.shape[1]
-                    )
+                    ),
                 )
             )
         samples = self._transform_latent_samples(
@@ -52,10 +53,10 @@ class Generator(ABC):
 
 class GaussianLatentMixin:
     def _latent_rvs(self, nsamples: int) -> Array:
-        """Generate latent samples that will be transformed by the generator.
-        """
+        """Generate latent samples that will be transformed by the generator."""
         return self._bkd.atleast2d(
-            np.random.normal(0, 1, (self._nlatent_vars, nsamples)))
+            np.random.normal(0, 1, (self._nlatent_vars, nsamples))
+        )
 
 
 class WeinerChaosMixin:
@@ -72,7 +73,7 @@ class WeinerChaosMixin:
         basis.set_tensor_product_indices(nterms_1d)
         nqoi = 1
         self._bexp = PolynomialChaosExpansion(basis, None, nqoi=nqoi)
-        self.hyp_list = self._bexp.hyp_list
+        self._hyp_list = self._bexp.hyp_list()
 
 
 class WeinerChaosGenerator(WeinerChaosMixin, GaussianLatentMixin, Generator):
@@ -97,12 +98,10 @@ class Discriminator(ABC):
 
 
 class LogisticClassifierDiscriminator(
-        LogisticClassifier, WeinerChaosMixin, Discriminator
+    LogisticClassifier, WeinerChaosMixin, Discriminator
 ):
     def __init__(
-            self,
-            nterms_1d: List[int],
-            backend: BackendMixin = TorchMixin
+        self, nterms_1d: List[int], backend: BackendMixin = TorchMixin
     ):
         self._bkd = backend
         self._setup_expansion(nterms_1d)
@@ -112,12 +111,11 @@ class LogisticClassifierDiscriminator(
         return super().__call__(samples)
 
 
-from pyapprox.optimization.pya_minimize import Optimizer, OptimizationResult
 class GradientDescent(Optimizer):
     def __init__(self, epochs=20, learn_rate=1e-3):
-        '''
+        """
         Use the Adam optimizer
-        '''
+        """
         super().__init__()
         self._epochs = epochs
         self._learn_rate = learn_rate
@@ -154,7 +152,7 @@ class GenerativeAdvesarialGradientDescent(GradientDescent):
         self._batch_real_samples = self._disc._bkd.vstack(
             (
                 self._batch_real_samples,
-                self._conditional_vars[:, self._batch_indices]
+                self._conditional_vars[:, self._batch_indices],
             )
         )
 
@@ -211,8 +209,8 @@ class GenerativeAdvesarialModel(ABC):
 
     def _initial_interate_gen(self) -> Array:
         nparams = (
-            self._gen.hyp_list.nactive_vars()
-            + self._disc.hyp_list.nactive_vars()
+            self._gen._hyp_list.nactive_vars()
+            + self._disc._hyp_list.nactive_vars()
         )
         return self._bkd.zeros((nparams, 1))
 
@@ -226,7 +224,7 @@ class GenerativeAdvesarialModel(ABC):
             iterate = self._initial_interate_gen()
         res = self._optimizer.minimize(iterate)
         active_opt_params = res.x[:, 0]
-        self.hyp_list.set_active_opt_params(active_opt_params)
+        self._hyp_list.set_active_opt_params(active_opt_params)
 
     def set_optimizer(self, optimizer: GenerativeAdvesarialGradientDescent):
         # todo allow user to change optimizer based on formulation
@@ -238,10 +236,10 @@ class GenerativeAdvesarialModel(ABC):
         self._optimizer = optimizer
 
     def fit(
-            self,
-            real_samples: Array,
-            conditional_samples: Array = None,
-            iterate: Array = None
+        self,
+        real_samples: Array,
+        conditional_samples: Array = None,
+        iterate: Array = None,
     ):
         self._real_samples = real_samples
         self._conditional_samples = conditional_samples
@@ -250,14 +248,15 @@ class GenerativeAdvesarialModel(ABC):
 
     def __repr__(self):
         return "{0}({1}, {2})".format(
-            self.__class__.__name__, self._gen, self._disc)
+            self.__class__.__name__, self._gen, self._disc
+        )
 
     def _generate_fake_samples(
-            self, nsamples, conditional_samples: Array
+        self, nsamples, conditional_samples: Array
     ) -> Array:
         if (
-                conditional_samples is not None
-                and conditional_samples.shape[1] != nsamples
+            conditional_samples is not None
+            and conditional_samples.shape[1] != nsamples
         ):
             raise RuntimeError("conditional samples has the wrong shape")
         fake_samples = self._gen.rvs(nsamples, conditional_samples)
@@ -275,8 +274,8 @@ class GenerativeAdvesarialGeneratorLoss:
 
     def set_data(self, real_samples: Array, conditional_samples: Array):
         if (
-                conditional_samples is not None
-                and real_samples.shape[1] != conditional_samples.shape[1]
+            conditional_samples is not None
+            and real_samples.shape[1] != conditional_samples.shape[1]
         ):
             raise ValueError(
                 "shapes of real and fake samples must match, but were"
@@ -307,8 +306,8 @@ class GenerativeAdvesarialDiscriminatorLoss:
 
     def set_data(self, real_samples: Array, conditional_samples: Array):
         if (
-                conditional_samples is not None
-                and real_samples.shape[1] != conditional_samples.shape[1]
+            conditional_samples is not None
+            and real_samples.shape[1] != conditional_samples.shape[1]
         ):
             raise ValueError(
                 "shapes of real and fake samples must match, but were"
@@ -320,7 +319,7 @@ class GenerativeAdvesarialDiscriminatorLoss:
         self._conditional_samples = conditional_samples
 
     def __call__(self, active_opt_params: Array) -> float:
-        self._gen_model._disc.hyp_list.set_active_opt_params(
+        self._gen_model._disc._hyp_list.set_active_opt_params(
             active_opt_params[:, 0]
         )
         # generate fake samples
@@ -337,16 +336,16 @@ class GenerativeAdvesarialDiscriminatorLoss:
         fake_labels = self._bkd.zeros(nsamples)
         disc_fake_loss = self._loss_function(pred_fake_labels, fake_labels)
         # compute the GAN loss
-        disc_loss = (disc_real_loss + disc_fake_loss)/2
+        disc_loss = (disc_real_loss + disc_fake_loss) / 2
         return disc_loss
 
 
 class LogisticGenerativeAdvesarialModel(GenerativeAdvesarialModel):
     def __init__(
-            self,
-            gen_nterms_1d: List[int],
-            disc_nterms_1d: List[int],
-            backend: BackendMixin = TorchMixin
+        self,
+        gen_nterms_1d: List[int],
+        disc_nterms_1d: List[int],
+        backend: BackendMixin = TorchMixin,
     ):
         self._bkd = backend
         self._gen_nterms_1d = gen_nterms_1d

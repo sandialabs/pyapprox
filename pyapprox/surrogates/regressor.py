@@ -53,11 +53,17 @@ class Regressor(Surrogate):
         # TODO: Jacobian hessian and apply versions must be mapped from
         # canonical domain. Need to implement mappings in transforms.
         # For now make sure they are not called
-        if not isinstance(self._out_trans, IdentityTransform):
-            self._jacobian_implemented = False
-            self._apply_jacobian_implemented = False
-            self._hessian_implemented = False
-            self._apply_hessian_implemented = False
+
+        if not isinstance(self._out_trans, IdentityTransform) and (
+            self.jacobian_implemented()
+            or self.apply_jacobian_implemented()
+            or self.hessian_implemented()
+            or self.apply_hessian_implemented()
+        ):
+            raise NotImplementedError(
+                "Applying jacobians and hessians with an identify transform "
+                "is not implemented yet"
+            )
 
     def _set_default_transforms(self):
         self.set_input_transform(IdentityTransform())

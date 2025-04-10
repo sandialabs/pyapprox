@@ -10,7 +10,7 @@ from pyapprox.bayes.variational.elbo import (
     IndependentGaussianVariationalPosterior,
     IndependentGaussianKLDivergenceForVariationalInference,
     IndependentBetaVariationalPosterior,
-    CustomIndependentMarginalsVariableKLDivergenceForVariationalInference,
+    IndependentMarginalsVariableKLDivergenceForVariationalInference,
 )
 from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
@@ -22,7 +22,7 @@ from pyapprox.util.hyperparameter import (
     flattened_lower_diagonal_matrix_entries,
 )
 from pyapprox.variables.marginals import BetaMarginal
-from pyapprox.variables.joint import CustomIndependentMarginalsVariable
+from pyapprox.variables.joint import IndependentMarginalsVariable
 
 
 class TestVariationalInference:
@@ -169,13 +169,13 @@ class TestVariationalInference:
             BetaMarginal(a1, b1, *bounds),
             BetaMarginal(a2, b2, *bounds),
         ]
-        prior = CustomIndependentMarginalsVariable(marginals)
+        prior = IndependentMarginalsVariable(marginals)
         loglike, obs, obs_model = self._setup_linear_model_gaussian_loglike(
             prior.nvars(), nobs, noise_cov
         )
         nlatent_samples = 100000
-        ashapes = [marginal._a for marginal in prior._marginals]
-        bshapes = [marginal._b for marginal in prior._marginals]
+        ashapes = [marginal._a for marginal in prior.marginals()]
+        bshapes = [marginal._b for marginal in prior.marginals()]
         variational_posterior = IndependentBetaVariationalPosterior(
             prior.nvars(),
             nlatent_samples,
@@ -183,8 +183,10 @@ class TestVariationalInference:
             bshapes,
             backend=bkd,
         )
-        divergence = CustomIndependentMarginalsVariableKLDivergenceForVariationalInference(
-            prior, variational_posterior
+        divergence = (
+            IndependentMarginalsVariableKLDivergenceForVariationalInference(
+                prior, variational_posterior
+            )
         )
         vi = VariationalInverseProblem(prior, loglike, divergence)
         vi.fit()

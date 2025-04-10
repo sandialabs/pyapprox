@@ -90,9 +90,13 @@ class LogisticClassifier(OptimizedRegressor):
     def __init__(self, basisexp: PolynomialChaosExpansion):
         self._bexp = basisexp
         super().__init__(backend=basisexp._bkd)
-        self.hyp_list = self._bexp.hyp_list
-        self._jacobian_implemented = True
-        self._apply_hessian_implemented = True
+        self._hyp_list = self._bexp.hyp_list()
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
 
     def set_optimizer(
         self, optimizer: MultiStartOptimizer, penalty_weight: float = 1.0
