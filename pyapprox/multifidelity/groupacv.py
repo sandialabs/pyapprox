@@ -5,10 +5,10 @@ from typing import List, Union
 import numpy as np
 
 from pyapprox.util.backends.template import Array, BackendMixin
-from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.multifidelity.stats import (
     MultiOutputMean,
     MultiOutputVariance,
+    MultiOutputMeanAndVariance,
     MultiOutputStatistic,
 )
 from pyapprox.interface.model import Model
@@ -25,7 +25,9 @@ from pyapprox.optimization.minimize import (
 )
 
 
-def get_model_subsets(nmodels, bkd, max_subset_nmodels=None):
+def get_model_subsets(
+    nmodels: int, bkd: BackendMixin, max_subset_nmodels: int = None
+):
     """
     Parameters
     ----------
@@ -48,7 +50,7 @@ def get_model_subsets(nmodels, bkd, max_subset_nmodels=None):
     return subsets
 
 
-def _get_allocation_matrix_is(subsets, bkd):
+def _get_allocation_matrix_is(subsets: Array, bkd: BackendMixin):
     nsubsets = len(subsets)
     npartitions = nsubsets
     allocation_mat = bkd.full(
@@ -59,7 +61,7 @@ def _get_allocation_matrix_is(subsets, bkd):
     return allocation_mat
 
 
-def _get_allocation_matrix_nested(subsets, bkd):
+def _get_allocation_matrix_nested(subsets: Array, bkd: BackendMixin):
     # nest partitions according to order of subsets
     nsubsets = len(subsets)
     npartitions = nsubsets
@@ -71,7 +73,7 @@ def _get_allocation_matrix_nested(subsets, bkd):
     return allocation_mat
 
 
-def _nest_subsets(subsets, nmodels, bkd):
+def _nest_subsets(subsets: Array, nmodels: int, bkd: BackendMixin):
     for subset in subsets:
         if np.allclose(subset, [0]):
             raise ValueError("Cannot use subset [0]")
@@ -84,11 +86,11 @@ def _nest_subsets(subsets, nmodels, bkd):
 
 
 def _grouped_acv_sigma_block(
-    subset0,
-    subset1,
-    nsamples_intersect,
-    nsamples_subset0,
-    nsamples_subset1,
+    subset0: Array,
+    subset1: Array,
+    nsamples_intersect: int,
+    nsamples_subset0: int,
+    nsamples_subset1: int,
     stat,
 ):
     nsubset0 = len(subset0)
@@ -111,7 +113,9 @@ def _grouped_acv_sigma_block(
     return block
 
 
-def _grouped_acv_sigma(nmodels, nsamples_intersect, subsets, stat):
+def _grouped_acv_sigma(
+    nmodels: int, nsamples_intersect: int, subsets: Array, stat
+):
     nsubsets = len(subsets)
     Sigma = [[None for jj in range(nsubsets)] for ii in range(nsubsets)]
     for ii, subset0 in enumerate(subsets):
@@ -175,7 +179,7 @@ class GroupACVObjective(Model):
 
 
 class MLBLUEObjective(GroupACVObjective):
-    def _jacobian(self, npartition_samples):
+    def _jacobian(self, npartition_samples: Array):
         # apply derivative of inverse matrix
         # d_m X^{-1} = X^{-1} (d_mX) X^{-1}
         # where X = psi_matrix and d_mX is RC_mR.T (not multiplied by nsamples)
@@ -213,7 +217,7 @@ class MLBLUEObjective(GroupACVObjective):
             )
         return jacobian
 
-    def _hessian(self, npartition_samples):
+    def _hessian(self, npartition_samples: Array):
         # apply derivative of inverse matrix twice
         # d_m X^{-1} = X^{-1} (d_mX) X^{-1}
         # where X = psi_matrix and d_mX is RC_mR.T (not multiplied by nsamples)
@@ -528,14 +532,13 @@ class GroupACVEstimator:
         self._costs = self._bkd.array(costs)
         self._nmodels = len(costs)
         self._reg_blue = reg_blue
-        if not isinstance(stat, MultiOutputMean) and not isinstance(
-            stat, MultiOutputVariance
+        if not isinstance(
+            stat,
+            (MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance),
         ):
             raise ValueError(
-                "GroupACV only suppots estimation of mean or variance"
+                "GroupACV only supports estimation of mean or variance"
             )
-        # if stat.nqoi() != 1:
-        #     raise ValueError("GroupACV only supports nqoi=1")
         self._stat = stat
 
         self._model_subsets, self._subsets, self._allocation_mat = (
@@ -569,14 +572,6 @@ class GroupACVEstimator:
         # TODO Consider replacing _restriction_matrix.T.dot(A) with
         # special indexing applied to A
         nsubset = len(subset)
-        # nstats = self._stat.nstats()
-        # mat = self._bkd.zeros((nsubset*nstats, self.nmodels() * nstats))
-        # kk = 0
-        # for ii in range(nsubset):
-        #     for jj in range(self._stat.nqoi()):
-        #         mat[kk, subset[ii]*self._stat.nqoi()+jj] = 1.0
-        #         kk += 1
-        # old code for single QoI
         mat = self._bkd.zeros((nsubset, self.nmodels() * self._stat.nstats()))
         for ii in range(nsubset):
             mat[ii, subset[ii]] = 1.0
@@ -615,6 +610,8 @@ class GroupACVEstimator:
             )
         # amend subsets to include indices into each statistic
         # stats ordered by all stats model 0, all stats model 1 and so on
+        # ordering of statistics for a given model is determined by
+        # the stat class
         model_stat_ids = self._bkd.reshape(
             self._bkd.arange(self._nmodels * self._stat.nstats(), dtype=int),
             (self._nmodels, self._stat.nstats()),
@@ -816,8 +813,6 @@ class GroupACVEstimator:
             )
             for nn in range(self._stat.nstats()):
                 asketch[nn, nn] = 1.0
-        # if asketch.ndim == 1:
-        #     asketch = asketch[None, :]
         asketch = self._bkd.asarray(asketch)
         if asketch.shape != (
             self._stat.nstats(),
@@ -1023,7 +1018,7 @@ class GroupACVEstimator:
             values_per_subset.append(self._bkd.hstack(values))
         return values_per_subset
 
-    def _grouped_acv_beta(self, sigma):
+    def _grouped_acv_beta(self, sigma: Array) -> Array:
         psi_matrix = self._psi_matrix_from_sigma(sigma)
         beta = self._bkd.stack(
             [
@@ -1040,20 +1035,22 @@ class GroupACVEstimator:
         )
         return beta
 
-    def _estimate(self, values_per_subset):
+    def _estimate(self, values_per_subset: List[Array]) -> Array:
         beta = self._grouped_acv_beta(self._optimized_sigma)
+        # print(beta.sum(axis=1))
         ll, mm = 0, 0
         acv_stat = 0
         for kk in range(self.nsubsets()):
             mm += len(self._subsets[kk])
             if values_per_subset[kk].shape[0] > 0:
-                # will not work for nqoi > 1
+                # print(self._subsets[kk], "s")
                 subset_stat = self._stat.sample_estimate(values_per_subset[kk])
+                # print(subset_stat, "t")
                 acv_stat += (beta[:, ll:mm]) @ subset_stat
             ll = mm
         return acv_stat
 
-    def __call__(self, values_per_model):
+    def __call__(self, values_per_model: List[Array]) -> Array:
         values_per_subset = self._separate_values_per_model(values_per_model)
         return self._estimate(values_per_subset)
 

@@ -1094,7 +1094,9 @@ class BinBasedVarianceSensitivityAnalysis:
 
         References
         ----------
-        `Borgonovo, E., Hazen, G. and Plischke, E. A Common Rationale for Global Sensitivity Measures and Their Estimation. 36(10):1871-1895, 2016. <https://doi.org/10.1111/risa.12555>`_
+        .. [BHPRA2016] `Borgonovo, E., Hazen, G. and Plischke, E. A Common Rationale for Global Sensitivity Measures and Their Estimation. 36(10):1871-1895, 2016. <https://doi.org/10.1111/risa.12555>`_
+
+         .. [LM2016] `Li, C. and Mahadevan, S. 153: 110-121, 2016. An efficient modularized sample-based method to estimate the first-order Sobol׳ index <https://doi.org/10.1016/j.ress.2016.04.012>`_
         """
         self._variable = variable
         self._bkd = variable._bkd

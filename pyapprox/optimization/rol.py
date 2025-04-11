@@ -23,11 +23,11 @@ from pyapprox.optimization.minimize import (
     OptimizationResult,
     Constraint,
 )
-from pyapprox.util.backends.template import Array
+from pyapprox.util.backends.template import Array, BackendMixin
 
 
 class ROLOptimizationResult(OptimizationResult):
-    def __init__(self, x, val, bkd):
+    def __init__(self, x, val, bkd: BackendMixin):
         """
         Parameters
         ----------
@@ -35,8 +35,9 @@ class ROLOptimizationResult(OptimizationResult):
             The result returned by scipy.minimize
         """
         super().__init__()
-        self["x"] = x[:, None]
+        self["x"] = bkd.asarray(x)[:, None]
         self["fun"] = val
+        self["success"] = True
 
 
 class ROLObjectiveWrapper(Objective):
@@ -54,16 +55,21 @@ class ROLObjectiveWrapper(Objective):
         super().__init__()
 
     def value(self, x: Vector, tol: float) -> NumPyVector:
-        return self._model(x[:, None])[0, 0]
+        return self._bkd.to_numpy(
+            self._model(self._bkd.asarray(x.array)[:, None])
+        )[0, 0]
 
     def gradient(self, g: Vector, x: Vector, tol: float):
-        jac = self._model.jacobian(x[:, None])
-        g[:] = jac[0, :]
+        jac = self._model.jacobian(self._bkd.asarray(x.array)[:, None])
+        g[:] = self._bkd.to_numpy(jac[0, :])
         return g
 
     def hessVec(self, hv: Vector, v: Vector, x: Vector, tol: float):
-        hvp = self._model._apply_hessian(x[:, None], v[:, None])
-        hv[:] = hvp[:, 0]
+        hvp = self._model.apply_hessian(
+            self._bkd.asarray(x.array)[:, None],
+            self._bkd.asarray(v.array)[:, None],
+        )
+        hv[:] = self._bkd.to_numpy(hvp[:, 0])
 
 
 class ROLNonLinearConstraintWrapper(ROLConstraint):
@@ -81,18 +87,21 @@ class ROLNonLinearConstraintWrapper(ROLConstraint):
         super().__init__()
 
     def value(self, c: Vector, x: Vector, tol: float):
-        vals = self._constraint(x[:, None])
+        vals = self._constraint(self._bkd.asarray(x.array)[:, None])
         c[:] = vals[0, :]
 
     def applyJacobian(self, jv: Vector, v: Vector, x: Vector, tol: float):
         # indexing access x.array
-        jvp = self._constraint.apply_jacobian(x[:, None], v[:, None])
+        jvp = self._constraint.apply_jacobian(
+            self._bkd.asarray(x.array)[:, None],
+            self._bkd.asarray(v.array)[:, None],
+        )
         jv[:] = jvp[:, 0]
 
     def applyAdjointJacobian(
         self, jv: Vector, v: Vector, x: Vector, tol: float
     ):
-        jac = self._constraint.jacobian(x[:, None])
+        jac = self._constraint.jacobian(self._bkd.asarray(x.array)[:, None])
         jv[:] = jac.T @ v[:]
 
     def applyAdjointHessian(
@@ -104,7 +113,9 @@ class ROLNonLinearConstraintWrapper(ROLConstraint):
         tol: float,
     ):
         hvp = self._constraint.apply_weighted_hessian(
-            x[:, None], v[:, None], u[:, None]
+            self._bkd.asarray(x.array)[:, None],
+            self._bkd.asarray(v.array)[:, None],
+            self._bkd.asarray(u.array)[:, None],
         )
         hv[:] = hvp[:, 0]
 
@@ -113,8 +124,9 @@ class ROLNonLinearConstraintWrapper(ROLConstraint):
 
 
 class ROLLinearOperatorWrapper(LinearOperator):
-    def __init__(self, Amat: Array):
-        self._Amat = Amat
+    def __init__(self, Amat: Array, backend: BackendMixin):
+        self._bkd = backend
+        self._Amat = self._bkd.to_numpy(Amat)
 
     def apply(self, hv: Vector, v: Vector, tol: float):
         hv[:] = self._Amat @ v[:]
@@ -221,7 +233,7 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
 
     def _set_nonlinear_constraint(self, problem: Problem, _con: Constraint):
         con = ROLNonLinearConstraintWrapper(_con)
-        emul = NumPyVector(self._bkd.zeros(con.nres()))
+        emul = NumPyVector(np.zeros(con.nres()))
         if self._bkd.all(_con._bounds[:, 0] == _con._bounds[:, 1]):
             # equality constraints
             problem.addConstraint(
@@ -230,8 +242,8 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
             self._neqnonlincons += 1
         else:
             bounds = ROLBounds(
-                NumPyVector(_con._bounds[:, 0]),
-                NumPyVector(_con._bounds[:, 1]),
+                NumPyVector(self._bkd.to_numpy(_con._bounds[:, 0])),
+                NumPyVector(self._bkd.to_numpy(_con._bounds[:, 1])),
             )
             problem.addConstraint(
                 f"IneqNonLinearConstraint_{self._nineqnonlincons}",
@@ -256,7 +268,7 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
 
     def _minimize(self, init_guess: Vector):
         tol = 0
-        x0 = NumPyVector(init_guess[:, 0])
+        x0 = NumPyVector(self._bkd.to_numpy(init_guess[:, 0]))
         objective = ROLObjectiveWrapper(self._objective)
         problem = Problem(objective, x0, x0.dual())
         if self._verbosity > 0:
@@ -281,7 +293,7 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
         problem.finalize(False, self._verbosity > 0, stream)
 
         # use ROL's native check derivatives
-        problem.check(self._verbosity > 0, stream)
+        # problem.check(self._verbosity > 0, stream)
 
         params = self.default_parameters()
         solver = Solver(problem, params)

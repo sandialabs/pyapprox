@@ -495,8 +495,16 @@ class JaxBackendMixin(BackendMixin):
         return np.tril(array, k)
 
     @staticmethod
+    def tril_indices(n: int, k: int = 0, m: int = None) -> np.ndarray:
+        return np.tril_indices(n, k, m)
+
+    @staticmethod
     def triu(array: np.ndarray, k: int = 0):
         return np.triu(array, k)
+
+    @staticmethod
+    def triu_indices(n: int, k: int = 0, m: int = None) -> np.ndarray:
+        return np.triu_indices(n, k, m)
 
     @staticmethod
     def digamma(array: np.ndarray) -> np.ndarray:

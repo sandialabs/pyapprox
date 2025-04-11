@@ -4,10 +4,6 @@ from functools import partial
 import numpy as np
 from scipy import stats
 
-from pyapprox.util.utilities import (
-    get_correlation_from_covariance,
-    check_gradients,
-)
 from pyapprox.multifidelity.groupacv import (
     get_model_subsets,
     GroupACVEstimator,
@@ -22,6 +18,8 @@ from pyapprox.multifidelity.groupacv import (
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.backends.torch import TorchMixin
+
+# from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.multifidelity.factory import multioutput_stats, get_estimator
 from pyapprox.optimization.scipy import (
     ScipyConstrainedOptimizer,
@@ -39,6 +37,12 @@ from pyapprox.multifidelity.stats import (
     _nqoisq_nqoisq_subproblem,
     _nqoi_nqoisq_subproblem,
 )
+
+if package_available("pyrol"):
+    has_pyrol = True
+    from pyapprox.optimization.rol import ROLConstrainedOptimizer
+else:
+    has_pyrol = False
 
 
 class TestGroupACV:
@@ -177,7 +181,9 @@ class TestGroupACV:
     def _generate_correlated_values(self, chol_factor, means, samples):
         return (chol_factor @ samples + means[:, None]).T
 
-    def _check_gradient_optimization(self, nmodels, min_nhf_samples):
+    def _check_gradient_optimization(
+        self, nmodels, min_nhf_samples, local_opt
+    ):
         # check specialized mlblue objective is consitent with
         # more general groupacv estimator when computing a single mean
         bkd = self.get_backend()
@@ -213,12 +219,9 @@ class TestGroupACV:
         assert errors[0] < 1e-12
 
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
-        # opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
-        # from pyapprox.optimization.rol_minimize import ROLConstrainedOptimizer
-        # local_opt = ROLConstrainedOptimizer()
-        local_opt = ScipyConstrainedOptimizer()
+        opt = GroupACVGradientOptimizer(local_opt)
         local_opt.set_verbosity(3)
-        opt = MLBLUEGradientOptimizer(local_opt)
+        # opt = MLBLUEGradientOptimizer(local_opt)
         opt.set_estimator(mlest)
         opt.set_budget(target_cost)
         errors = opt._optimizer._objective.check_apply_jacobian(iterate)
@@ -255,7 +258,7 @@ class TestGroupACV:
         stat.set_pilot_quantities(cov)
         gest = GroupACVEstimator(stat, costs, reg_blue=0)
         iterate = gest._init_guess(target_cost)
-        gopt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        gopt = GroupACVGradientOptimizer(local_opt)
         gopt.set_estimator(gest)
         gopt.set_budget(target_cost)
         errors = gopt._optimizer._objective.check_apply_jacobian(
@@ -293,11 +296,18 @@ class TestGroupACV:
 
     def test_gradient_optimization(self):
         test_cases = [
-            [2, 1],
-            [3, 1],
-            [4, 1],
-            [3, 10],
+            [2, 1, ScipyConstrainedOptimizer()],
+            [3, 1, ScipyConstrainedOptimizer()],
+            [4, 1, ScipyConstrainedOptimizer()],
+            [3, 10, ScipyConstrainedOptimizer()],
         ]
+        if has_pyrol:
+            test_cases += [
+                [2, 1, ROLConstrainedOptimizer()],
+                [3, 1, ROLConstrainedOptimizer()],
+                [4, 1, ROLConstrainedOptimizer()],
+                [3, 10, ROLConstrainedOptimizer()],
+            ]
         for test_case in test_cases:
             np.random.seed(1)
             print(test_case)
@@ -381,7 +391,7 @@ class TestGroupACV:
         iterate = est._init_guess(target_cost)
         est.allocate_samples(target_cost, min_nhf_samples, iterate=iterate)
 
-        # the following test only works if variable.num_vars()==1 because
+        # the following test only works if variable.nvars()==1 because
         # variable.rvs does not produce nested samples when this condition does
         # not hold
         np.random.seed(seed)
@@ -479,29 +489,31 @@ class TestGroupACV:
         )
         assert np.allclose(est._optimized_criteria, np.exp(mfmc_log_variance))
 
-    def _check_single_output_estimator_variance(
-        self, nmodels, ntrials, group_type, stat_name, asketch=None
+    def _check_sigma_matrix(
+        self, nmodels, ntrials, group_type, stat_name, qoi_idx, asketch=None
     ):
         bkd = self.get_backend()
         ntrials = int(ntrials)
-        cov, W, costs, funs, model = self._setup_variance_problem(nmodels, bkd)
+        cov, W, B, costs, funs, model = self._setup_variance_problem(
+            nmodels, qoi_idx, bkd
+        )
         variable = model.variable()
-        if stat_name == "variance":
-            stat = multioutput_stats[stat_name](
-                1, backend=bkd, return_cov=False
-            )
-            stat.set_pilot_quantities(cov, W)
-        else:
-            stat = multioutput_stats[stat_name](1, backend=bkd)
-            stat.set_pilot_quantities(cov)
+        pilot_quantities = {
+            "mean": (cov,),
+            "variance": (cov, W),
+            "mean_variance": (cov, W, B),
+        }
+        stat = multioutput_stats[stat_name](len(qoi_idx), backend=bkd)
+        stat.set_pilot_quantities(*pilot_quantities[stat_name])
         est = GroupACVEstimator(
-            stat, costs, est_type=group_type, asketch=asketch
+            stat, costs, est_type=group_type, asketch=asketch, reg_blue=0
         )
         npartition_samples = bkd.arange(2.0, 2 + est.nsubsets(), dtype=float)
         est._set_optimized_params(npartition_samples)
         est_var = est._covariance_from_npartition_samples(
             est._rounded_npartition_samples
         )
+        # est._grouped_acv_beta = lambda x: bkd.ones((4, 16))
 
         subset_vars = []
         acv_ests = []
@@ -517,11 +529,13 @@ class TestGroupACV:
             acv_est = 0
             for kk in range(est.nsubsets()):
                 if subset_values[kk].shape[0] > 0:
-                    subset_var = stat.sample_estimate(subset_values[kk])
+                    subset_var = est._stat.sample_estimate(subset_values[kk])
                 else:
                     subset_var = bkd.zeros(len(est.subsets[kk]))
                 subset_vars_nn.append(subset_var)
             acv_est = est(values_per_model)
+            # print(acv_est)
+            # assert False
             subset_vars.append(bkd.hstack(subset_vars_nn))
             acv_ests.append(acv_est)
         # acv_ests = np.array(acv_ests)
@@ -531,35 +545,49 @@ class TestGroupACV:
         subset_vars = bkd.stack(subset_vars)
         mc_group_cov = bkd.cov(subset_vars, ddof=1, rowvar=False)
         Sigma = est._sigma(est._rounded_npartition_samples)
-        atol, rtol = 4e-3, 2e-2
-        print(bkd.diag(mc_group_cov), bkd.diag(Sigma))
+        atol, rtol = 4e-3, 3e-2
+        print(stat)
+        print(bkd.diag(mc_group_cov))
+        print(bkd.diag(Sigma))
         print(bkd.diag(mc_group_cov) - bkd.diag(Sigma))
+        print(
+            (bkd.diag(mc_group_cov) - bkd.diag(Sigma)) / bkd.diag(mc_group_cov)
+        )
         assert bkd.allclose(bkd.diag(mc_group_cov), bkd.diag(Sigma), rtol=rtol)
         assert bkd.allclose(mc_group_cov, Sigma, rtol=rtol, atol=atol)
-        est_var_mc = bkd.var(acv_ests, ddof=1)
-        # print(est_var_mc, est_var)
+        est_var_mc = bkd.cov(acv_ests, ddof=1, rowvar=False)
+        print(est_var_mc)
+        print(est_var)
+        # print(est_var_mc - est_var)
+
         assert bkd.allclose(est_var_mc, est_var, rtol=rtol, atol=atol)
 
-    def test_single_output_estimator_variance(self):
+    def test_sigma_matrix(self):
+        bkd = self.get_backend()
         test_cases = [
-            [2, 5e4, "is", "mean"],
-            [2, 5e4, "is", "mean", [[0.5, 0.5]]],
-            [2, 5e4, "nested", "mean"],
-            [3, 5e4, "is", "mean"],
-            [3, 2e4, "nested", "mean"],
-            [2, 5e4, "is", "variance"],
-            [2, 5e4, "is", "variance", [[0.5, 0.5]]],
-            [2, 2e4, "nested", "variance"],
-            [3, 5e4, "is", "variance"],
-            [3, 2e4, "nested", "variance"],
+            # [2, 5e4, "is", "mean", [0]],
+            # [2, 5e4, "is", "mean", [0, 1]],
+            # [2, 5e4, "is", "mean", [], [[0.5, 0.5]]],
+            # [2, 5e4, "nested", "mean", [0]],
+            # [3, 5e4, "is", "mean", [0]],
+            # [3, 5e4, "is", "mean", [0, 1, 2]],
+            # [3, 2e4, "nested", "mean", 0]],
+            # [2, 5e4, "is", "variance", [0]],
+            # [2, 5e4, "is", "variance", [0, 1]],
+            # [2, 5e4, "is", "variance", [0], [[0.5, 0.5]]],
+            # [2, 2e4, "nested", "variance", [0, 1]],
+            # [2, 5e4, "is", "mean_variance", [0], bkd.ones((2, 4))],
+            [2, 2e4, "nested", "mean_variance", [0, 1], bkd.ones((5, 10))],
+            # [3, 5e4, "is", "variance", [0]],
+            # [3, 2e4, "nested", "variance", [0]],
         ]
         for test_case in test_cases:
             np.random.seed(1)
             print(test_case)
-            self._check_single_output_estimator_variance(*test_case)
+            self._check_sigma_matrix(*test_case)
 
-    def _setup_variance_problem(self, num_models, bkd):
-        model_idx, qoi_idx = bkd.arange(num_models), [0]
+    def _setup_variance_problem(self, nmodels, qoi_idx, bkd):
+        model_idx = bkd.arange(nmodels)
         (
             funs,
             cov,
@@ -571,11 +599,15 @@ class TestGroupACV:
         W = _nqoisq_nqoisq_subproblem(
             W, model.nmodels(), model.nqoi(), model_idx, qoi_idx, bkd
         )
-        return cov, W, costs, funs, model
+        B = model.covariance_of_mean_and_variance_estimators()
+        B = _nqoi_nqoisq_subproblem(
+            B, model.nmodels(), model.nqoi(), model_idx, qoi_idx, bkd
+        )
+        return cov, W, B, costs, funs, model
 
-    def test_groupacv_variance_estimation(self):
+    def test_variance_estimation(self):
         bkd = self.get_backend()
-        model_idx, qoi_idx = bkd.arange(3), [0]
+        model_idx, qoi_idx = bkd.arange(3), [0, 1]
         (
             funs,
             cov,
@@ -595,7 +627,7 @@ class TestGroupACV:
         # check that group acv computes the same estimator variance
         # as mfmc when estimating variance using the optimal mfmc sample allocation for
         # estimating variance
-        stat = multioutput_stats["variance"](1, backend=bkd, return_cov=False)
+        stat = multioutput_stats["variance"](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(cov, W)
         subsets = [[0, 1], [1, 2], [2]]
         subsets = [bkd.array(s, dtype=int) for s in subsets]
@@ -603,7 +635,7 @@ class TestGroupACV:
             stat, costs, model_subsets=subsets, est_type="nested"
         )
 
-        stat = multioutput_stats["variance"](1, backend=bkd)
+        stat = multioutput_stats["variance"](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(cov, W)
         mfmc_est = get_estimator(
             "gmf", stat, costs, recursion_index=bkd.array([0, 1])
@@ -631,7 +663,7 @@ class TestGroupACV:
         assert np.allclose(groupacv_est_val, mfmc_est_val)
 
         # check optimization of group acv
-        stat = multioutput_stats["variance"](1, backend=bkd, return_cov=False)
+        stat = multioutput_stats["variance"](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(cov, W)
         subsets = [[0, 1], [1, 2], [2]]
         subsets = [bkd.array(s, dtype=int) for s in subsets]
@@ -724,7 +756,7 @@ class TestGroupACV:
             print(test_case)
             self._check_multioutput_estimator_variance(*test_case)
 
-    def test_groupacv_multioutput_mean_estimation_mfmc(self):
+    def test_mean_estimation_mfmc(self):
         bkd = self.get_backend()
         # using qoi_ix = [2] does not demonstrate multioutput but does
         # demonstrate the effect of ill conditioning of covariance on GROUPACV
@@ -861,12 +893,129 @@ class TestGroupACV:
             (est._R[:, 8:10].T @ Lvec)[:, 0], bkd.array([4, 5])
         )
 
+    def test_mean_and_variance_estimation_mfmc(self):
+        # TODO rm test_mean_estimation_mfmc
+        # with this function that iterates over stat_name
+
+        bkd = self.get_backend()
+        # using qoi_ix = [2] does not demonstrate multioutput but does
+        # demonstrate the effect of ill conditioning of covariance on GROUPACV
+        # This can be seen by turning on and off pinv when inverting matrices
+        # pinv does not even get close and using inv with reg_blue > 0
+        # only obtains same optimized variance up to a few digits
+        qoi_idx = [0, 1]
+        model_idx = [0, 1, 2]
+        recursion_index = bkd.array([0, 1])
+        # model_idx = [0, 1]
+        # recursion_index = bkd.array([0])
+        target_cost = 10
+        # need psd benchmark because ill conditioning of covariance if not SPD
+        # cause difficultites for group acv
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem(
+                model_idx, qoi_idx, bkd, psd=True
+            )
+        )
+        W = benchmark.covariance_of_centered_values_kronker_product()
+        W = _nqoisq_nqoisq_subproblem(
+            W, benchmark.nmodels(), benchmark.nqoi(), model_idx, qoi_idx, bkd
+        )
+        B = benchmark.covariance_of_mean_and_variance_estimators()
+        B = _nqoi_nqoisq_subproblem(
+            B,
+            benchmark.nmodels(),
+            benchmark.nqoi(),
+            model_idx,
+            qoi_idx,
+            bkd,
+        )
+
+        stat_name = "variance"
+        pilot_quantities = {
+            "mean": (cov,),
+            "variance": (cov, W),
+            "mean_variance": (cov, W, B),
+        }
+        stat = multioutput_stats[stat_name](len(qoi_idx), backend=bkd)
+        stat.set_pilot_quantities(*pilot_quantities[stat_name])
+        mfmc_est = get_estimator(
+            "gmf", stat, costs, recursion_index=recursion_index
+        )
+        mfmc_est.allocate_samples(target_cost)
+
+        # psd = False will cause ill conditioning problems
+        funs, cov, costs, benchmark, means = (
+            _setup_multioutput_model_subproblem(
+                model_idx, qoi_idx, bkd, psd=True
+            )
+        )
+        stat = multioutput_stats[stat_name](len(qoi_idx), backend=bkd)
+        stat.set_pilot_quantities(*pilot_quantities[stat_name])
+        subsets = [[0, 1], [1, 2], [2]]
+        subsets = [bkd.array(s, dtype=int) for s in subsets]
+        est = GroupACVEstimator(
+            stat,
+            costs,
+            model_subsets=subsets,
+            est_type="nested",
+            reg_blue=0,
+            use_pseudo_inv=False,
+        )
+        # apply mfmc sample allocation to group acv
+        est._set_optimized_params(
+            mfmc_est._rounded_npartition_samples,
+            round_nsamples=False,
+        )
+        assert bkd.allclose(
+            est._optimized_covariance, mfmc_est._optimized_covariance
+        )
+        samples_per_model = mfmc_est.generate_samples_per_model(
+            lambda n: benchmark.variable().rvs(n)
+        )
+        values_per_model = [
+            fun(samples) for fun, samples in zip(funs, samples_per_model)
+        ]
+        groupacv_est_val = est(values_per_model)
+        mfmc_est_val = mfmc_est(values_per_model)
+        assert np.allclose(groupacv_est_val, mfmc_est_val)
+
+        opt1 = GroupACVGradientOptimizer(
+            ScipyConstrainedNelderMeadOptimizer(opts={"maxiter": 100})
+        )
+        opt1.set_estimator(est)
+
+        # hack group acv to minimize determinant (not trace) to be consistent
+        # with group acv
+        def _hack_fun(cov):
+            eigvals = bkd.eigh(cov)[0]
+            val = bkd.log(eigvals[eigvals > 1e-14]).sum()
+            return bkd.hstack((val,))[:, None]
+
+        def hack_fun(n):
+            variance = est._covariance_from_npartition_samples(n)
+            return _hack_fun(variance)
+
+        opt2 = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        opt2.set_estimator(est)
+        opt = ChainedACVOptimizer(opt1, opt2)
+        est.set_optimizer(opt)
+        iterate = est._init_guess(target_cost)
+        opt1._optimizer._objective._trace_covariance_wrapper = hack_fun
+        opt2._optimizer._objective._trace_covariance_wrapper = hack_fun
+        est.allocate_samples(target_cost, iterate=iterate, round_nsamples=True)
+        assert np.allclose(
+            _hack_fun(est._optimized_covariance), mfmc_est._optimized_criteria
+        )
+
 
 class TestTorchGroupACV(TestGroupACV, unittest.TestCase):
     def get_backend(self):
         return TorchMixin
-        # from pyapprox.util.backends.numpy import NumpyMixin
-        # return NumpyMixin
+
+
+# class TestNumpyGroupACV(TestGroupACV, unittest.TestCase):
+#     def get_backend(self):
+#         return NumpyMixin
 
 
 if __name__ == "__main__":

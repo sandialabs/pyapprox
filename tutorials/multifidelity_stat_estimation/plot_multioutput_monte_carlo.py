@@ -38,20 +38,23 @@ The following implements this procedure.
 
 First load the benchmark
 """
+
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks.multifidelity_benchmarks import MultiOutputModelEnsemble
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    MultiOutputModelEnsemble,
+)
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 from pyapprox.util.backends.numpy import NumpyMixin
 
 np.random.seed(1)
 benchmark = MultiOutputModelEnsemble()
 
-#%%
-#Now construct the estimator. The following requires the costs of the model
-#the covariance and some other quantities W and B. These four quantities are not
-#needed to compute the value of the estimator from a sample set, however they are needed to compute the MSE of the estimator and the number of samples of that model for a given target cost. We load these quantities but ignore there meaning for the moment.
+# %%
+# Now construct the estimator. The following requires the costs of the model
+# the covariance and some other quantities W and B. These four quantities are not
+# needed to compute the value of the estimator from a sample set, however they are needed to compute the MSE of the estimator and the number of samples of that model for a given target cost. We load these quantities but ignore there meaning for the moment.
 costs = np.array([1])
 nqoi = 3
 cov = benchmark.covariance()[:3, :3]
@@ -67,111 +70,115 @@ samples = est.generate_samples_per_model(benchmark.variable().rvs)[0]
 values = benchmark.models()[0](samples)
 stats = est(values)
 
-#%%
-#The following compares the estimated value with the true values. We are only extracting certain components from the benchmark because the benchmark is designed for estimating vector-valued statistics with multiple models, but we are ignoring the other models for now.
+# %%
+# The following compares the estimated value with the true values. We are only extracting certain components from the benchmark because the benchmark is designed for estimating vector-valued statistics with multiple models, but we are ignoring the other models for now.
 print(benchmark.mean()[0])
 print(stats[:3])
 print(benchmark.covariance()[:3, :3])
 print(stats[3:].reshape(3, 3))
 
-#%%
-#Similarly to a MC estimator for a scalar, a vector-valued MC estimator is a random variable. Assuming that we are not using an approximation of the model we care about, the error in the MC estimator is characterized completely by the covariance of the estimator statistics. The following draws from [DWBG2024]_ and shows how to compute the estimator covariance. We present general formula for the covariance between estimators of using different vector-valued models :math:`f_\alpha\text{ and }f_\beta` and using sample sets :math:`\rvset_N, \rvset_M` of (potentially) different sizes.
+# %%
+# Similarly to a MC estimator for a scalar, a vector-valued MC estimator is a random variable. Assuming that we are not using an approximation of the model we care about, the error in the MC estimator is characterized completely by the covariance of the estimator statistics. The following draws from [DWBG2024]_ and shows how to compute the estimator covariance. We present general formula for the covariance between estimators of using different vector-valued models :math:`f_\alpha\text{ and }f_\beta` and using sample sets :math:`\rvset_N, \rvset_M` of (potentially) different sizes.
 #
-#Mean Estimation
-#---------------
-#First consider the estimation of the mean. The covariance between two estimates of the mean that share P samples, i.e. :math:`P=|\rvset_\alpha\cup \rvset_\beta|`, is
+# Mean Estimation
+# ---------------
+# First consider the estimation of the mean. The covariance between two estimates of the mean that share P samples, i.e. :math:`P=|\rvset_\alpha\cup \rvset_\beta|`, is
 #
-#.. _eq_mean_covariance:
+# .. _eq_mean_covariance:
 #
-#.. math:: \covar{\mat{Q}^\mu_\alpha(\rvset_{N})}{\mat{Q}^\mu_\beta(\rvset_{M})} = \frac{P}{MN}\covar{f_\alpha}{f_\beta} \quad \in\reals^{K\times K}
+# .. math:: \covar{\mat{Q}^\mu_\alpha(\rvset_{N})}{\mat{Q}^\mu_\beta(\rvset_{M})} = \frac{P}{MN}\covar{f_\alpha}{f_\beta} \quad \in\reals^{K\times K}
 #
-#Variance Estimation
-#-------------------
-#The covariance between two estimators of variance is
+# Variance Estimation
+# -------------------
+# The covariance between two estimators of variance is
 #
-#.. _eq-var-covariance:
+# .. _eq-var-covariance:
 #
-#.. math::
+# .. math::
 #
 #   \covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})} = \frac{P(P-1)}{M(M-1)N(N-1)}\mat{V}_{\alpha,\beta}+\frac{P}{MN}\mat{W}_{\alpha,\beta}  \quad \in\reals^{K^2\times K^2}
 #
-#where
+# where
 #
-#.. math:: \mat{V}_{\alpha,\beta} = \covar{f_\alpha}{f_\beta}^{\otimes2}+(\mat{1}_K^\top\otimes\covar{f_\alpha}{f_\beta}\otimes\mat{1}_K)\circ(\mat{1}_K\otimes\covar{f_\alpha}{f_\beta}\otimes\mat{1}_K^\top),\quad \in \reals^{K^2\times K^2}
+# .. math:: \mat{V}_{\alpha,\beta} = \covar{f_\alpha}{f_\beta}^{\otimes2}+(\mat{1}_K^\top\otimes\covar{f_\alpha}{f_\beta}\otimes\mat{1}_K)\circ(\mat{1}_K\otimes\covar{f_\alpha}{f_\beta}\otimes\mat{1}_K^\top),\quad \in \reals^{K^2\times K^2}
 #
-#.. math:: \mat{W}_{\alpha,\beta} = \covar{(f_\alpha-\mean{f_\alpha})^{\otimes 2}}{(f_\beta-\mean{f_\beta})^{\otimes 2}} \quad \in \reals^{K^2\times K^2}
+# .. math:: \mat{W}_{\alpha,\beta} = \covar{(f_\alpha-\mean{f_\alpha})^{\otimes 2}}{(f_\beta-\mean{f_\beta})^{\otimes 2}} \quad \in \reals^{K^2\times K^2}
 #
-#Above we used the notation, for general matrices :math:`\mat{X},\mat{Y}`,
+# Above we used the notation, for general matrices :math:`\mat{X},\mat{Y}`,
 #
-#.. math:: \mat{X}\otimes \mat{Y}=\text{flat}(\mat{X}\mat{Y}^\top)
+# .. math:: \mat{X}\otimes \mat{Y}=\text{flat}(\mat{X}\mat{Y}^\top)
 #
-#for a flattened outer product,
+# for a flattened outer product,
 #
-#.. math:: \mat{X}\circ \mat{Y}
+# .. math:: \mat{X}\circ \mat{Y}
 #
-#for an element wise product, and
+# for an element wise product, and
 #
-#.. math:: X^{\otimes2}=\mat{X}\otimes \mat{X}
+# .. math:: X^{\otimes2}=\mat{X}\otimes \mat{X}
 #
-#Simultaneous Mean and Variance Estimation
-#-----------------------------------------
-#The covariance between two estimators of mean and variance of the form
+# Simultaneous Mean and Variance Estimation
+# -----------------------------------------
+# The covariance between two estimators of mean and variance of the form
 #
-#.. _eq_mean_var_covariance:
+# .. _eq_mean_var_covariance:
 #
-#.. math::
+# .. math::
 #
 #   \mat{Q}_\alpha^{\mu,\Sigma}(\rvset_{N})=[\mat{Q}_\alpha^{\mu}(\rvset_{N}), \mat{Q}_\alpha^{\Sigma}(\rvset_{N})]^\top  \quad \in\reals^{(K+K^2)\times (K+K^2)}
 #
-#is
+# is
 #
-#.. math:: \covar{\mat{Q}_\alpha^{\mu,\Sigma}(\rvset_{N})}{\mat{Q}_\beta^{\mu,\Sigma}(\rvset_{M})} = \begin{bmatrix}\covar{\mat{Q}_\alpha^\mu(\rvset_{N})}{\mat{Q}_\beta^\mu(\rvset_{N})} & \covar{\mat{Q}_\alpha^\mu(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})}\\ \covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{M})}{\mat{Q}_\beta^\mu(\rvset_{N})}& \covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{M})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})}\end{bmatrix}
+# .. math:: \covar{\mat{Q}_\alpha^{\mu,\Sigma}(\rvset_{N})}{\mat{Q}_\beta^{\mu,\Sigma}(\rvset_{M})} = \begin{bmatrix}\covar{\mat{Q}_\alpha^\mu(\rvset_{N})}{\mat{Q}_\beta^\mu(\rvset_{N})} & \covar{\mat{Q}_\alpha^\mu(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})}\\ \covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{M})}{\mat{Q}_\beta^\mu(\rvset_{N})}& \covar{\mat{Q}_\alpha^{\Sigma}(\rvset_{M})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})}\end{bmatrix}
 #
-#We have already shown the form of the upper and lower diagonal blocks. The off diagonal blocks are
+# We have already shown the form of the upper and lower diagonal blocks. The off diagonal blocks are
 #
-#.. math:: \covar{\mat{Q}_\alpha^\mu(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})}=\frac{P}{MN}\mat{B}_{\alpha,\beta}\quad\in\reals^{K\times K^2}
+# .. math:: \covar{\mat{Q}_\alpha^\mu(\rvset_{N})}{\mat{Q}_\beta^{\Sigma}(\rvset_{M})}=\frac{P}{MN}\mat{B}_{\alpha,\beta}\quad\in\reals^{K\times K^2}
 #
-#where
+# where
 #
-#.. math:: \mat{B}_{\alpha,\beta}=\covar{f_\alpha}{(f_\beta-\mean{f_\beta})^{\otimes 2}}\quad\in\reals^{K\times K^2}
+# .. math:: \mat{B}_{\alpha,\beta}=\covar{f_\alpha}{(f_\beta-\mean{f_\beta})^{\otimes 2}}\quad\in\reals^{K\times K^2}
 #
-#MSE
-#---
-#For vector valued statistics, the MSE formular presented in the previous tutorial no longer makes sense because the estimator is a multivariate random variable with a mean and covariance (not a mean and variance like for the scalar formulation). Consequently, for an unbiased estimator, the error in a vector-valued statistic is usually a scalar function of the estimator covariance. Two common choices are the determinant and trace of the estimator covariance.
+# MSE
+# ---
+# For vector valued statistics, the MSE formular presented in the previous tutorial no longer makes sense because the estimator is a multivariate random variable with a mean and covariance (not a mean and variance like for the scalar formulation). Consequently, for an unbiased estimator, the error in a vector-valued statistic is usually a scalar function of the estimator covariance. Two common choices are the determinant and trace of the estimator covariance.
 #
-#The estimator covariance can be obtained using
+# The estimator covariance can be obtained using
 #
 from pyapprox.multifidelity.visualize import plot_correlation_matrix
-# plot correlation matrix can also be used for covariance matrics
-labels = ([r"$(Q^{\mu}_{0})_{%d}$" % (ii+1) for ii in range(nqoi)] +
-          [r"$(Q^{\Sigma}_{0})_{%d,%d}$" % (ii+1, jj+1)
-           for ii in range(nqoi) for jj in range(nqoi)])
-ax = plt.subplots(1, 1, figsize=(2*8, 2*6))[1]
-_ = plot_correlation_matrix(
-    est.optimized_covariance(), ax=ax, model_names=labels, label_fontsize=20)
 
-#%%
-#We can plot the diagonal, which contains the estimator variances that would be obtained if each statistic was treated individually.
+# plot correlation matrix can also be used for covariance matrics
+labels = [r"$(Q^{\mu}_{0})_{%d}$" % (ii + 1) for ii in range(nqoi)] + [
+    r"$(Q^{\Sigma}_{0})_{%d,%d}$" % (ii + 1, jj + 1)
+    for ii in range(nqoi)
+    for jj in range(nqoi)
+]
+ax = plt.subplots(1, 1, figsize=(2 * 8, 2 * 6))[1]
+_ = plot_correlation_matrix(
+    est.optimized_covariance(), ax=ax, model_names=labels, label_fontsize=20
+)
+
+# %%
+# We can plot the diagonal, which contains the estimator variances that would be obtained if each statistic was treated individually.
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 est_variances = np.diag(est.optimized_covariance())
 _ = plt.bar(labels, est_variances)
 
-#%%
-#Remarks
-#-------
-#Similar experssions to those above for scalar outputs can be found in [QPOVW2018]_.
+# %%
+# Remarks
+# -------
+# Similar experssions to those above for scalar outputs can be found in [QPOVW2018]_.
 
-#%%
-#Video
-#-----
-#Click on the image below to view a video tutorial on multi-output Monte Carlo quadrature
+# %%
+# Video
+# -----
+# Click on the image below to view a video tutorial on multi-output Monte Carlo quadrature
 #
-#.. image:: ../../figures/multi-output-mc-thumbnail.png
+# .. image:: ../../figures/multi-output-mc-thumbnail.png
 #   :target: https://youtu.be/u4Oa8tV-phM?si=OCNJLSMGdncByTfq
 
-#%%
-#References
-#^^^^^^^^^^^
-#.. [DWBG2024] `T. Dixon et al. Covariance Expressions for Multi-Fidelity Sampling with Multi-Output, Multi-Statistic Estimators: Application to Approximate Control Variates. 2024 <https://doi.org/10.48550/arXiv.2310.00125>`_
+# %%
+# References
+# ^^^^^^^^^^^
+# .. [DWBG2024] `T. Dixon et al. Covariance Expressions for Multi-Fidelity Sampling with Multi-Output, Multi-Statistic Estimators: Application to Approximate Control Variates. SIAM/ASA Journal on Uncertainty Quantification, 12(3):1005-1049, 2024 <https://doi.org/10.1137/23M1607994>`_
 #
-#.. [QPOVW2018] `Multifidelity Monte Carlo Estimation of Variance and Sensitivity Indices E. Qian, B. Peherstorfer, D. OMalley, V. V. Vesselinov, and K. Willcox. SIAM/ASA Journal on Uncertainty Quantification 2018 6:2, 683-706 <https://doi.org/10.1137/17M1151006>`_
+# .. [QPOVW2018] `Multifidelity Monte Carlo Estimation of Variance and Sensitivity Indices E. Qian, B. Peherstorfer, D. OMalley, V. V. Vesselinov, and K. Willcox. SIAM/ASA Journal on Uncertainty Quantification 6(2): 683-706, 2018  <https://doi.org/10.1137/17M1151006>`_

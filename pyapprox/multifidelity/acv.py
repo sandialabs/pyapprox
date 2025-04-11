@@ -167,28 +167,10 @@ class MCEstimator:
 
         costs : Array (nmodels)
             The relative costs of evaluating each model
-
-        opt_criteria : callable
-            Function of the the covariance between the high-fidelity
-            QoI estimators with signature
-
-            ``opt_criteria(variance) -> float
-
-            where variance is Array with size that depends on
-            what statistics are being estimated. E.g. when estimating means
-            then variance shape is (nqoi, nqoi), when estimating variances
-            then variance shape is (nqoi**2, nqoi**2), when estimating mean
-            and variance then shape (nqoi+nqoi**2, nqoi+nqoi**2)
         """
         self._bkd = stat._bkd
-        if not isinstance(stat, MultiOutputStatistic):
-            raise ValueError(
-                "stat must be an instance of MultiOutputStatistic"
-            )
-        self._stat = stat
-        self._cov, self._costs, self._nmodels, self._nqoi = self._check_cov(
-            self._stat._cov, costs
-        )
+
+        self._stat, self._costs = self._check_inputs(stat, costs)
         self._optimization_criteria = self._log_determinant_variance
 
         self._rounded_nsamples_per_model = None
@@ -199,24 +181,19 @@ class MCEstimator:
         self._model_labels = None
         self._npartitions = 1
 
-    def _check_cov(
-        self, cov: Array, costs: Union[List, Array]
+    def _check_inputs(
+        self, stat: MultiOutputStatistic, costs: Union[List, Array]
     ) -> Tuple[Array, Array, int, int]:
+        if not isinstance(stat, MultiOutputStatistic):
+            raise ValueError(
+                "stat must be an instance of MultiOutputStatistic"
+            )
+
         costs = self._bkd.atleast1d(costs)
         if costs.ndim != 1:
             raise ValueError("costs is not a 1D iterable")
-        nmodels = len(costs)
-        if cov.shape[0] % nmodels:
-            msg = "cov.shape {0} and costs.shape {1} are inconsistent".format(
-                cov.shape, costs.shape
-            )
-            raise ValueError(msg)
-        return (
-            self._bkd.array(cov),
-            self._bkd.array(costs),
-            nmodels,
-            cov.shape[0] // nmodels,
-        )
+        self._nmodels = stat._nmodels
+        return stat, costs
 
     def _log_determinant_variance(self, variance: Array) -> float:
         # Only compute large eigvalues as the variance will
@@ -312,7 +289,8 @@ class MCEstimator:
             values.shape[0] != self._rounded_nsamples_per_model[0]
         ):
             msg = "values has the incorrect shape {0} expected {1}".format(
-                values.shape, (self._rounded_nsamples_per_model[0], self._nqoi)
+                values.shape,
+                (self._rounded_nsamples_per_model[0], self._stat._nqoi),
             )
             raise ValueError(msg)
         return self._stat.sample_estimate(values)
@@ -365,7 +343,7 @@ class MCEstimator:
     def __repr__(self):
         if self._optimized_criteria is None:
             return "{0}(stat={1}, nqoi={2})".format(
-                self.__class__.__name__, self._stat, self._nqoi
+                self.__class__.__name__, self._stat, self._stat._nqoi
             )
         rep = "{0}(stat={1}, criteria={2:.3g}".format(
             self.__class__.__name__, self._stat, self._optimized_criteria
@@ -1760,13 +1738,16 @@ class MFMCEstimator(GMFEstimator):
     def _allocate_samples(self, target_cost: float):
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
-        nqoi = self._cov.shape[0] // len(self._costs)
         if not _check_mfmc_model_costs_and_correlations(
-            self._costs, get_correlation_from_covariance(self._cov, self._bkd)
+            self._costs,
+            get_correlation_from_covariance(self._stat._cov, self._bkd),
         ):
             raise ValueError("models do not admit a hierarchy")
         nsample_ratios, val = _allocate_samples_mfmc(
-            self._cov[self._opt_qoi :: nqoi, self._opt_qoi :: nqoi],
+            self._stat._cov[
+                self._opt_qoi :: self._stat._nqoi,
+                self._opt_qoi :: self._stat._nqoi,
+            ],
             self._costs,
             target_cost,
             self._bkd,
@@ -1833,9 +1814,11 @@ class MLMCEstimator(GRDEstimator):
         )
 
     def _allocate_samples(self, target_cost: float):
-        nqoi = self._cov.shape[0] // len(self._costs)
         nsample_ratios, val = _allocate_samples_mlmc(
-            self._cov[self._opt_qoi :: nqoi, self._opt_qoi :: nqoi],
+            self._stat._cov[
+                self._opt_qoi :: self._stat._nqoi,
+                self._opt_qoi :: self._stat._nqoi,
+            ],
             self._costs,
             target_cost,
             self._bkd,

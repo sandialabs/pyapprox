@@ -14,8 +14,6 @@ dependencies:
   - pytest-cov
   - pip
   - setuptools
-  - scikit-learn
-  - Cython
   - sympy
   - networkx
   - pytorch<=2.2.0

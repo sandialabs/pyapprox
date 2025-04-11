@@ -865,7 +865,17 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def tril_indices(n: int, k: int = 0, m: int = None) -> Array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def triu(array: Array, k: int = 0) -> Array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def triu_indices(n: int, k: int = 0, m: int = None) -> Array:
         raise NotImplementedError
 
     @staticmethod

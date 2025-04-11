@@ -564,8 +564,20 @@ class TorchMixin(BackendMixin):
         return torch.tril(array, diagonal=k)
 
     @staticmethod
+    def tril_indices(n: int, k: int = 0, m: int = None) -> torch.tensor:
+        if m is None:
+            m = n
+        return torch.tril_indices(n, m, k)
+
+    @staticmethod
     def triu(array: torch.tensor, k: int = 0) -> torch.tensor:
         return torch.triu(array, diagonal=k)
+
+    @staticmethod
+    def triu_indices(n: int, k: int = 0, m: int = None) -> torch.tensor:
+        if m is None:
+            m = n
+        return torch.triu_indices(n, m, k)
 
     @staticmethod
     def digamma(array: torch.tensor) -> torch.tensor:

@@ -1,15 +1,17 @@
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Tuple
 
 from pyapprox.util.backends.template import Array, BackendMixin
 
 
-def block_2x2(blocks, bkd):
+def block_2x2(blocks: List[Array], bkd: BackendMixin) -> Array:
     return bkd.vstack([bkd.hstack(blocks[0]), bkd.hstack(blocks[1])])
 
 
-def _get_nsamples_intersect(allocation_mat, npartition_samples, bkd):
+def _get_nsamples_intersect(
+    allocation_mat: Array, npartition_samples: Array, bkd
+) -> Array:
     r"""
     Returns
     -------
@@ -32,7 +34,9 @@ def _get_nsamples_intersect(allocation_mat, npartition_samples, bkd):
     return nsamples_intersect
 
 
-def _get_nsamples_subset(allocation_mat, npartition_samples, bkd):
+def _get_nsamples_subset(
+    allocation_mat: Array, npartition_samples: Array, bkd
+) -> Array:
     r"""
     Get the number of samples allocated to the sample subsets
     :math:`|z^\star_i` and :math:`|z_i|`
@@ -52,8 +56,8 @@ def _get_nsamples_subset(allocation_mat, npartition_samples, bkd):
 
 
 def _get_acv_mean_discrepancy_covariances_multipliers(
-    allocation_mat, npartition_samples, bkd
-):
+    allocation_mat: Array, npartition_samples: Array, bkd
+) -> Tuple[Array, Array]:
     nmodels = allocation_mat.shape[0]
     if bkd.any(npartition_samples < 0):
         raise RuntimeError(
@@ -90,8 +94,8 @@ def _get_acv_mean_discrepancy_covariances_multipliers(
 
 
 def _get_acv_variance_discrepancy_covariances_multipliers(
-    allocation_mat, npartition_samples, bkd
-):
+    allocation_mat: Array, npartition_samples: Array, bkd
+) -> Tuple[Array, Array]:
     """
     Compute H from Equation 3.14 of Dixon et al.
     """
@@ -132,7 +136,9 @@ def _get_acv_variance_discrepancy_covariances_multipliers(
     return Hmat, hvec
 
 
-def _get_multioutput_acv_mean_discrepancy_covariances(cov, Gmat, gvec, bkd):
+def _get_multioutput_acv_mean_discrepancy_covariances(
+    cov: Array, Gmat: Array, gvec: Array, bkd
+) -> Tuple[Array, Array]:
     r"""
     Compute the ACV discrepancies for estimating means
 
@@ -198,8 +204,8 @@ def _get_multioutput_acv_mean_discrepancy_covariances(cov, Gmat, gvec, bkd):
 
 
 def _get_multioutput_acv_variance_discrepancy_covariances(
-    V, W, Gmat, gvec, Hmat, hvec, bkd
-):
+    V: Array, W: Array, Gmat: Array, gvec: Array, Hmat: Array, hvec: Array, bkd
+) -> Tuple[Array, Array]:
     r"""
     Compute the ACV discrepancies for estimating variance
 
@@ -281,8 +287,16 @@ def _get_multioutput_acv_variance_discrepancy_covariances(
 
 
 def _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
-    cov, V, W, B, Gmat, gvec, Hmat, hvec, bkd
-):
+    cov: Array,
+    V: Array,
+    W: Array,
+    B: Array,
+    Gmat: Array,
+    gvec: Array,
+    Hmat: Array,
+    hvec: Array,
+    bkd: BackendMixin,
+) -> Tuple[Array, Array]:
     CF_mean, cf_mean = _get_multioutput_acv_mean_discrepancy_covariances(
         cov, Gmat, gvec, bkd
     )
@@ -347,7 +361,7 @@ def _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
     return CF, cf
 
 
-def _V_entry(cov, bkd):
+def _V_entry(cov: Array, bkd: BackendMixin) -> Array:
     V = bkd.kron(cov, cov)
     ones = bkd.ones((cov.shape[0], 1))
     V += bkd.kron(bkd.kron(ones.T, cov), ones) * bkd.kron(
@@ -356,7 +370,7 @@ def _V_entry(cov, bkd):
     return V
 
 
-def _get_V_from_covariance(cov, nmodels, bkd):
+def _get_V_from_covariance(cov: Array, nmodels, bkd: BackendMixin) -> Array:
     nqoi = cov.shape[0] // nmodels
     V = [[None for jj in range(nmodels)] for ii in range(nmodels)]
     for ii in range(nmodels):
@@ -373,11 +387,13 @@ def _get_V_from_covariance(cov, nmodels, bkd):
     return bkd.block(V)
 
 
-def _covariance_of_variance_estimator(W, V, nsamples):
+def _covariance_of_variance_estimator(W: Array, V: Array, nsamples) -> Array:
     return W / nsamples + V / (nsamples * (nsamples - 1))
 
 
-def _W_entry(pilot_values_ii, pilot_values_jj, bkd):
+def _W_entry(
+    pilot_values_ii: Array, pilot_values_jj: Array, bkd: BackendMixin
+) -> Array:
     nqoi = pilot_values_ii.shape[1]
     npilot_samples = pilot_values_ii.shape[0]
     assert pilot_values_jj.shape[0] == npilot_samples
@@ -404,7 +420,9 @@ def _W_entry(pilot_values_ii, pilot_values_jj, bkd):
     return mc_cov
 
 
-def _get_W_from_pilot(pilot_values, nmodels, bkd):
+def _get_W_from_pilot(
+    pilot_values: Array, nmodels, bkd: BackendMixin
+) -> Array:
     # for one model 1 qoi this is the kurtosis
     nqoi = pilot_values.shape[1] // nmodels
     W = [[None for jj in range(nmodels)] for ii in range(nmodels)]
@@ -418,7 +436,9 @@ def _get_W_from_pilot(pilot_values, nmodels, bkd):
     return bkd.block(W)
 
 
-def _B_entry(pilot_values_ii, pilot_values_jj, bkd):
+def _B_entry(
+    pilot_values_ii: Array, pilot_values_jj: Array, bkd: BackendMixin
+) -> Array:
     nqoi = pilot_values_ii.shape[1]
     npilot_samples = pilot_values_ii.shape[0]
     assert pilot_values_jj.shape[0] == npilot_samples
@@ -439,7 +459,9 @@ def _B_entry(pilot_values_ii, pilot_values_jj, bkd):
     return mc_cov
 
 
-def _get_B_from_pilot(pilot_values, nmodels, bkd):
+def _get_B_from_pilot(
+    pilot_values: Array, nmodels, bkd: BackendMixin
+) -> Array:
     nqoi = pilot_values.shape[1] // nmodels
     B = [[None for jj in range(nmodels)] for ii in range(nmodels)]
     for ii in range(nmodels):
@@ -452,7 +474,9 @@ def _get_B_from_pilot(pilot_values, nmodels, bkd):
     return bkd.block(B)
 
 
-def _nqoi_nqoi_subproblem(C, nmodels, nqoi, model_idx, qoi_idx, bkd):
+def _nqoi_nqoi_subproblem(
+    C: Array, nmodels, nqoi, model_idx, qoi_idx, bkd: BackendMixin
+) -> Array:
     nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
     C_new = bkd.empty((nsub_models * nsub_qoi, nsub_models * nsub_qoi))
     cnt1 = 0
@@ -469,7 +493,9 @@ def _nqoi_nqoi_subproblem(C, nmodels, nqoi, model_idx, qoi_idx, bkd):
     return C_new
 
 
-def _nqoisq_nqoisq_subproblem(V, nmodels, nqoi, model_idx, qoi_idx, bkd):
+def _nqoisq_nqoisq_subproblem(
+    V: Array, nmodels, nqoi, model_idx, qoi_idx, bkd
+) -> Array:
     nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
     V_new = bkd.empty((nsub_models * nsub_qoi**2, nsub_models * nsub_qoi**2))
     cnt1 = 0
@@ -488,7 +514,9 @@ def _nqoisq_nqoisq_subproblem(V, nmodels, nqoi, model_idx, qoi_idx, bkd):
     return V_new
 
 
-def _nqoi_nqoisq_subproblem(B, nmodels, nqoi, model_idx, qoi_idx, bkd):
+def _nqoi_nqoisq_subproblem(
+    B: Array, nmodels, nqoi, model_idx, qoi_idx, bkd: BackendMixin
+) -> Array:
     nsub_models, nsub_qoi = len(model_idx), len(qoi_idx)
     B_new = bkd.empty((nsub_models * nsub_qoi, nsub_models * nsub_qoi**2))
     cnt1 = 0
@@ -529,15 +557,15 @@ class MultiOutputStatistic(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def sample_estimate(self, values: Array):
+    def sample_estimate(self, values: Array) -> Array:
         raise NotImplementedError
 
     @abstractmethod
-    def high_fidelity_estimator_covariance(self, nhf_samples: int):
+    def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
         raise NotImplementedError
 
     @abstractmethod
-    def compute_pilot_quantities(self, pilot_values: Array):
+    def compute_pilot_quantities(self, pilot_values: Array) -> Tuple:
         raise NotImplementedError
 
     @abstractmethod
@@ -545,35 +573,42 @@ class MultiOutputStatistic(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _get_cv_discrepancy_covariances(self, estimator, npartition_samples):
+    def _get_cv_discrepancy_covariances(
+        self, estimator, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
         raise NotImplementedError
 
     @abstractmethod
-    def _get_acv_discrepancy_covariances(self, estimator, npartition_samples):
+    def _get_acv_discrepancy_covariances(
+        self, estimator, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
         raise NotImplementedError
 
     @abstractmethod
     def get_pilot_quantities_subset(
-        self, nmodels, nqoi, model_idx, qoi_idx=None
+        self, nmodels: int, nqoi: int, model_idx: int, qoi_idx: int = None
     ):
         raise NotImplementedError
 
-    def __repr__(self):
-        return "{0}".format(self.__class__.__name__)
+    def __repr__(self) -> str:
+        return "{0}(nmodels={1}, nqoi={2}, nstats={3})".format(
+            self.__class__.__name__, self._nmodels, self._nqoi, self.nstats()
+        )
 
     @abstractmethod
-    def min_nsamples(self):
+    def min_nsamples(self) -> int:
         """Min number of samples to compute the statistic"""
         raise NotImplementedError
 
     def _group_acv_sigma_block(
         self,
-        subset0,
-        subset1,
+        subset0: Array,
+        subset1: Array,
         nsamples_intersect,
         nsamples_subset0,
         nsamples_subset1,
-    ):
+    ) -> Array:
+        # should resemble high_fidelity_estimator_covariance()
         raise NotImplementedError
 
     def _check_pilot_values(self, pilot_values: List[Array]):
@@ -599,27 +634,33 @@ class MultiOutputMean(MultiOutputStatistic):
     def nstats(self) -> int:
         return self.nqoi()
 
-    def sample_estimate(self, values):
+    def sample_estimate(self, values: Array) -> Array:
         return self._bkd.mean(values, axis=0)
 
-    def high_fidelity_estimator_covariance(self, nhf_samples):
+    def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
         return self._cov[: self._nqoi, : self._nqoi] / nhf_samples
 
-    def compute_pilot_quantities(self, pilot_values: Array):
+    def compute_pilot_quantities(
+        self, pilot_values: List[Array]
+    ) -> Tuple[Array]:
         self._check_pilot_values(pilot_values)
         pilot_values = self._bkd.hstack(pilot_values)
         return (self._bkd.cov(pilot_values, rowvar=False, ddof=1),)
 
-    def set_pilot_quantities(self, cov):
+    def set_pilot_quantities(self, cov: Array):
         self._cov = self._bkd.asarray(cov, dtype=self._bkd.double_type())
         self._nmodels = self._cov.shape[0] // self._nqoi
 
-    def _get_discrepancy_covariances(self, Gmat, gvec):
+    def _get_discrepancy_covariances(
+        self, Gmat: Array, gvec: Array
+    ) -> Tuple[Array, Array]:
         return _get_multioutput_acv_mean_discrepancy_covariances(
             self._cov, Gmat, gvec, self._bkd
         )
 
-    def _get_cv_discrepancy_covariances(self, npartition_samples):
+    def _get_cv_discrepancy_covariances(
+        self, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
         Gmat = self._bkd.full(
             (self._nmodels - 1, self._nmodels - 1),
             1.0 / npartition_samples[0],
@@ -633,16 +674,16 @@ class MultiOutputMean(MultiOutputStatistic):
         return self._get_discrepancy_covariances(Gmat, gvec)
 
     def _get_acv_discrepancy_covariances(
-        self, allocation_mat, npartition_samples
-    ):
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
         Gmat, gvec = _get_acv_mean_discrepancy_covariances_multipliers(
             allocation_mat, npartition_samples, self._bkd
         )
         return self._get_discrepancy_covariances(Gmat, gvec)
 
     def get_pilot_quantities_subset(
-        self, nmodels, nqoi, model_idx, qoi_idx=None
-    ):
+        self, nmodels: int, nqoi: int, model_idx: int, qoi_idx: int = None
+    ) -> Tuple[Array]:
         if qoi_idx is None:
             qoi_idx = self._bkd.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
@@ -650,17 +691,18 @@ class MultiOutputMean(MultiOutputStatistic):
         )
         return (cov_sub,)
 
-    def min_nsamples(self):
+    def min_nsamples(self) -> int:
         return 1
 
     def _group_acv_sigma_block(
         self,
-        subset0,
-        subset1,
+        subset0: Array,
+        subset1: Array,
         nsamples_intersect,
         nsamples_subset0,
         nsamples_subset1,
-    ):
+    ) -> Array:
+        # should resemble high_fidelity_estimator_covariance()
         if self._cov is None:
             raise RuntimeError("must call set_pilot_quantities")
         cov = self._cov[np.ix_(subset0, subset1)]
@@ -672,7 +714,6 @@ class MultiOutputVariance(MultiOutputStatistic):
         self,
         nqoi: int,
         backend: BackendMixin,
-        return_cov: bool = True,
     ):
         super().__init__(nqoi, backend)
 
@@ -680,36 +721,66 @@ class MultiOutputVariance(MultiOutputStatistic):
         self._cov = None
         self._W = None
         self._V = None
-        self._return_cov = return_cov
+
+    def _set_compressed_data(self):
+        # subset0 wil contain indices into lower diagonal of covariance
+        # e.g. for model subset [0, 1] with 2 qoi
+        # subset0 = ([0, 1, 2], [3, 4, 5])
+        # ([brackets denote qoi for each model]
+        # but V and W are stored in terms on indices into entire covariance
+        # e.g. ([0, 1, 2, 3], [4, 5, 6, 7])
+        # so when subset  ([0, 1, 2], [3, 4, 5]) comes in we want to extract
+        # entries of V corresponding to rows (and columns)
+        # ([0, 2, 3], [4, 6, 7])
+
+        # get compressed V
+        tril_idx = self._bkd.tril_indices(self._nqoi)
+        self._tril_idx_flat = self._bkd.arange(
+            self._nqoi**2, dtype=int
+        ).reshape((self._nqoi, self._nqoi))[*tril_idx]
+
+        self._comp_idx = self._bkd.hstack(
+            [
+                self._tril_idx_flat + ii * self._nqoi**2
+                for ii in range(self._nmodels)
+            ]
+        )
+        self._Vcomp = self._V[np.ix_(self._comp_idx, self._comp_idx)]
+        self._Wcomp = self._W[np.ix_(self._comp_idx, self._comp_idx)]
 
     def nstats(self) -> int:
-        return self.nqoi() ** 2
+        return self._tril_idx_flat.shape[0]  # self.nqoi() ** 2
 
-    def sample_estimate(self, values: Array):
-        if self._return_cov:
-            return self._bkd.cov(values.T, ddof=1).flatten()
-        else:
-            cov = self._bkd.cov(values.T, ddof=1)
-            if self._bkd.ndim(cov) == 2:
-                return self._bkd.diag(cov)
-            else:
-                return cov.flatten()
+    def sample_estimate(self, values: Array) -> Array:
+        nmodels_in_subset = values.shape[1] // self._nqoi
+        flat_covs = [
+            self._bkd.cov(
+                values[:, ii * self._nqoi : (ii + 1) * self._nqoi],
+                ddof=1,
+                rowvar=False,
+            ).flatten()[self._tril_idx_flat]
+            for ii in range(nmodels_in_subset)
+        ]
+        return self._bkd.hstack(flat_covs)
 
-    def high_fidelity_estimator_covariance(self, nhf_samples: int):
+    def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
+        raise RuntimeError("todo make consistent with tril_indices")
         return _covariance_of_variance_estimator(
             self._W[: self._nqoi**2, : self._nqoi**2],
             self._V[: self._nqoi**2, : self._nqoi**2],
             nhf_samples,
         )
 
-    def compute_pilot_quantities(self, pilot_values: List[Array]):
+    def compute_pilot_quantities(
+        self, pilot_values: List[Array]
+    ) -> Tuple[Array, Array]:
         self._check_pilot_values(pilot_values)
         nmodels = len(pilot_values)
         pilot_values = self._bkd.hstack(pilot_values)
         cov = self._bkd.cov(pilot_values, rowvar=False, ddof=1)
         return cov, _get_W_from_pilot(pilot_values, nmodels, self._bkd)
 
-    def set_pilot_quantities(self, cov, W):
+    def set_pilot_quantities(self, cov: Array, W: Array):
         self._cov = self._bkd.asarray(cov, dtype=self._bkd.double_type())
         self._nmodels = self._cov.shape[0] // self._nqoi
         self._V = self._bkd.asarray(
@@ -722,13 +793,18 @@ class MultiOutputVariance(MultiOutputStatistic):
             )
             raise ValueError(msg)
         self._W = self._bkd.asarray(W, dtype=self._bkd.double_type())
+        self._set_compressed_data()
 
-    def _get_discrepancy_covariances(self, Gmat, gvec, Hmat, hvec):
+    def _get_discrepancy_covariances(
+        self, Gmat: Array, gvec: Array, Hmat: Array, hvec: Array
+    ) -> Tuple[Array, Array]:
         return _get_multioutput_acv_variance_discrepancy_covariances(
             self._V, self._W, Gmat, gvec, Hmat, hvec, self._bkd
         )
 
-    def _get_cv_discrepancy_covariances(self, npartition_samples):
+    def _get_cv_discrepancy_covariances(
+        self, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
         Gmat = self._bkd.full(
             (self._nmodels - 1, self._nmodels - 1),
             1.0 / npartition_samples[0],
@@ -752,8 +828,8 @@ class MultiOutputVariance(MultiOutputStatistic):
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
     def _get_acv_discrepancy_covariances(
-        self, allocation_mat, npartition_samples
-    ):
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
         Gmat, gvec = _get_acv_mean_discrepancy_covariances_multipliers(
             allocation_mat, npartition_samples, self._bkd
         )
@@ -763,8 +839,8 @@ class MultiOutputVariance(MultiOutputStatistic):
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
     def get_pilot_quantities_subset(
-        self, nmodels, nqoi, model_idx, qoi_idx=None
-    ):
+        self, nmodels: int, nqoi: int, model_idx, qoi_idx=None
+    ) -> Tuple[Array, Array]:
         if qoi_idx is None:
             qoi_idx = self._bkd.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
@@ -775,28 +851,29 @@ class MultiOutputVariance(MultiOutputStatistic):
         )
         return cov_sub, W_sub
 
-    def min_nsamples(self):
+    def min_nsamples(self) -> int:
         return 1
 
     def _group_acv_sigma_block(
         self,
-        subset0,
-        subset1,
-        nsamples_intersect,
-        nsamples_subset0,
-        nsamples_subset1,
-    ):
+        subset0: Array,
+        subset1: Array,
+        nsamples_intersect: int,
+        nsamples_subset0: int,
+        nsamples_subset1: int,
+    ) -> Array:
+        # should resemble high_fidelity_estimator_covariance()
         if self._cov is None:
             raise RuntimeError("must call set_pilot_quantities")
-        block = self._V[np.ix_(subset0, subset1)] * (
-            nsamples_intersect * (nsamples_intersect - 1)
-        ) / (
+        W_ratio = nsamples_intersect / (nsamples_subset0 * nsamples_subset1)
+        V_ratio = (nsamples_intersect * (nsamples_intersect - 1)) / (
             (nsamples_subset0 * (nsamples_subset0 - 1))
             * (nsamples_subset1 * (nsamples_subset1 - 1))
-        ) + (
-            self._W[np.ix_(subset0, subset1)]
-            * nsamples_intersect
-            / (nsamples_subset0 * nsamples_subset1)
+        )
+        print(subset0)
+        block = (
+            self._Vcomp[np.ix_(subset0, subset1)] * V_ratio
+            + self._Wcomp[np.ix_(subset0, subset1)] * W_ratio
         )
         return block
 
@@ -811,18 +888,59 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         self._V = None
         self._B = None
 
-    def nstats(self) -> int:
-        return self.nqoi() * (1 + self.nqoi())
+    def _set_compressed_data(self):
+        # subset0 wil contain indices into lower diagonal of covariance
+        # e.g. for model subset [0, 1] with 2 qoi
+        # subset0 = ([0, 1, 2], [3, 4, 5])
+        # ([brackets denote qoi for each model]
+        # but V and W are stored in terms on indices into entire covariance
+        # e.g. ([0, 1, 2, 3], [4, 5, 6, 7])
+        # so when subset  ([0, 1, 2], [3, 4, 5]) comes in we want to extract
+        # entries of V corresponding to rows (and columns)
+        # ([0, 2, 3], [4, 6, 7])
 
-    def sample_estimate(self, values: Array):
-        return self._bkd.hstack(
+        # get compressed V
+        tril_idx = self._bkd.tril_indices(self._nqoi)
+        self._tril_idx_flat = self._bkd.arange(
+            self._nqoi**2, dtype=int
+        ).reshape((self._nqoi, self._nqoi))[*tril_idx]
+        self._comp_idx = self._bkd.hstack(
             [
-                self._bkd.mean(values, axis=0),
-                self._bkd.cov(values.T, ddof=1).flatten(),
+                self._tril_idx_flat + ii * self._nqoi**2
+                for ii in range(self._nmodels)
             ]
         )
+        self._Vcomp = self._V[np.ix_(self._comp_idx, self._comp_idx)]
+        self._Wcomp = self._W[np.ix_(self._comp_idx, self._comp_idx)]
+        self._Bcomp = self._B[:, self._comp_idx]
 
-    def high_fidelity_estimator_covariance(self, nhf_samples: int):
+    def nstats(self) -> int:
+        return self.nqoi() + self._tril_idx_flat.shape[0]
+
+    def sample_estimate(self, values: Array) -> Array:
+        # Note ordering of statistics must be consistent
+        # with  _group_acv_sigma_block which uses all means in a group
+        # and then all covariance entries
+        nmodels_in_subset = values.shape[1] // self._nqoi
+        # Need to compute covariances of each model in the subset
+        # separately because we do not want to compute covariance of
+        # entire values vector, i.e. off diagonal blocks containing covariance
+        # of outputs of different models, but we only want diagonal
+        # blocks
+        flat_covs = [
+            self._bkd.cov(
+                values[:, ii * self._nqoi : (ii + 1) * self._nqoi],
+                ddof=1,
+                rowvar=False,
+            ).flatten()[self._tril_idx_flat]
+            for ii in range(nmodels_in_subset)
+        ]
+        return self._bkd.hstack(
+            [self._bkd.mean(values, axis=0), self._bkd.hstack(flat_covs)]
+        )
+
+    def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
+        raise RuntimeError("todo make consistent with tril_indices")
         block_11 = self._cov[: self._nqoi, : self._nqoi] / nhf_samples
         block_22 = _covariance_of_variance_estimator(
             self._W[: self._nqoi**2, : self._nqoi**2],
@@ -834,7 +952,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
             [[block_11, block_12], [block_12.T, block_22]], self._bkd
         )
 
-    def compute_pilot_quantities(self, pilot_values: Array):
+    def compute_pilot_quantities(
+        self, pilot_values: List[Array]
+    ) -> Tuple[Array, Array, Array]:
         self._check_pilot_values(pilot_values)
         nmodels = len(pilot_values)
         pilot_values = self._bkd.hstack(pilot_values)
@@ -843,7 +963,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         B = _get_B_from_pilot(pilot_values, nmodels, self._bkd)
         return cov, W, B
 
-    def set_pilot_quantities(self, cov, W, B):
+    def set_pilot_quantities(self, cov: Array, W: Array, B: Array):
         self._cov = self._bkd.asarray(cov, dtype=self._bkd.double_type())
         self._nmodels = self._cov.shape[0] // self._nqoi
         self._V = self._bkd.asarray(
@@ -863,8 +983,11 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
             )
             raise ValueError(msg)
         self._B = self._bkd.asarray(B, dtype=self._bkd.double_type())
+        self._set_compressed_data()
 
-    def _get_discrepancy_covariances(self, Gmat, gvec, Hmat, hvec):
+    def _get_discrepancy_covariances(
+        self, Gmat: Array, gvec: Array, Hmat: Array, hvec: Array
+    ) -> Tuple[Array, Array]:
         return _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
             self._cov,
             self._V,
@@ -877,7 +1000,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
             self._bkd,
         )
 
-    def _get_cv_discrepancy_covariances(self, npartition_samples):
+    def _get_cv_discrepancy_covariances(
+        self, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
         Gmat = self._bkd.full(
             (self._nmodels - 1, self._nmodels - 1),
             1.0 / npartition_samples[0],
@@ -901,8 +1026,8 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
     def _get_acv_discrepancy_covariances(
-        self, allocation_mat, npartition_samples
-    ):
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
         Gmat, gvec = _get_acv_mean_discrepancy_covariances_multipliers(
             allocation_mat, npartition_samples, self._bkd
         )
@@ -912,8 +1037,8 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
     def get_pilot_quantities_subset(
-        self, nmodels, nqoi, model_idx, qoi_idx=None
-    ):
+        self, nmodels: int, nqoi: int, model_idx: int, qoi_idx: int = None
+    ) -> Tuple[Array, Array, Array]:
         if qoi_idx is None:
             qoi_idx = self._bkd.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
@@ -927,5 +1052,134 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         )
         return cov_sub, W_sub, B_sub
 
-    def min_nsamples(self):
+    def min_nsamples(self) -> int:
         return 1
+
+    # LEAVE mean_idx_full and var_idx full here for now so I can tranlate
+    # example to new indexing scheme that only computes estimator covariance
+    # of lowerdiagonal terms of qoi covariance + mean of qoi
+    # these commented functions assume computing entire covariance qoi and mean
+
+    # def _mean_idx_full(self, subset: Array) -> Array:
+    #     # comptue indices assuming subset indexes into full covariance
+    #     # matrix of qoi
+    #     # get index into mean covariance array of subset defined over
+    #     # both model means and variances for each qoi
+    #     # subsets include indices into each statistic
+    #     # For three models with two stats are
+    #     # mean1,mean2,cov11,cov12,cov21,cov22
+    #     # possible entries in subsets are
+    #     # (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
+    #     # split by models each bracket () corresponds to a model
+    #     # (0, 1, 2, 3, 4, 5), (6, 7, 8, 9, 10, 11), (12, 13, 14, 15, 16, 17)
+    #     # split by models and mean and covr for each qoi
+    #     # split by models each bracket [] corresponds to mean and {} to var
+    #     # ([0, 1], {2, 3, 4, 5}), ([6, 7], {8, 9, 10, 11}),
+    #     # ([12, 13],{14, 15, 16, 17})
+    #     # so for model subset (1, 2) will be
+    #     # ([6, 7], {8, 9, 10, 11}), ([12, 13], {14, 15, 16, 17})
+    #     # index associated with mean covariances will be
+    #     # i = [6, 7], [12, 13]
+    #     # These must be adjusted to index into self._cov
+    #     # j = [2, 3], [4, 5]
+    #     # I.e. j = i - model_id * nqoi ** 2
+    #     mean_idx = []
+    #     cnt = 0
+    #     # TODO this can be done once at initilization by storing
+    #     # mean_idx_per_model as List[Array] then just indexing into list
+    #     nmodels_in_subset = len(subset) // self.nstats()
+    #     for ii in range(nmodels_in_subset):
+    #         model_id = subset[cnt] // self.nstats()
+    #         mean_idx.append(
+    #             subset[cnt : cnt + self._nqoi] - self._nqoi**2 * model_id
+    #         )
+    #         # first term in sum moves to end of mean stats of all qoi
+    #         # second term in sum moves to end of var stats
+    #         cnt += self._nqoi + self._nqoi**2
+    #     return self._bkd.hstack(mean_idx)
+
+    # def _var_idx_full(self, subset: Array) -> Array:
+    #     # comptue indices assuming subset indexes into full covariance
+    #     # matrix of qoi
+    #     # for model subset (1, 2) will be stats are [mean], {var}
+    #     # ([6, 7], {8, 9, 10, 11}), ([12, 13], {14, 15, 16, 17})
+    #     # index associated with var covariances will be
+    #     # i = {8, 9, 10, 11}, {14, 15, 16, 17}
+    #     # These must be adjusted to index into self._V
+    #     # j = {4, 5, 6, 7}, {8, 9, 10, 11}
+    #     # I.e. j = i - model_id * nqoi
+    #     var_idx = []
+    #     cnt = self._nqoi  # skip means of first model
+    #     nmodels_in_subset = len(subset) // self.nstats()
+    #     for ii in range(nmodels_in_subset):
+    #         model_id = subset[cnt - self._nqoi] // self.nstats()
+    #         var_idx.append(
+    #             subset[cnt : cnt + self._nqoi**2] - self._nqoi * (model_id + 1)
+    #         )
+    #         # first term in sum moves to end of var stats for current model
+    #         # second term in sum moves to end of mean stats of next model
+    #         cnt += self._nqoi + +self._tril_idx_flat.shape[0]
+    #     return self._bkd.hstack(var_idx)
+
+    def _mean_idx(self, subset: Array) -> Array:
+        mean_idx = []
+        cnt = 0
+        # TODO this can be done once at initilization by storing
+        # mean_idx_per_model as List[Array] then just indexing into list
+        nmodels_in_subset = len(subset) // self.nstats()
+        for ii in range(nmodels_in_subset):
+            print(subset[cnt] / self.nstats(), subset)
+            model_id = subset[cnt] // self.nstats()
+            mean_idx.append(
+                subset[cnt : cnt + self._nqoi]
+                - self._tril_idx_flat.shape[0] * model_id
+            )
+            cnt += self.nstats()
+        return self._bkd.hstack(mean_idx)
+
+    def _var_idx(self, subset: Array) -> Array:
+        var_idx = []
+        cnt = self._nqoi  # skip means of first model
+        nmodels_in_subset = len(subset) // self.nstats()
+        for ii in range(nmodels_in_subset):
+            model_id = subset[cnt - self._nqoi] // self.nstats()
+            var_idx.append(
+                subset[cnt : cnt + self._tril_idx_flat.shape[0]]
+                - self._nqoi * (model_id + 1)
+            )
+            cnt += self.nstats()
+        return self._bkd.hstack(var_idx)
+
+    def _group_acv_sigma_block(
+        self,
+        subset0: Array,
+        subset1: Array,
+        nsamples_intersect: int,
+        nsamples_subset0: int,
+        nsamples_subset1: int,
+    ) -> Array:
+        # should resemble high_fidelity_estimator_covariance()
+        if self._cov is None:
+            raise RuntimeError("must call set_pilot_quantities")
+
+        mean_idx0 = self._mean_idx(subset0)
+        mean_idx1 = self._mean_idx(subset1)
+        var_idx0 = self._var_idx(subset0)
+        var_idx1 = self._var_idx(subset1)
+        P_MN = nsamples_intersect / (nsamples_subset0 * nsamples_subset1)
+        V_ratio = (nsamples_intersect * (nsamples_intersect - 1)) / (
+            (nsamples_subset0 * (nsamples_subset0 - 1))
+            * (nsamples_subset1 * (nsamples_subset1 - 1))
+        )
+
+        block_11 = self._cov[np.ix_(mean_idx0, mean_idx1)] * P_MN
+        block_22 = (
+            self._Vcomp[np.ix_(var_idx0, var_idx1)] * V_ratio
+            + self._Wcomp[np.ix_(var_idx0, var_idx1)] * P_MN
+        )
+        block_12 = self._Bcomp[np.ix_(mean_idx0, var_idx1)] * P_MN
+        block_21 = self._Bcomp[np.ix_(mean_idx1, var_idx0)].T * P_MN
+        # Note ordering of statistics must be consistent with sample_estimate
+        return block_2x2(
+            [[block_11, block_12], [block_21, block_22]], self._bkd
+        )
