@@ -710,17 +710,14 @@ class MultiOutputMean(MultiOutputStatistic):
 
 
 class MultiOutputVariance(MultiOutputStatistic):
-    def __init__(
-        self,
-        nqoi: int,
-        backend: BackendMixin,
-    ):
+    def __init__(self, nqoi: int, backend: BackendMixin, tril: bool = False):
         super().__init__(nqoi, backend)
 
         self._nmodels = None
         self._cov = None
         self._W = None
         self._V = None
+        self._tril = tril  # todo deprecated remove once testing complete
 
     def _set_compressed_data(self):
         # subset0 wil contain indices into lower diagonal of covariance
@@ -734,10 +731,16 @@ class MultiOutputVariance(MultiOutputStatistic):
         # ([0, 2, 3], [4, 6, 7])
 
         # get compressed V
-        tril_idx = self._bkd.tril_indices(self._nqoi)
+        if self._tril:
+            self._tril_idx = self._bkd.tril_indices(self._nqoi)
+        else:
+            self._tril_idx = self._bkd.cartesian_product(
+                [self._bkd.arange(self._nqoi)] * 2
+            )[[1, 0], :]
+
         self._tril_idx_flat = self._bkd.arange(
             self._nqoi**2, dtype=int
-        ).reshape((self._nqoi, self._nqoi))[*tril_idx]
+        ).reshape((self._nqoi, self._nqoi))[*self._tril_idx]
 
         self._comp_idx = self._bkd.hstack(
             [
@@ -764,12 +767,11 @@ class MultiOutputVariance(MultiOutputStatistic):
         return self._bkd.hstack(flat_covs)
 
     def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
-        raise RuntimeError("todo make consistent with tril_indices")
         return _covariance_of_variance_estimator(
             self._W[: self._nqoi**2, : self._nqoi**2],
             self._V[: self._nqoi**2, : self._nqoi**2],
             nhf_samples,
-        )
+        )[np.ix_(self._tril_idx_flat, self._tril_idx_flat)]
 
     def compute_pilot_quantities(
         self, pilot_values: List[Array]
@@ -870,7 +872,6 @@ class MultiOutputVariance(MultiOutputStatistic):
             (nsamples_subset0 * (nsamples_subset0 - 1))
             * (nsamples_subset1 * (nsamples_subset1 - 1))
         )
-        print(subset0)
         block = (
             self._Vcomp[np.ix_(subset0, subset1)] * V_ratio
             + self._Wcomp[np.ix_(subset0, subset1)] * W_ratio
@@ -879,7 +880,7 @@ class MultiOutputVariance(MultiOutputStatistic):
 
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
-    def __init__(self, nqoi: int, backend: BackendMixin):
+    def __init__(self, nqoi: int, backend: BackendMixin, tril: bool = False):
         super().__init__(nqoi, backend)
 
         self._nmodels = None
@@ -887,6 +888,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         self._W = None
         self._V = None
         self._B = None
+        self._tril = tril  # todo deprecated remove once testing complete
 
     def _set_compressed_data(self):
         # subset0 wil contain indices into lower diagonal of covariance
@@ -900,10 +902,15 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         # ([0, 2, 3], [4, 6, 7])
 
         # get compressed V
-        tril_idx = self._bkd.tril_indices(self._nqoi)
+        if self._tril:
+            self._tril_idx = self._bkd.tril_indices(self._nqoi)
+        else:
+            self._tril_idx = self._bkd.cartesian_product(
+                [self._bkd.arange(self._nqoi)] * 2
+            )[[1, 0], :]
         self._tril_idx_flat = self._bkd.arange(
             self._nqoi**2, dtype=int
-        ).reshape((self._nqoi, self._nqoi))[*tril_idx]
+        ).reshape((self._nqoi, self._nqoi))[*self._tril_idx]
         self._comp_idx = self._bkd.hstack(
             [
                 self._tril_idx_flat + ii * self._nqoi**2
@@ -940,14 +947,16 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         )
 
     def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
-        raise RuntimeError("todo make consistent with tril_indices")
         block_11 = self._cov[: self._nqoi, : self._nqoi] / nhf_samples
         block_22 = _covariance_of_variance_estimator(
             self._W[: self._nqoi**2, : self._nqoi**2],
             self._V[: self._nqoi**2, : self._nqoi**2],
             nhf_samples,
+        )[np.ix_(self._tril_idx_flat, self._tril_idx_flat)]
+        block_12 = (
+            self._B[: self._nqoi, : self._nqoi**2][:, self._tril_idx_flat]
+            / nhf_samples
         )
-        block_12 = self._B[: self._nqoi, : self._nqoi**2] / nhf_samples
         return block_2x2(
             [[block_11, block_12], [block_12.T, block_22]], self._bkd
         )
@@ -1128,7 +1137,6 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         # mean_idx_per_model as List[Array] then just indexing into list
         nmodels_in_subset = len(subset) // self.nstats()
         for ii in range(nmodels_in_subset):
-            print(subset[cnt] / self.nstats(), subset)
             model_id = subset[cnt] // self.nstats()
             mean_idx.append(
                 subset[cnt : cnt + self._nqoi]

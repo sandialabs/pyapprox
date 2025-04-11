@@ -631,41 +631,6 @@ class CVEstimator(MCEstimator):
         )
         return rep
 
-    def bootstrap_deprecated(
-        self, values_per_model: List[Array], nbootstraps: int = 1000
-    ):
-        r"""
-        Approximate the variance of the estimator using
-        bootstraping. The accuracy of bootstapping depends on the number
-        of values per model. As it gets large the boostrapped statistics
-        will approach the theoretical values.
-
-        Parameters
-        ----------
-        values_per_model : list (nmodels)
-            The unique values of each model
-
-        nbootstraps : integer
-            The number of boostraps used to compute estimator variance
-
-        Returns
-        -------
-        bootstrap_stats : float
-            The bootstrap estimate of the estimator
-
-        bootstrap_covar : float
-            The bootstrap estimate of the estimator covariance
-        """
-        nbootstraps = int(nbootstraps)
-        estimator_vals = self._bkd.empty((nbootstraps, self._stat._nqoi))
-        for kk in range(nbootstraps):
-            estimator_vals[kk] = self._estimate(
-                values_per_model, self._optimized_weights, bootstrap=True
-            )
-        bootstrap_mean = estimator_vals.mean(axis=0)
-        bootstrap_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
-        return bootstrap_mean, bootstrap_covar
-
     def bootstrap(
         self,
         values_per_model: List[Array],
@@ -1323,6 +1288,8 @@ class ACVEstimator(CVEstimator):
             index = self._bkd.zeros(self._nmodels - 1, dtype=int)
         else:
             index = self._bkd.asarray(index, dtype=int)
+        if self._nmodels is None:
+            raise RuntimeError("must call stat.set_pilot_quantities()")
         if index.shape[0] != self._nmodels - 1:
             msg = "index {0} is the wrong shape. Should be {1}".format(
                 index, self._nmodels - 1
