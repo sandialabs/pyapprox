@@ -364,6 +364,7 @@ class CVEstimator(MCEstimator):
     ):
         super().__init__(stat, costs, opt_criteria=opt_criteria)
         if lowfi_stats is not None:
+            print(self._stat)
             if lowfi_stats.shape != (self._nmodels - 1, self._stat.nstats()):
                 raise ValueError(
                     "lowfi_stats must be a 2D Array with shape {0} "

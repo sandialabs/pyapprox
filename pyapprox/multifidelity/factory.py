@@ -480,6 +480,7 @@ def _estimate_components(variable, est, funs, ii):
         est_val = est(values_per_model[0])
         Q = mc_est(values_per_model[0])
         delta = Q * 0
+
     return est_val, Q, delta
 
 
@@ -579,6 +580,7 @@ def numerically_compute_estimator_variance(
     est_vals, Q0, delta = _estimate_components_loop(
         variable, ntrials, est, funs, max_eval_concurrency
     )
+    print(Q0.shape, delta.shape)
 
     hf_covar_numer = est._bkd.cov(Q0, ddof=1, rowvar=False)
     hf_covar = est._stat.high_fidelity_estimator_covariance(

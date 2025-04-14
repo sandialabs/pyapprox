@@ -710,7 +710,7 @@ class MultiOutputMean(MultiOutputStatistic):
 
 
 class MultiOutputVariance(MultiOutputStatistic):
-    def __init__(self, nqoi: int, backend: BackendMixin, tril: bool = False):
+    def __init__(self, nqoi: int, backend: BackendMixin, tril: bool = True):
         super().__init__(nqoi, backend)
 
         self._nmodels = None
@@ -742,6 +742,7 @@ class MultiOutputVariance(MultiOutputStatistic):
             self._nqoi**2, dtype=int
         ).reshape((self._nqoi, self._nqoi))[*self._tril_idx]
 
+        # for group acv
         self._comp_idx = self._bkd.hstack(
             [
                 self._tril_idx_flat + ii * self._nqoi**2
@@ -750,6 +751,15 @@ class MultiOutputVariance(MultiOutputStatistic):
         )
         self._Vcomp = self._V[np.ix_(self._comp_idx, self._comp_idx)]
         self._Wcomp = self._W[np.ix_(self._comp_idx, self._comp_idx)]
+
+        # for acv discrepancies (must exclude first model)
+        if self._nmodels > 1:
+            self._delta_idx = self._bkd.hstack(
+                [
+                    self._tril_idx_flat + ii * self._nqoi**2
+                    for ii in range(self._nmodels - 1)
+                ]
+            )
 
     def nstats(self) -> int:
         return self._tril_idx_flat.shape[0]  # self.nqoi() ** 2
@@ -800,8 +810,12 @@ class MultiOutputVariance(MultiOutputStatistic):
     def _get_discrepancy_covariances(
         self, Gmat: Array, gvec: Array, Hmat: Array, hvec: Array
     ) -> Tuple[Array, Array]:
-        return _get_multioutput_acv_variance_discrepancy_covariances(
+        CF, cf = _get_multioutput_acv_variance_discrepancy_covariances(
             self._V, self._W, Gmat, gvec, Hmat, hvec, self._bkd
+        )
+        return (
+            CF[np.ix_(self._delta_idx, self._delta_idx)],
+            cf[np.ix_(self._tril_idx_flat, self._delta_idx)],
         )
 
     def _get_cv_discrepancy_covariances(
@@ -880,7 +894,7 @@ class MultiOutputVariance(MultiOutputStatistic):
 
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic):
-    def __init__(self, nqoi: int, backend: BackendMixin, tril: bool = False):
+    def __init__(self, nqoi: int, backend: BackendMixin, tril: bool = True):
         super().__init__(nqoi, backend)
 
         self._nmodels = None

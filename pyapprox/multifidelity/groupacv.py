@@ -711,6 +711,7 @@ class GroupACVEstimator:
 
     def _covariance_from_npartition_samples(self, npartition_samples):
         psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
+        print(self._bkd.cond(psi_inv), "COND PSI")
         return self._bkd.multidot((self._asketch, psi_inv, self._asketch.T))
 
     def _get_model_subset_costs(self, subsets, costs):
@@ -1037,7 +1038,9 @@ class GroupACVEstimator:
 
     def _estimate(self, values_per_subset: List[Array]) -> Array:
         beta = self._grouped_acv_beta(self._optimized_sigma)
-        # print(beta.sum(axis=1))
+        assert self._bkd.allclose(
+            beta.sum(axis=1), self._bkd.ones(beta.shape[0])
+        )
         ll, mm = 0, 0
         acv_stat = 0
         for kk in range(self.nsubsets()):

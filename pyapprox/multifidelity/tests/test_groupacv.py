@@ -626,8 +626,8 @@ class TestGroupACV:
         # print(costs)
         costs = bkd.array([2, 1.5, 1])
         # check that group acv computes the same estimator variance
-        # as mfmc when estimating variance using the optimal mfmc sample allocation for
-        # estimating variance
+        # as mfmc when estimating variance using the optimal mfmc sample
+        # allocation for estimating variance
         stat = multioutput_stats["variance"](
             len(qoi_idx), backend=bkd, tril=True
         )
@@ -643,7 +643,7 @@ class TestGroupACV:
         )
 
         mfmc_stat = multioutput_stats["variance"](
-            len(qoi_idx), backend=bkd, tril=False
+            len(qoi_idx), backend=bkd, tril=True
         )
         mfmc_stat.set_pilot_quantities(cov, W)
         mfmc_est = get_estimator(
@@ -666,6 +666,7 @@ class TestGroupACV:
             round_nsamples=False,
         )
         groupacv_est_val = est(values_per_model)
+        print(mfmc_est_val, groupacv_est_val)
         print(est._optimized_covariance)
         print(
             mfmc_est._optimized_covariance[

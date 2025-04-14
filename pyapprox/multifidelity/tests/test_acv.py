@@ -269,7 +269,7 @@ class TestMOMC:
             kwargs = {}
 
         if stat_type == "mean":
-            idx = nqoi
+            # idx = nqoi
             if est_type == "cv":
                 kwargs["lowfi_stats"] = bkd.stack(
                     [m for m in means[1:]], axis=0
@@ -282,8 +282,9 @@ class TestMOMC:
                     ub += nqoi
                     lfcovs.append(cov[lb:ub, lb:ub])
                     lb = ub
+                tril_idx = bkd.tril_indices(lfcovs[0].shape[0])
                 kwargs["lowfi_stats"] = bkd.stack(
-                    [cov.flatten() for cov in lfcovs]
+                    [cov[*tril_idx].flatten() for cov in lfcovs]
                 )
             W = benchmark.covariance_of_centered_values_kronker_product()
             W = _nqoisq_nqoisq_subproblem(
@@ -299,7 +300,7 @@ class TestMOMC:
             # pilot_values = bkd.hstack([f(pilot_samples) for f in funs])
             # W = get_W_from_pilot(pilot_values, nmodels)
             pilot_args.append(W)
-            idx = nqoi**2
+            # idx = nqoi**2
         if stat_type == "mean_variance":
             if est_type == "cv":
                 lfcovs = []
@@ -308,9 +309,10 @@ class TestMOMC:
                     ub += nqoi
                     lfcovs.append(cov[lb:ub, lb:ub])
                     lb = ub
+                tril_idx = bkd.tril_indices(lfcovs[0].shape[0])
                 kwargs["lowfi_stats"] = bkd.stack(
                     [
-                        bkd.hstack((m, cov.flatten()))
+                        bkd.hstack((m, cov[*tril_idx].flatten()))
                         for m, cov in zip(means[1:], lfcovs)
                     ],
                     axis=0,
@@ -325,12 +327,13 @@ class TestMOMC:
                 bkd,
             )
             pilot_args.append(B)
-            idx = nqoi + nqoi**2
+            # idx = nqoi + nqoi**2
 
         # check covariance matrix is positive definite
         # bkd.linalg.cholesky(cov)
         stat = multioutput_stats[stat_type](len(qoi_idx), backend=bkd)
         stat.set_pilot_quantities(*pilot_args)
+        idx = stat.nstats()
         est = get_estimator(
             est_type, stat, costs, max_nmodels=max_nmodels, **kwargs
         )
@@ -372,6 +375,8 @@ class TestMOMC:
             CF, cf = est._get_discrepancy_covariances(
                 est._rounded_npartition_samples
             )
+            print(CF.shape, CF_mc.shape)
+            print(cf.shape, cf_mc.shape)
             # print(CF)
             # print(CF_mc)
             # print((np.abs(CF_mc-CF)-(atol + rtol*np.abs(CF))).max())
@@ -471,7 +476,7 @@ class TestMOMC:
                 int(7e4),
             ],
         ]
-        for test_case in test_cases[-1:]:  # Hack remove [-1:]
+        for test_case in test_cases:
             np.random.seed(1)
             print(test_case)
             self._check_estimator_variances(*test_case)
