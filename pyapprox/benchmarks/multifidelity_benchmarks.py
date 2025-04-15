@@ -661,7 +661,8 @@ class PSDMultiOutputModelEnsemble(ACVBenchmark):
             [
                 math.sqrt(11) * samples.T**5,
                 samples.T**4,
-                self._bkd.cos(2.2 * math.pi * samples.T),
+                # self._bkd.cos(2.2 * math.pi * samples.T),
+                self._bkd.sin(2 * math.pi * samples.T),
             ]
         )
 
@@ -701,12 +702,15 @@ class PSDMultiOutputModelEnsemble(ACVBenchmark):
         values : Array (nsamples, qoi)
             Model evaluations at the samples
         """
+        # making eps smaller will make problem more ill conditioned
+        eps = 1e-2
         return self._bkd.hstack(
             [
                 math.sqrt(3) / 2 * samples.T**2 + samples.T,
                 math.sqrt(3) / 2 * samples.T
-                + self._bkd.cos(math.pi * samples.T * 2.1),
-                self._bkd.cos(3 * math.pi * samples.T + math.pi / 4),
+                + self._bkd.cos(math.pi * samples.T * 2.0 + 2.1) * eps,
+                self._bkd.cos(2 * math.pi * samples.T + math.pi / 4),
+                # self._bkd.cos(3 * math.pi * samples.T + math.pi / 4),
             ]
         )
 

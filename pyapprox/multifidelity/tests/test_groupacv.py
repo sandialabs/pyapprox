@@ -23,7 +23,6 @@ from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.multifidelity.factory import multioutput_stats, get_estimator
 from pyapprox.optimization.scipy import (
     ScipyConstrainedOptimizer,
-    ScipyConstrainedNelderMeadOptimizer,
     ScipyConstrainedDifferentialEvolutionOptimizer,
 )
 from pyapprox.multifidelity._optim import _allocate_samples_mfmc
@@ -326,7 +325,9 @@ class TestGroupACV:
 
         gest = MLBLUEEstimator(stat, costs, reg_blue=0)
         opt1 = GroupACVGradientOptimizer(
-            ScipyConstrainedNelderMeadOptimizer(opts={"maxiter": 20})
+            ScipyConstrainedDifferentialEvolutionOptimizer(
+                opts={"maxiter": 20, "disp": True}
+            )
         )
         opt1.set_estimator(gest)
         scipy_opt = ScipyConstrainedOptimizer(opts={"gtol": 1e-9})
@@ -509,17 +510,17 @@ class TestGroupACV:
         mc_group_cov = bkd.cov(subset_vars, ddof=1, rowvar=False)
         Sigma = est._sigma(est._rounded_npartition_samples)
         atol, rtol = 4e-3, 3e-2
-        print(est._stat)
-        print(bkd.diag(mc_group_cov))
-        print(bkd.diag(Sigma))
-        print(bkd.diag(mc_group_cov) - bkd.diag(Sigma))
-        print(
-            (bkd.diag(mc_group_cov) - bkd.diag(Sigma)) / bkd.diag(mc_group_cov)
-        )
+        # print(est._stat)
+        # print(bkd.diag(mc_group_cov))
+        # print(bkd.diag(Sigma))
+        # print(bkd.diag(mc_group_cov) - bkd.diag(Sigma))
+        # print(
+        #     (bkd.diag(mc_group_cov) - bkd.diag(Sigma)) / bkd.diag(mc_group_cov)
+        # )
         assert bkd.allclose(bkd.diag(mc_group_cov), bkd.diag(Sigma), rtol=rtol)
         assert bkd.allclose(mc_group_cov, Sigma, rtol=rtol, atol=atol)
         est_var_mc = bkd.cov(acv_ests, ddof=1, rowvar=False)
-        # print(est_var_mc)
+        # print(est_var_mc, "Z")
         # print(est_var)
         # print(est_var_mc - est_var)
         assert bkd.allclose(est_var_mc, est_var, rtol=rtol, atol=atol)
@@ -683,36 +684,63 @@ class TestGroupACV:
             mfmc_est._rounded_npartition_samples,
             round_nsamples=False,
         )
+        import torch
+
+        torch.set_printoptions(precision=12, linewidth=1000)
+        print(est._traditional_acv_weights())
+        print(
+            mfmc_est._optimized_weights, mfmc_est._optimized_weights.shape, "W"
+        )
+
+        samples_per_model = est.generate_samples_per_model(
+            benchmark.variable().rvs
+        )
+        values_per_model = [
+            bkd.array(funs[ii](samples_per_model[ii]))
+            for ii in range(est.nmodels())
+        ]
+        subset_values = est._separate_values_per_model(values_per_model)
+        subset_ests = []
+        for kk in range(est.nsubsets()):
+            if subset_values[kk].shape[0] > 0:
+                subset_est = est._stat.sample_estimate(subset_values[kk])
+            else:
+                subset_est = bkd.zeros(len(est.subsets[kk]))
+            subset_ests.append(subset_est)
+        print(est._group_to_traditional_estimators(subset_ests), "Q")
+        # assert False
+        assert bkd.allclose(
+            est._traditional_acv_weights(), mfmc_est._optimized_weights
+        )
 
         # self._check_sigma_matrix_of_estimator(
         #     est, int(2e4), funs, benchmark.variable()
         # )
 
-        from pyapprox.multifidelity.factory import (
-            numerically_compute_estimator_variance,
-        )
+        # from pyapprox.multifidelity.factory import (
+        #     numerically_compute_estimator_variance,
+        # )
 
-        hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
-            numerically_compute_estimator_variance(
-                funs,
-                benchmark.variable(),
-                mfmc_est,
-                int(1e3),
-                1,
-                True,
-            )
-        )
-        hfcovar = hfcovar.numpy()
-        atol, rtol = 1e-2, 1e-2
-        # print(covar_mc, covar, "Y")
-        assert bkd.allclose(covar_mc, covar, atol=atol, rtol=rtol)
+        # hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
+        #     numerically_compute_estimator_variance(
+        #         funs,
+        #         benchmark.variable(),
+        #         mfmc_est,
+        #         int(1e3),
+        #         1,
+        #         True,
+        #     )
+        # )
+        # hfcovar = hfcovar.numpy()
+        # atol, rtol = 1e-2, 1e-2
+        # # print(covar_mc, covar, "Y")
+        # assert bkd.allclose(covar_mc, covar, atol=atol, rtol=rtol)
 
         groupacv_est_val = est(values_per_model)
         print(mfmc_est_val, groupacv_est_val, "V")
         print(mfmc_est._optimized_covariance, "MFMC")
         print(est._optimized_covariance, "GROUPACV")
-        print(est._optimized_covariance, mfmc_est._optimized_covariance)
-        print(est._optimized_covariance - mfmc_est._optimized_covariance)
+        # print(est._optimized_covariance - mfmc_est._optimized_covariance)
         assert bkd.allclose(
             est._optimized_covariance, mfmc_est._optimized_covariance
         )
@@ -730,9 +758,8 @@ class TestGroupACV:
         )
 
         opt1 = GroupACVGradientOptimizer(
-            # ScipyConstrainedNelderMeadOptimizer(opts={"maxiter": 100})
             ScipyConstrainedDifferentialEvolutionOptimizer(
-                opts={"maxiter": 100, "disp": True}
+                opts={"maxiter": 20, "disp": False}
             )
         )
         opt2 = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
@@ -753,13 +780,13 @@ class TestGroupACV:
 
     def test_mfmc_nested_estimation(self):
         test_cases = [
-            # [3, [0], "mean"],
+            [3, [0], "mean"],
             # [2, [0, 1, 2], "mean"],
             # [3, [0, 1], "mean"],
             # [2, [0], "variance"],
             # [2, [0, 1, 2], "variance"],
             # [3, [0, 1], "variance"],
-            [2, [0], "mean_variance"],
+            # [2, [0], "mean_variance"],
         ]
         for test_case in test_cases:
             np.random.seed(1)

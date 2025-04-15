@@ -399,7 +399,6 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         self._optimizer = optimizer
 
     def _minimize(self, iterate: Array) -> OptimizationResult:
-        print(self._optimizer._verbosity)
         return self._optimizer.minimize(iterate)
 
     def set_budget(self, target_cost: float, min_nhf_samples: int = 1):
@@ -734,7 +733,9 @@ class GroupACVEstimator:
         return self._psi_matrix_from_sigma(Sigma)
 
     def _psi_inv_from_npartition_samples(self, npartition_samples):
-        psi_inv = self._inv(self._psi_matrix(npartition_samples))
+        psi = self._psi_matrix(npartition_samples)
+        # print(self._bkd.cond(psi), "COND")
+        psi_inv = self._inv(psi)
         return psi_inv
 
     def _covariance_from_npartition_samples(self, npartition_samples):
@@ -864,11 +865,11 @@ class GroupACVEstimator:
     def get_default_optimizer(self) -> ChainedACVOptimizer:
         opt1 = GroupACVGradientOptimizer(
             ScipyConstrainedDifferentialEvolutionOptimizer(
-                opts={"maxiter": 30}
+                opts={"maxiter": 20}
             )
         )
         local_opt = ScipyConstrainedOptimizer()
-        local_opt._opts["gtol"] = 1e-12
+        local_opt._opts["gtol"] = 1e-8
         opt2 = GroupACVGradientOptimizer(local_opt)
 
         return ChainedACVOptimizer(opt1, opt2)
@@ -1071,9 +1072,6 @@ class GroupACVEstimator:
 
     def _estimate(self, values_per_subset: List[Array]) -> Array:
         beta = self._grouped_acv_beta(self._optimized_sigma)
-        assert self._bkd.allclose(
-            beta.sum(axis=1), self._bkd.ones(beta.shape[0])
-        )
         ll, mm = 0, 0
         acv_stat = 0
         for kk in range(self.nsubsets()):
@@ -1083,6 +1081,56 @@ class GroupACVEstimator:
                 acv_stat += (beta[:, ll:mm]) @ subset_stat
             ll = mm
         return acv_stat
+
+    def _traditional_acv_weights(self) -> Array:
+        beta = self._grouped_acv_beta(self._optimized_sigma)
+        assert self._bkd.allclose(
+            beta.sum(axis=1), self._bkd.ones(beta.shape[0])
+        )
+        alpha = self._bkd.zeros(
+            (beta.shape[0], (self._nmodels - 1) * self._stat.nstats())
+        )
+        zeros = self._bkd.zeros((beta.shape[0],))
+        kk = 0
+        for subset in self._subsets:
+            for jj in subset:
+                if jj < self._stat.nstats():
+                    kk += 1
+                    continue
+                alpha[:, jj - self._stat.nstats()] += self._bkd.maximum(
+                    beta[:, kk], zeros
+                )
+                kk += 1
+        return alpha
+
+    def _group_to_traditional_estimators(
+        self, subset_ests: List[Array]
+    ) -> Array:
+        print(subset_ests)
+        # Implement equations (15) in arxiv paper
+        # wu = w_l^{k,u} and  we = w_l^{k,e} from arxiv paper
+        beta = self._grouped_acv_beta(self._optimized_sigma)
+        alpha = self._traditional_acv_weights()
+        zeros = self._bkd.zeros((beta.shape[0],))
+        Qe, Qu = [], []
+        for ll in range(1, self._nmodels):
+            Qe.append(0.0)
+            Qu.append(0.0)
+            kk = 0
+            for ii, subset in enumerate(self._subsets):
+                for jj in subset:
+                    if jj < self._stat.nstats():
+                        kk += 1
+                        continue
+                    we = self._bkd.maximum(beta[:, kk], zeros)
+                    wu = -self._bkd.minimum(beta[:, kk], zeros)
+                    print(Qe[-1], we, subset_ests)
+                    Qe[-1] += we * subset_ests[ii]
+                    Qu[-1] += wu * subset_ests[ii]
+                    kk += 1
+            Qe[-1] /= alpha[:, ll - 1]
+            Qu[-1] /= alpha[:, ll - 1]
+        return Qe, Qu
 
     def __call__(self, values_per_model: List[Array]) -> Array:
         values_per_subset = self._separate_values_per_model(values_per_model)

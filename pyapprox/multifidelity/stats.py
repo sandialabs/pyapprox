@@ -742,7 +742,9 @@ class MultiOutputVariance(MultiOutputStatistic):
 
         self._tril_idx_flat = self._bkd.arange(
             self._nqoi**2, dtype=int
-        ).reshape((self._nqoi, self._nqoi))[*self._tril_idx]
+        ).reshape((self._nqoi, self._nqoi))[
+            self._tril_idx[0], self._tril_idx[1]
+        ]
 
         # for group acv
         self._comp_idx = self._bkd.hstack(
@@ -934,7 +936,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
             )[[1, 0], :]
         self._tril_idx_flat = self._bkd.arange(
             self._nqoi**2, dtype=int
-        ).reshape((self._nqoi, self._nqoi))[*self._tril_idx]
+        ).reshape((self._nqoi, self._nqoi))[
+            self._tril_idx[0], self._tril_idx[1]
+        ]
         self._comp_idx = self._bkd.hstack(
             [
                 self._tril_idx_flat + ii * self._nqoi**2

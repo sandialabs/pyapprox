@@ -189,7 +189,6 @@ class ScipyConstrainedDifferentialEvolutionOptimizer(
     def _scipy_minimize(
         self, objective: ScipyModelWrapper, iterate: Array, bounds: Bounds
     ) -> NativeScipyOptimizationResult:
-        print(bounds)
         opts = self._opts.copy()
         opts["polish"] = False
         return scipy.optimize.differential_evolution(

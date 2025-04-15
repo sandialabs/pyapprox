@@ -521,8 +521,9 @@ class CVEstimator(MCEstimator):
         return [self._bkd.copy(samples) for ii in range(self._nmodels)]
 
     def _weights(self, CF, cf):
-        # print(self._bkd.cond(CF), "COND")
-        return -self._bkd.multidot((self._bkd.pinv(CF), cf.T)).T
+        # print(self._bkd.cond(CF), "ACV COND")
+        # return -self._bkd.multidot((self._bkd.pinv(CF), cf.T)).T
+        return -self._bkd.solve(CF, cf.T).T
 
     def _covariance_non_optimal_weights(
         self, hf_est_covar: Array, weights: Array, CF: Array, cf: Array
