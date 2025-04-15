@@ -706,6 +706,8 @@ class MultiOutputMean(MultiOutputStatistic):
         if self._cov is None:
             raise RuntimeError("must call set_pilot_quantities")
         cov = self._cov[np.ix_(subset0, subset1)]
+        # print(subset0, subset1, "S")
+        # print(nsamples_intersect, nsamples_subset0, nsamples_subset1, "N")
         return cov * nsamples_intersect / (nsamples_subset0 * nsamples_subset1)
 
 
@@ -753,13 +755,21 @@ class MultiOutputVariance(MultiOutputStatistic):
         self._Wcomp = self._W[np.ix_(self._comp_idx, self._comp_idx)]
 
         # for acv discrepancies (must exclude first model)
-        if self._nmodels > 1:
-            self._delta_idx = self._bkd.hstack(
+        if self._nmodels == 1:
+            return
+
+        if self._tril:
+            self._lf_delta_idx = self._bkd.hstack(
                 [
                     self._tril_idx_flat + ii * self._nqoi**2
                     for ii in range(self._nmodels - 1)
                 ]
             )
+        else:
+            self._lf_delta_idx = self._bkd.arange(
+                self.nstats() * (self._nmodels - 1)
+            )
+        self._hf_delta_idx = self._lf_delta_idx[: self.nstats()]
 
     def nstats(self) -> int:
         return self._tril_idx_flat.shape[0]  # self.nqoi() ** 2
@@ -814,8 +824,8 @@ class MultiOutputVariance(MultiOutputStatistic):
             self._V, self._W, Gmat, gvec, Hmat, hvec, self._bkd
         )
         return (
-            CF[np.ix_(self._delta_idx, self._delta_idx)],
-            cf[np.ix_(self._tril_idx_flat, self._delta_idx)],
+            CF[np.ix_(self._lf_delta_idx, self._lf_delta_idx)],
+            cf[np.ix_(self._hf_delta_idx, self._lf_delta_idx)],
         )
 
     def _get_cv_discrepancy_covariances(
@@ -935,6 +945,29 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         self._Wcomp = self._W[np.ix_(self._comp_idx, self._comp_idx)]
         self._Bcomp = self._B[:, self._comp_idx]
 
+        # for acv discrepancies (must exclude first model)
+        if self._nmodels == 1:
+            return
+
+        if self._tril:
+            self._lf_delta_idx = self._bkd.hstack(
+                [
+                    self._bkd.hstack(
+                        (
+                            self._bkd.arange(self.nqoi()),
+                            self._tril_idx_flat + self.nqoi(),
+                        )
+                    )
+                    + ii * (self.nqoi() ** 2 + self.nqoi())
+                    for ii in range(self._nmodels - 1)
+                ]
+            )
+        else:
+            self._lf_delta_idx = self._bkd.arange(
+                self.nstats() * (self._nmodels - 1)
+            )
+        self._hf_delta_idx = self._lf_delta_idx[: self.nstats()]
+
     def nstats(self) -> int:
         return self.nqoi() + self._tril_idx_flat.shape[0]
 
@@ -1011,16 +1044,22 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
     def _get_discrepancy_covariances(
         self, Gmat: Array, gvec: Array, Hmat: Array, hvec: Array
     ) -> Tuple[Array, Array]:
-        return _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
-            self._cov,
-            self._V,
-            self._W,
-            self._B,
-            Gmat,
-            gvec,
-            Hmat,
-            hvec,
-            self._bkd,
+        CF, cf = (
+            _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
+                self._cov,
+                self._V,
+                self._W,
+                self._B,
+                Gmat,
+                gvec,
+                Hmat,
+                hvec,
+                self._bkd,
+            )
+        )
+        return (
+            CF[np.ix_(self._lf_delta_idx, self._lf_delta_idx)],
+            cf[np.ix_(self._hf_delta_idx, self._lf_delta_idx)],
         )
 
     def _get_cv_discrepancy_covariances(

@@ -401,12 +401,16 @@ class ConstrainedMultiStartOptimizer(MultiStartOptimizer):
 
 class ConstraintPenalizedObjective(Model):
     def __init__(
-        self, unconstrained_objective: Model, constraints: List[Constraint]
+        self,
+        unconstrained_objective: Model,
+        constraints: List[Constraint],
+        enforce_hard: bool = True,
     ):
         super().__init__(unconstrained_objective._bkd)
         self._unconstrained_objective = unconstrained_objective
         self._constraints = constraints
         self._penalty = None
+        self._enforce_hard = True
 
     def nqoi(self) -> int:
         return 1
@@ -423,6 +427,8 @@ class ConstraintPenalizedObjective(Model):
             con_vals = con(samples)
             for con_val in con_vals.T:
                 if con_val < 0:
+                    if self._enforce_hard:
+                        return (np.inf + con_val * 0)[:, None]
                     # if constraint violated add a penalty
                     cons_term += -con_val * self._penalty
         return self._unconstrained_objective(samples) + cons_term

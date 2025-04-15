@@ -364,7 +364,6 @@ class CVEstimator(MCEstimator):
     ):
         super().__init__(stat, costs, opt_criteria=opt_criteria)
         if lowfi_stats is not None:
-            print(self._stat)
             if lowfi_stats.shape != (self._nmodels - 1, self._stat.nstats()):
                 raise ValueError(
                     "lowfi_stats must be a 2D Array with shape {0} "
@@ -522,6 +521,7 @@ class CVEstimator(MCEstimator):
         return [self._bkd.copy(samples) for ii in range(self._nmodels)]
 
     def _weights(self, CF, cf):
+        # print(self._bkd.cond(CF), "COND")
         return -self._bkd.multidot((self._bkd.pinv(CF), cf.T)).T
 
     def _covariance_non_optimal_weights(
@@ -1586,6 +1586,13 @@ class ACVEstimator(CVEstimator):
         rounded_nsamples_per_model = self._bkd.asarray(
             self._compute_nsamples_per_model(rounded_npartition_samples),
             dtype=int,
+        )
+        print(
+            partition_ratios,
+            self._rounded_partition_ratios,
+            rounded_npartition_samples,
+            rounded_target_cost,
+            rounded_nsamples_per_model,
         )
         super()._set_optimized_params_base(
             rounded_npartition_samples,

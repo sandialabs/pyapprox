@@ -152,9 +152,12 @@ class ScipyPenaltyConstrainedOptimizer(ScipyConstrainedOptimizer):
             self._objective, self._raw_constraints
         )
         constrained_objective.set_penalty(opts.pop("penalty", 1e8))
+        self_opts = self._opts
+        self._opts = opts
         objective = ScipyModelWrapper(constrained_objective)
         scipy_result = self._scipy_minimize(objective, iterate, bounds)
         scipy_result.x = scipy_result.x[:, None]
+        self._opts = self_opts
         result = ScipyOptimizationResult(scipy_result, self._bkd)
         if self._verbosity > 1:
             print(result)
@@ -186,6 +189,9 @@ class ScipyConstrainedDifferentialEvolutionOptimizer(
     def _scipy_minimize(
         self, objective: ScipyModelWrapper, iterate: Array, bounds: Bounds
     ) -> NativeScipyOptimizationResult:
+        print(bounds)
+        opts = self._opts.copy()
+        opts["polish"] = False
         return scipy.optimize.differential_evolution(
-            objective, bounds, **self._opts, x0=iterate[:, 0]
+            objective, bounds, **opts, x0=iterate[:, 0]
         )

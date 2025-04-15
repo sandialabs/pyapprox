@@ -14,7 +14,7 @@ from pyapprox.multifidelity.stats import (
 from pyapprox.interface.model import Model
 from pyapprox.optimization.scipy import (
     ScipyConstrainedOptimizer,
-    ScipyConstrainedNelderMeadOptimizer,
+    ScipyConstrainedDifferentialEvolutionOptimizer,
 )
 from pyapprox.optimization.minimize import (
     Constraint,
@@ -154,31 +154,46 @@ class GroupACVObjective(Model):
     def hessian_implemented(self) -> bool:
         return self._bkd.hessian_implemented()
 
-    def _trace_covariance_wrapper(self, npartition_samples_1d: Array) -> Array:
+    @abstractmethod
+    def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
+        raise NotImplementedError
+
+    def _values(self, npartition_samples: Array) -> Array:
+        return self._objective_wrapper(npartition_samples[:, 0])
+
+    def _jacobian(self, npartition_samples: Array) -> Array:
+        return self._bkd.grad(
+            self._objective_wrapper, npartition_samples[:, 0]
+        )[1][None, ...]
+
+    def _hessian(self, npartition_samples: Array) -> Array:
+        return self._bkd.hessian(
+            self._objective_wrapper, npartition_samples[:, 0]
+        )[None, ...]
+
+
+class GroupACVTraceObjective(GroupACVObjective):
+    def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
         trace = self._bkd.trace(
             self._est._covariance_from_npartition_samples(
                 npartition_samples_1d
             )
         )
-        # necessary for torch
+        # conversion below is necessary for torch
         return self._bkd.hstack((trace,))[:, None]
 
-    def _values(self, npartition_samples: Array) -> Array:
-        return self._trace_covariance_wrapper(npartition_samples[:, 0])
 
-    def _jacobian(self, npartition_samples: Array) -> Array:
-        return self._bkd.grad(
-            self._trace_covariance_wrapper, npartition_samples[:, 0]
-        )[1][None, ...]
-
-    def _hessian(self, npartition_samples: Array) -> Array:
-        return self._bkd.hessian(
-            self._trace_covariance_wrapper,
-            npartition_samples[:, 0],
-        )[None, ...]
+class GroupACVLogDetObjective(GroupACVObjective):
+    def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
+        cov = self._est._covariance_from_npartition_samples(
+            npartition_samples_1d
+        )
+        sign, logdet = self._bkd.slogdet(cov)
+        # conversion below is necessary for torch
+        return self._bkd.hstack((logdet,))[:, None]
 
 
-class MLBLUEObjective(GroupACVObjective):
+class MLBLUEObjective(GroupACVTraceObjective):
     def _jacobian(self, npartition_samples: Array):
         # apply derivative of inverse matrix
         # d_m X^{-1} = X^{-1} (d_mX) X^{-1}
@@ -368,6 +383,10 @@ class GroupACVOptimizer(Optimizer):
             )
         return result
 
+    def set_verbosity(self, verbosity: int):
+        super().set_verbosity(verbosity)
+        self._optimizer._verbosity = verbosity
+
 
 class GroupACVGradientOptimizer(GroupACVOptimizer):
     def __init__(self, optimizer: ConstrainedOptimizer):
@@ -380,6 +399,7 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         self._optimizer = optimizer
 
     def _minimize(self, iterate: Array) -> OptimizationResult:
+        print(self._optimizer._verbosity)
         return self._optimizer.minimize(iterate)
 
     def set_budget(self, target_cost: float, min_nhf_samples: int = 1):
@@ -389,9 +409,15 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
             )
         super().set_budget(target_cost, min_nhf_samples)
         self._constraint.set_budget(target_cost, min_nhf_samples)
+        max_npartition_samples = (
+            self._target_cost // self._est._costs.min() + 1
+        )
+        for ii in range(self._optimizer._bounds.shape[0]):
+            self._optimizer._bounds[ii, 1] = max_npartition_samples
 
     def get_objective(self) -> GroupACVObjective:
-        return GroupACVObjective()
+        #    return GroupACVTraceObjective()
+        return GroupACVLogDetObjective()
 
     def set_estimator(self, est: "GroupACVEstimator"):
         super().set_estimator(est)
@@ -411,6 +437,7 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
                 (self._est.npartitions(), 2),
             )
         )
+        self._objective = self._optimizer._objective
 
 
 class MLBLUEGradientOptimizer(GroupACVGradientOptimizer):
@@ -510,6 +537,7 @@ class ChainedACVOptimizer(ChainedOptimizer):
     def set_estimator(self, est: "GroupACVEstimator"):
         self._optimizer1.set_estimator(est)
         self._optimizer2.set_estimator(est)
+        self._objective = self._optimizer2._objective
 
 
 # TODO to enable multioutput I changed to require asketch has a row for each output
@@ -711,7 +739,6 @@ class GroupACVEstimator:
 
     def _covariance_from_npartition_samples(self, npartition_samples):
         psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
-        print(self._bkd.cond(psi_inv), "COND PSI")
         return self._bkd.multidot((self._asketch, psi_inv, self._asketch.T))
 
     def _get_model_subset_costs(self, subsets, costs):
@@ -788,7 +815,11 @@ class GroupACVEstimator:
         self._optimized_covariance = self._covariance_from_npartition_samples(
             self._rounded_npartition_samples
         )
-        self._optimized_criteria = self._bkd.trace(self._optimized_covariance)
+        if not hasattr(self, "_optimizer"):
+            raise RuntimeError("must call est.set_optimizer()")
+        self._optimized_criteria = self._optimizer._objective(
+            self._rounded_npartition_samples[:, None]
+        )
 
     def optimized_covariance(self) -> Array:
         return self._optimized_covariance
@@ -814,7 +845,7 @@ class GroupACVEstimator:
             )
             for nn in range(self._stat.nstats()):
                 asketch[nn, nn] = 1.0
-        asketch = self._bkd.asarray(asketch)
+                asketch = self._bkd.asarray(asketch)
         if asketch.shape != (
             self._stat.nstats(),
             self._stat.nstats() * self.nmodels(),
@@ -832,7 +863,9 @@ class GroupACVEstimator:
 
     def get_default_optimizer(self) -> ChainedACVOptimizer:
         opt1 = GroupACVGradientOptimizer(
-            ScipyConstrainedNelderMeadOptimizer(opts={"maxiter": 30})
+            ScipyConstrainedDifferentialEvolutionOptimizer(
+                opts={"maxiter": 30}
+            )
         )
         local_opt = ScipyConstrainedOptimizer()
         local_opt._opts["gtol"] = 1e-12
@@ -1046,9 +1079,7 @@ class GroupACVEstimator:
         for kk in range(self.nsubsets()):
             mm += len(self._subsets[kk])
             if values_per_subset[kk].shape[0] > 0:
-                # print(self._subsets[kk], "s")
                 subset_stat = self._stat.sample_estimate(values_per_subset[kk])
-                # print(subset_stat, "t")
                 acv_stat += (beta[:, ll:mm]) @ subset_stat
             ll = mm
         return acv_stat
