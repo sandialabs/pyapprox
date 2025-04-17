@@ -410,7 +410,7 @@ class ConstraintPenalizedObjective(Model):
         self._unconstrained_objective = unconstrained_objective
         self._constraints = constraints
         self._penalty = None
-        self._enforce_hard = True
+        self._enforce_hard = enforce_hard
 
     def nqoi(self) -> int:
         return 1
@@ -430,7 +430,8 @@ class ConstraintPenalizedObjective(Model):
                     if self._enforce_hard:
                         return (np.inf + con_val * 0)[:, None]
                     # if constraint violated add a penalty
-                    cons_term += -con_val * self._penalty
+                    else:
+                        cons_term += -con_val * self._penalty
         return self._unconstrained_objective(samples) + cons_term
 
 

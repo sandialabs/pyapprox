@@ -993,8 +993,19 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
             ).flatten()[self._tril_idx_flat]
             for ii in range(nmodels_in_subset)
         ]
+        means = self._bkd.mean(values, axis=0)
+
+        # return self._bkd.hstack([means, self._bkd.hstack(flat_covs)])
         return self._bkd.hstack(
-            [self._bkd.mean(values, axis=0), self._bkd.hstack(flat_covs)]
+            [
+                self._bkd.hstack(
+                    (
+                        means[ii * self._nqoi : (ii + 1) * self._nqoi],
+                        flat_covs[ii],
+                    )
+                )
+                for ii in range(nmodels_in_subset)
+            ]
         )
 
     def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
@@ -1244,7 +1255,50 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic):
         )
         block_12 = self._Bcomp[np.ix_(mean_idx0, var_idx1)] * P_MN
         block_21 = self._Bcomp[np.ix_(mean_idx1, var_idx0)].T * P_MN
+        # block = block_2x2(
+        #     [[block_11, block_12], [block_21, block_22]], self._bkd
+        # )
         # Note ordering of statistics must be consistent with sample_estimate
-        return block_2x2(
-            [[block_11, block_12], [block_21, block_22]], self._bkd
-        )
+        # and est._subsets which is stats model 0, stats_model 1 and so on
+        # blocks 11, 12, 21, and 22 do not follow this ordering so
+        # reorder
+        nstats = self.nstats()
+        nqoi = self.nqoi()
+        ncov_stats = self._tril_idx_flat.shape[0]
+        model_ids0 = subset0[::nstats] // nstats
+        model_ids1 = subset1[::nstats] // nstats
+        rows = []
+        for ii in range(len(model_ids0)):
+            # mean row
+            row = []
+            for jj in range(len(model_ids1)):
+                row.append(
+                    block_11[
+                        ii * nqoi : (ii + 1) * nqoi,
+                        jj * nqoi : (jj + 1) * nqoi,
+                    ]
+                )
+                row.append(
+                    block_12[
+                        ii * nqoi : (ii + 1) * nqoi,
+                        jj * ncov_stats : (jj + 1) * ncov_stats,
+                    ]
+                )
+            rows.append(self._bkd.hstack(row))
+            # covariance row
+            row = []
+            for jj in range(len(model_ids1)):
+                row.append(
+                    block_21[
+                        ii * ncov_stats : (ii + 1) * ncov_stats,
+                        jj * nqoi : (jj + 1) * nqoi,
+                    ]
+                )
+                row.append(
+                    block_22[
+                        ii * ncov_stats : (ii + 1) * ncov_stats,
+                        jj * ncov_stats : (jj + 1) * ncov_stats,
+                    ]
+                )
+            rows.append(self._bkd.hstack(row))
+        return self._bkd.vstack(rows)

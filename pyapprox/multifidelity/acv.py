@@ -1213,16 +1213,11 @@ class ACVEstimator(CVEstimator):
             )
         return nsamples_per_model
 
-    def _estimate(
-        self,
-        values_per_model: List[Array],
-        weights: Array,
-        bootstrap: bool = False,
-    ):
-        nmodels = len(values_per_model)
-        acv_values = self._separate_values_per_model(
-            values_per_model, bootstrap
-        )
+    def _estimate_from_acv_values(
+        self, acv_values: List[Array], weights: Array, nmodels: int
+    ) -> Array:
+        print(acv_values[2].shape)
+        print(self._stat.sample_estimate(acv_values[2]))
         deltas = self._bkd.hstack(
             [
                 self._stat.sample_estimate(acv_values[2 * ii])
@@ -1232,6 +1227,19 @@ class ACVEstimator(CVEstimator):
         )
         est = self._stat.sample_estimate(acv_values[1]) + weights @ deltas
         return est
+
+    def _estimate(
+        self,
+        values_per_model: List[Array],
+        weights: Array,
+        bootstrap: bool = False,
+    ) -> Array:
+        acv_values = self._separate_values_per_model(
+            values_per_model, bootstrap
+        )
+        return self._estimate_from_acv_values(
+            acv_values, weights, len(values_per_model)
+        )
 
     def __repr__(self):
         if self._optimized_criteria is None:

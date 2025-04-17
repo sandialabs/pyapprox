@@ -189,6 +189,13 @@ class GroupACVLogDetObjective(GroupACVObjective):
             npartition_samples_1d
         )
         sign, logdet = self._bkd.slogdet(cov)
+        if logdet < -1e16:
+            # when cov is singular logdet returns np.inf
+            # make sure to return positive value to indicate
+            # to minimizer this is a bad point. Only really is
+            # an issue if starting from poor initial guess or using
+            # global optimizer
+            return self._bkd.asarray([[np.inf]])
         # conversion below is necessary for torch
         return self._bkd.hstack((logdet,))[:, None]
 
@@ -719,13 +726,18 @@ class GroupACVEstimator:
     def _psi_matrix_from_sigma(self, Sigma):
         # TODO instead of applying R matrices just collect correct rows
         # and columns
-        reg_mat = (
+        psi_reg_mat = (
             self._bkd.eye(self.nmodels() * self._stat.nstats())
             * self._reg_blue
         )
+        # sigma_reg_mat = self._bkd.eye(Sigma.shape[0]) * self._reg_blue
+        # print(Sigma)
         return (
-            self._bkd.multidot((self._R, self._inv(Sigma), self._R.T))
-            + reg_mat
+            self._bkd.multidot(
+                # (self._R, self._inv(Sigma + sigma_reg_mat), self._R.T)
+                (self._R, self._inv(Sigma), self._R.T)
+            )
+            + psi_reg_mat
         )
 
     def _psi_matrix(self, npartition_samples):
@@ -830,7 +842,12 @@ class GroupACVEstimator:
         # with torch if npartition samples is not torch.double need to
         # think of a check that works for all backends
         if round_nsamples:
-            rounded_npartition_samples = self._bkd.floor(npartition_samples)
+            # add 1e-15 to avoid rounding down value that is at the constraint
+            # boundary but has numerical noise. Best value depends on
+            # constraint satisfaction tolerance
+            rounded_npartition_samples = self._bkd.floor(
+                npartition_samples + 1e-4
+            )
         else:
             rounded_npartition_samples = npartition_samples
         self._set_optimized_params_base(
@@ -1086,7 +1103,7 @@ class GroupACVEstimator:
         beta = self._grouped_acv_beta(self._optimized_sigma)
         assert self._bkd.allclose(
             beta.sum(axis=1), self._bkd.ones(beta.shape[0])
-        )
+        ), beta.sum(axis=1)
         alpha = self._bkd.zeros(
             (beta.shape[0], (self._nmodels - 1) * self._stat.nstats())
         )
@@ -1100,37 +1117,89 @@ class GroupACVEstimator:
                 alpha[:, jj - self._stat.nstats()] += self._bkd.maximum(
                     beta[:, kk], zeros
                 )
+                # alpha[:, jj - self._stat.nstats()] -= self._bkd.maximum(
+                #     beta[:, kk], zeros
+                # )
                 kk += 1
         return alpha
+
+    def _extract_from_flattened_subset_matrix(
+        self, mat: Array, subset_idx: int
+    ) -> Array:
+        nprev_stats = sum(
+            [subset.shape[0] for subset in self._subsets[:subset_idx]]
+        )
+        subset = self._subsets[subset_idx]
+        subset_mat = mat[:, nprev_stats : nprev_stats + subset.shape[0]]
+        R = self._restriction_matrix(subset)
+        expanded_mat = (R.T @ subset_mat.T).T
+        return expanded_mat
+
+    def _group_to_traditional_estimators_from_alpha(
+        self, subset_ests: List[Array], alpha: Array
+    ) -> Array:
+        beta = self._grouped_acv_beta(self._optimized_sigma)
+        # beta shape (nstats, sum_s\insubsets nstats * nmodels_in_subset(s)
+        Q0 = self._bkd.zeros((self._stat.nstats(),))
+        Qe = self._bkd.zeros((self._stat.nstats(), (self._nmodels - 1)))
+        Qu = self._bkd.zeros((self._stat.nstats(), (self._nmodels - 1)))
+        # zeros = self._bkd.zeros((self._stat.nstats(), (self._nmodels - 1)))
+        for ii, subset in enumerate(self._subsets):
+            beta_tilde = self._extract_from_flattened_subset_matrix(beta, ii)
+            # print(subset)
+            # print(beta)
+            # print(beta_tilde)
+            B0_tilde = beta_tilde[:, : self._stat.nstats()]
+            BL_tilde = beta_tilde[:, self._stat.nstats() :]
+            R = self._restriction_matrix(subset)
+            Q_tilde = R.T @ subset_ests[ii]
+            Q0_tilde = Q_tilde[: self._stat.nstats()]
+            QL_tilde = Q_tilde[self._stat.nstats() :]
+            print("\n", subset)
+            # print(beta)
+            print(subset_ests[ii])
+            print(Q_tilde, "QT")
+            # print(Q0_tilde, "Q0")
+            # print(B0_tilde, "B0")
+            # print(QL_tilde, "QL")
+            # print(BL_tilde, "BL")
+            # print(subset_ests[ii])
+            Q0 += B0_tilde @ Q0_tilde
+            # print(BL_tilde.shape, zeros.shape, alpha.shape)
+            # we = self._bkd.maximum(BL_tilde, zeros) / alpha
+            # wu = -self._bkd.minimum(BL_tilde, zeros) / alpha
+            nstats = self._stat.nstats()
+            # print(alpha.shape, beta.shape, Qe.shape)
+            for kk in range(beta.shape[0]):
+                for ll in range(1, self._nmodels):
+                    print(
+                        kk,
+                        ll,
+                        (ll - 1) * nstats + kk,
+                        BL_tilde.shape,
+                        alpha.shape,
+                    )
+                    wu = (1 / alpha[kk, (ll - 1) * nstats + kk]) * max(
+                        BL_tilde[kk, (ll - 1) * nstats + kk], 0.0
+                    )
+                    we = -(1 / alpha[kk, (ll - 1) * nstats + kk]) * min(
+                        BL_tilde[kk, (ll - 1) * nstats + kk], 0.0
+                    )
+                    Qe[kk, ll - 1] += QL_tilde[(ll - 1) * nstats + kk] * we
+                    Qu[kk, ll - 1] += QL_tilde[(ll - 1) * nstats + kk] * wu
+            # print(Qe)
+        return Q0, Qe, Qu
 
     def _group_to_traditional_estimators(
         self, subset_ests: List[Array]
     ) -> Array:
-        print(subset_ests)
+        print(subset_ests, "SE")
         # Implement equations (15) in arxiv paper
         # wu = w_l^{k,u} and  we = w_l^{k,e} from arxiv paper
-        beta = self._grouped_acv_beta(self._optimized_sigma)
         alpha = self._traditional_acv_weights()
-        zeros = self._bkd.zeros((beta.shape[0],))
-        Qe, Qu = [], []
-        for ll in range(1, self._nmodels):
-            Qe.append(0.0)
-            Qu.append(0.0)
-            kk = 0
-            for ii, subset in enumerate(self._subsets):
-                for jj in subset:
-                    if jj < self._stat.nstats():
-                        kk += 1
-                        continue
-                    we = self._bkd.maximum(beta[:, kk], zeros)
-                    wu = -self._bkd.minimum(beta[:, kk], zeros)
-                    print(Qe[-1], we, subset_ests)
-                    Qe[-1] += we * subset_ests[ii]
-                    Qu[-1] += wu * subset_ests[ii]
-                    kk += 1
-            Qe[-1] /= alpha[:, ll - 1]
-            Qu[-1] /= alpha[:, ll - 1]
-        return Qe, Qu
+        return self._group_to_traditional_estimators_from_alpha(
+            subset_ests, alpha
+        )
 
     def __call__(self, values_per_model: List[Array]) -> Array:
         values_per_subset = self._separate_values_per_model(values_per_model)

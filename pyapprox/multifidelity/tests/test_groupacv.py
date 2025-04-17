@@ -511,8 +511,8 @@ class TestGroupACV:
         Sigma = est._sigma(est._rounded_npartition_samples)
         atol, rtol = 4e-3, 3e-2
         # print(est._stat)
-        # print(bkd.diag(mc_group_cov))
-        # print(bkd.diag(Sigma))
+        print(bkd.diag(mc_group_cov))
+        print(bkd.diag(Sigma), "S")
         # print(bkd.diag(mc_group_cov) - bkd.diag(Sigma))
         # print(
         #     (bkd.diag(mc_group_cov) - bkd.diag(Sigma)) / bkd.diag(mc_group_cov)
@@ -614,6 +614,116 @@ class TestGroupACV:
         )
         return cov, W, B, costs, funs, benchmark
 
+    def _check_group_acv_to_traditional_acv(
+        self, est, mfmc_est, benchmark, funs
+    ):
+        # assumes nested mfmc subsets e.g. [0, 1] [1, 2], [2] with 3 models
+        bkd = self.get_backend()
+        import torch
+
+        torch.set_printoptions(precision=12, linewidth=1000)
+        # print(est._traditional_acv_weights())
+        # print(
+        #     mfmc_est._optimized_weights, mfmc_est._optimized_weights.shape, "W"
+        # )
+        samples_per_model = est.generate_samples_per_model(
+            benchmark.variable().rvs
+        )
+        values_per_model = [
+            bkd.array(funs[ii](samples_per_model[ii]))
+            for ii in range(est.nmodels())
+        ]
+        subset_values = est._separate_values_per_model(values_per_model)
+        subset_ests = []
+        for kk in range(est.nsubsets()):
+            if subset_values[kk].shape[0] > 0:
+                print(kk, "K")
+                subset_est = est._stat.sample_estimate(subset_values[kk])
+                print(subset_est.shape, "V")
+            else:
+                subset_est = bkd.zeros(len(est.subsets[kk]))
+            subset_ests.append(subset_est)
+        Q0, Qe, Qu = est._group_to_traditional_estimators(subset_ests)
+        # Q0, Qe, Qu = est._group_to_traditional_estimators_from_alpha(
+        #     subset_ests, mfmc_est._optimized_weights
+        # )
+        nqoi = est._stat.nqoi()
+        print(subset_values[0].shape, subset_values[1].shape, nqoi)
+        print(
+            subset_values[0].mean(axis=0),
+            bkd.var(subset_values[0], axis=0, ddof=1),
+            "M0",
+        )
+        print(
+            subset_values[1].mean(axis=0),
+            bkd.var(subset_values[1], axis=0, ddof=1),
+            "M2",
+        )
+        print(subset_ests)
+        if est.nmodels() == 2:
+            acv_values = [
+                bkd.zeros((0, nqoi)),
+                subset_values[0][:, :nqoi],
+                subset_values[0][:, nqoi : 2 * nqoi],
+                subset_values[1],
+            ]
+        else:
+            acv_values = [
+                bkd.zeros((0, nqoi)),
+                subset_values[0][:, :nqoi],
+                subset_values[0][:, nqoi : 2 * nqoi],
+                subset_values[1][:, :nqoi],
+                subset_values[1][:, nqoi : 2 * nqoi],
+                subset_values[2],
+            ]
+
+        # print(acv_values[0])
+        # print(acv_values[1], subset_values[0], "a")
+        print(bkd.var(acv_values[1], axis=0, ddof=1))
+        print(mfmc_est)
+        Q0_acv = mfmc_est._stat.sample_estimate(acv_values[1])
+        Qe_acv = bkd.stack(
+            [
+                mfmc_est._stat.sample_estimate(acv_values[2 * ii])
+                for ii in range(1, est.nmodels())
+            ],
+            axis=1,
+        )
+        Qu_acv = bkd.stack(
+            [
+                mfmc_est._stat.sample_estimate(acv_values[2 * ii + 1])
+                for ii in range(1, est.nmodels())
+            ],
+            axis=1,
+        )
+        print(Q0, "Q0")
+        print(Q0_acv, "Q0_acv")
+        assert bkd.allclose(Q0, Q0_acv)
+        print(Qe, "Qe")
+        print(Qe_acv, "Qe_acv")
+        print(Qu, "Qu")
+        print(Qu_acv, "Qu_acv")
+        print(bkd.hstack((Qe, Qu)))
+        print(bkd.hstack((Qe_acv, Qu_acv)))
+        for ii in range(Qe.shape[0]):
+            print(
+                bkd.sort(bkd.hstack((Qe[ii], Qu[ii]))),
+                bkd.sort(bkd.hstack((Qe_acv[ii], Qu_acv[ii]))),
+            )
+            assert bkd.allclose(
+                bkd.sort(bkd.abs(bkd.hstack((Qe[ii], Qu[ii])))),
+                bkd.sort(bkd.abs(bkd.hstack((Qe_acv[ii], Qu_acv[ii])))),
+            )
+        assert bkd.allclose(Qe, Qe_acv)
+        assert bkd.allclose(Qu, Qu_acv)
+        # weight conversion is only unqiue up to a sign
+        print(bkd.abs(est._traditional_acv_weights()))
+        print(bkd.abs(mfmc_est._optimized_weights))
+        assert bkd.allclose(
+            bkd.abs(est._traditional_acv_weights()),
+            bkd.abs(mfmc_est._optimized_weights),
+        )
+
     def _check_mfmc_nested_estimation(self, nmodels, qoi_idx, statname):
         bkd = self.get_backend()
         est_type = "nested"
@@ -684,34 +794,10 @@ class TestGroupACV:
             mfmc_est._rounded_npartition_samples,
             round_nsamples=False,
         )
-        import torch
 
-        torch.set_printoptions(precision=12, linewidth=1000)
-        print(est._traditional_acv_weights())
-        print(
-            mfmc_est._optimized_weights, mfmc_est._optimized_weights.shape, "W"
-        )
-
-        samples_per_model = est.generate_samples_per_model(
-            benchmark.variable().rvs
-        )
-        values_per_model = [
-            bkd.array(funs[ii](samples_per_model[ii]))
-            for ii in range(est.nmodels())
-        ]
-        subset_values = est._separate_values_per_model(values_per_model)
-        subset_ests = []
-        for kk in range(est.nsubsets()):
-            if subset_values[kk].shape[0] > 0:
-                subset_est = est._stat.sample_estimate(subset_values[kk])
-            else:
-                subset_est = bkd.zeros(len(est.subsets[kk]))
-            subset_ests.append(subset_est)
-        print(est._group_to_traditional_estimators(subset_ests), "Q")
-        # assert False
-        assert bkd.allclose(
-            est._traditional_acv_weights(), mfmc_est._optimized_weights
-        )
+        # self._check_group_acv_to_traditional_acv(
+        #     est, mfmc_est, benchmark, funs
+        # )
 
         # self._check_sigma_matrix_of_estimator(
         #     est, int(2e4), funs, benchmark.variable()
@@ -767,10 +853,10 @@ class TestGroupACV:
         est.set_optimizer(opt)
         iterate = est._init_guess(target_cost)
         est.allocate_samples(target_cost, iterate=iterate, round_nsamples=True)
-        print(est._optimized_covariance)
-        print(mfmc_est._optimized_covariance)
-        print(est._optimized_covariance - mfmc_est._optimized_covariance)
-        print(est._optimized_criteria, mfmc_est._optimized_criteria)
+        # print(est._optimized_covariance)
+        # print(mfmc_est._optimized_covariance)
+        # print(est._optimized_covariance - mfmc_est._optimized_covariance)
+        # print(est._optimized_criteria, mfmc_est._optimized_criteria)
         assert np.allclose(
             est._optimized_covariance, mfmc_est._optimized_covariance
         )
@@ -780,13 +866,17 @@ class TestGroupACV:
 
     def test_mfmc_nested_estimation(self):
         test_cases = [
-            [3, [0], "mean"],
+            # [2, [0], "mean"],
+            # [3, [0], "mean"],
+            # [2, [0, 1], "mean"],
             # [2, [0, 1, 2], "mean"],
             # [3, [0, 1], "mean"],
+            # [3, [0, 1, 2], "mean"],
             # [2, [0], "variance"],
             # [2, [0, 1, 2], "variance"],
             # [3, [0, 1], "variance"],
             # [2, [0], "mean_variance"],
+            [2, [0, 1], "mean_variance"],
         ]
         for test_case in test_cases:
             np.random.seed(1)
