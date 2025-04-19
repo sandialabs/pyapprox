@@ -1216,8 +1216,6 @@ class ACVEstimator(CVEstimator):
     def _estimate_from_acv_values(
         self, acv_values: List[Array], weights: Array, nmodels: int
     ) -> Array:
-        print(acv_values[2].shape)
-        print(self._stat.sample_estimate(acv_values[2]))
         deltas = self._bkd.hstack(
             [
                 self._stat.sample_estimate(acv_values[2 * ii])
@@ -1595,13 +1593,6 @@ class ACVEstimator(CVEstimator):
         rounded_nsamples_per_model = self._bkd.asarray(
             self._compute_nsamples_per_model(rounded_npartition_samples),
             dtype=int,
-        )
-        print(
-            partition_ratios,
-            self._rounded_partition_ratios,
-            rounded_npartition_samples,
-            rounded_target_cost,
-            rounded_nsamples_per_model,
         )
         super()._set_optimized_params_base(
             rounded_npartition_samples,

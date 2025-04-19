@@ -38,8 +38,8 @@ print(pdf_vals)
 # can be accessed for all 1D variabels using
 #:func:`pyapprox.variables.IndependentMarginalsVariable.get_statistics`
 # For example,
-mean = variable.get_statistics("mean")
-variance = variable.get_statistics("var")
+mean = variable.mean()
+variance = variable.var()
 print("Mean", mean)
 print("Variance", variance)
 
@@ -82,9 +82,10 @@ ax1.plot_surface(X, Y, Z)
 # %%
 # We can also generate samples using Gaussian copulas. First specify the
 # marginals and the correlation between them
-from pyapprox.variables import GaussCopulaVariable
+from pyapprox.variables import GaussCopulaVariable, ContinuousScipyMarginal
 
-marginals = [stats.beta(a=2, b=5), stats.beta(a=5, b=2)]
+scipy_marginals = [stats.beta(a=2, b=5), stats.beta(a=5, b=2)]
+marginals = [ContinuousScipyMarginal(marginal) for marginal in scipy_marginals]
 x_correlation = np.array([[1, 0.9], [0.9, 1]])
 variable = GaussCopulaVariable(marginals, x_correlation)
 

@@ -54,7 +54,11 @@ class LogLikelihood(Model):
             The observations
         """
         if obs.ndim != 2 or obs.shape[0] != self.nobs():
-            raise ValueError("obs has the wrong shape {0}".format(obs.shape))
+            raise ValueError(
+                "obs has the wrong shape {0} should be {1}".format(
+                    obs.shape, (self.nobs(), 1)
+                )
+            )
         self._obs = obs
 
     @abstractmethod
@@ -248,7 +252,6 @@ class IndependentGaussianLogLikelihood(GaussianLogLikelihood):
         )
 
     def _setup(self, noise_cov_diag: Array):
-        print(noise_cov_diag.shape)
         if noise_cov_diag.ndim != 2 or noise_cov_diag.shape[1] != 1:
             raise ValueError(
                 "noise_cov_diag has the wrong shape {0}".format(
@@ -463,3 +466,37 @@ class LogUnNormalizedPosterior(Model):
             self.set_optimizer(self.default_optimizer())
         res = self._optimizer.minimize(iterate)
         return res.x
+
+
+class ExponentialQuarticLogLikelihoodModel(LogLikelihood):
+    # likelihood function sometimes found in the literature
+    # not a true likelihood so only implements a subset of
+    # functions
+    def __init__(self, backend: BackendMixin = NumpyMixin):
+        super().__init__(backend=backend)
+        self._a = 3.0
+
+    def nvars(self) -> int:
+        return 2
+
+    def _values(self, x: Array) -> Array:
+        value = -(0.1 * x[0] ** 4 + 0.5 * (2.0 * x[1] - x[0] ** 2) ** 2)
+        return value[:, None]
+
+    def _jacobian(self, x: Array):
+        grad = -self._bkd.array(
+            [
+                12.0 / 5.0 * x[0] ** 3 - 4.0 * x[0] * x[1],
+                4.0 * x[1] - 2.0 * x[0] ** 2,
+            ]
+        )
+        return grad
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def _loglike(self, many_pred_obs: Array) -> Array:
+        raise NotImplementedError
+
+    def _make_noisy(self, noiseless_obs: Array, noise, Array) -> Array:
+        raise NotImplementedError

@@ -2,8 +2,6 @@ from functools import partial
 from typing import Tuple, Union
 
 import numpy as np
-from scipy.linalg import solve_triangular
-from scipy.optimize import minimize, differential_evolution
 import matplotlib.pyplot as plt
 
 from pyapprox.variables.joint import JointVariable
@@ -15,30 +13,31 @@ from pyapprox.surrogates.affine.multiindex import anova_level_indices
 from pyapprox.bayes.hmc import hmc
 from pyapprox.bayes.likelihood import LogLikelihood, LogUnNormalizedPosterior
 from pyapprox.util.backends.template import Array
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
-def update_mean_and_covariance(new_draw, mean, cov, ndraws, sd, nugget):
+def update_mean_and_covariance(new_draw, mean, cov, ndraws, sd, nugget, bkd):
     assert new_draw.ndim == 2 and new_draw.shape[1] == 1
     assert mean.ndim == 2 and mean.shape[1] == 1
     # cov already contains s_d*eps*I and is scaled by sd
     updated_mean = (ndraws * mean + new_draw) / (ndraws + 1)
     nvars = new_draw.shape[0]
     updated_cov = (ndraws - 1) / ndraws * cov
-    updated_cov += sd * nugget * np.eye(nvars) / ndraws
+    updated_cov += sd * nugget * bkd.eye(nvars) / ndraws
     delta = new_draw - mean  # use mean and not updated mean
     updated_cov += sd * delta.dot(delta.T) / (ndraws + 1)
     return updated_mean, updated_cov
 
 
-def compute_mvn_cholesky_based_data(C) -> Tuple[Array, Array, Array]:
-    L = np.linalg.cholesky(C)
-    L_inv = solve_triangular(L, np.eye(C.shape[0]), lower=True)
-    logdet = 2 * np.log(np.diag(L)).sum()
+def compute_mvn_cholesky_based_data(C, bkd) -> Tuple[Array, Array, Array]:
+    L = bkd.cholesky(C)
+    L_inv = bkd.solve_triangular(L, bkd.eye(C.shape[0]), lower=True)
+    logdet = 2 * bkd.log(bkd.diag(L)).sum()
     return L, L_inv, logdet
 
 
 def mvn_log_pdf(
-    xx: Array, m: Array, C: Union[Tuple[Array, Array, Array], Array]
+    xx: Array, m: Array, C: Union[Tuple[Array, Array, Array], Array], bkd
 ) -> Array:
     if m.ndim == 1:
         m = m[:, None]
@@ -48,23 +47,27 @@ def mvn_log_pdf(
     assert m.shape[1] == 1
 
     if not isinstance(C, tuple):
-        L, L_inv, logdet = compute_mvn_cholesky_based_data(C)
+        L, L_inv, logdet = compute_mvn_cholesky_based_data(C, bkd)
     else:
         L, L_inv, logdet = C
 
     nvars = xx.shape[0]
-    log2pi = np.log(2 * np.pi)
-    tmp = np.dot(L_inv, xx - m)
-    MDsq = np.sum(tmp * tmp, axis=0)
+    log2pi = bkd.log(2 * np.pi)
+    tmp = L_inv @ (xx - m)
+    MDsq = bkd.sum(tmp * tmp, axis=0)
     log_pdf = -0.5 * (MDsq + nvars * log2pi + logdet)
     return log_pdf
 
 
 def mvnrnd(
-    m: Array, C: Array, nsamples: int = 1, is_chol_factor: bool = False
+    m: Array,
+    C: Array,
+    nsamples: int = 1,
+    is_chol_factor: bool = False,
+    bkd=NumpyMixin,
 ) -> Array:
     if is_chol_factor is False:
-        L = np.linalg.cholesky(C)
+        L = bkd.cholesky(C)
     else:
         L = C
     if m.ndim == 1:
@@ -80,19 +83,26 @@ def delayed_rejection(
     logpost_fun,
     cov_scaling: float,
     log_f_y0: Array,
+    prior_bounds: Array,
+    bkd,
 ):
 
     L = proposal_chol_tuple[0]
-    y1 = mvnrnd(y0, L, is_chol_factor=True)
+    while True:
+        y1 = mvnrnd(y0, L, is_chol_factor=True)
+        if bkd.all(y1[:, 0] >= prior_bounds[:, 0]) and bkd.all(
+            y1[:, 0] <= prior_bounds[:, 1]
+        ):
+            break
     if log_f_y0 is None:
         log_f_y0 = logpost_fun(y0)
 
     log_f_y1 = logpost_fun(y1)
-    log_q1_y0_y1 = mvn_log_pdf(y0, y1, proposal_chol_tuple)
-    log_q1_y1_y0 = mvn_log_pdf(y1, y0, proposal_chol_tuple)
+    log_q1_y0_y1 = mvn_log_pdf(y0, y1, proposal_chol_tuple, bkd)
+    log_q1_y1_y0 = mvn_log_pdf(y1, y0, proposal_chol_tuple, bkd)
 
     # the following is true because we are using a symmetric proposal
-    assert np.allclose(log_q1_y0_y1, log_q1_y1_y0, atol=1e-15)
+    assert bkd.allclose(log_q1_y0_y1, log_q1_y1_y0, atol=1e-15)
 
     log_numer_1 = log_f_y1 + log_q1_y0_y1
     log_denom_1 = log_f_y0 + log_q1_y1_y0
@@ -114,17 +124,24 @@ def delayed_rejection(
     # q2 is an aribtraty proposal which is a function of y0 and y1
     # Below we ignore y1 and take proposal centered at y0
     # but could equally ignore y0 and take proposal centered at y1
-    y2 = mvnrnd(y0, scaled_proposal_chol_tuple[0], is_chol_factor=True)
+    while True:
+        y2 = mvnrnd(
+            y0, scaled_proposal_chol_tuple[0], is_chol_factor=True, bkd=bkd
+        )
+        if bkd.all(y2[:, 0] >= prior_bounds[:, 0]) and bkd.all(
+            y2[:, 0] <= prior_bounds[:, 1]
+        ):
+            break
 
     log_f_y2 = logpost_fun(y2)
-    log_q1_y1_y2 = mvn_log_pdf(y1, y2, proposal_chol_tuple)
-    log_q1_y2_y1 = mvn_log_pdf(y2, y1, proposal_chol_tuple)
+    log_q1_y1_y2 = mvn_log_pdf(y1, y2, proposal_chol_tuple, bkd)
+    log_q1_y2_y1 = mvn_log_pdf(y2, y1, proposal_chol_tuple, bkd)
 
     # the following is true because we are using a symmetric proposal
     assert np.allclose(log_q1_y2_y1, log_q1_y1_y2, atol=1e-15)
 
-    log_q2_y2_y0 = mvn_log_pdf(y2, y0, scaled_proposal_chol_tuple)
-    log_q2_y0_y2 = mvn_log_pdf(y0, y2, scaled_proposal_chol_tuple)
+    log_q2_y2_y0 = mvn_log_pdf(y2, y0, scaled_proposal_chol_tuple, bkd)
+    log_q2_y0_y2 = mvn_log_pdf(y0, y2, scaled_proposal_chol_tuple, bkd)
 
     # the following is true because we are using a symmetric proposal
     assert np.allclose(log_q2_y2_y0, log_q2_y0_y2, atol=1e-15)
@@ -132,18 +149,17 @@ def delayed_rejection(
     log_alpha_1_y1_y2 = (log_f_y1 + log_q1_y2_y1) - (log_f_y2 + log_q1_y1_y2)
     if np.log(1) <= log_alpha_1_y1_y2:
         return y0, 0, log_f_y0
-
     log_numer_2 = (
         log_f_y2
         + log_q1_y1_y2
         + log_q2_y0_y2
-        + np.log(1 - min(1, np.exp(log_alpha_1_y1_y2)))
+        + bkd.log(1.0 - min(1.0, bkd.exp(log_alpha_1_y1_y2)))
     )
     log_denom_2 = (
         log_f_y0
         + log_q1_y1_y0
         + log_q2_y2_y0
-        + np.log(1 - min(1, np.exp(log_alpha_1_y0_y1)))
+        + bkd.log(1 - min(1, bkd.exp(log_alpha_1_y0_y1)))
     )
 
     # acceptance probability
@@ -159,11 +175,13 @@ def DRAM(
     init_sample,
     proposal_cov,
     nsamples,
+    prior_bounds,
     ndraws_init_update=20,
     nugget=1e-6,
     cov_scaling=1e-2,
     verbosity=0,
     sd=None,
+    bkd=NumpyMixin,
 ):
     nvars = init_sample.shape[0]
 
@@ -175,16 +193,16 @@ def DRAM(
     # do not scale initial proposal cov by sd.
     # Assume user provides a good guess
     proposal_cov = proposal_cov  # * sd
-    proposal_chol_tuple = compute_mvn_cholesky_based_data(proposal_cov)
+    proposal_chol_tuple = compute_mvn_cholesky_based_data(proposal_cov, bkd)
     logpost = logpost_fun(init_sample)
     sample_mean = init_sample
-    sample_cov = np.zeros((nvars, nvars))
+    sample_cov = bkd.zeros((nvars, nvars))
 
     # use init samples as first sample in chain
     ndraws = 0
     sample = init_sample
     samples[:, 0] = sample[:, 0]
-    accepted = np.empty(nsamples)
+    accepted = bkd.empty(nsamples)
     accepted[ndraws] = 1
     ndraws = +1
 
@@ -193,13 +211,21 @@ def DRAM(
     #     pbar.update(1)
     while ndraws < nsamples:
         if ndraws % ndraws_init_update == 0:
-            proposal_chol_tuple = compute_mvn_cholesky_based_data(sample_cov)
+            proposal_chol_tuple = compute_mvn_cholesky_based_data(
+                sample_cov, bkd
+            )
         sample, acc, logpost = delayed_rejection(
-            sample, proposal_chol_tuple, logpost_fun, cov_scaling, logpost
+            sample,
+            proposal_chol_tuple,
+            logpost_fun,
+            cov_scaling,
+            logpost,
+            prior_bounds,
+            bkd,
         )
         samples[:, ndraws] = sample.squeeze()
         sample_mean, sample_cov = update_mean_and_covariance(
-            sample, sample_mean, sample_cov, ndraws, sd, nugget
+            sample, sample_mean, sample_cov, ndraws, sd, nugget, bkd
         )
         accepted[ndraws] = acc
         ndraws += 1
@@ -271,6 +297,7 @@ class MetropolisMCMCVariable(JointVariable):
             init_sample,
             init_proposal_cov,
             nsamples + nburn_samples,
+            self._prior.interval(1),
             self._nsamples_per_tuning,
             nugget,
             cov_scaling,

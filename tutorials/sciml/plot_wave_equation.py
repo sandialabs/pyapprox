@@ -146,7 +146,7 @@ import matplotlib.pyplot as plt
 from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
 )
-from pyapprox.sciml.util import NumpyMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 def _greens_function(k, L, X, Y):
@@ -248,9 +248,7 @@ def helmholtz_forcing_fun(k, a, w0, xx):
     return const * np.sin(a * xx.T)
 
 
-quad_rule = GaussLegendreQuadratureRule(
-    bounds=[0, L], backend=NumpyMixin
-)
+quad_rule = GaussLegendreQuadratureRule(bounds=[0, L], backend=NumpyMixin)
 quad_rule.set_nnodes(100)
 axs[1].plot(
     plot_xx[0],
@@ -285,5 +283,4 @@ axs[2].plot(
     "--",
     label="Fourier Transform Solution",
 )
-axs[2].legend()
-plt.show()
+_ = axs[2].legend()

@@ -96,17 +96,24 @@ is the covariance between the parameters and data.
 Now let us setup this problem in Python
 """
 
-from pyapprox.bayes.metropolis import MetropolisMCMCVariable
-from pyapprox.bayes.tests.test_metropolis import (
-    ExponentialQuarticLogLikelihoodModel,
-)
-from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
+from functools import partial
+
 from scipy import stats
 import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
-from functools import partial
 import matplotlib as mpl
+
+from pyapprox.bayes.metropolis import MetropolisMCMCVariable
+from pyapprox.bayes.likelihood import ExponentialQuarticLogLikelihoodModel
+from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.surrogates.affine.basis import (
+    setup_tensor_product_gauss_quadrature_rule,
+)
+from pyapprox.bayes.likelihood import LogUnNormalizedPosterior
+from pyapprox.util.visualization import _turn_off_3d_axes
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.util.visualization import get_meshgrid_function_data
 
 np.random.seed(1)
 
@@ -214,14 +221,14 @@ posterior = DenseCholeskyMultivariateGaussian(new_mean, new_cov)
 f, axs = plt.subplots(1, 2, figsize=(16, 6))
 prior_plot_limits = [-3, 3]
 prior.plot_pdf(axs[0], prior_plot_limits, label="prior")
-axs[0].axvline(x=x_truth, lw=3, label=r"$x_\text{truth}$")
+axs[0].axvline(x=x_truth[0][0], lw=3, label=r"$x_\text{truth}$")
 posterior.plot_pdf(
     plot_limits=prior_plot_limits, ls="-", label="posterior", ax=axs[0]
 )
 print(joint)
 joint.plot_pdf(axs[1], [-3, 3, -3, 3], cmap=mpl.cm.coolwarm, levels=20)
-axhline = axs[1].axhline(y=data_obs, color="k")
-axplot = axs[1].plot(x_truth, data_obs, "ok", ms=10)
+axhline = axs[1].axhline(y=data_obs[0, 0], color="k")
+axplot = axs[1].plot(x_truth[0, 0], data_obs, "ok", ms=10)
 
 # %%
 # Lets also plot the joint distribution and marginals in a 3d plot
@@ -231,8 +238,6 @@ def data_obs_limit_state(samples, vals, data_obs):
     idx = np.where(samples[1, :] <= data_obs[0, 0])[0]
     return idx, 0.0
 
-
-from pyapprox.util.visualization import _turn_off_3d_axes
 
 npts_1d = 100
 limit_state = partial(data_obs_limit_state, data_obs=data_obs)
@@ -301,15 +306,15 @@ for ii in range(1, nobs):
 
 f, axs = plt.subplots(1, 2, figsize=(16, 6))
 prior.plot_pdf(axs[0], plot_limits=prior_plot_limits, label="prior")
-axs[0].axvline(x=x_truth, lw=3, label=r"$x_\text{truth}$")
+axs[0].axvline(x=x_truth[0, 0], lw=3, label=r"$x_\text{truth}$")
 for ii in range(nobs):
     posteriors[ii].plot_pdf(
         plot_limits=prior_plot_limits, ls="-", label="posterior", ax=axs[0]
     )
 
 new_joint.plot_pdf(ax=axs[1], plot_limits=[-3, 3, -3, 3], levels=20)
-axhline = axs[1].axhline(y=data_obs, color="k")
-axplot = axs[1].plot(x_truth, data_obs, "ok", ms=10)
+axhline = axs[1].axhline(y=data_obs[0, 0], color="k")
+axplot = axs[1].plot(x_truth[0, 0], data_obs, "ok", ms=10)
 
 # %%
 # As you can see the variance of the joint density decreases as more data is added. The posterior variance also decreases and the posterior will converge to a Dirac-delta function as the number of observations tends to infinity. Currently the mean of the posterior is not near the true parameter value (the horizontal line). Try increasing ``nobs1`` to see what happens.
@@ -327,47 +332,39 @@ axplot = axs[1].plot(x_truth, data_obs, "ok", ms=10)
 # We can sample the posterior using Delayed Rejection Adaptive Metropolis (DRAM) Markov Chain Monte Carlo using the following code.
 np.random.seed(1)
 
-from pyapprox.variables.joint import IndependentMarginalsVariable
 
 prior_marginals = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
-plot_range = np.asarray([-1, 1, -1, 1]) * 2
 prior = IndependentMarginalsVariable(prior_marginals)
+plot_range = prior.interval(1).flatten()
 
 loglike = ExponentialQuarticLogLikelihoodModel()
 mcmc_variable = MetropolisMCMCVariable(prior, loglike)
 
 # number of draws from the distribution
-ndraws = 500
+ndraws = 1000
 # number of "burn-in points" (which we'll discard) as a fraction of ndraws
 burn_fraction = 0.1
 map_sample = mcmc_variable.maximum_aposteriori_point()
-samples = mcmc_variable.rvs(ndraws)
+
+samples = mcmc_variable.rvs(ndraws, init_sample=map_sample)
 
 print("MAP sample", map_sample.squeeze())
 
 # %%
 # Lets plot the posterior distribution and the MCMC samples. First we must compute the evidence
 
-from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.surrogates.affine.basis import (
-    setup_tensor_product_gauss_quadrature_rule,
-)
-from pyapprox.bayes.likelihood import LogUnNormalizedPosterior
-
 log_unnormalized_posterior = LogUnNormalizedPosterior(loglike, prior)
 
 
-marginals = [stats.uniform(-2, 4)] * 2
+# marginals = [stats.uniform(-2, 4)] * 2
 quad_rule = setup_tensor_product_gauss_quadrature_rule(
-    IndependentMarginalsVariable(marginals)
+    IndependentMarginalsVariable(prior_marginals)
 )
 xquad, wquad = quad_rule([100, 100])
-wquad *= 2.0  # adjust for Lebsesque integration
 print(xquad.shape)
-evidence = np.exp(log_unnormalized_posterior(xquad))[:, 0] @ wquad[:, 0]
+evidence = np.exp(loglike(xquad))[:, 0] @ wquad[:, 0]
 print("evidence", evidence)
 
-from pyapprox.util.visualization import get_meshgrid_function_data
 
 plt.figure()
 X, Y, Z = get_meshgrid_function_data(
@@ -385,9 +382,7 @@ _ = plt.plot(samples[0, :], samples[1, :], "ko")
 # %%
 # Now lets compute the mean of the posterior using a highly accurate quadrature rule and compars this to the mean estimated using MCMC samples.
 
-exact_mean = (xquad * np.exp(log_unnormalized_posterior(xquad))[:, 0]).dot(
-    wquad
-) / evidence
+exact_mean = (xquad * np.exp(loglike(xquad))[:, 0]) @ wquad / evidence
 print("mcmc mean", samples.mean(axis=1))
 print("exact mean", exact_mean.squeeze())
 

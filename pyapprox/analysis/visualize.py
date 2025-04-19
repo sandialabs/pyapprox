@@ -30,7 +30,7 @@ def plot_qoi_marginals(values, axs=None):
 def get_meshgrid_samples_from_variable(
     variable, num_pts_1d, logspace=False, unbounded_alpha=0.99
 ):
-    plot_limits = variable.truncated_range(unbounded_alpha)
+    plot_limits = variable.truncated_ranges(unbounded_alpha).flatten()
     X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
     return X, Y, pts
 
@@ -91,7 +91,7 @@ def plot_1d_cross_section(
     """
     Plot a single 1D cross section of a multivariate function.
     """
-    lb, ub = var.truncated_range(var, 0.99)
+    lb, ub = var.truncated_ranges(var, 0.99).flatten()
     samples = np.tile(nominal_sample, (1, nsamples_1d))
     samples[var_idx, :] = np.linspace(lb, ub, nsamples_1d)
     values = fun(samples)

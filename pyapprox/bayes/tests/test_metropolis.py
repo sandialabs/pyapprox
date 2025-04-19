@@ -1,11 +1,9 @@
 import unittest
 import numpy as np
 from scipy import stats
-from functools import partial
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-
-from pyapprox.surrogates.univariate.base import Monomial1D
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.bayes.metropolis import (
     MetropolisMCMCVariable,
     compute_mvn_cholesky_based_data,
@@ -48,12 +46,13 @@ class TestMetropolis(unittest.TestCase):
         np.random.seed(1)
 
     def test_mvnpdf(self):
+        bkd = NumpyMixin
         nvars = 3
         m = np.random.normal(0, 1, (nvars, 1))
         C = np.random.normal(0, 1, (nvars, nvars))
         C = C.T.dot(C)
 
-        L, L_inv, logdet = compute_mvn_cholesky_based_data(C)
+        L, L_inv, logdet = compute_mvn_cholesky_based_data(C, bkd)
         L = np.linalg.cholesky(C)
         assert np.allclose(L_inv, np.linalg.inv(L))
         logdet = 2 * np.log(np.diag(L)).sum()
@@ -61,7 +60,7 @@ class TestMetropolis(unittest.TestCase):
 
         xx = np.random.uniform(-3, 3, (nvars, 100))
         assert np.allclose(
-            np.exp(mvn_log_pdf(xx, m, C)),
+            bkd.exp(mvn_log_pdf(xx, m, C, bkd)),
             stats.multivariate_normal(m.squeeze(), C).pdf(xx.T),
         )
 

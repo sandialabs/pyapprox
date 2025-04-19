@@ -7,8 +7,8 @@ intensive analysis such as uncertainty quantification or sensitivity analysis.
 Knowledge about smoothness and non-linearity can be used to inform what
 algorithms are used for these later tasks.
 
-Lets first generate parameter sweeps for the oakley benchmark. Each sweep will 
-be a random direction through the parameter domain. The domain is assumed to 
+Lets first generate parameter sweeps for the oakley benchmark. Each sweep will
+be a random direction through the parameter domain. The domain is assumed to
 be the cartesian product of the centered truncated intervals of each
 1D variable marginal. For unbounded variables each interval captures 99% of the
 PDF. For bounded variables the true bounds are used (i.e. are not truncated)
@@ -23,8 +23,8 @@ import numpy as np
 np.random.seed(1)
 
 benchmark = OakleyBenchmark()
-mean = benchmark.variable().get_statistics("mean")
-stdev = benchmark.variable().get_statistics("std")
+mean = benchmark.variable().mean()
+stdev = benchmark.variable().std()
 cov = np.diag(stdev[:, 0] ** 2)
 gaussian_sweeper = analysis.GaussianParameterSweeper(
     mean,
@@ -57,8 +57,7 @@ for sweep_id in range(nsweeps):
     gaussian_sweeper.plot_single_qoi_sweep(
         sweep_values[:, 0], sweep_id, ax, marker="o"
     )
-ax.set_title(mathrm_label("Sobol G model parameter sweeps"))
-plt.show()
+_ = ax.set_title(mathrm_label("Sobol G model parameter sweeps"))
 
 # %%
 # The Sobol G function is not as smooth as the Oakely function. The former

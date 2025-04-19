@@ -39,9 +39,3 @@ print(variable)
 nsamples = 1000
 samples = variable.rvs(nsamples)
 values = model(samples)
-
-# %%
-# Summary statistics of the samples and values can be printed using
-from pyapprox.variables import print_statistics
-
-print_statistics(samples, values)

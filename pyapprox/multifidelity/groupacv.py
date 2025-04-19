@@ -829,7 +829,8 @@ class GroupACVEstimator:
             self._rounded_npartition_samples
         )
         if not hasattr(self, "_optimizer"):
-            raise RuntimeError("must call est.set_optimizer()")
+            self.set_optimizer(self.get_default_optimizer())
+            # raise RuntimeError("must call est.set_optimizer()")
         self._optimized_criteria = self._optimizer._objective(
             self._rounded_npartition_samples[:, None]
         )

@@ -24,8 +24,7 @@ import matplotlib.pyplot as plt
 from pyapprox.surrogates.kernels.kernels import MaternKernel
 from pyapprox.surrogates.gaussianprocess.exactgp import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.activelearning import (
-    GreedyIntegratedVarianceSampler,
-    BruteForceGreedyIntegratedVarianceSampler,
+    BruteForceTensorProductQuadratureGreedyIntegratedVarianceSampler,
     CholeskySampler,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable, stats
@@ -34,7 +33,7 @@ nvars = 1
 variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
 
 ncandidate_samples = 101
-sampler = BruteForceGreedyIntegratedVarianceSampler(
+sampler = BruteForceTensorProductQuadratureGreedyIntegratedVarianceSampler(
     variable, nquad_nodes_1d=[100], nugget=1e-8
 )
 kernel = MaternKernel(np.inf, 0.5, (0.1, 1), fixed=True, nvars=nvars)
@@ -53,7 +52,7 @@ def plot_gp_samples(sampler, ntrain_samples, kernel, variable):
     for ii in range(1, ntrain_samples + 1):
         gp.plot_1d(
             axs[ii - 1],
-            variable.get_statistics("interval", 1)[0, :],
+            variable.interval(1)[0, :],
             npts_1d=101,
         )
 
@@ -64,7 +63,7 @@ def plot_gp_samples(sampler, ntrain_samples, kernel, variable):
         gp.fit(train_samples[:, :ii], train_values[:ii])
         gp.plot_1d(
             axs[ii - 1],
-            variable.get_statistics("interval", 1)[0, :],
+            variable.interval(1)[0, :],
             npts_1d=101,
         )
         axs[ii - 1].plot(

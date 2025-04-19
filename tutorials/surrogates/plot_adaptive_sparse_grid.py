@@ -115,7 +115,7 @@ adaptive_callback(sg)
 # The sparse grid spends more points resolving the function variation in the horizontal direction, associated with the most sensitive function input.
 
 fig, axs = plt.subplots(1, 3, sharey=False, figsize=(3 * 8, 6))
-ranges = benchmark.variable().get_statistics("interval", 1.0).flatten()
+ranges = benchmark.variable().interval(1.0).flatten()
 X, Y, pts = sg.meshgrid_samples(ranges, npts_1d=51)
 data = [sg(pts) for sg in adaptive_callback.sparse_grids()]
 Z_min = np.min([d for d in data])

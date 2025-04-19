@@ -1766,17 +1766,20 @@ class GaussCopulaVariable(JointVariable):
             quad_rule_tuple,
             bisection_opts,
         )
-        # self._z_variable = stats.multivariate_normal(
-        #     mean=self._bkd.zeros((self._nvars)), cov=self._z_correlation
-        # )
         self._variable = DenseCholeskyMultivariateGaussian(
             self._bkd.zeros((self._nvars, 1)),
             cov=self._z_correlation,
             backend=self._bkd,
         )
 
+    def truncated_ranges(self, alpha: float = None) -> Array:
+        return self._bkd.stack(
+            [marginal.truncated_range(alpha) for marginal in self._xmarginals],
+            axis=0,
+        )
+
     def z_joint_density(self, z_samples: Array) -> Array:
-        return self._z_variable.pdf(z_samples.T)
+        return self._variable.pdf(z_samples)
 
     def pdf(self, x_samples: Array, log: bool = False) -> Array:
         vals = nataf_joint_density(

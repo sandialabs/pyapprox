@@ -267,7 +267,7 @@ def nataf_joint_density(
 ) -> Array:
     nvars, nsamples = x_samples.shape
     z_samples = trans_x_to_z(x_samples, x_marginals)
-    vals = z_joint_density(z_samples)
+    vals = z_joint_density(z_samples)[:, 0]
     for ii in range(nvars):
         vals *= x_marginals[ii].pdf(x_samples[ii, :])
         normal_pdf_vals = stats.norm.pdf(z_samples[ii, :])

@@ -57,11 +57,13 @@ benchmark = MultiOutputModelEnsemble()
 # needed to compute the value of the estimator from a sample set, however they are needed to compute the MSE of the estimator and the number of samples of that model for a given target cost. We load these quantities but ignore there meaning for the moment.
 costs = np.array([1])
 nqoi = 3
-cov = benchmark.covariance()[:3, :3]
-W = benchmark.covariance_of_centered_values_kronker_product()[:9, :9]
-B = benchmark.covariance_of_mean_and_variance_estimators()[:3, :9]
+cov = benchmark.covariance()[:nqoi, :nqoi]
+W = benchmark.covariance_of_centered_values_kronker_product()[
+    : nqoi**2, : nqoi**2
+]
+B = benchmark.covariance_of_mean_and_variance_estimators()[:nqoi, : nqoi**2]
 
-target_cost = 10
+target_cost = 100
 stat = multioutput_stats["mean_variance"](nqoi, backend=NumpyMixin)
 stat.set_pilot_quantities(cov, W, B)
 est = get_estimator("mc", stat, costs)
@@ -73,9 +75,13 @@ stats = est(values)
 # %%
 # The following compares the estimated value with the true values. We are only extracting certain components from the benchmark because the benchmark is designed for estimating vector-valued statistics with multiple models, but we are ignoring the other models for now.
 print(benchmark.mean()[0])
-print(stats[:3])
-print(benchmark.covariance()[:3, :3])
-print(stats[3:].reshape(3, 3))
+print(stats[:nqoi])
+print(benchmark.covariance()[:nqoi, :nqoi])
+lower_triangular_cov = stats[nqoi:]
+cov = np.zeros((nqoi, nqoi))
+cov[np.tril_indices(nqoi)] = lower_triangular_cov
+cov = cov + cov.T - np.diag(np.diag(cov))
+print(cov)
 
 # %%
 # Similarly to a MC estimator for a scalar, a vector-valued MC estimator is a random variable. Assuming that we are not using an approximation of the model we care about, the error in the MC estimator is characterized completely by the covariance of the estimator statistics. The following draws from [DWBG2024]_ and shows how to compute the estimator covariance. We present general formula for the covariance between estimators of using different vector-valued models :math:`f_\alpha\text{ and }f_\beta` and using sample sets :math:`\rvset_N, \rvset_M` of (potentially) different sizes.
@@ -150,7 +156,7 @@ from pyapprox.multifidelity.visualize import plot_correlation_matrix
 labels = [r"$(Q^{\mu}_{0})_{%d}$" % (ii + 1) for ii in range(nqoi)] + [
     r"$(Q^{\Sigma}_{0})_{%d,%d}$" % (ii + 1, jj + 1)
     for ii in range(nqoi)
-    for jj in range(nqoi)
+    for jj in range(ii, nqoi)
 ]
 ax = plt.subplots(1, 1, figsize=(2 * 8, 2 * 6))[1]
 _ = plot_correlation_matrix(
@@ -162,6 +168,7 @@ _ = plot_correlation_matrix(
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 est_variances = np.diag(est.optimized_covariance())
 _ = plt.bar(labels, est_variances)
+plt.show()
 
 # %%
 # Remarks

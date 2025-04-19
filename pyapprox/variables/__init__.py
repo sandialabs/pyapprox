@@ -2,6 +2,7 @@
 transforming multivariate random variables.
 """
 
+from pyapprox.variables.marginals import ContinuousScipyMarginal
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
     combine_uncertain_and_bounded_design_variables,
@@ -19,6 +20,7 @@ from pyapprox.variables.transforms import (
 )
 
 __all__ = [
+    "ContinuousScipyMarginal",
     "IndependentMarginalsVariable",
     "GaussCopulaVariable",
     "DenseCholeskyMultivariateGaussian",

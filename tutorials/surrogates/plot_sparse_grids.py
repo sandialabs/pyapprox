@@ -73,7 +73,7 @@ fig, axs = plt.subplots(
     max_level + 1,
     figsize=((max_level + 1) * 8, (max_level + 1) * 6),
 )
-ranges = variable.get_statistics("interval", 1.0).flatten()
+ranges = variable.interval(1.0).flatten()
 
 # Set the univariate quarature rules and bases
 quad_rule = ClenshawCurtisQuadratureRule(store=True, bounds=[-1, 1])

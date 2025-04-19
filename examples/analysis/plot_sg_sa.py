@@ -36,9 +36,10 @@ sg = LejaLagrangeAdaptiveCombinationSparseGrid(
 # Must not use default of mean or the refinement will terminate early
 # in the 3rd dimension
 init_sequences = [
-    np.array([[marginal.ppf(0.6)]])
+    marginal.ppf(np.array([0.6]))[None, :]
     for marginal in benchmark.variable().marginals()
 ]
+print(init_sequences)
 univariate_quad_rules = sg.unique_univariate_leja_quadrature_rules(
     init_sequences
 )
@@ -58,7 +59,6 @@ analyzer.compute(sg)
 axs = plt.subplots(1, 2, figsize=(2 * 8, 6))[1]
 plot_main_effects(analyzer.main_effects(), axs[0])
 _ = plot_total_effects(analyzer.total_effects(), axs[1])
-plt.show()
 
 # %%
 # The benchmark contains the exact values of these indices which can be used

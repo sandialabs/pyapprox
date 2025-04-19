@@ -63,7 +63,7 @@ from pyapprox.surrogates.affine.multiindex import (
 
 benchmark = MultiLevelCosineBenchmark()
 variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
-ranges = benchmark.variable().get_statistics("interval", 1.0).flatten()
+ranges = benchmark.variable().interval(1.0).flatten()
 # Set the univariate quarature rules and bases
 quad_rule = ClenshawCurtisQuadratureRule(store=True, bounds=[-1, 1])
 # Set the univriate bases

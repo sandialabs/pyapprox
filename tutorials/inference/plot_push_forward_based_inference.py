@@ -148,7 +148,7 @@ print("Acceptance ratio", acceptance_ratio)
 
 # plot the accepted samples
 plt.plot(posterior_samples[0, :], posterior_samples[1, :], "ok")
-ranges = prior_variable.get_statistics("interval", 1).flatten()
+ranges = prior_variable.interval(1).flatten()
 plt.xlim(ranges[:2])
 _ = plt.ylim(ranges[2:])
 
@@ -170,8 +170,7 @@ lb, ub = obs_variable.interval(1 - 1e-10)
 y = np.linspace(lb, ub, 101)
 plt.plot(y, obs_pdf(y), "r-")
 plt.plot(y, posterior_push_forward_pdf(y), "k--")
-plt.plot(y, push_forward_pdf(y), "b:")
-plt.show()
+_ = plt.plot(y, push_forward_pdf(y), "b:")
 
 # %%
 # Explore the number effect of changing the number of prior samples on the posterior and its push-forward.

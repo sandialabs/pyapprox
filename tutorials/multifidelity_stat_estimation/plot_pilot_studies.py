@@ -95,7 +95,9 @@ def build_acv(
         for ii in range(variable.nvars())
     ]
     # instead of np.random.seed(seed)
-    pilot_samples = variable.rvs(npilot_samples, random_states=random_states)
+    pilot_samples = variable._rvs_given_random_states(
+        npilot_samples, random_states=random_states
+    )
     pilot_values_per_model = [fun(pilot_samples) for fun in funs]
     stat_class = multioutput_stats[stat_type](benchmark.nqoi(), backend=bkd)
     pilot_quantities = stat_class.compute_pilot_quantities(
@@ -123,7 +125,9 @@ def build_acv(
             for ii in range(variable.nvars())
         ]
         samples_per_model = est.generate_samples_per_model(
-            partial(variable.rvs, random_states=random_states)
+            partial(
+                variable._rvs_given_random_states, random_states=random_states
+            )
         )
         values_per_model = [
             fun(samples) for fun, samples in zip(funs, samples_per_model)
@@ -184,7 +188,9 @@ def compute_mse(
         est_vals = bkd.hstack([build(ii) for ii in range(ntrials)])
 
     # exclude failed MCMC runs
-    est_vals = bkd.array(est_vals)[np.isfinite(est_vals)]
+    est_vals = bkd.array(est_vals)[
+        bkd.asarray(np.isfinite(est_vals), dtype=bool)
+    ]
     # make sure random seed is getting set correctly on each processor
     assert bkd.unique(est_vals).shape[0] == len(est_vals)
     mse = ((est_vals - exact_stats) ** 2).mean()

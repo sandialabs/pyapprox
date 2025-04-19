@@ -10,7 +10,6 @@ we can compute statistics, such as mean and variance as follows
 
 from pyapprox import expdesign
 from pyapprox.benchmarks import GenzBenchmark
-from pyapprox.variables import print_statistics
 import matplotlib.pyplot as plt
 
 benchmark = GenzBenchmark("oscillatory", nvars=2)
@@ -39,7 +38,7 @@ sobol_seq = expdesign.SobolSequence(
 )
 sobol_samples = sobol_seq.rvs(nsamples)
 values = benchmark.model()(sobol_samples)
-print_statistics(sobol_samples, values)
+print(values.mean(axis=0))
 
 # %%
 # Here we have used print statistics to compute the sample stats. Note,
@@ -62,7 +61,7 @@ halton_seq = expdesign.HaltonSequence(
 )
 halton_samples = halton_seq.rvs(nsamples)
 values = benchmark.model()(halton_samples)
-print_statistics(halton_samples, values)
+print(values.mean(axis=0))
 
 # %%
 # Latin Hypercube Designs

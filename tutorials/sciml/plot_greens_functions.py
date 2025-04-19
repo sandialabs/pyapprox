@@ -61,7 +61,7 @@ from pyapprox.surrogates.kernels.greensfunctions import (
 from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
 )
-from pyapprox.sciml.util import NumpyMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 np.random.seed(1)
 
@@ -233,4 +233,3 @@ X, Y = np.meshgrid(plot_xx[0], plot_xx[0])
 G = greens_fun(plot_xx, plot_xx)
 ax = plt.figure().gca()
 greens_plot = ax.imshow(G, origin="lower", extent=bounds + bounds, cmap="jet")
-plt.show()

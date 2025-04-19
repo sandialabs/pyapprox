@@ -49,9 +49,7 @@ qoi_idx = [0]
 cov_0 = stat.get_pilot_quantities_subset(
     nmodels, benchmark.nqoi(), [0, 1, 2], qoi_idx
 )[0]
-stat_0 = mf.multioutput_stats["mean"](
-    benchmark.nqoi(), backend=TorchMixin
-)
+stat_0 = mf.multioutput_stats["mean"](len(qoi_idx), backend=TorchMixin)
 stat_0.set_pilot_quantities(cov_0)
 est_0 = mf.get_estimator("gmf", stat_0, costs)
 est_0.allocate_samples(target_cost)
