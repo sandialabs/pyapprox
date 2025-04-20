@@ -17,9 +17,10 @@ from pyapprox.interface.model import CostFunction
 from pyapprox.surrogates.regressor import AdaptiveRegressorMixin
 from pyapprox.surrogates.affine.basisexp import BasisExpansion
 from pyapprox.surrogates.kernels.kernels import Kernel
+from pyapprox.surrogates.sampler import CandidateSampler
 
 
-class GreedyGaussianProcessSampler(ABC):
+class GreedyGaussianProcessSampler(CandidateSampler):
     def __init__(
         self,
         variable: IndependentMarginalsVariable,
@@ -30,47 +31,24 @@ class GreedyGaussianProcessSampler(ABC):
             raise ValueError(
                 "variable must be an instance of IndependentMarginalsVariable"
             )
+        super().__init__(variable.nvars(), backend=variable._bkd)
         self._bkd = variable._bkd
         self._variable = variable
         self._nugget = nugget
         self._econ = econ
-        self._train_samples = self._bkd.zeros((self._variable.nvars(), 0))
         self._pivots = None
         self._kernel_changed = True
-        self._initialized = False
         self._init_pivots = None
-        self._ntrain_samples = 0
 
-    def default_candidate_samples(self, ncandidates: int) -> Array:
-        nhalton_candidates = ncandidates // 2
-        nrandom_candidates = ncandidates - nhalton_candidates
-        seq = HaltonSequence(self._variable.nvars(), variable=self._variable)
-        halton_samples = seq.rvs(nhalton_candidates)
-        random_samples = self._variable.rvs(nrandom_candidates)
-        return self._bkd.hstack((halton_samples, random_samples))
-
-    def set_candidate_samples(self, candidate_samples: Array):
-        if not hasattr(self, "_gp"):
-            raise RuntimeError("Must call set_gaussian_process first")
-        self._candidate_samples = candidate_samples
-        self._canonical_candidate_samples = (
-            self._gp._in_trans.map_to_canonical(self._candidate_samples)
-        )
-        self._candidate_samples_changed = True
-
-    def ncandidates(self) -> int:
-        return self._candidate_samples.shape[1]
-
-    def set_gaussian_process(self, gp):
-        self._gp = gp
+    def set_surrogate(self, gp: ExactGaussianProcess):
+        if not isinstance(gp, ExactGaussianProcess):
+            raise ValueError("gp must be an instance of ExactGaussianProcess")
+        self._surrogate = gp
 
     def set_initial_pivots(self, init_pivots: Array):
         if not hasattr(self, "_candidate_samples"):
             raise RuntimeError("must call set_candidate_samples first")
         self._init_pivots = init_pivots
-
-    def ntrain_samples(self) -> int:
-        return self._ntrain_samples
 
     def _add_nugget(self):
         self._Kmatrix[
@@ -86,27 +64,10 @@ class GreedyGaussianProcessSampler(ABC):
     def _update_pivots(self, nsamples: int) -> Array:
         raise NotImplementedError
 
-    def _setup_before_first_step(self):
-        if not hasattr(self, "_gp"):
-            raise RuntimeError("Must call set_gaussian_process")
-        if not hasattr(self, "_candidate_samples"):
-            self.set_candidate_samples(self.default_candidate_samples(2000))
-        self._initialized = True
-
-    def _candidate_samples_subset(self, indices: Array) -> Array:
-        return self._candidate_samples[:, indices]
-
     def _update_ntrain_samples(self):
         self._ntrain_samples = self._train_samples.shape[1]
 
-    def __call__(self, nsamples: int) -> Array:
-        if not self._initialized:
-            self._setup_before_first_step()
-        if nsamples <= self.ntrain_samples():
-            msg = f"Requesting number of samples {nsamples} which is less "
-            "than number of train samples already generated "
-            f"{self.ntrain_samples()}"
-            raise ValueError(msg)
+    def _generate_new_samples(self, nsamples: int) -> Array:
         new_pivots = self._update_pivots(nsamples)
         # return samples in user space
         new_samples = self._candidate_samples_subset(new_pivots)
@@ -114,11 +75,10 @@ class GreedyGaussianProcessSampler(ABC):
         self._update_ntrain_samples()
         return new_samples
 
-    def __repr__(self) -> int:
-        return "{0}".format(self.__class__.__name__)
-
     def _construct_candidate_kernel_matrix(self):
-        self._Kmatrix = self._gp.kernel()(self._canonical_candidate_samples)
+        self._Kmatrix = self._surrogate.kernel()(
+            self._canonical_candidate_samples
+        )
         self._add_nugget()
 
 
@@ -399,7 +359,7 @@ class TensorProductQuadratureGreedyIntegratedVarianceSampler(
 
     def _setup_statistic(self):
         self._stat = TensorProductQuadratureKernelStatistics(
-            self._gp,
+            self._surrogate,
             self._variable,
             self._canonical_candidate_samples,
             self._nquad_nodes_1d,
@@ -420,7 +380,7 @@ class MonteCarloGreedyIntegratedVarianceSampler(
 
     def _setup_statistic(self):
         self._stat = MonteCarloKernelStatistics(
-            self._gp,
+            self._surrogate,
             self._variable,
             self._canonical_candidate_samples,
             self._nquad_samples,
@@ -444,11 +404,11 @@ class MultiOutputMonteCarloGreedyIntegratedVarianceSampler(
     def set_candidate_samples(self, candidate_samples: List[Array]):
         # MAYBE: must create function create_kmatrix()
         # overload it here to only evaluate K matrix on high-fidelity candidates
-        if not hasattr(self, "_gp"):
-            raise RuntimeError("Must call set_gaussian_process first")
+        if not hasattr(self, "_surrogate"):
+            raise RuntimeError("Must call set_surrogate first")
         if (
             not isinstance(candidate_samples, list)
-            or len(candidate_samples) != self._gp.kernel().noutputs()
+            or len(candidate_samples) != self._surrogate.kernel().noutputs()
         ):
 
             raise ValueError(
@@ -457,7 +417,7 @@ class MultiOutputMonteCarloGreedyIntegratedVarianceSampler(
             )
         self._candidate_samples = candidate_samples
         self._canonical_candidate_samples = [
-            self._gp._in_trans.map_to_canonical(samples)
+            self._surrogate._in_trans.map_to_canonical(samples)
             for samples in self._candidate_samples
         ]
         self._candidate_samples_changed = True
@@ -484,7 +444,7 @@ class MultiOutputMonteCarloGreedyIntegratedVarianceSampler(
         candidate_samples = super().default_candidate_samples(ncandidates)
         return [
             self._bkd.copy(candidate_samples)
-            for ii in range(self._gp.kernel().noutputs())
+            for ii in range(self._surrogate.kernel().noutputs())
         ]
 
     def ncandidates_per_output(self) -> Array:
@@ -502,7 +462,7 @@ class MultiOutputMonteCarloGreedyIntegratedVarianceSampler(
                 )[0]
             ]
             - self._candidate_partition_indices[ii]
-            for ii in range(self._gp.kernel().noutputs())
+            for ii in range(self._surrogate.kernel().noutputs())
         ]
         return [
             samples[:, indices]
@@ -521,7 +481,7 @@ class MultiOutputMonteCarloGreedyIntegratedVarianceSampler(
 
     def _setup_statistic(self):
         self._stat = MonteCarloMultiFidelityKernelStatistics(
-            self._gp,
+            self._surrogate,
             self._variable,
             self._canonical_candidate_samples,
             self._nquad_samples,
@@ -639,7 +599,7 @@ class AdaptiveGaussianProcess(ExactGaussianProcess, AdaptiveRegressorMixin):
 
     def set_sampler(self, sampler: CholeskySampler):
         self._sampler = sampler
-        self._sampler.set_gaussian_process(self)
+        self._sampler.set_surrogate(self)
 
     def step_samples(self) -> Array:
         if not hasattr(self, "_sampler"):

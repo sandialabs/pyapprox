@@ -38,7 +38,7 @@ sampler = BruteForceTensorProductQuadratureGreedyIntegratedVarianceSampler(
 )
 kernel = MaternKernel(np.inf, 0.5, (0.1, 1), fixed=True, nvars=nvars)
 gp = ExactGaussianProcess(nvars, kernel)
-sampler.set_gaussian_process(gp)
+sampler.set_surrogate(gp)
 ncandidates = 101
 candidate_samples = np.linspace(-1, 1, ncandidates)[None, :]
 sampler.set_candidate_samples(candidate_samples)
@@ -97,7 +97,7 @@ plot_gp_samples(sampler, ntrain_samples, kernel, variable)
 kernel = MaternKernel(np.inf, 0.5, (0.1, 1), fixed=True, nvars=nvars)
 gp = ExactGaussianProcess(nvars, kernel)
 sampler = CholeskySampler(variable)
-sampler.set_gaussian_process(gp)
+sampler.set_surrogate(gp)
 ncandidate_samples = 101
 candidate_samples = np.linspace(-1, 1, ncandidates)[None, :]
 sampler.set_candidate_samples(candidate_samples)

@@ -42,7 +42,7 @@ class TestActiveLearning:
         kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
         gp = ExactGaussianProcess(nvars, kernel)
         sampler = CholeskySampler(variable)
-        sampler.set_gaussian_process(gp)
+        sampler.set_surrogate(gp)
 
         nsamples = 10
         samples = sampler(nsamples)
@@ -50,7 +50,7 @@ class TestActiveLearning:
         # set seed so that random candidates are the same
         np.random.seed(1)
         sampler2 = CholeskySampler(variable)
-        sampler2.set_gaussian_process(gp)
+        sampler2.set_surrogate(gp)
         # generate half the required samples
         samples2 = sampler2(nsamples // 2)
         # make sure sample can generate the correct remaining samples
@@ -70,13 +70,13 @@ class TestActiveLearning:
 
         nsamples = 10
         sampler = CholeskySampler(variable)
-        sampler.set_gaussian_process(gp)
+        sampler.set_surrogate(gp)
         samples = sampler(nsamples)
 
         # set seed so that random candidates are the same
         np.random.seed(1)
         sampler2 = CholeskySampler(variable)
-        sampler2.set_gaussian_process(gp)
+        sampler2.set_surrogate(gp)
         samples2 = sampler2(nsamples // 2)
         gp._kernel = kernel2
         sampler2._kernel_changed = True
@@ -103,14 +103,14 @@ class TestActiveLearning:
         nsamples = 10
         sampler = CholeskySampler(variable)
         gp = ExactGaussianProcess(nvars, kernel)
-        sampler.set_gaussian_process(gp)
+        sampler.set_surrogate(gp)
         sampler.set_weight_function(wfunction1)
         samples = sampler(nsamples)
 
         # set seed so that random candidates are the same
         np.random.seed(1)
         sampler2 = CholeskySampler(variable)
-        sampler2.set_gaussian_process(gp)
+        sampler2.set_surrogate(gp)
         sampler2.set_weight_function(wfunction1)
         samples2 = sampler2(nsamples // 2)
         sampler2.set_weight_function(wfunction2)
@@ -128,7 +128,7 @@ class TestActiveLearning:
         kernel = MaternKernel(np.inf, 0.1, [1e-1, 1], nvars, backend=bkd)
         gp = ExactGaussianProcess(nvars, kernel)
         sampler = bruteforce_sampler_cls(variable)
-        sampler.set_gaussian_process(gp)
+        sampler.set_surrogate(gp)
         ncandidates = 101
         candidate_samples = bkd.linspace(-1, 1, ncandidates)[None, :]
         sampler.set_candidate_samples(candidate_samples)
@@ -151,7 +151,7 @@ class TestActiveLearning:
         # set seed so that random candidates are the same
         np.random.seed(1)
         sampler2 = bruteforce_sampler_cls(variable)
-        sampler2.set_gaussian_process(gp)
+        sampler2.set_surrogate(gp)
         sampler2.set_candidate_samples(candidate_samples)
         sampler2.set_initial_pivots(init_pivots)
         # generate half the required samples
@@ -167,11 +167,11 @@ class TestActiveLearning:
         candidate_samples = bkd.linspace(-1, 1, ncandidates)[None, :]
         init_pivots = bkd.array([ncandidates // 2], dtype=int)
         brute_sampler = bruteforce_sampler_cls(variable, nugget=0)
-        brute_sampler.set_gaussian_process(gp)
+        brute_sampler.set_surrogate(gp)
         brute_sampler.set_candidate_samples(candidate_samples)
         brute_sampler.set_initial_pivots(init_pivots)
         sampler = sampler_cls(variable, nugget=0)
-        sampler.set_gaussian_process(gp)
+        sampler.set_surrogate(gp)
         sampler.set_candidate_samples(candidate_samples)
         sampler.set_initial_pivots(init_pivots)
         np.random.seed(1)
@@ -277,7 +277,7 @@ class TestActiveLearning:
                 variable, cost_function, nugget=0, nquad_samples=100000
             )
         )
-        sampler.set_gaussian_process(gp)
+        sampler.set_surrogate(gp)
         ncandidates_per_model = 21
         candidate_samples = [
             bkd.linspace(-1, 1, ncandidates_per_model)[None, :]

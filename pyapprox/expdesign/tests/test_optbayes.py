@@ -8,6 +8,7 @@ from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.interface.model import Model
 from pyapprox.bayes.likelihood import (
     IndependentGaussianLogLikelihood,
+    ModelBasedIndependentGaussianLogLikelihood,
 )
 from pyapprox.expdesign.optbayes import (
     OEDGaussianLogLikelihood,
@@ -80,6 +81,9 @@ class TestBayesOED:
         noise_cov_diag = bkd.full((nobs, 1), 0.3**2)
         obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
         loglike = IndependentGaussianLogLikelihood(noise_cov_diag, backend=bkd)
+        # loglike = ModelBasedIndependentGaussianLogLikelihood(
+        #     obs_model, noise_cov_diag
+        # )
 
         np.random.seed(1)
         ntrue_samples = 10000
