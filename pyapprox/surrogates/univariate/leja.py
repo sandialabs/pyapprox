@@ -305,7 +305,7 @@ class ChristoffelLejaObjectiveMixin:
     def _set_marginal(self, marginal):
         self._marginal = marginal
 
-    def _christoffel_fun(self, basis_mat):
+    def _christoffel_fun(self, basis_mat: Array) -> Array:
         return self._bkd.sum(basis_mat**2, axis=1)[:, None] / self.nsamples()
 
     def _compute_weights(self, samples: Array) -> Array:

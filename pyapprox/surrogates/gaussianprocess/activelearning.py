@@ -5,7 +5,6 @@ import numpy as np
 
 from pyapprox.util.backends.template import Array
 from pyapprox.util.backends.linalg import PivotedCholeskyFactorizer
-from pyapprox.expdesign.sequences import HaltonSequence
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.gaussianprocess.exactgp import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.stats import (
@@ -27,13 +26,7 @@ class GreedyGaussianProcessSampler(CandidateSampler):
         nugget: float = 0.0,
         econ: bool = True,
     ):
-        if not isinstance(variable, IndependentMarginalsVariable):
-            raise ValueError(
-                "variable must be an instance of IndependentMarginalsVariable"
-            )
-        super().__init__(variable.nvars(), backend=variable._bkd)
-        self._bkd = variable._bkd
-        self._variable = variable
+        super().__init__(variable)
         self._nugget = nugget
         self._econ = econ
         self._pivots = None

@@ -16,6 +16,7 @@ class LowDiscrepancySequence(ABC):
         start_idx: int = 0,
         variable: IndependentMarginalsVariable = None,
         bkd: BackendMixin = NumpyMixin,
+        unbounded_eps: float = 1e-3,
     ):
         self._bkd = bkd
         self._nvars = nvars
@@ -29,6 +30,7 @@ class LowDiscrepancySequence(ABC):
             if variable.nvars() != nvars:
                 raise ValueError("nvars and variable are inconsistent")
         self._variable = variable
+        self._eps = unbounded_eps
 
     def set_start_idx(self, idx: int):
         self._start_idx = idx
@@ -45,6 +47,13 @@ class LowDiscrepancySequence(ABC):
 
     def rvs(self, nsamples: int) -> Array:
         can_samples = self._canonical_samples(int(nsamples))
+        # can samples on [0, 1]
+        # map unbounded variables to [eps, 1-eps] to avoid singularities
+        for ii, marginal in enumerate(self._variable.marginals()):
+            if not marginal.is_bounded():
+                can_samples[ii] = (
+                    can_samples[ii] * (1 - 2 * self._eps) + self._eps
+                )
         if self._variable is None:
             return can_samples
         return self._variable.ppf(can_samples)

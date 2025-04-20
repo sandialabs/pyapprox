@@ -1,20 +1,29 @@
 from abc import ABC, abstractmethod
 
-from pyapprox.util.backends.template import Array, BackendMixin
-from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.template import Array
 from pyapprox.expdesign.sequences import HaltonSequence
+from pyapprox.surrogates.regressor import Surrogate
+from pyapprox.variables.joint import IndependentMarginalsVariable
 
 
 class CandidateSampler(ABC):
-    def __init__(self, nvars: int, backend: BackendMixin = NumpyMixin):
-        self._bkd = backend
-        self._nvars = nvars
-        self._train_samples = self._bkd.zeros((self._nvars, 0))
+    def __init__(
+        self,
+        variable: IndependentMarginalsVariable,
+    ):
+        if not isinstance(variable, IndependentMarginalsVariable):
+            raise ValueError(
+                "variable must be an instance of IndependentMarginalsVariable"
+            )
+
+        self._bkd = variable._bkd
+        self._variable = variable
+        self._train_samples = self._bkd.zeros((self._variable.nvars(), 0))
         self._ntrain_samples = 0
         self._initialized = False
 
     @abstractmethod
-    def set_surrogate(self, surrogate):
+    def set_surrogate(self, surrogate: Surrogate):
         raise NotImplementedError
 
     def default_candidate_samples(self, ncandidates: int) -> Array:
