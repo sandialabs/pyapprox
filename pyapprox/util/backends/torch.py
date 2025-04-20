@@ -15,8 +15,8 @@ class TorchMixin(BackendMixin):
         return Amat @ Bmat
 
     @staticmethod
-    def eye(nrows: int, dtype=torch.double) -> torch.Tensor:
-        return torch.eye(nrows, dtype=dtype)
+    def eye(nrows: int, ncols: int = None, dtype=torch.double) -> torch.Tensor:
+        return torch.eye(nrows, ncols, dtype=dtype)
 
     @staticmethod
     def inv(matrix: torch.Tensor) -> torch.Tensor:

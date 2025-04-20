@@ -53,6 +53,5 @@ class FeketeSampler(CandidateSampler):
         temp = self._bkd.solve_triangular(
             self._R.T, (self._weights * values), lower=True
         )
-        print(temp.shape, self._Q.shape)
         coef = self._Q @ temp
         return coef

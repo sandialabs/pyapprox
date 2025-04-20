@@ -21,7 +21,7 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def eye(nrows: int, dtype=None):
+    def eye(nrows: int, ncols: int = None, dtype=None):
         """Return the identity matrix."""
         raise NotImplementedError
 

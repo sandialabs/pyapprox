@@ -16,8 +16,8 @@ class JaxBackendMixin(BackendMixin):
         return np.dot(Amat, Bmat)
 
     @staticmethod
-    def eye(nrows: int, dtype=float) -> np.ndarray:
-        return np.eye(nrows, dtype=dtype)
+    def eye(nrows: int, ncols: int = None, dtype=float) -> np.ndarray:
+        return np.eye(nrows, ncols, dtype=dtype)
 
     @staticmethod
     def inv(matrix: np.ndarray) -> np.ndarray:
