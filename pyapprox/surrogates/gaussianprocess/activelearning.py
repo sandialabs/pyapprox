@@ -4,7 +4,7 @@ from typing import Union, List, Tuple
 import numpy as np
 
 from pyapprox.util.backends.template import Array
-from pyapprox.util.backends.linalg import PivotedCholeskyFactorizer
+from pyapprox.util.linalg import PivotedCholeskyFactorizer
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.gaussianprocess.exactgp import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.stats import (

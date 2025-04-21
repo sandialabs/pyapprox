@@ -14,9 +14,14 @@ def swap_rows(
     matrix[bkd.hstack([ii, jj])] = matrix[bkd.hstack([jj, ii])]
 
 
-def pivot_rows(pivots: Array, matrix: Array, in_place: bool = True) -> Array:
+def pivot_rows(
+    pivots: Array,
+    matrix: Array,
+    in_place: bool = True,
+    bkd: BackendMixin = NumpyMixin,
+) -> Array:
     if not in_place:
-        matrix = matrix.copy()
+        matrix = bkd.copy(matrix)
     npivots = pivots.shape[0]
     assert npivots <= matrix.shape[0]
     for ii in range(npivots):
@@ -51,14 +56,14 @@ def get_final_pivots_from_sequential_pivots(
         npivots = sequential_pivots.shape[0]
     assert npivots >= sequential_pivots.shape[0]
     pivots = bkd.arange(npivots)
-    return pivot_rows(sequential_pivots, pivots, False)
+    return pivot_rows(sequential_pivots, pivots, False, bkd=bkd)
 
 
 class PivotedFactorizer(ABC):
     def __init__(
         self,
         Amat: Array,
-        tol: float = 0.0,
+        tol: float = 1e-14,
         econ: bool = True,
         bkd: BackendMixin = NumpyMixin,
     ):
@@ -168,11 +173,11 @@ class PivotedCholeskyFactorizer(PivotedFactorizer):
             )
 
         schur_complement = Amat[
-            self._bkd.ix_(self._pivots[ii:], self._pivots[ii:])
-        ] - self._L[self._pivots[ii:], :ii].dot(
+            np.ix_(self._pivots[ii:], self._pivots[ii:])
+        ] - self._L[self._pivots[ii:], :ii] @ (
             self._L[self._pivots[ii:], :ii].T
         )
-        schur_diag = self._bkd.diagonal(schur_complement)
+        schur_diag = self._bkd.diag(schur_complement)
         pivot = self._bkd.argmax(
             self._bkd.norm(schur_complement, axis=0) ** 2 / schur_diag
         )
@@ -221,17 +226,14 @@ class PivotedCholeskyFactorizer(PivotedFactorizer):
         rel_error = self._diag[self._pivots[ii + 1 :]].sum() / self._init_error
         if rel_error >= self._tol:
             return False
-        if self._bkd.abs(rel_error) < 2 * np.finfo(float).eps:
-            # If matrix is rank r then then error will be machine precision
-            # In such a case exiting without an error is the right thing to
-            # do
-            self._termination_flag = 1
-            self._termination_msg = "Tolerance reached. "
-            f"Iteration:{ii}. Tol={self._tol}. Rel. Error={rel_error}"
-            return True
-        self._termination_msg = "Negative error. Should not happen because of"
-        " checks is_positive_definite"
-        raise RuntimeError(self._termination_msg)
+
+        # If matrix is rank r then then error will be machine precision
+        # In such a case exiting without an error is the right thing to
+        # do
+        self._termination_flag = 1
+        self._termination_msg = "Tolerance reached. "
+        f"Iteration:{ii}. Tol={self._tol}. Rel. Error={rel_error}"
+        return True
 
 
 class PivotedLUFactorizer(PivotedFactorizer):
@@ -250,7 +252,7 @@ class PivotedLUFactorizer(PivotedFactorizer):
             )
             return True
 
-    def _split_lu(self, npivots: int) -> Tuple[Array, Array]:
+    def _split_lu(self, LU_factor: Array, npivots: int) -> Tuple[Array, Array]:
         r"""
         Return the L and U factors of an inplace LU factorization
 
@@ -261,18 +263,18 @@ class PivotedLUFactorizer(PivotedFactorizer):
             to be split during evolution of LU algorithm
         """
         if npivots is None:
-            npivots = min(*self._LU_factor.shape)
-        L_factor = self._bkd.tril(self._LU_factor)
+            npivots = min(*LU_factor.shape)
+        L_factor = self._bkd.tril(LU_factor)
         if L_factor.shape[1] < L_factor.shape[0]:
             # if matrix over-determined ensure L is a square matrix
             n0 = L_factor.shape[0] - L_factor.shape[1]
             L_factor = self._bkd.hstack(
-                [L_factor, np.zeros((L_factor.shape[0], n0))]
+                [L_factor, self._bkd.zeros((L_factor.shape[0], n0))]
             )
         # np.fill_diagonal(L_factor, 1.0)
         for ii in range(L_factor.shape[0]):
             L_factor[ii, ii] = 1.0
-        U_factor = self._bkd.triu(self._LU_factor)
+        U_factor = self._bkd.triu(LU_factor)
         return L_factor[:npivots, :npivots], U_factor[:npivots, :npivots]
 
     def factorize(
@@ -294,7 +296,7 @@ class PivotedLUFactorizer(PivotedFactorizer):
             swap_rows(self._LU_factor, it, pivot)
             if self._terminate(it):
                 self._termination_flag = 1
-                return self._split_lu(it)
+                return self._split_lu(self._LU_factor, it)
             # update L_factor
             self._LU_factor[it + 1 :, it] /= self._LU_factor[it, it]
             # udpate U_factor
@@ -305,7 +307,7 @@ class PivotedLUFactorizer(PivotedFactorizer):
             self._ncompleted_pivots += 1
         self._termination_msg = "Factorization completed successfully"
         self._termination_flag = 0
-        return self._split_lu(self._ncompleted_pivots)
+        return self._split_lu(self._LU_factor, self._ncompleted_pivots)
 
     def update(self, npivots: int) -> Array:
         raise NotImplementedError
@@ -332,7 +334,8 @@ class PivotedLUFactorizer(PivotedFactorizer):
             self._seq_pivots[: self._ncompleted_pivots]
         ):
             # inlined swap_rows() for performance
-            new_cols[[it, pivot]] = new_cols[[pivot, it]]
+            # copy required by torch
+            new_cols[[it, pivot], :] = self._bkd.copy(new_cols[[pivot, it], :])
 
             # update LU_factor
             # recover state of col vector from permuted LU factor
@@ -356,15 +359,45 @@ class PivotedLUFactorizer(PivotedFactorizer):
                 kk = self._ncompleted_pivots - ii - 1 - next_idx
 
                 # inlined swap_rows()
-                col_vector[jj], col_vector[kk] = col_vector[kk], col_vector[jj]
+                # copy required by torch
+                col_vector[jj], col_vector[kk] = (
+                    self._bkd.copy(col_vector[kk]),
+                    self._bkd.copy(col_vector[jj]),
+                )
 
             new_cols[next_idx:, :] -= np.outer(col_vector, new_cols[it, :])
         self._LU_factor = self._bkd.hstack((self._LU_factor, new_cols))
 
     def pivots(self) -> Array:
-        return get_final_pivots_from_sequential_pivots(self._seq_pivots)[
-            : self._ncompleted_pivots
-        ]
+        return get_final_pivots_from_sequential_pivots(
+            self._seq_pivots, bkd=self._bkd
+        )[: self._ncompleted_pivots]
+
+    def undo_preconditionining(
+        self,
+        precond_weights: Array,
+        npivots: int = None,
+    ) -> Array:
+        r"""
+        A=LU and WA=XY
+        Then WLU=XY
+        We also know Y=WU
+        So WLU=XWU => WL=XW so L=inv(W)*X*W
+        and U = inv(W)Y
+        """
+        if npivots is None:
+            npivots = min(*self._LU_factor.shape)
+        if precond_weights.shape != (self._LU_factor.shape[0], 1):
+            raise ValueError("precond_weights must be a 2d column vector")
+        # left multiply L an U by inv(W), i.e. compute inv(W).dot(L)
+        # and inv(W).dot(U)
+        LU_factor = self._bkd.copy(self._LU_factor) / precond_weights
+        # right multiply L by W, i.e. compute L.dot(W)
+        # Do not overwrite columns past npivots. If not all pivots have been
+        # performed the columns to the right of this point contain U factor
+        for ii in range(npivots):
+            LU_factor[ii + 1 :, ii] *= precond_weights[ii, 0]
+        return self._split_lu(LU_factor, npivots)
 
 
 def adjust_sign_eig(U: Array, bkd: BackendMixin = NumpyMixin) -> Array:
@@ -462,6 +495,12 @@ class DenseSymmetricMatVecOperator(SymmetricMatVecOperator):
 
     def nrows(self) -> int:
         return self._mat.shape[0]
+
+    def right_apply_implemented(self) -> bool:
+        return True
+
+    def right_apply(self, vecs: Array) -> Array:
+        return self.apply(vecs)
 
 
 def adjust_sign_svd(
@@ -628,7 +667,9 @@ def get_low_rank_matrix(
     return Amatrix
 
 
-def invert_permutation_vector(p: Array, dtype=int) -> Array:
+def invert_permutation_vector(
+    p: Array, dtype=int, bkd: BackendMixin = NumpyMixin
+) -> Array:
     r"""
     Returns the "inverse" of a permutation vector. I.e., returns the
     permutation vector that performs the inverse of the original
@@ -648,9 +689,9 @@ def invert_permutation_vector(p: Array, dtype=int) -> Array:
         permutation p.
     """
 
-    N = np.max(p) + 1
-    pt = np.zeros(p.size, dtype=dtype)
-    pt[p] = np.arange(N, dtype=dtype)
+    N = bkd.max(p) + 1
+    pt = bkd.zeros(p.shape[0], dtype=dtype)
+    pt[p] = bkd.arange(N, dtype=dtype)
     return pt
 
 
@@ -710,17 +751,17 @@ def equality_constrained_linear_least_squares(
     return scipy.linalg.lapack.dgglse(A, B, y, z)[3]
 
 
-def determinant_triangular_matrix(
+def log_determinant_triangular_matrix(
     matrix: Array, bkd: BackendMixin = NumpyMixin
 ):
-    return bkd.prod(bkd.diag(matrix))
+    return bkd.sum(bkd.log(bkd.diag(matrix)))
 
 
 def log_determinant_from_cholesky_factor(
     L: Array, bkd: BackendMixin = NumpyMixin
 ):
     """Get determinant of LL@.T"""
-    return 2 * bkd.sum(bkd.log(bkd.diag(L)))
+    return 2.0 * log_determinant_triangular_matrix(L, bkd)
 
 
 def inverse_from_cholesky_factor(L: Array, bkd: BackendMixin = NumpyMixin):
@@ -757,11 +798,11 @@ def update_cholesky_factorization_inverse(
     L_11_inv, L_12, L_22, bkd: BackendMixin = NumpyMixin
 ) -> Array:
     nrows, ncols = L_12.shape
-    L_22_inv = bkd.linalg.inv(L_22)
+    L_22_inv = bkd.inv(L_22)
     L_inv = bkd.block(
         [
             [L_11_inv, bkd.zeros((nrows, ncols))],
-            [-L_22_inv.dot(L_12.T.dot(L_11_inv)), L_22_inv],
+            [-L_22_inv @ (L_12.T @ L_11_inv), L_22_inv],
         ]
     )
     return L_inv
@@ -788,14 +829,14 @@ def update_trace_involving_cholesky_inverse(
     B_22 = B[nrows:, nrows:]
     # assert bkd.allclose(B, bkd.block([[B_11, B_12],[B_21, B_22]]))
 
-    C = -bkd.dot(L_22_inv.dot(L_12.T), L_11_inv)
-    C_T_L_22_inv = C.T.dot(L_22_inv)
+    C = -(L_22_inv @ L_12.T) @ L_11_inv
+    C_T_L_22_inv = C.T @ L_22_inv
     trace = (
         prev_trace
-        + bkd.sum(C.T.dot(C) * B_11)
+        + bkd.sum(C.T @ C * B_11)
         + bkd.sum(C_T_L_22_inv * B_12)
         + bkd.sum(C_T_L_22_inv.T * B_21)
-        + bkd.sum(L_22_inv.T.dot(L_22_inv) * B_22)
+        + bkd.sum((L_22_inv.T @ L_22_inv) * B_22)
     )
     return trace
 
@@ -826,7 +867,7 @@ def qr_solve(
     return bkd.solve_triangular(R, Q.T @ rhs, lower=False)
 
 
-def num_entries_square_triangular_matrix(
+def nentries_square_triangular_matrix(
     N: int, include_diagonal: bool = True
 ) -> int:
     r"""Num entries in upper (or lower) NxN traingular matrix"""
@@ -836,7 +877,7 @@ def num_entries_square_triangular_matrix(
         return int(N * (N - 1) / 2)
 
 
-def num_entries_rectangular_triangular_matrix(
+def nentries_rectangular_triangular_matrix(
     M: int, N: int, upper: bool = True
 ) -> int:
     r"""Num entries in upper (or lower) MxN traingular matrix.
@@ -855,11 +896,11 @@ def num_entries_rectangular_triangular_matrix(
     """
     assert M >= N
     if upper:
-        return num_entries_square_triangular_matrix(N)
+        return nentries_square_triangular_matrix(N)
     else:
-        return num_entries_square_triangular_matrix(
+        return nentries_square_triangular_matrix(
             M
-        ) - num_entries_square_triangular_matrix(M - N)
+        ) - nentries_square_triangular_matrix(M - N)
 
 
 def flattened_rectangular_lower_triangular_matrix_index(
@@ -873,34 +914,6 @@ def flattened_rectangular_lower_triangular_matrix_index(
     assert ii >= jj
     if ii == 0:
         return 0
-    T = num_entries_rectangular_triangular_matrix(ii, min(ii, N), upper=False)
+    T = nentries_rectangular_triangular_matrix(ii, min(ii, N), upper=False)
     kk = T + jj
     return kk
-
-
-def unprecondition_LU_factor(
-    LU_factor: Array,
-    precond_weights: Array,
-    npivots: int = None,
-    bkd: BackendMixin = NumpyMixin,
-) -> Array:
-    r"""
-    A=LU and WA=XY
-    Then WLU=XY
-    We also know Y=WU
-    So WLU=XWU => WL=XW so L=inv(W)*X*W
-    and U = inv(W)Y
-    """
-    if npivots is None:
-        npivots = min(*LU_factor.shape)
-    assert precond_weights.shape[1] == 1
-    assert precond_weights.shape[0] == LU_factor.shape[0]
-    # left multiply L an U by inv(W), i.e. compute inv(W).dot(L)
-    # and inv(W).dot(U)
-    LU_factor = bkd.copy(LU_factor) / precond_weights
-    # right multiply L by W, i.e. compute L.dot(W)
-    # Do not overwrite columns past npivots. If not all pivots have been
-    # performed the columns to the right of this point contain U factor
-    for ii in range(npivots):
-        LU_factor[ii + 1 :, ii] *= precond_weights[ii, 0]
-    return LU_factor

@@ -680,6 +680,11 @@ class BackendMixin(ABC):
     def cond(matrix):
         raise NotImplementedError
 
+    @staticmethod
+    @abstractmethod
+    def rank(matrix) -> int:
+        raise NotImplementedError
+
     def __repr__(self):
         return "{0}".format(self.__class__.__name__)
 

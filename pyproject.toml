@@ -44,14 +44,20 @@ docs = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
 # yapf 0.40.2 has bug that prevents its use with elpy
 lint = ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8"]
 
+# coverage must be run from the directory of this file
+# for coverage options to be utilized
 [tool.coverage]
-    [tool.coverage.run]
-    omit = [
-        '__init__.py',
-    ]
+[tool.coverage.run]
+omit = [
+    '__init__.py',
+]
 
-    [tool.coverage.report]
-    skip_empty = true
+[tool.coverage.report]
+skip_empty = true
+exclude_lines = [
+'@abstractmethod',
+'def __repr__'
+]
 
 [tool.black]
 line-length=79

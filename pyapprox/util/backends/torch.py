@@ -401,6 +401,10 @@ class TorchMixin(BackendMixin):
         return torch.linalg.cond(matrix)
 
     @staticmethod
+    def rank(matrix) -> int:
+        return torch.linalg.matrix_rank(matrix)
+
+    @staticmethod
     def jacobian(fun, params):
         return torch.autograd.functional.jacobian(fun, params)
 

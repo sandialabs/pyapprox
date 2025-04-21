@@ -354,6 +354,10 @@ class NumpyMixin(BackendMixin):
         return np.linalg.cond(matrix)
 
     @staticmethod
+    def rank(matrix) -> int:
+        return np.linalg.matrix_rank(matrix)
+
+    @staticmethod
     def up(matrix, indices, submatrix, axis=0):
         if axis == 0:
             matrix[indices] = submatrix

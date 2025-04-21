@@ -4,7 +4,7 @@ from scipy.spatial.distance import pdist, squareform
 import numpy as np
 from scipy.optimize import brenth
 
-from pyapprox.util.backends.linalg import adjust_sign_eig
+from pyapprox.util.linalg import adjust_sign_eig
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import JointVariable
