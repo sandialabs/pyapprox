@@ -249,7 +249,7 @@ class TestMultiOutputKernels:
         cmat = kernel.output_kernels[0].get_covariance_matrix()
         assert np.allclose(
             kernel.get_output_kernel_correlations_from_psi(0),
-            bkd.get_correlation_from_covariance(cmat)[0, 1:],
+            bkd.covariance_to_correlation(cmat)[0, 1:],
         )
 
         # Test that when all samples are the same the kernel matrix is

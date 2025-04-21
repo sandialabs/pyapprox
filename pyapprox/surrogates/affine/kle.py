@@ -4,7 +4,7 @@ from scipy.spatial.distance import pdist, squareform
 import numpy as np
 from scipy.optimize import brenth
 
-from pyapprox.util.linalg import adjust_sign_eig
+from pyapprox.util.backends.linalg import adjust_sign_eig
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import JointVariable
@@ -374,7 +374,7 @@ class AbstractKLE(ABC):
         )
         tuples = sorted(tuples, key=lambda tup: (tup[1], tup[2]), reverse=True)
         II = [tup[0] for tup in tuples]
-        eig_vecs = adjust_sign_eig(eig_vecs[:, II])
+        eig_vecs = adjust_sign_eig(eig_vecs[:, II], self._bkd)
         assert self._bkd.all(eig_vals[II] > 0), (
             eig_vals[II],
             self._bkd.where(eig_vals[II] <= 0)[0],
@@ -575,7 +575,7 @@ class DataDrivenKLE(AbstractKLE):
             sqrt_weights = self._bkd.sqrt(self._quad_weights)
             field_samples = sqrt_weights[:, None] * self._field_samples
         U, S, Vh = self._bkd.svd(field_samples)
-        eig_vecs = adjust_sign_eig(U[:, : self._nterms])
+        eig_vecs = adjust_sign_eig(U[:, : self._nterms], self._bkd)
         if self._quad_weights is not None:
             eig_vecs = 1 / sqrt_weights[:, None] * eig_vecs
         # divide S by sqrt(1/(n-1)) to be consistent with computing covariance

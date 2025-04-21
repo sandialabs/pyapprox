@@ -1,11 +1,40 @@
 from abc import ABC, abstractmethod
 import itertools
+from typing import Tuple
 
 
-from pyapprox.util.utilities import get_random_k_fold_sample_indices
+from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.surrogates.regressor import Regressor
 from pyapprox.surrogates.affine.basisexp import BasisExpansion
 from pyapprox.surrogates.affine.linearsystemsolvers import OMPSolver
+
+
+def get_random_k_fold_sample_indices(
+    nsamples: int,
+    nfolds: int,
+    random: bool = True,
+    bkd: BackendMixin = NumpyMixin,
+) -> Array:
+    sample_indices = bkd.arange(nsamples, dtype=int)
+    if random is True:
+        sample_indices = bkd.asarray(
+            np.random.permutation(sample_indices), dtype=int
+        )
+
+    fold_sample_indices = [bkd.empty(0, dtype=int) for kk in range(nfolds)]
+    nn = 0
+    while nn < nsamples:
+        for jj in range(nfolds):
+            fold_sample_indices[jj] = bkd.hstack(
+                [fold_sample_indices[jj], sample_indices[nn]]
+            )
+            nn += 1
+            if nn >= nsamples:
+                break
+    if bkd.unique(bkd.hstack(fold_sample_indices)).shape[0] != nsamples:
+        raise RuntimeError()
+    return fold_sample_indices
 
 
 class StructureParameterIterator(ABC):
@@ -168,3 +197,94 @@ class CrossValidationStructureSearch:
             self._cross_validator,
             self._structure_iterator,
         )
+
+
+def get_cross_validation_rsquared_coefficient_of_variation(
+    cv_score: float, train_vals: Array, bkd: BackendMixin = NumpyMixin
+) -> float:
+    r"""
+    cv_score = :math:`N^{-1/2}\left(\sum_{n=1}^N e_n\right^{1/2}` where
+    :math:`e_n` are the cross  validation residues at each test point and
+    :math:`N` is the number of traing vals
+
+    We define r_sq as
+
+    .. math:: 1-\frac{N^{-1}\left(\sum_{n=1}^N e_n\right)}/mathbb{V}\left[
+              Y\right] where Y is the vector of training vals
+    """
+    # total sum of squares (proportional to variance)
+    denom = bkd.std(train_vals)
+    # the factors of 1/N in numerator and denominator cancel out
+    rsq = 1 - (cv_score / denom) ** 2
+    return rsq
+
+
+def leave_one_out_lsq_cross_validation(
+    basis_mat: Array,
+    values: Array,
+    alpha: float = 0,
+    coef: Array = None,
+    bkd: BackendMixin = NumpyMixin,
+) -> Tuple[Array, float, Array]:
+    """
+    let :math:`x_i` be the ith row of :math:`X` and let
+    :math:`\beta=(X^\top X)^{-1}X^\top y` such that the residuals
+    at the training samples satisfy
+
+    .. math:: r_i = X\beta-y
+
+    then the leave one out cross validation errors are given by
+
+    .. math:: e_i = \frac{r_i}{1-h_i}
+
+    where
+
+    :math:`h_i = x_i^\top(X^\top X)^{-1}x_i`
+    """
+    assert values.ndim == 2
+    assert basis_mat.shape[0] > basis_mat.shape[1] + 2
+    gram_mat = basis_mat.T @ basis_mat
+    gram_mat += alpha * bkd.eye(gram_mat.shape[0])
+    H_mat = basis_mat @ (bkd.inv(gram_mat) @ basis_mat.T)
+    H_diag = bkd.diag(H_mat)
+    if coef is None:
+        coef = bkd.lstsq(gram_mat, basis_mat.T @ values)
+    assert coef.ndim == 2
+    residuals = basis_mat @ coef - values
+    cv_errors = residuals / (1 - H_diag[:, None])
+    cv_score = bkd.sqrt(bkd.sum(cv_errors**2, axis=0) / basis_mat.shape[0])
+    return cv_errors, cv_score, coef
+
+
+def leave_many_out_lsq_cross_validation(
+    basis_mat: Array,
+    values: Array,
+    fold_sample_indices: Array,
+    alpha: float = 0,
+    coef: Array = None,
+    bkd: BackendMixin = NumpyMixin,
+) -> Tuple[Array, float, Array]:
+    nfolds = len(fold_sample_indices)
+    nsamples = basis_mat.shape[0]
+    cv_errors = []
+    cv_score = 0
+    gram_mat = basis_mat.T @ basis_mat
+    gram_mat += alpha * bkd.eye(gram_mat.shape[0])
+    if coef is None:
+        coef = bkd.lstsq(gram_mat, basis_mat.T @ values)
+    residuals = basis_mat @ coef - values
+    gram_mat_inv = bkd.inv(gram_mat)
+    for kk in range(nfolds):
+        indices_kk = fold_sample_indices[kk]
+        nvalidation_samples_kk = indices_kk.shape[0]
+        assert nsamples - nvalidation_samples_kk >= basis_mat.shape[1]
+        basis_mat_kk = basis_mat[indices_kk, :]
+        residuals_kk = residuals[indices_kk, :]
+
+        H_mat = bkd.eye(nvalidation_samples_kk) - basis_mat_kk @ (
+            gram_mat_inv @ basis_mat_kk.T
+        )
+        H_mat_inv = bkd.inv(H_mat)
+        cv_errors.append(H_mat_inv @ residuals_kk)
+        cv_score += bkd.sum(cv_errors[-1] ** 2, axis=0)
+    return cv_errors, bkd.sqrt(cv_score[0] / basis_mat.shape[0]), coef

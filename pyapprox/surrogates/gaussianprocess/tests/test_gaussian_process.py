@@ -404,15 +404,15 @@ class TestGaussianProcess:
         # correlation, but for this case it can (Even for cases it works it
         # recovery depends on the number of samples per output)
         cov_matrix = output_kernel.get_covariance_matrix()
-        corr_matrix = bkd.get_correlation_from_covariance(cov_matrix)
+        corr_matrix = bkd.covariance_to_correlation(cov_matrix)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 101)))
         values = bkd.hstack([fun(samples) for fun in funs])
         # print(values.shape)
         # print(corr_matrix)
-        # print(bkd.get_correlation_from_covariance(bkd.cov(values.T, ddof=1)))
+        # print(bkd.covariance_to_correlation(bkd.cov(values.T, ddof=1)))
         assert np.allclose(
             corr_matrix,
-            bkd.get_correlation_from_covariance(bkd.cov(values.T, ddof=1)),
+            bkd.covariance_to_correlation(bkd.cov(values.T, ddof=1)),
             atol=1e-2,
         )
 

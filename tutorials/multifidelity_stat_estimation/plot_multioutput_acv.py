@@ -32,7 +32,7 @@ labels = (
 )
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 _ = mf.plot_correlation_matrix(
-    mf.get_correlation_from_covariance(cov, bkd=TorchMixin),
+    mf.covariance_to_correlation(cov, bkd=TorchMixin),
     ax=ax,
     model_names=labels,
     label_fontsize=20,

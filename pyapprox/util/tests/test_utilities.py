@@ -12,7 +12,7 @@ from pyapprox.util.utilities import (
     get_cross_validation_rsquared_coefficient_of_variation,
     integrate_using_univariate_gauss_legendre_quadrature_unbounded,
     split_indices,
-    get_correlation_from_covariance,
+    covariance_to_correlation,
     correlation_to_covariance,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -27,7 +27,7 @@ class TestUtilities(unittest.TestCase):
         nrows = 3
         A = bkd.asarray(np.random.normal(0, 1, (nrows, nrows)))
         cov = A.T @ A
-        corr = get_correlation_from_covariance(cov, bkd)
+        corr = covariance_to_correlation(cov, bkd)
         assert bkd.allclose(bkd.diag(corr), bkd.ones(nrows))
         recovered_cov = correlation_to_covariance(
             corr, bkd.sqrt(bkd.diag(cov))

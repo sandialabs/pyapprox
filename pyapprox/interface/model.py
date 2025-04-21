@@ -947,6 +947,7 @@ class SingleSampleModelMixin:
 
     def __call__(self, samples: Array) -> Array:
         # overwrite call from model so not to count model evaluation twice
+        self._check_sample_shape(samples)
         vals = self._values(samples)
         self._check_values_shape(samples, vals)
         return vals

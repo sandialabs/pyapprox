@@ -182,7 +182,7 @@ class TestGroupACV:
         bkd = self.get_backend()
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        cov = bkd.get_correlation_from_covariance(cov)
+        cov = bkd.covariance_to_correlation(cov)
 
         target_cost = 100
         costs = bkd.copy(bkd.flip(bkd.logspace(-nmodels + 1, 0, nmodels)))
@@ -243,7 +243,7 @@ class TestGroupACV:
             np.random.normal(0, 1, (nmodels * nqoi, nmodels * nqoi))
         )
         cov = cov.T @ cov
-        cov = bkd.get_correlation_from_covariance(cov)
+        cov = bkd.covariance_to_correlation(cov)
         target_cost = 100
         costs = bkd.copy(bkd.flip(bkd.logspace(-nmodels + 1, 0, nmodels)))
 
@@ -310,7 +310,7 @@ class TestGroupACV:
         bkd = self.get_backend()
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        cov = bkd.get_correlation_from_covariance(cov)
+        cov = bkd.covariance_to_correlation(cov)
 
         target_cost = 100
         costs = bkd.copy(bkd.flip(bkd.logspace(-nmodels + 1, 0, nmodels)))
@@ -361,7 +361,7 @@ class TestGroupACV:
         bkd = self.get_backend()
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        cov = bkd.get_correlation_from_covariance(cov)
+        cov = bkd.covariance_to_correlation(cov)
 
         variable = IndependentMarginalsVariable(
             [stats.norm(0, 1) for ii in range(nmodels)], backend=bkd
@@ -437,7 +437,7 @@ class TestGroupACV:
         bkd = self.get_backend()
         cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
-        cov = bkd.get_correlation_from_covariance(cov)
+        cov = bkd.covariance_to_correlation(cov)
 
         target_cost = 100
         costs = bkd.copy(bkd.flip(bkd.logspace(-nmodels + 1, 0, nmodels)))

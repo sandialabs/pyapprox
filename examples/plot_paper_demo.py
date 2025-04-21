@@ -368,7 +368,7 @@ model_costs /= model_costs[0]
 # cost relative to the highest-fidelity model cost
 fig, axs = plt.subplots(1, 2, figsize=(2 * 8, 6))
 multifidelity.plot_correlation_matrix(
-    multifidelity.get_correlation_from_covariance(cov), ax=axs[0]
+    multifidelity.covariance_to_correlation(cov), ax=axs[0]
 )
 multifidelity.plot_model_costs(model_costs, ax=axs[1])
 axs[0].set_title(mathrm_label("Model covariances"))

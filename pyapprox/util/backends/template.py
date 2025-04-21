@@ -455,7 +455,7 @@ class BackendMixin(ABC):
         return cls.block_cholesky_engine(L_A, L_A_inv_B, B, D, return_blocks)
 
     @classmethod
-    def get_correlation_from_covariance(cls, cov):
+    def covariance_to_correlation(cls, cov):
         r"""
         Compute the correlation matrix from a covariance matrix
         """

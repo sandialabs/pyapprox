@@ -17,7 +17,7 @@ from pyapprox.variables._nataf import (
 )
 from pyapprox.variables.marginals import Marginal, ContinuousMarginalMixin
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.util.utilities import get_correlation_from_covariance
+from pyapprox.util.utilities import covariance_to_correlation
 from pyapprox.util.transforms import Transform
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.template import BackendMixin, Array
@@ -396,7 +396,7 @@ class NatafTransform(Transform):
         super().__init__(x_marginals[0]._bkd)
         self._nvars = len(x_marginals)
         self._x_marginals = x_marginals
-        self._x_correlation = get_correlation_from_covariance(
+        self._x_correlation = covariance_to_correlation(
             x_covariance, self._bkd
         )
         self._x_marginal_stdevs = self._bkd.sqrt(self._bkd.diag(x_covariance))

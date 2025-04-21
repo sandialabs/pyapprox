@@ -11,7 +11,7 @@ from pyapprox.surrogates.kernels import (
     PeriodicMaternKernel,
     GaussianNoiseKernel,
 )
-from pyapprox.util.utilities import approx_jacobian_3D
+from pyapprox.util.misc import approx_jacobian_3D
 from pyapprox.util.sys_utilities import package_available
 
 if package_available("jax"):

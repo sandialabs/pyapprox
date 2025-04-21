@@ -4,12 +4,6 @@ import glob
 
 import numpy as np
 
-# from pyapprox.util.randomized_svd import (
-#     randomized_svd,
-#     MatVecOperator,
-#     adjust_sign_svd,
-#     svd_using_orthogonal_basis,
-# )
 from pyapprox.variables.gaussian import (
     DenseCholeskySqrtCovarianceOperator,
     CovarianceOperator,

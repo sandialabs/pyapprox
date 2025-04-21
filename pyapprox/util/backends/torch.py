@@ -16,7 +16,9 @@ class TorchMixin(BackendMixin):
 
     @staticmethod
     def eye(nrows: int, ncols: int = None, dtype=torch.double) -> torch.Tensor:
-        return torch.eye(nrows, ncols, dtype=dtype)
+        if ncols is not None:
+            return torch.eye(nrows, ncols, dtype=dtype)
+        return torch.eye(nrows, dtype=dtype)
 
     @staticmethod
     def inv(matrix: torch.Tensor) -> torch.Tensor:

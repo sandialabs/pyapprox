@@ -3,7 +3,7 @@ from itertools import product
 
 import numpy as np
 
-from pyapprox.util.utilities import get_correlation_from_covariance
+from pyapprox.util.utilities import covariance_to_correlation
 
 
 def _check_safe_cast_to_integers(array):
@@ -120,7 +120,7 @@ def _allocate_samples_mfmc(cov, costs, target_cost, bkd):
     """
 
     nmodels = len(costs)
-    corr = get_correlation_from_covariance(cov, bkd)
+    corr = covariance_to_correlation(cov, bkd)
     II = bkd.flip(bkd.argsort(bkd.abs(corr[0, 1:])))
     if (II.shape[0] != nmodels-1):
         msg = "Correlation shape {0} inconsistent with len(costs) {1}.".format(

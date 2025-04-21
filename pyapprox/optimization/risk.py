@@ -14,7 +14,7 @@ from scipy.special import (
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.linalg import (
-    cholesky_inverse,
+    inverse_from_cholesky_factor,
     log_determinant_from_cholesky_factor,
 )
 
@@ -555,7 +555,7 @@ class CholeskyBasedGaussianExactKLDivergence(ExactKLDivergence):
         self._check_chol_factor(chol2)
         self._mean2 = mean2
         self._chol2 = chol2
-        self._cov2_inv = cholesky_inverse(self._chol2, self._bkd)
+        self._cov2_inv = inverse_from_cholesky_factor(self._chol2, self._bkd)
         self._cov2_log_det = log_determinant_from_cholesky_factor(
             self._chol2, self._bkd
         )

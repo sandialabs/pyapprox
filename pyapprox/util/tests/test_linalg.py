@@ -304,6 +304,9 @@ class TestLinalg(unittest.TestCase):
         LU_factor_final = add_rows_to_pivoted_lu_factorization(
             LU_factor_init, new_rows, num_pivots
         )
+        print(LU_factor_final)
+        print(LU_factor)
+        assert False
         assert np.allclose(LU_factor_final, LU_factor)
 
         #######

@@ -31,7 +31,7 @@ from pyapprox.benchmarks.multifidelity_benchmarks import (
     PolynomialModelEnsemble,
 )
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
-from pyapprox.util.utilities import get_correlation_from_covariance
+from pyapprox.util.utilities import covariance_to_correlation
 from pyapprox.util.visualization import mathrm_label
 from pyapprox.util.backends.torch import TorchMixin
 
@@ -60,7 +60,7 @@ else:
         benchmark().fun.covariance_of_centered_values_kronker_product(),
     ]
 
-print(get_correlation_from_covariance(benchmark.covariance(), bkd=bkd))
+print(covariance_to_correlation(benchmark.covariance(), bkd=bkd))
 
 oracle_stat = multioutput_stats[stat_type](benchmark.nqoi(), backend=bkd)
 oracle_stat.set_pilot_quantities(*oracle_stat_args)
@@ -103,7 +103,7 @@ def build_acv(
     pilot_quantities = stat_class.compute_pilot_quantities(
         pilot_values_per_model
     )
-    # print(get_correlation_from_covariance(pilot_cov))
+    # print(covariance_to_correlation(pilot_cov))
 
     # optimize the ACV estimator
     stat = multioutput_stats[stat_type](benchmark.nqoi(), backend=bkd)

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.util.utilities import (
     scipy_gauss_hermite_pts_wts_1D,
-    get_correlation_from_covariance,
+    covariance_to_correlation,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.template import BackendMixin, Array
@@ -217,7 +217,7 @@ def nataf_transformation(
 ) -> Array:
     quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
     # x_correlation = covariance_to_correlation(x_covariance)
-    x_correlation = get_correlation_from_covariance(x_covariance, bkd)
+    x_correlation = covariance_to_correlation(x_covariance, bkd)
     z_correlation = transform_correlations(
         x_correlation,
         x_marginal_inv_cdfs,
@@ -244,7 +244,7 @@ def inverse_nataf_transformation(
     bkd: BackendMixin = NumpyMixin,
 ) -> Array:
     quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
-    x_correlation = get_correlation_from_covariance(x_covariance, bkd)
+    x_correlation = covariance_to_correlation(x_covariance, bkd)
     z_correlation = transform_correlations(
         x_correlation,
         x_marginal_inv_cdfs,

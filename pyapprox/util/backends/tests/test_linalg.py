@@ -272,49 +272,41 @@ class TestLinalg:
         factorizer1.factorize(npivots)
 
         # create matrix for which pivots do not matter
-        A = pivot_rows(factorizer1.pivots(), A, False)
+        A_reordered = pivot_rows(factorizer1._seq_pivots, A, False)
+        assert bkd.allclose(A[factorizer1.pivots()], A_reordered[:npivots])
         # check no pivoting is necessary
-        factorizer2 = PivotedLUFactorizer(A, bkd=bkd)
+        factorizer2 = PivotedLUFactorizer(A_reordered, bkd=bkd)
         factorizer2.factorize(npivots)
-        assert bkd.allclose(factorizer2.pivots(), np.arange(npivots))
+        assert bkd.allclose(factorizer2.pivots(), bkd.arange(npivots))
 
-        factorizer3 = PivotedLUFactorizer(A[:npivots], bkd=bkd)
+        factorizer3 = PivotedLUFactorizer(A_reordered[:npivots], bkd=bkd)
         factorizer3.factorize(npivots)
-        new_rows = bkd.copy(A[npivots:, :])
+        new_rows = bkd.copy(A_reordered[npivots:, :])
         factorizer3.add_rows(new_rows)
-        print(factorizer3._LU_factor)
-        print(factorizer1._LU_factor)
         assert bkd.allclose(factorizer3._LU_factor, factorizer1._LU_factor)
 
         #######
         # only pivot some of the rows
 
-        A = np.random.normal(0, 1, (10, 5))
+        A = bkd.asarray(np.random.normal(0, 1, (10, 5)))
 
         npivots = 3
-        LU_factor, pivots = truncated_pivoted_lu_factorization(
-            A, npivots, truncate_L_factor=False
-        )
+        factorizer1 = PivotedLUFactorizer(A, bkd=bkd)
+        factorizer1.factorize(npivots)
 
         # create matrix for which pivots do not matter
-        A = pivot_rows(pivots, A, False)
-        # print(A.shape)
+        A_reordered = pivot_rows(factorizer1._seq_pivots, A, False)
         # check no pivoting is necessary
-        L, U, pivots = truncated_pivoted_lu_factorization(
-            A, npivots, truncate_L_factor=True
-        )
-        assert np.allclose(pivots, np.arange(npivots))
+        factorizer2 = PivotedLUFactorizer(A_reordered, bkd=bkd)
+        factorizer2.factorize(npivots)
+        assert bkd.allclose(factorizer2.pivots(), bkd.arange(npivots))
 
-        LU_factor_init, pivots_init = truncated_pivoted_lu_factorization(
-            A[:npivots, :], npivots, truncate_L_factor=False
-        )
-
-        new_rows = A[npivots:, :].copy()
-
-        LU_factor_final = add_rows_to_pivoted_lu_factorization(
-            LU_factor_init, new_rows, npivots
-        )
-        assert np.allclose(LU_factor_final, LU_factor)
+        factorizer3 = PivotedLUFactorizer(A_reordered[:npivots], bkd=bkd)
+        factorizer3.factorize(npivots)
+        new_rows = bkd.copy(A_reordered[npivots:, :])
+        new_rows = bkd.copy(A_reordered[npivots:, :])
+        factorizer3.add_rows(new_rows)
+        assert bkd.allclose(factorizer3._LU_factor, factorizer1._LU_factor)
 
 
 class TestNumpyLinalg(TestLinalg, unittest.TestCase):

@@ -5,7 +5,7 @@ from typing import List, Union, Tuple
 
 import numpy as np
 
-from pyapprox.util.utilities import get_correlation_from_covariance
+from pyapprox.util.utilities import covariance_to_correlation
 from pyapprox.multifidelity.stats import (
     MultiOutputVariance,
     MultiOutputMeanAndVariance,
@@ -1715,7 +1715,7 @@ class MFMCEstimator(GMFEstimator):
         # self.model_order which is what self.get_rsquared requires
         if not _check_mfmc_model_costs_and_correlations(
             self._costs,
-            get_correlation_from_covariance(self._stat._cov, self._bkd),
+            covariance_to_correlation(self._stat._cov, self._bkd),
         ):
             raise ValueError("models do not admit a hierarchy")
         nsample_ratios, val = _allocate_samples_mfmc(

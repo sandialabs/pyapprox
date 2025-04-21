@@ -66,7 +66,7 @@ multifidelity.plot_model_costs(model_costs, ax=ax)
 
 ax = plt.subplots(1, 1, figsize=(16, 12))[1]
 _ = multifidelity.plot_correlation_matrix(
-    multifidelity.get_correlation_from_covariance(stat._cov.numpy()), ax=ax,
+    multifidelity.covariance_to_correlation(stat._cov.numpy()), ax=ax,
     format_string=None)
 
 #%%
