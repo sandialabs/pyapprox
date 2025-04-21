@@ -1,7 +1,7 @@
 import numpy as np
 from skfem import MeshQuad1, Mesh
 
-from pyapprox.util.utilities import cartesian_product
+from pyapprox.util.misc import cartesian_product
 
 
 def init_gappy(x : np.ndarray,

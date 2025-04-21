@@ -2,9 +2,9 @@ import itertools
 from typing import List, Iterable
 
 import numpy as np
-from scipy.special import comb
+from scipy.special import roots_hermitenorm
 
-from pyapprox.util.pya_numba import njit
+# from pyapprox.util.pya_numba import njit
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 
@@ -67,14 +67,14 @@ def unique_matrix_row_indices(matrix: Array, bkd: BackendMixin = NumpyMixin):
     ]
 
 
-def unique_matrix_rows(matrix) -> Array:
+def unique_matrix_rows(matrix, bkd: BackendMixin = NumpyMixin) -> Array:
     """Return all the unique rows of a matrix"""
-    return matrix[unique_matrix_row_indices(matrix)[0]]
+    return matrix[unique_matrix_row_indices(matrix, bkd)[0]]
 
 
-def unique_matrix_columns(matrix) -> Array:
+def unique_matrix_columns(matrix, bkd: BackendMixin = NumpyMixin) -> Array:
     """Return all the unique columns of a matrix"""
-    return matrix[:, unique_matrix_row_indices(matrix.T)[0]]
+    return matrix[:, unique_matrix_row_indices(matrix.T, bkd)[0]]
 
 
 def get_all_sample_combinations(
@@ -85,17 +85,6 @@ def get_all_sample_combinations(
     loop over all combinations
 
     samples1 vary slowest and samples2 vary fastest
-
-    Let samples1 = [[1,2],[2,3]]
-        samples2 = [[0, 0, 0],[0, 1, 2]]
-
-    Then samples will be
-
-    ([1, 2, 0, 0, 0])
-    ([1, 2, 0, 1, 2])
-    ([3, 4, 0, 0, 0])
-    ([3, 4, 0, 1, 2])
-
     """
     samples = []
     for r in itertools.product(*[samples1.T, samples2.T]):
@@ -123,14 +112,16 @@ def split_indices(
 ) -> Array:
     indices = bkd.hstack(
         (
-            bkd.full((nelems % nsplits), nelems // nsplits + 1),
-            bkd.full(nsplits - (nelems % nsplits), nelems // nsplits),
+            bkd.full((nelems % nsplits,), nelems // nsplits + 1, dtype=int),
+            bkd.full(
+                (nsplits - (nelems % nsplits),), nelems // nsplits, dtype=int
+            ),
         )
     )
-    return bkd.hstack((0, bkd.cumsum(indices)))
+    return bkd.hstack((bkd.zeros((1,), dtype=int), bkd.cumsum(indices)))
 
 
-def extract_sub_list(mylist: List, indices: Iterable) -> List:
+def sublist(mylist: List, indices: Iterable) -> List:
     """
     Extract a subset of items from a list
 
@@ -216,7 +207,8 @@ def correlation_to_covariance(corr: Array, stdevs: Array) -> Array:
     return stdevs[None, :] * corr * stdevs[:, None]
 
 
-@njit(cache=True)
+# if njit used covarage.py does not pick up covarage of code
+# @njit(cache=True)
 def get_first_n_primes(n):
     primes = list()
     primes.append(2)
@@ -244,10 +236,24 @@ def all_primes_less_than_or_equal_to_n(n: int) -> List:
     return primes
 
 
-def lists_of_arrays_equal(list1, list2):
+def lists_of_arrays_equal(list1, list2, bkd: BackendMixin = NumpyMixin):
     if len(list1) != len(list2):
         return False
     for ll in range(len(list1)):
-        if not np.allclose(list1[ll], list2[ll]):
+        if list1[ll].shape != list2[ll].shape or not bkd.allclose(
+            list1[ll], list2[ll]
+        ):
             return False
     return True
+
+
+def scipy_gauss_hermite_pts_wts_1D(nn):
+    x, w = roots_hermitenorm(nn)
+    w /= np.sqrt(2 * np.pi)
+    return x, w
+
+
+def scipy_gauss_legendre_pts_wts_1D(nn):
+    x, w = np.polynomial.legendre.leggauss(nn)
+    w *= 0.5
+    return x, w

@@ -1,7 +1,7 @@
 import numpy as np
 from functools import partial
 from scipy import stats
-from pyapprox.util.utilities import get_all_sample_combinations
+from pyapprox.util.misc import get_all_sample_combinations
 from pyapprox.interface.wrappers import ActiveSetVariableModel
 from pyapprox.optimization.cvar_regression import smooth_max_function_first_derivative,\
     smooth_max_function_second_derivative

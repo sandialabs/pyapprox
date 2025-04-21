@@ -3,7 +3,7 @@ from scipy import stats
 from functools import partial
 import unittest
 
-from pyapprox.util.utilities import (
+from pyapprox.util.misc import (
     get_tensor_product_quadrature_rule,
     correlation_to_covariance,
 )

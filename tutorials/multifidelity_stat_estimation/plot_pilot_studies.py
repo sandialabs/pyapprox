@@ -31,7 +31,7 @@ from pyapprox.benchmarks.multifidelity_benchmarks import (
     PolynomialModelEnsemble,
 )
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
-from pyapprox.util.utilities import covariance_to_correlation
+from pyapprox.util.misc import covariance_to_correlation
 from pyapprox.util.visualization import mathrm_label
 from pyapprox.util.backends.torch import TorchMixin
 

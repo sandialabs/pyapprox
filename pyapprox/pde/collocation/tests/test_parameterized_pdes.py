@@ -221,7 +221,7 @@ class TestParameterizedModels:
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 2e-7
 
-        # from pyapprox.util.utilities import approx_jacobian
+        # from pyapprox.util.misc import approx_jacobian
 
         # def gfun(param):
         #     return model.forward_solve(param[:, None]).get_values().flatten()

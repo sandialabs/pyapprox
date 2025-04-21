@@ -23,7 +23,7 @@ from pyapprox.variables._nataf import (
     gaussian_copula_compute_x_correlation_from_z_correlation,
     generate_x_samples_using_gaussian_copula,
 )
-from pyapprox.util.utilities import correlation_to_covariance
+from pyapprox.util.misc import correlation_to_covariance
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 

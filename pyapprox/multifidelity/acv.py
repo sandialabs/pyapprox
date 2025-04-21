@@ -5,7 +5,7 @@ from typing import List, Union, Tuple
 
 import numpy as np
 
-from pyapprox.util.utilities import covariance_to_correlation
+from pyapprox.util.misc import covariance_to_correlation
 from pyapprox.multifidelity.stats import (
     MultiOutputVariance,
     MultiOutputMeanAndVariance,

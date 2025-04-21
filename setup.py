@@ -32,7 +32,12 @@ setuptools.setup(
         "scipy >= 1.0.0",
         "sympy",
         "torch<=2.2.0",
-        "coverage>=6.4",
+        # coverage > 6.0 causes a wierd bug with numpy
+        # e.g
+        # test_scipy_gauss_legendre_pts_wts_1D (__main__.TestNumpyUtilities)
+        # float() argument must be a string or a real number, not
+        # '_NoValueType'
+        "coverage>=6.0",
         "pytest-cov",
         "pytest>=4.6",
         "networkx",

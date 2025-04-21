@@ -8,7 +8,7 @@ from pyapprox.multifidelity.visualize import (
     plot_estimator_sample_allocation_comparison)
 from pyapprox.multifidelity.factory import (
     estimate_model_ensemble_covariance, get_estimator, multioutput_stats)
-from pyapprox.util.utilities import covariance_to_correlation
+from pyapprox.util.misc import covariance_to_correlation
 
 __all__ = ["get_estimator",
            "plot_estimator_variance_reductions",

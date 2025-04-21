@@ -35,7 +35,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.util.utilities import nchoosek
+from pyapprox.util.misc import nchoosek
 
 from pyapprox.surrogates.sparsegrids.combination import (
     AdaptiveCombinationSparseGrid,

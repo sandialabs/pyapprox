@@ -6,7 +6,7 @@ from scipy import stats
 from scipy.linalg import solve_triangular
 import matplotlib.pyplot as plt
 
-from pyapprox.util.utilities import (
+from pyapprox.util.misc import (
     scipy_gauss_hermite_pts_wts_1D,
     covariance_to_correlation,
 )

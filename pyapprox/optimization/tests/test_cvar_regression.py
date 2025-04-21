@@ -13,7 +13,7 @@ from pyapprox.optimization.cvar_regression import (
 
 from pyapprox.optimization.risk import ValueAtRisk
 
-from pyapprox.util.utilities import check_gradients
+from pyapprox.util.misc import check_gradients
 
 
 class TestCVARRegression(unittest.TestCase):

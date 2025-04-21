@@ -11,7 +11,7 @@ import time
 import itertools
 
 from pyapprox.util.sys_utilities import trace_error_with_msg
-from pyapprox.util.utilities import (
+from pyapprox.util.misc import (
     get_tensor_product_quadrature_rule,
     split_indices,
 )

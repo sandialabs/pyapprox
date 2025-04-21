@@ -28,7 +28,7 @@ dependencies = [
     'scipy >= 1.0.0',
     'sympy',
     'torch<=2.2.0',
-    'coverage>=6.4',
+    'coverage>=6.0',
     'pytest-cov',
     'pytest>=4.6',
     'networkx',

@@ -24,7 +24,7 @@ from pyapprox.multifidelity.stats import (
     _nqoi_nqoi_subproblem,
 )
 from pyapprox.multifidelity.groupacv import MLBLUEEstimator
-from pyapprox.util.utilities import get_all_sample_combinations
+from pyapprox.util.misc import get_all_sample_combinations
 from pyapprox.util.backends.template import Array
 from pyapprox.multifidelity.etc import AETCBLUE
 

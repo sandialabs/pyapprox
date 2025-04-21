@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import itertools
 from typing import Tuple
 
+import numpy as np
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin

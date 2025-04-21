@@ -17,7 +17,7 @@ from pyapprox.variables.algebra import (
     product_of_independent_random_variables_pdf,
     weighted_sum_dependent_gaussian_variables,
 )
-from pyapprox.util.utilities import scipy_gauss_hermite_pts_wts_1D
+from pyapprox.util.misc import scipy_gauss_hermite_pts_wts_1D
 from pyapprox.variables.marginals import EmpiricalCDF
 
 

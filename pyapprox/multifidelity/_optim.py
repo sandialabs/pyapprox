@@ -3,7 +3,7 @@ from itertools import product
 
 import numpy as np
 
-from pyapprox.util.utilities import covariance_to_correlation
+from pyapprox.util.misc import covariance_to_correlation
 
 
 def _check_safe_cast_to_integers(array):

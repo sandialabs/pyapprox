@@ -17,7 +17,7 @@ from pyapprox.variables._nataf import (
 )
 from pyapprox.variables.marginals import Marginal, ContinuousMarginalMixin
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.util.utilities import covariance_to_correlation
+from pyapprox.util.misc import covariance_to_correlation
 from pyapprox.util.transforms import Transform
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.template import BackendMixin, Array

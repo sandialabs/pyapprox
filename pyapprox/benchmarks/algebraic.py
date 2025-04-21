@@ -24,7 +24,7 @@ from pyapprox.benchmarks.base import (
     ConstrainedOptimizationBenchmark,
     ConstrainedUncertainOptimizationBenchmark,
 )
-from pyapprox.util.utilities import evaluate_quadratic_form
+from pyapprox.util.misc import evaluate_quadratic_form
 from pyapprox.optimization.minimize import (
     SampleAverageConstraint,
     SampleAverageMeanPlusStdev,

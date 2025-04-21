@@ -294,7 +294,7 @@ def plot_discrete_distribution_surface_2d(rv1, rv2, ax=None):
     Only works if rv1 and rv2 are defined on consecutive integers
     """
     from matplotlib import cm
-    from pyapprox.util.utilities import cartesian_product, outer_product
+    from pyapprox.util.misc import cartesian_product, outer_product
     from pyapprox.variables.marginals import get_probability_masses
 
     if ax is None:
@@ -336,7 +336,7 @@ def plot_discrete_distribution_heatmap_2d(rv1, rv2, ax=None, zero_tol=1e-4):
     Only works if rv1 and rv2 are defined on consecutive integers
     """
     import copy
-    from pyapprox.util.utilities import outer_product
+    from pyapprox.util.misc import outer_product
     from pyapprox.variables.marginals import get_probability_masses
 
     if ax is None:

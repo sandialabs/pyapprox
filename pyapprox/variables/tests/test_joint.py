@@ -4,7 +4,7 @@ from scipy import stats
 
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.util.utilities import lists_of_arrays_equal
+from pyapprox.util.misc import lists_of_arrays_equal
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
     define_iid_random_variable,

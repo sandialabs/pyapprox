@@ -3,8 +3,7 @@ import unittest
 import numpy as np
 
 from pyapprox.util.backends.numpy import NumpyMixin
-
-# from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.surrogates.univariate.orthopoly import LegendrePolynomial1D
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
@@ -19,6 +18,9 @@ from pyapprox.surrogates.affine.crossvalidation import (
     CrossValidationStructureSearch,
     PolynomialDegreeIterator,
     OMPNTermsIterator,
+    get_random_k_fold_sample_indices,
+    leave_one_out_lsq_cross_validation,
+    leave_many_out_lsq_cross_validation,
 )
 
 
@@ -90,15 +92,81 @@ class TestCrossValidation:
         for test_case in test_cases[-1:]:
             self._check_pce_cv_search(*test_case)
 
+    def test_least_squares_loo_cross_validation(self):
+        bkd = self.get_backend()
+        degree = 2
+        alpha = 1e-3
+        nsamples = 2 * (degree + 1)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, nsamples)))
+        basis_mat = samples.T ** bkd.arange(degree + 1)
+        values = bkd.exp(samples).T
+        cv_errors, cv_score, coef = leave_one_out_lsq_cross_validation(
+            basis_mat, values, alpha, bkd=bkd
+        )
+        true_cv_errors = bkd.empty_like(cv_errors)
+        for ii in range(nsamples):
+            samples_ii = bkd.hstack((samples[:, :ii], samples[:, ii + 1 :]))
+            basis_mat_ii = samples_ii.T ** bkd.arange(degree + 1)
+            values_ii = bkd.vstack((values[:ii], values[ii + 1 :]))
+            coef_ii = bkd.lstsq(
+                basis_mat_ii.T @ basis_mat_ii
+                + alpha * bkd.eye(basis_mat.shape[1]),
+                basis_mat_ii.T @ values_ii,
+            )
+            true_cv_errors[ii] = basis_mat[ii] @ coef_ii - values[ii]
+        assert bkd.allclose(cv_errors, true_cv_errors)
+        assert bkd.allclose(
+            cv_score, bkd.sqrt(bkd.sum(true_cv_errors**2, axis=0) / nsamples)
+        )
+
+    def test_leave_many_out_lsq_cross_validation(self):
+        bkd = self.get_backend()
+        degree = 2
+        nsamples = 2 * (degree + 1)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, nsamples)))
+        basis_mat = samples.T ** bkd.arange(degree + 1)
+        values = bkd.exp(samples).T * 100
+        alpha = 1e-3  # ridge regression regularization parameter value
+
+        assert nsamples % 2 == 0
+        nfolds = nsamples // 3
+        fold_sample_indices = get_random_k_fold_sample_indices(
+            nsamples, nfolds
+        )
+        cv_errors, cv_score, coef = leave_many_out_lsq_cross_validation(
+            basis_mat, values, fold_sample_indices, alpha, bkd=bkd
+        )
+        true_cv_errors = []
+        for kk in range(len(fold_sample_indices)):
+            K = bkd.ones(nsamples, dtype=bool)
+            K[fold_sample_indices[kk]] = False
+            basis_mat_kk = basis_mat[K, :]
+            gram_mat_kk = (
+                basis_mat_kk.T @ basis_mat_kk
+                + bkd.eye(basis_mat_kk.shape[1]) * alpha
+            )
+            values_kk = basis_mat_kk.T @ values[K, :]
+            coef_kk = bkd.lstsq(gram_mat_kk, values_kk)
+            true_cv_errors.append(
+                basis_mat[fold_sample_indices[kk], :] @ coef_kk
+                - values[fold_sample_indices[kk]]
+            )
+        for ii in range(len(cv_errors)):
+            assert bkd.allclose(cv_errors[ii], true_cv_errors[ii])
+        true_cv_score = bkd.sqrt(
+            (bkd.stack(true_cv_errors) ** 2).sum(axis=(0, 1)) / nsamples
+        )
+        assert bkd.allclose(true_cv_score, cv_score)
+
 
 class TestNumpyCrossValidation(TestCrossValidation, unittest.TestCase):
     def get_backend(self):
         return NumpyMixin
 
 
-# class TestTorchCrossValidation(TestCrossValidation, unittest.TestCase):
-#     def get_backend(self):
-#         return TorchMixin
+class TestTorchCrossValidation(TestCrossValidation, unittest.TestCase):
+    def get_backend(self):
+        return TorchMixin
 
 
 if __name__ == "__main__":

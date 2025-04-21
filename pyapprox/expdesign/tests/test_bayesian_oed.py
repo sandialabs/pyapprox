@@ -36,7 +36,7 @@ from pyapprox.bayes.laplace import (
 #     get_lognormal_example_exact_quantities,
 # )
 from pyapprox.bayes.laplace import laplace_evidence
-from pyapprox.util.utilities import cartesian_product, outer_product
+from pyapprox.util.misc import cartesian_product, outer_product
 from pyapprox.surrogates.interp.tensorprod import (
     piecewise_univariate_linear_quad_rule,
 )

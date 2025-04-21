@@ -24,7 +24,7 @@ from pyapprox.variables.gaussian import (
     IndependentMultivariateGaussian,
     GaussCopulaVariable,
 )
-from pyapprox.util.utilities import correlation_to_covariance
+from pyapprox.util.misc import correlation_to_covariance
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 

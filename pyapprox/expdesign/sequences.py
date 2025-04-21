@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from pyapprox.util.pya_numba import njit
-from pyapprox.util.utilities import get_first_n_primes
+from pyapprox.util.misc import get_first_n_primes
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
