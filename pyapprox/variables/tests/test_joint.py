@@ -35,9 +35,9 @@ class TestJoint:
         ]
         variable = IndependentMarginalsVariable(marginals, backend=bkd)
         assert len(variable._unique_marginals) == 3
-        assert lists_of_arrays_equal(
-            variable._unique_indices, [[0, 3, 4], [1, 5], [2]]
-        )
+        list2 = [[0, 3, 4], [1, 5], [2]]
+        list2 = [bkd.array(item) for item in list2]
+        assert lists_of_arrays_equal(variable._unique_indices, list2)
 
     def test_define_mixed_tensor_product_random_variable_II(self):
         """
@@ -57,9 +57,9 @@ class TestJoint:
         variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
         assert len(variable._unique_marginals) == 5
-        assert lists_of_arrays_equal(
-            variable._unique_indices, [[0, 4], [1], [2], [3], [5]]
-        )
+        list2 = [[0, 4], [1], [2], [3], [5]]
+        list2 = [bkd.array(item) for item in list2]
+        assert lists_of_arrays_equal(variable._unique_indices, list2)
 
     def test_statistics(self):
         bkd = self.get_backend()

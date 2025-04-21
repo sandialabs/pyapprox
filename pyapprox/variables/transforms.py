@@ -440,7 +440,7 @@ class NatafTransform(Transform):
             mean=self._bkd.zeros((self.nvars())), cov=self._z_correlation
         )
         return nataf_joint_density(
-            samples, self._x_marginals, lambda x: z_variable.pdf(x.T)
+            samples, self._x_marginals, lambda x: z_variable.pdf(x.T)[:, None]
         )
 
 

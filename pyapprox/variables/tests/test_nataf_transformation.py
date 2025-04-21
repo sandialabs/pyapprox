@@ -3,13 +3,13 @@ from scipy import stats
 from functools import partial
 import unittest
 
-from pyapprox.util.misc import (
-    get_tensor_product_quadrature_rule,
-    correlation_to_covariance,
-)
+from pyapprox.util.misc import correlation_to_covariance
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.transforms import NatafTransform
-from pyapprox.variables._nataf import generate_x_samples_using_gaussian_copula
+from pyapprox.variables._nataf import (
+    generate_x_samples_using_gaussian_copula,
+    get_tensor_product_quadrature_rule,
+)
 from pyapprox.variables.marginals import ContinuousScipyMarginal
 
 

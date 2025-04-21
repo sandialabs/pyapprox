@@ -11,7 +11,6 @@ from pyapprox.surrogates.nonlinear.mlp import (
     flatten_nn_parameters,
     MultiTaskNeuralNetwork,
 )
-from pyapprox.util.misc import check_gradients
 from pyapprox.optimization.minimize import approx_jacobian
 
 

@@ -5,7 +5,7 @@ import copy
 
 import sympy as sp
 from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.pde.autopde.sympy_utils import (
+from pyapprox.util.sympy import (
     _evaluate_sp_lambda,
     _evaluate_list_of_sp_lambda,
     _evaluate_list_of_list_of_sp_lambda,
@@ -642,8 +642,8 @@ class ManufacturedShallowShelfVelocityEquations(
         )
         offdiag_strain = 0.5 * (uy + vx)
         strain_tensor = [
-            [2. * ux + vy, offdiag_strain],
-            [offdiag_strain, ux + 2. * vy],
+            [2.0 * ux + vy, offdiag_strain],
+            [offdiag_strain, ux + 2.0 * vy],
         ]
         flux = [
             [2 * mu_expr * depth_expr * s for s in row]
@@ -693,7 +693,15 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
     ):
         sol_strs = [depth_str] + vel_strs
         super().__init__(
-            sol_strs, nvars, bed_str, depth_str, friction_str, A, rho, bkd, oned
+            sol_strs,
+            nvars,
+            bed_str,
+            depth_str,
+            friction_str,
+            A,
+            rho,
+            bkd,
+            oned,
         )
 
     def velocity_expressions(self):
@@ -713,12 +721,14 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
             ]
         )
         self._expressions["velocity_forcing"] = self._expressions["forcing"]
-        self._expressions["forcing"] = [depth_forc] + self._expressions["forcing"]
+        self._expressions["forcing"] = [depth_forc] + self._expressions[
+            "forcing"
+        ]
         self._expressions["depth_forcing"] = depth_forc
         self.transient["depth_forcing"] = self.is_transient()
         self.transient["velocity_forcing"] = self.is_transient()
         velocity_flux = self._expressions["flux"]
-        depth_flux = [[depth*vel for vel in vel_exprs]]
+        depth_flux = [[depth * vel for vel in vel_exprs]]
         flux = depth_flux + velocity_flux
         del self._expressions["flux"]
         self._set_expression("flux", flux, self._sol_strs[0])
@@ -728,13 +738,13 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
             raise ValueError("Equations must be transient")
         # only depth equations depends on temporal derivative
         self._set_expression(
-                "depth_forcing_without_time_deriv",
-                copy.deepcopy(self._expressions["depth_forcing"]),
-                self._sol_strs[0],
+            "depth_forcing_without_time_deriv",
+            copy.deepcopy(self._expressions["depth_forcing"]),
+            self._sol_strs[0],
         )
-        self._expressions["depth_forcing"] += self._expressions[
-                "solution"
-            ][0].diff(self.time_symbol()[0], 1)
+        self._expressions["depth_forcing"] += self._expressions["solution"][
+            0
+        ].diff(self.time_symbol()[0], 1)
 
 
 class ManufacturedLinearElasticityEquations(
@@ -778,19 +788,16 @@ class ManufacturedLinearElasticityEquations(
         eyy = disp_expr[1].diff(cartesian_symbs[1], 1)
 
         trace_e = exx + eyy
-        tauxx = lambda_expr * trace_e + 2. * mu_expr * exx
+        tauxx = lambda_expr * trace_e + 2.0 * mu_expr * exx
         tauxy = 2.0 * mu_expr * exy
-        tauyy = lambda_expr * trace_e + 2. * mu_expr * eyy
-        tau = [
-            [tauxx, tauxy],
-            [tauxy, tauyy]
-        ]
+        tauyy = lambda_expr * trace_e + 2.0 * mu_expr * eyy
+        tau = [[tauxx, tauxy], [tauxy, tauyy]]
         # compute divergence of tau
         forc_exprs = [
             -sum(
                 [
                     tau[ii][jj].diff(cartesian_symbs[jj], 1)
-                    #- body_forc_exprs[ii]
+                    # - body_forc_exprs[ii]
                     for jj in range(2)
                 ]
             )
@@ -819,7 +826,7 @@ class ManufacturedBurgers1D(ScalarSolutionMixin, ManufacturedSolution):
         visc_expr = sp.sympify(self._visc_str)
         sol_expr = self._expressions["solution"]
         flux_exprs = [
-            sol_expr ** 2 / 2 - visc_expr * sol_expr.diff(cartesian_symbs[0]),
+            sol_expr**2 / 2 - visc_expr * sol_expr.diff(cartesian_symbs[0]),
         ]
         forc_expr = flux_exprs[0].diff(cartesian_symbs[0], 1)
         self._set_expression("viscosity", visc_expr, self._visc_str)

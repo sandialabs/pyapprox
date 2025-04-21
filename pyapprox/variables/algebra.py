@@ -1,8 +1,9 @@
-#!/usr/bin/env python
 import numpy as np
 from scipy.optimize import bisect, newton
 
-from pyapprox.util.misc import cartesian_product, outer_product
+
+from pyapprox.util.backends.template import BackendMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 def scalar_multiple_of_random_variable(pdf_func, coefficient, xx):
@@ -36,7 +37,9 @@ def power_of_random_variable_pdf(pdf_func, power, xx):
     return vals
 
 
-def sum_of_independent_random_variables_pdf(pdf, gauss_quadrature_rules, zz):
+def sum_of_independent_random_variables_pdf(
+    pdf, gauss_quadrature_rules, zz, bkd: BackendMixin = NumpyMixin
+):
     """
     Compute PDF of Z = X_1+X_2+...+X_d
     Parameters
@@ -52,10 +55,10 @@ def sum_of_independent_random_variables_pdf(pdf, gauss_quadrature_rules, zz):
        The locations to evaluate the pdf of Z
     """
     num_vars = len(gauss_quadrature_rules) + 1
-    xx = cartesian_product(
+    xx = bkd.cartesian_product(
         [gauss_quadrature_rules[ii][0] for ii in range(num_vars - 1)]
     )
-    ww = outer_product(
+    ww = bkd.outer_product(
         [gauss_quadrature_rules[ii][1] for ii in range(num_vars - 1)]
     )
 
@@ -66,7 +69,7 @@ def sum_of_independent_random_variables_pdf(pdf, gauss_quadrature_rules, zz):
 
 
 def product_of_independent_random_variables_pdf(
-    pdf, gauss_quadrature_rules, zz
+    pdf, gauss_quadrature_rules, zz, bkd: BackendMixin = NumpyMixin
 ):
     """
     Compute PDF of Z = X_1*X_2*...*X_d
@@ -83,10 +86,10 @@ def product_of_independent_random_variables_pdf(
        The locations to evaluate the pdf of Z
     """
     num_vars = len(gauss_quadrature_rules) + 1
-    xx = cartesian_product(
+    xx = bkd.cartesian_product(
         [gauss_quadrature_rules[ii][0] for ii in range(num_vars - 1)]
     )
-    ww = outer_product(
+    ww = bkd.outer_product(
         [gauss_quadrature_rules[ii][1] for ii in range(num_vars - 1)]
     )
 

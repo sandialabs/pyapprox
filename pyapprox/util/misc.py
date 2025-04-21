@@ -247,13 +247,13 @@ def lists_of_arrays_equal(list1, list2, bkd: BackendMixin = NumpyMixin):
     return True
 
 
-def scipy_gauss_hermite_pts_wts_1D(nn):
+def scipy_gauss_hermite_pts_wts_1D(nn, bkd: BackendMixin = NumpyMixin):
     x, w = roots_hermitenorm(nn)
     w /= np.sqrt(2 * np.pi)
-    return x, w
+    return bkd.asarray(x), bkd.asarray(w)
 
 
-def scipy_gauss_legendre_pts_wts_1D(nn):
+def scipy_gauss_legendre_pts_wts_1D(nn, bkd: BackendMixin = NumpyMixin):
     x, w = np.polynomial.legendre.leggauss(nn)
     w *= 0.5
-    return x, w
+    return bkd.asarray(x), bkd.asarray(w)

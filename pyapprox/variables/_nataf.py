@@ -3,8 +3,6 @@ from typing import List, Tuple, Dict
 
 import numpy as np
 from scipy import stats
-from scipy.linalg import solve_triangular
-import matplotlib.pyplot as plt
 
 from pyapprox.util.misc import (
     scipy_gauss_hermite_pts_wts_1D,
@@ -13,6 +11,42 @@ from pyapprox.util.misc import (
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.variables.marginals import GaussianMarginal, Marginal
+
+
+def get_tensor_product_quadrature_rule(
+    nsamples: int,
+    num_vars: int,
+    univariate_quadrature_rules: List,
+    transform_samples: bool = None,
+    density_function: callable = None,
+    bkd: BackendMixin = NumpyMixin,
+) -> Tuple[Array, Array]:
+    r"""
+    if get error about outer product failing it may be because
+    univariate_quadrature rule is returning a weights array for every level,
+    i.e. l=0,...level
+    """
+    nsamples = np.atleast_1d(nsamples)
+    if nsamples.shape[0] == 1 and num_vars > 1:
+        nsamples = np.array([nsamples[0]] * num_vars, dtype=int)
+
+    if callable(univariate_quadrature_rules):
+        univariate_quadrature_rules = [univariate_quadrature_rules] * num_vars
+
+    x_1d = []
+    w_1d = []
+    for ii in range(len(univariate_quadrature_rules)):
+        x, w = univariate_quadrature_rules[ii](nsamples[ii])
+        x_1d.append(x)
+        w_1d.append(w)
+    samples = bkd.cartesian_product(x_1d, 1)
+    weights = bkd.outer_product(w_1d)
+
+    if density_function is not None:
+        weights *= density_function(samples)
+    if transform_samples is not None:
+        samples = transform_samples(samples)
+    return samples, weights
 
 
 def corrcoeffij(
