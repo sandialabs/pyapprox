@@ -569,10 +569,12 @@ class EnsembleGaussianProcessStatistics(GaussianProcessStatistics):
                 2 * self._gp._ctrain_samples.shape[1], 1000
             )
         # import here to avoid circular import. TODO remove circular import
-        from pyapprox.surrogates.gaussianprocess.activelearning import CholeskySampler
+        from pyapprox.surrogates.gaussianprocess.activelearning import (
+            CholeskySampler,
+        )
 
         sampler = CholeskySampler(self._variable, nugget=self._gp._kernel_reg)
-        sampler.set_gaussian_process(self._gp)
+        sampler.set_surrogate(self._gp)
         self._train_samples = sampler(self._ninterpolation_samples)
         self._ctrain_samples = self._gp._in_trans.map_to_canonical(
             self._train_samples

@@ -78,7 +78,7 @@ class AffineTransform(Transform):
             indices = self._variable._unique_indices[ii]
             loc, scale = self.scale_parameters[ii, :]
 
-            bounds = [loc - scale, loc + scale]
+            bounds = self._bkd.asarray([loc - scale, loc + scale])
             var = self._variable._unique_marginals[ii]
             if self.identity_map_indices is not None:
                 active_indices = np.setdiff1d(
@@ -93,11 +93,19 @@ class AffineTransform(Transform):
                     and isinstance(var, ContinuousMarginalMixin)
                 )
                 and (
-                    (np.any(user_samples[active_indices, :] < bounds[0]))
-                    or (np.any(user_samples[active_indices, :] > bounds[1]))
+                    (
+                        self._bkd.any(
+                            user_samples[active_indices, :] < bounds[0]
+                        )
+                    )
+                    or (
+                        self._bkd.any(
+                            user_samples[active_indices, :] > bounds[1]
+                        )
+                    )
                 )
             ):
-                II = np.where(
+                II = self._bkd.where(
                     (user_samples[active_indices, :] < bounds[0])
                     | (user_samples[active_indices, :] > bounds[1])
                 )[1]

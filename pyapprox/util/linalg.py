@@ -235,6 +235,14 @@ class PivotedCholeskyFactorizer(PivotedFactorizer):
         f"Iteration:{ii}. Tol={self._tol}. Rel. Error={rel_error}"
         return True
 
+    def solve_linear_system(self, rhs: Array) -> Array:
+        # rhs must use pivoted ordering
+        return cholesky_solve_linear_system(
+            self._L[self.pivots(), : self._ncompleted_pivots],
+            rhs,
+            bkd=self._bkd,
+        )
+
 
 class PivotedLUFactorizer(PivotedFactorizer):
     def _best_pivot(self, it: int) -> int:
