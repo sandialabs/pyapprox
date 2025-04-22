@@ -47,6 +47,8 @@ class LowDiscrepancySequence(ABC):
 
     def rvs(self, nsamples: int) -> Array:
         can_samples = self._canonical_samples(int(nsamples))
+        if self._variable is None:
+            return can_samples
         # can samples on [0, 1]
         # map unbounded variables to [eps, 1-eps] to avoid singularities
         for ii, marginal in enumerate(self._variable.marginals()):
@@ -54,8 +56,6 @@ class LowDiscrepancySequence(ABC):
                 can_samples[ii] = (
                     can_samples[ii] * (1 - 2 * self._eps) + self._eps
                 )
-        if self._variable is None:
-            return can_samples
         return self._variable.ppf(can_samples)
 
 

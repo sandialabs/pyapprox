@@ -302,6 +302,13 @@ class MultivariateGaussian(JointVariable):
             )
         self._mean = mean
 
+    def interval(self, alpha: float):
+        if alpha != 1.0:
+            raise ValueError("alpha must be 1.0")
+        return self._bkd.array(
+            [[-np.inf, np.inf] for ii in range(self._nvars)]
+        )
+
     def nvars(self) -> int:
         return self._mean.shape[0]
 

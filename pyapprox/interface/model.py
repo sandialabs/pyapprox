@@ -325,6 +325,14 @@ class Model(ABC):
                 )
             )
 
+    def _check_samples_shape(self, sample: Array):
+        if sample.shape[0] != self.nvars():
+            raise ValueError(
+                "sample must have nrows={0} but had shape {1}".format(
+                    self.nvars(), sample.shape
+                )
+            )
+
     def _check_vec_shape(self, sample: Array, vec: Array):
         if vec.ndim != 2:
             raise ValueError(
@@ -947,7 +955,7 @@ class SingleSampleModelMixin:
 
     def __call__(self, samples: Array) -> Array:
         # overwrite call from model so not to count model evaluation twice
-        self._check_sample_shape(samples)
+        self._check_samples_shape(samples)
         vals = self._values(samples)
         self._check_values_shape(samples, vals)
         return vals

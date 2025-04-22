@@ -117,7 +117,7 @@ def _evaluate_list_of_transient_sp_lambda(
 
 
 def _evaluate_list_of_list_of_sp_lambda(
-    sp_lambdas: callable,
+    sp_lambdas: List[callable],
     xx: Array,
     as_list: bool = False,
     bkd: BackendMixin = NumpyMixin,
@@ -126,6 +126,26 @@ def _evaluate_list_of_list_of_sp_lambda(
     # sp_lambda returns list of values from multiple functions
     vals = [
         _evaluate_list_of_sp_lambda(row, xx, as_list, bkd, oned)
+        for row in sp_lambdas
+    ]
+    if as_list:
+        return vals
+    return bkd.stack(vals, axis=0)
+
+
+def _evaluate_list_of_list_of_transient_sp_lambda(
+    sp_lambdas: List[callable],
+    xx: Array,
+    time: float,
+    as_list=False,
+    bkd: BackendMixin = NumpyMixin,
+    oned: bool = False,
+):
+    # sp_lambda returns list of values from multiple functions
+    vals = [
+        _evaluate_list_of_transient_sp_lambda(
+            row, xx, time, as_list, bkd, oned
+        )
         for row in sp_lambdas
     ]
     if as_list:
