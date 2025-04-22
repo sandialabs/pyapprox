@@ -864,7 +864,7 @@ class GroupACVEstimator:
             )
             for nn in range(self._stat.nstats()):
                 asketch[nn, nn] = 1.0
-                asketch = self._bkd.asarray(asketch)
+        asketch = self._bkd.asarray(asketch)
         if asketch.shape != (
             self._stat.nstats(),
             self._stat.nstats() * self.nmodels(),

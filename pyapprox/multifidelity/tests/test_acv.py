@@ -284,7 +284,7 @@ class TestMOMC:
                     lb = ub
                 tril_idx = bkd.tril_indices(lfcovs[0].shape[0])
                 kwargs["lowfi_stats"] = bkd.stack(
-                    [cov[*tril_idx].flatten() for cov in lfcovs]
+                    [cov[tril_idx[0], tril_idx[1]].flatten() for cov in lfcovs]
                 )
             W = benchmark.covariance_of_centered_values_kronker_product()
             W = _nqoisq_nqoisq_subproblem(
@@ -312,7 +312,9 @@ class TestMOMC:
                 tril_idx = bkd.tril_indices(lfcovs[0].shape[0])
                 kwargs["lowfi_stats"] = bkd.stack(
                     [
-                        bkd.hstack((m, cov[*tril_idx].flatten()))
+                        bkd.hstack(
+                            (m, cov[tril_idx[0], tril_idx[1]].flatten())
+                        )
                         for m, cov in zip(means[1:], lfcovs)
                     ],
                     axis=0,
@@ -943,11 +945,18 @@ class TestMOMC:
             if stat_name == "mean":
                 lowfi_stats = means[1:]
             elif stat_name == "variance":
-                lowfi_stats = lfcovs.flatten()
+                tril_idx = bkd.tril_indices(lfcovs[0].shape[0])
+                lowfi_stats = bkd.stack(
+                    [cov[tril_idx[0], tril_idx[1]].flatten() for cov in lfcovs]
+                )
+
             else:
+                tril_idx = bkd.tril_indices(lfcovs[0].shape[0])
                 lowfi_stats = bkd.stack(
                     [
-                        bkd.hstack((m, cov.flatten()))
+                        bkd.hstack(
+                            (m, cov[tril_idx[0], tril_idx[1]].flatten())
+                        )
                         for m, cov in zip(means[1:], lfcovs)
                     ],
                     axis=0,

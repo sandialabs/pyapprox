@@ -646,8 +646,7 @@ class OakleyModel(Model):
         a1, a2, a3, M = get_oakley_function_data(self._bkd)
         term1, term2 = a1 @ samples, a2 @ self._bkd.sin(samples)
         term3 = a3 @ self._bkd.cos(samples)
-        term4 = (samples.T @ (M * samples.T)).sum(axis=1)
-        term4 = evaluate_quadratic_form(M, samples, self._bkd)
+        term4 = ((samples.T @ M) * samples.T).sum(axis=1)
         vals = term1 + term2 + term3 + term4
         return vals[:, None]
 

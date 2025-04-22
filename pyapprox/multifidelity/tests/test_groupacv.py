@@ -265,7 +265,7 @@ class TestGroupACV:
         stat.set_pilot_quantities(cov)
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
         # opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
-        local_opt = ScipyConstrainedOptimizer()
+        # local_opt = ScipyConstrainedOptimizer()
         mlopt = MLBLUEGradientOptimizer(local_opt)
         mlopt.set_estimator(mlest)
         mlopt.set_budget(target_cost)

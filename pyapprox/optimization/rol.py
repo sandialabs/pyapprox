@@ -223,8 +223,8 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
             self._neqlincons += 1
         else:
             bounds = ROLBounds(
-                NumPyVector(_con._bounds[:, 0]),
-                NumPyVector(_con._bounds[:, 1]),
+                NumPyVector(self._bkd.to_numpy(_con._bounds[:, 0])),
+                NumPyVector(self._bkd.to_numpy(_con._bounds[:, 1])),
             )
             problem.addLinearConstraint(
                 f"IneqLinearConstraint_{self._nineqlincons}", con, emul, bounds
@@ -282,8 +282,8 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
         ):
             problem.addBoundConstraint(
                 ROLBounds(
-                    NumPyVector(self._bounds[:, 0]),
-                    NumPyVector(self._bounds[:, 1]),
+                    NumPyVector(self._bkd.to_numpy(self._bounds[:, 0])),
+                    NumPyVector(self._bkd.to_numpy(self._bounds[:, 1])),
                 )
             )
 
