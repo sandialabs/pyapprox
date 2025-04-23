@@ -1,8 +1,8 @@
 from pyapprox.util.backends.template import Array
-from pyapprox.interface.model import Model
+from pyapprox.interface.model import Model, SingleSampleModel
 
 
-class LossFunction(Model):
+class LossFunction(SingleSampleModel):
     def __init__(self):
         super().__init__()
         self._bkd = None
@@ -52,7 +52,7 @@ class LossFunction(Model):
             raise ValueError("active_opt_params must be a 2D column array")
         val, grad = self._bkd.hvp(self._loss_values, active_opt_params, vec)
 
-    def _values(self, active_opt_params: Array) -> Array:
+    def _evaluate(self, active_opt_params: Array) -> Array:
         if active_opt_params.ndim != 2 or active_opt_params.shape[1] != 1:
             raise ValueError("active_opt_params must be a 2D column array")
         return self._loss_values(active_opt_params)

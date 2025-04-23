@@ -213,6 +213,7 @@ class OptimizedRegressor(Regressor):
         gtol: float = 1e-8,
         maxiter: int = 1000,
         iterate_gen: OptimizerIterateGenerator = None,
+        method: str = "L-BFGS-B",
     ) -> MultiStartOptimizer:
         local_optimizer = ScipyConstrainedOptimizer()
         # L-BFGS-Bseems to require less iterations than trust-constr when
@@ -220,8 +221,7 @@ class OptimizedRegressor(Regressor):
         local_optimizer.set_options(
             gtol=gtol,
             maxiter=maxiter,
-            method="L-BFGS-B",
-            # method="trust-constr",
+            method=method,
         )
         local_optimizer.set_verbosity(verbosity - 1)
         ms_optimizer = MultiStartOptimizer(

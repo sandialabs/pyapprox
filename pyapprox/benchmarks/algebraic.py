@@ -648,6 +648,7 @@ class OakleyModel(Model):
         term3 = a3 @ self._bkd.cos(samples)
         term4 = ((samples.T @ M) * samples.T).sum(axis=1)
         vals = term1 + term2 + term3 + term4
+        print(term1, term2, term3, term4)
         return vals[:, None]
 
 
@@ -690,9 +691,8 @@ class OakleyBenchmark(SingleModelBenchmark):
         nvars = M.shape[0]
 
         term1_mean, term2_mean = 0, 0
-        term3_mean, term4_mean = self._bkd.sum(
-            a3 / math.sqrt(e)
-        ), self._bkd.trace(M)
+        term3_mean = self._bkd.sum(a3 / math.sqrt(e))
+        term4_mean = self._bkd.trace(M)
         self._mean = term1_mean + term2_mean + term3_mean + term4_mean
 
         term1_var = self._variance_linear_combination_of_indendent_variables(

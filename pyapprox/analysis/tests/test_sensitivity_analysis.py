@@ -80,13 +80,10 @@ class TestSensitivityAnalysis(unittest.TestCase):
         values = benchmark.model()(samples)
         analyzer.compute(values)
 
-        # print(result.mean-benchmark.mean())
         assert np.allclose(analyzer.mean(), benchmark.mean(), atol=2e-2)
-        # print(result.variance-benchmark.variance())
         assert np.allclose(
             analyzer.variance(), benchmark.variance(), rtol=2e-2
         )
-        # print(result.main_effects-benchmark.main_effects)
         assert np.allclose(
             analyzer.main_effects(), benchmark.main_effects(), atol=2e-2
         )
@@ -98,6 +95,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             [MonteCarloBasedSensitivityAnalysis],
         ]
         for test_case in test_cases:
+            np.random.seed(1)
             self._check_sample_based_sobol_sensitivity_analysis_oakley(
                 *test_case
             )

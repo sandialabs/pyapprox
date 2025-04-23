@@ -16,7 +16,7 @@ class LowDiscrepancySequence(ABC):
         start_idx: int = 0,
         variable: IndependentMarginalsVariable = None,
         bkd: BackendMixin = NumpyMixin,
-        unbounded_eps: float = 1e-3,
+        unbounded_eps: float = 0,
     ):
         self._bkd = bkd
         self._nvars = nvars
@@ -66,8 +66,9 @@ class HaltonSequence(LowDiscrepancySequence):
         start_idx: int = 0,
         variable: IndependentMarginalsVariable = None,
         bkd: BackendMixin = NumpyMixin,
+        unbounded_eps: float = 0,
     ):
-        super().__init__(nvars, start_idx, variable, bkd)
+        super().__init__(nvars, start_idx, variable, bkd, unbounded_eps)
         self._primes = get_first_n_primes(self._nvars)
 
     @staticmethod

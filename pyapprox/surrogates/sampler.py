@@ -29,7 +29,12 @@ class CandidateSampler(ABC):
     def default_candidate_samples(self, ncandidates: int) -> Array:
         nhalton_candidates = ncandidates // 2
         nrandom_candidates = ncandidates - nhalton_candidates
-        seq = HaltonSequence(self._variable.nvars(), variable=self._variable)
+        # do not use start_idx=0 because it can cause np.inf when
+        # using inverse cdf to generate samples from probability
+        # distributino
+        seq = HaltonSequence(
+            self._variable.nvars(), variable=self._variable, start_idx=100
+        )
         halton_samples = seq.rvs(nhalton_candidates)
         random_samples = self._variable.rvs(nrandom_candidates)
         return self._bkd.hstack((halton_samples, random_samples))
