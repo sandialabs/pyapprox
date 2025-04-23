@@ -82,8 +82,6 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         constraint = FSDConstraint()
         constraint.set_opt_problem(problem)
         errors = constraint.check_apply_jacobian(x0, disp=True)
-        # errors = check_gradients(
-        #     problem.constraint_fun, problem.constraint_jac, x0, rel=False)
         assert errors.min() / errors.max() < 2e-7
 
         lmult = np.random.normal(0, 1, (eta.shape[0], 1))

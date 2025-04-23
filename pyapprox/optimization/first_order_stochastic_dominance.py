@@ -631,9 +631,6 @@ class FSDOptProblem:
             flag indicating if the optimizer exited successfully and message
             which describes the cause of the termination.
         """
-        # x_grad = x0  # use rol to check_gradients
-        # if method == 'trust_constr':
-        #     x_grad = None
 
         objective = FSDObjective()
         objective.set_opt_problem(self)

@@ -37,9 +37,6 @@ class TestETC(unittest.TestCase):
         Tests if the optimal loss returned from using oracle stats is the
         same as using without oracle stats given many samples.
         """
-        # TODO change test from using spd to using local optimization
-        # The later is better and also does not require cvxopt
-
         # bkd = NumpyMixin
         bkd = TorchMixin
         alpha = 1000
@@ -61,8 +58,12 @@ class TestETC(unittest.TestCase):
         hf_values = values[:, :1]
         covariate_values = values[:, covariate_subset + 1]
 
-        est_nor = AETCBLUE(funs, variable.rvs, costs, oracle_stats=None)
-        est_or = AETCBLUE(funs, variable.rvs, costs, oracle_stats=oracle_stats)
+        est_nor = AETCBLUE(
+            funs, variable.rvs, costs, oracle_stats=None, backend=bkd
+        )
+        est_or = AETCBLUE(
+            funs, variable.rvs, costs, oracle_stats=oracle_stats, backend=bkd
+        )
         result_oracle = est_or._optimal_loss(
             target_cost,
             hf_values,
@@ -94,7 +95,6 @@ class TestETC(unittest.TestCase):
         opt = ChainedACVOptimizer(opt1, opt2)
         return opt
 
-    # @unittest.skipIf(True, "not released yet")
     def test_aetc_blue(self):
         # bkd = NumpyMixin
         bkd = TorchMixin
@@ -186,6 +186,7 @@ class TestETC(unittest.TestCase):
         # However, the theoretical MSE is not exactly the True anyway
         print(mse, result_dict["loss"])
         print(mse - result_dict["loss"])
+        print((mse - result_dict["loss"]) / result_dict["loss"])
         assert bkd.allclose(mse, result_dict["loss"], rtol=3e-2)
 
 

@@ -6,13 +6,15 @@ import numpy as np
 from pyapprox.multifidelity.groupacv import (
     MLBLUEEstimator,
     get_model_subsets,
-    MLBLUESPDOptimizer,
+    # MLBLUESPDOptimizer,
+    MLBLUEGradientOptimizer,
     GroupACVOptimizer,
     ChainedACVOptimizer,
 )
 from pyapprox.multifidelity.stats import MultiOutputMean
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
 
 class AETC:
@@ -79,12 +81,16 @@ class AETC:
     def _subset_oracle_stats(self, oracle_stats, covariate_subset):
         cov, means = oracle_stats[:2]
         Sigma_S = cov[np.ix_(covariate_subset + 1, covariate_subset + 1)]
-        Sp_subset = self._bkd.hstack((0, covariate_subset + 1))
-        x_Sp = self._bkd.vstack(([1], means[covariate_subset + 1]))
+        Sp_subset = self._bkd.hstack(
+            [self._bkd.zeros(1), covariate_subset + 1]
+        )
+        x_Sp = self._bkd.vstack(
+            (self._bkd.ones(1), means[covariate_subset + 1])
+        )
         tmp1 = self._bkd.zeros(cov.shape)
         tmp1[1:, 1:] = cov[1:, 1:]
-        tmp2 = self._bkd.vstack((1, means[1:]))
-        Lambda_Sp = (tmp1 + tmp2.dot(tmp2.T))[np.ix_(Sp_subset, Sp_subset)]
+        tmp2 = self._bkd.vstack((self._bkd.ones(1), means[1:]))
+        Lambda_Sp = (tmp1 + tmp2 @ (tmp2.T))[np.ix_(Sp_subset, Sp_subset)]
         return Sigma_S, Lambda_Sp, x_Sp
 
     def _least_squares(self, hf_values, covariate_values):
@@ -244,6 +250,7 @@ class AETC:
             ),
             nsamples,
         )
+
         exploit_budget = total_budget - explore_cost * explore_rate
         opt_loss = (
             k2 / exploit_budget + (k1 + alpha ** (-nsamples)) / explore_rate
@@ -576,7 +583,8 @@ class AETCBLUE(AETC):
             Second element is the Oracle means of the models.
         """
         if optimizer is None:
-            optimizer = MLBLUESPDOptimizer()
+            # optimizer = MLBLUESPDOptimizer()
+            optimizer = MLBLUEGradientOptimizer(ScipyConstrainedOptimizer())
         self.set_optimizer(optimizer)
         super().__init__(models, rvs, costs, oracle_stats, backend=backend)
         self._reg_blue = reg_blue
@@ -614,10 +622,9 @@ class AETCBLUE(AETC):
             self._bkd.zeros(est._rounded_npartition_samples.shape),
             est._rounded_npartition_samples,
         )
-        k2 = est._optimized_criteria
+        k2 = est._optimized_criteria.squeeze()
         k2 *= target_cost
         nsamples_per_subset /= target_cost
-
         return k2, nsamples_per_subset
 
     def get_exploit_samples(self, result, random_states=None):
