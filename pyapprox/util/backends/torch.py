@@ -596,3 +596,9 @@ class TorchMixin(BackendMixin):
     @staticmethod
     def erfinv(array: torch.tensor) -> torch.tensor:
         return torch.erfinv(array)
+
+    @staticmethod
+    def reshape_fortran(array: torch.tensor, shape) -> torch.tensor:
+        array = array.permute(*reversed(range(len(array.shape))))
+        array = array.reshape(*reversed(shape))
+        return array.permute(*reversed(range(len(shape))))

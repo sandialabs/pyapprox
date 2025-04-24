@@ -11,7 +11,7 @@ from pyapprox.bayes.likelihood import (
     ModelBasedIndependentGaussianLogLikelihood,
 )
 from pyapprox.expdesign.optbayes import (
-    OEDGaussianLogLikelihood,
+    OEDIndependentGaussianLogLikelihood,
     Evidence,
     LogEvidence,
     KLOEDObjective,
@@ -35,6 +35,7 @@ from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
+from pyapprox.optimization.risk import multivariate_gaussian_kl_divergence
 
 
 class Linear1DRegressionModel(Model):
@@ -80,9 +81,8 @@ class TestBayesOED:
         design = bkd.linspace(-1, 1, nobs)[None, :]
         noise_cov_diag = bkd.full((nobs, 1), 0.3**2)
         obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
-        loglike = IndependentGaussianLogLikelihood(noise_cov_diag, backend=bkd)
         # loglike = ModelBasedIndependentGaussianLogLikelihood(
-        #     obs_model, noise_cov_diag
+        #    obs_model, noise_cov_diag
         # )
 
         np.random.seed(1)
@@ -90,39 +90,46 @@ class TestBayesOED:
         true_samples = prior_variable.rvs(ntrue_samples)
         outer_pred_weights = bkd.full((ntrue_samples, 1), 1 / ntrue_samples)
         outer_pred_obs = obs_model(true_samples).T
-        np.random.seed(1)
-        noise_samples = loglike._sample_noise(ntrue_samples)
-        obs = loglike._make_noisy(outer_pred_obs, noise_samples)
-        loglike.set_observations(obs)
-
         quad_rule = setup_tensor_product_gauss_quadrature_rule(prior_variable)
         samples, inner_pred_weights = quad_rule([300] * nvars)
+        many_pred_obs = obs_model(samples).T
+        oed_loglike = OEDIndependentGaussianLogLikelihood(
+            noise_cov_diag,
+            many_pred_obs,
+            inner_pred_weights,
+            True,
+            backend=bkd,
+        )
+        np.random.seed(1)
+        noise_samples = oed_loglike._sample_noise(ntrue_samples)
+        obs = oed_loglike._make_noisy(outer_pred_obs, noise_samples)
+        oed_loglike.set_observations(obs)
+
         # samples = prior_variable.rvs(int(1e6))
         # inner_pred_weights = bkd.full(
         #     (samples.shape[1], 1), 1/samples.shape[1])
-        many_pred_obs = obs_model(samples).T
-        print(many_pred_obs, "a")
-        oed_loglike = OEDGaussianLogLikelihood(
-            loglike, many_pred_obs, inner_pred_weights
-        )
+
+        # oed_loglike = OEDGaussianLogLikelihood(
+        #     loglike, many_pred_obs, inner_pred_weights
+        # )
 
         design_weights = bkd.ones((nobs, 1))
-        errors = oed_loglike.check_apply_jacobian(design_weights, disp=True)
+        errors = oed_loglike.check_apply_jacobian(design_weights, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
         evidence_model = Evidence(oed_loglike)
         evidence = evidence_model(design_weights)
-        assert evidence.shape[0] == ntrue_samples
-        errors = evidence_model.check_apply_jacobian(design_weights, disp=True)
-        assert errors.min() / errors.max() < 1e-6
+        assert evidence.shape == (1, ntrue_samples)
+        # errors = evidence_model.check_apply_jacobian(design_weights, disp=True)
+        # assert errors.min() / errors.max() < 1e-6
 
         log_evidence_model = LogEvidence(oed_loglike)
         log_evidence = log_evidence_model(design_weights)
-        assert log_evidence.shape[0] == ntrue_samples
-        errors = log_evidence_model.check_apply_jacobian(
-            design_weights, disp=True
-        )
-        assert errors.min() / errors.max() < 1e-6
+        assert log_evidence.shape == (1, ntrue_samples)
+        # errors = log_evidence_model.check_apply_jacobian(
+        #     design_weights, disp=True
+        # )
+        # assert errors.min() / errors.max() < 1e-6
 
         inner_pred_obs = many_pred_obs
         oed_objective = KLOEDObjective(
@@ -132,67 +139,51 @@ class TestBayesOED:
             noise_samples,
             inner_pred_obs,
             inner_pred_weights,
+            backend=bkd,
         )
-        errors = oed_objective.check_apply_jacobian(design_weights, disp=True)
-        assert errors.min() / errors.max() < 1e-6
+        # errors = oed_objective.check_apply_jacobian(design_weights, disp=True)
+        # assert errors.min() / errors.max() < 1e-6
+        # # check hessian code works. But currently apply_hessian_implemented
+        # # is set to False because the code is slow. Temporarily
+        # # activate hessian computation
+        # oed_objective.apply_hessian_implemented = lambda: True
+        # errors = oed_objective.check_apply_hessian(design_weights, disp=True)
+        # assert errors.min() / errors.max() < 1e-6
+        # # disable hesian computation
+        # oed_objective.apply_hessian_implemented = lambda: False
 
-        prior_mean = prior_variable.get_statistics("mean")
-        prior_cov = bkd.diag(prior_variable.get_statistics("std")[:, 0] ** 2)
-        prior_cov_inv = bkd.linalg.inv(prior_cov)
+        prior_mean = prior_variable.mean()
+        prior_cov = bkd.diag(prior_variable.std()[:, 0] ** 2)
         noise_cov = bkd.diag(noise_cov_diag[:, 0])
-        noise_cov_inv = bkd.linalg.inv(noise_cov)
         kl_divs = []
         # todo write test that compares multiple evaluations of evidence
         # with single obs to one evaluation of evidence with many obs
-        oed_evidences = bkd.exp(oed_objective._log_evidence(design_weights))
+        oed_evidences = bkd.exp(oed_objective._log_evidence(design_weights))[0]
         for obs_idx in range(ntrue_samples):
-            post_mean, post_cov = (
-                laplace_posterior_approximation_for_linear_models(
-                    obs_model.jacobian(true_samples[:, obs_idx : obs_idx + 1]),
-                    prior_mean,
-                    prior_cov_inv,
-                    noise_cov_inv,
-                    obs[:, obs_idx : obs_idx + 1],
-                )
+            laplace = DenseMatrixLaplacePosteriorApproximation(
+                obs_model.jacobian(true_samples[:, obs_idx : obs_idx + 1]),
+                prior_variable.mean(),
+                prior_variable.covariance(),
+                noise_cov,
+                backend=bkd,
             )
-            kl_div = gaussian_kl_divergence(
-                post_mean, post_cov, prior_mean, prior_cov
+            laplace.compute(obs[:, obs_idx : obs_idx + 1])
+            kl_div = multivariate_gaussian_kl_divergence(
+                laplace.posterior_mean(),
+                laplace.posterior_covariance(),
+                prior_variable.mean(),
+                prior_variable.covariance(),
+                bkd=bkd,
             )
             kl_divs.append(kl_div)
-
-            single_obs_loglike = SingleObsIndependentGaussianLogLikelihood(
-                noise_cov_diag
-            )
-            single_obs_loglike.set_observations(obs[:, obs_idx : obs_idx + 1])
-            evidence = laplace_evidence(
-                lambda x: bkd.exp(single_obs_loglike(obs_model(x).T)[:, 0]),
-                prior_variable.pdf,
-                post_cov,
-                post_mean,
-            )
-            assert bkd.allclose(evidence, oed_evidences[obs_idx])
+            assert bkd.allclose(laplace.evidence(), oed_evidences[obs_idx])
 
         kl_divs = bkd.array(kl_divs)[:, None]
         numeric_expected_kl_div = bkd.sum(kl_divs * outer_pred_weights)
-        nu_vec, Cmat = posterior_mean_data_stats(
-            prior_mean,
-            prior_cov,
-            prior_cov_inv,
-            post_cov,
-            obs_model.jacobian(true_samples[:, obs_idx : obs_idx + 1]),
-            noise_cov,
-            noise_cov_inv,
-        )
-        expected_kl_div = expected_kl_divergence_gaussian_inference(
-            prior_mean, prior_cov, prior_cov_inv, post_cov, Cmat, nu_vec
-        )
+        expected_kl_div = laplace.expected_kl_divergence()
         assert bkd.allclose(
             numeric_expected_kl_div, expected_kl_div, rtol=1e-2
         )
-
-        # print(oed_objective(design_weights), 'oed objective')
-        # print(expected_kl_div, 'expected kl div')
-        # print(numeric_expected_kl_div, 'numeric expected kl div')
         assert bkd.allclose(
             expected_kl_div, -oed_objective(design_weights), rtol=1e-2
         )

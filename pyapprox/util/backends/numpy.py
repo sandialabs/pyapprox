@@ -506,3 +506,7 @@ class NumpyMixin(BackendMixin):
     @staticmethod
     def erfinv(array: np.ndarray) -> np.ndarray:
         return scipy.special.erfinv(array)
+
+    @staticmethod
+    def reshape_fortran(array: np.ndarray, shape) -> np.ndarray:
+        return array.reshape(shape, order="F")

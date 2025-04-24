@@ -897,3 +897,8 @@ class BackendMixin(ABC):
     @abstractmethod
     def erfinv(array: Array) -> Array:
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def reshape_fortran(array: Array, shape) -> Array:
+        raise NotImplementedError

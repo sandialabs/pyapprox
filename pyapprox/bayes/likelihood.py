@@ -109,6 +109,37 @@ class ModelBasedLogLikelihoodMixin:
             self.__class__.__name__, self.nobs(), self._model
         )
 
+    def _jacobian(self, sample: Array) -> Array:
+        pred_obs = self._model(sample).T
+        residual = self._obs - pred_obs
+        L_inv_res = self._noise_cov_sqrt_inv_apply(residual)
+        return self._bkd.multidot(
+            (
+                L_inv_res.T,
+                self._noise_cov_sqrt_inv_apply(self._model.jacobian(sample)),
+            )
+        )
+
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        pred_obs = self._model(sample).T
+        # use adjoint method to compute hvp with
+        # objective f(s,z) = -1/2 s.T @ s
+        residual = self._obs - pred_obs
+        # solve forward equation for state s
+        # c(s,z) = Gs - obs + model(z) = 0, G=wnoise_chol_inv
+        state = self._noise_cov_sqrt_inv_apply(residual)
+        # solve adjoint solution
+        # lambda = -inv(c_s.T)f_s = -inv(G.T)s
+        lamda = self._noise_cov_sqrt_inv_apply_transpose(state)
+        tmp1 = self._noise_cov_sqrt_inv_apply(self._model.jacobian(sample))
+        # Hvp = c_z.T @ p + L_zs @ w + L_zz @ v
+        # w = inv(c_s)@ c_z @ v = inv(G) @ model.jacobian(z) @ v
+        # L_ss = -I, L_zs = 0, L_sz = 0, L_zz = lamda.T @ model.hessian(z)
+        # p = -inv(G.T) @ w
+        return -tmp1.T @ (tmp1 @ vec) + self._model.apply_weighted_hessian(
+            sample, vec, lamda
+        )
+
 
 class GaussianLogLikelihood(LogLikelihood):
     """GaussianLikelihood with dense noise covariance matrix"""
@@ -176,6 +207,7 @@ class GaussianLogLikelihood(LogLikelihood):
         # create samples (nsamples, nobs) then take transpose
         # to ensure same noise is used for ith sample
         # regardless of size of nsam
+        print(self.nobs())
         normal_samples = self._bkd.asarray(
             np.random.normal(0, 1, (nsamples, self.nobs()))
         ).T
@@ -195,37 +227,6 @@ class GaussianLogLikelihood(LogLikelihood):
     def noise_covariance(self) -> Array:
         """Return weighted noise covariance"""
         return self._wnoise_chol @ self._wnoise_chol.T
-
-    def _jacobian(self, sample: Array) -> Array:
-        pred_obs = self._model(sample).T
-        residual = self._obs - pred_obs
-        L_inv_res = self._noise_cov_sqrt_inv_apply(residual)
-        return self._bkd.multidot(
-            (
-                L_inv_res.T,
-                self._noise_cov_sqrt_inv_apply(self._model.jacobian(sample)),
-            )
-        )
-
-    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        pred_obs = self._model(sample).T
-        # use adjoint method to compute hvp with
-        # objective f(s,z) = -1/2 s.T @ s
-        residual = self._obs - pred_obs
-        # solve forward equation for state s
-        # c(s,z) = Gs - obs + model(z) = 0, G=wnoise_chol_inv
-        state = self._noise_cov_sqrt_inv_apply(residual)
-        # solve adjoint solution
-        # lambda = -inv(c_s.T)f_s = -inv(G.T)s
-        lamda = self._noise_cov_sqrt_inv_apply_transpose(state)
-        tmp1 = self._noise_cov_sqrt_inv_apply(self._model.jacobian(sample))
-        # Hvp = c_z.T @ p + L_zs @ w + L_zz @ v
-        # w = inv(c_s)@ c_z @ v = inv(G) @ model.jacobian(z) @ v
-        # L_ss = -I, L_zs = 0, L_sz = 0, L_zz = lamda.T @ model.hessian(z)
-        # p = -inv(G.T) @ w
-        return -tmp1.T @ (tmp1 @ vec) + self._model.apply_weighted_hessian(
-            sample, vec, lamda
-        )
 
 
 class IndependentGaussianLogLikelihood(GaussianLogLikelihood):

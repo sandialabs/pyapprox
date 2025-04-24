@@ -370,7 +370,11 @@ class LogNormalAnalyticalRiskMeasures:
 
 
 def multivariate_gaussian_kl_divergence(
-    mean1: Array, cov1: Array, mean2: Array, cov2: Array
+    mean1: Array,
+    cov1: Array,
+    mean2: Array,
+    cov2: Array,
+    bkd: BackendMixin = NumpyMixin,
 ) -> float:
     r"""
     Compute KL( N(mean1, cov1) || N(mean2, cov2) )
@@ -383,11 +387,11 @@ def multivariate_gaussian_kl_divergence(
     if mean1.ndim != 2 or mean2.ndim != 2:
         raise ValueError("means must have shape (nvars, 1)")
     nvars = mean1.shape[0]
-    cov2_inv = np.linalg.inv(cov2)
-    val = np.log(np.linalg.det(cov2) / np.linalg.det(cov1)) - float(nvars)
-    val += np.trace(cov2_inv.dot(cov1))
-    val += (mean2 - mean1).T.dot(cov2_inv.dot(mean2 - mean1))
-    return 0.5 * val.item()
+    cov2_inv = bkd.inv(cov2)
+    val = bkd.log(bkd.det(cov2) / bkd.det(cov1)) - float(nvars)
+    val += bkd.trace(cov2_inv @ cov1)
+    val += ((mean2 - mean1).T @ (cov2_inv @ (mean2 - mean1))).squeeze()
+    return 0.5 * val
 
 
 # Useful thesis with derivations of KL and Renyi divergences for a number

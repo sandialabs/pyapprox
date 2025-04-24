@@ -266,8 +266,8 @@ class Model(ABC):
     def _check_values_shape(self, samples: Array, vals: Array):
         if vals.shape != (samples.shape[1], self.nqoi()):
             raise RuntimeError(
-                "values had shape {0} but should have shape {1}".format(
-                    vals.shape, (samples.shape[1], self.nqoi())
+                "{0}: values had shape {1} but should have shape {2}".format(
+                    self, vals.shape, (samples.shape[1], self.nqoi())
                 )
             )
 
