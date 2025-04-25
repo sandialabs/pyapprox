@@ -20,6 +20,7 @@ from pyapprox.expdesign.optbayes import (
     DOptimalLinearModelObjective,
     PredictionOEDObjective,
     NoiseStatistic,
+    BayesianOED,
 )
 from pyapprox.bayes.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
@@ -34,6 +35,7 @@ from pyapprox.optimization.minimize import (
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
+    setup_tensor_product_piecewise_poly_quadrature_rule,
 )
 from pyapprox.optimization.risk import multivariate_gaussian_kl_divergence
 
@@ -81,9 +83,6 @@ class TestBayesOED:
         design = bkd.linspace(-1, 1, nobs)[None, :]
         noise_cov_diag = bkd.full((nobs, 1), 0.3**2)
         obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
-        # loglike = ModelBasedIndependentGaussianLogLikelihood(
-        #    obs_model, noise_cov_diag
-        # )
 
         np.random.seed(1)
         ntrue_samples = 10000
@@ -105,14 +104,6 @@ class TestBayesOED:
         obs = oed_loglike._make_noisy(outer_pred_obs, noise_samples)
         oed_loglike.set_observations(obs)
 
-        # samples = prior_variable.rvs(int(1e6))
-        # inner_pred_weights = bkd.full(
-        #     (samples.shape[1], 1), 1/samples.shape[1])
-
-        # oed_loglike = OEDGaussianLogLikelihood(
-        #     loglike, many_pred_obs, inner_pred_weights
-        # )
-
         design_weights = bkd.ones((nobs, 1))
         errors = oed_loglike.check_apply_jacobian(design_weights, disp=False)
         assert errors.min() / errors.max() < 1e-6
@@ -120,16 +111,18 @@ class TestBayesOED:
         evidence_model = Evidence(oed_loglike)
         evidence = evidence_model(design_weights)
         assert evidence.shape == (1, ntrue_samples)
-        # errors = evidence_model.check_apply_jacobian(design_weights, disp=True)
-        # assert errors.min() / errors.max() < 1e-6
+        errors = evidence_model.check_apply_jacobian(
+            design_weights, disp=False
+        )
+        assert errors.min() / errors.max() < 1e-6
 
         log_evidence_model = LogEvidence(oed_loglike)
         log_evidence = log_evidence_model(design_weights)
         assert log_evidence.shape == (1, ntrue_samples)
-        # errors = log_evidence_model.check_apply_jacobian(
-        #     design_weights, disp=True
-        # )
-        # assert errors.min() / errors.max() < 1e-6
+        errors = log_evidence_model.check_apply_jacobian(
+            design_weights, disp=False
+        )
+        assert errors.min() / errors.max() < 1e-6
 
         inner_pred_obs = many_pred_obs
         oed_objective = KLOEDObjective(
@@ -141,19 +134,17 @@ class TestBayesOED:
             inner_pred_weights,
             backend=bkd,
         )
-        # errors = oed_objective.check_apply_jacobian(design_weights, disp=True)
-        # assert errors.min() / errors.max() < 1e-6
-        # # check hessian code works. But currently apply_hessian_implemented
-        # # is set to False because the code is slow. Temporarily
-        # # activate hessian computation
-        # oed_objective.apply_hessian_implemented = lambda: True
-        # errors = oed_objective.check_apply_hessian(design_weights, disp=True)
-        # assert errors.min() / errors.max() < 1e-6
-        # # disable hesian computation
-        # oed_objective.apply_hessian_implemented = lambda: False
+        errors = oed_objective.check_apply_jacobian(design_weights, disp=False)
+        assert errors.min() / errors.max() < 1e-6
+        # check hessian code works. But currently apply_hessian_implemented
+        # is set to False because the code is slow. Temporarily
+        # activate hessian computation
+        oed_objective.apply_hessian_implemented = lambda: True
+        errors = oed_objective.check_apply_hessian(design_weights, disp=False)
+        assert errors.min() / errors.max() < 1e-6
+        # disable hesian computation
+        oed_objective.apply_hessian_implemented = lambda: False
 
-        prior_mean = prior_variable.mean()
-        prior_cov = bkd.diag(prior_variable.std()[:, 0] ** 2)
         noise_cov = bkd.diag(noise_cov_diag[:, 0])
         kl_divs = []
         # todo write test that compares multiple evaluations of evidence
@@ -209,20 +200,24 @@ class TestBayesOED:
         obs_model = Linear1DRegressionModel(
             design, degree, min_degree=min_degree
         )
-        loglike = IndependentGaussianLogLikelihood(noise_cov_diag)
 
         true_samples = prior_variable.rvs(nout_samples)
         outer_pred_weights = bkd.full((nout_samples, 1), 1 / nout_samples)
         outer_pred_obs = obs_model(true_samples).T
-        noise_samples = loglike._sample_noise(nout_samples)
+        # todo need to create inside kle oed objective
+        # noise_samples = loglike._sample_noise(nout_samples)
 
         if level1d is not None:
-            samples, inner_pred_weights = integrate(
-                "tensorproduct",
-                prior_variable,
-                levels=[level1d] * nvars,
-                rule="quadratic",
+            quad_rule = setup_tensor_product_piecewise_poly_quadrature_rule(
+                prior_variable, ["quadratic"] * nvars, weighted=True
             )
+            samples, inner_pred_weights = quad_rule([level1d] * nvars)
+            # samples, inner_pred_weights = integrate(
+            #     "tensorproduct",
+            #     prior_variable,
+            #     levels=[level1d] * nvars,
+            #     rule="quadratic",
+            # )
         else:
             samples = prior_variable.rvs(2 * int(bkd.sqrt(nout_samples)))
             inner_pred_weights = bkd.full(
@@ -238,7 +233,10 @@ class TestBayesOED:
             noise_samples,
             inner_pred_obs,
             inner_pred_weights,
+            backend=bkd,
         )
+        oed = BayesianOED(oed_objective)
+        oed.compute()
 
         bounds = bkd.stack((bkd.zeros((nobs,)), bkd.ones((nobs,))), axis=1)
 

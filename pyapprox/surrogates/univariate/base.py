@@ -144,10 +144,8 @@ class UnivariateInterpolatingBasis(UnivariateBasis):
 
 class UnivariatePiecewisePolynomialNodeGenerator(ABC):
     def __init__(self, backend: BackendMixin = NumpyMixin):
-        if backend is None:
-            backend = NumpyMixin
-        self._bkd = backend
         self._bounds = None
+        self._bkd = backend
 
     def set_bounds(self, bounds: Tuple[float, float]):
         self._bounds = bounds

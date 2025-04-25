@@ -25,6 +25,7 @@ from pyapprox.surrogates.affine.basis import (
     TensorProductQuadratureRule,
     TrigonometricBasis,
     FourierBasis,
+    setup_tensor_product_piecewise_poly_quadrature_rule,
 )
 from pyapprox.surrogates.univariate.lagrange import setup_lagrange_basis
 from pyapprox.surrogates.affine.basisexp import (
@@ -371,6 +372,21 @@ class TestBasis:
         approx_values = interp(test_samples)
         test_values = fun(test_samples)
         assert bkd.allclose(test_values, approx_values, atol=atol)
+
+        variable = IndependentMarginalsVariable(
+            [stats.uniform(*bounds)] * 2, backend=bkd
+        )
+        quad_rule = setup_tensor_product_piecewise_poly_quadrature_rule(
+            variable, basis_types, weighted=True
+        )
+
+        def fun(samples):
+            return bkd.sum(samples**2, axis=0)[:, None]
+
+        quadx, quadw = quad_rule(nnodes_1d)
+        integral = fun(quadx).T @ quadw
+        exact_integral = bkd.array(2.0 / 3.0)
+        assert bkd.allclose(integral, exact_integral, atol=atol)
 
     def test_tensor_product_piecewise_polynomial_interpolation(self):
         test_cases = [

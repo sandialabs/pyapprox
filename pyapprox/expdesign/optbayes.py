@@ -1,3 +1,5 @@
+from typing import List
+
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import Model
@@ -5,7 +7,14 @@ from pyapprox.bayes.likelihood import (
     # IndependentExponentialLogLikelihood,
     IndependentGaussianLogLikelihood,
 )
-from pyapprox.optimization.minimize import Constraint, SampleAverageMean
+from pyapprox.optimization.minimize import (
+    Constraint,
+    SampleAverageMean,
+    ConstrainedOptimizer,
+    LinearConstraint,
+    OptimizationResult,
+)
+from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
 
 class OEDIndependentGaussianLogLikelihood(IndependentGaussianLogLikelihood):
@@ -184,7 +193,12 @@ class NoiseStatistic:
 #         return ((outer_weights*outer_vals)*outer_jacs).sum(axis=0)/risk
 
 
-class KLOEDObjective(Model):
+class BayesianOEDObjective(Model):
+    def nqoi(self) -> int:
+        return 1
+
+
+class KLOEDObjective(BayesianOEDObjective):
     def __init__(
         self,
         noise_cov_diag: Array,
@@ -208,8 +222,9 @@ class KLOEDObjective(Model):
             tile_obs=False,
             backend=self._bkd,
         )
+        # todo create noise inside this function
         outer_obs = self._outer_oed_loglike._make_noisy(
-            outer_pred_obs, noise_samples
+            outer_pred_obs, self._noise_samples
         )
         self._outer_oed_loglike.set_observations(outer_obs)
 
@@ -223,14 +238,11 @@ class KLOEDObjective(Model):
         self._inner_oed_loglike.set_observations(outer_obs)
         self._log_evidence = LogEvidence(self._inner_oed_loglike)
 
-    def nvars(self) -> int:
-        return self._outer_oed_loglike.nvars()
-
-    def nqoi(self) -> int:
-        return 1
-
     def jacobian_implemented(self) -> bool:
         return True
+
+    def nvars(self) -> int:
+        return self._outer_oed_loglike.nvars()
 
     # apply hessian reduces optimization iteration count but increases
     # run time because cost of each iteration increases so do not activate
@@ -538,3 +550,65 @@ class DOptimalLinearModelObjective(Model):
             hess_det_Y / det_Y - jac_det_Y.T @ jac_det_Y / det_Y**2
         )
         return -0.5 * hess_log_det_Y
+
+
+class BayesianOED:
+    def __init__(self, objective: BayesianOEDObjective):
+        if not isinstance(objective, BayesianOEDObjective):
+            raise ValueError(
+                "objective must be an instance of BayesianOEDObjective"
+            )
+        self._objective = objective
+
+    def default_optimizer(
+        self,
+        ncandidates: int = 1,
+        verbosity: int = 0,
+        gtol: float = 1e-8,
+        maxiter: int = 1000,
+        method: str = "trust-constr",
+    ) -> ConstrainedOptimizer:
+        local_optimizer = ScipyConstrainedOptimizer()
+        local_optimizer.set_options(
+            gtol=gtol,
+            maxiter=maxiter,
+            method=method,
+        )
+        local_optimizer.set_verbosity(verbosity)
+        return local_optimizer
+
+    def _constraints(self) -> List[Constraint]:
+        # ensure sum of weights == 1
+        return [
+            LinearConstraint(
+                self._bkd.ones((1, self._objective.nvars())),
+                1.0,
+                1.0,
+                keep_feasible=True,
+            )
+        ]
+
+    def set_optimizer(self, optimizer: ConstrainedOptimizer):
+        if not isinstance(optimizer, ConstrainedOptimizer):
+            raise ValueError(
+                "optimizer must be an instance of ConstrainedOptimizer"
+            )
+        self._optimizer = optimizer
+        self._optimizer.set_objective_function(self._objective)
+        self._optimzier.set_constraints(self._constraints())
+        self._optimizer.set_bounds(
+            (self._bkd.stack(self._bkd.zeros(self._objective.nvars()))),
+            (self._bkd.stack(self._bkd.ones(self._objective.nvars()))),
+        )
+
+    def compute(self, iterate: Array = None) -> Array:
+        iterate = self._bkd.full(
+            (self._objective.nvars(),), 1 / self._objective.nvars()
+        )
+        if not hasattr(self, "_optimizer"):
+            self._set_optimizer(self.default_optimizer())
+        self._res = self._optimizer.minimize(iterate)
+        return self._res.x
+
+    def optimization_result(self) -> OptimizationResult:
+        return self._res

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Tuple
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -17,6 +17,10 @@ from pyapprox.surrogates.univariate.orthopoly import (
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.visualization import get_meshgrid_samples, plot_surface
+from pyapprox.surrogates.univariate.local import (
+    UnivariateEquidistantNodeGenerator,
+    UnivariatePiecewisePolynomialQuadratureRule,
+)
 
 
 class Basis(ABC):
@@ -463,7 +467,9 @@ class QuadratureRule(ABC):
 
 
 class QuadratureRuleFromData(QuadratureRule):
-    def __init__(self, quadx, quadw, backend=NumpyMixin):
+    def __init__(
+        self, quadx: Array, quadw: Array, backend: BackendMixin = NumpyMixin
+    ):
         super().__init__(backend)
         if quadw.ndim != 2 or quadw.shape[1] != 1:
             raise ValueError("quadw must be a 2D array column vector")
@@ -472,15 +478,17 @@ class QuadratureRuleFromData(QuadratureRule):
         self._quadx = self._bkd.array(quadx)
         self._quadw = self._bkd.array(quadw)
 
-    def nvars(self):
+    def nvars(self) -> int:
         return self._quadx.shape[0]
 
-    def __call__(self):
+    def __call__(self) -> Tuple[Array, Array]:
         return self._quadx, self._quadw
 
 
 class TensorProductQuadratureRule(QuadratureRule):
-    def __init__(self, nvars, univariate_quad_rules, store=False):
+    def __init__(
+        self, nvars: int, univariate_quad_rules: List, store: bool = False
+    ):
         super().__init__(univariate_quad_rules[0]._bkd)
         if isinstance(univariate_quad_rules, UnivariateQuadratureRule):
             univariate_quad_rules = [univariate_quad_rules] * nvars
@@ -501,10 +509,10 @@ class TensorProductQuadratureRule(QuadratureRule):
         self._quad_samples = dict()
         self._quad_weights = dict()
 
-    def nvars(self):
+    def nvars(self) -> int:
         return self._nvars
 
-    def __call__(self, nnodes_1d):
+    def __call__(self, nnodes_1d: Array) -> Tuple[Array, Array]:
         if len(nnodes_1d) != self.nvars():
             raise ValueError("must specify nnodes for each dimension")
         np_array = self._bkd.to_numpy(self._bkd.asarray(nnodes_1d, dtype=int))
@@ -538,7 +546,7 @@ class FixedTensorProductQuadratureRule(TensorProductQuadratureRule):
         self._nnodes_1d = self._bkd.asarray(nnodes_1d)
 
     # TODO fix class inheritance to either require arguments to call or no args
-    def __call__(self):
+    def __call__(self) -> Tuple[Array, Array]:
         return super().__call__(self._nnodes_1d)
 
 
@@ -558,12 +566,23 @@ class FixedGaussianTensorProductQuadratureRuleFromVariable(
 
 
 class TrigonometricBasis(MultiIndexBasis):
-    def __init__(self, bounds, indices=None, backend=None):
+    def __init__(
+        self,
+        bounds: Array,
+        indices: Array = None,
+        backend: BackendMixin = NumpyMixin,
+    ):
         super().__init__([TrigonometricPolynomial1D(bounds, backend)])
 
 
 class FourierBasis(MultiIndexBasis):
-    def __init__(self, bounds, inverse=True, indices=None, backend=None):
+    def __init__(
+        self,
+        bounds: Array,
+        inverse: bool = True,
+        indices: Array = None,
+        backend: BackendMixin = NumpyMixin,
+    ):
         super().__init__([FourierBasis1D(bounds, inverse, backend)])
 
 
@@ -575,5 +594,40 @@ def setup_tensor_product_gauss_quadrature_rule(
         [
             GaussQuadratureRule(marginal, backend=variable._bkd)
             for marginal in variable.marginals()
+        ],
+    )
+
+
+def setup_tensor_product_piecewise_poly_quadrature_rule(
+    variable: IndependentMarginalsVariable,
+    basis_types: List[str],
+    unbounded_alpha=0.999,
+    weighted: bool = False,
+) -> TensorProductQuadratureRule:
+    # if not weighted variable only used to define ranges.
+    # weighted mutiplies qaudrature weights by marginals PDF
+    if len(basis_types) != variable.nvars():
+        raise ValueError("must specify basis type for each dimension")
+    intervals = [
+        (
+            marginal.interval(1.0)
+            if marginal.is_bounded()
+            else marginal.interval(unbounded_alpha)
+        )
+        for marginal in variable.marginals()
+    ]
+    return TensorProductQuadratureRule(
+        variable.nvars(),
+        [
+            UnivariatePiecewisePolynomialQuadratureRule(
+                basis_type,
+                interval,
+                UnivariateEquidistantNodeGenerator(backend=variable._bkd),
+                backend=variable._bkd,
+                marginal=(None if not weighted else marginal),
+            )
+            for marginal, basis_type, interval in zip(
+                variable.marginals(), basis_types, intervals
+            )
         ],
     )

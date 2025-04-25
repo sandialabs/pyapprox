@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from typing import Tuple
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -9,6 +10,8 @@ from pyapprox.surrogates.univariate.base import (
     UnivariatePiecewisePolynomialNodeGenerator,
     UnivariateQuadratureRule,
 )
+from pyapprox.variables.transforms import Transform
+from pyapprox.variables.marginals import Marginal
 
 
 def irregular_piecewise_left_constant_basis(
@@ -363,7 +366,13 @@ def irregular_piecewise_cubic_quadrature_weights(
 
 
 class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
-    def __init__(self, bounds, node_gen=None, trans=None, backend=None):
+    def __init__(
+        self,
+        bounds: Array,
+        node_gen: UnivariatePiecewisePolynomialNodeGenerator = None,
+        trans: Transform = None,
+        backend: BackendMixin = NumpyMixin,
+    ):
         super().__init__(trans, backend)
         if node_gen is None:
             node_gen = UnivariateEquidistantNodeGenerator(self._bkd)
@@ -377,7 +386,9 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         self.set_node_generator(node_gen)
         self.set_bounds(bounds)
 
-    def set_node_generator(self, node_gen):
+    def set_node_generator(
+        self, node_gen: UnivariatePiecewisePolynomialNodeGenerator
+    ):
         if not isinstance(
             node_gen, UnivariatePiecewisePolynomialNodeGenerator
         ):
@@ -406,10 +417,10 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         return self._copy()
 
     @abstractmethod
-    def _evaluate_from_nodes(self, nodes):
+    def _evaluate_from_nodes(self, nodes: Array) -> Array:
         raise NotImplementedError
 
-    def _values(self, samples):
+    def _values(self, samples: Array) -> Array:
         if self._nodes is None:
             raise RuntimeError("must call set_nodes")
         idx = self._bkd.argsort(self._nodes[0])
@@ -420,7 +431,7 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         )
         return vals[:, inverse_idx]
 
-    def set_bounds(self, bounds):
+    def set_bounds(self, bounds: Array):
         """Set the bounds of the quadrature rule"""
         if len(bounds) != 2:
             raise ValueError("must specifiy an upper and lower bound")
@@ -428,15 +439,15 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
         self._node_gen.set_bounds(bounds)
 
     @abstractmethod
-    def _quadrature_rule_from_nodes(self, nodes):
+    def _quadrature_rule_from_nodes(self, nodes: Array) -> Tuple[Array, Array]:
         raise NotImplementedError
 
-    def _quadrature_rule(self):
+    def _quadrature_rule(self) -> Tuple[Array, Array]:
         if self._quad_samples is None:
             raise RuntimeError("must call set_nterms()")
         return self._quad_samples, self._quad_weights
 
-    def _set_nodes(self, nodes):
+    def _set_nodes(self, nodes: Array):
         if nodes.ndim != 2 or nodes.shape[0] != 1:
             raise ValueError("nodes must be a 2D row vector")
         self._nodes = nodes
@@ -444,11 +455,11 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
             self._quadrature_rule_from_nodes(self._nodes)
         )
 
-    def _active_node_indices_for_quadrature(self):
+    def _active_node_indices_for_quadrature(self) -> Array:
         # used in time_integration.py
         return self._bkd.arange(self.nterms())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self._quad_samples is None:
             return "{0}(bkd={1})".format(self.__class__.__name__, self._bkd)
         return "{0}(nterms={1}, nnodes={2}, bkd={3})".format(
@@ -458,78 +469,78 @@ class UnivariatePiecewisePolynomialBasis(UnivariateInterpolatingBasis):
             self._bkd,
         )
 
-    def set_nterms(self, nterms):
+    def set_nterms(self, nterms: int):
         self._set_nodes(self._node_gen(nterms))
 
 
 class UnivariatePiecewiseConstantBasis(UnivariatePiecewisePolynomialBasis):
-    def set_nterms(self, nterms):
+    def set_nterms(self, nterms: int):
         # need to use nterms + 1 because nterms = nnodes-1 for piecewise
         # constant basis
         self._set_nodes(self._node_gen(nterms + 1))
 
 
 class UnivariatePiecewiseLeftConstantBasis(UnivariatePiecewiseConstantBasis):
-    def _evaluate_from_nodes(self, nodes, samples):
+    def _evaluate_from_nodes(self, nodes: Array, samples: Array) -> Array:
         return irregular_piecewise_left_constant_basis(
             nodes[0], samples[0], self._bkd
         )
 
-    def _quadrature_rule_from_nodes(self, nodes):
+    def _quadrature_rule_from_nodes(self, nodes: Array) -> Tuple[Array, Array]:
         return nodes[:, :-1], self._bkd.diff(nodes[0])[:, None]
 
-    def nterms(self):
+    def nterms(self) -> int:
         return self._nodes.shape[1] - 1
 
-    def _active_node_indices_for_quadrature(self):
+    def _active_node_indices_for_quadrature(self) -> Array:
         return self._bkd.arange(self.nterms() - 1)
 
 
 class UnivariatePiecewiseRightConstantBasis(UnivariatePiecewiseConstantBasis):
-    def _evaluate_from_nodes(self, nodes, samples):
+    def _evaluate_from_nodes(self, nodes, samples) -> Array:
         return irregular_piecewise_right_constant_basis(
             nodes[0], samples[0], self._bkd
         )
 
-    def _quadrature_rule_from_nodes(self, nodes):
+    def _quadrature_rule_from_nodes(self, nodes: Array) -> Tuple[Array, Array]:
         # unlike other higherorder methods weights.shape[0] != nodes.shape[0]
         return nodes[:, 1:], self._bkd.diff(nodes[0])[:, None]
 
-    def nterms(self):
+    def nterms(self) -> int:
         return self._nodes.shape[1] - 1
 
-    def _active_node_indices_for_quadrature(self):
+    def _active_node_indices_for_quadrature(self) -> Array:
         return self._bkd.arange(1, self.nterms())
 
 
 class UnivariatePiecewiseMidPointConstantBasis(
     UnivariatePiecewiseConstantBasis
 ):
-    def _evaluate_from_nodes(self, nodes, samples):
+    def _evaluate_from_nodes(self, nodes: Array, samples: Array) -> Array:
         return irregular_piecewise_midpoint_constant_basis(
             nodes[0], samples[0], self._bkd
         )
 
-    def _quadrature_rule_from_nodes(self, nodes):
+    def _quadrature_rule_from_nodes(self, nodes: Array) -> Tuple[Array, Array]:
         return (
             (nodes[:, 1:] + nodes[:, :-1]) / 2,
             self._bkd.diff(nodes[0])[:, None],
         )
 
-    def nterms(self):
+    def nterms(self) -> int:
         return self._nodes.shape[1] - 1
 
-    def _active_node_indices_for_quadrature(self):
+    def _active_node_indices_for_quadrature(self) -> Array:
         raise ValueError("Quadrature points do not coincide with nodes")
 
 
 class UnivariatePiecewiseLinearBasis(UnivariatePiecewisePolynomialBasis):
-    def _evaluate_from_nodes(self, nodes, samples):
+    def _evaluate_from_nodes(self, nodes: Array, samples: Array) -> Array:
         return irregular_piecewise_linear_basis(
             nodes[0], samples[0], self._bkd
         )
 
-    def _quadrature_rule_from_nodes(self, nodes):
+    def _quadrature_rule_from_nodes(self, nodes: Array) -> Tuple[Array, Array]:
         if nodes.shape[1] == 1:
             return (
                 self._nodes,
@@ -544,12 +555,12 @@ class UnivariatePiecewiseLinearBasis(UnivariatePiecewisePolynomialBasis):
 
 
 class UnivariatePiecewiseQuadraticBasis(UnivariatePiecewisePolynomialBasis):
-    def _evaluate_from_nodes(self, nodes, samples):
+    def _evaluate_from_nodes(self, nodes: Array, samples: Array) -> Array:
         return irregular_piecewise_quadratic_basis(
             nodes[0], samples[0], self._bkd
         )
 
-    def _quadrature_rule_from_nodes(self, nodes):
+    def _quadrature_rule_from_nodes(self, nodes: Array) -> Tuple[Array, Array]:
         if nodes.shape[1] == 1:
             return (
                 self._nodes,
@@ -564,10 +575,10 @@ class UnivariatePiecewiseQuadraticBasis(UnivariatePiecewisePolynomialBasis):
 
 
 class UnivariatePiecewiseCubicBasis(UnivariatePiecewisePolynomialBasis):
-    def _evaluate_from_nodes(self, nodes, samples):
+    def _evaluate_from_nodes(self, nodes: Array, samples: Array) -> Array:
         return irregular_piecewise_cubic_basis(nodes[0], samples[0], self._bkd)
 
-    def _quadrature_rule_from_nodes(self, nodes):
+    def _quadrature_rule_from_nodes(self, nodes: Array) -> Tuple[Array, Array]:
         if nodes.shape[1] == 1:
             return (
                 self._nodes,
@@ -583,25 +594,35 @@ class UnivariatePiecewiseCubicBasis(UnivariatePiecewisePolynomialBasis):
 
 class UnivariatePiecewisePolynomialQuadratureRule(UnivariateQuadratureRule):
     def __init__(
-        self, basis_type, bounds=None, node_gen=None, backend=None, store=False
+        self,
+        basis_type: str,
+        bounds: Array = None,
+        node_gen: UnivariatePiecewisePolynomialNodeGenerator = None,
+        backend: BackendMixin = NumpyMixin,
+        store: bool = False,
+        marginal: Marginal = None,
     ):
         super().__init__(backend=backend, store=store)
         self._basis = setup_univariate_piecewise_polynomial_basis(
             basis_type, bounds, node_gen, None, backend
         )
+        self._marginal = marginal
 
-    def _quad_rule(self, nnodes):
+    def _quad_rule(self, nnodes: int):
         self._basis.set_nterms(nnodes)
-        return self._basis.quadrature_rule()
+        quadx, quadw = self._basis.quadrature_rule()
+        if self._marginal is not None:
+            quadw *= self._marginal.pdf(quadx[0])[:, None]
+        return quadx, quadw
 
 
 def setup_univariate_piecewise_polynomial_basis(
-    basis_type,
-    bounds,
-    node_gen=None,
-    trans=None,
-    backend=None,
-):
+    basis_type: str,
+    bounds: Array,
+    node_gen: UnivariatePiecewisePolynomialNodeGenerator = None,
+    trans: Transform = None,
+    backend: BackendMixin = NumpyMixin,
+) -> UnivariatePiecewisePolynomialBasis:
     basis_dict = {
         "leftconst": UnivariatePiecewiseLeftConstantBasis,
         "rightconst": UnivariatePiecewiseRightConstantBasis,
