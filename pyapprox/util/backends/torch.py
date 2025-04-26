@@ -335,6 +335,12 @@ class TorchMixin(BackendMixin):
         return torch.allclose(Amat, Bmat, **kwargs)
 
     @staticmethod
+    def isclose(
+        Amat: torch.Tensor, Bmat: torch.Tensor, **kwargs
+    ) -> torch.tensor:
+        return torch.isclose(Amat, Bmat, **kwargs)
+
+    @staticmethod
     def lstsq(Amat, Bmat):
         return torch.linalg.lstsq(Amat, Bmat, rcond=None)[0]
 

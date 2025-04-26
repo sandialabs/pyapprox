@@ -1,5 +1,7 @@
 from typing import List
 
+import numpy as np
+
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import Model
@@ -65,11 +67,13 @@ class OEDIndependentGaussianLogLikelihood(IndependentGaussianLogLikelihood):
         return jac
 
     def __repr__(self) -> str:
-        return "{0}(M={1}, N={2})".format(
-            self.__class__.__name__,
-            self._obs.shape[1],
-            self._many_pred_obs.shape[1],
-        )
+        if self._obs is not None:
+            return "{0}(M={1}, N={2})".format(
+                self.__class__.__name__,
+                self._obs.shape[1],
+                self._many_pred_obs.shape[1],
+            )
+        return "{0}".format(self.__class__.__name__)
 
 
 class Evidence(Model):
@@ -179,9 +183,13 @@ class NoiseStatistic:
         return self._stat.__call__(outer_vals, outer_weights)
 
     def jacobian(self, outer_vals, outer_jacs, outer_weights):
+        print(outer_vals.shape, outer_weights.shape)
         return self._stat.jacobian(
             outer_vals, outer_jacs[..., None], outer_weights
         ).T
+
+    def __repr__(self) -> str:
+        return "{0}({1})".format(self.__class__.__name__, self._stat)
 
 
 # class EntropicNoiseStatistic(SampleAverageEntropicRisk):
@@ -204,7 +212,6 @@ class KLOEDObjective(BayesianOEDObjective):
         noise_cov_diag: Array,
         outer_pred_obs: Array,
         outer_pred_weights: Array,
-        noise_samples: Array,
         inner_pred_obs: Array,
         inner_pred_weights: Array,
         noise_stat: NoiseStatistic = None,
@@ -222,7 +229,9 @@ class KLOEDObjective(BayesianOEDObjective):
             tile_obs=False,
             backend=self._bkd,
         )
-        # todo create noise inside this function
+        self._noise_samples = self._outer_oed_loglike._sample_noise(
+            outer_pred_obs.shape[1]
+        )
         outer_obs = self._outer_oed_loglike._make_noisy(
             outer_pred_obs, self._noise_samples
         )
@@ -269,6 +278,8 @@ class KLOEDObjective(BayesianOEDObjective):
         jac_outer_log_like = self._outer_oed_loglike.jacobian(design_weights)
         jac_outer_log_like = self._reshape_jacobian(jac_outer_log_like)
         outer_weights = self._outer_oed_loglike._pred_weights
+        print(outer_log_like_vals.shape, log_evidences.shape, "s")
+        print(jac_outer_log_like.shape, jac_log_evidences.shape, "a")
         jac = self._noise_stat.jacobian(
             outer_log_like_vals - log_evidences,
             jac_outer_log_like - jac_log_evidences,
@@ -392,31 +403,6 @@ class PredictionOEDObjective(KLOEDObjective):
         deviations = None
 
 
-class WeightsConstraintModel(Model):
-    def jacobian_implemented(self) -> bool:
-        return True
-
-    def __call__(self, weights: Array) -> Array:
-        assert self._bkd.all(weights >= 0)
-        return weights.sum(axis=0)[:, None]
-
-    def _jacobian(self, weights: Array) -> Array:
-        assert self._bkd.all(weights >= 0)
-        return self._bkd.ones((1, weights.shape[0]))
-
-
-class WeightsConstraint(Constraint):
-    def __init__(
-        self,
-        nobs: int,
-        keep_feasible: bool = False,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        model = WeightsConstraintModel()
-        bounds = self._bkd.array([[nobs, nobs]])
-        super().__init__(model, bounds, keep_feasible)
-
-
 class SparseOEDObjective(Model):
     def __init__(self, objective: Model, penalty: float):
         super().__init__(backend=objective._bkd)
@@ -447,7 +433,7 @@ class SparseOEDObjective(Model):
         ) - self._penalty * self._l1norm_jac(weights)
 
 
-class DOptimalLinearModelObjective(Model):
+class DOptimalLinearModelObjective(BayesianOEDObjective):
     def __init__(self, model: Model, noise_cov: Array, prior_cov: Array):
         """
         Compute the d-optimality criterion for a linear model
@@ -466,13 +452,16 @@ class DOptimalLinearModelObjective(Model):
         https://doi.org/10.1137/17M115712X
         """
         super().__init__(backend=model._bkd)
-        if not self._bkd.isscalar(noise_cov):
+        if noise_cov.ndim != 0:
             raise ValueError("noise_cov must be a scalar")
-        if not self._bkd.isscalar(prior_cov):
+        if prior_cov.ndim != 0:
             raise ValueError("prior_cov must be a scalar")
         self._model = model
         self._noise_cov = noise_cov
         self._prior_cov = prior_cov
+
+    def nvars(self) -> int:
+        return self._model.nqoi()
 
     def jacobian_implemented(self) -> bool:
         return True
@@ -480,24 +469,24 @@ class DOptimalLinearModelObjective(Model):
     def hessian_implemented(self) -> bool:
         return True
 
-    def __call__(self, weights: Array) -> Array:
+    def _values(self, weights: Array) -> Array:
         Amat = self._model._jac_matrix
         nvars = Amat.shape[1]
         hess_misfit = (
-            Amat.T.dot(weights * Amat) * self._prior_cov / self._noise_cov
+            Amat.T @ (weights * Amat) * self._prior_cov / self._noise_cov
         )
         ident = self._bkd.eye(nvars)
         # return negative because we want to maximize KL divergence
         # which is equivalent to minimizing the negative KL divergence
         return -self._bkd.array(
-            [0.5 * self._bkd.linalg.slogdet(hess_misfit + ident)[1]]
+            [0.5 * self._bkd.slogdet(hess_misfit + ident)[1]]
         )[:, None]
 
     def _Y(self, weights: Array) -> Array:
         Amat = self._model._jac_matrix
         nvars = Amat.shape[1]
         hess_misfit = (
-            Amat.T.dot(weights * Amat) * self._prior_cov / self._noise_cov
+            Amat.T @ (weights * Amat) * self._prior_cov / self._noise_cov
         )
         ident = self._bkd.eye(nvars)
         Y = hess_misfit + ident
@@ -505,7 +494,7 @@ class DOptimalLinearModelObjective(Model):
 
     def _jacobian(self, weights: Array) -> Array:
         Y = self._Y(weights)
-        inv_Y = self._bkd.linalg.inv(Y)
+        inv_Y = self._bkd.inv(Y)
         jac_log_det_Y = self._bkd.array(
             [
                 self._bkd.trace(inv_Y @ row[:, None] @ row[None, :])
@@ -514,7 +503,7 @@ class DOptimalLinearModelObjective(Model):
         ) * (self._prior_cov / self._noise_cov)
         # return negative because we want to maximize KL divergence
         # which is equivalent to minimizing the negative KL divergence
-        return -0.5 * jac_log_det_Y
+        return (-0.5 * jac_log_det_Y)[None, :]
 
     def _Y_inv_dYdw(self, inv_Y: Array, ii: int) -> Array:
         rowii = self._model._jac_matrix[ii]
@@ -522,8 +511,8 @@ class DOptimalLinearModelObjective(Model):
 
     def _hessian(self, weights: Array) -> Array:
         Y = self._Y(weights)
-        inv_Y = self._bkd.linalg.inv(Y)
-        det_Y = self._bkd.linalg.det(Y)
+        inv_Y = self._bkd.inv(Y)
+        det_Y = self._bkd.det(Y)
         jac_det_Y = (
             self._bkd.array(
                 [
@@ -549,7 +538,7 @@ class DOptimalLinearModelObjective(Model):
         hess_log_det_Y = (
             hess_det_Y / det_Y - jac_det_Y.T @ jac_det_Y / det_Y**2
         )
-        return -0.5 * hess_log_det_Y
+        return (-0.5 * hess_log_det_Y)[None, ...]
 
 
 class BayesianOED:
@@ -559,6 +548,7 @@ class BayesianOED:
                 "objective must be an instance of BayesianOEDObjective"
             )
         self._objective = objective
+        self._bkd = objective._bkd
 
     def default_optimizer(
         self,
@@ -595,18 +585,23 @@ class BayesianOED:
             )
         self._optimizer = optimizer
         self._optimizer.set_objective_function(self._objective)
-        self._optimzier.set_constraints(self._constraints())
+        self._optimizer.set_constraints(self._constraints())
         self._optimizer.set_bounds(
-            (self._bkd.stack(self._bkd.zeros(self._objective.nvars()))),
-            (self._bkd.stack(self._bkd.ones(self._objective.nvars()))),
+            self._bkd.stack(
+                (
+                    self._bkd.zeros(self._objective.nvars()),
+                    self._bkd.ones(self._objective.nvars()),
+                ),
+                axis=1,
+            )
         )
 
     def compute(self, iterate: Array = None) -> Array:
         iterate = self._bkd.full(
-            (self._objective.nvars(),), 1 / self._objective.nvars()
+            (self._objective.nvars(), 1), 1 / self._objective.nvars()
         )
         if not hasattr(self, "_optimizer"):
-            self._set_optimizer(self.default_optimizer())
+            self.set_optimizer(self.default_optimizer())
         self._res = self._optimizer.minimize(iterate)
         return self._res.x
 

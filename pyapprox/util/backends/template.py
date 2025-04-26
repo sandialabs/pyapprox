@@ -427,6 +427,11 @@ class BackendMixin(ABC):
         raise NotImplementedError
 
     @staticmethod
+    @abstractmethod
+    def isclose(Amat, Bmat, **kwargs):
+        raise NotImplementedError
+
+    @staticmethod
     def detach(mat):
         """Detach a matrix from the computational graph.
         Override for backends that support automatic differentiation."""

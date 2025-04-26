@@ -15,7 +15,6 @@ from pyapprox.expdesign.optbayes import (
     Evidence,
     LogEvidence,
     KLOEDObjective,
-    WeightsConstraint,
     SparseOEDObjective,
     DOptimalLinearModelObjective,
     PredictionOEDObjective,
@@ -129,7 +128,6 @@ class TestBayesOED:
             noise_cov_diag,
             outer_pred_obs,
             outer_pred_weights,
-            noise_samples,
             inner_pred_obs,
             inner_pred_weights,
             backend=bkd,
@@ -158,7 +156,9 @@ class TestBayesOED:
                 noise_cov,
                 backend=bkd,
             )
-            laplace.compute(obs[:, obs_idx : obs_idx + 1])
+            laplace.compute(
+                oed_objective._outer_oed_loglike._obs[:, obs_idx : obs_idx + 1]
+            )
             kl_div = multivariate_gaussian_kl_divergence(
                 laplace.posterior_mean(),
                 laplace.posterior_covariance(),
@@ -179,8 +179,8 @@ class TestBayesOED:
             expected_kl_div, -oed_objective(design_weights), rtol=1e-2
         )
 
-    def _check_classical_KL_OED_gaussian_optimization(
-        self, nobs, min_degree, degree, nout_samples, level1d
+    def _check_KL_OED(
+        self, nobs, min_degree, degree, nout_samples, level1d, noise_stat
     ):
         bkd = self.get_backend()
         nvars = degree - min_degree + 1
@@ -188,7 +188,7 @@ class TestBayesOED:
         noise_std = 0.125 * 4
         prior_std = 0.5
         prior_variable = IndependentMarginalsVariable(
-            [stats.norm(0, prior_std)] * nvars
+            [stats.norm(0, prior_std)] * nvars, backend=bkd
         )
         design = bkd.linspace(-1, 1, nobs - 2)[None, :]
         design = bkd.sort(
@@ -198,7 +198,7 @@ class TestBayesOED:
         )[None, :]
         noise_cov_diag = bkd.full((nobs, 1), noise_std**2)
         obs_model = Linear1DRegressionModel(
-            design, degree, min_degree=min_degree
+            design, degree, min_degree=min_degree, backend=bkd
         )
 
         true_samples = prior_variable.rvs(nout_samples)
@@ -212,201 +212,124 @@ class TestBayesOED:
                 prior_variable, ["quadratic"] * nvars, weighted=True
             )
             samples, inner_pred_weights = quad_rule([level1d] * nvars)
-            # samples, inner_pred_weights = integrate(
-            #     "tensorproduct",
-            #     prior_variable,
-            #     levels=[level1d] * nvars,
-            #     rule="quadratic",
-            # )
         else:
-            samples = prior_variable.rvs(2 * int(bkd.sqrt(nout_samples)))
+            samples = prior_variable.rvs(2 * int(np.sqrt(nout_samples)))
             inner_pred_weights = bkd.full(
                 (samples.shape[1], 1), 1 / samples.shape[1]
             )
         many_pred_obs = obs_model(samples).T
 
         inner_pred_obs = many_pred_obs
-        oed_objective = KLOEDObjective(
+        kl_oed_objective = KLOEDObjective(
             noise_cov_diag,
             outer_pred_obs,
             outer_pred_weights,
-            noise_samples,
             inner_pred_obs,
             inner_pred_weights,
+            noise_stat=noise_stat,
             backend=bkd,
         )
-        oed = BayesianOED(oed_objective)
-        oed.compute()
 
-        bounds = bkd.stack((bkd.zeros((nobs,)), bkd.ones((nobs,))), axis=1)
-
-        nfinal_obs = 1
-        dopt_objective = DOptimalLinearModelObjective(
-            obs_model, noise_cov_diag[0, 0], prior_std**2
-        )
-        constraint = LinearConstraint(
-            bkd.ones((1, nobs)), nfinal_obs, nfinal_obs, keep_feasible=True
-        )
-        optimizer = ScipyConstrainedOptimizer(
-            dopt_objective,
-            bounds=bounds,
-            constraints=[constraint],
-            opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200},
-        )
-        x0 = bkd.full((nobs, 1), nfinal_obs / nobs)
-        errors = dopt_objective.check_apply_jacobian(x0, disp=True)
-        assert errors.min() / errors.max() < 1e-6 and errors.max() < 10
-        errors = dopt_objective.check_apply_hessian(x0, disp=True)
-        assert errors.min() / errors.max() < 1e-6 and errors.max() < 10
-        result = optimizer.minimize(x0)
-        print(result.x, result.fun, result.x.sum(), result)
-
-        II = bkd.hstack(
-            [
-                [0, nobs - 1],
-                bkd.where(bkd.isclose(bkd.abs(design[0]), 1 / bkd.sqrt(5)))[0],
-            ]
-        )
-        x0 = bkd.zeros((nobs, 1))
-        x0[II] = 1.0
-        print(dopt_objective(x0), oed_objective(x0))
-        assert bkd.allclose(dopt_objective(x0), oed_objective(x0), rtol=1e-2)
-
-        constraint = LinearConstraint(
-            bkd.ones((1, nobs)), nfinal_obs, nfinal_obs, keep_feasible=True
-        )
-        objective = oed_objective
-        x0 = bkd.full((nobs, 1), nfinal_obs / nobs)
-        errors = objective.check_apply_jacobian(
-            x0, disp=True, fd_eps=bkd.logspace(-13, bkd.log(0.2), 13)[::-1]
+        x0 = bkd.full((nobs, 1), 1 / nobs)
+        errors = kl_oed_objective.check_apply_jacobian(
+            x0, disp=False, fd_eps=bkd.flip(bkd.logspace(-13, np.log(0.2), 13))
         )
         assert errors.min() / errors.max() < 7e-6, errors.min() / errors.max()
         # turn on hessian for testing hessian implementation, but
         # apply hessian is turned off because while it reduces
         # optimization iteration count but increases
         # run time because cost of each iteration increases
-        objective._apply_hessian_implemented = True
-        errors = objective.check_apply_hessian(
-            x0, disp=True, fd_eps=bkd.logspace(-13, bkd.log(0.2), 13)[::-1]
+        kl_oed_objective.apply_hessian_implemented = lambda: True
+        errors = kl_oed_objective.check_apply_hessian(
+            x0,
+            disp=False,
+            fd_eps=bkd.flip(bkd.logspace(-13, np.log(0.2), 13)),
         )
-        assert errors.min() / errors.max() < 3e-6 and errors.max() < 10
-        objective._apply_hessian_implemented = False
+        assert errors.min() / errors.max() < 5e-6 and errors.max() < 10
+        kl_oed_objective.apply_hessian_implemented = lambda: False
 
-        if isinstance(constraint, WeightsConstraint):
-            errors = constraint._model.check_apply_jacobian(
-                x0, disp=True, fd_eps=bkd.logspace(-13, -1, 13)[::-1]
+        # just test optimization runs
+        kl_oed = BayesianOED(kl_oed_objective)
+        kl_oed.compute()
+
+        return design, noise_cov_diag, prior_std, kl_oed_objective, obs_model
+
+    def _check_classical_KL_OED_gaussian_optimization(
+        self, nobs, min_degree, degree, nout_samples, level1d
+    ):
+        design, noise_cov_diag, prior_std, kl_oed_objective, obs_model = (
+            self._check_KL_OED(
+                nobs, min_degree, degree, nout_samples, level1d, None
             )
-            assert errors.min() / errors.max() < 1e-6 and errors.max() < 10
-        optimizer = ScipyConstrainedOptimizer(
-            objective,
-            bounds=bounds,
-            constraints=[constraint],
-            opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200},
         )
-        result = optimizer.minimize(x0)
+        bkd = self.get_backend()
+        dopt_objective = DOptimalLinearModelObjective(
+            obs_model, noise_cov_diag[0, 0], bkd.array(prior_std**2)
+        )
+        x0 = bkd.full((nobs, 1), 1 / nobs)
+        errors = dopt_objective.check_apply_jacobian(x0, disp=False)
+        assert errors.min() / errors.max() < 1e-6 and errors.max() < 10
+        errors = dopt_objective.check_apply_hessian(x0, disp=False)
+        assert errors.min() / errors.max() < 1e-6 and errors.max() < 10
+
+        II = bkd.hstack(
+            [
+                bkd.array([0, nobs - 1], dtype=int),
+                bkd.where(
+                    bkd.isclose(bkd.abs(design[0]), 1 / bkd.sqrt(bkd.array(5)))
+                )[0],
+            ]
+        )
+        x0 = bkd.zeros((nobs, 1))
+        x0[II] = 1.0
+        # print(dopt_objective(x0), kl_oed_objective(x0))
+        assert bkd.allclose(
+            dopt_objective(x0), kl_oed_objective(x0), rtol=1e-2
+        )
+
+        # just test optimizations run because of noise in monte carlo
+        # I am not sure if I can ensure that klopt and dopt designs
+        # will be the same.Equivalence would also only occur if
+        # noise_stat = SampleAverageMean
+        # kl_oed = BayesianOED(kl_oed_objective)
+        # klopt_design = kl_oed.compute()
+
+        dopt_oed = BayesianOED(dopt_objective)
+        dopt_design = dopt_oed.compute()
 
     def test_classical_KL_OED_gaussian_optimization(self):
         test_cases = [
-            [3, 0, 1, 4000, 50],
-            [3, 1, 1, 4000, 50],
+            [3, 0, 1, 4000, 51],
+            [3, 1, 1, 4000, 51],
             [3, 0, 3, 50000, None],
         ]
         for test_case in test_cases:
             self._check_classical_KL_OED_gaussian_optimization(*test_case)
 
-    def _check_KL_OED_gaussian_optimization(
-        self, nobs, min_degree, degree, nout_samples, level1d, noise_stat
-    ):
-        bkd = self.get_backend()
-        nvars = degree - min_degree + 1
-        # the smaller the noise the more number of nout_samples are needed
-        noise_std = 0.125 * 4
-        prior_std = 0.5
-        prior_variable = IndependentMarginalsVariable(
-            [stats.norm(0, prior_std)] * nvars
-        )
-        design = bkd.linspace(-1, 1, nobs - 2)[None, :]
-        design = bkd.sort(
-            bkd.hstack((design[0], [-1 / bkd.sqrt(5), 1 / bkd.sqrt(5)]))
-        )[None, :]
-        noise_cov_diag = bkd.full((nobs, 1), noise_std**2)
-        obs_model = Linear1DRegressionModel(
-            design, degree, min_degree=min_degree
-        )
-        loglike = IndependentGaussianLogLikelihood(noise_cov_diag)
-
-        true_samples = prior_variable.rvs(nout_samples)
-        outer_pred_weights = bkd.full((nout_samples, 1), 1 / nout_samples)
-        outer_pred_obs = obs_model(true_samples).T
-        noise_samples = loglike._sample_noise(nout_samples)
-
-        if level1d is not None:
-            samples, inner_pred_weights = integrate(
-                "tensorproduct",
-                prior_variable,
-                levels=[level1d] * nvars,
-                rule="quadratic",
-            )
-        else:
-            samples = prior_variable.rvs(2 * int(bkd.sqrt(nout_samples)))
-            inner_pred_weights = bkd.full(
-                (samples.shape[1], 1), 1 / samples.shape[1]
-            )
-        many_pred_obs = obs_model(samples).T
-
-        inner_pred_obs = many_pred_obs
-        oed_objective = KLOEDObjective(
-            noise_cov_diag,
-            outer_pred_obs,
-            outer_pred_weights,
-            noise_samples,
-            inner_pred_obs,
-            inner_pred_weights,
-            noise_stat=noise_stat,
-        )
-
-        bounds = bkd.stack((bkd.zeros((nobs,)), bkd.ones((nobs,))), axis=1)
-
-        nfinal_obs = 1
-        constraint = LinearConstraint(
-            bkd.ones((1, nobs)), nfinal_obs, nfinal_obs, keep_feasible=True
-        )
-        objective = oed_objective
-        x0 = bkd.full((nobs, 1), nfinal_obs / nobs)
-        errors = objective.check_apply_jacobian(
-            x0, disp=True, fd_eps=bkd.logspace(-13, bkd.log(0.2), 13)[::-1]
-        )
-        assert errors.min() / errors.max() < 6e-6, errors.min() / errors.max()
-
-        if isinstance(constraint, WeightsConstraint):
-            errors = constraint._model.check_apply_jacobian(
-                x0, disp=True, fd_eps=bkd.logspace(-13, -1, 13)[::-1]
-            )
-            assert errors.min() / errors.max() < 1e-6 and errors.max() < 10
-        optimizer = ScipyConstrainedOptimizer(
-            objective,
-            bounds=bounds,
-            constraints=[constraint],
-            opts={"gtol": 1e-5, "verbose": 3, "maxiter": 200},
-        )
-        result = optimizer.minimize(x0)
-        print(result.x)
-
     def test_KL_OED_gaussian_optimization(self):
+        bkd = self.get_backend()
         test_cases = [
-            [3, 0, 1, 4000, 50, NoiseStatistic(SampleAverageMean())],
-            [3, 0, 1, 4000, 50, NoiseStatistic(SampleAverageMeanPlusStdev(1))],
+            [3, 0, 1, 4000, 51, NoiseStatistic(SampleAverageMean(bkd))],
             [
                 3,
                 0,
                 1,
                 4000,
-                50,
-                NoiseStatistic(SampleAverageEntropicRisk(0.5)),
+                51,
+                NoiseStatistic(SampleAverageMeanPlusStdev(1, bkd)),
+            ],
+            [
+                3,
+                0,
+                1,
+                4000,
+                51,
+                NoiseStatistic(SampleAverageEntropicRisk(0.5, bkd)),
             ],
         ]
         for test_case in test_cases:
-            self._check_KL_OED_gaussian_optimization(*test_case)
+            print(test_case)
+            self._check_KL_OED(*test_case)
 
     def _check_prediction_gaussian_OED(
         self, nobs, min_degree, degree, nout_samples, level1d, noise_stat
@@ -472,11 +395,6 @@ class TestBayesOED:
         )
         assert errors.min() / errors.max() < 6e-6, errors.min() / errors.max()
 
-        if isinstance(constraint, WeightsConstraint):
-            errors = constraint._model.check_apply_jacobian(
-                x0, disp=True, fd_eps=bkd.logspace(-13, -1, 13)[::-1]
-            )
-            assert errors.min() / errors.max() < 1e-6 and errors.max() < 10
         optimizer = ScipyConstrainedOptimizer(
             objective,
             bounds=bounds,

@@ -292,6 +292,10 @@ class NumpyMixin(BackendMixin):
         return np.allclose(Amat, Bmat, **kwargs)
 
     @staticmethod
+    def isclose(Amat: np.ndarray, Bmat: np.ndarray, **kwargs) -> np.ndarray:
+        return np.isclose(Amat, Bmat, **kwargs)
+
+    @staticmethod
     def lstsq(Amat, Bmat):
         return np.linalg.lstsq(Amat, Bmat, rcond=None)[0]
 

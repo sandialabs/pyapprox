@@ -110,7 +110,7 @@ class ConstraintFromModel(Constraint):
 
 
 class OptimizerIterateGenerator(ABC):
-    def __init__(self, backend):
+    def __init__(self, backend: BackendMixin):
         self._bkd = backend
 
     @abstractmethod
@@ -122,7 +122,7 @@ class OptimizerIterateGenerator(ABC):
 
 
 class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
-    def __init__(self, nvars, backend=NumpyMixin):
+    def __init__(self, nvars, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         self._bounds = None
         self._nvars = nvars
@@ -478,14 +478,14 @@ class ChainedOptimizer(Optimizer):
 
 # TODO consider merging with multifidelity.stat
 class SampleAverageStat(ABC):
-    def __init__(self, backend=NumpyMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._bkd = backend
 
     def hessian_implemented(self) -> bool:
         return False
 
     @abstractmethod
-    def __call__(self, values, weights):
+    def __call__(self, values: Array, weights: Array) -> Array:
         """
         Compute the sample average statistic.
 
@@ -504,7 +504,7 @@ class SampleAverageStat(ABC):
         """
         raise NotImplementedError
 
-    def jacobian(self, values, jac_values, weights):
+    def jacobian(self, values: Array, jac_values: Array, weights: Array):
         """
         Compute the sample average jacobian.
 
@@ -526,7 +526,9 @@ class SampleAverageStat(ABC):
         """
         raise NotImplementedError
 
-    def apply_jacobian(self, values, jv_values, weights):
+    def apply_jacobian(
+        self, values: Array, jv_values: Array, weights: Array
+    ) -> Array:
         """
         Compute the sample average jacobian dot product with
         a vector.
@@ -549,7 +551,13 @@ class SampleAverageStat(ABC):
         """
         raise NotImplementedError
 
-    def hessian(self, values, jac_values, hess_values, weights):
+    def hessian(
+        self,
+        values: Array,
+        jac_values: Array,
+        hess_values: Array,
+        weights: Array,
+    ) -> Array:
         """
         Compute the sample average hessian.
 
@@ -574,7 +582,14 @@ class SampleAverageStat(ABC):
         """
         raise NotImplementedError
 
-    def apply_hessian(self, values, jv_values, hv_values, weights, lagrange):
+    def apply_hessian(
+        self,
+        values: Array,
+        jv_values: Array,
+        hv_values: Array,
+        weights: Array,
+        lagrange: Array,
+    ) -> Array:
         """
         Compute the sample average weighted combination of the
         Qoi, dot product with a vector.
@@ -603,50 +618,60 @@ class SampleAverageStat(ABC):
         """
         raise NotImplementedError
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}()".format(self.__class__.__name__)
 
 
 class SampleAverageMean(SampleAverageStat):
-    def __init__(self, backend=NumpyMixin):
-        super().__init__(backend)
-
     def hessian_implemented(self) -> bool:
         return True
 
-    def __call__(self, values, weights):
+    def __call__(self, values: Array, weights: Array) -> Array:
         # values.shape (nsamples, ncontraints)
         return (values.T @ weights).T
 
-    def jacobian(self, values, jac_values, weights):
+    def jacobian(
+        self, values: Array, jac_values: Array, weights: Array
+    ) -> Array:
         # jac_values.shape (nsamples, ncontraints, ndesign_vars)
+        print(values.shape, "V")
         return self._bkd.einsum("ijk,i->jk", jac_values, weights[:, 0])
 
-    def apply_jacobian(self, values, jv_values, weights):
+    def apply_jacobian(
+        self, values: Array, jv_values: Array, weights: Array
+    ) -> Array:
         # jac_values.shape (nsamples, ncontraints)
         return (jv_values[..., 0].T @ weights[:, 0])[:, None]
 
-    def hessian(self, values, jac_values, hess_values, weights):
+    def hessian(
+        self,
+        values: Array,
+        jac_values: Array,
+        hess_values: Array,
+        weights: Array,
+    ) -> Array:
         return self._bkd.einsum("ijkl,i->jkl", hess_values, weights[:, 0])
 
 
 class SampleAverageVariance(SampleAverageStat):
-    def __init__(self, backend=NumpyMixin):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend=backend)
         self._mean_stat = SampleAverageMean(backend=backend)
 
     def hessian_implemented(self) -> bool:
         return True
 
-    def _diff(self, values, weights):
+    def _diff(self, values: Array, weights: Array) -> Array:
         mean = self._mean_stat(values, weights).T
         return (values - mean[:, 0]).T
 
-    def __call__(self, values, weights):
+    def __call__(self, values: Array, weights: Array) -> Array:
         # values.shape (nsamples, ncontraints)
         return (self._diff(values, weights) ** 2 @ weights).T
 
-    def jacobian(self, values, jac_values, weights):
+    def jacobian(
+        self, values: Array, jac_values: Array, weights: Array
+    ) -> Array:
         # jac_values.shape (nsamples, ncontraints, ndesign_vars)
         mean_jac = self._mean_stat.jacobian(values, jac_values, weights)[
             None, :
@@ -655,13 +680,21 @@ class SampleAverageVariance(SampleAverageStat):
         tmp = 2 * self._diff(values, weights).T[..., None] * tmp
         return self._bkd.einsum("ijk,i->jk", tmp, weights[:, 0])
 
-    def apply_jacobian(self, values, jv_values, weights):
+    def apply_jacobian(
+        self, values: Array, jv_values: Array, weights: Array
+    ) -> Array:
         mean_jv = self._mean_stat.apply_jacobian(values, jv_values, weights)
         tmp = jv_values - mean_jv
         tmp = 2 * self._diff(values, weights).T * tmp[..., 0]
         return self._bkd.einsum("ij,i->j", tmp, weights[:, 0])
 
-    def hessian(self, values, jac_values, hess_values, weights):
+    def hessian(
+        self,
+        values: Array,
+        jac_values: Array,
+        hess_values: Array,
+        weights: Array,
+    ) -> Array:
         mean_jac = self._mean_stat.jacobian(values, jac_values, weights)[
             None, :
         ]
@@ -676,22 +709,32 @@ class SampleAverageVariance(SampleAverageStat):
 
 
 class SampleAverageStdev(SampleAverageVariance):
-    def __call__(self, samples, weights):
+    def __call__(self, samples: Array, weights: Array) -> Array:
         return self._bkd.sqrt(super().__call__(samples, weights))
 
-    def jacobian(self, values, jac_values, weights):
+    def jacobian(
+        self, values: Array, jac_values: Array, weights: Array
+    ) -> Array:
         variance_jac = super().jacobian(values, jac_values, weights)
         # d/dx y^{1/2} = 0.5y^{-1/2}
         tmp = 1 / (2 * self._bkd.sqrt(super().__call__(values, weights).T))
         return tmp * variance_jac
 
-    def apply_jacobian(self, values, jv_values, weights):
+    def apply_jacobian(
+        self, values: Array, jv_values: Array, weights: Array
+    ) -> Array:
         variance_jv = super().apply_jacobian(values, jv_values, weights)
         # d/dx y^{1/2} = 0.5y^{-1/2}
         tmp = 1 / (2 * self._bkd.sqrt(super().__call__(values, weights).T))
         return tmp * variance_jv[:, None]
 
-    def hessian(self, values, jac_values, hess_values, weights):
+    def hessian(
+        self,
+        values: Array,
+        jac_values: Array,
+        hess_values: Array,
+        weights: Array,
+    ) -> Array:
         variance_jac = super().jacobian(values, jac_values, weights)
         variance_hess = super().hessian(
             values, jac_values, hess_values, weights
@@ -710,8 +753,10 @@ class SampleAverageStdev(SampleAverageVariance):
 
 
 class SampleAverageMeanPlusStdev(SampleAverageStat):
-    def __init__(self, safety_factor):
-        super().__init__()
+    def __init__(
+        self, safety_factor: float, backend: BackendMixin = NumpyMixin
+    ):
+        super().__init__(backend)
         self._mean_stat = SampleAverageMean()
         self._stdev_stat = SampleAverageStdev()
         self._safety_factor = safety_factor
@@ -719,26 +764,36 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
     def hessian_implemented(self) -> bool:
         return True
 
-    def __call__(self, values, weights):
+    def __call__(self, values: Array, weights: Array) -> Array:
         return self._mean_stat(
             values, weights
         ) + self._safety_factor * self._stdev_stat(values, weights)
 
-    def jacobian(self, values, jac_values, weights):
+    def jacobian(
+        self, values: Array, jac_values: Array, weights: Array
+    ) -> Array:
         return self._mean_stat.jacobian(
             values, jac_values, weights
         ) + self._safety_factor * self._stdev_stat.jacobian(
             values, jac_values, weights
         )
 
-    def apply_jacobian(self, values, jv_values, weights):
+    def apply_jacobian(
+        self, values: Array, jv_values: Array, weights: Array
+    ) -> Array:
         return self._mean_stat.apply_jacobian(
             values, jv_values, weights
         ) + self._safety_factor * self._stdev_stat.apply_jacobian(
             values, jv_values, weights
         )
 
-    def hessian(self, values, jac_values, hess_values, weights):
+    def hessian(
+        self,
+        values: Array,
+        jac_values: Array,
+        hess_values: Array,
+        weights: Array,
+    ) -> Array:
         return self._mean_stat.hessian(
             values, jac_values, hess_values, weights
         ) + self._safety_factor * self._stdev_stat.hessian(
@@ -747,21 +802,23 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
 
 
 class SampleAverageEntropicRisk(SampleAverageStat):
-    def __init__(self, alpha, backend=NumpyMixin):
+    def __init__(self, alpha: float, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
         self._alpha = alpha
 
     def hessian_implemented(self) -> bool:
         return True
 
-    def __call__(self, values, weights):
+    def __call__(self, values: Array, weights: Array) -> Array:
         # values (nsamples, noutputs)
         return (
             self._bkd.log(self._bkd.exp(self._alpha * values.T) @ weights).T
             / self._alpha
         )
 
-    def jacobian(self, values, jac_values, weights):
+    def jacobian(
+        self, values: Array, jac_values: Array, weights: Array
+    ) -> Array:
         # jac_values (nsamples, noutputs, nvars)
         exp_values = self._bkd.exp(self._alpha * values)
         tmp = exp_values.T @ weights
@@ -779,7 +836,9 @@ class SampleAverageEntropicRisk(SampleAverageStat):
         )
         return jac / self._alpha
 
-    def apply_jacobian(self, values, jv_values, weights):
+    def apply_jacobian(
+        self, values: Array, jv_values: Array, weights: Array
+    ) -> Array:
         exp_values = self._bkd.exp(self._alpha * values)
         tmp = exp_values.T @ weights
         jv = (
@@ -793,7 +852,13 @@ class SampleAverageEntropicRisk(SampleAverageStat):
         )
         return jv / self._alpha
 
-    def hessian(self, values, jac_values, hess_values, weights):
+    def hessian(
+        self,
+        values: Array,
+        jac_values: Array,
+        hess_values: Array,
+        weights: Array,
+    ) -> Array:
         exp_values = self._bkd.exp(self._alpha * values)
         exp_jac = self._alpha * self._bkd.einsum(
             "ijk,i->jk", (exp_values[..., None] * jac_values), weights[:, 0]
@@ -818,7 +883,12 @@ class SampleAverageEntropicRisk(SampleAverageStat):
 
 
 class SmoothLogBasedMaxFunction:
-    def __init__(self, eps, threshold=None, backend=NumpyMixin):
+    def __init__(
+        self,
+        eps: float,
+        threshold: float = None,
+        backend: BackendMixin = NumpyMixin,
+    ):
         self._bkd = backend
         self._eps = eps
         if threshold is None:
@@ -828,11 +898,11 @@ class SmoothLogBasedMaxFunction:
     def jacobian_implemented(self) -> bool:
         return True
 
-    def _check_samples(self, samples):
+    def _check_samples(self, samples: Array):
         if samples.ndim != 2:
             raise ValueError("samples must be a 2D array")
 
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         self._check_samples(samples)
         x = samples
         x_div_eps = x / self._eps
@@ -848,7 +918,7 @@ class SmoothLogBasedMaxFunction:
         vals[J] = x[J]
         return vals
 
-    def jacobians(self, samples):
+    def jacobians(self, samples: Array) -> Array:
         # samples (noutputs, nsamples)
         # jac_values (nsamples, noutputs, noutputs)
         # but only return (nsamples, noutputs) because jac for each sample
@@ -867,14 +937,19 @@ class SmoothLogBasedMaxFunction:
 
 
 class SampleAverageConditionalValueAtRisk(SampleAverageStat):
-    def __init__(self, alpha, eps=1e-2, backend=NumpyMixin):
+    def __init__(
+        self,
+        alpha: float,
+        eps: float = 1e-2,
+        backend: BackendMixin = NumpyMixin,
+    ):
         super().__init__(backend)
         alpha = self._bkd.atleast1d(self._bkd.asarray(alpha))
         self._alpha = alpha
         self._max = SmoothLogBasedMaxFunction(eps, backend=self._bkd)
         self._t = None
 
-    def set_value_at_risk(self, t):
+    def set_value_at_risk(self, t: float):
         t = self._bkd.atleast1d(t)
         if t.shape[0] != self._alpha.shape[0]:
             msg = "VaR shape {0} and alpha shape {1} are inconsitent".format(
@@ -885,14 +960,16 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
             raise ValueError("t must be a 1D array")
         self._t = t
 
-    def __call__(self, values, weights):
+    def __call__(self, values: Array, weights: Array) -> Array:
         if values.shape[1] != self._t.shape[0]:
             raise ValueError("must specify a VaR for each QoI")
         return self._t + (self._max(values - self._t).T @ weights).T / (
             1 - self._alpha
         )
 
-    def jacobian(self, values, jac_values, weights):
+    def jacobian(
+        self, values: Array, jac_values: Array, weights: Array
+    ) -> Array:
         # grad withe respect to parameters of x
         max_jac = self._max.jacobians(values - self._t)
         param_jac = self._bkd.einsum(
@@ -907,15 +984,15 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
 class SampleAverageConstraint(ConstraintFromModel):
     def __init__(
         self,
-        model,
-        samples,
-        weights,
-        stat,
-        design_bounds,
-        nvars,
-        design_indices,
-        keep_feasible=False,
-        backend=NumpyMixin,
+        model: Model,
+        samples: Array,
+        weights: Array,
+        stat: SampleAverageStat,
+        design_bounds: Array,
+        nvars: int,
+        design_indices: Array,
+        keep_feasible: bool = False,
+        backend: BackendMixin = NumpyMixin,
     ):
         self._stat = stat
         super().__init__(model, design_bounds, keep_feasible, backend=backend)
@@ -959,7 +1036,7 @@ class SampleAverageConstraint(ConstraintFromModel):
             and self._stat.hessian_implemented()
         )
 
-    def _random_samples_at_design_sample(self, design_sample):
+    def _random_samples_at_design_sample(self, design_sample: Array) -> Array:
         # this is slow so only update design samples as self._samples is
         # always fixed
         # return ActiveSetVariableModel._expand_samples_from_indices(
@@ -970,13 +1047,13 @@ class SampleAverageConstraint(ConstraintFromModel):
         )
         return self._joint_samples
 
-    def _values(self, design_sample):
+    def _values(self, design_sample: Array) -> Array:
         self._check_sample(design_sample)
         samples = self._random_samples_at_design_sample(design_sample)
         values = self._model(samples)
         return self._stat(values, self._weights)
 
-    def _jacobian(self, design_sample):
+    def _jacobian(self, design_sample: Array) -> Array:
         samples = self._random_samples_at_design_sample(design_sample)
         # todo take advantage of model prallelism to compute
         # multiple jacobians. Also how to take advantage of
@@ -993,7 +1070,7 @@ class SampleAverageConstraint(ConstraintFromModel):
         )
         return self._stat.jacobian(values, jac_values, self._weights)
 
-    def _apply_jacobian(self, design_sample, vec):
+    def _apply_jacobian(self, design_sample: Array, vec: Array) -> Array:
         samples = self._random_samples_at_design_sample(design_sample)
         # todo take advantage of model prallelism to compute
         # multiple apply_jacs
@@ -1008,7 +1085,7 @@ class SampleAverageConstraint(ConstraintFromModel):
         )
         return self._stat.apply_jacobian(values, jv_values, self._weights)
 
-    def _hessian(self, design_sample):
+    def _hessian(self, design_sample: Array) -> Array:
         # TODO: reuse values if design sample is the same as used to last call
         # to _values same for jac_values
         samples = self._random_samples_at_design_sample(design_sample)
@@ -1030,7 +1107,7 @@ class SampleAverageConstraint(ConstraintFromModel):
             values, jac_values, hess_values, self._weights
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(model={1}, stat={2})".format(
             self.__class__.__name__, self._model, self._stat
         )
@@ -1039,14 +1116,14 @@ class SampleAverageConstraint(ConstraintFromModel):
 class CVaRSampleAverageConstraint(SampleAverageConstraint):
     def __init__(
         self,
-        model,
-        samples,
-        weights,
-        stat,
-        design_bounds,
-        nvars,
-        design_indices,
-        keep_feasible=False,
+        model: Model,
+        samples: Array,
+        weights: Array,
+        stat: SampleAverageStat,
+        design_bounds: Array,
+        nvars: int,
+        design_indices: Array,
+        keep_feasible: bool = False,
     ):
         if not isinstance(stat, SampleAverageConditionalValueAtRisk):
             msg = "stat not instance of SampleAverageConditionalValueAtRisk"
@@ -1074,14 +1151,14 @@ class CVaRSampleAverageConstraint(SampleAverageConstraint):
         # jacobian apply will fail due to passing around VaR
         return False
 
-    def __call__(self, design_sample):
+    def __call__(self, design_sample: Array) -> Array:
         # have to ovewrite call instead of just defining values
         # to avoid error check that will not work here
         # assumes avar variable t is at the end of design_sample
         self._stat.set_value_at_risk(design_sample[-self._nconstraints :, 0])
         return super()._values(design_sample[: -self._nconstraints])
 
-    def _jacobian(self, design_sample):
+    def _jacobian(self, design_sample: Array) -> Array:
         self._stat.set_value_at_risk(design_sample[-self._nconstraints :, 0])
         jac = super()._jacobian(design_sample[: -self._nconstraints])
         return jac
@@ -1121,22 +1198,22 @@ class ObjectiveWithCVaRConstraints(Model):
     def nvars(self) -> int:
         return self._ndesign_vars + self._ncvar_constraints
 
-    def _values(self, design_samples):
+    def _values(self, design_samples: Array) -> Array:
         return self._model(design_samples[: -self._ncvar_constraints])
 
-    def _apply_jacobian(self, design_sample, vec):
+    def _apply_jacobian(self, design_sample: Array, vec: Array) -> Array:
         return self._model.apply_jacobian(
             design_sample[: -self._ncvar_constraints],
             vec[: -self._ncvar_constraints],
         )
 
-    def _jacobian(self, design_sample):
+    def _jacobian(self, design_sample: Array) -> Array:
         jac = self._model.jacobian(design_sample[: -self._ncvar_constraints])
         return self._bkd.hstack(
             (jac, self._bkd.zeros((jac.shape[0], self._ncvar_constraints)))
         )
 
-    def _hessian(self, design_sample):
+    def _hessian(self, design_sample: Array) -> Array:
         model_hess = self._model.hessian(
             design_sample[: -self._ncvar_constraints]
         )
@@ -1160,7 +1237,7 @@ def approx_jacobian(
     epsilon: float = np.sqrt(np.finfo(float).eps),
     bkd: BackendMixin = NumpyMixin,
     forward: bool = True,
-):
+) -> Array:
     x0 = bkd.asarray(x)
     assert x0.ndim == 1 or x0.shape[1] == 1
     f0 = bkd.atleast2d(func(x0))
@@ -1183,8 +1260,11 @@ def approx_jacobian(
 
 
 def approx_hessian(
-    jac_fun, x, epsilon=np.sqrt(np.finfo(float).eps), bkd=NumpyMixin
-):
+    jac_fun: callable,
+    x: Array,
+    epsilon: float = np.sqrt(np.finfo(float).eps),
+    bkd: BackendMixin = NumpyMixin,
+) -> Array:
     return approx_jacobian(lambda y: jac_fun(y), x, epsilon, bkd=bkd)
 
 
