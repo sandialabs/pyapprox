@@ -634,7 +634,6 @@ class SampleAverageMean(SampleAverageStat):
         self, values: Array, jac_values: Array, weights: Array
     ) -> Array:
         # jac_values.shape (nsamples, ncontraints, ndesign_vars)
-        print(values.shape, "V")
         return self._bkd.einsum("ijk,i->jk", jac_values, weights[:, 0])
 
     def apply_jacobian(
@@ -757,8 +756,8 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
         self, safety_factor: float, backend: BackendMixin = NumpyMixin
     ):
         super().__init__(backend)
-        self._mean_stat = SampleAverageMean()
-        self._stdev_stat = SampleAverageStdev()
+        self._mean_stat = SampleAverageMean(backend=self._bkd)
+        self._stdev_stat = SampleAverageStdev(backend=self._bkd)
         self._safety_factor = safety_factor
 
     def hessian_implemented(self) -> bool:

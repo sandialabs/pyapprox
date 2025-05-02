@@ -183,7 +183,6 @@ class NoiseStatistic:
         return self._stat.__call__(outer_vals, outer_weights)
 
     def jacobian(self, outer_vals, outer_jacs, outer_weights):
-        print(outer_vals.shape, outer_weights.shape)
         return self._stat.jacobian(
             outer_vals, outer_jacs[..., None], outer_weights
         ).T
@@ -278,10 +277,8 @@ class KLOEDObjective(BayesianOEDObjective):
         jac_outer_log_like = self._outer_oed_loglike.jacobian(design_weights)
         jac_outer_log_like = self._reshape_jacobian(jac_outer_log_like)
         outer_weights = self._outer_oed_loglike._pred_weights
-        print(outer_log_like_vals.shape, log_evidences.shape, "s")
-        print(jac_outer_log_like.shape, jac_log_evidences.shape, "a")
         jac = self._noise_stat.jacobian(
-            outer_log_like_vals - log_evidences,
+            (outer_log_like_vals - log_evidences).T,
             jac_outer_log_like - jac_log_evidences,
             outer_weights,
         )
@@ -382,17 +379,15 @@ class PredictionOEDObjective(KLOEDObjective):
         noise_cov_diag: Array,
         outer_pred_obs: Array,
         outer_pred_weights: Array,
-        noise_samples: Array,
         inner_pred_obs: Array,
         inner_pred_weights: Array,
-        noise_stat: NoiseStatistic = NoiseStatistic(SampleAverageMean()),
+        noise_stat: NoiseStatistic = None,
         backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(
             noise_cov_diag,
             outer_pred_obs,
             outer_pred_weights,
-            noise_samples,
             inner_pred_obs,
             inner_pred_weights,
             backend=backend,
@@ -401,36 +396,6 @@ class PredictionOEDObjective(KLOEDObjective):
     def __call__(self, design_weights: Array) -> Array:
         evidences = self._log_evidence._evidence(design_weights)
         deviations = None
-
-
-class SparseOEDObjective(Model):
-    def __init__(self, objective: Model, penalty: float):
-        super().__init__(backend=objective._bkd)
-        self._objective = objective
-        self._penalty = penalty
-
-    def jacobian_implemented(self) -> bool:
-        return self._objective.jacobian_implemented()
-
-    def _l1norm(self, weights: Array) -> float:
-        # assumes weights are positive
-        return self._bkd.sum(weights)
-
-    def _l1norm_jac(self, weights: Array) -> Array:
-        # assumes weights are positive
-        return self._bkd.ones((1, weights.shape[0]))
-
-    def __call__(self, weights: Array) -> Array:
-        assert self._bkd.all(weights >= 0)
-        # neagtive penalty because we are minimizing negative KL divergence
-        return self._objective(weights) - self._penalty * self._l1norm(weights)
-
-    def _jacobian(self, weights: Array) -> Array:
-        assert self._bkd.all(weights >= 0)
-        # neagtive penalty because we are minimizing negative KL divergence
-        return self._objective.jacobian(
-            weights
-        ) - self._penalty * self._l1norm_jac(weights)
 
 
 class DOptimalLinearModelObjective(BayesianOEDObjective):
