@@ -25,6 +25,16 @@ from pyapprox.optimization.minimize import (
 )
 
 
+def default_groupacv_optimizer():
+    opt1 = GroupACVGradientOptimizer(
+        ScipyConstrainedDifferentialEvolutionOptimizer(opts={"maxiter": 20})
+    )
+    local_opt = ScipyConstrainedOptimizer()
+    opt2 = GroupACVGradientOptimizer(local_opt)
+
+    return ChainedACVOptimizer(opt1, opt2)
+
+
 def get_model_subsets(
     nmodels: int, bkd: BackendMixin, max_subset_nmodels: int = None
 ):
@@ -296,7 +306,7 @@ class GroupACVConstraint(Constraint):
         self._bkd = self._est._bkd
 
 
-class GroupACVCostContstraint(GroupACVConstraint):
+class GroupACVCostConstraint(GroupACVConstraint):
     def __init__(self, bounds: Array, keep_feasible: bool = True):
         if bounds.shape[0] != self.nqoi():
             # the number of columns is checked with call to super().__init__
@@ -421,16 +431,18 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         for ii in range(self._optimizer._bounds.shape[0]):
             self._optimizer._bounds[ii, 1] = max_npartition_samples
 
-    def get_objective(self) -> GroupACVObjective:
-        #    return GroupACVTraceObjective()
-        return GroupACVLogDetObjective()
+    def get_objective(self):
+        if not hasattr(self._est, "_objective"):
+            return self._est.default_objective()
+        return self._est._objective
 
     def set_estimator(self, est: "GroupACVEstimator"):
         super().set_estimator(est)
         objective = self.get_objective()
+        print(self)
         objective.set_estimator(self._est)
         self._optimizer.set_objective_function(objective)
-        self._constraint = GroupACVCostContstraint(
+        self._constraint = GroupACVCostConstraint(
             bounds=self._bkd.array([[0, np.inf], [0, np.inf]])
         )
         self._constraint.set_estimator(self._est)
@@ -445,9 +457,12 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         )
         self._objective = self._optimizer._objective
 
+    def __repr__(self) -> str:
+        return "{0}({1})".format(self.__class__.__name__, self._optimizer)
+
 
 class MLBLUEGradientOptimizer(GroupACVGradientOptimizer):
-    def get_objective(self):
+    def get_objective(self) -> GroupACVObjective:
         return MLBLUEObjective()
 
 
@@ -466,10 +481,19 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
         self._min_nlf_samples = None
         self._solver_name = solver_name
 
+    def set_estimator(
+        self, est: "GroupACVEstimator", objective=MLBLUEObjective()
+    ):
+        super().set_estimator(est)
+        # used to compute objective at rounded_npartition_samples
+        # after optimization completes
+        self._objective = objective
+        self._objective.set_estimator(est)
+
     def _cvxpy_psi(self, nsps_cvxpy):
         Psi = self._est._psi_blocks_flat @ nsps_cvxpy
         Psi = self._cvxpy.reshape(
-            Psi, (self._est.nmodels(), self._est.nmodels())
+            Psi, (self._est.nmodels(), self._est.nmodels()), order="F"
         )
         return Psi
 
@@ -478,7 +502,10 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
         mat = self._cvxpy.bmat(
             [
                 [Psi, self._est._asketch.T],
-                [self._est._asketch, self._cvxpy.reshape(t_cvxpy, (1, 1))],
+                [
+                    self._est._asketch,
+                    self._cvxpy.reshape(t_cvxpy, (1, 1), order="F"),
+                ],
             ]
         )
         return mat
@@ -486,7 +513,11 @@ class MLBLUESPDOptimizer(GroupACVOptimizer):
     def _init_guess(self):
         return None
 
-    def _minimize(self, iterate):
+    def _minimize(self, iterate: Array) -> OptimizationResult:
+        if not isinstance(self._est._stat, MultiOutputMean):
+            raise RuntimeError(
+                "SPD solver only works whe estimating a single mean"
+            )
         if self._est._stat.nstats() != 1:
             raise RuntimeError("SPD solver only works for single outputs")
         # if iterate is not None:
@@ -591,7 +622,6 @@ class GroupACVEstimator:
         self._npartition_samples_lb = 0  # 1e-5
         self._optimized_criteria = None
         self._asketch = self._validate_asketch(asketch)
-        self._objective = None
 
     def nsubsets(self) -> int:
         return len(self._subsets)
@@ -843,7 +873,7 @@ class GroupACVEstimator:
         # with torch if npartition samples is not torch.double need to
         # think of a check that works for all backends
         if round_nsamples:
-            # add 1e-15 to avoid rounding down value that is at the constraint
+            # add 1e-4 to avoid rounding down value that is at the constraint
             # boundary but has numerical noise. Best value depends on
             # constraint satisfaction tolerance
             rounded_npartition_samples = self._bkd.floor(
@@ -880,17 +910,14 @@ class GroupACVEstimator:
             )
         return asketch
 
-    def get_default_optimizer(self) -> ChainedACVOptimizer:
-        opt1 = GroupACVGradientOptimizer(
-            ScipyConstrainedDifferentialEvolutionOptimizer(
-                opts={"maxiter": 20}
-            )
-        )
-        local_opt = ScipyConstrainedOptimizer()
-        local_opt._opts["gtol"] = 1e-8
-        opt2 = GroupACVGradientOptimizer(local_opt)
+    def default_objective(self) -> GroupACVObjective:
+        return GroupACVLogDetObjective()
 
-        return ChainedACVOptimizer(opt1, opt2)
+    def set_objective(self, objective: GroupACVObjective):
+        self._objective = objective
+
+    def get_default_optimizer(self) -> ChainedACVOptimizer:
+        return default_groupacv_optimizer()
 
     def set_optimizer(
         self, optimizer: Union[GroupACVOptimizer, ChainedACVOptimizer]
@@ -1399,3 +1426,6 @@ class MLBLUEEstimator(GroupACVEstimator):
 # must also install cvxopt via
 # pip install cvxopt
 # pip install cvxpy
+
+# alternative this seems to work
+# pip install "cvxpy[CVXOPT]"

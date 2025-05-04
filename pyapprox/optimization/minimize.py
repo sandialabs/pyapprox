@@ -33,7 +33,7 @@ class OptimizationResult(dict):
     def __dir__(self):
         return list(self.keys())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__class__.__name__ + (
             "(\n\t x[:, 0]={0}, \n\t fun={1}, \n\t attr={2})".format(
                 self.x[:, 0], self.fun, list(self.keys())
@@ -117,7 +117,7 @@ class OptimizerIterateGenerator(ABC):
     def __call__(self):
         raise NotImplementedError
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
 
@@ -155,8 +155,6 @@ class RandomUniformOptimzerIterateGenerator(OptimizerIterateGenerator):
         )[:, None]
 
 
-# TODO Some optimizer classes here are duplicated in
-# pyapprox.bases.optimsers. Merge and remove duplicate code
 class Optimizer(ABC):
     def __init__(self, opts={}):
         self._bkd = None
@@ -356,7 +354,7 @@ class MultiStartOptimizer(OptimizerWithObjective):
             raise RuntimeError("All optimizations failed")
         return best_res
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(optimizer={1}, ncandidates={2})".format(
             self.__class__.__name__, self._optimizer, self._ncandidates
         )
@@ -474,6 +472,11 @@ class ChainedOptimizer(Optimizer):
         self._verbosity = verbosity
         self._optimizer1.set_verbosity(verbosity)
         self._optimizer2.set_verbosity(verbosity)
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__, self._optimizer1, self._optimizer2
+        )
 
 
 # TODO consider merging with multifidelity.stat
@@ -1419,7 +1422,7 @@ class SlackBasedConstraintFromModel(Constraint):
     def nvars(self) -> int:
         return self._model.nvars() + self.nslack()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
 
 
@@ -1593,7 +1596,7 @@ class SlackBasedOptimizer:
             + self._adjust_constraints(constraints)
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(optimizer={1})".format(
             self.__class__.__name__, self._optimizer
         )

@@ -15,6 +15,7 @@ from pyapprox.multifidelity.groupacv import (
     MLBLUESPDOptimizer,
     ChainedACVOptimizer,
     MLBLUEGradientOptimizer,
+    GroupACVTraceObjective,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.backends.torch import TorchMixin
@@ -196,7 +197,7 @@ class TestGroupACV:
         opt.set_estimator(gest)
         opt.set_budget(target_cost)
         errors = opt._optimizer._objective.check_apply_jacobian(
-            iterate, disp=True
+            iterate, disp=False
         )
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
         errors = opt._optimizer._objective.check_apply_hessian(iterate)
@@ -213,14 +214,14 @@ class TestGroupACV:
 
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
         opt = GroupACVGradientOptimizer(local_opt)
-        local_opt.set_verbosity(3)
+        local_opt.set_verbosity(0)
         # opt = MLBLUEGradientOptimizer(local_opt)
         opt.set_estimator(mlest)
         opt.set_budget(target_cost)
         errors = opt._optimizer._objective.check_apply_jacobian(iterate)
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.05
         errors = opt._optimizer._objective.check_apply_hessian(
-            iterate, disp=True
+            iterate, disp=False
         )
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.01
 
@@ -255,7 +256,7 @@ class TestGroupACV:
         gopt.set_estimator(gest)
         gopt.set_budget(target_cost)
         errors = gopt._optimizer._objective.check_apply_jacobian(
-            iterate, disp=True
+            iterate, disp=False
         )
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
         errors = gopt._optimizer._objective.check_apply_hessian(iterate)
@@ -319,26 +320,22 @@ class TestGroupACV:
         stat.set_pilot_quantities(cov)
         mlest = MLBLUEEstimator(stat, costs, reg_blue=0)
         opt = MLBLUESPDOptimizer()
+        # pass in trace objective
         opt.set_estimator(mlest)
         mlest.set_optimizer(opt)
         mlest.allocate_samples(target_cost, min_nhf_samples)
 
         gest = MLBLUEEstimator(stat, costs, reg_blue=0)
-        opt1 = GroupACVGradientOptimizer(
-            ScipyConstrainedDifferentialEvolutionOptimizer(
-                opts={"maxiter": 20, "disp": True}
-            )
-        )
-        opt1.set_estimator(gest)
-        scipy_opt = ScipyConstrainedOptimizer(opts={"gtol": 1e-9})
-        scipy_opt.set_verbosity(3)
-        opt2 = GroupACVGradientOptimizer(scipy_opt)
-        opt2.set_estimator(gest)
-        opt = ChainedACVOptimizer(opt1, opt2)
-        gest.set_optimizer(opt)
+        # pass in trace objective to make consistent with MLBLUE objective
+        gest.set_objective(GroupACVTraceObjective())
+        gest.set_optimizer(gest.get_default_optimizer())
+        # set tolerance very strict so that when samples are rounded
+        # numbers close to integer are rounded consistently by spd
+        # and gradient optimization
+        gest._optimizer._optimizer2._optimizer._opts["gtol"] = 1e-14
         iterate = gest._init_guess(target_cost)
         gest.allocate_samples(target_cost, min_nhf_samples, iterate=iterate)
-        # print(gest._optimized_criteria-mlest._optimized_criteria)
+        # print(gest._optimized_criteria - mlest._optimized_criteria)
         assert np.allclose(
             gest._optimized_criteria, mlest._optimized_criteria, rtol=1e-3
         )

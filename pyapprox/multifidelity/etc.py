@@ -6,11 +6,11 @@ import numpy as np
 from pyapprox.multifidelity.groupacv import (
     MLBLUEEstimator,
     get_model_subsets,
-    # MLBLUESPDOptimizer,
-    MLBLUEGradientOptimizer,
     GroupACVOptimizer,
     ChainedACVOptimizer,
+    default_groupacv_optimizer,
 )
+
 from pyapprox.multifidelity.stats import MultiOutputMean
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -583,8 +583,7 @@ class AETCBLUE(AETC):
             Second element is the Oracle means of the models.
         """
         if optimizer is None:
-            # optimizer = MLBLUESPDOptimizer()
-            optimizer = MLBLUEGradientOptimizer(ScipyConstrainedOptimizer())
+            optimizer = default_groupacv_optimizer()
         self.set_optimizer(optimizer)
         super().__init__(models, rvs, costs, oracle_stats, backend=backend)
         self._reg_blue = reg_blue
