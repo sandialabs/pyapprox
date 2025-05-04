@@ -226,7 +226,7 @@ class MLBLUEObjective(GroupACVTraceObjective):
             self._est._stat,
         )
         # compute psi matrix with partition sizes
-        # todo cache psi_matrix when it is computed when evaluatin objective
+        # todo cache psi_matrix when it is computed when evaluating objective
         psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
         psi_inv = self._est._inv(psi_matrix)
         Rmats = self._est._restriction_matrices

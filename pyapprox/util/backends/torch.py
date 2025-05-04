@@ -314,7 +314,7 @@ class TorchMixin(BackendMixin):
 
     @staticmethod
     def to_numpy(mat: torch.Tensor):
-        return mat.numpy()
+        return mat.detach().numpy()
 
     @staticmethod
     def argsort(mat: torch.Tensor, axis=-1) -> torch.Tensor:

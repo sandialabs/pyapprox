@@ -162,12 +162,13 @@ class TestVariationalInference:
         noise_std = 0.01
         nobs = 2
         noise_cov = noise_std**2 * bkd.eye(nobs)
-        a1, b1 = 2, 3
+        # a1, b1 = 2, 3
+        a1, b1 = 1.4444, 14.5701
         a2, b2 = 3, 3
         bounds = [0, 1]
         marginals = [
-            BetaMarginal(a1, b1, *bounds),
-            BetaMarginal(a2, b2, *bounds),
+            BetaMarginal(a1, b1, *bounds, backend=bkd),
+            BetaMarginal(a2, b2, *bounds, backend=bkd),
         ]
         prior = IndependentMarginalsVariable(marginals)
         loglike, obs, obs_model = self._setup_linear_model_gaussian_loglike(
@@ -181,6 +182,7 @@ class TestVariationalInference:
             nlatent_samples,
             ashapes,
             bshapes,
+            prior.interval(1),
             backend=bkd,
         )
         divergence = (
@@ -189,7 +191,10 @@ class TestVariationalInference:
             )
         )
         vi = VariationalInverseProblem(prior, loglike, divergence)
-        vi.fit()
+        iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
+        errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=True)
+        # assert errors.min() / errors.max() < 1e-6
+        # vi.fit()
         # TODO instead of passing around divergence object
         # make divergence proprty of posterior
         print(vi)

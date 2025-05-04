@@ -25,6 +25,7 @@ from pyapprox.util.hyperparameter import (
     HyperParameterList,
     CholeskyHyperParameter,
 )
+from pyapprox.variables.marginals import BetaMarginal
 from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
     IndependentMultivariateGaussian,
@@ -177,7 +178,8 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         nvars: int,
         nlatent_samples: int,
         ashape_values: Array,
-        bshape_values: Array = None,
+        bshape_values: Array,
+        bounds: Array,
         ashape_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         bshape_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         backend: BackendMixin = NumpyMixin,
@@ -200,6 +202,18 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
             backend=self._bkd,
         )
         self._hyp_list = HyperParameterList([self._ashapes, self._bshapes])
+        if bounds.shape != (nvars, 2):
+            raise ValueError("Bounds has the wrong shape")
+        marginals = [
+            BetaMarginal(
+                ashape_values[ii],
+                bshape_values[ii],
+                *bounds[ii],
+                backend=self._bkd,
+            )
+            for ii in range(nvars)
+        ]
+        self._variable = IndependentMarginalsVariable(marginals)
 
     def _generate_latent_samples(self, nsamples: int):
         return self._bkd.asarray(
@@ -207,7 +221,19 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         )
 
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
-        return self._beta_dist.ppf(latent_samples)
+        return self._bkd.stack(
+            [
+                marginal.ppf(latent_samples[ii])
+                for ii, marginal in enumerate(self._variable.marginals())
+            ],
+            axis=0,
+        )
+
+    def marginals(self):
+        return self._variable.marginals()
+
+    def kl_divergence(self, other):
+        return self._variable.kl_divergence(other)[:, None]
 
 
 class KLDivergenceForVariationalInference(ABC):
@@ -332,7 +358,7 @@ class IndependentMarginalsVariableKLDivergenceForVariationalInference(
         ashapes = self._posterior._ashapes.get_values()[:, None]
         bshapes = self._posterior._bshapes.get_values()[:, None] ** 2
         for ii, marginal in enumerate(self._posterior.marginals()):
-            marginal.set_shape(ashapes[ii], bshapes[ii])
+            marginal.set_shapes(ashapes[ii], bshapes[ii])
 
 
 class NegELBO(Model):
