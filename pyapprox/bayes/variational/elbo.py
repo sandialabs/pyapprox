@@ -145,7 +145,7 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         nlatent_samples: int,
         std_diag_values: Array,
         mean_values: Array = None,
-        std_diag_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
+        std_diag_bounds: Union[Tuple[float, float], Array] = (0, np.inf),
         mean_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         backend: BackendMixin = NumpyMixin,
     ):

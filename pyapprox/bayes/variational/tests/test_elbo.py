@@ -156,6 +156,10 @@ class TestVariationalInference:
             )
 
     def test_independent_beta_vi(self):
+        # TODO: create class that uses same independence divergence as used here
+        # bust using gaussian posteriors to better check this code where
+        # no closed form solution exists.
+
         bkd = self.get_backend()
         noise_std = 0.01
         nobs = 2
