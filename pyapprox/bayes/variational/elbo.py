@@ -2,16 +2,16 @@ from abc import ABC, abstractmethod
 import warnings
 from typing import Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from pyapprox.variables.joint import JointVariable
-from pyapprox.interface.model import Model
+from pyapprox.interface.model import SingleSampleModel
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.optimization.risk import (
     CholeskyBasedGaussianExactKLDivergence,
     IndependentGaussianExactKLDivergence,
-    ExactKLDivergence,
 )
 from pyapprox.bayes.likelihood import ModelBasedLogLikelihoodMixin
 from pyapprox.optimization.minimize import (
@@ -31,7 +31,7 @@ from pyapprox.variables.gaussian import (
     IndependentMultivariateGaussian,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
-
+from pyapprox.util.visualization import get_meshgrid_samples
 
 # TODO implement diagonal plus low rank Gaussian covariance based divergence see
 # https://proceedings.neurips.cc/paper_files/paper/2020/file/310cc7ca5a76a446f85c1a0d641ba96d-Paper.pdf
@@ -77,7 +77,7 @@ class VariationalPosterior(ABC):
 class CholeskyGaussianVariationalPosterior(VariationalPosterior):
     def __init__(
         self,
-        nvars: int,
+        prior: DenseCholeskyMultivariateGaussian,
         nlatent_samples: int,
         flattened_cholesky_values: Array,  # only entries on and below diagonal
         mean_values: Array = None,
@@ -85,6 +85,7 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
         mean_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         backend: BackendMixin = NumpyMixin,
     ):
+        nvars = prior.nvars()
         super().__init__(nvars, nlatent_samples, backend)
         if mean_values is None:
             mean_values = backend.zeros((nvars))
@@ -105,6 +106,7 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
             backend=self._bkd,
         )
         self._hyp_list = HyperParameterList([self._mean, self._cholesky])
+        self._setup_divergence(prior)
 
     def mean(self) -> Array:
         return self._mean.get_values()[:, None]
@@ -122,11 +124,24 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
         chol = self._cholesky.get_cholesky_factor()
         return self.mean() + chol @ latent_samples
 
+    def update(self):
+        mean1 = self._mean.get_values()[:, None]
+        chol1 = self._cholesky.get_cholesky_factor()
+        self._divergence.set_left_distribution(mean1, chol1)
+
+    def _setup_divergence(self, prior: IndependentMultivariateGaussian):
+        self._divergence = CholeskyBasedGaussianExactKLDivergence(
+            prior.nvars(), prior._bkd
+        )
+        self._divergence.set_right_distribution(
+            prior.mean(), prior.covariance()
+        )
+
 
 class IndependentGaussianVariationalPosterior(VariationalPosterior):
     def __init__(
         self,
-        nvars: int,
+        prior: IndependentMultivariateGaussian,
         nlatent_samples: int,
         std_diag_values: Array,
         mean_values: Array = None,
@@ -134,6 +149,7 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         mean_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         backend: BackendMixin = NumpyMixin,
     ):
+        nvars = prior.nvars()
         super().__init__(nvars, nlatent_samples, backend)
         if mean_values is None:
             mean_values = backend.zeros((nvars))
@@ -154,6 +170,7 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
             backend=self._bkd,
         )
         self._hyp_list = HyperParameterList([self._mean, self._std_diag])
+        self._setup_divergence(prior)
 
     def mean(self) -> Array:
         return self._mean.get_values()[:, None]
@@ -171,19 +188,33 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
             self.mean() + self._std_diag.get_values()[:, None] * latent_samples
         )
 
+    def _setup_divergence(self, prior: IndependentMultivariateGaussian):
+        self._divergence = IndependentGaussianExactKLDivergence(
+            prior.nvars(), prior._bkd
+        )
+        self._divergence.set_right_distribution(
+            prior.mean(), prior.covariance_diagonal()[:, None]
+        )
+
+    def update(self):
+        mean1 = self._mean.get_values()[:, None]
+        diag1 = self._std_diag.get_values()[:, None] ** 2
+        self._divergence.set_left_distribution(mean1, diag1)
+
 
 class IndependentBetaVariationalPosterior(VariationalPosterior):
     def __init__(
         self,
-        nvars: int,
+        prior: IndependentMarginalsVariable,
         nlatent_samples: int,
         ashape_values: Array,
         bshape_values: Array,
         bounds: Array,
-        ashape_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
-        bshape_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
+        ashape_bounds: Union[Tuple[float, float], Array] = (1, np.inf),
+        bshape_bounds: Union[Tuple[float, float], Array] = (1, np.inf),
         backend: BackendMixin = NumpyMixin,
     ):
+        nvars = prior.nvars()
         super().__init__(nvars, nlatent_samples, backend)
         self._ashapes = HyperParameter(
             "ashapes",
@@ -204,16 +235,27 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         self._hyp_list = HyperParameterList([self._ashapes, self._bshapes])
         if bounds.shape != (nvars, 2):
             raise ValueError("Bounds has the wrong shape")
+        # nquad samples effects accuracy of variational inference gradients
         marginals = [
             BetaMarginal(
                 ashape_values[ii],
                 bshape_values[ii],
                 *bounds[ii],
+                nquad_samples=1001,
                 backend=self._bkd,
             )
             for ii in range(nvars)
         ]
-        self._variable = IndependentMarginalsVariable(marginals)
+        self._variable = IndependentMarginalsVariable(
+            marginals, backend=self._bkd
+        )
+        self._prior = prior
+
+    def update(self):
+        ashapes = self._ashapes.get_values()[:, None]
+        bshapes = self._bshapes.get_values()[:, None]
+        for ii, marginal in enumerate(self.marginals()):
+            marginal.set_shapes(ashapes[ii], bshapes[ii])
 
     def _generate_latent_samples(self, nsamples: int):
         return self._bkd.asarray(
@@ -232,152 +274,26 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
     def marginals(self):
         return self._variable.marginals()
 
-    def kl_divergence(self, other):
-        return self._variable.kl_divergence(other)[:, None]
+    def _divergence(self):
+        return self._variable.kl_divergence(self._prior)[:, None]
 
 
-class KLDivergenceForVariationalInference(ABC):
-    def __init__(self, prior: JointVariable, posterior: VariationalPosterior):
-        self._bkd = posterior._bkd
-        self._prior = prior
-        self._posterior = posterior
-
-    @abstractmethod
-    def _values(self, samples: Array) -> Array:
-        raise NotImplementedError
-
-    def __call__(self) -> float:
-        return self._values()
-
-    def __repr__(self) -> str:
-        return "{0}(prior={1}, posterior={2})".format(
-            self.__class__.__name__,
-            self._prior,
-            self._posterior,
-        )
-
-    def update(self):
-        return
-
-
-class CholeskyGaussianKLDivergenceForVariationalInference(
-    KLDivergenceForVariationalInference
-):
-    def __init__(
-        self,
-        prior: DenseCholeskyMultivariateGaussian,
-        posterior: CholeskyGaussianVariationalPosterior,
-    ):
-        if not isinstance(prior, DenseCholeskyMultivariateGaussian):
-            raise ValueError(
-                "prior must be an instance of DenseCholeskyMultivariateGaussian"
-            )
-        if not isinstance(posterior, CholeskyGaussianVariationalPosterior):
-            raise ValueError(
-                "posterior must be an instance of "
-                "CholeskyGaussianVariationalPosterior"
-            )
-        super().__init__(prior, posterior)
-        self._divergence = CholeskyBasedGaussianExactKLDivergence(
-            prior.nvars(), prior._bkd
-        )
-        self._divergence.set_right_distribution(
-            prior.mean(), prior.covariance()
-        )
-
-    def _values(self) -> float:
-        return self._divergence()
-
-    def update(self):
-        mean1 = self._posterior._mean.get_values()[:, None]
-        chol1 = self._posterior._cholesky.get_cholesky_factor()
-        self._divergence.set_left_distribution(mean1, chol1)
-
-
-class IndependentGaussianKLDivergenceForVariationalInference(
-    KLDivergenceForVariationalInference
-):
-    def __init__(
-        self,
-        prior: IndependentMultivariateGaussian,
-        posterior: IndependentGaussianVariationalPosterior,
-    ):
-        if not isinstance(prior, IndependentMultivariateGaussian):
-            raise ValueError(
-                "prior must be an instance of "
-                "IndependentMultivariateGaussian"
-            )
-        if not isinstance(posterior, IndependentGaussianVariationalPosterior):
-            raise ValueError(
-                "posterior must be an instance of "
-                "IndependentGaussianVariationalPosterior"
-            )
-        super().__init__(prior, posterior)
-        self._divergence = IndependentGaussianExactKLDivergence(
-            prior.nvars(), prior._bkd
-        )
-        self._divergence.set_right_distribution(
-            prior.mean(), prior.covariance_diagonal()[:, None]
-        )
-
-    def _values(self) -> float:
-        return self._divergence()
-
-    def update(self):
-        mean1 = self._posterior._mean.get_values()[:, None]
-        diag1 = self._posterior._std_diag.get_values()[:, None] ** 2
-        self._divergence.set_left_distribution(mean1, diag1)
-
-
-class IndependentMarginalsVariableKLDivergenceForVariationalInference(
-    KLDivergenceForVariationalInference
-):
-    def __init__(
-        self,
-        prior: IndependentMarginalsVariable,
-        posterior: IndependentGaussianVariationalPosterior,
-    ):
-        if not isinstance(prior, IndependentMarginalsVariable):
-            raise ValueError(
-                "prior must be an instance of " "IndependentMarginalsVariable"
-            )
-        for marginal in prior.marginals():
-            if not marginal.kl_divergence_implemented():
-                raise ValueError("marginal must implement KL divergence")
-        if not isinstance(posterior, IndependentBetaVariationalPosterior):
-            raise ValueError(
-                "posterior must be an instance of "
-                "IndependentGaussianExactKLDivergence"
-            )
-        super().__init__(prior, posterior)
-
-    def _values(self) -> float:
-        return self._posterior.kl_divergence(self._prior)
-
-    def update(self):
-        ashapes = self._posterior._ashapes.get_values()[:, None]
-        bshapes = self._posterior._bshapes.get_values()[:, None] ** 2
-        for ii, marginal in enumerate(self._posterior.marginals()):
-            marginal.set_shapes(ashapes[ii], bshapes[ii])
-
-
-class NegELBO(Model):
+class NegELBO(SingleSampleModel):
     def __init__(
         self,
         loglike: ModelBasedLogLikelihoodMixin,
-        divergence: ExactKLDivergence,
+        posterior: VariationalPosterior,
         nsamples: int = 1000,
     ):
-        super().__init__(divergence._bkd)
-        if not isinstance(divergence, KLDivergenceForVariationalInference):
+        super().__init__(posterior._bkd)
+        if not isinstance(posterior, VariationalPosterior):
             raise ValueError(
-                "divergence must be an instance of "
-                "KLDivergenceForVariationalInference"
+                "posterior must be an instance of VariationalPosterior"
             )
-        self._divergence = divergence
+        self._posterior = posterior
         self._loglike = loglike
         self._hyp_list = (
-            self._divergence._posterior.hyp_list()  # + self._loglike.hyplist()
+            self._posterior.hyp_list()  # + self._loglike.hyplist()
         )
 
     def nvars(self) -> int:
@@ -397,15 +313,15 @@ class NegELBO(Model):
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
 
-    def _values(self, params: Array) -> Array:
+    def _evaluate(self, params: Array) -> Array:
         self._hyp_list.set_active_opt_params(params[:, 0])
-        self._divergence.update()
-        samples = self._divergence._posterior._map_from_latent_samples(
-            self._divergence._posterior._latent_samples
+        self._posterior.update()
+        samples = self._posterior._map_from_latent_samples(
+            self._posterior._latent_samples
         )
         # TODO make this a sample average objective
         expected_loglike = self._bkd.mean(self._loglike(samples))
-        return -(expected_loglike - self._divergence())
+        return -(expected_loglike - self._posterior._divergence())
 
 
 class VariationalInverseProblem:
@@ -413,11 +329,11 @@ class VariationalInverseProblem:
         self,
         prior: JointVariable,
         loglike: ModelBasedLogLikelihoodMixin,
-        divergence: ExactKLDivergence,
+        posterior: VariationalPosterior,
     ):
-        self._bkd = divergence._bkd
+        self._bkd = posterior._bkd
         self._prior = prior
-        self._neg_elbo = NegELBO(loglike, divergence)
+        self._neg_elbo = NegELBO(loglike, posterior)
         self._optimizer = None
 
     def fit(self, iterate: Array = None):

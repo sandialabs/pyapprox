@@ -1,5 +1,5 @@
 import itertools
-from typing import List, Iterable
+from typing import List, Iterable, Tuple
 
 import numpy as np
 from scipy.special import roots_hermitenorm
@@ -257,3 +257,47 @@ def scipy_gauss_legendre_pts_wts_1D(nn, bkd: BackendMixin = NumpyMixin):
     x, w = np.polynomial.legendre.leggauss(nn)
     w *= 0.5
     return bkd.asarray(x), bkd.asarray(w)
+
+
+def simpsons_rule(
+    bounds: Tuple, nquad: int, bkd: BackendMixin
+) -> Tuple[Array, Array]:
+    if nquad % 2 == 0:
+        raise ValueError("nquad must be odd")
+    xx = bkd.linspace(*bounds, nquad)
+    dx = xx[1] - xx[0]
+    ww = bkd.full(xx.shape, dx / 3.0)
+    ww[1:-1:2] *= 4
+    ww[2:-1:2] *= 2
+    return xx, ww
+
+
+def trapezoid_rule(
+    bounds: Tuple, nquad: int, bkd: BackendMixin
+) -> Tuple[Array, Array]:
+    if nquad % 2 == 0:
+        raise ValueError("nquad must be odd")
+    xx = bkd.linspace(*bounds, nquad)
+    dx = xx[1] - xx[0]
+    ww = bkd.full(xx.shape, dx)
+    ww[0] /= 2
+    ww[-1] /= 2
+    return xx, ww
+
+
+def composite_gauss_legendre_rule(
+    bounds: Tuple, nquad_per_interval: int, nintervals: int, bkd: BackendMixin
+) -> Tuple[Array, Array]:
+    quadx, quadw = np.polynomial.legendre.leggauss(nquad_per_interval)
+    quadx_01 = bkd.asarray((quadx + 1) / 2)
+    quadw_01 = bkd.asarray(quadw / 2)
+    intervals = bkd.linspace(*bounds, nintervals + 1)
+    quadx_list = []
+    quadw_list = []
+    for ii in range(nintervals):
+        a, b = intervals[ii : ii + 2]
+        quadx = quadx_01 * (b - a) + a
+        quadw = quadw_01 * (b - a)
+        quadx_list.append(quadx)
+        quadw_list.append(quadw)
+    return bkd.hstack(quadx_list), bkd.hstack(quadw_list)

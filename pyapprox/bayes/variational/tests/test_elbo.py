@@ -6,11 +6,8 @@ from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.bayes.variational.elbo import (
     VariationalInverseProblem,
     CholeskyGaussianVariationalPosterior,
-    CholeskyGaussianKLDivergenceForVariationalInference,
     IndependentGaussianVariationalPosterior,
-    IndependentGaussianKLDivergenceForVariationalInference,
     IndependentBetaVariationalPosterior,
-    IndependentMarginalsVariableKLDivergenceForVariationalInference,
 )
 from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
@@ -46,7 +43,6 @@ class TestVariationalInference:
         rtol,
         prior,
         variational_posterior,
-        divergence_cls,
     ):
         bkd = self.get_backend()
         noise_cov = noise_std**2 * bkd.eye(nobs)
@@ -63,8 +59,12 @@ class TestVariationalInference:
         )
         laplace.compute(obs)
 
-        divergence = divergence_cls(prior, variational_posterior)
-        vi = VariationalInverseProblem(prior, loglike, divergence)
+        vi = VariationalInverseProblem(prior, loglike, variational_posterior)
+
+        iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
+        errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
         vi.fit()
 
         print(variational_posterior.mean())
@@ -97,7 +97,7 @@ class TestVariationalInference:
             mean, covariance, backend=bkd
         )
         variational_posterior = CholeskyGaussianVariationalPosterior(
-            nvars,
+            prior,
             nlatent_samples,
             flattened_lower_diagonal_matrix_entries(
                 bkd.cholesky(prior.covariance())
@@ -110,7 +110,6 @@ class TestVariationalInference:
             rtol,
             prior,
             variational_posterior,
-            CholeskyGaussianKLDivergenceForVariationalInference,
         )
 
     def test_cholesky_based_gaussian_vi_linear_gaussian_model(self):
@@ -132,7 +131,7 @@ class TestVariationalInference:
         std_diag = bkd.full((nvars,), prior_std)
         prior = IndependentMultivariateGaussian(mean, std_diag**2, backend=bkd)
         variational_posterior = IndependentGaussianVariationalPosterior(
-            nvars, nlatent_samples, std_diag, backend=bkd
+            prior, nlatent_samples, std_diag, backend=bkd
         )
         self._check_gaussian_vi_linear_gaussian_model(
             nobs,
@@ -140,7 +139,6 @@ class TestVariationalInference:
             rtol,
             prior,
             variational_posterior,
-            IndependentGaussianKLDivergenceForVariationalInference,
         )
 
     def test_independent_gaussian_vi_linear_gaussian_model(self):
@@ -162,41 +160,65 @@ class TestVariationalInference:
         noise_std = 0.01
         nobs = 2
         noise_cov = noise_std**2 * bkd.eye(nobs)
-        # a1, b1 = 2, 3
-        a1, b1 = 1.4444, 14.5701
-        a2, b2 = 3, 3
+        # values for testing variational inference with uniformative (uniform)
+        # priors
+        a1, b1 = 2, 2
+        a2, b2 = 2, 2
+        # values good for testing gradients
+        # a1, b1 = 1.4444, 14.5701
+        # a2, b2 = 3, 3
         bounds = [0, 1]
         marginals = [
             BetaMarginal(a1, b1, *bounds, backend=bkd),
             BetaMarginal(a2, b2, *bounds, backend=bkd),
         ]
+        xx = bkd.linspace(0, 1, 101)
+        assert bkd.all(marginals[0]._cdf_jacobian_diagonal(xx) >= 0)
         prior = IndependentMarginalsVariable(marginals)
         loglike, obs, obs_model = self._setup_linear_model_gaussian_loglike(
             prior.nvars(), nobs, noise_cov
         )
-        nlatent_samples = 100000
+        nlatent_samples = 1000
         ashapes = [marginal._a for marginal in prior.marginals()]
         bshapes = [marginal._b for marginal in prior.marginals()]
         variational_posterior = IndependentBetaVariationalPosterior(
-            prior.nvars(),
+            prior,
             nlatent_samples,
             ashapes,
             bshapes,
             prior.interval(1),
+            ashape_bounds=(1, 100),
+            bshape_bounds=(1, 100),
             backend=bkd,
         )
-        divergence = (
-            IndependentMarginalsVariableKLDivergenceForVariationalInference(
-                prior, variational_posterior
-            )
-        )
-        vi = VariationalInverseProblem(prior, loglike, divergence)
+        vi = VariationalInverseProblem(prior, loglike, variational_posterior)
         iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
+        print(vi._neg_elbo.jacobian(iterate))
         errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=True)
-        # assert errors.min() / errors.max() < 1e-6
-        # vi.fit()
+        print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 4e-6
+        vi.fit()
         # TODO instead of passing around divergence object
         # make divergence proprty of posterior
+        import matplotlib.pyplot as plt
+
+        ax = plt.figure().gca()
+
+        print(variational_posterior.hyp_list().get_values())
+        # Currently pytorch code will set self._a and self._b
+        # when computing gradients. These variables will retain
+        # requires grad and thus if used for numpy functions
+        # will throw must be detached error.
+        # So for now reset shape parameters using values
+        # that do not have requires_grad
+        variational_posterior.hyp_list().set_values(
+            variational_posterior.hyp_list().get_values()
+        )
+        variational_posterior.update()
+        variational_posterior._variable.plot_pdf(
+            ax, prior.interval(1.0).flatten(), levels=31
+        )
+        plt.show()
         print(vi)
 
 

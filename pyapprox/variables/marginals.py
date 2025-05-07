@@ -10,7 +10,12 @@ import numpy as np
 
 from pyapprox.util.backends.template import Array, BackendMixin
 from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.util.newton import NewtonResidual, NewtonSolver
+from pyapprox.util.newton import (
+    NewtonResidual,
+    NewtonSolver,
+    BoundedNewtonResidual,
+)
+from pyapprox.util.misc import composite_gauss_legendre_rule
 
 
 class Marginal(ABC):
@@ -153,6 +158,13 @@ class Marginal(ABC):
     def kl_divergence_implemented(self) -> bool:
         return False
 
+    def truncated_range(self, alpha: float = None) -> Array:
+        if alpha is None and self.is_bounded():
+            alpha = 1.0
+        elif alpha is None:
+            alpha = 0.99
+        return self.interval(alpha)
+
 
 class ContinuousMarginalMixin:
     def plot_pdf(self, ax, npts: int = 101, alpha: float = None):
@@ -269,15 +281,6 @@ class ScipyMarginal(Marginal):
         )
         return name, scales, shapes
 
-    def _raw_pdf(self, x: Array) -> Array:
-        """
-        Get the raw pdf of a scipy.stats variable.
-
-        Evaluating this function avoids error checking which can
-        slow evaluation significantly. Use with caution
-        """
-        return self._scipy._rv.dist._pdf((x - loc) / scale, **shapes) / scale
-
     def _transform_scale_parameters(self) -> Tuple[float, float]:
         """
         Transform scale parameters so that when any bounded variable is transformed
@@ -310,13 +313,6 @@ class ScipyMarginal(Marginal):
         if self._scales != other._scales:
             return False
         return self._shapes_equal(other)
-
-    def truncated_range(self, alpha: float = None) -> Array:
-        if alpha is None and self.is_bounded():
-            alpha = 1.0
-        elif alpha is None:
-            alpha = 0.99
-        return self._scipy_rv.interval(alpha)
 
     @abstractmethod
     def is_bounded(self) -> bool:
@@ -481,7 +477,6 @@ def beta_pdf(
     x: Array,
     bkd: BackendMixin = NumpyMixin,
 ) -> Array:
-    # scipy implementation is slow
     const = 1.0 / beta_function(alpha_stat, beta_stat, bkd)
     return const * (x ** (alpha_stat - 1) * (1 - x) ** (beta_stat - 1))
 
@@ -575,109 +570,20 @@ class MarginalCDFNewtonResidual(NewtonResidual):
         return res / self._marginal._cdf_jacobian_diagonal(iterate)
 
 
+class BoundedMarginalCDFNewtonResidual(BoundedNewtonResidual):
+    def linsolve(self, can_iterate: Array, res: Array) -> Array:
+        iterate = self._from_canonical(can_iterate)
+        return res / (
+            self._residual._marginal._cdf_jacobian_diagonal(iterate)
+            * self._tranform_jacobian(can_iterate)
+        )
+
+
 class MarginalCDFNewtonSolver(NewtonSolver):
-    def _bounded_line_search(
-        self,
-        idx: Array,
-        sol: Array,
-        prev_sol: Array,
-        delta: Array,
-        prev_residual_norm: float,
-    ) -> Array:
-        step_size = self._step_size
-        ii = 0
-        while ii < self._linesearch_maxiters:
-            step_size = self._step_size / 2
-            sol[idx] = prev_sol[idx] - step_size * delta[idx]
-            residual = self._residual(sol)
-            residual_norm = self._bkd.norm(residual)
-            if residual_norm < prev_residual_norm:
-                return
-            ii += 1
-        raise RuntimeError("Max bounded linesearch iterations reached")
-
-    def _reduce_step_size(self, sol, prev_sol, delta):
-        lb = self._residual._marginal._lb
-        ub = self._residual._marginal._ub
-        eps = 1e-9
-        idx1 = self._bkd.where(sol < lb + eps)[0]
-        idx2 = self._bkd.where(sol > ub - eps)[0]
-        step_size = self._step_size
-        while idx1.shape[0] > 0 or idx2.shape[0] > 0:
-            print(prev_sol[idx1])
-            assert False
-            step_size /= 2
-            sol = prev_sol - step_size * delta
-            idx1 = self._bkd.where(sol < lb + eps)[0]
-            idx2 = self._bkd.where(sol > ub - eps)[0]
-            pass
-        return sol
-
-    # TODO create bisection search class and use it before newton or by itself
-    # not as part of newton here
-    def _bisection_search(self, residual, lb: Array, ub: Array) -> Array:
-        maxiters = 30
-        it = 0
-        residual_lb = residual(lb)
-        residual_ub = residual(ub)
-        if self._bkd.any(
-            self._bkd.sign(residual_lb) == self._bkd.sign(residual_ub)
-        ):
-            raise RuntimeError
-        while it < maxiters:
-            center = (lb + ub) / 2
-            residual_center = residual(center)
-            residual_norm = self._bkd.norm(residual_center)
-            print(residual_norm, it)
-            if residual_norm < 1e-9:
-                return center
-            idx1 = self._bkd.where(
-                self._bkd.sign(residual_center) == self._bkd.sign(residual_lb)
-            )[0]
-            idx2 = self._bkd.where(
-                self._bkd.sign(residual_center) != self._bkd.sign(residual_lb)
-            )[0]
-            lb[idx1] = center[idx1]
-            ub[idx2] = center[idx2]
-            it += 1
-        return center
-
-    def _bisection_residual(self, idx, sol_at_idx) -> Array:
-        sol = self._bkd.zeros(self._residual._usamples.shape[0])
-        sol[idx] = sol_at_idx
-        return self._residual(sol)[idx]
-
-    def _update_sol(self, prev_sol: Array, delta: Array) -> Array:
-        sol = prev_sol - self._step_size * delta
-        # lb = self._residual._marginal._lb
-        # ub = self._residual._marginal._ub
-        # idx1 = self._bkd.where(sol < lb)[0]
-        # idx2 = self._bkd.where(sol > ub)[0]
-        # if idx1.shape[0] > 0 or idx2.shape[0] > 0:
-        #     sol[idx1] = self._bisection_search(
-        #         partial(self._bisection_residual, idx1),
-        #         sol[idx1] * 0 + lb,
-        #         prev_sol[idx1],
-        #     )
-        #     sol[idx2] = self._bisection_search(
-        #         partial(self._bisection_residual, idx2),
-        #         prev_sol[idx2],
-        #         sol[idx2] * 0 + ub,
-        #     )
-        #     return sol
-        # return sol
-        # return self._reduce_step_size(sol, prev_sol, delta)
-        # make sure step size does not exceed bounds
-        # (not necessary with good initial guess)
-        # sol[sol < self._residual._marginal._lb] = (
-        #     2 * self._residual._marginal._lb
-        #     - sol[sol < self._residual._marginal._lb]
-        # )
-        # sol[sol > self._residual._marginal._ub] = (
-        #     2 * self._residual._marginal._ub
-        #     - sol[sol > self._residual._marginal._ub]
-        # )
-        return sol
+    # def _update_sol(self, prev_sol: Array, delta: Array) -> Array:
+    #     sol = prev_sol - self._step_size * delta
+    #     return sol
+    pass
 
 
 class BetaMarginal(ContinuousMarginalMixin, Marginal):
@@ -687,7 +593,7 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         beta: float,
         lb: float,
         ub: float,
-        nquad_samples: int = 500,
+        nquad_samples: int = 501,
         backend: BackendMixin = NumpyMixin,
     ):
         if alpha < 1:
@@ -698,10 +604,6 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         self._lb = lb
         self._ub = ub
         self.set_shapes(alpha, beta)
-        # quadx on [-1, 1], w(x) = 1
-        # TODO cannot autograd through cdf until native bkd leggauss is called
-        # It is implemented but I have to determine how to avoid circular
-        # dependices
         if nquad_samples < int(self._a + self._b) + 1:
             # this condition is only sufficient for integer alpha and beta
             # but still worth checking
@@ -710,14 +612,29 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
             )
         # nquad_samples effects how accurate cdf and thus ppf is
         # so if newton solver is not converging try increasing nquad_samples
-        quadx, quadw = np.polynomial.legendre.leggauss(nquad_samples)
-        self._quadx_01 = self._bkd.asarray((quadx + 1) / 2)
-        self._quadw_01 = self._bkd.asarray(quadw / 2)
-        self._scale = self._ub - self._lb
-        self._newton_solver = MarginalCDFNewtonSolver(
-            verbosity=3, maxiters=20, rtol=1e-8
+        nintervals = 1
+        self._quadx_01, self._quadw_01 = composite_gauss_legendre_rule(
+            (0, 1), nquad_samples // nintervals, nintervals, self._bkd
         )
-        self._newton_solver.set_residual(MarginalCDFNewtonResidual(self))
+        # self._quadx_01, self._quadw_01 = trapezoid_rule(
+        #     (1e-16, 1.0), nquad_samples, self._bkd
+        # )
+        # 1e-16 to avoid sqrt of zero
+        # self._quadx_01, self._quadw_01 = simpsons_rule(
+        #     (1e-16, 1.0), nquad_samples, self._bkd
+        # )
+        self._scale = self._ub - self._lb
+        # just peform one iteration and exit (which we can do because)
+        # initial guess is good. Only reason to use newton solver
+        # here is so autograd will diffentiate through ppf
+        self._newton_solver = MarginalCDFNewtonSolver(
+            verbosity=0,
+            maxiters=1,
+            rtol=10,
+            atol=10,
+        )
+        residual = MarginalCDFNewtonResidual(self)
+        self._newton_solver.set_residual(residual)
 
     def set_shapes(self, alpha: float, beta: float):
         self._a = self._bkd.asarray(alpha)
@@ -729,13 +646,6 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
             scale=self._ub - self._lb,
         )
         self._const = 1.0 / beta_function(self._a, self._b, self._bkd)
-
-    # def interval(self, alpha: float) -> Array:
-    #     if alpha == 1.0:
-    #         # newton solver sensitive when used near bounds
-    #         # so just return exact result
-    #         return self._bkd.array([self._lb, self._ub])
-    #     return super().interval(alpha)
 
     def rvs(self, nsamples: int) -> Array:
         return self._bkd.asarray(self._scipy_rv.rvs(nsamples))
@@ -769,27 +679,36 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         iterate = usamples * self._scale + self._lb
         if self._a == 1.0 and self._b == 1.0:
             return iterate
+        idx0 = self._bkd.where(usamples == 0.0)[0]
+        idx1 = self._bkd.where(usamples == 1.0)[0]
+        jdx = self._bkd.where((usamples != 0.0) & (usamples != 1.0))[0]
+        vals = self._bkd.empty(usamples.shape)
+        vals[idx0] = 0.0
+        vals[idx1] = 1.0
+        if jdx.shape[0] == 0:
+            return vals
+
         # this function is used to compute gradients. Initial
         # iterate will not effect this computation, unless it is exactly
-        # the answer so just use scipy as initial guess. use shift
-        # smaller than newton_solver.tol
-        eps = 1e-4
+        # the answer so just use scipy as initial guess.
         iterate = self._bkd.asarray(
-            self._scipy_rv.ppf(self._bkd.to_numpy(usamples))
+            self._scipy_rv.ppf(self._bkd.to_numpy(usamples[jdx]))
         )
-        iterate[iterate < self._ub - eps] += eps
-        iterate[iterate >= self._ub - eps] -= eps
-        self._newton_solver._residual.set_usamples(usamples)
-        iterate = self._bkd.copy(iterate)
-        vals = self._newton_solver.solve(iterate)
-        vals[usamples == 0.0] = 0.0
-        vals[usamples == 1.0] = 1.0
+        eps = 0  # self._newton_solver._atol * 10
+        # iterate[iterate < self._ub - eps] += eps
+        # iterate[iterate >= self._ub - eps] -= eps
+        # self._newton_solver._residual._residual.set_usamples(usamples[jdx])
+        self._newton_solver._residual.set_usamples(usamples[jdx])
+        # when using bounded residual newton solver must be passed
+        # iterates in canonical domain i.e. [-inf,inf]
+        vals[jdx] = self._newton_solver.solve(iterate)
+        # can_iterate = self._newton_solver._residual._to_canonical(iterate)
+        # can_vals = self._newton_solver.solve(can_iterate)
+        # res = self._newton_solver._residual
+        # vals[jdx] = res._from_canonical(can_vals)
         return vals
 
     def pdf_jacobian_implemented(self) -> bool:
-        return True
-
-    def logpdf_jacobian_implemented(self) -> bool:
         return True
 
     def _pdf_jacobian_01(self, sample: Array) -> Array:
@@ -814,14 +733,9 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         )[None, :]
 
     def _cdf_jacobian_diagonal(self, samples: Array) -> Array:
-        samples_01 = (samples - self._lb) / self._scale
-        quadx = samples_01[:, None] * self._quadx_01[None, :]
-        quadw = samples_01[:, None] * self._quadw_01[None, :]
-        pdf_jac = self._pdf_jacobian_01(quadx)
-        cdf_jac = self._bkd.sum(pdf_jac * quadw, axis=1) / self._scale
-        eps = 1e-16
-        cdf_jac[self._bkd.abs(samples_01) < eps] = 1.0
-        cdf_jac[self._bkd.abs(samples_01 - 1.0) < eps] = 1.0
+        # d_x cdf(x) = pdf(x) because
+        # cdf(x) = int_0^x pdf(x) dx
+        cdf_jac = self.pdf(samples)
         return cdf_jac
 
     def _cdf_jacobian(self, samples: Array) -> Array:

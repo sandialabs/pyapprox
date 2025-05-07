@@ -126,3 +126,8 @@ setuptools.setup(
 # coverage run -m pytest -v tests/test_stats.py && coverage html && open htmlcov/index.html
 
 # pip install "cvxpy[CVXOPT]"
+
+# add the following to start of script to help debug
+# torch grad errors
+# import torch
+# torch.autograd.set_detect_anomaly(True)

@@ -338,7 +338,8 @@ class TestMarginals:
         bkd = self.get_backend()
         # bounds = [-1, 2]
         bounds = [0.0, 1.0]
-        astat, bstat = bkd.asarray([2.0, 3.0])
+        # astat, bstat = bkd.asarray([2.0, 3.0])
+        astat, bstat = bkd.asarray([1.1, 3.1])
         marginal = BetaMarginal(astat, bstat, *bounds, backend=bkd)
         samples = bkd.linspace(*bounds, 5)
         scipy_rv = stats.beta(astat, bstat, bounds[0], bounds[1] - bounds[0])
@@ -356,6 +357,7 @@ class TestMarginals:
             marginal.cdf(samples), bkd.asarray(scipy_rv.cdf(samples))
         )
         usamples = bkd.linspace(0, 1, 51)
+        print(marginal.ppf(usamples) - bkd.asarray(scipy_rv.ppf(usamples)))
         assert bkd.allclose(
             marginal.ppf(usamples), bkd.asarray(scipy_rv.ppf(usamples))
         )

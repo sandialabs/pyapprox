@@ -9,6 +9,9 @@ from pyapprox.util.newton import (
     NewtonSolver,
     AdjointFunctional,
     AdjointSolver,
+    NewtonResidual,
+    BisectionSearch,
+    BoundedNewtonResidual,
 )
 from pyapprox.pde.collocation.adjoint import (
     SteadyAdjointModelFixedInitialIterate,
@@ -226,6 +229,68 @@ class TestNewton:
         model.set_functional(functional)
         errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
         assert errors.min() / errors.max() < 1e-6
+
+    def test_bisection_search(self):
+        bkd = self.get_backend()
+
+        class Residual(NewtonResidual):
+            def __call__(self, iterate: Array) -> Array:
+                self._rhs = self._bkd.array([0.1, 0.3, 0.6])
+                return iterate**2 - self._rhs
+
+        bisearch = BisectionSearch()
+        residual = Residual(backend=bkd)
+        bisearch.set_residual(residual)
+        bounds = bkd.array([[0.0, 0.5], [0.1, 1], [0.5, 1.0]])
+        roots = bisearch.solve(bounds)
+        assert bkd.allclose(roots, bkd.sqrt(residual._rhs))
+
+    def test_univariate_bounded_newton(self):
+        bkd = self.get_backend()
+
+        class Residual(NewtonResidual):
+            def __init__(self, backend):
+                super().__init__(backend)
+                self._rhs = self._bkd.array([1e-3, 0.3, 0.6])
+
+            def __call__(self, iterate: Array) -> Array:
+                return iterate**2 - self._rhs
+
+        residual = Residual(backend=bkd)
+        bounds = (0, 1)
+        bounded_residual = BoundedNewtonResidual(residual, bounds)
+        iterate = bkd.array([0.01, 0.5, 0.8])
+        can_iterate = bounded_residual._to_canonical(iterate)
+
+        # Using sigmoid transformation to enforce bounds changes topology
+        # of residual. The code below plots the new residual which
+        # was original quadratic
+        # import matplotlib.pyplot as plt
+        # can_xx = bkd.linspace(-10, 10, 101)
+        # vals = bkd.empty(can_xx.shape[0])
+        # for ii in range(can_xx.shape[0]):
+        #     cit = bkd.copy(can_iterate)
+        #     cit[0] = can_xx[ii]
+        #     vals[ii] = bounded_residual(cit)[0]
+        # plt.plot(can_xx, vals)
+        # plt.show()
+        assert bkd.allclose(
+            bounded_residual._from_canonical(can_iterate), iterate
+        )
+        assert bkd.allclose(
+            super(BoundedNewtonResidual, bounded_residual)._jacobian(
+                can_iterate
+            ),
+            bounded_residual.jacobian(can_iterate),
+        )
+        newton = NewtonSolver(verbosity=0, rtol=1e-10, atol=1e-10)
+        newton.set_residual(bounded_residual)
+        print(can_iterate, "c")
+        # iterate = bkd.sqrt(residual._rhs) + 0.1
+        # can_iterate = bounded_residual._to_canonical(iterate)
+        can_roots = newton.solve(can_iterate)
+        roots = bounded_residual._from_canonical(can_roots)
+        assert bkd.allclose(roots, bkd.sqrt(residual._rhs))
 
 
 class TestNumpyNewton(TestNewton, unittest.TestCase):

@@ -8,8 +8,6 @@ import matplotlib.pyplot as plt
 from pyapprox.variables.marginals import (
     Marginal,
     ContinuousMarginalMixin,
-    ContinuousScipyMarginal,
-    DiscreteScipyMarginal,
     parse_marginal,
 )
 from pyapprox.util.visualization import get_meshgrid_samples

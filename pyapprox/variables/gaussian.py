@@ -257,7 +257,7 @@ class CovarianceOperator:
             Indices of the desired diagonal terms. If none all are returned
         """
         if active_indices is None:
-            active_indices = np.arange(self.nvars())
+            active_indices = self._bkd.arange(self.nvars())
 
         if self._bkd.max(active_indices) >= self.nvars():
             raise ValueError("active indices to large")
