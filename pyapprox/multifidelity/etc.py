@@ -9,6 +9,7 @@ from pyapprox.multifidelity.groupacv import (
     GroupACVOptimizer,
     ChainedACVOptimizer,
     default_groupacv_optimizer,
+    MLBLUESPDOptimizer
 )
 
 from pyapprox.multifidelity.stats import MultiOutputMean
@@ -583,7 +584,8 @@ class AETCBLUE(AETC):
             Second element is the Oracle means of the models.
         """
         if optimizer is None:
-            optimizer = default_groupacv_optimizer()
+            # optimizer = default_groupacv_optimizer()
+            optimizer = MLBLUESPDOptimizer()
         self.set_optimizer(optimizer)
         super().__init__(models, rvs, costs, oracle_stats, backend=backend)
         self._reg_blue = reg_blue

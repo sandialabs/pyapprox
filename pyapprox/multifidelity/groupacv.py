@@ -162,7 +162,8 @@ class GroupACVObjective(Model):
         return self._bkd.jacobian_implemented()
 
     def hessian_implemented(self) -> bool:
-        return self._bkd.hessian_implemented()
+        # return self._bkd.hessian_implemented()
+        return False
 
     @abstractmethod
     def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
