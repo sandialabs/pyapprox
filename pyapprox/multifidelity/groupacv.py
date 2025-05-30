@@ -440,7 +440,7 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
     def set_estimator(self, est: "GroupACVEstimator"):
         super().set_estimator(est)
         objective = self.get_objective()
-        print(self)
+        # print(self)
         objective.set_estimator(self._est)
         self._optimizer.set_objective_function(objective)
         self._constraint = GroupACVCostConstraint(

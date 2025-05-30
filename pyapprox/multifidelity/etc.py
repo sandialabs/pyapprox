@@ -82,9 +82,9 @@ class AETC:
     def _subset_oracle_stats(self, oracle_stats, covariate_subset):
         cov, means = oracle_stats[:2]
         Sigma_S = cov[np.ix_(covariate_subset + 1, covariate_subset + 1)]
-        Sp_subset = self._bkd.hstack(
+        Sp_subset = self._bkd.tointeger(self._bkd.hstack(
             [self._bkd.zeros(1), covariate_subset + 1]
-        )
+        ))
         x_Sp = self._bkd.vstack(
             (self._bkd.ones(1), means[covariate_subset + 1])
         )
@@ -623,7 +623,7 @@ class AETCBLUE(AETC):
             self._bkd.zeros(est._rounded_npartition_samples.shape),
             est._rounded_npartition_samples,
         )
-        k2 = est._optimized_criteria.squeeze()
+        k2 = est._optimized_covariance.squeeze()
         k2 *= target_cost
         nsamples_per_subset /= target_cost
         return k2, nsamples_per_subset
