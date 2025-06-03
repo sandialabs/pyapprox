@@ -1,10 +1,10 @@
-import os
+from abc import ABC, abstractmethod
+
 import numpy as np
 from scipy.linalg import eigh as generalized_eigevalue_decomp
 
 from pyapprox.util.linalg import (
     SymmetricMatrixDoublePassRandomizedSVD,
-    DenseSymmetricMatVecOperator,
     SymmetricMatVecOperator,
 )
 from pyapprox.util.backends.template import BackendMixin, Array
@@ -17,6 +17,8 @@ from pyapprox.variables.gaussian import (
     MultivariateGaussian,
 )
 from pyapprox.bayes.likelihood import GaussianLogLikelihood
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.marginals import BetaMarginal
 
 
 class DenseMatrixLaplacePosteriorApproximation:
@@ -48,7 +50,7 @@ class DenseMatrixLaplacePosteriorApproximation:
         prior_covariance: Array (nvars, nvars)
             The covarianceof the Gaussian prior
 
-        noise_covariancev : Array (num_qoi, num_qoi)
+        noise_covariance : Array (num_qoi, num_qoi)
             The covariance of the observational noise
 
         obs : Array (num_qoi, 1)
@@ -405,7 +407,9 @@ class GaussianPushForward:
         return "{0}".format(self.__class__.__name__)
 
     def pushfowward_variable(self) -> DenseCholeskyMultivariateGaussian:
-        return DenseCholeskyMultivariateGaussian(self.mean(), self.covariance())
+        return DenseCholeskyMultivariateGaussian(
+            self.mean(), self.covariance()
+        )
 
 
 class DenseMatrixLaplaceApproximationForPrediction:
@@ -473,4 +477,108 @@ class DenseMatrixLaplaceApproximationForPrediction:
         return "{0}".format(self.__class__.__name__)
 
     def pushfowward_variable(self) -> DenseCholeskyMultivariateGaussian:
-        return DenseCholeskyMultivariateGaussian(self.mean(), self.covariance())
+        return DenseCholeskyMultivariateGaussian(
+            self.mean(), self.covariance()
+        )
+
+
+# TODO put laplace in this format
+class ConjugatePriorPosterior(ABC):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
+        self._bkd = backend
+
+    def _set_observations(self, obs: Array):
+        if obs.shape != (self.nobs(), 1):
+            raise ValueError(
+                "obs has the wrong shape. Was {0} must be {1}".format(
+                    obs.shape, (self.nobs(), 1)
+                )
+            )
+        self._obs = obs
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def nobs(self) -> int:
+        return self._nobs
+
+    @abstractmethod
+    def _compute(self, obs: Array):
+        raise NotImplementedError
+
+    def compute(self, obs: Array):
+        self._set_observations(obs)
+        self._compute(obs)
+
+    def __repr__(self) -> str:
+        return "{0}(nvars={1}, nobs={2})".format(
+            self.__class__.__name__, self.nvars(), self.nobs()
+        )
+
+
+class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
+    r"""
+    If the prior and the posterior belong to the same parametric family,
+    then the prior is said to be conjugate for the likelihood.
+
+    Likelihood p(y|x)=\Chi_{x\in\{0,1\}} x^y(1-x)^{1-y}
+    where \Chi_{x\in\{0,1\}} is an indicator function equal to 1 if x\in\{0,1\}
+    and zero otherwise.
+
+    Prior assigned to x is a Beta distribution
+    """
+
+    def __init__(
+        self,
+        shape_args: Array,
+        nobs: int,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(backend)
+        if shape_args.ndim != 2 or shape_args.shape[0] != 2:
+            raise ValueError("shapes must be a 2D array with two rows")
+        self._prior_shapes = shape_args
+        if self._prior_shapes[0] < 1:
+            raise ValueError("shape_args[0] must be >= 1")
+        if self._prior_shapes[1] < 1:
+            raise ValueError("shape_args[1] must be >= 1")
+        self._nvars = shape_args.shape[0]
+        if self._nvars == 1:
+            raise NotImplementedError(
+                "only univariate posterior is currently suported"
+            )
+        self._nobs = nobs
+
+    def _compute(self, obs: Array):
+        if self._bkd.any((self._obs != 1) & (self._obs != 0.0)):
+            raise ValueError("obs must be zero or one")
+
+        self._posterior_shapes = self._bkd.stack(
+            (
+                self._prior_shapes[0] + self._bkd.sum(self._obs),
+                self._prior_shapes[1] + self._nobs - self._bkd.sum(self._obs),
+            ),
+            axis=0,
+        )
+
+    def posterior_variable(self) -> IndependentMarginalsVariable:
+        marginals = [
+            BetaMarginal(*shape, 0.0, 1.0, backend=self._bkd)
+            for shape in self._posterior_shapes.T
+        ]
+        if not hasattr(self, "_posterior_shapes"):
+            raise RuntimeError("must call compute")
+        return IndependentMarginalsVariable(marginals)
+
+    def evidence(self) -> float:
+        from pyapprox.variables.marginals import log_beta_function
+
+        shape = self._prior_shapes[:, 0]
+        log_evidence = -log_beta_function(*shape, self._bkd)
+        nzeros = self._bkd.where(self._obs[:, 0] == 0.0)[0].shape[0]
+        nones = self._bkd.where(self._obs[:, 0] == 1.0)[0].shape[0]
+        print(nones, nzeros)
+        log_evidence += log_beta_function(
+            shape[0] + nones, shape[1] + nzeros, self._bkd
+        )
+        return self._bkd.exp(log_evidence)

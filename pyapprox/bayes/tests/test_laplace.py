@@ -21,11 +21,15 @@ from pyapprox.bayes.laplace import (
     LaplacePosteriorLowRankApproximation,
     DenseMatrixLaplacePosteriorLowRankApproximation,
     ApplyNegLogLikelihoodHessian,
+    BetaConjugatePriorPosterior,
 )
 from pyapprox.bayes.likelihood import (
     LogUnNormalizedPosterior,
     ModelBasedGaussianLogLikelihood,
+    BernoulliLogLikelihood,
 )
+from pyapprox.variables.marginals import BetaMarginal
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.util.visualization import plot_multiple_2d_gaussian_slices
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -254,6 +258,36 @@ class TestLaplace:
         lr_laplace.compute(noversampling=1000)
         assert bkd.allclose(
             lr_laplace.posterior_covariance(), laplace.posterior_covariance()
+        )
+
+    def test_beta_conjugate_prior(self):
+        bkd = self.get_backend()
+        shape_args = bkd.array([[2], [6]])
+        nobs = 3
+        beta_post = BetaConjugatePriorPosterior(shape_args, nobs, backend=bkd)
+        obs = bkd.array([1, 0, 1])[:, None][:nobs]
+        beta_post.compute(obs)
+        loglike = BernoulliLogLikelihood(backend=bkd)
+        loglike.set_observations(obs)
+        prior = IndependentMarginalsVariable(
+            [BetaMarginal(*shape_args[:, 0], 0.0, 1.0, backend=bkd)]
+        )
+        prior_samples = prior.rvs(100000)
+        evidence = bkd.exp(loglike(prior_samples)).mean()
+        mean = (
+            prior_samples[0] * bkd.exp(loglike(prior_samples))[:, 0] / evidence
+        ).mean()
+        variance = (
+            prior_samples[0] ** 2
+            * bkd.exp(loglike(prior_samples))[:, 0]
+            / evidence
+        ).mean() - mean**2
+        assert bkd.allclose(evidence, beta_post.evidence(), rtol=1e-2)
+        assert bkd.allclose(
+            beta_post.posterior_variable().mean(), mean, rtol=1e-2
+        )
+        assert bkd.allclose(
+            beta_post.posterior_variable().var(), variance, rtol=1e-2
         )
 
 

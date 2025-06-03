@@ -461,14 +461,20 @@ def pdf_derivative_under_affine_map(
     return pdf_deriv((y - loc) / scale) / scale**2
 
 
-def beta_function(
+def log_beta_function(
     alpha_stat: float, beta_stat: float, bkd: BackendMixin = NumpyMixin
 ):
-    return bkd.exp(
+    return (
         bkd.gammaln(alpha_stat)
         + bkd.gammaln(beta_stat)
         - bkd.gammaln(alpha_stat + beta_stat)
     )
+
+
+def beta_function(
+    alpha_stat: float, beta_stat: float, bkd: BackendMixin = NumpyMixin
+):
+    return bkd.exp(log_beta_function(alpha_stat, beta_stat, bkd))
 
 
 def beta_pdf(

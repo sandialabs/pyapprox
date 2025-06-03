@@ -53,6 +53,7 @@ class LogLikelihood(Model):
         obs : np.ndarray (nobs, 1)
             The observations
         """
+        self._nobs = obs.shape[0]
         if obs.ndim != 2 or obs.shape[0] != self.nobs():
             raise ValueError(
                 "obs has the wrong shape {0} should be {1}".format(
@@ -501,3 +502,40 @@ class ExponentialQuarticLogLikelihoodModel(LogLikelihood):
 
     def _make_noisy(self, noiseless_obs: Array, noise, Array) -> Array:
         raise NotImplementedError
+
+
+class BernoulliLogLikelihood(LogLikelihood):
+    def _loglike(self, many_pred_obs: Array) -> Array:
+        if self._obs is None:
+            raise RuntimeError("must call set_observations()")
+        # single vector realization of obs forms one column
+        # different realizations in different colums
+        # likelihood is L(q)=q**x*(1-q)**(1-x) where x in {0,1}
+        # if x==0 L(q) = 1-q
+        # if x==1 L(q) = q
+        log_vals = self._bkd.sum(
+            self._bkd.log(many_pred_obs).T * self._obs.T
+            + self._bkd.log(1.0 - many_pred_obs.T) * (1.0 - self._obs.T),
+            axis=1,
+        )
+        # log_vals1 = self._bkd.log(
+        #     self._bkd.prod(
+        #         many_pred_obs.T**self._obs.T
+        #         * (1 - many_pred_obs.T) ** (1.0 - self._obs.T),
+        #         axis=1,
+        #     )
+        # )
+        # assert self._bkd.allclose(vals, vals1)
+        return log_vals
+
+    def nvars(self) -> int:
+        return 1
+
+    def _make_noisy(self) -> Array:
+        raise NotImplementedError(
+            "Make noisy only relevant to certain likelihoods."
+            "TODO remove this function with more general function"
+        )
+
+    def _values(self, samples: Array) -> Array:
+        return self._loglike(samples)[:, None]
