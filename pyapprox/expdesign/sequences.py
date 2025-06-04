@@ -58,6 +58,9 @@ class LowDiscrepancySequence(ABC):
                 )
         return self._variable.ppf(can_samples)
 
+    def nvars(self) -> int:
+        return self._nvars
+
 
 class HaltonSequence(LowDiscrepancySequence):
     def __init__(

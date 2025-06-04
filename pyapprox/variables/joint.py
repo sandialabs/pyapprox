@@ -107,6 +107,9 @@ class JointVariable(ABC):
             return ax.plot_surface(X, Y, Z, **kwargs)
         return ax.contourf(X, Y, Z, **kwargs)
 
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
 
 class IndependentMarginalsVariable(JointVariable):
     """

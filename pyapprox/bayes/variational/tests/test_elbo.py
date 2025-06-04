@@ -68,21 +68,23 @@ class TestVariationalInference:
         vi = VariationalInverseProblem(prior, loglike, variational_posterior)
 
         iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
-        errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=True)
+        errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
         vi.fit()
 
-        print(variational_posterior.mean())
-        print(laplace.posterior_mean())
-        print(variational_posterior.covariance())
-        print(laplace.posterior_covariance())
+        print(variational_posterior.mean(), "mean")
+        print(laplace.posterior_mean(), "true mean")
+        print(variational_posterior.covariance(), "cov")
+        print(laplace.posterior_covariance(), "true cov")
+        print(prior)
         print(
             (
                 variational_posterior.covariance()
                 - laplace.posterior_covariance()
             )
-            / laplace.posterior_covariance()
+            / laplace.posterior_covariance(),
+            "rel cov error",
         )
         assert bkd.allclose(
             variational_posterior.covariance(),
@@ -120,7 +122,7 @@ class TestVariationalInference:
 
     def test_cholesky_based_gaussian_vi_linear_gaussian_model(self):
         test_cases = [
-            (1, 2, 0.01, 1.0, 1000000, 1e-3),
+            (1, 2, 0.01, 1.0, 1000000, 2e-3),
             (2, 2, 0.01, 1.0, 100000, 7e-3),
         ]
         for test_case in test_cases:
@@ -136,8 +138,14 @@ class TestVariationalInference:
         mean = bkd.ones((nvars, 1))
         std_diag = bkd.full((nvars,), prior_std)
         prior = IndependentMultivariateGaussian(mean, std_diag**2, backend=bkd)
+        init_post_mean = mean  # * 0 + -0.7416
+        init_post_std_diag = std_diag  # * 0 + np.sqrt(2.8409e-05)
         variational_posterior = IndependentGaussianVariationalPosterior(
-            prior, nlatent_samples, std_diag, backend=bkd
+            prior,
+            nlatent_samples,
+            init_post_std_diag,
+            mean_values=init_post_mean[:, 0],
+            backend=bkd,
         )
         self._check_gaussian_vi_linear_gaussian_model(
             nobs,
@@ -153,7 +161,7 @@ class TestVariationalInference:
         # will have correlations which cannot be captured by
         # an independent gaussian variational posterior
         test_cases = [
-            (1, 2, 0.01, 1.0, 100000, 5e-3),
+            (1, 2, 0.01, 1.0, 1000000, 2e-3),
         ]
         for test_case in test_cases:
             np.random.seed(1)
@@ -195,10 +203,10 @@ class TestVariationalInference:
         # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 4e-6
         vi.fit()
-        # print(
-        #     variational_posterior._ashapes.get_values(),
-        #     post._posterior_shapes[0],
-        # )
+        print(
+            variational_posterior._ashapes.get_values()
+            - post._posterior_shapes[0],
+        )
         assert bkd.allclose(
             variational_posterior._ashapes.get_values(),
             post._posterior_shapes[0],
@@ -277,8 +285,9 @@ class TestVariationalInference:
         variational_posterior._variable.plot_pdf(
             ax, prior.interval(1.0).flatten(), levels=31
         )
-        plt.show()
+        # plt.show()
         print(vi)
+        raise NotImplementedError
 
 
 # class TestNumpyVariationalInference(

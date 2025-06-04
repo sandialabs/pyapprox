@@ -820,10 +820,9 @@ class UniformMarginal(BetaMarginal):
         self,
         lb: float,
         ub: float,
-        nquad_samples: int = 100,
         backend: BackendMixin = NumpyMixin,
     ):
-        super().__init__(1, 1, lb, ub, nquad_samples, backend)
+        super().__init__(1, 1, lb, ub, 100, backend)
 
     def _ppf(self, usamples: Array) -> Array:
         return usamples * (self._ub - self._lb) + self._lb

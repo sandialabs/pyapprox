@@ -416,7 +416,6 @@ class MultivariateGaussian(JointVariable):
             can_samples += [can_sample_lb, can_sample_ub]
         can_samples = self._bkd.stack(can_samples, axis=1)
         samples = self._cov_sqrt.apply(can_samples) + self._mean
-        print(samples.shape)
         ranges = []
         for ii in range(self.nvars()):
             ranges.append(
@@ -454,6 +453,9 @@ class DenseCholeskyMultivariateGaussian(MultivariateGaussian):
 
     def covariance(self) -> Array:
         return self._cov_sqrt._cov
+
+    def __repr__(self) -> str:
+        return "{0}(mean={1})".format(self.__class__.__name__, self.mean())
 
 
 class IndependentMultivariateGaussian(MultivariateGaussian):
@@ -493,6 +495,11 @@ class IndependentMultivariateGaussian(MultivariateGaussian):
 
     def covariance_diagonal(self) -> Array:
         return self._cov_sqrt._cov_diag
+
+    def __repr__(self) -> str:
+        return "{0}(mean={1}, cov_diag={2})".format(
+            self.__class__.__name__, self.mean(), self.covariance_diagonal()
+        )
 
 
 def subselect_matrix_blocks(selected_block_indices, nentries_per_block):

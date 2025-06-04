@@ -13,6 +13,7 @@ from pyapprox.optimization.risk import (
     CholeskyBasedGaussianExactKLDivergence,
     IndependentGaussianExactKLDivergence,
 )
+from pyapprox.expdesign.sequences import LowDiscrepancySequence
 from pyapprox.bayes.likelihood import ModelBasedLogLikelihoodMixin
 from pyapprox.optimization.minimize import (
     MultiStartOptimizer,
@@ -25,7 +26,11 @@ from pyapprox.util.hyperparameter import (
     HyperParameterList,
     CholeskyHyperParameter,
 )
-from pyapprox.variables.marginals import BetaMarginal
+from pyapprox.variables.marginals import (
+    BetaMarginal,
+    UniformMarginal,
+    GaussianMarginal,
+)
 from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
     IndependentMultivariateGaussian,
@@ -38,16 +43,100 @@ from pyapprox.util.visualization import get_meshgrid_samples
 # TODO: Implement KLDivergence when second gaussian is IID standard Normal
 
 
+class LatentVariableGenerator(ABC):
+    def __init__(self, nvars: int, backend: BackendMixin):
+        self._bkd = backend
+        self._nvars = nvars
+
+    @abstractmethod
+    def _samples_weights(self, nsamples: int) -> Tuple[Array, Array]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _rvs(self, nsamples: int) -> Array:
+        raise NotImplementedError
+
+    def __call__(self, nsamples: int) -> Tuple[Array, Array]:
+        samples, weights = self._samples_weights(nsamples)
+        if samples.shape != (self._nvars, nsamples):
+            raise RuntimeError("samples has the wrong shape")
+        if weights.shape != (nsamples, 1):
+            raise RuntimeError("samples has the wrong shape")
+        return samples, weights
+
+    def rvs(self, nsamples: int) -> Array:
+        samples, weights = self._rvs(nsamples)
+        if samples.shape != (self._nvars, nsamples):
+            raise RuntimeError("samples has the wrong shape")
+        return samples
+
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
+    def nvars(self) -> int:
+        return self._nvars
+
+
+class MonteCarloIndependentLatentVariableGenerator(LatentVariableGenerator):
+    def __init__(self, variable: IndependentMarginalsVariable):
+        if not isinstance(variable, IndependentMarginalsVariable):
+            raise ValueError(
+                "variable must be an IndependentMarginalsVariable"
+            )
+        self._variable = variable
+        super().__init__(variable.nvars(), variable._bkd)
+        self._samples = self._bkd.zeros((self.nvars(), 0))
+
+    def _samples_weights(self, nsamples: int) -> Tuple[Array, Array]:
+        if self._samples.shape[1] < nsamples:
+            self._samples = self._bkd.hstack(
+                (self._samples, self._variable.rvs(nsamples))
+            )
+        return self._samples[:, :nsamples], self._bkd.full(
+            (nsamples, 1), 1 / nsamples
+        )
+
+    def _rvs(self, nsamples: int) -> Array:
+        return self._variable.rvs(nsamples)
+
+
+class LowDiscrepanySequenceIndependentLatentVariableGenerator(
+    LatentVariableGenerator
+):
+    def __init__(self, sequence: LowDiscrepancySequence):
+        if not isinstance(sequence, LowDiscrepancySequence):
+            raise ValueError("sequence must be a LowDiscrepancySequence")
+        self._seq = sequence
+        super().__init__(sequence.nvars(), sequence._bkd)
+        self._samples = self._bkd.zeros((self.nvars(), 0))
+
+    def _samples_weights(self, nsamples: int) -> Tuple[Array, Array]:
+        if self._samples.shape[1] < nsamples:
+            self._samples = self._seq.rvs(nsamples)
+        return self._samples[:, :nsamples], self._bkd.full(
+            (nsamples, 1), 1 / nsamples
+        )
+
+    def _rvs(self, nsamples: int) -> Array:
+        return self._seq._variable.rvs(nsamples)
+
+
 class VariationalPosterior(ABC):
     def __init__(
         self,
-        nvars: int,
+        latent_generator: LatentVariableGenerator,
         nlatent_samples: int,
-        backend: BackendMixin = NumpyMixin,
     ):
-        self._bkd = backend
-        self._nvars = nvars
-        self._latent_samples = self._generate_latent_samples(nlatent_samples)
+        if not isinstance(latent_generator, LatentVariableGenerator):
+            raise ValueError(
+                "latent_generator must be a LatentVariableGenerator"
+            )
+        self._bkd = latent_generator._bkd
+        self._nvars = latent_generator.nvars()
+        self._latent_generator = latent_generator
+        self._latent_samples, self._latent_weights = self._latent_generator(
+            nlatent_samples
+        )
 
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
@@ -61,16 +150,12 @@ class VariationalPosterior(ABC):
         )
 
     @abstractmethod
-    def _generate_latent_samples(self, nsamples: int):
-        raise NotImplementedError
-
-    @abstractmethod
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
         raise NotImplementedError
 
     def rvs(self, nsamples: int) -> Array:
         return self._map_from_latent_samples(
-            self._generate_latent_samples(nsamples)
+            self._latent_generator.rvs(nsamples)
         )
 
 
@@ -83,10 +168,18 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
         mean_values: Array = None,
         cholesky_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
         mean_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
+        latent_generator: LatentVariableGenerator = None,
         backend: BackendMixin = NumpyMixin,
     ):
         nvars = prior.nvars()
-        super().__init__(nvars, nlatent_samples, backend)
+        if latent_generator is None:
+            latent_variable = IndependentMarginalsVariable(
+                [GaussianMarginal(0.0, 1.0, backend)] * nvars, backend=backend
+            )
+            latent_generator = MonteCarloIndependentLatentVariableGenerator(
+                latent_variable
+            )
+        super().__init__(latent_generator, nlatent_samples)
         if mean_values is None:
             mean_values = backend.zeros((nvars))
         self._mean = HyperParameter(
@@ -115,11 +208,6 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
         chol = self._cholesky.get_cholesky_factor()
         return chol @ chol.T
 
-    def _generate_latent_samples(self, nsamples: int):
-        return self._bkd.asarray(
-            np.random.normal(0, 1, (self._nvars, nsamples))
-        )
-
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
         chol = self._cholesky.get_cholesky_factor()
         return self.mean() + chol @ latent_samples
@@ -147,10 +235,18 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         mean_values: Array = None,
         std_diag_bounds: Union[Tuple[float, float], Array] = (0, np.inf),
         mean_bounds: Union[Tuple[float, float], Array] = (-np.inf, np.inf),
+        latent_generator: LatentVariableGenerator = None,
         backend: BackendMixin = NumpyMixin,
     ):
         nvars = prior.nvars()
-        super().__init__(nvars, nlatent_samples, backend)
+        if latent_generator is None:
+            latent_variable = IndependentMarginalsVariable(
+                [GaussianMarginal(0.0, 1.0, backend)] * nvars, backend=backend
+            )
+            latent_generator = MonteCarloIndependentLatentVariableGenerator(
+                latent_variable
+            )
+        super().__init__(latent_generator, nlatent_samples)
         if mean_values is None:
             mean_values = backend.zeros((nvars))
         self._mean = HyperParameter(
@@ -177,11 +273,6 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
 
     def covariance(self) -> Array:
         return self._bkd.diag(self._std_diag.get_values() ** 2)
-
-    def _generate_latent_samples(self, nsamples: int):
-        return self._bkd.asarray(
-            np.random.normal(0, 1, (self._nvars, nsamples))
-        )
 
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
         return (
@@ -212,10 +303,28 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         bounds: Array,
         ashape_bounds: Union[Tuple[float, float], Array] = (1, np.inf),
         bshape_bounds: Union[Tuple[float, float], Array] = (1, np.inf),
+        latent_generator: LatentVariableGenerator = None,
         backend: BackendMixin = NumpyMixin,
     ):
         nvars = prior.nvars()
-        super().__init__(nvars, nlatent_samples, backend)
+        if latent_generator is None:
+            latent_variable = IndependentMarginalsVariable(
+                [UniformMarginal(0, 1, backend)] * nvars, backend=backend
+            )
+            # self._latent_generator = MonteCarloIndependentLatentVariableGenerator(
+            #     latent_variable
+            # )
+            from pyapprox.expdesign.sequences import HaltonSequence
+
+            sequence = HaltonSequence(
+                nvars, start_idx=1, variable=latent_variable, bkd=backend
+            )
+            latent_generator = (
+                LowDiscrepanySequenceIndependentLatentVariableGenerator(
+                    sequence
+                )
+            )
+        super().__init__(latent_generator, nlatent_samples)
         self._ashapes = HyperParameter(
             "ashapes",
             nvars,
@@ -256,11 +365,6 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         bshapes = self._bshapes.get_values()[:, None]
         for ii, marginal in enumerate(self.marginals()):
             marginal.set_shapes(ashapes[ii], bshapes[ii])
-
-    def _generate_latent_samples(self, nsamples: int):
-        return self._bkd.asarray(
-            np.random.uniform(0, 1, (self._nvars, nsamples))
-        )
 
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
         return self._bkd.stack(
