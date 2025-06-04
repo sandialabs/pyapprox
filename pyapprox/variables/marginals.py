@@ -748,7 +748,7 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
             / self._scale**2
         )[None, :]
 
-    def kl_divergence(self, other: "BetaMarginal"):
+    def kl_divergence(self, other: "BetaMarginal") -> float:
         r"""
         .. math:: \mathrm{KL}(F||G)=\ln\frac{\Gamma(\alpha_{f}+\beta_{f})\Gamma(\alpha_{g})\Gamma(\beta_{g})}{\Gamma(\alpha_{g}+\beta_{g})\Gamma(\alpha_{f})\Gamma(\beta_{f})}+(\alpha_{f}-\alpha_{g})\left(\psi(\alpha_{f})-\psi(\alpha_{f}+\beta_{f})\right)+(\beta_{f}-\beta_{g})\left(\psi(\beta_{f})-\psi(\alpha_{f}+\beta_{f})\right)
 
@@ -903,6 +903,18 @@ class GammaMarginal(NewtonRVSMixin, Marginal):
 
     def var(self) -> float:
         return self._shape / self._rate**2
+
+    def kl_divergence(self, other: "GammaMarginal") -> float:
+        return (
+            other._shape * self._bkd.log(self._rate / other._rate)
+            - self._bkd.gammaln(self._shape)
+            + self._bkd.gammaln(other._shape)
+            + (self._shape - other._shape) * self._bkd.digamma(self._shape)
+            - (self._rate - other._rate) * self._shape / self._rate
+        )
+
+    def kl_divergence_implemented(self) -> bool:
+        return True
 
 
 class GaussianMarginal(Marginal):

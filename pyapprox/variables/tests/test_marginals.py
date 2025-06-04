@@ -408,6 +408,17 @@ class TestMarginals:
             rtol=1e-2,
         )
 
+        nsamples = 1000000
+        samples = marginal.rvs(nsamples)
+        other_shapes = bkd.array([3, 4])
+        other = GammaMarginal(*other_shapes, backend=bkd)
+        kl_divergence = (
+            bkd.log(marginal.pdf(samples)) - bkd.log(other.pdf(samples))
+        ).mean()
+        assert bkd.allclose(
+            kl_divergence, marginal.kl_divergence(other), rtol=1e-2
+        )
+
         if not bkd.jacobian_implemented():
             return
 
