@@ -907,3 +907,8 @@ class BackendMixin(ABC):
     @abstractmethod
     def reshape_fortran(array: Array, shape) -> Array:
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def gammainc(a: Array, x: Array) -> Array:
+        raise NotImplementedError

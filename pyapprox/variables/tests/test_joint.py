@@ -10,6 +10,7 @@ from pyapprox.variables.joint import (
     define_iid_random_variable,
     FiniteSamplesVariable,
     RejectionSamplingVariable,
+    DirichletVariable,
 )
 from pyapprox.variables.marginals import BetaMarginal
 
@@ -185,6 +186,27 @@ class TestJoint:
         nsamples = 1e6
         assert bkd.allclose(
             bkd.mean(variable.rvs(nsamples)), target.mean(), rtol=1e-2
+        )
+
+    def test_dirichlet_variable(self):
+        bkd = self.get_backend()
+        shapes = bkd.array([2, 3, 2])
+        variable = DirichletVariable(shapes, backend=bkd)
+        scipy_rv = stats.dirichlet(shapes)
+        samples = variable.rvs(10000000)
+        assert bkd.allclose(
+            samples.mean(axis=1), bkd.asarray(scipy_rv.mean()), rtol=1e-2
+        )
+        assert bkd.allclose(
+            variable.pdf(samples), bkd.asarray(scipy_rv.pdf(samples))[:, None]
+        )
+        other_shapes = bkd.array([3, 4, 3])
+        other = DirichletVariable(other_shapes, backend=bkd)
+        kl_divergence = (
+            bkd.log(variable.pdf(samples)) - bkd.log(other.pdf(samples))
+        ).mean()
+        assert bkd.allclose(
+            kl_divergence, variable.kl_divergence(other), rtol=1e-2
         )
 
 

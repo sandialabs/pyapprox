@@ -9,6 +9,8 @@ from pyapprox.variables.marginals import (
     Marginal,
     ContinuousMarginalMixin,
     parse_marginal,
+    ContinuousScipyMarginal,
+    GammaMarginal,
 )
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -356,7 +358,7 @@ class IndependentMarginalsVariable(JointVariable):
             )
         return samples
 
-    def kl_divergence(self, other: "IndependentMarginalsVariable"):
+    def kl_divergence(self, other: "IndependentMarginalsVariable") -> float:
         for marginal in self.marginals():
             if not marginal.kl_divergence_implemented():
                 raise NotImplementedError(
@@ -641,3 +643,63 @@ class RejectionSamplingVariable:
                 )
             )
         return samples
+
+
+class DirichletVariable(JointVariable):
+    def __init__(self, shapes: Array, backend: BackendMixin = NumpyMixin):
+        super().__init__(backend)
+        if shapes.ndim != 1:
+            raise ValueError("shapes must be a 1D array")
+        self._shapes = shapes
+        # todo make custom gamma distribution so I can differentiate through it
+        gamma_marginals = [
+            # GammaMarginal(stats.gamma(shape), backend=self._bkd)
+            ContinuousScipyMarginal(stats.gamma(shape), backend=self._bkd)
+            for shape in self._shapes
+        ]
+        self._gamma_variable = IndependentMarginalsVariable(
+            gamma_marginals, backend=self._bkd
+        )
+        self._nvars = shapes.shape[0]
+        alpha0 = self._bkd.sum(self._shapes)
+        self._log_const = self._bkd.sum(
+            self._bkd.hstack(
+                [self._bkd.gammaln(shape) for shape in self._shapes]
+            )
+        ) - self._bkd.gammaln(alpha0)
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def rvs(self, nsamples: int) -> Array:
+        gamma_samples = self._gamma_variable.rvs(nsamples)
+        return gamma_samples / self._bkd.sum(gamma_samples, axis=0)[None, :]
+
+    def logpdf(self, samples: Array) -> Array:
+        return (
+            -self._log_const
+            + self._bkd.sum(
+                (self._shapes[:, None] - 1.0) * self._bkd.log(samples), axis=0
+            )[:, None]
+        )
+
+    def pdf(self, samples: Array) -> Array:
+        return self._bkd.exp(self.logpdf(samples))
+
+    def kl_divergence(self, other: "DirichletVariable"):
+        if not isinstance(other, DirichletVariable):
+            raise ValueError("other must be a DirichletVariable")
+
+        return (
+            self._bkd.gammaln(self._shapes.sum())
+            - self._bkd.gammaln(other._shapes.sum())
+            - self._bkd.gammaln(self._shapes).sum()
+            + self._bkd.gammaln(other._shapes).sum()
+            + self._bkd.sum(
+                (self._shapes - other._shapes)
+                * (
+                    self._bkd.digamma(self._shapes)
+                    - self._bkd.digamma(self._shapes.sum())
+                )
+            )
+        )

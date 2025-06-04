@@ -608,3 +608,7 @@ class TorchMixin(BackendMixin):
         array = array.permute(*reversed(range(len(array.shape))))
         array = array.reshape(*reversed(shape))
         return array.permute(*reversed(range(len(shape))))
+
+    @staticmethod
+    def gammainc(a: torch.tensor, x: torch.tensor) -> torch.tensor:
+        return torch.special.gammainc(a, x)

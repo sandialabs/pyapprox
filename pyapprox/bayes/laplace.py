@@ -582,3 +582,38 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
             shape[0] + nones, shape[1] + nzeros, self._bkd
         )
         return self._bkd.exp(log_evidence)
+
+
+class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
+    r"""
+    If the prior and the posterior belong to the same parametric family,
+    then the prior is said to be conjugate for the likelihood.
+
+    Likelihood is multinomial distribution
+    Prior assigned to x is a dirichlet distribution
+    """
+
+    def __init__(
+        self,
+        shape_args: Array,
+        nobs: int,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(backend)
+        if shape_args.ndim != 2 or shape_args.shape[0] != 2:
+            raise ValueError("shapes must be a 2D array with two rows")
+        self._prior_shapes = shape_args
+        if self._prior_shapes[0] < 1:
+            raise ValueError("shape_args[0] must be >= 1")
+        if self._prior_shapes[1] < 1:
+            raise ValueError("shape_args[1] must be >= 1")
+        self._nvars = shape_args.shape[0]
+        if self._nvars == 1:
+            raise NotImplementedError(
+                "only univariate posterior is currently suported"
+            )
+        self._nobs = nobs
+
+    def _compute(self, obs: Array):
+        if self._bkd.any((self._obs != 1) & (self._obs != 0.0)):
+            raise ValueError("obs must be zero or one")

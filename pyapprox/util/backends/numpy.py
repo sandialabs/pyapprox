@@ -514,3 +514,7 @@ class NumpyMixin(BackendMixin):
     @staticmethod
     def reshape_fortran(array: np.ndarray, shape) -> np.ndarray:
         return array.reshape(shape, order="F")
+
+    @staticmethod
+    def gammainc(a: np.ndarray, x: np.ndarray) -> np.ndarray:
+        return scipy.special.gammainc(a, x)

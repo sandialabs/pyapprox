@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.variables.marginals import (
     BetaMarginal,
+    GammaMarginal,
     GaussianMarginal,
     ContinuousScipyMarginal,
     CustomDiscreteMarginal,
@@ -357,7 +358,7 @@ class TestMarginals:
             marginal.cdf(samples), bkd.asarray(scipy_rv.cdf(samples))
         )
         usamples = bkd.linspace(0, 1, 51)
-        print(marginal.ppf(usamples) - bkd.asarray(scipy_rv.ppf(usamples)))
+        # print(marginal.ppf(usamples) - bkd.asarray(scipy_rv.ppf(usamples)))
         assert bkd.allclose(
             marginal.ppf(usamples), bkd.asarray(scipy_rv.ppf(usamples))
         )
@@ -380,6 +381,54 @@ class TestMarginals:
             * (bkd.log(marginal.pdf(quadx)) - bkd.log(rv2.pdf(quadx)))
         ) @ quadw
         assert bkd.allclose(marginal.kl_divergence(rv2), kl_div)
+
+    def test_gamma_variable(self):
+        bkd = self.get_backend()
+        shape, rate = bkd.array([2, 3])
+        marginal = GammaMarginal(shape, rate, backend=bkd)
+        scipy_rv = marginal._scipy_rv
+        nsamples = 10
+        samples = scipy_rv.rvs(nsamples)
+        assert bkd.allclose(marginal.mean(), bkd.asarray([scipy_rv.mean()]))
+        assert bkd.allclose(marginal.var(), bkd.asarray([scipy_rv.var()]))
+        assert bkd.allclose(marginal.std(), bkd.asarray([scipy_rv.std()]))
+        assert bkd.allclose(
+            marginal.cdf(samples), bkd.asarray(scipy_rv.cdf(samples))
+        )
+        assert bkd.allclose(
+            bkd.asarray(marginal.median()), bkd.asarray([scipy_rv.median()])
+        )
+        usamples = bkd.linspace(0, 1 - 1e-6, 51)
+        assert bkd.allclose(
+            marginal.ppf(usamples), bkd.asarray(scipy_rv.ppf(usamples))
+        )
+        assert bkd.allclose(
+            bkd.mean(marginal.rvs(int(1e6))),
+            bkd.asarray([scipy_rv.mean()]),
+            rtol=1e-2,
+        )
+
+        if not bkd.jacobian_implemented():
+            return
+
+        # Torch gradient of cdf
+        def fun(shapes):
+            marginal = GammaMarginal(*bkd.asarray(shapes[:, 0]), backend=bkd)
+            return marginal.ppf(usamples)[:5]
+
+        x0 = bkd.array([3, 4])[:, None]
+        from pyapprox.interface.model import (
+            ForwardFiniteDifference,
+            ModelFromSingleSampleCallable,
+        )
+
+        model = ModelFromSingleSampleCallable(
+            5, 2, fun, values_ndim=1, backend=bkd
+        )
+        fd = ForwardFiniteDifference(model)
+        assert bkd.allclose(
+            bkd.jacobian(lambda x: fun(x[:, None]), x0[:, 0]), fd.jacobian(x0)
+        )
 
 
 class TestNumpyMarginals(TestMarginals, unittest.TestCase):

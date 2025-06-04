@@ -592,7 +592,62 @@ class MarginalCDFNewtonSolver(NewtonSolver):
     pass
 
 
-class BetaMarginal(ContinuousMarginalMixin, Marginal):
+class NewtonRVSMixin:
+    def _setup_newton_solver(self, nquad_samples: int):
+        # just peform one iteration and exit (which we can do because)
+        # initial guess is good. Only reason to use newton solver
+        # here is so autograd will diffentiate through ppf
+        self._newton_solver = MarginalCDFNewtonSolver(
+            verbosity=0,
+            maxiters=1,
+            rtol=10,
+            atol=10,
+        )
+        residual = MarginalCDFNewtonResidual(self)
+        self._newton_solver.set_residual(residual)
+
+    def _ppf(self, usamples: Array) -> Array:
+        # u samples on [0, 1]
+        idx0 = self._bkd.where(usamples == 0.0)[0]
+        idx1 = self._bkd.where(usamples == 1.0)[0]
+        jdx = self._bkd.where((usamples != 0.0) & (usamples != 1.0))[0]
+        vals = self._bkd.empty(usamples.shape)
+        vals[idx0] = 0.0
+        vals[idx1] = 1.0
+        if jdx.shape[0] == 0:
+            return vals
+
+        # this function is used to compute gradients. Initial
+        # iterate will not effect this computation, unless it is exactly
+        # the answer so just use scipy as initial guess.
+        iterate = self._bkd.asarray(
+            self._scipy_rv.ppf(self._bkd.to_numpy(usamples[jdx]))
+        )
+        eps = 0  # self._newton_solver._atol * 10
+        # iterate[iterate < self._ub - eps] += eps
+        # iterate[iterate >= self._ub - eps] -= eps
+        # self._newton_solver._residual._residual.set_usamples(usamples[jdx])
+        self._newton_solver._residual.set_usamples(usamples[jdx])
+        # when using bounded residual newton solver must be passed
+        # iterates in canonical domain i.e. [-inf,inf]
+        vals[jdx] = self._newton_solver.solve(iterate)
+        # can_iterate = self._newton_solver._residual._to_canonical(iterate)
+        # can_vals = self._newton_solver.solve(can_iterate)
+        # res = self._newton_solver._residual
+        # vals[jdx] = res._from_canonical(can_vals)
+        return vals
+
+    def _cdf_jacobian_diagonal(self, samples: Array) -> Array:
+        # d_x cdf(x) = pdf(x) because
+        # cdf(x) = int_0^x pdf(x) dx
+        cdf_jac = self.pdf(samples)
+        return cdf_jac
+
+    def _cdf_jacobian(self, samples: Array) -> Array:
+        return self._bkd.diag(self._cdf_jacobian_diagonal(samples))
+
+
+class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
     def __init__(
         self,
         alpha: float,
@@ -616,31 +671,15 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
             raise ValueError(
                 "nquad_samples must be greater than int(alpha + beta) + 1"
             )
+        self._scale = self._ub - self._lb
+
         # nquad_samples effects how accurate cdf and thus ppf is
         # so if newton solver is not converging try increasing nquad_samples
         nintervals = 1
         self._quadx_01, self._quadw_01 = composite_gauss_legendre_rule(
             (0, 1), nquad_samples // nintervals, nintervals, self._bkd
         )
-        # self._quadx_01, self._quadw_01 = trapezoid_rule(
-        #     (1e-16, 1.0), nquad_samples, self._bkd
-        # )
-        # 1e-16 to avoid sqrt of zero
-        # self._quadx_01, self._quadw_01 = simpsons_rule(
-        #     (1e-16, 1.0), nquad_samples, self._bkd
-        # )
-        self._scale = self._ub - self._lb
-        # just peform one iteration and exit (which we can do because)
-        # initial guess is good. Only reason to use newton solver
-        # here is so autograd will diffentiate through ppf
-        self._newton_solver = MarginalCDFNewtonSolver(
-            verbosity=0,
-            maxiters=1,
-            rtol=10,
-            atol=10,
-        )
-        residual = MarginalCDFNewtonResidual(self)
-        self._newton_solver.set_residual(residual)
+        self._setup_newton_solver(nquad_samples)
 
     def set_shapes(self, alpha: float, beta: float):
         self._a = self._bkd.asarray(alpha)
@@ -681,38 +720,9 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
         return self._bkd.sum(pdf_01_vals * quadw, axis=1)
 
     def _ppf(self, usamples: Array) -> Array:
-        # u samples on [0, 1]
-        iterate = usamples * self._scale + self._lb
         if self._a == 1.0 and self._b == 1.0:
-            return iterate
-        idx0 = self._bkd.where(usamples == 0.0)[0]
-        idx1 = self._bkd.where(usamples == 1.0)[0]
-        jdx = self._bkd.where((usamples != 0.0) & (usamples != 1.0))[0]
-        vals = self._bkd.empty(usamples.shape)
-        vals[idx0] = 0.0
-        vals[idx1] = 1.0
-        if jdx.shape[0] == 0:
-            return vals
-
-        # this function is used to compute gradients. Initial
-        # iterate will not effect this computation, unless it is exactly
-        # the answer so just use scipy as initial guess.
-        iterate = self._bkd.asarray(
-            self._scipy_rv.ppf(self._bkd.to_numpy(usamples[jdx]))
-        )
-        eps = 0  # self._newton_solver._atol * 10
-        # iterate[iterate < self._ub - eps] += eps
-        # iterate[iterate >= self._ub - eps] -= eps
-        # self._newton_solver._residual._residual.set_usamples(usamples[jdx])
-        self._newton_solver._residual.set_usamples(usamples[jdx])
-        # when using bounded residual newton solver must be passed
-        # iterates in canonical domain i.e. [-inf,inf]
-        vals[jdx] = self._newton_solver.solve(iterate)
-        # can_iterate = self._newton_solver._residual._to_canonical(iterate)
-        # can_vals = self._newton_solver.solve(can_iterate)
-        # res = self._newton_solver._residual
-        # vals[jdx] = res._from_canonical(can_vals)
-        return vals
+            return usamples * self._scale + self._lb
+        return super()._ppf(usamples)
 
     def pdf_jacobian_implemented(self) -> bool:
         return True
@@ -737,15 +747,6 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
             self._pdf_jacobian_01((sample - self._lb) / self._scale)
             / self._scale**2
         )[None, :]
-
-    def _cdf_jacobian_diagonal(self, samples: Array) -> Array:
-        # d_x cdf(x) = pdf(x) because
-        # cdf(x) = int_0^x pdf(x) dx
-        cdf_jac = self.pdf(samples)
-        return cdf_jac
-
-    def _cdf_jacobian(self, samples: Array) -> Array:
-        return self._bkd.diag(self._cdf_jacobian_diagonal(samples))
 
     def kl_divergence(self, other: "BetaMarginal"):
         r"""
@@ -790,7 +791,9 @@ class BetaMarginal(ContinuousMarginalMixin, Marginal):
             return False
         return True
 
-    def _rvs(self, nsamples: int):
+    def _rvs(self, nsamples: int) -> Array:
+        # note if X1~Gamma(a1,b), X2~Gamma(a2,b)
+        # X1/(X1+X2)~Beta(a1,a2)
         usamples = self._bkd.asarray(np.random.uniform(0, 1, nsamples))
         return self._ppf(usamples)
 
@@ -824,6 +827,82 @@ class UniformMarginal(BetaMarginal):
 
     def _ppf(self, usamples: Array) -> Array:
         return usamples * (self._ub - self._lb) + self._lb
+
+
+class GammaMarginal(NewtonRVSMixin, Marginal):
+    def __init__(
+        self,
+        shape: float,
+        rate: float = 1.0,
+        nquad_samples: int = 50,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(backend)
+        self._shape = self._bkd.atleast1d(shape)[0]
+        self._rate = self._bkd.atleast1d(rate)[0]
+        self._log_const = self._shape * self._bkd.log(
+            self._rate
+        ) - self._bkd.gammaln(self._shape)
+        self._scipy_rv = stats.gamma(
+            self._bkd.to_numpy(self._shape),
+            scale=1.0 / self._bkd.to_numpy(self._rate),
+        )
+        self._setup_newton_solver(nquad_samples)
+
+        # nquad_samples effects how accurate cdf and thus ppf is
+        # so if newton solver is not converging try increasing nquad_samples
+        nintervals = 1
+        self._quadx_01, self._quadw_01 = composite_gauss_legendre_rule(
+            (0, 1), nquad_samples // nintervals, nintervals, self._bkd
+        )
+
+    def _logpdf(self, samples: Array) -> Array:
+        return (
+            self._log_const
+            + (self._shape - 1) * self._bkd.log(samples)
+            - self._rate * samples
+        )
+
+    def _pdf(self, samples: Array) -> Array:
+        return self._bkd.exp(self._logpdf(samples))
+
+    def _gammainc(self, samples: Array) -> Array:
+        # WARNING increase accuracy of quadrature rule if using non-integer
+        # shape params.
+        quadx = self._rate * samples[:, None] * self._quadx_01[None, :]
+        quadw = self._rate * samples[:, None] * self._quadw_01[None, :]
+        integrand_vals = quadx ** (self._shape - 1) * self._bkd.exp(-quadx)
+        return self._bkd.sum(integrand_vals * quadw, axis=1) / self._bkd.exp(
+            self._bkd.gammaln(self._shape)
+        )
+
+    def _bkd_gammainc(self, samples: Array) -> Array:
+        return self._bkd.gammainc(
+            self._shape,
+            self._rate * samples,
+        )
+
+    def _cdf(self, samples: Array) -> Array:
+        # bkd.gammainc function is not differentiable
+        # return self._bkd_gammainc(samples)
+        return self._gammainc(samples)
+
+    def _rvs(self, nsamples: int) -> Array:
+        usamples = self._bkd.asarray(np.random.uniform(0, 1, nsamples))
+        return self._ppf(usamples)
+
+    def __eq__(self, other: Marginal) -> bool:
+        if not isinstance(other, "GammaMarginal"):
+            return False
+        if self._shape != other.shape or self._rate != other._rate:
+            return False
+        return True
+
+    def mean(self) -> float:
+        return self._shape / self._rate
+
+    def var(self) -> float:
+        return self._shape / self._rate**2
 
 
 class GaussianMarginal(Marginal):
@@ -903,7 +982,7 @@ class GaussianMarginal(Marginal):
             return False
         return True
 
-    def _rvs(self, nsamples: int):
+    def _rvs(self, nsamples: int) -> Array:
         usamples = self._bkd.asarray(np.random.uniform(0, 1, nsamples))
         return self._ppf(usamples)
 
