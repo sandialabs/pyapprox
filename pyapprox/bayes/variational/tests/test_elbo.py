@@ -1,5 +1,7 @@
 import unittest
+
 import numpy as np
+from scipy import stats
 
 from pyapprox.interface.model import DenseMatrixLinearModel
 from pyapprox.util.backends.torch import TorchMixin
@@ -8,6 +10,7 @@ from pyapprox.bayes.variational.elbo import (
     CholeskyGaussianVariationalPosterior,
     IndependentGaussianVariationalPosterior,
     IndependentBetaVariationalPosterior,
+    TensorProductQuadratureRuleLatentVariableGenerator,
 )
 from pyapprox.bayes.likelihood import (
     ModelBasedGaussianLogLikelihood,
@@ -26,6 +29,8 @@ from pyapprox.util.hyperparameter import (
 )
 from pyapprox.variables.marginals import BetaMarginal
 from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule
+from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
 
 
 class TestVariationalInference:
@@ -66,7 +71,6 @@ class TestVariationalInference:
         laplace.compute(obs)
 
         vi = VariationalInverseProblem(prior, loglike, variational_posterior)
-
         iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
         errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=False)
         assert errors.min() / errors.max() < 1e-6
@@ -132,19 +136,27 @@ class TestVariationalInference:
             )
 
     def _check_independent_gaussian_vi_linear_gaussian_model(
-        self, nvars, nobs, noise_std, prior_std, nlatent_samples, rtol
+        self,
+        nvars,
+        nobs,
+        noise_std,
+        prior_std,
+        nlatent_samples,
+        rtol,
+        latent_generator,
     ):
         bkd = self.get_backend()
         mean = bkd.ones((nvars, 1))
         std_diag = bkd.full((nvars,), prior_std)
         prior = IndependentMultivariateGaussian(mean, std_diag**2, backend=bkd)
-        init_post_mean = mean  # * 0 + -0.7416
-        init_post_std_diag = std_diag  # * 0 + np.sqrt(2.8409e-05)
+        init_post_mean = mean
+        init_post_std_diag = std_diag
         variational_posterior = IndependentGaussianVariationalPosterior(
             prior,
             nlatent_samples,
             init_post_std_diag,
             mean_values=init_post_mean[:, 0],
+            latent_generator=latent_generator,
             backend=bkd,
         )
         self._check_gaussian_vi_linear_gaussian_model(
@@ -160,8 +172,18 @@ class TestVariationalInference:
         # because reference solution is exact laplace posterior which
         # will have correlations which cannot be captured by
         # an independent gaussian variational posterior
+        bkd = self.get_backend()
+        marginal = stats.norm(0, 1)
+        quad_rule = TensorProductQuadratureRule(
+            1, [GaussQuadratureRule(marginal, backend=bkd)]
+        )
+        latent_gen_1d = TensorProductQuadratureRuleLatentVariableGenerator(
+            quad_rule
+        )
+
         test_cases = [
-            (1, 2, 0.01, 1.0, 1000000, 2e-3),
+            (1, 2, 0.01, 1.0, 1000000, 2e-3, None),
+            (1, 2, 0.01, 1.0, 100, 1e-8, latent_gen_1d),
         ]
         for test_case in test_cases:
             np.random.seed(1)
@@ -183,9 +205,18 @@ class TestVariationalInference:
         loglike = BernoulliLogLikelihood(backend=bkd)
         loglike.set_observations(obs)
 
-        nlatent_samples = 10000
         ashapes = [marginal._a for marginal in prior.marginals()]
         bshapes = [marginal._b for marginal in prior.marginals()]
+        marginal = stats.uniform(0, 1)
+        quad_rule = TensorProductQuadratureRule(
+            1, [GaussQuadratureRule(marginal, backend=bkd)]
+        )
+        nlatent_samples = 1000
+        latent_generator = TensorProductQuadratureRuleLatentVariableGenerator(
+            quad_rule
+        )
+        # nlatent_samples = 10000
+        # latent_generator = None
         variational_posterior = IndependentBetaVariationalPosterior(
             prior,
             nlatent_samples,
@@ -194,15 +225,25 @@ class TestVariationalInference:
             prior.interval(1),
             ashape_bounds=(1, 100),
             bshape_bounds=(1, 100),
+            latent_generator=latent_generator,
             backend=bkd,
         )
         vi = VariationalInverseProblem(prior, loglike, variational_posterior)
+        vi.set_optimizer(
+            vi.default_optimizer(
+                gtol=1e-10, verbosity=0, local_method="trust-constr"
+            )
+        )
         iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
         # print(vi._neg_elbo.jacobian(iterate))
         errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=False)
         # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 4e-6
         vi.fit()
+        print(
+            variational_posterior._ashapes.get_values(),
+            post._posterior_shapes[0],
+        )
         print(
             variational_posterior._ashapes.get_values()
             - post._posterior_shapes[0],

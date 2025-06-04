@@ -36,7 +36,7 @@ from pyapprox.variables.gaussian import (
     IndependentMultivariateGaussian,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.util.visualization import get_meshgrid_samples
+from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule
 
 # TODO implement diagonal plus low rank Gaussian covariance based divergence see
 # https://proceedings.neurips.cc/paper_files/paper/2020/file/310cc7ca5a76a446f85c1a0d641ba96d-Paper.pdf
@@ -119,6 +119,25 @@ class LowDiscrepanySequenceIndependentLatentVariableGenerator(
 
     def _rvs(self, nsamples: int) -> Array:
         return self._seq._variable.rvs(nsamples)
+
+
+class TensorProductQuadratureRuleLatentVariableGenerator(
+    LatentVariableGenerator
+):
+    def __init__(self, quad_rule: TensorProductQuadratureRule):
+        if not isinstance(quad_rule, TensorProductQuadratureRule):
+            raise ValueError(
+                "quad_rule must be a TensorProductInterpolatingBasis"
+            )
+        self._quad_rule = quad_rule
+        super().__init__(quad_rule.nvars(), quad_rule._bkd)
+
+    def _samples_weights(self, nsamples: int) -> Tuple[Array, Array]:
+        # assumes same number of samples used for each dimension
+        return self._quad_rule([nsamples] * self.nvars())
+
+    def _rvs(self, nsamples: int) -> Array:
+        return self._quad_rule._variable.rvs(nsamples)
 
 
 class VariationalPosterior(ABC):
@@ -424,7 +443,9 @@ class NegELBO(SingleSampleModel):
             self._posterior._latent_samples
         )
         # TODO make this a sample average objective
-        expected_loglike = self._bkd.mean(self._loglike(samples))
+        # expected_loglike = self._bkd.mean(self._loglike(samples))
+        weights = self._posterior._latent_weights
+        expected_loglike = self._loglike(samples)[:, 0] @ weights[:, 0]
         return -(expected_loglike - self._posterior._divergence())
 
 
@@ -486,12 +507,13 @@ class VariationalInverseProblem:
         gtol: float = 1e-8,
         maxiter: int = 1000,
         iterate_gen: OptimizerIterateGenerator = None,
+        local_method="L-BFGS-B",
     ) -> MultiStartOptimizer:
         local_optimizer = ScipyConstrainedOptimizer()
         local_optimizer.set_options(
             gtol=gtol,
             maxiter=maxiter,
-            method="L-BFGS-B",
+            method=local_method,
         )
         local_optimizer.set_verbosity(verbosity - 1)
         ms_optimizer = MultiStartOptimizer(
