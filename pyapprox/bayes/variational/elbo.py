@@ -403,6 +403,14 @@ class VariationalInverseProblem:
         ms_optimizer.set_verbosity(verbosity)
         return ms_optimizer
 
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            self._prior,
+            self._neg_elbo._loglike,
+            self._neg_elbo._posterior,
+        )
+
 
 # TODO: read Variational Gaussian Copula Inference.
 # http://proceedings.mlr.press/v51/han16.pdf

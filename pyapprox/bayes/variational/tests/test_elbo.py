@@ -9,8 +9,14 @@ from pyapprox.bayes.variational.elbo import (
     IndependentGaussianVariationalPosterior,
     IndependentBetaVariationalPosterior,
 )
-from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
-from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
+from pyapprox.bayes.likelihood import (
+    ModelBasedGaussianLogLikelihood,
+    BernoulliLogLikelihood,
+)
+from pyapprox.bayes.laplace import (
+    DenseMatrixLaplacePosteriorApproximation,
+    BetaConjugatePriorPosterior,
+)
 from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
     IndependentMultivariateGaussian,
@@ -154,6 +160,55 @@ class TestVariationalInference:
             self._check_independent_gaussian_vi_linear_gaussian_model(
                 *test_case
             )
+
+    def test_beta_conjugate_prior(self):
+        bkd = self.get_backend()
+        shape_args = bkd.array([[2], [6]])
+        nobs = 3
+        post = BetaConjugatePriorPosterior(shape_args, nobs, backend=bkd)
+        obs = bkd.array([1, 0, 1])[:, None][:nobs]
+        post.compute(obs)
+
+        prior = IndependentMarginalsVariable(
+            [BetaMarginal(*shape_args[:, 0], 0.0, 1.0, backend=bkd)]
+        )
+        loglike = BernoulliLogLikelihood(backend=bkd)
+        loglike.set_observations(obs)
+
+        nlatent_samples = 10000
+        ashapes = [marginal._a for marginal in prior.marginals()]
+        bshapes = [marginal._b for marginal in prior.marginals()]
+        variational_posterior = IndependentBetaVariationalPosterior(
+            prior,
+            nlatent_samples,
+            ashapes,
+            bshapes,
+            prior.interval(1),
+            ashape_bounds=(1, 100),
+            bshape_bounds=(1, 100),
+            backend=bkd,
+        )
+        vi = VariationalInverseProblem(prior, loglike, variational_posterior)
+        iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
+        # print(vi._neg_elbo.jacobian(iterate))
+        errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=False)
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 4e-6
+        vi.fit()
+        # print(
+        #     variational_posterior._ashapes.get_values(),
+        #     post._posterior_shapes[0],
+        # )
+        assert bkd.allclose(
+            variational_posterior._ashapes.get_values(),
+            post._posterior_shapes[0],
+            rtol=5e-3,  # increasing nlatent_samples increases accuracy
+        )
+        assert bkd.allclose(
+            variational_posterior._bshapes.get_values(),
+            post._posterior_shapes[1],
+            rtol=5e-3,  # increasing nlatent_samples increases accuracy
+        )
 
     def test_independent_beta_vi(self):
         # TODO: create class that uses same independence divergence as used here
