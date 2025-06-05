@@ -505,27 +505,16 @@ class ExponentialQuarticLogLikelihoodModel(LogLikelihood):
 
 
 class BernoulliLogLikelihood(LogLikelihood):
-    def _loglike(self, many_pred_obs: Array) -> Array:
+    def _loglike(self, many_theta: Array) -> Array:
         if self._obs is None:
             raise RuntimeError("must call set_observations()")
         # single vector realization of obs forms one column
         # different realizations in different colums
-        # likelihood is L(q)=q**x*(1-q)**(1-x) where x in {0,1}
-        # if x==0 L(q) = 1-q
-        # if x==1 L(q) = q
         log_vals = self._bkd.sum(
-            self._bkd.log(many_pred_obs).T * self._obs.T
-            + self._bkd.log(1.0 - many_pred_obs.T) * (1.0 - self._obs.T),
+            self._bkd.log(many_theta).T * self._obs.T
+            + self._bkd.log(1.0 - many_theta.T) * (1.0 - self._obs.T),
             axis=1,
         )
-        # log_vals1 = self._bkd.log(
-        #     self._bkd.prod(
-        #         many_pred_obs.T**self._obs.T
-        #         * (1 - many_pred_obs.T) ** (1.0 - self._obs.T),
-        #         axis=1,
-        #     )
-        # )
-        # assert self._bkd.allclose(vals, vals1)
         return log_vals
 
     def nvars(self) -> int:
@@ -539,3 +528,51 @@ class BernoulliLogLikelihood(LogLikelihood):
 
     def _values(self, samples: Array) -> Array:
         return self._loglike(samples)[:, None]
+
+
+class MultinomialLogLikelihood(LogLikelihood):
+    def __init__(self, noptions: int, backend: BackendMixin = NumpyMixin):
+        super().__init__(backend)
+        self._noptions = noptions
+
+    def _loglike(self, many_theta: Array) -> Array:
+        if self._obs is None:
+            raise RuntimeError("must call set_observations()")
+        # single vector realization of obs forms one column
+        # different realizations in different colums
+        # here we flatten multinomial observations self._obs
+        # such that
+        # [
+        #     [x11,...,x1K],
+        #     [x21,...,x2K]
+        # ] -> [x11,...,x1K, x21,...,x2K]
+        if self._obs.shape[1] != self.nvars():
+            raise RuntimeError("Obs has the wrong shape")
+        print(self._obs.shape)
+        print(many_theta.shape)
+        const = self._bkd.log(self._bkd.factorial(self._nobs)) + self._bkd.log(
+            self._bkd.factorial(self._ntrials)
+        )
+        for ii in range(self._obs.shape[0]):
+            log_vals = self._bkd.sum(
+                self._bkd.log(many_theta).T * obs[ii : ii + 1], axis=1
+            )
+            print(log_vals)
+        return log_vals
+
+    def nvars(self) -> int:
+        return self._noptions
+
+    def _make_noisy(self) -> Array:
+        raise NotImplementedError(
+            "Make noisy only relevant to certain likelihoods."
+            "TODO remove this function with more general function"
+        )
+
+    def _values(self, samples: Array) -> Array:
+        return self._loglike(samples)[:, None]
+
+    def __repr__(self) -> str:
+        return "{0}(noptions={1})".format(
+            self.__class__.__name__, self.nvars()
+        )

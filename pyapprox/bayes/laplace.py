@@ -17,7 +17,10 @@ from pyapprox.variables.gaussian import (
     MultivariateGaussian,
 )
 from pyapprox.bayes.likelihood import GaussianLogLikelihood
-from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.joint import (
+    IndependentMarginalsVariable,
+    DirichletVariable,
+)
 from pyapprox.variables.marginals import BetaMarginal
 
 
@@ -562,12 +565,12 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
         )
 
     def posterior_variable(self) -> IndependentMarginalsVariable:
+        if not hasattr(self, "_posterior_shapes"):
+            raise RuntimeError("must call compute")
         marginals = [
             BetaMarginal(*shape, 0.0, 1.0, backend=self._bkd)
             for shape in self._posterior_shapes.T
         ]
-        if not hasattr(self, "_posterior_shapes"):
-            raise RuntimeError("must call compute")
         return IndependentMarginalsVariable(marginals)
 
     def evidence(self) -> float:
@@ -597,23 +600,54 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
         self,
         shape_args: Array,
         nobs: int,
+        ntrials: int,
+        noptions: int,
         backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
-        if shape_args.ndim != 2 or shape_args.shape[0] != 2:
-            raise ValueError("shapes must be a 2D array with two rows")
+        if shape_args.ndim != 1:
+            raise ValueError("shapes must be a 1D array")
         self._prior_shapes = shape_args
-        if self._prior_shapes[0] < 1:
+        if self._bkd.any(self._prior_shapes[0] < 1):
             raise ValueError("shape_args[0] must be >= 1")
-        if self._prior_shapes[1] < 1:
-            raise ValueError("shape_args[1] must be >= 1")
         self._nvars = shape_args.shape[0]
-        if self._nvars == 1:
-            raise NotImplementedError(
-                "only univariate posterior is currently suported"
-            )
+        if self._nvars < 2:
+            raise NotImplementedError("nvars must be >= 2")
         self._nobs = nobs
+        self._noptions = noptions
+        self._ntrials = ntrials
+
+    def _set_observations(self, obs: Array):
+        if obs.shape != (self._nobs, self._noptions):
+            raise ValueError(
+                "obs must be a 2D array with shape "
+                "{0} but had shape{1}".format(
+                    (self._nobs, self._noptions), obs.shape
+                )
+            )
+        if self._bkd.any(obs.sum(axis=1) != self._ntrials):
+            raise ValueError(
+                "each column of obs must sum to {0}".format(self._ntrials)
+            )
+        self._obs = obs
 
     def _compute(self, obs: Array):
-        if self._bkd.any((self._obs != 1) & (self._obs != 0.0)):
-            raise ValueError("obs must be zero or one")
+        # prior is
+        # p(\theta) ~ Dirichlet(a1,\ldots, aK) K=noptions
+        # Each obs x=(x_1,...,x_K) represents an experiment that extracts
+        # M balls of K different colors from a bag. M=ntrials
+        # x_k is the number of extraced balls of color k and
+        # \sum_{k=1}^K x_k = M
+        # likelihood is
+        # p(x|theta) = M!/(x_1!...x_K!)\theta_1^{x_1}...\theta_K^{x_K}
+        #            = \Gamma(\sum_k x_k+1)/(\prod_k \Gamma(x_k+1))\prod \theta_k^{x_k}
+        # posterior is
+        # p(\theta|x)~Dirichlet(a_1+\sum_{n=1}^N x_{n,1},\ldots,a_K+\sum_{n=1}^N x_{n,K})
+        self._posterior_shapes = self._prior_shapes + self._bkd.sum(
+            obs, axis=0
+        )
+
+    def posterior_variable(self) -> IndependentMarginalsVariable:
+        if not hasattr(self, "_posterior_shapes"):
+            raise RuntimeError("must call compute")
+        return DirichletVariable(self._posterior_shapes, self._bkd)

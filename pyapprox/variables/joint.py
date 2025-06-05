@@ -706,3 +706,6 @@ class DirichletVariable(JointVariable):
                 )
             )
         )
+
+    def __repr__(self) -> str:
+        return "{0}({1})".format(self.__class__.__name__, self._shapes)

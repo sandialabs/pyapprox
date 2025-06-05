@@ -912,3 +912,8 @@ class BackendMixin(ABC):
     @abstractmethod
     def gammainc(a: Array, x: Array) -> Array:
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def factorial(array: Array) -> Array:
+        raise NotImplementedError

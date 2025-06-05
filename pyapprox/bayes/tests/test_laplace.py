@@ -3,6 +3,7 @@ import os
 import glob
 
 import numpy as np
+from scipy import stats
 
 from pyapprox.variables.gaussian import (
     DenseCholeskySqrtCovarianceOperator,
@@ -22,14 +23,19 @@ from pyapprox.bayes.laplace import (
     DenseMatrixLaplacePosteriorLowRankApproximation,
     ApplyNegLogLikelihoodHessian,
     BetaConjugatePriorPosterior,
+    DirichletConjugatePriorPosterior,
 )
 from pyapprox.bayes.likelihood import (
     LogUnNormalizedPosterior,
     ModelBasedGaussianLogLikelihood,
     BernoulliLogLikelihood,
+    MultinomialLogLikelihood,
 )
 from pyapprox.variables.marginals import BetaMarginal
-from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.joint import (
+    IndependentMarginalsVariable,
+    DirichletVariable,
+)
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.util.visualization import plot_multiple_2d_gaussian_slices
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -289,6 +295,30 @@ class TestLaplace:
         assert bkd.allclose(
             beta_post.posterior_variable().var(), variance, rtol=1e-2
         )
+
+    def dirichlet_conjugate_prior(self):
+        bkd = self.get_backend()
+        nobs = 3
+        ntrials = 10
+        noptions = 4
+        shape_args = bkd.array([2, 3, 4, 5])
+        probs = np.random.uniform(0.5, 1, noptions)
+        probs /= probs.sum()
+        print(probs)
+        post = DirichletConjugatePriorPosterior(
+            shape_args, nobs, ntrials, noptions, backend=bkd
+        )
+        obs = stats.multinomial(ntrials, probs).rvs(nobs)
+        print(obs)
+        post.compute(obs)
+        print(post.posterior_variable())
+        prior = DirichletVariable(shape_args, backend=bkd)
+        print(prior)
+        loglike = MultinomialLogLikelihood(noptions, backend=bkd)
+        loglike.set_observations(obs)
+        print(loglike)
+        prior_samples = prior.rvs(100)  # 000)
+        evidence = bkd.exp(loglike(prior_samples)).mean()
 
 
 class TestNumpyLaplace(TestLaplace, unittest.TestCase):

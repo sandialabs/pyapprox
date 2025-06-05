@@ -533,3 +533,7 @@ class JaxBackendMixin(BackendMixin):
     @staticmethod
     def gammainc(a: np.ndarray, x: np.ndarray) -> np.ndarray:
         return jax.scipy.special.gammainc(a, x)
+
+    @staticmethod
+    def factorial(array: np.ndarray) -> np.ndarray:
+        return jax.scipy.special.factorial(array)

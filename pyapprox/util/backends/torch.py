@@ -612,3 +612,7 @@ class TorchMixin(BackendMixin):
     @staticmethod
     def gammainc(a: torch.tensor, x: torch.tensor) -> torch.tensor:
         return torch.special.gammainc(a, x)
+
+    @staticmethod
+    def factorial(array: torch.tensor) -> torch.tensor:
+        return torch.special.factorial(array)
