@@ -531,9 +531,12 @@ class BernoulliLogLikelihood(LogLikelihood):
 
 
 class MultinomialLogLikelihood(LogLikelihood):
-    def __init__(self, noptions: int, backend: BackendMixin = NumpyMixin):
+    def __init__(
+        self, noptions: int, ntrials: int, backend: BackendMixin = NumpyMixin
+    ):
         super().__init__(backend)
         self._noptions = noptions
+        self._ntrials = ntrials
 
     def _loglike(self, many_theta: Array) -> Array:
         if self._obs is None:
@@ -548,17 +551,18 @@ class MultinomialLogLikelihood(LogLikelihood):
         # ] -> [x11,...,x1K, x21,...,x2K]
         if self._obs.shape[1] != self.nvars():
             raise RuntimeError("Obs has the wrong shape")
-        print(self._obs.shape)
-        print(many_theta.shape)
-        const = self._bkd.log(self._bkd.factorial(self._nobs)) + self._bkd.log(
-            self._bkd.factorial(self._ntrials)
-        )
+        # log(factorial(N) = gammaln(N+1)
+        const = self._nobs * self._bkd.gammaln(self._ntrials + 1)
+        log_vals = []
         for ii in range(self._obs.shape[0]):
-            log_vals = self._bkd.sum(
-                self._bkd.log(many_theta).T * obs[ii : ii + 1], axis=1
+            log_vals.append(
+                self._bkd.sum(
+                    self._bkd.log(many_theta).T * self._obs[ii : ii + 1],
+                    axis=1,
+                )
+                - self._bkd.sum(self._bkd.gammaln(self._obs[ii] + 1))
             )
-            print(log_vals)
-        return log_vals
+        return self._bkd.sum(self._bkd.stack(log_vals, axis=0), axis=0) + const
 
     def nvars(self) -> int:
         return self._noptions

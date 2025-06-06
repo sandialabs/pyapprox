@@ -200,6 +200,8 @@ class TestJoint:
         assert bkd.allclose(
             variable.pdf(samples), bkd.asarray(scipy_rv.pdf(samples))[:, None]
         )
+        assert bkd.allclose(variable.mean()[:, 0], scipy_rv.mean())
+        assert bkd.allclose(variable.var()[:, 0], scipy_rv.var())
         other_shapes = bkd.array([3, 4, 3])
         other = DirichletVariable(other_shapes, backend=bkd)
         kl_divergence = (

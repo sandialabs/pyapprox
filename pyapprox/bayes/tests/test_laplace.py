@@ -279,6 +279,10 @@ class TestLaplace:
             [BetaMarginal(*shape_args[:, 0], 0.0, 1.0, backend=bkd)]
         )
         prior_samples = prior.rvs(100000)
+        assert bkd.allclose(
+            bkd.exp(loglike(prior_samples[:, :1])),
+            bkd.prod(stats.bernoulli(prior_samples[:, 0]).pmf(obs[:, 0])),
+        )
         evidence = bkd.exp(loglike(prior_samples)).mean()
         mean = (
             prior_samples[0] * bkd.exp(loglike(prior_samples))[:, 0] / evidence
@@ -304,21 +308,42 @@ class TestLaplace:
         shape_args = bkd.array([2, 3, 4, 5])
         probs = np.random.uniform(0.5, 1, noptions)
         probs /= probs.sum()
-        print(probs)
         post = DirichletConjugatePriorPosterior(
             shape_args, nobs, ntrials, noptions, backend=bkd
         )
         obs = stats.multinomial(ntrials, probs).rvs(nobs)
-        print(obs)
         post.compute(obs)
-        print(post.posterior_variable())
         prior = DirichletVariable(shape_args, backend=bkd)
-        print(prior)
-        loglike = MultinomialLogLikelihood(noptions, backend=bkd)
+        loglike = MultinomialLogLikelihood(noptions, ntrials, backend=bkd)
         loglike.set_observations(obs)
-        print(loglike)
-        prior_samples = prior.rvs(100)  # 000)
+        prior_samples = prior.rvs(1000000)
+        assert bkd.allclose(
+            bkd.exp(loglike(prior_samples[:, :1])),
+            bkd.prod(
+                bkd.array(
+                    [
+                        stats.multinomial(ntrials, prior_samples[:, 0]).pmf(
+                            obs[nn, :]
+                        )
+                        for nn in range(nobs)
+                    ]
+                )
+            ),
+        )
         evidence = bkd.exp(loglike(prior_samples)).mean()
+        mean = (
+            prior_samples * bkd.exp(loglike(prior_samples))[:, 0] / evidence
+        ).mean(axis=1)
+        variance = (
+            prior_samples**2 * bkd.exp(loglike(prior_samples))[:, 0] / evidence
+        ).mean(axis=1) - mean**2
+        assert bkd.allclose(evidence, post.evidence(), rtol=1e-2)
+        assert bkd.allclose(
+            post.posterior_variable().mean()[:, 0], mean, rtol=1e-2
+        )
+        assert bkd.allclose(
+            post.posterior_variable().var()[:, 0], variance, rtol=1e-2
+        )
 
 
 class TestNumpyLaplace(TestLaplace, unittest.TestCase):

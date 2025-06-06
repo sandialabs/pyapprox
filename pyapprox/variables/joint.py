@@ -707,5 +707,14 @@ class DirichletVariable(JointVariable):
             )
         )
 
+    def mean(self) -> Array:
+        return (self._shapes / self._shapes.sum())[:, None]
+
+    def var(self) -> Array:
+        a0 = self._shapes.sum()
+        return (self._shapes * (a0 - self._shapes) / (a0**2 * (a0 + 1)))[
+            :, None
+        ]
+
     def __repr__(self) -> str:
         return "{0}({1})".format(self.__class__.__name__, self._shapes)

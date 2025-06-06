@@ -21,7 +21,7 @@ from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
     DirichletVariable,
 )
-from pyapprox.variables.marginals import BetaMarginal
+from pyapprox.variables.marginals import BetaMarginal, log_beta_function
 
 
 class DenseMatrixLaplacePosteriorApproximation:
@@ -574,13 +574,10 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
         return IndependentMarginalsVariable(marginals)
 
     def evidence(self) -> float:
-        from pyapprox.variables.marginals import log_beta_function
-
         shape = self._prior_shapes[:, 0]
         log_evidence = -log_beta_function(*shape, self._bkd)
         nzeros = self._bkd.where(self._obs[:, 0] == 0.0)[0].shape[0]
         nones = self._bkd.where(self._obs[:, 0] == 1.0)[0].shape[0]
-        print(nones, nzeros)
         log_evidence += log_beta_function(
             shape[0] + nones, shape[1] + nzeros, self._bkd
         )
@@ -651,3 +648,43 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
         if not hasattr(self, "_posterior_shapes"):
             raise RuntimeError("must call compute")
         return DirichletVariable(self._posterior_shapes, self._bkd)
+
+    def _log_multivariate_beta_function(self, shapes):
+        alpha0 = self._bkd.sum(shapes)
+        return self._bkd.sum(
+            self._bkd.hstack([self._bkd.gammaln(shape) for shape in shapes])
+        ) - self._bkd.gammaln(alpha0)
+
+    def evidence(self) -> float:
+        # let \theta be parameters and x data
+        # to compute evidence E find equate constants of
+        # p(\theta)p(x|\theta) and p(\theta|x)
+        # such that p(\theta)p(x|\theta)/E = p(\theta|x)
+        # Let W_i = (x_{i1}!)*...*(x_{iK}!) where x_i is the ith observation
+        # and a be shapes of prior and b shapes of post
+        # and Q=\theta^{b_1-1}...\theta^{b_K-1}
+        # p(x|\theta)p(\theta) = (M!)^nobs/(Beta[a]*prod_i(W_i))*Q
+        # p(\theta|x)=Q/Beta[b]
+        # E=p(\theta)p(x|\theta)/p(\theta|x)/
+        # E=(M!)^nobs/(Beta[a]*prod_i(W_i))*Q/(Q/Beta[b])
+        # E=((M!)^nobs*Beta[b]/(Beta[a]*prod_i(W_i))
+        log_beta_prior = self._log_multivariate_beta_function(
+            self._prior_shapes
+        )
+        log_beta_post = self._log_multivariate_beta_function(
+            self._posterior_shapes
+        )
+        log_evidence = (
+            # (M!)^nobs
+            self.nobs() * self._bkd.gammaln(self._ntrials + 1)
+            # Beta[b]
+            + log_beta_post
+            # 1/Beta[a]
+            - log_beta_prior
+            # 1/prod_i(W_i)
+            - sum(
+                self._bkd.sum(self._bkd.gammaln(self._obs[ii] + 1))
+                for ii in range(self.nobs())
+            )
+        )
+        return self._bkd.exp(log_evidence)
