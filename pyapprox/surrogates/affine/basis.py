@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Tuple
 
+from scipy import stats
+
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.surrogates.affine.multiindex import compute_hyperbolic_indices
@@ -631,3 +633,50 @@ def setup_tensor_product_piecewise_poly_quadrature_rule(
             )
         ],
     )
+
+
+class TriangleLebesqueQuadratureRule:
+    def __init__(self, vertices: Array, backend: BackendMixin):
+        self._bkd = backend
+        if vertices.ndim != 2 or vertices.shape[0] != 2:
+            raise ValueError("vertices has the wrong shape")
+        self._vertices = vertices
+        marginal = stats.uniform(-1, 2)
+        self._sq_quad_rule = TensorProductQuadratureRule(
+            2, [GaussQuadratureRule(marginal, backend=self._bkd)] * 2
+        )
+
+    def _quadrature_tuple_on_square(
+        self, nsamples: Array
+    ) -> Tuple[Array, Array]:
+        return self._sq_quad_rule(nsamples)
+
+    def _map_samples_from_square(self, sq_quadx: Array) -> Array:
+        x1, x2, x3 = self._vertices[0]
+        y1, y2, y3 = self._vertices[1]
+        x = (
+            x1
+            + (x2 - x1) * (1.0 + sq_quadx[0]) / 2.0
+            + (x3 - x1) * (1.0 - sq_quadx[0]) * (1.0 + sq_quadx[1]) / 4.0
+        )
+
+        y = (
+            y1
+            + (y2 - y1) * (1.0 + sq_quadx[0]) / 2.0
+            + (y3 - y1) * (1.0 - sq_quadx[0]) * (1.0 + sq_quadx[1]) / 4.0
+        )
+        return self._bkd.stack((x, y), axis=0)
+
+    def __call__(self, nsamples: Array) -> Tuple[Array, Array]:
+        if len(nsamples) != 2:
+            raise ValueError("nsamples must contain two entries")
+        sq_quadx, sq_quadw = self._sq_quad_rule(nsamples)
+        # adjust weights to account for 1d rules using weight function
+        # w(x) = 1/2
+        sq_quadw *= 4.0
+        tri_quadx = self._map_samples_from_square(sq_quadx)
+        area = 1
+        tri_quadw = (area * sq_quadw[:, 0] * (1.0 - sq_quadx[0]) / 8.0)[
+            :, None
+        ]
+        return tri_quadx, tri_quadw

@@ -15,10 +15,12 @@ from pyapprox.bayes.variational.elbo import (
 from pyapprox.bayes.likelihood import (
     ModelBasedGaussianLogLikelihood,
     BernoulliLogLikelihood,
+    MultinomialLogLikelihood,
 )
 from pyapprox.bayes.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
     BetaConjugatePriorPosterior,
+    DirichletConjugatePriorPosterior,
 )
 from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
@@ -28,7 +30,10 @@ from pyapprox.util.hyperparameter import (
     flattened_lower_diagonal_matrix_entries,
 )
 from pyapprox.variables.marginals import BetaMarginal
-from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.joint import (
+    IndependentMarginalsVariable,
+    DirichletVariable,
+)
 from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule
 from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
 
@@ -259,6 +264,59 @@ class TestVariationalInference:
             rtol=5e-3,  # increasing nlatent_samples increases accuracy
         )
 
+    def test_dirichlet_conugate_prior(self):
+        bkd = self.get_backend()
+        shape_args = bkd.array([2, 3, 4, 5])
+        nobs = 3
+        ntrials = 10
+        noptions = 4
+        probs = np.random.uniform(0.5, 1, noptions)
+        probs /= probs.sum()
+        post = DirichletConjugatePriorPosterior(
+            shape_args, nobs, ntrials, noptions, backend=bkd
+        )
+        obs = stats.multinomial(ntrials, probs).rvs(nobs)
+        post.compute(obs)
+        prior = DirichletVariable(shape_args, backend=bkd)
+        loglike = MultinomialLogLikelihood(noptions, ntrials, backend=bkd)
+        loglike.set_observations(obs)
+
+        ashapes = [marginal._a for marginal in prior.marginals()]
+        bshapes = [marginal._b for marginal in prior.marginals()]
+        marginal = stats.uniform(0, 1)
+        quad_rule = TensorProductQuadratureRule(
+            1, [GaussQuadratureRule(marginal, backend=bkd)]
+        )
+        nlatent_samples = 1000
+        latent_generator = TensorProductQuadratureRuleLatentVariableGenerator(
+            quad_rule
+        )
+        # nlatent_samples = 10000
+        # latent_generator = None
+        variational_posterior = IndependentBetaVariationalPosterior(
+            prior,
+            nlatent_samples,
+            ashapes,
+            bshapes,
+            prior.interval(1),
+            ashape_bounds=(1, 100),
+            bshape_bounds=(1, 100),
+            latent_generator=latent_generator,
+            backend=bkd,
+        )
+        vi = VariationalInverseProblem(prior, loglike, variational_posterior)
+        vi.set_optimizer(
+            vi.default_optimizer(
+                gtol=1e-10, verbosity=0, local_method="trust-constr"
+            )
+        )
+        iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
+        # print(vi._neg_elbo.jacobian(iterate))
+        errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=False)
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 4e-6
+        vi.fit()
+
     def test_independent_beta_vi(self):
         # TODO: create class that uses same independence divergence as used here
         # bust using gaussian posteriors to better check this code where
@@ -329,6 +387,93 @@ class TestVariationalInference:
         # plt.show()
         print(vi)
         raise NotImplementedError
+
+    def test_triangular_gauss_quadrature(self):
+        bkd = self.get_backend()
+        marginal = stats.uniform(-1, 2)
+        quad_rule = TensorProductQuadratureRule(
+            2, [GaussQuadratureRule(marginal, backend=bkd)] * 2
+        )
+
+        def fun(x):
+            # return x[0] * 0 + 1
+            return (x**2).sum(axis=0)[:, None]  # * 0 + 1
+            # return (x**3).sum(axis=0)[:, None]  # * 0 + 1
+
+        quadx, quadw = quad_rule([3, 3])
+        # change weights from w(x) = 1/2 to w(x) = 1
+        quadw *= 2
+        tri_quadx = bkd.stack(
+            [
+                # for vertices (0,0),(1,0),(0,1)
+                (1.0 + quadx[0]) / 2.0,
+                (1.0 - quadx[0]) * (1.0 + quadx[1]) / 4.0,
+                # for vertices (0,0),(0,1),(1,1)
+                # (1.0 - quadx[0]) / 2.0,
+                # (1.0 - quadx[0]) * (1.0 + quadx[1]) / 4.0,
+            ],
+            axis=0,
+        )
+        print(tri_quadx.shape)
+        # import matplotlib.pyplot as plt
+
+        # plt.plot(*tri_quadx, "o")
+        # plt.show()
+
+        # triangle vertices (x1,y1), (x2, y2), (x3, y3)
+        x1, y1 = (0, 0)
+        x2, y2 = (1, 0)
+        x3, y3 = (0, 1)
+
+        x1, y1 = (0, 0)
+        x2, y2 = (0.5, 1)
+        x3, y3 = (1, 0)
+
+        x = (
+            x1
+            + (x2 - x1) * (1.0 + quadx[0]) / 2.0
+            + (x3 - x1) * (1.0 - quadx[0]) * (1.0 + quadx[1]) / 4.0
+        )
+
+        y = (
+            y1
+            + (y2 - y1) * (1.0 + quadx[0]) / 2.0
+            + (y3 - y1) * (1.0 - quadx[0]) * (1.0 + quadx[1]) / 4.0
+        )
+
+        print(tri_quadx)
+        tri_quadx = bkd.stack((x, y), axis=0)
+        print(tri_quadx)
+
+        area = 1
+        integral = (
+            area
+            * (fun(tri_quadx)[:, 0] * ((1.0 - quadx[0]) / 4.0))
+            @ quadw[:, 0]
+        )
+        tri_quadw = (area * quadw[:, 0] * (1.0 - quadx[0]) / 4.0)[:, None]
+
+        from pyapprox.surrogates.affine.basis import (
+            TriangleLebesqueQuadratureRule,
+        )
+
+        vertices = bkd.stack(
+            [bkd.array([0, 0.5, 1]), bkd.array([0, 1, 0])], axis=0
+        )
+        quad_rule = TriangleLebesqueQuadratureRule(vertices, bkd)
+        tri_quadx, tri_quadw = quad_rule([5, 5])
+
+        integral1 = fun(tri_quadx)[:, 0] @ tri_quadw[:, 0]
+        print(integral1)
+        # exact_integral = 1 / 2 # f(x) = 1  (0,0),(1,0),(0,1)
+        exact_integral = 1 / 6  # f(x) = x^2+y^2 (0,0),(1,0),(0,1)
+        # exact_integral = 1 / 10  # f(x) = x^3+y^3 (0,0),(1,0),(0,1)
+        print(integral)
+        # f(x) = x^2+y^2 (0,0),(0,5,1),(0,1)
+        exact_integral = 0.0729167 + 0.15625
+        print(exact_integral)
+        print(exact_integral / integral)
+        assert bkd.allclose(integral, bkd.asarray(exact_integral))
 
 
 # class TestNumpyVariationalInference(
