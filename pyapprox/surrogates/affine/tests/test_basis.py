@@ -26,6 +26,7 @@ from pyapprox.surrogates.affine.basis import (
     TrigonometricBasis,
     FourierBasis,
     setup_tensor_product_piecewise_poly_quadrature_rule,
+    TriangleLebesqueQuadratureRule,
 )
 from pyapprox.surrogates.univariate.lagrange import setup_lagrange_basis
 from pyapprox.surrogates.affine.basisexp import (
@@ -871,6 +872,37 @@ class TestBasis:
         raise NotImplementedError(
             "Replicate test in old version of pyapprox of the same name"
         )
+
+    def _check_triangular_gauss_quadrature(
+        self, fun, vertices, exact_integral
+    ):
+        bkd = self.get_backend()
+        quad_rule = TriangleLebesqueQuadratureRule(vertices, bkd)
+        tri_quadx, tri_quadw = quad_rule([5, 5])
+        integral = fun(tri_quadx)[:, 0] @ tri_quadw[:, 0]
+        assert bkd.allclose(integral, bkd.asarray(exact_integral))
+
+    def test_triangular_gauss_quadrature(self):
+        bkd = self.get_backend()
+        test_cases = [
+            [
+                lambda x: 1 + 0 * x[0][:, None],
+                bkd.array([[0, 1, 0], [0, 0, 1]]),
+                0.5,
+            ],
+            [
+                lambda x: (x**2).sum(axis=0)[:, None],
+                bkd.array([[0, 0.5, 1], [0, 1, 0]]),
+                0.0729167 + 0.15625,
+            ],
+            [
+                lambda x: (x**3).sum(axis=0)[:, None],
+                bkd.array([[0, 1, 0], [0, 0, 1]]),
+                1.0 / 10.0,
+            ],
+        ]
+        for test_case in test_cases:
+            self._check_triangular_gauss_quadrature(*test_case)
 
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):
