@@ -455,14 +455,14 @@ class QuadratureRule(ABC):
         self._bkd = backend
 
     @abstractmethod
-    def nvars(self):
+    def nvars(self) -> int:
         raise NotImplementedError
 
     @abstractmethod
-    def __call__(self):
+    def __call__(self) -> Tuple[Array, Array]:
         raise NotImplementedError
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(bkd={1})".format(
             self.__class__.__name__, self._bkd.__name__
         )
@@ -635,9 +635,9 @@ def setup_tensor_product_piecewise_poly_quadrature_rule(
     )
 
 
-class TriangleLebesqueQuadratureRule:
+class TriangleLebesqueQuadratureRule(QuadratureRule):
     def __init__(self, vertices: Array, backend: BackendMixin):
-        self._bkd = backend
+        super().__init__(backend)
         if vertices.ndim != 2 or vertices.shape[0] != 2:
             raise ValueError("vertices has the wrong shape")
         self._vertices = vertices
@@ -645,6 +645,9 @@ class TriangleLebesqueQuadratureRule:
         self._sq_quad_rule = TensorProductQuadratureRule(
             2, [GaussQuadratureRule(marginal, backend=self._bkd)] * 2
         )
+
+    def nvars(self) -> int:
+        return 2
 
     def _quadrature_tuple_on_square(
         self, nsamples: Array

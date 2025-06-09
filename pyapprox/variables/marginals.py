@@ -838,7 +838,7 @@ class GammaMarginal(NewtonRVSMixin, Marginal):
     ):
         super().__init__(backend)
         self._shape = self._bkd.atleast1d(shape)[0]
-        self._rate = self._bkd.atleast1d(rate)[0]
+        self._rate = self._bkd.asarray(rate)
         self._log_const = self._shape * self._bkd.log(
             self._rate
         ) - self._bkd.gammaln(self._shape)
@@ -891,9 +891,9 @@ class GammaMarginal(NewtonRVSMixin, Marginal):
         return self._ppf(usamples)
 
     def __eq__(self, other: Marginal) -> bool:
-        if not isinstance(other, "GammaMarginal"):
+        if not isinstance(other, GammaMarginal):
             return False
-        if self._shape != other.shape or self._rate != other._rate:
+        if self._shape != other._shape or self._rate != other._rate:
             return False
         return True
 

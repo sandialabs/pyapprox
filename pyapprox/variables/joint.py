@@ -651,13 +651,16 @@ class RejectionSamplingVariable:
 class DirichletVariable(JointVariable):
     def __init__(self, shapes: Array, backend: BackendMixin = NumpyMixin):
         super().__init__(backend)
+        self.set_shapes(shapes)
+
+    def set_shapes(self, shapes: Array):
         if shapes.ndim != 1:
             raise ValueError("shapes must be a 1D array")
         self._shapes = shapes
         # todo make custom gamma distribution so I can differentiate through it
         gamma_marginals = [
-            # GammaMarginal(stats.gamma(shape), backend=self._bkd)
-            ContinuousScipyMarginal(stats.gamma(shape), backend=self._bkd)
+            GammaMarginal(shape, backend=self._bkd)
+            # ContinuousScipyMarginal(stats.gamma(shape), backend=self._bkd)
             for shape in self._shapes
         ]
         self._gamma_variable = IndependentMarginalsVariable(

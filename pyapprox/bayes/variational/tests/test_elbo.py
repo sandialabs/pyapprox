@@ -10,7 +10,8 @@ from pyapprox.bayes.variational.elbo import (
     CholeskyGaussianVariationalPosterior,
     IndependentGaussianVariationalPosterior,
     IndependentBetaVariationalPosterior,
-    TensorProductQuadratureRuleLatentVariableGenerator,
+    QuadratureRuleLatentVariableGenerator,
+    DirichletVariationalPosterior,
 )
 from pyapprox.bayes.likelihood import (
     ModelBasedGaussianLogLikelihood,
@@ -34,7 +35,10 @@ from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
     DirichletVariable,
 )
-from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule
+from pyapprox.surrogates.affine.basis import (
+    TensorProductQuadratureRule,
+    TriangleLebesqueQuadratureRule,
+)
 from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
 
 
@@ -182,9 +186,7 @@ class TestVariationalInference:
         quad_rule = TensorProductQuadratureRule(
             1, [GaussQuadratureRule(marginal, backend=bkd)]
         )
-        latent_gen_1d = TensorProductQuadratureRuleLatentVariableGenerator(
-            quad_rule
-        )
+        latent_gen_1d = QuadratureRuleLatentVariableGenerator(quad_rule)
 
         test_cases = [
             (1, 2, 0.01, 1.0, 1000000, 2e-3, None),
@@ -217,9 +219,7 @@ class TestVariationalInference:
             1, [GaussQuadratureRule(marginal, backend=bkd)]
         )
         nlatent_samples = 1000
-        latent_generator = TensorProductQuadratureRuleLatentVariableGenerator(
-            quad_rule
-        )
+        latent_generator = QuadratureRuleLatentVariableGenerator(quad_rule)
         # nlatent_samples = 10000
         # latent_generator = None
         variational_posterior = IndependentBetaVariationalPosterior(
@@ -264,43 +264,39 @@ class TestVariationalInference:
             rtol=5e-3,  # increasing nlatent_samples increases accuracy
         )
 
-    def test_dirichlet_conugate_prior(self):
+    def test_dirichlet_conjugate_prior(self):
         bkd = self.get_backend()
-        shape_args = bkd.array([2, 3, 4, 5])
-        nobs = 3
-        ntrials = 10
-        noptions = 4
-        probs = np.random.uniform(0.5, 1, noptions)
+        shape_args = bkd.array([2, 3, 4])
+        nvars = len(shape_args) - 1
+        nobs, ntrials = bkd.array([3, 10], dtype=int)
+        noptions = len(shape_args)
+        probs = bkd.array(np.random.uniform(0.5, 1, noptions))
         probs /= probs.sum()
         post = DirichletConjugatePriorPosterior(
             shape_args, nobs, ntrials, noptions, backend=bkd
         )
-        obs = stats.multinomial(ntrials, probs).rvs(nobs)
+        obs = bkd.asarray(stats.multinomial(ntrials, probs).rvs(nobs))
         post.compute(obs)
         prior = DirichletVariable(shape_args, backend=bkd)
         loglike = MultinomialLogLikelihood(noptions, ntrials, backend=bkd)
         loglike.set_observations(obs)
 
-        ashapes = [marginal._a for marginal in prior.marginals()]
-        bshapes = [marginal._b for marginal in prior.marginals()]
+        # vertices = bkd.array([[0, 0.5, 1], [0, 1, 0]])
+        # quad_rule = TriangleLebesqueQuadratureRule(vertices, backend=bkd)
         marginal = stats.uniform(0, 1)
         quad_rule = TensorProductQuadratureRule(
-            1, [GaussQuadratureRule(marginal, backend=bkd)]
+            nvars,
+            [GaussQuadratureRule(marginal, backend=bkd)] * nvars,
         )
-        nlatent_samples = 1000
-        latent_generator = TensorProductQuadratureRuleLatentVariableGenerator(
-            quad_rule
-        )
+        nlatent_samples = 100
+        latent_generator = QuadratureRuleLatentVariableGenerator(quad_rule)
         # nlatent_samples = 10000
         # latent_generator = None
-        variational_posterior = IndependentBetaVariationalPosterior(
+        variational_posterior = DirichletVariationalPosterior(
             prior,
             nlatent_samples,
-            ashapes,
-            bshapes,
-            prior.interval(1),
+            shape_args,
             ashape_bounds=(1, 100),
-            bshape_bounds=(1, 100),
             latent_generator=latent_generator,
             backend=bkd,
         )
@@ -316,6 +312,24 @@ class TestVariationalInference:
         # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 4e-6
         vi.fit()
+        print(
+            variational_posterior._ashapes.get_values(),
+            post._posterior_shapes,
+        )
+        print(
+            variational_posterior._ashapes.get_values()
+            - post._posterior_shapes,
+        )
+        assert bkd.allclose(
+            variational_posterior._ashapes.get_values(),
+            post._posterior_shapes[0],
+            rtol=5e-3,  # increasing nlatent_samples increases accuracy
+        )
+        assert bkd.allclose(
+            variational_posterior._bshapes.get_values(),
+            post._posterior_shapes[1],
+            rtol=5e-3,  # increasing nlatent_samples increases accuracy
+        )
 
     def test_independent_beta_vi(self):
         # TODO: create class that uses same independence divergence as used here

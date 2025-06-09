@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 import warnings
 from typing import Tuple, Union
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from pyapprox.variables.joint import JointVariable
@@ -35,8 +34,11 @@ from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
     IndependentMultivariateGaussian,
 )
-from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule
+from pyapprox.variables.joint import (
+    IndependentMarginalsVariable,
+    DirichletVariable,
+)
+from pyapprox.surrogates.affine.basis import QuadratureRule
 
 # TODO implement diagonal plus low rank Gaussian covariance based divergence see
 # https://proceedings.neurips.cc/paper_files/paper/2020/file/310cc7ca5a76a446f85c1a0d641ba96d-Paper.pdf
@@ -56,12 +58,21 @@ class LatentVariableGenerator(ABC):
     def _rvs(self, nsamples: int) -> Array:
         raise NotImplementedError
 
-    def __call__(self, nsamples: int) -> Tuple[Array, Array]:
-        samples, weights = self._samples_weights(nsamples)
+    def _check_samples_weights(
+        self, nsamples: int, samples: Array, weights: Array
+    ):
         if samples.shape != (self._nvars, nsamples):
-            raise RuntimeError("samples has the wrong shape")
+            raise RuntimeError(
+                "samples has the wrong shape. Was {0} should be {1}".format(
+                    samples.shape, (self._nvars, nsamples)
+                )
+            )
         if weights.shape != (nsamples, 1):
             raise RuntimeError("samples has the wrong shape")
+
+    def __call__(self, nsamples: int) -> Tuple[Array, Array]:
+        samples, weights = self._samples_weights(nsamples)
+        self._check_samples_weights(nsamples, samples, weights)
         return samples, weights
 
     def rvs(self, nsamples: int) -> Array:
@@ -121,16 +132,21 @@ class LowDiscrepanySequenceIndependentLatentVariableGenerator(
         return self._seq._variable.rvs(nsamples)
 
 
-class TensorProductQuadratureRuleLatentVariableGenerator(
-    LatentVariableGenerator
-):
-    def __init__(self, quad_rule: TensorProductQuadratureRule):
-        if not isinstance(quad_rule, TensorProductQuadratureRule):
-            raise ValueError(
-                "quad_rule must be a TensorProductInterpolatingBasis"
-            )
+class QuadratureRuleLatentVariableGenerator(LatentVariableGenerator):
+    def __init__(self, quad_rule: QuadratureRule):
+        if not isinstance(quad_rule, QuadratureRule):
+            raise ValueError("quad_rule must be a QaudratureRule")
         self._quad_rule = quad_rule
         super().__init__(quad_rule.nvars(), quad_rule._bkd)
+
+    def _check_samples_weights(
+        self, nsamples: int, samples: Array, weights: Array
+    ):
+        if not hasattr(nsamples, "shape"):
+            nsamples = self._bkd.array([nsamples] * self.nvars())
+        super()._check_samples_weights(
+            self._bkd.prod(nsamples), samples, weights
+        )
 
     def _samples_weights(self, nsamples: int) -> Tuple[Array, Array]:
         # assumes same number of samples used for each dimension
@@ -399,6 +415,72 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
 
     def _divergence(self):
         return self._variable.kl_divergence(self._prior)[:, None]
+
+
+class DirichletVariationalPosterior(VariationalPosterior):
+    def __init__(
+        self,
+        prior: DirichletVariable,
+        nlatent_samples: int,
+        ashape_values: Array,
+        ashape_bounds: Union[Tuple[float, float], Array] = (1, np.inf),
+        latent_generator: LatentVariableGenerator = None,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        nvars = prior.nvars()
+        if latent_generator is None:
+            latent_variable = IndependentMarginalsVariable(
+                [UniformMarginal(0, 1, backend)] * nvars, backend=backend
+            )
+            # self._latent_generator = MonteCarloIndependentLatentVariableGenerator(
+            #     latent_variable
+            # )
+            from pyapprox.expdesign.sequences import HaltonSequence
+
+            sequence = HaltonSequence(
+                nvars, start_idx=1, variable=latent_variable, bkd=backend
+            )
+            latent_generator = (
+                LowDiscrepanySequenceIndependentLatentVariableGenerator(
+                    sequence
+                )
+            )
+        super().__init__(latent_generator, nlatent_samples)
+        self._ashapes = HyperParameter(
+            "ashapes",
+            nvars,
+            ashape_values,
+            ashape_bounds,
+            fixed=False,
+            backend=self._bkd,
+        )
+        self._hyp_list = HyperParameterList([self._ashapes])
+        # nquad samples effects accuracy of variational inference gradients
+        self._variable = DirichletVariable(
+            self._ashapes.get_values(), backend=self._bkd
+        )
+        self._prior = prior
+
+    def update(self):
+        self._variable.set_shapes(self._ashapes.get_values())
+
+    def _map_from_latent_samples(self, latent_samples: Array) -> Array:
+        # map uniform samples to gamma samples
+        print(latent_samples.shape, self._variable._gamma_variable.nvars())
+        gamma_samples = self._bkd.stack(
+            [
+                marginal.ppf(latent_samples[ii])
+                for ii, marginal in enumerate(
+                    self._variable._gamma_variable.marginals()
+                )
+            ],
+            axis=0,
+        )
+        # map gamma samples to dirichlet samples
+        return gamma_samples / self._bkd.sum(gamma_samples, axis=0)[None, :]
+
+    def _divergence(self):
+        return self._bkd.atleast2d(self._variable.kl_divergence(self._prior))
 
 
 class NegELBO(SingleSampleModel):
