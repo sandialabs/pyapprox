@@ -408,7 +408,10 @@ class HermitePolynomial1D(OrthonormalPolynomial1D):
 
     def _get_recursion_coefficients(self, ncoefs):
         return hermite_recurrence(
-            ncoefs, rho=self._rho, probability=self._prob_meas, bkd=self._bkd
+            ncoefs,
+            rho=self._bkd.array(self._rho),
+            probability=self._prob_meas,
+            bkd=self._bkd,
         )
 
     def _radial_equilibrium_rvs(self, nvars: int, nsamples: int) -> Array:
@@ -468,7 +471,12 @@ class KrawtchoukPolynomial1D(OrthonormalPolynomial1D):
         if self._warn:
             warn(msg, UserWarning)
         ncoefs = min(ncoefs, self._n)
-        return krawtchouk_recurrence(ncoefs, self._n, self._p, bkd=self._bkd)
+        return krawtchouk_recurrence(
+            ncoefs,
+            self._bkd.array(self._n),
+            self._bkd.array(self._p),
+            bkd=self._bkd,
+        )
 
     def _opts_equal(self, other: OrthonormalPolynomial1D) -> bool:
         return self._n == other._n and self._p == other._p
@@ -503,7 +511,11 @@ class HahnPolynomial1D(OrthonormalPolynomial1D):
             warn(msg, UserWarning)
         ncoefs = min(ncoefs, self._N)
         return hahn_recurrence(
-            ncoefs, self._N, self._alpha, self._beta, bkd=self._bkd
+            ncoefs,
+            self._bkd.array(self._N),
+            self._bkd.array(self._alpha),
+            self._bkd.array(self._beta),
+            bkd=self._bkd,
         )
 
     def _opts_equal(self, other: OrthonormalPolynomial1D) -> bool:
@@ -534,7 +546,9 @@ class CharlierPolynomial1D(OrthonormalPolynomial1D):
         self._mu = mu
 
     def _get_recursion_coefficients(self, ncoefs: int) -> Array:
-        return charlier_recurrence(ncoefs, self._mu, bkd=self._bkd)
+        return charlier_recurrence(
+            ncoefs, self._bkd.array(self._mu), bkd=self._bkd
+        )
 
 
 class DiscreteChebyshevPolynomial1D(OrthonormalPolynomial1D):
@@ -548,7 +562,9 @@ class DiscreteChebyshevPolynomial1D(OrthonormalPolynomial1D):
         self._N = N
 
     def _get_recursion_coefficients(self, ncoefs: int) -> Array:
-        return discrete_chebyshev_recurrence(ncoefs, self._N, bkd=self._bkd)
+        return discrete_chebyshev_recurrence(
+            ncoefs, self._bkd.array(self._N), bkd=self._bkd
+        )
 
 
 class LaguerrePolynomial1D(OrthonormalPolynomial1D):
@@ -562,7 +578,9 @@ class LaguerrePolynomial1D(OrthonormalPolynomial1D):
         self._rho = rho
 
     def _get_recursion_coefficients(self, ncoefs: int) -> Array:
-        return laguerre_recurrence(ncoefs, self._rho, bkd=self._bkd)
+        return laguerre_recurrence(
+            ncoefs, self._bkd.array(self._rho), bkd=self._bkd
+        )
 
 
 class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D):
@@ -576,8 +594,8 @@ class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D):
     def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         rcoefs = jacobi_recurrence(
             ncoefs,
-            alpha=self._alpha,
-            beta=self._beta,
+            alpha=self._bkd.array(self._alpha),
+            beta=self._bkd.array(self._beta),
             probability=self._prob_meas,
             bkd=self._bkd,
         )
