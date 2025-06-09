@@ -445,6 +445,10 @@ class DirichletVariationalPosterior(VariationalPosterior):
                     sequence
                 )
             )
+        if latent_generator.nvars() != ashape_values.shape[0]:
+            raise ValueError(
+                "latent generator and shape_values are inconsistent"
+            )
         super().__init__(latent_generator, nlatent_samples)
         self._ashapes = HyperParameter(
             "ashapes",
@@ -466,7 +470,6 @@ class DirichletVariationalPosterior(VariationalPosterior):
 
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
         # map uniform samples to gamma samples
-        print(latent_samples.shape, self._variable._gamma_variable.nvars())
         gamma_samples = self._bkd.stack(
             [
                 marginal.ppf(latent_samples[ii])

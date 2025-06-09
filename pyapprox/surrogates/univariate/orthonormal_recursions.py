@@ -1,4 +1,4 @@
-import numpy as np
+import math
 from scipy import special as sp
 
 from pyapprox.util.backends.template import BackendMixin, Array
@@ -43,7 +43,7 @@ def jacobi_recurrence(
     # Special cases
     ab[0, 0] = (beta - alpha) / (alpha + beta + 2.0)
     ab[0, 1] = bkd.exp(
-        (alpha + beta + 1.0) * bkd.log(2.0)
+        (alpha + beta + 1.0) * math.log(2.0)
         + sp.gammaln(alpha + 1.0)
         + sp.gammaln(beta + 1.0)
         - sp.gammaln(alpha + beta + 2.0)

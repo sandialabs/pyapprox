@@ -681,6 +681,28 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
         )
         self._setup_newton_solver(nquad_samples)
 
+        # store name and shapes consistent with scipy.stats to allow
+        # classes to be used interchangably
+        self._name = "beta"
+        self._shapes = {"a": self._a, "b": self._b}
+        self._scales = {
+            "loc": self._bkd.array([self._lb]),
+            "scale": self._bkd.array([self._ub - self._lb]),
+        }
+
+    def _transform_scale_parameters(self) -> Tuple[float, float]:
+        """
+        Transform scale parameters so that when any bounded variable is transformed
+        to the canonical domain [-1, 1]
+        """
+        if not self.is_bounded():
+            return super()._transform_scale_parameters()
+
+        a, b = self._scipy_rv.interval(1)
+        loc = (a + b) / 2
+        scale = b - loc
+        return loc, scale
+
     def set_shapes(self, alpha: float, beta: float):
         self._a = self._bkd.asarray(alpha)
         self._b = self._bkd.asarray(beta)

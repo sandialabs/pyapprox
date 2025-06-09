@@ -3,7 +3,10 @@ import unittest
 import numpy as np
 from scipy import stats
 
-from pyapprox.interface.model import DenseMatrixLinearModel
+from pyapprox.interface.model import (
+    DenseMatrixLinearModel,
+    ModelFromSingleSampleCallable,
+)
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.bayes.variational.elbo import (
     VariationalInverseProblem,
@@ -51,7 +54,8 @@ class TestVariationalInference:
         obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
         obs_model = DenseMatrixLinearModel(obs_mat, backend=bkd)
         loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
-        true_sample = bkd.asarray(np.random.uniform(-1, 1, (nvars, 1)))
+        true_sample = bkd.asarray(np.random.uniform(0, 1, (nvars, 1)))
+        print(true_sample, "true_sample")
         obs = loglike.rvs(true_sample)
         loglike.set_observations(obs)
         return loglike, obs, obs_model
@@ -136,10 +140,11 @@ class TestVariationalInference:
     def test_cholesky_based_gaussian_vi_linear_gaussian_model(self):
         test_cases = [
             (1, 2, 0.01, 1.0, 1000000, 2e-3),
-            (2, 2, 0.01, 1.0, 100000, 7e-3),
+            (2, 2, 0.01, 1.0, 1000000, 2e-3),
         ]
         for test_case in test_cases:
             np.random.seed(1)
+            print(test_case)
             self._check_cholesky_based_gaussian_vi_linear_gaussian_model(
                 *test_case
             )
@@ -267,7 +272,7 @@ class TestVariationalInference:
     def test_dirichlet_conjugate_prior(self):
         bkd = self.get_backend()
         shape_args = bkd.array([2, 3, 4])
-        nvars = len(shape_args) - 1
+        nvars = len(shape_args)
         nobs, ntrials = bkd.array([3, 10], dtype=int)
         noptions = len(shape_args)
         probs = bkd.array(np.random.uniform(0.5, 1, noptions))
@@ -283,20 +288,20 @@ class TestVariationalInference:
 
         # vertices = bkd.array([[0, 0.5, 1], [0, 1, 0]])
         # quad_rule = TriangleLebesqueQuadratureRule(vertices, backend=bkd)
-        marginal = stats.uniform(0, 1)
-        quad_rule = TensorProductQuadratureRule(
-            nvars,
-            [GaussQuadratureRule(marginal, backend=bkd)] * nvars,
-        )
-        nlatent_samples = 100
-        latent_generator = QuadratureRuleLatentVariableGenerator(quad_rule)
-        # nlatent_samples = 10000
-        # latent_generator = None
+        # marginal = stats.uniform(0, 1)
+        # quad_rule = TensorProductQuadratureRule(
+        #     nvars,
+        #     [GaussQuadratureRule(marginal, backend=bkd)] * nvars,
+        # )
+        # nlatent_samples = 50
+        # latent_generator = QuadratureRuleLatentVariableGenerator(quad_rule)
+        nlatent_samples = 10000
+        latent_generator = None
         variational_posterior = DirichletVariationalPosterior(
             prior,
             nlatent_samples,
             shape_args,
-            ashape_bounds=(1, 100),
+            ashape_bounds=(1, 30),
             latent_generator=latent_generator,
             backend=bkd,
         )
@@ -307,37 +312,21 @@ class TestVariationalInference:
             )
         )
         iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
-        # print(vi._neg_elbo.jacobian(iterate))
         errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=False)
-        # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 4e-6
         vi.fit()
-        print(
+        assert bkd.allclose(
             variational_posterior._ashapes.get_values(),
             post._posterior_shapes,
-        )
-        print(
-            variational_posterior._ashapes.get_values()
-            - post._posterior_shapes,
-        )
-        assert bkd.allclose(
-            variational_posterior._ashapes.get_values(),
-            post._posterior_shapes[0],
-            rtol=5e-3,  # increasing nlatent_samples increases accuracy
-        )
-        assert bkd.allclose(
-            variational_posterior._bshapes.get_values(),
-            post._posterior_shapes[1],
-            rtol=5e-3,  # increasing nlatent_samples increases accuracy
+            rtol=1e-3,  # increasing nlatent_samples increases accuracy
         )
 
     def test_independent_beta_vi(self):
-        # TODO: create class that uses same independence divergence as used here
-        # bust using gaussian posteriors to better check this code where
-        # no closed form solution exists.
+        # This tests is really just an example. As error from assuming
+        # independence is nontrivial.
 
         bkd = self.get_backend()
-        noise_std = 0.01
+        noise_std = 0.1
         nobs = 2
         noise_cov = noise_std**2 * bkd.eye(nobs)
         # values for testing variational inference with uniformative (uniform)
@@ -382,7 +371,7 @@ class TestVariationalInference:
         # make divergence proprty of posterior
         import matplotlib.pyplot as plt
 
-        ax = plt.figure().gca()
+        axs = plt.subplots(1, 2)[1]
 
         print(variational_posterior.hyp_list().get_values())
         # Currently pytorch code will set self._a and self._b
@@ -396,11 +385,36 @@ class TestVariationalInference:
         )
         variational_posterior.update()
         variational_posterior._variable.plot_pdf(
-            ax, prior.interval(1.0).flatten(), levels=31
+            axs[0], prior.interval(1.0).flatten(), levels=31
         )
+
+        # plot true posterior
+        # def posterior_numerator(x):
+        #     return bkd.exp(loglike(x) + prior.logpdf(x))
+
+        # quad_rule = TensorProductQuadratureRule(
+        #     2,
+        #     [
+        #         GaussQuadratureRule(marginal, backend=bkd)
+        #         for marginal in prior.marginals()
+        #     ],
+        # )
+        # quadx, quadw = quad_rule([100, 100])
+        # print(quadx.min(), prior.marginals()[0].interval(1))
+        # evidence = posterior_numerator(quadx)[:, 0] @ quadw[:, 0]
+        # posterior_pdf = ModelFromSingleSampleCallable(
+        #     1, 2, lambda x: posterior_numerator(x) / evidence, backend=bkd
+        # )
+        # print(evidence, "evidence")
+        # im = posterior_pdf.plot_contours(axs[1], [0, 1, 0, 1], levels=30)
+        # plt.colorbar(im, ax=axs[1])
         # plt.show()
         print(vi)
-        raise NotImplementedError
+        # regression test
+        assert bkd.allclose(
+            variational_posterior.hyp_list().get_values(),
+            bkd.array([2.0000, 29.3894, 2.0000, 26.8369]),
+        )
 
 
 # class TestNumpyVariationalInference(
