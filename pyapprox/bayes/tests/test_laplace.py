@@ -39,6 +39,7 @@ from pyapprox.variables.joint import (
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.util.visualization import plot_multiple_2d_gaussian_slices
 from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 
 class TestLaplace:
@@ -100,7 +101,7 @@ class TestLaplace:
         model = DenseMatrixLinearModel(A, b, backend=bkd)
         values = model(samples)
         assert bkd.allclose(
-            push_forward.mean(), np.mean(values, axis=0), rtol=1e-2
+            push_forward.mean(), bkd.mean(values, axis=0), rtol=1e-2
         )
         assert bkd.allclose(
             push_forward.covariance(),
@@ -113,10 +114,10 @@ class TestLaplace:
         nqoi = 1
         nvars = 2
         nobs = 3
-        mean = np.ones((nvars, 1))
-        covariance = 0.1 * np.eye(nvars)
+        mean = bkd.ones((nvars, 1))
+        covariance = 0.1 * bkd.eye(nvars)
         noise_std = 0.01
-        noise_cov = noise_std**2 * np.eye(nobs)
+        noise_cov = noise_std**2 * bkd.eye(nobs)
         obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
         pred_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nqoi, nvars)))
         prior = DenseCholeskyMultivariateGaussian(
@@ -153,10 +154,10 @@ class TestLaplace:
         bkd = self.get_backend()
         nvars = 2
         nobs = 3
-        mean = np.ones((nvars, 1))
-        covariance = 0.2 * np.eye(nvars)
+        mean = bkd.ones((nvars, 1))
+        covariance = 0.2 * bkd.eye(nvars)
         noise_std = 0.01
-        noise_cov = noise_std**2 * np.eye(nobs)
+        noise_cov = noise_std**2 * bkd.eye(nobs)
         obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
         prior = DenseCholeskyMultivariateGaussian(
             mean, covariance, backend=bkd
@@ -193,7 +194,9 @@ class TestLaplace:
         # define prior
         prior_mean = bkd.full((nvars, 1), 0.5)
         prior_covariance = bkd.eye(nvars)
-        prior = DenseCholeskyMultivariateGaussian(prior_mean, prior_covariance)
+        prior = DenseCholeskyMultivariateGaussian(
+            prior_mean, prior_covariance, backend=bkd
+        )
 
         # define observations
         noise_sigma2 = 0.5
@@ -223,7 +226,6 @@ class TestLaplace:
         result = optimizer.minimize(prior.mean())
         map_point = result.x
         sample = map_point
-        print(map_point, true_sample, "s")
         assert bkd.allclose(
             neg_log_unormalized_post.jacobian(sample),
             bkd.zeros((1, nvars)),
@@ -242,7 +244,9 @@ class TestLaplace:
         laplace.compute(obs)
 
         rank = prior.nvars()
-        prior_sqrt = DenseCholeskySqrtCovarianceOperator(prior.covariance())
+        prior_sqrt = DenseCholeskySqrtCovarianceOperator(
+            prior.covariance(), backend=bkd
+        )
         apply_hess = ApplyNegLogLikelihoodHessian(loglike, map_point)
         # only true for DenseMatrixLinearModel
         # when using nonlinear model the data misfit hessian
@@ -276,12 +280,15 @@ class TestLaplace:
         loglike = BernoulliLogLikelihood(backend=bkd)
         loglike.set_observations(obs)
         prior = IndependentMarginalsVariable(
-            [BetaMarginal(*shape_args[:, 0], 0.0, 1.0, backend=bkd)]
+            [BetaMarginal(*shape_args[:, 0], 0.0, 1.0, backend=bkd)],
+            backend=bkd,
         )
         prior_samples = prior.rvs(100000)
         assert bkd.allclose(
             bkd.exp(loglike(prior_samples[:, :1])),
-            bkd.prod(stats.bernoulli(prior_samples[:, 0]).pmf(obs[:, 0])),
+            bkd.prod(
+                bkd.array(stats.bernoulli(prior_samples[:, 0]).pmf(obs[:, 0]))
+            ),
         )
         evidence = bkd.exp(loglike(prior_samples)).mean()
         mean = (
@@ -349,6 +356,11 @@ class TestLaplace:
 class TestNumpyLaplace(TestLaplace, unittest.TestCase):
     def get_backend(self):
         return NumpyMixin
+
+
+class TestTorchLaplace(TestLaplace, unittest.TestCase):
+    def get_backend(self):
+        return TorchMixin
 
 
 if __name__ == "__main__":

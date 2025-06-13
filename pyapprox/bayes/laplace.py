@@ -295,8 +295,6 @@ class LaplacePosteriorLowRankApproximation:
             self._prior_condition_hess_op, noversampling, npower_iters
         )
         self._Ur, self._Sr = svd_solver.compute(self._rank)[:2]
-        print(self._Sr, "S1")
-        print(self._Ur)
         P = 1 / self._bkd.sqrt(self._Sr + 1)
         self._post_cov_sqrt = self._prior_condition_hess_op._prior_sqrt.apply(
             self._Ur @ (P[:, None] * self._Ur.T)
@@ -452,8 +450,10 @@ class DenseMatrixLaplaceApproximationForPrediction:
         # print 'TODO replace generalized_eigevalue_decomp by my
         # subspace iteration'
         evals, evecs = generalized_eigevalue_decomp(A, data_cov)
-        evecs = evecs[:, ::-1]
-        evals = evals[::-1]
+        # evecs = evecs[:, ::-1]
+        # evals = evals[::-1]
+        evecs = self._bkd.flip(self._bkd.asarray(evecs), axis=(1,))
+        evals = self._bkd.flip(self._bkd.asarray(evals))
         rank = min(self._pred_matrix.shape[0], self._obs_matrix.shape[0])
         evecs = evecs[:, :rank]
         evals = evals[:rank]
@@ -571,7 +571,7 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
             BetaMarginal(*shape, 0.0, 1.0, backend=self._bkd)
             for shape in self._posterior_shapes.T
         ]
-        return IndependentMarginalsVariable(marginals)
+        return IndependentMarginalsVariable(marginals, backend=self._bkd)
 
     def evidence(self) -> float:
         shape = self._prior_shapes[:, 0]

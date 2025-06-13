@@ -12,7 +12,9 @@ from pyapprox.bayes.variational.gan import (
 from pyapprox.bayes.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
     DenseMatrixLaplaceApproximationForPrediction,
+    GaussianPushForward,
 )
+from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
 
 
 class TestGAN:
@@ -24,30 +26,25 @@ class TestGAN:
         nvars = 100
 
         # set prior to be standard normal
-        L = np.eye(nvars)
-        mu = np.zeros((nvars, 1))
+        L = bkd.eye(nvars)
+        mu = bkd.zeros((nvars, 1))
 
-        # define a function to sample from the prior
-        def sample_prior(nvars, nsamples):
-            return bkd.asarray(
-                mu + L @ np.random.normal(0, 1, (nvars, nsamples))
-            )
+        prior = DenseCholeskyMultivariateGaussian(mu, L, backend=bkd)
 
         # define the noiselsess observational model
         nobs = 2
-        Amat = bkd.asarray(np.random.uniform(0, 1, (nobs, nvars)) + 1)
-        print(Amat)
+        obs_mat = bkd.asarray(np.random.uniform(0, 1, (nobs, nvars)) + 1)
 
         def obs_model(samples):
-            return Amat @ samples
+            return obs_mat @ samples
 
         # define the qoi model
         nqoi = 1
-        Qmat = bkd.asarray(np.random.uniform(0, 1, (nqoi, nvars)) + 1)
-        Qvec = bkd.asarray(np.random.uniform(0, 1, (nqoi, 1)) + 1)
+        pred_mat = bkd.asarray(np.random.uniform(0, 1, (nqoi, nvars)) + 1)
+        pred_vec = 0 * bkd.asarray(np.random.uniform(0, 1, (nqoi, 1)) + 1)
 
         def qoi_model(samples):
-            return Qmat @ samples + Qvec
+            return pred_mat @ samples + pred_vec
 
         # define the noise model
         noise_std = 0.4
@@ -58,66 +55,79 @@ class TestGAN:
             return vals + noise
 
         # Generate real samples
-        ntrain_samples = 10000
-        real_train_prior_samples = sample_prior(nvars, ntrain_samples)
+        ntrain_samples = 100  # 00
+        real_train_prior_samples = prior.rvs(ntrain_samples)
         real_train_samples = qoi_model(real_train_prior_samples)
         real_train_conditional_samples = generate_obs(real_train_prior_samples)
 
         gen_model = LogisticGenerativeAdvesarialModel(
-            [2] * (nqoi + nobs), [2] * (nqoi + nobs)
+            nqoi, nobs, [2] * (nqoi + nobs), [2] * (nqoi + nobs)
         )
-        gen_model.set_optimizer(GenerativeAdvesarialGradientDescent())
+        optimizer = GenerativeAdvesarialGradientDescent(epochs=2)
+        optimizer.set_verbosity(3)
+        gen_model.set_optimizer(optimizer)
         gen_model.fit(real_train_samples, real_train_conditional_samples)
 
         # Generate fake samples using GAN and compare to new real samples
         ntest_samples = 10000
         ndata_realizations = 2
-        ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-        prior_hessian = np.linalg.inv(L @ L.T)
-        noise_cov_inv = np.diag(np.full((nobs,), 1 / noise_std**2))
-        priorpush_mean, priorpush_cov = (
-            push_forward_gaussian_though_linear_model(
-                bkd.to_numpy(Qmat), bkd.to_numpy(Qvec), mu, L @ L.T
-            )
+        noise_cov = bkd.diag(bkd.full((nobs,), noise_std**2))
+        prior_pushforward = GaussianPushForward(
+            pred_mat, mu, L @ L.T, pred_vec, backend=bkd
         )
         priorpush_rv = stats.norm(
-            priorpush_mean[0], np.sqrt(priorpush_cov[0, 0])
+            prior_pushforward.mean()[0],
+            bkd.sqrt(prior_pushforward.covariance()[0, 0]),
         )
-        xx = np.linspace(*priorpush_rv.interval(1 - 1e-3), 101).T
-        ax.fill_between(xx[0], 0, priorpush_rv.pdf(xx[0]), label="Prior PDF")
+        lb, ub = priorpush_rv.interval(1 - 1e-3)
+        lb, ub = lb[0], ub[0]
+
+        ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+        xx = bkd.linspace(lb, ub, 101)[None, :]
+        ax.fill_between(
+            xx[0], 0, priorpush_rv.pdf(xx[0]), label="Prior PDF", alpha=0.5
+        )
+
+        posterior = DenseMatrixLaplacePosteriorApproximation(
+            obs_mat,
+            prior.mean(),
+            prior.covariance(),
+            noise_cov,
+            backend=bkd,
+        )
+        posterior_pushfoward = DenseMatrixLaplaceApproximationForPrediction(
+            obs_mat,
+            pred_mat,
+            prior.mean(),
+            prior.covariance(),
+            noise_cov,
+            backend=bkd,
+        )
         for ii in range(ndata_realizations):
             # Generate realization of the observations for testing
-            true_sample = sample_prior(nvars, 1)
+            true_sample = prior.rvs(1)
             obs = generate_obs(true_sample)
-            # todo implement la_tile
             conditional_vars = bkd.tile(obs, (1, ntest_samples))
-            fake_test_samples = bkd.to_numpy(
-                generator.rvs(ntest_samples, conditional_vars, detach=True)
+            fake_test_samples = gen_model._gen.rvs(
+                ntest_samples, conditional_vars
             )
 
             # Get analytical mean and covariance of posterior
-            post_mean, post_cov = (
-                laplace_posterior_approximation_for_linear_models(
-                    bkd.to_numpy(Amat), mu, prior_hessian, noise_cov_inv, obs
-                )
-            )
-            postpush_mean, postpush_cov = (
-                push_forward_gaussian_though_linear_model(
-                    bkd.to_numpy(Qmat), bkd.to_numpy(Qvec), post_mean, post_cov
-                )
-            )
-
+            print(obs, "obs")
+            posterior.compute(obs)
+            posterior_pushfoward.compute(obs)
             postpush_rv = stats.norm(
-                postpush_mean[0, 0], np.sqrt(postpush_cov[0, 0])
+                posterior_pushfoward.mean()[0, 0],
+                bkd.sqrt(posterior_pushfoward.covariance()[0, 0]),
             )
             print(
                 "Post Push. Mean",
-                postpush_mean,
+                posterior_pushfoward.mean(),
                 fake_test_samples.mean(axis=1),
             )
             print(
                 "Post Push. Covariance",
-                postpush_cov,
+                posterior_pushfoward.covariance(),
                 np.cov(fake_test_samples, ddof=1),
             )
             # Take tranpose below because interval returns two arrays such
@@ -129,14 +139,20 @@ class TestGAN:
                 label=f"Post PDF {ii}",
                 lw=3,
             )
-            gen_kde = stats.gaussian_kde(fake_test_samples)
-            # ax.hist(fake_test_samples[0], bins=30, density=True,
-            #     label='Fake samples')
-            ax.plot(
-                xx[0], gen_kde(xx), ls="--", label=f"Fake Post PDF {ii}", lw=3
-            )
+            print(fake_test_samples.shape)
+            assert False
+            # ax.hist(
+            #    fake_test_samples[0],
+            #    bins=30,
+            #    density=True,
+            #    label="Fake samples",
+            # )
+            # gen_kde = stats.gaussian_kde(fake_test_samples[0])
+            # ax.plot(
+            #     xx[0], gen_kde(xx), ls="--", label=f"Fake Post PDF {ii}", lw=3
+            # )
         ax.legend()
-        plt.savefig("wgan-pf.pdf", transparent=True)
+        # plt.savefig("wgan-pf.pdf", transparent=True)
         plt.show()
 
 

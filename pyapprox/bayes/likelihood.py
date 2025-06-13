@@ -208,7 +208,6 @@ class GaussianLogLikelihood(LogLikelihood):
         # create samples (nsamples, nobs) then take transpose
         # to ensure same noise is used for ith sample
         # regardless of size of nsam
-        print(self.nobs())
         normal_samples = self._bkd.asarray(
             np.random.normal(0, 1, (nsamples, self.nobs()))
         ).T

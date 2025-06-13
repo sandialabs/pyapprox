@@ -17,8 +17,12 @@ from pyapprox.optimization.minimize import Optimizer, OptimizationResult
 
 
 class Generator(ABC):
-    def __init__(self, backend: BackendMixin = TorchMixin):
+    def __init__(
+        self, nlatent_vars: int, nobs: int, backend: BackendMixin = TorchMixin
+    ):
         self._bkd = backend
+        self._nlatent_vars = nlatent_vars
+        self._nobs = nobs
 
     @abstractmethod
     def _transform_latent_samples(self, latent_samples: Array) -> Array:
@@ -47,22 +51,36 @@ class Generator(ABC):
         )
         return samples
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
+
+    def nvars(self) -> int:
+        return self._nlatent_vars + self._nobs
+
+    def nlatent_vars(self) -> int:
+        return self._nlatent_vars
+
+    def nobs(self) -> int:
+        return self._nobs
 
 
 class GaussianLatentMixin:
     def _latent_rvs(self, nsamples: int) -> Array:
-        """Generate latent samples that will be transformed by the generator."""
-        return self._bkd.atleast2d(
-            np.random.normal(0, 1, (self._nlatent_vars, nsamples))
+        """
+        Generate latent samples that will be transformed by the
+        generator.
+        """
+        return self._bkd.asarray(
+            np.random.normal(0, 1, (self.nlatent_vars(), nsamples))
         )
 
 
 class WeinerChaosMixin:
     def _setup_expansion(self, nterms_1d: List[int]):
-        nvars = len(nterms_1d)
-        marginals = [stats.norm(0, 1)] * nvars
+        if self.nvars() != len(nterms_1d):
+            print(self.nvars(), nterms_1d)
+            raise ValueError("must specify nterms_1d for each dimension")
+        marginals = [stats.norm(0, 1)] * self.nvars()
         bases_1d = [
             setup_univariate_orthogonal_polynomial_from_marginal(
                 marginal, backend=self._bkd
@@ -77,12 +95,18 @@ class WeinerChaosMixin:
 
 
 class WeinerChaosGenerator(WeinerChaosMixin, GaussianLatentMixin, Generator):
-    def __init__(self, nterms_1d, backend: BackendMixin = TorchMixin):
-        super().__init__(backend)
+    def __init__(
+        self,
+        nlatent_vars: int,
+        nobs: int,
+        nterms_1d: List[int],
+        backend: BackendMixin = TorchMixin,
+    ):
+        super().__init__(nlatent_vars, nobs, backend)
         self._setup_expansion(nterms_1d)
 
     def _transform_latent_samples(self, latent_samples: Array) -> Array:
-        return self._bexp(latent_samples)
+        return self._bexp(latent_samples).T
 
 
 class Discriminator(ABC):
@@ -104,46 +128,58 @@ class LogisticClassifierDiscriminator(
         self, nterms_1d: List[int], backend: BackendMixin = TorchMixin
     ):
         self._bkd = backend
+        self._nvars = len(nterms_1d)
         self._setup_expansion(nterms_1d)
         super().__init__(self._bexp)
 
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         return super().__call__(samples)
+
+    def nvars(self) -> int:
+        return self._nvars
 
 
 class GradientDescent(Optimizer):
-    def __init__(self, epochs=20, learn_rate=1e-3):
+    def __init__(
+        self,
+        epochs: int = 20,
+        learn_rate: float = 1e-3,
+        backend: BackendMixin = TorchMixin,
+    ):
         """
         Use the Adam optimizer
         """
         super().__init__()
         self._epochs = epochs
         self._learn_rate = learn_rate
+        self._bkd = backend
 
-    def _step_from_objective(self, objective, iterate: Array):
+    def _step_from_objective(
+        self, objective, iterate: Array
+    ) -> Tuple[float, Array]:
         val = objective(iterate)
         grad = objective.jacobian(iterate)
         iterate -= self._learn_rate * grad
         return val, iterate
 
-    def step(self, iterate: Array) -> Tuple[float, Array]:
+    def _step(self, iterate: Array) -> Tuple[float, Array]:
         self._val, self._grad = self._step_from_objective(
             self._objective, iterate
         )
 
-    def preapare_result(self, iterate: Array) -> OptimizationResult:
+    def _prepare_result(self, iterate: Array) -> OptimizationResult:
         result = OptimizationResult()
         result["x"] = iterate
         result["fun"] = self._val
         result["gnorm"] = self._bkd.norm(self._grad)
         return result
 
-    def _minimize(self, iterate):
+    def _minimize(self, iterate: Array) -> OptimizationResult:
         self._it = 0
         while self._it < self._epochs:
-            self.step(iterate)
+            self._step(iterate)
             self._it += 1
-        return self.prepare_result(iterate)
+        return self._prepare_result(iterate)
 
 
 class GenerativeAdvesarialGradientDescent(GradientDescent):
@@ -156,7 +192,7 @@ class GenerativeAdvesarialGradientDescent(GradientDescent):
             )
         )
 
-    def set_objective_functions(self, gen_model):
+    def set_objective_functions(self, gen_model: "GenerativeAdvesarialModel"):
         self._gen_objective = GenerativeAdvesarialGeneratorLoss(gen_model)
         self._gen_objective.set_data(
             gen_model._real_samples, gen_model._conditional_samples
@@ -166,13 +202,22 @@ class GenerativeAdvesarialGradientDescent(GradientDescent):
             gen_model._real_samples, gen_model._conditional_samples
         )
 
-    def update_generator(self) -> bool:
+    def _update_generator(self) -> bool:
         # can customize to change only certain number of iterations
         if self._it % 1 == 0:
             return True
         return False
 
-    def step(self, iterate: Array) -> Tuple[float, Array]:
+    def _prepare_result(self, iterate: Array) -> OptimizationResult:
+        result = OptimizationResult()
+        result["x"] = iterate
+        result["disc_fun"] = self._disc_loss
+        result["gen_fun"] = self._gen_loss
+        result["disc_norm"] = self._bkd.norm(self._disc_grad)
+        result["gen_norm"] = self._bkd.norm(self._gen_grad)
+        return result
+
+    def _step(self, iterate: Array) -> Tuple[float, Array]:
         # update the discriminator
         self._disc_loss, self._disc_grad = self._step_from_objective(
             self._disc_objective, iterate
@@ -180,7 +225,7 @@ class GenerativeAdvesarialGradientDescent(GradientDescent):
         if not self._update_generator():
             return
         self._gen_loss, self._gen_grad = self._step_from_objective(
-            self.gen_objective, iterate
+            self._gen_objective, iterate
         )
 
         if self._verbosity > 1 and self._it % 10 == 0:
@@ -202,6 +247,7 @@ class GenerativeAdvesarialModel(ABC):
     def __init__(self, backend: BackendMixin = TorchMixin):
         self._bkd = backend
         self.setup_generator_and_discriminator()
+        self._hyp_list = self._disc._hyp_list + self._gen._hyp_list
 
     @abstractmethod
     def setup_generator_and_discriminator(self):
@@ -262,15 +308,32 @@ class GenerativeAdvesarialModel(ABC):
         fake_samples = self._gen.rvs(nsamples, conditional_samples)
         if conditional_samples is None:
             return fake_samples
-        return self._bkd.vstack(
-            (self._batch_fake_samples, conditional_samples)
+        return self._bkd.vstack((fake_samples, conditional_samples))
+
+
+def _binary_cross_entropy_loss(
+    pred_values: Array, obs_values: Array, bkd
+) -> Array:
+    if pred_values.shape != obs_values.shape:
+        raise ValueError("pred_values.shape!=obs_values.shape")
+    if pred_values.shape[1] != 1:
+        raise ValueError("pred_values must be 2d matrix with one column")
+    nsamples = obs_values.shape[0]
+    return -(
+        bkd.sum(
+            obs_values * bkd.log(pred_values)
+            + (1.0 - obs_values) * bkd.log(1.0 - pred_values),
+            axis=0,
         )
+        / nsamples
+    )
 
 
 # Todo derive from loss.py LossFunction
 class GenerativeAdvesarialGeneratorLoss:
     def __init__(self, gen_model: GenerativeAdvesarialModel):
         self._gen_model = gen_model
+        self._bkd = gen_model._bkd
 
     def set_data(self, real_samples: Array, conditional_samples: Array):
         if (
@@ -287,7 +350,7 @@ class GenerativeAdvesarialGeneratorLoss:
         self._conditional_samples = conditional_samples
 
     def __call__(self, active_opt_params: Array) -> float:
-        self._gen_model._gen.hyp_list.set_active_opt_params(
+        self._gen_model._gen._hyp_list.set_active_opt_params(
             active_opt_params[:, 0]
         )
         # generate fake samples
@@ -296,13 +359,21 @@ class GenerativeAdvesarialGeneratorLoss:
             nsamples, self._conditional_samples
         )
         # predict the fake labels using the discriminator
-        pred_labels = self._disc(fake_samples)
-        return self._loss_function(pred_labels, self._real_labels)
+        pred_labels = self._gen_model._disc(fake_samples)
+        print(pred_labels[:4, 0], fake_samples)
+        real_labels = self._bkd.ones((pred_labels.shape[0], 1))
+        return _binary_cross_entropy_loss(pred_labels, real_labels, self._bkd)
+
+    def jacobian(self, active_opt_params: Array) -> Array:
+        return self._bkd.jacobian(
+            lambda p: self.__call__(p)[0], active_opt_params
+        )
 
 
 class GenerativeAdvesarialDiscriminatorLoss:
     def __init__(self, gen_model: GenerativeAdvesarialModel):
         self._gen_model = gen_model
+        self._bkd = self._gen_model._bkd
 
     def set_data(self, real_samples: Array, conditional_samples: Array):
         if (
@@ -328,32 +399,50 @@ class GenerativeAdvesarialDiscriminatorLoss:
             nsamples, self._conditional_samples
         )
         # predict the real labels using the discriminator
-        pred_real_labels = self._disc(self._real_samples)
-        real_labels = self._bkd.ones(self._real_samples.shape[0])
-        disc_real_loss = self._loss_function(pred_real_labels, real_labels)
+        real_samples = self._bkd.vstack(
+            (self._real_samples, self._conditional_samples)
+        )
+        pred_real_labels = self._gen_model._disc(real_samples)
+        real_labels = self._bkd.ones((real_samples.shape[1], 1))
+        disc_real_loss = _binary_cross_entropy_loss(
+            pred_real_labels, real_labels, self._bkd
+        )
         # predict the fake labels using the discriminator
-        pred_fake_labels = self._disc(fake_samples)
-        fake_labels = self._bkd.zeros(nsamples)
-        disc_fake_loss = self._loss_function(pred_fake_labels, fake_labels)
+        pred_fake_labels = self._gen_model._disc(fake_samples)
+        fake_labels = self._bkd.zeros((nsamples, 1))
+        disc_fake_loss = _binary_cross_entropy_loss(
+            pred_fake_labels, fake_labels, self._bkd
+        )
         # compute the GAN loss
         disc_loss = (disc_real_loss + disc_fake_loss) / 2
         return disc_loss
+
+    def jacobian(self, active_opt_params: Array) -> Array:
+        return self._bkd.jacobian(
+            lambda p: self.__call__(p)[0], active_opt_params
+        )
 
 
 class LogisticGenerativeAdvesarialModel(GenerativeAdvesarialModel):
     def __init__(
         self,
+        nlatent_vars: int,
+        nobs: int,
         gen_nterms_1d: List[int],
         disc_nterms_1d: List[int],
         backend: BackendMixin = TorchMixin,
     ):
         self._bkd = backend
+        self._nlatent_vars = nlatent_vars
+        self._nobs = nobs
         self._gen_nterms_1d = gen_nterms_1d
         self._disc_nterms_1d = disc_nterms_1d
         super().__init__(backend)
 
     def setup_generator_and_discriminator(self):
-        self._gen = WeinerChaosGenerator(self._gen_nterms_1d, self._bkd)
+        self._gen = WeinerChaosGenerator(
+            self._nlatent_vars, self._nobs, self._gen_nterms_1d, self._bkd
+        )
         self._disc = LogisticClassifierDiscriminator(
             self._disc_nterms_1d, self._bkd
         )
