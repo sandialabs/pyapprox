@@ -240,8 +240,12 @@ class TorchMixin(BackendMixin):
         return torch.reshape(mat, newshape)
 
     @staticmethod
-    def where(cond: torch.Tensor) -> torch.Tensor:
-        return torch.where(cond)
+    def where(
+        cond: torch.Tensor,
+        array1: torch.Tensor = None,
+        array2: torch.Tensor = None,
+    ) -> torch.Tensor:
+        return torch.where(cond, array1, array2)
 
     @staticmethod
     def detach(mat: torch.Tensor) -> torch.Tensor:
@@ -616,3 +620,9 @@ class TorchMixin(BackendMixin):
     @staticmethod
     def factorial(array: torch.tensor) -> torch.tensor:
         return torch.special.factorial(array)
+
+    @staticmethod
+    def clip(
+        array: torch.tensor, minval: float, maxval: float
+    ) -> torch.tensor:
+        return torch.clip(array, minval, maxval)

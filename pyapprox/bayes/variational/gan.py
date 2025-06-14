@@ -73,6 +73,21 @@ class GaussianLatentMixin:
         return self._bkd.asarray(
             np.random.normal(0, 1, (self.nlatent_vars(), nsamples))
         )
+        # below may reduce variance but then we must make sure to call
+        # another set of random samples when training is finished
+        # if not hasattr(self, "_latent_samples"):
+        #     self._latent_samples = self._bkd.asarray(
+        #         np.random.normal(0, 1, (self.nlatent_vars(), nsamples))
+        #     )
+        # if self._latent_samples.shape[1] < nsamples:
+        #     nnew_samples = nsamples - self._latent_samples.shape[1]
+        #     additional_latent_samples = self._bkd.asarray(
+        #         np.random.normal(0, 1, self.nlatent_vars(), nnew_samples)
+        #     )
+        #     self._latent_samples = self._bkd.hstack(
+        #         (self._latent_samples, additional_latent_samples)
+        #     )
+        # return self._latent_samples[:, :nsamples]
 
 
 class WeinerChaosMixin:
@@ -106,6 +121,7 @@ class WeinerChaosGenerator(WeinerChaosMixin, GaussianLatentMixin, Generator):
         self._setup_expansion(nterms_1d)
 
     def _transform_latent_samples(self, latent_samples: Array) -> Array:
+        assert self._bkd.all(self._bkd.isfinite(latent_samples))
         return self._bexp(latent_samples).T
 
 
@@ -219,13 +235,19 @@ class GenerativeAdvesarialGradientDescent(GradientDescent):
 
     def _step(self, iterate: Array) -> Tuple[float, Array]:
         # update the discriminator
+        disc_iterate = iterate[
+            : self._gen_objective._gen_model._disc._hyp_list.nactive_vars()
+        ]
+        gen_iterate = iterate[
+            self._gen_objective._gen_model._disc._hyp_list.nactive_vars() :
+        ]
         self._disc_loss, self._disc_grad = self._step_from_objective(
-            self._disc_objective, iterate
+            self._disc_objective, disc_iterate
         )
         if not self._update_generator():
             return
         self._gen_loss, self._gen_grad = self._step_from_objective(
-            self._gen_objective, iterate
+            self._gen_objective, gen_iterate
         )
 
         if self._verbosity > 1 and self._it % 10 == 0:
@@ -258,7 +280,7 @@ class GenerativeAdvesarialModel(ABC):
             self._gen._hyp_list.nactive_vars()
             + self._disc._hyp_list.nactive_vars()
         )
-        return self._bkd.zeros((nparams, 1))
+        return self._bkd.ones((nparams, 1)) * 1e-3
 
     def _fit(self, iterate: Array):
         if self._optimizer is None:
@@ -319,6 +341,9 @@ def _binary_cross_entropy_loss(
     if pred_values.shape[1] != 1:
         raise ValueError("pred_values must be 2d matrix with one column")
     nsamples = obs_values.shape[0]
+    epsilon = 1e-15
+    pred_values = bkd.clip(pred_values, epsilon, 1 - epsilon)
+    assert bkd.all(bkd.isfinite(pred_values))
     return -(
         bkd.sum(
             obs_values * bkd.log(pred_values)
@@ -360,7 +385,6 @@ class GenerativeAdvesarialGeneratorLoss:
         )
         # predict the fake labels using the discriminator
         pred_labels = self._gen_model._disc(fake_samples)
-        print(pred_labels[:4, 0], fake_samples)
         real_labels = self._bkd.ones((pred_labels.shape[0], 1))
         return _binary_cross_entropy_loss(pred_labels, real_labels, self._bkd)
 

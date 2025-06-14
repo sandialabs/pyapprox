@@ -220,8 +220,10 @@ class NumpyMixin(BackendMixin):
         return np.reshape(mat, newshape)
 
     @staticmethod
-    def where(cond: np.ndarray) -> np.ndarray:
-        return np.where(cond)
+    def where(
+        cond: np.ndarray, array1: np.ndarray = None, array2: np.ndarray = None
+    ) -> np.ndarray:
+        return np.where(cond, array1, array2)
 
     @staticmethod
     def tointeger(mat: np.ndarray) -> np.ndarray:
@@ -522,3 +524,7 @@ class NumpyMixin(BackendMixin):
     @staticmethod
     def factorial(array: np.ndarray) -> np.ndarray:
         return scipy.special.factorial(array)
+
+    @staticmethod
+    def clip(array: np.ndarray, minval: float, maxval: float) -> np.ndarray:
+        return np.clip(array, minval, maxval)

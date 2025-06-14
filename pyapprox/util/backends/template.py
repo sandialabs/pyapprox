@@ -319,7 +319,7 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def where(cond):
+    def where(cond, array1: Array = None, array2: Array = None) -> Array:
         """Return whether elements of a matrix satisfy a condition."""
         raise NotImplementedError
 
@@ -916,4 +916,9 @@ class BackendMixin(ABC):
     @staticmethod
     @abstractmethod
     def factorial(array: Array) -> Array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def clip(array: Array, minval: float, maxval: float) -> Array:
         raise NotImplementedError

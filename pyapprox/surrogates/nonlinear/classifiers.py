@@ -115,7 +115,17 @@ class LogisticClassifier(OptimizedRegressor):
         return self._bexp.nvars()
 
     def _values(self, samples: Array) -> Array:
-        return 1.0 / (1.0 + self._bkd.exp(-self._bexp(samples)))
+        vals = self._bexp(samples)[:, 0]
+        # return 1.0 / (1.0 + self._bkd.exp(-vals))[:, None]
+        # import torch
+
+        # # HACK torch sigmoid is more stable than my custom implementation
+        # return torch.sigmoid(vals)[:, None]
+        return self._bkd.where(
+            vals >= 0,
+            1 / (1 + self._bkd.exp(-vals)),
+            self._bkd.exp(vals) / (1 + self._bkd.exp(vals)),
+        )[:, None]
 
     def hyperparam_jacobian(self, active_opt_params: Array) -> Array:
         self._bexp.hyp_list().set_active_opt_params(active_opt_params[:, 0])

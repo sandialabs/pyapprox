@@ -537,3 +537,7 @@ class JaxBackendMixin(BackendMixin):
     @staticmethod
     def factorial(array: np.ndarray) -> np.ndarray:
         return jax.scipy.special.factorial(array)
+
+    @staticmethod
+    def clip(array: np.ndarray, minval: float, maxval: float) -> np.ndarray:
+        return np.clip(array, minval, maxval)
