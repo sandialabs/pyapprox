@@ -18,6 +18,8 @@ from pyapprox.optimization.minimize import (
     MiniMaxOptimizer,
     EmpiricalAVaRSlackBasedOptimizer,
     AVaRSlackBasedOptimizer,
+    ADAMOptimizer,
+    StochasticGradientDescentOptimizer,
 )
 from pyapprox.optimization.risk import GaussianAnalyticalRiskMeasures
 from pyapprox.benchmarks import (
@@ -45,6 +47,9 @@ else:
 class TestMinimize(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
+
+    def get_backend(self):
+        return NumpyMixin
 
     def test_unconstrained_scipy_rosenbrock(self):
         # check that no bounds is handled correctly
@@ -588,6 +593,129 @@ class TestMinimize(unittest.TestCase):
         print(np.mean(model(res.x)))
         print(np.median(model(res.x)))
         raise NotImplementedError
+
+    def _adam_objective(self):
+        bkd = self.get_backend()
+
+        def objective(x):
+            return bkd.sum(x**2, axis=0)[:, None]
+
+        def jacobian(x):
+            return 2 * x.T
+
+        return ModelFromSingleSampleCallable(
+            1, 3, objective, jacobian, backend=bkd
+        )
+
+    def test_adam_update(self):
+        bkd = self.get_backend()
+
+        # Test update function without clipping
+        opt = ADAMOptimizer()
+        opt.set_options(
+            learning_rate=0.1, beta1=0.9, beta2=0.999, epsilon=1e-8
+        )
+        # set iter so iterate is not based on raising moments to zeroth power
+        # which will make answer the same whether clipping is used or not
+        opt._iter = 1
+        opt.set_objective_function(self._adam_objective())
+        iterate = bkd.array([1.0, 2.0, 3.0])[:, None]
+        jacobian = opt._objective.jacobian(iterate)
+        new_iterate = opt.update(iterate, jacobian)
+        assert not bkd.allclose(iterate, new_iterate)
+
+        # Test update function with clipping
+        opt_clip = ADAMOptimizer()
+        opt_clip.set_options(
+            learning_rate=0.1,
+            beta1=0.9,
+            beta2=0.999,
+            epsilon=1e-8,
+            clip=(3.0, 5.0),
+        )
+        # set iter so iterate is not based on raising moments to zeroth power
+        # which will make answer the same whether clipping is used or not
+        opt._iter = 1
+        opt_clip.set_objective_function(self._adam_objective())
+        iterate = bkd.array([1.0, 2.0, 3.0])[:, None]
+        jacobian = opt_clip._objective.jacobian(iterate)
+        new_clip_iterate = opt_clip.update(iterate, jacobian)
+        assert not bkd.allclose(opt._first_mom, opt_clip._first_mom)
+        assert not bkd.allclose(opt._second_mom, opt_clip._second_mom)
+        assert not bkd.allclose(new_iterate, new_clip_iterate)
+
+    def test_adam_zero_grad(self):
+        opt = ADAMOptimizer()
+        opt.set_objective_function(self._adam_objective())
+        opt.set_options(
+            learning_rate=0.1, beta1=0.9, beta2=0.999, epsilon=1e-8
+        )
+        opt.zero_grad()
+        self.assertIsNone(opt._first_mom)
+        self.assertIsNone(opt._second_mom)
+
+    def test_adam_minimize(self):
+        bkd = self.get_backend()
+        opt = ADAMOptimizer()
+        opt.set_options(
+            learning_rate=0.1,
+            beta1=0.9,
+            beta2=0.999,
+            epsilon=1e-8,
+            maxiters=1000,
+        )
+        opt.set_objective_function(self._adam_objective())
+        iterate = bkd.array([1.0, 2.0, 3.0])[:, None]
+        result = opt.minimize(iterate)
+        assert result.fun < 1e-4
+        assert result.message == "gtol reached"
+
+    def test_adam_set_options(self):
+        opt = ADAMOptimizer()
+        opt.set_options(
+            learning_rate=0.1, beta1=0.9, beta2=0.999, epsilon=1e-8
+        )
+        self.assertEqual(opt._learning_rate, 0.1)
+        self.assertEqual(opt._beta1, 0.9)
+        self.assertEqual(opt._beta2, 0.999)
+        self.assertEqual(opt._epsilon, 1e-8)
+
+    def test_init_gradient_descent(self):
+        bkd = self.get_backend()
+        opt = StochasticGradientDescentOptimizer()
+        opt.set_objective_function(self._adam_objective())
+        opt.set_options(maxiters=10, learning_rate=1e-3)
+        self.assertEqual(opt._maxiters, 10)
+        self.assertEqual(opt._learning_rate, 1e-3)
+        self.assertEqual(opt._bkd, bkd)
+
+    def test_step_from_objective_gradient_descent(self):
+        bkd = self.get_backend()
+        opt = StochasticGradientDescentOptimizer()
+        opt.set_objective_function(self._adam_objective())
+        iterate = bkd.array([4.0, 5.0, 6.0])[:, None]
+        (
+            val,
+            grad,
+            new_iterate,
+        ) = StochasticGradientDescentOptimizer()._step_from_objective(
+            opt._objective, iterate
+        )
+        self.assertEqual(val, opt._objective(iterate))
+        assert opt._bkd.allclose(
+            new_iterate, iterate - 1e-3 * opt._objective.jacobian(iterate).T
+        )
+
+    def test_minimize_gradient_descent(self):
+        bkd = self.get_backend()
+        iterate = bkd.array([1.0, 1.0, 2.0])[:, None]
+        opt = StochasticGradientDescentOptimizer()
+        opt.set_options(maxiters=1000, learning_rate=1e-2)
+        opt.set_verbosity(0)
+        opt.set_objective_function(self._adam_objective())
+        result = opt.minimize(iterate)
+        assert result["fun"] < 1e-4
+        assert result["gnorm"] < 1e-4
 
 
 if __name__ == "__main__":

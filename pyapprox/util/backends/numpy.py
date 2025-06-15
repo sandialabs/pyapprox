@@ -223,7 +223,9 @@ class NumpyMixin(BackendMixin):
     def where(
         cond: np.ndarray, array1: np.ndarray = None, array2: np.ndarray = None
     ) -> np.ndarray:
-        return np.where(cond, array1, array2)
+        if array1 is not None:
+            return np.where(cond, array1, array2)
+        return np.where(cond)
 
     @staticmethod
     def tointeger(mat: np.ndarray) -> np.ndarray:

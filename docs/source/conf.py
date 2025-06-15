@@ -59,6 +59,8 @@ extensions += ["sphinx_gallery.gen_gallery"]
 example_filenames_in_order = [
     # Analysis
     "plot_sensitivity_analysis.py",
+    # Optimization
+    "plot_sgd_vs_adam.py",
     # Inference
     "plot_bayesian_inference.py",
     "plot_bayesian_networks.py",
@@ -95,6 +97,7 @@ example_filenames_in_order = [
     "plot_multifidelity_gp.py",
     "plot_mfgp_expdesign.py",
     "plot_gaussian_mfnets.py",
+    "plot_lowrank.py",
     # SciML
     "plot_derive_certann.py",
     "plot_fourier_transform.py",
@@ -171,6 +174,7 @@ sphinx_gallery_conf = {
     "subsection_order": ExplicitOrder(
         [
             "../../tutorials/analysis",
+            "../../tutorials/optimization",
             "../../tutorials/inference",
             "../../tutorials/expdesign",
             "../../tutorials/surrogates",

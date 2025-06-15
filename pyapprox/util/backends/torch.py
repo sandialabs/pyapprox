@@ -245,7 +245,9 @@ class TorchMixin(BackendMixin):
         array1: torch.Tensor = None,
         array2: torch.Tensor = None,
     ) -> torch.Tensor:
-        return torch.where(cond, array1, array2)
+        if array1 is not None:
+            return torch.where(cond, array1, array2)
+        return torch.where(cond)
 
     @staticmethod
     def detach(mat: torch.Tensor) -> torch.Tensor:

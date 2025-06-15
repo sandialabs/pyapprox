@@ -117,10 +117,10 @@ class LogisticClassifier(OptimizedRegressor):
     def _values(self, samples: Array) -> Array:
         vals = self._bexp(samples)[:, 0]
         # return 1.0 / (1.0 + self._bkd.exp(-vals))[:, None]
-        # import torch
+        import torch
 
-        # # HACK torch sigmoid is more stable than my custom implementation
-        # return torch.sigmoid(vals)[:, None]
+        # HACK torch sigmoid is more stable than my custom implementation
+        return torch.sigmoid(vals)[:, None]
         return self._bkd.where(
             vals >= 0,
             1 / (1 + self._bkd.exp(-vals)),

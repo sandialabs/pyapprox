@@ -230,7 +230,11 @@ class JaxBackendMixin(BackendMixin):
         return np.reshape(mat, newshape)
 
     @staticmethod
-    def where(cond: np.ndarray) -> np.ndarray:
+    def where(
+        cond: np.ndarray, array1: np.ndarray = None, array2: np.ndarray = None
+    ) -> np.ndarray:
+        if array1 is not None:
+            return np.where(cond, array1, array2)
         return np.where(cond)
 
     @staticmethod

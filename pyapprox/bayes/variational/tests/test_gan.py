@@ -74,10 +74,10 @@ class TestGAN:
         real_train_conditional_samples = generate_obs(real_train_prior_samples)
 
         gen_model = LogisticGenerativeAdvesarialModel(
-            nqoi, nobs, [2] * (nqoi + nobs), [4] * (nqoi + nobs)
+            nqoi, nobs, [2] * (nqoi + nobs), [5] * (nqoi + nobs)
         )
         optimizer = GenerativeAdvesarialGradientDescent(
-            epochs=1000, learn_rate=2e-4
+            epochs=20000, learn_rate=1e-3
         )
         optimizer.set_verbosity(3)
         gen_model.set_optimizer(optimizer)

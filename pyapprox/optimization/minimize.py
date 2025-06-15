@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -1749,3 +1749,320 @@ class EmpiricalAVaRSlackBasedOptimizer(AVaRSlackBasedOptimizer):
         super().__init__(optimizer, beta, quadrature_weights, backend=backend)
         self.set_objective_function(_AVaRDummyModel(samples))
         self.set_constraints([])
+
+
+class ADAMOptimizer(OptimizerWithObjective):
+    """
+    ADAM Optimization Algorithm
+
+    This class implements the ADAM optimization algorithm, which is a popular
+    stochastic gradient descent (SGD) variant that adapts the learning rate for
+    each parameter based on the magnitude of the gradient.
+
+    Attributes
+    ----------
+    _learning_rate : float
+        The initial learning rate for the optimizer.
+    _beta1 : float
+        The decay rate for the first moment estimates.
+    _beta2 : float
+        The decay rate for the second moment estimates.
+    _epsilon : float
+        A small value added to the denominator for numerical stability.
+    _m : Array
+        The first moment estimate for the current parameter.
+    _v : Array
+        The second moment estimate for the current parameter.
+    _iter : int
+        The current iteration number.
+    _maxiters : int
+        The maximum number of iterations.
+    _gtol: float
+        The desired accuracy of the gradient.
+    _clip : tuple[float, float]
+        Values to clip the gradient from below and above.
+    _store: bool
+        Flag determining if objective values are stored at each iteration.
+    _history: list
+        List containing the objective values at each iteration
+    """
+
+    def set_options(
+        self,
+        learning_rate: float = 0.001,
+        beta1: float = 0.9,
+        beta2: float = 0.999,
+        epsilon: float = 1e-8,
+        maxiters: int = 100,
+        gtol: float = 1e-4,
+        clip: Tuple[float, float] = None,
+        store: bool = False,
+    ):
+        """
+        Set the options of the ADAM optimizer.
+
+        Parameters
+        ----------
+        learning_rate : float, optional
+            The initial learning rate for the optimizer (default: 0.001).
+        beta1 : float, optional
+            The decay rate for the first moment estimates (default: 0.9).
+        beta2 : float, optional
+            The decay rate for the second moment estimates (default: 0.999).
+        epsilon : float, optional
+            A small value added to the denominator for numerical
+            stability (default: 1e-8).
+        maxiters : int, optional
+           The maximum number of iterations (default: 100).
+        gtol: float, optional
+           The desired accuracy of the gradient (default: 1e-4).
+        clip : tuple[float, float] optional
+            Values to clip the gradient from below and above (default: None).
+        store: bool, optional
+            If true store the value of the objective at each
+            iteration (default: False)
+        """
+        self._learning_rate: float = learning_rate
+        self._beta1: float = beta1
+        self._beta2: float = beta2
+        self._epsilon: float = epsilon
+        self._first_mom: Array = None
+        self._second_mom: Array = None
+        self._iter: int = 0
+        self._maxiters: int = maxiters
+        self._gtol: float = gtol
+        self._clip: Tuple[float, float] = clip
+        self._store = store
+        self._history = []
+
+    def _minimize(self, iterate: Array) -> OptimizationResult:
+        while self._iter < self._maxiters:
+            obj = self._objective(iterate)
+            if self._store:
+                self._history.append(obj[0, 0])
+            gradient = self._objective.jacobian(iterate)
+            iterate = self.update(iterate, gradient)
+            gnorm = self._bkd.norm(gradient)
+            if gnorm < self._gtol:
+                message = "gtol reached"
+                break
+        if self._iter >= self._maxiters:
+            message = "maxiters reached"
+        return OptimizationResult(
+            {"fun": obj, "gnorm": gnorm, "x": iterate, "message": message}
+        )
+
+    def update(self, iterate: Array, jacobian: Array) -> Array:
+        """
+        Update the parameters using the ADAM optimization algorithm.
+
+        Parameters
+        ----------
+        iterate : Array
+            The current parameters.
+        jacobian : Array
+            The jacobian of the loss function with respect to the parameters.
+        """
+        if self._first_mom is None:
+            self._first_mom = self._bkd.zeros(iterate.shape)
+            self._second_mom = self._bkd.zeros(iterate.shape)
+
+        if jacobian.shape[0] != 1:
+            raise ValueError("jacobian must be a 2D array with one row")
+        gradient = jacobian.T
+        self._iter += 1
+        self._first_mom = self._beta1 * self._first_mom + (1 - self._beta1) * (
+            gradient
+            if self._clip is None
+            else self._bkd.clip(gradient, self._clip[0], self._clip[1])
+        )
+        self._second_mom = self._beta2 * self._second_mom + (
+            1 - self._beta2
+        ) * (
+            gradient**2
+            if self._clip is None
+            else self._bkd.clip(gradient, self._clip[0], self._clip[1]) ** 2
+        )
+
+        # correct for bias
+        mhat: Array = self._first_mom / (1 - self._beta1**self._iter)
+        vhat: Array = self._second_mom / (1 - self._beta2**self._iter)
+
+        # update iterate
+        new_iterate = iterate - (
+            self._learning_rate * mhat / (self._bkd.sqrt(vhat) + self._epsilon)
+        )
+        return new_iterate
+
+    def zero_grad(self):
+        """
+        Reset the gradient estimates to zero.
+        """
+        self._first_mom = None
+        self._second_mom = None
+
+    def get_history(self) -> Array:
+        if not self._store:
+            raise ValueError("No history available. Store was not set to true")
+        return self._bkd.asarray(self._history)
+
+
+class StochasticGradientDescentOptimizer(OptimizerWithObjective):
+    """
+    Gradinet Descent Optimizer
+
+    This class implements a basic gradient descent algorithm for optimizing
+    objective functions.
+    It uses a specified backend (e.g., NumPy or PyTorch) to compute gradients
+    and update parameters.
+
+    Attributes
+    ----------
+    _iter : int
+        The current iteration number.
+    _learn_rate : float
+        Learning rate for gradient descent.
+    _maxiters : int
+        The maximum number of iterations.
+    _gtol: float
+        The desired accuracy of the gradient.
+    _clip : tuple[float, float]
+            Values to clip the gradient from below and above (default: None).
+    _store: bool
+        Flag determining if objective values are stored at each iteration.
+    _history: list
+        List containing the objective values at each iteration
+    """
+
+    def set_options(
+        self,
+        learning_rate: float = 0.001,
+        maxiters: int = 100,
+        gtol: float = 1e-4,
+        clip: Tuple[float, float] = None,
+        store: bool = False,
+    ):
+        """
+        Set the options of the Stochastic Gradient Descent optimizer.
+
+        Parameters
+        ----------
+        learning_rate : float, optional
+            The initial learning rate for the optimizer (default: 0.001).
+            maxiters : int, optional
+           The maximum number of iterations (default: 100).
+        gtol: float, optional
+           The desired accuracy of the gradient (default: 1e-4).
+        clip : tuple[float, float] optional
+            Values to clip the gradient from below and above (default: None).
+        store: bool, optional
+            If true store the value of the objective at each
+            iteration (default: False)
+        """
+        self._learning_rate: float = learning_rate
+        self._iter: int = 0
+        self._maxiters: int = maxiters
+        self._gtol: float = gtol
+        self._clip: Tuple[float, float] = clip
+        self._store = store
+        self._history = []
+
+    def _step_from_objective(
+        self, objective: Model, iterate: Array
+    ) -> Tuple[float, Array]:
+        """
+        Compute a single gradient descent step from an objective function.
+
+        Parameters
+        ----------
+        objective : Callable[[Array], Array]
+            Objective function to optimize.
+        iterate : Array
+            Current iterate.
+
+        Returns
+        -------
+        val, grad, iterate : float, Array
+            Value of the objective function, its gradient, and updated iterate.
+        """
+        val = objective(iterate)
+        grad = objective.jacobian(iterate).T
+        new_iterate = iterate - self._learning_rate * grad
+        return val, grad, new_iterate
+
+    def _step(self, iterate: Array) -> Tuple[float, Array]:
+        """
+        Compute a single gradient descent step using the internal objective
+        function.
+
+        Parameters
+        ----------
+        iterate : Array
+            Current iterate.
+
+        Returns
+        -------
+        val, iterate : float, Array
+            Value of the objective function and updated iterate.
+        """
+        self._val, self._grad, new_iterate = self._step_from_objective(
+            self._objective, iterate
+        )
+        if self._store:
+            self._history.append(self._val[0, 0])
+        self._iter += 1
+        return new_iterate
+
+    def _prepare_result(
+        self, iterate: Array, message: str
+    ) -> OptimizationResult:
+        """
+        Prepare the optimization result.
+
+        Parameters
+        ----------
+        iterate : Array
+            Current iterate.
+
+        Returns
+        -------
+        result : OptimizationResult
+            Optimization result.
+        """
+        result = OptimizationResult()
+        result["x"] = iterate
+        result["fun"] = self._val
+        result["gnorm"] = self._bkd.norm(self._grad)
+        result["message"] = message
+        return result
+
+    def _minimize(self, iterate: Array) -> OptimizationResult:
+        """
+        Perform gradient descent optimization.
+
+        Args:
+            iterate (Array): Initial iterate.
+
+        Returns:
+            OptimizationResult: Optimization result.
+        """
+        self._iter = 0
+        while self._iter < self._maxiters:
+            iterate = self._step(iterate)
+            gnorm = self._bkd.norm(self._grad)
+            if gnorm < self._gtol:
+                message = "gtol reached"
+                break
+            if self._verbosity > 1 and self._iter % 10 == 0:
+                message = "it: {0}, val: {1}, gnorm: {2}".format(
+                    self._iter, self._val, gnorm
+                )
+                print(message)
+        if self._iter >= self._maxiters:
+            message = "maxiters reached"
+        return self._prepare_result(iterate, message)
+
+    def get_history(self) -> Array:
+        if not self._store:
+            raise ValueError("No history available. Store was not set to true")
+        return self._bkd.asarray(self._history)
