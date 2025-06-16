@@ -517,9 +517,40 @@ class NegELBO(SingleSampleModel):
         return self._bkd.jacobian(
             lambda x: self._values(x[:, None])[:, 0], param[:, 0]
         )
+        # self._hyp_list.set_active_opt_params(param[:, 0])
+        # self._posterior.update()
+        # samples = self._posterior._map_from_latent_samples(
+        #     self._posterior._latent_samples
+        # )
+        # weights = self._posterior._latent_weights
+        # print(self._loglike.jacobian(samples[:, :1]))
+        # jac_values = self._bkd.stack(
+        #     [self._loglike.jacobian(sample[:, None]) for sample in samples.T]
+        # )
+        # print(
+        #     self._bkd.jacobian(
+        #         lambda x: self._values(x[:, None])[:, 0], param[:, 0]
+        #     )
+        # )
+        # print(
+        #     self._bkd.jacobian(
+        #         lambda x: self._posterior_divergence(x[:, None])[:, 0],
+        #         param[:, 0],
+        #     )
+        # )
+        # return -self._bkd.einsum(
+        #     "ijk,i->jk", jac_values, weights[:, 0]
+        # ) + self._bkd.jacobian(
+        #     lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
+        # )
 
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
+
+    def _posterior_divergence(self, params: Array) -> Array:
+        self._hyp_list.set_active_opt_params(params[:, 0])
+        self._posterior.update()
+        return self._posterior._divergence()
 
     def _evaluate(self, params: Array) -> Array:
         self._hyp_list.set_active_opt_params(params[:, 0])
@@ -528,7 +559,6 @@ class NegELBO(SingleSampleModel):
             self._posterior._latent_samples
         )
         # TODO make this a sample average objective
-        # expected_loglike = self._bkd.mean(self._loglike(samples))
         weights = self._posterior._latent_weights
         expected_loglike = self._loglike(samples)[:, 0] @ weights[:, 0]
         return -(expected_loglike - self._posterior._divergence())

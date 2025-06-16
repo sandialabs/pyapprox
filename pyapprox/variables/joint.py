@@ -97,7 +97,7 @@ class JointVariable(ABC):
         if self.nvars() == 1:
             return self._plot_pdf_1d(ax, npts_1d, plot_limits, **kwargs)
         X, Y, pts = self.meshgrid_samples(plot_limits, npts_1d)
-        Z = self._bkd.reshape(self.pdf(pts), X.shape)
+        Z = self._bkd.detach(self._bkd.reshape(self.pdf(pts), X.shape))
         if kwargs.get("levels", None) is None:
             if ax.name != "3d":
                 raise ValueError(
@@ -109,6 +109,19 @@ class JointVariable(ABC):
 
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
+
+
+def update_pdf_contourf_plots(im1, im2, ax1, ax2):
+    if im1.get_clim()[1] < im2.get_clim()[1]:
+        cbar_im = im2
+    else:
+        cbar_im = im1
+    im2.set_clim(cbar_im.get_clim())
+    im1.set_clim(cbar_im.get_clim())
+    cbar_vi = plt.colorbar(cbar_im, ax=ax1)
+    cbar_true = plt.colorbar(cbar_im, ax=ax2)
+    cbar_vi.update_normal(im2)
+    cbar_true.update_normal(im1)
 
 
 class IndependentMarginalsVariable(JointVariable):

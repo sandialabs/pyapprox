@@ -5,7 +5,6 @@ from scipy import stats
 
 from pyapprox.interface.model import (
     DenseMatrixLinearModel,
-    ModelFromSingleSampleCallable,
 )
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.bayes.variational.elbo import (
@@ -38,10 +37,7 @@ from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
     DirichletVariable,
 )
-from pyapprox.surrogates.affine.basis import (
-    TensorProductQuadratureRule,
-    TriangleLebesqueQuadratureRule,
-)
+from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule
 from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
 
 

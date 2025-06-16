@@ -49,8 +49,9 @@ sgd_optimizer.set_objective_function(objective)
 # %%
 # Step 4: Plot the Results
 # ------------------------
-# We can now plot the convergence of the ADAM and SGD optimizers. We must set
-# store to true to record the objective values at each iteration
+# We can now plot the convergence of the ADAM and SGD optimizers.
+# We must set store to true to record the objective values at each iteration.
+# The true optimal iterate is at the origin [0, 0, 0] so the value of the objective during optimiztion is equal to the error in the objective.
 iterate = np.array([1.0, 1.0, 0.5])[:, None]
 adam_optimizer.set_options(store=True, learning_rate=1e-2, maxiters=100)
 adam_result = adam_optimizer.minimize(iterate)

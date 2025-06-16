@@ -85,4 +85,141 @@ Thus
 .. math::
 
     \nabla_{\theta, \phi} \mathcal{L}^B = \nabla_{\theta, \phi} \underbrace{\left[ \frac{1}{L} \sum_{l=1}^{L} \left( \log p_{\boldsymbol{\theta}}(x^{(i)} \mid z^{(l)}) \right)\right]}_{\text{Estimate with Monte Carlo}} - \nabla_{\theta, \phi} \underbrace{\left[\text{KL}[q_{\phi}(z) \lVert p_{\theta}(z)]\right]}_{\text{Analytically evaluate}}
+
+Setup the Problem
+-----------------
 """
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pyapprox.util.backends.torch import TorchMixin as bkd
+from pyapprox.variables.marginals import BetaMarginal
+from pyapprox.variables.joint import (
+    IndependentMarginalsVariable,
+    update_pdf_contourf_plots,
+)
+from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
+from pyapprox.interface.model import (
+    DenseMatrixLinearModel,
+    ModelFromSingleSampleCallable,
+)
+from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule
+from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
+from pyapprox.bayes.variational.elbo import (
+    IndependentBetaVariationalPosterior,
+    VariationalInverseProblem,
+)
+
+# Set the seed for reproducibility
+np.random.seed(1)
+
+# Define the number of observations and latent variables
+nobs = 2
+nvars = 2
+
+# Define the noise covariance matrix
+noise_std = 0.1
+noise_cov = bkd.eye(nobs) * noise_std**2
+
+# Define the observational model
+obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
+obs_model = DenseMatrixLinearModel(obs_mat, backend=bkd)
+
+# Define the loglikelihood
+loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
+
+# Generate data for an artificial truth
+true_sample = bkd.asarray(np.random.uniform(0, 1, (nvars, 1)))
+obs = loglike.rvs(true_sample)
+loglike.set_observations(obs)
+
+# %%
+# Define the Priors
+# -----------------
+
+# Define the uniformative Uniform priors
+a1, b1 = 2, 2
+a2, b2 = 2, 2
+bounds = [0, 1]
+
+# Create the prior object
+prior = IndependentMarginalsVariable(
+    [
+        BetaMarginal(a1, b1, *bounds, backend=bkd),
+        BetaMarginal(a2, b2, *bounds, backend=bkd),
+    ],
+    backend=bkd,
+)
+
+# %%
+# Define the Variational Posterior
+# --------------------------------
+
+# define the number of latent samples used to compute loss during training
+nlatent_samples = 1000
+
+# Define the variational posterior
+ashapes = [prior.marginals()[i]._a for i in range(nvars)]
+bshapes = [prior.marginals()[i]._b for i in range(nvars)]
+variational_posterior = IndependentBetaVariationalPosterior(
+    prior,
+    nlatent_samples,
+    ashapes,
+    bshapes,
+    prior.interval(1),
+    ashape_bounds=(1, 100),
+    bshape_bounds=(1, 100),
+    backend=bkd,
+)
+
+
+# %%
+# Fit the Variational Posterior
+# -----------------------------
+
+# Define the variational problem
+vi = VariationalInverseProblem(prior, loglike, variational_posterior)
+# Optimize the variational posterior
+vi.fit()
+
+# %%
+# Plot the Results
+# ----------------
+# Plot the approximate posterior distribution
+axs = plt.subplots(1, 2)[1]
+im_vi = variational_posterior._variable.plot_pdf(
+    axs[0], prior.interval(1.0).flatten(), levels=31
+)
+axs[0].set_xlabel(r"Marginal $z_1$")
+axs[0].set_ylabel(r"Marginal $z_2$")
+axs[0].set_title("Variational Posterior Distribution")
+
+
+# plot true posterior
+def posterior_numerator(x):
+    return bkd.exp(loglike(x) + prior.logpdf(x))
+
+
+quad_rule = TensorProductQuadratureRule(
+    2,
+    [
+        GaussQuadratureRule(marginal, backend=bkd)
+        for marginal in prior.marginals()
+    ],
+)
+quadx, quadw = quad_rule([100, 100])
+print(quadx.min(), prior.marginals()[0].interval(1))
+evidence = posterior_numerator(quadx)[:, 0] @ quadw[:, 0]
+posterior_pdf = ModelFromSingleSampleCallable(
+    1, 2, lambda x: posterior_numerator(x) / evidence, backend=bkd
+)
+print(evidence, "evidence")
+im_true = posterior_pdf.plot_contours(axs[1], [0, 1, 0, 1], levels=30)
+axs[1].set_xlabel(r"Marginal $z_1$")
+axs[1].set_ylabel(r"Marginal $z_2$")
+axs[1].set_title("True Posterior Distribution")
+
+# Adjust the color limits after the plots are created
+update_pdf_contourf_plots(im_vi, im_true, axs[0], axs[1])
+_ = plt.tight_layout()
