@@ -833,6 +833,32 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
             self.__class__.__name__, self._a, self._b
         )
 
+    def pdf_shape_jacobian(self, samples: Array) -> Array:
+        # compute derivative of Beta Function
+        tmp = self._bkd.digamma(self._a + self._b)
+        d1 = self._bkd.stack(
+            [
+                (self._bkd.digamma(self._a) - tmp) / self._const,
+                (self._bkd.digamma(self._b) - tmp) / self._const,
+            ],
+            axis=0,
+        )
+        # compute derivative of sample dependent terms on [0, 1]
+        x01 = (samples - self._lb) / self._scale
+        numerator = (
+            x01 ** (self._a - 1) * (1.0 - x01) ** (self._b - 1) / self._scale
+        )
+        d2 = self._bkd.stack(
+            [
+                numerator * self._bkd.log(x01),
+                numerator * self._bkd.log(1.0 - x01),
+            ],
+            axis=1,
+        )
+        return (
+            1 / self._const * d2 - numerator[:, None] * d1[None, :]
+        ) * self._const**2
+
 
 class UniformMarginal(BetaMarginal):
     def __init__(

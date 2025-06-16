@@ -14,6 +14,10 @@ from pyapprox.variables.marginals import (
 )
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.interface.model import (
+    ModelFromSingleSampleCallable,
+    ForwardFiniteDifference,
+)
 
 
 class TestMarginals:
@@ -382,6 +386,32 @@ class TestMarginals:
         ) @ quadw
         assert bkd.allclose(marginal.kl_divergence(rv2), kl_div)
 
+        astat3, bstat3 = bkd.asarray([3.0, 3.0])
+        bounds = [0, 1]
+        rv3 = BetaMarginal(astat3, bstat3, *bounds, backend=bkd)
+        samples3 = rv3.rvs(3)
+        print(rv3.pdf_shape_jacobian(samples3))
+
+        def fun_wrap(shapes):
+            rv3.set_shapes(*shapes)
+            return rv3.pdf(samples3)[None, :]
+
+        def jacobian_wrap(shapes):
+            rv3.set_shapes(*shapes)
+            return rv3.pdf_shape_jacobian(samples3)
+
+        model = ModelFromSingleSampleCallable(
+            samples3.shape[0],
+            2,
+            fun_wrap,
+            jacobian=jacobian_wrap,
+            sample_ndim=1,
+            backend=bkd,
+        )
+        shapes = bkd.array([astat3, bstat3])
+        errors = model.check_apply_jacobian(shapes[:, None], disp=False)
+        assert errors.min() / errors.max() < 1e-6
+
     def test_gamma_variable(self):
         bkd = self.get_backend()
         shape, rate = bkd.array([2, 3])
@@ -428,10 +458,6 @@ class TestMarginals:
             return marginal.ppf(usamples)[:5]
 
         x0 = bkd.array([3, 4])[:, None]
-        from pyapprox.interface.model import (
-            ForwardFiniteDifference,
-            ModelFromSingleSampleCallable,
-        )
 
         model = ModelFromSingleSampleCallable(
             5, 2, fun, values_ndim=1, backend=bkd

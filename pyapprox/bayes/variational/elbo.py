@@ -346,19 +346,19 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
             latent_variable = IndependentMarginalsVariable(
                 [UniformMarginal(0, 1, backend)] * nvars, backend=backend
             )
-            latent_generator = MonteCarloIndependentLatentVariableGenerator(
-                latent_variable
-            )
-            # from pyapprox.expdesign.sequences import HaltonSequence
+            # latent_generator = MonteCarloIndependentLatentVariableGenerator(
+            #     latent_variable
+            # )
+            from pyapprox.expdesign.sequences import HaltonSequence
 
-            # sequence = HaltonSequence(
-            #     nvars, start_idx=1, variable=latent_variable, bkd=backend
-            # )
-            # latent_generator = (
-            #     LowDiscrepanySequenceIndependentLatentVariableGenerator(
-            #         sequence
-            #     )
-            # )
+            sequence = HaltonSequence(
+                nvars, start_idx=1, variable=latent_variable, bkd=backend
+            )
+            latent_generator = (
+                LowDiscrepanySequenceIndependentLatentVariableGenerator(
+                    sequence
+                )
+            )
         super().__init__(latent_generator, nlatent_samples)
         self._ashapes = HyperParameter(
             "ashapes",
@@ -402,13 +402,6 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
             marginal.set_shapes(ashapes[ii], bshapes[ii])
 
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
-        # return self._bkd.stack(
-        #     [
-        #         marginal.ppf(latent_samples[ii])
-        #         for ii, marginal in enumerate(self._variable.marginals())
-        #     ],
-        #     axis=0,
-        # )
         return self._variable.ppf(latent_samples)
 
     def marginals(self):
@@ -515,10 +508,14 @@ class NegELBO(SingleSampleModel):
         return self._bkd.jacobian_implemented()
 
     def _jacobian(self, param: Array) -> Array:
+        import torch
+
+        torch.set_printoptions(precision=16)
         return self._bkd.jacobian(
             lambda x: self._values(x[:, None])[:, 0], param[:, 0]
         )
         # compute grad of loglike dldx with respect to model variables x
+
         samples = self._posterior._map_from_latent_samples(
             self._posterior._latent_samples
         )
@@ -528,85 +525,128 @@ class NegELBO(SingleSampleModel):
                 for sample in samples.T
             ]
         )
-        assert self._bkd.allclose(
-            jac_values_at_samples,
-            self._bkd.stack(
-                [
-                    self._bkd.jacobian(
-                        lambda x: self._loglike(x[:, None])[:, 0], sample
-                    )[0]
-                    for sample in samples.T
-                ],
-                axis=0,
-            ),
-        )
+        # assert self._bkd.allclose(
+        #     jac_values_at_samples,
+        #     self._bkd.stack(
+        #         [
+        #             self._bkd.jacobian(
+        #                 lambda x: self._loglike(x[:, None])[:, 0], sample
+        #             )[0]
+        #             for sample in samples.T
+        #         ],
+        #         axis=0,
+        #     ),
+        # )
         weights = self._posterior._latent_weights
         # compute grad of model variables dxdp with respect to parameters p
         # of variational distribution used to map latent samples to model
         # variables
-        print("AA")
+        # print("AA")
         dxdp = self._bkd.jacobian(
             lambda x: self._reparameterized_samples(x[:, None]).T,
             param[:, 0],
         )
-        idx = 1
+        from pyapprox.interface.model import (
+            ForwardFiniteDifference,
+            ModelFromSingleSampleCallable,
+        )
+
+        from pyapprox.util.misc import approx_jacobian_3D
+
+        self._hyp_list.set_active_opt_params(param[:, 0])
+        self._posterior.update()
+        fd = approx_jacobian_3D(
+            self._reparameterized_samples, param, epsilon=1e-5, bkd=self._bkd
+        )
+        self._hyp_list.set_active_opt_params(param[:, 0])
+        self._posterior.update()
+        print(fd)
+        print(dxdp[0], "dxdp")
+        assert False
+        # for ii in range(dxdp.shape[0]):
+        #     print(ii)
+        #     print(fd[:, ii])
+        #     print(dxdp[ii])
+        #     print(fd[:, ii, :] - dxdp[ii], "d")
+        #     dxdp[ii] = fd[:, ii, :]
+
+        # print(dxdp, " dxdp", param[:, 0])
+        # print(jac_values_at_samples)
+        # print(samples)
+        # idx = 1
         dldp = (
             weights[:, 0]
             @ self._bkd.einsum("ij, ijk->ik", jac_values_at_samples, dxdp)[
                 None, :
             ]
         )
-        print(dxdp[0], dxdp.shape, param)
-        print(
+        print(dldp)
+        dldp = (
             weights[:, 0]
-            @ (jac_values_at_samples[..., None] * dxdp).sum(axis=1),
-            "a",
+            @ self._bkd.sum(jac_values_at_samples[..., None] * dxdp, axis=1)[
+                None, :
+            ]
         )
-        print(dldp, "b")
-        print(
-            self._bkd.jacobian(lambda x: self._temp(x[:, None]), param[:, 0]),
-            "c",
-        )
-        jac = -dldp + self._bkd.jacobian(
-            lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
-        )
+        # print(dldp, "dldp")
+        # print(dxdp[0], dxdp.shape, param)
+        # print(
+        #     weights[:, 0]
+        #     @ (jac_values_at_samples[..., None] * dxdp).sum(axis=1),
+        #     "a",
+        # )
+        # print(dldp, "b")
+        # print(
+        #     self._bkd.jacobian(lambda x: self._temp(x[:, None]), param[:, 0]),
+        #     "c",
+        # )
+        # jac = -dldp + self._bkd.jacobian(
+        #     lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
+        # )
+        jac = -dldp
+        # jac = self._bkd.jacobian(
+        #    lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
+        # )
+
+        # print(self._posterior.marginals())
         auto_jac = self._bkd.jacobian(
             lambda x: self._values(x[:, None])[:, 0], param[:, 0]
         )
-        print(jac)
-        print(auto_jac)
+        print(jac, "j")
+        print(auto_jac, "aj")
+        # print("diff", jac - auto_jac, param[:, 0])
+        from pyapprox.interface.model import ForwardFiniteDifference
+
+        fd = ForwardFiniteDifference(self)
+        print(fd.jacobian(param))
         assert self._bkd.allclose(jac, auto_jac)
         return jac
 
-    def _temp(self, params):
-        self._hyp_list.set_active_opt_params(params[:, 0])
-        self._posterior.update()
-        samples = self._posterior._map_from_latent_samples(
-            self._posterior._latent_samples
-        )
-        # TODO make this a sample average objective
-        weights = self._posterior._latent_weights
-        return self._loglike(samples)[:, 0] @ weights[:, 0]
+    # def _temp(self, params):
+    #     self._hyp_list.set_active_opt_params(params[:, 0])
+    #     self._posterior.update()
+    #     samples = self._posterior._map_from_latent_samples(
+    #         self._posterior._latent_samples
+    #     )
+    #     # TODO make this a sample average objective
+    #     weights = self._posterior._latent_weights
+    #     return self._loglike(samples)[:, 0] @ weights[:, 0]
 
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
 
     def _posterior_divergence(self, params: Array) -> Array:
+        # for hp in self._hyp_list._hyper_params:
+        #     hp.detach()
         self._hyp_list.set_active_opt_params(params[:, 0])
         self._posterior.update()
-        # print(self._posterior._divergence())
         return self._posterior._divergence()
 
     def _reparameterized_samples(self, params: Array) -> Array:
+        # for hp in self._hyp_list._hyper_params:
+        #     hp.detach()
+        print(self._hyp_list.get_values(), "G")
         self._hyp_list.set_active_opt_params(params[:, 0])
         self._posterior.update()
-        print(self._posterior._latent_samples.shape)
-        print(self._posterior)
-        print(
-            self._posterior._map_from_latent_samples(
-                self._posterior._latent_samples
-            ).shape
-        )
         return self._posterior._map_from_latent_samples(
             self._posterior._latent_samples
         )
@@ -619,8 +659,11 @@ class NegELBO(SingleSampleModel):
         )
         # TODO make this a sample average objective
         weights = self._posterior._latent_weights
-        expected_loglike = self._loglike(samples)[:, 0] @ weights[:, 0]
+        expected_loglike = self._bkd.atleast2d(
+            self._loglike(samples)[:, 0] @ weights[:, 0]
+        )
         return -(expected_loglike - self._posterior._divergence())
+        # return -expected_loglike
 
 
 class VariationalInverseProblem:

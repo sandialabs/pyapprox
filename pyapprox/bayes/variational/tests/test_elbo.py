@@ -5,6 +5,7 @@ from scipy import stats
 
 from pyapprox.interface.model import (
     DenseMatrixLinearModel,
+    ModelFromSingleSampleCallable,
 )
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.bayes.variational.elbo import (
@@ -384,7 +385,7 @@ class TestVariationalInference:
             axs[0], prior.interval(1.0).flatten(), levels=31
         )
 
-        # plot true posterior
+        # # plot true posterior
         # def posterior_numerator(x):
         #     return bkd.exp(loglike(x) + prior.logpdf(x))
 
@@ -407,9 +408,17 @@ class TestVariationalInference:
         # plt.show()
         print(vi)
         # regression test
+        print(variational_posterior.hyp_list().get_values())
         assert bkd.allclose(
             variational_posterior.hyp_list().get_values(),
-            bkd.array([2.0000, 29.3894, 2.0000, 26.8369]),
+            bkd.array(
+                [
+                    37.3215668051831742,
+                    21.5251419854138106,
+                    35.9362119460602827,
+                    17.5171554934574694,
+                ]
+            ),
         )
 
 
