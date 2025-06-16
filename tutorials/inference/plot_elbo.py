@@ -112,18 +112,19 @@ from pyapprox.bayes.variational.elbo import (
 )
 
 # Set the seed for reproducibility
-np.random.seed(1)
+np.random.seed(2025)
 
 # Define the number of observations and latent variables
 nobs = 2
 nvars = 2
 
 # Define the noise covariance matrix
-noise_std = 0.1
+noise_std = 0.2
 noise_cov = bkd.eye(nobs) * noise_std**2
 
 # Define the observational model
 obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
+# obs_mat = bkd.diag(bkd.asarray(np.random.normal(0.0, 1.0, (nobs,))))
 obs_model = DenseMatrixLinearModel(obs_mat, backend=bkd)
 
 # Define the loglikelihood
@@ -139,8 +140,8 @@ loglike.set_observations(obs)
 # -----------------
 
 # Define the uniformative Uniform priors
-a1, b1 = 2, 2
-a2, b2 = 2, 2
+a1, b1 = 1, 1
+a2, b2 = 1, 1
 bounds = [0, 1]
 
 # Create the prior object
@@ -157,11 +158,15 @@ prior = IndependentMarginalsVariable(
 # --------------------------------
 
 # define the number of latent samples used to compute loss during training
-nlatent_samples = 1000
+nlatent_samples = 10  # 1000
+
+
+# Specify the initial shape parameters passed to fit
+# Make them different to prior shape parameters
+ashapes = [prior.marginals()[i]._a + 1.0 for i in range(nvars)]
+bshapes = [prior.marginals()[i]._b + 1.0 for i in range(nvars)]
 
 # Define the variational posterior
-ashapes = [prior.marginals()[i]._a for i in range(nvars)]
-bshapes = [prior.marginals()[i]._b for i in range(nvars)]
 variational_posterior = IndependentBetaVariationalPosterior(
     prior,
     nlatent_samples,
@@ -180,6 +185,9 @@ variational_posterior = IndependentBetaVariationalPosterior(
 
 # Define the variational problem
 vi = VariationalInverseProblem(prior, loglike, variational_posterior)
+vi.set_optimizer(
+    vi.default_optimizer(verbosity=0, local_method="trust-constr")
+)
 # Optimize the variational posterior
 vi.fit()
 
@@ -195,12 +203,15 @@ axs[0].set_xlabel(r"Marginal $z_1$")
 axs[0].set_ylabel(r"Marginal $z_2$")
 axs[0].set_title("Variational Posterior Distribution")
 
+print(variational_posterior)
 
-# plot true posterior
+
+# Define the unnormalized posterior
 def posterior_numerator(x):
     return bkd.exp(loglike(x) + prior.logpdf(x))
 
 
+# Compute the evidence to normalize the posterior numerator
 quad_rule = TensorProductQuadratureRule(
     2,
     [
@@ -211,15 +222,24 @@ quad_rule = TensorProductQuadratureRule(
 quadx, quadw = quad_rule([100, 100])
 print(quadx.min(), prior.marginals()[0].interval(1))
 evidence = posterior_numerator(quadx)[:, 0] @ quadw[:, 0]
+print(evidence, "evidence")
+
+# Construct a wrapper to evaluate the true posterior PDF
 posterior_pdf = ModelFromSingleSampleCallable(
     1, 2, lambda x: posterior_numerator(x) / evidence, backend=bkd
 )
-print(evidence, "evidence")
+
+# Plot the true posterior
 im_true = posterior_pdf.plot_contours(axs[1], [0, 1, 0, 1], levels=30)
 axs[1].set_xlabel(r"Marginal $z_1$")
 axs[1].set_ylabel(r"Marginal $z_2$")
 axs[1].set_title("True Posterior Distribution")
 
+# Plot the true sample
+axs[0].plot(*true_sample, "ro", ms=20)
+axs[1].plot(*true_sample, "ro", ms=20)
+
 # Adjust the color limits after the plots are created
 update_pdf_contourf_plots(im_vi, im_true, axs[0], axs[1])
 _ = plt.tight_layout()
+plt.show()

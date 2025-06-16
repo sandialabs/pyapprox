@@ -149,10 +149,20 @@ class IndependentMarginalsVariable(JointVariable):
         ],
         unique_indices: Array = None,
         backend: BackendMixin = NumpyMixin,
+        compress: bool = False,
     ):
         """
         Constructor method
+
+        Notes
+        Introduce compress option. In pass variable have always been compressed
+        But this will not work when optimizing the parameters of each
+        marginal of the joint distribution
         """
+        if unique_indices is not None and not compress:
+            raise ValueError("unique_indices and compress are inconsistent")
+        self._compress = compress
+
         super().__init__(backend)
         self._bkd = backend
 
@@ -183,6 +193,8 @@ class IndependentMarginalsVariable(JointVariable):
         Get the unique 1D marginals from a list of marginals.
         """
         nvars = len(marginals)
+        if not self._compress:
+            return marginals, [[ii] for ii in range(nvars)]
         unique_marginals = [marginals[0]]
         unique_var_indices = [[0]]
         for ii in range(1, nvars):
@@ -414,7 +426,7 @@ def define_iid_random_variable(
     unique_marginals = [parse_marginal(marginal, backend)]
     unique_indices = [backend.arange(nvars)]
     return IndependentMarginalsVariable(
-        unique_marginals, unique_indices, backend=backend
+        unique_marginals, unique_indices, backend=backend, compress=True
     )
 
 

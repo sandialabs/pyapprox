@@ -623,7 +623,7 @@ class NewtonRVSMixin:
         iterate = self._bkd.asarray(
             self._scipy_rv.ppf(self._bkd.to_numpy(usamples[jdx]))
         )
-        eps = 0  # self._newton_solver._atol * 10
+        # eps = 0  # self._newton_solver._atol * 10
         # iterate[iterate < self._ub - eps] += eps
         # iterate[iterate >= self._ub - eps] -= eps
         # self._newton_solver._residual._residual.set_usamples(usamples[jdx])
@@ -631,10 +631,6 @@ class NewtonRVSMixin:
         # when using bounded residual newton solver must be passed
         # iterates in canonical domain i.e. [-inf,inf]
         vals[jdx] = self._newton_solver.solve(iterate)
-        # can_iterate = self._newton_solver._residual._to_canonical(iterate)
-        # can_vals = self._newton_solver.solve(can_iterate)
-        # res = self._newton_solver._residual
-        # vals[jdx] = res._from_canonical(can_vals)
         return vals
 
     def _cdf_jacobian_diagonal(self, samples: Array) -> Array:
@@ -742,8 +738,9 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
         return self._bkd.sum(pdf_01_vals * quadw, axis=1)
 
     def _ppf(self, usamples: Array) -> Array:
-        if self._a == 1.0 and self._b == 1.0:
-            return usamples * self._scale + self._lb
+        # The following commented section will stop autograd from working
+        # if self._a == 1.0 and self._b == 1.0:
+        #    return usamples * self._scale + self._lb
         return super()._ppf(usamples)
 
     def pdf_jacobian_implemented(self) -> bool:

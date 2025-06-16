@@ -1192,6 +1192,7 @@ class ScipyModelWrapper:
     def jac(self, sample):
         sample = self._check_sample(sample)
         jac = self._model.jacobian(sample[:, None])
+        jac = self._bkd.detach(jac)
         if jac.shape[0] == 1:
             return jac[0]
         return self._bkd.to_numpy(jac)

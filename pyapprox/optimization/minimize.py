@@ -1,5 +1,6 @@
 from typing import List, Tuple
 from abc import ABC, abstractmethod
+import textwrap
 
 import numpy as np
 
@@ -34,10 +35,26 @@ class OptimizationResult(dict):
         return list(self.keys())
 
     def __repr__(self) -> str:
-        return self.__class__.__name__ + (
-            "(\n\t x[:, 0]={0}, \n\t fun={1}, \n\t attr={2})".format(
-                self.x[:, 0], self.fun, list(self.keys())
+        return (
+            self.__class__.__name__
+            + "("
+            + (
+                textwrap.indent(
+                    "\nx[:, 0]={0}, \nfun={1}, \nattr={2})".format(
+                        self.x[:, 0],
+                        self.fun,
+                        "\n".join(
+                            [
+                                f"{key}: {item}"
+                                for key, item in self.items()
+                                if key not in ["fun", "x"]
+                            ]
+                        ),
+                    ),
+                    "\t",
+                )
             )
+            + "\n)"
         )
 
 
@@ -349,7 +366,7 @@ class MultiStartOptimizer(OptimizerWithObjective):
                     "it {0}: best objective {1}".format(ii + 1, best_res.fun)
                 )
         if self._verbosity > 0:
-            print("{0}\n\t {1}".format(self, best_res))
+            print("{0}\n".format(self) + textwrap.indent(str(best_res), "\t"))
         if not sucess:
             raise RuntimeError("All optimizations failed")
         return best_res

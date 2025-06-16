@@ -138,7 +138,7 @@ class HyperParameter:
         """
         if active_params.ndim != 1:
             raise ValueError("active_params must be a 1D array")
-        # Copy does not detaches self._values from graph,
+        # Copy does not detache self._values from graph,
         # but we only want gradient with respect to active_opt_params
         self._values = self._bkd.copy(self._bkd.detach(self._values))
         self._values = self._bkd.up(

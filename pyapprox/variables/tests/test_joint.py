@@ -34,7 +34,9 @@ class TestJoint:
             stats.uniform(-1, 2),
             stats.beta(1, 1, -1, 2),
         ]
-        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        variable = IndependentMarginalsVariable(
+            marginals, backend=bkd, compress=True
+        )
         assert len(variable._unique_marginals) == 3
         list2 = [[0, 3, 4], [1, 5], [2]]
         list2 = [bkd.array(item) for item in list2]
@@ -55,7 +57,9 @@ class TestJoint:
             stats.uniform(-1, 2),
             stats.beta(2, 1, -2, 3),
         ]
-        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        variable = IndependentMarginalsVariable(
+            marginals, backend=bkd, compress=True
+        )
 
         assert len(variable._unique_marginals) == 5
         list2 = [[0, 4], [1], [2], [3], [5]]
@@ -135,8 +139,8 @@ class TestJoint:
         a2, b2 = 3, 3
         bounds = [0, 1]
         marginals1 = [
-            BetaMarginal(a1, b1, *bounds),
-            BetaMarginal(a2, b2, *bounds),
+            BetaMarginal(a1, b1, *bounds, backend=bkd),
+            BetaMarginal(a2, b2, *bounds, backend=bkd),
         ]
         variable1 = IndependentMarginalsVariable(marginals1, backend=bkd)
         samples = variable1.rvs(10)
@@ -147,7 +151,7 @@ class TestJoint:
         assert bkd.allclose(
             variable1.logpdf(samples)[:, 0],
             marginals1[0].logpdf(samples[0])
-            * marginals1[1].logpdf(samples[1]),
+            + marginals1[1].logpdf(samples[1]),
         )
         assert bkd.allclose(
             bkd.mean(variable1.rvs(int(1e6)), axis=1),
@@ -156,12 +160,14 @@ class TestJoint:
         )
 
         marginals2 = [
-            BetaMarginal(a2, b2, *bounds),
-            BetaMarginal(a1, b1, *bounds),
+            BetaMarginal(a2, b2, *bounds, backend=bkd),
+            BetaMarginal(a1, b1, *bounds, backend=bkd),
         ]
         variable2 = IndependentMarginalsVariable(marginals2, backend=bkd)
 
-        quadx, quadw = bkd.asarray(np.polynomial.legendre.leggauss(100))
+        quadx, quadw = np.polynomial.legendre.leggauss(100)
+        quadx = bkd.asarray(quadx)
+        quadw = bkd.asarray(quadw)
         quadx_01 = bkd.asarray((quadx + 1) / 2)
         quadw_01 = bkd.asarray(quadw / 2)
         quadx = bkd.cartesian_product([quadx_01] * 2)
@@ -172,6 +178,31 @@ class TestJoint:
         )[:, 0] @ quadw
         assert bkd.allclose(
             variable1.kl_divergence(variable2), kl_div, rtol=1e-5
+        )
+
+        if not bkd.jacobian_implemented():
+            return
+
+        usamples = bkd.asarray(np.random.uniform(0, 1, (variable2.nvars(), 3)))
+        samples = variable2.ppf(usamples)
+
+        def wrap(param):
+            a = param[::2]
+            b = param[1::2]
+            for ii, marginal in enumerate(variable2.marginals()):
+                marginal.set_shapes(a[ii], b[ii])
+            return variable2.ppf(usamples)
+
+        eps = 1e-7
+        param = bkd.array([3, 2, 2, 2])
+        jac_fd = []
+        for ii in range(param.shape[0]):
+            param_eps = bkd.copy(param)
+            param_eps[ii] += eps
+            jac_fd.append(((wrap(param_eps) - wrap(param)) / eps))
+
+        assert bkd.allclose(
+            bkd.stack(jac_fd, axis=-1), bkd.jacobian(wrap, param)
         )
 
     def test_rejection_sampling(self):
@@ -200,8 +231,10 @@ class TestJoint:
         assert bkd.allclose(
             variable.pdf(samples), bkd.asarray(scipy_rv.pdf(samples))[:, None]
         )
-        assert bkd.allclose(variable.mean()[:, 0], scipy_rv.mean())
-        assert bkd.allclose(variable.var()[:, 0], scipy_rv.var())
+        assert bkd.allclose(
+            variable.mean()[:, 0], bkd.asarray(scipy_rv.mean())
+        )
+        assert bkd.allclose(variable.var()[:, 0], bkd.asarray(scipy_rv.var()))
         other_shapes = bkd.array([3, 4, 3])
         other = DirichletVariable(other_shapes, backend=bkd)
         kl_divergence = (

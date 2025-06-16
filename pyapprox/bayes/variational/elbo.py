@@ -346,19 +346,19 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
             latent_variable = IndependentMarginalsVariable(
                 [UniformMarginal(0, 1, backend)] * nvars, backend=backend
             )
-            # self._latent_generator = MonteCarloIndependentLatentVariableGenerator(
-            #     latent_variable
-            # )
-            from pyapprox.expdesign.sequences import HaltonSequence
+            latent_generator = MonteCarloIndependentLatentVariableGenerator(
+                latent_variable
+            )
+            # from pyapprox.expdesign.sequences import HaltonSequence
 
-            sequence = HaltonSequence(
-                nvars, start_idx=1, variable=latent_variable, bkd=backend
-            )
-            latent_generator = (
-                LowDiscrepanySequenceIndependentLatentVariableGenerator(
-                    sequence
-                )
-            )
+            # sequence = HaltonSequence(
+            #     nvars, start_idx=1, variable=latent_variable, bkd=backend
+            # )
+            # latent_generator = (
+            #     LowDiscrepanySequenceIndependentLatentVariableGenerator(
+            #         sequence
+            #     )
+            # )
         super().__init__(latent_generator, nlatent_samples)
         self._ashapes = HyperParameter(
             "ashapes",
@@ -402,13 +402,14 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
             marginal.set_shapes(ashapes[ii], bshapes[ii])
 
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
-        return self._bkd.stack(
-            [
-                marginal.ppf(latent_samples[ii])
-                for ii, marginal in enumerate(self._variable.marginals())
-            ],
-            axis=0,
-        )
+        # return self._bkd.stack(
+        #     [
+        #         marginal.ppf(latent_samples[ii])
+        #         for ii, marginal in enumerate(self._variable.marginals())
+        #     ],
+        #     axis=0,
+        # )
+        return self._variable.ppf(latent_samples)
 
     def marginals(self):
         return self._variable.marginals()
@@ -517,32 +518,75 @@ class NegELBO(SingleSampleModel):
         return self._bkd.jacobian(
             lambda x: self._values(x[:, None])[:, 0], param[:, 0]
         )
-        # self._hyp_list.set_active_opt_params(param[:, 0])
-        # self._posterior.update()
-        # samples = self._posterior._map_from_latent_samples(
-        #     self._posterior._latent_samples
-        # )
-        # weights = self._posterior._latent_weights
-        # print(self._loglike.jacobian(samples[:, :1]))
-        # jac_values = self._bkd.stack(
-        #     [self._loglike.jacobian(sample[:, None]) for sample in samples.T]
-        # )
-        # print(
-        #     self._bkd.jacobian(
-        #         lambda x: self._values(x[:, None])[:, 0], param[:, 0]
-        #     )
-        # )
-        # print(
-        #     self._bkd.jacobian(
-        #         lambda x: self._posterior_divergence(x[:, None])[:, 0],
-        #         param[:, 0],
-        #     )
-        # )
-        # return -self._bkd.einsum(
-        #     "ijk,i->jk", jac_values, weights[:, 0]
-        # ) + self._bkd.jacobian(
-        #     lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
-        # )
+        # compute grad of loglike dldx with respect to model variables x
+        samples = self._posterior._map_from_latent_samples(
+            self._posterior._latent_samples
+        )
+        jac_values_at_samples = self._bkd.stack(
+            [
+                self._loglike.jacobian(sample[:, None])[0]
+                for sample in samples.T
+            ]
+        )
+        assert self._bkd.allclose(
+            jac_values_at_samples,
+            self._bkd.stack(
+                [
+                    self._bkd.jacobian(
+                        lambda x: self._loglike(x[:, None])[:, 0], sample
+                    )[0]
+                    for sample in samples.T
+                ],
+                axis=0,
+            ),
+        )
+        weights = self._posterior._latent_weights
+        # compute grad of model variables dxdp with respect to parameters p
+        # of variational distribution used to map latent samples to model
+        # variables
+        print("AA")
+        dxdp = self._bkd.jacobian(
+            lambda x: self._reparameterized_samples(x[:, None]).T,
+            param[:, 0],
+        )
+        idx = 1
+        dldp = (
+            weights[:, 0]
+            @ self._bkd.einsum("ij, ijk->ik", jac_values_at_samples, dxdp)[
+                None, :
+            ]
+        )
+        print(dxdp[0], dxdp.shape, param)
+        print(
+            weights[:, 0]
+            @ (jac_values_at_samples[..., None] * dxdp).sum(axis=1),
+            "a",
+        )
+        print(dldp, "b")
+        print(
+            self._bkd.jacobian(lambda x: self._temp(x[:, None]), param[:, 0]),
+            "c",
+        )
+        jac = -dldp + self._bkd.jacobian(
+            lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
+        )
+        auto_jac = self._bkd.jacobian(
+            lambda x: self._values(x[:, None])[:, 0], param[:, 0]
+        )
+        print(jac)
+        print(auto_jac)
+        assert self._bkd.allclose(jac, auto_jac)
+        return jac
+
+    def _temp(self, params):
+        self._hyp_list.set_active_opt_params(params[:, 0])
+        self._posterior.update()
+        samples = self._posterior._map_from_latent_samples(
+            self._posterior._latent_samples
+        )
+        # TODO make this a sample average objective
+        weights = self._posterior._latent_weights
+        return self._loglike(samples)[:, 0] @ weights[:, 0]
 
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
@@ -550,7 +594,22 @@ class NegELBO(SingleSampleModel):
     def _posterior_divergence(self, params: Array) -> Array:
         self._hyp_list.set_active_opt_params(params[:, 0])
         self._posterior.update()
+        # print(self._posterior._divergence())
         return self._posterior._divergence()
+
+    def _reparameterized_samples(self, params: Array) -> Array:
+        self._hyp_list.set_active_opt_params(params[:, 0])
+        self._posterior.update()
+        print(self._posterior._latent_samples.shape)
+        print(self._posterior)
+        print(
+            self._posterior._map_from_latent_samples(
+                self._posterior._latent_samples
+            ).shape
+        )
+        return self._posterior._map_from_latent_samples(
+            self._posterior._latent_samples
+        )
 
     def _evaluate(self, params: Array) -> Array:
         self._hyp_list.set_active_opt_params(params[:, 0])
