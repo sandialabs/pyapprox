@@ -349,7 +349,7 @@ class IndependentMarginalsVariable(JointVariable):
             jacs.append(marginal.ppf_shape_jacobian(usamples[ii]))
         if compress:
             return jacs
-        return self._bkd.stack(jacs, axis=-1)
+        return self._bkd.stack(jacs, axis=1)
 
     def __repr__(self) -> str:
         if self.nvars() > 5:

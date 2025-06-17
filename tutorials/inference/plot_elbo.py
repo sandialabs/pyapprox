@@ -158,7 +158,7 @@ prior = IndependentMarginalsVariable(
 # --------------------------------
 
 # define the number of latent samples used to compute loss during training
-nlatent_samples = 1000  # 1000
+nlatent_samples = 3  # 1000
 
 
 # Specify the initial shape parameters passed to fit
@@ -186,7 +186,7 @@ variational_posterior = IndependentBetaVariationalPosterior(
 # Define the variational problem
 vi = VariationalInverseProblem(prior, loglike, variational_posterior)
 vi.set_optimizer(
-    vi.default_optimizer(verbosity=2, local_method="trust-constr")
+    vi.default_optimizer(verbosity=1, local_method="trust-constr", maxiter=100)
 )
 iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
 # iterate = bkd.array(

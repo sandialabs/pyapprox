@@ -972,6 +972,8 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
     def set_shapes(self, alpha: float, beta: float):
         self._a = self._bkd.asarray(alpha)
         self._b = self._bkd.asarray(beta)
+        if self._a.ndim != 0 or self._b.ndim != 0:
+            raise ValueError("alpha and beta must be scalars")
         self._scipy_rv = stats.beta(
             self._bkd.to_numpy(self._a),
             self._bkd.to_numpy(self._b),
