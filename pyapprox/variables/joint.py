@@ -387,6 +387,30 @@ class IndependentMarginalsVariable(JointVariable):
         return samples
 
     def kl_divergence(self, other: "IndependentMarginalsVariable") -> float:
+        """
+        Compute the Kullback-Leibler (KL) divergence between this independent
+        joint variable and another indepenent joint variable.
+
+        The KL divergence is computed as the sum of the KL divergences between
+        the corresponding marginal distributions.
+
+        Parameters
+        ----------
+        other: IndependentMarginalsVariable
+            The other joint variable to compute the KL divergence with.
+
+        Returns
+        -------
+        kl_divergence : float
+            The KL divergence between this joint variable and the other joint
+            variable.
+
+        Raises
+        ------
+        NotImplementedError
+            If any of the marginal distributions do not support KL divergence
+            computations.
+        """
         for marginal in self.marginals():
             if not marginal.kl_divergence_implemented():
                 raise NotImplementedError(
@@ -400,6 +424,55 @@ class IndependentMarginalsVariable(JointVariable):
                 for ii, marginal in enumerate(self.marginals())
             ]
         )
+
+    def pdf_shape_jacobian(self, samples: Array) -> Array:
+        """
+        Compute the Jacobian of the joint probability density function (PDF)
+        of the input variables with respect to their shape parameters.
+
+        The Jacobian is computed by multiplying the partial derivatives of the
+        individual marginal PDFs with respect to their shape parameters. The
+        partial derivatives are computed using the `pdf_jacobian` method of the
+        marginal distributions.
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            Samples of the input variables.
+
+        Returns
+        -------
+        jac : Array (nsamples, nshapes)
+            The Jacobian of the joint PDF with respect to the shape parameters,
+            where nshapes is the sum of the number of shape parameters of each
+            marginal.
+
+        Raises
+        ------
+        NotImplementedError
+            If any of the marginal distributions do not support
+            pdf_shape_jacobian.
+        """
+        marginals = self.marginals()
+        pdf_vals = self._bkd.stack(
+            [
+                marginal.pdf(samples[ii])
+                for ii, marginal in enumerate(marginals)
+            ],
+            axis=0,
+        )
+        jac = []
+        for ii, marginal in enumerate(marginals):
+            if not hasattr(marginal, "pdf_shape_jacobian"):
+                raise NotImplementedError(
+                    "marginal must implement pdf_shape_jacobian"
+                )
+            jac.append(
+                self._bkd.prod(pdf_vals[:ii])
+                * self._bkd.prod(pdf_vals[ii + 1 :])
+                * marginal.pdf_jacobian(samples[ii])
+            )
+        return self._bkd.stack(jac, axis=1)
 
 
 def define_iid_random_variable(

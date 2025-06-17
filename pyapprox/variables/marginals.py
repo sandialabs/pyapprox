@@ -1,7 +1,7 @@
 import math
 from functools import partial
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Tuple, Optional, Type
 
 from scipy.stats import _continuous_distns, _discrete_distns
 from scipy import stats
@@ -19,8 +19,16 @@ from pyapprox.util.misc import composite_gauss_legendre_rule
 
 
 class Marginal(ABC):
-    # This class implemented to allow for autograd
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    """
+    A marginal distribution.
+
+    Parameters
+    ----------
+    backend : BackendMixin, optional (default=NumpyMixin)
+        The backend to use for computations.
+    """
+
+    def __init__(self, backend: Type[BackendMixin] = NumpyMixin):
         self._bkd = backend
 
     def _check_samples(self, samples: Array) -> Array:
@@ -62,18 +70,73 @@ class Marginal(ABC):
         raise NotImplementedError
 
     def mean(self) -> float:
+        """
+        Compute the mean of the distribution.
+
+        Returns
+        -------
+        mean : float
+            The mean of the distribution.
+        """
+
         raise NotImplementedError
 
     def median(self) -> float:
+        """
+        Compute the median of the distribution.
+
+        The median is defined as the 50th percentile, i.e., the value at which
+        half of the distribution's probability mass lies below it and half lies
+        above it.
+
+        Returns
+        -------
+        median : float
+            The median of the distribution.
+        """
         return self.ppf(self._bkd.array([0.5]))
 
     def var(self) -> float:
+        """
+        Compute the variance of the distribution.
+
+        Returns
+        -------
+        variance : float
+            The variance of the distribution.
+        """
         raise NotImplementedError
 
     def std(self) -> float:
+        """
+        Compute the standard deviation of the distribution.
+
+        Returns
+        -------
+        stdev : float
+            The standard deviation of the distribution.
+        """
         return self._bkd.sqrt(self.var())
 
     def interval(self, alpha: float) -> Array:
+        """
+        Compute the interval with a given probability content alpha.
+
+        Parameters
+        ----------
+        alpha : float
+            The probability content of the interval.
+
+        Returns
+        -------
+        interval : Array
+            The interval, represented as a pair of values.
+
+        Notes
+        -----
+        The interval is calculated using the formula for the interval with a
+        given probability content, based on the quantile function ppf.
+        """
         eps = (1.0 - alpha) / 2.0
         return self.ppf(self._bkd.array([eps, 1 - eps]))
 
@@ -82,24 +145,79 @@ class Marginal(ABC):
         raise NotImplementedError
 
     def pdf(self, samples: Array) -> Array:
+        """
+        Evaluate the probability density function (pdf) at the given samples.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            The points at which to evaluate the pdf.
+
+        Returns
+        -------
+        vals : Array (nsamples,)
+            The evaluated pdf values.
+        """
         self._check_samples(samples)
         vals = self._pdf(samples)
         vals = self._check_values(vals)
         return vals
 
     def logpdf(self, samples: Array) -> Array:
+        """
+        Evaluate the log of the probability density function (pdf) at the
+        given samples.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            The points at which to evaluate the log of the pdf.
+
+        Returns
+        -------
+        vals : Array (nsamples,)
+            The evaluated log of the pdf values.
+        """
         self._check_samples(samples)
         vals = self._logpdf(samples)
         vals = self._check_values(vals)
         return vals
 
     def cdf(self, samples: Array) -> Array:
+        """
+        Evaluate the cumulative distribution function (cdf) at the given
+        samples.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            The points at which to evaluate the cdf.
+
+        Returns
+        -------
+        vals : Array (nsamples,)
+            The evaluated cdf values.
+        """
         self._check_samples(samples)
         vals = self._cdf(samples)
         vals = self._check_values(vals)
         return vals
 
     def ppf(self, usamples: Array) -> Array:
+        """
+        Evaluate the percent point function (ppf), or inverse of the cdf, at
+        the given samples.
+
+        Parameters
+        ----------
+        usamples : Array (nsamples,)
+            The points at which to evaluate the cpf.
+
+        Returns
+        -------
+        vals : Array (nsamples,)
+            The evaluated ppf values.
+        """
         self._check_samples(usamples)
         vals = self._ppf(usamples)
         vals = self._check_values(vals)
@@ -115,6 +233,25 @@ class Marginal(ABC):
         return jac
 
     def pdf_jacobian(self, samples: Array) -> Array:
+        r"""
+        Compute the Jacobian of the PDF of the marginal distribution.
+
+        .. math::
+            f_j(x) = \frac{\partial}{\partial x_j} f(x)
+
+        This function returns the derivative of the PDF with respect to the
+        variable.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            Samples from the marginal distribution of the variable.
+
+        Returns
+        -------
+        jac : Array (nsamples, 1)
+            The Jacobian of the PDF of the marginal distribution.
+        """
         if not self.pdf_jacobian_implemented():
             raise NotImplementedError(
                 f"{self}: pdf_jacobian is not implemented"
@@ -124,6 +261,26 @@ class Marginal(ABC):
         return self._check_jacobian(samples, jac)
 
     def logpdf_jacobian(self, samples: Array) -> Array:
+        r"""
+        Compute the Jacobian of the log of the PDF of the marginal
+        distribution.
+
+        .. math::
+            f_j(x) = \frac{\partial}{\partial x_j} \log f(x)
+
+        This function returns the derivative of the log of the PDF with
+        respect to the variable.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            Samples from the marginal distribution of the variable.
+
+        Returns
+        -------
+        jac : Array (nsamples, 1)
+            The Jacobian of the log of the PDF of the marginal distribution.
+        """
         if not self.logpdf_jacobian_implemented():
             raise NotImplementedError("logpdf_jacobian is not implemented")
         self._check_samples(samples)
@@ -131,12 +288,42 @@ class Marginal(ABC):
         return self._check_jacobian(samples, jac)
 
     def pdf_jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian of the PDF is implemented.
+
+        Returns
+        -------
+        flag : bool
+            True if  if the Jacobian is implemented, False otherwise.
+        """
         return False
 
     def logpdf_jacobian_implemented(self) -> bool:
+        """
+        Check if the log of the Jacobian of the PDF is implemented.
+
+        Returns
+        -------
+        flag : bool
+            True if  if the log of the Jacobian is implemented, False
+            otherwise.
+        """
         return False
 
     def rvs(self, nsamples: int) -> Array:
+        """
+        Generate random samples from the marginal distribution.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples to generate.
+
+        Returns
+        -------
+        samples : Array (nsamples,)
+            Random samples from the marginal distribution.
+        """
         return self._check_samples(self._rvs(nsamples))
 
     def __repr__(self) -> str:
@@ -146,24 +333,84 @@ class Marginal(ABC):
     def __eq__(self, other: "Marginal") -> bool:
         raise NotImplementedError
 
-    def plot_cdf(self, ax, npts: int = 101, alpha: float = None):
+    def plot_cdf(self, ax, npts: int = 101, alpha: Optional[float] = None):
+        """
+        Plot the cumulative distribution function (CDF) of the marginal variable.
+
+        Parameters
+        ----------
+        ax : matplotlib Axes
+            The axes to plot on.
+        npts : int, optional
+            The number of points to plot in the CDF. Defaults to 101.
+        alpha : float, optional
+            The confidence level used to define the bounds of the x-axis
+        """
         samples = self._bkd.linspace(*self.truncated_range(alpha), npts)
         ax.plot(samples, self.cdf(samples))
 
-    def plot_ppf(self, ax, npts: int = 101, alpha: float = None):
+    def plot_ppf(self, ax, npts: int = 101, alpha: Optional[float] = None):
+        """
+        Plot the percent point function (PPF) of the marginal variable.
+
+        Parameters
+        ----------
+        ax : matplotlib Axes
+            The axes to plot on.
+        npts : int, optional
+            The number of points to plot in the PPF. Defaults to 101.
+        alpha : float, optional
+            The confidence level used to define the bounds of the x-axis
+        """
         ranges = self.truncated_range(alpha)
         usamples = self.cdf(self._bkd.linspace(*ranges, npts))
         ax.plot(usamples, self.ppf(usamples))
 
     def kl_divergence_implemented(self) -> bool:
+        """
+        Check if the KL divergence is implemented for this marginal variable.
+
+        Returns
+        -------
+        flag : bool
+            True if the KL divergence is implemented, False otherwise.
+        """
         return False
 
-    def truncated_range(self, alpha: float = None) -> Array:
+    def truncated_range(self, alpha: Optional[float] = None) -> Array:
+        """
+        Get the truncated range of the marginal variable based on the
+        confidence level.
+
+        Parameters
+        ----------
+        alpha : float, optional
+            The confidence level. If None, use the default confidence level for
+            the marginal variable. Defaults to 1 for bounded variables and 0.99
+            for unbounded ones.
+
+        Returns
+        -------
+        Array
+            The truncated range of the marginal variable.
+        """
         if alpha is None and self.is_bounded():
             alpha = 1.0
         elif alpha is None:
             alpha = 0.99
         return self.interval(alpha)
+
+    @abstractmethod
+    def is_bounded(self) -> bool:
+        """
+        Check if the marginal is bounded.
+
+        Returns
+        -------
+        flag : bool
+            True if the marginal is bounded, False otherwise.
+        """
+        raise NotImplementedError
 
 
 class ContinuousMarginalMixin:
@@ -834,6 +1081,21 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
         )
 
     def pdf_shape_jacobian(self, samples: Array) -> Array:
+        """
+        Compute the Jacobian of th probability density function (PDF)
+        of the marginal with respect to its shape parameters.
+
+        Parameters
+        ----------
+        samples : Array (nsamples, )
+            Samples of the input variables.
+
+        Returns
+        -------
+        jac : Array (nsamples, nshapes)
+            The Jacobian of the joint PDF with respect to the shape parameters,
+            where nshapes is the number of shape parameters of the marginal.
+        """
         # compute derivative of Beta Function
         tmp = self._bkd.digamma(self._a + self._b)
         d1 = self._bkd.stack(
@@ -959,6 +1221,9 @@ class GammaMarginal(NewtonRVSMixin, Marginal):
 
     def kl_divergence_implemented(self) -> bool:
         return True
+
+    def is_bounded(self) -> bool:
+        return False
 
 
 class GaussianMarginal(Marginal):
