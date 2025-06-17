@@ -528,6 +528,14 @@ class BernoulliLogLikelihood(LogLikelihood):
     def _values(self, samples: Array) -> Array:
         return self._loglike(samples)[:, None]
 
+    def jacobian_implemented(self) -> bool:
+        return self._bkd.jacobian_implemented()
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.jacobian(
+            lambda x: self._values(x[:, None])[:, 0], sample[:, 0]
+        )
+
 
 class MultinomialLogLikelihood(LogLikelihood):
     def __init__(
@@ -578,4 +586,12 @@ class MultinomialLogLikelihood(LogLikelihood):
     def __repr__(self) -> str:
         return "{0}(noptions={1})".format(
             self.__class__.__name__, self.nvars()
+        )
+
+    def jacobian_implemented(self) -> bool:
+        return self._bkd.jacobian_implemented()
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.jacobian(
+            lambda x: self._values(x[:, None])[:, 0], sample[:, 0]
         )

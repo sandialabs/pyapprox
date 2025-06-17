@@ -4,6 +4,7 @@ Variational inference for Bayesian inverse problems.
 This module implements the ELBO (Evidence Lower BOund) objective for
 variational inference in Bayesian inverse problems
 """
+
 from abc import ABC, abstractmethod
 import warnings
 from typing import Tuple, Union, Optional
@@ -69,6 +70,7 @@ class LatentVariableGenerator(ABC):
     _nvars : int
         Number of latent variables.
     """
+
     def __init__(self, nvars: int, backend: BackendMixin):
         """
         Initialize the latent variable generator.
@@ -211,6 +213,7 @@ class MonteCarloIndependentLatentVariableGenerator(LatentVariableGenerator):
     variable : IndependentMarginalsVariable
         Variable to generate latent variables for.
     """
+
     def __init__(self, variable: IndependentMarginalsVariable):
         """
         Initialize the latent variable generator.
@@ -245,7 +248,7 @@ class LowDiscrepanySequenceIndependentLatentVariableGenerator(
     LatentVariableGenerator
 ):
     """
-    Latent variable generator that uses low discrepancy sequences for 
+    Latent variable generator that uses low discrepancy sequences for
     quadrature when computing the expected loss during training.
 
     Parameters
@@ -253,6 +256,7 @@ class LowDiscrepanySequenceIndependentLatentVariableGenerator(
         sequence : LowDiscrepancySequence
             Sequence sampling the latent variable.
     """
+
     def __init__(self, sequence: LowDiscrepancySequence):
         """
         Initialize the latent variable generator.
@@ -281,7 +285,7 @@ class LowDiscrepanySequenceIndependentLatentVariableGenerator(
 
 class QuadratureRuleLatentVariableGenerator(LatentVariableGenerator):
     """
-    Latent variable generator that uses QuadratureRule for 
+    Latent variable generator that uses QuadratureRule for
     quadrature when computing the expected loss during training.
 
     Parameters
@@ -289,6 +293,7 @@ class QuadratureRuleLatentVariableGenerator(LatentVariableGenerator):
     quad_rule : QuadratureRule
         Quadrature rule for the latent variable space.
     """
+
     def __init__(self, quad_rule: QuadratureRule):
         """
         Initialize the latent variable generator.
@@ -330,9 +335,10 @@ class VariationalPosterior(ABC):
         Generator of the latent variables used to sample the variational
         posterior
     nlatent_samples : int
-        Number of samples used to compute the ELBO used to train the 
+        Number of samples used to compute the ELBO used to train the
         variational posterior
     """
+
     def __init__(
         self,
         latent_generator: LatentVariableGenerator,
@@ -411,6 +417,23 @@ class VariationalPosterior(ABC):
             self._latent_generator.rvs(nsamples)
         )
 
+    def _ppf_shape_wrapper(self, latent_samples: Array, param: Array) -> Array:
+        self._hyp_list.set_active_opt_params(param)
+        self.update()
+        return self._map_from_latent_samples(latent_samples).T
+
+    def _ppf_shape_jacobian(
+        self, latent_samples: Array, param: Array
+    ) -> Array:
+        if not self._bkd.jacobian_implemented():
+            raise NotImplementedError(
+                "backend does not support autodifferntiation and a"
+                "custom implementation is not implemented"
+            )
+        return self._bkd.jacobian(
+            lambda p: self._ppf_shape_wrapper(latent_samples, p), param[:, 0]
+        )
+
 
 class CholeskyGaussianVariationalPosterior(VariationalPosterior):
     """
@@ -441,6 +464,7 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
     backend : BackendMixin, optional
         Backend to use for computations. Default is NumpyMixin
     """
+
     def __init__(
         self,
         prior: DenseCholeskyMultivariateGaussian,
@@ -591,6 +615,7 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
     backend : BackendMixin, optional
         Backend to use for computations. Default is NumpyMixin
     """
+
     def __init__(
         self,
         prior: IndependentMultivariateGaussian,
@@ -743,6 +768,7 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
     backend : BackendMixin, optional
         Backend to use for computations. Default is NumpyMixin
     """
+
     def __init__(
         self,
         prior: IndependentMarginalsVariable,
@@ -839,7 +865,7 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
 
     def update(self):
         """
-        Update the variational distribution. 
+        Update the variational distribution.
         Must be called after any hyperparameters are updated.
         """
         ashapes = self._ashapes.get_values()
@@ -850,9 +876,11 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
         return self._variable.ppf(latent_samples)
 
-    def _ppf_shape_jacobian(self, latent_samples: Array) -> Array:
+    def _ppf_shape_jacobian(
+        self, latent_samples: Array, param: Array
+    ) -> Array:
         """
-        Compute the Jacobian of the PPF with respect to the shape 
+        Compute the Jacobian of the PPF with respect to the shape
         parameters of the posterior used to generate samples mapped
         from the latent space to the model space.
 
@@ -867,6 +895,8 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
             Shape Jacobian of the model variables.
 
         """
+        self._hyp_list.set_active_opt_params(param[:, 0])
+        self.update()
         # len(jacs) = nvars
         # jacs[i] ~ (nsamples, nparams_1d)
         # jacs[i] = [[ai1, bi1], [ai2, bi2] ...] for ith variable
@@ -959,7 +989,7 @@ class DirichletVariationalPosterior(VariationalPosterior):
 
     def update(self):
         """
-        Update the variational distribution. 
+        Update the variational distribution.
         Must be called after any hyperparameters are updated.
         """
         self._variable.set_shapes(self._ashapes.get_values())
@@ -981,7 +1011,7 @@ class DirichletVariationalPosterior(VariationalPosterior):
     def _divergence(self):
         """
         Compute the divergence between the variational posterior and the prior.
-        
+
         Returns
         -------
         dkld_div : Array
@@ -995,6 +1025,7 @@ class NegELBO(SingleSampleModel):
     """
     Negative Evidence Lower Bound objective used to train the variational posterior.
     """
+
     def __init__(
         self,
         loglike: ModelBasedLogLikelihoodMixin,
@@ -1095,10 +1126,8 @@ class NegELBO(SingleSampleModel):
         )
 
     def _reparameterized_samples_jacobian(self, params: Array) -> Array:
-        self._hyp_list.set_active_opt_params(params[:, 0])
-        self._posterior.update()
         return self._posterior._ppf_shape_jacobian(
-            self._posterior._latent_samples
+            self._posterior._latent_samples, params
         )
 
     def _evaluate(self, params: Array) -> Array:
@@ -1107,7 +1136,6 @@ class NegELBO(SingleSampleModel):
         samples = self._posterior._map_from_latent_samples(
             self._posterior._latent_samples
         )
-        print(samples, "S")
         # TODO make this a sample average objective
         weights = self._posterior._latent_weights
         expected_loglike = self._bkd.atleast2d(
@@ -1122,6 +1150,7 @@ class VariationalInverseProblem:
     A class for formulating and solving Bayesian Variational Inference using
     ELBO optimization.
     """
+
     def __init__(
         self,
         prior: JointVariable,
@@ -1261,7 +1290,7 @@ class VariationalInverseProblem:
         return ms_optimizer
 
     def __repr__(self) -> str:
-        """ Get the string representation of the object."""
+        """Get the string representation of the object."""
         return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             self._prior,
