@@ -528,53 +528,33 @@ class NegELBO(SingleSampleModel):
         return self._bkd.jacobian_implemented()
 
     def _jacobian(self, param: Array) -> Array:
-        print("###")
-        import torch
+        # The following requires posterior and likelihood
+        # to both be implemented with autograd. This does not allow
+        # for user provided model jacobians
+        # return self._bkd.jacobian(
+        #     lambda x: self._values(x[:, None])[:, 0], param[:, 0]
+        # )
 
-        torch.set_printoptions(precision=16)
-        jac = self._bkd.jacobian(
-            lambda x: self._values(x[:, None])[:, 0], param[:, 0]
-        )
-        print(jac, "J")
-        return jac
-        # compute grad of loglike dldx with respect to model variables x
-
+        # update posterior parameters
         self._hyp_list.set_active_opt_params(param[:, 0])
         self._posterior.update()
+
+        # compute grad of loglike dldx with respect to model variables x
         samples = self._posterior._map_from_latent_samples(
             self._posterior._latent_samples
         )
-        print(samples, "S1")
         jac_values_at_samples = self._bkd.stack(
             [
                 self._loglike.jacobian(sample[:, None])[0]
                 for sample in samples.T
             ]
         )
-        # assert self._bkd.allclose(
-        #     jac_values_at_samples,
-        #     self._bkd.stack(
-        #         [
-        #             self._bkd.jacobian(
-        #                 lambda x: self._loglike(x[:, None])[:, 0], sample
-        #             )[0]
-        #             for sample in samples.T
-        #         ],
-        #         axis=0,
-        #     ),
-        # )
+
         # compute grad of model variables dxdp with respect to parameters p
         # of variational distribution used to map latent samples to model
         # variables
         dxdp = self._reparameterized_samples_jacobian(param)
 
-        # assert self._bkd.allclose(
-        #     dxdp,
-        #     self._bkd.jacobian(
-        #         lambda x: self._reparameterized_samples(x[:, None]).T,
-        #         param[:, 0],
-        #     ),
-        # )
         # compute gradient of loglikelihood with respect to parameters
         # using the chain rule dldp = dldx dxdp
         weights = self._posterior._latent_weights
@@ -584,53 +564,10 @@ class NegELBO(SingleSampleModel):
                 None, :
             ]
         )
-        # dldp = (
-        #     weights[:, 0]
-        #     @ self._bkd.sum(jac_values_at_samples[..., None] * dxdp, axis=1)[
-        #         None, :
-        #     ]
-        # )
-        # print(dldp, "dldp")
-        # print(dxdp[0], dxdp.shape, param)
-        # print(
-        #     weights[:, 0]
-        #     @ (jac_values_at_samples[..., None] * dxdp).sum(axis=1),
-        #     "a",
-        # )
-        # print(dldp, "b")
-        # print(
-        #     self._bkd.jacobian(lambda x: self._temp(x[:, None]), param[:, 0]),
-        #     "c",
-        # )
-        # eps = 1e-6
-        # param1 = self._bkd.copy(param)
-        # param1[0] += eps
-        # print((self._temp(param1) - self._temp(param)) / eps, "fd")
-        # self._hyp_list.set_active_opt_params(param[:, 0])
-        # self._posterior.update()
-        # assert self._bkd.allclose(
-        #     dldp,
-        #     self._bkd.jacobian(lambda x: self._temp(x[:, None]), param[:, 0]),
-        # )
 
-        jac = -dldp + self._bkd.jacobian(
+        return -dldp + self._bkd.jacobian(
             lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
         )
-
-        # print(self._posterior.marginals())
-        # auto_jac = self._bkd.jacobian(
-        #     lambda x: self._values(x[:, None])[:, 0], param[:, 0]
-        # )
-        # print(jac, "j")
-        # print(auto_jac, "aj")
-        # # print("diff", jac - auto_jac, param[:, 0])
-        # from pyapprox.interface.model import ForwardFiniteDifference
-
-        # fd = ForwardFiniteDifference(self)
-        # print(fd.jacobian(param))
-        # assert self._bkd.allclose(jac, auto_jac)
-        print(jac, "J1")
-        return jac
 
     def _temp(self, params):
         self._hyp_list.set_active_opt_params(params[:, 0])
