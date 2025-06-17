@@ -320,6 +320,37 @@ class IndependentMarginalsVariable(JointVariable):
             axis=0,
         )
 
+    def ppf_shape_jacobian(self, usamples: Array, compress=True) -> Array:
+        """
+        Compute the Jacobian of the PPF (for each dimension separately)
+        with respect to the shapes of each marginal.
+
+        Parameters
+        ----------
+        samples : Array (vars, nsamples)
+            Points at which to compute the Jacobian.
+
+        compress : boolean
+            If True return jacs for each dimension in a list.
+            If False return a block diagonal 3D tensor.
+
+        Returns
+        -------
+        jac : Union[List, Array]
+            If compress return list of Shape Jacobian of each univariate PPF
+            Otherwise, return Shape Jacobian as 3D Array.
+        """
+        jacs = []
+        for ii, marginal in enumerate(self.marginals()):
+            if not hasattr(marginal, "pdf_shape_jacobian"):
+                raise NotImplementedError(
+                    "marginal must implement pdf_shape_jacobian"
+                )
+            jacs.append(marginal.ppf_shape_jacobian(usamples[ii]))
+        if compress:
+            return jacs
+        return self._bkd.stack(jacs, axis=-1)
+
     def __repr__(self) -> str:
         if self.nvars() > 5:
             return "{0}(nvars={1})".format(
@@ -461,18 +492,27 @@ class IndependentMarginalsVariable(JointVariable):
             ],
             axis=0,
         )
-        jac = []
+        jacs = []
+        nshapes = 0
         for ii, marginal in enumerate(marginals):
             if not hasattr(marginal, "pdf_shape_jacobian"):
                 raise NotImplementedError(
                     "marginal must implement pdf_shape_jacobian"
                 )
-            jac.append(
-                self._bkd.prod(pdf_vals[:ii])
-                * self._bkd.prod(pdf_vals[ii + 1 :])
-                * marginal.pdf_jacobian(samples[ii])
+            jacs.append(
+                (
+                    self._bkd.prod(pdf_vals[:ii], axis=0)
+                    * self._bkd.prod(pdf_vals[ii + 1 :], axis=0)
+                )[:, None]
+                * marginal.pdf_shape_jacobian(samples[ii])
             )
-        return self._bkd.stack(jac, axis=1)
+            nshapes += jacs[-1].shape[1]
+        cnt = 0
+        jac = self._bkd.zeros((samples.shape[1], nshapes))
+        for ii in range(len(jacs)):
+            jac[:, cnt : cnt + jacs[ii].shape[1]] = jacs[ii]
+            cnt += jacs[ii].shape[1]
+        return jac
 
 
 def define_iid_random_variable(

@@ -412,6 +412,29 @@ class Marginal(ABC):
         """
         raise NotImplementedError
 
+    def ppf_shape_jacobian(self, usamples: Array) -> Array:
+        """
+        Compute the Jacobian of the PPF (inverse CDF) with respect to
+        the marginal's shape parameters.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            Points at which to compute the Jacobian.
+
+        Returns
+        -------
+        jac : Array (nsamples, 2)
+            Shape Jacobian of the PPF.
+        """
+        # Derived using the implicit function theorem
+        if not hasattr(self, "cdf_shape_jacobian"):
+            raise NotImplementedError(
+                "Marginal must implement cdf_shape_jacobian"
+            )
+        samples = self.ppf(usamples)
+        return -self.cdf_shape_jacobian(samples) / self.pdf(samples)[:, None]
+
 
 class ContinuousMarginalMixin:
     def plot_pdf(self, ax, npts: int = 101, alpha: float = None):
@@ -935,8 +958,8 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
 
     def _transform_scale_parameters(self) -> Tuple[float, float]:
         """
-        Transform scale parameters so that when any bounded variable is transformed
-        to the canonical domain [-1, 1]
+        Transform scale parameters so that when any bounded variable is
+        transformed to the canonical domain [-1, 1]
         """
         if not self.is_bounded():
             return super()._transform_scale_parameters()
@@ -981,8 +1004,30 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
         quadx = samples_01[:, None] * self._quadx_01[None, :]
         quadw = samples_01[:, None] * self._quadw_01[None, :]
         pdf_01_vals = self._pdf_01(quadx)
-        # II = np.where(~np.isfinite(pdf_01_vals.detach().numpy()))
         return self._bkd.sum(pdf_01_vals * quadw, axis=1)
+
+    def cdf_shape_jacobian(self, samples: Array) -> Array:
+        """
+        Compute the shape Jacobian of the CDF.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            Points at which to compute the Jacobian.
+
+        Returns
+        -------
+        jac : Array (nsamples, 2)
+            Shape Jacobian of the CDF.
+        """
+        samples_01 = (samples - self._lb) / self._scale
+        quadx = samples_01[:, None] * self._quadx_01[None, :]
+        quadw = samples_01[:, None] * self._quadw_01[None, :]
+        d1, d2, numerator = self._pdf_shape_jac_01(quadx)
+        pdf_shape_jac_01 = (
+            1 / self._const * d2 - numerator[:, None, :] * d1[None, :, None]
+        ) * self._const**2
+        return self._bkd.einsum("ijk,ik->ij", pdf_shape_jac_01, quadw)
 
     def _ppf(self, usamples: Array) -> Array:
         # The following commented section will stop autograd from working
@@ -1016,6 +1061,8 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
 
     def kl_divergence(self, other: "BetaMarginal") -> float:
         r"""
+        Compute the Kullback-Leibler divergence between two Beta distributions.
+
         .. math:: \mathrm{KL}(F||G)=\ln\frac{\Gamma(\alpha_{f}+\beta_{f})\Gamma(\alpha_{g})\Gamma(\beta_{g})}{\Gamma(\alpha_{g}+\beta_{g})\Gamma(\alpha_{f})\Gamma(\beta_{f})}+(\alpha_{f}-\alpha_{g})\left(\psi(\alpha_{f})-\psi(\alpha_{f}+\beta_{f})\right)+(\beta_{f}-\beta_{g})\left(\psi(\beta_{f})-\psi(\alpha_{f}+\beta_{f})\right)
 
         where
@@ -1080,6 +1127,25 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
             self.__class__.__name__, self._a, self._b
         )
 
+    def _pdf_shape_jac_01(self, x01: Array) -> Array:
+        tmp = self._bkd.digamma(self._a + self._b)
+        d1 = self._bkd.stack(
+            [
+                (self._bkd.digamma(self._a) - tmp) / self._const,
+                (self._bkd.digamma(self._b) - tmp) / self._const,
+            ],
+            axis=0,
+        )
+        numerator = x01 ** (self._a - 1) * (1.0 - x01) ** (self._b - 1)
+        d2 = self._bkd.stack(
+            [
+                numerator * self._bkd.log(x01),
+                numerator * self._bkd.log(1.0 - x01),
+            ],
+            axis=1,
+        )
+        return d1, d2, numerator
+
     def pdf_shape_jacobian(self, samples: Array) -> Array:
         """
         Compute the Jacobian of th probability density function (PDF)
@@ -1097,29 +1163,15 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
             where nshapes is the number of shape parameters of the marginal.
         """
         # compute derivative of Beta Function
-        tmp = self._bkd.digamma(self._a + self._b)
-        d1 = self._bkd.stack(
-            [
-                (self._bkd.digamma(self._a) - tmp) / self._const,
-                (self._bkd.digamma(self._b) - tmp) / self._const,
-            ],
-            axis=0,
-        )
+
         # compute derivative of sample dependent terms on [0, 1]
         x01 = (samples - self._lb) / self._scale
-        numerator = (
-            x01 ** (self._a - 1) * (1.0 - x01) ** (self._b - 1) / self._scale
-        )
-        d2 = self._bkd.stack(
-            [
-                numerator * self._bkd.log(x01),
-                numerator * self._bkd.log(1.0 - x01),
-            ],
-            axis=1,
-        )
+        d1, d2, numerator = self._pdf_shape_jac_01(x01)
         return (
-            1 / self._const * d2 - numerator[:, None] * d1[None, :]
-        ) * self._const**2
+            (1 / self._const * d2 - numerator[:, None] * d1[None, :])
+            * self._const**2
+            / self._scale
+        )
 
 
 class UniformMarginal(BetaMarginal):

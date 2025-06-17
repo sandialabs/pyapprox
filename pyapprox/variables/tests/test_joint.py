@@ -205,6 +205,36 @@ class TestJoint:
             bkd.stack(jac_fd, axis=-1), bkd.jacobian(wrap, param)
         )
 
+        def pdf_wrap(param):
+            a = param[::2]
+            b = param[1::2]
+            for ii, marginal in enumerate(variable2.marginals()):
+                marginal.set_shapes(a[ii], b[ii])
+            return variable2.pdf(samples)[:, 0]
+
+        assert bkd.allclose(
+            variable2.pdf_shape_jacobian(samples),
+            bkd.jacobian(pdf_wrap, param),
+        )
+
+        def ppf_wrap(param):
+            a = param[::2]
+            b = param[1::2]
+            for ii, marginal in enumerate(variable2.marginals()):
+                marginal.set_shapes(a[ii], b[ii])
+            return variable2.ppf(usamples)
+
+        a = param[::2]
+        b = param[1::2]
+        for ii, marginal in enumerate(variable2.marginals()):
+            marginal.set_shapes(a[ii], b[ii])
+        usamples = bkd.asarray(np.random.uniform(0, 1, (variable2.nvars(), 3)))
+        samples = ppf_wrap(param)
+        auto_jac = bkd.jacobian(ppf_wrap, param)
+        jac = variable2.ppf_shape_jacobian(usamples, True)
+        assert bkd.allclose(jac[0], auto_jac[0, :, :2])
+        assert bkd.allclose(jac[1], auto_jac[1, :, 2:])
+
     def test_rejection_sampling(self):
         bkd = self.get_backend()
         proposal = IndependentMarginalsVariable(

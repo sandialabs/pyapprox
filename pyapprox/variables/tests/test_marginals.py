@@ -387,29 +387,51 @@ class TestMarginals:
         assert bkd.allclose(marginal.kl_divergence(rv2), kl_div)
 
         astat3, bstat3 = bkd.asarray([3.0, 3.0])
-        bounds = [0, 1]
+        bounds = [0, 2]
         rv3 = BetaMarginal(astat3, bstat3, *bounds, backend=bkd)
         samples3 = rv3.rvs(3)
-        print(rv3.pdf_shape_jacobian(samples3))
 
-        def fun_wrap(shapes):
+        def pdf_wrap(shapes):
             rv3.set_shapes(*shapes)
             return rv3.pdf(samples3)[None, :]
 
-        def jacobian_wrap(shapes):
+        def pdf_jacobian_wrap(shapes):
             rv3.set_shapes(*shapes)
             return rv3.pdf_shape_jacobian(samples3)
 
-        model = ModelFromSingleSampleCallable(
+        pdf_model = ModelFromSingleSampleCallable(
             samples3.shape[0],
             2,
-            fun_wrap,
-            jacobian=jacobian_wrap,
+            pdf_wrap,
+            jacobian=pdf_jacobian_wrap,
             sample_ndim=1,
             backend=bkd,
         )
         shapes = bkd.array([astat3, bstat3])
-        errors = model.check_apply_jacobian(shapes[:, None], disp=False)
+        errors = pdf_model.check_apply_jacobian(shapes[:, None], disp=False)
+        assert errors.min() / errors.max() < 1e-6
+
+        usamples3 = bkd.asarray(np.random.uniform(0, 1, 3))
+
+        def ppf_wrap(param):
+            rv3.set_shapes(*param)
+            return rv3.ppf(usamples3)[None, :]
+
+        def ppf_jacobian_wrap(param):
+            rv3.set_shapes(*param)
+            return rv3.ppf_shape_jacobian(usamples3)
+
+        ppf_model = ModelFromSingleSampleCallable(
+            usamples3.shape[0],
+            2,
+            ppf_wrap,
+            jacobian=ppf_jacobian_wrap,
+            sample_ndim=1,
+            backend=bkd,
+        )
+
+        param = bkd.array([2, 3])
+        errors = ppf_model.check_apply_jacobian(param[:, None], disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_gamma_variable(self):
