@@ -1,6 +1,12 @@
+"""
+Variational inference for Bayesian inverse problems.
+
+This module implements the ELBO (Evidence Lower BOund) objective for
+variational inference in Bayesian inverse problems
+"""
 from abc import ABC, abstractmethod
 import warnings
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 
 import numpy as np
 
@@ -46,21 +52,88 @@ from pyapprox.surrogates.affine.basis import QuadratureRule
 
 
 class LatentVariableGenerator(ABC):
+    """
+    Base class for all latent variable generators.
+
+    Parameters
+    ----------
+    nvars : int
+        Number of latent variables.
+    backend : BackendMixin
+        Backend to use for computations.
+
+    Attributes
+    ----------
+    _bkd : BackendMixin
+        Backend to use for computations.
+    _nvars : int
+        Number of latent variables.
+    """
     def __init__(self, nvars: int, backend: BackendMixin):
+        """
+        Initialize the latent variable generator.
+
+        Parameters
+        ----------
+        nvars : int
+            Number of latent variables.
+        backend : BackendMixin
+            Backend to use for computations.
+        """
         self._bkd = backend
         self._nvars = nvars
 
     @abstractmethod
     def _samples_weights(self, nsamples: int) -> Tuple[Array, Array]:
+        """
+        Generate samples and their corresponding weights defined on the latent space.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples to generate.
+
+        Returns
+        -------
+        samples : Array
+            Generated samples.
+        weights : Array
+            Corresponding weights.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def _rvs(self, nsamples: int) -> Array:
+        """
+        Generate random realizations from the variational posterior.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of random realizations to generate.
+
+        Returns
+        -------
+        rvs : Array
+            Generated random reaizations.
+        """
         raise NotImplementedError
 
     def _check_samples_weights(
         self, nsamples: int, samples: Array, weights: Array
     ):
+        """
+        Check if the generated samples and weights are valid.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples.
+        samples : Array
+            Generated samples.
+        weights : Array
+            Corresponding weights.
+        """
         if samples.shape != (self._nvars, nsamples):
             raise RuntimeError(
                 "samples has the wrong shape. Was {0} should be {1}".format(
@@ -71,25 +144,82 @@ class LatentVariableGenerator(ABC):
             raise RuntimeError("samples has the wrong shape")
 
     def __call__(self, nsamples: int) -> Tuple[Array, Array]:
+        """
+        Generate samples and their corresponding weights defined on the latent space
+        used to compute the expected loss during training.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples to generate.
+
+        Returns
+        -------
+        samples : Array
+            Generated samples.
+        weights : Array
+            Corresponding weights.
+        """
         samples, weights = self._samples_weights(nsamples)
         self._check_samples_weights(nsamples, samples, weights)
         return samples, weights
 
     def rvs(self, nsamples: int) -> Array:
+        """
+        Generate random realizations from the variational posterior.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of random realizations to generate.
+
+        Returns
+        -------
+        rvs : Array
+            Generated random reaizations.
+        """
         samples, weights = self._rvs(nsamples)
         if samples.shape != (self._nvars, nsamples):
             raise RuntimeError("samples has the wrong shape")
         return samples
 
     def __repr__(self) -> str:
+        """
+        Return a string representation of the object.
+        """
         return "{0}".format(self.__class__.__name__)
 
     def nvars(self) -> int:
+        """
+        Get the number of latent variables.
+
+        Returns
+        -------
+        nvars : int
+            Number of latent variables.
+        """
         return self._nvars
 
 
 class MonteCarloIndependentLatentVariableGenerator(LatentVariableGenerator):
+    """
+    Latent variable generator that uses Monte Carlo quadrature when
+    computing the expected loss during training.
+
+    Parameters
+    ----------
+    variable : IndependentMarginalsVariable
+        Variable to generate latent variables for.
+    """
     def __init__(self, variable: IndependentMarginalsVariable):
+        """
+        Initialize the latent variable generator.
+
+        Parameters
+        ----------
+        variable : IndependentMarginalsVariable
+            Latent space variable.
+        """
         if not isinstance(variable, IndependentMarginalsVariable):
             raise ValueError(
                 "variable must be an IndependentMarginalsVariable"
@@ -114,7 +244,24 @@ class MonteCarloIndependentLatentVariableGenerator(LatentVariableGenerator):
 class LowDiscrepanySequenceIndependentLatentVariableGenerator(
     LatentVariableGenerator
 ):
+    """
+    Latent variable generator that uses low discrepancy sequences for 
+    quadrature when computing the expected loss during training.
+
+    Parameters
+        ----------
+        sequence : LowDiscrepancySequence
+            Sequence sampling the latent variable.
+    """
     def __init__(self, sequence: LowDiscrepancySequence):
+        """
+        Initialize the latent variable generator.
+
+        Parameters
+        ----------
+        sequence : LowDiscrepancySequence
+            Sequence sampling the latent variable.
+        """
         if not isinstance(sequence, LowDiscrepancySequence):
             raise ValueError("sequence must be a LowDiscrepancySequence")
         self._seq = sequence
@@ -133,7 +280,24 @@ class LowDiscrepanySequenceIndependentLatentVariableGenerator(
 
 
 class QuadratureRuleLatentVariableGenerator(LatentVariableGenerator):
+    """
+    Latent variable generator that uses QuadratureRule for 
+    quadrature when computing the expected loss during training.
+
+    Parameters
+    ----------
+    quad_rule : QuadratureRule
+        Quadrature rule for the latent variable space.
+    """
     def __init__(self, quad_rule: QuadratureRule):
+        """
+        Initialize the latent variable generator.
+
+        Parameters
+        ----------
+        quad_rule : QuadratureRule
+            Quadrature rule for the latent variable space.
+        """
         if not isinstance(quad_rule, QuadratureRule):
             raise ValueError("quad_rule must be a QaudratureRule")
         self._quad_rule = quad_rule
@@ -157,11 +321,34 @@ class QuadratureRuleLatentVariableGenerator(LatentVariableGenerator):
 
 
 class VariationalPosterior(ABC):
+    """
+    Abstract base class for variational posteriors.
+
+    Parameters
+    ----------
+    latent_generator : LatentVariableGenerator
+        Generator of the latent variables used to sample the variational
+        posterior
+    nlatent_samples : int
+        Number of samples used to compute the ELBO used to train the 
+        variational posterior
+    """
     def __init__(
         self,
         latent_generator: LatentVariableGenerator,
         nlatent_samples: int,
     ):
+        """
+        Initialize the latent variational posterior.
+
+        Parameters
+        ----------
+        latent_generator : LatentVariableGenerator
+            Generator of the latent variables used to compute the variational
+            posterior
+        nlatent_samples : int
+            Number of samples used to compute the variational posterior
+        """
         if not isinstance(latent_generator, LatentVariableGenerator):
             raise ValueError(
                 "latent_generator must be a LatentVariableGenerator"
@@ -174,9 +361,14 @@ class VariationalPosterior(ABC):
         )
 
     def hyp_list(self) -> HyperParameterList:
+        """
+        Return the list of hyperparameters used to train the variational
+        posterior.
+        """
         return self._hyp_list
 
     def __repr__(self) -> str:
+        """Return a string representation of the variational posterior."""
         return "{0}({1}, nvars={2}, bkd={3})".format(
             self.__class__.__name__,
             self._hyp_list._short_repr(),
@@ -186,15 +378,69 @@ class VariationalPosterior(ABC):
 
     @abstractmethod
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
+        """
+        Map latent samples to samples from the variational posterior.
+
+        Parameters
+        ----------
+        latent_samples : Array
+            Samples from the latent distribution
+
+        Returns
+        -------
+        samples : Array
+            Samples from the variational posterior
+        """
         raise NotImplementedError
 
     def rvs(self, nsamples: int) -> Array:
+        """
+        Return random samples from the variational posterior.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples to return
+
+        Returns
+        -------
+        samples : Array
+            Random samples from the variational posterior
+        """
         return self._map_from_latent_samples(
             self._latent_generator.rvs(nsamples)
         )
 
 
 class CholeskyGaussianVariationalPosterior(VariationalPosterior):
+    """
+    Variational posterior for a multivariate Gaussian distribution with
+    Cholesky factorization of the covariance matrix.
+
+    Parameters
+    ----------
+    prior : DenseCholeskyMultivariateGaussian
+        Prior multivariate Gaussian distribution
+    nlatent_samples : int
+        Number of samples used to compute the variational posterior
+    flattened_cholesky_values : Array
+        Flattened Cholesky factor of the prior covariance matrix
+    mean_values : Array, optional
+        Mean of the variational distribution. If None, it is set to zero.
+    cholesky_bounds : Union[Tuple[float, float], Array], optional
+        Bounds for the Cholesky factor of the variational distribution.
+        Default is (-inf, inf)
+    mean_bounds : Union[Tuple[float, float], Array], optional
+        Bounds for the mean of the variational distribution. Default is
+        (-inf, inf)
+    latent_generator : LatentVariableGenerator, optional
+        Generator of the latent variables used to compute the variational
+        posterior. If None, it is set to a Monte Carlo independent latent
+        variable generator with a standard multivariate Gaussian
+        distribution.
+    backend : BackendMixin, optional
+        Backend to use for computations. Default is NumpyMixin
+    """
     def __init__(
         self,
         prior: DenseCholeskyMultivariateGaussian,
@@ -206,6 +452,33 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
         latent_generator: LatentVariableGenerator = None,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Initialize the variational distribution.
+
+        Parameters
+        ----------
+        prior : DenseCholeskyMultivariateGaussian
+            Prior multivariate Gaussian distribution
+        nlatent_samples : int
+            Number of samples used to compute the variational posterior
+        flattened_cholesky_values : Array
+            Flattened Cholesky factor of the prior covariance matrix
+        mean_values : Array, optional
+            Mean of the variational distribution. If None, it is set to zero.
+        cholesky_bounds : Union[Tuple[float, float], Array], optional
+            Bounds for the Cholesky factor of the variational distribution.
+            Default is (-inf, inf)
+        mean_bounds : Union[Tuple[float, float], Array], optional
+            Bounds for the mean of the variational distribution. Default is
+            (-inf, inf)
+        latent_generator : LatentVariableGenerator, optional
+            Generator of the latent variables used to compute the variational
+            posterior. If None, it is set to a Monte Carlo independent latent
+            variable generator with a standard multivariate Gaussian
+            distribution.
+        backend : BackendMixin, optional
+            Backend to use for computations. Default is NumpyMixin
+        """
         nvars = prior.nvars()
         if latent_generator is None:
             latent_variable = IndependentMarginalsVariable(
@@ -237,9 +510,25 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
         self._setup_divergence(prior)
 
     def mean(self) -> Array:
+        """
+        Return the mean of the variational distribution.
+
+        Returns
+        -------
+        mean : Array
+            Mean of the variational distribution
+        """
         return self._mean.get_values()[:, None]
 
     def covariance(self) -> Array:
+        """
+        Return the covariance matrix of the variational distribution.
+
+        Returns
+        -------
+        cov: Array
+            Covariance matrix of the variational distribution
+        """
         chol = self._cholesky.get_cholesky_factor()
         return chol @ chol.T
 
@@ -248,11 +537,23 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
         return self.mean() + chol @ latent_samples
 
     def update(self):
+        """
+        Update the variational distribution by computing the Cholesky factor
+        and the mean. Must be called after any hyperparameters are updated.
+        """
         mean1 = self._mean.get_values()[:, None]
         chol1 = self._cholesky.get_cholesky_factor()
         self._divergence.set_left_distribution(mean1, chol1)
 
     def _setup_divergence(self, prior: IndependentMultivariateGaussian):
+        """
+        Set up the divergence for the variational distribution.
+
+        Parameters
+        ----------
+        prior : IndependentMultivariateGaussian
+            Prior multivariate Gaussian distribution
+        """
         self._divergence = CholeskyBasedGaussianExactKLDivergence(
             prior.nvars(), prior._bkd
         )
@@ -262,6 +563,34 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
 
 
 class IndependentGaussianVariationalPosterior(VariationalPosterior):
+    """
+    Variational posterior for a multivariate Gaussian distribution with
+    independent marginals.
+
+    Parameters
+    ----------
+    prior : IndependentMultivariateGaussian
+        Prior multivariate Gaussian distribution
+    nlatent_samples : int
+        Number of samples used to compute the variational posterior
+    std_diag_values : Array
+        Standard deviations of the variational distribution
+    mean_values : Array, optional
+        Mean of the variational distribution. If None, it is set to zero.
+    std_diag_bounds : Union[Tuple[float, float], Array], optional
+        Bounds for the standard deviations of the variational distribution.
+        Default is (0, inf)
+    mean_bounds : Union[Tuple[float, float], Array], optional
+        Bounds for the mean of the variational distribution. Default is
+        (-inf, inf)
+    latent_generator : LatentVariableGenerator, optional
+        Generator of the latent variables used to compute the variational
+        posterior. If None, it is set to a Monte Carlo independent latent
+        variable generator with a standard multivariate Gaussian
+        distribution.
+    backend : BackendMixin, optional
+        Backend to use for computations. Default is NumpyMixin
+    """
     def __init__(
         self,
         prior: IndependentMultivariateGaussian,
@@ -273,6 +602,33 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         latent_generator: LatentVariableGenerator = None,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Initialize the variational posterior.
+
+        Parameters
+        ----------
+        prior : IndependentMultivariateGaussian
+            Prior multivariate Gaussian distribution
+        nlatent_samples : int
+            Number of samples used to compute the variational posterior
+        std_diag_values : Array
+            Standard deviations of the variational distribution
+        mean_values : Array, optional
+            Mean of the variational distribution. If None, it is set to zero.
+        std_diag_bounds : Union[Tuple[float, float], Array], optional
+            Bounds for the standard deviations of the variational distribution.
+            Default is (0, inf)
+        mean_bounds : Union[Tuple[float, float], Array], optional
+            Bounds for the mean of the variational distribution. Default is
+            (-inf, inf)
+        latent_generator : LatentVariableGenerator, optional
+            Generator of the latent variables used to compute the variational
+            posterior. If None, it is set to a Monte Carlo independent latent
+            variable generator with a standard multivariate Gaussian
+            distribution.
+        backend : BackendMixin, optional
+            Backend to use for computations. Default is NumpyMixin
+        """
         nvars = prior.nvars()
         if latent_generator is None:
             latent_variable = IndependentMarginalsVariable(
@@ -304,9 +660,25 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         self._setup_divergence(prior)
 
     def mean(self) -> Array:
+        """
+        Return the mean of the variational distribution.
+
+        Returns
+        -------
+        mean : Array
+            Mean of the variational distribution
+        """
         return self._mean.get_values()[:, None]
 
     def covariance(self) -> Array:
+        """
+        Return the covariance matrix of the variational distribution.
+
+        Returns
+        -------
+        cov : Array
+            Covariance matrix of the variational distribution
+        """
         return self._bkd.diag(self._std_diag.get_values() ** 2)
 
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
@@ -315,6 +687,14 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         )
 
     def _setup_divergence(self, prior: IndependentMultivariateGaussian):
+        """
+        Set up the divergence for the variational distribution.
+
+        Parameters
+        ----------
+        prior : IndependentMultivariateGaussian
+            Prior multivariate Gaussian distribution
+        """
         self._divergence = IndependentGaussianExactKLDivergence(
             prior.nvars(), prior._bkd
         )
@@ -323,12 +703,46 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         )
 
     def update(self):
+        """
+        Update the variational distribution by computing the mean and the
+        standard deviations. Must be called after any hyperparameters are
+        updated.
+        """
         mean1 = self._mean.get_values()[:, None]
         diag1 = self._std_diag.get_values()[:, None] ** 2
         self._divergence.set_left_distribution(mean1, diag1)
 
 
 class IndependentBetaVariationalPosterior(VariationalPosterior):
+    """
+    Variational posterior for a multivariate beta distribution with
+    independent marginals.
+
+    Parameters
+    ----------
+    prior : IndependentMarginalsVariable
+        Prior multivariate beta distribution
+    nlatent_samples : int
+        Number of samples used to compute the variational posterior
+    ashape_values : Array
+        Shape parameters of the variational distribution
+    bshape_values : Array
+        Shape parameters of the variational distribution
+    bounds : Array
+        Bounds of the variational distribution
+    ashape_bounds : Union[Tuple[float, float], Array], optional
+        Bounds for the shape parameters of the variational distribution.
+        Default is (1, inf)
+    bshape_bounds : Union[Tuple[float, float], Array], optional
+        Bounds for the shape parameters of the variational distribution.
+        Default is (1, inf)
+    latent_generator : LatentVariableGenerator, optional
+        Generator of the latent variables used to compute the variational
+        posterior. If None, it is set to a Halton sequence independent latent
+        variable generator.
+    backend : BackendMixin, optional
+        Backend to use for computations. Default is NumpyMixin
+    """
     def __init__(
         self,
         prior: IndependentMarginalsVariable,
@@ -341,6 +755,34 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         latent_generator: LatentVariableGenerator = None,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Intialize the variational posterior.
+
+        Parameters
+        ----------
+        prior : IndependentMarginalsVariable
+            Prior multivariate beta distribution
+        nlatent_samples : int
+            Number of samples used to compute the variational posterior
+        ashape_values : Array
+            Shape parameters of the variational distribution
+        bshape_values : Array
+            Shape parameters of the variational distribution
+        bounds : Array
+            Bounds of the variational distribution
+        ashape_bounds : Union[Tuple[float, float], Array], optional
+            Bounds for the shape parameters of the variational distribution.
+            Default is (1, inf)
+        bshape_bounds : Union[Tuple[float, float], Array], optional
+            Bounds for the shape parameters of the variational distribution.
+            Default is (1, inf)
+        latent_generator : LatentVariableGenerator, optional
+            Generator of the latent variables used to compute the variational
+            posterior. If None, it is set to a Halton sequence independent
+            latent variable generator.
+        backend : BackendMixin, optional
+            Backend to use for computations. Default is NumpyMixin
+        """
         nvars = prior.nvars()
         if latent_generator is None:
             latent_variable = IndependentMarginalsVariable(
@@ -396,6 +838,10 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         self._prior = prior
 
     def update(self):
+        """
+        Update the variational distribution. 
+        Must be called after any hyperparameters are updated.
+        """
         ashapes = self._ashapes.get_values()
         bshapes = self._bshapes.get_values()
         for ii, marginal in enumerate(self.marginals()):
@@ -405,6 +851,22 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         return self._variable.ppf(latent_samples)
 
     def _ppf_shape_jacobian(self, latent_samples: Array) -> Array:
+        """
+        Compute the Jacobian of the PPF with respect to the shape 
+        parameters of the posterior used to generate samples mapped
+        from the latent space to the model space.
+
+        Parameters
+        ----------
+        latent_samples : Array
+            Latent samples.
+
+        Returns
+        -------
+        jac : Array
+            Shape Jacobian of the model variables.
+
+        """
         # len(jacs) = nvars
         # jacs[i] ~ (nsamples, nparams_1d)
         # jacs[i] = [[ai1, bi1], [ai2, bi2] ...] for ith variable
@@ -425,9 +887,25 @@ class IndependentBetaVariationalPosterior(VariationalPosterior):
         return jac
 
     def marginals(self):
+        """Get the marginal distributions.
+
+        Returns
+        -------
+        marginals : List[Marginal]
+            Marginal distributions.
+        """
         return self._variable.marginals()
 
     def _divergence(self):
+        """
+        Compute the divergence between the variational posterior and the prior.
+
+        Returns
+        -------
+        dkld_div : Array
+            Divergence between the variational posterior and the prior.
+
+        """
         return self._bkd.atleast2d(self._variable.kl_divergence(self._prior))
 
 
@@ -480,6 +958,10 @@ class DirichletVariationalPosterior(VariationalPosterior):
         self._prior = prior
 
     def update(self):
+        """
+        Update the variational distribution. 
+        Must be called after any hyperparameters are updated.
+        """
         self._variable.set_shapes(self._ashapes.get_values())
 
     def _map_from_latent_samples(self, latent_samples: Array) -> Array:
@@ -497,16 +979,40 @@ class DirichletVariationalPosterior(VariationalPosterior):
         return gamma_samples / self._bkd.sum(gamma_samples, axis=0)[None, :]
 
     def _divergence(self):
+        """
+        Compute the divergence between the variational posterior and the prior.
+        
+        Returns
+        -------
+        dkld_div : Array
+            Divergence between the variational posterior and the prior.
+
+        """
         return self._bkd.atleast2d(self._variable.kl_divergence(self._prior))
 
 
 class NegELBO(SingleSampleModel):
+    """
+    Negative Evidence Lower Bound objective used to train the variational posterior.
+    """
     def __init__(
         self,
         loglike: ModelBasedLogLikelihoodMixin,
         posterior: VariationalPosterior,
         nsamples: int = 1000,
     ):
+        """
+        Initialize the negative evidence lower bound.
+
+        Parameters
+        ----------
+        loglike : ModelBasedLogLikelihoodMixin
+            Log likelihood model.
+        posterior : VariationalPosterior
+            Variational posterior.
+        nsamples : int, optional
+            Number of samples. Default is 1000.
+        """
         super().__init__(posterior._bkd)
         if not isinstance(posterior, VariationalPosterior):
             raise ValueError(
@@ -569,16 +1075,6 @@ class NegELBO(SingleSampleModel):
             lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
         )
 
-    def _temp(self, params):
-        self._hyp_list.set_active_opt_params(params[:, 0])
-        self._posterior.update()
-        samples = self._posterior._map_from_latent_samples(
-            self._posterior._latent_samples
-        )
-        # TODO make this a sample average objective
-        weights = self._posterior._latent_weights
-        return self._loglike(samples)[:, 0] @ weights[:, 0]
-
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
 
@@ -622,18 +1118,42 @@ class NegELBO(SingleSampleModel):
 
 
 class VariationalInverseProblem:
+    """
+    A class for formulating and solving Bayesian Variational Inference using
+    ELBO optimization.
+    """
     def __init__(
         self,
         prior: JointVariable,
         loglike: ModelBasedLogLikelihoodMixin,
         posterior: VariationalPosterior,
     ):
+        """
+        Initialize the variational inverse problem
+
+        Parameters
+        ----------
+        prior : JointVariable
+            The prior distribution over the model parameters.
+        loglike : ModelBasedLogLikelihoodMixin
+            The model-based log-likelihood function.
+        posterior : VariationalPosterior
+            The variational posterior distribution.
+        """
         self._bkd = posterior._bkd
         self._prior = prior
         self._neg_elbo = NegELBO(loglike, posterior)
         self._optimizer = None
 
-    def fit(self, iterate: Array = None):
+    def fit(self, iterate: Optional[Array] = None):
+        """
+        Minimize the ELBO using the optimization algorithm.
+
+        Parameters
+        ----------
+        iterate : Array, optional
+            The initial iterate (default is None).
+        """
         if self._neg_elbo.hyp_list().nactive_vars() == 0:
             warnings.warn("No active parameters so fit was not called")
             return
@@ -649,6 +1169,14 @@ class VariationalInverseProblem:
         self._neg_elbo.hyp_list().set_active_opt_params(active_opt_params)
 
     def set_optimizer(self, optimizer: MultiStartOptimizer):
+        """
+        Set the optimization algorithm.
+
+        Parameters
+        ----------
+        optimizer : MultiStartOptimizer
+            The optimization algorithm.
+        """
         if not isinstance(optimizer, MultiStartOptimizer):
             raise ValueError(
                 "optimizer {0} must be instance of MultiStartOptimizer".format(
@@ -662,6 +1190,14 @@ class VariationalInverseProblem:
         )
 
     def _default_iterator_gen(self):
+        """
+        Generate the default iterate generator.
+
+        Returns
+        -------
+        iterate_gen : OptimizerIterateGenerator
+            The default iterate generator.
+        """
         iterate_gen = RandomUniformOptimzerIterateGenerator(
             self._neg_elbo.hyp_list().nactive_vars(), backend=self._bkd
         )
@@ -681,6 +1217,29 @@ class VariationalInverseProblem:
         iterate_gen: OptimizerIterateGenerator = None,
         local_method="L-BFGS-B",
     ) -> MultiStartOptimizer:
+        """
+        Get the default optimization algorithm.
+
+        Parameters
+        ----------
+        ncandidates : int, optional
+            The number of candidates (default is 1).
+        verbosity : int, optional
+            The verbosity level (default is 0).
+        gtol : float, optional
+            The gradient tolerance (default is 1e-8).
+        maxiter : int, optional
+            The maximum number of iterations (default is 1000).
+        iterate_gen : OptimizerIterateGenerator, optional
+            The iterate generator (default is None).
+        local_method : str, optional
+            The local optimization method (default is "L-BFGS-B").
+
+        Returns
+        -------
+        optimizer : MultiStartOptimizer
+            The default optimization algorithm.
+        """
         local_optimizer = ScipyConstrainedOptimizer()
         local_optimizer.set_options(
             gtol=gtol,
@@ -702,6 +1261,7 @@ class VariationalInverseProblem:
         return ms_optimizer
 
     def __repr__(self) -> str:
+        """ Get the string representation of the object."""
         return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             self._prior,
