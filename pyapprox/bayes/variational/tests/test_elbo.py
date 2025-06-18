@@ -63,6 +63,7 @@ class TestVariationalInference:
         rtol,
         prior,
         variational_posterior,
+        bkd_jacobian_supported,
     ):
         bkd = self.get_backend()
         noise_cov = noise_std**2 * bkd.eye(nobs)
@@ -79,7 +80,9 @@ class TestVariationalInference:
         )
         laplace.compute(obs)
 
-        vi = VariationalInverseProblem(prior, loglike, variational_posterior)
+        vi = VariationalInverseProblem(
+            prior, loglike, variational_posterior, bkd_jacobian_supported
+        )
         iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
         errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=False)
         assert errors.min() / errors.max() < 1e-6
@@ -109,7 +112,14 @@ class TestVariationalInference:
         )
 
     def _check_cholesky_based_gaussian_vi_linear_gaussian_model(
-        self, nvars, nobs, noise_std, prior_std, nlatent_samples, rtol
+        self,
+        nvars,
+        nobs,
+        noise_std,
+        prior_std,
+        nlatent_samples,
+        rtol,
+        bkd_jacobian_supported,
     ):
         bkd = self.get_backend()
         mean = bkd.ones((nvars, 1))
@@ -131,6 +141,7 @@ class TestVariationalInference:
             rtol,
             prior,
             variational_posterior,
+            bkd_jacobian_supported,
         )
 
     def test_cholesky_based_gaussian_vi_linear_gaussian_model(self):
@@ -140,10 +151,11 @@ class TestVariationalInference:
         # Speed up and uncomment above tests and remove uncommented ones
 
         test_cases = [
-            # (1, 2, 0.01, 1.0, 1000000, 2e-3),
-            # (2, 2, 0.01, 1.0, 1000000, 2e-3),
-            (1, 2, 0.01, 1.0, 10000, 2e-2),
-            (2, 2, 0.01, 1.0, 1000, 4e-2),
+            (1, 2, 0.01, 1.0, 1000000, 2e-3, True),
+            (2, 2, 0.01, 1.0, 1000000, 2e-3, True),
+            (3, 2, 0.01, 1.0, 100000, 5e-3, True),
+            (1, 2, 0.01, 1.0, 10000, 2e-2, False),
+            (2, 2, 0.01, 1.0, 1000, 4e-2, False),
         ]
         for test_case in test_cases:
             np.random.seed(1)
@@ -161,6 +173,7 @@ class TestVariationalInference:
         nlatent_samples,
         rtol,
         latent_generator,
+        bkd_jacobian_supported,
     ):
         bkd = self.get_backend()
         mean = bkd.ones((nvars, 1))
@@ -182,6 +195,7 @@ class TestVariationalInference:
             rtol,
             prior,
             variational_posterior,
+            bkd_jacobian_supported,
         )
 
     def test_independent_gaussian_vi_linear_gaussian_model(self):
@@ -197,10 +211,9 @@ class TestVariationalInference:
         latent_gen_1d = QuadratureRuleLatentVariableGenerator(quad_rule)
 
         test_cases = [
-            # (1, 2, 0.01, 1.0, 1000000, 2e-3, None),
-            # (1, 2, 0.01, 1.0, 100, 1e-8, latent_gen_1d),
-            (1, 2, 0.01, 1.0, 10000, 2e-2, None),
-            (1, 2, 0.01, 1.0, 100, 1e-8, latent_gen_1d),
+            (1, 2, 0.01, 1.0, 1000000, 2e-3, None, True),
+            (1, 2, 0.01, 1.0, 10000, 2e-2, None, False),
+            (1, 2, 0.01, 1.0, 100, 1e-8, latent_gen_1d, False),
         ]
         for test_case in test_cases:
             np.random.seed(1)

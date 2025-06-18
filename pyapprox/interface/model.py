@@ -381,6 +381,10 @@ class Model(ABC):
         jac : Array (nqoi, nvars)
             The Jacobian matrix
         """
+        # Note if calling this function thousands of times
+        # using a trivial model and jacobian the cost of the checks
+        # and database updates will cause code to be substantially
+        # slower than using self._bkd.jacobian (if it is supported)
         if not self.jacobian_implemented():
             raise NotImplementedError("_jacobian not implemented")
         self._check_sample_shape(sample)

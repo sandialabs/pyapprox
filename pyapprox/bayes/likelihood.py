@@ -114,11 +114,14 @@ class ModelBasedLogLikelihoodMixin:
         pred_obs = self._model(sample).T
         residual = self._obs - pred_obs
         L_inv_res = self._noise_cov_sqrt_inv_apply(residual)
-        return self._bkd.multidot(
-            (
-                L_inv_res.T,
-                self._noise_cov_sqrt_inv_apply(self._model.jacobian(sample)),
-            )
+        # return self._bkd.multidot(
+        #     (
+        #         L_inv_res.T,
+        #         self._noise_cov_sqrt_inv_apply(self._model.jacobian(sample)),
+        #     )
+        # )
+        return L_inv_res.T @ self._noise_cov_sqrt_inv_apply(
+            self._model.jacobian(sample)
         )
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:

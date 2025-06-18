@@ -585,6 +585,34 @@ class CholeskyGaussianVariationalPosterior(VariationalPosterior):
             prior.mean(), prior.covariance()
         )
 
+    def _ppf_shape_jacobian(
+        self, latent_samples: Array, param: Array
+    ) -> Array:
+        nvars = latent_samples.shape[0]
+        jac = self._bkd.zeros(
+            (
+                latent_samples.shape[1],
+                nvars,
+                self._hyp_list.nvars(),
+            )
+        )
+        jac[:, :nvars, :nvars] = self._bkd.eye(nvars)
+        cnt = 0
+        for ii in range(nvars):
+            jac[:, ii, nvars + cnt : nvars + cnt + ii + 1] = latent_samples[
+                : ii + 1
+            ].T
+            cnt += ii + 1
+        # import torch
+
+        # torch.set_printoptions(linewidth=1000)
+        # print(jac)
+        # print(super()._ppf_shape_jacobian(latent_samples, param))
+        # assert self._bkd.allclose(
+        #     jac, super()._ppf_shape_jacobian(latent_samples, param)
+        # )
+        return jac
+
 
 class IndependentGaussianVariationalPosterior(VariationalPosterior):
     """
@@ -710,6 +738,20 @@ class IndependentGaussianVariationalPosterior(VariationalPosterior):
         return (
             self.mean() + self._std_diag.get_values()[:, None] * latent_samples
         )
+
+    def _ppf_shape_jacobian(
+        self, latent_samples: Array, param: Array
+    ) -> Array:
+        jac = self._bkd.empty(
+            (
+                latent_samples.shape[1],
+                latent_samples.shape[0],
+                self._hyp_list.nvars(),
+            )
+        )
+        jac[:, :, 0] = 1.0
+        jac[:, :, 1] = latent_samples.T
+        return jac
 
     def _setup_divergence(self, prior: IndependentMultivariateGaussian):
         """
@@ -1031,6 +1073,7 @@ class NegELBO(SingleSampleModel):
         loglike: ModelBasedLogLikelihoodMixin,
         posterior: VariationalPosterior,
         nsamples: int = 1000,
+        bkd_jacobian_supported: bool = False,
     ):
         """
         Initialize the negative evidence lower bound.
@@ -1043,6 +1086,12 @@ class NegELBO(SingleSampleModel):
             Variational posterior.
         nsamples : int, optional
             Number of samples. Default is 1000.
+        bkd_jacobian_supported : boolean, optional
+            If True, the code will use auto differntiation through
+            the likelihood (and the model it calls) and the posterior
+            KL divergence and function mapping latent space samples.
+            If False, the code will call .jacobian of these functions
+            Use True with caution.
         """
         super().__init__(posterior._bkd)
         if not isinstance(posterior, VariationalPosterior):
@@ -1054,6 +1103,7 @@ class NegELBO(SingleSampleModel):
         self._hyp_list = (
             self._posterior.hyp_list()  # + self._loglike.hyplist()
         )
+        self._bkd_jacobian_supported = bkd_jacobian_supported
 
     def nvars(self) -> int:
         return self._hyp_list.nactive_vars()
@@ -1064,28 +1114,56 @@ class NegELBO(SingleSampleModel):
     def jacobian_implemented(self) -> bool:
         return self._bkd.jacobian_implemented()
 
+    def _loglike_jacobian_wrt_samples(self) -> Array:
+        # compute grad of loglike dldx with respect to model variables x
+
+        # After profiling the code. This function is slowing it
+        # down by orders of magnitude compared to
+        # self._bkd.jacobian(
+        #     lambda x: self._values(x[:, None])[:, 0], param[:, 0]
+        # )
+        # called in self._jacobian -
+        # but this requires autograd can be used for all components
+        samples = self._posterior._map_from_latent_samples(
+            self._posterior._latent_samples
+        )
+        # stacking is slow but not as slow as unvectorized computation
+        # of self._loglike.jacobian
+        return self._bkd.stack(
+            [
+                self._loglike.jacobian(sample[:, None])[0]
+                for sample in samples.T
+            ]
+        )
+
+    def _loglike_jacobian_wrt_param(
+        self, jac_values_at_samples: Array, dxdp: Array
+    ) -> Array:
+        # compute gradient of loglikelihood with respect to parameters
+        # using the chain rule dldp = dldx dxdp
+        weights = self._posterior._latent_weights
+        return (
+            weights[:, 0]
+            @ self._bkd.einsum("ij, ijk->ik", jac_values_at_samples, dxdp)[
+                None, :
+            ]
+        )
+
     def _jacobian(self, param: Array) -> Array:
         # The following requires posterior and likelihood
         # to both be implemented with autograd. This does not allow
         # for user provided model jacobians
-        # return self._bkd.jacobian(
-        #     lambda x: self._values(x[:, None])[:, 0], param[:, 0]
-        # )
+        if self._bkd_jacobian_supported:
+            return self._bkd.jacobian(
+                lambda x: self._values(x[:, None])[:, 0], param[:, 0]
+            )
 
         # update posterior parameters
         self._hyp_list.set_active_opt_params(param[:, 0])
         self._posterior.update()
 
         # compute grad of loglike dldx with respect to model variables x
-        samples = self._posterior._map_from_latent_samples(
-            self._posterior._latent_samples
-        )
-        jac_values_at_samples = self._bkd.stack(
-            [
-                self._loglike.jacobian(sample[:, None])[0]
-                for sample in samples.T
-            ]
-        )
+        jac_values_at_samples = self._loglike_jacobian_wrt_samples()
 
         # compute grad of model variables dxdp with respect to parameters p
         # of variational distribution used to map latent samples to model
@@ -1094,13 +1172,7 @@ class NegELBO(SingleSampleModel):
 
         # compute gradient of loglikelihood with respect to parameters
         # using the chain rule dldp = dldx dxdp
-        weights = self._posterior._latent_weights
-        dldp = (
-            weights[:, 0]
-            @ self._bkd.einsum("ij, ijk->ik", jac_values_at_samples, dxdp)[
-                None, :
-            ]
-        )
+        dldp = self._loglike_jacobian_wrt_param(jac_values_at_samples, dxdp)
 
         return -dldp + self._bkd.jacobian(
             lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
@@ -1156,6 +1228,7 @@ class VariationalInverseProblem:
         prior: JointVariable,
         loglike: ModelBasedLogLikelihoodMixin,
         posterior: VariationalPosterior,
+        bkd_jacobian_supported: bool = False,
     ):
         """
         Initialize the variational inverse problem
@@ -1168,10 +1241,18 @@ class VariationalInverseProblem:
             The model-based log-likelihood function.
         posterior : VariationalPosterior
             The variational posterior distribution.
+        bkd_jacobian_supported : boolean, optional
+        If True, the code will use auto differntiation through
+            the likelihood (and the model it calls) and the posterior
+            KL divergence and function mapping latent space samples.
+            If False, the code will call .jacobian of these functions
+            Use True with caution
         """
         self._bkd = posterior._bkd
         self._prior = prior
-        self._neg_elbo = NegELBO(loglike, posterior)
+        self._neg_elbo = NegELBO(
+            loglike, posterior, bkd_jacobian_supported=bkd_jacobian_supported
+        )
         self._optimizer = None
 
     def fit(self, iterate: Optional[Array] = None):
