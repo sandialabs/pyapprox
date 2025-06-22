@@ -39,27 +39,37 @@ class RealNVPLayer(FlowLayer):
             raise ValueError("mask must be a boolean array")
         self._mask = mask
         self._mask_complement = ~mask
+        self._ntransformed_vars = self._bkd.where(self._mask_complement)[
+            0
+        ].shape[0]
         self._hyp_list = self._shapes._hyp_list
 
     def nvars(self) -> int:
-        return self._shapes.nqoi() // 2
+        return self._shapes.nqoi()
 
     def _map_from_latent(self, usamples: Array, return_logdet: bool) -> Array:
-        shapes = self._shapes(usamples)
-        shift = shapes[:, : self._nvars].T
-        scale = shapes[:, self._nvars :].T
-        samples = usamples * self._bkd.exp(scale) + shift
+        # extract the variable dimensions that are not transformed
+        shapes = self._shapes(usamples[self._mask])
+        shift = shapes[:, : self._ntransformed_vars].T
+        scale = shapes[:, self._ntransformed_vars :].T
+        samples = self._bkd.copy(usamples)
+        samples[self._mask_complement] = (
+            usamples[self._mask_complement] * self._bkd.exp(scale) + shift
+        )
         if not return_logdet:
             return samples
         return samples, self._map_from_latent_jacobian_log_determinant(shapes)
 
     def _map_to_latent(self, samples: Array, return_logdet: bool) -> Array:
-        shapes = self._shapes(samples)
+        shapes = self._shapes(samples[self._mask])
         # shifts stored in first half of columns
-        shift = shapes[:, : self.nvars()].T
+        shift = shapes[:, : self._ntransformed_vars].T
         # scales stored in second half of columns
-        scale = shapes[:, self.nvars() :].T
-        usamples = (samples - shift) * self._bkd.exp(-scale)
+        scale = shapes[:, self._ntransformed_vars :].T
+        usamples = self._bkd.copy(samples)
+        usamples[self._mask_complement] = (
+            samples[self._mask_complement] - shift
+        ) * self._bkd.exp(-scale)
         if not return_logdet:
             return usamples
         return usamples, self._map_to_latent_jacobian_log_determinant(shapes)
@@ -184,6 +194,10 @@ class Flow:
 
 
 class RealNVP(Flow):
+    """
+    Real Non Volume Preserving (RealNVP) Flow
+    """
+
     def __init__(
         self, latent_variable: JointVariable, layers: List[FlowLayer]
     ):
