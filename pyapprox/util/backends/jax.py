@@ -483,6 +483,10 @@ class JaxBackendMixin(BackendMixin):
         return float
 
     @staticmethod
+    def bool_type():
+        return bool
+
+    @staticmethod
     def gammaln(mat: np.ndarray) -> np.ndarray:
         return jax.scipy.special.gammaln(mat)
 

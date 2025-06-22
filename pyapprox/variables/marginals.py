@@ -1299,6 +1299,26 @@ class GaussianMarginal(Marginal):
             )
         )
 
+        # store name and shapes consistent with scipy.stats to allow
+        # classes to be used interchangably
+        self._name = "norm"
+        self._shapes = None
+        self._scales = {
+            "loc": self._bkd.array([self._mean]),
+            "scale": self._bkd.array([self._stdev]),
+        }
+
+    def _transform_scale_parameters(self) -> Tuple[float, float]:
+        """
+        Transform scale parameters so that when any bounded variable is
+        transformed to the canonical domain [-1, 1]
+        """
+        loc, scale = (
+            self._bkd.copy(self._scales["loc"])[0],
+            self._bkd.copy(self._scales["scale"])[0],
+        )
+        return loc, scale
+
     def is_bounded(self) -> bool:
         return False
 

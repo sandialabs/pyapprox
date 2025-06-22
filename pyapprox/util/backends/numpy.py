@@ -468,6 +468,10 @@ class NumpyMixin(BackendMixin):
         return float
 
     @staticmethod
+    def bool_type():
+        return bool
+
+    @staticmethod
     def gammaln(mat: np.ndarray) -> np.ndarray:
         return scipy.special.gammaln(mat)
 

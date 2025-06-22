@@ -9,7 +9,6 @@ from pyapprox.surrogates.univariate.local import (
     irregular_piecewise_linear_basis,
     irregular_piecewise_quadratic_basis,
     irregular_piecewise_cubic_basis,
-    setup_univariate_piecewise_polynomial_basis,
     UnivariatePiecewisePolynomialQuadratureRule,
 )
 from pyapprox.surrogates.univariate.base import (

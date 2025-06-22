@@ -558,6 +558,10 @@ class TorchMixin(BackendMixin):
         return torch.double
 
     @staticmethod
+    def bool_type():
+        return torch.bool
+
+    @staticmethod
     def gammaln(mat: torch.Tensor) -> torch.Tensor:
         return torch.special.gammaln(mat)
 

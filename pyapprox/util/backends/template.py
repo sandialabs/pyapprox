@@ -841,6 +841,11 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
+    def bool_type():
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
     def gammaln(array):
         raise NotImplementedError
 
