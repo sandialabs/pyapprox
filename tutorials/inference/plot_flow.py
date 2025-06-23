@@ -19,7 +19,7 @@ Normalzing flows typically consists of a composition of transformations :math:`T
 where :math:`z_k=T_k \circ \ldots \circ T_1(u)`
 
 There are many invertible intermediate transforms :math:`T_k` we could use in the composition.
-Here, we describe the intermediate transforms used Real Non Volume Preserving (RealNVP) flows.
+Here, we describe the intermediate transforms used Real Non Volume Preserving (RealNVP) flows. These intermediate transforms are often called coupling layers.
 
 Given an abitray index :math:`1<s<D` RealNVP flows define the transform :math:`z'=T_k(z)` as
 
@@ -62,4 +62,13 @@ and for the inverse transform
 .. math::
 
     \text{Det}\left[\nabla_{z'} T^{-1}(z')\right]  = \exp\left(-\sum_{d=1}^{D-s} \sigma(z'_{1:s})_d\right)
+
+The effectivness of such a flow depends on the ordering of the variables. So typically the ordering of the variables is changed for each intermediate transform.
+Typically, we fix all variables that were transformed at the previous layer and vice-versa.
+
+Example
+-------
+Consider \(z=[z_1,z_2], u=[u_1,u_2]\) and let \(s=1\).
+Now let the shift and scale be linear functions of thier inputs. This is referred to as affine coupling.
+Also it is also useful to express the coupling transform \(T_k(z)\) explicitly as a function \(h(z_A, \phi(z_B))\) of the fixed variables \(z_A\) and a nonlinear transform $\phi$ of the other variables \(z_B\). When using RealNVP layers, $h(z_A, \phi_(z_B))$
 """

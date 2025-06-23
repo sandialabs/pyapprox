@@ -427,7 +427,7 @@ class VariationalPosterior(ABC):
     ) -> Array:
         if not self._bkd.jacobian_implemented():
             raise NotImplementedError(
-                "backend does not support autodifferntiation and a"
+                f"{self}: backend does not support autodifferntiation and a"
                 "custom implementation is not implemented"
             )
         return self._bkd.jacobian(
@@ -1104,6 +1104,7 @@ class NegELBO(SingleSampleModel):
             self._posterior.hyp_list()  # + self._loglike.hyplist()
         )
         self._bkd_jacobian_supported = bkd_jacobian_supported
+        print(self.jacobian_implemented(), self.apply_jacobian_implemented())
 
     def nvars(self) -> int:
         return self._hyp_list.nactive_vars()
@@ -1112,7 +1113,20 @@ class NegELBO(SingleSampleModel):
         return 1
 
     def jacobian_implemented(self) -> bool:
-        return self._bkd.jacobian_implemented()
+        if not self._bkd.jacobian_implemented():
+            return False
+        return (
+            self._bkd_jacobian_supported
+            or self._loglike.jacobian_implemented()
+        )
+
+    def apply_jacobian_implemented(self) -> bool:
+        if not self._bkd.jvp_implemented():
+            return False
+        return (
+            self._bkd_jacobian_supported
+            or self._loglike.apply_jacobian_implemented()
+        )
 
     def _loglike_jacobian_wrt_samples(self) -> Array:
         # compute grad of loglike dldx with respect to model variables x
@@ -1133,6 +1147,19 @@ class NegELBO(SingleSampleModel):
             [
                 self._loglike.jacobian(sample[:, None])[0]
                 for sample in samples.T
+            ]
+        )
+
+    def _loglike_apply_jacobian_wrt_samples(self, vecs: Array) -> Array:
+        # compute grad of loglike dldx @ v with respect to model variables x
+
+        samples = self._posterior._map_from_latent_samples(
+            self._posterior._latent_samples
+        )
+        return self._bkd.stack(
+            [
+                self._loglike.apply_jacobian(sample[:, None], vecs[ii])[0]
+                for ii, sample in enumerate(samples.T)
             ]
         )
 
@@ -1177,6 +1204,37 @@ class NegELBO(SingleSampleModel):
         return -dldp + self._bkd.jacobian(
             lambda x: self._posterior_divergence(x[:, None])[:, 0], param[:, 0]
         )
+
+    def _apply_jacobian(self, param: Array, vec: Array) -> Array:
+        if self._bkd_jacobian_supported:
+            return self._bkd.jvp(
+                lambda x: self._values(x[:, None])[:, 0],
+                param[:, 0],
+                vec[:, 0],
+            )
+
+        # update posterior parameters
+        self._hyp_list.set_active_opt_params(param[:, 0])
+        self._posterior.update()
+
+        # compute grad of model variables dxdp with respect to parameters p
+        # of variational distribution used to map latent samples to model
+        # variables
+        dxdp = self._reparameterized_samples_jacobian(param)
+
+        weights = self._posterior._latent_weights
+        jvp = -weights.T @ self._loglike_apply_jacobian_wrt_samples(
+            dxdp @ vec
+        ) + self._bkd.jvp(
+            lambda x: self._posterior_divergence(x[:, None])[:, 0],
+            param[:, 0],
+            vec[:, 0],
+        )
+
+        return jvp
+
+    def apply_jacobian_implemented(self) -> bool:
+        return True
 
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list

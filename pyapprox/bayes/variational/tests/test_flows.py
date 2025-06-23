@@ -69,6 +69,12 @@ class TestFlows:
         print(flow._opt_result)
         print(target_variable)
 
+        import matplotlib.pyplot as plt
+
+        ax = plt.figure().gca()
+        target_variable.plot_pdf()
+        plt.show()
+
 
 class TestTorchFlows(TestFlows, unittest.TestCase):
     def get_backend(self):

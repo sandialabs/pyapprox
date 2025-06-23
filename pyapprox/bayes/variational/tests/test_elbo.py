@@ -348,7 +348,7 @@ class TestVariationalInference:
             rtol=1e-2,  # increasing nlatent_samples increases accuracy
         )
 
-    def test_independent_beta_vi(self):
+    def _check_independent_beta_vi(self, use_apply_jacobian: bool):
         # This tests is really just an example. As error from assuming
         # independence is nontrivial.
 
@@ -370,10 +370,12 @@ class TestVariationalInference:
         ]
         xx = bkd.linspace(0, 1, 101)
         assert bkd.all(marginals[0]._cdf_jacobian_diagonal(xx) >= 0)
-        prior = IndependentMarginalsVariable(marginals)
+        prior = IndependentMarginalsVariable(marginals, backend=bkd)
         loglike, obs, obs_model = self._setup_linear_model_gaussian_loglike(
             prior.nvars(), nobs, noise_cov
         )
+        if use_apply_jacobian:
+            obs_model.jacobian_implemented = lambda: False
         nlatent_samples = 1000
         ashapes = [marginal._a for marginal in prior.marginals()]
         bshapes = [marginal._b for marginal in prior.marginals()]
@@ -389,7 +391,6 @@ class TestVariationalInference:
         )
         vi = VariationalInverseProblem(prior, loglike, variational_posterior)
         iterate = vi._neg_elbo.hyp_list().get_active_opt_params()[:, None]
-        print(vi._neg_elbo.jacobian(iterate))
         errors = vi._neg_elbo.check_apply_jacobian(iterate, disp=True)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 4e-6
@@ -450,6 +451,12 @@ class TestVariationalInference:
                 ]
             ),
         )
+
+    def test_independent_beta_vi(self):
+        np.random.seed(1)
+        self._check_independent_beta_vi(False)
+        np.random.seed(1)
+        self._check_independent_beta_vi(True)
 
 
 # class TestNumpyVariationalInference(

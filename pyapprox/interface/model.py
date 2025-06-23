@@ -336,12 +336,14 @@ class Model(ABC):
     def _check_vec_shape(self, sample: Array, vec: Array):
         if vec.ndim != 2:
             raise ValueError(
-                "vec is not a 2D array, has shape {0}".format(vec.shape)
+                "{0}: vec is not a 2D array, has shape {1}".format(
+                    self, vec.shape
+                )
             )
         if sample.shape[0] != vec.shape[0]:
             raise ValueError(
-                "sample.shape {0} and vec.shape {1} are inconsistent".format(
-                    sample.shape, vec.shape
+                "{0}: sample.shape {1} and vec.shape {2} are inconsistent".format(
+                    self, sample.shape, vec.shape
                 )
             )
 
@@ -386,7 +388,8 @@ class Model(ABC):
         # and database updates will cause code to be substantially
         # slower than using self._bkd.jacobian (if it is supported)
         if not self.jacobian_implemented():
-            raise NotImplementedError("_jacobian not implemented")
+            raise NotImplementedError(f"{self} _jacobian not implemented")
+
         self._check_sample_shape(sample)
         jac, stored_idx, new_idx = self._database.get_data("jac", sample)
         if len(stored_idx) == 1:
@@ -402,7 +405,7 @@ class Model(ABC):
         return jac
 
     def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
-        raise NotImplementedError
+        raise NotImplementedError(f"{self}")
 
     def apply_jacobian(self, sample: Array, vec: Array) -> Array:
         """
@@ -426,7 +429,7 @@ class Model(ABC):
             and not self.jacobian_implemented()
         ):
             raise RuntimeError(
-                "apply_jacobian and jacobian are not implemented"
+                f"{self}: apply_jacobian and jacobian are not implemented"
             )
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
@@ -1167,7 +1170,6 @@ class ScipyModelWrapper:
             raise ValueError("model must be derived from Model")
         self._model = model
         for attr in [
-            "jacobian_implemented",
             "hessian_implemented",
             "apply_hessian_implemented",
             "weighted_hessian_implemented",
@@ -1175,7 +1177,13 @@ class ScipyModelWrapper:
         ]:
             setattr(self, attr, getattr(self._model, attr))
 
-    def _check_sample(self, sample):
+    def jacobian_implemented(self) -> bool:
+        return (
+            self._model.jacobian_implemented()
+            or self._model.apply_jacobian_implemented()
+        )
+
+    def _check_sample(self, sample: Array) -> Array:
         if sample.ndim != 1:
             raise ValueError(
                 "sample must be a 1D array but has shape {0}".format(
@@ -1184,7 +1192,7 @@ class ScipyModelWrapper:
             )
         return self._bkd.asarray(sample)
 
-    def __call__(self, sample):
+    def __call__(self, sample: Array) -> Array:
         # use copy to avoid warning:
         # The given NumPy array is not writable ...
         sample = self._check_sample(np.copy(sample))
@@ -1193,19 +1201,32 @@ class ScipyModelWrapper:
             return vals[0]
         return self._bkd.to_numpy(vals)
 
-    def jac(self, sample):
+    def jac(self, sample: Array) -> Array:
         sample = self._check_sample(sample)
-        jac = self._model.jacobian(sample[:, None])
-        jac = self._bkd.detach(jac)
+        if self._model.jacobian_implemented():
+            jac = self._model.jacobian(sample[:, None])
+            jac = self._bkd.detach(jac)
+        else:
+            jacs = []
+            for ii in range(self._model.nvars()):
+                vec = self._bkd.zeros((self._model.nvars(), 1))
+                vec[ii] = 1.0
+                jacs.append(
+                    self._bkd.detach(
+                        self._model.apply_jacobian(sample[:, None], vec)[0]
+                    )
+                )
+            jac = self._bkd.to_numpy(self._bkd.stack(jacs, axis=1))
+
         if jac.shape[0] == 1:
             return jac[0]
         return self._bkd.to_numpy(jac)
 
-    def hess(self, sample):
+    def hess(self, sample: Array) -> Array:
         sample = self._check_sample(sample)
         return self._bkd.to_numpy(self._model.hessian(sample[:, None]))
 
-    def hessp(self, sample, vec):
+    def hessp(self, sample: Array, vec: Array) -> Array:
         sample = self._check_sample(sample)
         if vec.ndim != 1:
             raise ValueError("vec must be 1D array")
@@ -1215,7 +1236,7 @@ class ScipyModelWrapper:
             )
         )
 
-    def weighted_hess(self, sample, weights):
+    def weighted_hess(self, sample: Array, weights: Array) -> Array:
         sample = self._check_sample(sample)
         return self._bkd.to_numpy(
             self._model.weighted_hessian(
@@ -1223,7 +1244,7 @@ class ScipyModelWrapper:
             )
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
 
 

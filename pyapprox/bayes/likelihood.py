@@ -124,6 +124,14 @@ class ModelBasedLogLikelihoodMixin:
             self._model.jacobian(sample)
         )
 
+    def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
+        pred_obs = self._model(sample).T
+        residual = self._obs - pred_obs
+        L_inv_res = self._noise_cov_sqrt_inv_apply(residual)
+        return L_inv_res.T @ self._noise_cov_sqrt_inv_apply(
+            self._model.apply_jacobian(sample, vec)
+        )
+
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         pred_obs = self._model(sample).T
         # use adjoint method to compute hvp with
@@ -153,6 +161,9 @@ class GaussianLogLikelihood(LogLikelihood):
 
     def jacobian_implemented(self) -> bool:
         return self._model.jacobian_implemented()
+
+    def apply_jacobian_implemented(self) -> bool:
+        return self._model.apply_jacobian_implemented()
 
     def apply_hessian_implemented(self) -> bool:
         return self._model.hessian_implemented()

@@ -127,6 +127,14 @@ obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
 # obs_mat = bkd.diag(bkd.asarray(np.random.normal(0.0, 1.0, (nobs,))))
 obs_model = DenseMatrixLinearModel(obs_mat, backend=bkd)
 
+
+class MyDenseMatrixLinearModel(DenseMatrixLinearModel):
+    def jacobian_implemented(self):
+        return False
+
+
+obs_model = MyDenseMatrixLinearModel(obs_mat, backend=bkd)
+
 # Define the loglikelihood
 loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
 
