@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+from scipy import stats
 
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.variables.gaussian import (
@@ -25,7 +26,10 @@ class TestFlows:
         mean = bkd.asarray(np.random.uniform(0, 1, (nvars, 1)))
         mat = bkd.asarray(np.random.uniform(0, 1, (nvars, nvars)))
         cov = mat.T @ mat
-        ntrain_samples = 1000
+        cov = bkd.diag(bkd.asarray((np.random.uniform(0, 1, (nvars)))))
+        mean = bkd.zeros((nvars, 1))
+        cov = bkd.eye(nvars)
+        ntrain_samples = 10000
         target_variable = DenseCholeskyMultivariateGaussian(
             mean, cov, backend=bkd
         )
@@ -47,7 +51,10 @@ class TestFlows:
         )
         bexp.basis().set_tensor_product_indices([1])
         bexp.set_coefficient_bounds(
-            bkd.ones((bexp.nterms(), bexp.nqoi())).flatten(), None
+            # bkd.ones((bexp.nterms(), bexp.nqoi())).flatten(),
+            bkd.zeros((bexp.nterms(), bexp.nqoi())).flatten(),
+            # bkd.array([-3, 3]),
+            None,
         )
         print(bexp._hyp_list)
         mask = bkd.ones(nvars, dtype=bool)
@@ -55,24 +62,58 @@ class TestFlows:
         mask_complement = ~mask
         layers = [
             RealNVPLayer(bexp, mask=mask),
+            RealNVPLayer(bexp, mask=mask_complement),
+            # RealNVPLayer(bexp, mask=mask),
             # RealNVPLayer(bexp, mask=mask_complement),
         ]
-        flow = Flow(latent_variable, layers)
-        flow.fit(train_samples)
 
-        target_samples = target_variable.rvs(5)
-        print(target_variable.logpdf(target_samples))
-        print(flow.logpdf(target_samples))
-        assert False
-        nsamples = 1000
-        print(flow.rvs(nsamples).mean(axis=1))
-        print(flow._opt_result)
-        print(target_variable)
+        flow = Flow(latent_variable, layers)
+        flow._loss.set_samples(train_samples)
+
+        usamples = flow._map_to_latent(train_samples)
+        recovered_samples = flow._map_from_latent(usamples)
+        assert bkd.allclose(recovered_samples, train_samples)
+
+        iterate = flow._hyp_list.get_active_opt_params()[:, None]
+        errors = flow._loss.check_apply_jacobian(iterate, disp=True)
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 4e-6
 
         import matplotlib.pyplot as plt
 
-        ax = plt.figure().gca()
-        target_variable.plot_pdf()
+        # axs = plt.subplots(1, 2)[1]
+        # nsamples = 1000
+        # target_samples = target_variable.rvs(nsamples)
+        # flow_samples = flow.rvs(nsamples)
+        # target_variable.plot_pdf(
+        #     axs[0], [-3, 3, -3, 3], levels=31, cmap="coolwarm"
+        # )
+        # # axs[0].scatter(*target_samples, alpha=0.1, color="k")
+        # flow.plot_pdf(axs[1], [-3, 3, -3, 3], levels=31, cmap="coolwarm")
+        # # axs[1].scatter(*flow_samples, alpha=0.1, color="k")
+        # plt.show()
+
+        flow.set_optimizer(
+            flow.default_optimizer(verbosity=3, method="trust-constr")
+        )
+        flow.fit(train_samples)
+
+        nsamples = 1000
+        target_samples = target_variable.rvs(nsamples)
+        flow_samples = flow.rvs(nsamples)
+
+        print(flow_samples.mean(axis=1))
+        print(target_variable.mean()[:, 0])
+        print(target_variable.covariance())
+        print(bkd.cov(flow_samples, ddof=1))
+
+        axs = plt.subplots(1, 2)[1]
+        target_variable.plot_pdf(
+            axs[0], [-3, 3, -3, 3], levels=31, cmap="coolwarm"
+        )
+        # axs[0].scatter(*target_samples, alpha=0.1)
+        flow.plot_pdf(axs[1], [-3, 3, -3, 3], levels=31, cmap="coolwarm")
+        # axs[1].scatter(*flow_samples, alpha=0.1, color="k")
         plt.show()
 
 

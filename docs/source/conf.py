@@ -217,7 +217,7 @@ except ImportError:
 #     add_code_cell(work_notebook,"%matplotlib inline")#jdj
 # then add user defs like so
 sphinx_gallery_conf["first_notebook_cell"] = (
-    r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}\newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}$$"
+    r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}\newcommand{\vec}[1]{{\boldsymbol{#1}}}\newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}\def\rvv{{\vec{\rv}}}$$"
 )
 
 # if change conf make sure to remove source/auto_examples, using make clean
@@ -325,6 +325,8 @@ SOFTWARE.\par
 \newcommand{\dx}[1]{\;\text{d}#1}
 \newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}
 \newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}
+\newcommand{\vec}[1]{{\boldsymbol{#1}}}
+\def\rvv{{\vec{\rv}}}
 """,
 }
 
@@ -384,7 +386,9 @@ mathjax3_config = {
             "bi": r"\beta",
             "dx": [r"\;\text{d}#1", 1],
             "mat": [r"{\boldsymbol{\mathrm{#1}}}", 1],
+            "vec": [r"{\boldsymbol{#1}}", 1],
             "dydx": [r"\frac{\partial #1}{\partial #2}", 2],
+            "rvv": r"{\boldsymbol{z}}",
         },
     },
 }

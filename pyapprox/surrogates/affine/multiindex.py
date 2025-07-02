@@ -165,7 +165,7 @@ class IndexGenerator(ABC):
             im2 = self._plot_indices_2d(ax, self.get_candidate_indices(), "r")
             return (im1, im2)
 
-        im1 = self._plot_indices_3d(ax, self.get_selected_indices)
+        im1 = self._plot_indices_3d(ax, self.get_selected_indices())
         if self.get_candidate_indices() is None:
             return (im1,)
         im2 = self._plot_indices_3d(
@@ -431,6 +431,7 @@ class HyperbolicIndexGenerator(IterativeIndexGenerator):
                 max_level, pnorm, max_1d_levels, backend=backend
             )
         )
+        self._get_indices()
 
     def _compute_indices(self):
         while len(self._cand_indices_dict) > 0:

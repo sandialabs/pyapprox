@@ -1104,7 +1104,6 @@ class NegELBO(SingleSampleModel):
             self._posterior.hyp_list()  # + self._loglike.hyplist()
         )
         self._bkd_jacobian_supported = bkd_jacobian_supported
-        print(self.jacobian_implemented(), self.apply_jacobian_implemented())
 
     def nvars(self) -> int:
         return self._hyp_list.nactive_vars()

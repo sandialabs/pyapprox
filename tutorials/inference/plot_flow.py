@@ -6,69 +6,107 @@ Provided the transform is differentiable with Jacobian with respect to the varia
 
 .. math::
 
-    p(z) &= \pi(u)\left\lvert\text{Det}\left[\nabla_u T(u)\right]\right\rvert^{-1}\\
-         &= \pi(T^{-1}(z))\left\lvert\text{Det}\left[\nabla_z T^{-1}(T^{-1}(z))\right]\right\rvert
+    p(\rvv) &= \pi(\vec{u})\left\lvert\text{Det}\left[\nabla_\vec{u} T(\vec{u})\right]\right\rvert^{-1}\\
+         &= \pi(T^{-1}(\rvv))\left\lvert\text{Det}\left[\nabla_\rvv T^{-1}(T^{-1}(z))\right]\right\rvert
 
 Here we used :math:`\left\lvert\text{Det}\left[\frac{dy}{dx}\right]\right\rvert=\left\lvert\frac{1}{\text{Det}\left[\frac{dx}{dy}\right]}\right\rvert.`
 `
 
-Normalzing flows typically consists of a composition of transformations :math:`T=T_K(z) \circ \cdots \circ T_1(u)` so that
+Normalzing flows typically consists of a composition of transformations :math:`T=T_K(z) \circ \cdots \circ T_1(\vec{u})` so that
 
-.. math:: \log p(z)= \log \pi(T^{-1}(z))+\sum_{k=1}^K \left\lvert\text{Det}\left[\nabla_z T^{-1}_k(T^{-1}_k(z_k))\right]\right\rvert
+.. math:: \log p(\rvv)= \log \pi(T^{-1}(\rvv))+\sum_{k=1}^K \left\lvert\text{Det}\left[\nabla_\rvv T^{-1}_k(T^{-1}_k(\rvv_k))\right]\right\rvert
 
-where :math:`z_k=T_k \circ \ldots \circ T_1(u)`
+where :math:`\rvv_k=T_k \circ \ldots \circ T_1(\vec{u})`
 
 There are many invertible intermediate transforms :math:`T_k` we could use in the composition.
 Here, we describe the intermediate transforms used Real Non Volume Preserving (RealNVP) flows. These intermediate transforms are often called coupling layers.
 
-Given an abitray index :math:`1<s<D` RealNVP flows define the transform :math:`z'=T_k(z)` as
+Let :math:`\rvv_A\subset \rvv`, :math:`\rvv_A\in\reals^s`, denote a subset of all variable :math:`\rvv` and let :math:`\rvv_B=\rvv\setminus \rvv_A` be the complemtn of :math:`\rvv_A`. Then RealNVP flows define the transform :math:`\rvv'=T_k(\rvv)` as
 
 .. math::
 
-    T(z) = \begin{bmatrix}
-    z_{1:s} \\
-    z_{s+1:D} \odot \exp(\sigma(z_{1:s})) + \mu(z_{1:s})
+    T_k(\rvv) = \begin{bmatrix}
+    \rvv_A \\
+    \rvv_B \odot \exp(\sigma_k(\rvv_A)) + \mu_k(\rvv_A)
     \end{bmatrix}
 
 which has a simple inverse
 
 .. math::
 
-    T^{-1}(z') = \begin{bmatrix}
-    z_{1:s}' \\
-    (z_{s+1:D}'-\mu(z'_{1:s})) \odot \exp(-\sigma(z_{1:s}'))
+    T_k^{-1}(\rvv') = \begin{bmatrix}
+    \rvv_A' \\
+    (\rvv_B'-\mu_k(\rvv'_{A})) \odot \exp(-\sigma_k(\rvv_A'))
     \end{bmatrix}
 
-This transformation gained popularity because inverting the transform does not require inverting the shift :math:`\mu` and the scale :math:`\sigma` which can be highly nonlinear functions of the untransformed variables :math:`z_{1:s}`.
+This transformation gained popularity because inverting the transform does not require inverting the shift :math:`\mu_k:\reals^s\to\reals^{D-s}` and the scale :math:`\sigma_k:\reals^s\to\reals^{D-s}` which can be highly nonlinear functions of the untransformed variables :math:`\rvv_A`.
 
 Because the first :math:`s` entries are unchanged by the transform the Jacobian
 of the intermediate transforms are lower-triangular
 
 .. math::
 
-    \nabla_z T(z) = \begin{bmatrix}
+    \nabla_\rvv T_k(\rvv) = \begin{bmatrix}
     I_{s\times s} && 0_{s\times D-s}\\
-    \frac{\partial z'_{s+1:D}}{\partial z_{1:s}} && \text{Diag}[\exp(\sigma(z_{1:s}))]
+    \frac{\partial \rvv'_{B}}{\partial \rvv_A} && \text{Diag}[\exp(\sigma_k(\rvv_A))]
     \end{bmatrix}
 
 The determinant of a lower-triangular matrix is the product of its diagonals so
 
 .. math::
 
-    \text{Det}\left[\nabla_z T(z)\right]  = \prod_{d=1}^{D-s} \exp\left(\sigma(z_{1:s})\right)_d = \exp\left(\sum_{d=1}^{D-s} \sigma(z_{1:s})_d\right)
+    \text{Det}\left[\nabla_\rvv T_k(\rvv)\right]  = \prod_{d=1}^{D-s} \exp\left(\sigma_k(\rvv_A)\right)_d = \exp\left(\sum_{d=1}^{D-s} \sigma_k(\rvv_A)_d\right)
 
 and for the inverse transform
 
 .. math::
 
-    \text{Det}\left[\nabla_{z'} T^{-1}(z')\right]  = \exp\left(-\sum_{d=1}^{D-s} \sigma(z'_{1:s})_d\right)
+    \text{Det}\left[\nabla_{\rvv'} T_k^{-1}(\rvv')\right]  = \exp\left(-\sum_{d=1}^{D-s} \sigma_k(\rvv'_{A})_d\right)
 
 The effectivness of such a flow depends on the ordering of the variables. So typically the ordering of the variables is changed for each intermediate transform.
 Typically, we fix all variables that were transformed at the previous layer and vice-versa.
 
 Example
 -------
-Consider \(z=[z_1,z_2], u=[u_1,u_2]\) and let \(s=1\).
+Consider :math:`\rvv=[\rv_1,\rv_2], \vec{u}=[u_1,u_2]` and let :math:`s=1`.
 Now let the shift and scale be linear functions of thier inputs. This is referred to as affine coupling.
-Also it is also useful to express the coupling transform \(T_k(z)\) explicitly as a function \(h(z_A, \phi(z_B))\) of the fixed variables \(z_A\) and a nonlinear transform $\phi$ of the other variables \(z_B\). When using RealNVP layers, $h(z_A, \phi_(z_B))$
+When using RealNVP layers, it is also useful to express the coupling transform :math:`T_k(\rvv)` explicitly in terms of a coupling function :math:`h(\rvv_A, \phi(\rvv_B))`.
+That is,
+
+.. math::
+
+    T_k(\rvv) = \begin{bmatrix}
+    \rvv_A \\
+    h(\rvv_B, \theta(\rvv_A))
+    \end{bmatrix}
+
+where :math:`\rvv_A=\rvv_A`, :math:`\rvv_B=\rvv_B`, :math:`\theta(\rvv_A) =\exp(\sigma_k(\rvv_A)) + \mu_k(\rvv_B)`, and :math:`h(\rvv_B, \theta(\rvv_A)) =  \rvv_B\odot\theta(\rvv_A)`.
+Letting the latent variable :math:`u` be a multivariate standard normal with independent marginals, we construct a transformation :math:`T_1` with :math:`\rvv_A=[\rv_1]` and :math:`\rvv_B=[\rv_2]` so that
+
+.. math::
+
+    \rvv_1=T_1(\vec{u})=
+    \begin{bmatrix}
+    u_1 \\
+    u_2 (\exp(\log(\tau_1 u_1)) + \nu_1)
+    \end{bmatrix}=
+    \begin{bmatrix}
+    u_1 \\
+    u_2 (\tau_1 u_1 + \nu_1)
+    \end{bmatrix}
+
+
+Now let :math:`\rvv_A=[\rv_{12}]` and :math:`\rvv_B=[\rv_{11}]`
+
+.. math::
+
+    \rvv_2=T_2(\rvv_1)=
+    \begin{bmatrix}
+    u_2 (\tau_1 u_1 + \nu_1)\\
+    u_1 (\exp(\log(u_2 (\tau_1 u_1 + \nu_1)))+\nu_2)
+    \end{bmatrix}=
+    \begin{bmatrix}
+    u_2 (\tau_1 u_1 + \nu_1) \\
+    u_1 (u_2 (\tau_1 u_1 + \nu_1) + \nu_2)
+    \end{bmatrix}
 """

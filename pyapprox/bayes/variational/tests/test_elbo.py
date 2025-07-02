@@ -230,7 +230,8 @@ class TestVariationalInference:
         post.compute(obs)
 
         prior = IndependentMarginalsVariable(
-            [BetaMarginal(*shape_args[:, 0], 0.0, 1.0, backend=bkd)]
+            [BetaMarginal(*shape_args[:, 0], 0.0, 1.0, backend=bkd)],
+            backend=bkd,
         )
         loglike = BernoulliLogLikelihood(backend=bkd)
         loglike.set_observations(obs)

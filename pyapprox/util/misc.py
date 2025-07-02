@@ -301,3 +301,15 @@ def composite_gauss_legendre_rule(
         quadx_list.append(quadx)
         quadw_list.append(quadw)
     return bkd.hstack(quadx_list), bkd.hstack(quadw_list)
+
+
+def nchoosek(nn, kk):
+    try:  # SciPy >= 0.19
+        from scipy.special import comb
+    except ImportError:
+        from scipy.misc import comb
+    result = np.asarray(np.round(comb(nn, kk)), dtype=int)
+    if result.ndim == 0:
+        result = result.item()
+        # result = np.asscalar(result)
+    return result
