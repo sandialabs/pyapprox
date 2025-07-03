@@ -12,6 +12,7 @@ from pyapprox.interface.model import (
 from pyapprox.bayes.likelihood import (
     ModelBasedGaussianLogLikelihood,
     ModelBasedIndependentGaussianLogLikelihood,
+    IndependentExponentialLogLikelihood,
     ModelBasedIndependentExponentialLogLikelihood,
     LogUnNormalizedPosterior,
 )
@@ -152,52 +153,57 @@ class TestLikelihood:
 
     def test_model_based_exponential_likelihood(self):
         bkd = self.get_backend()
-        nobs = 2
         degree = 2
         nvars = degree + 1
-        design = bkd.linspace(-1, 1, nobs)[None, :]
-        obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
-        # noise_scale_diag = bkd.full((nobs, 1), .5)
-        noise_scale_diag = bkd.asarray(np.random.uniform(0.5, 1, (nobs, 1)))
-        design_weights = bkd.ones((nobs, 1))
-        loglike = ModelBasedIndependentExponentialLogLikelihood(
-            obs_model, noise_scale_diag, tile_obs=False
+        loglike = IndependentExponentialLogLikelihood(
+            nvars, tile_obs=True, backend=bkd
         )
-        loglike.set_design_weights(design_weights)
-        prior_variable = IndependentMarginalsVariable(
-            [stats.norm(0, 1)] * nvars, backend=bkd
+        # nobs = 2
+        # design = bkd.linspace(-1, 1, nobs)[None, :]
+        # obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
+        # loglike = ModelBasedIndependentExponentialLogLikelihood(
+        #    obs_model, noise_scale_diag, tile_obs=False
+        # )
+        prior = IndependentMarginalsVariable(
+            [stats.uniform(1, 2)] * nvars, backend=bkd
         )
-        nsamples = int(1e5)
-        true_sample = prior_variable.rvs(1)
-        # true_pred_obs = obs_model(true_sample).T*0  # hack works
-        true_pred_obs = obs_model(true_sample).T
-        noise = loglike._sample_noise(nsamples)
+
+        # make sure observations are distributed according to shapes
+        # by checking first two moments
+        nsamples = int(1e6)
+        base_shapes = bkd.array([1, 2, 3])
+        shapes = bkd.empty((nvars, nsamples))
+        shapes[0] = 1.0
+        shapes[1] = 2.0
+        shapes[2] = 3.0
+        obs = loglike.rvs(shapes)
+        assert bkd.allclose(obs.mean(axis=1), 1 / base_shapes, rtol=1e-2)
         assert bkd.allclose(
-            noise.mean(axis=1), 1 / noise_scale_diag[:, 0], rtol=1e-2
+            obs.var(axis=1),
+            1 / base_shapes**2,
+            rtol=1e-2,
         )
-        assert bkd.allclose(
-            noise.std(axis=1), 1 / noise_scale_diag[:, 0], rtol=1e-2
-        )
-        many_pred_obs = bkd.repeat(true_pred_obs, nsamples, axis=1)
-        obs = loglike._make_noisy(many_pred_obs, noise)
+
+        true_sample = prior.rvs(1)
+        obs = loglike.rvs(true_sample)
         loglike.set_observations(obs)
-        like_vals = bkd.exp(loglike._loglike(many_pred_obs))
-        assert bkd.allclose(
-            bkd.prod(
-                bkd.vstack(
-                    [
-                        bkd.asarray(
-                            stats.expon(scale=1 / noise_scale_diag[ii, 0]).pdf(
-                                obs[ii] - true_pred_obs[ii]
-                            )
-                        )
-                        for ii in range(nobs)
-                    ]
-                ),
-                axis=0,
+
+        nsamples = 5
+        shapes = prior.rvs(nsamples)
+        like_vals = bkd.exp(loglike(shapes))
+        ref_like_vals = bkd.prod(
+            bkd.vstack(
+                [
+                    bkd.asarray(
+                        stats.expon(scale=1.0 / shapes[ii]).pdf(obs[ii])
+                    )
+                    for ii in range(loglike.nobs())
+                ]
             ),
-            like_vals[:, 0],
+            axis=0,
         )
+        print(ref_like_vals, like_vals, like_vals.shape)
+        assert bkd.allclose(ref_like_vals, like_vals[:, 0])
         assert like_vals.shape == (nsamples, 1)
 
     def test_unnormalized_log_posterior(self):
@@ -215,6 +221,7 @@ class TestLikelihood:
         loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
         true_sample = bkd.full((nvars, 1), 0.4)
         obs = loglike.rvs(true_sample)
+        print(obs.shape)
         loglike.set_observations(obs)
         unnormalized_posterior = LogUnNormalizedPosterior(loglike, prior)
         sample = prior.rvs(1)
