@@ -5,8 +5,9 @@ from scipy import stats
 
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.interface.model import Model
-from pyapprox.bayes.likelihood import IndependentGaussianLogLikelihood
+from pyapprox.bayes.likelihood import (
+    ModelBasedIndependentGaussianLogLikelihood,
+)
 from pyapprox.expdesign.optbayes import (
     OEDIndependentGaussianLogLikelihood,
     Evidence,
@@ -27,38 +28,26 @@ from pyapprox.optimization.minimize import (
     SampleAverageMeanPlusStdev,
     SampleAverageEntropicRisk,
 )
-from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
     setup_tensor_product_piecewise_poly_quadrature_rule,
 )
 from pyapprox.optimization.risk import multivariate_gaussian_kl_divergence
+from pyapprox.interface.model import DenseMatrixLinearModel
 
 
-class Linear1DRegressionModel(Model):
-    def __init__(self, design, degree, min_degree=0, backend=NumpyMixin):
-        super().__init__(backend=backend)
+class Linear1DRegressionModel(DenseMatrixLinearModel):
+    def __init__(
+        self, design, degree: int, min_degree: int = 0, backend=NumpyMixin
+    ):
         assert degree >= min_degree
         self._design = design
         self._degree = degree
-        self._jac_matrix = self._design.T ** (
-            self._bkd.arange(min_degree, self._degree + 1)[None, :]
+        super().__init__(
+            self._design.T
+            ** backend.arange(min_degree, self._degree + 1)[None, :],
+            backend=backend,
         )
-
-    def jacobian_implemented(self):
-        return True
-
-    def nqoi(self):
-        return self._jac_matrix.shape[0]
-
-    def nvars(self):
-        return self._jac_matrix.shape[1]
-
-    def _values(self, samples):
-        return (self._jac_matrix @ (samples)).T
-
-    def _jacobian(self, sample):
-        return self._jac_matrix
 
 
 class TestBayesOED:
@@ -87,6 +76,7 @@ class TestBayesOED:
         quad_rule = setup_tensor_product_gauss_quadrature_rule(prior_variable)
         samples, inner_pred_weights = quad_rule([300] * nvars)
         many_pred_obs = obs_model(samples).T
+        oed_loglike = ModelBasedIndependentGaussianLogLikelihood()
         oed_loglike = OEDIndependentGaussianLogLikelihood(
             noise_cov_diag,
             many_pred_obs,

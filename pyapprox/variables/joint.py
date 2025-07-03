@@ -4,12 +4,12 @@ from typing import List, Union, Tuple
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
+import matplotlib.tri as mtri
 
 from pyapprox.variables.marginals import (
     Marginal,
     ContinuousMarginalMixin,
     parse_marginal,
-    ContinuousScipyMarginal,
     GammaMarginal,
 )
 from pyapprox.util.visualization import get_meshgrid_samples
@@ -88,7 +88,7 @@ class JointVariable(ABC):
     def plot_pdf(
         self, ax, plot_limits: Array, npts_1d: Union[Array, int] = 51, **kwargs
     ):
-        if self.nvars() > 3:
+        if self.nvars() >= 3:
             raise RuntimeError("Cannot plot PDF when nvars >= 3.")
         if len(plot_limits) != self.nvars() * 2:
             raise ValueError("plot_limits has the wrong shape")
@@ -862,3 +862,63 @@ class DirichletVariable(JointVariable):
 
     def __repr__(self) -> str:
         return "{0}({1})".format(self.__class__.__name__, self._shapes)
+
+    def _to_barycentric(self, cartesian_samples: Array):
+        # see https://en.wikipedia.org/wiki/Barycentric_coordinate_system
+        vertices = np.array([[0, 0], [1, 0], [0.5, np.sqrt(0.75)]]).T
+        nsamples = cartesian_samples.shape[1]
+        mat = np.stack((np.ones(3), vertices[0], vertices[1]), axis=0)
+        vec = np.stack((np.ones(nsamples), *cartesian_samples), axis=0)
+        # use max to avoid small values below zero
+        return np.maximum(np.linalg.solve(mat, vec), np.full(vec.shape, 3e-16))
+
+    def _from_barycentric(self, samples: Array):
+        vertices = np.array([[0, 0], [1, 0], [0.5, np.sqrt(0.75)]]).T
+        mat = np.stack((np.ones(3), vertices[0], vertices[1]), axis=0)
+        return (mat @ samples)[1:]
+
+    def _plot_pdf_in_barycentric_coordinates(
+        self, ax, trimesh, barycentric_coordinates, **kwargs
+    ):
+        im = ax.plot_trisurf(*barycentric_coordinates)
+        # reconstruct the triangles from internal data
+        x, y, z, _ = im._vec
+        slices = im._segslices
+        triangles = np.array([np.array((x[s], y[s], z[s])).T for s in slices])
+        # compute the function in the centres of the triangle in
+        # barycentric coordinates
+        values = self.pdf(triangles.mean(axis=1).T)[:, 0]
+
+        norm = plt.Normalize()
+        cmap = kwargs.get("cmap", "viridis")
+        colors = plt.get_cmap(cmap)(norm(values))
+        # set the face colors of the Poly3DCollection
+        im.set_fc(colors)
+        mappable = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        # rotate so plot is more easilly visible
+        ax.view_init(30, 30)
+        return im, mappable
+
+    def _plot_pdf_in_cartesian_coordinates(
+        self, ax, trimesh, barycentric_coordinates, **kwargs
+    ):
+        return plt.tricontourf(
+            trimesh, self.pdf(barycentric_coordinates)[:, 0], **kwargs
+        )
+
+    def plot_pdf(self, ax, **kwargs):
+        if self.nvars() != 3:
+            raise RuntimeError("Cannot plot PDF when nvars != 3")
+        vertices = np.array([[0, 0], [1, 0], [0.5, np.sqrt(0.75)]]).T
+        triangle = mtri.Triangulation(vertices[0, :], vertices[1, :])
+        refiner = mtri.UniformTriRefiner(triangle)
+        trimesh = refiner.refine_triangulation(subdiv=6)
+        cartesian_coordinates = np.stack((trimesh.x, trimesh.y), axis=0)
+        barycentric_coordinates = self._to_barycentric(cartesian_coordinates)
+        if ax.name != "3d":
+            return self._plot_pdf_in_cartesian_coordinates(
+                ax, trimesh, barycentric_coordinates, **kwargs
+            )
+        return self._plot_pdf_in_barycentric_coordinates(
+            ax, trimesh, barycentric_coordinates, **kwargs
+        )
