@@ -95,7 +95,7 @@ class DenseMatrixLaplacePosteriorApproximation:
         )
 
     def _set_observations(self, obs: Array):
-        if obs.shape != (self.nobs(), 1):
+        if obs.ndim != 2 or obs.shape[0] != self.nobs():
             raise ValueError("obs has the wrong shape")
         self._obs = obs
 
@@ -491,12 +491,8 @@ class ConjugatePriorPosterior(ABC):
         self._bkd = backend
 
     def _set_observations(self, obs: Array):
-        if obs.shape != (self.nobs(), 1):
-            raise ValueError(
-                "obs has the wrong shape. Was {0} must be {1}".format(
-                    obs.shape, (self.nobs(), 1)
-                )
-            )
+        if obs.ndim != 2 or obs.shape[0] != self.nobs():
+            raise ValueError("obs has the wrong shape")
         self._obs = obs
 
     def nvars(self) -> int:
@@ -534,7 +530,7 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
     def __init__(
         self,
         shape_args: Array,
-        nobs: int,
+        nexperiments: int,
         backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
@@ -550,7 +546,8 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
             raise NotImplementedError(
                 "only univariate posterior is currently suported"
             )
-        self._nobs = nobs
+        self._nobs = 1
+        self._nexperiments = nexperiments
 
     def _compute(self, obs: Array):
         if self._bkd.any((self._obs != 1) & (self._obs != 0.0)):
@@ -559,7 +556,9 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
         self._posterior_shapes = self._bkd.stack(
             (
                 self._prior_shapes[0] + self._bkd.sum(self._obs),
-                self._prior_shapes[1] + self._nobs - self._bkd.sum(self._obs),
+                self._prior_shapes[1]
+                + self._nexperiments
+                - self._bkd.sum(self._obs),
             ),
             axis=0,
         )
@@ -576,8 +575,8 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
     def evidence(self) -> float:
         shape = self._prior_shapes[:, 0]
         log_evidence = -log_beta_function(*shape, self._bkd)
-        nzeros = self._bkd.where(self._obs[:, 0] == 0.0)[0].shape[0]
-        nones = self._bkd.where(self._obs[:, 0] == 1.0)[0].shape[0]
+        nzeros = self._bkd.where(self._obs[0] == 0.0)[0].shape[0]
+        nones = self._bkd.where(self._obs[0] == 1.0)[0].shape[0]
         log_evidence += log_beta_function(
             shape[0] + nones, shape[1] + nzeros, self._bkd
         )
@@ -596,7 +595,7 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
     def __init__(
         self,
         shape_args: Array,
-        nobs: int,
+        nexperiments: int,
         ntrials: int,
         noptions: int,
         backend: BackendMixin = NumpyMixin,
@@ -610,19 +609,19 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
         self._nvars = shape_args.shape[0]
         if self._nvars < 2:
             raise NotImplementedError("nvars must be >= 2")
-        self._nobs = nobs
-        self._noptions = noptions
-        self._ntrials = ntrials
+        self._nobs = noptions
+        self._ntrials = self._bkd.array(ntrials)
+        self._nexperiments = nexperiments
 
     def _set_observations(self, obs: Array):
-        if obs.shape != (self._nobs, self._noptions):
+        if obs.shape != (self._nobs, self._nexperiments):
             raise ValueError(
                 "obs must be a 2D array with shape "
                 "{0} but had shape{1}".format(
-                    (self._nobs, self._noptions), obs.shape
+                    (self._nobs, self._nexperiments), obs.shape
                 )
             )
-        if self._bkd.any(obs.sum(axis=1) != self._ntrials):
+        if self._bkd.any(obs.sum(axis=0) != self._ntrials):
             raise ValueError(
                 "each column of obs must sum to {0}".format(self._ntrials)
             )
@@ -641,7 +640,7 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
         # posterior is
         # p(\theta|x)~Dirichlet(a_1+\sum_{n=1}^N x_{n,1},\ldots,a_K+\sum_{n=1}^N x_{n,K})
         self._posterior_shapes = self._prior_shapes + self._bkd.sum(
-            obs, axis=0
+            obs, axis=1
         )
 
     def posterior_variable(self) -> IndependentMarginalsVariable:
@@ -663,7 +662,7 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
         # Let W_i = (x_{i1}!)*...*(x_{iK}!) where x_i is the ith observation
         # and a be shapes of prior and b shapes of post
         # and Q=\theta^{b_1-1}...\theta^{b_K-1}
-        # p(x|\theta)p(\theta) = (M!)^nobs/(Beta[a]*prod_i(W_i))*Q
+        # p(x|\theta)p(\theta) = (M!)^nexps/(Beta[a]*prod_i(W_i))*Q
         # p(\theta|x)=Q/Beta[b]
         # E=p(\theta)p(x|\theta)/p(\theta|x)/
         # E=(M!)^nobs/(Beta[a]*prod_i(W_i))*Q/(Q/Beta[b])
@@ -675,16 +674,16 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
             self._posterior_shapes
         )
         log_evidence = (
-            # (M!)^nobs
-            self.nobs() * self._bkd.gammaln(self._ntrials + 1)
+            # (M!)^nexps
+            self._nexperiments * self._bkd.gammaln(self._ntrials + 1)
             # Beta[b]
             + log_beta_post
             # 1/Beta[a]
             - log_beta_prior
             # 1/prod_i(W_i)
             - sum(
-                self._bkd.sum(self._bkd.gammaln(self._obs[ii] + 1))
-                for ii in range(self.nobs())
+                self._bkd.sum(self._bkd.gammaln(self._obs[:, ii] + 1))
+                for ii in range(self._nexperiments)
             )
         )
         return self._bkd.exp(log_evidence)

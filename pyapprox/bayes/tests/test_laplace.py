@@ -273,9 +273,11 @@ class TestLaplace:
     def test_beta_conjugate_prior(self):
         bkd = self.get_backend()
         shape_args = bkd.array([[2], [6]])
-        nobs = 3
-        beta_post = BetaConjugatePriorPosterior(shape_args, nobs, backend=bkd)
-        obs = bkd.array([1, 0, 1])[:, None][:nobs]
+        nexperiments = 3
+        beta_post = BetaConjugatePriorPosterior(
+            shape_args, nexperiments, backend=bkd
+        )
+        obs = bkd.array([1, 0, 1])[None, :]
         beta_post.compute(obs)
         loglike = BernoulliLogLikelihood(backend=bkd)
         loglike.set_observations(obs)
@@ -287,7 +289,7 @@ class TestLaplace:
         assert bkd.allclose(
             bkd.exp(loglike(prior_samples[:, :1])),
             bkd.prod(
-                bkd.array(stats.bernoulli(prior_samples[:, 0]).pmf(obs[:, 0]))
+                bkd.array(stats.bernoulli(prior_samples[:, 0]).pmf(obs[0]))
             ),
         )
         evidence = bkd.exp(loglike(prior_samples)).mean()
@@ -307,36 +309,41 @@ class TestLaplace:
             beta_post.posterior_variable().var(), variance, rtol=1e-2
         )
 
-    def dirichlet_conjugate_prior(self):
+    def test_dirichlet_conjugate_prior(self):
         bkd = self.get_backend()
-        nobs = 3
+        nexperiments = 3
         ntrials = 10
         noptions = 4
         shape_args = bkd.array([2, 3, 4, 5])
         probs = np.random.uniform(0.5, 1, noptions)
         probs /= probs.sum()
         post = DirichletConjugatePriorPosterior(
-            shape_args, nobs, ntrials, noptions, backend=bkd
+            shape_args, nexperiments, ntrials, noptions, backend=bkd
         )
-        obs = stats.multinomial(ntrials, probs).rvs(nobs)
+        obs_np = stats.multinomial(ntrials, probs).rvs(nexperiments).T
+        obs = bkd.asarray(obs_np)
         post.compute(obs)
         prior = DirichletVariable(shape_args, backend=bkd)
         loglike = MultinomialLogLikelihood(noptions, ntrials, backend=bkd)
         loglike.set_observations(obs)
         prior_samples = prior.rvs(1000000)
+        # check value of loglike at one prior_sample
+
         assert bkd.allclose(
             bkd.exp(loglike(prior_samples[:, :1])),
             bkd.prod(
                 bkd.array(
                     [
                         stats.multinomial(ntrials, prior_samples[:, 0]).pmf(
-                            obs[nn, :]
+                            obs_np[:, nn]
                         )
-                        for nn in range(nobs)
+                        for nn in range(nexperiments)
                     ]
                 )
             ),
         )
+
+        # Check moments and evidence with MC
         evidence = bkd.exp(loglike(prior_samples)).mean()
         mean = (
             prior_samples * bkd.exp(loglike(prior_samples))[:, 0] / evidence

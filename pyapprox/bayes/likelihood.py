@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 import numpy as np
+from scipy import stats
 
 from pyapprox.util.linalg import (
     inverse_of_cholesky_factor,
@@ -134,7 +135,11 @@ class LogLikelihood(Model):
     @abstractmethod
     def nobs(self) -> int:
         """
-        Returns the number of observations.
+        Returns the number of observations of a single experiment.
+        For example if estimating the mean of a scalar Gaussian then nobs=1
+        but if estimating a vector-valued mean then nobs is equal to the
+        size of that vector.
+        nobs is NOT the number of repititions (experiments).
 
         Returns
         -------
@@ -154,7 +159,7 @@ class LogLikelihood(Model):
         ----------
         obs : Array
             Observations provided to the model. Must be a 2D array with
-            shape (nobs, 1).
+            shape (nobs, nexperiments).
 
         Raises
         ------
@@ -889,31 +894,36 @@ class ExponentialQuarticLogLikelihoodModel(LogLikelihood):
     def _loglike(self, shapes: Array) -> Array:
         raise NotImplementedError
 
-    def _make_noisy(self, noiseless_obs: Array, noise, Array) -> Array:
-        raise NotImplementedError
-
 
 class BernoulliLogLikelihood(LogLikelihood):
-    def _loglike(self, many_theta: Array) -> Array:
+    def _loglike(self, shapes: Array) -> Array:
         if self._obs is None:
             raise RuntimeError("must call set_observations()")
         # single vector realization of obs forms one column
         # different realizations in different colums
+        print(shapes.shape, self._obs.shape)
         log_vals = self._bkd.sum(
-            self._bkd.log(many_theta).T * self._obs.T
-            + self._bkd.log(1.0 - many_theta.T) * (1.0 - self._obs.T),
-            axis=1,
+            self._bkd.log(shapes) * self._obs.T
+            + self._bkd.log(1.0 - shapes) * (1.0 - self._obs.T),
+            axis=0,
         )
         return log_vals
 
     def nvars(self) -> int:
         return 1
 
-    def _make_noisy(self) -> Array:
-        raise NotImplementedError(
-            "Make noisy only relevant to certain likelihoods."
-            "TODO remove this function with more general function"
+    def nobs(self) -> int:
+        return 1
+
+    def _rvs(self, shapes: Array) -> Array:
+        obs = self._bkd.stack(
+            [
+                self._bkd.asarray(stats.bernoulli(probs).rvs(1)[0])
+                for probs in shapes.T
+            ],
+            axis=0,
         )
+        return obs
 
     def _values(self, samples: Array) -> Array:
         return self._loglike(samples)[:, None]
@@ -933,42 +943,41 @@ class MultinomialLogLikelihood(LogLikelihood):
     ):
         super().__init__(False, backend)
         self._noptions = noptions
-        self._ntrials = ntrials
+        self._ntrials = self._bkd.asarray(ntrials)
 
-    def _loglike(self, many_theta: Array) -> Array:
+    def _loglike(self, shapes: Array) -> Array:
         if self._obs is None:
             raise RuntimeError("must call set_observations()")
         # single vector realization of obs forms one column
         # different realizations in different colums
-        # here we flatten multinomial observations self._obs
-        # such that
-        # [
-        #     [x11,...,x1K],
-        #     [x21,...,x2K]
-        # ] -> [x11,...,x1K, x21,...,x2K]
-        if self._obs.shape[1] != self.nvars():
+        if self._obs.shape[0] != self.nobs():
             raise RuntimeError("Obs has the wrong shape")
         # log(factorial(N) = gammaln(N+1)
-        const = self._nobs * self._bkd.gammaln(self._ntrials + 1)
-        log_vals = []
-        for ii in range(self._obs.shape[0]):
-            log_vals.append(
-                self._bkd.sum(
-                    self._bkd.log(many_theta).T * self._obs[ii : ii + 1],
-                    axis=1,
-                )
-                - self._bkd.sum(self._bkd.gammaln(self._obs[ii] + 1))
-            )
-        return self._bkd.sum(self._bkd.stack(log_vals, axis=0), axis=0) + const
+        nexperiments = self._obs.shape[1]
+        const = nexperiments * self._bkd.gammaln(self._ntrials + 1)
+        log_vals = self._bkd.log(shapes).T @ self._obs - self._bkd.sum(
+            self._bkd.gammaln(self._obs + 1), axis=0
+        )
+        # take product (sum in log space) over all experiments
+        return self._bkd.sum(log_vals, axis=1) + const
 
     def nvars(self) -> int:
         return self._noptions
 
-    def _make_noisy(self) -> Array:
-        raise NotImplementedError(
-            "Make noisy only relevant to certain likelihoods."
-            "TODO remove this function with more general function"
+    def nobs(self) -> int:
+        return self._noptions
+
+    def _rvs(self, shapes: Array) -> Array:
+        obs = self._bkd.stack(
+            [
+                self._bkd.asarray(
+                    stats.multinomial(self._ntrials, probs).rvs(1)[0]
+                )
+                for probs in shapes.T
+            ],
+            axis=0,
         )
+        return obs
 
     def _values(self, samples: Array) -> Array:
         return self._loglike(samples)[:, None]
