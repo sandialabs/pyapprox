@@ -226,7 +226,7 @@ class TestVariationalInference:
         shape_args = bkd.array([[2], [6]])
         nobs = 3
         post = BetaConjugatePriorPosterior(shape_args, nobs, backend=bkd)
-        obs = bkd.array([1, 0, 1])[:, None][:nobs]
+        obs = bkd.array([1, 0, 1])[None, :]
         post.compute(obs)
 
         prior = IndependentMarginalsVariable(
@@ -291,7 +291,6 @@ class TestVariationalInference:
     def test_dirichlet_conjugate_prior(self):
         bkd = self.get_backend()
         shape_args = bkd.array([2, 3, 4])
-        nvars = len(shape_args)
         nobs, ntrials = bkd.array([3, 10], dtype=int)
         noptions = len(shape_args)
         probs = bkd.array(np.random.uniform(0.5, 1, noptions))
@@ -299,12 +298,13 @@ class TestVariationalInference:
         post = DirichletConjugatePriorPosterior(
             shape_args, nobs, ntrials, noptions, backend=bkd
         )
-        obs = bkd.asarray(stats.multinomial(ntrials, probs).rvs(nobs))
+        obs = bkd.asarray(stats.multinomial(ntrials, probs).rvs(nobs)).T
         post.compute(obs)
         prior = DirichletVariable(shape_args, backend=bkd)
         loglike = MultinomialLogLikelihood(noptions, ntrials, backend=bkd)
         loglike.set_observations(obs)
 
+        # nvars = len(shape_args)
         # vertices = bkd.array([[0, 0.5, 1], [0, 1, 0]])
         # quad_rule = TriangleLebesqueQuadratureRule(vertices, backend=bkd)
         # marginal = stats.uniform(0, 1)

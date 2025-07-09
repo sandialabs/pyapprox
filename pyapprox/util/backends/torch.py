@@ -634,7 +634,9 @@ class TorchMixin(BackendMixin):
         return torch.clip(array, minval, maxval)
 
     @staticmethod
-    def cartesian_product(input_sets, elem_size=1):
+    def cartesian_product(input_sets):
+        if len(input_sets) == 1:
+            return input_sets[0][None, :]
         return TorchMixin.flip(
             torch.cartesian_prod(*input_sets[::-1]).T, axis=(0,)
         )

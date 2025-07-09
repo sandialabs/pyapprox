@@ -1,3 +1,24 @@
+"""
+Clases for Computing Posterriors with Conjugate Priors
+
+This module contains implementations of various posterior with conjugate
+priors.
+When the prior and posterior belong to the same parametric family,
+the prior is said to be conjugate for the likelihood.
+The classes below compute the posterior distributions analytically from
+observations.
+
+Purpose
+-------
+These classes are designed for useful for testing Bayesian inference
+algorithms, where posterior distributions are computed based on prior
+distributions and observed data.
+
+Additionally, the Laplace approximation is for computing the posterior
+distribution using a conjugate Gaussian prior and noise model when using
+linear(ized) observation models.
+"""
+
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -110,12 +131,42 @@ class DenseMatrixLaplacePosteriorApproximation:
         self._obs = obs
 
     def nvars(self) -> int:
+        """
+        Returns the number of variables in the model.
+
+        Returns
+        -------
+        int
+            Number of variables in the model.
+        """
         return self._nvars
 
     def nobs(self) -> int:
+        """
+        Returns the number of observations in a single experiment.
+
+        Returns
+        -------
+        int
+            Number of observations.
+        """
         return self._nobs
 
     def compute(self, obs: Array):
+        """
+        Compute the posterior mean, covariance, evidence, and expected KL
+        divergence given the observations.
+
+        Parameters
+        ----------
+        obs : Array of shape (num_qoi, num_experiments)
+            Observations used to compute the posterior.
+
+        Raises
+        ------
+        ValueError
+            If the shape of `obs` is invalid.
+        """
         self._set_observations(obs)
         misfit_hessian = self._matrix.T @ self._noise_cov_inv @ self._matrix
         # raise NotImplementedError("need to modify for multiple experiments")
@@ -151,22 +202,64 @@ class DenseMatrixLaplacePosteriorApproximation:
         )
 
     def posterior_mean(self) -> Array:
+        """
+        Returns the posterior mean.
+
+        Returns
+        -------
+        mean : Array (nvars, 1)
+            Posterior mean.
+
+        Raises
+        ------
+        RuntimeError
+            If `compute()` has not been called.
+        """
         if not hasattr(self, "_posterior_mean"):
             raise RuntimeError("must first call compute()")
         return self._posterior_mean
 
     def posterior_covariance(self) -> Array:
+        """
+        Returns the posterior covariance.
+
+        Returns
+        -------
+        cov : Array (nvars, nvars)
+            Posterior covariance.
+
+        Raises
+        ------
+        RuntimeError
+            If `compute()` has not been called.
+        """
         if not hasattr(self, "_posterior_mean"):
             raise RuntimeError("must first call compute()")
         return self._posterior_cov
 
     def evidence(self) -> Array:
+        """
+        Returns the evidence of the model.
+
+        Returns
+        -------
+        evidence : float
+            Evidence of the model.
+        """
         return self._evidence
 
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
     def posterior_variable(self) -> DenseCholeskyMultivariateGaussian:
+        """
+        Returns the posterior as a Gaussian variable.
+
+        Returns
+        -------
+        posterior : DenseCholeskyMultivariateGaussian
+            The Gaussian posterior variable.
+        """
         return DenseCholeskyMultivariateGaussian(
             self.posterior_mean(),
             self.posterior_covariance(),
@@ -214,6 +307,14 @@ class DenseMatrixLaplacePosteriorApproximation:
         self._kl_div = kl_div
 
     def expected_kl_divergence(self) -> float:
+        """
+        Returns the expected KL divergence between the posterior and prior.
+
+        Returns
+        -------
+        expected_kl : float
+            Expected KL divergence.
+        """
         return self._kl_div
 
 
@@ -237,11 +338,14 @@ class ApplyNegLogLikelihoodHessian:
 
 class PriorConditionedHessianMatVecOperator(SymmetricMatVecOperator):
     r"""
-    Compute the action of prior conditioned misfit Hessian on a vector.
+    This class computes the action of the prior-conditioned misfit Hessian
+    on a vector.
+    Specifically, for an arbitrary vector `w`, the Cholesky factor `L` of the
+    prior  and the misfit Hessian `H`, it computes:
 
-    E.g. for a arbitrary vector w, the Cholesky factor L of the prior
-    and the misfit Hessian H compute
-        L*H*L'*w
+    .. math::
+        L \cdot H \cdot L^T \cdot w
+    Compute the action of prior conditioned misfit Hessian on a vector.
     """
 
     def __init__(
@@ -249,22 +353,92 @@ class PriorConditionedHessianMatVecOperator(SymmetricMatVecOperator):
         prior_sqrt: GaussianSqrtCovarianceOperator,
         apply_hessian: callable,
     ):
+        """
+        Initialize the PriorConditionedHessianMatVecOperator class.
+
+        Parameters
+        ----------
+        prior_sqrt : GaussianSqrtCovarianceOperator
+            The Cholesky factor `L` of the prior covariance matrix.
+
+        apply_hessian : callable
+            A function that applies the misfit Hessian `H` to a vector.
+        """
         self._bkd = prior_sqrt._bkd
         self._prior_sqrt = prior_sqrt
         self._apply_hessian = apply_hessian
 
     def nvars(self) -> int:
+        """
+        Returns the number of variables of the prior.
+
+        Returns
+        -------
+        int
+            Number of variables in the model.
+        """
         return self._prior_sqrt.nvars()
 
     def apply(self, vecs: Array) -> Array:
+        r"""
+        Applies the prior-conditioned misfit Hessian to a vector.
+
+        For a given vector `vecs`, this method computes:
+
+        .. math::
+            L \cdot H \cdot L^T \cdot vecs
+
+        Where:
+        - `L` is the Cholesky factor of the prior covariance matrix.
+        - `H` is the misfit Hessian.
+
+        Parameters
+        ----------
+        vecs : Array
+            Input vector(s) to which the operator is applied.
+
+        Returns
+        -------
+        Array
+            Result of applying the prior-conditioned misfit Hessian to the
+            input vector(s).
+        """
         Lv = self._prior_sqrt.apply(vecs)
         HLv = self._apply_hessian(Lv)
         return self._prior_sqrt.apply_transpose(HLv)
 
     def apply_transpose(self, vecs: Array) -> Array:
+        """
+        Applies the transpose of the prior-conditioned misfit Hessian to a
+        vector.
+
+        For symmetric operators, this is equivalent to `apply()`.
+
+        Parameters
+        ----------
+        vecs : Array
+            Input vector(s) to which the transpose operator is applied.
+
+        Returns
+        -------
+        Array
+            Result of applying the transpose of the prior-conditioned misfit
+            Hessian to the input vector(s).
+        """
         return self.apply(vecs)
 
     def nrows(self) -> int:
+        """
+        Returns the number of rows in the operator.
+
+        For this operator, the number of rows is equal to the number of
+        variables.
+
+        Returns
+        -------
+        int
+            Number of rows in the operator.
+        """
         return self._prior_sqrt.nvars()
 
 
@@ -328,12 +502,43 @@ class LaplacePosteriorLowRankApproximation:
 class DenseMatrixLaplacePosteriorLowRankApproximation(
     LaplacePosteriorLowRankApproximation
 ):
+    """
+    Compute a low-rank approximation of a Gaussian posterior.
+
+    This class computes a low-rank approximation of the posterior covariance
+    matrix for a Gaussian posterior using the Laplace approximation.
+    It is particularly useful for scenarios where the posterior covariance
+    matrix is large and dense, but only a small number of directions in
+    parameter space are informed by data, which can be leveraged to produce
+    a low-rank representation for efficient computation.
+    """
+
     def __init__(
         self,
         prior: DenseCholeskyMultivariateGaussian,
         hess_mat: Array,
         rank: int,
     ):
+        """
+        Initialize the DenseMatrixLaplacePosteriorLowRankApproximation class.
+
+        Parameters
+        ----------
+        prior : DenseCholeskyMultivariateGaussian
+            The prior distribution, represented as a dense Gaussian with
+            Cholesky decomposition.
+        hess_mat : Array
+            The Hessian matrix of the log-likelihood, used to approximate the
+            posterior covariance.
+        rank : int
+            The rank of the low-rank approximation.
+
+        Raises
+        ------
+        ValueError
+            If `prior` is not an instance of
+            `DenseCholeskyMultivariateGaussian`.
+        """
         # mainly useful for testing
         if not isinstance(prior, DenseCholeskyMultivariateGaussian):
             raise ValueError(
@@ -353,6 +558,29 @@ class DenseMatrixLaplacePosteriorLowRankApproximation(
 
 
 class GaussianPushForward:
+    r"""
+    Compute the mean and covariance of a Gaussian distribution when it is
+    pushed forward through a linear model.
+
+    A linear transformation applied to a Gaussian distribution results in
+    another Gaussian distribution.
+    This class computes the mean and covariance of the resulting Gaussian
+    distribution after applying a linear transformation.
+
+    Notes
+    -----
+    - The transformation applied to the original Gaussian is:
+      .. math::
+          y = A z + b
+      where:
+      - `z ~ N(x, \Sigma)` is the original Gaussian distribution.
+      - `A` is the transformation matrix.
+      - `b` is a constant vector.
+    - The resulting Gaussian distribution is:
+      .. math::
+          y ~ N(Ax + b, A \Sigma A^T)
+    """
+
     def __init__(
         self,
         matrix: Array,
@@ -361,19 +589,28 @@ class GaussianPushForward:
         vec: Array = None,
         backend: BackendMixin = NumpyMixin,
     ):
-        r"""
-        Find the mean and covariance of a gaussian distribution when it
-        is push forward through a linear model. A linear transformation
-        applied to a Gaussian is still a Gaussian.
+        """
+        Initialize the GaussianPushForward class.
 
-        Original Gaussian with mean x and covariance \Sigma
-        z~N(x,\Sigma)
+        Parameters
+        ----------
+        matrix : Array of shape (nqoi, nvars)
+            The matrix representing the linear transformation.
+        mean : Array of shape (nvars, 1)
+            The mean of the original Gaussian distribution.
+        cov : Array of shape (nvars, nvars)
+            The covariance of the original Gaussian distribution.
+        vec : Array of shape (nqoi, 1), optional
+            A constant vector added to the linear transformation.
+            Defaults to a zero vector.
+        backend : BackendMixin, optional
+            Computational backend for numerical operations.
+            Defaults to `NumpyMixin`.
 
-        Transformation with b is a constant vector, e.g has no variance
-        y = Az + b
-
-        Distribution of resulting gaussian
-        y~N(Ax+b,A\Sigma A^T)
+        Raises
+        ------
+        ValueError
+            If the shapes of `mean`, `cov`, or `vec` are invalid.
         """
         self._bkd = backend
         self._nqoi, self._nvars = matrix.shape
@@ -392,21 +629,75 @@ class GaussianPushForward:
         self._compute()
 
     def nqoi(self) -> int:
+        """
+        Returns the number of quantities of interest (nqoi).
+
+        Returns
+        -------
+        nqoi : int
+            Number of quantities of interest (nqoi).
+        """
         return self._nqoi
 
     def nvars(self) -> int:
+        """
+        Returns the number of variables in the original Gaussian distribution.
+
+        Returns
+        -------
+        int
+            Number of variables in the original Gaussian distribution.
+        """
         return self._nvars
 
     def _compute(self) -> Array:
+        r"""
+        Compute the mean and covariance of the resulting Gaussian distribution.
+
+        Notes
+        -----
+        - The mean is computed as:
+          .. math::
+              \text{mean} = A x + b
+        - The covariance is computed as:
+          .. math::
+              \text{covariance} = A \Sigma A^T
+        """
         self._pushforward_mean = self._mat @ self._mean + self._vec
         self._pushforward_cov = self._mat @ self._cov @ self._mat.T
 
     def mean(self) -> Array:
+        """
+        Returns the mean of the resulting Gaussian distribution.
+
+        Returns
+        -------
+        mean : Array
+            Mean of the resulting Gaussian distribution.
+
+        Raises
+        ------
+        RuntimeError
+            If `_compute()` has not been called.
+        """
         if not hasattr(self, "_pushforward_mean"):
             raise RuntimeError("must first call compute()")
         return self._pushforward_mean
 
     def covariance(self) -> Array:
+        """
+        Returns the covariance of the resulting Gaussian distribution.
+
+        Returns
+        -------
+        cov : Array
+            Covariance of the resulting Gaussian distribution.
+
+        Raises
+        ------
+        RuntimeError
+            If `_compute()` has not been called.
+        """
         if not hasattr(self, "_pushforward_mean"):
             raise RuntimeError("must first call compute()")
         return self._pushforward_cov
@@ -415,12 +706,27 @@ class GaussianPushForward:
         return "{0}".format(self.__class__.__name__)
 
     def pushfowward_variable(self) -> DenseCholeskyMultivariateGaussian:
+        """
+        Returns the resulting Gaussian distribution as a
+        `DenseCholeskyMultivariateGaussian` object.
+
+        Returns
+        -------
+        DenseCholeskyMultivariateGaussian
+            The resulting Gaussian distribution.
+        """
         return DenseCholeskyMultivariateGaussian(
             self.mean(), self.covariance()
         )
 
 
 class DenseMatrixLaplaceApproximationForPrediction:
+    """
+    Compute the Gaussian posterior, using a Gaussian conujgate prior, and
+    the posterior pushforward through a linear model by solving a
+    generalized eigenvalue problem.
+    """
+
     def __init__(
         self,
         obs_matrix: Array,
@@ -430,6 +736,25 @@ class DenseMatrixLaplaceApproximationForPrediction:
         obs_noise_cov: Array,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Initialize the DenseMatrixLaplaceApproximationForPrediction class.
+
+        Parameters
+        ----------
+        obs_matrix : Array of shape (nobs, nvars)
+            The matrix representing the linear transformation for observations.
+        pred_matrix : Array of shape (npred, nvars)
+            The matrix representing the linear transformation for predictions.
+        prior_mean : Array of shape (nvars, 1)
+            The mean of the Gaussian prior distribution.
+        prior_cov : Array of shape (nvars, nvars)
+            The covariance of the Gaussian prior distribution.
+        obs_noise_cov : Array of shape (nobs, nobs)
+            The covariance of the observational noise.
+        backend : BackendMixin, optional
+            Computational backend for numerical operations.
+            Defaults to `NumpyMixin`.
+        """
         self._bkd = backend
         self._obs_matrix = obs_matrix
         self._pred_matrix = pred_matrix
@@ -438,6 +763,14 @@ class DenseMatrixLaplaceApproximationForPrediction:
         self._obs_noise_cov = obs_noise_cov
 
     def compute(self, obs: Array):
+        """
+        Compute the predictive mean and covariance given observations.
+
+        Parameters
+        ----------
+        obs : Array of shape (nobs, 1)
+            Observations used to compute the predictive mean and covariance.
+        """
         # step 1
         OP = self._pred_matrix @ self._prior_cov
         # step 2
@@ -474,11 +807,37 @@ class DenseMatrixLaplaceApproximationForPrediction:
         )
 
     def mean(self) -> Array:
+        """
+        Returns the posterior pushforward mean.
+
+        Returns
+        -------
+        Array
+            Predictive mean.
+
+        Raises
+        ------
+        RuntimeError
+            If `compute()` has not been called.
+        """
         if not hasattr(self, "_opt_pf_mean"):
             raise RuntimeError("must first call compute()")
         return self._opt_pf_mean
 
     def covariance(self) -> Array:
+        """
+        Returns the posterior pushforward covariance.
+
+        Returns
+        -------
+        Array
+            Predictive covariance.
+
+        Raises
+        ------
+        RuntimeError
+            If `compute()` has not been called.
+        """
         if not hasattr(self, "_opt_pf_mean"):
             raise RuntimeError("must first call compute()")
         return self._opt_pf_cov
@@ -487,6 +846,15 @@ class DenseMatrixLaplaceApproximationForPrediction:
         return "{0}".format(self.__class__.__name__)
 
     def pushfowward_variable(self) -> DenseCholeskyMultivariateGaussian:
+        """
+        Returns the posterior pushforward Gaussian distribution as
+        a `DenseCholeskyMultivariateGaussian` object.
+
+        Returns
+        -------
+        DenseCholeskyMultivariateGaussian
+            Predictive Gaussian distribution.
+        """
         return DenseCholeskyMultivariateGaussian(
             self.mean(), self.covariance()
         )
@@ -494,25 +862,90 @@ class DenseMatrixLaplaceApproximationForPrediction:
 
 # TODO put laplace in this format
 class ConjugatePriorPosterior(ABC):
+    """
+    Abstract base class for computing the posterior distribution of a
+    conjugate prior model.
+
+    When the prior and posterior belong to the same parametric family,
+    the prior is said to be conjugate for the likelihood.
+    The posterior distribution is computed analytically using the observations.
+    """
+
     def __init__(self, backend: BackendMixin = NumpyMixin):
+        """
+        Initialize the ConjugatePriorPosterior class.
+
+        Parameters
+        ----------
+        backend : BackendMixin, optional
+            Computational backend for numerical operations.
+            Defaults to `NumpyMixin`.
+        """
         self._bkd = backend
 
     def _set_observations(self, obs: Array):
+        """
+        Set the observations for the model.
+
+        Parameters
+        ----------
+        obs : Array
+            Observations used to compute the posterior distribution.
+
+        Raises
+        ------
+        ValueError
+            If the shape of `obs` does not match the expected number of
+            observations.
+        """
         if obs.ndim != 2 or obs.shape[0] != self.nobs():
             raise ValueError("obs has the wrong shape")
         self._obs = obs
 
     def nvars(self) -> int:
+        """
+        Returns the number of variables in the model.
+
+        Returns
+        -------
+        int
+            Number of variables in the model.
+        """
         return self._nvars
 
     def nobs(self) -> int:
+        """
+        Returns the number of observations.
+
+        Returns
+        -------
+        int
+            Number of observations.
+        """
         return self._nobs
 
     @abstractmethod
     def _compute(self, obs: Array):
+        """
+        Abstract method for computing the posterior distribution.
+
+        Parameters
+        ----------
+        obs : Array
+            Observations used to compute the posterior distribution.
+
+        """
         raise NotImplementedError
 
     def compute(self, obs: Array):
+        """
+        Computes the posterior distribution given observations.
+
+        Parameters
+        ----------
+        obs : Array
+            Observations used to compute the posterior distribution.
+        """
         self._set_observations(obs)
         self._compute(obs)
 
@@ -524,14 +957,25 @@ class ConjugatePriorPosterior(ABC):
 
 class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
     r"""
-    If the prior and the posterior belong to the same parametric family,
-    then the prior is said to be conjugate for the likelihood.
+    Compute the posterior distribution for a Beta conjugate prior model.
 
-    Likelihood p(y|x)=\Chi_{x\in\{0,1\}} x^y(1-x)^{1-y}
-    where \Chi_{x\in\{0,1\}} is an indicator function equal to 1 if x\in\{0,1\}
-    and zero otherwise.
+    This class models a Beta conjugate prior for a Bernoulli likelihood.
 
-    Prior assigned to x is a Beta distribution
+    Likelihood
+    ----------
+    The likelihood is given by:
+    .. math::
+        p(y|x) = \Chi_{x \in \{0,1\}} x^y (1-x)^{1-y}
+    where:
+    - \Chi_{x \in \{0,1\}} is an indicator function equal to 1 if
+      \(x \in \{0,1\}\), and 0 otherwise.
+    - \(y\) is the observation (binary: 0 or 1).
+
+    Prior
+    -----
+    The prior assigned to \(x\) is a Beta distribution:
+    .. math::
+        p(x) \sim \text{Beta}(\alpha, \beta)
     """
 
     def __init__(
@@ -540,6 +984,30 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
         nexperiments: int,
         backend: BackendMixin = NumpyMixin,
     ):
+        r"""
+        Initialize the BetaConjugatePriorPosterior class.
+
+        Parameters
+        ----------
+        shape_args : Array of shape (2, nvars)
+            Shape parameters (\(\alpha\) and \(\beta\)) of the Beta prior
+            distribution.
+        nexperiments : int
+            Number of experiments (observations).
+        backend : BackendMixin, optional
+            Computational backend for numerical operations.
+            Defaults to `NumpyMixin`.
+
+        Raises
+        ------
+        ValueError
+            If `shape_args` is not a 2D array with two rows.
+        ValueError
+            If any shape parameter (\(\alpha\) or \(\beta\)) is less than 1.
+        NotImplementedError
+            If the number of variables is not equal to 1
+            (only univariate posterior is supported).
+        """
         super().__init__(backend)
         if shape_args.ndim != 2 or shape_args.shape[0] != 2:
             raise ValueError("shapes must be a 2D array with two rows")
@@ -557,6 +1025,27 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
         self._nexperiments = nexperiments
 
     def _compute(self, obs: Array):
+        r"""
+        Compute the posterior distribution given observations.
+
+        Parameters
+        ----------
+        obs : Array
+            Observations used to compute the posterior distribution.
+
+        Raises
+        ------
+        ValueError
+            If observations are not binary (0 or 1).
+
+        Notes
+        -----
+        - The posterior shape parameters (\(\alpha'\) and \(\beta'\))
+          are computed as:
+          .. math::
+              \alpha' = \alpha + \sum_i y_i
+              \beta' = \beta + n_{\text{experiments}} - \sum y_i
+        """
         if self._bkd.any((self._obs != 1) & (self._obs != 0.0)):
             raise ValueError("obs must be zero or one")
 
@@ -571,6 +1060,20 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
         )
 
     def posterior_variable(self) -> IndependentMarginalsVariable:
+        """
+        Returns the posterior distribution as an
+        `IndependentMarginalsVariable` object with BetaMarginal.
+
+        Returns
+        -------
+        IndependentMarginalsVariable
+            Posterior distribution.
+
+        Raises
+        ------
+        RuntimeError
+            If `compute()` has not been called.
+        """
         if not hasattr(self, "_posterior_shapes"):
             raise RuntimeError("must call compute")
         marginals = [
@@ -580,6 +1083,14 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
         return IndependentMarginalsVariable(marginals, backend=self._bkd)
 
     def evidence(self) -> float:
+        """
+        Computes the evidence (marginal likelihood) of the model.
+
+        Returns
+        -------
+        float
+            Evidence (marginal likelihood).
+        """
         shape = self._prior_shapes[:, 0]
         log_evidence = -log_beta_function(*shape, self._bkd)
         nzeros = self._bkd.where(self._obs[0] == 0.0)[0].shape[0]
@@ -592,11 +1103,30 @@ class BetaConjugatePriorPosterior(ConjugatePriorPosterior):
 
 class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
     r"""
-    If the prior and the posterior belong to the same parametric family,
-    then the prior is said to be conjugate for the likelihood.
+    Compute the posterior distribution for a Dirichlet conjugate prior model.
 
-    Likelihood is multinomial distribution
-    Prior assigned to x is a dirichlet distribution
+    This class models a Dirichlet conjugate prior for a multinomial likelihood.
+
+    Likelihood
+    ----------
+    The likelihood is given by the multinomial distribution:
+    .. math::
+        p(x|\theta) = \frac{M!}{x_1!...x_K!} \prod_{k=1}^K \theta_k^{x_k}
+    where:
+    - \(x_k\) is the count of category \(k\) in the observation.
+    - \(M = \sum_{k=1}^K x_k\) is the total number of trials.
+
+    Prior
+    -----
+    The prior assigned to \(\theta\) is a Dirichlet distribution:
+    .. math::
+        p(\theta) \sim \text{Dirichlet}(\alpha_1, \alpha_2, ..., \alpha_K)
+
+    Posterior
+    ---------
+    The posterior distribution is also a Dirichlet distribution:
+    .. math::
+        p(\theta|x) \sim \text{Dirichlet}(\alpha_1 + \sum_{n=1}^N x_{n,1}, ..., \alpha_K + \sum_{n=1}^N x_{n,K})
     """
 
     def __init__(
@@ -607,6 +1137,34 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
         noptions: int,
         backend: BackendMixin = NumpyMixin,
     ):
+        r"""
+        Initialize the DirichletConjugatePriorPosterior class.
+
+        Parameters
+        ----------
+        shape_args : Array of shape (noptions,)
+            Shape parameters (\(\alpha_1, \alpha_2, ..., \alpha_K\)) of the
+            Dirichlet prior distribution.
+        nexperiments : int
+            Number of experiments (observations).
+        ntrials : int
+            Number of trials per experiment.
+        noptions : int
+            Number of categories (options) in the multinomial distribution.
+        backend : BackendMixin, optional
+            Computational backend for numerical operations.
+            Defaults to `NumpyMixin`.
+
+        Raises
+        ------
+        ValueError
+            If `shape_args` is not a 1D array.
+        ValueError
+            If any shape parameter (\(\alpha_k\)) is less than 1.
+        NotImplementedError
+            If the number of variables is less than 2
+            (only multivariate posterior is supported).
+        """
         super().__init__(backend)
         if shape_args.ndim != 1:
             raise ValueError("shapes must be a 1D array")
@@ -621,6 +1179,22 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
         self._nexperiments = nexperiments
 
     def _set_observations(self, obs: Array):
+        r"""
+        Set the observations for the model.
+
+        Parameters
+        ----------
+        obs : Array of shape (noptions, nexperiments)
+            Observations used to compute the posterior distribution.
+
+        Raises
+        ------
+        ValueError
+            If the shape of `obs` does not match the expected dimensions.
+        ValueError
+            If any column of `obs` does not sum to the number of trials
+            (\(M\)).
+        """
         if obs.shape != (self._nobs, self._nexperiments):
             raise ValueError(
                 "obs must be a 2D array with shape "
@@ -651,17 +1225,51 @@ class DirichletConjugatePriorPosterior(ConjugatePriorPosterior):
         )
 
     def posterior_variable(self) -> IndependentMarginalsVariable:
+        """
+        Returns the posterior distribution as an `IndependentMarginalsVariable` object.
+
+        Returns
+        -------
+        DirichletVariable
+            Posterior distribution.
+
+        Raises
+        ------
+        RuntimeError
+            If `compute()` has not been called.
+        """
         if not hasattr(self, "_posterior_shapes"):
             raise RuntimeError("must call compute")
         return DirichletVariable(self._posterior_shapes, self._bkd)
 
-    def _log_multivariate_beta_function(self, shapes):
+    def _log_multivariate_beta_function(self, shapes: Array) -> float:
+        r"""
+        Compute the logarithm of the multivariate Beta function.
+
+        Parameters
+        ----------
+        shapes : Array
+            Shape parameters (\(\alpha_1, \alpha_2, ..., \alpha_K\)).
+
+        Returns
+        -------
+        float
+            Logarithm of the multivariate Beta function.
+        """
         alpha0 = self._bkd.sum(shapes)
         return self._bkd.sum(
             self._bkd.hstack([self._bkd.gammaln(shape) for shape in shapes])
         ) - self._bkd.gammaln(alpha0)
 
     def evidence(self) -> float:
+        """
+        Compute the evidence (marginal likelihood) of the model.
+
+        Returns
+        -------
+        float
+            Evidence (marginal likelihood).
+        """
         # let \theta be parameters and x data
         # to compute evidence E find equate constants of
         # p(\theta)p(x|\theta) and p(\theta|x)

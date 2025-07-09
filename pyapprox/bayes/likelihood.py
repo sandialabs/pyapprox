@@ -1,3 +1,35 @@
+"""
+Likelihood Classes for Statistical Modeling
+
+This module contains implementations of log-likelihood functions for various
+probability distributions, including Bernoulli, Multinomial, and Exponential
+distributions. These classes are designed to compute log-likelihoods,
+generate random samples, and provide tools for derivative-based
+optimization (e.g., Jacobians).
+
+Purpose
+-------
+These classes are designed for use in statistical modeling, machine learning,
+ and Bayesian inference.
+They provide efficient computation of log-likelihoods and support
+derivative-based methods for optimization and inference.
+
+Features
+--------
+- Log-likelihood computation for various distributions.
+- Random sample generation based on specified parameters.
+- Support for Jacobian computation for optimization tasks.
+- Integration with computational backends for numerical operations
+  (e.g., Numpy, TensorFlow).
+
+Usage
+-----
+These classes can be used in applications such as:
+- Maximum likelihood estimation (MLE).
+- Bayesian inference for parameter estimation.
+- Model evaluation and comparison using likelihood-based metrics.
+"""
+
 from abc import abstractmethod
 
 import numpy as np
@@ -852,21 +884,54 @@ class ModelBasedIndependentGaussianLogLikelihood(
 
 class IndependentExponentialLogLikelihood(LogLikelihood):
     r"""
-    Exponetially distributed variable with unknown rate parameter
-    which determines the rate at which events occur over time.
-    Observations are times between consecutive events
+    Log-likelihood for exponentially distributed variables with an unknown
+    rate parameter where observations of the time to each event is assumed
+    independent
+
+    This class models observations as times between consecutive events,
+    where the eventsfollow an exponential distribution.
+    The rate parameter determines the rate at which events occur over time.
     """
 
-    def __init__(self, backend: BackendMixin = NumpyMixin):
-        super().__init__(backend)
-
     def nobs(self) -> int:
-        # nobs can be considered 1 and n multiple experiments are taken
-        # or nobs=n using only a single experiments is taken
-        # we choose the former convention
+        """
+        Returns the number of observations.
+
+        Notes
+        -----
+        - `nobs` can be considered as 1, with multiple experiments taken.
+        - Alternatively, `nobs` can be the number of observations from a
+          single experiment.
+        - This implementation uses the former convention.
+
+        Returns
+        -------
+        int
+            Number of observations (always 1 in this implementation).
+        """
+        return 1
         return 1
 
     def _loglike(self, shapes: Array) -> Array:
+        """
+        Computes the log-likelihood for the given rate parameters.
+
+        Parameters
+        ----------
+        shapes : Array
+            Rate parameters for the exponential distribution.
+
+        Returns
+        -------
+        Array
+            Log-likelihood values for the given rate parameters.
+
+        Raises
+        ------
+        RuntimeError
+            If observations (`_obs`) have not been set using
+            `set_observations()`.
+        """
         if self._obs is None:
             raise RuntimeError("must call set_observations()")
         # nobs can be considered 1 and n multiple experiments are taken
@@ -878,10 +943,33 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
         )[:, None]
 
     def _make_noisy(self, shapes: Array, noise: Array) -> Array:
-        # obs = noise/shapes if using model noise/model(samples)
-        # given exponentially distributed noise with unit mean
-        # return realizations exponentially disributed with means
-        # specified by noiseless_shapes
+        """
+        Generates noisy observations based on the rate parameters and noise.
+
+        Parameters
+        ----------
+        shapes : Array
+            Rate parameters for the exponential distribution.
+        noise : Array
+            Noise sampled from an exponential distribution with unit mean.
+
+        Returns
+        -------
+        Array
+            Noisy observations.
+
+        Raises
+        ------
+        ValueError
+            If the shapes of `shapes` and `noise` do not match.
+
+        Notes
+        -----
+        - Observations are generated as `noise / shapes`.
+        - Given exponentially distributed noise with unit mean, this method
+          returns realizations exponentially distributed with means specified
+          by `shapes`.
+        """
         if shapes.shape != noise.shape:
             msg = f"sizes of shapes {shapes.shape}"
             f"and noise {noise.shape} must match"
@@ -889,17 +977,203 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
         return noise / shapes
 
     def _sample_noise(self, nsamples: int) -> Array:
-        # sample noise so that it has unit mean
-        # create samples (nsamples, nobs) then take transpose
-        # to ensure same noise is used for ith sample
-        # regardless of size of nsamples
+        """
+        Samples noise from an exponential distribution with unit mean.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of noise samples to generate.
+
+        Returns
+        -------
+        Array
+            Noise samples.
+
+        Notes
+        -----
+        - Noise is sampled from an exponential distribution with mean 1.
+        - The samples are transposed to ensure the same noise is used for the
+          `i`-th sample, regardless of the size of `nsamples`.
+        """
         exponential_samples = self._bkd.asarray(
             np.random.exponential(1, (nsamples, self.nobs()))
         ).T
         return exponential_samples
 
     def _rvs(self, shapes: Array) -> Array:
+        """
+        Generates random samples from the exponential distribution based on
+        the rate parameters.
+
+        Parameters
+        ----------
+        shapes : Array
+            Rate parameters for the exponential distribution.
+
+        Returns
+        -------
+        Array
+            Random samples from the exponential distribution.
+
+        Notes
+        -----
+        - Random samples are generated as `noise / shapes`, where `noise` is
+          sampled from an exponential distribution with unit mean.
+        """
         return self._make_noisy(shapes, self._sample_noise(shapes.shape[1]))
+
+
+class BernoulliLogLikelihood(LogLikelihood):
+    """
+    This class computes the log-likelihood for observations modeled as
+    Bernoulli random variables, where the probability of success (1) is
+    given by the parameter `shapes`. The Bernoulli distribution
+    is commonly used to model binary outcomes.
+    """
+
+    def _loglike(self, shapes: Array) -> Array:
+        if self._obs is None:
+            raise RuntimeError("must call set_observations()")
+        # single vector realization of obs forms one column
+        # different realizations in different colums
+        log_vals = self._bkd.sum(
+            self._bkd.log(shapes) * self._obs.T
+            + self._bkd.log(1.0 - shapes) * (1.0 - self._obs.T),
+            axis=0,
+        )
+        return log_vals
+
+    def nobs(self) -> int:
+        return 1
+
+    def _rvs(self, shapes: Array) -> Array:
+        """
+        Generates random samples from the Bernoulli distribution based on the
+        given probabilities.
+
+        Parameters
+        ----------
+        shapes : Array
+            Probabilities of success (1) for the Bernoulli distribution.
+
+        Returns
+        -------
+        Array
+            Random samples (binary outcomes: 0 or 1) from the Bernoulli
+            distribution.
+
+        Notes
+        -----
+        - Random samples are generated using the probabilities specified in
+          `shapes`.
+        - Each column in `shapes` corresponds to a separate realization.
+        """
+        obs = self._bkd.stack(
+            [
+                self._bkd.asarray(stats.bernoulli(probs).rvs(1)[0])
+                for probs in shapes.T
+            ],
+            axis=0,
+        )
+        return obs
+
+    def _values(self, samples: Array) -> Array:
+        return self._loglike(samples)[:, None]
+
+    def jacobian_implemented(self) -> bool:
+        return self._bkd.jacobian_implemented()
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.jacobian(
+            lambda x: self._values(x[:, None])[:, 0], sample[:, 0]
+        )
+
+
+class MultinomialLogLikelihood(LogLikelihood):
+    """
+    Log-likelihood for multinomial-distributed observations.
+
+    This class computes the log-likelihood for observations modeled as
+    multinomial random variables, where the probabilities of each category are
+    given by the parameter `shapes`. The multinomial
+    distribution is commonly used to model categorical outcomes over multiple
+    trials.
+    """
+
+    def __init__(
+        self, noptions: int, ntrials: int, backend: BackendMixin = NumpyMixin
+    ):
+        """
+        Initialize the MultinomialLogLikelihood class.
+
+        Parameters
+        ----------
+        noptions : int
+            Number of categories (options) in the multinomial distribution.
+        ntrials : int
+            Number of trials for the multinomial distribution.
+        backend : BackendMixin, optional
+            Computational backend for numerical operations. Defaults to `NumpyMixin`.
+        """
+        super().__init__(backend)
+        self._noptions = noptions
+        self._ntrials = self._bkd.asarray(ntrials)
+
+    def _loglike(self, shapes: Array) -> Array:
+        if self._obs is None:
+            raise RuntimeError("must call set_observations()")
+        # single vector realization of obs forms one column
+        # different realizations in different colums
+        if self._obs.shape[0] != self.nobs():
+            raise RuntimeError("Obs has the wrong shape")
+        # log(factorial(N) = gammaln(N+1)
+        nexperiments = self._obs.shape[1]
+        const = nexperiments * self._bkd.gammaln(self._ntrials + 1)
+        log_vals = self._bkd.log(shapes).T @ self._obs - self._bkd.sum(
+            self._bkd.gammaln(self._obs + 1), axis=0
+        )
+        # take product (sum in log space) over all experiments
+        return self._bkd.sum(log_vals, axis=1) + const
+
+    def nobs(self) -> int:
+        """
+        Returns the number of categories (options).
+
+        Returns
+        -------
+        nobs : int
+            Number of categories (options) in the multinomial distribution.
+        """
+        return self._noptions
+
+    def _rvs(self, shapes: Array) -> Array:
+        obs = self._bkd.stack(
+            [
+                self._bkd.asarray(
+                    stats.multinomial(self._ntrials, probs).rvs(1)[0]
+                )
+                for probs in shapes.T
+            ],
+            axis=0,
+        )
+        return obs
+
+    def _values(self, samples: Array) -> Array:
+        return self._loglike(samples)[:, None]
+
+    def __repr__(self) -> str:
+        return "{0}(noptions={1})".format(
+            self.__class__.__name__, self.nvars()
+        )
+
+    def jacobian_implemented(self) -> bool:
+        return self._bkd.jacobian_implemented()
+
+    def _jacobian(self, sample: Array) -> Array:
+        return self._bkd.jacobian(
+            lambda x: self._values(x[:, None])[:, 0], sample[:, 0]
+        )
 
 
 class LogUnNormalizedPosterior(Model):
@@ -1004,97 +1278,3 @@ class ExponentialQuarticLogLikelihoodModel(LogLikelihood):
 
     def _loglike(self, shapes: Array) -> Array:
         raise NotImplementedError
-
-
-class BernoulliLogLikelihood(LogLikelihood):
-    def _loglike(self, shapes: Array) -> Array:
-        if self._obs is None:
-            raise RuntimeError("must call set_observations()")
-        # single vector realization of obs forms one column
-        # different realizations in different colums
-        log_vals = self._bkd.sum(
-            self._bkd.log(shapes) * self._obs.T
-            + self._bkd.log(1.0 - shapes) * (1.0 - self._obs.T),
-            axis=0,
-        )
-        return log_vals
-
-    def nobs(self) -> int:
-        return 1
-
-    def _rvs(self, shapes: Array) -> Array:
-        obs = self._bkd.stack(
-            [
-                self._bkd.asarray(stats.bernoulli(probs).rvs(1)[0])
-                for probs in shapes.T
-            ],
-            axis=0,
-        )
-        return obs
-
-    def _values(self, samples: Array) -> Array:
-        return self._loglike(samples)[:, None]
-
-    def jacobian_implemented(self) -> bool:
-        return self._bkd.jacobian_implemented()
-
-    def _jacobian(self, sample: Array) -> Array:
-        return self._bkd.jacobian(
-            lambda x: self._values(x[:, None])[:, 0], sample[:, 0]
-        )
-
-
-class MultinomialLogLikelihood(LogLikelihood):
-    def __init__(
-        self, noptions: int, ntrials: int, backend: BackendMixin = NumpyMixin
-    ):
-        super().__init__(backend)
-        self._noptions = noptions
-        self._ntrials = self._bkd.asarray(ntrials)
-
-    def _loglike(self, shapes: Array) -> Array:
-        if self._obs is None:
-            raise RuntimeError("must call set_observations()")
-        # single vector realization of obs forms one column
-        # different realizations in different colums
-        if self._obs.shape[0] != self.nobs():
-            raise RuntimeError("Obs has the wrong shape")
-        # log(factorial(N) = gammaln(N+1)
-        nexperiments = self._obs.shape[1]
-        const = nexperiments * self._bkd.gammaln(self._ntrials + 1)
-        log_vals = self._bkd.log(shapes).T @ self._obs - self._bkd.sum(
-            self._bkd.gammaln(self._obs + 1), axis=0
-        )
-        # take product (sum in log space) over all experiments
-        return self._bkd.sum(log_vals, axis=1) + const
-
-    def nobs(self) -> int:
-        return self._noptions
-
-    def _rvs(self, shapes: Array) -> Array:
-        obs = self._bkd.stack(
-            [
-                self._bkd.asarray(
-                    stats.multinomial(self._ntrials, probs).rvs(1)[0]
-                )
-                for probs in shapes.T
-            ],
-            axis=0,
-        )
-        return obs
-
-    def _values(self, samples: Array) -> Array:
-        return self._loglike(samples)[:, None]
-
-    def __repr__(self) -> str:
-        return "{0}(noptions={1})".format(
-            self.__class__.__name__, self.nvars()
-        )
-
-    def jacobian_implemented(self) -> bool:
-        return self._bkd.jacobian_implemented()
-
-    def _jacobian(self, sample: Array) -> Array:
-        return self._bkd.jacobian(
-            lambda x: self._values(x[:, None])[:, 0], sample[:, 0]
-        )
