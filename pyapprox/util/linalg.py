@@ -722,7 +722,7 @@ def diag_of_mat_mat_product(
     Compute Diag(A @ B)
     """
     assert Amat.shape == Bmat.T.shape
-    # use einsum because unlike other approaches, e.g. np.diag(A*B.T)
+    # use einsum because unlike other approaches, e.g. np.diag(A@B)
     # it does not use any explicit intermediate storage
     return bkd.einsum("ij,ji->i", Amat, Bmat)
 

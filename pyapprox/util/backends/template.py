@@ -581,7 +581,7 @@ class BackendMixin(ABC):
         raise NotImplementedError
 
     @classmethod
-    def cartesian_product(cls, input_sets, elem_size=1):
+    def cartesian_product(cls, input_sets):
         r"""
         Compute the cartesian product of an arbitray number of sets.
 
@@ -595,9 +595,6 @@ class BackendMixin(ABC):
         input_sets
             The sets to be used in the cartesian product.
 
-        elem_size : integer
-            The size of the vectors within each set.
-
         Returns
         -------
         result : array (num_sets*elem_size, num_elems)
@@ -609,7 +606,7 @@ class BackendMixin(ABC):
             return cls.stack(input_sets, axis=0)
         out = []
         # ::-1 reverse order to be backwards compatiable with old
-        # function below
+        # function
         for r in itertools.product(*input_sets[::-1]):
             out.append(cls.array(r, dtype=r[0].dtype))
         return cls.flip(cls.stack(out, axis=1), axis=(0,))

@@ -38,7 +38,7 @@ class DenseMatrixLaplacePosteriorApproximation:
         Compute the mean and covariance of the Laplace posterior of a
         linear (or linearized) model with a Gaussian prior and noise model.
 
-        Given some data d and a linear forward model, A(x) = Ax+b,
+        Given some data `d` and a linear forward model, `A(x) = Ax+b`,
         and a Gaussian likelihood and a Gaussian prior, the resulting posterior
         is always Gaussian.
 
@@ -61,6 +61,16 @@ class DenseMatrixLaplacePosteriorApproximation:
 
         vec : Array (num_qoi, 1)
             The deterministic shift of the linear model
+
+        backend : BackendMixin, optional
+            Computational backend for numerical operations.
+            Defaults to `NumpyMixin`.
+
+        Raises
+        ------
+        ValueError
+            If the shapes of `prior_mean`, `prior_cov`, `noise_cov`,
+            or `vec` are invalid.
         """
         self._bkd = backend
         self._nobs, self._nvars = matrix.shape
@@ -108,10 +118,12 @@ class DenseMatrixLaplacePosteriorApproximation:
     def compute(self, obs: Array):
         self._set_observations(obs)
         misfit_hessian = self._matrix.T @ self._noise_cov_inv @ self._matrix
+        # raise NotImplementedError("need to modify for multiple experiments")
         self._posterior_cov = self._bkd.inv(
-            misfit_hessian + self._prior_hessian
+            obs.shape[1] * misfit_hessian + self._prior_hessian
         )
-        residual = self._obs - self._matrix @ self._prior_mean - self._vec
+        obs_sample_sum = self._bkd.sum(obs, axis=1)[:, None]
+        residual = obs_sample_sum - self._matrix @ self._prior_mean - self._vec
         temp = self._matrix.T @ (self._noise_cov_inv @ residual)
         self._posterior_mean = self._prior_mean + self._posterior_cov @ temp
         self._compute_evidence()
@@ -122,11 +134,6 @@ class DenseMatrixLaplacePosteriorApproximation:
         """
         References
         ----------
-        Ryan, K. (2003). Estimating Expected Information Gains for Experimental
-        Designs with Application to the Random Fatigue-Limit Model. Journal of
-        Computational and Graphical Statistics, 12(3), 585-603.
-        http://www.jstor.org/stable/1391040
-
         Friel, N. and Wyse, J. (2012), Estimating the evidence – a review.
         Statistica Neerlandica, 66: 288-308.
         https://doi.org/10.1111/j.1467-9574.2011.00515.x
