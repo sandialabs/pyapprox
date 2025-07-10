@@ -1,12 +1,11 @@
+from abc import ABC, abstractmethod
 from typing import List
-
-import numpy as np
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import Model
 from pyapprox.bayes.likelihood import (
-    # IndependentExponentialLogLikelihood,
+    LogLikelihood,
     IndependentGaussianLogLikelihood,
 )
 from pyapprox.optimization.minimize import (
@@ -19,37 +18,59 @@ from pyapprox.optimization.minimize import (
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
 
-class OEDIndependentGaussianLogLikelihood(IndependentGaussianLogLikelihood):
-    def __init__(
-        self,
-        noise_cov_diag: Array,
-        many_pred_obs: Array,
-        pred_weights: Array,
-        tile_obs: bool,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(backend=backend)
-        self._many_pred_obs = many_pred_obs
-        if pred_weights.shape[0] != many_pred_obs.shape[1]:
-            raise ValueError("pred_weights and many_pred_obs are inconsistent")
-        self._pred_weights = pred_weights
-        self._setup(noise_cov_diag)
-        self._set_tile_obs(tile_obs)
+class OEDOuterLoopLogLikelihoodMixin(ABC):
+    """
+    Wrap Likelihood function so that it is a function of the design weights
+    and not a function of the likelihood shapes (or parameters of a model
+    that predict the shapes)
+    """
+
+    def set_observations_and_shapes(self, obs: Array, shapes: Array):
+        # Unlike likelihoods from pyapprox.bayes.likelihood, which take
+        # obs and shapes with different shapes, obs and shapes passed to
+        # OED likelihoods require obs and shapes with the same shape
+        if obs.shape != shapes.shape:
+            raise ValueError(f"{obs.shape=} does not match {shapes.shape=}")
+        self.set_observations(obs)
+        self._shapes = shapes
 
     def nqoi(self) -> int:
-        if self._tile_obs:
-            return self._obs.shape[1] * self._many_pred_obs.shape[1]
-        return self._many_pred_obs.shape[1]
+        return self._obs.shape[1]
 
     def nvars(self) -> int:
-        return self._noise_cov_inv_diag.shape[0]
+        return self._obs.shape[0]
 
-    def jacobian_implemented(self) -> bool:
-        return True
+    @abstractmethod
+    def _values(self, design_weights: Array) -> Array:
+        raise NotImplementedError
+
+    def __repr__(self) -> str:
+        if self._obs is not None:
+            return "{0}(nobs={1}, nsamples={2})".format(
+                self.__class__.__name__,
+                self.nobs(),
+                self._obs.shape[1],
+            )
+        return "{0}".format(self.__class__.__name__)
+
+
+class IndependentGaussianOEDOuterLoopLogLikelihood(
+    OEDOuterLoopLogLikelihoodMixin, IndependentGaussianLogLikelihood
+):
+    def set_observations_and_shapes(self, obs: Array, shapes: Array):
+        super().set_observations_and_shapes(obs, shapes)
+        self._residuals = self._obs - shapes
 
     def _values(self, design_weights: Array) -> Array:
         self.set_design_weights(design_weights)
-        return self._loglike(self._many_pred_obs).T
+        # OED assumes all observations have one experiment so that dimension
+        # is removed. But
+        # loglikelihoods do not. So expand obs to have
+        # shape (nobs, nexperiments, nsamples), where nexperiments=1
+        return self._loglike_from_residuals(self._residuals[:, None, :]).T
+
+    def jacobian_implemented(self) -> bool:
+        return True
 
     def _jacobian(self, design_weights: Array) -> Array:
         # stack jacobians for each obs vertically
@@ -57,37 +78,130 @@ class OEDIndependentGaussianLogLikelihood(IndependentGaussianLogLikelihood):
         # todo next line can be done just done once when objected is created
         # alsocan reduce cost of values if make this happen in
         # self._loglike class
-        obs, many_pred_obs = self._parse_obs(self._obs, self._many_pred_obs)
-        residual = obs - many_pred_obs
-        jac = (residual.T**2) * (
+        jac = (self._residuals.T**2) * (
             self._noise_cov_inv_diag[:, 0] * (-0.5)
         ) + 0.5 / design_weights.T
         # second term on rhs is gradient of determinant of weighted
         # noise covariance
         return jac
 
+
+class OEDInnerLoopLogLikelihoodMixin:
+    def set_observations_and_shapes(self, obs: Array, shapes: Array):
+        # Unlike likelihoods from pyapprox.bayes.likelihood, which take
+        # obs and shapes with different shapes, obs and shapes passed to
+        # OED likelihoods require obs and shapes with the same shape
+        if obs.ndim != 2:
+            raise ValueError("obs must be a 2D array (nobs, nouterloop)")
+        if shapes.ndim != 2:
+            raise ValueError("shapes must be a 2D array (nobs, ninnerloop)")
+        if obs.shape[0] != shapes.shape[0]:
+            raise ValueError(
+                "The number of rows of obs and shapes are inconsistent"
+            )
+        self._obs = obs
+        self._shapes = shapes
+
+    def nqoi(self) -> int:
+        return self._obs.shape[1] * self._shapes.shape[1]
+
+    def nvars(self) -> int:
+        return self._obs.shape[0]
+
+    @abstractmethod
+    def _values(self, design_weights: Array) -> Array:
+        raise NotImplementedError
+
     def __repr__(self) -> str:
         if self._obs is not None:
-            return "{0}(M={1}, N={2})".format(
+            return "{0}(nobs={1}, nouterloop={2}, nsamples={3})".format(
                 self.__class__.__name__,
+                self.nobs(),
                 self._obs.shape[1],
-                self._many_pred_obs.shape[1],
+                self._shapes.shape[1],
             )
         return "{0}".format(self.__class__.__name__)
 
 
+class IndependentGaussianOEDInnerLoopLogLikelihood(
+    OEDInnerLoopLogLikelihoodMixin, IndependentGaussianLogLikelihood
+):
+    def set_observations_and_shapes(self, obs: Array, shapes: Array):
+        super().set_observations_and_shapes(obs, shapes)
+        self._residuals = self._obs[..., None] - shapes[:, None, :]
+
+    def _noise_cov_sqrt_inv_apply(self, vecs: Array) -> Array:
+        # vecs is a 3D tensor (nobs, ninner_samples, nouterloop_samples)
+        return self._wnoise_std_diag[..., None] * vecs
+
+    def _values(self, design_weights: Array) -> Array:
+        # IndependentGaussianLogLikelihood should not know about OED need
+        # to compute log-liklihood values for multiple observations
+        # (not to be confused with experiments). So implement custom function
+        # here
+        self.set_design_weights(design_weights)
+        L_inv_res = self._noise_cov_sqrt_inv_apply(self._residuals)
+        # compute diagonals for each outerloop obs
+        # need to compute transpose of L_inv_res[ii] for each row ii
+        # so do this by chainging first string argument of einsum.
+        # e.g. for 2D A, A einsum("jk,kj->j", A.T, A)
+        # is equal toeinsum("jk,jk->j", A, A)
+        vals = self._bkd.einsum("ijk,ijk->jk", L_inv_res, L_inv_res).flatten()
+        # the flatten stacks the jacobian (ninnerloop)
+        # for each outerloop sample
+        return -0.5 * vals[None, :] + self._loglike_const
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def _jacobian(self, design_weights: Array) -> Array:
+        # stack jacobians for each obs vertically
+
+        # todo next line can be done just done once when objected is created
+        # alsocan reduce cost of values if make this happen in
+        # self._loglike class
+        # Compute jacobian of quadratic component of likelihood
+        jac = -0.5 * self._noise_cov_inv_diag[..., None] * self._residuals**2
+
+        def fun(w):
+            self.set_design_weights(w[:, None])
+            L_inv_res = self._noise_cov_sqrt_inv_apply(self._residuals)
+            vals = self._bkd.einsum(
+                "ijk,ijk->jk", L_inv_res, L_inv_res
+            ).flatten()
+            return -0.5 * vals
+
+        print(jac)
+        print(self._bkd.jacobian(fun, self._design_weights[:, 0]))
+        print("A")
+        assert False
+        jac = self._bkd.reshape(jac, (self.nqoi(), self.nvars()))
+
+        # add gradient of determinant of weighted
+        # noise covariance
+        jac += 0.5 / design_weights.T
+        return jac
+
+
 class Evidence(Model):
+    """
+    Compute evidence for different realizations of the observational data
+    simultaneously.
+    """
+
     def __init__(
         self,
-        loglike: OEDIndependentGaussianLogLikelihood,
+        loglike: OEDInnerLoopLogLikelihoodMixin,
+        quad_samples: Array,
+        quad_weights: Array = None,
     ):
         super().__init__(backend=loglike._bkd)
-        if not isinstance(loglike, OEDIndependentGaussianLogLikelihood):
-            raise ValueError(
-                "loglike must be OEDIndependentGaussianLogLikelihood"
-            )
+        if not isinstance(loglike, OEDInnerLoopLogLikelihoodMixin):
+            raise ValueError("loglike must be OEDLogLikelihoodMixin")
 
         self._loglike = loglike
+        self._quad_samples = quad_samples
+        self._quad_weights = quad_weights
 
         self._prev_design_weights = None
         self._like_vals = None
@@ -111,7 +225,7 @@ class Evidence(Model):
             vals,
             (
                 self._loglike._obs.shape[1],
-                self._loglike._many_pred_obs.shape[1],
+                self._loglike._shapes.shape[1],
             ),
         ).T
 
@@ -120,24 +234,23 @@ class Evidence(Model):
         return self._bkd.reshape_fortran(
             jac,
             (
-                self._loglike._many_pred_obs.shape[1],
+                self._loglike._shapes.shape[1],
                 self._loglike._obs.shape[1],
                 jac.shape[1],
             ),
         )
 
     def _values(self, design_weights: Array) -> Array:
-        # if self._prev_design_weights is None or not self._bkd.allclose(
-        #     design_weights, self._prev_design_weights, atol=1e-15, rtol=1e-15
-        # ):
-        if True:
-            self._prev_design_weights = self._bkd.copy(design_weights)
-            self._like_vals = self._reshape_vals(
-                self._bkd.exp(self._loglike(design_weights))
-            )
-            self._weighted_like_vals = (
-                self._loglike._pred_weights * self._like_vals
-            )
+        self._prev_design_weights = self._bkd.copy(design_weights)
+        like_vals = self._reshape_vals(
+            self._bkd.exp(self._loglike(design_weights))
+        )
+        self._like_vals = like_vals
+        if self._quad_weights is None:
+            quad_weights = 1.0 / self._like_vals.shape[0]
+        else:
+            quad_weights = self._quad_weights
+        self._weighted_like_vals = quad_weights * self._like_vals
         return (self._weighted_like_vals).sum(axis=0)[None, :]
 
     def _jacobian(self, design_weights: Array) -> Array:
@@ -146,15 +259,38 @@ class Evidence(Model):
         ):
             # recompute necessary data
             self(design_weights)
-        self._like_jac = self._reshape_jacobian(
-            self._loglike.jacobian(design_weights)
+
+        # self._like_jac = self._reshape_jacobian(
+        #    self._loglike.jacobian(design_weights)
+        # )
+        # self._weighted_like_vals_prod_jac = (
+        #     self._weighted_like_vals[..., None] * self._like_jac
+        # )
+        # self._evidence_jac = self._bkd.sum(
+        #     self._weighted_like_vals_prod_jac, axis=0
+        # )
+        print(
+            self._bkd.jacobian(
+                lambda w: self._loglike(w[:, None])[0], design_weights[:, 0]
+            )
+        )
+        print(self._loglike.jacobian(design_weights))
+        assert False
+        self._like_jac = self._bkd.reshape(
+            self._loglike.jacobian(design_weights),
+            (
+                self._loglike._obs.shape[1],
+                self._loglike._shapes.shape[1],
+                self._loglike.nvars(),
+            ),
         )
         self._weighted_like_vals_prod_jac = (
-            self._weighted_like_vals[..., None] * self._like_jac
+            self._weighted_like_vals.T[..., None] * self._like_jac
         )
         self._evidence_jac = self._bkd.sum(
-            self._weighted_like_vals_prod_jac, axis=0
+            self._weighted_like_vals_prod_jac, axis=1
         )
+        print(self._weighted_like_vals.shape, self._like_jac.shape)
         return self._evidence_jac
 
     def __repr__(self) -> str:
@@ -334,7 +470,7 @@ class KLOEDObjective(BayesianOEDObjective):
 class PredictionOEDDeviation(Model):
     def __init__(
         self,
-        loglike: OEDIndependentGaussianLogLikelihood,
+        loglike: OEDOuterLoopLogLikelihoodMixin,
         qoi_vals: Array,
         qoi_weights: Array,
     ):

@@ -188,6 +188,12 @@ class DenseMatrixLaplacePosteriorApproximation:
         Friel, N. and Wyse, J. (2012), Estimating the evidence – a review.
         Statistica Neerlandica, 66: 288-308.
         https://doi.org/10.1111/j.1467-9574.2011.00515.x
+
+        Ryan, K. (2003). Estimating Expected Information Gains for
+        Experimental Designs with Application to the Random Fatigue-Limit
+        Model.
+        Journal of Computational and Graphical Statistics, 12(3), 585-603.
+        http://www.jstor.org/stable/1391040 (Equation 2.8)
         """
         self._loglike.set_observations(self._obs)
         lval = self._bkd.exp(self._loglike(self._posterior_mean))[:, 0]

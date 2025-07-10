@@ -235,7 +235,7 @@ class LogLikelihood(Model):
         ----------
         shapes : Array (nobs, nsamples)
             Muliple realizations of the shape parameters of the likelihood
-            distribution. If nexperiments > 1, then self._loglike() must
+            distribution. If nexperiments > 1, then self._loglike_from_shapes() must
             use broadcasting (or tiling) to make the shapes of
             self._obs and shapes consistent. E.g. if obs shape is
             (nobs, nexperiments) and shapes.shape is (nobs, nsamples).
@@ -258,7 +258,7 @@ class LogLikelihood(Model):
                 + " nobs is {0}".format(self.nobs())
             )
 
-    def _loglike_from_shapes(self, shapes: Array) -> Array:
+    def loglike_from_shapes(self, shapes: Array) -> Array:
         """
         Computes the log-likelihood from muliple realizations of the shape
         parameters of the likelihood distribution
@@ -276,10 +276,10 @@ class LogLikelihood(Model):
             Log-likelihood values.
         """
         self._check_shapes(shapes)
-        return self._loglike(shapes)
+        return self._loglike_from_shapes(shapes)
 
     def _values(self, shapes: Array) -> Array:
-        return self._loglike_from_shapes(shapes)
+        return self.loglike_from_shapes(shapes)
 
     @abstractmethod
     def _rvs(self, shapes: Array) -> Array:
@@ -395,18 +395,37 @@ class ModelBasedLogLikelihoodMixin:
         return super()._rvs(self._model(model_parameter_samples).T)
 
     def _values(self, model_parameter_samples: Array):
-        return self._loglike_from_shapes(
-            self._model(model_parameter_samples).T
-        )
+        return self.loglike_from_shapes(self._model(model_parameter_samples).T)
 
-    def rvs(self, model_parameter_samples: Array) -> Array:
+    def rvs_from_shapes(self, shapes: Array) -> Array:
         """
         Generate observations based on the
-        likelihood distribution's shapes.
+        likelihood distribution's shapes,
+        i.e. predictions of models at some samples.
+
+        This function is useful for OED
 
         Parameters
         ----------
         shapes : Array (nvars, nsamples)
+            Predicted shapes or values from the model.
+
+        Returns
+        -------
+        obs : Array (nsamples, nobs)
+            Generated observations.
+        """
+        return super()._rvs(shapes)
+
+    def rvs(self, model_parameter_samples: Array) -> Array:
+        """
+        Generate observations based on the
+        model parameter samples that determine the likelihood distribution's
+        shapes.
+
+        Parameters
+        ----------
+        model_parameter_samples : Array (nvars, nsamples)
             Predicted shapes or values from the model.
 
         Returns
@@ -441,6 +460,22 @@ class GaussianLogLikelihood(LogLikelihood):
     GaussianLikelihood that requires the application of the square-root
     of the known noise covariance matrix to vectors
     """
+
+    def __init__(self, noise_cov: Array, backend: BackendMixin = NumpyMixin):
+        """
+        Initialize the GaussianLogLikelihood class.
+
+        Parameters
+        ----------
+        noise_cov : Array (nobs, nobs)
+            Dense noise covariance matrix.
+
+        backend : BackendMixin, optional
+            Computational backend for numerical operations.
+            Defaults to NumpyMixin.
+        """
+        super().__init__(backend=backend)
+        self._setup(noise_cov)
 
     def _stack_obs_and_shapes(self, obs: Array, shapes: Array) -> Array:
         if not hasattr(self, "_loglike_const"):
@@ -619,10 +654,17 @@ class GaussianLogLikelihood(LogLikelihood):
         ).T
         return self._noise_cov_sqrt_apply(normal_samples)
 
-    def _loglike_from_stacked(self, obs: Array, shapes: Array) -> Array:
+    def _check_residuals(self, residuals: Array):
+        if residuals.ndim != 3:
+            raise ValueError(
+                "residuals must be a 3D array with shape "
+                "(nobs, nexperiments, nsamples)"
+            )
+
+    def _loglike_from_residuals(self, residuals: Array) -> Array:
         """
-        Compute the log-likelihood after observations have been processed
-        and repeated if necessary to speed up compuation.
+        Compute the log-likelihood from residuals, i.e. the difference
+        between the observations and the shapes
 
         Parameters
         ----------
@@ -636,37 +678,31 @@ class GaussianLogLikelihood(LogLikelihood):
         Array
             Log-likelihood values for each observation.
         """
-        nexperiments = obs.shape[1]
-        vals = 0
+        self._check_residuals(residuals)
+        nexperiments = residuals.shape[1]
+        vals = 0.0
         for ii in range(nexperiments):
-            residual = obs[:, ii] - shapes[:, ii]
+            residual = residuals[:, ii]
             L_inv_res = self._noise_cov_sqrt_inv_apply(residual)
             vals += diag_of_mat_mat_product(
                 L_inv_res.T, L_inv_res, bkd=self._bkd
             )
         return (-0.5 * vals + self._loglike_const * nexperiments)[:, None]
 
-    def _loglike_from_reshaped(self, obs: Array, shapes: Array) -> Array:
-        nexperiments = obs.shape[1]
-        vals = 0
-        diff = obs - shapes
-        for ii in range(nexperiments):
-            residual = diff[:, ii]
-            L_inv_res = self._noise_cov_sqrt_inv_apply(residual)
-            vals += diag_of_mat_mat_product(
-                L_inv_res.T, L_inv_res, bkd=self._bkd
-            )
-        return (-0.5 * vals + self._loglike_const * nexperiments)[:, None]
-
-    def _loglike(self, shapes: Array) -> Array:
+    def _loglike_from_shapes(self, shapes: Array) -> Array:
         if self._obs is None:
             raise RuntimeError("must call set_observations()")
-        # return self._loglike_from_stacked(
-        #     *self._stack_obs_and_shapes(self._obs, shapes)
-        # )
-        return self._loglike_from_reshaped(
-            *self._reshape_obs_and_shapes(self._obs, shapes)
-        )
+        if self._obs.shape != (self.nobs(), self._nexperiments):
+            raise ValueError(
+                "self._obs shape was {0} but should be {1}".format(
+                    self._obs.shape, (self.nobs(), self._nexperiments)
+                )
+            )
+        if shapes.ndim != 2:
+            raise ValueError("shapes must be a 2D array")
+        # obs, shapes = self._stack_obs_and_shapes(self._obs, shapes)
+        obs, shapes = self._reshape_obs_and_shapes(self._obs, shapes)
+        return self._loglike_from_residuals(obs - shapes)
 
     def _jacobian(self, model_parameter_sample: Array) -> Array:
         shapes = self._model(model_parameter_sample).T
@@ -709,6 +745,23 @@ class IndependentGaussianLogLikelihood(GaussianLogLikelihood):
     Evaluating this is faster than GaussianLikelihood if noise covariance
     is a diagonal matrix
     """
+
+    def __init__(
+        self, noise_cov_diag: Array, backend: BackendMixin = NumpyMixin
+    ):
+        """
+        Initialize the IndependentGaussianLogLikelihood class.
+
+        Parameters
+        ----------
+        noise_cov_diag : Array (nobs,)
+            Diagonal noise covariance matrix.
+
+        backend : BackendMixin, optional
+            Computational backend for numerical operations.
+            Defaults to NumpyMixin.
+        """
+        super().__init__(noise_cov_diag, backend=backend)
 
     def set_design_weights(self, design_weights: Array):
         self._design_weights = design_weights
@@ -848,9 +901,8 @@ class ModelBasedGaussianLogLikelihood(
         noise_cov : Array (nobs, nobs)
             Dense noise covariance matrix.
         """
-        super().__init__(backend=model._bkd)
+        super().__init__(noise_cov, backend=model._bkd)
         self._model = model
-        self._setup(noise_cov)
 
 
 class ModelBasedIndependentGaussianLogLikelihood(
@@ -877,9 +929,8 @@ class ModelBasedIndependentGaussianLogLikelihood(
         noise_cov_diag : Array (nobs,)
             Diagonal noise covariance matrix.
         """
-        super().__init__(backend=model._bkd)
+        super().__init__(noise_cov_diag, backend=model._bkd)
         self._model = model
-        self._setup(noise_cov_diag)
 
 
 class IndependentExponentialLogLikelihood(LogLikelihood):
@@ -912,7 +963,7 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
         return 1
         return 1
 
-    def _loglike(self, shapes: Array) -> Array:
+    def _loglike_from_shapes(self, shapes: Array) -> Array:
         """
         Computes the log-likelihood for the given rate parameters.
 
@@ -1032,7 +1083,7 @@ class BernoulliLogLikelihood(LogLikelihood):
     is commonly used to model binary outcomes.
     """
 
-    def _loglike(self, shapes: Array) -> Array:
+    def _loglike_from_shapes(self, shapes: Array) -> Array:
         if self._obs is None:
             raise RuntimeError("must call set_observations()")
         # single vector realization of obs forms one column
@@ -1079,7 +1130,7 @@ class BernoulliLogLikelihood(LogLikelihood):
         return obs
 
     def _values(self, samples: Array) -> Array:
-        return self._loglike(samples)[:, None]
+        return self._loglike_from_shapes(samples)[:, None]
 
     def jacobian_implemented(self) -> bool:
         return self._bkd.jacobian_implemented()
@@ -1120,7 +1171,7 @@ class MultinomialLogLikelihood(LogLikelihood):
         self._noptions = noptions
         self._ntrials = self._bkd.asarray(ntrials)
 
-    def _loglike(self, shapes: Array) -> Array:
+    def _loglike_from_shapes(self, shapes: Array) -> Array:
         if self._obs is None:
             raise RuntimeError("must call set_observations()")
         # single vector realization of obs forms one column
@@ -1160,7 +1211,7 @@ class MultinomialLogLikelihood(LogLikelihood):
         return obs
 
     def _values(self, samples: Array) -> Array:
-        return self._loglike(samples)[:, None]
+        return self._loglike_from_shapes(samples)[:, None]
 
     def __repr__(self) -> str:
         return "{0}(noptions={1})".format(
@@ -1276,5 +1327,5 @@ class ExponentialQuarticLogLikelihoodModel(LogLikelihood):
     def jacobian_implemented(self) -> bool:
         return True
 
-    def _loglike(self, shapes: Array) -> Array:
+    def _loglike_from_shapes(self, shapes: Array) -> Array:
         raise NotImplementedError
