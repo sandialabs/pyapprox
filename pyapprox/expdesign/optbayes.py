@@ -53,6 +53,26 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
             )
         return "{0}".format(self.__class__.__name__)
 
+    def rvs_from_shapes(self, shapes: Array) -> Array:
+        """
+        Generate observations based on the
+        likelihood distribution's shapes,
+        i.e. predictions of models at some samples.
+
+        This function is useful for OED
+
+        Parameters
+        ----------
+        shapes : Array (nvars, nsamples)
+            Predicted shapes or values from the model.
+
+        Returns
+        -------
+        obs : Array (nsamples, nobs)
+            Generated observations.
+        """
+        return super()._rvs(shapes)
+
 
 class IndependentGaussianOEDOuterLoopLogLikelihood(
     OEDOuterLoopLogLikelihoodMixin, IndependentGaussianLogLikelihood
@@ -122,6 +142,17 @@ class OEDInnerLoopLogLikelihoodMixin:
             )
         return "{0}".format(self.__class__.__name__)
 
+    @abstractmethod
+    def outerloop_loglike(self) -> OEDOuterLoopLogLikelihoodMixin:
+        """
+        Return the log likelihood function for the outerloop which
+        operates on obs and shapes of different size to innterloop likelihood.
+
+        This function is required to ensure that the user supplies
+        consistent innerloop and outerloop log likelihoods
+        """
+        raise NotImplementedError
+
 
 class IndependentGaussianOEDInnerLoopLogLikelihood(
     OEDInnerLoopLogLikelihoodMixin, IndependentGaussianLogLikelihood
@@ -132,7 +163,7 @@ class IndependentGaussianOEDInnerLoopLogLikelihood(
 
     def _noise_cov_sqrt_inv_apply(self, vecs: Array) -> Array:
         # vecs is a 3D tensor (nobs, ninner_samples, nouterloop_samples)
-        return self._wnoise_std_diag[..., None] * vecs
+        return self._bkd.sqrt(self._wnoise_cov_inv_diag)[..., None] * vecs
 
     def _values(self, design_weights: Array) -> Array:
         # IndependentGaussianLogLikelihood should not know about OED need
@@ -162,25 +193,19 @@ class IndependentGaussianOEDInnerLoopLogLikelihood(
         # self._loglike class
         # Compute jacobian of quadratic component of likelihood
         jac = -0.5 * self._noise_cov_inv_diag[..., None] * self._residuals**2
-
-        def fun(w):
-            self.set_design_weights(w[:, None])
-            L_inv_res = self._noise_cov_sqrt_inv_apply(self._residuals)
-            vals = self._bkd.einsum(
-                "ijk,ijk->jk", L_inv_res, L_inv_res
-            ).flatten()
-            return -0.5 * vals
-
-        print(jac)
-        print(self._bkd.jacobian(fun, self._design_weights[:, 0]))
-        print("A")
-        assert False
-        jac = self._bkd.reshape(jac, (self.nqoi(), self.nvars()))
-
+        # reorder axes so 3D jacobian tensor has the correct shape
+        jac = self._bkd.swapaxes(self._bkd.swapaxes(jac, 0, 1), 1, 2)
+        # reshape to be 2D
+        jac = self._bkd.reshape(jac, (self.nqoi(), self.nobs()))
         # add gradient of determinant of weighted
         # noise covariance
         jac += 0.5 / design_weights.T
         return jac
+
+    def outerloop_loglike(self) -> OEDOuterLoopLogLikelihoodMixin:
+        return IndependentGaussianOEDOuterLoopLogLikelihood(
+            self._noise_cov_diag, backend=self._bkd
+        )
 
 
 class Evidence(Model):
@@ -192,7 +217,6 @@ class Evidence(Model):
     def __init__(
         self,
         loglike: OEDInnerLoopLogLikelihoodMixin,
-        quad_samples: Array,
         quad_weights: Array = None,
     ):
         super().__init__(backend=loglike._bkd)
@@ -200,7 +224,6 @@ class Evidence(Model):
             raise ValueError("loglike must be OEDLogLikelihoodMixin")
 
         self._loglike = loglike
-        self._quad_samples = quad_samples
         self._quad_weights = quad_weights
 
         self._prev_design_weights = None
@@ -229,17 +252,6 @@ class Evidence(Model):
             ),
         ).T
 
-    def _reshape_jacobian(self, jac: Array) -> Array:
-        # unflatten jacobian
-        return self._bkd.reshape_fortran(
-            jac,
-            (
-                self._loglike._shapes.shape[1],
-                self._loglike._obs.shape[1],
-                jac.shape[1],
-            ),
-        )
-
     def _values(self, design_weights: Array) -> Array:
         self._prev_design_weights = self._bkd.copy(design_weights)
         like_vals = self._reshape_vals(
@@ -260,22 +272,6 @@ class Evidence(Model):
             # recompute necessary data
             self(design_weights)
 
-        # self._like_jac = self._reshape_jacobian(
-        #    self._loglike.jacobian(design_weights)
-        # )
-        # self._weighted_like_vals_prod_jac = (
-        #     self._weighted_like_vals[..., None] * self._like_jac
-        # )
-        # self._evidence_jac = self._bkd.sum(
-        #     self._weighted_like_vals_prod_jac, axis=0
-        # )
-        print(
-            self._bkd.jacobian(
-                lambda w: self._loglike(w[:, None])[0], design_weights[:, 0]
-            )
-        )
-        print(self._loglike.jacobian(design_weights))
-        assert False
         self._like_jac = self._bkd.reshape(
             self._loglike.jacobian(design_weights),
             (
@@ -290,7 +286,6 @@ class Evidence(Model):
         self._evidence_jac = self._bkd.sum(
             self._weighted_like_vals_prod_jac, axis=1
         )
-        print(self._weighted_like_vals.shape, self._like_jac.shape)
         return self._evidence_jac
 
     def __repr__(self) -> str:
@@ -344,59 +339,87 @@ class BayesianOEDObjective(Model):
 class KLOEDObjective(BayesianOEDObjective):
     def __init__(
         self,
-        noise_cov_diag: Array,
-        outer_pred_obs: Array,
-        outer_pred_weights: Array,
-        inner_pred_obs: Array,
-        inner_pred_weights: Array,
+        innerloop_loglike: OEDInnerLoopLogLikelihoodMixin,
+        outerloop_shapes: Array,
+        outerloop_quad_weights: Array,
+        innerloop_shapes: Array,
+        innerloop_quad_weights: Array,
         noise_stat: NoiseStatistic = None,
         backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend=backend)
         if noise_stat is None:
             noise_stat = NoiseStatistic(SampleAverageMean(self._bkd))
-
         self._noise_stat = noise_stat
-        self._outer_oed_loglike = OEDIndependentGaussianLogLikelihood(
-            noise_cov_diag,
-            outer_pred_obs,
-            outer_pred_weights,
-            tile_obs=False,
-            backend=self._bkd,
-        )
-        self._noise_samples = self._outer_oed_loglike._sample_noise(
-            outer_pred_obs.shape[1]
-        )
-        outer_obs = self._outer_oed_loglike._make_noisy(
-            outer_pred_obs, self._noise_samples
-        )
-        self._outer_oed_loglike.set_observations(outer_obs)
 
-        self._inner_oed_loglike = OEDIndependentGaussianLogLikelihood(
-            noise_cov_diag,
-            inner_pred_obs,
-            inner_pred_weights,
-            tile_obs=True,
-            backend=self._bkd,
+        if not isinstance(innerloop_loglike, OEDInnerLoopLogLikelihoodMixin):
+            raise ValueError(
+                "innerloop_loglike must be a OEDInnerLoopLogLikelihoodMixin"
+            )
+        self._innerloop_loglike = innerloop_loglike
+
+        self._outerloop_loglike = innerloop_loglike.outerloop_loglike()
+        obs = self._outerloop_loglike.rvs_from_shapes(outerloop_shapes)
+        self._outerloop_loglike.set_observations_and_shapes(
+            obs, outerloop_shapes
         )
-        self._inner_oed_loglike.set_observations(outer_obs)
-        self._log_evidence = LogEvidence(self._inner_oed_loglike)
+        self._innerloop_loglike.set_observations_and_shapes(
+            obs, innerloop_shapes
+        )
+        self._log_evidence = LogEvidence(
+            self._innerloop_loglike, innerloop_quad_weights
+        )
+        self._set_quadrature_weights(
+            outerloop_quad_weights, innerloop_quad_weights
+        )
+
+    def _set_quadrature_weights(
+        self, outerloop_quad_weights: Array, innerloop_quad_weights: Array
+    ):
+        nouterloop_samples = self._outerloop_loglike._shapes.shape[1]
+        if outerloop_quad_weights is None:
+            outerloop_quad_weights = self._bkd.full(
+                (nouterloop_samples, 1),
+                1.0 / nouterloop_samples,
+            )
+
+        ninnerloop_samples = self._innerloop_loglike._shapes.shape[1]
+        if innerloop_quad_weights is None:
+            innerloop_quad_weights = self._bkd.full(
+                (ninnerloop_samples, 1),
+                1.0 / ninnerloop_samples,
+            )
+
+        if outerloop_quad_weights.shape != (nouterloop_samples, 1):
+            raise ValueError(
+                "outerloop_quad_weights and outerloop_shapes are inconsistent"
+            )
+        self._outerloop_quad_weights = outerloop_quad_weights
+
+        if innerloop_quad_weights.shape != (ninnerloop_samples, 1):
+            raise ValueError(
+                "innerloop_quad_weights and innerloop_shapes are inconsistent"
+            )
+        self._innerloop_quad_weights = innerloop_quad_weights
 
     def jacobian_implemented(self) -> bool:
         return True
 
     def nvars(self) -> int:
-        return self._outer_oed_loglike.nvars()
+        return self._outerloop_loglike.nvars()
 
     # apply hessian reduces optimization iteration count but increases
     # run time because cost of each iteration increases so do not activate
+    # TODO use adjoints to derive more efficient HVP
+    def apply_hessian_implemented(self) -> bool:
+        return False
 
     def _values(self, design_weights: Array) -> Array:
         log_evidences = self._log_evidence(design_weights)
-        outer_log_like_vals = self._outer_oed_loglike(design_weights)
-        outer_weights = self._outer_oed_loglike._pred_weights
+        outer_log_like_vals = self._outerloop_loglike(design_weights)
         vals = self._noise_stat(
-            (outer_log_like_vals - log_evidences).T, outer_weights
+            (outer_log_like_vals - log_evidences).T,
+            self._outerloop_quad_weights,
         )
         # return negative because we want to maximize KL divergence
         # which is equivalent to minimizing the negative KL divergence
@@ -404,15 +427,15 @@ class KLOEDObjective(BayesianOEDObjective):
 
     def _reshape_jacobian(self, jac: Array) -> Array:
         # unflatten jacobian
-        return jac.reshape(self._outer_oed_loglike._obs.shape[1], jac.shape[1])
+        return jac.reshape(self._outerloop_loglike._obs.shape[1], jac.shape[1])
 
     def _jacobian(self, design_weights: Array) -> Array:
         log_evidences = self._log_evidence(design_weights)
-        outer_log_like_vals = self._outer_oed_loglike(design_weights)
+        outer_log_like_vals = self._outerloop_loglike(design_weights)
         jac_log_evidences = self._log_evidence.jacobian(design_weights)
-        jac_outer_log_like = self._outer_oed_loglike.jacobian(design_weights)
+        jac_outer_log_like = self._outerloop_loglike.jacobian(design_weights)
         jac_outer_log_like = self._reshape_jacobian(jac_outer_log_like)
-        outer_weights = self._outer_oed_loglike._pred_weights
+        outer_weights = self._outerloop_quad_weights
         jac = self._noise_stat.jacobian(
             (outer_log_like_vals - log_evidences).T,
             jac_outer_log_like - jac_log_evidences,
@@ -434,7 +457,7 @@ class KLOEDObjective(BayesianOEDObjective):
                 self._log_evidence._weighted_like_vals_prod_jac
                 * (self._log_evidence._like_jac @ vec)
             ),
-            axis=0,
+            axis=1,
         )
         hvp1 = self._bkd.sum((outer_weights / evidence) * tmp, axis=0)
         return hvp1
@@ -460,7 +483,7 @@ class KLOEDObjective(BayesianOEDObjective):
             super(LogEvidence, self._log_evidence).__call__(design_weights).T
         )
 
-        outer_weights = self._outer_oed_loglike._pred_weights
+        outer_weights = self._outerloop_quad_weights
         hvp1 = self._hvp1(outer_weights, evidence, vec)
         hvp2 = self._hvp2(outer_weights, evidence, vec)
         hvp = hvp1 - hvp2

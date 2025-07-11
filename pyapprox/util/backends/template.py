@@ -924,3 +924,8 @@ class BackendMixin(ABC):
     @abstractmethod
     def clip(array: Array, minval: float, maxval: float) -> Array:
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def swapaxes(array: Array, axis1: int, axis2: int) -> Array:
+        raise NotImplementedError

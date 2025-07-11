@@ -549,3 +549,7 @@ class JaxBackendMixin(BackendMixin):
     @staticmethod
     def clip(array: np.ndarray, minval: float, maxval: float) -> np.ndarray:
         return np.clip(array, minval, maxval)
+
+    @staticmethod
+    def swapaxes(array: np.ndarray, axis1: int, axis2: int) -> np.ndarray:
+        return np.swapaxes(array, axis1, axis2)

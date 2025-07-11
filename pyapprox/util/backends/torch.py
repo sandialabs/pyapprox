@@ -640,3 +640,7 @@ class TorchMixin(BackendMixin):
         return TorchMixin.flip(
             torch.cartesian_prod(*input_sets[::-1]).T, axis=(0,)
         )
+
+    @staticmethod
+    def swapaxes(array: torch.tensor, axis1: int, axis2: int) -> torch.tensor:
+        return torch.swapaxes(array, axis1, axis2)

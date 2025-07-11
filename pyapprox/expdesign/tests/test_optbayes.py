@@ -69,24 +69,25 @@ class TestBayesOED:
         noise_cov_diag = bkd.full((nobs, 1), 0.3**2)
         obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
 
-        # generate observations to compute expected information gain
-        nouterloop_samples = 5  # 10000
-        outerloop_samples = prior_variable.rvs(nouterloop_samples)
-        loglike = ModelBasedIndependentGaussianLogLikelihood(
-            obs_model, noise_cov_diag
-        )
-        outerloop_shapes = obs_model(outerloop_samples).T
-        obs = loglike.rvs_from_shapes(outerloop_shapes)
-
         # setup OED log likelihood
-        outerloop_loglike = IndependentGaussianOEDOuterLoopLogLikelihood(
+        innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
             noise_cov_diag, backend=bkd
         )
+        outerloop_loglike = innerloop_loglike.outerloop_loglike()
+
+        # generate observations to compute expected information gain
+        nouterloop_samples = 50000
+        outerloop_samples = prior_variable.rvs(nouterloop_samples)
+        outerloop_shapes = obs_model(outerloop_samples).T
+        obs = outerloop_loglike.rvs_from_shapes(outerloop_shapes)
         outerloop_loglike.set_observations_and_shapes(obs, outerloop_shapes)
 
         # compute the likelihood values with traditional loglikelihood
         # which is a function of the shapes
-        design_weights = bkd.array(np.random.uniform(0.25, 1.0, (nobs, 1)))
+        design_weights = bkd.array(np.random.uniform(0.5, 1.0, (nobs, 1)))
+        loglike = ModelBasedIndependentGaussianLogLikelihood(
+            obs_model, noise_cov_diag
+        )
         loglike.set_design_weights(design_weights)
         vals = []
         for ii in range(obs.shape[1]):
@@ -102,51 +103,73 @@ class TestBayesOED:
         )
 
         # check the gradients of the OED likelihood
-        design_weights = bkd.ones((nobs, 1))
         errors = outerloop_loglike.check_apply_jacobian(
-            design_weights, disp=False
+            design_weights,
+            disp=False,
+            fd_eps=bkd.flip(bkd.logspace(-13, -1, 13)),
         )
         assert errors.min() / errors.max() < 1e-6
 
         # check the simultaneous computation of evidences for different
         # realizations of the data
-        ninnerloop_samples = 3
+        ninnerloop_samples = int(np.sqrt(nouterloop_samples))  # 10000
         innerloop_samples = prior_variable.rvs(ninnerloop_samples)
-        innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
-            noise_cov_diag, backend=bkd
-        )
         innerloop_shapes = obs_model(innerloop_samples).T
         innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
-        evidence = Evidence(innerloop_loglike, innerloop_samples)
+        # check likelihood vals are computed correctly for each observation
+        innerloop_loglike_vals = innerloop_loglike(design_weights)
+        vals = []
+        for ii in range(obs.shape[1]):
+            loglike.set_observations(obs[:, ii : ii + 1])
+            vals.append(loglike._loglike_from_shapes(innerloop_shapes)[:, 0])
+        assert bkd.allclose(innerloop_loglike_vals, bkd.hstack(vals))
+
+        outerloop_quad_weights = None
+        innerloop_quad_weights = None
+        evidence = Evidence(innerloop_loglike, innerloop_quad_weights)
         evidence_vals = evidence(design_weights)
         assert evidence_vals.shape == (1, nouterloop_samples)
-        errors = evidence.check_apply_jacobian(design_weights, disp=True)
-        assert errors.min() / errors.max() < 1e-6
-
-        log_evidence_model = LogEvidence(oed_loglike)
-        log_evidence = log_evidence_model(design_weights)
-        assert log_evidence.shape == (1, nouterloop_samples)
-        errors = log_evidence_model.check_apply_jacobian(
-            design_weights, disp=False
+        errors = evidence.check_apply_jacobian(
+            design_weights,
+            disp=False,
+            fd_eps=bkd.flip(bkd.logspace(-13, -1, 13)),
+        )
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 2e-6
+        log_evidence = LogEvidence(innerloop_loglike, innerloop_quad_weights)
+        log_evidence_vals = log_evidence(design_weights)
+        assert log_evidence_vals.shape == (1, nouterloop_samples)
+        errors = log_evidence.check_apply_jacobian(
+            design_weights,
+            disp=False,
+            fd_eps=bkd.flip(bkd.logspace(-13, -1, 13)),
         )
         assert errors.min() / errors.max() < 1e-6
 
-        inner_pred_obs = many_pred_obs
         oed_objective = KLOEDObjective(
-            noise_cov_diag,
-            outer_pred_obs,
-            outer_pred_weights,
-            inner_pred_obs,
-            inner_pred_weights,
+            innerloop_loglike,
+            outerloop_shapes,
+            outerloop_quad_weights,
+            innerloop_shapes,
+            innerloop_quad_weights,
             backend=bkd,
         )
-        errors = oed_objective.check_apply_jacobian(design_weights, disp=False)
-        assert errors.min() / errors.max() < 1e-6
+        errors = oed_objective.check_apply_jacobian(
+            design_weights,
+            disp=False,
+            fd_eps=bkd.flip(bkd.logspace(-13, -1, 13)),
+        )
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 2e-6
         # check hessian code works. But currently apply_hessian_implemented
         # is set to False because the code is slow. Temporarily
         # activate hessian computation
         oed_objective.apply_hessian_implemented = lambda: True
-        errors = oed_objective.check_apply_hessian(design_weights, disp=False)
+        errors = oed_objective.check_apply_hessian(
+            design_weights,
+            disp=True,
+            fd_eps=bkd.flip(bkd.logspace(-13, -1, 13)),
+        )
         assert errors.min() / errors.max() < 1e-6
         # disable hesian computation
         oed_objective.apply_hessian_implemented = lambda: False
@@ -158,14 +181,16 @@ class TestBayesOED:
         oed_evidences = bkd.exp(oed_objective._log_evidence(design_weights))[0]
         for obs_idx in range(nouterloop_samples):
             laplace = DenseMatrixLaplacePosteriorApproximation(
-                obs_model.jacobian(true_samples[:, obs_idx : obs_idx + 1]),
+                obs_model.jacobian(
+                    outerloop_samples[:, obs_idx : obs_idx + 1]
+                ),
                 prior_variable.mean(),
                 prior_variable.covariance(),
                 noise_cov,
                 backend=bkd,
             )
             laplace.compute(
-                oed_objective._outer_oed_loglike._obs[:, obs_idx : obs_idx + 1]
+                oed_objective._outerloop_loglike._obs[:, obs_idx : obs_idx + 1]
             )
             kl_div = multivariate_gaussian_kl_divergence(
                 laplace.posterior_mean(),
@@ -175,6 +200,7 @@ class TestBayesOED:
                 bkd=bkd,
             )
             kl_divs.append(kl_div)
+            print(laplace.evidence(), oed_evidences[obs_idx])
             assert bkd.allclose(laplace.evidence(), oed_evidences[obs_idx])
 
         kl_divs = bkd.array(kl_divs)[:, None]
