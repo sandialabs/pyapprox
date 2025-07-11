@@ -66,6 +66,7 @@ class TestBayesOED:
         design_weights,
         obs_model,
         noise_cov,
+        tol,
     ):
         # Note old test used to also compare evidences computed by
         # OED objective. However, the accuracy of the evidences depends
@@ -90,12 +91,13 @@ class TestBayesOED:
         )
         print(
             "error in expected information gain",
-            -oed_objective(design_weights) - laplace.expected_kl_divergence(),
+            (-oed_objective(design_weights) - laplace.expected_kl_divergence())
+            / laplace.expected_kl_divergence(),
         )
         assert bkd.allclose(
             laplace.expected_kl_divergence(),
             -oed_objective(design_weights),
-            rtol=1e-2,
+            rtol=tol,
         )
 
     def _setup_quadrature_data(self, quadtype: str, prior, nsamples: int):
@@ -128,29 +130,21 @@ class TestBayesOED:
 
         raise ValueError(f"{quadtype} not supported")
 
-    def test_OED_gaussian_likelihood(self):
+    def _setup_linear_gaussian_oed(
+        self,
+        outerloop_quadtype,
+        nouterloop_samples,
+        innerloop_quadtype,
+        ninnerloop_samples,
+        degree,
+        nobs,
+    ):
         bkd = self.get_backend()
-
-        # outerloop_quadtype = "Halton"
-        # innerloop_quadtype = "Halton"
-        # outerloop_quadtype = "MC"
-        # innerloop_quadtype = "MC"
-        outerloop_quadtype = "gauss"
-        innerloop_quadtype = "gauss"
-        # outerloop_quadtype = "quadratic"
-        # innerloop_quadtype = "quadratic"
-
-        nouterloop_samples = 5000
-        # ninnerloop_samples = int(np.sqrt(nouterloop_samples))
-        ninnerloop_samples = 100
-
-        degree = 0
         nvars = degree + 1
         prior = IndependentMarginalsVariable(
             [stats.norm(0, 1)] * nvars, backend=bkd
         )
 
-        nobs = 1  # 4
         design = bkd.linspace(-1, 1, nobs)[None, :]
         noise_cov_diag = bkd.full((nobs, 1), 0.3**2)
 
@@ -170,7 +164,6 @@ class TestBayesOED:
         innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
             noise_cov_diag, backend=bkd
         )
-        outerloop_loglike = innerloop_loglike.outerloop_loglike()
 
         # generate observations to compute expected information gain
         outerloop_samples, outerloop_quad_weights = (
@@ -178,23 +171,65 @@ class TestBayesOED:
                 outerloop_quadtype, prior_data_variable, nouterloop_samples
             )
         )
-        # reset nouterloop_samples because tensor product quadrature rules
-        # will not be able to match the number of requested samples exactly
-        nouterloop_samples = outerloop_samples.shape[1]
         outerloop_shapes_samples = outerloop_samples[: prior.nvars()]
         outerloop_shapes = obs_model(outerloop_shapes_samples).T
+        outerloop_loglike = innerloop_loglike.outerloop_loglike()
         obs = outerloop_loglike.rvs_from_shapes(outerloop_shapes)
         outerloop_loglike.set_observations_and_shapes(obs, outerloop_shapes)
+        nouterloop_samples = outerloop_loglike._shapes.shape[1]
+
+        return (
+            prior,
+            obs_model,
+            innerloop_loglike,
+            noise_cov_diag,
+            prior_data_variable,
+            outerloop_samples,
+            outerloop_quad_weights,
+        )
+
+    def test_OED_gaussian_likelihood_values(self):
+        bkd = self.get_backend()
+
+        outerloop_quadtype = "MC"
+        innerloop_quadtype = "MC"
+        nouterloop_samples = 100
+        ninnerloop_samples = 100
+
+        degree = 0
+        nobs = 1
+        (
+            prior,
+            obs_model,
+            innerloop_loglike,
+            noise_cov_diag,
+            prior_data_variable,
+            outerloop_samples,
+            outerloop_quad_weights,
+        ) = self._setup_linear_gaussian_oed(
+            outerloop_quadtype,
+            nouterloop_samples,
+            innerloop_quadtype,
+            ninnerloop_samples,
+            degree,
+            nobs,
+        )
+        outerloop_loglike = innerloop_loglike.outerloop_loglike()
+
+        # reset nouterloop_samples because tensor product quadrature rules
+        # will not be able to match the number of requested samples exactly
+        nouterloop_samples = outerloop_loglike._shapes.shape[1]
 
         # compute the likelihood values with traditional loglikelihood
         # which is a function of the shapes
         design_weights = bkd.array(np.random.uniform(0.5, 1.0, (nobs, 1)))
-        print(design_weights)
         loglike = ModelBasedIndependentGaussianLogLikelihood(
             obs_model, noise_cov_diag
         )
         loglike.set_design_weights(design_weights)
         vals = []
+        obs = outerloop_loglike._obs
+        outerloop_shapes = outerloop_loglike._shapes
         for ii in range(obs.shape[1]):
             loglike.set_observations(obs[:, ii : ii + 1])
             # unlike likelihoods from pyapprox.bayes.likelihood, which take
@@ -211,7 +246,67 @@ class TestBayesOED:
             outerloop_loglike(design_weights), bkd.hstack(vals)
         )
 
+        # check the simultaneous computation of evidences for different
+        # realizations of the data
+        innerloop_samples, innerloop_quad_weights = (
+            self._setup_quadrature_data(
+                innerloop_quadtype, prior, ninnerloop_samples
+            )
+        )
+
+        # reset ninnerloop_samples because tensor product quadrature rules
+        # will not be able to match the number of requested samples exactly
+        ninnerloop_samples = innerloop_samples.shape[1]
+        print(nouterloop_samples, ninnerloop_samples)
+        innerloop_shapes = obs_model(innerloop_samples).T
+        innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
+        # check likelihood vals are computed correctly for each observation
+        innerloop_loglike_vals = innerloop_loglike(design_weights)
+        loglike = ModelBasedIndependentGaussianLogLikelihood(
+            obs_model, noise_cov_diag
+        )
+        loglike.set_design_weights(design_weights)
+
+        vals = []
+        for ii in range(obs.shape[1]):
+            loglike.set_observations(obs[:, ii : ii + 1])
+            vals.append(loglike._loglike_from_shapes(innerloop_shapes)[:, 0])
+        assert bkd.allclose(innerloop_loglike_vals, bkd.hstack(vals))
+
+    def test_OED_gaussian_likelihood_gradients(self):
+        bkd = self.get_backend()
+
+        outerloop_quadtype = "MC"
+        innerloop_quadtype = "MC"
+        nouterloop_samples = 100
+        ninnerloop_samples = 100
+
+        degree = 0
+        nobs = 1
+        (
+            prior,
+            obs_model,
+            innerloop_loglike,
+            noise_cov_diag,
+            prior_data_variable,
+            outerloop_samples,
+            outerloop_quad_weights,
+        ) = self._setup_linear_gaussian_oed(
+            outerloop_quadtype,
+            nouterloop_samples,
+            innerloop_quadtype,
+            ninnerloop_samples,
+            degree,
+            nobs,
+        )
+
+        outerloop_loglike = innerloop_loglike.outerloop_loglike()
+        # reset nouterloop_samples because tensor product quadrature rules
+        # will not be able to match the number of requested samples exactly
+        nouterloop_samples = outerloop_loglike._shapes.shape[1]
+
         # check the gradients of the OED likelihood
+        design_weights = bkd.array(np.random.uniform(0.5, 1.0, (nobs, 1)))
         errors = outerloop_loglike.check_apply_jacobian(
             design_weights,
             disp=False,
@@ -226,19 +321,13 @@ class TestBayesOED:
                 innerloop_quadtype, prior, ninnerloop_samples
             )
         )
-        # reset nouterloop_samples because tensor product quadrature rules
+        # reset ninnerloop_samples because tensor product quadrature rules
         # will not be able to match the number of requested samples exactly
         ninnerloop_samples = innerloop_samples.shape[1]
-        print(nouterloop_samples, ninnerloop_samples)
         innerloop_shapes = obs_model(innerloop_samples).T
-        innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
-        # check likelihood vals are computed correctly for each observation
-        innerloop_loglike_vals = innerloop_loglike(design_weights)
-        vals = []
-        for ii in range(obs.shape[1]):
-            loglike.set_observations(obs[:, ii : ii + 1])
-            vals.append(loglike._loglike_from_shapes(innerloop_shapes)[:, 0])
-        assert bkd.allclose(innerloop_loglike_vals, bkd.hstack(vals))
+        innerloop_loglike.set_observations_and_shapes(
+            outerloop_loglike._obs, innerloop_shapes
+        )
 
         evidence = Evidence(innerloop_loglike, innerloop_quad_weights)
         evidence_vals = evidence(design_weights)
@@ -263,7 +352,7 @@ class TestBayesOED:
 
         oed_objective = KLOEDObjective(
             innerloop_loglike,
-            outerloop_shapes,
+            outerloop_loglike._shapes,
             outerloop_samples,
             outerloop_quad_weights,
             innerloop_shapes,
@@ -290,15 +379,76 @@ class TestBayesOED:
         # disable hesian computation
         oed_objective.apply_hessian_implemented = lambda: False
 
+    def _check_independent_gaussian_expected_information_gain(
+        self,
+        outerloop_quadtype,
+        nouterloop_samples,
+        innerloop_quadtype,
+        ninnerloop_samples,
+        degree,
+        nobs,
+        tol,
+    ):
+        bkd = self.get_backend()
+        (
+            prior,
+            obs_model,
+            innerloop_loglike,
+            noise_cov_diag,
+            prior_data_variable,
+            outerloop_samples,
+            outerloop_quad_weights,
+        ) = self._setup_linear_gaussian_oed(
+            outerloop_quadtype,
+            nouterloop_samples,
+            innerloop_quadtype,
+            ninnerloop_samples,
+            degree,
+            nobs,
+        )
+
+        outerloop_loglike = innerloop_loglike.outerloop_loglike()
+        innerloop_samples, innerloop_quad_weights = (
+            self._setup_quadrature_data(
+                innerloop_quadtype, prior, ninnerloop_samples
+            )
+        )
+        ninnerloop_samples = innerloop_samples.shape[1]
+        innerloop_shapes = obs_model(innerloop_samples).T
+        oed_objective = KLOEDObjective(
+            innerloop_loglike,
+            outerloop_loglike._shapes,
+            outerloop_samples,
+            outerloop_quad_weights,
+            innerloop_shapes,
+            innerloop_quad_weights,
+            backend=bkd,
+        )
+
+        design_weights = bkd.array(np.random.uniform(0.5, 1.0, (nobs, 1)))
         noise_cov = bkd.diag(noise_cov_diag[:, 0])
         self._check_expected_information_gain(
             prior,
             oed_objective,
-            outerloop_shapes_samples,
+            outerloop_samples[: prior.nvars()],
             design_weights,
             obs_model,
             noise_cov,
+            tol,
         )
+
+    def test_independent_gaussian_expected_information_gain(self):
+        test_cases = [
+            ["gauss", 5000, "gauss", 100, 1, 1, 3e-3],
+            ["quadratic", 500000, "quadratic", 100, 0, 1, 2e-2],
+            ["MC", 100000, "MC", 1000, 1, 2, 2e-2],
+            ["MC", 100000, "Halton", 1000, 1, 2, 2e-2],
+        ]
+
+        for test_case in test_cases:
+            self._check_independent_gaussian_expected_information_gain(
+                *test_case
+            )
 
     def _check_KL_OED(
         self, nobs, min_degree, degree, nout_samples, level1d, noise_stat

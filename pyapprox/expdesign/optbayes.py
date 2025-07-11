@@ -143,6 +143,16 @@ class OEDInnerLoopLogLikelihoodMixin:
         return "{0}".format(self.__class__.__name__)
 
     @abstractmethod
+    def _setup_outerloop_loglike(self) -> OEDOuterLoopLogLikelihoodMixin:
+        """
+        Setup the log likelihood function for the outerloop which
+        operates on obs and shapes of different size to innterloop likelihood.
+
+        This function is required to ensure that the user supplies
+        consistent innerloop and outerloop log likelihoods
+        """
+        raise NotImplementedError
+
     def outerloop_loglike(self) -> OEDOuterLoopLogLikelihoodMixin:
         """
         Return the log likelihood function for the outerloop which
@@ -151,7 +161,9 @@ class OEDInnerLoopLogLikelihoodMixin:
         This function is required to ensure that the user supplies
         consistent innerloop and outerloop log likelihoods
         """
-        raise NotImplementedError
+        if not hasattr(self, "_outerloop_loglike"):
+            self._outerloop_loglike = self._setup_outerloop_loglike()
+        return self._outerloop_loglike
 
 
 class IndependentGaussianOEDInnerLoopLogLikelihood(
@@ -202,7 +214,7 @@ class IndependentGaussianOEDInnerLoopLogLikelihood(
         jac += 0.5 / design_weights.T
         return jac
 
-    def outerloop_loglike(self) -> OEDOuterLoopLogLikelihoodMixin:
+    def _setup_outerloop_loglike(self) -> OEDOuterLoopLogLikelihoodMixin:
         return IndependentGaussianOEDOuterLoopLogLikelihood(
             self._noise_cov_diag, backend=self._bkd
         )
