@@ -274,7 +274,11 @@ class IndependentMarginalsVariable(JointVariable):
 
     def _check_samples(self, samples: Array):
         if samples.ndim != 2 or samples.shape[0] != self.nvars():
-            raise ValueError("samples has the wrong shape")
+            raise ValueError(
+                "{0}: samples shape was {1} but should be {2}".format(
+                    self, samples.shape, (self.nvars(), "nsamples")
+                )
+            )
 
     def pdf(self, samples: Array) -> Array:
         """
@@ -516,6 +520,95 @@ class IndependentMarginalsVariable(JointVariable):
             jac[:, cnt : cnt + jacs[ii].shape[1]] = jacs[ii]
             cnt += jacs[ii].shape[1]
         return jac
+
+    def pdf_jacobian_implemented(self) -> bool:
+        for marginal in self.marginals():
+            if not marginal.pdf_jacobian_implemented():
+                return False
+        return True
+
+    def pdf_jacobian(self, samples: Array) -> Array:
+        pdf_vals = self._bkd.stack(
+            [
+                marginal.pdf(samples[ii])
+                for ii, marginal in enumerate(self.marginals())
+            ],
+            axis=0,
+        )
+        return self._bkd.hstack(
+            [
+                marginal.pdf_jacobian(samples[ii])
+                * self._bkd.prod(pdf_vals[:ii])
+                * self._bkd.prod(pdf_vals[ii + 1 :])
+                for ii, marginal in enumerate(self.marginals())
+            ]
+        )
+
+
+class IndependentGroupsVariable(JointVariable):
+    """
+    Variables that comes from tensor product of independent groups of variables
+    where variables within a group may be correlated.
+    """
+
+    def __init__(self, variables: List[JointVariable]):
+        self._bkd = variables[0]._bkd
+        self._variables = variables
+        self._nvars = sum([variable.nvars() for variable in self._variables])
+
+    def rvs(self, nsamples: int) -> Array:
+        return self._bkd.vstack(
+            [variable.rvs(nsamples) for variable in self._variables]
+        )
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def pdf(self, samples: Array) -> Array:
+        vals = 1.0
+        cnt = 0
+        for variable in self._variables:
+            vals *= variable.pdf(samples[cnt : cnt + variable.nvars()])
+            cnt += variable.nvars()
+        return vals
+
+    def logpdf(self, samples: Array) -> Array:
+        vals = 1.0
+        cnt = 0
+        for variable in self._variables:
+            vals *= variable.logpdf(samples[cnt : cnt + variable.nvars()])
+            cnt += variable.nvars()
+        return vals
+
+    def pdf_jacobian_implemented(self) -> bool:
+        for variable in self._variables:
+            if not variable.pdf_jacobian_implemented():
+                return False
+        return True
+
+    def pdf_jacobian(self, samples: Array) -> Array:
+        pdf_vals = []
+        cnt = 0
+        for ii, variable in enumerate(self._variables):
+            pdf_vals.append(
+                variable.pdf(samples[cnt : cnt + variable.nvars()])[:, 0]
+            )
+            cnt += variable.nvars()
+        pdf_vals = self._bkd.stack(pdf_vals, axis=0)
+        jacs = []
+        cnt = 0
+        for ii, variable in enumerate(self._variables):
+            jacs.append(
+                variable.pdf_jacobian(samples[cnt : cnt + variable.nvars()])
+                * self._bkd.prod(pdf_vals[:ii])
+                * self._bkd.prod(pdf_vals[ii + 1 :])
+            )
+            cnt += variable.nvars()
+
+        return self._bkd.hstack(jacs)
+
+    def __repr__(self) -> str:
+        return "{0}({1})".format(self.__class__.__name__, self._variables)
 
 
 def define_iid_random_variable(

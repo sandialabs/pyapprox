@@ -644,3 +644,7 @@ class TorchMixin(BackendMixin):
     @staticmethod
     def swapaxes(array: torch.tensor, axis1: int, axis2: int) -> torch.tensor:
         return torch.swapaxes(array, axis1, axis2)
+
+    @staticmethod
+    def block_diag(arrays: List[torch.tensor]):
+        return torch.block_diag(*arrays)

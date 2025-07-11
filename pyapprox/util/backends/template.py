@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import itertools
-from typing import TypeVar
+from typing import TypeVar, List
 
 Array = TypeVar("Array")
 
@@ -928,4 +928,9 @@ class BackendMixin(ABC):
     @staticmethod
     @abstractmethod
     def swapaxes(array: Array, axis1: int, axis2: int) -> Array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def block_diag(arrays: List[Array]):
         raise NotImplementedError

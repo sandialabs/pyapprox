@@ -553,3 +553,7 @@ class JaxBackendMixin(BackendMixin):
     @staticmethod
     def swapaxes(array: np.ndarray, axis1: int, axis2: int) -> np.ndarray:
         return np.swapaxes(array, axis1, axis2)
+
+    @staticmethod
+    def block_diag(arrays: List[np.ndarray]):
+        return jax.scipy.linalg.block_diag(*arrays)

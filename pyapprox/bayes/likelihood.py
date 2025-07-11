@@ -734,8 +734,41 @@ class GaussianLogLikelihood(LogLikelihood):
         """
         return self._wnoise_chol @ self._wnoise_chol.T
 
+    def _rvs_from_likelihood_samples(
+        self, shapes: Array, samples: Array
+    ) -> Array:
+        """
+        Generate observations based on the
+        likelihood distribution's shapes, ,
+        i.e. predictions of models at some samples,
+        and samples from the latent space
+        of the likelihood. For general independent variables the latent
+        space is the uniform measure on [0,1]^nvars. These samples are then
+        mapped to the likelihood using the inverse CDF of the likelihood.
+        However, for certain distribution, simpler transformations can be used
+        using different latent variables, For easmple, the latent variable of
+        the Gaussian likelihood is samples of the noise variable which
+        are added to the mean (shapes) of the likelihood.
+
+        This function is useful for OED
+
+        Parameters
+        ----------
+        shapes : Array (nvars, nsamples)
+            Predicted shapes or values from the model.
+
+        Returns
+        -------
+        obs : Array (nsamples, nobs)
+            Generated observations.
+        """
+
+        return self._make_noisy(shapes, samples)
+
     def _rvs(self, shapes: Array) -> Array:
-        return self._make_noisy(shapes, self._sample_noise(shapes.shape[1]))
+        return self._rvs_from_likelihood_samples(
+            shapes, self._sample_noise(shapes.shape[1])
+        )
 
 
 class IndependentGaussianLogLikelihood(GaussianLogLikelihood):

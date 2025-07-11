@@ -11,8 +11,10 @@ from pyapprox.variables.joint import (
     FiniteSamplesVariable,
     RejectionSamplingVariable,
     DirichletVariable,
+    IndependentGroupsVariable,
 )
-from pyapprox.variables.marginals import BetaMarginal
+from pyapprox.variables.marginals import BetaMarginal, GaussianMarginal
+from pyapprox.interface.model import ModelFromVectorizedCallable
 
 
 class TestJoint:
@@ -65,6 +67,73 @@ class TestJoint:
         list2 = [[0, 4], [1], [2], [3], [5]]
         list2 = [bkd.array(item) for item in list2]
         assert lists_of_arrays_equal(variable._unique_indices, list2)
+
+    def test_independent_groups_variable(self):
+        bkd = self.get_backend()
+        group1_marginals = [
+            BetaMarginal(2, 2, 0, 1, backend=bkd) for ii in range(2)
+        ]
+        group1_variable = IndependentMarginalsVariable(
+            group1_marginals, backend=bkd
+        )
+        group2_marginals = [
+            GaussianMarginal(0, 1, backend=bkd) for ii in range(2)
+        ]
+        group2_variable = IndependentMarginalsVariable(
+            group2_marginals, backend=bkd
+        )
+        variable = IndependentGroupsVariable(
+            [group1_variable, group2_variable]
+        )
+
+        # test rvs
+        nsamples = int(1e6)
+        samples = variable.rvs(nsamples)
+        bkd.allclose(
+            samples.mean(),
+            bkd.vstack([group1_variable.mean(), group2_variable.mean()]),
+            rtol=1e-2,
+        )
+        # test pdf
+        nsamples = 10
+        samples = variable.rvs(nsamples)
+        group1_samples = samples[: group1_variable.nvars()]
+        group2_samples = samples[group1_variable.nvars() :]
+        assert bkd.allclose(
+            variable.pdf(samples)[:, 0],
+            bkd.prod(
+                bkd.hstack(
+                    [
+                        group1_variable.pdf(group1_samples),
+                        group2_variable.pdf(group2_samples),
+                    ]
+                ),
+                axis=1,
+            ),
+        )
+        # test logpdf
+        assert bkd.allclose(
+            variable.logpdf(samples)[:, 0],
+            bkd.prod(
+                bkd.hstack(
+                    [
+                        group1_variable.logpdf(group1_samples),
+                        group2_variable.logpdf(group2_samples),
+                    ]
+                ),
+                axis=1,
+            ),
+        )
+
+        model = ModelFromVectorizedCallable(
+            1,
+            variable.nvars(),
+            variable.pdf,
+            jacobian=variable.pdf_jacobian,
+            backend=bkd,
+        )
+        errors = model.check_apply_jacobian(variable.rvs(1))
+        assert errors.min() / errors.max() < 1e-6
 
     def test_statistics(self):
         bkd = self.get_backend()

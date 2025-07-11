@@ -19,6 +19,7 @@ from pyapprox.expdesign.optbayes import (
     NoiseStatistic,
     BayesianOED,
 )
+from pyapprox.expdesign.sequences import HaltonSequence
 from pyapprox.bayes.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
 )
@@ -56,11 +57,93 @@ class TestBayesOED:
     def setUp(self):
         np.random.seed(1)
 
+    def _check_evidences_and_expected_information_gain(
+        self,
+        prior_variable,
+        oed_objective,
+        outerloop_samples,
+        design_weights,
+        obs_model,
+        noise_cov,
+    ):
+        bkd = self.get_backend()
+        nouterloop_samples = outerloop_samples.shape[1]
+        kl_divs = []
+        # todo write test that compares multiple evaluations of evidence
+        # with single obs to one evaluation of evidence with many obs
+        oed_evidences = bkd.exp(oed_objective._log_evidence(design_weights))[0]
+        for obs_idx in range(nouterloop_samples):
+            laplace = DenseMatrixLaplacePosteriorApproximation(
+                obs_model.jacobian(
+                    outerloop_samples[:, obs_idx : obs_idx + 1]
+                ),
+                prior_variable.mean(),
+                prior_variable.covariance(),
+                noise_cov,
+                backend=bkd,
+            )
+            laplace.compute(
+                oed_objective._outerloop_loglike._obs[:, obs_idx : obs_idx + 1]
+            )
+            kl_div = multivariate_gaussian_kl_divergence(
+                laplace.posterior_mean(),
+                laplace.posterior_covariance(),
+                prior_variable.mean(),
+                prior_variable.covariance(),
+                bkd=bkd,
+            )
+            kl_divs.append(kl_div)
+            print(laplace.evidence(), oed_evidences[obs_idx])
+            assert bkd.allclose(laplace.evidence(), oed_evidences[obs_idx])
+
+        kl_divs = bkd.array(kl_divs)[:, None]
+
+        numeric_expected_kl_div = bkd.sum(
+            kl_divs * oed_objective._outerloop_quad_weights
+        )
+        expected_kl_div = laplace.expected_kl_divergence()
+        assert bkd.allclose(
+            numeric_expected_kl_div, expected_kl_div, rtol=1e-2
+        )
+        assert bkd.allclose(
+            expected_kl_div, -oed_objective(design_weights), rtol=1e-2
+        )
+
+    def _setup_quadrature_data(self, quadtype: str, prior, nsamples: int):
+        if quadtype == "MC":
+            return prior.rvs(nsamples), None
+
+        if quadtype == "Halton":
+            sequence = HaltonSequence(
+                prior.nvars(), 1, prior, prior._bkd, unbounded_eps=1e-6
+            )
+            return sequence.rvs(nsamples), None
+
+        if quadtype == "quadratic":
+            quad_rule = setup_tensor_product_piecewise_poly_quadrature_rule(
+                prior, ["quadratic"] * prior.nvars(), weighted=True
+            )
+            level1d = int(nsamples ** (1 / prior.nvars()))
+            return quad_rule([level1d] * prior.nvars())
+
+        if quadtype == "gauss":
+            quad_rule = setup_tensor_product_gauss_quadrature_rule(prior)
+            level1d = int(nsamples ** (1 / prior.nvars()))
+            return quad_rule([level1d] * prior.nvars())
+
+        raise ValueError(f"{quadtype} not supported")
+
     def test_OED_gaussian_likelihood(self):
         bkd = self.get_backend()
+
+        outerloop_quadtype = "Halton"
+        nouterloop_samples = 50000
+        innerloop_quadtype = "Halton"
+        ninnerloop_samples = int(np.sqrt(nouterloop_samples))
+
         degree = 0
         nvars = degree + 1
-        prior_variable = IndependentMarginalsVariable(
+        prior = IndependentMarginalsVariable(
             [stats.norm(0, 1)] * nvars, backend=bkd
         )
 
@@ -76,8 +159,11 @@ class TestBayesOED:
         outerloop_loglike = innerloop_loglike.outerloop_loglike()
 
         # generate observations to compute expected information gain
-        nouterloop_samples = 50000
-        outerloop_samples = prior_variable.rvs(nouterloop_samples)
+        outerloop_samples, outerloop_quad_weights = (
+            self._setup_quadrature_data(
+                outerloop_quadtype, prior, nouterloop_samples
+            )
+        )
         outerloop_shapes = obs_model(outerloop_samples).T
         obs = outerloop_loglike.rvs_from_shapes(outerloop_shapes)
         outerloop_loglike.set_observations_and_shapes(obs, outerloop_shapes)
@@ -112,8 +198,11 @@ class TestBayesOED:
 
         # check the simultaneous computation of evidences for different
         # realizations of the data
-        ninnerloop_samples = int(np.sqrt(nouterloop_samples))  # 10000
-        innerloop_samples = prior_variable.rvs(ninnerloop_samples)
+        innerloop_samples, innerloop_quad_weights = (
+            self._setup_quadrature_data(
+                innerloop_quadtype, prior, ninnerloop_samples
+            )
+        )
         innerloop_shapes = obs_model(innerloop_samples).T
         innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
         # check likelihood vals are computed correctly for each observation
@@ -124,8 +213,6 @@ class TestBayesOED:
             vals.append(loglike._loglike_from_shapes(innerloop_shapes)[:, 0])
         assert bkd.allclose(innerloop_loglike_vals, bkd.hstack(vals))
 
-        outerloop_quad_weights = None
-        innerloop_quad_weights = None
         evidence = Evidence(innerloop_loglike, innerloop_quad_weights)
         evidence_vals = evidence(design_weights)
         assert evidence_vals.shape == (1, nouterloop_samples)
@@ -175,42 +262,13 @@ class TestBayesOED:
         oed_objective.apply_hessian_implemented = lambda: False
 
         noise_cov = bkd.diag(noise_cov_diag[:, 0])
-        kl_divs = []
-        # todo write test that compares multiple evaluations of evidence
-        # with single obs to one evaluation of evidence with many obs
-        oed_evidences = bkd.exp(oed_objective._log_evidence(design_weights))[0]
-        for obs_idx in range(nouterloop_samples):
-            laplace = DenseMatrixLaplacePosteriorApproximation(
-                obs_model.jacobian(
-                    outerloop_samples[:, obs_idx : obs_idx + 1]
-                ),
-                prior_variable.mean(),
-                prior_variable.covariance(),
-                noise_cov,
-                backend=bkd,
-            )
-            laplace.compute(
-                oed_objective._outerloop_loglike._obs[:, obs_idx : obs_idx + 1]
-            )
-            kl_div = multivariate_gaussian_kl_divergence(
-                laplace.posterior_mean(),
-                laplace.posterior_covariance(),
-                prior_variable.mean(),
-                prior_variable.covariance(),
-                bkd=bkd,
-            )
-            kl_divs.append(kl_div)
-            print(laplace.evidence(), oed_evidences[obs_idx])
-            assert bkd.allclose(laplace.evidence(), oed_evidences[obs_idx])
-
-        kl_divs = bkd.array(kl_divs)[:, None]
-        numeric_expected_kl_div = bkd.sum(kl_divs * outer_pred_weights)
-        expected_kl_div = laplace.expected_kl_divergence()
-        assert bkd.allclose(
-            numeric_expected_kl_div, expected_kl_div, rtol=1e-2
-        )
-        assert bkd.allclose(
-            expected_kl_div, -oed_objective(design_weights), rtol=1e-2
+        self._check_evidences_and_expected_information_gain(
+            prior,
+            oed_objective,
+            outerloop_samples,
+            design_weights,
+            obs_model,
+            noise_cov,
         )
 
     def _check_KL_OED(
