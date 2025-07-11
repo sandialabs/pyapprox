@@ -449,7 +449,7 @@ class TestBayesOED:
                 *test_case
             )
 
-    def _setup_bayesian_doptimal_OED_objective(
+    def _setup_bayesian_OED_data(
         self,
         nobs,
         min_degree,
@@ -515,7 +515,50 @@ class TestBayesOED:
         ninnerloop_samples = innerloop_samples.shape[1]
         innerloop_shapes = obs_model(innerloop_samples).T
         innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
+        return (
+            innerloop_loglike,
+            outerloop_samples,
+            outerloop_quad_weights,
+            innerloop_shapes,
+            innerloop_quad_weights,
+            obs_model,
+            noise_cov_diag,
+            prior_std,
+            design,
+        )
 
+    def _setup_bayesian_doptimal_OED_objective(
+        self,
+        nobs,
+        min_degree,
+        degree,
+        noise_stat,
+        outerloop_quadtype,
+        nouterloop_samples,
+        innerloop_quadtype,
+        ninnerloop_samples,
+    ):
+        (
+            innerloop_loglike,
+            outerloop_samples,
+            outerloop_quad_weights,
+            innerloop_shapes,
+            innerloop_quad_weights,
+            obs_model,
+            noise_cov_diag,
+            prior_std,
+            design,
+        ) = self._setup_bayesian_OED_data(
+            nobs,
+            min_degree,
+            degree,
+            noise_stat,
+            outerloop_quadtype,
+            nouterloop_samples,
+            innerloop_quadtype,
+            ninnerloop_samples,
+        )
+        outerloop_loglike = innerloop_loglike.outerloop_loglike()
         return (
             KLOEDObjective(
                 innerloop_loglike,
@@ -524,7 +567,7 @@ class TestBayesOED:
                 outerloop_quad_weights,
                 innerloop_shapes,
                 innerloop_quad_weights,
-                backend=bkd,
+                backend=self.get_backend(),
             ),
             obs_model,
             noise_cov_diag,
@@ -602,52 +645,29 @@ class TestBayesOED:
             test_case = [3, 0, 1, noise_stat, "Halton", 10000, "Halton", 100]
             self._check_classical_KL_OED_gaussian_optimization(*test_case)
 
-    def _check_prediction_gaussian_OED(
-        self, nobs, min_degree, degree, nout_samples, level1d, noise_stat
+    def _check_prediction_gaussian_OED_gradients(
+        self,
+        nobs,
+        min_degree,
+        degree,
+        noise_stat,
+        outerloop_quadtype,
+        nouterloop_samples,
+        innerloop_quadtype,
+        ninnerloop_samples,
     ):
         bkd = self.get_backend()
-        nvars = degree - min_degree + 1
-        # the smaller the noise the more number of nout_samples are needed
-        noise_std = 0.125 * 4
-        prior_std = 0.5
-        prior_variable = IndependentMarginalsVariable(
-            [stats.norm(0, prior_std)] * nvars
-        )
-        design = bkd.linspace(-1, 1, nobs - 2)[None, :]
-        design = bkd.sort(
-            bkd.hstack(
-                (design[0], bkd.asarray([-1 / np.sqrt(5), 1 / np.sqrt(5)]))
+        oed_objective, obs_model, noise_cov_diag, prior_std, design = (
+            self._setup_bayesian_prediction_OED_objective(
+                nobs,
+                min_degree,
+                degree,
+                noise_stat,
+                outerloop_quadtype,
+                nouterloop_samples,
+                innerloop_quadtype,
+                ninnerloop_samples,
             )
-        )[None, :]
-        noise_cov_diag = bkd.full((nobs, 1), noise_std**2)
-        obs_model = Linear1DRegressionModel(
-            design, degree, min_degree=min_degree
-        )
-
-        true_samples = prior_variable.rvs(nout_samples)
-        outer_pred_weights = bkd.full((nout_samples, 1), 1 / nout_samples)
-        outer_pred_obs = obs_model(true_samples).T
-
-        if level1d is not None:
-            quad_rule = setup_tensor_product_piecewise_poly_quadrature_rule(
-                prior_variable, ["quadratic"] * nvars, weighted=True
-            )
-            samples, inner_pred_weights = quad_rule([level1d] * nvars)
-        else:
-            samples = prior_variable.rvs(2 * int(bkd.sqrt(nout_samples)))
-            inner_pred_weights = bkd.full(
-                (samples.shape[1], 1), 1 / samples.shape[1]
-            )
-        many_pred_obs = obs_model(samples).T
-
-        inner_pred_obs = many_pred_obs
-        oed_objective = PredictionOEDObjective(
-            noise_cov_diag,
-            outer_pred_obs,
-            outer_pred_weights,
-            inner_pred_obs,
-            inner_pred_weights,
-            noise_stat=noise_stat,
         )
 
         x0 = bkd.full((nobs, 1), 1 / nobs)
@@ -660,21 +680,64 @@ class TestBayesOED:
         oed = BayesianOED(oed_objective)
         design = oed.compute()
 
-    def test_prediction_gaussian_OED(self):
-        test_cases = [
-            [3, 0, 1, 4000, 51, NoiseStatistic(SampleAverageMean())],
-            [3, 0, 1, 4000, 51, NoiseStatistic(SampleAverageMeanPlusStdev(1))],
-            [
-                3,
-                0,
-                1,
-                4000,
-                51,
-                NoiseStatistic(SampleAverageEntropicRisk(0.5)),
-            ],
+    def _setup_bayesian_prediction_OED_objective(
+        self,
+        nobs,
+        min_degree,
+        degree,
+        noise_stat,
+        outerloop_quadtype,
+        nouterloop_samples,
+        innerloop_quadtype,
+        ninnerloop_samples,
+    ):
+        (
+            innerloop_loglike,
+            outerloop_samples,
+            outerloop_quad_weights,
+            innerloop_shapes,
+            innerloop_quad_weights,
+            obs_model,
+            noise_cov_diag,
+            prior_std,
+            design,
+        ) = self._setup_bayesian_OED_data(
+            nobs,
+            min_degree,
+            degree,
+            noise_stat,
+            outerloop_quadtype,
+            nouterloop_samples,
+            innerloop_quadtype,
+            ninnerloop_samples,
+        )
+        outerloop_loglike = innerloop_loglike.outerloop_loglike()
+        return (
+            PredictionOEDObjective(
+                innerloop_loglike,
+                outerloop_loglike._shapes,
+                outerloop_samples,
+                outerloop_quad_weights,
+                innerloop_shapes,
+                innerloop_quad_weights,
+                backend=self.get_backend(),
+            ),
+            obs_model,
+            noise_cov_diag,
+            prior_std,
+            design,
+        )
+
+    def test_prediction_gaussian_OED_gradients(self):
+        bkd = self.get_backend()
+        noise_stats = [
+            NoiseStatistic(SampleAverageMean(bkd)),
+            NoiseStatistic(SampleAverageMeanPlusStdev(1, bkd)),
+            NoiseStatistic(SampleAverageEntropicRisk(0.5, bkd)),
         ]
-        for test_case in test_cases:
-            self._check_prediction_gaussian_OED(*test_case)
+        for noise_stat in noise_stats:
+            test_case = [3, 0, 1, noise_stat, "Halton", 10000, "Halton", 100]
+            self._check_prediction_gaussian_OED_gradients(*test_case)
 
 
 # class TestNumpyBayesOED(TestBayesOED, unittest.TestCase):

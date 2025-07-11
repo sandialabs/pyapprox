@@ -549,24 +549,7 @@ class OEDStandardDeviation(PredictionOEDDeviation):
 
 
 class PredictionOEDObjective(KLOEDObjective):
-    def __init__(
-        self,
-        noise_cov_diag: Array,
-        outer_pred_obs: Array,
-        outer_pred_weights: Array,
-        inner_pred_obs: Array,
-        inner_pred_weights: Array,
-        noise_stat: NoiseStatistic = None,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(
-            noise_cov_diag,
-            outer_pred_obs,
-            outer_pred_weights,
-            inner_pred_obs,
-            inner_pred_weights,
-            backend=backend,
-        )
+    raise NotImplementedError
 
     def __call__(self, design_weights: Array) -> Array:
         evidences = self._log_evidence._evidence(design_weights)
