@@ -735,7 +735,7 @@ class GaussianLogLikelihood(LogLikelihood):
         return self._wnoise_chol @ self._wnoise_chol.T
 
     def _rvs_from_likelihood_samples(
-        self, shapes: Array, samples: Array
+        self, shapes: Array, latent_samples: Array
     ) -> Array:
         """
         Generate observations based on the
@@ -754,16 +754,23 @@ class GaussianLogLikelihood(LogLikelihood):
 
         Parameters
         ----------
-        shapes : Array (nvars, nsamples)
+        shapes : Array (nobs, nsamples)
             Predicted shapes or values from the model.
+
+        latent_samples : Array (nobs, nsamples)
+            Predicted shapes or values from the model.
+
 
         Returns
         -------
         obs : Array (nsamples, nobs)
             Generated observations.
         """
-
-        return self._make_noisy(shapes, samples)
+        if latent_samples.shape != shapes.shape:
+            raise ValueError(
+                "shapes of latent_samples and shapes do not match"
+            )
+        return self._make_noisy(shapes, latent_samples)
 
     def _rvs(self, shapes: Array) -> Array:
         return self._rvs_from_likelihood_samples(

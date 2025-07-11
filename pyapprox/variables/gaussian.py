@@ -153,7 +153,8 @@ class DiagonalCholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
         backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend=backend)
-
+        if covariance_diag.ndim != 1:
+            raise ValueError("covariance_diag must be a 1D array")
         self._cov_diag = covariance_diag
         self._cov_diag_sqrt = self._bkd.sqrt(self._cov_diag)
         self._cov_diag_sqrt_inv = 1 / self._cov_diag_sqrt

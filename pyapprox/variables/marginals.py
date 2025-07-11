@@ -138,6 +138,7 @@ class Marginal(ABC):
         given probability content, based on the quantile function ppf.
         """
         eps = (1.0 - alpha) / 2.0
+        assert False
         return self.ppf(self._bkd.array([eps, 1 - eps]))
 
     @abstractmethod

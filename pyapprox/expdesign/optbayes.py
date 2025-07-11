@@ -341,6 +341,7 @@ class KLOEDObjective(BayesianOEDObjective):
         self,
         innerloop_loglike: OEDInnerLoopLogLikelihoodMixin,
         outerloop_shapes: Array,
+        outerloop_quad_samples: Array,
         outerloop_quad_weights: Array,
         innerloop_shapes: Array,
         innerloop_quad_weights: Array,
@@ -359,7 +360,10 @@ class KLOEDObjective(BayesianOEDObjective):
         self._innerloop_loglike = innerloop_loglike
 
         self._outerloop_loglike = innerloop_loglike.outerloop_loglike()
-        obs = self._outerloop_loglike.rvs_from_shapes(outerloop_shapes)
+        obs = self._outerloop_loglike._rvs_from_likelihood_samples(
+            outerloop_shapes,
+            outerloop_quad_samples[-outerloop_shapes.shape[0] :],
+        )
         self._outerloop_loglike.set_observations_and_shapes(
             obs, outerloop_shapes
         )
