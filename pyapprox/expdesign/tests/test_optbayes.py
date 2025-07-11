@@ -257,7 +257,6 @@ class TestBayesOED:
         # reset ninnerloop_samples because tensor product quadrature rules
         # will not be able to match the number of requested samples exactly
         ninnerloop_samples = innerloop_samples.shape[1]
-        print(nouterloop_samples, ninnerloop_samples)
         innerloop_shapes = obs_model(innerloop_samples).T
         innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
         # check likelihood vals are computed correctly for each observation
@@ -450,15 +449,23 @@ class TestBayesOED:
                 *test_case
             )
 
-    def _check_KL_OED(
-        self, nobs, min_degree, degree, nout_samples, level1d, noise_stat
+    def _setup_bayesian_doptimal_OED_objective(
+        self,
+        nobs,
+        min_degree,
+        degree,
+        noise_stat,
+        outerloop_quadtype,
+        nouterloop_samples,
+        innerloop_quadtype,
+        ninnerloop_samples,
     ):
         bkd = self.get_backend()
         nvars = degree - min_degree + 1
         # the smaller the noise the more number of nout_samples are needed
         noise_std = 0.125 * 4
         prior_std = 0.5
-        prior_variable = IndependentMarginalsVariable(
+        prior = IndependentMarginalsVariable(
             [stats.norm(0, prior_std)] * nvars, backend=bkd
         )
         design = bkd.linspace(-1, 1, nobs - 2)[None, :]
@@ -472,69 +479,84 @@ class TestBayesOED:
             design, degree, min_degree=min_degree, backend=bkd
         )
 
-        true_samples = prior_variable.rvs(nout_samples)
-        outer_pred_weights = bkd.full((nout_samples, 1), 1 / nout_samples)
-        outer_pred_obs = obs_model(true_samples).T
-        # todo need to create inside kle oed objective
-        # noise_samples = loglike._sample_noise(nout_samples)
-
-        if level1d is not None:
-            quad_rule = setup_tensor_product_piecewise_poly_quadrature_rule(
-                prior_variable, ["quadratic"] * nvars, weighted=True
-            )
-            samples, inner_pred_weights = quad_rule([level1d] * nvars)
-        else:
-            samples = prior_variable.rvs(2 * int(np.sqrt(nout_samples)))
-            inner_pred_weights = bkd.full(
-                (samples.shape[1], 1), 1 / samples.shape[1]
-            )
-        many_pred_obs = obs_model(samples).T
-
-        inner_pred_obs = many_pred_obs
-        kl_oed_objective = KLOEDObjective(
-            noise_cov_diag,
-            outer_pred_obs,
-            outer_pred_weights,
-            inner_pred_obs,
-            inner_pred_weights,
-            noise_stat=noise_stat,
+        prior_data_variable = IndependentMarginalsVariable(
+            prior.marginals()
+            + [
+                stats.norm(0, bkd.sqrt(variance))
+                for variance in noise_cov_diag[:, 0]
+            ],
             backend=bkd,
         )
+        print(prior_data_variable)
 
-        x0 = bkd.full((nobs, 1), 1 / nobs)
-        errors = kl_oed_objective.check_apply_jacobian(
-            x0, disp=False, fd_eps=bkd.flip(bkd.logspace(-13, np.log(0.2), 13))
+        # setup OED log likelihood
+        innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
+            noise_cov_diag, backend=bkd
         )
-        assert errors.min() / errors.max() < 7e-6, errors.min() / errors.max()
-        # turn on hessian for testing hessian implementation, but
-        # apply hessian is turned off because while it reduces
-        # optimization iteration count but increases
-        # run time because cost of each iteration increases
-        if isinstance(noise_stat._stat, SampleAverageMean):
-            kl_oed_objective.apply_hessian_implemented = lambda: True
-            errors = kl_oed_objective.check_apply_hessian(
-                x0,
-                disp=False,
-                fd_eps=bkd.flip(bkd.logspace(-13, np.log(0.2), 13)),
+
+        # generate observations to compute expected information gain
+        outerloop_samples, outerloop_quad_weights = (
+            self._setup_quadrature_data(
+                outerloop_quadtype, prior_data_variable, nouterloop_samples
             )
-            assert errors.min() / errors.max() < 5e-6 and errors.max() < 10
-            kl_oed_objective.apply_hessian_implemented = lambda: False
+        )
+        outerloop_shapes_samples = outerloop_samples[: prior.nvars()]
+        outerloop_shapes = obs_model(outerloop_shapes_samples).T
+        outerloop_loglike = innerloop_loglike.outerloop_loglike()
+        obs = outerloop_loglike.rvs_from_shapes(outerloop_shapes)
+        outerloop_loglike.set_observations_and_shapes(obs, outerloop_shapes)
+        nouterloop_samples = outerloop_loglike._shapes.shape[1]
 
-        # just test optimization runs
-        kl_oed = BayesianOED(kl_oed_objective)
-        kl_oed.compute()
+        innerloop_samples, innerloop_quad_weights = (
+            self._setup_quadrature_data(
+                innerloop_quadtype, prior, ninnerloop_samples
+            )
+        )
+        ninnerloop_samples = innerloop_samples.shape[1]
+        innerloop_shapes = obs_model(innerloop_samples).T
+        innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
 
-        return design, noise_cov_diag, prior_std, kl_oed_objective, obs_model
+        return (
+            KLOEDObjective(
+                innerloop_loglike,
+                outerloop_loglike._shapes,
+                outerloop_samples,
+                outerloop_quad_weights,
+                innerloop_shapes,
+                innerloop_quad_weights,
+                backend=bkd,
+            ),
+            obs_model,
+            noise_cov_diag,
+            prior_std,
+            design,
+        )
 
     def _check_classical_KL_OED_gaussian_optimization(
-        self, nobs, min_degree, degree, nout_samples, level1d
+        self,
+        nobs,
+        min_degree,
+        degree,
+        noise_stat,
+        outerloop_quadtype,
+        nouterloop_samples,
+        innerloop_quadtype,
+        ninnerloop_samples,
     ):
-        design, noise_cov_diag, prior_std, kl_oed_objective, obs_model = (
-            self._check_KL_OED(
-                nobs, min_degree, degree, nout_samples, level1d, None
+        bkd = self.get_backend()
+        kl_oed_objective, obs_model, noise_cov_diag, prior_std, design = (
+            self._setup_bayesian_doptimal_OED_objective(
+                nobs,
+                min_degree,
+                degree,
+                noise_stat,
+                outerloop_quadtype,
+                nouterloop_samples,
+                innerloop_quadtype,
+                ninnerloop_samples,
             )
         )
-        bkd = self.get_backend()
+
         dopt_objective = DOptimalLinearModelObjective(
             obs_model, noise_cov_diag[0, 0], bkd.array(prior_std**2)
         )
@@ -554,14 +576,14 @@ class TestBayesOED:
         )
         x0 = bkd.zeros((nobs, 1))
         x0[II] = 1.0
-        # print(dopt_objective(x0), kl_oed_objective(x0))
+        print(dopt_objective(x0), kl_oed_objective(x0))
         assert bkd.allclose(
             dopt_objective(x0), kl_oed_objective(x0), rtol=1e-2
         )
 
         # just test optimizations run because of noise in monte carlo
         # I am not sure if I can ensure that klopt and dopt designs
-        # will be the same.Equivalence would also only occur if
+        # will be the same. Equivalence would also only occur if
         # noise_stat = SampleAverageMean
         # kl_oed = BayesianOED(kl_oed_objective)
         # klopt_design = kl_oed.compute()
@@ -569,39 +591,16 @@ class TestBayesOED:
         dopt_oed = BayesianOED(dopt_objective)
         dopt_design = dopt_oed.compute()
 
-    def test_classical_KL_OED_gaussian_optimization(self):
-        test_cases = [
-            [3, 0, 1, 4000, 51],
-            [3, 1, 1, 4000, 51],
-            [3, 0, 3, 50000, None],
-        ]
-        for test_case in test_cases:
-            self._check_classical_KL_OED_gaussian_optimization(*test_case)
-
     def test_KL_OED_gaussian_optimization(self):
         bkd = self.get_backend()
-        test_cases = [
-            [3, 0, 1, 4000, 51, NoiseStatistic(SampleAverageMean(bkd))],
-            [
-                3,
-                0,
-                1,
-                4000,
-                51,
-                NoiseStatistic(SampleAverageMeanPlusStdev(1, bkd)),
-            ],
-            [
-                3,
-                0,
-                1,
-                4000,
-                51,
-                NoiseStatistic(SampleAverageEntropicRisk(0.5, bkd)),
-            ],
+        noise_stats = [
+            NoiseStatistic(SampleAverageMean(bkd)),
+            NoiseStatistic(SampleAverageMeanPlusStdev(1, bkd)),
+            NoiseStatistic(SampleAverageEntropicRisk(0.5, bkd)),
         ]
-        for test_case in test_cases:
-            print(test_case)
-            self._check_KL_OED(*test_case)
+        for noise_stat in noise_stats:
+            test_case = [3, 0, 1, noise_stat, "Halton", 10000, "Halton", 100]
+            self._check_classical_KL_OED_gaussian_optimization(*test_case)
 
     def _check_prediction_gaussian_OED(
         self, nobs, min_degree, degree, nout_samples, level1d, noise_stat

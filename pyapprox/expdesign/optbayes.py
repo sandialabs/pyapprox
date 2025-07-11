@@ -610,7 +610,7 @@ class DOptimalLinearModelObjective(BayesianOEDObjective):
         return True
 
     def _values(self, weights: Array) -> Array:
-        Amat = self._model._jac_matrix
+        Amat = self._model._matrix
         nvars = Amat.shape[1]
         hess_misfit = (
             Amat.T @ (weights * Amat) * self._prior_cov / self._noise_cov
@@ -623,7 +623,7 @@ class DOptimalLinearModelObjective(BayesianOEDObjective):
         )[:, None]
 
     def _Y(self, weights: Array) -> Array:
-        Amat = self._model._jac_matrix
+        Amat = self._model._matrix
         nvars = Amat.shape[1]
         hess_misfit = (
             Amat.T @ (weights * Amat) * self._prior_cov / self._noise_cov
@@ -638,7 +638,7 @@ class DOptimalLinearModelObjective(BayesianOEDObjective):
         jac_log_det_Y = self._bkd.array(
             [
                 self._bkd.trace(inv_Y @ row[:, None] @ row[None, :])
-                for row in self._model._jac_matrix
+                for row in self._model._matrix
             ]
         ) * (self._prior_cov / self._noise_cov)
         # return negative because we want to maximize KL divergence
@@ -646,7 +646,7 @@ class DOptimalLinearModelObjective(BayesianOEDObjective):
         return (-0.5 * jac_log_det_Y)[None, :]
 
     def _Y_inv_dYdw(self, inv_Y: Array, ii: int) -> Array:
-        rowii = self._model._jac_matrix[ii]
+        rowii = self._model._matrix[ii]
         return inv_Y @ rowii[:, None] @ rowii[None, :]
 
     def _hessian(self, weights: Array) -> Array:
@@ -657,7 +657,7 @@ class DOptimalLinearModelObjective(BayesianOEDObjective):
             self._bkd.array(
                 [
                     self._bkd.trace(inv_Y @ row[:, None] @ row[None, :])
-                    for row in self._model._jac_matrix
+                    for row in self._model._matrix
                 ]
             )
             * (det_Y * self._prior_cov / self._noise_cov)
