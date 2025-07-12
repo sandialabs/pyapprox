@@ -426,6 +426,27 @@ class MultivariateGaussian(JointVariable):
             )
         return self._bkd.stack(ranges, axis=0)
 
+    def kl_divergence(self, other: "MultivariateGaussian") -> float:
+        r"""
+        Compute KL( N(mean1, cov1) || N(mean2, cov2) )
+
+        :math:`\int p_1(x)\log\left(\frac{p_1(x)}{p_2(x)}\right)dx`
+
+        :math:`p_2(x)` must dominate :math:`p_1(x)`, e.g. for Bayesian inference
+        the :math:`p_2(x)` is the posterior and :math:`p_1(x)` is the prior
+        """
+        cov2 = other.covariance()
+        cov2_inv = self._bkd.inv(cov2)
+        val = self._bkd.log(
+            self._bkd.det(cov2) / self._bkd.det(self.covariance())
+        ) - float(self.nvars())
+        val += self._bkd.trace(cov2_inv @ self.covariance())
+        val += (
+            (other.mean() - self.mean()).T
+            @ (cov2_inv @ (other.mean() - self.mean()))
+        ).squeeze()
+        return 0.5 * val
+
 
 class DenseCholeskyMultivariateGaussian(MultivariateGaussian):
     def __init__(

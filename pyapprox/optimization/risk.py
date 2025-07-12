@@ -306,6 +306,12 @@ class LogNormalAnalyticalRiskMeasures:
         """
         return np.exp(self._mu + self._sigma**2 / 2)
 
+    def std(self) -> float:
+        """
+        Compute the standard deviation of a univariate lognormal variable
+        """
+        return self._marginal.std()
+
     def VaR(self, beta: float) -> float:
         return self._marginal.ppf(beta)
 
@@ -366,6 +372,11 @@ class LogNormalAnalyticalRiskMeasures:
             np.array([[self._sigma**2]]),
             np.array([[mu2]]),
             np.array([[sigma2**2]]),
+        )
+
+    def __repr__(self) -> str:
+        return "{0}(mean={1}, stdev={2})".format(
+            self.__class__.__name__, self._mu, self._sigma
         )
 
 

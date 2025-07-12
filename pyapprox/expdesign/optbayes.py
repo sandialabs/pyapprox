@@ -3,7 +3,7 @@ from typing import List
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.interface.model import Model
+from pyapprox.interface.model import Model, SingleSampleModel
 from pyapprox.bayes.likelihood import (
     LogLikelihood,
     IndependentGaussianLogLikelihood,
@@ -14,6 +14,12 @@ from pyapprox.optimization.minimize import (
     ConstrainedOptimizer,
     LinearConstraint,
     OptimizationResult,
+)
+from pyapprox.variables.gaussian import MultivariateGaussian
+from pyapprox.bayes.laplace import (
+    DenseMatrixLaplacePosteriorApproximation,
+    GaussianPushForward,
+    _compute_expected_kl_divergence,
 )
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
@@ -343,9 +349,58 @@ class NoiseStatistic:
 #         return ((outer_weights*outer_vals)*outer_jacs).sum(axis=0)/risk
 
 
-class BayesianOEDObjective(Model):
+class BayesianOEDObjective(SingleSampleModel):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
+        super().__init__(backend=backend)
+
+    def set_design_weights_map(self, design_weights_map: Array):
+        if design_weights_map.shape != (self.nobs(),):
+            raise ValueError(
+                f"design_weights must have shape {(self.nobs(),)}"
+            )
+        self._design_weights_map = self._bkd.asarray(
+            design_weights_map, dtype=int
+        )
+        self._nunique_design_weights = self._bkd.unique(
+            design_weights_map
+        ).shape[0]
+        self._design_weights_map_jacobian = self._bkd.zeros(
+            (self.nobs(), self._nunique_design_weights)
+        )
+        for ii in range(self.nobs()):
+            self._design_weights_map_jacobian[
+                ii, self._design_weights_map[ii]
+            ] = 1.0
+
+    def nvars(self) -> int:
+        if not hasattr(self, "_design_weights_map"):
+            return self.nobs()
+        return self._nunique_design_weights
+
     def nqoi(self) -> int:
         return 1
+
+    @abstractmethod
+    def nobs(self) -> int:
+        raise NotImplementedError
+
+    def _expand_design_weights(self, design_weights: Array) -> Array:
+        if not hasattr(self, "_design_weights_map"):
+            return design_weights
+        return design_weights[self._design_weights_map]
+
+    def _evaluate(self, design_weights: Array) -> Array:
+        return self._evaluate_from_expanded_design_weights(
+            self._expand_design_weights(design_weights)
+        )
+
+    def _jacobian(self, design_weights: Array) -> Array:
+        jac = self._jacobian_from_expanded_design_weights(
+            self._expand_design_weights(design_weights)
+        )
+        if not hasattr(self, "_design_weights_map"):
+            return jac
+        return jac @ self._design_weights_map_jacobian
 
 
 class KLOEDObjective(BayesianOEDObjective):
@@ -382,12 +437,19 @@ class KLOEDObjective(BayesianOEDObjective):
         self._innerloop_loglike.set_observations_and_shapes(
             obs, innerloop_shapes
         )
-        self._log_evidence = LogEvidence(
-            self._innerloop_loglike, innerloop_quad_weights
-        )
+        self._innerloop_quad_weights = innerloop_quad_weights
+        self._setup_evidence()
         self._set_quadrature_weights(
             outerloop_quad_weights, innerloop_quad_weights
         )
+
+    def _setup_evidence(self):
+        self._log_evidence = LogEvidence(
+            self._innerloop_loglike, self._innerloop_quad_weights
+        )
+
+    def nobs(self) -> int:
+        return self._outerloop_loglike.nobs()
 
     def _set_quadrature_weights(
         self, outerloop_quad_weights: Array, innerloop_quad_weights: Array
@@ -421,20 +483,19 @@ class KLOEDObjective(BayesianOEDObjective):
     def jacobian_implemented(self) -> bool:
         return True
 
-    def nvars(self) -> int:
-        return self._outerloop_loglike.nvars()
-
     # apply hessian reduces optimization iteration count but increases
     # run time because cost of each iteration increases so do not activate
     # TODO use adjoints to derive more efficient HVP
     def apply_hessian_implemented(self) -> bool:
         return False
 
-    def _values(self, design_weights: Array) -> Array:
+    def _evaluate_from_expanded_design_weights(
+        self, design_weights: Array
+    ) -> Array:
         log_evidences = self._log_evidence(design_weights)
-        outer_log_like_vals = self._outerloop_loglike(design_weights)
+        outer_loglike_vals = self._outerloop_loglike(design_weights)
         vals = self._noise_stat(
-            (outer_log_like_vals - log_evidences).T,
+            (outer_loglike_vals - log_evidences).T,
             self._outerloop_quad_weights,
         )
         # return negative because we want to maximize KL divergence
@@ -445,16 +506,18 @@ class KLOEDObjective(BayesianOEDObjective):
         # unflatten jacobian
         return jac.reshape(self._outerloop_loglike._obs.shape[1], jac.shape[1])
 
-    def _jacobian(self, design_weights: Array) -> Array:
+    def _jacobian_from_expanded_design_weights(
+        self, design_weights: Array
+    ) -> Array:
         log_evidences = self._log_evidence(design_weights)
-        outer_log_like_vals = self._outerloop_loglike(design_weights)
+        outer_loglike_vals = self._outerloop_loglike(design_weights)
         jac_log_evidences = self._log_evidence.jacobian(design_weights)
-        jac_outer_log_like = self._outerloop_loglike.jacobian(design_weights)
-        jac_outer_log_like = self._reshape_jacobian(jac_outer_log_like)
+        jac_outer_loglike = self._outerloop_loglike.jacobian(design_weights)
+        jac_outer_loglike = self._reshape_jacobian(jac_outer_loglike)
         outer_weights = self._outerloop_quad_weights
         jac = self._noise_stat.jacobian(
-            (outer_log_like_vals - log_evidences).T,
-            jac_outer_log_like - jac_log_evidences,
+            (outer_loglike_vals - log_evidences).T,
+            jac_outer_loglike - jac_log_evidences,
             outer_weights,
         )
         # return negative because we want to maximize KL divergence
@@ -492,6 +555,7 @@ class KLOEDObjective(BayesianOEDObjective):
         return hvp2
 
     def _apply_hessian(self, design_weights: Array, vec: Array) -> Array:
+        design_weights = self._expand_design_weights(design_weights)
         if not isinstance(self._noise_stat._stat, SampleAverageMean):
             msg = "apply hessian only supported for MeanNoiseStatistic"
             raise ValueError(msg)
@@ -500,13 +564,17 @@ class KLOEDObjective(BayesianOEDObjective):
         )
 
         outer_weights = self._outerloop_quad_weights
+        if hasattr(self, "_design_weights_map"):
+            vec = self._design_weights_map_jacobian @ vec
         hvp1 = self._hvp1(outer_weights, evidence, vec)
         hvp2 = self._hvp2(outer_weights, evidence, vec)
         hvp = hvp1 - hvp2
+        if hasattr(self, "_design_weights_map"):
+            hvp = self._design_weights_map_jacobian.T @ hvp
         return hvp[:, None]
 
 
-class PredictionOEDDeviation(Model):
+class PredictionOEDDeviationMeasure(Model):
     def __init__(
         self,
         loglike: OEDOuterLoopLogLikelihoodMixin,
@@ -514,46 +582,87 @@ class PredictionOEDDeviation(Model):
         qoi_weights: Array,
     ):
         self._qoi_vals = qoi_vals
+        if qoi_weights is None:
+            qoi_weights = loglike._bkd.full(
+                (qoi_vals.shape[0], 1), 1.0 / self._qoi_vals.shape[0]
+            )
         self._qoi_weights = qoi_weights
+        self._weighted_qoi_vals = qoi_weights * qoi_vals
         self._loglike = loglike
         super().__init__(backend=loglike._bkd)
 
-    def __call__(self):
-        raise NotImplementedError
+    def nqoi(self) -> int:
+        # models can only return 2D array so we must flatten deviation measures
+        # for each qoi and each outerloop observation into a 1D
+        return self._qoi_vals.shape[1]  # * self._loglike._shapes.shape[1]
+
+    def nvars(self) -> int:
+        return self._qoi_vals.shape[0]
 
 
-class OEDStandardDeviation(PredictionOEDDeviation):
-    def _first_momement(self, like_vals: Array) -> Array:
-        return (self._qoi_vals * like_vals).sum(axis=1)
+class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
+    def set_evidences(self, evidences: Array):
+        self._evidences = evidences
 
-    def _second_momement(self, like_vals: Array) -> Array:
-        return (self._qoi_vals**2 * like_vals).sum(axis=1)
+    def _first_moment(self, like_vals: Array) -> Array:
+        return (self._qoi_vals[:, None, :] * like_vals[..., None]).sum(axis=0)
 
-    def __call__(self, like_vals: Array) -> Array:
-        return (
-            self._second_moment(like_vals) / evidences
-            - self._first_moment(like_vals) / evidences**2
+    def _second_moment(self, like_vals: Array) -> Array:
+        return (self._qoi_vals[:, None, :] ** 2 * like_vals[..., None]).sum(
+            axis=0
         )
 
-    def _first_momement_jac(self, like_vals: Array) -> Array:
-        return (self._qoi_vals * like_vals).sum(axis=1)
+    def _values(self, like_vals: Array) -> Array:
+        return (
+            self._second_moment(like_vals) / self._evidences
+            - self._first_moment(like_vals) / self._evidences**2
+        )
 
-    def _second_momement_jac(self, like_vals: Array) -> Array:
-        return (self._qoi_vals**2 * like_vals).sum(axis=1)
+    def _first_moment_jac(self, like_vals: Array) -> Array:
+        return (self._qoi_vals * like_vals).sum(axis=0)
+
+    def _second_moment_jac(self, like_vals: Array) -> Array:
+        return (self._qoi_vals**2 * like_vals).sum(axis=0)
 
     def _jacobian(self, like_vals: Array) -> Array:
         return (
-            self._second_moment(like_vals) / evidences
-            - self._first_moment(like_vals) / evidences**2
+            self._second_moment(like_vals) / self._evidences
+            - self._first_moment(like_vals) / self._evidences**2
         )
 
 
 class PredictionOEDObjective(KLOEDObjective):
-    raise NotImplementedError
+    def set_deviation_measure(
+        self, deviation_measure: PredictionOEDDeviationMeasure
+    ):
+        self._deviation_measure = deviation_measure
 
-    def __call__(self, design_weights: Array) -> Array:
-        evidences = self._log_evidence._evidence(design_weights)
-        deviations = None
+    def set_risk_measure(self, risk_measure):
+        self._risk_measure = risk_measure
+
+    def _setup_evidence(self):
+        self._evidence = Evidence(
+            self._innerloop_loglike, self._innerloop_quad_weights
+        )
+
+    def _evaluate_from_expanded_design_weights(
+        self, design_weights: Array
+    ) -> Array:
+        # shape (1, nouterloop_samples)
+        evidences = self._evidence(design_weights).T
+        self._deviation_measure.set_evidences(evidences)
+        # resuse likelihood values computed to estimate evidences.
+        # however techinically we could use a different quadrature rule
+        like_vals_for_qoi = self._evidence._weighted_like_vals
+        deviations = self._deviation_measure(like_vals_for_qoi)
+        # hack fix risk measure to expectation until fleshed out
+        print(deviations.shape, self._outerloop_quad_weights.shape)
+        self._risk_measure = lambda d, w: self._bkd.sum(d * w, axis=1)[:, None]
+        # hack fix quad weights to be monte carlo for now
+        self._qoi_quad_weights = 1.0 / deviations.shape[1]
+        risk_measures = self._risk_measure(deviations, self._qoi_quad_weights)
+        print(risk_measures.shape, "R")
+        return self._noise_stat(risk_measures, self._outerloop_quad_weights)
 
 
 class DOptimalLinearModelObjective(BayesianOEDObjective):
@@ -583,7 +692,7 @@ class DOptimalLinearModelObjective(BayesianOEDObjective):
         self._noise_cov = noise_cov
         self._prior_cov = prior_cov
 
-    def nvars(self) -> int:
+    def nobs(self) -> int:
         return self._model.nqoi()
 
     def jacobian_implemented(self) -> bool:
@@ -730,3 +839,117 @@ class BayesianOED:
 
     def optimization_result(self) -> OptimizationResult:
         return self._res
+
+
+class ConjugateGaussianPriorOEDForLinearPredictionUtility(ABC):
+    """
+    Compute the expected divergence or deviation of the pushforward of the posterior,
+    arising from a conugate Gaussian prior, through a linear prediction model of a
+    scalar quantity
+    of interest (QoI).
+    """
+
+    def __init__(self, prior: MultivariateGaussian, qoi_mat: Array):
+        self._bkd = prior._bkd
+        self._prior = prior
+        self._prior_cov_inv = self._bkd.inv(self._prior.covariance())
+        self._qoi_mat = qoi_mat
+        self._prior_pushforward = GaussianPushForward(
+            self._qoi_mat,
+            self._prior.mean(),
+            self._prior.covariance(),
+            backend=self._bkd,
+        )
+
+    def set_observation_matrix(self, obs_mat: Array):
+        if obs_mat.shape[1] != self._prior.nvars():
+            raise ValueError("obs matrix has the wrong number of columns")
+        self._obs_mat = obs_mat
+
+    def set_noise_covariance(self, noise_covariance: Array):
+        self._noise_cov = noise_covariance
+        self._noise_cov_inv = self._bkd.inv(self._noise_cov)
+        self._compute()
+
+    def _compute_expected_posterior_stats(self):
+        if not hasattr(self, "_obs_mat"):
+            raise ValueError("must call set_observation_matrix()")
+        self._posterior = DenseMatrixLaplacePosteriorApproximation(
+            self._obs_mat,
+            self._prior.mean(),
+            self._prior.covariance(),
+            self._noise_cov,
+            backend=self._bkd,
+        )
+        # value of obs does not matter for expected stats
+        dummy_obs = self._bkd.ones((self._obs_mat.shape[0], 1))
+        self._posterior.compute(dummy_obs)
+        self._nu_vec = self._posterior._nu_vec
+        self._Cmat = self._posterior._Cmat
+
+    @abstractmethod
+    def _compute_utility(self) -> float:
+        raise NotImplementedError
+
+    def _compute(self):
+        self._compute_expected_posterior_stats()
+        self._post_pushforward = GaussianPushForward(
+            self._qoi_mat,
+            self._posterior.posterior_mean(),
+            self._posterior.posterior_covariance(),
+            backend=self._bkd,
+        )
+        self._utility = self._compute_utility()
+
+    def value(self) -> float:
+        """Return the utility"""
+        if not hasattr(self, "_utility"):
+            raise ValueError("must call set_noise_covariance()")
+        return self._utility
+
+
+class ConjugateGaussianPriorOEDForLinearPredictionKLDivergence(
+    ConjugateGaussianPriorOEDForLinearPredictionUtility
+):
+    def _compute_utility(self) -> float:
+        return _compute_expected_kl_divergence(
+            self._prior_pushforward.mean(),
+            self._prior_pushforward.covariance(),
+            self._post_pushforward.covariance(),
+            self._qoi_mat @ self._nu_vec,
+            self._qoi_mat @ self._Cmat @ self._qoi_mat.T,
+            self._bkd,
+        )
+
+
+class ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation(
+    ConjugateGaussianPriorOEDForLinearPredictionUtility
+):
+    def _compute_utility(self) -> float:
+        return self._bkd.sqrt(self._post_pushforward.covariance()[0, 0])
+
+
+class ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation(
+    ConjugateGaussianPriorOEDForLinearPredictionUtility
+):
+    def _lognormal_mean(self, mu: float, sigma: float):
+        return self._bkd.exp(mu + sigma**2 / 2.0)
+
+    def _compute_utility(self) -> float:
+        tau_hat = self._qoi_mat @ self._nu_vec
+        sigma_hat_sq = self._bkd.multidot(
+            (self._qoi_mat, self._Cmat, self._qoi_mat.T)
+        )
+        tmp = self._bkd.exp(self._post_pushforward.covariance()[0, 0])
+        factor = self._bkd.sqrt((tmp - 1.0) * tmp)
+        return self._bkd.sqrt(
+            factor * self._lognormal_mean(tau_hat, sigma_hat_sq)
+        )
+
+
+class ConjugateGaussianPriorOEDForLogNormalPredictionKLDivergence(
+    ConjugateGaussianPriorOEDForLinearPredictionKLDivergence
+):
+    # The KL of two lognormals is the same as the KL of the
+    # two associated Normals
+    pass

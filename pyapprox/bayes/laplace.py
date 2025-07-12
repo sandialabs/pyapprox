@@ -45,6 +45,32 @@ from pyapprox.variables.joint import (
 from pyapprox.variables.marginals import BetaMarginal, log_beta_function
 
 
+def _compute_expected_kl_divergence(
+    prior_mean,
+    prior_cov,
+    posterior_covariance,
+    nu_vec,
+    Cmat,
+    bkd,
+    prior_hessian=None,
+):
+    """
+    Compute the expected KL divergence between a Gaussian posterior
+    and prior, where average is taken with respect to the data
+    """
+    if prior_hessian is None:
+        prior_hessian = bkd.inv(prior_cov)
+    nvars = posterior_covariance.shape[0]
+    kl_div = bkd.trace(prior_hessian @ posterior_covariance) - nvars
+    kl_div += bkd.log(bkd.det(prior_cov) / bkd.det(posterior_covariance))
+    kl_div += bkd.trace(prior_hessian @ Cmat)
+    xi = prior_mean - nu_vec
+    kl_div += bkd.multidot((xi.T, prior_hessian, xi))[0, 0]
+    kl_div *= 0.5
+    return kl_div
+    kl_div = kl_div
+
+
 class DenseMatrixLaplacePosteriorApproximation:
     def __init__(
         self,
@@ -127,7 +153,10 @@ class DenseMatrixLaplacePosteriorApproximation:
 
     def _set_observations(self, obs: Array):
         if obs.ndim != 2 or obs.shape[0] != self.nobs():
-            raise ValueError("obs has the wrong shape")
+            raise ValueError(
+                f"obs must have shape {(self.nobs(), 'nexperiments')} "
+                f"but had shape {obs.shape}"
+            )
         self._obs = obs
 
     def nvars(self) -> int:
@@ -298,19 +327,15 @@ class DenseMatrixLaplacePosteriorApproximation:
         Compute the expected KL divergence between a Gaussian posterior
         and prior, where average is taken with respect to the data
         """
-        kl_div = (
-            self._bkd.trace(self._prior_hessian @ self.posterior_covariance())
-            - self.nvars()
+        self._kl_div = _compute_expected_kl_divergence(
+            self._prior_mean,
+            self._prior_cov,
+            self.posterior_covariance(),
+            self._nu_vec,
+            self._Cmat,
+            self._bkd,
+            self._prior_hessian,
         )
-        kl_div += self._bkd.log(
-            self._bkd.det(self._prior_cov)
-            / self._bkd.det(self.posterior_covariance())
-        )
-        kl_div += self._bkd.trace(self._prior_hessian @ self._Cmat)
-        xi = self._prior_mean - self._nu_vec
-        kl_div += self._bkd.multidot((xi.T, self._prior_hessian, xi))[0, 0]
-        kl_div *= 0.5
-        self._kl_div = kl_div
 
     def expected_kl_divergence(self) -> float:
         """
@@ -711,7 +736,7 @@ class GaussianPushForward:
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
-    def pushfowward_variable(self) -> DenseCholeskyMultivariateGaussian:
+    def pushforward_variable(self) -> DenseCholeskyMultivariateGaussian:
         """
         Returns the resulting Gaussian distribution as a
         `DenseCholeskyMultivariateGaussian` object.
@@ -722,7 +747,7 @@ class GaussianPushForward:
             The resulting Gaussian distribution.
         """
         return DenseCholeskyMultivariateGaussian(
-            self.mean(), self.covariance()
+            self.mean(), self.covariance(), backend=self._bkd
         )
 
 
@@ -851,7 +876,7 @@ class DenseMatrixLaplaceApproximationForPrediction:
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
-    def pushfowward_variable(self) -> DenseCholeskyMultivariateGaussian:
+    def pushforward_variable(self) -> DenseCholeskyMultivariateGaussian:
         """
         Returns the posterior pushforward Gaussian distribution as
         a `DenseCholeskyMultivariateGaussian` object.
