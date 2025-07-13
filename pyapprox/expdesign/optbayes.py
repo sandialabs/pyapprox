@@ -613,22 +613,44 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
         )
 
     def _values(self, like_vals: Array) -> Array:
-        return (
+        return self._bkd.sqrt(
             self._second_moment(like_vals) / self._evidences
-            - self._first_moment(like_vals) / self._evidences**2
+            - self._first_moment(like_vals) ** 2 / self._evidences**2
         )
 
-    def _first_moment_jac(self, like_vals: Array) -> Array:
-        return (self._qoi_vals * like_vals).sum(axis=0)
+    def _first_moment_jac(self, like_vals_jac: Array) -> Array:
+        return (
+            self._qoi_vals[None, ..., None] * like_vals_jac[:, :, None, :]
+        ).sum(axis=1)
 
-    def _second_moment_jac(self, like_vals: Array) -> Array:
-        return (self._qoi_vals**2 * like_vals).sum(axis=0)
+    def _second_moment_jac(self, like_vals_jac: Array) -> Array:
+        # print(
+        #     self._qoi_vals.shape,
+        #     like_vals_jac.shape,
+        #     (
+        #         self._qoi_vals[None, ..., None] ** 2
+        #         * like_vals_jac[:, :, None, :]
+        #     ).shape,
+        # )
+        return (
+            self._qoi_vals[None, ..., None] ** 2 * like_vals_jac[:, :, None, :]
+        ).sum(axis=1)
 
     def _jacobian(self, like_vals: Array) -> Array:
-        return (
-            self._second_moment(like_vals) / self._evidences
-            - self._first_moment(like_vals) / self._evidences**2
+        values = self._values(like_vals)
+        like_vals_jac = self._like_jac
+
+        def fun(w):
+            raise NotImplementedError
+
+        print(self._bkd.jacobian(self._values, self._design_weights))
+        assert False
+        variance_jac = (
+            self._second_moment_jac(like_vals_jac) / self._evidences[..., None]
+            - self._first_moment_jac(like_vals_jac)
+            / self._evidences[..., None] ** 2
         )
+        return variance_jac / (2.0 * values[..., None])
 
 
 class PredictionOEDObjective(KLOEDObjective):
@@ -656,13 +678,32 @@ class PredictionOEDObjective(KLOEDObjective):
         like_vals_for_qoi = self._evidence._weighted_like_vals
         deviations = self._deviation_measure(like_vals_for_qoi)
         # hack fix risk measure to expectation until fleshed out
-        print(deviations.shape, self._outerloop_quad_weights.shape)
         self._risk_measure = lambda d, w: self._bkd.sum(d * w, axis=1)[:, None]
         # hack fix quad weights to be monte carlo for now
         self._qoi_quad_weights = 1.0 / deviations.shape[1]
         risk_measures = self._risk_measure(deviations, self._qoi_quad_weights)
-        print(risk_measures.shape, "R")
         return self._noise_stat(risk_measures, self._outerloop_quad_weights)
+
+    def _jacobian_from_expanded_design_weights(
+        self, design_weights: Array
+    ) -> Array:
+        evidences = self._evidence(design_weights).T
+        self._deviation_measure.set_evidences(evidences)
+        self._evidence.jacobian(design_weights)
+        print(self._evidence._like_jac.shape, "E")
+        self._deviation_measure._like_jac = self._evidence._like_jac
+
+        def fun(w):
+            evidences = self._evidence(w[:, None]).T
+            like_vals_for_qoi = self._evidence._weighted_like_vals
+            deviations = self._deviation_measure(like_vals_for_qoi)
+            # assume 1 qoi while debugging
+            return deviations[:, 0]
+
+        print(self._bkd.jacobian(fun, design_weights[:, 0]))
+        like_vals_for_qoi = self._evidence._weighted_like_vals
+        print(self._deviation_measure._jacobian(like_vals_for_qoi))
+        assert False
 
 
 class DOptimalLinearModelObjective(BayesianOEDObjective):
@@ -941,9 +982,13 @@ class ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation(
             (self._qoi_mat, self._Cmat, self._qoi_mat.T)
         )
         tmp = self._bkd.exp(self._post_pushforward.covariance()[0, 0])
-        factor = self._bkd.sqrt((tmp - 1.0) * tmp)
-        return self._bkd.sqrt(
-            factor * self._lognormal_mean(tau_hat, sigma_hat_sq)
+        factor = (tmp - 1.0) * tmp
+        # We know the variance F \exp(X) is a lognormal distribution using
+        # where X is a normal with
+        # mean 2\tau_hat and standard deviation 2*\sqrt(\sigma_hat_sq)
+        # Then standard deviation = F^{1/2}Y^{1/2}=F^{1/2}\exp(X)^{1/2}=F^{1/2}exp(X/2) = F^{1/2}\exp(Z) where Z is a normal with mean tau_hat and stdev sqrt(sigma_hat_sq)
+        return self._bkd.sqrt(factor) * self._lognormal_mean(
+            tau_hat, self._bkd.sqrt(sigma_hat_sq)
         )
 
 
@@ -953,3 +998,8 @@ class ConjugateGaussianPriorOEDForLogNormalPredictionKLDivergence(
     # The KL of two lognormals is the same as the KL of the
     # two associated Normals
     pass
+
+
+# TODO Consider using lognormal noise for OED
+# if Y is lognormal (mu, sigma) -- mu and sigma are mean and standard deviation of gaussian --, then cY is lognormal (mu+log(c),sigma)
+# So, we can sample from the likelihood by making model m(x) predict log mean of noise eps ~ lognormal(0, sigma) then y=exp(m(x))*eps which is lognormal ((x),sigma)

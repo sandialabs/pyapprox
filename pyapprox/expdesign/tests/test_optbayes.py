@@ -665,6 +665,7 @@ class TestBayesOED:
         nouterloop_samples,
         innerloop_quadtype,
         ninnerloop_samples,
+        nqoi,
     ):
         bkd = self.get_backend()
         (
@@ -699,7 +700,6 @@ class TestBayesOED:
             innerloop_quad_weights,
             backend=self.get_backend(),
         )
-        nqoi = 2
         qoi_mat = bkd.array(np.random.uniform(0, 1, (nqoi, prior.nvars())))
 
         def qoi_model(samples):
@@ -711,7 +711,69 @@ class TestBayesOED:
                 outerloop_loglike, qoi_vals, outerloop_quad_weights
             )
         )
-        return (objective, obs_model, noise_cov_diag, prior_std, design)
+        return (
+            objective,
+            obs_model,
+            noise_cov_diag,
+            prior_std,
+            design,
+            prior,
+            qoi_mat,
+        )
+
+    def test_prediction_gaussian_OED_conjugate_gaussian_prior_std(self):
+        """
+        Check MC estimates used by oed objective are consistent
+        with analytical formula when using Gaussian Confulgate prior and
+        linear qoi model and using std as the inner deviation measure
+        """
+        noise_stat = NoiseStatistic(SampleAverageMean(self.get_backend()))
+        test_case = [2, 0, 1, noise_stat, "MC", 10000, "MC", 10000]
+        (
+            nobs,
+            min_degree,
+            degree,
+            noise_stat,
+            outerloop_quadtype,
+            nouterloop_samples,
+            innerloop_quadtype,
+            ninnerloop_samples,
+        ) = test_case
+        bkd = self.get_backend()
+        nqoi = 1
+        (
+            oed_objective,
+            obs_model,
+            noise_cov_diag,
+            prior_std,
+            design,
+            prior,
+            qoi_mat,
+        ) = self._setup_bayesian_prediction_OED_objective(
+            nobs,
+            min_degree,
+            degree,
+            noise_stat,
+            outerloop_quadtype,
+            nouterloop_samples,
+            innerloop_quadtype,
+            ninnerloop_samples,
+            nqoi,
+        )
+
+        x0 = bkd.full((nobs, 1), 1 / nobs)
+        std_utility = (
+            ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation(
+                prior, qoi_mat
+            )
+        )
+        std_utility.set_observation_matrix(obs_model._matrix)
+        noise_cov = bkd.diag(
+            oed_objective._outerloop_loglike._wnoise_std_diag[:, 0]
+        )
+        std_utility.set_noise_covariance(noise_cov)
+        # print(oed_objective(x0), std_utility.value())
+        assert bkd.allclose(oed_objective(x0), std_utility.value(), rtol=1e-2)
 
     def _check_prediction_gaussian_OED_gradients(
         self,
@@ -724,24 +786,30 @@ class TestBayesOED:
         innerloop_quadtype,
         ninnerloop_samples,
     ):
+        print(nouterloop_samples)
         bkd = self.get_backend()
-        oed_objective, obs_model, noise_cov_diag, prior_std, design = (
-            self._setup_bayesian_prediction_OED_objective(
-                nobs,
-                min_degree,
-                degree,
-                noise_stat,
-                outerloop_quadtype,
-                nouterloop_samples,
-                innerloop_quadtype,
-                ninnerloop_samples,
-            )
+        nqoi = 1
+        (
+            oed_objective,
+            obs_model,
+            noise_cov_diag,
+            prior_std,
+            design,
+            prior,
+            qoi_mat,
+        ) = self._setup_bayesian_prediction_OED_objective(
+            nobs,
+            min_degree,
+            degree,
+            noise_stat,
+            outerloop_quadtype,
+            nouterloop_samples,
+            innerloop_quadtype,
+            ninnerloop_samples,
+            nqoi,
         )
 
         x0 = bkd.full((nobs, 1), 1 / nobs)
-
-        print(oed_objective(x0))
-
         errors = oed_objective.check_apply_jacobian(
             x0, disp=True, fd_eps=bkd.flip(bkd.logspace(-13, np.log(0.2), 13))
         )
@@ -759,7 +827,7 @@ class TestBayesOED:
             NoiseStatistic(SampleAverageEntropicRisk(0.5, bkd)),
         ]
         for noise_stat in noise_stats:
-            test_case = [3, 0, 1, noise_stat, "Halton", 10000, "Halton", 100]
+            test_case = [2, 0, 1, noise_stat, "MC", 4, "MC", 3]
             self._check_prediction_gaussian_OED_gradients(*test_case)
 
     def test_conjugate_gaussian_prior_OED_for_prediction_exact_formulas(
@@ -781,7 +849,7 @@ class TestBayesOED:
             prior, qoi_mat
         )
 
-        nsamples = int(1e3)
+        nsamples = int(1e4)
         samples = prior.rvs(nsamples)
         obs = obs_mat @ samples + bkd.cholesky(noise_cov) @ bkd.array(
             np.random.normal(0, 1, (nobs, nsamples))
@@ -808,6 +876,10 @@ class TestBayesOED:
             lognormal_risks = LogNormalAnalyticalRiskMeasures(
                 post_push.mean()[0, 0], stdevs[-1]
             )
+            # print(
+            #     bkd.exp(post_push.pushforward_variable().rvs(100000)).mean(),
+            #     lognormal_risks.mean(),
+            # )
             lognormal_stdevs.append(lognormal_risks.std())
 
         print(lognormal_risks)
@@ -837,8 +909,6 @@ class TestBayesOED:
         )
         std_lognormal_utility.set_observation_matrix(obs_mat)
         std_lognormal_utility.set_noise_covariance(noise_cov)
-        print(std_lognormal_utility.value())
-        print(bkd.array(lognormal_stdevs).mean())
         assert bkd.allclose(
             std_lognormal_utility.value(),
             bkd.array(lognormal_stdevs).mean(),
