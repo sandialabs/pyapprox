@@ -161,12 +161,21 @@ class KFoldCrossValidation(CrossValidation):
             test_values = self._bkd.delete(self._train_values, indices, axis=0)
             fold_residuals.append(self.regressor(test_samples) - test_values)
             sum_sq_residuals += self._bkd.sum(fold_residuals[-1] ** 2, axis=0)
-        cv_score = self._bkd.sqrt(sum_sq_residuals / self._ntrain_samples)
-        return cv_score
+        self._cv_score = self._bkd.sqrt(
+            sum_sq_residuals / self._ntrain_samples
+        )
+        return self._cv_score
 
     def __repr__(self):
-        return "{0}(K={1}, nsamples={2})".format(
-            self.__class__.__name__, self._nfolds, self._ntrain_samples
+        if not hasattr(self, "_cv_score"):
+            return "{0}(K={1}, nsamples={2})".format(
+                self.__class__.__name__, self._nfolds, self._ntrain_samples
+            )
+        return "{0}(K={1}, nsamples={2}, score={3})".format(
+            self.__class__.__name__,
+            self._nfolds,
+            self._ntrain_samples,
+            self._cv_score,
         )
 
 
@@ -190,7 +199,11 @@ class CrossValidationStructureSearch:
         best_idx = self._bkd.argmin(
             self._bkd.asarray([result[0] for result in results])
         )
+        self._best_cv_score = results[best_idx][0]
         return results[best_idx][1], results, best_idx
+
+    def best_cv_score(self) -> float:
+        return self._best_cv_score
 
     def __repr__(self):
         return "{0}(cv={1}, search={2})".format(
