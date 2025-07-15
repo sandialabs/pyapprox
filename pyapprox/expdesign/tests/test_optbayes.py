@@ -788,7 +788,7 @@ class TestBayesOED:
     ):
         print(nouterloop_samples)
         bkd = self.get_backend()
-        nqoi = 1
+        nqoi = 2
         (
             oed_objective,
             obs_model,

@@ -48,7 +48,7 @@ variable = benchmark.variable()
 # %%
 # Initialize the Orthonormal Basis
 # --------------------------------
-# Polynomial chaos expansions are constructed using orthonormal polynomial bases.
+# Each basis in a polynomial chaos expansions is constructed from a tensor-product of univariate orthonormal polynomial bases.
 # Here, we initialize the basis for the random input variables.
 
 # All orthonormal bases for bounded variables are defined on [-1, 1]
@@ -57,8 +57,7 @@ variable = benchmark.variable()
 trans = AffineMarginalTransform(
     stats.uniform(-1, 2), enforce_bounds=True, backend=bkd
 )
-# The multivariate basis is constructed from the tensor product of
-# tensor product univariate orthonormal bases, which we must define
+# Define univariate orthonormal bases for each variable
 polys_1d = [
     LegendrePolynomial1D(trans=trans, backend=bkd)
     for ii in range(model.nvars())

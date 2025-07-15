@@ -247,8 +247,8 @@ class Evidence(Model):
         self._prev_design_weights = None
         self._like_vals = None
         self._like_jac = None
-        self._weighted_like_vals = None
-        self._weighted_like_vals_prod_jac = None
+        self._quad_weighted_like_vals = None
+        self._quad_weighted_like_vals_prod_jac = None
         self._evidence_jac = None
 
     def nvars(self) -> int:
@@ -277,19 +277,14 @@ class Evidence(Model):
         )
         self._like_vals = like_vals
         if self._quad_weights is None:
-            quad_weights = 1.0 / self._like_vals.shape[0]
-        else:
-            quad_weights = self._quad_weights
-        self._weighted_like_vals = quad_weights * self._like_vals
-        return (self._weighted_like_vals).sum(axis=0)[None, :]
+            self._quad_weights = 1.0 / self._like_vals.shape[0]
+        self._quad_weighted_like_vals = self._quad_weights * self._like_vals
+        return (self._quad_weighted_like_vals).sum(axis=0)[None, :]
 
-    def _jacobian(self, design_weights: Array) -> Array:
-        if not self._bkd.allclose(
-            design_weights, self._prev_design_weights, atol=1e-15, rtol=1e-15
-        ):
-            # recompute necessary data
-            self(design_weights)
-
+    def _quad_weighted_likelihood_jacobian(
+        self, design_weights: Array
+    ) -> Array:
+        # jacobian of exp(loglike) with respect to design weights
         self._like_jac = self._bkd.reshape(
             self._loglike.jacobian(design_weights),
             (
@@ -298,11 +293,21 @@ class Evidence(Model):
                 self._loglike.nvars(),
             ),
         )
-        self._weighted_like_vals_prod_jac = (
-            self._weighted_like_vals.T[..., None] * self._like_jac
+        self._quad_weighted_like_vals_prod_jac = (
+            self._quad_weighted_like_vals.T[..., None] * self._like_jac
         )
+        return self._quad_weighted_like_vals_prod_jac
+
+    def _jacobian(self, design_weights: Array) -> Array:
+        if not self._bkd.allclose(
+            design_weights, self._prev_design_weights, atol=1e-15, rtol=1e-15
+        ):
+            # recompute necessary data
+            self(design_weights)
+
+        self._quad_weighted_likelihood_jacobian(design_weights)
         self._evidence_jac = self._bkd.sum(
-            self._weighted_like_vals_prod_jac, axis=1
+            self._quad_weighted_like_vals_prod_jac, axis=1
         )
         return self._evidence_jac
 
@@ -533,7 +538,7 @@ class KLOEDObjective(BayesianOEDObjective):
         # linear in the weights
         tmp = self._bkd.sum(
             (
-                self._log_evidence._weighted_like_vals_prod_jac
+                self._log_evidence._quad_weighted_like_vals_prod_jac
                 * (self._log_evidence._like_jac @ vec)
             ),
             axis=1,
@@ -574,7 +579,7 @@ class KLOEDObjective(BayesianOEDObjective):
         return hvp[:, None]
 
 
-class PredictionOEDDeviationMeasure(Model):
+class PredictionOEDDeviationMeasure(SingleSampleModel):
     def __init__(
         self,
         loglike: OEDOuterLoopLogLikelihoodMixin,
@@ -589,67 +594,94 @@ class PredictionOEDDeviationMeasure(Model):
         self._qoi_weights = qoi_weights
         self._weighted_qoi_vals = qoi_weights * qoi_vals
         self._loglike = loglike
+        self._nouterloop_samples = self._loglike._shapes.shape[1]
+        self._npred = self._qoi_vals.shape[1]
         super().__init__(backend=loglike._bkd)
 
     def nqoi(self) -> int:
         # models can only return 2D array so we must flatten deviation measures
         # for each qoi and each outerloop observation into a 1D
-        return self._qoi_vals.shape[1]  # * self._loglike._shapes.shape[1]
+        return self._loglike._shapes.shape[1] * self._qoi_vals.shape[1]
 
     def nvars(self) -> int:
-        return self._qoi_vals.shape[0]
+        return self._loglike.nvars()
 
 
 class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
-    def set_evidences(self, evidences: Array):
-        self._evidences = evidences
+    def set_evidence(self, evidence: Evidence):
+        if not isinstance(evidence, Evidence):
+            raise ValueError("evidence must be an instance of Evidence")
+        self._evidence = evidence
 
-    def _first_moment(self, like_vals: Array) -> Array:
-        return (self._qoi_vals[:, None, :] * like_vals[..., None]).sum(axis=0)
-
-    def _second_moment(self, like_vals: Array) -> Array:
-        return (self._qoi_vals[:, None, :] ** 2 * like_vals[..., None]).sum(
-            axis=0
-        )
-
-    def _values(self, like_vals: Array) -> Array:
-        return self._bkd.sqrt(
-            self._second_moment(like_vals) / self._evidences
-            - self._first_moment(like_vals) ** 2 / self._evidences**2
-        )
-
-    def _first_moment_jac(self, like_vals_jac: Array) -> Array:
+    def _first_moment(self, quad_weighted_like_vals: Array) -> Array:
+        # after reshape the 3D arrays will have shape
+        # (npred, ninnerloop_samples, nouterloop_samples)
         return (
-            self._qoi_vals[None, ..., None] * like_vals_jac[:, :, None, :]
+            self._qoi_vals.T[..., None] * quad_weighted_like_vals[None, ...]
         ).sum(axis=1)
 
-    def _second_moment_jac(self, like_vals_jac: Array) -> Array:
+    def _second_moment(self, quad_weighted_like_vals: Array) -> Array:
+        return (
+            self._qoi_vals.T[..., None] ** 2
+            * quad_weighted_like_vals[None, ...]
+        ).sum(axis=1)
+
+    def _evaluate(self, design_weights: Array) -> Array:
+        evidences = self._evidence(design_weights).T
+        return self._bkd.sqrt(
+            self._second_moment(self._evidence._quad_weighted_like_vals)
+            / evidences[:, 0]
+            - self._first_moment(self._evidence._quad_weighted_like_vals) ** 2
+            / evidences[:, 0] ** 2
+        ).flatten()[None, :]
+
+    def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
+        # after reshape 4D arrays will have
+        # (npred, nouterloop_samples, ninnerloop_samples, ndesign))
+        return (
+            self._qoi_vals.T[:, None, :, None] ** 2
+            * quad_weighted_like_vals_jac[None, ...]
+        ).sum(axis=2)
+
+    def _second_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
         # print(
-        #     self._qoi_vals.shape,
-        #     like_vals_jac.shape,
-        #     (
-        #         self._qoi_vals[None, ..., None] ** 2
-        #         * like_vals_jac[:, :, None, :]
-        #     ).shape,
+        #     self._qoi_vals.T[:, None, :, None].shape,
+        #     quad_weighted_like_vals_jac[None, ...].shape,
         # )
         return (
-            self._qoi_vals[None, ..., None] ** 2 * like_vals_jac[:, :, None, :]
-        ).sum(axis=1)
+            self._qoi_vals.T[:, None, :, None] ** 2
+            * quad_weighted_like_vals_jac[None, ...]
+        ).sum(axis=2)
 
-    def _jacobian(self, like_vals: Array) -> Array:
-        values = self._values(like_vals)
-        like_vals_jac = self._like_jac
+    def _jacobian(self, design_weights: Array) -> Array:
+        values = self._values(design_weights)
 
         def fun(w):
-            raise NotImplementedError
+            evidences = self._evidence(w[:, None]).T
+            return self._second_moment(self._evidence._quad_weighted_like_vals)
 
-        print(self._bkd.jacobian(self._values, self._design_weights))
+        print(self._bkd.jacobian(fun, design_weights[:, 0]), "J1")
+        evidences = self._evidence(design_weights).T
+        print(
+            self._evidence._quad_weighted_likelihood_jacobian(
+                design_weights
+            ).shape
+        )
+        print(
+            self._second_moment_jac(
+                self._evidence._quad_weighted_likelihood_jacobian(
+                    design_weights
+                )
+            ),
+            "J2",
+        )
         assert False
         variance_jac = (
             self._second_moment_jac(like_vals_jac) / self._evidences[..., None]
             - self._first_moment_jac(like_vals_jac)
             / self._evidences[..., None] ** 2
         )
+        assert False
         return variance_jac / (2.0 * values[..., None])
 
 
@@ -670,39 +702,32 @@ class PredictionOEDObjective(KLOEDObjective):
     def _evaluate_from_expanded_design_weights(
         self, design_weights: Array
     ) -> Array:
-        # shape (1, nouterloop_samples)
-        evidences = self._evidence(design_weights).T
-        self._deviation_measure.set_evidences(evidences)
+        self._deviation_measure.set_evidence(self._evidence)
         # resuse likelihood values computed to estimate evidences.
         # however techinically we could use a different quadrature rule
-        like_vals_for_qoi = self._evidence._weighted_like_vals
-        deviations = self._deviation_measure(like_vals_for_qoi)
+        deviations = self._deviation_measure(design_weights).reshape(
+            self._deviation_measure._npred,
+            self._deviation_measure._nouterloop_samples,
+        )
         # hack fix risk measure to expectation until fleshed out
-        self._risk_measure = lambda d, w: self._bkd.sum(d * w, axis=1)[:, None]
+        self._risk_measure = lambda d, w: self._bkd.sum(d * w, axis=0)[:, None]
         # hack fix quad weights to be monte carlo for now
-        self._qoi_quad_weights = 1.0 / deviations.shape[1]
+        self._qoi_quad_weights = 1.0 / deviations.shape[0]
         risk_measures = self._risk_measure(deviations, self._qoi_quad_weights)
         return self._noise_stat(risk_measures, self._outerloop_quad_weights)
 
     def _jacobian_from_expanded_design_weights(
         self, design_weights: Array
     ) -> Array:
-        evidences = self._evidence(design_weights).T
-        self._deviation_measure.set_evidences(evidences)
-        self._evidence.jacobian(design_weights)
-        print(self._evidence._like_jac.shape, "E")
-        self._deviation_measure._like_jac = self._evidence._like_jac
+        self._deviation_measure.set_evidence(self._evidence)
 
         def fun(w):
-            evidences = self._evidence(w[:, None]).T
-            like_vals_for_qoi = self._evidence._weighted_like_vals
-            deviations = self._deviation_measure(like_vals_for_qoi)
+            deviations = self._deviation_measure(w[:, None])
             # assume 1 qoi while debugging
             return deviations[:, 0]
 
         print(self._bkd.jacobian(fun, design_weights[:, 0]))
-        like_vals_for_qoi = self._evidence._weighted_like_vals
-        print(self._deviation_measure._jacobian(like_vals_for_qoi))
+        print(self._deviation_measure._jacobian(design_weights))
         assert False
 
 
