@@ -639,7 +639,7 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
         # after reshape 4D arrays will have
         # (npred, nouterloop_samples, ninnerloop_samples, ndesign))
         return (
-            self._qoi_vals.T[:, None, :, None] ** 2
+            self._qoi_vals.T[:, None, :, None]
             * quad_weighted_like_vals_jac[None, ...]
         ).sum(axis=2)
 
@@ -655,34 +655,41 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
 
     def _jacobian(self, design_weights: Array) -> Array:
         values = self._values(design_weights)
-
-        def fun(w):
-            evidences = self._evidence(w[:, None]).T
-            return self._second_moment(self._evidence._quad_weighted_like_vals)
-
-        print(self._bkd.jacobian(fun, design_weights[:, 0]), "J1")
         evidences = self._evidence(design_weights).T
-        print(
-            self._evidence._quad_weighted_likelihood_jacobian(
-                design_weights
-            ).shape
+        evidences_jac = self._evidence.jacobian(design_weights)
+        first_mom = self._first_moment(self._evidence._quad_weighted_like_vals)
+        first_mom_jac = self._first_moment_jac(
+            self._evidence._quad_weighted_likelihood_jacobian(design_weights)
         )
-        print(
-            self._second_moment_jac(
-                self._evidence._quad_weighted_likelihood_jacobian(
-                    design_weights
-                )
-            ),
-            "J2",
+        second_mom = self._second_moment(
+            self._evidence._quad_weighted_like_vals
         )
-        assert False
+        second_mom_jac = self._second_moment_jac(
+            self._evidence._quad_weighted_likelihood_jacobian(design_weights)
+        )
         variance_jac = (
-            self._second_moment_jac(like_vals_jac) / self._evidences[..., None]
-            - self._first_moment_jac(like_vals_jac)
-            / self._evidences[..., None] ** 2
+            second_mom_jac / evidences
+            - second_mom[..., None] * evidences_jac[None, :] / evidences**2
+            - 2.0 * first_mom[..., None] * first_mom_jac / evidences**2
+            + 2.0
+            * first_mom[..., None] ** 2
+            * evidences_jac[None, :]
+            / evidences**3
         )
-        assert False
-        return variance_jac / (2.0 * values[..., None])
+        variance_jac = self._bkd.reshape(
+            variance_jac,
+            (self._npred * self._nouterloop_samples, self.nvars()),
+        )
+        sqrt_jac = variance_jac / (2.0 * values[..., None])
+        # fun = lambda w: self._evaluate(w[:, None])[0]
+        # auto_jac = self._bkd.jacobian(fun, design_weights[:, 0]).reshape(
+        #     (self._npred * self._nouterloop_samples, self.nvars())
+        # )
+        # print(auto_jac)
+        # print(sqrt_jac)
+        # print(auto_jac - sqrt_jac)
+        # assert self._bkd.allclose(auto_jac, sqrt_jac)
+        return sqrt_jac
 
 
 class PredictionOEDObjective(KLOEDObjective):
@@ -713,6 +720,7 @@ class PredictionOEDObjective(KLOEDObjective):
         self._risk_measure = lambda d, w: self._bkd.sum(d * w, axis=0)[:, None]
         # hack fix quad weights to be monte carlo for now
         self._qoi_quad_weights = 1.0 / deviations.shape[0]
+        print(self._qoi_quad_weights)
         risk_measures = self._risk_measure(deviations, self._qoi_quad_weights)
         return self._noise_stat(risk_measures, self._outerloop_quad_weights)
 
@@ -721,14 +729,22 @@ class PredictionOEDObjective(KLOEDObjective):
     ) -> Array:
         self._deviation_measure.set_evidence(self._evidence)
 
-        def fun(w):
-            deviations = self._deviation_measure(w[:, None])
-            # assume 1 qoi while debugging
-            return deviations[:, 0]
+        # def fun(w):
+        #     deviations = self._deviation_measure(w[:, None])
+        #     # assume 1 qoi while debugging
+        #     print(deviations.shape)
+        #     return deviations.reshape(2, 4)
 
-        print(self._bkd.jacobian(fun, design_weights[:, 0]))
-        print(self._deviation_measure._jacobian(design_weights))
-        assert False
+        deviation_jac = self._deviation_measure._jacobian(
+            design_weights
+        ).reshape(
+            (
+                self._deviation_measure._npred,
+                self._deviation_measure._nouterloop_samples,
+                self.nvars(),
+            )
+        )
+        return deviation_jac.mean(axis=(0, 1))[None, :]
 
 
 class DOptimalLinearModelObjective(BayesianOEDObjective):
