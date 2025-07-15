@@ -1,4 +1,5 @@
 import unittest
+import itertools
 
 import numpy as np
 from scipy import stats
@@ -698,6 +699,7 @@ class TestBayesOED:
             outerloop_quad_weights,
             innerloop_shapes,
             innerloop_quad_weights,
+            noise_stat=noise_stat,
             backend=self.get_backend(),
         )
         qoi_mat = bkd.array(np.random.uniform(0, 1, (nqoi, prior.nvars())))
@@ -781,6 +783,7 @@ class TestBayesOED:
         min_degree,
         degree,
         noise_stat,
+        risk_measure,
         outerloop_quadtype,
         nouterloop_samples,
         innerloop_quadtype,
@@ -808,11 +811,12 @@ class TestBayesOED:
             ninnerloop_samples,
             nqoi,
         )
-
+        oed_objective.set_risk_measure(risk_measure)
         x0 = bkd.full((nobs, 1), 1 / nobs)
         errors = oed_objective.check_apply_jacobian(
-            x0, disp=True, fd_eps=bkd.flip(bkd.logspace(-13, np.log(0.2), 13))
+            x0, disp=True, fd_eps=bkd.flip(bkd.logspace(-13, -1, 12))
         )
+        print(oed_objective)
         assert errors.min() / errors.max() < 6e-6, errors.min() / errors.max()
 
         # test optimization runs
@@ -826,8 +830,16 @@ class TestBayesOED:
             NoiseStatistic(SampleAverageMeanPlusStdev(1, bkd)),
             NoiseStatistic(SampleAverageEntropicRisk(0.5, bkd)),
         ]
-        for noise_stat in noise_stats:
-            test_case = [2, 0, 1, noise_stat, "MC", 4, "MC", 3]
+        risk_measures = [
+            SampleAverageMeanPlusStdev(1, bkd),
+            SampleAverageEntropicRisk(0.5, bkd),
+        ]
+        for noise_stat, risk_measure in itertools.product(
+            noise_stats, risk_measures
+        ):
+            print(risk_measure, noise_stat)
+            np.random.seed(1)
+            test_case = [2, 0, 1, noise_stat, risk_measure, "MC", 4, "MC", 3]
             self._check_prediction_gaussian_OED_gradients(*test_case)
 
     def test_conjugate_gaussian_prior_OED_for_prediction_exact_formulas(

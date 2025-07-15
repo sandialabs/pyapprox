@@ -4,16 +4,14 @@ from typing import List
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import Model, SingleSampleModel
-from pyapprox.bayes.likelihood import (
-    LogLikelihood,
-    IndependentGaussianLogLikelihood,
-)
+from pyapprox.bayes.likelihood import IndependentGaussianLogLikelihood
 from pyapprox.optimization.minimize import (
     Constraint,
     SampleAverageMean,
     ConstrainedOptimizer,
     LinearConstraint,
     OptimizationResult,
+    SampleAverageStat,
 )
 from pyapprox.variables.gaussian import MultivariateGaussian
 from pyapprox.bayes.laplace import (
@@ -423,7 +421,7 @@ class KLOEDObjective(BayesianOEDObjective):
         super().__init__(backend=backend)
         if noise_stat is None:
             noise_stat = NoiseStatistic(SampleAverageMean(self._bkd))
-        self._noise_stat = noise_stat
+        self.set_noise_statistic(noise_stat)
 
         if not isinstance(innerloop_loglike, OEDInnerLoopLogLikelihoodMixin):
             raise ValueError(
@@ -447,6 +445,13 @@ class KLOEDObjective(BayesianOEDObjective):
         self._set_quadrature_weights(
             outerloop_quad_weights, innerloop_quad_weights
         )
+
+    def set_noise_statistic(self, noise_stat: NoiseStatistic):
+        if not isinstance(noise_stat, NoiseStatistic):
+            raise ValueError(
+                "noise_stat must be an instance of NoiseStatistic"
+            )
+        self._noise_stat = noise_stat
 
     def _setup_evidence(self):
         self._log_evidence = LogEvidence(
@@ -696,9 +701,17 @@ class PredictionOEDObjective(KLOEDObjective):
     def set_deviation_measure(
         self, deviation_measure: PredictionOEDDeviationMeasure
     ):
+        if not isinstance(deviation_measure, PredictionOEDDeviationMeasure):
+            raise ValueError(
+                "deviation_measure must be an instance of PredictionOEDDeviationMeasure"
+            )
         self._deviation_measure = deviation_measure
 
     def set_risk_measure(self, risk_measure):
+        if not isinstance(risk_measure, SampleAverageStat):
+            raise ValueError(
+                "risk_measure must be an instance of SampleAverageStat"
+            )
         self._risk_measure = risk_measure
 
     def _setup_evidence(self):
@@ -717,23 +730,20 @@ class PredictionOEDObjective(KLOEDObjective):
             self._deviation_measure._nouterloop_samples,
         )
         # hack fix risk measure to expectation until fleshed out
-        self._risk_measure = lambda d, w: self._bkd.sum(d * w, axis=0)[:, None]
+        # self._risk_measure = lambda d, w: self._bkd.sum(d * w, axis=0)[:, None]
         # hack fix quad weights to be monte carlo for now
-        self._qoi_quad_weights = 1.0 / deviations.shape[0]
-        print(self._qoi_quad_weights)
-        risk_measures = self._risk_measure(deviations, self._qoi_quad_weights)
+        self._qoi_quad_weights = self._bkd.full(
+            (deviations.shape[0], 1), 1.0 / deviations.shape[0]
+        )
+        risk_measures = self._risk_measure(
+            deviations, self._qoi_quad_weights
+        ).T
         return self._noise_stat(risk_measures, self._outerloop_quad_weights)
 
     def _jacobian_from_expanded_design_weights(
         self, design_weights: Array
     ) -> Array:
         self._deviation_measure.set_evidence(self._evidence)
-
-        # def fun(w):
-        #     deviations = self._deviation_measure(w[:, None])
-        #     # assume 1 qoi while debugging
-        #     print(deviations.shape)
-        #     return deviations.reshape(2, 4)
 
         deviation_jac = self._deviation_measure._jacobian(
             design_weights
@@ -744,7 +754,25 @@ class PredictionOEDObjective(KLOEDObjective):
                 self.nvars(),
             )
         )
-        return deviation_jac.mean(axis=(0, 1))[None, :]
+        deviations = self._deviation_measure(design_weights).reshape(
+            self._deviation_measure._npred,
+            self._deviation_measure._nouterloop_samples,
+        )
+        risk_values = self._risk_measure(deviations, self._qoi_quad_weights).T
+        risk_values_jac = self._risk_measure.jacobian(
+            deviations, deviation_jac, self._qoi_quad_weights
+        )
+        return self._noise_stat.jacobian(
+            risk_values, risk_values_jac, self._outerloop_quad_weights
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            self._deviation_measure,
+            self._risk_measure,
+            self._noise_stat,
+        )
 
 
 class DOptimalLinearModelObjective(BayesianOEDObjective):
