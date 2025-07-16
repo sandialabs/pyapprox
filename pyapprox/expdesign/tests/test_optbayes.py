@@ -17,7 +17,8 @@ from pyapprox.expdesign.optbayes import (
     DOptimalLinearModelObjective,
     PredictionOEDObjective,
     NoiseStatistic,
-    BayesianOED,
+    KLBayesianOED,
+    BayesianOEDForPrediction,
     OEDStandardDeviationMeasure,
     ConjugateGaussianPriorOEDForLinearPredictionKLDivergence,
     ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
@@ -105,14 +106,17 @@ class TestBayesOED:
         )
 
     def _setup_quadrature_data(self, quadtype: str, prior, nsamples: int):
+        bkd = self.get_backend()
         if quadtype == "MC":
-            return prior.rvs(nsamples), None
+            return prior.rvs(nsamples), bkd.full((nsamples, 1), 1.0 / nsamples)
 
         if quadtype == "Halton":
             sequence = HaltonSequence(
                 prior.nvars(), 1, prior, prior._bkd, unbounded_eps=1e-3
             )
-            return sequence.rvs(nsamples), None
+            return sequence.rvs(nsamples), bkd.full(
+                (nsamples, 1), 1.0 / nsamples
+            )
 
         if quadtype == "quadratic":
             quad_rule = setup_tensor_product_piecewise_poly_quadrature_rule(
@@ -584,6 +588,7 @@ class TestBayesOED:
             noise_cov_diag,
             prior_std,
             design,
+            outerloop_samples,
         )
 
     def _check_classical_KL_OED_gaussian_optimization(
@@ -598,17 +603,22 @@ class TestBayesOED:
         ninnerloop_samples,
     ):
         bkd = self.get_backend()
-        kl_oed_objective, obs_model, noise_cov_diag, prior_std, design = (
-            self._setup_bayesian_doptimal_OED_objective(
-                nobs,
-                min_degree,
-                degree,
-                noise_stat,
-                outerloop_quadtype,
-                nouterloop_samples,
-                innerloop_quadtype,
-                ninnerloop_samples,
-            )
+        (
+            kl_oed_objective,
+            obs_model,
+            noise_cov_diag,
+            prior_std,
+            design,
+            outerloop_samples,
+        ) = self._setup_bayesian_doptimal_OED_objective(
+            nobs,
+            min_degree,
+            degree,
+            noise_stat,
+            outerloop_quadtype,
+            nouterloop_samples,
+            innerloop_quadtype,
+            ninnerloop_samples,
         )
 
         dopt_objective = DOptimalLinearModelObjective(
@@ -642,8 +652,15 @@ class TestBayesOED:
         # kl_oed = BayesianOED(kl_oed_objective)
         # klopt_design = kl_oed.compute()
 
-        dopt_oed = BayesianOED(dopt_objective)
-        dopt_design = dopt_oed.compute()
+        dopt_oed = KLBayesianOED(kl_oed_objective._innerloop_loglike)
+        dopt_oed.set_data(
+            kl_oed_objective._outerloop_loglike._shapes,
+            outerloop_samples,
+            kl_oed_objective._outerloop_quad_weights,
+            kl_oed_objective._innerloop_loglike._shapes,
+            kl_oed_objective._innerloop_quad_weights,
+        )
+        dopt_oed.compute()
 
     def test_KL_OED_gaussian_optimization(self):
         bkd = self.get_backend()
@@ -699,7 +716,6 @@ class TestBayesOED:
             outerloop_quad_weights,
             innerloop_shapes,
             innerloop_quad_weights,
-            noise_stat=noise_stat,
             backend=self.get_backend(),
         )
         qoi_mat = bkd.array(np.random.uniform(0, 1, (nqoi, prior.nvars())))
@@ -708,11 +724,16 @@ class TestBayesOED:
             return (qoi_mat @ samples).T
 
         qoi_vals = qoi_model(innerloop_samples)
-        objective.set_deviation_measure(
-            OEDStandardDeviationMeasure(
-                outerloop_loglike, qoi_vals, outerloop_quad_weights
-            )
+        deviation_measure = OEDStandardDeviationMeasure(
+            innerloop_loglike, qoi_vals.shape[1]
         )
+        # assume MC quadrature for prediction space
+        deviation_measure.set_data(
+            qoi_vals,
+            bkd.full((qoi_vals.shape[1], 1), 1.0 / qoi_vals.shape[1]),
+        )
+        objective.set_deviation_measure(deviation_measure)
+        objective.set_noise_statistic(noise_stat)
         return (
             objective,
             obs_model,
@@ -721,6 +742,7 @@ class TestBayesOED:
             design,
             prior,
             qoi_mat,
+            outerloop_samples,
         )
 
     def test_prediction_gaussian_OED_conjugate_gaussian_prior_std(self):
@@ -751,6 +773,7 @@ class TestBayesOED:
             design,
             prior,
             qoi_mat,
+            outerloop_samples,
         ) = self._setup_bayesian_prediction_OED_objective(
             nobs,
             min_degree,
@@ -774,6 +797,8 @@ class TestBayesOED:
             oed_objective._outerloop_loglike._wnoise_std_diag[:, 0]
         )
         std_utility.set_noise_covariance(noise_cov)
+        risk_measure = SampleAverageMean(bkd)
+        oed_objective.set_risk_measure(risk_measure)
         # print(oed_objective(x0), std_utility.value())
         assert bkd.allclose(oed_objective(x0), std_utility.value(), rtol=1e-2)
 
@@ -789,7 +814,6 @@ class TestBayesOED:
         innerloop_quadtype,
         ninnerloop_samples,
     ):
-        print(nouterloop_samples)
         bkd = self.get_backend()
         nqoi = 2
         (
@@ -800,6 +824,7 @@ class TestBayesOED:
             design,
             prior,
             qoi_mat,
+            outerloop_samples,
         ) = self._setup_bayesian_prediction_OED_objective(
             nobs,
             min_degree,
@@ -820,8 +845,22 @@ class TestBayesOED:
         assert errors.min() / errors.max() < 6e-6, errors.min() / errors.max()
 
         # test optimization runs
-        oed = BayesianOED(oed_objective)
-        design = oed.compute()
+        oed = BayesianOEDForPrediction(
+            oed_objective._innerloop_loglike,
+            oed_objective._deviation_measure,
+            oed_objective._risk_measure,
+            oed_objective._noise_stat,
+        )
+        oed.set_data(
+            oed_objective._outerloop_loglike._shapes,
+            outerloop_samples,
+            oed_objective._outerloop_quad_weights,
+            oed_objective._innerloop_loglike._shapes,
+            oed_objective._innerloop_quad_weights,
+            oed_objective._deviation_measure._qoi_vals,
+            oed_objective._qoi_quad_weights,
+        )
+        oed.compute()
 
     def test_prediction_gaussian_OED_gradients(self):
         bkd = self.get_backend()
