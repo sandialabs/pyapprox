@@ -777,14 +777,34 @@ class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
             * self._evidence._quad_weighted_like_vals[None, ...]
         )
 
+    def _first_moment(self, quad_weighted_like_vals: Array) -> Array:
+        # after reshape the 3D arrays will have shape
+        # (npred, ninnerloop_samples, nouterloop_samples)
+        return (
+            self._qoi_vals.T[..., None] * quad_weighted_like_vals[None, ...]
+        ).sum(axis=1)
+
     def _evaluate(self, design_weights: Array) -> Array:
         evidences = self._evidence(design_weights).T
-        return (
+        risk = (
             self._bkd.log(
                 self._weighted_exp_values().sum(axis=1) / evidences[:, 0]
             )
             / self._alpha
-        ).flatten()[None, :]
+        )
+        mean = (
+            self._first_moment(self._evidence._quad_weighted_like_vals)
+            / evidences[:, 0]
+        )
+        return (risk - mean).flatten()[None, :]
+
+    def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
+        # after reshape 4D arrays will have
+        # (npred, nouterloop_samples, ninnerloop_samples, ndesign))
+        return (
+            self._qoi_vals.T[:, None, :, None]
+            * quad_weighted_like_vals_jac[None, ...]
+        ).sum(axis=2)
 
     def _jacobian(self, design_weights: Array) -> Array:
         # must call evidence first so weighted_exp_values are correct
@@ -803,8 +823,16 @@ class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
         term2 = (
             exp_values_mean[..., None] * evidences_jac[None, :] / evidences**2
         )
-        jac = term1 - term2
-        return jac / (self._alpha * (exp_values_mean[..., None] / evidences))
+        risk_jac = (term1 - term2) / (
+            self._alpha * (exp_values_mean[..., None] / evidences)
+        )
+        first_mom = self._first_moment(self._evidence._quad_weighted_like_vals)
+        first_mom_jac = self._first_moment_jac(quad_weighted_like_vals_jac)
+        mean_jac = (
+            first_mom_jac / evidences
+            - first_mom[..., None] * evidences_jac[None, :] / evidences**2
+        )
+        return risk_jac - mean_jac
 
 
 class PredictionOEDObjective(KLOEDObjective):
