@@ -47,7 +47,7 @@ sg.setup(admissibility_criteria, univariate_quad_rules=univariate_quad_rules)
 sg.build(benchmark.model())
 
 # %%
-# Compute the sensivitity indices
+# Compute the sensitivity indices
 analyzer = LagrangeSparseGridSensitivityAnalysis(benchmark.variable())
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()

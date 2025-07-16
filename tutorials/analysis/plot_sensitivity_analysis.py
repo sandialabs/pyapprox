@@ -44,7 +44,7 @@ from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
 from pyapprox.analysis.sensitivity_analysis import (
-    PolynomialChaosSensivitityAnalysis,
+    PolynomialChaosSensitivityAnalysis,
     plot_main_effects,
     plot_total_effects,
     plot_interaction_values,
@@ -66,7 +66,7 @@ samples = benchmark.variable().rvs(nsamples)
 values = benchmark.model()(samples)
 pce.fit(samples, values)
 
-analyzer = PolynomialChaosSensivitityAnalysis(benchmark.variable().nvars())
+analyzer = PolynomialChaosSensitivityAnalysis(benchmark.variable().nvars())
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()
 )

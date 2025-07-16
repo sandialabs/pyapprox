@@ -29,7 +29,7 @@ from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array,
 )
 from pyapprox.analysis.sensitivity_analysis import (
-    GaussianProcessSensivitityAnalysis,
+    GaussianProcessSensitivityAnalysis,
     plot_sensitivity_indices,
 )
 from pyapprox.bayes.metropolis import (
@@ -201,7 +201,7 @@ if savefig:
 # left to right are: main effect, largest Sobol indices and total effect indices.
 
 
-analyzer = GaussianProcessSensivitityAnalysis(benchmark.variable().nvars())
+analyzer = GaussianProcessSensitivityAnalysis(benchmark.variable().nvars())
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()
 )

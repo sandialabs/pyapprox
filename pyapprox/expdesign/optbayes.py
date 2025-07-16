@@ -378,15 +378,6 @@ class NoiseStatistic:
         return "{0}({1})".format(self.__class__.__name__, self._stat)
 
 
-# class EntropicNoiseStatistic(SampleAverageEntropicRisk):
-#     def __call__(self, outer_vals, outer_weights):
-#         return self._bkd.log((self._bkd.exp(outer_weights)*outer_vals)).sum(axis=0)[:, None]
-
-#     def jacobian(self, outer_vals, outer_jacs, outer_weights):
-#         risk = self(outer_vals, outer_weights)
-#         return ((outer_weights*outer_vals)*outer_jacs).sum(axis=0)/risk
-
-
 class BayesianOEDObjective(SingleSampleModel):
     def __init__(self, backend: BackendMixin = NumpyMixin):
         super().__init__(backend=backend)
@@ -683,13 +674,13 @@ class PredictionOEDDeviationMeasure(SingleSampleModel):
     def nvars(self) -> int:
         return self._innerloop_loglike.nvars()
 
-
-class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
     def set_evidence(self, evidence: Evidence):
         if not isinstance(evidence, Evidence):
             raise ValueError("evidence must be an instance of Evidence")
         self._evidence = evidence
 
+
+class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
     def _first_moment(self, quad_weighted_like_vals: Array) -> Array:
         # after reshape the 3D arrays will have shape
         # (npred, ninnerloop_samples, nouterloop_samples)
@@ -734,16 +725,15 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
         values = self._values(design_weights)
         evidences = self._evidence(design_weights).T
         evidences_jac = self._evidence.jacobian(design_weights)
-        first_mom = self._first_moment(self._evidence._quad_weighted_like_vals)
-        first_mom_jac = self._first_moment_jac(
-            self._evidence._quad_weighted_likelihood_jacobian(design_weights)
+        like_jac = self._evidence._quad_weighted_likelihood_jacobian(
+            design_weights
         )
+        first_mom = self._first_moment(self._evidence._quad_weighted_like_vals)
+        first_mom_jac = self._first_moment_jac(like_jac)
         second_mom = self._second_moment(
             self._evidence._quad_weighted_like_vals
         )
-        second_mom_jac = self._second_moment_jac(
-            self._evidence._quad_weighted_likelihood_jacobian(design_weights)
-        )
+        second_mom_jac = self._second_moment_jac(like_jac)
         variance_jac = (
             second_mom_jac / evidences
             - second_mom[..., None] * evidences_jac[None, :] / evidences**2
@@ -767,6 +757,54 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
         # print(auto_jac - sqrt_jac)
         # assert self._bkd.allclose(auto_jac, sqrt_jac)
         return sqrt_jac
+
+
+class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
+    def __init__(
+        self, npred: int, alpha: float, backend: BackendMixin = NumpyMixin
+    ):
+        super().__init__(npred, backend=backend)
+        self.set_alpha(alpha)
+
+    def set_alpha(self, alpha: float):
+        if alpha <= 0:
+            raise ValueError("alpha must be > 0")
+        self._alpha = alpha
+
+    def _weighted_exp_values(self):
+        return (
+            self._bkd.exp(self._alpha * self._qoi_vals.T[..., None])
+            * self._evidence._quad_weighted_like_vals[None, ...]
+        )
+
+    def _evaluate(self, design_weights: Array) -> Array:
+        evidences = self._evidence(design_weights).T
+        return (
+            self._bkd.log(
+                self._weighted_exp_values().sum(axis=1) / evidences[:, 0]
+            )
+            / self._alpha
+        ).flatten()[None, :]
+
+    def _jacobian(self, design_weights: Array) -> Array:
+        # must call evidence first so weighted_exp_values are correct
+        evidences = self._evidence(design_weights).T
+        weighted_exp_values = self._weighted_exp_values()
+        evidences_jac = self._evidence.jacobian(design_weights)
+        quad_weighted_like_vals_jac = (
+            self._evidence._quad_weighted_likelihood_jacobian(design_weights)
+        )
+        term1 = (
+            self._alpha
+            * self._bkd.exp(self._alpha * self._qoi_vals.T)[:, None, :, None]
+            * quad_weighted_like_vals_jac[None, ...]
+        ).sum(axis=2) / evidences
+        exp_values_mean = weighted_exp_values.sum(axis=1)
+        term2 = (
+            exp_values_mean[..., None] * evidences_jac[None, :] / evidences**2
+        )
+        jac = term1 - term2
+        return jac / (self._alpha * (exp_values_mean[..., None] / evidences))
 
 
 class PredictionOEDObjective(KLOEDObjective):

@@ -15,9 +15,9 @@ from pyapprox.analysis.sensitivity_analysis import (
     MonteCarloBasedSensitivityAnalysis,
     MorrisSensitivityAnalysis,
     BinBasedVarianceSensitivityAnalysis,
-    PolynomialChaosSensivitityAnalysis,
+    PolynomialChaosSensitivityAnalysis,
     LagrangeSparseGridSensitivityAnalysis,
-    EnsembleGaussianProcessSensivitityAnalysis,
+    EnsembleGaussianProcessSensitivityAnalysis,
 )
 from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
@@ -125,7 +125,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             np.array([5.55220104, 8.03908012, 9.31270356]),
         )
 
-    def test_bin_based_variance_sensivitity_analysis(self):
+    def test_bin_based_variance_sensitivity_analysis(self):
         benchmark = IshigamiBenchmark()
         analyzer = BinBasedVarianceSensitivityAnalysis(benchmark.variable())
         nsamples = int(1e6)
@@ -163,7 +163,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         # print("Abs. Error", abs_error)
         assert abs_error < l2_tol
 
-        analyzer = PolynomialChaosSensivitityAnalysis(pce.nvars())
+        analyzer = PolynomialChaosSensitivityAnalysis(pce.nvars())
         analyzer.set_interaction_terms_of_interest(
             benchmark.sobol_interaction_indices()
         )
@@ -279,8 +279,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
         # print("Abs. Error", abs_error)
         assert abs_error < l2_tol
 
-        # compute sensivitity indices from gp
-        analyzer = EnsembleGaussianProcessSensivitityAnalysis(
+        # compute sensitivity indices from gp
+        analyzer = EnsembleGaussianProcessSensitivityAnalysis(
             benchmark.variable(), nrealizations=100
         )
         analyzer.set_interaction_terms_of_interest(

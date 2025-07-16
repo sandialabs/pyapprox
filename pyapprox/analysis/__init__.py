@@ -12,7 +12,7 @@ from pyapprox.analysis.sensitivity_analysis import (
     HaltonSequenceBasedSensitivityAnalysis,
     MorrisSensitivityAnalysis,
     BinBasedVarianceSensitivityAnalysis,
-    PolynomialChaosSensivitityAnalysis,
+    PolynomialChaosSensitivityAnalysis,
     plot_main_effects,
     plot_total_effects,
     plot_interaction_values,
@@ -28,5 +28,5 @@ __all__ = [
     "HaltonSequenceBasedSensitivityAnalysis",
     "MorrisSensitivityAnalysis",
     "BinBasedVarianceSensitivityAnalysis",
-    "PolynomialChaosSensivitityAnalysis",
+    "PolynomialChaosSensitivityAnalysis",
 ]

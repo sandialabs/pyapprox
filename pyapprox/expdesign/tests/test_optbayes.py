@@ -20,6 +20,7 @@ from pyapprox.expdesign.optbayes import (
     KLBayesianOED,
     BayesianOEDForPrediction,
     OEDStandardDeviationMeasure,
+    OEDEntropicDeviationMeasure,
     ConjugateGaussianPriorOEDForLinearPredictionKLDivergence,
     ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
     ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation,
@@ -677,7 +678,8 @@ class TestBayesOED:
         # assume MC quadrature for prediction space
         qoi_quad_weights = bkd.full((nqoi, 1), 1.0 / nqoi)
 
-        deviation_measure = OEDStandardDeviationMeasure(nqoi, bkd)
+        # deviation_measure = OEDStandardDeviationMeasure(nqoi, bkd)
+        deviation_measure = OEDEntropicDeviationMeasure(nqoi, 1.0, bkd)
         deviation_measure.set_loglikelihood(innerloop_loglike)
         oed = BayesianOEDForPrediction(
             innerloop_loglike,

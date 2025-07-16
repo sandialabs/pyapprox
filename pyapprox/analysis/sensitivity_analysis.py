@@ -101,7 +101,7 @@ class VarianceBasedSensitivityAnalysis(ABC):
         return sobol_indices
 
 
-class PolynomialChaosSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
+class PolynomialChaosSensitivityAnalysis(VarianceBasedSensitivityAnalysis):
     def _compute_main_and_total_effects(self):
         r"""
         Assume basis is orthonormal
@@ -211,7 +211,7 @@ class PolynomialChaosSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
 
 
 class LagrangeSparseGridSensitivityAnalysis(
-    PolynomialChaosSensivitityAnalysis
+    PolynomialChaosSensitivityAnalysis
 ):
     def __init__(
         self,
@@ -235,9 +235,9 @@ class LagrangeSparseGridSensitivityAnalysis(
         return super().compute(pce)
 
 
-# TODO consider making this a member function of variance based sensivitity
+# TODO consider making this a member function of variance based sensitivity
 # classes. Similarly for plotting total effects and sobol indices.
-# Use EnsembleGaussianProcessSensivitityAnalysis as an example
+# Use EnsembleGaussianProcessSensitivityAnalysis as an example
 def plot_main_effects(
     main_effects, ax, truncation_pct=0.95, max_slices=5, rv="z", qoi=0
 ):
@@ -811,7 +811,7 @@ class SensitivityResult(OptimizeResult):
 #     return sobol_values, total_values, variances, means
 
 
-class SampleBasedSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
+class SampleBasedSensitivityAnalysis(VarianceBasedSensitivityAnalysis):
     """
     See I.M. Sobol. Mathematics and Computers in Simulation 55 (2001) 271–280
 
@@ -932,13 +932,13 @@ class SampleBasedSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
         return "{0}".format(self.__class__.__name__)
 
 
-class MonteCarloBasedSensitivityAnalysis(SampleBasedSensivitityAnalysis):
+class MonteCarloBasedSensitivityAnalysis(SampleBasedSensitivityAnalysis):
     def _get_AB_samples(self, nsamples: int) -> Tuple[Array, Array]:
         return self._variable.rvs(nsamples), self._variable.rvs(nsamples)
 
 
 class LowDiscrepancySequenceBasedSensitivityAnalysis(
-    SampleBasedSensivitityAnalysis
+    SampleBasedSensitivityAnalysis
 ):
     def __init__(
         self,
@@ -1308,7 +1308,7 @@ class FixedGaussianProcess(ExactGaussianProcess):
         )
 
 
-class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
+class GaussianProcessSensitivityAnalysis(VarianceBasedSensitivityAnalysis):
     def __init__(
         self,
         variable: IndependentMarginalsVariable,
@@ -1390,8 +1390,8 @@ class GaussianProcessSensivitityAnalysis(VarianceBasedSensitivityAnalysis):
         return self._sobol_indices
 
 
-class EnsembleGaussianProcessSensivitityAnalysis(
-    GaussianProcessSensivitityAnalysis
+class EnsembleGaussianProcessSensitivityAnalysis(
+    GaussianProcessSensitivityAnalysis
 ):
     def __init__(
         self,

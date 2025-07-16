@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks import IshigamiBenchmark
 from pyapprox.analysis.sensitivity_analysis import (
-    PolynomialChaosSensivitityAnalysis,
+    PolynomialChaosSensitivityAnalysis,
     plot_main_effects,
     plot_total_effects,
 )
@@ -30,8 +30,8 @@ values = benchmark.model()(samples)
 pce.fit(samples, values)
 
 # %%
-# Now compute the sensivitity indices
-analyzer = PolynomialChaosSensivitityAnalysis(benchmark.variable().nvars())
+# Now compute the sensitivity indices
+analyzer = PolynomialChaosSensitivityAnalysis(benchmark.variable().nvars())
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()
 )
