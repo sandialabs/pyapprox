@@ -38,6 +38,17 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
         self.set_observations(obs)
         self._shapes = shapes
 
+    def shapes(self) -> Array:
+        """
+        Return the shapes, e.g. mean of Gaussian, used to compute the
+        likelihood
+
+        Returns
+        -------
+        shapes : Array (nobs, nouterloop_samples)
+        """
+        return self._shapes
+
     def nqoi(self) -> int:
         return self._obs.shape[1]
 
@@ -116,9 +127,13 @@ class OEDInnerLoopLogLikelihoodMixin:
         # obs and shapes with different shapes, obs and shapes passed to
         # OED likelihoods require obs and shapes with the same shape
         if obs.ndim != 2:
-            raise ValueError("obs must be a 2D array (nobs, nouterloop)")
+            raise ValueError(
+                "obs must be a 2D array (nobs, nouterloop_samples)"
+            )
         if shapes.ndim != 2:
-            raise ValueError("shapes must be a 2D array (nobs, ninnerloop)")
+            raise ValueError(
+                "shapes must be a 2D array (nobs, ninnerloop_samples)"
+            )
         if obs.shape[0] != shapes.shape[0]:
             raise ValueError(
                 "The number of rows of obs and shapes are inconsistent"
@@ -131,6 +146,17 @@ class OEDInnerLoopLogLikelihoodMixin:
 
     def nvars(self) -> int:
         return self._obs.shape[0]
+
+    def shapes(self) -> Array:
+        """
+        Return the shapes, e.g. mean of Gaussian, used to compute the
+        likelihood
+
+        Returns
+        -------
+        shapes : Array (nobs, ninnerloop_samples)
+        """
+        return self._shapes
 
     @abstractmethod
     def _values(self, design_weights: Array) -> Array:
@@ -593,19 +619,24 @@ class KLOEDObjective(BayesianOEDObjective):
 
 
 class PredictionOEDDeviationMeasure(SingleSampleModel):
-    def __init__(
+    def __init__(self, npred: int, backend: BackendMixin = NumpyMixin):
+        super().__init__(backend=backend)
+        self._npred = npred
+
+    def set_loglikelihood(
         self,
         innerloop_loglike: OEDInnerLoopLogLikelihoodMixin,
-        npred: int,
     ):
         if not isinstance(innerloop_loglike, OEDInnerLoopLogLikelihoodMixin):
             raise ValueError(
                 "loglike must be an instance of OEDInnerLoopLogLikelihoodMixin"
             )
+        if not innerloop_loglike._bkd.bkd_equal(
+            self._bkd, innerloop_loglike._bkd
+        ):
+            raise ValueError("backends are inconsistent")
         self._innerloop_loglike = innerloop_loglike
         self._outerloop_loglike = self._innerloop_loglike._outerloop_loglike
-        self._npred = npred
-        super().__init__(backend=innerloop_loglike._bkd)
         self._nouterloop_samples = self._outerloop_loglike._shapes.shape[1]
         self._ninnerloop_samples = self._innerloop_loglike._shapes.shape[1]
 
@@ -950,6 +981,9 @@ class BayesianOED(ABC):
         if not objective._bkd.bkd_equal(self._bkd, objective._bkd):
             raise ValueError("backends are inconsistent")
         self._objective = objective
+
+    def objective(self) -> BayesianOEDObjective:
+        return self._objective
 
     def default_optimizer(
         self,
