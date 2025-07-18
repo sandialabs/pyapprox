@@ -768,7 +768,9 @@ class GaussianLogLikelihood(LogLikelihood):
         """
         if latent_samples.shape != shapes.shape:
             raise ValueError(
-                "shapes of latent_samples and shapes do not match"
+                f"shapes of latent_samples {latent_samples.shape} "
+                f"and shapes {shapes.shape} do not match"
+                ""
             )
         return self._make_noisy(shapes, latent_samples)
 

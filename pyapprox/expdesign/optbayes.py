@@ -312,7 +312,13 @@ class Evidence(Model):
         )
         self._like_vals = like_vals
         self._quad_weighted_like_vals = self._quad_weights * self._like_vals
-        return (self._quad_weighted_like_vals).sum(axis=0)[None, :]
+        # k is needed to ensure that quadweights is applied to each column
+        # in like_vals via broadcast
+        # o: outer, i: inner
+        return self._bkd.einsum("ok,oi->i", self._quad_weights, like_vals)[
+            None, :
+        ]
+        # return (self._quad_weighted_like_vals).sum(axis=0)[None, :]
 
     def _quad_weighted_likelihood_jacobian(
         self, design_weights: Array
@@ -332,15 +338,24 @@ class Evidence(Model):
         return self._quad_weighted_like_vals_prod_jac
 
     def _jacobian(self, design_weights: Array) -> Array:
-        if not self._bkd.allclose(
-            design_weights, self._prev_design_weights, atol=1e-15, rtol=1e-15
-        ):
-            # recompute necessary data
-            self(design_weights)
-
-        self._quad_weighted_likelihood_jacobian(design_weights)
-        self._evidence_jac = self._bkd.sum(
-            self._quad_weighted_like_vals_prod_jac, axis=1
+        like_jac = self._bkd.reshape(
+            self._loglike.jacobian(design_weights),
+            (
+                self._loglike._obs.shape[1],
+                self._loglike._shapes.shape[1],
+                self._loglike.nvars(),
+            ),
+        )
+        like_vals = self._reshape_vals(
+            self._bkd.exp(self._loglike(design_weights))
+        )
+        quad_weighted_like_vals = self._quad_weights * like_vals
+        # return self._bkd.sum(
+        #     quad_weighted_like_vals.T[..., None] * like_jac, axis=1
+        # )
+        # o:outer, i: inner, d: derivatives
+        self._evidence_jac = self._bkd.einsum(
+            "io, oik -> ok", quad_weighted_like_vals, like_jac
         )
         return self._evidence_jac
 
@@ -518,11 +533,8 @@ class KLOEDObjective(BayesianOEDObjective):
     def jacobian_implemented(self) -> bool:
         return True
 
-    # apply hessian reduces optimization iteration count but increases
-    # run time because cost of each iteration increases so do not activate
-    # TODO use adjoints to derive more efficient HVP
     def apply_hessian_implemented(self) -> bool:
-        return False
+        return True
 
     def _evaluate_from_expanded_design_weights(
         self, design_weights: Array
@@ -566,12 +578,18 @@ class KLOEDObjective(BayesianOEDObjective):
         # this assumes that hessian of log-likelihood is zero
         # thus this function can only be used with log likelihoods that are
         # linear in the weights
-        tmp = self._bkd.sum(
-            (
-                self._log_evidence._quad_weighted_like_vals_prod_jac
-                * (self._log_evidence._like_jac @ vec)
-            ),
-            axis=1,
+        # tmp = self._bkd.sum(
+        #     (
+        #         self._log_evidence._quad_weighted_like_vals_prod_jac
+        #         * (self._log_evidence._like_jac @ vec)
+        #     ),
+        #     axis=1,
+        # )
+        # o:outer, i: inner, q: qoi, d:derivatives
+        tmp = self._bkd.einsum(
+            "oid,oi->od",
+            self._log_evidence._quad_weighted_like_vals_prod_jac,
+            (self._log_evidence._like_jac @ vec[:, 0]),
         )
         hvp1 = self._bkd.sum((outer_weights / evidence) * tmp, axis=0)
         return hvp1
@@ -581,6 +599,7 @@ class KLOEDObjective(BayesianOEDObjective):
     ) -> Array:
         # g''(f(x))\nabla f^\top nabla f \dot v
         evidence_jac = self._log_evidence._evidence_jac
+        # o:outer, i: inner, q: qoi, d:derivatives
         hvp2 = self._bkd.sum(
             (outer_weights / evidence**2)
             * evidence_jac
@@ -601,6 +620,8 @@ class KLOEDObjective(BayesianOEDObjective):
         outer_weights = self._outerloop_quad_weights
         if hasattr(self, "_design_weights_map"):
             vec = self._design_weights_map_jacobian @ vec
+
+        self._log_evidence._quad_weighted_likelihood_jacobian(design_weights)
         hvp1 = self._hvp1(outer_weights, evidence, vec)
         hvp2 = self._hvp2(outer_weights, evidence, vec)
         hvp = hvp1 - hvp2
@@ -684,15 +705,23 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
     def _first_moment(self, quad_weighted_like_vals: Array) -> Array:
         # after reshape the 3D arrays will have shape
         # (npred, ninnerloop_samples, nouterloop_samples)
-        return (
-            self._qoi_vals.T[..., None] * quad_weighted_like_vals[None, ...]
-        ).sum(axis=1)
+        # return (
+        #    self._qoi_vals.T[..., None] * quad_weighted_like_vals[None, ...]
+        # ).sum(axis=1)
+        # o:outer, i: inner, q: qoi
+        return self._bkd.einsum(
+            "iq,io->qo", self._qoi_vals, quad_weighted_like_vals
+        )
 
     def _second_moment(self, quad_weighted_like_vals: Array) -> Array:
-        return (
-            self._qoi_vals.T[..., None] ** 2
-            * quad_weighted_like_vals[None, ...]
-        ).sum(axis=1)
+        # return (
+        #     self._qoi_vals.T[..., None] ** 2
+        #     * quad_weighted_like_vals[None, ...]
+        # ).sum(axis=1)
+        # o:outer, i: inner, q: qoi,
+        return self._bkd.einsum(
+            "iq,io->qo", self._qoi_vals**2, quad_weighted_like_vals
+        )
 
     def _evaluate(self, design_weights: Array) -> Array:
         evidences = self._evidence(design_weights).T
@@ -706,20 +735,28 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
     def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
         # after reshape 4D arrays will have
         # (npred, nouterloop_samples, ninnerloop_samples, ndesign))
-        return (
-            self._qoi_vals.T[:, None, :, None]
-            * quad_weighted_like_vals_jac[None, ...]
-        ).sum(axis=2)
+        # return (
+        #     self._qoi_vals.T[:, None, :, None]
+        #     * quad_weighted_like_vals_jac[None, ...]
+        # ).sum(axis=2)
+        # o:outer, i: inner, q: qoi, d: derivatives
+        return self._bkd.einsum(
+            "iq,oid->qod",
+            self._qoi_vals,
+            quad_weighted_like_vals_jac,
+        )
 
     def _second_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
-        # print(
-        #     self._qoi_vals.T[:, None, :, None].shape,
-        #     quad_weighted_like_vals_jac[None, ...].shape,
-        # )
-        return (
-            self._qoi_vals.T[:, None, :, None] ** 2
-            * quad_weighted_like_vals_jac[None, ...]
-        ).sum(axis=2)
+        # return (
+        #     self._qoi_vals.T[:, None, :, None] ** 2
+        #     * quad_weighted_like_vals_jac[None, ...]
+        # ).sum(axis=2)
+        # o:outer, i: inner, q: qoi, d: derivatives
+        return self._bkd.einsum(
+            "iq,oid->qod",
+            self._qoi_vals**2,
+            quad_weighted_like_vals_jac,
+        )
 
     def _jacobian(self, design_weights: Array) -> Array:
         values = self._values(design_weights)
@@ -780,15 +817,31 @@ class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
     def _first_moment(self, quad_weighted_like_vals: Array) -> Array:
         # after reshape the 3D arrays will have shape
         # (npred, ninnerloop_samples, nouterloop_samples)
-        return (
-            self._qoi_vals.T[..., None] * quad_weighted_like_vals[None, ...]
-        ).sum(axis=1)
+        # return (
+        #     self._qoi_vals.T[..., None] * quad_weighted_like_vals[None, ...]
+        # ).sum(axis=1)
+        # o:outer, i: inner, q: qoi
+        return self._bkd.einsum(
+            "iq,io->qo", self._qoi_vals, quad_weighted_like_vals
+        )
 
     def _evaluate(self, design_weights: Array) -> Array:
         evidences = self._evidence(design_weights).T
+        # risk1 = (
+        #    self._bkd.log(
+        #        self._weighted_exp_values().sum(axis=1) / evidences[:, 0]
+        #    )
+        #    / self._alpha
+        # )
+        # o:outer, i: inner, q: qoi, d: derivatives
         risk = (
             self._bkd.log(
-                self._weighted_exp_values().sum(axis=1) / evidences[:, 0]
+                self._bkd.einsum(
+                    "iq,io->qo",
+                    self._bkd.exp(self._alpha * self._qoi_vals),
+                    self._evidence._quad_weighted_like_vals,
+                )
+                / evidences[:, 0]
             )
             / self._alpha
         )
@@ -801,25 +854,45 @@ class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
     def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
         # after reshape 4D arrays will have
         # (npred, nouterloop_samples, ninnerloop_samples, ndesign))
-        return (
-            self._qoi_vals.T[:, None, :, None]
-            * quad_weighted_like_vals_jac[None, ...]
-        ).sum(axis=2)
+        # return (
+        #     self._qoi_vals.T[:, None, :, None]
+        #     * quad_weighted_like_vals_jac[None, ...]
+        # ).sum(axis=2)
+        # o:outer, i: inner, q: qoi, d: derivatives
+        return self._bkd.einsum(
+            "iq,oid->qod", self._qoi_vals, quad_weighted_like_vals_jac
+        )
 
     def _jacobian(self, design_weights: Array) -> Array:
         # must call evidence first so weighted_exp_values are correct
         evidences = self._evidence(design_weights).T
-        weighted_exp_values = self._weighted_exp_values()
         evidences_jac = self._evidence.jacobian(design_weights)
         quad_weighted_like_vals_jac = (
             self._evidence._quad_weighted_likelihood_jacobian(design_weights)
         )
+        # term1 = (
+        #     self._alpha
+        #     * self._bkd.exp(self._alpha * self._qoi_vals.T)[:, None, :, None]
+        #     * quad_weighted_like_vals_jac[None, ...]
+        # ).sum(axis=2) / evidences
+
+        # o:outer, i: inner, q: qoi, d: derivatives
         term1 = (
             self._alpha
-            * self._bkd.exp(self._alpha * self._qoi_vals.T)[:, None, :, None]
-            * quad_weighted_like_vals_jac[None, ...]
-        ).sum(axis=2) / evidences
-        exp_values_mean = weighted_exp_values.sum(axis=1)
+            * self._bkd.einsum(
+                "iq,oid->qod",
+                self._bkd.exp(self._alpha * self._qoi_vals),
+                quad_weighted_like_vals_jac,
+            )
+            / evidences
+        )
+
+        # o:outer, i: inner, q: qoi
+        exp_values_mean = self._bkd.einsum(
+            "iq,io->qo",
+            self._bkd.exp(self._alpha * self._qoi_vals),
+            self._evidence._quad_weighted_like_vals,
+        )
         term2 = (
             exp_values_mean[..., None] * evidences_jac[None, :] / evidences**2
         )
@@ -836,6 +909,9 @@ class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
 
 
 class PredictionOEDObjective(KLOEDObjective):
+    def apply_hessian_implemented(self) -> bool:
+        return False
+
     def set_qoi_quadrature_weights(self, qoi_quad_weights: Array):
         if not hasattr(self, "_deviation_measure"):
             raise ValueError("Must call set_deviation_measure")

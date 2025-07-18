@@ -638,9 +638,7 @@ class TransientSingleStateFinalTimeFunctional(TransientAdjointFunctional):
         return 0
 
 
-class TransientMSEAdjointFunctional(TransientAdjointFunctional):
-    # TODO compute all log likelihood terms including determinant of noise
-    # covariance
+class TransientObservationFunctional(TransientAdjointFunctional):
     def __init__(
         self,
         nstates: int,
@@ -654,10 +652,59 @@ class TransientMSEAdjointFunctional(TransientAdjointFunctional):
             [tup[0] for tup in obs_tuples], dtype=int
         )
         self._obs_time_indices = [tup[1] for tup in obs_tuples]
+        self._nqoi = sum(
+            [indices.shape[0] for indices in self._obs_time_indices]
+        )
+        super().__init__(backend)
+
+    def observations_from_solution(self, sol: Array) -> Array:
+        obs = []
+        for state_idx, time_idx in zip(
+            self._obs_state_indices, self._obs_time_indices
+        ):
+            obs.append(sol[state_idx][time_idx])
+        return self._bkd.hstack(obs)
+
+    def nqoi(self) -> int:
+        return self._nqoi
+
+    def _value(self, sol: Array) -> Array:
+        return self.observations_from_solution(sol)
+
+    def nstates(self) -> int:
+        return self._nstates
+
+    def nparams(self) -> int:
+        return self._nparams
+
+    def nunique_functional_params(self) -> int:
+        return 0
+
+
+class TransientMSEAdjointFunctional(TransientAdjointFunctional):
+    # TODO compute all log likelihood terms including determinant of noise
+    # covariance
+    def __init__(
+        self,
+        nstates: int,
+        nresidual_params: int,
+        obs_tuples: List[Tuple[int, Array]],
+        noise_std: float = None,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        self._noise_std = noise_std
+        self._nstates = nstates
+        self._nparams = nresidual_params + self.nunique_functional_params()
+        self._obs_state_indices = backend.array(
+            [tup[0] for tup in obs_tuples], dtype=int
+        )
+        self._obs_time_indices = [tup[1] for tup in obs_tuples]
         super().__init__(backend)
 
     def nunique_functional_params(self) -> int:
-        return 1
+        if self._noise_std is None:
+            return 1
+        return 0
 
     def set_observations(self, observations: Array):
         self._obs = observations
@@ -667,12 +714,15 @@ class TransientMSEAdjointFunctional(TransientAdjointFunctional):
         for state_idx, time_idx in zip(
             self._obs_state_indices, self._obs_time_indices
         ):
-            obs.append(sol[state_idx, time_idx])
+            obs.append(sol[state_idx][time_idx])
         return self._bkd.hstack(obs)
 
     def set_param(self, param: Array):
         self._param = param
-        self._sigma = self._unique_functional_params(self._param)[0]
+        if self._noise_std is None:
+            self._sigma = self._unique_functional_params(self._param)[0]
+        else:
+            self._sigma = self._noise_std
 
     def nstates(self) -> int:
         return self._nstates

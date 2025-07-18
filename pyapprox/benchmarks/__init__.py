@@ -27,6 +27,7 @@ from pyapprox.benchmarks.multifidelity_benchmarks import (
 from pyapprox.benchmarks.ode import (
     ChemicalReactionBenchmark,
     LotkaVolterraBenchmark,
+    LotkaVolterraOEDBenchmark,
     CoupledSpringsBenchmark,
     HastingsEcologyBenchmark,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "MultiLevelCosineBenchmark",
     "ChemicalReactionBenchmark",
     "LotkaVolterraBenchmark",
+    "LotkaVolterraOEDBenchmark",
     "CoupledSpringsBenchmark",
     "HastingsEcologyBenchmark",
     "PyApproxPaperAdvectionDiffusionKLEInversionBenchmark",

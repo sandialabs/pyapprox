@@ -193,13 +193,13 @@ class TestBenchmarks:
         bkd = self.get_backend()
         newton_solver = NewtonSolver(verbosity=0, rtol=1e-12, atol=1e-12)
         benchmark = LotkaVolterraBenchmark(
-            time_residual_cls, newton_solver, bkd
+            time_residual_cls, newton_solver, backend=bkd
         )
+        # stack the standard deviation of the MSE functional to a prior sample
+        sample = bkd.vstack([bkd.ones((1, 1)), benchmark.variable().rvs(1)])
+
         # The error in check apply jacobian depend on newton tolerance
         # because finite difference is only accurate to that tolerance
-        sample = bkd.array(
-            np.random.uniform(0.3, 0.7, benchmark.model().nvars())
-        )[:, None]
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = benchmark.model().check_apply_jacobian(sample, fd_eps)
         # print(errors.min() / errors.max())

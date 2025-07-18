@@ -287,7 +287,7 @@ class TestBayesOED:
         outerloop_quadtype = "MC"
         innerloop_quadtype = "MC"
         nouterloop_samples = 100
-        ninnerloop_samples = 100
+        ninnerloop_samples = 200
 
         degree = 0
         nobs = 3
@@ -640,6 +640,7 @@ class TestBayesOED:
         degree,
         noise_stat,
         risk_measure,
+        deviation_measure,
         outerloop_quadtype,
         nouterloop_samples,
         innerloop_quadtype,
@@ -678,8 +679,6 @@ class TestBayesOED:
         # assume MC quadrature for prediction space
         qoi_quad_weights = bkd.full((nqoi, 1), 1.0 / nqoi)
 
-        # deviation_measure = OEDStandardDeviationMeasure(nqoi, bkd)
-        deviation_measure = OEDEntropicDeviationMeasure(nqoi, 1.0, bkd)
         deviation_measure.set_loglikelihood(innerloop_loglike)
         oed = BayesianOEDForPrediction(
             innerloop_loglike,
@@ -716,15 +715,18 @@ class TestBayesOED:
             innerloop_quadtype,
             ninnerloop_samples,
         ) = test_case
+        nqoi = 1
         bkd = self.get_backend()
+        deviation_measure = OEDStandardDeviationMeasure(nqoi, bkd)
         risk_measure = SampleAverageMean(bkd)
         oed, prior, qoi_mat, obs_model = self._setup_OED_for_prediction(
-            1,
+            nqoi,
             nobs,
             min_degree,
             degree,
             noise_stat,
             risk_measure,
+            deviation_measure,
             outerloop_quadtype,
             nouterloop_samples,
             innerloop_quadtype,
@@ -741,7 +743,7 @@ class TestBayesOED:
             oed.objective()._outerloop_loglike._wnoise_std_diag[:, 0]
         )
         std_utility.set_noise_covariance(noise_cov)
-        # print(oed.objective()(x0), std_utility.value())
+        print(oed.objective()(x0), std_utility.value())
         assert bkd.allclose(
             oed.objective()(x0), std_utility.value(), rtol=1e-2
         )
@@ -753,19 +755,22 @@ class TestBayesOED:
         degree,
         noise_stat,
         risk_measure,
+        deviation_measure,
         outerloop_quadtype,
         nouterloop_samples,
         innerloop_quadtype,
         ninnerloop_samples,
     ):
         bkd = self.get_backend()
+        nqoi = deviation_measure.npred()
         oed, prior, qoi_mat, obs_model = self._setup_OED_for_prediction(
-            2,
+            nqoi,
             nobs,
             min_degree,
             degree,
             noise_stat,
             risk_measure,
+            deviation_measure,
             outerloop_quadtype,
             nouterloop_samples,
             innerloop_quadtype,
@@ -792,11 +797,27 @@ class TestBayesOED:
             SampleAverageMeanPlusStdev(1, bkd),
             SampleAverageEntropicRisk(0.5, bkd),
         ]
-        for noise_stat, risk_measure in itertools.product(
-            noise_stats, risk_measures
+        nqoi = 2
+        deviation_measures = [
+            OEDStandardDeviationMeasure(nqoi, bkd),
+            OEDEntropicDeviationMeasure(nqoi, 1.0, bkd),
+        ]
+        for noise_stat, risk_measure, deviation_measure in itertools.product(
+            noise_stats, risk_measures, deviation_measures
         ):
             np.random.seed(1)
-            test_case = [2, 0, 1, noise_stat, risk_measure, "MC", 4, "MC", 3]
+            test_case = [
+                2,
+                0,
+                1,
+                noise_stat,
+                risk_measure,
+                deviation_measure,
+                "MC",
+                4,
+                "MC",
+                3,
+            ]
             self._check_prediction_gaussian_OED_gradients(*test_case)
 
     def test_conjugate_gaussian_prior_OED_for_prediction_exact_formulas(

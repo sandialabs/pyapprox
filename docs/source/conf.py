@@ -69,6 +69,8 @@ example_filenames_in_order = [
     "plot_flow.py",
     # ExpDesign
     "plot_bayesian_oed.py",
+    "plot_bayesianoed.py",
+    "plot_bayesoed4pred.py",
     # Surrogates
     "plot_univariate_interpolation.py",
     "plot_tensor_product_interpolation.py",

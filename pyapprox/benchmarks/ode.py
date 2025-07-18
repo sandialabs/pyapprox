@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from scipy import stats
 
 from pyapprox.util.backends.template import BackendMixin, Array
@@ -15,6 +17,7 @@ from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
     TransientAdjointFunctional,
     TransientMSEAdjointFunctional,
+    TransientObservationFunctional,
 )
 from pyapprox.pde.collocation.adjoint import (
     TransientAdjointModel,
@@ -265,9 +268,18 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
         newton_solver: NewtonSolver = None,
         backend: BackendMixin = NumpyMixin,
     ):
+        self._noise_std = None
         self._time_residual_cls = time_residual_cls
         self._newton_solver = newton_solver
+        self._init_time = 0.0
+        self._final_time, self._timestep = self._define_time()
         super().__init__(backend)
+
+    def set_noise_std(self, noise_std: float):
+        self._noise_std = noise_std
+
+    def _define_time(self) -> Tuple[int, int]:
+        return 10.0, 1.0
 
     def _set_variable(self):
         marginals = [stats.uniform(0.3, 0.4) for ii in range(12)]
@@ -275,32 +287,114 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
             marginals, backend=self._bkd
         )
 
+    def _obs_time_tuples(self, ntimes: int) -> Tuple[Array, Array]:
+        obs_time_indices = self._bkd.arange(ntimes, dtype=int)
+        obs_time_tuples = [
+            (0, obs_time_indices),
+            (2, obs_time_indices[::2]),
+        ]
+        return obs_time_tuples
+
     def _set_model(self):
         self._model = LotkaVolterraModel(
             0,
-            10,
-            1,
+            self._final_time,
+            self._timestep,
             self._time_residual_cls,
             None,
             self._newton_solver,
             backend=self._bkd,
         )
-
-        obs_sample = self.variable().mean()
-        model_obs_sol, model_obs_times = self._model.forward_solve(obs_sample)
-        obs_time_indices = self._bkd.arange(
-            model_obs_times.shape[0], dtype=int
+        nominal_sample = self.variable().mean()
+        model_obs_sol, model_obs_times = self._model.forward_solve(
+            nominal_sample
         )
-        obs_time_tuples = [
-            (0, obs_time_indices),
-            (2, obs_time_indices[::2]),
-        ]
+        self._times = model_obs_times
         functional = TransientMSEAdjointFunctional(
-            3, self._model.nvars(), obs_time_tuples, backend=self._bkd
+            3,
+            self._model.nvars(),
+            self._obs_time_tuples(model_obs_times.shape[0]),
+            self._noise_std,
+            backend=self._bkd,
         )
         obs = functional.observations_from_solution(model_obs_sol)
         functional.set_observations(obs)
         self._model.set_functional(functional)
+
+    def solution_times(self) -> Array:
+        return self._times
+
+    def observation_times(self) -> Array:
+        obs_times = []
+        for time_idx in zip(self._model._functional._obs_time_indices):
+            obs_times.append(self._times[time_idx])
+        return self._bkd.stack(obs_times, axis=0)
+
+
+class LotkaVolterraOEDBenchmark(LotkaVolterraBenchmark):
+    def _define_time(self) -> Tuple[int, int]:
+        # return 10.0, 1
+        return 10.0, 0.5
+
+    def _obs_time_tuples(self, ntimes: int) -> Tuple[Array, Array]:
+        obs_time_indices = self._bkd.arange(ntimes, dtype=int)  # [[2, 5, 8]]
+        obs_time_tuples = [
+            (0, obs_time_indices),
+            (2, obs_time_indices),
+        ]
+        return obs_time_tuples
+
+    def _pred_time_tuples(self, ntimes: int) -> Tuple[Array, Array]:
+        pred_time_indices = self._bkd.arange(ntimes, dtype=int)[::2]
+        pred_time_tuples = [(1, pred_time_indices)]
+        return pred_time_tuples
+
+    def prediction_times(self) -> Array:
+        pred_times = []
+        for time_idx in zip(self._pred_model._functional._obs_time_indices):
+            pred_times.append(self._times[time_idx])
+        return self._bkd.stack(pred_times, axis=0)
+
+    def _set_model(self):
+        self._model = LotkaVolterraModel(
+            0,
+            self._final_time,
+            self._timestep,
+            self._time_residual_cls,
+            None,
+            self._newton_solver,
+            backend=self._bkd,
+        )
+        self._times = self._bkd.linspace(
+            0, self._final_time, int(self._final_time / self._timestep) + 1
+        )
+        obs_functional = TransientObservationFunctional(
+            3,
+            self._model.nvars(),
+            self._obs_time_tuples(self._times.shape[0]),
+            backend=self._bkd,
+        )
+        self._model.set_functional(obs_functional)
+
+        self._pred_model = LotkaVolterraModel(
+            0,
+            self._final_time,
+            self._timestep,
+            self._time_residual_cls,
+            None,
+            self._newton_solver,
+            backend=self._bkd,
+        )
+        pred_functional = TransientObservationFunctional(
+            3,
+            self._pred_model.nvars(),
+            self._pred_time_tuples(self._times.shape[0]),
+            backend=self._bkd,
+        )
+        self._pred_model.set_functional(pred_functional)
+
+    def prediction_model(self) -> LotkaVolterraModel:
+        return self._pred_model
 
 
 class ParameterizedCoupledSpringsResidual(
