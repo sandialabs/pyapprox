@@ -334,7 +334,7 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
 class LotkaVolterraOEDBenchmark(LotkaVolterraBenchmark):
     def _define_time(self) -> Tuple[int, int]:
         # return 10.0, 1
-        return 10.0, 0.5
+        return 50.0, 2.0
 
     def _obs_time_tuples(self, ntimes: int) -> Tuple[Array, Array]:
         obs_time_indices = self._bkd.arange(ntimes, dtype=int)  # [[2, 5, 8]]

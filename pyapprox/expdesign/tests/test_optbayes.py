@@ -679,7 +679,6 @@ class TestBayesOED:
         # assume MC quadrature for prediction space
         qoi_quad_weights = bkd.full((nqoi, 1), 1.0 / nqoi)
 
-        deviation_measure.set_loglikelihood(innerloop_loglike)
         oed = BayesianOEDForPrediction(
             innerloop_loglike,
             deviation_measure,

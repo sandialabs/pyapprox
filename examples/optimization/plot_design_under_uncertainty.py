@@ -85,6 +85,7 @@ from pyapprox.benchmarks import (
 )
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
+print(np)
 np.random.seed(1)
 
 benchmark = CantileverBeamDeterminsticOptimizationBenchmark()
@@ -187,7 +188,7 @@ from pyapprox.interface.model import ModelFromSingleSampleCallable
 
 # contraint can only be evaluated at one sample so wrap it
 batch_constraint_model = ModelFromSingleSampleCallable(
-    2, benchmark.variable().nvars(), benchmark.constraints()[0]
+    2, benchmark.constraints()[0].nvars(), benchmark.constraints()[0]
 )
 for ii in range(2):
     X, Y, Z_c = get_meshgrid_function_data(

@@ -1,6 +1,6 @@
 """
-Bayesian Optimal Experimental Design
-====================================
+Bayesian Risk-Aware Optimal Experimental Design
+===============================================
 
 This tutorial demonstrates how to judiciously select how to collect experimental data using risk-aware Bayesian optimal experimental design (OED) for prediction.
 
@@ -22,15 +22,17 @@ from pyapprox.expdesign.optbayes import (
     BayesianOEDForPrediction,
     IndependentGaussianOEDInnerLoopLogLikelihood,
     OEDStandardDeviationMeasure,
+    OEDEntropicDeviationMeasure,
     NoiseStatistic,
 )
 from pyapprox.optimization.minimize import (
     SampleAverageMean,
     SampleAverageMeanPlusStdev,
+    SampleAverageEntropicRisk,
 )
 
 # Set the seed for reproducibility
-np.random.seed(1)
+np.random.seed(2)
 
 # %% Setup the Model to Generate the Simulation Data
 # -------------------------------------------------
@@ -40,7 +42,7 @@ np.random.seed(1)
 
 
 # Set the random seed for reproducibility
-np.random.seed = 2
+np.random.seed = 1
 # Setup the benchmark
 benchmark = LotkaVolterraOEDBenchmark(backend=bkd)
 # Extract the model from the benchmark
@@ -62,17 +64,23 @@ model_obs_sol = obs_model.forward_solve(sample)[0]
 # Extract out the noiseless observations
 observations = obs_model(sample).reshape((2, -1))
 # Plot the evolution of each of the three ODE states
-plt.plot(benchmark.solution_times(), model_obs_sol.T)
+axs = plt.subplots(1, 4, figsize=(4 * 8, 6), sharey=True)[1]
+axs[0].plot(benchmark.solution_times(), model_obs_sol.T)
 # Plot the observations
-plt.plot(
+axs[0].plot(
     benchmark.observation_times().T, observations.T, "o", label="Observations"
 )
 # Plot the predictions of the unobserved state
 predictions = pred_model(sample)
-plt.plot(
+axs[0].plot(
     benchmark.prediction_times().T, predictions.T, "x", label="Predictions"
 )
-plt.legend()
+axs[0].legend()
+# Plot different trajectories of each state at various samples
+for sample in prior.rvs(100).T:
+    model_obs_sol = obs_model.forward_solve(sample[:, None])[0]
+    for ii in range(3):
+        axs[ii + 1].plot(benchmark.solution_times(), model_obs_sol[ii])
 # plt.show()
 
 # %%
@@ -84,7 +92,7 @@ plt.legend()
 # Define the diagonal of the noise covariance,
 # We assume we have the option to sample two of three three states at
 # one or more times.
-noise_std = 0.1
+noise_std = 0.2
 noise_cov_diag = bkd.full((obs_model.nqoi(), 1), noise_std**2)
 # Initialize the likelihood function. We must use a likelihood tailored
 # to OED that can handle inner and outerloop calculations needed
@@ -99,7 +107,7 @@ innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
 # We must create observations for the outerloop and simulation data for the innerloop.
 
 # Generate the outerloop observations
-nouterloop_samples = 100
+nouterloop_samples = 1000
 # Define the data distribution, e.g. the joint distribution of the prior
 # and the noise
 prior_data_variable = IndependentMarginalsVariable(
@@ -125,6 +133,7 @@ outerloop_loglike.set_observations_and_shapes(obs, outerloop_shapes)
 # Generate the shapes of the likelihood, e.g. the model predictions,
 # for the inner OED loop
 ninnerloop_samples = int(math.sqrt(nouterloop_samples))
+# ninnerloop_samples = nouterloop_samples
 # Generate the samples to evaluate the model
 innerloop_samples = prior.rvs(ninnerloop_samples)
 innerloop_quad_weights = bkd.full(
@@ -150,15 +159,13 @@ qoi_quad_weights = bkd.full((pred_model.nqoi(), 1), 1.0 / pred_model.nqoi())
 noise_stat = NoiseStatistic(SampleAverageMean(bkd))
 # Specify the inner deviation measure
 deviation_measure = OEDStandardDeviationMeasure(pred_model.nqoi(), bkd)
-
 # Specify the risk measure over the prediction space
-risk_measure = (SampleAverageMeanPlusStdev(1, bkd),)
-
+risk_measure = SampleAverageMeanPlusStdev(1, bkd)
 # Initialize the OED problem
 pred_oed = BayesianOEDForPrediction(
     innerloop_loglike, deviation_measure, risk_measure, noise_stat
 )
-# Dass the data to the OED problem
+# Pass the data to the OED problem
 pred_oed.set_data(
     innerloop_loglike.outerloop_loglike().shapes(),
     outerloop_samples,
@@ -168,6 +175,7 @@ pred_oed.set_data(
     qoi_vals,
     qoi_quad_weights,
 )
+pred_oed.set_optimizer(pred_oed.default_optimizer(verbosity=3))
 
 # %%
 # Compute the OED
@@ -179,7 +187,7 @@ design_weights = pred_oed.compute()
 # %%
 # Plot the OED
 # -----------
-axs = plt.subplots(1, 2, figsize=(8, 6), sharey=True)[1]
+fig, axs = plt.subplots(1, 2, figsize=(8, 6), sharey=True)
 # Reshape weights so that each row correspond to one of the OED states
 design_weights = design_weights.reshape((2, -1))
 axs[0].bar(benchmark.observation_times()[0], design_weights[0])
@@ -188,4 +196,38 @@ axs[0].set_ylabel("Design Weight")
 axs[1].bar(benchmark.observation_times()[1], design_weights[1])
 axs[1].set_title("State 3")
 [ax.set_xlabel("Time (seconds)") for ax in axs]
-# plt.show()
+fig.suptitle("Entropic Deviation")
+
+# %%
+# Compute an OED that encodes different risk preferences
+
+# Change the deviation measure
+deviation_measure = OEDEntropicDeviationMeasure(pred_model.nqoi(), 1.0, bkd)
+# Specify the risk measure over the prediction space
+# Initialize the OED problem
+pred_oed_2 = BayesianOEDForPrediction(
+    innerloop_loglike, deviation_measure, risk_measure, noise_stat
+)
+# Pass the data to the OED problem
+pred_oed_2.set_data(
+    innerloop_loglike.outerloop_loglike().shapes(),
+    outerloop_samples,
+    outerloop_quad_weights,
+    innerloop_loglike.shapes(),
+    innerloop_quad_weights,
+    qoi_vals,
+    qoi_quad_weights,
+)
+pred_oed_2.set_optimizer(pred_oed.default_optimizer(verbosity=3))
+design_weights_2 = pred_oed_2.compute()
+fig, axs = plt.subplots(1, 2, figsize=(8, 6), sharey=True)
+# Reshape weights so that each row correspond to one of the OED states
+design_weights_2 = design_weights_2.reshape((2, -1))
+axs[0].bar(benchmark.observation_times()[0], design_weights_2[0])
+axs[0].set_title("State 1")
+axs[0].set_ylabel("Design Weight")
+axs[1].bar(benchmark.observation_times()[1], design_weights_2[1])
+axs[1].set_title("State 3")
+[ax.set_xlabel("Time (seconds)") for ax in axs]
+fig.suptitle("Entropic Deviation")
+plt.show()

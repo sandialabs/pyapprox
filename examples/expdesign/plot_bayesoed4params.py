@@ -34,7 +34,7 @@ np.random.seed(1)
 
 
 # Set the random seed for reproducibility
-np.random.seed = 2
+np.random.seed = 1
 # Setup the benchmark
 benchmark = LotkaVolterraOEDBenchmark(backend=bkd)
 # Extract the model from the benchmark
@@ -54,10 +54,20 @@ model_obs_sol = obs_model.forward_solve(sample)[0]
 # Extract out the noiseless observations
 observations = obs_model(sample).reshape((2, -1))
 # Plot the evolution of each of the three ODE states
-plt.plot(benchmark.solution_times(), model_obs_sol.T)
+axs = plt.subplots(1, 4, figsize=(4 * 8, 6), sharey=True)[1]
+axs[0].plot(benchmark.solution_times(), model_obs_sol.T)
 # Plot the observations
-plt.plot(benchmark.observation_times().T, observations.T, "o")
-# plt.show()
+axs[0].plot(
+    benchmark.observation_times().T, observations.T, "o", label="Observations"
+)
+# Plot the predictions of the unobserved state
+axs[0].legend()
+# Plot different trajectories of each state at various samples
+for sample in prior.rvs(100).T:
+    model_obs_sol = obs_model.forward_solve(sample[:, None])[0]
+    for ii in range(3):
+        axs[ii + 1].plot(benchmark.solution_times(), model_obs_sol[ii])
+plt.show()
 
 # %%
 # Define the likelihood
@@ -83,7 +93,7 @@ innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
 # We must create observations for the outerloop and simulation data for the innerloop.
 
 # Generate the outerloop observations
-nouterloop_samples = 100000
+nouterloop_samples = 10000
 # Define the data distribution, e.g. the joint distribution of the prior
 # and the noise
 prior_data_variable = IndependentMarginalsVariable(
@@ -126,7 +136,7 @@ innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
 
 # Define the OED problem
 kl_oed = KLBayesianOED(innerloop_loglike)
-# Dass the data to the OED problem
+# Pass the data to the OED problem
 kl_oed.set_data(
     innerloop_loglike.outerloop_loglike().shapes(),
     outerloop_samples,
@@ -134,6 +144,7 @@ kl_oed.set_data(
     innerloop_loglike.shapes(),
     innerloop_quad_weights,
 )
+kl_oed.set_optimizer(kl_oed.default_optimizer(verbosity=0))
 
 # %%
 # Compute the OED
@@ -154,4 +165,4 @@ axs[0].set_ylabel("Design Weight")
 axs[1].bar(benchmark.observation_times()[1], design_weights[1])
 axs[1].set_title("State 3")
 [ax.set_xlabel("Time (seconds)") for ax in axs]
-# plt.show()
+plt.show()

@@ -533,8 +533,10 @@ class KLOEDObjective(BayesianOEDObjective):
     def jacobian_implemented(self) -> bool:
         return True
 
+    # Hessian reduces number of iterations, but currently
+    # results in slower optimization because hvp is not fast enough
     def apply_hessian_implemented(self) -> bool:
-        return True
+        return False
 
     def _evaluate_from_expanded_design_weights(
         self, design_weights: Array
@@ -697,7 +699,9 @@ class PredictionOEDDeviationMeasure(SingleSampleModel):
 
     def set_evidence(self, evidence: Evidence):
         if not isinstance(evidence, Evidence):
-            raise ValueError("evidence must be an instance of Evidence")
+            raise ValueError(
+                f"evidence {evidence} must be an instance of Evidence"
+            )
         self._evidence = evidence
 
 
@@ -725,12 +729,17 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
 
     def _evaluate(self, design_weights: Array) -> Array:
         evidences = self._evidence(design_weights).T
-        return self._bkd.sqrt(
+        variance = (
             self._second_moment(self._evidence._quad_weighted_like_vals)
             / evidences[:, 0]
             - self._first_moment(self._evidence._quad_weighted_like_vals) ** 2
             / evidences[:, 0] ** 2
-        ).flatten()[None, :]
+        )
+        # avoid small values just below zero
+        variance = self._bkd.maximum(
+            variance, self._bkd.full(variance.shape, 1e-16)
+        )
+        return self._bkd.sqrt(variance).flatten()[None, :]
 
     def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
         # after reshape 4D arrays will have
@@ -785,14 +794,6 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
             (self._npred * self._nouterloop_samples, self.nvars()),
         )
         sqrt_jac = variance_jac / (2.0 * values[..., None])
-        # fun = lambda w: self._evaluate(w[:, None])[0]
-        # auto_jac = self._bkd.jacobian(fun, design_weights[:, 0]).reshape(
-        #     (self._npred * self._nouterloop_samples, self.nvars())
-        # )
-        # print(auto_jac)
-        # print(sqrt_jac)
-        # print(auto_jac - sqrt_jac)
-        # assert self._bkd.allclose(auto_jac, sqrt_jac)
         return sqrt_jac
 
 
@@ -1232,6 +1233,7 @@ class BayesianOEDForPrediction(BayesianOED):
         super().__init__(innerloop_loglike._bkd)
         self._innerloop_loglike = innerloop_loglike
         self._deviation_measure = deviation_measure
+        self._deviation_measure.set_loglikelihood(innerloop_loglike)
         self._risk_measure = risk_measure
         self._noise_stat = noise_stat
 

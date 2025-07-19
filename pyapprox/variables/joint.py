@@ -711,6 +711,9 @@ class DesignVariable:
         """Return the bounds of the design variable"""
         return self._bounds
 
+    def __repr__(self) -> str:
+        return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
+
 
 class FiniteSamplesVariable(JointVariable):
     def __init__(
