@@ -65,6 +65,11 @@ class RELUActivation(Activation):
         return grad
 
 
+class SoftMaxActivation(Activation):
+    def __call__(self, mat: Array) -> Array:
+        return self._bkd.exp(mat) / self._bkd.sum(self._bkd.exp(mat))
+
+
 class Layer:
     def __init__(self, activation: Activation, inwidth: int, outwidth: int):
         if not isinstance(activation, Activation):

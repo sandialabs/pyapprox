@@ -42,7 +42,7 @@ np.random.seed(2)
 
 
 # Set the random seed for reproducibility
-np.random.seed = 1
+np.random.seed = 2
 # Setup the benchmark
 benchmark = LotkaVolterraOEDBenchmark(backend=bkd)
 # Extract the model from the benchmark
@@ -107,7 +107,7 @@ innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
 # We must create observations for the outerloop and simulation data for the innerloop.
 
 # Generate the outerloop observations
-nouterloop_samples = 1000
+nouterloop_samples = 10000
 # Define the data distribution, e.g. the joint distribution of the prior
 # and the noise
 prior_data_variable = IndependentMarginalsVariable(
@@ -230,4 +230,13 @@ axs[1].bar(benchmark.observation_times()[1], design_weights_2[1])
 axs[1].set_title("State 3")
 [ax.set_xlabel("Time (seconds)") for ax in axs]
 fig.suptitle("Entropic Deviation")
+
+design_weights = design_weights.reshape((-1, 1))
+design_weights_2 = design_weights_2.reshape((-1, 1))
+print(pred_oed.objective()(design_weights))
+print(pred_oed.objective()(design_weights_2))
+
+print(pred_oed_2.objective()(design_weights))
+print(pred_oed_2.objective()(design_weights_2))
+
 plt.show()
