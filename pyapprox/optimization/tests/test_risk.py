@@ -5,6 +5,7 @@ import numpy as np
 
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.optimization.risk import (
+    SafetyMarginRiskMeasure,
     AverageValueAtRisk,
     GaussianAnalyticalRiskMeasures,
     ChiSquaredAnalyticalRiskMeasures,
@@ -23,6 +24,17 @@ from pyapprox.optimization.risk import (
 class TestRiskMeasures:
     def setUp(self):
         np.random.seed(1)
+
+    def test_saftey_margins_risk_measure(self):
+        bkd = self.get_backend()
+        strength = 2.0
+        risk_measure = SafetyMarginRiskMeasure(strength, backend=bkd)
+        mu, sigma = 1, 2
+        rv = stats.norm(mu, sigma)
+        nsamples = int(1e6)
+        samples = rv.rvs(nsamples)[None, :]
+        risk_measure.set_samples(samples)
+        assert bkd.allclose(risk_measure(), mu + strength * sigma, rtol=1e-3)
 
     def test_average_value_at_risk_discrete_measure(self):
         # Psi(VaR) = prob samples do not exceed or are equal to VaR

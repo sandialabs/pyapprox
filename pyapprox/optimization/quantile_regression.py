@@ -52,9 +52,9 @@ def quantile_regression(basis_matrix, values, tau, opts={}):
 
     c_arr = np.hstack(
         (
-            np.zeros(nbasis),
-            tau * np.ones(nsamples),
-            (1 - tau) * np.ones(nsamples),
+            np.zeros(nbasis),  # coefficients
+            tau * np.ones(nsamples),  # u slack variables
+            (1 - tau) * np.ones(nsamples),  # v slack variables
         )
     )[:, np.newaxis]
     c = matrix(c_arr)

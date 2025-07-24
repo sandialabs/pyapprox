@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 
@@ -93,11 +93,28 @@ class MaxPoolingLayer:
         return values
 
 
+from pyapprox.surrogates.regressor import OptimizedRegressor
+
+
+class ConvolutionalNeuralNetwork(OptimizedRegressor):
+    def __init__(self, image_shape: Tuple, layers: List):
+        super().__init__(layers[0]._bkd)
+        self._image_shape = image_shape
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nvars(self) -> int:
+        return self._bkd.prod(self._image_shape)
+
+
 from mnist import MNIST
 from pyapprox.util.backends.torch import TorchMixin as bkd
 
 conv = TwoDimensionalConvolution(8, bkd)
 pool = MaxPoolingLayer(bkd)
+cnn = ConvolutionalNeuralNetwork([conv, pool])
+
 
 # requires pip install torchvision
 import torch

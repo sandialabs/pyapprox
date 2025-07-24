@@ -49,14 +49,29 @@ class RiskMixin(ABC):
             self._samples = samples[0]
             self._quadw = quadw
 
-    def __call__(self):
+    def __call__(self) -> float:
         if not hasattr(self, "_samples"):
             raise RuntimeError("must call set_samples first")
         return self._value()
 
     @abstractmethod
-    def _value(self):
+    def _value(self) -> float:
         raise NotImplementedError
+
+
+class SafetyMarginRiskMeasure(RiskMixin):
+    def __init__(
+        self,
+        strength: float,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        self._strength = strength
+        super().__init__(sort=False, backend=backend)
+
+    def _value(self) -> float:
+        mean = self._samples @ self._quadw
+        std = self._bkd.sqrt((self._samples**2) @ self._quadw - mean**2)
+        return mean + self._strength * std
 
 
 class ValueAtRiskMixin(RiskMixin):
@@ -64,9 +79,11 @@ class ValueAtRiskMixin(RiskMixin):
         self,
         beta: float,
         sort: bool = True,
+        return_all: bool = True,
         backend: BackendMixin = NumpyMixin,
     ):
         self.set_beta(beta)
+        self._return_all = return_all
         super().__init__(sort, backend)
 
     def set_beta(self, beta: float):
@@ -80,7 +97,9 @@ class ValueAtRisk(ValueAtRiskMixin):
         weights_sum = self._bkd.sum(self._quadw)
         ecdf = self._quadw.cumsum() / weights_sum
         idx = self._bkd.arange(self._samples.shape[0])[ecdf >= self._beta][0]
-        return self._samples[idx], idx
+        if self._return_all:
+            return self._samples[idx], idx
+        return self._samples[idx]
 
 
 class AverageValueAtRisk(ValueAtRiskMixin):
@@ -95,7 +114,9 @@ class AverageValueAtRisk(ValueAtRiskMixin):
             * ((self._samples[idx + 1 :] - var))
             @ self._quadw[idx + 1 :]
         )
-        return cvar, var
+        if self._return_all:
+            return cvar, var
+        return cvar
 
     def optimize(self):
         """
@@ -136,10 +157,10 @@ class EntropicRisk(RiskMixin):
         self._beta = beta
         super().__init__(False, backend)
 
-    def _value(self):
+    def _value(self) -> float:
         return (
             self._bkd.log(
-                self._bkd.exp(self._beta * self._samples) @ self.quadw
+                self._bkd.exp(self._beta * self._samples) @ self._quadw
             ).T
             / self._beta
         )
@@ -169,7 +190,7 @@ class UtilitySSD(RiskMixin):
             raise ValueError("eta must be a 1D array")
         self._eta = eta
 
-    def _value(self):
+    def _value(self) -> float:
         return (
             self._bkd.maximum(0, self._eta[:, None] - self._samples[None, :])
             @ self._quadw
@@ -189,7 +210,7 @@ class DisutilitySSD(UtilitySSD):
     The conditional expectation is convex non-negative and non-decreasing.
     """
 
-    def _value(self):
+    def _value(self) -> float:
         return (
             self._bkd.maximum(0, self._eta[:, None] + self._samples[None, :])
             @ self._quadw
