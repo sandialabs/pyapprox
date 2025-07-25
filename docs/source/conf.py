@@ -147,6 +147,7 @@ example_filenames_in_order += [
     "plot_multiindex_collocation_ex.py",
     "plot_leja_quadrature.py",
     "plot_pce_regression.py",
+    "plot_conservative_risk_aware_surrogates.py",
     # multifidelity
     "plot_mlblue.py",
     # optimization

@@ -19,7 +19,7 @@ from pyapprox.util.linalg import (
 )
 
 
-class RiskMixin(ABC):
+class RiskMeasure(ABC):
     """
     Compute the value at risk of a variable Y using a set of samples.
     """
@@ -58,8 +58,11 @@ class RiskMixin(ABC):
     def _value(self) -> float:
         raise NotImplementedError
 
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
 
-class SafetyMarginRiskMeasure(RiskMixin):
+
+class SafetyMarginRiskMeasure(RiskMeasure):
     def __init__(
         self,
         strength: float,
@@ -73,8 +76,13 @@ class SafetyMarginRiskMeasure(RiskMixin):
         std = self._bkd.sqrt((self._samples**2) @ self._quadw - mean**2)
         return mean + self._strength * std
 
+    def __repr__(self) -> str:
+        return "{0}(strength={1})".format(
+            self.__class__.__name__, self._strength
+        )
 
-class ValueAtRiskMixin(RiskMixin):
+
+class ValueAtRiskMeasure(RiskMeasure):
     def __init__(
         self,
         beta: float,
@@ -91,27 +99,30 @@ class ValueAtRiskMixin(RiskMixin):
             raise ValueError("beta must be in [0, 1)")
         self._beta = beta
 
+    def __repr__(self) -> str:
+        return "{0}(q={1})".format(self.__class__.__name__, self._beta)
 
-class ValueAtRisk(ValueAtRiskMixin):
+
+class ValueAtRisk(ValueAtRiskMeasure):
     def _value(self) -> Tuple[Array, int]:
         weights_sum = self._bkd.sum(self._quadw)
-        ecdf = self._quadw.cumsum() / weights_sum
+        ecdf = self._bkd.cumsum(self._quadw) / weights_sum
         idx = self._bkd.arange(self._samples.shape[0])[ecdf >= self._beta][0]
         if self._return_all:
             return self._samples[idx], idx
         return self._samples[idx]
 
 
-class AverageValueAtRisk(ValueAtRiskMixin):
+class AverageValueAtRisk(ValueAtRiskMeasure):
     def _value(self) -> Tuple[Array, Array]:
-        VaR = ValueAtRisk(self._beta, False, self._bkd)
+        VaR = ValueAtRisk(self._beta, True, backend=self._bkd)
         VaR.set_samples(self._samples[None, :], self._quadw)
         var, idx = VaR()
         cvar = (
             var
             + 1.0
-            / (1 - self._beta)
-            * ((self._samples[idx + 1 :] - var))
+            / (1.0 - self._beta)
+            * (self._samples[idx + 1 :] - var)
             @ self._quadw[idx + 1 :]
         )
         if self._return_all:
@@ -148,7 +159,19 @@ class AverageValueAtRisk(ValueAtRiskMixin):
         return lin_res.fun, lin_res.x[0]
 
 
-class EntropicRisk(RiskMixin):
+class EntropicRisk(RiskMeasure):
+    r"""
+    Evaluate the Entropic Risk Measure.
+
+    The entrropic risk measure is not positively homogeneous,
+    i.e. R[t*X] != r*R[X].
+    Thus a stakeholder may be guided by the risk measure toprefer an out-
+    come X over Y when the outcome is measured in dollars:
+    i.e. R[X] < R[Y], and yet the same decision-
+    maker may prefer Y over X when the profit is measured
+    in cents: R[100 X] > R[100 Y ]
+    """
+
     def __init__(
         self,
         beta: float,
@@ -161,12 +184,15 @@ class EntropicRisk(RiskMixin):
         return (
             self._bkd.log(
                 self._bkd.exp(self._beta * self._samples) @ self._quadw
-            ).T
+            )
             / self._beta
         )
 
+    def __repr__(self) -> str:
+        return "{0}(strength={1})".format(self.__class__.__name__, self._beta)
 
-class UtilitySSD(RiskMixin):
+
+class UtilitySSD(RiskMeasure):
     r"""
     Compute the conditional expectation of :math:`Y`
     (sutility form of second order stochastic dominance)

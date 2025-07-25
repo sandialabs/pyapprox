@@ -4,15 +4,17 @@ import numpy as np
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.surrogates.affine.linearsystemsolvers import (
+    LstSqSolver,
     OMPSolver,
     QuantileRegressionSolver,
     EntropicLoss,
     EntropicRegressionSolver,
-    ConservativeEntropicRegressionSolver,
     ConservativeLstSqSolver,
     ConservativeQuantileRegressionSolver,
+    QuantileRegressionCVXOPTSolver,
 )
 from pyapprox.optimization.risk import EntropicRisk
+from pyapprox.util.sys_utilities import package_available
 
 
 class TestLinearSolvers:
@@ -59,9 +61,18 @@ class TestLinearSolvers:
         assert bkd.allclose(omp_coefs, sparse_coefs)
         assert solver._termination_flag == 0
 
+    def test_lstsq_solver(self):
+        bkd = self.get_backend()
+        solver = LstSqSolver(backend=bkd)
+        basis_mat = bkd.array([1, 1, 1, 1, 1])[:, None]
+        values = bkd.array([2, 4, 6, 8, 10])[:, None]
+        coef = solver.solve(basis_mat, values)
+        # Assert statistic of risk quadrangle is zero. I.e 0.8 qunatile
+        # is zero. Must use method="inverted_cdf" avaiable in numpy
+        assert bkd.allclose(bkd.mean(values - basis_mat @ coef), bkd.zeros(1))
+
     def test_quantile_regression(self):
         bkd = self.get_backend()
-
         quantile = 0.5
         solver = QuantileRegressionSolver(quantile, backend=bkd)
         basis_mat = bkd.array([1, 1, 1, 1, 1])[:, None]
@@ -78,14 +89,41 @@ class TestLinearSolvers:
         values = bkd.array([2, 4, 6, 8, 10])[:, None]
         # Residuals are
         # [2, 4, 6, 8, 10] - [1, 1, 1, 1, 1] * 8 = [-6, -4, -2, 0, 2]
-        # median residual is zero
+        coef = solver.solve(basis_mat, values)
+        # Assert statistic of risk quadrangle is zero. I.e 0.8 qunatile
+        # is zero. Must use method="inverted_cdf" avaiable in numpy
+        assert bkd.allclose(
+            bkd.asarray(
+                np.quantile(
+                    (values - basis_mat @ coef),
+                    quantile,
+                    method="inverted_cdf",
+                )
+            ),
+            bkd.zeros(1),
+        )
+        assert bkd.allclose(coef, bkd.full((1,), 8))
+
+        if not package_available("cvxopt"):
+            return
+
+        quantile = 0.8
+        solver = QuantileRegressionCVXOPTSolver(quantile, backend=bkd)
+        solver.set_options(solver.default_options())
+        basis_mat = bkd.array([1, 1, 1, 1, 1])[:, None]
+        values = bkd.array([2, 4, 6, 8, 10])[:, None]
+        # Residuals are
+        # [2, 4, 6, 8, 10] - [1, 1, 1, 1, 1] * 8 = [-6, -4, -2, 0, 2]
+        # 0.8 quantile residual is zero
         coef = solver.solve(basis_mat, values)
         assert bkd.allclose(coef, bkd.full((1,), 8))
 
     def test_entropic_regression(self):
         bkd = self.get_backend()
-        nsamples, nvars = 10000, 1
+        nsamples, nvars = 100, 3
         basis_mat = bkd.asarray(np.random.normal(0, 1, (nsamples, nvars)))
+        # must make first column (basis) a constant
+        basis_mat[:, 0] = 1.0
         true_coefs = bkd.ones((nvars, 1))
         train_values = basis_mat @ true_coefs
         noise_std = 0.1
@@ -100,49 +138,47 @@ class TestLinearSolvers:
         assert errors.min() / errors.max() < 1e-6
 
         solver = EntropicRegressionSolver(backend=bkd)
+        solver.set_optimizer(solver.default_optimizer(gtol=1e-12))
         coef = solver.solve(basis_mat, train_values)
+        # Assert statistic of risk quadrangle is zero. I.e 0.8 qunatile
+        # is zero.
         residual = train_values - basis_mat @ coef
-        # we are approximating a constant
-        # thus the residual stat should be the same as the stat
-        # applied to the noise
         # The stat of the entropic risk quadrangle is also
         # the risk measure
         stat = EntropicRisk(1.0, backend=bkd)
         stat.set_samples(residual.T)
-        residual_stat = stat()
-        stat.set_samples(noise.T)
-        assert bkd.allclose(residual_stat, stat(), rtol=1e-2)
+        assert bkd.allclose(stat(), bkd.zeros((1,)))
 
     def _check_conservative_surrogate(self, solver):
         bkd = self.get_backend()
-        nsamples, nvars = 10, 3
+        nsamples, nvars = 100, 2
         basis_mat = bkd.asarray(np.random.normal(0, 1, (nsamples, nvars)))
+        # must set first column to ones to mimic constant term
+        basis_mat[:, 0] = 1.0
         true_coefs = bkd.ones((nvars, 1))
-        train_values = basis_mat @ true_coefs
+        noiseless_train_values = basis_mat @ true_coefs
         noise_std = 0.1
-
-        ntrials = 5
+        ntrials = 500
         for ii in range(ntrials):
             noise = bkd.asarray(
-                np.random.normal(0, noise_std, train_values.shape)
+                np.random.normal(0, noise_std, noiseless_train_values.shape)
             )
-            train_values += noise
+            train_values = noiseless_train_values + noise
             coef = solver.solve(basis_mat, train_values)
-            solver._risk_measure.set_samples((basis_mat @ coef).T)
-            risk_value = solver._risk_measure()
-            solver._risk_measure.set_samples(train_values.T)
-            data_risk_value = solver._risk_measure()
-            print(risk_value, data_risk_value)
-            assert risk_value >= data_risk_value
+            solver.risk_measure().set_samples((basis_mat @ coef).T)
+            risk_value = solver.risk_measure()()
+            solver.risk_measure().set_samples(train_values.T)
+            data_risk_value = solver.risk_measure()()
+            assert risk_value >= data_risk_value, solver
 
     def test_conservative_surrogates(self):
         bkd = self.get_backend()
         test_cases = [
-            ConservativeEntropicRegressionSolver(backend=bkd),
             ConservativeLstSqSolver(strength=1.0, backend=bkd),
             ConservativeQuantileRegressionSolver(quantile=0.5, backend=bkd),
         ]
         for test_case in test_cases:
+            np.random.seed(1)
             self._check_conservative_surrogate(test_case)
 
 
