@@ -26,11 +26,13 @@ def smooth_max_function_log(eps, shift, x):
 def smooth_max_function_first_derivative_log(eps, shift, x):
     x = x + shift
     x_div_eps = x / eps
-    # vals = 1./(1+np.exp(-x_div_eps+shift))
     # Avoid overflow.
     II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
     vals = np.zeros(x.shape)
+    print(II, "a")
     vals[II] = 1.0 / (1 + np.exp(-x_div_eps[II] - shift / eps))
+    print(x_div_eps)
+    print(vals[II])
     vals[x_div_eps >= 1e2] = 1.0
     assert np.all(np.isfinite(vals))
     return vals
@@ -286,6 +288,240 @@ class FSDConstraint(Constraint):
 
     def nqoi(self) -> int:
         return self._opt_prob.eta_indices.shape[0]
+
+
+# TODO This is just MSE loss. Move to loss after generalizing
+# beyond affine surrogates which only requires changing set_coefficients
+# to set_unknowns (or something similar)
+class FSDObjectiveNew(SingleSampleModel):
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nvars(self) -> int:
+        return self._surrogate.nterms()
+
+    def set_opt_problem(self, opt_prob: "FSDOptProblem"):
+        if opt_prob._surrogate.nqoi() != 1:
+            raise ValueError("surrogate must have only one QoI")
+        self._surrogate = opt_prob._surrogate
+        self._train_samples = self._surrogate._ctrain_samples
+        self._train_values = self._surrogate._ctrain_values
+        self._probabilities = opt_prob._probabilities
+
+    def _evaluate(self, coef: Array) -> Array:
+        # todo replace the following with more general
+        # set unknowns because this function can otherwise be
+        # applied to nonlinear surrogates without change
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        val = 0.5 * self._bkd.sum(
+            self._probabilities * (self._train_values - surrogate_values) ** 2
+        )
+        return self._bkd.atleast2d(val)
+
+    def _jacobian(self, coef: Array) -> Array:
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        surrogate_jac = self._surrogate.hyperparam_jacobian(coef)
+        jac = -surrogate_jac.T @ (
+            self._probabilities * (self._train_values - surrogate_values)
+        )
+        return jac.T
+
+    def _apply_hessian(self, coef: Array, vec: Array) -> Array:
+        # only works if surrogate.hvp returns zero
+        surrogate_jac = self._surrogate.hyperparam_jacobian(coef)
+        return surrogate_jac.T @ (self._probabilities * (surrogate_jac @ vec))
+
+
+class FSDConstraintNew(Constraint):
+    def set_opt_problem(self, opt_prob: "FSDOptProblem"):
+        if opt_prob._surrogate.nqoi() != 1:
+            raise ValueError("surrogate must have only one QoI")
+        self._surrogate = opt_prob._surrogate
+        self._train_samples = self._surrogate._ctrain_samples
+        self._train_values = self._surrogate._ctrain_values
+        self._probabilities = opt_prob._probabilities
+        self._constraint_indices = opt_prob._constraint_indices
+        self._smooth_heaviside_function = opt_prob._smooth_heaviside_function
+
+    def nqoi(self) -> int:
+        return self._probabilities.shape[0]
+
+    def nvars(self) -> int:
+        return self._surrogate._hyp_list.nactive_vars()
+
+    def _values(self, coef: Array) -> Array:
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        tmp1 = self._smooth_heaviside_function(
+            surrogate_values - surrogate_values[self._constraint_indices].T
+        )
+        tmp2 = self._smooth_heaviside_function(
+            self._train_values - surrogate_values[self._constraint_indices].T
+        )
+        val = self._probabilities.T @ (tmp1 - tmp2)
+        return val
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def _jacobian(self, coef: Array) -> Array:
+        r"""
+        Compute the Jacobian of the constraints. The nth row of the Jacobian is
+        the derivative of the nth constraint :math:`c_n(x)`.
+        Let :math:`h(z)` be the smooth heaviside function and :math:`f(x)` the
+        function approximation evaluated
+        at the training samples and coeficients :math:`x`, then
+
+        .. math::
+
+           \frac{\partial c_n}{\partial x} =
+           \sum_{m=1}^M h^\prime(f(x_m)-f(x_n))
+              \left(\nabla_x f(x_m)-\nabla_x f(x_n))\right) -
+              h^\prime(y_m-f(x_n))\left(-\nabla_x f(x_n))\right)
+
+        Parameters
+        ----------
+        coef : Array (ncoef)
+            The unknowns
+
+        Returns
+        -------
+        jac : Array (nconstraints, ncoef)
+            The Jacobian of the constraints
+        """
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        surrogate_jac = self._surrogate.hyperparam_jacobian(coef)
+        hder1 = (
+            self._smooth_heaviside_function.first_derivative(
+                (
+                    surrogate_values.T
+                    - surrogate_values[self._constraint_indices]
+                )
+            )
+            * self._probabilities
+        )
+        fder1 = (
+            surrogate_jac[None, :, :]
+            - surrogate_jac[self._constraint_indices, None, :]
+        )
+        # con_jac = self._bkd.sum(hder1[:, :, None] * fder1, axis=1)
+        # c: nconstraints, d: ncoefs, n: nsamples
+        con_jac = self._bkd.einsum("cn,cnd->cd", hder1, fder1)
+        hder2 = (
+            self._smooth_heaviside_function.first_derivative(
+                (
+                    self._train_values.T
+                    - surrogate_values[self._constraint_indices]
+                )
+            )
+            * self._probabilities
+        )
+        fder2 = (
+            0 * surrogate_jac[None, :, :]
+            - surrogate_jac[self._constraint_indices, None, :]
+        )
+        # con_jac -= self._bkd.sum(hder2[:, :, None] * fder2, axis=1)
+        con_jac -= self._bkd.einsum("cn,cnd->cd", hder2, fder2)
+        return con_jac
+
+    def weighted_hessian_implemented(self) -> bool:
+        return True
+
+    def _weighted_hessian(self, coef: Array, lmult: Array) -> Array:
+        r"""
+        Compute the Hessian of the constraints applied to the Lagrange
+        multipliers.
+
+        We need to compute
+
+        .. math:: d^2/dx^2 f(g(x))=g'(x)^2 f''(g(x))+g''(x)f'(g(x))
+
+        and assume that  :math:`g''(x)=0 \forall x`. I.e. only linear
+        approximations g(x) are implemented
+
+        Parameters
+        ----------
+        coef : Array (ncoef)
+            The unknowns
+
+        lmult : Array (nconstraints)
+            vector of N Lagrange multipliers with
+
+        Returns
+        -------
+        hess : Arrat (ncoef, ncoef)
+            The weighted sum of the individual constraint Hessians
+
+            .. math:: \sum_{n=1}^N H_n(x)
+        """
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        surrogate_jac = self._surrogate.hyperparam_jacobian(coef)
+        hder1 = (
+            self._smooth_heaviside_function.second_derivative(
+                (
+                    surrogate_values.T
+                    - surrogate_values[self._constraint_indices]
+                )
+            )
+            * self._probabilities
+        )
+        hder2 = (
+            self._smooth_heaviside_function.second_derivative(
+                (
+                    self._train_values.T
+                    - surrogate_values[self._constraint_indices]
+                )
+            )
+            * self._probabilities
+        )
+        # Todo fder1 and fder2 can be stored when computing Jacobian and
+        # reused
+        fder1 = (
+            surrogate_jac[None, :, :]
+            - surrogate_jac[self._constraint_indices, None, :]
+        )
+        fder2 = (
+            0 * surrogate_jac[None, :, :]
+            - surrogate_jac[self._constraint_indices, None, :]
+        )
+        ncoef = coef.shape[0]
+        hessian = self._bkd.zeros((ncoef, ncoef))
+        # c: nconstraints, d: ncoefs, n: nsamples
+        hessian = self._bkd.einsum(
+            "c, cn, cnd, cnf -> df",
+            lmult[:, 0],
+            hder1,
+            fder1,
+            fder1,
+        ) - self._bkd.einsum(
+            "c, cn, cnd, cnf -> df",
+            lmult[:, 0],
+            hder2,
+            fder2,
+            fder2,
+        )
+        # for ii in range(lmult.shape[0]):
+        #     hessian += (
+        #         lmult[ii]
+        #         * (hder1[ii, :, None] * fder1[ii, :]).T
+        #         @ (fder1[ii, :])
+        #     )
+        #     hessian -= (
+        #         lmult[ii]
+        #         * (hder2[ii, :, None] * fder2[ii, :]).T
+        #         @ (fder2[ii, :])
+        #     )
+        return hessian
 
 
 class FSDOptProblem:

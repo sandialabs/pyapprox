@@ -20,6 +20,7 @@ from pyapprox.optimization.minimize import (
     AVaRSlackBasedOptimizer,
     ADAMOptimizer,
     StochasticGradientDescentOptimizer,
+    SmoothLogBasedHeavisideFunction,
 )
 from pyapprox.optimization.risk import GaussianAnalyticalRiskMeasures
 from pyapprox.benchmarks import (
@@ -716,6 +717,16 @@ class TestMinimize(unittest.TestCase):
         result = opt.minimize(iterate)
         assert result["fun"] < 1e-4
         assert result["gnorm"] < 1e-4
+
+    def test_smooth_log_based_heaviside_function(self):
+        bkd = self.get_backend()
+        nsamples = 5
+        samples = bkd.linspace(-1, 1, nsamples)[None, :]
+        fun = SmoothLogBasedHeavisideFunction(2, 1e-2, 1e2, backend=bkd)
+        errors = fun.check_first_derivative(samples, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        errors = fun.check_second_derivative(samples, disp=True)
+        assert errors.min() / errors.max() < 1e-6
 
 
 if __name__ == "__main__":

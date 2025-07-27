@@ -68,6 +68,9 @@ class BasisExpansion(Regressor):
             raise ValueError("Basis and solver must have the same backend.")
         self._solver = solver
 
+    def hyperparam_jacobian(self, active_opt_params: Array) -> Array:
+        return self._basis(self._train_samples)
+
     def jacobian_implemented(self) -> bool:
         return self._basis.jacobian_implemented()
 

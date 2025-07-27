@@ -87,6 +87,10 @@ class Regressor(Surrogate):
                     + "number of rows of values"
                 ).format(train_samples.shape[1], train_values.shape[0])
             )
+        # TODO Need to test use of transform, some surrogates
+        # may mix use of ctrain and train samples and values
+        self._train_samples = train_samples
+        self._train_values = train_values
         self._ctrain_samples = self._in_trans.map_to_canonical(train_samples)
         self._ctrain_values = self._out_trans.map_to_canonical(
             train_values.T
@@ -242,26 +246,3 @@ def QuadratureRule(ABC):
     @abstractmethod
     def __call__(self):
         raise NotImplementedError
-
-
-# def TensorProductQuadratureRule(QuadratureRule):
-#     def __init__(self, basis):
-#         if not isinstance(basis, TensorProductBasis):
-#             raise ValueError("basis must be instance of MultiIndexBasis")
-#         self._basis = basis
-#         self._bkd = basis._bkd
-#         self._samples = None
-#         self._weights = None
-#         self._compute_rule()
-
-#     def _compute_rule(self):
-#         samples_1d, weights_1d = [], []
-#         for dd in range(self._basis.nvars()):
-#             xx, ww = self._basis.univariate_quadrature(dd)
-#             samples_1d.append(xx)
-#             weights_1d.append(ww)
-#         self._samples = self._bkd.cartesian_product(samples_1d)
-#         self._weights = self._bkd.outer_product(weights_1d)
-
-#     def __call__(self) -> Tuple[Array, Array]:
-#         return self._samples, self._weights

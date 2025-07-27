@@ -455,6 +455,16 @@ class Model(ABC):
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         raise NotImplementedError
 
+    def _check_hvp_shape(self, hvp: Array, sample: Array):
+        if hvp.shape != (sample.shape[0], 1):
+            raise RuntimeError(
+                "Hessian vector product returned by _apply_hessian "
+                "has the wrong shape. "
+                "was {0} but must be {1}".format(
+                    hvp.shape, (sample.shape[0], 1)
+                )
+            )
+
     def apply_hessian(self, sample: Array, vec: Array) -> Array:
         """
         Compute the matrix vector product of the Hessian with a vector.
@@ -466,9 +476,6 @@ class Model(ABC):
 
         vec : array (nvars, 1)
             The vector
-
-        weights: array (nqoi, 1)
-            Weights defining combination of quantities of interest
 
         Returns
         -------
@@ -491,6 +498,7 @@ class Model(ABC):
             t0 = time.time()
             hvp = self._apply_hessian(sample, vec)
             t1 = time.time()
+            self._check_hvp_shape(hvp, sample)
             times = self._bkd.array([t1 - t0])
             self._work_tracker.update("hvp", times)
             self._database.add_data("hvp", sample, hvp)
@@ -669,16 +677,16 @@ class Model(ABC):
 
     def _check_apply(
         self,
-        sample,
-        symb,
-        fun,
-        apply_fun,
-        fd_eps=None,
-        direction=None,
-        relative=True,
-        disp=False,
+        sample: Array,
+        symb: str,
+        fun: callable,
+        apply_fun: callable,
+        fd_eps: Array = None,
+        direction: Array = None,
+        relative: bool = True,
+        disp: bool = False,
         args=[],
-    ):
+    ) -> Array:
         if sample.ndim != 2:
             raise ValueError(
                 "sample with shape {0} must be 2D array".format(sample.shape)
@@ -2445,3 +2453,134 @@ class AdjointModel(SingleSampleModel, ABC):
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         self.set_param(sample[:, 0])
         return self._apply_hessian_from_adjoint(vec[:, 0])
+
+
+class ScalarElementwiseFunction(ABC):
+    def __init__(self, ndim: int, backend: BackendMixin = NumpyMixin):
+        self._ndim = ndim
+        self._bkd = backend
+
+    def _check_samples(self, samples: Array):
+        if samples.ndim != self._ndim:
+            raise ValueError(
+                "samples has the wrong dimension. Samples has shape "
+                f"{samples.shape} but should have ndim={self._ndim}"
+            )
+
+    def _check_values(self, samples: Array, values: Array):
+        if samples.shape != values.shape:
+            raise ValueError(
+                f"values has the shape {values.shape}"
+                f"but should be {samples.shape}"
+            )
+
+    @abstractmethod
+    def _values(self, samples: Array) -> Array:
+        raise NotImplementedError
+
+    def _first_derivative(self, samples: Array) -> Array:
+        raise NotImplementedError
+
+    def _second_derivative(self, samples: Array) -> Array:
+        raise NotImplementedError
+
+    def __call__(self, samples: Array) -> Array:
+        self._check_samples(samples)
+        vals = self._values(samples)
+        self._check_values(samples, vals)
+        return vals
+
+    def first_derivative_implemented(self):
+        return self._bkd.jacobian_implemented()
+
+    def first_derivative(self, samples: Array) -> Array:
+        self._check_samples(samples)
+        vals = self._first_derivative(samples)
+        self._check_values(samples, vals)
+        return vals
+
+    def second_derivative_implemented(self):
+        return self._bkd.hessian_implemented()
+
+    def second_derivative(self, samples: Array) -> Array:
+        self._check_samples(samples)
+        vals = self._second_derivative(samples)
+        self._check_values(samples, vals)
+        return vals
+
+    def _check_derivative(
+        self,
+        samples: Array,
+        fun: callable,
+        grad: callable,
+        symb: str,
+        fd_eps: Array = None,
+        relative: bool = True,
+        disp: bool = False,
+    ):
+        if fd_eps is None:
+            fd_eps = self._bkd.flip(self._bkd.logspace(-13, 0, 14))
+
+        vals = fun(samples)
+        grad = grad(samples)
+        errors = []
+
+        row_format = "{:<12} {:<25} {:<25} {:<25}"
+        headers = [
+            "Eps",
+            "norm(grad {0})".format(symb),
+            "norm(fd {0})".format(symb),
+            "Rel. Errors" if relative else "Abs. Errors",
+        ]
+        if disp:
+            print(row_format.format(*headers))
+        row_format = "{:<12.2e} {:<25} {:<25} {:<25}"
+        for ii in range(fd_eps.shape[0]):
+            perturbed_samples = samples + fd_eps[ii]
+            perturbed_vals = fun(perturbed_samples)
+            fd = (perturbed_vals - vals) / fd_eps[ii]
+            errors.append(self._bkd.norm(fd - grad))
+            if disp:
+                print(
+                    row_format.format(
+                        fd_eps[ii],
+                        self._bkd.norm(grad),
+                        self._bkd.norm(fd),
+                        errors[ii],
+                    )
+                )
+        return self._bkd.asarray(errors)
+
+    def check_first_derivative(
+        self,
+        samples: Array,
+        fd_eps: Array = None,
+        relative: bool = True,
+        disp: bool = False,
+    ):
+        return self._check_derivative(
+            samples,
+            self.__call__,
+            self._first_derivative,
+            "f",
+            fd_eps,
+            relative,
+            disp,
+        )
+
+    def check_second_derivative(
+        self,
+        samples: Array,
+        fd_eps: Array = None,
+        relative: bool = True,
+        disp: bool = False,
+    ):
+        return self._check_derivative(
+            samples,
+            self._first_derivative,
+            self._second_derivative,
+            "g",
+            fd_eps,
+            relative,
+            disp,
+        )

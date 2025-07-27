@@ -17,6 +17,8 @@ from pyapprox.interface.model import (
     PoolModelWrapper,
     SerialIOModel,
     AsyncIOModel,
+    ForwardFiniteDifference,
+    BackwardFiniteDifference,
     CenteredFiniteDifference,
     DenseMatrixLinearModel,
     QuadraticMatrixModel,
@@ -861,9 +863,7 @@ if __name__ == "__main__":
                 [1 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1])]
             ),
             hessian=lambda x: bkd.stack([bkd.diag(bkd.array([2, 2, 0]))]),
-            apply_hessian=lambda x, v: bkd.stack(
-                [bkd.diag(bkd.array([2, 2, 0])) @ v]
-            ),
+            apply_hessian=lambda x, v: bkd.diag(bkd.array([2, 2, 0])) @ v,
             sample_ndim=1,
             values_ndim=1,
             backend=bkd,
@@ -877,8 +877,8 @@ if __name__ == "__main__":
 
     def test_finite_differences(self):
         test_cases = [
-            # ForwardFiniteDifference,
-            # BackwardFiniteDifference,
+            ForwardFiniteDifference,
+            BackwardFiniteDifference,
             CenteredFiniteDifference,
         ]
         for test_case in test_cases:

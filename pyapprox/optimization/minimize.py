@@ -11,6 +11,7 @@ from pyapprox.interface.model import (
     Model,
     ActiveSetVariableModel,
     SingleSampleModel,
+    ScalarElementwiseFunction,
 )
 from scipy.optimize import LinearConstraint
 
@@ -901,7 +902,7 @@ class SampleAverageEntropicRisk(SampleAverageStat):
         return (tmp1 - tmp2) / self._alpha
 
 
-class SmoothLogBasedMaxFunction:
+class SmoothLogBasedMaxFunction(ScalarElementwiseFunction):
     def __init__(
         self,
         eps: float,
@@ -921,7 +922,7 @@ class SmoothLogBasedMaxFunction:
         if samples.ndim != 2:
             raise ValueError("samples must be a 2D array")
 
-    def __call__(self, samples: Array) -> Array:
+    def _values(self, samples: Array) -> Array:
         self._check_samples(samples)
         x = samples
         x_div_eps = x / self._eps
@@ -937,7 +938,10 @@ class SmoothLogBasedMaxFunction:
         vals[J] = x[J]
         return vals
 
-    def jacobians(self, samples: Array) -> Array:
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
         # samples (noutputs, nsamples)
         # jac_values (nsamples, noutputs, noutputs)
         # but only return (nsamples, noutputs) because jac for each sample
@@ -952,7 +956,93 @@ class SmoothLogBasedMaxFunction:
         jac = self._bkd.zeros((x_div_eps.shape))
         jac[II] = 1.0 / (1 + self._bkd.exp(-x_div_eps[II]))
         jac[x_div_eps >= self._thresh] = 1.0
-        return jac[..., None]
+        return jac
+
+
+class SmoothHeavisideFunction(ScalarElementwiseFunction):
+    pass
+
+
+class SmoothLogBasedHeavisideFunction(SmoothHeavisideFunction):
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        threshold: float = None,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(ndim, backend)
+        self._eps = eps
+        self._shift = eps
+        if threshold is None:
+            threshold = 1e2
+        self._thresh = threshold
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def nvars(self) -> int:
+        return self._nsamples
+
+    def nqoi(self) -> int:
+        return self._nsamples
+
+    def _values(self, samples: Array) -> Array:
+        x = samples + self._shift
+        x_div_eps = x / self._eps
+        # Avoid overflow.
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
+        vals = self._bkd.zeros((x_div_eps.shape))
+        # print(II)
+        vals[II] = 1.0 / (
+            1 + self._bkd.exp(-x_div_eps[II] - self._shift / self._eps)
+        )
+        # print(x_div_eps)
+        # print(vals[II])
+        vals[x_div_eps >= self._thresh] = 1.0
+        return vals
+
+    def _first_derivative(self, samples: Array) -> Array:
+        x = -samples - self._shift
+        x_div_eps = x / self._eps
+        # Avoid overflow.
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
+        jac = self._bkd.zeros((x_div_eps.shape))
+        jac[II] = self._bkd.exp(x_div_eps[II] - self._shift / self._eps) / (
+            self._eps
+            * (self._bkd.exp(x_div_eps[II] - self._shift / self._eps) + 1) ** 2
+        )
+        return jac
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        x = -samples - self._shift
+        x_div_eps = x / self._eps
+        # Avoid overflow.
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
+        vals = self._bkd.zeros(x.shape)
+        vals[II] = self._bkd.exp(x_div_eps[II] - self._shift / self._eps) / (
+            self._eps**2
+            * (1 + self._bkd.exp(x_div_eps[II] - self._shift / self._eps)) ** 2
+        )
+        vals[II] -= (
+            2
+            * self._bkd.exp(x_div_eps[II] - self._shift / self._eps) ** 2
+            / (
+                self._eps**2
+                * (1 + self._bkd.exp(x_div_eps[II] - self._shift / self._eps))
+                ** 3
+            )
+        )
+        return -vals
 
 
 class SampleAverageConditionalValueAtRisk(SampleAverageStat):
@@ -990,7 +1080,7 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
         self, values: Array, jac_values: Array, weights: Array
     ) -> Array:
         # grad withe respect to parameters of x
-        max_jac = self._max.jacobians(values - self._t)
+        max_jac = self._max.first_derivative(values - self._t)[..., None]
         param_jac = self._bkd.einsum(
             "ijk,i->jk", (max_jac * jac_values), weights[:, 0]
         ) / (1 - self._alpha[:, None])

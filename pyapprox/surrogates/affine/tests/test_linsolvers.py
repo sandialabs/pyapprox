@@ -12,9 +12,16 @@ from pyapprox.surrogates.affine.linearsystemsolvers import (
     ConservativeLstSqSolver,
     ConservativeQuantileRegressionSolver,
     QuantileRegressionCVXOPTSolver,
+    FSDRegressionSolver,
 )
+from pyapprox.surrogates.affine.basisexp import (
+    MonomialExpansion,
+    MultiIndexBasis,
+)
+from pyapprox.surrogates.univariate.base import Monomial1D
 from pyapprox.optimization.risk import EntropicRisk
 from pyapprox.util.sys_utilities import package_available
+from pyapprox.optimization.minimize import SmoothLogBasedHeavisideFunction
 
 
 class TestLinearSolvers:
@@ -180,6 +187,66 @@ class TestLinearSolvers:
         for test_case in test_cases:
             np.random.seed(1)
             self._check_conservative_surrogate(test_case)
+
+    def _setup_linear_regression_problem(self, nsamples, degree):
+        bkd = self.get_backend()
+
+        # Setup surrogate to train
+        basis = MultiIndexBasis([Monomial1D(backend=bkd)])
+        basis.set_tensor_product_indices([degree + 1])
+        bexp = MonomialExpansion(
+            basis, solver=ConservativeLstSqSolver(1.0, backend=bkd), nqoi=1
+        )
+
+        # generate training data
+        train_samples = bkd.linspace(1e-3, 2 + 1e-3, nsamples)[None, :]
+        train_values = bkd.exp(train_samples).T
+        probabilities = bkd.full(train_values.shape, 1.0 / nsamples)
+
+        # Compute conservative least squares solution to use as
+        # an initial guess for the stochastic dominance
+        bexp.fit(train_samples, train_values)
+        return bexp, probabilities, train_samples, train_values
+
+    def _check_first_order_stochastic_dominance(self, nsamples, degree):
+        bkd = self.get_backend()
+        bexp, probabilities, train_samples, train_values = (
+            self._setup_linear_regression_problem(nsamples, degree)
+        )
+        solver = FSDRegressionSolver(
+            train_samples.shape[1],
+            SmoothLogBasedHeavisideFunction(2, eps=5e-1, backend=bkd),
+        )
+        solver.set_optimizer(solver.default_optimizer())
+        # set training data so we can check gradients of objective and
+        # constraints. This is usually set by bexp.fit()
+        bexp._set_training_data(train_samples, train_values)
+        solver.set_surrogate(bexp)
+        solver._setup_optimizer()
+        errors = solver._optimizer._objective.check_apply_jacobian(
+            bexp.get_coefficients()
+        )
+        assert errors.min() / errors.max() < 1e-6
+
+        errors = solver._optimizer._objective.check_apply_hessian(
+            bexp.get_coefficients()
+        )
+        assert errors.min() / errors.max() < 1e-6
+
+        errors = solver._optimizer._raw_constraints[0].check_apply_jacobian(
+            bexp.get_coefficients()
+        )
+        assert errors.min() / errors.max() < 1e-6
+
+        errors = solver._optimizer._raw_constraints[0].check_apply_hessian(
+            bexp.get_coefficients(),
+            weights=bkd.ones((train_samples.shape[1], 1)),
+            disp=True,
+        )
+        assert errors.min() / errors.max() < 1e-6
+
+    def test_first_order_stochastic_dominance(self):
+        self._check_first_order_stochastic_dominance(10, 1)
 
 
 class TestNumpyLinearSolvers(TestLinearSolvers, unittest.TestCase):

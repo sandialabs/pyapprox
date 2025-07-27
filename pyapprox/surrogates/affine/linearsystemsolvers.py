@@ -21,6 +21,7 @@ from pyapprox.optimization.risk import (
     RiskMeasure,
 )
 from pyapprox.interface.model import SingleSampleModel
+from pyapprox.surrogates.regressor import Regressor
 from pyapprox.optimization.scipy import (
     ConstrainedOptimizer,
     ScipyConstrainedOptimizer,
@@ -690,7 +691,7 @@ class EntropicLoss(SingleSampleModel):
         weights: Array = None,
         backend: BackendMixin = NumpyMixin,
     ):
-                """
+        """
         Initialize the EntropicLoss.
 
         Parameters
@@ -755,7 +756,65 @@ class EntropicLoss(SingleSampleModel):
         )
 
 
-class EntropicRegressionSolver(LinearSystemSolver):
+class OptimizerMixin:
+    def default_optimizer(
+        self,
+        verbosity: int = 0,
+        gtol: float = 1e-8,
+        maxiter: int = 1000,
+        method: str = "trust-constr",
+    ) -> ScipyConstrainedOptimizer:
+        """
+        Get the default optimizer for minimizing the Entropic loss function.
+
+        Parameters
+        ----------
+        verbosity : int, optional
+            Verbosity level for logging (default is 0).
+        gtol : float, optional
+            Gradient tolerance for convergence (default is 1e-8).
+        maxiter : int, optional
+            Maximum number of iterations (default is 1000).
+        method : str, optional
+            Optimization method (default is "trust-constr").
+
+        Returns
+        -------
+        optimizer : ScipyConstrainedOptimizer
+            Default optimizer for minimizing the Entropic loss function.
+        """
+        local_optimizer = ScipyConstrainedOptimizer()
+        local_optimizer.set_verbosity(verbosity)
+        local_optimizer.set_options(
+            gtol=gtol,
+            maxiter=maxiter,
+            method=method,
+        )
+        return local_optimizer
+
+    def set_optimizer(self, optimizer: ConstrainedOptimizer):
+        """
+        Set a custom optimizer for minimizing the Entropic loss function.
+
+        Parameters
+        ----------
+        optimizer : ConstrainedOptimizer
+            Custom optimizer for minimizing the Entropic loss function.
+
+        Raises
+        ------
+        ValueError
+            If `optimizer` is not an instance of `ConstrainedOptimizer`.
+        """
+        if not isinstance(optimizer, ConstrainedOptimizer):
+            raise ValueError(
+                f"optimizer {optimizer} must be instance of "
+                "ConstrainedOptimizer"
+            )
+        self._optimizer = optimizer
+
+
+class EntropicRegressionSolver(LinearSystemSolver, OptimizerMixin):
     """
     ""
     Solver for regression problems using the Entropic Risk Quadrangle.
@@ -815,58 +874,95 @@ class EntropicRegressionSolver(LinearSystemSolver):
         result = self._optimizer.minimize(iterate)
         return result.x
 
-    def default_optimizer(
+
+from pyapprox.optimization.first_order_stochastic_dominance import (
+    FSDConstraintNew,
+    FSDObjectiveNew,
+)
+from pyapprox.optimization.minimize import (
+    SmoothHeavisideFunction,
+)
+
+
+class FSDRegressionSolver(LinearSystemSolver, OptimizerMixin):
+    def __init__(
         self,
-        verbosity: int = 0,
-        gtol: float = 1e-8,
-        maxiter: int = 1000,
-        method: str = "trust-constr",
-    ) -> ScipyConstrainedOptimizer:
+        ntrain_samples: int,
+        smooth_heaviside_function: SmoothHeavisideFunction,
+    ):
         """
-        Get the default optimizer for minimizing the Entropic loss function.
-
-        Parameters
-        ----------
-        verbosity : int, optional
-            Verbosity level for logging (default is 0).
-        gtol : float, optional
-            Gradient tolerance for convergence (default is 1e-8).
-        maxiter : int, optional
-            Maximum number of iterations (default is 1000).
-        method : str, optional
-            Optimization method (default is "trust-constr").
-
-        Returns
-        -------
-        optimizer : ScipyConstrainedOptimizer
-            Default optimizer for minimizing the Entropic loss function.
+        Initialize the FSD solver.
         """
-        local_optimizer = ScipyConstrainedOptimizer()
-        local_optimizer.set_verbosity(verbosity)
-        local_optimizer.set_options(
-            gtol=gtol,
-            maxiter=maxiter,
-            method=method,
-        )
-        return local_optimizer
-
-    def set_optimizer(self, optimizer: ConstrainedOptimizer):
-        """
-        Set a custom optimizer for minimizing the Entropic loss function.
-
-        Parameters
-        ----------
-        optimizer : ConstrainedOptimizer
-            Custom optimizer for minimizing the Entropic loss function.
-
-        Raises
-        ------
-        ValueError
-            If `optimizer` is not an instance of `ConstrainedOptimizer`.
-        """
-        if not isinstance(optimizer, ConstrainedOptimizer):
+        if not isinstance(smooth_heaviside_function, SmoothHeavisideFunction):
             raise ValueError(
-                f"optimizer {optimizer} must be instance of "
-                "ConstrainedOptimizer"
+                "smooth_heaviside_function must be an instance of "
+                "SmoothHeavisideFunction"
             )
-        self._optimizer = optimizer
+        self._smooth_heaviside_function = smooth_heaviside_function
+        self._ntrain_samples = ntrain_samples
+        super().__init__(self._smooth_heaviside_function._bkd)
+
+    def set_probabilities(self, probabilities: Array):
+        if probabilities.shape != (self._ntrain_samples, 1):
+            raise ValueError("probabilities has the wrong shape")
+        self._probabilities = probabilities
+
+    def set_constraint_indices(self, indices: Array):
+        if indices.shape != (self._ntrain_samples,):
+            raise ValueError(
+                "indices must be a 1D array with shape {(self._ntrain.shape[1],)}"
+            )
+        self._constraint_indices = indices
+
+    def _setup_optimizer(self):
+        if not hasattr(self, "_constraint_indices"):
+            self.set_constraint_indices(self._bkd.arange(self._ntrain_samples))
+        if not hasattr(self, "_probabilities"):
+            self.set_probabilities(
+                self._bkd.full(
+                    (self._ntrain_samples, 1), 1 / self._ntrain_samples
+                )
+            )
+        nconstraints = self._constraint_indices.shape[0]
+        constraint_bounds = self._bkd.stack(
+            (
+                self._bkd.full((nconstraints,), -np.inf),
+                self._bkd.zeros((nconstraints,)),
+            ),
+            axis=1,
+        )
+        constraint = FSDConstraintNew(constraint_bounds, backend=self._bkd)
+        constraint.set_opt_problem(self)
+        objective = FSDObjectiveNew(backend=self._bkd)
+        objective.set_opt_problem(self)
+        self._optimizer.set_objective_function(objective)
+        self._optimizer.set_constraints([constraint])
+        iterate_bounds = self._bkd.stack(
+            (
+                self._bkd.full((self._surrogate.nvars(),), -np.inf),
+                self._bkd.full((self._surrogate.nvars(),), np.inf),
+            ),
+            axis=1,
+        )
+        self._optimizer.set_bounds(iterate_bounds)
+
+    def set_iterate(self, iterate: Array):
+        self._iterate = iterate
+
+    def set_surrogate(self, surrogate: Regressor):
+        self._surrogate = surrogate
+
+    def solve(self, basis_mat: Array, values: Array) -> Array:
+        if not hasattr(self, "_surrogate"):
+            raise RuntimeError("must call set_surrogate()")
+        if not hasattr(self, "_optimizer"):
+            self.set_optimizer(self.default_optimizer())
+        self._setup_optimizer()
+        if not hasattr(self, "_iterate"):
+            self.set_iterate(self._bkd.ones((self._objective.nvars(),)))
+        if not hasattr(self, "_constraint_indices"):
+            self.set_constraint_indices(
+                self._bkd.arrays((self._train_samples.shape[1],))
+            )
+        result = self._optimizer.minimize(self._iterate)
+        return result.x
