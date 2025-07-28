@@ -6,7 +6,7 @@ an abstract base class (`LinearSystemSolver`) that defines the interface for sol
 systems, as well as specific implementations such as least squares regression (`LstSqSolver`).
 """
 
-from __future__ import annotations
+from typing import Union
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -17,7 +17,6 @@ from scipy.optimize import linprog
 from pyapprox.optimization.risk import (
     AverageValueAtRisk,
     SafetyMarginRiskMeasure,
-    EntropicRisk,
     RiskMeasure,
 )
 from pyapprox.interface.model import SingleSampleModel
@@ -27,6 +26,11 @@ from pyapprox.optimization.scipy import (
     ScipyConstrainedOptimizer,
 )
 from pyapprox.util.sys_utilities import package_available
+from pyapprox.optimization.minimize import (
+    SmoothLeftHeavisideFunction,
+    SmoothLogBasedMaxFunction,
+    Constraint,
+)
 
 
 if package_available("cvxopt"):
@@ -878,34 +882,253 @@ class EntropicRegressionSolver(LinearSystemSolver, OptimizerMixin):
         return result.x
 
 
-from pyapprox.optimization.first_order_stochastic_dominance import (
-    FSDConstraintNew,
-    FSDObjectiveNew,
-)
-from pyapprox.optimization.minimize import (
-    SmoothLeftHeavisideFunction,
-)
+class FSDObjectiveNew(SingleSampleModel):
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nvars(self) -> int:
+        return self._surrogate.nterms()
+
+    def set_regression_solver(self, solver: "FSDOptProblem"):
+        if solver._surrogate.nqoi() != 1:
+            raise ValueError("surrogate must have only one QoI")
+        self._surrogate = solver._surrogate
+        self._train_samples = self._surrogate._ctrain_samples
+        self._train_values = self._surrogate._ctrain_values
+        self._probabilities = solver._probabilities
+
+    def _evaluate(self, coef: Array) -> Array:
+        # todo replace the following with more general
+        # set unknowns because this function can otherwise be
+        # applied to nonlinear surrogates without change
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        val = 0.5 * self._bkd.sum(
+            self._probabilities * (self._train_values - surrogate_values) ** 2
+        )
+        return self._bkd.atleast2d(val)
+
+    def _jacobian(self, coef: Array) -> Array:
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        surrogate_jac = self._surrogate.hyperparam_jacobian(coef)
+        jac = -surrogate_jac.T @ (
+            self._probabilities * (self._train_values - surrogate_values)
+        )
+        return jac.T
+
+    def _apply_hessian(self, coef: Array, vec: Array) -> Array:
+        # only works if surrogate.hvp returns zero
+        surrogate_jac = self._surrogate.hyperparam_jacobian(coef)
+        return surrogate_jac.T @ (self._probabilities * (surrogate_jac @ vec))
 
 
-class FSDRegressionSolver(LinearSystemSolver, OptimizerMixin):
+class StochasticDominanceConstraint(Constraint):
+    def set_regression_solver(
+        self, solver: "StochasticDominanceRegressionSolver"
+    ):
+        if solver._surrogate.nqoi() != 1:
+            raise ValueError("surrogate must have only one QoI")
+        self._surrogate = solver._surrogate
+        self._train_samples = self._surrogate._ctrain_samples
+        self._train_values = self._surrogate._ctrain_values
+        self._probabilities = solver._probabilities
+        self._constraint_indices = solver._constraint_indices
+        self._smooth_function = solver._smooth_function
+
+    def nqoi(self) -> int:
+        return self._probabilities.shape[0]
+
+    def nvars(self) -> int:
+        return self._surrogate._hyp_list.nactive_vars()
+
+    def _values(self, coef: Array) -> Array:
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        tmp1 = self._smooth_function(
+            surrogate_values - surrogate_values[self._constraint_indices].T
+        )
+        tmp2 = self._smooth_function(
+            (self._train_values - surrogate_values[self._constraint_indices].T)
+        )
+        val = self._probabilities.T @ (tmp1 - tmp2)
+        return val
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def _jacobian(self, coef: Array) -> Array:
+        r"""
+        Compute the Jacobian of the constraints. The nth row of the Jacobian is
+        the derivative of the nth constraint :math:`c_n(x)`.
+        Let :math:`h(z)` be the smooth heaviside function and :math:`f(x)` the
+        function approximation evaluated
+        at the training samples and coeficients :math:`x`, then
+
+        .. math::
+
+           \frac{\partial c_n}{\partial x} =
+           \sum_{m=1}^M h^\prime(f(x_m)-f(x_n))
+              \left(\nabla_x f(x_m)-\nabla_x f(x_n))\right) -
+              h^\prime(y_m-f(x_n))\left(-\nabla_x f(x_n))\right)
+
+        Parameters
+        ----------
+        coef : Array (ncoef)
+            The unknowns
+
+        Returns
+        -------
+        jac : Array (nconstraints, ncoef)
+            The Jacobian of the constraints
+        """
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        surrogate_jac = self._surrogate.hyperparam_jacobian(coef)
+        hder1 = (
+            self._smooth_function.first_derivative(
+                (
+                    surrogate_values.T
+                    - surrogate_values[self._constraint_indices]
+                )
+            )
+            * self._probabilities
+        )
+        fder1 = (
+            surrogate_jac[None, :, :]
+            - surrogate_jac[self._constraint_indices, None, :]
+        )
+        # con_jac = self._bkd.sum(hder1[:, :, None] * fder1, axis=1)
+        # c: nconstraints, d: ncoefs, n: nsamples
+        con_jac = self._bkd.einsum("cn,cnd->cd", hder1, fder1)
+        hder2 = (
+            self._smooth_function.first_derivative(
+                (
+                    self._train_values.T
+                    - surrogate_values[self._constraint_indices]
+                )
+            )
+            * self._probabilities
+        )
+        fder2 = (
+            0 * surrogate_jac[None, :, :]
+            - surrogate_jac[self._constraint_indices, None, :]
+        )
+        # con_jac -= self._bkd.sum(hder2[:, :, None] * fder2, axis=1)
+        con_jac -= self._bkd.einsum("cn,cnd->cd", hder2, fder2)
+        return con_jac
+
+    def weighted_hessian_implemented(self) -> bool:
+        return True
+
+    def _weighted_hessian(self, coef: Array, lmult: Array) -> Array:
+        r"""
+        Compute the Hessian of the constraints applied to the Lagrange
+        multipliers.
+
+        We need to compute
+
+        .. math:: d^2/dx^2 f(g(x))=g'(x)^2 f''(g(x))+g''(x)f'(g(x))
+
+        and assume that  :math:`g''(x)=0 \forall x`. I.e. only linear
+        approximations g(x) are implemented
+
+        Parameters
+        ----------
+        coef : Array (ncoef)
+            The unknowns
+
+        lmult : Array (nconstraints)
+            vector of N Lagrange multipliers with
+
+        Returns
+        -------
+        hess : Arrat (ncoef, ncoef)
+            The weighted sum of the individual constraint Hessians
+
+            .. math:: \sum_{n=1}^N H_n(x)
+        """
+        self._surrogate.set_coefficients(coef)
+        surrogate_values = self._surrogate(self._train_samples)
+        surrogate_jac = self._surrogate.hyperparam_jacobian(coef)
+        hder1 = (
+            self._smooth_function.second_derivative(
+                (
+                    surrogate_values.T
+                    - surrogate_values[self._constraint_indices]
+                )
+            )
+            * self._probabilities
+        )
+        hder2 = (
+            self._smooth_function.second_derivative(
+                (
+                    self._train_values.T
+                    - surrogate_values[self._constraint_indices]
+                )
+            )
+            * self._probabilities
+        )
+        # Todo fder1 and fder2 can be stored when computing Jacobian and
+        # reused
+        fder1 = (
+            surrogate_jac[None, :, :]
+            - surrogate_jac[self._constraint_indices, None, :]
+        )
+        fder2 = (
+            0 * surrogate_jac[None, :, :]
+            - surrogate_jac[self._constraint_indices, None, :]
+        )
+        ncoef = coef.shape[0]
+        hessian = self._bkd.zeros((ncoef, ncoef))
+        # c: nconstraints, d: ncoefs, n: nsamples
+        hessian = self._bkd.einsum(
+            "c, cn, cnd, cnf -> df",
+            lmult[:, 0],
+            hder1,
+            fder1,
+            fder1,
+        ) - self._bkd.einsum(
+            "c, cn, cnd, cnf -> df",
+            lmult[:, 0],
+            hder2,
+            fder2,
+            fder2,
+        )
+        # for ii in range(lmult.shape[0]):
+        #     hessian += (
+        #         lmult[ii]
+        #         * (hder1[ii, :, None] * fder1[ii, :]).T
+        #         @ (fder1[ii, :])
+        #     )
+        #     hessian -= (
+        #         lmult[ii]
+        #         * (hder2[ii, :, None] * fder2[ii, :]).T
+        #         @ (fder2[ii, :])
+        #     )
+        return hessian
+
+
+class StochasticDominanceRegressionSolver(LinearSystemSolver, OptimizerMixin):
     def __init__(
         self,
         ntrain_samples: int,
-        smooth_heaviside_function: SmoothLeftHeavisideFunction,
+        smooth_function: Union[
+            SmoothLeftHeavisideFunction, SmoothLogBasedMaxFunction
+        ],
     ):
         """
-        Initialize the FSD solver.
+        Initialize the stochastic domina solver.
         """
-        if not isinstance(
-            smooth_heaviside_function, SmoothLeftHeavisideFunction
-        ):
-            raise ValueError(
-                "smooth_heaviside_function must be an instance of "
-                "SmoothHeavisideFunction"
-            )
-        self._smooth_heaviside_function = smooth_heaviside_function
+        self._set_smooth_function(smooth_function)
         self._ntrain_samples = ntrain_samples
-        super().__init__(self._smooth_heaviside_function._bkd)
+        super().__init__(self._smooth_function._bkd)
 
     def set_probabilities(self, probabilities: Array):
         if probabilities.shape != (self._ntrain_samples, 1):
@@ -928,20 +1151,13 @@ class FSDRegressionSolver(LinearSystemSolver, OptimizerMixin):
                     (self._ntrain_samples, 1), 1 / self._ntrain_samples
                 )
             )
-        nconstraints = self._constraint_indices.shape[0]
-        constraint_bounds = self._bkd.stack(
-            (
-                self._bkd.full((nconstraints,), -np.inf),
-                self._bkd.zeros((nconstraints,)),
-            ),
-            axis=1,
+
+        constraint = StochasticDominanceConstraint(
+            self._constraint_bounds(), keep_feasible=True, backend=self._bkd
         )
-        constraint = FSDConstraintNew(
-            constraint_bounds, keep_feasible=True, backend=self._bkd
-        )
-        constraint.set_opt_problem(self)
+        constraint.set_regression_solver(self)
         objective = FSDObjectiveNew(backend=self._bkd)
-        objective.set_opt_problem(self)
+        objective.set_regression_solver(self)
         self._optimizer.set_objective_function(objective)
         self._optimizer.set_constraints([constraint])
         iterate_bounds = self._bkd.stack(
@@ -979,3 +1195,73 @@ class FSDRegressionSolver(LinearSystemSolver, OptimizerMixin):
         print("#######")
         result = self._optimizer.minimize(self._iterate)
         return result.x
+
+
+class FSDRegressionSolver(StochasticDominanceRegressionSolver):
+    def __init__(
+        self,
+        ntrain_samples: int,
+        smooth_heaviside_function: SmoothLeftHeavisideFunction,
+    ):
+        """
+        Initialize the First-order Stochastic Dominance (FSD) solver.
+        """
+        super().__init__(ntrain_samples, smooth_heaviside_function)
+
+    def _set_smooth_function(
+        self, smooth_heaviside_function: SmoothLeftHeavisideFunction
+    ):
+        if not isinstance(
+            smooth_heaviside_function, SmoothLeftHeavisideFunction
+        ):
+            raise ValueError(
+                "smooth_heaviside_function must be an instance of "
+                "SmoothHeavisideFunction"
+            )
+        self._smooth_function = smooth_heaviside_function
+
+    def _constraint_bounds(self):
+        nconstraints = self._constraint_indices.shape[0]
+        return self._bkd.stack(
+            (
+                self._bkd.full((nconstraints,), -np.inf),
+                self._bkd.zeros((nconstraints,)),
+            ),
+            axis=1,
+        )
+
+
+class SSDRegressionSolver(FSDRegressionSolver):
+    def __init__(
+        self,
+        ntrain_samples: int,
+        smooth_max_function: SmoothLogBasedMaxFunction,
+    ):
+        """
+        Initialize the Second-order Stochastic Dominance (SSD) solver.
+
+        # Conceptually the FSD and SSD constraints are similar.
+        # But the smooth function and bounds are different.
+        FSD bounds are (-oo, 0) and SSD are (0, oo)
+        """
+        super().__init__(ntrain_samples, smooth_max_function)
+
+    def _set_smooth_function(
+        self, smooth_max_function: SmoothLogBasedMaxFunction
+    ):
+        if not isinstance(smooth_max_function, SmoothLogBasedMaxFunction):
+            raise ValueError(
+                "smooth_max_function must be an instance of "
+                "SmoothLogBasedMaxFunction"
+            )
+        self._smooth_function = smooth_max_function
+
+    def _constraint_bounds(self):
+        nconstraints = self._constraint_indices.shape[0]
+        return self._bkd.stack(
+            (
+                self._bkd.zeros((nconstraints,)),
+                self._bkd.full((nconstraints,), np.inf),
+            ),
+            axis=1,
+        )

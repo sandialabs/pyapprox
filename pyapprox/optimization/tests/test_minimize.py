@@ -723,7 +723,7 @@ class TestMinimize(unittest.TestCase):
         bkd = self.get_backend()
         nsamples = 5
         samples = bkd.linspace(-1, 1, nsamples)[None, :]
-        fun = SmoothLogBasedMaxFunction(1e-1, 1e2, 1e-1, backend=bkd)
+        fun = SmoothLogBasedMaxFunction(2, 1e-1, 1e2, 1e-1, backend=bkd)
         errors = fun.check_first_derivative(samples, disp=True)
         assert errors.min() / errors.max() < 1e-6
         errors = fun.check_second_derivative(samples, disp=True)

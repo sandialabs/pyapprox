@@ -13,6 +13,7 @@ from pyapprox.surrogates.affine.linearsystemsolvers import (
     ConservativeQuantileRegressionSolver,
     QuantileRegressionCVXOPTSolver,
     FSDRegressionSolver,
+    SSDRegressionSolver,
 )
 from pyapprox.surrogates.affine.basisexp import (
     MonomialExpansion,
@@ -23,6 +24,7 @@ from pyapprox.optimization.risk import EntropicRisk
 from pyapprox.util.sys_utilities import package_available
 from pyapprox.optimization.minimize import (
     SmoothLogBasedLeftHeavisideFunction,
+    SmoothLogBasedMaxFunction,
 )
 
 
@@ -289,6 +291,33 @@ class TestLinearSolvers:
             [0.9854551809, 1.2536694273, -0.0148611493, 0.4947820513]
         )[:, None]
         assert np.allclose(coef, ref_coef)
+
+    def test_second_order_stochastic_dominance_regression(self):
+        bkd = self.get_backend()
+        nsamples = 10
+        degree = 3
+        bexp, probabilities, train_samples, train_values = (
+            self._setup_linear_regression_problem(nsamples, degree)
+        )
+        std_vals = bkd.std(train_values)
+        train_values = (
+            train_values / std_vals
+        )  # hack to be consistent with old test
+        solver = SSDRegressionSolver(
+            train_samples.shape[1],
+            SmoothLogBasedMaxFunction(2, eps=5e-2, shift=0, backend=bkd),
+        )
+        solver.set_iterate(bexp.get_coefficients())
+        bexp.set_solver(solver)
+        solver.set_optimizer(
+            solver.default_optimizer(verbosity=0, maxiter=1000)
+        )
+        bexp.fit(train_samples, train_values)x
+        coef = bexp.get_coefficients() * std_vals
+
+        # TODO check answer consistent with old code and
+        # copy the old unit test
+        raise NotImplementedError
 
 
 class TestNumpyLinearSolvers(TestLinearSolvers, unittest.TestCase):
