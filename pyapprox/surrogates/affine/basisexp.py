@@ -58,14 +58,15 @@ class BasisExpansion(Regressor):
         coef_bounds=None,
         fixed: bool = False,
     ):
-        # todo make model accept backend and pass in through with call to super
-        super().__init__()
+        super().__init__(basis._bkd)
         self._nqoi = int(nqoi)
         self.set_basis(basis, coef_bounds, fixed)
-        if solver is not None and not basis._bkd.bkd_equal(
-            solver._bkd, basis._bkd
-        ):
-            raise ValueError("Basis and solver must have the same backend.")
+        if solver is not None:
+            self.set_solver(solver)
+
+    def set_solver(self, solver: LinearSystemSolver):
+        if not self._bkd.bkd_equal(solver._bkd, self._bkd):
+            raise ValueError("solver must have the same backend.")
         self._solver = solver
 
     def hyperparam_jacobian(self, active_opt_params: Array) -> Array:
@@ -210,6 +211,7 @@ class BasisExpansion(Regressor):
                     self._ctrain_values.shape[1], self.nqoi()
                 )
             )
+        self._solver.set_surrogate(self)
         coef = self._solver.solve(
             self._basis(self._ctrain_samples), self._ctrain_values
         )

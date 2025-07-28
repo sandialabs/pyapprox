@@ -21,7 +21,9 @@ from pyapprox.surrogates.affine.basisexp import (
 from pyapprox.surrogates.univariate.base import Monomial1D
 from pyapprox.optimization.risk import EntropicRisk
 from pyapprox.util.sys_utilities import package_available
-from pyapprox.optimization.minimize import SmoothLogBasedHeavisideFunction
+from pyapprox.optimization.minimize import (
+    SmoothLogBasedLeftHeavisideFunction,
+)
 
 
 class TestLinearSolvers:
@@ -195,7 +197,7 @@ class TestLinearSolvers:
         basis = MultiIndexBasis([Monomial1D(backend=bkd)])
         basis.set_tensor_product_indices([degree + 1])
         bexp = MonomialExpansion(
-            basis, solver=ConservativeLstSqSolver(1.0, backend=bkd), nqoi=1
+            basis, solver=LstSqSolver(backend=bkd), nqoi=1
         )
 
         # generate training data
@@ -206,16 +208,21 @@ class TestLinearSolvers:
         # Compute conservative least squares solution to use as
         # an initial guess for the stochastic dominance
         bexp.fit(train_samples, train_values)
+        shift = (train_values - bexp(train_samples)).max()
+        coef = bexp.get_coefficients()
+        coef[0] += shift
         return bexp, probabilities, train_samples, train_values
 
-    def _check_first_order_stochastic_dominance(self, nsamples, degree):
+    def _check_first_order_stochastic_dominance_gradients(
+        self, nsamples, degree
+    ):
         bkd = self.get_backend()
         bexp, probabilities, train_samples, train_values = (
             self._setup_linear_regression_problem(nsamples, degree)
         )
         solver = FSDRegressionSolver(
             train_samples.shape[1],
-            SmoothLogBasedHeavisideFunction(2, eps=5e-1, backend=bkd),
+            SmoothLogBasedLeftHeavisideFunction(2, eps=5e-1, backend=bkd),
         )
         solver.set_optimizer(solver.default_optimizer())
         # set training data so we can check gradients of objective and
@@ -234,19 +241,54 @@ class TestLinearSolvers:
         assert errors.min() / errors.max() < 1e-6
 
         errors = solver._optimizer._raw_constraints[0].check_apply_jacobian(
-            bexp.get_coefficients()
+            bexp.get_coefficients(), disp=True
         )
         assert errors.min() / errors.max() < 1e-6
 
         errors = solver._optimizer._raw_constraints[0].check_apply_hessian(
             bexp.get_coefficients(),
-            weights=bkd.ones((train_samples.shape[1], 1)),
-            disp=True,
+            weights=bkd.array(
+                np.random.uniform(0, 1, (train_samples.shape[1], 1))
+            ),
         )
         assert errors.min() / errors.max() < 1e-6
 
-    def test_first_order_stochastic_dominance(self):
-        self._check_first_order_stochastic_dominance(10, 1)
+    def test_first_order_stochastic_dominance_gradients(self):
+        self._check_first_order_stochastic_dominance_gradients(10, 1)
+        self._check_first_order_stochastic_dominance_gradients(10, 2)
+
+    def test_first_order_stochastic_dominance_regression(self):
+        bkd = self.get_backend()
+        nsamples = 10
+        degree = 3
+        bexp, probabilities, train_samples, train_values = (
+            self._setup_linear_regression_problem(nsamples, degree)
+        )
+        std_vals = bkd.std(train_values)
+        train_values = (
+            train_values / std_vals
+        )  # hack to be consistent with old test
+        solver = FSDRegressionSolver(
+            train_samples.shape[1],
+            SmoothLogBasedLeftHeavisideFunction(
+                2, eps=5e-2, shift=5e-2, backend=bkd
+            ),
+        )
+        solver.set_iterate(bexp.get_coefficients())
+        bexp.set_solver(solver)
+        solver.set_optimizer(
+            solver.default_optimizer(verbosity=0, maxiter=1000)
+        )
+        bexp.fit(train_samples, train_values)
+        coef = bexp.get_coefficients() * std_vals
+
+        # Run regression test
+        # TODO replace with a unit test, e.g. that surrogate is
+        # conservative with respect to data for all error measures
+        ref_coef = np.array(
+            [0.9854551809, 1.2536694273, -0.0148611493, 0.4947820513]
+        )[:, None]
+        assert np.allclose(coef, ref_coef)
 
 
 class TestNumpyLinearSolvers(TestLinearSolvers, unittest.TestCase):

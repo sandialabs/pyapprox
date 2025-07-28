@@ -906,14 +906,14 @@ class SmoothLogBasedMaxFunction(ScalarElementwiseFunction):
     def __init__(
         self,
         eps: float,
-        threshold: float = None,
+        threshold: float = 1e2,
+        shift: float = 0.0,
         backend: BackendMixin = NumpyMixin,
     ):
         self._bkd = backend
         self._eps = eps
-        if threshold is None:
-            threshold = 1e2
         self._thresh = threshold
+        self._shift = shift
 
     def jacobian_implemented(self) -> bool:
         return True
@@ -923,8 +923,7 @@ class SmoothLogBasedMaxFunction(ScalarElementwiseFunction):
             raise ValueError("samples must be a 2D array")
 
     def _values(self, samples: Array) -> Array:
-        self._check_samples(samples)
-        x = samples
+        x = samples + self._shift
         x_div_eps = x / self._eps
         # avoid overflow
         vals = self._bkd.zeros(x.shape)
@@ -946,103 +945,221 @@ class SmoothLogBasedMaxFunction(ScalarElementwiseFunction):
         # jac_values (nsamples, noutputs, noutputs)
         # but only return (nsamples, noutputs) because jac for each sample
         # is just a diagonal matrix
-        self._check_samples(samples)
-        x = samples
-        x_div_eps = x / self._eps
-        # Avoid overflow.
-        II = self._bkd.where(
-            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
-        )
-        jac = self._bkd.zeros((x_div_eps.shape))
-        jac[II] = 1.0 / (1 + self._bkd.exp(-x_div_eps[II]))
-        jac[x_div_eps >= self._thresh] = 1.0
-        return jac
-
-
-class SmoothHeavisideFunction(ScalarElementwiseFunction):
-    pass
-
-
-class SmoothLogBasedHeavisideFunction(SmoothHeavisideFunction):
-    def __init__(
-        self,
-        ndim: int,
-        eps: float,
-        threshold: float = None,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(ndim, backend)
-        self._eps = eps
-        self._shift = eps
-        if threshold is None:
-            threshold = 1e2
-        self._thresh = threshold
-
-    def first_derivative_implemented(self) -> bool:
-        return True
-
-    def nvars(self) -> int:
-        return self._nsamples
-
-    def nqoi(self) -> int:
-        return self._nsamples
-
-    def _values(self, samples: Array) -> Array:
         x = samples + self._shift
         x_div_eps = x / self._eps
         # Avoid overflow.
         II = self._bkd.where(
             (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
         )
-        vals = self._bkd.zeros((x_div_eps.shape))
-        # print(II)
-        vals[II] = 1.0 / (
+        jac = self._bkd.zeros((x_div_eps.shape))
+        jac[II] = 1.0 / (
             1 + self._bkd.exp(-x_div_eps[II] - self._shift / self._eps)
         )
-        # print(x_div_eps)
-        # print(vals[II])
-        vals[x_div_eps >= self._thresh] = 1.0
-        return vals
-
-    def _first_derivative(self, samples: Array) -> Array:
-        x = -samples - self._shift
-        x_div_eps = x / self._eps
-        # Avoid overflow.
-        II = self._bkd.where(
-            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
-        )
-        jac = self._bkd.zeros((x_div_eps.shape))
-        jac[II] = self._bkd.exp(x_div_eps[II] - self._shift / self._eps) / (
-            self._eps
-            * (self._bkd.exp(x_div_eps[II] - self._shift / self._eps) + 1) ** 2
-        )
+        jac[x_div_eps >= self._thresh] = 1.0
         return jac
 
     def second_derivative_implemented(self) -> bool:
         return True
 
     def _second_derivative(self, samples: Array) -> Array:
-        x = -samples - self._shift
+        x = samples + self._shift
         x_div_eps = x / self._eps
         # Avoid overflow.
         II = self._bkd.where(
             (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
         )
         vals = self._bkd.zeros(x.shape)
-        vals[II] = self._bkd.exp(x_div_eps[II] - self._shift / self._eps) / (
+        vals[II] = self._bkd.exp(x_div_eps[II] + self._shift / self._eps) / (
+            self._eps
+            * (self._bkd.exp(x_div_eps[II] + self._shift / self._eps) + 1) ** 2
+        )
+        return vals
+
+    def third_derivative_implemented(self) -> bool:
+        return True
+
+    def _third_derivative(self, samples: Array) -> Array:
+        x = samples + self._shift
+        x_div_eps = x / self._eps
+        # Avoid overflow.
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
+        vals = self._bkd.zeros(x.shape)
+        vals[II] = self._bkd.exp(x_div_eps[II] + self._shift / self._eps) / (
             self._eps**2
-            * (1 + self._bkd.exp(x_div_eps[II] - self._shift / self._eps)) ** 2
+            * (1 + self._bkd.exp(x_div_eps[II] + self._shift / self._eps)) ** 2
         )
         vals[II] -= (
             2
-            * self._bkd.exp(x_div_eps[II] - self._shift / self._eps) ** 2
+            * self._bkd.exp(x_div_eps[II] + self._shift / self._eps) ** 2
             / (
                 self._eps**2
-                * (1 + self._bkd.exp(x_div_eps[II] - self._shift / self._eps))
+                * (1 + self._bkd.exp(x_div_eps[II] + self._shift / self._eps))
                 ** 3
             )
         )
-        return -vals
+        return vals
+
+
+class SmoothLeftHeavisideFunction(ScalarElementwiseFunction):
+    pass
+
+
+# class SmoothLogBasedHeavisideFunction(SmoothLeftHeavisideFunction):
+#     r"""
+#     Smooth left heaviside function :math:`1_{(-\infty, 0]}`
+
+#     The smooth log-based right heaviside function is the first derivative
+#     of the smooth log-based max function m(x)=smoothmax(0, x).
+#     Thus, the smooth log based left heaviside function is the derivative of
+#     m(-x).
+#     """
+
+#     def __init__(
+#         self,
+#         ndim: int,
+#         eps: float,
+#         threshold: float = 1e2,
+#         backend: BackendMixin = NumpyMixin,
+#     ):
+#         super().__init__(ndim, backend)
+#         self._eps = eps
+#         self._shift = eps
+#         self._thresh = threshold
+
+#     def first_derivative_implemented(self) -> bool:
+#         return True
+
+#     def nvars(self) -> int:
+#         return self._nsamples
+
+#     def nqoi(self) -> int:
+#         return self._nsamples
+
+#     def _values(self, samples: Array) -> Array:
+#         x = samples + self._shift
+#         x_div_eps = x / self._eps
+#         # Avoid overflow.
+#         II = self._bkd.where(
+#             (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+#         )
+#         vals = self._bkd.zeros((x_div_eps.shape))
+#         vals[II] = 1.0 / (
+#             1 + self._bkd.exp(-x_div_eps[II] - self._shift / self._eps)
+#         )
+#         vals[x_div_eps >= self._thresh] = 1.0
+#         return vals
+
+#     def _first_derivative(self, samples: Array) -> Array:
+#         x = -samples - self._shift
+#         x_div_eps = x / self._eps
+#         # Avoid overflow.
+#         II = self._bkd.where(
+#             (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+#         )
+#         jac = self._bkd.zeros((x_div_eps.shape))
+#         jac[II] = self._bkd.exp(x_div_eps[II] - self._shift / self._eps) / (
+#             self._eps
+#             * (self._bkd.exp(x_div_eps[II] - self._shift / self._eps) + 1) ** 2
+#         )
+#         return jac
+
+#     def second_derivative_implemented(self) -> bool:
+#         return True
+
+#     def _second_derivative(self, samples: Array) -> Array:
+#         x = -samples - self._shift
+#         x_div_eps = x / self._eps
+#         # Avoid overflow.
+#         II = self._bkd.where(
+#             (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+#         )
+#         vals = self._bkd.zeros(x.shape)
+#         vals[II] = self._bkd.exp(x_div_eps[II] - self._shift / self._eps) / (
+#             self._eps**2
+#             * (1 + self._bkd.exp(x_div_eps[II] - self._shift / self._eps)) ** 2
+#         )
+#         vals[II] -= (
+#             2
+#             * self._bkd.exp(x_div_eps[II] - self._shift / self._eps) ** 2
+#             / (
+#                 self._eps**2
+#                 * (1 + self._bkd.exp(x_div_eps[II] - self._shift / self._eps))
+#                 ** 3
+#             )
+#         )
+#         return -vals
+
+
+class SmoothLogBasedRightHeavisideFunction(SmoothLeftHeavisideFunction):
+    r"""
+    Smooth left heaviside function :math:`1_{(-\infty, 0]}`
+
+    The smooth log-based right heaviside function is the first derivative
+    of the smooth log-based max function m(x)=smoothmax(0, x).
+    Thus, the smooth log based left heaviside function is the derivative of
+    m(-x).
+    """
+
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        threshold: float = 1e2,
+        shift: float = 0,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(ndim, backend)
+        self._shift = shift
+
+        self._max_function = SmoothLogBasedMaxFunction(
+            eps, threshold, self._shift, self._bkd
+        )
+
+    def _values(self, samples: Array) -> Array:
+        return self._max_function.first_derivative(samples)
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
+        return self._max_function.second_derivative(samples)
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        return self._max_function.third_derivative(samples)
+
+
+class SmoothLogBasedLeftHeavisideFunction(
+    SmoothLogBasedRightHeavisideFunction
+):
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        threshold: float = 1e2,
+        shift: float = 0,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(ndim, eps, threshold, shift, backend)
+
+    def _values(self, samples: Array) -> Array:
+        return super()._values(-samples)
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
+        return -super()._first_derivative(-samples)
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        return super()._second_derivative(-samples)
 
 
 class SampleAverageConditionalValueAtRisk(SampleAverageStat):

@@ -2484,6 +2484,9 @@ class ScalarElementwiseFunction(ABC):
     def _second_derivative(self, samples: Array) -> Array:
         raise NotImplementedError
 
+    def _third_derivative(self, samples: Array) -> Array:
+        raise NotImplementedError
+
     def __call__(self, samples: Array) -> Array:
         self._check_samples(samples)
         vals = self._values(samples)
@@ -2505,6 +2508,15 @@ class ScalarElementwiseFunction(ABC):
     def second_derivative(self, samples: Array) -> Array:
         self._check_samples(samples)
         vals = self._second_derivative(samples)
+        self._check_values(samples, vals)
+        return vals
+
+    def third_derivative_implemented(self):
+        return self._bkd.hessian_implemented()
+
+    def third_derivative(self, samples: Array) -> Array:
+        self._check_samples(samples)
+        vals = self._third_derivative(samples)
         self._check_values(samples, vals)
         return vals
 
@@ -2580,6 +2592,23 @@ class ScalarElementwiseFunction(ABC):
             self._first_derivative,
             self._second_derivative,
             "g",
+            fd_eps,
+            relative,
+            disp,
+        )
+
+    def check_third_derivative(
+        self,
+        samples: Array,
+        fd_eps: Array = None,
+        relative: bool = True,
+        disp: bool = False,
+    ):
+        return self._check_derivative(
+            samples,
+            self._second_derivative,
+            self._third_derivative,
+            "h",
             fd_eps,
             relative,
             disp,

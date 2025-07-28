@@ -29,10 +29,7 @@ def smooth_max_function_first_derivative_log(eps, shift, x):
     # Avoid overflow.
     II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
     vals = np.zeros(x.shape)
-    print(II, "a")
     vals[II] = 1.0 / (1 + np.exp(-x_div_eps[II] - shift / eps))
-    print(x_div_eps)
-    print(vals[II])
     vals[x_div_eps >= 1e2] = 1.0
     assert np.all(np.isfinite(vals))
     return vals
@@ -252,13 +249,14 @@ class FSDObjective(SingleSampleModel):
         self._opt_prob = opt_prob
 
     def _evaluate(self, sample: Array) -> Array:
-        return self._bkd.atleast2d(self._opt_prob.objective_fun(sample[:, 0]))
+        vals = self._bkd.atleast2d(self._opt_prob.objective_fun(sample[:, 0]))
+        return vals
 
     def _jacobian(self, sample: Array) -> Array:
         return self._opt_prob.objective_jac(sample[:, 0])[None, :]
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        return self._opt_prob.objective_hessp(sample[:, 0], vec[:, 0])
+        return self._opt_prob.objective_hessp(sample[:, 0], vec[:, 0])[:, None]
 
 
 class FSDConstraint(Constraint):
@@ -278,7 +276,8 @@ class FSDConstraint(Constraint):
         self._opt_prob = opt_prob
 
     def _values(self, sample: Array) -> Array:
-        return self._opt_prob.constraint_fun(sample[:, 0])[None, :]
+        vals = self._opt_prob.constraint_fun(sample[:, 0])[None, :]
+        return vals
 
     def _jacobian(self, sample: Array) -> Array:
         return self._opt_prob.constraint_jac(sample[:, 0])
@@ -364,7 +363,7 @@ class FSDConstraintNew(Constraint):
             surrogate_values - surrogate_values[self._constraint_indices].T
         )
         tmp2 = self._smooth_heaviside_function(
-            self._train_values - surrogate_values[self._constraint_indices].T
+            (self._train_values - surrogate_values[self._constraint_indices].T)
         )
         val = self._probabilities.T @ (tmp1 - tmp2)
         return val
@@ -881,6 +880,7 @@ class FSDOptProblem:
             self.get_unknowns_bounds(),
             opts=opts,
         )
+        optimizer.set_verbosity(opts["verbose"])
         return optimizer.minimize(x0)
 
     def debug_plot(self, coef, samples):

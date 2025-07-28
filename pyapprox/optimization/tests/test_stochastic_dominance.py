@@ -42,7 +42,6 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         x0 = np.linalg.lstsq(basis_matrix, values, rcond=None)[0]
         shift = (values - basis_matrix.dot(x0)).max()
         x0[0] += shift
-
         return samples, values, fun, jac, probabilities, ncoef, x0
 
     def test_objective_derivatives(self):
@@ -134,11 +133,13 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
 
         method, maxiter = "trust-constr", 100
         # method, maxiter = 'trust-constr', 1000
-        optim_options = {"verbose": 2, "maxiter": maxiter}
+        optim_options = {"verbose": 0, "maxiter": maxiter}
+        print(x0, "x0")
         coef = problem.solve(x0, optim_options, method).x
         coef *= values_std
 
         # regression test
+        print(coef, "c")
         ref_coef = np.array(
             [0.9854551809, 1.2536694273, -0.0148611493, 0.4947820513]
         )[:, None]

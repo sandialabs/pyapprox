@@ -82,6 +82,9 @@ class LinearSystemSolver(ABC):
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
+    def set_surrogate(self, surrogate: Regressor):
+        self._surrogate = surrogate
+
 
 class LstSqSolver(LinearSystemSolver):
     """
@@ -880,7 +883,7 @@ from pyapprox.optimization.first_order_stochastic_dominance import (
     FSDObjectiveNew,
 )
 from pyapprox.optimization.minimize import (
-    SmoothHeavisideFunction,
+    SmoothLeftHeavisideFunction,
 )
 
 
@@ -888,12 +891,14 @@ class FSDRegressionSolver(LinearSystemSolver, OptimizerMixin):
     def __init__(
         self,
         ntrain_samples: int,
-        smooth_heaviside_function: SmoothHeavisideFunction,
+        smooth_heaviside_function: SmoothLeftHeavisideFunction,
     ):
         """
         Initialize the FSD solver.
         """
-        if not isinstance(smooth_heaviside_function, SmoothHeavisideFunction):
+        if not isinstance(
+            smooth_heaviside_function, SmoothLeftHeavisideFunction
+        ):
             raise ValueError(
                 "smooth_heaviside_function must be an instance of "
                 "SmoothHeavisideFunction"
@@ -931,7 +936,9 @@ class FSDRegressionSolver(LinearSystemSolver, OptimizerMixin):
             ),
             axis=1,
         )
-        constraint = FSDConstraintNew(constraint_bounds, backend=self._bkd)
+        constraint = FSDConstraintNew(
+            constraint_bounds, keep_feasible=True, backend=self._bkd
+        )
         constraint.set_opt_problem(self)
         objective = FSDObjectiveNew(backend=self._bkd)
         objective.set_opt_problem(self)
@@ -949,9 +956,6 @@ class FSDRegressionSolver(LinearSystemSolver, OptimizerMixin):
     def set_iterate(self, iterate: Array):
         self._iterate = iterate
 
-    def set_surrogate(self, surrogate: Regressor):
-        self._surrogate = surrogate
-
     def solve(self, basis_mat: Array, values: Array) -> Array:
         if not hasattr(self, "_surrogate"):
             raise RuntimeError("must call set_surrogate()")
@@ -959,10 +963,19 @@ class FSDRegressionSolver(LinearSystemSolver, OptimizerMixin):
             self.set_optimizer(self.default_optimizer())
         self._setup_optimizer()
         if not hasattr(self, "_iterate"):
-            self.set_iterate(self._bkd.ones((self._objective.nvars(),)))
+            self.set_iterate(
+                self._bkd.ones((self._optimizer._objective.nvars(), 1))
+            )
         if not hasattr(self, "_constraint_indices"):
             self.set_constraint_indices(
                 self._bkd.arrays((self._train_samples.shape[1],))
             )
+        import torch
+
+        torch.set_printoptions(precision=16)
+        print(self._iterate[:, 0], "x0")
+        print(self._optimizer._objective(self._iterate), "o")
+        print(self._optimizer._raw_constraints[0](self._iterate), "c")
+        print("#######")
         result = self._optimizer.minimize(self._iterate)
         return result.x
