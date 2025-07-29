@@ -1513,7 +1513,7 @@ class EmpiricalCDF:
             )
         else:
             assert weights.ndim == 1
-            II = self._bkd.argsort(self.samples)
+            II = self._bkd.argsort(self._samples)
             self._ecdf = self._bkd.cumsum(weights[II])
 
         self._interp = interpolate.interp1d(

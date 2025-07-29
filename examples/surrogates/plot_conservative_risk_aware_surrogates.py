@@ -20,11 +20,18 @@ from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
 from pyapprox.surrogates.affine.linearsystemsolvers import (
     ConservativeQuantileRegressionSolver,
     ConservativeLstSqSolver,
+    FSDRegressionSolver,
+    SSDRegressionSolver,
+)
+from pyapprox.optimization.minimize import (
+    SmoothLogBasedLeftHeavisideFunction,
+    SmoothLogBasedMaxFunction,
 )
 from pyapprox.surrogates.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.marginals import EmpiricalCDF
 
 
 # %%
@@ -63,6 +70,8 @@ train_values += bkd.asarray(np.random.normal(0, 1, train_values.shape))
 # -------------------------------------------------
 # Solve the conservative quantile regression problem for a quantile level of :math:`\tau = 0.8`.
 # Solve the conservative risk margins regression problem for a strength of 1.0.
+# Solver the conservative first-order stochastic dominance regression problem
+# Solver the conservative second-order stochastic dominance regression problem
 
 quantile = 0.8
 quantile_solver = ConservativeQuantileRegressionSolver(quantile, backend=bkd)
@@ -73,6 +82,20 @@ strength = 1.0
 lstsq_solver = ConservativeLstSqSolver(strength, backend=bkd)
 risk_margins_pce = PolynomialChaosExpansion(basis, solver=lstsq_solver, nqoi=1)
 risk_margins_pce.fit(train_samples, train_values)
+
+fsd_solver = solver = FSDRegressionSolver(
+    train_samples.shape[1],
+    SmoothLogBasedLeftHeavisideFunction(2, eps=1e-2, shift=1e-2, backend=bkd),
+)
+fsd_pce = PolynomialChaosExpansion(basis, solver=fsd_solver, nqoi=1)
+fsd_pce.fit(train_samples, train_values)
+
+ssd_solver = solver = SSDRegressionSolver(
+    train_samples.shape[1],
+    SmoothLogBasedMaxFunction(2, eps=5e-2, shift=0, backend=bkd),
+)
+ssd_pce = PolynomialChaosExpansion(basis, solver=ssd_solver, nqoi=1)
+ssd_pce.fit(train_samples, train_values)
 
 # %%
 # Step 4: Visualize the Results
@@ -94,6 +117,20 @@ plt.plot(
     "g",
     lw=3,
     label="Risk Margins Surrogate",
+)
+plt.plot(
+    test_samples[0],
+    fsd_pce(test_samples)[:, 0],
+    "gray",
+    lw=3,
+    label="FSD Surrogate",
+)
+plt.plot(
+    test_samples[0],
+    fsd_pce(test_samples)[:, 0],
+    "yellow",
+    lw=3,
+    label="SSD Surrogate",
 )
 plt.plot(
     test_samples[0],
@@ -140,6 +177,32 @@ print(
     "Training Data Saftey Margins Risk Measure",
     lstsq_solver.risk_measure()(),
 )
+
+# Plot the CDF of the surrogate values and the traiing values
+train_cdf = EmpiricalCDF(train_values[:, 0], backend=bkd)
+surrogate_values = fsd_pce(train_samples)
+surrogate_cdf = EmpiricalCDF(surrogate_values[:, 0], backend=bkd)
+plt.subplots(1, 1, figsize=(8, 6))
+plot_xx = bkd.linspace(
+    min(train_values.min(), surrogate_values.min()),
+    max(train_values.max(), surrogate_values.max()),
+    101,
+)
+plt.plot(
+    bkd.sort(train_values[:, 0]),
+    train_cdf(bkd.sort(train_values[:, 0])),
+    label="Training Values CDF",
+)
+plt.plot(
+    bkd.sort(surrogate_values[:, 0]),
+    surrogate_cdf(bkd.sort(surrogate_values[:, 0])),
+    label="Surrogate CDF",
+)
+_ = plt.legend()
+
+# %%
+# The plot shows that the CDF of the surrogate values is always below (right) of the CDF of the training values. A similar plot can be generated to show that the estimate of the average value at risk computed using the SSD surrgogate evaluated at the training data is always larger than AVAR computed using the training values.
+
 
 # %%
 # Conclusion

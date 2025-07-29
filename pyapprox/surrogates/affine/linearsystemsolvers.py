@@ -1172,6 +1172,16 @@ class StochasticDominanceRegressionSolver(LinearSystemSolver, OptimizerMixin):
     def set_iterate(self, iterate: Array):
         self._iterate = iterate
 
+    def _default_iterate(self, basis_mat: Array, values: Array) -> Array:
+        # Compute conservative least squares solution to use as
+        # an initial guess for the stochastic dominance that statisfies
+        # the constraint
+        lstq_solver = LstSqSolver(backend=self._bkd)
+        coef = lstq_solver.solve(basis_mat, values)
+        shift = self._bkd.max(values - basis_mat @ coef)
+        coef[0] += shift
+        return coef
+
     def solve(self, basis_mat: Array, values: Array) -> Array:
         if not hasattr(self, "_surrogate"):
             raise RuntimeError("must call set_surrogate()")
@@ -1179,20 +1189,11 @@ class StochasticDominanceRegressionSolver(LinearSystemSolver, OptimizerMixin):
             self.set_optimizer(self.default_optimizer())
         self._setup_optimizer()
         if not hasattr(self, "_iterate"):
-            self.set_iterate(
-                self._bkd.ones((self._optimizer._objective.nvars(), 1))
-            )
+            self.set_iterate(self._default_iterate(basis_mat, values))
         if not hasattr(self, "_constraint_indices"):
             self.set_constraint_indices(
                 self._bkd.arrays((self._train_samples.shape[1],))
             )
-        import torch
-
-        torch.set_printoptions(precision=16)
-        print(self._iterate[:, 0], "x0")
-        print(self._optimizer._objective(self._iterate), "o")
-        print(self._optimizer._raw_constraints[0](self._iterate), "c")
-        print("#######")
         result = self._optimizer.minimize(self._iterate)
         return result.x
 

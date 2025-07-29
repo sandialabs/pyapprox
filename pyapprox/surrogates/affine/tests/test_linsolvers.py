@@ -20,12 +20,13 @@ from pyapprox.surrogates.affine.basisexp import (
     MultiIndexBasis,
 )
 from pyapprox.surrogates.univariate.base import Monomial1D
-from pyapprox.optimization.risk import EntropicRisk
+from pyapprox.optimization.risk import EntropicRisk, DisutilitySSD
 from pyapprox.util.sys_utilities import package_available
 from pyapprox.optimization.minimize import (
     SmoothLogBasedLeftHeavisideFunction,
     SmoothLogBasedMaxFunction,
 )
+from pyapprox.variables.marginals import EmpiricalCDF
 
 
 class TestLinearSolvers:
@@ -266,31 +267,25 @@ class TestLinearSolvers:
         bexp, probabilities, train_samples, train_values = (
             self._setup_linear_regression_problem(nsamples, degree)
         )
-        std_vals = bkd.std(train_values)
-        train_values = (
-            train_values / std_vals
-        )  # hack to be consistent with old test
         solver = FSDRegressionSolver(
             train_samples.shape[1],
             SmoothLogBasedLeftHeavisideFunction(
                 2, eps=5e-2, shift=5e-2, backend=bkd
             ),
         )
-        solver.set_iterate(bexp.get_coefficients())
+        # solver.set_iterate(bexp.get_coefficients())
         bexp.set_solver(solver)
         solver.set_optimizer(
             solver.default_optimizer(verbosity=0, maxiter=1000)
         )
         bexp.fit(train_samples, train_values)
-        coef = bexp.get_coefficients() * std_vals
-
-        # Run regression test
-        # TODO replace with a unit test, e.g. that surrogate is
-        # conservative with respect to data for all error measures
-        ref_coef = np.array(
-            [0.9854551809, 1.2536694273, -0.0148611493, 0.4947820513]
-        )[:, None]
-        assert np.allclose(coef, ref_coef)
+        train_cdf = EmpiricalCDF(train_values[:, 0], backend=bkd)
+        surrogate_values = bexp(train_samples)
+        surrogate_cdf = EmpiricalCDF(surrogate_values[:, 0], backend=bkd)
+        assert bkd.all(
+            surrogate_cdf(surrogate_values[:, 0])
+            >= train_cdf(train_values[:, 0])
+        )
 
     def test_second_order_stochastic_dominance_regression(self):
         bkd = self.get_backend()
@@ -299,25 +294,26 @@ class TestLinearSolvers:
         bexp, probabilities, train_samples, train_values = (
             self._setup_linear_regression_problem(nsamples, degree)
         )
-        std_vals = bkd.std(train_values)
-        train_values = (
-            train_values / std_vals
-        )  # hack to be consistent with old test
+        train_values = train_values
         solver = SSDRegressionSolver(
             train_samples.shape[1],
             SmoothLogBasedMaxFunction(2, eps=5e-2, shift=0, backend=bkd),
         )
-        solver.set_iterate(bexp.get_coefficients())
+        # solver.set_iterate(bexp.get_coefficients())
         bexp.set_solver(solver)
         solver.set_optimizer(
             solver.default_optimizer(verbosity=0, maxiter=1000)
         )
-        bexp.fit(train_samples, train_values)x
-        coef = bexp.get_coefficients() * std_vals
+        bexp.fit(train_samples, train_values)
 
-        # TODO check answer consistent with old code and
-        # copy the old unit test
-        raise NotImplementedError
+        DSSD = DisutilitySSD()
+        surrogate_vals = bexp(train_samples)
+        DSSD.set_samples(surrogate_vals.T)
+        DSSD.set_eta(surrogate_vals[:, 0])
+        pce_econds = DSSD()
+        DSSD.set_samples(train_values.T)
+        train_econds = DSSD()
+        assert bkd.all(train_econds <= pce_econds + 4e-5)
 
 
 class TestNumpyLinearSolvers(TestLinearSolvers, unittest.TestCase):
