@@ -10,6 +10,7 @@ from typing import Union
 from abc import ABC, abstractmethod
 
 import numpy as np
+import scipy.sparse as sp
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -429,6 +430,45 @@ class QuantileRegressionSolver(LinearSystemSolver):
         # print(adjusted_quantile_coef[:, 0], "a")
 
         return self._bkd.asarray(result.x[:nbasis, None])
+
+
+class BasisPursuitRegressionSolver(LinearSystemSolver):
+    def solve(self, basis_mat: Array, values: Array) -> Array:
+        nunknowns = basis_mat.shape[1]
+        nslack_variables = nunknowns
+        c = np.zeros(nunknowns + nslack_variables)
+        c[nunknowns:] = 1.0
+
+        II = sp.identity(nunknowns)
+        tmp = np.array([[1, -1], [-1, -1]])
+        A_ub = sp.kron(tmp, II)
+        b_ub = np.zeros(nunknowns + nslack_variables)
+
+        A_eq = sp.lil_matrix((basis_mat.shape[0], c.shape[0]), dtype=float)
+        A_eq[:, : basis_mat.shape[1]] = basis_mat
+        b_eq = values
+
+        bounds = [(-np.inf, np.inf)] * nunknowns + [
+            (0, np.inf)
+        ] * nslack_variables
+
+        if not hasattr(self, "_options"):
+            options = {}
+        else:
+            options = self._options
+        res = linprog(
+            c,
+            A_ub=A_ub,
+            b_ub=b_ub,
+            A_eq=A_eq,
+            b_eq=b_eq,
+            bounds=bounds,
+            options=options,
+        )
+        return res.x[:nunknowns]
+
+    def set_options(self, options: dict):
+        self._options = options
 
 
 class QuantileRegressionCVXOPTSolver(QuantileRegressionSolver):

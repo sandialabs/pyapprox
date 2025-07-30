@@ -6,6 +6,7 @@ from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.surrogates.affine.linearsystemsolvers import (
     LstSqSolver,
     OMPSolver,
+    BasisPursuitRegressionSolver,
     QuantileRegressionSolver,
     EntropicLoss,
     EntropicRegressionSolver,
@@ -72,6 +73,22 @@ class TestLinearSolvers:
         omp_coefs = solver.solve(Amat, Bmat)
         assert bkd.allclose(omp_coefs, sparse_coefs)
         assert solver._termination_flag == 0
+
+    def test_basis_pursuit(self):
+        bkd = self.get_backend()
+        nsamples, degree, sparsity = 6, 7, 2
+        samples = bkd.array(np.random.uniform(0, 1, (1, nsamples)))
+        basis_matrix = samples.T ** bkd.arange(degree + 1)[None, :]
+
+        true_coef = bkd.zeros(basis_matrix.shape[1])
+        true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.0
+        vals = basis_matrix @ true_coef
+
+        options = {"presolve": True, "autoscale": True, "disp": False}
+        solver = BasisPursuitRegressionSolver(backend=bkd)
+        solver.set_options(options)
+        coef = solver.solve(basis_matrix, vals)
+        assert np.allclose(coef, true_coef)
 
     def test_lstsq_solver(self):
         bkd = self.get_backend()
