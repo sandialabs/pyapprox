@@ -22,6 +22,8 @@ from pyapprox.optimization.minimize import (
     StochasticGradientDescentOptimizer,
     SmoothLogBasedMaxFunction,
     SmoothLogBasedLeftHeavisideFunction,
+    SmoothQuarticBasedLeftHeavisideFunction,
+    SmoothQuinticBasedLeftHeavisideFunction,
 )
 from pyapprox.optimization.risk import GaussianAnalyticalRiskMeasures
 from pyapprox.benchmarks import (
@@ -738,6 +740,28 @@ class TestMinimize(unittest.TestCase):
         fun = SmoothLogBasedLeftHeavisideFunction(
             2, 1e-2, 1e2, 1e-2, backend=bkd
         )
+        errors = fun.check_first_derivative(samples, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        errors = fun.check_second_derivative(samples, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
+    def test_smooth_quartic_based_left_heaviside_function(self):
+        bkd = self.get_backend()
+        nsamples = 101
+        eps = 1e-2
+        samples = bkd.linspace(-3e-1, 3e-1, nsamples)[None, :]
+        fun = SmoothQuarticBasedLeftHeavisideFunction(2, eps, backend=bkd)
+        errors = fun.check_first_derivative(samples, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        errors = fun.check_second_derivative(samples, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
+    def test_smooth_quintic_based_left_heaviside_function(self):
+        bkd = self.get_backend()
+        nsamples = 101
+        eps = 1e-2
+        samples = bkd.linspace(-3e-1, 3e-1, nsamples)[None, :]
+        fun = SmoothQuinticBasedLeftHeavisideFunction(2, eps, backend=bkd)
         errors = fun.check_first_derivative(samples, disp=True)
         assert errors.min() / errors.max() < 1e-6
         errors = fun.check_second_derivative(samples, disp=True)

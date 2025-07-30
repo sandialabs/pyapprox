@@ -2208,3 +2208,169 @@ class StochasticGradientDescentOptimizer(OptimizerWithObjective):
         if not self._store:
             raise ValueError("No history available. Store was not set to true")
         return self._bkd.asarray(self._history)
+
+
+class SmoothQuarticBasedLeftHeavisideFunction(
+    ScalarElementwiseFunction, SmoothLeftHeavisideFunction
+):
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(ndim, backend)
+        self._eps = eps
+
+    def _values(self, samples: Array):
+        shift = 0
+        x = samples + shift
+
+        # Create an array of ones with the same shape as x
+        vals = self._bkd.ones(x.shape)
+
+        # Compute masks for the conditions
+        mask_neg = (x < 0) & (x > -self._eps)  # Elements where -eps < x < 0
+        mask_zero = x >= 0  # Elements where x >= 0
+
+        # Apply the quartic function for elements satisfying -eps < x < 0
+        vals[mask_neg] = (
+            6 * (-x[mask_neg] / self._eps) ** 2
+            - 8 * (-x[mask_neg] / self._eps) ** 3
+            + 3 * (-x[mask_neg] / self._eps) ** 4
+        )
+
+        # Set values to 0 for elements where x >= 0
+        vals[mask_zero] = 0
+
+        return vals
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
+        shift = 0
+        x = samples + shift
+        # Create an array of zeros with the same shape as x
+        vals = self._bkd.zeros(x.shape)
+
+        # Compute mask for the condition (-eps < x < 0)
+        mask_neg = (x < 0) & (x > -self._eps)
+
+        # Apply the derivative formula for elements satisfying -eps < x < 0
+        vals[mask_neg] = (
+            12 * x[mask_neg] * (self._eps + x[mask_neg]) ** 2 / self._eps**4
+        )
+
+        return vals
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        shift = 0
+        x = samples + shift
+
+        # Create an array of zeros with the same shape as x
+        vals = self._bkd.zeros(x.shape)
+
+        # Compute mask for the condition (-eps < x < 0)
+        mask_neg = (x < 0) & (x > -self._eps)
+
+        # Apply the second derivative formula for elements satisfying -eps < x < 0
+        vals[mask_neg] = (
+            12
+            * (
+                self._eps**2
+                + 4 * self._eps * x[mask_neg]
+                + 3 * x[mask_neg] ** 2
+            )
+            / self._eps**4
+        )
+
+        return vals
+
+
+class SmoothQuinticBasedLeftHeavisideFunction(
+    ScalarElementwiseFunction, SmoothLeftHeavisideFunction
+):
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(ndim, backend)
+        self._eps = eps
+
+    def _values(self, samples: Array):
+        shift = 0
+        x = samples + shift
+
+        # Create an array of ones with the same shape as x
+        vals = self._bkd.ones(x.shape)
+
+        # Coefficients
+        c3, c4, c5 = 10, -15, 6
+
+        # Compute masks for the conditions
+        mask_neg = (x < 0) & (
+            x > -self._eps
+        )  # Elements where -self._eps < x < 0
+        mask_zero = x >= 0  # Elements where x >= 0
+
+        # Apply the quintic function for elements satisfying -self._eps < x < 0
+        xe = -x[mask_neg] / self._eps
+        vals[mask_neg] = c3 * xe**3 + c4 * xe**4 + c5 * xe**5
+
+        # Set values to 0 for elements where x >= 0
+        vals[mask_zero] = 0
+
+        return vals
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
+        shift = 0
+        x = samples + shift
+
+        # Create an array of zeros with the same shape as x
+        vals = self._bkd.zeros(x.shape)
+
+        # Coefficients
+        c3, c4, c5 = 10, -15, 6
+
+        # Compute mask for the condition (-self._eps < x < 0)
+        mask_neg = (x < 0) & (x > -self._eps)
+
+        # Apply the first derivative formula for elements satisfying -self._eps < x < 0
+        xe = -x[mask_neg] / self._eps
+        vals[mask_neg] = (
+            -(3 * c3 * xe**2 + 4 * c4 * xe**3 + 5 * c5 * xe**4) / self._eps
+        )
+
+        return vals
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        shift = 0
+        x = samples + shift
+
+        # Create an array of zeros with the same shape as x
+        vals = self._bkd.zeros(x.shape)
+
+        # Coefficients of spline enforcing all derivatives of step function at 0 and eps
+        c3, c4, c5 = 10, -15, 6
+
+        # Compute mask for the condition (-self._eps < x < 0)
+        mask_neg = (x < 0) & (x > -self._eps)
+
+        # Apply the second derivative formula for elements satisfying -self._eps < x < 0
+        xe = -x[mask_neg] / self._eps
+        vals[mask_neg] = (
+            6 * c3 * xe + 12 * c4 * xe**2 + 20 * c5 * xe**3
+        ) / self._eps**2
+        return vals
