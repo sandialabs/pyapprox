@@ -1353,6 +1353,9 @@ class ExponentialQuarticLogLikelihoodModel(LogLikelihood):
     def nvars(self) -> int:
         return 2
 
+    def nqoi(self) -> int:
+        return 1
+
     def _values(self, x: Array) -> Array:
         value = -(0.1 * x[0] ** 4 + 0.5 * (2.0 * x[1] - x[0] ** 2) ** 2)
         return value[:, None]
@@ -1371,3 +1374,9 @@ class ExponentialQuarticLogLikelihoodModel(LogLikelihood):
 
     def _loglike_from_shapes(self, shapes: Array) -> Array:
         raise NotImplementedError
+
+    def _rvs(self):
+        raise NotImplementedError
+
+    def nobs(self) -> int:
+        return 2

@@ -779,15 +779,25 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
         second_mom = self._second_moment(
             self._evidence._quad_weighted_like_vals
         )
+        # the commented lines below are less numerically stable than their
+        # uncommented equivalent versions when evidences are small
         second_mom_jac = self._second_moment_jac(like_jac)
         variance_jac = (
             second_mom_jac / evidences
-            - second_mom[..., None] * evidences_jac[None, :] / evidences**2
+            # - second_mom[..., None] * evidences_jac[None, :] / evidences**2
+            - (
+                (second_mom[..., None] * evidences_jac[None, :])
+                / evidences
+                / evidences
+            )
             - 2.0 * first_mom[..., None] * first_mom_jac / evidences**2
             + 2.0
-            * first_mom[..., None] ** 2
+            # * first_mom[..., None] ** 2
+            # * evidences_jac[None, :]
+            # / evidences**3
+            * (first_mom[..., None] ** 2 / evidences**2)
             * evidences_jac[None, :]
-            / evidences**3
+            / evidences
         )
         variance_jac = self._bkd.reshape(
             variance_jac,

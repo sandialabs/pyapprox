@@ -68,7 +68,7 @@ example_filenames_in_order = [
     "plot_elbo.py",
     "plot_flow.py",
     # ExpDesign
-    "plot_bayesian_oed.py",
+    # "plot_bayesian_oed.py",
     "plot_bayesoed4params.py",
     "plot_bayesoed4pred.py",
     # Surrogates
@@ -196,8 +196,8 @@ sphinx_gallery_conf = {
         ]
     ),
     "within_subsection_order": ExamplesExplicitOrder,
-    "ignore_pattern": r"util",
-    # "ignore_pattern": r"util|plot_bayesian_oed\.py",  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
+    # "ignore_pattern": r"util",
+    "ignore_pattern": r"util|plot_bayesian_oed\.py",  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
     "matplotlib_animations": True,
 }
 try:
