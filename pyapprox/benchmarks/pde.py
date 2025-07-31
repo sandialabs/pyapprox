@@ -168,9 +168,7 @@ class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
 class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
     SingleModelBayesianInferenceBenchmark
 ):
-    def __init__(
-        self, nmodels: int = 5, backend: BackendMixin = NumpyMixin
-    ):
+    def __init__(self, nmodels: int = 5, backend: BackendMixin = NumpyMixin):
         self._nmodels = nmodels
         self._mesh_npts_1d = backend.array([21, 21], dtype=int)
         self._kle_nvars = 3
@@ -261,6 +259,21 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
 
     def negloglike(self) -> Model:
         return self._model
+
+    def sobol_interaction_indices(self) -> Array:
+        sobol_interaction_indices = self._bkd.array(
+            [
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1],
+                [1, 1, 0],
+                [1, 0, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+            ],
+            dtype=int,
+        ).T
+        return sobol_interaction_indices
 
 
 class NonlinearSystemOfEquationsBenchmark(SingleModelBenchmark):

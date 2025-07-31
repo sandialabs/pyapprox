@@ -125,6 +125,9 @@ class Regressor(Surrogate):
     def get_train_values(self) -> Array:
         return self._out_trans.map_to_canonical(self._ctrain_values)
 
+    def ntrain_samples(self) -> int:
+        return self._ctrain_samples.shape[1]
+
 
 class AdaptiveRegressorMixin(ABC):
     @abstractmethod

@@ -15,30 +15,28 @@ from functools import partial
 import torch
 import time
 from pyapprox.util.visualization import mathrm_label
-from pyapprox.variables import (
-    IndependentMarginalsVariable,
-    print_statistics,
-    AffineTransform,
-)
+from pyapprox.variables import IndependentMarginalsVariable, AffineTransform
 from pyapprox.benchmarks import (
     PyApproxPaperAdvectionDiffusionKLEInversionBenchmark,
 )
-from pyapprox.interface.wrappers import (
-    TimerModel,
-    WorkTrackingModel,
-    evaluate_1darray_function_on_2d_array,
-)
+from pyapprox.interface.model import ModelFromSingleSampleCallable
 from pyapprox.analysis.sensitivity_analysis import (
-    GaussianProcessSensitivityAnalysis,
-    plot_sensitivity_indices,
+    EnsembleGaussianProcessSensitivityAnalysis,
 )
-from pyapprox.bayes.metropolis import (
-    loglike_from_negloglike,
-    plot_unnormalized_2d_marginals,
+from pyapprox.surrogates.kernels import MaternKernel, ConstantKernel
+from pyapprox.surrogates.gaussianprocess.activelearning import (
+    CholeskySampler,
+    AdaptiveGaussianProcess,
+    SamplingScheduleFromList,
 )
+from pyapprox.bayes.metropolis import plot_unnormalized_2d_marginals
 from pyapprox.bayes.metropolis import MetropolisMCMCVariable
-from pyapprox.expdesign.bayesian_oed import get_bayesian_oed_optimizer
+from pyapprox.expdesign.optbayes import (
+    KLBayesianOED,
+    IndependentGaussianOEDInnerLoopLogLikelihood,
+)
 from pyapprox import multifidelity
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
 # import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -56,9 +54,8 @@ savefig = False
 # The following code shows how to create and sample from two independent uniform random variables defined on :math:`[-2, 2]`. We use uniform variables here, but any marginal from the scipy.stats module can be used.
 nsamples = 30
 univariate_variables = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
-variable = IndependentMarginalsVariable(univariate_variables)
+variable = IndependentMarginalsVariable(univariate_variables, backend=bkd)
 samples = variable.rvs(nsamples)
-print_statistics(samples)
 
 # %%
 # PyApprox supports various types of variable transformations. The following code
@@ -66,7 +63,6 @@ print_statistics(samples)
 # to samples from the variable's canonical form.
 var_trans = AffineTransform(variable)
 canonical_samples = var_trans.map_to_canonical(samples)
-print_statistics(canonical_samples)
 
 
 # %%
@@ -79,20 +75,22 @@ print_statistics(canonical_samples)
 def fun_pause_1(sample):
     assert sample.ndim == 1
     time.sleep(np.random.uniform(0, 0.05))
-    return np.sum(sample**2)
+    return np.atleast_1d(np.sum(sample**2))
 
 
-def pyapprox_fun_1(samples):
-    return evaluate_1darray_function_on_2d_array(fun_pause_1, samples)
-
+# Create the model
+model = ModelFromSingleSampleCallable(
+    1, variable.nvars(), fun_pause_1, sample_ndim=1, values_ndim=1, backend=bkd
+)
+# Activate timing of the model evaluations
+model.activate_model_data_base()
 
 # %%
-# Now wrap the latter function and run it while tracking
-# their execution times. The last print statement
-# prints the median execution time of the model.
-timer_model = TimerModel(pyapprox_fun_1)
-model = WorkTrackingModel(timer_model)
+# Run the model and print the computational cost of the evaluations
+
+# Run the model
 values = model(samples)
+# Print the number of evaluations and average time
 print(model.work_tracker())
 
 # %%
@@ -133,26 +131,41 @@ for ii in range(len(eigvecs)):
 # of a GP. The user does not have to change any subsequent code
 validation_samples = inv_benchmark.variable().rvs(100)
 validation_values = inv_benchmark.negloglike()(validation_samples)
-nsamples, errors = [], []
 
 
-def callback(approx):
-    nsamples.append(approx.num_training_samples())
-    error = np.linalg.norm(
-        approx(validation_samples) - validation_values, axis=0
-    )
-    error /= np.linalg.norm(validation_values, axis=0)
-    errors.append(error)
+class Callback:
+    def __init__(self, backend):
+        self._nsamples, self._errors = [], []
+        self._bkd = backend
+
+    def __call__(self, approx):
+        self._nsamples.append(approx.ntrain_samples())
+        error = self._bkd.norm(
+            approx(validation_samples) - validation_values, axis=0
+        )
+        error /= np.linalg.norm(validation_values, axis=0)
+        self._errors.append(error)
+
+    def nsamples(self):
+        return self._bkd.hstack(self._nsamples)
+
+    def errors(self):
+        return self._bkd.hstack(self._errors)
 
 
-kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
-sampling_schedule = SamplingScheduleFromList([10, 20, 30, 40, 50])
-sampler = CholeskySampler(variable)
+kernel = ConstantKernel(400, fixed=True, backend=bkd) * MaternKernel(
+    np.inf, 1.0, [1e-1, 1], inv_benchmark.variable().nvars(), backend=bkd
+)
+sampling_schedule = SamplingScheduleFromList([10, 10, 10, 10, 10], backend=bkd)
+sampler = CholeskySampler(inv_benchmark.variable())
 gp = AdaptiveGaussianProcess(
-    nvars, kernel, sampling_schedule=sampling_schedule
+    inv_benchmark.variable().nvars(),
+    kernel,
+    sampling_schedule=sampling_schedule,
 )
 gp.set_sampler(sampler)
-while self.step(benchmark.model()):
+callback = Callback(bkd)
+while gp.step(inv_benchmark.model()):
     callback(gp)
 
 # approx_result = adaptive_approximate(
@@ -177,7 +190,7 @@ while self.step(benchmark.model()):
 # %%
 # We can plot the errors obtained from the callback with
 ax = plt.subplots(figsize=(8, 6))[1]
-ax.loglog(nsamples, errors, "o-")
+ax.loglog(callback.nsamples(), callback.errors(), "o-")
 ax.set_xlabel(mathrm_label("No. Samples"))
 ax.set_ylabel(mathrm_label("Error"))
 ax.set_xticks([10, 25, 50])
@@ -201,14 +214,18 @@ if savefig:
 # left to right are: main effect, largest Sobol indices and total effect indices.
 
 
-analyzer = GaussianProcessSensitivityAnalysis(benchmark.variable().nvars())
+analyzer = EnsembleGaussianProcessSensitivityAnalysis(inv_benchmark.variable())
 analyzer.set_interaction_terms_of_interest(
-    benchmark.sobol_interaction_indices()
+    inv_benchmark.sobol_interaction_indices()
 )
 analyzer.compute(gp)
 # sa_result = run_sensitivity_analysis(
 #     "sobol", benchmark.negloglike, inv_benchmark.variable)
-axs = plot_sensitivity_indices(sa_result)[1]
+# axs = plot_sensitivity_indices(sa_result)[1]
+axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
+analyzer.plot_main_effects(axs[0])
+analyzer.plot_total_effects(axs[1])
+analyzer.plot_sobol_indices(axs[2])
 if savefig:
     plt.savefig("gp-sa-indices.pdf", bbox_inches="tight")
 
@@ -222,10 +239,14 @@ if savefig:
 # and print out the error which can be compared to the errors previously plotted.
 # The error of the original surrogate was kept low to demonstrate the ability
 # to quantify error in the sensitivity indices from using a surrogate.
-approx.refine(100)
-error = np.linalg.norm(approx(validation_samples) - validation_values, axis=0)
-error /= np.linalg.norm(validation_values, axis=0)
-print("Surrogate", error)
+
+
+sampling_schedule.update([100, 200])
+while gp.step(inv_benchmark.model()):
+    callback(gp)
+print(callback.nsamples())
+print(callback.errors())
+plt.show()
 
 # %%
 # Now create a MCMCVariable to sample from the posterior. The benchmark

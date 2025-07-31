@@ -3,7 +3,8 @@ from typing import Union, List, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.template import Array
+from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.linalg import PivotedCholeskyFactorizer
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.gaussianprocess.exactgp import ExactGaussianProcess
@@ -533,8 +534,9 @@ class BruteForceMultiOutputMonteCarloGreedyIntegratedVarianceSampler(
 
 
 class SamplingSchedule(ABC):
-    def __init__(self):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
         self._nsamples_list = []
+        self._bkd = backend
 
     @abstractmethod
     def _nnew_samples(self) -> int:
@@ -547,12 +549,17 @@ class SamplingSchedule(ABC):
 
     def sample_schedule(self) -> Array:
         """Return the sample increments computed so far"""
-        return self.array(self._nsamples_list)
+        return self._bkd.array(self._nsamples_list)
 
 
 class ConstantSamplingSchedule(SamplingSchedule):
-    def __init__(self, nsamples_increment: int, max_nsamples: int):
-        super().__init__()
+    def __init__(
+        self,
+        nsamples_increment: int,
+        max_nsamples: int,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(backend=backend)
         self._nsamples = 0
         self._max_nsamples = max_nsamples
         self._nsamples_increment = nsamples_increment
@@ -565,10 +572,16 @@ class ConstantSamplingSchedule(SamplingSchedule):
 
 
 class SamplingScheduleFromList(SamplingSchedule):
-    def __init__(self, nbatch_samples_list: Union[List, Array]):
-        super().__init__()
+    def __init__(
+        self,
+        nbatch_samples_list: Union[List, Array],
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(backend=backend)
         self._idx = 0
-        self._nbatch_samples_list = nbatch_samples_list
+        self._nbatch_samples_list = self._bkd.array(
+            nbatch_samples_list, dtype=int
+        )
 
     def _nnew_samples(self) -> int:
         if self._idx >= len(self._nbatch_samples_list):
@@ -576,6 +589,14 @@ class SamplingScheduleFromList(SamplingSchedule):
         nnew_samples = self._nbatch_samples_list[self._idx]
         self._idx += 1
         return nnew_samples
+
+    def update(self, new_nbatch_samples_list: Union[List, Array]) -> int:
+        new_nbatch_samples_list = self._bkd.array(
+            new_nbatch_samples_list, dtype=int
+        )
+        self._nbatch_samples_list = self._bkd.hstack(
+            (self._nbatch_samples_list, new_nbatch_samples_list)
+        )
 
 
 class AdaptiveGaussianProcess(ExactGaussianProcess, AdaptiveRegressorMixin):

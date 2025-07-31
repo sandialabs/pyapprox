@@ -142,7 +142,7 @@ cost_function = ModelListCostFunction(bkd.array([1, 3]))
 sampler = MultiOutputMonteCarloGreedyIntegratedVarianceSampler(
     variable, cost_function
 )
-sampler.set_gaussian_process(gp)
+sampler.set_surrogate(gp)
 model_costs = np.array([1, 3])
 ncandidates_per_model = 101
 candidate_samples = [
@@ -249,7 +249,7 @@ sf_kernel = constant_kernel * MaternKernel(
 )
 sf_gp = ExactGaussianProcess(nvars, sf_kernel)
 sf_sampler = MonteCarloGreedyIntegratedVarianceSampler(variable)
-sf_sampler.set_gaussian_process(sf_gp)
+sf_sampler.set_surrogate(sf_gp)
 sf_sampler.set_candidate_samples(candidate_samples[nmodels - 1])
 init_pivots = bkd.array([ncandidates_per_model // 2], dtype=int)
 sf_sampler.set_initial_pivots(init_pivots)

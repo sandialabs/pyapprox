@@ -31,9 +31,6 @@ from pyapprox.optimization.minimize import (
     SampleAverageEntropicRisk,
 )
 
-# Set the seed for reproducibility
-np.random.seed(2)
-
 # %% Setup the Model to Generate the Simulation Data
 # -------------------------------------------------
 # Users can load in their own simulation data to create an OED.
@@ -42,7 +39,7 @@ np.random.seed(2)
 
 
 # Set the random seed for reproducibility
-np.random.seed = 2
+np.random.seed(2)
 # Setup the benchmark
 benchmark = LotkaVolterraOEDBenchmark(backend=bkd)
 # Extract the model from the benchmark

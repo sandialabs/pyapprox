@@ -211,6 +211,7 @@ class Model(ABC):
         Use this function to activate the use of a database.
         """
         self._database.activate()
+        self._work_tracker.set_active(True)
         for key, item in self._work_tracker._wall_times.items():
             if len(item) > 0:
                 raise RuntimeError(
