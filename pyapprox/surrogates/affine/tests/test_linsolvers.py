@@ -7,6 +7,7 @@ from pyapprox.surrogates.affine.linearsystemsolvers import (
     LstSqSolver,
     OMPSolver,
     BasisPursuitRegressionSolver,
+    BasisPursuitDensoisingCVXRegressionSolver,
     QuantileRegressionSolver,
     EntropicLoss,
     EntropicRegressionSolver,
@@ -80,15 +81,34 @@ class TestLinearSolvers:
         samples = bkd.array(np.random.uniform(0, 1, (1, nsamples)))
         basis_matrix = samples.T ** bkd.arange(degree + 1)[None, :]
 
-        true_coef = bkd.zeros(basis_matrix.shape[1])
+        true_coef = bkd.zeros((basis_matrix.shape[1], 1))
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.0
         vals = basis_matrix @ true_coef
 
-        options = {"presolve": True, "autoscale": True, "disp": False}
         solver = BasisPursuitRegressionSolver(backend=bkd)
-        solver.set_options(options)
+        # solver.set_options(options)
         coef = solver.solve(basis_matrix, vals)
         assert np.allclose(coef, true_coef)
+
+    @unittest.skipIf(not package_available("cvxpy"), "cvxpy not installed")
+    def test_basis_pursuit_denoising_cvxopt(self):
+        bkd = self.get_backend()
+        # nsamples, degree, sparsity = 6, 7, 2
+        nsamples, degree, sparsity = 100, 3, 2
+        samples = bkd.array(np.random.uniform(0, 1, (1, nsamples)))
+        basis_matrix = samples.T ** bkd.arange(degree + 1)[None, :]
+
+        true_coef = bkd.zeros((basis_matrix.shape[1], 1))
+        true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.0
+        vals = basis_matrix @ true_coef
+
+        solver = BasisPursuitDensoisingCVXRegressionSolver(0.001, backend=bkd)
+        solver.set_options(
+            {"abstol": 1e-14, "reltol": 1e-14, "feastol": 1e-14}
+        )
+        coef = solver.solve(basis_matrix, vals)
+        assert bkd.allclose(solver._sol[coef.shape[0] :], bkd.abs(coef))
+        assert np.allclose(coef, true_coef, atol=2e-3)
 
     def test_lstsq_solver(self):
         bkd = self.get_backend()

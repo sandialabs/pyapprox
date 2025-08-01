@@ -61,6 +61,28 @@ class LinearSystemSolver(ABC):
         self._bkd = backend
 
     @abstractmethod
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
+        raise NotImplementedError
+
+    def _check_inputs(self, basis_mat: Array, values: Array):
+        if values.ndim != 2:
+            raise ValueError("values must be a 2D array")
+
+        if basis_mat.shape[0] != values.shape[0]:
+            raise ValueError(
+                "rows of basis_mat {0} not equal to rows of values {1}".format(
+                    basis_mat.shape[0], values[0]
+                )
+            )
+
+    def _check_result(self, basis_mat: Array, values: Array, coef: Array):
+        if coef.shape != (basis_mat.shape[1], values.shape[1]):
+            raise ValueError(
+                "coef shape was {0} but must be {1}".format(
+                    coef.shape, (basis_mat.shape[1], values.shape[1])
+                )
+            )
+
     def solve(self, basis_mat: Array, values: Array) -> Array:
         r"""
         Find the optimal coefficients :math:`x` such that
@@ -82,7 +104,10 @@ class LinearSystemSolver(ABC):
         coef : array (nterms, nqoi)
             The matrix x.
         """
-        raise NotImplementedError
+        self._check_inputs(basis_mat, values)
+        coef = self._solve(basis_mat, values)
+        self._check_result(basis_mat, values, coef)
+        return coef
 
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
@@ -91,17 +116,26 @@ class LinearSystemSolver(ABC):
         self._surrogate = surrogate
 
 
+class SingleQoiLinearSolverMixin:
+    def _check_inputs(self, basis_mat: Array, values: Array):
+        super()._check_inputs(basis_mat, values)
+        if values.shape[1] != 1:
+            raise ValueError(
+                "{0} can only be used for bvec with 1 column".format(self)
+            )
+
+
 class LstSqSolver(LinearSystemSolver):
     """
     Optimize the coefficients of a linear system using linear least squares.
     """
 
-    def solve(self, basis_mat: Array, values: Array) -> Array:
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
         """Return the least squares solution."""
         return self._bkd.lstsq(basis_mat, values)
 
 
-class OMPSolver(LinearSystemSolver):
+class OMPSolver(SingleQoiLinearSolverMixin, LinearSystemSolver):
     """
     Orthogonal Matching Pursuit (OMP) Solver for sparse linear systems.
 
@@ -207,7 +241,7 @@ class OMPSolver(LinearSystemSolver):
                 )
             )
 
-    def solve(self, basis_mat: Array, values: Array) -> Array:
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
         """
         Solve the sparse linear system using the OMP algorithm.
 
@@ -321,7 +355,7 @@ class OMPSolver(LinearSystemSolver):
         )
 
 
-class QuantileRegressionSolver(LinearSystemSolver):
+class QuantileRegressionSolver(SingleQoiLinearSolverMixin, LinearSystemSolver):
     """
     Solver for quantile regression using linear programming.
 
@@ -350,7 +384,7 @@ class QuantileRegressionSolver(LinearSystemSolver):
             raise ValueError("quantile must be in [0, 1]")
         self._quantile = quantile
 
-    def solve(self, basis_mat: Array, values: Array) -> Array:
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
         """
         Solve the quantile regression problem using linear programming.
 
@@ -372,15 +406,6 @@ class QuantileRegressionSolver(LinearSystemSolver):
             If `values` is not a 1D vector or if the number of rows in `basis_mat`
             does not match the number of rows in `values`.
         """
-        if values.shape[1] != 1:
-            raise ValueError("{0} can only be used for 1D bvec".format(self))
-
-        if basis_mat.shape[0] != values.shape[0]:
-            raise ValueError(
-                "rows of basis_mat {0} not equal to rows of values {1}".format(
-                    basis_mat.shape[0], values[0]
-                )
-            )
         # minimize c.T @ x
         # subject to Gx <= h
         #            Ax = b
@@ -413,27 +438,13 @@ class QuantileRegressionSolver(LinearSystemSolver):
             method="highs",
             # options={"tol": 1e-14},
         )
-
-        # from pyapprox.optimization.quantile_regression import (
-        #     quantile_regression,
-        #     solve_quantile_regression,
-        # )
-
-        # quantile_coef = quantile_regression(
-        #     basis_mat, values[:, 0], self._quantile
-        # )
-        # adjusted_quantile_coef = solve_quantile_regression(
-        #     self._quantile, basis_mat, values
-        # )
-        # # print(quantile_coef[:, 0], "q")
-        # # print(result.x[:nbasis])
-        # print(adjusted_quantile_coef[:, 0], "a")
-
-        return self._bkd.asarray(result.x[:nbasis, None])
+        return self._bkd.asarray(result.x[:nbasis])[:, None]
 
 
-class BasisPursuitRegressionSolver(LinearSystemSolver):
-    def solve(self, basis_mat: Array, values: Array) -> Array:
+class BasisPursuitRegressionSolver(
+    SingleQoiLinearSolverMixin, LinearSystemSolver
+):
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
         nunknowns = basis_mat.shape[1]
         nslack_variables = nunknowns
         c = np.zeros(nunknowns + nslack_variables)
@@ -465,21 +476,13 @@ class BasisPursuitRegressionSolver(LinearSystemSolver):
             bounds=bounds,
             options=options,
         )
-        return res.x[:nunknowns]
+        return res.x[:nunknowns, None]
 
     def set_options(self, options: dict):
         self._options = options
 
 
-class QuantileRegressionCVXOPTSolver(QuantileRegressionSolver):
-    """
-    Solver for quantile regression using CVXOPT.
-
-    The `QuantileRegressionCVXOPTSolver` class extends `QuantileRegressionSolver` to solve
-    quantile regression problems using the CVXOPT library. It provides additional options
-    for controlling the solver's behavior.
-    """
-
+class CVXOPTOptionsMixin:
     def set_options(self, opts: dict):
         """
         Set solver options for CVXOPT.
@@ -527,7 +530,32 @@ class QuantileRegressionCVXOPTSolver(QuantileRegressionSolver):
             "show_progress": False,
         }
 
-    def solve(
+    def _set_cvxopt_options(self):
+        solvers.options["max_iters"] = self._opts.get("maxiter", 10000)
+        solvers.options["abstol"] = self._opts.get("abstol", 1e-8)
+        solvers.options["reltol"] = self._opts.get("reltol", 1e-8)
+        solvers.options["feastol"] = self._opts.get("feastol", 1e-8)
+        if not self._opts.get("show_progress", False):
+            # useful only for GLPK
+            # cvxopt 1.1.8
+            solvers.options["glpk"] = {"msg_lev": "GLP_MSG_OFF"}
+        solvers.options["show_progress"] = self._opts.get(
+            "show_progress", False
+        )
+
+
+class QuantileRegressionCVXOPTSolver(
+    CVXOPTOptionsMixin, QuantileRegressionSolver
+):
+    """
+    Solver for quantile regression using CVXOPT.
+
+    The `QuantileRegressionCVXOPTSolver` class extends `QuantileRegressionSolver` to solve
+    quantile regression problems using the CVXOPT library. It provides additional options
+    for controlling the solver's behavior.
+    """
+
+    def _solve(
         self, basis_mat: Array, values: Array, return_slack: bool = False
     ) -> Array:
         if not hasattr(self, "_opts"):
@@ -552,7 +580,7 @@ class QuantileRegressionCVXOPTSolver(QuantileRegressionSolver):
                 [matrix(-Isamp)],
             ]
         )
-        b = matrix(self._bkd.to_numpy(values))
+        b = matrix(self._bkd.to_numpy(values[:, 0]))
 
         # use inequality constraints to set bounds on slack variables
         # of form G @ x <= h
@@ -563,17 +591,7 @@ class QuantileRegressionCVXOPTSolver(QuantileRegressionSolver):
             nbasis + np.arange(2 * nsamples),
         )
         h = matrix(np.zeros(nbasis + 2 * nsamples))
-
-        solvers.options["max_iters"] = self._opts["maxiter"]
-        solvers.options["abstol"] = self._opts["abstol"]
-        solvers.options["reltol"] = self._opts["reltol"]
-        solvers.options["feastol"] = self._opts["feastol"]
-        if not self._opts["show_progress"]:
-            # useful only for GLPK
-            # cvxopt 1.1.8
-            solvers.options["glpk"] = {"msg_lev": "GLP_MSG_OFF"}
-        solvers.options["show_progress"] = self._opts["show_progress"]
-
+        self._set_cvxopt_options()
         sol = solvers.lp(c=c, G=G, h=h, A=A, b=b, solver="glpk")["x"]
         sol = self._bkd.asarray(np.array(sol[:]))
         if return_slack:
@@ -594,7 +612,7 @@ class RiskConservativeMixin:
     - Convex
     """
 
-    def solve(self, basis_mat: Array, values: Array) -> Array:
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
         """
         Solve the surrogate model while ensuring conservativeness.
 
@@ -611,7 +629,7 @@ class RiskConservativeMixin:
             Coefficient vector (shape: [n_features, 1]).
 
         """
-        coef = super().solve(basis_mat, values)
+        coef = super()._solve(basis_mat, values)
         # set constant coeficient to zero before computing residuals
         coef[0] = 0.0
         residuals = values - basis_mat @ coef
@@ -897,7 +915,7 @@ class EntropicRegressionSolver(LinearSystemSolver, OptimizerMixin):
         """
         self._strength = strength
 
-    def solve(self, basis_mat: Array, values: Array) -> Array:
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
         """
         Solve the regression problem using the Entropic loss function.
 
@@ -1222,7 +1240,7 @@ class StochasticDominanceRegressionSolver(LinearSystemSolver, OptimizerMixin):
         coef[0] += shift
         return coef
 
-    def solve(self, basis_mat: Array, values: Array) -> Array:
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
         if not hasattr(self, "_surrogate"):
             raise RuntimeError("must call set_surrogate()")
         if not hasattr(self, "_optimizer"):
@@ -1306,3 +1324,78 @@ class SSDRegressionSolver(FSDRegressionSolver):
             ),
             axis=1,
         )
+
+
+class BasisPursuitDensoisingCVXRegressionSolver(
+    CVXOPTOptionsMixin, LinearSystemSolver
+):
+    def __init__(self, penalty: float, backend: BackendMixin = NumpyMixin):
+        self._penalty = penalty
+        super().__init__(backend)
+
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
+        """
+        Solve the Basis Pursuit Denosining (BPDN) problem using a CVX
+        quadratic program solver
+        """
+        nsamples, nbasis = basis_mat.shape
+        Gram = matrix(self._bkd.to_numpy(basis_mat.T @ basis_mat))
+        diag_zeros = spmatrix([], [], [], (nbasis, nbasis))
+        offdiag_zeros = spmatrix([], [], [], (nbasis, nbasis))
+        # assume design variables are [coef, slack]
+        # cvx opt solves  (1/2)x.T@ P @ x + q.T@x subject to constraints
+        # so no need to multiply gram by 0.5
+        Pmat = sparse([[Gram, offdiag_zeros], [offdiag_zeros, diag_zeros]])
+        lam = self._bkd.full((nbasis,), self._penalty)
+        qvec = matrix(
+            self._bkd.to_numpy(
+                self._bkd.hstack((-basis_mat.T @ values[:, 0], lam))
+            )
+        )
+        # Set inequality constraints including bounds on slack variables
+        # of form G @ x <= h. That is, we want slack variables to satisfy
+        # -x_i <= u_i
+        # x_i <= u_i
+        # u_i >= 0
+
+        # -u_i <= 0
+        vals = [-1.0 for ii in range(nbasis)]
+        rows = [ii for ii in range(nbasis)]
+        cols = [nbasis + ii for ii in range(nbasis)]
+        # -x_i -u_i <= 0
+        for ii in range(nbasis):
+            rows += [nbasis + ii, nbasis + ii]
+            cols += [ii, nbasis + ii]
+            vals += [-1.0, -1.0]
+        #  x_i -u_i <= 0
+        for ii in range(nbasis):
+            rows += [2 * nbasis + ii, 2 * nbasis + ii]
+            cols += [ii, nbasis + ii]
+            vals += [1.0, -1.0]
+        cols = np.asarray(cols)
+        vals = np.asarray(vals)
+        Gmat = spmatrix(vals, rows, cols)
+        # from cvxopt import printing
+
+        # printing.options["width"] = 100
+        # print(Pmat, "P")
+        # print(qvec, "q")
+        # print(Gmat, "G")
+
+        hvec = matrix(np.zeros(3 * nbasis))
+        self._set_cvxopt_options()
+        x0 = matrix(np.array([1, 0, 1, 0, 0, 0, 0, 0])[:, None])
+        from cvxopt.blas import dot
+
+        result = solvers.qp(
+            Pmat,
+            qvec,
+            Gmat,
+            hvec,
+            initvals=x0,
+        )
+        # print(x0.T * Pmat * x0 + qvec.T * x0, qvec.T * x0)
+        # c = result["x"]
+        # print(c.T * Pmat * c + qvec.T * c, qvec.T * c)
+        self._sol = self._bkd.asarray(np.array(result["x"]))
+        return self._sol[:nbasis]

@@ -79,6 +79,7 @@ example_filenames_in_order = [
     "plot_adaptive_leja_interpolation.py",
     "plot_gaussian_processes.py",
     "plot_gp_expdesign.py",
+    "plot_basis_pursuit_denoising.py",
     # 'plot_integrated_surrogates.py',
     # Multi-fidelity Stat Estimation
     "plot_monte_carlo.py",
