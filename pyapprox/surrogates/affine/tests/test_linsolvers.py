@@ -5,6 +5,7 @@ from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.surrogates.affine.linearsystemsolvers import (
     LstSqSolver,
+    LinearlyConstrainedLstSqSolver,
     OMPSolver,
     BasisPursuitRegressionSolver,
     BasisPursuitDensoisingCVXRegressionSolver,
@@ -119,6 +120,33 @@ class TestLinearSolvers:
         # Assert statistic of risk quadrangle is zero. I.e 0.8 qunatile
         # is zero. Must use method="inverted_cdf" avaiable in numpy
         assert bkd.allclose(bkd.mean(values - basis_mat @ coef), bkd.zeros(1))
+
+    def test_linearly_constrained_lstsq_solver(self):
+        bkd = self.get_backend()
+        nsamples, nbasis, nconstraints = 10, 5, 2
+        samples = bkd.asarray(np.random.normal(0.0, 1.0, (1, nsamples)))
+        A = samples.T ** bkd.arange(nbasis)[None, :]
+        true_coef = bkd.asarray(np.random.normal(0.0, 1.0, (nbasis, 1)))
+        y = A @ true_coef
+
+        # assert arbitray constraint is satisfied
+        C = bkd.asarray(np.random.normal(0.0, 1.0, (nconstraints, nbasis)))
+        d = bkd.asarray(np.random.normal(0.0, 1.0, (nconstraints, 1)))
+        solver = LinearlyConstrainedLstSqSolver(C, d, backend=bkd)
+        coef = solver.solve(A, y)
+        assert bkd.allclose(C @ coef, d, atol=1e-15)
+
+        # assert polynomial matches values at end points [0, 1] exactly
+        end_samples = bkd.array([[0, 1]])
+        # add noise so surrogate will not interpolate data exactly
+        # except where constraints are enforved
+        y += bkd.asarray(np.random.normal(0, 0.1, y.shape))
+        C = end_samples.T ** bkd.arange(nbasis)[None, :]
+        d = C @ true_coef
+        solver = LinearlyConstrainedLstSq(C, d, backend=bkd)
+        coef = solver.solve(A, y)
+        assert bkd.allclose(C @ coef, d, atol=1e-15)
+        assert bkd.allclose(A @ coef, y, atol=1e-1)
 
     def test_quantile_regression(self):
         bkd = self.get_backend()

@@ -1399,3 +1399,65 @@ class BasisPursuitDensoisingCVXRegressionSolver(
         # print(c.T * Pmat * c + qvec.T * c, qvec.T * c)
         self._sol = self._bkd.asarray(np.array(result["x"]))
         return self._sol[:nbasis]
+
+
+class LinearlyConstrainedLstSqSolver(LinearSystemSolver):
+    r"""
+    Solve the linearly constrained least squares problem:
+
+    .. math::
+
+        \vec{x} = (\mat{A}^\top \mat{A})^{-1} \left( \mat{A}^\top \vec{y}
+        - \mat{C}^\top \left( \mat{C} (\mat{A}^\top \mat{A})^{-1} \mat{C}^\top \right)^{-1}
+        \left( \mat{C} (\mat{A}^\top \mat{A})^{-1} \mat{A}^\top \vec{y} - \vec{d} \right) \right)
+    """
+
+    def __init__(
+        self,
+        constraint_mat: Array,
+        constraint_vec: Array,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        if constraint_vec.shape != (constraint_mat.shape[0], 1):
+            raise ValueError("constraint_vec has the wrong shape")
+        self._Cmat = constraint_mat
+        self._dvec = constraint_vec
+        super().__init__(backend)
+
+    def _solve(self, basis_mat: Array, values: Array) -> Array:
+        if basis_mat.shape[1] != self._Cmat.shape[1]:
+            raise ValueError(
+                "basis_mat and constraint_mat have inconsistent shapes"
+            )
+
+        A = basis_mat
+        y = values
+        C = self._Cmat
+        d = self._dvec
+
+        # Precompute A.T @ A and its inverse
+        ATA = A.T @ A
+        ATA_inv = self._bkd.inv(ATA)
+
+        # Precompute A.T @ y
+        ATy = A.T @ y
+
+        # Precompute C @ ATA_inv
+        C_ATA_inv = C @ ATA_inv
+
+        # Precompute C @ ATA_inv @ C.T
+        C_ATA_inv_CT = C_ATA_inv @ C.T
+
+        # Compute (C @ ATA_inv @ C.T)^(-1)
+        C_ATA_inv_CT_inv = self._bkd.inv(C_ATA_inv_CT)
+
+        # Precompute C @ ATA_inv @ ATy
+        C_ATA_inv_ATy = C_ATA_inv @ ATy
+
+        # Compute the inner term
+        inner_term = C.T @ C_ATA_inv_CT_inv @ (C_ATA_inv_ATy - d)
+
+        # Compute the final solution
+        x = ATA_inv @ (ATy - inner_term)
+
+        return x

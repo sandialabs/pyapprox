@@ -29,6 +29,7 @@ Represent the :math:`\ell_2`-norm constraint as a quadratic constraint or penalt
 
 
 Step 1: Replace :math:`\|\vec{x}\|_1` with Linear Constraints
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The :math:`\ell_1`-norm of :math:`\vec{x}` can be expressed as:
 
@@ -47,6 +48,7 @@ To handle the absolute values, introduce auxiliary variables :math:`u_i \ge 0` f
 .. math:: -x_i \leq u_i \quad \text{and} \quad x_i \leq u_i \quad \forall i
 
 Step 2: Represent :math:`\|\mat{A}\vec{x} - \vec{y}\|_2 \leq \epsilon`
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The constraint :math:`\|\mat{A}\vec{x} - \vec{y}\|_2 \leq \epsilon` can be rewritten as:
 
@@ -58,6 +60,7 @@ Alternatively, if we want to penalize the residual instead of constraining it, w
 .. math:: \|\mat{A}\vec{x} - \vec{y}\|_2^2 = (\mat{A}\vec{x} - \vec{y})^\top (\mat{A}\vec{x} - \vec{y})
 
 Step 3: Combine the Objective and Constraints
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The BPDN problem can now be written as a quadratic program:
 
