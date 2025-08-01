@@ -81,6 +81,7 @@ example_filenames_in_order = [
     "plot_gp_expdesign.py",
     "plot_basis_pursuit_denoising.py",
     "plot_linearly_constrained_lstsq.py",
+    "plot_quantile_regression.py",
     # 'plot_integrated_surrogates.py',
     # Multi-fidelity Stat Estimation
     "plot_monte_carlo.py",
