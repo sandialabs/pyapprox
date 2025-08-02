@@ -35,6 +35,7 @@ from pyapprox.surrogates.affine.crossvalidation import (
 # -----------------------------
 # In this section, we set up the benchmark model and define its random input variables.
 
+
 # Set the random seed for reproducibility
 np.random.seed = 1
 # Load in the genz benchmark which creates the model
@@ -84,9 +85,8 @@ pce = PolynomialChaosExpansion(basis, solver=solver, nqoi=model.nqoi())
 # --------------------------
 # Generate training data by sampling the random variables and evaluating the model.
 ntrain_samples = 100
-train_samples = variable.rvs(ntrain_samples)
 # Generate random samples of the model inputs
-train_values = model(train_samples)
+train_samples = variable.rvs(ntrain_samples)
 # Evaluate the model at the samples
 train_values = model(train_samples)
 

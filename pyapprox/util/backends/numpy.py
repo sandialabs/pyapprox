@@ -43,7 +43,9 @@ class NumpyMixin(BackendMixin):
 
     @staticmethod
     def qr(mat: np.ndarray, mode="complete"):
-        return np.linalg.qr(mat, mode=mode)
+        if mode != "r":
+            return np.linalg.qr(mat, mode=mode)
+        return None, np.linalg.qr(mat, mode=mode)
 
     @staticmethod
     def solve_triangular(

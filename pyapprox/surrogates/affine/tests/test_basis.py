@@ -27,6 +27,9 @@ from pyapprox.surrogates.affine.basis import (
     FourierBasis,
     setup_tensor_product_piecewise_poly_quadrature_rule,
     TriangleLebesqueQuadratureRule,
+    LstSqSolveBasedRotatedOrthonormalPolynomialBasis,
+    QRBasedRotatedOrthonormalPolynomialBasis,
+    CholeskyBasedRotatedOrthonormalPolynomialBasis,
 )
 from pyapprox.surrogates.univariate.lagrange import setup_lagrange_basis
 from pyapprox.surrogates.affine.basisexp import (
@@ -903,6 +906,53 @@ class TestBasis:
         ]
         for test_case in test_cases:
             self._check_triangular_gauss_quadrature(*test_case)
+
+    def _check_rotated_orthonormal_basis(self, rotated_basis_cls):
+        bkd = self.get_backend()
+        nvars, nterms_1d = 2, 3
+
+        marginals = [stats.uniform(0, 1) for ii in range(nvars)]
+        transforms = [
+            AffineMarginalTransform(marginal, enforce_bounds=True, backend=bkd)
+            for marginal in marginals
+        ]
+        polys_1d = [
+            LegendrePolynomial1D(trans=transforms[ii], backend=bkd)
+            for ii in range(nvars)
+        ]
+
+        # create independent target variable.
+        # Does not test if correlation is captured.
+        # will use another test for that
+        target_marginals = [stats.beta(2, 2) for ii in range(nvars)]
+        target_variable = IndependentMarginalsVariable(
+            target_marginals, backend=bkd
+        )
+
+        rotated_basis = rotated_basis_cls(polys_1d)
+        rotated_basis.set_tensor_product_indices(
+            [nterms_1d for ii in range(nvars)]
+        )
+
+        nquad_samples = int(1e6)
+        quad_samples = target_variable.rvs(nquad_samples)
+        quad_weights = bkd.full((nquad_samples, 1), 1.0 / nquad_samples)
+        rotated_basis.set_quadrature_rule_tuple(quad_samples, quad_weights)
+        nsamples = 1e6
+        samples = target_variable.rvs(nsamples)
+        basis_mat = rotated_basis(samples)
+        gram = basis_mat.T @ (quad_weights * basis_mat)
+        assert bkd.allclose(gram, bkd.eye(basis_mat.shape[1]), atol=8e-3)
+
+    def test_rotated_orthonormal_basis(self):
+        rotated_basis_classes = [
+            LstSqSolveBasedRotatedOrthonormalPolynomialBasis,
+            QRBasedRotatedOrthonormalPolynomialBasis,
+            CholeskyBasedRotatedOrthonormalPolynomialBasis,
+        ]
+        for rotated_basis_cls in rotated_basis_classes:
+            np.random.seed(1)
+            self._check_rotated_orthonormal_basis(rotated_basis_cls)
 
 
 class TestNumpyBasis(TestBasis, unittest.TestCase):

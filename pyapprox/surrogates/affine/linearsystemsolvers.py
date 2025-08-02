@@ -1418,6 +1418,19 @@ class LinearlyConstrainedLstSqSolver(LinearSystemSolver):
         constraint_vec: Array,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Parameters
+        ----------
+        constraint_mat : Array
+            The constraint matrix of size `(nconstraints, ncoef)` representing the linear constraints.
+
+        constraint_vec : Array
+            The constraint vector of size `(nconstraints,)` specifying the values of the constraints.
+
+        backend : BackendMixin, optional
+            Backend for numerical operations (default is `NumpyMixin`).
+        """
+
         if constraint_vec.shape != (constraint_mat.shape[0], 1):
             raise ValueError("constraint_vec has the wrong shape")
         self._Cmat = constraint_mat

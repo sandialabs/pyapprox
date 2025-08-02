@@ -256,7 +256,9 @@ class OrthonormalPolynomialBasis(MultiIndexBasis):
     # a second transform would not be necessary if poly
     # had its own.
 
-    def __init__(self, bases_1d, indices=None):
+    def __init__(
+        self, bases_1d: List[OrthonormalPolynomial1D], indices: Array = None
+    ):
         for poly in bases_1d:
             if not isinstance(poly, OrthonormalPolynomial1D):
                 raise ValueError(
@@ -683,3 +685,139 @@ class TriangleLebesqueQuadratureRule(QuadratureRule):
             :, None
         ]
         return tri_quadx, tri_quadw
+
+
+class RotatedOrthonormalPolynomialBasis(OrthonormalPolynomialBasis):
+    """
+    A multivariate orthonormal polynomial for dependent random variables based
+    on Gram-Schmidt orthogonalization
+    """
+
+    @abstractmethod
+    def _rotate(self) -> Array:
+        raise NotImplementedError
+
+    def tensor_product_basis_matrix(self, samples: Array) -> Array:
+        return super().__call__(samples)
+
+    def set_quadrature_rule_tuple(
+        self, quad_samples: Array, quad_weights: Array
+    ) -> Array:
+        if quad_samples.shape[0] != self.nvars():
+            raise ValueError("quad_samples has the wrong shape")
+        if quad_weights.shape != (quad_samples.shape[1], 1):
+            raise ValueError(
+                "quad_weights has the wrong shape, "
+                "was {0} but must be {1}".format(
+                    quad_weights.shape, (quad_samples.shape[1], 1)
+                )
+            )
+        self._set_quadrature_rule_tuple(quad_samples, quad_weights)
+
+    def __call__(self, samples: Array) -> Array:
+        if not hasattr(self, "_Rinv"):
+            # assumes indices have been set but rotation has not been
+            # computed
+            self.set_indices(self.get_indices())
+
+        unrotated_basis = self.tensor_product_basis_matrix(samples)
+        # TODO need to decide if I should allow indices of basis to be
+        # smaller than size or Rinv. For now this assumes they are the sam
+        return unrotated_basis @ self._Rinv
+
+    def set_indices(self, indices: Array):
+        if self._indices is not None:
+            super().set_indices(indices)
+            self._Rinv = self._rotate()
+        else:
+            super().set_indices(indices)
+
+    def compute_coefficients_of_unrotated_basis(self, coefs: Array) -> Array:
+        r"""
+        Given pce coefficients a such that p(z)=\Phi(Z)*a
+        where phi is the multivariate orthgonal Gram-Schmidt basis
+        compute coefficients of the tensor-product basis \psi where
+        \Phi(Z)=\Psi(Z)*Rinv
+        and \Phi(Z),\Psi(Z) are vandermonde matrices evaluate at the
+        samples Z.
+        """
+        unrotated_coefs = self._bkd.zeros(coefs.shape)
+        for ii in range(self.nterms()):
+            unrotated_coefs[ii, :] = self._bkd.sum(
+                coefs[ii:, :] * (self._Rinv[ii, ii:])[:, None], axis=0
+            )
+        return unrotated_coefs
+
+
+class LstSqSolveBasedRotatedOrthonormalPolynomialBasis(
+    RotatedOrthonormalPolynomialBasis
+):
+
+    def _set_quadrature_rule_tuple(
+        self, quad_samples: Array, quad_weights: Array
+    ):
+        tp_basis_mat = self.tensor_product_basis_matrix(quad_samples)
+        self._gram = tp_basis_mat.T @ (quad_weights * tp_basis_mat)
+
+    def _rotate(self) -> Array:
+        if not hasattr(self, "_gram"):
+            raise ValueError("must call set_quadrature_rule_tuple")
+        nterms = self._gram.shape[0]
+        Rinv = self._bkd.zeros((nterms, nterms), dtype=float)
+        Rinv[0, 0] = 1.0
+        for kk in range(1, nterms):
+            # Extract the relevant submatrix of moments
+            moment_matrix = self._bkd.zeros((kk + 1, kk + 1), dtype=float)
+            moment_matrix[:-1, :] = self._gram[:kk, : kk + 1]
+            moment_matrix[-1, -1] = 1.0
+
+            # Solve the linear system
+            rhs = self._bkd.zeros(kk + 1)
+            rhs[-1] = 1.0
+            rotated_basis_coefs = self._bkd.solve(moment_matrix, rhs)
+            Rinv[: kk + 1, kk] = rotated_basis_coefs
+
+            # orthonormalize
+            l2_norm = self._bkd.sum(
+                Rinv[: kk + 1, kk][:, None]
+                * Rinv[: kk + 1, kk][None, :]
+                * self._gram[: kk + 1, : kk + 1]
+            )
+            Rinv[: kk + 1, kk] /= self._bkd.sqrt(l2_norm)
+
+        return Rinv
+
+
+class QRBasedRotatedOrthonormalPolynomialBasis(
+    RotatedOrthonormalPolynomialBasis
+):
+    def _set_quadrature_rule_tuple(
+        self, quad_samples: Array, quad_weights: Array
+    ):
+        tp_basis_mat = self.tensor_product_basis_matrix(quad_samples)
+        self._weighted_mat = self._bkd.sqrt(quad_weights) * tp_basis_mat
+
+    def _rotate(self) -> Array:
+        if not hasattr(self, "_weighted_mat"):
+            raise ValueError("must call set_quadrature_rule_tuple")
+        _, R_factor = self._bkd.qr(self._weighted_mat, mode="r")
+        for ii in range(R_factor.shape[0]):
+            if R_factor[ii, ii] < 0.0:
+                R_factor[ii, :] *= -1.0
+        Rinv = self._bkd.inv(R_factor)
+        return Rinv
+
+
+class CholeskyBasedRotatedOrthonormalPolynomialBasis(
+    RotatedOrthonormalPolynomialBasis
+):
+    def _set_quadrature_rule_tuple(
+        self, quad_samples: Array, quad_weights: Array
+    ):
+        tp_basis_mat = self.tensor_product_basis_matrix(quad_samples)
+        self._gram = tp_basis_mat.T @ (quad_weights * tp_basis_mat)
+
+    def _rotate(self) -> Array:
+        L_factor = self._bkd.cholesky(self._gram)
+        Rinv = self._bkd.inv(L_factor.T)
+        return Rinv
