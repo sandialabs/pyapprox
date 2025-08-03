@@ -944,6 +944,24 @@ class TestBasis:
         gram = basis_mat.T @ (quad_weights * basis_mat)
         assert bkd.allclose(gram, bkd.eye(basis_mat.shape[1]), atol=8e-3)
 
+        # test computation of coefficients in unrotated basis
+        coefs = bkd.asarray(
+            np.random.normal(0.0, 1.0, (rotated_basis.nterms(), 1))
+        )
+
+        unrotated_coefs = rotated_basis.tensor_product_basis_coefficients(
+            coefs
+        )
+
+        nsamples = 10
+        samples = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, nsamples)))
+        true_values = rotated_basis(samples) @ coefs
+        values = (
+            rotated_basis.tensor_product_basis_matrix(samples)
+            @ unrotated_coefs
+        )
+        assert bkd.allclose(values, true_values)
+
     def test_rotated_orthonormal_basis(self):
         rotated_basis_classes = [
             LstSqSolveBasedRotatedOrthonormalPolynomialBasis,

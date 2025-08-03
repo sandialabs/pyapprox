@@ -105,9 +105,33 @@ class LinearSystemSolver(ABC):
             The matrix x.
         """
         self._check_inputs(basis_mat, values)
-        coef = self._solve(basis_mat, values)
+        if not hasattr(self, "_sqrt_weights"):
+            coef = self._solve(basis_mat, values)
+        else:
+            coef = self._weighted_solve(basis_mat, values)
         self._check_result(basis_mat, values, coef)
         return coef
+
+    def set_weights(self, weights: Array):
+        if weights.ndim != 2 or weights.shape[1] != 1:
+            raise ValueError(
+                "weights must be a 2D array with one column but has "
+                f"shape {weights.shape}"
+            )
+        self._sqrt_weights = self._bkd.sqrt(weights)
+
+    def _weighted_solve(self, basis_mat: Array, values: Array) -> Array:
+        if self._sqrt_weights.shape != (self._surrogate.ntrain_samples(), 1):
+            raise ValueError(
+                "weights has shape {1} but must have shape {0}".format(
+                    self._sqrt_weights.shape,
+                    (self._surrogate.ntrain_samples(), 1),
+                )
+            )
+
+        return self._solve(
+            self._sqrt_weights * basis_mat, self._sqrt_weights * values
+        )
 
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)

@@ -732,7 +732,7 @@ class RotatedOrthonormalPolynomialBasis(OrthonormalPolynomialBasis):
         else:
             super().set_indices(indices)
 
-    def compute_coefficients_of_unrotated_basis(self, coefs: Array) -> Array:
+    def tensor_product_basis_coefficients(self, coefs: Array) -> Array:
         r"""
         Given pce coefficients a such that p(z)=\Phi(Z)*a
         where phi is the multivariate orthgonal Gram-Schmidt basis

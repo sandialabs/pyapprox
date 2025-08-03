@@ -792,6 +792,13 @@ class PolynomialChaosExpansion(MonomialExpansion):
         indices, coefs = self._add_polynomials(basis_indices, basis_coefs)
         return indices, coefs
 
+    def coefficients_from_projection(
+        self, quad_samples: Array, values: Array, quad_weights: Array
+    ) -> Array:
+        return self._bkd.einsum(
+            "nm,nq->mq", self._basis(quad_samples), quad_weights * values
+        )
+
 
 def setup_polynomial_chaos_expansion_from_variable(
     variable: IndependentMarginalsVariable,

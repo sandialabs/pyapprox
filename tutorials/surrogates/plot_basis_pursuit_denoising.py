@@ -94,22 +94,107 @@ Solving the Quadratic Program
 -----------------------------
 """
 
+# Import the necessary modules
 import numpy as np
+from scipy import stats
+import copy
+import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyMixin as bkd
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.affine.linearsystemsolvers import (
     BasisPursuitDensoisingCVXRegressionSolver,
 )
+from pyapprox.surrogates.univariate.orthopoly import (
+    setup_univariate_orthogonal_polynomial_from_marginal,
+)
+from pyapprox.surrogates.affine.basis import (
+    OrthonormalPolynomialBasis,
+    FixedGaussianTensorProductQuadratureRuleFromVariable,
+)
+from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
+from pyapprox.surrogates.affine.induced import (
+    GaussQuadratureBasedDiscreteInducedPolySampler,
+)
+from pyapprox.interface.model import ModelFromVectorizedCallable
 
+# Set the random seed for reproducibility
 np.random.seed(1)
-nsamples, degree, sparsity = 100, 3, 2
-samples = bkd.array(np.random.uniform(0, 1, (1, nsamples)))
-basis_matrix = samples.T ** bkd.arange(degree + 1)[None, :]
-true_coef = bkd.zeros((basis_matrix.shape[1], 1))
-true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.0
-vals = basis_matrix @ true_coef
+# Setup an orthonormal basis
+nvars = 2
+marginals = [stats.uniform(0, 1)] * nvars
+variable = IndependentMarginalsVariable(marginals, backend=bkd)
+bases_1d = [
+    setup_univariate_orthogonal_polynomial_from_marginal(marginal, backend=bkd)
+    for marginal in marginals
+]
+basis = OrthonormalPolynomialBasis(bases_1d)
+# Set the degree of the multivariate basis
+degree = 10
+basis.set_hyperbolic_indices(degree, 1.0)
+# Setup the surrogate
+bexp = PolynomialChaosExpansion(basis)
+# Initialize class to sample from the optimal induced measure
+sampler = GaussQuadratureBasedDiscreteInducedPolySampler(
+    bexp, variable, [500] * nvars
+)
+# Generate the training data
+model = ModelFromVectorizedCallable(
+    1, nvars, lambda x: np.cos(2 * np.pi * x).sum(axis=0)[:, None]
+)
+nsamples = 50
+train_samples = sampler(nsamples)
+train_values = model(train_samples)
 solver = BasisPursuitDensoisingCVXRegressionSolver(0.001, backend=bkd)
 solver.set_options({"abstol": 1e-14, "reltol": 1e-14, "feastol": 1e-14})
-coef = solver.solve(basis_matrix, vals)
+solver.set_weights(sampler.christoffel_function(train_samples))
+bexp.set_solver(solver)
+bexp.fit(train_samples, train_values)
+
+# Plot the true and approximate models
+axs = plt.subplots(1, 2, figsize=(2 * 8, 6), sharey=True)[1]
+bexp.plot_contours(axs[0], [0, 1, 0, 1], npts_1d=101, levels=31)
+model.plot_contours(axs[1], [0, 1, 0, 1], npts_1d=101, levels=31)
+# plot the recovered coefficients
+ax = plt.subplots(1, 1, figsize=(8, 6), sharey=True)[1]
+# Only even terms have non-zero coefficients
+ax.semilogy(
+    bkd.arange(basis.nterms()), bkd.abs(bexp.get_coefficients()[:, 0]), "o"
+)
+
+# Compute highly accurate coefficients using L2 projection
+ref_bexp = copy.deepcopy(bexp)
+quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
+    variable, [30, 30]
+)
+quad_samples, quad_weights = quad_rule()
+values = model(quad_samples)
+projection_coefs = ref_bexp.coefficients_from_projection(
+    quad_samples, quad_weights, values
+)
+ref_bexp.set_coefficients(projection_coefs)
+# Plots its coefficients
+ax.semilogy(
+    bkd.arange(ref_bexp.basis().nterms()),
+    bkd.abs(ref_bexp.get_coefficients()[:, 0]),
+    "x",
+)
+
+# Compare the accuracy of the reference polynomial and the one computed using BPDN
+test_samples = variable.rvs(1000)
+print(
+    "BPDN Error",
+    bkd.norm(model(test_samples) - bexp(test_samples))
+    / bkd.norm(model(test_samples)),
+)
+
+print(
+    "Reference Error",
+    bkd.norm(model(test_samples) - ref_bexp(test_samples))
+    / bkd.norm(model(test_samples)),
+)
+
+# %%
+# The reference error is above machine precision because we are using a truncated basis. The reference error is dominated by the error from this truncation which is substantially larger than the pfojection error because we use a very high-order Gaussian quadrature rule.
 
 # %%
 # Key Notes:
@@ -127,6 +212,11 @@ coef = solver.solve(basis_matrix, vals)
 # Scalability:
 #
 # Quadratic programs are computationally efficient for moderate-sized problems, but for very large problems, specialized solvers or approximations may be needed.
+#
+# Accuracy
+# The sparse solution returned by BPDN produces an accurate approximation of the target function despite using amount of training data that was smaller than the number of unknowns.
+
+# Exercise: Comparing th BPDN solution with the solution obtained using underdetermined least-squares using the pseudo inverse as implemented by LstSqSolver
 #
 # Conclusion
 # ----------

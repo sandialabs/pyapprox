@@ -12,14 +12,12 @@ Load the Modules Needed
 
 # Load modules from dependencies
 import numpy as np
-from scipy import stats
 
 # Load modules from pyapprox
 from pyapprox.util.backends.numpy import NumpyMixin as bkd
 from pyapprox.benchmarks.genz import GenzBenchmark
 from pyapprox.surrogates.univariate.orthopoly import (
-    LegendrePolynomial1D,
-    AffineMarginalTransform,
+    setup_univariate_orthogonal_polynomial_from_marginal,
 )
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
@@ -52,18 +50,12 @@ variable = benchmark.variable()
 # Each basis in a polynomial chaos expansions is constructed from a tensor-product of univariate orthonormal polynomial bases.
 # Here, we initialize the basis for the random input variables.
 
-# All orthonormal bases for bounded variables are defined on [-1, 1]
-# so instantiate a transfrom that maps from the user provided
-# variable ranges to the canonical domain [-1,1]
-trans = AffineMarginalTransform(
-    stats.uniform(-1, 2), enforce_bounds=True, backend=bkd
-)
+# Define the distribution of the mode
 # Define univariate orthonormal bases for each variable
 polys_1d = [
-    LegendrePolynomial1D(trans=trans, backend=bkd)
-    for ii in range(model.nvars())
+    setup_univariate_orthogonal_polynomial_from_marginal(marginal, backend=bkd)
+    for marginal in benchmark.variable().marginals()
 ]
-
 # Now, create the tensor product basis
 basis = OrthonormalPolynomialBasis(polys_1d)
 # Set initial basis index set (a linear total degree basis)
