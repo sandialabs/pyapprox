@@ -1,6 +1,7 @@
 r"""
-"Bayesian Optimal Experimental Design"
-=====================================
+Bayesian Optimal Experimental Design
+====================================
+
 Goal
 ----
 This tutorial demonstrates how to perform Bayesian Optimal Experimental Design (OED) that maximizes the expected information gain of the experiments when using a Gaussian likelihood function.

@@ -67,6 +67,9 @@ example_filenames_in_order = [
     "plot_push_forward_based_inference.py",
     "plot_elbo.py",
     "plot_flow.py",
+    "plot_gaussian_conjugate_prior.py",
+    # "plot_beta_conjugate_prior.py",
+    # "plot_dirichlet_conjugate_prior.py",
     # ExpDesign
     "plot_bayesian_oed.py",
     "plot_bayesoed4param_formulation.py",
