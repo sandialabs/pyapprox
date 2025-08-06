@@ -125,7 +125,7 @@ polys_1d = [
 rotated_basis = QRBasedRotatedOrthonormalPolynomialBasis(polys_1d)
 # Set the basis indices to compute the rotation
 rotated_basis.set_tensor_product_indices([9 for ii in range(model.nvars())])
-# rotated_basis.set_quadrature_rule_tuple(quad_samples, quad_weights)
+rotated_basis.set_quadrature_rule_tuple(quad_samples, quad_weights)
 
 
 # %%

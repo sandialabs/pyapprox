@@ -69,8 +69,7 @@ example_filenames_in_order = [
     "plot_flow.py",
     # ExpDesign
     "plot_bayesian_oed.py",
-    "plot_bayesoed4params.py",
-    "plot_bayesoed4pred.py",
+    "plot_bayesoed4param_formulation.py",
     # Surrogates
     "plot_univariate_interpolation.py",
     "plot_tensor_product_interpolation.py",
@@ -142,6 +141,8 @@ example_filenames_in_order += [
     "plot_convergence.py",
     # expdesign
     "plot_low_discrepancy_quadrature.py",
+    "plot_bayesoed4params.py",
+    "plot_bayesoed4pred.py",
     # surrogates
     "plot_gaussian_quadrature.py",
     "plot_barycentric_interpolation.py",
@@ -201,7 +202,8 @@ sphinx_gallery_conf = {
     ),
     "within_subsection_order": ExamplesExplicitOrder,
     # "ignore_pattern": r"util",
-    "ignore_pattern": r"util|plot_bayesian_oed.*.\.py",  # any filenames containing util or plot_bayesian_oed.py in the filename are ignored
+    "ignore_pattern": r"util|plot_bayesian_oed\.py",  # there must be no white space must be before and after |
+    # if ignoe pattern removes all tutorials in a directory then sphinx gallery will throw an error without an exception string
     "matplotlib_animations": True,
 }
 try:
@@ -225,7 +227,7 @@ except ImportError:
 #     add_code_cell(work_notebook,"%matplotlib inline")#jdj
 # then add user defs like so
 sphinx_gallery_conf["first_notebook_cell"] = (
-    r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}\newcommand{\vec}[1]{{\boldsymbol{#1}}}\newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}\def\rvv{{\vec{\rv}}}$$"
+    r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\rvset{{\mathcal{Z}}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\text{d}#1}\newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}\newcommand{\vec}[1]{{\boldsymbol{#1}}}\newcommand{\dydx}[2]{\frac{\partial #1}{\partial #2}}\def\rvv{{\vec{\rv}}}\def\rVv{{\mat{Z}}}\obs{y}\obsv{\vec{\obs}}\newcommand{\inv}[1]{{#1}^{-1}}$$"
 )
 
 # if change conf make sure to remove source/auto_examples, using make clean
@@ -251,7 +253,7 @@ templates_path = ["_templates"]
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 # temporarily do not create function documentation
-exclude_patterns = ["**/plot_bayesian_oed.py"]
+# exclude_patterns = ["**/tutorials/expdesign"]
 
 # # use the following temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
 # exclude_patterns += ["modules.rst"]  # , 'user_reference_guide.rst']
@@ -334,6 +336,10 @@ SOFTWARE.\par
 \newcommand{\mat}[1]{{\boldsymbol{\mathrm{#1}}}}
 \newcommand{\vec}[1]{{\boldsymbol{#1}}}
 \def\rvv{{\vec{\rv}}}
+\def\rVv{{\mat{Z}}}
+\def\obs{{y}}
+\def\obsv{\vec{\obs}}
+\newcommand{\inv}[1]{{#1}^{-1}}$
 """,
 }
 
@@ -396,6 +402,10 @@ mathjax3_config = {
             "vec": [r"{\boldsymbol{#1}}", 1],
             "dydx": [r"\frac{\partial #1}{\partial #2}", 2],
             "rvv": r"{\boldsymbol{z}}",
+            "rVv": r"{\boldsymbol{\text{Z}}}",
+            "obs": r"{y}",
+            "obsv": r"\vec{\obs}",
+            "inv": [r"{{#1}^{-1}}", 1],
         },
     },
 }
