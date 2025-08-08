@@ -724,14 +724,10 @@ class TestGroupACV:
     def _check_mfmc_nested_estimation(self, nmodels, qoi_idx, statname):
         bkd = self.get_backend()
         est_type = "nested"
-        # est_type = "is"
-        target_cost = 10  # #50  # 100
+        target_cost = 10
         cov, W, B, costs, funs, benchmark = self._setup_variance_problem(
             nmodels, qoi_idx, bkd, psd=True
         )
-        # costs = bkd.copy(bkd.flip(bkd.logspace(-nmodels + 1, 0, nmodels)))
-        # print(costs)
-        # costs = bkd.array([3, 1.1, 1])[:nmodels]
         # check that group acv computes the same estimator variance
         # as mfmc when estimating variance using the optimal mfmc sample
         # allocation for estimating variance
@@ -741,7 +737,6 @@ class TestGroupACV:
             "variance": (cov, W),
             "mean_variance": (cov, W, B),
         }[statname]
-        print(pilot_quantities)
         stat.set_pilot_quantities(*pilot_quantities)
         if nmodels == 3:
             subsets = [[0, 1], [1, 2], [2]]
@@ -768,14 +763,12 @@ class TestGroupACV:
             reg_blue=0,
             use_pseudo_inv=False,
         )
-        print(recursion_index)
         mfmc_stat = multioutput_stats[statname](len(qoi_idx), backend=bkd)
         mfmc_stat.set_pilot_quantities(*pilot_quantities)
         mfmc_est = get_estimator(
             acv_est_type, mfmc_stat, costs, recursion_index=recursion_index
         )
         mfmc_est.allocate_samples(target_cost)
-        print(mfmc_est)
 
         samples_per_model = mfmc_est.generate_samples_per_model(
             lambda n: benchmark.variable().rvs(n)
@@ -820,14 +813,41 @@ class TestGroupACV:
         # assert bkd.allclose(covar_mc, covar, atol=atol, rtol=rtol)
 
         groupacv_est_val = est(values_per_model)
-        print(mfmc_est_val, groupacv_est_val, "V")
-        print(mfmc_est._optimized_covariance, "MFMC")
-        print(est._optimized_covariance, "GROUPACV")
+        # print(mfmc_est_val, groupacv_est_val, "V")
+        # print(mfmc_est._optimized_covariance, "MFMC")
+        # print(est._optimized_covariance, "GROUPACV")
         # print(est._optimized_covariance - mfmc_est._optimized_covariance)
         assert bkd.allclose(
             est._optimized_covariance, mfmc_est._optimized_covariance
         )
         assert np.allclose(groupacv_est_val, mfmc_est_val)
+
+        # check that the beta coefficients satisfy the constraints
+        # The following test (but not the group acv algorithm) assumes
+        # that the high-fidelity model only appears in the first group
+        # so check this assumption is satisfied. Which it should be
+        # when using est_type = "nested"
+        assert (
+            sum(
+                [
+                    1 if bkd.where(subset == 0)[0].shape[0] == 1 else 0
+                    for subset in est._model_subsets
+                ]
+            )
+            == 1
+        )
+        assert bkd.where(est._model_subsets[0] == 0)[0].shape[0] == 1
+        beta = est._grouped_acv_beta(est._optimized_sigma)
+        import torch
+
+        torch.set_printoptions(linewidth=1000)
+        assert bkd.allclose(beta[:, : beta.shape[0]], bkd.eye(beta.shape[0]))
+        # if first block is identity the condition that the coefficients of
+        # all low-fidelity models must sum to zero can be checked by
+        # testing each row of the entire beta matrix sums to 1
+        assert bkd.allclose(
+            beta.sum(axis=1), bkd.ones(beta.shape[0])
+        ), beta.sum(axis=1)
 
         # check optimization of group acv
         stat = multioutput_stats[statname](len(qoi_idx), backend=bkd)
@@ -876,14 +896,8 @@ class TestGroupACV:
             [2, [0, 1], "mean_variance"],
         ]
         for test_case in test_cases:
-            print("####")
-            print(test_case)
             np.random.seed(1)
             self._check_mfmc_nested_estimation(*test_case)
-            print(test_case)
-        raise NotImplementedError(
-            " TODO test sum of beta matrices for stats of low-fidelity model is the zero matrix. test sum of beta matrics for stats of high-fidelity model are the identity"
-        )
 
     def test_restriction_matrices(self):
         bkd = self.get_backend()
