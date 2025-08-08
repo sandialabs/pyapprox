@@ -21,7 +21,7 @@ where :math:`\rvv_k=T_k \circ \ldots \circ T_1(\vec{u})`
 There are many invertible intermediate transforms :math:`T_k` we could use in the composition.
 Here, we describe the intermediate transforms used Real Non Volume Preserving (RealNVP) flows. These intermediate transforms are often called coupling layers.
 
-Let :math:`\rvv_A\subset \rvv`, :math:`\rvv_A\in\reals^s`, denote a subset of all variable :math:`\rvv` and let :math:`\rvv_B=\rvv\setminus \rvv_A` be the complemtn of :math:`\rvv_A`. Then RealNVP flows define the transform :math:`\rvv'=T_k(\rvv)` as
+Let :math:`\rvv_A\subset \rvv`, :math:`\rvv_A\in\reals^s`, denote a subset of all variable :math:`\rvv` and let :math:`\rvv_B=\rvv\setminus \rvv_A` be the complemnt of :math:`\rvv_A`. Then RealNVP flows define the transform :math:`\rvv'=T_k(\rvv)` as
 
 .. math::
 

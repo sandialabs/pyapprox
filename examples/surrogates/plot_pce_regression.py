@@ -35,7 +35,7 @@ from pyapprox.surrogates.affine.crossvalidation import (
 
 
 # Set the random seed for reproducibility
-np.random.seed = 1
+np.random.seed(1)
 # Load in the genz benchmark which creates the model
 # and defines its random input variables
 benchmark = GenzBenchmark("oscillatory", 2, backend=bkd)

@@ -23,9 +23,6 @@ from pyapprox.expdesign.optbayes import (
     IndependentGaussianOEDInnerLoopLogLikelihood,
 )
 
-# Set the seed for reproducibility
-np.random.seed(1)
-
 # %% Setup the Model to Generate the Simulation Data
 # -------------------------------------------------
 # Users can load in their own simulation data to create an OED.
@@ -34,7 +31,7 @@ np.random.seed(1)
 
 
 # Set the random seed for reproducibility
-np.random.seed = 1
+np.random.seed(1)
 # Setup the benchmark
 benchmark = LotkaVolterraOEDBenchmark(backend=bkd)
 # Extract the model from the benchmark

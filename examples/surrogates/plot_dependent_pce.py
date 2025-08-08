@@ -59,7 +59,7 @@ from pyapprox.surrogates.affine.linearsystemsolvers import LstSqSolver
 
 
 # Set the random seed for reproducibility
-np.random.seed = 1
+np.random.seed(1)
 # Load in the genz benchmark which creates the model
 benchmark = GenzBenchmark("oscillatory", 2, cfactor=5, backend=bkd)
 # Extract the model from the benchmark

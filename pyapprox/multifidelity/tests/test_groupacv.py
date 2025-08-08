@@ -863,21 +863,27 @@ class TestGroupACV:
 
     def test_mfmc_nested_estimation(self):
         test_cases = [
-            # [2, [0], "mean"],
-            # [3, [0], "mean"],
-            # [2, [0, 1], "mean"],
-            # [2, [0, 1, 2], "mean"],
-            # [3, [0, 1], "mean"],
-            # [3, [0, 1, 2], "mean"],
-            # [2, [0], "variance"],
-            # [2, [0, 1, 2], "variance"],
-            # [3, [0, 1], "variance"],
-            # [2, [0], "mean_variance"],
+            [2, [0], "mean"],
+            [3, [0], "mean"],
+            [2, [0, 1], "mean"],
+            [2, [0, 1, 2], "mean"],
+            # [3, [0, 1], "mean"], # poorly conditioned
+            [3, [0, 1, 2], "mean"],
+            [2, [0], "variance"],
+            [2, [0, 1, 2], "variance"],
+            # [3, [0, 1], "variance"], # poorly conditioned
+            [2, [0], "mean_variance"],
             [2, [0, 1], "mean_variance"],
         ]
         for test_case in test_cases:
+            print("####")
+            print(test_case)
             np.random.seed(1)
             self._check_mfmc_nested_estimation(*test_case)
+            print(test_case)
+        raise NotImplementedError(
+            " TODO test sum of beta matrices for stats of low-fidelity model is the zero matrix. test sum of beta matrics for stats of high-fidelity model are the identity"
+        )
 
     def test_restriction_matrices(self):
         bkd = self.get_backend()

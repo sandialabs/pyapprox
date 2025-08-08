@@ -28,7 +28,7 @@ class TestFlows:
         cov = mat.T @ mat
         cov = bkd.diag(bkd.asarray((np.random.uniform(0, 1, (nvars)))))
         mean = bkd.zeros((nvars, 1))
-        cov = bkd.eye(nvars)
+        cov = bkd.eye(nvars) * 2
         ntrain_samples = 10000
         target_variable = DenseCholeskyMultivariateGaussian(
             mean, cov, backend=bkd

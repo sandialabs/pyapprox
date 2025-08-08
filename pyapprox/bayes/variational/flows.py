@@ -188,8 +188,6 @@ class Flow:
         method: str = "L-BFGS-B",
     ) -> MultiStartOptimizer:
         local_optimizer = ScipyConstrainedOptimizer()
-        # L-BFGS-Bseems to require less iterations than trust-constr when
-        # building GPs
         local_optimizer.set_options(
             gtol=gtol,
             maxiter=maxiter,
