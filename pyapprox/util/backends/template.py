@@ -932,5 +932,10 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def block_diag(arrays: List[Array]):
+    def block_diag(arrays: List[Array]) -> Array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def searchsorted(array: Array, values: Array, side: str = "left") -> Array:
         raise NotImplementedError

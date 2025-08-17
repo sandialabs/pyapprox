@@ -2374,3 +2374,154 @@ class SmoothQuinticBasedLeftHeavisideFunction(
             6 * c3 * xe + 12 * c4 * xe**2 + 20 * c5 * xe**3
         ) / self._eps**2
         return vals
+
+
+class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
+    """
+    Compute conditional value at risk without the need to estimate
+    the value at risk.
+    """
+
+    def __init__(
+        self,
+        alpha: float,
+        eps: float = 100,
+        chunk_size=10000,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(backend)
+        alpha = self._bkd.atleast1d(self._bkd.asarray(alpha))
+        self._alpha = alpha
+        self._eps = eps
+        self._chunk_size = chunk_size
+        # some optimization algorithms can use nonzero alpha but hard code here
+        # so any solver can be used
+        self._lambda = 0.0
+
+    def _project_slow(self, values: Array, weights: Array) -> Array:
+        # this function uses too much memory and makes unncessary
+        # calculations
+        # Compute all possible kinks
+        lbnd = 0.0
+        ubnd = 1.0 / (1.0 - self._alpha)
+        dvalues = values / weights
+        K = self._bkd.sort(self._bkd.hstack([lbnd - dvalues, ubnd - dvalues]))
+        # Compute residuals directly for all kinks
+        values_res = self._bkd.sort(
+            1.0
+            - weights
+            @ self._bkd.maximum(
+                lbnd, self._bkd.minimum(ubnd, dvalues[:, None] + K)
+            )
+        )
+        # # broadcasting above can cause memory to run out so have to
+        # # operate over chunks
+        # values_res = self._bkd.zeros(len(K))  # Initialize residuals array
+        # for ii in range(0, len(K), self._chunk_size):
+        #     K_chunk = K[ii : ii + self._chunk_size]  # Process a chunk of K
+        #     chunk_result = self._bkd.maximum(
+        #         lbnd, self._bkd.minimum(ubnd, dvalues[:, None] + K_chunk)
+        #     )
+        #     values_res[ii : ii + self._chunk_size] = 1 - weights @ chunk_result
+
+        # Bracket zero using numpy.searchsorted
+        idx_end = self._bkd.searchsorted(values_res, 0, side="right")
+        idx_beg = idx_end - 1
+
+        # Ensure valid indices for bracketing
+        x_beg = K[idx_beg]
+        x_end = K[idx_end]
+        values_beg = values_res[idx_beg]
+        values_end = values_res[idx_end]
+
+        # Compute zero using linear interpolation
+        lam = (values_end * x_beg - values_beg * x_end) / (
+            values_end - values_beg
+        )
+        print(lam, "lam", idx_beg, idx_end)
+        print(K, "K")
+        # print(values_res)
+
+        # Compute projection
+        proj = weights * self._bkd.maximum(
+            lbnd, self._bkd.minimum(ubnd, dvalues + lam)
+        )
+        return proj
+
+    def _project(self, values: Array, weights: Array) -> Array:
+        """
+        Compute the projection of y onto the CVaR risk envelope.
+
+        Parameters:
+            values (Array): Vector to be projected (length = number of samples).
+
+        Returns:
+            Array: Projection of values onto CVaR risk envelope (length = number of samples).
+        """
+        # Compute all possible kinks
+        lbnd = 0.0
+        ubnd = 1.0 / (1.0 - self._alpha)
+        dvalues = values / weights
+        K = self._bkd.flip(
+            self._bkd.sort(np.hstack([lbnd - dvalues, ubnd - dvalues]))
+        )
+
+        # Bracket zero
+        nsamp = len(values)
+
+        def res(x):
+            return 1.0 - weights @ self._bkd.maximum(
+                lbnd, self._bkd.minimum(ubnd, dvalues + x)
+            )
+
+        ibeg = 0
+        imid = nsamp
+        iend = 2 * nsamp
+        x1 = K[ibeg]
+        y1 = res(x1)
+        x2 = K[imid]
+        y2 = res(x2)
+
+        while True:
+            if self._bkd.sign(y1) != self._bkd.sign(y2):
+                iend = imid
+            else:
+                ibeg = imid
+                x1 = x2
+                y1 = y2
+            if iend - ibeg == 1:
+                imid = iend
+            else:
+                imid = ibeg + round((iend - ibeg) / 2)
+            x2 = K[imid]
+            y2 = res(x2)
+            if iend - ibeg == 1:
+                print(round((iend - ibeg) / 2), ((iend - ibeg) / 2))
+                print(ibeg, imid, iend)
+                break
+
+        # Compute value of x that produces zero residual
+        lam = (y2 * x1 - y1 * x2) / (y2 - y1)
+
+        # Return projection
+        return weights * self._bkd.maximum(
+            lbnd, self._bkd.minimum(ubnd, dvalues + lam)
+        )
+
+    def __call__(self, values: Array, weights: Array) -> Array:
+        if values.ndim != 2 or values.shape[1] != 1:
+            raise ValueError("values must be a 2D array with a single column")
+        if values.shape != weights.shape:
+            raise ValueError(f"{values.shape=} but {weights.shape=}")
+        proj_values = self._project(
+            values[:, 0] * self._eps + self._lambda, weights[:, 0]
+        )
+        return self._bkd.sum(proj_values * values[:, 0]) - 1.0 / (
+            2.0 * self._eps
+        ) * self._bkd.sum(proj_values**2)
+
+    def jacobian(self, values: Array, jac_values: Array, weights: Array):
+        proj_values = self._project(
+            values[:, 0] * self._eps + self._lambda, weights[:, 0]
+        )
+        return self._bkd.einsum("i,i->", proj_values * jac_values)

@@ -648,3 +648,9 @@ class TorchMixin(BackendMixin):
     @staticmethod
     def block_diag(arrays: List[torch.tensor]):
         return torch.block_diag(*arrays)
+
+    @staticmethod
+    def searchsorted(
+        array: torch.tensor, values: torch.tensor, side: str = "left"
+    ) -> torch.tensor:
+        return torch.searchsorted(array, values, side=side)

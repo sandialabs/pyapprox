@@ -24,6 +24,7 @@ from pyapprox.optimization.minimize import (
     SmoothLogBasedLeftHeavisideFunction,
     SmoothQuarticBasedLeftHeavisideFunction,
     SmoothQuinticBasedLeftHeavisideFunction,
+    SampleSmoothedConditionalValueAtRisk,
 )
 from pyapprox.optimization.risk import GaussianAnalyticalRiskMeasures
 from pyapprox.benchmarks import (
@@ -766,6 +767,31 @@ class TestMinimize(unittest.TestCase):
         assert errors.min() / errors.max() < 1e-6
         errors = fun.check_second_derivative(samples, disp=True)
         assert errors.min() / errors.max() < 1e-6
+
+    def test_smoothed_conditional_value_at_risk(self):
+        bkd = self.get_backend()
+        mu, sigma, beta = 0, 2, 0.25
+        risks = GaussianAnalyticalRiskMeasures(mu, sigma)
+        exact_avar = risks.AVaR(beta)
+        AVaR = AverageValueAtRisk(beta, backend=bkd)
+        rv = stats.norm(mu, sigma)
+        nsamples = int(1e5)
+        samples = bkd.asarray(rv.rvs(nsamples)[None, :])
+        AVaR.set_samples(samples)
+        assert bkd.allclose(AVaR()[0], exact_avar, rtol=1e-2)
+
+        smooth_avar = SampleSmoothedConditionalValueAtRisk(
+            alpha=beta, eps=100, backend=bkd
+        )
+        nsamples = int(1e5)
+        samples = bkd.asarray(rv.rvs(nsamples)[None, :])
+        weights = bkd.full((nsamples, 1), 1 / nsamples)
+        # print(smooth_avar(samples.T, weights))
+        # print(AVaR()[0])
+        # print(exact_avar)
+        assert bkd.allclose(
+            smooth_avar(samples.T, weights), AVaR()[0], rtol=1e-2
+        )
 
 
 if __name__ == "__main__":

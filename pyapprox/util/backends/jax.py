@@ -555,5 +555,11 @@ class JaxBackendMixin(BackendMixin):
         return np.swapaxes(array, axis1, axis2)
 
     @staticmethod
-    def block_diag(arrays: List[np.ndarray]):
+    def block_diag(arrays: List[np.ndarray]) -> np.ndarray:
         return jax.scipy.linalg.block_diag(*arrays)
+
+    @staticmethod
+    def searchsorted(
+        array: np.ndarray, values: np.ndarray, side: str = "left"
+    ) -> np.ndarray:
+        return np.searchsorted(array, values, side)
