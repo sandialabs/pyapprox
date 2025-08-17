@@ -2524,4 +2524,4 @@ class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
         proj_values = self._project(
             values[:, 0] * self._eps + self._lambda, weights[:, 0]
         )
-        return self._bkd.einsum("i,i->", proj_values * jac_values)
+        return self._bkd.einsum("i,ij->j", proj_values, jac_values)[None, :]

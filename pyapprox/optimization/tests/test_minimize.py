@@ -770,7 +770,7 @@ class TestMinimize(unittest.TestCase):
 
     def test_smoothed_conditional_value_at_risk(self):
         bkd = self.get_backend()
-        mu, sigma, beta = 0, 2, 0.25
+        mu, sigma, beta = 0, 1, 0.25
         risks = GaussianAnalyticalRiskMeasures(mu, sigma)
         exact_avar = risks.AVaR(beta)
         AVaR = AverageValueAtRisk(beta, backend=bkd)
@@ -792,6 +792,36 @@ class TestMinimize(unittest.TestCase):
         assert bkd.allclose(
             smooth_avar(samples.T, weights), AVaR()[0], rtol=1e-2
         )
+
+        # check Jacobian
+        def fun(samples, params):
+            return params[0] + bkd.sqrt(params[1]) * samples.T
+
+        def fjac(samples, params):
+            return bkd.stack(
+                (
+                    bkd.ones((samples.shape[1],)),
+                    samples[0] / (2 * bkd.sqrt(params[1])),
+                ),
+                axis=1,
+            )
+
+        model = ModelFromSingleSampleCallable(
+            1,
+            2,
+            lambda p: bkd.atleast2d(smooth_avar(fun(samples, p), weights)),
+            lambda p: smooth_avar.jacobian(
+                fun(samples, p), fjac(samples, p), weights
+            ),
+        )
+        params = bkd.asarray([[1.0, 2.0]]).T
+        # params defines a new distribution with mean 1.0 and variance 2.0
+        # assuming rv is a standard normal
+        risks = GaussianAnalyticalRiskMeasures(1.0, bkd.sqrt(2.0))
+        exact_avar = risks.AVaR(beta)
+        assert bkd.allclose(exact_avar, model(params), rtol=1e-2)
+        errors = model.check_apply_jacobian(params, disp=True)
+        assert errors.min() / errors.max() < 1e-6
 
 
 if __name__ == "__main__":
