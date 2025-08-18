@@ -359,6 +359,47 @@ class TestLaplace:
             post.posterior_variable().var()[:, 0], variance, rtol=1e-2
         )
 
+    def test_laplace_expected_kl_divergence(self):
+        bkd = self.get_backend()
+        nvars = 2
+        nobs = 3
+        prior_mean = bkd.ones((nvars, 1))
+        prior_covariance = 0.1 * bkd.eye(nvars)
+        noise_std = 0.1
+        noise_cov_diag = bkd.full((nobs,), noise_std**2)
+        # design_weights = bkd.full((nobs,), 1 / nobs)
+        design_weights = bkd.array([0.8, 0.1, 0.1])
+        weighted_noise_cov_diag = 1.0 / (1.0 / noise_cov_diag * design_weights)
+        weighted_noise_cov = bkd.diag(weighted_noise_cov_diag)
+        obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
+        prior = DenseCholeskyMultivariateGaussian(
+            prior_mean, prior_covariance, backend=bkd
+        )
+        laplace = DenseMatrixLaplacePosteriorApproximation(
+            obs_mat,
+            prior.mean(),
+            prior.covariance(),
+            weighted_noise_cov,
+            backend=bkd,
+        )
+        ntrials = 10000
+        divergences = []
+        for ii in range(ntrials):
+            true_sample = prior.rvs(1)
+            noise = bkd.sqrt(weighted_noise_cov_diag[:, None]) * bkd.asarray(
+                np.random.normal(0, 1, (nobs, 1))
+            )
+            obs = obs_mat @ true_sample + noise
+            laplace.compute(obs)
+            divergences.append(
+                laplace.posterior_variable().kl_divergence(prior)
+            )
+        assert bkd.allclose(
+            bkd.mean(bkd.array(divergences)),
+            laplace.expected_kl_divergence(),
+            rtol=1e-2,
+        )
+
 
 class TestNumpyLaplace(TestLaplace, unittest.TestCase):
     def get_backend(self):

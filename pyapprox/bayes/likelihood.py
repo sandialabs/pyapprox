@@ -845,7 +845,7 @@ class IndependentGaussianLogLikelihood(GaussianLogLikelihood):
         return self._noise_cov_sqrt_inv_apply(vecs)
 
     def noise_covariance(self) -> Array:
-        return self._bkd.diag(1 / self._wnoise_cov_inv_diag[:, 0])
+        return self._bkd.diag(1.0 / self._wnoise_cov_inv_diag[:, 0])
 
     def __repr__(self) -> str:
         return "{0}(nobs={1}, sigma={2})".format(

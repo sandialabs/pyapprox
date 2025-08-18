@@ -823,6 +823,10 @@ class TestMinimize(unittest.TestCase):
         errors = model.check_apply_jacobian(params, disp=True)
         assert errors.min() / errors.max() < 1e-6
 
+        raise NotImplementedError(
+            "TODO: Need to implement cvar stat for multi-dimensional samples"
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -47,6 +47,8 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
         -------
         shapes : Array (nobs, nouterloop_samples)
         """
+        if not hasattr(self, "_shapes"):
+            raise RuntimeError("must call set_observations_and_shapes()")
         return self._shapes
 
     def nqoi(self) -> int:
@@ -363,6 +365,18 @@ class Evidence(Model):
         return "{0}(loglike={1})".format(
             self.__class__.__name__, self._loglike
         )
+
+    def effective_sample_size(self, design_weights):
+        like_vals = self._reshape_vals(
+            self._bkd.exp(self._loglike(design_weights))
+        )
+        if self._bkd.any(self._quad_weights != self._quad_weights[0]):
+            raise ValueError("Only intended for MC sampling")
+        ess = self._bkd.sum(like_vals, axis=0) ** 2 / self._bkd.sum(
+            like_vals**2, axis=0
+        )
+        raise NotImplementedError("Not tested yet")
+        return ess
 
 
 class LogEvidence(Evidence):

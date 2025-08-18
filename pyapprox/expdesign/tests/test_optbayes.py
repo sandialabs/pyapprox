@@ -82,11 +82,20 @@ class TestBayesOED:
         # So we no longer test evidences here
 
         bkd = self.get_backend()
+
+        if bkd.any(design_weights != bkd.ones(design_weights.shape)):
+            raise ValueError(
+                "laplace.expected_kl_divergence() will not match OED value "
+                "if weights are not all one.  Because outer observations were "
+                "not drawn according to the weighted noise covariance"
+            )
+
         # compute laplace for any observation so we can compute
         # expected KL divergence which does not depend on the observation
         obs_idx = 0
+        print(noise_cov)
         laplace = DenseMatrixLaplacePosteriorApproximation(
-            obs_model.jacobian(outerloop_samples[:, obs_idx : obs_idx + 1]),
+            obs_model.matrix(),
             prior_variable.mean(),
             prior_variable.covariance(),
             noise_cov,
@@ -100,6 +109,8 @@ class TestBayesOED:
             (-oed_objective(design_weights) - laplace.expected_kl_divergence())
             / laplace.expected_kl_divergence(),
         )
+        print(design_weights)
+        print(-oed_objective(design_weights), laplace.expected_kl_divergence())
         assert bkd.allclose(
             laplace.expected_kl_divergence(),
             -oed_objective(design_weights),
@@ -436,7 +447,8 @@ class TestBayesOED:
             backend=bkd,
         )
 
-        design_weights = bkd.array(np.random.uniform(0.5, 1.0, (nobs, 1)))
+        # design_weights = bkd.array(np.random.uniform(0.5, 1.0, (nobs, 1)))
+        design_weights = bkd.ones((nobs, 1))
         noise_cov = bkd.diag(noise_cov_diag[:, 0])
         self._check_expected_information_gain(
             prior,
@@ -450,7 +462,7 @@ class TestBayesOED:
 
     def test_independent_gaussian_expected_information_gain(self):
         test_cases = [
-            ["gauss", 5000, "gauss", 100, 1, 1, 3e-3],
+            ["gauss", 5000, "gauss", 1000, 1, 1, 3e-3],
             ["quadratic", 500000, "quadratic", 100, 0, 1, 2e-2],
             ["MC", 100000, "MC", 1000, 1, 2, 2e-2],
             ["MC", 100000, "Halton", 1000, 1, 2, 2e-2],
