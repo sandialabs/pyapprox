@@ -397,26 +397,6 @@ class ModelBasedLogLikelihoodMixin:
     def _values(self, model_parameter_samples: Array):
         return self.loglike_from_shapes(self._model(model_parameter_samples).T)
 
-    def rvs_from_shapes(self, shapes: Array) -> Array:
-        """
-        Generate observations based on the
-        likelihood distribution's shapes,
-        i.e. predictions of models at some samples.
-
-        This function is useful for OED
-
-        Parameters
-        ----------
-        shapes : Array (nvars, nsamples)
-            Predicted shapes or values from the model.
-
-        Returns
-        -------
-        obs : Array (nsamples, nobs)
-            Generated observations.
-        """
-        return super()._rvs(shapes)
-
     def rvs(self, model_parameter_samples: Array) -> Array:
         """
         Generate observations based on the
@@ -632,9 +612,9 @@ class GaussianLogLikelihood(LogLikelihood):
         """
         return self._wnoise_chol_inv.T @ vecs
 
-    def _sample_noise(self, nsamples: int) -> Array:
+    def _sample_latent_noise(self, nsamples: int) -> Array:
         """
-        Sample noise from the Gaussian distribution.
+        Sample noise from the standard normal Gaussian distribution.
 
         Parameters
         ----------
@@ -652,7 +632,7 @@ class GaussianLogLikelihood(LogLikelihood):
         normal_samples = self._bkd.asarray(
             np.random.normal(0, 1, (nsamples, self.nobs()))
         ).T
-        return self._noise_cov_sqrt_apply(normal_samples)
+        return normal_samples
 
     def _check_residuals(self, residuals: Array):
         if residuals.ndim != 3:
@@ -739,8 +719,8 @@ class GaussianLogLikelihood(LogLikelihood):
     ) -> Array:
         """
         Generate observations based on the
-        likelihood distribution's shapes, ,
-        i.e. predictions of models at some samples,
+        likelihood distribution's shapes,
+        i.e., predictions of models at some samples,
         and samples from the latent space
         of the likelihood. For general independent variables the latent
         space is the uniform measure on [0,1]^nvars. These samples are then
@@ -758,8 +738,7 @@ class GaussianLogLikelihood(LogLikelihood):
             Predicted shapes or values from the model.
 
         latent_samples : Array (nobs, nsamples)
-            Predicted shapes or values from the model.
-
+            Samples from the standard Normal noise
 
         Returns
         -------
@@ -772,11 +751,14 @@ class GaussianLogLikelihood(LogLikelihood):
                 f"and shapes {shapes.shape} do not match"
                 ""
             )
-        return self._make_noisy(shapes, latent_samples)
+        return self._make_noisy(
+            shapes,
+            self._noise_cov_sqrt_apply(latent_samples),
+        )
 
     def _rvs(self, shapes: Array) -> Array:
         return self._rvs_from_likelihood_samples(
-            shapes, self._sample_noise(shapes.shape[1])
+            shapes, self._sample_latent_noise(shapes.shape[1])
         )
 
 
@@ -1069,9 +1051,9 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
             raise ValueError(msg)
         return noise / shapes
 
-    def _sample_noise(self, nsamples: int) -> Array:
+    def _sample_latent_noise(self, nsamples: int) -> Array:
         """
-        Samples noise from an exponential distribution with unit mean.
+        Samples noise from the latent exponential distribution with unit mean.
 
         Parameters
         ----------
@@ -1114,7 +1096,13 @@ class IndependentExponentialLogLikelihood(LogLikelihood):
         - Random samples are generated as `noise / shapes`, where `noise` is
           sampled from an exponential distribution with unit mean.
         """
-        return self._make_noisy(shapes, self._sample_noise(shapes.shape[1]))
+        # Unlike for gaussian likelihoods, which transorm latent samples
+        # before making noisey, we do not support sampling from
+        # exponential distribution
+        # with mean != 1 because make noisy will no longer work
+        return self._make_noisy(
+            shapes, self._sample_latent_noise(shapes.shape[1])
+        )
 
 
 class BernoulliLogLikelihood(LogLikelihood):

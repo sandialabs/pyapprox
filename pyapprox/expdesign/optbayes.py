@@ -29,14 +29,18 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
     that predict the shapes)
     """
 
-    def set_observations_and_shapes(self, obs: Array, shapes: Array):
+    def set_shapes(self, shapes: Array):
+        self._shapes = shapes
+
+    def set_artificial_observations(self, obs: Array):
         # Unlike likelihoods from pyapprox.bayes.likelihood, which take
         # obs and shapes with different shapes, obs and shapes passed to
         # OED likelihoods require obs and shapes with the same shape
-        if obs.shape != shapes.shape:
-            raise ValueError(f"{obs.shape=} does not match {shapes.shape=}")
+        if obs.shape != self._shapes.shape:
+            raise ValueError(
+                f"{obs.shape=} does not match {self._shapes.shape=}"
+            )
         self.set_observations(obs)
-        self._shapes = shapes
 
     def shapes(self) -> Array:
         """
@@ -48,7 +52,7 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
         shapes : Array (nobs, nouterloop_samples)
         """
         if not hasattr(self, "_shapes"):
-            raise RuntimeError("must call set_observations_and_shapes()")
+            raise RuntimeError("must call set_shapes()")
         return self._shapes
 
     def nqoi(self) -> int:
@@ -70,33 +74,13 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
             )
         return "{0}".format(self.__class__.__name__)
 
-    def rvs_from_shapes(self, shapes: Array) -> Array:
-        """
-        Generate observations based on the
-        likelihood distribution's shapes,
-        i.e. predictions of models at some samples.
-
-        This function is useful for OED
-
-        Parameters
-        ----------
-        shapes : Array (nvars, nsamples)
-            Predicted shapes or values from the model.
-
-        Returns
-        -------
-        obs : Array (nsamples, nobs)
-            Generated observations.
-        """
-        return super()._rvs(shapes)
-
 
 class IndependentGaussianOEDOuterLoopLogLikelihood(
     OEDOuterLoopLogLikelihoodMixin, IndependentGaussianLogLikelihood
 ):
-    def set_observations_and_shapes(self, obs: Array, shapes: Array):
-        super().set_observations_and_shapes(obs, shapes)
-        self._residuals = self._obs - shapes
+    def set_artificial_observations(self, obs: Array):
+        super().set_artificial_observations(obs)
+        self._residuals = self._obs - self._shapes
 
     def _values(self, design_weights: Array) -> Array:
         self.set_design_weights(design_weights)
@@ -124,7 +108,14 @@ class IndependentGaussianOEDOuterLoopLogLikelihood(
 
 
 class OEDInnerLoopLogLikelihoodMixin:
-    def set_observations_and_shapes(self, obs: Array, shapes: Array):
+    def set_shapes(self, shapes: Array):
+        if shapes.ndim != 2:
+            raise ValueError(
+                "shapes must be a 2D array (nobs, ninnerloop_samples)"
+            )
+        self._shapes = shapes
+
+    def set_artificial_observations(self, obs: Array):
         # Unlike likelihoods from pyapprox.bayes.likelihood, which take
         # obs and shapes with different shapes, obs and shapes passed to
         # OED likelihoods require obs and shapes with the same shape
@@ -132,16 +123,11 @@ class OEDInnerLoopLogLikelihoodMixin:
             raise ValueError(
                 "obs must be a 2D array (nobs, nouterloop_samples)"
             )
-        if shapes.ndim != 2:
-            raise ValueError(
-                "shapes must be a 2D array (nobs, ninnerloop_samples)"
-            )
-        if obs.shape[0] != shapes.shape[0]:
+        if obs.shape[0] != self._shapes.shape[0]:
             raise ValueError(
                 "The number of rows of obs and shapes are inconsistent"
             )
         self._obs = obs
-        self._shapes = shapes
 
     def nqoi(self) -> int:
         return self._obs.shape[1] * self._shapes.shape[1]
@@ -201,9 +187,9 @@ class OEDInnerLoopLogLikelihoodMixin:
 class IndependentGaussianOEDInnerLoopLogLikelihood(
     OEDInnerLoopLogLikelihoodMixin, IndependentGaussianLogLikelihood
 ):
-    def set_observations_and_shapes(self, obs: Array, shapes: Array):
-        super().set_observations_and_shapes(obs, shapes)
-        self._residuals = self._obs[..., None] - shapes[:, None, :]
+    def set_artificial_observations(self, obs: Array):
+        super().set_artificial_observations(obs)
+        self._residuals = self._obs[..., None] - self._shapes[:, None, :]
 
     def _noise_cov_sqrt_inv_apply(self, vecs: Array) -> Array:
         # vecs is a 3D tensor (nobs, ninner_samples, nouterloop_samples)
@@ -366,7 +352,8 @@ class Evidence(Model):
             self.__class__.__name__, self._loglike
         )
 
-    def effective_sample_size(self, design_weights):
+    def effective_sample_size(self, design_weights: Array) -> float:
+        """Compute effective sample size for each outerloop observation"""
         like_vals = self._reshape_vals(
             self._bkd.exp(self._loglike(design_weights))
         )
@@ -375,7 +362,6 @@ class Evidence(Model):
         ess = self._bkd.sum(like_vals, axis=0) ** 2 / self._bkd.sum(
             like_vals**2, axis=0
         )
-        raise NotImplementedError("Not tested yet")
         return ess
 
 
@@ -482,23 +468,41 @@ class KLOEDObjective(BayesianOEDObjective):
                 "innerloop_loglike must be a OEDInnerLoopLogLikelihoodMixin"
             )
         self._innerloop_loglike = innerloop_loglike
-
         self._outerloop_loglike = innerloop_loglike.outerloop_loglike()
-        obs = self._outerloop_loglike._rvs_from_likelihood_samples(
-            outerloop_shapes,
-            outerloop_quad_samples[-outerloop_shapes.shape[0] :],
-        )
-        self._outerloop_loglike.set_observations_and_shapes(
-            obs, outerloop_shapes
-        )
-        self._innerloop_loglike.set_observations_and_shapes(
-            obs, innerloop_shapes
-        )
-        self._innerloop_quad_weights = innerloop_quad_weights
-        self._setup_evidence()
+        self._outerloop_shapes = outerloop_shapes
+        self._outerloop_quad_samples = outerloop_quad_samples
+        self._innerloop_shapes = innerloop_shapes
         self._set_quadrature_weights(
-            outerloop_quad_weights, innerloop_quad_weights
+            self._outerloop_shapes.shape[1],
+            outerloop_quad_weights,
+            self._innerloop_shapes.shape[1],
+            innerloop_quad_weights,
         )
+
+    def _set_expanded_design_weights(self, design_weights: Array):
+        """
+        Updates the outerloop observations based on the design weights.
+        """
+        self._outerloop_loglike.set_design_weights(design_weights)
+        obs = self._outerloop_loglike._rvs_from_likelihood_samples(
+            self._outerloop_shapes,
+            self._outerloop_quad_samples[-self._outerloop_shapes.shape[0] :],
+        )
+        self._outerloop_loglike.set_artificial_observations(obs)
+        self._innerloop_loglike.set_artificial_observations(obs)
+        self._setup_evidence()
+
+    def _evaluate(self, design_weights: Array) -> Array:
+        self._set_expanded_design_weights(
+            self._expand_design_weights(design_weights)
+        )
+        return super()._evaluate(design_weights)
+
+    def _jacobian(self, design_weights: Array) -> Array:
+        self._set_expanded_design_weights(
+            self._expand_design_weights(design_weights)
+        )
+        return super._jacobian(design_weights)
 
     def set_noise_statistic(self, noise_stat: NoiseStatistic):
         if not isinstance(noise_stat, NoiseStatistic):
@@ -516,16 +520,18 @@ class KLOEDObjective(BayesianOEDObjective):
         return self._outerloop_loglike.nobs()
 
     def _set_quadrature_weights(
-        self, outerloop_quad_weights: Array, innerloop_quad_weights: Array
+        self,
+        nouterloop_samples: int,
+        outerloop_quad_weights: Array,
+        ninnerloop_samples: int,
+        innerloop_quad_weights: Array,
     ):
-        nouterloop_samples = self._outerloop_loglike._shapes.shape[1]
         if outerloop_quad_weights is None:
             outerloop_quad_weights = self._bkd.full(
                 (nouterloop_samples, 1),
                 1.0 / nouterloop_samples,
             )
 
-        ninnerloop_samples = self._innerloop_loglike._shapes.shape[1]
         if innerloop_quad_weights is None:
             innerloop_quad_weights = self._bkd.full(
                 (ninnerloop_samples, 1),
