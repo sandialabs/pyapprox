@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Tuple
+
+from scipy import stats
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -14,6 +16,11 @@ from pyapprox.optimization.minimize import (
     SampleAverageStat,
 )
 from pyapprox.variables.gaussian import MultivariateGaussian
+from pyapprox.variables.joint import (
+    JointVariable,
+    IndependentGroupsVariable,
+    IndependentMarginalsVariable,
+)
 from pyapprox.bayes.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
     GaussianPushForward,
@@ -74,6 +81,22 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
             )
         return "{0}".format(self.__class__.__name__)
 
+    @abstractmethod
+    def joint_prior_data_variable(self) -> JointVariable:
+        """
+        Set up the joint distribution over the prior and the
+        latent space of the data likelihood. E.g. for gaussian noise with
+        standard deviation sigma sample from the standard normal
+        The mapping to the true data space will be taken care of
+        by oed classes
+
+        Returns
+        -------
+        variable: JointVariable
+            The joint distribution over the prior and data.
+        """
+        raise NotImplementedError
+
 
 class IndependentGaussianOEDOuterLoopLogLikelihood(
     OEDOuterLoopLogLikelihoodMixin, IndependentGaussianLogLikelihood
@@ -105,6 +128,32 @@ class IndependentGaussianOEDOuterLoopLogLikelihood(
         # second term on rhs is gradient of determinant of weighted
         # noise covariance
         return jac
+
+    def joint_prior_data_variable(
+        self, prior: JointVariable
+    ) -> IndependentGroupsVariable:
+        """
+        Set up the joint distribution over the prior and the
+        latent space of the data likelihood. E.g. for gaussian noise with
+        standard deviation sigma sample from the standard normal
+        The mapping to the true data space will be taken care of
+        by oed classes
+
+        Parameters
+        ----------
+        prior: IndependentGroupsVariable
+            The prior variable.
+
+        Returns
+        -------
+        variable: JointVariable
+            The joint distribution over the prior and data.
+        """
+        latent_data_variable = IndependentMarginalsVariable(
+            [stats.norm(0, 1) for ii in range(self.nobs())],
+            backend=self._bkd,
+        )
+        return IndependentGroupsVariable([prior, latent_data_variable])
 
 
 class OEDInnerLoopLogLikelihoodMixin:
@@ -1231,6 +1280,30 @@ class KLBayesianOED(BayesianOED):
         super().__init__(innerloop_loglike._bkd)
         self._innerloop_loglike = innerloop_loglike
 
+    def monte_carlo_quadrature_data(
+        self, prior: JointVariable, nsamples: int
+    ) -> Tuple[Array, Array]:
+        """
+        Return the quadrature samples over the joint prior and data space,
+        needed to evaluate
+        the model to obtain the simulations, and the quadrature
+        weights needed to compute the OED utility.
+
+        Parameters
+        ----------
+        prior: JointVariable
+            The prior over the uncertain model parameters.
+        nsamples : int
+            The number of samples needed.
+        """
+        outerloop_loglike = self._innerloop_loglike.outerloop_loglike()
+        prior_data_variable = outerloop_loglike.joint_prior_data_variable(
+            self._problem.get_prior()
+        )
+        prior_data_variable.rvs(nsamples), self._bkd.full(
+            (nsamples, 1), 1.0 / nsamples
+        )
+
     def set_data(
         self,
         outerloop_shapes: Array,
@@ -1239,6 +1312,23 @@ class KLBayesianOED(BayesianOED):
         innerloop_shapes: Array,
         innerloop_quad_weights: Array,
     ):
+        """
+        Set the data needed to compute the Bayesian OED.
+
+        Parameters
+        ----------
+        outerloop_shapes : Array (nobs, nouterloop_samples)
+            Samples for the outer loop quadrature.
+        outerloop_quad_samples : Array (nvars+nobs, nouterloop_samples)
+            Weights for the outer loop quadrature.
+        outerloop_quad_weights : Array (nouterloop_samples, 1)
+            Weights for the outer loop quadrature.
+        innerloop_shapes : Array (nobs, ninnerloop_samples)
+            Samples for the inner loop quadrature.
+        innerloop_quad_weights : Array (ninnerloop_samples, 1)
+            Weights for the inner loop quadrature.
+        """
+
         self._set_objective_function(
             KLOEDObjective(
                 self._innerloop_loglike,
@@ -1249,6 +1339,51 @@ class KLBayesianOED(BayesianOED):
                 innerloop_quad_weights,
                 backend=self._bkd,
             )
+        )
+
+    def set_data_from_model(
+        self,
+        obs_model: Model,
+        prior: JointVariable,
+        outerloop_samples: Array,
+        outerloop_quad_weights: Array,
+        innerloop_samples: Array,
+        innerloop_quad_weights: Array,
+    ):
+        """
+        Set up the Bayesian OED computation.
+
+        Parameters
+        ----------
+        obs_model: Model
+            The forward model used to predict likely observations.
+        prior: JointVariable
+            The prior of the uncertain model parameters.
+        innerloop_loglike : IndependentGaussianOEDInnerLoopLogLikelihood
+            Inner loop log-likelihood object.
+        outerloop_samples : Array (nvars+nobs, nouterloop_samples)
+            Samples for the outer loop quadrature.
+        outerloop_quad_weights : Array (nouterloop_samples, 1)
+            Weights for the outer loop quadrature.
+        innerloop_samples : Array (nvars, ninnerloop_samples)
+            Samples for the inner loop quadrature.
+        innerloop_quad_weights : Array (ninnerloop_samples, 1)
+            Weights for the inner loop quadrature.
+        """
+        outerloop_loglike = self._innerloop_loglike.outerloop_loglike()
+        outerloop_shapes_samples = outerloop_samples[: prior.nvars()]
+        outerloop_shapes = obs_model(outerloop_shapes_samples).T
+        outerloop_loglike.set_shapes(outerloop_shapes)
+
+        innerloop_shapes = obs_model(innerloop_samples).T
+        self._innerloop_loglike.set_shapes(innerloop_shapes)
+
+        self.set_data(
+            self._innerloop_loglike.outerloop_loglike().shapes(),
+            outerloop_samples,
+            outerloop_quad_weights,
+            self._innerloop_loglike.shapes(),
+            innerloop_quad_weights,
         )
 
 
