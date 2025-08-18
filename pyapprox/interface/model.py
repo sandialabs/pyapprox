@@ -459,6 +459,7 @@ class Model(ABC):
     def _check_hvp_shape(self, hvp: Array, sample: Array):
         if hvp.shape != (sample.shape[0], 1):
             raise RuntimeError(
+                f"{self}:"
                 "Hessian vector product returned by _apply_hessian "
                 "has the wrong shape. "
                 "was {0} but must be {1}".format(

@@ -364,7 +364,12 @@ class ApplyNegLogLikelihoodHessian:
         self._sample = sample
 
     def __call__(self, vecs: Array) -> Array:
-        return -self._loglike.apply_hessian(self._sample, vecs)
+        hvps = []
+        for vec in vecs.T:
+            hvps.append(
+                -self._loglike.apply_hessian(self._sample, vec[:, None])
+            )
+        return self._bkd.hstack(hvps)
 
 
 class PriorConditionedHessianMatVecOperator(SymmetricMatVecOperator):
