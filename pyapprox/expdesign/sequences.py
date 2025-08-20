@@ -4,7 +4,10 @@ import numpy as np
 
 from pyapprox.util.pya_numba import njit
 from pyapprox.util.misc import get_first_n_primes
-from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.joint import (
+    IndependentMarginalsVariable,
+    IndependentGroupsVariable,
+)
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 
@@ -17,18 +20,37 @@ class LowDiscrepancySequence(ABC):
         variable: IndependentMarginalsVariable = None,
         bkd: BackendMixin = NumpyMixin,
         unbounded_eps: float = 0,
+        increment_start_index: bool = False,
     ):
         self._bkd = bkd
         self._nvars = nvars
         self.set_start_idx(start_idx)
+        # increment_start_index after each call to rvs if true
+        self._increment_start_index = increment_start_index
         if variable is not None:
-            if not isinstance(variable, IndependentMarginalsVariable):
+            if not isinstance(
+                variable,
+                (IndependentMarginalsVariable, IndependentGroupsVariable),
+            ):
                 raise ValueError(
                     "variable must be an instance of "
-                    "IndependentMarginalsVariable"
+                    "IndependentMarginalsVariable or IndependentGroupsVariable"
+                    "which consists of groups of IndependentMarginalsVariables"
                 )
             if variable.nvars() != nvars:
                 raise ValueError("nvars and variable are inconsistent")
+
+        # Convert IndependentGroupsVariable to IndependentMarginalsVariable
+        # so code does not have to change
+        if isinstance(
+            variable,
+            IndependentGroupsVariable,
+        ):
+            marginals = variable.marginals()
+            variable = IndependentMarginalsVariable(
+                marginals, backend=variable._bkd
+            )
+
         self._variable = variable
         self._eps = unbounded_eps
 
@@ -56,6 +78,8 @@ class LowDiscrepancySequence(ABC):
                 can_samples[ii] = (
                     can_samples[ii] * (1 - 2 * self._eps) + self._eps
                 )
+        if self._increment_start_index:
+            self.set_start_idx(self._start_idx + nsamples)
         return self._variable.ppf(can_samples)
 
     def nvars(self) -> int:
@@ -70,8 +94,16 @@ class HaltonSequence(LowDiscrepancySequence):
         variable: IndependentMarginalsVariable = None,
         bkd: BackendMixin = NumpyMixin,
         unbounded_eps: float = 0,
+        increment_start_index: bool = False,
     ):
-        super().__init__(nvars, start_idx, variable, bkd, unbounded_eps)
+        super().__init__(
+            nvars,
+            start_idx,
+            variable,
+            bkd,
+            unbounded_eps,
+            increment_start_index,
+        )
         self._primes = get_first_n_primes(self._nvars)
 
     @staticmethod

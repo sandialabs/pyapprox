@@ -1,3 +1,26 @@
+"""
+This module implements Bayesian Optimal Experimental Design (OED) algorithms, including methods
+for inferring model parameters from data and conditioning model predictions on observational data.
+These algorithms are designed to optimize experimental designs by maximizing the expected
+information gain (EIG) and improving the accuracy and robustness of model-based predictions.
+
+Purpose
+-------
+The algorithms in this module enable researchers to compute experimental configurations that target:
+-  Inference of model parameters from experimental data.
+- Conditioning model predictions on observational data to improve decision-making.
+
+Features
+--------
+- Bayesian OED algorithms for parameter inference.
+- Bayesian OED algorithms for conditioning predictions on observations.
+
+Usage
+-----
+This module is intended for researchers and practitioners working on Bayesian OED problems who
+require robust algorithms for optimizing experimental designs and analyzing model-based predictions.
+"""
+
 from abc import ABC, abstractmethod
 from typing import List, Tuple
 
@@ -63,10 +86,12 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
         return self._shapes
 
     def nqoi(self) -> int:
+        if not hasattr(self, "_obs"):
+            raise RuntimeError("must call set_observations")
         return self._obs.shape[1]
 
     def nvars(self) -> int:
-        return self._obs.shape[0]
+        return self.shapes().shape[0]
 
     @abstractmethod
     def _values(self, design_weights: Array) -> Array:
@@ -97,6 +122,15 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
         """
         raise NotImplementedError
 
+    def set_latent_likelihood_samples(self, latent_samples: Array):
+        """
+        Set the latent samples used to modify the noiseless observations.
+        E.g. when using additive Gaussian noise with standard deviation sigma,
+        the obs = model_vals + sigma * latent_samples, where the latent
+        samples are from the standard normal distribution.
+        """
+        self._latent_likelihood_samples = latent_samples
+
 
 class IndependentGaussianOEDOuterLoopLogLikelihood(
     OEDOuterLoopLogLikelihoodMixin, IndependentGaussianLogLikelihood
@@ -118,15 +152,27 @@ class IndependentGaussianOEDOuterLoopLogLikelihood(
 
     def _jacobian(self, design_weights: Array) -> Array:
         # stack jacobians for each obs vertically
+        jac = (
+            -0.5 * self._residuals.T**2 * self._noise_cov_inv_diag[:, 0]
+            + 0.5 / design_weights.T
+        )
 
-        # todo next line can be done just done once when objected is created
-        # alsocan reduce cost of values if make this happen in
-        # self._loglike class
-        jac = (self._residuals.T**2) * (
-            self._noise_cov_inv_diag[:, 0] * (-0.5)
-        ) + 0.5 / design_weights.T
-        # second term on rhs is gradient of determinant of weighted
+        # second term on rhs above is gradient of determinant of weighted
         # noise covariance
+
+        # Compute component of gradient due to using the reparameterization
+        # trick to compute the outerloop observations.
+        # "_latent_likelihood_samples" will always be true if computing
+        # an oed objective, but we allow it not to be set for computing
+        # gradient of likelihood when not using reparameterization trick.
+        # This later is only used for testing.
+        if hasattr(self, "_latent_likelihood_samples"):
+            jac += 0.5 * (
+                self._residuals.T
+                * self._latent_likelihood_samples.T
+                * self._bkd.sqrt(self._noise_cov_inv_diag[:, 0])
+                / self._bkd.sqrt(design_weights)[:, 0]
+            )
         return jac
 
     def joint_prior_data_variable(
@@ -182,7 +228,7 @@ class OEDInnerLoopLogLikelihoodMixin:
         return self._obs.shape[1] * self._shapes.shape[1]
 
     def nvars(self) -> int:
-        return self._obs.shape[0]
+        return self._shapes.shape[0]
 
     def shapes(self) -> Array:
         """
@@ -232,6 +278,15 @@ class OEDInnerLoopLogLikelihoodMixin:
             self._outerloop_loglike = self._setup_outerloop_loglike()
         return self._outerloop_loglike
 
+    def set_latent_likelihood_samples(self, latent_samples: Array):
+        """
+        Set the latent samples used to modify the noiseless observations.
+        E.g. when using additive Gaussian noise with standard deviation sigma,
+        the obs = model_vals + sigma * latent_samples, where the latent
+        samples are from the standard normal distribution.
+        """
+        self._latent_likelihood_samples = latent_samples
+
 
 class IndependentGaussianOEDInnerLoopLogLikelihood(
     OEDInnerLoopLogLikelihoodMixin, IndependentGaussianLogLikelihood
@@ -266,16 +321,28 @@ class IndependentGaussianOEDInnerLoopLogLikelihood(
 
     def _jacobian(self, design_weights: Array) -> Array:
         # stack jacobians for each obs vertically
-
-        # todo next line can be done just done once when objected is created
-        # alsocan reduce cost of values if make this happen in
-        # self._loglike class
         # Compute jacobian of quadratic component of likelihood
         jac = -0.5 * self._noise_cov_inv_diag[..., None] * self._residuals**2
+
+        # Compute component of gradient due to using the reparameterization
+        # trick to compute the outerloop observations.
+        # "_latent_likelihood_samples" will always be true if computing
+        # an oed objective, but we allow it not to be set for computing
+        # gradient of likelihood when not using reparameterization trick.
+        # This later is only used for testing.
+        if hasattr(self, "_latent_likelihood_samples"):
+            jac += 0.5 * (
+                self._bkd.sqrt(self._noise_cov_inv_diag[..., None])
+                * self._residuals
+                * self._latent_likelihood_samples[..., None]
+                / self._bkd.sqrt(design_weights)[..., None]
+            )
+
         # reorder axes so 3D jacobian tensor has the correct shape
         jac = self._bkd.swapaxes(self._bkd.swapaxes(jac, 0, 1), 1, 2)
         # reshape to be 2D
         jac = self._bkd.reshape(jac, (self.nqoi(), self.nobs()))
+
         # add gradient of determinant of weighted
         # noise covariance
         jac += 0.5 / design_weights.T
@@ -533,12 +600,20 @@ class KLOEDObjective(BayesianOEDObjective):
         Updates the outerloop observations based on the design weights.
         """
         self._outerloop_loglike.set_design_weights(design_weights)
+        latent_likelihood_samples = self._outerloop_quad_samples[
+            -self._outerloop_shapes.shape[0] :
+        ]
         obs = self._outerloop_loglike._rvs_from_likelihood_samples(
-            self._outerloop_shapes,
-            self._outerloop_quad_samples[-self._outerloop_shapes.shape[0] :],
+            self._outerloop_shapes, latent_likelihood_samples
         )
         self._outerloop_loglike.set_artificial_observations(obs)
         self._innerloop_loglike.set_artificial_observations(obs)
+        self._outerloop_loglike.set_latent_likelihood_samples(
+            latent_likelihood_samples
+        )
+        self._innerloop_loglike.set_latent_likelihood_samples(
+            latent_likelihood_samples
+        )
         self._setup_evidence()
 
     def _evaluate(self, design_weights: Array) -> Array:
@@ -551,7 +626,7 @@ class KLOEDObjective(BayesianOEDObjective):
         self._set_expanded_design_weights(
             self._expand_design_weights(design_weights)
         )
-        return super._jacobian(design_weights)
+        return super()._jacobian(design_weights)
 
     def set_noise_statistic(self, noise_stat: NoiseStatistic):
         if not isinstance(noise_stat, NoiseStatistic):
@@ -641,64 +716,6 @@ class KLOEDObjective(BayesianOEDObjective):
         # return negative because we want to maximize KL divergence
         # which is equivalent to minimizing the negative KL divergence
         return -jac
-
-    def _hvp1(
-        self, outer_weights: Array, evidence: Array, vec: Array
-    ) -> Array:
-        # g'(f(x))\nabla^2 f^\top \dot v
-        # this assumes that hessian of log-likelihood is zero
-        # thus this function can only be used with log likelihoods that are
-        # linear in the weights
-        # tmp = self._bkd.sum(
-        #     (
-        #         self._log_evidence._quad_weighted_like_vals_prod_jac
-        #         * (self._log_evidence._like_jac @ vec)
-        #     ),
-        #     axis=1,
-        # )
-        # o:outer, i: inner, q: qoi, d:derivatives
-        tmp = self._bkd.einsum(
-            "oid,oi->od",
-            self._log_evidence._quad_weighted_like_vals_prod_jac,
-            (self._log_evidence._like_jac @ vec[:, 0]),
-        )
-        hvp1 = self._bkd.sum((outer_weights / evidence) * tmp, axis=0)
-        return hvp1
-
-    def _hvp2(
-        self, outer_weights: Array, evidence: Array, vec: Array
-    ) -> Array:
-        # g''(f(x))\nabla f^\top nabla f \dot v
-        evidence_jac = self._log_evidence._evidence_jac
-        # o:outer, i: inner, q: qoi, d:derivatives
-        hvp2 = self._bkd.sum(
-            (outer_weights / evidence**2)
-            * evidence_jac
-            * (evidence_jac @ vec),
-            axis=0,
-        )
-        return hvp2
-
-    def _apply_hessian(self, design_weights: Array, vec: Array) -> Array:
-        design_weights = self._expand_design_weights(design_weights)
-        if not isinstance(self._noise_stat._stat, SampleAverageMean):
-            msg = "apply hessian only supported for MeanNoiseStatistic"
-            raise ValueError(msg)
-        evidence = (
-            super(LogEvidence, self._log_evidence).__call__(design_weights).T
-        )
-
-        outer_weights = self._outerloop_quad_weights
-        if hasattr(self, "_design_weights_map"):
-            vec = self._design_weights_map_jacobian @ vec
-
-        self._log_evidence._quad_weighted_likelihood_jacobian(design_weights)
-        hvp1 = self._hvp1(outer_weights, evidence, vec)
-        hvp2 = self._hvp2(outer_weights, evidence, vec)
-        hvp = hvp1 - hvp2
-        if hasattr(self, "_design_weights_map"):
-            hvp = self._design_weights_map_jacobian.T @ hvp
-        return hvp[:, None]
 
 
 class PredictionOEDDeviationMeasure(SingleSampleModel):
@@ -1279,6 +1296,12 @@ class KLBayesianOED(BayesianOED):
     ):
         super().__init__(innerloop_loglike._bkd)
         self._innerloop_loglike = innerloop_loglike
+
+    def get_innerloop_loglike(self) -> OEDInnerLoopLogLikelihoodMixin:
+        return self._innerloop_loglike
+
+    def get_outerloop_loglike(self) -> OEDOuterLoopLogLikelihoodMixin:
+        return self._innerloop_loglike.outerloop_loglike()
 
     def monte_carlo_quadrature_data(
         self, prior: JointVariable, nsamples: int

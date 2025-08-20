@@ -610,6 +610,25 @@ class IndependentGroupsVariable(JointVariable):
     def __repr__(self) -> str:
         return "{0}({1})".format(self.__class__.__name__, self._variables)
 
+    def marginals(self) -> List[Marginal]:
+        """
+        Return a list of all the 1D Marginals if each group supports returning
+        marginals. Useful if all groups have independent marginals themeselves
+
+        Returns
+        -------
+        marginals : list
+            List of 1D Marginals
+        """
+        marginals = []
+        for ii, variable in enumerate(self._variables):
+            if not hasattr(variable, "marginals"):
+                raise NotImplementedError(
+                    f"{variable} does does not return marginals"
+                )
+            marginals += variable.marginals()
+        return marginals
+
 
 def define_iid_random_variable(
     marginal: Union[Marginal, stats.rv_continuous, stats.rv_discrete],
