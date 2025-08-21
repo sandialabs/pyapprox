@@ -1330,7 +1330,7 @@ class KLBayesianOED(BayesianOED):
         innerloop_quad_weights: Array,
     ):
         """
-        Set the data needed to compute the Bayesian OED.
+        Set the data needed for computing the OED.
 
         Parameters
         ----------
@@ -1368,12 +1368,13 @@ class KLBayesianOED(BayesianOED):
         innerloop_quad_weights: Array,
     ):
         """
-        Set up the Bayesian OED computation.
+        Set the data needed for computing the OED running the models
+        to generate the simulation data.
 
         Parameters
         ----------
         obs_model: Model
-            The forward model used to predict likely observations.
+            The observation model used to predict likely observations.
         prior: JointVariable
             The prior of the uncertain model parameters.
         innerloop_loglike : IndependentGaussianOEDInnerLoopLogLikelihood
@@ -1408,16 +1409,78 @@ class BayesianOEDForPrediction(BayesianOED):
     def __init__(
         self,
         innerloop_loglike: OEDInnerLoopLogLikelihoodMixin,
+    ):
+        super().__init__(innerloop_loglike._bkd)
+        self._innerloop_loglike = innerloop_loglike
+
+    def set_data_from_model(
+        self,
+        obs_model: Model,
+        qoi_model: Model,
+        prior: JointVariable,
+        outerloop_samples: Array,
+        outerloop_quad_weights: Array,
+        innerloop_samples: Array,
+        innerloop_quad_weights: Array,
+        pred_quad_weights: Array,
         deviation_measure: PredictionOEDDeviationMeasure,
         risk_measure: SampleAverageStat,
         noise_stat: NoiseStatistic,
     ):
-        super().__init__(innerloop_loglike._bkd)
-        self._innerloop_loglike = innerloop_loglike
-        self._deviation_measure = deviation_measure
-        self._deviation_measure.set_loglikelihood(innerloop_loglike)
-        self._risk_measure = risk_measure
-        self._noise_stat = noise_stat
+        """
+        Set the data needed for computing the OED running the models
+        to generate the simulation data.
+
+        Parameters
+        ----------
+        obs_model: Model
+            The observation model used to predict likely observations.
+        qoi_model: Model
+            The prediction model used to predict the QoI.
+        prior: JointVariable
+            The prior of the uncertain model parameters.
+        innerloop_loglike : IndependentGaussianOEDInnerLoopLogLikelihood
+            Inner loop log-likelihood object.
+        outerloop_samples : Array (nvars+nobs, nouterloop_samples)
+            Samples for the outer loop quadrature.
+        outerloop_quad_weights : Array (nouterloop_samples, 1)
+            Weights for the outer loop quadrature.
+        innerloop_samples : Array (nvars, ninnerloop_samples)
+            Samples for the inner loop quadrature.
+        innerloop_quad_weights : Array (ninnerloop_samples, 1)
+            Weights for the inner loop quadrature.
+        pred_quad_weights : Array (nqoi, 1)
+            The QoI weights used to compute the weighted sum (integrate)
+            the QoI
+        deviation_measure: PredictionOEDDeviationMeasure
+            The deviation measure used to compute the reduction in uncertainty
+            for each innerloop posterior
+        risk_measure: SampleAverageStat
+            The risk measure applied over the prediction space
+        noise_stat: NoiseStatistic
+           The risk measure applied over all realizations of the data
+        """
+        outerloop_loglike = self._innerloop_loglike.outerloop_loglike()
+        outerloop_shapes_samples = outerloop_samples[: prior.nvars()]
+        outerloop_shapes = obs_model(outerloop_shapes_samples).T
+        outerloop_loglike.set_shapes(outerloop_shapes)
+
+        innerloop_shapes = obs_model(innerloop_samples).T
+        self._innerloop_loglike.set_shapes(innerloop_shapes)
+        qoi_vals = qoi_model(innerloop_samples)
+
+        self.set_data(
+            self._innerloop_loglike.outerloop_loglike().shapes(),
+            outerloop_samples,
+            outerloop_quad_weights,
+            self._innerloop_loglike.shapes(),
+            innerloop_quad_weights,
+            qoi_vals,
+            pred_quad_weights,
+            deviation_measure,
+            risk_measure,
+            noise_stat,
+        )
 
     def set_data(
         self,
@@ -1428,7 +1491,39 @@ class BayesianOEDForPrediction(BayesianOED):
         innerloop_quad_weights: Array,
         qoi_vals: Array,
         pred_quad_weights: Array,
+        deviation_measure: PredictionOEDDeviationMeasure,
+        risk_measure: SampleAverageStat,
+        noise_stat: NoiseStatistic,
     ):
+        """
+        Set the data needed for computing the OED.
+
+        Parameters
+        ----------
+        outerloop_shapes : Array (nobs, nouterloop_samples)
+            Samples for the outer loop quadrature.
+        outerloop_quad_samples : Array (nvars+nobs, nouterloop_samples)
+            Weights for the outer loop quadrature.
+        outerloop_quad_weights : Array (nouterloop_samples, 1)
+            Weights for the outer loop quadrature.
+        innerloop_shapes : Array (nobs, ninnerloop_samples)
+            Samples for the inner loop quadrature.
+        innerloop_quad_weights : Array (ninnerloop_samples, 1)
+            Weights for the inner loop quadrature.
+        qoi_vals : Array(ninner_samples, nqoi)
+            The values of the QoI at the innerloop samples
+        pred_quad_weights : Array (nqoi, 1)
+            The QoI weights used to compute the weighted sum (integrate)
+            the QoI
+        deviation_measure: PredictionOEDDeviationMeasure
+            The deviation measure used to compute the reduction in uncertainty
+            for each innerloop posterior
+        risk_measure: SampleAverageStat
+            The risk measure applied over the prediction space
+        noise_stat: NoiseStatistic
+           The risk measure applied over all realizations of the data
+        """
+
         objective = PredictionOEDObjective(
             self._innerloop_loglike,
             outerloop_shapes,
@@ -1438,6 +1533,11 @@ class BayesianOEDForPrediction(BayesianOED):
             innerloop_quad_weights,
             backend=self._bkd,
         )
+        self._deviation_measure = deviation_measure
+        self._deviation_measure.set_loglikelihood(self._innerloop_loglike)
+        self._risk_measure = risk_measure
+        self._noise_stat = noise_stat
+
         objective.set_noise_statistic(self._noise_stat)
         self._deviation_measure.set_data(qoi_vals, pred_quad_weights)
         objective.set_deviation_measure(self._deviation_measure)
