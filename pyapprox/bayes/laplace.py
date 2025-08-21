@@ -652,7 +652,9 @@ class GaussianPushForward:
         self._nqoi, self._nvars = matrix.shape
         self._mat = matrix
         if mean.shape != (self.nvars(), 1):
-            raise ValueError("mean has the wrong shape")
+            raise ValueError(
+                f"{mean.shape=} but should be {(self.nvars(), 1)}"
+            )
         self._mean = mean
         if cov.shape != (self.nvars(), self.nvars()):
             raise ValueError("cov has the wrong shape")

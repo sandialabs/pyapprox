@@ -38,16 +38,10 @@ from pyapprox.optimization.minimize import (
     OptimizationResult,
     SampleAverageStat,
 )
-from pyapprox.variables.gaussian import MultivariateGaussian
 from pyapprox.variables.joint import (
     JointVariable,
     IndependentGroupsVariable,
     IndependentMarginalsVariable,
-)
-from pyapprox.bayes.laplace import (
-    DenseMatrixLaplacePosteriorApproximation,
-    GaussianPushForward,
-    _compute_expected_kl_divergence,
 )
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
@@ -1449,124 +1443,6 @@ class BayesianOEDForPrediction(BayesianOED):
         objective.set_deviation_measure(self._deviation_measure)
         objective.set_risk_measure(self._risk_measure)
         self._set_objective_function(objective)
-
-
-class ConjugateGaussianPriorOEDForLinearPredictionUtility(ABC):
-    """
-    Compute the expected divergence or deviation of the pushforward of the posterior,
-    arising from a conugate Gaussian prior, through a linear prediction model of a
-    scalar quantity
-    of interest (QoI).
-    """
-
-    def __init__(self, prior: MultivariateGaussian, qoi_mat: Array):
-        self._bkd = prior._bkd
-        self._prior = prior
-        self._prior_cov_inv = self._bkd.inv(self._prior.covariance())
-        self._qoi_mat = qoi_mat
-        self._prior_pushforward = GaussianPushForward(
-            self._qoi_mat,
-            self._prior.mean(),
-            self._prior.covariance(),
-            backend=self._bkd,
-        )
-
-    def set_observation_matrix(self, obs_mat: Array):
-        if obs_mat.shape[1] != self._prior.nvars():
-            raise ValueError("obs matrix has the wrong number of columns")
-        self._obs_mat = obs_mat
-
-    def set_noise_covariance(self, noise_covariance: Array):
-        self._noise_cov = noise_covariance
-        self._noise_cov_inv = self._bkd.inv(self._noise_cov)
-        self._compute()
-
-    def _compute_expected_posterior_stats(self):
-        if not hasattr(self, "_obs_mat"):
-            raise ValueError("must call set_observation_matrix()")
-        self._posterior = DenseMatrixLaplacePosteriorApproximation(
-            self._obs_mat,
-            self._prior.mean(),
-            self._prior.covariance(),
-            self._noise_cov,
-            backend=self._bkd,
-        )
-        # value of obs does not matter for expected stats
-        dummy_obs = self._bkd.ones((self._obs_mat.shape[0], 1))
-        self._posterior.compute(dummy_obs)
-        self._nu_vec = self._posterior._nu_vec
-        self._Cmat = self._posterior._Cmat
-
-    @abstractmethod
-    def _compute_utility(self) -> float:
-        raise NotImplementedError
-
-    def _compute(self):
-        self._compute_expected_posterior_stats()
-        self._post_pushforward = GaussianPushForward(
-            self._qoi_mat,
-            self._posterior.posterior_mean(),
-            self._posterior.posterior_covariance(),
-            backend=self._bkd,
-        )
-        self._utility = self._compute_utility()
-
-    def value(self) -> float:
-        """Return the utility"""
-        if not hasattr(self, "_utility"):
-            raise ValueError("must call set_noise_covariance()")
-        return self._utility
-
-
-class ConjugateGaussianPriorOEDForLinearPredictionKLDivergence(
-    ConjugateGaussianPriorOEDForLinearPredictionUtility
-):
-    def _compute_utility(self) -> float:
-        return _compute_expected_kl_divergence(
-            self._prior_pushforward.mean(),
-            self._prior_pushforward.covariance(),
-            self._post_pushforward.covariance(),
-            self._qoi_mat @ self._nu_vec,
-            self._qoi_mat @ self._Cmat @ self._qoi_mat.T,
-            self._bkd,
-        )
-
-
-class ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation(
-    ConjugateGaussianPriorOEDForLinearPredictionUtility
-):
-    def _compute_utility(self) -> float:
-        return self._bkd.sqrt(self._post_pushforward.covariance()[0, 0])
-
-
-class ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation(
-    ConjugateGaussianPriorOEDForLinearPredictionUtility
-):
-    def _lognormal_mean(self, mu: float, sigma: float):
-        return self._bkd.exp(mu + sigma**2 / 2.0)
-
-    def _compute_utility(self) -> float:
-        tau_hat = self._qoi_mat @ self._nu_vec
-        sigma_hat_sq = self._bkd.multidot(
-            (self._qoi_mat, self._Cmat, self._qoi_mat.T)
-        )
-        tmp = self._bkd.exp(self._post_pushforward.covariance()[0, 0])
-        factor = (tmp - 1.0) * tmp
-        # We know the variance F \exp(X) is a lognormal distribution using
-        # where X is a normal with
-        # mean 2\tau_hat and standard deviation 2*\sqrt(\sigma_hat_sq)
-        # Then standard deviation = F^{1/2}Y^{1/2}=F^{1/2}\exp(X)^{1/2}=F^{1/2}exp(X/2) = F^{1/2}\exp(Z) where Z is a normal with mean tau_hat and stdev sqrt(sigma_hat_sq)
-        return self._bkd.sqrt(factor) * self._lognormal_mean(
-            tau_hat, self._bkd.sqrt(sigma_hat_sq)
-        )
-
-
-class ConjugateGaussianPriorOEDForLogNormalPredictionKLDivergence(
-    ConjugateGaussianPriorOEDForLinearPredictionKLDivergence
-):
-    # The KL of two lognormals is the same as the KL of the
-    # two associated Normals
-    pass
 
 
 # TODO Consider using lognormal noise for OED
