@@ -741,7 +741,17 @@ class GaussianPushForward:
         return self._pushforward_cov
 
     def __repr__(self) -> str:
-        return "{0}".format(self.__class__.__name__)
+        if self.nqoi() > 1:
+            return "{0}(nqoi={1}, nvars={2})".format(
+                self.__class__.__name__, self.nqoi(), self.nvars()
+            )
+        return "{0}(nqoi={1}, nvars={2}, mean={3}, var={4})".format(
+            self.__class__.__name__,
+            self.nqoi(),
+            self.nvars(),
+            self.mean(),
+            self.covariance(),
+        )
 
     def pushforward_variable(self) -> DenseCholeskyMultivariateGaussian:
         """
@@ -825,8 +835,6 @@ class DenseMatrixLaplaceApproximationForPrediction:
             + self._obs_noise_cov
         )
         # step 7
-        # print 'TODO replace generalized_eigevalue_decomp by my
-        # subspace iteration'
         evals, evecs = generalized_eigevalue_decomp(A, data_cov)
         # evecs = evecs[:, ::-1]
         # evals = evals[::-1]
