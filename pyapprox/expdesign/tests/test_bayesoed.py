@@ -9,7 +9,8 @@ from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.expdesign.optbayes_benchmarks import (
     LinearGaussianBayesianOEDBenchmark,
-    BayesianOEDDiagnostics,
+    BayesianKLOEDDiagnostics,
+    BayesianOEDForPredictionDiagnostics,
     ConjugateGaussianPriorOEDForLinearPredictionKLDivergence,
     ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
     ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation,
@@ -67,7 +68,7 @@ class TestBayesOED:
         )
 
         # Initialize diagnostic
-        oed_diagnostic = BayesianOEDDiagnostics(problem)
+        oed_diagnostic = BayesianKLOEDDiagnostics(problem)
 
         # Compute MSE
         if outerloop_quadtype != "MC" or innerloop_quadtype != "MC":
@@ -76,7 +77,7 @@ class TestBayesOED:
             nrealizations = 100
         design_weights = bkd.ones((nobs, 1)) / nobs
 
-        # Test diagnostic plots run
+        # Test expected convergence rate
         outerloop_sample_counts = [500, 1000, 2000, 5000, 10000]
         innerloop_sample_counts = [250]
 
@@ -148,7 +149,7 @@ class TestBayesOED:
         )
 
         # Initialize diagnostic
-        oed_diagnostic = BayesianOEDDiagnostics(problem)
+        oed_diagnostic = BayesianKLOEDDiagnostics(problem)
         innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
             problem.get_noise_covariance_diag()[:, None],
             backend=bkd,
@@ -268,7 +269,7 @@ class TestBayesOED:
         )
 
         # Initialize diagnostic
-        oed_diagnostic = BayesianOEDDiagnostics(problem)
+        oed_diagnostic = BayesianKLOEDDiagnostics(problem)
         innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
             problem.get_noise_covariance_diag()[:, None],
             backend=bkd,
@@ -387,7 +388,7 @@ class TestBayesOED:
         )
 
         # Initialize diagnostic
-        oed_diagnostic = BayesianOEDDiagnostics(problem)
+        oed_diagnostic = BayesianKLOEDDiagnostics(problem)
         innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
             problem.get_noise_covariance_diag()[:, None],
             backend=bkd,
@@ -491,7 +492,7 @@ class TestBayesOED:
         )
 
         # Initialize diagnostic
-        oed_diagnostic = BayesianOEDDiagnostics(problem)
+        oed_diagnostic = BayesianKLOEDDiagnostics(problem)
         innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
             problem.get_noise_covariance_diag()[:, None],
             backend=bkd,
@@ -671,7 +672,7 @@ class TestBayesOED:
             backend=bkd,
             nqoi=nqoi,
         )
-        oed_diagnostic = BayesianOEDDiagnostics(problem)
+        oed_diagnostic = BayesianKLOEDDiagnostics(problem)
         innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
             problem.get_noise_covariance_diag()[:, None],
             backend=bkd,
@@ -748,22 +749,21 @@ class TestBayesOED:
 
     def _check_prediction_gaussian_OED_values(
         self,
-        nobs,
-        min_degree,
-        degree,
         noise_stat,
         risk_measure,
         deviation_measure,
-        outerloop_quadtype,
-        nouterloop_samples,
-        innerloop_quadtype,
-        ninnerloop_samples,
+        quadtype,
+        min_convergence_rate,
+        max_error,
+        utility_cls,
     ):
         bkd = self.get_backend()
+        nobs = 2
+        min_degree = 0
+        degree = 3
         nqoi = deviation_measure.npred()
-        noise_std = noise_std = 0.125 * 4
+        noise_std = 0.125 * 4
         prior_std = 0.5
-        qoi_quad_weights = bkd.full((nqoi, 1), 1.0 / nqoi)
         problem = LinearGaussianBayesianOEDBenchmark(
             nobs,
             min_degree,
@@ -773,11 +773,20 @@ class TestBayesOED:
             backend=bkd,
             nqoi=nqoi,
         )
-        oed_diagnostic = BayesianOEDDiagnostics(problem)
+        oed_diagnostic = BayesianOEDForPredictionDiagnostics(
+            problem,
+            utility_cls,
+            deviation_measure,
+            risk_measure,
+            noise_stat,
+        )
         innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
             problem.get_noise_covariance_diag()[:, None],
             backend=bkd,
         )
+        # hack
+        nouterloop_samples = 10000
+        ninnerloop_samples = 1000
         oed = BayesianOEDForPrediction(innerloop_loglike)
         (
             outerloop_samples,
@@ -785,11 +794,7 @@ class TestBayesOED:
             innerloop_samples,
             innerloop_quad_weights,
         ) = oed_diagnostic.prepare_simulation_inputs(
-            oed,
-            outerloop_quadtype,
-            nouterloop_samples,
-            innerloop_quadtype,
-            ninnerloop_samples,
+            oed, quadtype, nouterloop_samples, quadtype, ninnerloop_samples
         )
         oed.set_data_from_model(
             problem.get_observation_model(),
@@ -799,7 +804,7 @@ class TestBayesOED:
             outerloop_quad_weights,
             innerloop_samples,
             innerloop_quad_weights,
-            qoi_quad_weights,
+            problem.get_qoi_quad_weights(),
             deviation_measure,
             risk_measure,
             noise_stat,
@@ -829,6 +834,47 @@ class TestBayesOED:
         assert bkd.allclose(
             oed.objective()(design_weights), std_utility.value(), rtol=1e-2
         )
+
+        # Test expected convergence_rate
+        if quadtype != "MC":
+            nrealizations = 1
+        else:
+            nrealizations = 100
+        design_weights = bkd.ones((nobs, 1)) / nobs
+        outerloop_sample_counts = [500, 1000, 2000, 5000, 10000]
+        innerloop_sample_counts = [1000]
+
+        fig, axes = plt.subplots(
+            1, 3, figsize=(3 * 8, 6), sharex=True, sharey=True
+        )
+        values = oed_diagnostic.plot_mse_for_sample_combinations(
+            axes,
+            outerloop_sample_counts,
+            innerloop_sample_counts,
+            nrealizations,
+            design_weights,
+            quadtype,
+            quadtype,
+        )[0]
+        convergence_rate = oed_diagnostic.compute_convergence_rate(
+            outerloop_sample_counts, values["mse"][0]
+        )
+        # gauss quadrature rules obtain such small error with
+        # the number of samples requested that it will mess up estimation
+        # of convergence_rate
+        if min_convergence_rate is not None:
+            assert (
+                convergence_rate >= min_convergence_rate
+            ), f"{convergence_rate=} must be >= {min_convergence_rate}"
+        assert (
+            values["mse"][0][-1] <= max_error
+        ), f"best mse {values['mse'][0][-1]} must be >= {max_error}"
+
+        # Test adding convergence rate to plot runs
+        oed_diagnostic.add_convergence_rate_to_mse_plot(
+            axes[2], outerloop_sample_counts, values["mse"][0]
+        )
+
         raise NotImplementedError(
             "TODO: create convergence checks like used for KL oed"
         )
@@ -837,32 +883,29 @@ class TestBayesOED:
         # Note: The number of innerloop samples much more important for OED
         # for prediction
         bkd = self.get_backend()
-        noise_stats = [NoiseStatistic(SampleAverageMean(bkd))]
-        risk_measures = [
-            SampleAverageMeanPlusStdev(1, bkd),
-            SampleAverageEntropicRisk(0.5, bkd),
+        nqoi = 1
+        test_cases = [
+            [
+                NoiseStatistic(SampleAverageMean(bkd)),
+                SampleAverageMeanPlusStdev(1, bkd),
+                OEDStandardDeviationMeasure(nqoi, bkd),
+                "gauss",
+                1.0,
+                1e-2,
+                ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
+            ],
+            # [
+            #     NoiseStatistic(SampleAverageMean(bkd)),
+            #     SampleAverageEntropicRisk(1, bkd),
+            #     OEDStandardDeviationMeasure(nqoi, bkd),
+            #     "MC",
+            #     1.0,
+            #     1e-2,
+            # ],
         ]
-        nqoi = 2
-        deviation_measures = [
-            OEDStandardDeviationMeasure(nqoi, bkd),
-            # OEDEntropicDeviationMeasure(nqoi, 1.0, bkd),
-        ]
-        for noise_stat, risk_measure, deviation_measure in itertools.product(
-            noise_stats, risk_measures, deviation_measures
-        ):
+
+        for test_case in test_cases:
             np.random.seed(1)
-            test_case = [
-                2,
-                0,
-                1,
-                noise_stat,
-                risk_measure,
-                deviation_measure,
-                "MC",
-                10000,
-                "MC",
-                1000,
-            ]
             self._check_prediction_gaussian_OED_values(*test_case)
 
 
