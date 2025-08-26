@@ -3,7 +3,8 @@ import numpy as np
 from pyapprox.util.hyperparameter import (
     HyperParameter, HyperParameterList, HyperParameterTransform,
     IdentityHyperParameterTransform)
-from pyapprox.sciml.util import BackendMixin, TorchMixin, FCT
+from pyapprox.util.backends.template import BackendMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 
 class IntegralOperator(ABC):
@@ -85,7 +86,7 @@ class AffineProjectionOperator(IntegralOperator):
         self._affine_weights = HyperParameter(
             'affine_weights', self._nvars_mat, affine_weights,
             np.tile([-np.inf, np.inf], self._nvars_mat),
-            transform(backend=self._bkd))
+            transform(backend=self._bkd), backend=self._bkd)
         self._hyp_list = HyperParameterList([self._affine_weights])
         self._format_nx(nx)
 
@@ -111,7 +112,7 @@ class KernelIntegralOperator(IntegralOperator):
             raise ValueError('len(kernels) must equal channel_in')
         else:
             self._kernels = kernels
-            self._hyp_list = sum([kernel.hyp_list for kernel in kernels])
+            self._hyp_list = sum([kernel._hyp_list for kernel in kernels])
 
         self._channel_in = channel_in
         self._channel_out = channel_out
@@ -166,7 +167,7 @@ class DenseAffineIntegralOperator(IntegralOperator):
         bounds = self._default_bounds()
         self._weights_biases = HyperParameter(
             "weights_biases", self._nvars_mat, weights_biases, bounds,
-            transform(backend=self._bkd))
+            transform(backend=self._bkd), backend=self._bkd)
 
         self._hyp_list = HyperParameterList([self._weights_biases])
 
@@ -256,15 +257,17 @@ class DenseAffinePointwiseOperator(IntegralOperator):
         bounds = self._default_bounds()
         self._weights_biases = HyperParameter(
             "weights_biases_ptwise", self._nvars_mat, weights_biases, bounds,
-            transform(backend=self._bkd))
+            transform(backend=self._bkd), backend=self._bkd)
 
         self._hyp_list = HyperParameterList([self._weights_biases])
 
     def _default_values(self, v0):
         weights_biases = np.empty((self._nvars_mat,), dtype=float)
-        weights_biases[:] = (
-            np.random.normal(0, 1, self._nvars_mat) if v0 is None else
-            np.copy(v0))
+        if v0 is not None:
+            weights_biases[:] = np.copy(v0)
+        else:
+            weights_biases[:] = np.random.normal(0, 1.0/self._channel_in,
+                                                 self._nvars_mat)
         return weights_biases
 
     def _default_bounds(self):
@@ -313,7 +316,8 @@ class Reshape(IntegralOperator):
         self._bkd = backend
         self._hyps = HyperParameter(
             "reshape", 0, np.asarray([]), np.asarray([np.nan, np.nan]),
-            IdentityHyperParameterTransform(backend=self._bkd))
+            IdentityHyperParameterTransform(backend=self._bkd),
+            backend=self._bkd)
         self._hyp_list = HyperParameterList([self._hyps])
         self._output_shape = output_shape
 
@@ -445,7 +449,7 @@ class FourierHSOperator(BaseFourierOperator):
         self._R = HyperParameter(
             'FourierHS_Operator', v.size, v,
             [-self._bkd.inf(), self._bkd.inf()],
-            transform(backend=self._bkd))
+            transform(backend=self._bkd), backend=self._bkd)
         self._hyp_list = HyperParameterList([self._R])
 
     def _form_operator(self):
@@ -545,7 +549,7 @@ class FourierConvolutionOperator(BaseFourierOperator):
         self._R = HyperParameter(
             'FourierConv_Operator', v.size, v,
             [-self._bkd.inf(), self._bkd.inf()],
-            transform(backend=self._bkd))
+            transform(backend=self._bkd), backend=self._bkd)
         self._hyp_list = HyperParameterList([self._R])
 
     def _form_operator(self):
@@ -591,7 +595,7 @@ class ChebyshevConvolutionOperator(IntegralOperator):
         v[:] = 0.0 if v0 is None else np.copy(v0)
         self._R = HyperParameter(
             'Chebyshev_R', v.size, v, [-self._bkd.inf(), self._bkd.inf()],
-            transform(backend=self._bkd))
+            transform(backend=self._bkd), backend=self._bkd)
         self._hyp_list = HyperParameterList([self._R])
         self._N_tot = None
         self._W_tot_R = None
@@ -724,7 +728,7 @@ class ChebyshevIntegralOperator(IntegralOperator):
             v[:] = 0.0 if v0 is None else np.copy(v0)
         self._A = HyperParameter(
             'Chebyshev_A', v.size, v, [-self._bkd.inf(), self._bkd.inf()],
-            transform(backend=self._bkd))
+            transform(backend=self._bkd), backend=self._bkd)
         self._hyp_list = HyperParameterList([self._A])
         self._nonzero_inds = nonzero_inds
         self._chol = chol

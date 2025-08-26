@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import math
 from typing import Tuple
+import numpy as np
 
 from pyapprox.util.backends.template import Array, BackendMixin
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -471,6 +472,124 @@ class HilbertSchmidtKernel(Kernel):
             self._basis1,
             self._bkd.__name__,
         )
+
+
+class Wendland4thOrderKernel(Kernel):
+    def __init__(self, epsilon=None,
+                 backend: BackendMixin = NumpyMixin,
+                 transform=None):
+        super().__init__(backend=backend)
+        if epsilon is None:
+            epsilon = self._bkd.asarray(np.log(1 + np.exp(
+                        np.random.normal(1, 0.01))))
+        transform = LogHyperParameterTransform(backend=self._bkd)
+        self._epsilon = HyperParameter(
+            'epsilon',
+            1,
+            epsilon,
+            bounds=[0, self._bkd.inf()],
+            transform=transform,
+            backend=self._bkd,
+        )
+        self._hyp_list = HyperParameterList([self._epsilon])
+
+    def _relu(self, x: Array) -> Array:
+        return self._bkd.maximum(x, self._bkd.zeros((1,)))
+
+    def _eval_poly_part(self, eps: float, r: Array) -> Array:
+        return 35*(eps*r)**2 + 18*(eps*r) + 3.0
+
+    def __call__(self, X1: Array, X2: Array = None) -> Array:
+        if X2 is None:
+            X2 = X1
+        eps = self._hyp_list.get_values()
+        r = self._bkd.cdist(X1.T, X2.T)
+        return self._relu(1-eps*r)**6 * self._eval_poly_part(eps, r)
+
+    def input_jacobian_implemented(self) -> bool:
+        return True
+
+    def input_jacobian(self, X1: Array, X2: Array) -> Array:
+        eps = self._hyp_list.get_values()
+        r = self._bkd.cdist(X1.T, X2.T)
+        return (-6*eps*self._relu(1-eps*r)**5 * self._eval_poly_part(eps, r) +
+                self._relu(1-eps*r)**6 * (70*r*eps**2 + 18*eps))
+
+    def param_jacobian_implemented(self) -> bool:
+        return True
+
+    def param_jacobian(self, samples: Array) -> Array:
+        eps = self._hyp_list.get_values()
+        r = self._bkd.cdist(X1.T, X2.T)
+        return (-6*r*self._relu(1-eps*r)**5 * self._eval_poly_part(eps, r) +
+                self._relu(1-eps*r)**6 * (70*eps*r**2 + 18*r))
+
+    def __repr__(self) -> str:
+        return '{0}({1}, bkd={4})'.format(
+            self.__class__.__name__,
+            self._hyp_list._short_repr(),
+            self._bkd.__name__,
+        )
+
+
+class GaussianMixtureKernel(Kernel):
+    def __init__(self, d: int = 1, num_gaussians: int = 2,
+                 backend: BackendMixin = NumpyMixin):
+        super().__init__(backend=backend)
+        self._d = d
+        self._num_gaussians = num_gaussians
+        self._lambda = HyperParameter(
+            'lambda',
+            num_gaussians,
+            self._bkd.asarray(np.random.normal(0, 1, (num_gaussians,))),
+            bounds=[-self._bkd.inf(), self._bkd.inf()],
+            backend=self._bkd,
+        )
+        self._mu = HyperParameter(
+            'mu',
+            d*num_gaussians,
+            self._bkd.asarray(np.random.normal(0, 1, (d*num_gaussians,))),
+            bounds=[-self._bkd.inf(), self._bkd.inf()],
+            backend=self._bkd,
+        )
+        transform = LogHyperParameterTransform(backend=self._bkd)
+        self._nu = HyperParameter(
+            'nu',
+            d*num_gaussians,
+            self._bkd.asarray(np.log(1+np.exp(np.random.normal(1, 0.01,
+                                     (d*num_gaussians,))))),
+            bounds=[0, self._bkd.inf()],
+            transform=transform,
+            backend=self._bkd,
+        )
+        self._hyp_list = HyperParameterList([self._lambda, self._mu, self._nu])
+
+    def __repr__(self) -> str:
+        return '{0}({1}, bkd={4})'.format(
+            self.__class__.__name__,
+            self._hyp_list._short_repr(),
+            self._bkd.__name__,
+        )
+
+    def __call__(self, X1: Array, X2: Array = None) -> Array:
+        if X2 is None:
+            X2 = X1
+        lam = self._lambda.get_values()
+        mu = self._mu.get_values().reshape(self._d, self._num_gaussians)
+        nu = self._nu.get_values().reshape(self._d, self._num_gaussians)
+
+        # TO-DO: vectorize
+        tau = self._bkd.zeros((X1.shape[1], X2.shape[1], self._d))
+        for i in range(X1.shape[1]):
+            for j in range(X2.shape[1]):
+                tau[i, j, :] = X1[:, i] - X2[:, j]
+
+        out = 0.0
+        pi = 2.0 * self._bkd.arccos(self._bkd.zeros((1,)))
+        for i in range(self._num_gaussians):
+            out += (lam[i] * self._bkd.prod(self._bkd.cos(2*pi*tau*mu[:, i]) *
+                    self._bkd.exp(-2.0 * (pi*tau)**2 * nu[:, i]), axis=-1))
+        return out
 
 
 class SphericalCovarianceHyperParameter(CombinedHyperParameter):

@@ -84,13 +84,6 @@ class CERTANN():
         batch_sizes[1:(ntrain_samples % batches)] += 1
         batch_arr = self._bkd.cumsum(batch_sizes, axis=0)
 
-        if batch_index == 0:    # shuffle at beginning of epoch
-            shuffle = self._bkd.randperm(ntrain_samples)
-            self._canonical_train_samples = (
-                self._canonical_train_samples[..., shuffle])
-            self._canonical_train_values = (
-                self._canonical_train_values[..., shuffle])
-
         idx0 = int(batch_arr[batch_index].item())
         idx1 = int(batch_arr[batch_index+1].item())
         batch_approx_values = self._forward(
@@ -123,8 +116,7 @@ class CERTANN():
         # still think the hyper_params require grad. Extra copies could be
         # avoided by doing this after fit is complete. However then fit
         # needs to know when torch is being used
-        for hyp in self._hyp_list.hyper_params:
-            hyp.detach()
+        self._hyp_list.get_active_opt_params().detach()
         return val, nll_grad
 
     def _set_training_data(self, train_samples, train_values):

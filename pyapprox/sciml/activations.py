@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from pyapprox.sciml.util import BackendMixin, TorchMixin
+from pyapprox.util.backends.template import BackendMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 
 class Activation(ABC):
@@ -36,8 +37,8 @@ class GELUActivation(Activation):
     def _evaluate(self, values):
         '''Use GELU approximation'''
         pi = self._bkd.arccos(self._bkd.asarray(-1))
-        return 0.5*values*(1.0 + self._bkd.tanh(self._bkd.sqrt(2.0 / pi)) * (
-                   values + 0.044715*values**3))
+        return 0.5*values*(1.0 + self._bkd.tanh(self._bkd.sqrt(2.0 / pi) * (
+                   values + 0.044715*values**3)))
 
 
 class ELUActivation(Activation):
