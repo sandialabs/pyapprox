@@ -155,7 +155,9 @@ class CombinationSparseGrid(Regressor):
         return True
 
     def apply_jacobian_implemented(self) -> bool:
-        return True
+        # just return default implementation that calls
+        # jacobian(sample) @ vec
+        return False
 
     def apply_weighted_hessian_implemented(self) -> bool:
         return True
@@ -224,6 +226,9 @@ class CombinationSparseGrid(Regressor):
         return self._apply_weighted_hessian_using_smolyak_coefs(
             sample, vec, weights, smolyak_coefs
         )
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
 
     def _apply_hessian(
         self,
@@ -389,9 +394,6 @@ class CombinationSparseGrid(Regressor):
         if self._cand_subspace_queue is None:
             return self._values_using_only_selected_subspaces(samples)
         return self.values_using_all_subspaces(samples)
-
-    def __repr__(self) -> str:
-        return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
 
     def _plot_grid_1d(self, ax):
         ax.plot(self.train_samples()[0], self.train_samples()[0] * 0, "o")

@@ -1036,6 +1036,10 @@ class RosenbrockConstrainedOptimizationBenchmark(
         design_bounds[:, 1] = 2.0
         return DesignVariable(design_bounds)
 
+    def variable(self) -> IndependentMarginalsVariable:
+        marginals = [stats.uniform(-2, 4)] * self._nvars
+        return IndependentMarginalsVariable(marginals, backend=self._bkd)
+
     def _set_constraints(self):
         self._constraints = [RosenbrockConstraint(self._bkd)]
 

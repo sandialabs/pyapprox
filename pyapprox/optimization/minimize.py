@@ -79,12 +79,13 @@ class Constraint(Model):
             raise ValueError("bounds must be 2D np.ndarray with two columns")
         self._bounds = bounds
 
+    def get_bounds(self) -> Array:
+        return self._bounds
+
 
 class ConstraintFromModel(Constraint):
-    def __init__(
-        self, model, bounds=None, keep_feasible=False, backend=NumpyMixin
-    ):
-        super().__init__(bounds, keep_feasible, backend)
+    def __init__(self, model, bounds=None, keep_feasible=False):
+        super().__init__(bounds, keep_feasible, model._bkd)
         if not isinstance(model, Model):
             raise ValueError(
                 "constraint must be an instance of {0}".format(

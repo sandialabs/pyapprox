@@ -117,15 +117,15 @@ class TestCombination:
         # test gradients
         sample = test_samples[:, :1]
 
-        errors = sg.check_apply_jacobian(sample, disp=True)
+        errors = sg.check_apply_jacobian(sample)
         assert errors.min() / errors.max() < 1e-6
         self.apply_jacobian_implemented = lambda: False
 
-        errors = sg.check_apply_jacobian(sample, disp=True)
+        errors = sg.check_apply_jacobian(sample)
         assert errors.min() / errors.max() < 1e-6
 
         weights = bkd.ones((sg.nqoi(), 1))
-        errors = sg.check_apply_hessian(sample, weights=weights, disp=True)
+        errors = sg.check_apply_hessian(sample, weights=weights)
         assert errors.min() / errors.max() < 1e-6
 
     def test_adaptive_sparse_grid(self):

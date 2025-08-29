@@ -428,7 +428,6 @@ class Model(ABC):
         """
         if not self._bkd.jvp_implemented():
             raise NotImplementedError
-        print("A")
         return self._bkd.jvp(
             lambda x: self._values(x[:, None])[0], sample[:, 0], vec[:, 0]
         )

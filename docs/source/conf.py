@@ -159,6 +159,7 @@ example_filenames_in_order += [
     # multifidelity
     "plot_mlblue.py",
     # optimization
+    "plot_sparse_grid_surrogate_optimization.py",
     "plot_design_under_uncertainty.py",
     "plot_paper_demo.py",
 ]
