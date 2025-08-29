@@ -193,6 +193,54 @@ class CombinationSparseGrid(Regressor):
             growth_rules,
         )
 
+    def _apply_weighted_hessian_using_smolyak_coefs(
+        self, sample: Array, vec: Array, weights: Array, smolyak_coefs: Array
+    ) -> Array:
+        hvp = 0.0
+        for subspace_idx in range(self._subspace_gen.nindices()):
+            # TODO store smolyak coefficients for candidate & selected indices
+            # but set can_indices coefs to zero. Have option to evaluate sparse
+            # grid with and without can indices
+            if abs(smolyak_coefs[subspace_idx]) <= np.finfo(float).eps:
+                continue
+            hvp += smolyak_coefs[subspace_idx] * self._subspace_surrogates[
+                subspace_idx
+            ].apply_weighted_hessian(sample, vec, weights)
+        return hvp
+
+    def _apply_weighted_hessian(
+        self,
+        sample: Array,
+        vec: Array,
+        weights: Array,
+    ) -> Array:
+        """
+        Return the weighted Hessian vector product using all subspaces
+        """
+        if self._cand_subspace_queue is None:
+            smolyak_coefs = self._smolyak_coefs
+        else:
+            smolyak_coefs = self._smolyak_coefs_using_all_subspaces()
+        return self._apply_weighted_hessian_using_smolyak_coefs(
+            sample, vec, weights, smolyak_coefs
+        )
+
+    def _apply_hessian(
+        self,
+        sample: Array,
+        vec: Array,
+    ) -> Array:
+        """
+        Return the Hessian vector product using all subspaces
+        """
+        if self._cand_subspace_queue is None:
+            smolyak_coefs = self._smolyak_coefs
+        else:
+            smolyak_coefs = self._smolyak_coefs_using_all_subspaces()
+        return self._apply_weighted_hessian_using_smolyak_coefs(
+            sample, vec, self._bkd.ones((1, 1)), smolyak_coefs
+        )
+
     def nsubspace_vars(self) -> int:
         return self.nvars() + self.nrefinement_vars()
 

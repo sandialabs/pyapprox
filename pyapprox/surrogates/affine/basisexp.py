@@ -242,7 +242,6 @@ class BasisExpansion(Regressor):
 
         hess = self._basis.hessian(sample)
         coef = self.get_coefficients()
-        print(hess.shape, weights.shape, coef.shape)
         # Perform the Einstein summation to compute the Hessian-vector product
         # use optimize=True to find the best contraction
         return np.einsum(
@@ -254,7 +253,7 @@ class BasisExpansion(Regressor):
             optimize=True,
         )
 
-    def apply_hessian(self, sample: Array, vec: Array) -> Array:
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         return self._apply_weighted_hessian(
             sample, vec, self._bkd.ones((1, 1))
         )
