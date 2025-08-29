@@ -16,7 +16,7 @@ dependencies:
   - setuptools
   - sympy
   - networkx
-  - pytorch<=2.2.0
+  - pytorch
   - numba
   # make html in docs folder
   - sphinx

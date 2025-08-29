@@ -31,7 +31,7 @@ setuptools.setup(
         "matplotlib",
         "scipy >= 1.0.0",
         "sympy",
-        "torch<=2.2.0",
+        "torch",
         # coverage > 6.0 causes a wierd bug with numpy
         # e.g
         # test_scipy_gauss_legendre_pts_wts_1D (__main__.TestNumpyUtilities)
@@ -131,3 +131,6 @@ setuptools.setup(
 # torch grad errors
 # import torch
 # torch.autograd.set_detect_anomaly(True)
+
+# On osx enable GPUs if you have them with
+# conda install torchaudio torchvision -c pytorch
