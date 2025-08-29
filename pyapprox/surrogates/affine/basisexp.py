@@ -78,6 +78,12 @@ class BasisExpansion(Regressor):
     def hessian_implemented(self) -> bool:
         return self._basis.hessian_implemented()
 
+    def apply_hessian_implemented(self) -> bool:
+        return self._basis.hessian_implemented()
+
+    def apply_weighted_hessian_implemented(self) -> bool:
+        return self._basis.hessian_implemented()
+
     def hyp_list(self) -> HyperParameterList:
         return self._hyp_list
 
@@ -195,6 +201,63 @@ class BasisExpansion(Regressor):
 
     def _hessian(self, sample: Array) -> Array:
         return self._many_hessian(sample)[0]
+
+    def _apply_weighted_hessian(
+        self, sample: Array, vec: Array, weights: Array
+    ) -> Array:
+        """
+        Compute the weighted_Hessian-vector product without the sample index
+        using Einstein summation.
+
+        Returns
+        -------
+        hvp : Array (nqoi, nvars, nvecs)
+            Hessian-vector product.
+        """
+        # hess : Array
+        #     Hessian of the basis functions.
+        #     Shape: (1, nterms, nvars, nvars)
+        # coef : Array
+        #     Coefficients associated with the basis terms for each QoI.
+        #     Shape: (nterms, nqoi)
+        # vec : Array
+        #     Vector to multiply with the Hessian.
+        #     Shape: (nvars, nvecs)
+        # weights : Array
+        #     Vector to sum the rows of the Hessian.
+        #     Shape: (nvars, 1)
+
+        # "jkl": Represents the indices of the hess tensor:
+        #     j: Basis term index (nterms).
+        #     k: First variable index (nvars)
+        #     l: Second variable index (nvars).
+        # "jm": Represents the indices of the coef tensor:
+        #     j: Basis term index (nterms).
+        #     m: QoI index (nqoi).
+        # "l": Represents the indices of the vector tensor:
+        #     l: Second variable index (nvars).
+        # "mk": Specifies the output tensor:
+        #     m: QoI index (nqoi).
+        #     k: First variable index (nvars).
+
+        hess = self._basis.hessian(sample)
+        coef = self.get_coefficients()
+        print(hess.shape, weights.shape, coef.shape)
+        # Perform the Einstein summation to compute the Hessian-vector product
+        # use optimize=True to find the best contraction
+        return np.einsum(
+            "jkl, jm, m, ln -> kn",
+            hess[0],
+            coef,
+            weights[:, 0],
+            vec,
+            optimize=True,
+        )
+
+    def apply_hessian(self, sample: Array, vec: Array) -> Array:
+        return self._apply_weighted_hessian(
+            sample, vec, self._bkd.ones((1, 1))
+        )
 
     def __repr__(self):
         return "{0}(basis={1}, nqoi={2})".format(

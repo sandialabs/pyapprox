@@ -114,6 +114,20 @@ class TestCombination:
         # sg.plot_grid(plt.figure().gca())
         # sg.plot_subspace_indices(plt.figure().gca())
 
+        # test gradients
+        sample = test_samples[:, :1]
+
+        errors = sg.check_apply_jacobian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        self.apply_jacobian_implemented = lambda: False
+
+        errors = sg.check_apply_jacobian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
+        weights = bkd.ones((sg.nqoi(), 1))
+        errors = sg.check_apply_hessian(sample, weights=weights, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
     def test_adaptive_sparse_grid(self):
         bkd = self.get_backend()
         nvars, level, nqoi = 2, 3, 2

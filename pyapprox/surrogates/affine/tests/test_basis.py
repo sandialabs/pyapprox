@@ -533,7 +533,7 @@ class TestBasis:
 
         # the following checks that transform of orthonormal basis
         # computes derivatives correctly
-        nqoi = 2
+        nqoi = 3
         fun = TensorProductMonomialExpansion(
             [Monomial1D(backend=bkd) for ii in range(variable.nvars())],
             [nterms_1d] * variable.nvars(),
@@ -556,6 +556,32 @@ class TestBasis:
         )
         assert bkd.allclose(
             fun.hessian(test_samples[:, :1]), bexp.hessian(test_samples[:, :1])
+        )
+
+        vec = bkd.ones((fun.nvars(), 1))
+        weights = bkd.full((fun.nqoi(), 1), 0.5)
+
+        assert bkd.allclose(
+            bexp.apply_weighted_hessian(test_samples[:, :1], vec, weights)[
+                :, 0
+            ],
+            weights[:, 0] @ (bexp.hessian(test_samples[:, :1]) @ vec[:, 0]),
+        )
+
+        # test apply hessian which requires nqoi=1
+        nqoi = 1
+        fun = TensorProductMonomialExpansion(
+            [Monomial1D(backend=bkd) for ii in range(variable.nvars())],
+            [nterms_1d] * variable.nvars(),
+            nqoi=nqoi,
+        )
+        fun.set_coefficients(
+            bkd.array(np.random.normal(0, 1, (fun.nterms(), nqoi)))
+        )
+
+        assert bkd.allclose(
+            fun.apply_hessian(test_samples[:, :1], vec),
+            fun.hessian(test_samples[:, :1]) @ vec,
         )
 
     def test_pce_moments(self):

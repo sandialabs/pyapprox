@@ -151,6 +151,40 @@ class CombinationSparseGrid(Regressor):
         self._subspace_errors = []
         self._nunique_subspace_samples = []
 
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_weighted_hessian_implemented(self) -> bool:
+        return True
+
+    def _jacobian_using_smolyak_coefs(
+        self, sample: Array, smolyak_coefs: Array
+    ) -> Array:
+        jac = 0.0
+        for subspace_idx in range(self._subspace_gen.nindices()):
+            # TODO store smolyak coefficients for candidate & selected indices
+            # but set can_indices coefs to zero. Have option to evaluate sparse
+            # grid with and without can indices
+            if abs(smolyak_coefs[subspace_idx]) <= np.finfo(float).eps:
+                continue
+            jac += smolyak_coefs[subspace_idx] * self._subspace_surrogates[
+                subspace_idx
+            ].jacobian(sample)
+        return jac
+
+    def _jacobian(self, sample: Array) -> Array:
+        """
+        Return the Jacobian using all subspaces
+        """
+        if self._cand_subspace_queue is None:
+            smolyak_coefs = self._smolyak_coefs
+        else:
+            smolyak_coefs = self._smolyak_coefs_using_all_subspaces()
+        return self._jacobian_using_smolyak_coefs(sample, smolyak_coefs)
+
     def _set_basis_index_generator(self, growth_rules: List[IndexGrowthRule]):
         self._basis_gen = BasisIndexGenerator(
             self.nvars(),
@@ -286,7 +320,7 @@ class CombinationSparseGrid(Regressor):
     def _values_using_only_selected_subspaces(self, samples: Array) -> Array:
         return self._values_using_smolyak_coefs(samples, self._smolyak_coefs)
 
-    def values_using_all_subspaces(self, samples: Array) -> Array:
+    def _smolyak_coefs_using_all_subspaces(self) -> Array:
         queue_items = self._cand_subspace_queue.items()
         smolyak_coefs = self._smolyak_coefs
         selected_idx = self._subspace_gen._get_selected_idx()
@@ -297,6 +331,10 @@ class CombinationSparseGrid(Regressor):
             smolyak_coefs = self._adjust_smolyak_coefficients(
                 smolyak_coefs, subspace_index, selected_idx
             )
+        return smolyak_coefs
+
+    def values_using_all_subspaces(self, samples: Array) -> Array:
+        smolyak_coefs = self._smolyak_coefs_using_all_subspaces()
         return self._values_using_smolyak_coefs(samples, smolyak_coefs)
 
     def _values(self, samples: Array) -> Array:

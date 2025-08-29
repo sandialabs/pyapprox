@@ -669,7 +669,7 @@ class Model(ABC):
     ) -> Array:
         """
         Compute the matrix vector product of the Hessian,
-        of a weighted combinatino of the QoI, with a vector.
+        of a weighted combination of the QoI, with a vector.
 
         Parameters
         ----------
