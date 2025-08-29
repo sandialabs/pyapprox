@@ -1,4 +1,4 @@
-name: pyapprox-base
+name: pyapprox
 channels:
   - pytorch
   - conda-forge
@@ -19,9 +19,18 @@ dependencies:
   - networkx
   - pytorch
   - numba
+  # gpu support
+  - torchvision
+  - torchaudio
+  # linting
+  - jedi
+  - black
+  - flake8
+  - yapf==0.40.1 
   # make html in docs folder
   - sphinx
   - sphinx-gallery
+  - jupyter
   - pip:
     - scikit-fem
     - sphinx_copybutton
@@ -29,3 +38,4 @@ dependencies:
     - numpydoc
     - sphinx_automodapi
     - umbridge
+    - autopep8

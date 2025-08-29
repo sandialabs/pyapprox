@@ -4,6 +4,18 @@ import numpy as np
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+docs_extras = [
+    "numpydoc",
+    "sphinx",
+    "sphinx_automodapi",
+    "sphinx_rtd_theme",
+    "sphinx-gallery",
+    "jupyter",
+]
+lint_extras = ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8"]
+gpu_extras = ["torchaudio", "torchvision"]
+
+
 setuptools.setup(
     name="pyapprox",
     version="1.1.0",
@@ -23,11 +35,13 @@ setuptools.setup(
     include_dirs=[np.get_include()],
     setup_requires=[
         "setuptools",
-        "numpy >= 1.20, <=1.26.4",
+        # "numpy >= 1.20, <=1.26.4",
+        "numpy >= 1.20",
         "scipy >= 1.0.0",
     ],
     install_requires=[
-        "numpy >= 1.20, <=1.26.4",
+        # "numpy >= 1.20, <=1.26.4",
+        "numpy >= 1.20",
         "matplotlib",
         "scipy >= 1.0.0",
         "sympy",
@@ -46,21 +60,14 @@ setuptools.setup(
         "umbridge",
     ],
     extras_require={
-        "docs": [
-            "numpydoc",
-            "sphinx",
-            "sphinx_automodapi",
-            "sphinx_rtd_theme",
-            "sphinx-gallery",
-            "jupyter",
-        ],
+        "docs": docs_extras,
         # yapf 0.40.2 has bug that prevents its use with elpy
-        "lint": ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8"],
+        "lint": lint_extras,
+        "gpu": gpu_extras,
+        "all": docs_extras + lint_extras + gpu_extras,
     },
-    # ext_modules=extensions,
     license="MIT",
 )
-
 # TODO see https://pytest-cov.readthedocs.io/en/latest/config.html
 # to add config file for coverage tests to exclude certain files from coverage tests
 

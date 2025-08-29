@@ -41,9 +41,17 @@ Once the new environment, or an existing environment, has been activated run the
 
 The -e argument specifies to install softlinks so that any changes made by the user to the source in the source folders are reflected in the install when importing modules.
 
+To use conda to install pyapprox  will all extras create the environment with::
+
+   conda env create -f ~/pyapprox/environment_w_extras.yml
+
+then run::
+   pip install -e.[all]
+
+
 Conda+Mamba
 ^^^^^^^^^^^
-Installing this package with conda can be slow due to limitations of Conda (not PyApprox). The speed of install can be improved using Mamba
+If installing this package with conda is slow due to limitations of Conda (not PyApprox). The speed of install can be improved using Mamba
 
 Before creating an enviornment install Mamba with::
 
@@ -71,6 +79,18 @@ To install PyApprox entirely with pip simply run the following in the PyApprox r
 
 Troubleshooting
 ^^^^^^^^^^^^^^^
+Building PyApprox with a mixture of conda and pip can introduce errors. We recomment using one or the other. For example installing pytorch with conda then installing torchvision and torchaudio with pip can cause an error like::
+
+    Error #15: Initializing libomp.dylib, but found libomp.dylib already initialized.
+
+To use conda to install pyapprox  will all extras create the environment with::
+
+   conda env create -f ~/pyapprox/environment_w_extras.yml
+
+then run::
+   pip install -e.[all]
+    
+
 Sometimes pip will cause incompatabilities with your currently installed packages and will fail. If so try to reinstall with::
 
     pip install -e . --no-build-isolation
@@ -146,3 +166,37 @@ add the following at the end of the file if not already present::
   On windows may need to install visual studio. See https://docs.microsoft.com/en-us/cpp/build/vscpp-step-0-installation?view=vs-2019
   On windows not sure how to set proxy for pip so use
   pip install --proxy https://proxy.address <package>
+
+
+GPU Support
+-----------
+Pyapprox can be used with both NumPy and Torch. To enable GPU support with Torch
+in the base package directory run::
+  
+    pip install -e .[gpu]
+
+or if installing from PyPi first ::
+
+    pip install pyapprox[gpu]
+
+If using Linux or windows add the following code::
+  
+    torch.set_default_tensor_type(torch.cuda.DoubleTensor)
+
+If using OSX in your script add the following code::
+
+    torch.set_default_device("mps")
+    torch.set_default_dtype(torch.float)
+
+PyApprox use torch.double as the default dtype, howver OSX does not support double when using GPU so the first second above overides this default. Warning:
+lower precision will and affect the stability and accuracy of PyApprox functions.
+  
+Enable Developer Environment
+----------------------------
+Python uses black 8 with max-line length of 79. To enable the linting employed by Pyapprox run::
+
+    pip install -e .[lint]
+
+Note: All dependencies can be installed using::
+
+    pip install -e .[all]

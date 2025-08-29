@@ -35,9 +35,6 @@ class TestBenchmarks:
     def setUp(self):
         np.random.seed(1)
 
-    def get_backend(self):
-        return NumpyMixin
-
     def test_ishigami(self):
         bkd = self.get_backend()
         benchmark = IshigamiBenchmark(a=7, b=0.1, backend=bkd)
