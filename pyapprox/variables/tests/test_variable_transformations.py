@@ -56,7 +56,7 @@ class TestVariableTransforms:
         # second sample is on right boundary of all bounded variables
         # and one standard deviation to right of mean for gaussian variable
         true_user_samples = bkd.asarray(
-            [[-1, -1, -3, 0, -1, -2], [1, 1, 1, 1, 1, 1]]
+            [[-1, -1, -3, 0, -1, -2], [1, 1, 1.0, 1, 1, 1]]
         ).T
 
         canonical_samples = var_trans.map_to_canonical(true_user_samples)
@@ -96,7 +96,7 @@ class TestVariableTransforms:
         # second sample is on right boundary of all bounded variables
         # and one standard deviation to right of mean for gaussian variable
         true_user_samples = bkd.asarray(
-            [[0, -3, -3, 0, -3, 0, 0, 0], [1, 1, 1, ntrials, 1, 1, 1, 10]]
+            [[0, -3, -3, 0, -3, 0, 0, 0], [1, 1, 1.0, ntrials, 1, 1, 1, 10]]
         ).T
 
         canonical_samples = var_trans.map_to_canonical(true_user_samples)

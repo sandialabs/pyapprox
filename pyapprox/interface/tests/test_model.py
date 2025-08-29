@@ -224,7 +224,7 @@ class TestModel:
             values_ndim=0,
             backend=bkd,
         )
-        sample = bkd.array([2, 0])[:, None]
+        sample = bkd.array([2.0, 0])[:, None]
         errors = model.check_apply_jacobian(sample)
         assert errors.min() / errors.max() < 1e-6
 
@@ -236,7 +236,7 @@ class TestModel:
             jacobian=lambda x: bkd.array([[2 * (x[0] - 1), 2 * (x[1] - 2.5)]]),
             apply_jacobian=lambda x, v: 2 * (x[0] - 1) * v[0]
             + 2 * (x[1] - 2.5) * v[1],
-            hessian=lambda x: bkd.diag(bkd.array([2, 2]))[None, ...],
+            hessian=lambda x: bkd.diag(bkd.array([2.0, 2]))[None, ...],
             sample_ndim=1,
             values_ndim=0,
             backend=bkd,
@@ -796,34 +796,34 @@ if __name__ == "__main__":
             nvars,
             lambda x: bkd.hstack(
                 [
-                    1 * ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2),
-                    2 * ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2),
+                    1.0 * ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2),
+                    2.0 * ((x[0] - 1.0) ** 2 + (x[1] - 2.5) ** 2),
                 ],
             ),
             jacobian=lambda x: bkd.stack(
                 [
-                    1 * bkd.array([2 * (x[0] - 1), 2 * (x[1] - 2.5), 0]),
-                    2 * bkd.array([2 * (x[0] - 1), 2 * (x[1] - 2.5), 0]),
+                    1 * bkd.array([2.0 * (x[0] - 1), 2 * (x[1] - 2.5), 0]),
+                    2 * bkd.array([2.0 * (x[0] - 1), 2 * (x[1] - 2.5), 0]),
                 ],
                 axis=0,
             ),
             apply_jacobian=lambda x, v: bkd.stack(
                 [
-                    1 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1]),
-                    2 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1]),
+                    1.0 * (2.0 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1]),
+                    2.0 * (2.0 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1]),
                 ],
                 axis=0,
             ),
             hessian=lambda x: bkd.stack(
                 [
-                    bkd.diag(bkd.array([2, 2, 0])),
-                    bkd.diag(bkd.array([4, 4, 0])),
+                    bkd.diag(bkd.array([2.0, 2, 0])),
+                    bkd.diag(bkd.array([4.0, 4, 0])),
                 ]
             ),
             apply_hessian=lambda x, v: bkd.stack(
                 [
-                    bkd.diag(bkd.array([2, 2, 0])) @ v,
-                    bkd.diag(bkd.array([4, 4, 0])) @ v,
+                    bkd.diag(bkd.array([2.0, 2, 0])) @ v,
+                    bkd.diag(bkd.array([4.0, 4, 0])) @ v,
                 ],
                 axis=0,
             ),
@@ -863,8 +863,8 @@ if __name__ == "__main__":
             apply_jacobian=lambda x, v: bkd.asarray(
                 [1 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1])]
             ),
-            hessian=lambda x: bkd.stack([bkd.diag(bkd.array([2, 2, 0]))]),
-            apply_hessian=lambda x, v: bkd.diag(bkd.array([2, 2, 0])) @ v,
+            hessian=lambda x: bkd.stack([bkd.diag(bkd.array([2.0, 2, 0]))]),
+            apply_hessian=lambda x, v: bkd.diag(bkd.array([2.0, 2, 0])) @ v,
             sample_ndim=1,
             values_ndim=1,
             backend=bkd,
@@ -935,7 +935,7 @@ class TestTorchModel(TestModel, unittest.TestCase):
                 return 2
 
         target_model = MyModel(backend=bkd)
-        sample = bkd.array([1, 1])[:, None]
+        sample = bkd.array([1.0, 1])[:, None]
 
         target_model.jacobian_implemented = lambda: True
         errors = target_model.check_apply_jacobian(sample, disp=True)
@@ -950,7 +950,7 @@ class TestTorchModel(TestModel, unittest.TestCase):
         target_model.jacobian_implemented = lambda: True
         target_model.apply_weighted_hessian_implemented = lambda: True
         errors = target_model.check_apply_hessian(
-            sample, disp=True, weights=bkd.array([2, 2])[:, None]
+            sample, disp=True, weights=bkd.array([2.0, 2])[:, None]
         )
         assert errors.min() / errors.max() < 1e-6
         target_model.jacobian_implemented = lambda: False
@@ -972,7 +972,7 @@ class TestTorchModel(TestModel, unittest.TestCase):
                 return 2
 
         target_model = MyModel(backend=bkd)
-        sample = bkd.array([1, 1])[:, None]
+        sample = bkd.array([1.0, 1])[:, None]
 
         target_model.jacobian_implemented = lambda: True
 

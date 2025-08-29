@@ -1101,7 +1101,7 @@ class SampleAverageConditionalValueAtRisk(SampleAverageStat):
         super().__init__(backend)
         alpha = self._bkd.atleast1d(self._bkd.asarray(alpha))
         self._alpha = alpha
-        self._max = SmoothLogBasedMaxFunction(eps, backend=self._bkd)
+        self._max = SmoothLogBasedMaxFunction(1, eps, backend=self._bkd)
         self._t = None
 
     def set_value_at_risk(self, t: float):
@@ -1150,7 +1150,7 @@ class SampleAverageConstraint(ConstraintFromModel):
         backend: BackendMixin = NumpyMixin,
     ):
         self._stat = stat
-        super().__init__(model, design_bounds, keep_feasible, backend=backend)
+        super().__init__(model, design_bounds, keep_feasible)
         if samples.ndim != 2 or weights.ndim != 2 or weights.shape[1] != 1:
             raise ValueError("shapes of samples and/or weights are incorrect")
         if samples.shape[1] != weights.shape[0]:
@@ -1452,7 +1452,7 @@ class MiniMaxObjective(SingleSampleModel):
         )[None, :]
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        return self._bkd.zeros((sample.shape[0],))
+        return self._bkd.zeros((sample.shape[0], vec.shape[1]))
 
 
 class AVaRObjective(SingleSampleModel):
@@ -1498,7 +1498,7 @@ class AVaRObjective(SingleSampleModel):
         )[None, :]
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        return self._bkd.zeros((sample.shape[0],))
+        return self._bkd.zeros((sample.shape[0], vec.shape[1]))
 
 
 class SlackBasedConstraintFromModel(Constraint):

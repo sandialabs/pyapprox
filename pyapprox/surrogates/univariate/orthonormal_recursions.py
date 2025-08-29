@@ -44,9 +44,11 @@ def jacobi_recurrence(
     ab[0, 0] = (beta - alpha) / (alpha + beta + 2.0)
     ab[0, 1] = bkd.exp(
         (alpha + beta + 1.0) * math.log(2.0)
-        + sp.gammaln(alpha + 1.0)
-        + sp.gammaln(beta + 1.0)
-        - sp.gammaln(alpha + beta + 2.0)
+        + bkd.asarray(
+            sp.gammaln(bkd.to_numpy(alpha + 1.0))
+            + sp.gammaln(bkd.to_numpy(beta + 1.0))
+            - sp.gammaln(bkd.to_numpy(alpha + beta + 2.0))
+        )
     )
 
     if N > 1:
@@ -106,7 +108,9 @@ def hermite_recurrence(
         return bkd.ones((0, 2))
 
     ab = bkd.zeros((Nterms, 2))
-    ab[0, 1] = sp.gamma(rho + 0.5)  # = bkd.sqrt(bkd.pi) for rho=0
+    ab[0, 1] = bkd.asarray(
+        sp.gamma(bkd.to_numpy(rho + 0.5))
+    )  # = bkd.sqrt(bkd.pi) for rho=0
 
     if rho == 0 and probability:
         ab[1:, 1] = bkd.arange(1.0, Nterms)

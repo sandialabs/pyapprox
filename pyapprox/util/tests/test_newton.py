@@ -93,7 +93,7 @@ class TestNewton:
         res.set_param(sample[:, 0])
         solver = NewtonSolver()
         solver.set_residual(res)
-        init_iterate = bkd.array([-1, -1])
+        init_iterate = bkd.array([-1, -1.0])
         sol = solver.solve(init_iterate)
 
         a, b = sample[:, 0]
@@ -121,7 +121,7 @@ class TestNewton:
         )
         assert bkd.allclose(adj_sol, exact_adj_sol)
 
-        vec = bkd.array([1, 2])
+        vec = bkd.array([1.0, 2.0])
         hess_fwd_sol = adjoint_solver.forward_hessian_solve(vec)
         exact_hess_fwd_sol = bkd.array(
             [
@@ -157,15 +157,15 @@ class TestNewton:
             apply_hessian_implemented=True,
         )
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
-        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
+        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
         # exact answer computed using mathematica
         hvp_exact = bkd.array([0.390549158575547, 3.82494342170840])
         assert bkd.allclose(
-            model.apply_hessian(sample, vec[:, None]), hvp_exact
+            model.apply_hessian(sample, vec[:, None]), hvp_exact[:, None]
         )
-        errors = model.check_apply_hessian(sample, fd_eps=fd_eps, disp=True)
+        errors = model.check_apply_hessian(sample, fd_eps=fd_eps, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_nonlinear_coupled_residual(self):
@@ -199,9 +199,9 @@ class TestNewton:
             apply_hessian_implemented=True,
         )
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
-        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
+        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=False)
         assert errors.min() / errors.max() < 1e-6
-        errors = model.check_apply_hessian(sample, fd_eps=fd_eps, disp=True)
+        errors = model.check_apply_hessian(sample, fd_eps=fd_eps, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_forward_parameter_jacobian(self):
@@ -220,14 +220,14 @@ class TestNewton:
         )
         sample = bkd.array([0.8, 1.1])[:, None]
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
-        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
+        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
         if not bkd.jacobian_implemented():
             return
         functional = VectorSumFunctionalAuto(backend=bkd)
         model.set_functional(functional)
-        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=True)
+        errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_bisection_search(self):
@@ -285,7 +285,6 @@ class TestNewton:
         )
         newton = NewtonSolver(verbosity=0, rtol=1e-10, atol=1e-10)
         newton.set_residual(bounded_residual)
-        print(can_iterate, "c")
         # iterate = bkd.sqrt(residual._rhs) + 0.1
         # can_iterate = bounded_residual._to_canonical(iterate)
         can_roots = newton.solve(can_iterate)

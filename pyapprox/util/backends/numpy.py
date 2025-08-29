@@ -12,7 +12,7 @@ class NumpyMixin(BackendMixin):
         return np.dot(Amat, Bmat)
 
     @staticmethod
-    def eye(nrows: int, ncols: int = None, dtype=float) -> np.ndarray:
+    def eye(nrows: int, ncols: int = None, dtype=None) -> np.ndarray:
         return np.eye(nrows, ncols, dtype=dtype)
 
     @staticmethod
@@ -54,23 +54,23 @@ class NumpyMixin(BackendMixin):
         return scipy.linalg.solve_triangular(Amat, bvec, lower=lower)
 
     @staticmethod
-    def full(*args, dtype=float):
+    def full(*args, dtype=None):
         return np.full(*args, dtype=dtype)
 
     @staticmethod
-    def zeros(*args, dtype=float):
+    def zeros(*args, dtype=None):
         return np.zeros(*args, dtype=dtype)
 
     @staticmethod
-    def ones(*args, dtype=float):
+    def ones(*args, dtype=None):
         return np.ones(*args, dtype=dtype)
 
     @staticmethod
-    def empty(*args, dtype=float):
+    def empty(*args, dtype=None):
         return np.empty(*args, dtype=dtype)
 
     @staticmethod
-    def empty_like(*args, dtype=float):
+    def empty_like(*args, dtype=None):
         return np.empty_like(*args, dtype=dtype)
 
     @staticmethod
@@ -342,7 +342,7 @@ class NumpyMixin(BackendMixin):
         return np.count_nonzero(matrix, axis=axis)
 
     @staticmethod
-    def array(array, dtype=float):
+    def array(array, dtype=None):
         return np.array(array, dtype=dtype)
 
     @staticmethod
@@ -393,7 +393,7 @@ class NumpyMixin(BackendMixin):
         return np.ceil(array)
 
     @staticmethod
-    def asarray(array, dtype=float):
+    def asarray(array, dtype=None):
         return np.asarray(array, dtype=dtype)
 
     @staticmethod

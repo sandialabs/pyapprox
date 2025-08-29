@@ -57,7 +57,7 @@ class TestKernels:
         )
 
         kernel_periodic = PeriodicMaternKernel(
-            0.5, 1.0, [1e-1, 1], 1, [1e-1, 1], backend=bkd
+            0.5, 1.0, [1e-1, 1], 1.0, [1e-1, 1], backend=bkd
         )
         values = bkd.asarray([0.5, 0.5])
         kernel_periodic.hyp_list().set_active_opt_params(bkd.log(values))
@@ -95,18 +95,18 @@ class TestKernels:
         kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
         self._check_kernel_param_jacobian(kernel, nsamples, nvars)
 
-        const = 1
+        const = 1.0
         kernel = ConstantKernel(const, backend=bkd) * MaternKernel(
             np.inf, 1.0, [1e-1, 1], nvars, backend=bkd
         )
         self._check_kernel_param_jacobian(kernel, nsamples, nvars)
 
-        kernel = GaussianNoiseKernel(1, [1e-2, 10], backend=bkd)
+        kernel = GaussianNoiseKernel(1.0, [1e-2, 10], backend=bkd)
         self._check_kernel_param_jacobian(kernel, nsamples, nvars)
 
         kernel = MaternKernel(
             np.inf, 1.0, [1e-1, 1], nvars, backend=bkd
-        ) + GaussianNoiseKernel(1, [1e-2, 10], backend=bkd)
+        ) + GaussianNoiseKernel(1.0, [1e-2, 10], backend=bkd)
         self._check_kernel_param_jacobian(kernel, nsamples, nvars)
 
 

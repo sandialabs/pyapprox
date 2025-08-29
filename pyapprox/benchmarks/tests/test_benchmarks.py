@@ -46,7 +46,6 @@ class TestBenchmarks:
         samples = benchmark.variable().rvs(1e5)
         values = benchmark.model()(samples)
         assert bkd.allclose(bkd.mean(values), benchmark.mean(), rtol=1e-2)
-        print(values.shape)
         assert bkd.allclose(
             bkd.var(values, ddof=1), benchmark.variance(), rtol=1e-2
         )
@@ -72,7 +71,6 @@ class TestBenchmarks:
         benchmark = SobolGBenchmark(backend=bkd)
         samples = benchmark.variable().rvs(1e5)
         values = benchmark.model()(samples)
-        print(benchmark.mean(), bkd.mean(values))
         assert bkd.allclose(bkd.mean(values), benchmark.mean(), rtol=1e-2)
         assert bkd.allclose(
             bkd.var(values, ddof=1), benchmark.variance(), rtol=1e-2
@@ -153,7 +151,7 @@ class TestBenchmarks:
 
     def _check_genz(self, name, nvars, decay):
         bkd = self.get_backend()
-        cfactor, wfactor = 1, 0.5
+        cfactor, wfactor = 1.0, 0.5
         benchmark = GenzBenchmark(
             name, nvars, decay, cfactor, wfactor, backend=bkd
         )

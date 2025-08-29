@@ -11,7 +11,10 @@ from matplotlib.gridspec import GridSpec
 from pyapprox.util.backends.template import Array
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.pde.collocation.basis import OrthogonalCoordinateCollocationBasis
-from pyapprox.surrogates.affine.kle import MeshKLE, PeriodicReiszGaussianRandomField
+from pyapprox.surrogates.affine.kle import (
+    MeshKLE,
+    PeriodicReiszGaussianRandomField,
+)
 from pyapprox.pde.collocation.sparsejac import (
     SparseJacobian,
     ZeroJac,

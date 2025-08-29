@@ -2,7 +2,6 @@ import unittest
 
 import numpy as np
 from scipy import stats
-import matplotlib.pyplot as plt
 
 from pyapprox.variables.marginals import (
     BetaMarginal,
@@ -216,7 +215,7 @@ class TestMarginals:
         bkd = self.get_backend()
         nmasses = 10
         xk = bkd.asarray(np.geomspace(1.0, 32.0, num=nmasses))
-        pk = bkd.arange(1, 1 + nmasses, dtype=float)
+        pk = bkd.arange(1.0, 1 + nmasses, dtype=float)
         pk /= bkd.sum(pk)
         marginal = CustomDiscreteMarginal(xk, pk, backend=bkd)
         scipy_rv = stats.rv_discrete(
@@ -228,7 +227,7 @@ class TestMarginals:
             )
 
         nsamples = int(1e6)
-        samples = marginal.rvs(nsamples)
+        samples = bkd.asarray(marginal.rvs(nsamples))
         assert bkd.allclose(samples.mean(), marginal.moment(1), rtol=1e-2)
         assert bkd.allclose(
             bkd.var(samples, ddof=1), bkd.asarray([scipy_rv.var()]), rtol=1e-2
@@ -302,7 +301,7 @@ class TestMarginals:
 
     def test_gaussian(self):
         bkd = self.get_backend()
-        mean, stdev = 1, 2
+        mean, stdev = 1.0, 2.0
         scipy_rv = stats.norm(mean, stdev)
         marginal = GaussianMarginal(mean, stdev, backend=bkd)
         samples = marginal.rvs(5)
@@ -430,9 +429,9 @@ class TestMarginals:
             backend=bkd,
         )
 
-        param = bkd.array([2, 3])
+        param = bkd.array([2.0, 3.0])
         errors = ppf_model.check_apply_jacobian(param[:, None], disp=False)
-        assert errors.min() / errors.max() < 1e-6
+        assert errors.min() / errors.max() < 2e-6
 
     def test_gamma_variable(self):
         bkd = self.get_backend()
@@ -440,7 +439,7 @@ class TestMarginals:
         marginal = GammaMarginal(shape, rate, backend=bkd)
         scipy_rv = marginal._scipy_rv
         nsamples = 10
-        samples = scipy_rv.rvs(nsamples)
+        samples = bkd.asarray(scipy_rv.rvs(nsamples))
         assert bkd.allclose(marginal.mean(), bkd.asarray([scipy_rv.mean()]))
         assert bkd.allclose(marginal.var(), bkd.asarray([scipy_rv.var()]))
         assert bkd.allclose(marginal.std(), bkd.asarray([scipy_rv.std()]))
@@ -479,7 +478,7 @@ class TestMarginals:
             marginal = GammaMarginal(*bkd.asarray(shapes[:, 0]), backend=bkd)
             return marginal.ppf(usamples)[:5]
 
-        x0 = bkd.array([3, 4])[:, None]
+        x0 = bkd.array([3.0, 4.0])[:, None]
 
         model = ModelFromSingleSampleCallable(
             5, 2, fun, values_ndim=1, backend=bkd

@@ -109,7 +109,7 @@ class TestMinimize(unittest.TestCase):
         errors = benchmark.constraints()[0].check_apply_hessian(
             init_iterate, weights=np.ones((1, 1))
         )
-        print(benchmark.constraints()[0].work_tracker())
+        # print(benchmark.constraints()[0].work_tracker())
         assert (
             benchmark.constraints()[0].work_tracker().nevaluations("whess")
             == 1
@@ -283,10 +283,8 @@ class TestMinimize(unittest.TestCase):
                 # only change the parts of jacobian that depend on x
                 # must compute gradient with respect to each entry of x
                 # not just design vars
-                self._jac[0, 0] = x[
-                    self._nrandom_vars : self._nrandom_vars + 1, 0
-                ]
-                self._jac[0, -1] = x[:1, 0]
+                self._jac[0, 0] = x[self._nrandom_vars, 0]
+                self._jac[0, -1] = x[0, 0]
                 return self._jac
 
             def _hessian(self, x):
@@ -385,7 +383,7 @@ class TestMinimize(unittest.TestCase):
         assert errors.min() / errors.max() < 1e-6
         # rectivate when  sampleaveragecvar.hessian is implemented
         # errors = objective.check_apply_hessian(
-        #     opt_x0, disp=True, relative=False
+        #     opt_x0, disp=False, relative=False
         # )
         # assert errors.max() < 1e-15
         errors = constraint.check_apply_jacobian(opt_x0)
@@ -414,7 +412,7 @@ class TestMinimize(unittest.TestCase):
             # tighten opt and allclose tolerances once hessian is implemented
             opts={"gtol": 6e-5, "maxiter": 5000},
         )
-        optimizer.set_verbosity(1)
+        optimizer.set_verbosity(0)
         result = optimizer.minimize(opt_x0)
 
         # errors in sample based estimate of CVaR will cause
@@ -483,7 +481,7 @@ class TestMinimize(unittest.TestCase):
 
         res = minimax.minimize(iterate)
         # Constraint is active and max is found when all original variables = 5
-        print(res.x)
+        # print(res.x)
         assert bkd.allclose(res.x, bkd.full((3,), 5.0))
         assert bkd.allclose(res.fun, bkd.full((1,), 125.0), rtol=1e-2)
 
@@ -516,27 +514,27 @@ class TestMinimize(unittest.TestCase):
 
         # check gradients
         errors = minimax._constraint_from_objective.check_apply_jacobian(
-            iterate, disp=True
+            iterate, disp=False
         )
         assert errors.min() / errors.max() < 1e-6
         # weights = bkd.ones((nsamples, 1))
         # errors = minimax._constraint_from_objective.check_apply_hessian(
-        #     iterate, weights=weights, disp=True
+        #     iterate, weights=weights, disp=False
         # )
         # assert errors.min() / errors.max() < 1e-6
 
         iterate = bkd.full((nsamples + 1, 1), bkd.max(samples))
-        print(minimax._constraint_from_objective(iterate))
+        # print(minimax._constraint_from_objective(iterate))
         minimax.set_bounds(None)
-        optimizer.set_verbosity(3)
+        optimizer.set_verbosity(0)
         res = minimax.minimize(iterate)
         opt_avar = res.fun
         opt_var = res.slack[0]
 
         lin_avar, lin_var = AVaR.optimize()
 
-        print(opt_var, lin_var, AVaR()[1], "VAR")
-        print(opt_avar, lin_avar, AVaR()[0], "AVAR")
+        # print(opt_var, lin_var, AVaR()[1], "VAR")
+        # print(opt_avar, lin_avar, AVaR()[0], "AVAR")
 
         assert bkd.allclose(lin_avar, AVaR()[0])
         assert bkd.allclose(lin_var, AVaR()[1])
@@ -586,18 +584,18 @@ class TestMinimize(unittest.TestCase):
         )
         assert errors.min() / errors.max() < 1e-6
         errors = minimax._constraint_from_objective.check_apply_hessian(
-            iterate, weights=weights, disp=True
+            iterate, weights=weights, disp=False
         )
         assert errors.min() / errors.max() < 1e-6
 
         iterate[0] = 1e6
         res = minimax.minimize(iterate)
         # Constraint is active and max is found when all original variables = 5
-        print(res.x)
-        print(res.slack)
-        print(res.fun, "f")
-        print(np.mean(model(res.x)))
-        print(np.median(model(res.x)))
+        # print(res.x)
+        # print(res.slack)
+        # print(res.fun, "f")
+        # print(np.mean(model(res.x)))
+        # print(np.median(model(res.x)))
         raise NotImplementedError
 
     def _adam_objective(self):
@@ -728,11 +726,11 @@ class TestMinimize(unittest.TestCase):
         nsamples = 5
         samples = bkd.linspace(-1, 1, nsamples)[None, :]
         fun = SmoothLogBasedMaxFunction(2, 1e-1, 1e2, 1e-1, backend=bkd)
-        errors = fun.check_first_derivative(samples, disp=True)
+        errors = fun.check_first_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
-        errors = fun.check_second_derivative(samples, disp=True)
+        errors = fun.check_second_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
-        errors = fun.check_third_derivative(samples, disp=True)
+        errors = fun.check_third_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_smooth_log_based_left_heaviside_function(self):
@@ -742,9 +740,9 @@ class TestMinimize(unittest.TestCase):
         fun = SmoothLogBasedLeftHeavisideFunction(
             2, 1e-2, 1e2, 1e-2, backend=bkd
         )
-        errors = fun.check_first_derivative(samples, disp=True)
+        errors = fun.check_first_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
-        errors = fun.check_second_derivative(samples, disp=True)
+        errors = fun.check_second_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_smooth_quartic_based_left_heaviside_function(self):
@@ -753,9 +751,9 @@ class TestMinimize(unittest.TestCase):
         eps = 1e-2
         samples = bkd.linspace(-3e-1, 3e-1, nsamples)[None, :]
         fun = SmoothQuarticBasedLeftHeavisideFunction(2, eps, backend=bkd)
-        errors = fun.check_first_derivative(samples, disp=True)
+        errors = fun.check_first_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
-        errors = fun.check_second_derivative(samples, disp=True)
+        errors = fun.check_second_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_smooth_quintic_based_left_heaviside_function(self):
@@ -764,9 +762,9 @@ class TestMinimize(unittest.TestCase):
         eps = 1e-2
         samples = bkd.linspace(-3e-1, 3e-1, nsamples)[None, :]
         fun = SmoothQuinticBasedLeftHeavisideFunction(2, eps, backend=bkd)
-        errors = fun.check_first_derivative(samples, disp=True)
+        errors = fun.check_first_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
-        errors = fun.check_second_derivative(samples, disp=True)
+        errors = fun.check_second_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_smoothed_conditional_value_at_risk(self):
@@ -792,7 +790,7 @@ class TestMinimize(unittest.TestCase):
             None, :
         ]
         weights = bkd.full((nsamples, 1), 1 / nsamples)
-        print(smooth_avar(samples.T, weights) - exact_avar, exact_avar)
+        # print(smooth_avar(samples.T, weights) - exact_avar, exact_avar)
         assert bkd.allclose(
             smooth_avar(samples.T, weights), exact_avar, rtol=1e-5
         )
@@ -811,7 +809,7 @@ class TestMinimize(unittest.TestCase):
         )[None, :]
         weights = bkd.full((nsamples, 1), 1 / nsamples)
         weights *= rv.pdf(samples.T) / dominating_rv.pdf(samples.T)
-        print(smooth_avar(samples.T, weights) - exact_avar, exact_avar)
+        # print(smooth_avar(samples.T, weights) - exact_avar, exact_avar)
         assert bkd.allclose(
             smooth_avar(samples.T, weights), exact_avar, rtol=1e-5
         )
@@ -843,7 +841,7 @@ class TestMinimize(unittest.TestCase):
         risks = GaussianAnalyticalRiskMeasures(1.0, bkd.sqrt(2.0))
         exact_avar = risks.AVaR(beta)
         assert bkd.allclose(exact_avar, model(params), rtol=1e-2)
-        errors = model.check_apply_jacobian(params, disp=True)
+        errors = model.check_apply_jacobian(params, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_smoothed_conditional_value_at_risk_deviation(self):
@@ -867,9 +865,9 @@ class TestMinimize(unittest.TestCase):
         weights = bkd.full((nsamples, 1), 1 / nsamples)
         weights *= rv.pdf(samples.T) / dominating_rv.pdf(samples.T)
         smooth_avardev.set_mean(mu)
-        print(
-            smooth_avardev(samples.T, weights) - exact_avardev, exact_avardev
-        )
+        # print(
+        #     smooth_avardev(samples.T, weights) - exact_avardev, exact_avardev
+        # )
         assert bkd.allclose(
             smooth_avardev(samples.T, weights), exact_avardev, rtol=1e-5
         )

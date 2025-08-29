@@ -242,7 +242,7 @@ class PyApproxPaperAdvectionDiffusionKLEInversionModel(
         self._source_scale = source_scale
         super().__init__(newton_solver, functional, backend)
 
-        # original paper defiend velocity field as [1, 0] everywhere
+        # original paper defined velocity field as [1, 0] everywhere
         # however the code used to produce that paper defined flux
         # with the wrong sign and the flux did not account for the velocity
         # to make field look similar to paper we set velocity to 0.01 here

@@ -39,7 +39,7 @@ def get_tensor_product_quadrature_rule(
         x, w = univariate_quadrature_rules[ii](nsamples[ii])
         x_1d.append(x)
         w_1d.append(w)
-    samples = bkd.cartesian_product(x_1d, 1)
+    samples = bkd.cartesian_product(x_1d)
     weights = bkd.outer_product(w_1d)
 
     if density_function is not None:

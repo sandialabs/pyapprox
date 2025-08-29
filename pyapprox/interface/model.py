@@ -2518,7 +2518,7 @@ class AdjointModel(SingleSampleModel, ABC):
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         self.set_param(sample[:, 0])
-        return self._apply_hessian_from_adjoint(vec[:, 0])
+        return self._apply_hessian_from_adjoint(vec[:, 0])[:, None]
 
 
 class ScalarElementwiseFunction(ABC):

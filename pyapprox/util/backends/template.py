@@ -93,7 +93,7 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def empty_like(*args, dtype=float):
+    def empty_like(*args, dtype=None):
         raise NotImplementedError
 
     @staticmethod

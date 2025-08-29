@@ -243,8 +243,12 @@ class GenzModel(Model):
     def _gaussian_integrate(self):
         result = self._bkd.prod(
             (
-                special.erf(self._c * self._w)
-                + special.erf(self._c - self._c * self._w)
+                self._bkd.asarray(
+                    special.erf(self._bkd.to_numpy(self._c * self._w))
+                    + special.erf(
+                        (self._bkd.to_numpy(self._c - self._c * self._w))
+                    )
+                )
             )
             * math.sqrt(math.pi)
             / (2 * self._c)

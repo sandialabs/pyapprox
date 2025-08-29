@@ -368,12 +368,14 @@ class AbstractKLE(ABC):
         # differences. However running some kle with numpy and torch
         # can still cause differences due to rounding error
         tuples = zip(
-            np.arange(self._nterms, dtype=int),
-            np.round(eig_vals, decimals=12),
+            self._bkd.arange(self._nterms, dtype=int),
+            self._bkd.asarray(
+                np.round(self._bkd.to_numpy(eig_vals), decimals=12)
+            ),
             -self._bkd.abs(eig_vecs[0, :]),
         )
         tuples = sorted(tuples, key=lambda tup: (tup[1], tup[2]), reverse=True)
-        II = [tup[0] for tup in tuples]
+        II = self._bkd.hstack([tup[0] for tup in tuples])
         eig_vecs = adjust_sign_eig(eig_vecs[:, II], self._bkd)
         assert self._bkd.all(eig_vals[II] > 0), (
             eig_vals[II],

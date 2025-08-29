@@ -29,8 +29,8 @@ class TestGreensFunctions:
     def test_driven_harmonic_oscillator(self):
         bkd = self.get_backend()
         nquad = 1001
-        omega = 3
-        final_time = 3
+        omega = 3.0
+        final_time = 3.0
         kernel = DrivenHarmonicOscillatorGreensKernel(
             omega, [1e-8, 10], backend=bkd
         )
@@ -139,15 +139,15 @@ class TestGreensFunctions:
 
     def test_heat_equation_1d_no_forcing(self):
         bkd = self.get_backend()
-        kappa, L, final_time = 10.0, 10, 0.1
+        kappa, L, final_time = 10.0, 10.0, 0.1
         kernel = HeatEquation1DGreensKernel(
             kappa, [1e-3, 100], L=L, nterms=100, backend=bkd
         )
         quad_rule1 = UnivariatePiecewisePolynomialQuadratureRule(
-            "quadratic", [0, L], backend=bkd
+            "quadratic", [0.0, L], backend=bkd
         )
         quad_rule2 = UnivariatePiecewisePolynomialQuadratureRule(
-            "quadratic", [0, 1], backend=bkd
+            "quadratic", [0.0, 1.0], backend=bkd
         )
 
         quad_rule = FixedTensorProductQuadratureRule(
@@ -210,10 +210,10 @@ class TestGreensFunctions:
             kappa, [1e-3, 100], L=L, nterms=10, backend=bkd
         )
         quad_rule1 = UnivariatePiecewisePolynomialQuadratureRule(
-            "quadratic", [0, L], backend=bkd
+            "quadratic", [0.0, L], backend=bkd
         )
         quad_rule2 = UnivariatePiecewisePolynomialQuadratureRule(
-            "quadratic", [0, final_time], backend=bkd
+            "quadratic", [0.0, final_time], backend=bkd
         )
 
         quad_rule = FixedTensorProductQuadratureRule(
@@ -278,10 +278,10 @@ class TestGreensFunctions:
         )
         # as k increase nquad must increase
         quad_rule1 = UnivariatePiecewisePolynomialQuadratureRule(
-            "quadratic", [0, L], backend=bkd
+            "quadratic", [0.0, L], backend=bkd
         )
         quad_rule2 = UnivariatePiecewisePolynomialQuadratureRule(
-            "quadratic", [0, 1], backend=bkd
+            "quadratic", [0.0, 1.0], backend=bkd
         )
 
         quad_rule = FixedTensorProductQuadratureRule(

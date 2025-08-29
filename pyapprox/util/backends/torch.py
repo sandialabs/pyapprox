@@ -1,8 +1,12 @@
+import platform
+import warnings
 from typing import List
 
 import torch
 
 from pyapprox.util.backends.template import BackendMixin
+
+torch.set_default_dtype(torch.double)
 
 
 class TorchMixin(BackendMixin):
@@ -15,7 +19,7 @@ class TorchMixin(BackendMixin):
         return Amat @ Bmat
 
     @staticmethod
-    def eye(nrows: int, ncols: int = None, dtype=torch.double) -> torch.Tensor:
+    def eye(nrows: int, ncols: int = None, dtype=None) -> torch.Tensor:
         if ncols is not None:
             return torch.eye(nrows, ncols, dtype=dtype)
         return torch.eye(nrows, dtype=dtype)
@@ -57,7 +61,7 @@ class TorchMixin(BackendMixin):
         return torch.linalg.solve_triangular(Amat, bvec, upper=(not lower))
 
     @staticmethod
-    def full(*args, dtype=torch.double):
+    def full(*args, dtype=None):
         return torch.full(*args, dtype=dtype)
 
     @staticmethod
@@ -69,7 +73,7 @@ class TorchMixin(BackendMixin):
         return torch.ones(*args, dtype=dtype)
 
     @staticmethod
-    def empty(*args, dtype=torch.double):
+    def empty(*args, dtype=None):
         return torch.empty(*args, dtype=dtype)
 
     @staticmethod
@@ -167,11 +171,11 @@ class TorchMixin(BackendMixin):
         return torch.arange(*args, **kwargs)
 
     @staticmethod
-    def linspace(*args, dtype=torch.double):
+    def linspace(*args, dtype=None):
         return torch.linspace(*args, dtype=dtype)
 
     @staticmethod
-    def logspace(*args, dtype=torch.double):
+    def logspace(*args, dtype=None):
         return torch.logspace(*args, dtype=dtype)
 
     @staticmethod
@@ -393,7 +397,7 @@ class TorchMixin(BackendMixin):
         return torch.count_nonzero(matrix, dim=axis)
 
     @staticmethod
-    def array(array, dtype=torch.double):
+    def array(array, dtype=None):
         return torch.as_tensor(array, dtype=dtype)
 
     @staticmethod
@@ -471,7 +475,7 @@ class TorchMixin(BackendMixin):
         return torch.ceil(array)
 
     @staticmethod
-    def asarray(array, dtype=torch.double):
+    def asarray(array, dtype=None):
         return torch.as_tensor(array, dtype=dtype)
 
     @staticmethod
@@ -654,3 +658,24 @@ class TorchMixin(BackendMixin):
         array: torch.tensor, values: torch.tensor, side: str = "left"
     ) -> torch.tensor:
         return torch.searchsorted(array, values, side=side)
+
+    @staticmethod
+    def set_gpu_as_default():
+        if platform.system() == "Darwin":
+            torch.set_default_device("mps")
+            torch.set_default_dtype(torch.float)
+            warnings.warn(
+                "GPUs can only be used with single precision on OSX",
+                UserWarning,
+            )
+        else:
+            torch.set_default_tensor_type(torch.cuda.FloatTensor)
+
+    @staticmethod
+    def set_cpu_as_default():
+        torch.set_default_device("cpu")
+        torch.set_default_dtype(torch.double)
+        warnings.warn(
+            "Making CPUs default. This also set default dtype to double",
+            UserWarning,
+        )

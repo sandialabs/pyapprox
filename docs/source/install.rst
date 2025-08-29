@@ -105,6 +105,10 @@ Sometimes developers need to remove all files generated when installing. To do t
   python setup.py clean --all
   find . -name "*.pyc" -exec rm -f {} \;
 
+The following error is often caused by mixing numpy and torch arrays::
+  
+    DeprecationWarning: __array_wrap__ must accept context and return_scalar arguments (positionally) in the future. (Deprecated NumPy 2.0)
+
 Test
 ----
 To run all tests run the following in the root directory of PyApprox::

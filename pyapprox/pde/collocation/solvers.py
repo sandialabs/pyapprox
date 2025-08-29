@@ -23,7 +23,9 @@ from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
 )
 from pyapprox.pde.collocation.adjoint import (
-    TransientAdjointFunctional, TransientAdjointModel, SteadyAdjointModel
+    TransientAdjointFunctional,
+    TransientAdjointModel,
+    SteadyAdjointModel,
 )
 
 
@@ -40,9 +42,7 @@ class SteadyForwardCollocationModelFromPhysics(SteadyAdjointModel):
                 "SteadyPhysicsNewtonResidualMixin"
             )
         self._physics = physics
-        super().__init__(
-            physics, newton_solver=newton_solver
-        )
+        super().__init__(physics, newton_solver=newton_solver)
 
     def nvars(self) -> int:
         return 0
@@ -100,11 +100,7 @@ class SteadyAdjointCollocationModel(CollocationModelMixin, SteadyAdjointModel):
                 "SteadyPhysicsNewtonResidualMixin"
             )
 
-        super().__init__(
-            self._physics,
-            functional,
-            newton_solver
-        )
+        super().__init__(self._physics, functional, newton_solver)
 
     def forward_solve(self, sample) -> Array:
         super().forward_solve(sample)
@@ -112,7 +108,7 @@ class SteadyAdjointCollocationModel(CollocationModelMixin, SteadyAdjointModel):
 
 
 class TransientAdjointCollocationModel(
-        CollocationModelMixin, TransientAdjointModel
+    CollocationModelMixin, TransientAdjointModel
 ):
     def __init__(
         self,
@@ -135,9 +131,7 @@ class TransientAdjointCollocationModel(
                 "TransientPhysicsNewtonResidualMixin"
             )
 
-        time_residual = time_residual_cls(
-            self._physics
-        )
+        time_residual = time_residual_cls(self._physics)
         time_residual._apply_constraints_to_residual = (
             time_residual.native_residual._apply_constraints_to_residual
         )
@@ -157,7 +151,7 @@ class TransientAdjointCollocationModel(
 
 
 class TransientForwardCollocationModelFromPhysics(
-        TransientAdjointCollocationModel
+    TransientAdjointCollocationModel
 ):
     # Only intended for testing with manufactured solutions
     def __init__(
@@ -183,7 +177,7 @@ class TransientForwardCollocationModelFromPhysics(
             time_residual_cls,
             newton_solver,
             functional=None,
-            backend=self._physics._bkd
+            backend=self._physics._bkd,
         )
 
     def nvars(self) -> int:
@@ -191,7 +185,8 @@ class TransientForwardCollocationModelFromPhysics(
 
     def get_initial_condition(self) -> Array:
         raise NotImplementedError(
-            "initial condition must be passed to forward_solve")
+            "initial condition must be passed to forward_solve"
+        )
 
     def setup_physics(self):
         if not isinstance(self._physics, Physics):
@@ -209,15 +204,13 @@ class TransientForwardCollocationModelFromPhysics(
         values_shape = (
             self.physics().ncomponents(),
             self.basis().mesh().nmesh_pts(),
-            times.shape[0]
+            times.shape[0],
         )
         sol = self._bkd.reshape(sol, values_shape)
         return sol, times
 
 
-class SplitPhysicsTimeIntegratorNewtonResidual(
-        TimeIntegratorNewtonResidual
-):
+class SplitPhysicsTimeIntegratorNewtonResidual(TimeIntegratorNewtonResidual):
     def __init__(
         self,
         transient_residual: TransientSplitPhysicsNewtonResidualMixin,
@@ -226,7 +219,7 @@ class SplitPhysicsTimeIntegratorNewtonResidual(
         time_residual_cls: TimeIntegratorNewtonResidual = BackwardEulerResidual,
     ):
         if not isinstance(
-                transient_residual, TransientSplitPhysicsNewtonResidualMixin
+            transient_residual, TransientSplitPhysicsNewtonResidualMixin
         ):
             raise ValueError(
                 "transient_residual must be and instance of "
@@ -247,14 +240,18 @@ class SplitPhysicsTimeIntegratorNewtonResidual(
         # ImplicitTimeIntegrator.step()
         split_physics = self._time_residual.native_residual
         split_physics._set_steady_and_transient_components(sol_array)
-        transient_sol_array = split_physics._transient_physics_solution_from_array(
-            sol_array
-        ).get_flattened_values()
+        transient_sol_array = (
+            split_physics._transient_physics_solution_from_array(
+                sol_array
+            ).get_flattened_values()
+        )
         # self._time_residual._value(sol) calls native_residual.__call__ which
         # calls _residual_array_from_solution_array
         res = self._bkd.hstack(
-            (self._time_residual._value(transient_sol_array),
-             self._physics.steady_value(sol_array))
+            (
+                self._time_residual._value(transient_sol_array),
+                self._physics.steady_value(sol_array),
+            )
         )
         # must overwrite self._time_residual.native_residual._sol_array
         # which was set to just transient physics above
@@ -265,9 +262,11 @@ class SplitPhysicsTimeIntegratorNewtonResidual(
     def _jacobian(self, sol_array: Array) -> Array:
         split_physics = self._time_residual.native_residual
         split_physics._set_steady_and_transient_components(sol_array)
-        transient_sol_array = split_physics._transient_physics_solution_from_array(
-            sol_array
-        ).get_flattened_values()
+        transient_sol_array = (
+            split_physics._transient_physics_solution_from_array(
+                sol_array
+            ).get_flattened_values()
+        )
         steady_jac = self._physics.steady_jacobian(sol_array)
         transient_jac = self._time_residual._jacobian(transient_sol_array)
         jac = self._bkd.vstack((transient_jac, steady_jac))

@@ -1407,8 +1407,8 @@ class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
         self._sorted_pk = self._pk[idx]
         self._ecdf = self._bkd.cumsum(self._pk[idx])
         self._interp = interpolate.interp1d(
-            self._sorted_xk,
-            self._ecdf,
+            self._bkd.to_numpy(self._sorted_xk),
+            self._bkd.to_numpy(self._ecdf),
             kind="zero",
             fill_value=(0, 1),
             bounds_error=False,
@@ -1456,9 +1456,6 @@ class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
     def moment(self, power: int) -> float:
         return (self._xk**power) @ self._pk
 
-    def _ppf(self, usamples: Array) -> Array:
-        raise NotImplementedError("TODO")
-
     def _rvs(self, nsamples: int) -> Array:
         return self._bkd.asarray(
             np.random.choice(self._xk, size=nsamples, p=self._pk)
@@ -1475,9 +1472,10 @@ class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
     def var(self) -> float:
         return self._bkd.sum(self._xk**2 * self._pk) - self.mean() ** 2
 
-    def ppf(self, usamples: Array) -> Array:
+    def _ppf(self, usamples: Array) -> Array:
+        ecdf = self._bkd.to_numpy(self._ecdf)
         return self._sorted_xk[
-            np.searchsorted(self._ecdf, usamples * self._ecdf[-1])
+            np.searchsorted(ecdf, self._bkd.to_numpy(usamples) * ecdf[-1])
         ]
 
     def _transform_scale_parameters(self) -> Tuple[float, float]:
@@ -1517,8 +1515,8 @@ class EmpiricalCDF:
             self._ecdf = self._bkd.cumsum(weights[II])
 
         self._interp = interpolate.interp1d(
-            self._sorted_samples,
-            self._ecdf,
+            self._bkd.to_numpy(self._sorted_samples),
+            self._bkd.to_numpy(self._ecdf),
             kind="zero",
             fill_value=(0, 1),
             bounds_error=False,

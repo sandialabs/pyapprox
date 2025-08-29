@@ -30,6 +30,9 @@ from pyapprox.optimization.minimize import (
     ConstraintFromModel,
     Constraint,
 )
+from pyapprox.surrogates.affine.basis import (
+    FixedGaussianTensorProductQuadratureRuleFromVariable,
+)
 
 
 class IshigamiModel(Model):
@@ -86,23 +89,23 @@ class IshigamiModel(Model):
     def _hessian(self, sample: Array) -> Array:
         assert sample.shape[0] == self.nvars()
         hess = self._bkd.empty((self.nvars(), self.nvars()))
-        hess[0, 0] = -self._bkd.sin(sample[0, :]) - self._b * sample[
-            2, :
-        ] ** 4 * self._bkd.sin(sample[0, :])
+        hess[0, 0] = -self._bkd.sin(sample[0, 0]) - self._b * sample[
+            2, 0
+        ] ** 4 * self._bkd.sin(sample[0, 0])
         hess[1, 1] = (
             2
             * self._a
             * (
-                self._bkd.cos(sample[1, :]) ** 2
-                - self._bkd.sin(sample[1, :]) ** 2
+                self._bkd.cos(sample[1, 0]) ** 2
+                - self._bkd.sin(sample[1, 0]) ** 2
             )
         )
         hess[2, 2] = (
-            12 * self._b * sample[2, :] ** 2 * self._bkd.sin(sample[0, :])
+            12 * self._b * sample[2, 0] ** 2 * self._bkd.sin(sample[0, 0])
         )
         hess[0, 1], hess[1, 0] = 0, 0
         hess[0, 2] = (
-            4 * self._b * sample[2, :] ** 3 * self._bkd.cos(sample[0, :])
+            4 * self._b * sample[2, 0] ** 3 * self._bkd.cos(sample[0, 0])
         )
         hess[2, 0] = hess[0, 2]
         hess[1, 2], hess[2, 1] = 0, 0
@@ -648,7 +651,6 @@ class OakleyModel(Model):
         term3 = a3 @ self._bkd.cos(samples)
         term4 = ((samples.T @ M) * samples.T).sum(axis=1)
         vals = term1 + term2 + term3 + term4
-        print(term1, term2, term3, term4)
         return vals[:, None]
 
 
@@ -1084,7 +1086,9 @@ class CantileverBeamModel(SingleSampleModel):
 
     def _evaluate_sp_lambda(self, sp_lambda, sample):
         assert sample.ndim == 2 and sample.shape[1] == 1
-        vals = self._bkd.atleast2d(self._bkd.asarray(sp_lambda(*sample[:, 0])))
+        vals = self._bkd.atleast2d(
+            self._bkd.asarray(sp_lambda(*self._bkd.to_numpy(sample[:, 0])))
+        )
         return vals
 
     def _evaluate(self, sample):
@@ -1194,10 +1198,6 @@ class CantileverBeamUncertainOptimizationBenchmark(
 ):
     def _set_constraints(self):
         # TODO change weights to create unbiased estimators of mean and variance
-        from pyapprox.surrogates.affine.basis import (
-            FixedGaussianTensorProductQuadratureRuleFromVariable,
-        )
-
         quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
             self.variable(),
             [5 for ii in range(self.variable().nvars())],
@@ -1549,7 +1549,7 @@ class EvtushenkoNonLinearConstraint(Constraint):
 
     def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
         hess = self._bkd.zeros((3, 3))
-        hess[0, 0] = -6 * sample[0] * weights[0]
+        hess[0, 0] = -6 * sample[0, 0] * weights[0, 0]
         return hess
 
 
