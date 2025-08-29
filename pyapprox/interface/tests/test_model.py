@@ -22,6 +22,7 @@ from pyapprox.interface.model import (
     CenteredFiniteDifference,
     DenseMatrixLinearModel,
     QuadraticMatrixModel,
+    Model,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
@@ -916,6 +917,76 @@ class TestNumpyModel(TestModel, unittest.TestCase):
 class TestTorchModel(TestModel, unittest.TestCase):
     def get_backend(self):
         return TorchMixin
+
+    def test_default_autograd_model_derivatives(self):
+        bkd = self.get_backend()
+
+        class MyModel(Model):
+            def _values(self, x):
+                return bkd.stack(
+                    [x[0] ** 2 + 2 * x[1] ** 3, x[0] ** 3 + x[0] * x[1]],
+                    axis=1,
+                )
+
+            def nqoi(self):
+                return 2
+
+            def nvars(self):
+                return 2
+
+        target_model = MyModel(backend=bkd)
+        sample = bkd.array([1, 1])[:, None]
+
+        target_model.jacobian_implemented = lambda: True
+        errors = target_model.check_apply_jacobian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        target_model.jacobian_implemented = lambda: False
+
+        target_model.apply_jacobian_implemented = lambda: True
+        errors = target_model.check_apply_jacobian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        # target_model.apply_jacobian_implemented = lambda: False
+
+        target_model.jacobian_implemented = lambda: True
+        target_model.apply_weighted_hessian_implemented = lambda: True
+        errors = target_model.check_apply_hessian(
+            sample, disp=True, weights=bkd.array([2, 2])[:, None]
+        )
+        assert errors.min() / errors.max() < 1e-6
+        target_model.jacobian_implemented = lambda: False
+        target_model.apply_weighted_hessian_implemented = lambda: False
+
+        # apply hessian can only be used with nqoi=1 using autograd
+        # so create such a model and test
+        class MyModel(Model):
+            def _values(self, x):
+                return bkd.stack(
+                    [x[0] ** 2 + 2 * x[1] ** 3],
+                    axis=1,
+                )
+
+            def nqoi(self):
+                return 1
+
+            def nvars(self):
+                return 2
+
+        target_model = MyModel(backend=bkd)
+        sample = bkd.array([1, 1])[:, None]
+
+        target_model.jacobian_implemented = lambda: True
+
+        target_model.hessian_implemented = lambda: True
+        errors = target_model.check_apply_hessian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        target_model.hessian_implemented = lambda: False
+
+        target_model.apply_hessian_implemented = lambda: True
+        errors = target_model.check_apply_hessian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+        target_model.apply_hessian_implemented = lambda: False
+
+        target_model.jacobian_implemented = lambda: False
 
 
 if __name__ == "__main__":

@@ -1089,39 +1089,31 @@ class ConjugateGaussianPriorOEDForLinearPredictionEntropicDeviation(
     ConjugateGaussianPriorOEDForLinearPredictionUtility
 ):
     def __init__(
-        self, prior: MultivariateGaussian, qoi_mat: Array, beta: float = 1.0
+        self, prior: MultivariateGaussian, qoi_mat: Array, lamda: float = 1.0
     ):
-        self._beta = beta
+        self._lamda = lamda
         super().__init__(prior, qoi_mat)
 
     def _compute_utility(self) -> float:
-        sigma_hat_sq = self._bkd.multidot(
-            (self._qoi_mat, self._Cmat, self._qoi_mat.T)
-        )
-        tau_hat = (
-            self._qoi_mat @ self._nu_vec + self._beta * sigma_hat_sq / 2.0
-        )
-        print(self._beta)
-        return (
-            self._bkd.exp(tau_hat + self._beta * sigma_hat_sq / 2.0)
-            - self._qoi_mat @ self._nu_vec
-        )
+        return self._lamda * self._post_pushforward.covariance()[0, 0] / 2.0
 
 
 class ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation(
     ConjugateGaussianPriorOEDForLinearPredictionUtility
 ):
     def __init__(
-        self, prior: MultivariateGaussian, qoi_mat: Array, beta: float = 1.0
+        self, prior: MultivariateGaussian, qoi_mat: Array, beta: float = 0.5
     ):
+        super().__init__(prior, qoi_mat)
         self._beta = beta
         self._std_normal = GaussianMarginal(0, 1, backend=self._bkd)
-        super().__init__(prior, qoi_mat)
 
     def _compute_utility(self) -> float:
         return (
             self._bkd.sqrt(self._post_pushforward.covariance()[0, 0])
-            * self._std_normal.pdf(self._std_normal.ppf(self._beta))
+            * self._std_normal.pdf(
+                self._std_normal.ppf(self._bkd.array([self._beta]))
+            )
             / (1.0 - self._beta)
         )
 

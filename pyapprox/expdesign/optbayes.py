@@ -37,6 +37,7 @@ from pyapprox.optimization.minimize import (
     LinearConstraint,
     OptimizationResult,
     SampleAverageStat,
+    SampleSmoothedConditionalValueAtRisk,
 )
 from pyapprox.variables.joint import (
     JointVariable,
@@ -785,7 +786,7 @@ class PredictionOEDDeviationMeasure(SingleSampleModel):
         self._evidence = evidence
 
 
-class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
+class OEDPredictionFirstMomentMixin:
     def _first_moment(self, quad_weighted_like_vals: Array) -> Array:
         # after reshape the 3D arrays will have shape
         # (npred, ninnerloop_samples, nouterloop_samples)
@@ -797,6 +798,24 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
             "iq,io->qo", self._qoi_vals, quad_weighted_like_vals
         )
 
+    def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
+        # after reshape 4D arrays will have
+        # (npred, nouterloop_samples, ninnerloop_samples, ndesign))
+        # return (
+        #     self._qoi_vals.T[:, None, :, None]
+        #     * quad_weighted_like_vals_jac[None, ...]
+        # ).sum(axis=2)
+        # o:outer, i: inner, q: qoi, d: derivatives
+        return self._bkd.einsum(
+            "iq,oid->qod",
+            self._qoi_vals,
+            quad_weighted_like_vals_jac,
+        )
+
+
+class OEDStandardDeviationMeasure(
+    PredictionOEDDeviationMeasure, OEDPredictionFirstMomentMixin
+):
     def _second_moment(self, quad_weighted_like_vals: Array) -> Array:
         # return (
         #     self._qoi_vals.T[..., None] ** 2
@@ -820,20 +839,6 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
             variance, self._bkd.full(variance.shape, 1e-16)
         )
         return self._bkd.sqrt(variance).flatten()[None, :]
-
-    def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
-        # after reshape 4D arrays will have
-        # (npred, nouterloop_samples, ninnerloop_samples, ndesign))
-        # return (
-        #     self._qoi_vals.T[:, None, :, None]
-        #     * quad_weighted_like_vals_jac[None, ...]
-        # ).sum(axis=2)
-        # o:outer, i: inner, q: qoi, d: derivatives
-        return self._bkd.einsum(
-            "iq,oid->qod",
-            self._qoi_vals,
-            quad_weighted_like_vals_jac,
-        )
 
     def _second_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
         # return (
@@ -887,7 +892,9 @@ class OEDStandardDeviationMeasure(PredictionOEDDeviationMeasure):
         return sqrt_jac
 
 
-class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
+class OEDEntropicDeviationMeasure(
+    PredictionOEDDeviationMeasure, OEDPredictionFirstMomentMixin
+):
     def __init__(
         self, npred: int, alpha: float, backend: BackendMixin = NumpyMixin
     ):
@@ -905,25 +912,8 @@ class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
             * self._evidence._quad_weighted_like_vals[None, ...]
         )
 
-    def _first_moment(self, quad_weighted_like_vals: Array) -> Array:
-        # after reshape the 3D arrays will have shape
-        # (npred, ninnerloop_samples, nouterloop_samples)
-        # return (
-        #     self._qoi_vals.T[..., None] * quad_weighted_like_vals[None, ...]
-        # ).sum(axis=1)
-        # o:outer, i: inner, q: qoi
-        return self._bkd.einsum(
-            "iq,io->qo", self._qoi_vals, quad_weighted_like_vals
-        )
-
     def _evaluate(self, design_weights: Array) -> Array:
         evidences = self._evidence(design_weights).T
-        # risk1 = (
-        #    self._bkd.log(
-        #        self._weighted_exp_values().sum(axis=1) / evidences[:, 0]
-        #    )
-        #    / self._alpha
-        # )
         # o:outer, i: inner, q: qoi, d: derivatives
         risk = (
             self._bkd.log(
@@ -941,18 +931,6 @@ class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
             / evidences[:, 0]
         )
         return (risk - mean).flatten()[None, :]
-
-    def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
-        # after reshape 4D arrays will have
-        # (npred, nouterloop_samples, ninnerloop_samples, ndesign))
-        # return (
-        #     self._qoi_vals.T[:, None, :, None]
-        #     * quad_weighted_like_vals_jac[None, ...]
-        # ).sum(axis=2)
-        # o:outer, i: inner, q: qoi, d: derivatives
-        return self._bkd.einsum(
-            "iq,oid->qod", self._qoi_vals, quad_weighted_like_vals_jac
-        )
 
     def _jacobian(self, design_weights: Array) -> Array:
         # must call evidence first so weighted_exp_values are correct
@@ -997,6 +975,164 @@ class OEDEntropicDeviationMeasure(PredictionOEDDeviationMeasure):
             - first_mom[..., None] * evidences_jac[None, :] / evidences**2
         )
         return risk_jac - mean_jac
+
+
+class OEDAVaRDeviationMeasure(
+    PredictionOEDDeviationMeasure, OEDPredictionFirstMomentMixin
+):
+    def __init__(
+        self,
+        npred: int,
+        alpha: float,
+        eps: float,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        super().__init__(npred, backend=backend)
+        self._eps = eps
+        self.set_alpha(alpha)
+
+    def set_alpha(self, alpha: float):
+        if alpha <= 0:
+            raise ValueError("alpha must be > 0")
+        self._alpha = alpha
+        self._smoothed_avar = SampleSmoothedConditionalValueAtRisk(
+            self._alpha, self._eps, backend=self._bkd
+        )
+
+    def _evaluate_option1(self, design_weights: Array) -> Array:
+        evidences = self._evidence(design_weights).T
+        # o:outer, i: inner, q: qoi, d: derivatives
+        # self._evidence._quad_weighted_like_vals.shape = (i,o)
+        # self._qoi_vals.shape = (i,q)
+        # evidences.shape = (o,1)
+        # return (q,o).flatten()
+        mean = (
+            self._first_moment(self._evidence._quad_weighted_like_vals)
+            / evidences[:, 0]
+        )
+        vals = []
+        for qq in range(self._qoi_vals.shape[1]):
+            outer_vals = []
+            for oo in range(evidences.shape[0]):
+                # mean needs to be included here and not subtracted at end
+                # otherwise accuracy of avardev is limited.
+                avardev = self._smoothed_avar(
+                    self._qoi_vals[:, qq : qq + 1] - mean[qq, oo],
+                    self._evidence._quad_weighted_like_vals[:, oo : oo + 1]
+                    / evidences[oo : oo + 1],
+                )
+                outer_vals.append(avardev)
+            vals.append(self._bkd.asarray(outer_vals))
+        avardev = self._bkd.stack(vals, axis=0)
+        return avardev.flatten()[None, :]
+
+    def _evaluate_option2(self, design_weights: Array) -> Array:
+        evidences = self._evidence(design_weights).T
+        # o:outer, i: inner, q: qoi, d: derivatives
+        # self._evidence._quad_weighted_like_vals.shape = (i,o)
+        # self._qoi_vals.shape = (i,q)
+        # evidences.shape = (o,1)
+        # return (q,o).flatten()
+        mean = (
+            self._first_moment(self._evidence._quad_weighted_like_vals)
+            / evidences[:, 0]
+        )
+        vals = []
+        for qq in range(self._qoi_vals.shape[1]):
+            outer_vals = []
+            for oo in range(evidences.shape[0]):
+                # mean needs to be included here and not subtracted at end
+                # otherwise accuracy of avardev is limited.
+                avardev = (
+                    self._smoothed_avar(
+                        (self._qoi_vals[:, qq : qq + 1] - mean[qq, oo])
+                        * self._evidence._like_vals[:, oo : oo + 1],  #
+                        # / evidences[oo : oo + 1],
+                        self._evidence._quad_weights,
+                    )
+                    / evidences[oo : oo + 1]
+                )
+                outer_vals.append(avardev)
+            vals.append(self._bkd.asarray(outer_vals))
+        avardev = self._bkd.stack(vals, axis=0)
+        return avardev.flatten()[None, :]
+
+    def _evaluate_option3(self, design_weights: Array) -> Array:
+        evidences = self._evidence(design_weights).T
+        # o:outer, i: inner, q: qoi, d: derivatives
+        # self._evidence._quad_weighted_like_vals.shape = (i,o)
+        # self._qoi_vals.shape = (i,q)
+        # evidences.shape = (o,1)
+        # return (q,o).flatten()
+        mean = (
+            self._first_moment(self._evidence._quad_weighted_like_vals)
+            / evidences[:, 0]
+        )
+        vals = []
+        for qq in range(self._qoi_vals.shape[1]):
+            outer_vals = []
+            for oo in range(evidences.shape[0]):
+                avardev = (
+                    self._smoothed_avar(
+                        self._qoi_vals[:, qq : qq + 1]
+                        * self._evidence._like_vals[:, oo : oo + 1],
+                        # / evidences[oo : oo + 1],
+                        self._evidence._quad_weights,
+                    )
+                    / evidences[oo : oo + 1]
+                )
+                outer_vals.append(avardev)
+            vals.append(self._bkd.asarray(outer_vals))
+        # print(evidences)
+        avardev = self._bkd.stack(vals, axis=0) - mean
+        return avardev.flatten()[None, :]
+
+    def _evaluate(self, design_weights: Array) -> Array:
+        # print()
+        # print(self._evaluate_option1(design_weights))
+        # print(self._evaluate_option2(design_weights))
+        # print(self._evaluate_option3(design_weights))
+        return self._evaluate_option1(design_weights)
+
+    def _jacobian(self, design_weights: Array) -> Array:
+        raise NotImplementedError
+        evidences = self._evidence(design_weights).T
+        evidences_jac = self._evidence.jacobian(design_weights)
+        quad_weighted_like_vals_jac = (
+            self._evidence._quad_weighted_likelihood_jacobian(design_weights)
+        )
+
+        first_mom = self._first_moment(self._evidence._quad_weighted_like_vals)
+        # mean = first_mom / evidences[:, 0]
+        first_mom_jac = self._first_moment_jac(quad_weighted_like_vals_jac)
+        mean_jac = (
+            first_mom_jac / evidences
+            - first_mom[..., None] * evidences_jac[None, :] / evidences**2
+        )
+        like_jac = self._evidence._like_jac
+        print(like_jac.shape, "lj")
+        jacs = []
+        for qq in range(self._qoi_vals.shape[1]):
+            outer_vals = []
+            for oo in range(evidences.shape[0]):
+                # mean needs to be included here and not subtracted at end
+                # otherwise accuracy of avardev is limited.
+                # avar_jac = self._smoothed_avar.jacobian(
+                #     self._qoi_vals[:, qq : qq + 1],
+                #     like_jac[oo],
+                #     self._evidence._quad_weighted_like_vals[:, oo : oo + 1]
+                #     / evidences[oo : oo + 1],
+                # )
+                avar_jac = self._smoothed_avar.jacobian(
+                    self._qoi_vals[:, qq : qq + 1],
+                    quad_weighted_like_vals_jac[oo] / evidences[oo : oo + 1],
+                    self._evidence._quad_weights,
+                )
+                print((avar_jac - mean_jac[qq : qq + 1, oo]).shape)
+                outer_vals.append(avar_jac - mean_jac[qq : qq + 1, oo])
+            jacs.append(self._bkd.vstack(outer_vals))
+        print(mean_jac.shape, self._bkd.stack(jacs, axis=0).shape)
+        return self._bkd.stack(jacs, axis=0)
 
 
 class PredictionOEDObjective(KLOEDObjective):

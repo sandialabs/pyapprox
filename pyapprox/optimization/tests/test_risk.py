@@ -18,6 +18,7 @@ from pyapprox.optimization.risk import (
     multivariate_gaussian_kl_divergence,
     CholeskyBasedGaussianExactKLDivergence,
     IndependentGaussianExactKLDivergence,
+    EntropicRisk,
 )
 
 
@@ -203,6 +204,18 @@ class TestRiskMeasures:
         print(diag_div())
         print(dense_div)
         assert np.allclose(diag_div(), dense_div, rtol=1e-12)
+
+    def test_entropic_risk(self):
+        bkd = self.get_backend()
+        mu, sigma, beta = 0, 0.5, 0.25
+        risks = GaussianAnalyticalRiskMeasures(mu, sigma)
+        exact_entropic_risk = risks.entropic(beta)
+        risk = EntropicRisk(beta, backend=bkd)
+        rv = stats.norm(mu, sigma)
+        nsamples = int(1e6)
+        risk.set_samples(rv.rvs(nsamples)[None, :])
+        print(risk(), exact_entropic_risk)
+        assert bkd.allclose(risk(), exact_entropic_risk, rtol=1e-2)
 
 
 class TestNumpyRiskMeasures(TestRiskMeasures, unittest.TestCase):

@@ -359,7 +359,19 @@ class Model(ABC):
             raise ValueError("weights has the wrong shape")
 
     def _jacobian(self, sample: Array) -> Array:
-        raise NotImplementedError
+        """
+        User provided function to compute the Jacobian.
+
+        Default to using autograd to compute Jacobian.
+        However, the user must ensure that all methods envocked by __call__
+        are differentiable. This is why self.jacobian_implemented is False
+        by default
+        """
+        if not self._bkd.jacobian_implemented():
+            raise NotImplementedError
+        return self._bkd.jacobian(
+            lambda x: self._values(x[:, None])[0], sample[:, 0]
+        )
 
     def _check_jacobian_shape(self, jac: Array, sample: Array):
         if jac.shape != (self.nqoi(), sample.shape[0]):
@@ -406,7 +418,20 @@ class Model(ABC):
         return jac
 
     def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
-        raise NotImplementedError(f"{self}")
+        """
+        User provided function to compute the Jacobian vector product.
+
+        Default to using autograd to compute Jacobian vector product.
+        However, the user must ensure that all methods envocked by __call__
+        are differentiable. This is why self.apply_jacobian_implemented is
+        False by default
+        """
+        if not self._bkd.jvp_implemented():
+            raise NotImplementedError
+        print("A")
+        return self._bkd.jvp(
+            lambda x: self._values(x[:, None])[0], sample[:, 0], vec[:, 0]
+        )
 
     def apply_jacobian(self, sample: Array, vec: Array) -> Array:
         """
@@ -454,7 +479,21 @@ class Model(ABC):
         return self._database
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        raise NotImplementedError
+        """
+        User provided function to compute the Hessian vector product.
+
+        Default to using autograd to compute Jacobian vector product.
+        However, the user must ensure that all methods envocked by __call__
+        are differentiable. This is why self.apply_hessian_implemented is False
+        by default
+        """
+        if not self._bkd.hvp_implemented():
+            raise NotImplementedError
+        return self._bkd.hvp(
+            lambda x: self.__call__(x[:, None])[0],
+            sample[:, 0],
+            vec[:, 0],
+        )[:, None]
 
     def _check_hvp_shape(self, hvp: Array, sample: Array):
         if hvp.shape != (sample.shape[0], 1):
@@ -508,7 +547,19 @@ class Model(ABC):
         return self.hessian(sample)[0] @ vec
 
     def _hessian(self, sample: Array) -> Array:
-        raise NotImplementedError
+        """
+        User provided function to compute the Hessian.
+
+        Default to using autograd to compute Jacobian vector product.
+        However, the user must ensure that all methods envocked by __call__
+        are differentiable. This is why self.hessian_implemented is False
+        by default
+        """
+        if not self._bkd.hessian_implemented():
+            raise NotImplementedError
+        return self._bkd.hessian(
+            lambda x: self.__call__(x[:, None])[0], sample[:, 0]
+        )[None]
 
     def _check_hessian_shape(self, hess: Array, sample: Array):
         if hess.shape != (self.nqoi(), sample.shape[0], sample.shape[0]):
@@ -597,7 +648,21 @@ class Model(ABC):
     def _apply_weighted_hessian(
         self, sample: Array, vec: Array, weights: Array
     ) -> Array:
-        raise NotImplementedError
+        """
+        User provided function to compute the weighted Hessian vector product.
+
+        Default to using autograd to compute Jacobian vector product.
+        However, the user must ensure that all methods envocked by __call__
+        are differentiable. This is why self.apply_weighed_hessian is False
+        by default
+        """
+        if not self._bkd.hvp_implemented():
+            raise NotImplementedError
+        return self._bkd.hvp(
+            lambda x: self.__call__(x[:, None])[0] @ weights[:, 0],
+            sample[:, 0],
+            vec[:, 0],
+        )
 
     def apply_weighted_hessian(
         self, sample: Array, vec: Array, weights: Array

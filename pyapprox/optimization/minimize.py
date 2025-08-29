@@ -820,6 +820,11 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
             values, jac_values, hess_values, weights
         )
 
+    def __repr__(self) -> str:
+        return "{0}(factor={1})".format(
+            self.__class__.__name__, float(self._safety_factor)
+        )
+
 
 class SampleAverageEntropicRisk(SampleAverageStat):
     def __init__(self, alpha: float, backend: BackendMixin = NumpyMixin):
@@ -900,6 +905,11 @@ class SampleAverageEntropicRisk(SampleAverageStat):
         tmp1 = 1.0 / tmp0[..., None] * exp_hess
         tmp2 = 1.0 / tmp0[..., None] ** 2 * exp_jac_outprod
         return (tmp1 - tmp2) / self._alpha
+
+    def __repr__(self) -> str:
+        return "{0}(alpha={1})".format(
+            self.__class__.__name__, float(self._alpha)
+        )
 
 
 class SmoothLogBasedMaxFunction(ScalarElementwiseFunction):
@@ -2438,8 +2448,8 @@ class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
         lam = (values_end * x_beg - values_beg * x_end) / (
             values_end - values_beg
         )
-        print(lam, "lam", idx_beg, idx_end)
-        print(K, "K")
+        # print(lam, "lam", idx_beg, idx_end)
+        # print(K, "K")
         # print(values_res)
 
         # Compute projection
@@ -2459,11 +2469,11 @@ class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
             Array: Projection of values onto CVaR risk envelope (length = number of samples).
         """
         # Compute all possible kinks
-        lbnd = 0.0
+        lbnd = self._bkd.asarray(0.0)
         ubnd = 1.0 / (1.0 - self._alpha)
         dvalues = values / weights
         K = self._bkd.flip(
-            self._bkd.sort(np.hstack([lbnd - dvalues, ubnd - dvalues]))
+            self._bkd.sort(self._bkd.hstack([lbnd - dvalues, ubnd - dvalues]))
         )
 
         # Bracket zero
@@ -2481,8 +2491,10 @@ class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
         y1 = res(x1)
         x2 = K[imid]
         y2 = res(x2)
-
         while True:
+            # print(ibeg, imid, iend, "i", self._alpha)
+            # print(x1, x2, "x")
+            # print(y1, y2, "y")
             if self._bkd.sign(y1) != self._bkd.sign(y2):
                 iend = imid
             else:
@@ -2496,9 +2508,11 @@ class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
             x2 = K[imid]
             y2 = res(x2)
             if iend - ibeg == 1:
-                print(round((iend - ibeg) / 2), ((iend - ibeg) / 2))
-                print(ibeg, imid, iend)
+                # print(round((iend - ibeg) / 2), ((iend - ibeg) / 2))
+                # print(ibeg, imid, iend)
                 break
+
+        assert self._bkd.sign(y1) != self._bkd.sign(y2)
 
         # Compute value of x that produces zero residual
         lam = (y2 * x1 - y1 * x2) / (y2 - y1)
@@ -2508,11 +2522,22 @@ class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
             lbnd, self._bkd.minimum(ubnd, dvalues + lam)
         )
 
-    def __call__(self, values: Array, weights: Array) -> Array:
+    def _check_values_weights(self, values: Array, weights: Array):
         if values.ndim != 2 or values.shape[1] != 1:
             raise ValueError("values must be a 2D array with a single column")
         if values.shape != weights.shape:
             raise ValueError(f"{values.shape=} but {weights.shape=}")
+        if not self._bkd.allclose(
+            self._bkd.ones((1,)), self._bkd.sum(weights), atol=1e-15
+        ):
+            raise ValueError(
+                "weights must sum to one but sum to {0}".format(
+                    self._bkd.sum(weights)
+                )
+            )
+
+    def __call__(self, values: Array, weights: Array) -> Array:
+        self._check_values_weights(values, weights)
         proj_values = self._project(
             values[:, 0] * self._eps + self._lambda, weights[:, 0]
         )
@@ -2525,3 +2550,23 @@ class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
             values[:, 0] * self._eps + self._lambda, weights[:, 0]
         )
         return self._bkd.einsum("i,ij->j", proj_values, jac_values)[None, :]
+
+    def __repr__(self) -> str:
+        return "{0}(alpha={1})".format(
+            self.__class__.__name__, float(self._alpha)
+        )
+
+
+class SampleSmoothedConditionalValueAtRiskDeviation(
+    SampleSmoothedConditionalValueAtRisk
+):
+    """
+    Compute conditional value at risk deviation without the need to estimate
+    the value at risk.
+    """
+
+    def set_mean(self, mean: Array):
+        self._mean = mean
+
+    def __call__(self, values: Array, weights: Array) -> Array:
+        return super().__call__(values, weights) - self._mean

@@ -25,6 +25,7 @@ from pyapprox.optimization.minimize import (
     SmoothQuarticBasedLeftHeavisideFunction,
     SmoothQuinticBasedLeftHeavisideFunction,
     SampleSmoothedConditionalValueAtRisk,
+    SampleSmoothedConditionalValueAtRiskDeviation,
 )
 from pyapprox.optimization.risk import GaussianAnalyticalRiskMeasures
 from pyapprox.benchmarks import (
@@ -770,7 +771,7 @@ class TestMinimize(unittest.TestCase):
 
     def test_smoothed_conditional_value_at_risk(self):
         bkd = self.get_backend()
-        mu, sigma, beta = 0, 1, 0.25
+        mu, sigma, beta = 0, 1, 0.5
         risks = GaussianAnalyticalRiskMeasures(mu, sigma)
         exact_avar = risks.AVaR(beta)
         AVaR = AverageValueAtRisk(beta, backend=bkd)
@@ -781,16 +782,38 @@ class TestMinimize(unittest.TestCase):
         assert bkd.allclose(AVaR()[0], exact_avar, rtol=1e-2)
 
         smooth_avar = SampleSmoothedConditionalValueAtRisk(
-            alpha=beta, eps=100, backend=bkd
+            alpha=beta, eps=1000, backend=bkd
         )
-        nsamples = int(1e5)
-        samples = bkd.asarray(rv.rvs(nsamples)[None, :])
+        nsamples = int(1e6)
+        # samples = bkd.asarray(rv.rvs(nsamples)[None, :])
+        # a more accurate ansswer can be obtained by using 1D
+        # halton like sequence, i.e. equidistant points
+        samples = bkd.asarray(rv.ppf(np.linspace(1e-6, 1 - 1e-6, nsamples)))[
+            None, :
+        ]
         weights = bkd.full((nsamples, 1), 1 / nsamples)
-        # print(smooth_avar(samples.T, weights))
-        # print(AVaR()[0])
-        # print(exact_avar)
+        print(smooth_avar(samples.T, weights) - exact_avar, exact_avar)
         assert bkd.allclose(
-            smooth_avar(samples.T, weights), AVaR()[0], rtol=1e-2
+            smooth_avar(samples.T, weights), exact_avar, rtol=1e-5
+        )
+
+        # Test avar with importance sampling
+        smooth_avar = SampleSmoothedConditionalValueAtRisk(
+            alpha=beta, eps=1000, backend=bkd
+        )
+        nsamples = int(1e6)
+        # samples = bkd.asarray(rv.rvs(nsamples)[None, :])
+        # a more accurate ansswer can be obtained by using 1D
+        # halton like sequence, i.e. equidistant points
+        dominating_rv = stats.norm(mu, sigma * 2)
+        samples = bkd.asarray(
+            dominating_rv.ppf(np.linspace(1e-6, 1 - 1e-6, nsamples))
+        )[None, :]
+        weights = bkd.full((nsamples, 1), 1 / nsamples)
+        weights *= rv.pdf(samples.T) / dominating_rv.pdf(samples.T)
+        print(smooth_avar(samples.T, weights) - exact_avar, exact_avar)
+        assert bkd.allclose(
+            smooth_avar(samples.T, weights), exact_avar, rtol=1e-5
         )
 
         # check Jacobian
@@ -823,8 +846,32 @@ class TestMinimize(unittest.TestCase):
         errors = model.check_apply_jacobian(params, disp=True)
         assert errors.min() / errors.max() < 1e-6
 
-        raise NotImplementedError(
-            "TODO: Need to implement cvar stat for multi-dimensional samples"
+    def test_smoothed_conditional_value_at_risk_deviation(self):
+        # test smooth cvar deviation using importance sampling
+        bkd = self.get_backend()
+        mu, sigma, beta = 0.5, 1, 0.5
+        risks = GaussianAnalyticalRiskMeasures(mu, sigma)
+        exact_avardev = risks.AVaR(beta) - mu
+        rv = stats.norm(mu, sigma)
+        smooth_avardev = SampleSmoothedConditionalValueAtRiskDeviation(
+            alpha=beta, eps=1000, backend=bkd
+        )
+        nsamples = int(1e6)
+        # samples = bkd.asarray(rv.rvs(nsamples)[None, :])
+        # a more accurate ansswer can be obtained by using 1D
+        # halton like sequence, i.e. equidistant points
+        dominating_rv = stats.norm(mu, sigma * 2)
+        samples = bkd.asarray(
+            dominating_rv.ppf(np.linspace(1e-6, 1 - 1e-6, nsamples))
+        )[None, :]
+        weights = bkd.full((nsamples, 1), 1 / nsamples)
+        weights *= rv.pdf(samples.T) / dominating_rv.pdf(samples.T)
+        smooth_avardev.set_mean(mu)
+        print(
+            smooth_avardev(samples.T, weights) - exact_avardev, exact_avardev
+        )
+        assert bkd.allclose(
+            smooth_avardev(samples.T, weights), exact_avardev, rtol=1e-5
         )
 
 

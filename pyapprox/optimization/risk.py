@@ -297,10 +297,10 @@ class GaussianAnalyticalRiskMeasures:
         """
         return self._mu + self._sigma * stats.norm.pdf(
             stats.norm.ppf(beta)
-        ) / (1 - beta)
+        ) / (1.0 - beta)
 
     def entropic(self, beta: float) -> float:
-        return np.exp(self._mu + beta * self._sigma**2 / 2.0)
+        return self._mu + beta * self._sigma**2 / 2.0
 
     def kl_divergence(self, mu2: float, sigma2: float) -> float:
         return multivariate_gaussian_kl_divergence(
