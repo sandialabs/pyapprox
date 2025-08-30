@@ -84,6 +84,13 @@ innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
     noise_cov_diag, backend=bkd
 )
 
+# %%
+# Initialize the OED Problem
+# --------------------------
+
+# Define the OED problem
+kl_oed = KLBayesianOED(innerloop_loglike)
+
 # %% Generate The Simulation Data
 # -------------------------------
 # Generate the simulation data needed to perform OED. Here we use a model of a predator-prey system.
@@ -104,41 +111,20 @@ outerloop_samples = prior_data_variable.rvs(nouterloop_samples)
 outerloop_quad_weights = bkd.full(
     (nouterloop_samples, 1), 1.0 / nouterloop_samples
 )
-# Generate the noiseless observations using the numerical model
-# We must discard the samples of the noise here when evaluating the model
-outerloop_shapes_samples = outerloop_samples[: prior.nvars()]
-outerloop_shapes = obs_model(outerloop_shapes_samples).T
-# Generate the observations from the liklihood, e.g. add the noise
-outerloop_loglike = innerloop_loglike.outerloop_loglike()
-obs = outerloop_loglike.rvs_from_shapes(outerloop_shapes)
-outerloop_loglike.set_observations_and_shapes(obs, outerloop_shapes)
-
-# Generate the shapes of the likelihood, e.g. the model predictions,
-# for the inner OED loop
 ninnerloop_samples = int(math.sqrt(nouterloop_samples))
 # Generate the samples to evaluate the model
 innerloop_samples = prior.rvs(ninnerloop_samples)
 innerloop_quad_weights = bkd.full(
     (ninnerloop_samples, 1), 1.0 / ninnerloop_samples
 )
-# Simulate the model and pass them to the inner likelihood
-innerloop_shapes = obs_model(innerloop_samples).T
-innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
 
-
-# %%
-# Initialize the OED Problem
-# --------------------------
-# Setup the OED problem using the data provided.
-
-# Define the OED problem
-kl_oed = KLBayesianOED(innerloop_loglike)
-# Pass the data to the OED problem
-kl_oed.set_data(
-    innerloop_loglike.outerloop_loglike().shapes(),
+# Use the sample to evaluate the models and pass the data to the OED problem
+kl_oed.set_data_from_model(
+    obs_model,
+    prior,
     outerloop_samples,
     outerloop_quad_weights,
-    innerloop_loglike.shapes(),
+    innerloop_samples,
     innerloop_quad_weights,
 )
 kl_oed.set_optimizer(kl_oed.default_optimizer(verbosity=0))

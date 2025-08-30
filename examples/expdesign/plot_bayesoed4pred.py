@@ -98,15 +98,20 @@ innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
     noise_cov_diag, backend=bkd
 )
 
+# %%
+# Initialize the OED Problem
+# --------------------------
+
+# Define the OED problem
+pred_oed = BayesianOEDForPrediction(innerloop_loglike)
+
 # %% Generate The Simulation Data
 # -------------------------------
 # Generate the simulation data needed to perform OED. Here we use a model of a predator-prey system.
 # We must create observations for the outerloop and simulation data for the innerloop.
 
 # Generate the outerloop observations
-nouterloop_samples = 10000
-# Define the data distribution, e.g. the joint distribution of the prior
-# and the noise
+nouterloop_samples = 5000
 prior_data_variable = IndependentMarginalsVariable(
     prior.marginals()
     + [stats.norm(0, bkd.sqrt(variance)) for variance in noise_cov_diag[:, 0]],
@@ -118,14 +123,6 @@ outerloop_samples = prior_data_variable.rvs(nouterloop_samples)
 outerloop_quad_weights = bkd.full(
     (nouterloop_samples, 1), 1.0 / nouterloop_samples
 )
-# Generate the noiseless observations using the numerical model
-# We must discard the samples of the noise here when evaluating the model
-outerloop_shapes_samples = outerloop_samples[: prior.nvars()]
-outerloop_shapes = obs_model(outerloop_shapes_samples).T
-# Generate the observations from the liklihood, e.g. add the noise
-outerloop_loglike = innerloop_loglike.outerloop_loglike()
-obs = outerloop_loglike.rvs_from_shapes(outerloop_shapes)
-outerloop_loglike.set_observations_and_shapes(obs, outerloop_shapes)
 
 # Generate the shapes of the likelihood, e.g. the model predictions,
 # for the inner OED loop
@@ -136,20 +133,9 @@ innerloop_samples = prior.rvs(ninnerloop_samples)
 innerloop_quad_weights = bkd.full(
     (ninnerloop_samples, 1), 1.0 / ninnerloop_samples
 )
-# Simulate the model and pass them to the inner likelihood
-innerloop_shapes = obs_model(innerloop_samples).T
-innerloop_loglike.set_observations_and_shapes(obs, innerloop_shapes)
 
-# Generate the predictions of the unboserved QoI.
-qoi_vals = pred_model(innerloop_samples)
-# assume MC quadrature for prediction space
+# Assume MC quadrature for prediction space
 qoi_quad_weights = bkd.full((pred_model.nqoi(), 1), 1.0 / pred_model.nqoi())
-
-
-# %%
-# Initialize the OED Problem
-# --------------------------
-# Setup the OED problem using the data provided.
 
 # Specify the noise statistic taken over all realizations of the data.
 # We will use the expectation
@@ -158,19 +144,20 @@ noise_stat = NoiseStatistic(SampleAverageMean(bkd))
 deviation_measure = OEDStandardDeviationMeasure(pred_model.nqoi(), bkd)
 # Specify the risk measure over the prediction space
 risk_measure = SampleAverageMeanPlusStdev(1, bkd)
-# Initialize the OED problem
-pred_oed = BayesianOEDForPrediction(
-    innerloop_loglike, deviation_measure, risk_measure, noise_stat
-)
+
 # Pass the data to the OED problem
-pred_oed.set_data(
-    innerloop_loglike.outerloop_loglike().shapes(),
+pred_oed.set_data_from_model(
+    obs_model,
+    pred_model,
+    prior,
     outerloop_samples,
     outerloop_quad_weights,
-    innerloop_loglike.shapes(),
+    innerloop_samples,
     innerloop_quad_weights,
-    qoi_vals,
     qoi_quad_weights,
+    deviation_measure,
+    risk_measure,
+    noise_stat,
 )
 pred_oed.set_optimizer(pred_oed.default_optimizer(verbosity=3))
 
@@ -202,18 +189,20 @@ fig.suptitle("Entropic Deviation")
 deviation_measure = OEDEntropicDeviationMeasure(pred_model.nqoi(), 1.0, bkd)
 # Specify the risk measure over the prediction space
 # Initialize the OED problem
-pred_oed_2 = BayesianOEDForPrediction(
-    innerloop_loglike, deviation_measure, risk_measure, noise_stat
-)
+pred_oed_2 = BayesianOEDForPrediction(innerloop_loglike)
 # Pass the data to the OED problem
-pred_oed_2.set_data(
-    innerloop_loglike.outerloop_loglike().shapes(),
+pred_oed_2.set_data_from_model(
+    obs_model,
+    pred_model,
+    prior,
     outerloop_samples,
     outerloop_quad_weights,
-    innerloop_loglike.shapes(),
+    innerloop_samples,
     innerloop_quad_weights,
-    qoi_vals,
     qoi_quad_weights,
+    deviation_measure,
+    risk_measure,
+    noise_stat,
 )
 pred_oed_2.set_optimizer(pred_oed.default_optimizer(verbosity=3))
 design_weights_2 = pred_oed_2.compute()
