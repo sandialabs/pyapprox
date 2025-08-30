@@ -238,7 +238,10 @@ class DisutilitySSD(UtilitySSD):
 
     def _value(self) -> float:
         return (
-            self._bkd.maximum(0, self._eta[:, None] + self._samples[None, :])
+            self._bkd.maximum(
+                self._bkd.zeros((1,)),
+                self._eta[:, None] + self._samples[None, :],
+            )
             @ self._quadw
         )
 

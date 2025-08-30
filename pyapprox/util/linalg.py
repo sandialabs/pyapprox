@@ -512,7 +512,10 @@ class DenseSymmetricMatVecOperator(SymmetricMatVecOperator):
 
 
 def adjust_sign_svd(
-    U: Array, V: Array, adjust_based_upon_U: bool = True
+    U: Array,
+    V: Array,
+    adjust_based_upon_U: bool = True,
+    bkd: BackendMixin = NumpyMixin,
 ) -> Tuple[Array, Array]:
     r"""
     Ensure uniquness of svd by ensuring the first entry of each left singular
@@ -548,11 +551,11 @@ def adjust_sign_svd(
         raise ValueError(msg)
 
     if adjust_based_upon_U:
-        s = np.sign(U[0, :])
+        s = bkd.sign(U[0, :])
     else:
-        s = np.sign(V[:, 0])
+        s = bkd.sign(V[:, 0])
     U *= s
-    V *= s[:, np.newaxis]
+    V *= s[:, None]
     return U, V
 
 
@@ -578,7 +581,7 @@ class RandomizedSVD(ABC):
         raise NotImplementedError
 
     def adjust_sign(self, U: Array, Vh: Array) -> Tuple[Array, Array]:
-        return adjust_sign_svd(U, Vh)
+        return adjust_sign_svd(U, Vh, bkd=self._bkd)
 
     def _sample_column_space(self, rank):
         nsamples = rank + self._noversampling

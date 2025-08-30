@@ -158,29 +158,29 @@ class LejaObjective(Model):
     def _initial_iterates(self) -> Tuple[Array, Array]:
         eps = 1e-6  # must be larger than optimization tolerance
         bounds = self._bounds
-        intervals = np.sort(self._sequence)
-        if np.isfinite(bounds[0]) and (
+        intervals = self._bkd.sort(self._sequence)
+        if self._bkd.isfinite(bounds[0]) and (
             self._bkd.min(self._sequence) > bounds[0] + eps
         ):
             intervals = np.hstack(([[bounds[0]]], intervals))
-        if np.isfinite(bounds[1]) and (
+        if self._bkd.isfinite(bounds[1]) and (
             self._bkd.max(self._sequence) < bounds[1] - eps
         ):
             intervals = np.hstack((intervals, [[bounds[1]]]))
-        if not np.isfinite(bounds[0]):
-            intervals = np.hstack(
+        if not self._bkd.isfinite(bounds[0]):
+            intervals = self._bkd.hstack(
                 ([[min(1.1 * self._bkd.min(self._sequence), -0.1)]], intervals)
             )
-        if not np.isfinite(bounds[1]):
-            intervals = np.hstack(
+        if not self._bkd.isfinite(bounds[1]):
+            intervals = self._bkd.hstack(
                 (intervals, [[max(1.1 * self._bkd.max(self._sequence), 0.1)]])
             )
         iterates = intervals[:, :-1] + np.diff(intervals) / 2.0
         # put intervals in form useful for bounding 1d optimization problems
         intervals = [intervals[0, ii] for ii in range(intervals.shape[1])]
-        if not np.isfinite(bounds[0]):
+        if not self._bkd.isfinite(bounds[0]):
             intervals[0] = -np.inf
-        if not np.isfinite(bounds[1]):
+        if not self._bkd.isfinite(bounds[1]):
             intervals[-1] = np.inf
 
         bounds = []

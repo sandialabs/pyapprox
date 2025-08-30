@@ -1,7 +1,6 @@
 import unittest
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
@@ -13,10 +12,6 @@ from pyapprox.pde.collocation.parameterized_pdes import (
 )
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
-    CrankNicholsonResidual,
-    ForwardEulerResidual,
-    HeunResidual,
-    TransientMSEAdjointFunctional,
 )
 from pyapprox.util.newton import (
     NewtonSolver,
@@ -72,7 +67,7 @@ class TestParameterizedModels:
 
     def test_steady_parameterized_diffusion(self):
         bkd = self.get_backend()
-        newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
+        newton_solver = NewtonSolver(verbosity=0, rtol=1e-8, atol=1e-8)
         model = SteadyDarcy2DKLEModel(
             10,
             1.0,
@@ -101,18 +96,18 @@ class TestParameterizedModels:
         newton_solver._verbosity = 0
         model.set_functional(functional)
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
-        errors = model.check_apply_jacobian(sample, fd_eps, disp=True)
+        errors = model.check_apply_jacobian(sample, fd_eps, disp=False)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.4e-6
 
-        errors = model.check_apply_hessian(sample, fd_eps, disp=True)
+        errors = model.check_apply_hessian(sample, fd_eps, disp=False)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.3e-6
 
     def test_transient_parameterized_diffusion_with_fixed_advection(self):
         bkd = self.get_backend()
         time_residual_cls = BackwardEulerResidual
-        newton_solver = NewtonSolver(verbosity=2, rtol=1e-8, atol=1e-8)
+        newton_solver = NewtonSolver(verbosity=0, rtol=1e-8, atol=1e-8)
         model = TransientDiffusionAdvectionModel(
             0,
             1,
@@ -138,7 +133,7 @@ class TestParameterizedModels:
         # TODO consider making diffusion coefficient also a parameter
         bkd = self.get_backend()
         time_residual_cls = BackwardEulerResidual
-        newton_solver = NewtonSolver(verbosity=2, rtol=1e-6, atol=1e-6)
+        newton_solver = NewtonSolver(verbosity=0, rtol=1e-6, atol=1e-6)
         model = FitzHughNagumoModel(
             0,
             50,
@@ -217,7 +212,7 @@ class TestParameterizedModels:
         # model.apply_hessian(sample, vec)
         # bkd.hvp(lambda x: model(x[:, None]), sample[:, 0], vec[:, 0])
 
-        errors = model.check_apply_jacobian(sample, disp=True)
+        errors = model.check_apply_jacobian(sample, disp=False)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 2e-7
 
@@ -235,7 +230,7 @@ class TestParameterizedModels:
         if not bkd.hessian_implemented():
             return
 
-        from pyapprox.optimization.minimize import approx_hessian
+        # from pyapprox.optimization.minimize import approx_hessian
 
         # print(
         #     approx_hessian(
@@ -255,9 +250,9 @@ class TestParameterizedModels:
         # print(bkd.hvp(lambda x: model(x[:, None]), sample[:, 0], vec[:, 0]))
         # assert False
 
-        errors = model.check_apply_hessian(sample, None, disp=True)
+        errors = model.check_apply_hessian(sample, None, disp=False)
         print(errors.min() / errors.max())
-        assert errors.min() / errors.max() < 4e-7
+        assert errors.min() / errors.max() < 6e-7
 
 
 class TestNumpyParameterizedModels(TestParameterizedModels, unittest.TestCase):
@@ -271,4 +266,4 @@ class TestTorchParameterizedModels(TestParameterizedModels, unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

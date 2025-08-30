@@ -1306,9 +1306,12 @@ class ScipyModelWrapper:
         sample = self._check_sample(sample)
         if vec.ndim != 1:
             raise ValueError("vec must be 1D array")
+        # dtype=self._bkd.double_type() is needed because
+        # scipy passes an int8 vector to hessp to check size of hvp
         return self._bkd.to_numpy(
             self._model.apply_hessian(
-                sample[:, None], self._bkd.asarray(vec[:, None])
+                sample[:, None],
+                self._bkd.asarray(vec[:, None], dtype=self._bkd.double_type()),
             )
         )
 

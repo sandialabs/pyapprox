@@ -60,8 +60,8 @@ class LinearDecoupledODE(
     def _initial_param_jacobian(self) -> Array:
         return self._bkd.stack(
             [
-                self._bkd.full((self._nstates,), 0),
-                self._bkd.full((self._nstates,), -1),
+                self._bkd.full((self._nstates,), 0.0),
+                self._bkd.full((self._nstates,), -1.0),
             ],
             axis=1,
         )
@@ -126,8 +126,8 @@ class NonLinearDecoupledODE(
         nstates = self._nstates
         return self._bkd.stack(
             [
-                self._bkd.full((nstates,), 0),
-                self._bkd.full((nstates,), -1),
+                self._bkd.full((nstates,), 0.0),
+                self._bkd.full((nstates,), -1.0),
             ],
             axis=1,
         )
@@ -147,7 +147,7 @@ class NonLinearDecoupledODE(
                     1, nstates + 1, dtype=self._bkd.double_type()
                 )
                 * sol**2,
-                self._bkd.full((nstates,), 0),
+                self._bkd.full((nstates,), 0.0),
             ),
             axis=1,
         )
@@ -360,7 +360,7 @@ class TestTimeIntegration:
                 rtol=1e-15,
             )
 
-        errors = model.check_apply_jacobian(sample, disp=True)
+        errors = model.check_apply_jacobian(sample, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_decoupled_nonlinear_ode_forward_euler(self):
@@ -514,7 +514,7 @@ class TestTimeIntegration:
                 rtol=1e-15,
             )
 
-        errors = model.check_apply_jacobian(sample, disp=True)
+        errors = model.check_apply_jacobian(sample, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_decoupled_linear_ode_heun(self):
@@ -661,7 +661,7 @@ class TestTimeIntegration:
                 rtol=1e-15,
             )
 
-        errors = model.check_apply_jacobian(sample, disp=True)
+        errors = model.check_apply_jacobian(sample, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_decoupled_nonlinear_ode_backward_euler(self):
@@ -836,7 +836,7 @@ class TestTimeIntegration:
                 rtol=1e-15,
             )
 
-        errors = model.check_apply_jacobian(sample, disp=True)
+        errors = model.check_apply_jacobian(sample, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_decoupled_linear_ode_backward_euler(self):
@@ -985,7 +985,7 @@ class TestTimeIntegration:
                 rtol=1e-15,
             )
 
-        errors = model.check_apply_jacobian(sample, disp=True)
+        errors = model.check_apply_jacobian(sample, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
     def test_decoupled_linear_ode_implicit_midpoint(self):
@@ -1107,7 +1107,7 @@ class TestTimeIntegration:
                 bkd.grad(model._evaluate, sample)[1].T,
             )
 
-        errors = model.check_apply_jacobian(sample, disp=True)
+        errors = model.check_apply_jacobian(sample, disp=False)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1.2e-6
 
@@ -1135,7 +1135,7 @@ class TestTorchTimeIntegration(TestTimeIntegration, unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
 
 
 # TODO add test with coefficient entering functional

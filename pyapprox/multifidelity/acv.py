@@ -234,7 +234,7 @@ class MCEstimator:
             estimator
         """
         self._rounded_nsamples_per_model = self._bkd.asarray(
-            [int(np.floor(target_cost / self._costs[0]))]
+            [int(self._bkd.floor(target_cost / self._costs[0]))]
         )
         self._rounded_npartition_samples = self._rounded_nsamples_per_model
         est_covariance = self._covariance_from_npartition_samples(
@@ -477,7 +477,9 @@ class CVEstimator(MCEstimator):
 
     def allocate_samples(self, target_cost: float):
         npartition_samples = [target_cost / self._costs.sum()]
-        rounded_npartition_samples = [int(np.floor(npartition_samples[0]))]
+        rounded_npartition_samples = [
+            int(self._bkd.floor(npartition_samples[0]))
+        ]
         if isinstance(
             self._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)
         ):
@@ -855,6 +857,7 @@ class ACVEstimator(CVEstimator):
         opt_criteria: callable = None,
         tree_depth: int = None,
         allow_failures: bool = False,
+        npartitions_lower_bound: float = 1e-2,
     ):
         """
         Constructor.
@@ -909,6 +912,7 @@ class ACVEstimator(CVEstimator):
         self._rounded_partition_ratios = None
         self._npartitions = self._nmodels
         self._optimizer = None
+        self._npartitions_lower_bound = npartitions_lower_bound  # this can impact the ability to find a solution
 
     def _get_discrepancy_covariances(self, npartition_samples: Array) -> Array:
         return self._stat._get_acv_discrepancy_covariances(
@@ -1362,10 +1366,9 @@ class ACVEstimator(CVEstimator):
 
     def get_npartition_bounds(self) -> Array:
         nunknowns = self._npartitions - 1
-        lower_bound = 1e-3  # this can impact the ability to find a solution
         bounds = self._bkd.stack(
             (
-                self._bkd.full((nunknowns,), lower_bound),
+                self._bkd.full((nunknowns,), self._npartitions_lower_bound),
                 self._bkd.full((nunknowns,), np.inf),
             ),
             axis=1,

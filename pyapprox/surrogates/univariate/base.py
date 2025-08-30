@@ -490,7 +490,9 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
         if len(bounds) != 2:
             raise ValueError("bounds must be an interable with two elements")
         self._bounds = bounds
-        if np.isfinite(bounds[0]) and np.isfinite(bounds[1]):
+        if self._bkd.isfinite(
+            self._bkd.asarray(bounds[0])
+        ) and self._bkd.isfinite(self._bkd.asarray(bounds[1])):
             raise ValueError(
                 "Do not use this integrator for bounded integrals"
             )
@@ -498,9 +500,9 @@ class UnivariateUnboundedIntegrator(UnivariateIntegrator):
     def _initial_interval_bounds(self) -> Tuple[float, float]:
         # needs to be copy for torch
         lb, ub = self._bkd.copy(self._bkd.array(self._bounds))
-        if np.isfinite(lb) and not np.isfinite(ub):
+        if self._bkd.isfinite(lb) and not self._bkd.isfinite(ub):
             return self._bkd.array([lb, lb + self._interval_size])
-        elif not np.isfinite(lb) and np.isfinite(ub):
+        elif not self._bkd.isfinite(lb) and self._bkd.isfinite(ub):
             return self._bkd.array([ub - self._interval_size, ub])
         return self._bkd.array(
             [-self._interval_size / 2, self._interval_size / 2]

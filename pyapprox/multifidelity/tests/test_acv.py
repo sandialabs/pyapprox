@@ -130,7 +130,7 @@ class TestMOMC:
             est._allocation_mat, npartition_samples, bkd
         )
         assert bkd.allclose(
-            nsamples_subset, bkd.array([0, 2, 2, 2, 2, 4, 4, 4])
+            nsamples_subset, bkd.array([0.0, 2, 2, 2, 2, 4, 4, 4])
         )
 
     def test_generalized_multifidelity_allocation_matrices(self):
@@ -595,8 +595,8 @@ class TestMOMC:
 
         # The following will give mlmc with unit variance
         # and level variances var[f_i-f_{i+1}] = [1, 4, 4]
-        target_cost = 81
-        costs = bkd.array([6, 3, 1])
+        target_cost = 81.0
+        costs = bkd.array([6.0, 3.0, 1.0])
         cov = bkd.asarray(
             [[1.00, 0.50, 0.25], [0.50, 1.00, 0.50], [0.25, 0.50, 4.00]]
         )
@@ -641,7 +641,7 @@ class TestMOMC:
         nsamples_per_model = est._compute_nsamples_per_model(
             npartition_samples
         )
-        est_cost = (nsamples_per_model * est._costs.numpy()).sum()
+        est_cost = (nsamples_per_model * est._costs).sum()
         assert bkd.allclose(
             nsamples_per_model,
             bkd.hstack(
@@ -699,7 +699,7 @@ class TestMOMC:
         nsamples_per_model = est._compute_nsamples_per_model(
             npartition_samples
         )
-        est_cost = (nsamples_per_model * est._costs.numpy()).sum()
+        est_cost = (nsamples_per_model * est._costs).sum()
         assert bkd.allclose(
             bkd.exp(bkd.asarray(obj_val)), bkd.exp(mlmc_log_variance)
         )
@@ -886,6 +886,11 @@ class TestMOMC:
         if est_name in ["mc", "cv"]:
             est.allocate_samples(target_cost)
         else:
+            optimizer = est.get_default_optimizer()
+            # optimizer._optimizer1._opts["maxiter"] = 100
+            # optimizer._optimizer2._opts["maxiter"] = 2000
+            optimizer._optimizer2.set_verbosity(0)
+            est.set_optimizer(optimizer)
             est.allocate_samples(target_cost)
             # {
             #     "scaling": 1.0,

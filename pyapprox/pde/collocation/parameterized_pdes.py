@@ -810,7 +810,7 @@ class ParameterizedShallowShelfVelocityPhysics(
             -(gvec * adj_sol * fwd_sol_copy * friction_stack)[None, :]
             @ eigvecs_stack
         )
-        return hvp
+        return hvp[0]
 
     def _param_state_hvp(
         self, fwd_sol: Array, adj_sol: Array, wvec: Array

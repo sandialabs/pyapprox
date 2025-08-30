@@ -35,7 +35,7 @@ def jacobi_recurrence(
         The recursion coefficients of the Nterms orthonormal polynomials
     """
 
-    if N < 1:
+    if N <= 1:
         return bkd.ones((0, 2))
 
     ab = bkd.ones((N, 2)) * bkd.array([beta**2.0 - alpha**2.0, 1.0])
@@ -60,7 +60,7 @@ def jacobi_recurrence(
             / ((alpha + beta + 2.0) ** 2 * (alpha + beta + 3.0))
         )
 
-    inds = bkd.arange(2.0, N)
+    inds = bkd.arange(2, N)
     ab[2:, 0] /= (2.0 * inds + alpha + beta) * (2 * inds + alpha + beta + 2.0)
     ab[2:, 1] = (
         4 * inds * (inds + alpha) * (inds + beta) * (inds + alpha + beta)
@@ -412,7 +412,7 @@ def laguerre_recurrence(
 
     nu = 1 + rho
     indices = bkd.arange(1, N)
-    ab[0, 1] = sp.gamma(nu)
+    ab[0, 1] = bkd.asarray(sp.gamma(bkd.to_numpy(nu)))
     ab[1:, 1] = (indices + rho) * indices
     ab[:, 1] = bkd.sqrt(ab[:, 1])
 

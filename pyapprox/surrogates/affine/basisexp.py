@@ -244,13 +244,8 @@ class BasisExpansion(Regressor):
         coef = self.get_coefficients()
         # Perform the Einstein summation to compute the Hessian-vector product
         # use optimize=True to find the best contraction
-        return np.einsum(
-            "jkl, jm, m, ln -> kn",
-            hess[0],
-            coef,
-            weights[:, 0],
-            vec,
-            optimize=True,
+        return self._bkd.einsum(
+            "jkl, jm, m, ln -> kn", hess[0], coef, weights[:, 0], vec
         )
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
@@ -701,7 +696,9 @@ class PolynomialChaosExpansion(MonomialExpansion):
             ]
         )
         marginalized_pce = PolynomialChaosExpansion(
-            marginalized_basis, solver=self._solver, nqoi=self.nqoi()
+            marginalized_basis,
+            solver=(self._solver if hasattr(self, "_solver") else None),
+            nqoi=self.nqoi(),
         )
         marginalized_pce.set_coefficients(
             self._bkd.copy(

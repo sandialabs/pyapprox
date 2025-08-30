@@ -72,7 +72,9 @@ class OscillatoryPolyModel(Model):
                 * self._bkd.sqrt(np.pi * (2.0 * k + 1.0) / abs_z)
                 # autograd will not work because we are calling scipy function
                 # here because it does not exist in torch
-                * self._bkd.asarray(bessel_function(k + 0.5, abs_z))
+                * self._bkd.asarray(
+                    bessel_function(k + 0.5, self._bkd.to_numpy(abs_z))
+                )
             )
             # gk not defined for z=0
             coeffs[k, :] = gk

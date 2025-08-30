@@ -374,7 +374,11 @@ class ScalarOperator:
         plot_samples = self._bkd.linspace(
             *self.basis().mesh().trans()._ranges, nplot_pts_1d
         )[None, :]
-        return ax.plot(plot_samples[0], self(plot_samples), **kwargs)
+        return ax.plot(
+            self._bkd.to_numpy(plot_samples[0]),
+            self._bkd.to_numpy(self(plot_samples)),
+            **kwargs,
+        )
 
     def _get_2d_plot_samples(self, npts_1d):
         orth_range = self.basis().mesh().trans()._orthog_ranges
@@ -401,6 +405,9 @@ class ScalarOperator:
                     "Z max {0} outside zbounds {1}".format(Z.max(), zbounds[1])
                 )
             Z = (Z - zmin) / (zmax - zmin)
+        X = self._bkd.to_numpy(X)
+        Y = self._bkd.to_numpy(Y)
+        Z = self._bkd.to_numpy(Z)
         if ax.name != "3d":
             kwargs_copy = kwargs.copy()
             if Z.max() - Z.min() < 1e-12:
@@ -432,6 +439,10 @@ class ScalarOperator:
         X = self._bkd.reshape(pts[0], X_shape)
         Y = self._bkd.reshape(pts[1], X_shape)
         Z = self._bkd.reshape(pts[2], X_shape)
+        X = self._bkd.to_numpy(X)
+        Y = self._bkd.to_numpy(Y)
+        Z = self._bkd.to_numpy(Z)
+        vals = self._bkd.to_numpy(vals)
         return X, Y, Z, vals
 
     def _plot_3d_internal(self, ax, npts_1d, fig):
@@ -471,22 +482,22 @@ class ScalarOperator:
         orth_X, orth_Y, orth_pts_2d = get_meshgrid_samples(
             self._bkd.tile(orth_range, (2,)), npts_1d, bkd=self._bkd
         )
-        edges = [
+        edges_np = [
             self._prepare_edge_3d(
                 ax, orth_pts_2d, orth_X.shape, ii, orth_range[0]
             )
             for ii in range(3)
         ]
-        edges += [
+        edges_np += [
             self._prepare_edge_3d(
                 ax, orth_pts_2d, orth_X.shape, ii, orth_range[1]
             )
             for ii in range(3)
         ]
-        vmin = self._bkd.min(self._bkd.hstack([edge[-1] for edge in edges]))
-        vmax = self._bkd.max(self._bkd.hstack([edge[-1] for edge in edges]))
+        vmin = np.min(np.hstack([edge[-1] for edge in edges_np]))
+        vmax = np.max(np.hstack([edge[-1] for edge in edges_np]))
         ims = []
-        for edge in edges:
+        for edge in edges_np:
             vals = (edge[3] - vmin) / (vmax - vmin)
             im = ax.plot_surface(
                 *edge[:3],

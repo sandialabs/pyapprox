@@ -182,7 +182,7 @@ class DiscreteInducedPolySampler(OrthoPolySampler):
             list(
                 map(
                     partial(np.searchsorted, side="right"),
-                    selected_cdfs.T,
+                    self._bkd.to_numpy(selected_cdfs.T),
                     usamples,
                 )
             ),

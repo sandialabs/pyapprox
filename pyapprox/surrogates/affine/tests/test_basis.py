@@ -137,7 +137,7 @@ class TestBasis:
                 bkd.where(bkd.count_nonzero(basis._indices, axis=0) == 1)[0],
             )
         )
-        true_coef = bkd.full((basis.nterms(), basisexp.nqoi()), 0)
+        true_coef = bkd.full((basis.nterms(), basisexp.nqoi()), 0.0)
         for ii in range(nqoi):
             # true_coef[nonzero_indices, ii] = ii+1
             true_coef = bkd.up(true_coef, (nonzero_indices, ii), ii + 1)
@@ -560,7 +560,6 @@ class TestBasis:
 
         vec = bkd.ones((fun.nvars(), 1))
         weights = bkd.full((fun.nqoi(), 1), 0.5)
-
         assert bkd.allclose(
             bexp.apply_weighted_hessian(test_samples[:, :1], vec, weights)[
                 :, 0

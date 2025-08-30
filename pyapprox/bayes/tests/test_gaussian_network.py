@@ -220,13 +220,13 @@ class TestGaussianNetwork(unittest.TestCase):
         prior_mean, prior_cov = convert_gaussian_from_canonical_form(
             factor_prior.precision_matrix, factor_prior.shift
         )
-        print("Prior Covariance\n", prior_cov)
-        print("Prior Mean\n", prior_mean)
+        # print("Prior Covariance\n", prior_cov)
+        # print("Prior Mean\n", prior_mean)
 
         true_prior_mean = np.hstack(
             [[prior_means[ii]] * nparams[ii] for ii in range(nnodes)]
         )
-        print(true_prior_mean)
+        # print(true_prior_mean)
         assert np.allclose(true_prior_mean, prior_mean)
         true_prior_var = np.hstack(
             [[prior_covs[ii]] * nparams[ii] for ii in range(nnodes)]
@@ -325,7 +325,7 @@ class TestGaussianNetwork(unittest.TestCase):
         )
         assert np.allclose(true_prior_cov, prior_cov)
 
-        print(network.node_labels)
+        # print(network.node_labels)
         factor_prior = cond_prob_variable_elimination(network, ["Node_2"])
         prior = convert_gaussian_from_canonical_form(
             factor_prior.precision_matrix, factor_prior.shift

@@ -173,9 +173,9 @@ class TestLikelihood:
         true_sample = prior_variable.rvs(1)
         obs = loglike.rvs(true_sample)
         loglike.set_observations(obs)
-        errors = loglike.check_apply_jacobian(true_sample, disp=True)
+        errors = loglike.check_apply_jacobian(true_sample, disp=False)
         assert errors.min() / errors.max() < 1e-6
-        errors = loglike.check_apply_hessian(true_sample, disp=True)
+        errors = loglike.check_apply_hessian(true_sample, disp=False)
         assert errors.min() / errors[0] < 1e-6
 
     def test_model_based_exponential_likelihood(self):
@@ -205,7 +205,6 @@ class TestLikelihood:
         nsamples = 5
         shapes = prior.rvs(nsamples)
         like_vals = bkd.exp(loglike(shapes))
-        print(obs.shape, shapes.shape)
         ref_like_vals = bkd.prod(
             bkd.vstack(
                 [
@@ -235,13 +234,14 @@ class TestLikelihood:
         loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
         true_sample = bkd.full((nvars, 1), 0.4)
         obs = loglike.rvs(true_sample)
-        print(obs.shape)
         loglike.set_observations(obs)
         unnormalized_posterior = LogUnNormalizedPosterior(loglike, prior)
         sample = prior.rvs(1)
-        errors = unnormalized_posterior.check_apply_jacobian(sample, disp=True)
+        errors = unnormalized_posterior.check_apply_jacobian(
+            sample, disp=False
+        )
         assert errors.min() / errors.max() < 1e-6
-        errors = unnormalized_posterior.check_apply_hessian(sample, disp=True)
+        errors = unnormalized_posterior.check_apply_hessian(sample, disp=False)
         assert errors.min() / errors.max() < 1e-6
 
         laplace = DenseMatrixLaplacePosteriorApproximation(
@@ -261,12 +261,12 @@ class TestLikelihood:
         nexperiments = 3
         ntrials = 10
         noptions = 4
-        shape_args = bkd.array([2, 3, 4, 5])
+        shape_args = bkd.array([2, 3, 4, 5.0])
         probs = np.random.uniform(0.5, 1, noptions)
         probs /= probs.sum()
 
         obs_np = stats.multinomial(ntrials, probs).rvs(nexperiments).T
-        obs = bkd.asarray(obs_np)
+        obs = bkd.asarray(obs_np, dtype=bkd.double_type())
         prior = DirichletVariable(shape_args, backend=bkd)
         loglike = MultinomialLogLikelihood(noptions, ntrials, backend=bkd)
         loglike.set_observations(obs)
@@ -278,9 +278,9 @@ class TestLikelihood:
             bkd.prod(
                 bkd.array(
                     [
-                        stats.multinomial(ntrials, prior_samples[:, 0]).pmf(
-                            obs_np[:, nn]
-                        )
+                        stats.multinomial(
+                            ntrials, bkd.to_numpy(prior_samples[:, 0])
+                        ).pmf(obs_np[:, nn])
                         for nn in range(nexperiments)
                     ]
                 )
@@ -317,4 +317,4 @@ class TestTorchLikelihood(TestLikelihood, unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

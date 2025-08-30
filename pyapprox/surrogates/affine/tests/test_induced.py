@@ -53,7 +53,6 @@ class TestDiscreteInducedPolySampler:
         nsamples = int(1e5)  # Number of samples to generate
         sampler, variable = self._setup_sampler(nvars, degree)
         samples = sampler(nsamples)
-
         # Compute moments from generated samples
         sample_mean = bkd.mean(samples, axis=1)
         sample_variance = bkd.var(samples, axis=1)

@@ -174,13 +174,14 @@ class ScipyConstrainedNelderMeadOptimizer(ScipyPenaltyConstrainedOptimizer):
     def _scipy_minimize(
         self, objective: ScipyModelWrapper, iterate: Array, bounds: Bounds
     ) -> NativeScipyOptimizationResult:
-        return scipy_minimize(
+        res = scipy_minimize(
             objective,
             iterate[:, 0],
             method="Nelder-Mead",
             bounds=bounds,
             options=self._opts,
         )
+        return res
 
 
 class ScipyConstrainedDifferentialEvolutionOptimizer(

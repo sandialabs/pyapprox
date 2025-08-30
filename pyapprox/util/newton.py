@@ -541,15 +541,33 @@ class AdjointSolver:
 
     def _lagrangian_param_state_hvp(self, wvec: Array) -> Array:
         # L_py.w, w = wvec
-        return self._functional.qoi_param_state_hvp(
-            self._fwd_sol, wvec
-        ) + self._residual.param_state_hvp(self._fwd_sol, self._adj_sol, wvec)
+
+        qps_hvp = self._functional.qoi_param_state_hvp(self._fwd_sol, wvec)
+        if qps_hvp.ndim != 1:
+            raise RuntimeError("qps_hvp must be a 1D array")
+        rps_hvp = self._residual.param_state_hvp(
+            self._fwd_sol, self._adj_sol, wvec
+        )
+        if rps_hvp.ndim != 1:
+            raise RuntimeError("rps_hvp must be a 1D array")
+        return qps_hvp + rps_hvp
 
     def _lagrangian_param_param_hvp(self, vvec: Array) -> Array:
         # L_pp.v
-        return self._functional.qoi_param_param_hvp(
-            self._fwd_sol, vvec
-        ) + self._residual.param_param_hvp(self._fwd_sol, self._adj_sol, vvec)
+
+        qpp_hvp = self._functional.qoi_param_param_hvp(self._fwd_sol, vvec)
+        if qpp_hvp.ndim != 1:
+            raise RuntimeError("qpp_hvp must be a 1D array")
+        rpp_hvp = self._residual.param_param_hvp(
+            self._fwd_sol, self._adj_sol, vvec
+        )
+        if rpp_hvp.ndim != 1:
+            raise RuntimeError(
+                "rpp_hvp returned by {0} must be a 1D array".format(
+                    self._residual
+                )
+            )
+        return qpp_hvp + rpp_hvp
 
     def adjoint_hessian_solve(self, wvec: Array, vvec: Array) -> Array:
         return self._bkd.solve(
@@ -566,11 +584,10 @@ class AdjointSolver:
 
         wvec = self.forward_hessian_solve(vvec)
         svec = self.adjoint_hessian_solve(wvec, vvec)
-        return (
-            self._drdp.T @ svec
-            - self._lagrangian_param_state_hvp(wvec)
-            + self._lagrangian_param_param_hvp(vvec)
-        )
+        lps_hvp = self._lagrangian_param_state_hvp(wvec)
+        lpp_hvp = self._lagrangian_param_param_hvp(vvec)
+        hvp = self._drdp.T @ svec - lps_hvp + lpp_hvp
+        return hvp
 
     def __repr__(self):
         return "{0}(functional={1})".format(

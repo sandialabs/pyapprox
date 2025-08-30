@@ -133,7 +133,7 @@ class IndexGenerator(ABC):
     def _plot_indices_2d(self, ax, indices: Array, color: str = "gray"):
         for index in indices.T:
             _plot_2d_index(ax, index, color)
-        lim = self._bkd.max(indices)
+        lim = self._bkd.to_numpy(self._bkd.max(indices))
         ax.set_xticks(np.arange(0, lim + 1))
         ax.set_yticks(np.arange(0, lim + 1))
         ax.set_xlim(-0.5, lim + 1)

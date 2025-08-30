@@ -453,11 +453,11 @@ class QuantileRegressionSolver(SingleQoiLinearSolverMixin, LinearSystemSolver):
             + [(0, None) for ii in range(nsamples)]  # vslack bounds
         )
         result = linprog(
-            cvec,
+            self._bkd.to_numpy(cvec),
             A_ub=None,
             b_ub=None,
-            A_eq=Amat,
-            b_eq=bvec,
+            A_eq=self._bkd.to_numpy(Amat),
+            b_eq=self._bkd.to_numpy(bvec),
             bounds=bounds,
             method="highs",
             # options={"tol": 1e-14},
@@ -469,6 +469,8 @@ class BasisPursuitRegressionSolver(
     SingleQoiLinearSolverMixin, LinearSystemSolver
 ):
     def _solve(self, basis_mat: Array, values: Array) -> Array:
+        basis_mat = self._bkd.to_numpy(basis_mat)
+        values = self._bkd.to_numpy(values)
         nunknowns = basis_mat.shape[1]
         nslack_variables = nunknowns
         c = np.zeros(nunknowns + nslack_variables)
@@ -500,7 +502,7 @@ class BasisPursuitRegressionSolver(
             bounds=bounds,
             options=options,
         )
-        return res.x[:nunknowns, None]
+        return self._bkd.asarray(res.x[:nunknowns, None])
 
     def set_options(self, options: dict):
         self._options = options

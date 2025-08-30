@@ -38,7 +38,7 @@ def _variance_reduction(get_rsquared, cov, nsample_ratios):
     gamma : float
         The variance reduction
     """
-    return 1-get_rsquared(cov, nsample_ratios)
+    return 1 - get_rsquared(cov, nsample_ratios)
 
 
 def _check_mfmc_model_costs_and_correlations(costs, corr):
@@ -48,14 +48,14 @@ def _check_mfmc_model_costs_and_correlations(costs, corr):
     """
     nmodels = len(costs)
     for ii in range(1, nmodels):
-        if ii < nmodels-1:
-            denom = corr[0, ii]**2 - corr[0, ii+1]**2
+        if ii < nmodels - 1:
+            denom = corr[0, ii] ** 2 - corr[0, ii + 1] ** 2
         else:
-            denom = corr[0, ii]**2
+            denom = corr[0, ii] ** 2
         if denom <= np.finfo(float).eps:
             return False
-        corr_ratio = (corr[0, ii-1]**2 - corr[0, ii]**2)/denom
-        cost_ratio = costs[ii-1] / costs[ii]
+        corr_ratio = (corr[0, ii - 1] ** 2 - corr[0, ii] ** 2) / denom
+        cost_ratio = costs[ii - 1] / costs[ii]
         if corr_ratio >= cost_ratio:
             return False
     return True
@@ -82,13 +82,21 @@ def _get_rsquared_mfmc(cov, nsample_ratios):
         The value r^2
     """
     nmodels = cov.shape[0]
-    assert len(nsample_ratios) == nmodels-1
-    rsquared = (nsample_ratios[0]-1)/(nsample_ratios[0])*cov[0, 1]/(
-        cov[0, 0]*cov[1, 1])*cov[0, 1]
-    for ii in range(1, nmodels-1):
-        p1 = (nsample_ratios[ii]-nsample_ratios[ii-1])/(
-            nsample_ratios[ii]*nsample_ratios[ii-1])
-        p1 *= cov[0, ii+1]/(cov[0, 0]*cov[ii+1, ii+1])*cov[0, ii+1]
+    assert len(nsample_ratios) == nmodels - 1
+    rsquared = (
+        (nsample_ratios[0] - 1)
+        / (nsample_ratios[0])
+        * cov[0, 1]
+        / (cov[0, 0] * cov[1, 1])
+        * cov[0, 1]
+    )
+    for ii in range(1, nmodels - 1):
+        p1 = (nsample_ratios[ii] - nsample_ratios[ii - 1]) / (
+            nsample_ratios[ii] * nsample_ratios[ii - 1]
+        )
+        p1 *= (
+            cov[0, ii + 1] / (cov[0, 0] * cov[ii + 1, ii + 1]) * cov[0, ii + 1]
+        )
         rsquared += p1
     return rsquared
 
@@ -122,25 +130,26 @@ def _allocate_samples_mfmc(cov, costs, target_cost, bkd):
     nmodels = len(costs)
     corr = covariance_to_correlation(cov, bkd)
     II = bkd.flip(bkd.argsort(bkd.abs(corr[0, 1:])))
-    if (II.shape[0] != nmodels-1):
+    if II.shape[0] != nmodels - 1:
         msg = "Correlation shape {0} inconsistent with len(costs) {1}.".format(
-            corr.shape, len(costs))
+            corr.shape, len(costs)
+        )
         raise RuntimeError(msg)
-    if not bkd.allclose(II, bkd.arange(nmodels-1, dtype=int)):
-        msg = 'Models must be ordered with decreasing correlation with '
-        msg += 'high-fidelity model'
+    if not bkd.allclose(II, bkd.arange(nmodels - 1, dtype=int)):
+        msg = "Models must be ordered with decreasing correlation with "
+        msg += "high-fidelity model"
         raise RuntimeError(msg)
 
     r = []
-    for ii in range(nmodels-1):
+    for ii in range(nmodels - 1):
         # Step 3 in Algorithm 2 in Peherstorfer et al 2016
-        num = costs[0] * (corr[0, ii]**2 - corr[0, ii+1]**2)
-        den = costs[ii] * (1 - corr[0, 1]**2)
-        r.append(bkd.sqrt(num/den))
+        num = costs[0] * (corr[0, ii] ** 2 - corr[0, ii + 1] ** 2)
+        den = costs[ii] * (1 - corr[0, 1] ** 2)
+        r.append(bkd.sqrt(num / den))
 
-    num = costs[0]*corr[0, -1]**2
-    den = costs[-1] * (1 - corr[0, 1]**2)
-    r.append(bkd.sqrt(num/den))
+    num = costs[0] * corr[0, -1] ** 2
+    den = costs[-1] * (1 - corr[0, 1] ** 2)
+    r.append(bkd.sqrt(num / den))
     r = bkd.array(r)
 
     # Step 4 in Algorithm 2 in Peherstorfer et al 2016
@@ -148,22 +157,22 @@ def _allocate_samples_mfmc(cov, costs, target_cost, bkd):
     nsample_ratios = r[1:]
 
     gamma = _variance_reduction(_get_rsquared_mfmc, cov, nsample_ratios)
-    log_variance = bkd.log(gamma)+bkd.log(cov[0, 0])-bkd.log(
-        nhf_samples)
+    log_variance = bkd.log(gamma) + bkd.log(cov[0, 0]) - bkd.log(nhf_samples)
     return bkd.atleast1d(nsample_ratios), log_variance
 
 
 def _get_sample_allocation_matrix_mfmc(nmodels, bkd):
-    mat = bkd.zeros((nmodels, 2*nmodels))
+    mat = bkd.zeros((nmodels, 2 * nmodels))
     mat[0, 1:] = 1
     for ii in range(1, nmodels):
-        mat[ii, 2*ii+1:] = 1
+        mat[ii, 2 * ii + 1 :] = 1
     return mat
 
 
 def _get_npartition_samples_mfmc(nsamples_per_model):
     npartition_samples = np.hstack(
-        (nsamples_per_model[0], np.diff(nsamples_per_model)))
+        (nsamples_per_model[0], np.diff(nsamples_per_model))
+    )
     return npartition_samples
 
 
@@ -192,21 +201,21 @@ def _get_rsquared_mlmc(cov, nsample_ratios):
         The variance reduction
     """
     nmodels = cov.shape[0]
-    assert len(nsample_ratios) == nmodels-1
+    assert len(nsample_ratios) == nmodels - 1
     gamma = 0.0
     rhat = np.ones((nmodels), dtype=float)
     for ii in range(1, nmodels):
-        rhat[ii] = nsample_ratios[ii-1] - rhat[ii-1]
+        rhat[ii] = nsample_ratios[ii - 1] - rhat[ii - 1]
 
-    for ii in range(nmodels-1):
-        vardelta = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
+    for ii in range(nmodels - 1):
+        vardelta = cov[ii, ii] + cov[ii + 1, ii + 1] - 2 * cov[ii, ii + 1]
         gamma += vardelta / (rhat[ii])
 
-    v = cov[nmodels-1, nmodels-1]
+    v = cov[nmodels - 1, nmodels - 1]
     gamma += v / (rhat[-1])
 
     gamma /= cov[0, 0]
-    return 1-gamma
+    return 1 - gamma
 
 
 def _allocate_samples_mlmc(cov, costs, target_cost, bkd):
@@ -250,14 +259,16 @@ def _allocate_samples_mlmc(cov, costs, target_cost, bkd):
 
     # compute the variance of the discrepancy
     var_deltas = bkd.empty(nmodels)
-    for ii in range(nmodels-1):
-        var_deltas[ii] = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
-    var_deltas[nmodels-1] = cov[nmodels-1, nmodels-1]
+    for ii in range(nmodels - 1):
+        var_deltas[ii] = (
+            cov[ii, ii] + cov[ii + 1, ii + 1] - 2 * cov[ii, ii + 1]
+        )
+    var_deltas[nmodels - 1] = cov[nmodels - 1, nmodels - 1]
 
     # compute the cost of one sample of the discrepancy
     cost_deltas = bkd.empty(nmodels)
-    cost_deltas[:nmodels-1] = (costs[:nmodels-1] + costs[1:nmodels])
-    cost_deltas[nmodels-1] = costs[nmodels-1]
+    cost_deltas[: nmodels - 1] = costs[: nmodels - 1] + costs[1:nmodels]
+    cost_deltas[nmodels - 1] = costs[nmodels - 1]
 
     # compute variance * cost
     var_cost_prods = var_deltas * cost_deltas
@@ -269,30 +280,31 @@ def _allocate_samples_mlmc(cov, costs, target_cost, bkd):
     lagrange_multiplier = target_cost / bkd.sqrt(var_cost_prods).sum()
 
     # compute the number of samples needed for each discrepancy
-    nsamples_per_delta = lagrange_multiplier*bkd.sqrt(var_cost_ratios)
+    nsamples_per_delta = lagrange_multiplier * bkd.sqrt(var_cost_ratios)
 
     # compute the ML estimator variance from the target cost
-    variance = bkd.sum(var_deltas/nsamples_per_delta)
+    variance = bkd.sum(var_deltas / nsamples_per_delta)
 
     # compute the number of samples allocated to each model. For
     # all but the highest fidelity model we need to collect samples
     # from two discrepancies.
     nhf_samples = nsamples_per_delta[0]
-    nsample_ratios = bkd.empty(nmodels-1)
-    for ii in range(nmodels-1):
+    nsample_ratios = bkd.empty(nmodels - 1)
+    for ii in range(nmodels - 1):
         nsample_ratios[ii] = (
-            nsamples_per_delta[ii]+nsamples_per_delta[ii+1])/nhf_samples
+            nsamples_per_delta[ii] + nsamples_per_delta[ii + 1]
+        ) / nhf_samples
 
     assert bkd.allclose(
-        nhf_samples*costs[0] + (nsample_ratios*nhf_samples).dot(costs[1:]),
-        cost_deltas.dot(nsamples_per_delta))
+        nhf_samples * costs[0] + (nsample_ratios * nhf_samples).dot(costs[1:]),
+        cost_deltas.dot(nsamples_per_delta),
+    )
 
     gamma = _variance_reduction(_get_rsquared_mlmc, cov, nsample_ratios)
-    log_variance = bkd.log(gamma)+bkd.log(cov[0, 0])-bkd.log(
-        nhf_samples)
+    log_variance = bkd.log(gamma) + bkd.log(cov[0, 0]) - bkd.log(nhf_samples)
     # print(log_variance)
-    if np.isnan(log_variance):
-        raise RuntimeError('MLMC variance is NAN')
+    if bkd.isnan(log_variance):
+        raise RuntimeError("MLMC variance is NAN")
     return bkd.atleast1d(nsample_ratios), log_variance
 
 
@@ -313,9 +325,9 @@ def _get_sample_allocation_matrix_mlmc(nmodels, bkd):
         For columns :math:`2j+1, j=0,\ldots,M-1` the ith row contains a
         flag specifiying if :math:`z_i\subseteq z_j`
     """
-    mat = bkd.zeros((nmodels, 2*nmodels))
-    for ii in range(nmodels-1):
-        mat[ii, 2*ii+1:2*ii+3] = 1
+    mat = bkd.zeros((nmodels, 2 * nmodels))
+    for ii in range(nmodels - 1):
+        mat[ii, 2 * ii + 1 : 2 * ii + 3] = 1
     mat[-1, -1] = 1
     return mat
 
@@ -344,11 +356,12 @@ def _get_npartition_samples_mlmc(nsamples_per_model):
     npartition_samples[0] = nsamples_per_model[0]
     for ii in range(1, nmodels):
         npartition_samples[ii] = (
-            nsamples_per_model[ii]-npartition_samples[ii-1])
+            nsamples_per_model[ii] - npartition_samples[ii - 1]
+        )
     return npartition_samples
 
 
-class ModelTree():
+class ModelTree:
     def __init__(self, root, children=[]):
         if type(children) == np.ndarray:
             children = list(children)
@@ -379,8 +392,7 @@ class ModelTree():
             self._to_index_recusive(index, child)
 
     def __repr__(self):
-        return "{0}({1})".format(
-            self.__class__.__name__, self.to_index())
+        return "{0}({1})".format(self.__class__.__name__, self.to_index())
 
 
 def _update_list_for_reduce(mylist, indices):
@@ -396,24 +408,30 @@ def _generate_all_trees(children, root, tree_depth):
             if not any(prod):
                 continue
             nexts, sub_roots = reduce(
-                _update_list_for_reduce, zip(prod, children), ([], []))
+                _update_list_for_reduce, zip(prod, children), ([], [])
+            )
             for q in product(range(len(sub_roots)), repeat=len(nexts)):
                 sub_children = reduce(
-                    _update_list_for_reduce, zip(q, nexts),
-                    [[] for ii in sub_roots])
+                    _update_list_for_reduce,
+                    zip(q, nexts),
+                    [[] for ii in sub_roots],
+                )
                 yield from [
                     ModelTree(root, list(children))
                     for children in product(
-                            *(_generate_all_trees(sc, sr, tree_depth-1)
-                              for sr, sc in zip(sub_roots, sub_children)))]
+                        *(
+                            _generate_all_trees(sc, sr, tree_depth - 1)
+                            for sr, sc in zip(sub_roots, sub_children)
+                        )
+                    )
+                ]
 
 
 def _get_acv_recursion_indices(nmodels, depth=None):
     if depth is None:
-        depth = nmodels-1
-    if depth > nmodels-1:
+        depth = nmodels - 1
+    if depth > nmodels - 1:
         msg = f"Depth {depth} exceeds number of lower-fidelity models"
         raise ValueError(msg)
     for index in _generate_all_trees(np.arange(1, nmodels), 0, depth):
         yield index.to_index()[1:]
-        

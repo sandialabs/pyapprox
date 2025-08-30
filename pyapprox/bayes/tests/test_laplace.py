@@ -314,29 +314,29 @@ class TestLaplace:
         nexperiments = 3
         ntrials = 10
         noptions = 4
-        shape_args = bkd.array([2, 3, 4, 5])
+        shape_args = bkd.array([2, 3, 4, 5.0])
         probs = np.random.uniform(0.5, 1, noptions)
         probs /= probs.sum()
         post = DirichletConjugatePriorPosterior(
             shape_args, nexperiments, ntrials, noptions, backend=bkd
         )
         obs_np = stats.multinomial(ntrials, probs).rvs(nexperiments).T
-        obs = bkd.asarray(obs_np)
+        obs = bkd.asarray(obs_np, dtype=bkd.double_type())
         post.compute(obs)
         prior = DirichletVariable(shape_args, backend=bkd)
         loglike = MultinomialLogLikelihood(noptions, ntrials, backend=bkd)
         loglike.set_observations(obs)
         prior_samples = prior.rvs(1000000)
-        # check value of loglike at one prior_sample
 
+        # check value of loglike at one prior_sample
         assert bkd.allclose(
             bkd.exp(loglike(prior_samples[:, :1])),
             bkd.prod(
                 bkd.array(
                     [
-                        stats.multinomial(ntrials, prior_samples[:, 0]).pmf(
-                            obs_np[:, nn]
-                        )
+                        stats.multinomial(
+                            ntrials, bkd.to_numpy(prior_samples[:, 0])
+                        ).pmf(obs_np[:, nn])
                         for nn in range(nexperiments)
                     ]
                 )
@@ -412,4 +412,4 @@ class TestTorchLaplace(TestLaplace, unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

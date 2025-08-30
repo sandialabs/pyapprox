@@ -175,7 +175,7 @@ class UnivariateBarycentricLagrangeBasis(UnivariateLagrangeBasis):
             1.0 / weights[nsamples - 1, :nsamples]
         )
 
-        if not self._bkd.all(np.isfinite(weights)):
+        if not self._bkd.all(self._bkd.isfinite(weights)):
             raise RuntimeError(
                 "Samples are ill conditioned. set or change scale factor"
             )

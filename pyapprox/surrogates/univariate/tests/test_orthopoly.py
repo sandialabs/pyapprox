@@ -76,7 +76,11 @@ class TestOrthonormalPolynomials1D:
         assert bkd.allclose(pquad_x, quad_x)
         assert bkd.allclose(pquad_w, quad_w)
         vals_exact = bkd.stack(
-            [sp.eval_chebyt(ii, quad_x) for ii in range(degree + 1)], axis=1
+            [
+                bkd.asarray(sp.eval_chebyt(ii, bkd.to_numpy(quad_x)))
+                for ii in range(degree + 1)
+            ],
+            axis=1,
         )
         vals = poly(pquad_x)
         assert bkd.allclose(vals, vals_exact)
@@ -92,7 +96,11 @@ class TestOrthonormalPolynomials1D:
         assert bkd.allclose(pquad_x, quad_x)
         assert bkd.allclose(pquad_w, quad_w)
         vals_exact = bkd.stack(
-            [sp.eval_chebyu(ii, quad_x[0]) for ii in range(degree + 1)], axis=1
+            [
+                bkd.asarray(sp.eval_chebyu(ii, bkd.to_numpy(quad_x[0])))
+                for ii in range(degree + 1)
+            ],
+            axis=1,
         )
         vals = poly(pquad_x)
         assert bkd.allclose(vals, vals_exact)
@@ -210,9 +218,11 @@ class TestOrthonormalPolynomials1D:
             axis=1,
         )[:, : degree + 1]
         vals_exact /= bkd.sqrt(
-            sp.gamma(bkd.arange(degree + 1) + rho + 1)
-            / sp.factorial(bkd.arange(degree + 1))
-            / sp.gamma(rho + 1)
+            bkd.asarray(
+                sp.gamma(np.arange(degree + 1) + rho + 1)
+                / sp.factorial(np.arange(degree + 1))
+                / sp.gamma(rho + 1)
+            )
         )
         assert bkd.allclose(vals, vals_exact)
 
@@ -308,7 +318,7 @@ class TestOrthonormalPolynomials1D:
 
         quad_x = bkd.arange(0, n + 1)[None, :]
         vals = poly(quad_x)
-        quad_w = rv.pmf(quad_x[0])[:, None]
+        quad_w = bkd.asarray(rv.pmf(quad_x[0])[:, None])
         assert bkd.allclose(
             (vals.T * quad_w[:, 0]) @ vals, bkd.eye(degree + 1)
         )

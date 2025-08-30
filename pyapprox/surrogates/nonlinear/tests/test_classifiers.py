@@ -49,7 +49,7 @@ class TestClassifiers(unittest.TestCase):
             maxiter=100,
             method="trust-constr",
         )
-        optimizer.set_verbosity(2)
+        optimizer.set_verbosity(0)
         ms_optimizer = MultiStartOptimizer(optimizer, ncandidates=2)
         iterate_gen = RandomUniformOptimzerIterateGenerator(
             clf.hyp_list().nactive_vars(), backend=bkd
@@ -58,7 +58,7 @@ class TestClassifiers(unittest.TestCase):
         # optimization
         iterate_gen.set_bounds([-2, 2])
         ms_optimizer.set_initial_iterate_generator(iterate_gen)
-        ms_optimizer.set_verbosity(2)
+        ms_optimizer.set_verbosity(0)
         return ms_optimizer
 
     def test_logistic_classifier(self):
@@ -82,13 +82,12 @@ class TestClassifiers(unittest.TestCase):
         iterate = bkd.asarray(
             np.random.normal(0, 1, (clf.hyp_list().nactive_vars(), 1))
         )
-        print(clf._optimizer._objective(iterate))
         errors = clf._optimizer._objective.check_apply_jacobian(
-            iterate, disp=True
+            iterate, disp=False
         )
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
         errors = clf._optimizer._objective.check_apply_hessian(
-            iterate, disp=True
+            iterate, disp=False
         )
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
         clf.fit(train_samples, train_values)

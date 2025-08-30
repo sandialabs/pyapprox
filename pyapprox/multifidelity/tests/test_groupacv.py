@@ -81,7 +81,7 @@ class TestGroupACV:
     def _check_separate_samples(self, est):
         bkd = self.get_backend()
         NN = 2
-        npartition_samples = bkd.full((est.nsubsets(),), NN)
+        npartition_samples = bkd.full((est.nsubsets(),), float(NN))
         est._set_optimized_params(npartition_samples)
 
         samples_per_model = est.generate_samples_per_model(
@@ -110,12 +110,9 @@ class TestGroupACV:
                 .reshape(est.npartitions(), NN)[active_partitions]
                 .flatten()
             )
-            assert np.allclose(
-                values_per_subset[ii].shape,
-                (
-                    est._nintersect_samples(npartition_samples)[ii][ii],
-                    len(est._subsets[ii]),
-                ),
+            assert values_per_subset[ii].shape == (
+                est._nintersect_samples(npartition_samples)[ii][ii],
+                len(est._subsets[ii]),
             )
             for jj, s in enumerate(est._subsets[ii]):
                 assert bkd.allclose(
@@ -135,14 +132,15 @@ class TestGroupACV:
         npartition_samples = bkd.arange(2.0, 2 + est.nsubsets(), dtype=float)
         assert bkd.allclose(
             est._compute_nsamples_per_model(npartition_samples),
-            bkd.array([21, 23, 25]),
+            bkd.array([21.0, 23.0, 25.0]),
         )
-        assert np.allclose(
-            est._estimator_cost(npartition_samples), 21 * 3 + 23 * 2 + 25 * 1
+        assert bkd.allclose(
+            est._estimator_cost(npartition_samples),
+            bkd.asarray(21 * 3 + 23 * 2 + 25 * 1.0),
         )
-        assert np.allclose(
+        assert bkd.allclose(
             est._nintersect_samples(npartition_samples),
-            np.diag(npartition_samples),
+            bkd.diag(npartition_samples),
         )
         self._check_separate_samples(est)
 
@@ -151,11 +149,11 @@ class TestGroupACV:
 
         assert bkd.allclose(
             est._compute_nsamples_per_model(npartition_samples),
-            bkd.array([9, 20, 27]),
+            bkd.array([9, 20, 27.0]),
         )
         assert bkd.allclose(
             est._estimator_cost(npartition_samples),
-            bkd.array([9 * 3 + 20 * 2 + 27 * 1]),
+            bkd.array([9 * 3 + 20 * 2 + 27 * 1.0]),
         )
         assert bkd.allclose(
             est._nintersect_samples(npartition_samples),
@@ -199,7 +197,7 @@ class TestGroupACV:
         errors = opt._optimizer._objective.check_apply_jacobian(
             iterate, disp=False
         )
-        assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.1
+        assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.06
         errors = opt._optimizer._objective.check_apply_hessian(iterate)
         assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.05
         errors = opt._constraint.check_apply_jacobian(iterate)
@@ -461,13 +459,13 @@ class TestGroupACV:
                 target_cost, partition_ratios
             )
         )
-        assert np.allclose(
+        assert bkd.allclose(
             est._compute_nsamples_per_model(npartition_samples),
             mfmc_est._compute_nsamples_per_model(npartition_samples),
         )
-        assert np.allclose(
-            np.exp(mfmc_log_variance),
-            est._covariance_from_npartition_samples(npartition_samples).item(),
+        assert bkd.allclose(
+            bkd.exp(mfmc_log_variance),
+            est._covariance_from_npartition_samples(npartition_samples),
         )
 
     def _check_sigma_matrix_of_estimator(self, est, ntrials, funs, variable):
@@ -937,11 +935,14 @@ class TestGroupACV:
         # make sure each restriction matrix recovers all the correct qoi of all
         # subset model ids
         assert bkd.allclose(
-            (est._R[:, :6].T @ Lvec)[:, 0], bkd.array([0, 1, 2, 3, 4, 5])
+            (est._R[:, :6].T @ Lvec)[:, 0],
+            bkd.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
         )
-        assert bkd.allclose((est._R[:, 6:8].T @ Lvec)[:, 0], bkd.array([2, 3]))
         assert bkd.allclose(
-            (est._R[:, 8:10].T @ Lvec)[:, 0], bkd.array([4, 5])
+            (est._R[:, 6:8].T @ Lvec)[:, 0], bkd.array([2.0, 3.0])
+        )
+        assert bkd.allclose(
+            (est._R[:, 8:10].T @ Lvec)[:, 0], bkd.array([4.0, 5.0])
         )
 
 

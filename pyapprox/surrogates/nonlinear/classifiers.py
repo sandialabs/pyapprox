@@ -46,7 +46,7 @@ class CrossEntropyLoss(LossFunction):
 
 
 class CrossEntropyLossLogisticRegression(CrossEntropyLoss):
-    def __init__(self, penalty_weight: float = 1):
+    def __init__(self, penalty_weight: float = 1.0):
         self._penalty_weight = penalty_weight
         super().__init__()
 
@@ -121,11 +121,11 @@ class LogisticClassifier(OptimizedRegressor):
 
         # HACK torch sigmoid is more stable than my custom implementation
         return torch.sigmoid(vals)[:, None]
-        return self._bkd.where(
-            vals >= 0,
-            1 / (1 + self._bkd.exp(-vals)),
-            self._bkd.exp(vals) / (1 + self._bkd.exp(vals)),
-        )[:, None]
+        # return self._bkd.where(
+        #     vals >= 0,
+        #     1 / (1 + self._bkd.exp(-vals)),
+        #     self._bkd.exp(vals) / (1 + self._bkd.exp(vals)),
+        # )[:, None]
 
     def hyperparam_jacobian(self, active_opt_params: Array) -> Array:
         self._bexp.hyp_list().set_active_opt_params(active_opt_params[:, 0])
@@ -138,4 +138,6 @@ class LogisticClassifier(OptimizedRegressor):
 
     def labels(self, samples: Array, threshold: float = 0.5) -> Array:
         # threshold in [0, 1]
-        return self._bkd.asarray(self(samples) > threshold)
+        return self._bkd.asarray(
+            self(samples) > threshold, dtype=self._bkd.double_type()
+        )

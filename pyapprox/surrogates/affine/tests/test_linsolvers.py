@@ -114,8 +114,8 @@ class TestLinearSolvers:
     def test_lstsq_solver(self):
         bkd = self.get_backend()
         solver = LstSqSolver(backend=bkd)
-        basis_mat = bkd.array([1, 1, 1, 1, 1])[:, None]
-        values = bkd.array([2, 4, 6, 8, 10])[:, None]
+        basis_mat = bkd.array([1, 1, 1, 1, 1.0])[:, None]
+        values = bkd.array([2, 4, 6, 8, 10.0])[:, None]
         coef = solver.solve(basis_mat, values)
         # Assert statistic of risk quadrangle is zero. I.e 0.8 qunatile
         # is zero. Must use method="inverted_cdf" avaiable in numpy
@@ -137,13 +137,13 @@ class TestLinearSolvers:
         assert bkd.allclose(C @ coef, d, atol=1e-15)
 
         # assert polynomial matches values at end points [0, 1] exactly
-        end_samples = bkd.array([[0, 1]])
+        end_samples = bkd.array([[0.0, 1.0]])
         # add noise so surrogate will not interpolate data exactly
         # except where constraints are enforved
         y += bkd.asarray(np.random.normal(0, 0.1, y.shape))
         C = end_samples.T ** bkd.arange(nbasis)[None, :]
         d = C @ true_coef
-        solver = LinearlyConstrainedLstSq(C, d, backend=bkd)
+        solver = LinearlyConstrainedLstSqSolver(C, d, backend=bkd)
         coef = solver.solve(A, y)
         assert bkd.allclose(C @ coef, d, atol=1e-15)
         assert bkd.allclose(A @ coef, y, atol=1e-1)
@@ -158,12 +158,12 @@ class TestLinearSolvers:
         # [2, 4, 6, 8, 10] - [1, 1, 1, 1, 1] * 6 = [-4, -2, 0, -2, -4]
         # median residual is zero
         coef = solver.solve(basis_mat, values)
-        assert bkd.allclose(coef, bkd.full((1,), 6))
+        assert bkd.allclose(coef, bkd.full((1,), 6.0))
 
         quantile = 0.8
         solver = QuantileRegressionSolver(quantile, backend=bkd)
-        basis_mat = bkd.array([1, 1, 1, 1, 1])[:, None]
-        values = bkd.array([2, 4, 6, 8, 10])[:, None]
+        basis_mat = bkd.array([1, 1, 1, 1, 1.0])[:, None]
+        values = bkd.array([2, 4, 6, 8, 10.0])[:, None]
         # Residuals are
         # [2, 4, 6, 8, 10] - [1, 1, 1, 1, 1] * 8 = [-6, -4, -2, 0, 2]
         coef = solver.solve(basis_mat, values)
@@ -179,7 +179,7 @@ class TestLinearSolvers:
             ),
             bkd.zeros(1),
         )
-        assert bkd.allclose(coef, bkd.full((1,), 8))
+        assert bkd.allclose(coef, bkd.full((1,), 8.0))
 
         if not package_available("cvxopt"):
             return
@@ -193,7 +193,7 @@ class TestLinearSolvers:
         # [2, 4, 6, 8, 10] - [1, 1, 1, 1, 1] * 8 = [-6, -4, -2, 0, 2]
         # 0.8 quantile residual is zero
         coef = solver.solve(basis_mat, values)
-        assert bkd.allclose(coef, bkd.full((1,), 8))
+        assert bkd.allclose(coef, bkd.full((1,), 8.0))
 
     def test_entropic_regression(self):
         bkd = self.get_backend()
@@ -309,7 +309,7 @@ class TestLinearSolvers:
         assert errors.min() / errors.max() < 1e-6
 
         errors = solver._optimizer._raw_constraints[0].check_apply_jacobian(
-            bexp.get_coefficients(), disp=True
+            bexp.get_coefficients(), disp=False
         )
         assert errors.min() / errors.max() < 1e-6
 
@@ -371,7 +371,7 @@ class TestLinearSolvers:
         )
         bexp.fit(train_samples, train_values)
 
-        DSSD = DisutilitySSD()
+        DSSD = DisutilitySSD(backend=bkd)
         surrogate_vals = bexp(train_samples)
         DSSD.set_samples(surrogate_vals.T)
         DSSD.set_eta(surrogate_vals[:, 0])

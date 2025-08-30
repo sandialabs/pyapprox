@@ -439,7 +439,6 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
     def set_estimator(self, est: "GroupACVEstimator"):
         super().set_estimator(est)
         objective = self.get_objective()
-        print(self)
         objective.set_estimator(self._est)
         self._optimizer.set_objective_function(objective)
         self._constraint = GroupACVCostConstraint(
@@ -890,7 +889,8 @@ class GroupACVEstimator:
     def _validate_asketch(self, asketch):
         if asketch is None:
             asketch = self._bkd.full(
-                (self._stat.nstats(), self._stat.nstats() * self.nmodels()), 0
+                (self._stat.nstats(), self._stat.nstats() * self.nmodels()),
+                0.0,
             )
             for nn in range(self._stat.nstats()):
                 asketch[nn, nn] = 1.0
@@ -1183,10 +1183,10 @@ class GroupACVEstimator:
             Q_tilde = R.T @ subset_ests[ii]
             Q0_tilde = Q_tilde[: self._stat.nstats()]
             QL_tilde = Q_tilde[self._stat.nstats() :]
-            print("\n", subset)
+            # print("\n", subset)
             # print(beta)
-            print(subset_ests[ii])
-            print(Q_tilde, "QT")
+            # print(subset_ests[ii])
+            # print(Q_tilde, "QT")
             # print(Q0_tilde, "Q0")
             # print(B0_tilde, "B0")
             # print(QL_tilde, "QL")
@@ -1221,7 +1221,6 @@ class GroupACVEstimator:
     def _group_to_traditional_estimators(
         self, subset_ests: List[Array]
     ) -> Array:
-        print(subset_ests, "SE")
         # Implement equations (15) in arxiv paper
         # wu = w_l^{k,u} and  we = w_l^{k,e} from arxiv paper
         alpha = self._traditional_acv_weights()

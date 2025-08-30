@@ -79,7 +79,7 @@ class TestNystrom:
         C_MM = C_NN[:M, :M]
         Q = C_MN.T @ bkd.inv(C_MM) @ C_MN + noise_std**2 * bkd.eye(N)
 
-        values = bkd.full((N, 1), 1)
+        values = bkd.full((N, 1), 1.0)
         p_y = MultivariateNormal(values[:, 0] * 0, covariance_matrix=Q)
         logpdf1 = p_y.log_prob(values[:, 0])
 
@@ -87,12 +87,12 @@ class TestNystrom:
         logpdf2 = _log_prob_gaussian_with_noisy_nystrom_covariance(
             noise_std, L_UU, C_MN.T, values, bkd
         )
-        assert np.allclose(logpdf1, logpdf2)
+        assert bkd.allclose(logpdf1, logpdf2)
 
         if N != M:
             return
 
-        assert np.allclose(Q, C_NN + noise_std**2 * bkd.eye(N))
+        assert bkd.allclose(Q, C_NN + noise_std**2 * bkd.eye(N))
 
         values = values
         Q_inv = bkd.inv(Q)
@@ -104,10 +104,10 @@ class TestNystrom:
             bkd.get_diagonal(L_Omega)
         ).sum() + 2 * N * np.log(noise_std)
         gamma = bkd.solve_triangular(L_Omega, Delta @ values, lower=True)
-        assert np.allclose(log_det, bkd.slogdet(Q)[1])
+        assert bkd.allclose(log_det, bkd.slogdet(Q)[1])
 
         coef = Q_inv @ values
-        assert np.allclose(
+        assert bkd.allclose(
             values.T @ coef,
             values.T @ values / noise_std**2 - gamma.T @ gamma / noise_std**2,
         )
@@ -115,7 +115,7 @@ class TestNystrom:
         mll = -0.5 * (
             values.T @ coef + bkd.slogdet(Q)[1] + N * np.log(2 * np.pi)
         )
-        assert np.allclose(mll, logpdf2)
+        assert bkd.allclose(mll, logpdf2)
 
     def test_invert_noisy_low_rank_nystrom_approximation(self):
         test_cases = [
@@ -165,6 +165,7 @@ class TestGaussianProcess:
 
         gp = ExactGaussianProcess(nvars, kernel, trend=trend, kernel_reg=1e-8)
         gp.set_output_transform(out_trans)
+        gp.set_optimizer(ncandidates=2)
 
         def fun(xx):
             return (xx**2).sum(axis=0)[:, None]
@@ -197,7 +198,7 @@ class TestGaussianProcess:
                 atol=6e-5,
             )
         else:
-            assert np.allclose(gp_vals, test_vals, atol=1e-2)
+            assert bkd.allclose(gp_vals, test_vals, atol=1e-2)
 
     def test_exact_gp_training(self):
         test_cases = [
@@ -214,11 +215,11 @@ class TestGaussianProcess:
         ntrain_samples = 10
         nvars, ninducing_samples = 1, 5
         kernel = MaternKernel(np.inf, 0.5, [1e-1, 1], nvars, backend=bkd)
-        inducing_samples = np.linspace(-1, 1, ninducing_samples)[None, :]
+        inducing_samples = bkd.linspace(-1, 1, ninducing_samples)[None, :]
         noise = HyperParameter(
             "noise",
             1,
-            1,
+            1.0,
             (1e-6, 1),
             LogHyperParameterTransform(backend=bkd),
             backend=bkd,
@@ -253,7 +254,7 @@ class TestGaussianProcess:
         # print(gp)
 
         # test plot runs
-        xx = np.linspace(-1, 1, 101)[None, :]
+        xx = bkd.linspace(-1, 1, 101)[None, :]
         plt.plot(xx[0], gp.evaluate(xx, False), "--")
         plt.plot(
             gp.inducing_samples.get_samples(),
@@ -280,14 +281,14 @@ class TestGaussianProcess:
         test_vals = fun(test_samples)
         gp_mu, gp_std = gp.evaluate(test_samples, return_std=True)
         # print(gp_mu-test_vals)
-        assert np.allclose(gp_mu, test_vals, atol=6e-3)
+        assert bkd.allclose(gp_mu, test_vals, atol=6e-3)
 
     def test_variational_gp_collapse_to_exact_gp(self):
         bkd = self.get_backend()
         nvars = 1
         ntrain_samples = 6
         noise_var = 1e-8
-        kernel = MaternKernel(np.inf, 1, [1e-1, 1], nvars, backend=bkd)
+        kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
 
         def fun(xx):
             return (xx**2).sum(axis=0)[:, None]
@@ -296,7 +297,9 @@ class TestGaussianProcess:
         train_values = fun(train_samples)
 
         ntest_samples = 6
-        test_samples = np.random.uniform(-1, 1, (nvars, ntest_samples))
+        test_samples = bkd.asarray(
+            np.random.uniform(-1, 1, (nvars, ntest_samples))
+        )
 
         exact_gp = ExactGaussianProcess(
             nvars,
@@ -342,15 +345,16 @@ class TestGaussianProcess:
             inducing_samples,
             kernel_reg=0,
         )
+        vi_gp.set_optimizer(ncandidates=3)
         vi_gp.fit(train_samples, train_values)
         vi_gp_vals, vi_gp_std = vi_gp.evaluate(test_samples, return_std=True)
 
         # print(vi_gp_vals-exact_gp_vals)
-        assert np.allclose(vi_gp_vals, exact_gp_vals, atol=1e-12)
+        assert bkd.allclose(vi_gp_vals, exact_gp_vals, atol=1e-12)
         # print(vi_gp_std-exact_gp_std)
         # I think larger tolerance needed because sqrt of covariance
         # is being taken inside funcitns
-        assert np.allclose(vi_gp_std, exact_gp_std, atol=5e-5)
+        assert bkd.allclose(vi_gp_std, exact_gp_std, atol=5e-5)
 
     def test_icm_gp(self):
         bkd = self.get_backend()
@@ -358,15 +362,17 @@ class TestGaussianProcess:
 
         def fun0(xx):
             delta0 = 0.0
-            return np.cos(2 * np.pi * xx.T + delta0)
+            return bkd.cos(2 * np.pi * xx.T + delta0)
 
         def fun1(xx):
             delta1 = 0.5
-            return np.cos(2 * np.pi * xx.T + delta1)
+            return bkd.cos(2 * np.pi * xx.T + delta1)
 
         funs = [fun0, fun1]
 
-        radii, radii_bounds = np.arange(1, noutputs + 1), [1, 10]
+        radii, radii_bounds = bkd.arange(
+            1, noutputs + 1, dtype=bkd.double_type()
+        ), [1.0, 10.0]
         angles = np.pi / 4
         latent_kernel = MaternKernel(
             np.inf, 0.5, [1e-1, 2], nvars, backend=bkd
@@ -410,7 +416,7 @@ class TestGaussianProcess:
         # print(values.shape)
         # print(corr_matrix)
         # print(bkd.covariance_to_correlation(bkd.cov(values.T, ddof=1)))
-        assert np.allclose(
+        assert bkd.allclose(
             corr_matrix,
             bkd.covariance_to_correlation(bkd.cov(values.T, ddof=1)),
             atol=1e-2,
@@ -420,7 +426,7 @@ class TestGaussianProcess:
         ax = plt.subplots(1, 1)[1]
         gp.plot(ax, [-1, 1], output_id=0, plt_kwargs={"c": "r", "ls": "-"})
         gp.plot(ax, [-1, 1], output_id=1)
-        xx = np.linspace(-1, 1, 101)[None, :]
+        xx = bkd.linspace(-1, 1, 101)[None, :]
         ax.plot(xx[0], funs[0](xx), "--")
         ax.plot(xx[0], funs[1](xx), ":")
         ax.plot(gp.get_train_samples()[0][0], gp.get_train_values()[0], "o")
@@ -463,7 +469,9 @@ class TestGaussianProcess:
         funs = peer_funs + [partial(target_fun, peer_funs)]
 
         # nsamples_per_output = np.array([5 for ii in range(noutputs-1)]+[4])*2
-        nsamples_per_output = np.array([7 for ii in range(noutputs - 1)] + [5])
+        nsamples_per_output = bkd.array(
+            [7 for ii in range(noutputs - 1)] + [5]
+        )
         samples_per_output = [
             bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output
@@ -497,7 +505,7 @@ class TestGaussianProcess:
         # return the same likelihood value and prediction mean and std. dev.
         peer_gp = MOPeerExactGaussianProcess(nvars, kernel, kernel_reg=0)
         peer_gp._set_training_data(samples_per_output, values_per_output)
-        assert np.allclose(
+        assert bkd.allclose(
             gp._neg_log_like_with_hyperparam_trend(),
             peer_gp._neg_log_like_with_hyperparam_trend(),
         )
@@ -508,15 +516,15 @@ class TestGaussianProcess:
         peer_gp_mean, peer_gp_std = peer_gp.evaluate(
             [xx] * noutputs, return_std=True
         )
-        assert np.allclose(peer_gp_mean[-1], gp_mean[-1])
-        assert np.allclose(peer_gp_std[-1], gp_std[-1])
+        assert bkd.allclose(peer_gp_mean[-1], gp_mean[-1])
+        assert bkd.allclose(peer_gp_std[-1], gp_std[-1])
 
     @unittest.skip("Incomplete")
     def test_collaborative_gp(self):
         bkd = self.get_backend()
         nvars, noutputs = 1, 4
 
-        radii, radii_bounds = bkd.ones(noutputs), [1, 2]
+        radii, radii_bounds = bkd.ones(noutputs), [1.0, 2.0]
         angles = np.pi / 4
         latent_kernel = MaternKernel(
             np.inf, 0.5, [1e-1, 2], nvars, backend=bkd
@@ -558,9 +566,11 @@ class TestGaussianProcess:
         peer_funs = [partial(peer_fun, delta) for delta in peer_deltas]
         funs = peer_funs + [partial(target_fun, peer_funs)]
 
-        nsamples_per_output = np.array([7 for ii in range(noutputs - 1)] + [5])
-        # nsamples_per_output = np.array([5 for ii in range(noutputs-1)]+[4])*2
-        # nsamples_per_output = np.array([3 for ii in range(noutputs-1)]+[2])
+        nsamples_per_output = bkd.array(
+            [7 for ii in range(noutputs - 1)] + [5]
+        )
+        # nsamples_per_output = bkd.array([5 for ii in range(noutputs-1)]+[4])*2
+        # nsamples_per_output = bkd.array([3 for ii in range(noutputs-1)]+[2])
         samples_per_output = [
             bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
             for nsamples in nsamples_per_output
@@ -958,9 +968,9 @@ class TestGaussianProcess:
         # assert errors.min() / errors.max() < 1e-6
 
         gp_vals = gp(validation_samples)
-        rel_error = np.linalg.norm(
-            gp_vals - validation_values
-        ) / np.linalg.norm(validation_values)
+        rel_error = bkd.norm(gp_vals - validation_values) / bkd.norm(
+            validation_values
+        )
         # print("Rel. Error", rel_error)
 
         assert rel_error < 5e-4
