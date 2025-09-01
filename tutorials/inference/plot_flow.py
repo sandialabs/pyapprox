@@ -14,7 +14,7 @@ Here we used :math:`\left\lvert\text{Det}\left[\frac{dy}{dx}\right]\right\rvert=
 
 Normalzing flows typically consists of a composition of transformations :math:`T=T_K(z) \circ \cdots \circ T_1(\vec{u})` so that
 
-.. math:: \log p(\rvv)= \log \pi(T^{-1}(\rvv))+\sum_{k=1}^K \left\lvert\text{Det}\left[\nabla_\rvv T^{-1}_k(T^{-1}_k(\rvv_k))\right]\right\rvert
+.. math:: \log p(\rvv)= \log \pi(T^{-1}(\rvv))+\sum_{k=1}^K \log\left(\lvert\text{Det}\left[\nabla_\rvv T^{-1}_k(T^{-1}_k(\rvv_k))\right]\rvert\right)
 
 where :math:`\rvv_k=T_k \circ \ldots \circ T_1(\vec{u})`
 
@@ -68,31 +68,35 @@ Typically, we fix all variables that were transformed at the previous layer and 
 
 Example
 -------
+The following shows how to construct a flow that maps a 2D standard Normal
+to an 2D independent Gaussian with scaled and shifted marginals.
+
 Consider :math:`\rvv=[\rv_1,\rv_2], \vec{u}=[u_1,u_2]` and let :math:`s=1`.
-Now let the shift and scale be linear functions of thier inputs. This is referred to as affine coupling.
-When using RealNVP layers, it is also useful to express the coupling transform :math:`T_k(\rvv)` explicitly in terms of a coupling function :math:`h(\rvv_A, \phi(\rvv_B))`.
-That is,
+Now let the shift and scale be:
+
+.. math:: \sigma_k(\rvv) = \log(\tau_k) \qquad \mu_k(\rvv) = \nu_k
+
+No substitute these expressions into:
 
 .. math::
 
     T_k(\rvv) = \begin{bmatrix}
     \rvv_A \\
-    h(\rvv_B, \theta(\rvv_A))
+    \rvv_B\odot\exp(\sigma_k(\rvv_A)) + \mu_k(\rvv_B)
     \end{bmatrix}
 
-where :math:`\rvv_A=\rvv_A`, :math:`\rvv_B=\rvv_B`, :math:`\theta(\rvv_A) =\exp(\sigma_k(\rvv_A)) + \mu_k(\rvv_B)`, and :math:`h(\rvv_B, \theta(\rvv_A)) =  \rvv_B\odot\theta(\rvv_A)`.
-Letting the latent variable :math:`u` be a multivariate standard normal with independent marginals, we construct a transformation :math:`T_1` with :math:`\rvv_A=[\rv_1]` and :math:`\rvv_B=[\rv_2]` so that
+with :math:`\rvv_A=[\rv_1]` and :math:`\rvv_B=[\rv_2]` so that:
 
 .. math::
 
     \rvv_1=T_1(\vec{u})=
     \begin{bmatrix}
     u_1 \\
-    u_2 (\exp(\log(\tau_1 u_1)) + \nu_1)
+    u_2 \exp(\log(\tau_1)) + \nu_1
     \end{bmatrix}=
     \begin{bmatrix}
     u_1 \\
-    u_2 (\tau_1 u_1 + \nu_1)
+    u_2 \tau_1 + \nu_1
     \end{bmatrix}
 
 
@@ -102,11 +106,7 @@ Now let :math:`\rvv_A=[\rv_{12}]` and :math:`\rvv_B=[\rv_{11}]`
 
     \rvv_2=T_2(\rvv_1)=
     \begin{bmatrix}
-    u_2 (\tau_1 u_1 + \nu_1)\\
-    u_1 (\exp(\log(u_2 (\tau_1 u_1 + \nu_1)))+\nu_2)
-    \end{bmatrix}=
-    \begin{bmatrix}
-    u_2 (\tau_1 u_1 + \nu_1) \\
-    u_1 (u_2 (\tau_1 u_1 + \nu_1) + \nu_2)
+    u_1 \tau_2 + \nu_2\\
+    u_2 \tau_1 + \nu_1
     \end{bmatrix}
 """

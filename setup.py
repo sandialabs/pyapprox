@@ -141,3 +141,6 @@ setuptools.setup(
 
 # On osx enable GPUs if you have them with
 # conda install torchaudio torchvision -c pytorch
+
+# build one file <plot_flows.py> in docs with html and put in directory called doc_html
+# sphinx-build -D sphinx_gallery_conf.filename_pattern=plot_flows\\.py -b html source/ doc_html

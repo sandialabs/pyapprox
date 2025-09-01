@@ -16,12 +16,12 @@ from pyapprox.optimization.minimize import (
 
 
 class FlowLayer(ABC):
-    def __init__(self, backend: BackendMixin):
+    def __init__(self, nvars: int, backend: BackendMixin):
+        self._nvars = nvars
         self._bkd = backend
 
-    @abstractmethod
     def nvars(self) -> int:
-        raise NotImplementedError
+        return self._nvars
 
     @abstractmethod
     def _map_from_latent(self, usamples: Array) -> Array:
@@ -31,13 +31,16 @@ class FlowLayer(ABC):
     def _map_to_latent(self, samples: Array) -> Array:
         raise NotImplementedError
 
+    def __repr__(self) -> str:
+        return "{0}(nvars={1})".format(self.__class__.__name__, self.nvars())
+
 
 class RealNVPLayer(FlowLayer):
-    def __init__(self, shapes, mask: Array):
-        super().__init__(shapes._bkd)
+    def __init__(self, nvars, shapes, mask: Array):
+        super().__init__(nvars, shapes._bkd)
         self._shapes = shapes
         if mask.shape != (self.nvars(),):
-            raise ValueError("mask has the wrong shape")
+            raise ValueError(f"{mask.shape=} must be {(self.nvars(),)}")
         if mask.dtype != self._bkd.bool_type():
             raise ValueError("mask must be a boolean array")
         self._mask = mask
@@ -46,9 +49,6 @@ class RealNVPLayer(FlowLayer):
             0
         ].shape[0]
         self._hyp_list = self._shapes._hyp_list
-
-    def nvars(self) -> int:
-        return self._shapes.nqoi()
 
     def _map_from_latent(self, usamples: Array, return_logdet: bool) -> Array:
         # extract the variable dimensions that are not transformed
@@ -69,6 +69,7 @@ class RealNVPLayer(FlowLayer):
         shift = shapes[:, : self._ntransformed_vars].T
         # scales stored in second half of columns
         scale = shapes[:, self._ntransformed_vars :].T
+        # print(scale)
         usamples = self._bkd.copy(samples)
         usamples[self._mask_complement] = (
             samples[self._mask_complement] - shift
@@ -80,11 +81,16 @@ class RealNVPLayer(FlowLayer):
     def _map_from_latent_jacobian_log_determinant(
         self, shapes: Array
     ) -> Array:
-        shift = shapes[:, : self.nvars()].T
-        return self._bkd.sum(shift, axis=0)
+        scale = shapes[:, self._ntransformed_vars :].T
+        return self._bkd.sum(scale, axis=0)
 
     def _map_to_latent_jacobian_log_determinant(self, shapes: Array) -> Array:
         return -self._map_from_latent_jacobian_log_determinant(shapes)
+
+    def __repr__(self) -> str:
+        return "{0}(nvars={1}, shapes={2})".format(
+            self.__class__.__name__, self.nvars(), self._shapes
+        )
 
 
 class Flow:
@@ -109,13 +115,12 @@ class Flow:
         self._loss.set_flow(self)
 
     def logpdf(self, samples: Array) -> Array:
-        vals = 0.0
+        logdet = 0.0
         samples = self._bkd.copy(samples)
         for layer in reversed(self._layers):
             samples, layer_logdet = layer._map_to_latent(samples, True)
-            vals += layer_logdet
-        vals = vals[:, None] + self._latent_variable.logpdf(samples)
-        return vals
+            logdet += layer_logdet
+        return logdet[:, None] + self._latent_variable.logpdf(samples)
 
     def pdf(self, samples: Array) -> Array:
         return self._bkd.exp(self.logpdf(samples))
@@ -137,8 +142,15 @@ class Flow:
     def nvars(self) -> int:
         return self._layers[0].nvars()
 
-    def fit(self, samples: Array, iterate: Optional[Array] = None):
+    def fit(
+        self,
+        samples: Array,
+        iterate: Optional[Array] = None,
+        weights: Optional[Array] = None,
+    ):
         self._loss.set_samples(samples)
+        if weights is not None:
+            self._loss.set_weights(weights)
         if not hasattr(self, "_optimizer"):
             self._optimizer = self.default_optimizer()
         self._optimizer.set_objective_function(self._loss)
@@ -146,7 +158,7 @@ class Flow:
         if iterate is None:
             iterate = self._hyp_list.get_active_opt_params()[:, None]
         self._opt_result = self._optimizer.minimize(iterate)
-        print(self._opt_result)
+        # print(self._opt_result)
         self._hyp_list.set_active_opt_params(self._opt_result.x[:, 0])
 
     def set_optimizer(self, optimizer: MultiStartOptimizer):
@@ -166,7 +178,13 @@ class Flow:
         #     )
         self._optimizer = optimizer
 
-    def xdefault_optimizer(self):
+    def xdefault_optimizer(
+        self,
+        verbosity: int = 0,
+        gtol: float = 1e-8,
+        maxiter: int = 1000,
+        method: str = "L-BFGS-B",
+    ):
         from pyapprox.optimization.minimize import ChainedOptimizer
         from pyapprox.optimization.scipy import (
             ScipyConstrainedDifferentialEvolutionOptimizer,
@@ -175,7 +193,10 @@ class Flow:
         opt1 = ScipyConstrainedDifferentialEvolutionOptimizer(
             opts={"maxiter": 20}
         )
+        opt1.set_verbosity(verbosity - 1)
         opt2 = ScipyConstrainedOptimizer()
+        opt2.set_options(gtol=gtol, maxiter=maxiter, method=method)
+        opt2.set_verbosity(verbosity - 1)
         return ChainedOptimizer(opt1, opt2)
 
     def default_optimizer(
@@ -285,14 +306,32 @@ class FlowLoss(Model):
         self._flow = flow
         self._bkd = self._flow._bkd
 
+    def set_weights(self, weights: Array):
+        if weights.shape != (self.get_samples().shape[1], 1):
+            raise ValueError(
+                "weights.shape was {0} but must be {1}".format(
+                    weights.shape, (self.get_samples().shape[1], 1)
+                )
+            )
+        self._weights = weights
+
+    def get_weights(self) -> Array:
+        if hasattr(self, "_weights"):
+            return self._weights
+        nsamples = self.get_samples().shape[1]
+        return self._bkd.full((nsamples, 1), 1.0 / nsamples)
+
     def set_samples(self, samples: Array):
         self._samples = samples
 
+    def get_samples(self) -> Array:
+        if not hasattr(self, "_samples"):
+            raise ValueError("must call set_samples()")
+        return self._samples
+
     def _values(self, active_opt_params: Array) -> Array:
         self._flow._hyp_list.set_active_opt_params(active_opt_params[:, 0])
-        nsamples = self._samples.shape[1]
-        weights = self._bkd.full((nsamples, 1), 1.0 / nsamples)
-        return -weights.T @ self._flow.logpdf(self._samples)
+        return -self.get_weights().T @ self._flow.logpdf(self._samples)
 
     def _jacobian(self, active_opt_params: Array):
         return self._bkd.jacobian(
