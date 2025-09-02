@@ -66,8 +66,8 @@ and for the inverse transform
 The effectivness of such a flow depends on the ordering of the variables. So typically the ordering of the variables is changed for each intermediate transform.
 Typically, we fix all variables that were transformed at the previous layer and vice-versa.
 
-Example
--------
+Example: Independent Gaussians
+------------------------------
 The following shows how to construct a flow that maps a 2D standard Normal
 to an 2D independent Gaussian with scaled and shifted marginals.
 
@@ -109,4 +109,61 @@ Now let :math:`\rvv_A=[\rv_{12}]` and :math:`\rvv_B=[\rv_{11}]`
     u_1 \tau_2 + \nu_2\\
     u_2 \tau_1 + \nu_1
     \end{bmatrix}
+
+
+Example: Correlated Gaussian
+----------------------------
+The following shows how to construct a flow that maps a 2D standard Normal
+to a multivariate Gaussian with scaled and shifted correlated marginals.
+
+Let the shift and scales of a two layer RealNVP with input :math:`\rvv=[\rv_1,\rv_2]` be:
+
+.. math:: \sigma_1(\rvv) = \log(\tau_1) \qquad \mu_1(\rvv) = \nu_1 + \delta_1\rv_2
+
+.. math:: \sigma_2(\rvv) = \log(\tau_2) \qquad \mu_2(\rvv) = \nu_2
+
+so that:
+
+.. math::
+
+    \rvv_1=T_1(\vec{u})=
+    \begin{bmatrix}
+    u_1 \\
+    u_2 \tau_1 + \nu_1 + \delta_1 u_2
+    \end{bmatrix}
+
+.. math::
+
+    \rvv_2=T_2(\rvv_1)=
+    \begin{bmatrix}
+    u_1 \tau_2 + \nu_2\\
+    u_2 \tau_1 + \nu_1 + \delta_1 u_1
+    \end{bmatrix}
+
+
+Let :math:`\rvv_2 =[Y_1, Y_2]`, then:
+
+- :math:`Y_1` has mean :math:`\nu_2` and variance :math:`\tau_2^2`.
+- :math:`Y_2` has mean :math:`\nu_1` and variance :math:`\tau_1^2 + \delta_1^2`.
+- The covariance between :math:`Y_1` and :math:`Y_2` is :math:`\tau_2 \delta_1`.
+
+Thus, the joint distribution of :math:`Y_1` and :math:`Y_2` is a bivariate normal distribution, given by:
+
+.. math::
+
+    \rvv_2=\begin{bmatrix}
+    Y_1 \\
+    Y_2
+    \end{bmatrix} \sim N\left(
+    \begin{bmatrix}
+    \nu_2 \\
+    \nu_1
+    \end{bmatrix},
+    \begin{bmatrix}
+    \tau_2^2 & \tau_2 \delta_1 \\
+    \tau_2 \delta_1 & \tau_1^2 + \delta_1^2
+    \end{bmatrix}
+    \right)
+
+
 """

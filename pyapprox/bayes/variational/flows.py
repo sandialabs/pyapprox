@@ -52,6 +52,10 @@ class RealNVPLayer(FlowLayer):
 
     def _map_from_latent(self, usamples: Array, return_logdet: bool) -> Array:
         # extract the variable dimensions that are not transformed
+        print(
+            self._shapes.get_coefficients(),
+            self._bkd.array([0, 1])[self._mask],
+        )
         shapes = self._shapes(usamples[self._mask])
         shift = shapes[:, : self._ntransformed_vars].T
         scale = shapes[:, self._ntransformed_vars :].T
