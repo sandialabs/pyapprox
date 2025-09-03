@@ -192,6 +192,14 @@ class ScipyConstrainedDifferentialEvolutionOptimizer(
     ) -> NativeScipyOptimizationResult:
         opts = self._opts.copy()
         opts["polish"] = False
+        if self._verbosity > 1:
+            disp = True
+        else:
+            disp = False
         return scipy.optimize.differential_evolution(
-            objective, bounds, **opts, x0=iterate[:, 0]
+            objective,
+            bounds,
+            **opts,
+            x0=iterate[:, 0],
+            disp=disp,
         )

@@ -62,8 +62,8 @@ class OptimizationResult(dict):
 class Constraint(Model):
     def __init__(
         self,
-        bounds=None,
-        keep_feasible=False,
+        bounds: Array = None,
+        keep_feasible: bool = False,
         backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(backend)
@@ -84,7 +84,9 @@ class Constraint(Model):
 
 
 class ConstraintFromModel(Constraint):
-    def __init__(self, model, bounds=None, keep_feasible=False):
+    def __init__(
+        self, model: Model, bounds: Array = None, keep_feasible: bool = False
+    ):
         super().__init__(bounds, keep_feasible, model._bkd)
         if not isinstance(model, Model):
             raise ValueError(
@@ -312,7 +314,12 @@ class OptimizerWithObjective(Optimizer):
 
 
 class MultiStartOptimizer(OptimizerWithObjective):
-    def __init__(self, optimizer, ncandidates=1):
+    def __init__(
+        self,
+        optimizer: Optimizer,
+        ncandidates: int = 1,
+        exit_hard: bool = True,
+    ):
         """
         Find the smallest local optima associated with a set of
         initial guesses.
@@ -329,6 +336,7 @@ class MultiStartOptimizer(OptimizerWithObjective):
         self._optimizer = optimizer
         self._bounds = None
         self._initial_interate_gen = None
+        self._exit_hard = exit_hard
         super().__init__(objective=optimizer._objective)
 
     def set_bounds(self, bounds):
@@ -369,7 +377,7 @@ class MultiStartOptimizer(OptimizerWithObjective):
                 )
         if self._verbosity > 0:
             print("{0}\n".format(self) + textwrap.indent(str(best_res), "\t"))
-        if not sucess:
+        if not sucess and self._exit_hard:
             raise RuntimeError("All optimizations failed")
         return best_res
 
@@ -380,7 +388,13 @@ class MultiStartOptimizer(OptimizerWithObjective):
 
 
 class ConstrainedOptimizer(OptimizerWithObjective):
-    def __init__(self, objective=None, constraints=[], bounds=None, opts={}):
+    def __init__(
+        self,
+        objective=None,
+        constraints=[],
+        bounds: Array = None,
+        opts: dict = {},
+    ):
         super().__init__(objective, bounds, opts)
         self._raw_constraints = None
         # self._constraints = constraints
@@ -405,12 +419,17 @@ class ConstrainedOptimizer(OptimizerWithObjective):
 
 
 class ConstrainedMultiStartOptimizer(MultiStartOptimizer):
-    def __init__(self, optimizer, ncandidates=1):
+    def __init__(
+        self,
+        optimizer,
+        ncandidates: int = 1,
+        exit_hard: bool = True,
+    ):
         if not isinstance(optimizer, ConstrainedOptimizer):
             raise ValueError(
                 "optimizer must be an instance of ConstrainedOptimizer"
             )
-        super().__init__(optimizer, ncandidates)
+        super().__init__(optimizer, ncandidates, exit_hard=exit_hard)
 
     def set_constraints(self, constraints):
         self._optimizer.set_constraints(constraints)

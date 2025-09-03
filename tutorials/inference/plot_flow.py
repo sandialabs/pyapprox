@@ -141,13 +141,11 @@ so that:
     \end{bmatrix}
 
 
-Let :math:`\rvv_2 =[Y_1, Y_2]`, then:
+Let :math:`\rvv_2 =[Y_1, Y_2]` and
 
-- :math:`Y_1` has mean :math:`\nu_2` and variance :math:`\tau_2^2`.
-- :math:`Y_2` has mean :math:`\nu_1` and variance :math:`\tau_1^2 + \delta_1^2`.
-- The covariance between :math:`Y_1` and :math:`Y_2` is :math:`\tau_2 \delta_1`.
+.. math:: \mathbb{C}\text{ov}[\rvv_2,\rvv_2]=\begin{bmatrix}C_{11} & C_{12}\\C_{21} & C_{22}\end{bmatrix}
 
-Thus, the joint distribution of :math:`Y_1` and :math:`Y_2` is a bivariate normal distribution, given by:
+Then, the joint distribution of :math:`Y_1` and :math:`Y_2` is a bivariate normal distribution, given by:
 
 .. math::
 
@@ -163,7 +161,18 @@ Thus, the joint distribution of :math:`Y_1` and :math:`Y_2` is a bivariate norma
     \tau_2^2 & \tau_2 \delta_1 \\
     \tau_2 \delta_1 & \tau_1^2 + \delta_1^2
     \end{bmatrix}
-    \right)
+    \right),
+
+where we used:
+
+- The variance of independent gaussians is the sum of their variances.
+- The covariance between :math:`u_1` and :math:`u_2` is zero.
+
+Finally, equating terms yields:
+
+- :math:`Y_1` has mean :math:`\nu_2` and variance :math:`\tau_2^2=C_{11}`.
+- :math:`Y_2` has mean :math:`\nu_1` and variance :math:`\tau_1^2 + \delta_1^2`, so :math:`C_{22}=\tau_1^2 + \delta_1^2` and :math:`\tau_1=(C_{22}-\delta_1^2)^{1/2}`
+- The covariance between :math:`Y_1` and :math:`Y_2` is :math:`\tau_2 \delta_1`, so :math:`\delta_1=C_{12}/\tau`.
 
 
 """
