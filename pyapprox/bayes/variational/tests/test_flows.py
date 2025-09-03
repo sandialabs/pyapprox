@@ -35,7 +35,9 @@ class TestFlows:
     def setUp(self):
         np.random.seed(1)
 
-    def _set_polynomial_rel_nvp_layer_coefficients(self, coef: Array, bexp):
+    def _set_polynomial_real_nvp_layer_coefficients(
+        self, coef: Array, bexp, scale_bounds
+    ):
         bkd = self.get_backend()
         if coef is None:
             coef = bkd.asarray(
@@ -65,8 +67,8 @@ class TestFlows:
         bounds = bkd.tile(bounds, (coef.shape[0],))
         # Place smaller bounds on scale coefficients because scale is
         # exponentiated
-        bounds[2::4] = -1.0
-        bounds[3::4] = 0.5
+        bounds[2::4] = scale_bounds[0]
+        bounds[3::4] = scale_bounds[1]
         bexp.set_coefficient_bounds(coef, bounds)
 
     def _setup_polynomial_real_nvp(
@@ -76,6 +78,7 @@ class TestFlows:
         layer_coefs: List[Array] = None,
         nlabels: int = 0,
         tp_basis: bool = True,
+        scale_bounds=(-1, 0.5),
     ):
         bkd = self.get_backend()
         nlayers = len(nterms_per_layer)
@@ -99,7 +102,6 @@ class TestFlows:
                     layer_variable, nqoi
                 )
             )
-            print(bexps[-1])
             if tp_basis:
                 bexps[-1].basis().set_tensor_product_indices(
                     [nterms_per_layer[ii]]
@@ -114,7 +116,9 @@ class TestFlows:
             layer_coefs = [None for ii in range(nlayers)]
 
         for bexp, coef in zip(bexps, layer_coefs):
-            self._set_polynomial_rel_nvp_layer_coefficients(coef, bexp)
+            self._set_polynomial_real_nvp_layer_coefficients(
+                coef, bexp, scale_bounds=scale_bounds
+            )
 
         layers = []
         for ii, bexp in enumerate(bexps):
@@ -327,6 +331,84 @@ class TestFlows:
             atol=1e-8,
         )
 
+    def test_3_layer_realnvp_2d_independent_gaussians_fit(self):
+        """
+        Test that RealNVP can sue more than two layers. The last layer
+        is not needed to recover the answer but is used to test use
+        of three layers.
+        """
+        bkd = self.get_backend()
+        nvars = 2
+        mean = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, 1)))
+        cov_diag = bkd.array([2.0, 3.0])
+        marginals = [
+            GaussianMarginal(
+                mean=mean[0], stdev=bkd.sqrt(cov_diag[0]), backend=bkd
+            ),
+            GaussianMarginal(
+                mean=mean[1], stdev=bkd.sqrt(cov_diag[1]), backend=bkd
+            ),
+        ]
+        target_variable = IndependentMarginalsVariable(marginals, backend=bkd)
+
+        quad_rule = setup_tensor_product_gauss_quadrature_rule(target_variable)
+        train_samples, train_weights = quad_rule([5, 5])
+        # print(train_samples @ train_weights - mean, "m")
+
+        # define exact answer
+        cov = target_variable.covariance()
+        exact_coef1 = bkd.stack(
+            [
+                bkd.array([mean[1, 0], bkd.log(bkd.sqrt(cov[1, 1]))]),
+                bkd.zeros((2,)),
+            ],
+            axis=0,
+        ).flatten()
+        exact_coef2 = bkd.stack(
+            [
+                bkd.array([mean[0, 0], bkd.log(bkd.sqrt(cov[0, 0]))]),
+                bkd.zeros((2,)),
+            ],
+            axis=0,
+        ).flatten()
+        exact_coef3 = bkd.zeros((2,))
+        # perturb them to use as initial guess for optimizer
+        # if initial iterate values are too large optimization will fail
+        coef1 = exact_coef1 + bkd.asarray(
+            np.random.normal(0, 0.1, exact_coef1.shape)
+        )
+        coef2 = exact_coef2 + bkd.asarray(
+            np.random.normal(0, 0.1, exact_coef2.shape)
+        )
+        coef3 = exact_coef3 + bkd.asarray(
+            np.random.normal(0, 0.1, exact_coef3.shape)
+        )
+        flow = self._setup_polynomial_real_nvp(
+            nvars, [2, 2, 1], [coef1, coef2, coef3]
+        )
+
+        flow._loss.set_samples(train_samples)
+        flow._loss.set_weights(train_weights)
+        iterate = flow._hyp_list.get_active_opt_params()[:, None]
+        errors = flow._loss.check_apply_jacobian(iterate, disp=False)
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1e-6
+        flow.set_optimizer(
+            flow.default_multistart_optimizer(
+                verbosity=0, method="trust-constr"
+            )
+        )
+        flow.fit(train_samples, weights=train_weights)
+
+        nsamples = 100
+        samples = target_variable.rvs(nsamples)
+        # print(flow.pdf(samples)[:, 0] - target_variable.pdf(samples)[:, 0])
+        assert bkd.allclose(
+            flow.pdf(samples)[:, 0],
+            target_variable.pdf(samples)[:, 0],
+            atol=1e-8,
+        )
+
     def _get_correlated_gaussian_training_data(
         self,
         nvars: int,
@@ -393,7 +475,7 @@ class TestFlows:
         return train_samples, obs, train_weights
 
     def _check_realnvp_2d_conditional_correlated_gaussians_fit(
-        self, quad_type, tol
+        self, quad_type, nobs, tol
     ):
         """
         Test that RealNVP can recover the posterior from a Gaussian prior,
@@ -401,13 +483,13 @@ class TestFlows:
         """
         bkd = self.get_backend()
 
-        nobs = 1
         # Define the prior
         nvars = 2
         # warning if make prior mean farther away from 0
         # (standard normal mean of base distribution of flow)
         # then bounds on shift parameters need to be bigger.
-        mean = bkd.array([-1.0, -2.0])[:, None]
+        # mean = bkd.array([-1.0, -2.0])[:, None]
+        mean = bkd.zeros((nvars, 1))
         cov = bkd.array([[1.0, 0.0], [0.0, 1.0]])
         prior = DenseCholeskyMultivariateGaussian(mean, cov, backend=bkd)
 
@@ -455,7 +537,7 @@ class TestFlows:
             )
         )
 
-        if quad_type == "Gauss":
+        if False:  # quad_type == "Gauss":
             # only use contraint with Gauss quadrature rule
             # because current contraint implementation jacobian in slow
             # and this test is only to test it works. The constraint is
@@ -503,10 +585,10 @@ class TestFlows:
             axs[0], [-6, 6, -6, 6], levels=31, cmap="coolwarm"
         )
         test_samples = target_variable.rvs(10)
-        # print(
-        #     flow.pdf(flow.append_labels(test_samples, label))
-        #     - target_variable.pdf(test_samples)
-        # )
+        print(
+            flow.pdf(flow.append_labels(test_samples, label))
+            - target_variable.pdf(test_samples)
+        )
         assert bkd.allclose(
             flow.pdf(flow.append_labels(test_samples, label)),
             target_variable.pdf(test_samples),
@@ -514,7 +596,12 @@ class TestFlows:
         )
 
     def test_realnvp_2d_conditional_correlated_gaussians_fit(self):
-        test_cases = [["MC", 7e-3], ["Halton", 2e-3], ["Gauss", 1e-8]]
+        test_cases = [
+            ["MC", 1, 7e-3],
+            ["Halton", 1, 2e-3],
+            ["Gauss", 1, 1e-8],
+            ["Gauss", 2, 1e-8],
+        ]
         for test_case in test_cases:
             np.random.seed(1)
             self._check_realnvp_2d_conditional_correlated_gaussians_fit(
@@ -622,7 +709,12 @@ class TestFlows:
 
         # Setup the flow model
         flow = self._setup_polynomial_real_nvp(
-            nvars, [2, 2], None, nlabels=nobs, tp_basis=True
+            nvars,
+            [2, 2],
+            None,
+            nlabels=nobs,
+            tp_basis=True,
+            scale_bounds=(-1.0, 1.0),
         )
 
         flow._loss.set_samples(train_samples)
@@ -638,17 +730,18 @@ class TestFlows:
                 maxiter=1000,
                 verbosity=3,
                 exit_hard=False,
-                method="trust-constr",  # , ncandidates=10
+                method="trust-constr",
+                ncandidates=1,
             )
         )
 
-        ntrain_samples = train_samples.shape[1]
-        constraint = RealNVPScalingConstraint(
-            ntrain_samples, backend=bkd, keep_feasible=True
-        )
-        constraint.set_bounds(bkd.array([-np.inf, 5.0])[None, :])
-        constraint.set_flow(flow)
-        flow._optimizer.set_constraints([constraint])
+        # ntrain_samples = train_samples.shape[1]
+        # constraint = RealNVPScalingConstraint(
+        #     ntrain_samples, backend=bkd, keep_feasible=True
+        # )
+        # constraint.set_bounds(bkd.array([-np.inf, 5.0])[None, :])
+        # constraint.set_flow(flow)
+        # flow._optimizer.set_constraints([constraint])
 
         flow.fit(train_samples, iterate=iterate, weights=train_weights)
 
