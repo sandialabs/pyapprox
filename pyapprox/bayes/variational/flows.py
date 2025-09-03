@@ -66,13 +66,6 @@ class RealNVPLayer(FlowLayer):
             (self._mask_complement, self._bkd.zeros((nlabels,), dtype=bool))
         )
         self._shapes = shapes
-        if self._shapes.nvars() != self._ntransformed_vars + nlabels:
-            raise ValueError(
-                "shapes must be a model with model.nvars()={0}".format(
-                    self._ntransformed_vars + nlabels
-                )
-                + f" but {shapes.nvars()=}"
-            )
         self._hyp_list = self._shapes._hyp_list
 
     def _map_from_latent(self, usamples: Array, return_logdet: bool) -> Array:
@@ -95,7 +88,6 @@ class RealNVPLayer(FlowLayer):
         shift = shapes[:, : self._ntransformed_vars].T
         # scales stored in second half of columns
         scale = shapes[:, self._ntransformed_vars :].T
-        # print(shift[:, :5], "shift")
         if not self._bkd.all(self._bkd.isfinite(self._bkd.exp(scale))):
             II = self._bkd.where(~self._bkd.isfinite(self._bkd.exp(scale)))[1]
             print(self._bkd.exp(scale[:, II]))
@@ -135,7 +127,7 @@ class Flow:
             raise ValueError("latent_variable must be a JointVariable")
         self._bkd = latent_variable._bkd
         self._latent_variable = latent_variable
-        for layer in layers:
+        for ii, layer in enumerate(layers):
             if not isinstance(layer, FlowLayer):
                 print(layers)
                 raise ValueError("layer must be an intance of FlowLayer")
@@ -143,9 +135,19 @@ class Flow:
                 raise ValueError(
                     "layers must have the same number of variables"
                 )
-
             if layer.nlabels() != layers[0].nlabels():
                 raise ValueError("layers must have the same number of labels")
+            if (
+                ii > 0
+                and layer._shapes.nvars()
+                != layers[ii - 1]._ntransformed_vars + layers[0]._nlabels
+            ):
+                raise ValueError(
+                    "shapes must be a model with model.nvars()={0}".format(
+                        layers[-1]._ntransformed_vars + layers[0]._nlabels
+                    )
+                    + f" but {layer._shapes.nvars()=}"
+                )
         self._layers = layers
         self._hyp_list = sum(layer._hyp_list for layer in layers)
         self._loss = FlowLoss()
@@ -566,7 +568,10 @@ class RealNVPScalingConstraint(Constraint):
         return self._flow._hyp_list.nactive_vars()
 
     def nqoi(self) -> int:
-        return self._ntrain_samples * len(self._flow._layers)
+        # return self._ntrain_samples * len(self._flow._layers)
+        return self._ntrain_samples * sum(
+            layer._ntransformed_vars for layer in reversed(self._flow._layers)
+        )
 
     def _values(self, active_opt_params: Array) -> Array:
         self._flow._hyp_list.set_active_opt_params(active_opt_params[:, 0])
@@ -576,14 +581,16 @@ class RealNVPScalingConstraint(Constraint):
             shapes = layer._shapes(samples[layer._mask_w_labels])
             # TODO I dont think this will work when n_transformed_variables > 1
             # likely need to flatten shapes
-            layer_scales.append(shapes[:, layer._ntransformed_vars :].T)
+            layer_scales.append(
+                shapes[:, layer._ntransformed_vars :].T.flatten()
+            )
             samples, layer_logdet = layer._map_to_latent(samples, True)
         layer_scales = self._bkd.hstack(layer_scales)
         # print(layer_scales.max(), "constraint")
-        return layer_scales
+        return layer_scales[None, :]
 
     def jacobian_implemented(self) -> bool:
-        return True
+        return self._bkd.jacobian_implemented()
 
     def _jacobian_incomplete(self, active_opt_params: Array) -> Array:
         raise NotImplementedError

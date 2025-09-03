@@ -573,6 +573,11 @@ class TorchMixin(BackendMixin):
     def split(mat, splits, axis=0):
         return torch.tensor_split(mat, splits.tolist(), dim=axis)
 
+    def chunks(
+        mat: torch.tensor, nchunks: int, axis: int = 0
+    ) -> List[torch.tensor]:
+        return torch.chunk(mat, nchunks, dim=axis)
+
     @staticmethod
     def sign(mat):
         return torch.sign(mat)

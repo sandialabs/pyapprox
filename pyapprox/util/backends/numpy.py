@@ -282,15 +282,15 @@ class NumpyMixin(BackendMixin):
         return mat
 
     @staticmethod
-    def argsort(mat: np.ndarray, axis=-1) -> np.ndarray:
+    def argsort(mat: np.ndarray, axis: int = -1) -> np.ndarray:
         return np.argsort(mat, axis=axis)
 
     @staticmethod
-    def sort(mat: np.ndarray, axis=-1) -> np.ndarray:
+    def sort(mat: np.ndarray, axis: int = -1) -> np.ndarray:
         return np.sort(mat, axis=axis)
 
     @staticmethod
-    def flip(mat, axis=None):
+    def flip(mat, axis: int = None):
         return np.flip(mat, axis=axis)
 
     @staticmethod
@@ -302,31 +302,31 @@ class NumpyMixin(BackendMixin):
         return np.isclose(Amat, Bmat, **kwargs)
 
     @staticmethod
-    def lstsq(Amat, Bmat):
+    def lstsq(Amat: np.ndarray, Bmat: np.ndarray):
         return np.linalg.lstsq(Amat, Bmat, rcond=None)[0]
 
     @staticmethod
-    def argmax(array):
+    def argmax(array: np.ndarray):
         return np.argmax(array)
 
     @staticmethod
-    def argmin(array):
+    def argmin(array: np.ndarray):
         return np.argmin(array)
 
     @staticmethod
-    def max(array, axis=None):
+    def max(array: np.ndarray, axis: int = None):
         return np.max(array, axis=axis)
 
     @staticmethod
-    def maximum(array1, array2):
+    def maximum(array1: np.ndarray, array2: np.ndarray):
         return np.maximum(array1, array2)
 
     @staticmethod
-    def minimum(array1, array2):
+    def minimum(array1: np.ndarray, array2: np.ndarray):
         return np.minimum(array1, array2)
 
     @staticmethod
-    def min(array, axis=None):
+    def min(array: np.ndarray, axis: int = None):
         return np.min(array, axis=axis)
 
     @staticmethod
@@ -334,41 +334,41 @@ class NumpyMixin(BackendMixin):
         return np.block(blocks)
 
     @staticmethod
-    def sum(matrix, axis=None):
+    def sum(matrix: np.ndarray, axis: int = None):
         return np.sum(matrix, axis=axis)
 
     @staticmethod
-    def count_nonzero(matrix, axis=None):
+    def count_nonzero(matrix: np.ndarray, axis: int = None):
         return np.count_nonzero(matrix, axis=axis)
 
     @staticmethod
-    def array(array, dtype=None):
+    def array(array: np.ndarray, dtype=None):
         return np.array(array, dtype=dtype)
 
     @staticmethod
-    def eigh(matrix):
+    def eigh(matrix: np.ndarray):
         return np.linalg.eigh(matrix)
 
     @staticmethod
-    def svd(matrix, full_matrices=True):
+    def svd(matrix: np.ndarray, full_matrices=True):
         return np.linalg.svd(
             matrix, compute_uv=True, full_matrices=full_matrices
         )
 
     @staticmethod
-    def isfinite(matrix):
+    def isfinite(matrix: np.ndarray):
         return np.isfinite(matrix)
 
     @staticmethod
-    def cond(matrix):
+    def cond(matrix: np.ndarray):
         return np.linalg.cond(matrix)
 
     @staticmethod
-    def rank(matrix) -> int:
+    def rank(matrix: np.ndarray) -> int:
         return np.linalg.matrix_rank(matrix)
 
     @staticmethod
-    def up(matrix, indices, submatrix, axis=0):
+    def up(matrix: np.ndarray, indices, submatrix, axis: int = 0):
         if axis == 0:
             matrix[indices] = submatrix
             return matrix
@@ -381,27 +381,27 @@ class NumpyMixin(BackendMixin):
         raise ValueError(f"{axis=} but must be in (0, 1, -1)")
 
     @staticmethod
-    def moveaxis(array, source, destination):
+    def moveaxis(array: np.ndarray, source, destination):
         return np.moveaxis(array, source, destination)
 
     @staticmethod
-    def floor(array):
+    def floor(array: np.ndarray):
         return np.floor(array)
 
     @staticmethod
-    def ceil(array):
+    def ceil(array: np.ndarray):
         return np.ceil(array)
 
     @staticmethod
-    def asarray(array, dtype=None):
+    def asarray(array: np.ndarray, dtype=None):
         return np.asarray(array, dtype=dtype)
 
     @staticmethod
-    def unique(array, **kwargs):
+    def unique(array: np.ndarray, **kwargs):
         return np.unique(array, **kwargs)
 
     @staticmethod
-    def delete(array, obj, axis=None):
+    def delete(array: np.ndarray, obj, axis: int = None):
         return np.delete(array, obj, axis=axis)
 
     @staticmethod
@@ -425,11 +425,11 @@ class NumpyMixin(BackendMixin):
         return np.meshgrid(*arrays, indexing=indexing)
 
     @staticmethod
-    def tanh(array):
+    def tanh(array: np.ndarray):
         return np.tanh(array)
 
     @staticmethod
-    def diff(array):
+    def diff(array: np.ndarray):
         return np.diff(array)
 
     @staticmethod
@@ -437,7 +437,7 @@ class NumpyMixin(BackendMixin):
         return int
 
     @staticmethod
-    def cumsum(array, axis=0, **kwargs):
+    def cumsum(array: np.ndarray, axis: int = 0, **kwargs):
         assert axis is not None
         return np.cumsum(array, axis=axis, **kwargs)
 
@@ -450,15 +450,15 @@ class NumpyMixin(BackendMixin):
         return np.ndarray
 
     @staticmethod
-    def real(array):
+    def real(array: np.ndarray):
         return np.real(array)
 
     @staticmethod
-    def imag(array):
+    def imag(array: np.ndarray):
         return np.imag(array)
 
     @staticmethod
-    def round(array):
+    def round(array: np.ndarray):
         return np.round(array)
 
     @staticmethod
@@ -478,19 +478,24 @@ class NumpyMixin(BackendMixin):
         return scipy.special.gammaln(mat)
 
     @staticmethod
-    def split(mat, splits, axis=0):
+    def split(mat: np.ndarray, splits, axis: int = 0) -> List[np.ndarray]:
         return np.split(max, splits, axis=axis)
 
+    def chunks(
+        mat: np.ndarray, nchunks: int, axis: int = 0
+    ) -> List[np.ndarray]:
+        return np.array_split(mat, nchunks, axis=axis)
+
     @staticmethod
-    def sign(mat):
+    def sign(mat: np.ndarray) -> float:
         return np.sign(mat)
 
     @staticmethod
-    def is_scalar_array(array) -> bool:
+    def is_scalar_array(array: np.ndarray) -> bool:
         return isinstance(array, np.ndarray) and array.ndim == 0
 
     @staticmethod
-    def quantile(array: np.ndarray, q: float, axis=None) -> np.ndarray:
+    def quantile(array: np.ndarray, q: float, axis: int = None) -> np.ndarray:
         return np.quantile(array, q, axis)
 
     @staticmethod
