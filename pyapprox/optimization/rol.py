@@ -88,7 +88,7 @@ class ROLNonLinearConstraintWrapper(ROLConstraint):
 
     def value(self, c: Vector, x: Vector, tol: float):
         vals = self._constraint(self._bkd.asarray(x.array)[:, None])
-        c[:] = vals[0, :]
+        c[:] = self._bkd.to_numpy(vals[0, :])
 
     def applyJacobian(self, jv: Vector, v: Vector, x: Vector, tol: float):
         # indexing access x.array
@@ -96,12 +96,14 @@ class ROLNonLinearConstraintWrapper(ROLConstraint):
             self._bkd.asarray(x.array)[:, None],
             self._bkd.asarray(v.array)[:, None],
         )
-        jv[:] = jvp[:, 0]
+        jv[:] = self._bkd.to_numpy(jvp[:, 0])
 
     def applyAdjointJacobian(
         self, jv: Vector, v: Vector, x: Vector, tol: float
     ):
-        jac = self._constraint.jacobian(self._bkd.asarray(x.array)[:, None])
+        jac = self._bkd.to_numpy(
+            self._constraint.jacobian(self._bkd.asarray(x.array)[:, None])
+        )
         jv[:] = jac.T @ v[:]
 
     def applyAdjointHessian(
@@ -117,7 +119,7 @@ class ROLNonLinearConstraintWrapper(ROLConstraint):
             self._bkd.asarray(v.array)[:, None],
             self._bkd.asarray(u.array)[:, None],
         )
-        hv[:] = hvp[:, 0]
+        hv[:] = self._bkd.to_numpy(hvp[:, 0])
 
     def nres(self) -> int:
         return self._constraint.nqoi()

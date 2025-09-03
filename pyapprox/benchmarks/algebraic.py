@@ -1125,13 +1125,13 @@ class CantileverBeamConstraintsModel(CantileverBeamModel):
     def nqoi(self) -> int:
         return 2
 
-    def _evaluate(self, sample):
+    def _evaluate(self, sample: Array) -> Array:
         return super()._evaluate(sample)[:, 1:]
 
-    def _jacobian(self, sample):
+    def _jacobian(self, sample: Array) -> Array:
         return super()._jacobian(sample)[1:, :]
 
-    def _hessian(self, sample):
+    def _hessian(self, sample: Array) -> Array:
         return self._bkd.copy(super()._hessian(sample)[1:, ...])
 
 
@@ -1206,7 +1206,7 @@ class CantileverBeamUncertainOptimizationBenchmark(
         constraint_model = ChangeModelSignWrapper(
             CantileverBeamConstraintsModel(self._bkd)
         )
-        stat = SampleAverageMeanPlusStdev(3)
+        stat = SampleAverageMeanPlusStdev(3, backend=self._bkd)
         self._constraints = [
             SampleAverageConstraint(
                 constraint_model,
@@ -1216,6 +1216,7 @@ class CantileverBeamUncertainOptimizationBenchmark(
                 self.constraint_bounds(),
                 self.variable().nvars() + self.design_variable().nvars(),
                 self._design_var_indices,
+                backend=self._bkd,
             )
         ]
 
@@ -1544,7 +1545,7 @@ class EvtushenkoNonLinearConstraint(Constraint):
         self, sample: Array, vec: Array, weights: Array
     ) -> Array:
         return self._bkd.hstack(
-            [-6 * sample[0] * vec[0] * weights[0], 0.0, 0.0]
+            [-6 * sample[0] * vec[0] * weights[0], self._bkd.zeros((2,))]
         )[:, None]
 
     def _weighted_hessian(self, sample: Array, weights: Array) -> Array:

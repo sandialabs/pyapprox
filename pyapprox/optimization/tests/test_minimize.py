@@ -1,4 +1,5 @@
 import unittest
+import math
 
 import numpy as np
 from scipy import stats
@@ -40,6 +41,7 @@ from pyapprox.optimization.risk import AverageValueAtRisk
 
 from pyapprox.util.sys_utilities import package_available
 from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 
 # from pyapprox.util.print_wrapper import *
 
@@ -50,7 +52,7 @@ else:
     has_pyrol = False
 
 
-class TestMinimize(unittest.TestCase):
+class TestMinimize:
     def setUp(self):
         np.random.seed(1)
 
@@ -59,16 +61,18 @@ class TestMinimize(unittest.TestCase):
 
     def test_unconstrained_scipy_rosenbrock(self):
         # check that no bounds is handled correctly
+        bkd = self.get_backend()
         for nvars in range(2, 4):
             benchmark = RosenbrockUnconstrainedOptimizationBenchmark(
-                nvars=nvars
+                nvars=nvars, backend=bkd
             )
             optimizer = ScipyConstrainedOptimizer(benchmark.objective())
             result = optimizer.minimize(benchmark.init_iterate())
-            assert np.allclose(result.x, benchmark.optimal_iterate())
+            assert bkd.allclose(result.x, benchmark.optimal_iterate())
 
     def test_constrained_scipy_evtushenko(self):
-        benchmark = EvtushenkoConstrainedOptimizationBenchmark()
+        bkd = self.get_backend()
+        benchmark = EvtushenkoConstrainedOptimizationBenchmark(backend=bkd)
         optimizer = ScipyConstrainedOptimizer(
             benchmark.objective(),
             constraints=benchmark.constraints(),
@@ -78,7 +82,9 @@ class TestMinimize(unittest.TestCase):
         benchmark.objective().work_tracker().set_active(True)
         benchmark.constraints()[0].work_tracker().set_active(True)
         init_iterate = benchmark.init_iterate()
-        assert np.allclose(benchmark.objective()(init_iterate), 7.2)
+        assert bkd.allclose(
+            benchmark.objective()(init_iterate), bkd.asarray(7.2)
+        )
         errors = benchmark.objective().check_apply_jacobian(init_iterate)
         assert errors.min() / errors.max() < 1e-6
         errors = benchmark.objective().check_apply_hessian(init_iterate)
@@ -86,14 +92,14 @@ class TestMinimize(unittest.TestCase):
         errors = benchmark.constraints()[0].check_apply_jacobian(init_iterate)
         assert errors.min() / errors.max() < 1e-6
         errors = benchmark.constraints()[0].check_apply_hessian(
-            init_iterate, weights=np.ones((1, 1))
+            init_iterate, weights=bkd.ones((1, 1))
         )
         assert (
             benchmark.constraints()[0].work_tracker().nevaluations("whvp") == 1
         )
         assert errors.min() / errors.max() < 1e-6
         errors = benchmark.constraints()[0].check_apply_hessian(
-            init_iterate, weights=np.ones((1, 1))
+            init_iterate, weights=bkd.ones((1, 1))
         )
         assert errors.min() / errors.max() < 1e-6
 
@@ -107,7 +113,7 @@ class TestMinimize(unittest.TestCase):
             == 0
         )
         errors = benchmark.constraints()[0].check_apply_hessian(
-            init_iterate, weights=np.ones((1, 1))
+            init_iterate, weights=bkd.ones((1, 1))
         )
         # print(benchmark.constraints()[0].work_tracker())
         assert (
@@ -122,15 +128,16 @@ class TestMinimize(unittest.TestCase):
         optimizer.set_verbosity(0)
         result = optimizer.minimize(init_iterate)
         assert result.nhev > 0
-        assert np.any(np.asarray(result.constr_nhev) > 0)
-        assert np.allclose(result.fun, 1.0)
-        assert np.allclose(
-            result.x, np.array([0.0, 0.0, 1.0])[:, None], atol=1e-5
+        assert bkd.any(bkd.asarray(result.constr_nhev) > 0)
+        assert bkd.allclose(bkd.asarray(result.fun), bkd.asarray(1.0))
+        assert bkd.allclose(
+            result.x, bkd.array([0.0, 0.0, 1.0])[:, None], atol=1e-5
         )
 
     def test_constrained_scipy_rosenbrock(self):
         # check that constraints are handled correctly
-        benchmark = RosenbrockConstrainedOptimizationBenchmark()
+        bkd = self.get_backend()
+        benchmark = RosenbrockConstrainedOptimizationBenchmark(backend=bkd)
         errors = benchmark.objective().check_apply_jacobian(
             benchmark.init_iterate()
         )
@@ -144,7 +151,7 @@ class TestMinimize(unittest.TestCase):
         )
         assert errors.min() / errors.max() < 1e-6
         errors = benchmark.constraints()[0].check_apply_hessian(
-            benchmark.init_iterate(), weights=np.ones((2, 1))
+            benchmark.init_iterate(), weights=bkd.ones((2, 1))
         )
         assert errors.min() / errors.max() < 1e-6
         optimizer = ScipyConstrainedOptimizer(
@@ -154,25 +161,26 @@ class TestMinimize(unittest.TestCase):
             opts={"gtol": 1e-16},
         )
         result = optimizer.minimize(benchmark.init_iterate())
-        assert np.allclose(result.x, benchmark.optimal_iterate())
+        assert bkd.allclose(result.x, benchmark.optimal_iterate())
 
     def test_sample_average_constraints(self):
-        benchmark = CantileverBeamUncertainOptimizationBenchmark()
+        bkd = self.get_backend()
+        benchmark = CantileverBeamUncertainOptimizationBenchmark(backend=bkd)
         constraint_model = benchmark.constraints()[0]._model
 
         # test jacobian and hessian
         nsamples = 1000
         samples = benchmark.variable().rvs(nsamples)
-        weights = np.full((nsamples, 1), 1 / nsamples)
+        weights = bkd.full((nsamples, 1), 1 / nsamples)
         for stat in [
-            SampleAverageMean(),
-            SampleAverageVariance(),
-            SampleAverageStdev(),
-            SampleAverageMeanPlusStdev(2),
-            SampleAverageEntropicRisk(0.5),
+            SampleAverageMean(backend=bkd),
+            SampleAverageVariance(backend=bkd),
+            SampleAverageStdev(backend=bkd),
+            SampleAverageMeanPlusStdev(2, backend=bkd),
+            SampleAverageEntropicRisk(0.5, backend=bkd),
         ]:
-            constraint_bounds = np.hstack(
-                [np.zeros((2, 1)), np.full((2, 1), np.inf)]
+            constraint_bounds = bkd.hstack(
+                [bkd.zeros((2, 1)), bkd.full((2, 1), np.inf)]
             )
             constraint = SampleAverageConstraint(
                 constraint_model,
@@ -183,8 +191,9 @@ class TestMinimize(unittest.TestCase):
                 benchmark.variable().nvars()
                 + benchmark.design_variable().nvars(),
                 benchmark.design_var_indices(),
+                backend=bkd,
             )
-            design_sample = np.array([3, 3])[:, None]
+            design_sample = bkd.array([3.0, 3.0])[:, None]
             assert constraint(design_sample).shape == (1, 2)
             errors = constraint.check_apply_jacobian(design_sample)
             # print(errors.min()/errors.max())
@@ -194,26 +203,27 @@ class TestMinimize(unittest.TestCase):
                 continue
             # assert False
             errors = constraint.check_apply_hessian(
-                design_sample, weights=np.ones((constraint.nqoi(), 1))
+                design_sample, weights=bkd.ones((constraint.nqoi(), 1))
             )
             assert errors.min() / errors.max() < 1.3e-6 and errors.max() > 0.2
 
     def test_conditional_value_at_risk_gradients(self):
-        benchmark = CantileverBeamUncertainOptimizationBenchmark()
+        bkd = self.get_backend()
+        benchmark = CantileverBeamUncertainOptimizationBenchmark(backend=bkd)
         constraint_model = benchmark.constraints()[0]._model
 
         # test jacobian
         nsamples = 1000
         samples = benchmark.variable().rvs(nsamples)
-        weights = np.full((nsamples, 1), 1 / nsamples)
+        weights = bkd.full((nsamples, 1), 1 / nsamples)
         for stat in [
-            SampleAverageConditionalValueAtRisk([0.5, 0.85]),
-            SampleAverageConditionalValueAtRisk([0.85, 0.9]),
+            SampleAverageConditionalValueAtRisk([0.5, 0.85], backend=bkd),
+            SampleAverageConditionalValueAtRisk([0.85, 0.9], backend=bkd),
         ]:
             # first two are parameters second two are VaR
             # (one for each constraint)
-            constraint_bounds = np.hstack(
-                [np.zeros((4, 1)), np.full((4, 1), np.inf)]
+            constraint_bounds = bkd.hstack(
+                [bkd.zeros((4, 1)), bkd.full((4, 1), np.inf)]
             )
             constraint = CVaRSampleAverageConstraint(
                 constraint_model,
@@ -224,14 +234,16 @@ class TestMinimize(unittest.TestCase):
                 benchmark.variable().nvars()
                 + benchmark.design_variable().nvars(),
                 benchmark.design_var_indices(),
+                backend=bkd,
             )
-            design_sample = np.array([3, 3, 1, 1])[:, None]
+            design_sample = bkd.array([3.0, 3, 1, 1])[:, None]
             assert constraint(design_sample).shape == (1, 2)
             errors = constraint.check_apply_jacobian(design_sample)
             # print(errors.min()/errors.max())
             assert errors.min() / errors.max() < 1.3e-6
 
     def test_conditional_value_at_risk_optimization(self):
+        bkd = self.get_backend()
         # min -(s1) s.t CVaR[m1+s1*f1(z1)] <= c1 and CVaR[f2(z2)] <= c2
         mu1, sigma1 = 0, 1.1
         mu2, sigma2 = -0.5, 1.5
@@ -242,12 +254,12 @@ class TestMinimize(unittest.TestCase):
         nconstraints = nrandom_vars
 
         class CustomModel(Model):
-            def __init__(self, nrandom_vars):
-                super().__init__()
+            def __init__(self, nrandom_vars, backend):
+                super().__init__(backend)
                 self._nrandom_vars = nrandom_vars
                 self._ndesign_vars = 1
-                self._ident = np.eye(self._nrandom_vars - 1)
-                self._jac = np.zeros(
+                self._ident = bkd.eye(self._nrandom_vars - 1)
+                self._jac = bkd.zeros(
                     (
                         self._nrandom_vars,
                         self.nvars(),
@@ -271,7 +283,7 @@ class TestMinimize(unittest.TestCase):
                 # x stores random vars, design_vars
                 # for nvars == 2
                 # f(x) = [x[0]*x[2], [x1]]
-                return np.hstack(
+                return bkd.hstack(
                     (
                         x[:1].T
                         * x[self._nrandom_vars : self._nrandom_vars + 1].T,
@@ -288,17 +300,17 @@ class TestMinimize(unittest.TestCase):
                 return self._jac
 
             def _hessian(self, x):
-                hess = np.zeros((self.nqoi(), x.shape[0], x.shape[0]))
+                hess = bkd.zeros((self.nqoi(), x.shape[0], x.shape[0]))
                 hess[0, 0, 2] = 1.0
                 hess[0, 2, 0] = 1.0
                 return hess
 
-        constraint_model = CustomModel(nrandom_vars)
-        constraint_x0 = np.arange(2, nrandom_vars + ndesign_vars + 2)[:, None]
+        constraint_model = CustomModel(nrandom_vars, bkd)
+        constraint_x0 = bkd.arange(2, nrandom_vars + ndesign_vars + 2)[:, None]
         errors = constraint_model.check_apply_jacobian(constraint_x0)
         assert errors.min() / errors.max() < 1e-6
         errors = constraint_model.check_apply_hessian(
-            constraint_x0, weights=np.ones((2, 1))
+            constraint_x0, weights=bkd.ones((2, 1))
         )
         assert errors.min() / errors.max() < 1e-6
 
@@ -310,9 +322,11 @@ class TestMinimize(unittest.TestCase):
             1,
             1,
             lambda x: -x.T,
-            jacobian=lambda x: -np.ones((1, 1)),
-            hessian=lambda x: np.zeros((1, 1, 1)),
+            jacobian=lambda x: -bkd.ones((1, 1)),
+            hessian=lambda x: bkd.zeros((1, 1, 1)),
+            backend=bkd,
         )
+
         errors = objective_model.check_apply_jacobian(design_x0)
         assert errors.min() / errors.max() < 1e-6
 
@@ -323,18 +337,18 @@ class TestMinimize(unittest.TestCase):
         nsamples = int(1e4)
         # set mu, sigma of first random samples to (0, 1) as we are learning
         # scaling so that stdev of samlpes is equal to sigma1
-        samples = np.vstack(
+        samples = bkd.vstack(
             (
-                np.random.normal(0, 1, (1, nsamples)),
-                np.random.normal(mu2, sigma2, (1, nsamples)),
+                bkd.asarray(np.random.normal(0, 1, (1, nsamples))),
+                bkd.asarray(np.random.normal(mu2, sigma2, (1, nsamples))),
             )
         )
-        weights = np.full((nsamples, 1), 1 / nsamples)
+        weights = bkd.full((nsamples, 1), 1 / nsamples)
         # from pyapprox.surrogates.orthopoly.quadrature import (
         #     gauss_hermite_pts_wts_1D)
 
         # nsamples = 1000
-        # samples = np.vstack(
+        # samples = bkd.vstack(
         #     [gauss_hermite_pts_wts_1D(nsamples)[0],
         #      gauss_hermite_pts_wts_1D(nsamples)[0]*sigma2+mu2])
         # weights = gauss_hermite_pts_wts_1D(nsamples)[1][:, None]
@@ -346,25 +360,28 @@ class TestMinimize(unittest.TestCase):
 
         basis = UnivariatePiecewiseQuadraticBasis(
             stats.norm(0, 1).interval(1 - 1e-6),
-            UnivariateEquidistantNodeGenerator(),
+            UnivariateEquidistantNodeGenerator(backend=bkd),
+            backend=bkd,
         )
         basis.set_nterms(nsamples)
         nodes, weights = basis.quadrature_rule()
         nodes = nodes[0]
-        # nodes = np.linspace(*stats.norm(0, 1).interval(1 - 1e-6), nsamples)
+        # nodes = bkd.linspace(*stats.norm(0, 1).interval(1 - 1e-6), nsamples)
         # weights = basis._quadrature_rule_from_nodes(nodes[None, :])[1][:, 0]
-        weights = weights * stats.norm(0, 1).pdf(nodes)[:, None]
-        samples = np.vstack([nodes[None, :], nodes[None, :] * sigma2 + mu2])
-        stat = SampleAverageConditionalValueAtRisk([0.5, 0.85], eps=1e-3)
+        weights = weights * bkd.asarray(stats.norm(0, 1).pdf(nodes)[:, None])
+        samples = bkd.vstack([nodes[None, :], nodes[None, :] * sigma2 + mu2])
+        stat = SampleAverageConditionalValueAtRisk(
+            [0.5, 0.85], eps=1e-3, backend=bkd
+        )
 
         risks1 = GaussianAnalyticalRiskMeasures(mu1, sigma1)
         risks2 = GaussianAnalyticalRiskMeasures(mu2, sigma2)
-        AVaR1 = risks1.AVaR(stat._alpha[0])
-        AVaR2 = risks2.AVaR(stat._alpha[1])
-        VaR1 = stats.norm(mu1, sigma1).ppf(stat._alpha[0])
-        VaR2 = stats.norm(mu2, sigma2).ppf(stat._alpha[1])
-        constraint_bounds = np.hstack(
-            [np.zeros((2, 1)), np.hstack([AVaR1, AVaR2])[:, None]]
+        AVaR1 = bkd.asarray(risks1.AVaR(stat._alpha[0]))
+        AVaR2 = bkd.asarray(risks2.AVaR(stat._alpha[1]))
+        VaR1 = bkd.asarray(stats.norm(mu1, sigma1).ppf(stat._alpha[0]))
+        VaR2 = bkd.asarray(stats.norm(mu2, sigma2).ppf(stat._alpha[1]))
+        constraint_bounds = bkd.hstack(
+            [bkd.zeros((2, 1)), bkd.hstack([AVaR1, AVaR2])[:, None]]
         )
         constraint = CVaRSampleAverageConstraint(
             constraint_model,
@@ -373,12 +390,13 @@ class TestMinimize(unittest.TestCase):
             stat,
             constraint_bounds,
             nrandom_vars + ndesign_vars,
-            np.arange(nrandom_vars, nrandom_vars + ndesign_vars),
+            bkd.arange(nrandom_vars, nrandom_vars + ndesign_vars),
+            backend=bkd,
         )
         objective = ObjectiveWithCVaRConstraints(
             objective_model, nconstraints, ndesign_vars
         )
-        opt_x0 = np.vstack((design_x0, np.full((nconstraints, 1), 0.5)))
+        opt_x0 = bkd.vstack((design_x0, bkd.full((nconstraints, 1), 0.5)))
         errors = objective.check_apply_jacobian(opt_x0)
         assert errors.min() / errors.max() < 1e-6
         # rectivate when  sampleaveragecvar.hessian is implemented
@@ -389,19 +407,23 @@ class TestMinimize(unittest.TestCase):
         errors = constraint.check_apply_jacobian(opt_x0)
         assert errors.min() / errors.max() < 1e-6
 
-        exact_opt_x = np.array([sigma1, VaR1, VaR2])[:, None]
+        exact_opt_x = bkd.array([sigma1, VaR1, VaR2])[:, None]
         # Gauss Quadrature cannot easily get accruate estimate of CVaR
         # because of discontinuity (or highly nonlinear component) of
         # (smoothed) max function
-        # print(constraint(exact_opt_x)[0, :] - np.array([CVaR1, CVaR2]))
-        assert np.allclose(
-            constraint(exact_opt_x)[0, :], [AVaR1, AVaR2], rtol=5e-3
+        # print(constraint(exact_opt_x)[0, :] - bkd.array([CVaR1, CVaR2]))
+        assert bkd.allclose(
+            constraint(exact_opt_x)[0, :],
+            bkd.hstack([AVaR1, AVaR2]),
+            rtol=5e-3,
         )
 
-        bounds = np.stack(
+        bounds = bkd.stack(
             (
-                np.hstack(([0], np.full((nconstraints,), -np.inf))),
-                np.full((ndesign_vars + nconstraints,), np.inf),
+                bkd.hstack(
+                    (bkd.zeros((1,)), bkd.full((nconstraints,), -np.inf))
+                ),
+                bkd.full((ndesign_vars + nconstraints,), np.inf),
             ),
             axis=1,
         )
@@ -417,31 +439,36 @@ class TestMinimize(unittest.TestCase):
 
         # errors in sample based estimate of CVaR will cause
         # optimal solution to be biased.
-        assert np.allclose(constraint(result.x), [AVaR1, AVaR2], rtol=1e-2)
+        assert bkd.allclose(
+            constraint(result.x), bkd.hstack([AVaR1, AVaR2]), rtol=1e-2
+        )
         # print(constraint(exact_opt_x), [CVaR1, CVaR2])
         # print(result.x-exact_opt_x[:, 0], exact_opt_x[:, 0])
 
         # TODO: on ubuntu reducing gtol causes minimize not to converge
         # ideally find reason and dencrease rtol and atol below
         # print(result.x-exact_opt_x)
-        assert np.allclose(result.x, exact_opt_x, rtol=2e-3, atol=6e-3)
+        assert bkd.allclose(result.x, exact_opt_x, rtol=2e-3, atol=6e-3)
         # print(-sigma1-result.fun)
-        assert np.allclose(-sigma1, result.fun, rtol=7e-3)
+        assert bkd.allclose(
+            -bkd.asarray(sigma1), bkd.asarray(result.fun), rtol=7e-3
+        )
 
     @unittest.skipIf(not has_pyrol, "pyrol cannot be imported")
     def test_rol_minimize_constrained_rosenbrock(self):
+        bkd = self.get_backend()
         nvars = 2
-        benchmark = RosenbrockConstrainedOptimizationBenchmark()
+        benchmark = RosenbrockConstrainedOptimizationBenchmark(backend=bkd)
         optimizer = ROLConstrainedOptimizer(
             benchmark.objective(),
             constraints=benchmark.constraints(),
             bounds=benchmark.design_variable().bounds(),
         )
         result = optimizer.minimize(benchmark.init_iterate())
-        assert np.allclose(result.x, np.full(nvars, 1))
+        assert bkd.allclose(result.x, bkd.full((nvars,), 1.0))
 
     def test_minimax_optimizer(self):
-        bkd = NumpyMixin
+        bkd = self.get_backend()
         model = ModelFromSingleSampleCallable(
             3,
             3,
@@ -483,10 +510,12 @@ class TestMinimize(unittest.TestCase):
         # Constraint is active and max is found when all original variables = 5
         # print(res.x)
         assert bkd.allclose(res.x, bkd.full((3,), 5.0))
-        assert bkd.allclose(res.fun, bkd.full((1,), 125.0), rtol=1e-2)
+        assert bkd.allclose(
+            bkd.asarray(res.fun), bkd.full((1,), 125.0), rtol=1e-2
+        )
 
     def test_compute_avar_from_samples(self):
-        bkd = NumpyMixin
+        bkd = self.get_backend()
         nsamples = 6
         optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})
         # sub eps tp avoid numerical issue with beta falling exactly at sample
@@ -495,7 +524,7 @@ class TestMinimize(unittest.TestCase):
 
         mu, sigma = 0, 2
         rv = stats.norm(mu, sigma)
-        samples = rv.rvs(nsamples)[None, :]
+        samples = bkd.asarray(rv.rvs(nsamples)[None, :])
         samples = bkd.sort(samples)  # hack
         quadw = bkd.full((nsamples,), 1 / nsamples)
 
@@ -509,8 +538,10 @@ class TestMinimize(unittest.TestCase):
         # correct value of slack variables is passed
         iterate = bkd.empty((nsamples + 1, 1))
         iterate[0] = AVaR()[1]
-        iterate[1:, 0] = bkd.maximum(samples[0] - iterate[0], 0)
-        assert bkd.allclose(minimax._optimizer._objective(iterate), AVaR()[0])
+        iterate[1:, 0] = bkd.maximum(samples[0] - iterate[0], bkd.zeros((1,)))
+        assert bkd.allclose(
+            minimax._optimizer._objective(iterate), bkd.asarray(AVaR()[0])
+        )
 
         # check gradients
         errors = minimax._constraint_from_objective.check_apply_jacobian(
@@ -536,13 +567,13 @@ class TestMinimize(unittest.TestCase):
         # print(opt_var, lin_var, AVaR()[1], "VAR")
         # print(opt_avar, lin_avar, AVaR()[0], "AVAR")
 
-        assert bkd.allclose(lin_avar, AVaR()[0])
-        assert bkd.allclose(lin_var, AVaR()[1])
-        assert bkd.allclose(opt_avar, AVaR()[0])
-        assert bkd.allclose(opt_var, AVaR()[1])
+        assert bkd.allclose(bkd.asarray(lin_avar), bkd.asarray(AVaR()[0]))
+        assert bkd.allclose(bkd.asarray(lin_var), bkd.asarray(AVaR()[1]))
+        assert bkd.allclose(bkd.asarray(opt_avar), bkd.asarray(AVaR()[0]))
+        assert bkd.allclose(bkd.asarray(opt_var), bkd.asarray(AVaR()[1]))
 
     def test_avar_optimizer(self):
-        bkd = NumpyMixin
+        bkd = self.get_backend()
         nsamples = 3
         mesh = bkd.arange(1, nsamples + 1)
         model = ModelFromSingleSampleCallable(
@@ -594,8 +625,8 @@ class TestMinimize(unittest.TestCase):
         # print(res.x)
         # print(res.slack)
         # print(res.fun, "f")
-        # print(np.mean(model(res.x)))
-        # print(np.median(model(res.x)))
+        # print(bkd.mean(model(res.x)))
+        # print(bkd.median(model(res.x)))
         raise NotImplementedError
 
     def _adam_objective(self):
@@ -649,6 +680,7 @@ class TestMinimize(unittest.TestCase):
         assert not bkd.allclose(new_iterate, new_clip_iterate)
 
     def test_adam_zero_grad(self):
+        bkd = self.get_backend()
         opt = ADAMOptimizer()
         opt.set_objective_function(self._adam_objective())
         opt.set_options(
@@ -675,6 +707,7 @@ class TestMinimize(unittest.TestCase):
         assert result.message == "gtol reached"
 
     def test_adam_set_options(self):
+        bkd = self.get_backend()
         opt = ADAMOptimizer()
         opt.set_options(
             learning_rate=0.1, beta1=0.9, beta2=0.999, epsilon=1e-8
@@ -754,6 +787,7 @@ class TestMinimize(unittest.TestCase):
         errors = fun.check_first_derivative(samples, disp=False)
         assert errors.min() / errors.max() < 1e-6
         errors = fun.check_second_derivative(samples, disp=False)
+        print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1e-6
 
     def test_smooth_quintic_based_left_heaviside_function(self):
@@ -771,7 +805,7 @@ class TestMinimize(unittest.TestCase):
         bkd = self.get_backend()
         mu, sigma, beta = 0, 1, 0.5
         risks = GaussianAnalyticalRiskMeasures(mu, sigma)
-        exact_avar = risks.AVaR(beta)
+        exact_avar = bkd.asarray(risks.AVaR(beta))
         AVaR = AverageValueAtRisk(beta, backend=bkd)
         rv = stats.norm(mu, sigma)
         nsamples = int(1e5)
@@ -786,7 +820,7 @@ class TestMinimize(unittest.TestCase):
         # samples = bkd.asarray(rv.rvs(nsamples)[None, :])
         # a more accurate ansswer can be obtained by using 1D
         # halton like sequence, i.e. equidistant points
-        samples = bkd.asarray(rv.ppf(np.linspace(1e-6, 1 - 1e-6, nsamples)))[
+        samples = bkd.asarray(rv.ppf(bkd.linspace(1e-6, 1 - 1e-6, nsamples)))[
             None, :
         ]
         weights = bkd.full((nsamples, 1), 1 / nsamples)
@@ -805,10 +839,12 @@ class TestMinimize(unittest.TestCase):
         # halton like sequence, i.e. equidistant points
         dominating_rv = stats.norm(mu, sigma * 2)
         samples = bkd.asarray(
-            dominating_rv.ppf(np.linspace(1e-6, 1 - 1e-6, nsamples))
+            dominating_rv.ppf(bkd.linspace(1e-6, 1 - 1e-6, nsamples))
         )[None, :]
         weights = bkd.full((nsamples, 1), 1 / nsamples)
-        weights *= rv.pdf(samples.T) / dominating_rv.pdf(samples.T)
+        weights *= bkd.asarray(
+            rv.pdf(samples.T) / dominating_rv.pdf(samples.T)
+        )
         # print(smooth_avar(samples.T, weights) - exact_avar, exact_avar)
         assert bkd.allclose(
             smooth_avar(samples.T, weights), exact_avar, rtol=1e-5
@@ -834,12 +870,13 @@ class TestMinimize(unittest.TestCase):
             lambda p: smooth_avar.jacobian(
                 fun(samples, p), fjac(samples, p), weights
             ),
+            backend=bkd,
         )
         params = bkd.asarray([[1.0, 2.0]]).T
         # params defines a new distribution with mean 1.0 and variance 2.0
         # assuming rv is a standard normal
-        risks = GaussianAnalyticalRiskMeasures(1.0, bkd.sqrt(2.0))
-        exact_avar = risks.AVaR(beta)
+        risks = GaussianAnalyticalRiskMeasures(1.0, math.sqrt(2.0))
+        exact_avar = bkd.asarray(risks.AVaR(beta))
         assert bkd.allclose(exact_avar, model(params), rtol=1e-2)
         errors = model.check_apply_jacobian(params, disp=False)
         assert errors.min() / errors.max() < 1e-6
@@ -849,7 +886,7 @@ class TestMinimize(unittest.TestCase):
         bkd = self.get_backend()
         mu, sigma, beta = 0.5, 1, 0.5
         risks = GaussianAnalyticalRiskMeasures(mu, sigma)
-        exact_avardev = risks.AVaR(beta) - mu
+        exact_avardev = bkd.array(risks.AVaR(beta) - mu)
         rv = stats.norm(mu, sigma)
         smooth_avardev = SampleSmoothedConditionalValueAtRiskDeviation(
             alpha=beta, eps=1000, backend=bkd
@@ -859,18 +896,32 @@ class TestMinimize(unittest.TestCase):
         # a more accurate ansswer can be obtained by using 1D
         # halton like sequence, i.e. equidistant points
         dominating_rv = stats.norm(mu, sigma * 2)
-        samples = bkd.asarray(
+        np_samples = (
             dominating_rv.ppf(np.linspace(1e-6, 1 - 1e-6, nsamples))
         )[None, :]
         weights = bkd.full((nsamples, 1), 1 / nsamples)
-        weights *= rv.pdf(samples.T) / dominating_rv.pdf(samples.T)
+        weights *= bkd.asarray(
+            rv.pdf(np_samples.T) / dominating_rv.pdf(np_samples.T)
+        )
         smooth_avardev.set_mean(mu)
         # print(
         #     smooth_avardev(samples.T, weights) - exact_avardev, exact_avardev
         # )
         assert bkd.allclose(
-            smooth_avardev(samples.T, weights), exact_avardev, rtol=1e-5
+            smooth_avardev(bkd.asarray(np_samples).T, weights),
+            exact_avardev,
+            rtol=1e-5,
         )
+
+
+class TestNumpyMinimize(TestMinimize, unittest.TestCase):
+    def get_backend(self):
+        return NumpyMixin
+
+
+class TestTorchMinimize(TestMinimize, unittest.TestCase):
+    def get_backend(self):
+        return TorchMixin
 
 
 if __name__ == "__main__":

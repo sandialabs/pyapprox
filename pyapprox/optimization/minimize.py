@@ -796,7 +796,7 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
     def __init__(
         self, safety_factor: float, backend: BackendMixin = NumpyMixin
     ):
-        super().__init__(backend)
+        super().__init__(backend=backend)
         self._mean_stat = SampleAverageMean(backend=self._bkd)
         self._stdev_stat = SampleAverageStdev(backend=self._bkd)
         self._safety_factor = safety_factor
@@ -1169,6 +1169,18 @@ class SampleAverageConstraint(ConstraintFromModel):
         backend: BackendMixin = NumpyMixin,
     ):
         self._stat = stat
+        if not model._bkd.bkd_equal(model._bkd, backend):
+            raise ValueError(
+                "model._bkd {0} is inconsistent with backend {1}".format(
+                    model._bkd.__name__, backend.__name__
+                )
+            )
+        if not model._bkd.bkd_equal(model._bkd, stat._bkd):
+            raise ValueError(
+                "model._bkd {0} is inconsistent with stat._bkd {1}".format(
+                    model._bkd.__name__, stat._bkd.__name__
+                )
+            )
         super().__init__(model, design_bounds, keep_feasible)
         if samples.ndim != 2 or weights.ndim != 2 or weights.shape[1] != 1:
             raise ValueError("shapes of samples and/or weights are incorrect")
@@ -1189,6 +1201,7 @@ class SampleAverageConstraint(ConstraintFromModel):
                 self._random_indices,
                 self._design_indices,
                 self._bkd.zeros((design_indices.shape[0], 1)),
+                bkd=self._bkd,
             )
         )
 
@@ -1217,7 +1230,11 @@ class SampleAverageConstraint(ConstraintFromModel):
         #     self._samples, self._random_indices, self._design_indices,
         #     design_sample)
         self._joint_samples[self._design_indices, :] = self._bkd.asarray(
-            np.repeat(design_sample, self._samples.shape[1], axis=1)
+            np.repeat(
+                self._bkd.to_numpy(design_sample),
+                self._samples.shape[1],
+                axis=1,
+            )
         )
         return self._joint_samples
 
@@ -1236,7 +1253,7 @@ class SampleAverageConstraint(ConstraintFromModel):
         # TODO: reuse values if design sample is the same as used to last call
         # to _values
         values = self._model(samples)
-        jac_values = self._bkd.array(
+        jac_values = self._bkd.stack(
             [
                 self._model.jacobian(sample[:, None])[:, self._design_indices]
                 for sample in samples.T
@@ -1264,14 +1281,14 @@ class SampleAverageConstraint(ConstraintFromModel):
         # to _values same for jac_values
         samples = self._random_samples_at_design_sample(design_sample)
         values = self._model(samples)
-        jac_values = self._bkd.array(
+        jac_values = self._bkd.stack(
             [
                 self._model.jacobian(sample[:, None])[:, self._design_indices]
                 for sample in samples.T
             ]
         )
         idx = np.ix_(self._design_indices, self._design_indices)
-        hess_values = self._bkd.array(
+        hess_values = self._bkd.stack(
             [
                 self._model.hessian(sample[:, None])[..., idx[0], idx[1]]
                 for sample in samples.T
@@ -1298,6 +1315,7 @@ class CVaRSampleAverageConstraint(SampleAverageConstraint):
         nvars: int,
         design_indices: Array,
         keep_feasible: bool = False,
+        backend: BackendMixin = NumpyMixin,
     ):
         if not isinstance(stat, SampleAverageConditionalValueAtRisk):
             msg = "stat not instance of SampleAverageConditionalValueAtRisk"
@@ -1312,6 +1330,7 @@ class CVaRSampleAverageConstraint(SampleAverageConstraint):
             nvars,
             design_indices,
             keep_feasible,
+            backend=backend,
         )
 
     def nvars(self) -> int:
@@ -1351,7 +1370,7 @@ class ObjectiveWithCVaRConstraints(Model):
     def __init__(
         self, model: Model, ncvar_constraints: int, ndesign_vars: int
     ):
-        super().__init__()
+        super().__init__(backend=model._bkd)
         self._model = model
         self._ndesign_vars = ndesign_vars
         if model.nqoi() != 1:
@@ -1789,7 +1808,7 @@ class SlackBasedOptimizer:
                 self._bkd.vstack((self._slack_bounds, bounds))
             )
         else:
-            self._optimizer.set_bounds(self._bkd.vstack(self._slack_bounds))
+            self._optimizer.set_bounds(self._slack_bounds)
 
 
 class MiniMaxOptimizer(SlackBasedOptimizer):
@@ -1919,7 +1938,7 @@ class EmpiricalAVaRSlackBasedOptimizer(AVaRSlackBasedOptimizer):
         backend: BackendMixin = NumpyMixin,
     ):
         super().__init__(optimizer, beta, quadrature_weights, backend=backend)
-        self.set_objective_function(_AVaRDummyModel(samples))
+        self.set_objective_function(_AVaRDummyModel(samples, backend=backend))
         self.set_constraints([])
 
 
@@ -2305,7 +2324,7 @@ class SmoothQuarticBasedLeftHeavisideFunction(
         vals = self._bkd.zeros(x.shape)
 
         # Compute mask for the condition (-eps < x < 0)
-        mask_neg = (x < 0) & (x > -self._eps)
+        mask_neg = (x < -np.finfo(float).eps) & (x > -self._eps)
 
         # Apply the second derivative formula for elements satisfying -eps < x < 0
         vals[mask_neg] = (
@@ -2317,7 +2336,6 @@ class SmoothQuarticBasedLeftHeavisideFunction(
             )
             / self._eps**4
         )
-
         return vals
 
 
