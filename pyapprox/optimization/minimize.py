@@ -2577,17 +2577,24 @@ class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
     def __call__(self, values: Array, weights: Array) -> Array:
         self._check_values_weights(values, weights)
         proj_values = self._project(
-            values[:, 0] * self._eps + self._lambda, weights[:, 0]
+            weights[:, 0] * values[:, 0] * self._eps + self._lambda,
+            weights[:, 0],
         )
         return self._bkd.sum(proj_values * values[:, 0]) - 1.0 / (
             2.0 * self._eps
-        ) * self._bkd.sum(proj_values**2)
+        ) * (proj_values - self._lambda) / weights[:, 0] @ (
+            proj_values - self._lambda
+        )
 
     def jacobian(self, values: Array, jac_values: Array, weights: Array):
         proj_values = self._project(
-            values[:, 0] * self._eps + self._lambda, weights[:, 0]
+            weights[:, 0] * values[:, 0] * self._eps + self._lambda,
+            weights[:, 0],
         )
-        return self._bkd.einsum("i,ij->j", proj_values, jac_values)[None, :]
+        return (
+            self._bkd.einsum("i,ij->j", proj_values, jac_values)[None, :]
+            / weights[:, 0]
+        )
 
     def __repr__(self) -> str:
         return "{0}(alpha={1})".format(

@@ -1017,13 +1017,15 @@ class OEDAVaRDeviationMeasure(
                 # mean needs to be included here and not subtracted at end
                 # otherwise accuracy of avardev is limited.
                 avardev = self._smoothed_avar(
-                    self._qoi_vals[:, qq : qq + 1] - mean[qq, oo],
+                    # self._qoi_vals[:, qq : qq + 1] - mean[qq, oo],
+                    self._qoi_vals[:, qq : qq + 1],
                     self._evidence._quad_weighted_like_vals[:, oo : oo + 1]
                     / evidences[oo : oo + 1],
                 )
                 outer_vals.append(avardev)
             vals.append(self._bkd.asarray(outer_vals))
-        avardev = self._bkd.stack(vals, axis=0)
+        # avardev = self._bkd.stack(vals, axis=0)
+        avardev = self._bkd.stack(vals, axis=0) - mean
         return avardev.flatten()[None, :]
 
     def _evaluate_option2(self, design_weights: Array) -> Array:

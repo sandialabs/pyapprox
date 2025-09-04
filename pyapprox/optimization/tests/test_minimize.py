@@ -889,7 +889,7 @@ class TestMinimize:
         exact_avardev = bkd.array(risks.AVaR(beta) - mu)
         rv = stats.norm(mu, sigma)
         smooth_avardev = SampleSmoothedConditionalValueAtRiskDeviation(
-            alpha=beta, eps=1000, backend=bkd
+            alpha=beta, eps=100000, backend=bkd
         )
         nsamples = int(1e6)
         # samples = bkd.asarray(rv.rvs(nsamples)[None, :])
@@ -904,9 +904,12 @@ class TestMinimize:
             rv.pdf(np_samples.T) / dominating_rv.pdf(np_samples.T)
         )
         smooth_avardev.set_mean(mu)
-        # print(
-        #     smooth_avardev(samples.T, weights) - exact_avardev, exact_avardev
-        # )
+        print(
+            smooth_avardev(bkd.asarray(np_samples).T, weights), exact_avardev
+        )
+        print(
+            smooth_avardev(bkd.asarray(np_samples).T, weights) - exact_avardev
+        )
         assert bkd.allclose(
             smooth_avardev(bkd.asarray(np_samples).T, weights),
             exact_avardev,

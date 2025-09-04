@@ -902,7 +902,7 @@ class TestBayesOED:
             [
                 NoiseStatistic(SampleAverageMean(bkd)),
                 SampleAverageMean(bkd),
-                OEDAVaRDeviationMeasure(nqoi, 0.5, 1, bkd),
+                OEDAVaRDeviationMeasure(nqoi, 0.5, 1000000, bkd),
                 "MC",
                 0.97,
                 3e-5,

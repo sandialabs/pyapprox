@@ -448,7 +448,7 @@ class TestFlows:
             train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
         else:
             # Generate the training data with MC
-            ntrain_samples = 500  # 00
+            ntrain_samples = 50000
             quad_samples = latent_joint_prior_data_variable.rvs(ntrain_samples)
             train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
 
@@ -537,12 +537,12 @@ class TestFlows:
             )
         )
 
-        from pyapprox.optimization.rol import ROLConstrainedOptimizer
+        # from pyapprox.optimization.rol import ROLConstrainedOptimizer
 
-        flow.set_optimizer(ROLConstrainedOptimizer())
+        # flow.set_optimizer(ROLConstrainedOptimizer())
 
-        if True:
-            # if quad_type == "Gauss":
+        # if True:
+        if quad_type == "Gauss":
             # only use contraint with Gauss quadrature rule
             # because current contraint implementation jacobian in slow
             # and this test is only to test it works. The constraint is
@@ -603,9 +603,9 @@ class TestFlows:
     def test_realnvp_2d_conditional_correlated_gaussians_fit(self):
         test_cases = [
             ["MC", 1, 7e-3],
-            # ["Halton", 1, 2e-3],
-            # ["Gauss", 1, 1e-8],
-            # ["Gauss", 2, 1e-8],
+            ["Halton", 1, 2e-3],
+            ["Gauss", 1, 1e-8],
+            ["Gauss", 2, 1e-8],
         ]
         for test_case in test_cases:
             np.random.seed(1)
