@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Union, Tuple
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from pyapprox.util.visualization import get_meshgrid_samples
 from pyapprox.variables.joint import JointVariable
@@ -17,9 +18,12 @@ from pyapprox.optimization.minimize import (
     RandomUniformOptimzerIterateGenerator,
 )
 from pyapprox.surrogates.affine.multiindex import anova_level_indices
-import torch
-
-torch.set_printoptions(linewidth=1000)
+from pyapprox.util.hyperparameter import (
+    HyperParameter,
+    HyperParameterList,
+    IdentityHyperParameterTransform,
+    LogHyperParameterTransform,
+)
 
 
 class FlowLayer(ABC):
@@ -35,17 +39,141 @@ class FlowLayer(ABC):
         return self._nlabels
 
     @abstractmethod
-    def _map_from_latent(self, usamples: Array) -> Array:
+    def ntransformed_vars(self) -> int:
         raise NotImplementedError
 
     @abstractmethod
-    def _map_to_latent(self, samples: Array) -> Array:
+    def _map_from_latent(self, usamples: Array, return_logdet: bool) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _map_to_latent(self, samples: Array, return_logdet: bool) -> Array:
         raise NotImplementedError
 
     def __repr__(self) -> str:
         return "{0}(nvars={1}, nlabels={2})".format(
             self.__class__.__name__, self.nvars(), self.nlabels()
         )
+
+
+class ScaleAndShiftFlowLayer(FlowLayer):
+    def __init__(
+        self,
+        nvars: int,
+        nlabels: int,
+        backend: BackendMixin,
+        scale: Array = 2.0,
+        shift: Array = -1.0,
+        scale_bounds: Tuple[float, float] = (0.0, np.inf),
+        scale_fixed: bool = True,
+        shift_bounds: Tuple[float, float] = (-np.inf, np.inf),
+        shift_fixed: bool = True,
+        scale_labels: bool = False,
+    ):
+        super().__init__(nvars, nlabels, backend)
+        scale_transform = LogHyperParameterTransform(backend=self._bkd)
+        self._ntransfomed_vars = nvars + nlabels if scale_labels else nvars
+        self._scale = HyperParameter(
+            "scale",
+            self._ntransfomed_vars,
+            scale,
+            scale_bounds,
+            scale_transform,
+            fixed=scale_fixed,
+            backend=self._bkd,
+        )
+        shift_transform = IdentityHyperParameterTransform(backend=self._bkd)
+        self._shift = HyperParameter(
+            "const",
+            self._ntransfomed_vars,
+            shift,
+            shift_bounds,
+            shift_transform,
+            fixed=shift_fixed,
+            backend=self._bkd,
+        )
+        self._hyp_list = HyperParameterList([self._scale, self._shift])
+
+    def ntransformed_vars(self) -> int:
+        return self._nvars - self._nlabels
+
+    def _map_to_latent(self, samples: Array, return_logdet: bool) -> Array:
+        """
+        Transform samples from original space to latent space [0,1]
+        then scale and shift according to hyperparameters.
+        """
+        if not hasattr(self, "_lower_bounds"):
+            self._lower_bounds = self._bkd.min(samples, axis=1)[
+                : self._ntransfomed_vars
+            ]
+            upper_bounds = self._bkd.max(samples, axis=1)[
+                : self._ntransfomed_vars
+            ]
+            self._ranges = upper_bounds - self._lower_bounds
+
+        # map samples to [0,1]
+        usamples = self._bkd.copy(samples)
+        usamples[: self._ntransfomed_vars] = (
+            1.0
+            / self._ranges[:, None]
+            * (samples[: self._ntransfomed_vars] - self._lower_bounds[:, None])
+        )
+        # scale and shift usamples from [0,1] to best learned canonical domain
+        usamples[: self._ntransfomed_vars] = (
+            self._scale.get_values()[:, None]
+            * usamples[: self._ntransfomed_vars]
+            + self._shift.get_values()[:, None]
+        )
+        if not return_logdet:
+            return usamples
+        # logdet should never involve label variable so use [:nvars]
+        jacobian_logdet = self._bkd.full(
+            (samples.shape[1],),
+            self._bkd.sum(
+                self._bkd.log(self._scale.get_values() / self._ranges)[
+                    : self._nvars
+                ]
+            ),
+        )
+        return usamples, jacobian_logdet
+
+    def _map_from_latent(self, usamples: Array, return_logdet: bool) -> Array:
+        """
+        Transform samples from latent space 0,1], scaled and shifted
+        according to hyperparameters, back to original space.
+        """
+        # Ensure lower_bounds and scale are computed
+        if self._lower_bounds is None:
+            raise ValueError("self._map_from_latent must be called first.")
+
+        # scale and shift usamples from best learned canonical domain to [0,1]
+        usamples = self._bkd.copy(usamples)
+        usamples[: self._ntransfomed_vars] = (
+            1.0
+            / self._scale.get_values()[:, None]
+            * (
+                usamples[: self._ntransfomed_vars]
+                - self._shift.get_values()[:, None]
+            )
+        )
+
+        # Compute original samples from latent samples in [0,1]
+        samples = self._bkd.copy(usamples)
+        samples[: self._ntransfomed_vars] = (
+            self._ranges[:, None] * usamples[: self._ntransfomed_vars]
+            + self._lower_bounds[:, None]
+        )
+        if not return_logdet:
+            return samples
+        jacobian_logdet = self._bkd.full(
+            (samples.shape[1],),
+            self._bkd.sum(
+                -self._bkd.log(self._scale.get_values() / self._ranges)[
+                    : self._nvars
+                ]
+            ),
+        )
+        return samples, jacobian_logdet
 
 
 class RealNVPLayer(FlowLayer):
@@ -70,6 +198,9 @@ class RealNVPLayer(FlowLayer):
         )
         self._shapes = shapes
         self._hyp_list = self._shapes._hyp_list
+
+    def ntransformed_vars(self) -> int:
+        return self._ntransformed_vars
 
     def _map_from_latent(self, usamples: Array, return_logdet: bool) -> Array:
         # extract the variable dimensions that are not transformed
@@ -206,9 +337,12 @@ class Flow:
             raise ValueError("latent_variable must be a JointVariable")
         self._bkd = latent_variable._bkd
         self._latent_variable = latent_variable
+        if layers[0].nvars() != latent_variable.nvars():
+            raise ValueError(
+                "layers must have the same number of variables as latent_variable"
+            )
         for ii, layer in enumerate(layers):
             if not isinstance(layer, FlowLayer):
-                print(layers)
                 raise ValueError("layer must be an intance of FlowLayer")
             if layer.nvars() != layers[0].nvars():
                 raise ValueError(
@@ -216,19 +350,13 @@ class Flow:
                 )
             if layer.nlabels() != layers[0].nlabels():
                 raise ValueError("layers must have the same number of labels")
-            if (
-                ii > 0
-                and layer._shapes.nvars()
-                != layers[ii - 1]._ntransformed_vars + layers[0]._nlabels
-            ):
-                raise ValueError(
-                    "shapes must be a model with model.nvars()={0}".format(
-                        layers[-1]._ntransformed_vars + layers[0]._nlabels
-                    )
-                    + f" but {layer._shapes.nvars()=}"
-                )
+
         self._layers = layers
-        self._hyp_list = sum(layer._hyp_list for layer in layers)
+        self._hyp_list = sum(
+            layer._hyp_list
+            for layer in layers
+            if not isinstance(layer, ScaleAndShiftFlowLayer)
+        )
         self._loss = FlowLoss()
         self._loss.set_flow(self)
 
@@ -520,9 +648,25 @@ class RealNVP(Flow):
     def __init__(
         self, latent_variable: JointVariable, layers: List[FlowLayer]
     ):
-        for layer in layers:
-            if not isinstance(layer, RealNVPLayer):
-                raise ValueError("layer must be an intance of RealNVPLayer")
+        for ii, layer in enumerate(layers):
+            if not isinstance(layer, (RealNVPLayer, ScaleAndShiftFlowLayer)):
+                raise ValueError(
+                    "layer must be an intance of RealNVPLayer or "
+                    "ScaleAndShiftFlowLayer"
+                )
+            if (
+                isinstance(layer, RealNVPLayer)
+                and ii > 0
+                and layer._shapes.nvars()
+                != layers[ii - 1].ntransformed_vars() + layers[0].nlabels()
+            ):
+                raise ValueError(
+                    "shapes must be a model with model.nvars()={0}".format(
+                        layers[ii - 1].ntransformed_vars()
+                        + layers[0].nlabels()
+                    )
+                    + f" but {layer._shapes.nvars()=}"
+                )
         super().__init__(latent_variable, layers)
 
 

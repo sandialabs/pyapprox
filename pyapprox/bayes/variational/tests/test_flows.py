@@ -21,6 +21,7 @@ from pyapprox.surrogates.affine.basisexp import (
 )
 from pyapprox.bayes.variational.flows import (
     Flow,
+    ScaleAndShiftFlowLayer,
     RealNVPLayer,
     RealNVPScalingConstraint,
 )
@@ -34,6 +35,106 @@ from pyapprox.util.misc import covariance_to_correlation
 class TestFlows:
     def setUp(self):
         np.random.seed(1)
+
+    def test_affine_flow_layer_sampling(self):
+        bkd = self.get_backend()
+        nvars, nsamples, nlabels = 2, 10, 1
+
+        target_mean = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, 1)))
+        target_cov_diag = bkd.array([2.0, 3.0])
+        target_variable = IndependentMultivariateGaussian(
+            target_mean, target_cov_diag, backend=bkd
+        )
+        label_variable = IndependentMultivariateGaussian(
+            bkd.asarray([[1.0]]), bkd.asarray([4.0]), backend=bkd
+        )
+        nsamples = 10
+        samples = bkd.vstack(
+            (target_variable.rvs(nsamples), label_variable.rvs(nsamples))
+        )
+
+        # Transform both samples and labels
+        layer_scale, layer_shift = 2.0, 1.0
+        layer = ScaleAndShiftFlowLayer(
+            nvars,
+            nlabels,
+            bkd,
+            layer_scale,
+            layer_shift,
+            scale_labels=True,
+        )
+
+        usamples = layer._map_to_latent(samples, False)
+        assert bkd.allclose(layer._map_from_latent(usamples, False), samples)
+
+        # Only transform target samples
+        layer_scale, layer_shift = 2.0, 1.0
+        layer = ScaleAndShiftFlowLayer(
+            nvars,
+            nlabels,
+            bkd,
+            layer_scale,
+            layer_shift,
+            scale_labels=False,
+        )
+
+        usamples = layer._map_to_latent(samples, False)
+        assert bkd.allclose(layer._map_from_latent(usamples, False), samples)
+
+    def test_affine_flow_layer_pdf(self):
+        bkd = self.get_backend()
+        nvars, nsamples, nlabels = 2, 10, 1
+
+        target_mean = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, 1)))
+        target_cov_diag = bkd.array([2.0, 3.0])
+        target_variable = IndependentMultivariateGaussian(
+            target_mean, target_cov_diag, backend=bkd
+        )
+        label_variable = IndependentMultivariateGaussian(
+            bkd.asarray([[1.0]]), bkd.asarray([4.0]), backend=bkd
+        )
+        nsamples = 10
+        samples = bkd.vstack(
+            (target_variable.rvs(nsamples), label_variable.rvs(nsamples))
+        )
+
+        layer_scale, layer_shift = 2.0, 1.0
+        layers = [
+            ScaleAndShiftFlowLayer(
+                nvars,
+                nlabels,
+                bkd,
+                layer_scale,
+                layer_shift,
+                scale_labels=True,
+            )
+        ]
+        # for test make latent space correspond to the variable derived
+        # from applying map_to_latent once. This depends on samples so compute
+        # correct mean and std of marginals here absed on min and max of samples.
+        lbs = bkd.min(samples, axis=1)[:nvars]
+        ubs = bkd.max(samples, axis=1)[:nvars]
+        ranges = ubs - lbs
+        latent_mean = (
+            layer_scale * (target_mean[:, 0] - lbs) / ranges + layer_shift
+        )
+        latent_std = bkd.sqrt(target_cov_diag) / ranges * layer_scale
+        latent_variable = IndependentMarginalsVariable(
+            [
+                GaussianMarginal(m, s, bkd)
+                for m, s in zip(latent_mean, latent_std)
+            ],
+            backend=bkd,
+        )
+        flow = Flow(latent_variable, layers)
+
+        flow_pdf_vals = flow.pdf(samples)[:, 0]
+        target_pdf_vals = target_variable.pdf(samples[:nvars])[:, 0]
+        assert bkd.allclose(
+            flow_pdf_vals,
+            target_pdf_vals,
+            atol=1e-8,
+        )
 
     def _set_polynomial_real_nvp_layer_coefficients(
         self, coef: Array, bexp, scale_bounds
@@ -79,6 +180,7 @@ class TestFlows:
         nlabels: int = 0,
         tp_basis: bool = True,
         scale_bounds=(-1, 0.5),
+        scale_inputs: bool = False,
     ):
         bkd = self.get_backend()
         nlayers = len(nterms_per_layer)
@@ -120,6 +222,7 @@ class TestFlows:
                 coef, bexp, scale_bounds=scale_bounds
             )
 
+        # layers ordered from latent space to final space
         layers = []
         for ii, bexp in enumerate(bexps):
             mask = bkd.ones(nvars, dtype=bool)
@@ -127,6 +230,15 @@ class TestFlows:
             layers.append(
                 RealNVPLayer(nvars, bexp, mask=mask, nlabels=nlabels)
             )
+        if scale_inputs:
+            layers += [
+                ScaleAndShiftFlowLayer(
+                    nvars,
+                    nlabels,
+                    backend=bkd,
+                    scale_labels=True,
+                )
+            ]
 
         latent_variable = IndependentMarginalsVariable(
             [GaussianMarginal(0, 1, bkd) for ii in range(nvars)],
@@ -155,17 +267,29 @@ class TestFlows:
         # rows correspond to coefficients of each polynomial for scaling
         # and columns
         cov = target_variable.covariance()
-        coef1 = bkd.array(
-            [[mean[1, 0], bkd.log(bkd.sqrt(cov[1, 1]))], [0.0, 0.0]],
-        ).flatten()
-        coef2 = bkd.array(
-            [[mean[0, 0], bkd.log(bkd.sqrt(cov[0, 0]))], [0.0, 0.0]],
-        ).flatten()
-        flow = self._setup_polynomial_real_nvp(nvars, [2, 2], [coef1, coef2])
+        coef1 = bkd.zeros((4,))
+        coef2 = bkd.zeros((4,))
+        # coefficients are correct if inputs are not scaled
+        lbs = bkd.min(train_samples, axis=1)
+        ubs = bkd.max(train_samples, axis=1)
+        ranges = ubs - lbs
+        scale = ranges / 2.0
+        shift = lbs - (scale * -1.0)
+        coef1[0] = (mean[1, 0] - shift[1]) / scale[1]
+        coef1[1] = bkd.log(bkd.sqrt(cov[1, 1]) / scale[1])
+        coef2[0] = (mean[0, 0] - shift[0]) / scale[0]
+        coef2[1] = bkd.log(bkd.sqrt(cov[0, 0]) / scale[0])
+        flow = self._setup_polynomial_real_nvp(
+            nvars, [2, 2], [coef1, coef2], scale_inputs=True
+        )
 
         usamples = flow._map_to_latent(train_samples)
         recovered_samples = flow._map_from_latent(usamples)
         assert bkd.allclose(recovered_samples, train_samples)
+
+        # assert mean of latent distribution maps to mean of target
+        recovered_samples = flow._map_from_latent(mean * 0.0)
+        assert bkd.allclose(recovered_samples, mean)
 
         nsamples = 10
         samples = target_variable.rvs(nsamples)
@@ -174,11 +298,9 @@ class TestFlows:
         )
 
         new_samples = flow.rvs(int(5e6))
-        # print(bkd.mean(new_samples, axis=1)[:, None] - mean)
         assert bkd.allclose(
             bkd.mean(new_samples, axis=1)[:, None], mean, rtol=1e-3
         )
-        # print(bkd.cov(new_samples, ddof=1) - cov)
         assert bkd.allclose(
             bkd.cov(new_samples, ddof=1), cov, rtol=1e-3, atol=3e-3
         )
@@ -283,31 +405,15 @@ class TestFlows:
         train_samples, train_weights = quad_rule([5, 5])
         # print(train_samples @ train_weights - mean, "m")
 
-        # define exact answer
-        cov = target_variable.covariance()
-        exact_coef1 = bkd.stack(
-            [
-                bkd.array([mean[1, 0], bkd.log(bkd.sqrt(cov[1, 1]))]),
-                bkd.zeros((2,)),
-            ],
-            axis=0,
-        ).flatten()
-        exact_coef2 = bkd.stack(
-            [
-                bkd.array([mean[0, 0], bkd.log(bkd.sqrt(cov[0, 0]))]),
-                bkd.zeros((2,)),
-            ],
-            axis=0,
-        ).flatten()
-        # perturb them to use as initial guess for optimizer
-        # if initial iterate values are too large optimization will fail
-        coef1 = exact_coef1 + bkd.asarray(
-            np.random.normal(0, 0.1, exact_coef1.shape)
+        coef1 = bkd.zeros((4,))
+        coef2 = bkd.zeros((4,))
+        flow = self._setup_polynomial_real_nvp(
+            nvars,
+            [2, 2],
+            [coef1, coef2],
+            scale_inputs=True,
+            scale_bounds=(-2, 2),
         )
-        coef2 = exact_coef2 + bkd.asarray(
-            np.random.normal(0, 0.1, exact_coef2.shape)
-        )
-        flow = self._setup_polynomial_real_nvp(nvars, [2, 2], [coef1, coef2])
 
         flow._loss.set_samples(train_samples)
         flow._loss.set_weights(train_weights)
@@ -324,7 +430,8 @@ class TestFlows:
 
         nsamples = 100
         samples = target_variable.rvs(nsamples)
-        # print(flow.pdf(samples)[:, 0] - target_variable.pdf(samples)[:, 0])
+        print(flow.pdf(samples)[:10, 0], target_variable.pdf(samples)[:10, 0])
+        print(flow.pdf(samples)[:, 0] - target_variable.pdf(samples)[:, 0])
         assert bkd.allclose(
             flow.pdf(samples)[:, 0],
             target_variable.pdf(samples)[:, 0],
@@ -739,14 +846,6 @@ class TestFlows:
                 ncandidates=1,
             )
         )
-
-        ntrain_samples = train_samples.shape[1]
-        constraint = RealNVPScalingConstraint(
-            ntrain_samples, backend=bkd, keep_feasible=True
-        )
-        constraint.set_bounds(bkd.array([-np.inf, 5.0])[None, :])
-        constraint.set_flow(flow)
-        flow._optimizer.set_constraints([constraint])
 
         flow.fit(train_samples, iterate=iterate, weights=train_weights)
 
