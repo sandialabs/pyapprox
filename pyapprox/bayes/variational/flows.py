@@ -62,12 +62,10 @@ class ScaleAndShiftFlowLayer(FlowLayer):
         nvars: int,
         nlabels: int,
         backend: BackendMixin,
-        scale: Array = 2.0,
-        shift: Array = -1.0,
-        scale_bounds: Tuple[float, float] = (0.0, np.inf),
-        scale_fixed: bool = True,
-        shift_bounds: Tuple[float, float] = (-np.inf, np.inf),
-        shift_fixed: bool = True,
+        # scale: Array = 2.0,
+        # shift: Array = -1.0,
+        scale: Array = 1.0,
+        shift: Array = -0.5,
         scale_labels: bool = False,
     ):
         super().__init__(nvars, nlabels, backend)
@@ -77,19 +75,19 @@ class ScaleAndShiftFlowLayer(FlowLayer):
             "scale",
             self._ntransfomed_vars,
             scale,
-            scale_bounds,
+            (0.0, np.inf),
             scale_transform,
-            fixed=scale_fixed,
+            fixed=True,
             backend=self._bkd,
         )
         shift_transform = IdentityHyperParameterTransform(backend=self._bkd)
         self._shift = HyperParameter(
-            "const",
+            "shift",
             self._ntransfomed_vars,
             shift,
-            shift_bounds,
+            (-np.inf, np.inf),
             shift_transform,
-            fixed=shift_fixed,
+            fixed=True,
             backend=self._bkd,
         )
         self._hyp_list = HyperParameterList([self._scale, self._shift])
@@ -112,13 +110,29 @@ class ScaleAndShiftFlowLayer(FlowLayer):
             self._ranges = upper_bounds - self._lower_bounds
 
         # map samples to [0,1]
-        usamples = self._bkd.copy(samples)
-        usamples[: self._ntransfomed_vars] = (
+        usamples1 = self._bkd.copy(samples)
+        usamples1[: self._ntransfomed_vars] = (
             1.0
             / self._ranges[:, None]
             * (samples[: self._ntransfomed_vars] - self._lower_bounds[:, None])
         )
         # scale and shift usamples from [0,1] to best learned canonical domain
+        # return self._scale.get_values()
+
+        # Following works with torch autograd but is slower than below
+        # Since we assume that scale and shift are fixed we can comment it out
+        # usamples = self._bkd.empty(usamples1.shape)
+        # usamples[: self._ntransfomed_vars] = (
+        #     self._scale.get_values()[0] * usamples1[: self._ntransfomed_vars]
+        #     + self._shift.get_values()[:, None]
+        # )
+        # usamples[self._ntransfomed_vars :] = usamples1[
+        #     self._ntransfomed_vars :
+        # ]
+
+        # Following DOES NOT work with torch autograd but is fastesr than above
+        # Since we assume that scale and shift are fixed we can use it here
+        usamples = usamples1
         usamples[: self._ntransfomed_vars] = (
             self._scale.get_values()[:, None]
             * usamples[: self._ntransfomed_vars]
@@ -127,14 +141,26 @@ class ScaleAndShiftFlowLayer(FlowLayer):
         if not return_logdet:
             return usamples
         # logdet should never involve label variable so use [:nvars]
-        jacobian_logdet = self._bkd.full(
-            (samples.shape[1],),
+
+        # Works with torch autograd
+        jacobian_logdet = self._bkd.tile(
             self._bkd.sum(
                 self._bkd.log(self._scale.get_values() / self._ranges)[
                     : self._nvars
                 ]
             ),
+            (samples.shape[1],),
         )
+
+        # Does not works with torch autograd
+        # jacobian_logdet = self._bkd.full(
+        #     (samples.shape[1],),
+        #     self._bkd.sum(
+        #         self._bkd.log(self._scale.get_values() / self._ranges)[
+        #             : self._nvars
+        #         ]
+        #     ),
+        # )
         return usamples, jacobian_logdet
 
     def _map_from_latent(self, usamples: Array, return_logdet: bool) -> Array:
@@ -159,20 +185,33 @@ class ScaleAndShiftFlowLayer(FlowLayer):
 
         # Compute original samples from latent samples in [0,1]
         samples = self._bkd.copy(usamples)
+        # samples = usamples
         samples[: self._ntransfomed_vars] = (
             self._ranges[:, None] * usamples[: self._ntransfomed_vars]
             + self._lower_bounds[:, None]
         )
         if not return_logdet:
             return samples
-        jacobian_logdet = self._bkd.full(
-            (samples.shape[1],),
+
+        # Works with torch autograd
+        jacobian_logdet = self._bkd.tile(
             self._bkd.sum(
                 -self._bkd.log(self._scale.get_values() / self._ranges)[
                     : self._nvars
                 ]
             ),
+            (samples.shape[1],),
         )
+
+        # Does not work with torch autograd
+        # jacobian_logdet = self._bkd.full(
+        #     (samples.shape[1],),
+        #     self._bkd.sum(
+        #         -self._bkd.log(self._scale.get_values() / self._ranges)[
+        #             : self._nvars
+        #         ]
+        #     ),
+        # )
         return samples, jacobian_logdet
 
 
@@ -225,7 +264,7 @@ class RealNVPLayer(FlowLayer):
         if not self._bkd.all(self._bkd.isfinite(self._bkd.exp(scale))):
             II = self._bkd.where(~self._bkd.isfinite(self._bkd.exp(scale)))[1]
             print(self._bkd.exp(scale[:, II]))
-            print(scale[:, II])
+            print(scale[:, II], "s")
             print(samples[:, II])
             print(self._shapes.get_coefficients())
             raise ValueError("Not all values were finite")
@@ -297,6 +336,10 @@ class RealNVPLayer(FlowLayer):
     def _jacobian_samples_wrt_hyperparameters(self, samples: Array) -> Array:
         shapes = self._shapes(samples[self._mask_w_labels])
         scale = shapes[:, self._ntransformed_vars :].T
+        print(
+            self._shapes.basis()(samples[self._mask_w_labels]).shape,
+            self._bkd.exp(-scale).T.shape,
+        )
         jac_wrt_shift_params = -self._bkd.exp(-scale).T * self._shapes.basis()(
             samples[self._mask_w_labels]
         )
@@ -352,6 +395,9 @@ class Flow:
                 raise ValueError("layers must have the same number of labels")
 
         self._layers = layers
+        import torch
+
+        torch.autograd.set_detect_anomaly(True)
         self._hyp_list = sum(
             layer._hyp_list
             for layer in layers
@@ -709,12 +755,259 @@ class FlowLoss(Model):
         return -self.get_weights().T @ self._flow.logpdf(self._samples)
 
     def _jacobian(self, active_opt_params: Array):
-        return self._bkd.jacobian(
-            lambda p: self._values(p[:, None])[:, 0], active_opt_params[:, 0]
+        # print(self._logpdf_jacobian(active_opt_params))
+        # print(
+        #     self._bkd.jacobian(
+        #         lambda p: self._values(p[:, None])[:, 0],
+        #         active_opt_params[:, 0],
+        #     )
+        # )
+        # print(
+        #     self._logpdf_jacobian(active_opt_params)
+        #     - self._bkd.jacobian(
+        #         lambda p: self._values(p[:, None])[:, 0],
+        #         active_opt_params[:, 0],
+        #     ),
+        #     "DIFF",
+        # )
+        assert self._bkd.allclose(
+            self._logpdf_jacobian(active_opt_params),
+            self._bkd.jacobian(
+                lambda p: self._values(p[:, None])[:, 0],
+                active_opt_params[:, 0],
+            ),
         )
+        return self._logpdf_jacobian(active_opt_params)
+        # return self._bkd.jacobian(
+        #     lambda p: self._values(p[:, None])[:, 0], active_opt_params[:, 0]
+        # )
+
+    # def _jacobian_pass(self, active_opt_params: Array) -> Array:
+    #     self._flow._hyp_list.set_active_opt_params(active_opt_params)
+    #     samples = self._bkd.copy(self._samples)
+    #     for layer in reversed(self._flow._layers):
+    #         samples, layer_logdet = layer._map_to_latent(samples, True)
+    #         # dv2dc2_custom = layer._jacobian_scale_wrt_hyperparameters(samples2)
+    #         # dx1dc2_custom = layer._jacobian_samples_wrt_hyperparameters(samples2)
+    #     return samples
+
+    def _x(self, ii, samples):
+        samples = self._bkd.copy(samples)
+        for layer in reversed(self._flow._layers[ii:]):
+            samples, layer_logdet = layer._map_to_latent(samples, True)
+        return layer._map_to_latent(samples, True)[0]
+
+    def _dxdh(self, p):
+        self._flow._hyp_list.set_active_opt_params(p)
+        return self._x(self._samples)
+
+    def _dshift_dlayerparam(self):
+        # derivative of scale with respect to hyper-parameters of current
+        # level. The entries of the Jacobian of all other levels are not stored
+        raise NotImplementedError
+
+    def _scale_dlayerparam(self):
+        # derivative of scale with respect to hyper-parameters of current
+        # level. The entries of the Jacobian of all other levels are not stored
+        raise NotImplementedError
+
+    def _shift_dlayersparam(self):
+        # derivative of shift with respect to hyper-parameters of all levels
+        # gets derivative with respect to just current layer and expands
+        # to contains zeros (TODO or uses a efficient sparse multiply
+        # that does not store zeros)
+        dshift_dparam = layer.shift_dparam()
+        pass
+
+    def _scale_dlayersparam(self):
+        # derivative of scale with respect to hyper-parameters of all levels
+        # gets derivative with respect to just current layer and expands
+        # to contains zeros (TODO or uses a efficient sparse multiply
+        # that does not store zeros)
+        dscale_dparam = layer.dscale_dparam()
+        pass
+
+    def _samples_minus_shift_derivative(self):
+        # derivative of dimensions of samples not passed to scale and shift
+        # will be zero with respect to the current layers parameters
+        # but will be non-zero with respect to higher level parameters
+
+        # derivative of shift with respect to hyper-parameters on previous levels
+        term1 = (
+            self._dshift_dsamp()[maskA] @ self._dsamp_dparams_prev[maskA]
+            + self._dshift_dlayerparam()
+        )
+        # derivative of previous layer samples with respect to hyperparameters
+        term2 = self._dshift_dsamp()[maskB]
+        return term1 + term2
+
+    def _scale_derivative(self):
+        return (
+            self._dscale_dsamp()[maskA] @ self._dsamp_dparams_prev[maskA]
+            + self._dscale_dlayerparam()
+        )
+
+    def samples_gradient(self):
+        return (
+            self._shift_gradient(samples) * self._bkd.exp(-scale)
+            + (samples - shift)
+            * self._bkd.exp(-scale)
+            * -self._bkd.scale_derivative()
+        )
+
+    def _layer_logdet_jac(self, ii, active_opt_params: Array) -> Array:
+        def fun(p):
+            self._flow._hyp_list.set_active_opt_params(p)
+            samples = self._bkd.copy(self._samples)
+            for layer in reversed(self._flow._layers[ii:]):
+                samples, layer_logdet = layer._map_to_latent(samples, True)
+            return layer._map_to_latent(samples, True)[1]
+
+        # def _dsdx(samples):
+        #     shapes = self._flow._layers[ii]._shapes(
+        #         samples[layer._mask_w_labels]
+        #     )
+        #     scale = shapes[:, layer._ntransformed_vars :].T
+        #     return scale
+
+        # # l: logdet
+        # # s: scale
+        # # x: samples
+        # # h: hyperparameters
+
+        # # def _dxdh(p):
+        # #     self._flow._hyp_list.set_active_opt_params(p)
+        # #     samples = self._bkd.copy(self._samples)
+        # #     for layer in reversed(self._flow._layers[ii:]):
+        # #         samples = layer._map_to_latent(samples, False)
+        # #     shapes = self._flow._layers[ii]._shapes(
+        # #         samples[layer._mask_w_labels]
+        # #     )
+        # #     scale = shapes[:, layer._ntransformed_vars :].T
+        # #     print(scale.shape)
+        # #     return self._bkd.sum(scale, axis=0)
+
+        # if ii == 1:
+        #     layer = self._flow._layers[ii]
+        #     usamples = _dxdh(active_opt_params[:, 0])
+        #     dxdh = self._bkd.jacobian(_dxdh, active_opt_params[:, 0]).reshape(
+        #         (20, 32)
+        #     )
+        #     dsdx = self._bkd.jacobian(_dsdx, usamples).reshape((2, 5, 20))
+        #     dldx = self._bkd.sum(dsdx, axis=0)
+        #     # [ntransformed_vars*nsamples]
+        #     print(self._samples.shape, "x")
+        #     print(dxdh, "dxdh")
+        #     print(dsdx.shape, "dsdx")
+        #     print(dldx.shape, "dldx")
+        #     print(dldx @ dxdh)
+        #     print(self._bkd.jacobian(fun, active_opt_params[:, 0]))
+        #     assert False
+        return self._bkd.jacobian(fun, active_opt_params[:, 0])
+
+    def _logdet_jac(self, active_opt_params: Array) -> Array:
+        samples = self._bkd.copy(self._samples)
+        logdet_jac = 0.0
+        ii = len(self._flow._layers) - 1
+        for layer in reversed(self._flow._layers):
+            logdet_jac += self._layer_logdet_jac(ii, active_opt_params)
+            samples = layer._map_to_latent(samples, False)
+            ii -= 1
+        return logdet_jac
+
+    def _dxdp(self, p):
+        self._flow._hyp_list.set_active_opt_params(p)
+        samples = self._bkd.copy(self._samples)
+        usamples = self._flow._map_to_latent(samples)
+        return usamples
+
+    def _dsdp(self, layer, active_opt_params, samples):
+        # derivative of exp(-scale)
+        bexp = layer._shapes
+        active_samples = samples[layer._mask_w_labels]
+
+        def fun(p):
+            self._flow._hyp_list.set_active_opt_params(p)
+            scale = bexp(active_samples)[:, layer._ntransformed_vars :].T[0]
+            return self._bkd.exp(-scale)
+
+        return self._bkd.jacobian(fun, active_opt_params[:, 0])
+
+    def _dmdp(self, layer, active_opt_params, samples):
+        bexp = layer._shapes
+        active_samples = samples[layer._mask_w_labels]
+
+        def fun(p):
+            self._flow._hyp_list.set_active_opt_params(p)
+            shift = bexp(active_samples)[:, : layer._ntransformed_vars].T[0]
+            return shift
+
+        return self._bkd.jacobian(fun, active_opt_params[:, 0])
+
+    def _dxdp_custom(self, p):
+        samples = self._bkd.copy(self._samples)
+        self._flow._hyp_list.set_active_opt_params(p[:, 0])
+        start = False
+        for layer in reversed(self._flow._layers):
+            # s: exp(-sigma) , m: mu (shift) p: params
+            shapes = layer._shapes(samples[layer._mask_w_labels])
+            shift = shapes[:, : layer._ntransformed_vars].T
+            scale = shapes[:, layer._ntransformed_vars :].T
+            delta = self._bkd.exp(-scale)
+            dsdp = self._dsdp(layer, p, samples)
+            dmdp = self._dmdp(layer, p, samples)
+            print(shift.shape, scale.shape, dsdp.shape, dmdp.shape)
+            jac = (
+                samples[layer._mask_complement].T - shift.T
+            ) * dsdp - delta.T * dmdp
+            print(jac)
+
+            def f(p):
+                self._flow._hyp_list.set_active_opt_params(p)
+                # will contain jac for both masked and mask complement dims
+                return layer._map_to_latent(samples, False)
+
+            print(self._bkd.jacobian(f, p[:, 0]))
+            assert False
+            samples = layer._map_to_latent(samples, False)
+            if isinstance(layer, ScaleAndShiftFlowLayer):
+                continue
+            start = True
+
+        return logdet_jac
+
+    def _logpdf_jac(self, active_opt_params: Array) -> Array:
+        def fun(p):
+            usamples = self._dxdp(p)
+            return self._flow._latent_variable.logpdf(
+                usamples[: self._flow.nvars()]
+            )[:, 0]
+
+        # jacobian of log pdf l with respect to samples x
+        # usamples can be stored so it is only computed once
+        usamples = self._dxdp(active_opt_params[:, 0])
+        dldx = self._flow._latent_variable.logpdf_jacobian(
+            usamples[: self._flow.nvars()]
+        )
+        # jacobian of samples x with respect to parameters p
+        self._dxdp_custom(active_opt_params)
+        dxdp = self._bkd.jacobian(self._dxdp, active_opt_params[:, 0])
+        # d: nvars, n: nsamples, p: nhyperparams
+        dldx = self._bkd.reshape(dldx, (dxdp.shape[0], dxdp.shape[1]))
+        return self._bkd.einsum("dn, dnp -> np", dldx, dxdp)
+        # return self._bkd.jacobian(fun, active_opt_params[:, 0])
+
+    def _logpdf_jacobian(self, active_opt_params: Array):
+        jac = self._logdet_jac(active_opt_params) + self._logpdf_jac(
+            active_opt_params
+        )
+        return -self.get_weights().T @ jac
 
     def jacobian_implemented(self) -> bool:
         return self._bkd.jacobian_implemented()
+
+    # def apply_hessian_implemented(self) -> bool:
+    #     return self._bkd.hvp_implemented()
 
     def plot_cross_section(self, ax, id1: int, id2: int, npts_1d=51, **kwargs):
         bounds = self._flow._hyp_list.get_active_opt_bounds()

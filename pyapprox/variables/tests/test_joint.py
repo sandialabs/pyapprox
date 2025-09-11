@@ -343,6 +343,34 @@ class TestJoint:
             kl_divergence, variable.kl_divergence(other), rtol=1e-2
         )
 
+    def test_independent_marginals_pdf_jacobian(self):
+        bkd = self.get_backend()
+        marginals = [GaussianMarginal(0, 1, backend=bkd) for ii in range(2)]
+        variable = IndependentMarginalsVariable(marginals, backend=bkd)
+        sample = variable.rvs(1)
+
+        # test pdf jacobian
+        model = ModelFromVectorizedCallable(
+            1,
+            variable.nvars(),
+            variable.pdf,
+            jacobian=variable.pdf_jacobian,
+            backend=bkd,
+        )
+        errors = model.check_apply_jacobian(sample)
+        assert errors.min() / errors.max() < 1e-6
+
+        # test logpdf jacobian
+        model = ModelFromVectorizedCallable(
+            1,
+            variable.nvars(),
+            variable.logpdf,
+            jacobian=variable.logpdf_jacobian,
+            backend=bkd,
+        )
+        errors = model.check_apply_jacobian(sample, disp=True)
+        assert errors.min() / errors.max() < 1e-6
+
 
 class TestNumpyJoint(TestJoint, unittest.TestCase):
     def get_backend(self):

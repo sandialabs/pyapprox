@@ -544,6 +544,14 @@ class IndependentMarginalsVariable(JointVariable):
             ]
         )
 
+    def logpdf_jacobian(self, samples: Array) -> Array:
+        return self._bkd.hstack(
+            [
+                marginal.logpdf_jacobian(samples[ii])
+                for ii, marginal in enumerate(self.marginals())
+            ]
+        )
+
 
 class IndependentGroupsVariable(JointVariable):
     """

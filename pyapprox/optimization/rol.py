@@ -64,6 +64,11 @@ class ROLObjectiveWrapper(Objective):
         g[:] = self._bkd.to_numpy(jac[0, :])
         return g
 
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
+
+class ROLObjectiveWrapperWithHvp(ROLObjectiveWrapper):
     def hessVec(self, hv: Vector, v: Vector, x: Vector, tol: float):
         hvp = self._model.apply_hessian(
             self._bkd.asarray(x.array)[:, None],
@@ -271,7 +276,13 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
     def _minimize(self, init_guess: Vector):
         tol = 0
         x0 = NumPyVector(self._bkd.to_numpy(init_guess[:, 0]))
-        objective = ROLObjectiveWrapper(self._objective)
+        if (
+            self._objective.apply_hessian_implemented()
+            or self._objective.hessian_implemented()
+        ):
+            objective = ROLObjectiveWrapperWithHvp(self._objective)
+        else:
+            objective = ROLObjectiveWrapper(self._objective)
         problem = Problem(objective, x0, x0.dual())
         if self._verbosity > 0:
             stream = getCout()

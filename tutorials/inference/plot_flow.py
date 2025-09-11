@@ -7,7 +7,7 @@ Provided the transform is differentiable with Jacobian with respect to the varia
 .. math::
 
     p(\rvv) &= \pi(\vec{u})\left\lvert\text{Det}\left[\nabla_\vec{u} T(\vec{u})\right]\right\rvert^{-1}\\
-         &= \pi(T^{-1}(\rvv))\left\lvert\text{Det}\left[\nabla_\rvv T^{-1}(T^{-1}(z))\right]\right\rvert
+         &= \pi(T^{-1}(\rvv))\left\lvert\text{Det}\left[\nabla_\rvv T^{-1}(T^{-1}(\rvv))\right]\right\rvert
 
 Here we used :math:`\left\lvert\text{Det}\left[\frac{dy}{dx}\right]\right\rvert=\left\lvert\frac{1}{\text{Det}\left[\frac{dx}{dy}\right]}\right\rvert.`
 `
@@ -174,5 +174,20 @@ Finally, equating terms yields:
 - :math:`Y_2` has mean :math:`\nu_1` and variance :math:`\tau_1^2 + \delta_1^2`, so :math:`C_{22}=\tau_1^2 + \delta_1^2` and :math:`\tau_1=(C_{22}-\delta_1^2)^{1/2}`
 - The covariance between :math:`Y_1` and :math:`Y_2` is :math:`\tau_2 \delta_1`, so :math:`\delta_1=C_{12}/\tau`.
 
+Gradients for Optimization
+--------------------------
+Let  \(\vec{gamma}=[\vec{gamma}_1,\ldots,\vec{gamma}_k]\) are the hyperparameters of the flow and $\vec{gamma}_k$ are the hyperparamters of the $k$-th flow layer.
+The objective function we want to minimize is
 
+.. math:: f(\vec{\gamma}) =\log \pi(T^{-1}(\rvv;\vec{\gamma}))+ \log \left\lvert \text{Det}\left[\nabla_\rvv T^{-1}(T^{-1}(\rvv;\vec{\gamma}))\right]\right\rvert
+
+Focusing on the log determinant, we note that
+
+.. math::
+
+    \left \lvert \text{Det}\left[\nabla_\rvv T^{-1}(T^{-1}(\rvv;\vec{\gamma}))\right] \right\rvert = \sum_{k=1}^K  \left \lvert\text{Det}\left[\nabla_{\rvv_{k}} T^{-1}_k(T^{-1}(\rvv_{k};\vec{\gamma}))\right]\right\rvert = \sum_{k=1}^K \delta_k
+
+We want to compute
+
+.. math:: \dydx{delta_k}{\gamma}
 """

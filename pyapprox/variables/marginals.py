@@ -1350,7 +1350,7 @@ class GaussianMarginal(Marginal):
         raise NotImplementedError
 
     def _logpdf_jacobian(self, samples: Array) -> Array:
-        return (-(self._mean - samples) / self._var)[None, :]
+        return (-(samples - self._mean) / self._var)[None, :]
 
     def pdf_jacobian_implemented(self) -> bool:
         return True
