@@ -435,6 +435,32 @@ class TestFlows:
             atol=1e-8,
         )
 
+    def test_3_layer_realnvp_3d_independent_gaussians_gradients(self):
+        bkd = self.get_backend()
+        nvars = 3
+        mean = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, 1)))
+        cov_diag = bkd.array([2.0, 3.0, 4.0])
+        marginals = [
+            GaussianMarginal(
+                mean=mean[ii], stdev=bkd.sqrt(cov_diag[ii]), backend=bkd
+            )
+            for ii in range(nvars)
+        ]
+        target_variable = IndependentMarginalsVariable(marginals, backend=bkd)
+
+        quad_rule = setup_tensor_product_gauss_quadrature_rule(target_variable)
+        # train_samples, train_weights = quad_rule([5, 5])
+        print("return quad rule to [5,5]")
+        train_samples, train_weights = quad_rule([2, 1, 1])
+
+        flow = self._setup_polynomial_real_nvp(nvars, [2, 2, 2], None)
+        flow._loss.set_samples(train_samples)
+        flow._loss.set_weights(train_weights)
+        iterate = flow._hyp_list.get_active_opt_params()[:, None]
+        errors = flow._loss.check_apply_jacobian(iterate, disp=True)
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1e-6
+
     def test_3_layer_realnvp_2d_independent_gaussians_fit(self):
         """
         Test that RealNVP can sue more than two layers. The last layer
@@ -456,10 +482,7 @@ class TestFlows:
         target_variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
         quad_rule = setup_tensor_product_gauss_quadrature_rule(target_variable)
-        # train_samples, train_weights = quad_rule([5, 5])
-        print("return quad rule to [5,5]")
-        train_samples, train_weights = quad_rule([3, 3])
-        # print(train_samples @ train_weights - mean, "m")
+        train_samples, train_weights = quad_rule([5, 5])
 
         # define exact answer
         cov = target_variable.covariance()
@@ -499,7 +522,7 @@ class TestFlows:
         errors = flow._loss.check_apply_jacobian(iterate, disp=True)
         # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1e-6
-        return
+
         flow.set_optimizer(
             flow.default_multistart_optimizer(
                 verbosity=0, method="trust-constr"
