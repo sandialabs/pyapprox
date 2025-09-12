@@ -222,16 +222,30 @@ class RealNVPLayer(FlowLayer):
             raise ValueError(f"{mask.shape=} must be {(self.nvars(),)}")
         if mask.dtype != self._bkd.bool_type():
             raise ValueError("mask must be a boolean array")
+        # mask defined over just nvars
         self._mask = mask
+        # mask complement defined over just nvars
         self._mask_complement = ~mask
         self._ntransformed_vars = self._bkd.where(self._mask_complement)[
             0
         ].shape[0]
 
         # shapes is assumed to have signature=shapes([samples, labels])
+        # mask_w_labels defined over nvars and labels (TODO change name as it
+        # is confusing)
         self._mask_w_labels = self._bkd.hstack(
             (self._mask, self._bkd.ones((nlabels,), dtype=bool))
         )
+        # mask_wo_labels defined over nvars and labels (TODO change name as it
+        # is confusing)
+        self._mask_wo_labels = self._bkd.hstack(
+            (self._mask, self._bkd.zeros((nlabels,), dtype=bool))
+        )
+        # mask_complement_w_labels defined over nvars and labels
+        self._mask_complement_w_labels = self._bkd.hstack(
+            (self._mask_complement, self._bkd.ones((nlabels,), dtype=bool))
+        )
+        # mask_complement_wo_labels defined over nvars and labels
         self._mask_complement_wo_labels = self._bkd.hstack(
             (self._mask_complement, self._bkd.zeros((nlabels,), dtype=bool))
         )
@@ -700,6 +714,15 @@ class RealNVP(Flow):
                     "layer must be an intance of RealNVPLayer or "
                     "ScaleAndShiftFlowLayer"
                 )
+            if ii != len(layers) - 1 and isinstance(
+                layer, ScaleAndShiftFlowLayer
+            ):
+                # this error is because analytical gradient computation
+                # depends on this assumption
+                raise ValueError(
+                    "ScaleAndShiftFlowLayer only allowed for last layer"
+                )
+
             if (
                 isinstance(layer, RealNVPLayer)
                 and ii > 0
@@ -966,11 +989,11 @@ class FlowLoss(Model):
         shift = shapes[:, : layer._ntransformed_vars].T
         scale = shapes[:, layer._ntransformed_vars :].T
         delta = self._bkd.exp(-scale)
-        diff = samples[layer._mask_complement] - shift
+        diff = samples[layer._mask_complement_wo_labels] - shift
 
         jac = self._bkd.zeros(
             (
-                self._flow.nvars(),
+                self._flow.nvars() + self._flow.nlabels(),
                 samples.shape[1],
                 self._flow._hyp_list.nactive_vars(),
             )
@@ -986,18 +1009,30 @@ class FlowLoss(Model):
         # index arrays has only one entry
         # jac[indices1, :, indices2]
         # so do the following
+        print(layer_active_hyperparam_indices)
         lb = layer_active_hyperparam_indices[nlayers - ii - 1][0]
         ub = layer_active_hyperparam_indices[nlayers - ii - 1][-1] + 1
-        jac[layer._mask_complement, :, lb:ub] = jac_ii
+        jac[layer._mask_complement_wo_labels, :, lb:ub] = jac_ii
 
         # compute jacobians with respect to hyperparameters of each parent
         # layer (layers closer to output layer are parents)
+        # todo allow for multiple fixed layers for now only allow
+        # for first layer to have no active hyperparams
         for jj in range(ii):
+            if len(layer_active_hyperparam_indices[nlayers - jj - 1]) == 0:
+                continue
             lb = layer_active_hyperparam_indices[nlayers - jj - 1][0]
             ub = layer_active_hyperparam_indices[nlayers - jj - 1][-1] + 1
-            jac[layer._mask, :, lb:ub] = self._sample_jacobians[ii - 1][
-                layer._mask, :, lb:ub
-            ]
+            print(layer._mask)
+            print(
+                self._sample_jacobians[ii - 1][
+                    layer._mask_w_labels, :, lb:ub
+                ].shape
+            )
+            print(jac[layer._mask_w_labels, :, lb:ub].shape)
+            jac[layer._mask_wo_labels, :, lb:ub] = self._sample_jacobians[
+                ii - 1
+            ][layer._mask_wo_labels, :, lb:ub]
 
             # grad of shift with respect to flattened active samples
             dmdx = self._dmdx(layer, p, samples)
@@ -1009,10 +1044,10 @@ class FlowLoss(Model):
             ]
             shape = (
                 *diff.shape,
-                self._bkd.where(layer._mask)[0].shape[0],
+                self._bkd.where(layer._mask_w_labels)[0].shape[0],
                 samples.shape[1],
             )
-            if ii == 1:
+            if True:
                 print("@@@@@@", jj)
                 print(samples.shape, "samples")
                 print(diff.shape, "diff")
@@ -1027,27 +1062,27 @@ class FlowLoss(Model):
             jac_jj = self._bkd.einsum(
                 "dnkn,knp->dnp",
                 self._bkd.reshape(diff[..., None] * dsdx, shape),
-                dxdp_jj[layer._mask],
+                dxdp_jj[layer._mask_w_labels],
             ) - self._bkd.einsum(
                 "dnkn,knp->dnp",
                 self._bkd.reshape(delta[..., None] * dmdx, shape),
-                dxdp_jj[layer._mask],
+                dxdp_jj[layer._mask_w_labels],
             )
             print(jj)
             print(self._sample_jacobians[0])
-            print(dxdp_jj[layer._mask_complement], "dxdp_jj_active")
-            jac_jj += delta[..., None] * dxdp_jj[layer._mask_complement]
-            jac[layer._mask_complement, :, lb:ub] = jac_jj
+            print(dxdp_jj[layer._mask_complement_w_labels], "dxdp_jj_active")
+            jac_jj += (
+                delta[..., None] * dxdp_jj[layer._mask_complement_wo_labels]
+            )
+            jac[layer._mask_complement_wo_labels, :, lb:ub] = jac_jj
 
         if ii >= 1:
 
             print(ii)
-            for j in self._sample_jacobians:
-                print(j.detach())
             print("$")
-            print(jac.detach(), "myjac")
+            print(jac.detach(), jac.shape, "myjac")
             print("$")
-            print(autojac, "autojac")
+            print(autojac, autojac.shape, "autojac")
             print(autojac - jac.detach())
             # print(self._bkd.jacobian(f, p[:, 0]))
         assert self._bkd.allclose(jac, autojac), ii
@@ -1059,15 +1094,15 @@ class FlowLoss(Model):
         ii = 0  # counter for layers with hyperparameters
         self._sample_jacobians = []
         for layer in reversed(self._flow._layers):
-            print(layer._mask)
-        for layer in reversed(self._flow._layers):
             if isinstance(layer, ScaleAndShiftFlowLayer):
                 # do not increment ii because this layer does not have
                 # tunable hyperparameters
+                self._sample_jacobians.append(None)
                 samples = layer._map_to_latent(samples, False)
+                ii += 1
                 continue
 
-            print("L", layer._mask)
+            print("L", layer)
             jac = self._dxdp_layer(layer, ii, samples, p)
             self._sample_jacobians.append(jac)
             samples = layer._map_to_latent(samples, False)
@@ -1089,8 +1124,8 @@ class FlowLoss(Model):
             usamples[: self._flow.nvars()]
         )
         # jacobian of samples x with respect to parameters p
-        self._dxdp_custom(active_opt_params)
-        dxdp = self._bkd.jacobian(self._dxdp, active_opt_params[:, 0])
+        dxdp = self._dxdp_custom(active_opt_params)[: self._flow.nvars()]
+        # dxdp = self._bkd.jacobian(self._dxdp, active_opt_params[:, 0])
         # d: nvars, n: nsamples, p: nhyperparams
         dldx = self._bkd.reshape(dldx, (dxdp.shape[0], dxdp.shape[1]))
         return self._bkd.einsum("dn, dnp -> np", dldx, dxdp)

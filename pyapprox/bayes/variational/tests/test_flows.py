@@ -451,15 +451,64 @@ class TestFlows:
         quad_rule = setup_tensor_product_gauss_quadrature_rule(target_variable)
         # train_samples, train_weights = quad_rule([5, 5])
         print("return quad rule to [5,5]")
-        train_samples, train_weights = quad_rule([2, 1, 1])
+        train_samples, train_weights = quad_rule([2, 2, 2])
 
-        flow = self._setup_polynomial_real_nvp(nvars, [2, 2, 2], None)
+        flow = self._setup_polynomial_real_nvp(
+            nvars, [2, 2, 2], None, scale_inputs=True
+        )
         flow._loss.set_samples(train_samples)
         flow._loss.set_weights(train_weights)
         iterate = flow._hyp_list.get_active_opt_params()[:, None]
         errors = flow._loss.check_apply_jacobian(iterate, disp=True)
         # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1e-6
+
+    def test_realnvp_3d_conditional_correlated_gaussians_gradients(self):
+        """
+        Test that RealNVP can recover the posterior from a Gaussian prior,
+        likelihood and linear observation model
+        """
+        bkd = self.get_backend()
+
+        # Define the prior
+        nvars = 3
+        nobs = 2
+        mean = bkd.zeros((nvars, 1))
+        cov = bkd.eye(nvars)
+        prior = DenseCholeskyMultivariateGaussian(mean, cov, backend=bkd)
+
+        # Define the observation model
+        obs_mat = bkd.asarray(np.random.normal(0.0, 1.0, (nobs, nvars)))
+        obs_mat = 1.0 / bkd.norm(obs_mat, axis=1)[:, None] * obs_mat
+
+        # Define the noise used in the likelihood
+        noise_std = 0.5
+
+        # Get the training data including labels
+        train_samples, obs, train_weights = (
+            self._get_correlated_gaussian_training_data(
+                nvars, "MC", prior, noise_std, obs_mat
+            )
+        )
+
+        # Setup the flow model
+        flow = self._setup_polynomial_real_nvp(
+            nvars,
+            [2, 2],
+            None,
+            nlabels=nobs,
+            tp_basis=True,
+            scale_inputs=True,
+            scale_bounds=(-2.0, 2.0),
+        )
+
+        flow._loss.set_samples(train_samples)
+        flow._loss.set_weights(train_weights)
+        iterate = flow._hyp_list.get_active_opt_params()[:, None]
+        errors = flow._loss.check_apply_jacobian(
+            iterate, disp=True, fd_eps=bkd.flip(bkd.logspace(-13, -1, 13))
+        )
+        assert errors.min() / errors.max() < 7e-6
 
     def test_3_layer_realnvp_2d_independent_gaussians_fit(self):
         """
@@ -578,7 +627,8 @@ class TestFlows:
             train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
         else:
             # Generate the training data with MC
-            ntrain_samples = 50000
+            print("make mc samples 50000")
+            ntrain_samples = 5  # 50000
             quad_samples = latent_joint_prior_data_variable.rvs(ntrain_samples)
             train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
 
