@@ -437,9 +437,9 @@ class TestFlows:
 
     def test_3_layer_realnvp_3d_independent_gaussians_gradients(self):
         bkd = self.get_backend()
-        nvars = 3
+        nvars = 4
         mean = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, 1)))
-        cov_diag = bkd.array([2.0, 3.0, 4.0])
+        cov_diag = bkd.array([2.0, 3.0, 4.0, 5.0, 6.0])[:nvars]
         marginals = [
             GaussianMarginal(
                 mean=mean[ii], stdev=bkd.sqrt(cov_diag[ii]), backend=bkd
@@ -448,16 +448,59 @@ class TestFlows:
         ]
         target_variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
-        quad_rule = setup_tensor_product_gauss_quadrature_rule(target_variable)
-        # train_samples, train_weights = quad_rule([5, 5])
-        print("return quad rule to [5,5]")
-        train_samples, train_weights = quad_rule([2, 2, 2])
+        ntrain_samples = 4
+        train_samples = target_variable.rvs(ntrain_samples)
+        train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
 
         flow = self._setup_polynomial_real_nvp(
-            nvars, [2, 2, 2], None, scale_inputs=True
+            # nvars, [2, 2, 2], None, scale_inputs=True
+            nvars,
+            [2, 2],
+            None,
+            scale_inputs=True,
         )
+
         flow._loss.set_samples(train_samples)
         flow._loss.set_weights(train_weights)
+
+        import torch
+
+        torch.set_printoptions(linewidth=1000)  # , precision=6)
+
+        layer = flow._layers[0]
+        layer_idx = 2
+        # layer = flow._layers[1]
+        # layer_idx = 1
+        p = flow._hyp_list.get_active_opt_params()
+        usamples = flow._loss._xlayer_arg_p(layer, layer_idx, p)
+        active_usamples = usamples[layer._mask_w_labels]
+        dsdx = flow._loss._dslayer_dx(layer, active_usamples, p)
+        dxdp = flow._loss._dxlayer_dp(layer, layer_idx, p)[
+            layer._mask_w_labels
+        ]
+        # print(p.shape)
+        print(dsdx.shape, "dsdx")
+        # print(dxdp.shape)
+        # print(dxdp, "dxdp")
+        # this will not contain derivatives with respect to parameters on current layer
+        # so will only be corret for portion of dsdp_auto
+        dsdp = bkd.einsum("ijkl,klp->ijp", dsdx, dxdp)
+        # print(dsdp.shape)
+        # print(flow._loss._dslayer_dp(layer, layer_idx, p).shape)
+        print(dsdp, "dsdp")
+        # print(flow._loss._dslayer_dp(layer, layer_idx, p), "dsdp_auto")
+        # print(dsdp - flow._loss._dslayer_dp(layer, layer_idx, p))
+
+        dsdx_flat = layer._jacobian_delta_wrt_samples(usamples)
+        print(dsdx_flat.shape)
+        print(dxdp.shape)
+        # print(dsdx_flat)
+        print(flow._loss._dslayer_dp(layer, layer_idx, p).shape)
+        print(dsdx_flat[..., None] * dxdp)
+
+        assert bkd.allclose(dsdp, flow._loss._dslayer_dp(layer, layer_idx, p))
+        assert False
+
         iterate = flow._hyp_list.get_active_opt_params()[:, None]
         errors = flow._loss.check_apply_jacobian(iterate, disp=True)
         # print(errors.min() / errors.max())

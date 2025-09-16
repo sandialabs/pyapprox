@@ -305,10 +305,21 @@ class RealNVPLayer(FlowLayer):
             self.__class__.__name__, self.nvars(), self._shapes
         )
 
+    def _jacobian_shift_wrt_scale_hyperparameters(
+        self, samples: Array
+    ) -> Array:
+        return self._shapes.basis()(samples[self._mask_w_labels])
+
     def _jacobian_scale_wrt_scale_hyperparameters(
         self, samples: Array
     ) -> Array:
         return self._shapes.basis()(samples[self._mask_w_labels])
+
+    def _jacobian_shift_wrt_hyperparameters(self, samples: Array) -> Array:
+        shift_jac = self._jacobian_shift_wrt_scale_hyperparameters(samples)
+        jac = self._bkd.zeros((shift_jac.shape[0], 2 * shift_jac.shape[1]))
+        jac[:, ::2] = shift_jac
+        return jac
 
     def _jacobian_scale_wrt_hyperparameters(self, samples: Array) -> Array:
         scale_jac = self._jacobian_scale_wrt_scale_hyperparameters(samples)
@@ -321,7 +332,7 @@ class RealNVPLayer(FlowLayer):
         active_samples = samples[self._mask_w_labels]
         basis_jacobian_wrt_active_samples_wo_labels = bexp.basis().jacobian(
             active_samples
-        )[..., : self._ntransformed_vars]
+        )  # [..., : self._ntransformed_vars]
         scale_coefs = bexp.get_coefficients()[:, self._ntransformed_vars :]
         jac = self._bkd.einsum(
             "ijk,jl->ikl",
@@ -345,6 +356,73 @@ class RealNVPLayer(FlowLayer):
         # jac1 = self._bkd.jacobian(fun, active_samples[self._mask][0])
         # print(self._bkd.diag(jac1))
         # assert self._bkd.allclose(jac, jac1)
+        return jac
+
+    def _jacobian_delta_wrt_samples(self, samples: Array) -> Array:
+        bexp = self._shapes
+        active_samples = samples[self._mask_w_labels]
+        basis_jacobian_wrt_active_samples_wo_labels = bexp.basis().jacobian(
+            active_samples
+        )  # [..., : self._ntransformed_vars]
+        scale_coefs = bexp.get_coefficients()[:, self._ntransformed_vars :]
+        jac = self._bkd.einsum(
+            # "ijk,jl->ikl", # returns (nsamples, nqoi, nvars)
+            # "ijk,jl->kil",  # returns (nqoi, nsamples, nvars)
+            "ijk,jl->kli",  # returns (nqoi, nvars, nsamples)
+            basis_jacobian_wrt_active_samples_wo_labels,
+            scale_coefs,
+        )
+        # flatten assumes that scale for each variable returned by
+        # scale are concatenated together
+
+        print(jac.shape, bexp(active_samples).shape)
+        scale = bexp(active_samples)[:, self._ntransformed_vars :]
+        print(scale.shape, "s", jac.shape)
+        # jac = -self._bkd.exp(-scale)[..., None] * jac # for jac (nsamples, nqoi, nvars)
+        # jac = (
+        #     -self._bkd.exp(-scale).T[..., None] * jac
+        # )  # for jac  (nqoi, nsamples, nvars)
+        jac = (
+            -self._bkd.exp(-scale).T * jac
+        )  # for jac  (nqoi, nvars, nsamples)
+        return jac
+
+        # jac = self._bkd.diag(jac.flatten())
+
+        # return as diagonal to speed up its application to a matrix
+        jac = jac.flatten()[:, None]
+
+        # print(jac)
+        # def fun(x):
+        #     x = x[None, :]
+        #     x = self._bkd.vstack((x, active_samples[x.shape[0] :]))
+        #     return bexp(x)[:, self._ntransformed_vars :].T[0]
+
+        # jac1 = self._bkd.jacobian(fun, active_samples[self._mask][0])
+        # print(self._bkd.diag(jac1))
+        # assert self._bkd.allclose(jac, jac1)
+        return jac
+
+    def _jacobian_shift_wrt_samples(self, samples: Array) -> Array:
+        bexp = self._shapes
+        active_samples = samples[self._mask_w_labels]
+        basis_jacobian_wrt_active_samples_wo_labels = bexp.basis().jacobian(
+            active_samples
+        )  # [..., : self._ntransformed_vars :]
+        shift_coefs = bexp.get_coefficients()[:, : self._ntransformed_vars]
+        jac = self._bkd.einsum(
+            # "ijk,jl->ilk",
+            "ijk,jl->ikl",  # old
+            basis_jacobian_wrt_active_samples_wo_labels,
+            shift_coefs,
+        )
+        # flatten assumes that scale for each variable returned by
+        # scale are concatenated together
+
+        # jac = self._bkd.diag(jac.flatten())
+
+        # return as diagonal to speed up its application to a matrix
+        jac = jac.flatten()[:, None]
         return jac
 
     def _jacobian_samples_wrt_hyperparameters(self, samples: Array) -> Array:
@@ -944,7 +1022,6 @@ class FlowLoss(Model):
 
         jac = self._bkd.jacobian(fun, active_samples.flatten())
         return jac
-        # return self._bkd.stack([self._bkd.diag(mat) for mat in jac], axis=0)
 
     def _layer_active_hyperparam_indices(self):
         layer_active_hyperparam_indices = []
@@ -955,26 +1032,50 @@ class FlowLoss(Model):
             lb = ub
         return layer_active_hyperparam_indices
 
+    def _xlayer_arg_p(self, layer, ii, p):
+        self._flow._hyp_list.set_active_opt_params(p)
+        # will contain jac for both masked and mask complement dims
+        kk = 0
+        usamples = self._bkd.copy(self._samples)
+        for xlayer in reversed(self._flow._layers):
+            if kk <= ii:
+                usamples = xlayer._map_to_latent(usamples, False)
+            else:
+                break
+            kk += 1
+        return usamples
+
+    def _slayer_arg_x(self, layer, active_samples):
+        bexp = layer._shapes
+        scale = bexp(active_samples)[:, layer._ntransformed_vars :].T
+        return self._bkd.exp(-scale)
+
+    def _slayer_arg_p(self, layer, ii, p):
+        self._flow._hyp_list.set_active_opt_params(p)
+        active_samples = self._xlayer_arg_p(layer, ii, p)[layer._mask_w_labels]
+        return self._slayer_arg_x(layer, active_samples)
+
+    def _dxlayer_dp(self, layer, ii, params):
+        autojac = self._bkd.jacobian(
+            lambda p: self._xlayer_arg_p(layer, ii, p), params
+        )
+        return autojac
+
+    def _dslayer_dp(self, layer, ii, p):
+        autojac = self._bkd.jacobian(
+            lambda p: self._slayer_arg_p(layer, ii, p), p
+        )
+        return autojac
+
+    def _dslayer_dx(self, layer, active_samples, p):
+        autojac = self._bkd.jacobian(
+            lambda x: self._slayer_arg_x(layer, x), active_samples
+        )
+        return autojac
+
     def _dxdp_layer(self, layer, ii, samples, p):
 
-        import torch
-
-        torch.set_printoptions(linewidth=1000)  # , threshold=10000)
-
-        def f(p):
-            self._flow._hyp_list.set_active_opt_params(p)
-            # will contain jac for both masked and mask complement dims
-            kk = 0
-            usamples = self._bkd.copy(self._samples)
-            for xlayer in reversed(self._flow._layers):
-                if kk <= ii:
-                    usamples = xlayer._map_to_latent(usamples, False)
-                else:
-                    break
-                kk += 1
-            return usamples
-
-        autojac = self._bkd.jacobian(f, p[:, 0])
+        autojac = self._dxlayer_dp(layer, ii, p[:, 0])
 
         # TODO do this only once every time loss is created (as long as active params)
         # does not change
@@ -1055,19 +1156,44 @@ class FlowLoss(Model):
                 print(dsdx.shape, "dsdx")
                 print(dxdp_jj.shape, "dxdp")
                 print(shape)
+                print(
+                    layer._jacobian_shift_wrt_samples(samples).shape,
+                    "dmdx_flat",
+                )
                 # print(dxdp_jj[layer._mask])
             # scale and shift depend of samples[layer._mask] at this layer
             # thus they depend on samples[prev_layer._mask_complement]
             # at previous layer
             jac_jj = self._bkd.einsum(
-                "dnkn,knp->dnp",
+                "dmkn,kmp->dmp",
                 self._bkd.reshape(diff[..., None] * dsdx, shape),
                 dxdp_jj[layer._mask_w_labels],
             ) - self._bkd.einsum(
-                "dnkn,knp->dnp",
+                "dmkn,kmp->dmp",
                 self._bkd.reshape(delta[..., None] * dmdx, shape),
                 dxdp_jj[layer._mask_w_labels],
             )
+            # print(
+            #     self._bkd.einsum(
+            #         "dnkn,knp->dnp",
+            #         self._bkd.reshape(delta[..., None] * dmdx, shape),
+            #         dxdp_jj[layer._mask_w_labels],
+            #     ).shape,
+            #     "OLD",
+            # )
+            # # TODO make sure can reproduce above with the code below. its incomplete
+            # dmdx_flat = layer._jacobian_shift_wrt_samples(samples)
+            # # print(dmdx)
+            # # print(dmdx_flat)
+            # dmdx_flat = dmdx_flat.reshape(*delta.shape, -1)
+            # print(delta.shape)
+            # print(dmdx_flat.shape)
+            # print(dxdp_jj[layer._mask_w_labels].shape)
+            # # print(dxdp_jj[layer._mask_wo_labels])
+            # # print(dxdp_flat)
+            # print(delta[..., None] * dmdx_flat * dxdp_jj[layer._mask_w_labels])
+            # assert False
+
             print(jj)
             print(self._sample_jacobians[0])
             print(dxdp_jj[layer._mask_complement_w_labels], "dxdp_jj_active")

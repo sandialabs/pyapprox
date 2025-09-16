@@ -27,6 +27,8 @@ from pyapprox.optimization.minimize import (
     SmoothQuinticBasedLeftHeavisideFunction,
     SampleSmoothedConditionalValueAtRisk,
     SampleSmoothedConditionalValueAtRiskDeviation,
+    ChainRuleArrays,
+    ChainRuleFunctions,
 )
 from pyapprox.optimization.risk import GaussianAnalyticalRiskMeasures
 from pyapprox.benchmarks import (
@@ -917,6 +919,149 @@ class TestMinimize:
         )
 
 
+class TestChainRule:
+    def _uncompress_jacobian(self, jac_compressed):
+        bkd = self.get_backend()
+        N, n_o, n_p = jac_compressed.shape
+        jac_uncompressed = bkd.zeros((N, n_o, N, n_p))
+
+        # Populate the diagonal blocks
+        for n in range(N):
+            jac_uncompressed[n, :, n, :] = jac_compressed[n]
+
+        return jac_uncompressed
+
+    def _define_jacobians(self):
+        bkd = self.get_backend()
+        self._x_jac_compressed = (
+            lambda p: bkd.cos((p @ self._A.T) + self._b)[:, :, None] * self._A
+        )
+        self._u_jac_compressed = (
+            lambda x: -bkd.sin((x @ self._B.T) + self._c)[:, :, None] * self._B
+        )
+        self._x_jac_uncompressed = lambda p: self._uncompress_jacobian(
+            self._x_jac_compressed(p)
+        )
+        self._u_jac_uncompressed = lambda x: self._uncompress_jacobian(
+            self._u_jac_compressed(x)
+        )
+
+    def _precompute_arrays(self):
+        bkd = self.get_backend()
+        self._x = self._x_function(self._p)
+        self._u = self._u_function(self._x)
+        self._dx_dp_uncompressed = self._x_jac_uncompressed(self._p)
+        self._du_dx_uncompressed = self._u_jac_uncompressed(self._x)
+        self._dx_dp_compressed = self._x_jac_compressed(self._p)
+        self._du_dx_compressed = self._u_jac_compressed(self._x)
+        self._du_dp = bkd.einsum(
+            "noi,nip->nop", self._du_dx_compressed, self._dx_dp_compressed
+        )
+
+    def setUp(self):
+        bkd = self.get_backend()
+        np.random.seed(1)
+        # Define dimensions
+        self._N = 2
+        self._n_p = 3
+        self._n_i = 4
+        self._n_o = 5
+
+        # Define random matrices and biases for affine transformations
+        self._A = bkd.array(np.random.randn(self._n_i, self._n_p))
+        self._b = bkd.array(np.random.randn(self._n_i))
+        self._B = bkd.array(np.random.randn(self._n_o, self._n_i))
+        self._c = bkd.array(np.random.randn(self._n_o))
+
+        # Define p
+        self._p = bkd.asarray([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+
+        # Define functions
+        self._x_function = lambda p: bkd.sin((p @ self._A.T) + self._b)
+        self._u_function = lambda x: bkd.cos((x @ self._B.T) + self._c)
+
+        # Define Jacobians
+        self._define_jacobians()
+
+        # Precompute arrays
+        self._precompute_arrays()
+
+    def test_jacobian_compression(self):
+        bkd = self.get_backend()
+        chain_rule = ChainRuleFunctions(
+            self._x_function,
+            self._u_function,
+            self._x_jac_compressed,
+            self._u_jac_compressed,
+            True,
+            bkd,
+        )
+        assert bkd.allclose(
+            chain_rule._uncompress_jacobian(self._dx_dp_compressed),
+            self._dx_dp_uncompressed,
+        )
+        assert bkd.allclose(
+            chain_rule._compress_jacobian(self._dx_dp_uncompressed),
+            self._dx_dp_compressed,
+        )
+
+    def test_chain_rule_functions_no_compression(self):
+        bkd = self.get_backend()
+        chain_rule = ChainRuleFunctions(
+            self._x_function,
+            self._u_function,
+            self._x_jac_compressed,
+            self._u_jac_compressed,
+            False,
+            bkd,
+        )
+        du_dp = chain_rule(self._p)
+        self.assertEqual(du_dp.shape, (self._N, self._n_o, self._n_p))
+        assert bkd.allclose(du_dp, self._du_dp)
+
+    def test_chain_rule_functions_with_compression(self):
+        bkd = self.get_backend()
+        chain_rule = ChainRuleFunctions(
+            self._x_function,
+            self._u_function,
+            self._x_jac_uncompressed,
+            self._u_jac_uncompressed,
+            True,
+            bkd,
+        )
+        du_dp = chain_rule(self._p)
+        self.assertEqual(du_dp.shape, (self._N, self._n_o, self._n_p))
+        assert bkd.allclose(du_dp, self._du_dp)
+
+    def test_chain_rule_arrays_no_compression(self):
+        bkd = self.get_backend()
+        chain_rule = ChainRuleArrays(
+            self._x,
+            self._u,
+            self._dx_dp_compressed,
+            self._du_dx_compressed,
+            False,
+            bkd,
+        )
+        du_dp = chain_rule(self._p)
+        self.assertEqual(du_dp.shape, (self._N, self._n_o, self._n_p))
+        assert bkd.allclose(du_dp, self._du_dp)
+
+    def test_chain_rule_arrays_with_compression(self):
+        bkd = self.get_backend()
+        chain_rule = ChainRuleArrays(
+            self._x,
+            self._u,
+            self._dx_dp_uncompressed,
+            self._du_dx_uncompressed,
+            True,
+            bkd,
+        )
+        du_dp = chain_rule(self._p)
+        self.assertEqual(du_dp.shape, (self._N, self._n_o, self._n_p))
+        assert bkd.allclose(du_dp, self._du_dp)
+
+
 class TestNumpyMinimize(TestMinimize, unittest.TestCase):
     def get_backend(self):
         return NumpyMixin
@@ -925,6 +1070,33 @@ class TestNumpyMinimize(TestMinimize, unittest.TestCase):
 class TestTorchMinimize(TestMinimize, unittest.TestCase):
     def get_backend(self):
         return TorchMixin
+
+
+class TestNumpyChainRule(TestChainRule, unittest.TestCase):
+    def get_backend(self):
+        return NumpyMixin
+
+
+class TestTorchChainRule(TestChainRule, unittest.TestCase):
+    def get_backend(self):
+        return TorchMixin
+
+    def _define_jacobians(self):
+        bkd = self.get_backend()
+        super()._define_jacobians()
+        # show how to use autograd to compute components of chain rule
+        # self._x_jac_uncompressed = lambda p: bkd.jacobian(self._x_function, p)
+        # self._u_jac_uncompressed = lambda x: bkd.jacobian(self._u_function, x)
+
+    def _precompute_arrays(self):
+        bkd = self.get_backend()
+        super()._precompute_arrays()
+        self._du_dp = bkd.sum(
+            bkd.jacobian(
+                lambda p: self._u_function(self._x_function(p)), self._p
+            ),
+            axis=2,
+        )
 
 
 if __name__ == "__main__":
