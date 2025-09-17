@@ -2617,36 +2617,47 @@ class SampleSmoothedConditionalValueAtRiskDeviation(
         return super().__call__(values, weights) - self._mean
 
 
-class ChainRuleBase:
-    def __init__(self, compress_jacobians: bool, backend: BackendMixin):
-        self._compress_jacobians = compress_jacobians
+class ChainRuleArrays:
+    def __init__(
+        self, compress_dx_dp: bool, compress_du_dx: bool, backend: BackendMixin
+    ):
+        self._compress_dx_dp = compress_dx_dp
+        self._compress_du_dx = compress_du_dx
         self._bkd = backend
 
     def _validate_shapes(
-        self: Array, p: Array, x: Array, u: Array, dx_dp: Array, du_dx: Array
+        self,
+        p_shape: Tuple[int, int],
+        x_shape: Tuple[int, int],
+        u_shape: Tuple[int, int],
+        dx_dp: Array,
+        du_dx: Array,
     ):
         """
         Validate the shapes of p, x, u, dx_dp, and du_dx.
 
         Parameters
         ----------
-        p: Array
-            Input tensor (shape: N x n_p)
-        x: Array
-            Intermediate tensor (shape: N x n_i)
-        u: Array
-            Output tensor (shape: N x n_o)
+        p_shape: Tuple[int, int]
+            Shape of input tensor (shape: N x n_p)
+        x_shape: Tuple[int, int]
+            Shape of intermediate tensor (shape: N x n_i)
+        u_shape: Tuple[int, int]
+            Shape of Output tensor (shape: N x n_o)
         dx_dp: Array
             Jacobian of x with respect to p (shape: N x n_i x n_p)
         du_dx: Array
             Jacobian of u with respect to x (shape: N x n_o x n_i)
         """
-        N, n_p = p.shape
-        _, n_i = x.shape
-        _, n_o = u.shape
+        N, n_p = p_shape
+        _, n_i = x_shape
+        _, n_o = u_shape
 
-        if x.shape[0] != N or u.shape[0] != N:
-            raise ValueError("Batch size mismatch between p, x, and u.")
+        if x_shape[0] != N or u_shape[0] != N:
+            raise ValueError(
+                "Batch size mismatch between p, x, and u."
+                f"shapes were {p_shape=}, {x_shape=}, {u_shape}"
+            )
 
         if dx_dp.shape != (N, n_i, n_p):
             raise ValueError(
@@ -2659,28 +2670,26 @@ class ChainRuleBase:
                 f"({N}, {n_o}, {n_i})."
             )
 
-    def _compress_jacobian(self, jac: Array) -> Array:
+    def _compress_jacobian(self, jac: Array, name: str) -> Array:
         """
         Compress batch Jacobians by summing over the redundant batch dimension.
 
         Parameters
         ----------
-        jac:
+        jac: Array
             Jacobian tensor with redundant batch dimension (e.g., N x n_o x N x n_i)
 
         Returns
         -------
-        compressed_jac:
+        compressed_jac: Array
             Compressed Jacobian tensor (e.g., N x n_o x n_i)
         """
-        if self._compress_jacobians:
-            if jac.ndim != 4 or jac.shape[0] != jac.shape[2]:
-                raise ValueError(
-                    f"Shape of dx_dp is {jac.shape}, expected "
-                    f"({jac.shape[0]}, n_i, {jac.shape[0]}, n_p)."
-                )
-            return self._bkd.sum(jac, axis=2)
-        return jac
+        if jac.ndim != 4 or jac.shape[0] != jac.shape[2]:
+            raise ValueError(
+                f"Shape of {name} is {jac.shape}, expected "
+                f"({jac.shape[0]}, n_i, {jac.shape[0]}, n_p)."
+            )
+        return self._bkd.sum(jac, axis=2)
 
     def _uncompress_jacobian(self, jac_compressed: Array) -> Array:
         """
@@ -2694,7 +2703,7 @@ class ChainRuleBase:
 
         Returns
         -------
-        ajc_uncompressed: Array
+        jac_uncompressed: Array
             Uncompressed Jacobian (shape: N x n_o x N x n_p)
         """
         N, n_o, n_p = jac_compressed.shape
@@ -2719,22 +2728,80 @@ class ChainRuleBase:
 
         Returns
         -------
-        - du_dp:
+        du_dp: Array
             Derivative of u with respect to p (shape: N x n_o x n_p)
         """
         return self._bkd.einsum(
             "noi,nip->nop", du_dx, dx_dp
         )  # Shape: N x n_o x n_p
 
+    def set_arrays(
+        self,
+        x_shape: Tuple[int, int],
+        u_shape: Tuple[int, int],
+        dx_dp: Array,
+        du_dx: Array,
+    ):
+        """
+        Set the data needed to compute the chain rule.
 
-class ChainRuleFunctions(ChainRuleBase):
+        Parameters
+        ----------
+        x_shape: Tuple[int, int]
+            Shape of precomputed intermediate tensor (shape: N x n_i)
+        u_shape: Tuple[int, int]
+            Shape of precomputed output tensor (shape: N x n_o)
+        dx_dp: Array
+            Precomputed Jacobian of x with respect to p (shape: N x n_i x n_p)
+        du_dx: Array
+            Precomputed Jacobian of u with respect to x (shape: N x n_o x n_i)
+        """
+        self._x_shape = x_shape
+        self._u_shape = u_shape
+        if self._compress_du_dx:
+            du_dx = self._compress_jacobian(du_dx, "du_dx")
+        if self._compress_dx_dp:
+            dx_dp = self._compress_jacobian(dx_dp, "dx_dp")
+
+        self._dx_dp = dx_dp  # Shape: N x n_i x n_p
+        self._du_dx = du_dx  # Shape: N x n_o x n_i
+
+    def __call__(self, p_shape: Tuple[int, int]) -> Array:
+        """
+        Compute the derivative of u(x(p)) with respect to p using the chain rule.
+
+        Parameters
+        ----------
+        p_shape: Tuple[int, int]
+            Shape of the design parameters (shape: N x n_p)
+
+        Returns:
+        -------
+        du_dp: Array
+            Derivative of u with respect to p (shape: N x n_o x n_p)
+        """
+        # Check arrays have been setUp
+        if not hasattr(self, "_u_shape"):
+            raise RuntimeError("must call set_arrays")
+
+        # Validate shapes
+        self._validate_shapes(
+            p_shape, self._x_shape, self._u_shape, self._dx_dp, self._du_dx
+        )
+
+        # Apply chain rule
+        return self._apply_chain_rule(self._dx_dp, self._du_dx)
+
+
+class ChainRuleFunctions(ChainRuleArrays):
     def __init__(
         self,
         x_function,
         u_function,
         x_jac,
         u_jac,
-        compress_jacobians: bool,
+        compress_dx_dp: bool,
+        compress_du_dx: bool,
         backend: BackendMixin,
     ):
         """
@@ -2752,8 +2819,14 @@ class ChainRuleFunctions(ChainRuleBase):
         u_jac: callable
             Function to compute the Jacobian of u with respect to x
             (shape: N x n_o x n_i)
+        compress_dx_dp: bool
+            If true compress dx_dp from 4D to 3D tensor
+        compress_du_dx: bool
+            If true compress du_dx from 4D to 3D tensor
+        backend: BackendMixin
+            The backend used to peform Array manipulations
         """
-        super().__init__(compress_jacobians, backend)
+        super().__init__(compress_dx_dp, compress_du_dx, backend)
         self._x_function = x_function
         self._u_function = u_function
         self._x_jac = x_jac
@@ -2779,53 +2852,7 @@ class ChainRuleFunctions(ChainRuleBase):
         u = self._u_function(x)  # Shape: N x n_o
 
         # Compute Jacobians
-        dx_dp = self._compress_jacobian(self._x_jac(p))  # Shape: N x n_i x n_p
-        du_dx = self._compress_jacobian(self._u_jac(x))  # Shape: N x n_o x n_i
-
-        # Validate shapes
-        self._validate_shapes(p, x, u, dx_dp, du_dx)
-
-        # Apply chain rule
-        return self._apply_chain_rule(dx_dp, du_dx)
-
-
-class ChainRuleArrays(ChainRuleBase):
-    def __init__(
-        self,
-        x: Array,
-        u: Array,
-        dx_dp: Array,
-        du_dx: Array,
-        compress_jacobians: bool,
-        backend: BackendMixin,
-    ):
-        """
-        Initialize the ChainRuleArrays class.
-
-        Parameters:
-        - x: Precomputed intermediate tensor (shape: N x n_i)
-        - u: Precomputed output tensor (shape: N x n_o)
-        - dx_dp: Precomputed Jacobian of x with respect to p (shape: N x n_i x n_p)
-        - du_dx: Precomputed Jacobian of u with respect to x (shape: N x n_o x n_i)
-        """
-        super().__init__(compress_jacobians, backend)
-        self._x = x
-        self._u = u
-        self._dx_dp = self._compress_jacobian(dx_dp)  # Shape: N x n_i x n_p
-        self._du_dx = self._compress_jacobian(du_dx)  # Shape: N x n_o x n_i
-
-    def __call__(self, p: Array) -> Array:
-        """
-        Compute the derivative of u(x(p)) with respect to p using the chain rule.
-
-        Parameters:
-        - p: Input tensor (shape: N x n_p)
-
-        Returns:
-        - du_dp: Derivative of u with respect to p (shape: N x n_o x n_p)
-        """
-        # Validate shapes
-        self._validate_shapes(p, self._x, self._u, self._dx_dp, self._du_dx)
-
-        # Apply chain rule
-        return self._apply_chain_rule(self._dx_dp, self._du_dx)
+        dx_dp = self._x_jac(p)
+        du_dx = self._u_jac(x)
+        self.set_arrays(x.shape, u.shape, dx_dp, du_dx)
+        return super().__call__(p.shape)

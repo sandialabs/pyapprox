@@ -24,12 +24,12 @@ from pyapprox.bayes.variational.flows import (
     ScaleAndShiftFlowLayer,
     RealNVPLayer,
     RealNVPScalingConstraint,
+    RealNVPShapesBasisExpansionMap,
 )
 from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
-from pyapprox.util.misc import covariance_to_correlation
 
 
 class TestFlows:
@@ -228,7 +228,12 @@ class TestFlows:
             mask = bkd.ones(nvars, dtype=bool)
             mask[inputs_per_layer[(ii + 1) % 2]] = 0
             layers.append(
-                RealNVPLayer(nvars, bexp, mask=mask, nlabels=nlabels)
+                RealNVPLayer(
+                    nvars,
+                    RealNVPShapesBasisExpansionMap(bexp),
+                    mask=mask,
+                    nlabels=nlabels,
+                )
             )
         if scale_inputs:
             layers += [
@@ -437,7 +442,7 @@ class TestFlows:
 
     def test_3_layer_realnvp_3d_independent_gaussians_gradients(self):
         bkd = self.get_backend()
-        nvars = 4
+        nvars = 5
         mean = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, 1)))
         cov_diag = bkd.array([2.0, 3.0, 4.0, 5.0, 6.0])[:nvars]
         marginals = [
@@ -462,49 +467,103 @@ class TestFlows:
 
         flow._loss.set_samples(train_samples)
         flow._loss.set_weights(train_weights)
-
-        import torch
-
-        torch.set_printoptions(linewidth=1000)  # , precision=6)
-
-        layer = flow._layers[0]
-        layer_idx = 2
-        # layer = flow._layers[1]
-        # layer_idx = 1
-        p = flow._hyp_list.get_active_opt_params()
-        usamples = flow._loss._xlayer_arg_p(layer, layer_idx, p)
-        active_usamples = usamples[layer._mask_w_labels]
-        dsdx = flow._loss._dslayer_dx(layer, active_usamples, p)
-        dxdp = flow._loss._dxlayer_dp(layer, layer_idx, p)[
-            layer._mask_w_labels
-        ]
-        # print(p.shape)
-        print(dsdx.shape, "dsdx")
-        # print(dxdp.shape)
-        # print(dxdp, "dxdp")
-        # this will not contain derivatives with respect to parameters on current layer
-        # so will only be corret for portion of dsdp_auto
-        dsdp = bkd.einsum("ijkl,klp->ijp", dsdx, dxdp)
-        # print(dsdp.shape)
-        # print(flow._loss._dslayer_dp(layer, layer_idx, p).shape)
-        print(dsdp, "dsdp")
-        # print(flow._loss._dslayer_dp(layer, layer_idx, p), "dsdp_auto")
-        # print(dsdp - flow._loss._dslayer_dp(layer, layer_idx, p))
-
-        dsdx_flat = layer._jacobian_delta_wrt_samples(usamples)
-        print(dsdx_flat.shape)
-        print(dxdp.shape)
-        # print(dsdx_flat)
-        print(flow._loss._dslayer_dp(layer, layer_idx, p).shape)
-        print(dsdx_flat[..., None] * dxdp)
-
-        assert bkd.allclose(dsdp, flow._loss._dslayer_dp(layer, layer_idx, p))
-        assert False
-
         iterate = flow._hyp_list.get_active_opt_params()[:, None]
         errors = flow._loss.check_apply_jacobian(iterate, disp=True)
-        # print(errors.min() / errors.max())
+        print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 1e-6
+
+    def test_real_nvp_shapes_basis_expansion_map(self):
+        bkd = self.get_backend()
+        nvars = 5
+        mean = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, 1)))
+        cov_diag = bkd.array([2.0, 3.0, 4.0, 5.0, 6.0])[:nvars]
+        marginals = [
+            GaussianMarginal(
+                mean=mean[ii], stdev=bkd.sqrt(cov_diag[ii]), backend=bkd
+            )
+            for ii in range(nvars)
+        ]
+        target_variable = IndependentMarginalsVariable(marginals, backend=bkd)
+
+        ntrain_samples = 4
+        train_samples = target_variable.rvs(ntrain_samples)
+        train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
+
+        flow = self._setup_polynomial_real_nvp(
+            # nvars, [2, 2, 2], None, scale_inputs=True
+            nvars,
+            [2, 2],
+            None,
+            scale_inputs=False,
+        )
+
+        flow._loss.set_samples(train_samples)
+        flow._loss.set_weights(train_weights)
+
+        layer = flow._layers[1]
+        for layer in flow._layers:
+            shapes = layer._shapes
+            dscale_dx_auto = super(
+                type(shapes), shapes
+            )._jacobian_scale_wrt_samples(
+                train_samples, layer._mask, layer._mask_w_labels
+            )
+            dshift_dx_auto = super(
+                type(shapes), shapes
+            )._jacobian_shift_wrt_samples(
+                train_samples, layer._mask, layer._mask_w_labels
+            )
+
+            dscale_dx = shapes._jacobian_scale_wrt_samples(
+                train_samples, layer._mask, layer._mask_w_labels
+            )
+            dshift_dx = shapes._jacobian_shift_wrt_samples(
+                train_samples, layer._mask, layer._mask_w_labels
+            )
+            assert bkd.allclose(dscale_dx, dscale_dx_auto)
+            assert bkd.allclose(dshift_dx, dshift_dx_auto)
+
+            dscale_dp_auto = super(
+                type(shapes), shapes
+            )._jacobian_scale_wrt_hyperparameters(
+                train_samples,
+                shapes._hyp_list.get_active_opt_params(),
+                layer._mask,
+                layer._mask_w_labels,
+            )
+            dshift_dp_auto = super(
+                type(shapes), shapes
+            )._jacobian_shift_wrt_hyperparameters(
+                train_samples,
+                shapes._hyp_list.get_active_opt_params(),
+                layer._mask,
+                layer._mask_w_labels,
+            )
+
+            dscale_dp = shapes._jacobian_scale_wrt_hyperparameters(
+                train_samples,
+                shapes._hyp_list.get_active_opt_params(),
+                layer._mask,
+                layer._mask_w_labels,
+            )
+            dshift_dp = shapes._jacobian_shift_wrt_hyperparameters(
+                train_samples,
+                shapes._hyp_list.get_active_opt_params(),
+                layer._mask,
+                layer._mask_w_labels,
+            )
+
+            print(
+                shapes._hyp_list.get_active_opt_params().shape,
+                shapes.get_coefficients().shape,
+            )
+            print(dscale_dp_auto.shape)
+            print(dscale_dp.shape)
+            print(dshift_dp[:, 1])
+            print(dshift_dp_auto[:, 1])
+            assert bkd.allclose(dscale_dp, dscale_dp_auto)
+            assert bkd.allclose(dshift_dp, dshift_dp_auto)
+            # print(dshift_dp_auto.shape)
 
     def test_realnvp_3d_conditional_correlated_gaussians_gradients(self):
         """

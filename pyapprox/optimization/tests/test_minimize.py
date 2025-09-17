@@ -994,6 +994,7 @@ class TestChainRule:
             self._x_jac_compressed,
             self._u_jac_compressed,
             True,
+            True,
             bkd,
         )
         assert bkd.allclose(
@@ -1001,7 +1002,7 @@ class TestChainRule:
             self._dx_dp_uncompressed,
         )
         assert bkd.allclose(
-            chain_rule._compress_jacobian(self._dx_dp_uncompressed),
+            chain_rule._compress_jacobian(self._dx_dp_uncompressed, "dx_dp"),
             self._dx_dp_compressed,
         )
 
@@ -1012,6 +1013,7 @@ class TestChainRule:
             self._u_function,
             self._x_jac_compressed,
             self._u_jac_compressed,
+            False,
             False,
             bkd,
         )
@@ -1027,6 +1029,7 @@ class TestChainRule:
             self._x_jac_uncompressed,
             self._u_jac_uncompressed,
             True,
+            True,
             bkd,
         )
         du_dp = chain_rule(self._p)
@@ -1035,29 +1038,40 @@ class TestChainRule:
 
     def test_chain_rule_arrays_no_compression(self):
         bkd = self.get_backend()
-        chain_rule = ChainRuleArrays(
-            self._x,
-            self._u,
+        chain_rule = ChainRuleArrays(False, False, bkd)
+        chain_rule.set_arrays(
+            self._x.shape,
+            self._u.shape,
             self._dx_dp_compressed,
             self._du_dx_compressed,
-            False,
-            bkd,
         )
-        du_dp = chain_rule(self._p)
+        du_dp = chain_rule(self._p.shape)
         self.assertEqual(du_dp.shape, (self._N, self._n_o, self._n_p))
         assert bkd.allclose(du_dp, self._du_dp)
 
     def test_chain_rule_arrays_with_compression(self):
         bkd = self.get_backend()
-        chain_rule = ChainRuleArrays(
-            self._x,
-            self._u,
+        chain_rule = ChainRuleArrays(True, True, bkd)
+        chain_rule.set_arrays(
+            self._x.shape,
+            self._u.shape,
             self._dx_dp_uncompressed,
             self._du_dx_uncompressed,
-            True,
-            bkd,
         )
-        du_dp = chain_rule(self._p)
+        du_dp = chain_rule(self._p.shape)
+        self.assertEqual(du_dp.shape, (self._N, self._n_o, self._n_p))
+        assert bkd.allclose(du_dp, self._du_dp)
+
+    def test_chain_rule_arrays_with_mixed_compression(self):
+        bkd = self.get_backend()
+        chain_rule = ChainRuleArrays(False, True, bkd)
+        chain_rule.set_arrays(
+            self._x.shape,
+            self._u.shape,
+            self._dx_dp_compressed,
+            self._du_dx_uncompressed,
+        )
+        du_dp = chain_rule(self._p.shape)
         self.assertEqual(du_dp.shape, (self._N, self._n_o, self._n_p))
         assert bkd.allclose(du_dp, self._du_dp)
 
@@ -1085,8 +1099,8 @@ class TestTorchChainRule(TestChainRule, unittest.TestCase):
         bkd = self.get_backend()
         super()._define_jacobians()
         # show how to use autograd to compute components of chain rule
-        # self._x_jac_uncompressed = lambda p: bkd.jacobian(self._x_function, p)
-        # self._u_jac_uncompressed = lambda x: bkd.jacobian(self._u_function, x)
+        self._x_jac_uncompressed = lambda p: bkd.jacobian(self._x_function, p)
+        self._u_jac_uncompressed = lambda x: bkd.jacobian(self._u_function, x)
 
     def _precompute_arrays(self):
         bkd = self.get_backend()
