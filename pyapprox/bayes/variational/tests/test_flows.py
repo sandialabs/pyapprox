@@ -453,16 +453,12 @@ class TestFlows:
         ]
         target_variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
-        ntrain_samples = 4
+        ntrain_samples = 100000
         train_samples = target_variable.rvs(ntrain_samples)
         train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
 
         flow = self._setup_polynomial_real_nvp(
-            # nvars, [2, 2, 2], None, scale_inputs=True
-            nvars,
-            [2, 2],
-            None,
-            scale_inputs=True,
+            nvars, [2, 2, 2], None, scale_inputs=True
         )
 
         flow._loss.set_samples(train_samples)
@@ -563,7 +559,6 @@ class TestFlows:
             print(dshift_dp_auto[:, 1])
             assert bkd.allclose(dscale_dp, dscale_dp_auto)
             assert bkd.allclose(dshift_dp, dshift_dp_auto)
-            # print(dshift_dp_auto.shape)
 
     def test_realnvp_3d_conditional_correlated_gaussians_gradients(self):
         """
