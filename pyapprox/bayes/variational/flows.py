@@ -303,7 +303,40 @@ class RealNVPShapesBasisExpansionMap(BasisExpansion, RealNVPShapesMapMixin):
             bexp._coef.get_bounds(),
             fixed=bexp._coef.nactive_vars() == 0,
         )
-        self.set_coefficients(bexp.get_coefficients())
+        self.set_coefficients(self._bkd.copy(bexp.get_coefficients()))
+
+    def _zero_compressed_jac(self, n: int, o: int, p: int) -> Array:
+        if not hasattr(self, "_zeros_comp") or self._zeros_comp.shape != (
+            n,
+            o,
+            p,
+        ):
+            # the nonzero entries will always be in the same place
+            # so only need to create array once
+            self._zeros_comp = self._bkd.zeros((n, o, p))
+        return self._zeros_comp
+
+    def _zero_shift_jac(self, n: int, o: int, p: int) -> Array:
+        if not hasattr(self, "_zeros_shift") or self._zeros_shift.shape != (
+            n,
+            o,
+            p,
+        ):
+            # the nonzero entries will always be in the same place
+            # so only need to create array once
+            self._zeros_shift = self._bkd.zeros((n, o, p))
+        return self._zeros_shift
+
+    def _zero_scale_jac(self, n: int, o: int, p: int) -> Array:
+        if not hasattr(self, "_zeros_scale") or self._zeros_scale.shape != (
+            n,
+            o,
+            p,
+        ):
+            # the nonzero entries will always be in the same place
+            # so only need to create array once
+            self._zeros_scale = self._bkd.zeros((n, o, p))
+        return self._zeros_scale
 
     def _jacobian_shift_wrt_shift_hyperparameters(
         self,
@@ -317,7 +350,8 @@ class RealNVPShapesBasisExpansionMap(BasisExpansion, RealNVPShapesMapMixin):
         n = active_samples.shape[1]
         o = self._bkd.where(~mask)[0].shape[0]
         # only half the active params are for the scale
-        jac = self._bkd.zeros((n, o, active_opt_params.shape[0] // 2))
+        # jac = self._bkd.zeros((n, o, active_opt_params.shape[0] // 2))
+        jac = self._zero_compressed_jac(n, o, active_opt_params.shape[0] // 2)
         lb = 0
         for ii in range(o):
             ub = lb + basis_mat.shape[1]
@@ -337,7 +371,8 @@ class RealNVPShapesBasisExpansionMap(BasisExpansion, RealNVPShapesMapMixin):
         n = active_samples.shape[1]
         o = self._bkd.where(~mask)[0].shape[0]
         # only half the active params are for the scale
-        jac = self._bkd.zeros((n, o, active_opt_params.shape[0] // 2))
+        # jac = self._bkd.zeros((n, o, active_opt_params.shape[0] // 2))
+        jac = self._zero_compressed_jac(n, o, active_opt_params.shape[0] // 2)
         lb = 0
         for ii in range(o):
             ub = lb + basis_mat.shape[1]
@@ -355,7 +390,10 @@ class RealNVPShapesBasisExpansionMap(BasisExpansion, RealNVPShapesMapMixin):
         shift_jac = self._jacobian_shift_wrt_shift_hyperparameters(
             samples, active_opt_params, mask, mask_w_labels
         )
-        jac = self._bkd.zeros((*shift_jac.shape[:2], 2 * shift_jac.shape[2]))
+        # jac = self._bkd.zeros((*shift_jac.shape[:2], 2 * shift_jac.shape[2]))
+        jac = self._zero_shift_jac(
+            *shift_jac.shape[:2], 2 * shift_jac.shape[2]
+        )
         o = self._bkd.where(~mask)[0].shape[0]
         length = shift_jac.shape[2] // o
         for ii in range(o):
@@ -374,7 +412,10 @@ class RealNVPShapesBasisExpansionMap(BasisExpansion, RealNVPShapesMapMixin):
         scale_jac = self._jacobian_scale_wrt_scale_hyperparameters(
             samples, active_opt_params, mask, mask_w_labels
         )
-        jac = self._bkd.zeros((*scale_jac.shape[:2], 2 * scale_jac.shape[2]))
+        # jac = self._bkd.zeros((*scale_jac.shape[:2], 2 * scale_jac.shape[2]))
+        jac = self._zero_scale_jac(
+            *scale_jac.shape[:2], 2 * scale_jac.shape[2]
+        )
         o = self._bkd.where(~mask)[0].shape[0]
         length = scale_jac.shape[2] // o
         for ii in range(o):
@@ -493,26 +534,20 @@ class RealNVPLayer(FlowLayer):
             self.__class__.__name__, self.nvars(), self._shapes
         )
 
-    def _jacobian_omega_wrt_hyperparameters(self, samples: Array) -> Array:
-        active_samples = samples[self._mask_w_labels]
-        scale = self._shapes(active_samples)[:, self._ntransformed_vars :]
+    def _jacobian_scale_wrt_hyperparameters(self, samples: Array) -> Array:
         scale_jac = self._shapes._jacobian_scale_wrt_hyperparameters(
             samples,
             self._shapes._hyp_list.get_active_opt_params(),
             self._mask,
             self._mask_w_labels,
         )
-        omega = self._bkd.exp(-scale[..., None])
-        return -omega * scale_jac, scale_jac
+        return scale_jac
 
-    def _jacobian_omega_wrt_samples(self, samples: Array) -> Array:
-        active_samples = samples[self._mask_w_labels]
-        scale = self._shapes(active_samples)[:, self._ntransformed_vars :]
+    def _jacobian_scale_wrt_samples(self, samples: Array) -> Array:
         scale_jac = self._shapes._jacobian_scale_wrt_samples(
             samples, self._mask, self._mask_w_labels
         )
-        omega = self._bkd.exp(-scale[..., None])
-        return -omega * scale_jac, scale_jac
+        return scale_jac
 
     def _jacobian_shift_wrt_hyperparameters(self, samples: Array) -> Array:
         return self._shapes._jacobian_shift_wrt_hyperparameters(
@@ -528,63 +563,31 @@ class RealNVPLayer(FlowLayer):
         )
 
 
-class Flow:
-    def __init__(
-        self, latent_variable: JointVariable, layers: List[FlowLayer]
-    ):
-        if not isinstance(latent_variable, JointVariable):
-            raise ValueError("latent_variable must be a JointVariable")
-        self._bkd = latent_variable._bkd
-        self._latent_variable = latent_variable
-        if layers[0].nvars() != latent_variable.nvars():
-            raise ValueError(
-                "layers must have the same number of variables as latent_variable"
-            )
-        for ii, layer in enumerate(layers):
-            if not isinstance(layer, FlowLayer):
-                raise ValueError("layer must be an intance of FlowLayer")
-            if layer.nvars() != layers[0].nvars():
-                raise ValueError(
-                    "layers must have the same number of variables"
-                )
-            if layer.nlabels() != layers[0].nlabels():
-                raise ValueError("layers must have the same number of labels")
-
-        self._layers = layers
-        import torch
-
-        torch.autograd.set_detect_anomaly(True)
-        self._hyp_list = sum(
-            layer._hyp_list
-            for layer in layers
-            if not isinstance(layer, ScaleAndShiftFlowLayer)
-        )
+class Flow(ABC):
+    def __init__(self, source_variable: JointVariable):
+        if not isinstance(source_variable, JointVariable):
+            raise ValueError("source_variable must be a JointVariable")
+        self._bkd = source_variable._bkd
+        self._source_variable = source_variable
         self._loss = FlowLoss()
         self._loss.set_flow(self)
 
+    def nvars(self) -> int:
+        """
+        Return the dimension of the (conditional) target variable.
+        """
+        return self._source_variable.nvars()
+
+    @abstractmethod
+    def nlabels(self) -> int:
+        """
+        Return the dimension of the conditioning labels.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def logpdf(self, samples: Array) -> Array:
-        """
-        Compute the logarithm of the PDF of the target variable.
-
-        Parameters
-        ----------
-        samples: Array (nvars+nlabels, nsamples)
-            Array containing samples from the target distribution and
-            conditional labels, e.g. vstack((target_samples, labels)).
-
-        Returns
-        -------
-        logpdf_vals: Array (nsamples, 1)
-            Logratithm of the target PDF evaluated at samples.
-        """
-        logdet = 0.0
-        samples = self._bkd.copy(samples)
-        for layer in reversed(self._layers):
-            samples, layer_logdet = layer._map_to_latent(samples, True)
-            logdet += layer_logdet
-        return logdet[:, None] + self._latent_variable.logpdf(
-            samples[: self.nvars()]
-        )
+        raise NotImplementedError
 
     def pdf(self, samples: Array) -> Array:
         """
@@ -603,17 +606,6 @@ class Flow:
         """
         return self._bkd.exp(self.logpdf(samples))
 
-    def _map_from_latent(self, usamples: Array) -> Array:
-        samples = usamples
-        for layer in self._layers:
-            samples = layer._map_from_latent(samples, False)
-        return samples
-
-    def _map_to_latent(self, samples: Array) -> Array:
-        for layer in reversed(self._layers):
-            samples = layer._map_to_latent(samples, False)
-        return samples
-
     def append_labels(self, samples: Array, labels: Array):
         nsamples = samples.shape[1]
         if labels.shape[1] == 1:
@@ -623,6 +615,10 @@ class Flow:
                 f"{labels.shape=} but must be " f"{(self.nlabels(), nsamples)}"
             )
         return self._bkd.vstack((samples, labels))
+
+    @abstractmethod
+    def _map_from_latent(self, usamples: Array) -> Array:
+        raise NotImplementedError
 
     def rvs(self, nsamples: int, labels: Optional[Array] = None) -> Array:
         """
@@ -642,24 +638,12 @@ class Flow:
             Array containing samples from the (conditional) target distribution
             conditional on the labels.
         """
-        latent_samples = self._latent_variable.rvs(nsamples)
+        latent_samples = self._source_variable.rvs(nsamples)
         if labels is None and self.nlabels() > 0:
             raise ValueError("Must specificy labels")
         if labels is not None:
             latent_samples = self.append_labels(latent_samples, labels)
         return self._map_from_latent(latent_samples)[: self.nvars()]
-
-    def nvars(self) -> int:
-        """
-        Return the dimension of the (conditional) target variable.
-        """
-        return self._layers[0].nvars()
-
-    def nlabels(self) -> int:
-        """
-        Return the dimension of the conditioning labels.
-        """
-        return self._layers[0].nlabels()
 
     def fit(
         self,
@@ -833,21 +817,94 @@ class Flow:
         return ax.contourf(X, Y, Z, **kwargs)
 
     def __repr__(self) -> str:
-        return "{0}(nvars={1}, nlabels={2}, nlayers={3})".format(
-            self.__class__.__name__,
-            self.nvars(),
-            self.nlabels(),
-            len(self._layers),
+        return "{0}(nvars={1}, nlabels={2})".format(
+            self.__class__.__name__, self.nvars(), self.nlabels()
         )
 
 
-class RealNVP(Flow):
+class DiscreteFlow(Flow):
+    def __init__(
+        self, source_variable: JointVariable, layers: List[FlowLayer]
+    ):
+        if not isinstance(source_variable, JointVariable):
+            raise ValueError("source_variable must be a JointVariable")
+        self._bkd = source_variable._bkd
+        self._source_variable = source_variable
+        if layers[0].nvars() != source_variable.nvars():
+            raise ValueError(
+                "layers must have the same number of variables as source_variable"
+            )
+        for ii, layer in enumerate(layers):
+            if not isinstance(layer, FlowLayer):
+                raise ValueError("layer must be an intance of FlowLayer")
+            if layer.nvars() != layers[0].nvars():
+                raise ValueError(
+                    "layers must have the same number of variables"
+                )
+            if layer.nlabels() != layers[0].nlabels():
+                raise ValueError("layers must have the same number of labels")
+
+        self._layers = layers
+        import torch
+
+        torch.autograd.set_detect_anomaly(True)
+        self._hyp_list = sum(
+            layer._hyp_list
+            for layer in layers
+            if not isinstance(layer, ScaleAndShiftFlowLayer)
+        )
+        self._loss = FlowLoss()
+        self._loss.set_flow(self)
+
+    def logpdf(self, samples: Array) -> Array:
+        """
+        Compute the logarithm of the PDF of the target variable.
+
+        Parameters
+        ----------
+        samples: Array (nvars+nlabels, nsamples)
+            Array containing samples from the target distribution and
+            conditional labels, e.g. vstack((target_samples, labels)).
+
+        Returns
+        -------
+        logpdf_vals: Array (nsamples, 1)
+            Logratithm of the target PDF evaluated at samples.
+        """
+        logdet = 0.0
+        samples = self._bkd.copy(samples)
+        for layer in reversed(self._layers):
+            samples, layer_logdet = layer._map_to_latent(samples, True)
+            logdet += layer_logdet
+        return logdet[:, None] + self._source_variable.logpdf(
+            samples[: self.nvars()]
+        )
+
+    def _map_from_latent(self, usamples: Array) -> Array:
+        samples = usamples
+        for layer in self._layers:
+            samples = layer._map_from_latent(samples, False)
+        return samples
+
+    def _map_to_latent(self, samples: Array) -> Array:
+        for layer in reversed(self._layers):
+            samples = layer._map_to_latent(samples, False)
+        return samples
+
+    def nlabels(self) -> int:
+        """
+        Return the dimension of the conditioning labels.
+        """
+        return self._layers[0].nlabels()
+
+
+class RealNVP(DiscreteFlow):
     """
     Real Non Volume Preserving (RealNVP) Flow
     """
 
     def __init__(
-        self, latent_variable: JointVariable, layers: List[FlowLayer]
+        self, source_variable: JointVariable, layers: List[FlowLayer]
     ):
         for ii, layer in enumerate(layers):
             if not isinstance(layer, (RealNVPLayer, ScaleAndShiftFlowLayer)):
@@ -877,7 +934,15 @@ class RealNVP(Flow):
                     )
                     + f" but {layer._shapes.nvars()=}"
                 )
-        super().__init__(latent_variable, layers)
+        super().__init__(source_variable, layers)
+
+    def __repr__(self) -> str:
+        return "{0}(nvars={1}, nlabels={2}, nlayers={3})".format(
+            self.__class__.__name__,
+            self.nvars(),
+            self.nlabels(),
+            len(self._layers),
+        )
 
 
 class FlowLoss(Model):
@@ -929,12 +994,13 @@ class FlowLoss(Model):
         import time
 
         t0 = time.time()
-        # auto_jac = self._bkd.jacobian(
-        #     lambda p: self._values(p[:, None])[:, 0],
-        #     active_opt_params[:, 0],
-        # )
-        # jac = auto_jac
-        jac = self._logpdf_jacobian(active_opt_params)
+        print("WARNING using autograd")
+        auto_jac = self._bkd.jacobian(
+            lambda p: self._values(p[:, None])[:, 0],
+            active_opt_params[:, 0],
+        )
+        jac = auto_jac
+        # jac = self._logpdf_jacobian(active_opt_params)
         print(time.time() - t0, "seconds")
         return jac
 
@@ -1098,11 +1164,9 @@ class FlowLoss(Model):
             compressed_scale = bexp(active_samples)[
                 :, layer._ntransformed_vars :
             ].T
-            print(compressed_scale.shape, "a")
             scale = self._bkd.zeros(
                 usamples.shape[0], compressed_scale.shape[1]
             )
-            print(scale.shape, scale[layer._mask_complement_w_labels].shape)
             scale[layer._mask_complement_w_labels] = compressed_scale
             return scale
 
@@ -1110,8 +1174,6 @@ class FlowLoss(Model):
         import torch
 
         jac = torch.swapaxes(jac, 0, 1)
-
-        print(jac.shape)
         return jac
 
     def _layer_jacobian_samples_wrt_hyperparameters(
@@ -1137,7 +1199,7 @@ class FlowLoss(Model):
         n = nsamples
         o = omega.shape[0]
         i = samples[layer._mask_w_labels].shape[0]
-        idx_ii = layer_active_hyperparam_indices[nlayers - ii - 1]
+        # idx_ii = layer_active_hyperparam_indices[nlayers - ii - 1]
 
         sample_jac = self._bkd.zeros(
             (
@@ -1146,38 +1208,38 @@ class FlowLoss(Model):
                 self._flow._hyp_list.nactive_vars(),
             )
         )
-        scale_jac = self._bkd.zeros(
-            (
-                nsamples,
-                self._flow.nvars() + self._flow.nlabels(),
-                self._flow._hyp_list.nactive_vars(),
-            )
-        )
+        scale_jac = self._bkd.copy(sample_jac)
+        #      scale_jac = self._bkd.zeros(
+        #         nsamples,
+        #         self._flow.nvars() + self._flow.nlabels(),
+        #         self._flow._hyp_list.nactive_vars(),
+        #     )
+        # )
         # compute jacobians with respect to hyperparameters of current layer
-        d_omega_d_layerp = self._bkd.zeros(n, o, p.shape[0])
-        d_scale_d_layerp = self._bkd.zeros(n, o, p.shape[0])
-        d_omega_d_layerp[:, :, idx_ii], d_scale_d_layerp[:, :, idx_ii] = (
-            layer._jacobian_omega_wrt_hyperparameters(samples)
-        )
+        ds_dp = layer._jacobian_scale_wrt_hyperparameters(samples)
+        # d_omega_d_layerp = self._bkd.zeros(n, o, p.shape[0])
+        # d_scale_d_layerp = self._bkd.zeros(n, o, p.shape[0])
+        # d_scale_d_layerp[:, :, idx_ii] = ds_dp
+        # d_omega_d_layerp[:, :, idx_ii] = -omega.T[..., None] * ds_dp
         # d_omega_d_layerp1 = self._d_omega_d_layerp(layer, p, samples)
         # assert self._bkd.allclose(d_omega_d_layerp, d_omega_d_layerp1)
 
-        d_omega_d_layerp1 = -omega.T[..., None] * d_scale_d_layerp
-        assert self._bkd.allclose(d_omega_d_layerp, d_omega_d_layerp1)
-
-        d_shift_d_layerp = self._bkd.zeros(n, o, p.shape[0])
-        d_shift_d_layerp[:, :, idx_ii] = (
-            layer._jacobian_shift_wrt_hyperparameters(samples)
-        )
+        # d_shift_d_layerp = self._bkd.zeros(n, o, p.shape[0])
+        # d_shift_d_layerp[:, :, idx_ii] = (
+        #     layer._jacobian_shift_wrt_hyperparameters(samples)
+        # )
         # d_shift_d_layerp1 = self._d_shift_d_layerp(layer, p, samples)
         # assert self._bkd.allclose(d_shift_d_layerp, d_shift_d_layerp1)
 
         sample_jac_ii = (
-            diff.T[..., None] * d_omega_d_layerp
-            - omega.T[..., None] * d_shift_d_layerp
-        )[..., idx_ii]
+            # diff.T[..., None] * d_omega_d_layerp[..., idx_ii]
+            -diff.T[..., None] * omega.T[..., None] * ds_dp
+            # - omega.T[..., None] * d_shift_d_layerp[..., idx_ii]
+            - omega.T[..., None]
+            * layer._jacobian_shift_wrt_hyperparameters(samples)
+        )
 
-        scale_jac_ii = d_scale_d_layerp[..., idx_ii]
+        scale_jac_ii = ds_dp  # d_scale_d_layerp[..., idx_ii]
 
         # numpy and torch reduce singleton dimension of when either of the
         # index arrays has only one entry
@@ -1185,6 +1247,8 @@ class FlowLoss(Model):
         # so do the following
         lb = layer_active_hyperparam_indices[nlayers - ii - 1][0]
         ub = layer_active_hyperparam_indices[nlayers - ii - 1][-1] + 1
+        # TODO: store only nonzero elements of sample and scale jac1
+        # i.e. do not store jac for parameters of non-parent layers
         sample_jac[:, layer._mask_complement_wo_labels, lb:ub] = sample_jac_ii
         scale_jac[:, layer._mask_complement_wo_labels, lb:ub] = scale_jac_ii
 
@@ -1211,10 +1275,7 @@ class FlowLoss(Model):
             # assert self._bkd.allclose(dshift_dx, dshift_dx1)
 
             # grad of scale with respect to flattened active samples
-            # shape (n,o,i)
-            domega_dx, dscale_dx = layer._jacobian_omega_wrt_samples(samples)
-            # domega_dx1 = self._domega_dx(layer, p, samples)
-            # assert self._bkd.allclose(domega_dx, domega_dx1)
+            dscale_dx = layer._jacobian_scale_wrt_samples(samples)
 
             # grad of ALL unflattened samples
             # shape (n,i,p)
@@ -1228,10 +1289,7 @@ class FlowLoss(Model):
                 (n, i), (n, o), dxdp_jj[:, layer._mask_w_labels], dscale_dx
             )
             dscale_dp = chain_rule((n, dxdp_jj.shape[-1]))
-            chain_rule.set_arrays(
-                (n, i), (n, o), dxdp_jj[:, layer._mask_w_labels], domega_dx
-            )
-            domega_dp = chain_rule((n, dxdp_jj.shape[-1]))
+            domega_dp = -omega.T[..., None] * dscale_dp
             chain_rule.set_arrays(
                 (n, i), (n, o), dxdp_jj[:, layer._mask_w_labels], dshift_dx
             )
@@ -1292,7 +1350,7 @@ class FlowLoss(Model):
             self._flow._hyp_list.set_active_opt_params(p)
             samples = self._bkd.copy(self._samples)
             usamples = self._flow._map_to_latent(samples)
-            return self._flow._latent_variable.logpdf(
+            return self._flow._source_variable.logpdf(
                 usamples[: self._flow.nvars()]
             )[:, 0]
 
@@ -1302,7 +1360,7 @@ class FlowLoss(Model):
         # jacobian of log pdf l with respect to samples x
         # usamples can be stored so it is only computed once
         usamples = usamples = self._flow._map_to_latent(self._samples)
-        dldx = self._flow._latent_variable.logpdf_jacobian(
+        dldx = self._flow._source_variable.logpdf_jacobian(
             usamples[: self._flow.nvars()]
         )
         # jacobian of samples x with respect to parameters p
@@ -1324,7 +1382,8 @@ class FlowLoss(Model):
         jac = self._logpdf_jac(active_opt_params) + self._logdet_jac(
             active_opt_params
         )
-        return -self.get_weights().T @ jac
+        jac = -self.get_weights().T @ jac
+        return jac
 
     def jacobian_implemented(self) -> bool:
         return self._bkd.jacobian_implemented()
@@ -1387,138 +1446,3 @@ class FlowLoss(Model):
             )
             ims.append(im)
         return axs, im
-
-
-class RealNVPScalingConstraint(Constraint):
-    def __init__(
-        self,
-        ntrain_samples: int,
-        backend: BackendMixin,
-        keep_feasible: bool = False,
-    ):
-        self._ntrain_samples = ntrain_samples
-        super().__init__(None, keep_feasible, backend)
-
-    def set_flow(self, flow: Flow):
-        self._flow = flow
-        self._bkd = self._flow._bkd
-
-    def nvars(self) -> int:
-        return self._flow._hyp_list.nactive_vars()
-
-    def nqoi(self) -> int:
-        return self._ntrain_samples * sum(
-            layer._ntransformed_vars for layer in reversed(self._flow._layers)
-        )
-
-    def _scales_values(self, active_opt_params: Array) -> Array:
-        self._flow._hyp_list.set_active_opt_params(active_opt_params[:, 0])
-        samples = self._bkd.copy(self._flow._loss._samples)
-        layer_scales = []
-        for layer in reversed(self._flow._layers):
-            shapes = layer._shapes(samples[layer._mask_w_labels])
-            # TODO I dont think this will work when n_transformed_variables > 1
-            # likely need to flatten shapes
-            layer_scales.append(
-                shapes[:, layer._ntransformed_vars :].T.flatten()
-            )
-            samples, layer_logdet = layer._map_to_latent(samples, True)
-        layer_scales = self._bkd.hstack(layer_scales)
-        # print(layer_scales.max(), "constraint")
-        return layer_scales[None, :]
-
-    def _values(self, active_opt_params: Array) -> Array:
-        scale_vals = self._scales_values(active_opt_params)
-        return scale_vals  # pairs with _all_scale_values_jacobian nqoi
-        # ensure average scale is reasonable
-        # return (
-        #     scale_vals.sum(axis=1)[None, :] / scale_vals.shape[1]
-        # )  # needs nqoi=1
-
-    def jacobian_implemented(self) -> bool:
-        return self._bkd.jacobian_implemented()
-
-    def _dv1dx1(self, samples):
-        layer = self._flow._layers[0]
-        bexp = layer._shapes
-        active_samples = samples[layer._mask_w_labels]
-
-        def fun(x):
-            x = x[None, :]
-            x = self._bkd.vstack((x, active_samples[x.shape[0] :]))
-            return bexp(x)[:, layer._ntransformed_vars :].T[0]
-
-        return self._bkd.jacobian(fun, active_samples[layer._mask][0])
-
-    def _dx1dc2(self, active_opt_params):
-        layer = self._flow._layers[-1]
-
-        def fun(p):
-            self._flow._hyp_list.set_active_opt_params(p)
-            samples1, layer_logdet = layer._map_to_latent(
-                self._flow._loss._samples, True
-            )
-            return samples1
-
-        return self._bkd.jacobian(fun, active_opt_params[:, 0])
-
-    def _dvdc(self, layer, active_opt_params, samples):
-        bexp = layer._shapes
-        active_samples = samples[layer._mask_w_labels]
-
-        def fun(p):
-            self._flow._hyp_list.set_active_opt_params(p)
-            return bexp(active_samples)[:, layer._ntransformed_vars :].T[0]
-
-        return self._bkd.jacobian(fun, active_opt_params[:, 0])
-
-    def _jacobian(self, active_opt_params: Array) -> Array:
-        return self._all_scale_values_jacobian(active_opt_params)
-
-    def _all_scale_values_jacobian(self, active_opt_params: Array) -> Array:
-        # custom derivatives will likely only work in 2D
-        layer2 = self._flow._layers[1]
-        samples2 = self._flow._loss._samples
-        layer = self._flow._layers[-1]
-        samples1, layer_logdet = layer._map_to_latent(
-            self._flow._loss._samples, True
-        )
-        dv2dc2_custom = layer2._jacobian_scale_wrt_hyperparameters(samples2)
-        dx1dc2_custom = layer2._jacobian_samples_wrt_hyperparameters(samples2)
-        layer1 = self._flow._layers[0]
-        dv1dx1_custom = layer1._jacobian_scale_wrt_samples(samples1)
-        dv1dc1_custom = layer1._jacobian_scale_wrt_hyperparameters(samples1)
-        dv1dc2_custom = dv1dx1_custom * dx1dc2_custom
-        # import torch
-
-        # torch.set_printoptions(linewidth=1000)
-        # dv2dc2 = self._dvdc(layer2, active_opt_params, samples2)[
-        #     :, active_opt_params.shape[0] // 2 :
-        # ]
-        # dv1dc1 = self._dvdc(layer1, active_opt_params, samples1)[
-        #     :, : active_opt_params.shape[0] // 2
-        # ]
-        # dv1dc2 = (self._dv1dx1(samples1) @ self._dx1dc2(active_opt_params)[0])[
-        #     :, active_opt_params.shape[0] // 2 :
-        # ]
-        # assert self._bkd.allclose(dv2dc2_custom, dv2dc2)
-        # assert self._bkd.allclose(
-        #     self._bkd.diag(dv1dx1_custom[:, 0]), self._dv1dx1(samples1)
-        # )
-        # assert self._bkd.allclose(
-        #     dx1dc2_custom,
-        #     self._dx1dc2(active_opt_params)[0][
-        #         :, active_opt_params.shape[0] // 2 :
-        #     ],
-        # )
-        # assert self._bkd.allclose(dv1dc1_custom, dv1dc1)
-        # assert self._bkd.allclose(dv1dc2_custom, dv1dc2)
-        jacobian = self._bkd.block(
-            [
-                [self._bkd.zeros(dv2dc2_custom.shape), dv2dc2_custom],
-                [dv1dc1_custom, dv1dc2_custom],
-            ]
-        )
-        # super_jac = super()._jacobian(active_opt_params)
-        # assert self._bkd.allclose(jacobian, super_jac)
-        return jacobian

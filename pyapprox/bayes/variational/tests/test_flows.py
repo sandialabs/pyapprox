@@ -20,10 +20,9 @@ from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
 from pyapprox.bayes.variational.flows import (
-    Flow,
+    DiscreteFlow,
     ScaleAndShiftFlowLayer,
     RealNVPLayer,
-    RealNVPScalingConstraint,
     RealNVPShapesBasisExpansionMap,
 )
 from pyapprox.surrogates.affine.basis import (
@@ -119,14 +118,14 @@ class TestFlows:
             layer_scale * (target_mean[:, 0] - lbs) / ranges + layer_shift
         )
         latent_std = bkd.sqrt(target_cov_diag) / ranges * layer_scale
-        latent_variable = IndependentMarginalsVariable(
+        source_variable = IndependentMarginalsVariable(
             [
                 GaussianMarginal(m, s, bkd)
                 for m, s in zip(latent_mean, latent_std)
             ],
             backend=bkd,
         )
-        flow = Flow(latent_variable, layers)
+        flow = DiscreteFlow(source_variable, layers)
 
         flow_pdf_vals = flow.pdf(samples)[:, 0]
         target_pdf_vals = target_variable.pdf(samples[:nvars])[:, 0]
@@ -165,6 +164,7 @@ class TestFlows:
 
         # place large bounds on shift coeffients
         bounds = bkd.array([-np.inf, np.inf])
+        # bounds = bkd.array([-5, 5])
         bounds = bkd.tile(bounds, (coef.shape[0],))
         # Place smaller bounds on scale coefficients because scale is
         # exponentiated
@@ -181,6 +181,8 @@ class TestFlows:
         tp_basis: bool = True,
         scale_bounds=(-1, 0.5),
         scale_inputs: bool = False,
+        shift: float = -0.5,
+        scale: float = 1.0,
     ):
         bkd = self.get_backend()
         nlayers = len(nterms_per_layer)
@@ -238,15 +240,20 @@ class TestFlows:
         if scale_inputs:
             layers += [
                 ScaleAndShiftFlowLayer(
-                    nvars, nlabels, backend=bkd, scale_labels=True
+                    nvars,
+                    nlabels,
+                    backend=bkd,
+                    scale_labels=True,
+                    shift=shift,
+                    scale=scale,
                 )
             ]
 
-        latent_variable = IndependentMarginalsVariable(
+        source_variable = IndependentMarginalsVariable(
             [GaussianMarginal(0, 1, bkd) for ii in range(nvars)],
             backend=bkd,
         )
-        return Flow(latent_variable, layers)
+        return DiscreteFlow(source_variable, layers)
 
     def test_realnvp_2d_independent_gaussians_sampling(self):
         """
@@ -275,8 +282,10 @@ class TestFlows:
         lbs = bkd.min(train_samples, axis=1)
         ubs = bkd.max(train_samples, axis=1)
         ranges = ubs - lbs
-        scale = ranges / 2.0
-        shift = lbs - (scale * -1.0)
+        layer_can_range = 1.0  # this must match defaults of scaleandshiftlayer
+        layer_can_lb = -0.5  # this must match defaults of scaleandshiftlayer
+        scale = ranges / layer_can_range
+        shift = lbs - (scale * layer_can_lb)
         coef1[0] = (mean[1, 0] - shift[1]) / scale[1]
         coef1[1] = bkd.log(bkd.sqrt(cov[1, 1]) / scale[1])
         coef2[0] = (mean[0, 0] - shift[0]) / scale[0]
@@ -291,6 +300,7 @@ class TestFlows:
 
         # assert mean of latent distribution maps to mean of target
         recovered_samples = flow._map_from_latent(mean * 0.0)
+        # print(recovered_samples, mean)
         assert bkd.allclose(recovered_samples, mean)
 
         nsamples = 10
@@ -432,7 +442,7 @@ class TestFlows:
 
         nsamples = 100
         samples = target_variable.rvs(nsamples)
-        print(flow.pdf(samples)[:10, 0], target_variable.pdf(samples)[:10, 0])
+        # print(flow.pdf(samples)[:10, 0], target_variable.pdf(samples)[:10, 0])
         print(flow.pdf(samples)[:, 0] - target_variable.pdf(samples)[:, 0])
         assert bkd.allclose(
             flow.pdf(samples)[:, 0],
@@ -440,7 +450,7 @@ class TestFlows:
             atol=1e-8,
         )
 
-    def test_3_layer_realnvp_3d_independent_gaussians_gradients(self):
+    def test_3_layer_realnvp_5d_independent_gaussians_gradients(self):
         bkd = self.get_backend()
         nvars = 5
         mean = bkd.asarray(np.random.uniform(0.0, 1.0, (nvars, 1)))
@@ -453,7 +463,7 @@ class TestFlows:
         ]
         target_variable = IndependentMarginalsVariable(marginals, backend=bkd)
 
-        ntrain_samples = 100000
+        ntrain_samples = 1000
         train_samples = target_variable.rvs(ntrain_samples)
         train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
 
@@ -549,14 +559,14 @@ class TestFlows:
                 layer._mask_w_labels,
             )
 
-            print(
-                shapes._hyp_list.get_active_opt_params().shape,
-                shapes.get_coefficients().shape,
-            )
-            print(dscale_dp_auto.shape)
-            print(dscale_dp.shape)
-            print(dshift_dp[:, 1])
-            print(dshift_dp_auto[:, 1])
+            # print(
+            #     shapes._hyp_list.get_active_opt_params().shape,
+            #     shapes.get_coefficients().shape,
+            # )
+            # print(dscale_dp_auto.shape)
+            # print(dscale_dp.shape)
+            # print(dshift_dp[:, 1])
+            # print(dshift_dp_auto[:, 1])
             assert bkd.allclose(dscale_dp, dscale_dp_auto)
             assert bkd.allclose(dshift_dp, dshift_dp_auto)
 
@@ -724,8 +734,7 @@ class TestFlows:
             train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
         else:
             # Generate the training data with MC
-            print("make mc samples 50000")
-            ntrain_samples = 5  # 50000
+            ntrain_samples = 50000
             quad_samples = latent_joint_prior_data_variable.rvs(ntrain_samples)
             train_weights = bkd.full((ntrain_samples, 1), 1.0 / ntrain_samples)
 
@@ -793,6 +802,8 @@ class TestFlows:
         )
 
         # Setup the flow model
+        # NOTE: Convergence of optimizer depends on shift and scale
+        # used by ScaleAndShiftFlowLayer
         flow = self._setup_polynomial_real_nvp(
             nvars,
             [2, 2],
@@ -800,7 +811,13 @@ class TestFlows:
             nlabels=nobs,
             tp_basis=True,
             scale_inputs=True,
-            scale_bounds=(-2.0, 2.0),
+            # scale_bounds=(-2.0, 2.0),
+            scale_bounds=(-1.0, 0.5),
+            shift=-1.0,
+            scale=2.0,
+        )
+        raise NotImplementedError(
+            "Check how to replicate previous converging version"
         )
 
         flow._loss.set_samples(train_samples)
@@ -814,36 +831,11 @@ class TestFlows:
         flow.set_optimizer(
             flow.default_multistart_optimizer(
                 maxiter=1000,
-                verbosity=0,
+                verbosity=3,
                 exit_hard=False,
                 method="trust-constr",  # , ncandidates=10
             )
         )
-
-        # if True:
-        if False:  # quad_type == "Gauss":
-            # only use contraint with Gauss quadrature rule
-            # because current contraint implementation jacobian in slow
-            # and this test is only to test it works. The constraint is
-            # not active for this tests problem. But it is useful for
-            # avoiding infs caused by large exp(scale) values which
-            # arrise in more ill coniditioned problems for example when
-            # train_samples have large values ,which can happen with this test
-            # when nsamples is increased for Halton or MC sampling.
-            # Also changing bounds
-            # on scale parameters can help, but it is difficult to
-            # set good bounds a priori as I do in setup_flow
-            ntrain_samples = train_samples.shape[1]
-            constraint = RealNVPScalingConstraint(
-                ntrain_samples, backend=bkd, keep_feasible=True
-            )
-            constraint.set_bounds(bkd.array([-np.inf, 5.0])[None, :])
-            constraint.set_flow(flow)
-            # print(constraint)
-            # print(constraint(iterate))
-
-            flow._optimizer.set_constraints([constraint])
-        # assert False
 
         flow.fit(train_samples, iterate=iterate, weights=train_weights)
         axs = plt.subplots(1, 2, sharey=True)[1]
@@ -1003,8 +995,8 @@ class TestFlows:
         errors = flow._loss.check_apply_jacobian(
             iterate, disp=True, fd_eps=bkd.flip(bkd.logspace(-13, -1, 13))
         )
-        print(flow._loss.jacobian(iterate).shape)
-        print(errors.min() / errors.max())
+        # print(flow._loss.jacobian(iterate).shape)
+        # print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 4.0e-6
 
         optimizer = flow.default_multistart_optimizer(
@@ -1035,10 +1027,10 @@ class TestFlows:
         #     flow.pdf(flow.append_labels(test_samples, label)),
         #     target_variable.pdf(test_samples),
         # )
-        print(
-            flow.pdf(flow.append_labels(test_samples, label))
-            - target_variable.pdf(test_samples)
-        )
+        # print(
+        #     flow.pdf(flow.append_labels(test_samples, label))
+        #     - target_variable.pdf(test_samples)
+        # )
         assert bkd.allclose(
             flow.pdf(flow.append_labels(test_samples, label)),
             target_variable.pdf(test_samples),
