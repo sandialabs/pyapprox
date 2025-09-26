@@ -121,14 +121,16 @@ class LinearSystemSolver(ABC):
         self._sqrt_weights = self._bkd.sqrt(weights)
 
     def _weighted_solve(self, basis_mat: Array, values: Array) -> Array:
-        if self._sqrt_weights.shape != (self._surrogate.ntrain_samples(), 1):
+        if self._sqrt_weights.shape != (values.shape[0], 1):
             raise ValueError(
                 "weights has shape {1} but must have shape {0}".format(
                     self._sqrt_weights.shape,
-                    (self._surrogate.ntrain_samples(), 1),
+                    (values.shape[1], 1),
                 )
             )
-
+        print("cond", self._bkd.cond(self._sqrt_weights * basis_mat))
+        # tmp = self._sqrt_weights * basis_mat
+        # print(tmp.T @ tmp, tmp.shape)
         return self._solve(
             self._sqrt_weights * basis_mat, self._sqrt_weights * values
         )

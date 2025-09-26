@@ -1,8 +1,14 @@
-from abc import abstractmethod
+from typing import Optional, Tuple
+from abc import abstractmethod, ABC
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.bayes.variational.flows import Flow
-from pyapprox.variables.joint import JointVariable
+from pyapprox.variables.joint import (
+    JointVariable,
+    IndependentGroupsVariable,
+    IndependentMarginalsVariable,
+)
+from pyapprox.variables.marginals import UniformMarginal
 from pyapprox.util.newton import NewtonSolver
 from pyapprox.pde.collocation.timeintegration import (
     TransientNewtonResidual,
@@ -12,14 +18,19 @@ from pyapprox.pde.collocation.timeintegration import (
     ForwardEulerResidual,
 )
 from pyapprox.surrogates.affine.basisexp import BasisExpansion
+from pyapprox.interface.model import Model
+from pyapprox.bayes.likelihood import ModelBasedLogLikelihoodMixin
+from pyapprox.surrogates.affine.basis import (
+    setup_tensor_product_gauss_quadrature_rule,
+)
 
 
-class VelocityModel(TransientNewtonResidual):
+class VelocityField(TransientNewtonResidual):
     def __init__(self, nstates: int, backend: BackendMixin):
         super().__init__(backend)
         self._nstates = nstates
 
-    def _nstates(self) -> int:
+    def nstates(self) -> int:
         return self._nstates
 
     def set_time(self, time: float):
@@ -40,7 +51,32 @@ class VelocityModel(TransientNewtonResidual):
         return values
 
 
-class BasisExpansionVelocityModel(VelocityModel):
+class ReverseVelocityField(VelocityField):
+    def __init__(self, vel_field: VelocityField):
+        if not isinstance(vel_field, VelocityField):
+            raise ValueError("vel_field must be an instance of VelocityField")
+        self._vel_field = vel_field
+        super().__init__(vel_field.nstates(), vel_field._bkd)
+
+    def set_time(self, time: float):
+        super().set_time(time)
+        self._vel_field.set_time(time)
+
+    def _value(self, state: Array) -> Array:
+        time = self._vel_field._time
+        # mimic reversing in time
+        self._vel_field.set_time(1.0 - time)
+        vel_field = self._vel_field(state[:-1])
+        jac = self._vel_field.jacobian(state[:-1])
+        trace = self._bkd.trace(jac)
+        self._vel_field.set_time(time)
+        result = self._bkd.hstack((vel_field, -trace))
+        # return -result to mimic stepping back in time by deltat
+        # may not work for all timestepping schemes
+        return -result
+
+
+class BasisExpansionVelocityField(VelocityField):
     def __init__(self, bexp: BasisExpansion):
         if not isinstance(bexp, BasisExpansion):
             raise ValueError("bexp must be an instance of BasisExpansion")
@@ -57,8 +93,17 @@ class BasisExpansionVelocityModel(VelocityModel):
             ]
         )[0]
 
+    def _jacobian(self, state: Array) -> Array:
+        jac = self._bexp.jacobian(
+            self._bkd.hstack((self._bkd.asarray(self._time)[None], state))[
+                :, None
+            ]
+        )
+        # ignore derivative with respect to time
+        return jac[:, 1:]
 
-class FlowODEModel:
+
+class FlowODE:
     def __init__(
         self,
         time_residual: TimeIntegratorNewtonResidual,
@@ -78,35 +123,238 @@ class FlowODEModel:
         result = self._time_int.solve(source_sample)
         return result[0][:, -1]
 
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
+
+class FlowMatchingObjectiveSampler(ABC):
+    def __init__(self, source_variable: JointVariable):
+        self._bkd = source_variable._bkd
+        self._source_variable = source_variable
+        time_variable = IndependentMarginalsVariable(
+            [UniformMarginal(0.0, 1.0, backend=self._bkd)], backend=self._bkd
+        )
+        variable_groups = [time_variable, source_variable]
+        self._joint_variable = IndependentGroupsVariable(variable_groups)
+
+    def nlabels(self) -> int:
+        if self._latent_data_variable is not None:
+            return self._latent_data_variable.nvars()
+        return 0
+
+    def __repr__(self) -> str:
+        return "{0}({1}, nlabels={2})".format(
+            self.__class__.__name__(), self._joint_variable, self.nlabels()
+        )
+
+    def get_source_variable(self) -> JointVariable:
+        return self._source_variable
+
+    def get_samples(self) -> Tuple[Array, Array, Array, Array]:
+        return (
+            self._intermediate_times,
+            self._source_samples,
+            self._target_samples,
+            self._labels,
+        )
+
+    @abstractmethod
+    def get_weights(self) -> Array:
+        raise NotImplementedError()
+
+
+class FixedDataFlowMatchingObjectiveSampler(FlowMatchingObjectiveSampler):
+    def __init__(
+        self,
+        source_variable: JointVariable,
+        target_samples: Array,
+        labels: Optional[Array] = None,
+    ):
+        super().__init__(source_variable)
+        self._target_samples = target_samples
+        self._labels = labels
+        self._generate_samples()
+
+    def _generate_samples(self):
+        joint_samples = self._joint_variable.rvs(self._target_samples.shape[1])
+        self._intermediate_times = joint_samples[:1]
+        self._source_samples = joint_samples[1:]
+
+    def get_weights(self) -> Array:
+        nsamples = self._target_samples.shape[1]
+        return self._bkd.full((nsamples, 1), 1.0 / nsamples)
+
+
+class ModelBasedFlowMatchingObjectiveSampler(FlowMatchingObjectiveSampler):
+    """
+    Generate samples using models
+    """
+
+    def __init__(
+        self,
+        source_variable: JointVariable,
+        prior_variable: JointVariable,
+        nsamples: int,
+        latent_data_variable: Optional[JointVariable] = None,
+        qoi_model: Optional[Model] = None,
+        loglike: Optional[ModelBasedLogLikelihoodMixin] = None,
+    ):
+        super().__init__(source_variable)
+        if not isinstance(prior_variable, JointVariable):
+            raise ValueError(
+                "prior_variable must be an instance of JointVariable"
+            )
+        self._prior_variable = prior_variable
+        variable_groups = [self._joint_variable, prior_variable]
+        if latent_data_variable is not None:
+            variable_groups.append(latent_data_variable)
+
+        self._joint_variable = IndependentGroupsVariable(variable_groups)
+        if latent_data_variable is not None and not isinstance(
+            latent_data_variable, JointVariable
+        ):
+            raise ValueError(
+                "latent_data_variable must be an instance of JointVariable"
+            )
+        self._latent_data_variable = latent_data_variable
+        if qoi_model is not None and not isinstance(qoi_model, Model):
+            raise ValueError("qoi_model must be an instance of model")
+        self._qoi_model = qoi_model
+        if loglike is not None and not isinstance(
+            loglike, ModelBasedLogLikelihoodMixin
+        ):
+            raise ValueError(
+                "loglike must be an instance of ModelBasedLogLikelihoodMixin"
+            )
+        self._loglike = loglike
+        self._nsamples = nsamples
+        self._generate_samples()
+
+    @abstractmethod
+    def _sample_joint_variable(self, nsamples: int) -> Array:
+        raise NotImplementedError
+
+    def _generate_samples(self):
+        joint_samples = self._sample_joint_variable(self._nsamples)
+        (
+            self._intermediate_times,
+            self._source_samples,
+            prior_samples,
+            latent_data_samples,
+        ) = self._split_samples(joint_samples)
+        if self._qoi_model is not None:
+            self._target_samples = self._qoi_model(prior_samples)
+        else:
+            self._target_samples = prior_samples
+
+        if self.nlabels() == 0:
+            self._labels = None
+            return
+
+        # generate labels
+        obs_model_samples = self._obs_model(prior_samples).T
+        self._labels = self._loglike._rvs_from_likelihood_samples(
+            obs_model_samples, latent_data_samples
+        )
+
+    def _split_samples(
+        self, joint_samples: Array
+    ) -> Tuple[Array, Array, Array, Array]:
+        time_samples = joint_samples[:1]
+        source_samples = joint_samples[1 : 1 + self._source_variable.nvars()]
+        idx1 = 1 + self._source_variable.nvars()
+        idx2 = idx1 + self._prior_variable.nvars()
+        prior_samples = joint_samples[idx1:idx2]
+        if self._latent_data_variable is not None:
+            latent_data_samples = joint_samples[idx2:]
+        else:
+            latent_data_samples = None
+        return time_samples, source_samples, prior_samples, latent_data_samples
+
+    def get_weights(self) -> Array:
+        return self._bkd.full((self._nsamples, 1), 1.0 / self._nsamples)
+
+
+class MonteCarloModelBasedFlowMatchingObjectiveSampler(
+    ModelBasedFlowMatchingObjectiveSampler
+):
+    def _sample_joint_variable(self, nsamples: int) -> Array:
+        return self._joint_variable.rvs(nsamples)
+
+
+class TensorProductGaussQuadratureModelBasedFlowMatchingObjectiveSampler(
+    ModelBasedFlowMatchingObjectiveSampler
+):
+    def __init__(
+        self,
+        source_variable: JointVariable,
+        prior_variable: JointVariable,
+        n1d_samples: int,
+        latent_data_variable: Optional[JointVariable] = None,
+        qoi_model: Optional[Model] = None,
+        loglike: Optional[ModelBasedLogLikelihoodMixin] = None,
+    ):
+        self._n1d_samples = n1d_samples
+        super().__init__(
+            source_variable,
+            prior_variable,
+            source_variable._bkd.sum(n1d_samples),
+        )
+
+    def _sample_joint_variable(self, nsamples: int) -> Array:
+        quad_rule = setup_tensor_product_gauss_quadrature_rule(
+            self._joint_variable
+        )
+        samples, self._weights = quad_rule(self._n1d_samples)
+        return samples
+
+    def get_weights(self) -> Array:
+        return self._weights
+
 
 class ContinuousNormalizingFlow(Flow):
     def __init__(
         self,
-        source_variable: JointVariable,
-        vel_model: VelocityModel,
+        obj_sampler: FlowMatchingObjectiveSampler,
+        vel_field: VelocityField,
         deltat: float,
         nlabels: int = 0,
         time_residual_cls: TimeIntegratorNewtonResidual = ForwardEulerResidual,
     ):
-        super().__init__(source_variable)
-        if not isinstance(vel_model, VelocityModel):
-            raise ValueError("vel_model must be an instance of VelocityModel")
-        self._vel_model = vel_model
-        if not self._bkd.bkd_equal(self._bkd, vel_model._bkd):
+        self._set_objective_sampler(obj_sampler)
+        super().__init__(obj_sampler.get_source_variable())
+        if not isinstance(vel_field, VelocityField):
+            raise ValueError("vel_field must be an instance of VelocityField")
+        self._vel_field = vel_field
+        if not self._bkd.bkd_equal(self._bkd, vel_field._bkd):
             raise ValueError(
-                "backend of joint variable and vel_model must be the same"
+                "backend of joint variable and vel_field must be the same"
             )
-        self._ode_model = FlowODEModel(
-            time_residual_cls(self._vel_model), deltat
+        self._from_latent_ode_model = FlowODE(
+            time_residual_cls(self._vel_field), deltat
+        )
+        self._reverse_vel_field = ReverseVelocityField(self._vel_field)
+        self._to_latent_ode_model = FlowODE(
+            time_residual_cls(self._reverse_vel_field), deltat
         )
         self._nlabels = nlabels
+
+    def _set_objective_sampler(
+        self, obj_sampler: FlowMatchingObjectiveSampler
+    ):
+        if not isinstance(obj_sampler, FlowMatchingObjectiveSampler):
+            raise ValueError(
+                "obj_sampler must be an instance of "
+                "FlowMatchingObjectiveSampler"
+            )
+        self._obj_sampler = obj_sampler
 
     def nlabels(self) -> int:
         return self._nlabels
 
-    def _map_from_latent_single_sample(self, latent_sample: Array):
+    def _map_from_latent_single_sample(self, latent_sample: Array) -> Array:
         # Solve the ODE
-        return self._ode_model(latent_sample)
+        return self._from_latent_ode_model(latent_sample)
 
     def _map_from_latent_many_sample(self, usamples: Array):
         results = [
@@ -115,14 +363,24 @@ class ContinuousNormalizingFlow(Flow):
         ]
         return self._bkd.stack(results, axis=1)
 
-    def _map_to_latent_many_sample(self, usamples: Array):
+    def _map_to_latent_single_sample(self, latent_sample: Array) -> Array:
+        init_state = self._bkd.hstack((latent_sample, self._bkd.zeros((1,))))
+        result = self._to_latent_ode_model(init_state)
+        sample = result[:-1]
+        divergence = result[-1:]
+        return sample, divergence
+
+    def _map_to_latent_many_sample(self, usamples: Array) -> Array:
         results = [
             self._map_to_latent_single_sample(usample)
             for usample in usamples.T
         ]
         # samples = self._bkd.asarray([result[0] for result in results])
-        logpdf_vals = self._bkd.asarray([result[0] for result in results])
-        return logpdf_vals
+        samples = self._bkd.stack([result[0] for result in results], axis=1)
+        logpdf_vals = self._bkd.stack(
+            [result[1] for result in results], axis=0
+        )
+        return samples, logpdf_vals
 
     def _map_to_latent(self, usamples: Array) -> Array:
         return self._map_to_latent_many_sample(usamples)[0]
@@ -131,4 +389,46 @@ class ContinuousNormalizingFlow(Flow):
         return self._map_from_latent_many_sample(usamples)
 
     def logpdf(self, samples: Array) -> Array:
-        return self._map_to_latent_many_sample(samples)[1]
+        source_samples, div = self._map_to_latent_many_sample(samples)
+        return self._source_variable.logpdf(source_samples) - div
+
+
+class BasisExpansionContinuousNormalizingFlow(ContinuousNormalizingFlow):
+    def __init__(
+        self,
+        source_variable: JointVariable,
+        vel_field: VelocityField,
+        deltat: float,
+        nlabels: int = 0,
+        time_residual_cls: TimeIntegratorNewtonResidual = ForwardEulerResidual,
+    ):
+        if not isinstance(vel_field, BasisExpansionVelocityField):
+            raise ValueError(
+                "vel_field must be an instance of BasisExpansionVelocityField"
+                f"but was {type(vel_field)}"
+            )
+
+        super().__init__(
+            source_variable, vel_field, deltat, nlabels, time_residual_cls
+        )
+
+    def fit(self):
+        """
+        Fit the flow to samples from the target variable.
+        """
+        intermediate_times, source_samples, target_samples, labels = (
+            self._obj_sampler.get_samples()
+        )
+        intermedieate_samples = (
+            1.0 - intermediate_times
+        ) * source_samples + intermediate_times * target_samples
+        basis_mat = self._vel_field._bexp.basis()(
+            self._bkd.vstack((intermediate_times, intermedieate_samples))
+        )
+        self._vel_field._bexp._solver.set_weights(
+            self._obj_sampler.get_weights()
+        )
+        coef = self._vel_field._bexp._solver.solve(
+            basis_mat, (target_samples - source_samples).T
+        )
+        self._vel_field._bexp.set_coefficients(coef)
