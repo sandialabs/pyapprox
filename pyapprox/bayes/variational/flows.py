@@ -800,7 +800,10 @@ class Flow(ABC):
         if label is None and self.nlabels() > 0:
             raise ValueError("Must specificy a label")
         if label is not None and label.shape != (self.nlabels(), 1):
-            raise ValueError("label shape must be {(self.nlabels(), 1)}")
+            raise ValueError(
+                f"label shape must be {(self.nlabels(), 1)} "
+                f"but was {label.shape}"
+            )
         if self.nvars() == 1:
             return self._plot_pdf_1d(ax, npts_1d, plot_limits, **kwargs)
         X, Y, pts = self.meshgrid_samples(plot_limits, npts_1d)

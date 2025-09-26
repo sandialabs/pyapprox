@@ -26,15 +26,26 @@ from pyapprox.surrogates.affine.basis import (
 
 
 class VelocityField(TransientNewtonResidual):
-    def __init__(self, nstates: int, backend: BackendMixin):
+    def __init__(self, nstates: int, nlabels: int, backend: BackendMixin):
         super().__init__(backend)
+        self._nlabels = nlabels
         self._nstates = nstates
+
+    def nlabels(self) -> int:
+        return self._nlabels
 
     def nstates(self) -> int:
         return self._nstates
 
     def set_time(self, time: float):
         self._time = time
+
+    def set_label(self, label: Array):
+        if label.shape != (self.nlabels(),):
+            raise ValueError(
+                f"label had shape {label.shape} but must be {(self.nlabels(),)}"
+            )
+        self._label = label
 
     @abstractmethod
     def _value(self, state: Array) -> Array:
@@ -50,17 +61,30 @@ class VelocityField(TransientNewtonResidual):
             )
         return values
 
+    def _expand_state(self, state) -> Array:
+        if self.nlabels() > 0:
+            return self._bkd.hstack(
+                (self._bkd.asarray(self._time)[None], state, self._label)
+            )
+        return self._bkd.hstack((self._bkd.asarray(self._time)[None], state))
+
 
 class ReverseVelocityField(VelocityField):
     def __init__(self, vel_field: VelocityField):
         if not isinstance(vel_field, VelocityField):
             raise ValueError("vel_field must be an instance of VelocityField")
         self._vel_field = vel_field
-        super().__init__(vel_field.nstates(), vel_field._bkd)
+        super().__init__(
+            vel_field.nstates(), vel_field.nlabels(), vel_field._bkd
+        )
 
     def set_time(self, time: float):
         super().set_time(time)
         self._vel_field.set_time(time)
+
+    def set_label(self, label: Array):
+        super().set_label(label)
+        self._vel_field.set_label(label)
 
     def _value(self, state: Array) -> Array:
         time = self._vel_field._time
@@ -77,30 +101,28 @@ class ReverseVelocityField(VelocityField):
 
 
 class BasisExpansionVelocityField(VelocityField):
-    def __init__(self, bexp: BasisExpansion):
+    def __init__(self, bexp: BasisExpansion, nlabels: int):
         if not isinstance(bexp, BasisExpansion):
             raise ValueError("bexp must be an instance of BasisExpansion")
-        # first variable that bexp accepts is time so nstatates is nvars-1
-        if bexp.nvars() != bexp.nqoi() + 1:
-            raise ValueError("bexp.nvars() != bexp.nqoi()+1 are inconsistent")
-        super().__init__(bexp.nqoi(), bexp._bkd)
+        # first variable that bexp accepts is time so nstates is nvars-1
+        if bexp.nvars() != bexp.nqoi() + nlabels + 1:
+            raise ValueError(
+                f"bexp.nvars() = {bexp.nvars()} != "
+                f"bexp.nqoi()+nlabels+1 = {bexp.nqoi()+nlabels+1}"
+            )
+        super().__init__(bexp.nqoi(), nlabels, bexp._bkd)
         self._bexp = bexp
 
     def _value(self, state: Array) -> Array:
-        return self._bexp(
-            self._bkd.hstack((self._bkd.asarray(self._time)[None], state))[
-                :, None
-            ]
-        )[0]
+        return self._bexp(self._expand_state(state)[:, None])[0]
 
     def _jacobian(self, state: Array) -> Array:
-        jac = self._bexp.jacobian(
-            self._bkd.hstack((self._bkd.asarray(self._time)[None], state))[
-                :, None
-            ]
-        )
+        jac = self._bexp.jacobian(self._expand_state(state)[:, None])
         # ignore derivative with respect to time
         return jac[:, 1:]
+
+    def get_basis_expansion(self) -> BasisExpansion:
+        return self._bexp
 
 
 class FlowODE:
@@ -118,6 +140,9 @@ class FlowODE:
             newton_solver=newton_solver,
             verbosity=0,
         )
+
+    def _set_deltat(self, deltat: float):
+        self._time_int._deltat = deltat
 
     def __call__(self, source_sample: Array) -> Array:
         result = self._time_int.solve(source_sample)
@@ -226,6 +251,12 @@ class ModelBasedFlowMatchingObjectiveSampler(FlowMatchingObjectiveSampler):
             raise ValueError(
                 "loglike must be an instance of ModelBasedLogLikelihoodMixin"
             )
+        if (loglike is None and latent_data_variable is not None) or (
+            loglike is not None and latent_data_variable is None
+        ):
+            raise ValueError(
+                "must specify both loglike and latent_data_variable"
+            )
         self._loglike = loglike
         self._nsamples = nsamples
         self._generate_samples()
@@ -252,7 +283,7 @@ class ModelBasedFlowMatchingObjectiveSampler(FlowMatchingObjectiveSampler):
             return
 
         # generate labels
-        obs_model_samples = self._obs_model(prior_samples).T
+        obs_model_samples = self._loglike._model(prior_samples).T
         self._labels = self._loglike._rvs_from_likelihood_samples(
             obs_model_samples, latent_data_samples
         )
@@ -299,6 +330,9 @@ class TensorProductGaussQuadratureModelBasedFlowMatchingObjectiveSampler(
             source_variable,
             prior_variable,
             source_variable._bkd.sum(n1d_samples),
+            latent_data_variable,
+            qoi_model,
+            loglike,
         )
 
     def _sample_joint_variable(self, nsamples: int) -> Array:
@@ -337,7 +371,17 @@ class ContinuousNormalizingFlow(Flow):
         self._to_latent_ode_model = FlowODE(
             time_residual_cls(self._reverse_vel_field), deltat
         )
+        if vel_field.nstates() != obj_sampler._source_variable.nvars():
+            raise ValueError(
+                f"{vel_field.nstates()=} but should be "
+                f"{obj_sampler._source_variable.nvars()}"
+            )
         self._nlabels = nlabels
+
+    def _set_deltat(self, deltat: float):
+        # adjust deltat if accuracy requirements change
+        self._to_latent_ode_model._set_deltat(deltat)
+        self._from_latent_ode_model._set_deltat(deltat)
 
     def _set_objective_sampler(
         self, obj_sampler: FlowMatchingObjectiveSampler
@@ -352,28 +396,34 @@ class ContinuousNormalizingFlow(Flow):
     def nlabels(self) -> int:
         return self._nlabels
 
-    def _map_from_latent_single_sample(self, latent_sample: Array) -> Array:
-        # Solve the ODE
-        return self._from_latent_ode_model(latent_sample)
+    def _map_from_latent_single_sample(self, source_sample: Array) -> Array:
+        # source_sample = [target_samples, labels]
+        self._vel_field.set_label(source_sample[self.nvars() :])
+        return self._from_latent_ode_model(source_sample[: self.nvars()])
 
-    def _map_from_latent_many_sample(self, usamples: Array):
+    def _map_from_latent_many_sample(self, source_samples: Array):
+        # source_samples = [source_samples, labels]
         results = [
-            self._map_from_latent_single_sample(usample)
-            for usample in usamples.T
+            self._map_from_latent_single_sample(source_sample)
+            for source_sample in source_samples.T
         ]
         return self._bkd.stack(results, axis=1)
 
-    def _map_to_latent_single_sample(self, latent_sample: Array) -> Array:
-        init_state = self._bkd.hstack((latent_sample, self._bkd.zeros((1,))))
+    def _map_to_latent_single_sample(self, sample: Array) -> Array:
+        # sample = [target_samples, labels]
+        self._vel_field.set_label(sample[self.nvars() :])
+        init_state = self._bkd.hstack(
+            (sample[: self.nvars()], self._bkd.zeros((1,)))
+        )
         result = self._to_latent_ode_model(init_state)
         sample = result[:-1]
         divergence = result[-1:]
         return sample, divergence
 
-    def _map_to_latent_many_sample(self, usamples: Array) -> Array:
+    def _map_to_latent_many_sample(self, samples: Array) -> Array:
+        # samples = [target_samples, labels]
         results = [
-            self._map_to_latent_single_sample(usample)
-            for usample in usamples.T
+            self._map_to_latent_single_sample(sample) for sample in samples.T
         ]
         # samples = self._bkd.asarray([result[0] for result in results])
         samples = self._bkd.stack([result[0] for result in results], axis=1)
@@ -382,15 +432,26 @@ class ContinuousNormalizingFlow(Flow):
         )
         return samples, logpdf_vals
 
-    def _map_to_latent(self, usamples: Array) -> Array:
-        return self._map_to_latent_many_sample(usamples)[0]
+    def _map_to_latent(self, source_samples: Array) -> Array:
+        # samples = [target_samples, labels]
+        return self._map_to_latent_many_sample(source_samples)[0]
 
-    def _map_from_latent(self, usamples: Array) -> Array:
-        return self._map_from_latent_many_sample(usamples)
+    def _map_from_latent(self, source_samples: Array) -> Array:
+        # source_samples = [source_samples, labels]
+        return self._map_from_latent_many_sample(source_samples)
 
     def logpdf(self, samples: Array) -> Array:
+        # samples = [target_samples, labels]
         source_samples, div = self._map_to_latent_many_sample(samples)
         return self._source_variable.logpdf(source_samples) - div
+
+    def __repr__(self) -> str:
+        return "{0}(nvars={1}, nlabels={2}, deltat={3})".format(
+            self.__class__.__name__,
+            self.nvars(),
+            self.nlabels(),
+            self._to_latent_ode_model._time_int._deltat,
+        )
 
 
 class BasisExpansionContinuousNormalizingFlow(ContinuousNormalizingFlow):
@@ -407,7 +468,6 @@ class BasisExpansionContinuousNormalizingFlow(ContinuousNormalizingFlow):
                 "vel_field must be an instance of BasisExpansionVelocityField"
                 f"but was {type(vel_field)}"
             )
-
         super().__init__(
             source_variable, vel_field, deltat, nlabels, time_residual_cls
         )
@@ -422,9 +482,16 @@ class BasisExpansionContinuousNormalizingFlow(ContinuousNormalizingFlow):
         intermedieate_samples = (
             1.0 - intermediate_times
         ) * source_samples + intermediate_times * target_samples
-        basis_mat = self._vel_field._bexp.basis()(
-            self._bkd.vstack((intermediate_times, intermedieate_samples))
-        )
+        if labels is None:
+            obj_samples = self._bkd.vstack(
+                (intermediate_times, intermedieate_samples)
+            )
+        else:
+            obj_samples = self._bkd.vstack(
+                (intermediate_times, intermedieate_samples, labels)
+            )
+        basis_mat = self._vel_field._bexp.basis()(obj_samples)
+        print(f"Solving linear system with matrix shape {basis_mat.shape}")
         self._vel_field._bexp._solver.set_weights(
             self._obj_sampler.get_weights()
         )
