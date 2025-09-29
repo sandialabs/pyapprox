@@ -152,7 +152,7 @@ class FlowODE:
         return "{0}".format(self.__class__.__name__)
 
 
-class FlowMatchingObjectiveSampler(ABC):
+class FlowMatchingPathSampler(ABC):
     def __init__(self, source_variable: JointVariable):
         self._bkd = source_variable._bkd
         self._source_variable = source_variable
@@ -187,8 +187,28 @@ class FlowMatchingObjectiveSampler(ABC):
     def get_weights(self) -> Array:
         raise NotImplementedError()
 
+    def generate_path_samples(self) -> Tuple[Array, Array]:
+        intermediate_times, source_samples, target_samples, labels = (
+            self.get_samples()
+        )
+        intermedieate_samples = (
+            1.0 - intermediate_times
+        ) * source_samples + intermediate_times * target_samples
+        time_derivs = target_samples - source_samples
+        if labels is None:
+            return (
+                self._bkd.vstack((intermediate_times, intermedieate_samples)),
+                time_derivs,
+            )
+        return (
+            self._bkd.vstack(
+                (intermediate_times, intermedieate_samples, labels)
+            ),
+            time_derivs,
+        )
 
-class FixedDataFlowMatchingObjectiveSampler(FlowMatchingObjectiveSampler):
+
+class FixedDataFlowMatchingPathSampler(FlowMatchingPathSampler):
     def __init__(
         self,
         source_variable: JointVariable,
@@ -210,7 +230,7 @@ class FixedDataFlowMatchingObjectiveSampler(FlowMatchingObjectiveSampler):
         return self._bkd.full((nsamples, 1), 1.0 / nsamples)
 
 
-class ModelBasedFlowMatchingObjectiveSampler(FlowMatchingObjectiveSampler):
+class ModelBasedFlowMatchingPathSampler(FlowMatchingPathSampler):
     """
     Generate samples using models
     """
@@ -306,15 +326,15 @@ class ModelBasedFlowMatchingObjectiveSampler(FlowMatchingObjectiveSampler):
         return self._bkd.full((self._nsamples, 1), 1.0 / self._nsamples)
 
 
-class MonteCarloModelBasedFlowMatchingObjectiveSampler(
-    ModelBasedFlowMatchingObjectiveSampler
+class MonteCarloModelBasedFlowMatchingPathSampler(
+    ModelBasedFlowMatchingPathSampler
 ):
     def _sample_joint_variable(self, nsamples: int) -> Array:
         return self._joint_variable.rvs(nsamples)
 
 
-class TensorProductGaussQuadratureModelBasedFlowMatchingObjectiveSampler(
-    ModelBasedFlowMatchingObjectiveSampler
+class TensorProductGaussQuadratureModelBasedFlowMatchingPathSampler(
+    ModelBasedFlowMatchingPathSampler
 ):
     def __init__(
         self,
@@ -349,14 +369,14 @@ class TensorProductGaussQuadratureModelBasedFlowMatchingObjectiveSampler(
 class ContinuousNormalizingFlow(Flow):
     def __init__(
         self,
-        obj_sampler: FlowMatchingObjectiveSampler,
+        path_sampler: FlowMatchingPathSampler,
         vel_field: VelocityField,
         deltat: float,
         nlabels: int = 0,
         time_residual_cls: TimeIntegratorNewtonResidual = ForwardEulerResidual,
     ):
-        self._set_objective_sampler(obj_sampler)
-        super().__init__(obj_sampler.get_source_variable())
+        self._set_path_sampler(path_sampler)
+        super().__init__(path_sampler.get_source_variable())
         if not isinstance(vel_field, VelocityField):
             raise ValueError("vel_field must be an instance of VelocityField")
         self._vel_field = vel_field
@@ -371,10 +391,10 @@ class ContinuousNormalizingFlow(Flow):
         self._to_latent_ode_model = FlowODE(
             time_residual_cls(self._reverse_vel_field), deltat
         )
-        if vel_field.nstates() != obj_sampler._source_variable.nvars():
+        if vel_field.nstates() != path_sampler._source_variable.nvars():
             raise ValueError(
                 f"{vel_field.nstates()=} but should be "
-                f"{obj_sampler._source_variable.nvars()}"
+                f"{path_sampler._source_variable.nvars()}"
             )
         self._nlabels = nlabels
 
@@ -383,15 +403,13 @@ class ContinuousNormalizingFlow(Flow):
         self._to_latent_ode_model._set_deltat(deltat)
         self._from_latent_ode_model._set_deltat(deltat)
 
-    def _set_objective_sampler(
-        self, obj_sampler: FlowMatchingObjectiveSampler
-    ):
-        if not isinstance(obj_sampler, FlowMatchingObjectiveSampler):
+    def _set_path_sampler(self, path_sampler: FlowMatchingPathSampler):
+        if not isinstance(path_sampler, FlowMatchingPathSampler):
             raise ValueError(
-                "obj_sampler must be an instance of "
-                "FlowMatchingObjectiveSampler"
+                "path_sampler must be an instance of "
+                "FlowMatchingPathSampler"
             )
-        self._obj_sampler = obj_sampler
+        self._path_sampler = path_sampler
 
     def nlabels(self) -> int:
         return self._nlabels
@@ -403,10 +421,18 @@ class ContinuousNormalizingFlow(Flow):
 
     def _map_from_latent_many_sample(self, source_samples: Array):
         # source_samples = [source_samples, labels]
-        results = [
-            self._map_from_latent_single_sample(source_sample)
-            for source_sample in source_samples.T
-        ]
+        results = []
+        nfailed = 0
+        for cnt, source_sample in enumerate(source_samples.T):
+            try:
+                results.append(
+                    self._map_from_latent_single_sample(source_sample)
+                )
+            except RuntimeError as e:
+                # print(e)
+                print(f"sample {cnt} failed at {self._vel_field._time}")
+                nfailed += 1
+        print(f"{nfailed} samples failed")
         return self._bkd.stack(results, axis=1)
 
     def _map_to_latent_single_sample(self, sample: Array) -> Array:
@@ -422,9 +448,21 @@ class ContinuousNormalizingFlow(Flow):
 
     def _map_to_latent_many_sample(self, samples: Array) -> Array:
         # samples = [target_samples, labels]
-        results = [
-            self._map_to_latent_single_sample(sample) for sample in samples.T
-        ]
+        # results = [
+        #    self._map_to_latent_single_sample(sample) for sample in samples.T
+        # ]
+        nfailed = 0
+        results = []
+        for cnt, source_sample in enumerate(samples.T):
+            try:
+                results.append(
+                    self._map_to_latent_single_sample(source_sample)
+                )
+            except RuntimeError as e:
+                # print(e)
+                print(f"sample {cnt} failed at {self._vel_field._time}")
+                nfailed += 1
+        print(f"{nfailed} samples failed")
         # samples = self._bkd.asarray([result[0] for result in results])
         samples = self._bkd.stack([result[0] for result in results], axis=1)
         logpdf_vals = self._bkd.stack(
@@ -476,26 +514,11 @@ class BasisExpansionContinuousNormalizingFlow(ContinuousNormalizingFlow):
         """
         Fit the flow to samples from the target variable.
         """
-        intermediate_times, source_samples, target_samples, labels = (
-            self._obj_sampler.get_samples()
-        )
-        intermedieate_samples = (
-            1.0 - intermediate_times
-        ) * source_samples + intermediate_times * target_samples
-        if labels is None:
-            obj_samples = self._bkd.vstack(
-                (intermediate_times, intermedieate_samples)
-            )
-        else:
-            obj_samples = self._bkd.vstack(
-                (intermediate_times, intermedieate_samples, labels)
-            )
-        basis_mat = self._vel_field._bexp.basis()(obj_samples)
+        path_samples, time_derivs = self._path_sampler.generate_path_samples()
+        basis_mat = self._vel_field._bexp.basis()(path_samples)
         print(f"Solving linear system with matrix shape {basis_mat.shape}")
         self._vel_field._bexp._solver.set_weights(
-            self._obj_sampler.get_weights()
+            self._path_sampler.get_weights()
         )
-        coef = self._vel_field._bexp._solver.solve(
-            basis_mat, (target_samples - source_samples).T
-        )
+        coef = self._vel_field._bexp._solver.solve(basis_mat, time_derivs.T)
         self._vel_field._bexp.set_coefficients(coef)

@@ -324,8 +324,9 @@ class UnivariateAffineTransform(Transform):
         if self._bkd.any(user_samples < bounds[0]) or self._bkd.any(
             user_samples > bounds[1]
         ):
-            print(user_samples)
-            raise ValueError(f"Sample outside the bounds {bounds}")
+            raise ValueError(
+                f"Sample {user_samples} outside the bounds {bounds}"
+            )
 
     def map_from_canonical(self, canonical_samples):
         return canonical_samples * self._scale + self._loc

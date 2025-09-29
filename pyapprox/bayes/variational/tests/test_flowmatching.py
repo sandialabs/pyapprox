@@ -9,12 +9,12 @@ from pyapprox.bayes.variational.flowmatching import (
     ContinuousNormalizingFlow,
     VelocityField,
     BasisExpansionVelocityField,
-    FixedDataFlowMatchingObjectiveSampler,
-    TensorProductGaussQuadratureModelBasedFlowMatchingObjectiveSampler,
-    # MonteCarloModelBasedFlowMatchingObjectiveSampler,
+    FixedDataFlowMatchingPathSampler,
+    TensorProductGaussQuadratureModelBasedFlowMatchingPathSampler,
+    # MonteCarloModelBasedFlowMatchingPathSampler,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.variables.marginals import GaussianMarginal
+from pyapprox.variables.marginals import GaussianMarginal, UniformMarginal
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.surrogates.affine.linearsystemsolvers import LstSqSolver
 from pyapprox.surrogates.univariate.orthopoly import (
@@ -22,10 +22,16 @@ from pyapprox.surrogates.univariate.orthopoly import (
 )
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from scipy import stats
-from pyapprox.pde.collocation.timeintegration import RK4, HeunResidual
+from pyapprox.pde.collocation.timeintegration import (
+    RK4,
+    HeunResidual,
+    BackwardEulerResidual,
+)
 from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
 from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
 from pyapprox.interface.model import DenseMatrixLinearModel
+
+# from pyapprox.util.print_wrapper import *
 
 
 class TestFlows:
@@ -62,11 +68,11 @@ class TestFlows:
 
         ntrain_samples = 10
         train_samples = target_variable.rvs(ntrain_samples)
-        obj_sampler = FixedDataFlowMatchingObjectiveSampler(
+        path_sampler = FixedDataFlowMatchingPathSampler(
             source_variable, train_samples
         )
 
-        flow = ContinuousNormalizingFlow(obj_sampler, vel_field, 0.3)
+        flow = ContinuousNormalizingFlow(path_sampler, vel_field, 0.3)
         print(flow)
 
         samples = flow._map_from_latent(bkd.zeros((nvars, 1)))
@@ -144,11 +150,11 @@ class TestFlows:
 
         # ntrain_samples = 10000
         # train_samples = target_variable.rvs(ntrain_samples)
-        # obj_sampler = FixedDataFlowMatchingObjectiveSampler(
+        # path_sampler = FixedDataFlowMatchingPathSampler(
         #     source_variable, train_samples
         # )
-        obj_sampler = (
-            TensorProductGaussQuadratureModelBasedFlowMatchingObjectiveSampler(
+        path_sampler = (
+            TensorProductGaussQuadratureModelBasedFlowMatchingPathSampler(
                 source_variable,
                 target_variable,
                 bkd.asarray([nterms + 1] * (nvars * 2 + 1)),
@@ -158,7 +164,7 @@ class TestFlows:
         # the size of deltat and the type of integrator effects
         # the error recovered in mean
         flow = BasisExpansionContinuousNormalizingFlow(
-            obj_sampler, vel_field, 0.01, time_residual_cls=RK4
+            path_sampler, vel_field, 0.01, time_residual_cls=RK4
         )
         flow.fit()
         samples = flow._map_from_latent(bkd.zeros((nvars, 1)))
@@ -210,7 +216,7 @@ class TestFlows:
 
         # ntrain_samples = 10000
         # train_samples = target_variable.rvs(ntrain_samples)
-        # obj_sampler = FixedDataFlowMatchingObjectiveSampler(
+        # path_sampler = FixedDataFlowMatchingPathSampler(
         #     source_variable, train_samples
         # )
         noise_cov = bkd.diag(bkd.full((nobs,), noise_std**2))
@@ -223,8 +229,8 @@ class TestFlows:
             [GaussianMarginal(0.0, 1.0, bkd) for ii in range(nobs)],
             backend=bkd,
         )
-        obj_sampler = (
-            TensorProductGaussQuadratureModelBasedFlowMatchingObjectiveSampler(
+        path_sampler = (
+            TensorProductGaussQuadratureModelBasedFlowMatchingPathSampler(
                 source_variable,
                 prior,
                 bkd.asarray([nterms + 1] * (nvars * 2 + nobs + 1)),
@@ -236,7 +242,7 @@ class TestFlows:
         # the size of deltat and the type of integrator effects
         # the error recovered in mean
         flow = BasisExpansionContinuousNormalizingFlow(
-            obj_sampler, vel_field, 0.01, nobs, time_residual_cls=HeunResidual
+            path_sampler, vel_field, 0.01, nobs, time_residual_cls=HeunResidual
         )
         flow.fit()
 
@@ -266,29 +272,152 @@ class TestFlows:
             atol=1e-4,
         )
 
-        # axs = plt.subplots(1, 2, sharey=True)[1]
-        # target_variable.plot_pdf(
-        #     axs[0],
-        #     prior.interval(1 - 1e-4).flatten(),
-        #     levels=31,
-        #     cmap="coolwarm",
-        # )
-        # # increase deltat to speed up plotting since high accuracy is not
-        # # needed when just visualizing
-        # flow._set_deltat(0.25)
-        # print(flow)
-        # flow.plot_pdf(
-        #     axs[1],
-        #     prior.interval(1 - 1e-4).flatten(),
-        #     label=label,
-        #     npts_1d=31,
-        #     levels=31,
-        #     cmap="coolwarm",
-        # )
-        # nsamples = 10
-        # flow_samples = flow.rvs(nsamples, label)
-        # axs[1].scatter(*flow_samples, alpha=0.1, color="k")
+    def moon_rvs(self, nsamples1, nsamples2, std, bounds=[-0.5, 0.5]):
+        bkd = self.get_backend()
+        moon1_samples = bkd.stack(
+            [
+                bkd.cos(bkd.linspace(0.0, np.pi, nsamples1)),
+                bkd.sin(bkd.linspace(0.0, np.pi, nsamples1)),
+            ],
+            axis=0,
+        )
+        moon2_samples = bkd.stack(
+            [
+                1.0 - bkd.cos(bkd.linspace(0.0, np.pi, nsamples2)),
+                1.0 - bkd.sin(bkd.linspace(0.0, np.pi, nsamples2)) - 0.5,
+            ],
+            axis=0,
+        )
+        indices1 = np.arange(nsamples1)
+        np.random.shuffle(indices1)
+        noise1 = bkd.asarray(np.random.normal(0.0, std, moon1_samples.shape))
+        moon1_samples = moon1_samples[:, indices1] + noise1
+        indices2 = np.arange(nsamples2)
+        np.random.shuffle(indices2)
+        noise2 = bkd.asarray(np.random.normal(0.0, std, moon2_samples.shape))
+        moon2_samples = moon2_samples[:, indices2] + noise2
+        moon1_samples[0] = (moon1_samples[0] + 1) / 3
+        moon1_samples[1] = (moon1_samples[1] + 0.75) / 2
+        moon2_samples[0] = (moon2_samples[0] + 1) / 3
+        moon2_samples[1] = (moon2_samples[1] + 0.75) / 2
+        # map from [0,1] to [-1,1]
+        width = bounds[1] - bounds[0]
+        moon1_samples = moon1_samples * width + bounds[0]
+        moon2_samples = moon2_samples * width + bounds[0]
+        print(bounds)
+        return moon1_samples, moon2_samples
+
+    def example(self):
+        bkd = self.get_backend()
+        nvars = 2
+        source_variable = IndependentMarginalsVariable(
+            [GaussianMarginal(0, 1, bkd) for ii in range(nvars)],
+            backend=bkd,
+        )
+
+        ntrain_samples = 10000  # 000
+        moon_bounds = [-2, 4]
+        moon_bounds = [-1, 1]
+        train_samples = bkd.hstack(
+            self.moon_rvs(
+                ntrain_samples // 2, ntrain_samples // 2, 0.05, moon_bounds
+            )
+        )
+        train_samples = self.moon_rvs(
+            ntrain_samples // 2, ntrain_samples // 2, 0.05, moon_bounds
+        )[0]
+        print(train_samples.min(), train_samples.max())
+
+        path_sampler = FixedDataFlowMatchingPathSampler(
+            source_variable, train_samples
+        )
+        path_samples, time_derivs = path_sampler.generate_path_samples()
+        # plt.scatter(*path_samples)
         # plt.show()
+        basis_marginals = [
+            UniformMarginal(
+                path_samples[ii].min() - 0.1,
+                path_samples[ii].max() + 0.1,
+                backend=bkd,
+            )
+            for ii in range(1, nvars + 1)
+        ]
+        basis_variable = IndependentMarginalsVariable(
+            basis_marginals, backend=bkd
+        )
+        basis_variable = source_variable
+
+        nterms = 10
+        vel_field = self._setup_basisexpansion_flow_field(
+            nvars, 0, basis_variable
+        )
+        vel_field._bexp.basis().set_tensor_product_indices(
+            [nterms] * (nvars + 1)
+        )
+
+        from pyapprox.surrogates.affine.basis import (
+            QRBasedRotatedOrthonormalPolynomialBasis,
+        )
+
+        basis = QRBasedRotatedOrthonormalPolynomialBasis(
+            vel_field._bexp.basis()._bases_1d
+        )
+        basis.set_tensor_product_indices([nterms for ii in range(nvars + 1)])
+        basis.set_quadrature_rule_tuple(
+            bkd.vstack(
+                (
+                    bkd.asarray(
+                        np.random.uniform(0, 1, (1, train_samples.shape[1]))
+                    ),
+                    train_samples,
+                )
+            ),
+            path_sampler.get_weights(),
+        )
+        bexp = PolynomialChaosExpansion(
+            basis, nqoi=nvars, solver=LstSqSolver(backend=bkd)
+        )
+        vel_field = BasisExpansionVelocityField(bexp, 0)
+
+        # the size of deltat and the type of integrator effects
+        # the error recovered in mean
+        flow = BasisExpansionContinuousNormalizingFlow(
+            # path_sampler, vel_field, 0.01, time_residual_cls=HeunResidual
+            path_sampler,
+            vel_field,
+            0.01,
+            time_residual_cls=HeunResidual,  # BackwardEulerResidual,
+        )
+        flow.fit()
+        print("Training complete")
+        print(
+            bkd.abs(vel_field._bexp.get_coefficients()).min(),
+            bkd.abs(vel_field._bexp.get_coefficients()).max(),
+        )
+        axs = plt.subplots(1, 2, sharey=True)[1]
+        axs[0].scatter(*train_samples, alpha=0.1, color="k")
+        # increase deltat to speed up plotting since high accuracy is not
+        # needed when just visualizing
+        label = None
+        print(flow)
+        flow._set_deltat(0.1)
+        nsamples = 1000  # 0
+        flow_samples = flow.rvs(nsamples, label)
+        axs[1].scatter(*flow_samples, alpha=0.1, color="k")
+        flow._set_deltat(0.1)
+        flow.plot_pdf(
+            axs[1],
+            moon_bounds + moon_bounds,
+            label=label,
+            npts_1d=31,
+            levels=31,
+            cmap="coolwarm",
+        )
+        axs[0].set_xlim(moon_bounds)
+        axs[0].set_ylim(moon_bounds)
+        axs[1].set_xlim(moon_bounds)
+        axs[1].set_ylim(moon_bounds)
+        plt.show()
 
 
 class TestTorchFlows(TestFlows, unittest.TestCase):
