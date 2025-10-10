@@ -1748,7 +1748,7 @@ class TestCollocation:
             ],  # rho
             ["D", "R"],  # bndry types
             [
-                self._setup_rect_cheby_basis_2d([15, 15], [0, 1, 0, 1]),
+                self._setup_rect_cheby_basis_2d([16, 15], [0, 1, 0, 1]),
             ],  # basis
             [SplitPhysicsTimeIntegratorNewtonResidual],  # timestep_cls
         ]

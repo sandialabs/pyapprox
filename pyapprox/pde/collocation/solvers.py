@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-import textwrap
 from typing import Tuple, Union
 
 from pyapprox.util.backends.template import Array, BackendMixin
@@ -13,12 +12,10 @@ from pyapprox.pde.collocation.physics import (
 from pyapprox.pde.collocation.functions import (
     ScalarOperator,
     MatrixOperator,
-    TransientOperatorMixin,
     OrthogonalCoordinateCollocationBasis,
 )
-from pyapprox.util.newton import NewtonSolver, NewtonResidual
+from pyapprox.util.newton import NewtonSolver
 from pyapprox.pde.collocation.timeintegration import (
-    TransientNewtonResidual,
     TimeIntegratorNewtonResidual,
     BackwardEulerResidual,
 )

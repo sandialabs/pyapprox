@@ -28,15 +28,15 @@ def plot_qoi_marginals(values, axs=None):
 
 
 def get_meshgrid_samples_from_variable(
-    variable, num_pts_1d, logspace=False, unbounded_alpha=0.99
+    variable, npts_1d, logspace=False, unbounded_alpha=0.99
 ):
     plot_limits = variable.truncated_ranges(unbounded_alpha).flatten()
-    X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
+    X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, logspace)
     return X, Y, pts
 
 
 def get_meshgrid_function_data_from_variable(
-    function, variable, num_pts_1d, qoi=0, logspace=False, unbounded_alpha=0.99
+    function, variable, npts_1d, qoi=0, logspace=False, unbounded_alpha=0.99
 ):
     r"""
     Generate data from a function in the format needed for plotting.
@@ -46,18 +46,18 @@ def get_meshgrid_function_data_from_variable(
     Parameters
     ----------
     function : callable function
-        The function must accept an np.ndarray of size (2, num_pts_1d**2)
-        and return a np.ndarray of size (num_pts_1d,num_qoi)
+        The function must accept an np.ndarray of size (2, npts_1d**2)
+        and return a np.ndarray of size (npts_1d,nqoi)
 
     variable : :class:`pyapprox.variables.IndependentMarginalsVariable`
         Variable used to determine plotting ranges
 
-    num_pts_1d : integer
+    npts_1d : integer
         The number of samples in each dimension. The function is evaluated
         on the tensor product of the 1d samples
 
     qoi : integer
-        function returns a np.ndarray of size (num_pts_1d,num_qoi) qoi
+        function returns a np.ndarray of size (npts_1d,nqoi) qoi
         specifies which column of the array to access.
 
     unbouned_alpha : float
@@ -66,17 +66,17 @@ def get_meshgrid_function_data_from_variable(
 
     Returns
     -------
-    X : np.ndarray of size (num_pts_1d,num_pts_1d)
+    X : np.ndarray of size (npts_1d,npts_1d)
         The 1st coordinate of the samples
 
-    Y : np.ndarray of size (num_pts_1d,num_pts_1d)
+    Y : np.ndarray of size (npts_1d,npts_1d)
         The 2nd coordinate of the samples
 
-    Z : np.ndarray of size (num_pts_1d,num_pts_1d)
+    Z : np.ndarray of size (npts_1d,npts_1d)
         The function values at each sample
     """
     X, Y, pts = get_meshgrid_samples_from_variable(
-        variable, num_pts_1d, logspace, unbounded_alpha
+        variable, npts_1d, logspace, unbounded_alpha
     )
     Z = function(pts)
     if Z.ndim == 2:
@@ -115,18 +115,18 @@ def plot_1d_cross_sections(
         nominal_sample = variable.get_statistics("mean")
 
     if subplot_tuple is None:
-        nfig_rows, nfig_cols = 1, variable.num_vars()
+        nfig_rows, nfig_cols = 1, variable.nvars()
     else:
         nfig_rows, nfig_cols = subplot_tuple
 
-    if nfig_rows * nfig_cols < variable.num_vars():
+    if nfig_rows * nfig_cols < variable.nvars():
         raise ValueError("Number of subplots is insufficient")
 
     if axs is None:
         fig, axs = plt.subplots(
             nfig_rows, nfig_cols, figsize=(nfig_cols * 8, nfig_rows * 6)
         )
-        if variable.num_vars() == 1:
+        if variable.nvars() == 1:
             axs = [axs]
         else:
             axs = axs.flatten()
@@ -137,27 +137,35 @@ def plot_1d_cross_sections(
             fun, var, ii, nominal_sample, nsamples_1d, axs[ii], qoi, plt_kwargs
         )
 
-    for ii in range(variable.num_vars(), nfig_rows * nfig_cols):
+    for ii in range(variable.nvars(), nfig_rows * nfig_cols):
         axs[ii].axis("off")
 
     return axs
 
 
 def setup_2d_cross_section_axes(variable, variable_pairs, subplot_tuple):
+    bkd = variable._bkd
     if variable_pairs is None:
-        variable_pairs = np.array(anova_level_indices(variable.num_vars(), 2))
+        variable_pairs = bkd.array(anova_level_indices(variable.nvars(), 2))
         # make first column values vary fastest so we plot lower triangular
         # matrix of subplots
         variable_pairs[:, 0], variable_pairs[:, 1] = (
             variable_pairs[:, 1].copy(),
             variable_pairs[:, 0].copy(),
         )
+        # add 1d cross sections
+        variable_pairs = bkd.vstack(
+            (
+                bkd.array([[ii, ii] for ii in range(variable.nvars())]),
+                variable_pairs,
+            )
+        )
 
     if variable_pairs.shape[1] != 2:
         raise ValueError("Variable pairs has the wrong shape")
 
     if subplot_tuple is None:
-        nfig_rows, nfig_cols = variable.num_vars(), variable.num_vars()
+        nfig_rows, nfig_cols = variable.nvars(), variable.nvars()
     else:
         nfig_rows, nfig_cols = subplot_tuple
 
@@ -177,7 +185,7 @@ def plot_2d_cross_sections(
     variable_pairs=None,
     subplot_tuple=None,
     qoi=0,
-    num_contour_levels=20,
+    ncontour_levels=20,
     plot_samples=None,
     marginals=False,
 ):
@@ -204,7 +212,7 @@ def plot_2d_cross_sections(
             values = fun(samples)
             axs[ii][ii].plot(samples[ii, :], values[:, qoi])
         else:
-            quad_degrees = np.array([20] * (variable.num_vars() - 1))
+            quad_degrees = np.array([20] * (variable.nvars() - 1))
             samples_ii = np.linspace(lb, ub, nsamples_1d)
             from pyapprox.surrogates.polychaos.gpc import (
                 _marginalize_function_1d,
@@ -231,7 +239,7 @@ def plot_2d_cross_sections(
             [lb1, ub1, lb2, ub2], nsamples_1d
         )
         if marginals:
-            quad_degrees = np.array([10] * (variable.num_vars() - 2))
+            quad_degrees = np.array([10] * (variable.nvars() - 2))
             values = _marginalize_function_nd(
                 fun,
                 variable,
@@ -261,7 +269,7 @@ def plot_2d_cross_sections(
             X,
             Y,
             Z,
-            levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
+            levels=np.linspace(Z.min(), Z.max(), ncontour_levels),
             cmap="jet",
         )
         if plot_samples is not None:

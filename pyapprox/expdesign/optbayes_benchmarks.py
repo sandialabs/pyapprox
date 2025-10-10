@@ -24,7 +24,7 @@ require benchmarks and analysis tools to evaluate their algorithms.
 """
 
 from abc import ABC, abstractmethod
-from typing import Tuple, List
+from typing import List
 
 import numpy as np
 from scipy.stats import norm
@@ -43,14 +43,10 @@ from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
 )
 from pyapprox.interface.model import Model, DenseMatrixLinearModel
-from pyapprox.expdesign.sequences import HaltonSequence
 from pyapprox.bayes.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
     GaussianPushForward,
     _compute_expected_kl_divergence,
-)
-from pyapprox.surrogates.affine.basis import (
-    setup_tensor_product_gauss_quadrature_rule,
 )
 from pyapprox.expdesign.optbayes import (
     BayesianOED,
@@ -60,6 +56,7 @@ from pyapprox.expdesign.optbayes import (
     NoiseStatistic,
     PredictionOEDDeviationMeasure,
     SampleAverageStat,
+    BayesianOEDDataGenerator,
 )
 
 
@@ -415,113 +412,10 @@ class BayesianOEDDiagnostics(ABC):
     def __init__(self, problem: LinearGaussianBayesianOEDBenchmark):
         self._problem = problem
         self._bkd = self._problem._bkd
+        self._data_gen = BayesianOEDDataGenerator(self._bkd)
 
-    def _setup_quadrature_data(
-        self, quadtype: str, variable: JointVariable, nsamples: int
-    ) -> Tuple[Array, Array]:
-        """
-        Helper function to set up quadrature data for integration using
-        different types of quadrature rules.
-
-        Parameters
-        ----------
-        quadtype : str
-            Type of quadrature method (e.g., "MC", "Halton","gauss").
-        prior_data_variable : JointVariable
-            Variable that defines the integration measure.
-        nsamples : int
-            Number of samples for quadrature.
-
-        Returns
-        -------
-        Tuple[Array, Array]
-            Quadrature samples and weights.
-        """
-        if quadtype == "MC":
-            return variable.rvs(nsamples), self._bkd.full(
-                (nsamples, 1), 1.0 / nsamples
-            )
-
-        if quadtype == "Halton":
-            sequence = HaltonSequence(
-                variable.nvars(),
-                1,
-                variable,
-                variable._bkd,
-                unbounded_eps=1e-4,
-                increment_start_index=True,
-            )
-            return sequence.rvs(nsamples), self._bkd.full(
-                (nsamples, 1), 1.0 / nsamples
-            )
-
-        if quadtype == "gauss":
-            quad_rule = setup_tensor_product_gauss_quadrature_rule(variable)
-            level1d = int(nsamples ** (1 / variable.nvars()))
-            return quad_rule([level1d] * variable.nvars())
-
-        raise ValueError(f"{quadtype} not supported")
-
-    def prepare_simulation_inputs(
-        self,
-        oed: BayesianOED,
-        outerloop_quadtype: str,
-        nouterloop_samples: int,
-        innerloop_quadtype: str,
-        ninnerloop_samples: int,
-    ) -> Tuple[Array, Array, Array, Array]:
-        """
-        Set up data for Bayesian OED.
-
-        Parameters
-        ----------
-        outerloop_quadtype : str
-            Type of quadrature method for the outer loop.
-        nouterloop_samples : int
-            Number of samples for the outer loop quadrature.
-        innerloop_quadtype : str
-            Type of quadrature method for the inner loop.
-        ninnerloop_samples : int
-            Number of samples for the inner loop quadrature.
-
-        Returns
-        -------
-        outerloop_samples : Array (nvars, nouterloop_samples)
-            Samples for the outer loop quadrature.
-        outerloop_quad_weights : Array (nouterloop_samples, 1)
-            Weights for the outer loop quadrature.
-        innerloop_samples : Array (nvars, ninnerloop_samples)
-            Samples for the inner loop quadrature.
-        innerloop_quad_weights : Array (ninnerloop_samples, 1)
-            Weights for the inner loop quadrature.
-        innerloop_loglike : IndependentGaussianOEDInnerLoopLogLikelihood
-            Inner loop log-likelihood object.
-        """
-        # Generate outer loop quadrature data
-        outerloop_loglike = oed._innerloop_loglike.outerloop_loglike()
-        prior_data_variable = outerloop_loglike.joint_prior_data_variable(
-            self._problem.get_prior()
-        )
-        outerloop_samples, outerloop_quad_weights = (
-            self._setup_quadrature_data(
-                outerloop_quadtype, prior_data_variable, nouterloop_samples
-            )
-        )
-
-        # Generate inner loop quadrature data
-        innerloop_samples, innerloop_quad_weights = (
-            self._setup_quadrature_data(
-                innerloop_quadtype,
-                self._problem.get_prior(),
-                ninnerloop_samples,
-            )
-        )
-        return (
-            outerloop_samples,
-            outerloop_quad_weights,
-            innerloop_samples,
-            innerloop_quad_weights,
-        )
+    def data_generator(self) -> BayesianOEDDataGenerator:
+        return self._data_gen
 
     def setup_oed(self) -> BayesianOED:
         innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
@@ -623,8 +517,9 @@ class BayesianOEDDiagnostics(ABC):
             outerloop_quad_weights,
             innerloop_samples,
             innerloop_quad_weights,
-        ) = self.prepare_simulation_inputs(
+        ) = self._data_gen.prepare_simulation_inputs(
             kl_oed,
+            self._problem.get_prior(),
             outerloop_quadtype,
             nouterloop_samples,
             innerloop_quadtype,
@@ -733,8 +628,9 @@ class BayesianOEDDiagnostics(ABC):
                 outerloop_quad_weights,
                 innerloop_samples,
                 innerloop_quad_weights,
-            ) = self.prepare_simulation_inputs(
+            ) = self._data_gen.prepare_simulation_inputs(
                 oed,
+                self._problem.get_prior(),
                 outerloop_quadtype,
                 nouterloop_samples,
                 innerloop_quadtype,

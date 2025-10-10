@@ -18,7 +18,6 @@ from pyapprox.optimization.minimize import (
     OptimizerIterateGenerator,
     RandomUniformOptimzerIterateGenerator,
 )
-from pyapprox.surrogates.affine.multiindex import anova_level_indices
 from pyapprox.surrogates.affine.basisexp import BasisExpansion
 from pyapprox.util.hyperparameter import (
     HyperParameter,
@@ -1394,58 +1393,14 @@ class FlowLoss(Model):
     # def apply_hessian_implemented(self) -> bool:
     #     return self._bkd.hvp_implemented()
 
-    def plot_cross_section(self, ax, id1: int, id2: int, npts_1d=51, **kwargs):
-        bounds = self._flow._hyp_list.get_active_opt_bounds()
-        plot_limits = self._bkd.hstack((bounds[id1], bounds[id2]))
-        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
-        active_opt_params = self._bkd.copy(
-            self._flow._hyp_list.get_active_opt_params()
-        )[:, None]
-        active_pt = self._bkd.copy(active_opt_params[[id1, id2], 0])
-        vals = []
-        for pt in pts.T:
-            active_opt_params[[id1, id2], 0] = pt
-            vals.append(self._values(active_opt_params))
-        Z = self._bkd.reshape(self._bkd.vstack(vals)[:, 0], X.shape)
-        im = ax.contourf(X, Y, Z, **kwargs)
-        ax.plot(*active_pt, "ko", ms=20)
-        return im
-
-    def get_all_variable_pairs(self) -> Array:
-        variable_pairs = self._bkd.asarray(
-            anova_level_indices(self.nvars(), 2)
-        )
-        # make first column values vary fastest so we plot lower triangular
-        # matrix of subplots
-        variable_pairs[:, 0], variable_pairs[:, 1] = (
-            self._bkd.copy(variable_pairs[:, 1]),
-            self._bkd.copy(variable_pairs[:, 0]),
-        )
-        return variable_pairs
-
     def plot_cross_sections(
         self,
         variable_pairs: List[Tuple[int, int]] = None,
         npts_1d=51,
         **kwargs,
     ):
-        nfig_rows, nfig_cols = self.nvars(), self.nvars()
-        if variable_pairs is None:
-            variable_pairs = self.get_all_variable_pairs()
-        if variable_pairs.shape[1] != 2:
-            raise ValueError("Variable pairs has the wrong shape")
-        variable_pairs = variable_pairs[28:30]
-        fig, axs = plt.subplots(nfig_rows, nfig_cols, sharex="col")
-        for ax_row in axs:
-            for ax in ax_row:
-                ax.axis("off")
-        ims = []
-        for ii, pair in enumerate(variable_pairs):
-            print(f"plotting cross section {pair}")
-            if pair[0] == pair[1]:
-                continue
-            im = self.plot_cross_section(
-                axs[pair[0]][pair[1]], pair[0], pair[1]
-            )
-            ims.append(im)
-        return axs, im
+        bounds = self._flow._hyp_list.get_active_opt_bounds()
+        nominal_values = self._flow._hyp_list.get_active_opt_params()[:, None]
+        super().plot_cross_sections(
+            nominal_values, bounds, variable_pairs, npts_1d, **kwargs
+        )

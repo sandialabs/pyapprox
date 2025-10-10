@@ -7,14 +7,11 @@ following the exposition in [PYAPPROX2023]_.
 First lets load all the necessary modules and set the random seeds for reproducibility.
 """
 
-raise NotImplementedError
 from scipy import stats
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from functools import partial
 import torch
-import time
 from pyapprox.util.visualization import mathrm_label
 from pyapprox.variables import IndependentMarginalsVariable, AffineTransform
 from pyapprox.benchmarks import (
@@ -30,14 +27,16 @@ from pyapprox.surrogates.gaussianprocess.activelearning import (
     AdaptiveGaussianProcess,
     SamplingScheduleFromList,
 )
-from pyapprox.bayes.metropolis import plot_unnormalized_2d_marginals
 from pyapprox.bayes.metropolis import MetropolisMCMCVariable
 from pyapprox.expdesign.optbayes import (
-    KLBayesianOED,
+    BruteForceKLBayesianOED,
+    BayesianOEDDataGenerator,
     IndependentGaussianOEDInnerLoopLogLikelihood,
 )
-from pyapprox import multifidelity
 from pyapprox.util.backends.numpy import NumpyMixin as bkd
+from pyapprox.bayes.likelihood import LogLikelihoodFromModel
+from pyapprox.multifidelity.factory import multioutput_stats
+from pyapprox import multifidelity as mf
 
 # import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -66,33 +65,33 @@ var_trans = AffineTransform(variable)
 canonical_samples = var_trans.map_to_canonical(samples)
 
 
-# %%
-# Pyapprox provides many utilities for interfacing with complex numerical codes.
-# The following shows how to wrap a model and store the wall time required
-# to evaluate each sample in a set. First define a function
-# with a random execution time that takes in one sample at a time, i.e. a
-# 1D array. Then wrap that model so that multiple samples can be evaluated at
-# once.
-def fun_pause_1(sample):
-    assert sample.ndim == 1
-    time.sleep(np.random.uniform(0, 0.05))
-    return np.atleast_1d(np.sum(sample**2))
+# # %%
+# # Pyapprox provides many utilities for interfacing with complex numerical codes.
+# # The following shows how to wrap a model and store the wall time required
+# # to evaluate each sample in a set. First define a function
+# # with a random execution time that takes in one sample at a time, i.e. a
+# # 1D array. Then wrap that model so that multiple samples can be evaluated at
+# # once.
+# def fun_pause_1(sample):
+#     assert sample.ndim == 1
+#     time.sleep(np.random.uniform(0, 0.05))
+#     return np.atleast_1d(np.sum(sample**2))
 
 
-# Create the model
-model = ModelFromSingleSampleCallable(
-    1, variable.nvars(), fun_pause_1, sample_ndim=1, values_ndim=1, backend=bkd
-)
-# Activate timing of the model evaluations
-model.activate_model_data_base()
+# # Create the model
+# model = ModelFromSingleSampleCallable(
+#     1, variable.nvars(), fun_pause_1, sample_ndim=1, values_ndim=1, backend=bkd
+# )
+# # Activate timing of the model evaluations
+# model.activate_model_data_base()
 
-# %%
-# Run the model and print the computational cost of the evaluations
+# # %%
+# # Run the model and print the computational cost of the evaluations
 
-# Run the model
-values = model(samples)
-# Print the number of evaluations and average time
-print(model.work_tracker())
+# # Run the model
+# values = model(samples)
+# # Print the number of evaluations and average time
+# print(model.work_tracker())
 
 # %%
 # Other wrappers available in PyApprox include those for running multiple models
@@ -107,221 +106,278 @@ print(model.work_tracker())
 # Bayesian inference, and optimal experimental design. This benchmark requires
 # determining the true coefficients of the Karhunene Loeve expansion (KLE)
 # used to characterize the uncertain diffusivity field of an advection
-# diffusion equation. See documentation of the benchmark for more details).
+# diffusion equation.
+# This benchmark is slightly different to that documented in [PYAPPROX2023]_.
+# Here we solve the conservative advection diffusion equations and adjust
+# the source slightly.
+# See documentation of the benchmark for more details.
 noise_stdev = 1  # 1e-1
 inv_benchmark = PyApproxPaperAdvectionDiffusionKLEInversionBenchmark()
 print(inv_benchmark)
 
-# %%
-# The following plots the modes of the KLE
-from pyapprox.pde.collocation.functions import ScalarFunction
+# # %%
+# # The following plots the modes of the KLE
+# eigvecs = inv_benchmark.diffusion_function().eigenfunctions()
+# fig, axs = plt.subplots(1, len(eigvecs), figsize=(8 * len(eigvecs), 6))
+# for ii in range(len(eigvecs)):
+#     eigvecs[ii].plot(axs[ii], cmap=plt.cm.coolwarm, levels=50)
 
-eigvecs = inv_benchmark.diffusion_function().eigenfunctions()
-fig, axs = plt.subplots(1, len(eigvecs), figsize=(8 * len(eigvecs), 6))
-for ii in range(len(eigvecs)):
-    eigvecs[ii].plot(axs[ii], cmap=plt.cm.coolwarm, levels=50)
+# # %%
+# # PyApprox provides many popular methods for constructing surrogates
+# # that once constructed can be evaluated in place of a computaionally
+# # expensive simulation model in model analyses. The following code creates
+# # a Gaussian process (GP) surrogate. The function used to construct the surrogate
+# # takes a callback which is evaluated each time the adaptive surrogate is refined.
+# # Here we use to compute the error of the surrogate as it is constructed using
+# # validation data. Uncomment the code to use a polynomial based surrogate instead
+# # of a GP. The user does not have to change any subsequent code
+# validation_samples = inv_benchmark.prior().rvs(100)
+# validation_values = inv_benchmark.loglike()(validation_samples)
 
-# %%
-# PyApprox provides many popular methods for constructing surrogates
-# that once constructed can be evaluated in place of a computaionally
-# expensive simulation model in model analyses. The following code creates
-# a Gaussian process (GP) surrogate. The function used to construct the surrogate
-# takes a callback which is evaluated each time the adaptive surrogate is refined.
-# Here we use to compute the error of the surrogate as it is constructed using
-# validation data. Uncomment the code to use a polynomial based surrogate instead
-# of a GP. The user does not have to change any subsequent code
-validation_samples = inv_benchmark.variable().rvs(100)
-validation_values = inv_benchmark.negloglike()(validation_samples)
+# # fig, axs = plt.subplots(1, 4, figsize=(4 * 8, 6))
+# # # plot a single solution to the PDE before overlaying the designs
+
+# # debug_samples = bkd.array(
+# #     [
+# #         [-3.2905267314918945, -2.6324213851935125],
+# #         [-0.6581053462983659, -1.9743160388951302],
+# #         [0.0, 0.0],
+# #     ]
+# # )
+
+# # sample = inv_benchmark._true_kle_params
+# # sol_array = inv_benchmark.model().forward_solve(sample)
+# # print(sol_array.min())
+# # print(sol_array.max())
+# # sol = inv_benchmark.model().physics().solution_from_array(sol_array)
+# # im = sol.plot(axs[0], 50, levels=30)
+# # plt.colorbar(im, ax=axs[0])
+# # im = inv_benchmark.model().physics()._diffusion.plot(axs[1])
+# # plt.colorbar(im, ax=axs[1])
+# # sample = debug_samples[:, :1]
+# # sol_array = inv_benchmark.model().forward_solve(sample)
+# # print(sol_array.min())
+# # print(sol_array.max())
+# # sol = inv_benchmark.model().physics().solution_from_array(sol_array)
+# # im = sol.plot(axs[2], 50, levels=30)
+# # plt.colorbar(im, ax=axs[2])
+# # im = inv_benchmark.model().physics()._diffusion.plot(axs[3])
+# # plt.colorbar(im, ax=axs[3])
+# # plt.show()
+
+# # inv_benchmark.model().activate_model_data_base()
+# # inv_benchmark.model().plot_cross_sections(
+# #     inv_benchmark.prior().mean(),
+# #     inv_benchmark.prior().truncated_ranges(1 - 1e-3),
+# #     npts_1d=21,
+# #     levels=30,
+# # )
+# print(inv_benchmark.loglike().work_tracker())
+# # plt.show()
 
 
-class Callback:
-    def __init__(self, backend):
-        self._nsamples, self._errors = [], []
-        self._bkd = backend
+# class Callback:
+#     def __init__(self, backend):
+#         self._nsamples, self._errors = [], []
+#         self._bkd = backend
 
-    def __call__(self, approx):
-        self._nsamples.append(approx.ntrain_samples())
-        error = self._bkd.norm(
-            approx(validation_samples) - validation_values, axis=0
-        )
-        error /= np.linalg.norm(validation_values, axis=0)
-        self._errors.append(error)
+#     def __call__(self, approx):
+#         self._nsamples.append(approx.ntrain_samples())
+#         error = self._bkd.norm(
+#             approx(validation_samples) - validation_values, axis=0
+#         )
+#         error /= np.linalg.norm(validation_values, axis=0)
+#         self._errors.append(error)
 
-    def nsamples(self):
-        return self._bkd.hstack(self._nsamples)
+#     def nsamples(self):
+#         return self._bkd.hstack(self._nsamples)
 
-    def errors(self):
-        return self._bkd.hstack(self._errors)
+#     def errors(self):
+#         return self._bkd.hstack(self._errors)
 
 
-kernel = ConstantKernel(400, fixed=True, backend=bkd) * MaternKernel(
-    np.inf, 1.0, [1e-1, 1], inv_benchmark.variable().nvars(), backend=bkd
-)
-sampling_schedule = SamplingScheduleFromList([10, 10, 10, 10, 10], backend=bkd)
-sampler = CholeskySampler(inv_benchmark.variable())
-gp = AdaptiveGaussianProcess(
-    inv_benchmark.variable().nvars(),
-    kernel,
-    sampling_schedule=sampling_schedule,
-)
-gp.set_sampler(sampler)
-callback = Callback(bkd)
-while gp.step(inv_benchmark.model()):
-    callback(gp)
+# kernel_variance = 1.0
+# # kernel_variance = 400.
+# kernel = ConstantKernel(
+#     kernel_variance, fixed=True, backend=bkd
+# ) * MaternKernel(
+#     np.inf, 1.0, [1e-1, 1], inv_benchmark.prior().nvars(), backend=bkd
+# )
+# sampling_schedule = SamplingScheduleFromList([10, 10, 10, 10, 10], backend=bkd)
+# # sampling_schedule = SamplingScheduleFromList(
+# #     [100, 100, 100, 100], backend=bkd
+# # )  # hack for debugging
+# sampler = CholeskySampler(inv_benchmark.prior())
+# gp = AdaptiveGaussianProcess(
+#     inv_benchmark.prior().nvars(),
+#     kernel,
+#     sampling_schedule=sampling_schedule,
+# )
+# # unlike paper example approximate loglikelihood not negative loglikelihood
+# gp.set_sampler(sampler)
+# callback = Callback(bkd)
+# while gp.step(inv_benchmark.loglike()):
+#     callback(gp)
 
-# approx_result = adaptive_approximate(
-#     inv_benchmark.negloglike,
-#     inv_benchmark.variable,
-#     "gaussian_process",
-#     {
-#         "max_nsamples": 50,
-#         "ncandidate_samples": 2e3,
-#         "verbose": 0,
-#         "callback": callback,
-#         "kernel_variance": 400,
-#     },
+# # approx_result = adaptive_approximate(
+# #     inv_benchmark.negloglike,
+# #     inv_benchmark.prior,
+# #     "gaussian_process",
+# #     {
+# #         "max_nsamples": 50,
+# #         "ncandidate_samples": 2e3,
+# #         "verbose": 0,
+# #         "callback": callback,
+# #         "kernel_variance": 400,
+# #     },
+# # )
+
+# # approx_result = adaptive_approximate(
+# #     inv_benchmark.negloglike, inv_benchmark.prior, "polynomial_chaos",
+# #     {"method": "leja", "options": {
+# #         "max_nsamples": 100, "ncandidate_samples": 3e3, "verbose": 0,
+# #         "callback": callback}})
+
+# # %%
+# # We can plot the errors obtained from the callback with
+# ax = plt.subplots(figsize=(8, 6))[1]
+# ax.loglog(callback.nsamples(), callback.errors(), "o-")
+# ax.set_xlabel(mathrm_label("No. Samples"))
+# ax.set_ylabel(mathrm_label("Error"))
+# ax.set_xticks([10, 25, 50])
+# ax.set_yticks([0.3, 0.75, 1.5])
+# ax.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+# ax.minorticks_off()
+# ax.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+# # ax.tick_params(axis='y', which='minor', bottom=False)
+# if savefig:
+#     plt.savefig("gp-error-plot.pdf")
+
+# # %%
+# # Now we will perform a sensitivity analysis. Specifically we compute
+# # variance based sensitivity indices that measure the impact of each KLE mode
+# # on the mismatch between the observed data and the model predictions.
+# # We use the negative log likelihood to characterize this mismatch.
+# # Here we have used the surrogate to speed up the computation of the sensitivity
+# # indices. Uncomment the commented code to use the numerical model. Note
+# # the drastic increase in computational cost. Warning: using the numerical model
+# # will take many minutes. The plots in the figure, generated from
+# # left to right are: main effect, largest Sobol indices and total effect indices.
+
+
+# analyzer = EnsembleGaussianProcessSensitivityAnalysis(inv_benchmark.prior())
+# analyzer.set_interaction_terms_of_interest(
+#     inv_benchmark.sobol_interaction_indices()
+# )
+# analyzer.compute(gp)
+# # sa_result = run_sensitivity_analysis(
+# #     "sobol", benchmark.negloglike, inv_benchmark.prior)
+# # axs = plot_sensitivity_indices(sa_result)[1]
+# axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
+# analyzer.plot_main_effects(axs[0])
+# analyzer.plot_total_effects(axs[1])
+# analyzer.plot_sobol_indices(axs[2])
+# if savefig:
+#     plt.savefig("gp-sa-indices.pdf", bbox_inches="tight")
+
+# # %%
+# # Now we will use the surrogate with Bayesian inference to learn the
+# # coefficients of the KL. Specifically we will draw a set of samples from
+# # the posterior distribution of the KLE given the observed data provided
+# # in the benchmark.
+# #
+# # But First we will improve the accuracy of the surrogate
+# # and print out the error which can be compared to the errors previously plotted.
+# # The error of the original surrogate was kept low to demonstrate the ability
+# # to quantify error in the sensitivity indices from using a surrogate.
+
+
+# sampling_schedule.update([100, 200])
+# while gp.step(inv_benchmark.loglike()):
+#     callback(gp)
+# print(gp._ctrain_values.min())
+# print(gp._ctrain_values.max())
+# print(callback.nsamples())
+# print(callback.errors())
+# # %%
+# # Now create a MCMCVariable to sample from the posterior. The benchmark
+# # has already formulated the negative log likelihood that is needed. Here
+# # we will use PyApprox's native delayed rejection adaptive metropolis (DRAM)
+# # sampler.
+# #
+# # Uncomment the commented code to use the numerical model instead of the surrogate
+# # with the MCMC algorithm. Again note the significant increase in computational
+# # time
+# npost_samples = 1000
+# loglike = LogLikelihoodFromModel(gp)
+# # loglike = inv_benchmark.loglike()
+# mcmc_variable = MetropolisMCMCVariable(
+#     inv_benchmark.prior(), loglike, method_opts={"cov_scaling": 1}
+# )
+# print(mcmc_variable)
+# map_sample = mcmc_variable.maximum_aposteriori_point()
+# print("Computed Map Point", map_sample[:, 0])
+# post_samples = mcmc_variable.rvs(npost_samples)
+# print("Acceptance rate", mcmc_variable._acceptance_rate)
+
+# # %%
+# # Now plot the posterior samples with the 2D Marginals of the posterior. Note
+# # do not do this with the numerical model as this would take an eternity due
+# # to the cost of evaluating the numerical model, which is much higher relative
+# # to the cost of running the surrogate.
+# fig, axs = mcmc_variable.plot_2d_marginals(post_samples, unbounded_alpha=0.999)
+# if savefig:
+#     plt.savefig("posterior-samples.pdf", bbox_inches="tight")
+
+# # %%
+# # In the Bayesian inference above we used a fixed number of observations
+# # at randomly chosen spatial locations. However choosing observation locations
+# # is usually a poor idea. Not all observations can reduce the uncertainty
+# # in the parameters equally. Here we use Bayesian optimal experimental design
+# # to choose the 3 best design locations from the previously observed 10 pretending
+# # that we do not know the value of the observations.
+# fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+# # plot a single solution to the PDE before overlaying the designs
+# sol_array = inv_benchmark.observation_model().forward_solve(map_sample)
+# sol = (
+#     inv_benchmark.observation_model().physics().solution_from_array(sol_array)
+# )
+# sol.plot(ax, 50, levels=30)
+
+# ndesign = 3
+# inloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
+#     bkd.full((inv_benchmark.nobservations(),), noise_stdev**2)[:, None],
+#     backend=bkd,
+# )
+# brute_oed = BruteForceKLBayesianOED(inloop_loglike)
+# oed_data_gen = BayesianOEDDataGenerator(bkd)
+# (
+#     outloop_samples,
+#     outloop_quad_weights,
+#     inloop_samples,
+#     inloop_quad_weights,
+# ) = oed_data_gen.prepare_simulation_inputs(
+#     brute_oed, inv_benchmark.prior(), "MC", 100, "MC", 100
 # )
 
-# approx_result = adaptive_approximate(
-#     inv_benchmark.negloglike, inv_benchmark.variable, "polynomial_chaos",
-#     {"method": "leja", "options": {
-#         "max_nsamples": 100, "ncandidate_samples": 3e3, "verbose": 0,
-#         "callback": callback}})
-
-# %%
-# We can plot the errors obtained from the callback with
-ax = plt.subplots(figsize=(8, 6))[1]
-ax.loglog(callback.nsamples(), callback.errors(), "o-")
-ax.set_xlabel(mathrm_label("No. Samples"))
-ax.set_ylabel(mathrm_label("Error"))
-ax.set_xticks([10, 25, 50])
-ax.set_yticks([0.3, 0.75, 1.5])
-ax.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-ax.minorticks_off()
-ax.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-# ax.tick_params(axis='y', which='minor', bottom=False)
-if savefig:
-    plt.savefig("gp-error-plot.pdf")
-
-# %%
-# Now we will perform a sensitivity analysis. Specifically we compute
-# variance based sensitivity indices that measure the impact of each KLE mode
-# on the mismatch between the observed data and the model predictions.
-# We use the negative log likelihood to characterize this mismatch.
-# Here we have used the surrogate to speed up the computation of the sensitivity
-# indices. Uncomment the commented code to use the numerical model. Note
-# the drastic increase in computational cost. Warning: using the numerical model
-# will take many minutes. The plots in the figure, generated from
-# left to right are: main effect, largest Sobol indices and total effect indices.
+# brute_oed.set_data_from_model(
+#     inv_benchmark.observation_model(),
+#     inv_benchmark.prior(),
+#     outloop_samples,
+#     outloop_quad_weights,
+#     inloop_samples,
+#     inloop_quad_weights,
+# )
+# opt_design = brute_oed.compute(ndesign)
 
 
-analyzer = EnsembleGaussianProcessSensitivityAnalysis(inv_benchmark.variable())
-analyzer.set_interaction_terms_of_interest(
-    inv_benchmark.sobol_interaction_indices()
-)
-analyzer.compute(gp)
-# sa_result = run_sensitivity_analysis(
-#     "sobol", benchmark.negloglike, inv_benchmark.variable)
-# axs = plot_sensitivity_indices(sa_result)[1]
-axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
-analyzer.plot_main_effects(axs[0])
-analyzer.plot_total_effects(axs[1])
-analyzer.plot_sobol_indices(axs[2])
-if savefig:
-    plt.savefig("gp-sa-indices.pdf", bbox_inches="tight")
-
-# %%
-# Now we will use the surrogate with Bayesian inference to learn the
-# coefficients of the KL. Specifically we will draw a set of samples from
-# the posterior distribution of the KLE given the observed data provided
-# in the benchmark.
-#
-# But First we will improve the accuracy of the surrogate
-# and print out the error which can be compared to the errors previously plotted.
-# The error of the original surrogate was kept low to demonstrate the ability
-# to quantify error in the sensitivity indices from using a surrogate.
-
-
-sampling_schedule.update([100, 200])
-while gp.step(inv_benchmark.model()):
-    callback(gp)
-print(callback.nsamples())
-print(callback.errors())
-plt.show()
-
-# %%
-# Now create a MCMCVariable to sample from the posterior. The benchmark
-# has already formulated the negative log likelihood that is needed. Here
-# we will use PyApprox's native delayed rejection adaptive metropolis (DRAM)
-# sampler.
-#
-# Uncomment the commented code to use the numerical model instead of the surrogate
-# with the MCMC algorithm. Again note the significant increase in computational
-# time
-npost_samples = 200
-loglike = partial(loglike_from_negloglike, gp)
-# loglike = partial(loglike_from_negloglike, inv_benchmark.negloglike)
-mcmc_variable = MetropolisMCMCVariable(
-    inv_benchmark.variable(), loglike, method_opts={"cov_scaling": 1}
-)
-print(mcmc_variable)
-map_sample = mcmc_variable.maximum_aposteriori_point()
-print("Computed Map Point", map_sample[:, 0])
-post_samples = mcmc_variable.rvs(npost_samples)
-print("Acceptance rate", mcmc_variable._acceptance_rate)
-
-# %%
-# Now plot the posterior samples with the 2D Marginals of the posterior. Note
-# do not do this with the numerical model as this would take an eternity due
-# to the cost of evaluating the numerical model, which is much higher relative
-# to the cost of running the surrogate.
-plot_unnormalized_2d_marginals(
-    mcmc_variable._variable,
-    mcmc_variable._loglike,
-    nsamples_1d=50,
-    plot_samples=[
-        [post_samples, {"alpha": 0.3, "c": "orange"}],
-        [map_sample, {"c": "k", "marker": "X", "s": 100}],
-    ],
-    unbounded_alpha=0.999,
-)
-if savefig:
-    plt.savefig("posterior-samples.pdf", bbox_inches="tight")
-
-# %%
-# In the Bayesian inference above we used a fixed number of observations
-# at randomly chosen spatial locations. However choosing observation locations
-# is usually a poor idea. Not all observations can reduce the uncertainty
-# in the parameters equally. Here we use Bayesian optimal experimental design
-# to choose the 3 best design locations from the previously observed 10 pretending
-# that we do not know the value of the observations.
-fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-# plot a single solution to the PDE before overlaying the designs
-inv_benchmark.mesh.plot(
-    inv_benchmark.obs_fun._fwd_solver.solve()[:, None], 50, ax=ax
-)
-
-ndesign = 3
-design_candidates = inv_benchmark.mesh.mesh_pts[:, inv_benchmark.obs_indices]
-ndesign_candidates = design_candidates.shape[1]
-oed = get_bayesian_oed_optimizer(
-    "kl_params",
-    ndesign_candidates,
-    inv_benchmark.obs_fun,
-    noise_stdev,
-    inv_benchmark.variable,
-    max_ncollected_obs=ndesign,
-)
-oed_results = []
-for step in range(ndesign):
-    results_step = oed.update_design()[1]
-    oed_results.append(results_step)
-selected_candidates = design_candidates[:, np.hstack(oed_results)]
-print(selected_candidates)
-ax.plot(design_candidates[0, :], design_candidates[1, :], "rs", ms=16)
-ax.plot(selected_candidates[0, :], selected_candidates[1, :], "ko")
-if savefig:
-    plt.savefig("oed-selected-design.pdf")
+# design_candidates = inv_benchmark.observation_design()
+# selected_candidates = design_candidates[:, opt_design]
+# print(selected_candidates)
+# ax.plot(design_candidates[0, :], design_candidates[1, :], "rs", ms=16)
+# ax.plot(selected_candidates[0, :], selected_candidates[1, :], "ko")
+# if savefig:
+#     plt.savefig("oed-selected-design.pdf")
 
 
 # %%
@@ -348,15 +404,60 @@ if savefig:
 # and accuracy that use different discretizations of the spatial PDE mesh
 # and number of time steps which can be used with multi-fideilty methods.
 # To setup the benchmark use the following
-fwd_benchmark = setup_benchmark(
-    "multi_index_advection_diffusion",
-    kle_nvars=inv_benchmark.variable.num_vars(),
-    kle_length_scale=0.5,
-    time_scenario=True,
-)
-model = WorkTrackingModel(
-    TimerModel(fwd_benchmark.model_ensemble), num_config_vars=1
-)
+qoi_models, qoi_model_names = inv_benchmark.qoi_models()
+# turn on work tracking
+for model in qoi_models:
+    model.activate_model_data_base()
+nmodels = len(qoi_models)
+
+# hack for debuggingh
+sample = inv_benchmark.prior().rvs(1)
+axs = plt.subplots(2, 3, figsize=(3 * 8, 2 * 6))[1]
+sols = []
+init_conds = []
+for ii, qmodel in enumerate(
+    qoi_models
+):  # [qoi_models[0], qoi_models[1], qoi_models[3]]):
+    sol_array = qmodel.forward_solve(sample)[0]
+    sol = qmodel.physics().solution_from_array(sol_array[:, -1])
+    sols.append(sol)
+    # im = sol.plot(axs[0, ii], 50, levels=30)
+    init_cond = qmodel.physics().solution_from_array(
+        qmodel.get_initial_condition()
+    )
+    init_conds.append(init_cond)
+    # im = init_cond.plot(axs[1, ii], 50, levels=30)
+    # # plot subdomain quadrature points
+    # axs[0, ii].plot(
+    #     *qmodel._functional._subdomain_sol._subdomain_fun.basis()
+    #     .mesh()
+    #     .mesh_pts(),
+    #     "o",
+    # )
+import copy
+
+diff = copy.deepcopy(sols[0])
+sol = sols[1]
+sol_errors = []
+init_cond_errors = []
+for sol, init_cond in zip(sols, init_conds):
+    diff.set_values(
+        (sols[0].get_values() - sol(sols[0].basis().mesh().mesh_pts())) ** 2
+    )
+    sol_errors.append(diff.integrate())
+    diff.set_values(
+        (
+            init_conds[0].get_values()
+            - init_cond(sols[0].basis().mesh().mesh_pts())
+        )
+        ** 2
+    )
+    init_cond_errors.append(diff.integrate())
+print(sol_errors)
+print(init_cond_errors)
+print(qoi_model_names)
+# plt.show()
+# -------
 
 # %%
 # Here we will use Multi-fidelity statistical estimation to compute the
@@ -365,14 +466,12 @@ model = WorkTrackingModel(
 # each of our models. We use samples from the posterior. But uncommenting
 # the code below will use samples from the prior.
 npilot_samples = 20
-generate_samples = inv_benchmark.variable.rvs  # for sampling from prior
-# generate_samples = post_samples
-cov = multifidelity.estimate_model_ensemble_covariance(
-    npilot_samples,
-    generate_samples,
-    model,
-    fwd_benchmark.model_ensemble.nmodels,
-)[0]
+# pilot_samples = post_samples[:, :20]
+pilot_samples = inv_benchmark.prior().rvs(npilot_samples)
+pilot_values_per_model = [model(pilot_samples) for model in qoi_models]
+stat = multioutput_stats["mean"](qoi_models[0].nqoi(), backend=bkd)
+pilot_quantities = stat.compute_pilot_quantities(pilot_values_per_model)
+stat.set_pilot_quantities(*pilot_quantities)
 
 # %%
 # By using a WorkTrackingModel we can extract the median costs
@@ -380,31 +479,34 @@ cov = multifidelity.estimate_model_ensemble_covariance(
 # error of the multi-fidelity estimate of the mean which we can
 # compare to a prediction of the single fidelity estimate that only uses
 # the highest fidelity model.
-model_ids = np.asarray([np.arange(fwd_benchmark.model_ensemble.nmodels)])
-model_costs = model.work_tracker(model_ids)
+model_costs = bkd.asarray(
+    [model.work_tracker().average_wall_time("val") for model in qoi_models]
+)
 # make costs in terms of fraction of cost of high-fidelity evaluation
 model_costs /= model_costs[0]
+print(model_costs)
 
 # %%
 # Now visualize the correlation between the models and their computational
 # cost relative to the highest-fidelity model cost
 fig, axs = plt.subplots(1, 2, figsize=(2 * 8, 6))
-multifidelity.plot_correlation_matrix(
-    multifidelity.covariance_to_correlation(cov), ax=axs[0]
+print(stat.pilot_covariance())
+mf.plot_correlation_matrix(
+    mf.covariance_to_correlation(stat.pilot_covariance()),
+    ax=axs[0],
+    model_names=qoi_model_names,
 )
-multifidelity.plot_model_costs(model_costs, ax=axs[1])
+mf.plot_model_costs(model_costs, ax=axs[1])
 axs[0].set_title(mathrm_label("Model covariances"))
 _ = axs[1].set_title(mathrm_label("Relative model costs"))
+plt.show()
 
 # %%
 # Now find the best multi-fidelity estimator among all available options
 # Note, the exact predicted variance will change from run to run even with the
 # same seed because the computational time measured will change slightly
 # for each run
-stat = multifidelity.multioutput_stats["mean"](1)
-stat.set_pilot_quantities(cov)
-
-best_est = multifidelity.get_estimator(
+best_est = mf.get_estimator(
     "gmf", stat, model_costs, tree_depth=4, allow_failures=True, max_nmodels=4
 )
 
@@ -421,11 +523,11 @@ print(
 # Now we can plot the relative performance of the single and multi-fidelity
 # estimates of the mean before requiring any additional model evaluations
 fig, axs = plt.subplots(1, 2, figsize=(2 * 8, 6))
-multifidelity.plot_estimator_variance_reductions([best_est], ["Best"], axs[0])
+mf.plot_estimator_variance_reductions([best_est], ["Best"], axs[0])
 model_labels = [
     r"$f_{%d}$" % ii for ii in np.arange(fwd_benchmark.model_ensemble.nmodels)
 ]
-multifidelity.plot_estimator_sample_allocation_comparison(
+mf.plot_estimator_sample_allocation_comparison(
     [best_est], model_labels, axs[1]
 )
 if savefig:

@@ -460,6 +460,12 @@ class AdjointSolver:
         self._adj_sol_param = None
 
     def set_functional(self, functional: AdjointFunctional):
+        if functional is not None and not isinstance(
+            functional, AdjointFunctional
+        ):
+            raise TypeError(
+                "functional must be an instance of AdjointFunctional"
+            )
         self._functional = functional
 
     def set_param(self, param: Array):
@@ -475,7 +481,7 @@ class AdjointSolver:
 
     def forward_solve(self):
         if not hasattr(self, "_init_iterate"):
-            raise RuntimeError("must call set_initial_iterate")
+            raise AttributeError("must call set_initial_iterate")
         self._fwd_sol = self._newton_solver.solve(self._init_iterate)
         self._fwd_sol_param = self._bkd.copy(self._param)
         return self._fwd_sol
@@ -486,7 +492,7 @@ class AdjointSolver:
         ):
             self.forward_solve()
         if self._functional.nqoi() != 1:
-            raise RuntimeError(
+            raise ValueError(
                 "Adjoint can only be applied to a scalar Functional"
             )
         self._drdy = self._residual.jacobian(self._fwd_sol)

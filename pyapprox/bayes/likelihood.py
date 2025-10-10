@@ -394,7 +394,7 @@ class ModelBasedLogLikelihoodMixin:
     def _rvs(self, model_parameter_samples: Array) -> Array:
         return super()._rvs(self._model(model_parameter_samples).T)
 
-    def _values(self, model_parameter_samples: Array):
+    def _values(self, model_parameter_samples: Array) -> Array:
         return self.loglike_from_shapes(self._model(model_parameter_samples).T)
 
     def rvs(self, model_parameter_samples: Array) -> Array:
@@ -433,6 +433,62 @@ class ModelBasedLogLikelihoodMixin:
                 )
             )
         return obs
+
+
+class LogLikelihoodFromModel(LogLikelihood):
+    """
+    When model returns evaluations of the likelihood.
+    This is in contrast to ModelBasedLogLikelihoodMixin, where the model
+    returns values of shapes which are passed to likelihood.
+    This is a lightweight wrapper to make sure a model,
+    especially a surrogate, can be used
+    as a likelihood and parse type checking
+    """
+
+    def __init__(self, model: Model):
+        if not isinstance(model, Model):
+            raise TypeError("model must be an instance of Model")
+        super().__init__(backend=model._bkd)
+        self._model = model
+        self._wrap_methods()
+
+    def _values(self, model_parameter_samples: Array):
+        return self._model(model_parameter_samples)
+
+    def nvars(self) -> int:
+        return self._model.nvars()
+
+    def nobs(self) -> int:
+        return self._model.nqoi()
+
+    def _rvs(self, shapes: Array) -> Array:
+        raise NotImplementedError()
+
+    def _wrap_methods(self):
+        """
+        Dynamically create wrapper methods for the specified model methods.
+
+        Args:
+            methods_to_wrap: A list of method names to expose.
+        """
+        methods_to_wrap = [
+            "_values",
+            "_jacobian",
+            "_apply_jacobian",
+            "_apply_hessian",
+            "jacobian_implemented",
+            "apply_jacobian_implemented",
+            "apply_hessian_implemented",
+        ]
+        for name in methods_to_wrap:
+            if not hasattr(self._model, name) or not callable(
+                getattr(self._model, name)
+            ):
+                raise AttributeError(
+                    f"The model does not have a callable method '{name}'"
+                )
+            # Assign the wrapper method to the current instance
+            setattr(self, name, getattr(self._model, name))
 
 
 class GaussianLogLikelihood(LogLikelihood):
@@ -670,7 +726,7 @@ class GaussianLogLikelihood(LogLikelihood):
         return (-0.5 * vals + self._loglike_const * nexperiments)[:, None]
 
     def _loglike_from_shapes(self, shapes: Array) -> Array:
-        if self._obs is None:
+        if not hasattr(self, "_obs"):
             raise RuntimeError("must call set_observations()")
         if self._obs.shape != (self.nobs(), self._nexperiments):
             raise ValueError(

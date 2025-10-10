@@ -16,6 +16,7 @@ from pyapprox.bayes.likelihood import (
     LogUnNormalizedPosterior,
     BernoulliLogLikelihood,
     MultinomialLogLikelihood,
+    LogLikelihoodFromModel,
 )
 from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.variables.joint import (
@@ -304,6 +305,28 @@ class TestLikelihood:
                 bkd.array(stats.bernoulli(prior_samples[:, 0]).pmf(obs[0]))
             ),
         )
+
+    def test_loglikelihood_from_model(self):
+        bkd = self.get_backend()
+        degree = 1
+        nvars = degree + 1
+        prior_variable = IndependentMarginalsVariable(
+            [stats.norm(0, 1)] * nvars, backend=bkd
+        )
+
+        nobs = 4
+        design = bkd.linspace(-1, 1, nobs)[None, :]
+        noise_cov = bkd.diag(bkd.full((nobs,), 0.3))
+        obs_model = Linear1DRegressionModel(design, degree, backend=bkd)
+        loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
+        true_sample = bkd.full((nvars, 1), 0.4)
+        obs = loglike.rvs(true_sample)
+        loglike.set_observations(obs)
+
+        loglikewrap = LogLikelihoodFromModel(loglike)
+
+        sample = prior_variable.rvs(1)
+        assert bkd.allclose(loglike(sample), loglikewrap(sample))
 
 
 class TestNumpyLikelihood(TestLikelihood, unittest.TestCase):

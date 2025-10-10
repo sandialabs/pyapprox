@@ -20,6 +20,13 @@ from pyapprox.pde.collocation.sparsejac import (
     ZeroJac,
     DiagJac,
 )
+from pyapprox.pde.collocation.mesh_transforms import (
+    ScaleAndTranslationTransformMixIn,
+    ScaleAndTranslationTransform1D,
+    ScaleAndTranslationTransform2D,
+    ScaleAndTranslationTransform3D,
+    CompositionTransform,
+)
 
 # Note from typing documentation
 # When a type hint contains names that have not been defined yet, that
@@ -1486,14 +1493,36 @@ class ScalarKLEFunction(ScalarFunction):
     def kle(self) -> MeshKLE:
         return self._kle
 
-    def set_param(self, param):
+    def set_param(self, param: Array):
         self.set_values(self._kle(param[:, None])[:, 0])
 
-    def eigenfunctions(self):
+    def eigenfunctions(self) -> List[ScalarFunction]:
         return [
             ScalarFunction(self._basis, self._kle.eigenvectors()[:, ii])
             for ii in range(self._kle.nvars())
         ]
+
+
+class ScalarKLEFunctionOnDifferentMesh(ScalarFunction):
+    def __init__(
+        self,
+        kle: ScalarKLEFunction,
+        basis: OrthogonalCoordinateCollocationBasis,
+    ):
+        self._kle = kle
+        self._basis = basis
+        super().__init__(
+            self._basis,
+            kle(self._basis.mesh().mesh_pts()),
+            ninput_funs=kle.ninput_funs(),
+        )
+
+    def set_param(self, param: Array):
+        self._kle.set_param(param)
+        self.set_values(self._kle(self._basis.mesh().mesh_pts()))
+
+    def kle(self) -> MeshKLE:
+        return self._kle.kle()
 
 
 class ScalarPeriodicReiszGaussianRandomField(ScalarFunction):
@@ -1829,3 +1858,65 @@ def plot_vector_function(
             **contour_plot_kwargs,
         )
         plt.colorbar(im, ax=axs[kk])
+
+
+class CollocationSubdomainFunction:
+    # do not inherit from function because we do not want to do
+    # things like compute jacobian or sum subdomains together
+    def __init__(
+        self,
+        subdomain_orth_ranges: Array,
+        fun: ScalarFunction,
+        npts_1d: Array = None,
+    ):
+        self._bkd = fun._bkd
+        self._subdomain_orth_ranges = subdomain_orth_ranges
+        self._basis = fun.basis()
+        # first transform orthogonal mesh to subdomain rectangle
+        transform1 = self._define_transform(fun)
+        # then apply mesh transform to that rectangle
+        transform = CompositionTransform(
+            [transform1, self._basis.mesh().trans()]
+        )
+
+        if npts_1d is None:
+            npts_1d = self._basis.mesh()._npts_1d
+        subdomain_mesh = self._basis.mesh().__class__(npts_1d, transform)
+        subdomain_basis = self._basis.__class__(subdomain_mesh)
+        self._subdomain_fun = fun.__class__(
+            subdomain_basis, ninput_funs=fun._ninput_funs
+        )
+        self._set_values(fun)
+
+    def _set_values(self, fun: ScalarFunction):
+        self._fun = fun
+        self._subdomain_fun.set_values(
+            self._fun(self._subdomain_fun.basis().mesh().mesh_pts())
+        )
+
+    def integrate(self) -> Array:
+        return self._subdomain_fun.integrate()
+
+    def __call__(self, eval_samples: Array) -> Array:
+        return self._subdomain_fun(eval_samples)
+
+    def __repr__(self) -> str:
+        return "{0}(\n{1}\n)".format(
+            self.__class__.__name__,
+            textwrap.indent("fun=" + str(self._fun), prefix="    "),
+        )
+
+    def _define_transform(self, fun):
+        if fun.nphys_vars() == 1:
+            return ScaleAndTranslationTransform1D(
+                [-1, 1], self._subdomain_orth_ranges, fun._bkd
+            )
+        if fun.nphys_vars() == 2:
+            return ScaleAndTranslationTransform2D(
+                [-1, 1, -1, 1], self._subdomain_orth_ranges, fun._bkd
+            )
+        return ScaleAndTranslationTransform3D(
+            [-1, 1, -1, 1, -1, 1],
+            self._subdomain_orth_ranges,
+            fun._bkd,
+        )

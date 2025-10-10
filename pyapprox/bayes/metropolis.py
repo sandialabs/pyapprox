@@ -1,15 +1,10 @@
-from functools import partial
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.variables.joint import JointVariable
-from pyapprox.analysis.visualize import (
-    setup_2d_cross_section_axes,
-    get_meshgrid_samples,
-)
-from pyapprox.surrogates.affine.multiindex import anova_level_indices
+from pyapprox.analysis.visualize import setup_2d_cross_section_axes
 from pyapprox.bayes.hmc import hmc
 from pyapprox.bayes.likelihood import LogLikelihood, LogUnNormalizedPosterior
 from pyapprox.util.backends.template import Array
@@ -375,22 +370,36 @@ class MetropolisMCMCVariable(JointVariable):
 
     def plot_2d_marginals(
         self,
-        samples,
-        variable_pairs=None,
-        subplot_tuple=None,
-        unbounded_alpha=0.99,
-        map_sample=None,
-        true_sample=None,
+        samples: Array,
+        variable_pairs: List = None,
+        subplot_tuple: Tuple = None,
+        unbounded_alpha: float = 0.99,
+        map_sample: Array = None,
+        true_sample: Array = None,
+        nsamples_per_bin: int = 100,
     ):
+        if samples.shape[0] != self._prior.nvars():
+            raise ValueError(
+                f"{samples.shape=} does not match "
+                "prior.nvars()={self._prior.nvars()}"
+            )
         fig, axs, variable_pairs = setup_2d_cross_section_axes(
             self._prior, variable_pairs, subplot_tuple
         )
         all_variables = self._prior.marginals()
 
-        for ii, var in enumerate(all_variables):
-            axs[ii, ii].axis("off")
-
+        # for ii, var in enumerate(all_variables):
+        #     axs[ii, ii].axis("off")
+        if samples.shape[1] / nsamples_per_bin < 10:
+            raise ValueError("Not enough samples to create at least 10 bins")
         for ii, pair in enumerate(variable_pairs):
+            if pair[0] == pair[1]:
+                axs[pair[0]][pair[1]].hist(
+                    samples[pair[0]],
+                    bins=int(samples.shape[1] / nsamples_per_bin),
+                )
+                continue
+
             # use pair[1] for x and pair[0] for y because we reverse
             # pairs above
             var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
@@ -400,6 +409,7 @@ class MetropolisMCMCVariable(JointVariable):
             ax = axs[pair[0]][pair[1]]
             # ax.set_xlim(lb1, ub1)
             # ax.set_ylim(lb2, ub2)
+            print(samples.shape, pair)
             ax.plot(samples[pair[1], :], samples[pair[0], :], "ko", alpha=0.4)
             if map_sample is not None:
                 ax.plot(
@@ -416,6 +426,14 @@ class MetropolisMCMCVariable(JointVariable):
                     color="g",
                 )
         return fig, axs
+
+    def __repr__(self) -> int:
+        return "{0}(nvars={1}, likelihood={2}, burn_fraction={3})".format(
+            self.__class__.__name__,
+            self.nvars(),
+            self._loglike,
+            self._burn_fraction,
+        )
 
 
 def leapfrog(loglikefun, theta, momentum, eps):
@@ -462,145 +480,3 @@ def hamiltonian_monte_carlo(L, eps, logpost_fun, init_sample, nsamples):
 #         L, eps = self._method_opts["L"], self._method_opts["eps"]
 #         return hamiltonian_monte_carlo(
 #             L, eps, self._log_bayes_numerator, init_sample, nsamples)
-
-
-def _unnormalized_pdf_for_marginalization(
-    variable, loglike, sub_indices, samples
-):
-    marginal_pdf_vals = variable.evaluate("pdf", samples)
-    sub_pdf_vals = marginal_pdf_vals[sub_indices, :].prod(axis=0)
-    nll_vals = loglike(samples).squeeze()
-    # only use sub_pdf_vals. The other vals will be accounted for
-    # with quadrature rule used to marginalize
-    return np.exp(nll_vals + np.log(sub_pdf_vals))[:, None]
-
-
-def plot_unnormalized_2d_marginals(
-    variable,
-    loglike,
-    nsamples_1d=100,
-    variable_pairs=None,
-    subplot_tuple=None,
-    qoi=0,
-    ncontour_levels=20,
-    plot_samples=None,
-    unbounded_alpha=0.995,
-    quad_degree_1d=20,
-    quad_degree_2d=10,
-):
-
-    if variable_pairs is None:
-        variable_pairs = np.array(anova_level_indices(variable.nvars(), 2))
-        # make first column values vary fastest so we plot lower triangular
-        # matrix of subplots
-        variable_pairs[:, 0], variable_pairs[:, 1] = (
-            variable_pairs[:, 1].copy(),
-            variable_pairs[:, 0].copy(),
-        )
-
-    if variable_pairs.shape[1] != 2:
-        raise ValueError("Variable pairs has the wrong shape")
-
-    if subplot_tuple is None:
-        nfig_rows, nfig_cols = (variable.nvars(), variable.nvars())
-    else:
-        nfig_rows, nfig_cols = subplot_tuple
-
-    if nfig_rows * nfig_cols < len(variable_pairs):
-        raise ValueError("Number of subplots is insufficient")
-
-    fig, axs = plt.subplots(
-        nfig_rows, nfig_cols, figsize=(nfig_cols * 8, nfig_rows * 6)
-    )
-    all_variables = variable.marginals()
-
-    # if plot_samples is not None and type(plot_samples) == np.ndarray:
-    #     plot_samples = [
-    #         [plot_samples, {"c": "k", "marker": "o", "alpha": 0.4}]]
-
-    for ii, var in enumerate(all_variables):
-        lb, ub = var.truncated_range(unbounded_alpha=unbounded_alpha)
-        quad_degrees = np.array([quad_degree_1d] * (variable.nvars() - 1))
-        samples_ii = np.linspace(lb, ub, nsamples_1d)
-        from pyapprox.surrogates.polychaos.gpc import (
-            _marginalize_function_1d,
-            _marginalize_function_nd,
-        )
-
-        values = _marginalize_function_1d(
-            partial(
-                _unnormalized_pdf_for_marginalization,
-                variable,
-                loglike,
-                np.array([ii]),
-            ),
-            variable,
-            quad_degrees,
-            ii,
-            samples_ii,
-            qoi=0,
-        )
-        axs[ii][ii].plot(samples_ii, values)
-        if plot_samples is not None:
-            for s in plot_samples:
-                axs[ii][ii].scatter(s[0][ii, :], s[0][ii, :] * 0, **s[1])
-        axs[ii][ii].set_yticks([])
-
-    for ii, pair in enumerate(variable_pairs):
-        # use pair[1] for x and pair[0] for y because we reverse
-        # pairs above
-        var1, var2 = all_variables[pair[1]], all_variables[pair[0]]
-        axs[pair[1], pair[0]].axis("off")
-        lb1, ub1 = var1.truncated_range(unbounded_alpha)
-        lb2, ub2 = var2.truncated_range(unbounded_alpha)
-        X, Y, samples_2d = get_meshgrid_samples(
-            [lb1, ub1, lb2, ub2], nsamples_1d
-        )
-        quad_degrees = np.array([quad_degree_2d] * (variable.nvars() - 2))
-        if variable.nvars() > 2:
-            values = _marginalize_function_nd(
-                partial(
-                    _unnormalized_pdf_for_marginalization,
-                    variable,
-                    loglike,
-                    np.array([pair[1], pair[0]]),
-                ),
-                variable,
-                quad_degrees,
-                np.array([pair[1], pair[0]]),
-                samples_2d,
-                qoi=qoi,
-            )
-        else:
-            values = _unnormalized_pdf_for_marginalization(
-                variable, loglike, np.array([pair[1], pair[0]]), samples_2d
-            )
-        Z = np.reshape(values, (X.shape[0], X.shape[1]))
-        ax = axs[pair[0]][pair[1]]
-        # place a text box in upper left in axes coords
-        props = dict(boxstyle="round", facecolor="white", alpha=0.5)
-        ax.text(
-            0.05,
-            0.95,
-            r"$(\mathrm{%d, %d})$" % (pair[1], pair[0]),
-            transform=ax.transAxes,
-            fontsize=14,
-            verticalalignment="top",
-            bbox=props,
-        )
-        ax.contourf(
-            X,
-            Y,
-            Z,
-            levels=np.linspace(Z.min(), Z.max(), ncontour_levels),
-            cmap="jet",
-        )
-        if plot_samples is not None:
-            for s in plot_samples:
-                # use pair[1] for x and pair[0] for y because we reverse
-                # pairs above
-                axs[pair[0]][pair[1]].scatter(
-                    s[0][pair[1], :], s[0][pair[0], :], **s[1]
-                )
-
-    return fig, axs

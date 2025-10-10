@@ -8,6 +8,7 @@ from pyapprox.util.backends.numpy import (
 from pyapprox.pde.collocation.mesh_transforms import (
     OrthogonalCoordinateTransform,
     ScaleAndTranslationTransform1D,
+    CompositionTransform,
 )
 from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule,
@@ -23,7 +24,7 @@ class OrthogonalCoordinateMesh(ABC):
             )
         self._npts_1d = npts_1d
         if not isinstance(transform, OrthogonalCoordinateTransform):
-            raise ValueError(
+            raise TypeError(
                 "transform must be an instance of "
                 "OrthogonalCoordinateTransform"
             )
@@ -345,10 +346,12 @@ class OrthogonalCoordinateMeshBoundary3D(OrthogonalCoordinateMeshBoundary):
 
 class OrthogonalCoordinateMesh1DMixin(OrthogonalCoordinateMesh):
     def __init__(self, npts_1d, transform: ScaleAndTranslationTransform1D):
-        if not isinstance(transform, ScaleAndTranslationTransform1D):
-            raise ValueError(
+        if not isinstance(
+            transform, ScaleAndTranslationTransform1D
+        ) and not isinstance(transform, CompositionTransform):
+            raise TypeError(
                 "transform must be an instance of "
-                "ScaleAndTranslationTransform1D"
+                "ScaleAndTranslationTransform1D or CompositionTransform"
             )
         super().__init__(npts_1d, transform)
 

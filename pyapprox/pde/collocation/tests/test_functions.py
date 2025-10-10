@@ -21,6 +21,7 @@ from pyapprox.pde.collocation.functions import (
     MatrixOperator,
     ZeroJac,
     DiagJac,
+    CollocationSubdomainFunction,
 )
 from pyapprox.pde.collocation.sparsejac import DenseJac
 from pyapprox.pde.collocation.mesh_transforms import (
@@ -621,6 +622,90 @@ class TestOperators:
         fun_values0 = tfun0(basis.mesh().mesh_pts())
         sol0 = ScalarSolution(basis, fun_values0)
         assert bkd.allclose(sol0.integrate(), bkd.array([15 / 2]), atol=1e-15)
+
+    def test_subdomain_function(self):
+        bkd = self.get_backend()
+
+        def tfun0(xx):
+            return bkd.sum((1 + xx) ** 3, axis=0)
+
+        # check 1D mesh
+        bounds = [0, 1]
+        nterms = [10]
+        transform = ScaleAndTranslationTransform1D([-1, 1], bounds, bkd)
+        mesh = ChebyshevCollocationMesh1D(nterms, transform)
+        basis = ChebyshevCollocationBasis1D(mesh)
+        fun_values0 = tfun0(basis.mesh().mesh_pts())
+        sol0 = ScalarSolution(basis, fun_values0)
+        subdomain_fun = CollocationSubdomainFunction([0, 1], sol0)
+        assert bkd.allclose(
+            bkd.min(
+                subdomain_fun._subdomain_fun.basis().mesh().mesh_pts(), axis=1
+            ),
+            bkd.array([0.5]),
+        )
+        assert bkd.allclose(
+            bkd.max(
+                subdomain_fun._subdomain_fun.basis().mesh().mesh_pts(), axis=1
+            ),
+            bkd.array([1.0]),
+        )
+        pts = bkd.asarray(np.random.uniform(0.5, 1.0, (1, 10)))
+        assert bkd.allclose(subdomain_fun(pts), sol0(pts))
+        assert bkd.allclose(
+            subdomain_fun.integrate(), bkd.asarray(175.0 / 64.0)
+        )
+
+        # check 1D mesh with higher resolution subdomain
+        subdomain_fun = CollocationSubdomainFunction([0, 1], sol0, [20])
+        assert bkd.allclose(
+            bkd.min(
+                subdomain_fun._subdomain_fun.basis().mesh().mesh_pts(), axis=1
+            ),
+            bkd.array([0.5]),
+        )
+        assert bkd.allclose(
+            bkd.max(
+                subdomain_fun._subdomain_fun.basis().mesh().mesh_pts(), axis=1
+            ),
+            bkd.array([1.0]),
+        )
+        pts = bkd.asarray(np.random.uniform(0.5, 1.0, (1, 10)))
+        assert bkd.allclose(subdomain_fun(pts), sol0(pts))
+        assert bkd.allclose(
+            subdomain_fun.integrate(), bkd.asarray(175.0 / 64.0)
+        )
+        assert subdomain_fun._subdomain_fun.basis().mesh()._npts_1d[0] == 20
+
+        # check 2D mesh
+        bounds = [0, 1, 0, 1]
+        nterms = [4, 4]
+        transform = ScaleAndTranslationTransform2D([-1, 1, -1, 1], bounds, bkd)
+        mesh = ChebyshevCollocationMesh2D(nterms, transform)
+        basis = ChebyshevCollocationBasis2D(mesh)
+        fun_values0 = tfun0(basis.mesh().mesh_pts())
+        sol0 = ScalarSolution(basis, fun_values0)
+        # create subdomain on [0.5, 1.0, 0.5, 1.0]
+        # map [-1, 1, -1, 1] -> [0, 1, 0, 1] (latter still in orth domain
+        # then map this half of domain to user domain
+        subdomain_fun = CollocationSubdomainFunction([0, 1, 0, 1], sol0)
+        assert bkd.allclose(
+            bkd.min(
+                subdomain_fun._subdomain_fun.basis().mesh().mesh_pts(), axis=1
+            ),
+            bkd.array([0.5, 0.5]),
+        )
+        assert bkd.allclose(
+            bkd.max(
+                subdomain_fun._subdomain_fun.basis().mesh().mesh_pts(), axis=1
+            ),
+            bkd.array([1.0, 1.0]),
+        )
+        pts = bkd.asarray(np.random.uniform(0.5, 1.0, (2, 10)))
+        assert bkd.allclose(subdomain_fun(pts), sol0(pts))
+        assert bkd.allclose(
+            subdomain_fun.integrate(), bkd.asarray(175.0 / 64.0)
+        )
 
 
 class TestNumpyOperators(TestOperators, unittest.TestCase):

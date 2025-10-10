@@ -2,7 +2,11 @@ from abc import ABC, abstractmethod
 from functools import partial
 from typing import List, Union
 
-from pyapprox.interface.model import Model, MultiIndexModelEnsemble
+from pyapprox.interface.model import (
+    Model,
+    MultiIndexModelEnsemble,
+    ChangeModelSignWrapper,
+)
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import JointVariable, DesignVariable
@@ -11,6 +15,7 @@ from pyapprox.surrogates.affine.basis import (
 )
 from scipy.optimize import LinearConstraint
 from pyapprox.optimization.minimize import Constraint
+from pyapprox.bayes.likelihood import LogLikelihood
 
 
 class SingleModelBenchmark(ABC):
@@ -350,9 +355,52 @@ class ConstrainedUncertainOptimizationBenchmark(
         raise NotImplementedError
 
 
-class SingleModelBayesianInferenceBenchmark(SingleModelBenchmark):
+class SingleModelBayesianInferenceBenchmark:
+    def __init__(self, backend: BackendMixin = NumpyMixin):
+        self._bkd = backend
+        self._set_prior()
+        self._set_obs_model()
+
+    def nvars(self) -> int:
+        """Return the number of uncertain variables."""
+        return self._prior.nvars()
+
+    def prior(self) -> JointVariable:
+        """Return the random variable parameterizing the model uncertainty."""
+        return self._prior
+
+    def nobservations(self) -> int:
+        """Return the number of quantities of interest (QoI) of all models."""
+        return self._obs_model.nqoi()
+
     @abstractmethod
+    def _set_obs_model(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _set_prior(self):
+        raise NotImplementedError
+
+    def observation_model(self) -> Model:
+        """Return the model"""
+        return self._obs_model
+
+    def __repr__(self):
+        return "{0}".format(self.__class__.__name__)
+
+    @abstractmethod
+    def loglike(self) -> LogLikelihood:
+        raise NotImplementedError
+
     def negloglike(self) -> Model:
+        return ChangeModelSignWrapper(self.loglike())
+
+    @abstractmethod
+    def observation_generating_parameters(self) -> Array:
+        raise NotImplementedError
+
+    @abstractmethod
+    def observations(self) -> Array:
         raise NotImplementedError
 
 

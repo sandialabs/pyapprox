@@ -1,4 +1,5 @@
 import unittest
+import copy
 
 import numpy as np
 
@@ -9,6 +10,7 @@ from pyapprox.pde.collocation.parameterized_pdes import (
     SteadyDarcy2DKLEModel,
     FitzHughNagumoModel,
     SteadyShallowShelfModel2D,
+    PyApproxPaperAdvectionDiffusionKLEInversionModel,
 )
 from pyapprox.pde.collocation.timeintegration import (
     BackwardEulerResidual,
@@ -22,7 +24,16 @@ from pyapprox.pde.collocation.solvers import CollocationModelMixin
 from pyapprox.pde.collocation.functions import (
     animate_transient_2d_scalar_solution,
     animate_transient_2d_vector_solution,
+    ScalarKLEFunctionOnDifferentMesh,
+    ScalarKLEFunction,
+    ConstantScalarFunction,
 )
+
+from pyapprox.pde.collocation.mesh import ChebyshevCollocationMesh2D
+from pyapprox.pde.collocation.mesh_transforms import (
+    ScaleAndTranslationTransform2D,
+)
+from pyapprox.pde.collocation.basis import ChebyshevCollocationBasis2D
 
 # from pyapprox.util.print_wrapper import *
 
@@ -65,14 +76,33 @@ class TestParameterizedModels:
     def setUp(self):
         np.random.seed(1)
 
+    def _setup_basis_on_square_domain(self, nmesh_pts_1d):
+        bkd = self.get_backend()
+        Lx, Ly = 1, 1
+        bounds = bkd.array([0, Lx, 0, Ly])
+        transform = ScaleAndTranslationTransform2D([-1, 1, -1, 1], bounds, bkd)
+        mesh = ChebyshevCollocationMesh2D(nmesh_pts_1d, transform)
+        basis = ChebyshevCollocationBasis2D(mesh)
+        return basis
+
+    def _setup_kle(self, basis):
+        return ScalarKLEFunction(
+            basis,
+            0.5,
+            3,
+            sigma=1.0,
+            mean_field=ConstantScalarFunction(basis, 0.0, 1),
+            ninput_funs=1,
+            use_log=True,
+        )
+
     def test_steady_parameterized_diffusion(self):
         bkd = self.get_backend()
         newton_solver = NewtonSolver(verbosity=0, rtol=1e-8, atol=1e-8)
+        basis = self._setup_basis_on_square_domain([20, 20])
+        kle = self._setup_kle(basis)
         model = SteadyDarcy2DKLEModel(
-            10,
-            1.0,
-            0.1,
-            0.0,
+            kle,
             newton_solver=newton_solver,
             backend=bkd,
         )
@@ -102,13 +132,16 @@ class TestParameterizedModels:
 
         errors = model.check_apply_hessian(sample, fd_eps, disp=False)
         print(errors.min() / errors.max())
-        assert errors.min() / errors.max() < 1.3e-6
+        assert errors.min() / errors.max() < 1.8e-6
 
     def test_transient_parameterized_diffusion_with_fixed_advection(self):
         bkd = self.get_backend()
         time_residual_cls = BackwardEulerResidual
         newton_solver = NewtonSolver(verbosity=0, rtol=1e-8, atol=1e-8)
+        basis = self._setup_basis_on_square_domain([20, 20])
+        kle = self._setup_kle(basis)
         model = TransientDiffusionAdvectionModel(
+            kle,
             0,
             1,
             0.05,
@@ -253,6 +286,53 @@ class TestParameterizedModels:
         errors = model.check_apply_hessian(sample, None, disp=False)
         print(errors.min() / errors.max())
         assert errors.min() / errors.max() < 6e-7
+
+    def test_pyapprox_paper_inversion_model(self):
+        bkd = self.get_backend()
+
+        def setup_obs_model(kle):
+            model = PyApproxPaperAdvectionDiffusionKLEInversionModel(
+                kle, 100.0, bkd.array([0.25, 0.75]), 0.1
+            )
+            return model
+
+        sample = bkd.array(np.random.normal(0, 1, (3, 1)))
+
+        hf_basis = self._setup_basis_on_square_domain([40, 40])
+        # must only create KLE once. If a kle is created on each mesh
+        # the eigenvectors will be different
+        kle = self._setup_kle(hf_basis)
+        hf_model = setup_obs_model(kle)
+        hf_sol_array = hf_model.forward_solve(sample)
+        hf_sol = hf_model.physics().solution_from_array(hf_sol_array)
+        sols = []
+        # include non symmetric mesh resolution because
+        # this picked up need to use the same kle on each mesh
+        for npts_1d in [[6, 6], [10, 10], [20, 23], [30, 30]]:
+            model = setup_obs_model(
+                ScalarKLEFunctionOnDifferentMesh(
+                    kle, self._setup_basis_on_square_domain(npts_1d)
+                )
+            )
+            sol_array = model.forward_solve(sample)
+            sols.append(model.physics().solution_from_array(sol_array))
+
+        diff = copy.deepcopy(hf_sol)
+        sol_errors = []
+        ndofs = []
+        for sol in sols:
+            diff.set_values(
+                (hf_sol.get_values() - sol(hf_sol.basis().mesh().mesh_pts()))
+                ** 2
+            )
+            sol_errors.append(diff.integrate())
+            ndofs.append(sol.basis().mesh().nmesh_pts())
+        sol_errors = bkd.asarray(sol_errors)
+        ndofs = bkd.asarray(ndofs)
+        convergence_rate = bkd.log(sol_errors[0] / sol_errors[-1]) / bkd.log(
+            ndofs[0] / ndofs[-1]
+        )
+        assert convergence_rate < -7.0
 
 
 class TestNumpyParameterizedModels(TestParameterizedModels, unittest.TestCase):

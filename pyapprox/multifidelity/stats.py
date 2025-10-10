@@ -710,6 +710,11 @@ class MultiOutputMean(MultiOutputStatistic):
         # print(nsamples_intersect, nsamples_subset0, nsamples_subset1, "N")
         return cov * nsamples_intersect / (nsamples_subset0 * nsamples_subset1)
 
+    def pilot_covariance(self) -> Array:
+        if self._cov is None:
+            raise AttributeError("must call set_pilot_quantities")
+        return self._cov
+
 
 class MultiOutputVariance(MultiOutputStatistic):
     def __init__(self, nqoi: int, backend: BackendMixin, tril: bool = True):

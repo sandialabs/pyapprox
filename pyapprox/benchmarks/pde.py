@@ -1,4 +1,5 @@
 import math
+import itertools
 from typing import List, Tuple
 
 import numpy as np
@@ -12,22 +13,65 @@ from pyapprox.benchmarks.base import (
     SingleModelBenchmark,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.interface.model import Model
-from pyapprox.pde.collocation.adjoint import AdjointFunctional
+from pyapprox.interface.model import Model, ChangeModelSignWrapper
+from pyapprox.pde.collocation.adjoint import (
+    AdjointFunctional,
+    TransientAdjointFunctional,
+)
 from pyapprox.pde.collocation.parameterized_pdes import (
     PyApproxPaperAdvectionDiffusionKLEInversionModel,
+    PyApproxPaperAdvectionDiffusionKLEForwardModel,
     ScalarFunction,
     TransientViscousBurgers1DModel,
     SteadyDarcy2DKLEModel,
     TransientSolutionTimeSnapshotFunctional,
     SteadySolutionFunctional,
     SteadySingleStateFunctional,
+    NonlinearSystemOfEquationsModel,
+)
+from pyapprox.pde.collocation.functions import (
+    CollocationSubdomainFunction,
+    ZeroScalarFunction,
+    OrthogonalCoordinateCollocationBasis,
+    ScalarKLEFunctionOnDifferentMesh,
 )
 from pyapprox.util.newton import NewtonSolver
 from pyapprox.pde.collocation.timeintegration import CrankNicholsonResidual
-from pyapprox.pde.collocation.parameterized_pdes import (
-    NonlinearSystemOfEquationsModel,
-)
+from pyapprox.bayes.likelihood import LogLikelihoodFromModel, LogLikelihood
+
+
+class PointwiseObservationFunctional(AdjointFunctional):
+    # Note this is not truly an Adjoint Functional because nqoi > 1
+    # However, it allows for easier modification of adjoint models
+    # that return solutions at a set of points
+    def __init__(
+        self,
+        nstates: int,
+        nresidual_params: int,
+        obs_state_indices: List[Tuple[int, Array]],
+        backend: BackendMixin = NumpyMixin,
+    ):
+        self._nstates = nstates
+        self._nparams = nresidual_params
+        self._obs_state_indices = obs_state_indices
+        super().__init__(backend)
+
+    def _value(self, sol: Array) -> Array:
+        if sol.ndim != 1:
+            raise ValueError("sol must be a 1D array")
+        return sol[self._obs_state_indices]
+
+    def nqoi(self) -> int:
+        return self._obs_state_indices.shape[0]
+
+    def nunique_functional_params(self) -> int:
+        return 0
+
+    def nparams(self) -> int:
+        return self._nparams
+
+    def nstates(self) -> int:
+        return self._nstates
 
 
 class SteadyMSEAdjointFunctional(AdjointFunctional):
@@ -90,8 +134,46 @@ class SteadyMSEAdjointFunctional(AdjointFunctional):
     def nparams(self) -> int:
         return self._nparams
 
-    def nobservations(self):
+    def nobservations(self) -> int:
         return self._obs.shape[0]
+
+
+class FinalTimeSubdomainIntegralFunctional(TransientAdjointFunctional):
+    def __init__(
+        self,
+        sol: ScalarFunction,
+        subdomain_npts_1d: ScalarFunction = None,
+    ):
+        # currently this functional does not support gradient computation
+        # sol must be on full domain
+        # subdomain_sol contains subdomain basis which may use a different
+        # resolution mesh
+        self._sol = sol
+        self._subdomain_sol = CollocationSubdomainFunction(
+            [0.5, 1.0, -1.0, -0.5], self._sol, subdomain_npts_1d
+        )
+        super().__init__(self._sol._bkd)
+
+    def _value(self, sol: Array) -> Array:
+        if sol.ndim != 2:
+            raise ValueError("sol must be a 2D array")
+        print(sol.shape)
+        self._sol.set_values(sol[:, -1])
+        self._subdomain_sol._set_values(self._sol)
+        return self._subdomain_sol.integrate()
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nunique_functional_params(self) -> int:
+        return 0
+
+    def nparams(self) -> int:
+        # currently this functional does not support gradient computation
+        return 0
+
+    def nstates(self) -> int:
+        return self._sol.basis().mesh().nmesh_pts()
 
 
 class SteadyGaussianNegLogLikelihoodAdjointFunctional(
@@ -170,20 +252,78 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
 ):
     def __init__(self, nmodels: int = 5, backend: BackendMixin = NumpyMixin):
         self._nmodels = nmodels
-        self._mesh_npts_1d = backend.array([21, 21], dtype=int)
+        self._mesh_npts_1d = backend.array([20, 15], dtype=int)
         self._kle_nvars = 3
-        self._kle_std = 1.0
+        self._kle_std = 1.0  # 1.0
         self._kle_lenscale = 0.5
         self._kle_mean_field = 0.0
         self._source_loc = backend.array([0.25, 0.75])
-        self._source_amp = 100.0
+        self._source_amp = 10.0  # 100.0
         self._source_scale = 0.1
         self._nobs = 5
         self._noise_stdev = 1.0
         super().__init__(backend)
-        self._set_model_functional()
 
-    def _set_model_functional(self):
+    def observation_design(self) -> Array:
+        """
+        Spatial locations where the observations are collected
+        """
+        return self._obs_model._basis.mesh().mesh_pts()[:, self._obs_indices]
+
+    def observation_generating_parameters(self) -> Array:
+        return self._true_kle_params
+
+    def observations(self) -> Array:
+        return self._obs
+
+    def nobservations(self) -> Array:
+        return self._obs.shape[0]
+
+    def nqoi(self) -> int:
+        return self._functional.nqoi()
+
+    def _set_prior(self):
+        marginals = [stats.norm(0, 1)] * self._kle_nvars
+        self._prior = IndependentMarginalsVariable(
+            marginals, backend=self._bkd
+        )
+
+    def _set_obs_model(self):
+        self._obs_model = PyApproxPaperAdvectionDiffusionKLEInversionModel(
+            self._mesh_npts_1d,
+            self._kle_nvars,
+            self._kle_std,
+            self._kle_lenscale,
+            self._kle_mean_field,
+            self._source_amp,
+            self._source_loc,
+            self._source_scale,
+            backend=self._bkd,
+        )
+        # must set initial iterate so that forward solver runs
+        # since these equations are linear we can always use the same initial
+        # guess
+        self._obs_model._adjoint_solver.set_initial_iterate(
+            self._obs_model.get_initial_iterate()
+        )
+
+        self._set_negloglike_model()
+
+    def _set_negloglike_model(self):
+        self._negloglike_model = (
+            PyApproxPaperAdvectionDiffusionKLEInversionModel(
+                self._mesh_npts_1d,
+                self._kle_nvars,
+                self._kle_std,
+                self._kle_lenscale,
+                self._kle_mean_field,
+                self._source_amp,
+                self._source_loc,
+                self._source_scale,
+                backend=self._bkd,
+            )
+        )
+
         ndof = self._bkd.prod(self._mesh_npts_1d)
         bndry_indices = self._bkd.hstack(
             [
@@ -199,66 +339,94 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
                 for jj in range(1, self._mesh_npts_1d[1] - 1)
             ]
         )
-        obs_indices = self._bkd.asarray(
+        self._obs_indices = self._bkd.asarray(
             np.random.permutation(
                 self._bkd.delete(self._bkd.arange(ndof), bndry_indices)
             ),
             dtype=int,
         )[: self._nobs]
         # print(bndry_indices.shape)
-        self._functional = SteadyGaussianNegLogLikelihoodAdjointFunctional(
-            ndof,
-            self._kle_nvars,
-            obs_indices,
-            self._noise_stdev,
-            backend=self._bkd,
+        self._obs_functional = PointwiseObservationFunctional(
+            ndof, self._kle_nvars, self._obs_indices, backend=self._bkd
         )
+        self._obs_model.set_functional(self._obs_functional)
+
+        self._negloglike_functional = (
+            SteadyGaussianNegLogLikelihoodAdjointFunctional(
+                ndof,
+                self._kle_nvars,
+                self._obs_indices,
+                self._noise_stdev,
+                backend=self._bkd,
+            )
+        )
+        # must set initial iterate so that forward solver runs
+        # since these equations are linear we can always use the same initial
+        # guess
+        self._negloglike_model._adjoint_solver.set_initial_iterate(
+            self._negloglike_model.get_initial_iterate()
+        )
+
         # run model at true param
-        self._true_kle_params = self._variable.rvs(1)
-        sol = self._model.forward_solve(self._true_kle_params)
-        noiseless_obs = self._functional.noiseless_observations_from_solution(
-            sol
-        )
+        self._true_kle_params = self._prior.rvs(1)
+        # sol = self._negloglike_model.forward_solve(self._true_kle_params)
+        # noiseless_obs = self._obs_functional(sol)
+        noiseless_obs = self._obs_model(self._true_kle_params)[0]
         noise = self._bkd.asarray(
-            np.random.normal(0, self._noise_stdev, (obs_indices.shape[0]))
+            np.random.normal(
+                0, self._noise_stdev, (self._obs_indices.shape[0])
+            )
         )
-        obs = noiseless_obs + noise
-        self._functional.set_observations(obs)
-        self._model.set_functional(self._functional)
+        self._obs = noiseless_obs + noise
+        self._negloglike_functional.set_observations(self._obs)
+        self._negloglike_model.set_functional(self._negloglike_functional)
 
-    def true_params(self) -> Array:
-        return self._true_kle_params
-
-    def nmodels(self) -> int:
-        return self._nmodels
-
-    def nqoi(self) -> int:
-        return self._functional.nqoi()
-
-    def _set_variable(self):
-        marginals = [stats.norm(0, 1)] * self._kle_nvars
-        self._variable = IndependentMarginalsVariable(
-            marginals, backend=self._bkd
+    def setup_qoi_model(
+        self, nmesh_pts_x: int, nmesh_pts_y: int, deltat: float
+    ):
+        qoi_model = PyApproxPaperAdvectionDiffusionKLEForwardModel(
+            self._obs_model,
+            nmesh_pts_1d=[nmesh_pts_x, nmesh_pts_y],
+            deltat=deltat,
+            final_time=0.2,
         )
-
-    def _set_model(self):
-        self._model = PyApproxPaperAdvectionDiffusionKLEInversionModel(
-            self._mesh_npts_1d,
-            self._kle_nvars,
-            self._kle_std,
-            self._kle_lenscale,
-            self._kle_mean_field,
-            self._source_amp,
-            self._source_loc,
-            self._source_scale,
-            backend=self._bkd,
+        qoi_model.physics()._diffusion = ScalarKLEFunctionOnDifferentMesh(
+            self._inv_model.physics()._diffusion, qoi_model.physics().basis()
         )
+        sol = ZeroScalarFunction(qoi_model._basis)
+        qoi_functional = FinalTimeSubdomainIntegralFunctional(
+            sol, self._obs_model.basis().mesh()._npts_1d
+        )
+        qoi_model.set_functional(qoi_functional)
+        return qoi_model
+
+    def qoi_models(self) -> List[Model]:
+        npts_x = [10, int(self._obs_model.basis().mesh()._npts_1d[0])]
+        # npts_x = [
+        #     self._obs_model.basis().mesh()._npts_1d[0] - 1,
+        #     self._obs_model.basis().mesh()._npts_1d[0],
+        # ]
+        npts_y = npts_x
+        ntsteps = [2, 4]
+        deltat = [0.2 / nt for nt in ntsteps]
+        model_config = itertools.product(npts_x, npts_y, deltat)
+        models = [self.setup_qoi_model(*config) for config in model_config]
+        model_names = list(itertools.product(npts_x, npts_y, ntsteps))
+        # multifidelity algorithms require hf model to be first in list
+        models = models[-1:] + models[:-1]
+        model_names = model_names[-1:] + model_names[:-1]
+        return models, model_names
+
+    def obs_model(self) -> Model:
+        return self._obs_model
 
     def diffusion_function(self) -> ScalarFunction:
         return self._model._physics._diffusion
 
-    def negloglike(self) -> Model:
-        return self._model
+    def loglike(self) -> LogLikelihood:
+        return LogLikelihoodFromModel(
+            ChangeModelSignWrapper(self._negloglike_model)
+        )
 
     def sobol_interaction_indices(self) -> Array:
         sobol_interaction_indices = self._bkd.array(

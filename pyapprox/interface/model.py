@@ -19,6 +19,7 @@ from pyapprox.util.misc import (
     get_all_sample_combinations,
     unique_matrix_row_indices,
 )
+from pyapprox.surrogates.affine.multiindex import anova_level_indices
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 
@@ -973,6 +974,122 @@ class Model(ABC):
         vals = self.__call__(pts)
         Z = self._bkd.reshape(vals[:, qoi], X.shape)
         return ax.contourf(X, Y, Z, **kwargs)
+
+    def _2d_cross_section_values(
+        self, nominal_sample: Array, id1: int, id2: int, pts: Array
+    ) -> Array:
+        samples = []
+        for pt in pts.T:
+            sample = self._bkd.copy(nominal_sample)
+            sample[[id1, id2], 0] = pt
+            samples.append(sample)
+        np.set_printoptions(precision=16)
+        samples = self._bkd.hstack(samples)
+        vals = self(samples)
+        II = self._bkd.where(vals > 1e5)[0]
+        print(II)
+        print(samples[:, II])
+        print(vals[II, 0])
+        return vals
+
+    def _1d_cross_section_values(
+        self, nominal_sample: Array, id1: int, pts: Array
+    ) -> Array:
+        samples = self._bkd.tile(nominal_sample, (1, pts.shape[1]))
+        samples[id1] = pts[0]
+        return self(samples)
+
+    def plot_cross_section(
+        self,
+        nominal_sample: Array,
+        bounds: Array,
+        ax,
+        id1: int,
+        id2: int,
+        npts_1d=51,
+        **kwargs,
+    ):
+        plot_limits = self._bkd.hstack((bounds[id1], bounds[id2]))
+        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
+        active_pt = self._bkd.copy(nominal_sample[[id1, id2], 0])
+        Z = self._bkd.reshape(
+            self._2d_cross_section_values(nominal_sample, id1, id2, pts)[:, 0],
+            X.shape,
+        )
+        im = ax.contourf(X, Y, Z, **kwargs)
+        ax.plot(*active_pt, "ko", ms=20)
+        return im
+
+    def get_all_variable_pairs(self) -> Array:
+        variable_pairs = self._bkd.asarray(
+            anova_level_indices(self.nvars(), 2)
+        )
+        # make first column values vary fastest so we plot lower triangular
+        # matrix of subplots
+        variable_pairs[:, 0], variable_pairs[:, 1] = (
+            self._bkd.copy(variable_pairs[:, 1]),
+            self._bkd.copy(variable_pairs[:, 0]),
+        )
+        return variable_pairs
+
+    def plot_cross_sections(
+        self,
+        nominal_sample: Array,
+        bounds: Array,
+        variable_pairs: List[Tuple[int, int]] = None,
+        npts_1d=51,
+        **kwargs,
+    ):
+        if nominal_sample.shape != (self.nvars(), 1):
+            raise ValueError(
+                f"nominal_sample must have shape {(self.nvars(), 1)}"
+            )
+        if bounds.shape != (nominal_sample.shape[0], 2):
+            raise ValueError(
+                "bounds and nominal_sample have inconsistent shapes"
+            )
+        nfig_rows, nfig_cols = self.nvars(), self.nvars()
+        if variable_pairs is None:
+            # define all 2d cross sections
+            variable_pairs = self.get_all_variable_pairs()
+            # add 1d cross sections
+            variable_pairs = self._bkd.vstack(
+                (
+                    self._bkd.array([[ii, ii] for ii in range(self.nvars())]),
+                    variable_pairs,
+                )
+            )
+        if variable_pairs.shape[1] != 2:
+            raise ValueError("Variable pairs has the wrong shape")
+        fig, axs = plt.subplots(nfig_rows, nfig_cols, sharex="col")
+        for ax_row in axs:
+            for ax in ax_row:
+                ax.axis("off")
+        ims = []
+        for ii, pair in enumerate(variable_pairs):
+            print(f"plotting cross section {pair}")
+            if pair[0] == pair[1]:
+                plot_xx = self._bkd.linspace(*bounds[pair[0]], npts_1d)[
+                    None, :
+                ]
+                im = axs[pair[0]][pair[1]].plot(
+                    plot_xx[0],
+                    self._1d_cross_section_values(
+                        nominal_sample, pair[0], plot_xx
+                    ),
+                )
+            else:
+                im = self.plot_cross_section(
+                    nominal_sample,
+                    bounds,
+                    axs[pair[0]][pair[1]],
+                    pair[0],
+                    pair[1],
+                    npts_1d,
+                    **kwargs,
+                )
+            ims.append(im)
+        return axs, ims
 
 
 class SingleSampleModelMixin:

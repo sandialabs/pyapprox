@@ -23,6 +23,7 @@ require robust algorithms for optimizing experimental designs and analyzing mode
 
 from abc import ABC, abstractmethod
 from typing import List, Tuple
+import itertools
 
 from scipy import stats
 
@@ -45,6 +46,10 @@ from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
 )
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.expdesign.sequences import HaltonSequence
+from pyapprox.surrogates.affine.basis import (
+    setup_tensor_product_gauss_quadrature_rule,
+)
 
 
 class OEDOuterLoopLogLikelihoodMixin(ABC):
@@ -77,12 +82,12 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
         shapes : Array (nobs, nouterloop_samples)
         """
         if not hasattr(self, "_shapes"):
-            raise RuntimeError("must call set_shapes()")
+            raise AttributeError("must call set_shapes()")
         return self._shapes
 
     def nqoi(self) -> int:
         if not hasattr(self, "_obs"):
-            raise RuntimeError("must call set_observations")
+            raise AttributeError("must call set_observations")
         return self._obs.shape[1]
 
     def nvars(self) -> int:
@@ -362,7 +367,7 @@ class Evidence(Model):
     ):
         super().__init__(backend=loglike._bkd)
         if not isinstance(loglike, OEDInnerLoopLogLikelihoodMixin):
-            raise ValueError("loglike must be OEDLogLikelihoodMixin")
+            raise TypeError("loglike must be OEDLogLikelihoodMixin")
 
         self._loglike = loglike
         self.set_quadrature_weights(quad_weights)
@@ -575,7 +580,7 @@ class KLOEDObjective(BayesianOEDObjective):
         self.set_noise_statistic(noise_stat)
 
         if not isinstance(innerloop_loglike, OEDInnerLoopLogLikelihoodMixin):
-            raise ValueError(
+            raise TypeError(
                 "innerloop_loglike must be a OEDInnerLoopLogLikelihoodMixin"
             )
         self._innerloop_loglike = innerloop_loglike
@@ -625,9 +630,7 @@ class KLOEDObjective(BayesianOEDObjective):
 
     def set_noise_statistic(self, noise_stat: NoiseStatistic):
         if not isinstance(noise_stat, NoiseStatistic):
-            raise ValueError(
-                "noise_stat must be an instance of NoiseStatistic"
-            )
+            raise TypeError("noise_stat must be an instance of NoiseStatistic")
         self._noise_stat = noise_stat
 
     def _setup_evidence(self):
@@ -723,13 +726,13 @@ class PredictionOEDDeviationMeasure(SingleSampleModel):
         innerloop_loglike: OEDInnerLoopLogLikelihoodMixin,
     ):
         if not isinstance(innerloop_loglike, OEDInnerLoopLogLikelihoodMixin):
-            raise ValueError(
+            raise TypeError(
                 "loglike must be an instance of OEDInnerLoopLogLikelihoodMixin"
             )
         if not innerloop_loglike._bkd.bkd_equal(
             self._bkd, innerloop_loglike._bkd
         ):
-            raise ValueError("backends are inconsistent")
+            raise TypeError("backends are inconsistent")
         self._innerloop_loglike = innerloop_loglike
         self._outerloop_loglike = self._innerloop_loglike._outerloop_loglike
         self._nouterloop_samples = self._outerloop_loglike._shapes.shape[1]
@@ -780,7 +783,7 @@ class PredictionOEDDeviationMeasure(SingleSampleModel):
 
     def set_evidence(self, evidence: Evidence):
         if not isinstance(evidence, Evidence):
-            raise ValueError(
+            raise TypeError(
                 f"evidence {evidence} must be an instance of Evidence"
             )
         self._evidence = evidence
@@ -1143,7 +1146,7 @@ class PredictionOEDObjective(KLOEDObjective):
 
     def set_qoi_quadrature_weights(self, qoi_quad_weights: Array):
         if not hasattr(self, "_deviation_measure"):
-            raise ValueError("Must call set_deviation_measure")
+            raise AttributeError("Must call set_deviation_measure")
         if qoi_quad_weights.shape != (self._deviation_measure.npred(), 1):
             raise ValueError(
                 "qoi_quad_weights must have shape "
@@ -1158,7 +1161,7 @@ class PredictionOEDObjective(KLOEDObjective):
         self, deviation_measure: PredictionOEDDeviationMeasure
     ):
         if not isinstance(deviation_measure, PredictionOEDDeviationMeasure):
-            raise ValueError(
+            raise TypeError(
                 "deviation_measure must be an instance of "
                 "PredictionOEDDeviationMeasure"
             )
@@ -1166,7 +1169,7 @@ class PredictionOEDObjective(KLOEDObjective):
 
     def set_risk_measure(self, risk_measure):
         if not isinstance(risk_measure, SampleAverageStat):
-            raise ValueError(
+            raise TypeError(
                 "risk_measure must be an instance of SampleAverageStat"
             )
         self._risk_measure = risk_measure
@@ -1252,9 +1255,9 @@ class DOptimalLinearModelObjective(BayesianOEDObjective):
         """
         super().__init__(backend=model._bkd)
         if noise_cov.ndim != 0:
-            raise ValueError("noise_cov must be a scalar")
+            raise TypeError("noise_cov must be a scalar")
         if prior_cov.ndim != 0:
-            raise ValueError("prior_cov must be a scalar")
+            raise TypeError("prior_cov must be a scalar")
         self._model = model
         self._noise_cov = noise_cov
         self._prior_cov = prior_cov
@@ -1341,20 +1344,31 @@ class DOptimalLinearModelObjective(BayesianOEDObjective):
 
 
 class BayesianOED(ABC):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
-        self._bkd = backend
+    def __init__(
+        self,
+        innerloop_loglike: OEDInnerLoopLogLikelihoodMixin,
+    ):
+        self._innerloop_loglike = innerloop_loglike
+        self._bkd = innerloop_loglike._bkd
 
     def _set_objective_function(self, objective: BayesianOEDObjective):
         if not isinstance(objective, BayesianOEDObjective):
-            raise ValueError(
+            raise TypeError(
                 "objective must be an instance of BayesianOEDObjective"
             )
         if not objective._bkd.bkd_equal(self._bkd, objective._bkd):
-            raise ValueError("backends are inconsistent")
+            raise TypeError("backends are inconsistent")
         self._objective = objective
 
     def objective(self) -> BayesianOEDObjective:
         return self._objective
+
+    @abstractmethod
+    def set_data(*args):
+        raise NotImplementedError
+
+
+class RelaxedBayesianOED(BayesianOED):
 
     def default_optimizer(
         self,
@@ -1386,7 +1400,7 @@ class BayesianOED(ABC):
 
     def set_optimizer(self, optimizer: ConstrainedOptimizer):
         if not isinstance(optimizer, ConstrainedOptimizer):
-            raise ValueError(
+            raise TypeError(
                 "optimizer must be an instance of ConstrainedOptimizer"
             )
         self._optimizer = optimizer
@@ -1404,7 +1418,7 @@ class BayesianOED(ABC):
 
     def compute(self, iterate: Array = None) -> Array:
         if not hasattr(self, "_objective"):
-            raise ValueError("must call set_data")
+            raise AttributeError("must call set_data")
         iterate = self._bkd.full(
             (self._objective.nvars(), 1), 1 / self._objective.nvars()
         )
@@ -1415,19 +1429,6 @@ class BayesianOED(ABC):
 
     def optimization_result(self) -> OptimizationResult:
         return self._res
-
-    @abstractmethod
-    def set_data(*args):
-        raise NotImplementedError
-
-
-class KLBayesianOED(BayesianOED):
-    def __init__(
-        self,
-        innerloop_loglike: OEDInnerLoopLogLikelihoodMixin,
-    ):
-        super().__init__(innerloop_loglike._bkd)
-        self._innerloop_loglike = innerloop_loglike
 
     def get_innerloop_loglike(self) -> OEDInnerLoopLogLikelihoodMixin:
         return self._innerloop_loglike
@@ -1459,6 +1460,8 @@ class KLBayesianOED(BayesianOED):
             (nsamples, 1), 1.0 / nsamples
         )
 
+
+class KLBayesianOEDMixin:
     def set_data(
         self,
         outerloop_shapes: Array,
@@ -1529,6 +1532,7 @@ class KLBayesianOED(BayesianOED):
         outerloop_loglike = self._innerloop_loglike.outerloop_loglike()
         outerloop_shapes_samples = outerloop_samples[: prior.nvars()]
         outerloop_shapes = obs_model(outerloop_shapes_samples).T
+        print(outerloop_shapes.shape, obs_model)
         outerloop_loglike.set_shapes(outerloop_shapes)
 
         innerloop_shapes = obs_model(innerloop_samples).T
@@ -1543,14 +1547,42 @@ class KLBayesianOED(BayesianOED):
         )
 
 
-class BayesianOEDForPrediction(BayesianOED):
-    def __init__(
-        self,
-        innerloop_loglike: OEDInnerLoopLogLikelihoodMixin,
-    ):
-        super().__init__(innerloop_loglike._bkd)
-        self._innerloop_loglike = innerloop_loglike
+class KLBayesianOED(KLBayesianOEDMixin, RelaxedBayesianOED):
+    pass
 
+
+class BruteForceKLBayesianOED(KLBayesianOEDMixin, BayesianOED):
+    def _evaluate_designs(self, design_indices: Array):
+        utility_vals = []
+        for index in design_indices:
+            eps = 1e-14  # need a small value to avoid low rank matrix
+            design_weights = self._bkd.full((self._objective.nvars(), 1), eps)
+            design_weights[index, 0] = 1.0
+            utility_vals.append(self._objective(design_weights)[:, 0])
+        return self._bkd.hstack(utility_vals)
+
+    def compute(self, nobs: int) -> Array:
+        if nobs > self._objective.nvars():
+            raise ValueError(
+                "nobs must not be greater than number of candidates"
+            )
+        if not hasattr(self, "_objective"):
+            raise AttributeError("must call set_data")
+        self._design_indices = self._bkd.asarray(
+            list(
+                itertools.combinations(
+                    self._bkd.arange(self._objective.nvars()), nobs
+                )
+            )
+        )
+        self._utility_vals = self._evaluate_designs(self._design_indices)
+        selected_index = self._design_indices[
+            self._bkd.argmin(self._utility_vals)
+        ]
+        return selected_index
+
+
+class BayesianOEDForPrediction(RelaxedBayesianOED):
     def set_data_from_model(
         self,
         obs_model: Model,
@@ -1681,6 +1713,117 @@ class BayesianOEDForPrediction(BayesianOED):
         objective.set_deviation_measure(self._deviation_measure)
         objective.set_risk_measure(self._risk_measure)
         self._set_objective_function(objective)
+
+
+class BayesianOEDDataGenerator:
+    def __init__(self, backend: BackendMixin):
+        self._bkd = backend
+
+    def _setup_quadrature_data(
+        self, quadtype: str, variable: JointVariable, nsamples: int
+    ) -> Tuple[Array, Array]:
+        """
+        Helper function to set up quadrature data for integration using
+        different types of quadrature rules.
+
+        Parameters
+        ----------
+        quadtype : str
+            Type of quadrature method (e.g., "MC", "Halton","gauss").
+        prior_data_variable : JointVariable
+            Variable that defines the integration measure.
+        nsamples : int
+            Number of samples for quadrature.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            Quadrature samples and weights.
+        """
+        if quadtype == "MC":
+            return variable.rvs(nsamples), self._bkd.full(
+                (nsamples, 1), 1.0 / nsamples
+            )
+
+        if quadtype == "Halton":
+            sequence = HaltonSequence(
+                variable.nvars(),
+                1,
+                variable,
+                variable._bkd,
+                unbounded_eps=1e-4,
+                increment_start_index=True,
+            )
+            return sequence.rvs(nsamples), self._bkd.full(
+                (nsamples, 1), 1.0 / nsamples
+            )
+
+        if quadtype == "gauss":
+            quad_rule = setup_tensor_product_gauss_quadrature_rule(variable)
+            level1d = int(nsamples ** (1 / variable.nvars()))
+            return quad_rule([level1d] * variable.nvars())
+
+        raise TypeError(f"{quadtype} not supported")
+
+    def prepare_simulation_inputs(
+        self,
+        oed: BayesianOED,
+        prior: JointVariable,
+        outerloop_quadtype: str,
+        nouterloop_samples: int,
+        innerloop_quadtype: str,
+        ninnerloop_samples: int,
+    ) -> Tuple[Array, Array, Array, Array]:
+        """
+        Set up data for Bayesian OED.
+
+        Parameters
+        ----------
+        outerloop_quadtype : str
+            Type of quadrature method for the outer loop.
+        nouterloop_samples : int
+            Number of samples for the outer loop quadrature.
+        innerloop_quadtype : str
+            Type of quadrature method for the inner loop.
+        ninnerloop_samples : int
+            Number of samples for the inner loop quadrature.
+
+        Returns
+        -------
+        outerloop_samples : Array (nvars, nouterloop_samples)
+            Samples for the outer loop quadrature.
+        outerloop_quad_weights : Array (nouterloop_samples, 1)
+            Weights for the outer loop quadrature.
+        innerloop_samples : Array (nvars, ninnerloop_samples)
+            Samples for the inner loop quadrature.
+        innerloop_quad_weights : Array (ninnerloop_samples, 1)
+            Weights for the inner loop quadrature.
+        innerloop_loglike : IndependentGaussianOEDInnerLoopLogLikelihood
+            Inner loop log-likelihood object.
+        """
+        # Generate outer loop quadrature data
+        outerloop_loglike = oed._innerloop_loglike.outerloop_loglike()
+        prior_data_variable = outerloop_loglike.joint_prior_data_variable(
+            prior
+        )
+        outerloop_samples, outerloop_quad_weights = (
+            self._setup_quadrature_data(
+                outerloop_quadtype, prior_data_variable, nouterloop_samples
+            )
+        )
+
+        # Generate inner loop quadrature data
+        innerloop_samples, innerloop_quad_weights = (
+            self._setup_quadrature_data(
+                innerloop_quadtype, prior, ninnerloop_samples
+            )
+        )
+        return (
+            outerloop_samples,
+            outerloop_quad_weights,
+            innerloop_samples,
+            innerloop_quad_weights,
+        )
 
 
 # TODO Consider using lognormal noise for OED

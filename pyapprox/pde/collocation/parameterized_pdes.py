@@ -1,5 +1,6 @@
 from typing import Tuple
 import math
+import copy
 
 from scipy.special import beta as beta_fn
 
@@ -12,6 +13,7 @@ from pyapprox.pde.collocation.adjoint import (
 )
 from pyapprox.pde.collocation.timeintegration import (
     TimeIntegratorNewtonResidual,
+    BackwardEulerResidual,
 )
 from pyapprox.pde.collocation.solvers import (
     SteadyAdjointCollocationModel,
@@ -66,6 +68,7 @@ from pyapprox.pde.collocation.basis import (
 from pyapprox.pde.collocation.mesh_transforms import (
     ScaleAndTranslationTransform1D,
     ScaleAndTranslationTransform2D,
+    CompositionTransform,
 )
 
 
@@ -122,35 +125,10 @@ class ParameterizedDiffusionPhysics(
     def __init__(
         self,
         basis: OrthogonalCoordinateCollocationBasis,
-        kle_nvars: int,
-        kle_sigma: float,
-        kle_lenscale: float,
-        kle_mean_field: float,
+        kle: ScalarKLEFunction,
     ):
-        self._nvars = kle_nvars
-        diffusion = self._setup_diffusion(
-            basis, kle_sigma, kle_lenscale, kle_mean_field
-        )
-        super().__init__(
-            ConstantScalarFunction(basis, 1.0), diffusion, None, None
-        )
-
-    def _setup_diffusion(
-        self,
-        basis: OrthogonalCoordinateCollocationBasis,
-        kle_sigma: float,
-        kle_lenscale: float,
-        kle_mean_field: float,
-    ):
-        return ScalarKLEFunction(
-            basis,
-            kle_lenscale,
-            self.nvars(),
-            sigma=kle_sigma,
-            mean_field=ConstantScalarFunction(basis, kle_mean_field, 1),
-            ninput_funs=1,
-            use_log=True,
-        )
+        self._nvars = kle.kle().nvars()
+        super().__init__(ConstantScalarFunction(basis, 1.0), kle, None, None)
 
     def set_param(self, param: Array):
         self._param = param
@@ -174,31 +152,10 @@ class ParameterizedDiffusionFixedAdvectionPhysics(
         self,
         forcing: ScalarFunction,
         velocity_field: VectorFunction,
-        nvars: int = 3,
-        sigma: float = 0.1,
-        lenscale: float = 0.1,
-        mean_field: float = -2.0,
-        use_quadrature: bool = True,
+        kle: ScalarKLEFunction,
     ):
-        self._nvars = nvars
-        self._sigma = sigma
-        self._mean_field = mean_field
-        self._lenscale = lenscale
-        self._use_quadrature = use_quadrature
-        diffusion = self._setup_diffusion(forcing.basis())
-        super().__init__(forcing, diffusion, None, velocity_field)
-
-    def _setup_diffusion(self, basis: OrthogonalCoordinateCollocationBasis):
-        return ScalarKLEFunction(
-            basis,
-            self._lenscale,
-            self.nvars(),
-            sigma=self._sigma,
-            mean_field=ConstantScalarFunction(basis, self._mean_field, 1),
-            ninput_funs=1,
-            use_log=True,
-            use_quadrature=self._use_quadrature,
-        )
+        self._nvars = kle.kle().nvars()
+        super().__init__(forcing, kle, None, velocity_field)
 
     def set_param(self, param: Array):
         self._param = param
@@ -215,73 +172,9 @@ class SteadyParameterizedDiffusionFixedAdvectionPhysics(
     pass
 
 
-class PyApproxPaperAdvectionDiffusionKLEInversionModel(
-    SteadyAdjointCollocationModel
-):
-    def __init__(
-        self,
-        nmesh_pts_1d: Tuple = [21, 21],
-        nvars: int = 3,
-        sigma: float = 0.1,
-        lenscale: float = 0.1,
-        mean_field: float = 0.0,
-        source_amp: float = 100.0,
-        source_loc: Tuple = [0.25, 0.75],
-        source_scale: float = 0.1,
-        newton_solver: NewtonSolver = None,
-        functional: AdjointFunctional = None,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        self._nmesh_pts_1d = backend.asarray(nmesh_pts_1d, dtype=int)
-        self._nvars = nvars
-        self._sigma = sigma
-        self._mean_field = mean_field
-        self._lenscale = lenscale
-        self._source_amp = source_amp
-        self._source_loc = backend.asarray(source_loc)
-        self._source_scale = source_scale
-        super().__init__(newton_solver, functional, backend)
-
-        # original paper defined velocity field as [1, 0] everywhere
-        # however the code used to produce that paper defined flux
-        # with the wrong sign and the flux did not account for the velocity
-        # to make field look similar to paper we set velocity to 0.01 here
-        # To recover old paper, in collocation.physics.py
-        # residual = div(self._diffusion * nabla(sol))
-        #     - div(sol *self._velocity_field) + self._forcing
-        # and flux=self._diffusion * nabla(sol)
-
-    def jacobian_implemented(self) -> bool:
-        return True
-
-    def apply_hessian_implemented(self) -> bool:
-        return self._bkd.hvp_implemented()
-
-    def nvars(self) -> int:
-        return self._physics.nvars()
-
-    def setup_physics(self):
-        self._nominal_val = 0.0
-        self.setup_velocity()
-        self.setup_forcing()
-        self._physics = SteadyParameterizedDiffusionFixedAdvectionPhysics(
-            self._forcing,
-            self._vel_field,
-            self._nvars,
-            self._sigma,
-            self._lenscale,
-            self._mean_field,
-            use_quadrature=False,
-        )
-
+class PyApproxPaperAdvectionDiffusionKLEModelMixin:
     def setup_basis(self):
-        Lx, Ly = 1, 1
-        bounds = self._bkd.array([0, Lx, 0, Ly])
-        transform = ScaleAndTranslationTransform2D(
-            [-1, 1, -1, 1], bounds, self._bkd
-        )
-        mesh = ChebyshevCollocationMesh2D(self._nmesh_pts_1d, transform)
-        self._basis = ChebyshevCollocationBasis2D(mesh)
+        self._basis = self._kle.basis()
 
     def setup_velocity(self):
         self._vel_field = VectorFunctionFromCallable(
@@ -295,21 +188,6 @@ class PyApproxPaperAdvectionDiffusionKLEInversionModel(
                 ),
                 axis=1,
             ),
-        )
-
-    def _gaussian_forcing(self, xx: Array) -> Array:
-        return self._source_amp * self._bkd.exp(
-            -self._bkd.sum(
-                (xx - self._source_loc[:, None]) ** 2 / self._source_scale**2,
-                axis=0,
-            )
-        )
-
-    def setup_forcing(self):
-        self._forcing = ScalarFunctionFromCallable(
-            self._basis,
-            self._gaussian_forcing,
-            ninput_funs=1,
         )
 
     def get_initial_iterate(self) -> ScalarFunction:
@@ -338,12 +216,73 @@ class PyApproxPaperAdvectionDiffusionKLEInversionModel(
                     mesh_bndry, self._nominal_val, alpha, beta, 0, 0
                 )
             )
+            # bndrys.append(ConstantDirichletBoundary(mesh_bndry, 0.0))
         self._physics.set_boundaries(bndrys)
+
+    def nvars(self) -> int:
+        return self._physics.nvars()
+
+
+class PyApproxPaperAdvectionDiffusionKLEInversionModel(
+    PyApproxPaperAdvectionDiffusionKLEModelMixin, SteadyAdjointCollocationModel
+):
+    def __init__(
+        self,
+        kle: ScalarKLEFunction,
+        source_amp: float = 100.0,
+        source_loc: Tuple = [0.25, 0.75],
+        source_scale: float = 0.1,
+        newton_solver: NewtonSolver = None,
+        functional: AdjointFunctional = None,
+    ):
+        self._kle = kle
+        self._source_amp = source_amp
+        self._source_loc = kle._bkd.asarray(source_loc)
+        self._source_scale = source_scale
+        super().__init__(newton_solver, functional, kle._bkd)
+
+        # original paper defined velocity field as [1, 0] everywhere
+        # however the code used to produce that paper defined flux
+        # with the wrong sign and the flux did not account for the velocity
+        # to make field look similar to paper we set velocity to 0.01 here
+        # To recover old paper, in collocation.physics.py
+        # residual = div(self._diffusion * nabla(sol))
+        #     - div(sol *self._velocity_field) + self._forcing
+        # and flux=self._diffusion * nabla(sol)
 
     def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
         self._adjoint_solver.set_initial_iterate(self.get_initial_iterate())
         super().forward_solve(sample)
         return self._sols
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return self._bkd.hvp_implemented()
+
+    def setup_physics(self):
+        self._nominal_val = 0.0
+        self.setup_velocity()
+        self.setup_forcing()
+        self._physics = SteadyParameterizedDiffusionFixedAdvectionPhysics(
+            self._forcing, self._vel_field, self._kle
+        )
+
+    def _gaussian_forcing(self, xx: Array) -> Array:
+        return self._source_amp * self._bkd.exp(
+            -self._bkd.sum(
+                (xx - self._source_loc[:, None]) ** 2 / self._source_scale**2,
+                axis=0,
+            )
+        )
+
+    def setup_forcing(self):
+        self._forcing = ScalarFunctionFromCallable(
+            self._basis,
+            self._gaussian_forcing,
+            ninput_funs=1,
+        )
 
 
 class TransientParameterizedDiffusionFixedAdvectionPhysics(
@@ -353,9 +292,74 @@ class TransientParameterizedDiffusionFixedAdvectionPhysics(
     pass
 
 
+class PyApproxPaperAdvectionDiffusionKLEForwardModel(
+    PyApproxPaperAdvectionDiffusionKLEModelMixin,
+    TransientAdjointCollocationModel,
+):
+    def __init__(
+        self,
+        inv_model: PyApproxPaperAdvectionDiffusionKLEInversionModel,
+        init_time: float = 0,
+        final_time: float = 0.2,
+        deltat: float = 0.2 / 64.0,
+        time_residual: TimeIntegratorNewtonResidual = BackwardEulerResidual,
+        nmesh_pts_1d: Tuple = [21, 21],
+        newton_solver: NewtonSolver = None,
+        functional: AdjointFunctional = None,
+    ):
+        self._nmesh_pts_1d = inv_model._bkd.asarray(nmesh_pts_1d, dtype=int)
+        self._inv_model = copy.deepcopy(inv_model)
+        self._nvars = inv_model._nvars
+        self._sigma = inv_model._sigma
+        self._mean_field = inv_model._mean_field
+        self._lenscale = inv_model._lenscale
+        super().__init__(
+            init_time,
+            final_time,
+            deltat,
+            time_residual,
+            functional,
+            newton_solver,
+            inv_model._bkd,
+        )
+        self._init_cond_fun = ScalarFunction(
+            self._inv_model.basis(), ninput_funs=1
+        )
+
+    def setup_forcing(self):
+        self._forcing = ZeroScalarFunction(self._basis, ninput_funs=1)
+
+    def setup_physics(self):
+        self._nominal_val = 0.0
+        self.setup_velocity()
+        self.setup_forcing()
+        self._physics = TransientParameterizedDiffusionFixedAdvectionPhysics(
+            self._forcing,
+            self._vel_field,
+            self._nvars,
+            self._sigma,
+            self._lenscale,
+            self._mean_field,
+            use_quadrature=False,
+        )
+
+    def set_param(self, param: Array):
+        super().set_param(param)
+        self._inv_model.set_param(param)
+
+    def get_initial_condition(self) -> Array:
+        sol = self._inv_model.forward_solve(self._param[:, None])
+        # interpolate solution on to qoi_model mesh which
+        # may be different than inv_model mesh
+        self._init_cond_fun.set_values(sol)
+        sol_interp = self._init_cond_fun(self._basis.mesh().mesh_pts())
+        return sol_interp
+
+
 class TransientDiffusionAdvectionModel(TransientAdjointCollocationModel):
     def __init__(
         self,
+        kle: ScalarKLEFunction,
         init_time: float,
         final_time: float,
         deltat: float,
@@ -364,6 +368,7 @@ class TransientDiffusionAdvectionModel(TransientAdjointCollocationModel):
         functional: TransientAdjointFunctional = None,
         backend: BackendMixin = NumpyMixin,
     ):
+        self._kle = kle
         super().__init__(
             init_time,
             final_time,
@@ -385,18 +390,11 @@ class TransientDiffusionAdvectionModel(TransientAdjointCollocationModel):
         self.setup_velocity()
         self.setup_forcing()
         self._physics = TransientParameterizedDiffusionFixedAdvectionPhysics(
-            self._forcing,
-            velocity_field=self._vel_field,
+            self._forcing, self._vel_field, self._kle
         )
 
     def setup_basis(self):
-        Lx, Ly = 1, 1
-        bounds = self._bkd.array([0, Lx, 0, Ly])
-        transform = ScaleAndTranslationTransform2D(
-            [-1, 1, -1, 1], bounds, self._bkd
-        )
-        mesh = ChebyshevCollocationMesh2D([12, 12], transform)
-        self._basis = ChebyshevCollocationBasis2D(mesh)
+        self._basis = self._kle.basis()
 
     def setup_velocity(self):
         self._vel_field = VectorFunctionFromCallable(
@@ -1221,18 +1219,12 @@ class TransientViscousBurgers1DModel(TransientAdjointCollocationModel):
 class SteadyDarcy2DKLEModel(SteadyAdjointCollocationModel):
     def __init__(
         self,
-        kle_nvars: int,
-        kle_sigma: float,
-        kle_lenscale: float,
-        kle_mean_field: float,
+        kle: ScalarKLEFunction,
         newton_solver: NewtonSolver = None,
         functional: AdjointFunctional = None,
         backend: BackendMixin = NumpyMixin,
     ):
-        self._kle_nvars = kle_nvars
-        self._kle_sigma = kle_sigma
-        self._kle_lenscale = kle_lenscale
-        self._kle_mean_field = kle_mean_field
+        self._kle = kle
         super().__init__(newton_solver, functional, backend)
         # PDE is linear so initial guess does not matter
         self._adjoint_solver.set_initial_iterate(
@@ -1242,20 +1234,11 @@ class SteadyDarcy2DKLEModel(SteadyAdjointCollocationModel):
     def setup_physics(self):
         self._physics = SteadyParameterizedDiffusionPhysics(
             self.basis(),
-            self._kle_nvars,
-            self._kle_sigma,
-            self._kle_lenscale,
-            self._kle_mean_field,
+            self._kle,
         )
 
     def setup_basis(self):
-        Lx, Ly = 1, 1
-        bounds = self._bkd.array([0, Lx, 0, Ly])
-        transform = ScaleAndTranslationTransform2D(
-            [-1, 1, -1, 1], bounds, self._bkd
-        )
-        mesh = ChebyshevCollocationMesh2D([20, 20], transform)
-        self._basis = ChebyshevCollocationBasis2D(mesh)
+        self._basis = self._kle.basis()
 
     def setup_boundaries(self):
         bndrys = []
