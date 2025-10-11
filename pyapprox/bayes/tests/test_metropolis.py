@@ -1,9 +1,13 @@
 import unittest
+import math
+
 import numpy as np
 from scipy import stats
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.bayes.metropolis import (
     MetropolisMCMCVariable,
     compute_mvn_cholesky_based_data,
@@ -15,69 +19,75 @@ from pyapprox.bayes.tests.test_likelihood import Linear1DRegressionModel
 
 
 def _setup_gaussian_linear_inverse_problem(
-    nobs, nvars, noise_stdev, prior_mean, prior_std
+    nobs, nvars, noise_stdev, prior_mean, prior_std, bkd
 ):
-    # design = np.linspace(0.0, 9.0, nobs)[None, :]
-    design = np.linspace(-1.0, 1.0, nobs)[None, :]
-    obs_model = Linear1DRegressionModel(design, nvars - 1)
-    noise_cov = noise_stdev**2 * np.eye(nobs)
+    # design = bkd.linspace(0.0, 9.0, nobs)[None, :]
+    design = bkd.linspace(-1.0, 1.0, nobs)[None, :]
+    obs_model = Linear1DRegressionModel(design, nvars - 1, backend=bkd)
+    noise_cov = noise_stdev**2 * bkd.eye(nobs)
     loglike = ModelBasedGaussianLogLikelihood(obs_model, noise_cov)
-    true_sample = np.full((nvars, 1), 0.4)
+    true_sample = bkd.full((nvars, 1), 0.4)
     obs = loglike.rvs(true_sample)
     loglike.set_observations(obs)
     prior = IndependentMarginalsVariable(
         [stats.norm(prior_mean, prior_std)] * nvars
     )
-    from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
 
     prior = DenseCholeskyMultivariateGaussian(
-        np.full((nvars, 1), prior_mean), np.eye(nvars) * prior_std**2
+        bkd.full((nvars, 1), prior_mean),
+        bkd.eye(nvars) * prior_std**2,
+        backend=bkd,
     )
     laplace = DenseMatrixLaplacePosteriorApproximation(
-        obs_model.matrix(), prior.mean(), prior.covariance(), noise_cov
+        obs_model.matrix(),
+        prior.mean(),
+        prior.covariance(),
+        noise_cov,
+        backend=bkd,
     )
     laplace.compute(obs)
     return (true_sample, prior, loglike, laplace)
 
 
-class TestMetropolis(unittest.TestCase):
+class TestMetropolis:
 
     def setUp(self):
         np.random.seed(1)
 
     def test_mvnpdf(self):
-        bkd = NumpyMixin
+        bkd = self.get_backend()
         nvars = 3
-        m = np.random.normal(0, 1, (nvars, 1))
-        C = np.random.normal(0, 1, (nvars, nvars))
-        C = C.T.dot(C)
+        m = bkd.asarray(np.random.normal(0, 1, (nvars, 1)))
+        C = bkd.asarray(np.random.normal(0, 1, (nvars, nvars)))
+        C = C.T @ C
 
         L, L_inv, logdet = compute_mvn_cholesky_based_data(C, bkd)
-        L = np.linalg.cholesky(C)
-        assert np.allclose(L_inv, np.linalg.inv(L))
-        logdet = 2 * np.log(np.diag(L)).sum()
-        assert np.allclose(logdet, np.linalg.slogdet(C)[1])
+        L = bkd.cholesky(C)
+        assert bkd.allclose(L_inv, bkd.inv(L))
+        logdet = 2 * bkd.log(bkd.diag(L)).sum()
+        assert bkd.allclose(logdet, bkd.slogdet(C)[1])
 
-        xx = np.random.uniform(-3, 3, (nvars, 100))
-        assert np.allclose(
+        xx = bkd.asarray(np.random.uniform(-3, 3, (nvars, 100)))
+        assert bkd.allclose(
             bkd.exp(mvn_log_pdf(xx, m, C, bkd)),
-            stats.multivariate_normal(m.squeeze(), C).pdf(xx.T),
+            bkd.asarray(stats.multivariate_normal(m.squeeze(), C).pdf(xx.T)),
         )
 
     def _check_mcmc_variable(self, nvars, algorithm, method_opts):
+        bkd = self.get_backend()
         np.random.seed(3)
         nsamples = 5000
         burn_fraction = 0.2
         nsamples_per_tuning = 20
         nobs = 4  # number of observations
-        noise_stdev = np.sqrt(0.3)  # standard deviation of noise
-        # init_proposal_cov = np.eye(nvars)
+        noise_stdev = math.sqrt(0.3)  # standard deviation of noise
+        # init_proposal_cov = bkd.eye(nvars)
         init_proposal_cov = None
-        prior_mean, prior_std = 0, 1
+        prior_mean, prior_std = 0.0, 1.0
 
         (true_sample, prior, loglike, laplace) = (
             _setup_gaussian_linear_inverse_problem(
-                nobs, nvars, noise_stdev, prior_mean, prior_std
+                nobs, nvars, noise_stdev, prior_mean, prior_std, bkd
             )
         )
 
@@ -90,9 +100,10 @@ class TestMetropolis(unittest.TestCase):
             method_opts=method_opts,
             init_proposal_cov=init_proposal_cov,
         )
+        print(mcmc_variable)
         map_sample = mcmc_variable.maximum_aposteriori_point(prior.mean())
         print(map_sample, laplace.posterior_mean())
-        assert np.allclose(map_sample, laplace.posterior_mean())
+        assert bkd.allclose(map_sample, laplace.posterior_mean())
 
         mcmc_samples = mcmc_variable.rvs(nsamples, map_sample)
         print(mcmc_samples.shape)
@@ -102,28 +113,28 @@ class TestMetropolis(unittest.TestCase):
         print(laplace.posterior_mean()[:, 0], "EXACT Mean")
         print(mcmc_samples.mean(axis=1), "Samples Mean")
         print(laplace.posterior_covariance(), "EXACT COV")
-        print(np.cov(mcmc_samples, ddof=1), "Samples COV")
+        print(bkd.cov(mcmc_samples, ddof=1), "Samples COV")
         print(
             "mean error",
             laplace.posterior_mean()[:, 0] - mcmc_samples.mean(axis=1),
         )
         print(
-            "cov_error", laplace.posterior_covariance() - np.cov(mcmc_samples)
+            "cov_error", laplace.posterior_covariance() - bkd.cov(mcmc_samples)
         )
-        assert np.allclose(
+        assert bkd.allclose(
             mcmc_samples.mean(axis=1),
             laplace.posterior_mean()[:, 0],
             atol=4.0e-2,
         )
-        assert np.allclose(
-            np.cov(mcmc_samples, ddof=1),
+        assert bkd.allclose(
+            bkd.cov(mcmc_samples, ddof=1),
             laplace.posterior_covariance(),
             atol=4.5e-2,
         )
 
     def test_mcmc_variable(self):
         def dram_opts(nvars):
-            cov_scaling = 1
+            cov_scaling = 1.0
             nugget = 1e-8
             return {
                 "cov_scaling": cov_scaling,
@@ -138,8 +149,15 @@ class TestMetropolis(unittest.TestCase):
             self._check_mcmc_variable(*test_case)
 
 
+class TestNumpyMetropolis(TestMetropolis, unittest.TestCase):
+    def get_backend(self):
+        return NumpyMixin
+
+
+class TestTorchMetropolis(TestMetropolis, unittest.TestCase):
+    def get_backend(self):
+        return TorchMixin
+
+
 if __name__ == "__main__":
-    metropolis_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestMetropolis
-    )
-    unittest.TextTestRunner(verbosity=2).run(metropolis_test_suite)
+    unittest.main(verbosity=2)

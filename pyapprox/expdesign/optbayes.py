@@ -1114,8 +1114,8 @@ class OEDAVaRDeviationMeasure(
             first_mom_jac / evidences
             - first_mom[..., None] * evidences_jac[None, :] / evidences**2
         )
-        like_jac = self._evidence._like_jac
-        print(like_jac.shape, "lj")
+        # like_jac = self._evidence._like_jac
+        # print(like_jac.shape, "lj")
         jacs = []
         for qq in range(self._qoi_vals.shape[1]):
             outer_vals = []
@@ -1133,10 +1133,10 @@ class OEDAVaRDeviationMeasure(
                     quad_weighted_like_vals_jac[oo] / evidences[oo : oo + 1],
                     self._evidence._quad_weights,
                 )
-                print((avar_jac - mean_jac[qq : qq + 1, oo]).shape)
+                # print((avar_jac - mean_jac[qq : qq + 1, oo]).shape)
                 outer_vals.append(avar_jac - mean_jac[qq : qq + 1, oo])
             jacs.append(self._bkd.vstack(outer_vals))
-        print(mean_jac.shape, self._bkd.stack(jacs, axis=0).shape)
+        # print(mean_jac.shape, self._bkd.stack(jacs, axis=0).shape)
         return self._bkd.stack(jacs, axis=0)
 
 
@@ -1532,7 +1532,6 @@ class KLBayesianOEDMixin:
         outerloop_loglike = self._innerloop_loglike.outerloop_loglike()
         outerloop_shapes_samples = outerloop_samples[: prior.nvars()]
         outerloop_shapes = obs_model(outerloop_shapes_samples).T
-        print(outerloop_shapes.shape, obs_model)
         outerloop_loglike.set_shapes(outerloop_shapes)
 
         innerloop_shapes = obs_model(innerloop_samples).T

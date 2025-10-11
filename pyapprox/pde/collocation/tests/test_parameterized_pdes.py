@@ -101,11 +101,7 @@ class TestParameterizedModels:
         newton_solver = NewtonSolver(verbosity=0, rtol=1e-8, atol=1e-8)
         basis = self._setup_basis_on_square_domain([20, 20])
         kle = self._setup_kle(basis)
-        model = SteadyDarcy2DKLEModel(
-            kle,
-            newton_solver=newton_solver,
-            backend=bkd,
-        )
+        model = SteadyDarcy2DKLEModel(kle, newton_solver=newton_solver)
 
         sample = bkd.array(np.random.normal(0, 1, (model.nvars(), 1)))
 

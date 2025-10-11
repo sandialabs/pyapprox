@@ -1,4 +1,5 @@
 from typing import Tuple, Union, List
+import math
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,7 +21,7 @@ def update_mean_and_covariance(new_draw, mean, cov, ndraws, sd, nugget, bkd):
     updated_cov = (ndraws - 1) / ndraws * cov
     updated_cov += sd * nugget * bkd.eye(nvars) / ndraws
     delta = new_draw - mean  # use mean and not updated mean
-    updated_cov += sd * delta.dot(delta.T) / (ndraws + 1)
+    updated_cov += sd * delta @ delta.T / (ndraws + 1)
     return updated_mean, updated_cov
 
 
@@ -47,7 +48,7 @@ def mvn_log_pdf(
         L, L_inv, logdet = C
 
     nvars = xx.shape[0]
-    log2pi = bkd.log(2 * np.pi)
+    log2pi = math.log(2 * np.pi)
     tmp = L_inv @ (xx - m)
     MDsq = bkd.sum(tmp * tmp, axis=0)
     log_pdf = -0.5 * (MDsq + nvars * log2pi + logdet)
@@ -68,7 +69,7 @@ def mvnrnd(
     if m.ndim == 1:
         m = m[:, None]
     nvars = m.shape[0]
-    white_noise = np.random.normal(0, 1, (nvars, nsamples))
+    white_noise = bkd.asarray(np.random.normal(0.0, 1.0, (nvars, nsamples)))
     return L @ white_noise + m
 
 
@@ -84,7 +85,7 @@ def delayed_rejection(
 
     L = proposal_chol_tuple[0]
     while True:
-        y1 = mvnrnd(y0, L, is_chol_factor=True)
+        y1 = mvnrnd(y0, L, is_chol_factor=True, bkd=bkd)
         if bkd.all(y1[:, 0] >= prior_bounds[:, 0]) and bkd.all(
             y1[:, 0] <= prior_bounds[:, 1]
         ):
@@ -109,10 +110,11 @@ def delayed_rejection(
 
     # 1st rejection
     nvars = proposal_chol_tuple[0].shape[0]
+    cov_scaling = bkd.asarray(cov_scaling)
     scaled_proposal_chol_tuple = (
-        proposal_chol_tuple[0] * np.sqrt(cov_scaling),
-        proposal_chol_tuple[1] / np.sqrt(cov_scaling),
-        proposal_chol_tuple[2] + nvars * np.log(cov_scaling),
+        proposal_chol_tuple[0] * bkd.sqrt(cov_scaling),
+        proposal_chol_tuple[1] / bkd.sqrt(cov_scaling),
+        proposal_chol_tuple[2] + nvars * bkd.log(cov_scaling),
     )
 
     # y2 = mvnrnd(y0, cov_scaling*proposal_cov)
@@ -133,16 +135,16 @@ def delayed_rejection(
     log_q1_y2_y1 = mvn_log_pdf(y2, y1, proposal_chol_tuple, bkd)
 
     # the following is true because we are using a symmetric proposal
-    assert np.allclose(log_q1_y2_y1, log_q1_y1_y2, atol=1e-15)
+    assert bkd.allclose(log_q1_y2_y1, log_q1_y1_y2, atol=1e-15)
 
     log_q2_y2_y0 = mvn_log_pdf(y2, y0, scaled_proposal_chol_tuple, bkd)
     log_q2_y0_y2 = mvn_log_pdf(y0, y2, scaled_proposal_chol_tuple, bkd)
 
     # the following is true because we are using a symmetric proposal
-    assert np.allclose(log_q2_y2_y0, log_q2_y0_y2, atol=1e-15)
+    assert bkd.allclose(log_q2_y2_y0, log_q2_y0_y2, atol=1e-15)
 
     log_alpha_1_y1_y2 = (log_f_y1 + log_q1_y2_y1) - (log_f_y2 + log_q1_y1_y2)
-    if np.log(1) <= log_alpha_1_y1_y2:
+    if math.log(1) <= log_alpha_1_y1_y2:
         return y0, 0, log_f_y0
     log_numer_2 = (
         log_f_y2
@@ -180,7 +182,7 @@ def DRAM(
 ):
     nvars = init_sample.shape[0]
 
-    samples = np.empty((nvars, nsamples))
+    samples = bkd.empty((nvars, nsamples))
     if sd is None:
         sd = (
             2.4**2 / nvars
@@ -262,6 +264,7 @@ class MetropolisMCMCVariable(JointVariable):
         verbosity: int = 1,
         init_proposal_cov: Array = None,
     ):
+        super().__init__(prior._bkd)
         self._prior = prior
         self._loglike = loglike
         self._burn_fraction = burn_fraction
@@ -298,6 +301,7 @@ class MetropolisMCMCVariable(JointVariable):
             cov_scaling,
             verbosity=self._verbosity,
             sd=sd,
+            bkd=self._bkd,
         )
         # print(accepted)
         # print(accepted[nburn_samples:].sum(), nsamples, nburn_samples)
@@ -409,7 +413,7 @@ class MetropolisMCMCVariable(JointVariable):
             ax = axs[pair[0]][pair[1]]
             # ax.set_xlim(lb1, ub1)
             # ax.set_ylim(lb2, ub2)
-            print(samples.shape, pair)
+            # print(samples.shape, pair)
             ax.plot(samples[pair[1], :], samples[pair[0], :], "ko", alpha=0.4)
             if map_sample is not None:
                 ax.plot(
@@ -455,13 +459,13 @@ def hamiltonian_monte_carlo(L, eps, logpost_fun, init_sample, nsamples):
     accepted = np.empty(nsamples, dtype=bool)
     for ii in range(nsamples):
         momentum = np.random.normal(0, 1, (nvars, 1))
-        log_denom = logpost_fun(sample) - momentum.T.dot(momentum) / 2
+        log_denom = logpost_fun(sample) - momentum.T @ momentum / 2
         new_sample = sample
         for jj in range(L):
             new_sample, momentum = leapfrog(
                 logpost_fun, new_sample, momentum, eps
             )
-        log_numer = logpost_fun(new_sample) - momentum.T.dot(momentum) / 2
+        log_numer = logpost_fun(new_sample) - momentum.T @ momentum / 2
         alpha = min(1, np.exp(log_numer) / np.exp(log_denom))
         u = np.random.uniform(0, 1)
         if u < alpha:

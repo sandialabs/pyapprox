@@ -84,19 +84,26 @@ class VarianceBasedSensitivityAnalysis(ABC):
         # each interaction value For example, let R_ij be interaction_variances
         # the sobol index S_ij satisfies R_ij = S_i + S_j + S_ij
         idx = argsort_indices_leixographically(self._interaction_terms)
-        sobol_indices = interaction_variances.copy()
+        sobol_indices = self._bkd.copy(interaction_variances)
         sobol_indices_dict = dict()
         for ii in range(idx.shape[0]):
             index = self._interaction_terms[:, idx[ii]]
             active_vars = self._bkd.where(index > 0)[0]
             nactive_vars = index.sum()
-            sobol_indices_dict[tuple(active_vars)] = idx[ii]
+            sobol_indices_dict[hash_array(self._bkd.to_numpy(active_vars))] = (
+                idx[ii]
+            )
             if nactive_vars > 1:
                 for jj in range(nactive_vars - 1):
                     indices = combinations(active_vars, jj + 1)
+
                     for key in indices:
                         sobol_indices[idx[ii]] -= sobol_indices[
-                            sobol_indices_dict[key]
+                            sobol_indices_dict[
+                                hash_array(
+                                    self._bkd.to_numpy(self._bkd.asarray(key))
+                                )
+                            ]
                         ]
         return sobol_indices
 
@@ -1427,7 +1434,6 @@ class EnsembleGaussianProcessSensitivityAnalysis(
                 )
             quantile = int(statname[-2]) / 100
             statname = statname[:-2]
-            print(quantile)
         else:
             quantile = None
         stats = {

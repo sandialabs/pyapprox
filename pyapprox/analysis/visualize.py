@@ -150,8 +150,8 @@ def setup_2d_cross_section_axes(variable, variable_pairs, subplot_tuple):
         # make first column values vary fastest so we plot lower triangular
         # matrix of subplots
         variable_pairs[:, 0], variable_pairs[:, 1] = (
-            variable_pairs[:, 1].copy(),
-            variable_pairs[:, 0].copy(),
+            bkd.copy(variable_pairs[:, 1]),
+            bkd.copy(variable_pairs[:, 0]),
         )
         # add 1d cross sections
         variable_pairs = bkd.vstack(

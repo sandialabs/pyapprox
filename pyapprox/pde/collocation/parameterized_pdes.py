@@ -30,6 +30,7 @@ from pyapprox.pde.collocation.functions import (
     VectorFunction,
     ScalarSolution,
     ScalarKLEFunction,
+    ScalarKLEFunctionOnDifferentMesh,
     ZeroScalarFunction,
     VectorFunctionFromCallable,
     ScalarFunctionFromCallable,
@@ -299,6 +300,7 @@ class PyApproxPaperAdvectionDiffusionKLEForwardModel(
     def __init__(
         self,
         inv_model: PyApproxPaperAdvectionDiffusionKLEInversionModel,
+        kle: ScalarKLEFunctionOnDifferentMesh,
         init_time: float = 0,
         final_time: float = 0.2,
         deltat: float = 0.2 / 64.0,
@@ -307,12 +309,11 @@ class PyApproxPaperAdvectionDiffusionKLEForwardModel(
         newton_solver: NewtonSolver = None,
         functional: AdjointFunctional = None,
     ):
-        self._nmesh_pts_1d = inv_model._bkd.asarray(nmesh_pts_1d, dtype=int)
-        self._inv_model = copy.deepcopy(inv_model)
-        self._nvars = inv_model._nvars
-        self._sigma = inv_model._sigma
-        self._mean_field = inv_model._mean_field
-        self._lenscale = inv_model._lenscale
+        self._inv_model = inv_model
+        self._kle = kle
+        self._init_cond_fun = ScalarFunction(
+            self._inv_model.basis(), ninput_funs=1
+        )
         super().__init__(
             init_time,
             final_time,
@@ -321,9 +322,6 @@ class PyApproxPaperAdvectionDiffusionKLEForwardModel(
             functional,
             newton_solver,
             inv_model._bkd,
-        )
-        self._init_cond_fun = ScalarFunction(
-            self._inv_model.basis(), ninput_funs=1
         )
 
     def setup_forcing(self):
@@ -334,13 +332,7 @@ class PyApproxPaperAdvectionDiffusionKLEForwardModel(
         self.setup_velocity()
         self.setup_forcing()
         self._physics = TransientParameterizedDiffusionFixedAdvectionPhysics(
-            self._forcing,
-            self._vel_field,
-            self._nvars,
-            self._sigma,
-            self._lenscale,
-            self._mean_field,
-            use_quadrature=False,
+            self._forcing, self._vel_field, self._kle
         )
 
     def set_param(self, param: Array):
@@ -1222,10 +1214,9 @@ class SteadyDarcy2DKLEModel(SteadyAdjointCollocationModel):
         kle: ScalarKLEFunction,
         newton_solver: NewtonSolver = None,
         functional: AdjointFunctional = None,
-        backend: BackendMixin = NumpyMixin,
     ):
         self._kle = kle
-        super().__init__(newton_solver, functional, backend)
+        super().__init__(newton_solver, functional, kle._bkd)
         # PDE is linear so initial guess does not matter
         self._adjoint_solver.set_initial_iterate(
             self._bkd.zeros(self.basis().mesh().nmesh_pts())

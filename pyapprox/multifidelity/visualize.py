@@ -197,7 +197,7 @@ def plot_estimator_sample_allocation_comparison(
     estimators : list
        Each entry is a MonteCarlo like estimator
 
-    model_labels : list (nestimators)
+    xlabels : list (nestimators)
         String used to label each estimator
     """
 
