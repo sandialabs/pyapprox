@@ -2,16 +2,26 @@ import pickle
 
 from pyapprox.surrogates.affine.optimizers import ScipyLBFGSB
 from pyapprox.sciml.integraloperators import (
-    DenseAffineIntegralOperator, DenseAffineIntegralOperatorFixedBias,
-    FourierConvolutionOperator)
-from pyapprox.sciml.activations import (IdentityActivation, TanhActivation)
+    DenseAffineIntegralOperator,
+    DenseAffineIntegralOperatorFixedBias,
+    FourierConvolutionOperator,
+)
+from pyapprox.sciml.activations import IdentityActivation, TanhActivation
 from pyapprox.sciml.layers import Layer
 from pyapprox.util.transforms import IdentityTransform
 
 
-class CERTANN():
-    def __init__(self, nvars, layers, activations, var_trans=None,
-                 values_trans=None, optimizer=None, loss='mse'):
+class CERTANN:
+    def __init__(
+        self,
+        nvars,
+        layers,
+        activations,
+        var_trans=None,
+        values_trans=None,
+        optimizer=None,
+        loss="mse",
+    ):
         """
         A quadrature based nerual operator.
 
@@ -64,6 +74,7 @@ class CERTANN():
         else:
             self._values_trans = values_trans
 
+        print(self._layers[0]._hyp_list)
         self._hyp_list = sum([layer._hyp_list for layer in self._layers])
         self._loss_str = loss
 
@@ -78,25 +89,31 @@ class CERTANN():
 
     def _loss(self, batches=1, batch_index=0):
         ntrain_samples = self._canonical_train_samples.shape[-1]
-        batch_sizes = (self._bkd.ones((batches+1,)) *
-                       int(ntrain_samples / batches))
+        batch_sizes = self._bkd.ones((batches + 1,)) * int(
+            ntrain_samples / batches
+        )
         batch_sizes[0] = 0
-        batch_sizes[1:(ntrain_samples % batches)] += 1
+        batch_sizes[1 : (ntrain_samples % batches)] += 1
         batch_arr = self._bkd.cumsum(batch_sizes, axis=0)
 
         idx0 = int(batch_arr[batch_index].item())
-        idx1 = int(batch_arr[batch_index+1].item())
+        idx1 = int(batch_arr[batch_index + 1].item())
         batch_approx_values = self._forward(
-            self._canonical_train_samples[..., idx0:idx1])
+            self._canonical_train_samples[..., idx0:idx1]
+        )
         batch_canonical_values = self._canonical_train_values[..., idx0:idx1]
-        if self._loss_str == 'mse':
-            return ((batch_approx_values-batch_canonical_values)**2).sum() / (
-                    ntrain_samples)
-        elif self._loss_str == 'rel_rmse':
-            diff = ((batch_approx_values-batch_canonical_values)**2).sum(
-                    dim=list(range(batch_approx_values.ndim-1))) / (
-                    (batch_canonical_values**2).sum(
-                     dim=list(range(batch_approx_values.ndim-1))))
+        if self._loss_str == "mse":
+            return (
+                (batch_approx_values - batch_canonical_values) ** 2
+            ).sum() / (ntrain_samples)
+        elif self._loss_str == "rel_rmse":
+            diff = ((batch_approx_values - batch_canonical_values) ** 2).sum(
+                dim=list(range(batch_approx_values.ndim - 1))
+            ) / (
+                (batch_canonical_values**2).sum(
+                    dim=list(range(batch_approx_values.ndim - 1))
+                )
+            )
             return self._bkd.sqrt(diff).mean()
         else:
             raise ValueError("Supported losses are 'mse' and 'rel_rmse'")
@@ -121,18 +138,26 @@ class CERTANN():
 
     def _set_training_data(self, train_samples, train_values):
         if train_samples.shape[0] != self._nvars:
-            raise ValueError("train_samples has the wrong shape {0}".format(
-                train_samples.shape))
+            raise ValueError(
+                "train_samples has the wrong shape {0}".format(
+                    train_samples.shape
+                )
+            )
         if train_samples.shape[-1] != train_values.shape[-1]:
-            raise ValueError("train_values has the wrong shape {0}".format(
-                train_values.shape))
+            raise ValueError(
+                "train_values has the wrong shape {0}".format(
+                    train_values.shape
+                )
+            )
 
         self.train_samples = train_samples
         self.train_values = train_values
         self._canonical_train_samples = self._bkd.asarray(
-            self._var_trans.map_to_canonical(train_samples))
+            self._var_trans.map_to_canonical(train_samples)
+        )
         self._canonical_train_values = self._bkd.asarray(
-            self._values_trans.map_to_canonical(train_values))
+            self._values_trans.map_to_canonical(train_values)
+        )
 
     def fit(self, train_samples, train_values, verbosity=0, tol=1e-5):
         self._set_training_data(train_samples, train_values)
@@ -145,46 +170,59 @@ class CERTANN():
         self._hyp_list.set_active_opt_params(self._bkd.asarray(res.x))
 
     def save_model(self, filename):
-        '''
+        """
         To load, use pyapprox.sciml.network.load(filename)
-        '''
-        pickle.dump(self, open(filename, 'wb'))
+        """
+        pickle.dump(self, open(filename, "wb"))
 
     def __call__(self, input_samples):
         return self._forward(self._bkd.asarray(input_samples))
 
     def __repr__(self):
         return "{0}({1})".format(
-            self.__class__.__name__, self._hyp_list._short_repr())
+            self.__class__.__name__, self._hyp_list._short_repr()
+        )
 
 
 def load_model(filename):
-    return pickle.load(open(filename, 'rb'))
+    return pickle.load(open(filename, "rb"))
 
 
 def initialize_homogeneous_transform_NO(
-        niop_layers, hidden_width, ninputs, noutputs, kmax,
-        convolution_op=FourierConvolutionOperator,
-        hidden_activation=TanhActivation, use_affine_block=True):
+    niop_layers,
+    hidden_width,
+    ninputs,
+    noutputs,
+    kmax,
+    convolution_op=FourierConvolutionOperator,
+    hidden_activation=TanhActivation,
+    use_affine_block=True,
+):
     """
     Initialize the layers of a FNO
     """
-    iops = [
-        convolution_op(kmax) for nn in range(niop_layers)]
+    iops = [convolution_op(kmax) for nn in range(niop_layers)]
     if not use_affine_block:
         layers = [Layer([iop]) for iop in iops]
     else:
         layers = [
-            Layer([iops[nn], DenseAffineIntegralOperator(
-                hidden_width, hidden_width)])
-            for nn in range(niop_layers)]
+            Layer(
+                [
+                    iops[nn],
+                    DenseAffineIntegralOperator(hidden_width, hidden_width),
+                ]
+            )
+            for nn in range(niop_layers)
+        ]
     activations = [hidden_activation() for nn in range(niop_layers)]
     if hidden_width != ninputs:
         layers = (
-            [DenseAffineIntegralOperatorFixedBias(ninputs, hidden_width)] +
-            layers +
-            [DenseAffineIntegralOperatorFixedBias(hidden_width, noutputs)])
+            [DenseAffineIntegralOperatorFixedBias(ninputs, hidden_width)]
+            + layers
+            + [DenseAffineIntegralOperatorFixedBias(hidden_width, noutputs)]
+        )
         activations = (
-            [IdentityActivation()]+activations+[IdentityActivation()])
+            [IdentityActivation()] + activations + [IdentityActivation()]
+        )
     network = CERTANN(ninputs, layers, activations)
     return network

@@ -9,42 +9,17 @@ The following tutorial shows how to choose the best subset of models.
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox import multifidelity
-from pyapprox.benchmarks import setup_benchmark
-from pyapprox.interface.wrappers import WorkTrackingModel, TimerModel
-from pyapprox.util.visualization import mathrm_label
-
-raise NotImplementedError
-np.random.seed(1)
+from pyapprox import multifidelity as mf
+from pyapprox.benchmarks import (
+    PyApproxPaperAdvectionDiffusionKLEInversionBenchmark,
+)
+from pyapprox.util.backends.torch import TorchMixin as bkd
 
 # %%
-# Configure the benchmark
-# -----------------------
-# Lets configure the benchmark.
-time_scenario = {
-    "final_time": 1.0,
-    "butcher_tableau": "im_crank2",
-    "deltat": 0.1,  # default will be overwritten
-    "init_sol_fun": None,
-    "sink": None,
-}
-
-nlevels = 2
-config_values = [[11, 21, 31], [11, 31], [0.125, 0.0625]]
-
-benchmark = setup_benchmark(
-    "multi_index_advection_diffusion",
-    kle_nvars=3,
-    kle_length_scale=0.5,
-    time_scenario=time_scenario,
-    config_values=config_values,
-)
-
-# Add wraper to compute the time each model takes to run
-funs = [
-    WorkTrackingModel(TimerModel(fun), base_model=fun)
-    for fun in benchmark.funs
-]
+# Setup the benchmark
+# -------------------
+np.random.seed(1)
+benchmark = PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(backend=bkd)
 
 # %%
 # Run the pilot study
@@ -53,27 +28,32 @@ funs = [
 # pilot quantities needed to predict the variance of any estimator
 # of the mean of the model
 npilot_samples = 20
-pilot_samples = benchmark.variable.rvs(npilot_samples)
-pilot_values_per_model = [fun(pilot_samples) for fun in funs]
+pilot_samples = benchmark.prior().rvs(npilot_samples)
+qoi_models, qoi_model_names = benchmark.qoi_models()
+# turn on work tracking
+for model in qoi_models:
+    model.activate_model_data_base()
+pilot_values_per_model = [model(pilot_samples) for model in qoi_models]
 
-nmodels = len(benchmark.funs)
-stat = multifidelity.multioutput_stats["mean"](1)
+nmodels = len(qoi_models)
+stat = mf.multioutput_stats["mean"](1, backend=bkd)
 stat.set_pilot_quantities(
     *stat.compute_pilot_quantities(pilot_values_per_model)
 )
 
 # Extract median run times of each model
-model_ids = np.asarray([np.arange(nmodels)])
-model_costs = [fun.cost_function()[0] for fun in funs]
+model_costs = bkd.array(
+    [model.work_tracker().average_wall_time("val") for model in qoi_models]
+)
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-multifidelity.plot_model_costs(model_costs, ax=ax)
+mf.plot_model_costs(model_costs, ax=ax)
 
 ax = plt.subplots(1, 1, figsize=(16, 12))[1]
-_ = multifidelity.plot_correlation_matrix(
-    multifidelity.covariance_to_correlation(stat._cov.numpy()),
+_ = mf.plot_correlation_matrix(
+    mf.covariance_to_correlation(stat.pilot_covariance(), bkd=bkd),
     ax=ax,
-    format_string=None,
+    model_names=qoi_model_names,
 )
 
 # %%
@@ -84,7 +64,7 @@ _ = multifidelity.plot_correlation_matrix(
 # Some MFMC estimators will fail because the models
 # do not satisfy its hierarchical condition so set
 # allow_failures=True
-best_est = multifidelity.get_estimator(
+best_est = mf.get_estimator(
     "mfmc",
     stat,
     model_costs,
@@ -130,14 +110,14 @@ est_labels = [
 ]
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-_ = multifidelity.plot_estimator_variance_reductions(best_ests, est_labels, ax)
-_ = ax.set_xlabel(mathrm_label("Low fidelity models"))
+_ = mf.plot_estimator_variance_reductions(best_ests, est_labels, ax)
+_ = ax.set_xlabel("Low fidelity models")
 
 # %%
 # Find the best estimator
 # -----------------------
-# We can also find the best estimator from a list of estimator types while still determining the best model subset. This code chooses the best estimator from two possible parameterized ACV estimator classes. Specifically it chooses from all possible generalized recursive difference (GRD) estimators and genearlized multifidelity estimators that use at most 3 models and have a maximum tree depth of 3.
-best_est = multifidelity.get_estimator(
+# We can also find the best estimator from a list of estimator types while still determining the best model subset. This code chooses the best estimator from two possible parameterized ACV estimator classes. Specifically it chooses from all possible generalized recursive difference (GRD) estimators and genearlized mf estimators that use at most 3 models and have a maximum tree depth of 3.
+best_est = mf.get_estimator(
     ["grd", "gmf"],
     stat,
     model_costs,
@@ -187,5 +167,5 @@ est_labels = [
 ]
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
-_ = multifidelity.plot_estimator_variance_reductions(best_ests, est_labels, ax)
-_ = ax.set_xlabel(mathrm_label("Estimator types"))
+_ = mf.plot_estimator_variance_reductions(best_ests, est_labels, ax)
+_ = ax.set_xlabel("Estimator types")

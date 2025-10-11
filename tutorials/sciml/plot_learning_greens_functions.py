@@ -44,6 +44,8 @@ function and compares the result against the exact solution.
 """
 
 from functools import partial
+
+import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.hyperparameter import LogHyperParameterTransform
@@ -109,8 +111,7 @@ ax = plt.figure().gca()
 ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
 ax.plot(plot_xx[0], green_sol, "--", label=r"$u_G(x)$")
 ax.plot(plot_xx[0], forc_fun(plot_xx), label=r"$f(x)=-\kappa\nabla^2 u(x)$")
-ax.legend()
-plt.show()
+_ = ax.legend()
 
 
 # %%
@@ -119,7 +120,6 @@ ax = plt.figure().gca()
 X, Y = bkd.meshgrid(plot_xx[0], plot_xx[0])
 G = greens_fun(plot_xx, plot_xx)
 greens_plot = ax.imshow(G, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
-plt.show()
 
 
 # %%
@@ -142,15 +142,14 @@ hs_kernel = HilbertSchmidtKernel(
     basis, basis, 1 / bkd.arange(1, nterms + 1, dtype=float), [1e-2, 1]
 )
 const_kernel = ConstantKernel(
-    10, [1e-2, 1e4], transform=LogHyperParameterTransform(), backend=bkd
+    10.0, [1e-2, 1e4], transform=LogHyperParameterTransform(), backend=bkd
 )
 final_kernel = const_kernel * hs_kernel
 green_sol_hs = greens_solution(final_kernel, forc_fun, plot_xx)
 ax = plt.figure().gca()
 ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
 ax.plot(plot_xx[0], green_sol_hs, "--", label=r"$u_{HS}(x)$")
-ax.legend()
-plt.show()
+_ = ax.legend()
 
 
 # %%
@@ -159,8 +158,7 @@ ax = plt.figure().gca()
 X, Y = bkd.meshgrid(plot_xx[0], plot_xx[0])
 Z = final_kernel(plot_xx, plot_xx)
 im = ax.imshow(Z, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
-plt.colorbar(im, ax=ax)
-plt.show()
+_ = plt.colorbar(im, ax=ax)
 
 
 # %%
@@ -187,7 +185,7 @@ ninputs = 40
 ntrain_samples = 10
 abscissa = bkd.linspace(0, 1, ninputs)[None, :]
 noutputs = abscissa.shape[1]
-train_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
+train_coef = bkd.asarray(np.random.normal(0, 1, (nfterms, ntrain_samples)))
 train_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in train_coef.T
 ]
@@ -252,11 +250,10 @@ ctn_sol = ctn(train_samples)
 exact_sol = train_values
 ax = plt.figure().gca()
 ax.plot(abscissa[0], exact_sol, "-k")
-ax.plot(abscissa[0], ctn_sol.numpy(), "r--")
-plt.show()
+_ = ax.plot(abscissa[0], ctn_sol.numpy(), "r--")
 
 
-val_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
+val_coef = bkd.asarray(np.random.normal(0, 1, (nfterms, ntrain_samples)))
 val_forc_funs = [partial(parameterized_forc_fun, coef) for coef in val_coef.T]
 val_samples = bkd.hstack([f(abscissa) for f in val_forc_funs])
 val_values = bkd.hstack(
@@ -276,8 +273,7 @@ ax = plt.figure().gca()
 X, Y = bkd.meshgrid(plot_xx[0], plot_xx[0])
 Z = final_kernel(plot_xx, plot_xx)
 im = ax.imshow(Z, origin="lower", extent=[0, 1, 0, 1], cmap="jet")
-plt.colorbar(im, ax=ax)
-plt.show()
+_ = plt.colorbar(im, ax=ax)
 
 # Print the final kernel variance
 print(const_kernel)
@@ -321,8 +317,7 @@ ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
 ax.plot(plot_xx[0], green_sol, "--", label=r"$\tilde{u}_F(x)$")
 ax.plot(plot_xx[0], forc_fun(plot_xx), label=r"$f(x)=-\kappa\nabla^2 u(x)$")
 ax.set_title(r"Truncated Fourier expansion, 7 terms")
-ax.legend()
-plt.show()
+_ = ax.legend()
 
 # %%
 # Now we'll do a Chebyshev transform and retain 7 coefficients.
@@ -343,8 +338,8 @@ ax.plot(plot_xx[0], exact_solution(plot_xx), label=r"$u(x)$")
 ax.plot(plot_xx[0], green_sol, "--", label=r"$\tilde{u}_C(x)$")
 ax.plot(plot_xx[0], forc_fun(plot_xx), label=r"$f(x)=-\kappa\nabla^2 u(x)$")
 ax.set_title(r"Truncated Chebyshev expansion, 7 terms")
-ax.legend()
-plt.show()
+_ = ax.legend()
+
 
 # %%
 # We see that the Fourier and Chebyshev coefficients decay rapidly enough that
@@ -406,10 +401,9 @@ ax = plt.figure().gca()
 ax.plot(abscissa[0], exact_sol, "-k")
 ax.plot(abscissa[0], ctn_sol.numpy(), "r--")
 plt.xlabel(r"$x$")
-plt.title(
+_ = plt.title(
     r"Exact $u$ (black), predicted $u$ (red), $k_\mathrm{max} = %d$" % kmax
 )
-plt.show()
 
 print(
     "Relative error:",
@@ -463,8 +457,7 @@ ax[0].set_xlabel(r"$x$")
 ax[1].set_xlabel(r"$x$")
 ax[0].set_ylabel(r"$y$")
 ax[1].set_ylabel(r"$y$")
-fig.set_size_inches(10, 5)
-plt.show()
+_ = fig.set_size_inches(10, 5)
 
 # %%
 # A Green's function corresponds to a space of input functions, so the sampling
@@ -570,8 +563,7 @@ plt.ylabel("Relative validation error in $u$")
 plt.tight_layout()
 plt.xlim([0, 250])
 plt.ylim([1e-4, 1.2])
-plt.legend()
-plt.show()
+_ = plt.legend()
 
 
 # %%
@@ -590,8 +582,7 @@ A = fct.chebyshev_poly_basis(xx, nfterms).T
 plt.plot(xx, A @ c)
 plt.ylim([-5, 25])
 plt.grid()
-plt.title(r"Chebyshev series for $\delta(x)$ with %d terms" % nfterms)
-plt.show()
+_ = plt.title(r"Chebyshev series for $\delta(x)$ with %d terms" % nfterms)
 
 # %%
 # Now we re-harvest training data with approximate Dirac deltas.
