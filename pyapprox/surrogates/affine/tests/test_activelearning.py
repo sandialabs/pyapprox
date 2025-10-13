@@ -17,9 +17,7 @@ from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
 from pyapprox.surrogates.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
 )
-from pyapprox.surrogates.affine.multiindex import (
-    ExpandingMarginGenerator,
-)
+from pyapprox.surrogates.affine.multiindex import ExpandingMarginGenerator
 
 
 class TestActiveLearning:
