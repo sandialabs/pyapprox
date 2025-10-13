@@ -138,7 +138,7 @@ design_weights = kl_oed.compute()
 
 # %%
 # Plot the OED
-# -----------
+# ------------
 axs = plt.subplots(1, 2, figsize=(8, 6), sharey=True)[1]
 # Reshape weights so that each row correspond to one of the OED states
 design_weights = design_weights.reshape((2, -1))

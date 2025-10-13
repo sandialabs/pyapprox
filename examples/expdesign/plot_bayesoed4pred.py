@@ -170,7 +170,7 @@ design_weights = pred_oed.compute()
 
 # %%
 # Plot the OED
-# -----------
+# ------------
 fig, axs = plt.subplots(1, 2, figsize=(8, 6), sharey=True)
 # Reshape weights so that each row correspond to one of the OED states
 design_weights = design_weights.reshape((2, -1))

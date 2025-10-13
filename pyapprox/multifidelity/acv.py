@@ -1364,12 +1364,16 @@ class ACVEstimator(CVEstimator):
     #     partition_ratios.grad.zero_()
     #     return val.item(), grad
 
-    def get_npartition_bounds(self) -> Array:
+    def get_npartition_bounds(self, total_cost: float) -> Array:
         nunknowns = self._npartitions - 1
+        # tighter bounds helps global optimizer so insted of using inf,
+        # set upperbounds to be maximum number of samples if all samples
+        # were allocated to a single model, for each model
         bounds = self._bkd.stack(
             (
                 self._bkd.full((nunknowns,), self._npartitions_lower_bound),
-                self._bkd.full((nunknowns,), np.inf),
+                # self._bkd.full((nunknowns,), np.inf),
+                total_cost / self._costs[1:],
             ),
             axis=1,
         )
@@ -1384,9 +1388,17 @@ class ACVEstimator(CVEstimator):
         # init_gen.set_bounds(self.get_npartition_bounds())
         # optimizer = ConstrainedMultiStartOptimizer(local_optimizer)
         # optimizer.set_initial_iterate_generator(init_gen)
-        global_optimizer = ScipyConstrainedNelderMeadOptimizer(
-            opts={"maxiter": 500}
+        # global_optimizer = ScipyConstrainedNelderMeadOptimizer(
+        #     opts={"maxiter": 500}
+        # )
+        from pyapprox.optimization.scipy import (
+            ScipyConstrainedDifferentialEvolutionOptimizer,
         )
+
+        global_optimizer = ScipyConstrainedDifferentialEvolutionOptimizer(
+            opts={"maxiter": 3}
+        )
+
         local_optimizer = ScipyConstrainedOptimizer()
         optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
         optimizer.set_verbosity(0)
@@ -1415,7 +1427,7 @@ class ACVEstimator(CVEstimator):
         self._optimizer.set_objective_function(objective)
         constraints = [ACVPartitionConstraint(self, target_cost)]
         self._optimizer.set_constraints(constraints)
-        self._optimizer.set_bounds(self.get_npartition_bounds())
+        self._optimizer.set_bounds(self.get_npartition_bounds(target_cost))
         init_iterate = self._bkd.full((self._nmodels - 1, 1), 1.0)
         result = self._optimizer.minimize(init_iterate)
         return result

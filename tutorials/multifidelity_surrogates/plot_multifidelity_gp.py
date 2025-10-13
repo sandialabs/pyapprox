@@ -116,7 +116,6 @@ from functools import partial
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.gaussianprocess.exactgp import (
-    # GreedyMultifidelityIntegratedVarianceSampler,
     SequentialMultiLevelGaussianProcess,
     MOExactGaussianProcess,
     ExactGaussianProcess,
@@ -128,29 +127,31 @@ from pyapprox.surrogates.affine.basisexp import MonomialExpansion
 from pyapprox.surrogates.univariate.base import Monomial1D
 from pyapprox.surrogates.affine.basis import MultiIndexBasis
 from pyapprox.expdesign.sequences import HaltonSequence
+from pyapprox.util.backends.torch import TorchMixin as bkd
 
 np.random.seed(1)
 nvars = 1
 variable = IndependentMarginalsVariable(
-    [stats.uniform(0, 1) for ii in range(nvars)]
+    [stats.uniform(0, 1) for ii in range(nvars)], backend=bkd
 )
 
 nmodels = 2
-sigmas = [1, 0.1]
+sigmas = [1.0, 0.1]
 length_scale = np.hstack([np.full(nvars, 0.3)] * nmodels)
 kernels = [
     ConstantKernel(
         sigmas[nn],
         (1e-3, 1e1),
-        transform=LogHyperParameterTransform(),
+        transform=LogHyperParameterTransform(backend=bkd),
+        backend=bkd,
     )
-    * MaternKernel(np.inf, length_scale[nn], (0.1, 1.0), nvars)
+    * MaternKernel(np.inf, length_scale[nn], (0.1, 1.0), nvars, backend=bkd)
     for nn in range(nmodels)
 ]
 
-rho = np.array([[1.0]])
+rho = bkd.array([[1.0]])
 nterms_1d = 1
-basis = MultiIndexBasis([Monomial1D() for ii in range(nvars)])
+basis = MultiIndexBasis([Monomial1D(backend=bkd) for ii in range(nvars)])
 basis.set_tensor_product_indices([nterms_1d] * nvars)
 kernel_scalings = [MonomialExpansion(basis) for nn in range(nmodels - 1)]
 [scaling.set_coefficients(rho) for scaling in kernel_scalings]
@@ -159,7 +160,7 @@ kernel = MultiLevelKernel(kernels, kernel_scalings)
 # sort for plotting covariance matrices
 nsamples_per_model = [100, 50]
 train_samples_per_model = [
-    np.sort(
+    bkd.sort(
         HaltonSequence(nvars, start_idx=1000 * nn + 1, variable=variable).rvs(
             nsamples_per_model[nn]
         )
@@ -175,7 +176,7 @@ plt.colorbar(im, ax=ax)
 # %%
 # Now lets plot the structure of the multi-fidelity covariance matrix when using two models a linear polynomial scaling :math:`\rho(x)=a+bx`. In comparison to a scalar scaling the correlation between the low and high-fidelity models changes as a function of the input :math:`\rv`.
 ax = plt.subplots(1, 1, figsize=(1 * 8, 6))[1]
-rho_2 = np.array([0.0, 1.0])[:, None]  # [a, b]
+rho_2 = bkd.array([0.0, 1.0])[:, None]  # [a, b]
 basis_2 = MultiIndexBasis([Monomial1D() for ii in range(nvars)])
 basis_2.set_tensor_product_indices([2] * nvars)
 kernel_scalings_2 = [MonomialExpansion(basis_2) for nn in range(nmodels - 1)]
@@ -198,7 +199,7 @@ def scale(degree, x, rho, kk):
 def f0(x):
     # y = x.sum(axis=0)[:, None]
     y = x[0:1].T
-    return ((y * 3 - 1) ** 2 + 1) * np.sin((y * 10 - 2)) / 5
+    return ((y * 3 - 1) ** 2 + 1) * bkd.sin((y * 10 - 2)) / 5
 
 
 def f1(degree, rho, x):
@@ -211,7 +212,7 @@ def f1(degree, rho, x):
 # Now build a GP with 8 samples from the low-fidelity model and four samples from the high-fidelity model
 nsamples_per_model = [8, 4]
 train_samples_per_model = [
-    np.sort(
+    bkd.sort(
         HaltonSequence(nvars, start_idx=1000 * nn + 1, variable=variable).rvs(
             nsamples_per_model[nn]
         ),
@@ -221,7 +222,7 @@ train_samples_per_model = [
 ]
 degree = 0
 
-true_rho = np.full((nmodels - 1) * degree + 1, 0.9)
+true_rho = bkd.full(((nmodels - 1) * degree + 1,), 0.9)
 models = [f0, partial(f1, degree, true_rho)]
 train_values_per_model = [
     f(x) for f, x in zip(models, train_samples_per_model)
@@ -234,7 +235,7 @@ prior_kwargs = {"color": "gray", "alpha": 0.3}
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 ax.plot(train_samples_per_model[0][0], train_values_per_model[0], "ko")
 ax.plot(train_samples_per_model[1][0], train_values_per_model[1], "rs")
-xx = np.linspace(0, 1, 101)[None, :]
+xx = bkd.linspace(0, 1, 101)[None, :]
 ax.plot(xx[0], models[0](xx), "k-", label=r"$f_0$")
 ax.plot(xx[0], models[1](xx), "r-", label=r"$f_1$")
 gp.plot_1d(
@@ -261,8 +262,9 @@ _ = ax.legend()
 sf_kernel = ConstantKernel(
     sigmas[0],
     (1e-3, 1e1),
-    transform=LogHyperParameterTransform(),
-) * MaternKernel(np.inf, length_scale[0], (1e-1, 1.0), nvars)
+    transform=LogHyperParameterTransform(backend=bkd),
+    backend=bkd,
+) * MaternKernel(bkd.inf(), length_scale[0], (1e-1, 1.0), nvars, backend=bkd)
 sf_gp = ExactGaussianProcess(nvars, sf_kernel)
 sf_gp.set_optimizer(ncandidates=3)
 sf_gp.fit(train_samples_per_model[1], train_values_per_model[1])
@@ -316,14 +318,17 @@ _ = ax.legend()
 # The following plot compares a sequential multi-level GP with the exact co-kriging on the toy problem introduced earlier.
 
 sml_kernels = [
-    MaternKernel(np.inf, 0.1, (1e-10, 1), nvars) for ii in range(nmodels)
+    MaternKernel(bkd.inf(), 0.1, (1e-10, 1), nvars, backend=bkd)
+    for ii in range(nmodels)
 ]
-sml_scaling_basis = MultiIndexBasis([Monomial1D() for ii in range(nvars)])
+sml_scaling_basis = MultiIndexBasis(
+    [Monomial1D(backend=bkd) for ii in range(nvars)]
+)
 sml_scaling_basis.set_tensor_product_indices([1] * nvars)
 sml_scalings = [
     MonomialExpansion(sml_scaling_basis) for nn in range(nmodels - 1)
 ]
-[scaling.set_coefficients(np.array([[1.0]])) for scaling in sml_scalings]
+[scaling.set_coefficients(bkd.array([[1.0]])) for scaling in sml_scalings]
 sml_gp = SequentialMultiLevelGaussianProcess(sml_kernels, sml_scalings)
 sml_gp.fit(train_samples_per_model, train_values_per_model)
 # gps = sml_gp.gaussian_processes_per_level()
@@ -402,8 +407,8 @@ plt.show()
 # The following plots the correlations between the models used previously in this tutorial with the non-linear ensemble used here
 axs = plt.subplots(1, 2, figsize=(2 * 8, 6))[1]
 nonlinear_models = [
-    lambda xx: np.sin(np.pi * 8 * xx.T),
-    lambda xx: (xx.T - np.sqrt(2)) * np.sin(np.pi * 8 * xx.T) ** 2,
+    lambda xx: bkd.sin(np.pi * 8 * xx.T),
+    lambda xx: (xx.T - np.sqrt(2)) * bkd.sin(np.pi * 8 * xx.T) ** 2,
 ]
 axs[0].plot(models[0](xx), models[1](xx))
 axs[1].plot(nonlinear_models[0](xx), nonlinear_models[1](xx))

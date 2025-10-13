@@ -89,7 +89,7 @@ class OrthonormalPolynomial1D(UnivariateBasis):
     def _get_recursion_coefficients(self, ncoefs: int) -> Array:
         raise NotImplementedError
 
-    def set_nterms(self, nterms):
+    def set_nterms(self, nterms: int):
         """Compute and set the recursion coefficients of the polynomial."""
         if self._rcoefs is None or self._ncoefs() < nterms:
             # TODO implement increment of recursion coefficients

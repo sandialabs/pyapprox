@@ -148,6 +148,7 @@ class TestLinearSolvers:
         assert bkd.allclose(C @ coef, d, atol=1e-15)
         assert bkd.allclose(A @ coef, y, atol=1e-1)
 
+    @unittest.skipIf(not package_available("cvxpy"), "cvxpy not installed")
     def test_quantile_regression(self):
         bkd = self.get_backend()
         quantile = 0.5

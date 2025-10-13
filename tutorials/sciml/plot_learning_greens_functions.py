@@ -142,7 +142,10 @@ hs_kernel = HilbertSchmidtKernel(
     basis, basis, 1 / bkd.arange(1, nterms + 1, dtype=float), [1e-2, 1]
 )
 const_kernel = ConstantKernel(
-    10.0, [1e-2, 1e4], transform=LogHyperParameterTransform(), backend=bkd
+    10.0,
+    [1e-2, 1e4],
+    transform=LogHyperParameterTransform(backend=bkd),
+    backend=bkd,
 )
 final_kernel = const_kernel * hs_kernel
 green_sol_hs = greens_solution(final_kernel, forc_fun, plot_xx)

@@ -19,6 +19,7 @@ dependencies:
   - networkx
   - pytorch
   - numba
+  - cvxpy
   # make html in docs folder
   - sphinx
   - sphinx-gallery

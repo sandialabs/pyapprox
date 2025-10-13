@@ -27,7 +27,7 @@ degree = 10
 marginals = [stats.uniform(-1, 2), stats.uniform(-1, 2)]
 quad_rules_1d = [GaussQuadratureRule(marginal) for marginal in marginals]
 bases_1d = [
-    UnivariateLagrangeBasis(quad_rule, 1) for quad_rule in quad_rules_1d
+    UnivariateLagrangeBasis(quad_rule, 2) for quad_rule in quad_rules_1d
 ]
 
 

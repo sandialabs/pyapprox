@@ -19,6 +19,7 @@ dependencies:
   - networkx
   - pytorch
   - numba
+  - cvxpy
   # gpu support
   - torchvision
   - torchaudio

@@ -58,6 +58,7 @@ setuptools.setup(
         "numba",
         "scikit-fem",
         "umbridge",
+        "cvxpy",
     ],
     extras_require={
         "docs": docs_extras,
@@ -133,6 +134,12 @@ setuptools.setup(
 # coverage run -m pytest -v tests/test_stats.py && coverage html && open htmlcov/index.html
 
 # pip install "cvxpy[CVXOPT]"
+
+# when running python script.py and recieve error
+# OMP: Error #15: Initializing libomp.dylib, but found libomp.dylib already initialized.
+# Then run command with
+# KMP_DUPLICATE_LIB_OK=TRUE  python script.py
+# warning above is a hack and may not always work, it is better to fix install of packages, which can require recreating environment
 
 # add the following to start of script to help debug
 # torch grad errors

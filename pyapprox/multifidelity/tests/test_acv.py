@@ -724,17 +724,6 @@ class TestMOMC:
         target_cost = 10
         est._save_candidate_estimators = True
         est.allocate_samples(target_cost)
-        # {
-        #     "verbosity": 1,
-        #     "nprocs": 1,
-        #     "scaling": 1,
-        #     "init_guess": {
-        #         "disp": True,
-        #         "maxiter": 300,
-        #         "lower_bound": 1e-10,
-        #     },
-        # },
-
         criteria = bkd.array(
             [e[0]._optimized_criteria for e in est._candidate_estimators]
         )

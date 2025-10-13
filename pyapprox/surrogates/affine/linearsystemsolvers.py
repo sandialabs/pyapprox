@@ -1358,6 +1358,8 @@ class BasisPursuitDensoisingCVXRegressionSolver(
     CVXOPTOptionsMixin, LinearSystemSolver
 ):
     def __init__(self, penalty: float, backend: BackendMixin = NumpyMixin):
+        if not package_available("cvxopt"):
+            raise ImportError("cvxopt is not installed")
         self._penalty = penalty
         super().__init__(backend)
 

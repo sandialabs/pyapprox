@@ -284,6 +284,11 @@ class ConstantKernel(Kernel):
         super().__init__(backend)
         if transform is None:
             transform = IdentityHyperParameterTransform(backend=self._bkd)
+        if not self._bkd.bkd_equal(backend, transform._bkd):
+            raise TypeError(
+                f"Transform backend {transform._bkd.__name__} "
+                f"does not macth backend {backend.__name__}"
+            )
         if constant_bounds is None:
             constant_bounds = [-self._bkd.inf(), self._bkd.inf()]
         self._const = HyperParameter(

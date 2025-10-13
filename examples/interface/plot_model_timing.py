@@ -1,7 +1,7 @@
 r"""
 Model Timing
 ------------
- It is often useful to be able to track the time needed to evaluate a function. 
+It is often useful to be able to track the time needed to evaluate a function.
 This tutorial demonstrats how to use model to time function calls.
 All model class can track time.
 
