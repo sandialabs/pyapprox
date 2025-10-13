@@ -416,6 +416,34 @@ class MaxLevelAdmissibilityCriteria(AdmissibilityCriteria):
         return True
 
 
+class MaxIndicesAdmissibilityCriteria(AdmissibilityCriteria):
+    def __init__(
+        self,
+        max_nindices: int,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        self._bkd = backend
+        self._max_nindices = max_nindices
+
+    def set_max_nindices(self, max_nindices: int):
+        # make sure to only add a subset of possible indices
+        # so take current count from generator and reset it
+        # here whenever gen.step is called
+        self._cnt = self._gen.nindices()
+        self._max_nindices = self._gen.nindices() + max_nindices
+
+    def set_index_generator(self, gen: IterativeIndexGenerator):
+        self._gen = gen
+
+    def __call__(self, index: Array) -> bool:
+        if not hasattr(self, "_gen"):
+            raise AttributeError("must call set_index_generator")
+        if self._gen.nindices() + self._cnt < self._max_nindices:
+            self._cnt += 1
+            return True
+        return False
+
+
 class HyperbolicIndexGenerator(IterativeIndexGenerator):
     def __init__(
         self,
@@ -431,29 +459,68 @@ class HyperbolicIndexGenerator(IterativeIndexGenerator):
                 max_level, pnorm, max_1d_levels, backend=backend
             )
         )
-        self._get_indices()
+        self._get_init_indices()
+
+    def _next_index_to_refine(self) -> int:
+        return self._bkd.argmin(
+            self._admis_fun._indices_norm(self.get_candidate_indices())
+        )
 
     def _compute_indices(self):
         while len(self._cand_indices_dict) > 0:
             # get any index of smallest norm
-            idx = self._bkd.argmin(
-                self._admis_fun._indices_norm(self.get_candidate_indices())
-            )
+            idx = self._next_index_to_refine()
             index = self._indices[:, self._get_candidate_idx()[idx]]
             self.refine_index(index)
 
+    def _get_init_indices(self):
+        if self.nindices() != 0:
+            raise ValueError("can only call if nindices()==0")
+        self.set_selected_indices(
+            self._bkd.zeros((self.nvars(), 1), dtype=int)
+        )
+        self._compute_indices()
+        return self._get_indices()
+
     def _get_indices(self) -> Array:
-        if self.nindices() == 0:
-            self.set_selected_indices(
-                self._bkd.zeros((self.nvars(), 1), dtype=int)
-            )
-            self._compute_indices()
         return self._indices
 
     def step(self):
         """Increment max_level by 1"""
         self._admis_fun._max_level += 1
         super().step()
+
+
+class ExpandingMarginGenerator(HyperbolicIndexGenerator):
+    def __init__(
+        self,
+        nvars: int,
+        max_level: int,
+        pnorm: float,
+        nindices_increment: int,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        self._nindices_increment = nindices_increment
+        super().__init__(nvars, max_level, pnorm, None, backend)
+        self.set_admissibility_function(
+            MaxIndicesAdmissibilityCriteria(self.nindices(), self._bkd)
+        )
+        self._admis_fun.set_index_generator(self)
+
+    def step(self):
+        """Increment max_level by 1"""
+        self._admis_fun.set_max_nindices(
+            self.nindices() + self._nindices_increment
+        )
+        IterativeIndexGenerator.step(self)
+
+    def _next_index_to_refine(self) -> int:
+        if not hasattr(self, "_bexp"):
+            return super()._next_index_to_refine()
+        candidate_idx = self._get_candidate_idx()
+        return self._bkd.argmax(
+            self._bkd.abs(self._bexp.get_coefficients()[candidate_idx, :])
+        )
 
 
 class IndexGrowthRule(ABC):

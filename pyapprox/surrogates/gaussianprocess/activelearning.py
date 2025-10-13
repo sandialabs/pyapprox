@@ -606,7 +606,9 @@ class AdaptiveGaussianProcess(ExactGaussianProcess, AdaptiveRegressorMixin):
         kernel: Kernel,
         trend: BasisExpansion = None,
         kernel_reg: float = 0,
-        sampling_schedule=ConstantSamplingSchedule(10, 100),
+        sampling_schedule: SamplingSchedule = ConstantSamplingSchedule(
+            10, 100
+        ),
     ):
         super().__init__(nvars, kernel, trend, kernel_reg)
         self._sampling_schedule = sampling_schedule

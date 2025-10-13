@@ -418,7 +418,6 @@ print(model_costs)
 # Now visualize the correlation between the models and their computational
 # cost relative to the highest-fidelity model cost
 fig, axs = plt.subplots(1, 2, figsize=(2 * 8, 6))
-print(stat.pilot_covariance())
 mf.plot_correlation_matrix(
     mf.covariance_to_correlation(stat.pilot_covariance(), bkd=bkd),
     ax=axs[0],

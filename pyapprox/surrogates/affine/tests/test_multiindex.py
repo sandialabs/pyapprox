@@ -12,6 +12,7 @@ from pyapprox.surrogates.affine.multiindex import (
     IsotropicSGIndexGenerator,
     DoublePlusOneIndexGrowthRule,
     LinearGrowthRule,
+    ExpandingMarginGenerator,
 )
 
 
@@ -138,6 +139,17 @@ class TestMultiIndex:
             sort_indices_lexiographically(gen1.get_indices()),
             sort_indices_lexiographically(gen2.get_indices()),
         )
+
+    def test_expanding_margin_index_generator(self):
+        bkd = self.get_backend()
+        nvars, level = 2, 1
+        increment = 2
+        gen = ExpandingMarginGenerator(
+            nvars, level, 1.0, increment, backend=bkd
+        )
+        print(gen.get_indices())
+        gen.step()
+        print(gen.get_indices())
 
 
 class TestNumpyMultiIndex(TestMultiIndex, unittest.TestCase):

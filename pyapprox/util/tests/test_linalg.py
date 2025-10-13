@@ -1,4 +1,6 @@
 import unittest
+import warnings
+
 
 import numpy as np
 import scipy
@@ -35,6 +37,7 @@ from pyapprox.util.linalg import (
 
 class TestLinalg:
     def setUp(self):
+        warnings.filterwarnings("error")
         np.random.seed(1)
 
     def test_update_cholesky_decomposition(self):
@@ -307,6 +310,11 @@ class TestLinalg:
         full_factorizer.factorize(npivots)
         assert bkd.allclose(factorizer._LU_factor, full_factorizer._LU_factor)
 
+        factorizer.update(3)
+        full_factorizer = PivotedLUFactorizer(A, bkd=bkd)
+        full_factorizer.factorize(3, init_seq_pivots=factorizer.seq_pivots())
+        assert bkd.allclose(factorizer._LU_factor, full_factorizer._LU_factor)
+
     def test_add_rows_to_pivoted_lu_factorization(self):
         bkd = self.get_backend()
         np.random.seed(3)
@@ -357,40 +365,127 @@ class TestLinalg:
         factorizer3.add_rows(new_rows)
         assert bkd.allclose(factorizer3._LU_factor, factorizer1._LU_factor)
 
-    def test_undo_lu_preconditionining(self):
+        # after rows are added make sure factorization can be updated
+        factorizer3.update(npivots + 1)
+        full_factorizer = PivotedLUFactorizer(A_reordered, bkd=bkd)
+        full_factorizer.factorize(
+            npivots + 1, init_seq_pivots=factorizer3.seq_pivots()
+        )
+        assert bkd.allclose(factorizer3._LU_factor, full_factorizer._LU_factor)
+
+    def test_undo_lu_preconditioning(self):
+        # set seed so that pivots are not taken in order by chance
+        # this picked up a previous bug did not stop test passing
+        # when pivots were in sequential order
+        np.random.seed(2)
         bkd = self.get_backend()
         A = bkd.asarray(np.random.normal(0, 1, (4, 4)))
         precond_weights = 1 / bkd.norm(A, axis=1)[:, None]
         npivots = A.shape[1]
-        factorizer1 = PivotedLUFactorizer(A * precond_weights, bkd=bkd)
+        factorizer1 = PivotedLUFactorizer(precond_weights * A, bkd=bkd)
         L_precond, U_precond = factorizer1.factorize(npivots)
+        assert bkd.allclose(
+            L_precond @ U_precond, (precond_weights * A)[factorizer1.pivots()]
+        )
 
         factorizer2 = PivotedLUFactorizer(A, bkd=bkd)
-        L, U = factorizer2.factorize(npivots, factorizer1.pivots())
-        assert np.allclose(factorizer2.pivots(), factorizer1.pivots())
-        assert np.allclose(L @ U, A[factorizer2.pivots()])
+        L, U = factorizer2.factorize(
+            npivots, init_seq_pivots=factorizer1.seq_pivots()
+        )
+        assert bkd.allclose(factorizer2.pivots(), factorizer1.pivots())
+        assert bkd.allclose(L @ U, A[factorizer2.pivots()])
 
         pivoted_precond_weights = precond_weights[factorizer1.pivots()]
         W = bkd.diag(pivoted_precond_weights[:, 0])
-        Wi = bkd.inv(W)
+        Winv = bkd.inv(W)
         assert bkd.allclose(
-            Wi @ (L_precond @ U_precond), A[factorizer1.pivots()]
+            Winv @ (L_precond @ U_precond), A[factorizer1.pivots()]
         )
         assert bkd.allclose(
-            (L_precond / precond_weights) @ U_precond, A[factorizer1.pivots()]
+            (L_precond / pivoted_precond_weights) @ U_precond,
+            A[factorizer1.pivots()],
         )
         # inv(W)*L*W*inv(W)*U
-        L_adjusted = L_precond / precond_weights * precond_weights.T
-        U_adjusted = U_precond / precond_weights
-        assert np.allclose(L_adjusted @ U_adjusted, A[factorizer1.pivots()])
-        assert np.allclose(L_adjusted, L)
-        assert np.allclose(U_adjusted, U)
-
-        L_adjusted, U_adjusted = factorizer1.undo_preconditionining(
-            precond_weights
+        L_adjusted = (
+            1 / pivoted_precond_weights * L_precond * pivoted_precond_weights.T
         )
-        assert np.allclose(L_adjusted, L)
-        assert np.allclose(U_adjusted, U)
+        U_adjusted = U_precond / pivoted_precond_weights
+        assert bkd.allclose(L_adjusted @ U_adjusted, A[factorizer1.pivots()])
+        assert bkd.allclose(L_adjusted, L)
+        assert bkd.allclose(U_adjusted, U)
+
+        L_adjusted, U_adjusted = factorizer1.undo_preconditioning(
+            precond_weights, npivots
+        )
+        assert bkd.allclose(L_adjusted, L)
+        assert bkd.allclose(U_adjusted, U)
+
+        # test undo preconditioning when not all pivots are taken
+        npivots = A.shape[1] - 1
+        factorizer1 = PivotedLUFactorizer(precond_weights * A, bkd=bkd)
+        L_precond, U_precond = factorizer1.factorize(npivots)
+
+        factorizer2 = PivotedLUFactorizer(A, bkd=bkd)
+        L, U = factorizer2.factorize(
+            npivots, init_seq_pivots=factorizer1.seq_pivots()
+        )
+
+        L_adjusted, U_adjusted = factorizer1.undo_preconditioning(
+            precond_weights, npivots, update_internal_state=True
+        )
+        assert bkd.allclose(factorizer1._LU_factor, factorizer2._LU_factor)
+
+    def test_update_lu_preconditioning(self):
+        # set seed so that pivots are not taken in order by chance
+        # this picked up a previous bug did not stop test passing
+        # when pivots were in sequential order
+        np.random.seed(2)
+        bkd = self.get_backend()
+        A = bkd.asarray(np.random.normal(0, 1, (4, 4)))
+        precond_weights = 1 / bkd.norm(A, axis=1)[:, None]
+        npivots = A.shape[1]
+        factorizer1 = PivotedLUFactorizer(precond_weights * A, bkd=bkd)
+        L_precond, U_precond = factorizer1.factorize(npivots)
+        assert bkd.allclose(
+            L_precond @ U_precond, (precond_weights * A)[factorizer1.pivots()]
+        )
+        new_precond_weights = precond_weights**2
+        factorizer2 = PivotedLUFactorizer(new_precond_weights * A, bkd=bkd)
+        L, U = factorizer2.factorize(
+            npivots, init_seq_pivots=factorizer1.seq_pivots()
+        )
+        assert bkd.allclose(factorizer2.pivots(), factorizer1.pivots())
+        assert bkd.allclose(
+            L @ U, (precond_weights**2 * A)[factorizer2.pivots()]
+        )
+
+        L_adjusted, U_adjusted = factorizer1.update_preconditioning(
+            precond_weights,
+            new_precond_weights,
+            npivots,
+            update_internal_state=True,
+        )
+        assert bkd.allclose(L_adjusted, L)
+        assert bkd.allclose(U_adjusted, U)
+        assert bkd.allclose(factorizer1._LU_factor, factorizer2._LU_factor)
+
+        # test undo preconditioning when not all pivots are taken
+        npivots = A.shape[1] - 1
+        factorizer1 = PivotedLUFactorizer(precond_weights * A, bkd=bkd)
+        L_precond, U_precond = factorizer1.factorize(npivots)
+
+        factorizer2 = PivotedLUFactorizer(new_precond_weights * A, bkd=bkd)
+        L, U = factorizer2.factorize(
+            npivots, init_seq_pivots=factorizer1.seq_pivots()
+        )
+
+        L_adjusted, U_adjusted = factorizer1.update_preconditioning(
+            precond_weights,
+            new_precond_weights,
+            npivots,
+            update_internal_state=True,
+        )
+        assert bkd.allclose(factorizer1._LU_factor, factorizer2._LU_factor)
 
     def test_nentries_triangular_matrix(self):
         M = 4
@@ -475,7 +570,7 @@ class TestLinalg:
         svd = SinglePassRandomizedSVD(matvec)
         U, S, Vh = svd.compute(rank)
         U_true, S_true, Vh_true = bkd.svd(A)
-        U_true, Vh_true = adjust_sign_svd(U, Vh)
+        U_true, Vh_true = adjust_sign_svd(U, Vh, bkd=bkd)
         assert bkd.allclose(S, S_true[:rank])
         assert bkd.allclose(U, U_true[:, :rank])
         assert bkd.allclose(Vh, Vh_true[:rank])
@@ -485,7 +580,7 @@ class TestLinalg:
         svd = SinglePassRandomizedSVD(matvec)
         U, S, Vh = svd.compute(rank)
         U_true, S_true, Vh_true = bkd.svd(B)
-        U_true, Vh_true = adjust_sign_svd(U, Vh)
+        U_true, Vh_true = adjust_sign_svd(U, Vh, bkd=bkd)
         assert bkd.allclose(S, S_true[:rank])
         assert bkd.allclose(U, U_true[:, :rank])
         assert bkd.allclose(Vh, Vh_true[:rank])
@@ -493,7 +588,7 @@ class TestLinalg:
         svd = SymmetricMatrixDoublePassRandomizedSVD(matvec)
         U, S, Vh = svd.compute(rank)
         U_true, S_true, Vh_true = bkd.svd(B)
-        U_true, Vh_true = adjust_sign_svd(U, Vh)
+        U_true, Vh_true = adjust_sign_svd(U, Vh, bkd=bkd)
         assert bkd.allclose(S, S_true[:rank])
         assert bkd.allclose(U, U_true[:, :rank])
         assert bkd.allclose(Vh, Vh_true[:rank])
@@ -512,7 +607,7 @@ class TestLinalg:
         B = bkd.asarray(np.random.normal(0, 1, (nvars, nvars)))
         A = B.T @ B
         S, U = bkd.eigh(A)
-        U_adjusted = adjust_sign_eig(U)
+        U_adjusted = adjust_sign_eig(U, bkd=bkd)
         # regression test for np.random.seed(1)
         assert bkd.allclose(U_adjusted, U)
 
