@@ -4,6 +4,7 @@ from typing import List
 import copy
 
 import sympy as sp
+from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.sympy import (
     _evaluate_sp_lambda,
@@ -19,7 +20,7 @@ class ManufacturedSolution(ABC):
     def __init__(
         self,
         nvars: int,
-        bkd=NumpyMixin,
+        bkd: BackendMixin = NumpyMixin,
         oned: bool = False,
     ):
         self._bkd = bkd
@@ -53,14 +54,14 @@ class ManufacturedSolution(ABC):
     def all_symbols(self):
         return self.cartesian_symbols() + self.time_symbol()
 
-    def _steady_expression_to_function(self, expr):
+    def _steady_expression_to_function(self, expr: List):
         all_symbs = self.cartesian_symbols()
         expr_lambda = sp.lambdify(all_symbs, expr, "numpy")
         return partial(
             _evaluate_sp_lambda, expr_lambda, bkd=self._bkd, oned=self._oned
         )
 
-    def _steady_expression_list_to_function(self, exprs):
+    def _steady_expression_list_to_function(self, exprs: List):
         all_symbs = self.cartesian_symbols()
         expr_lambda = [sp.lambdify(all_symbs, expr, "numpy") for expr in exprs]
         return partial(
@@ -70,7 +71,7 @@ class ManufacturedSolution(ABC):
             oned=False,
         )
 
-    def _steady_expression_list_of_lists_to_function(self, exprs):
+    def _steady_expression_list_of_lists_to_function(self, exprs: List):
         all_symbs = self.cartesian_symbols()
         expr_lambda = [
             [sp.lambdify(all_symbs, expr, "numpy") for expr in row]
@@ -93,7 +94,7 @@ class ManufacturedSolution(ABC):
             oned=self._oned,
         )
 
-    def _transient_expression_list_to_function(self, exprs):
+    def _transient_expression_list_to_function(self, exprs: List):
         all_symbs = self.all_symbols()
         expr_lambda = [sp.lambdify(all_symbs, expr, "numpy") for expr in exprs]
         return partial(
@@ -103,7 +104,7 @@ class ManufacturedSolution(ABC):
             oned=False,
         )
 
-    def _transient_expression_list_of_lists_to_function(self, exprs):
+    def _transient_expression_list_of_lists_to_function(self, exprs: List):
         all_symbs = self.all_symbols()
         expr_lambda = [
             [sp.lambdify(all_symbs, expr, "numpy") for expr in row]
@@ -116,7 +117,7 @@ class ManufacturedSolution(ABC):
             oned=False,
         )
 
-    def is_transient(self):
+    def is_transient(self) -> bool:
         return self._bkd.any(self._bkd.array(list(self.transient.values())))
 
     def _expressions_to_functions(self):
@@ -160,7 +161,7 @@ class ManufacturedSolution(ABC):
                         self._transient_expression_to_function(expr)
                     )
 
-    def nvars(self):
+    def nvars(self) -> int:
         return self._nvars
 
     def _set_expression_from_bool(self, name: str, expr, transient: bool):
@@ -182,7 +183,7 @@ class ManufacturedSolution(ABC):
             transient = False
         self._set_expression_from_bool(name, expr, transient)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         fields = f"{self._expressions}".split(",")
         expr_str = ",\n".join(fields)[1:-1].replace("'", "")
         return "{0}(\n {1}\n)".format(self.__class__.__name__, expr_str)
@@ -256,7 +257,9 @@ class ReactionMixin:
         # react_prime_expr = react_prime_expr.subs(
         #     sol_symb, self._expressions["solution"]
         # )
+        print(react_str)
         react_str = react_str.replace("u", "({0})".format(sol_str))
+        print(react_str)
         return react_str, sp.sympify(react_str)  # , react_prime_expr
 
     def sympy_reaction_expressions(self):
@@ -832,3 +835,59 @@ class ManufacturedBurgers1D(ScalarSolutionMixin, ManufacturedSolution):
         self._set_expression("viscosity", visc_expr, self._visc_str)
         self._set_expression("flux", flux_exprs, self._sol_str)
         self._expressions["forcing"] += forc_expr
+
+
+class ManufacturedStokes(VectorSolutionMixin, ManufacturedSolution):
+    def __init__(
+        self,
+        sol_strs: List[str],
+        nvars: int,
+        navier_stokes: bool,
+        bkd: BackendMixin = NumpyMixin,
+        oned: bool = False,
+    ):
+        self._navier_stokes = navier_stokes
+        if len(sol_strs) != nvars + 1:
+            raise ValueError(f"len(sol_strs)!={nvars+1}")
+        self._vel_strs = sol_strs[:nvars]
+        self._pres_str = sol_strs[nvars]
+        super().__init__(sol_strs, nvars, bkd, oned)
+
+    def sympy_expressions(self):
+        cartesian_symbs = self.cartesian_symbols()
+        exprs = self._expressions["solution"]
+        vel_exprs = exprs[: self._nvars]
+        pres_expr = exprs[self._nvars]
+        vel_forc_exprs = []
+        for vel, s1 in zip(vel_exprs, cartesian_symbs):
+            vel_forc_exprs.append(
+                sum([-vel.diff(s2, 2) for s2 in cartesian_symbs])
+                + pres_expr.diff(s1, 1)
+            )
+            if self._navier_stokes:
+                vel_forc_exprs[-1] += sum(
+                    [
+                        u * vel.diff(s2, 1)
+                        for u, s2 in zip(vel_exprs, cartesian_symbs)
+                    ]
+                )
+        pres_forc_expr = sum(
+            [vel.diff(s, 1) for vel, s in zip(vel_exprs, cartesian_symbs)]
+        )
+
+        vel_grad_exprs = [
+            [v.diff(s, 1) for s in cartesian_symbs] for v in vel_exprs
+        ]
+        pres_grad_expr = [pres_expr.diff(s, 1) for s in cartesian_symbs]
+        flux_exprs = vel_grad_exprs + [pres_grad_expr]
+        self._set_expression("flux", flux_exprs, self._sol_strs[0])
+
+        self._set_expression("vel_forcing", vel_forc_exprs, self._sol_strs[0])
+        self._set_expression(
+            "pres_forcing", pres_forc_expr, self._sol_strs[-1]
+        )
+
+        forc_exprs = vel_exprs + [pres_forc_expr]
+        self._expressions["forcing"] = [
+            f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
+        ]

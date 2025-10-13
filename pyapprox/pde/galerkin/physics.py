@@ -630,7 +630,10 @@ class FEMScalarFunctionFromCallable(FromCallableMixin, FEMScalarFunction):
         # E.g. when manufactured solution, diff etc. string does not have x
         # in it. If not dependent on x then must use 1e-16*x
         if xx.ndim != vals.ndim:
-            raise RuntimeError(f"vals has the incorrect shape {vals.shape}")
+            raise ValueError(
+                f"vals.ndim is incorrect. Was {vals.ndim} "
+                f"should be {xx.ndim}"
+            )
         return vals[:, 0]
 
     def __repr__(self):
@@ -673,14 +676,23 @@ class FEMVectorFunction:
 
 
 class FEMVectorFunctionFromCallable(FromCallableMixin, FEMVectorFunction):
+    def __init__(self, fun: callable, name: str = None, swapaxes: bool = True):
+        super().__init__(fun, name)
+        self._swapeaxes = swapaxes
+
     def __call__(self, xx):
         vals = self._fun(xx)
         # if self._fun is not implemented correctly this will fail
         # E.g. when manufactured solution, diff etc. string does not have x
         # in it. If not dependent on x then must use 1e-16*x
-        assert xx.ndim == vals.ndim
+        if xx.ndim != vals.ndim:
+            raise ValueError(
+                f"vals.ndim is incorrect. Was {vals.ndim} "
+                f"should be {xx.ndim}"
+            )
         # put vals in format required by FEM
-        vals = np.swapaxes(vals, 0, 1)
+        if self._swapeaxes:
+            vals = np.swapaxes(vals, 0, 1)
         return vals
 
 
@@ -781,6 +793,7 @@ class AdvectionDiffusionReaction(Physics):
 
 
 class LinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
+    # Only to be used to get initial guess for nonlinear advection diffusion
     def __init__(
         self,
         mesh: Mesh,
@@ -793,14 +806,16 @@ class LinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
         react_fun: Optional[FEMNonLinearOperator] = None,
     ):
         if not isinstance(diff_fun, FEMScalarFunction):
-            raise ValueError(
-                "diff_fun must be an instance of FEMScalarFunction"
+            raise TypeError(
+                "diff_fun must be an instance of FEMScalarFunction "
+                f"but was {diff_fun.__class__.__name__}"
             )
         if react_fun is not None and not isinstance(
-            react_fun, FEMVectorFunction
+            react_fun, FEMScalarFunction
         ):
-            raise ValueError(
-                "react_fun must be an instance of FEMVectorFunction"
+            raise TypeError(
+                "react_fun must be an instance of FEMScalarFunction "
+                f"but was {react_fun.__class__.__name__}"
             )
         self._diff_fun = diff_fun
         self._react_fun = react_fun
@@ -816,9 +831,7 @@ class LinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
         return funs + [self._react_fun, self._forc_fun]
 
     def init_guess(self) -> np.ndarray:
-        return np.ones(
-            (self.basis.N),
-        )
+        return np.ones((self.basis.N,))
 
 
 class NonLinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
@@ -867,7 +880,8 @@ class NonLinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
         return funs + [self._linear_diff_fun, self._diff_op, self._react_op]
 
 
-class Helmholtz(LinearAdvectionDiffusionReaction):
+# class Helmholtz(LinearAdvectionDiffusionReaction):
+class Helmholtz(NonLinearAdvectionDiffusionReaction):
     def __init__(
         self,
         mesh: Mesh,
@@ -878,34 +892,46 @@ class Helmholtz(LinearAdvectionDiffusionReaction):
         forc_fun: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     ):
 
+        if len(bndry_conds[1]) > 0 or len(bndry_conds[1]) > 0:
+            raise NotImplementedError(
+                "Currently tests do not pass with Robin or Neumann BCs"
+            )
         if forc_fun is None:
-            forc_fun = self._zero_forcing
+            forc_fun = FEMScalarFunctionFromCallable(
+                self._zero_forcing, "forcing"
+            )
 
         super().__init__(
             mesh,
             element,
             basis,
             bndry_conds,
-            self._unit_diff,
+            FEMScalarFunctionFromCallable(self._unit_diff, "diffusion"),
             forc_fun,
-            self._zero_vel,
+            FEMVectorFunctionFromCallable(self._zero_vel, "velocity", False),
+            FEMNonLinearOperatorFromCallable(
+                lambda x, u: 0 * u, lambda x, u: 0 * u
+            ),
             wave_number_fun,
         )
+
+    def init_guess(self) -> np.ndarray:
+        return np.ones((self.basis.N,))
 
     def _unit_diff(self, x):
         # negative is taken because advection diffusion code solves
         # -k*\nabla^2 u + c*u = f
         # but Helmholtz solves
         # \nabla^2 u + c*u = 0 which is equivalent when k=-1
-        return -1 + 0 * x[0]
+        return -1.0 + 0.0 * x
 
     def _zero_vel(self, x):
         # Helmholtz is a special case of the advection diffusion reaction
         # equation when there is no advection, i.e. velocity field is zero
-        return 0 * x
+        return 0.0 * x
 
     def _zero_forcing(self, x):
-        return 0 * x[0]
+        return 0.0 * x
 
 
 class Stokes(Physics):
@@ -920,6 +946,10 @@ class Stokes(Physics):
         pres_forc_fun: FEMScalarFunction,
         viscosity: float = 1.0,
     ):
+        if len(bndry_conds[1]) > 0 or len(bndry_conds[1]) > 0:
+            raise NotImplementedError(
+                "Currently tests do not pass with Robin or Neumann BCs"
+            )
         super().__init__(mesh, element, basis, bndry_conds)
 
         # if not isinstance(vel_forc_fun, FEMVectorFunction):
