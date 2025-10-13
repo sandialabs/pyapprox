@@ -125,7 +125,6 @@ class TestActiveLearning:
         gen1 = ExpandingMarginGenerator(basis1.nvars(), init_degree, 1.0, 4)
         basis1.set_indices(gen1.get_indices())
 
-        print("####")
         np.random.seed(1)
         bexp1 = AdaptivePolynomialChaosExpansion(
             basis1,
@@ -135,31 +134,24 @@ class TestActiveLearning:
             # max_nsamples=6,
             nqoi=nqoi,
         )
-        import torch
-
-        torch.set_printoptions(linewidth=1000)
         bexp1.build(fun)
 
-        print("$$$$")
         init_degree = 3
         basis2 = OrthonormalPolynomialBasis(bases_1d)
         gen2 = ExpandingMarginGenerator(basis2.nvars(), init_degree, 1.0, 4)
         basis2.set_indices(gen1.get_indices())
         np.random.seed(
             1
-        )  # sue same seed to make sure candidate samples are the same
+        )  # use the same seed to make sure candidate samples are the same
         bexp2 = AdaptivePolynomialChaosExpansion(
             basis2,
             variable,
             gen2,
             max_nsamples=10,
-            # max_nsamples=6,
             nqoi=nqoi,
         )
-        bexp2.sampler().set_seq_initial_pivots(
-            bexp1.sampler()._LUFactorizer.seq_pivots()[
-                : bexp1.sampler().pivots().shape[0]
-            ]
+        bexp2.sampler().set_initial_pivots(
+            bexp1.sampler()._LUFactorizer.pivots()
         )
         bexp2.build(fun)
 

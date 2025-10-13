@@ -312,7 +312,7 @@ class TestLinalg:
 
         factorizer.update(3)
         full_factorizer = PivotedLUFactorizer(A, bkd=bkd)
-        full_factorizer.factorize(3, init_seq_pivots=factorizer.seq_pivots())
+        full_factorizer.factorize(3, init_pivots=factorizer.pivots())
         assert bkd.allclose(factorizer._LU_factor, full_factorizer._LU_factor)
 
     def test_add_rows_to_pivoted_lu_factorization(self):
@@ -369,7 +369,7 @@ class TestLinalg:
         factorizer3.update(npivots + 1)
         full_factorizer = PivotedLUFactorizer(A_reordered, bkd=bkd)
         full_factorizer.factorize(
-            npivots + 1, init_seq_pivots=factorizer3.seq_pivots()
+            npivots + 1, init_pivots=factorizer3.pivots()
         )
         assert bkd.allclose(factorizer3._LU_factor, full_factorizer._LU_factor)
 
@@ -389,9 +389,7 @@ class TestLinalg:
         )
 
         factorizer2 = PivotedLUFactorizer(A, bkd=bkd)
-        L, U = factorizer2.factorize(
-            npivots, init_seq_pivots=factorizer1.seq_pivots()
-        )
+        L, U = factorizer2.factorize(npivots, init_pivots=factorizer1.pivots())
         assert bkd.allclose(factorizer2.pivots(), factorizer1.pivots())
         assert bkd.allclose(L @ U, A[factorizer2.pivots()])
 
@@ -426,9 +424,7 @@ class TestLinalg:
         L_precond, U_precond = factorizer1.factorize(npivots)
 
         factorizer2 = PivotedLUFactorizer(A, bkd=bkd)
-        L, U = factorizer2.factorize(
-            npivots, init_seq_pivots=factorizer1.seq_pivots()
-        )
+        L, U = factorizer2.factorize(npivots, init_pivots=factorizer1.pivots())
 
         L_adjusted, U_adjusted = factorizer1.undo_preconditioning(
             precond_weights, npivots, update_internal_state=True
@@ -451,9 +447,7 @@ class TestLinalg:
         )
         new_precond_weights = precond_weights**2
         factorizer2 = PivotedLUFactorizer(new_precond_weights * A, bkd=bkd)
-        L, U = factorizer2.factorize(
-            npivots, init_seq_pivots=factorizer1.seq_pivots()
-        )
+        L, U = factorizer2.factorize(npivots, init_pivots=factorizer1.pivots())
         assert bkd.allclose(factorizer2.pivots(), factorizer1.pivots())
         assert bkd.allclose(
             L @ U, (precond_weights**2 * A)[factorizer2.pivots()]
@@ -475,9 +469,7 @@ class TestLinalg:
         L_precond, U_precond = factorizer1.factorize(npivots)
 
         factorizer2 = PivotedLUFactorizer(new_precond_weights * A, bkd=bkd)
-        L, U = factorizer2.factorize(
-            npivots, init_seq_pivots=factorizer1.seq_pivots()
-        )
+        L, U = factorizer2.factorize(npivots, init_pivots=factorizer1.pivots())
 
         L_adjusted, U_adjusted = factorizer1.update_preconditioning(
             precond_weights,

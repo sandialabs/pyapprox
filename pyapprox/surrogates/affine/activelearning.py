@@ -84,24 +84,20 @@ class LejaSampler(ChristoffelMixin, CandidateSampler):
     def _update_ntrain_samples(self):
         self._ntrain_samples = self._train_samples.shape[1]
 
-    def set_seq_initial_pivots(self, init_seq_pivots: Array):
-        self._init_seq_pivots = init_seq_pivots
-        print(self._init_seq_pivots, self._init_seq_pivots.shape)
+    def set_initial_pivots(self, init_pivots: Array):
+        self._init_pivots = init_pivots
 
-    def _get_seq_init_pivots(self) -> Array:
-        if hasattr(self, "_init_seq_pivots"):
-            if (
-                self._init_seq_pivots.shape[0]
-                > self._surrogate.basis().nterms()
-            ):
+    def _get_init_pivots(self) -> Array:
+        if hasattr(self, "_init_pivots"):
+            if self._init_pivots.shape[0] > self._surrogate.basis().nterms():
                 # this conditioned can be removed if code is changed
                 # to allow init pivots to be passed to update pivots
                 # but I do not think this case needs to be supported
                 raise ValueError(
-                    "too many init_seq_pivots given. "
+                    "too many init_pivots given. "
                     "Increase nterms of initial basis"
                 )
-            return self._init_seq_pivots
+            return self._init_pivots
         return None
 
     def _init_factorization(self, nprev_train_samples: int, nsamples: int):
@@ -115,7 +111,7 @@ class LejaSampler(ChristoffelMixin, CandidateSampler):
         self._LUFactorizer = PivotedLUFactorizer(mat, bkd=self._bkd)
 
         self._L, self._U = self._LUFactorizer.factorize(
-            nsamples, init_seq_pivots=self._get_seq_init_pivots()
+            nsamples, init_pivots=self._get_init_pivots()
         )
         return self._LUFactorizer.pivots()[nprev_train_samples:nsamples]
 

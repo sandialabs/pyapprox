@@ -246,11 +246,13 @@ class PivotedCholeskyFactorizer(PivotedFactorizer):
 
 class PivotedLUFactorizer(PivotedFactorizer):
     def _best_pivot(self, it: int) -> int:
-        if (
-            self._init_seq_pivots is not None
-            and it < self._init_seq_pivots.shape[0]
-        ):
-            return self._init_seq_pivots[it]
+        if self._init_pivots is not None and it < len(self._init_pivots):
+            return self._bkd.where(self._pivots == self._init_pivots[it])[0][0]
+        # if (
+        #     self._init_seq_pivots is not None
+        #     and it < self._init_seq_pivots.shape[0]
+        # ):
+        #     return self._init_seq_pivots[it]
         else:
             return (
                 self._bkd.argmax(self._bkd.abs(self._LU_factor[it:, it])) + it
@@ -293,10 +295,10 @@ class PivotedLUFactorizer(PivotedFactorizer):
     def factorize(
         self,
         npivots: int,
-        init_seq_pivots: Array = None,
+        init_pivots: Array = None,
         pivot_weights: Array = None,
     ) -> Tuple[Array, Array]:
-        self._init_seq_pivots = init_seq_pivots
+        self._init_pivots = init_pivots
         self._ncompleted_pivots = 0
         self._LU_factor = self._bkd.copy(self._Amat)
         self._seq_pivots = self._bkd.arange(self._Amat.shape[0])
@@ -304,12 +306,13 @@ class PivotedLUFactorizer(PivotedFactorizer):
 
     def update(self, npivots: int) -> Tuple[Array, Array]:
         npivots = min(npivots, min(*self._Amat.shape))
-        for it in range(self._ncompleted_pivots, npivots):
+        for it in self._bkd.arange(self._ncompleted_pivots, npivots):
             pivot = self._best_pivot(it)
             # update pivots vector
             self._seq_pivots[it] = pivot
             # apply pivots(swap rows) in L factorization
             swap_rows(self._LU_factor, it, pivot)
+            swap_rows(self._pivots, it, pivot, self._bkd)
             if self._terminate(it):
                 self._termination_flag = 1
                 return self._split_lu(self._LU_factor, it)
@@ -334,6 +337,15 @@ class PivotedLUFactorizer(PivotedFactorizer):
         self._seq_pivots = self._bkd.hstack(
             (
                 self._seq_pivots,
+                self._bkd.arange(
+                    self._Amat.shape[0],
+                    self._Amat.shape[0] + new_rows.shape[0],
+                ),
+            )
+        )
+        self._pivots = self._bkd.hstack(
+            (
+                self._pivots,
                 self._bkd.arange(
                     self._Amat.shape[0],
                     self._Amat.shape[0] + new_rows.shape[0],
@@ -393,29 +405,6 @@ class PivotedLUFactorizer(PivotedFactorizer):
                 col_vector[:, None] @ new_cols[it : it + 1, :]
             )
         self._LU_factor = self._bkd.hstack((self._LU_factor, new_cols))
-
-    def pivots(self) -> Array:
-        """
-        Return the vector that changes the original array to the final
-        permuted array in 1 shot.
-
-        Return
-        ------
-        pivots: Array (ncompleted_pivots,)
-        """
-        return get_final_pivots_from_sequential_pivots(
-            self._seq_pivots, bkd=self._bkd
-        )[: self._ncompleted_pivots]
-
-    def seq_pivots(self) -> Array:
-        """
-        Return the pivot vector obtained by inserting pivot at each iteratation
-
-        Return
-        ------
-        seq_pivots: Array (ncandidates,)
-        """
-        return self._seq_pivots
 
     def _undo_preconditioning(
         self,
