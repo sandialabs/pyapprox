@@ -1354,7 +1354,7 @@ class SSDRegressionSolver(FSDRegressionSolver):
         )
 
 
-class BasisPursuitDensoisingCVXRegressionSolver(
+class BasisPursuitDenoisingCVXRegressionSolver(
     CVXOPTOptionsMixin, LinearSystemSolver
 ):
     def __init__(self, penalty: float, backend: BackendMixin = NumpyMixin):

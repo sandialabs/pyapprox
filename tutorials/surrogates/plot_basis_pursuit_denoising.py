@@ -102,7 +102,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyMixin as bkd
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.affine.linearsystemsolvers import (
-    BasisPursuitDensoisingCVXRegressionSolver,
+    BasisPursuitDenoisingCVXRegressionSolver,
 )
 from pyapprox.surrogates.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
@@ -144,7 +144,7 @@ model = ModelFromVectorizedCallable(
 nsamples = 50
 train_samples = sampler(nsamples)
 train_values = model(train_samples)
-solver = BasisPursuitDensoisingCVXRegressionSolver(0.001, backend=bkd)
+solver = BasisPursuitDenoisingCVXRegressionSolver(0.001, backend=bkd)
 solver.set_options({"abstol": 1e-14, "reltol": 1e-14, "feastol": 1e-14})
 solver.set_weights(sampler.christoffel_function(train_samples))
 bexp.set_solver(solver)

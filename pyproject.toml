@@ -11,7 +11,7 @@ requires = [
 name = "pyapprox"
 version = "1.0.3"
 description = "High-dimensional function approximation and estimation"
-requires-python = '>=3.6'
+requires-python = '>=3.9'
 license = {file = 'LICENSE'}
 readme = "README.md"
 authors = [
@@ -23,11 +23,11 @@ classifiers=[
     "Operating System :: OS Independent",
 ]    
 dependencies = [
-    'numpy >= 1.20',
+    'numpy >= 2.0',
     'matplotlib',
     'scipy >= 1.0.0',
     'sympy',
-    'torch',
+    'torch>=2.5',
     'coverage>=6.0',
     'pytest-cov',
     'pytest>=4.6',

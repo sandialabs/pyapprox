@@ -8,7 +8,7 @@ from pyapprox.surrogates.affine.linearsystemsolvers import (
     LinearlyConstrainedLstSqSolver,
     OMPSolver,
     BasisPursuitRegressionSolver,
-    BasisPursuitDensoisingCVXRegressionSolver,
+    BasisPursuitDenoisingCVXRegressionSolver,
     QuantileRegressionSolver,
     EntropicLoss,
     EntropicRegressionSolver,
@@ -103,7 +103,7 @@ class TestLinearSolvers:
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.0
         vals = basis_matrix @ true_coef
 
-        solver = BasisPursuitDensoisingCVXRegressionSolver(0.001, backend=bkd)
+        solver = BasisPursuitDenoisingCVXRegressionSolver(0.001, backend=bkd)
         solver.set_options(
             {"abstol": 1e-14, "reltol": 1e-14, "feastol": 1e-14}
         )

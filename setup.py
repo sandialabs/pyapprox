@@ -26,7 +26,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/sandialabs/pyapprox",
     packages=setuptools.find_packages(),
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -36,16 +36,16 @@ setuptools.setup(
     setup_requires=[
         "setuptools",
         # "numpy >= 1.20, <=1.26.4",
-        "numpy >= 1.20",
+        "numpy >= 2.0",
         "scipy >= 1.0.0",
     ],
     install_requires=[
         # "numpy >= 1.20, <=1.26.4",
-        "numpy >= 1.20",
+        "numpy >= 2.0",
         "matplotlib",
         "scipy >= 1.0.0",
         "sympy",
-        "torch",
+        "torch>=2.5",
         # coverage > 6.0 causes a wierd bug with numpy
         # e.g
         # test_scipy_gauss_legendre_pts_wts_1D (__main__.TestNumpyUtilities)
