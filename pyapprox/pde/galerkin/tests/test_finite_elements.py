@@ -551,7 +551,12 @@ class TestFiniteElements(unittest.TestCase):
         solver = SteadyStatePDE(physics, newton_solver)
         fem_sol = solver.solve(physics.init_guess())
 
-        exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
+        def f(x):
+            print(x.shape, sol_fun(x).shape)
+            return sol_fun(x)[:, 0]
+
+        # exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
+        exact_sol = basis.project(f)
         # print(fem_sol)
         # print(exact_sol)
         # print(np.abs(fem_sol - exact_sol).max(), "a")
@@ -700,36 +705,41 @@ class TestFiniteElements(unittest.TestCase):
 
     def _check_transient_advection_diffusion_reaction(
         self,
-        domain_bounds,
-        nrefine,
-        order,
-        sol_string,
-        diff_string,
-        react_funs,
-        bndry_types,
+        domain_bounds: List[float],
+        order: int,
+        nrefine: int,
+        bndry_types: List[str],
+        sol_string: str,
+        diff_tup: Tuple[str, str],
+        vel_strings: str,
+        react_tup: Tuple[str, callable, callable],
         tableau_name,
-        mms_nl_diff_funs=[None, None],
     ):
-        vel_strings = ["0"] * (len(domain_bounds) // 2)
-        sol_fun, diff_fun, vel_fun, forc_fun, flux_funs = (
-            setup_advection_diffusion_reaction_manufactured_solution(
-                sol_string, diff_string, vel_strings, react_funs[0], True
-            )
+        nvars = len(domain_bounds) // 2
+        print(len(react_tup))
+        react_str, react_fun, react_prime = react_tup
+        linear_diff_str, nonlinear_diff_op_str, diff_fun, diff_prime = diff_tup
+        man_sol = ManufacturedNonLinearAdvectionDiffusionReaction(
+            sol_string,
+            nvars,
+            linear_diff_str,
+            nonlinear_diff_op_str,
+            react_str,
+            vel_strings,
+            conservative=False,
         )
-
-        nl_diff_funs = [None, None]
-        if mms_nl_diff_funs[0] is not None:
-            nl_diff_funs[0] = lambda x, sol: mms_nl_diff_funs[0](
-                diff_fun(x), sol
-            )
-            nl_diff_funs[1] = lambda x, sol: mms_nl_diff_funs[1](
-                diff_fun(x), sol
-            )
-        else:
-            nl_diff_funs[0] = lambda x, sol: diff_fun(x)
-            nl_diff_funs[1] = lambda x, sol: x[0] * 0
-
-        diff_fun = FEMScalarFunctionFromCallable(diff_fun)
+        print(man_sol)
+        sol_fun = man_sol.functions["solution"]
+        linear_diff_fun = man_sol.functions["linear_diffusion"]
+        forc_fun = man_sol.functions["forcing"]
+        mms_vel_fun = man_sol.functions["velocity"]
+        flux_funs = man_sol.functions["flux"]
+        vel_fun = FEMVectorFunctionFromCallable(mms_vel_fun, "velocity")
+        linear_diff_fun = FEMScalarFunctionFromCallable(
+            linear_diff_fun, "linear_diffusion"
+        )
+        diff_op = FEMNonLinearOperatorFromCallable(diff_fun, diff_prime)
+        react_op = FEMNonLinearOperatorFromCallable(react_fun, react_prime)
         forc_fun = FEMTransientScalarFunctionFromCallable(
             forc_fun, name="forcing"
         )
@@ -746,16 +756,16 @@ class TestFiniteElements(unittest.TestCase):
             mesh, bndry_types, domain_bounds, sol_fun, flux_funs
         )
 
-        physics = AdvectionDiffusionReaction(
+        physics = NonLinearAdvectionDiffusionReaction(
             mesh,
             element,
             basis,
             bndry_conds,
-            diff_fun,
+            linear_diff_fun,
             forc_fun,
-            None,
-            nl_diff_funs,
-            react_funs,
+            vel_fun,
+            diff_op,
+            react_op,
         )
 
         deltat = 1
@@ -782,35 +792,33 @@ class TestFiniteElements(unittest.TestCase):
                 integrate.assemble(basis, y=(exact_sol_t - model_sol_t) ** 2)
             )
             factor = np.sqrt(integrate.assemble(basis, y=exact_sol_t**2))
-            print(time, L2_error, 1e-8 * factor)
+            # print(time, L2_error, 1e-8 * factor)
             assert L2_error < 1e-8 * factor
 
-    # @unittest.skip(reason="Test and code incomplete")
     def test_transient_advection_diffusion_reaction(self):
-        test_cases = [
+        test_case_args = [
+            [[0, 1]],
+            [2],
+            [2],
+            [["D", "D"]],
+            ["(1-x)*x + 1e-16*T", "(1-x)*x*(1+T)"],
             [
-                [0, 1],
-                2,
-                2,
-                "(1-x)*x",
-                "4+x",
-                [None, None],
-                ["D", "D"],
-                "im_beuler1",
+                (
+                    "(4+1e-16*x)",
+                    "u**0",
+                    lambda x, u: 4 + u * 0,
+                    lambda x, u: u * 0,
+                )
             ],
+            [["0+1e-16*x"], ["(1+x)/10"]],  # vel_strs
             [
-                [0, 1],
-                2,
-                2,
-                "(1-x)*x*(1+t)",
-                "4+x",
-                [None, None],
-                ["D", "D"],
-                "im_beuler1",
-            ],
+                ("0*u", lambda x, u: 0 * u, lambda x, u: 0 * u),
+                ("u**2", lambda x, u: u**2, lambda x, u: 2 * u),
+            ],  # react_tup
+            ["im_beuler1"],
         ]
 
-        for test_case in test_cases:
+        for test_case in itertools.product(*test_case_args):
             self._check_transient_advection_diffusion_reaction(*test_case)
 
     def _check_transient_burgers(
@@ -824,13 +832,20 @@ class TestFiniteElements(unittest.TestCase):
         bndry_types,
     ):
         tableau_name = "im_beuler1"
-        sol_fun, viscosity_fun, forc_fun, flux_funs = (
-            setup_burgers_manufactured_solution(
-                sol_string, viscosity_string, transient
-            )
+        man_sol = ManufacturedBurgers1D(
+            sol_string,
+            viscosity_string,
+            oned=False,
         )
+        print(man_sol)
 
-        viscosity_fun = FEMScalarFunctionFromCallable(viscosity_fun)
+        viscosity_fun = FEMScalarFunctionFromCallable(
+            man_sol.functions["viscosity"]
+        )
+        forc_fun = man_sol.functions["forcing"]
+        sol_fun = man_sol.functions["solution"]
+        flux_funs = man_sol.functions["flux"]
+
         if transient:
             forc_fun = FEMTransientScalarFunctionFromCallable(
                 forc_fun, name="forcing"
@@ -844,6 +859,7 @@ class TestFiniteElements(unittest.TestCase):
         else:
             forc_fun = FEMScalarFunctionFromCallable(forc_fun, name="forcing")
             flux_funs = FEMScalarFunctionFromCallable(flux_funs, name="flux")
+            # sol_fun = FEMScalarFunctionFromCallable(sol_fun, name="sol")
             # for some reason tests fail when sol fun is wrapped
             # sol_fun = FEMScalarFunctionFromCallable(sol_fun, name='sol')
             # so do not wrap
@@ -928,14 +944,14 @@ class TestFiniteElements(unittest.TestCase):
     def test_transient_burgers(self):
         test_cases = [
             [2, 3, [0, 1], "x*(1.0-x)", "10+1e-16*x", False, ["D", "D"]],
-            [2, 3, [0, 1], "x*(1.0-x)*(1+t)", "10+1e-16*x", True, ["D", "D"]],
+            [2, 3, [0, 1], "x*(1.0-x)*(1+T)", "10+1e-16*x", True, ["D", "D"]],
             # periodic mesh and cosine needs a high nrefine to even get close
             [2, 10, [0, 1], "cos(2*pi*x)", "10+1e-16*x", False, ["P", "P"]],
             [
                 2,
                 10,
                 [0, 1],
-                "cos(2*pi*x)*(1+t)",
+                "cos(2*pi*x)*(1+T)",
                 "10+1e-16*x",
                 True,
                 ["P", "P"],

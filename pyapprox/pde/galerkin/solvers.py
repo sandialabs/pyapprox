@@ -8,9 +8,15 @@ from skfem import condense, solve, asm, LinearForm
 from pyapprox.pde.galerkin.util import _forcing
 
 
-def newton_solve(assemble, u_init,
-                 maxiters=10, atol=1e-5, rtol=1e-5, verbosity=3,
-                 hard_exit=True):
+def newton_solve(
+    assemble,
+    u_init,
+    maxiters=10,
+    atol=1e-5,
+    rtol=1e-5,
+    verbosity=0,
+    hard_exit=True,
+):
     u = u_init.copy()
     it = 0
     while True:
@@ -35,24 +41,24 @@ def newton_solve(assemble, u_init,
         if not np.isfinite(res_norm):
             msg = "Newton solve residual was not finite"
             if hard_exit:
-                raise RuntimeError("Newton solve did not converge\n\t"+msg)
+                raise RuntimeError("Newton solve did not converge\n\t" + msg)
             break
-        if it > 0 and res_norm < init_res_norm*rtol+atol:
+        if it > 0 and res_norm < init_res_norm * rtol + atol:
             msg = f"Newton solve: tolerance {atol}+norm(res_init)*{rtol}"
             msg += f" = {init_res_norm*rtol+atol} reached"
             break
         if it > maxiters:
             msg = f"Newton solve maxiters {maxiters} reached"
             if hard_exit:
-                raise RuntimeError("Newton solve did not converge\n\t"+msg)
+                raise RuntimeError("Newton solve did not converge\n\t" + msg)
             break
         # newton solve is du = -inv(j)*res u = u + du
         # move minus sign so that du = inv(j)*res u = u - du
-        np.set_printoptions(linewidth=1000)
-        print(res)
-        print(jac.todense())
+        # np.set_printoptions(linewidth=1000)
+        # print(res)
+        # print(jac.todense())
         du = solve(*condense(jac, res, x=D_vals, D=D_dofs))
-        print(du)
+        # print(du)
         # print(du)
         u = u_prev - du
         it += 1
@@ -60,6 +66,7 @@ def newton_solve(assemble, u_init,
     if verbosity > 0:
         print(msg)
     return u
+
 
 from pyapprox.util.newton import NewtonSolver, NewtonResidual
 from pyapprox.pde.galerkin.physics import Physics
@@ -82,8 +89,8 @@ class SteadyPhysicsNewtonResidual(NewtonResidual):
         return vec
 
     def __call__(self, sol_array: Array):
-        bilinear_mat, self._res, self._D_vals, self._D_dofs = self._physics.assemble(
-            sol_array
+        bilinear_mat, self._res, self._D_vals, self._D_dofs = (
+            self._physics.assemble(sol_array)
         )
         # minus sign because res = -a(u_prev, v) + L(v) = -bilinear_mat + lvec
         # lvec is not returned to this scope
@@ -146,7 +153,7 @@ class SteadyStatePDE(PDESolver):
         return self.newton_solver.solve(init_sol_array)
 
 
-class TransientPDE():
+class TransientPDE:
     def __init__(self, physics, deltat, tableau_name):
         self.physics = physics
         self._deltat = deltat
@@ -175,23 +182,28 @@ class TransientPDE():
         bilinear_mat, linear_vec = self.physics.raw_assemble(sol)
         return linear_vec, -bilinear_mat
 
-    def _backward_euler_residual(
-            self, sol, time, deltat, stage_unknowns):
-        active_stage_time = time+deltat
+    def _backward_euler_residual(self, sol, time, deltat, stage_unknowns):
+        active_stage_time = time + deltat
         srhs, jac = self._rhs(stage_unknowns, active_stage_time)
         temp1 = asm(LinearForm(_forcing), self.physics.basis, forc=sol)
-        temp2 = asm(LinearForm(_forcing), self.physics.basis,
-                    forc=stage_unknowns)
-        residual = (srhs*deltat+temp1-temp2)
-        return residual, self._mass_mat-deltat*jac
+        temp2 = asm(
+            LinearForm(_forcing), self.physics.basis, forc=stage_unknowns
+        )
+        residual = srhs * deltat + temp1 - temp2
+        return residual, self._mass_mat - deltat * jac
 
     def _residual_fun(self, stage_unknowns):
         residual, jac = self._backward_euler_residual(
-            self._residual_sol, self._residual_time, self._residual_deltat,
-            stage_unknowns)
+            self._residual_sol,
+            self._residual_time,
+            self._residual_deltat,
+            stage_unknowns,
+        )
         jac, residual, D_vals, D_dofs = (
             self.physics.apply_dirichlet_boundary_conditions(
-                stage_unknowns, jac, residual))
+                stage_unknowns, jac, residual
+            )
+        )
         return jac, residual, D_vals, D_dofs
 
     def _update(self, sol, time, deltat, init_guess):
@@ -199,11 +211,13 @@ class TransientPDE():
         self._residual_time = time
         self._residual_deltat = deltat
         stage_sol = newton_solve(
-            self._residual_fun, init_guess, **self._newton_kwargs)
+            self._residual_fun, init_guess, **self._newton_kwargs
+        )
         return stage_sol
 
-    def solve(self, init_sol, init_time, final_time, verbosity=0,
-              newton_kwargs={}):
+    def solve(
+        self, init_sol, init_time, final_time, verbosity=0, newton_kwargs={}
+    ):
         self._newton_kwargs = newton_kwargs
         self._mass_mat = self.physics.mass_matrix()
         sols, times = [], []
@@ -211,12 +225,11 @@ class TransientPDE():
         times.append(time)
         sol = init_sol.copy()
         sols.append(init_sol[:, None])
-        while time < final_time-1e-12:
+        while time < final_time - 1e-12:
             if verbosity >= 1:
                 print("Time", time)
-            deltat = min(self._deltat, final_time-time)
-            sol = self._update(
-                sol, time, deltat, sol.copy())
+            deltat = min(self._deltat, final_time - time)
+            sol = self._update(sol, time, deltat, sol.copy())
             sols.append(sol[:, None])
             time += deltat
             times.append(time)

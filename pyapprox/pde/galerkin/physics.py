@@ -1,8 +1,9 @@
-import numpy as np
 from functools import partial
 from abc import ABC, abstractmethod
 from typing import Optional, List, Callable, Tuple, Union
 import sys
+
+import numpy as np
 
 if "pyodide" in sys.modules:
     from scipy.sparse.base import spmatrix
@@ -31,6 +32,7 @@ from pyapprox.pde.galerkin.util import (
     _robin,
     _robin_prev_sol,
 )
+from pyapprox.util.backends.template import Array
 
 
 def _enforce_dirichlet_scalar_boundary_conditions(
@@ -641,10 +643,10 @@ class FEMScalarFunctionFromCallable(FromCallableMixin, FEMScalarFunction):
 
 
 class FEMTransientScalarFunction(FEMScalarFunction):
-    def set_time(self, time):
+    def set_time(self, time: float):
         self._time = time
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(name={1}, time={2})".format(
             self.__class__.__name__, self._name, self._time
         )
@@ -653,14 +655,14 @@ class FEMTransientScalarFunction(FEMScalarFunction):
 class FEMTransientScalarFunctionFromCallable(
     FromCallableMixin, FEMTransientScalarFunction
 ):
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         return self._eval(samples)
 
-    def set_time(self, time):
+    def set_time(self, time: float):
         super().set_time(time)
         self._partial_fun = partial(self._fun, time=time)
 
-    def _eval(self, samples):
+    def _eval(self, samples: Array) -> Array:
         if self._time is None:
             raise ValueError("Must call set_time before calling eval")
         return self._partial_fun(samples)[:, 0]
@@ -668,10 +670,10 @@ class FEMTransientScalarFunctionFromCallable(
 
 class FEMVectorFunction:
     @abstractmethod
-    def __call__(self, xx):
+    def __call__(self, xx: Array) -> Array:
         raise NotImplementedError
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
 
@@ -680,7 +682,7 @@ class FEMVectorFunctionFromCallable(FromCallableMixin, FEMVectorFunction):
         super().__init__(fun, name)
         self._swapeaxes = swapaxes
 
-    def __call__(self, xx):
+    def __call__(self, xx: Array) -> Array:
         vals = self._fun(xx)
         # if self._fun is not implemented correctly this will fail
         # E.g. when manufactured solution, diff etc. string does not have x
@@ -698,28 +700,28 @@ class FEMVectorFunctionFromCallable(FromCallableMixin, FEMVectorFunction):
 
 class FEMNonLinearOperator(ABC):
     @abstractmethod
-    def __call__(self, xx):
+    def __call__(self, xx: Array) -> Array:
         raise NotImplementedError
 
     @abstractmethod
-    def jacobian(self, xx):
+    def jacobian(self, xx: Array) -> Array:
         raise NotImplementedError
 
 
 class FEMNonLinearOperatorFromCallable(FEMNonLinearOperator):
-    def __init__(self, fun, fun_prime):
+    def __init__(self, fun: callable, fun_prime: callable):
         self._fun = fun
         if fun_prime is None:
             fun_prime = self._zero_fun
         self._fun_prime = fun_prime
 
-    def _zero_fun(self, x, *args):
+    def _zero_fun(self, x: Array, *args) -> Array:
         return x[0] * 0
 
-    def __call__(self, xx, sol):
+    def __call__(self, xx: Array, sol: Array) -> Array:
         return self._fun(xx, sol)
 
-    def jacobian(self, xx, sol):
+    def jacobian(self, xx: Array, sol: Array) -> Array:
         return self._fun_prime(xx, sol)
 
 
