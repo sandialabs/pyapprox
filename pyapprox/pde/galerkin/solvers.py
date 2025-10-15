@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 import textwrap
 
 import numpy as np
-from functools import partial
 from skfem import condense, solve, asm, LinearForm
 
 from pyapprox.pde.galerkin.util import _forcing
@@ -85,7 +84,6 @@ class SteadyPhysicsNewtonResidual(NewtonResidual):
         vec = skfem.solve(
             *condense(self._jac, self._res, x=self._D_vals, D=self._D_dofs)
         )
-        np.set_printoptions(linewidth=1000)
         return vec
 
     def __call__(self, sol_array: Array):
@@ -95,15 +93,22 @@ class SteadyPhysicsNewtonResidual(NewtonResidual):
         # minus sign because res = -a(u_prev, v) + L(v) = -bilinear_mat + lvec
         # lvec is not returned to this scope
         self._jac = -bilinear_mat
-        II = np.setdiff1d(np.arange(self._jac.shape[0]), self._D_dofs)
         # compute residual when boundary conditions have been applied
         # This is done by condense in linsolve. But newton requires full
         # residual to compute norm. So create full residual.
+        res = self._bkd.copy(self._res)
+        if self._physics._bndry_conds.ndirichlet_boundaries() > 0:
+            res[
+                self._physics._basis.get_dofs(
+                    self._physics._bndry_conds._dbndry_names
+                ).flatten()
+            ] = 0.0
         # Note the order of concatenation used here will likely be different
         # to in jac and res but this does not matter because newton solve
         # only uses residual to compute norm. residual is passed back to
         # linsolve but we can replace it with self._res at that point
-        res = np.concatenate((self._res[II], self._D_vals[self._D_dofs]))
+        # II = np.setdiff1d(np.arange(self._jac.shape[0]), self._D_dofs)
+        # res = np.concatenate((self._res[II], self._D_vals[self._D_dofs]))
         return res
 
     def jacobian(self, sol_array: Array):

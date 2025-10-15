@@ -35,8 +35,190 @@ from pyapprox.pde.galerkin.util import (
 from pyapprox.util.backends.template import Array
 
 
+class BoundaryConditions:
+    def __init__(
+        self,
+        mesh: Mesh,
+        element: Element,
+        basis: Basis,
+        dirichlet_bndry_names: List[str] = None,
+        dirichlet_bndry_funs: List[str] = None,
+        neumann_bndry_names: List[str] = None,
+        neumann_bndry_funs: List[str] = None,
+        robin_bndry_names: List[str] = None,
+        robin_bndry_funs: List[str] = None,
+        robin_bndry_constants: List[str] = None,
+    ):
+        # Specifying neumann_bndry_funs as None but not providing boundary
+        # conditions for all boundaries mean that the natural Neumann boundary
+        # condition will be applied at bondaries which do not have a condition
+        # specified. The natural Neumann condition is that the normal flux is zero
+
+        # see https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html
+        # for useful notes
+        self._mesh = mesh
+        self._element = element
+        self._basis = basis
+        self._check_bndry_arguments(
+            dirichlet_bndry_names, dirichlet_bndry_funs, "Dirichlet"
+        )
+        self._dbndry_names = dirichlet_bndry_names
+        self._dbndry_funs = dirichlet_bndry_funs
+        self._check_bndry_arguments(
+            neumann_bndry_names, neumann_bndry_funs, "Neumann"
+        )
+        self._nbndry_names = neumann_bndry_names
+        self._nbndry_funs = neumann_bndry_funs
+        self._check_bndry_arguments(
+            robin_bndry_names, robin_bndry_funs, "Robin", robin_bndry_constants
+        )
+        self._rbndry_names = robin_bndry_names
+        self._rbndry_funs = robin_bndry_funs
+        self._rbndry_consts = robin_bndry_constants
+
+    def _check_bndry_arguments(
+        self,
+        bndry_names: List[str],
+        bndry_funs: List[str],
+        bndry_type: str,
+        bndry_consts: List[float] = None,
+    ):
+        if bndry_consts is None and bndry_names is None and bndry_funs is None:
+            return
+
+        if bndry_names is None or bndry_funs is None:
+            raise ValueError(
+                f"Boundary names must be provided for all {bndry_type} "
+                "boundaries"
+            )
+        if bndry_type == "Robin" and bndry_consts is None:
+            raise ValueError(
+                f"Boundary constants must be provided for all {bndry_type} "
+                "boundaries"
+            )
+
+        if len(bndry_funs) != len(bndry_names):
+            raise ValueError(
+                f"must provide a function for each {bndry_type} boundary"
+            )
+        if bndry_type == "Robin" and len(bndry_consts) != len(bndry_names):
+            raise ValueError(
+                f"must provide a constant for each {bndry_type} boundary"
+            )
+
+    def ndirichlet_boundaries(self) -> int:
+        return 0 if self._dbndry_names is None else len(self._dbndry_names)
+
+    def nneumann_boundaries(self) -> int:
+        return 0 if self._nbndry_names is None else len(self._nbndry_names)
+
+    def nrobin_boundaries(self) -> int:
+        return 0 if self._rbndry_names is None else len(self._rbndry_names)
+
+    def dirichlet_dofs_and_vals(self, uprev: Array):
+        D_vals = self._basis.zeros()
+        if self.ndirichlet_boundaries() == 0:
+            return uprev if uprev is None else D_vals, np.empty(0, dtype=int)
+        D_dofs = self._basis.get_dofs(self._dbndry_names)
+        for bndry_name, bndry_fun in zip(
+            self._dbndry_names, self._dbndry_funs
+        ):
+            # bndry_basis = self._basis.boundary(bndry_name)
+            bndry_dofs = self._basis.get_dofs(bndry_name)
+            D_vals[bndry_dofs] = bndry_fun(self._basis.doflocs[:, bndry_dofs])
+        if uprev is not None:
+            D_vals = uprev - D_vals
+        return D_vals, D_dofs
+
+    def _neumann_linear_form(self, v: Array, w: dict) -> Array:
+        return w["fun"] * v
+
+    def impose_neumann_boundaries(self, vec: Array) -> Array:
+        if self.nneumann_boundaries() == 0:
+            return vec
+        for bndry_name, bndry_fun in zip(
+            self._nbndry_names, self._nbndry_funs
+        ):
+            bndry_basis = self._basis.boundary(bndry_name)
+            # print(self._basis.get_dofs(bndry_name).flatten(), "b")
+            # print(
+            #     vec[self._basis.get_dofs(bndry_name).flatten()],
+            #     "v",
+            #     bndry_name,
+            # )
+            # print(
+            #     bndry_fun(
+            #         self._basis.doflocs[
+            #             :, None, self._basis.get_dofs(bndry_name).flatten()
+            #         ]
+            #     )
+            # )
+            # print(bndry_basis.project(bndry_fun), "f")
+            # print(
+            #     asm(
+            #         LinearForm(self._neumann_linear_form),
+            #         bndry_basis,
+            #         fun=bndry_basis.project(bndry_fun),
+            #     )[self._basis.get_dofs(bndry_name).flatten()],
+            #     "a",
+            # )
+            vec += asm(
+                LinearForm(self._neumann_linear_form),
+                bndry_basis,
+                fun=bndry_basis.project(bndry_fun),
+            )
+        return vec
+
+    def _robin_bilinear_form(self, u: Array, v: Array, w: dict) -> Array:
+        return w["alpha"] * u * v
+
+    def _robin_linear_form(self, v: Array, w: Array) -> Array:
+        return w["alpha"] * w["uprev"] * v
+
+    def impose_robin_boundaries(
+        self, mat: Array, vec: Array, uprev: Array
+    ) -> Tuple[Array, Array]:
+        if self.nrobin_boundaries() == 0:
+            return mat, vec
+        for bndry_name, bndry_fun, bndry_const in zip(
+            self._rbndry_names, self._rbndry_funs, self._rbndry_consts
+        ):
+            bndry_basis = self._basis.boundary(bndry_name)
+            # robin is assumed to take the form -flux = alpha*u + fun(x)
+            mat += asm(
+                BilinearForm(self._robin_bilinear_form),
+                bndry_basis,
+                alpha=bndry_const,
+            )
+            # add contribution of robin boundary to rhs
+            vec += asm(
+                LinearForm(self._neumann_linear_form),
+                bndry_basis,
+                fun=bndry_basis.project(bndry_fun),
+            )
+            if uprev is None:
+                continue
+            # when uprev is not None. then linear vec represents the residual
+            # and so robin contribution to mass term must be reflected in res
+            vec -= asm(
+                LinearForm(self._robin_linear_form),
+                bndry_basis,
+                alpha=bndry_const,
+                uprev=uprev,
+            )
+        return mat, vec
+
+    def __repr__(self) -> str:
+        return "{0}(dirichlet={1}, neumann={2}, robin={3})".format(
+            self.__class__.__name__,
+            self._dbndry_names,
+            self._nbndry_names,
+            self._rbndry_names,
+        )
+
+
 def _enforce_dirichlet_scalar_boundary_conditions(
-    mesh, element, basis, bilinear_mat, linear_vec, D_bndry_conds, u_prev
+    mesh, element, basis, D_bndry_conds, u_prev
 ):
     """
     u_prev is none indicates that newtons method is calling enforce boundaries
@@ -48,15 +230,19 @@ def _enforce_dirichlet_scalar_boundary_conditions(
     condense
     """
     # define Dirichlet boundary basis
-    D_bases = [
-        FacetBasis(mesh, element, facets=mesh.boundaries[key])
-        for key, fun in D_bndry_conds.items()
-    ]
+    # D_bases = [
+    #     FacetBasis(mesh, element, facets=mesh.boundaries[key])
+    #     for key, fun in D_bndry_conds.items()
+    # ]
+    D_bases = [basis.boundary(key) for key in D_bndry_conds.keys()]
     # evaluate Dirichlet boundary values
     D_vals = basis.zeros()
     for b, key in zip(D_bases, D_bndry_conds.keys()):
         _dofs = basis.get_dofs(key)
-        D_vals[_dofs] = b.project(D_bndry_conds[key][0])[_dofs]
+        # D_vals[_dofs] = b.project(D_bndry_conds[key][0])[_dofs]
+        D_vals[_dofs] = D_bndry_conds[key][0](
+            basis.doflocs[:, basis.get_dofs(key)]
+        )
 
     if u_prev is not None:
         D_vals = u_prev - D_vals
@@ -70,29 +256,45 @@ def _enforce_dirichlet_scalar_boundary_conditions(
 
 
 def _enforce_scalar_robin_neumann_boundary_conditions(
-    mesh,
-    element,
-    bilinear_mat,
-    linear_vec,
-    N_bndry_conds,
-    R_bndry_conds,
-    u_prev,
-):
-    N_bases = [
-        FacetBasis(mesh, element, facets=mesh.boundaries[key])
-        for key in N_bndry_conds.keys()
-    ]
+    mesh: Mesh,
+    element: Element,
+    basis: Basis,
+    bilinear_mat: Array,
+    linear_vec: Array,
+    N_bndry_conds: dict,
+    R_bndry_conds: dict,
+    u_prev: Array,
+) -> Tuple[Array, Array]:
+    # N_bases = [
+    #     FacetBasis(mesh, element, facets=mesh.boundaries[key])
+    #     for key in N_bndry_conds.keys()
+    # ]
+
+    N_bases = [basis.boundary(key) for key in N_bndry_conds.keys()]
 
     for b, key in zip(N_bases, N_bndry_conds.keys()):
         fun = N_bndry_conds[key][0]
+
+        def g(x):
+            # print(x[0], 6 * x[0] ** 2 * x[1], "g")
+            # print(fun(x))
+            return fun(x)
+
+        # print(linear_vec, "A")
         linear_vec += asm(
             LinearForm(_forcing), b, forc=b.interpolate(b.project(fun))
         )
+        # print(key, "B")
+        print(
+            asm(LinearForm(_forcing), b, forc=b.interpolate(b.project(g))), "D"
+        )
+        # print(linear_vec, "C")
 
-    R_bases = [
-        FacetBasis(mesh, element, facets=mesh.boundaries[key])
-        for key in R_bndry_conds.keys()
-    ]
+    # R_bases = [
+    #     FacetBasis(mesh, element, facets=mesh.boundaries[key])
+    #     for key in R_bndry_conds.keys()
+    # ]
+    R_bases = [basis.boundary(key) for key in R_bndry_conds.keys()]
     for b, key in zip(R_bases, R_bndry_conds.keys()):
         fun, alpha = R_bndry_conds[key]
         # robin is assumed to take the form -flux = alpha*u + fun(x)
@@ -127,6 +329,7 @@ def _enforce_scalar_boundary_conditions(
         _enforce_scalar_robin_neumann_boundary_conditions(
             mesh,
             element,
+            basis,
             bilinear_mat,
             linear_vec,
             N_bndry_conds,
@@ -135,7 +338,7 @@ def _enforce_scalar_boundary_conditions(
         )
     )
     D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
-        mesh, element, basis, bilinear_mat, linear_vec, D_bndry_conds, u_prev
+        mesh, element, basis, D_bndry_conds, u_prev
     )
     return bilinear_mat, linear_vec, D_vals, D_dofs
 
@@ -321,7 +524,13 @@ def _raw_assemble_advection_diffusion_reaction(
 
     bilinear_mat, linear_vec = (
         _enforce_scalar_robin_neumann_boundary_conditions(
-            mesh, element, bilinear_mat, linear_vec, *bndry_conds[1:], u_prev
+            mesh,
+            element,
+            basis,
+            bilinear_mat,
+            linear_vec,
+            *bndry_conds[1:],
+            u_prev,
         )
     )
     return bilinear_mat, linear_vec
@@ -352,7 +561,7 @@ def _assemble_advection_diffusion_reaction(
         u_prev,
     )
     D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
-        mesh, element, basis, bilinear_mat, linear_vec, bndry_conds[0], u_prev
+        mesh, element, basis, bndry_conds[0], u_prev
     )
     return bilinear_mat, linear_vec, D_vals, D_dofs
 
@@ -413,10 +622,11 @@ def _enforce_stokes_boundary_conditions(
     # which is enforced by doing nothing
     assert len(R_bndry_conds) == 0 and len(N_bndry_conds) == 0
 
-    D_bases = [
-        FacetBasis(mesh, element["u"], facets=mesh.boundaries[key])
-        for key, fun in D_bndry_conds.items()
-    ]
+    # D_bases = [
+    #     FacetBasis(mesh, element["u"], facets=mesh.boundaries[key])
+    #     for key, fun in D_bndry_conds.items()
+    # ]
+    D_bases = [basis.boundary(key) for key in D_bndry_conds.keys()]
 
     # get DOF for Dirichlet boundaries for velocity
     D_dofs = basis["u"].get_dofs(list(D_bndry_conds.keys()))
@@ -554,7 +764,11 @@ def _assemble_stokes(
 
 class Physics(ABC):
     def __init__(
-        self, mesh: Mesh, element: Element, basis: Basis, bndry_conds: tuple
+        self,
+        mesh: Mesh,
+        element: Element,
+        basis: Basis,
+        bndry_conds: BoundaryConditions,
     ):
         if not isinstance(mesh, Mesh):
             raise ValueError("mesh must be an instance of Mesh")
@@ -562,15 +776,16 @@ class Physics(ABC):
             raise ValueError("element must be an instance of Element")
         if not isinstance(basis, Basis) and not isinstance(element, dict):
             raise ValueError("basis must be an instance of Basis")
-        if not isinstance(bndry_conds, tuple):
-            print(bndry_conds)
-            raise ValueError("bndrys_conds must be a tuple")
+        if not isinstance(bndry_conds, BoundaryConditions):
+            raise ValueError(
+                "bndry_conds must be an instance of BoundaryConditions"
+            )
 
-        self.mesh = mesh
-        self.element = element
-        self.basis = basis
-        self.bndry_conds = bndry_conds
-        self.funs = self._set_funs()
+        self._mesh = mesh
+        self._element = element
+        self._basis = basis
+        self._bndry_conds = bndry_conds
+        self._funs = self._set_funs()
 
     def _set_funs(self) -> List:
         return []
@@ -581,21 +796,25 @@ class Physics(ABC):
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
         raise NotImplementedError()
 
-    @abstractmethod
-    def apply_dirichlet_boundary_conditions(
+    def apply_boundary_conditions(
         self,
         sol: np.ndarray,
         bilinear_mat: spmatrix,
         linear_vec: Union[np.ndarray, spmatrix],
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
-        raise NotImplementedError()
+        linear_vec = self._bndry_conds.impose_neumann_boundaries(linear_vec)
+        bilinear_mat, linear_vec = self._bndry_conds.impose_robin_boundaries(
+            bilinear_mat, linear_vec, sol
+        )
+        dirichlet_vals, dirichlet_dofs = (
+            self._bndry_conds.dirichlet_dofs_and_vals(sol)
+        )
+        return bilinear_mat, linear_vec, dirichlet_vals, dirichlet_dofs
 
     def assemble(
         self, sol: np.ndarray = None
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
-        return self.apply_dirichlet_boundary_conditions(
-            sol, *self.raw_assemble(sol)
-        )
+        return self.apply_boundary_conditions(sol, *self.raw_assemble(sol))
 
     def _transient_residual(self, sol: np.ndarray, time: float):
         # correct equations for boundary conditions
@@ -606,8 +825,11 @@ class Physics(ABC):
         return res, jac
 
     def mass_matrix(self) -> Tuple[spmatrix]:
-        mass_mat = asm(mass, self.basis)
+        mass_mat = asm(mass, self._basis)
         return mass_mat
+
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
 
 
 class FEMScalarFunction(ABC):
@@ -755,25 +977,28 @@ class AdvectionDiffusionReaction(Physics):
         sol: np.ndarray,
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix]]:
         residual = self._setup_residual()
-        u_prev_interp = self.basis.interpolate(sol)
+        u_prev_interp = self._basis.interpolate(sol)
         bilinear_mat = asm(
             BilinearForm(residual.bilinear_form),
-            self.basis,
+            self._basis,
             u_prev=u_prev_interp,
         )
         residual_vec = asm(
-            LinearForm(residual.linear_form), self.basis, u_prev=u_prev_interp
+            LinearForm(residual.linear_form), self._basis, u_prev=u_prev_interp
         )
-        bilinear_mat, residual_vec = (
-            _enforce_scalar_robin_neumann_boundary_conditions(
-                self.mesh,
-                self.element,
-                bilinear_mat,
-                residual_vec,
-                *self.bndry_conds[1:],
-                sol,
-            )
-        )
+        # print(residual_vec, "Before neuman")
+        # bilinear_mat, residual_vec = (
+        #     _enforce_scalar_robin_neumann_boundary_conditions(
+        #         self._mesh,
+        #         self._element,
+        #         self._basis,
+        #         bilinear_mat,
+        #         residual_vec,
+        #         *self._bndry_conds[1:],
+        #         sol,
+        #     )
+        # )
+        # print(residual_vec, "After neuman")
         return bilinear_mat, residual_vec
 
     def apply_dirichlet_boundary_conditions(
@@ -783,14 +1008,9 @@ class AdvectionDiffusionReaction(Physics):
         residual_vec: Union[np.ndarray, spmatrix],
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
         D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
-            self.mesh,
-            self.element,
-            self.basis,
-            bilinear_mat,
-            residual_vec,
-            self.bndry_conds[0],
-            sol,
+            self._mesh, self._element, self._basis, self._bndry_conds[0], sol
         )
+        # print(residual_vec, "After dirichlet")
         return bilinear_mat, residual_vec, D_vals, D_dofs
 
 
@@ -833,7 +1053,7 @@ class LinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
         return funs + [self._react_fun, self._forc_fun]
 
     def init_guess(self) -> np.ndarray:
-        return np.ones((self.basis.N,))
+        return np.ones((self._basis.N,))
 
 
 class NonLinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
@@ -894,10 +1114,10 @@ class Helmholtz(NonLinearAdvectionDiffusionReaction):
         forc_fun: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     ):
 
-        if len(bndry_conds[1]) > 0 or len(bndry_conds[1]) > 0:
-            raise NotImplementedError(
-                "Currently tests do not pass with Robin or Neumann BCs"
-            )
+        # if len(bndry_conds[1]) > 0 or len(bndry_conds[1]) > 0:
+        #     raise NotImplementedError(
+        #         "Currently tests do not pass with Robin or Neumann BCs"
+        #     )
         if forc_fun is None:
             forc_fun = FEMScalarFunctionFromCallable(
                 self._zero_forcing, "forcing"
@@ -912,27 +1132,29 @@ class Helmholtz(NonLinearAdvectionDiffusionReaction):
             forc_fun,
             FEMVectorFunctionFromCallable(self._zero_vel, "velocity", False),
             FEMNonLinearOperatorFromCallable(
-                lambda x, u: 0 * u, lambda x, u: 0 * u
+                lambda x, u: 0 * u + 1.0, lambda x, u: 0 * u
             ),
             wave_number_fun,
         )
 
-    def init_guess(self) -> np.ndarray:
-        return np.ones((self.basis.N,))
+    def init_guess(self) -> Array:
+        return np.ones((self._basis.N,))
 
-    def _unit_diff(self, x):
+    def _unit_diff(self, x: Array) -> Array:
+        # only used if needing to generate a linear initial guess
+        # which will not be needed here as PDE is linear
         # negative is taken because advection diffusion code solves
         # -k*\nabla^2 u + c*u = f
         # but Helmholtz solves
         # \nabla^2 u + c*u = 0 which is equivalent when k=-1
         return -1.0 + 0.0 * x
 
-    def _zero_vel(self, x):
+    def _zero_vel(self, x: Array) -> Array:
         # Helmholtz is a special case of the advection diffusion reaction
         # equation when there is no advection, i.e. velocity field is zero
         return 0.0 * x
 
-    def _zero_forcing(self, x):
+    def _zero_forcing(self, x: Array) -> Array:
         return 0.0 * x
 
 
@@ -974,10 +1196,10 @@ class Stokes(Physics):
             self.vel_forc_fun,
             self.pres_forc_fun,
             False,
-            self.bndry_conds,
-            self.mesh,
-            self.element,
-            self.basis,
+            self._bndry_conds,
+            self._mesh,
+            self._element,
+            self._basis,
             return_K=False,
             viscosity=self.viscosity,
         )
@@ -990,10 +1212,10 @@ class Stokes(Physics):
             self.vel_forc_fun,
             self.pres_forc_fun,
             self.navier_stokes,
-            self.bndry_conds,
-            self.mesh,
-            self.element,
-            self.basis,
+            self._bndry_conds,
+            self._mesh,
+            self._element,
+            self._basis,
             sol,
             viscosity=self.viscosity,
         )
@@ -1007,12 +1229,12 @@ class Stokes(Physics):
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
         bilinear_mat, linear_vec, D_vals, D_dofs = (
             _enforce_stokes_boundary_conditions(
-                self.mesh,
-                self.element,
-                self.basis,
+                self._mesh,
+                self._element,
+                self._basis,
                 bilinear_mat,
                 linear_vec,
-                *self.bndry_conds,
+                *self._bndry_conds,
                 self.A_shape,
                 sol,
             )
@@ -1043,9 +1265,9 @@ class BiLaplacianPrior:
         K22<<K11 will cause correlation length to be small in vertical
         direction and long in horizontal direction
         """
-        self.mesh = mesh
-        self.element = element
-        self.basis = basis
+        self._mesh = mesh
+        self._element = element
+        self._basis = basis
         self.gamma = gamma
         self.delta = delta
         self.beta = np.sqrt(self.gamma * self.delta) * 1.42
@@ -1061,10 +1283,10 @@ class BiLaplacianPrior:
             {},
             dict(
                 zip(
-                    self.mesh.boundaries.keys(),
+                    self._mesh.boundaries.keys(),
                     [
                         [self._bndry_fun, self.beta]
-                        for nn in range(len(self.mesh.boundaries))
+                        for nn in range(len(self._mesh.boundaries))
                     ],
                 )
             ),
@@ -1078,12 +1300,12 @@ class BiLaplacianPrior:
                     self._diff_fun,
                     self._react_fun,
                     self._bndry_conds,
-                    self.mesh,
-                    self.element,
-                    self.basis,
+                    self._mesh,
+                    self._element,
+                    self._basis,
                 )
             )
-            mass_mat = asm(mass, self.basis)
+            mass_mat = asm(mass, self._basis)
             lumped_mass_mat = np.asarray(mass_mat.sum(axis=1))[:, 0]
             self._linear_system_data += [lumped_mass_mat]
 
@@ -1201,22 +1423,23 @@ class Burgers(Physics):
         self, sol: np.ndarray = None
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix]]:
         residual = BurgersResidual(self._forc_fun, self._viscosity_fun)
-        u_prev_interp = self.basis.interpolate(sol)
+        u_prev_interp = self._basis.interpolate(sol)
         bilinear_mat = asm(
             BilinearForm(residual.bilinear_form),
-            self.basis,
+            self._basis,
             u_prev=u_prev_interp,
         )
         linear_vec = asm(
-            LinearForm(residual.linear_form), self.basis, u_prev=u_prev_interp
+            LinearForm(residual.linear_form), self._basis, u_prev=u_prev_interp
         )
         bilinear_mat, linear_vec = (
             _enforce_scalar_robin_neumann_boundary_conditions(
-                self.mesh,
-                self.element,
+                self._mesh,
+                self._element,
+                self._basis,
                 bilinear_mat,
                 linear_vec,
-                *self.bndry_conds[1:],
+                *self._bndry_conds[1:],
                 sol,
             )
         )
@@ -1229,13 +1452,7 @@ class Burgers(Physics):
         linear_vec: Union[np.ndarray, spmatrix],
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
         D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
-            self.mesh,
-            self.element,
-            self.basis,
-            bilinear_mat,
-            linear_vec,
-            self.bndry_conds[0],
-            sol,
+            self._mesh, self._element, self._basis, self._bndry_conds[0], sol
         )
         return bilinear_mat, linear_vec, D_vals, D_dofs
 
