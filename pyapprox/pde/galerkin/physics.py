@@ -378,6 +378,9 @@ class DiffusionResidual(ABC):
     def bilinear_form(self, u, v, w):
         raise NotImplementedError
 
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
 
 class LinearDiffusionResidual(DiffusionResidual):
     def __init__(self, forc_fun, diff_fun, react_fun, vel_fun):
@@ -853,12 +856,19 @@ class FEMScalarFunctionFromCallable(FromCallableMixin, FEMScalarFunction):
         # if self._fun is not implemented correctly this will fail
         # E.g. when manufactured solution, diff etc. string does not have x
         # in it. If not dependent on x then must use 1e-16*x
-        if xx.ndim != vals.ndim:
+
+        if xx.ndim - 1 != vals.ndim:
             raise ValueError(
                 f"vals.ndim is incorrect. Was {vals.ndim} "
-                f"should be {xx.ndim}"
+                f"should be {xx.ndim-1}"
             )
-        return vals[:, 0]
+
+        # if xx.ndim != vals.ndim:
+        #     raise ValueError(
+        #         f"vals.ndim is incorrect. Was {vals.ndim} "
+        #         f"should be {xx.ndim}"
+        #     )
+        return vals  # [:, 0]
 
     def __repr__(self):
         return "{0}(name={1})".format(self.__class__.__name__, self._name)
@@ -983,6 +993,7 @@ class AdvectionDiffusionReaction(Physics):
             self._basis,
             u_prev=u_prev_interp,
         )
+        print(u_prev_interp.shape, residual)
         residual_vec = asm(
             LinearForm(residual.linear_form), self._basis, u_prev=u_prev_interp
         )

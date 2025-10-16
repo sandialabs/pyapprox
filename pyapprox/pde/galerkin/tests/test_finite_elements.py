@@ -113,6 +113,7 @@ class ManufacturedSolutionToBoundaryConditions:
                 bndry_fun = partial(
                     _robin_bndry_fun, sol_fun, flux_funs, normal_fun, alpha
                 )
+                print(dd, bndry_types)
                 if bndry_types[dd] == "N":
                     bndry_conds.append([bndry_fun, "N"])
                 else:
@@ -122,15 +123,40 @@ class ManufacturedSolutionToBoundaryConditions:
         return bndry_conds
 
     def boundary_conditions(self, bndry_types: List[str]):
-        return _get_scalar_bndry_conds(
+        bndry_cond_tuples = self._get_mms_boundary_funs(
+            self._mesh.p.shape[0], bndry_types, self._sol_fun, self._flux_funs
+        )
+
+        # bndry_cond tuples ordered [left, right, bottom, top]
+        bndry_names = ["left", "right", "bottom", "top"]
+        D_bndry_names, D_bndry_funs = [], []
+        N_bndry_names, N_bndry_funs = [], []
+        R_bndry_names, R_bndry_funs, R_bndry_consts = [], [], []
+        for ii, tup in enumerate(bndry_cond_tuples):
+            if tup[1] == "D":
+                D_bndry_names.append(bndry_names[ii])
+                D_bndry_funs.append(MSBoundaryConditionFunction(tup[0]))
+            elif tup[1] == "N":
+                N_bndry_names.append(bndry_names[ii])
+                N_bndry_funs.append(MSBoundaryConditionFunction(tup[0]))
+            else:
+                R_bndry_names.append(bndry_names[ii])
+                R_bndry_funs.append(MSBoundaryConditionFunction(tup[0]))
+                R_bndry_consts.append(tup[2])
+
+        bndry_conds = BoundaryConditions(
             self._mesh,
             self._element,
             self._basis,
-            bndry_types,
-            self._mesh.p.shape[0],
-            self._sol_fun,
-            self._flux_funs,
+            D_bndry_names,
+            D_bndry_funs,
+            N_bndry_names,
+            N_bndry_funs,
+            R_bndry_names,
+            R_bndry_funs,
+            R_bndry_consts,
         )
+        return bndry_conds
 
 
 def _normal_flux(flux_funs, normal_fun, xx):
@@ -420,6 +446,8 @@ class TestFiniteElements(unittest.TestCase):
             react_str,
             vel_strings,
             conservative=False,
+            # oned=False,
+            oned=True,
         )
 
         mesh = _get_mesh(domain_bounds, nrefine, nx=3)
@@ -471,7 +499,8 @@ class TestFiniteElements(unittest.TestCase):
         )
         newton_solver = NewtonSolver(verbosity=2, maxiters=30, rtol=1e-12)
         solver = SteadyStatePDE(physics, newton_solver)
-        exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
+        # exact_sol = basis.project(lambda x: sol_fun(x)[:, 0])
+        exact_sol = basis.project(lambda x: sol_fun(x))
 
         # print(solver.newton_solver._residual)
         res = solver.newton_solver._residual(exact_sol)
@@ -522,7 +551,8 @@ class TestFiniteElements(unittest.TestCase):
 
         # print(fem_sol - exact_sol)
         # print(fem_sol_on_mesh - sol_fun(mesh_pts)[:, 0])
-        assert np.allclose(fem_sol_on_mesh, sol_fun(mesh_pts)[:, 0], atol=1e-6)
+        # assert np.allclose(fem_sol_on_mesh, sol_fun(mesh_pts)[:, 0], atol=1e-6)
+        assert np.allclose(fem_sol_on_mesh, sol_fun(mesh_pts), atol=1e-6)
 
     def test_advection_diffusion_reaction(self):
         test_case = [
@@ -541,7 +571,6 @@ class TestFiniteElements(unittest.TestCase):
             ("u*0", lambda x, u: u * 0, lambda x, u: u * 0),
         ]
         self._check_advection_diffusion_reaction(*test_case)
-        # assert False
 
         # check 1D domain linear elements
         test_case_args = [
@@ -607,7 +636,6 @@ class TestFiniteElements(unittest.TestCase):
             self._check_advection_diffusion_reaction(*test_case)
 
         # check 2D domain nolinear reaction but linear diffusion
-        # TODO ROBIN BOUNDARY and Neumann boundary do not work with non-linear diffusion
         test_case_args = [
             [
                 [0, 1, 0, 1],
@@ -616,11 +644,12 @@ class TestFiniteElements(unittest.TestCase):
                 2,
             ],  # element_order
             [
-                1,
+                0,
             ],  # nrefine
             [["D", "D", "D", "D"], ["D", "R", "D", "N"]],  # bndry_types
             [
                 "x+2*y",
+                # "x**2*y**2",
             ],  # sol_str
             # functions in tuple must be linear_diff * f(u)
             [
@@ -652,7 +681,7 @@ class TestFiniteElements(unittest.TestCase):
                 1,
             ],  # nrefine
             [
-                ["D", "D", "D", "D"],
+                ["D", "D", "D", "R"],
             ],  # bndry_types
             [
                 "x+2*y",
