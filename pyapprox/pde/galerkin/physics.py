@@ -208,6 +208,22 @@ class BoundaryConditions:
             )
         return mat, vec
 
+    def set_time(self, time: float):
+        if self.ndirichlet_boundaries() > 0:
+            for bndry_fun in self._dbndry_funs:
+                if isinstance(bndry_fun, TransientMixin):
+                    bndry_fun.set_time(time)
+        if self.nneumann_boundaries() > 0:
+            for bndry_fun in self._nbndry_funs:
+                print(bndry_fun, "A")
+                if isinstance(bndry_fun, TransientMixin):
+                    print(bndry_fun, "B")
+                    bndry_fun.set_time(time)
+        if self.nrobin_boundaries() > 0:
+            for bndry_fun in self._rbndry_funs:
+                if isinstance(bndry_fun, TransientMixin):
+                    bndry_fun.set_time(time)
+
     def __repr__(self) -> str:
         return "{0}(dirichlet={1}, neumann={2}, robin={3})".format(
             self.__class__.__name__,
@@ -836,45 +852,41 @@ class Physics(ABC):
 
 
 class FEMScalarFunction(ABC):
+
     @abstractmethod
-    def __call__(self, xx):
+    def _values(self, xx: Array) -> Array:
         raise NotImplementedError
 
-    def __repr__(self):
-        return "{0}".format(self.__class__.__name__)
-
-
-class FromCallableMixin:
-    def __init__(self, fun, name=None):
-        self._fun = fun
-        self._name = name
-
-
-class FEMScalarFunctionFromCallable(FromCallableMixin, FEMScalarFunction):
-    def __call__(self, xx):
-        vals = self._fun(xx)
-        # if self._fun is not implemented correctly this will fail
-        # E.g. when manufactured solution, diff etc. string does not have x
-        # in it. If not dependent on x then must use 1e-16*x
-
+    def __call__(self, xx: Array) -> Array:
+        vals = self._values(xx)
         if xx.ndim - 1 != vals.ndim:
             raise ValueError(
                 f"vals.ndim is incorrect. Was {vals.ndim} "
                 f"should be {xx.ndim-1}"
             )
+        return vals
 
-        # if xx.ndim != vals.ndim:
-        #     raise ValueError(
-        #         f"vals.ndim is incorrect. Was {vals.ndim} "
-        #         f"should be {xx.ndim}"
-        #     )
-        return vals  # [:, 0]
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
+
+class FromCallableMixin:
+    def __init__(self, fun: callable, name: str = None):
+        self._fun = fun
+        self._name = name
+
+    def _values(self, xx: Array) -> Array:
+        return self._fun(xx)
 
     def __repr__(self):
         return "{0}(name={1})".format(self.__class__.__name__, self._name)
 
 
-class FEMTransientScalarFunction(FEMScalarFunction):
+class FEMScalarFunctionFromCallable(FromCallableMixin, FEMScalarFunction):
+    pass
+
+
+class TransientMixin:
     def set_time(self, time: float):
         self._time = time
 
@@ -884,38 +896,39 @@ class FEMTransientScalarFunction(FEMScalarFunction):
         )
 
 
+class FEMTransientScalarFunction(TransientMixin, FEMScalarFunction):
+    pass
+
+
 class FEMTransientScalarFunctionFromCallable(
-    FromCallableMixin, FEMTransientScalarFunction
+    FEMTransientScalarFunction, FromCallableMixin
 ):
-    def __call__(self, samples: Array) -> Array:
-        return self._eval(samples)
+    def _values(self, samples: Array) -> Array:
+        if not hasattr(self, "_time"):
+            raise ValueError(f"{self}: must call set_time before calling eval")
+        return self._partial_fun(samples)
+        # return self._eval(samples)
 
     def set_time(self, time: float):
         super().set_time(time)
         self._partial_fun = partial(self._fun, time=time)
 
-    def _eval(self, samples: Array) -> Array:
-        if self._time is None:
-            raise ValueError("Must call set_time before calling eval")
-        return self._partial_fun(samples)[:, 0]
+    # def _eval(self, samples: Array) -> Array:
+    #     if self._time is None:
+    #         raise ValueError("Must call set_time before calling eval")
+    #     return self._partial_fun(samples)
 
 
 class FEMVectorFunction:
+    def __init__(self, swapaxes: bool = True):
+        self._swapaxes = swapaxes
+
     @abstractmethod
-    def __call__(self, xx: Array) -> Array:
+    def _values(self, xx: Array) -> Array:
         raise NotImplementedError
 
-    def __repr__(self) -> str:
-        return "{0}".format(self.__class__.__name__)
-
-
-class FEMVectorFunctionFromCallable(FromCallableMixin, FEMVectorFunction):
-    def __init__(self, fun: callable, name: str = None, swapaxes: bool = True):
-        super().__init__(fun, name)
-        self._swapeaxes = swapaxes
-
     def __call__(self, xx: Array) -> Array:
-        vals = self._fun(xx)
+        vals = self._values(xx)
         # if self._fun is not implemented correctly this will fail
         # E.g. when manufactured solution, diff etc. string does not have x
         # in it. If not dependent on x then must use 1e-16*x
@@ -925,9 +938,33 @@ class FEMVectorFunctionFromCallable(FromCallableMixin, FEMVectorFunction):
                 f"should be {xx.ndim}"
             )
         # put vals in format required by FEM
-        if self._swapeaxes:
+        if self._swapaxes:
             vals = np.swapaxes(vals, 0, 1)
         return vals
+
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
+
+class FEMVectorFunctionFromCallable(FromCallableMixin, FEMVectorFunction):
+    def __init__(self, fun: callable, name: str = None, swapaxes: bool = True):
+        FEMVectorFunction.__init__(self, swapaxes)
+        FromCallableMixin.__init__(self, fun, name)
+
+
+class FEMTransientVectorFunctionFromCallable(
+    TransientMixin, FEMVectorFunctionFromCallable
+):
+    def _values(self, samples: Array) -> Array:
+        if not hasattr(self, "_time"):
+            raise ValueError(f"{self}: must call set_time before calling eval")
+        return self._partial_fun(samples)
+        # return self._eval(samples)
+
+    def set_time(self, time: float):
+        super().set_time(time)
+        print(self, time)
+        self._partial_fun = partial(self._fun, time=time)
 
 
 class FEMNonLinearOperator(ABC):
@@ -993,36 +1030,10 @@ class AdvectionDiffusionReaction(Physics):
             self._basis,
             u_prev=u_prev_interp,
         )
-        print(u_prev_interp.shape, residual)
         residual_vec = asm(
             LinearForm(residual.linear_form), self._basis, u_prev=u_prev_interp
         )
-        # print(residual_vec, "Before neuman")
-        # bilinear_mat, residual_vec = (
-        #     _enforce_scalar_robin_neumann_boundary_conditions(
-        #         self._mesh,
-        #         self._element,
-        #         self._basis,
-        #         bilinear_mat,
-        #         residual_vec,
-        #         *self._bndry_conds[1:],
-        #         sol,
-        #     )
-        # )
-        # print(residual_vec, "After neuman")
         return bilinear_mat, residual_vec
-
-    def apply_dirichlet_boundary_conditions(
-        self,
-        sol: np.ndarray,
-        bilinear_mat: spmatrix,
-        residual_vec: Union[np.ndarray, spmatrix],
-    ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
-        D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
-            self._mesh, self._element, self._basis, self._bndry_conds[0], sol
-        )
-        # print(residual_vec, "After dirichlet")
-        return bilinear_mat, residual_vec, D_vals, D_dofs
 
 
 class LinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
@@ -1443,29 +1454,7 @@ class Burgers(Physics):
         linear_vec = asm(
             LinearForm(residual.linear_form), self._basis, u_prev=u_prev_interp
         )
-        bilinear_mat, linear_vec = (
-            _enforce_scalar_robin_neumann_boundary_conditions(
-                self._mesh,
-                self._element,
-                self._basis,
-                bilinear_mat,
-                linear_vec,
-                *self._bndry_conds[1:],
-                sol,
-            )
-        )
         return bilinear_mat, linear_vec
-
-    def apply_dirichlet_boundary_conditions(
-        self,
-        sol: np.ndarray,
-        bilinear_mat: spmatrix,
-        linear_vec: Union[np.ndarray, spmatrix],
-    ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
-        D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
-            self._mesh, self._element, self._basis, self._bndry_conds[0], sol
-        )
-        return bilinear_mat, linear_vec, D_vals, D_dofs
 
     def _unit_vel_fun(self, x, *args):
         return x * 0 + 1

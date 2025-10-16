@@ -257,9 +257,7 @@ class ReactionMixin:
         # react_prime_expr = react_prime_expr.subs(
         #     sol_symb, self._expressions["solution"]
         # )
-        print(react_str)
         react_str = react_str.replace("u", "({0})".format(sol_str))
-        print(react_str)
         return react_str, sp.sympify(react_str)  # , react_prime_expr
 
     def sympy_reaction_expressions(self):

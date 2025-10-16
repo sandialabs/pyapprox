@@ -17,7 +17,7 @@ from skfem.mesh import Mesh
 from skfem.element import Element
 
 
-def _get_mesh(
+def get_mesh(
     bounds: List[float], nrefine: int, periodic: bool = False, nx: int = 3
 ) -> Mesh:
     nphys_vars = len(bounds) // 2
@@ -62,7 +62,7 @@ def _get_mesh(
     return mesh
 
 
-def _get_element(mesh: Mesh, order: int) -> Element:
+def get_element(mesh: Mesh, order: int) -> Element:
 
     if order > 2:
         raise ValueError(f"order {order} not supported")
