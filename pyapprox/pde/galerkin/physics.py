@@ -1,4 +1,3 @@
-import copy
 import sys
 
 from abc import ABC, abstractmethod
@@ -18,12 +17,7 @@ from skfem.element import Element
 from skfem.helpers import dot, grad, mul
 from skfem.models.poisson import vector_laplace, mass
 from skfem.models.general import divergence
-from pyapprox.pde.galerkin.util import (
-    _forcing,
-    _vector_forcing,
-    _robin,
-    _robin_prev_sol,
-)
+from pyapprox.pde.galerkin.util import _forcing, _vector_forcing
 from pyapprox.util.backends.template import Array
 
 
@@ -205,145 +199,6 @@ class BoundaryConditions:
         )
 
 
-def _enforce_dirichlet_scalar_boundary_conditions(
-    mesh, element, basis, D_bndry_conds, u_prev
-):
-    """
-    u_prev is none indicates that newtons method is calling enforce boundaries
-    In this case linear_vec represents the residual and so contributions
-    to residual must be added accordingly.
-
-    Note:
-    bilinear_mat(aka jacobian) is not changed here. It is changed when calling
-    condense
-    """
-    # define Dirichlet boundary basis
-    # D_bases = [
-    #     FacetBasis(mesh, element, facets=mesh.boundaries[key])
-    #     for key, fun in D_bndry_conds.items()
-    # ]
-    D_bases = [basis.boundary(key) for key in D_bndry_conds.keys()]
-    # evaluate Dirichlet boundary values
-    D_vals = basis.zeros()
-    for b, key in zip(D_bases, D_bndry_conds.keys()):
-        _dofs = basis.get_dofs(key)
-        # D_vals[_dofs] = b.project(D_bndry_conds[key][0])[_dofs]
-        D_vals[_dofs] = D_bndry_conds[key][0](
-            basis.doflocs[:, basis.get_dofs(key)]
-        )
-
-    if u_prev is not None:
-        D_vals = u_prev - D_vals
-    # get dofs on Dirichlet boundary
-    if len(D_bndry_conds) > 0:
-        D_dofs = basis.get_dofs(list(D_bndry_conds.keys()))
-    else:
-        D_dofs = np.empty(0, dtype=int)
-
-    return D_vals, D_dofs
-
-
-def _enforce_scalar_robin_neumann_boundary_conditions(
-    mesh: Mesh,
-    element: Element,
-    basis: Basis,
-    bilinear_mat: Array,
-    linear_vec: Array,
-    N_bndry_conds: dict,
-    R_bndry_conds: dict,
-    u_prev: Array,
-) -> Tuple[Array, Array]:
-    # N_bases = [
-    #     FacetBasis(mesh, element, facets=mesh.boundaries[key])
-    #     for key in N_bndry_conds.keys()
-    # ]
-
-    N_bases = [basis.boundary(key) for key in N_bndry_conds.keys()]
-
-    for b, key in zip(N_bases, N_bndry_conds.keys()):
-        fun = N_bndry_conds[key][0]
-
-        def g(x):
-            # print(x[0], 6 * x[0] ** 2 * x[1], "g")
-            # print(fun(x))
-            return fun(x)
-
-        # print(linear_vec, "A")
-        linear_vec += asm(
-            LinearForm(_forcing), b, forc=b.interpolate(b.project(fun))
-        )
-        # print(key, "B")
-        print(
-            asm(LinearForm(_forcing), b, forc=b.interpolate(b.project(g))), "D"
-        )
-        # print(linear_vec, "C")
-
-    # R_bases = [
-    #     FacetBasis(mesh, element, facets=mesh.boundaries[key])
-    #     for key in R_bndry_conds.keys()
-    # ]
-    R_bases = [basis.boundary(key) for key in R_bndry_conds.keys()]
-    for b, key in zip(R_bases, R_bndry_conds.keys()):
-        fun, alpha = R_bndry_conds[key]
-        # robin is assumed to take the form -flux = alpha*u + fun(x)
-        bilinear_mat += asm(BilinearForm(_robin), b, alpha=alpha)
-        if u_prev is not None:
-            # when u_prev is not None. then linear vec represents the residual
-            # and so robin contribution to mass term must be reflected in res
-            linear_vec -= asm(
-                LinearForm(_robin_prev_sol), b, alpha=alpha, u_prev=u_prev
-            )
-        # add contribution of robin boundary to forcing
-        linear_vec += asm(
-            LinearForm(_forcing), b, forc=b.interpolate(b.project(fun))
-        )
-    # see https://fenicsproject.org/pub/tutorial/sphinx1/._ftut1005.html
-    # for useful notes
-    return bilinear_mat, linear_vec
-
-
-def _enforce_scalar_boundary_conditions(
-    mesh,
-    element,
-    basis,
-    bilinear_mat,
-    linear_vec,
-    D_bndry_conds,
-    N_bndry_conds,
-    R_bndry_conds,
-    u_prev=None,
-):
-    bilinear_mat, linear_vec = (
-        _enforce_scalar_robin_neumann_boundary_conditions(
-            mesh,
-            element,
-            basis,
-            bilinear_mat,
-            linear_vec,
-            N_bndry_conds,
-            R_bndry_conds,
-            u_prev,
-        )
-    )
-    D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
-        mesh, element, basis, D_bndry_conds, u_prev
-    )
-    return bilinear_mat, linear_vec, D_vals, D_dofs
-
-
-# def _diffusion(u, v, w):
-#     return dot(w["diff"] * grad(u), grad(v))
-
-
-# def _reaction(u, v, w):
-#     return w["react"] * v
-
-
-# def _diffusion_residual(v, w):
-#     return (w["forc"] * v - dot(w["diff"]*grad(w['u_prev']), grad(v)) -
-#             w["react"] * v)
-
-
 class DiffusionResidual(ABC):
     def _zero_fun(self, x, *args):
         return x[0] * 0
@@ -457,306 +312,6 @@ class NonLinearDiffusionResidual(DiffusionResidual):
             + self._advection_term(u, v, w)
         )
         return mat
-
-
-# TODO allow anisotropic diffusion
-# see https://github.com/kinnala/scikit-fem/discussions/923
-# @BilinearForm
-# def anipoisson(u, v, w):
-#     C = np.array([[1.0, 0.1],
-#                   [0.1, 1.0]])
-#     return dot(mul(C, grad(u)), grad(v))
-
-
-def _raw_assemble_advection_diffusion_reaction(
-    diff_fun,
-    forc_fun,
-    nl_diff_funs,
-    react_funs,
-    vel_fun,
-    bndry_conds,
-    mesh,
-    element,
-    basis,
-    u_prev=None,
-):
-
-    # Note, project only takes functions that return 1D arrays
-    # project takes functions that can compute when x is a 3D array,
-    # thus manufactured solutions must be created with x in most strings.
-    # However, there are some exceptions
-
-    nl_diff_fun, nl_diff_prime = nl_diff_funs
-
-    if nl_diff_fun is not None:
-        if nl_diff_prime is None:
-            raise ValueError("nl_diff_prime must be provided with nl_diff_fun")
-
-    if u_prev is None:
-        # assert nl_diff_fun is None
-        # assert react_funs[0] is None
-        residual = LinearDiffusionResidual(
-            forc_fun, diff_fun, react_funs[0], vel_fun
-        )
-        bilinear_mat = asm(BilinearForm(residual.bilinear_form), basis)
-        linear_vec = asm(LinearForm(residual.linear_form), basis)
-    else:
-        residual = NonLinearDiffusionResidual(
-            forc_fun, *react_funs, *nl_diff_funs, vel_fun
-        )
-        # use below if using newton solve
-        u_prev_interp = basis.interpolate(u_prev)
-        bilinear_mat = asm(
-            BilinearForm(residual.bilinear_form), basis, u_prev=u_prev_interp
-        )
-        linear_vec = asm(
-            LinearForm(residual.linear_form), basis, u_prev=u_prev_interp
-        )
-
-    bilinear_mat, linear_vec = (
-        _enforce_scalar_robin_neumann_boundary_conditions(
-            mesh,
-            element,
-            basis,
-            bilinear_mat,
-            linear_vec,
-            *bndry_conds[1:],
-            u_prev,
-        )
-    )
-    return bilinear_mat, linear_vec
-
-
-def _assemble_advection_diffusion_reaction(
-    diff_fun,
-    forc_fun,
-    nl_diff_funs,
-    react_funs,
-    vel_fun,
-    bndry_conds,
-    mesh,
-    element,
-    basis,
-    u_prev=None,
-):
-    bilinear_mat, linear_vec = _raw_assemble_advection_diffusion_reaction(
-        diff_fun,
-        forc_fun,
-        nl_diff_funs,
-        react_funs,
-        vel_fun,
-        bndry_conds,
-        mesh,
-        element,
-        basis,
-        u_prev,
-    )
-    D_vals, D_dofs = _enforce_dirichlet_scalar_boundary_conditions(
-        mesh, element, basis, bndry_conds[0], u_prev
-    )
-    return bilinear_mat, linear_vec, D_vals, D_dofs
-
-
-def _assemble_stokes_linear_vec(basis, vel_forc_fun, pres_forc_fun):
-    pres_forc = basis["p"].interpolate(basis["p"].project(pres_forc_fun))
-    vel_forces = basis["u"].interpolate(basis["u"].project(vel_forc_fun))
-    vel_loads = asm(LinearForm(_vector_forcing), basis["u"], forc=vel_forces)
-    # - sign on pressure load because I think pressure equation
-    # in manufactured_solutions.py has the wrong sign it is \nabla\cdot u = f_p
-    # but convention is -\nabla\cdot u = f_p
-    linear_vec = np.concatenate(
-        [vel_loads, -asm(LinearForm(_forcing), basis["p"], forc=pres_forc)]
-    )
-    return linear_vec
-
-
-def _navier_stokes_nonlinear_term_residual(v, w):
-    u = w["u_prev"]
-    du = u.grad
-    if u.shape[0] == 2:
-        return v[0] * (u[0] * du[0][0] + u[1] * du[0][1]) + v[1] * (
-            u[0] * du[1][0] + u[1] * du[1][1]
-        )
-    if u.shape[0] == 1:
-        return v[0] * (u[0] * du[0][0])
-    raise ValueError("Only 1D and 2D navier stokes supported")
-
-
-def _navier_stokes_linearized_terms(u, v, w):
-    z = w["u_prev"]
-    dz = z.grad
-    du = u.grad
-    if u.shape[0] == 2:
-        return (
-            v[0] * (u[0] * dz[0][0] + u[1] * dz[0][1])
-            + v[1] * (u[0] * dz[1][0] + u[1] * dz[1][1])
-            + v[0] * (z[0] * du[0][0] + z[1] * du[0][1])
-            + v[1] * (z[0] * du[1][0] + z[1] * du[1][1])
-        )
-    if u.shape[0] == 1:
-        return v[0] * (u[0] * dz[0][0]) + v[0] * (z[0] * du[0][0])
-
-
-def _enforce_stokes_boundary_conditions(
-    mesh,
-    element,
-    basis,
-    bilinear_mat,
-    linear_vec,
-    bndry_conds,
-    u_prev=None,
-):
-
-    # Note When all boundaries are dirichlet must set a pressure value to
-    # make presure unique. Otherwise it is only unique up to a constant
-    # When not all boundaries are dirichlet  pressure is made unique because
-    # it appears in the boundary integral arising from integration by parts
-    # of pressure term in weak form of stokes equations
-
-    nvars = mesh.p.shape[0]
-    D_vals = np.hstack([basis["u"].zeros(), basis["p"].zeros()])
-    vel_D_dofs = []
-    # loop over velocity component boundary conditions
-    for idx in range(nvars):
-        for bndry_name, bndry_fun in zip(
-            bndry_conds[idx]._dbndry_names, bndry_conds[idx]._dbndry_funs
-        ):
-            # bndry_basis = self._basis.boundary(bndry_name)
-            # can use basis["u"].get_dofs(bndry_name) because u is first
-            # in flattened list of dofs.
-
-            # warning appending dofs like this may cause repeated entries at corners
-            # and I am nor sure what effect this will have
-            if nvars == 2:
-                dofnames = basis["u"].get_dofs().obj.element.dofnames
-                skip = dofnames[nvars - idx - 1]
-                bndry_dofs = basis["u"].get_dofs(bndry_name, skip=skip)
-            elif nvars == 1:
-                bndry_dofs = basis["u"].get_dofs(bndry_name)
-            else:
-                raise NotImplementedError("nvars must be <= 2")
-            vel_D_dofs.append(bndry_dofs)
-            D_vals[bndry_dofs] = bndry_fun(basis["u"].doflocs[:, bndry_dofs])
-
-    # set pressure boundary conditions
-    pres_D_dofs = []
-    for bndry_name, bndry_fun in zip(
-        bndry_conds[nvars]._dbndry_names, bndry_conds[nvars]._dbndry_funs
-    ):
-        # Accesing p requires adding
-        # basis["p"].get_dofs(bndry_name) and the total number of u basis dofs
-        #  basis["u"].N is nrows of velocity block in stiffness matrix
-        # need to get DOF for presure in global array
-        p_dofs = basis["p"].get_dofs(bndry_name)
-        shifted_p_dofs = p_dofs.flatten() + basis["u"].N
-        pres_D_dofs.append(shifted_p_dofs)
-        D_vals[shifted_p_dofs] = bndry_fun(basis["p"].doflocs[:, p_dofs])
-
-    pres_D_dofs = np.hstack(pres_D_dofs)
-    # create a copy DOFView that can
-    # D_dofs = copy.deepcopy(vel_D_dofs[0])
-    # D_dofs.flatten = lambda: np.union1d(
-    #     np.unique(np.hstack(vel_D_dofs)), pres_D_dofs
-    # )
-    # typically D_dofs is a DOFView but if D_dofs is only used for
-    # condense then we can just pass array. I can creat a view like above
-    # but flatten will be inconsistent with the rest of its attributes an
-    # d functions
-    D_dofs = np.union1d(np.unique(np.hstack(vel_D_dofs)), pres_D_dofs)
-
-    if u_prev is not None:
-        D_vals = u_prev - D_vals
-    return bilinear_mat, linear_vec, D_vals, D_dofs
-
-
-def _raw_assemble_stokes(
-    vel_forc_fun,
-    pres_forc_fun,
-    navier_stokes,
-    mesh,
-    element,
-    basis,
-    u_prev=None,
-    return_K=False,
-    viscosity=1,
-):
-    A = viscosity * asm(vector_laplace, basis["u"])
-    B = -asm(divergence, basis["u"], basis["p"])
-
-    # C = 1e-6*asm(mass, basis['p'])
-    C = None
-    K = bmat([[A, B.T], [B, C]], "csr")
-
-    if u_prev is not None:
-        vel_prev, pres_prev = np.split(u_prev, K.blocks)
-
-    if navier_stokes:
-        A_nl = asm(
-            BilinearForm(_navier_stokes_linearized_terms),
-            basis["u"],
-            u_prev=vel_prev,
-        )
-        bilinear_mat = bmat([[(A + A_nl), B.T], [B, C]], "csr")
-    else:
-        bilinear_mat = K  # jacobian
-
-    linear_vec = _assemble_stokes_linear_vec(
-        basis, vel_forc_fun, pres_forc_fun
-    )
-
-    if u_prev is not None:
-        # minus sign because res = -a(u_prev, v) + L(v), b = res
-        b_pres = -B.dot(vel_prev)
-        b_vel = -(A.dot(vel_prev) + B.T.dot(pres_prev))
-        if C is not None:
-            b_pres -= C.dot(pres_prev)
-        if navier_stokes:
-            b_vel += -asm(
-                LinearForm(_navier_stokes_nonlinear_term_residual),
-                basis["u"],
-                u_prev=vel_prev,
-            )
-        linear_vec += np.concatenate([b_vel, b_pres])
-        # the following is true only for stokes (not navier stokes)
-        # linear_vec -= K.dot(u_prev)
-
-    if not return_K:
-        return bilinear_mat, linear_vec
-    return bilinear_mat, linear_vec, K
-
-
-def _assemble_stokes(
-    vel_forc_fun,
-    pres_forc_fun,
-    navier_stokes,
-    bndry_conds,
-    mesh,
-    element,
-    basis,
-    u_prev=None,
-    return_K=False,
-    viscosity=1.0,
-):
-    result = _raw_assemble_stokes(
-        vel_forc_fun,
-        pres_forc_fun,
-        navier_stokes,
-        mesh,
-        element,
-        basis,
-        u_prev,
-        return_K,
-        viscosity,
-    )
-    bilinear_mat, linear_vec = result[:2]
-    bilinear_mat, linear_vec, D_vals, D_dofs = (
-        _enforce_stokes_boundary_conditions(
-            mesh, element, basis, bilinear_mat, linear_vec, bndry_conds, u_prev
-        )
-    )
-    if not return_K:
-        return bilinear_mat, linear_vec, D_vals, D_dofs
-    return bilinear_mat, linear_vec, D_vals, D_dofs, result[-1]
 
 
 class Physics(ABC):
@@ -1063,6 +618,15 @@ class LinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
         return np.ones((self._basis.N,))
 
 
+# TODO allow anisotropic diffusion
+# see https://github.com/kinnala/scikit-fem/discussions/923
+# @BilinearForm
+# def anipoisson(u, v, w):
+#     C = np.array([[1.0, 0.1],
+#                   [0.1, 1.0]])
+#     return dot(mul(C, grad(u)), grad(v))
+
+
 class NonLinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
     def __init__(
         self,
@@ -1109,7 +673,6 @@ class NonLinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
         return funs + [self._linear_diff_fun, self._diff_op, self._react_op]
 
 
-# class Helmholtz(LinearAdvectionDiffusionReaction):
 class Helmholtz(NonLinearAdvectionDiffusionReaction):
     def __init__(
         self,
@@ -1192,24 +755,161 @@ class Stokes(Physics):
         self.navier_stokes = navier_stokes
         self.viscosity = viscosity
 
+    def _navier_stokes_linearized_terms(self, u, v, w):
+        z = w["u_prev"]
+        dz = z.grad
+        du = u.grad
+        if u.shape[0] == 2:
+            return (
+                v[0] * (u[0] * dz[0][0] + u[1] * dz[0][1])
+                + v[1] * (u[0] * dz[1][0] + u[1] * dz[1][1])
+                + v[0] * (z[0] * du[0][0] + z[1] * du[0][1])
+                + v[1] * (z[0] * du[1][0] + z[1] * du[1][1])
+            )
+        if u.shape[0] == 1:
+            return v[0] * (u[0] * dz[0][0]) + v[0] * (z[0] * du[0][0])
+
+    def _navier_stokes_nonlinear_term_residual(self, v, w):
+        u = w["u_prev"]
+        du = u.grad
+        if u.shape[0] == 2:
+            return v[0] * (u[0] * du[0][0] + u[1] * du[0][1]) + v[1] * (
+                u[0] * du[1][0] + u[1] * du[1][1]
+            )
+        if u.shape[0] == 1:
+            return v[0] * (u[0] * du[0][0])
+        raise ValueError("Only 1D and 2D navier stokes supported")
+
+    def _assemble_stokes_linear_vec(self, basis, vel_forc_fun, pres_forc_fun):
+        pres_forc = basis["p"].interpolate(basis["p"].project(pres_forc_fun))
+        vel_forces = basis["u"].interpolate(basis["u"].project(vel_forc_fun))
+        vel_loads = asm(
+            LinearForm(_vector_forcing), basis["u"], forc=vel_forces
+        )
+        # - sign on pressure load because I think pressure equation
+        # in manufactured_solutions.py has the wrong sign it is \nabla\cdot u = f_p
+        # but convention is -\nabla\cdot u = f_p
+        linear_vec = np.concatenate(
+            [vel_loads, -asm(LinearForm(_forcing), basis["p"], forc=pres_forc)]
+        )
+        return linear_vec
+
+    def _raw_assemble_stokes(
+        self,
+        vel_forc_fun,
+        pres_forc_fun,
+        navier_stokes,
+        mesh,
+        element,
+        basis,
+        u_prev=None,
+        return_K=False,
+        viscosity=1,
+    ):
+        A = viscosity * asm(vector_laplace, basis["u"])
+        B = -asm(divergence, basis["u"], basis["p"])
+
+        # C = 1e-6*asm(mass, basis['p'])
+        C = None
+        K = bmat([[A, B.T], [B, C]], "csr")
+
+        if u_prev is not None:
+            vel_prev, pres_prev = np.split(u_prev, K.blocks)
+
+        if navier_stokes:
+            A_nl = asm(
+                BilinearForm(self._navier_stokes_linearized_terms),
+                basis["u"],
+                u_prev=vel_prev,
+            )
+            bilinear_mat = bmat([[(A + A_nl), B.T], [B, C]], "csr")
+        else:
+            bilinear_mat = K  # jacobian
+
+        linear_vec = self._assemble_stokes_linear_vec(
+            basis, vel_forc_fun, pres_forc_fun
+        )
+
+        if u_prev is not None:
+            # minus sign because res = -a(u_prev, v) + L(v), b = res
+            b_pres = -B.dot(vel_prev)
+            b_vel = -(A.dot(vel_prev) + B.T.dot(pres_prev))
+            if C is not None:
+                b_pres -= C.dot(pres_prev)
+            if navier_stokes:
+                b_vel += -asm(
+                    LinearForm(self._navier_stokes_nonlinear_term_residual),
+                    basis["u"],
+                    u_prev=vel_prev,
+                )
+            linear_vec += np.concatenate([b_vel, b_pres])
+            # the following is true only for stokes (not navier stokes)
+            # linear_vec -= K.dot(u_prev)
+
+        if not return_K:
+            return bilinear_mat, linear_vec
+        return bilinear_mat, linear_vec, K
+
+    def _assemble_linear_stokes(
+        self,
+        vel_forc_fun,
+        pres_forc_fun,
+        navier_stokes,
+        bndry_conds,
+        mesh,
+        element,
+        basis,
+        u_prev=None,
+        return_K=False,
+        viscosity=1.0,
+    ):
+        result = self._raw_assemble_stokes(
+            vel_forc_fun,
+            pres_forc_fun,
+            navier_stokes,
+            mesh,
+            element,
+            basis,
+            u_prev,
+            return_K,
+            viscosity,
+        )
+        bilinear_mat, linear_vec = result[:2]
+        bilinear_mat, linear_vec, D_vals, D_dofs = (
+            self._enforce_stokes_boundary_conditions(
+                mesh,
+                element,
+                basis,
+                bilinear_mat,
+                linear_vec,
+                bndry_conds,
+                u_prev,
+            )
+        )
+        if not return_K:
+            return bilinear_mat, linear_vec, D_vals, D_dofs
+        return bilinear_mat, linear_vec, D_vals, D_dofs, result[-1]
+
     def init_guess(self) -> np.ndarray:
-        bilinear_mat, linear_vec, D_vals, D_dofs = _assemble_stokes(
-            self.vel_forc_fun,
-            self.pres_forc_fun,
-            False,
-            self._bndry_conds,
-            self._mesh,
-            self._element,
-            self._basis,
-            return_K=False,
-            viscosity=self.viscosity,
+        bilinear_mat, linear_vec, D_vals, D_dofs = (
+            self._assemble_linear_stokes(
+                self.vel_forc_fun,
+                self.pres_forc_fun,
+                False,
+                self._bndry_conds,
+                self._mesh,
+                self._element,
+                self._basis,
+                return_K=False,
+                viscosity=self.viscosity,
+            )
         )
         return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
 
     def raw_assemble(
         self, sol: Optional[np.ndarray] = None
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
-        bilinear_mat, linear_vec = _raw_assemble_stokes(
+        bilinear_mat, linear_vec = self._raw_assemble_stokes(
             self.vel_forc_fun,
             self.pres_forc_fun,
             self.navier_stokes,
@@ -1220,6 +920,80 @@ class Stokes(Physics):
             viscosity=self.viscosity,
         )
         return bilinear_mat, linear_vec
+
+    def _enforce_stokes_boundary_conditions(
+        self,
+        mesh,
+        element,
+        basis,
+        bilinear_mat,
+        linear_vec,
+        bndry_conds,
+        u_prev=None,
+    ):
+
+        # Note When all boundaries are dirichlet must set a pressure value to
+        # make presure unique. Otherwise it is only unique up to a constant
+        # When not all boundaries are dirichlet  pressure is made unique because
+        # it appears in the boundary integral arising from integration by parts
+        # of pressure term in weak form of stokes equations
+
+        nvars = mesh.p.shape[0]
+        D_vals = np.hstack([basis["u"].zeros(), basis["p"].zeros()])
+        vel_D_dofs = []
+        # loop over velocity component boundary conditions
+        for idx in range(nvars):
+            for bndry_name, bndry_fun in zip(
+                bndry_conds[idx]._dbndry_names, bndry_conds[idx]._dbndry_funs
+            ):
+                # bndry_basis = self._basis.boundary(bndry_name)
+                # can use basis["u"].get_dofs(bndry_name) because u is first
+                # in flattened list of dofs.
+
+                # warning appending dofs like this may cause repeated entries at corners
+                # and I am nor sure what effect this will have
+                if nvars == 2:
+                    dofnames = basis["u"].get_dofs().obj.element.dofnames
+                    skip = dofnames[nvars - idx - 1]
+                    bndry_dofs = basis["u"].get_dofs(bndry_name, skip=skip)
+                elif nvars == 1:
+                    bndry_dofs = basis["u"].get_dofs(bndry_name)
+                else:
+                    raise NotImplementedError("nvars must be <= 2")
+                vel_D_dofs.append(bndry_dofs)
+                D_vals[bndry_dofs] = bndry_fun(
+                    basis["u"].doflocs[:, bndry_dofs]
+                )
+
+        # set pressure boundary conditions
+        pres_D_dofs = []
+        for bndry_name, bndry_fun in zip(
+            bndry_conds[nvars]._dbndry_names, bndry_conds[nvars]._dbndry_funs
+        ):
+            # Accesing p requires adding
+            # basis["p"].get_dofs(bndry_name) and the total number of u basis dofs
+            #  basis["u"].N is nrows of velocity block in stiffness matrix
+            # need to get DOF for presure in global array
+            p_dofs = basis["p"].get_dofs(bndry_name)
+            shifted_p_dofs = p_dofs.flatten() + basis["u"].N
+            pres_D_dofs.append(shifted_p_dofs)
+            D_vals[shifted_p_dofs] = bndry_fun(basis["p"].doflocs[:, p_dofs])
+
+        pres_D_dofs = np.hstack(pres_D_dofs)
+        # create a copy DOFView that can
+        # D_dofs = copy.deepcopy(vel_D_dofs[0])
+        # D_dofs.flatten = lambda: np.union1d(
+        #     np.unique(np.hstack(vel_D_dofs)), pres_D_dofs
+        # )
+        # typically D_dofs is a DOFView but if D_dofs is only used for
+        # condense then we can just pass array. I can creat a view like above
+        # but flatten will be inconsistent with the rest of its attributes an
+        # d functions
+        D_dofs = np.union1d(np.unique(np.hstack(vel_D_dofs)), pres_D_dofs)
+
+        if u_prev is not None:
+            D_vals = u_prev - D_vals
+        return bilinear_mat, linear_vec, D_vals, D_dofs
 
     def apply_boundary_conditions(
         self,
@@ -1233,7 +1007,7 @@ class Stokes(Physics):
                     "Stokes only supports Dirichlet and natural Neuammn BCs"
                 )
         bilinear_mat, linear_vec, D_vals, D_dofs = (
-            _enforce_stokes_boundary_conditions(
+            self._enforce_stokes_boundary_conditions(
                 self._mesh,
                 self._element,
                 self._basis,
