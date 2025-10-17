@@ -5,7 +5,7 @@ import numpy as np
 from skfem import condense, asm, LinearForm, Functional
 
 from pyapprox.pde.galerkin.util import _forcing
-from pyapprox.pde.galerkin.physics import TransientMixin
+from pyapprox.pde.galerkin.functions import FEMFunctionTransientMixin
 
 
 def newton_solve(
@@ -187,7 +187,7 @@ class TransientPDE:
     def _set_physics_time(self, time):
         for fun in self._physics._funs:
             # if hasattr(fun, "set_time"):
-            if isinstance(fun, TransientMixin):
+            if isinstance(fun, FEMFunctionTransientMixin):
                 fun.set_time(time)
         # iterate over dirichlet, neumann and robin BC types
         # for bndry_cond in self._physics._bndry_conds:

@@ -1,7 +1,6 @@
 import sys
 
 from abc import ABC, abstractmethod
-from functools import partial
 from typing import Optional, List, Callable, Tuple, Union
 
 import numpy as np
@@ -18,6 +17,15 @@ from skfem.helpers import dot, grad, mul
 from skfem.models.poisson import vector_laplace, mass
 from skfem.models.general import divergence
 from pyapprox.pde.galerkin.util import _forcing, _vector_forcing
+from pyapprox.pde.galerkin.functions import (
+    FEMScalarFunction,
+    FEMVectorFunction,
+    FEMNonLinearOperator,
+    FEMFunctionTransientMixin,
+    FEMScalarFunctionFromCallable,
+    FEMVectorFunctionFromCallable,
+    FEMNonLinearOperatorFromCallable,
+)
 from pyapprox.util.backends.template import Array
 
 
@@ -179,15 +187,15 @@ class BoundaryConditions:
     def set_time(self, time: float):
         if self.ndirichlet_boundaries() > 0:
             for bndry_fun in self._dbndry_funs:
-                if isinstance(bndry_fun, TransientMixin):
+                if isinstance(bndry_fun, FEMFunctionTransientMixin):
                     bndry_fun.set_time(time)
         if self.nneumann_boundaries() > 0:
             for bndry_fun in self._nbndry_funs:
-                if isinstance(bndry_fun, TransientMixin):
+                if isinstance(bndry_fun, FEMFunctionTransientMixin):
                     bndry_fun.set_time(time)
         if self.nrobin_boundaries() > 0:
             for bndry_fun in self._rbndry_funs:
-                if isinstance(bndry_fun, TransientMixin):
+                if isinstance(bndry_fun, FEMFunctionTransientMixin):
                     bndry_fun.set_time(time)
 
     def __repr__(self) -> str:
@@ -390,148 +398,6 @@ class Physics(ABC):
 
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
-
-
-class FEMScalarFunction(ABC):
-
-    @abstractmethod
-    def _values(self, xx: Array) -> Array:
-        raise NotImplementedError
-
-    def __call__(self, xx: Array) -> Array:
-        vals = self._values(xx)
-        if xx.ndim - 1 != vals.ndim:
-            raise ValueError(
-                f"vals.ndim is incorrect. Was {vals.ndim} "
-                f"should be {xx.ndim-1}"
-            )
-        return vals
-
-    def __repr__(self) -> str:
-        return "{0}".format(self.__class__.__name__)
-
-
-class FromCallableMixin:
-    def __init__(self, fun: callable, name: str = None):
-        self._fun = fun
-        self._name = name
-
-    def _values(self, xx: Array) -> Array:
-        return self._fun(xx)
-
-    def __repr__(self):
-        return "{0}(name={1})".format(self.__class__.__name__, self._name)
-
-
-class FEMScalarFunctionFromCallable(FromCallableMixin, FEMScalarFunction):
-    pass
-
-
-class TransientMixin:
-    def set_time(self, time: float):
-        self._time = time
-
-    def __repr__(self) -> str:
-        return "{0}(name={1}, time={2})".format(
-            self.__class__.__name__, self._name, self._time
-        )
-
-
-class FEMTransientScalarFunction(TransientMixin, FEMScalarFunction):
-    pass
-
-
-class FEMTransientScalarFunctionFromCallable(
-    FEMTransientScalarFunction, FromCallableMixin
-):
-    def _values(self, samples: Array) -> Array:
-        if not hasattr(self, "_time"):
-            raise ValueError(f"{self}: must call set_time before calling eval")
-        return self._partial_fun(samples)
-        # return self._eval(samples)
-
-    def set_time(self, time: float):
-        super().set_time(time)
-        self._partial_fun = partial(self._fun, time=time)
-
-    # def _eval(self, samples: Array) -> Array:
-    #     if self._time is None:
-    #         raise ValueError("Must call set_time before calling eval")
-    #     return self._partial_fun(samples)
-
-
-class FEMVectorFunction:
-    def __init__(self, swapaxes: bool = True):
-        self._swapaxes = swapaxes
-
-    @abstractmethod
-    def _values(self, xx: Array) -> Array:
-        raise NotImplementedError
-
-    def __call__(self, xx: Array) -> Array:
-        vals = self._values(xx)
-        # if self._fun is not implemented correctly this will fail
-        # E.g. when manufactured solution, diff etc. string does not have x
-        # in it. If not dependent on x then must use 1e-16*x
-        if xx.ndim != vals.ndim:
-            raise ValueError(
-                f"vals.ndim is incorrect. Was {vals.ndim} "
-                f"should be {xx.ndim}"
-            )
-        # put vals in format required by FEM
-        if self._swapaxes:
-            vals = np.swapaxes(vals, 0, 1)
-        return vals
-
-    def __repr__(self) -> str:
-        return "{0}".format(self.__class__.__name__)
-
-
-class FEMVectorFunctionFromCallable(FromCallableMixin, FEMVectorFunction):
-    def __init__(self, fun: callable, name: str = None, swapaxes: bool = True):
-        FEMVectorFunction.__init__(self, swapaxes)
-        FromCallableMixin.__init__(self, fun, name)
-
-
-class FEMTransientVectorFunctionFromCallable(
-    TransientMixin, FEMVectorFunctionFromCallable
-):
-    def _values(self, samples: Array) -> Array:
-        if not hasattr(self, "_time"):
-            raise ValueError(f"{self}: must call set_time before calling eval")
-        return self._partial_fun(samples)
-        # return self._eval(samples)
-
-    def set_time(self, time: float):
-        super().set_time(time)
-        self._partial_fun = partial(self._fun, time=time)
-
-
-class FEMNonLinearOperator(ABC):
-    @abstractmethod
-    def __call__(self, xx: Array) -> Array:
-        raise NotImplementedError
-
-    @abstractmethod
-    def jacobian(self, xx: Array) -> Array:
-        raise NotImplementedError
-
-
-class FEMNonLinearOperatorFromCallable(FEMNonLinearOperator):
-    def __init__(self, fun: callable, fun_prime: callable):
-        self._fun = fun
-        if fun_prime is None:
-            fun_prime = self._zero_fun
-        self._fun_prime = fun_prime
-
-    def _zero_fun(self, x: Array, *args) -> Array:
-        return x[0] * 0
-
-    def __call__(self, xx: Array, sol: Array) -> Array:
-        return self._fun(xx, sol)
-
-    def jacobian(self, xx: Array, sol: Array) -> Array:
-        return self._fun_prime(xx, sol)
 
 
 class AdvectionDiffusionReaction(Physics):

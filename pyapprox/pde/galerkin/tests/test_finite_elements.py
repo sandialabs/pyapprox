@@ -15,25 +15,24 @@ from pyapprox.pde.galerkin.physics import (
     Helmholtz,
     Stokes,
     Burgers,
+    LinearAdvectionDiffusionReaction,
+)
+from pyapprox.pde.galerkin.functions import (
     FEMScalarFunctionFromCallable,
     FEMVectorFunctionFromCallable,
-    LinearAdvectionDiffusionReaction,
     FEMNonLinearOperatorFromCallable,
     FEMTransientScalarFunctionFromCallable,
     FEMTransientVectorFunctionFromCallable,
-    TransientMixin,
+    FEMFunctionTransientMixin,
     FEMVectorFunction,
     FEMScalarFunction,
 )
 from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedAdvectionDiffusionReaction,
+    ManufacturedNonLinearAdvectionDiffusionReaction,
     ManufacturedHelmholtz,
     ManufacturedBurgers1D,
     ManufacturedStokes,
     ManufacturedSolution,
-)
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedNonLinearAdvectionDiffusionReaction,
 )
 from pyapprox.util.newton import NewtonSolver
 
@@ -95,7 +94,7 @@ class SteadyManufacturedRobinBoundaryConditionFunction(
 
 
 class TransientManufacturedRobinBoundaryConditionFunction(
-    TransientMixin, ManufacturedRobinBoundaryConditionFunction
+    FEMFunctionTransientMixin, ManufacturedRobinBoundaryConditionFunction
 ):
     def _check_funs(
         self,
@@ -478,43 +477,6 @@ def _get_stokes_boundary_conditions_from_manufactured_solution(
         )
         bndry_conds.append(bndry_converter.boundary_conditions(bndry_types))
     return bndry_conds
-
-
-class FEMScalarFunctionFromVectorFunction(FEMVectorFunction):
-    def __init__(
-        self,
-        vec_fun: FEMVectorFunction,
-        idx: int,
-        swapaxes: bool = True,
-        active_axis: int = 1,
-    ):
-        super().__init__(swapaxes)
-        self._idx = idx
-        self._active_axis = active_axis
-        self._vec_fun = vec_fun
-
-    def _values(self, xx: np.ndarray) -> np.ndarray:
-        vec_vals = self._vec_fun(xx)
-        if self._active_axis == 1:
-            return vec_vals[:, self._idx : self._idx + 1]
-        elif self._active_axis == 0:
-            return vec_vals[self._idx]
-
-
-class FEMVectorFunctionFromVectorFunction(FEMVectorFunction):
-    def __init__(
-        self,
-        vec_fun: FEMVectorFunction,
-        indices: List[int],
-        swapaxes: bool = True,
-    ):
-        super().__init__(swapaxes)
-        self._indices = indices
-        self._vec_fun = vec_fun
-
-    def _values(self, xx: np.ndarray) -> np.ndarray:
-        vec_vals = self._vec_fun(xx)
-        return vec_vals[:, self._indices]
 
 
 class TestFiniteElements(unittest.TestCase):
