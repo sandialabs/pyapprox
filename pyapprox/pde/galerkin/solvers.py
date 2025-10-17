@@ -98,18 +98,18 @@ class SteadyPhysicsNewtonResidual(NewtonResidual):
         # This is done by condense in linsolve. But newton requires full
         # residual to compute norm. So create full residual.
         res = self._bkd.copy(self._res)
-        if self._physics._bndry_conds.ndirichlet_boundaries() > 0:
-            res[
-                self._physics._basis.get_dofs(
-                    self._physics._bndry_conds._dbndry_names
-                ).flatten()
-            ] = 0.0
+        # if self._physics._bndry_conds.ndirichlet_boundaries() > 0:
+        #     res[
+        #         self._physics._basis.get_dofs(
+        #             self._physics._bndry_conds._dbndry_names
+        #         ).flatten()
+        #     ] = 0.0
         # Note the order of concatenation used here will likely be different
         # to in jac and res but this does not matter because newton solve
         # only uses residual to compute norm. residual is passed back to
         # linsolve but we can replace it with self._res at that point
-        # II = np.setdiff1d(np.arange(self._jac.shape[0]), self._D_dofs)
-        # res = np.concatenate((self._res[II], self._D_vals[self._D_dofs]))
+        II = np.setdiff1d(np.arange(self._jac.shape[0]), self._D_dofs)
+        res = np.concatenate((self._res[II], self._D_vals[self._D_dofs]))
         return res
 
     def jacobian(self, sol_array: Array):

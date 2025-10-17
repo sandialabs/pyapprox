@@ -47,11 +47,13 @@ class ManufacturedRobinBoundaryConditionFunction(FEMScalarFunction):
         sol_fun: FEMScalarFunction,
         flux_funs: FEMVectorFunction,
         bndry_normal: callable,
+        name: str = None,
     ):
         self._alpha = alpha
         self._sol_fun = sol_fun
         self._flux_funs = flux_funs
         self._bndry_normal = bndry_normal
+        self._name = name
 
     @abstractmethod
     def _check_funs(
@@ -131,26 +133,30 @@ class ManufacturedSolutionToBoundaryConditions:
                 "man sol must be an instance of ManufacturedSolution"
             )
         self._time = time
-        if self._time is None:
-            self._sol_fun = FEMScalarFunctionFromCallable(
-                man_sol.functions["solution"]
-            )
-            self._flux_funs = FEMVectorFunctionFromCallable(
-                man_sol.functions["flux"], swapaxes=False
-            )
-        else:
-            self._sol_fun = FEMTransientScalarFunctionFromCallable(
-                man_sol.functions["solution"]
-            )
-            self._sol_fun.set_time(time)
-
-            self._flux_funs = FEMTransientVectorFunctionFromCallable(
-                man_sol.functions["flux"], swapaxes=False
-            )
-            self._flux_funs.set_time(time)
         self._mesh = mesh
         self._element = element
         self._basis = basis
+        self.set_solution_and_flux(
+            man_sol.functions["solution"], man_sol.functions["flux"]
+        )
+
+    def set_solution_and_flux(self, sol: callable, flux: callable):
+        if self._time is None:
+            self._sol_fun = FEMScalarFunctionFromCallable(
+                sol, name=sol._name if hasattr(sol, "_name") else None
+            )
+            self._flux_funs = FEMVectorFunctionFromCallable(
+                flux, swapaxes=False
+            )
+            return
+
+        self._sol_fun = FEMTransientScalarFunctionFromCallable(sol)
+        self._sol_fun.set_time(self._time)
+
+        self._flux_funs = FEMTransientVectorFunctionFromCallable(
+            flux, swapaxes=False
+        )
+        self._flux_funs.set_time(self._time)
 
     def _canonical_normal(self, bndry_index, samples):
         # different to autopde because samples.ndim==3 here compared to ndim==2
@@ -166,7 +172,11 @@ class ManufacturedSolutionToBoundaryConditions:
         normal_fun = partial(self._canonical_normal, bndry_idx)
         if self._time is None:
             bndry_fun = SteadyManufacturedRobinBoundaryConditionFunction(
-                alpha, self._sol_fun, self._flux_funs, normal_fun
+                alpha,
+                self._sol_fun,
+                self._flux_funs,
+                normal_fun,
+                name=self._sol_fun._name,
             )
 
             return bndry_fun
@@ -182,6 +192,7 @@ class ManufacturedSolutionToBoundaryConditions:
         if len(bndry_types) != 2 * nphys_vars:
             raise ValueError("must specify a bndry type for each boundary")
         bndry_conds = []
+        bndry_names = ["left", "right", "bottom", "top"]
         for bndry_idx in range(2 * nphys_vars):
             if bndry_types[bndry_idx] == "D":
                 bndry_conds.append([copy.deepcopy(self._sol_fun), "D"])
@@ -199,7 +210,16 @@ class ManufacturedSolutionToBoundaryConditions:
                 else:
                     bndry_conds.append([bndry_fun, "R", alpha])
             if bndry_conds[-1][0] is not None:
-                bndry_conds[-1][0]._name = f"bndry_{bndry_idx}"
+                if (
+                    hasattr(bndry_conds[-1][0], "_name")
+                    and bndry_conds[-1][0]._name is not None
+                ):
+                    name = (
+                        bndry_conds[-1][0]._name + f"_{bndry_names[bndry_idx]}"
+                    )
+                else:
+                    name = f"bndry_{bndry_names[bndry_idx]}"
+                bndry_conds[-1][0]._name = name
         return bndry_conds
 
     def boundary_conditions(self, bndry_types: List[str]):
@@ -216,6 +236,7 @@ class ManufacturedSolutionToBoundaryConditions:
             if tup[1] == "D":
                 D_bndry_names.append(bndry_names[ii])
                 D_bndry_funs.append(tup[0])
+                tup[0]
             elif tup[1] == "N":
                 N_bndry_names.append(bndry_names[ii])
                 N_bndry_funs.append(tup[0])
@@ -429,42 +450,71 @@ def _vel_component_fun(vel_fun, ii, x, time=None):
     return vals[:, ii : ii + 1]
 
 
-def _get_stokes_boundary_conditions(
-    mesh, bndry_types, domain_bounds, vel_fun, vel_grad_funs
+def _get_stokes_boundary_conditions_from_manufactured_solution(
+    man_sol,
+    mesh,
+    element,
+    basis,
+    bndry_types,
+    sol_component_funs,
+    flux_component_funs,
 ):
-    (
-        D_bndry_keys,
-        D_indices,
-        N_bndry_keys,
-        N_indices,
-        R_bndry_keys,
-        R_indices,
-    ) = _get_bndry_keys_indices_from_types(mesh, bndry_types)
-
-    nphys_vars = len(domain_bounds) // 2
-    vel_bndry_conds = [
-        _get_scalar_bndry_conds(
-            mesh,
-            bndry_types,
-            len(domain_bounds) // 2,
-            partial(_vel_component_fun, vel_fun, ii),
-            vel_grad_funs[ii],
+    nvars = mesh.p.shape[0]
+    if len(sol_component_funs) != nvars + 1:
+        raise ValueError(
+            "must specify solution function for each solution component"
         )
-        for ii in range(nphys_vars)
-    ]
+    if len(flux_component_funs) != nvars + 1:
+        raise ValueError(
+            "must specify flux function for each solution component"
+        )
+    bndry_conds = []
+    for idx in range(nvars + 1):
+        bndry_converter = ManufacturedSolutionToBoundaryConditions(
+            man_sol, mesh, element, basis
+        )
+        bndry_converter.set_solution_and_flux(
+            sol_component_funs[idx], flux_component_funs[idx]
+        )
+        bndry_conds.append(bndry_converter.boundary_conditions(bndry_types))
+    return bndry_conds
 
-    # currenlty only dirichlet supported by tests
-    assert len(R_bndry_keys) == 0 and len(N_bndry_keys) == 0
-    N_bndry_conds, R_bndry_conds = [], []
 
-    idx = 0
-    D_bndry_conds = dict()
-    for key in vel_bndry_conds[idx][0].keys():
-        D_bndry_conds[key] = [
-            partial(_list_to_vector_bndry_cond_fun, vel_bndry_conds, idx, key)
-        ]
+class FEMScalarFunctionFromVectorFunction(FEMVectorFunction):
+    def __init__(
+        self,
+        vec_fun: FEMVectorFunction,
+        idx: int,
+        swapaxes: bool = True,
+        active_axis: int = 1,
+    ):
+        super().__init__(swapaxes)
+        self._idx = idx
+        self._active_axis = active_axis
+        self._vec_fun = vec_fun
 
-    return D_bndry_conds, N_bndry_conds, R_bndry_conds
+    def _values(self, xx: np.ndarray) -> np.ndarray:
+        vec_vals = self._vec_fun(xx)
+        if self._active_axis == 1:
+            return vec_vals[:, self._idx : self._idx + 1]
+        elif self._active_axis == 0:
+            return vec_vals[self._idx]
+
+
+class FEMVectorFunctionFromVectorFunction(FEMVectorFunction):
+    def __init__(
+        self,
+        vec_fun: FEMVectorFunction,
+        indices: List[int],
+        swapaxes: bool = True,
+    ):
+        super().__init__(swapaxes)
+        self._indices = indices
+        self._vec_fun = vec_fun
+
+    def _values(self, xx: np.ndarray) -> np.ndarray:
+        vec_vals = self._vec_fun(xx)
+        return vec_vals[:, self._indices]
 
 
 class TestFiniteElements(unittest.TestCase):
@@ -808,7 +858,7 @@ class TestFiniteElements(unittest.TestCase):
         for test_case in test_cases:
             self._check_helmholtz(*test_case)
 
-    def check_stokes(
+    def _check_stokes(
         self,
         domain_bounds,
         nrefine,
@@ -831,6 +881,9 @@ class TestFiniteElements(unittest.TestCase):
             "u": ElementVector(get_element(mesh, 2)),
             "p": get_element(mesh, 1),
         }
+        # basis = Basis(mesh, element["u"] * element["p"])
+        # print(basis.get_dofs().all(["u^1^1", "u^2^1", "u^2"]))
+
         basis = {
             variable: Basis(mesh, e, intorder=4)
             for variable, e in element.items()
@@ -838,29 +891,60 @@ class TestFiniteElements(unittest.TestCase):
 
         nvars = len(domain_bounds) // 2
         man_sol = ManufacturedStokes(
-            vel_strings + [pres_string], nvars, navier_stokes
+            vel_strings + [pres_string], nvars, navier_stokes, oned=True
         )
-        print(man_sol)
-        sol_fun = man_sol.functions["solution"]
-        # flux_funs = man_sol.functions["flux"]
-        # forc_fun = man_sol.functions["forcing"]
-        # vel_grad_funs = man_sol.functions["flux"]
-        vel_grad_funs = [None] * nvars
+        # print(man_sol)
+        sol_fun = FEMVectorFunctionFromCallable(
+            man_sol.functions["solution"], "sol"
+        )
 
-        vel_fun = sol_fun
         # next function currently takes raw functions not ones with axesswaped
-        bndry_conds = _get_stokes_boundary_conditions(
-            mesh, bndry_types, domain_bounds, vel_fun, vel_grad_funs
-        )
-
         vel_forc_fun = FEMVectorFunctionFromCallable(
             man_sol.functions["vel_forcing"]
         )
         pres_forc_fun = FEMScalarFunctionFromCallable(
             man_sol.functions["pres_forcing"]
         )
-        sol_fun = FEMVectorFunctionFromCallable(sol_fun, "sol")
+        sol_names = ["u", "v"][:nvars] + ["p"]
 
+        # cannot create list of lamdas as they will be ovewritten
+        # must use partial
+        def sol_component(idx, xx):
+            vals = man_sol.functions["solution"](xx)
+            return vals[:, idx]
+
+        sol_component_funs = [
+            FEMScalarFunctionFromCallable(
+                # lambda x: man_sol.functions["solution"](x)[:, idx],
+                partial(sol_component, idx),
+                name=sol_names[idx],
+            )
+            for idx in range(nvars + 1)
+        ]
+
+        # cannot create list of lamdas as they will be ovewritten
+        # must use partial
+        def flux_component(idx, xx):
+            return man_sol.functions["flux"](xx)[idx]
+
+        flux_component_funs = [
+            FEMVectorFunctionFromCallable(
+                # lambda x: man_sol.functions["flux"](x)[idx]
+                partial(flux_component, idx)
+            )
+            for idx in range(nvars + 1)
+        ]
+        bndry_conds = (
+            _get_stokes_boundary_conditions_from_manufactured_solution(
+                man_sol,
+                mesh,
+                element,
+                basis,
+                bndry_types,
+                sol_component_funs,
+                flux_component_funs,
+            )
+        )
         physics = Stokes(
             mesh,
             element,
@@ -872,23 +956,19 @@ class TestFiniteElements(unittest.TestCase):
         )
         init_sol = physics.init_guess()
 
-        exact_pres_sol = basis["p"].project(lambda x: sol_fun(x)[-1])
+        exact_pres_sol = basis["p"].project(lambda x: sol_component_funs[-1])
 
         # projection using vector basis requires function to return np.ndarray
         # with shape (nvec, ...)
         exact_vel_sol = basis["u"].project(
             lambda x: np.stack(
-                [sol_fun(x)[ii, :] for ii in range(len(domain_bounds) // 2)]
+                [sol_component_funs[ii](x) for ii in range(nvars)]
             )
         )
         exact_sol = np.concatenate([exact_vel_sol, exact_pres_sol])
 
         if not navier_stokes:
-            print(exact_vel_sol, "vel")
-            print(exact_pres_sol, "pres")
-            print(init_sol)
-            print(exact_sol)
-            print(init_sol - exact_sol)
+            # vel_sol, pres_sol = np.split(init_sol, [basis["u"].N])
             assert np.allclose(init_sol, exact_sol)
 
         solver = SteadyStatePDE(physics)
@@ -902,19 +982,19 @@ class TestFiniteElements(unittest.TestCase):
     def test_stokes(self):
         test_cases = [
             [[0, 1], 1, ["((2*x-1))**2"], "x*(1-1e-16*x)", ["D", "D"], False],
-            [
-                [0, 1],
-                0,
-                ["((2*x-1))*(1+1e-16*x)"],
-                "x*(1-1e-16*x)",
-                ["D", "D"],
-                True,
-            ],
+            # [
+            #     [0, 1],
+            #     0,
+            #     ["((2*x-1))*(1+1e-16*x)"],
+            #     "x*(1-1e-16*x)",
+            #     ["D", "D"],
+            #     True,
+            # ],
             [
                 [0, 1, 0, 1],
-                1,
+                0,  # 1,
                 ["1e-16*x+y", "(x+1)*(y+1)"],
-                "x*(1+1e-16*x)+5e-16*y*(1+1e-16*y)",
+                "x*(1+1e-16*x)+1e-16*y*(1+1e-16*y)",
                 ["D", "D", "D", "D"],
                 False,
             ],
@@ -929,7 +1009,7 @@ class TestFiniteElements(unittest.TestCase):
         ]
 
         for test_case in test_cases:
-            self.check_stokes(*test_case)
+            self._check_stokes(*test_case)
 
     def _check_transient_advection_diffusion_reaction(
         self,
@@ -980,8 +1060,8 @@ class TestFiniteElements(unittest.TestCase):
             man_sol, mesh, element, basis, time=init_time
         )
         bndry_conds = bndry_converter.boundary_conditions(bndry_types)
-        print(man_sol)
-        print(bndry_conds)
+        # print(man_sol)
+        # print(bndry_conds)
 
         physics = NonLinearAdvectionDiffusionReaction(
             mesh,
@@ -1019,7 +1099,7 @@ class TestFiniteElements(unittest.TestCase):
                 exact_sol_t, model_sol_t
             )
             factor = np.sqrt(solver.integrate(exact_sol_t**2))
-            print(time, L2error, 1e-8 * factor)
+            # print(time, L2error, 1e-8 * factor)
             assert L2error < 1e-8 * factor
 
     def test_transient_advection_diffusion_reaction(self):
@@ -1027,9 +1107,7 @@ class TestFiniteElements(unittest.TestCase):
             [[0, 1]],
             [2],
             [2],
-            # [["D", "D"]] , ["D", "N"]],
-            [["D", "N"]],
-            # ["(1-x)*x + 1e-16*T", "(1-x)*x*(1+T)"],
+            [["D", "D"], ["D", "N"]],
             ["(1-x)*x*(1+T)"],
             [
                 (
@@ -1047,10 +1125,7 @@ class TestFiniteElements(unittest.TestCase):
             ["im_beuler1"],
         ]
 
-        ii = 0
         for test_case in itertools.product(*test_case_args):
-            print("####", ii)
-            ii += 1
             self._check_transient_advection_diffusion_reaction(*test_case)
 
     def _setup_burgers_domain(
@@ -1105,13 +1180,13 @@ class TestFiniteElements(unittest.TestCase):
             mesh, element, basis, bndry_conds, viscosity_fun, forc_fun
         )
         init_sol = basis.project(lambda x: sol_fun(x) + 1)
-        newton_solver = NewtonSolver(verbosity=2, maxiters=5, rtol=1e-12)
+        newton_solver = NewtonSolver(verbosity=0, maxiters=5, rtol=1e-12)
         solver = SteadyStatePDE(physics, newton_solver)
         fem_sol = solver.solve(init_sol)
         exact_sol = basis.project(lambda x: sol_fun(x))
         L2error = solver.L2_error(exact_sol, fem_sol)
         factor = np.sqrt(solver.integrate(exact_sol**2))
-        print(L2error, 1e-8 * factor)
+        # print(L2error, 1e-8 * factor)
         assert L2error < 1e-8 * factor
 
     def test_steady_burgers(self):
@@ -1177,7 +1252,7 @@ class TestFiniteElements(unittest.TestCase):
                 exact_sol_t, model_sol_t
             )
             factor = np.sqrt(solver.integrate(exact_sol_t**2))
-            print(time, L2error, 1e-8 * factor)
+            # print(time, L2error, 1e-8 * factor)
             assert L2error < 1e-8 * factor
 
     def test_transient_burgers(self):

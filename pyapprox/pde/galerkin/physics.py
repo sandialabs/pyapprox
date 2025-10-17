@@ -1,7 +1,9 @@
-from functools import partial
-from abc import ABC, abstractmethod
-from typing import Optional, List, Callable, Tuple, Union
+import copy
 import sys
+
+from abc import ABC, abstractmethod
+from functools import partial
+from typing import Optional, List, Callable, Tuple, Union
 
 import numpy as np
 
@@ -10,16 +12,7 @@ if "pyodide" in sys.modules:
 else:
     from scipy.sparse import spmatrix
 
-from skfem import (
-    asm,
-    bmat,
-    LinearForm,
-    BilinearForm,
-    FacetBasis,
-    Basis,
-    solve,
-    condense,
-)
+from skfem import asm, bmat, LinearForm, BilinearForm, Basis, solve, condense
 from skfem.mesh import Mesh
 from skfem.element import Element
 from skfem.helpers import dot, grad, mul
@@ -28,7 +21,6 @@ from skfem.models.general import divergence
 from pyapprox.pde.galerkin.util import (
     _forcing,
     _vector_forcing,
-    _vector_fun_to_skfem_vector_fun,
     _robin,
     _robin_prev_sol,
 )
@@ -110,6 +102,10 @@ class BoundaryConditions:
         return 0 if self._dbndry_names is None else len(self._dbndry_names)
 
     def nneumann_boundaries(self) -> int:
+        """
+        Number of non-natural neumann BCs, i.e. those that require modification
+        of weak form
+        """
         return 0 if self._nbndry_names is None else len(self._nbndry_names)
 
     def nrobin_boundaries(self) -> int:
@@ -140,28 +136,6 @@ class BoundaryConditions:
             self._nbndry_names, self._nbndry_funs
         ):
             bndry_basis = self._basis.boundary(bndry_name)
-            # print(self._basis.get_dofs(bndry_name).flatten(), "b")
-            # print(
-            #     vec[self._basis.get_dofs(bndry_name).flatten()],
-            #     "v",
-            #     bndry_name,
-            # )
-            # print(
-            #     bndry_fun(
-            #         self._basis.doflocs[
-            #             :, None, self._basis.get_dofs(bndry_name).flatten()
-            #         ]
-            #     )
-            # )
-            # print(bndry_basis.project(bndry_fun), "f")
-            # print(
-            #     asm(
-            #         LinearForm(self._neumann_linear_form),
-            #         bndry_basis,
-            #         fun=bndry_basis.project(bndry_fun),
-            #     )[self._basis.get_dofs(bndry_name).flatten()],
-            #     "a",
-            # )
             vec += asm(
                 LinearForm(self._neumann_linear_form),
                 bndry_basis,
@@ -215,9 +189,7 @@ class BoundaryConditions:
                     bndry_fun.set_time(time)
         if self.nneumann_boundaries() > 0:
             for bndry_fun in self._nbndry_funs:
-                print(bndry_fun, "A")
                 if isinstance(bndry_fun, TransientMixin):
-                    print(bndry_fun, "B")
                     bndry_fun.set_time(time)
         if self.nrobin_boundaries() > 0:
             for bndry_fun in self._rbndry_funs:
@@ -631,51 +603,66 @@ def _enforce_stokes_boundary_conditions(
     basis,
     bilinear_mat,
     linear_vec,
-    D_bndry_conds,
-    N_bndry_conds,
-    R_bndry_conds,
-    A_shape,
+    bndry_conds,
     u_prev=None,
 ):
-    # currently only dirichlet supported and zero neumann condition
-    # which is enforced by doing nothing
-    assert len(R_bndry_conds) == 0 and len(N_bndry_conds) == 0
 
-    # D_bases = [
-    #     FacetBasis(mesh, element["u"], facets=mesh.boundaries[key])
-    #     for key, fun in D_bndry_conds.items()
-    # ]
-    D_bases = [basis.boundary(key) for key in D_bndry_conds.keys()]
+    # Note When all boundaries are dirichlet must set a pressure value to
+    # make presure unique. Otherwise it is only unique up to a constant
+    # When not all boundaries are dirichlet  pressure is made unique because
+    # it appears in the boundary integral arising from integration by parts
+    # of pressure term in weak form of stokes equations
 
-    # get DOF for Dirichlet boundaries for velocity
-    D_dofs = basis["u"].get_dofs(list(D_bndry_conds.keys()))
-
-    # condense requires D_vals to be number of dofs.
-    # however only the entries associated with D_dofs are ever used
+    nvars = mesh.p.shape[0]
     D_vals = np.hstack([basis["u"].zeros(), basis["p"].zeros()])
-    for b, key in zip(D_bases, D_bndry_conds.keys()):
-        _dofs = basis["u"].get_dofs(key)
-        D_vals[_dofs] = b.project(D_bndry_conds[key][0])[_dofs]
+    vel_D_dofs = []
+    # loop over velocity component boundary conditions
+    for idx in range(nvars):
+        for bndry_name, bndry_fun in zip(
+            bndry_conds[idx]._dbndry_names, bndry_conds[idx]._dbndry_funs
+        ):
+            # bndry_basis = self._basis.boundary(bndry_name)
+            # can use basis["u"].get_dofs(bndry_name) because u is first
+            # in flattened list of dofs.
 
-    if len(D_bndry_conds) == len(mesh.boundaries):
-        # all boundaries are dirichlet so must set a pressure value to
-        # make presure unique. Otherwise it is only unique up to a constant
+            # warning appending dofs like this may cause repeated entries at corners
+            # and I am nor sure what effect this will have
+            if nvars == 2:
+                dofnames = basis["u"].get_dofs().obj.element.dofnames
+                skip = dofnames[nvars - idx - 1]
+                bndry_dofs = basis["u"].get_dofs(bndry_name, skip=skip)
+            elif nvars == 1:
+                bndry_dofs = basis["u"].get_dofs(bndry_name)
+            else:
+                raise NotImplementedError("nvars must be <= 2")
+            vel_D_dofs.append(bndry_dofs)
+            D_vals[bndry_dofs] = bndry_fun(basis["u"].doflocs[:, bndry_dofs])
 
-        # degrees of freedom for vector basis stored
-        # [u1, v1, u2, v2, u3, v3...]
-        # set a unique value for pressure at first dof of first element
-        # D_dofs = basis['u'].get_dofs(list(D_bndry_conds.keys()))
-        # A_shape is shape of velocity block in stiffness matrix
+    # set pressure boundary conditions
+    pres_D_dofs = []
+    for bndry_name, bndry_fun in zip(
+        bndry_conds[nvars]._dbndry_names, bndry_conds[nvars]._dbndry_funs
+    ):
+        # Accesing p requires adding
+        # basis["p"].get_dofs(bndry_name) and the total number of u basis dofs
+        #  basis["u"].N is nrows of velocity block in stiffness matrix
         # need to get DOF for presure in global array
-        pres_idx = A_shape[0] + basis["p"].get_dofs(0).flatten()[:1]
-        D_dofs = np.hstack([D_dofs, pres_idx])
-        # setting to zero is an arbitrary choice. Test will only pass
-        # if exact pressure solution is zero at this degree of freedom
-        D_vals[pres_idx] = 0.0
-    # else:
-    # Do nothing.  pressure is made unique because it appears in
-    # the boundary integral arising from integration by parts of pressure
-    # term in weak form of stokes equations
+        p_dofs = basis["p"].get_dofs(bndry_name)
+        shifted_p_dofs = p_dofs.flatten() + basis["u"].N
+        pres_D_dofs.append(shifted_p_dofs)
+        D_vals[shifted_p_dofs] = bndry_fun(basis["p"].doflocs[:, p_dofs])
+
+    pres_D_dofs = np.hstack(pres_D_dofs)
+    # create a copy DOFView that can
+    # D_dofs = copy.deepcopy(vel_D_dofs[0])
+    # D_dofs.flatten = lambda: np.union1d(
+    #     np.unique(np.hstack(vel_D_dofs)), pres_D_dofs
+    # )
+    # typically D_dofs is a DOFView but if D_dofs is only used for
+    # condense then we can just pass array. I can creat a view like above
+    # but flatten will be inconsistent with the rest of its attributes an
+    # d functions
+    D_dofs = np.union1d(np.unique(np.hstack(vel_D_dofs)), pres_D_dofs)
 
     if u_prev is not None:
         D_vals = u_prev - D_vals
@@ -686,7 +673,6 @@ def _raw_assemble_stokes(
     vel_forc_fun,
     pres_forc_fun,
     navier_stokes,
-    bndry_conds,
     mesh,
     element,
     basis,
@@ -735,8 +721,8 @@ def _raw_assemble_stokes(
         # linear_vec -= K.dot(u_prev)
 
     if not return_K:
-        return bilinear_mat, linear_vec, A.shape
-    return bilinear_mat, linear_vec, A.shape, K
+        return bilinear_mat, linear_vec
+    return bilinear_mat, linear_vec, K
 
 
 def _assemble_stokes(
@@ -749,13 +735,12 @@ def _assemble_stokes(
     basis,
     u_prev=None,
     return_K=False,
-    viscosity=1,
+    viscosity=1.0,
 ):
     result = _raw_assemble_stokes(
         vel_forc_fun,
         pres_forc_fun,
         navier_stokes,
-        bndry_conds,
         mesh,
         element,
         basis,
@@ -763,22 +748,15 @@ def _assemble_stokes(
         return_K,
         viscosity,
     )
-    bilinear_mat, linear_vec, A_shape = result[:3]
+    bilinear_mat, linear_vec = result[:2]
     bilinear_mat, linear_vec, D_vals, D_dofs = (
         _enforce_stokes_boundary_conditions(
-            mesh,
-            element,
-            basis,
-            bilinear_mat,
-            linear_vec,
-            *bndry_conds,
-            A_shape,
-            u_prev,
+            mesh, element, basis, bilinear_mat, linear_vec, bndry_conds, u_prev
         )
     )
     if not return_K:
         return bilinear_mat, linear_vec, D_vals, D_dofs
-    return bilinear_mat, linear_vec, D_vals, D_dofs, result[3]
+    return bilinear_mat, linear_vec, D_vals, D_dofs, result[-1]
 
 
 class Physics(ABC):
@@ -795,10 +773,18 @@ class Physics(ABC):
             raise ValueError("element must be an instance of Element")
         if not isinstance(basis, Basis) and not isinstance(element, dict):
             raise ValueError("basis must be an instance of Basis")
-        if not isinstance(bndry_conds, BoundaryConditions):
-            raise ValueError(
-                "bndry_conds must be an instance of BoundaryConditions"
-            )
+
+        if isinstance(bndry_conds, list):
+            for bc in bndry_conds:
+                if not isinstance(bc, BoundaryConditions):
+                    raise ValueError(
+                        "bndry_conds must be a list BoundaryConditions"
+                    )
+        else:
+            if not isinstance(bndry_conds, BoundaryConditions):
+                raise ValueError(
+                    "bndry_conds must be an instance of BoundaryConditions"
+                )
 
         self._mesh = mesh
         self._element = element
@@ -963,7 +949,6 @@ class FEMTransientVectorFunctionFromCallable(
 
     def set_time(self, time: float):
         super().set_time(time)
-        print(self, time)
         self._partial_fun = partial(self._fun, time=time)
 
 
@@ -1000,7 +985,7 @@ class AdvectionDiffusionReaction(Physics):
         mesh: Mesh,
         element: Element,
         basis: Basis,
-        bndry_conds: List,
+        bndry_conds: BoundaryConditions,
         forc_fun: FEMScalarFunction,
         vel_fun: FEMVectorFunction,
     ):
@@ -1043,7 +1028,7 @@ class LinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
         mesh: Mesh,
         element: Element,
         basis: Basis,
-        bndry_conds: List,
+        bndry_conds: BoundaryConditions,
         diff_fun: FEMScalarFunction,
         forc_fun: FEMScalarFunction,
         vel_fun: FEMVectorFunction,
@@ -1084,7 +1069,7 @@ class NonLinearAdvectionDiffusionReaction(AdvectionDiffusionReaction):
         mesh: Mesh,
         element: Element,
         basis: Basis,
-        bndry_conds: List,
+        bndry_conds: BoundaryConditions,
         linear_diff_fun: FEMScalarFunction,
         forc_fun: FEMScalarFunction,
         vel_fun: FEMVectorFunction,
@@ -1131,7 +1116,7 @@ class Helmholtz(NonLinearAdvectionDiffusionReaction):
         mesh: Mesh,
         element: Element,
         basis: Basis,
-        bndry_conds: List,
+        bndry_conds: BoundaryConditions,
         wave_number_fun: Callable[[np.ndarray], np.ndarray],
         forc_fun: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     ):
@@ -1186,16 +1171,12 @@ class Stokes(Physics):
         mesh: Mesh,
         element: Element,
         basis: Basis,
-        bndry_conds: List,
+        bndry_conds: BoundaryConditions,
         navier_stokes: bool,
         vel_forc_fun: FEMVectorFunction,
         pres_forc_fun: FEMScalarFunction,
         viscosity: float = 1.0,
     ):
-        if len(bndry_conds[1]) > 0 or len(bndry_conds[1]) > 0:
-            raise NotImplementedError(
-                "Currently tests do not pass with Robin or Neumann BCs"
-            )
         super().__init__(mesh, element, basis, bndry_conds)
 
         # if not isinstance(vel_forc_fun, FEMVectorFunction):
@@ -1210,8 +1191,6 @@ class Stokes(Physics):
         self.pres_forc_fun = pres_forc_fun
         self.navier_stokes = navier_stokes
         self.viscosity = viscosity
-
-        self.A_shape = None
 
     def init_guess(self) -> np.ndarray:
         bilinear_mat, linear_vec, D_vals, D_dofs = _assemble_stokes(
@@ -1230,11 +1209,10 @@ class Stokes(Physics):
     def raw_assemble(
         self, sol: Optional[np.ndarray] = None
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
-        bilinear_mat, linear_vec, self.A_shape = _raw_assemble_stokes(
+        bilinear_mat, linear_vec = _raw_assemble_stokes(
             self.vel_forc_fun,
             self.pres_forc_fun,
             self.navier_stokes,
-            self._bndry_conds,
             self._mesh,
             self._element,
             self._basis,
@@ -1243,12 +1221,17 @@ class Stokes(Physics):
         )
         return bilinear_mat, linear_vec
 
-    def apply_dirichlet_boundary_conditions(
+    def apply_boundary_conditions(
         self,
         sol: np.ndarray,
         bilinear_mat: spmatrix,
         linear_vec: Union[np.ndarray, spmatrix],
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
+        for bc in self._bndry_conds:
+            if bc.nneumann_boundaries() + bc.nrobin_boundaries() > 0:
+                raise NotImplementedError(
+                    "Stokes only supports Dirichlet and natural Neuammn BCs"
+                )
         bilinear_mat, linear_vec, D_vals, D_dofs = (
             _enforce_stokes_boundary_conditions(
                 self._mesh,
@@ -1256,8 +1239,7 @@ class Stokes(Physics):
                 self._basis,
                 bilinear_mat,
                 linear_vec,
-                *self._bndry_conds,
-                self.A_shape,
+                self._bndry_conds,
                 sol,
             )
         )
@@ -1422,7 +1404,7 @@ class Burgers(Physics):
         mesh: Mesh,
         element: Element,
         basis: Basis,
-        bndry_conds: List,
+        bndry_conds: BoundaryConditions,
         viscosity_fun: FEMScalarFunction,
         forc_fun: FEMScalarFunction,
     ):
