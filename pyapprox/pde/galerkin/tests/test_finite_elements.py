@@ -16,6 +16,7 @@ from pyapprox.pde.galerkin.physics import (
     Stokes,
     Burgers,
     LinearAdvectionDiffusionReaction,
+    BiLaplacianPrior,
 )
 from pyapprox.pde.galerkin.functions import (
     FEMScalarFunctionFromCallable,
@@ -1232,6 +1233,68 @@ class TestFiniteElements(unittest.TestCase):
         ]
         for case in test_cases:
             self._check_transient_burgers(*case)
+
+    def test_bilaplacian_prior(self):
+        mesh = get_mesh([0, 1, 0, 1], 1)
+        elem = get_element(mesh, 1)
+        basis = Basis(mesh, elem)
+
+        gamma, delta = 1, 0.5
+        nsamples = 2
+        prior_variable = BiLaplacianPrior(
+            mesh,
+            elem,
+            basis,
+            gamma,
+            delta,
+            np.array([[1.0, 0.0], [0.0, 1 / 20.0]]),
+        )
+        # blade height is 1/20 of blade width
+        print(mesh.p.min(axis=1), mesh.p.max(axis=1))
+        samples = prior_variable.rvs(nsamples)
+
+        # TODO: think of unit test instead of this regression tests
+        print(samples)
+        reference_samples = np.array(
+            [
+                [0.42253777, 0.02968439],
+                [0.17642463, -0.76812773],
+                [0.21693848, -1.0817779],
+                [0.40217442, 0.01687668],
+                [0.42879581, -0.52078908],
+                [0.36093003, -0.77522621],
+                [-0.23375438, -0.1081412],
+                [0.32022388, -0.5853546],
+                [-0.1171723, -0.3977024],
+                [-0.12397468, 1.4035203],
+                [0.05872044, 0.29104518],
+                [0.26992423, -0.22092672],
+                [0.44287723, -0.66328011],
+                [0.15643527, -0.75555845],
+                [-0.03193684, 1.63982625],
+                [-0.10756252, -0.10867872],
+                [-0.16320015, -0.68081064],
+                [0.17240703, -0.54417394],
+                [-0.20866122, -0.38950437],
+                [0.62974185, 1.50672728],
+                [-0.05177725, -0.53887669],
+                [-0.13495736, 1.61777272],
+                [0.07485801, -0.60787973],
+                [0.40618714, 1.80283875],
+                [0.05299376, -0.52887806],
+            ]
+        )
+        assert np.allclose(samples, reference_samples)
+
+        # from skfem.visuals.matplotlib import plot, show
+
+        # plot(
+        #     basis,
+        #     samples[:, 0],
+        #     colorbar=True,
+        #     title="Computed Scalar Solution",
+        # )
+        # show()
 
 
 if __name__ == "__main__":

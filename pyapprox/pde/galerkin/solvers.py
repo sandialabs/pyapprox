@@ -4,7 +4,7 @@ import textwrap
 import numpy as np
 from skfem import condense, asm, LinearForm, Functional
 
-from pyapprox.pde.galerkin.util import _forcing
+from pyapprox.pde.galerkin.util import forcing_linearform
 from pyapprox.pde.galerkin.functions import FEMFunctionTransientMixin
 
 
@@ -186,15 +186,8 @@ class TransientPDE:
 
     def _set_physics_time(self, time):
         for fun in self._physics._funs:
-            # if hasattr(fun, "set_time"):
             if isinstance(fun, FEMFunctionTransientMixin):
                 fun.set_time(time)
-        # iterate over dirichlet, neumann and robin BC types
-        # for bndry_cond in self._physics._bndry_conds:
-        #     # iterate over all BCs of the current type
-        #     for bc_name, bc in bndry_cond.items():
-        #         if hasattr(bc[0], "set_time"):
-        #             bc[0].set_time(time)
         self._physics._bndry_conds.set_time(time)
 
     def _rhs(self, sol, time):
@@ -205,9 +198,13 @@ class TransientPDE:
     def _backward_euler_residual(self, sol, time, deltat, stage_unknowns):
         active_stage_time = time + deltat
         srhs, jac = self._rhs(stage_unknowns, active_stage_time)
-        temp1 = asm(LinearForm(_forcing), self._physics._basis, forc=sol)
+        temp1 = asm(
+            LinearForm(forcing_linearform), self._physics._basis, forc=sol
+        )
         temp2 = asm(
-            LinearForm(_forcing), self._physics._basis, forc=stage_unknowns
+            LinearForm(forcing_linearform),
+            self._physics._basis,
+            forc=stage_unknowns,
         )
         residual = srhs * deltat + temp1 - temp2
         return residual, self._mass_mat - deltat * jac

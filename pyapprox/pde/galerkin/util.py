@@ -80,22 +80,9 @@ def get_element(mesh: Mesh, order: int) -> Element:
     return ElementQuad2()
 
 
-def _vector_fun_to_skfem_vector_fun(vel_forc_fun, x):
-    vals = vel_forc_fun(x)
-    return np.stack([vals[:, ii] for ii in range(vals.shape[1])])
-
-
-def _vector_forcing(v, w):
+def vector_forcing_linearform(v, w):
     return dot(w["forc"], v)
 
 
-def _forcing(v, w):
+def forcing_linearform(v, w):
     return w["forc"] * v
-
-
-def _robin(u, v, w):
-    return w["alpha"] * u * v
-
-
-def _robin_prev_sol(v, w):
-    return w["alpha"] * w["u_prev"] * v

@@ -16,7 +16,10 @@ from skfem.element import Element
 from skfem.helpers import dot, grad, mul
 from skfem.models.poisson import vector_laplace, mass
 from skfem.models.general import divergence
-from pyapprox.pde.galerkin.util import _forcing, _vector_forcing
+from pyapprox.pde.galerkin.util import (
+    forcing_linearform,
+    vector_forcing_linearform,
+)
 from pyapprox.pde.galerkin.functions import (
     FEMScalarFunction,
     FEMVectorFunction,
@@ -591,7 +594,7 @@ class Helmholtz(NonLinearAdvectionDiffusionReaction):
         return 0.0 * x
 
     def _zero_forcing(self, x: Array) -> Array:
-        return 0.0 * x
+        return 0.0 * x[0]
 
 
 class Stokes(Physics):
@@ -616,9 +619,9 @@ class Stokes(Physics):
             raise ValueError(
                 "pres_fun must be an instance of FEMScalarFunction"
             )
-        self.vel_forc_fun = vel_forc_fun
-        self.pres_forc_fun = pres_forc_fun
-        self.navier_stokes = navier_stokes
+        self._vel_forc_fun = vel_forc_fun
+        self._pres_forc_fun = pres_forc_fun
+        self._navier_stokes = navier_stokes
         self.viscosity = viscosity
 
     def _navier_stokes_linearized_terms(self, u, v, w):
@@ -650,13 +653,18 @@ class Stokes(Physics):
         pres_forc = basis["p"].interpolate(basis["p"].project(pres_forc_fun))
         vel_forces = basis["u"].interpolate(basis["u"].project(vel_forc_fun))
         vel_loads = asm(
-            LinearForm(_vector_forcing), basis["u"], forc=vel_forces
+            LinearForm(vector_forcing_linearform), basis["u"], forc=vel_forces
         )
         # - sign on pressure load because I think pressure equation
         # in manufactured_solutions.py has the wrong sign it is \nabla\cdot u = f_p
         # but convention is -\nabla\cdot u = f_p
         linear_vec = np.concatenate(
-            [vel_loads, -asm(LinearForm(_forcing), basis["p"], forc=pres_forc)]
+            [
+                vel_loads,
+                -asm(
+                    LinearForm(forcing_linearform), basis["p"], forc=pres_forc
+                ),
+            ]
         )
         return linear_vec
 
@@ -759,8 +767,8 @@ class Stokes(Physics):
     def init_guess(self) -> np.ndarray:
         bilinear_mat, linear_vec, D_vals, D_dofs = (
             self._assemble_linear_stokes(
-                self.vel_forc_fun,
-                self.pres_forc_fun,
+                self._vel_forc_fun,
+                self._pres_forc_fun,
                 False,
                 self._bndry_conds,
                 self._mesh,
@@ -776,9 +784,9 @@ class Stokes(Physics):
         self, sol: Optional[np.ndarray] = None
     ) -> Tuple[spmatrix, Union[np.ndarray, spmatrix], np.ndarray, np.ndarray]:
         bilinear_mat, linear_vec = self._raw_assemble_stokes(
-            self.vel_forc_fun,
-            self.pres_forc_fun,
-            self.navier_stokes,
+            self._vel_forc_fun,
+            self._pres_forc_fun,
+            self._navier_stokes,
             self._mesh,
             self._element,
             self._basis,
@@ -912,9 +920,9 @@ class BiLaplacianPrior:
         self._mesh = mesh
         self._element = element
         self._basis = basis
-        self.gamma = gamma
-        self.delta = delta
-        self.beta = np.sqrt(self.gamma * self.delta) * 1.42
+        self._gamma = gamma
+        self._delta = delta
+        self._beta = np.sqrt(self._gamma * self._delta) * 1.42
         if anisotropic_tensor is None:
             anisotropic_tensor = np.eye(mesh.p.shape[0]) * gamma
         else:
@@ -922,19 +930,19 @@ class BiLaplacianPrior:
         if anisotropic_tensor.shape != (mesh.p.shape[0], mesh.p.shape[0]):
             raise ValueError("anisotropic_tensor has incorrect shape")
         self.anisotropic_tensor = anisotropic_tensor
-        self._bndry_conds = [
-            {},
-            {},
-            dict(
-                zip(
-                    self._mesh.boundaries.keys(),
-                    [
-                        [self._bndry_fun, self.beta]
-                        for nn in range(len(self._mesh.boundaries))
-                    ],
-                )
-            ),
-        ]
+        self._bndry_conds = BoundaryConditions(
+            self._mesh,
+            self._element,
+            self._basis,
+            robin_bndry_names=[key for key in self._mesh.boundaries.keys()],
+            robin_bndry_funs=[
+                FEMScalarFunctionFromCallable(self._bndry_fun, name=key)
+                for key in self._mesh.boundaries.keys()
+            ],
+            robin_bndry_constants=[
+                self._beta for key in self._mesh.boundaries.keys()
+            ],
+        )
         self._linear_system_data = None
 
     def _setup_linear_system(self):
@@ -965,11 +973,11 @@ class BiLaplacianPrior:
 
     def _react_fun(self, x):
         # x : np.ndarray (nvars, nelems, nquad_pts_per_elem)
-        return self.delta + 0 * x[0]
+        return self._delta + 0 * x[0]
 
     def _diff_fun(self, x):
         # x (nvars, nelems, nquad_pts_per_elem)
-        return np.full((x.shape[1:]), self.gamma)
+        return np.full((x.shape[1:]), self._gamma)
 
     def _assemble_stiffness(
         self, diff_fun, react_fun, bndry_conds, mesh, element, basis
@@ -983,14 +991,12 @@ class BiLaplacianPrior:
             react=react,
         )
         linear_vec = asm(LinearForm(self._zero_forcing), basis)
-        return _enforce_scalar_boundary_conditions(
-            mesh, element, basis, bilinear_mat, linear_vec, *bndry_conds, None
+        return self._bndry_conds.impose_robin_boundaries(
+            bilinear_mat, linear_vec, None
         )
 
     def rvs(self, nsamples):
-        bilinear_mat, linear_vec, D_vals, D_dofs, lumped_mass_mat = (
-            self._setup_linear_system()
-        )
+        bilinear_mat, linear_vec, lumped_mass_mat = self._setup_linear_system()
         white_noise = np.random.normal(
             0, 1, (lumped_mass_mat.shape[0], nsamples)
         )
@@ -998,7 +1004,7 @@ class BiLaplacianPrior:
         for ii in range(nsamples):
             rhs = np.sqrt(lumped_mass_mat) * white_noise[:, ii]
             samples[:, ii] = solve(
-                *condense(bilinear_mat, rhs, x=D_vals, D=D_dofs)
+                *condense(bilinear_mat, rhs, D=np.empty(0, dtype=int))
             )
         return samples
 
