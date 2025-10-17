@@ -603,7 +603,7 @@ class Stokes(Physics):
         mesh: Mesh,
         element: Element,
         basis: Basis,
-        bndry_conds: BoundaryConditions,
+        bndry_conds: List[BoundaryConditions],
         navier_stokes: bool,
         vel_forc_fun: FEMVectorFunction,
         pres_forc_fun: FEMScalarFunction,
@@ -611,10 +611,10 @@ class Stokes(Physics):
     ):
         super().__init__(mesh, element, basis, bndry_conds)
 
-        # if not isinstance(vel_forc_fun, FEMVectorFunction):
-        #     raise ValueError(
-        #         "vel_forc_fun must be an instance of FEMVectorFunction"
-        # )
+        if not isinstance(vel_forc_fun, FEMVectorFunction):
+            raise ValueError(
+                "vel_forc_fun must be an instance of FEMVectorFunction"
+            )
         if not isinstance(pres_forc_fun, FEMScalarFunction):
             raise ValueError(
                 "pres_fun must be an instance of FEMScalarFunction"
@@ -622,7 +622,7 @@ class Stokes(Physics):
         self._vel_forc_fun = vel_forc_fun
         self._pres_forc_fun = pres_forc_fun
         self._navier_stokes = navier_stokes
-        self.viscosity = viscosity
+        self._viscosity = viscosity
 
     def _navier_stokes_linearized_terms(self, u, v, w):
         z = w["u_prev"]
@@ -775,7 +775,7 @@ class Stokes(Physics):
                 self._element,
                 self._basis,
                 return_K=False,
-                viscosity=self.viscosity,
+                viscosity=self._viscosity,
             )
         )
         return solve(*condense(bilinear_mat, linear_vec, x=D_vals, D=D_dofs))
@@ -791,7 +791,7 @@ class Stokes(Physics):
             self._element,
             self._basis,
             sol,
-            viscosity=self.viscosity,
+            viscosity=self._viscosity,
         )
         return bilinear_mat, linear_vec
 
@@ -840,30 +840,36 @@ class Stokes(Physics):
                 )
 
         # set pressure boundary conditions
-        pres_D_dofs = []
-        for bndry_name, bndry_fun in zip(
-            bndry_conds[nvars]._dbndry_names, bndry_conds[nvars]._dbndry_funs
-        ):
-            # Accesing p requires adding
-            # basis["p"].get_dofs(bndry_name) and the total number of u basis dofs
-            #  basis["u"].N is nrows of velocity block in stiffness matrix
-            # need to get DOF for presure in global array
-            p_dofs = basis["p"].get_dofs(bndry_name)
-            shifted_p_dofs = p_dofs.flatten() + basis["u"].N
-            pres_D_dofs.append(shifted_p_dofs)
-            D_vals[shifted_p_dofs] = bndry_fun(basis["p"].doflocs[:, p_dofs])
+        if bndry_conds[nvars].ndirichlet_boundaries() > 0:
+            pres_D_dofs = []
+            for bndry_name, bndry_fun in zip(
+                bndry_conds[nvars]._dbndry_names,
+                bndry_conds[nvars]._dbndry_funs,
+            ):
+                # Accesing p requires adding
+                # basis["p"].get_dofs(bndry_name) and the total number of u basis dofs
+                #  basis["u"].N is nrows of velocity block in stiffness matrix
+                # need to get DOF for presure in global array
+                p_dofs = basis["p"].get_dofs(bndry_name)
+                shifted_p_dofs = p_dofs.flatten() + basis["u"].N
+                pres_D_dofs.append(shifted_p_dofs)
+                D_vals[shifted_p_dofs] = bndry_fun(
+                    basis["p"].doflocs[:, p_dofs]
+                )
 
-        pres_D_dofs = np.hstack(pres_D_dofs)
-        # create a copy DOFView that can
-        # D_dofs = copy.deepcopy(vel_D_dofs[0])
-        # D_dofs.flatten = lambda: np.union1d(
-        #     np.unique(np.hstack(vel_D_dofs)), pres_D_dofs
-        # )
-        # typically D_dofs is a DOFView but if D_dofs is only used for
-        # condense then we can just pass array. I can creat a view like above
-        # but flatten will be inconsistent with the rest of its attributes an
-        # d functions
-        D_dofs = np.union1d(np.unique(np.hstack(vel_D_dofs)), pres_D_dofs)
+            pres_D_dofs = np.hstack(pres_D_dofs)
+            # create a copy DOFView that can
+            # D_dofs = copy.deepcopy(vel_D_dofs[0])
+            # D_dofs.flatten = lambda: np.union1d(
+            #     np.unique(np.hstack(vel_D_dofs)), pres_D_dofs
+            # )
+            # typically D_dofs is a DOFView but if D_dofs is only used for
+            # condense then we can just pass array. I can creat a view like above
+            # but flatten will be inconsistent with the rest of its attributes an
+            # d functions
+            D_dofs = np.union1d(np.unique(np.hstack(vel_D_dofs)), pres_D_dofs)
+        else:
+            D_dofs = np.unique(np.hstack(vel_D_dofs))
 
         if u_prev is not None:
             D_vals = u_prev - D_vals

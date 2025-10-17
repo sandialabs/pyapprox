@@ -856,10 +856,6 @@ class TestFiniteElements(unittest.TestCase):
         man_sol = ManufacturedStokes(
             vel_strings + [pres_string], nvars, navier_stokes, oned=True
         )
-        # print(man_sol)
-        sol_fun = FEMVectorFunctionFromCallable(
-            man_sol.functions["solution"], "sol"
-        )
 
         # next function currently takes raw functions not ones with axesswaped
         vel_forc_fun = FEMVectorFunctionFromCallable(
@@ -945,14 +941,14 @@ class TestFiniteElements(unittest.TestCase):
     def test_stokes(self):
         test_cases = [
             [[0, 1], 1, ["((2*x-1))**2"], "x*(1-1e-16*x)", ["D", "D"], False],
-            # [
-            #     [0, 1],
-            #     0,
-            #     ["((2*x-1))*(1+1e-16*x)"],
-            #     "x*(1-1e-16*x)",
-            #     ["D", "D"],
-            #     True,
-            # ],
+            [
+                [0, 1],
+                0,
+                ["((2*x-1))*(1+1e-16*x)"],
+                "x*(1-1e-16*x)",
+                ["D", "D"],
+                True,
+            ],
             [
                 [0, 1, 0, 1],
                 0,  # 1,
@@ -1285,17 +1281,3 @@ class TestFiniteElements(unittest.TestCase):
             ]
         )
         assert np.allclose(samples, reference_samples)
-
-        # from skfem.visuals.matplotlib import plot, show
-
-        # plot(
-        #     basis,
-        #     samples[:, 0],
-        #     colorbar=True,
-        #     title="Computed Scalar Solution",
-        # )
-        # show()
-
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
