@@ -219,6 +219,7 @@ class DiffusionResidual(ABC):
 
     def _advection_term(self, u, v, w):
         # this is for non-conservative form of advection
+        print(w.x.shape)
         vel = self._vel_fun(w.x)
         # du = u.grad
         # return sum([v*vel[ii]*du[ii] for ii in range(w.x.shape[0])])
