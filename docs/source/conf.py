@@ -119,6 +119,7 @@ example_filenames_in_order = [
     "plot_neural_network_backprop.py",
     # PDE
     "plot_fem_helmholtz.py",
+    "plot_hamiltonian.py",
 ]
 
 # TODO enable once ready to port over tutorials to new API
