@@ -3,6 +3,7 @@ from functools import partial
 from typing import Tuple
 
 import numpy as np
+import matplotlib
 from skfem import (
     Basis,
     MeshTri1,
@@ -319,13 +320,12 @@ class OctagonalHelmholtz(SteadyParameterizedFEModel):
 
     def _boundary_facets(self, plot: bool = False):
         from skfem.visuals.matplotlib import draw
-        import matplotlib.pyplot as plt
 
         nfacets = []
         ms = 5
         if plot:
-            draw(self._mesh, ax=plt.figure(figsize=(8, 6)).gca())
-            plt.plot(
+            draw(self._mesh, ax=matplotlib.pyplot.figure(figsize=(8, 6)).gca())
+            matplotlib.pyplot.plot(
                 *self._basis.mesh.p[
                     :,
                     self._basis.mesh.facets[
@@ -343,7 +343,7 @@ class OctagonalHelmholtz(SteadyParameterizedFEModel):
             # plot mid points of facets on the boundary
             if not plot:
                 continue
-            plt.plot(
+            matplotlib.pyplot.plot(
                 *self._basis.mesh.p[
                     :, self._basis.mesh.facets[:, facets]
                 ].mean(axis=1),
@@ -703,9 +703,8 @@ class ObstructedStokesFlow(SteadyParameterizedFEModel):
         from skfem.models.poisson import laplace
         from skfem.models.general import rot
         from matplotlib.tri import Triangulation
-        import matplotlib.pyplot as plt
 
-        ax = plt.subplots(1, 1, figsize=(8, 6))[1]
+        ax = matplotlib.pyplot.subplots(1, 1, figsize=(8, 6))[1]
         basis = self._basis
         mesh = self._mesh
         vel = self.split_solution(sol)[0]
@@ -766,13 +765,21 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
         self._init_time = 0
         self._final_time = final_time
         self._deltat = deltat
+        # nominal concentration controls boundary conditions
+        # initial condition should be set so that no solution enters of leaves
+        # domain
+        self._nominal_concentration = 0.0
         self._init_condition = self._basis.project(
-            FEMScalarFunctionFromCallable(lambda x: x[0] * 0)
+            FEMScalarFunctionFromCallable(
+                lambda x: x[0] * 0 + self._nominal_concentration
+            )
         )
+        # controls balance of advection and diffusion cannot be too small
+        # relative to velocity or numerical solution will become unstable
+        self._diffusivity = 0.1
         self._kle_hyperparams = kle_hyperparams
         self._initialize_forcing()
         # initialize forcing function to be the mean of the kle
-        print(self._kle)
         if stokes_params is not None:
             # fix the velocity field for all advection simulations
             self._set_velocity_field(stokes_params)
@@ -817,11 +824,11 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
         local_quad_points, local_quad_weights = self._basis.quadrature
         # Global coordinates of quadrature points for all elements
         quad_points_tensor = self._basis.mapping.F(local_quad_points)
-        print(
-            local_quad_weights.shape,
-            quad_points_tensor.shape,
-            (quad_points_tensor.shape[1] * quad_points_tensor.shape[2]),
-        )
+        # print(
+        #     local_quad_weights.shape,
+        #     quad_points_tensor.shape,
+        #     (quad_points_tensor.shape[1] * quad_points_tensor.shape[2]),
+        # )
         self._nelements = quad_points_tensor.shape[1]
         quad_points = quad_points_tensor.reshape(
             quad_points_tensor.shape[0], -1
@@ -846,9 +853,14 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
             self._kle_hyperparams.nterms,
             backend=NumpyMixin,
         )
-        print("KLE built")
         self._forcing = FEMScalarFunctionFromCallable(self._kle)
         self._nadvecdiff_params = self._kle._nterms
+
+    def kle(self) -> MeshKLE:
+        return self._kle
+
+    def stokes_model(self) -> ObstructedStokesFlow:
+        return self._stokes_model
 
     def _setup_advec_diff_mesh(self, resolution: int):
         self._mesh = (
@@ -901,25 +913,26 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
     def _set_boundary_conditions(self):
         # set no flux conditions for all but left (inlet) and right
         # (outlet) boundaries
-        N_bndry_names = [
-            f"obs{ii}"
-            for ii in range(
-                self._stokes_model._domain._obstruction_indices.shape[0]
-            )
-        ] + ["bottom", "top"]
-        N_bndry_funs = [
-            FEMScalarFunctionFromCallable(self._stokes_model._zero_bndry_fun)
-            for name in N_bndry_names
-        ]
+        # N_bndry_names = [
+        #     f"obs{ii}"
+        #     for ii in range(
+        #         self._stokes_model._domain._obstruction_indices.shape[0]
+        #     )
+        # ] + ["bottom", "top"]
+        # N_bndry_funs = [
+        #     FEMScalarFunctionFromCallable(self._stokes_model._zero_bndry_fun)
+        #     for name in N_bndry_names
+        # ]
+        # zero neumann bcs will be enforced without setting the boundaries explicitly
+        N_bndry_names, N_bndry_funs = None, None
         R_bndry_names = ["left", "right"]
-        nominal_concentration = 1.0
         alpha = 0.1
         R_bndry_funs = [
             FEMScalarFunctionFromCallable(
-                lambda x: x[0] * 0 + nominal_concentration * alpha
+                lambda x: x[0] * 0 + self._nominal_concentration * alpha
             ),
             FEMScalarFunctionFromCallable(
-                lambda x: x[0] * 0 + nominal_concentration * alpha
+                lambda x: x[0] * 0 + self._nominal_concentration * alpha
             ),
         ]
         R_bndry_consts = [0.1, 0.1]
@@ -945,9 +958,8 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
         forc_fun = FEMScalarFunctionFromCallable(
             self._kle_values_on_quadrature_points
         )
-        diffusivity = 1.0
         diff_op = FEMNonLinearOperatorFromCallable(
-            lambda x, u: diffusivity + u * 0,
+            lambda x, u: self._diffusivity + u * 0,
             lambda x, u: u * 0,
         )
         react_op = FEMNonLinearOperatorFromCallable(
@@ -958,7 +970,9 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
             self._element,
             self._basis,
             self._bndry_conds,
-            FEMScalarFunctionFromCallable(lambda x: x[0] * diffusivity),
+            FEMScalarFunctionFromCallable(
+                lambda x: x[0] * 0 + self._diffusivity
+            ),
             forc_fun,
             FEMVectorFunctionFromCallable(lambda x: self._vel),
             # FEMVectorFunctionFromCallable(lambda x: x * 0, swapaxes=False),
@@ -993,3 +1007,75 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
             raise ValueError("must provide one axes for each sol")
         for ii, idx in enumerate(sol_indices):
             self.plot_concentration_snapshot(sols[:, idx], ax=axs[ii])
+
+    def animate_concentration_snapshots(
+        self,
+        fig: matplotlib.figure.Figure,
+        ax: matplotlib.axes.Axes,
+        sols: np.ndarray,
+        interval: float = None,
+        **kwargs,
+    ):
+        """
+        Creates an animation of solution snapshots over time.
+
+        This method animates the evolution of a 2D array of solution snapshots
+        over time, using the provided figure and axis for visualization. The
+        animation updates the plot at regular intervals, displaying the solution
+        at each time step.
+
+        Parameters
+        ----------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object where the animation will be displayed.
+        ax : matplotlib.axes.Axes
+            The matplotlib axis object where the solution snapshots will be
+            plotted.
+        sols : np.ndarray
+            A 2D array containing the solution snapshots at all time steps.
+            The array should have shape `(n_dofs, n_time_steps)`, where:
+                - `n_dofs` is the number of degrees of freedom (mesh points).
+                - `n_time_steps` is the number of time steps in the solution.
+        interval : int, optional (default=None)
+            The time interval between frames in milliseconds. If None
+            The interval will be calculated set to
+            (final_time-init_time)*1000/(sols.shape[1]-1)
+        kwargs : dict, optional
+            Additional keyword arguments to be passed to the `skfem.plot`
+            function
+            for customizing the plot (e.g., color map, labels, etc.).
+
+        Returns
+        -------
+        ani : matplotlib.animation.FuncAnimation
+            The animation object. This can be used to display the animation
+            (e.g., with `matplotlib.pyplot.show()`) or save it to a file
+            (e.g., using `ani.save()`).
+        """
+        if sols.ndim != 2:
+            raise ValueError(
+                "sols must be a 2D array containing the solution snapshots "
+                "at all times"
+            )
+
+        # Initialize the plot with the first snapshot
+        self.plot_concentration_snapshot(sols[:, 0], ax=ax, **kwargs)
+
+        # Update function for the animation
+        def update(frame):
+            ax.clear()  # Clear the axis for the next frame
+            self.plot_concentration_snapshot(sols[:, frame], ax=ax, **kwargs)
+
+        # Create the animation
+        from matplotlib.animation import FuncAnimation
+
+        if interval is None:
+            interval = self._final_time * 1000 / (sols.shape[1] - 1)
+        # repeat = True causes animation to be played on a continuous loop
+        # when displayed with plt.show()
+        # ani.save in 'gif' format wil play animation on a continuous loop
+        anim = FuncAnimation(
+            fig, update, frames=sols.shape[1], interval=interval, repeat=True
+        )
+
+        return anim

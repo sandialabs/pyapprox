@@ -225,21 +225,42 @@ class TestParameterizedFiniteElements(unittest.TestCase):
 
     def test_obstructed_advection_diffusion(self):
         nterms = 10
-        kle_hyperparams = KLEHyperParameters(1, 1.0, np.inf, nterms)
+        final_time = 1.5
+        kle_hyperparams = KLEHyperParameters(0.5, 1.0, np.inf, nterms)
         model = ObstructedAdvectionDiffusion(
-            3, 1, 0.1, 1, kle_hyperparams, True, np.array([10, 10])
+            3, 3, 0.1, final_time, kle_hyperparams, True, np.array([10, 10])
         )
-        print(model)
-        params = np.random.normal(0, 1, (nterms,))  # * 0
+
+        def forcing(x):
+            scale = 100.0
+            loc = [0.15, 0.4]
+            return np.exp(
+                -scale * ((x[0] - loc[0]) ** 2 + (x[1] - loc[1]) ** 2)
+            )
+
+        # comute forcing at quadrature point like KLE
+        forcing_vals = model._basis.interpolate(
+            model._basis.project(forcing)
+        ).flatten()
+        # make sure that log of forcing values is not zero
+        forcing_vals = np.maximum(forcing_vals, 1e-8)
+        # solve for KLE coefficients which are in log space
+        params = NumpyMixin.lstsq(
+            model.kle().weighted_eigenvectors(), np.log(forcing_vals)
+        )
         model.plot_forcing(params, colorbar=True)
         axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
-        print(len(axs))
-        model.plot_kle_eigenvecs(np.array([0, 5, 9]), axs)
+        model.plot_kle_eigenvecs(np.array([0, nterms // 2, -1]), axs)
         model.set_params(params)
         sols, times = model.solve()
         axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
-        model.plot_concentration_snapshots(sols, np.array([0, 3, 9]), axs)
-        # plt.show()
+        model.plot_concentration_snapshots(sols, np.array([0, 5, -1]), axs)
+        fig, axs = plt.subplots(1, 1, figsize=(8, 6))
+        ani = model.animate_concentration_snapshots(fig, axs, sols)
+        # ani.save in 'gif' format wil play animation on a continuous loop
+        ani.save(
+            "solution_animation.gif", fps=sols.shape[1] / final_time, dpi=150
+        )
 
 
 if __name__ == "__main__":

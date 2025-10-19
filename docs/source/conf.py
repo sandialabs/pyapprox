@@ -164,6 +164,9 @@ example_filenames_in_order += [
     "plot_sparse_grid_surrogate_optimization.py",
     "plot_design_under_uncertainty.py",
     "plot_paper_demo.py",
+    # pde
+    "plot_obstructed_advection_diffusion.py",
+    "plot_shallow_wave.py",
 ]
 
 # print(installed_pkgs)
@@ -204,6 +207,7 @@ sphinx_gallery_conf = {
             "../../examples/surrogates",
             "../../examples/multifidelity",
             "../../examples/optimization",
+            "../../examples/pde/",
             "../../examples/",
         ]
     ),
