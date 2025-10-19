@@ -20,18 +20,19 @@ The shallow water wave equations in conservative form are given by:
 where:
 
 - :math:`\mathbf{U} = \begin{bmatrix} h \\ hu \\ hv \end{bmatrix}` is the vector of conserved variables:
-  - :math:`h`: fluid height,
-  - :math:`hu`: momentum in the :math:`x`-direction,
-  - :math:`hv`: momentum in the :math:`y`-direction.
+- :math:`h`: fluid height,
+- :math:`hu`: momentum in the :math:`x`-direction,
+- :math:`hv`: momentum in the :math:`y`-direction.
 - :math:`\mathbf{F}(\mathbf{U})` is the flux tensor:
-  \[
+  
+.. math::
+
   \mathbf{F}(\mathbf{U}) = \begin{bmatrix}
   hu & hv \\
   hu^2 + \frac{1}{2}gh^2 & huv \\
   huv & hv^2 + \frac{1}{2}gh^2
   \end{bmatrix},
-  \]
-  where :math:`g` is the gravitational acceleration.
+- :math:`g` is the gravitational acceleration.
 - :math:`\mathbf{S}(\mathbf{U})` is the source term, which accounts for external forces such as bed slope effects.
 
 The goal is to compute the evolution of :math:`\mathbf{U}` over time, given initial and boundary conditions.
@@ -108,18 +109,19 @@ model = ShallowWaterWaveModel(
 
 # %% [markdown]
 # Define Initial Conditions
-# --------------------------
+# -------------------------
 #
 # The initial conditions for the shallow water wave equations include the fluid height :math:`h`, momentum in the :math:`x`-direction :math:`hu`, and momentum in the :math:`y`-direction :math:`hv`. These are specified as a sample vector.
 #
 #
 # The initial conditions for the shallow water wave equations are computed using a combination of Beta distribution functions. The fluid surface is initialized as the sum of two Beta-shaped surfaces, each defined by specific shape parameters. The equations for computing the initial surface are as follows:
+#
 # Beta Surface Function
 # ^^^^^^^^^^^^^^^^^^^^^
 #
-# The Beta surface function is defined as:
+# The Beta surface function is defined as the tensor product of two univariate functions( which resemble the PDFs of Beta random variables but should not be interpreted as such here):
 #
-# .. math:: # \beta(x) = \frac{x_1^{a_0 - 1} (1 - x_1)^{b_0 - 1} \cdot x_2^{a_1 - 1} (1 - x_2)^{b_1 - 1}}{\text{Beta}(a_0, b_0) \cdot \text{Beta}(a_1, b_1) \cdot 20},
+# .. math:: \beta(x) = \frac{x_1^{a_0 - 1} (1 - x_1)^{b_0 - 1} \cdot x_2^{a_1 - 1} (1 - x_2)^{b_1 - 1}}{\text{Beta}(a_0, b_0) \cdot \text{Beta}(a_1, b_1) \cdot 20},
 #
 #
 # where:
@@ -128,7 +130,7 @@ model = ShallowWaterWaveModel(
 #
 # .. math:: x_n = \frac{x}{\text{bounds}},
 #
-#   with :math:`\text{bounds}` representing the domain bounds.
+# - :math:`\text{bounds}` representing the domain bounds.
 # - :math:`a_0, b_0, a_1, b_1` are shape parameters that control the shape of the Beta distribution.
 # - :math:`\text{Beta}(a, b)` is the Beta function:
 #
@@ -153,6 +155,33 @@ model = ShallowWaterWaveModel(
 
 # Define sample parameters
 sample = bkd.array([25, 20, 20, 20, 5, 20, 20, 20])[:, None]
+
+# %%
+# Define the Boundary Conditions
+# ------------------------------
+#
+# Reflective boundary conditions are applied to the shallow water wave equations. These conditions ensure that the velocity component perpendicular to the boundary normal is set to zero, effectively modeling a no-flow condition across the boundary. This is essential for simulating a closed domain.
+#
+#
+# Let :math:`\mathbf{n}` denote the unit normal vector to the boundary, and let :math:`\mathbf{v} = \begin{bmatrix} u \\ v \end{bmatrix}` represent the velocity vector, where:
+#
+# - :math:`u`: velocity component in the :math:`x`-direction,
+# - :math:`v`: velocity component in the :math:`y`-direction.
+#
+# The reflective boundary conditions are defined as:
+#
+# - On **horizontal boundaries** (e.g., :math:`y = 0` or :math:`y = L_y`), the vertical velocity :math:`v` is set to zero:
+#
+# .. math::
+#    \mathbf{v} \cdot \mathbf{n} = v = 0.
+#
+# - On **vertical boundaries** (e.g., :math:`x = 0` or :math:`x = L_x`), the horizontal velocity :math:`u` is set to zero:
+#
+# .. math::
+#    \mathbf{v} \cdot \mathbf{n} = u = 0.
+#
+# These conditions ensure that the fluid does not flow across the boundaries, effectively reflecting the flow back into the domain. This is par
+
 
 # %% [markdown]
 # Solve the Shallow Water Wave Equations
@@ -192,7 +221,7 @@ ani = animate_transient_2d_vector_solution(
     sols,
     times,
     model.physics().ncomponents(),
-    [0, 1, 2],
+    [0],
     [0],
     51,
     contour_plot_kwargs,

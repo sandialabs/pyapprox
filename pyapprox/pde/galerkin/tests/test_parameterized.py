@@ -210,7 +210,7 @@ class TestParameterizedFiniteElements(unittest.TestCase):
              2.68034923e+01,  2.42575224e+01,  1.32926646e+01, -1.37902807e+01]
         )
         # fmt: on
-        # assert np.allclose(sol, ref_sol)
+        assert np.allclose(sol, ref_sol)
 
         # tests plots run
         model.plot_pressure(sol)
@@ -225,10 +225,11 @@ class TestParameterizedFiniteElements(unittest.TestCase):
 
     def test_obstructed_advection_diffusion(self):
         nterms = 10
-        final_time = 1.5
+        final_time = 1.0
         kle_hyperparams = KLEHyperParameters(0.5, 1.0, np.inf, nterms)
+        # sue coarse meshes and 1 timestep just for easier regression testing
         model = ObstructedAdvectionDiffusion(
-            3, 3, 0.1, final_time, kle_hyperparams, True, np.array([10, 10])
+            0, 0, 1.0, final_time, kle_hyperparams, True, np.array([10, 10])
         )
 
         def forcing(x):
@@ -248,19 +249,57 @@ class TestParameterizedFiniteElements(unittest.TestCase):
         params = NumpyMixin.lstsq(
             model.kle().weighted_eigenvectors(), np.log(forcing_vals)
         )
+        model.set_params(params)
+        sols, times = model.solve()
+
+        print(np.array2string(sols, separator=", "))
+
+        # regression test
+        ref_sols = np.array(
+            [
+                [0.0, 0.00885335],
+                [0.0, 0.01087657],
+                [0.0, 0.01089406],
+                [0.0, 0.00941075],
+                [0.0, 0.00759339],
+                [0.0, 0.0068866],
+                [0.0, 0.01543014],
+                [0.0, 0.01446798],
+                [0.0, 0.01074722],
+                [0.0, 0.01091576],
+                [0.0, 0.01137842],
+                [0.0, 0.00895938],
+                [0.0, 0.02743359],
+                [0.0, 0.02269296],
+                [0.0, 0.01831084],
+                [0.0, 0.01656176],
+                [0.0, 0.01322811],
+                [0.0, 0.01046788],
+                [0.0, 0.01731121],
+                [0.0, 0.01912476],
+                [0.0, 0.01856387],
+                [0.0, 0.01770564],
+                [0.0, 0.01561217],
+                [0.0, 0.01397999],
+                [0.0, 0.00975487],
+                [0.0, 0.01327846],
+                [0.0, 0.01487903],
+                [0.0, 0.01534775],
+                [0.0, 0.01592607],
+                [0.0, 0.01383978],
+            ]
+        )
+        assert np.allclose(sols, ref_sols)
+        assert np.allclose(times, [0.0, 1.0])
+
+        # check plots run
         model.plot_forcing(params, colorbar=True)
         axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
         model.plot_kle_eigenvecs(np.array([0, nterms // 2, -1]), axs)
-        model.set_params(params)
-        sols, times = model.solve()
-        axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
-        model.plot_concentration_snapshots(sols, np.array([0, 5, -1]), axs)
+        axs = plt.subplots(1, 2, figsize=(2 * 8, 6), sharey=True)[1]
+        model.plot_concentration_snapshots(sols, np.array([0, -1]), axs)
         fig, axs = plt.subplots(1, 1, figsize=(8, 6))
         ani = model.animate_concentration_snapshots(fig, axs, sols)
-        # ani.save in 'gif' format wil play animation on a continuous loop
-        ani.save(
-            "solution_animation.gif", fps=sols.shape[1] / final_time, dpi=150
-        )
 
 
 if __name__ == "__main__":
