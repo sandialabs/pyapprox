@@ -61,6 +61,7 @@ example_filenames_in_order = [
     "plot_sensitivity_analysis.py",
     # Optimization
     "plot_sgd_vs_adam.py",
+    "plot_adjoints.py",
     # Inference
     "plot_bayesian_inference.py",
     "plot_bayesian_networks.py",
