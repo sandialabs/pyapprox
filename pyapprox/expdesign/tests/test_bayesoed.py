@@ -11,6 +11,7 @@ from pyapprox.util.misc import hash_array
 from pyapprox.expdesign.optbayes_benchmarks import (
     LinearGaussianBayesianOEDBenchmark,
     LinearGaussianBayesianOEDForPredictionBenchmark,
+    NonLinearGaussianBayesianOEDForPredictionBenchmark,
     BayesianKLOEDDiagnostics,
     BayesianOEDForPredictionDiagnostics,
     ConjugateGaussianPriorOEDForLinearPredictionKLDivergence,
@@ -883,7 +884,7 @@ class TestBayesOED:
             ]
             self._check_prediction_gaussian_OED_gradients(*test_case)
 
-    def _check_prediction_gaussian_OED_values(
+    def _check_prediction_OED_values_linear_problem(
         self,
         noise_stat,
         risk_measure,
@@ -969,24 +970,24 @@ class TestBayesOED:
         bkd = self.get_backend()
         nqoi = 1
         test_cases = [
-            # [
-            #     NoiseStatistic(SampleAverageMean(bkd)),
-            #     SampleAverageMean(bkd),
-            #     OEDStandardDeviationMeasure(nqoi, bkd),
-            #     "MC",
-            #     0.95,
-            #     1e-2,
-            #     ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
-            # ],
-            # [
-            #     NoiseStatistic(SampleAverageMean(bkd)),
-            #     SampleAverageMean(bkd),
-            #     OEDEntropicDeviationMeasure(nqoi, 1.0, bkd),
-            #     "MC",
-            #     0.95,
-            #     1e-5,
-            #     ConjugateGaussianPriorOEDForLinearPredictionEntropicDeviation,
-            # ],
+            [
+                NoiseStatistic(SampleAverageMean(bkd)),
+                SampleAverageMean(bkd),
+                OEDStandardDeviationMeasure(nqoi, bkd),
+                "MC",
+                0.95,
+                1e-2,
+                ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
+            ],
+            [
+                NoiseStatistic(SampleAverageMean(bkd)),
+                SampleAverageMean(bkd),
+                OEDEntropicDeviationMeasure(nqoi, 1.0, bkd),
+                "MC",
+                0.95,
+                1e-5,
+                ConjugateGaussianPriorOEDForLinearPredictionEntropicDeviation,
+            ],
             [
                 NoiseStatistic(SampleAverageMean(bkd)),
                 SampleAverageMean(bkd),
@@ -996,22 +997,111 @@ class TestBayesOED:
                 3e-5,
                 ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation,
             ],
-            # TOdo write gradient code and tests for AVAR deviation
-            # todo: write tests for nonlinear benchmark. that tests different noise statistics because for nonlinar model criteria depend on observations
-            # [
-            #     NoiseStatistic(SampleAverageMean(bkd)),
-            #     SampleAverageMeanPlusStdev(1, bkd),
-            #     OEDStandardDeviationMeasure(nqoi, bkd),
-            #     "MC",
-            #     1.0,
-            #     1e-2,
-            #     ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation,
-            # ],
         ]
 
         for test_case in test_cases:
             np.random.seed(1)
-            self._check_prediction_gaussian_OED_values(*test_case)
+            self._check_prediction_OED_values_linear_problem(*test_case)
+
+    def _check_prediction_OED_values_nonlinear_problem(
+        self,
+        noise_stat,
+        risk_measure,
+        deviation_measure,
+        quadtype,
+        min_convergence_rate,
+        max_error,
+        utility_cls,
+    ):
+        import torch
+
+        torch.set_printoptions(precision=8)
+        bkd = self.get_backend()
+        nobs = 2
+        min_degree = 0
+        degree = 3
+        nqoi = deviation_measure.npred()
+        noise_std = 0.125 * 4
+        prior_std = 0.5
+        problem = NonLinearGaussianBayesianOEDForPredictionBenchmark(
+            nobs,
+            min_degree,
+            degree,
+            noise_std,
+            prior_std,
+            nqoi=nqoi,
+            backend=bkd,
+        )
+        oed_diagnostic = BayesianOEDForPredictionDiagnostics(
+            problem,
+            utility_cls,
+            deviation_measure,
+            risk_measure,
+            noise_stat,
+        )
+
+        # Test expected convergence_rate
+        if quadtype != "MC":
+            nrealizations = 1
+        else:
+            nrealizations = 1000
+        design_weights = bkd.ones((nobs, 1)) / nobs
+        outerloop_sample_counts = [2]
+        innerloop_sample_counts = [500, 1000, 2000, 5000]
+
+        fig, axes = plt.subplots(
+            1, 3, figsize=(3 * 8, 6), sharex=True, sharey=True
+        )
+        values = oed_diagnostic.compute_mse_for_sample_combinations(
+            outerloop_sample_counts,
+            innerloop_sample_counts,
+            nrealizations,
+            design_weights,
+            quadtype,
+            quadtype,
+        )
+        oed_diagnostic.plot_mse_vs_innerloop_samples(
+            axes, outerloop_sample_counts, innerloop_sample_counts, values
+        )
+        # When models are linear and Gaussian nouterloop_samples does not
+        # impact error as expected_deviations are independent of the
+        # observation data so check convergence_rate with respect to
+        # innerloop samples
+        convergence_rate = oed_diagnostic.compute_convergence_rate(
+            innerloop_sample_counts, bkd.vstack(values["mse"])[:, 0]
+        )
+        print(convergence_rate)
+        # gauss quadrature rules obtain such small error with
+        # the number of samples requested that it will mess up estimation
+        # of convergence_rate
+        if min_convergence_rate is not None:
+            assert (
+                convergence_rate >= min_convergence_rate
+            ), f"{convergence_rate=} must be >= {min_convergence_rate}"
+        assert (
+            values["mse"][-1][0] <= max_error
+        ), f"best mse {values['mse'][-1][0]} must be >= {max_error}"
+
+    def test_prediction_OED_values_nonlinear_problem(self):
+        bkd = self.get_backend()
+        nqoi = 1
+        # TODO: create analtyical utilities for other noise models, e.g
+        # SampleAverageMeanPlusStdev(1, bkd)
+        test_cases = [
+            [
+                NoiseStatistic(SampleAverageMean(bkd)),
+                SampleAverageMean(bkd),
+                OEDStandardDeviationMeasure(nqoi, bkd),
+                "MC",
+                1.0,
+                1e-2,
+                ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation,
+            ],
+        ]
+
+        for test_case in test_cases:
+            np.random.seed(1)
+            self._check_prediction_OED_values_nonlinear_problem(*test_case)
 
 
 class TestTorchBayesOED(TestBayesOED, unittest.TestCase):

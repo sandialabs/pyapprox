@@ -1,6 +1,6 @@
 r"""
-Risk-Aware Bayesian Inference and Experimental Design: Analytical Expressions for Expected Utility
-==================================================================================================
+Risk-Aware Bayesian Inference and Experimental Design: Analytical Expressions for Expected Utility with Gaussian Linear Models
+=============================================================================================================================
 
 In this tutorial, we derive and compute analytical expressions that quantify the dependence of the posterior mean and covariance parameters on observational data within the framework of Bayesian inference. Specifically, we focus on a linear observational model with Gaussian priors and likelihood distributions. While the posterior covariance is independent of the realizations of the data, the posterior mean is not—making the posterior mean a random variable that depends on the specific observation realizations used to compute it. We derive the distribution of the posterior mean as a function of the observations, as well as the distribution of posteriors when pushed forward through a linear quantity-of-interest model -- again as a function of the observations. Additionally, we derive expressions for various risk measures, such as entropic risk and Average Value at Risk (AVaR), which quantify uncertainty in the pushforward. These expressions are essential for the numerical verification of Bayesian Optimal Experimental Design (BOED) software that incorporates risk-awareness into utility functions used to construct experimental designs.
 
@@ -218,7 +218,7 @@ where:
 
 9. Computing the AVaR Deviation of Q | y
 ----------------------------------------
-Here we compute the AVaR deviation for the transformed variable :math:`Q \mid \vec{y}`, where :math:`Q = \mat{\Psi} \rvv`. The AVaR deviation is defined as the difference between the Average Value at Risk (AVaR) and the expected value of :math:`Q`. Using the properties of the log-normal distribution and positive homogeneity of AVaR, we derive the expected AVaR deviation and its distribution.
+Here we compute the AVaR deviation for the transformed variable :math:`Q \mid \vec{y}`, where :math:`Q = \mat{\Psi} \rvv`. The AVaR deviation is defined as the difference between the Average Value at Risk (AVaR) and the expected value of :math:`Q`. Using the properties of the Normal distribution and positive homogeneity of AVaR, we derive the expected AVaR deviation and its distribution.
 
 
 AVaR of Q | y

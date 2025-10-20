@@ -93,6 +93,34 @@ class Linear1DRegressionModel(DenseMatrixLinearModel):
         )
 
 
+class ExponentialQoIModel(Model):
+    """
+    Exponential of a linear regression model.
+
+    Parameters
+    ----------
+    regression_model: Linear1DRegressionModel
+        The linear regression model.
+    """
+
+    def __init__(self, regression_model: Linear1DRegressionModel):
+        super().__init__(regression_model._bkd)
+        self._regression_model = regression_model
+
+    def _values(self, samples: Array) -> Array:
+        assert False
+        return self._bkd.exp(self._regression_model(samples))
+
+    def nqoi(self) -> int:
+        return self._regression_model.nqoi()
+
+    def nvars(self) -> int:
+        return self._regression_model.nvars()
+
+    def matrix(self) -> Array:
+        return self._regression_model.matrix()
+
+
 class LinearGaussianBayesianOEDBenchmark:
     """
     Defines a Bayesian Optimal Experimental Design (OED) benchmark consisting
@@ -619,6 +647,14 @@ class BayesianOEDDiagnostics(ABC):
             )
 
         utility_values = []
+        # start incrementing halton sequence start index from 1
+        # everytime new number of ninner and nouter samples are given
+        # not really necessary but ensures that the samples
+        # used for one study are a subset of the ones used for the next.
+        if hasattr(self._data_gen, "_inner_halton_seq"):
+            delattr(self._data_gen, "_inner_halton_seq")
+        if hasattr(self._data_gen, "_outer_halton_seq"):
+            delattr(self._data_gen, "_outer_halton_seq")
         for realization in range(nrealizations):
             oed = self.setup_oed()
             (
@@ -1269,3 +1305,24 @@ class BayesianOEDForPredictionDiagnostics(BayesianOEDDiagnostics):
             self._noise_stat,
         )
         return oed.objective()(design_weights)
+
+
+class NonLinearGaussianBayesianOEDForPredictionBenchmark(
+    LinearGaussianBayesianOEDForPredictionBenchmark
+):
+    def _setup_qoi_model(self) -> Model:
+        """
+        Set up the QoI model.
+
+        Returns
+        -------
+        qoi_model: Model
+            QoI model for the experimental design.
+        """
+        regression_model = Linear1DRegressionModel(
+            self._qoi_design,
+            self._degree,
+            min_degree=self._min_degree,
+            backend=self._bkd,
+        )
+        return ExponentialQoIModel(regression_model)

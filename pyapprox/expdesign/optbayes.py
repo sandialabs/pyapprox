@@ -1717,6 +1717,12 @@ class BayesianOEDForPrediction(RelaxedBayesianOED):
 class BayesianOEDDataGenerator:
     def __init__(self, backend: BackendMixin):
         self._bkd = backend
+        # set unbounded eps. This is used when mapping a sobol sequence to a
+        # variable with an unbounded domain, e.g. a Gaussian,
+        # if this is set to high then the accuracy of OED criteria can saturate
+        # as number of inner and outerloop samples are increased because
+        # too much probability is being left out.
+        self._unbounded_eps = 1e-8
 
     def _setup_quadrature_data(
         self, quadtype: str, variable: JointVariable, nsamples: int, loop: str
@@ -1753,10 +1759,10 @@ class BayesianOEDDataGenerator:
                     1,
                     variable,
                     variable._bkd,
-                    unbounded_eps=1e-4,
+                    unbounded_eps=self._unbounded_eps,
                     increment_start_index=True,
                 )
-            elif loop == "outer" and not hasattr(self, "_outer_halton_seq"):
+            if loop == "outer" and not hasattr(self, "_outer_halton_seq"):
                 # save halton sequence so when called multiple times
                 # different sequences will be returned
                 # Need different inner and outer sequence because the dimension
@@ -1766,7 +1772,7 @@ class BayesianOEDDataGenerator:
                     1,
                     variable,
                     variable._bkd,
-                    unbounded_eps=1e-4,
+                    unbounded_eps=self._unbounded_eps,
                     increment_start_index=True,
                 )
             if loop == "inner":

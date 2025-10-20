@@ -19,11 +19,13 @@ from pyapprox.expdesign.optbayes_benchmarks import (
     LinearGaussianBayesianOEDForPredictionBenchmark,
     BayesianOEDForPredictionDiagnostics,
     ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation,
+    ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
 )
 from pyapprox.expdesign.optbayes import (
     NoiseStatistic,
     SampleAverageMean,
     OEDAVaRDeviationMeasure,
+    OEDStandardDeviationMeasure,
 )
 
 # %%
@@ -59,8 +61,10 @@ design_weights = (
 # Set up the risk and deviation measures for the analysis.
 noise_stat = NoiseStatistic(SampleAverageMean(bkd))
 risk_measure = SampleAverageMean(bkd)
-deviation_measure = OEDAVaRDeviationMeasure(nqoi, 0.5, 1000000, bkd)
-utility_cls = ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation
+# deviation_measure = OEDAVaRDeviationMeasure(nqoi, 0.5, 1000000, bkd)
+# utility_cls = ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation
+deviation_measure = OEDStandardDeviationMeasure(nqoi, bkd)
+utility_cls = ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation
 
 # Create the diagnostics instance
 oed_diagnostic = BayesianOEDForPredictionDiagnostics(
@@ -87,31 +91,31 @@ innerloop_sample_counts = [500, 1000, 5000]  # Inner loop sample sizes
 # Compute the MSE for different sample combinations and plot the results.
 fig, axes = plt.subplots(1, 3, figsize=(3 * 8, 6), sharex=True, sharey=True)
 
-# values = oed_diagnostic.compute_mse_for_sample_combinations(
-#     outerloop_sample_counts,
-#     innerloop_sample_counts,
-#     nrealizations,
-#     design_weights,
-#     quadtype,
-#     quadtype,
-# )
-# oed_diagnostic.plot_mse_vs_innerloop_samples(
-#     axes, outerloop_sample_counts, innerloop_sample_counts, values
-# )
+values = oed_diagnostic.compute_mse_for_sample_combinations(
+    outerloop_sample_counts,
+    innerloop_sample_counts,
+    nrealizations,
+    design_weights,
+    quadtype,
+    quadtype,
+)
+oed_diagnostic.plot_mse_vs_innerloop_samples(
+    axes, outerloop_sample_counts, innerloop_sample_counts, values
+)
 
-# # %%
-# # The plots show that for linear OED problems, such as this one, the MSE not depend on the number of outerloop iterations. However, this is not true for nonlinear OED problems. Note, the variation in the horizontal lines is only caused by using a finite number of trials to compute the MSE.
-# #
-# # Section 6: Compute Convergence Rate
-# # -----------------------------------
-# # Compute the convergence rate with respect to inner loop samples.
-# for ii, nin in enumerate(outerloop_sample_counts):
-#     convergence_rate = oed_diagnostic.compute_convergence_rate(
-#         innerloop_sample_counts, bkd.vstack(values["mse"])[:, ii]
-#     )
-#     print(
-#         f"MC convergence rate (ninner_loop_samples={nin}): {convergence_rate:.8f}"
-#     )
+# %%
+# The plots show that for linear OED problems, such as this one, the MSE not depend on the number of outerloop iterations. However, this is not true for nonlinear OED problems. Note, the variation in the horizontal lines is only caused by using a finite number of trials to compute the MSE.
+#
+# Section 6: Compute Convergence Rate
+# -----------------------------------
+# Compute the convergence rate with respect to inner loop samples.
+for ii, nin in enumerate(outerloop_sample_counts):
+    convergence_rate = oed_diagnostic.compute_convergence_rate(
+        innerloop_sample_counts, bkd.vstack(values["mse"])[:, ii]
+    )
+    print(
+        f"MC convergence rate (ninner_loop_samples={nin}): {convergence_rate:.8f}"
+    )
 
 # %%
 # Compute the MSE and Convergence Rate using Quasi-Monte Carlo
@@ -122,8 +126,8 @@ quadtype = "Halton"  # Quadrature type: Halton Sequence
 # Set the number of realizations and sample counts
 nrealizations = 10
 
-outerloop_sample_counts = [100, 500]  # Number of outer loop samples
-innerloop_sample_counts = [500, 1000, 5000, 10000]  # Inner loop sample sizes
+outerloop_sample_counts = [100, 500, 1000]  # Number of outer loop samples
+innerloop_sample_counts = [500, 1000, 5000]  # Inner loop sample sizes
 
 
 # Compute the MSE for different sample combinations and plot the results.
