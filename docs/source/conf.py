@@ -121,6 +121,7 @@ example_filenames_in_order = [
     # PDE
     "plot_fem_helmholtz.py",
     "plot_hamiltonian.py",
+    "plot_time_dependent_adjoint.py",
 ]
 
 # TODO enable once ready to port over tutorials to new API
