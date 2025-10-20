@@ -24,7 +24,7 @@ require benchmarks and analysis tools to evaluate their algorithms.
 """
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 from scipy.stats import norm
@@ -611,13 +611,11 @@ class BayesianOEDDiagnostics(ABC):
         """
         exact_utility = self.exact_utility(design_weights)
         if (
-            outerloop_quadtype != "MC"
-            and innerloop_quadtype != "MC"
-            and nrealizations != 1
-        ):
+            outerloop_quadtype == "gauss" or innerloop_quadtype == "gauss"
+        ) and nrealizations != 1:
             raise ValueError(
-                "When not using MC quadrature the variance of the estimator "
-                "cannot be computed so must set nrealization to 1"
+                "The variance of the estimator cannot be computed when using "
+                "Gauss quadratureso must set nrealization to 1"
             )
 
         utility_values = []
@@ -657,16 +655,15 @@ class BayesianOEDDiagnostics(ABC):
         mse = bias**2 + variance
         return bias, variance, mse
 
-    def plot_mse_for_sample_combinations(
+    def compute_mse_for_sample_combinations(
         self,
-        axes: matplotlib.axes.Axes,
         outerloop_sample_counts: List[int],
         innerloop_sample_counts: List[int],
         nrealizations: int,
         design_weights: Array,
         outerloop_quadtype: str = "MC",
         innerloop_quadtype: str = "MC",
-    ) -> List[matplotlib.lines.Line2D]:
+    ) -> Dict[str, List[Array]]:
         """
         Plot the MSE for different combinations of outer loop and inner loop
         samples.
@@ -686,7 +683,7 @@ class BayesianOEDDiagnostics(ABC):
 
         Returns
         -------
-        values: Dict[str, Array]
+        values: Dict[str, List[Array]]
             Dictionary containing lists of arrays of values for each axis:
             - "sqbias": List[Array] squared-bias values for each
               ninnerloop_samples.
@@ -694,15 +691,9 @@ class BayesianOEDDiagnostics(ABC):
               ninnerloop_samples.
             - "mse":  List[Array] mse values for each
               ninnerloop_samples.
-        lines : Dict[str, List[matplotlib.lines.Line2D]]
-            Dictionary containing lists of line objects for each axis:
-            - "sqbias": Lines for the squared-bias plot.
-            - "variance": Lines for the variance plot.
-            - "mse": Lines for the MSE plot.
         """
         # Store lines for each axis
         values = {"sqbias": [], "variance": [], "mse": []}
-        lines = {"sqbias": [], "variance": [], "mse": []}
         for ninnerloop_samples in innerloop_sample_counts:
             bias_values = []
             variance_values = []
@@ -726,14 +717,55 @@ class BayesianOEDDiagnostics(ABC):
                 )
 
             # Store bias, variance, mse values
-            values["sqbias"].append(self._bkd.hstack(bias_values))
+            values["sqbias"].append(self._bkd.hstack(bias_values) ** 2)
             values["variance"].append(self._bkd.hstack(variance_values))
             values["mse"].append(self._bkd.hstack(mse_values))
+        return values
+
+    def plot_mse_vs_outerloop_samples(
+        self,
+        axes: matplotlib.axes.Axes,
+        outerloop_sample_counts: List[int],
+        innerloop_sample_counts: List[int],
+        values: Dict[str, List[Array]],
+    ) -> List[matplotlib.lines.Line2D]:
+        """
+        Plot the MSE vs the number of outer loop samples for different numbers
+        of inner loop samples.
+
+        Parameters
+        ----------
+        axes : matplotlib.axes.Axes
+            Matplotlib axis object for plotting.
+        outerloop_sample_counts : list
+            List of outer loop sample counts to test.
+        innerloop_sample_counts : list
+            List of inner loop sample counts to test.
+        values: Dict[str, List[Array]]
+            Dictionary containing lists of arrays of values for each axis:
+            - "sqbias": List[Array] squared-bias values for each
+              ninnerloop_samples.
+            - "variance":  List[Array] variance values for each
+              ninnerloop_samples.
+            - "mse":  List[Array] mse values for each
+              ninnerloop_samples.
+
+        Returns
+        -------
+        lines : Dict[str, List[matplotlib.lines.Line2D]]
+            Dictionary containing lists of line objects for each axis:
+            - "sqbias": Lines for the squared-bias plot.
+            - "variance": Lines for the variance plot.
+            - "mse": Lines for the MSE plot.
+        """
+
+        lines = {"sqbias": [], "variance": [], "mse": []}
+        for ii, ninnerloop_samples in enumerate(innerloop_sample_counts):
 
             # Plot squared-bias
             bias_line = axes[0].loglog(
                 outerloop_sample_counts,
-                self._bkd.array(bias_values) ** 2,
+                values["sqbias"][ii],
                 label=f"Inner Loop Samples: {ninnerloop_samples}",
                 marker="o",
             )
@@ -742,7 +774,7 @@ class BayesianOEDDiagnostics(ABC):
             # Plot variance
             variance_line = axes[1].loglog(
                 outerloop_sample_counts,
-                variance_values,
+                values["variance"][ii],
                 label=f"Inner Loop Samples: {ninnerloop_samples}",
                 marker="o",
             )
@@ -751,19 +783,21 @@ class BayesianOEDDiagnostics(ABC):
             # Plot MSE
             mse_line = axes[2].loglog(
                 outerloop_sample_counts,
-                mse_values,
+                values["mse"][ii],
                 label=f"Inner Loop Samples: {ninnerloop_samples}",
                 marker="o",
             )
             lines["mse"].extend(mse_line)
 
         # Customize bias plot
+        axes[0].set_xlabel("Outer Loop Samples")
         axes[0].set_ylabel("Squared-Bias")
         axes[0].set_title("Squared-Bias of Expected Information Gain")
         axes[0].legend()
         axes[0].grid(True)
 
         # Customize variance plot
+        axes[1].set_xlabel("Outer Loop Samples")
         axes[1].set_ylabel("Variance")
         axes[1].set_title("Variance of Expected Information Gain")
         axes[1].legend()
@@ -775,7 +809,98 @@ class BayesianOEDDiagnostics(ABC):
         axes[2].set_title("MSE of Expected Information Gain")
         axes[2].legend()
         axes[2].grid(True)
-        return values, lines
+        return lines
+
+    def plot_mse_vs_innerloop_samples(
+        self,
+        axes: matplotlib.axes.Axes,
+        outerloop_sample_counts: List[int],
+        innerloop_sample_counts: List[int],
+        values: Dict[str, List[Array]],
+    ) -> List[matplotlib.lines.Line2D]:
+        """
+        Plot the MSE vs the number of inner loop samples for different numbers
+        of outer loop samples.
+
+        Parameters
+        ----------
+        axes : matplotlib.axes.Axes
+            Matplotlib axis object for plotting.
+        outerloop_sample_counts : list
+            List of outer loop sample counts to test.
+        innerloop_sample_counts : list
+            List of inner loop sample counts to test.
+        values: Dict[str, List[Array]]
+            Dictionary containing lists of arrays of values for each axis:
+            - "sqbias": List[Array] squared-bias values for each
+              ninnerloop_samples.
+            - "variance":  List[Array] variance values for each
+              ninnerloop_samples.
+            - "mse":  List[Array] mse values for each
+              ninnerloop_samples.
+
+        Returns
+        -------
+        lines : Dict[str, List[matplotlib.lines.Line2D]]
+            Dictionary containing lists of line objects for each axis:
+            - "sqbias": Lines for the squared-bias plot.
+            - "variance": Lines for the variance plot.
+            - "mse": Lines for the MSE plot.
+        """
+        lines = {"sqbias": [], "variance": [], "mse": []}
+        sqbias = self._bkd.vstack(values["sqbias"])
+        variance = self._bkd.vstack(values["variance"])
+        mse = self._bkd.vstack(values["mse"])
+        for ii, nouterloop_samples in enumerate(outerloop_sample_counts):
+
+            # Plot squared-bias
+            bias_line = axes[0].loglog(
+                innerloop_sample_counts,
+                sqbias[:, ii],
+                label=f"Outer Loop Samples: {nouterloop_samples}",
+                marker="o",
+            )
+            lines["sqbias"].extend(bias_line)
+
+            # Plot variance
+            variance_line = axes[1].loglog(
+                innerloop_sample_counts,
+                variance[:, ii],
+                label=f"Outer Loop Samples: {nouterloop_samples}",
+                marker="o",
+            )
+            lines["variance"].extend(variance_line)
+
+            # Plot MSE
+            mse_line = axes[2].loglog(
+                innerloop_sample_counts,
+                mse[:, ii],
+                label=f"Outer Loop Samples: {nouterloop_samples}",
+                marker="o",
+            )
+            lines["mse"].extend(mse_line)
+
+        # Customize bias plot
+        axes[0].set_xlabel("Inner Loop Samples")
+        axes[0].set_ylabel("Squared-Bias")
+        axes[0].set_title("Squared-Bias of Expected Information Gain")
+        axes[0].legend()
+        axes[0].grid(True)
+
+        # Customize variance plot
+        axes[1].set_xlabel("Inner Loop Samples")
+        axes[1].set_ylabel("Variance")
+        axes[1].set_title("Variance of Expected Information Gain")
+        axes[1].legend()
+        axes[1].grid(True)
+
+        # Customize MSE plot
+        axes[2].set_xlabel("Inner Loop Samples")
+        axes[2].set_ylabel("Mean Squared Error (MSE)")
+        axes[2].set_title("MSE of Expected Information Gain")
+        axes[2].legend()
+        axes[2].grid(True)
+        return lines
 
     def compute_convergence_rate(
         self, sample_counts: List[int], values: List[float]

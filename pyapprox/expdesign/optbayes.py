@@ -1719,7 +1719,7 @@ class BayesianOEDDataGenerator:
         self._bkd = backend
 
     def _setup_quadrature_data(
-        self, quadtype: str, variable: JointVariable, nsamples: int
+        self, quadtype: str, variable: JointVariable, nsamples: int, loop: str
     ) -> Tuple[Array, Array]:
         """
         Helper function to set up quadrature data for integration using
@@ -1745,15 +1745,35 @@ class BayesianOEDDataGenerator:
             )
 
         if quadtype == "Halton":
-            sequence = HaltonSequence(
-                variable.nvars(),
-                1,
-                variable,
-                variable._bkd,
-                unbounded_eps=1e-4,
-                increment_start_index=True,
-            )
-            return sequence.rvs(nsamples), self._bkd.full(
+            if loop == "inner" and not hasattr(self, "_inner_halton_seq"):
+                # save halton sequence so when called multiple times
+                # different sequences will be returned
+                self._inner_halton_seq = HaltonSequence(
+                    variable.nvars(),
+                    1,
+                    variable,
+                    variable._bkd,
+                    unbounded_eps=1e-4,
+                    increment_start_index=True,
+                )
+            elif loop == "outer" and not hasattr(self, "_outer_halton_seq"):
+                # save halton sequence so when called multiple times
+                # different sequences will be returned
+                # Need different inner and outer sequence because the dimension
+                # of the variables are different
+                self._outer_halton_seq = HaltonSequence(
+                    variable.nvars(),
+                    1,
+                    variable,
+                    variable._bkd,
+                    unbounded_eps=1e-4,
+                    increment_start_index=True,
+                )
+            if loop == "inner":
+                return self._inner_halton_seq.rvs(nsamples), self._bkd.full(
+                    (nsamples, 1), 1.0 / nsamples
+                )
+            return self._outer_halton_seq.rvs(nsamples), self._bkd.full(
                 (nsamples, 1), 1.0 / nsamples
             )
 
@@ -1807,14 +1827,17 @@ class BayesianOEDDataGenerator:
         )
         outerloop_samples, outerloop_quad_weights = (
             self._setup_quadrature_data(
-                outerloop_quadtype, prior_data_variable, nouterloop_samples
+                outerloop_quadtype,
+                prior_data_variable,
+                nouterloop_samples,
+                "outer",
             )
         )
 
         # Generate inner loop quadrature data
         innerloop_samples, innerloop_quad_weights = (
             self._setup_quadrature_data(
-                innerloop_quadtype, prior, ninnerloop_samples
+                innerloop_quadtype, prior, ninnerloop_samples, "inner"
             )
         )
         return (

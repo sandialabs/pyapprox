@@ -93,15 +93,18 @@ class TestBayesOED:
         fig, axes = plt.subplots(
             1, 3, figsize=(3 * 8, 6), sharex=True, sharey=True
         )
-        values = oed_diagnostic.plot_mse_for_sample_combinations(
-            axes,
+        oed_diagnostic = BayesianKLOEDDiagnostics(problem)
+        values = oed_diagnostic.compute_mse_for_sample_combinations(
             outerloop_sample_counts,
             innerloop_sample_counts,
             nrealizations,
             design_weights,
             outerloop_quadtype,
             innerloop_quadtype,
-        )[0]
+        )
+        oed_diagnostic.plot_mse_vs_outerloop_samples(
+            axes, outerloop_sample_counts, innerloop_sample_counts, values
+        )
         convergence_rate = oed_diagnostic.compute_convergence_rate(
             outerloop_sample_counts, values["mse"][0]
         )
@@ -929,15 +932,17 @@ class TestBayesOED:
         fig, axes = plt.subplots(
             1, 3, figsize=(3 * 8, 6), sharex=True, sharey=True
         )
-        values = oed_diagnostic.plot_mse_for_sample_combinations(
-            axes,
+        values = oed_diagnostic.compute_mse_for_sample_combinations(
             outerloop_sample_counts,
             innerloop_sample_counts,
             nrealizations,
             design_weights,
             quadtype,
             quadtype,
-        )[0]
+        )
+        oed_diagnostic.plot_mse_vs_innerloop_samples(
+            axes, outerloop_sample_counts, innerloop_sample_counts, values
+        )
         # When models are linear and Gaussian nouterloop_samples does not
         # impact error as expected_deviations are independent of the
         # observation data so check convergence_rate with respect to
