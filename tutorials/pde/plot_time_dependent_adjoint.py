@@ -121,6 +121,14 @@ Thus, for our 2 step (and initial condition)
 .. math::
    J(y(\theta), \theta) = \Delta^{(1)} y^{(1)} + \Delta^{(2)} y^{(2)}
 
+The following list summarizes common examples of the connections between quadrature rules and time integration:
+
+- Explicit Euler: left-sided rectangular quadrature rule
+- Explicit Mid-Point Rule (Heun's Method): piecewise-linear (trapezoid) quadrature.
+- Implicit Euler: right-sided rectangular quadrature rule
+- Implicit Mid-Point Rule (Crank-Nicholson): piecewise-linear (trapezoid) quadrature.
+
+
 Compute Necessary Quantities
 ----------------------------
 
