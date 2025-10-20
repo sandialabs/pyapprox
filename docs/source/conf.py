@@ -62,6 +62,7 @@ example_filenames_in_order = [
     # Optimization
     "plot_sgd_vs_adam.py",
     "plot_adjoints.py",
+    "plot_hessian_chain_rule.py",
     # Inference
     "plot_bayesian_inference.py",
     "plot_bayesian_networks.py",
