@@ -924,6 +924,12 @@ class ImplicitTimeIntegrator:
 
     def gradient(self, fwd_sols: Array, times: Array) -> Array:
         adj_sols = self.solve_adjoint(fwd_sols, times)
+        return self.gradient_from_adjoint_sols(adj_sols, fwd_sols, times)
+
+    def gradient_from_adjoint_sols(
+        self, adj_sols: Array, fwd_sols: Array, times: Array
+    ) -> Array:
+
         dqdp = self._functional.qoi_param_jacobian(fwd_sols)
         grad = dqdp
         # fwd_sols[:, 0] will never be used

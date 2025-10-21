@@ -124,7 +124,7 @@ for ii, nin in enumerate(outerloop_sample_counts):
 
 quadtype = "Halton"  # Quadrature type: Halton Sequence
 # Set the number of realizations and sample counts
-nrealizations = 10
+nrealizations = 100
 
 outerloop_sample_counts = [100, 500, 1000]  # Number of outer loop samples
 innerloop_sample_counts = [500, 1000, 5000]  # Inner loop sample sizes

@@ -49,7 +49,7 @@ design_weights = (
 # -------------------------------------------------------------------
 quadtype = "MC"  # Quadrature type: Monte Carlo (MC)
 # Set the number of realizations and sample counts. Must be one for a deterministic sequence
-nrealizations = 1000
+nrealizations = 100
 
 outerloop_sample_counts = [500, 1000, 5000]  # Number of outer loop samples
 innerloop_sample_counts = [100, 1000]  # Inner loop sample sizes
@@ -92,7 +92,7 @@ for ii, nin in enumerate(innerloop_sample_counts):
 
 quadtype = "Halton"  # Quadrature type: Halton Sequence
 # Set the number of realizations and sample counts
-nrealizations = 1000
+nrealizations = 100
 
 outerloop_sample_counts = [500, 1000, 5000]  # Number of outer loop samples
 innerloop_sample_counts = [100, 1000]  # Inner loop sample sizes
