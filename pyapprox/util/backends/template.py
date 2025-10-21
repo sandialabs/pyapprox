@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import itertools
-from typing import TypeVar, List
+from typing import TypeVar, List, Union
 
 Array = TypeVar("Array")
 
@@ -945,4 +945,86 @@ class BackendMixin(ABC):
     @staticmethod
     @abstractmethod
     def searchsorted(array: Array, values: Array, side: str = "left") -> Array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def fft(mat: Array, axis=None, **kwargs) -> Array:
+        """Compute fast Fourier transform of mat."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def ifft(mat: Array, axis=None, **kwargs) -> Array:
+        """Compute inverse fast Fourier transform of mat."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def fftshift(mat: Array, axis=None, **kwargs) -> Array:
+        """Re-index FFT so that mode 0 is in the center"""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def ifftshift(mat: Array, axis=None, **kwargs) -> Array:
+        """Re-index inverse FFT"""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def cfloat():
+        """Returns native complex dtype (64-bit for each part)"""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def transpose(mat: Array, axis=None) -> Array:
+        """Returns transpose of mat along axis"""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def size(mat: Array) -> int:
+        """Returns number of elements in mat"""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def random_seed(val: int):
+        """Set random seed"""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def normal(mean: Union[float, Array],
+               stdev: Union[float, Array],
+               size=(1,),
+               **kwargs) -> Array:
+        """Compute realizations of a normal distribution."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def uniform(lb: Union[float, Array],
+                ub: Union[float, Array],
+                size=(1,),
+                **kwargs) -> Array:
+        """Compute realizations of a uniform distribution."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def nan():
+        """Return native representation of nan."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def get_slices(mat: Array, slices) -> Array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def concatenate(mats: List[Array], axis: int = 0) -> Array:
         raise NotImplementedError

@@ -308,7 +308,7 @@ def greens_solution_fourier(kernel, forc, xx, N):
     if N == 0:
         coefs[:, 1:] = 0
     else:
-        coefs[:, N : -N + 1] = 0
+        coefs[:, N:-N+1] = 0
     kvals = bkd.ifft(coefs[..., None], axis=(-2,))[..., 0].T.real
     return kvals * forc(quad_xx)[:, 0] @ quad_ww
 
@@ -435,7 +435,7 @@ U = bkd.zeros((kmax + 1, kmax + 1))
 c = 0
 diag_idx = range(kmax + 1)
 for k in diag_idx:
-    U[k, k:] = cheb_U[c : c + kmax + 1 - k]
+    U[k, k:] = cheb_U[c:c+kmax+1-k]
     c += kmax + 1 - k
 A = U.T + U
 A[diag_idx, diag_idx] = U[diag_idx, diag_idx]
@@ -577,7 +577,7 @@ _ = plt.legend()
 # In this section, we will repeat the previous experiments using
 # (approximations of) Dirac delta functions as input functions:
 
-x = bkd.asarray([0])
+x = bkd.asarray([0], dtype=float)
 nfterms = 40
 c = fct.chebyshev_poly_basis(x, nfterms)
 xx = bkd.linspace(-1, 1, 201)
@@ -672,7 +672,7 @@ U = bkd.zeros((kmax + 1, kmax + 1))
 c = 0
 diag_idx = range(kmax + 1)
 for k in diag_idx:
-    U[k, k:] = cheb_U[c : c + kmax + 1 - k]
+    U[k, k:] = cheb_U[c:c+kmax+1-k]
     c += kmax + 1 - k
 A = U.T + U
 A[diag_idx, diag_idx] = U[diag_idx, diag_idx]

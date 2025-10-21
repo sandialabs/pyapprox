@@ -8,6 +8,7 @@ from pyapprox.util.hyperparameter import (
 )
 from pyapprox.util.backends.template import BackendMixin
 from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.sciml.util import FCT
 
 
 class IntegralOperator(ABC):
@@ -238,7 +239,7 @@ class DenseAffineIntegralOperator(IntegralOperator):
         W = self._weights_biases.get_values()[: -self._b_size].reshape(
             self._noutputs, self._ninputs, self._channel_out, self._channel_in
         )
-        b = self._weights_biases.get_values()[-self._b_size :].reshape(
+        b = self._weights_biases.get_values()[-self._b_size:].reshape(
             self._noutputs, self._channel_out
         )
         if self._channel_in > 1 or self._channel_out > 1:
@@ -268,13 +269,13 @@ class DenseAffineIntegralOperatorFixedBias(DenseAffineIntegralOperator):
 
     def _default_values(self, v0):
         weights_biases = super()._default_values(v0)
-        weights_biases[-self._b_size :] = 0.0
+        weights_biases[-self._b_size:] = 0.0
         return weights_biases
 
     def _default_bounds(self):
         bounds = super()._default_bounds().reshape(self._nvars_mat, 2)
-        bounds[-self._b_size :, 0] = np.nan
-        bounds[-self._b_size :, 1] = np.nan
+        bounds[-self._b_size:, 0] = np.nan
+        bounds[-self._b_size:, 1] = np.nan
         return bounds.flatten()
 
 
@@ -350,7 +351,7 @@ class DenseAffinePointwiseOperator(IntegralOperator):
         W = self._weights_biases.get_values()[: -self._b_size].reshape(
             self._channel_out, self._channel_in
         )
-        b = self._weights_biases.get_values()[-self._b_size :]
+        b = self._weights_biases.get_values()[-self._b_size:]
         return (
             self._bkd.einsum("ij,...jk->...ik", W, y_k_samples)
             + b[None, ..., None]
@@ -370,13 +371,13 @@ class DenseAffinePointwiseOperatorFixedBias(DenseAffinePointwiseOperator):
 
     def _default_values(self, v0):
         weights_biases = super()._default_values(v0)
-        weights_biases[-self._b_size :] = 0.0
+        weights_biases[-self._b_size:] = 0.0
         return weights_biases
 
     def _default_bounds(self):
         bounds = super()._default_bounds().reshape(self._nvars_mat, 2)
-        bounds[-self._b_size :, 0] = np.nan
-        bounds[-self._b_size :, 1] = np.nan
+        bounds[-self._b_size:, 0] = np.nan
+        bounds[-self._b_size:, 1] = np.nan
         return bounds.flatten()
 
 
@@ -600,10 +601,10 @@ class FourierHSOperator(BaseFourierOperator):
         for i in range(self._kmax + 1):
             stride = (2 * self._kmax + 1 - 2 * i) * self._channel_factor
             cols = slice(i, 2 * self._kmax + 1 - i)
-            v[i, cols, ...].real.flatten()[:] = v_float[start : start + stride]
+            v[i, cols, ...].real.flatten()[:] = v_float[start:start+stride]
             if i < self._kmax:
                 v[i, cols, ...].imag.flatten()[:] = v_float[
-                    start + stride : start + 2 * stride
+                    start+stride:start+2*stride
                 ]
             start += 2 * stride
 
@@ -932,7 +933,7 @@ class ChebyshevIntegralOperator(IntegralOperator):
         diag_idx = range(self._kmax + 1)
         c = 0
         for k in diag_idx:
-            U[k, k:] = cheb_U[c : c + self._kmax + 1 - k]
+            U[k, k:] = cheb_U[c:c+self._kmax+1-k]
             c += self._kmax + 1 - k
         if not self._chol:
             A = U + U.T

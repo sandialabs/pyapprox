@@ -1,6 +1,6 @@
 import platform
 import warnings
-from typing import List
+from typing import List, Union
 
 import torch
 
@@ -337,8 +337,12 @@ class TorchMixin(BackendMixin):
     @staticmethod
     def flip(mat: torch.Tensor, axis=None) -> torch.Tensor:
         if axis is None:
-            axis = (0,)
-        return torch.flip(mat, dims=axis)
+            _axis = (0,)
+        elif type(axis) == int:
+            _axis = (axis,)
+        else:
+            _axis = axis
+        return torch.flip(mat, dims=_axis)
 
     @staticmethod
     def allclose(Amat: torch.Tensor, Bmat: torch.Tensor, **kwargs) -> bool:
@@ -483,18 +487,18 @@ class TorchMixin(BackendMixin):
         return torch.unique(array, dim=axis, **kwargs)
 
     @staticmethod
-    def delete(array, obj, axis=None):
+    def delete(array: torch.tensor, inds, axis=None):
         if axis is None:
+            _arr = array.flatten()
             axis = 0
-        mask = __class__.ones(array.shape[axis], dtype=bool)
-        mask[torch.asarray(obj, dtype=int)] = False
-        if axis == 0:
-            return array[mask]
-        if axis == 1:
-            return array[:, mask]
-        if axis == -1:
-            return array[..., mask]
-        raise NotImplementedError("axis must be in (0, 1, -1)")
+        else:
+            _arr = array
+        skip = [i.item() for i in torch.arange(_arr.shape[axis])[inds]]
+        retained = [i.item() for i in torch.arange(_arr.shape[axis])
+                    if i not in skip]
+        indices = [slice(None) if i != axis else retained
+                   for i in range(_arr.ndim)]
+        return _arr[indices]
 
     @staticmethod
     def jacobian_implemented() -> bool:
@@ -684,3 +688,81 @@ class TorchMixin(BackendMixin):
             "Making CPUs default. This also set default dtype to double",
             UserWarning,
         )
+
+    @staticmethod
+    def fft(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
+        if mat.ndim < 3:
+            raise ValueError('mat must explicitly express channel and sample '
+                             'dimensions')
+        _axis = list(range(mat.ndim-2)) if axis is None else axis
+        return torch.fft.fftn(mat, dim=_axis, **kwargs)
+
+    @staticmethod
+    def ifft(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
+        if mat.ndim < 3:
+            raise ValueError('mat must explicitly express channel and sample '
+                             'dimensions')
+        _axis = list(range(mat.ndim-2)) if axis is None else axis
+        return torch.fft.ifftn(mat, dim=_axis, **kwargs)
+
+    @staticmethod
+    def fftshift(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
+        if mat.ndim < 3:
+            raise ValueError('mat must explicitly express channel and sample '
+                             'dimensions')
+        _axis = list(range(mat.ndim-2)) if axis is None else axis
+        return torch.fft.fftshift(mat, dim=_axis, **kwargs)
+
+    @staticmethod
+    def ifftshift(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
+        if mat.ndim < 3:
+            raise ValueError('mat must explicitly express channel and sample '
+                             'dimensions')
+        _axis = list(range(mat.ndim-2)) if axis is None else axis
+        return torch.fft.ifftshift(mat, dim=_axis, **kwargs)
+
+    @staticmethod
+    def cfloat():
+        return torch.complex128
+
+    @staticmethod
+    def transpose(mat: torch.tensor, axis=None) -> torch.tensor:
+        if axis is None:
+            axis = list(range(mat.ndim-1, -1, -1))
+        if not hasattr(axis, '__iter__'):
+            axis = [axis]
+        return torch.permute(mat, dims=axis)
+
+    @staticmethod
+    def size(mat: torch.tensor) -> int:
+        return torch.numel(mat)
+
+    @staticmethod
+    def random_seed(val: int):
+        torch.manual_seed(val)
+
+    @staticmethod
+    def normal(mean: Union[float, torch.tensor],
+               stdev: Union[float, torch.tensor],
+               size=(1,),
+               dtype=float) -> torch.tensor:
+        return torch.empty(size, dtype=dtype).normal_(mean, stdev)
+
+    @staticmethod
+    def uniform(lb: Union[float, torch.tensor],
+                ub: Union[float, torch.tensor],
+                size=(1,),
+                dtype=float) -> torch.tensor:
+        return torch.empty(size, dtype=dtype).uniform_(lb, ub)
+
+    @staticmethod
+    def nan():
+        return torch.nan
+
+    @staticmethod
+    def get_slices(mat: torch.tensor, slices) -> torch.tensor:
+        return mat[slices]
+
+    @staticmethod
+    def concatenate(mats: List[torch.tensor], axis: int = 0) -> torch.tensor:
+        return torch.cat(mats, dim=axis)

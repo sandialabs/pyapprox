@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 
 import jax
 import jax.numpy as np
@@ -330,7 +330,7 @@ class JaxBackendMixin(BackendMixin):
         return np.maximum(array1, array2)
 
     @staticmethod
-    def minimum(array1: np.ndarray, array: np.ndarray2):
+    def minimum(array1: np.ndarray, array2: np.ndarray):
         return np.minimum(array1, array2)
 
     @staticmethod
@@ -568,3 +568,77 @@ class JaxBackendMixin(BackendMixin):
         array: np.ndarray, values: np.ndarray, side: str = "left"
     ) -> np.ndarray:
         return np.searchsorted(array, values, side)
+
+    @staticmethod
+    def fft(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
+        if mat.ndim < 3:
+            raise ValueError('mat must explicitly express channel and sample '
+                             'dimensions')
+        _axis = list(range(mat.ndim-2)) if axis is None else axis
+        return np.fft.fftn(mat, axes=_axis, **kwargs)
+
+    @staticmethod
+    def ifft(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
+        if mat.ndim < 3:
+            raise ValueError('mat must explicitly express channel and sample '
+                             'dimensions')
+        _axis = list(range(mat.ndim-2)) if axis is None else axis
+        return np.fft.ifftn(mat, axes=_axis, **kwargs)
+
+    @staticmethod
+    def fftshift(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
+        if mat.ndim < 3:
+            raise ValueError('mat must explicitly express channel and sample '
+                             'dimensions')
+        _axis = list(range(mat.ndim-2)) if axis is None else axis
+        return np.fft.fftshift(mat, axes=_axis, **kwargs)
+
+    @staticmethod
+    def ifftshift(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
+        if mat.ndim < 3:
+            raise ValueError('mat must explicitly express channel and sample '
+                             'dimensions')
+        _axis = list(range(mat.ndim-2)) if axis is None else axis
+        return np.fft.ifftshift(mat, axes=_axis, **kwargs)
+
+    @staticmethod
+    def cfloat():
+        return np.complex128
+
+    @staticmethod
+    def transpose(mat: np.ndarray, axis=None) -> np.ndarray:
+        return np.transpose(mat, axes=axis)
+
+    @staticmethod
+    def size(mat: np.ndarray) -> int:
+        return mat.size
+
+    @staticmethod
+    def random_seed(val: int):
+        np.random.seed(val)
+
+    @staticmethod
+    def normal(mean: Union[float, np.ndarray],
+               stdev: Union[float, np.ndarray],
+               size=(1,),
+               dtype=float) -> np.ndarray:
+        return np.random.normal(mean, stdev, size=size).astype(dtype)
+
+    @staticmethod
+    def uniform(lb: Union[float, np.ndarray],
+                ub: Union[float, np.ndarray],
+                size=(1,),
+                dtype=float) -> np.ndarray:
+        return np.random.uniform(lb, ub, size=size).astype(dtype)
+
+    @staticmethod
+    def nan():
+        return np.nan
+
+    @staticmethod
+    def get_slices(mat: np.ndarray, slices: list) -> np.ndarray:
+        return mat[*slices]
+
+    @staticmethod
+    def concatenate(mats: List[np.ndarray], axis: int = 0) -> np.ndarray:
+        return np.concatenate(mats, axis=axis)

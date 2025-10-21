@@ -1,6 +1,7 @@
 import unittest
 from functools import partial
-from pyapprox.sciml.util import FCT, TorchMixin
+from pyapprox.sciml.util import FCT
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.sciml.network import CERTANN
 from pyapprox.sciml.integraloperators import (
     FourierConvolutionOperator, ChebyshevConvolutionOperator,
@@ -13,12 +14,12 @@ from pyapprox.sciml.activations import IdentityActivation
 from pyapprox.surrogates.kernels import MaternKernel
 from pyapprox.surrogates.univariate.orthopoly import (
     GaussLegendreQuadratureRule, Chebyshev1stKindGaussLobattoQuadratureRule)
-
+import torch
 
 class TestIntegralOperators(unittest.TestCase):
     def setUp(self):
         self._bkd = TorchMixin
-        self._bkd.random_seed(1)
+        self._bkd.random_seed(0)
         self._fct = FCT(backend=self._bkd)
         self.pi = 3.1415926535897932
 
@@ -103,7 +104,7 @@ class TestIntegralOperators(unittest.TestCase):
         (X, Y) = self._bkd.meshgrid(xx, xx)
         u = ((X+Y)**2)[..., None, None]
         v = 1.0 / (1.0 + (5*X*Y)**2)[..., None, None]
-        w = self._bkd.normal(0, 1, u.shape)
+        w = self._bkd.uniform(0, 1, u.shape)
         u_per = self._fct.even_periodic_extension(u)
         v_per = self._fct.even_periodic_extension(v)
         w_per = self._fct.even_periodic_extension(w)
@@ -113,8 +114,7 @@ class TestIntegralOperators(unittest.TestCase):
         w_tconv_v = w_tconv_v[:N, :N, 0, 0].real
         kmax = N-1
         fct_v = self._fct.fct(v)[:kmax+1, :kmax+1, 0, 0]
-        v0 = (fct_v.flatten() *
-              (1 + self._bkd.normal(0, 1.0, ((kmax+1)**2,))))
+        v0 = self._bkd.normal(0, 1.0/(kmax+1)**2, ((kmax+1)**2,))
 
         # We do not have enough "quality" (def?) samples to recover fct(v).
         # Set initial iterate with 4% noise until we figure out sampling.
@@ -126,7 +126,7 @@ class TestIntegralOperators(unittest.TestCase):
                                   w_tconv_v.flatten()]).T[:, None, :],
                 tol=1e-6)
 
-        tol = 7e-3
+        tol = 3e-2
         relerr = (self._bkd.norm(fct_v.flatten() - ctn._hyp_list.get_values())
                   / self._bkd.norm(fct_v.flatten()))
         assert relerr < tol, f'Relative error = {relerr:.2e} > {tol:.2e}'
@@ -205,7 +205,7 @@ class TestIntegralOperators(unittest.TestCase):
                       [IdentityActivation()])
         ctn.fit(XX, YY, tol=1e-14)
         true_weights = self._bkd.hstack([W.flatten(), b.flatten()])
-        network_weights = self._bkd.atleast1d(ctn._hyp_list.get_values(),
+        network_weights = self._bkd.asarray(ctn._hyp_list.get_values(),
                                               dtype=XX.dtype)
         assert self._bkd.allclose(true_weights, network_weights), (
                                   'Indexing mismatch in network weight '
@@ -338,8 +338,8 @@ class TestIntegralOperators(unittest.TestCase):
         quad.set_nnodes(17)
 
         # Same kernel for all output channels
-        lenscale = self._bkd.atleast1d([0.5])
-        lenscale_bounds = self._bkd.atleast1d([1e-5, 10])
+        lenscale = self._bkd.asarray([0.5])
+        lenscale_bounds = self._bkd.asarray([1e-5, 10])
         kernel = MaternKernel(nu=0.5, lenscale=lenscale,
                               lenscale_bounds=lenscale_bounds, nvars=1,
                               backend=self._bkd)

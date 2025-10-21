@@ -274,7 +274,7 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         training_samples = training_samples[:, None, :]
         training_values = ctn_manuf(training_samples)
         noise_stdev = 1e-1  # standard deviation of additive noise
-        v0_affine = ctn_manuf._hyp_list.hyper_params[0].get_values()
+        v0_affine = ctn_manuf._hyp_list._hyper_params[0].get_values()
         v0_affine_rand = bkd.normal(0, noise_stdev, v0_affine.shape)
         v0_conv_rand = bkd.normal(0, noise_stdev, v0_conv.shape)
 

@@ -74,7 +74,6 @@ class CERTANN:
         else:
             self._values_trans = values_trans
 
-        print(self._layers[0]._hyp_list)
         self._hyp_list = sum([layer._hyp_list for layer in self._layers])
         self._loss_str = loss
 
@@ -93,7 +92,7 @@ class CERTANN:
             ntrain_samples / batches
         )
         batch_sizes[0] = 0
-        batch_sizes[1 : (ntrain_samples % batches)] += 1
+        batch_sizes[1:(ntrain_samples % batches)] += 1
         batch_arr = self._bkd.cumsum(batch_sizes, axis=0)
 
         idx0 = int(batch_arr[batch_index].item())
