@@ -13,10 +13,8 @@ from pyapprox.variables.marginals import (
 )
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.interface.model import (
-    ModelFromSingleSampleCallable,
-    ForwardFiniteDifference,
-)
+from pyapprox.interface.model import ModelFromSingleSampleCallable
+from pyapprox.interface.finitedifference import ForwardFiniteDifference
 
 
 class TestMarginals:

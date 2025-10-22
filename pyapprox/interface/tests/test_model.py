@@ -17,13 +17,15 @@ from pyapprox.interface.model import (
     PoolModelWrapper,
     SerialIOModel,
     AsyncIOModel,
-    ForwardFiniteDifference,
-    BackwardFiniteDifference,
-    CenteredFiniteDifference,
     DenseMatrixLinearModel,
     QuadraticMatrixModel,
     Model,
     create_active_set_variable_model,
+)
+from pyapprox.interface.finitedifference import (
+    ForwardFiniteDifference,
+    BackwardFiniteDifference,
+    CenteredFiniteDifference,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
