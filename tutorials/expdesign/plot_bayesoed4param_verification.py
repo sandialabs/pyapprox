@@ -1,6 +1,6 @@
 """
-Computing the Convergence Rate of Numerical Estimates for Expected Information Gain
-===================================================================================
+Numerical Convergence Rates for Expected Information Gain
+=========================================================
 
 This tutorial focuses on numerically verifying the accuracy of these expressions of estimates of expected information gain, used for Bayesian Optimal Experimental Design (BOED), by computing the convergence rate of numerical estimates using different quadrature methods and sample sizes.
 

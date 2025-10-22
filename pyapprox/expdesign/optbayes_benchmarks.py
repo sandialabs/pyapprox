@@ -108,7 +108,6 @@ class ExponentialQoIModel(Model):
         self._regression_model = regression_model
 
     def _values(self, samples: Array) -> Array:
-        assert False
         return self._bkd.exp(self._regression_model(samples))
 
     def nqoi(self) -> int:

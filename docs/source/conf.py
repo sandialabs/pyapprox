@@ -75,7 +75,8 @@ example_filenames_in_order = [
     # ExpDesign
     "plot_bayesian_oed.py",
     "plot_bayesoed4param_formulation.py",
-    "plot_bayesoed4pred_expressions.py",
+    "plot_bayesoed4pred_gaussian_expressions.py",
+    "plot_bayesoed4pred_lognormal_expressions.py",
     "plot_bayesoed4param_verification.py",
     "plot_bayesoed4pred_verification.py",
     # Surrogates

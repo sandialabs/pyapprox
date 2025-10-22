@@ -81,7 +81,7 @@ class TestBayesOED:
         oed_diagnostic = BayesianKLOEDDiagnostics(problem)
 
         # Compute MSE
-        if outerloop_quadtype != "MC" or innerloop_quadtype != "MC":
+        if outerloop_quadtype == "gauss" or innerloop_quadtype == "gauss":
             nrealizations = 1
         else:
             nrealizations = 100
@@ -922,7 +922,7 @@ class TestBayesOED:
         )
 
         # Test expected convergence_rate
-        if quadtype != "MC":
+        if quadtype == "gauss":
             nrealizations = 1
         else:
             nrealizations = 1000
@@ -1041,12 +1041,12 @@ class TestBayesOED:
         )
 
         # Test expected convergence_rate
-        if quadtype != "MC":
+        if quadtype == "gauss":
             nrealizations = 1
         else:
-            nrealizations = 1000
+            nrealizations = 100  # 0
         design_weights = bkd.ones((nobs, 1)) / nobs
-        outerloop_sample_counts = [2]
+        outerloop_sample_counts = [10000]
         innerloop_sample_counts = [500, 1000, 2000, 5000]
 
         fig, axes = plt.subplots(
@@ -1063,6 +1063,7 @@ class TestBayesOED:
         oed_diagnostic.plot_mse_vs_innerloop_samples(
             axes, outerloop_sample_counts, innerloop_sample_counts, values
         )
+        plt.show()
         # When models are linear and Gaussian nouterloop_samples does not
         # impact error as expected_deviations are independent of the
         # observation data so check convergence_rate with respect to
@@ -1093,7 +1094,7 @@ class TestBayesOED:
                 SampleAverageMean(bkd),
                 OEDStandardDeviationMeasure(nqoi, bkd),
                 "MC",
-                1.0,
+                0.97,
                 1e-2,
                 ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation,
             ],

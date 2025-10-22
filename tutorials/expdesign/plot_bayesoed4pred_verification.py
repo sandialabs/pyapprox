@@ -1,6 +1,6 @@
 """
-Computing the Convergence Rate of Numerical Estimates for Risk-Aware Bayesian Experimental Design
-===============================================================================================
+Numerical Convergence Rate for Risk-Aware Utility Functions
+===========================================================
 
 This tutorial builds upon the analytical expressions derived in the previous tutorial, which quantified the posterior mean, covariance, and risk measures such as entropic risk and Average Value at Risk (AVaR) in Bayesian linear regression. Here, we focus on numerically verifying the accuracy of these expressions by computing the convergence rate of numerical estimates using different quadrature methods and sample sizes.
 
