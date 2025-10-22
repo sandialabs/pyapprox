@@ -399,20 +399,20 @@ class NonLinearDecoupledODE(
 
     def __call__(self, sol: Array) -> Array:
         # Return the values of the RHS of the ODE
-        b = self._coef**2 * self._bkd.arange(
+        alpha = self._coef**2 * self._bkd.arange(
             1, sol.shape[0] + 1, dtype=self._bkd.double_type()
         )
-        return -b * sol**2
+        return -alpha * sol**2
 
     def _jacobian(self, sol: Array) -> Array:
         # Return the jacobian of the solution with respect to the states
         # This is used by implicit time steping schemes
         # when solving the forward and adjoint equations. Explicit
         # time schmes also use it to solve the adjoint equations
-        b = self._coef**2 * self._bkd.arange(
+        alpha = self._coef**2 * self._bkd.arange(
             1, sol.shape[0] + 1, dtype=self._bkd.double_type()
         )
-        return self._bkd.diag(-2 * b * sol)
+        return self._bkd.diag(-2 * alpha * sol)
 
     def _initial_param_jacobian(self) -> Array:
         # Return the jacobian of the initial condition with respect
