@@ -21,8 +21,7 @@ observation in the log-likelihood
 .. math:: \log p(\obsv\mid\rvv,\vec{w})=-\frac{1}{2}r(\obsv, \rvv)^\top \mat{W}^{1/2}\inv{\mat{\Gamma}} \mat{W}^{1/2}r(\obsv, \rvv)+C_w,
 where
 
-.. math::  C_w=-\frac{1}{2} \log |\mat{W}^{-1/2}\mat{\Gamma} \mat{W}^{-1/2}|+C
-=\frac{1}{2} \log |\mat{W}^{1/2}\inv{\mat{\Gamma}} \mat{W}^{1/2}|+C
+.. math::  C_w=-\frac{1}{2} \log |\mat{W}^{-1/2}\mat{\Gamma} \mat{W}^{-1/2}|+C=\frac{1}{2} \log |\mat{W}^{1/2}\inv{\mat{\Gamma}} \mat{W}^{1/2}|+C
 
 is a constant that depnds on :math:`\vec{w}`, 
 :math:`\mat{W}=\text{Diag}[\vec{w}]\in\reals^{K \times K}`, :math:`r(\obsv, \rvv)=[r_1,\ldots,r_K]=\vec{f}(\rvv)-\obsv\in\reals^{K}` and the
@@ -64,7 +63,7 @@ which we can compute with the following steps:
 
 The second summation, which approximates the evidence,
 
-.. math:: p(\obsv)=\inv{N}\sum_{n=1}^N p(\obsv^{(m)}\mid \rvv^{(n)}, \vec{w}),
+.. math:: p(\obsv^{(m)}\mid  \vec{w})\approx\inv{N}\sum_{n=1}^N p(\obsv^{(m)}\mid \rvv^{(n)}, \vec{w}),
 
 is computed using a similar process. However, we do not compute new observations, but rather resue the observations :math:`\mat{Y}` from the previous steps. Specifically, the second summation is computed using the following steps:
 
