@@ -9,7 +9,7 @@ from pyapprox.util.backends.numpy import NumpyMixin
 
 from pyapprox.interface.model import (
     Model,
-    ActiveSetVariableModel,
+    expand_samples_from_indices,
     SingleSampleModel,
     ScalarElementwiseFunction,
 )
@@ -1195,14 +1195,12 @@ class SampleAverageConstraint(ConstraintFromModel):
         )
         # warning self._joint_samples must be recomputed if self._samples
         # is changed.
-        self._joint_samples = (
-            ActiveSetVariableModel._expand_samples_from_indices(
-                self._samples,
-                self._random_indices,
-                self._design_indices,
-                self._bkd.zeros((design_indices.shape[0], 1)),
-                bkd=self._bkd,
-            )
+        self._joint_samples = expand_samples_from_indices(
+            self._samples,
+            self._random_indices,
+            self._design_indices,
+            self._bkd.zeros((design_indices.shape[0], 1)),
+            bkd=self._bkd,
         )
 
     def nvars(self) -> int:

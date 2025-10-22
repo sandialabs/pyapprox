@@ -11,7 +11,7 @@ from pyapprox.interface.model import (
     UmbridgeIOModelEnsembleWrapper,
     SerialIOModel,
     AsyncIOModel,
-    ActiveSetVariableModel,
+    create_active_set_variable_model,
     ChangeModelSignWrapper,
     PoolModelWrapper,
 )
@@ -25,7 +25,7 @@ __all__ = [
     "UmbridgeIOModelEnsembleWrapper",
     "SerialIOModel",
     "AsyncIOModel",
-    "ActiveSetVariableModel",
+    "create_active_set_variable_model",
     "ChangeModelSignWrapper",
     "PoolModelWrapper",
 ]

@@ -7,7 +7,7 @@ from scipy.optimize import rosen, rosen_der, rosen_hess_prod, LinearConstraint
 
 from pyapprox.interface.model import (
     Model,
-    ActiveSetVariableModel,
+    create_active_set_variable_model,
     SingleSampleModel,
     ChangeModelSignWrapper,
 )
@@ -1139,7 +1139,7 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
     ConstrainedUncertainOptimizationBenchmark
 ):
     def _set_objective(self):
-        self._objective = ActiveSetVariableModel(
+        self._objective = create_active_set_variable_model(
             CantileverBeamObjectiveModel(self._bkd),
             self.variable().nvars() + self.design_variable().nvars(),
             self._nominal_values,
@@ -1147,7 +1147,7 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
         )
 
     def _set_constraints(self):
-        constraint_model = ActiveSetVariableModel(
+        constraint_model = create_active_set_variable_model(
             CantileverBeamConstraintsModel(self._bkd),
             self.variable().nvars() + self.design_variable().nvars(),
             self._nominal_values,

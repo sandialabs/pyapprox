@@ -577,11 +577,13 @@ class ObstructedStokesFlow(SteadyParameterizedFEModel):
         self._set_basis(self._use_quadmesh)
 
     def nparams(self) -> int:
-        return 2
+        return 3
 
     def _set_params(self, params: np.ndarray):
         self._reynolds_num = params[0]
-        self._inlet_vel_mag = params[1]
+        self._vel_shape_params = params[1:3]
+        if self._vel_shape_params.min() <= 1.0:
+            raise ValueError("vel_shape_params must be > 1")
 
     def _zero_bndry_fun(self, x: np.ndarray) -> np.ndarray:
         vals = x[0] * 0.0
@@ -589,7 +591,12 @@ class ObstructedStokesFlow(SteadyParameterizedFEModel):
 
     def _inlet_bndry_fun(self, x: np.ndarray) -> np.ndarray:
         """return the plane Poiseuille parabolic inlet profile"""
-        vals = self._inlet_vel_mag * x[1] * (1.0 - x[1])
+        # vals = self._inlet_vel_mag * x[1] * (1.0 - x[1])
+        vals = (
+            1
+            * x[1] ** (self._vel_shape_params[0] - 1.0)
+            * (1.0 - x[1]) ** (self._vel_shape_params[1] - 1.0)
+        )
         return vals
 
     def _setup_horizontal_velocity_boundary_conditions(self):
@@ -736,6 +743,11 @@ class ObstructedStokesFlow(SteadyParameterizedFEModel):
         ]:
             contour(levels=levels, colors=color, linestyles=style)
 
+    def plot_inlet_velocity_profile(self, ax: matplotlib.axes.Axes, **kwargs):
+        xx = np.linspace(0, 1, 101)
+        bndry_pts = np.stack((xx * 0, xx), axis=0)
+        return ax.plot(bndry_pts[1], self._inlet_bndry_fun(bndry_pts))
+
 
 class KLEHyperParameters:
     def __init__(
@@ -782,16 +794,14 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
         # initialize forcing function to be the mean of the kle
         if stokes_params is not None:
             # fix the velocity field for all advection simulations
-            self._set_velocity_field(stokes_params)
+            self._vel = self._compute_velocity_field(stokes_params)
             self._set_params(np.zeros((self._kle._nterms,)))
-        else:
-            # should be easy just need to do
-            raise NotImplementedError
+
         self._setup_advec_diff_mesh(nadvec_diff_refine)
         self._set_boundary_conditions()
         self._set_physics_and_solver()
 
-    def _set_velocity_field(self, stokes_params: np.ndarray):
+    def _compute_velocity_field(self, stokes_params: np.ndarray):
         self._stokes_model.set_params(stokes_params)
         sol = self._stokes_model.solve()
         vel = self._stokes_model.split_solution(sol)[0]
@@ -817,7 +827,7 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
             # skfemplot(self._basis, quadrature_vel)
             # import matplotlib.pyplot as plt
             # plt.show()
-        self._vel = np.stack(nodal_vels, axis=1)
+        return np.stack(nodal_vels, axis=1)
 
     def _initialize_forcing(self):
         # Local coordinates of quadrature points on the reference element
@@ -887,11 +897,12 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
 
     def _set_params(self, params: np.ndarray):
         if not hasattr(self, "_vel"):
-            self._stokes_model.set_params(params[self._nadvecdiff_params :])
-        self._kle(params[: self._nadvecdiff_params, None])
+            self._velocity_field_params = params[self._nadvecdiff_params :]
+        self._kle_params = params[: self._nadvecdiff_params]
+        self._kle(self._kle_params[:, None])
 
     def plot_forcing(self, params: np.ndarray, **kwargs):
-        kle_vals = self._kle(params[:, None])
+        kle_vals = self._kle(params[: self._nadvecdiff_params, None])
         return self._plot_kle_quantity(kle_vals)
 
     def plot_kle_eigenvecs(self, eigvec_indices: np.ndarray, axs, **kwargs):
@@ -950,9 +961,15 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
         )
 
     def _kle_values_on_quadrature_points(self, x: np.ndarray) -> np.ndarray:
-        return self._kle(self._params[:, None]).reshape(
+        return self._kle(self._kle_params[:, None]).reshape(
             (self._nelements, -1), order="C"
         )
+
+    def _velocity_field(self):
+        if hasattr(self, "_vel"):
+            # fixed velocity field
+            return self._vel
+        return self._compute_velocity_field(self._velocity_field_params)
 
     def _set_physics_and_solver(self):
         forc_fun = FEMScalarFunctionFromCallable(
@@ -974,7 +991,7 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
                 lambda x: x[0] * 0 + self._diffusivity
             ),
             forc_fun,
-            FEMVectorFunctionFromCallable(lambda x: self._vel),
+            FEMVectorFunctionFromCallable(lambda x: self._velocity_field()),
             # FEMVectorFunctionFromCallable(lambda x: x * 0, swapaxes=False),
             diff_op,
             react_op,

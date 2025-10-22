@@ -23,6 +23,7 @@ from pyapprox.interface.model import (
     DenseMatrixLinearModel,
     QuadraticMatrixModel,
     Model,
+    create_active_set_variable_model,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
@@ -987,6 +988,63 @@ class TestTorchModel(TestModel, unittest.TestCase):
         target_model.apply_hessian_implemented = lambda: False
 
         target_model.jacobian_implemented = lambda: False
+
+    def test_active_set_variable_model(self):
+        bkd = self.get_backend()
+        nvars = 3
+        model = ModelFromSingleSampleCallable(
+            1,
+            nvars,
+            lambda x: ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2) + x[2],
+            jacobian=lambda x: bkd.array(
+                [[2 * (x[0] - 1), 2 * (x[1] - 2.5), x[2] * 0 + 1]]
+            ),
+            hessian=lambda x: bkd.array([[2.0, 0, 0], [0, 2, 0], [0, 0, 0]])[
+                None, ...
+            ],
+            sample_ndim=1,
+            values_ndim=0,
+            backend=bkd,
+        )
+
+        active_var_indices = bkd.array([0, 2])
+        nominal_sample = bkd.arange(1.0, nvars + 1)[:, None]
+        inactive_var_values = nominal_sample[
+            np.delete(np.arange(nvars), active_var_indices)
+        ]
+        active_set_model = create_active_set_variable_model(
+            model, nvars, inactive_var_values, active_var_indices
+        )
+
+        active_sample = nominal_sample[active_var_indices]
+        assert isinstance(active_set_model, ModelFromSingleSampleCallable)
+        assert active_set_model.nvars() == active_var_indices.shape[0]
+        assert active_set_model.nqoi() == model.nqoi()
+        assert active_set_model.noriginal_vars() == model.nvars()
+        assert bkd.allclose(
+            active_set_model(active_sample), model(nominal_sample)
+        )
+        assert bkd.allclose(
+            active_set_model.jacobian(active_sample),
+            model.jacobian(nominal_sample)[:, active_var_indices],
+        )
+        vec = bkd.array(np.random.normal(0, 1, (nvars, 1)))
+        assert bkd.allclose(
+            active_set_model.apply_jacobian(
+                active_sample, vec[active_var_indices]
+            ),
+            model.jacobian(nominal_sample)[:, active_var_indices]
+            @ vec[active_var_indices],
+        )
+        assert bkd.allclose(
+            active_set_model.apply_hessian(
+                active_sample, vec[active_var_indices]
+            ),
+            model.hessian(nominal_sample)[0][
+                np.ix_(active_var_indices, active_var_indices)
+            ]
+            @ vec[active_var_indices],
+        )
 
 
 if __name__ == "__main__":

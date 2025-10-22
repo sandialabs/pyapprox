@@ -1970,130 +1970,6 @@ class AsyncIOModel(SerialIOModel):
         return vals
 
 
-class ActiveSetVariableModel(Model):
-    r"""
-    Create a model wrapper that only accepts a subset of the model variables.
-    """
-
-    def __init__(
-        self,
-        model,
-        nvars,
-        inactive_var_values,
-        active_var_indices,
-        base_model=None,
-        backend=NumpyMixin,
-    ):
-        super().__init__(backend=model._bkd)
-        # nvars can de determined from inputs but making it
-        # necessary allows for better error checking
-        if not isinstance(model, Model):
-            raise ValueError("model must be an instance of Model")
-        self._model = model
-        assert inactive_var_values.ndim == 2
-        self._inactive_var_values = self._bkd.asarray(
-            inactive_var_values, dtype=int
-        )
-        self._active_var_indices = self._bkd.asarray(
-            active_var_indices, dtype=int
-        )
-        assert (
-            self._active_var_indices.shape[0]
-            + self._inactive_var_values.shape[0]
-            == nvars
-        )
-        self._norignal_vars = nvars
-        assert self._bkd.all(self._active_var_indices < self._norignal_vars)
-        self._inactive_var_indices = self._bkd.delete(
-            self._bkd.arange(self._norignal_vars, dtype=int),
-            active_var_indices,
-        )
-        if base_model is None:
-            base_model = model
-        self._base_model = base_model
-
-    def apply_jacobian_implemented(self) -> bool:
-        return self._base_model.apply_jacobian_implemented()
-
-    def jacobian_implemented(self) -> bool:
-        return self._base_model.jacobian_implemented()
-
-    def apply_hessian_implemented(self) -> bool:
-        return (
-            self._base_model.apply_hessian_implemented()
-            or self._base_model.hessian_implemented()
-        )
-
-    def nqoi(self) -> int:
-        return self._model.nqoi()
-
-    def nvars(self) -> int:
-        return self._active_var_indices.shape[0]
-
-    @staticmethod
-    def _expand_samples_from_indices(
-        reduced_samples,
-        active_var_indices,
-        inactive_var_indices,
-        inactive_var_values,
-        bkd=NumpyMixin,
-    ):
-        assert reduced_samples.ndim == 2
-        raw_samples = get_all_sample_combinations(
-            inactive_var_values, reduced_samples, bkd
-        )
-        samples = bkd.empty(raw_samples.shape)
-        samples[inactive_var_indices, :] = raw_samples[
-            : inactive_var_indices.shape[0]
-        ]
-        samples[active_var_indices, :] = raw_samples[
-            inactive_var_indices.shape[0] :
-        ]
-        return samples
-
-    def _expand_samples(self, reduced_samples):
-        return self._expand_samples_from_indices(
-            reduced_samples,
-            self._active_var_indices,
-            self._inactive_var_indices,
-            self._inactive_var_values,
-            self._bkd,
-        )
-
-    def _values(self, reduced_samples):
-        samples = self._expand_samples(reduced_samples)
-        return self._model(samples)
-
-    def _jacobian(self, reduced_samples):
-        samples = self._expand_samples(reduced_samples)
-        jac = self._model.jacobian(samples)
-        return jac[:, self._active_var_indices]
-
-    def _apply_jacobian(self, reduced_samples, vec):
-        samples = self._expand_samples(reduced_samples)
-        # set inactive entries of vec to zero when peforming
-        # matvec product so they do not contribute to sum
-        expanded_vec = self._bkd.zeros((self._norignal_vars, 1))
-        expanded_vec[self._active_var_indices] = vec
-        return self._model.apply_jacobian(samples, expanded_vec)
-
-    def _apply_hessian(self, reduced_samples, vec):
-        samples = self._expand_samples(reduced_samples)
-        # set inactive entries of vec to zero when peforming
-        # matvec product  so they do not contribute to sum
-        expanded_vec = self._bkd.zeros((self._norignal_vars, 1))
-        expanded_vec[self._active_var_indices] = vec
-        return self._model.apply_hessian(samples, expanded_vec)[
-            self._active_var_indices
-        ]
-
-    def noriginal_vars(self) -> int:
-        return self._norignal_vars
-
-    def __repr__(self):
-        return "{0}(model={1})".format(self.__class__.__name__, self._model)
-
-
 class ChangeModelSignWrapper(Model):
     def __init__(self, model: Model):
         super().__init__(model._bkd)
@@ -2799,3 +2675,217 @@ class ScalarElementwiseFunction(ABC):
             relative,
             disp,
         )
+
+
+def expand_samples_from_indices(
+    reduced_samples: Array,
+    active_var_indices: Array,
+    inactive_var_indices: Array,
+    inactive_var_values: Array,
+    bkd: BackendMixin = NumpyMixin,
+):
+       """
+    Expand reduced samples into full samples by incorporating inactive variable values.
+
+    This function takes a set of reduced samples (samples corresponding to active variables only) and expands them into full samples by combining them with fixed values for inactive variables. The expanded samples are arranged such that the active and inactive variables are placed in their original positions.
+
+    Parameters
+    ----------
+    reduced_samples : Array
+        A 2D array of samples corresponding to active variables only. The shape of this array must be `(num_active_vars, num_samples)`.
+    active_var_indices : Array
+        A 1D array specifying the indices of the active variables in the full set of variables.
+    inactive_var_indices : Array
+        A 1D array specifying the indices of the inactive variables in the full set of variables.
+    inactive_var_values : Array
+        A 2D array specifying the fixed values for the inactive variables. The shape of this array must be `(num_inactive_vars, num_samples)`.
+    bkd : BackendMixin, optional
+        A backend for array operations, such as `NumpyMixin`. Defaults to `NumpyMixin`.
+
+    Returns
+    -------
+    Array
+        A 2D array of expanded samples, where the active and inactive variables are placed in their original positions. The shape of this array is `(num_total_vars, num_samples)`.
+
+    Raises
+    ------
+    AssertionError
+        If `reduced_samples` is not a 2D array.
+    """
+    assert reduced_samples.ndim == 2
+    raw_samples = get_all_sample_combinations(
+        inactive_var_values, reduced_samples, bkd
+    )
+    samples = bkd.empty(raw_samples.shape)
+    samples[inactive_var_indices, :] = raw_samples[
+        : inactive_var_indices.shape[0]
+    ]
+    samples[active_var_indices, :] = raw_samples[
+        inactive_var_indices.shape[0] :
+    ]
+    return samples
+
+
+def create_active_set_variable_model(
+    model: Model,
+    nvars: int,
+    inactive_var_values: Array,
+    active_var_indices: Array,
+) -> Model:
+    """
+    Create a model wrapper that only accepts a subset of the model variables.
+
+    This function dynamically creates a wrapper model (`InheritedActiveSetVariableModel`) that restricts the input variables to a subset of the original model's variables. The wrapper ensures that only the active variables are considered during computations, while inactive variables are fixed to specified values.
+
+    Parameters
+    ----------
+    model : Model
+        The original model to be wrapped. Must be an instance of the `Model` class.
+    nvars : int
+        The total number of variables in the original model. This is used for error checking and validation.
+    inactive_var_values : Array
+        A 2D array specifying the fixed values for the inactive variables. The shape of this array must be `(num_inactive_vars, num_samples)`.
+    active_var_indices : Array
+        A 1D array specifying the indices of the active variables in the original model. These indices must be within the range `[0, nvars)`.
+
+    Returns
+    -------
+    Model
+        A wrapped model (`InheritedActiveSetVariableModel`) that behaves like the original model but operates only on the active variables. The wrapper passes all other attributes and methods to the original model.
+
+    Raises
+    ------
+    ValueError
+        If `model` is not an instance of the `Model` class.
+    AssertionError
+        If the dimensions of `inactive_var_values` are invalid, or if the active variable indices are out of bounds.
+
+    Notes
+    -----
+    - The wrapper uses the backend specified by the original model (`model._bkd`) for computations.
+    - The wrapper dynamically inherits from the type of the original model (`type(model)`), ensuring compatibility with the original model's interface.
+    - The wrapper provides methods for evaluating the model, computing Jacobians, and applying Jacobians and Hessians, while restricting operations to the active variables.
+    """
+
+    class InheritedActiveSetVariableModel(type(model)):
+        r"""
+        Create a model wrapper that only accepts a subset of the model variables.
+        """
+
+        def __init__(
+            self,
+            model: Model,
+            nvars: int,
+            inactive_var_values: Array,
+            active_var_indices: Array,
+        ):
+            self._bkd = model._bkd
+            # nvars can de determined from inputs but making it
+            # necessary allows for better error checking
+            if not isinstance(model, Model):
+                raise ValueError("model must be an instance of Model")
+            self._model = model
+            assert inactive_var_values.ndim == 2
+            self._inactive_var_values = self._bkd.asarray(
+                inactive_var_values, dtype=int
+            )
+            self._active_var_indices = self._bkd.asarray(
+                active_var_indices, dtype=int
+            )
+            assert (
+                self._active_var_indices.shape[0]
+                + self._inactive_var_values.shape[0]
+                == nvars
+            )
+            self._norignal_vars = nvars
+            assert self._bkd.all(
+                self._active_var_indices < self._norignal_vars
+            )
+            self._inactive_var_indices = self._bkd.delete(
+                self._bkd.arange(self._norignal_vars, dtype=int),
+                active_var_indices,
+            )
+            self._add_model_attributes()
+
+        def unwrapped_model(self) -> Model:
+            # return the unwrapped model
+            return self._model
+
+        # def apply_jacobian_implemented(self) -> bool:
+        #     return self._base_model.apply_jacobian_implemented()
+
+        # def jacobian_implemented(self) -> bool:
+        #     return self._base_model.jacobian_implemented()
+
+        # def apply_hessian_implemented(self) -> bool:
+        #     return (
+        #         self._base_model.apply_hessian_implemented()
+        #         or self._base_model.hessian_implemented()
+        #     )
+
+        # def nqoi(self) -> int:
+        #     return self._model.nqoi()
+
+        def nvars(self) -> int:
+            return self._active_var_indices.shape[0]
+
+        def _expand_samples(self, reduced_samples):
+            return expand_samples_from_indices(
+                reduced_samples,
+                self._active_var_indices,
+                self._inactive_var_indices,
+                self._inactive_var_values,
+                self._bkd,
+            )
+
+        def _values(self, reduced_samples: Array) -> Array:
+            samples = self._expand_samples(reduced_samples)
+            return self._model(samples)
+
+        def _jacobian(self, reduced_samples: Array) -> Array:
+            samples = self._expand_samples(reduced_samples)
+            jac = self._model.jacobian(samples)
+            return jac[:, self._active_var_indices]
+
+        def _apply_jacobian(self, reduced_samples: Array, vec: Array) -> Array:
+            samples = self._expand_samples(reduced_samples)
+            # set inactive entries of vec to zero when peforming
+            # matvec product so they do not contribute to sum
+            expanded_vec = self._bkd.zeros((self._norignal_vars, 1))
+            expanded_vec[self._active_var_indices] = vec
+            return self._model.apply_jacobian(samples, expanded_vec)
+
+        def apply_hessian(self, reduced_samples: Array, vec: Array) -> Array:
+            samples = self._expand_samples(reduced_samples)
+            # set inactive entries of vec to zero when peforming
+            # matvec product  so they do not contribute to sum
+            expanded_vec = self._bkd.zeros((self._norignal_vars, 1))
+            expanded_vec[self._active_var_indices] = vec
+            return self._model.apply_hessian(samples, expanded_vec)[
+                self._active_var_indices
+            ]
+
+        def noriginal_vars(self) -> int:
+            return self._norignal_vars
+
+        def __repr__(self) -> str:
+            return "{0}(model={1})".format(
+                self.__class__.__name__, self._model
+            )
+
+        def _add_model_attributes(self):
+            for name in dir(self._model):
+                if name.startswith("__"):
+                    continue
+                if hasattr(self, name):
+                    # if we have overwridden the attribute do not
+                    # use model attr
+                    continue
+                setattr(self, name, getattr(self._model, name))
+
+    wrapped_model = InheritedActiveSetVariableModel(
+        model, nvars, inactive_var_values, active_var_indices
+    )
+
+    # Redirect all attribute/method calls to the wrapped instance
+    return wrapped_model
