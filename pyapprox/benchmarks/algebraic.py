@@ -5,10 +5,9 @@ import numpy as np
 from scipy import stats
 from scipy.optimize import rosen, rosen_der, rosen_hess_prod, LinearConstraint
 
-from pyapprox.interface.model import (
-    Model,
+from pyapprox.interface.model import Model, SingleSampleModel
+from pyapprox.interface.wrappers import (
     create_active_set_variable_model,
-    SingleSampleModel,
     ChangeModelSignWrapper,
 )
 from pyapprox.util.backends.template import BackendMixin, Array

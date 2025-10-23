@@ -40,7 +40,8 @@ from pyapprox.util.linalg import (
     log_determinant_from_cholesky_factor,
     diag_of_mat_mat_product,
 )
-from pyapprox.interface.model import Model, ChangeModelSignWrapper
+from pyapprox.interface.model import Model
+from pyapprox.interface.wrappers import ChangeModelSignWrapper
 from pyapprox.variables.joint import JointVariable
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin

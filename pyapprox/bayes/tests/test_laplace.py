@@ -10,10 +10,8 @@ from pyapprox.variables.gaussian import (
     CovarianceOperator,
     DenseCholeskyMultivariateGaussian,
 )
-from pyapprox.interface.model import (
-    DenseMatrixLinearModel,
-    ChangeModelSignWrapper,
-)
+from pyapprox.interface.model import DenseMatrixLinearModel
+from pyapprox.interface.wrappers import ChangeModelSignWrapper
 from pyapprox.bayes.laplace import (
     GaussianPushForward,
     DenseMatrixLaplacePosteriorApproximation,

@@ -2,6 +2,8 @@ r"""
 Parallel Model Evaluations
 --------------------------
 For expensive models it is often useful to be able to evaluate each model concurrently. This can be achieved using :class:`~pyapprox.interface.model.PoolModelWrapper`. Note this function is not intended for use with distributed memory systems, but rather is intended to use all the threads of a personal computer or compute node. See the documention of :class:`~pyapprox.interface.model.AyncIOModel` if you are interested in running multiple simulations in parallel on a distributed memory system.
+
+The pool model wrapper allows the attributes being wrapped to be accessed directly from the wrapper
 """
 
 import os
@@ -10,7 +12,7 @@ import numpy as np
 from scipy import stats
 
 from pyapprox.variables import IndependentMarginalsVariable
-from pyapprox.interface.model import PoolModelWrapper
+from pyapprox.interface.wrappers import create_pool_model
 from pyapprox.interface.model import ModelFromSingleSampleCallable
 
 nprocs = 1  # set higher
@@ -53,10 +55,10 @@ print(f"Serial evaluations took {t1-t0} seconds")
 # Now lets the PoolModelWrapper to use multiprocessing.pool to run the model
 # in parallel
 # Create a seperate model so that work_tracker of serial_model is not impacted
-_model = ModelFromSingleSampleCallable(
+model = ModelFromSingleSampleCallable(
     1, nvars, fun_pause, sample_ndim=1, values_ndim=0
 )
-pool_model = PoolModelWrapper(_model, nprocs, assert_omp=False)
+pool_model = create_pool_model(model, nprocs, assert_omp=False)
 
 # %%
 # Check the user has set OMP_NUM_THREADS=1. If this is not set then

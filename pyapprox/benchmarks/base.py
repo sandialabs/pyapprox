@@ -2,11 +2,8 @@ from abc import ABC, abstractmethod
 from functools import partial
 from typing import List, Union
 
-from pyapprox.interface.model import (
-    Model,
-    MultiIndexModelEnsemble,
-    ChangeModelSignWrapper,
-)
+from pyapprox.interface.model import Model, MultiIndexModelEnsemble
+from pyapprox.interface.wrappers import ChangeModelSignWrapper
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import JointVariable, DesignVariable

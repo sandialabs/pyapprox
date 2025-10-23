@@ -321,16 +321,16 @@ class Model(ABC):
     def _check_sample_shape(self, sample: Array):
         if sample.shape != (self.nvars(), 1):
             raise ValueError(
-                "sample must have shape {0} but had shape {1}".format(
-                    (self.nvars(), 1), sample.shape
+                "{0}: sample must have shape {1} but had shape {2}".format(
+                    self, (self.nvars(), 1), sample.shape
                 )
             )
 
     def _check_samples_shape(self, sample: Array):
         if sample.shape[0] != self.nvars():
             raise ValueError(
-                "sample must have nrows={0} but had shape {1}".format(
-                    self.nvars(), sample.shape
+                "{0}: sample must have nrows={1} but had shape {2}".format(
+                    self, self.nvars(), sample.shape
                 )
             )
 

@@ -7,7 +7,7 @@ import sympy as sp
 from pyapprox.interface.model import ModelFromSingleSampleCallable
 from pyapprox.interface.wrappers import (
     create_active_set_variable_model,
-    PoolModelWrapper,
+    create_pool_model,
     ScipyModelWrapper,
     ChangeModelSignWrapper,
 )
@@ -19,6 +19,10 @@ def _pickable_function(bkd, sample):
     return bkd.stack(
         (bkd.sum(sample**2, axis=0), bkd.sum(sample**3, axis=0)), axis=1
     )
+
+
+def _pickable_jacobian(bkd, sample):
+    return bkd.stack((2 * sample[:, 0], 3 * sample[:, 0] ** 2), axis=0)
 
 
 class TestWrappers:
@@ -86,6 +90,7 @@ class TestWrappers:
             values_ndim=0,
             backend=bkd,
         )
+        model.activate_model_data_base()
 
         active_var_indices = bkd.array([0, 2])
         nominal_sample = bkd.arange(1.0, nvars + 1)[:, None]
@@ -104,6 +109,9 @@ class TestWrappers:
         assert bkd.allclose(
             active_set_model(active_sample), model(nominal_sample)
         )
+        assert active_set_model.work_tracker().nevaluations("val") == 1
+        assert active_set_model.model().work_tracker().nevaluations("val") == 1
+
         assert bkd.allclose(
             active_set_model.jacobian(active_sample),
             model.jacobian(nominal_sample)[:, active_var_indices],
@@ -172,9 +180,10 @@ class TestWrappers:
             2,
             nvars,
             partial(_pickable_function, bkd),
+            jacobian=partial(_pickable_jacobian, bkd),
             backend=bkd,
         )
-        pool_model = PoolModelWrapper(model, nprocs=2, assert_omp=False)
+        pool_model = create_pool_model(model, nprocs=2, assert_omp=False)
         pool_model.model().work_tracker().set_active(True)
         pool_model.work_tracker().set_active(True)
         samples = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples)))
@@ -182,6 +191,10 @@ class TestWrappers:
         assert bkd.allclose(values, _pickable_function(bkd, samples))
         assert pool_model.work_tracker().nevaluations("val") == 4
         assert pool_model.model().work_tracker().nevaluations("val") == 4
+        errors = pool_model.check_apply_jacobian(samples[:, :1])
+        # check functions from model are attributes of the wrapped model
+        # E.g. check jacobian is correct.
+        assert errors.min() / errors.max() < 1e-6
 
 
 class TestNumpyWrappers(TestWrappers, unittest.TestCase):

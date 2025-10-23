@@ -13,7 +13,8 @@ from pyapprox.benchmarks.base import (
     SingleModelBenchmark,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.interface.model import Model, ChangeModelSignWrapper
+from pyapprox.interface.wrappers import ChangeModelSignWrapper
+from pyapprox.interface.model import Model
 from pyapprox.pde.collocation.adjoint import (
     AdjointFunctional,
     TransientAdjointFunctional,

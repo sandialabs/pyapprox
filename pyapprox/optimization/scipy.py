@@ -17,7 +17,8 @@ from pyapprox.optimization.minimize import (
     ConstraintPenalizedObjective,
     Constraint,
 )
-from pyapprox.interface.model import ScipyModelWrapper, Model
+from pyapprox.interface.model import Model
+from pyapprox.interface.wrappers import ScipyModelWrapper
 from pyapprox.util.backends.template import Array, BackendMixin
 
 

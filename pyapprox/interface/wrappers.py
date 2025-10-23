@@ -1,6 +1,8 @@
 import os
 from multiprocessing.pool import ThreadPool, Pool
 
+import numpy as np
+
 from pyapprox.util.backends.template import Array
 from pyapprox.interface.model import (
     Model,
@@ -34,7 +36,7 @@ def create_active_set_variable_model(
 
     Returns
     -------
-    Model
+    Model: ActiveSetVariableModel
         A wrapped model (`ActiveSetVariableModel`) that behaves like the original model but operates only on the active variables. The wrapper passes all other attributes and methods to the original model.
 
     Raises
@@ -49,6 +51,52 @@ def create_active_set_variable_model(
     - The wrapper uses the backend specified by the original model (`model._bkd`) for computations.
     - The wrapper dynamically inherits from the type of the original model (`type(model)`), ensuring compatibility with the original model's interface.
     - The wrapper provides methods for evaluating the model, computing Jacobians, and applying Jacobians and Hessians, while restricting operations to the active variables.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from pyapprox.util.backends.numpy import NumpyMixin as bkd
+    >>> from pyapprox.interface.model import Model
+    >>> from pyapprox.interface.wrappers import create_active_set_variable_model
+
+    >>> # Define a custom model
+    >>> class CustomModel(Model):
+    ...     def nqoi(self):
+    ...         return 1
+    ...     def nvars(self):
+    ...         return 3
+    ...     def _values(self, x):
+    ...         return (((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2) + x[2])[:, None]
+    ...     def _jacobian(self, x):
+    ...         return bkd.array([[2 * (x[0] - 1), 2 * (x[1] - 2.5), x[2] * 0 + 1]])
+    ...     def foo(self):
+    ...         return "Hello"
+
+    >>> # Instantiate the custom model
+    >>> model = CustomModel(backend=bkd)
+
+    >>> # Define inactive variable indices
+    >>> inactive_ids = bkd.array([0, 2])
+
+    >>> # Wrap the model with active set variable model
+    >>> wrapped_model = create_active_set_variable_model(
+    ...     model, 3, bkd.array([2.0])[:, None], inactive_ids
+    ... )
+
+    >>> # Define input sample
+    >>> sample = np.array([1.0, 2.0, 3.0])[:, None]
+
+    >>> # Evaluate the original model
+    >>> print(model(sample))
+    [[3.25]]
+
+    >>> # Evaluate the wrapped model
+    >>> print(wrapped_model(sample[inactive_ids]))
+    [[3.25]]
+
+    >>> # Call a custom method from the wrapped model
+    >>> wrapped_model.foo()
+    'Hello'
     """
 
     class ActiveSetVariableModel(type(model)):
@@ -91,29 +139,14 @@ def create_active_set_variable_model(
             )
             self._add_model_attributes()
 
-        def unwrapped_model(self) -> Model:
+        def model(self) -> Model:
             # return the unwrapped model
             return self._model
-
-        # def apply_jacobian_implemented(self) -> bool:
-        #     return self._base_model.apply_jacobian_implemented()
-
-        # def jacobian_implemented(self) -> bool:
-        #     return self._base_model.jacobian_implemented()
-
-        # def apply_hessian_implemented(self) -> bool:
-        #     return (
-        #         self._base_model.apply_hessian_implemented()
-        #         or self._base_model.hessian_implemented()
-        #     )
-
-        # def nqoi(self) -> int:
-        #     return self._model.nqoi()
 
         def nvars(self) -> int:
             return self._active_var_indices.shape[0]
 
-        def _expand_samples(self, reduced_samples):
+        def _expand_samples(self, reduced_samples: Array) -> Array:
             return expand_samples_from_indices(
                 reduced_samples,
                 self._active_var_indices,
@@ -158,10 +191,28 @@ def create_active_set_variable_model(
             )
 
         def _add_model_attributes(self):
+            # Redirect all attribute/method calls to the wrapped instance
+            overridden_attr_names = [
+                "model",
+                "nvars",
+                "_expand_samples",
+                "_values",
+                "_new_values",
+                "_jacobian",
+                "_apply_jacobian",
+                "apply_hessian",
+                "noriginal_vars",
+                # the following are not defined explicitly here but are
+                # defined in model. However, they must not point to model.fun
+                "_check_sample_shape",
+                "_check_samples_shape",
+                "jacobian",
+                "apply_jacobian",
+            ]
             for name in dir(self._model):
                 if name.startswith("__"):
                     continue
-                if hasattr(self, name):
+                if name in overridden_attr_names:
                     # if we have overwridden the attribute do not
                     # use model attr
                     continue
@@ -171,7 +222,6 @@ def create_active_set_variable_model(
         model, nvars, inactive_var_values, active_var_indices
     )
 
-    # Redirect all attribute/method calls to the wrapped instance
     return wrapped_model
 
 
@@ -321,74 +371,163 @@ class ChangeModelSignWrapper(Model):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
 
 
-class PoolModelWrapper(Model):
-    r"""
-    Wrap a Model so that it can be evaluated at multiple samples
-    in parallel using multiprocessing.Pool.
+def create_pool_model(
+    model: Model, nprocs: int, assert_omp: bool = True
+) -> Model:
+    """
+    Create a model wrapper that enables parallel evaluation of samples using multiprocessing.
 
-    For now just supports parallelizing values, i.g. gradient computations
-    are not yet supported
+    This function wraps a `Model` instance in a `PoolModelWrapper` class, allowing the model to evaluate multiple samples in parallel using Python's `multiprocessing.Pool`. Parallelization is currently limited to evaluating values; Jacobian computations are not yet supported in parallel.
+
+    Parameters
+    ----------
+    model : Model
+        The original model to be wrapped. Must be an instance of the `Model` class.
+    nprocs : int
+        The number of processes to use for parallel evaluation. If `nprocs` is set to 1, the model will run sequentially.
+    assert_omp : bool, optional
+        If `True`, ensures that the environment variable `OMP_NUM_THREADS` is set to 1 when `nprocs > 1`. This prevents OpenMP from using multiple threads, which can interfere with multiprocessing. Defaults to `True`.
+
+    Returns
+    -------
+    Model
+        A wrapped model (`PoolModelWrapper`) that supports parallel evaluation of samples.
+
+    Raises
+    ------
+    ValueError
+        If `model` is not an instance of the `Model` class.
+    Exception
+        If `assert_omp=True` and `OMP_NUM_THREADS` is not set to 1 in the environment when `nprocs > 1`.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from pyapprox.util.backends.numpy import NumpyMixin as bkd
+    >>> from pyapprox.interface.model import Model
+    >>> from pyapprox.interface.wrappers import create_pool_model
+    >>> class CustomModel(Model):
+    ...     def nqoi(self):
+    ...          return 1
+    ...     def nvars(self):
+    ...          return 2
+    ...     def _values(self, samples):
+    ...         return self._bkd.sum(samples, axis=0)[:, None]
+    ...     def foo(self):
+    ...         return "Hello"
+    >>> model = CustomModel(backend=bkd)
+    >>> wrapped_model = create_pool_model(model, nprocs=2, assert_omp=False)
+    >>> samples = np.array([[1, 2], [3, 4]])
+    >>> print(wrapped_model(samples))
+    [[4]
+     [6]]
+    >>> wrapped_model.foo()
+    'Hello'
     """
 
-    def __init__(self, model: Model, nprocs: int, assert_omp: bool = True):
-        if not isinstance(model, Model):
-            raise ValueError("model must be an instance of Model")
-        super().__init__(model._bkd)
-        if assert_omp and nprocs > 1:
-            if (
-                "OMP_NUM_THREADS" not in os.environ
-                or not int(os.environ["OMP_NUM_THREADS"]) == 1
-            ):
-                raise Exception(
-                    "User set assert_omp=True but OMP_NUM_THREADS "
-                    "has not been set to 1. Run script with "
-                    "OMP_NUM_THREADS=1 python script.py"
-                )
+    class PoolModelWrapper(Model):
+        r"""
+        Wrap a Model so that it can be evaluated at multiple samples
+        in parallel using multiprocessing.Pool.
 
-        self._model = model
-        self._nprocs = nprocs
-        # overwrite model work_tracker with one that shares memory
-        # between processes.
-        self._model._work_tracker = ModelWorkTracker(
-            model._bkd, self._nprocs > 1
-        )
+        For now just supports parallelizing values, i.e. paralelle jacobaian
+        computations are not yet supported. Only one jacobian can be requested
+        at a time.
+        """
 
-    def nqoi(self) -> int:
-        return self._model.nqoi()
+        def __init__(self, model: Model, nprocs: int, assert_omp: bool = True):
+            if not isinstance(model, Model):
+                raise ValueError("model must be an instance of Model")
+            super().__init__(model._bkd)
+            if assert_omp and nprocs > 1:
+                if (
+                    "OMP_NUM_THREADS" not in os.environ
+                    or not int(os.environ["OMP_NUM_THREADS"]) == 1
+                ):
+                    raise Exception(
+                        "User set assert_omp=True but OMP_NUM_THREADS "
+                        "has not been set to 1. Run script with "
+                        "OMP_NUM_THREADS=1 python script.py"
+                    )
 
-    def nvars(self) -> int:
-        return self._model.nvars()
+            self._model = model
+            self._nprocs = nprocs
+            # overwrite model work_tracker with one that shares memory
+            # between processes.
+            self._model._work_tracker = ModelWorkTracker(
+                model._bkd, self._nprocs > 1
+            )
+            self._add_model_attributes()
 
-    def _values(self, samples: Array) -> Array:
-        if self._nprocs == 1:
-            return self._model(samples)
-        pool = Pool(self._nprocs)
-        # call _values (instead of __call__) so times are not recorded twice)
-        # once by the wrapper and once by model.__call__
-        result = pool.map(
-            self._model._values,
-            [(samples[:, ii : ii + 1]) for ii in range(samples.shape[1])],
-        )
-        pool.close()
-        return self._bkd.vstack(result)
+        def nqoi(self) -> int:
+            return self._model.nqoi()
 
-    def model(self) -> Model:
-        return self._model
+        def nvars(self) -> int:
+            return self._model.nvars()
 
-    def work_tracker(self) -> ModelWorkTracker:
-        # self._work_tracker as it will contain different data than
-        # self._model._work_tracker. For a set of samples passed to
-        # __call__, the former reports the total time / nsamples. The later
-        # reports the time taken by each model without the overhead of
-        # multiprocessing pickling everything
-        return self._work_tracker
+        def _values(self, samples: Array) -> Array:
+            if self._nprocs == 1:
+                return self._model(samples)
+            pool = Pool(self._nprocs)
+            # call _values (instead of __call__) so times are not recorded twice)
+            # once by the wrapper and once by model.__call__
+            result = pool.map(
+                self._model._values,
+                [(samples[:, ii : ii + 1]) for ii in range(samples.shape[1])],
+            )
+            pool.close()
+            return self._bkd.vstack(result)
 
-    def model_database(self) -> ModelDataBase:
-        # multiprocessing makes copies of the model which all update
-        # their own database. Need to make them share memory like for
-        # work_tracker. However, this will slow down computations alot
-        # (for cheap models)
-        raise NotImplementedError("database not support for PoolModelWrapper")
+        def model(self) -> Model:
+            return self._model
 
-    def activate_model_data_base(self):
-        raise NotImplementedError("database not support for PoolModelWrapper")
+        def work_tracker(self) -> ModelWorkTracker:
+            # self._work_tracker as it will contain different data than
+            # self._model._work_tracker. For a set of samples passed to
+            # __call__, the former reports the total time / nsamples. The later
+            # reports the time taken by each model without the overhead of
+            # multiprocessing pickling everything
+            return self._work_tracker
+
+        def model_database(self) -> ModelDataBase:
+            # multiprocessing makes copies of the model which all update
+            # their own database. Need to make them share memory like for
+            # work_tracker. However, this will slow down computations alot
+            # (for cheap models)
+            raise NotImplementedError(
+                "database not support for PoolModelWrapper"
+            )
+
+        def activate_model_data_base(self):
+            raise NotImplementedError(
+                "database not support for PoolModelWrapper"
+            )
+
+        def _add_model_attributes(self):
+            # Redirect all attribute/method calls to the wrapped instance
+            overridden_attr_names = [
+                "nqoi",  # needed so object is not abstract. calls model.nqoi
+                "nvars",  # needed so  object is not abstract model.nvars
+                "_values",
+                "model",
+                "work_tracker",
+                "model_database",
+                "activate_model_data_base",
+            ]
+            for name in dir(self._model):
+                if name.startswith("__"):
+                    continue
+                if name in overridden_attr_names:
+                    # if we have overwridden the attribute do not
+                    # use model attr
+                    continue
+                setattr(self, name, getattr(self._model, name))
+
+        def __repr__(self) -> str:
+            return "{0}(model={1})".format(
+                self.__class__.__name__, self._model
+            )
+
+    wrapped_model = PoolModelWrapper(model, nprocs, assert_omp)
+
+    return wrapped_model

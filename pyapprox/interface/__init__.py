@@ -14,8 +14,8 @@ from pyapprox.interface.model import (
 from pyapprox.interface.wrappers import (
     ScipyModelWrapper,
     create_active_set_variable_model,
+    create_pool_model,
     ChangeModelSignWrapper,
-    PoolModelWrapper,
 )
 
 __all__ = [
@@ -29,5 +29,5 @@ __all__ = [
     "AsyncIOModel",
     "create_active_set_variable_model",
     "ChangeModelSignWrapper",
-    "PoolModelWrapper",
+    "create_pool_model",
 ]
