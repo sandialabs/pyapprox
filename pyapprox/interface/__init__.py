@@ -3,6 +3,9 @@ interfacing with numerical models
 """
 
 from pyapprox.interface.model import (
+    ModelWorkTracker,
+    ModelDataBase,
+    Model,
     ModelFromVectorizedCallable,
     ModelFromSingleSampleCallable,
     UmbridgeModel,
@@ -19,6 +22,9 @@ from pyapprox.interface.wrappers import (
 )
 
 __all__ = [
+    "ModelWorkTracker",
+    "ModelDataBase",
+    "Model",
     "ModelFromVectorizedCallable",
     "ModelFromSingleSampleCallable",
     "ScipyModelWrapper",

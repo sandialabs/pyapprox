@@ -346,9 +346,25 @@ class ChangeModelSignWrapper(Model):
             setattr(self, attr, getattr(self._model, attr))
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI) in the model.
+
+        Returns
+        -------
+        nqoi: int
+            The number of quantities of interest.
+        """
         return self._model.nqoi()
 
     def nvars(self) -> int:
+        """
+        Return the number of variables in the model.
+
+        Returns
+        -------
+        nvars: int
+            The number of variables.
+        """
         return self._model.nvars()
 
     def _values(self, samples: Array) -> Array:
@@ -463,6 +479,14 @@ def create_pool_model(
             return self._model.nqoi()
 
         def nvars(self) -> int:
+            """
+            Return the number of variables in the model.
+
+            Returns
+            -------
+            nvars: int
+                The number of variables.
+            """
             return self._model.nvars()
 
         def _values(self, samples: Array) -> Array:

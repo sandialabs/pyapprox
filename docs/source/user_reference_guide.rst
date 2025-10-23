@@ -23,7 +23,6 @@ The following documents the high-level functions that a typical user will may wa
 
 .. automodapi:: pyapprox.interface
    :no-inheritance-diagram:
-   
 
 .. automodapi:: pyapprox.multifidelity
    :no-inheritance-diagram:

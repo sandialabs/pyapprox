@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 import multiprocessing
 from multiprocessing.pool import ThreadPool
 from typing import List, Tuple, Union
+import matplotlib
 
 import numpy as np
 import umbridge
@@ -25,9 +26,37 @@ from pyapprox.util.backends.numpy import NumpyMixin
 
 
 class ModelWorkTracker:
+    """
+    A class for tracking the computational performance of model evaluations.
+
+    The `ModelWorkTracker` class is designed to record and analyze the wall times for various model evaluations, such as values, Jacobians, Hessians, and their vector products. It supports both single-process and multi-process environments, allowing shared memory access for multiprocessing scenarios.
+
+    Parameters
+    ----------
+    backend : BackendMixin, optional
+        The backend used for array operations (e.g., `NumpyMixin`). Defaults to `NumpyMixin`.
+    multiproc : bool, optional
+        Whether to enable multiprocessing support. Defaults to `False`.
+    """
+
     def __init__(
         self, backend: BackendMixin = NumpyMixin, multiproc: bool = False
     ):
+        """
+        Initialize the ModelWorkTracker instance.
+
+        Parameters
+        ----------
+        backend : BackendMixin, optional
+            The backend used for array operations (e.g., `NumpyMixin`). Defaults to `NumpyMixin`.
+        multiproc : bool, optional
+            Whether to enable multiprocessing support. Defaults to `False`.
+
+        Notes
+        -----
+        - When `multiproc=True`, the `_wall_times` dictionary is created using `multiprocessing.Manager()` to allow shared memory access across processes.
+        - Shared memory access can slow down code due to locking mechanisms, so it should only be used when necessary.
+        """
         self._bkd = backend
         self.set_active(False)
         # use multiprocessing.Manager() so that the dictionary
@@ -62,15 +91,56 @@ class ModelWorkTracker:
             }
 
     def set_active(self, active: bool):
+        """
+        Set whether tracking is active.
+
+        Parameters
+        ----------
+        active : bool
+            Whether tracking is active.
+        """
         self._active = active
 
     def update(self, eval_name: str, times: Array):
+        """
+        Update the wall times for a specific type of evaluation.
+
+        Parameters
+        ----------
+        eval_name : str
+            The name of the evaluation (e.g., "val", "jac", "hess").
+        times : Array
+            The wall times to add.
+
+        Notes
+        -----
+        - Wall times are stored as lists of arrays for efficient concatenation.
+        - This method only updates wall times if tracking is active.
+        """
         # use list of arrays because hstacking arrays continually is slow
         # only hstack arrays when accessing wall_times
         if self._active:
             self._wall_times[eval_name].append(times)
 
     def average_wall_time(self, eval_name: str) -> float:
+        """
+        Compute the average wall time for a specific type of evaluation.
+
+        Parameters
+        ----------
+        eval_name : str
+            The name of the evaluation (e.g., "val", "jac", "hess").
+
+        Returns
+        -------
+        float
+            The average wall time for the specified evaluation.
+
+        Notes
+        -----
+        - Excludes failed evaluations (i.e., `np.nan` values) from the calculation.
+        - Returns "?" if no evaluations have been performed for the specified type.
+        """
         if self.nevaluations(eval_name) == 0:
             return "?"
         # call self.walltimes() so _wall_times lists are concatenated into
@@ -81,9 +151,35 @@ class ModelWorkTracker:
         return self._bkd.mean(wall_times)
 
     def nevaluations(self, eval_name: str) -> int:
+        """
+        Return the number of evaluations for a specific type of evaluation.
+
+        Parameters
+        ----------
+        eval_name : str
+            The name of the evaluation (e.g., "val", "jac", "hess").
+
+        Returns
+        -------
+        int
+            The number of evaluations for the specified type.
+        """
         return self.wall_times()[eval_name].shape[0]
 
     def wall_times(self) -> dict:
+        """
+        Return the wall times for all types of evaluations.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the wall times for each type of evaluation.
+
+        Notes
+        -----
+        - Concatenates lists of arrays into a single array for each evaluation type.
+        - If no wall times exist for a specific type, returns an empty array for that type.
+        """
         wtimes = {}
         for key, item in self._wall_times.items():
             if len(self._wall_times[key]) > 0:
@@ -112,6 +208,14 @@ class ModelDataBase:
     # TODO Add option to save results to file at certain frequency
     # TODO support different file systems, e.g. pickle, HDF5 etc.
     def __init__(self, backend: BackendMixin = NumpyMixin):
+        """
+        Initialize the ModelDataBase instance.
+
+        Parameters
+        ----------
+        backend : BackendMixin, optional
+            The backend used for array operations (e.g., `NumpyMixin`). Defaults to `NumpyMixin`.
+        """
         self._bkd = backend
         self._samples_dict = {}
         self._values_dict = {
@@ -128,28 +232,111 @@ class ModelDataBase:
 
     def activate(self):
         """
-        Using a database has a overhead which can slow down computationally
-        fast model evaluations.
-        Use this function to activate the use of a database
+        Activate the use of the database.
+
+        Notes
+        -----
+        Using a database introduces overhead, which can slow down computationally fast model evaluations.
+        This method enables the use of the database for storing and retrieving evaluation results.
         """
         self._active = True
 
     def isactive(self) -> bool:
+        """
+        Check whether the database is active.
+
+        Returns
+        -------
+        bool
+            True if the database is active, False otherwise.
+        """
         return self._active
 
     def _hash_sample(self, sample: Array) -> int:
+        """
+        Compute a hash for a given sample.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample to hash.
+
+        Returns
+        -------
+        int
+            The hash value for the sample.
+
+        Notes
+        -----
+        - The hash is computed using the byte representation of the sample.
+        - This method is used to uniquely identify samples in the database.
+        """
         return hash(self._bkd.to_numpy(sample).tobytes())
 
     def _add_sample(self, eval_name: str, key, sample):
+        """
+        Add a sample to the database.
+
+        Parameters
+        ----------
+        eval_name : str
+            The name of the evaluation (e.g., "val", "jac", "hess").
+        key : int
+            The hash key for the sample.
+        sample : Array (nvars, 1)
+            The sample to add.
+
+        Notes
+        -----
+        - If the sample is not already in the database, it is added to `_samples_dict` and `_samples`.
+        """
         if key not in self._samples_dict:
             self._samples_dict[key] = len(self._samples)
             self._samples.append(sample)
 
     def _add_values(self, eval_name: str, key: int, values: Array):
+        """
+        Add evaluation results to the database.
+
+        Parameters
+        ----------
+        eval_name : str
+            The name of the evaluation (e.g., "val", "jac", "hess").
+        key : int
+            The hash key for the sample.
+        values : Array
+            The evaluation results to add.
+
+        Notes
+        -----
+        - The evaluation results are stored in `_values_dict` under the specified `eval_name`.
+        """
         # append values to a list
         self._values_dict[eval_name][key] = self._bkd.copy(values)
 
     def add_data(self, eval_name: str, samples: Array, values: Array):
+        """
+        Add evaluation results for multiple samples to the database.
+
+        Parameters
+        ----------
+        eval_name : str
+            The name of the evaluation (e.g., "val", "jac", "hess").
+        samples : Array (nvars, nsamples)
+            The samples used for the evaluation.
+        values : Array
+            The evaluation results.
+
+        Notes
+        -----
+        - If the database is not active, this method does nothing.
+        - For evaluations other than "val", only one sample can be added at a time.
+
+        Raises
+        ------
+        ValueError
+            If more than one sample is added for evaluations other than "val".
+        """
         if not self.isactive():
             return
         for ii in range(samples.shape[1]):
@@ -163,6 +350,29 @@ class ModelDataBase:
                 self._add_values(eval_name, key, values)
 
     def get_data(self, eval_name: str, samples: Array) -> Tuple[List, List]:
+        """
+        Retrieve stored evaluation results for a set of samples.
+
+        Parameters
+        ----------
+        eval_name : str
+            The name of the evaluation (e.g., "val", "jac", "hess").
+        samples : Array (nvars, nsamples)
+            The samples for which to retrieve evaluation results.
+
+        Returns
+        -------
+        stored_values : List
+            The evaluation results for samples already in the database.
+        stored_sample_idx : List
+            The indices of samples already in the database.
+        new_sample_idx : List
+            The indices of samples not in the database.
+
+        Notes
+        -----
+        - If the database is not active, all samples are treated as new samples.
+        """
         if not self.isactive():
             return None, [], self._bkd.arange(samples.shape[1])
         new_sample_idx = []
@@ -181,23 +391,46 @@ class ModelDataBase:
 
 class Model(ABC):
     """
-    Evaluate a model at a single sample.
+    Abstract base class for evaluating a model.
 
-    Required functions:
-    _values is required
+    The `Model` class provides a framework for defining models that can evaluate values, Jacobians, Hessians, and other derivatives at a single sample. It requires the implementation of certain abstract methods and provides optional methods for advanced functionality.
 
-    Optional functions:
-    _jacobian, _apply_jacobian, _hessian _apply_hessian
+    Required Methods
+    ----------------
+    - `nqoi() -> int`: Returns the number of quantities of interest (QoI) in the model.
+    - `nvars() -> int`: Returns the number of variables in the model.
+    - `_values(sample: Array) -> Array`: Evaluates the model's values at the given sample. This method must be implemented in subclasses.
 
-    If optional functions are implemented set the corresponding functions to return True
-    to True:
-    jacobian_implemented,
-    apply_jacobian_implemented,
-    apply_hessian_implemented,
-    apply_weighted_hessian_implemented
+
+    Optional Methods
+    ----------------
+    - `_jacobian(sample: Array) -> Array`: Computes the Jacobian matrix at the given sample.
+    - `_apply_jacobian(sample: Array, vec: Array) -> Array`: Applies the Jacobian matrix to a vector at the given sample.
+    - `_hessian(sample: Array) -> Array`: Computes the Hessian matrix at the given sample.
+    - `_apply_hessian(sample: Array, vec: Array) -> Array`: Applies the Hessian matrix to a vector at the given sample.
+    - `_weighted_hessian(sample: Array, weights: Array) -> Array`: Computes the weighted Hessian matrix at the given sample.
+    - `_apply_weighted_hessian(sample: Array, vec: Array, weights: Array) -> Array`: Applies the weighted Hessian matrix to a vector and weights at the given sample.
+
+    Optional Functionality Flags
+    ----------------------------
+    If the optional methods are implemented in a subclass, the corresponding flags must be set to `True`:
+    - `jacobian_implemented() -> bool`: Returns `True` if `_jacobian` is implemented.
+    - `apply_jacobian_implemented() -> bool`: Returns `True` if `_apply_jacobian` is implemented.
+    - `hessian_implemented() -> bool`: Returns `True` if `_hessian` is implemented.
+    - `apply_hessian_implemented() -> bool`: Returns `True` if `_apply_hessian` is implemented.
+    - `weighted_hessian_implemented() -> bool`: Returns `True` if `_weighted_hessian` is implemented.
+    - `apply_weighted_hessian_implemented() -> bool`: Returns `True` if `_apply_weighted_hessian` is implemented.
     """
 
     def __init__(self, backend: BackendMixin = NumpyMixin):
+        """
+        Initialize the Model instance.
+
+        Parameters
+        ----------
+        backend : BackendMixin, optional
+            The backend used for array operations (e.g., `NumpyMixin`). Defaults to `NumpyMixin`.
+        """
         if not hasattr(backend, "isbackend"):
             raise ValueError("backend must be derived from LinAlgBase")
         self._bkd = backend
@@ -206,10 +439,18 @@ class Model(ABC):
 
     def activate_model_data_base(self):
         """
-        Using a database has a overhead which can slow down computationally
-        fast model evaluations. Also using a database will corrupt auto
-        differentiation results if used.
-        Use this function to activate the use of a database.
+        Activate the use of a database tracking evaluation meta data.
+
+        Notes
+        -----
+        Using a database introduces overhead, which can slow down computationally fast model evaluations.
+        Activating a database may corrupt auto-differentiation results if used.
+        This method raises an error if some samples have already been requested before activating the database.
+
+        Raises
+        ------
+        RuntimeError
+            If samples have already been requested before activating the database.
         """
         self._database.activate()
         self._work_tracker.set_active(True)
@@ -223,7 +464,22 @@ class Model(ABC):
     def set_model_history(
         self, database: ModelDataBase, work_tracker: ModelWorkTracker
     ):
-        "Load in a database and worktracker from a previous study"
+        """
+        Load a database and work tracker from a previous study to resume tracking
+        of evaluation meta data.
+
+        Parameters
+        ----------
+        database : ModelDataBase
+            The database containing the history of model evaluations.
+        work_tracker : ModelWorkTracker
+            The work tracker containing computational performance metrics.
+
+        Raises
+        ------
+        RuntimeError
+            If the database and work tracker are inconsistent (i.e., they have different numbers of evaluations).
+        """
         for key in work_tracker._wt_dict:
             if not work_tracker.nevaluations(key) != len(
                 database._values_dict[key]
@@ -236,36 +492,132 @@ class Model(ABC):
         self._work_tracker = work_tracker
 
     def apply_jacobian_implemented(self) -> bool:
+        """
+        Check if the apply_jacobian function is implemented.
+
+        Returns
+        -------
+        bool
+            True if apply_jacobian is implemented, False otherwise.
+        """
         return False
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the jacobian function is implemented.
+
+        Returns
+        -------
+        bool
+            True if jacobian is implemented, False otherwise.
+        """
         return False
 
     def apply_hessian_implemented(self) -> bool:
+        """
+        Check if the apply_hessian function is implemented.
+
+        Returns
+        -------
+        bool
+            True if apply_hessian is implemented, False otherwise.
+        """
         return False
 
     def hessian_implemented(self) -> bool:
+        """
+        Check if the hessian function is implemented.
+
+        Returns
+        -------
+        bool
+            True if hessian is implemented, False otherwise.
+        """
         return False
 
     def apply_weighted_hessian_implemented(self) -> bool:
+        """
+        Check if the apply_weighted_hessian function is implemented.
+        The weighted hessian is typicall used when a model is a contstraint in
+        an optimizer. The weights are typically lagrange multipliers.
+
+        Returns
+        -------
+        bool
+            True if apply_weighted_hessian is implemented, False otherwise.
+        """
         return False
 
     def weighted_hessian_implemented(self) -> bool:
+        """
+        Check if the weighted_hessian function is implemented.
+        The weighted hessian is typicall used when a model is a contstraint in
+        an optimizer. The weights are typically lagrange multipliers.
+
+        Returns
+        -------
+        bool
+            True if weighted_hessian is implemented, False otherwise.
+        """
         return False
 
     @abstractmethod
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI) in the model.
+
+        Returns
+        -------
+        nqoi: int
+            The number of quantities of interest.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def nvars(self) -> int:
+        """
+        Return the number of variables in the model.
+
+        Returns
+        -------
+        nvars: int
+            The number of variables.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def _values(self, samples: Array) -> Array:
+        """
+        Evaluate the model's values at a set of samples.
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            The input samples used to evaluate the model.
+
+        Returns
+        -------
+        values : Array (nsamples, nqoi)
+            The model outputs at each sample.
+        """
         raise NotImplementedError("Must implement self._values")
 
     def _check_values_shape(self, samples: Array, vals: Array):
+        """
+        Check that the shape of the values returned by the model is correct.
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+        The input samples used to evaluate the model.
+        vals : Array (nsamples, nqoi)
+        The values returned by the model.
+
+        Raises
+        ------
+        RuntimeError
+            If the shape of `vals` does not match `(nsamples, nqoi)`.
+        """
         if vals.shape != (samples.shape[1], self.nqoi()):
             raise RuntimeError(
                 "{0}: values had shape {1} but should have shape {2}".format(
@@ -274,6 +626,19 @@ class Model(ABC):
             )
 
     def _new_values(self, samples: Array) -> Array:
+        """
+        Evaluate the model at new samples and update the database.
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            The input samples used to evaluate the model.
+
+        Returns
+        -------
+        values : Array (nsamples, nqoi)
+            The model outputs at each sample.
+        """
         t0 = time.time()
         vals = self._values(samples)
         t1 = time.time()
@@ -320,6 +685,19 @@ class Model(ABC):
         return vals
 
     def _check_sample_shape(self, sample: Array):
+        """
+        Check that the shape of a single sample is correct.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The input sample.
+
+        Raises
+        ------
+        ValueError
+            If the shape of `sample` is not `(nvars, 1)`.
+        """
         if sample.shape != (self.nvars(), 1):
             raise ValueError(
                 "{0}: sample must have shape {1} but had shape {2}".format(
@@ -328,6 +706,19 @@ class Model(ABC):
             )
 
     def _check_samples_shape(self, sample: Array):
+        """
+        Check that the shape of multiple samples is correct.
+
+        Parameters
+        ----------
+        sample : Array (nvars, nsamples)
+            The input samples.
+
+        Raises
+        ------
+        ValueError
+            If the number of rows in `sample` does not match `nvars`.
+        """
         if sample.shape[0] != self.nvars():
             raise ValueError(
                 "{0}: sample must have nrows={1} but had shape {2}".format(
@@ -336,6 +727,21 @@ class Model(ABC):
             )
 
     def _check_vec_shape(self, sample: Array, vec: Array):
+        """
+        Check that the shape of a vector is consistent with the sample.
+
+        Parameters
+        ----------
+        sample : Array (nvars, nsamples)
+            The input samples.
+        vec : Array (nvars, nsamples)
+            The vector to check.
+
+        Raises
+        ------
+        ValueError
+            If `vec` is not a 2D array or its shape is inconsistent with `sample`.
+        """
         if vec.ndim != 2:
             raise ValueError(
                 "{0}: vec is not a 2D array, has shape {1}".format(
@@ -350,6 +756,19 @@ class Model(ABC):
             )
 
     def _check_weights_shape(self, weights: Array):
+        """
+        Check that the shape of weights is correct.
+
+        Parameters
+        ----------
+        weights : Array (nqoi, nsamples)
+            The weights to check.
+
+        Raises
+        ------
+        ValueError
+            If `weights` is not a 2D array or its shape is inconsistent with `nqoi`.
+        """
         if weights.ndim != 2:
             raise ValueError(
                 "weights is not a 2D array, has shape {0}".format(
@@ -361,8 +780,21 @@ class Model(ABC):
 
     def _jacobian(self, sample: Array) -> Array:
         """
-        User provided function to compute the Jacobian.
+        Compute the Jacobian matrix at a single sample.
 
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the Jacobian.
+
+        Returns
+        -------
+        jac : Array (nqoi, nvars)
+            The Jacobian matrix.
+
+
+        Notes
+        -------
         Default to using autograd to compute Jacobian.
         However, the user must ensure that all methods envocked by __call__
         are differentiable. This is why self.jacobian_implemented is False
@@ -375,6 +807,16 @@ class Model(ABC):
         )
 
     def _check_jacobian_shape(self, jac: Array, sample: Array):
+        """ "
+        Check that the shape of the Jacobian matrix is correct.
+
+        Parameters
+        ----------
+        jac : Array (nqoi, nvars)
+            The Jacobian matrix.
+        sample : Array (nvars, 1)
+            The sample at which the Jacobian was computed.
+        """
         if jac.shape != (self.nqoi(), sample.shape[0]):
             raise RuntimeError(
                 "Jacobian returned by _jacobian has shape {0}"
@@ -420,12 +862,23 @@ class Model(ABC):
 
     def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
         """
-        User provided function to compute the Jacobian vector product.
+        Compute the Jacobian vector product using a user-provided function.
 
-        Default to using autograd to compute Jacobian vector product.
-        However, the user must ensure that all methods envocked by __call__
-        are differentiable. This is why self.apply_jacobian_implemented is
-        False by default
+        Default behavior uses autograd to compute the Jacobian vector product.
+        The user must ensure that all methods invoked by `__call__` are differentiable.
+        By default, `apply_jacobian_implemented` is set to `False`.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the Jacobian vector product.
+        vec : Array (nvars, 1)
+            The vector to multiply with the Jacobian.
+
+        Returns
+        -------
+        result : Array (nqoi, 1)
+            The result of the Jacobian vector product.
         """
         if not self._bkd.jvp_implemented():
             raise NotImplementedError
@@ -473,19 +926,46 @@ class Model(ABC):
         return self.jacobian(sample) @ vec
 
     def work_tracker(self) -> ModelWorkTracker:
+        """
+        Return the work tracker associated with the model.
+
+        Returns
+        -------
+        work_tracker : ModelWorkTracker
+            The work tracker containing computational performance metrics.
+        """
         return self._work_tracker
 
     def model_database(self) -> ModelDataBase:
+        """
+        Return the database associated with the model.
+
+        Returns
+        -------
+        database : ModelDataBase
+            The database containing the history of model evaluations.
+        """
         return self._database
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         """
-        User provided function to compute the Hessian vector product.
+        Compute the Hessian vector product using a user-provided function.
 
-        Default to using autograd to compute Jacobian vector product.
-        However, the user must ensure that all methods envocked by __call__
-        are differentiable. This is why self.apply_hessian_implemented is False
-        by default
+        Default behavior uses autograd to compute the Hessian vector product.
+        The user must ensure that all methods invoked by `__call__` are differentiable.
+        By default, `apply_hessian_implemented` is set to `False`.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the Hessian vector product.
+        vec : Array (nvars, 1)
+            The vector to multiply with the Hessian.
+
+        Returns
+        -------
+        result : Array (nvars, 1)
+            The result of the Hessian vector product.
         """
         if not self._bkd.hvp_implemented():
             raise NotImplementedError
@@ -496,6 +976,16 @@ class Model(ABC):
         )[:, None]
 
     def _check_hvp_shape(self, hvp: Array, sample: Array):
+        """
+        Check that the shape of the Hessian vector product is correct.
+
+        Parameters
+        ----------
+        hvp : Array (nvars, 1)
+            The Hessian vector product.
+        sample : Array (nvars, 1)
+            The sample at which the Hessian vector product was computed.
+        """
         if hvp.shape != (sample.shape[0], 1):
             raise RuntimeError(
                 f"{self}:"
@@ -548,12 +1038,21 @@ class Model(ABC):
 
     def _hessian(self, sample: Array) -> Array:
         """
-        User provided function to compute the Hessian.
+        Compute the Hessian matrix using a user-provided function.
 
-        Default to using autograd to compute Jacobian vector product.
-        However, the user must ensure that all methods envocked by __call__
-        are differentiable. This is why self.hessian_implemented is False
-        by default
+        Default behavior uses autograd to compute the Hessian matrix.
+        The user must ensure that all methods invoked by `__call__` are differentiable.
+        By default, `hessian_implemented` is set to `False`.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the Hessian.
+
+        Returns
+        -------
+        hess : Array (nqoi, nvars, nvars)
+            The Hessian matrix.
         """
         if not self._bkd.hessian_implemented():
             raise NotImplementedError
@@ -562,6 +1061,16 @@ class Model(ABC):
         )[None]
 
     def _check_hessian_shape(self, hess: Array, sample: Array):
+        """
+        Check that the shape of the Hessian matrix is correct.
+
+        Parameters
+        ----------
+        hess : Array (nqoi, nvars, nvars)
+            The Hessian matrix.
+        sample : Array (nvars, 1)
+            The sample at which the Hessian was computed.
+        """
         if hess.shape != (self.nqoi(), sample.shape[0], sample.shape[0]):
             raise RuntimeError(
                 "Hessian returned by _hessian has the wrong shape. "
@@ -714,9 +1223,38 @@ class Model(ABC):
         return (weights.T @ (self.hessian(sample) @ vec[:, 0])).T
 
     def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
+        """Compute the weighted Hessian matrix.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the weighted Hessian.
+        weights : Array (nqoi, 1)
+            The weights defining the combination of quantities of interest.
+
+        Returns
+        -------
+        weighted_hessian : Array (nvars, nvars)
+            The weighted Hessian matrix.
+        """
         raise NotImplementedError
 
     def weighted_hessian(self, sample: Array, weights: Array) -> Array:
+        """
+        Compute the weighted Hessian matrix.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the weighted Hessian.
+        weights : Array (nqoi, 1)
+            The weights defining the combination of quantities of interest.
+
+        Returns
+        -------
+        weighted_hessian : Array (nvars, nvars)
+            The weighted Hessian matrix.
+        """
         if (
             not self.weighted_hessian_implemented()
             and not self.hessian_implemented()
@@ -754,6 +1292,37 @@ class Model(ABC):
         disp: bool = False,
         args=[],
     ) -> Array:
+        """
+        Compare the result of an apply function with finite difference approximations.
+
+        This function computes directional gradients using finite differences and compares them to the gradients computed by the provided `apply_fun`. It is useful for verifying the correctness of `apply_jacobian` or `apply_hessian`.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the gradients.
+        symb : str
+            A symbol representing the type of gradient being checked (e.g., "J" for Jacobian, "H" for Hessian).
+        fun : callable
+            The function used to compute the values at the sample.
+        apply_fun : callable
+            The function used to compute the directional gradient.
+        fd_eps : Array, optional
+            The finite difference step sizes. Defaults to logarithmically spaced values.
+        direction : Array, optional
+            The direction vector for computing directional gradients. Defaults to a random normalized vector.
+        relative : bool, optional
+            Whether to compute relative errors. Defaults to True.
+        disp : bool, optional
+            Whether to display the errors during computation. Defaults to False.
+        args : list, optional
+            Additional arguments passed to `fun` and `apply_fun`.
+
+        Returns
+        -------
+        errors : Array
+            The computed errors between finite difference gradients and `apply_fun` gradients.
+        """
         if sample.ndim != 2:
             raise ValueError(
                 "sample with shape {0} must be 2D array".format(sample.shape)
@@ -811,7 +1380,26 @@ class Model(ABC):
         disp: bool = False,
     ):
         """
-        Compare apply_jacobian with finite difference.
+        Compare `apply_jacobian` with finite difference approximations.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the Jacobian.
+        fd_eps : Array, optional
+            The finite difference step sizes. Defaults to logarithmically spaced values.
+        direction : Array, optional
+            The direction vector for computing directional gradients. Defaults to a random normalized vector.
+        relative : bool, optional
+            Whether to compute relative errors. Defaults to True.
+        disp : bool, optional
+            Whether to display the errors during computation. Defaults to False.
+
+        Returns
+        -------
+        errors : Array
+            The computed errors between finite difference gradients and `apply_jacobian` gradients.
+
         """
         if (
             not self.apply_jacobian_implemented()
@@ -833,15 +1421,39 @@ class Model(ABC):
         )
 
     def _weighted_jacobian(self, sample: Array, weights: Array) -> Array:
-        # only used by check_apply_hessian
+        """
+        Compute the weighted Jacobian matrix. only used by check_apply_hessian
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the Jacobian.
+        weights : Array (nqoi, 1)
+            The weights defining the combination of quantities of interest.
+
+        Returns
+        -------
+        weighted_jacobian : Array (1, nvars)
+            The weighted Jacobian matrix.
+        """
         return weights.T @ self.jacobian(sample)
 
     def _jacobian_from_apply_jacobian(self, sample: Array) -> Array:
-        # Only use when checking apply_hessian.
-        # It computes jacobian from apply jacobian which is necessary
-        # to check apply_hessian. We do not want to support this for their
-        # user as it can lead to large numbers of apply_jacobians
-        # in typical model analyses.
+        """
+        Compute the Jacobian matrix using `apply_jacobian`.
+
+        This function computes the Jacobian by applying `apply_jacobian` to unit vectors. It is used internally for checking `apply_hessian`.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the Jacobian.
+
+        Returns
+        -------
+        jacobian : Array (nqoi, nvars)
+            The Jacobian matrix.
+        """
         if self.jacobian_implemented():
             return self.jacobian(sample)
         nvars = sample.shape[0]
@@ -862,7 +1474,27 @@ class Model(ABC):
         weights: bool = None,
     ):
         """
-        Compare apply_hessian with finite difference.
+        Compare `apply_hessian` or `apply_weighted_hessian` with finite difference approximations.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the Hessian.
+        fd_eps : Array, optional
+            The finite difference step sizes. Defaults to logarithmically spaced values.
+        direction : Array, optional
+            The direction vector for computing directional gradients. Defaults to a random normalized vector.
+        relative : bool, optional
+            Whether to compute relative errors. Defaults to True.
+        disp : bool, optional
+            Whether to display the errors during computation. Defaults to False.
+        weights : Array, optional
+            The weights defining the combination of quantities of interest. If `None`, checks `apply_hessian`.
+
+        Returns
+        -------
+        errors : Array
+            The computed errors between finite difference gradients and `apply_hessian` or `apply_weighted_hessian` gradients.
         """
         if weights is None:
             if (
@@ -906,6 +1538,21 @@ class Model(ABC):
     def approx_jacobian(
         self, sample: Array, eps: float = np.sqrt(np.finfo(float).eps)
     ) -> Array:
+        """
+        Compute the Jacobian matrix using finite differences.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the Jacobian.
+        eps : float, optional
+            The perturbation size for finite differences. Defaults to the square root of machine epsilon.
+
+        Returns
+        -------
+        jac : Array (nqoi, nvars)
+            The Jacobian matrix computed using finite differences.
+        """
         self._check_sample_shape(sample)
         nvars = sample.shape[0]
         val = self(sample)
@@ -919,19 +1566,89 @@ class Model(ABC):
             dx[ii] = 0.0
         return jac
 
-    def _plot_surface_1d(self, ax, qoi, plot_limits, npts_1d, **kwargs):
+    def _plot_surface_1d(
+        self,
+        ax: matplotlib.axes.Axes,
+        qoi: int,
+        plot_limits: tuple,
+        npts_1d: int,
+        **kwargs,
+    ):
+        """
+        Plot a 1D surface of the model.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axis on which to plot the surface.
+        qoi : int
+            The quantity of interest to plot.
+        plot_limits : tuple
+            The limits of the plot (min, max).
+        npts_1d : int
+            The number of points to use for the plot.
+        **kwargs : dict
+            Additional arguments passed to the plot function.
+        """
         plot_xx = self._bkd.linspace(*plot_limits, npts_1d[0])[None, :]
         ax.plot(plot_xx[0], self.__call__(plot_xx), **kwargs)
 
     def meshgrid_samples(
         self, plot_limits: Array, npts_1d: Union[Array, int] = 51
     ) -> Array:
+        """
+        Generate a meshgrid of samples for 2D plotting.
+
+        Parameters
+        ----------
+        plot_limits : Array (2, 2)
+            The limits of the plot for each variable.
+        npts_1d : int or Array, optional
+            The number of points to use for each variable. Defaults to 51.
+
+        Returns
+        -------
+        X : Array
+            The meshgrid for the first variable.
+        Y : Array
+            The meshgrid for the second variable.
+        pts : Array
+            The flattened meshgrid samples.
+        """
         if self.nvars() != 2:
             raise RuntimeError(f"nvars = {self.nvars()} but must be 2")
         X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
         return X, Y, pts
 
-    def _plot_surface_2d(self, ax, qoi, plot_limits, npts_1d, **kwargs):
+    def _plot_surface_2d(
+        self,
+        ax: matplotlib.axes.Axes,
+        qoi: int,
+        plot_limits: Array,
+        npts_1d: Array,
+        **kwargs,
+    ):
+        """
+        Plot a 2D surface of the model.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axis on which to plot the surface (must use 3D projection).
+        qoi : int
+            The quantity of interest to plot.
+        plot_limits : Array (4,)
+            The limits of the plot for each variable.
+        npts_1d : int or Array
+            The number of points to use for each variable.
+        **kwargs : dict
+            Additional arguments passed to the plot_surface function.
+
+        Returns
+        -------
+        surface : matplotlib.surface.Surface
+            The plotted surface.
+        """
         if ax.name != "3d":
             raise ValueError("ax must use 3d projection")
         X, Y, pts = self.meshgrid_samples(plot_limits, npts_1d)
@@ -942,7 +1659,31 @@ class Model(ABC):
         # Z = self._bkd.to_numpy(Z)
         return ax.plot_surface(X, Y, Z, **kwargs)
 
-    def plot_surface(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
+    def plot_surface(
+        self,
+        ax: matplotlib.axes.Axes,
+        plot_limits: Array,
+        qoi: int = 0,
+        npts_1d: Array = 51,
+        **kwargs,
+    ):
+        """
+        Plot the surface of the model for 1D or 2D inputs.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axis on which to plot the surface.
+        plot_limits : Array
+            The limits of the plot for each variable.
+        qoi : int, optional
+            The quantity of interest to plot. Defaults to 0.
+        npts_1d : int or list, optional
+            The number of points to use for each variable. Defaults to 51.
+        **kwargs : dict
+            Additional arguments passed to the plotting functions.
+
+        """
         if self.nvars() > 3:
             raise RuntimeError("Cannot plot indices when nvars >= 3.")
 
@@ -960,14 +1701,66 @@ class Model(ABC):
             ax, qoi, plot_limits, npts_1d, **kwargs
         )
 
-    def get_plot_axis(self, figsize=(8, 6), surface=False):
+    def get_plot_axis(
+        self, figsize: Tuple = (8, 6), surface: bool = False
+    ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+        """
+        Get the plot axis for 1D or 2D surfaces.
+
+        Parameters
+        ----------
+        figsize : tuple, optional
+            The size of the figure. Defaults to (8, 6).
+        surface : bool, optional
+            Whether to use a 3D axis for surface plots. Defaults to False.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        ax : matplotlib.axes.Axes
+            The axis object.
+        """
         if self.nvars() < 3 and not surface:
             fig = plt.figure(figsize=figsize)
             return fig, fig.gca()
         fig = plt.figure(figsize=figsize)
         return fig, fig.add_subplot(111, projection="3d")
 
-    def plot_contours(self, ax, plot_limits, qoi=0, npts_1d=51, **kwargs):
+    def plot_contours(
+        self,
+        ax: matplotlib.axes.Axes,
+        plot_limits: Array,
+        qoi: int = 0,
+        npts_1d: Array = 51,
+        **kwargs,
+    ):
+        """
+        Plot contours of the model for 2D inputs.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axis on which to plot the contours.
+        plot_limits : Array (2, 2)
+            The limits of the plot for each variable.
+        qoi : int, optional
+            The quantity of interest to plot. Defaults to 0.
+        npts_1d : int or Array, optional
+            The number of points to use for each variable. Defaults to 51.
+        **kwargs : dict
+            Additional arguments passed to the contourf function.
+
+        Returns
+        -------
+        contour : matplotlib.contour.QuadContourSet
+            The plotted contours.
+
+        Raises
+        ------
+        ValueError
+            If `nvars != 2`.
+        """
         if self.nvars() != 2:
             raise ValueError("Can only plot contours for 2D functions")
         X, Y, pts = self.meshgrid_samples(plot_limits, npts_1d)
@@ -978,6 +1771,27 @@ class Model(ABC):
     def _2d_cross_section_values(
         self, nominal_sample: Array, id1: int, id2: int, pts: Array
     ) -> Array:
+        """
+        Compute the model values for a 2D cross-section.
+
+        This function evaluates the model at a set of points in a 2D cross-section defined by two variable indices.
+
+        Parameters
+        ----------
+        nominal_sample : Array (nvars, 1)
+            The nominal sample used as a baseline for the cross-section.
+        id1 : int
+            The index of the first variable defining the cross-section.
+        id2 : int
+            The index of the second variable defining the cross-section.
+        pts : Array (2, npts)
+            The points in the 2D cross-section.
+
+        Returns
+        -------
+        vals : Array (npts, nqoi)
+            The model values at the points in the cross-section.
+        """
         samples = []
         for pt in pts.T:
             sample = self._bkd.copy(nominal_sample)
@@ -995,6 +1809,25 @@ class Model(ABC):
     def _1d_cross_section_values(
         self, nominal_sample: Array, id1: int, pts: Array
     ) -> Array:
+        """
+        Compute the model values for a 1D cross-section.
+
+        This function evaluates the model at a set of points in a 1D cross-section defined by a single variable index.
+
+        Parameters
+        ----------
+        nominal_sample : Array (nvars, 1)
+            The nominal sample used as a baseline for the cross-section.
+        id1 : int
+            The index of the variable defining the cross-section.
+        pts : Array (1, npts)
+            The points in the 1D cross-section.
+
+        Returns
+        -------
+        vals : Array (npts, nqoi)
+            The model values at the points in the cross-section.
+        """
         samples = self._bkd.tile(nominal_sample, (1, pts.shape[1]))
         samples[id1] = pts[0]
         return self(samples)
@@ -1009,6 +1842,31 @@ class Model(ABC):
         npts_1d=51,
         **kwargs,
     ):
+        """
+        Plot a 2D cross-section of the model.
+
+        Parameters
+        ----------
+        nominal_sample : Array (nvars, 1)
+            The nominal sample used as a baseline for the cross-section.
+        bounds : Array (nvars, 2)
+            The bounds for each variable.
+        ax : matplotlib.axes.Axes
+            The axis on which to plot the cross-section.
+        id1 : int
+            The index of the first variable defining the cross-section.
+        id2 : int
+            The index of the second variable defining the cross-section.
+        npts_1d : int, optional
+            The number of points to use for each variable. Defaults to 51.
+        **kwargs : dict
+            Additional arguments passed to the contourf function.
+
+        Returns
+        -------
+        im : matplotlib.contour.QuadContourSet
+            The plotted cross-section.
+        """
         plot_limits = self._bkd.hstack((bounds[id1], bounds[id2]))
         X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
         active_pt = self._bkd.copy(nominal_sample[[id1, id2], 0])
@@ -1021,6 +1879,18 @@ class Model(ABC):
         return im
 
     def get_all_variable_pairs(self) -> Array:
+        """
+        Get all pairs of variables for cross-section plotting.
+
+        Returns
+        -------
+        variable_pairs : Array (n_pairs, 2)
+            An array of variable pairs, where each row contains two indices representing a pair of variables.
+
+        Notes
+        -----
+        - The first column of `variable_pairs` varies fastest to ensure lower triangular matrix plotting.
+        """
         variable_pairs = self._bkd.asarray(
             anova_level_indices(self.nvars(), 2)
         )
@@ -1040,6 +1910,29 @@ class Model(ABC):
         npts_1d=51,
         **kwargs,
     ):
+        """
+        Plot cross-sections of the model for all variable pairs.
+
+        Parameters
+        ----------
+        nominal_sample : Array (nvars, 1)
+            The nominal sample used as a baseline for the cross-sections.
+        bounds : Array (nvars, 2)
+            The bounds for each variable.
+        variable_pairs : List[Tuple[int, int]], optional
+            The pairs of variables to plot. If `None`, all pairs are plotted. Defaults to `None`.
+        npts_1d : int, optional
+            The number of points to use for each variable. Defaults to 51.
+        **kwargs : dict
+            Additional arguments passed to the plotting functions.
+
+        Returns
+        -------
+        axs : numpy.ndarray
+            The array of axes used for plotting.
+        ims : list
+            The list of plotted cross-sections.
+        """
         if nominal_sample.shape != (self.nvars(), 1):
             raise ValueError(
                 f"nominal_sample must have shape {(self.nvars(), 1)}"
@@ -1431,15 +2324,13 @@ class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
     - The `function` parameter is required, while other derivative-related functions (`jacobian`, `apply_jacobian`, etc.) are optional.
     - The `sample_ndim` parameter is fixed to 1, as this class always expects 1D arrays of samples.
 
-    Example
-    -------
+    Examples
+    --------
     >>> import numpy as np
     >>> from pyapprox.util.backends.numpy import NumpyMixin as bkd
     >>> from pyapprox.interface.model import ModelFromSingleSampleCallable
-
     >>> # Define the number of variables
     >>> nvars = 3
-
     >>> # Instantiate the model
     >>> model = ModelFromSingleSampleCallable(
     ...     nqoi=1,
@@ -1460,29 +2351,23 @@ class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
     ...     values_ndim=1,
     ...     backend=bkd,
     ... )
-
     >>> # Define a single sample
     >>> sample = bkd.array([1.0, 2.5, 0.0])[:, None]
-
     >>> # Evaluate the model
     >>> print(model(sample))
     [[0.]]
-
     >>> # Evaluate the Jacobian
     >>> print(model._jacobian(sample))
     [[0. 0. 0.]]
-
     >>> # Apply the Jacobian
     >>> vector = bkd.array([1.0, 1.0, 1.0])
     >>> print(model._apply_jacobian(sample, vector))
     [0.]
-
     >>> # Evaluate the Hessian
     >>> print(model._hessian(sample))
     [[[2. 0. 0.]
       [0. 2. 0.]
       [0. 0. 0.]]]
-
     >>> # Apply the Hessian
     >>> print(model._apply_hessian(sample, vector))
     [2. 2. 0.]

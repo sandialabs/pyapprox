@@ -52,7 +52,7 @@ extensions += [
 ]
 
 # TODO: disable until can resolve error it causes
-# extensions += ["sphinx_automodapi.automodapi"]
+extensions += ["sphinx_automodapi.automodapi"]
 
 extensions += ["sphinx_gallery.gen_gallery"]
 
@@ -433,7 +433,6 @@ mathjax3_config = {
 
 # Supress all warnings so they do not appear in the documentation
 warnings.filterwarnings("ignore")
-
 
 # # -----
 # # only document locally defined functions and classes and not imports
