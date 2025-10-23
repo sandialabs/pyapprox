@@ -22,12 +22,13 @@ class GenzUMBModel(umbridge.Model):
             sample.shape[0],
             config.get("c_factor", 1),
             config.get("coef_type", "sqexp"),
-            config.get("w_factor", 0.5))
+            config.get("w_factor", 0.5),
+        )
         name = config.get("name", "oscillatory")
         self._model.set_name(name)
-        # val = self._model(name, sample)[0, 0]
         val = self._model(sample)[0, 0]
-        return [[val]]
+        # umbridge requires a python float not numpy.float64
+        return [[float(val)]]
 
     def supports_evaluate(self):
         return True
@@ -36,9 +37,10 @@ class GenzUMBModel(umbridge.Model):
         sample = np.asarray(parameters).T
         self._model.set_coefficients(
             int(config.get("nvars", 5)),
-            config.get("c_factor", 1.),
+            config.get("c_factor", 1.0),
             config.get("coef_type", "sqexp"),
-            config.get("w_factor", 0.5))
+            config.get("w_factor", 0.5),
+        )
         name = config.get("name", "oscillatory")
         self._model.set_name(name)
         grad = self._model.jacobian(sample).T.tolist()
@@ -62,9 +64,10 @@ class GenzIntegral(umbridge.Model):
     def __call__(self, parameters, config):
         self._model.set_coefficients(
             int(config.get("nvars", 5)),
-            config.get("c_factor", 1.),
+            config.get("c_factor", 1.0),
             config.get("coef_type", "sqexp"),
-            config.get("w_factor", 0.5))
+            config.get("w_factor", 0.5),
+        )
         name = config.get("name", "oscillatory")
         self._model.set_name(name)
         val = np.atleast_1d(self._model.integrate())[0]

@@ -7,6 +7,7 @@ import glob
 import tempfile
 from abc import ABC, abstractmethod
 import multiprocessing
+from multiprocessing.pool import ThreadPool
 from typing import List, Tuple, Union
 
 import numpy as np
@@ -1161,6 +1162,12 @@ class SingleSampleModelMixin:
 
 
 class ModelFromCallable(Model):
+    """
+    A flexible wrapper for creating a model from user-defined callable functions.
+
+    The `ModelFromCallable` class allows users to define a model programmatically by providing custom functions for evaluating values, Jacobians, Hessians, and other derivatives. This class is particularly useful for scenarios where the model's behavior is defined mathematically or algorithmically and needs to conform to the `Model` interface.
+    """
+
     def __init__(
         self,
         nqoi: int,
@@ -1177,13 +1184,39 @@ class ModelFromCallable(Model):
         backend: BackendMixin = NumpyMixin,
     ):
         """
+        Initialize the ModelFromCallable instance.
+
         Parameters
         ----------
-        samples_ndim : integer
-            The dimension of the Array accepted by function in [1, 2]
+        nqoi : int
+            The number of quantities of interest (QoI) in the model.
+        nvars : int
+            The number of variables in the model.
+        function : callable
+            The user-defined function for evaluating the model's values.
+        jacobian : callable, optional
+            The user-defined function for computing the Jacobian matrix.
+        apply_jacobian : callable, optional
+            The user-defined function for applying the Jacobian matrix to a vector.
+        apply_hessian : callable, optional
+            The user-defined function for applying the Hessian matrix to a vector.
+        hessian : callable, optional
+            The user-defined function for computing the Hessian matrix.
+        apply_weighted_hessian : callable, optional
+            The user-defined function for applying the weighted Hessian matrix to a vector.
+        weighted_hessian : callable, optional
+            The user-defined function for computing the weighted Hessian matrix.
+        sample_ndim : int, optional
+            The dimension of the array accepted by the user-defined function. Must be either 1 or 2. Defaults to 2.
+        values_ndim : int, optional
+            The dimension of the array returned by the user-defined function. Must be 0, 1, or 2. Defaults to 2.
+        backend : BackendMixin, optional
+            The backend used for array operations. Defaults to NumpyMixin.
 
-        values_ndim : integer
-            The dimension of the Array returned by function in [0, 1, 2]
+        Raises
+        ------
+        ValueError
+            If any of the provided functions are not callable.
         """
         self._nqoi = nqoi
         self._nvars = nvars
@@ -1281,6 +1314,43 @@ class ModelFromCallable(Model):
 
 
 class ModelFromVectorizedCallable(ModelFromCallable):
+    """
+    A wrapper for creating a model from user-defined vectorized callable functions.
+
+    The `ModelFromVectorizedCallable` class extends `ModelFromCallable` and assumes that the user-defined functions can accept multiple samples simultaneously. This allows for efficient evaluation of values, Jacobians, Hessians, and other derivatives for a batch of samples, leveraging vectorized operations.
+
+    Parameters
+    ----------
+    nqoi : int
+        The number of quantities of interest (QoI) in the model.
+    nvars : int
+        The number of variables in the model.
+    function : callable
+        The user-defined function for evaluating the model's values. This function must accept a 2D array of samples (shape `(nvars, nsamples)`) and return a 2D array of values (shape `(nqoi, nsamples)`).
+    jacobian : callable, optional
+        The user-defined function for computing the Jacobian matrix. This function must accept a 2D array of samples and return a 3D array representing the Jacobian matrices for all samples (shape `(nqoi, nvars, nsamples)`).
+    apply_jacobian : callable, optional
+        The user-defined function for applying the Jacobian matrix to a vector. This function must accept a 2D array of samples and a 2D array of vectors, and return the result of the matrix-vector multiplication for all samples (shape `(nqoi, nsamples)`).
+    apply_hessian : callable, optional
+        The user-defined function for applying the Hessian matrix to a vector. This function must accept a 2D array of samples and a 2D array of vectors, and return the result of the matrix-vector multiplication for all samples (shape `(nqoi, nsamples)`).
+    hessian : callable, optional
+        The user-defined function for computing the Hessian matrix. This function must accept a 2D array of samples and return a 4D array representing the Hessian matrices for all samples (shape `(nqoi, nvars, nvars, nsamples)`).
+    apply_weighted_hessian : callable, optional
+        The user-defined function for applying the weighted Hessian matrix to a vector. This function must accept a 2D array of samples, a 2D array of vectors, and a 2D array of weights, and return the result of the matrix-vector multiplication for all samples (shape `(nqoi, nsamples)`).
+    weighted_hessian : callable, optional
+        The user-defined function for computing the weighted Hessian matrix. This function must accept a 2D array of samples and a 2D array of weights, and return a 4D array representing the weighted Hessian matrices for all samples (shape `(nqoi, nvars, nvars, nsamples)`).
+    values_ndim : int, optional
+        The dimension of the array returned by the user-defined function. Must be 0, 1, or 2. Defaults to 2.
+    backend : BackendMixin, optional
+        The backend used for array operations. Defaults to `NumpyMixin`.
+
+    Notes
+    -----
+    - This class assumes that all user-defined functions are vectorized, meaning they can process multiple samples simultaneously.
+    - The `function` parameter is required, while other derivative-related functions (`jacobian`, `apply_jacobian`, etc.) are optional.
+    - The `sample_ndim` parameter is fixed to 2, as this class always expects 2D arrays of samples.
+    """
+
     def __init__(
         self,
         nqoi: int,
@@ -1327,6 +1397,97 @@ class ModelFromVectorizedCallable(ModelFromCallable):
 
 
 class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
+    r"""
+    A wrapper for creating a model from user-defined callable functions that operate on single samples.
+
+    The `ModelFromSingleSampleCallable` class extends `ModelFromCallable` and assumes that the user-defined functions operate on single samples (1D arrays). This class is designed for scenarios where the model computations are performed on individual samples rather than batches of samples.
+
+    Parameters
+    ----------
+    nqoi : int
+        The number of quantities of interest (QoI) in the model.
+    nvars : int
+        The number of variables in the model.
+    function : callable
+        The user-defined function for evaluating the model's values. This function must accept a 1D array representing a single sample (shape `(nvars,)`) and return a 1D array of values (shape `(nqoi,)`).
+    jacobian : callable, optional
+        The user-defined function for computing the Jacobian matrix. This function must accept a 1D array representing a single sample and return a 2D array representing the Jacobian matrix (shape `(nqoi, nvars)`).
+    apply_jacobian : callable, optional
+        The user-defined function for applying the Jacobian matrix to a vector. This function must accept a 1D array representing a single sample and a 1D array representing a vector, and return a 1D array of results (shape `(nqoi,)`).
+    hessian : callable, optional
+        The user-defined function for computing the Hessian matrix. This function must accept a 1D array representing a single sample and return a 3D array representing the Hessian matrix (shape `(nqoi, nvars, nvars)`).
+    apply_hessian : callable, optional
+        The user-defined function for applying the Hessian matrix to a vector. This function must accept a 1D array representing a single sample and a 1D array representing a vector, and return a 1D array of results (shape `(nqoi,)`).
+    sample_ndim : int, optional
+        The dimension of the array accepted by the user-defined function. Must be 1, as this class operates on single samples. Defaults to 1.
+    values_ndim : int, optional
+        The dimension of the array returned by the user-defined function. Must be 0, 1, or 2. Defaults to 1.
+    backend : BackendMixin, optional
+        The backend used for array operations. Defaults to `NumpyMixin`.
+
+    Notes
+    -----
+    - This class assumes that all user-defined functions operate on single samples (1D arrays).
+    - The `function` parameter is required, while other derivative-related functions (`jacobian`, `apply_jacobian`, etc.) are optional.
+    - The `sample_ndim` parameter is fixed to 1, as this class always expects 1D arrays of samples.
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> from pyapprox.util.backends.numpy import NumpyMixin as bkd
+    >>> from pyapprox.interface.model import ModelFromSingleSampleCallable
+
+    >>> # Define the number of variables
+    >>> nvars = 3
+
+    >>> # Instantiate the model
+    >>> model = ModelFromSingleSampleCallable(
+    ...     nqoi=1,
+    ...     nvars=nvars,
+    ...     function=lambda x: bkd.hstack(
+    ...         [1 * ((x[0] - 1) ** 2 + (x[1] - 2.5) ** 2)],
+    ...     ),
+    ...     jacobian=lambda x: bkd.stack(
+    ...         [1 * bkd.array([2 * (x[0] - 1), 2 * (x[1] - 2.5), 0])],
+    ...         axis=0,
+    ...     ),
+    ...     apply_jacobian=lambda x, v: bkd.asarray(
+    ...         [1 * (2 * (x[0] - 1) * v[0] + 2 * (x[1] - 2.5) * v[1])]
+    ...     ),
+    ...     hessian=lambda x: bkd.stack([bkd.diag(bkd.array([2.0, 2, 0]))]),
+    ...     apply_hessian=lambda x, v: bkd.diag(bkd.array([2.0, 2, 0])) @ v,
+    ...     sample_ndim=1,
+    ...     values_ndim=1,
+    ...     backend=bkd,
+    ... )
+
+    >>> # Define a single sample
+    >>> sample = bkd.array([1.0, 2.5, 0.0])[:, None]
+
+    >>> # Evaluate the model
+    >>> print(model(sample))
+    [[0.]]
+
+    >>> # Evaluate the Jacobian
+    >>> print(model._jacobian(sample))
+    [[0. 0. 0.]]
+
+    >>> # Apply the Jacobian
+    >>> vector = bkd.array([1.0, 1.0, 1.0])
+    >>> print(model._apply_jacobian(sample, vector))
+    [0.]
+
+    >>> # Evaluate the Hessian
+    >>> print(model._hessian(sample))
+    [[[2. 0. 0.]
+      [0. 2. 0.]
+      [0. 0. 0.]]]
+
+    >>> # Apply the Hessian
+    >>> print(model._apply_hessian(sample, vector))
+    [2. 2. 0.]
+    """
+
     def _eval_fun(self, fun: callable, sample: Array, *args) -> Array:
         if self._sample_ndim == 2:
             return fun(sample, *args)
@@ -1348,7 +1509,7 @@ class SingleSampleModel(SingleSampleModelMixin, Model):
     pass
 
 
-class UmbridgeModelWrapper(Model):
+class UmbridgeModel(Model):
     def __init__(self, umb_model, config={}, nprocs=1, backend=NumpyMixin):
         """
         Evaluate an umbridge model at multiple samples
@@ -1421,6 +1582,7 @@ class UmbridgeModelWrapper(Model):
 
     def _evaluate_single_thread(self, sample, sample_id):
         parameters = self._check_sample(sample)
+        print(parameters)
         return self._model(parameters, config=self._config)[0]
 
     def _evaluate_parallel(self, samples):
@@ -1479,7 +1641,7 @@ class UmbridgeModelWrapper(Model):
                 break
             except requests.exceptions.ConnectionError:
                 if time.time() - t0 > max_connection_time:
-                    UmbridgeModelWrapper.kill_server(process, out)
+                    UmbridgeModel.kill_server(process, out)
                     raise RuntimeError("Could not connect to server") from None
         return process, out
 
@@ -1490,7 +1652,7 @@ class UmbridgeModelWrapper(Model):
             out.close()
 
 
-class UmbridgeIOModelWrapper(UmbridgeModelWrapper):
+class UmbridgeIOModel(UmbridgeModel):
     def __init__(
         self,
         umb_model,
@@ -1516,7 +1678,7 @@ class UmbridgeIOModelWrapper(UmbridgeModelWrapper):
         return self._model(parameters, config=config)[0]
 
 
-class UmbridgeIOModelEnsembleWrapper(UmbridgeModelWrapper):
+class UmbridgeIOModelEnsemble(UmbridgeModel):
     def __init__(
         self,
         umb_model,

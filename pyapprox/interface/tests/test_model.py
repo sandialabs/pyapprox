@@ -8,10 +8,10 @@ import sympy as sp
 
 from pyapprox.interface.model import (
     ModelFromSingleSampleCallable,
-    UmbridgeModelWrapper,
+    UmbridgeModel,
     umbridge,
     IOModel,
-    UmbridgeIOModelWrapper,
+    UmbridgeIOModel,
     SerialIOModel,
     AsyncIOModel,
     DenseMatrixLinearModel,
@@ -331,15 +331,18 @@ class TestModel:
         run_server_string = "python {0}".format(
             os.path.join(server_dir, "genz_umbridge_server.py")
         )
-        process, out = UmbridgeModelWrapper.start_server(
-            run_server_string, url=url
-        )
+        process, out = UmbridgeModel.start_server(run_server_string, url=url)
         umb_model = umbridge.HTTPModel(url, "genz")
         config = {"name": "oscillatory", "nvars": 2, "coef_type": "none"}
-        model = UmbridgeModelWrapper(umb_model, config, backend=bkd)
+        model = UmbridgeModel(umb_model, config, backend=bkd)
         sample = bkd.asarray(np.random.uniform(0, 1, (config["nvars"], 1)))
+        model(sample)
+        model.jacobian(sample)
         model.check_apply_jacobian(sample, disp=True)
-        UmbridgeModelWrapper.kill_server(process, out)
+        UmbridgeModel.kill_server(process, out)
+
+        # To debug in one terminal run python genz_umbridge_server.py
+        # In secton terminal run this test. This will allow you to see output of server
 
     def test_io_model(self):
         bkd = self.get_backend()
@@ -473,7 +476,7 @@ if __name__ == "__main__":
 
         url = "http://localhost:4242"
         run_server_string = "python {0}".format(server_filename)
-        process, out = UmbridgeIOModelWrapper.start_server(
+        process, out = UmbridgeIOModel.start_server(
             run_server_string, url=url, out=out
         )
         umb_model = umbridge.HTTPModel(url, "umbmodel")
@@ -490,14 +493,14 @@ if __name__ == "__main__":
             "datafilename": "data.npz",
         }
         outdir_basename = os.path.join(outtmpdir.name, "results")
-        model = UmbridgeIOModelWrapper(
+        model = UmbridgeIOModel(
             umb_model, config, outdir_basename=outdir_basename, backend=bkd
         )
         values = model(samples)
         test_values = bkd.stack([vec @ sample for sample in samples.T], axis=0)
         assert np.allclose(values, test_values)
         for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
-            # UmbridgeIOModelWrapper creates folders
+            # UmbridgeIOModel creates folders
             # join(self._outdir_basename, "wdir-{0}".format(sample_id)
             # but then TestIOModel also creates wdir-0 so look two levels
             # deep from outdir_basename to find files
@@ -515,14 +518,14 @@ if __name__ == "__main__":
             "datafilename": "data.npz",
         }
         outdir_basename = os.path.join(outtmpdir.name, "results")
-        model = UmbridgeIOModelWrapper(
+        model = UmbridgeIOModel(
             umb_model, config, outdir_basename=outdir_basename, backend=bkd
         )
         values = model(samples)
         test_values = bkd.stack([vec @ sample for sample in samples.T], axis=0)
         assert np.allclose(values, test_values)
         for outdirname in glob.glob(os.path.join(outdir_basename, "*")):
-            # UmbridgeIOModelWrapper creates folders
+            # UmbridgeIOModel creates folders
             # join(self._outdir_basename, "wdir-{0}".format(sample_id)
             # but then TestIOModel also creates wdir-0 so look two levels
             # deep from outdir_basename to find files
@@ -531,7 +534,7 @@ if __name__ == "__main__":
         outtmpdir.cleanup()
 
         intmpdir.cleanup()
-        UmbridgeIOModelWrapper.kill_server(process)
+        UmbridgeIOModel.kill_server(process)
         out.close()
 
     def test_serial_io_model(self):
