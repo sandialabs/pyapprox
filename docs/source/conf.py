@@ -285,6 +285,9 @@ templates_path = ["_templates"]
 # without a docstring will be added with no information.
 autodoc_default_flags = ["members"]
 
+# does not seem to do anythin
+# automodsumm_inherited_members = True
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for

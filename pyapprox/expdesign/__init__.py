@@ -2,7 +2,11 @@
 for designing experiments
 """
 
-from pyapprox.expdesign.sequences import SobolSequence, HaltonSequence
+from pyapprox.expdesign.sequences import (
+    LowDiscrepancySequence,
+    SobolSequence,
+    HaltonSequence,
+)
 
 # from pyapprox.expdesign.bayesian_oed import (
 #     get_bayesian_oed_optimizer,
@@ -16,6 +20,7 @@ from pyapprox.expdesign.sequences import SobolSequence, HaltonSequence
 
 
 __all__ = [
+    "LowDiscrepancySequence",
     "SobolSequence",
     "HaltonSequence",
     #   "get_bayesian_oed_optimizer",
