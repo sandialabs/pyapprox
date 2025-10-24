@@ -5,7 +5,10 @@ from scipy import stats
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.benchmarks.base import SingleModelBenchmark
+from pyapprox.benchmarks.base import (
+    SingleModelBenchmark,
+    SingleModelBayesianGoalOrientedOEDBenchmark,
+)
 from pyapprox.util.newton import (
     ParameterizedNewtonResidualMixin,
     NewtonSolver,
@@ -164,13 +167,13 @@ class ChemicalReactionBenchmark(SingleModelBenchmark):
         ranges[5::2] = nominal_vals[2:] * 1.1
         return ranges
 
-    def _set_variable(self):
-        ranges = self._variable_ranges()
+    def _set_prior(self):
+        ranges = self._prior_ranges()
         marginals = [
             stats.uniform(ranges[2 * ii], ranges[2 * ii + 1] - ranges[2 * ii])
             for ii in range(len(ranges) // 2)
         ]
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
 
@@ -281,9 +284,9 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
     def _define_time(self) -> Tuple[int, int]:
         return 10.0, 1.0
 
-    def _set_variable(self):
+    def _set_prior(self):
         marginals = [stats.uniform(0.3, 0.4) for ii in range(12)]
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
 
@@ -331,9 +334,21 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
         return self._bkd.stack(obs_times, axis=0)
 
 
-class LotkaVolterraOEDBenchmark(LotkaVolterraBenchmark):
+class LotkaVolterraOEDBenchmark(SingleModelBayesianGoalOrientedOEDBenchmark):
+    def __init__(self, backend: BackendMixin = NumpyMixin):
+        self._time_residual_cls = BackwardEulerResidual
+        self._newton_solver = None
+        self._init_time = 0.0
+        self._final_time, self._timestep = self._define_time()
+        super().__init__(backend)
+
+    def _set_prior(self):
+        marginals = [stats.uniform(0.3, 0.4) for ii in range(12)]
+        self._prior = IndependentMarginalsVariable(
+            marginals, backend=self._bkd
+        )
+
     def _define_time(self) -> Tuple[int, int]:
-        # return 10.0, 1
         return 50.0, 2.0
 
     def _obs_time_tuples(self, ntimes: int) -> Tuple[Array, Array]:
@@ -355,8 +370,8 @@ class LotkaVolterraOEDBenchmark(LotkaVolterraBenchmark):
             pred_times.append(self._times[time_idx])
         return self._bkd.stack(pred_times, axis=0)
 
-    def _set_model(self):
-        self._model = LotkaVolterraModel(
+    def _set_obs_model(self):
+        self._obs_model = LotkaVolterraModel(
             0,
             self._final_time,
             self._timestep,
@@ -366,16 +381,19 @@ class LotkaVolterraOEDBenchmark(LotkaVolterraBenchmark):
             backend=self._bkd,
         )
         self._times = self._bkd.linspace(
-            0, self._final_time, int(self._final_time / self._timestep) + 1
+            0,
+            self._final_time,
+            int(self._final_time / self._timestep) + 1,
         )
         obs_functional = TransientObservationFunctional(
             3,
-            self._model.nvars(),
+            self._obs_model.nvars(),
             self._obs_time_tuples(self._times.shape[0]),
             backend=self._bkd,
         )
-        self._model.set_functional(obs_functional)
+        self._obs_model.set_functional(obs_functional)
 
+    def _set_pred_model(self):
         self._pred_model = LotkaVolterraModel(
             0,
             self._final_time,
@@ -596,13 +614,13 @@ class CoupledSpringsBenchmark(SingleModelBenchmark):
             ],
         )
 
-    def _set_variable(self):
-        ranges = self._variable_ranges()
+    def _set_prior(self):
+        ranges = self._prior_ranges()
         marginals = [
             stats.uniform(ranges[2 * ii], ranges[2 * ii + 1] - ranges[2 * ii])
             for ii in range(len(ranges) // 2)
         ]
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
 
@@ -819,13 +837,13 @@ class HastingsEcologyBenchmark(SingleModelBenchmark):
         ranges[1::2] = nominal_values * 1.05
         return ranges
 
-    def _set_variable(self):
-        ranges = self._variable_ranges()
+    def _set_prior(self):
+        ranges = self._prior_ranges()
         marginals = [
             stats.uniform(ranges[2 * ii], ranges[2 * ii + 1] - ranges[2 * ii])
             for ii in range(len(ranges) // 2)
         ]
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
 

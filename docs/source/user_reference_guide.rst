@@ -9,7 +9,7 @@ The following documents the high-level functions that a typical user will may wa
 .. automodapi:: pyapprox.analysis
    :no-inheritance-diagram:
 
-.. automodapi:: pyapprox.bayes
+.. automodapi:: pyapprox.inference
    :no-inheritance-diagram:
    
 

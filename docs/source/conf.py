@@ -52,7 +52,7 @@ extensions += [
 ]
 
 # TODO: uncomment below to document classes and functions
-# extensions += ["sphinx_automodapi.automodapi"]
+extensions += ["sphinx_automodapi.automodapi"]
 
 extensions += ["sphinx_gallery.gen_gallery"]
 
@@ -158,6 +158,7 @@ example_filenames_in_order += [
     "plot_low_discrepancy_quadrature.py",
     "plot_bayesoed4params.py",
     "plot_bayesoed4pred.py",
+    "plot_bayesoed4pred_timeseries_obs.py",
     # surrogates
     "plot_gaussian_quadrature.py",
     "plot_barycentric_interpolation.py",

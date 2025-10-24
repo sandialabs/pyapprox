@@ -16,58 +16,143 @@ from pyapprox.inference.likelihood import LogLikelihood
 
 
 class SingleModelBenchmark(ABC):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    """
+    Base class for single-model benchmarks.
+
+    This class defines the structure for benchmarks where derived classes must
+    specify the uncertain variable and the model. The base class provides
+    utility methods to access these components and their properties.
+
+    Attributes:
+        _bkd (BackendMixin): Backend used for numerical computations.
+        _prior (JointVariable): Random variable parameterizing model
+                                   uncertainty.
+        _model (Model): Model representing the relationship between uncertain
+                        variables and quantities of interest (QoI).
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the base class with a specified backend for computations.
+
+        Args:
+            backend (BackendMixin): Backend for numerical computations
+
+        Raises:
+            ValueError: If required attributes (_prior, _model) are not set.
+        """
         self._bkd = backend
-        self._set_variable()
+        self._set_prior()
         self._set_model()
 
-    def nvars(self) -> int:
-        """Return the number of uncertain variables."""
-        return self._variable.nvars()
-
-    def variable(self) -> JointVariable:
-        """Return the random variable parameterizing the model uncertainty."""
-        return self._variable
-
-    def nqoi(self) -> int:
-        """Return the number of quantities of interest (QoI) of all models."""
-        return self._model.nqoi()
+        # Validate that required attributes are set
+        self._validate_attributes()
 
     @abstractmethod
     def _set_model(self):
+        """
+        Abstract method to set the model.
+
+        Derived classes must implement this method to define the model.
+
+        Raises:
+            NotImplementedError: If not implemented by the derived class.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def _set_variable(self):
+    def _set_prior(self):
+        """
+        Abstract method to set the uncertain prior.
+
+        Derived classes must implement this method to define the uncertain prior.
+
+        Raises:
+            NotImplementedError: If not implemented by the derived class.
+        """
         raise NotImplementedError
 
-    def model(self) -> Model:
-        """Return the model"""
+    def _validate_attributes(self):
+        """
+        Validate that the required attributes (_prior, _model) are set.
+
+        Raises:
+            ValueError: If any required attributes are not set.
+        """
+        if not hasattr(self, "_prior") or self._prior is None:
+            raise ValueError(
+                "The '_prior' attribute must be set using '_set_prior'."
+            )
+        if not hasattr(self, "_model") or self._model is None:
+            raise ValueError(
+                "The '_model' attribute must be set using '_set_model'."
+            )
+
+    def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns:
+            int: Number of uncertain variables.
+        """
+        return self._prior.nvars()
+
+    def prior(self) -> "JointVariable":
+        """
+        Return the random variable parameterizing the model uncertainty.
+
+        Returns:
+            JointVariable: The uncertain variable.
+        """
+        return self._prior
+
+    def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI) of all models.
+
+        Returns:
+            int: Number of quantities of interest (QoI).
+        """
+        return self._model.nqoi()
+
+    def model(self) -> "Model":
+        """
+        Return the model.
+
+        Returns:
+            Model: The model.
+        """
         return self._model
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the class.
+
+        Returns:
+            str: Class name.
+        """
         return "{0}".format(self.__class__.__name__)
 
 
 class MultiModelBenchmark(ABC):
     # Unordered set of models
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    def __init__(self, backend: BackendMixin):
         self._bkd = backend
-        self._set_variable()
+        self._set_prior()
         self._set_models()
 
     def nvars(self) -> int:
         """Return the number of uncertain variables."""
-        return self._variable.nvars()
+        return self._prior.nvars()
 
     @abstractmethod
     def nmodels(self) -> int:
         """Return the number of models."""
         raise NotImplementedError
 
-    def variable(self) -> JointVariable:
+    def prior(self) -> JointVariable:
         """Return the random variable parameterizing the model uncertainty."""
-        return self._variable
+        return self._prior
 
     @abstractmethod
     def nqoi(self) -> int:
@@ -283,7 +368,7 @@ class ACVBenchmark(MultiModelBenchmark):
                         cnt += 1
         return self._bkd.array(est_cov)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(nmodels={1}, nqoi={2})".format(
             self.__class__.__name__, self.nmodels(), self.nqoi()
         )
@@ -293,63 +378,242 @@ class ACVBenchmark(MultiModelBenchmark):
 
 
 class OptimizationBenchmark(ABC):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    """
+    Base class for optimization benchmarks.
+
+    This class defines the structure for benchmarks where derived classes must
+    specify the objective model and the design variable. The base class ensures
+    that the objective model is created only once during initialization to allow
+    internal model variables to persist (e.g., `objective.work_tracker`).
+
+    Attributes:
+        _bkd (BackendMixin): Backend used for numerical computations.
+        _objective (Model): The objective model representing the optimization
+                            goal.
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the base class with a specified backend for computations.
+
+        Args:
+            backend (BackendMixin): Backend for numerical computations.
+
+        Raises:
+            ValueError: If the `_objective` attribute is not set.
+        """
         self._bkd = backend
-        # must use set_objective here to make sure model
-        # is only created once and not everytime self.objective is called
-        # so that internal model variables persist, e.g. _work_tracker
+
+        # Use _set_objective to ensure the model is created only once
         self._set_objective()
+
+        # Validate that the objective is set
+        self._validate_objective()
 
     @abstractmethod
     def _set_objective(self):
+        """
+        Abstract method to set the objective model.
+
+        Derived classes must implement this method to define the objective
+        model.
+
+        Raises:
+            NotImplementedError: If not implemented by the derived class.
+        """
         raise NotImplementedError
 
+    def _validate_objective(self):
+        """
+        Validate that the `_objective` attribute is set.
+
+        Raises:
+            ValueError: If the `_objective` attribute is not set.
+        """
+        if not hasattr(self, "_objective") or self._objective is None:
+            raise ValueError(
+                "The '_objective' attribute must be set using "
+                "'_set_objective'."
+            )
+
     def objective(self) -> Model:
+        """
+        Return the objective model.
+
+        Returns:
+            Model: The objective model.
+        """
         return self._objective
 
     @abstractmethod
     def design_variable(self) -> DesignVariable:
+        """
+        Return the design variable.
+
+        Derived classes must implement this method to define the design
+        variable.
+
+        Returns:
+            DesignVariable: The design variable.
+        """
         raise NotImplementedError
 
 
 class ConstrainedOptimizationBenchmark(OptimizationBenchmark):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    """
+    Base class for constrained optimization benchmarks.
+
+    This class extends the `OptimizationBenchmark` class to include constraints
+    and additional methods for defining optimal and initial iterates. Derived
+    classes must specify the constraints, optimal iterate, and initial iterate.
+
+    Attributes:
+        _bkd (BackendMixin): Backend used for numerical computations.
+        _objective (Model): The objective model representing the optimization goal.
+        _constraints (List[Union[Constraint, LinearConstraint]]): Constraints
+            applied to the optimization problem.
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the constrained optimization benchmark.
+
+        Args:
+            backend (BackendMixin): Backend for numerical computations.
+
+        Raises:
+            ValueError: If required attributes (_objective, _constraints) are
+                        not set.
+        """
         super().__init__(backend)
-        # must use set_constraints here to make sure model
-        # is only created once and not everytime self.objective is called
-        # so that internal model variables persist, e.g. _work_tracker
+
+        # Use _set_constraints to ensure constraints are created only once
         self._set_constraints()
+
+        # Validate that constraints are set
+        self._validate_constraints()
 
     @abstractmethod
     def _set_constraints(self):
+        """
+        Abstract method to set the constraints.
+
+        Derived classes must implement this method to define the constraints.
+        """
         raise NotImplementedError
 
-    def constraints(self) -> List[Union[Constraint, LinearConstraint]]:
+    def _validate_constraints(self):
+        """
+        Validate that the `_constraints` attribute is set.
+
+        Raises:
+            ValueError: If the `_constraints` attribute is not set.
+        """
+        if not hasattr(self, "_constraints") or self._constraints is None:
+            raise ValueError(
+                "The '_constraints' attribute must be set using "
+                "'_set_constraints'."
+            )
+
+    def constraints(self) -> List[Union["Constraint", "LinearConstraint"]]:
+        """
+        Return the constraints applied to the optimization problem.
+
+        Returns:
+            List[Union[Constraint, LinearConstraint]]: The constraints.
+        """
         return self._constraints
 
     @abstractmethod
     def optimal_iterate(self) -> Array:
+        """
+        Return the optimal iterate.
+
+        Derived classes must implement this method to define the optimal
+        iterate.
+
+        Returns:
+            Array: The optimal iterate.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def init_iterate(self) -> Array:
+        """
+        Return the initial iterate.
+
+        Derived classes must implement this method to define the initial
+        iterate passed to the optimizer.
+
+        Returns:
+            Array: The initial iterate.
+        """
         raise NotImplementedError
 
 
 class ConstrainedUncertainOptimizationBenchmark(
     ConstrainedOptimizationBenchmark
 ):
+    """
+    Base class for constrained optimization benchmarks with uncertainty.
+
+    This class extends `ConstrainedOptimizationBenchmark` to include methods
+    for handling uncertainty, such as defining a prior and specifying the
+    indices of design variables in a combined uncertain and design variable
+    array.
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the constrained uncertain optimization benchmark.
+
+        Args:
+            backend (BackendMixin): Backend for numerical computations
+        """
+        super().__init__(backend)
+
+        # Validate that the prior is set correctly
+        self._validate_prior()
+
     @abstractmethod
-    def variable(self) -> JointVariable:
+    def prior(self) -> JointVariable:
+        """
+        Return the prior random variable.
+
+        Derived classes must implement this method to define the prior, which
+        represents uncertainty in the optimization problem.
+
+        Returns:
+            JointVariable: The prior random variable.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def design_var_indices(self) -> Array:
         """
-        The position of the design variables in a combined
-        uncertain + design variable array
+        Return the indices of design variables.
+
+        Derived classes must implement this method to specify the positions of
+        design variables in a combined uncertain and design variable array.
+
+        Returns:
+            Array: Array of indices for design variables.
         """
         raise NotImplementedError
+
+    def _validate_prior(self):
+        """
+        Validate that the `prior` method is implemented correctly.
+
+        Raises:
+            ValueError: If the `prior` method does not return a valid
+                        JointVariable.
+        """
+        prior = self.prior()
+        if not isinstance(prior, JointVariable):
+            raise ValueError(
+                "The `prior` method must return an instance of JointVariable."
+            )
 
 
 class SingleModelBayesianInferenceBenchmark:
@@ -367,7 +631,7 @@ class SingleModelBayesianInferenceBenchmark:
         return self._prior
 
     def nobservations(self) -> int:
-        """Return the number of quantities of interest (QoI) of all models."""
+        """Return the number of observations."""
         return self._obs_model.nqoi()
 
     @abstractmethod
@@ -382,7 +646,7 @@ class SingleModelBayesianInferenceBenchmark:
         """Return the model"""
         return self._obs_model
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
 
     @abstractmethod
@@ -412,7 +676,7 @@ class OperatorBenchmark(ABC):
         self._set_model()
 
     @abstractmethod
-    def variable(self) -> JointVariable:
+    def prior(self) -> JointVariable:
         """Return the random variable parameterizing the model uncertainty."""
         raise NotImplementedError
 
@@ -424,5 +688,200 @@ class OperatorBenchmark(ABC):
         """Return the model"""
         return self._model
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
+
+
+class SingleModelBayesianOEDBenchmark(ABC):
+    """
+    Base class for Bayesian Optimal Experimental Design (OED) benchmarks.
+
+    This class defines the structure for Bayesian OED benchmarks where derived
+    classes must specify the prior and observation model.
+    The base class provides utility methods to access these components and
+    their properties.
+
+    Attributes:
+        _bkd (BackendMixin): Backend used for numerical computations.
+        _prior (Model): The prior model representing uncertainty in the
+                        parameters.
+        _obs_model (Model): The observation model representing the relationship
+                            between parameters and observations.
+        _pred_model (Model): The prediction model representing the relationship
+                             between parameters and predictions.
+    """
+
+    def __init__(self, backend: "BackendMixin" = "NumpyMixin"):
+        """
+        Initialize the base class with a specified backend for numerical
+        computations.
+
+        Args:
+            backend (BackendMixin): Backend used for numerical computations.
+            Defaults to NumpyMixin.
+
+        Raises:
+            ValueError: If any of the required attributes
+            (_prior, _obs_model, _pred_model) are not set.
+        """
+        self._bkd = backend
+        self._set_prior()
+        self._set_obs_model()
+        self._set_pred_model()
+
+        # Validate that required attributes are set
+        self._validate_attributes()
+
+    @abstractmethod
+    def _set_prior(self) -> "Model":
+        """
+        Abstract method to set the prior model.
+
+        Derived classes must implement this method to define the prior model.
+
+        Returns:
+            Model: The prior model.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def _set_obs_model(self) -> "Model":
+        """
+        Abstract method to set the observation model.
+
+        Derived classes must implement this method to define the observation
+        model.
+
+        Returns:
+            Model: The observation model.
+        """
+        raise NotImplementedError
+
+    def _validate_attributes(self):
+        """
+        Validate that the required attributes (_prior, _obs_model, _pred_model) are set.
+
+        Raises:
+            ValueError: If any of the required attributes are not set.
+        """
+        if not hasattr(self, "_prior") or self._prior is None:
+            raise ValueError(
+                "The '_prior' attribute must be set by the derived class."
+            )
+        if not hasattr(self, "_obs_model") or self._obs_model is None:
+            raise ValueError(
+                "The '_obs_model' attribute must be set by the derived class."
+            )
+
+    def nvars(self) -> int:
+        """
+        Return the number of uncertain variables in the prior model.
+
+        Returns:
+            int: Number of uncertain variables.
+        """
+        return self._prior.nvars()
+
+    def prior(self) -> "JointVariable":
+        """
+        Return the random variable parameterizing the model uncertainty.
+
+        Returns:
+            JointVariable: The prior random variable.
+        """
+        return self._prior
+
+    def nobservations(self) -> int:
+        """
+        Return the number of observations in the observation model.
+
+        Returns:
+            int: Number of observations.
+        """
+        return self._obs_model.nqoi()
+
+    def observation_model(self) -> "Model":
+        """
+        Return the observation model.
+
+        Returns:
+            Model: The observation model.
+        """
+        return self._obs_model
+
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
+
+class SingleModelBayesianGoalOrientedOEDBenchmark(
+    SingleModelBayesianOEDBenchmark
+):
+    """
+    Base class for goal-oriented Bayesian Optimal Experimental Design (OED)
+    benchmarks.
+
+    This class defines the structure for Bayesian OED benchmarks where derived
+    classes must specify the prior, observation model, and prediction model.
+    The base class provides utility methods to access these components and
+    their properties.
+
+    This class adds functionality to access the prediction model explicitly.
+    It requires the derived class to set the `_pred_model` attribute using the
+    `_set_pred_model` method.
+
+    Attributes:
+        _pred_model (Model): The prediction model representing the relationship
+                             between parameters and predictions.
+    """
+
+    def __init__(self, backend: "BackendMixin" = "NumpyMixin"):
+        """
+        Initialize the extended class with a specified backend for numerical
+        computations.
+
+        Args:
+            backend (BackendMixin): Backend used for numerical computations.
+            Defaults to NumpyMixin.
+
+        Raises:
+            ValueError: If the `_pred_model` attribute is not set.
+        """
+        super().__init__(backend)
+
+        # Validate that the prediction model is set
+        self._validate_prediction_model()
+
+    def _validate_prediction_model(self):
+        """
+        Validate that the `_pred_model` attribute is set.
+
+        Raises:
+            ValueError: If the `_pred_model` attribute is not set.
+        """
+        if not hasattr(self, "_pred_model") or self._pred_model is None:
+            raise ValueError(
+                "The '_pred_model' attribute must be set by the derived class "
+                "using '_set_pred_model'."
+            )
+
+    def prediction_model(self) -> "Model":
+        """
+        Return the prediction model.
+
+        Returns:
+            Model: The prediction model.
+
+        Raises:
+            ValueError: If the `_pred_model` attribute is not set.
+        """
+        return self._pred_model
+
+    def npredictions(self) -> int:
+        """
+        Return the number of predictions (quantities of interest) in the
+        prediction model.
+
+        Returns:
+            int: The number of predictions (QoI) in the prediction model.
+        """
+        return self._pred_model.nqoi()

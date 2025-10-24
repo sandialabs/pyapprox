@@ -43,9 +43,9 @@ class IshigamiModel(Model):
 
     def __init__(
         self,
+        backend: BackendMixin,
         a: float = 7,
         b: float = 0.1,
-        backend: BackendMixin = NumpyMixin,
     ):
         self._a = a
         self._b = b
@@ -113,43 +113,98 @@ class IshigamiModel(Model):
 
 class IshigamiBenchmark(SingleModelBenchmark):
     r"""
-    Ishigami function benchmark
+     Ishigami function benchmark.
 
-    .. math:: f(z) = \sin(z_1)+a\sin^2(z_2) + bz_3^4\sin(z_0)
+     The Ishigami function is a well-known benchmark function for sensitivity
+     analysis. It is defined as:
 
-    References
-    ----------
-    .. [Ishigami1990] `T. Ishigami and T. Homma, "An importance quantification technique in uncertainty analysis for computer models," [1990] Proceedings. First International Symposium on Uncertainty Modeling and Analysis, College Park, MD, USA, 1990, pp. 398-403 <https://doi.org/10.1109/ISUMA.1990.151285>`_
+     .. math:: f(z) = \sin(z_1) + a \sin^2(z_2) + b z_3^4 \sin(z_0)
+
+     The function exhibits strong nonlinearity and interaction effects, making
+     it suitable for testing sensitivity analysis methods.
+
+     Parameters
+     ----------
+     a :float
+         Coefficient for the second term. Default is 7.
+     b : float
+         Coefficient for the third term. Default is 0.1.
+    backend :BackendMixin
+         Backend for numerical computations
+
+     References
+     ----------
+     .. [Ishigami1990] T. Ishigami and T. Homma, "An importance quantification
+        technique in uncertainty analysis for computer models," Proceedings.
+        First International Symposium on Uncertainty Modeling and Analysis,
+        College Park, MD, USA, 1990, pp. 398-403.
+        https://doi.org/10.1109/ISUMA.1990.151285
     """
 
     def __init__(
         self,
+        backend: BackendMixin,
         a: float = 7,
         b: float = 0.1,
-        backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Initialize the Ishigami benchmark.
+
+        Parameters
+        ----------
+        a :float
+            Coefficient for the second term. Default is 7.
+        b : float
+            Coefficient for the third term. Default is 0.1.
+        backend :BackendMixin
+            Backend for numerical computations
+        """
         self._a = a
         self._b = b
         super().__init__(backend)
 
     def _set_model(self):
-        self._model = IshigamiModel(self._a, self._b, self._bkd)
-
-    def _set_variable(self) -> JointVariable:
         """
-        p_i(X_i) ~ U[-pi,pi], i=1,...3
+        Set the Ishigami model.
+
+        The model is initialized with the coefficients `a` and `b` and the
+        specified backend.
+        """
+        self._model = IshigamiModel(self._bkd, self._a, self._b)
+
+    def _set_prior(self) -> JointVariable:
+        r"""
+        Set the prior distribution.
+
+        The prior distribution is defined as:
+
+        .. math:: p_i(X_i) ~ U[-\pi, \pi], i = 1, \ldots, 3
         """
         marginals = [stats.uniform(-np.pi, 2 * np.pi)] * 3
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
 
     def mean(self) -> Array:
-        # Must have 1 entry for each qoi. Here nqoi = 1
+        """
+        Compute the mean of the Ishigami function.
+
+        Returns
+        -------
+        mean: Array
+            The mean value of the Ishigami function.
+        """
         return self._bkd.atleast1d(self._bkd.asarray(self._a / 2))
 
     def variance(self) -> Array:
-        # Must have 1 entry for each qoi. Here nqoi = 1
+        """
+        Compute the variance of the Ishigami function.
+
+        Returns
+        -------
+        variance: Array
+            The variance of the Ishigami function.
+        """
         return self._bkd.atleast1d(
             self._bkd.asarray(
                 self._a**2 / 8
@@ -160,6 +215,14 @@ class IshigamiBenchmark(SingleModelBenchmark):
         )
 
     def _unnormalized_sobol_indices(self):
+        """
+        Compute the unnormalized Sobol indices.
+
+        Returns
+        -------
+        indices: Tuple
+            Unnormalized Sobol indices for main and interaction effects.
+        """
         zero = self._bkd.zeros((1,))[0]
         one = self._bkd.ones((1,))[0]
         D_1 = self._b * np.pi**4 / 5 + self._b**2 * np.pi**8 / 50 + 0.5 * one
@@ -172,18 +235,29 @@ class IshigamiBenchmark(SingleModelBenchmark):
         return D_1, D_2, D_3, D_12, D_13, D_23, D_123
 
     def main_effects(self) -> Array:
-        # Must have 1 column for each qoi. Here nqoi = 1
+        """
+        Compute the main effects of the Ishigami function.
+
+        Returns:
+            Array: Main effects for each quantity of interest (QoI).
+        """
         return (
             self._bkd.hstack(self._unnormalized_sobol_indices()[:3])
             / self.variance()
         )[:, None]
 
     def total_effects(self) -> Array:
-        # Must have 1 column for each qoi. Here nqoi = 1
+        """
+        Compute the total effects of the Ishigami function.
+
+        Returns
+        -------
+        total_effects: Array
+            Total effects for each quantity of interest (QoI).
+        """
         D_1, D_2, D_3, D_12, D_13, D_23, D_123 = (
             self._unnormalized_sobol_indices()
         )
-        # the following two ways of calulating the total effects are equivalent
         total_effects1 = (
             self._bkd.hstack(
                 [
@@ -205,6 +279,15 @@ class IshigamiBenchmark(SingleModelBenchmark):
         return total_effects[:, None]
 
     def sobol_indices(self) -> Array:
+        """
+        Compute the Sobol indices of the Ishigami function.
+
+        Returns
+        -------
+        indices: Array
+            Sobol indices for each quantity of interest (QoI).
+
+        """
         sobol_indices = (
             self._bkd.hstack(self._unnormalized_sobol_indices())
             / self.variance()
@@ -212,6 +295,14 @@ class IshigamiBenchmark(SingleModelBenchmark):
         return sobol_indices[:, None]
 
     def sobol_interaction_indices(self) -> Array:
+        """
+        Compute the Sobol interaction indices.
+
+        Returns
+        -------
+        indcices: Array
+            Sobol interaction indices for each quantity of interest (QoI).
+        """
         sobol_interaction_indices = self._bkd.array(
             [
                 [1, 0, 0],
@@ -227,7 +318,7 @@ class IshigamiBenchmark(SingleModelBenchmark):
         return sobol_interaction_indices
 
 
-def get_oakley_function_data(bkd=NumpyMixin) -> Array:
+def get_oakley_function_data(bkd: BackendMixin = NumpyMixin) -> Array:
     r"""
     Get the data :math:`a_1,a_2,a_3` and :math:`M` of the Oakley function
 
@@ -247,66 +338,6 @@ def get_oakley_function_data(bkd=NumpyMixin) -> Array:
     M : Array (15,15)
        The non-symmetric matrix :math:`M` of the Oakley function
 
-    Examples
-    --------
-
-    >>> from pyapprox.benchmarks.sensitivity_benchmarks import get_oakley_function_data
-    >>> a1,a2,a3,M=get_oakley_function_data()
-    >>> print(a1)
-    [0.0118 0.0456 0.2297 0.0393 0.1177 0.3865 0.3897 0.6061 0.6159 0.4005
-     1.0741 1.1474 0.788  1.1242 1.1982]
-    >>> print(a2)
-    [0.4341 0.0887 0.0512 0.3233 0.1489 1.036  0.9892 0.9672 0.8977 0.8083
-     1.8426 2.4712 2.3946 2.0045 2.2621]
-    >>> print(a3)
-    [0.1044 0.2057 0.0774 0.273  0.1253 0.7526 0.857  1.0331 0.8388 0.797
-     2.2145 2.0382 2.4004 2.0541 1.9845]
-    >>> print(M)
-    [[-0.02248289 -0.18501666  0.13418263  0.36867264  0.17172785  0.13651143
-      -0.44034404 -0.08142285  0.71321025 -0.44361072  0.50383394 -0.02410146
-      -0.04593968  0.21666181  0.05588742]
-     [ 0.2565963   0.05379229  0.25800381  0.23795905 -0.59125756 -0.08162708
-      -0.28749073  0.41581639  0.49752241  0.08389317 -0.11056683  0.03322235
-      -0.13979497 -0.03102056 -0.22318721]
-     [-0.05599981  0.19542252  0.09552901 -0.2862653  -0.14441303  0.22369356
-       0.14527412  0.28998481  0.2310501  -0.31929879 -0.29039128 -0.20956898
-       0.43139047  0.02442915  0.04490441]
-     [ 0.66448103  0.43069872  0.29924645 -0.16202441 -0.31479544 -0.39026802
-       0.17679822  0.05795266  0.17230342  0.13466011 -0.3527524   0.25146896
-      -0.01881053  0.36482392 -0.32504618]
-     [-0.121278    0.12463327  0.10656519  0.0465623  -0.21678617  0.19492172
-      -0.06552113  0.02440467 -0.09682886  0.19366196  0.33354757  0.31295994
-      -0.08361546 -0.25342082  0.37325717]
-     [-0.2837623  -0.32820154 -0.10496068 -0.22073452 -0.13708154 -0.14426375
-      -0.11503319  0.22424151 -0.03039502 -0.51505615  0.01725498  0.03895712
-       0.36069184  0.30902452  0.05003019]
-     [-0.07787589  0.00374566  0.88685604 -0.26590028 -0.07932536 -0.04273492
-      -0.18653782 -0.35604718 -0.17497421  0.08869996  0.40025886 -0.05597969
-       0.13724479  0.21485613 -0.0112658 ]
-     [-0.09229473  0.59209563  0.03133829 -0.03308086 -0.24308858 -0.09979855
-       0.03446019  0.09511981 -0.3380162   0.006386   -0.61207299  0.08132542
-       0.88683114  0.14254905  0.14776204]
-     [-0.13189434  0.52878496  0.12652391  0.04511362  0.58373514  0.37291503
-       0.11395325 -0.29479222 -0.57014085  0.46291592 -0.09405018  0.13959097
-      -0.38607402 -0.4489706  -0.14602419]
-     [ 0.05810766 -0.32289338  0.09313916  0.07242723 -0.56919401  0.52554237
-       0.23656926 -0.01178202  0.0718206   0.07827729 -0.13355752  0.22722721
-       0.14369455 -0.45198935 -0.55574794]
-     [ 0.66145875  0.34633299  0.14098019  0.51882591 -0.28019898 -0.1603226
-      -0.06841334 -0.20428242  0.06967217  0.23112577 -0.04436858 -0.16455425
-       0.21620977  0.00427021 -0.08739901]
-     [ 0.31599556 -0.02755186  0.13434254  0.13497371  0.05400568 -0.17374789
-       0.17525393  0.06025893 -0.17914162 -0.31056619 -0.25358691  0.02584754
-      -0.43006001 -0.62266361 -0.03399688]
-     [-0.29038151  0.03410127  0.03490341 -0.12121764  0.02603071 -0.33546274
-      -0.41424111  0.05324838 -0.27099455 -0.0262513   0.41024137  0.26636349
-       0.15582891 -0.18666254  0.01989583]
-     [-0.24388652 -0.44098852  0.01261883  0.24945112  0.07110189  0.24623792
-       0.17484502  0.00852868  0.2514707  -0.14659862 -0.08462515  0.36931333
-      -0.29955293  0.1104436  -0.75690139]
-     [ 0.04149432 -0.25980564  0.46402128 -0.36112127 -0.94980789 -0.16504063
-       0.00309433  0.05279294  0.22523648  0.38390366  0.45562427 -0.18631744
-       0.0082334   0.16670803  0.16045688]]
     """
     a1 = bkd.array(
         [
@@ -629,24 +660,67 @@ def get_oakley_function_data(bkd=NumpyMixin) -> Array:
 
 class OakleyModel(Model):
     r"""
-    Oakely sensivity benchmark model
+    Oakley sensitivity benchmark model.
+
+    This class implements the Oakley benchmark model, which is used for
+    probabilistic sensitivity analysis. The model is defined as:
 
     .. math:: f(z) = a_1^Tz + a_2^T\sin(z) + a_3^T\cos(z) + z^TMz
 
-    where :math:`z` consists of 15 I.I.D. standard Normal variables and
-    the data :math:`a_1,a_2,a_3` and :math:`~M` are defined in the function
-    :py:func:`~pyapprox.benchmarks.sensitivity_benchmarks.get_oakley_function_data`.
+    where :math:`z` consists of 15 I.I.D. standard Normal variables, and the
+    data :math:`a_1, a_2, a_3` and :math:`M` are defined in the function
+    :py:func:`pyapprox.benchmarks.algebraic.get_oakley_function_data`.
+
+    Attributes:
+        _bkd (BackendMixin): Backend used for numerical computations.
+
+    Methods:
+        nqoi: Return the number of quantities of interest (QoI).
+        nvars: Return the number of uncertain variables.
+        _values: Evaluate the model for given samples.
     """
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For the Oakley model, this is always 1.
+        """
         return 1
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars: int
+            Number of uncertain variables. For the Oakley model, this is
+            always 15.
+        """
         return 15
 
     def _values(self, samples: Array) -> Array:
+        r"""
+        Evaluate the Oakley model for given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        vals: Array
+            Array of shape (nsamples, 1) containing the model
+            evaluations for each sample.
+        """
         a1, a2, a3, M = get_oakley_function_data(self._bkd)
-        term1, term2 = a1 @ samples, a2 @ self._bkd.sin(samples)
+        term1 = a1 @ samples
+        term2 = a2 @ self._bkd.sin(samples)
         term3 = a3 @ self._bkd.cos(samples)
         term4 = ((samples.T @ M) * samples.T).sum(axis=1)
         vals = term1 + term2 + term3 + term4
@@ -655,47 +729,105 @@ class OakleyModel(Model):
 
 class OakleyBenchmark(SingleModelBenchmark):
     r"""
-    Oakely sensivity benchmark
+    Oakley sensitivity benchmark.
+
+    The Oakley benchmark is a probabilistic sensitivity analysis function that
+    models interactions between uncertain variables. It is defined as:
 
     .. math:: f(z) = a_1^Tz + a_2^T\sin(z) + a_3^T\cos(z) + z^TMz
 
-    where :math:`z` consists of 15 I.I.D. standard Normal variables and
-    the data :math:`a_1,a_2,a_3` and :math:`~M` are defined in the function.
+    where :math:`z` consists of 15 I.I.D. standard Normal variables, and the
+    data :math:`a_1, a_2, a_3` and :math:`M` are defined in the function
+    :py:func:`pyapprox.benchmarks.algebraic.get_oakley_function_data`.
+
+    This benchmark is widely used for testing sensitivity analysis methods due
+    to its complexity and inclusion of nonlinear and interaction effects.
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations
 
     References
     ----------
-    .. [OakelyOJRSB2004] `Oakley, J.E. and O'Hagan, A. (2004), Probabilistic sensitivity analysis of complex models: a Bayesian approach. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 66: 751-769. <https://doi.org/10.1111/j.1467-9868.2004.05304.x>`_
+    .. [OakelyOJRSB2004] Oakley, J.E. and O'Hagan, A. (2004), Probabilistic
+       sensitivity analysis of complex models: a Bayesian approach. Journal of
+       the Royal Statistical Society: Series B (Statistical Methodology), 66:
+       751-769. https://doi.org/10.1111/j.1467-9868.2004.05304.x
     """
 
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the Oakley benchmark.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations
+        """
         super().__init__(backend)
         self._set_statistics()
 
     def _variance_linear_combination_of_indendent_variables(
         self, coef: Array, variances: Array
     ) -> Array:
+        """
+        Compute the variance of a linear combination of independent variables.
+
+        Parameters
+        ----------
+        coef : Array
+            Coefficients of the linear combination.
+        variances : Array
+            Variances of the independent variables.
+
+        Returns
+        -------
+        var: Array
+            Variance of the linear combination.
+        """
         assert coef.shape[0] == variances.shape[0]
         return self._bkd.sum(coef**2 * variances)
 
     def _set_model(self):
+        """
+        Set the Oakley model.
+
+        The model is initialized with the specified backend.
+        """
         self._model = OakleyModel(self._bkd)
 
-    def _set_variable(self):
+    def _set_prior(self):
+        """
+        Set the prior distribution.
+
+        The prior distribution is defined as 15 independent standard Normal
+        variables.
+        """
         marginals = [stats.norm()] * 15
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
 
     def _set_statistics(self):
+        """
+        Compute and set the mean, variance, and main effects of the model.
+
+        This method calculates the mean, variance, and main effects of the
+        Oakley function based on its definition and the provided coefficients
+        and matrix.
+        """
         e = math.exp(1)
         a1, a2, a3, M = get_oakley_function_data(self._bkd)
         nvars = M.shape[0]
 
+        # Compute mean
         term1_mean, term2_mean = 0, 0
         term3_mean = self._bkd.sum(a3 / math.sqrt(e))
         term4_mean = self._bkd.trace(M)
         self._mean = term1_mean + term2_mean + term3_mean + term4_mean
 
+        # Compute variance
         term1_var = self._variance_linear_combination_of_indendent_variables(
             a1, self._bkd.ones(a1.shape[0])
         )
@@ -709,7 +841,7 @@ class OakleyBenchmark(SingleModelBenchmark):
         term3_var = self._variance_linear_combination_of_indendent_variables(
             a3, variances_1d
         )
-        A = 0.5 * (M.T + M)  # needed because M is not symmetric
+        A = 0.5 * (M.T + M)  # Ensure symmetry of M
         term4_var = 2 * self._bkd.trace(A @ A)
 
         cov_xsinx = 1 / math.sqrt(e)
@@ -721,6 +853,8 @@ class OakleyBenchmark(SingleModelBenchmark):
         self._variance += 2 * (
             covar12 + covar13 + covar14 + covar23 + covar24 + covar34
         )
+
+        # Compute main effects
         self._main_effects = self._bkd.empty((nvars, 1))
         for ii in range(nvars):
             var1 = a1[ii] ** 2
@@ -735,38 +869,120 @@ class OakleyBenchmark(SingleModelBenchmark):
         self._main_effects /= self._variance
 
     def mean(self) -> Array:
+        """
+        Return the mean of the Oakley function.
+
+        Returns
+        -------
+        mean : Array
+            Mean value of the Oakley function.
+        """
         return self._bkd.atleast1d(self._bkd.asarray(self._mean))
 
     def variance(self) -> Array:
+        """
+        Return the variance of the Oakley function.
+
+        Returns
+        -------
+        var: Array
+            Variance of the Oakley function.
+        """
         return self._bkd.atleast1d(self._bkd.asarray(self._variance))
 
     def main_effects(self) -> Array:
+        """
+        Return the main effects of the Oakley function.
+
+        Returns
+        -------
+        mean_effects: Array
+            Main effects for each variable.
+        """
         return self._main_effects
 
 
 class SobolGModel(Model):
     r"""
-    Sobol-G function benchmark model
+    Sobol-G function benchmark model.
 
-    .. math:: f(z) = \prod_{i=1}^d\frac{\lvert 4z_i-2\rvert+a_i}{1+a_i}, \quad a_i=\frac{i-2}{2}
+    This class implements the Sobol-G function, which is widely used for
+    sensitivity analysis. The function is defined as:
+
+    .. math:: f(z) = \prod_{i=1}^d\frac{\lvert 4z_i-2\rvert+a_i}{1+a_i},
+              \quad a_i=\frac{i-2}{2}
+
+    The coefficients :math:`a_i` control the sensitivity of each variable and
+    limit the range of the outputs.
+
+    Parameters
+    ----------
+    nvars : int
+        Number of uncertain variables.
+    backend : BackendMixin
+        Backend for numerical computations.
     """
 
-    def __init__(self, nvars, backend=NumpyMixin):
+    def __init__(self, nvars: int, backend: BackendMixin):
+        """
+        Initialize the Sobol-G model.
+
+        Parameters
+        ----------
+        nvars :int
+            Number of uncertain variables.
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         self._nvars = nvars
         super().__init__(backend)
         self._acoefs = (self._bkd.arange(1, self._nvars + 1) - 2) / 2
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+            nqoi: int
+            Number of QoI. For the Sobol-G model, this is always 1.
+        """
         return 1
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+            nvars: int
+            Number of uncertain variables.
+        """
         return self._nvars
 
     def _values(self, samples: Array) -> Array:
-        """
-        The coefficients control the sensitivity of each variable. Specifically
-        they limit the range of the outputs, i.e.
-        1-1/(1+a_i) <= (abs(4*x-2)+a_i)/(a_i+1) <= 1-1/(1+a_i)
+        r"""
+        Evaluate the Sobol-G model for given samples.
+
+        The coefficients :math:`a_i` control the sensitivity of each variable
+        and limit the range of the outputs. Specifically, the outputs are
+        bounded as follows:
+
+        .. math::
+
+            1 - \frac{1}{1+a_i} \leq \frac{\lvert 4z_i-2\rvert+a_i}{1+a_i}
+            \leq 1 - \frac{1}{1+a_i}
+
+        Parameters:
+        ----------
+        samples : Array:
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (nsamples, 1) containing the model evaluations
+            for each sample.
         """
         vals = self._bkd.prod(
             (self._bkd.abs(4 * samples - 2) + self._acoefs[:, None])
@@ -778,16 +994,44 @@ class SobolGModel(Model):
 
 class SobolGBenchmark(SingleModelBenchmark):
     r"""
-    Sobol-G function benchmark
+    Sobol-G function benchmark.
 
-    .. math:: f(z) = \prod_{i=1}^d\frac{\lvert 4z_i-2\rvert+a_i}{1+a_i}, \quad a_i=\frac{i-2}{2}
+    The Sobol-G function is a widely used benchmark for sensitivity analysis.
+    It is defined as:
 
-     References
+    .. math:: f(z) = \prod_{i=1}^d\frac{\lvert 4z_i-2\rvert+a_i}{1+a_i},
+              \quad a_i=\frac{i-2}{2}
+
+    where :math:`z` consists of `d` independent uniform random variables on
+    [0, 1], and :math:`a_i` are coefficients that control the nonlinearity of
+    the function.
+
+    Parameters
     ----------
-    .. [Saltelli1995] `Saltelli, A., & Sobol, I. M. About the use of rank transformation in sensitivity analysis of model output. Reliability Engineering & System Safety, 50(3), 225-239, 1995. <https://doi.org/10.1016/0951-8320(95)00099-2>`_
+    nvars : int
+        Number of uncertain variables. Default is 5.
+    backend : BackendMixin
+        Backend for numerical computations.
+
+    References
+    ----------
+    .. [Saltelli1995] Saltelli, A., & Sobol, I. M. About the use of rank
+       transformation in sensitivity analysis of model output. Reliability
+       Engineering & System Safety, 50(3), 225-239, 1995.
+       https://doi.org/10.1016/0951-8320(95)00099-2
     """
 
-    def __init__(self, nvars=5, backend: BackendMixin = NumpyMixin):
+    def __init__(self, backend: BackendMixin, nvars: int = 5):
+        """
+        Initialize the Sobol-G benchmark.
+
+        Parameters
+        ----------
+        nvars : int
+            Number of uncertain variables. Default is 5.
+        backend : BackendMixin
+            Backend for numerical computations
+        """
         self._nvars = nvars
         super().__init__(backend)
         self._acoefs = (
@@ -799,6 +1043,17 @@ class SobolGBenchmark(SingleModelBenchmark):
         self._set_statistics()
 
     def sobol_interaction_indices(self) -> Array:
+        """
+        Return the Sobol interaction indices.
+
+        The interaction indices represent the combinations of variables that
+        contribute to the interaction effects.
+
+        Returns
+        -------
+        indices: Array
+            Interaction indices as a binary matrix.
+        """
         indices = []
         for compressed_index in self._interaction_indices:
             index = self._bkd.zeros((self.nvars(),), dtype=int)
@@ -808,15 +1063,18 @@ class SobolGBenchmark(SingleModelBenchmark):
 
     def _set_statistics(self):
         """
-        See article: Variance based sensitivity analysis of model output.
-        Design and estimator for the total sensitivity index
+        Compute and set the mean, variance, main effects, total effects, and
+        Sobol indices.
+
+        This method calculates the statistical properties of the Sobol-G
+        function based on its definition.
         """
         self._interaction_indices = [[ii] for ii in range(self.nvars())]
-        # get all single and pairwise interactions
+        # Get all single and pairwise interactions
         for ii in range(self.nvars()):
             for jj in range(ii + 1, self.nvars()):
                 self._interaction_indices.append([ii, jj])
-        zero = self._acoefs[0] * 0.0  # necessary for torch
+        zero = self._acoefs[0] * 0.0  # Necessary for torch compatibility
         self._mean = zero + 1.0
         unnormalized_main_effects = 1 / (3 * (1 + self._acoefs) ** 2)
         self._variance = self._bkd.prod(unnormalized_main_effects + 1) - 1
@@ -829,8 +1087,6 @@ class SobolGBenchmark(SingleModelBenchmark):
             unnormalized_main_effects + 1
         )
         self._total_effects /= self._variance
-        # if interaction_terms is None:
-        #     return mean, variance, main_effects, total_effects
 
         self._sobol_indices = self._bkd.array(
             [
@@ -840,61 +1096,216 @@ class SobolGBenchmark(SingleModelBenchmark):
         )[:, None]
 
     def _set_model(self):
+        """
+        Set the Sobol-G model.
+
+        The model is initialized with the number of variables and the specified
+        backend.
+        """
         self._model = SobolGModel(self._nvars, self._bkd)
 
-    def _set_variable(self):
+    def _set_prior(self):
+        """
+        Set the prior distribution.
+
+        The prior distribution is defined as `nvars` independent uniform random
+        variables on [0, 1].
+        """
         marginals = [stats.uniform(0, 1)] * self._nvars
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
 
     def mean(self) -> Array:
+        """
+        Return the mean of the Sobol-G function.
+
+        Returns
+        -------
+        mean : Array
+            Mean value of the Sobol-G function.
+        """
         return self._bkd.atleast1d(self._bkd.asarray(self._mean))
 
     def variance(self) -> Array:
+        """
+        Return the variance of the Sobol-G function.
+
+        Returns
+        -------
+        var: Array
+            Variance of the Sobol-G function.
+        """
         return self._bkd.atleast1d(self._bkd.asarray(self._variance))
 
     def main_effects(self) -> Array:
+        """
+        Return the main effects of the Sobol-G function.
+
+        Returns
+        -------
+        main_effects: Array
+            Main effects for each variable.
+        """
         return self._main_effects[:, None]
 
     def total_effects(self) -> Array:
+        """
+        Return the total effects of the Sobol-G function.
+
+        Returns
+        -------
+        total_effects: Array
+            Total effects for each variable.
+        """
         return self._total_effects[:, None]
 
     def sobol_indices(self) -> Array:
+        """
+        Return the Sobol indices of the Sobol-G function.
+
+        Returns
+        -------
+        indices: Array
+            Sobol indices for each interaction.
+        """
         return self._sobol_indices
 
 
 class RosenbrockModel(Model):
-    r"""The Rosenbrock function
+    r"""
+    The Rosenbrock function model.
 
-    .. math:: f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]
+    The Rosenbrock function is a classic benchmark function for optimization
+    problems. It is defined as:
+
+    .. math::
+        f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]
+
+    Parameters
+    ----------
+    nvars : int
+        Number of uncertain variables (dimensionality of the input).
+    backend : BackendMixin
+        Backend for numerical computations.
+
+
+    Notes
+    -----
+    This method uses the `rosen` function from `scipy.optimize`. Note that
+    backpropagation will not work with this function when using PyTorch
+    because `rosen` is a NumPy function.
     """
 
-    def __init__(self, nvars: int, backend: BackendMixin = NumpyMixin):
+    def __init__(self, nvars: int, backend: BackendMixin):
+        """
+        Initialize the Rosenbrock model.
+
+        Parameters
+        ----------
+        nvars : int
+            Number of uncertain variables (dimensionality of the input).
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         super().__init__(backend)
         self._nvars = nvars
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian is implemented.
+
+        Returns
+        -------
+        flag : bool
+            True if the Jacobian is implemented, False otherwise.
+        """
         return True
 
     def apply_hessian_implemented(self) -> bool:
+        """
+        Check if the Hessian application is implemented.
+
+        Returns
+        -------
+        flag : bbool
+            True if the Hessian application is implemented, False otherwise.
+        """
         return True
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For the Rosenbrock model, this is always 1.
+        """
         return 1
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars: int
+            Number of uncertain variables.
+        """
         return self._nvars
 
     def _values(self, samples: Array) -> Array:
-        # note torch back prop wont work this function because rosen is a
-        # numpy function
+        """
+        Evaluate the Rosenbrock function for given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (nsamples, 1) containing the function evaluations
+            for each sample.
+        """
         return self._bkd.asarray(rosen(self._bkd.to_numpy(samples)))[:, None]
 
     def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the Rosenbrock function at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        jac: Array
+            Array of shape (nvars, 1) containing the Jacobian at the sample.
+        """
         return self._bkd.asarray(rosen_der(self._bkd.to_numpy(sample))).T
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        """
+        Apply the Hessian of the Rosenbrock function to a vector.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+        vec : Array
+            Array of shape (nvars, 1) containing the vector to which the
+            Hessian is applied.
+
+        Returns
+        -------
+        hvp: Array
+            Array of shape (nvars, 1) containing the result of the Hessian
+            application.
+        """
         return self._bkd.asarray(
             rosen_hess_prod(
                 self._bkd.to_numpy(sample[:, 0]), self._bkd.to_numpy(vec[:, 0])
@@ -903,38 +1314,100 @@ class RosenbrockModel(Model):
 
 
 class RosenbrockUnconstrainedOptimizationBenchmark(OptimizationBenchmark):
-    r"""The Rosenbrock function benchmark
+    r"""
+    The Rosenbrock function benchmark.
 
-    .. math:: f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]
+    The Rosenbrock function is a classic benchmark for optimization problems,
+    particularly for testing unconstrained optimization algorithms. It is
+    defined as:
+
+    .. math::
+        f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]
+
+    Parameters
+    ----------
+    nvars : int
+        Number of uncertain variables (dimensionality of the input).
+    backend : BackendMixin
+        Backend for numerical computations
 
     References
     ----------
-    .. [DixonSzego1990] `Dixon, L. C. W.; Mills, D. J. "Effect of Rounding Errors on the Variable Metric Method". Journal of Optimization Theory and Applications. 80: 175–179. 1994 <https://doi.org/10.1007%2FBF02196600>`_
+    .. [DixonSzego1990] Dixon, L. C. W.; Mills, D. J. "Effect of Rounding
+       Errors on the Variable Metric Method". Journal of Optimization Theory
+       and Applications. 80: 175–179. 1994.
+       https://doi.org/10.1007%2FBF02196600
     """
 
     def __init__(
         self,
         nvars: int,
-        backend: BackendMixin = NumpyMixin,
+        backend: BackendMixin,
     ):
+        """
+        Initialize the Rosenbrock benchmark.
+
+        Parameters
+        ----------
+        nvars : int
+            Number of uncertain variables (dimensionality of the input).
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         self._nvars = nvars
         super().__init__(backend)
 
     def _set_objective(self):
+        """
+        Set the objective function for the optimization problem.
+
+        The objective is the Rosenbrock function model.
+        """
         self._objective = RosenbrockModel(self._nvars, self._bkd)
 
     def design_variable(self) -> DesignVariable:
+        """
+        Define the design variable for the optimization problem.
+
+        The design variable is bounded in [-2, 2] for each dimension.
+
+        Returns
+        -------
+        var: DesignVariable
+            The design variable with bounds.
+        """
         design_bounds = self._bkd.full((self._nvars, 2), -2.0)
         design_bounds[:, 1] = 2.0
         return DesignVariable(design_bounds)
 
-    def variable(self) -> IndependentMarginalsVariable:
+    def prior(self) -> IndependentMarginalsVariable:
+        """
+        Define the prior distribution for the optimization problem.
+
+        The prior distribution is uniform in [-2, 2] for each dimension.
+
+        Returns
+        -------
+        prior: IndependentMarginalsVariable
+            The prior distribution.
+        """
         marginals = [stats.uniform(-2, 4)] * self._nvars
         return IndependentMarginalsVariable(marginals, backend=self._bkd)
 
     def mean(self) -> Array:
         """
-        Mean of rosenbrock function with uniform variables in [-2,2]^d
+        Compute the mean of the Rosenbrock function.
+
+        The mean is computed for uniform variables in [-2, 2]^d.
+
+        Returns
+        -------
+        mean : Array
+            The mean value of the Rosenbrock function.
+
+        Notes
+        -----
+        The mean is computed using symbolic integration for exact results.
         """
         assert self._nvars % 2 == 0
         import sympy as sp
@@ -956,30 +1429,120 @@ class RosenbrockUnconstrainedOptimizationBenchmark(OptimizationBenchmark):
         return self._bkd.atleast1d(self._bkd.asarray(exact_mean))
 
     def optimal_iterate(self) -> Array:
+        """
+        Return the optimal iterate for the Rosenbrock function.
+
+        The optimal iterate is a vector of ones.
+
+        Returns
+        -------
+        iterate: Array
+            The optimal iterate.
+        """
         return self._bkd.ones((self._nvars, 1))
 
     def init_iterate(self) -> Array:
+        """
+        Return the initial iterate for the Rosenbrock function.
+
+        The initial iterate is a vector with all entries equal to  1.5.
+
+        Returns
+        -------
+        iterate : Array
+            The initial iterate.
+        """
         return self._bkd.ones((self._nvars, 1)) + 0.5
 
 
 class RosenbrockConstraint(Constraint):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    """
+    Rosenbrock constraint.
+
+    This class implements constraints for optimization problems involving the
+    Rosenbrock function. The constraints are defined as:
+
+    .. math::
+        g_1(x) = -((x_1 - 1)^3) + x_2 - 1 \\
+        g_2(x) = 2 - x_1 - x_2
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the Rosenbrock constraint.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         bounds = backend.array([[0.0, np.inf], [0.0, np.inf]])
         super().__init__(bounds, True, backend)
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian is implemented.
+
+        Returns
+        -------
+        flag: bool
+            True if the Jacobian is implemented, False otherwise.
+        """
         return True
 
     def hessian_implemented(self) -> bool:
+        """
+        Check if the Hessian is implemented.
+
+        Returns
+        -------
+        flag : bool
+            True if the Hessian is implemented, False otherwise.
+        """
         return True
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars: int
+            Number of uncertain variables. For this constraint, it is always 2.
+        """
         return 2
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi: int
+            Number of QoI. For this constraint, it is always 2.
+        """
         return 2
 
     def _values(self, samples: Array) -> Array:
+        """
+        Evaluate the constraint values for given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        values : Array
+            Array of shape (nsamples, nqoi) containing the constraint values
+            for each sample.
+        """
         return self._bkd.stack(
             [
                 -((samples[0] - 1) ** 3) + samples[1] - 1,
@@ -989,7 +1552,20 @@ class RosenbrockConstraint(Constraint):
         )
 
     def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the constraints at a given sample.
 
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        jac : Array
+            Array of shape (nqoi, nvars) containing the Jacobian matrix at the
+            sample.
+        """
         return self._bkd.stack(
             (
                 self._bkd.hstack(
@@ -1001,6 +1577,20 @@ class RosenbrockConstraint(Constraint):
         )
 
     def _hessian(self, sample: Array) -> Array:
+        """
+        Compute the Hessian of the constraints at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        hess : Array
+            Array of shape (nqoi, nvars, nvars) containing the Hessian matrices
+            for each constraint at the sample.
+        """
         zero = self._bkd.zeros((1,))
         hess = self._bkd.zeros((self.nqoi(), self.nvars(), self.nvars()))
         hess[0] = self._bkd.stack(
@@ -1016,37 +1606,140 @@ class RosenbrockConstraint(Constraint):
 class RosenbrockConstrainedOptimizationBenchmark(
     ConstrainedOptimizationBenchmark
 ):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    r"""
+    Rosenbrock constrained optimization benchmark.
+
+    This class implements a constrained optimization benchmark based on the
+    Rosenbrock function.
+
+    The objective is defined as:
+
+    .. math::
+        f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]
+
+    The constraints are defined as:
+
+    .. math::
+        g_1(x) = -((x_1 - 1)^3) + x_2 - 1 \\
+        g_2(x) = 2 - x_1 - x_2
+    
+    The design variable is bounded in [-2, 2] for each dimension.
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the Rosenbrock constrained optimization benchmark.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations
+        """
         self._nvars = 2
         super().__init__(backend)
 
     def optimal_iterate(self) -> Array:
+        """
+        Return the optimal iterate for the Rosenbrock function.
+
+        Returns
+        -------
+        optimal_iterate : Array
+            The optimal iterate is a vector of ones.
+        """
         return self._bkd.ones((self._nvars, 1))
 
     def init_iterate(self) -> Array:
-        eps = 0.2  # initial iterate on constraint
-        # need to shift x coord because of issues with scipy
-        # trust-constr solver
+        """
+        Return the initial iterate for the Rosenbrock function.
+
+        The initial iterate is chosen to lie on the constraint boundary, with
+        a small offset for numerical stability.
+
+        Returns
+        -------
+        init_iterate : Array
+            The initial iterate is a vector near the constraint boundary.
+        """
+        eps = 0.2  # Initial iterate on constraint
+        # Shift x-coordinate due to issues with scipy trust-constr solver
         return self._bkd.array([1 - eps - 1e-16, 1 + eps])[:, None]
 
     def _set_objective(self):
+        """
+        Set the objective function for the optimization problem.
+
+        The objective is the Rosenbrock function model.
+        """
         self._objective = RosenbrockModel(2, self._bkd)
 
     def design_variable(self) -> DesignVariable:
+        """
+        Define the design variable for the optimization problem.
+
+        The design variable is bounded in [-2, 2] for each dimension.
+
+        Returns
+        -------
+        design_variable : DesignVariable
+            The design variable with bounds.
+        """
         design_bounds = self._bkd.full((self._nvars, 2), -2.0)
         design_bounds[:, 1] = 2.0
         return DesignVariable(design_bounds)
 
-    def variable(self) -> IndependentMarginalsVariable:
+    def prior(self) -> IndependentMarginalsVariable:
+        """
+        Define the prior distribution for the optimization problem.
+
+        The prior distribution is uniform in [-2, 2] for each dimension.
+
+        Returns
+        -------
+        prior : IndependentMarginalsVariable
+            The prior distribution.
+        """
         marginals = [stats.uniform(-2, 4)] * self._nvars
         return IndependentMarginalsVariable(marginals, backend=self._bkd)
 
     def _set_constraints(self):
+        """
+        Set the constraints for the optimization problem.
+
+        The constraints are defined by the `RosenbrockConstraint` class.
+        """
         self._constraints = [RosenbrockConstraint(self._bkd)]
 
 
 class CantileverBeamModel(SingleSampleModel):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    """
+    Cantilever beam model.
+
+    This class implements a cantilever beam model with symbolic expressions for
+    the function, Jacobian, and Hessian. The model evaluates quantities of
+    interest (QoI) related to the beam's cross-sectional area, stress, and
+    deflection.
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the cantilever beam model.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         import sympy as sp
 
         super().__init__(backend)
@@ -1069,75 +1762,335 @@ class CantileverBeamModel(SingleSampleModel):
         self._lam_hess = sp.lambdify(symbs, sp_hess, "numpy")
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian is implemented.
+
+        Returns
+        -------
+        jacobian_implemented : bool
+            True if the Jacobian is implemented, False otherwise.
+        """
         return True
 
     def apply_jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian application is implemented.
+
+        Returns
+        -------
+        apply_jacobian_implemented : bool
+            True if the Jacobian application is implemented, False otherwise.
+        """
         return True
 
     def hessian_implemented(self) -> bool:
+        """
+        Check if the Hessian is implemented.
+
+        Returns
+        -------
+        hessian_implemented : bool
+            True if the Hessian is implemented, False otherwise.
+        """
         return True
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For this model, it is 2.
+        """
         return 2
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables. For this model, it is 6.
+        """
         return 6
 
-    def _evaluate_sp_lambda(self, sp_lambda, sample):
+    def _evaluate_sp_lambda(self, sp_lambda: callable, sample: Array) -> Array:
+        """
+        Evaluate a symbolic lambda function for a given sample.
+
+        Parameters
+        ----------
+        sp_lambda : callable
+            Symbolic lambda function to evaluate.
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (nqoi, 1) containing the evaluation result.
+        """
         assert sample.ndim == 2 and sample.shape[1] == 1
         vals = self._bkd.atleast2d(
             self._bkd.asarray(sp_lambda(*self._bkd.to_numpy(sample[:, 0])))
         )
         return vals
 
-    def _evaluate(self, sample):
+    def _evaluate(self, sample: Array):
+        """
+        Evaluate the cantilever beam model for a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (nqoi, 1) containing the model evaluations.
+        """
         return self._evaluate_sp_lambda(self._lam_fun, sample)
 
-    def _jacobian(self, sample):
+    def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the cantilever beam model at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        jac : Array
+            Array of shape (nqoi, nvars) containing the Jacobian matrix.
+        """
         return self._evaluate_sp_lambda(self._lam_jac, sample)
 
-    def _apply_jacobian(self, sample, vec):
+    def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
+        """
+        Apply the Jacobian of the cantilever beam model to a vector.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+        vec : Array
+            Array of shape (nvars, 1) containing the vector to which the
+            Jacobian is applied.
+
+        Returns
+        -------
+        jvp : Array
+            Array of shape (nqoi, 1) containing the result of the Jacobian
+            application.
+        """
         return self.jacobian(sample) @ vec
 
-    def _hessian(self, sample):
+    def _hessian(self, sample: Array) -> Array:
+        """
+        Compute the Hessian of the cantilever beam model at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        hess : Array
+            Array of shape (nqoi, nvars, nvars) containing the Hessian matrices.
+        """
         return self._evaluate_sp_lambda(self._lam_hess, sample)
 
 
 class CantileverBeamObjectiveModel(CantileverBeamModel):
+    """
+    Cantilever beam objective model.
+
+    This class implements the objective model for the cantilever beam problem,
+    which evaluates the first quantity of interest (QoI) related to the beam's
+    cross-sectional area.
+    """
+
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For this model, it is 1.
+        """
         return 1
 
-    def _evaluate(self, sample):
+    def _evaluate(self, sample: Array) -> Array:
+        """
+        Evaluate the objective model for a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (1, 1) containing the evaluation result.
+        """
         return super()._evaluate(sample)[:, :1]
 
-    def _jacobian(self, sample):
+    def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the objective model at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        jac : Array
+            Array of shape (1, nvars) containing the Jacobian matrix.
+        """
         return super()._jacobian(sample)[:1, :]
 
-    def _hessian(self, sample):
+    def _hessian(self, sample: Array) -> Array:
+        """
+        Compute the Hessian of the objective model at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        hess : Array
+            Array of shape (1, nvars, nvars) containing the Hessian matrix.
+        """
         return self._bkd.copy(super()._hessian(sample)[:1, ...])
 
 
 class CantileverBeamConstraintsModel(CantileverBeamModel):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    r"""
+    Cantilever beam constraints model.
+
+    This class implements the constraints model for the cantilever beam
+    problem, which evaluates the second and third quantities of interest (QoI)
+    related to stress and deflection.
+
+
+    Specifically, the stress constraint
+
+    .. math:: 6L\left(\frac{X}{tw^2}+\frac{Y}{t^2w}\right) < R
+
+    and the displacement constraint
+
+    .. math:: \frac{4L^3}{Ewt}\sqrt{\left(\frac{Y}{t}\right)^2+\left(\frac{X}{w}\right)^2} < D
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the cantilever beam constraints model.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations. Default is `NumpyMixin`.
+        """
         super().__init__(backend)
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For this model, it is 2.
+        """
         return 2
 
     def _evaluate(self, sample: Array) -> Array:
+        """
+        Evaluate the constraints model for a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (2, 1) containing the evaluation result.
+        """
         return super()._evaluate(sample)[:, 1:]
 
     def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the constraints model at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        jac : Array
+            Array of shape (2, nvars) containing the Jacobian matrix.
+        """
         return super()._jacobian(sample)[1:, :]
 
     def _hessian(self, sample: Array) -> Array:
+        """
+        Compute the Hessian of the constraints model at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        hess : Array
+            Array of shape (2, nvars, nvars) containing the Hessian matrices.
+        """
         return self._bkd.copy(super()._hessian(sample)[1:, ...])
 
 
 class CantileverBeamDeterminsticOptimizationBenchmark(
     ConstrainedUncertainOptimizationBenchmark
 ):
+    r"""
+    Cantilever beam deterministic optimization benchmark.
+
+    This class implements a deterministic optimization benchmark for the
+    cantilever beam problem, including constraints and design variables.
+
+    The optimization problem minimizes the objective function
+
+    .. math:: wt
+
+    Subject to a stress constraint
+
+    .. math:: 6L\left(\frac{X}{tw^2}+\frac{Y}{t^2w}\right) < R
+
+    and a displacement constraint
+
+    .. math:: \frac{4L^3}{Ewt}\sqrt{\left(\frac{Y}{t}\right)^2+\left(\frac{X}{w}\right)^2} < D
+    """
+
     def _set_objective(self):
+        """
+        Set the objective function for the optimization problem.
+        """
         self._objective = create_active_set_variable_model(
             CantileverBeamObjectiveModel(self._bkd),
             self.variable().nvars() + self.design_variable().nvars(),
@@ -1146,6 +2099,9 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
         )
 
     def _set_constraints(self):
+        """
+        Set the constraints for the optimization problem.
+        """
         constraint_model = create_active_set_variable_model(
             CantileverBeamConstraintsModel(self._bkd),
             self.variable().nvars() + self.design_variable().nvars(),
@@ -1156,19 +2112,48 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
             ConstraintFromModel(constraint_model, self.constraint_bounds())
         ]
 
-    def variable(self) -> JointVariable:
-        # traditional parameterization
+    def prior(self) -> JointVariable:
+        """
+        Define the prior distribution for the optimization problem.
+
+        The marginal distribution of the independent random variables are
+
+        .. table:: Uncertainties
+           :align: center
+
+           =============== ========= =======================
+           Uncertainty     Symbol    Prior
+           =============== ========= =======================
+           Yield stress    :math:`R` :math:`N(40000,2000)`
+           Young's modulus :math:`E` :math:`N(2.9e7,1.45e6)`
+           Horizontal load :math:`X` :math:`N(500,100)`
+           Vertical Load   :math:`Y` :math:`N(1000,100)`
+           =============== ========= =======================
+
+        Returns
+        -------
+        prior : JointVariable
+            The prior distribution.
+        """
         X = stats.norm(loc=500, scale=np.sqrt(100) ** 2)
         Y = stats.norm(loc=1000, scale=np.sqrt(100) ** 2)
         E = stats.norm(loc=2.9e7, scale=np.sqrt(1.45e6) ** 2)
         R = stats.norm(loc=40000, scale=np.sqrt(2000) ** 2)
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             [X, Y, E, R], backend=self._bkd
         )
-        self._nominal_values = self._variable.mean()
-        return self._variable
+        self._nominal_values = self._prior.mean()
+        return self._prior
 
     def design_variable(self) -> DesignVariable:
+        """
+        Define the design variable for the optimization problem.
+
+        Returns
+        -------
+        design_variable : DesignVariable
+            The design variable with bounds.
+        """
         design_bounds = self._bkd.stack(
             [self._bkd.ones((2,)), self._bkd.full((2,), 4.0)], axis=1
         )
@@ -1177,26 +2162,76 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
         return self._design_variable
 
     def constraint_bounds(self) -> Array:
+        """
+        Define the bounds for the constraints.
+
+        Returns
+        -------
+        constraint_bounds : Array
+            Array of shape (2, 2) containing the constraint bounds.
+        """
         return self._bkd.hstack(
             [self._bkd.zeros((2, 1)), self._bkd.full((2, 1), np.inf)]
         )
 
     def design_var_indices(self) -> Array:
+        """
+        Return the indices of the design variables.
+
+        Returns
+        -------
+        design_var_indices : Array
+            Array of shape (2,) containing the indices of the design variables.
+        """
         return self._design_var_indices
 
     def init_iterate(self) -> Array:
+        """
+        Return the initial iterate for the optimization problem.
+
+        Returns
+        -------
+        init_iterate : Array
+            Array of shape (2, 1) containing the initial iterate.
+        """
         return self._bkd.array([3.0, 3.0])[:, None]
 
     def optimal_iterate(self) -> Array:
-        # Optimal design vars from literature
+        """
+        Return the optimal iterate for the optimization problem.
+
+        Returns
+        -------
+        optimal_iterate : Array
+            Array of shape (2, 1) containing the optimal iterate.
+        """
         return self._bkd.array([2.35, 3.33])[:, None]
 
 
 class CantileverBeamUncertainOptimizationBenchmark(
     CantileverBeamDeterminsticOptimizationBenchmark
 ):
+    """
+    Cantilever beam uncertain optimization benchmark.
+
+    This class extends the deterministic optimization benchmark for the
+    cantilever beam problem to include uncertainty in the constraints. The
+    constraints are evaluated using a quadrature rule and statistical metrics
+    such as the mean and standard deviation.
+    """
+
     def _set_constraints(self):
-        # TODO change weights to create unbiased estimators of mean and variance
+        """
+        Set the constraints for the optimization problem.
+
+        The constraints are evaluated using a quadrature rule and statistical
+        metrics such as the mean and standard deviation.
+
+        Returns
+        -------
+        None
+        """
+        # TODO: Change weights to create unbiased estimators of mean and variance
         quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
             self.variable(),
             [5 for ii in range(self.variable().nvars())],
@@ -1220,31 +2255,112 @@ class CantileverBeamUncertainOptimizationBenchmark(
         ]
 
     def constraint_bounds(self) -> Array:
+        """
+        Define the bounds for the constraints.
+
+        The bounds are defined as [-∞, 0] for each constraint.
+
+        Returns
+        -------
+        constraint_bounds : Array
+            Array of shape (2, 2) containing the constraint bounds.
+        """
         return self._bkd.hstack(
             [self._bkd.full((2, 1), -np.inf), self._bkd.zeros((2, 1))]
         )
 
     def optimal_iterate(self) -> Array:
-        # Optimal design vars from literature are not accurate enough
-        raise NotImplementedError
+        """
+        Raise a `NotImplementedError` as the optimal iterate is not defined.
+
+        Returns
+        -------
+        optimal_iterate : Array
+            Raises `NotImplementedError`.
+        """
+        raise NotImplementedError(
+            "Optimal design vars from literature are not accurate enough"
+        )
 
 
 class PistonModel(Model):
-    """Predict cycle time of a piston in a cylinder"""
+    r"""
+    Predict cycle time of a piston in a cylinder.
 
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    This class models the cycle time of a piston in a cylinder based on various
+    physical parameters. The cycle time is computed using the following formula:
+
+    .. math::
+        Z = P_0 V_0 / T_0 T_a \\
+        A = P_0 S + 19.62 M - k V_0 / S \\
+        V = S / (2k) (\sqrt{A^2 + 4kZ} - A) \\
+        C = 2\pi \sqrt{M / (k + S^2 Z / V^2)}
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the piston model.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations
+        """
         super().__init__(backend)
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian is implemented.
+
+        Returns
+        -------
+        jacobian_implemented : bool
+            True if the Jacobian is implemented, False otherwise.
+        """
         return True
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For this model, it is 1.
+        """
         return 1
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables. For this model, it is 7.
+        """
         return 7
 
     def _values(self, samples: Array) -> Array:
+        """
+        Evaluate the cycle time for given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (nsamples, 1) containing the cycle time for each
+            sample.
+        """
         M, S, V_0, k, P_0, T_a, T_0 = samples
         Z = P_0 * V_0 / T_0 * T_a
         A = P_0 * S + 19.62 * M - k * V_0 / S
@@ -1253,7 +2369,19 @@ class PistonModel(Model):
         return C[:, None]
 
     def _jacobian(self, sample: Array) -> Array:
-        """Gradient of cycle time of a piston in a cylinder"""
+        """
+        Compute the gradient of the cycle time for a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        jac : Array
+            Array of shape (nvars, 1) containing the gradient of the cycle time.
+        """
         M, S, V_0, k, P_0, T_a, T_0 = sample
 
         Z = P_0 * V_0 / T_0 * T_a
@@ -1345,18 +2473,52 @@ class PistonModel(Model):
 
 
 class PistonBenchmark(SingleModelBenchmark):
+    r"""
+    Piston benchmark.
+
+    This class models the cycle time of a piston in a cylinder based on various
+    physical parameters. The `PistonModel` evaluates the cycle time
+    using the following formula:
+
+    .. math::
+        Z = P_0 V_0 / T_0 T_a \\
+        A = P_0 S + 19.62 M - k V_0 / S \\
+        V = S / (2k) (\sqrt{A^2 + 4kZ} - A) \\
+        C = 2\pi \sqrt{M / (k + S^2 Z / V^2)}
+
+    The prior distribution for the piston parameters is defined as follows:
+
+    ============== ========= ======================= ==============
+    Parameter      Symbol    Prior                   Units
+    ============== ========= ======================= ==============
+    Piston mass    :math:`M` :math:`U(30,60)`        kg
+    Surface area   :math:`S` :math:`U(0.005,0.02)`   m²
+    Initial volume :math:`V_0` :math:`U(0.002,0.01)` m³
+    Spring coeff.  :math:`k` :math:`U(1000,5000)`    N/m
+    Atmos. pressure :math:`P_0` :math:`U(90000,110000)` N/m²
+    Ambient temp.  :math:`T_a` :math:`U(290,296)`    K
+    Gas temp.      :math:`T_0` :math:`U(340,360)`    K
+    ============== ========= ======================= ==============
+    """
+
     def _set_model(self):
+        """
+        Set the piston model as the benchmark model.
+        """
         self._model = PistonModel(self._bkd)
 
-    def _set_variable(self):
+    def _set_prior(self):
         """
-        M piston mass (kg)
-        S surface area (m^2)
-        V_0 initial gas volume (m^3)
-        k spring coefficient (N/m)
-        P_0 atmospheric pressure (N/m^2)
-        T_a ambient temperature (K)
-        T_0 filling gas temperature (K)
+        Define the prior distribution for the piston parameters.
+
+        The prior distribution includes the following parameters:
+        - M: Piston mass (kg)
+        - S: Surface area (m²)
+        - V_0: Initial gas volume (m³)
+        - k: Spring coefficient (N/m)
+        - P_0: Atmospheric pressure (N/m²)
+        - T_a: Ambient temperature (K)
+        - T_0: Filling gas temperature (K)
         """
         M = stats.uniform(loc=30.0, scale=30.0)
         S = stats.uniform(loc=0.005, scale=0.015)
@@ -1366,27 +2528,88 @@ class PistonBenchmark(SingleModelBenchmark):
         T_a = stats.uniform(loc=290.0, scale=6.0)
         T_0 = stats.uniform(loc=340.0, scale=20.0)
 
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             [M, S, V_0, k, P_0, T_a, T_0], backend=self._bkd
         )
 
 
 class WingWeightModel(Model):
-    """Weight of a light aircraft wing"""
+    r"""
+    Weight of a light aircraft wing.
+
+    This class models the weight of a light aircraft wing based on various
+    physical parameters.
+
+    The weight is:
+
+    .. math::
+        f(z) = 0.036 \cdot S_w^{0.758} \cdot W_{fw}^{0.0035} \cdot A^{0.6}
+        \cdot \cos(\Lambda)^{-0.9} \cdot q^{0.006} \cdot \lambda^{0.04} \cdot 100^{-0.3}
+        \cdot tc^{-0.3} \cdot N_z^{0.49} \cdot W_{dg}^{0.49} + S_w \cdot W_p
+
+    where :math:`z=[S_w, W_{fw}, A, \Lambda, q, \lambda, tc, N_z, W_{dg}, W_p]`
+
+    """
 
     def __init__(self, backend: BackendMixin = NumpyMixin):
+        """
+        Initialize the wing weight model.
+
+        Parameters
+        ----------
+        backend : BackendMixin, optional
+            Backend for numerical computations. Default is `NumpyMixin`.
+        """
         super().__init__(backend)
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian is implemented.
+
+        Returns
+        -------
+        jacobian_implemented : bool
+            True if the Jacobian is implemented, False otherwise.
+        """
         return True
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For this model, it is 1.
+        """
         return 1
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables. For this model, it is 10.
+        """
         return 10
 
     def _values(self, samples: Array) -> Array:
+        """
+        Evaluate the wing weight for given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        _values : Array
+            Array of shape (nsamples, 1) containing the wing weight for each
+            sample.
+        """
         S_w, W_fw, A, Lamda, q, lamda, tc, N_z, W_dg, W_p = samples
         Lamda *= np.pi / 180.0
         vals = (
@@ -1405,6 +2628,20 @@ class WingWeightModel(Model):
         return vals[:, None]
 
     def _jacobian(self, samples: Array) -> Array:
+        """
+        Compute the gradient of the wing weight for given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        _jacobian : Array
+            Array of shape (nsamples, nvars) containing the gradient of the wing
+            weight for each sample.
+        """
         S_w, W_fw, A, Lamda, q, lamda, tc, N_z, W_dg, W_p = samples
         Lamda *= np.pi / 180.0
         vals = self(samples)[:, 0] - S_w * W_p
@@ -1428,10 +2665,55 @@ class WingWeightModel(Model):
 
 
 class WingWeightBenchmark(SingleModelBenchmark):
+    r"""
+    Wing weight benchmark.
+
+    This class models the weight of a light aircraft wing based on various
+    physical parameters. It uses the `WingWeightModel` to evaluate the wing
+    weight.
+
+    The weight is:
+
+    .. math::
+        f(z) = 0.036 \cdot S_w^{0.758} \cdot W_{fw}^{0.0035} \cdot A^{0.6}
+        \cdot \cos(\Lambda)^{-0.9} \cdot q^{0.006} \cdot \lambda^{0.04} \cdot 100^{-0.3}
+        \cdot tc^{-0.3} \cdot N_z^{0.49} \cdot W_{dg}^{0.49} + S_w \cdot W_p
+
+    where :math:`z=[S_w, W_{fw}, A, \Lambda, q, \lambda, tc, N_z, W_{dg}, W_p]`
+
+
+    The variables are independent with the marginals:
+
+    ============== ========= =======================
+    Symbol        Prior
+    ============== ========= =======================
+    :math:`S_w`   :math:`U(150,200)`
+    :math:`W_{fw}` :math:`U(220,300)`
+    :math:`A`     :math:`U(6,10)`
+    :math:`\Lambda` :math:`U(-10,10)`
+    :math:`q`     :math:`U(16,45)`
+    :math:`\lambda` :math:`U(0.5,1.0)`
+    :math:`tc`    :math:`U(0.08,0.18)`
+    :math:`N_z`   :math:`U(2.5,6.0)`
+    :math:`W_{dg}` :math:`U(1700,2500)`
+    :math:`W_p`   :math:`U(0.025,0.08)`
+    ============== ========= =======================
+    """
+
     def _set_model(self):
+        """
+        Set the wing weight model as the benchmark model.
+        """
         self._model = WingWeightModel(self._bkd)
 
-    def _set_variable(self):
+    def _set_prior(self):
+        """
+        Define the prior distribution for the wing weight parameters.
+
+        Returns
+        -------
+        None
+        """
         marginals = [
             stats.uniform(150, 50),
             stats.uniform(220, 80),
@@ -1444,40 +2726,116 @@ class WingWeightBenchmark(SingleModelBenchmark):
             stats.uniform(1700, 800),
             stats.uniform(0.025, 0.055),
         ]
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
 
 
 class EvtushenkoObjective(Model):
-    r"""Objective of the constrained optimization benchmark from Evtushenko.
+    r"""
+    Objective of the constrained optimization benchmark from Evtushenko.
 
-    The objective is
-    .. math:: f(z) = (z_1+3z_2+z_3)^2 +4(z_1-z_2)^2
+    The objective function is defined as:
+
+    .. math::
+        f(z) = (z_1 + 3z_2 + z_3)^2 + 4(z_1 - z_2)^2
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
     """
 
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the objective model.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         super().__init__(backend)
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian is implemented.
+
+        Returns
+        -------
+        jacobian_implemented : bool
+            True if the Jacobian is implemented, False otherwise.
+        """
         return True
 
     def apply_hessian_implemented(self) -> bool:
+        """
+        Check if the Hessian application is implemented.
+
+        Returns
+        -------
+        apply_hessian_implemented : bool
+            True if the Hessian application is implemented, False otherwise.
+        """
         return True
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For this model, it is 1.
+        """
         return 1
 
+    def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables. For this model, it is 3.
+        """
+        return 3
+
     def _values(self, samples: Array) -> Array:
+        """
+        Evaluate the objective function for given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (nsamples, 1) containing the objective function
+            evaluations.
+        """
         return (
             (samples[0] + 3 * samples[1] + samples[2]) ** 2
             + 4 * (samples[0] - samples[1]) ** 2
         )[:, None]
 
-    def nvars(self):
-        return 3
-
     def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute the gradient of the objective function at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        jac : Array
+            Array of shape (1, nvars) containing the gradient of the objective
+            function.
+        """
         return self._bkd.stack(
             (
                 2 * (sample[0] + 3 * sample[1] + sample[2])
@@ -1490,6 +2848,23 @@ class EvtushenkoObjective(Model):
         )
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        """
+        Apply the Hessian of the objective function to a vector.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+        vec : Array
+            Array of shape (nvars, 1) containing the vector to which the
+            Hessian is applied.
+
+        Returns
+        -------
+        hvp : Array
+            Array of shape (nvars, 1) containing the result of the Hessian
+            application.
+        """
         return self._bkd.stack(
             (
                 10 * vec[0] - 2 * vec[1] + 2 * vec[2],
@@ -1502,35 +2877,117 @@ class EvtushenkoObjective(Model):
 
 class EvtushenkoNonLinearConstraint(Constraint):
     r"""
-    The nonlinear Constraint of the constrained optimization benchmark from
+    Nonlinear constraint of the constrained optimization benchmark from
     Evtushenko.
 
-    The constraints are
-    .. math:: c(z) = (z_1+3z_2+z_3)^2 +4(z_1-z_2)^2
+    The constraint is defined as:
+
+    .. math::
+        c(z) = 6z_2 + 4z_3 - z_1^3 - 3
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
     """
 
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the nonlinear constraint.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         super().__init__(backend.array([[0.0, np.inf]]), True, backend)
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian is implemented.
+
+        Returns
+        -------
+        jacobian_implemented : bool
+            True if the Jacobian is implemented, False otherwise.
+        """
         return True
 
     def apply_weighted_hessian_implemented(self) -> bool:
+        """
+        Check if the weighted Hessian application is implemented.
+
+        Returns
+        -------
+        apply_weighted_hessian_implemented : bool
+            True if the weighted Hessian application is implemented, False
+            otherwise.
+        """
         return True
 
     def weighted_hessian_implemented(self) -> bool:
+        """
+        Check if the weighted Hessian is implemented.
+
+        Returns
+        -------
+        weighted_hessian_implemented : bool
+            True if the weighted Hessian is implemented, False otherwise.
+        """
         return True
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For this constraint, it is 1.
+        """
         return 1
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables. For this constraint, it is 3.
+        """
         return 3
 
     def _values(self, samples: Array) -> Array:
+        """
+        Evaluate the constraint for given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (nsamples, 1) containing the constraint evaluations.
+        """
         return (6 * samples[1] + 4 * samples[2] - samples[0] ** 3 - 3)[:, None]
 
     def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute the gradient of the constraint at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        jac : Array
+            Array of shape (1, nvars) containing the gradient of the constraint.
+        """
         return self._bkd.stack(
             (
                 -3.0 * sample[0] ** 2,
@@ -1543,11 +3000,45 @@ class EvtushenkoNonLinearConstraint(Constraint):
     def _apply_weighted_hessian(
         self, sample: Array, vec: Array, weights: Array
     ) -> Array:
+        """
+        Apply the weighted Hessian of the constraint to a vector.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+        vec : Array
+            Array of shape (nvars, 1) containing the vector to which the
+            weighted Hessian is applied.
+        weights : Array
+            Array of shape (1, 1) containing the weights.
+
+        Returns
+        -------
+        hvp: Array
+            Array of shape (nvars, 1) containing the result of the weighted
+            Hessian application.
+        """
         return self._bkd.hstack(
             [-6 * sample[0] * vec[0] * weights[0], self._bkd.zeros((2,))]
         )[:, None]
 
     def _weighted_hessian(self, sample: Array, weights: Array) -> Array:
+        """
+        Compute the weighted Hessian of the constraint.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+        weights : Array
+            Array of shape (1, 1) containing the weights.
+
+        Returns
+        -------
+        weighted_hess : Array
+            Array of shape (nvars, nvars) containing the weighted Hessian matrix.
+        """
         hess = self._bkd.zeros((3, 3))
         hess[0, 0] = -6 * sample[0, 0] * weights[0, 0]
         return hess
@@ -1556,10 +3047,46 @@ class EvtushenkoNonLinearConstraint(Constraint):
 class EvtushenkoConstrainedOptimizationBenchmark(
     ConstrainedOptimizationBenchmark
 ):
+    """
+    Evtushenko constrained optimization benchmark.
+
+    This class implements the constrained optimization benchmark from
+    Evtushenko, including both nonlinear and linear constraints.
+
+    The objective function is defined as:
+
+    .. math::
+        f(z) = (z_1 + 3z_2 + z_3)^2 + 4(z_1 - z_2)^2
+
+    The nonlinear constraint is defined as:
+
+    .. math::
+        c(z) = 6z_2 + 4z_3 - z_1^3 - 3
+
+    The linear constraint is defined as:
+
+    .. math::
+        k(z) = z_1 + z_2 + z_3  = 1
+    """
+
     def _set_objective(self):
+        """
+        Set the objective function for the optimization problem.
+
+        Returns
+        -------
+        None
+        """
         self._objective = EvtushenkoObjective(self._bkd)
 
     def _set_constraints(self):
+        """
+        Set the constraints for the optimization problem.
+
+        Returns
+        -------
+        None
+        """
         nonlinear_con = EvtushenkoNonLinearConstraint(self._bkd)
         linear_con = LinearConstraint(
             self._bkd.ones((1, 3)), 1, 1, keep_feasible=True
@@ -1567,39 +3094,154 @@ class EvtushenkoConstrainedOptimizationBenchmark(
         self._constraints = [nonlinear_con, linear_con]
 
     def design_variable(self) -> DesignVariable:
+        """
+        Define the design variable for the optimization problem.
+
+        Returns
+        -------
+        design_variable : DesignVariable
+            The design variable with bounds.
+        """
         design_bounds = self._bkd.stack(
             [self._bkd.zeros((3,)), self._bkd.full((3,), np.inf)], axis=1
         )
         return DesignVariable(design_bounds)
 
     def init_iterate(self) -> Array:
+        """
+        Return the initial iterate for the optimization problem.
+
+        Returns
+        -------
+        init_iterate : Array
+            Array of shape (3, 1) containing the initial iterate.
+        """
         return self._bkd.array([0.1, 0.7, 0.2])[:, None]
 
     def optimal_iterate(self) -> Array:
+        """
+        Return the optimal iterate for the optimization problem.
+
+        Returns
+        -------
+        optimal_iterate : Array
+            Array of shape (3, 1) containing the optimal iterate.
+        """
         return self._bkd.array([0.0, 0.0, 1.0])[:, None]
 
 
 class MichaelisMentenModel(SingleSampleModel):
-    def __init__(self, mesh: Array, backend: BackendMixin = NumpyMixin):
+    r"""
+    Michaelis-Menten model.
+
+    This class implements the Michaelis-Menten model, which is widely used in
+    enzyme kinetics to describe the rate of enzymatic reactions. The model is
+    defined as:
+
+    .. math::
+        v = \frac{\theta_1 \cdot [S]}{\theta_2 + [S]}
+
+    where:
+    - :math:`v` is the reaction rate.
+    - :math:`\theta_1` is the maximum reaction rate.
+    - :math:`\theta_2` is the Michaelis constant.
+    - :math:`[S]` is the substrate concentration.
+
+    Parameters
+    ----------
+    mesh : Array
+        2D array with one row specifying the substrate concentrations :math:`[S]`.
+    backend : BackendMixin
+        Backend for numerical computations.
+    """
+
+    def __init__(self, mesh: Array, backend: BackendMixin):
+        """
+        Initialize the Michaelis-Menten model.
+
+        Parameters
+        ----------
+        mesh : Array
+            2D array with one row specifying the substrate concentrations.
+        backend : BackendMixin
+            Backend for numerical computations.
+
+        Raises
+        ------
+        ValueError
+            If `mesh` is not a 2D array with one row.
+        """
         super().__init__(backend)
         if mesh.ndim != 2 or mesh.shape[0] != 1:
             raise ValueError("mesh must be 2D array with one row")
         self._mesh = mesh
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian is implemented.
+
+        Returns
+        -------
+        jacobian_implemented : bool
+            True if the Jacobian is implemented, False otherwise.
+        """
         return True
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI, which corresponds to the number of substrate
+            concentrations in the mesh.
+        """
         return self._mesh.shape[1]
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables. For this model, it is 2
+        """
         return 2
 
     def _evaluate(self, sample: Array) -> Array:
+        """
+        Evaluate the Michaelis-Menten model for a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (1, nqoi) containing the reaction rates for each
+            substrate concentration.
+        """
         theta_1, theta_2 = sample
         return (theta_1 * self._mesh[0] / (theta_2 + self._mesh[0]))[None, :]
 
     def _jacobian(self, sample: Array) -> Array:
+        r"""
+        Compute the Jacobian of the Michaelis-Menten model at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample
+
+        Returns
+        -------
+        jac : Array
+            Array of shape (nqoi, nvars) containing the Jacobian matrix.
+        """
         theta_1, theta_2 = sample
         return self._bkd.stack(
             (
