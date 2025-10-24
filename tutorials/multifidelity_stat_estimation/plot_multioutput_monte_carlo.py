@@ -43,13 +43,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    MultiOutputModelEnsemble,
+    MultiOutputModelEnsembleBenchmark,
 )
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
-from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
 np.random.seed(1)
-benchmark = MultiOutputModelEnsemble()
+benchmark = MultiOutputModelEnsembleBenchmark(bkd)
 
 # %%
 # Now construct the estimator. The following requires the costs of the model
@@ -64,11 +64,11 @@ W = benchmark.covariance_of_centered_values_kronker_product()[
 B = benchmark.covariance_of_mean_and_variance_estimators()[:nqoi, : nqoi**2]
 
 target_cost = 100
-stat = multioutput_stats["mean_variance"](nqoi, backend=NumpyMixin)
+stat = multioutput_stats["mean_variance"](nqoi, backend=bkd)
 stat.set_pilot_quantities(cov, W, B)
 est = get_estimator("mc", stat, costs)
 est.allocate_samples(target_cost)
-samples = est.generate_samples_per_model(benchmark.variable().rvs)[0]
+samples = est.generate_samples_per_model(benchmark.prior().rvs)[0]
 values = benchmark.models()[0](samples)
 stats = est(values)
 

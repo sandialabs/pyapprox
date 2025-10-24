@@ -140,7 +140,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble,
+    PolynomialModelEnsembleBenchmark,
 )
 from pyapprox.multifidelity.factory import (
     get_estimator,
@@ -160,7 +160,7 @@ from pyapprox.util.backends.torch import TorchMixin
 
 bkd = TorchMixin
 np.random.seed(1)
-benchmark = PolynomialModelEnsemble(backend=bkd)
+benchmark = PolynomialModelEnsembleBenchmark(backend=bkd)
 cov = benchmark.covariance()
 target_costs = bkd.array([1e1, 1e2, 1e3], dtype=int)
 costs = bkd.asarray([10**-ii for ii in range(cov.shape[0])])

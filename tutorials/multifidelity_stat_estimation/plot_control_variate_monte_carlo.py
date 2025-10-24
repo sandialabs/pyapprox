@@ -69,85 +69,108 @@ Thus, if two highly correlated models (one with a known mean) are available then
 Again consider the tunable model ensemble. The correlation between the models :math:`f_0` and :math:`f_1` can be tuned by varying :math:`\theta_1`. For a given choice of theta lets compute a single relization of the CVMC estimate of :math:`Q_0=\mean{f_0}`
 """
 
-#%%
+# %%
 # First let us setup the problem and compute a single estimate using CVMC
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox import interface
-from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    TunableModelEnsembleBenchmark,
+)
+from pyapprox.util.backends.torch import TorchMixin as bkd
 
 np.random.seed(1)
-shifts = [.1, .2]
-benchmark = TunableModelEnsemble(theta1=np.pi/2*.95, shifts=shifts)
+shifts = [0.1, 0.2]
+benchmark = TunableModelEnsembleBenchmark(
+    theta1=np.pi / 2 * 0.95, backend=bkd, shifts=shifts
+)
 
 nsamples = int(1e2)
-samples = benchmark.variable().rvs(nsamples)
+samples = benchmark.prior().rvs(nsamples)
 values0 = benchmark.m0(samples)
 values1 = benchmark.m1(samples)
 cov = benchmark.covariance()
-eta = -cov[0, 1]/cov[0, 0]
-#cov_mc = np.cov(values0,values1)
-#eta_mc = -cov_mc[0,1]/cov_mc[0,0]
+eta = -cov[0, 1] / cov[0, 0]
+# cov_mc = np.cov(values0,values1)
+# eta_mc = -cov_mc[0,1]/cov_mc[0,0]
 exact_integral_f0, exact_integral_f1 = 0, shifts[0]
-cv_mean = values0.mean()+eta*(values1.mean()-exact_integral_f1)
-print('MC difference squared =', (values0.mean()-exact_integral_f0)**2)
-print('CVMC difference squared =', (cv_mean-exact_integral_f0)**2)
+cv_mean = values0.mean() + eta * (values1.mean() - exact_integral_f1)
+print("MC difference squared =", (values0.mean() - exact_integral_f0) ** 2)
+print("CVMC difference squared =", (cv_mean - exact_integral_f0) ** 2)
 
-#%%
+# %%
 # Now lets look at the statistical properties of the CVMC estimator
 
 ntrials = 1000
 means = np.empty((ntrials, 2))
 for ii in range(ntrials):
-    samples = benchmark.variable().rvs(nsamples)
+    samples = benchmark.prior().rvs(nsamples)
     values0 = benchmark.m0(samples)
     values1 = benchmark.m1(samples)
     means[ii, 0] = values0.mean()
-    means[ii, 1] = values0.mean()+eta*(values1.mean()-exact_integral_f1)
+    means[ii, 1] = values0.mean() + eta * (values1.mean() - exact_integral_f1)
 
-print("Theoretical variance reduction",
-      1-cov[0, 1]**2/(cov[0, 0]*cov[1, 1]))
-print("Achieved variance reduction",
-      means[:, 1].var(axis=0)/means[:, 0].var(axis=0))
+print(
+    "Theoretical variance reduction",
+    1 - cov[0, 1] ** 2 / (cov[0, 0] * cov[1, 1]),
+)
+print(
+    "Achieved variance reduction",
+    means[:, 1].var(axis=0) / means[:, 0].var(axis=0),
+)
 
-#%%
+# %%
 # The following plot shows that unlike the MC estimator of. :math:`\mean{f_1}` the CVMC estimator is unbiased and has a smaller variance.
 
-fig,ax = plt.subplots()
-textstr = '\n'.join(
-    [r'$\mathbb{E}[Q_{0}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % means[:, 0].mean(),
-     r'$\mathbb{V}[Q_{0}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % means[:, 0].var(),
-     r'$\mathbb{E}[Q_{0}^\mathrm{CV}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % (
-         means[:, 1].mean()),
-     r'$\mathbb{V}[Q_{0}^\mathrm{CV}(\mathcal{Z}_N)]=\mathrm{%.2e}$' % (
-         means[:, 1].var())])
-ax.hist(means[:, 0], bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0}(\mathcal{Z}_N)$')
-ax.hist(means[:, 1], bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N)$')
-ax.axvline(x=0,c='k',label=r'$\mathbb{E}[Q_0]$')
-props = {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 1}
-ax.text(0.6, 0.75, textstr,transform=ax.transAxes, bbox=props)
-_ = ax.legend(loc='upper left')
+fig, ax = plt.subplots()
+textstr = "\n".join(
+    [
+        r"$\mathbb{E}[Q_{0}(\mathcal{Z}_N)]=\mathrm{%.2e}$"
+        % means[:, 0].mean(),
+        r"$\mathbb{V}[Q_{0}(\mathcal{Z}_N)]=\mathrm{%.2e}$"
+        % means[:, 0].var(),
+        r"$\mathbb{E}[Q_{0}^\mathrm{CV}(\mathcal{Z}_N)]=\mathrm{%.2e}$"
+        % (means[:, 1].mean()),
+        r"$\mathbb{V}[Q_{0}^\mathrm{CV}(\mathcal{Z}_N)]=\mathrm{%.2e}$"
+        % (means[:, 1].var()),
+    ]
+)
+ax.hist(
+    means[:, 0],
+    bins=ntrials // 100,
+    density=True,
+    alpha=0.5,
+    label=r"$Q_{0}(\mathcal{Z}_N)$",
+)
+ax.hist(
+    means[:, 1],
+    bins=ntrials // 100,
+    density=True,
+    alpha=0.5,
+    label=r"$Q_{0}^\mathrm{CV}(\mathcal{Z}_N)$",
+)
+ax.axvline(x=0, c="k", label=r"$\mathbb{E}[Q_0]$")
+props = {"boxstyle": "round", "facecolor": "white", "alpha": 1}
+ax.text(0.6, 0.75, textstr, transform=ax.transAxes, bbox=props)
+_ = ax.legend(loc="upper left")
 
-#%%
-#Change ``eta`` to ``eta_mc`` to see how the variance reduction changes when the covariance between models is approximated
+# %%
+# Change ``eta`` to ``eta_mc`` to see how the variance reduction changes when the covariance between models is approximated
 
 
-#%%
-#Videos
-#------
-#Click on the image below to view a video tutorial on control variate Monte Carlo quadrature with one low-fidelity model
+# %%
+# Videos
+# ------
+# Click on the image below to view a video tutorial on control variate Monte Carlo quadrature with one low-fidelity model
 #
-#.. image:: ../../figures/cvmc.png
+# .. image:: ../../figures/cvmc.png
 #   :target: https://youtu.be/2GpwGG8EmNU
 #
-#Click on the image below to view a video tutorial on control variate Monte Carlo quadrature with one multiple lower fidelity models
+# Click on the image below to view a video tutorial on control variate Monte Carlo quadrature with one multiple lower fidelity models
 #
-#.. image:: ../../figures/cvmc-many-models.png
+# .. image:: ../../figures/cvmc-many-models.png
 #   :target: https://youtu.be/lBvtWo2ZwaU
 
-#%%
-#References
-#^^^^^^^^^^
-#.. [LMWOR1982] `S.S. Lavenberg, T.L. Moeller, P.D. Welch, Statistical results on control variables with application to queueing network simulation, Oper. Res., 30, 45, 182-202, 1982. <https://doi.org/10.1287/opre.30.1.182>`_
+# %%
+# References
+# ^^^^^^^^^^
+# .. [LMWOR1982] `S.S. Lavenberg, T.L. Moeller, P.D. Welch, Statistical results on control variables with application to queueing network simulation, Oper. Res., 30, 45, 182-202, 1982. <https://doi.org/10.1287/opre.30.1.182>`_

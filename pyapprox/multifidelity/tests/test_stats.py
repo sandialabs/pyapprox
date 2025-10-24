@@ -11,7 +11,8 @@ from pyapprox.multifidelity.stats import (
     _covariance_of_variance_estimator,
 )
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    MultiOutputModelEnsemble, PSDMultiOutputModelEnsemble
+    MultiOutputModelEnsembleBenchmark,
+    PSDMultiOutputModelEnsembleBenchmark,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
@@ -27,9 +28,9 @@ def _two_qoi(ii, jj, fun, xx):
 
 def _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd, psd=False):
     if not psd:
-        benchmark = MultiOutputModelEnsemble(backend=bkd)
+        benchmark = MultiOutputModelEnsembleBenchmark(backend=bkd)
     if psd:
-        benchmark = PSDMultiOutputModelEnsemble(backend=bkd)
+        benchmark = PSDMultiOutputModelEnsembleBenchmark(backend=bkd)
     cov = benchmark.covariance()
     funs = [benchmark.models()[ii] for ii in model_idx]
     if len(qoi_idx) == 1:
@@ -49,9 +50,9 @@ class TestMOStats:
 
     def test_covariance_einsum(self):
         bkd = self.get_backend()
-        benchmark = MultiOutputModelEnsemble(backend=bkd)
+        benchmark = MultiOutputModelEnsembleBenchmark(backend=bkd)
         npilot_samples = int(1e5)
-        pilot_samples = benchmark.variable().rvs(npilot_samples)
+        pilot_samples = benchmark.prior().rvs(npilot_samples)
         pilot_values = bkd.hstack(
             [f(pilot_samples) for f in benchmark.models()]
         )
@@ -69,8 +70,8 @@ class TestMOStats:
     def test_variance_double_loop(self):
         bkd = self.get_backend()
         NN = 5
-        benchmark = MultiOutputModelEnsemble(backend=bkd)
-        samples = benchmark.variable().rvs(NN)
+        benchmark = MultiOutputModelEnsembleBenchmark(backend=bkd)
+        samples = benchmark.prior().rvs(NN)
         variance = 0
         for ii in range(samples.shape[1]):
             for jj in range(samples.shape[1]):
@@ -90,7 +91,7 @@ class TestMOStats:
         # atol is needed for terms close to zero
         rtol, atol = 1e-2, 5.5e-4
         npilot_samples = int(1e6)
-        pilot_samples = benchmark.variable().rvs(npilot_samples)
+        pilot_samples = benchmark.prior().rvs(npilot_samples)
         pilot_values = [f(pilot_samples) for f in funs]
         stat = MultiOutputMeanAndVariance(len(qoi_idx), backend=bkd)
         cov, W, B = stat.compute_pilot_quantities(pilot_values)
@@ -164,7 +165,7 @@ class TestMOStats:
             _setup_multioutput_model_subproblem(model_idx, qoi_idx, bkd)
         )
         means, covariances = self._mean_variance_realizations(
-            funs, benchmark.variable(), nsamples, ntrials
+            funs, benchmark.prior(), nsamples, ntrials
         )
         nmodels = len(funs)
         nqoi = cov.shape[0] // nmodels

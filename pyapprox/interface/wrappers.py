@@ -186,8 +186,8 @@ def create_active_set_variable_model(
             return self._norignal_vars
 
         def __repr__(self) -> str:
-            return "{0}(model={1})".format(
-                self.__class__.__name__, self._model
+            return "{0}(model={1}, nactive_vars={2})".format(
+                self.__class__.__name__, self._model, self.nvars()
             )
 
         def _add_model_attributes(self):
@@ -208,7 +208,24 @@ def create_active_set_variable_model(
                 "_check_samples_shape",
                 "jacobian",
                 "apply_jacobian",
+                "check_apply",
+                "check_apply_jacobian",
+                "check_apply_hessian",
+                "_jacobian_from_apply_jacobian",
+                "_check_vec_shape",
+                "_check_hvp_shape",
+                "hessian",
+                "_check_hessian_shape",
+                "apply_weighted_hessian",
+                "_apply_weighted_hessian",
+                "weighted_hessian",
+                "_weighted_hessian",
+                "plot_surface",
+                "plot_contours",
+                "get_all_variable_pairs",
+                "plot_cross_sections",
             ]
+
             for name in dir(self._model):
                 if name.startswith("__"):
                     continue

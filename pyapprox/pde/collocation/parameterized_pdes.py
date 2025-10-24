@@ -73,6 +73,319 @@ from pyapprox.pde.collocation.mesh_transforms import (
 )
 
 
+class NonLinearCoupledEquationsResidualAuto(
+    NewtonResidual, ParameterizedNewtonResidualMixin
+):
+    r"""
+    Nonlinear coupled equations residual with automatic differentiation.
+
+    This class implements the residual equations for a nonlinear coupled system
+    with adjustable powers for the parameters. The powers of the parameters are
+    set automatically during initialization.
+
+    The system is governed by the following equations:
+
+    .. math::
+        f_1(x_1, x_2) = a^p \cdot x_1^2 + x_2^2 - 1 \\
+        f_2(x_1, x_2) = x_1^2 - b^q \cdot x_2^2 - 1
+
+    where:
+
+    - :math:`x_1, x_2`: State variables.
+    - :math:`a, b`: Parameters.
+    - :math:`p, q`: Powers of the parameters.
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
+    """
+
+    def __init__(self, backend):
+        """
+        Initialize the nonlinear coupled equations residual with automatic
+        differentiation.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
+
+        Raises
+        ------
+        RuntimeError
+            If the powers of the parameters are less than 1.
+        """
+        super().__init__(backend)
+        self._set_param_powers()
+        if self._apow < 1 or self._bpow < 1:
+            raise RuntimeError("apow and bpow must be >= 1")
+
+    def _set_param_powers(self):
+        """
+        Set the powers of the parameters.
+
+        This method sets the powers of the parameters :math:`a` and :math:`b`
+        to predefined values.
+        """
+        self._apow = 2
+        self._bpow = 3
+
+    def __call__(self, iterate: Array) -> Array:
+        r"""
+        Compute the residuals for the nonlinear coupled system.
+
+        Parameters
+        ----------
+        iterate : Array
+            Array of shape (nvars,) containing the state variables.
+
+        Returns
+        -------
+        residuals : Array
+            Array of shape (nvars,) containing the residuals.
+
+        Notes
+        -----
+        The residual equations are defined as:
+
+        .. math::
+            f_1(x_1, x_2) = a^p \cdot x_1^2 + x_2^2 - 1 \\
+            f_2(x_1, x_2) = x_1^2 - b^q \cdot x_2^2 - 1
+        """
+        return self._bkd.stack(
+            [
+                self._a**self._apow * iterate[0] ** 2 + iterate[1] ** 2 - 1,
+                iterate[0] ** 2 - self._b**self._bpow * iterate[1] ** 2 - 1,
+            ],
+            axis=0,
+        )
+
+    def set_param(self, param: Array):
+        """
+        Set the model parameters.
+
+        Parameters
+        ----------
+        param : Array
+            Array containing the model parameters.
+        """
+        self._param = param
+        self._a, self._b = self._param
+
+    def nvars(self) -> int:
+        """
+        Return the number of uncertain variables in the model.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables in the model. For this model, it is always 2.
+        """
+        return 2
+
+    def __repr__(self):
+        """
+        Return a string representation of the class.
+
+        Returns
+        -------
+        repr : str
+            String representation of the class, including the parameter values.
+        """
+        if not hasattr(self, "_a"):
+            return "{0}()".format(
+                self.__class__.__name__,
+            )
+        return "{0}(a={1}, b={2})".format(
+            self.__class__.__name__, self._a, self._b
+        )
+
+
+class NonLinearCoupledEquationsResidual(NonLinearCoupledEquationsResidualAuto):
+    """
+    Nonlinear coupled equations residual.
+
+    This class extends the `NonLinearCoupledEquationsResidualAuto` to implement
+    jacobians and hessians with analytical expressions.
+    """
+
+    def _jacobian(self, iterate: Array) -> Array:
+        r"""
+        Compute the Jacobian of the residuals with respect to the states.
+
+        Parameters
+        ----------
+        iterate : Array
+            Array of shape (nvars,) containing the state variables.
+
+        Returns
+        -------
+        jacobian : Array
+            Array of shape (nvars, nvars) containing the Jacobian matrix.
+
+        Notes
+        -----
+        The Jacobian matrix is defined as:
+
+        .. math::
+            J = \begin{bmatrix}
+                2 a^p x_1 & 2 x_2 \\
+                2 x_1 & -2 b^q x_2
+            \end{bmatrix}
+        """
+        return self._bkd.stack(
+            [
+                self._bkd.hstack(
+                    [2 * self._a**self._apow * iterate[0], 2 * iterate[1]]
+                ),
+                self._bkd.hstack(
+                    [2 * iterate[0], -2 * self._b**self._bpow * iterate[1]]
+                ),
+            ],
+            axis=0,
+        )
+
+    def _param_jacobian(self, iterate: Array) -> Array:
+        r"""
+        Compute the Jacobian of the residuals with respect to the parameters.
+
+        Parameters
+        ----------
+        iterate : Array
+            Array of shape (nvars,) containing the state variables.
+
+        Returns
+        -------
+        param_jacobian : Array
+            Array of shape (nvars, nparams) containing the parameter Jacobian matrix.
+
+        Notes
+        -----
+        The parameter Jacobian matrix is defined as:
+
+        .. math::
+            J_p = \begin{bmatrix}
+                p a^{p-1} x_1^2 & 0 \\
+                0 & -q b^{q-1} x_2^2
+            \end{bmatrix}
+        """
+        zero = self._bkd.zeros((1,))
+        return self._bkd.stack(
+            [
+                self._bkd.hstack(
+                    [
+                        self._apow
+                        * self._a ** (self._apow - 1)
+                        * iterate[0] ** 2,
+                        zero,
+                    ]
+                ),
+                self._bkd.hstack(
+                    [
+                        zero,
+                        -self._bpow
+                        * self._b ** (self._bpow - 1)
+                        * iterate[1] ** 2,
+                    ]
+                ),
+            ],
+            axis=0,
+        )
+
+
+class NonLinearCoupledEquationsAffineParamResidual(
+    NonLinearCoupledEquationsResidual
+):
+    """
+    Nonlinear coupled equations residual with affine parameterization.
+
+    This class extends the `NonLinearCoupledEquationsResidual` to implement
+    a residual for nonlinear coupled equations with affine parameterization.
+    The powers of the parameters are set to 1.
+    """
+
+    def _set_param_powers(self):
+        """
+        Set the powers of the parameters.
+
+        This method sets the powers of the parameters :math:`a` and :math:`b`
+        to 1, enabling affine parameterization.
+
+        Returns
+        -------
+        None
+        """
+        self._apow = 1
+        self._bpow = 1
+
+
+class NonlinearSystemOfEquationsModel(SteadyAdjointModel):
+    """
+    Nonlinear system of equations model.
+
+    This class implements a steady adjoint model for solving a nonlinear system
+    of equations. The model uses a Newton solver for solving the residual
+     equations and supports functional evaluation.
+
+    Parameters
+    ----------
+    newton_solver : NewtonSolver, optional
+        Solver for Newton's method. Default is None.
+    functional : TransientAdjointFunctional, optional
+        Functional to evaluate at the steady state. Default is None.
+    backend : BackendMixin, optional
+        Backend for numerical computations. Default is `NumpyMixin`.
+    """
+
+    def __init__(
+        self,
+        newton_solver: NewtonSolver = None,
+        functional: TransientAdjointFunctional = None,
+        backend: BackendMixin = NumpyMixin,
+    ):
+        """
+        Initialize the nonlinear system of equations model.
+
+        Parameters
+        ----------
+        newton_solver : NewtonSolver, optional
+            Solver for Newton's method. Default is None.
+        functional : TransientAdjointFunctional, optional
+            Functional to evaluate at the steady state. Default is None.
+        backend : BackendMixin, optional
+            Backend for numerical computations. Default is `NumpyMixin`.
+        """
+        residual = NonLinearCoupledEquationsAffineParamResidual(
+            backend=backend
+        )
+        super().__init__(residual, functional, newton_solver)
+        init_iterate = self._bkd.array([1, 1])
+        self._adjoint_solver.set_initial_iterate(init_iterate)
+
+    def nvars(self) -> int:
+        """
+        Return the number of uncertain variables in the model.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables in the model. For this model, it is always 2.
+        """
+        return 2
+
+    def jacobian_implemented(self) -> int:
+        """
+        Check if the jacobian function is implemented.
+
+        Returns
+        -------
+        flag : bool
+            True if jacobian is implemented, False otherwise.
+        """
+        return True
+
+
 class TransientSolutionTimeSnapshotFunctional(TransientAdjointFunctional):
     """Return all the states at one time step"""
 
@@ -103,6 +416,7 @@ class SteadySolutionFunctional(AdjointFunctional):
 
     def __init__(self, model: SteadyAdjointCollocationModel):
         self._model = model
+        super().__init__(model._bkd)
 
     def nqoi(self) -> int:
         return self._model._basis.mesh().nmesh_pts()
@@ -1246,204 +1560,7 @@ class SteadyDarcy2DKLEModel(SteadyAdjointCollocationModel):
         return nabla(-self.physics()._diffusion * sol)
 
 
-class NonLinearCoupledEquationsResidualAuto(
-    NewtonResidual, ParameterizedNewtonResidualMixin
-):
-    def __init__(self, backend):
-        super().__init__(backend)
-        self._set_param_powers()
-        if self._apow < 1 or self._bpow < 1:
-            raise RuntimeError("apow and bpow must be >= 1")
-
-    def _set_param_powers(self):
-        self._apow = 2
-        self._bpow = 3
-
-    def __call__(self, iterate: Array) -> Array:
-        # do not use bkd.array or asarray use stack
-        return self._bkd.stack(
-            [
-                self._a**self._apow * iterate[0] ** 2 + iterate[1] ** 2 - 1,
-                iterate[0] ** 2 - self._b**self._bpow * iterate[1] ** 2 - 1,
-            ],
-            axis=0,
-        )
-
-    def set_param(self, param: Array):
-        self._param = param
-        self._a, self._b = self._param
-
-    def nvars(self) -> int:
-        return 2
-
-    def __repr__(self):
-        return "{0}(a={1}, b={2})".format(
-            self.__class__.__name__, self._a, self._b
-        )
-
-
-class NonLinearCoupledEquationsResidual(NonLinearCoupledEquationsResidualAuto):
-    def _jacobian(self, iterate: Array) -> Array:
-        # return super()._jacobian(iterate)
-        # do not use bkd.array or asarray use stack
-        return self._bkd.stack(
-            [
-                self._bkd.hstack(
-                    [2 * self._a**self._apow * iterate[0], 2 * iterate[1]]
-                ),
-                self._bkd.hstack(
-                    [2 * iterate[0], -2 * self._b**self._bpow * iterate[1]]
-                ),
-            ],
-            axis=0,
-        )
-
-    def _param_jacobian(self, iterate: Array) -> Array:
-        # super()._param_jacobian(iterate)
-        zero = self._bkd.zeros((1,))
-        return self._bkd.stack(
-            [
-                self._bkd.hstack(
-                    [
-                        self._apow
-                        * self._a ** (self._apow - 1)
-                        * iterate[0] ** 2,
-                        zero,
-                    ]
-                ),
-                self._bkd.hstack(
-                    [
-                        zero,
-                        -self._bpow
-                        * self._b ** (self._bpow - 1)
-                        * iterate[1] ** 2,
-                    ]
-                ),
-            ],
-            axis=0,
-        )
-
-    def _param_second_deriv_factor(self, power: int, val: float) -> float:
-        if power == 1:
-            return 0.0
-        const = (power - 1) * power
-        return const * val ** (power - 2)
-
-    def _param_param_hvp(
-        self, fwd_sol: Array, adj_sol: Array, vvec: Array
-    ) -> Array:
-        # return super()._param_param_hvp(fwd_sol, adj_sol, vvec)
-
-        aconst = self._param_second_deriv_factor(self._apow, self._a)
-        bconst = self._param_second_deriv_factor(self._bpow, self._b)
-        return (
-            self._bkd.array(
-                [
-                    [aconst * adj_sol[0] * fwd_sol[0] ** 2, 0],
-                    [0, -adj_sol[1] * bconst * fwd_sol[1] ** 2],
-                ]
-            )
-            @ vvec
-        )
-
-    def _state_state_hvp(
-        self, fwd_sol: Array, adj_sol: Array, wvec: Array
-    ) -> Array:
-        # return super()._state_state_hvp(fwd_sol, adj_sol, wvec)
-        return (
-            self._bkd.array(
-                [
-                    [2 * adj_sol[0] * self._a**self._apow + 2 * adj_sol[1], 0],
-                    [0, 2 * adj_sol[0] - 2 * adj_sol[1] * self._b**self._bpow],
-                ]
-            )
-            @ wvec
-        )
-
-    def _state_param_hvp(
-        self, fwd_sol: Array, adj_sol: Array, vvec: Array
-    ) -> Array:
-        # return super()._state_param_hvp(fwd_sol, adj_sol, vvec)
-        return (
-            self._bkd.array(
-                [
-                    [
-                        2
-                        * self._apow
-                        * adj_sol[0]
-                        * self._a ** (self._apow - 1)
-                        * fwd_sol[0],
-                        0,
-                    ],
-                    [
-                        0,
-                        -2
-                        * self._bpow
-                        * adj_sol[1]
-                        * self._b ** (self._bpow - 1)
-                        * fwd_sol[1],
-                    ],
-                ]
-            )
-            @ vvec
-        )
-
-    def _param_state_hvp(
-        self, fwd_sol: Array, adj_sol: Array, wvec: Array
-    ) -> Array:
-        # return super()._param_state_hvp(fwd_sol, adj_sol, wvec)
-        return (
-            self._bkd.array(
-                [
-                    [
-                        2
-                        * self._apow
-                        * adj_sol[0]
-                        * self._a ** (self._apow - 1)
-                        * fwd_sol[0],
-                        0,
-                    ],
-                    [
-                        0,
-                        -2
-                        * self._bpow
-                        * adj_sol[1]
-                        * self._b ** (self._bpow - 1)
-                        * fwd_sol[1],
-                    ],
-                ]
-            )
-            @ wvec
-        )
-
-
-class NonLinearCoupledEquationsAffineParamResidual(
-    NonLinearCoupledEquationsResidual
-):
-    def _set_param_powers(self):
-        self._apow = 1
-        self._bpow = 1
-
-
-class NonlinearSystemOfEquationsModel(SteadyAdjointModel):
-    def __init__(
-        self,
-        newton_solver: NewtonSolver = None,
-        functional: TransientAdjointFunctional = None,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        residual = NonLinearCoupledEquationsAffineParamResidual(
-            backend=backend
-        )
-        super().__init__(residual, functional, newton_solver)
-        init_iterate = self._bkd.array([1, 1])
-        self._adjoint_solver.set_initial_iterate(init_iterate)
-
-    def nvars(self) -> int:
-        return 2
-
-
-class SteadySingleStateFunctional(SteadySolutionFunctional):
+class SteadySingleStateFunctional(AdjointFunctional):
     def __init__(
         self,
         state_id: int,
@@ -1469,8 +1586,13 @@ class SteadySingleStateFunctional(SteadySolutionFunctional):
         return sol[self._state_id : self._state_id + 1]
 
     def _qoi_state_jacobian(self, sol: Array) -> Array:
-        dqdu = self._bkd.zeros((self.nstates(),))
-        dqdu[self._state_id] = 1.0
+        dqdu = self._bkd.zeros(
+            (
+                1,
+                self.nstates(),
+            )
+        )
+        dqdu[0, self._state_id] = 1.0
         return dqdu
 
     def _qoi_param_jacobian(self, sol: Array) -> Array:

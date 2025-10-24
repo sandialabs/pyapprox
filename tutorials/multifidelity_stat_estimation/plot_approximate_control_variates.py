@@ -92,142 +92,206 @@ Finally, letting :math:`C_\alpha` and :math:`C_\kappa` denote the computational 
 
 The following code can be used to investigate the properties of a two model ACV estimator.
 """
-#%%
+
+# %%
 # First setup the problem and compute an ACV estimate of :math:`\mean{f_0}`
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    TunableModelEnsembleBenchmark,
+)
 from pyapprox.util.visualization import mathrm_label
-from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.util.backends.torch import TorchMixin as bkd
 
 np.random.seed(1)
-shifts = [.1, .2]
-benchmark = TunableModelEnsemble(
-    theta1=np.pi/2*.95, shifts=shifts, backend=TorchMixin
+shifts = [0.1, 0.2]
+benchmark = TunableModelEnsembleBenchmark(
+    theta1=np.pi / 2 * 0.95, backend=bkd, shifts=shifts
 )
 exact_integral_f0 = benchmark.mean()[0]
 
-#%%
-#Now initialize the estimator
+# %%
+# Now initialize the estimator
 from pyapprox.multifidelity.factory import (
-    get_estimator, numerically_compute_estimator_variance, multioutput_stats)
+    get_estimator,
+    numerically_compute_estimator_variance,
+    multioutput_stats,
+)
+
 # The benchmark has three models, so just extract data for first two models
 costs = benchmark.costs()[:2]
-stat = multioutput_stats["mean"](benchmark.nqoi(), backend=TorchMixin)
+stat = multioutput_stats["mean"](benchmark.nqoi(), backend=bkd)
 stat.set_pilot_quantities(benchmark.covariance()[:2, :2])
 est = get_estimator("gis", stat, costs)
 
-#%%
-#Set the number of samples in the two independent sample partitions to
+# %%
+# Set the number of samples in the two independent sample partitions to
 #:math:`M=10` and :math:`N=100`. For reasons that will become clear in later tuotials the code requires the specification of the number of samples in each independent set of samples i.e. in :math:`\mathcal{Z}_N` and :math:`\mathcal{Z}_N\cup\mathcal{Z}_N`
-nhf_samples = 10   # The value N
+nhf_samples = 10  # The value N
 npartition_ratios = [9]  # Defines the value of M-N
 target_cost = (
-    nhf_samples*costs[0]+(1+npartition_ratios[0])*nhf_samples*costs[1])
-#We set using a private function (starts with an underscore) because in practice
-#the number of samples should be optimized and set with est.allocate samples
+    nhf_samples * costs[0]
+    + (1 + npartition_ratios[0]) * nhf_samples * costs[1]
+)
+# We set using a private function (starts with an underscore) because in practice
+# the number of samples should be optimized and set with est.allocate samples
 est._set_optimized_params(npartition_ratios, target_cost)
 
-#%%
-#Now lets plot the samples assigned to each model.
+# %%
+# Now lets plot the samples assigned to each model.
 
-samples_per_model = est.generate_samples_per_model(benchmark.variable().rvs)
+samples_per_model = est.generate_samples_per_model(benchmark.prior().rvs)
 print(est._rounded_npartition_samples)
-samples_shared = (
-    samples_per_model[0][:, :int(est._rounded_npartition_samples[0])])
-samples_lf_only = (
-    samples_per_model[1][:, int(est._rounded_npartition_samples[0]):])
+samples_shared = samples_per_model[0][
+    :, : int(est._rounded_npartition_samples[0])
+]
+samples_lf_only = samples_per_model[1][
+    :, int(est._rounded_npartition_samples[0]) :
+]
 
 fig, ax = plt.subplots()
-ax.plot(samples_shared[0, :], samples_shared[1, :], 'ro', ms=12,
-        label=mathrm_label("Low and high fidelity models"))
-ax.plot(samples_lf_only[0, :], samples_lf_only[1, :], 'ks',
-        label=mathrm_label("Low fidelity model only"))
-ax.set_xlabel(r'$z_1$')
-ax.set_ylabel(r'$z_2$', rotation=0)
-_ = ax.legend(loc='upper left')
+ax.plot(
+    samples_shared[0, :],
+    samples_shared[1, :],
+    "ro",
+    ms=12,
+    label=mathrm_label("Low and high fidelity models"),
+)
+ax.plot(
+    samples_lf_only[0, :],
+    samples_lf_only[1, :],
+    "ks",
+    label=mathrm_label("Low fidelity model only"),
+)
+ax.set_xlabel(r"$z_1$")
+ax.set_ylabel(r"$z_2$", rotation=0)
+_ = ax.legend(loc="upper left")
 
-#%%
-#The high-fidelity model is only evaluated on the red dots.
+# %%
+# The high-fidelity model is only evaluated on the red dots.
 #
-#Now lets use both sets of samples to construct the ACV estimator
+# Now lets use both sets of samples to construct the ACV estimator
 
-values_per_model = [benchmark.models()[ii](samples_per_model[ii])
-                    for ii in range(len(samples_per_model))]
+values_per_model = [
+    benchmark.models()[ii](samples_per_model[ii])
+    for ii in range(len(samples_per_model))
+]
 acv_mean = est(values_per_model)
 
-print('MC difference squared =', (
-    values_per_model[0].mean()-exact_integral_f0)**2)
-print('ACVMC difference squared =', (acv_mean-exact_integral_f0)**2)
+print(
+    "MC difference squared =",
+    (values_per_model[0].mean() - exact_integral_f0) ** 2,
+)
+print("ACVMC difference squared =", (acv_mean - exact_integral_f0) ** 2)
 
-#%%
-#Note here we have arbitrarily set the number of high fidelity samples :math:`N` and the ratio :math:`r`. In practice one should choose these in one of two ways: (i) for a fixed budget choose the free parameters to minimize the variance of the estimator; or (ii) choose the free parameters to achieve a desired MSE (variance) with the smallest computational cost.
+# %%
+# Note here we have arbitrarily set the number of high fidelity samples :math:`N` and the ratio :math:`r`. In practice one should choose these in one of two ways: (i) for a fixed budget choose the free parameters to minimize the variance of the estimator; or (ii) choose the free parameters to achieve a desired MSE (variance) with the smallest computational cost.
 
-#%%
-#Now plot the distribution of this estimators and compare it against
-#a single-fidelity MC estimator of the same target cost
+# %%
+# Now plot the distribution of this estimators and compare it against
+# a single-fidelity MC estimator of the same target cost
 nhf_samples = 10
 ntrials = 1000
 npartition_ratios = np.array([9])
 target_cost = (
-    nhf_samples*costs[0]+(1+npartition_ratios[0])*nhf_samples*costs[1])
+    nhf_samples * costs[0]
+    + (1 + npartition_ratios[0]) * nhf_samples * costs[1]
+)
 est._set_optimized_params(npartition_ratios, target_cost)
 numerical_var, true_var, means = (
     numerically_compute_estimator_variance(
-        benchmark.models()[:2], benchmark.variable(), est, ntrials, 1,
-        return_all=True))[2:5]
+        benchmark.models()[:2],
+        benchmark.prior(),
+        est,
+        ntrials,
+        1,
+        return_all=True,
+    )
+)[2:5]
 
 
 sfmc_est = get_estimator("mc", stat, costs)
 sfmc_est.allocate_samples(target_cost)
 sfmc_means = (
     numerically_compute_estimator_variance(
-        benchmark.models()[:1], benchmark.variable(), sfmc_est, ntrials,
-        return_all=True))[5]
+        benchmark.models()[:1],
+        benchmark.prior(),
+        sfmc_est,
+        ntrials,
+        return_all=True,
+    )
+)[5]
 
 fig, ax = plt.subplots()
-ax.hist(sfmc_means, bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0}(\mathcal{Z}_N)$')
-ax.hist(means, bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$' % (
-            npartition_ratios[0]))
-ax.axvline(x=0, c='k', label=r'$E[Q_0]$')
-_ = ax.legend(loc='upper left')
+ax.hist(
+    sfmc_means,
+    bins=ntrials // 100,
+    density=True,
+    alpha=0.5,
+    label=r"$Q_{0}(\mathcal{Z}_N)$",
+)
+ax.hist(
+    means,
+    bins=ntrials // 100,
+    density=True,
+    alpha=0.5,
+    label=r"$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$"
+    % (npartition_ratios[0]),
+)
+ax.axvline(x=0, c="k", label=r"$E[Q_0]$")
+_ = ax.legend(loc="upper left")
 
-#%%
-#Now compare what happens as we increase the number of low-fidelity samples.
-#Eventually, adding more low-fidelity samples will no-longer reduce the ACV
-#estimator variance. Asymptotically, the accuracy will approach the accuracy
-#that can be obtained by the CV estimator that assumes the mean of the
-#low-fidelity model is known. To reduce the variance further the number of
-#high-fidelity samples must be increased. When this is done more low-fidelity
-#samples can be added before their impact stagnates.
+# %%
+# Now compare what happens as we increase the number of low-fidelity samples.
+# Eventually, adding more low-fidelity samples will no-longer reduce the ACV
+# estimator variance. Asymptotically, the accuracy will approach the accuracy
+# that can be obtained by the CV estimator that assumes the mean of the
+# low-fidelity model is known. To reduce the variance further the number of
+# high-fidelity samples must be increased. When this is done more low-fidelity
+# samples can be added before their impact stagnates.
 
 fig, ax = plt.subplots()
-ax.hist(means, bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$' % (
-            npartition_ratios[0]))
+ax.hist(
+    means,
+    bins=ntrials // 100,
+    density=True,
+    alpha=0.5,
+    label=r"$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$"
+    % (npartition_ratios[0]),
+)
 
 npartition_ratios = np.array([99])
 target_cost = (
-    nhf_samples*costs[0]+(1+npartition_ratios[0])*nhf_samples*costs[1])
+    nhf_samples * costs[0]
+    + (1 + npartition_ratios[0]) * nhf_samples * costs[1]
+)
 est._set_optimized_params(npartition_ratios, target_cost)
 numerical_var, true_var, means = (
     numerically_compute_estimator_variance(
-        benchmark.models()[:2], benchmark.variable(), est, ntrials,
-        return_all=True))[2:5]
-ax.hist(means, bins=ntrials//100, density=True, alpha=0.5,
-        label=r'$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$' % (
-            npartition_ratios[0]))
-ax.axvline(x=0, c='k', label=r'$E[Q_0]$')
-_ = ax.legend(loc='upper left')
+        benchmark.models()[:2],
+        benchmark.prior(),
+        est,
+        ntrials,
+        return_all=True,
+    )
+)[2:5]
+ax.hist(
+    means,
+    bins=ntrials // 100,
+    density=True,
+    alpha=0.5,
+    label=r"$Q_{0}^\mathrm{CV}(\mathcal{Z}_N,\mathcal{Z}_{N+%dN})$"
+    % (npartition_ratios[0]),
+)
+ax.axvline(x=0, c="k", label=r"$E[Q_0]$")
+_ = ax.legend(loc="upper left")
 
-#%%
-#Note the two ACV estimators do not have the same computational cost. They are compared solely to show the impact of increasing the number of low-fidelity samples.
+# %%
+# Note the two ACV estimators do not have the same computational cost. They are compared solely to show the impact of increasing the number of low-fidelity samples.
 
 
-#%%
-#References
-#^^^^^^^^^^
-#.. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
+# %%
+# References
+# ^^^^^^^^^^
+# .. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_

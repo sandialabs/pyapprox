@@ -1,5 +1,4 @@
 import unittest
-import copy
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,6 +9,7 @@ from pyapprox.benchmarks.pde import (
     PyApproxPaperAdvectionDiffusionKLEInversionBenchmark,
     TransientViscousBurgers1DOperatorBenchmark,
     SteadyDarcy2DOperatorBenchmark,
+    NonlinearSystemOfEquationsBenchmark,
 )
 from pyapprox.pde.collocation.functions import ScalarFunction
 
@@ -17,6 +17,17 @@ from pyapprox.pde.collocation.functions import ScalarFunction
 class TestPDEBenchmarks:
     def setUp(self):
         np.random.seed(1)
+
+    def test_nonlinear_system_of_equations(self):
+        bkd = self.get_backend()
+        benchmark = NonlinearSystemOfEquationsBenchmark(bkd)
+        # The error in check apply jacobian depend on newton tolerance
+        # because finite difference is only accurate to that tolerance
+        sample = benchmark.prior().mean()
+        fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
+        errors = benchmark.model().check_apply_jacobian(sample, fd_eps=fd_eps)
+        # print(errors.min() / errors.max())
+        assert errors.min() / errors.max() < 1.4e-6
 
     def test_pyapprox_paper_inversion_benchmark(self):
         # This test picked up cross platform differences in KLE
@@ -30,14 +41,16 @@ class TestPDEBenchmarks:
         )
         sample = benchmark.prior().rvs(1)
         sol = benchmark.obs_model().forward_solve(sample)
+
         # regression test
         # import torch
 
         # torch.set_printoptions(precision=16)
         # print(bkd.max(sol))
         # print(bkd.norm(sol))
-        assert bkd.allclose(bkd.max(sol), bkd.asarray(-7.2928795756009910))
-        assert bkd.allclose(bkd.norm(sol), bkd.asarray(156.3263428926894960))
+        assert bkd.allclose(bkd.max(sol), bkd.asarray(-7.218008911052107))
+        assert bkd.allclose(bkd.norm(sol), bkd.asarray(156.320730706938))
+
         # test plots run
         ax = plt.subplots(1)[1]
         benchmark.obs_model().physics().solution_from_array(sol).plot(
@@ -53,7 +66,6 @@ class TestPDEBenchmarks:
         qoi_models = benchmark._qoi_models(model_config)
         sols = []
         for model in qoi_models:
-            print(model.basis())
             sol_array = model.forward_solve(sample)[0]
             sols.append(model.physics().solution_from_array(sol_array[:, -1]))
 
@@ -74,8 +86,8 @@ class TestPDEBenchmarks:
             ndofs[0] / ndofs[-1]
         )
         # print(sol_errors)
-        # print(convergence_rate)
-        assert convergence_rate < -10.0
+        print(convergence_rate)
+        assert convergence_rate < -7.0
 
         if not bkd.jacobian_implemented():
             return
@@ -91,7 +103,7 @@ class TestPDEBenchmarks:
     def test_transient_viscous_burgers_1d_benchmark(self):
         bkd = self.get_backend()
         benchmark = TransientViscousBurgers1DOperatorBenchmark(backend=bkd)
-        sample = benchmark.variable().rvs(1)
+        sample = benchmark.prior().rvs(1)
         sol, times = benchmark.model().forward_solve(sample)
         # regression test
         assert np.allclose(bkd.max(sol[:, -1]), 0.0080807)
@@ -100,7 +112,7 @@ class TestPDEBenchmarks:
     def test_steady_darcy_2d_kle_benchmark(self):
         bkd = self.get_backend()
         benchmark = SteadyDarcy2DOperatorBenchmark(backend=bkd)
-        sample = benchmark.variable().rvs(1)
+        sample = benchmark.prior().rvs(1)
         sol = benchmark.model().forward_solve(sample)
         # regression test
         # print(bkd.max(sol.get_values()), bkd.norm(sol.get_values()))

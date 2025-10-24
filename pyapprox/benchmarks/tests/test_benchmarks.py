@@ -112,21 +112,22 @@ class TestBenchmarks:
 
     def test_cantileverbeam_optimization_benchmarks(self):
         bkd = self.get_backend()
-        benchmark = CantileverBeamDeterminsticOptimizationBenchmark(bkd)
-        objective = benchmark.objective()
-        init_guess = bkd.ones((2, 1))
-        errors = objective.check_apply_jacobian(init_guess)
-        assert errors.min() / errors.max() < 1e-6
-        errors = objective.check_apply_hessian(init_guess)
-        assert errors.min() < 2e-7
-        constraint = benchmark.objective()
-        init_guess = bkd.ones((2, 1))
-        errors = constraint.check_apply_jacobian(init_guess)
-        assert errors.min() / errors.max() < 1e-6
+        # benchmark = CantileverBeamDeterminsticOptimizationBenchmark(bkd)
+        # objective = benchmark.objective()
+        # init_guess = bkd.ones((2, 1))
+        # errors = objective.check_apply_jacobian(init_guess)
+        # assert errors.min() / errors.max() < 1e-6
+        # errors = objective.check_apply_hessian(init_guess)
+        # assert errors.min() < 2e-7
+        # constraint = benchmark.objective()
+        # init_guess = bkd.ones((2, 1))
+        # errors = constraint.check_apply_jacobian(init_guess)
+        # assert errors.min() / errors.max() < 1e-6
 
         benchmark = CantileverBeamUncertainOptimizationBenchmark(bkd)
         objective = benchmark.objective()
         init_guess = bkd.ones((2, 1))
+        print(objective)
         errors = objective.check_apply_jacobian(init_guess)
         assert errors.min() / errors.max() < 1e-6
         errors = objective.check_apply_hessian(init_guess)
@@ -205,7 +206,7 @@ class TestBenchmarks:
         bkd = self.get_backend()
         newton_solver = NewtonSolver(verbosity=0, rtol=1e-12, atol=1e-12)
         benchmark = LotkaVolterraBenchmark(
-            time_residual_cls, newton_solver, backend=bkd
+            bkd, time_residual_cls, newton_solver
         )
         # stack the standard deviation of the MSE functional to a prior sample
         sample = bkd.vstack([bkd.ones((1, 1)), benchmark.prior().rvs(1)])

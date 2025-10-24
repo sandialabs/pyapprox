@@ -210,37 +210,40 @@ And finally because ACMF always uses all independent partitions up to including 
 
 The following can be used to plot the allocation matrix of any PACV estimator (not just GMF). Note we load a benchmark because it is needed to initialize the PACV estimator, but the allocation matrix is independent of any benchmark properties other than the number of models it provides
 """
+
 import math
 import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    TunableModelEnsembleBenchmark,
+)
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
-from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
-benchmark = TunableModelEnsemble(math.pi/2*0.95)
+benchmark = TunableModelEnsembleBenchmark(math.pi / 2 * 0.95, bkd)
 
-stat = multioutput_stats["mean"](benchmark.nqoi(), backend=NumpyMixin)
+stat = multioutput_stats["mean"](benchmark.nqoi(), backend=bkd)
 stat.set_pilot_quantities(benchmark.covariance())
 est = get_estimator("grd", stat, benchmark.costs(), recursion_index=(2, 0))
 
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 _ = est.plot_allocation(ax)
 
-#%%
-#The different colors represent different independent sample partitions. Subsets :math:`\rvset_\alpha\text{ or  }\rvset_\alpha^*` having the same color, means that the same set of samples are used in each subset.
+# %%
+# The different colors represent different independent sample partitions. Subsets :math:`\rvset_\alpha\text{ or  }\rvset_\alpha^*` having the same color, means that the same set of samples are used in each subset.
 #
-#Try changing recursion index to (0, 1) or (2, 0) and the estimator from "gis" to "gmf" or" grd"
+# Try changing recursion index to (0, 1) or (2, 0) and the estimator from "gis" to "gmf" or" grd"
 
-#%%
-#Evaluating a PACV estimator
-#---------------------------
-#Allocation matrices are also useful for evaluating a PACV estimator.
-#To evaluate the ACV estimator we must construct each independent sample partition from a set of :math:`N_\text{tot}` samples :math:`\rvset_\text{tot}` where
+# %%
+# Evaluating a PACV estimator
+# ---------------------------
+# Allocation matrices are also useful for evaluating a PACV estimator.
+# To evaluate the ACV estimator we must construct each independent sample partition from a set of :math:`N_\text{tot}` samples :math:`\rvset_\text{tot}` where
 #
-#.. math:: N_\text{tot}=\sum_{\alpha=0}^{M} p_\alpha
+# .. math:: N_\text{tot}=\sum_{\alpha=0}^{M} p_\alpha
 #
-#We then must allocate each model on a subset of these samples dictated by the allocation matrix. For a model index :math:`\alpha` we must evaluate a model at a independent partition k if :math:`A_{2\alpha, k}=1` or :math:`A_{2\alpha+1, k}=1`. These correspond to the sets :math:`\rvset_{\alpha}^*, \rvset_{\alpha}`. We store these active partitions in a flattened sample array for each model ordered by increasing partition index, which is passed to each user. E.g. if the partitions 0, 1, 3 are active then we store :math:`[\rvset_{0}^\dagger, \rvset_{1}^\dagger, \rvset_{3}^\dagger]` where the dagger indicates the samples sets are associated with partitions and not the estimator sets :math:`\rvset_{\alpha^*}, \rvset_{\alpha}`.
+# We then must allocate each model on a subset of these samples dictated by the allocation matrix. For a model index :math:`\alpha` we must evaluate a model at a independent partition k if :math:`A_{2\alpha, k}=1` or :math:`A_{2\alpha+1, k}=1`. These correspond to the sets :math:`\rvset_{\alpha}^*, \rvset_{\alpha}`. We store these active partitions in a flattened sample array for each model ordered by increasing partition index, which is passed to each user. E.g. if the partitions 0, 1, 3 are active then we store :math:`[\rvset_{0}^\dagger, \rvset_{1}^\dagger, \rvset_{3}^\dagger]` where the dagger indicates the samples sets are associated with partitions and not the estimator sets :math:`\rvset_{\alpha^*}, \rvset_{\alpha}`.
 #
-#The user can then evaluate each model without knowing anything about the ACV estimator sets or the independent partitions.
+# The user can then evaluate each model without knowing anything about the ACV estimator sets or the independent partitions.
 #
-#These model evaluations are then passed back to the estimator and internally we must assigne the values to each ACV estimator sample set. Specifically for each model :math:`\alpha`, we loop through all partition indices k and if :math:`A_{2\alpha,k}=1` we assign :math:`\mathcal{f_\alpha(\rvset^\dagger_k)}` to :math:`\rvset_{\alpha^*}` similarly if :math:`A_{2\alpha+1,k}=1` we assign :math:`\mathcal{f_\alpha(\rvset^\dagger_k)}` to :math:`\rvset_{\alpha}`.
+# These model evaluations are then passed back to the estimator and internally we must assigne the values to each ACV estimator sample set. Specifically for each model :math:`\alpha`, we loop through all partition indices k and if :math:`A_{2\alpha,k}=1` we assign :math:`\mathcal{f_\alpha(\rvset^\dagger_k)}` to :math:`\rvset_{\alpha^*}` similarly if :math:`A_{2\alpha+1,k}=1` we assign :math:`\mathcal{f_\alpha(\rvset^\dagger_k)}` to :math:`\rvset_{\alpha}`.

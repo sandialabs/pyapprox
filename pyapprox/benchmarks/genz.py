@@ -12,7 +12,39 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 
 
 class GenzModel(Model):
-    def __init__(self, name: str, backend: BackendMixin = NumpyMixin):
+    """
+    Genz test function model.
+
+    This class implements the six Genz test functions, which are widely used
+    for benchmarking multidimensional integration routines. The functions are
+    parameterized by coefficients and weights, allowing control over their
+    anisotropy and difficulty.
+
+    Parameters
+    ----------
+    name : str
+        Name of the Genz test function. Must be one of:
+        'oscillatory', 'product_peak', 'corner_peak', 'gaussian',
+        'c0continuous', 'discontinuous'.
+    backend : BackendMixin
+        Backend for numerical computations.
+
+        Compute the integral of the Genz test function.
+    """
+
+    def __init__(self, name: str, backend: BackendMixin):
+        """
+        Initialize the Genz test function model.
+
+        Parameters
+        ----------
+        name : str
+            Name of the Genz test function. Must be one of:
+            'oscillatory', 'product_peak', 'corner_peak', 'gaussian',
+            'c0continuous', 'discontinuous'.
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         super().__init__(backend)
         self.set_name(name)
         self._min_c = 5e-6
@@ -32,15 +64,96 @@ class GenzModel(Model):
         }
 
     def set_name(self, name: str):
+        """
+        Set the name of the Genz test function.
+
+        Parameters
+        ----------
+        name : str
+            Name of the Genz test function.
+        """
         self._name = name
 
     def jacobian_implemented(self) -> bool:
-        return self._name not in [
-            "c0continuous",
-            "discontinuous",
-        ]
+        """
+        Check if the Jacobian is implemented for the selected function.
 
-    def _get_c_coefficients(self, decay: str, nvars: int):
+        Returns
+        -------
+        jacobian_implemented : bool
+            True if the Jacobian is implemented, False otherwise.
+        """
+        return self._name not in ["c0continuous", "discontinuous"]
+
+    def nvars(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables.
+        """
+        return self._nvars
+
+    def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI. For this model, it is always 1.
+        """
+        return 1
+
+    def _get_c_coefficients(self, decay: str, nvars: int) -> Array:
+        r"""
+        Compute the coefficients :math:`c_d` for the Genz test function.
+
+        The coefficients control the anisotropy of the function and are computed
+        based on the specified decay type.
+
+        Parameters
+        ----------
+        decay : str
+            Type of decay for the coefficients. Must be one of:
+            'none', 'quadratic', 'quartic', 'exp', 'sqexp'.
+        nvars : int
+            Number of uncertain variables.
+
+        Returns
+        -------
+        _get_c_coefficients : Array
+            Array of shape (nvars, 1) containing the computed coefficients.
+
+        Raises
+        ------
+        ValueError
+            If the specified decay type is not supported.
+
+        Notes
+        -----
+        The decay types are defined as follows:
+
+        - No decay ('none'):
+          .. math:: \hat{c}_d = \frac{d + 0.5}{D}
+
+        - Quadratic decay ('quadratic'):
+          .. math:: \hat{c}_d = \frac{1}{(d + 1)^2}
+
+        - Quartic decay ('quartic'):
+          .. math:: \hat{c}_d = \frac{1}{(d + 1)^4}
+
+        - Exponential decay ('exp'):
+          .. math:: \hat{c}_d = \exp\left(\log(c_\mathrm{min})\frac{d + 1}{D}\right)
+
+        - Squared-exponential decay ('sqexp'):
+          .. math:: \hat{c}_d = 10^{\left(\log_{10}(c_\mathrm{min})\frac{(d + 1)^2}{D^2}\right)}
+
+        Here :math:`c_\mathrm{min}` is the minimum value of :math:`c_D`, set by
+        `self._min_c`.
+        """
         ind = self._bkd.arange(nvars, dtype=self._bkd.double_type())[:, None]
         if decay == "none":
             return (ind + 0.5) / nvars
@@ -57,13 +170,34 @@ class GenzModel(Model):
         msg = f"decay: {decay} not supported"
         raise ValueError(msg)
 
-    def nvars(self) -> int:
-        return self._nvars
+    def _set_coefficients(self, nvars: int, c: Array, w: Array):
+        """
+        Set the coefficients and weights for the Genz test function.
 
-    def nqoi(self) -> int:
-        return 1
+        This method validates and assigns the coefficients and weights, which
+        control the anisotropy and location of the function's features.
 
-    def _set_coefficients(self, nvars, c, w):
+        Parameters
+        ----------
+        nvars : int
+            Number of uncertain variables.
+        c : Array
+            Array of shape (nvars, 1) containing the coefficients.
+        w : Array
+            Array of shape (nvars, 1) containing the weights.
+
+        Raises
+        ------
+        ValueError
+            If the shape of `c` or `w` is invalid.
+
+        Notes
+        -----
+        The coefficients :math:`c_d` control the relative importance of each
+        variable, while the weights :math:`w_d` control the location of the
+        function's features. Both must have the same number of variables
+        (`nvars`) and be column vectors.
+        """
         if c.shape != (nvars, 1):
             raise ValueError("c has the wrong shape")
         if not (w.ndim == 2 and w.shape[1] == 1):
@@ -75,12 +209,55 @@ class GenzModel(Model):
     def set_coefficients(
         self, nvars: int, cfactor: float, decay: str, wfactor: float = 0.5
     ):
+        """
+        Set the coefficients and weights for the Genz test function.
+
+        Parameters
+        ----------
+        nvars : int
+            Number of uncertain variables.
+        cfactor : float
+            Scaling factor for the coefficients.
+        decay : str
+            Type of decay for the coefficients. Must be one of:
+            'none', 'quadratic', 'quartic', 'exp', 'sqexp'.
+        wfactor : float, optional
+            Scaling factor for the weights. Default is 0.5.
+        """
         w = self._bkd.full((nvars, 1), wfactor)
         c = self._get_c_coefficients(decay, nvars)
         c *= cfactor / c.sum()
         self._set_coefficients(nvars, c, w)
 
+    def integrate(self):
+        """
+        Compute the integral of the Genz test function.
+
+        Returns
+        -------
+        integral : float
+            The integral of the Genz test function.
+        """
+        return self._funs[self._name][1]()
+
     def _oscillatory(self, samples: Array, return_grad: bool) -> Array:
+        """
+        Evaluate the oscillatory Genz function.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+        return_grad : bool
+            If True, also return the gradient.
+
+        Returns
+        -------
+        result : Array
+            Function evaluations.
+        grad : Array, optional
+            Gradient of the function (if `return_grad` is True).
+        """
         tmp = 2.0 * math.pi * self._w[0] + samples.T @ self._c
         result = self._bkd.cos(tmp)
         if not return_grad:
@@ -89,6 +266,23 @@ class GenzModel(Model):
         return result, grad.T
 
     def _product_peak(self, samples: Array, return_grad: bool) -> Array:
+        """
+        Evaluate the product peak Genz function.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+        return_grad : bool
+            If True, also return the gradient.
+
+        Returns
+        -------
+        result : Array
+            Function evaluations.
+        grad : Array, optional
+            Gradient of the function (if `return_grad` is True).
+        """
         result = (
             1
             / self._bkd.prod(
@@ -106,6 +300,23 @@ class GenzModel(Model):
         return result, grad.T
 
     def _corner_peak(self, samples: Array, return_grad: bool) -> Array:
+        """
+        Evaluate the corner peak Genz function.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+        return_grad : bool
+            If True, also return the gradient.
+
+        Returns
+        -------
+        result : Array
+            Function evaluations.
+        grad : Array, optional
+            Gradient of the function (if `return_grad` is True).
+        """
         tmp = 1 + samples.T @ self._c
         result = tmp ** (-(self._nvars + 1))
         if not return_grad:
@@ -114,6 +325,23 @@ class GenzModel(Model):
         return result, grad.T
 
     def _gaussian(self, samples: Array, return_grad: bool) -> Array:
+        """
+        Evaluate the Gaussian peak Genz function.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+        return_grad : bool
+            If True, also return the gradient.
+
+        Returns
+        -------
+        result : Array
+            Function evaluations.
+        grad : Array, optional
+            Gradient of the function (if `return_grad` is True).
+        """
         tmp = -self._bkd.sum(self._c**2 * (samples - self._w) ** 2, axis=0)
         result = self._bkd.exp(tmp)[:, None]
         if not return_grad:
@@ -122,6 +350,26 @@ class GenzModel(Model):
         return result, grad
 
     def _c0_continuous(self, samples: Array, return_grad: bool) -> Array:
+        """
+        Evaluate the C0 continuous Genz function.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+        return_grad : bool
+            If True, also return the gradient.
+
+        Returns
+        -------
+        result : Array
+            Function evaluations.
+
+        Raises
+        ------
+        ValueError
+            If `return_grad` is True, as the gradient is not supported.
+        """
         tmp = -self._bkd.sum(
             self._c * self._bkd.abs(samples - self._w), axis=0
         )
@@ -132,6 +380,26 @@ class GenzModel(Model):
         raise ValueError(msg)
 
     def _discontinuous(self, samples: Array, return_grad: bool) -> Array:
+        """
+        Evaluate the discontinuous Genz function.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+        return_grad : bool
+            If True, also return the gradient.
+
+        Returns
+        -------
+        result : Array
+            Function evaluations.
+
+        Raises
+        ------
+        ValueError
+            If `return_grad` is True, as the gradient is not supported.
+        """
         result = self._bkd.exp(samples.T @ self._c)
         II = self._bkd.where(
             (samples[0] > self._w[0]) | (samples[1] > self._w[1])
@@ -143,12 +411,54 @@ class GenzModel(Model):
         raise ValueError(msg)
 
     def _values(self, samples: Array) -> Array:
+        """
+        Evaluate the Genz test function for given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Array of shape (nvars, nsamples) containing the input samples.
+
+        Returns
+        -------
+        vals : Array
+            Array of shape (nsamples, 1) containing the function evaluations.
+        """
         return self._funs[self._name][0](samples, False)
 
     def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the Genz test function at a given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Array of shape (nvars, 1) containing the input sample.
+
+        Returns
+        -------
+        jac : Array
+            Array of shape (1, nvars) containing the Jacobian matrix.
+        """
         return self._funs[self._name][0](sample, True)[1]
 
     def _oscillatory_recursive_integrate_alternate(self, var_id, integral):
+        """
+        Recursively compute the integral of the oscillatory Genz function using
+        an alternate approach.
+
+        Parameters
+        ----------
+        var_id : int
+            Index of the variable to integrate.
+        integral : float
+            Current value of the integral.
+
+        Returns
+        -------
+        integral : float
+            Result of the recursive integration.
+        """
         if var_id > 0:
             return (
                 self._oscillatory_recursive_integrate(
@@ -166,9 +476,33 @@ class GenzModel(Model):
         return -self._bkd.sin(2.0 * math.pi * self._w[0] + integral)
 
     def _oscillatory_integrate_alternate(self):
+        """
+        Compute the integral of the oscillatory Genz function using an alternate
+        recursive approach.
+
+        Returns
+        -------
+        integral : float
+            Result of the integral.
+        """
         return self._oscillatory_recursive_integrate(self._nvars, 0.0)
 
     def _oscillatory_recursive_integrate(self, var_id, cosine):
+        """
+        Recursively compute the integral of the oscillatory Genz function.
+
+        Parameters
+        ----------
+        var_id : int
+            Index of the variable to integrate.
+        cosine : bool
+            Whether to use the cosine term in the integration.
+
+        Returns
+        -------
+        integral : float
+            Result of the recursive integration.
+        """
         C1 = self._bkd.sin(self._c[var_id]) / self._c[var_id]
         C2 = (1 - self._bkd.cos(self._c[var_id])) / self._c[var_id]
         if var_id == self._nvars - 1:
@@ -185,17 +519,13 @@ class GenzModel(Model):
 
     def _oscillatory_integrate(self):
         """
-        This is Better conditioned than alternate implementation
-        use
-        cos(x+y)=cos(x)cos(y)-sin(x)sin(y)
-        sin(x+y)=sin(x)cos(y)+cos(x)sin(y)
-        and if y=w+z
-        sin(x+w+z)=sin(x)sin(w+z)+cos(x)cos(w+z)
-        so expand sin(w+z)
-        then exploit separability
-        and
-        int_0^1 cos(ax)dx = sin(a)/a
-        int_0^1 sin(ax)dx = (1-cos(a))/a
+        Compute the integral of the oscillatory Genz function using a better
+        conditioned approach.
+
+        Returns
+        -------
+        integral : float
+            Result of the integral.
         """
         C1 = self._bkd.cos(2.0 * math.pi * self._w[0])
         C2 = self._bkd.sin(2.0 * math.pi * self._w[0])
@@ -205,6 +535,14 @@ class GenzModel(Model):
         return integral
 
     def _product_peak_integrate(self):
+        """
+        Compute the integral of the product peak Genz function.
+
+        Returns
+        -------
+        integral : float
+            Result of the integral.
+        """
         return self._bkd.prod(
             self._c
             * (
@@ -214,6 +552,21 @@ class GenzModel(Model):
         )
 
     def _corner_peak_integrate_recursive(self, integral, D):
+        """
+        Recursively compute the integral of the corner peak Genz function.
+
+        Parameters
+        ----------
+        integral : float
+            Current value of the integral.
+        D : int
+            Dimension of the variable to integrate.
+
+        Returns
+        -------
+        integral : float
+            Result of the recursive integration.
+        """
         if D == 0:
             return 1.0 / (1.0 + integral)
         return (
@@ -229,18 +582,33 @@ class GenzModel(Model):
 
     def _corner_peak_integrate(self):
         r"""
-        int_0^1 ((c+ax)^{-d-1}dx = c^{-d}-(a+c)^{-d})/(ad)
-        let c = b*y
-        int_0^1 \int_0^1 ((by+ax)^{-d-1}dxdy =
-           1/(ad) \int_0^1 ((by)^{-d}-(a+by)^{-d})dy
+        Compute the integral of the corner peak Genz function.
+
+        Returns
+        -------
+        integral : float
+            Result of the integral.
+
+        Raises
+        ------
+        ValueError
+            If the coefficients are too small for accurate computation.
         """
         if self._c.prod() < 1e-14:
-            msg = "coefficients to small for corner_peak integral to be "
-            msg += " computedaccurately with recursion. increase self._min_c"
+            msg = "coefficients too small for corner_peak integral to be "
+            msg += "computed accurately with recursion. Increase self._min_c."
             raise ValueError(msg)
         return self._corner_peak_integrate_recursive(0.0, self._nvars)
 
     def _gaussian_integrate(self):
+        """
+        Compute the integral of the Gaussian peak Genz function.
+
+        Returns
+        -------
+        integral : float
+            Result of the integral.
+        """
         result = self._bkd.prod(
             (
                 self._bkd.asarray(
@@ -256,6 +624,14 @@ class GenzModel(Model):
         return result
 
     def _c0_continuous_integrate(self):
+        """
+        Compute the integral of the C0 continuous Genz function.
+
+        Returns
+        -------
+        integral : float
+            Result of the integral.
+        """
         return self._bkd.prod(
             (
                 2.0
@@ -266,6 +642,14 @@ class GenzModel(Model):
         )
 
     def _discontinuous_integrate(self):
+        """
+        Compute the integral of the discontinuous Genz function.
+
+        Returns
+        -------
+        integral : float
+            Result of the integral.
+        """
         assert self._nvars >= 2
         idx = min(self._nvars, 2)
         tmp = self._bkd.prod(
@@ -278,26 +662,40 @@ class GenzModel(Model):
             (self._bkd.exp(self._c[2:]) - 1) / self._c[2:]
         )
 
-    def integrate(self):
-        return self._funs[self._name][1]()
-
 
 class GenzBenchmark(SingleModelBenchmark):
     r"""
-    Setup one of the six Genz integration benchmarks
-    :math:`f_d(x):\mathbb{R}^D\to\mathbb{R}`,
-    where :math:`x=[x_1,\ldots,x_D]^\top`.
-    The number of inputs :math:`D` and the anisotropy (relative importance of
-    each variable and interactions) of the functions can be adjusted.
-    The definition of each function is in the Notes section.
+    Genz integration benchmark.
 
-    References
+    This class sets up one of the six Genz integration benchmarks:
+    'oscillatory', 'product_peak', 'corner_peak', 'gaussian',
+    'c0continuous', 'discontinuous'. The number of inputs and the anisotropy
+    of the functions can be adjusted.
+
+    The inputs to these functions are independent uniform random variables on
+    [0,1].
+
+    Parameters
     ----------
-    .. [Genz1984] `Genz, A. Testing multidimensional integration routines. In Proc. of international conference on Tools, methods and languages for scientific and engineering computation (pp. 81-94), 1984 <https://dl.acm.org/doi/10.5555/2837.2842>`_
+    name : str
+        Name of the Genz test function.
+    nvars : int
+        Number of uncertain variables.
+    decay : str, optional
+        Type of decay for the coefficients. Must be one of:
+        'none', 'quadratic', 'quartic', 'exp', 'sqexp'. Default is 'none'.
+    cfactor : float, optional
+        Scaling factor for the coefficients. Default is 1.0.
+    wfactor : float, optional
+        Scaling factor for the weights. Default is 0.25.
+    coefs : Tuple[Array, Array], optional
+        Predefined coefficients and weights. Default is None.
+    backend : BackendMixin
+        Backend for numerical computations.
 
     Notes
     -----
-    The six Genz test function are:
+    The six Genz test functions are:
 
     Oscillatory ('oscillatory')
 
@@ -337,7 +735,7 @@ class GenzBenchmark(SingleModelBenchmark):
 
     .. math:: \hat{c}_d=\frac{d+0.5}{D}
 
-    Quadratic decay (qudratic)
+    Quadratic decay (quadratic)
 
     .. math:: \hat{c}_d = \frac{1}{(d + 1)^2}
 
@@ -353,9 +751,9 @@ class GenzBenchmark(SingleModelBenchmark):
 
     .. math:: \hat{c}_d=10^{\left(\log_{10}(c_\mathrm{min})\frac{(d+1)^2}{D^2}\right)}
 
-    Here :math:`c_\mathrm{min}` is argument that sets the minimum value of :math:`c_D`.
+    Here :math:`c_\mathrm{min}` is an argument that sets the minimum value of :math:`c_D`.
 
-    Once the formula are used the coefficients are normalized such that
+    Once the formulas are used, the coefficients are normalized such that:
 
     .. math:: c_d = c_\text{factor}\frac{\hat{c}_d}{\sum_{d=1}^D \hat{c}_d}.
     """
@@ -370,6 +768,27 @@ class GenzBenchmark(SingleModelBenchmark):
         coefs: Tuple[Array, Array] = None,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Initialize the Genz benchmark.
+
+        Parameters
+        ----------
+        name : str
+            Name of the Genz test function.
+        nvars : int
+            Number of uncertain variables.
+        decay : str, optional
+            Type of decay for the coefficients. Must be one of:
+            'none', 'quadratic', 'quartic', 'exp', 'sqexp'. Default is 'none'.
+        cfactor : float, optional
+            Scaling factor for the coefficients. Default is 1.0.
+        wfactor : float, optional
+            Scaling factor for the weights. Default is 0.25.
+        coefs : Tuple[Array, Array], optional
+            Predefined coefficients and weights. Default is None.
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         self._name = name
         self._nvars = nvars
         self._decay = decay
@@ -379,6 +798,13 @@ class GenzBenchmark(SingleModelBenchmark):
         super().__init__(backend)
 
     def _set_model(self):
+        """
+        Set the Genz test function model.
+
+        Returns
+        -------
+        None
+        """
         self._model = GenzModel(self._name, self._bkd)
         if self._coefs is None:
             self._model.set_coefficients(
@@ -387,11 +813,22 @@ class GenzBenchmark(SingleModelBenchmark):
         else:
             self._model._set_coefficients(self._nvars, *self._coefs)
 
-    def _set_variable(self):
+    def _set_prior(self):
+        """
+        Define the input variable for the Genz test function.
+        """
         marginals = [stats.uniform(0, 1)] * self._nvars
-        self._variable = IndependentMarginalsVariable(
+        self._prior = IndependentMarginalsVariable(
             marginals, backend=self._bkd
         )
 
     def integral(self):
+        """
+        Compute the integral of the Genz test function.
+
+        Returns
+        -------
+        integral : float
+            The integral of the Genz test function.
+        """
         return self._model.integrate()

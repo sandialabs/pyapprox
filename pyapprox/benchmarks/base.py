@@ -135,78 +135,269 @@ class SingleModelBenchmark(ABC):
 
 
 class MultiModelBenchmark(ABC):
-    # Unordered set of models
+    """
+    Multi-model benchmark.
+
+    This abstract base class defines a benchmark that involves multiple models
+    parameterized by a shared prior distribution. Derived classes must specify
+    the models and their properties.
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
+    """
+
     def __init__(self, backend: BackendMixin):
+        """
+        Initialize the multi-model benchmark.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         self._bkd = backend
         self._set_prior()
+        self._validate_prior()
         self._set_models()
+        self._validate_models()
+
+    def _validate_prior(self):
+        """
+        Validate that the prior is set correctly.
+
+        Raises
+        ------
+        ValueError
+            If the prior is not set or is invalid.
+        """
+        if not hasattr(self, "_prior") or self._prior is None:
+            raise ValueError(
+                "The prior is not set. Ensure `_set_prior` is implemented"
+                "correctly."
+            )
+        if not isinstance(self._prior, JointVariable):
+            raise ValueError(
+                "The prior must be an instance of `JointVariable`."
+            )
+
+    def _validate_models(self):
+        """
+        Validate that the models are set correctly.
+
+        Raises
+        ------
+        ValueError
+            If the models are not set or are invalid.
+        """
+        if not hasattr(self, "_models") or self._models is None:
+            raise ValueError(
+                "The models are not set. Ensure `_set_models` is implemented "
+                "correctly."
+            )
+        if not isinstance(self._models, list) or not all(
+            isinstance(model, Model) for model in self._models
+        ):
+            raise ValueError("The models must be a list of `Model` instances.")
 
     def nvars(self) -> int:
-        """Return the number of uncertain variables."""
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables.
+        """
         return self._prior.nvars()
 
     @abstractmethod
     def nmodels(self) -> int:
-        """Return the number of models."""
+        """
+        Return the number of models.
+
+        Returns
+        -------
+        nmodels : int
+            Number of models included in the benchmark.
+        """
         raise NotImplementedError
 
     def prior(self) -> JointVariable:
-        """Return the random variable parameterizing the model uncertainty."""
+        """
+        Return the random variable parameterizing the model uncertainty.
+
+        Returns
+        -------
+        prior : JointVariable
+            The prior distribution shared by all models.
+        """
         return self._prior
 
     @abstractmethod
     def nqoi(self) -> int:
-        """Return the number of quantities of interest (QoI) of all models."""
+        """
+        Return the number of quantities of interest (QoI) of all models.
+
+        Returns
+        -------
+        nqoi : int
+            Number of quantities of interest across all models.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def _set_models(self):
+        """
+        Define the models included in the benchmark.
+        """
         raise NotImplementedError
 
     def models(self) -> List[Model]:
+        """
+        Return the list of models included in the benchmark.
+
+        Returns
+        -------
+        models : List[Model]
+            List of models included in the benchmark.
+        """
         return self._models
 
 
 class MultiIndexModelBenchmark(MultiModelBenchmark):
-    # Ordered set of models in a multi-dimensional hierarchy
+    """
+    Multi-index model benchmark.
+
+    This class defines an n-dimensional hierarchy of models, such as those
+    obtained by refining the resolution of a rectangular mesh in the x- and y-directions.
+    The models are organized in a multi-dimensional hierarchy, enabling analysis of
+    relationships between models at different levels of fidelity.
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
+    """
+
     def models(self) -> MultiIndexModelEnsemble:
+        """
+        Return the multi-index model ensemble.
+
+        Returns
+        -------
+        models : MultiIndexModelEnsemble
+            Ordered set of models in a multi-dimensional hierarchy.
+        """
         return self._models
 
     def nmodels(self) -> int:
+        """
+        Return the number of models in the hierarchy.
+
+        Returns
+        -------
+        nmodels : int
+            Number of models in the hierarchy.
+        """
         return self._models.nmodels()
 
 
 class ACVBenchmark(MultiModelBenchmark):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    """
+    ACV (Active Control Variance) benchmark.
+
+    This class implements a multi-model benchmark for active control variance
+    analysis. It computes the mean, covariance, and higher-order statistics
+    for quantities of interest (QoI) across multiple models.
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
+    """
+
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the ACV benchmark.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
         super().__init__(backend)
         self._set_quadrature_samples_weights()
         self._flatten_funs()
 
     @abstractmethod
     def costs(self) -> Array:
-        """Return the cost of each model."""
+        """
+        Return the cost of each model.
+
+        Returns
+        -------
+        costs : Array
+            Array containing the cost of each model.
+        """
         raise NotImplementedError
 
     def _set_quadrature_samples_weights(self):
+        """
+        Set the quadrature samples and weights for integration.
+        """
         quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
-            self.variable(), [21] * self.nvars()
+            self.prior(), [21] * self.nvars()
         )
         self._quadx, self._quadw = quad_rule()
         self._quadw = self._quadw[:, 0]
 
     def _flat_fun_wrapper(self, ii, jj, xx) -> Array:
+        """
+        Wrapper for evaluating a specific QoI of a specific model.
+
+        Parameters
+        ----------
+        ii : int
+            Index of the model.
+        jj : int
+            Index of the QoI within the model.
+        xx : Array
+            Input samples of shape (nvars, nsamples).
+
+        Returns
+        -------
+        result : Array
+            Array of shape (nsamples,) containing the evaluated QoI.
+        """
         if xx.ndim != 2 or xx.shape[0] != self.nvars():
             raise RuntimeError("xx has the wrong shape")
         return self._models[ii](xx)[:, jj]
 
     def _flatten_funs(self):
+        """
+        Flatten the functions for evaluating QoI across all models.
+        """
         self._flat_funs = []
         for ii in range(self.nmodels()):
             for jj in range(self.nqoi()):
                 self._flat_funs.append(partial(self._flat_fun_wrapper, ii, jj))
 
     def _mean(self) -> Array:
-        # overide this function if you know the means exactly
+        """
+        Compute the mean of the quantities of interest (QoI) for each model.
+
+        This method computes the mean of the QoI for each model using
+        quadrature samples and weights. It can be overridden in derived
+        classes if th exact means are known.
+
+        Returns
+        -------
+        means : Array
+            Array of shape (nmodels, nqoi) containing the mean of the QoI for
+            each model.
+        """
         means = self._bkd.array(
             [f(self._quadx).dot(self._quadw) for f in self._flat_funs]
         )
@@ -219,7 +410,7 @@ class ACVBenchmark(MultiModelBenchmark):
         Returns
         -------
         means : Array (nmodels, nqoi)
-            The means of each model
+            The means of each model.
         """
         means = self._mean()
         if (
@@ -231,7 +422,21 @@ class ACVBenchmark(MultiModelBenchmark):
         return means
 
     def _covariance(self) -> Array:
-        # overide this function if you know the means exactly
+        """
+        Compute the covariance matrix between the quantities of interest (QoI)
+        of all models.
+
+        This method computes the covariance matrix using quadrature samples and weights.
+        It evaluates the flattened functions for each model and computes the
+        covariance between their QoI. The method can be overridden in derived
+         classes if the exact covariance is known.
+
+        Returns
+        -------
+        cov : Array
+            Array of shape (nmodels * nqoi, nmodels * nqoi) containing the
+            covariance matrix between the QoI of all models.
+        """
         means = [f(self._quadx) @ self._quadw for f in self._flat_funs]
 
         cov = self._bkd.empty(
@@ -250,13 +455,13 @@ class ACVBenchmark(MultiModelBenchmark):
 
     def covariance(self) -> Array:
         """
-        The covariance between the qoi of each model
+        Return the covariance between the QoI of each model.
 
         Returns
         -------
-        cov = Array (nmodels*nqoi, nmodels*nqoi)
-            The covariance treating functions concatinating the qoi
-            of each model f0, f1, f2
+        cov : Array (nmodels*nqoi, nmodels*nqoi)
+            The covariance matrix treating functions concatenating the QoI
+            of each model.
         """
         cov = self._covariance()
         if (
@@ -268,6 +473,31 @@ class ACVBenchmark(MultiModelBenchmark):
         return cov
 
     def _V_fun_entry(self, jj, kk, ll, means, flat_covs, xx):
+        """
+        Compute the V entry of the covariance matrix between two estimators
+        of variance.
+
+        Parameters
+        ----------
+        jj : int
+            Index of the model.
+        kk : int
+            Index of the first QoI within the model.
+        ll : int
+            Index of the second QoI within the model.
+        means : Array
+            Array containing the mean of each QoI for all models.
+        flat_covs : List[Array]
+            List of covariance matrices between QoI of the same model.
+        xx : Array
+            Input samples of shape (nvars, nsamples).
+
+        Returns
+        -------
+        entry : Array
+            Array of shape (nsamples,) containing the computed covariance
+            entry.
+        """
         idx1 = jj * self.nqoi() + kk
         idx2 = jj * self.nqoi() + ll
         return (self._flat_funs[idx1](xx) - means[idx1]) * (
@@ -275,19 +505,83 @@ class ACVBenchmark(MultiModelBenchmark):
         ) - flat_covs[jj][kk * self.nqoi() + ll]
 
     def _V_fun(self, jj1, kk1, ll1, jj2, kk2, ll2, means, flat_covs, xx):
+        """
+        Compute the product of two covariance V entries.
+
+        Parameters
+        ----------
+        jj1 : int
+            Index of the first model.
+        kk1 : int
+            Index of the first QoI within the first model.
+        ll1 : int
+            Index of the second QoI within the first model.
+        jj2 : int
+            Index of the second model.
+        kk2 : int
+            Index of the first QoI within the second model.
+        ll2 : int
+            Index of the second QoI within the second model.
+        means : Array
+            Array containing the mean of each QoI for all models.
+        flat_covs : List[Array]
+            List of covariance matrices between QoI of the same model.
+        xx : Array
+            Input samples of shape (nvars, nsamples).
+
+        Returns
+        -------
+        entry : Array
+            Array of shape (nsamples,) containing the product of the covariance
+            entries.
+        """
         return self._V_fun_entry(
             jj1, kk1, ll1, means, flat_covs, xx
         ) * self._V_fun_entry(jj2, kk2, ll2, means, flat_covs, xx)
 
     def _B_fun(self, ii, jj, kk, ll, means, flat_covs, xx):
+        """
+        Compute the covariance bewtween a  mean and a variance estimator.
+
+        Parameters
+        ----------
+        ii : int
+            Index of the flattened function.
+        jj : int
+            Index of the model.
+        kk : int
+            Index of the first QoI within the model.
+        ll : int
+            Index of the second QoI within the model.
+        means : Array
+            Array containing the mean of each QoI for all models.
+        flat_covs : List[Array]
+            List of covariance matrices between QoI of the same model.
+        xx : Array
+            Input samples of shape (nvars, nsamples).
+
+        Returns
+        -------
+        entry : Array
+            Array of shape (nsamples,) containing the covariance entry.
+        """
         return (self._flat_funs[ii](xx) - means[ii]) * self._V_fun_entry(
             jj, kk, ll, means, flat_covs, xx
         )
 
     def _flat_covs(self) -> List[Array]:
+        """
+        Extract the covariance matrices between the QoI of the same model.
+
+        This method extracts the covariance matrices between QoI of the same
+        model from the full covariance matrix.
+
+        Returns
+        -------
+        flat_covs : List[Array]
+            List of covariance matrices between QoI of the same model.
+        """
         cov = self.covariance()
-        # store covariance only between the QoI of a model with QoI of the same
-        # model
         flat_covs = []
         for ii in range(self.nmodels()):
             flat_covs.append([])
@@ -300,13 +594,12 @@ class ACVBenchmark(MultiModelBenchmark):
 
     def covariance_of_centered_values_kronker_product(self) -> Array:
         r"""
-        The W matrix used to compute the covariance between the
-        Kroneker product of centered (mean is subtracted off) values.
+        Compute the covariance matrix for the Kronecker product of centered values.
 
         Returns
         -------
         res : Array (nmodels*nqoi**2, nmodels*nqoi**2)
-            The covariance :math:`Cov[(f_i-\mathbb{E}[f_i])^{\otimes^2}, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`
+            The covariance :math:`Cov[(f_i-\mathbb{E}[f_i])^{\otimes^2}, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`.
         """
         means = self.mean().flatten()
         flat_covs = self._flat_covs()
@@ -343,13 +636,12 @@ class ACVBenchmark(MultiModelBenchmark):
 
     def covariance_of_mean_and_variance_estimators(self) -> Array:
         r"""
-        The B matrix used to compute the covariance between mean and variance
-        estimators.
+        Compute the covariance matrix for mean and variance estimators.
 
         Returns
         -------
         res : Array (nmodels*nqoi, nmodels*nqoi**2)
-            The covariance :math:`Cov[f_i, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`
+            The covariance :math:`Cov[f_i, (f_j-\mathbb{E}[f_j])^{\otimes^2}]`.
         """
         means = self.mean().flatten()
         flat_covs = self._flat_covs()
@@ -368,13 +660,29 @@ class ACVBenchmark(MultiModelBenchmark):
                         cnt += 1
         return self._bkd.array(est_cov)
 
+    def models(self) -> List[Model]:
+        """
+        Return the list of models included in the benchmark.
+
+        Returns
+        -------
+        models : List[Model]
+            List of models included in the benchmark.
+        """
+        return self._models
+
     def __repr__(self) -> str:
+        """
+        Return a string representation of the class.
+
+        Returns
+        -------
+        repr : str
+            String representation of the class.
+        """
         return "{0}(nmodels={1}, nqoi={2})".format(
             self.__class__.__name__, self.nmodels(), self.nqoi()
         )
-
-    def models(self) -> List[Model]:
-        return self._models
 
 
 class OptimizationBenchmark(ABC):
@@ -386,21 +694,25 @@ class OptimizationBenchmark(ABC):
     that the objective model is created only once during initialization to allow
     internal model variables to persist (e.g., `objective.work_tracker`).
 
-    Attributes:
-        _bkd (BackendMixin): Backend used for numerical computations.
-        _objective (Model): The objective model representing the optimization
-                            goal.
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
     """
 
     def __init__(self, backend: BackendMixin):
         """
         Initialize the base class with a specified backend for computations.
 
-        Args:
-            backend (BackendMixin): Backend for numerical computations.
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
 
-        Raises:
-            ValueError: If the `_objective` attribute is not set.
+        Raises
+        ------
+        ValueError
+            If the `_objective` attribute is not set.
         """
         self._bkd = backend
 
@@ -417,9 +729,6 @@ class OptimizationBenchmark(ABC):
 
         Derived classes must implement this method to define the objective
         model.
-
-        Raises:
-            NotImplementedError: If not implemented by the derived class.
         """
         raise NotImplementedError
 
@@ -427,21 +736,24 @@ class OptimizationBenchmark(ABC):
         """
         Validate that the `_objective` attribute is set.
 
-        Raises:
-            ValueError: If the `_objective` attribute is not set.
+        Raises
+        ------
+        ValueError
+            If the `_objective` attribute is not set.
         """
         if not hasattr(self, "_objective") or self._objective is None:
             raise ValueError(
-                "The '_objective' attribute must be set using "
-                "'_set_objective'."
+                "The '_objective' attribute must be set using '_set_objective'."
             )
 
     def objective(self) -> Model:
         """
         Return the objective model.
 
-        Returns:
-            Model: The objective model.
+        Returns
+        -------
+        objective : Model
+            The objective model.
         """
         return self._objective
 
@@ -453,8 +765,10 @@ class OptimizationBenchmark(ABC):
         Derived classes must implement this method to define the design
         variable.
 
-        Returns:
-            DesignVariable: The design variable.
+        Returns
+        -------
+        design_variable : DesignVariable
+            The design variable.
         """
         raise NotImplementedError
 
@@ -467,23 +781,20 @@ class ConstrainedOptimizationBenchmark(OptimizationBenchmark):
     and additional methods for defining optimal and initial iterates. Derived
     classes must specify the constraints, optimal iterate, and initial iterate.
 
-    Attributes:
-        _bkd (BackendMixin): Backend used for numerical computations.
-        _objective (Model): The objective model representing the optimization goal.
-        _constraints (List[Union[Constraint, LinearConstraint]]): Constraints
-            applied to the optimization problem.
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
     """
 
     def __init__(self, backend: BackendMixin):
         """
         Initialize the constrained optimization benchmark.
 
-        Args:
-            backend (BackendMixin): Backend for numerical computations.
-
-        Raises:
-            ValueError: If required attributes (_objective, _constraints) are
-                        not set.
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
         """
         super().__init__(backend)
 
@@ -505,22 +816,20 @@ class ConstrainedOptimizationBenchmark(OptimizationBenchmark):
     def _validate_constraints(self):
         """
         Validate that the `_constraints` attribute is set.
-
-        Raises:
-            ValueError: If the `_constraints` attribute is not set.
         """
         if not hasattr(self, "_constraints") or self._constraints is None:
             raise ValueError(
-                "The '_constraints' attribute must be set using "
-                "'_set_constraints'."
+                "The '_constraints' attribute must be set using '_set_constraints'."
             )
 
     def constraints(self) -> List[Union["Constraint", "LinearConstraint"]]:
         """
         Return the constraints applied to the optimization problem.
 
-        Returns:
-            List[Union[Constraint, LinearConstraint]]: The constraints.
+        Returns
+        -------
+        constraints : List[Union[Constraint, LinearConstraint]]
+            The constraints.
         """
         return self._constraints
 
@@ -529,11 +838,10 @@ class ConstrainedOptimizationBenchmark(OptimizationBenchmark):
         """
         Return the optimal iterate.
 
-        Derived classes must implement this method to define the optimal
-        iterate.
-
-        Returns:
-            Array: The optimal iterate.
+        Returns
+        -------
+        optimal_iterate : Array
+            The optimal iterate.
         """
         raise NotImplementedError
 
@@ -545,8 +853,10 @@ class ConstrainedOptimizationBenchmark(OptimizationBenchmark):
         Derived classes must implement this method to define the initial
         iterate passed to the optimizer.
 
-        Returns:
-            Array: The initial iterate.
+        Returns
+        -------
+        init_iterate : Array
+            The initial iterate.
         """
         raise NotImplementedError
 
@@ -561,14 +871,21 @@ class ConstrainedUncertainOptimizationBenchmark(
     for handling uncertainty, such as defining a prior and specifying the
     indices of design variables in a combined uncertain and design variable
     array.
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
     """
 
     def __init__(self, backend: BackendMixin):
         """
         Initialize the constrained uncertain optimization benchmark.
 
-        Args:
-            backend (BackendMixin): Backend for numerical computations
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
         """
         super().__init__(backend)
 
@@ -580,11 +897,10 @@ class ConstrainedUncertainOptimizationBenchmark(
         """
         Return the prior random variable.
 
-        Derived classes must implement this method to define the prior, which
-        represents uncertainty in the optimization problem.
-
-        Returns:
-            JointVariable: The prior random variable.
+        Returns
+        -------
+        prior : JointVariable
+            The prior random variable.
         """
         raise NotImplementedError
 
@@ -593,21 +909,16 @@ class ConstrainedUncertainOptimizationBenchmark(
         """
         Return the indices of design variables.
 
-        Derived classes must implement this method to specify the positions of
-        design variables in a combined uncertain and design variable array.
-
-        Returns:
-            Array: Array of indices for design variables.
+        Returns
+        -------
+        design_var_indices : Array
+            Array of indices for design variables.
         """
         raise NotImplementedError
 
     def _validate_prior(self):
         """
-        Validate that the `prior` method is implemented correctly.
-
-        Raises:
-            ValueError: If the `prior` method does not return a valid
-                        JointVariable.
+        Validate that the `prior` method is implemented correctly..
         """
         prior = self.prior()
         if not isinstance(prior, JointVariable):

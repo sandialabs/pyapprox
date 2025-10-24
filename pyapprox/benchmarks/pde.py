@@ -199,30 +199,93 @@ class SteadyGaussianNegLogLikelihoodAdjointFunctional(
 
 
 class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
+    r"""
+    Transient viscous Burgers' equation benchmark.
+
+    This class implements a benchmark for solving the transient viscous Burgers'
+    equation in one dimension. The benchmark defines a prior distribution for the
+    uncertain variables and sets up the model and functional for the operator-based
+    analysis.
+
+    The transient viscous Burgers' equation is given by:
+
+    .. math::
+        \frac{\partial u}{\partial t} + u \frac{\partial u}{\partial x} = \nu \frac{\partial^2 u}{\partial x^2}
+
+    where:
+
+    - :math:`u`: State variable (e.g., velocity).
+    - :math:`\nu`: Viscosity coefficient.
+
+    Parameters
+    ----------
+    backend : BackendMixin, optional
+        Backend for numerical computations. Default is `NumpyMixin`.
+    """
+
     def __init__(self, backend: BackendMixin = NumpyMixin):
+        """
+        Initialize the transient viscous Burgers' equation benchmark.
+
+        Parameters
+        ----------
+        backend : BackendMixin, optional
+            Backend for numerical computations. Default is `NumpyMixin`.
+        """
         super().__init__(backend)
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables in the benchmark.
+
+        The number of uncertain variables is determined by the number of eigenvalues
+        used in the Karhunen-Loève expansion.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables in the benchmark.
+        """
         neigs = 1024 // 2
         return neigs * 2
 
-    def variable(self) -> IndependentMarginalsVariable:
+    def prior(self) -> IndependentMarginalsVariable:
+        """
+        Define the prior distribution for the uncertain variables.
+
+        The prior distribution is defined as independent standard normal random variables.
+
+        Returns
+        -------
+        prior : IndependentMarginalsVariable
+            Prior distribution for the uncertain variables.
+        """
         return IndependentMarginalsVariable(
             [stats.norm(0, 1)] * self.nvars(), backend=self._bkd
         )
 
     def _set_model(self):
+        """
+        Set up the model and functional for the benchmark.
+
+        The model solves the transient viscous Burgers' equation using the Crank-Nicholson
+        time integration scheme. The functional evaluates the solution at the final time.
+
+        Returns
+        -------
+        None
+        """
         self._model = TransientViscousBurgers1DModel(
-            0.0,
-            1.0,
-            1 / 200,
-            self.nvars() // 2 + 1,  # 1025 ~6 times faster than 1024 + 1
-            0.1,
-            self.nvars() // 2,
-            49,
-            7,
-            2.5,
-            CrankNicholsonResidual,
+            0.0,  # Initial time
+            1.0,  # Final time
+            1 / 200,  # Time step size
+            self.nvars() // 2 + 1,  # Number of spatial points
+            0.1,  # Viscosity coefficient
+            self.nvars() // 2,  # Number of eigenvalues
+            49,  # Number of snapshots
+            7,  # Number of modes
+            2.5,  # Scaling factor
+            CrankNicholsonResidual,  # Residual type
             backend=self._bkd,
         )
         self._model.set_functional(
@@ -231,18 +294,99 @@ class TransientViscousBurgers1DOperatorBenchmark(OperatorBenchmark):
 
 
 class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
+    r"""
+    Steady Darcy 2D operator benchmark.
+
+    This class implements a benchmark for solving the steady-state Darcy equation
+    in two dimensions. The benchmark defines a prior distribution for the uncertain
+    variables and sets up the model and functional for the operator-based analysis.
+
+    The steady-state Darcy equation is given by:
+
+    .. math::
+        -\nabla \cdot (\kappa \nabla u) = f
+
+    where:
+
+    - :math:`u`: State variable (e.g., pressure or hydraulic head).
+    - :math:`\kappa`: Permeability field.
+    - :math:`f`: Source term.
+
+    The permeability field :math:`\kappa` is parameterized using a Karhunen-Loève expansion (KLE):
+
+    .. math::
+        \log(\kappa(x)) = \kappa_0 + \sum_{i=1}^n \sigma_i \phi_i(x)
+
+    where:
+
+    - :math:`\kappa_0`: Mean permeability field.
+    - :math:`\sigma_i`: Standard deviation of the :math:`i`-th mode.
+    - :math:`\phi_i(x)`: Spatial basis function for the :math:`i`-th mode.
+
+    Parameters
+    ----------
+    backend : BackendMixin, optional
+        Backend for numerical computations. Default is `NumpyMixin`.
+    """
+
     def __init__(self, backend: BackendMixin = NumpyMixin):
+        """
+        Initialize the steady Darcy 2D operator benchmark.
+
+        Parameters
+        ----------
+        backend : BackendMixin, optional
+            Backend for numerical computations. Default is `NumpyMixin`.
+        """
         super().__init__(backend)
 
     def nvars(self) -> int:
+        """
+        Return the number of uncertain variables in the benchmark.
+
+        The number of uncertain variables is determined by the number of modes
+        used in the Karhunen-Loève expansion.
+
+        Returns
+        -------
+        nvars : int
+            Number of uncertain variables in the benchmark. For this benchmark, it is always 100.
+        """
         return 100
 
-    def variable(self) -> IndependentMarginalsVariable:
+    def prior(self) -> IndependentMarginalsVariable:
+        """
+        Define the prior distribution for the uncertain variables.
+
+        The prior distribution is defined as independent standard normal random variables.
+
+        Returns
+        -------
+        prior : IndependentMarginalsVariable
+            Prior distribution for the uncertain variables.
+        """
         return IndependentMarginalsVariable(
             [stats.norm(0, 1)] * self.nvars(), backend=self._bkd
         )
 
     def _setup_basis(self, nmesh_pts_1d: Tuple[int, int]):
+        r"""
+        Set up the basis for the spatial domain.
+
+        Parameters
+        ----------
+        nmesh_pts_1d : Tuple[int, int]
+            Number of mesh points in the x and y directions.
+
+        Returns
+        -------
+        basis : ChebyshevCollocationBasis2D
+            Basis for the spatial domain.
+
+        Notes
+        -----
+        The spatial domain is defined as a unit square :math:`[0, 1] \times [0, 1]`.
+        """
         Lx, Ly = 1, 1
         bounds = self._bkd.array([0, Lx, 0, Ly])
         transform = ScaleAndTranslationTransform2D(
@@ -253,18 +397,40 @@ class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
         return basis
 
     def _setup_kle(self):
+        """
+        Set up the Karhunen-Loève expansion (KLE) for the permeability field.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The permeability field :math:`\kappa` is parameterized using a KLE with
+        100 modes and a correlation length of 0.25.
+        """
         basis = self._setup_basis(self._bkd.array([20, 20], dtype=int))
         self._kle = ScalarKLEFunction(
             basis,
-            0.25,
-            self.nvars(),
-            sigma=1.0,
-            mean_field=ConstantScalarFunction(basis, 0.0, 1),
+            0.25,  # Correlation length
+            self.nvars(),  # Number of modes
+            sigma=1.0,  # Standard deviation
+            mean_field=ConstantScalarFunction(basis, 0.0, 1),  # Mean field
             ninput_funs=1,
             use_log=True,
         )
 
     def _set_model(self) -> SteadyDarcy2DKLEModel:
+        """
+        Set up the model and functional for the benchmark.
+
+        The model solves the steady-state Darcy equation using the KLE parameterization
+        of the permeability field. The functional evaluates the solution.
+
+        Returns
+        -------
+        None
+        """
         self._setup_kle()
         self._model = SteadyDarcy2DKLEModel(self._kle)
         self._model.set_functional(SteadySolutionFunctional(self._model))
@@ -273,7 +439,55 @@ class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
 class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
     SingleModelBayesianInferenceBenchmark
 ):
+    r"""
+    Advection-diffusion KLE inversion benchmark.
+
+    This class implements a benchmark for Bayesian inference based on the
+    advection-diffusion model with Karhunen-Loève expansion (KLE) parameterization.
+    The benchmark defines prior distributions, observation models, and quantities
+    of interest (QoI) models.
+
+    The advection-diffusion equation is given by:
+
+    .. math::
+        \frac{\partial u}{\partial t} - \nabla \cdot (\kappa \nabla u) + \mathbf{v} \cdot \nabla u = f
+
+    where:
+
+    - :math:`u`: State variable (e.g., concentration or temperature).
+    - :math:`\kappa`: Diffusion coefficient.
+    - :math:`\mathbf{v}`: Advection velocity.
+    - :math:`f`: Source term.
+
+    The diffusion coefficient :math:`\kappa` is parameterized using a Karhunen-Loève expansion (KLE):
+
+    .. math::
+        \log(\kappa(x)) = \kappa_0 + \sum_{i=1}^n \sigma_i \phi_i(x)
+
+    where:
+
+    - :math:`\kappa_0`: Mean diffusion coefficient.
+    - :math:`\sigma_i`: Standard deviation of the :math:`i`-th mode.
+    - :math:`\phi_i(x)`: Spatial basis function for the :math:`i`-th mode.
+
+    References
+    ----------
+    The example is based on the examle in:
+
+    .. [Jakeman2023] `Jakeman, J.D. "PyApprox: A software package for sensitivity analysis, Bayesian inference, optimal experimental design, and multi-fidelity uncertainty quantification and surrogate modeling." Environmental Modelling & Software, 170, 105825, 2023. <https://doi.org/10.1016/j.envsoft.2023.105825>`_
+
+    However, in this version of PyApprox the benchmark differs slightly. Unlike, when generating the paper results, We solve the conservative form of the equations.
+    """
+
     def __init__(self, backend: BackendMixin = NumpyMixin):
+        """
+        Initialize the advection-diffusion KLE inversion benchmark.
+
+        Parameters
+        ----------
+        backend : BackendMixin, optional
+            Backend for numerical computations. Default is `NumpyMixin`.
+        """
         self._source_loc = backend.array([0.25, 0.75])
         self._source_amp = 100.0
         self._source_scale = 0.1
@@ -282,6 +496,19 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         super().__init__(backend)
 
     def _setup_basis(self, nmesh_pts_1d: Tuple[int, int]):
+        """
+        Set up the basis for the spatial domain.
+
+        Parameters
+        ----------
+        nmesh_pts_1d : Tuple[int, int]
+            Number of mesh points in the x and y directions.
+
+        Returns
+        -------
+        basis : ChebyshevCollocationBasis2D
+            Basis for the spatial domain.
+        """
         Lx, Ly = 1, 1
         bounds = self._bkd.array([0, Lx, 0, Ly])
         transform = ScaleAndTranslationTransform2D(
@@ -292,6 +519,9 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         return basis
 
     def _setup_kle(self):
+        """
+        Set up the Karhunen-Loève expansion (KLE) for the diffusion coefficient.
+        """
         basis = self._setup_basis(self._bkd.array([20, 20], dtype=int))
         self._kle = ScalarKLEFunction(
             basis,
@@ -305,23 +535,63 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
 
     def observation_design(self) -> Array:
         """
-        Spatial locations where the observations are collected
+        Return the spatial locations where the observations are collected.
+
+        Returns
+        -------
+        observation_design : Array
+            Array of shape (2, nobs) containing the observation locations.
         """
         return self._obs_model._basis.mesh().mesh_pts()[:, self._obs_indices]
 
     def observation_generating_parameters(self) -> Array:
+        """
+        Return the true parameters used to generate the observations.
+
+        Returns
+        -------
+        observation_generating_parameters : Array
+            Array containing the true parameters for the KLE.
+        """
         return self._true_kle_params
 
     def observations(self) -> Array:
+        """
+        Return the collected observations.
+
+        Returns
+        -------
+        observations : Array
+            Array containing the collected observations.
+        """
         return self._obs
 
     def nobservations(self) -> Array:
+        """
+        Return the number of observations.
+
+        Returns
+        -------
+        nobservations : int
+            Number of observations.
+        """
         return self._obs.shape[0]
 
     def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        nqoi : int
+            Number of QoI.
+        """
         return self._functional.nqoi()
 
     def _set_prior(self):
+        """
+        Define the prior distribution for the uncertain variables.
+        """
         self._setup_kle()
         marginals = [stats.norm(0, 1)] * self._kle.kle().nvars()
         self._prior = IndependentMarginalsVariable(
@@ -329,19 +599,21 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         )
 
     def _set_obs_model(self):
+        """
+        Set up the observation model for the benchmark.
+        """
         self._obs_model = PyApproxPaperAdvectionDiffusionKLEInversionModel(
             self._kle, self._source_amp, self._source_loc, self._source_scale
         )
-        # must set initial iterate so that forward solver runs
-        # since these equations are linear we can always use the same initial
-        # guess
         self._obs_model._adjoint_solver.set_initial_iterate(
             self._obs_model.get_initial_iterate()
         )
-
         self._set_negloglike_model()
 
     def _set_negloglike_model(self):
+        """
+        Set up the negative log-likelihood model for the benchmark.
+        """
         self._negloglike_model = (
             PyApproxPaperAdvectionDiffusionKLEInversionModel(
                 self._kle,
@@ -350,7 +622,6 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
                 self._source_scale,
             )
         )
-
         npts_1d = self._negloglike_model.basis().mesh()._npts_1d
         ndof = self._bkd.prod(npts_1d)
         bndry_indices = self._bkd.hstack(
@@ -370,7 +641,6 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
             ),
             dtype=int,
         )[: self._nobs]
-        # print(bndry_indices.shape)
         self._obs_functional = PointwiseObservationFunctional(
             ndof, self._kle.kle().nvars(), self._obs_indices, backend=self._bkd
         )
@@ -385,17 +655,10 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
                 backend=self._bkd,
             )
         )
-        # must set initial iterate so that forward solver runs
-        # since these equations are linear we can always use the same initial
-        # guess
         self._negloglike_model._adjoint_solver.set_initial_iterate(
             self._negloglike_model.get_initial_iterate()
         )
-
-        # run model at true param
         self._true_kle_params = self._prior.rvs(1)
-        # sol = self._negloglike_model.forward_solve(self._true_kle_params)
-        # noiseless_obs = self._obs_functional(sol)
         noiseless_obs = self._obs_model(self._true_kle_params)[0]
         noise = self._bkd.asarray(
             np.random.normal(
@@ -409,6 +672,23 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
     def setup_qoi_model(
         self, nmesh_pts_x: int, nmesh_pts_y: int, deltat: float
     ):
+        """
+        Set up a QoI model for the benchmark.
+
+        Parameters
+        ----------
+        nmesh_pts_x : int
+            Number of mesh points in the x direction.
+        nmesh_pts_y : int
+            Number of mesh points in the y direction.
+        deltat : float
+            Time step size.
+
+        Returns
+        -------
+        qoi_model : PyApproxPaperAdvectionDiffusionKLEForwardModel
+            QoI model for the benchmark.
+        """
         basis = self._setup_basis((nmesh_pts_x, nmesh_pts_y))
         kle = ScalarKLEFunctionOnDifferentMesh(
             self._obs_model.physics()._diffusion, basis
@@ -426,10 +706,35 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
     def _qoi_models(
         self, model_config: List[Tuple[int, int, float]]
     ) -> List[Model]:
+        """
+        Define a list of QoI models based on the given configuration.
+
+        Parameters
+        ----------
+        model_config : List[Tuple[int, int, float]]
+            List of configurations for the QoI models, where each configuration
+            specifies the number of mesh points in the x and y directions and the
+            time step size.
+
+        Returns
+        -------
+        models : List[Model]
+            List of QoI models.
+        """
         models = [self.setup_qoi_model(*config) for config in model_config]
         return models
 
     def qoi_models(self) -> List[Model]:
+        """
+        Return the QoI models for the benchmark.
+
+        Returns
+        -------
+        models : List[Model]
+            List of QoI models.
+        model_names : List[str]
+            Names of the QoI models.
+        """
         npts_x = [4, int(self._obs_model.basis().mesh()._npts_1d[0])]
         npts_y = npts_x
         ntsteps = [2, 8]
@@ -437,23 +742,54 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
         model_config = itertools.product(npts_x, npts_y, deltat)
         model_names = list(itertools.product(npts_x, npts_y, ntsteps))
         models = self._qoi_models(model_config)
-        # multifidelity algorithms require hf model to be first in list
-        models = models[-1:] + models[:-1]
+        models = models[-1:] + models[:-1]  # High-fidelity model first
         model_names = model_names[-1:] + model_names[:-1]
-        return models, [str(name) for name in (model_names)]
+        return models, [str(name) for name in model_names]
 
     def obs_model(self) -> Model:
+        """
+        Return the observation model for the benchmark.
+
+        Returns
+        -------
+        obs_model : Model
+            Observation model for the benchmark.
+        """
         return self._obs_model
 
     def diffusion_function(self) -> ScalarFunction:
+        """
+        Return the diffusion function parameterized by the KLE.
+
+        Returns
+        -------
+        diffusion_function : ScalarFunction
+            Diffusion function parameterized by the KLE.
+        """
         return self._obs_model._physics._diffusion
 
     def loglike(self) -> LogLikelihood:
+        """
+        Return the log-likelihood model for the benchmark.
+
+        Returns
+        -------
+        loglike : LogLikelihood
+            Log-likelihood model for the benchmark.
+        """
         return LogLikelihoodFromModel(
             ChangeModelSignWrapper(self._negloglike_model)
         )
 
     def sobol_interaction_indices(self) -> Array:
+        """
+        Return the Sobol interaction indices for the benchmark.
+
+        Returns
+        -------
+        sobol_interaction_indices : Array
+            Array containing the Sobol interaction indices.
+        """
         sobol_interaction_indices = self._bkd.array(
             [
                 [1, 0, 0],
@@ -470,14 +806,94 @@ class PyApproxPaperAdvectionDiffusionKLEInversionBenchmark(
 
 
 class NonlinearSystemOfEquationsBenchmark(SingleModelBenchmark):
-    def _set_variable(self):
+    r"""
+    Nonlinear system of equations benchmark.
+
+    This class implements a benchmark for solving a nonlinear system of equations
+    using a steady adjoint model. The benchmark defines a prior distribution for
+    the uncertain variables and sets up the nonlinear system of equations model.
+
+    The system is governed by the following equations:
+
+    .. math::
+        f_1(x_1, x_2) = a \cdot x_1^2 + x_2^2 - 1 \\
+        f_2(x_1, x_2) = x_1^2 - b \cdot x_2^2 - 1
+
+    where:
+    - :math:`x_1, x_2`: State variables.
+    - :math:`a, b`: Parameters.
+
+    Parameters
+    ----------
+    backend : BackendMixin
+        Backend for numerical computations.
+
+    Notes
+    -----
+    The parameters of the model are defined as follows:
+
+    - :math:`a`: Coefficient controlling the influence of :math:`x_1` in :math:`f_1`.
+    - :math:`b`: Coefficient controlling the influence of :math:`x_2` in :math:`f_2`.
+
+    The prior distribution is defined as:
+
+    .. math::
+        a \sim \mathcal{U}[0.79, 0.99] \\
+        b \sim \mathcal{U}[1 - 4.5 \sqrt{0.1}, 1 + 4.5 \sqrt{0.1}]
+
+    References
+    ----------
+    .. [Butler2018] `Butler, T., Jakeman, J., & Wildey, T. "Combining Push-Forward Measures and Bayes' Rule to Construct Consistent Solutions to Stochastic Inverse Problems." SIAM Journal on Scientific Computing, 40(2), A984-A1011, 2018. <https://doi.org/10.1137/16M1087229>`_
+    """
+
+    def _set_prior(self):
+        r"""
+        Define the input prior for the benchmark.
+
+        The input prior is defined as two independent uniform random variables.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The prior distribution is defined as:
+
+        .. math::
+            a \sim \mathcal{U}[0.79, 0.99] \\
+            b \sim \mathcal{U}[1 - 4.5 \sqrt{0.1}, 1 + 4.5 \sqrt{0.1}]
+        """
         marginals = [
             stats.uniform(0.79, 0.2),
             stats.uniform(1 - 4.5 * np.sqrt(0.1), 2 * 4.5 * np.sqrt(0.1)),
         ]
-        self._variable = IndependentMarginalsVariable(marginals)
+        self._prior = IndependentMarginalsVariable(
+            marginals, backend=self._bkd
+        )
 
     def _set_model(self):
+        r"""
+        Set up the nonlinear system of equations model for the benchmark.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The system is governed by the following equations:
+
+        .. math::
+            f_1(x_1, x_2) = a^p \cdot x_1^2 + x_2^2 - 1 \\
+            f_2(x_1, x_2) = x_1^2 - b^q \cdot x_2^2 - 1
+
+        where:
+  
+        - :math:`x_1, x_2`: State variables.
+        - :math:`a, b`: Parameters.
+        - :math:`p, q`: Powers of the parameters.
+        """
         functional = SteadySingleStateFunctional(1, 2, 2, backend=self._bkd)
         newton_solver = NewtonSolver(atol=1e-10, rtol=1e-10)
         self._model = NonlinearSystemOfEquationsModel(

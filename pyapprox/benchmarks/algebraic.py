@@ -2093,7 +2093,7 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
         """
         self._objective = create_active_set_variable_model(
             CantileverBeamObjectiveModel(self._bkd),
-            self.variable().nvars() + self.design_variable().nvars(),
+            self.prior().nvars() + self.design_variable().nvars(),
             self._nominal_values,
             self._design_var_indices,
         )
@@ -2104,7 +2104,7 @@ class CantileverBeamDeterminsticOptimizationBenchmark(
         """
         constraint_model = create_active_set_variable_model(
             CantileverBeamConstraintsModel(self._bkd),
-            self.variable().nvars() + self.design_variable().nvars(),
+            self.prior().nvars() + self.design_variable().nvars(),
             self._nominal_values,
             self._design_var_indices,
         )
@@ -2233,8 +2233,8 @@ class CantileverBeamUncertainOptimizationBenchmark(
         """
         # TODO: Change weights to create unbiased estimators of mean and variance
         quad_rule = FixedGaussianTensorProductQuadratureRuleFromVariable(
-            self.variable(),
-            [5 for ii in range(self.variable().nvars())],
+            self.prior(),
+            [5 for ii in range(self.prior().nvars())],
         )
         samples, weights = quad_rule()
         constraint_model = ChangeModelSignWrapper(
@@ -2248,7 +2248,7 @@ class CantileverBeamUncertainOptimizationBenchmark(
                 weights,
                 stat,
                 self.constraint_bounds(),
-                self.variable().nvars() + self.design_variable().nvars(),
+                self.prior().nvars() + self.design_variable().nvars(),
                 self._design_var_indices,
                 backend=self._bkd,
             )

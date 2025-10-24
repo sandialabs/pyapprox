@@ -7,7 +7,9 @@ The following provides an example of how to use multi-fidelity quadrature, e.g. 
 # %%
 # Load the necessary modules
 import numpy as np
-from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    TunableModelEnsembleBenchmark,
+)
 from pyapprox.multifidelity.factory import (
     multioutput_stats,
     multioutput_estimators,
@@ -21,7 +23,9 @@ bkd = NumpyMixin
 
 # %%
 # First define an ensemble of models using using a benchmark, see  :mod:`pyapprox.benchmarks`.
-benchmark = TunableModelEnsemble(theta1=np.pi / 2 * 0.95, shifts=[0.1, 0.2])
+benchmark = TunableModelEnsembleBenchmark(
+    theta1=np.pi / 2 * 0.95, backend=bkd, shifts=[0.1, 0.2]
+)
 
 # %%
 # Initialize a multifidelity estimator. This requires an estimate of the covariance between the models and the model costs and the random variable representing the model inputs
@@ -30,7 +34,7 @@ benchmark = TunableModelEnsemble(theta1=np.pi / 2 * 0.95, shifts=[0.1, 0.2])
 npilot_samples = int(1e2)
 
 stat = multioutput_stats["mean"](benchmark.nqoi(), bkd)
-pilot_samples = benchmark.variable().rvs(npilot_samples)
+pilot_samples = benchmark.prior().rvs(npilot_samples)
 pilot_values = [model(pilot_samples) for model in benchmark.models()]
 stat.set_pilot_quantities(*stat.compute_pilot_quantities(pilot_values))
 
@@ -44,9 +48,7 @@ mlb_est.allocate_samples(target_cost, stat.min_nsamples())
 
 # %%
 # Construct the estimator
-samples_per_model = mlb_est.generate_samples_per_model(
-    benchmark.variable().rvs
-)
+samples_per_model = mlb_est.generate_samples_per_model(benchmark.prior().rvs)
 values_per_model = [
     model(samples)
     for model, samples in zip(benchmark.models(), samples_per_model)

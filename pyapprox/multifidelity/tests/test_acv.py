@@ -31,7 +31,7 @@ from pyapprox.multifidelity.stats import (
     _get_nsamples_subset,
 )
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble,
+    PolynomialModelEnsembleBenchmark,
 )
 from pyapprox.util.backends.torch import TorchMixin
 
@@ -296,7 +296,7 @@ class TestMOMC:
                 bkd,
             )
             # npilot_samples = int(1e6)
-            # pilot_samples = benchmark.variable().rvs(npilot_samples)
+            # pilot_samples = benchmark.prior().rvs(npilot_samples)
             # pilot_values = bkd.hstack([f(pilot_samples) for f in funs])
             # W = get_W_from_pilot(pilot_values, nmodels)
             pilot_args.append(W)
@@ -357,7 +357,7 @@ class TestMOMC:
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
                 funs_subset,
-                benchmark.variable(),
+                benchmark.prior(),
                 est,
                 ntrials,
                 max_eval_concurrency,
@@ -733,7 +733,7 @@ class TestMOMC:
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
                 funs,
-                benchmark.variable(),
+                benchmark.prior(),
                 est,
                 ntrials,
                 max_eval_concurrency,
@@ -772,7 +772,7 @@ class TestMOMC:
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
                 funs,
-                benchmark.variable(),
+                benchmark.prior(),
                 est,
                 ntrials,
                 max_eval_concurrency,
@@ -803,7 +803,7 @@ class TestMOMC:
 
         np.random.seed(1)
         samples_per_model = est.generate_samples_per_model(
-            benchmark.variable().rvs
+            benchmark.prior().rvs
         )
         values_per_model = [
             fun(samples) for fun, samples in zip(funs, samples_per_model)
@@ -818,14 +818,14 @@ class TestMOMC:
         # partial(variable.rvs, random_state=random_state)(4)[:, :3]
         np.random.seed(1)
         npilot_samples = 5
-        pilot_samples = benchmark.variable().rvs(npilot_samples)
+        pilot_samples = benchmark.prior().rvs(npilot_samples)
         pilot_values = [f(pilot_samples) for f in benchmark.models()]
         assert bkd.allclose(
             pilot_values[0], values_per_model[0][:npilot_samples]
         )
 
         samples_per_model_wo_pilot = est.generate_samples_per_model(
-            benchmark.variable().rvs, npilot_samples
+            benchmark.prior().rvs, npilot_samples
         )
         values_per_model_wo_pilot = [
             fun(samples)
@@ -892,7 +892,7 @@ class TestMOMC:
             # },
 
         samples_per_model = est.generate_samples_per_model(
-            benchmark.variable().rvs
+            benchmark.prior().rvs
         )
         values_per_model = [
             f(samples) for f, samples in zip(funs, samples_per_model)
@@ -923,7 +923,7 @@ class TestMOMC:
         stat_name = "mean_variance"
         stat = multioutput_stats[stat_name](nqoi, backend=bkd)
         npilot_samples = 20
-        pilot_samples = benchmark.variable().rvs(npilot_samples)
+        pilot_samples = benchmark.prior().rvs(npilot_samples)
         pilot_values_per_model = [fun(pilot_samples) for fun in funs]
         stat.set_pilot_quantities(
             *stat.compute_pilot_quantities(pilot_values_per_model)
@@ -973,7 +973,7 @@ class TestMOMC:
             # },
         # print(est)
         samples_per_model = est.generate_samples_per_model(
-            benchmark.variable().rvs
+            benchmark.prior().rvs
         )
         values_per_model = [
             f(samples) for f, samples in zip(funs, samples_per_model)
@@ -1023,7 +1023,7 @@ class TestMOMC:
 
     def test_polynomial_ensemble(self):
         bkd = self.get_backend()
-        benchmark = PolynomialModelEnsemble(backend=bkd)
+        benchmark = PolynomialModelEnsembleBenchmark(backend=bkd)
         cov = benchmark.covariance()
         nmodels = cov.shape[0]
         costs = bkd.asarray([10**-ii for ii in range(nmodels)])
@@ -1057,7 +1057,7 @@ class TestMOMC:
 
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(
-                benchmark.models(), benchmark.variable(), est, 10000, 1, True
+                benchmark.models(), benchmark.prior(), est, 10000, 1, True
             )
         )
         print(covar_mc, covar)

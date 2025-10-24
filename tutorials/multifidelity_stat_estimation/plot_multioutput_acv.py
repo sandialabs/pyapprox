@@ -12,14 +12,13 @@ import matplotlib.pyplot as plt
 
 from pyapprox import multifidelity as mf
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    MultiOutputModelEnsemble,
+    MultiOutputModelEnsembleBenchmark,
 )
 from pyapprox.util.visualization import mathrm_labels
-from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.util.backends.torch import TorchMixin as bkd
 
-bkd = TorchMixin
 np.random.seed(1)
-benchmark = MultiOutputModelEnsemble(backend=bkd)
+benchmark = MultiOutputModelEnsembleBenchmark(backend=bkd)
 costs = bkd.array([1, 0.01, 0.001])
 nmodels = 3
 
@@ -32,14 +31,14 @@ labels = (
 )
 ax = plt.subplots(1, 1, figsize=(8, 6))[1]
 _ = mf.plot_correlation_matrix(
-    mf.covariance_to_correlation(cov, bkd=TorchMixin),
+    mf.covariance_to_correlation(cov, bkd=bkd),
     ax=ax,
     model_names=labels,
     label_fontsize=20,
 )
 
 target_cost = 30
-stat = mf.multioutput_stats["mean"](benchmark.nqoi(), backend=TorchMixin)
+stat = mf.multioutput_stats["mean"](benchmark.nqoi(), backend=bkd)
 stat.set_pilot_quantities(cov)
 est = mf.get_estimator("gmf", stat, costs)
 est.allocate_samples(target_cost)
@@ -49,7 +48,7 @@ qoi_idx = [0]
 cov_0 = stat.get_pilot_quantities_subset(
     nmodels, benchmark.nqoi(), [0, 1, 2], qoi_idx
 )[0]
-stat_0 = mf.multioutput_stats["mean"](len(qoi_idx), backend=TorchMixin)
+stat_0 = mf.multioutput_stats["mean"](len(qoi_idx), backend=bkd)
 stat_0.set_pilot_quantities(cov_0)
 est_0 = mf.get_estimator("gmf", stat_0, costs)
 est_0.allocate_samples(target_cost)

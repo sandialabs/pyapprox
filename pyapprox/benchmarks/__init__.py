@@ -16,11 +16,11 @@ from pyapprox.benchmarks.algebraic import (
 )
 from pyapprox.benchmarks.genz import GenzBenchmark
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble,
-    TunableModelEnsemble,
-    ShortColumnModelEnsemble,
-    MultiOutputModelEnsemble,
-    PSDMultiOutputModelEnsemble,
+    PolynomialModelEnsembleBenchmark,
+    TunableModelEnsembleBenchmark,
+    ShortColumnModelEnsembleBenchmark,
+    MultiOutputModelEnsembleBenchmark,
+    PSDMultiOutputModelEnsembleBenchmark,
     MultiLevelCosineBenchmark,
 )
 
@@ -40,30 +40,37 @@ from pyapprox.benchmarks.pde import (
 )
 
 __all__ = [
+    # Sensitivity Analysis
     "IshigamiBenchmark",
     "OakleyBenchmark",
     "SobolGBenchmark",
+    # Optimization
     "RosenbrockUnconstrainedOptimizationBenchmark",
     "RosenbrockConstrainedOptimizationBenchmark",
     "CantileverBeamDeterminsticOptimizationBenchmark",
     "CantileverBeamUncertainOptimizationBenchmark",
-    "PistonBenchmark",
-    "WingWeightBenchmark",
     "EvtushenkoConstrainedOptimizationBenchmark",
+    # Quadrature
     "GenzBenchmark",
-    "PolynomialModelEnsemble",
-    "TunableModelEnsemble",
-    "ShortColumnModelEnsemble",
-    "MultiOutputModelEnsemble",
-    "PSDMultiOutputModelEnsemble",
+    # Multifidelity Estimation
+    "PolynomialModelEnsembleBenchmark",
+    "TunableModelEnsembleBenchmark",
+    "ShortColumnModelEnsembleBenchmark",
+    "MultiOutputModelEnsembleBenchmark",
+    "PSDMultiOutputModelEnsembleBenchmark",
     "MultiLevelCosineBenchmark",
-    "ChemicalReactionBenchmark",
-    "LotkaVolterraBenchmark",
     "LotkaVolterraOEDBenchmark",
-    "CoupledSpringsBenchmark",
-    "HastingsEcologyBenchmark",
+    # Inference
     "PyApproxPaperAdvectionDiffusionKLEInversionBenchmark",
+    # Operator
     "TransientViscousBurgers1DOperatorBenchmark",
     "SteadyDarcy2DOperatorBenchmark",
+    # MISC
+    "LotkaVolterraBenchmark",
+    "ChemicalReactionBenchmark",
+    "CoupledSpringsBenchmark",
+    "HastingsEcologyBenchmark",
+    "PistonBenchmark",
+    "WingWeightBenchmark",
     "NonlinearSystemOfEquationsBenchmark",
 ]

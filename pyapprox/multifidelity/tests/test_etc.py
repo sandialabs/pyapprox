@@ -2,7 +2,9 @@ import unittest
 
 import numpy as np
 
-from pyapprox.benchmarks.multifidelity_benchmarks import TunableModelEnsemble
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    TunableModelEnsembleBenchmark,
+)
 from pyapprox.multifidelity.etc import AETCBLUE
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -26,11 +28,11 @@ class TestETC(unittest.TestCase):
     def _setup_model_ensemble_tunable(
         shifts=None, angle=np.pi / 4, bkd=NumpyMixin
     ):
-        example = TunableModelEnsemble(angle, shifts, bkd)
-        cov = example.covariance()
+        benchmark = TunableModelEnsembleBenchmark(angle, bkd, shifts)
+        cov = benchmark.covariance()
         costs = 10.0 ** (-bkd.arange(cov.shape[0]))
         # costs = bkd.logspace(0, -1, cov.shape[0])
-        return example.models(), cov, costs, example.variable()
+        return benchmark.models(), cov, costs, benchmark.prior()
 
     def test_AETC_optimal_loss(self):
         """

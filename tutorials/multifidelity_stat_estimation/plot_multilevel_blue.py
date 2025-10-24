@@ -85,7 +85,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import mathrm_labels
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble,
+    PolynomialModelEnsembleBenchmark,
 )
 from pyapprox.multifidelity.factory import (
     get_estimator,
@@ -101,7 +101,7 @@ from pyapprox.util.backends.torch import TorchMixin
 # Second, plot the variance reduction of multi-fidelity estimators that do not assume known low-fidelity means. The code below repeatedly doubles the number of low-fidelity samples according to the initial allocation defined by nsample_ratios_base=[2,4,8,16].
 
 bkd = TorchMixin
-benchmark = PolynomialModelEnsemble(backend=bkd)
+benchmark = PolynomialModelEnsembleBenchmark(backend=bkd)
 
 nmodels = 5
 cov = benchmark.covariance()

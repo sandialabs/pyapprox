@@ -497,7 +497,7 @@ class Model(ABC):
 
         Returns
         -------
-        bool
+        flag : bool
             True if apply_jacobian is implemented, False otherwise.
         """
         return False
@@ -508,7 +508,7 @@ class Model(ABC):
 
         Returns
         -------
-        bool
+        flag : bool
             True if jacobian is implemented, False otherwise.
         """
         return False
@@ -519,7 +519,7 @@ class Model(ABC):
 
         Returns
         -------
-        bool
+        flag : bool
             True if apply_hessian is implemented, False otherwise.
         """
         return False
@@ -530,7 +530,7 @@ class Model(ABC):
 
         Returns
         -------
-        bool
+        flag : bool
             True if hessian is implemented, False otherwise.
         """
         return False
@@ -543,7 +543,7 @@ class Model(ABC):
 
         Returns
         -------
-        bool
+        flag : bool
             True if apply_weighted_hessian is implemented, False otherwise.
         """
         return False
@@ -556,7 +556,7 @@ class Model(ABC):
 
         Returns
         -------
-        bool
+        flag : bool
             True if weighted_hessian is implemented, False otherwise.
         """
         return False

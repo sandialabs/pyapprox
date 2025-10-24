@@ -28,12 +28,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.benchmarks.multifidelity_benchmarks import (
-    PolynomialModelEnsemble,
+    PolynomialModelEnsembleBenchmark,
 )
 from pyapprox.multifidelity.factory import get_estimator, multioutput_stats
 from pyapprox.util.misc import covariance_to_correlation
 from pyapprox.util.visualization import mathrm_label
-from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.util.backends.torch import TorchMixin as bkd
 
 np.random.seed(1)
 
@@ -42,8 +42,7 @@ np.random.seed(1)
 # that is the exact model covariance. We will use MFMC because the optimal sample allocation can be obtained analytically which speeds up this tutorial. However other estimators can be used. Also note that if using MFMC to estimate variance or other stats its allocation it still uses the allocation that is only guaranteed to be optimal when estimating the mean. This is not true of any other estimator except MLMC.
 target_cost = 100
 est_name = "mfmc"
-bkd = TorchMixin
-benchmark = PolynomialModelEnsemble(nmodels=3, backend=TorchMixin)
+benchmark = PolynomialModelEnsembleBenchmark(backend=bkd, nmodels=3)
 costs = bkd.array([1, 0.1, 0.05])
 
 stat_type = "mean"
@@ -213,7 +212,7 @@ for npilot_samples in npilot_samples_list:
         compute_mse(
             build_acv,
             benchmark.models(),
-            benchmark.variable(),
+            benchmark.prior(),
             target_cost,
             npilot_samples,
             False,
@@ -260,7 +259,7 @@ for npilot_samples in npilot_samples_list:
         compute_mse(
             build_acv,
             benchmark.models(),
-            benchmark.variable(),
+            benchmark.prior(),
             target_cost - pilot_cost,
             npilot_samples,
             False,
