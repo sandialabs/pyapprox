@@ -23,7 +23,7 @@ from pyapprox.pde.collocation.functions import (
     TransientOperatorMixin,
 )
 
-from pyapprox.pde.collocation.timeintegration import TransientNewtonResidual
+from pyapprox.pde.timeintegration import TransientNewtonResidual
 from pyapprox.util.newton import NewtonResidual
 from pyapprox.pde.collocation.boundaryconditions import (
     BoundaryOperator,

@@ -364,7 +364,7 @@ The mathematical formulation of the ODE residual is implemented in the ``NonLine
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin as bkd
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     TransientNewtonResidual,
     BackwardEulerResidual,
     ImplicitTimeIntegrator,
@@ -372,7 +372,7 @@ from pyapprox.pde.collocation.timeintegration import (
     TimeIntegratorNewtonResidual,
 )
 from pyapprox.util.newton import ParameterizedNewtonResidualMixin
-from pyapprox.pde.collocation.adjoint import TransientAdjointModel
+from pyapprox.pde.adjoint import TransientAdjointModel
 
 
 class NonLinearDecoupledODE(

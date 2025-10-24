@@ -82,7 +82,7 @@ from pyapprox.pde.collocation.solvers import (
     TransientForwardCollocationModelFromPhysics,
     SplitPhysicsTimeIntegratorNewtonResidual,
 )
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     BackwardEulerResidual,
     CrankNicholsonResidual,
     TimeIntegratorNewtonResidual,

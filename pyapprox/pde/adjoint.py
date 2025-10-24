@@ -10,7 +10,7 @@ from pyapprox.util.newton import (
     AdjointFunctional,
     AdjointSolver,
 )
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     TransientAdjointFunctional,
     TimeIntegratorNewtonResidual,
     ImplicitTimeIntegrator,

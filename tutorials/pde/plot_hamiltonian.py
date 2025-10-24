@@ -120,7 +120,7 @@ plt.show()
 
 # %%
 from pyapprox.util.newton import ParameterizedNewtonResidualMixin
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     TransientNewtonResidual,
     ImplicitTimeIntegrator,
     BackwardEulerResidual,

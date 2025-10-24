@@ -235,7 +235,7 @@ class DOptimalQuantileCriterion(
         )
 
 
-from pyapprox.pde.collocation.adjoint import SteadyAdjointModel
+from pyapprox.pde.adjoint import SteadyAdjointModel
 from pyapprox.util.newton import (
     NewtonResidual,
     ParameterizedNewtonResidualMixin,

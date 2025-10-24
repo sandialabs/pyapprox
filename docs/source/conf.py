@@ -51,8 +51,8 @@ extensions += [
     "IPython.sphinxext.ipython_directive",
 ]
 
-# TODO: disable until can resolve error it causes
-extensions += ["sphinx_automodapi.automodapi"]
+# TODO: uncomment below to document classes and functions
+# extensions += ["sphinx_automodapi.automodapi"]
 
 extensions += ["sphinx_gallery.gen_gallery"]
 

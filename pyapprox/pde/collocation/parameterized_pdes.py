@@ -6,12 +6,12 @@ from scipy.special import beta as beta_fn
 
 from pyapprox.util.backends.template import Array, BackendMixin
 from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.pde.collocation.adjoint import (
+from pyapprox.pde.adjoint import (
     TransientAdjointFunctional,
     AdjointFunctional,
     SteadyAdjointModel,
 )
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     TimeIntegratorNewtonResidual,
     BackwardEulerResidual,
 )

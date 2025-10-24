@@ -22,7 +22,7 @@ from pyapprox.surrogates.univariate.orthopoly import (
 )
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from scipy import stats
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     RK4,
     HeunResidual,
     BackwardEulerResidual,

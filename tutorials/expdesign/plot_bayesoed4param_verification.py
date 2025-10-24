@@ -15,7 +15,7 @@ The convergence rate analysis is critical for validating the numerical implement
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyMixin as bkd
-from pyapprox.expdesign.optbayes_benchmarks import (
+from pyapprox.expdesign.bayesoed_benchmarks import (
     LinearGaussianBayesianOEDBenchmark,
     BayesianKLOEDDiagnostics,
 )

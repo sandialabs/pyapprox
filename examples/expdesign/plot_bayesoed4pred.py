@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyMixin as bkd
 from pyapprox.benchmarks import LotkaVolterraOEDBenchmark
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.expdesign.optbayes import (
+from pyapprox.expdesign.bayesoed import (
     BayesianOEDForPrediction,
     IndependentGaussianOEDInnerLoopLogLikelihood,
     OEDStandardDeviationMeasure,

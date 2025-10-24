@@ -21,7 +21,7 @@ from pyapprox.benchmarks import (
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.util.newton import NewtonSolver
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     BackwardEulerResidual,
     ForwardEulerResidual,
     CrankNicholsonResidual,

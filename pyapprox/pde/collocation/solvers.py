@@ -15,11 +15,11 @@ from pyapprox.pde.collocation.functions import (
     OrthogonalCoordinateCollocationBasis,
 )
 from pyapprox.util.newton import NewtonSolver
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     TimeIntegratorNewtonResidual,
     BackwardEulerResidual,
 )
-from pyapprox.pde.collocation.adjoint import (
+from pyapprox.pde.adjoint import (
     TransientAdjointFunctional,
     TransientAdjointModel,
     SteadyAdjointModel,

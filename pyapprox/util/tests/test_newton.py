@@ -13,7 +13,7 @@ from pyapprox.util.newton import (
     BisectionSearch,
     BoundedNewtonResidual,
 )
-from pyapprox.pde.collocation.adjoint import (
+from pyapprox.pde.adjoint import (
     SteadyAdjointModelFixedInitialIterate,
 )
 from pyapprox.pde.collocation.parameterized_pdes import (

@@ -12,7 +12,7 @@ from pyapprox.pde.collocation.parameterized_pdes import (
     SteadyShallowShelfModel2D,
     PyApproxPaperAdvectionDiffusionKLEInversionModel,
 )
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     BackwardEulerResidual,
 )
 from pyapprox.util.newton import (

@@ -31,7 +31,7 @@ from pyapprox.surrogates.gaussianprocess.activelearning import (
     SamplingScheduleFromList,
 )
 from pyapprox.bayes.metropolis import MetropolisMCMCVariable
-from pyapprox.expdesign.optbayes import (
+from pyapprox.expdesign.bayesoed import (
     BruteForceKLBayesianOED,
     BayesianOEDDataGenerator,
     IndependentGaussianOEDInnerLoopLogLikelihood,

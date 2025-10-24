@@ -47,9 +47,9 @@ import sys
 import numpy as np
 from pyapprox.util.backends.template import Array
 from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.pde.collocation.adjoint import TransientAdjointFunctional
+from pyapprox.pde.adjoint import TransientAdjointFunctional
 from pyapprox.pde.collocation.parameterized_pdes import ShallowWaterWaveModel
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     BackwardEulerResidual,
     SymplecticMidpointResidual,
     CrankNicholsonResidual,

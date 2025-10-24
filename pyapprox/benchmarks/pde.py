@@ -15,7 +15,7 @@ from pyapprox.benchmarks.base import (
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.wrappers import ChangeModelSignWrapper
 from pyapprox.interface.model import Model
-from pyapprox.pde.collocation.adjoint import (
+from pyapprox.pde.adjoint import (
     AdjointFunctional,
     TransientAdjointFunctional,
 )
@@ -43,7 +43,7 @@ from pyapprox.pde.collocation.mesh_transforms import (
 )
 from pyapprox.pde.collocation.basis import ChebyshevCollocationBasis2D
 from pyapprox.util.newton import NewtonSolver
-from pyapprox.pde.collocation.timeintegration import CrankNicholsonResidual
+from pyapprox.pde.timeintegration import CrankNicholsonResidual
 from pyapprox.bayes.likelihood import LogLikelihoodFromModel, LogLikelihood
 
 

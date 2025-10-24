@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.util.misc import hash_array
-from pyapprox.expdesign.optbayes_benchmarks import (
+from pyapprox.expdesign.bayesoed_benchmarks import (
     LinearGaussianBayesianOEDBenchmark,
     LinearGaussianBayesianOEDForPredictionBenchmark,
     NonLinearGaussianBayesianOEDForPredictionBenchmark,
@@ -20,7 +20,7 @@ from pyapprox.expdesign.optbayes_benchmarks import (
     ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation,
     ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation,
 )
-from pyapprox.expdesign.optbayes import (
+from pyapprox.expdesign.bayesoed import (
     Evidence,
     LogEvidence,
     KLBayesianOED,

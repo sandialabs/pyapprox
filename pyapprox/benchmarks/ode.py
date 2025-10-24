@@ -10,7 +10,7 @@ from pyapprox.util.newton import (
     ParameterizedNewtonResidualMixin,
     NewtonSolver,
 )
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     TransientNewtonResidual,
     TransientSingleStateFinalTimeFunctional,
     Functional,
@@ -19,7 +19,7 @@ from pyapprox.pde.collocation.timeintegration import (
     TransientMSEAdjointFunctional,
     TransientObservationFunctional,
 )
-from pyapprox.pde.collocation.adjoint import (
+from pyapprox.pde.adjoint import (
     TransientAdjointModel,
     TimeIntegratorNewtonResidual,
 )

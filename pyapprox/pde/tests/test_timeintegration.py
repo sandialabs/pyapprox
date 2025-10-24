@@ -7,7 +7,7 @@ import numpy as np
 from pyapprox.util.backends.template import Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     TransientNewtonResidual,
     BackwardEulerResidual,
     SymplecticMidpointResidual,
@@ -18,7 +18,7 @@ from pyapprox.pde.collocation.timeintegration import (
     TransientAdjointFunctional,
     TimeIntegratorNewtonResidual,
 )
-from pyapprox.pde.collocation.adjoint import TransientAdjointModel
+from pyapprox.pde.adjoint import TransientAdjointModel
 from pyapprox.util.newton import ParameterizedNewtonResidualMixin
 
 

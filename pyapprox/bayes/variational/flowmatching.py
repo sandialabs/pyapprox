@@ -10,7 +10,7 @@ from pyapprox.variables.joint import (
 )
 from pyapprox.variables.marginals import UniformMarginal
 from pyapprox.util.newton import NewtonSolver
-from pyapprox.pde.collocation.timeintegration import (
+from pyapprox.pde.timeintegration import (
     TransientNewtonResidual,
     ImplicitTimeIntegrator,
     TimeIntegratorNewtonResidual,

@@ -48,7 +48,7 @@ from pyapprox.bayes.laplace import (
     GaussianPushForward,
     _compute_expected_kl_divergence,
 )
-from pyapprox.expdesign.optbayes import (
+from pyapprox.expdesign.bayesoed import (
     BayesianOED,
     KLBayesianOED,
     BayesianOEDForPrediction,
