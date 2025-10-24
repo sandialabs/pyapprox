@@ -19,7 +19,7 @@ from pyapprox.util.visualization import (
     _turn_off_3d_axes,
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.bayes.likelihood import (
+from pyapprox.inference.likelihood import (
     ModelBasedIndependentGaussianLogLikelihood,
 )
 from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule

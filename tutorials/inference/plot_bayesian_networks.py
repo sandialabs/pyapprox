@@ -13,8 +13,8 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
-from pyapprox.bayes.gaussian_network import (
+from pyapprox.inference.laplace import DenseMatrixLaplacePosteriorApproximation
+from pyapprox.inference.gaussian_network import (
     plot_hierarchical_network,
     plot_peer_network,
     plot_diverging_network,

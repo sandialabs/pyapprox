@@ -33,9 +33,9 @@ from scipy import stats
 import matplotlib.pyplot as plt
 
 from pyapprox.variables.joint import IndependentMarginalsVariable
-from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
+from pyapprox.inference.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
-from pyapprox.bayes.gaussian_network import (
+from pyapprox.inference.gaussian_network import (
     get_total_degree_polynomials,
     plot_1d_lvn_approx,
     GaussianNetwork,

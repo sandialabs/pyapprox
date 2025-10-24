@@ -99,14 +99,14 @@ from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
     update_pdf_contourf_plots,
 )
-from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
+from pyapprox.inference.likelihood import ModelBasedGaussianLogLikelihood
 from pyapprox.interface.model import (
     DenseMatrixLinearModel,
     ModelFromSingleSampleCallable,
 )
 from pyapprox.surrogates.affine.basis import TensorProductQuadratureRule
 from pyapprox.surrogates.univariate.orthopoly import GaussQuadratureRule
-from pyapprox.bayes.variational.elbo import (
+from pyapprox.inference.variational.elbo import (
     IndependentBetaVariationalPosterior,
     VariationalInverseProblem,
 )

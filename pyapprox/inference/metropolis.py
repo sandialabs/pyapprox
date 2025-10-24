@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 
 from pyapprox.variables.joint import JointVariable
 from pyapprox.analysis.visualize import setup_2d_cross_section_axes
-from pyapprox.bayes.hmc import hmc
-from pyapprox.bayes.likelihood import LogLikelihood, LogUnNormalizedPosterior
+from pyapprox.inference.hmc import hmc
+from pyapprox.inference.likelihood import LogLikelihood, LogUnNormalizedPosterior
 from pyapprox.util.backends.template import Array
 from pyapprox.util.backends.numpy import NumpyMixin
 

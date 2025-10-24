@@ -43,7 +43,7 @@ from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
 )
 from pyapprox.interface.model import Model, DenseMatrixLinearModel
-from pyapprox.bayes.laplace import (
+from pyapprox.inference.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
     GaussianPushForward,
     _compute_expected_kl_divergence,

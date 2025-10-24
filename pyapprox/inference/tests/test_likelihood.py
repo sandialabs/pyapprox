@@ -9,7 +9,7 @@ from pyapprox.interface.model import (
     DenseMatrixLinearModel,
     QuadraticMatrixModel,
 )
-from pyapprox.bayes.likelihood import (
+from pyapprox.inference.likelihood import (
     ModelBasedGaussianLogLikelihood,
     ModelBasedIndependentGaussianLogLikelihood,
     IndependentExponentialLogLikelihood,
@@ -18,7 +18,7 @@ from pyapprox.bayes.likelihood import (
     MultinomialLogLikelihood,
     LogLikelihoodFromModel,
 )
-from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
+from pyapprox.inference.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
     DirichletVariable,

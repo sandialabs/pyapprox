@@ -104,13 +104,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from pyapprox.bayes.metropolis import MetropolisMCMCVariable
-from pyapprox.bayes.likelihood import ExponentialQuarticLogLikelihoodModel
+from pyapprox.inference.metropolis import MetropolisMCMCVariable
+from pyapprox.inference.likelihood import ExponentialQuarticLogLikelihoodModel
 from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
-from pyapprox.bayes.likelihood import LogUnNormalizedPosterior
+from pyapprox.inference.likelihood import LogUnNormalizedPosterior
 from pyapprox.util.visualization import _turn_off_3d_axes
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.visualization import get_meshgrid_function_data

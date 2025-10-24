@@ -5,11 +5,11 @@ from scipy import stats
 import matplotlib.pyplot as plt
 
 from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.bayes.variational.gan import (
+from pyapprox.inference.variational.gan import (
     LogisticGenerativeAdvesarialModel,
     GenerativeAdvesarialGradientDescent,
 )
-from pyapprox.bayes.laplace import (
+from pyapprox.inference.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
     DenseMatrixLaplaceApproximationForPrediction,
     GaussianPushForward,

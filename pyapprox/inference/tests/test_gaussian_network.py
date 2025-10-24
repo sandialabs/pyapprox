@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import networkx as nx
 
-from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
+from pyapprox.inference.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.variables.gaussian import (
     joint_density_from_linear_conditional_relationship,
     convert_gaussian_to_canonical_form,
@@ -11,7 +11,7 @@ from pyapprox.variables.gaussian import (
     multiply_gaussian_densities_in_compact_canonical_form,
     convert_gaussian_from_canonical_form,
 )
-from pyapprox.bayes.gaussian_network import (
+from pyapprox.inference.gaussian_network import (
     get_var_ids_to_eliminate_from_node_query,
     get_var_ids_to_eliminate,
     GaussianNetwork,

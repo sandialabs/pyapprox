@@ -20,7 +20,7 @@ from pyapprox.optimization.risk import (
     IndependentGaussianExactKLDivergence,
 )
 from pyapprox.expdesign.sequences import LowDiscrepancySequence
-from pyapprox.bayes.likelihood import ModelBasedLogLikelihoodMixin
+from pyapprox.inference.likelihood import ModelBasedLogLikelihoodMixin
 from pyapprox.optimization.minimize import (
     MultiStartOptimizer,
     OptimizerIterateGenerator,

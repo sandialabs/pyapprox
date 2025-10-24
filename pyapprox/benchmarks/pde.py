@@ -44,7 +44,7 @@ from pyapprox.pde.collocation.mesh_transforms import (
 from pyapprox.pde.collocation.basis import ChebyshevCollocationBasis2D
 from pyapprox.util.newton import NewtonSolver
 from pyapprox.pde.timeintegration import CrankNicholsonResidual
-from pyapprox.bayes.likelihood import LogLikelihoodFromModel, LogLikelihood
+from pyapprox.inference.likelihood import LogLikelihoodFromModel, LogLikelihood
 
 
 class PointwiseObservationFunctional(AdjointFunctional):

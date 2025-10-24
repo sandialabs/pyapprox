@@ -12,7 +12,7 @@ from pyapprox.surrogates.affine.basis import (
 )
 from scipy.optimize import LinearConstraint
 from pyapprox.optimization.minimize import Constraint
-from pyapprox.bayes.likelihood import LogLikelihood
+from pyapprox.inference.likelihood import LogLikelihood
 
 
 class SingleModelBenchmark(ABC):

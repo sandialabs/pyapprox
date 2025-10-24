@@ -30,7 +30,7 @@ from scipy import stats
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.model import Model, SingleSampleModel
-from pyapprox.bayes.likelihood import IndependentGaussianLogLikelihood
+from pyapprox.inference.likelihood import IndependentGaussianLogLikelihood
 from pyapprox.optimization.minimize import (
     Constraint,
     SampleAverageMean,
@@ -63,7 +63,7 @@ class OEDOuterLoopLogLikelihoodMixin(ABC):
         self._shapes = shapes
 
     def set_artificial_observations(self, obs: Array):
-        # Unlike likelihoods from pyapprox.bayes.likelihood, which take
+        # Unlike likelihoods from pyapprox.inference.likelihood, which take
         # obs and shapes with different shapes, obs and shapes passed to
         # OED likelihoods require obs and shapes with the same shape
         if obs.shape != self._shapes.shape:
@@ -211,7 +211,7 @@ class OEDInnerLoopLogLikelihoodMixin:
         self._shapes = shapes
 
     def set_artificial_observations(self, obs: Array):
-        # Unlike likelihoods from pyapprox.bayes.likelihood, which take
+        # Unlike likelihoods from pyapprox.inference.likelihood, which take
         # obs and shapes with different shapes, obs and shapes passed to
         # OED likelihoods require obs and shapes with the same shape
         if obs.ndim != 2:

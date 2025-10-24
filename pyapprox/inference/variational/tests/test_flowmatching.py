@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.bayes.variational.flowmatching import (
+from pyapprox.inference.variational.flowmatching import (
     BasisExpansionContinuousNormalizingFlow,
     ContinuousNormalizingFlow,
     VelocityField,
@@ -15,7 +15,7 @@ from pyapprox.bayes.variational.flowmatching import (
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.marginals import GaussianMarginal, UniformMarginal
-from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
+from pyapprox.inference.laplace import DenseMatrixLaplacePosteriorApproximation
 from pyapprox.surrogates.affine.linearsystemsolvers import LstSqSolver
 from pyapprox.surrogates.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
@@ -28,7 +28,7 @@ from pyapprox.pde.timeintegration import (
     BackwardEulerResidual,
 )
 from pyapprox.surrogates.affine.basisexp import PolynomialChaosExpansion
-from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
+from pyapprox.inference.likelihood import ModelBasedGaussianLogLikelihood
 from pyapprox.interface.model import DenseMatrixLinearModel
 
 # from pyapprox.util.print_wrapper import *

@@ -12,7 +12,7 @@ from pyapprox.variables.gaussian import (
 )
 from pyapprox.interface.model import DenseMatrixLinearModel
 from pyapprox.interface.wrappers import ChangeModelSignWrapper
-from pyapprox.bayes.laplace import (
+from pyapprox.inference.laplace import (
     GaussianPushForward,
     DenseMatrixLaplacePosteriorApproximation,
     DenseMatrixLaplaceApproximationForPrediction,
@@ -23,7 +23,7 @@ from pyapprox.bayes.laplace import (
     BetaConjugatePriorPosterior,
     DirichletConjugatePriorPosterior,
 )
-from pyapprox.bayes.likelihood import (
+from pyapprox.inference.likelihood import (
     LogUnNormalizedPosterior,
     ModelBasedGaussianLogLikelihood,
     BernoulliLogLikelihood,

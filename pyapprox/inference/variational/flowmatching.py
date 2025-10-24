@@ -2,7 +2,7 @@ from typing import Optional, Tuple
 from abc import abstractmethod, ABC
 
 from pyapprox.util.backends.template import BackendMixin, Array
-from pyapprox.bayes.variational.flows import Flow
+from pyapprox.inference.variational.flows import Flow
 from pyapprox.variables.joint import (
     JointVariable,
     IndependentGroupsVariable,
@@ -19,7 +19,7 @@ from pyapprox.pde.timeintegration import (
 )
 from pyapprox.surrogates.affine.basisexp import BasisExpansion
 from pyapprox.interface.model import Model
-from pyapprox.bayes.likelihood import ModelBasedLogLikelihoodMixin
+from pyapprox.inference.likelihood import ModelBasedLogLikelihoodMixin
 from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )

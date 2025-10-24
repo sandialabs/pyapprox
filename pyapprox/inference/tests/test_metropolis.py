@@ -8,14 +8,14 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.bayes.metropolis import (
+from pyapprox.inference.metropolis import (
     MetropolisMCMCVariable,
     compute_mvn_cholesky_based_data,
     mvn_log_pdf,
 )
-from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
-from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
-from pyapprox.bayes.tests.test_likelihood import Linear1DRegressionModel
+from pyapprox.inference.laplace import DenseMatrixLaplacePosteriorApproximation
+from pyapprox.inference.likelihood import ModelBasedGaussianLogLikelihood
+from pyapprox.inference.tests.test_likelihood import Linear1DRegressionModel
 
 
 def _setup_gaussian_linear_inverse_problem(

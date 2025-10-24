@@ -33,12 +33,12 @@ from pyapprox.expdesign.bayesoed import (
     OEDAVaRDeviationMeasure,
     BruteForceKLBayesianOED,
 )
-from pyapprox.bayes.likelihood import (
+from pyapprox.inference.likelihood import (
     ModelBasedIndependentGaussianLogLikelihood,
 )
 from pyapprox.interface.model import ModelFromSingleSampleCallable
 from pyapprox.variables.gaussian import DenseCholeskyMultivariateGaussian
-from pyapprox.bayes.laplace import (
+from pyapprox.inference.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
     GaussianPushForward,
 )
@@ -448,7 +448,7 @@ class TestBayesOED:
         outerloop_shapes = outerloop_loglike._shapes
         for ii in range(obs.shape[1]):
             loglike.set_observations(obs[:, ii : ii + 1])
-            # unlike likelihoods from pyapprox.bayes.likelihood, which take
+            # unlike likelihoods from pyapprox.inference.likelihood, which take
             # obs and shapes with different shapes, obs and shapes passed to
             # OED likelihoods require obs and shapes with the same shape.
             # Thus we only take ii entry for the ith observation

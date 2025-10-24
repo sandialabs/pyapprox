@@ -1,9 +1,9 @@
-"""The :mod:`pyapprox.bayes` module implements a number of popular tools for
+"""The :mod:`pyapprox.inference` module implements a number of popular tools for
 Bayesian Inference.
 """
 
-from pyapprox.bayes.gaussian_network import GaussianNetwork
-from pyapprox.bayes.laplace import (
+from pyapprox.inference.gaussian_network import GaussianNetwork
+from pyapprox.inference.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
     GaussianPushForward,
 )

@@ -19,7 +19,7 @@ from pyapprox.variables.marginals import GaussianMarginal
 from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
-from pyapprox.bayes.variational.flows import (
+from pyapprox.inference.variational.flows import (
     DiscreteFlow,
     ScaleAndShiftFlowLayer,
     RealNVPLayer,
@@ -28,7 +28,7 @@ from pyapprox.bayes.variational.flows import (
 from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
-from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
+from pyapprox.inference.laplace import DenseMatrixLaplacePosteriorApproximation
 
 
 class TestFlows:

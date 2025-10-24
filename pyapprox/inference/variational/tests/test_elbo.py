@@ -8,7 +8,7 @@ from pyapprox.interface.model import (
     ModelFromSingleSampleCallable,
 )
 from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.bayes.variational.elbo import (
+from pyapprox.inference.variational.elbo import (
     VariationalInverseProblem,
     CholeskyGaussianVariationalPosterior,
     IndependentGaussianVariationalPosterior,
@@ -16,12 +16,12 @@ from pyapprox.bayes.variational.elbo import (
     QuadratureRuleLatentVariableGenerator,
     DirichletVariationalPosterior,
 )
-from pyapprox.bayes.likelihood import (
+from pyapprox.inference.likelihood import (
     ModelBasedGaussianLogLikelihood,
     BernoulliLogLikelihood,
     MultinomialLogLikelihood,
 )
-from pyapprox.bayes.laplace import (
+from pyapprox.inference.laplace import (
     DenseMatrixLaplacePosteriorApproximation,
     BetaConjugatePriorPosterior,
     DirichletConjugatePriorPosterior,

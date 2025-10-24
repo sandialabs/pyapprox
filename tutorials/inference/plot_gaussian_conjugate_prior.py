@@ -30,10 +30,10 @@ import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyMixin as bkd
 from pyapprox.interface.model import DenseMatrixLinearModel
 from pyapprox.variables.gaussian import IndependentMultivariateGaussian
-from pyapprox.bayes.likelihood import (
+from pyapprox.inference.likelihood import (
     ModelBasedIndependentGaussianLogLikelihood,
 )
-from pyapprox.bayes.laplace import DenseMatrixLaplacePosteriorApproximation
+from pyapprox.inference.laplace import DenseMatrixLaplacePosteriorApproximation
 
 # Set the seed for reproducibility
 np.random.seed(1)

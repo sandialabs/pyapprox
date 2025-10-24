@@ -30,14 +30,14 @@ from pyapprox.surrogates.gaussianprocess.activelearning import (
     AdaptiveGaussianProcess,
     SamplingScheduleFromList,
 )
-from pyapprox.bayes.metropolis import MetropolisMCMCVariable
+from pyapprox.inference.metropolis import MetropolisMCMCVariable
 from pyapprox.expdesign.bayesoed import (
     BruteForceKLBayesianOED,
     BayesianOEDDataGenerator,
     IndependentGaussianOEDInnerLoopLogLikelihood,
 )
 from pyapprox.util.backends.torch import TorchMixin as bkd
-from pyapprox.bayes.likelihood import LogLikelihoodFromModel
+from pyapprox.inference.likelihood import LogLikelihoodFromModel
 from pyapprox.multifidelity.factory import multioutput_stats
 from pyapprox import multifidelity as mf
 

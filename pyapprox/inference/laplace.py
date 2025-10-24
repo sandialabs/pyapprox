@@ -30,14 +30,14 @@ from pyapprox.util.linalg import (
 )
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.bayes.likelihood import ModelBasedGaussianLogLikelihood
+from pyapprox.inference.likelihood import ModelBasedGaussianLogLikelihood
 from pyapprox.interface.model import DenseMatrixLinearModel
 from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
     GaussianSqrtCovarianceOperator,
     MultivariateGaussian,
 )
-from pyapprox.bayes.likelihood import GaussianLogLikelihood
+from pyapprox.inference.likelihood import GaussianLogLikelihood
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable,
     DirichletVariable,
