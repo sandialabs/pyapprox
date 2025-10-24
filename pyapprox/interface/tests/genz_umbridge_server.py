@@ -2,12 +2,13 @@ import umbridge
 import numpy as np
 
 from pyapprox.benchmarks.genz import GenzModel
+from pyapprox.util.backends.numpy import NumpyMixin
 
 
 class GenzUMBModel(umbridge.Model):
     def __init__(self):
         super().__init__("genz")
-        self._model = GenzModel("product_peak")
+        self._model = GenzModel("product_peak", NumpyMixin)
 
     def get_input_sizes(self, config):
         return [config.get("nvars", 5)]

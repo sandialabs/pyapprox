@@ -243,15 +243,34 @@ def create_active_set_variable_model(
 
 
 class ScipyModelWrapper:
+    """
+    Wrapper for models to interface with SciPy optimizers.
+
+    This class provides an API that takes a sample as a 1D array and returns
+    objects needed by SciPy optimizers. It ensures compatibility between models
+    that use different backends and SciPy optimizers. The wrapper handles
+    conversion of inputs and outputs to NumPy arrays and provides methods for
+    evaluating the model, its Jacobian, Hessian, and Hessian-vector products.
+
+    Parameters
+    ----------
+    model : Model
+        The model to be wrapped. Must be derived from the `Model` class.
+    """
+
     def __init__(self, model):
         """
-        Create a API that takes a sample as a 1D Array and returns
-        the objects needed by scipy optimizers. E.g.
-        jac will return Array
-        even when model accepts and returns arrays associated with a
-        different backend. This function is intended for use with scipy
-        optimizers and so does not need to allow access to other
-        # attributes model may have (unlike ActiveSetVariableModel for example)
+        Initialize the wrapper for the given model.
+
+        Parameters
+        ----------
+        model : Model
+            The model to be wrapped. Must be derived from the `Model` class.
+
+        Raises
+        ------
+        ValueError
+            If the provided model is not derived from the `Model` class.
         """
         self._bkd = model._bkd
         if not issubclass(model.__class__, Model):
@@ -266,12 +285,38 @@ class ScipyModelWrapper:
             setattr(self, attr, getattr(self._model, attr))
 
     def jacobian_implemented(self) -> bool:
+        """
+        Check if the Jacobian is implemented.
+
+        Returns
+        -------
+        jacobian_implemented : bool
+            True if the Jacobian or the apply Jacobian method is implemented, False otherwise.
+        """
         return (
             self._model.jacobian_implemented()
             or self._model.apply_jacobian_implemented()
         )
 
     def _check_sample(self, sample: Array) -> Array:
+        """
+        Validate the input sample and convert it to the backend array.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as a 1D array.
+
+        Returns
+        -------
+        sample : Array
+            Validated and converted sample.
+
+        Raises
+        ------
+        ValueError
+            If the sample is not a 1D array.
+        """
         if sample.ndim != 1:
             raise ValueError(
                 "sample must be a 1D array but has shape {0}".format(
@@ -281,8 +326,19 @@ class ScipyModelWrapper:
         return self._bkd.asarray(sample)
 
     def __call__(self, sample: Array) -> Array:
-        # use copy to avoid warning:
-        # The given NumPy array is not writable ...
+        """
+        Evaluate the model at the given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as a 1D array.
+
+        Returns
+        -------
+        values : Array
+            Model evaluations at the given sample.
+        """
         sample = self._check_sample(np.copy(sample))
         vals = self._model(sample[:, None])
         if vals.shape[0] == 1:
@@ -290,6 +346,24 @@ class ScipyModelWrapper:
         return self._bkd.to_numpy(vals)
 
     def jac(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the model at the given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as a 1D array.
+
+        Returns
+        -------
+        jacobian : Array
+            Jacobian matrix of the model at the given sample.
+
+        Notes
+        -----
+        If the model does not implement the Jacobian method, the Jacobian is computed
+        using the apply Jacobian method.
+        """
         sample = self._check_sample(sample)
         if self._model.jacobian_implemented():
             jac = self._model.jacobian(sample[:, None])
@@ -311,15 +385,46 @@ class ScipyModelWrapper:
         return self._bkd.to_numpy(jac)
 
     def hess(self, sample: Array) -> Array:
+        """
+        Compute the Hessian of the model at the given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as a 1D array.
+
+        Returns
+        -------
+        hessian : Array
+            Hessian matrix of the model at the given sample.
+        """
         sample = self._check_sample(sample)
         return self._bkd.to_numpy(self._model.hessian(sample[:, None]))
 
     def hessp(self, sample: Array, vec: Array) -> Array:
+        """
+        Compute the Hessian-vector product at the given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as a 1D array.
+        vec : Array
+            Vector for the Hessian-vector product. Must be a 1D array.
+
+        Returns
+        -------
+        hessp : Array
+            Hessian-vector product at the given sample.
+
+        Raises
+        ------
+        ValueError
+            If `vec` is not a 1D array.
+        """
         sample = self._check_sample(sample)
         if vec.ndim != 1:
             raise ValueError("vec must be 1D array")
-        # dtype=self._bkd.double_type() is needed because
-        # scipy passes an int8 vector to hessp to check size of hvp
         return self._bkd.to_numpy(
             self._model.apply_hessian(
                 sample[:, None],
@@ -328,6 +433,21 @@ class ScipyModelWrapper:
         )
 
     def weighted_hess(self, sample: Array, weights: Array) -> Array:
+        """
+        Compute the weighted Hessian of the model at the given sample.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as a 1D array.
+        weights : Array
+            Weights for the weighted Hessian.
+
+        Returns
+        -------
+        weighted_hessian : Array
+            Weighted Hessian matrix of the model at the given sample.
+        """
         sample = self._check_sample(sample)
         return self._bkd.to_numpy(
             self._model.weighted_hessian(
@@ -336,19 +456,45 @@ class ScipyModelWrapper:
         )
 
     def __repr__(self) -> str:
+        """
+        Return a string representation of the class.
+
+        Returns
+        -------
+        repr : str
+            String representation of the class, including the wrapped model.
+        """
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
 
 
 class ChangeModelSignWrapper(Model):
     """
-    Change the sign of the values, jacobians etc returned by a model.
+    Wrapper to change the sign of values, Jacobians, and Hessians returned by a model.
 
-    This function is intended for use with scipy
-    optimizers and so does not need to allow access to other
-      attributes model may have (unlike ActiveSetVariableModel for example)
+    This class wraps a given model and modifies its behavior by negating the values,
+    Jacobians, Hessians, and Hessian-vector products returned by the model. It is
+    intended for objectives that should be maximized but must be negated so they can be minimzed.
+
+    Parameters
+    ----------
+    model : Model
+        The model to be wrapped. Must be derived from the `Model` class.
     """
 
     def __init__(self, model: Model):
+        """
+        Initialize the wrapper for the given model.
+
+        Parameters
+        ----------
+        model : Model
+            The model to be wrapped. Must be derived from the `Model` class.
+
+        Raises
+        ------
+        ValueError
+            If the provided model is not derived from the `Model` class.
+        """
         super().__init__(model._bkd)
         if not issubclass(model.__class__, Model):
             raise ValueError("model must be derived from Model")
@@ -368,7 +514,7 @@ class ChangeModelSignWrapper(Model):
 
         Returns
         -------
-        nqoi: int
+        nqoi : int
             The number of quantities of interest.
         """
         return self._model.nqoi()
@@ -379,28 +525,105 @@ class ChangeModelSignWrapper(Model):
 
         Returns
         -------
-        nvars: int
+        nvars : int
             The number of variables.
         """
         return self._model.nvars()
 
     def _values(self, samples: Array) -> Array:
+        """
+        Evaluate the model at the given samples and negate the returned values.
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples as an array.
+
+        Returns
+        -------
+        values : Array
+            Negated values returned by the model.
+        """
         vals = -self._model(samples)
         return vals
 
     def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the model at the given sample and negate the returned values.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as an array.
+
+        Returns
+        -------
+        jacobian : Array
+            Negated Jacobian matrix returned by the model.
+        """
         return -self._model.jacobian(sample)
 
     def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
+        """
+        Apply the Jacobian to a vector and negate the returned values.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as an array.
+        vec : Array
+            Vector to apply the Jacobian to.
+
+        Returns
+        -------
+        applied_jacobian : Array
+            Negated result of applying the Jacobian to the vector.
+        """
         return -self._model.apply_jacobian(sample, vec)
 
     def _hessian(self, sample: Array) -> Array:
+        """
+        Compute the Hessian of the model at the given sample and negate the returned values.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as an array.
+
+        Returns
+        -------
+        hessian : Array
+            Negated Hessian matrix returned by the model.
+        """
         return -self._model.hessian(sample)
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
+        """
+        Apply the Hessian to a vector and negate the returned values.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample as an array.
+        vec : Array
+            Vector to apply the Hessian to.
+
+        Returns
+        -------
+        applied_hessian : Array
+            Negated result of applying the Hessian to the vector.
+        """
         return -self._model.apply_hessian(sample, vec)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the class.
+
+        Returns
+        -------
+        repr : str
+            String representation of the class, including the wrapped model.
+        """
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
 
 

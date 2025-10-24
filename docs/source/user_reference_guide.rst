@@ -6,12 +6,11 @@ The following documents the high-level functions that a typical user will may wa
    The following documents all functions/classes etc that are listed in
    __all__ of the submodule __init__.py files
 
-.. automodapi:: pyapprox.analysis
+
+  
+.. automodapi:: pyapprox.interface
    :no-inheritance-diagram:
 
-.. automodapi:: pyapprox.inference
-   :no-inheritance-diagram:
-   
 
 .. automodapi:: pyapprox.benchmarks
    :no-inheritance-diagram:
@@ -20,25 +19,24 @@ The following documents the high-level functions that a typical user will may wa
 .. automodapi:: pyapprox.expdesign
    :no-inheritance-diagram:
 
+.. 
+   .. automodapi:: pyapprox.analysis
+      :no-inheritance-diagram:
 
-.. automodapi:: pyapprox.interface
-   :no-inheritance-diagram:
+   .. automodapi:: pyapprox.inference
+      :no-inheritance-diagram:
 
-.. automodapi:: pyapprox.multifidelity
-   :no-inheritance-diagram:
+   .. automodapi:: pyapprox.multifidelity
+      :no-inheritance-diagram:
 
-      
-.. automodapi:: pyapprox.optimization
-   :no-inheritance-diagram:
+   .. automodapi:: pyapprox.optimization 
+      :no-inheritance-diagram:
 
+   .. automodapi:: pyapprox.surrogates
+      :no-inheritance-diagram:
 
-.. automodapi:: pyapprox.surrogates
-   :no-inheritance-diagram:
+   .. automodapi:: pyapprox.util
+      :no-inheritance-diagram:
 
-
-.. automodapi:: pyapprox.util
-   :no-inheritance-diagram:
-
-
-.. automodapi:: pyapprox.variables
-   :no-inheritance-diagram:
+   .. automodapi:: pyapprox.variables
+      :no-inheritance-diagram:
