@@ -495,7 +495,16 @@ class TestFiniteElements(unittest.TestCase):
 
         vals = basis.project(lambda x: x[0] ** 2)
         integral = integrate.assemble(basis, y=basis.interpolate(vals))
-        assert np.allclose(integral, 1 / 3)
+        assert np.allclose(integral, 1.0 / 3.0)
+
+        mesh = mesh.with_subdomains({"domain0": lambda x: x[0] > 0.5})
+        subdomain_basis = Basis(mesh, element, elements="domain0")
+        subdomain_integral = integrate.assemble(
+            subdomain_basis,
+            # y=subdomain_basis.interpolate(vals) # also works
+            y=vals,
+        )
+        assert np.allclose(subdomain_integral, 1.0 / 3.0 - 1.0 / 24.0)
 
     def _check_advection_diffusion_reaction(
         self,

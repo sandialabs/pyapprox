@@ -19,6 +19,7 @@ from skfem.models.general import divergence
 from pyapprox.pde.galerkin.util import (
     forcing_linearform,
     vector_forcing_linearform,
+    get_subdomain_basis,
 )
 from pyapprox.pde.galerkin.functions import (
     FEMScalarFunction,
@@ -401,6 +402,9 @@ class Physics(ABC):
 
     def __repr__(self) -> str:
         return "{0}".format(self.__class__.__name__)
+
+    def subdomain_basis(self, subdomain_name: str) -> Basis:
+        return get_subdomain_basis(self._mesh, self._element, subdomain_name)
 
 
 class AdvectionDiffusionReaction(Physics):

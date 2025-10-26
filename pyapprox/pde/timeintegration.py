@@ -123,8 +123,11 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
             raise RuntimeError(f"jac has the wrong shape {jac.shape}")
         return jac
 
+    @staticmethod
     @abstractmethod
-    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
+    def quadrature_samples_weights(
+        times: Array, backend: BackendMixin
+    ) -> Tuple[Array, Array]:
         raise NotImplementedError
 
     def adjoint_initial_condition(
@@ -239,16 +242,19 @@ class ForwardEulerResidual(ExplicitTimeIntegratorNewtonResidual):
         self.native_residual.set_time(self._time)
         return -self._deltat * self.native_residual.param_jacobian(fsol_nm1)
 
-    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
-        node_gen = UnivariateTransientNodeGenerator(self._bkd)
+    @staticmethod
+    def quadrature_samples_weights(
+        times: Array, backend: BackendMixin
+    ) -> Tuple[Array, Array]:
+        node_gen = UnivariateTransientNodeGenerator(backend)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
-            "leftconst", [times[0], times[-1]], node_gen, self._bkd, store=True
+            "leftconst", [times[0], times[-1]], node_gen, backend, store=True
         )(times.shape[0])
         # left const rule does not return value at right end point so adjust
         return (
-            self._bkd.hstack((quadx[0], times[-1])),
-            self._bkd.hstack((quadw[:, 0], self._bkd.zeros((1,)))),
+            backend.hstack((quadx[0], times[-1])),
+            backend.hstack((quadw[:, 0], backend.zeros((1,)))),
         )
 
     def adjoint_offdiag_jacobian(
@@ -279,20 +285,23 @@ class BackwardEulerResidual(TimeIntegratorNewtonResidual):
         self.native_residual.set_time(self._time + self._deltat)
         return -self._deltat * self.native_residual.param_jacobian(fsol_n)
 
-    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
-        node_gen = UnivariateTransientNodeGenerator(self._bkd)
+    @staticmethod
+    def quadrature_samples_weights(
+        times: Array, backend: BackendMixin
+    ) -> Tuple[Array, Array]:
+        node_gen = UnivariateTransientNodeGenerator(backend)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
             "rightconst",
             [times[0], times[-1]],
             node_gen,
-            self._bkd,
+            backend,
             store=True,
         )(times.shape[0])
         # right const rule does not return value at left end point so adjust
         return (
-            self._bkd.hstack((times[0], quadx[0])),
-            self._bkd.hstack((self._bkd.zeros((1,)), quadw[:, 0])),
+            backend.hstack((times[0], quadx[0])),
+            backend.hstack((backend.zeros((1,)), quadw[:, 0])),
         )
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
@@ -382,14 +391,17 @@ class HeunResidual(ExplicitTimeIntegratorNewtonResidual):
         # assert self._bkd.allclose(jac, self._bkd.jacobian(partial(self._state_hack, fsol_n), self._prev_sol))
         return jac.T
 
-    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
-        node_gen = UnivariateTransientNodeGenerator(self._bkd)
+    @staticmethod
+    def quadrature_samples_weights(
+        times: Array, backend: BackendMixin
+    ) -> Tuple[Array, Array]:
+        node_gen = UnivariateTransientNodeGenerator(backend)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
             "linear",
             [times[0], times[-1]],
             node_gen,
-            self._bkd,
+            backend,
             store=True,
         )(times.shape[0])
         return quadx[0], quadw[:, 0]
@@ -420,14 +432,17 @@ class CrankNicholsonResidual(TimeIntegratorNewtonResidual):
             sol.shape[0]
         ) - 0.5 * self._deltat * (next_jac)
 
-    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
-        node_gen = UnivariateTransientNodeGenerator(self._bkd)
+    @staticmethod
+    def quadrature_samples_weights(
+        times: Array, backend: BackendMixin
+    ) -> Tuple[Array, Array]:
+        node_gen = UnivariateTransientNodeGenerator(backend)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
             "linear",
             [times[0], times[-1]],
             node_gen,
-            self._bkd,
+            backend,
             store=True,
         )(times.shape[0])
         return quadx[0], quadw[:, 0]
@@ -483,14 +498,17 @@ class RK4(ExplicitTimeIntegratorNewtonResidual):
             - self._deltat / 6 * (k1_res + 2 * k2_res + 2 * k3_res + k4_res)
         )
 
-    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
-        node_gen = UnivariateTransientNodeGenerator(self._bkd)
+    @staticmethod
+    def quadrature_samples_weights(
+        times: Array, backend: BackendMixin
+    ) -> Tuple[Array, Array]:
+        node_gen = UnivariateTransientNodeGenerator(backend)
         node_gen.set_times(times)
         quadx, quadw = UnivariatePiecewisePolynomialQuadratureRule(
             "quadratic",
             [times[0], times[-1]],
             node_gen,
-            self._bkd,
+            backend,
             store=True,
         )(times.shape[0])
         return quadx[0], quadw[:, 0]
@@ -531,10 +549,13 @@ class SymplecticMidpointResidual(TimeIntegratorNewtonResidual):
             (self._prev_sol + sol) / 2
         )
 
-    def quadrature_samples_weights(self, times) -> Tuple[Array, Array]:
+    @staticmethod
+    def quadrature_samples_weights(
+        times: Array, backend: BackendMixin
+    ) -> Tuple[Array, Array]:
         quadx = times
         deltat = times[1:] - times[:-1]
-        quadw = self._bkd.hstack(
+        quadw = backend.hstack(
             [deltat[0] / 2, (deltat[1:] + deltat[-1:]) / 2, deltat[-1] / 2]
         )
         return quadx, quadw
@@ -547,14 +568,30 @@ class TransientFunctionalMixin:
 
 
 class TransientFunctional(Functional, TransientFunctionalMixin):
-    pass
+    def __call__(self, sol: Array) -> Array:
+        if sol.ndim != 2 or sol.shape[0] != self.nstates():
+            raise ValueError(
+                "sol has the wrong shape: {0} but nstates is {1}".format(
+                    sol.shape, self.nstates()
+                )
+            )
+        val = self._value(sol)
+        if val.ndim != 1 or val.shape[0] != self.nqoi():
+            raise RuntimeError(
+                f"{self} must return a 1D array with shape {(self.nqoi(),)} "
+                f"but had shape {val.shape}"
+            )
+        return val
 
 
 class TransientAdjointFunctional(AdjointFunctional, TransientFunctionalMixin):
     def __call__(self, sol: Array) -> Array:
         if sol.ndim != 2 or sol.shape[0] != self.nstates():
-            print(sol.shape, self.nstates())
-            raise ValueError("sol has the wrong shape")
+            raise ValueError(
+                "sol has the wrong shape: {0} but nstates is {1}".format(
+                    sol.shape, self.nstates()
+                )
+            )
         val = self._value(sol)
         if val.ndim != 1 or val.shape[0] != self.nqoi():
             raise RuntimeError(f"{self} must return a 1D array")
@@ -658,6 +695,8 @@ class TransientObservationFunctional(TransientAdjointFunctional):
         super().__init__(backend)
 
     def observations_from_solution(self, sol: Array) -> Array:
+        # All time observations of first location are stored,
+        # then all time observations from second location etc
         obs = []
         for state_idx, time_idx in zip(
             self._obs_state_indices, self._obs_time_indices

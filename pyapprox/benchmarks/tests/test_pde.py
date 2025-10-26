@@ -10,6 +10,7 @@ from pyapprox.benchmarks.pde import (
     TransientViscousBurgers1DOperatorBenchmark,
     SteadyDarcy2DOperatorBenchmark,
     NonlinearSystemOfEquationsBenchmark,
+    ObstructedAdvectionDiffusionOEDBenchmark,
 )
 from pyapprox.pde.collocation.functions import ScalarFunction
 
@@ -120,6 +121,52 @@ class TestPDEBenchmarks:
         # decomposition mean that we can only achieve consistenty to 4 digits
         assert np.allclose(bkd.max(sol.get_values()), 0.043, atol=1e-3)
         assert np.allclose(bkd.norm(sol.get_values()), 0.406, atol=2e-3)
+
+    def test_obstructed_advection_diffusion_oed_benchmark(self):
+        bkd = self.get_backend()
+        benchmark = ObstructedAdvectionDiffusionOEDBenchmark(bkd)
+        # set number of observations smaller so reference arrays
+        # for regression tests are small
+        benchmark._nobs = 10
+        benchmark._set_obs_model()
+        obs_model = benchmark.observation_model()
+        sample = benchmark.prior().rvs(1)
+
+        # regression test
+        # print(np.array2string(bkd.to_numpy(obs), separator=", "))
+        # fmt: off
+        obs = obs_model(sample)
+        ref_obs = bkd.array(
+            [[0.50404555, 0.86627557, 1.12947464, 0.49326366, 0.90510361, 1.22957678,
+              0.50331619, 0.83547626, 1.07224894, 0.47150367, 0.81459434, 1.07525192,
+              0.44476742, 0.81367648, 1.10492837, 0.34040704, 0.65978668, 0.92981599,
+              0.19935085, 0.37056546, 0.5157221 , 0.4697795 , 0.84763621, 1.14741092,
+              0.42749568, 0.77486119, 1.0534409 , 0.44745031, 0.81736022, 1.10931204]]
+        )
+        assert bkd.allclose(obs, ref_obs)
+
+        # print(
+        #     np.array2string(benchmark.observation_locations(), separator=", ")
+        # )
+        ref_locs = bkd.array(
+            [[0.28571429, 0.41071429, 0.14285714, 0.21428571, 0.33928571, 0.60714286,
+              0.89285714, 0.46428571, 0.60714286, 0.33928571],
+             [0.34375   , 0.1875    , 0.28125   , 0.875     , 0.59375   , 0.28125   ,
+              0.375     , 1.        , 0.96875   , 0.625     ]
+             ]
+        )
+        # fmt: on
+        assert bkd.allclose(benchmark.observation_locations(), ref_locs)
+
+        pred_model = benchmark.prediction_model()
+        qoi = pred_model(sample)
+        # print(np.array2string(bkd.to_numpy(qoi), separator=", "))
+        ref_qoi = bkd.asarray([[0.15857682]])
+        assert bkd.allclose(qoi, ref_qoi)
+
+        # ax = plt.figure().gca()
+        # ax.plot(*benchmark.observation_locations(), "o")
+        # plt.show()
 
 
 class TestTorchPDEBenchmarks(TestPDEBenchmarks, unittest.TestCase):

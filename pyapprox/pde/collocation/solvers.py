@@ -230,7 +230,7 @@ class SplitPhysicsTimeIntegratorNewtonResidual(TimeIntegratorNewtonResidual):
         self._physics = self._time_residual.native_residual
 
     def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
-        return self._time_residual.quadrature_samples_weights(times)
+        return self._time_residual.quadrature_samples_weights(times, self._bkd)
 
     def __call__(self, sol_array: Array) -> Array:
         # called by TimeIntegratorNewtonResidual.__call__ which is called by

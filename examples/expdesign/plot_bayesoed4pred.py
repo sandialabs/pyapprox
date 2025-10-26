@@ -43,11 +43,11 @@ np.random.seed(2)
 # Setup the benchmark
 benchmark = LotkaVolterraOEDBenchmark(backend=bkd)
 # Extract the model from the benchmark
-obs_model = benchmark.model()
+obs_model = benchmark.observation_model()
 # Extract the prediction model from the benchmark
 pred_model = benchmark.prediction_model()
-# Extract the random variable
-prior = benchmark.variable()
+# Extract the random prior
+prior = benchmark.prior()
 
 # %%
 # Plot the ODE states for a Nominal Simulation
@@ -159,7 +159,7 @@ pred_oed.set_data_from_model(
     risk_measure,
     noise_stat,
 )
-pred_oed.set_optimizer(pred_oed.default_optimizer(verbosity=3))
+pred_oed.set_optimizer(pred_oed.default_optimizer(verbosity=0))
 
 # %%
 # Compute the OED
@@ -204,7 +204,7 @@ pred_oed_2.set_data_from_model(
     risk_measure,
     noise_stat,
 )
-pred_oed_2.set_optimizer(pred_oed.default_optimizer(verbosity=3))
+pred_oed_2.set_optimizer(pred_oed.default_optimizer(verbosity=0))
 design_weights_2 = pred_oed_2.compute()
 fig, axs = plt.subplots(1, 2, figsize=(8, 6), sharey=True)
 # Reshape weights so that each row correspond to one of the OED states
@@ -224,5 +224,3 @@ print(pred_oed.objective()(design_weights_2))
 
 print(pred_oed_2.objective()(design_weights))
 print(pred_oed_2.objective()(design_weights_2))
-
-plt.show()

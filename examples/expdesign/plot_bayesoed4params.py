@@ -35,9 +35,9 @@ np.random.seed(1)
 # Setup the benchmark
 benchmark = LotkaVolterraOEDBenchmark(backend=bkd)
 # Extract the model from the benchmark
-obs_model = benchmark.model()
-# Extract the random variable
-prior = benchmark.variable()
+obs_model = benchmark.observation_model()
+# Extract the random prior
+prior = benchmark.prior()
 
 # %%
 # Plot the ODE states for a Nominal Simulation
@@ -64,7 +64,6 @@ for sample in prior.rvs(100).T:
     model_obs_sol = obs_model.forward_solve(sample[:, None])[0]
     for ii in range(3):
         axs[ii + 1].plot(benchmark.solution_times(), model_obs_sol[ii])
-plt.show()
 
 # %%
 # Define the likelihood

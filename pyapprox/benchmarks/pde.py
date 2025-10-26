@@ -11,6 +11,7 @@ from pyapprox.benchmarks.base import (
     SingleModelBayesianInferenceBenchmark,
     OperatorBenchmark,
     SingleModelBenchmark,
+    SingleModelBayesianGoalOrientedOEDBenchmark,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.interface.wrappers import ChangeModelSignWrapper
@@ -43,8 +44,18 @@ from pyapprox.pde.collocation.mesh_transforms import (
 )
 from pyapprox.pde.collocation.basis import ChebyshevCollocationBasis2D
 from pyapprox.util.newton import NewtonSolver
-from pyapprox.pde.timeintegration import CrankNicholsonResidual
+from pyapprox.pde.timeintegration import (
+    CrankNicholsonResidual,
+    BackwardEulerResidual,
+    TransientObservationFunctional,
+)
 from pyapprox.inference.likelihood import LogLikelihoodFromModel, LogLikelihood
+from pyapprox.pde.galerkin.parameterized import (
+    ObstructedAdvectionDiffusion,
+    KLEHyperParameters,
+    FETransientOutputModel,
+    FETransientSubdomainIntegralFunctional,
+)
 
 
 class PointwiseObservationFunctional(AdjointFunctional):
@@ -397,7 +408,7 @@ class SteadyDarcy2DOperatorBenchmark(OperatorBenchmark):
         return basis
 
     def _setup_kle(self):
-        """
+        r"""
         Set up the Karhunen-Loève expansion (KLE) for the permeability field.
 
         Returns
@@ -899,3 +910,211 @@ class NonlinearSystemOfEquationsBenchmark(SingleModelBenchmark):
         self._model = NonlinearSystemOfEquationsModel(
             newton_solver, functional=functional, backend=self._bkd
         )
+
+
+class ObstructedAdvectionDiffusionOEDBenchmark(
+    SingleModelBayesianGoalOrientedOEDBenchmark
+):
+    def __init__(self, backend: BackendMixin):
+        """
+        Initialize the Obstructed Advection-Diffusion OED benchmark.
+
+        Parameters
+        ----------
+        backend : BackendMixin
+            Backend for numerical computations.
+        """
+        self._time_residual_cls = BackwardEulerResidual
+        self._newton_solver = None
+        self._init_time = 0.0
+        self._final_time, self._timestep = self._define_time()
+        self._kle_hyperparams = KLEHyperParameters(0.5, 1.0, np.inf, 10)
+        self._nobs = 200
+        super().__init__(backend)
+
+    def _set_prior(self):
+        """
+        Define the prior distribution for the uncertain variables.
+
+        The prior distribution is comprised of independent standard normals
+        for the KLE coefficients, an independent uniform distribution on [5, 15]
+        for the Reynolds number and independent uniform distributions on
+        [2, 3] dicating the inlet velocity
+        """
+        kle_marginals = [
+            stats.norm(0.0, 1.0) for ii in range(self._kle_hyperparams.nterms)
+        ]
+        inlet_marginals = [stats.uniform(2.0, 1.0) for ii in range(2)]
+        reynolds_marginal = [stats.uniform(5.0, 15.0)]
+        marginals = kle_marginals + inlet_marginals + reynolds_marginal
+        self._prior = IndependentMarginalsVariable(
+            marginals, backend=self._bkd
+        )
+
+    def _define_time(self) -> Tuple[int, int]:
+        """
+        Define the simulation time and timestep.
+
+        Returns
+        -------
+        final_time : int
+            Final simulation time.
+        timestep : int
+            Time step size.
+        """
+        return 1.5, 0.25
+
+    def _obs_time_tuples(self, ntimes: int) -> Tuple[Array, Array]:
+        """
+        Define observation time tuples for the observation model.
+
+        Parameters
+        ----------
+        ntimes : int
+            Number of observation times.
+
+        Returns
+        -------
+        obs_time_tuples : Tuple[Array, Array]
+            Observation time tuples.
+        """
+        # Take 3 measurements at each location (nodes on the mesh)
+        obs_time_indices = self._bkd.arange(ntimes, dtype=int)[[2, 4, 6]]
+        node_indices = self._bkd.asarray(
+            np.random.randint(
+                0, self._obs_model.fe_model().nmesh_pts(), self._nobs
+            )
+        )
+        obs_time_tuples = [(idx, obs_time_indices) for idx in node_indices]
+        return obs_time_tuples
+
+    def _pred_time_tuples(self, ntimes: int) -> Tuple[Array, Array]:
+        """
+        Define prediction time tuples for the prediction model.
+
+        Parameters
+        ----------
+        ntimes : int
+            Number of prediction times.
+
+        Returns
+        -------
+        pred_time_tuples : Tuple[Array, Array]
+            Prediction time tuples.
+        """
+        pred_time_indices = self._bkd.arange(ntimes, dtype=int)[::2]
+        pred_time_tuples = [(1, pred_time_indices)]
+        return pred_time_tuples
+
+    def solution_times(self) -> Array:
+        """
+        Return the solution times for the simulation.
+
+        Returns
+        -------
+        solution_times : Array
+            Array containing the solution times.
+        """
+        return self._times
+
+    def observation_times(self) -> Array:
+        """
+        Return the observation times for the simulation.
+
+        Returns
+        -------
+        observation_times : Array
+            Array containing the observation times.
+        """
+        obs_times = []
+        for time_idx in zip(self._obs_model._functional._obs_time_indices):
+            obs_times.append(self._times[time_idx])
+        return self._bkd.stack(obs_times, axis=0)
+
+    def observation_locations(self) -> Array:
+        """
+        Return the observation spatial locations for the simulation.
+
+        Returns
+        -------
+        locs : Array
+            Array containing the observation locations.
+        """
+        locs = (
+            self._obs_model.fe_model()
+            .mesh()
+            .p[:, self._obs_model._functional._obs_state_indices]
+        )
+        return self._bkd.asarray(locs)
+
+    def prediction_times(self) -> Array:
+        """
+        Return the prediction times for the simulation.
+
+        Returns
+        -------
+        prediction_times : Array
+            Array containing the prediction times.
+        """
+        pred_times = []
+        for time_idx in zip(self._pred_model._functional._obs_time_indices):
+            pred_times.append(self._times[time_idx])
+        return self._bkd.stack(pred_times, axis=0)
+
+    def _set_obs_model(self):
+        """
+        Set up the observation model for the benchmark.
+        """
+        obs_fe_model = ObstructedAdvectionDiffusion(
+            3, 3, self._timestep, self._final_time, self._kle_hyperparams, True
+        )
+        self._obs_model = FETransientOutputModel(obs_fe_model, self._bkd)
+        self._times = self._bkd.linspace(
+            0,
+            self._final_time,
+            int(self._final_time / self._timestep) + 1,
+        )
+        obs_functional = TransientObservationFunctional(
+            self._obs_model.fe_model().nmesh_pts(),
+            self._obs_model.nvars(),
+            self._obs_time_tuples(self._times.shape[0]),
+            backend=self._bkd,
+        )
+        self._obs_model.set_functional(obs_functional)
+
+    def _integrate_snapshot_on_target_subdomain(
+        self, sol: np.ndarray
+    ) -> float:
+        return self._solver.integrate_on_subdomain(sol, "target_subdomain")
+
+    def _set_pred_model(self):
+        """
+        Set up the prediction model for the benchmark.
+
+        Returns
+        -------
+        None
+        """
+        pred_fe_model = ObstructedAdvectionDiffusion(
+            3, 3, self._timestep, self._final_time, self._kle_hyperparams, True
+        )
+
+        self._pred_model = FETransientOutputModel(pred_fe_model, self._bkd)
+        pred_functional = FETransientSubdomainIntegralFunctional(
+            pred_fe_model.nmesh_pts(),
+            pred_fe_model.nparams(),
+            pred_fe_model._physics.subdomain_basis("target_subdomain"),
+            self._bkd,
+        )
+        self._pred_model.set_functional(pred_functional)
+
+    def prediction_model(self) -> FETransientOutputModel:
+        """
+        Return the prediction model for the benchmark.
+
+        Returns
+        -------
+        prediction_model : LotkaVolterraModel
+            The prediction model for the benchmark.
+        """
+        return self._pred_model

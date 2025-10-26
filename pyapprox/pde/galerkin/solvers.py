@@ -4,8 +4,13 @@ import textwrap
 import numpy as np
 from skfem import condense, asm, LinearForm, Functional
 
-from pyapprox.pde.galerkin.util import forcing_linearform
+from pyapprox.pde.galerkin.util import forcing_linearform, integrate
 from pyapprox.pde.galerkin.functions import FEMFunctionTransientMixin
+from pyapprox.pde.timeintegration import (
+    BackwardEulerResidual,
+    TimeIntegratorNewtonResidual,
+)
+from pyapprox.util.backends.template import BackendMixin
 
 
 def newton_solve(
@@ -177,12 +182,27 @@ class TransientPDE:
         self._deltat = deltat
         if tableau_name != "im_beuler1":
             raise NotImplementedError(f"{tableau_name} not implemented")
-
         self._newton_kwargs = None
         self._mass_mat = None
         self._residual_time = None
         self._residual_deltat = None
         self._residual_sol = None
+
+    def _time_residual(
+        self, bkd: BackendMixin
+    ) -> TimeIntegratorNewtonResidual:
+        # currently this class does not use timeintegration stepping.
+        # Until it does provide this function to return time residual
+        # for comptuation of time integrals that require knowing quadrature
+        # weights
+        # bkd must be provided because this class only uses numpy but calling
+        # class will use a backend
+        # residual backend is extracted from physics
+        # so set here
+        self._physics._bkd = bkd
+        time_res = BackwardEulerResidual(self._physics)
+        delattr(self._physics, "_bkd")  # delete attr _bkd
+        return time_res
 
     def _set_physics_time(self, time):
         for fun in self._physics._funs:
@@ -255,13 +275,13 @@ class TransientPDE:
         sols = np.hstack(sols)
         return sols, times
 
-    def _integrate(self, w) -> Array:
-        return w.y
-
     def integrate(self, values: Array) -> float:
-        return Functional(self._integrate).assemble(
-            self._physics._basis, y=values
-        )
+        return integrate(self._physics._basis, values)
+
+    def integrate_on_subdomain(
+        self, values: Array, subdomain_name: str
+    ) -> float:
+        return integrate(self._physics.subdomain_basis(subdomain_name), values)
 
     def L2_error_at_a_single_time(self, exact_sol: Array, fem_sol: Array):
         error = np.sqrt(self.integrate((exact_sol - fem_sol) ** 2))

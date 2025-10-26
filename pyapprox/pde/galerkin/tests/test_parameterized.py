@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+from skfem import Basis
 
 from pyapprox.pde.galerkin.parameterized import (
     OctagonalHelmholtz,
@@ -8,14 +9,66 @@ from pyapprox.pde.galerkin.parameterized import (
     ObstructedStokesFlow,
     KLEHyperParameters,
     ObstructedAdvectionDiffusion,
+    FETransientOutputModel,
+    FETransientSubdomainIntegralFunctional,
+)
+from pyapprox.pde.galerkin.util import (
+    get_mesh,
+    get_element,
+    get_subdomain_basis,
+)
+from pyapprox.pde.timeintegration import (
+    TransientObservationFunctional,
+    CrankNicholsonResidual,
 )
 from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from skfem.visuals.matplotlib import plt
 
 
 class TestParameterizedFiniteElements(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
+
+    def test_FE_transient_subdomain_integral_functional(self):
+        # override mesh to be square domain so we can compute
+        # analytical value of functional from an imposed solution
+        # (not computed with model) that does not require setting
+        # BCs and other attributes. This is a hack to enable easy
+        # testing. DO NOT reuse.
+        mesh = get_mesh([0, 1, 0, 1], 1)
+        mesh = mesh.with_subdomains(
+            {"target_subdomain": lambda x: x[0] >= 1.0 / 2.0}
+        )
+        element = get_element(mesh, 2)
+        basis = Basis(mesh, element)
+        subdomain_basis = get_subdomain_basis(
+            mesh, element, "target_subdomain"
+        )
+        functional = FETransientSubdomainIntegralFunctional(
+            basis.N, 0, subdomain_basis, NumpyMixin
+        )
+        times = np.array([0.0, 0.5, 1.0])
+        # use CrankNicholson so we can exactly integrate qoi which
+        # is linear in time
+        # qoi = \int_{1/2}^1\int_0^1 x^2(t+1) dxdt
+        time_residual = CrankNicholsonResidual
+        functional.set_quadrature_sample_weights(
+            *time_residual.quadrature_samples_weights(
+                np.asarray(times), NumpyMixin
+            )
+        )
+        sols = np.stack(
+            [
+                basis.project(lambda x: (time + 1) * x[0] ** 2)
+                for time in times
+            ],
+            axis=1,
+        )
+        qoi = functional(sols)
+        # qoi = \int_{1/2}^1\int_0^1 x^2(t+1) dxdt
+        exact_qoi = (1.0 / 3.0 - 1.0 / 24.0) * 3 / 2
+        assert np.allclose(qoi, exact_qoi)
 
     def test_octagonal_helmholtz(self):
         model = OctagonalHelmholtz(2, 0, 400)
@@ -339,9 +392,8 @@ class TestParameterizedFiniteElements(unittest.TestCase):
         model.set_params(params)
         sols, times = model.solve()
 
-        print(np.array2string(sols, separator=", "))
-
         # regression test
+        # print(np.array2string(sols, separator=", "))
         ref_sols = np.array(
             [
                 [0.0, 0.00665188],
@@ -389,6 +441,43 @@ class TestParameterizedFiniteElements(unittest.TestCase):
         # ani = model.animate_concentration_snapshots(fig, axs, sols)
         ax = plt.figure().gca()
         model.stokes_model().plot_inlet_velocity_profile(ax)
+
+        # fe models are implemented in python
+        # test wrapper that takes in and outputs arrays from
+        # a different backend, e.g. TorchMixin and
+        # evaluations a funcional on the solution
+        bkd = TorchMixin
+        # decrease timestep so that the solver takes more steps
+        model._solver._deltat = 0.25
+        obs_time_tuples = [
+            (ii, bkd.array([1, 3])) for ii in range(0, model.nmesh_pts(), 10)
+        ]
+        obs_model = FETransientOutputModel(model, bkd)
+        functional = TransientObservationFunctional(
+            model.nmesh_pts(),
+            obs_model.nvars(),
+            obs_time_tuples,
+            backend=bkd,
+        )
+        obs_model.set_functional(functional)
+        sample = bkd.asarray(params[:, None])
+        qoi = obs_model(sample)
+
+        # regression test
+        # print(np.array2string(bkd.to_numpy(qoi), separator=", "))
+        ref_qoi = bkd.array(
+            [
+                [
+                    0.00027443,
+                    0.00220279,
+                    0.00011866,
+                    0.00082548,
+                    0.00071503,
+                    0.00288328,
+                ]
+            ]
+        )
+        assert bkd.allclose(qoi, ref_qoi)
 
 
 if __name__ == "__main__":

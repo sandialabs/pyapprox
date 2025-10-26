@@ -37,6 +37,7 @@ from pyapprox.benchmarks.pde import (
     TransientViscousBurgers1DOperatorBenchmark,
     SteadyDarcy2DOperatorBenchmark,
     NonlinearSystemOfEquationsBenchmark,
+    ObstructedAdvectionDiffusionOEDBenchmark,
 )
 
 __all__ = [
@@ -73,4 +74,6 @@ __all__ = [
     "PistonBenchmark",
     "WingWeightBenchmark",
     "NonlinearSystemOfEquationsBenchmark",
+    # Expdesign
+    "ObstructedAdvectionDiffusionOEDBenchmark",
 ]

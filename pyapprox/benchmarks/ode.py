@@ -601,6 +601,31 @@ class LotkaVolterraOEDBenchmark(SingleModelBayesianGoalOrientedOEDBenchmark):
         pred_time_tuples = [(1, pred_time_indices)]
         return pred_time_tuples
 
+    def solution_times(self) -> Array:
+        """
+        Return the solution times for the simulation.
+
+        Returns
+        -------
+        solution_times : Array
+            Array containing the solution times.
+        """
+        return self._times
+
+    def observation_times(self) -> Array:
+        """
+        Return the observation times for the simulation.
+
+        Returns
+        -------
+        observation_times : Array
+            Array containing the observation times.
+        """
+        obs_times = []
+        for time_idx in zip(self._obs_model._functional._obs_time_indices):
+            obs_times.append(self._times[time_idx])
+        return self._bkd.stack(obs_times, axis=0)
+
     def prediction_times(self) -> Array:
         """
         Return the prediction times for the simulation.
@@ -644,10 +669,6 @@ class LotkaVolterraOEDBenchmark(SingleModelBayesianGoalOrientedOEDBenchmark):
     def _set_pred_model(self):
         """
         Set up the prediction model for the benchmark.
-
-        Returns
-        -------
-        None
         """
         self._pred_model = LotkaVolterraModel(
             0,
@@ -1113,10 +1134,6 @@ class CoupledSpringsBenchmark(SingleModelBenchmark):
         Define the prior distribution for the uncertain variables.
 
         The prior distribution is uniform over the ranges computed by `_prior_ranges`.
-
-        Returns
-        -------
-        None
         """
         ranges = self._prior_ranges()
         marginals = [

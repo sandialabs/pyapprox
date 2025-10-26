@@ -18,7 +18,7 @@ from skfem import (
 )
 from skfem.visuals.matplotlib import plot as skfemplot
 
-from pyapprox.pde.galerkin.util import get_element
+from pyapprox.pde.galerkin.util import get_element, integrate
 from pyapprox.pde.galerkin.physics import (
     BoundaryConditions,
     Helmholtz,
@@ -32,6 +32,12 @@ from pyapprox.pde.galerkin.functions import (
     FEMNonLinearOperatorFromCallable,
 )
 from pyapprox.surrogates.affine.kle import MeshKLE
+from pyapprox.interface.model import SingleSampleModel
+from pyapprox.pde.timeintegration import (
+    TransientFunctionalMixin,
+    TransientFunctional,
+)
+from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 
 
@@ -46,7 +52,7 @@ def get_vertices_of_polygon(ampothem, nedges):
     return vertices
 
 
-class SteadyParameterizedFEModel(ABC):
+class ParameterizedFEModel(ABC):
     @abstractmethod
     def _set_params(self, params: np.ndarray):
         raise NotImplementedError
@@ -63,12 +69,69 @@ class SteadyParameterizedFEModel(ABC):
     def nparams(self) -> int:
         raise NotImplementedError
 
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
+    def nmesh_pts(self) -> int:
+        return self._basis.N
+
+    def mesh(self) -> Mesh:
+        return self._mesh
+
+
+class SteadyParameterizedFEModel(ParameterizedFEModel):
     @abstractmethod
     def solve(self) -> np.ndarray:
         raise NotImplementedError
 
-    def __repr__(self) -> str:
-        return "{0}".format(self.__class__.__name__)
+
+class TransientParameterizedFEModel(ParameterizedFEModel):
+    @abstractmethod
+    def solve(self) -> Tuple[np.ndarray, np.ndarray]:
+        raise NotImplementedError
+
+
+class FETransientOutputModel(SingleSampleModel):
+    def __init__(
+        self, fe_model: TransientParameterizedFEModel, backend: BackendMixin
+    ):
+        # fe_models only work with numpy however we pass in backend so
+        # we can pass in and return arrays to this in any backend
+        # this function will take care of the conversion invernally.
+        # Note no auto differention will be possible
+        self._fe_model = fe_model
+        super().__init__(backend)
+
+    def nvars(self) -> int:
+        return self._fe_model.nparams()
+
+    def nqoi(self) -> int:
+        return self._functional.nqoi()
+
+    def set_functional(self, functional: TransientFunctionalMixin):
+        if not isinstance(functional, TransientFunctionalMixin):
+            raise TypeError(
+                "functional must be an instance of TransientFunctionalMixin"
+            )
+        self._functional = functional
+        self._fe_model._physics._bkd = self._bkd
+        self._time_residual = self._fe_model._solver._time_residual(self._bkd)
+
+    def _evaluate(self, sample: Array) -> Array:
+        if not hasattr(self, "_functional"):
+            raise AttributeError("must call set_functional")
+        self._fe_model.set_params(self._bkd.to_numpy(sample[:, 0]))
+        sols, times = self._fe_model.solve()
+        self._functional.set_quadrature_sample_weights(
+            *self._time_residual.quadrature_samples_weights(
+                self._bkd.asarray(times), self._bkd
+            )
+        )
+        qoi = self._functional(self._bkd.asarray(sols))
+        return qoi[None, :]
+
+    def fe_model(self) -> TransientParameterizedFEModel:
+        return self._fe_model
 
 
 class OctagonalBoundaries:
@@ -759,7 +822,7 @@ class KLEHyperParameters:
         self.nterms = nterms
 
 
-class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
+class ObstructedAdvectionDiffusion(TransientParameterizedFEModel):
     def __init__(
         self,
         nstokes_refine: int,
@@ -794,7 +857,7 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
         # initialize forcing function to be the mean of the kle
         if stokes_params is not None:
             # fix the velocity field for all advection simulations
-            self._vel = self._compute_velocity_field(stokes_params)
+            self._fixed_vel = self._compute_velocity_field(stokes_params)
             self._set_params(np.zeros((self._kle._nterms,)))
 
         self._setup_advec_diff_mesh(nadvec_diff_refine)
@@ -881,6 +944,12 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
                 boundaries_only=True,
             )
         )
+        self._mesh = self._mesh.with_subdomains(
+            {
+                "target_subdomain": lambda x: x[0]
+                >= self._stokes_model._domain._L * 5.0 / 7.0
+            }
+        )
         # use linear basis so kernel matrix used to construct
         # kle is smaller
         # self._element, intorder = ElementQuad2(), 4
@@ -891,12 +960,12 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
 
     def nparams(self) -> int:
         nparams = self._nadvecdiff_params
-        if not hasattr(self, "_vel"):
+        if not hasattr(self, "_fixed_vel"):
             nparams += self._stokes_model.nparams()
         return nparams
 
     def _set_params(self, params: np.ndarray):
-        if not hasattr(self, "_vel"):
+        if not hasattr(self, "_fixed_vel"):
             self._velocity_field_params = params[self._nadvecdiff_params :]
         self._kle_params = params[: self._nadvecdiff_params]
         self._kle(self._kle_params[:, None])
@@ -966,9 +1035,9 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
         )
 
     def _velocity_field(self):
-        if hasattr(self, "_vel"):
+        if hasattr(self, "_fixed_vel"):
             # fixed velocity field
-            return self._vel
+            return self._fixed_vel
         return self._compute_velocity_field(self._velocity_field_params)
 
     def _set_physics_and_solver(self):
@@ -998,15 +1067,24 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
         )
         self._solver = TransientPDE(self._physics, self._deltat, "im_beuler1")
 
-    def solve(self) -> np.ndarray:
+    def solve(self) -> Tuple[np.ndarray, np.ndarray]:
         if not hasattr(self, "_params"):
             raise AttributeError("must call set_params")
+        # velocity needs to be computed for each new parameter but only
+        # once before transient simulation
+        if not hasattr(self, "_fixed_vel"):
+            fixed_vel = False
+            self._fixed_vel = self._velocity_field()
+        else:
+            fixed_vel = True
         sols, times = self._solver.solve(
             self._init_condition,
             self._init_time,
             self._final_time,
             newton_kwargs={"atol": 1e-8, "rtol": 1e-8, "maxiters": 2},
         )
+        if not fixed_vel:
+            delattr(self, "_fixed_vel")
         return sols, times
 
     def plot_concentration_snapshot(self, sol: np.ndarray, **kwargs):
@@ -1096,3 +1174,47 @@ class ObstructedAdvectionDiffusion(SteadyParameterizedFEModel):
         )
 
         return anim
+
+
+class FETransientSubdomainIntegralFunctional(TransientFunctional):
+    def __init__(
+        self,
+        nstates: int,
+        nparams: int,
+        subdomain_basis: Basis,
+        backend: BackendMixin,
+        time_idx: int = None,
+    ):
+        self._bkd = backend
+        self._nstates = nstates
+        self._nparams = nparams
+        self._subdomain_basis = subdomain_basis
+        self._time_idx = time_idx
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nstates(self) -> int:
+        return self._nstates
+
+    def nparams(self) -> int:
+        return self._nparams
+
+    def nunique_functional_params(self) -> int:
+        return 0
+
+    def _value(self, sols: Array) -> Array:
+        if self._time_idx is not None:
+            return integrate(
+                self._subdomain_basis,
+                self._bkd.to_numpy(self._sol[:, self, self._time_idx]),
+            )
+        vals = []
+        for sol in sols.T:
+            vals.append(
+                self._bkd.asarray(
+                    integrate(self._subdomain_basis, self._bkd.to_numpy(sol))
+                )
+            )
+        qoi = self._bkd.stack(vals) @ self._quadw
+        return self._bkd.asarray([qoi])

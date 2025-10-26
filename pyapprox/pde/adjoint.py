@@ -186,7 +186,9 @@ class TransientAdjointModel(AdjointModel):
 
     def _eval_functional(self) -> Array:
         self._functional.set_quadrature_sample_weights(
-            *self._time_residual.quadrature_samples_weights(self._times)
+            *self._time_residual.quadrature_samples_weights(
+                self._times, self._bkd
+            )
         )
         return self._functional(self._sols)[None, :]
 

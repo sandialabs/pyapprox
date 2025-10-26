@@ -11,6 +11,8 @@ from skfem import (
     ElementLineP2,
     ElementQuad1,
     ElementQuad2,
+    Basis,
+    Functional,
 )
 from skfem.helpers import dot
 from skfem.mesh import Mesh
@@ -78,6 +80,29 @@ def get_element(mesh: Mesh, order: int) -> Element:
     if order == 1:
         return ElementQuad1()
     return ElementQuad2()
+
+
+def get_subdomain_basis(
+    mesh: Mesh, element: Element, subdomain_name: str
+) -> Basis:
+    if mesh.subdomains is None or subdomain_name not in mesh.subdomains:
+        raise AttributeError(f"subdomain '{subdomain_name}' not found")
+    subdomain_basis = Basis(mesh, element, elements=subdomain_name)
+    return subdomain_basis
+
+
+def _integrate(w) -> np.ndarray:
+    return w.y
+
+
+def integrate(basis: Basis, values: np.ndarray) -> float:
+    return Functional(_integrate).assemble(basis, y=values)
+
+    def integrate_on_subdomain(
+        self, values: np.ndarray, subdomain_name: str
+    ) -> float:
+        subdomain_basis = self._physics.subdomain_basis(subdomain_name)
+        return Functional(self._integrate).assemble(subdomain_basis, y=values)
 
 
 def vector_forcing_linearform(v, w):

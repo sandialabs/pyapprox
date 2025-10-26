@@ -50,7 +50,7 @@ growth_rule = DoublePlusOneIndexGrowthRule()
 # cannot guarantee budget will be satisfied exactly
 max_nsamples = 100
 sg = AdaptiveCombinationSparseGrid(
-    benchmark.model().nqoi(), benchmark.variable().nvars()
+    benchmark.model().nqoi(), benchmark.prior().nvars()
 )
 basis = TensorProductInterpolatingBasis(bases_1d)
 sg.set_basis(basis)
@@ -72,7 +72,7 @@ sg._subspace_gen.plot_indices(axs[1])
 
 # %%
 # We can estimate the error in the surrogate using some validation samples.
-validation_samples = benchmark.variable().rvs(100)
+validation_samples = benchmark.prior().rvs(100)
 validation_values = benchmark.model()(validation_samples)
 approx_values = sg(validation_samples)
 error = np.linalg.norm(validation_values - approx_values, axis=0) / np.sqrt(
@@ -83,7 +83,7 @@ print(f"The RMSE error is {error}")
 # %% We can estimate the PDF of the two function outputs by sampling the surrogate
 # and building a kernel density estimator. Lets first just plot the marginal
 # PDFs of the output using the surrogate and the real model
-samples = benchmark.variable().rvs(10000)
+samples = benchmark.prior().rvs(10000)
 sg_values = sg(samples)
 true_values = benchmark.model()(samples)
 

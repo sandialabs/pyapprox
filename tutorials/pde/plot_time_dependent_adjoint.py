@@ -535,7 +535,7 @@ fwd_sols, times = time_int.solve(init_cond)
 
 # Evaluate the functional
 functional.set_quadrature_sample_weights(
-    *time_residual.quadrature_samples_weights(times)
+    *time_residual.quadrature_samples_weights(times, time_residual._bkd)
 )
 qoi = functional(fwd_sols)
 
