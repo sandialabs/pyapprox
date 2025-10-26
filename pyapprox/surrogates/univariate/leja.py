@@ -92,7 +92,7 @@ class LejaObjective(Model):
 
     def _plot_bounds(self) -> Tuple[float, float]:
         return self._bkd.hstack(
-            [self._marginal.interval(1 - 1e-3)] * self.nvars()
+            [self._marginal.interval(1 - 1e-15)] * self.nvars()
         )
 
     def __repr__(self):
@@ -162,20 +162,34 @@ class LejaObjective(Model):
         if self._bkd.isfinite(bounds[0]) and (
             self._bkd.min(self._sequence) > bounds[0] + eps
         ):
-            intervals = np.hstack(([[bounds[0]]], intervals))
+            intervals = self._bkd.hstack(
+                (self._bkd.asarray([[bounds[0]]]), intervals)
+            )
         if self._bkd.isfinite(bounds[1]) and (
             self._bkd.max(self._sequence) < bounds[1] - eps
         ):
-            intervals = np.hstack((intervals, [[bounds[1]]]))
+            intervals = self._bkd.hstack(
+                (intervals, self._bkd.asarray([[bounds[1]]]))
+            )
         if not self._bkd.isfinite(bounds[0]):
             intervals = self._bkd.hstack(
-                ([[min(1.1 * self._bkd.min(self._sequence), -0.1)]], intervals)
+                (
+                    self._bkd.asarray(
+                        [[min(1.1 * self._bkd.min(self._sequence), -0.1)]]
+                    ),
+                    intervals,
+                )
             )
         if not self._bkd.isfinite(bounds[1]):
             intervals = self._bkd.hstack(
-                (intervals, [[max(1.1 * self._bkd.max(self._sequence), 0.1)]])
+                (
+                    intervals,
+                    self._bkd.asarray(
+                        [[max(1.1 * self._bkd.max(self._sequence), 0.1)]]
+                    ),
+                )
             )
-        iterates = intervals[:, :-1] + np.diff(intervals) / 2.0
+        iterates = intervals[:, :-1] + self._bkd.diff(intervals) / 2.0
         # put intervals in form useful for bounding 1d optimization problems
         intervals = [intervals[0, ii] for ii in range(intervals.shape[1])]
         if not self._bkd.isfinite(bounds[0]):
@@ -216,13 +230,14 @@ class TwoPointLejaObjective(LejaObjective):
         sqrt_weights = self._bkd.sqrt(self._compute_weights(flat_samples))
         pvals = basis_mat @ self._coef
         residuals = sqrt_weights * (new_basis - pvals)
-        return (
+        vals = (
             -(
                 residuals[:nsamples, 0] * residuals[nsamples:, 1]
                 - residuals[:nsamples, 1] * residuals[nsamples:, 0]
             )[:, None]
             ** 2
         )
+        return vals
 
     def _jacobian(self, sample: Array) -> Array:
         flat_sample = self._bkd.reshape(sample, (1, self._nopt_vars()))
@@ -253,7 +268,8 @@ class TwoPointLejaObjective(LejaObjective):
             residuals[:1, 0] * residuals[1:, 1]
             - residuals[:1, 1] * residuals[1:, 0]
         )
-        return -2 * determinant * determinant_jac
+        jac = -2 * determinant * determinant_jac
+        return jac
 
     def plot(self, ax):
         ax.plot(self.sequence()[0], self.sequence()[0], "o")
@@ -278,10 +294,10 @@ class TwoPointLejaObjective(LejaObjective):
         for ii in range(iterates_1d.shape[1]):
             for jj in range(ii + 1, iterates_1d.shape[1]):
                 iterates.append(
-                    np.vstack((iterates_1d[:, ii], iterates_1d[:, jj]))
+                    self._bkd.vstack((iterates_1d[:, ii], iterates_1d[:, jj]))
                 )
-                bounds.append(np.vstack((bounds_1d[ii], bounds_1d[jj])))
-        return np.hstack(iterates), bounds
+                bounds.append(self._bkd.vstack((bounds_1d[ii], bounds_1d[jj])))
+        return self._bkd.hstack(iterates), bounds
 
 
 class PDFLejaObjectiveMixin:
@@ -309,15 +325,21 @@ class ChristoffelLejaObjectiveMixin:
         return self._bkd.sum(basis_mat**2, axis=1)[:, None] / self.nsamples()
 
     def _compute_weights(self, samples: Array) -> Array:
-        basis_mat = self._poly(samples)[:, : -self._nopt_vars()]
-        return 1 / self._christoffel_fun(basis_mat)
+        basis_mat = self._poly(samples)[
+            :, : self._poly.nterms() - self._nopt_vars() + 1
+        ]
+        return 1.0 / self._christoffel_fun(basis_mat)
 
     def _compute_weights_jacobian(self, sample: Array) -> Array:
         vals = self._poly._derivatives(sample, order=1, return_all=True)
         # basis_mat.shape = (nsamples, len(sequence))
-        basis_mat = vals[:, : self._poly.nterms()][:, : -self._nopt_vars()]
+        basis_mat = vals[:, : self._poly.nterms()][
+            :, : self._poly.nterms() - self._nopt_vars() + 1
+        ]
         # basis_mat.shape = (nsamples, 2)
-        basis_jac = vals[:, self._poly.nterms() :][:, : -self._nopt_vars()]
+        basis_jac = vals[:, self._poly.nterms() :][
+            :, : self._poly.nterms() - self._nopt_vars() + 1
+        ]
         christoffel_jac = (
             2
             / self.nsamples()
@@ -325,7 +347,7 @@ class ChristoffelLejaObjectiveMixin:
         )
         # chain rule g(x) = christoffel_fun(x)
         # d/dx 1/g(x) = -g'(x)/(g(x))
-        return -1 / self._christoffel_fun(basis_mat).T ** 2 * christoffel_jac
+        return -1.0 / self._christoffel_fun(basis_mat).T ** 2 * christoffel_jac
 
 
 class OnePointPDFLejaObjective(PDFLejaObjectiveMixin, LejaObjective):

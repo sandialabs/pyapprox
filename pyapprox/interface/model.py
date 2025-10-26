@@ -833,9 +833,9 @@ class Model(ABC):
         """
         if jac.shape != (self.nqoi(), sample.shape[0]):
             raise RuntimeError(
-                "Jacobian returned by _jacobian has shape {0}"
-                " but must be {1}".format(
-                    jac.shape, (self.nqoi(), sample.shape[0])
+                "{0} Jacobian returned by _jacobian has shape {1}"
+                " but must be {2}".format(
+                    self, jac.shape, (self.nqoi(), sample.shape[0])
                 )
             )
 

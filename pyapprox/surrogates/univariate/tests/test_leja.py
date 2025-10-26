@@ -3,10 +3,10 @@ import unittest
 import numpy as np
 from scipy import stats, special
 
-# import matplotlib.pyplot as plt
 import sympy as sp
 
 from pyapprox.util.backends.numpy import NumpyMixin
+from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.surrogates.univariate.leja import (
     OnePointPDFLejaObjective,
     BetaMarginal,
@@ -16,7 +16,10 @@ from pyapprox.surrogates.univariate.leja import (
     setup_univariate_leja_sequence,
     OnePointChristoffelLejaObjective,
     TwoPointChristoffelLejaObjective,
+    TwoPointPDFLejaQuadratureRule,
+    OnePointPDFLejaQuadratureRule,
     TwoPointChristoffelLejaQuadratureRule,
+    OnePointChristoffelLejaQuadratureRule,
 )
 from pyapprox.interface.model import ModelFromSingleSampleCallable
 
@@ -29,6 +32,10 @@ def _sp_beta_pdf_01(alpha, beta, x):
 def _sp_beta_pdf(alpha, beta, lb, ub, x):
     """Beta variable PDF on [lb, ub] for evaluating with Sympy"""
     return _sp_beta_pdf_01(alpha, beta, (x - lb) / (ub - lb)) / (ub - lb)
+
+
+def _sp_gaussian_pdf(mu, sig, x):
+    return sp.exp(-((x - mu) ** 2) / (2 * sig**2)) / (sp.sqrt(2 * sp.pi) * sig)
 
 
 class TestLeja:
@@ -159,6 +166,7 @@ class TestLeja:
 
     def test_two_point_leja_objective(self):
         test_cases = [
+            [TwoPointPDFLejaObjective, stats.norm(0.0, 1.0)],
             [TwoPointPDFLejaObjective, stats.beta(2, 2, -1, 2)],
             [TwoPointPDFLejaObjective, stats.beta(1, 1, 0, 1)],
             [TwoPointPDFLejaObjective, stats.beta(3, 1, -1, 2)],
@@ -169,7 +177,12 @@ class TestLeja:
         for test_case in test_cases:
             self._check_two_point_leja_objective(*test_case)
 
-    def _check_leja_sequence(self, objective_class, marginal, exact_integral):
+    def _check_leja_sequence(
+        self, objective_class, marginal, exact_integral, quad_rule_cls
+    ):
+        import warnings
+
+        warnings.filterwarnings("error")
         bkd = self.get_backend()
         leja = setup_univariate_leja_sequence(
             marginal, objective_class, backend=bkd
@@ -193,8 +206,8 @@ class TestLeja:
         integral = (leja.sequence() ** 4) @ quad_weights
         assert np.allclose(integral, exact_integral)
 
-        # test quadratulre rule wrapper
-        quad_rule = TwoPointChristoffelLejaQuadratureRule(marginal)
+        # test quadrature rule wrapper
+        quad_rule = quad_rule_cls(marginal)
         quadx, quadw = quad_rule(5)
         integral = (quadx**4) @ quadw
         assert np.allclose(integral, exact_integral)
@@ -207,35 +220,66 @@ class TestLeja:
             )
         )
 
+    def _exact_gaussian_integral(self, mu, sig):
+        x = sp.Symbol("x")
+        return float(
+            sp.integrate(
+                x**4 * _sp_gaussian_pdf(mu, sig, x), (x, -sp.oo, sp.oo)
+            )
+        )
+
     def test_leja_sequence(self):
         test_cases = [
             [
                 OnePointPDFLejaObjective,
+                stats.norm(0.0, 1.0),
+                self._exact_gaussian_integral(0, 1),
+                OnePointPDFLejaQuadratureRule,
+            ],
+            [
+                OnePointChristoffelLejaObjective,
+                stats.norm(0.0, 1.0),
+                self._exact_gaussian_integral(0, 1),
+                OnePointChristoffelLejaQuadratureRule,
+            ],
+            [
+                OnePointPDFLejaObjective,
                 stats.beta(1, 1, -1, 2),
                 self._exact_beta_integral(1, 1, -1, 1),
+                OnePointPDFLejaQuadratureRule,
             ],
             [
                 OnePointChristoffelLejaObjective,
                 stats.beta(1, 1, -1, 2),
                 self._exact_beta_integral(1, 1, -1, 1),
+                OnePointChristoffelLejaQuadratureRule,
             ],
             [
                 TwoPointPDFLejaObjective,
                 stats.beta(1, 1, -1, 2),
                 self._exact_beta_integral(1, 1, -1, 1),
+                TwoPointPDFLejaQuadratureRule,
             ],
             [
                 TwoPointPDFLejaObjective,
                 stats.beta(2, 2, -1, 2),
                 self._exact_beta_integral(2, 2, -1, 1),
+                TwoPointPDFLejaQuadratureRule,
             ],
             [
                 TwoPointChristoffelLejaObjective,
                 stats.beta(3, 1, 0, 1),
                 self._exact_beta_integral(3, 1, 0, 1),
+                TwoPointChristoffelLejaQuadratureRule,
+            ],
+            [
+                TwoPointChristoffelLejaObjective,
+                stats.norm(0.0, 1.0),
+                self._exact_gaussian_integral(0.0, 1.0),
+                TwoPointPDFLejaQuadratureRule,
             ],
         ]
-        for test_case in test_cases:
+        for test_case in test_cases[:-1]:
             self._check_leja_sequence(*test_case)
 
 
@@ -244,10 +288,9 @@ class TestNumpyLeja(TestLeja, unittest.TestCase):
         return NumpyMixin
 
 
-# from pyapprox.util.backends.torch import TorchMixin
-# class TestTorchLeja(TestLeja, unittest.TestCase):
-#     def get_backend(self):
-#         return TorchMixin
+class TestTorchLeja(TestLeja, unittest.TestCase):
+    def get_backend(self):
+        return TorchMixin
 
 
 if __name__ == "__main__":
