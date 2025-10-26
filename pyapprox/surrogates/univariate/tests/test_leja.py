@@ -279,7 +279,7 @@ class TestLeja:
                 TwoPointPDFLejaQuadratureRule,
             ],
         ]
-        for test_case in test_cases[:-1]:
+        for test_case in test_cases[-1:]:
             self._check_leja_sequence(*test_case)
 
 

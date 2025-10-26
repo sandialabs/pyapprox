@@ -326,20 +326,16 @@ class ChristoffelLejaObjectiveMixin:
 
     def _compute_weights(self, samples: Array) -> Array:
         basis_mat = self._poly(samples)[
-            :, : self._poly.nterms() - self._nopt_vars() + 1
+            :, : self._poly.nterms()  # - self._nopt_vars() + 1
         ]
         return 1.0 / self._christoffel_fun(basis_mat)
 
     def _compute_weights_jacobian(self, sample: Array) -> Array:
         vals = self._poly._derivatives(sample, order=1, return_all=True)
         # basis_mat.shape = (nsamples, len(sequence))
-        basis_mat = vals[:, : self._poly.nterms()][
-            :, : self._poly.nterms() - self._nopt_vars() + 1
-        ]
+        basis_mat = vals[:, : self._poly.nterms()][:, : self._poly.nterms()]
         # basis_mat.shape = (nsamples, 2)
-        basis_jac = vals[:, self._poly.nterms() :][
-            :, : self._poly.nterms() - self._nopt_vars() + 1
-        ]
+        basis_jac = vals[:, self._poly.nterms() :][:, : self._poly.nterms()]
         christoffel_jac = (
             2
             / self.nsamples()
@@ -388,6 +384,8 @@ class LejaSequence:
         results = []
         for jj in range(iterates.shape[1]):
             self._optimizer.set_bounds(bounds[jj])
+            # self._obj.plot(plt.figure().gca())
+            # plt.show()
             results.append(self._optimizer.minimize(iterates[:, jj : jj + 1]))
         best_idx = self._bkd.argmin(
             self._bkd.array([res.fun for res in results])
