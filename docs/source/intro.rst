@@ -7,7 +7,9 @@ PyApprox provides flexible and efficient tools for credible data-informed decisi
 
 Team
 ----
-PyApprox was written and developed by Dr. John D. Jakeman. John is a Principle Member of Technical Staff at Sandia National Laboratories, Albuquerque USA. A list of his publications can be found at `Google Scholar <https://scholar.google.com/citations?hl=en&user=tupqTFgAAAAJ>`_.
+Dr. John D. Jakeman is the founder and lead developer of PyApprox. John is a Principle Member of Technical Staff at Sandia National Laboratories, Albuquerque USA. A list of his publications can be found at `Google Scholar <https://scholar.google.com/citations?hl=en&user=tupqTFgAAAAJ>`_.
+
+Dr. Zachary Morrow is a developer of the SciML module. Zack is a Senior Member of Technical Staff at Sandia National Laboratories.
 
 Citing PyApprox
 ---------------
