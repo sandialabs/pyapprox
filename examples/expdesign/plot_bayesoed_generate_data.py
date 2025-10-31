@@ -26,6 +26,7 @@ from pyapprox.expdesign.bayesoed import (
     OEDEntropicDeviationMeasure,
     NoiseStatistic,
     OEDDataManager,
+    BayesianOEDDataGenerator,
 )
 
 # %% Setup the Model to Generate the Simulation Data
@@ -50,6 +51,8 @@ prior = benchmark.prior()
 # during nightly testing. Increase to the amount you desire.
 noutloop_samples = 10
 ninloop_samples = 10
+quad_type = "Halton"
+# quad_type = "MC"
 
 # %% Generate The Simulation Data
 # -------------------------------
@@ -64,46 +67,63 @@ prior_data_variable = IndependentMarginalsVariable(
     backend=bkd,
 )
 
-# Generate the outerloop samples needed to compute the outerloop observations
-outerloop_samples = prior_data_variable.rvs(noutloop_samples)
-outerloop_quad_weights = bkd.full(
-    (noutloop_samples, 1), 1.0 / noutloop_samples
-)
+# # Generate the outerloop samples needed to compute the outerloop observations
+# outloop_samples = prior_data_variable.rvs(noutloop_samples)
+# outloop_quad_weights = bkd.full(
+#     (noutloop_samples, 1), 1.0 / noutloop_samples
+# )
 
-# Generate the shapes of the likelihood, e.g. the model predictions,
-# for the inner OED loop
-# Generate the samples to evaluate the model
-innerloop_samples = prior.rvs(ninloop_samples)
-innerloop_quad_weights = bkd.full((ninloop_samples, 1), 1.0 / ninloop_samples)
+# # Generate the shapes of the likelihood, e.g. the model predictions,
+# # for the inner OED loop
+# # Generate the samples to evaluate the model
+# inloop_samples = prior.rvs(ninloop_samples)
+# inloop_quad_weights = bkd.full((ninloop_samples, 1), 1.0 / ninloop_samples)
+
+data_generator = BayesianOEDDataGenerator(bkd, 1e-8)
+outloop_samples, outloop_quad_weights = data_generator.setup_quadrature_data(
+    quad_type, prior_data_variable, noutloop_samples, "outer"
+)
+inloop_samples, inloop_quad_weights = data_generator.setup_quadrature_data(
+    quad_type, prior, ninloop_samples, "inner"
+)
 
 # Assume MC quadrature for prediction space
 qoi_quad_weights = bkd.full((pred_model.nqoi(), 1), 1.0 / pred_model.nqoi())
 
-data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+# Building docs with sphinx gallery does not define __file__. However,
+# this variable is defined when running the script from the command line.
+# Luckily when buildings docs execution is done is the same directory as
+# the script so we can set __file__ using os.getcwd
+if "__file__" not in globals():
+    # assumes script is run in the directory this file is contained
+    file_dir = os.getcwd()
+else:
+    file_dir = os.path.abspath(__file__)
+data_dir = os.path.join(os.path.dirname(file_dir), "data")
 if not os.path.exists(data_dir):
     os.makedirs(data_dir)
-data_filename = "obstructed_advec_diff_oed_data_n_{0}_m_{1}.pkl".format(
-    noutloop_samples, ninloop_samples
+data_filename = "obstructed_advec_diff_oed_data_n_{0}_m_{1}_{2}.pkl".format(
+    noutloop_samples, ninloop_samples, quad_type
 )
 data_filename = os.path.join(data_dir, data_filename)
 
 original_oed_data_manager = OEDDataManager(bkd)
 if not os.path.exists(data_filename):
     print("Generating Data")
-    outerloop_shapes_samples = outerloop_samples[: prior.nvars()]
-    outerloop_shapes = obs_model(outerloop_shapes_samples).T
-    innerloop_shapes = obs_model(innerloop_samples).T
-    qoi_vals = pred_model(innerloop_samples)
+    outloop_shapes_samples = outloop_samples[: prior.nvars()]
+    outloop_shapes = obs_model(outloop_shapes_samples).T
+    inloop_shapes = obs_model(inloop_samples).T
+    qoi_vals = pred_model(inloop_samples)
 
     original_oed_data_manager.save_data(
         data_filename,
-        outerloop_samples,
-        outerloop_shapes,
-        outerloop_quad_weights,
+        outloop_samples,
+        outloop_shapes,
+        outloop_quad_weights,
         benchmark.observation_locations(),
-        innerloop_samples,
-        innerloop_shapes,
-        innerloop_quad_weights,
+        inloop_samples,
+        inloop_shapes,
+        inloop_quad_weights,
         qoi_vals,
         qoi_quad_weights,
     )

@@ -879,7 +879,6 @@ class OEDStandardDeviationMeasure(
             )
             ** 2
         )
-        # print(variance, "v1")
 
         # avoid small values just below zero
         variance = self._bkd.maximum(
@@ -990,20 +989,29 @@ class OEDEntropicDeviationMeasure(
     def _evaluate(self, design_weights: Array) -> Array:
         evidences = self._evidence(design_weights).T
         # o:outer, i: inner, q: qoi, d: derivatives
+        # risk = (
+        #     self._bkd.log(
+        #         self._bkd.einsum(
+        #             "iq,io->qo",
+        #             self._bkd.exp(self._alpha * self._qoi_vals),
+        #             self._evidence._quad_weighted_like_vals,
+        #         )
+        #         / evidences[:, 0]
+        #     )
+        #     / self._alpha
+        # )
         risk = (
             self._bkd.log(
                 self._bkd.einsum(
                     "iq,io->qo",
                     self._bkd.exp(self._alpha * self._qoi_vals),
-                    self._evidence._quad_weighted_like_vals,
+                    self._evidence._quad_weighted_like_vals / evidences[:, 0],
                 )
-                / evidences[:, 0]
             )
             / self._alpha
         )
-        mean = (
-            self._first_moment(self._evidence._quad_weighted_like_vals)
-            / evidences[:, 0]
+        mean = self._first_moment(
+            self._evidence._quad_weighted_like_vals / evidences[:, 0]
         )
         return (risk - mean).flatten()[None, :]
 
@@ -1014,11 +1022,6 @@ class OEDEntropicDeviationMeasure(
         quad_weighted_like_vals_jac = (
             self._evidence._quad_weighted_likelihood_jacobian(design_weights)
         )
-        # term1 = (
-        #     self._alpha
-        #     * self._bkd.exp(self._alpha * self._qoi_vals.T)[:, None, :, None]
-        #     * quad_weighted_like_vals_jac[None, ...]
-        # ).sum(axis=2) / evidences
 
         # o:outer, i: inner, q: qoi, d: derivatives
         term1 = (
@@ -1035,19 +1038,23 @@ class OEDEntropicDeviationMeasure(
         exp_values_mean = self._bkd.einsum(
             "iq,io->qo",
             self._bkd.exp(self._alpha * self._qoi_vals),
-            self._evidence._quad_weighted_like_vals,
+            self._evidence._quad_weighted_like_vals / evidences[:, 0],
         )
-        term2 = (
-            exp_values_mean[..., None] * evidences_jac[None, :] / evidences**2
+        term2 = exp_values_mean[..., None] * (
+            evidences_jac[None, :] / evidences
         )
         risk_jac = (term1 - term2) / (
-            self._alpha * (exp_values_mean[..., None] / evidences)
+            self._alpha * (exp_values_mean[..., None])
         )
-        first_mom = self._first_moment(self._evidence._quad_weighted_like_vals)
-        first_mom_jac = self._first_moment_jac(quad_weighted_like_vals_jac)
+        first_mom = self._first_moment(
+            self._evidence._quad_weighted_like_vals / evidences[:, 0]
+        )
+        first_mom_jac = self._first_moment_jac(
+            1.0 / evidences[..., None] * quad_weighted_like_vals_jac
+        )
         mean_jac = (
-            first_mom_jac / evidences
-            - first_mom[..., None] * evidences_jac[None, :] / evidences**2
+            first_mom_jac
+            - first_mom[..., None] * evidences_jac[None, :] / evidences
         )
         return risk_jac - mean_jac
 
@@ -1059,11 +1066,12 @@ class OEDAVaRDeviationMeasure(
         self,
         npred: int,
         alpha: float,
-        eps: float,
+        delta: float,
         backend: BackendMixin = NumpyMixin,
     ):
+        # The bigger the delta the more accurate the estimate
         super().__init__(npred, backend=backend)
-        self._eps = eps
+        self._delta = delta
         self.set_alpha(alpha)
 
     def set_alpha(self, alpha: float):
@@ -1071,7 +1079,7 @@ class OEDAVaRDeviationMeasure(
             raise ValueError("alpha must be > 0")
         self._alpha = alpha
         self._smoothed_avar = SampleSmoothedConditionalValueAtRisk(
-            self._alpha, self._eps, backend=self._bkd
+            self._alpha, self._delta, backend=self._bkd
         )
 
     def _evaluate_option1(self, design_weights: Array) -> Array:
@@ -1172,7 +1180,11 @@ class OEDAVaRDeviationMeasure(
         return self._evaluate_option1(design_weights)
 
     def _jacobian(self, design_weights: Array) -> Array:
+        if self._bkd.jacobian_implemented():
+            return self._bkd.jacobian(self._evaluate, design_weights)
         raise NotImplementedError
+        # Below does not work becaues I do not know how to differentiate
+        # projectino with respect to weights
         evidences = self._evidence(design_weights).T
         evidences_jac = self._evidence.jacobian(design_weights)
         quad_weighted_like_vals_jac = (
@@ -1440,6 +1452,9 @@ class BayesianOED(ABC):
     def set_data(*args):
         raise NotImplementedError
 
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
 
 class RelaxedBayesianOEDDifferentialEvoluationOptimizer(
     ScipyConstrainedDifferentialEvolutionOptimizer
@@ -1482,7 +1497,7 @@ class RelaxedBayesianOED(BayesianOED):
             return local_optimizer
         global_optimizer = RelaxedBayesianOEDDifferentialEvoluationOptimizer()
         global_optimizer.set_options(
-            **{"maxiter": 2, "tol": 1e-2, "popsize": 5},
+            **{"maxiter": 5, "tol": 1e-2, "popsize": 15},
         )
         global_optimizer.set_verbosity(verbosity)
         optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
@@ -1741,8 +1756,8 @@ class BayesianOEDForPrediction(RelaxedBayesianOED):
         """
         outloop_shapes_samples = outloop_samples[: prior.nvars()]
         outloop_shapes = obs_model(outloop_shapes_samples).T
-        print(outloop_shapes.min(), "DATAMIN")
-        print(outloop_shapes.max(), "DATAMAX")
+        # print(outloop_shapes.min(), "DATAMIN")
+        # print(outloop_shapes.max(), "DATAMAX")
 
         inloop_shapes = obs_model(inloop_samples).T
         qoi_vals = qoi_model(inloop_samples)
@@ -1833,18 +1848,26 @@ class BayesianOEDForPrediction(RelaxedBayesianOED):
         objective.set_risk_measure(self._risk_measure)
         self._set_objective_function(objective)
 
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            self._noise_stat,
+            self._deviation_measure,
+            self._risk_measure,
+        )
+
 
 class BayesianOEDDataGenerator:
-    def __init__(self, backend: BackendMixin):
+    def __init__(self, backend: BackendMixin, unbounded_eps: float = 1e-8):
         self._bkd = backend
         # set unbounded eps. This is used when mapping a sobol sequence to a
         # variable with an unbounded domain, e.g. a Gaussian,
         # if this is set to high then the accuracy of OED criteria can saturate
         # as number of inner and outloop samples are increased because
         # too much probability is being left out.
-        self._unbounded_eps = 1e-8
+        self._unbounded_eps = unbounded_eps
 
-    def _setup_quadrature_data(
+    def setup_quadrature_data(
         self, quadtype: str, variable: JointVariable, nsamples: int, loop: str
     ) -> Tuple[Array, Array]:
         """
@@ -1949,7 +1972,7 @@ class BayesianOEDDataGenerator:
         # Generate outer loop quadrature data
         outloop_loglike = oed._inloop_loglike.outloop_loglike()
         prior_data_variable = outloop_loglike.joint_prior_data_variable(prior)
-        outloop_samples, outloop_quad_weights = self._setup_quadrature_data(
+        outloop_samples, outloop_quad_weights = self.setup_quadrature_data(
             outloop_quadtype,
             prior_data_variable,
             noutloop_samples,
@@ -1957,7 +1980,7 @@ class BayesianOEDDataGenerator:
         )
 
         # Generate inner loop quadrature data
-        inloop_samples, inloop_quad_weights = self._setup_quadrature_data(
+        inloop_samples, inloop_quad_weights = self.setup_quadrature_data(
             inloop_quadtype, prior, ninloop_samples, "inner"
         )
         return (
@@ -1966,6 +1989,9 @@ class BayesianOEDDataGenerator:
             inloop_samples,
             inloop_quad_weights,
         )
+
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
 
 
 class OEDDataManager:
@@ -2187,6 +2213,16 @@ class OEDDataManager:
         if name not in self._data:
             raise ValueError(f"name: {name} not found")
         return self._bkd.asarray(self._data[name])
+
+    def __repr__(self) -> str:
+        if not hasattr(self, "_data"):
+            return "{0}".format(self.__class__.__name__)
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            self.nobservations(),
+            self.nouterloop_samples(),
+            self.ninnerloop_samples(),
+        )
 
 
 # TODO Consider using lognormal noise for OED

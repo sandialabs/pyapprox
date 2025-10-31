@@ -9,7 +9,7 @@ Prerequisites:
 --------------
 - Python
 - Required libraries: `pickle`, `numpy`, `matplotlib`, and any specific backend library (e.g., `bkd`).
-- Pre-computed simulation data files: `outerloop_data_filename` and `innerloop_data_filename`.
+- Pre-computed simulation data files: `filename`.
 
 Steps:
 ------
@@ -24,7 +24,7 @@ Steps:
 # %%
 # Load the pre-computed simulation data
 # -------------------------------------
-# The simulation data is stored in two files: `outerloop_data_filename` and `innerloop_data_filename`.
+# The simulation data is stored in the file: `filename`.
 # We will load the data using the `pickle` module.
 
 import os
@@ -44,15 +44,26 @@ from pyapprox.benchmarks import ObstructedAdvectionDiffusionOEDBenchmark
 # Define file paths for the pre-computed data
 # We use a small number of samples here only so large files are not created
 # during nightly testing. Increase to the amount you desire.
-nouterloop_samples = 10
-ninnerloop_samples = 10
-# nouterloop_samples = 10000
-# ninnerloop_samples = 10000
+quad_type = "Halton"
+# quad_type = "MC"
+noutloop_samples = 10
+ninloop_samples = 10
+# noutloop_samples = 10000
+# ninloop_samples = 10000
 
-filename = "obstructed_advec_diff_oed_data_n_{0}_m_{1}.pkl".format(
-    nouterloop_samples, ninnerloop_samples
+filename = "obstructed_advec_diff_oed_data_n_{0}_m_{1}_{2}.pkl".format(
+    noutloop_samples, ninloop_samples, quad_type
 )
-data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+# Building docs with sphinx gallery does not define __file__. However,
+# this variable is defined when running the script from the command line.
+# Luckily when buildings docs execution is done is the same directory as
+# the script so we can set __file__ using os.getcwd
+if "__file__" not in globals():
+    # assumes script is run in the directory this file is contained
+    file_dir = os.getcwd()
+else:
+    file_dir = os.path.abspath(__file__)
+data_dir = os.path.join(os.path.dirname(file_dir), "data")
 filename = os.path.join(data_dir, filename)
 print(filename)
 original_oed_data_manager = OEDDataManager(bkd)
@@ -67,7 +78,7 @@ noutloop_samples = 9  # 100  # Number of outer loop samples to use
 ninloop_samples = 9  # 100  # Number of inner loop samples to use
 # noutloop_samples = 100
 # ninloop_samples = 100
-nobs = 100  # Number of observations to use
+nobs = 70  # Number of observations to use
 # The active observational indices. Each location has three time observations
 # So extract observation at final time from each location
 active_obs_indices = bkd.arange(original_oed_data_manager.nobservations())[
@@ -81,14 +92,14 @@ oed_data_manager = original_oed_data_manager.extract_data_subset(
     noutloop_samples,
     ninloop_samples,
 )
-outerloop_samples = oed_data_manager.get("outloop_samples")
-outerloop_shapes = oed_data_manager.get("outloop_shapes")
-outerloop_quad_weights = oed_data_manager.get("outloop_quad_weights")
+outloop_samples = oed_data_manager.get("outloop_samples")
+outloop_shapes = oed_data_manager.get("outloop_shapes")
+outloop_quad_weights = oed_data_manager.get("outloop_quad_weights")
 observation_locations = oed_data_manager.get("observation_locations")
 
-innerloop_samples = oed_data_manager.get("inloop_samples")
-innerloop_shapes = oed_data_manager.get("inloop_shapes")
-innerloop_quad_weights = oed_data_manager.get("inloop_quad_weights")
+inloop_samples = oed_data_manager.get("inloop_samples")
+inloop_shapes = oed_data_manager.get("inloop_shapes")
+inloop_quad_weights = oed_data_manager.get("inloop_quad_weights")
 
 qoi_vals = oed_data_manager.get("qoi_vals")
 qoi_quad_weights = oed_data_manager.get("qoi_quad_weights")
@@ -101,10 +112,10 @@ nqoi = qoi_vals.shape[1]
 
 noise_std = 1.0  # Standard deviation of noise
 noise_cov_diag = bkd.full((nobs, 1), noise_std**2)
-innerloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
+inloop_loglike = IndependentGaussianOEDInnerLoopLogLikelihood(
     noise_cov_diag, backend=bkd
 )
-pred_oed = BayesianOEDForPrediction(innerloop_loglike)
+pred_oed = BayesianOEDForPrediction(inloop_loglike)
 
 # Specify the noise statistic taken over all realizations of the data.
 # We will use the expectation
@@ -116,17 +127,18 @@ risk_measure = SampleAverageMean(bkd)
 
 # Set the data for the OED problem
 pred_oed.set_data(
-    outerloop_shapes,
-    outerloop_samples,
-    outerloop_quad_weights,
-    innerloop_shapes,
-    innerloop_quad_weights,
+    outloop_shapes,
+    outloop_samples,
+    outloop_quad_weights,
+    inloop_shapes,
+    inloop_quad_weights,
     qoi_vals,
     qoi_quad_weights,
     deviation_measure,
     risk_measure,
     noise_stat,
 )
+
 
 # %%
 # Compute the OED
@@ -191,4 +203,3 @@ plt.xlabel("Objective Values")
 plt.ylabel("Density")
 plt.title("Histogram of Objective Values")
 plt.legend()
-plt.show()

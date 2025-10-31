@@ -650,8 +650,8 @@ class BayesianOEDDiagnostics(ABC):
         # everytime new number of ninner and nouter samples are given
         # not really necessary but ensures that the samples
         # used for one study are a subset of the ones used for the next.
-        if hasattr(self._data_gen, "_inner_halton_seq"):
-            delattr(self._data_gen, "_inner_halton_seq")
+        if hasattr(self._data_gen, "_in_halton_seq"):
+            delattr(self._data_gen, "_in_halton_seq")
         if hasattr(self._data_gen, "_outer_halton_seq"):
             delattr(self._data_gen, "_outer_halton_seq")
         for realization in range(nrealizations):
@@ -672,7 +672,7 @@ class BayesianOEDDiagnostics(ABC):
 
             # Compute expected information gain and Laplace approximation
             utility = self.compute_utility(
-                oed._innerloop_loglike,
+                oed._inloop_loglike,
                 outerloop_samples,
                 outerloop_quad_weights,
                 innerloop_samples,

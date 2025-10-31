@@ -277,7 +277,7 @@ templates_path = ["_templates"]
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 # temporarily do not create function documentation
-# exclude_patterns = ["**/tutorials/expdesign"]
+# exclude_patterns = ["examples/expdesign/plot_bayesoed_compare_objectives.py"]
 
 # # use the following temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
 # exclude_patterns += ["modules.rst"]  # , 'user_reference_guide.rst']
