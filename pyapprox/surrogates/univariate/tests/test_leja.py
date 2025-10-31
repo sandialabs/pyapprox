@@ -280,6 +280,7 @@ class TestLeja:
             ],
         ]
         for test_case in test_cases[-1:]:
+            print(test_case)
             self._check_leja_sequence(*test_case)
 
 

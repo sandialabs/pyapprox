@@ -957,7 +957,7 @@ class BayesianOEDDiagnostics(ABC):
             Rate of convergence computed as the slope of the log-log plot.
         """
         log_sample_counts = np.log(np.array(sample_counts))
-        log_values = np.log(values)
+        log_values = np.log(np.asarray(values))
         # Linear fit on log-log scale
         slope = np.polyfit(log_sample_counts, log_values, 1)[0]
         return -slope  # Negative slope represents the rate of convergence

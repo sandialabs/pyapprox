@@ -16,7 +16,7 @@ from skfem import (
     MeshQuad,
     ElementQuad1,
 )
-from skfem.visuals.matplotlib import plot as skfemplot
+from skfem.visuals.matplotlib import plot as skfemplot, draw as skfemdraw
 
 from pyapprox.pde.galerkin.util import get_element, integrate
 from pyapprox.pde.galerkin.physics import (
@@ -382,12 +382,13 @@ class OctagonalHelmholtz(SteadyParameterizedFEModel):
         return vertices, elements
 
     def _boundary_facets(self, plot: bool = False):
-        from skfem.visuals.matplotlib import draw
 
         nfacets = []
         ms = 5
         if plot:
-            draw(self._mesh, ax=matplotlib.pyplot.figure(figsize=(8, 6)).gca())
+            skfemdraw(
+                self._mesh, ax=matplotlib.pyplot.figure(figsize=(8, 6)).gca()
+            )
             matplotlib.pyplot.plot(
                 *self._basis.mesh.p[
                     :,
@@ -487,15 +488,6 @@ class ObstructedFlowDomain:
 
     def setup_unrefined_quad_mesh(self) -> Mesh:
         mesh = MeshQuad1(self._full_vertices, self._connectivity)
-        # from skfem.visuals.matplotlib import plot, plt, show, draw
-
-        # refined_mesh = mesh.refined(2)
-        # draw(refined_mesh)
-        # for ii in range(self._obstruction_indices.shape[0]):
-        #     idx = self._bndry_definitions[f"obs{2}"](refined_mesh.p)
-        #     plt.plot(*refined_mesh.p[:, idx], "o")
-        # # plt.plot(*self._full_vertices[:, self._connectivity], "*")
-        # show()
         return mesh
 
     def _obstruction_boundary_definition(
@@ -748,6 +740,9 @@ class ObstructedStokesFlow(SteadyParameterizedFEModel):
     def plot_pressure(self, sol: np.ndarray, **kwargs):
         pres = self.split_solution(sol)[1]
         return skfemplot(self._basis["p"], pres, **kwargs)
+
+    def plot_domain_boundaries(self, ax: matplotlib.axes.Axes):
+        return skfemdraw(self.mesh(), boundaries_only=True, ax=ax)
 
     def plot_velocity_component(
         self, sol: np.ndarray, component_id: int, **kwargs

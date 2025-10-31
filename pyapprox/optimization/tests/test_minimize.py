@@ -4,7 +4,10 @@ import math
 import numpy as np
 from scipy import stats
 
-from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.optimization.scipy import (
+    ScipyConstrainedOptimizer,
+    ScipyConstrainedDifferentialEvolutionOptimizer,
+)
 from pyapprox.optimization.minimize import (
     SampleAverageMean,
     SampleAverageVariance,
@@ -916,6 +919,24 @@ class TestMinimize:
             smooth_avardev(bkd.asarray(np_samples).T, weights),
             exact_avardev,
             rtol=1e-5,
+        )
+
+    def test_differential_evolution(self):
+        bkd = self.get_backend()
+        benchmark = EvtushenkoConstrainedOptimizationBenchmark(backend=bkd)
+        bounds = benchmark.design_variable().bounds()
+        # bounds must be finite for differential_evolution
+        bounds[:, 1] = 1e3
+        optimizer = ScipyConstrainedDifferentialEvolutionOptimizer(
+            benchmark.objective(),
+            constraints=benchmark.constraints(),
+            bounds=bounds,
+            opts={"tol": 1e-7},
+        )
+        init_iterate = benchmark.init_iterate()
+        result = optimizer.minimize(init_iterate)
+        assert bkd.allclose(
+            result.x, bkd.array([0.0, 0.0, 1.0])[:, None], atol=1e-5
         )
 
 

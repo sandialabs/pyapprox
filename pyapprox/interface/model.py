@@ -815,7 +815,9 @@ class Model(ABC):
         by default
         """
         if not self._bkd.jacobian_implemented():
-            raise NotImplementedError
+            raise NotImplementedError(
+                f"{self._bkd.__name__} does not support autodiff"
+            )
         return self._bkd.jacobian(
             lambda x: self._values(x[:, None])[0], sample[:, 0]
         )
@@ -1814,10 +1816,6 @@ class Model(ABC):
         np.set_printoptions(precision=16)
         samples = self._bkd.hstack(samples)
         vals = self(samples)
-        II = self._bkd.where(vals > 1e5)[0]
-        print(II)
-        print(samples[:, II])
-        print(vals[II, 0])
         return vals
 
     def _1d_cross_section_values(
@@ -1953,9 +1951,8 @@ class Model(ABC):
             )
         if bounds.shape != (nominal_sample.shape[0], 2):
             raise ValueError(
-                "bounds and nominal_sample have inconsistent shapes"
+                f"{bounds.shape=} must be {(nominal_sample.shape[0], 2)}"
             )
-        nfig_rows, nfig_cols = self.nvars(), self.nvars()
         if variable_pairs is None:
             # define all 2d cross sections
             variable_pairs = self.get_all_variable_pairs()
@@ -1968,7 +1965,10 @@ class Model(ABC):
             )
         if variable_pairs.shape[1] != 2:
             raise ValueError("Variable pairs has the wrong shape")
+        nfig_rows, nfig_cols = self._bkd.max(variable_pairs + 1, axis=0)
         fig, axs = plt.subplots(nfig_rows, nfig_cols, sharex="col")
+        if nfig_rows == 1:
+            axs = [axs]
         for ax_row in axs:
             for ax in ax_row:
                 ax.axis("off")

@@ -491,6 +491,7 @@ class ChainedOptimizer(Optimizer):
 
     def _minimize(self, iterate: Array) -> OptimizationResult:
         result1 = self._optimizer1.minimize(iterate)
+        print(result1.x, result1.x.sum())
         result2 = self._optimizer2.minimize(result1.x)
         return result2
 
@@ -703,10 +704,16 @@ class SampleAverageVariance(SampleAverageStat):
 
     def _diff(self, values: Array, weights: Array) -> Array:
         mean = self._mean_stat(values, weights).T
+        print(values.shape)
+        print(values - mean[:, 0])
         return (values - mean[:, 0]).T
 
     def __call__(self, values: Array, weights: Array) -> Array:
         # values.shape (nsamples, ncontraints)
+        print(values.min(), "a")
+        print(values.max(), "b")
+        print(weights.min(), "c")
+        print(weights.max(), "d")
         return (self._diff(values, weights) ** 2 @ weights).T
 
     def jacobian(
@@ -757,6 +764,8 @@ class SampleAverageStdev(SampleAverageVariance):
     ) -> Array:
         variance_jac = super().jacobian(values, jac_values, weights)
         # d/dx y^{1/2} = 0.5y^{-1/2}
+        print(super().__call__(values, weights).min())
+        print(super().__call__(values, weights).max())
         tmp = 1 / (2 * self._bkd.sqrt(super().__call__(values, weights).T))
         return tmp * variance_jac
 

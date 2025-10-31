@@ -171,11 +171,19 @@ class LejaObjective(Model):
             intervals = self._bkd.hstack(
                 (intervals, self._bkd.asarray([[bounds[1]]]))
             )
+        eps = 1e-3
         if not self._bkd.isfinite(bounds[0]):
             intervals = self._bkd.hstack(
                 (
                     self._bkd.asarray(
-                        [[min(1.1 * self._bkd.min(self._sequence), -0.1)]]
+                        [
+                            [
+                                min(
+                                    1.1 * self._bkd.min(self._sequence),
+                                    self._marginal.interval(1 - eps)[0],
+                                )
+                            ]
+                        ]
                     ),
                     intervals,
                 )
@@ -185,7 +193,14 @@ class LejaObjective(Model):
                 (
                     intervals,
                     self._bkd.asarray(
-                        [[max(1.1 * self._bkd.max(self._sequence), 0.1)]]
+                        [
+                            [
+                                max(
+                                    1.1 * self._bkd.max(self._sequence),
+                                    self._marginal.interval(1 - eps)[1],
+                                )
+                            ]
+                        ]
                     ),
                 )
             )
@@ -384,8 +399,6 @@ class LejaSequence:
         results = []
         for jj in range(iterates.shape[1]):
             self._optimizer.set_bounds(bounds[jj])
-            # self._obj.plot(plt.figure().gca())
-            # plt.show()
             results.append(self._optimizer.minimize(iterates[:, jj : jj + 1]))
         best_idx = self._bkd.argmin(
             self._bkd.array([res.fun for res in results])

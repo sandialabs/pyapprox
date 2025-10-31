@@ -31,15 +31,19 @@ These classes can be used in applications such as:
 """
 
 from abc import abstractmethod
+from typing import Tuple, List
 
 import numpy as np
 from scipy import stats
+import matplotlib.pyplot as plt
 
 from pyapprox.util.linalg import (
     inverse_of_cholesky_factor,
     log_determinant_from_cholesky_factor,
     diag_of_mat_mat_product,
 )
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.util.misc import get_all_sample_combinations
 from pyapprox.interface.model import Model
 from pyapprox.interface.wrappers import ChangeModelSignWrapper
 from pyapprox.variables.joint import JointVariable
@@ -47,6 +51,7 @@ from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.optimization.minimize import Optimizer
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.util.visualization import get_meshgrid_samples
 
 
 class LogLikelihood(Model):
@@ -1385,6 +1390,201 @@ class LogUnNormalizedPosterior(Model):
             self.set_optimizer(self.default_optimizer())
         res = self._optimizer.minimize(iterate)
         return res.x
+
+
+class PosteriorForPlotting(Model):
+    """
+    Create posterior for plotting. Evidence is computed using Monte Carlo
+    integration
+    """
+
+    def __init__(
+        self, loglike: LogLikelihood, prior: JointVariable, nquad_samples: int
+    ):
+        if not isinstance(prior, IndependentMarginalsVariable):
+            raise TypeError(
+                "prior must be an instance of IndependentMarginalsVariable"
+            )
+        self._loglike = loglike
+        self._prior = prior
+        super().__init__(loglike._bkd)
+        self._unnormalized_log_post = LogUnNormalizedPosterior(loglike, prior)
+        self._compute_evidence(nquad_samples)
+
+    def _compute_evidence(self, nquad_samples: int):
+        self._nquad_samples = nquad_samples
+        self._quad_samples = self._prior.rvs(nquad_samples)
+        loglike_vals = self._loglike(self._quad_samples)
+        self._evidence = self._bkd.mean(self._bkd.exp(loglike_vals))
+        # print(self._evidence, "e1")
+        # max_loglike_val = self._bkd.max(loglike_vals)
+        # self._evidence = self._bkd.exp(max_loglike_val) * self._bkd.mean(
+        #     self._bkd.exp(loglike_vals - max_loglike_val)
+        # )
+        # print(self._evidence, "e2")
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nvars(self) -> int:
+        return self._loglike.nvars()
+
+    def _values(self, samples: Array) -> Array:
+        return (
+            self._bkd.exp(self._unnormalized_log_post(samples))
+            / self._evidence
+        )
+
+    def evidence(self) -> float:
+        return self._evidence
+
+    def _evaluate_marginalized_subspace(
+        self, active_samples: Array, active_indices: Array
+    ) -> Array:
+        nactive_vars, nactive_samples = active_samples.shape
+        inactive_mask = self._bkd.ones((self.nvars(),), dtype=bool)
+        inactive_mask[active_indices] = False
+        inactive_indices = self._bkd.where(inactive_mask)[0]
+        inactive_samples = self._quad_samples[inactive_indices]
+        # active vals will vary the slowest
+        expanded_samples = get_all_sample_combinations(
+            active_samples, inactive_samples
+        )
+        samples = self._bkd.empty(expanded_samples.shape)
+        samples[active_indices] = expanded_samples[:nactive_vars]
+        samples[inactive_indices] = expanded_samples[nactive_vars:]
+        loglike_vals = self._loglike(samples)
+        prior_marginals = self._prior.marginals()
+        active_prior_logpdf = self._bkd.stack(
+            [
+                prior_marginals[idx].logpdf(active_samples[ii])
+                for ii, idx in enumerate(active_indices)
+            ],
+            axis=0,
+        )
+        log_vals = self._bkd.sum(active_prior_logpdf, axis=0)[
+            :, None
+        ] + loglike_vals.reshape(nactive_samples, -1)
+        marginalized_vals = (
+            self._bkd.mean(self._bkd.exp(log_vals), axis=1)[:, None]
+            / self._evidence
+        )
+        return marginalized_vals
+
+    def _plot_2D_marginal(
+        self,
+        bounds: Array,
+        ax,
+        id1: int,
+        id2: int,
+        npts_1d=51,
+        **kwargs,
+    ):
+        """
+        Plot a 2D marginals of the posterior.
+
+        Parameters
+        ----------
+        bounds : Array (nvars, 2)
+            The bounds for each variable.
+        ax : matplotlib.axes.Axes
+            The axis on which to plot the cross-section.
+        id1 : int
+            The index of the first variable defining the cross-section.
+        id2 : int
+            The index of the second variable defining the cross-section.
+        npts_1d : int, optional
+            The number of points to use for each variable. Defaults to 51.
+        **kwargs : dict
+            Additional arguments passed to the contourf function.
+
+        Returns
+        -------
+        im : matplotlib.contour.QuadContourSet
+            The plotted marginal.
+        """
+        plot_limits = self._bkd.hstack((bounds[id1], bounds[id2]))
+        X, Y, pts = get_meshgrid_samples(plot_limits, npts_1d, bkd=self._bkd)
+        Z = self._bkd.reshape(
+            self._evaluate_marginalized_subspace(
+                pts, self._bkd.array([id1, id2])
+            )[:, 0],
+            X.shape,
+        )
+        im = ax.contourf(X, Y, Z, **kwargs)
+        return im
+
+    def plot_marginals(
+        self,
+        bounds: Array,
+        variable_pairs: List[Tuple[int, int]] = None,
+        npts_1d=51,
+        **kwargs,
+    ):
+        """
+        Plot 2D marginals of the model for all variable pairs.
+
+        Parameters
+        ----------
+        bounds : Array (nvars, 2)
+            The bounds for each variable.
+        variable_pairs : List[Tuple[int, int]], optional
+            The pairs of variables to plot. If `None`, all pairs are plotted. Defaults to `None`.
+        npts_1d : int, optional
+            The number of points to use for each variable. Defaults to 51.
+        **kwargs : dict
+            Additional arguments passed to the plotting functions.
+
+        Returns
+        -------
+        axs : numpy.ndarray
+            The array of axes used for plotting.
+        ims : list
+            The list of plotted marginals.
+        """
+        if bounds.shape != (self.nvars(), 2):
+            raise ValueError(f"{bounds.shape=} must be {(self.nvars(), 2)}")
+        if variable_pairs is None:
+            # define all 2d cross sections
+            variable_pairs = self.get_all_variable_pairs()
+            # add 1d cross sections
+            variable_pairs = self._bkd.vstack(
+                (
+                    self._bkd.array([[ii, ii] for ii in range(self.nvars())]),
+                    variable_pairs,
+                )
+            )
+        if variable_pairs.shape[1] != 2:
+            raise ValueError("Variable pairs has the wrong shape")
+        nfig_rows, nfig_cols = self._bkd.max(variable_pairs + 1, axis=0)
+        fig, axs = plt.subplots(nfig_rows, nfig_cols, sharex="col")
+        if nfig_rows == 1:
+            axs = [axs]
+        # for ax_row in axs:
+        #     for ax in ax_row:
+        #         ax.axis("off")
+        ims = []
+        for ii, pair in enumerate(variable_pairs):
+            print(f"plotting marginal pair {pair}")
+            if pair[0] == pair[1]:
+                plot_xx = self._bkd.linspace(*bounds[pair[0]], npts_1d)[
+                    None, :
+                ]
+                im = axs[pair[0]][pair[1]].plot(
+                    plot_xx[0],
+                    self._evaluate_marginalized_subspace(plot_xx, pair[:1]),
+                )
+            else:
+                im = self._plot_2D_marginal(
+                    bounds,
+                    axs[pair[0]][pair[1]],
+                    pair[0],
+                    pair[1],
+                    npts_1d,
+                    **kwargs,
+                )
+            ims.append(im)
+        return axs, ims
 
 
 class ExponentialQuarticLogLikelihoodModel(LogLikelihood):

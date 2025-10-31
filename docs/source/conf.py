@@ -158,7 +158,9 @@ example_filenames_in_order += [
     "plot_low_discrepancy_quadrature.py",
     "plot_bayesoed4params.py",
     "plot_bayesoed4pred.py",
-    "plot_bayesoed4pred_timeseries_obs.py",
+    "plot_bayesoed_generate_data.py",
+    "plot_bayesoed_from_data.py",
+    "plot_bayesoed_surrogate.py",
     # surrogates
     "plot_gaussian_quadrature.py",
     "plot_barycentric_interpolation.py",

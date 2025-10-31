@@ -1,4 +1,5 @@
 import os
+import inspect
 from multiprocessing.pool import ThreadPool, Pool
 
 import numpy as np
@@ -159,12 +160,16 @@ def create_active_set_variable_model(
             samples = self._expand_samples(reduced_samples)
             return self._model(samples)
 
-        def _jacobian(self, reduced_samples: Array) -> Array:
+        # must overide public versions of jacobian, apply_jacobian
+        # apply_hessian
+        # so that work tracker and data base of self._model
+        # are updated correctly
+        def jacobian(self, reduced_samples: Array) -> Array:
             samples = self._expand_samples(reduced_samples)
             jac = self._model.jacobian(samples)
             return jac[:, self._active_var_indices]
 
-        def _apply_jacobian(self, reduced_samples: Array, vec: Array) -> Array:
+        def apply_jacobian(self, reduced_samples: Array, vec: Array) -> Array:
             samples = self._expand_samples(reduced_samples)
             # set inactive entries of vec to zero when peforming
             # matvec product so they do not contribute to sum
@@ -190,50 +195,62 @@ def create_active_set_variable_model(
                 self.__class__.__name__, self._model, self.nvars()
             )
 
-        def _add_model_attributes(self):
-            # Redirect all attribute/method calls to the wrapped instance
-            overridden_attr_names = [
-                "model",
-                "nvars",
-                "_expand_samples",
-                "_values",
-                "_new_values",
-                "_jacobian",
-                "_apply_jacobian",
-                "apply_hessian",
-                "noriginal_vars",
-                # the following are not defined explicitly here but are
-                # defined in model. However, they must not point to model.fun
-                "_check_sample_shape",
-                "_check_samples_shape",
-                "jacobian",
-                "apply_jacobian",
-                "check_apply",
-                "check_apply_jacobian",
-                "check_apply_hessian",
-                "_jacobian_from_apply_jacobian",
-                "_check_vec_shape",
-                "_check_hvp_shape",
-                "hessian",
-                "_check_hessian_shape",
-                "apply_weighted_hessian",
-                "_apply_weighted_hessian",
-                "weighted_hessian",
-                "_weighted_hessian",
-                "plot_surface",
-                "plot_contours",
-                "get_all_variable_pairs",
-                "plot_cross_sections",
-            ]
+        def _public_function_names(self, cls):
+            funs = inspect.getmembers(Model, predicate=inspect.isfunction)
+            names = [name for name, func in funs if not name.startswith("_")]
+            return names
 
-            for name in dir(self._model):
-                if name.startswith("__"):
-                    continue
-                if name in overridden_attr_names:
-                    # if we have overwridden the attribute do not
-                    # use model attr
-                    continue
+        def _add_model_attributes(self):
+            # Get list of public member functions in self._model not in
+            # Model(ABC) class
+            # private functions are assumed to start with _, e.g. def _fun(self)
+
+            # First get names of all public functions from Model(ABC)
+            abstract_model_public_fun_names = self._public_function_names(
+                Model
+            )
+            # Second get names of all public functions from self._model
+            model_public_fun_names = self._public_function_names(self._model)
+            # Take the set difference
+            specialized_model_public_funs = [
+                name
+                for name in model_public_fun_names
+                if name not in abstract_model_public_fun_names
+            ]
+            # Add attributes to this model that are in self._model but not in
+            # Model(ABC)
+            for name in specialized_model_public_funs:
                 setattr(self, name, getattr(self._model, name))
+
+            # Add attributes that need to be extracted from Model(ABC) class
+            # for example so that self._model data base is updated correctly
+            other_attributes = [
+                "nqoi",
+                "jacobian_implemented",
+                "apply_jacobian_implemented",
+                "apply_hessian_implemented",
+            ]
+            for name in other_attributes:
+                setattr(self, name, getattr(self._model, name))
+
+        def hessian_implemented(self) -> int:
+            return False
+
+        def weighted_hessian_implemented(self) -> int:
+            return False
+
+        def apply_weighted_hessian_implemented(self) -> int:
+            return False
+
+        def work_tracker(self):
+            raise AttributeError(
+                "must call the wrapped models version of this function"
+            )
+
+        def model_database(self):
+            raise AttributeError(
+                "must call the wrapped models version of this function"
+            )
 
     wrapped_model = ActiveSetVariableModel(
         model, nvars, inactive_var_values, active_var_indices
@@ -767,8 +784,15 @@ def create_pool_model(
                 "database not support for PoolModelWrapper"
             )
 
+        def _public_function_names(self, cls):
+            funs = inspect.getmembers(Model, predicate=inspect.isfunction)
+            names = [name for name, func in funs if not name.startswith("_")]
+            return names
+
         def _add_model_attributes(self):
-            # Redirect all attribute/method calls to the wrapped instance
+            # Redirect all public attribute/method calls to the wrapped
+            # instance except the following
+            # private functions are assumed to start with _, e.g. def _fun(self)
             overridden_attr_names = [
                 "nqoi",  # needed so object is not abstract. calls model.nqoi
                 "nvars",  # needed so  object is not abstract model.nvars
@@ -779,7 +803,7 @@ def create_pool_model(
                 "activate_model_data_base",
             ]
             for name in dir(self._model):
-                if name.startswith("__"):
+                if name.startswith("_"):
                     continue
                 if name in overridden_attr_names:
                     # if we have overwridden the attribute do not
@@ -793,5 +817,122 @@ def create_pool_model(
             )
 
     wrapped_model = PoolModelWrapper(model, nprocs, assert_omp)
+
+    return wrapped_model
+
+
+def create_active_set_qoi_model(
+    model: Model, active_qoi_indices: Array
+) -> Model:
+    class ActiveSetQoIModel(type(model)):
+        r"""
+        Create a model wrapper that only accepts a subset of the model variables.
+
+        Notes
+        -----
+        work_tracker and database will update model passed in as argument here
+        """
+
+        def __init__(
+            self,
+            model: Model,
+            active_qoi_indices: Array,
+        ):
+            # nvars can de determined from inputs but making it
+            # necessary allows for better error checking
+            if not isinstance(model, Model):
+                raise ValueError("model must be an instance of Model")
+            self._model = model
+            Model.__init__(self, model._bkd)
+            if self._bkd.max(active_qoi_indices) >= model.nqoi():
+                raise ValueError("active qoi indices not found")
+            self._active_qoi_indices = self._bkd.asarray(
+                active_qoi_indices, dtype=int
+            )
+            self._add_model_attributes()
+
+        def _public_function_names(self, cls):
+            funs = inspect.getmembers(Model, predicate=inspect.isfunction)
+            names = [name for name, func in funs if not name.startswith("_")]
+            return names
+
+        def _add_model_attributes(self):
+            # Get list of public member functions in self._model not in
+            # Model(ABC) class
+            # private functions are assumed to start with _, e.g. def _fun(self)
+
+            # First get names of all public functions from Model(ABC)
+            abstract_model_public_fun_names = self._public_function_names(
+                Model
+            )
+            # Second get names of all public functions from self._model
+            model_public_fun_names = self._public_function_names(self._model)
+            # Take the set difference
+            specialized_model_public_funs = [
+                name
+                for name in model_public_fun_names
+                if name not in abstract_model_public_fun_names
+            ]
+            # Add attributes to this model that are in self._model but not in
+            # Model(ABC)
+            for name in specialized_model_public_funs:
+                setattr(self, name, getattr(self._model, name))
+
+            # Add attributes that need to be extracted from Model(ABC) class
+            # for example so that self._model data base is updated correctly
+            other_attributes = [
+                "nvars",
+                "jacobian_implemented",
+                "apply_jacobian_implemented",
+            ]
+            for name in other_attributes:
+                setattr(self, name, getattr(self._model, name))
+
+        def nqoi(self) -> int:
+            return self._active_qoi_indices.shape[0]
+
+        def _values(self, samples: Array) -> Array:
+            vals = self._model(samples)[:, self._active_qoi_indices]
+            return vals
+
+        def jacobian(self, samples: Array) -> Array:
+            jac = self._model.jacobian(samples)
+            return jac[self._active_qoi_indices, :]
+
+        def apply_jacobian(self, samples: Array, vec: Array) -> Array:
+            return self._model.apply_jacobian(samples, vec)[
+                self._active_qoi_indices
+            ]
+
+        def __repr__(self) -> str:
+            return "{0}(model={1}, nactive_qoi={2})".format(
+                self.__class__.__name__, self._model, self.nqoi()
+            )
+
+        # TODO: technically I could enable these
+        # but for now it is easier not to do so unless a user requests it
+        def hessian_implemented(self) -> int:
+            return False
+
+        def apply_hessian_implemented(self) -> int:
+            return False
+
+        def weighted_hessian_implemented(self) -> int:
+            return False
+
+        def apply_weighted_hessian_implemented(self) -> int:
+            return False
+
+        def work_tracker(self):
+            raise AttributeError(
+                "must call the wrapped models version of this function"
+            )
+
+        def model_database(self):
+            raise AttributeError(
+                "must call the wrapped models version of this function"
+            )
+
+    wrapped_model = ActiveSetQoIModel(model, active_qoi_indices)
 
     return wrapped_model

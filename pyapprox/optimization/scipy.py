@@ -186,10 +186,15 @@ class ScipyConstrainedNelderMeadOptimizer(ScipyPenaltyConstrainedOptimizer):
 
 
 class ScipyConstrainedDifferentialEvolutionOptimizer(
-    ScipyPenaltyConstrainedOptimizer
+    ScipyConstrainedOptimizer
 ):
-    def _scipy_minimize(
-        self, objective: ScipyModelWrapper, iterate: Array, bounds: Bounds
+    def _minimize(self, iterate: Array) -> NativeScipyOptimizationResult:
+        return self._minimize_objective(
+            iterate, ScipyModelWrapper(self._objective), self._constraints
+        )
+
+    def _minimize_objective(
+        self, iterate: Array, objective: callable, constraints: List
     ) -> NativeScipyOptimizationResult:
         opts = self._opts.copy()
         opts["polish"] = False
@@ -197,10 +202,19 @@ class ScipyConstrainedDifferentialEvolutionOptimizer(
             disp = True
         else:
             disp = False
-        return scipy.optimize.differential_evolution(
+        scipy_result = scipy.optimize.differential_evolution(
             objective,
-            bounds,
+            self._get_bounds(self._objective.nvars()),
             **opts,
+            constraints=constraints,
             x0=iterate[:, 0],
             disp=disp,
         )
+        scipy_result.x = np.copy(scipy_result.x[:, None])
+        result = ScipyOptimizationResult(scipy_result, self._bkd)
+        return result
+
+    def set_bounds(self, bounds: Array):
+        if not self._bkd.all(self._bkd.isfinite(bounds)):
+            raise ValueError("Bounds must be finite")
+        super().set_bounds(bounds)

@@ -107,14 +107,14 @@ class Regressor(Surrogate):
         self._set_training_data(train_samples, train_values)
         self._fit(iterate)
 
-    def save(self, filename):
-        """
-        To load, use pyapprox.sciml.network.load(filename)
-        """
+    def save(self, filename: str):
         pickle.dump(self, open(filename, "wb"))
 
-    def __call__(self, samples) -> Array:
-        return self._out_trans.map_from_canonical(super().__call__(samples))
+    # def __call__(self, samples: Array) -> Array:
+    #    return self._out_trans.map_from_canonical(super().__call__(samples))
+
+    def _values(self, samples: Array) -> Array:
+        return self._out_trans.map_from_canonical(super()(samples))
 
     def nvars(self) -> int:
         return self._ctrain_samples.shape[0]
