@@ -31,7 +31,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.torch import TorchMixin as bkd
-from pyapprox.optimization.minimize import SampleAverageMean
+from pyapprox.optimization.sampleaverage import SampleAverageMean
 from pyapprox.expdesign.bayesoed import (
     BayesianOEDForPrediction,
     IndependentGaussianOEDInnerLoopLogLikelihood,

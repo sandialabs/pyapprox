@@ -34,12 +34,12 @@ c = np.array([[10, 0.01]]).T
 w = np.full((2, 1), 0.25)
 benchmark = GenzBenchmark(name="oscillatory", nvars=2, coefs=(c, w))
 model = benchmark.model()
-variable = benchmark.variable()
+variable = benchmark.prior()
 
 # %% We can also use other benchmarks, for example by uncommenting the following code
 
 # benchmark = IshigamiBenchmark(a=7, b=0.1)
-# variable = benchmark.variable()
+# variable = benchmark.prior()
 # model = benchmark.model()
 
 # %%

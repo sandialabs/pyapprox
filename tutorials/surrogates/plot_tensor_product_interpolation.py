@@ -230,7 +230,7 @@ benchmark = GenzBenchmark("oscillatory", nvars)
 
 # %%
 # Run a convergence study
-validation_samples = benchmark.variable().rvs(1000)
+validation_samples = benchmark.prior().rvs(1000)
 validation_values = benchmark.model()(validation_samples)
 
 piecewise_data = []

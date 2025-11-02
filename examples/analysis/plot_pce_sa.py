@@ -16,22 +16,23 @@ from pyapprox.analysis.sensitivity_analysis import (
 from pyapprox.surrogates.affine.basisexp import (
     setup_polynomial_chaos_expansion_from_variable,
 )
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
 np.random.seed(1)
-benchmark = IshigamiBenchmark(a=7, b=0.1)
+benchmark = IshigamiBenchmark(bkd, a=7, b=0.1)
 nsamples = 1000
 degree = 15
 pce = setup_polynomial_chaos_expansion_from_variable(
-    benchmark.variable(), benchmark.model().nqoi()
+    benchmark.prior(), benchmark.model().nqoi()
 )
 pce.basis().set_hyperbolic_indices(degree, 1.0)
-samples = benchmark.variable().rvs(nsamples)
+samples = benchmark.prior().rvs(nsamples)
 values = benchmark.model()(samples)
 pce.fit(samples, values)
 
 # %%
 # Now compute the sensitivity indices
-analyzer = PolynomialChaosSensitivityAnalysis(benchmark.variable().nvars())
+analyzer = PolynomialChaosSensitivityAnalysis(benchmark.prior().nvars())
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()
 )

@@ -30,7 +30,7 @@ from pyapprox.expdesign.bayesoed import (
 )
 
 # %% Setup the Model to Generate the Simulation Data
-# -------------------------------------------------
+# --------------------------------------------------
 # Users can load in their own simulation data to create an OED.
 # Here we show how to construct the data needed. First we must
 # setup the simulation model
@@ -155,7 +155,7 @@ oed_data_manager = original_oed_data_manager.extract_data_subset(
 
 # %%
 # Visualize the Observation Locations
-# -----------------
+# -----------------------------------
 # Plot the optimal experimental design locations for the full and reduced data set.
 
 fig, ax = plt.subplots(1, 1, figsize=(8, 6), sharey=True)

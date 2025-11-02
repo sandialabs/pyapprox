@@ -30,14 +30,15 @@ from scipy import stats
 from pyapprox.benchmarks import (
     NonlinearSystemOfEquationsBenchmark,
 )
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
-benchmark = NonlinearSystemOfEquationsBenchmark()
+benchmark = NonlinearSystemOfEquationsBenchmark(bkd)
 model = benchmark.model()
 
 
 # %%
 # Define the prior density and the observational density
-prior_variable = benchmark.variable()
+prior_variable = benchmark.prior()
 prior_pdf = prior_variable.pdf
 
 

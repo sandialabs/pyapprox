@@ -35,13 +35,16 @@ from pyapprox.interface.model import Model, SingleSampleModel
 from pyapprox.inference.likelihood import IndependentGaussianLogLikelihood
 from pyapprox.optimization.minimize import (
     Constraint,
-    SampleAverageMean,
     ConstrainedOptimizer,
     LinearConstraint,
     OptimizationResult,
-    SampleAverageStat,
-    SampleSmoothedConditionalValueAtRisk,
 )
+from pyapprox.optimization.sampleaverage import (
+    SampleAverageStat,
+    SampleAverageMean,
+    SampleAverageSmoothedAverageValueAtRisk,
+)
+
 from pyapprox.variables.joint import (
     JointVariable,
     IndependentGroupsVariable,
@@ -272,7 +275,7 @@ class OEDInnerLoopLogLikelihoodMixin:
         """
         raise NotImplementedError
 
-    def outloop_loglike(self) -> OEDOuterLoopLogLikelihoodMixin:
+    def outerloop_loglike(self) -> OEDOuterLoopLogLikelihoodMixin:
         """
         Return the log likelihood function for the outerloop which
         operates on obs and shapes of different size to innterloop likelihood.
@@ -527,8 +530,8 @@ class NoiseStatistic:
 
     def jacobian(self, outer_vals, outer_jacs, outer_weights):
         return self._stat.jacobian(
-            outer_vals, outer_jacs[..., None], outer_weights
-        ).T
+            outer_vals, outer_jacs[:, None, :], outer_weights
+        )
 
     def __repr__(self) -> str:
         return "{0}({1})".format(self.__class__.__name__, self._stat)
@@ -610,7 +613,7 @@ class KLOEDObjective(BayesianOEDObjective):
                 "inloop_loglike must be a OEDInnerLoopLogLikelihoodMixin"
             )
         self._inloop_loglike = inloop_loglike
-        self._outloop_loglike = inloop_loglike.outloop_loglike()
+        self._outloop_loglike = inloop_loglike.outerloop_loglike()
         self._outloop_shapes = outloop_shapes
         self._outloop_quad_samples = outloop_quad_samples
         self._inloop_shapes = inloop_shapes
@@ -803,6 +806,8 @@ class PredictionOEDDeviationMeasure(SingleSampleModel):
         return self._npred
 
     def nvars(self) -> int:
+        if not hasattr(self, "_inloop_loglike"):
+            raise AttributeError("Must call set_loglikelihood")
         return self._inloop_loglike.nvars()
 
     def set_evidence(self, evidence: Evidence):
@@ -1078,8 +1083,8 @@ class OEDAVaRDeviationMeasure(
         if alpha <= 0:
             raise ValueError("alpha must be > 0")
         self._alpha = alpha
-        self._smoothed_avar = SampleSmoothedConditionalValueAtRisk(
-            self._alpha, self._delta, backend=self._bkd
+        self._smoothed_avar = SampleAverageSmoothedAverageValueAtRisk(
+            self._alpha, self._bkd, self._delta
         )
 
     def _evaluate_option1(self, design_weights: Array) -> Array:
@@ -1106,8 +1111,7 @@ class OEDAVaRDeviationMeasure(
                     / evidences[oo : oo + 1],
                 )
                 outer_vals.append(avardev)
-            vals.append(self._bkd.asarray(outer_vals))
-        # avardev = self._bkd.stack(vals, axis=0)
+            vals.append(self._bkd.hstack(outer_vals))
         avardev = self._bkd.stack(vals, axis=0) - mean
         return avardev.flatten()[None, :]
 
@@ -1654,7 +1658,7 @@ class KLBayesianOEDMixin:
         inloop_quad_weights : Array (ninloop_samples, 1)
             Weights for the inner loop quadrature.
         """
-        outloop_loglike = self._inloop_loglike.outloop_loglike()
+        outloop_loglike = self._inloop_loglike.outerloop_loglike()
         outloop_shapes_samples = outloop_samples[: prior.nvars()]
         outloop_shapes = obs_model(outloop_shapes_samples).T
         outloop_loglike.set_shapes(outloop_shapes)
@@ -1663,7 +1667,7 @@ class KLBayesianOEDMixin:
         self._inloop_loglike.set_shapes(inloop_shapes)
 
         self.set_data(
-            self._inloop_loglike.outloop_loglike().shapes(),
+            self._inloop_loglike.outerloop_loglike().shapes(),
             outloop_samples,
             outloop_quad_weights,
             self._inloop_loglike.shapes(),
@@ -1824,7 +1828,7 @@ class BayesianOEDForPrediction(RelaxedBayesianOED):
                 "when qoi=1 risk measure must be an instance of "
                 "SampleAverageMean"
             )
-        outloop_loglike = self._inloop_loglike.outloop_loglike()
+        outloop_loglike = self._inloop_loglike.outerloop_loglike()
         outloop_loglike.set_shapes(outloop_shapes)
         self._inloop_loglike.set_shapes(inloop_shapes)
 
@@ -1970,7 +1974,7 @@ class BayesianOEDDataGenerator:
             Inner loop log-likelihood object.
         """
         # Generate outer loop quadrature data
-        outloop_loglike = oed._inloop_loglike.outloop_loglike()
+        outloop_loglike = oed._inloop_loglike.outerloop_loglike()
         prior_data_variable = outloop_loglike.joint_prior_data_variable(prior)
         outloop_samples, outloop_quad_weights = self.setup_quadrature_data(
             outloop_quadtype,

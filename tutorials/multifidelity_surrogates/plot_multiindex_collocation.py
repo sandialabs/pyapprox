@@ -60,8 +60,9 @@ from pyapprox.surrogates.univariate.lagrange import (
 from pyapprox.surrogates.affine.multiindex import (
     DoublePlusOneIndexGrowthRule,
 )
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
-benchmark = MultiLevelCosineBenchmark()
+benchmark = MultiLevelCosineBenchmark(bkd)
 variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
 ranges = benchmark.variable().interval(1.0).flatten()
 # Set the univariate quarature rules and bases

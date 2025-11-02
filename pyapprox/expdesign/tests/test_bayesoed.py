@@ -46,10 +46,11 @@ from pyapprox.optimization.risk import (
     LogNormalAnalyticalRiskMeasures,
     GaussianAnalyticalRiskMeasures,
 )
-from pyapprox.optimization.minimize import (
+from pyapprox.optimization.sampleaverage import (
     SampleAverageMean,
     SampleAverageMeanPlusStdev,
     SampleAverageEntropicRisk,
+    SampleAverageSmoothedAverageValueAtRisk,
 )
 
 
@@ -220,11 +221,11 @@ class TestBayesOED:
         design_weights = bkd.array(np.random.uniform(0.5, 1.0, (nobs, 1)))
         outerloop_loglike = kl_oed.get_outerloop_loglike()
         outerloop_loglike.set_design_weights(design_weights)
-        latent_likelihood_samples = kl_oed.objective()._outerloop_quad_samples[
-            -kl_oed.objective()._outerloop_shapes.shape[0] :
+        latent_likelihood_samples = kl_oed.objective()._outloop_quad_samples[
+            -kl_oed.objective()._outloop_shapes.shape[0] :
         ]
         obs = outerloop_loglike._rvs_from_likelihood_samples(
-            kl_oed.objective()._outerloop_shapes,
+            kl_oed.objective()._outloop_shapes,
             latent_likelihood_samples,
         )
         outerloop_loglike.set_artificial_observations(obs)
@@ -234,7 +235,7 @@ class TestBayesOED:
         # udpate nouterloop_samples because some quad rules cannot guarantee
         # using exactly the number of samples requestd
 
-        nouterloop_samples = kl_oed.objective()._outerloop_shapes.shape[1]
+        nouterloop_samples = kl_oed.objective()._outloop_shapes.shape[1]
         innerloop_loglike.set_artificial_observations(obs)
         evidence = Evidence(innerloop_loglike, innerloop_quad_weights)
         check_evidence_gradients(
@@ -319,12 +320,12 @@ class TestBayesOED:
         def likelihood_with_reparameterization_trick(return_values, weights):
             outerloop_loglike.set_design_weights(weights)
             latent_likelihood_samples = (
-                kl_oed.objective()._outerloop_quad_samples[
-                    -kl_oed.objective()._outerloop_shapes.shape[0] :
+                kl_oed.objective()._outloop_quad_samples[
+                    -kl_oed.objective()._outloop_shapes.shape[0] :
                 ]
             )
             obs = outerloop_loglike._rvs_from_likelihood_samples(
-                kl_oed.objective()._outerloop_shapes,
+                kl_oed.objective()._outloop_shapes,
                 latent_likelihood_samples,
             )
 
@@ -853,8 +854,15 @@ class TestBayesOED:
         bkd = self.get_backend()
         noise_stats = [
             NoiseStatistic(SampleAverageMean(bkd)),
-            NoiseStatistic(SampleAverageMeanPlusStdev(1, bkd)),
-            NoiseStatistic(SampleAverageEntropicRisk(0.5, bkd)),
+            # NoiseStatistic(SampleAverageMeanPlusStdev(1, bkd)),
+            # NoiseStatistic(SampleAverageEntropicRisk(0.5, bkd)),
+            NoiseStatistic(
+                SampleAverageSmoothedAverageValueAtRisk(
+                    0.5,
+                    bkd,
+                    100000,
+                )
+            ),
         ]
         risk_measures = [
             SampleAverageMeanPlusStdev(1, bkd),
@@ -897,6 +905,7 @@ class TestBayesOED:
     ):
         import torch
 
+        print("$$$$")
         torch.set_printoptions(precision=8)
         bkd = self.get_backend()
         nobs = 2

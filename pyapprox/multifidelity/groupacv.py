@@ -449,7 +449,7 @@ class GroupACVGradientOptimizer(GroupACVOptimizer):
         self._optimizer.set_bounds(
             self._bkd.reshape(
                 self._bkd.tile(
-                    self._bkd.array([0, np.inf]), (self._est.npartitions(),)
+                    self._bkd.array([0, 1e12]), (self._est.npartitions(),)
                 ),
                 (self._est.npartitions(), 2),
             )

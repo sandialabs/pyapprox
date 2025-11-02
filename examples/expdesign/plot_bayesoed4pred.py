@@ -25,7 +25,7 @@ from pyapprox.expdesign.bayesoed import (
     OEDEntropicDeviationMeasure,
     NoiseStatistic,
 )
-from pyapprox.optimization.minimize import (
+from pyapprox.optimization.sampleaverage import (
     SampleAverageMean,
     SampleAverageMeanPlusStdev,
     SampleAverageEntropicRisk,

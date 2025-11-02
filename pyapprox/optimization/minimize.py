@@ -9,7 +9,6 @@ from pyapprox.util.backends.numpy import NumpyMixin
 
 from pyapprox.interface.model import (
     Model,
-    expand_samples_from_indices,
     SingleSampleModel,
     ScalarElementwiseFunction,
 )
@@ -517,911 +516,6 @@ class ChainedOptimizer(Optimizer):
         )
 
 
-# TODO consider merging with multifidelity.stat
-class SampleAverageStat(ABC):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
-        self._bkd = backend
-
-    def hessian_implemented(self) -> bool:
-        return False
-
-    @abstractmethod
-    def __call__(self, values: Array, weights: Array) -> Array:
-        """
-        Compute the sample average statistic.
-
-        Parameters
-        ----------
-        values: array (nsamples, nqoi)
-           function values at each sample
-
-        weights: array(nsamples, 1)
-            qudrature weight for each sample
-
-        Returns
-        -------
-        estimate: array (nqoi, 1)
-            Estimate of the statistic
-        """
-        raise NotImplementedError
-
-    def jacobian(self, values: Array, jac_values: Array, weights: Array):
-        """
-        Compute the sample average jacobian.
-
-        Parameters
-        ----------
-        values: array (nsamples, nqoi)
-           function values at each sample
-
-        jac_values: array (nsamples, nqoi, nvars)
-           function values at each sample
-
-        weights: array(nsamples, 1)
-            qudrature weight for each sample
-
-        Returns
-        -------
-        estimate: array (nqoi, nvars)
-            Estimate of the statistic jacobian
-        """
-        raise NotImplementedError
-
-    def apply_jacobian(
-        self, values: Array, jv_values: Array, weights: Array
-    ) -> Array:
-        """
-        Compute the sample average jacobian dot product with
-        a vector.
-
-        Parameters
-        ----------
-        values: array (nsamples, nqoi)
-           function values at each sample
-
-        jv_values : array (nsamples, nqoi, 1)
-            values of the jacobian vector product (jvp) at each sample
-
-        weights: array(nsamples, 1)
-            qudrature weight for each sample
-
-        Returns
-        -------
-        estimate: array (nqoi, 1)
-            Estimate of the statistic jacobian vector product
-        """
-        raise NotImplementedError
-
-    def hessian(
-        self,
-        values: Array,
-        jac_values: Array,
-        hess_values: Array,
-        weights: Array,
-    ) -> Array:
-        """
-        Compute the sample average hessian.
-
-        Parameters
-        ----------
-        values: array (nsamples, nqoi)
-           function values at each sample
-
-        jac_values: array (nsamples, nqoi, nvars)
-           function values at each sample
-
-        jac_values: array (nsamples, nqoi, nvars, nvars)
-           function values at each sample
-
-        weights: array(nsamples, 1)
-            qudrature weight for each sample
-
-        Returns
-        -------
-        estimate: array (nqoi, nvars, nvars)
-            Estimate of the statistic hessian
-        """
-        raise NotImplementedError
-
-    def apply_hessian(
-        self,
-        values: Array,
-        jv_values: Array,
-        hv_values: Array,
-        weights: Array,
-        lagrange: Array,
-    ) -> Array:
-        """
-        Compute the sample average weighted combination of the
-        Qoi, dot product with a vector.
-
-        Parameters
-        ----------
-        values: array (nsamples, nqoi)
-           function values at each sample
-
-        jv_values : array (nsamples, nqoi, 1)
-            values of the jacobian vector product (jvp) at each sample
-
-        hv_values : array (nsamples, nqoi, 1)
-            values of the hessian vector product (hvp) at each sample
-
-        weights: array(nsamples, 1)
-            qudrature weight for each sample
-
-        lagrange: array (nqoi, 1)
-            The weights defining the combination of QoI.
-
-        Returns
-        -------
-        estimate: array (nqoi, 1)
-            Estimate of the statistic jacobian vector product
-        """
-        raise NotImplementedError
-
-    def __repr__(self) -> str:
-        return "{0}()".format(self.__class__.__name__)
-
-
-class SampleAverageMean(SampleAverageStat):
-    def hessian_implemented(self) -> bool:
-        return True
-
-    def __call__(self, values: Array, weights: Array) -> Array:
-        # values.shape (nsamples, ncontraints)
-        return (values.T @ weights).T
-
-    def jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
-        # jac_values.shape (nsamples, ncontraints, ndesign_vars)
-        return self._bkd.einsum("ijk,i->jk", jac_values, weights[:, 0])
-
-    def apply_jacobian(
-        self, values: Array, jv_values: Array, weights: Array
-    ) -> Array:
-        # jac_values.shape (nsamples, ncontraints)
-        return (jv_values[..., 0].T @ weights[:, 0])[:, None]
-
-    def hessian(
-        self,
-        values: Array,
-        jac_values: Array,
-        hess_values: Array,
-        weights: Array,
-    ) -> Array:
-        return self._bkd.einsum("ijkl,i->jkl", hess_values, weights[:, 0])
-
-
-class SampleAverageVariance(SampleAverageStat):
-    def __init__(self, backend: BackendMixin = NumpyMixin):
-        super().__init__(backend=backend)
-        self._mean_stat = SampleAverageMean(backend=backend)
-
-    def hessian_implemented(self) -> bool:
-        return True
-
-    def _diff(self, values: Array, weights: Array) -> Array:
-        mean = self._mean_stat(values, weights).T
-        return (values - mean[:, 0]).T
-
-    def __call__(self, values: Array, weights: Array) -> Array:
-        # values.shape (nsamples, ncontraints)
-        return (self._diff(values, weights) ** 2 @ weights).T
-
-    def jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
-        # jac_values.shape (nsamples, ncontraints, ndesign_vars)
-        mean_jac = self._mean_stat.jacobian(values, jac_values, weights)[
-            None, :
-        ]
-        tmp = jac_values - mean_jac
-        tmp = 2 * self._diff(values, weights).T[..., None] * tmp
-        return self._bkd.einsum("ijk,i->jk", tmp, weights[:, 0])
-
-    def apply_jacobian(
-        self, values: Array, jv_values: Array, weights: Array
-    ) -> Array:
-        mean_jv = self._mean_stat.apply_jacobian(values, jv_values, weights)
-        tmp = jv_values - mean_jv
-        tmp = 2 * self._diff(values, weights).T * tmp[..., 0]
-        return self._bkd.einsum("ij,i->j", tmp, weights[:, 0])
-
-    def hessian(
-        self,
-        values: Array,
-        jac_values: Array,
-        hess_values: Array,
-        weights: Array,
-    ) -> Array:
-        mean_jac = self._mean_stat.jacobian(values, jac_values, weights)[
-            None, :
-        ]
-        mean_hess = self._mean_stat.hessian(
-            values, jac_values, hess_values, weights
-        )[None, :]
-        tmp_jac = jac_values - mean_jac
-        tmp_hess = hess_values - mean_hess
-        tmp1 = 2 * self._diff(values, weights).T[..., None, None] * tmp_hess
-        tmp2 = 2 * self._bkd.einsum("ijk, ijl->ijkl", tmp_jac, tmp_jac)
-        return self._bkd.einsum("ijkl,i->jkl", tmp1 + tmp2, weights[:, 0])
-
-
-class SampleAverageStdev(SampleAverageVariance):
-    def __call__(self, samples: Array, weights: Array) -> Array:
-        return self._bkd.sqrt(super().__call__(samples, weights))
-
-    def jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
-        variance_jac = super().jacobian(values, jac_values, weights)
-        # d/dx y^{1/2} = 0.5y^{-1/2}
-        tmp = 1 / (2 * self._bkd.sqrt(super().__call__(values, weights).T))
-        return tmp * variance_jac
-
-    def apply_jacobian(
-        self, values: Array, jv_values: Array, weights: Array
-    ) -> Array:
-        variance_jv = super().apply_jacobian(values, jv_values, weights)
-        # d/dx y^{1/2} = 0.5y^{-1/2}
-        tmp = 1 / (2 * self._bkd.sqrt(super().__call__(values, weights).T))
-        return tmp * variance_jv[:, None]
-
-    def hessian(
-        self,
-        values: Array,
-        jac_values: Array,
-        hess_values: Array,
-        weights: Array,
-    ) -> Array:
-        variance_jac = super().jacobian(values, jac_values, weights)
-        variance_hess = super().hessian(
-            values, jac_values, hess_values, weights
-        )
-        # f:R^n->R, g(R->R) h(x) = g(f(x))
-        # d^2h(x)/dx^2 g'(f(x))\nabla^2 f(x)+g''(f(x))\nabla f(x)\nabla f(x)^T
-        # g(x)=sqrt(x), g'(x) = 1/(2x^{1/2}), g''(x)=-1/(4x^{3/2})
-        tmp0 = self._bkd.sqrt(super().__call__(values, weights).T)
-        tmp1 = (
-            1.0
-            / (4.0 * tmp0[..., None] ** 3.0)
-            * self._bkd.einsum("ij,ik->ijk", variance_jac, variance_jac)
-        )
-        tmp2 = 1.0 / (2.0 * tmp0[..., None]) * variance_hess
-        return tmp2 - tmp1
-
-
-class SampleAverageMeanPlusStdev(SampleAverageStat):
-    def __init__(
-        self, safety_factor: float, backend: BackendMixin = NumpyMixin
-    ):
-        super().__init__(backend=backend)
-        self._mean_stat = SampleAverageMean(backend=self._bkd)
-        self._stdev_stat = SampleAverageStdev(backend=self._bkd)
-        self._safety_factor = safety_factor
-
-    def hessian_implemented(self) -> bool:
-        return True
-
-    def __call__(self, values: Array, weights: Array) -> Array:
-        return self._mean_stat(
-            values, weights
-        ) + self._safety_factor * self._stdev_stat(values, weights)
-
-    def jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
-        return self._mean_stat.jacobian(
-            values, jac_values, weights
-        ) + self._safety_factor * self._stdev_stat.jacobian(
-            values, jac_values, weights
-        )
-
-    def apply_jacobian(
-        self, values: Array, jv_values: Array, weights: Array
-    ) -> Array:
-        return self._mean_stat.apply_jacobian(
-            values, jv_values, weights
-        ) + self._safety_factor * self._stdev_stat.apply_jacobian(
-            values, jv_values, weights
-        )
-
-    def hessian(
-        self,
-        values: Array,
-        jac_values: Array,
-        hess_values: Array,
-        weights: Array,
-    ) -> Array:
-        return self._mean_stat.hessian(
-            values, jac_values, hess_values, weights
-        ) + self._safety_factor * self._stdev_stat.hessian(
-            values, jac_values, hess_values, weights
-        )
-
-    def __repr__(self) -> str:
-        return "{0}(factor={1})".format(
-            self.__class__.__name__, float(self._safety_factor)
-        )
-
-
-class SampleAverageEntropicRisk(SampleAverageStat):
-    def __init__(self, alpha: float, backend: BackendMixin = NumpyMixin):
-        super().__init__(backend)
-        self._alpha = alpha
-
-    def hessian_implemented(self) -> bool:
-        return True
-
-    def __call__(self, values: Array, weights: Array) -> Array:
-        # values (nsamples, noutputs)
-        return (
-            self._bkd.log(self._bkd.exp(self._alpha * values.T) @ weights).T
-            / self._alpha
-        )
-
-    def jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
-        # jac_values (nsamples, noutputs, nvars)
-        exp_values = self._bkd.exp(self._alpha * values)
-        tmp = exp_values.T @ weights
-        # h = g(f(x))
-        # dh/dx = g'(f(x))\nabla f(x)
-        # g(y) = log(y)/alpha, g'(y) = 1/(alpha*y)
-        jac = (
-            1
-            / tmp
-            * self._bkd.einsum(
-                "ijk,i->jk",
-                (self._alpha * exp_values[..., None] * jac_values),
-                weights[:, 0],
-            )
-        )
-        return jac / self._alpha
-
-    def apply_jacobian(
-        self, values: Array, jv_values: Array, weights: Array
-    ) -> Array:
-        exp_values = self._bkd.exp(self._alpha * values)
-        tmp = exp_values.T @ weights
-        jv = (
-            1
-            / tmp
-            * self._bkd.einsum(
-                "ij,i->j",
-                (self._alpha * exp_values * jv_values[..., 0]),
-                weights[:, 0],
-            )[:, None]
-        )
-        return jv / self._alpha
-
-    def hessian(
-        self,
-        values: Array,
-        jac_values: Array,
-        hess_values: Array,
-        weights: Array,
-    ) -> Array:
-        exp_values = self._bkd.exp(self._alpha * values)
-        exp_jac = self._alpha * self._bkd.einsum(
-            "ijk,i->jk", (exp_values[..., None] * jac_values), weights[:, 0]
-        )
-        exp_jac_outprod = self._bkd.einsum("ij,ik->ijk", exp_jac, exp_jac)
-        jac_values_outprod = self._bkd.einsum(
-            "ijk,ijl->ijkl", jac_values, jac_values
-        )
-        exp_hess = self._alpha * self._bkd.einsum(
-            "ijkl,i->jkl",
-            (exp_values[..., None, None] * hess_values),
-            weights[:, 0],
-        ) + self._alpha**2 * self._bkd.einsum(
-            "ijkl,i->jkl",
-            (exp_values[..., None, None] * jac_values_outprod),
-            weights[:, 0],
-        )
-        tmp0 = exp_values.T @ weights
-        tmp1 = 1.0 / tmp0[..., None] * exp_hess
-        tmp2 = 1.0 / tmp0[..., None] ** 2 * exp_jac_outprod
-        return (tmp1 - tmp2) / self._alpha
-
-    def __repr__(self) -> str:
-        return "{0}(alpha={1})".format(
-            self.__class__.__name__, float(self._alpha)
-        )
-
-
-class SmoothLogBasedMaxFunction(ScalarElementwiseFunction):
-    def __init__(
-        self,
-        ndim: int,
-        eps: float,
-        threshold: float = 1e2,
-        shift: float = 0.0,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        self._eps = eps
-        self._thresh = threshold
-        self._shift = shift
-        super().__init__(ndim, backend)
-
-    def jacobian_implemented(self) -> bool:
-        return True
-
-    def _check_samples(self, samples: Array):
-        if samples.ndim != 2:
-            raise ValueError("samples must be a 2D array")
-
-    def _values(self, samples: Array) -> Array:
-        x = samples + self._shift
-        x_div_eps = x / self._eps
-        # avoid overflow
-        vals = self._bkd.zeros(x.shape)
-        II = self._bkd.where(
-            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
-        )
-        vals[II] = x[II] + self._eps * self._bkd.log(
-            1 + self._bkd.exp(-x_div_eps[II] - self._shift / self._eps)
-        )
-        J = self._bkd.where(x_div_eps >= self._thresh)
-        vals[J] = x[J]
-        return vals
-
-    def first_derivative_implemented(self) -> bool:
-        return True
-
-    def _first_derivative(self, samples: Array) -> Array:
-        # samples (noutputs, nsamples)
-        # jac_values (nsamples, noutputs, noutputs)
-        # but only return (nsamples, noutputs) because jac for each sample
-        # is just a diagonal matrix
-        x = samples + self._shift
-        x_div_eps = x / self._eps
-        # Avoid overflow.
-        II = self._bkd.where(
-            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
-        )
-        jac = self._bkd.zeros((x_div_eps.shape))
-        jac[II] = 1.0 / (
-            1 + self._bkd.exp(-x_div_eps[II] - self._shift / self._eps)
-        )
-        jac[x_div_eps >= self._thresh] = 1.0
-        return jac
-
-    def second_derivative_implemented(self) -> bool:
-        return True
-
-    def _second_derivative(self, samples: Array) -> Array:
-        x = samples + self._shift
-        x_div_eps = x / self._eps
-        # Avoid overflow.
-        II = self._bkd.where(
-            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
-        )
-        vals = self._bkd.zeros(x.shape)
-        vals[II] = self._bkd.exp(x_div_eps[II] + self._shift / self._eps) / (
-            self._eps
-            * (self._bkd.exp(x_div_eps[II] + self._shift / self._eps) + 1) ** 2
-        )
-        return vals
-
-    def third_derivative_implemented(self) -> bool:
-        return True
-
-    def _third_derivative(self, samples: Array) -> Array:
-        x = samples + self._shift
-        x_div_eps = x / self._eps
-        # Avoid overflow.
-        II = self._bkd.where(
-            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
-        )
-        vals = self._bkd.zeros(x.shape)
-        vals[II] = self._bkd.exp(x_div_eps[II] + self._shift / self._eps) / (
-            self._eps**2
-            * (1 + self._bkd.exp(x_div_eps[II] + self._shift / self._eps)) ** 2
-        )
-        vals[II] -= (
-            2
-            * self._bkd.exp(x_div_eps[II] + self._shift / self._eps) ** 2
-            / (
-                self._eps**2
-                * (1 + self._bkd.exp(x_div_eps[II] + self._shift / self._eps))
-                ** 3
-            )
-        )
-        return vals
-
-
-# create base class mixin for checking if argument is correct
-# when passing to FSD. This will allow for other smooth heaviside
-# functions which I have yet to convert to this API
-class SmoothLeftHeavisideFunction:
-    pass
-
-
-class SmoothLogBasedRightHeavisideFunction(ScalarElementwiseFunction):
-    r"""
-    Smooth left heaviside function :math:`1_{(-\infty, 0]}`
-
-    The smooth log-based right heaviside function is the first derivative
-    of the smooth log-based max function m(x)=smoothmax(0, x).
-    Thus, the smooth log based left heaviside function is the derivative of
-    m(-x).
-    """
-
-    def __init__(
-        self,
-        ndim: int,
-        eps: float,
-        threshold: float = 1e2,
-        shift: float = 0,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(ndim, backend)
-        self._shift = shift
-
-        self._max_function = SmoothLogBasedMaxFunction(
-            ndim, eps, threshold, self._shift, self._bkd
-        )
-
-    def _values(self, samples: Array) -> Array:
-        return self._max_function.first_derivative(samples)
-
-    def first_derivative_implemented(self) -> bool:
-        return True
-
-    def _first_derivative(self, samples: Array) -> Array:
-        return self._max_function.second_derivative(samples)
-
-    def second_derivative_implemented(self) -> bool:
-        return True
-
-    def _second_derivative(self, samples: Array) -> Array:
-        return self._max_function.third_derivative(samples)
-
-
-class SmoothLogBasedLeftHeavisideFunction(
-    SmoothLogBasedRightHeavisideFunction, SmoothLeftHeavisideFunction
-):
-    def __init__(
-        self,
-        ndim: int,
-        eps: float,
-        threshold: float = 1e2,
-        shift: float = 0,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(ndim, eps, threshold, shift, backend)
-
-    def _values(self, samples: Array) -> Array:
-        return super()._values(-samples)
-
-    def first_derivative_implemented(self) -> bool:
-        return True
-
-    def _first_derivative(self, samples: Array) -> Array:
-        return -super()._first_derivative(-samples)
-
-    def second_derivative_implemented(self) -> bool:
-        return True
-
-    def _second_derivative(self, samples: Array) -> Array:
-        return super()._second_derivative(-samples)
-
-
-class SampleAverageConditionalValueAtRisk(SampleAverageStat):
-    def __init__(
-        self,
-        alpha: float,
-        eps: float = 1e-2,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(backend)
-        alpha = self._bkd.atleast1d(self._bkd.asarray(alpha))
-        self._alpha = alpha
-        self._max = SmoothLogBasedMaxFunction(1, eps, backend=self._bkd)
-        self._t = None
-
-    def set_value_at_risk(self, t: float):
-        t = self._bkd.atleast1d(t)
-        if t.shape[0] != self._alpha.shape[0]:
-            msg = "VaR shape {0} and alpha shape {1} are inconsitent".format(
-                t.shape, self._alpha.shape
-            )
-            raise ValueError(msg)
-        if t.ndim != 1:
-            raise ValueError("t must be a 1D array")
-        self._t = t
-
-    def __call__(self, values: Array, weights: Array) -> Array:
-        if values.shape[1] != self._t.shape[0]:
-            raise ValueError("must specify a VaR for each QoI")
-        return self._t + (self._max(values - self._t).T @ weights).T / (
-            1 - self._alpha
-        )
-
-    def jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
-        # grad withe respect to parameters of x
-        max_jac = self._max.first_derivative(values - self._t)[..., None]
-        param_jac = self._bkd.einsum(
-            "ijk,i->jk", (max_jac * jac_values), weights[:, 0]
-        ) / (1 - self._alpha[:, None])
-        t_jac = 1 - self._bkd.einsum(
-            "ij,i->j", max_jac[..., 0], weights[:, 0]
-        ) / (1 - self._alpha)
-        return self._bkd.hstack((param_jac, self._bkd.diag(t_jac)))
-
-
-class SampleAverageConstraint(ConstraintFromModel):
-    def __init__(
-        self,
-        model: Model,
-        samples: Array,
-        weights: Array,
-        stat: SampleAverageStat,
-        design_bounds: Array,
-        nvars: int,
-        design_indices: Array,
-        keep_feasible: bool = False,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        self._stat = stat
-        if not model._bkd.bkd_equal(model._bkd, backend):
-            raise ValueError(
-                "model._bkd {0} is inconsistent with backend {1}".format(
-                    model._bkd.__name__, backend.__name__
-                )
-            )
-        if not model._bkd.bkd_equal(model._bkd, stat._bkd):
-            raise ValueError(
-                "model._bkd {0} is inconsistent with stat._bkd {1}".format(
-                    model._bkd.__name__, stat._bkd.__name__
-                )
-            )
-        super().__init__(model, design_bounds, keep_feasible)
-        if samples.ndim != 2 or weights.ndim != 2 or weights.shape[1] != 1:
-            raise ValueError("shapes of samples and/or weights are incorrect")
-        if samples.shape[1] != weights.shape[0]:
-            raise ValueError("samples and weights are inconsistent")
-        self._weights = weights
-        self._samples = samples
-        self._nvars = nvars
-        self._design_indices = design_indices
-        self._random_indices = self._bkd.delete(
-            self._bkd.arange(nvars, dtype=int), design_indices
-        )
-        # warning self._joint_samples must be recomputed if self._samples
-        # is changed.
-        self._joint_samples = expand_samples_from_indices(
-            self._samples,
-            self._random_indices,
-            self._design_indices,
-            self._bkd.zeros((design_indices.shape[0], 1)),
-            bkd=self._bkd,
-        )
-
-    def nvars(self) -> int:
-        # optimizers obtain nvars from here so must be size
-        # of design variables
-        return self._design_indices.shape[0]
-
-    def _update_attributes(self):
-        for attr in [
-            "apply_jacobian_implemented",
-            "jacobian_implemented",
-        ]:
-            setattr(self, attr, getattr(self._model, attr))
-
-    def hessian_implemented(self) -> bool:
-        return (
-            self._model.hessian_implemented()
-            and self._stat.hessian_implemented()
-        )
-
-    def _random_samples_at_design_sample(self, design_sample: Array) -> Array:
-        # this is slow so only update design samples as self._samples is
-        # always fixed
-        # return ActiveSetVariableModel._expand_samples_from_indices(
-        #     self._samples, self._random_indices, self._design_indices,
-        #     design_sample)
-        self._joint_samples[self._design_indices, :] = self._bkd.asarray(
-            np.repeat(
-                self._bkd.to_numpy(design_sample),
-                self._samples.shape[1],
-                axis=1,
-            )
-        )
-        return self._joint_samples
-
-    def _values(self, design_sample: Array) -> Array:
-        self._check_sample(design_sample)
-        samples = self._random_samples_at_design_sample(design_sample)
-        values = self._model(samples)
-        return self._stat(values, self._weights)
-
-    def _jacobian(self, design_sample: Array) -> Array:
-        samples = self._random_samples_at_design_sample(design_sample)
-        # todo take advantage of model prallelism to compute
-        # multiple jacobians. Also how to take advantage of
-        # adjoint methods that compute model values to then
-        # compute jacobian
-        # TODO: reuse values if design sample is the same as used to last call
-        # to _values
-        values = self._model(samples)
-        jac_values = self._bkd.stack(
-            [
-                self._model.jacobian(sample[:, None])[:, self._design_indices]
-                for sample in samples.T
-            ]
-        )
-        return self._stat.jacobian(values, jac_values, self._weights)
-
-    def _apply_jacobian(self, design_sample: Array, vec: Array) -> Array:
-        samples = self._random_samples_at_design_sample(design_sample)
-        # todo take advantage of model prallelism to compute
-        # multiple apply_jacs
-        expanded_vec = self._bkd.zeros((self._nvars, 1))
-        expanded_vec[self._design_indices] = vec
-        values = self._model(samples)
-        jv_values = self._bkd.array(
-            [
-                self._model._apply_jacobian(sample[:, None], expanded_vec)
-                for sample in samples.T
-            ]
-        )
-        return self._stat.apply_jacobian(values, jv_values, self._weights)
-
-    def _hessian(self, design_sample: Array) -> Array:
-        # TODO: reuse values if design sample is the same as used to last call
-        # to _values same for jac_values
-        samples = self._random_samples_at_design_sample(design_sample)
-        values = self._model(samples)
-        jac_values = self._bkd.stack(
-            [
-                self._model.jacobian(sample[:, None])[:, self._design_indices]
-                for sample in samples.T
-            ]
-        )
-        idx = np.ix_(self._design_indices, self._design_indices)
-        hess_values = self._bkd.stack(
-            [
-                self._model.hessian(sample[:, None])[..., idx[0], idx[1]]
-                for sample in samples.T
-            ]
-        )
-        return self._stat.hessian(
-            values, jac_values, hess_values, self._weights
-        )
-
-    def __repr__(self) -> str:
-        return "{0}(model={1}, stat={2})".format(
-            self.__class__.__name__, self._model, self._stat
-        )
-
-
-class CVaRSampleAverageConstraint(SampleAverageConstraint):
-    def __init__(
-        self,
-        model: Model,
-        samples: Array,
-        weights: Array,
-        stat: SampleAverageStat,
-        design_bounds: Array,
-        nvars: int,
-        design_indices: Array,
-        keep_feasible: bool = False,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        if not isinstance(stat, SampleAverageConditionalValueAtRisk):
-            msg = "stat not instance of SampleAverageConditionalValueAtRisk"
-            raise ValueError(msg)
-        self._nconstraints = stat._alpha.shape[0]
-        super().__init__(
-            model,
-            samples,
-            weights,
-            stat,
-            design_bounds,
-            nvars,
-            design_indices,
-            keep_feasible,
-            backend=backend,
-        )
-
-    def nvars(self) -> int:
-        # optimizers obtain nvars from here so must be size
-        # of design variables
-        return self._design_indices.shape[0] + self._nconstraints
-
-    def apply_jacobian_implemented(self) -> bool:
-        # even if model has apply jacobian sample_average_constraint does not
-        # so turn off. If it is True then use of jacobian to compute
-        # jacobian apply will fail due to passing around VaR
-        return False
-
-    def __call__(self, design_sample: Array) -> Array:
-        # have to ovewrite call instead of just defining values
-        # to avoid error check that will not work here
-        # assumes avar variable t is at the end of design_sample
-        self._stat.set_value_at_risk(design_sample[-self._nconstraints :, 0])
-        return super()._values(design_sample[: -self._nconstraints])
-
-    def _jacobian(self, design_sample: Array) -> Array:
-        self._stat.set_value_at_risk(design_sample[-self._nconstraints :, 0])
-        jac = super()._jacobian(design_sample[: -self._nconstraints])
-        return jac
-
-
-class ObjectiveWithCVaRConstraints(Model):
-    """
-    When optimizing for CVaR additional variables t are introduced.
-    This class wraps a function that does not take variables t
-    and returns a jacobian that includes derivatives with respect to the
-    variables t (they will be zero).
-
-    Assumes samples consist of vstack(random_vars, t)
-    """
-
-    def __init__(
-        self, model: Model, ncvar_constraints: int, ndesign_vars: int
-    ):
-        super().__init__(backend=model._bkd)
-        self._model = model
-        self._ndesign_vars = ndesign_vars
-        if model.nqoi() != 1:
-            raise ValueError("objective can only have one QoI")
-        self._ncvar_constraints = ncvar_constraints
-        for attr in [
-            "apply_jacobian_implemented",
-            "jacobian_implemented",
-        ]:
-            setattr(self, attr, getattr(self._model, attr))
-        # until sampleaveragecvar.hessian is implemented turn
-        # off objective hessian
-        # self._hessian_implemented = self._model.hessian_implemented()
-
-    def nqoi(self) -> int:
-        return self._model.nqoi()
-
-    def nvars(self) -> int:
-        return self._ndesign_vars + self._ncvar_constraints
-
-    def _values(self, design_samples: Array) -> Array:
-        return self._model(design_samples[: -self._ncvar_constraints])
-
-    def _apply_jacobian(self, design_sample: Array, vec: Array) -> Array:
-        return self._model.apply_jacobian(
-            design_sample[: -self._ncvar_constraints],
-            vec[: -self._ncvar_constraints],
-        )
-
-    def _jacobian(self, design_sample: Array) -> Array:
-        jac = self._model.jacobian(design_sample[: -self._ncvar_constraints])
-        return self._bkd.hstack(
-            (jac, self._bkd.zeros((jac.shape[0], self._ncvar_constraints)))
-        )
-
-    def _hessian(self, design_sample: Array) -> Array:
-        model_hess = self._model.hessian(
-            design_sample[: -self._ncvar_constraints]
-        )
-        nvars = model_hess.shape[-1]
-        hess = self._bkd.zeros(
-            (
-                self.nqoi(),
-                nvars + self._ncvar_constraints,
-                nvars + self._ncvar_constraints,
-            )
-        )
-        idx = np.ix_(self._bkd.arange(nvars), self._bkd.arange(nvars))
-        hess[:, idx[0], idx[1]] = model_hess
-        # hess[:, :nvars, :nvars] = model_hess
-        return hess
-
-
 def approx_jacobian(
     func: callable,
     x: Array,
@@ -1485,52 +579,6 @@ class MiniMaxObjective(SingleSampleModel):
     def _jacobian(self, sample: Array) -> Array:
         return self._bkd.hstack(
             (self._bkd.ones((1,)), self._bkd.zeros((sample.shape[0] - 1,)))
-        )[None, :]
-
-    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
-        return self._bkd.zeros((sample.shape[0], vec.shape[1]))
-
-
-class AVaRObjective(SingleSampleModel):
-    def __init__(self, nmodel_vars: int, backend: BackendMixin = NumpyMixin):
-        self._nmodel_vars = nmodel_vars
-        super().__init__(backend)
-
-    def set_beta(self, beta: float):
-        self._beta = beta
-
-    def set_quadrature_weights(self, quadw: Array):
-        if quadw.ndim != 1:
-            raise ValueError("quadw has the wrong shape")
-        self._quadw = quadw
-
-    def jacobian_implemented(self) -> bool:
-        return True
-
-    def apply_hessian_implemented(self) -> bool:
-        return True
-
-    def nqoi(self) -> int:
-        return 1
-
-    def nslack(self) -> int:
-        return 1 + self._quadw.shape[0]
-
-    def nvars(self) -> int:
-        return self.nslack() + self._nmodel_vars
-
-    def _evaluate(self, sample: Array) -> Array:
-        t_slack = sample[:1]
-        gamma_slack = sample[1 : self.nslack()]
-        return t_slack + 1.0 / (1.0 - self._beta) * self._quadw @ gamma_slack
-
-    def _jacobian(self, sample: Array) -> Array:
-        return self._bkd.hstack(
-            (
-                self._bkd.ones((1,)),
-                self._quadw / (1.0 - self._beta),
-                self._bkd.zeros((sample.shape[0] - self.nslack(),)),
-            ),
         )[None, :]
 
     def _apply_hessian(self, sample: Array, vec: Array) -> Array:
@@ -1615,29 +663,6 @@ class SlackBasedConstraintFromModel(Constraint):
         return "{0}(model={1})".format(self.__class__.__name__, self._model)
 
 
-class AVaRConstraintFromModel(SlackBasedConstraintFromModel):
-    def nslack(self) -> int:
-        return 1 + self._model.nqoi()
-
-    def _values(self, sample: Array) -> Array:
-        return (
-            sample[:1].T
-            + sample[1 : self.nslack()].T
-            - self._model(sample[self.nslack() :])
-        )
-
-    def _jacobian(self, sample: Array) -> Array:
-        model_jac = self._model.jacobian(sample[self.nslack() :])
-        jac = self._bkd.hstack(
-            (
-                self._bkd.ones((model_jac.shape[0], 1)),
-                self._bkd.eye(model_jac.shape[0]),
-                -model_jac,
-            )
-        )
-        return jac
-
-
 class MiniMaxConstraintFromModel(SlackBasedConstraintFromModel):
     def nslack(self) -> int:
         return 1
@@ -1688,11 +713,6 @@ class SlackBasedAdjustedConstraint(Constraint):
 
 
 class MiniMaxAdjustedConstraint(SlackBasedAdjustedConstraint):
-    def nslack(self) -> int:
-        return 1
-
-
-class AVaRAdjustedConstraint(SlackBasedAdjustedConstraint):
     def nslack(self) -> int:
         return 1
 
@@ -1834,110 +854,6 @@ class MiniMaxOptimizer(SlackBasedOptimizer):
             backend=self._bkd,
         )
         self._optimizer.set_objective_function(objective)
-
-
-class AVaRSlackBasedOptimizer(SlackBasedOptimizer):
-    """
-    AVaR optimization with only slack variables arising from replacing the
-    objective. Cannot be used with constraints that require additional
-    slack variables.
-    """
-
-    def __init__(
-        self,
-        optimizer: ConstrainedOptimizer,
-        beta: float,
-        quadrature_weights: Array,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        self._beta = beta
-        self.set_quadrature_weights(quadrature_weights)
-        super().__init__(optimizer, 1 + self._quadw.shape[0], backend)
-        self.set_slack_bounds(
-            self._bkd.vstack(
-                (
-                    self._bkd.array([[-np.inf, np.inf]]),
-                    self._bkd.tile(
-                        self._bkd.array([0, np.inf]), (self.nslack() - 1, 1)
-                    ),
-                ),
-            )
-        )
-
-    def set_quadrature_weights(self, quadw: Array):
-        if quadw.ndim != 1:
-            raise ValueError("quadw has the wrong shape")
-        self._quadw = quadw
-
-    def _convert_objective_function(
-        self, model: Model
-    ) -> AVaRConstraintFromModel:
-        return AVaRConstraintFromModel(model, keep_feasible=False)
-
-    def _set_objective(self):
-        objective = AVaRObjective(
-            self._constraint_from_objective._model.nvars(), backend=self._bkd
-        )
-        objective.set_beta(self._beta)
-        objective.set_quadrature_weights(self._quadw)
-        self._optimizer.set_objective_function(objective)
-
-
-class _AVaRDummyModel(Model):
-    """
-    Model with no parameters to be used to compute AVaR from a set of samples.
-    Only to be used by EmpiricalAVaRSlackBasedOptimizer
-    """
-
-    def __init__(self, samples: Array, backend: BackendMixin = NumpyMixin):
-        super().__init__(backend)
-        if samples.ndim != 2 or samples.shape[0] != 1:
-            raise ValueError("samples must be 2D row vector")
-        self._samples = samples
-
-    def jacobian_implemented(self) -> bool:
-        return True
-
-    def weighted_hessian_implemented(self) -> bool:
-        return True
-
-    def nqoi(self) -> int:
-        return self._samples.shape[1]
-
-    def nvars(self) -> int:
-        return 0
-
-    def _values(self, samples) -> Array:
-        return self._samples
-
-    def _jacobian(self, sample: Array) -> Array:
-        return self._bkd.zeros((self.nqoi(), self.nvars()))
-
-    def _weighted_hessian(self, sample: Array, weights) -> Array:
-        return self._bkd.zeros((self.nvars(), self.nvars()))
-
-
-class EmpiricalAVaRSlackBasedOptimizer(AVaRSlackBasedOptimizer):
-    """
-    Compute AVaR from a set of samples using the optimization based formulation
-    Only intended for testing and tutorials. If one wants to solve with
-    optimization one should solve the equivalent linear program.
-    The use of nonlinear optimization here is just to check important
-    components of non-linear constrained avar minimization without adding
-    the complexity of a model
-    """
-
-    def __init__(
-        self,
-        optimizer: ConstrainedOptimizer,
-        beta: float,
-        samples: Array,
-        quadrature_weights: Array,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(optimizer, beta, quadrature_weights, backend=backend)
-        self.set_objective_function(_AVaRDummyModel(samples, backend=backend))
-        self.set_constraints([])
 
 
 class ADAMOptimizer(OptimizerWithObjective):
@@ -2257,364 +1173,6 @@ class StochasticGradientDescentOptimizer(OptimizerWithObjective):
         return self._bkd.asarray(self._history)
 
 
-class SmoothQuarticBasedLeftHeavisideFunction(
-    ScalarElementwiseFunction, SmoothLeftHeavisideFunction
-):
-    def __init__(
-        self,
-        ndim: int,
-        eps: float,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(ndim, backend)
-        self._eps = eps
-
-    def _values(self, samples: Array):
-        shift = 0
-        x = samples + shift
-
-        # Create an array of ones with the same shape as x
-        vals = self._bkd.ones(x.shape)
-
-        # Compute masks for the conditions
-        mask_neg = (x < 0) & (x > -self._eps)  # Elements where -eps < x < 0
-        mask_zero = x >= 0  # Elements where x >= 0
-
-        # Apply the quartic function for elements satisfying -eps < x < 0
-        vals[mask_neg] = (
-            6 * (-x[mask_neg] / self._eps) ** 2
-            - 8 * (-x[mask_neg] / self._eps) ** 3
-            + 3 * (-x[mask_neg] / self._eps) ** 4
-        )
-
-        # Set values to 0 for elements where x >= 0
-        vals[mask_zero] = 0
-
-        return vals
-
-    def first_derivative_implemented(self) -> bool:
-        return True
-
-    def _first_derivative(self, samples: Array) -> Array:
-        shift = 0
-        x = samples + shift
-        # Create an array of zeros with the same shape as x
-        vals = self._bkd.zeros(x.shape)
-
-        # Compute mask for the condition (-eps < x < 0)
-        mask_neg = (x < 0) & (x > -self._eps)
-
-        # Apply the derivative formula for elements satisfying -eps < x < 0
-        vals[mask_neg] = (
-            12 * x[mask_neg] * (self._eps + x[mask_neg]) ** 2 / self._eps**4
-        )
-
-        return vals
-
-    def second_derivative_implemented(self) -> bool:
-        return True
-
-    def _second_derivative(self, samples: Array) -> Array:
-        shift = 0
-        x = samples + shift
-
-        # Create an array of zeros with the same shape as x
-        vals = self._bkd.zeros(x.shape)
-
-        # Compute mask for the condition (-eps < x < 0)
-        mask_neg = (x < -np.finfo(float).eps) & (x > -self._eps)
-
-        # Apply the second derivative formula for elements satisfying -eps < x < 0
-        vals[mask_neg] = (
-            12
-            * (
-                self._eps**2
-                + 4 * self._eps * x[mask_neg]
-                + 3 * x[mask_neg] ** 2
-            )
-            / self._eps**4
-        )
-        return vals
-
-
-class SmoothQuinticBasedLeftHeavisideFunction(
-    ScalarElementwiseFunction, SmoothLeftHeavisideFunction
-):
-    def __init__(
-        self,
-        ndim: int,
-        eps: float,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(ndim, backend)
-        self._eps = eps
-
-    def _values(self, samples: Array):
-        shift = 0
-        x = samples + shift
-
-        # Create an array of ones with the same shape as x
-        vals = self._bkd.ones(x.shape)
-
-        # Coefficients
-        c3, c4, c5 = 10, -15, 6
-
-        # Compute masks for the conditions
-        mask_neg = (x < 0) & (
-            x > -self._eps
-        )  # Elements where -self._eps < x < 0
-        mask_zero = x >= 0  # Elements where x >= 0
-
-        # Apply the quintic function for elements satisfying -self._eps < x < 0
-        xe = -x[mask_neg] / self._eps
-        vals[mask_neg] = c3 * xe**3 + c4 * xe**4 + c5 * xe**5
-
-        # Set values to 0 for elements where x >= 0
-        vals[mask_zero] = 0
-
-        return vals
-
-    def first_derivative_implemented(self) -> bool:
-        return True
-
-    def _first_derivative(self, samples: Array) -> Array:
-        shift = 0
-        x = samples + shift
-
-        # Create an array of zeros with the same shape as x
-        vals = self._bkd.zeros(x.shape)
-
-        # Coefficients
-        c3, c4, c5 = 10, -15, 6
-
-        # Compute mask for the condition (-self._eps < x < 0)
-        mask_neg = (x < 0) & (x > -self._eps)
-
-        # Apply the first derivative formula for elements satisfying -self._eps < x < 0
-        xe = -x[mask_neg] / self._eps
-        vals[mask_neg] = (
-            -(3 * c3 * xe**2 + 4 * c4 * xe**3 + 5 * c5 * xe**4) / self._eps
-        )
-
-        return vals
-
-    def second_derivative_implemented(self) -> bool:
-        return True
-
-    def _second_derivative(self, samples: Array) -> Array:
-        shift = 0
-        x = samples + shift
-
-        # Create an array of zeros with the same shape as x
-        vals = self._bkd.zeros(x.shape)
-
-        # Coefficients of spline enforcing all derivatives of step function at 0 and eps
-        c3, c4, c5 = 10, -15, 6
-
-        # Compute mask for the condition (-self._eps < x < 0)
-        mask_neg = (x < 0) & (x > -self._eps)
-
-        # Apply the second derivative formula for elements satisfying -self._eps < x < 0
-        xe = -x[mask_neg] / self._eps
-        vals[mask_neg] = (
-            6 * c3 * xe + 12 * c4 * xe**2 + 20 * c5 * xe**3
-        ) / self._eps**2
-        return vals
-
-
-class SampleSmoothedConditionalValueAtRisk(SampleAverageStat):
-    """
-    Compute conditional value at risk without the need to estimate
-    the value at risk.
-    """
-
-    def __init__(
-        self,
-        alpha: float,
-        eps: float = 100,
-        chunk_size=10000,
-        backend: BackendMixin = NumpyMixin,
-    ):
-        super().__init__(backend)
-        alpha = self._bkd.atleast1d(self._bkd.asarray(alpha))
-        self._alpha = alpha
-        self._eps = eps
-        self._chunk_size = chunk_size
-        # some optimization algorithms can use nonzero alpha but hard code here
-        # so any solver can be used
-        self._lambda = 0.0
-
-    def _project_slow(self, values: Array, weights: Array) -> Array:
-        # this function uses too much memory and makes unncessary
-        # calculations
-        # Compute all possible kinks
-        lbnd = 0.0
-        ubnd = 1.0 / (1.0 - self._alpha)
-        dvalues = values / weights
-        K = self._bkd.sort(self._bkd.hstack([lbnd - dvalues, ubnd - dvalues]))
-        # Compute residuals directly for all kinks
-        values_res = self._bkd.sort(
-            1.0
-            - weights
-            @ self._bkd.maximum(
-                lbnd, self._bkd.minimum(ubnd, dvalues[:, None] + K)
-            )
-        )
-        # # broadcasting above can cause memory to run out so have to
-        # # operate over chunks
-        # values_res = self._bkd.zeros(len(K))  # Initialize residuals array
-        # for ii in range(0, len(K), self._chunk_size):
-        #     K_chunk = K[ii : ii + self._chunk_size]  # Process a chunk of K
-        #     chunk_result = self._bkd.maximum(
-        #         lbnd, self._bkd.minimum(ubnd, dvalues[:, None] + K_chunk)
-        #     )
-        #     values_res[ii : ii + self._chunk_size] = 1 - weights @ chunk_result
-
-        # Bracket zero using numpy.searchsorted
-        idx_end = self._bkd.searchsorted(values_res, 0, side="right")
-        idx_beg = idx_end - 1
-
-        # Ensure valid indices for bracketing
-        x_beg = K[idx_beg]
-        x_end = K[idx_end]
-        values_beg = values_res[idx_beg]
-        values_end = values_res[idx_end]
-
-        # Compute zero using linear interpolation
-        lam = (values_end * x_beg - values_beg * x_end) / (
-            values_end - values_beg
-        )
-        # print(lam, "lam", idx_beg, idx_end)
-        # print(K, "K")
-        # print(values_res)
-
-        # Compute projection
-        proj = weights * self._bkd.maximum(
-            lbnd, self._bkd.minimum(ubnd, dvalues + lam)
-        )
-        return proj
-
-    def _project(self, values: Array, weights: Array) -> Array:
-        """
-        Compute the projection of y onto the CVaR risk envelope.
-
-        Parameters:
-            values (Array): Vector to be projected (length = number of samples).
-
-        Returns:
-            Array: Projection of values onto CVaR risk envelope (length = number of samples).
-        """
-        # Compute all possible kinks
-        lbnd = self._bkd.asarray(0.0)
-        ubnd = 1.0 / (1.0 - self._alpha)
-        dvalues = values / weights
-        K = self._bkd.flip(
-            self._bkd.sort(self._bkd.hstack([lbnd - dvalues, ubnd - dvalues]))
-        )
-
-        # Bracket zero
-        nsamp = len(values)
-
-        def res(x):
-            return 1.0 - weights @ self._bkd.maximum(
-                lbnd, self._bkd.minimum(ubnd, dvalues + x)
-            )
-
-        ibeg = 0
-        imid = nsamp
-        iend = 2 * nsamp
-        x1 = K[ibeg]
-        y1 = res(x1)
-        x2 = K[imid]
-        y2 = res(x2)
-        while True:
-            # print(ibeg, imid, iend, "i", self._alpha)
-            # print(x1, x2, "x")
-            # print(y1, y2, "y")
-            if self._bkd.sign(y1) != self._bkd.sign(y2):
-                iend = imid
-            else:
-                ibeg = imid
-                x1 = x2
-                y1 = y2
-            if iend - ibeg == 1:
-                imid = iend
-            else:
-                imid = ibeg + round((iend - ibeg) / 2)
-            x2 = K[imid]
-            y2 = res(x2)
-            if iend - ibeg == 1:
-                # print(round((iend - ibeg) / 2), ((iend - ibeg) / 2))
-                # print(ibeg, imid, iend)
-                break
-
-        assert self._bkd.sign(y1) != self._bkd.sign(y2)
-
-        # Compute value of x that produces zero residual
-        lam = (y2 * x1 - y1 * x2) / (y2 - y1)
-
-        # Return projection
-        return weights * self._bkd.maximum(
-            lbnd, self._bkd.minimum(ubnd, dvalues + lam)
-        )
-
-    def _check_values_weights(self, values: Array, weights: Array):
-        if values.ndim != 2 or values.shape[1] != 1:
-            raise ValueError("values must be a 2D array with a single column")
-        if values.shape != weights.shape:
-            raise ValueError(f"{values.shape=} but {weights.shape=}")
-        if not self._bkd.allclose(
-            self._bkd.ones((1,)), self._bkd.sum(weights), atol=1e-15
-        ):
-            raise ValueError(
-                "weights must sum to one but sum to {0}".format(
-                    self._bkd.sum(weights)
-                )
-            )
-
-    def __call__(self, values: Array, weights: Array) -> Array:
-        self._check_values_weights(values, weights)
-        proj_values = self._project(
-            weights[:, 0] * values[:, 0] * self._eps + self._lambda,
-            weights[:, 0],
-        )
-        return self._bkd.sum(proj_values * values[:, 0]) - 1.0 / (
-            2.0 * self._eps
-        ) * (proj_values - self._lambda) / weights[:, 0] @ (
-            proj_values - self._lambda
-        )
-
-    def jacobian(self, values: Array, jac_values: Array, weights: Array):
-        proj_values = self._project(
-            weights[:, 0] * values[:, 0] * self._eps + self._lambda,
-            weights[:, 0],
-        )
-        return (
-            self._bkd.einsum("i,ij->j", proj_values, jac_values)[None, :]
-            / weights[:, 0]
-        )
-
-    def __repr__(self) -> str:
-        return "{0}(alpha={1})".format(
-            self.__class__.__name__, float(self._alpha)
-        )
-
-
-class SampleSmoothedConditionalValueAtRiskDeviation(
-    SampleSmoothedConditionalValueAtRisk
-):
-    """
-    Compute conditional value at risk deviation without the need to estimate
-    the value at risk.
-    """
-
-    def set_mean(self, mean: Array):
-        self._mean = mean
-
-    def __call__(self, values: Array, weights: Array) -> Array:
-        return super().__call__(values, weights) - self._mean
-
-
 class ChainRuleArrays:
     def __init__(
         self, compress_dx_dp: bool, compress_du_dx: bool, backend: BackendMixin
@@ -2854,3 +1412,346 @@ class ChainRuleFunctions(ChainRuleArrays):
         du_dx = self._u_jac(x)
         self.set_arrays(x.shape, u.shape, dx_dp, du_dx)
         return super().__call__(p.shape)
+
+
+class SmoothLogBasedMaxFunction(ScalarElementwiseFunction):
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        backend: BackendMixin,
+        threshold: float = 1e2,
+        shift: float = 0.0,
+    ):
+        self._eps = eps
+        self._thresh = threshold
+        self._shift = shift
+        super().__init__(ndim, backend)
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def _check_samples(self, samples: Array):
+        if samples.ndim != 2:
+            raise ValueError("samples must be a 2D array")
+
+    def _values(self, samples: Array) -> Array:
+        x = samples + self._shift
+        x_div_eps = x / self._eps
+        # avoid overflow
+        vals = self._bkd.zeros(x.shape)
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
+        vals[II] = x[II] + self._eps * self._bkd.log(
+            1 + self._bkd.exp(-x_div_eps[II] - self._shift / self._eps)
+        )
+        J = self._bkd.where(x_div_eps >= self._thresh)
+        vals[J] = x[J]
+        return vals
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
+        # samples (noutputs, nsamples)
+        # jac_values (nsamples, noutputs, noutputs)
+        # but only return (nsamples, noutputs) because jac for each sample
+        # is just a diagonal matrix
+        x = samples + self._shift
+        x_div_eps = x / self._eps
+        # Avoid overflow.
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
+        jac = self._bkd.zeros((x_div_eps.shape))
+        jac[II] = 1.0 / (
+            1 + self._bkd.exp(-x_div_eps[II] - self._shift / self._eps)
+        )
+        jac[x_div_eps >= self._thresh] = 1.0
+        return jac
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        x = samples + self._shift
+        x_div_eps = x / self._eps
+        # Avoid overflow.
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
+        vals = self._bkd.zeros(x.shape)
+        vals[II] = self._bkd.exp(x_div_eps[II] + self._shift / self._eps) / (
+            self._eps
+            * (self._bkd.exp(x_div_eps[II] + self._shift / self._eps) + 1) ** 2
+        )
+        return vals
+
+    def third_derivative_implemented(self) -> bool:
+        return True
+
+    def _third_derivative(self, samples: Array) -> Array:
+        x = samples + self._shift
+        x_div_eps = x / self._eps
+        # Avoid overflow.
+        II = self._bkd.where(
+            (x_div_eps < self._thresh) & (x_div_eps > -self._thresh)
+        )
+        vals = self._bkd.zeros(x.shape)
+        vals[II] = self._bkd.exp(x_div_eps[II] + self._shift / self._eps) / (
+            self._eps**2
+            * (1 + self._bkd.exp(x_div_eps[II] + self._shift / self._eps)) ** 2
+        )
+        vals[II] -= (
+            2
+            * self._bkd.exp(x_div_eps[II] + self._shift / self._eps) ** 2
+            / (
+                self._eps**2
+                * (1 + self._bkd.exp(x_div_eps[II] + self._shift / self._eps))
+                ** 3
+            )
+        )
+        return vals
+
+
+# create base class mixin for checking if argument is correct
+# when passing to FSD. This will allow for other smooth heaviside
+# functions which I have yet to convert to this API
+class SmoothLeftHeavisideFunction:
+    pass
+
+
+class SmoothLogBasedRightHeavisideFunction(ScalarElementwiseFunction):
+    r"""
+    Smooth left heaviside function :math:`1_{(-\infty, 0]}`
+
+    The smooth log-based right heaviside function is the first derivative
+    of the smooth log-based max function m(x)=smoothmax(0, x).
+    Thus, the smooth log based left heaviside function is the derivative of
+    m(-x).
+    """
+
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        backend: BackendMixin,
+        threshold: float = 1e2,
+        shift: float = 0,
+    ):
+        super().__init__(ndim, backend)
+        self._shift = shift
+
+        self._max_function = SmoothLogBasedMaxFunction(
+            ndim, eps, self._bkd, threshold, self._shift
+        )
+
+    def _values(self, samples: Array) -> Array:
+        return self._max_function.first_derivative(samples)
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
+        return self._max_function.second_derivative(samples)
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        return self._max_function.third_derivative(samples)
+
+
+class SmoothLogBasedLeftHeavisideFunction(
+    SmoothLogBasedRightHeavisideFunction, SmoothLeftHeavisideFunction
+):
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        backend: BackendMixin,
+        threshold: float = 1e2,
+        shift: float = 0,
+    ):
+        super().__init__(ndim, eps, backend, threshold, shift)
+
+    def _values(self, samples: Array) -> Array:
+        return super()._values(-samples)
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
+        return -super()._first_derivative(-samples)
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        return super()._second_derivative(-samples)
+
+
+class SmoothQuarticBasedLeftHeavisideFunction(
+    ScalarElementwiseFunction, SmoothLeftHeavisideFunction
+):
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        backend: BackendMixin,
+    ):
+        super().__init__(ndim, backend)
+        self._eps = eps
+
+    def _values(self, samples: Array):
+        shift = 0
+        x = samples + shift
+
+        # Create an array of ones with the same shape as x
+        vals = self._bkd.ones(x.shape)
+
+        # Compute masks for the conditions
+        mask_neg = (x < 0) & (x > -self._eps)  # Elements where -eps < x < 0
+        mask_zero = x >= 0  # Elements where x >= 0
+
+        # Apply the quartic function for elements satisfying -eps < x < 0
+        vals[mask_neg] = (
+            6 * (-x[mask_neg] / self._eps) ** 2
+            - 8 * (-x[mask_neg] / self._eps) ** 3
+            + 3 * (-x[mask_neg] / self._eps) ** 4
+        )
+
+        # Set values to 0 for elements where x >= 0
+        vals[mask_zero] = 0
+
+        return vals
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
+        shift = 0
+        x = samples + shift
+        # Create an array of zeros with the same shape as x
+        vals = self._bkd.zeros(x.shape)
+
+        # Compute mask for the condition (-eps < x < 0)
+        mask_neg = (x < 0) & (x > -self._eps)
+
+        # Apply the derivative formula for elements satisfying -eps < x < 0
+        vals[mask_neg] = (
+            12 * x[mask_neg] * (self._eps + x[mask_neg]) ** 2 / self._eps**4
+        )
+
+        return vals
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        shift = 0
+        x = samples + shift
+
+        # Create an array of zeros with the same shape as x
+        vals = self._bkd.zeros(x.shape)
+
+        # Compute mask for the condition (-eps < x < 0)
+        mask_neg = (x < -np.finfo(float).eps) & (x > -self._eps)
+
+        # Apply the second derivative formula for elements satisfying -eps < x < 0
+        vals[mask_neg] = (
+            12
+            * (
+                self._eps**2
+                + 4 * self._eps * x[mask_neg]
+                + 3 * x[mask_neg] ** 2
+            )
+            / self._eps**4
+        )
+        return vals
+
+
+class SmoothQuinticBasedLeftHeavisideFunction(
+    ScalarElementwiseFunction, SmoothLeftHeavisideFunction
+):
+    def __init__(
+        self,
+        ndim: int,
+        eps: float,
+        backend: BackendMixin,
+    ):
+        super().__init__(ndim, backend)
+        self._eps = eps
+
+    def _values(self, samples: Array):
+        shift = 0
+        x = samples + shift
+
+        # Create an array of ones with the same shape as x
+        vals = self._bkd.ones(x.shape)
+
+        # Coefficients
+        c3, c4, c5 = 10, -15, 6
+
+        # Compute masks for the conditions
+        mask_neg = (x < 0) & (
+            x > -self._eps
+        )  # Elements where -self._eps < x < 0
+        mask_zero = x >= 0  # Elements where x >= 0
+
+        # Apply the quintic function for elements satisfying -self._eps < x < 0
+        xe = -x[mask_neg] / self._eps
+        vals[mask_neg] = c3 * xe**3 + c4 * xe**4 + c5 * xe**5
+
+        # Set values to 0 for elements where x >= 0
+        vals[mask_zero] = 0
+
+        return vals
+
+    def first_derivative_implemented(self) -> bool:
+        return True
+
+    def _first_derivative(self, samples: Array) -> Array:
+        shift = 0
+        x = samples + shift
+
+        # Create an array of zeros with the same shape as x
+        vals = self._bkd.zeros(x.shape)
+
+        # Coefficients
+        c3, c4, c5 = 10, -15, 6
+
+        # Compute mask for the condition (-self._eps < x < 0)
+        mask_neg = (x < 0) & (x > -self._eps)
+
+        # Apply the first derivative formula for elements satisfying -self._eps < x < 0
+        xe = -x[mask_neg] / self._eps
+        vals[mask_neg] = (
+            -(3 * c3 * xe**2 + 4 * c4 * xe**3 + 5 * c5 * xe**4) / self._eps
+        )
+
+        return vals
+
+    def second_derivative_implemented(self) -> bool:
+        return True
+
+    def _second_derivative(self, samples: Array) -> Array:
+        shift = 0
+        x = samples + shift
+
+        # Create an array of zeros with the same shape as x
+        vals = self._bkd.zeros(x.shape)
+
+        # Coefficients of spline enforcing all derivatives of step function at 0 and eps
+        c3, c4, c5 = 10, -15, 6
+
+        # Compute mask for the condition (-self._eps < x < 0)
+        mask_neg = (x < 0) & (x > -self._eps)
+
+        # Apply the second derivative formula for elements satisfying -self._eps < x < 0
+        xe = -x[mask_neg] / self._eps
+        vals[mask_neg] = (
+            6 * c3 * xe + 12 * c4 * xe**2 + 20 * c5 * xe**3
+        ) / self._eps**2
+        return vals

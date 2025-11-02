@@ -25,7 +25,7 @@ Given a set of dependent variables :math:`\vec{z} = [z_1, z_2, \dots, z_n]`, we 
 2. The basis functions span the space of polynomials up to a given degree :math:`m`.
 
 Steps to Construct the Basis
------------------------------
+----------------------------
 
 Step 1: Import the necessary modules
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -54,7 +54,7 @@ from pyapprox.surrogates.affine.linearsystemsolvers import LstSqSolver
 
 # %%
 # Step 2: Setup the Model and Variables
-# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # Now set up the benchmark model and define its random input variables.
 
 
@@ -141,7 +141,7 @@ pce = PolynomialChaosExpansion(rotated_basis, solver=solver, nqoi=model.nqoi())
 
 # %%
 # Step 7: Generate the Training Data
-# ^^^^^^^^^^^^^^^^^^^^^^^^^^
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # Generate training data by sampling the random variables and evaluating the model.
 
 ntrain_samples = 100

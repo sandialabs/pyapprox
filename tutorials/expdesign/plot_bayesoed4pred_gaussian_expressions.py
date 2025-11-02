@@ -21,7 +21,7 @@ The design points :math:`x = [x_1, \ldots, x_{N_x}] \in \mathbb{R}^{N_x}` are se
 
 
 2. Vandermonde Matrix Representation
--------------------------------------
+------------------------------------
 To represent the polynomial basis functions evaluated at the design points, we construct the Vandermonde matrix :math:`\mat{\Phi} \in \mathbb{R}^{N_x \times P}`, where :math:`N_x` is the number of design points and :math:`P` is the number of terms in the polynomial expansion. The entries of :math:`\mat{\Phi}` are defined as:
 
 .. math::

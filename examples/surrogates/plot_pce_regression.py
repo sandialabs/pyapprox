@@ -42,7 +42,7 @@ benchmark = GenzBenchmark("oscillatory", 2, backend=bkd)
 # Extract the model from the benchmark
 model = benchmark.model()
 # Extract the random variable
-variable = benchmark.variable()
+variable = benchmark.prior()
 
 # %%
 # Initialize the Orthonormal Basis
@@ -54,7 +54,7 @@ variable = benchmark.variable()
 # Define univariate orthonormal bases for each variable
 polys_1d = [
     setup_univariate_orthogonal_polynomial_from_marginal(marginal, backend=bkd)
-    for marginal in benchmark.variable().marginals()
+    for marginal in benchmark.prior().marginals()
 ]
 # Now, create the tensor product basis
 basis = OrthonormalPolynomialBasis(polys_1d)

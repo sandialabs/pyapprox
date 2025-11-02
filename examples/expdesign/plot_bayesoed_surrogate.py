@@ -39,7 +39,7 @@ from pyapprox.expdesign.bayesoed import (
     OEDDataManager,
     BayesianOEDDataGenerator,
 )
-from pyapprox.optimization.minimize import SampleAverageMean
+from pyapprox.optimization.sampleaverage import SampleAverageMean
 
 # Build a surrogate of the observation model to reduce computation cost of OED
 from pyapprox.surrogates.sparsegrids.combination import (

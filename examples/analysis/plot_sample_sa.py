@@ -11,12 +11,13 @@ from pyapprox.analysis.sensitivity_analysis import (
     plot_main_effects,
     plot_total_effects,
 )
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
 np.random.seed(1)
 
-benchmark = IshigamiBenchmark(a=7, b=0.1)
+benchmark = IshigamiBenchmark(bkd, a=7, b=0.1)
 nsamples = 10000
-analyzer = SobolSequenceBasedSensitivityAnalysis(benchmark.variable(), 100)
+analyzer = SobolSequenceBasedSensitivityAnalysis(benchmark.prior(), 100)
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()
 )

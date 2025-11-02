@@ -40,7 +40,7 @@ kle_hyperparams = KLEHyperParameters(0.5, 1.0, np.inf, nterms)
 
 # Initialize the ObstructedAdvectionDiffusion model
 model = ObstructedAdvectionDiffusion(
-    3, 3, 0.1, final_time, kle_hyperparams, True, np.array([10, 10])
+    3, 3, 0.1, final_time, kle_hyperparams, True, np.array([10, 2, 2])
 )
 
 # %%

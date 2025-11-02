@@ -16,6 +16,7 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MaxLevelSparseGridSubSpaceAdmissibilityCriteria,
     VarianceRefinementCriteria,
 )
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
 # set seed for reproducibility
 np.random.seed(1)
@@ -24,14 +25,14 @@ np.random.seed(1)
 # Set up a :py:class:`~pyapprox.interface.model.MultiIndexModelEnsemble` that takes samples :math:`x=[z_1,\ldots,z_D,v_1,\ldots, v_C]` which is the concatenation of a random sample `z` and configuration values specifying the discretization parameters of the numerical model.
 
 # load the benchmark
-benchmark = MultiLevelCosineBenchmark()
+benchmark = MultiLevelCosineBenchmark(bkd)
 # extract the model enemble
 model_ensemble = benchmark.models()
 
 # %%
 # Now set up and run the multi-index algorithm
 sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
-    benchmark.variable(),
+    benchmark.prior(),
     benchmark.nqoi(),
     benchmark.nrefinement_vars(),
     benchmark.models()._index_bounds,

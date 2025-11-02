@@ -24,11 +24,14 @@ from pyapprox.benchmarks.base import (
     ConstrainedUncertainOptimizationBenchmark,
 )
 from pyapprox.optimization.minimize import (
-    SampleAverageConstraint,
-    SampleAverageMeanPlusStdev,
     ConstraintFromModel,
     Constraint,
 )
+from pyapprox.optimization.sampleaverage import (
+    SampleAverageConstraint,
+    SampleAverageMeanPlusStdev,
+)
+
 from pyapprox.surrogates.affine.basis import (
     FixedGaussianTensorProductQuadratureRuleFromVariable,
 )

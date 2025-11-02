@@ -80,16 +80,16 @@ class AdaptiveCallback:
         return self._sparse_grids
 
 
-validation_samples = benchmark.variable().rvs(1000)
+validation_samples = benchmark.prior().rvs(1000)
 validation_values = benchmark.model()(validation_samples)
 adaptive_callback = AdaptiveCallback(validation_samples, validation_values)
 sg = AdaptiveCombinationSparseGrid(
-    benchmark.model().nqoi(), benchmark.variable().nvars()
+    benchmark.model().nqoi(), benchmark.prior().nvars()
 )
 quad_rule = ClenshawCurtisQuadratureRule(store=True, bounds=[-1, 1])
 bases_1d = [
     UnivariateLagrangeBasis(quad_rule, 3)
-    for dim_id in range(benchmark.variable().nvars())
+    for dim_id in range(benchmark.prior().nvars())
 ]
 growth_rule = DoublePlusOneIndexGrowthRule()
 sg.setup(
@@ -115,7 +115,7 @@ adaptive_callback(sg)
 # The sparse grid spends more points resolving the function variation in the horizontal direction, associated with the most sensitive function input.
 
 fig, axs = plt.subplots(1, 3, sharey=False, figsize=(3 * 8, 6))
-ranges = benchmark.variable().interval(1.0).flatten()
+ranges = benchmark.prior().interval(1.0).flatten()
 X, Y, pts = sg.meshgrid_samples(ranges, npts_1d=51)
 data = [sg(pts) for sg in adaptive_callback.sparse_grids()]
 Z_min = np.min([d for d in data])

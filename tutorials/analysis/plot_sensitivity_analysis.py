@@ -49,24 +49,25 @@ from pyapprox.analysis.sensitivity_analysis import (
     plot_total_effects,
     plot_interaction_values,
 )
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
-benchmark = IshigamiBenchmark(a=7, b=0.1)
+benchmark = IshigamiBenchmark(bkd, a=7, b=0.1)
 
 num_samples = 1000
-train_samples = benchmark.variable().rvs(num_samples)
+train_samples = benchmark.prior().rvs(num_samples)
 train_vals = benchmark.model()(train_samples)
 
 nsamples = 1000
 degree = 8
 pce = setup_polynomial_chaos_expansion_from_variable(
-    benchmark.variable(), benchmark.model().nqoi()
+    benchmark.prior(), benchmark.model().nqoi()
 )
 pce.basis().set_hyperbolic_indices(degree, 1.0)
-samples = benchmark.variable().rvs(nsamples)
+samples = benchmark.prior().rvs(nsamples)
 values = benchmark.model()(samples)
 pce.fit(samples, values)
 
-analyzer = PolynomialChaosSensitivityAnalysis(benchmark.variable().nvars())
+analyzer = PolynomialChaosSensitivityAnalysis(benchmark.prior().nvars())
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()
 )

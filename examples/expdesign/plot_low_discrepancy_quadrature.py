@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 benchmark = GenzBenchmark("oscillatory", nvars=2)
 nsamples = 100
-mc_samples = benchmark.variable().rvs(nsamples)
+mc_samples = benchmark.prior().rvs(nsamples)
 values = benchmark.model()(mc_samples)
 mean = values.mean(axis=0)
 variance = values.var(axis=0)
@@ -34,7 +34,7 @@ print("variance", variance)
 # follows
 
 sobol_seq = expdesign.SobolSequence(
-    benchmark.variable().nvars(), variable=benchmark.variable()
+    benchmark.prior().nvars(), variable=benchmark.prior()
 )
 sobol_samples = sobol_seq.rvs(nsamples)
 values = benchmark.model()(sobol_samples)
@@ -57,7 +57,7 @@ plt.legend()
 # ================
 # Pyapprox also supports Halton Sequences
 halton_seq = expdesign.HaltonSequence(
-    benchmark.variable().nvars(), variable=benchmark.variable()
+    benchmark.prior().nvars(), variable=benchmark.prior()
 )
 halton_samples = halton_seq.rvs(nsamples)
 values = benchmark.model()(halton_samples)

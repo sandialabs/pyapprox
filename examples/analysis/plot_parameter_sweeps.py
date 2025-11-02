@@ -14,17 +14,18 @@ be the cartesian product of the centered truncated intervals of each
 PDF. For bounded variables the true bounds are used (i.e. are not truncated)
 """
 
+import numpy as np
 from pyapprox import analysis
 from pyapprox.util.visualization import plt, mathrm_label
 from pyapprox.benchmarks import OakleyBenchmark, SobolGBenchmark
 from pyapprox.variables.transforms import AffineTransform
-import numpy as np
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
 np.random.seed(1)
 
-benchmark = OakleyBenchmark()
-mean = benchmark.variable().mean()
-stdev = benchmark.variable().std()
+benchmark = OakleyBenchmark(bkd)
+mean = benchmark.prior().mean()
+stdev = benchmark.prior().std()
 cov = np.diag(stdev[:, 0] ** 2)
 gaussian_sweeper = analysis.GaussianParameterSweeper(
     mean,
@@ -44,10 +45,10 @@ ax.set_title(mathrm_label("Oakely model parameter sweeps"))
 
 # %%
 # Now lets plot parameter sweeps for the Sobol G function
-benchmark = SobolGBenchmark(nvars=4)
+benchmark = SobolGBenchmark(bkd, nvars=4)
 bounded_sweeper = analysis.BoundedParameterSweeper(
-    benchmark.variable().nvars(),
-    AffineTransform(benchmark.variable()),
+    benchmark.prior().nvars(),
+    AffineTransform(benchmark.prior()),
     nsamples_per_sweep=20,
 )
 sweep_samples = bounded_sweeper.rvs(nsweeps)

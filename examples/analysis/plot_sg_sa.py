@@ -19,10 +19,11 @@ from pyapprox.surrogates.sparsegrids.combination import (
     MaxErrorSparseGridSubspaceAdmissibilityCriteria,
     LejaLagrangeAdaptiveCombinationSparseGrid,
 )
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
 np.random.seed(1)
 
-benchmark = IshigamiBenchmark(a=7, b=0.1)
+benchmark = IshigamiBenchmark(bkd, a=7, b=0.1)
 level = 7
 admissibility_criteria = MultipleSparseGridSubSpaceAdmissibilityCriteria(
     [
@@ -31,13 +32,13 @@ admissibility_criteria = MultipleSparseGridSubSpaceAdmissibilityCriteria(
     ]
 )
 sg = LejaLagrangeAdaptiveCombinationSparseGrid(
-    benchmark.variable(), benchmark.model().nqoi()
+    benchmark.prior(), benchmark.model().nqoi()
 )
 # Must not use default of mean or the refinement will terminate early
 # in the 3rd dimension
 init_sequences = [
     marginal.ppf(np.array([0.6]))[None, :]
-    for marginal in benchmark.variable().marginals()
+    for marginal in benchmark.prior().marginals()
 ]
 print(init_sequences)
 univariate_quad_rules = sg.unique_univariate_leja_quadrature_rules(
@@ -48,7 +49,7 @@ sg.build(benchmark.model())
 
 # %%
 # Compute the sensitivity indices
-analyzer = LagrangeSparseGridSensitivityAnalysis(benchmark.variable())
+analyzer = LagrangeSparseGridSensitivityAnalysis(benchmark.prior())
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()
 )

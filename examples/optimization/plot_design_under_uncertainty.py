@@ -84,11 +84,12 @@ from pyapprox.benchmarks import (
     CantileverBeamUncertainOptimizationBenchmark,
 )
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
 print(np)
 np.random.seed(1)
 
-benchmark = CantileverBeamDeterminsticOptimizationBenchmark()
+benchmark = CantileverBeamDeterminsticOptimizationBenchmark(bkd)
 optimizer = ScipyConstrainedOptimizer(
     benchmark.objective(),
     constraints=benchmark.constraints(),
@@ -148,7 +149,7 @@ print("###")
 # The values chosen do not matter
 # because the objective does not depend on the random variables
 # TODO change weights to create unbiased estimators of mean and variance
-benchmark = CantileverBeamUncertainOptimizationBenchmark()
+benchmark = CantileverBeamUncertainOptimizationBenchmark(bkd)
 optimizer = ScipyConstrainedOptimizer(
     benchmark.objective(),
     constraints=benchmark.constraints(),

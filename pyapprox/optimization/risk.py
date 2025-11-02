@@ -143,7 +143,7 @@ class AverageValueAtRisk(ValueAtRiskMeasure):
         nsamples = self._samples.shape[0]
         c = np.hstack((np.array([1]), 1 / (1 - self._beta) * self._quadw))
         A_ineq = -np.hstack((np.ones((nsamples, 1)), np.eye(nsamples)))
-        b_ineq = -self._samples
+        b_ineq = -self._bkd.to_numpy(self._samples)
         bounds = [(-np.inf, np.inf)] + [(0, np.inf)] * nsamples
         lin_res = optimize.linprog(
             c,
@@ -312,6 +312,18 @@ class GaussianAnalyticalRiskMeasures:
             np.array([[mu2]]),
             np.array([[sigma2**2]]),
         )
+
+    def mean(self) -> float:
+        return self._mu
+
+    def variance(self) -> float:
+        return self._sigma**2
+
+    def stdev(self) -> float:
+        return self._sigma
+
+    def mean_plus_stddev(self, alpha: float) -> float:
+        return self._mu + alpha * self._sigma
 
 
 class ChiSquaredAnalyticalRiskMeasures:
