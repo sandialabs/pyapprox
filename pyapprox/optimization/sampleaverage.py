@@ -384,6 +384,14 @@ class SampleAverageStat(ABC):
     def __repr__(self) -> str:
         return "{0}()".format(self.__class__.__name__)
 
+    def label(self) -> str:
+        """
+        Return short label typically used for plotting
+        """
+        if not hasattr(self, "_label"):
+            return self.__repr__()
+        return self._label()
+
 
 class SampleAverageMean(SampleAverageStat):
     def jacobian_implemented(self) -> bool:
@@ -419,6 +427,9 @@ class SampleAverageMean(SampleAverageStat):
         weights: Array,
     ) -> Array:
         return self._bkd.einsum("ijkl,i->jkl", hess_values, weights[:, 0])
+
+    def _label(self) -> str:
+        return "Mean"
 
 
 class SampleAverageVariance(SampleAverageStat):
@@ -481,6 +492,9 @@ class SampleAverageVariance(SampleAverageStat):
         tmp2 = 2 * self._bkd.einsum("ijk, ijl->ijkl", tmp_jac, tmp_jac)
         return self._bkd.einsum("ijkl,i->jkl", tmp1 + tmp2, weights[:, 0])
 
+    def _label(self) -> str:
+        return "Variance"
+
 
 class SampleAverageStdev(SampleAverageVariance):
     def jacobian_implemented(self) -> bool:
@@ -533,6 +547,9 @@ class SampleAverageStdev(SampleAverageVariance):
         )
         tmp2 = 1.0 / (2.0 * tmp0[..., None]) * variance_hess
         return tmp2 - tmp1
+
+    def _label(self) -> str:
+        return "StDev"
 
 
 class SampleAverageMeanPlusStdev(SampleAverageStat):
@@ -591,6 +608,9 @@ class SampleAverageMeanPlusStdev(SampleAverageStat):
         return "{0}(factor={1})".format(
             self.__class__.__name__, float(self._safety_factor)
         )
+
+    def _label(self) -> str:
+        return "Mean+StDev"
 
 
 class SampleAverageEntropicRisk(SampleAverageStat):
@@ -683,6 +703,9 @@ class SampleAverageEntropicRisk(SampleAverageStat):
         return "{0}(alpha={1})".format(
             self.__class__.__name__, float(self._alpha)
         )
+
+    def _label(self) -> str:
+        return "Entropic"
 
 
 class SampleAverageSmoothedAverageValueAtRisk(SampleAverageStat):
@@ -902,6 +925,9 @@ class SampleAverageSmoothedAverageValueAtRisk(SampleAverageStat):
             self.__class__.__name__, float(self._alpha)
         )
 
+    def _label(self) -> str:
+        return f"AVaR_{float(self._alpha):.2f}"
+
 
 class SampleAverageSmoothedAverageValueAtRiskDeviation(
     SampleAverageSmoothedAverageValueAtRisk
@@ -1063,3 +1089,6 @@ class SampleAverageConstraint(ConstraintFromModel):
         return "{0}(model={1}, stat={2})".format(
             self.__class__.__name__, self._model, self._stat
         )
+
+    def _label(self) -> str:
+        return f"AVaRDev_{float(self._alpha):.2f}"

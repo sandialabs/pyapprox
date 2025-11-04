@@ -39,8 +39,9 @@ final_time = 1.5
 kle_hyperparams = KLEHyperParameters(0.5, 1.0, np.inf, nterms)
 
 # Initialize the ObstructedAdvectionDiffusion model
+navier_stokes_params = np.array([10.0, 2.0, 2.0])
 model = ObstructedAdvectionDiffusion(
-    3, 3, 0.1, final_time, kle_hyperparams, True, np.array([10, 2, 2])
+    3, 3, 0.1, final_time, kle_hyperparams, True, navier_stokes_params
 )
 
 # %%
@@ -94,18 +95,34 @@ model.plot_forcing(params, colorbar=True)
 # Plot KLE eigenvectors
 axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
 model.plot_kle_eigenvecs(np.array([0, nterms // 2, -1]), axs)
+plt.savefig("advec_diff_forcing_eigenvecs.pdf", bbox_inches="tight")
 
 # %%
-# Solving the Advection-Diffusion Equation
-# ----------------------------------------
+# Solving the Governing Equations
+# -------------------------------
 #
-# The advection-diffusion equation is solved using the model with the computed KLE coefficients.
+# The advection-diffusion equation is solved using the model with the computed KLE coefficients. The Navier-Stokes equations are solved using the default parameters
 
 # Set the KLE coefficients in the model
 model.set_params(params)
 
 # Solve the advection-diffusion equation
 sols, times = model.solve()
+print("Advection-Diffusion ndof:", sols.shape[0])
+
+# %%
+# Plot the Navier-Stokes Velocity Field
+# -------------------------------------
+#
+# Plot the velocity field
+ax = plt.subplots(1, 1, figsize=(8, 6), sharey=True)[1]
+stokes_sol = model.stokes_model().solve()
+print("Navier-Stokes ndof:", stokes_sol.shape[0])
+model.stokes_model().plot_velocity_magnitude(stokes_sol, ax=ax)
+model.stokes_model().plot_velocity_field(stokes_sol, ax=ax)
+ax.set_xlim(0, 1)
+ax.set_ylim(0, 1)
+# plt.savefig("advec_diff_velocity.pdf", bbox_inches="tight")
 
 # %%
 # Visualizing the Concentration Snapshots
@@ -114,8 +131,13 @@ sols, times = model.solve()
 # Snapshots of the concentration field at different time steps are visualized to observe the propagation of the source through the domain.
 
 # Plot concentration snapshots
-axs = plt.subplots(1, 3, figsize=(3 * 8, 6), sharey=True)[1]
-model.plot_concentration_snapshots(sols, np.array([0, 5, -1]), axs)
+snapshot_indices = np.array([-1])
+nsnapshots = snapshot_indices.shape[0]
+axs = plt.subplots(1, nsnapshots, figsize=(nsnapshots * 8, 6), sharey=True)[1]
+model.plot_concentration_snapshots(sols, snapshot_indices, axs)
+axs.set_xlim(0, 1)
+axs.set_ylim(0, 1)
+# plt.savefig("advec_diff_concentration_snapshots.pdf", bbox_inches="tight")
 
 # %%
 # Animating the Solution

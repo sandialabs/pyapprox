@@ -1093,6 +1093,8 @@ class ObstructedAdvectionDiffusion(TransientParameterizedFEModel):
                 "sols must be a 2D array containing the solution snaphsots "
                 "at all times"
             )
+        if sol_indices.shape[0] == 1:
+            axs = [axs]
         if len(axs) != sol_indices.shape[0]:
             raise ValueError("must provide one axes for each sol")
         for ii, idx in enumerate(sol_indices):

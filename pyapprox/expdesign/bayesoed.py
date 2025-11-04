@@ -536,6 +536,9 @@ class NoiseStatistic:
     def __repr__(self) -> str:
         return "{0}({1})".format(self.__class__.__name__, self._stat)
 
+    def label(self) -> str:
+        return self._stat.lable()
+
 
 class BayesianOEDObjective(SingleSampleModel):
     def __init__(self, backend: BackendMixin = NumpyMixin):
@@ -817,6 +820,14 @@ class PredictionOEDDeviationMeasure(SingleSampleModel):
             )
         self._evidence = evidence
 
+    def label(self) -> str:
+        """
+        Return short label typically used for plotting
+        """
+        if not hasattr(self, "_label"):
+            return self.__repr__()
+        return self._label()
+
 
 class OEDPredictionFirstMomentMixin:
     def _first_moment(self, quad_weighted_like_vals: Array) -> Array:
@@ -970,6 +981,9 @@ class OEDStandardDeviationMeasure(
         sqrt_jac = variance_jac / (2.0 * values[..., None])
         return sqrt_jac
 
+    def _label(self) -> str:
+        return "StDev"
+
 
 class OEDEntropicDeviationMeasure(
     PredictionOEDDeviationMeasure, OEDPredictionFirstMomentMixin
@@ -1062,6 +1076,9 @@ class OEDEntropicDeviationMeasure(
             - first_mom[..., None] * evidences_jac[None, :] / evidences
         )
         return risk_jac - mean_jac
+
+    def _label(self) -> str:
+        return "Entropic"
 
 
 class OEDAVaRDeviationMeasure(
@@ -1226,6 +1243,9 @@ class OEDAVaRDeviationMeasure(
             jacs.append(self._bkd.vstack(outer_vals))
         # print(mean_jac.shape, self._bkd.stack(jacs, axis=0).shape)
         return self._bkd.stack(jacs, axis=0)
+
+    def _label(self) -> str:
+        return "AVaRDev"
 
 
 class PredictionOEDObjective(KLOEDObjective):
@@ -1616,6 +1636,10 @@ class KLBayesianOEDMixin:
             Weights for the inner loop quadrature.
         """
 
+        outloop_loglike = self._inloop_loglike.outerloop_loglike()
+        outloop_loglike.set_shapes(outloop_shapes)
+        self._inloop_loglike.set_shapes(inloop_shapes)
+
         self._set_objective_function(
             KLOEDObjective(
                 self._inloop_loglike,
@@ -1658,19 +1682,15 @@ class KLBayesianOEDMixin:
         inloop_quad_weights : Array (ninloop_samples, 1)
             Weights for the inner loop quadrature.
         """
-        outloop_loglike = self._inloop_loglike.outerloop_loglike()
         outloop_shapes_samples = outloop_samples[: prior.nvars()]
         outloop_shapes = obs_model(outloop_shapes_samples).T
-        outloop_loglike.set_shapes(outloop_shapes)
-
         inloop_shapes = obs_model(inloop_samples).T
-        self._inloop_loglike.set_shapes(inloop_shapes)
 
         self.set_data(
-            self._inloop_loglike.outerloop_loglike().shapes(),
+            outloop_shapes,
             outloop_samples,
             outloop_quad_weights,
-            self._inloop_loglike.shapes(),
+            inloop_shapes,
             inloop_quad_weights,
         )
 
