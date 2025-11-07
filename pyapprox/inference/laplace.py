@@ -68,7 +68,6 @@ def _compute_expected_kl_divergence(
     kl_div += bkd.multidot((xi.T, prior_hessian, xi))[0, 0]
     kl_div *= 0.5
     return kl_div
-    kl_div = kl_div
 
 
 class DenseMatrixLaplacePosteriorApproximation:

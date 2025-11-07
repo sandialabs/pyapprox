@@ -15,7 +15,7 @@ from pyrol import (
     Constraint as ROLConstraint,
     LinearConstraint as ROLLinearConstraint,
 )
-
+from pyapprox.util.backends.numpy import NumpyMixin
 from pyrol.vectors import NumPyVector
 from pyapprox.interface.model import Model
 from pyapprox.optimization.minimize import (
@@ -134,6 +134,7 @@ class ROLLinearOperatorWrapper(LinearOperator):
     def __init__(self, Amat: Array, backend: BackendMixin):
         self._bkd = backend
         self._Amat = self._bkd.to_numpy(Amat)
+        super().__init__()
 
     def apply(self, hv: Vector, v: Vector, tol: float):
         hv[:] = self._Amat @ v[:]
@@ -143,24 +144,39 @@ class ROLLinearOperatorWrapper(LinearOperator):
 
 
 class ROLLinearConstraintWrapper(ROLLinearConstraint):
-    def __init__(self, constraint: LinearConstraint):
-        self._bkd = constraint._bkd
+    def __init__(self, constraint: LinearConstraint, backend: BackendMixin):
+        self._bkd = backend
         if not issubclass(constraint.__class__, LinearConstraint):
             raise ValueError(
                 "constraint must be derived from LinearConstraint"
             )
         self._constraint = constraint
-        linop = ROLLinearOperatorWrapper(self._constraint.A)
-        b = NumPyVector(
-            self._bkd.zeros(
-                (self._constraint.A.shape[0]),
-            )
+        lb = self._bkd.asarray(self._constraint.lb)
+        ub = self._bkd.asarray(self._constraint.ub)
+        self._bounds = self._bkd.stack((lb, ub), axis=1)
+        linop = ROLLinearOperatorWrapper(
+            self._bkd.asarray(self._constraint.A), self._bkd
         )
+        if self.is_equality_constraint():
+            b = NumPyVector(np.zeros((self._constraint.A.shape[0])))
+        if self.is_equality_constraint():
+            # ROL requires bounds be encoded into b vector
+            b = NumPyVector(
+                np.full((self._constraint.A.shape[0]), -self._constraint.ub)
+            )
         self._nres = self._constraint.A.shape[0]
         super().__init__(linop, b)
 
+    def is_equality_constraint(self) -> bool:
+        return self._bkd.all(self._bounds[:, 0] == self._bounds[:, 1])
+
     def nres(self) -> int:
         return self._nres
+
+    def __repr__(self) -> str:
+        return "{0}(nconstraints={1})".format(
+            self.__class__.__name__, self._constraint.A.shape[0]
+        )
 
 
 class ROLConstrainedOptimizer(ConstrainedOptimizer):
@@ -220,9 +236,9 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
         return params
 
     def _set_linear_constraint(self, problem: Problem, _con: Constraint):
-        con = ROLLinearConstraintWrapper(_con)
-        emul = NumPyVector(self._bkd.zeros(con.nres()))
-        if self._bkd.all(_con._bounds[:, 0] == _con._bounds[:, 1]):
+        con = ROLLinearConstraintWrapper(_con, self._bkd)
+        emul = NumPyVector(np.zeros(con.nres()))
+        if con.is_equality_constraint():
             # equality constraints
             problem.addLinearConstraint(
                 f"EqLinearConstraint_{self._neqlincons}", con, emul
@@ -230,8 +246,8 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
             self._neqlincons += 1
         else:
             bounds = ROLBounds(
-                NumPyVector(self._bkd.to_numpy(_con._bounds[:, 0])),
-                NumPyVector(self._bkd.to_numpy(_con._bounds[:, 1])),
+                NumPyVector(self._bkd.to_numpy(con._bounds[:, 0])),
+                NumPyVector(self._bkd.to_numpy(con._bounds[:, 1])),
             )
             problem.addLinearConstraint(
                 f"IneqLinearConstraint_{self._nineqlincons}", con, emul, bounds
@@ -275,7 +291,7 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
 
     def _minimize(self, init_guess: Vector):
         tol = 0
-        x0 = NumPyVector(self._bkd.to_numpy(init_guess[:, 0]))
+        x0 = NumPyVector(self._bkd.to_numpy(self._bkd.copy(init_guess[:, 0])))
         if (
             self._objective.apply_hessian_implemented()
             or self._objective.hessian_implemented()
@@ -290,7 +306,7 @@ class ROLConstrainedOptimizer(ConstrainedOptimizer):
             # figure out stream that supresses output
             stream = getCout()
 
-        if self._bkd.any(self._bounds[:, 0] != -np.inf) and self._bkd.any(
+        if self._bkd.any(self._bounds[:, 0] != -np.inf) or self._bkd.any(
             self._bounds[:, 1] != np.inf
         ):
             problem.addBoundConstraint(

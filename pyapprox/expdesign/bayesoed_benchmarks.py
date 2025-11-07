@@ -58,6 +58,7 @@ from pyapprox.expdesign.bayesoed import (
     SampleAverageStat,
     BayesianOEDDataGenerator,
 )
+from pyapprox.optimization.risk import LogNormalAnalyticalRiskMeasures
 
 
 class Linear1DRegressionModel(DenseMatrixLinearModel):
@@ -173,15 +174,7 @@ class LinearGaussianBayesianOEDBenchmark:
         design: Array (1, nobs)
             Design matrix for the experimental conditions.
         """
-        design = self._bkd.linspace(-1, 1, self._nobs - 2)[None, :]
-        design = self._bkd.sort(
-            self._bkd.hstack(
-                (
-                    design[0],
-                    self._bkd.asarray([-1 / np.sqrt(5), 1 / np.sqrt(5)]),
-                )
-            )
-        )[None, :]
+        design = self._bkd.linspace(-1, 1, self._nobs)[None, :]
         return design
 
     def _setup_noise_covariance_diag(self) -> Array:
@@ -318,6 +311,32 @@ class LinearGaussianBayesianOEDBenchmark:
         )
         laplace.compute(dummy_obs)
         return laplace.expected_kl_divergence()
+
+
+class LinearGaussianBayesianDOptimalOEDBenchmark(
+    LinearGaussianBayesianOEDBenchmark
+):
+    def _setup_design_locations(self) -> Array:
+        """
+        Set up the design locations of the experiments.
+
+        Add points that should be chosen by d-optimal design.
+
+        Returns
+        -------
+        design: Array (1, nobs)
+            Design matrix for the experimental conditions.
+        """
+        design = self._bkd.linspace(-1, 1, self._nobs - 2)[None, :]
+        design = self._bkd.sort(
+            self._bkd.hstack(
+                (
+                    design[0],
+                    self._bkd.asarray([-1 / np.sqrt(5), 1 / np.sqrt(5)]),
+                )
+            )
+        )[None, :]
+        return design
 
 
 class LinearGaussianBayesianOEDForPredictionBenchmark(
@@ -797,53 +816,60 @@ class BayesianOEDDiagnostics(ABC):
         lines = {"sqbias": [], "variance": [], "mse": []}
         for ii, ninnerloop_samples in enumerate(innerloop_sample_counts):
 
+            # Plot MSE
+            mse_line = axes[0].loglog(
+                outerloop_sample_counts,
+                values["mse"][ii],
+                label=f"Inner-loop Samples: {ninnerloop_samples}",
+                marker="o",
+            )
+            lines["mse"].extend(mse_line)
+
+            if len(axes) == 1:
+                continue
+
             # Plot squared-bias
-            bias_line = axes[0].loglog(
+            bias_line = axes[1].loglog(
                 outerloop_sample_counts,
                 values["sqbias"][ii],
-                label=f"Inner Loop Samples: {ninnerloop_samples}",
+                label=f"Inner-loop Samples: {ninnerloop_samples}",
                 marker="o",
             )
             lines["sqbias"].extend(bias_line)
 
             # Plot variance
-            variance_line = axes[1].loglog(
+            variance_line = axes[2].loglog(
                 outerloop_sample_counts,
                 values["variance"][ii],
-                label=f"Inner Loop Samples: {ninnerloop_samples}",
+                label=f"Inner-loop Samples: {ninnerloop_samples}",
                 marker="o",
             )
             lines["variance"].extend(variance_line)
 
-            # Plot MSE
-            mse_line = axes[2].loglog(
-                outerloop_sample_counts,
-                values["mse"][ii],
-                label=f"Inner Loop Samples: {ninnerloop_samples}",
-                marker="o",
-            )
-            lines["mse"].extend(mse_line)
-
-        # Customize bias plot
-        axes[0].set_xlabel("Outer Loop Samples")
-        axes[0].set_ylabel("Squared-Bias")
-        axes[0].set_title("Squared-Bias of Expected Information Gain")
-        axes[0].legend()
-        axes[0].grid(True)
-
-        # Customize variance plot
-        axes[1].set_xlabel("Outer Loop Samples")
-        axes[1].set_ylabel("Variance")
-        axes[1].set_title("Variance of Expected Information Gain")
-        axes[1].legend()
-        axes[1].grid(True)
-
         # Customize MSE plot
-        axes[2].set_xlabel("Outer Loop Samples")
+        axes[2].set_xlabel("Outer-loop Samples")
         axes[2].set_ylabel("Mean Squared Error (MSE)")
         axes[2].set_title("MSE of Expected Information Gain")
         axes[2].legend()
         axes[2].grid(True)
+
+        if len(axes) == 1:
+            return lines
+
+        # Customize bias plot
+        axes[1].set_xlabel("Outer-loop Samples")
+        axes[1].set_ylabel("Squared-Bias")
+        axes[1].set_title("Squared-Bias of Expected Information Gain")
+        axes[1].legend()
+        axes[1].grid(True)
+
+        # Customize variance plot
+        axes[2].set_xlabel("Outer-loop Samples")
+        axes[2].set_ylabel("Variance")
+        axes[2].set_title("Variance of Expected Information Gain")
+        axes[2].legend()
+        axes[2].grid(True)
+
         return lines
 
     def plot_mse_vs_innerloop_samples(
@@ -886,55 +912,63 @@ class BayesianOEDDiagnostics(ABC):
         sqbias = self._bkd.vstack(values["sqbias"])
         variance = self._bkd.vstack(values["variance"])
         mse = self._bkd.vstack(values["mse"])
+        print(outerloop_sample_counts)
         for ii, nouterloop_samples in enumerate(outerloop_sample_counts):
+            print(nouterloop_samples, ii)
+            # Plot MSE
+            mse_line = axes[0].loglog(
+                innerloop_sample_counts,
+                mse[:, ii],
+                label=f"Outer-loop Samples: {nouterloop_samples}",
+                marker="o",
+            )
+            lines["mse"].extend(mse_line)
+
+            if len(axes) == 1:
+                continue
 
             # Plot squared-bias
-            bias_line = axes[0].loglog(
+            bias_line = axes[1].loglog(
                 innerloop_sample_counts,
                 sqbias[:, ii],
-                label=f"Outer Loop Samples: {nouterloop_samples}",
+                label=f"Outer-loop Samples: {nouterloop_samples}",
                 marker="o",
             )
             lines["sqbias"].extend(bias_line)
 
             # Plot variance
-            variance_line = axes[1].loglog(
+            variance_line = axes[2].loglog(
                 innerloop_sample_counts,
                 variance[:, ii],
-                label=f"Outer Loop Samples: {nouterloop_samples}",
+                label=f"Outer-loop Samples: {nouterloop_samples}",
                 marker="o",
             )
             lines["variance"].extend(variance_line)
 
-            # Plot MSE
-            mse_line = axes[2].loglog(
-                innerloop_sample_counts,
-                mse[:, ii],
-                label=f"Outer Loop Samples: {nouterloop_samples}",
-                marker="o",
-            )
-            lines["mse"].extend(mse_line)
-
-        # Customize bias plot
-        axes[0].set_xlabel("Inner Loop Samples")
-        axes[0].set_ylabel("Squared-Bias")
-        axes[0].set_title("Squared-Bias of Expected Information Gain")
+        # Customize MSE plot
+        axes[0].set_xlabel("Inner-loop Samples")
+        axes[0].set_ylabel("Mean Squared Error (MSE)")
+        axes[0].set_title("MSE of Expected Information Gain")
         axes[0].legend()
         axes[0].grid(True)
 
-        # Customize variance plot
-        axes[1].set_xlabel("Inner Loop Samples")
-        axes[1].set_ylabel("Variance")
-        axes[1].set_title("Variance of Expected Information Gain")
+        if len(axes) == 1:
+            return lines
+
+        # Customize bias plot
+        axes[1].set_xlabel("Inner-loop Samples")
+        axes[1].set_ylabel("Squared-Bias")
+        axes[1].set_title("Squared-Bias of Expected Information Gain")
         axes[1].legend()
         axes[1].grid(True)
 
-        # Customize MSE plot
-        axes[2].set_xlabel("Inner Loop Samples")
-        axes[2].set_ylabel("Mean Squared Error (MSE)")
-        axes[2].set_title("MSE of Expected Information Gain")
+        # Customize variance plot
+        axes[2].set_xlabel("Inner-loop Samples")
+        axes[2].set_ylabel("Variance")
+        axes[2].set_title("Variance of Expected Information Gain")
         axes[2].legend()
         axes[2].grid(True)
+
         return lines
 
     def compute_convergence_rate(
@@ -1054,7 +1088,7 @@ class BayesianKLOEDDiagnostics(BayesianOEDDiagnostics):
         return self._problem.exact_expected_information_gain(design_weights)
 
 
-class ConjugateGaussianPriorOEDForLinearPredictionUtility(ABC):
+class ConjugateGaussianPriorOEDForNormalPredictionUtility(ABC):
     """
     Compute the expected divergence or deviation of the pushforward of the
     posterior, arising from a conugate Gaussian prior, through a
@@ -1120,8 +1154,8 @@ class ConjugateGaussianPriorOEDForLinearPredictionUtility(ABC):
         return self._utility
 
 
-class ConjugateGaussianPriorOEDForLinearPredictionKLDivergence(
-    ConjugateGaussianPriorOEDForLinearPredictionUtility
+class ConjugateGaussianOEDForNormalExpectedKLDivergence(
+    ConjugateGaussianPriorOEDForNormalPredictionUtility
 ):
     def _compute_utility(self) -> float:
         return _compute_expected_kl_divergence(
@@ -1134,15 +1168,15 @@ class ConjugateGaussianPriorOEDForLinearPredictionKLDivergence(
         )
 
 
-class ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation(
-    ConjugateGaussianPriorOEDForLinearPredictionUtility
+class ConjugateGaussianOEDForNormalExpectedStdDev(
+    ConjugateGaussianPriorOEDForNormalPredictionUtility
 ):
     def _compute_utility(self) -> float:
         return self._bkd.sqrt(self._post_pushforward.covariance()[0, 0])
 
 
-class ConjugateGaussianPriorOEDForLinearPredictionEntropicDeviation(
-    ConjugateGaussianPriorOEDForLinearPredictionUtility
+class ConjugateGaussianOEDForNormalExpectedEntropicDev(
+    ConjugateGaussianPriorOEDForNormalPredictionUtility
 ):
     def __init__(
         self, prior: MultivariateGaussian, qoi_mat: Array, lamda: float = 1.0
@@ -1154,15 +1188,15 @@ class ConjugateGaussianPriorOEDForLinearPredictionEntropicDeviation(
         return self._lamda * self._post_pushforward.covariance()[0, 0] / 2.0
 
 
-class ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation(
-    ConjugateGaussianPriorOEDForLinearPredictionUtility
+class ConjugateGaussianOEDForNormalExpectedAVaRDev(
+    ConjugateGaussianPriorOEDForNormalPredictionUtility
 ):
     def __init__(
         self, prior: MultivariateGaussian, qoi_mat: Array, beta: float = 0.5
     ):
         super().__init__(prior, qoi_mat)
         self._beta = beta
-        self._std_normal = GaussianMarginal(0, 1, backend=self._bkd)
+        self._std_normal = GaussianMarginal(0.0, 1.0, backend=self._bkd)
 
     def _compute_utility(self) -> float:
         return (
@@ -1174,8 +1208,8 @@ class ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation(
         )
 
 
-class ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation(
-    ConjugateGaussianPriorOEDForLinearPredictionUtility
+class ConjugateGaussianOEDForLogNormalExpectedStdDev(
+    ConjugateGaussianPriorOEDForNormalPredictionUtility
 ):
     def _lognormal_mean(self, mu: float, sigma: float):
         return self._bkd.exp(mu + sigma**2 / 2.0)
@@ -1196,8 +1230,43 @@ class ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation(
         )
 
 
-class ConjugateGaussianPriorOEDForLogNormalPredictionKLDivergence(
-    ConjugateGaussianPriorOEDForLinearPredictionKLDivergence
+class ConjugateGaussianOEDForLogNormalAVaRStdDev(
+    ConjugateGaussianPriorOEDForNormalPredictionUtility
+):
+    def __init__(
+        self, prior: MultivariateGaussian, qoi_mat: Array, beta: float = 0.5
+    ):
+        super().__init__(prior, qoi_mat)
+        self._beta = beta
+
+    def _lognormal_mean(self, mu: float, sigma: float):
+        return self._bkd.exp(mu + sigma**2 / 2.0)
+
+    def _compute_utility(self) -> float:
+        tau_hat = self._qoi_mat @ self._nu_vec
+        sigma_hat_sq = self._bkd.multidot(
+            (self._qoi_mat, self._Cmat, self._qoi_mat.T)
+        )
+        tmp = self._bkd.exp(self._post_pushforward.covariance()[0, 0])
+        factor = (tmp - 1.0) * tmp
+        # We know the variance F \exp(X) is a lognormal distribution using
+        # where X is a normal with
+        # mean 2\tau_hat and standard deviation 2*\sqrt(\sigma_hat_sq)
+        # Then standard deviation = F^{1/2}Y^{1/2}=F^{1/2}\exp(X)^{1/2}=F^{1/2}exp(X/2) = F^{1/2}\exp(Z) where Z is a normal with mean tau_hat and stdev sqrt(sigma_hat_sq)
+
+        # This funciton will not work with autograd because
+        # LogNormalAnalyticalRiskMeasures is numpy based
+        risk_measures = LogNormalAnalyticalRiskMeasures(
+            self._bkd.to_numpy(tau_hat),
+            self._bkd.to_numpy(self._bkd.sqrt(sigma_hat_sq)),
+        )
+        return self._bkd.sqrt(factor) * self._bkd.asarray(
+            risk_measures.AVaR(self._beta)
+        )
+
+
+class ConjugateGaussianForLogNormalKLDivergence(
+    ConjugateGaussianOEDForNormalExpectedKLDivergence
 ):
     # The KL of two lognormals is the same as the KL of the
     # two associated Normals
@@ -1208,15 +1277,17 @@ class BayesianOEDForPredictionDiagnostics(BayesianOEDDiagnostics):
     def __init__(
         self,
         problem: LinearGaussianBayesianOEDBenchmark,
-        utility_cls: ConjugateGaussianPriorOEDForLinearPredictionUtility,
+        utility_cls: ConjugateGaussianPriorOEDForNormalPredictionUtility,
         deviation_measure: PredictionOEDDeviationMeasure,
         risk_measure: SampleAverageStat,
         noise_stat: NoiseStatistic,
+        *utility_args,
     ):
         self._utility_cls = utility_cls
         self._deviation_measure = deviation_measure
         self._risk_measure = risk_measure
         self._noise_stat = noise_stat
+        self._utility_args = utility_args
         super().__init__(problem)
 
     def _setup_OED(
@@ -1244,7 +1315,7 @@ class BayesianOEDForPredictionDiagnostics(BayesianOEDDiagnostics):
             backend=self._bkd,
         )
         utility = self._utility_cls(
-            prior, self._problem.get_qoi_model().matrix()
+            prior, self._problem.get_qoi_model().matrix(), *self._utility_args
         )
         utility.set_observation_matrix(
             self._problem.get_observation_model().matrix()

@@ -18,8 +18,8 @@ from pyapprox.util.backends.numpy import NumpyMixin as bkd
 from pyapprox.expdesign.bayesoed_benchmarks import (
     LinearGaussianBayesianOEDForPredictionBenchmark,
     BayesianOEDForPredictionDiagnostics,
-    ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation,
-    ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
+    ConjugateGaussianOEDForNormalExpectedAVaRDev,
+    ConjugateGaussianOEDForNormalExpectedStdDev,
 )
 from pyapprox.expdesign.bayesoed import (
     NoiseStatistic,
@@ -62,9 +62,9 @@ design_weights = (
 noise_stat = NoiseStatistic(SampleAverageMean(bkd))
 risk_measure = SampleAverageMean(bkd)
 # deviation_measure = OEDAVaRDeviationMeasure(nqoi, 0.5, 1000000, bkd)
-# utility_cls = ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation
+# utility_cls = ConjugateGaussianOEDForNormalExpectedAVaRDev
 deviation_measure = OEDStandardDeviationMeasure(nqoi, bkd)
-utility_cls = ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation
+utility_cls = ConjugateGaussianOEDForNormalExpectedStdDev
 
 # Create the diagnostics instance
 oed_diagnostic = BayesianOEDForPredictionDiagnostics(

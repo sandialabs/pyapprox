@@ -61,6 +61,13 @@ from pyapprox.expdesign.sequences import HaltonSequence
 from pyapprox.surrogates.affine.basis import (
     setup_tensor_product_gauss_quadrature_rule,
 )
+from pyapprox.util.sys_utilities import package_available
+
+if package_available("pyrol"):
+    has_pyrol = True
+    from pyapprox.optimization.rol import ROLConstrainedOptimizer
+else:
+    has_pyrol = False
 
 
 class OEDOuterLoopLogLikelihoodMixin(ABC):
@@ -537,7 +544,7 @@ class NoiseStatistic:
         return "{0}({1})".format(self.__class__.__name__, self._stat)
 
     def label(self) -> str:
-        return self._stat.lable()
+        return self._stat.label()
 
 
 class BayesianOEDObjective(SingleSampleModel):
@@ -1510,12 +1517,19 @@ class RelaxedBayesianOED(BayesianOED):
         method: str = "trust-constr",
         global_search: bool = False,
     ) -> ConstrainedOptimizer:
-        local_optimizer = ScipyConstrainedOptimizer()
-        local_optimizer.set_options(
-            gtol=gtol,
-            maxiter=maxiter,
-            method=method,
-        )
+
+        if method == "rol" and not has_pyrol:
+            raise ImportError("ROL is not installed")
+        if method != "rol":
+            local_optimizer = ScipyConstrainedOptimizer()
+            local_optimizer.set_options(
+                gtol=gtol,
+                maxiter=maxiter,
+                method=method,
+            )
+        else:
+            local_optimizer = ROLConstrainedOptimizer()
+
         local_optimizer.set_verbosity(verbosity)
         if not global_search:
             return local_optimizer
@@ -1574,6 +1588,8 @@ class RelaxedBayesianOED(BayesianOED):
         if not hasattr(self, "_optimizer"):
             self.set_optimizer(self.default_optimizer())
         self._res = self._optimizer.minimize(iterate)
+        if not self._res.success:
+            raise RuntimeError("Optimization failed")
         return self._res.x
 
     def optimization_result(self) -> OptimizationResult:
@@ -2067,9 +2083,24 @@ class OEDDataManager:
         data["outloop_shapes"] = self._bkd.copy(self.get("outloop_shapes"))[
             active_obs_indices, :noutloop_samples
         ]
-        data["outloop_quad_weights"] = self._bkd.copy(
-            self.get("outloop_quad_weights")
-        )[:noutloop_samples]
+        outloop_quad_weights = self.get("outloop_quad_weights")
+        if self._bkd.any(outloop_quad_weights != outloop_quad_weights[0, 0]):
+            raise NotImplementedError(
+                "Can only extract data subset when using MC or QMC rules "
+                "with constant weights"
+            )
+        data["outloop_quad_weights"] = self._bkd.full(
+            (noutloop_samples, 1), 1.0 / noutloop_samples
+        )
+        inloop_quad_weights = self.get("inloop_quad_weights")
+        if self._bkd.any(inloop_quad_weights != inloop_quad_weights[0, 0]):
+            raise NotImplementedError(
+                "Can only extract data subset when using MC or QMC rules "
+                "with constant weights"
+            )
+        data["inloop_quad_weights"] = self._bkd.full(
+            (ninloop_samples, 1), 1.0 / ninloop_samples
+        )
         data["observation_locations"] = self._bkd.copy(
             self.get("observation_locations")
         )[:, active_obs_location_indices]
@@ -2079,9 +2110,6 @@ class OEDDataManager:
         data["inloop_shapes"] = self._bkd.copy(self.get("inloop_shapes"))[
             active_obs_indices, :ninloop_samples
         ]
-        data["inloop_quad_weights"] = self._bkd.copy(
-            self.get("inloop_quad_weights")
-        )[:ninloop_samples]
         if self.get("qoi_vals") is not None:
             data["qoi_vals"] = self._bkd.copy(self.get("qoi_vals"))[
                 :ninloop_samples

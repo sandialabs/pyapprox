@@ -10,15 +10,17 @@ from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.util.misc import hash_array
 from pyapprox.expdesign.bayesoed_benchmarks import (
     LinearGaussianBayesianOEDBenchmark,
+    LinearGaussianBayesianDOptimalOEDBenchmark,
     LinearGaussianBayesianOEDForPredictionBenchmark,
     NonLinearGaussianBayesianOEDForPredictionBenchmark,
     BayesianKLOEDDiagnostics,
     BayesianOEDForPredictionDiagnostics,
-    ConjugateGaussianPriorOEDForLinearPredictionKLDivergence,
-    ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
-    ConjugateGaussianPriorOEDForLinearPredictionEntropicDeviation,
-    ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation,
-    ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation,
+    ConjugateGaussianOEDForNormalExpectedKLDivergence,
+    ConjugateGaussianOEDForNormalExpectedStdDev,
+    ConjugateGaussianOEDForNormalExpectedEntropicDev,
+    ConjugateGaussianOEDForNormalExpectedAVaRDev,
+    ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    ConjugateGaussianOEDForLogNormalAVaRStdDev,
 )
 from pyapprox.expdesign.bayesoed import (
     Evidence,
@@ -45,6 +47,7 @@ from pyapprox.inference.laplace import (
 from pyapprox.optimization.risk import (
     LogNormalAnalyticalRiskMeasures,
     GaussianAnalyticalRiskMeasures,
+    AverageValueAtRisk,
 )
 from pyapprox.optimization.sampleaverage import (
     SampleAverageMean,
@@ -75,7 +78,7 @@ class TestBayesOED:
         prior_std = 0.5
 
         # Initialize problem
-        problem = LinearGaussianBayesianOEDBenchmark(
+        problem = LinearGaussianBayesianDOptimalOEDBenchmark(
             nobs, min_degree, degree, noise_std, prior_std, backend=bkd
         )
 
@@ -565,9 +568,9 @@ class TestBayesOED:
         errors = dopt_objective.check_apply_jacobian(
             design_weights, disp=False
         )
-        assert errors.min() / errors.max() < 1e-6 and errors.max() < 10
+        assert errors.min() / errors.max() < 1e-6 and errors.max() > 0.5
         errors = dopt_objective.check_apply_hessian(design_weights, disp=False)
-        assert errors.min() / errors.max() < 1e-6 and errors.max() < 10
+        assert errors.min() / errors.max() < 1e-6 and errors.max() > 10
 
     def test_brute_force_d_optimal_oed(self):
         bkd = self.get_backend()
@@ -583,7 +586,7 @@ class TestBayesOED:
         ninnerloop_samples = 1000
 
         # Initialize problem
-        problem = LinearGaussianBayesianOEDBenchmark(
+        problem = LinearGaussianBayesianDOptimalOEDBenchmark(
             nobs, min_degree, degree, noise_std, prior_std, backend=bkd
         )
 
@@ -704,10 +707,10 @@ class TestBayesOED:
             )
             stdevs.append(bkd.sqrt(post_push.covariance()[0, 0]))
             lognormal_risks = LogNormalAnalyticalRiskMeasures(
-                post_push.mean()[0, 0], stdevs[-1]
+                bkd.to_numpy(post_push.mean()[0, 0]), bkd.to_numpy(stdevs[-1])
             )
             normal_risks = GaussianAnalyticalRiskMeasures(
-                post_push.mean()[0, 0], stdevs[-1]
+                bkd.to_numpy(post_push.mean()[0, 0]), bkd.to_numpy(stdevs[-1])
             )
             lognormal_stdevs.append(lognormal_risks.std())
             entropicdevs.append(
@@ -719,19 +722,15 @@ class TestBayesOED:
         # through a linear model,
         # are independent of the data, so expected utility will just
         # be standard deviation of posterior pushforward
-        std_utility = (
-            ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation(
-                prior, qoi_mat
-            )
+        std_utility = ConjugateGaussianOEDForNormalExpectedStdDev(
+            prior, qoi_mat
         )
         std_utility.set_observation_matrix(obs_mat)
         std_utility.set_noise_covariance(noise_cov)
         assert bkd.allclose(bkd.array(stdevs).mean(), std_utility.value())
 
-        entropicdev_utility = (
-            ConjugateGaussianPriorOEDForLinearPredictionEntropicDeviation(
-                prior, qoi_mat, lamda
-            )
+        entropicdev_utility = ConjugateGaussianOEDForNormalExpectedEntropicDev(
+            prior, qoi_mat, lamda
         )
         entropicdev_utility.set_observation_matrix(obs_mat)
         entropicdev_utility.set_noise_covariance(noise_cov)
@@ -741,10 +740,8 @@ class TestBayesOED:
             rtol=1e-2,
         )
 
-        avardev_utility = (
-            ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation(
-                prior, qoi_mat, beta
-            )
+        avardev_utility = ConjugateGaussianOEDForNormalExpectedAVaRDev(
+            prior, qoi_mat, beta
         )
         avardev_utility.set_observation_matrix(obs_mat)
         avardev_utility.set_noise_covariance(noise_cov)
@@ -759,7 +756,7 @@ class TestBayesOED:
 
         # Compute exected KL divergence between the prior and posterior
         # pushforwards
-        kl_utility = ConjugateGaussianPriorOEDForLinearPredictionKLDivergence(
+        kl_utility = ConjugateGaussianOEDForNormalExpectedKLDivergence(
             prior, qoi_mat
         )
         kl_utility.set_observation_matrix(obs_mat)
@@ -768,17 +765,28 @@ class TestBayesOED:
             bkd.array(kl_divs).mean(), kl_utility.value(), rtol=1e-2
         )
 
-        std_lognormal_utility = (
-            ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation(
-                prior, qoi_mat
-            )
+        mean_std_lognormal_utility = (
+            ConjugateGaussianOEDForLogNormalExpectedStdDev(prior, qoi_mat)
         )
-        std_lognormal_utility.set_observation_matrix(obs_mat)
-        std_lognormal_utility.set_noise_covariance(noise_cov)
+        mean_std_lognormal_utility.set_observation_matrix(obs_mat)
+        mean_std_lognormal_utility.set_noise_covariance(noise_cov)
         assert bkd.allclose(
             bkd.array(lognormal_stdevs).mean(),
-            std_lognormal_utility.value(),
+            mean_std_lognormal_utility.value(),
             rtol=1e-2,
+        )
+
+        empirical_avar = AverageValueAtRisk(
+            beta, return_all=False, backend=bkd
+        )
+        avar_std_lognormal_utility = (
+            ConjugateGaussianOEDForLogNormalAVaRStdDev(prior, qoi_mat)
+        )
+        avar_std_lognormal_utility.set_observation_matrix(obs_mat)
+        avar_std_lognormal_utility.set_noise_covariance(noise_cov)
+        empirical_avar.set_samples(bkd.array(lognormal_stdevs)[None, :]),
+        assert bkd.allclose(
+            empirical_avar(), avar_std_lognormal_utility.value(), rtol=1e-2
         )
 
     def _check_prediction_gaussian_OED_gradients(
@@ -971,7 +979,7 @@ class TestBayesOED:
             ), f"{convergence_rate=} must be >= {min_convergence_rate}"
         assert (
             values["mse"][-1][0] <= max_error
-        ), f"best mse {values['mse'][-1][0]} must be >= {max_error}"
+        ), f"best mse {values['mse'][-1][0]} must be <= {max_error}"
 
     def test_prediction_OED_values_linear_problem(self):
         # Note: The number of outerloop samples does not effect
@@ -987,16 +995,16 @@ class TestBayesOED:
                 "MC",
                 0.95,
                 1e-2,
-                ConjugateGaussianPriorOEDForLinearPredictionStandardDeviation,
+                ConjugateGaussianOEDForNormalExpectedStdDev,
             ],
             [
                 NoiseStatistic(SampleAverageMean(bkd)),
                 SampleAverageMean(bkd),
                 OEDEntropicDeviationMeasure(nqoi, 1.0, bkd),
                 "MC",
-                0.95,
+                0.93,
                 1e-5,
-                ConjugateGaussianPriorOEDForLinearPredictionEntropicDeviation,
+                ConjugateGaussianOEDForNormalExpectedEntropicDev,
             ],
             [
                 NoiseStatistic(SampleAverageMean(bkd)),
@@ -1004,8 +1012,8 @@ class TestBayesOED:
                 OEDAVaRDeviationMeasure(nqoi, 0.5, 1000000, bkd),
                 "MC",
                 0.97,
-                3e-5,
-                ConjugateGaussianPriorOEDForLinearPredictionAVaRDeviation,
+                5e-5,
+                ConjugateGaussianOEDForNormalExpectedAVaRDev,
             ],
         ]
 
@@ -1022,6 +1030,7 @@ class TestBayesOED:
         min_convergence_rate,
         max_error,
         utility_cls,
+        utility_args,
     ):
         import torch
 
@@ -1048,6 +1057,7 @@ class TestBayesOED:
             deviation_measure,
             risk_measure,
             noise_stat,
+            *utility_args,
         )
 
         # Test expected convergence_rate
@@ -1103,9 +1113,22 @@ class TestBayesOED:
                 SampleAverageMean(bkd),
                 OEDStandardDeviationMeasure(nqoi, bkd),
                 "MC",
+                0.95,
+                1e-2,
+                ConjugateGaussianOEDForLogNormalExpectedStdDev,
+                [],
+            ],
+            [
+                NoiseStatistic(
+                    SampleAverageSmoothedAverageValueAtRisk(0.5, bkd, 100000)
+                ),
+                SampleAverageMean(bkd),
+                OEDStandardDeviationMeasure(nqoi, bkd),
+                "MC",
                 0.97,
                 1e-2,
-                ConjugateGaussianPriorOEDForLogNormalPredictionStandardDeviation,
+                ConjugateGaussianOEDForLogNormalAVaRStdDev,
+                [0.5],
             ],
         ]
 

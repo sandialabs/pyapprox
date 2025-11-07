@@ -160,6 +160,19 @@ class TestMinimize:
         result = optimizer.minimize(benchmark.init_iterate())
         assert bkd.allclose(result.x, bkd.full((nvars,), 1.0))
 
+    @unittest.skipIf(not has_pyrol, "pyrol cannot be imported")
+    def test_rol_minimize_constrained_evtushenko(self):
+        bkd = self.get_backend()
+        benchmark = EvtushenkoConstrainedOptimizationBenchmark(backend=bkd)
+        optimizer = ROLConstrainedOptimizer(
+            benchmark.objective(),
+            constraints=benchmark.constraints(),
+            bounds=benchmark.design_variable().bounds(),
+        )
+        init_iterate = benchmark.init_iterate()
+        result = optimizer.minimize(init_iterate)
+        assert bkd.allclose(result.x, bkd.array([0.0, 0.0, 1.0])[:, None])
+
     def test_minimax_optimizer(self):
         bkd = self.get_backend()
         model = ModelFromSingleSampleCallable(

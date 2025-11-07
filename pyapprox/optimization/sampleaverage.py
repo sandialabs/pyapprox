@@ -816,8 +816,17 @@ class SampleAverageSmoothedAverageValueAtRisk(SampleAverageStat):
         iend = 2 * nsamp
         x1 = K[ibeg]
         y1 = res(x1)
+
+        if self._bkd.allclose(y1, self._bkd.zeros(1), atol=3e-16):
+            # This occurs when self._alpha = 0. due to rounding errors
+            if not self._alpha == 0.0:
+                raise RuntimeError("This should not happen")
+            imid = 1
+            y1 = y1 * 0 - 3.0e-16
+
         x2 = K[imid]
         y2 = res(x2)
+
         while True:
             # print(ibeg, imid, iend, "i", self._alpha)
             # print(x1, x2, "x")
@@ -857,6 +866,7 @@ class SampleAverageSmoothedAverageValueAtRisk(SampleAverageStat):
         if not self._bkd.allclose(
             self._bkd.ones((1,)), self._bkd.sum(weights), atol=1e-15
         ):
+            print(weights)
             raise ValueError(
                 "weights must sum to one but sum to {0}".format(
                     self._bkd.sum(weights)

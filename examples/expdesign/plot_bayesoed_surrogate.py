@@ -23,20 +23,16 @@ Steps:
 import os
 import pickle
 import numpy as np
-from scipy import stats
 import matplotlib.pyplot as plt
 
 # Load modules from pyapprox
 from pyapprox.util.backends.torch import TorchMixin as bkd
 from pyapprox.benchmarks import ObstructedAdvectionDiffusionOEDBenchmark
-from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.expdesign.bayesoed import (
     BayesianOEDForPrediction,
     IndependentGaussianOEDInnerLoopLogLikelihood,
     OEDStandardDeviationMeasure,
-    OEDEntropicDeviationMeasure,
     NoiseStatistic,
-    OEDDataManager,
     BayesianOEDDataGenerator,
 )
 from pyapprox.optimization.sampleaverage import SampleAverageMean
