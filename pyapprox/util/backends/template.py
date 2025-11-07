@@ -991,30 +991,6 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def random_seed(val: int):
-        """Set random seed"""
-        raise NotImplementedError
-
-    @staticmethod
-    @abstractmethod
-    def normal(mean: Union[float, Array],
-               stdev: Union[float, Array],
-               size=(1,),
-               **kwargs) -> Array:
-        """Compute realizations of a normal distribution."""
-        raise NotImplementedError
-
-    @staticmethod
-    @abstractmethod
-    def uniform(lb: Union[float, Array],
-                ub: Union[float, Array],
-                size=(1,),
-                **kwargs) -> Array:
-        """Compute realizations of a uniform distribution."""
-        raise NotImplementedError
-
-    @staticmethod
-    @abstractmethod
     def nan():
         """Return native representation of nan."""
         raise NotImplementedError

@@ -1,4 +1,5 @@
 import unittest
+import numpy as np
 from pyapprox.sciml.util import FCT
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
@@ -7,7 +8,7 @@ from pyapprox.util.backends.torch import TorchMixin
 class TestFCT(unittest.TestCase):
     def setUp(self):
         self._bkd = TorchMixin
-        self._bkd.random_seed(1)
+        np.random.seed(1)
         self._fct = FCT(backend=self._bkd)
 
     def test_fct_1d(self):
@@ -32,7 +33,7 @@ class TestFCT(unittest.TestCase):
                'Error: Inverse DCT-1D')
 
         # Test batch Chebyshev transform
-        batch_values = self._bkd.normal(0, 1, (n+1, 2))
+        batch_values = self._bkd.asarray(np.random.normal(0, 1, (n+1, 2)))
         batch_coefs = self._fct.fct(batch_values)
         assert self._bkd.allclose(batch_values, self._fct.ifct(batch_coefs)), (
                'Error: Batch inverse DCT')
@@ -41,8 +42,8 @@ class TestFCT(unittest.TestCase):
                'Error: Batch DCT')
 
         # Sanity check for circular convolution function
-        u = self._bkd.normal(0, 1, (n+1, 1, 1))
-        v = self._bkd.normal(0, 1, (n+1, 1, 1))
+        u = self._bkd.asarray(np.random.normal(0, 1, (n+1, 1, 1)))
+        v = self._bkd.asarray(np.random.normal(0, 1, (n+1, 1, 1)))
         assert self._bkd.allclose(
             self._bkd.fft(self._fct.circ_conv(u, v)),
             self._bkd.fft(u)*self._bkd.fft(v)), (
@@ -91,7 +92,7 @@ class TestFCT(unittest.TestCase):
         d_c = 1
 
         # 2D
-        x = self._bkd.normal(0, 1, (n1, n2, d_c, ntrain))
+        x = self._bkd.asarray(np.random.normal(0, 1, (n1, n2, d_c, ntrain)))
         out = self._bkd.copy(x)
         for i in range(x.shape[0]):
             out[i, :, :] = self._fct.fct(out[i, :, :, :])
@@ -105,7 +106,8 @@ class TestFCT(unittest.TestCase):
             'Error: Inverse DCT, 2D')
 
         # 3D
-        x = self._bkd.normal(0, 1, (n1, n2, n3, d_c, ntrain))
+        x = self._bkd.asarray(np.random.normal(0, 1, (n1, n2, n3, d_c,
+                                                      ntrain)))
         out = self._bkd.copy(x)
         for i in range(x.shape[0]):
             for j in range(x.shape[1]):
@@ -125,7 +127,8 @@ class TestFCT(unittest.TestCase):
             'Error: Inverse DCT, 3D')
 
         # 4D
-        x = self._bkd.normal(0, 1, (n1, n2, n3, n4, d_c, ntrain))
+        x = self._bkd.asarray(np.random.normal(0, 1, (n1, n2, n3, n4, d_c,
+                                                      ntrain)))
         out = self._bkd.copy(x)
         for i in range(x.shape[0]):
             for j in range(x.shape[1]):

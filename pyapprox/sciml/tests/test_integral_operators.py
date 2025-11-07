@@ -1,4 +1,5 @@
 import unittest
+import numpy as np
 from functools import partial
 from pyapprox.sciml.util import FCT
 from pyapprox.util.backends.torch import TorchMixin
@@ -19,7 +20,8 @@ import torch
 class TestIntegralOperators(unittest.TestCase):
     def setUp(self):
         self._bkd = TorchMixin
-        self._bkd.random_seed(0)
+        np.random.seed(0)
+        torch.manual_seed(0)
         self._fct = FCT(backend=self._bkd)
         self.pi = 3.1415926535897932
 
@@ -104,7 +106,7 @@ class TestIntegralOperators(unittest.TestCase):
         (X, Y) = self._bkd.meshgrid(xx, xx)
         u = ((X+Y)**2)[..., None, None]
         v = 1.0 / (1.0 + (5*X*Y)**2)[..., None, None]
-        w = self._bkd.uniform(0, 1, u.shape)
+        w = self._bkd.asarray(np.random.uniform(0, 1, u.shape))
         u_per = self._fct.even_periodic_extension(u)
         v_per = self._fct.even_periodic_extension(v)
         w_per = self._fct.even_periodic_extension(w)
@@ -114,7 +116,8 @@ class TestIntegralOperators(unittest.TestCase):
         w_tconv_v = w_tconv_v[:N, :N, 0, 0].real
         kmax = N-1
         fct_v = self._fct.fct(v)[:kmax+1, :kmax+1, 0, 0]
-        v0 = self._bkd.normal(0, 1.0/(kmax+1)**2, ((kmax+1)**2,))
+        v0 = self._bkd.asarray(np.random.normal(0, 1.0/(kmax+1)**2,
+                                                ((kmax+1)**2,)))
 
         # We do not have enough "quality" (def?) samples to recover fct(v).
         # Set initial iterate with 4% noise until we figure out sampling.
@@ -156,7 +159,7 @@ class TestIntegralOperators(unittest.TestCase):
 
         # Define A
         nterms = 4
-        A_tri = self._bkd.normal(0, 1, (nterms, nterms))
+        A_tri = self._bkd.asarray(np.random.normal(0, 1, (nterms, nterms)))
         A_mat = A_tri + A_tri.T
 
         # Generate training data
@@ -172,7 +175,8 @@ class TestIntegralOperators(unittest.TestCase):
         abscissa = self._bkd.cos(
             self.pi*self._bkd.arange(nx, dtype=float)/(nx-1))[None, :]
         kmax = nterms-1
-        train_coef = self._bkd.normal(0, 1, (nfterms, ntrain_samples))
+        train_coef = self._bkd.asarray(
+                        np.random.normal(0, 1, (nfterms, ntrain_samples)))
         train_forc_funs = [
             partial(parameterized_forc_fun, coef) for coef in train_coef.T]
         train_samples = self._bkd.hstack([f(abscissa)
@@ -196,9 +200,9 @@ class TestIntegralOperators(unittest.TestCase):
 
     def test_dense_affine_integral_operator(self):
         N0, N1 = 5, 3
-        W = self._bkd.normal(0, 1, (N1, N0))
-        b = self._bkd.normal(0, 1, (N1, 1))
-        XX = self._bkd.normal(0, 1, (N0, 20))
+        W = self._bkd.asarray(np.random.normal(0, 1, (N1, N0)))
+        b = self._bkd.asarray(np.random.normal(0, 1, (N1, 1)))
+        XX = self._bkd.asarray(np.random.normal(0, 1, (N0, 20)))
         YY = W @ XX + b
         XX, YY = XX[:, None, :], YY[:, None, :]
         ctn = CERTANN(N0, [Layer([DenseAffineIntegralOperator(N0, N1)])],
@@ -224,7 +228,7 @@ class TestIntegralOperators(unittest.TestCase):
 
     def test_dense_affine_integral_operator_fixed_bias(self):
         N0, N1 = 3, 5
-        XX = self._bkd.normal(0, 1, (N0, 20))
+        XX = self._bkd.asarray(np.random.normal(0, 1, (N0, 20)))
         iop = DenseAffineIntegralOperatorFixedBias(N0, N1)
         b = self._bkd.zeros((N1, 1))
         W = iop._weights_biases.get_values()[:-N1].reshape(iop._noutputs,
@@ -274,8 +278,8 @@ class TestIntegralOperators(unittest.TestCase):
         w = self._fct.make_weights(n)[:, None]
         xx = self._bkd.cos(self.pi*self._bkd.arange(n)/(n-1))
         u = self._bkd.cos(2*self.pi*3.0*xx + 0.5)[:, None]
-        v1 = self._bkd.normal(0, 1, (n,))[:, None]
-        v2 = self._bkd.normal(0, 1, (n,))[:, None]
+        v1 = self._bkd.asarray(np.random.normal(0, 1, (n, 1)))
+        v2 = self._bkd.asarray(np.random.normal(0, 1, (n, 1)))
         u_tconv_v1 = self._fct.ifct(self._fct.fct(u) * self._fct.fct(v1) *
                                     2*(n-1)/w)
         u_tconv_v2 = self._fct.ifct(self._fct.fct(u) * self._fct.fct(v2) *
@@ -304,8 +308,8 @@ class TestIntegralOperators(unittest.TestCase):
         n = 21
         xx = self._bkd.cos(self.pi*self._bkd.arange(n)/(n-1))
         u = self._bkd.cos(2*self.pi*3.0*xx + 0.5)[:, None, None]
-        v1 = self._bkd.normal(0, 1, (n,))[:, None, None]
-        v2 = self._bkd.normal(0, 1, (n,))[:, None, None]
+        v1 = self._bkd.asarray(np.random.normal(0, 1, (n, 1, 1)))
+        v2 = self._bkd.asarray(np.random.normal(0, 1, (n, 1, 1)))
         u_conv_v1 = self._bkd.ifft(self._bkd.fft(u) * self._bkd.fft(v1)).real
         u_conv_v2 = self._bkd.ifft(self._bkd.fft(u) * self._bkd.fft(v2)).real
         samples = u
@@ -333,7 +337,7 @@ class TestIntegralOperators(unittest.TestCase):
 
     def test_embedding_operator(self):
         nx = 17
-        input_samples = self._bkd.normal(0, 1, (nx, 1, 1))
+        input_samples = self._bkd.asarray(np.random.normal(0, 1, (nx, 1, 1)))
         quad = GaussLegendreQuadratureRule([-1.0, 1.0], backend=self._bkd)
         quad.set_nnodes(17)
 
@@ -368,7 +372,8 @@ class TestIntegralOperators(unittest.TestCase):
     def test_affine_projection_operator(self):
         channel_in = 10
         nx = 17
-        input_samples = self._bkd.tile(self._bkd.normal(0, 1, (nx,)),
+        input_samples = self._bkd.tile(self._bkd.asarray(
+                                           np.random.normal(0, 1, (nx,))),
                                        (channel_in, 1)).T
         v0 = self._bkd.ones((channel_in + 1, ))
         v0[-1] = 1
@@ -383,10 +388,12 @@ class TestIntegralOperators(unittest.TestCase):
         channel_out = 5
         nx = 5
         nsamples = 10
-        v0 = self._bkd.normal(0, 1, (channel_out*(channel_in+1),))
+        v0 = self._bkd.asarray(np.random.normal(0, 1,
+                                                (channel_out*(channel_in+1),)))
         op = DenseAffinePointwiseOperator(channel_in=channel_in,
                                           channel_out=channel_out, v0=v0)
-        samples = self._bkd.normal(0, 1, (nx, channel_in, nsamples))
+        samples = self._bkd.asarray(np.random.normal(0, 1, (nx, channel_in,
+                                                            nsamples)))
         W = self._bkd.reshape(v0[:-channel_out], (channel_out, channel_in))
         b = self._bkd.reshape(v0[-channel_out:], (channel_out,))
         values = (self._bkd.einsum('ij,...jk->...ik', W, samples) +
@@ -399,11 +406,13 @@ class TestIntegralOperators(unittest.TestCase):
         channel_out = 5
         nx = 5
         nsamples = 10
-        v0 = self._bkd.normal(0, 1, (channel_out*(channel_in+1),))
+        v0 = self._bkd.asarray(np.random.normal(0, 1,
+                                                (channel_out*(channel_in+1),)))
         op = DenseAffinePointwiseOperatorFixedBias(channel_in=channel_in,
                                                    channel_out=channel_out,
                                                    v0=v0)
-        samples = self._bkd.normal(0, 1, (nx, channel_in, nsamples))
+        samples = self._bkd.asarray(
+                      np.random.normal(0, 1, (nx, channel_in, nsamples)))
         W = self._bkd.reshape(v0[:-channel_out], (channel_out, channel_in))
         values = self._bkd.einsum('ij,...jk->...ik', W, samples)
         assert self._bkd.allclose(op(samples), values), (
@@ -415,7 +424,7 @@ class TestIntegralOperators(unittest.TestCase):
         kmax = 4
         d_c = 2
         num_entries = (2*(kmax+1)**2-1)*d_c
-        v_float = self._bkd.normal(0, 1, (num_entries,))
+        v_float = self._bkd.asarray(np.random.normal(0, 1, (num_entries,)))
         v = self._bkd.zeros((2*kmax+1, 2*kmax+1, d_c),
                             dtype=self._bkd.cfloat())
         start = 0
@@ -444,7 +453,7 @@ class TestIntegralOperators(unittest.TestCase):
                    'FourierHSOperator: Off-diagonal elements of kernel tensor '
                    + 'are not Hermitian-symmetric')
 
-        y = self._bkd.normal(0, 1, (2*kmax+1, d_c))[..., None]
+        y = self._bkd.asarray(np.random.normal(0, 1, (2*kmax+1, d_c, 1)))
         fftshift_y = self._bkd.fftshift(self._bkd.fft(y))
         R_fft_y = self._bkd.einsum('ijk,jkl->ikl', R, fftshift_y)
         out = self._bkd.ifft(self._bkd.ifftshift(R_fft_y))

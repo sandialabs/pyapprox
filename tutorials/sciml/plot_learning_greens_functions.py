@@ -364,7 +364,7 @@ abscissa = 0.5 * (
 )
 kmax = 6
 noutputs = abscissa.shape[1]
-train_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
+train_coef = bkd.asarray(np.random.normal(0, 1, (nfterms, ntrain_samples)))
 train_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in train_coef.T
 ]
@@ -386,7 +386,7 @@ print(ctn)
 # Now let's see how the CERTANN does on a test set.
 
 ntest_samples = 5
-test_coef = bkd.normal(0, 1, (nfterms, ntest_samples))
+test_coef = bkd.asarray(np.random.normal(0, 1, (nfterms, ntest_samples)))
 test_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in test_coef.T
 ]
@@ -480,7 +480,7 @@ abscissa = 0.5 * (
 )
 kmax = 6
 noutputs = abscissa.shape[1]
-train_coef = bkd.normal(0, 1, (nfterms, ntrain_samples))
+train_coef = bkd.asarray(np.random.normal(0, 1, (nfterms, ntrain_samples)))
 train_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in train_coef.T
 ]
@@ -493,7 +493,7 @@ train_values = train_values[:, None, :]
 
 # Use 10 test samples with the same nodes as before
 ntest_samples = 10
-test_coef = bkd.normal(0, 1, (nfterms, ntest_samples))
+test_coef = bkd.asarray(np.random.normal(0, 1, (nfterms, ntest_samples)))
 test_forc_funs = [
     partial(parameterized_forc_fun, coef) for coef in test_coef.T
 ]
@@ -611,7 +611,7 @@ abscissa = 0.5 * (
 )
 kmax = 20
 noutputs = abscissa.shape[1]
-train_mass_pts = bkd.uniform(0, 1, (ntrain_samples,))
+train_mass_pts = bkd.asarray(np.random.uniform(0, 1, (ntrain_samples,)))
 train_forc_funs = [
     partial(dirac_delta_approx, mass_pt) for mass_pt in train_mass_pts
 ]
@@ -633,7 +633,7 @@ ctn.fit(train_samples, train_values, tol=1e-12)
 # %%
 # Now let's see how the CERTANN does on a test set.
 
-test_mass_pts = bkd.uniform(0, 1, (5,))
+test_mass_pts = bkd.asarray(np.random.uniform(0, 1, (5,)))
 test_forc_funs = [
     partial(dirac_delta_approx, mass_pt) for mass_pt in test_mass_pts
 ]
@@ -776,7 +776,7 @@ ntrain_samples = 50
 abscissa = bkd.linspace(0, 1, nx)[None, :]
 kmax = 12
 noutputs = abscissa.shape[1]
-train_mass_pts = bkd.uniform(0, 1, (ntrain_samples,))
+train_mass_pts = bkd.asarray(np.random.uniform(0, 1, (ntrain_samples,)))
 train_forc_funs = [
     partial(dirac_delta_approx, mass_pt) for mass_pt in train_mass_pts
 ]
@@ -798,7 +798,7 @@ ctn.fit(train_samples, train_values, tol=1e-6)
 # %%
 # Now let's see how the Fourier basis does on a test set.
 
-test_mass_pts = bkd.uniform(0, 1, (5,))
+test_mass_pts = bkd.asarray(np.random.uniform(0, 1, (5,)))
 test_forc_funs = [
     partial(dirac_delta_approx, mass_pt) for mass_pt in test_mass_pts
 ]

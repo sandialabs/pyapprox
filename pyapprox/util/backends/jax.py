@@ -614,30 +614,12 @@ class JaxBackendMixin(BackendMixin):
         return mat.size
 
     @staticmethod
-    def random_seed(val: int):
-        np.random.seed(val)
-
-    @staticmethod
-    def normal(mean: Union[float, np.ndarray],
-               stdev: Union[float, np.ndarray],
-               size=(1,),
-               dtype=float) -> np.ndarray:
-        return np.random.normal(mean, stdev, size=size).astype(dtype)
-
-    @staticmethod
-    def uniform(lb: Union[float, np.ndarray],
-                ub: Union[float, np.ndarray],
-                size=(1,),
-                dtype=float) -> np.ndarray:
-        return np.random.uniform(lb, ub, size=size).astype(dtype)
-
-    @staticmethod
     def nan():
         return np.nan
 
     @staticmethod
     def get_slices(mat: np.ndarray, slices: list) -> np.ndarray:
-        return mat[*slices]
+        return mat[slices]
 
     @staticmethod
     def concatenate(mats: List[np.ndarray], axis: int = 0) -> np.ndarray:

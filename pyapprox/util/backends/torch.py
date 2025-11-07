@@ -738,24 +738,6 @@ class TorchMixin(BackendMixin):
         return torch.numel(mat)
 
     @staticmethod
-    def random_seed(val: int):
-        torch.manual_seed(val)
-
-    @staticmethod
-    def normal(mean: Union[float, torch.tensor],
-               stdev: Union[float, torch.tensor],
-               size=(1,),
-               dtype=float) -> torch.tensor:
-        return torch.empty(size, dtype=dtype).normal_(mean, stdev)
-
-    @staticmethod
-    def uniform(lb: Union[float, torch.tensor],
-                ub: Union[float, torch.tensor],
-                size=(1,),
-                dtype=float) -> torch.tensor:
-        return torch.empty(size, dtype=dtype).uniform_(lb, ub)
-
-    @staticmethod
     def nan():
         return torch.nan
 

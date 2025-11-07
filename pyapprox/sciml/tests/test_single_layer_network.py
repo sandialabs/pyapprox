@@ -1,4 +1,5 @@
 import unittest
+import numpy as np
 
 from pyapprox.surrogates.univariate.orthopoly import GaussLegendreQuadratureRule
 from pyapprox.surrogates.kernels.kernels import MaternKernel
@@ -42,14 +43,14 @@ def sqinv_elliptic_prior_samples(ninputs, nsamples=1):
         S[i+1, i] = -1.0
     S = (1.0/dx)*S
     E = (3.e-1) * S + M
-    Z = bkd.normal(0, 1, (ninputs, nsamples))
+    Z = bkd.asarray(np.random.normal(0, 1, (ninputs, nsamples)))
     samples = bkd.solve(E, Z)
     return samples
 
 
 class TestSingleLayerCERTANN(unittest.TestCase):
     def setUp(self):
-        bkd.random_seed(1)
+        np.random.seed(1)
 
     def test_single_layer_DenseAffine_single_channel(self):
         ninputs = 21
@@ -73,7 +74,7 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         training_values = ctn_manuf(training_samples)
 
         # recover parameters
-        v0 += bkd.normal(0, 1/ninputs, v0.shape)
+        v0 += bkd.asarray(np.random.normal(0, 1/ninputs, v0.shape))
         AffineBlock = DenseAffineIntegralOperator(ninputs, noutputs,
                                                   channel_in=channel_in,
                                                   channel_out=channel_out,
@@ -112,7 +113,7 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         training_values = ctn_manuf(training_samples)
 
         # recover parameters
-        v0 += bkd.normal(0, 1/ninputs, v0.shape)
+        v0 += bkd.asarray(np.random.normal(0, 1/ninputs, v0.shape))
         AffineBlock = DenseAffineIntegralOperator(ninputs, noutputs,
                                                   channel_in=channel_in,
                                                   channel_out=channel_out,
@@ -134,7 +135,7 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         kmax = 5
 
         # manufactured solution
-        v0 = bkd.normal(0, 1, (2*kmax+1,))
+        v0 = bkd.asarray(np.random.normal(0, 1, (2*kmax+1,)))
         FourierConvBlock_manuf = FourierConvolutionOperator(kmax, v0=v0)
         layers_manuf = Layer([FourierConvBlock_manuf])
         ctn_manuf = CERTANN(ninputs, layers_manuf, IdentityActivation())
@@ -163,7 +164,7 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         kmax = 5
 
         # manufactured solution
-        v0 = bkd.normal(0, 1, (kmax+1,))
+        v0 = bkd.asarray(np.random.normal(0, 1, (kmax+1,)))
         ChebConvBlock_manuf = ChebyshevConvolutionOperator(kmax, v0=v0)
         layers_manuf = Layer([ChebConvBlock_manuf])
         ctn_manuf = CERTANN(ninputs, layers_manuf, IdentityActivation())
@@ -257,8 +258,9 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         ninputs = 21
         noutputs = ninputs
         kmax = 5
-        v0_affine = bkd.normal(0, 1, ((ninputs+1)*noutputs,))
-        v0_conv = bkd.normal(0, 1, (2*kmax+1,))
+        v0_affine = bkd.asarray(np.random.normal(0, 1,
+                                                 ((ninputs+1)*noutputs,)))
+        v0_conv = bkd.asarray(np.random.normal(0, 1, (2*kmax+1,)))
 
         AffineBlock_manuf = DenseAffineIntegralOperator(ninputs, noutputs,
                                                         v0=v0_affine)
@@ -275,8 +277,10 @@ class TestSingleLayerCERTANN(unittest.TestCase):
         training_values = ctn_manuf(training_samples)
         noise_stdev = 1e-1  # standard deviation of additive noise
         v0_affine = ctn_manuf._hyp_list._hyper_params[0].get_values()
-        v0_affine_rand = bkd.normal(0, noise_stdev, v0_affine.shape)
-        v0_conv_rand = bkd.normal(0, noise_stdev, v0_conv.shape)
+        v0_affine_rand = bkd.asarray(np.random.normal(0, noise_stdev,
+                                                      v0_affine.shape))
+        v0_conv_rand = bkd.asarray(np.random.normal(0, noise_stdev,
+                                                    v0_conv.shape))
 
         AffineBlock = (
             DenseAffineIntegralOperator(ninputs, noutputs,
