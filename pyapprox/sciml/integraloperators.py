@@ -483,7 +483,7 @@ class BaseFourierOperator(IntegralOperator):
             (*fft_y.shape[:-2], self._channel_out, ntrain),
             dtype=self._bkd.cfloat(),
         )
-        conv_shift_lift[freq_slices] = conv_shift
+        conv_shift_lift[tuple(freq_slices)] = conv_shift
         conv_lift = self._bkd.ifftshift(conv_shift_lift)
         res = self._bkd.ifft(conv_lift).real
         return res.reshape(output_shape)
@@ -853,7 +853,7 @@ class ChebyshevConvolutionOperator(IntegralOperator):
         conv_lift = self._bkd.zeros(
             (*self._nx, self._channel_out, fct_y.shape[-1])
         )
-        conv_lift[deg_slices] = r_conv_y.real
+        conv_lift[tuple(deg_slices)] = r_conv_y.real
         res = self._fct.ifct(conv_lift, W_tot=self._W_tot_ifct)
         return res.reshape(output_shape)
 

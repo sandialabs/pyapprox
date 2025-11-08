@@ -733,7 +733,7 @@ class ObstructedStokesFlow(SteadyParameterizedFEModel):
         if vel.shape != (self._basis["u"].N,):
             raise ValueError(
                 f"velocity has shape {vel.shape} but should be "
-                f"{(self._basis["u"].N,)}"
+                f"{(self._basis['u'].N,)}"
             )
         return vel[::2], vel[1::2]
 

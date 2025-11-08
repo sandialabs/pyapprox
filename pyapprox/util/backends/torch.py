@@ -1,6 +1,6 @@
 import platform
 import warnings
-from typing import List, Union
+from typing import List
 
 import torch
 
@@ -498,7 +498,7 @@ class TorchMixin(BackendMixin):
                     if i not in skip]
         indices = [slice(None) if i != axis else retained
                    for i in range(_arr.ndim)]
-        return _arr[indices]
+        return _arr[tuple(indices)]
 
     @staticmethod
     def jacobian_implemented() -> bool:
@@ -743,7 +743,7 @@ class TorchMixin(BackendMixin):
 
     @staticmethod
     def get_slices(mat: torch.tensor, slices) -> torch.tensor:
-        return mat[slices]
+        return mat[tuple(slices)]
 
     @staticmethod
     def concatenate(mats: List[torch.tensor], axis: int = 0) -> torch.tensor:

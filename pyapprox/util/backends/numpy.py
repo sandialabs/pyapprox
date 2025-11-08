@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List
 
 import numpy as np
 import scipy
@@ -606,7 +606,7 @@ class NumpyMixin(BackendMixin):
 
     @staticmethod
     def get_slices(mat: np.ndarray, slices: list) -> np.ndarray:
-        return mat[slices]
+        return mat[tuple(slices)]
 
     @staticmethod
     def concatenate(mats: List[np.ndarray], axis: int = 0) -> np.ndarray:

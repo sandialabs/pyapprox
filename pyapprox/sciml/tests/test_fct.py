@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+import torch
 from pyapprox.sciml.util import FCT
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
@@ -7,11 +8,9 @@ from pyapprox.util.backends.torch import TorchMixin
 
 class TestFCT(unittest.TestCase):
     def setUp(self):
-        self._bkd = TorchMixin
-        np.random.seed(1)
-        self._fct = FCT(backend=self._bkd)
+        pass
 
-    def test_fct_1d(self):
+    def fct_1d(self):
         n = 20
         pi = 3.1415926535897932
         pts = self._bkd.cos(pi * self._bkd.arange(0, n+1)/n)
@@ -68,7 +67,7 @@ class TestFCT(unittest.TestCase):
                                   self._fct.ifct(w*u)*self._fct.ifct(w*v)), (
                'Error: Inverse Chebyshev convolution')
 
-    def test_fct_multidim(self):
+    def fct_multidim(self):
         # interpolation in 2D
         n = 20
         pi = 3.1415926535897932
@@ -154,6 +153,30 @@ class TestFCT(unittest.TestCase):
             'Error: Forward DCT, 4D')
         assert self._bkd.allclose(self._fct.ifct(self._fct.fct(x)), x), (
             'Error: Inverse DCT, 4D')
+
+    def test_fct_1d_numpy(self):
+        self._bkd = NumpyMixin
+        np.random.seed(1)
+        self._fct = FCT(backend=self._bkd)
+        self.fct_1d()
+
+    def test_fct_multidim_numpy(self):
+        self._bkd = NumpyMixin
+        np.random.seed(1)
+        self._fct = FCT(backend=self._bkd)
+        self.fct_multidim()
+
+    def test_fct_1d_torch(self):
+        self._bkd = TorchMixin
+        torch.manual_seed(1)
+        self._fct = FCT(backend=self._bkd)
+        self.fct_1d()
+
+    def test_fct_multidim_torch(self):
+        self._bkd = TorchMixin
+        torch.manual_seed(1)
+        self._fct = FCT(backend=self._bkd)
+        self.fct_multidim()
 
 
 if __name__ == '__main__':

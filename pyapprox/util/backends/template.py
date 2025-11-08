@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import itertools
-from typing import TypeVar, List, Union
+from typing import TypeVar, List
 
 Array = TypeVar("Array")
 
