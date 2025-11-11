@@ -493,6 +493,7 @@ class TorchMixin(BackendMixin):
             axis = 0
         else:
             _arr = array
+        inds = TorchMixin.atleast1d(TorchMixin.asarray(inds))
         skip = [i.item() for i in torch.arange(_arr.shape[axis])[inds]]
         retained = [
             i.item() for i in torch.arange(_arr.shape[axis]) if i not in skip

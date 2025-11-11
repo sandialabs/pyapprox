@@ -141,12 +141,15 @@ class TestNewton:
         )
         assert bkd.allclose(hess_fwd_sol, exact_hess_fwd_sol)
 
-        adj_hess_sol = adjoint_solver.adjoint_hessian_solve(
-            exact_hess_fwd_sol, vec
-        )
-        # exact answer computed using mathematica
-        exact_adj_hess_sol = bkd.array([-0.911372311958973, -2.38166422148656])
-        assert bkd.allclose(adj_hess_sol, exact_adj_hess_sol)
+        if bkd.jacobian_implemented():
+            adj_hess_sol = adjoint_solver.adjoint_hessian_solve(
+                exact_hess_fwd_sol, vec
+            )
+            # exact answer computed using mathematica
+            exact_adj_hess_sol = bkd.array(
+                [-0.911372311958973, -2.38166422148656]
+            )
+            assert bkd.allclose(adj_hess_sol, exact_adj_hess_sol)
 
         model = SteadyAdjointModelFixedInitialIterate(
             res,
@@ -159,6 +162,9 @@ class TestNewton:
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=False)
         assert errors.min() / errors.max() < 1e-6
+
+        if not bkd.jacobian_implemented():
+            return
 
         # exact answer computed using mathematica
         hvp_exact = bkd.array([0.390549158575547, 3.82494342170840])
@@ -201,8 +207,11 @@ class TestNewton:
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))
         errors = model.check_apply_jacobian(sample, fd_eps=fd_eps, disp=False)
         assert errors.min() / errors.max() < 1e-6
-        errors = model.check_apply_hessian(sample, fd_eps=fd_eps, disp=False)
-        assert errors.min() / errors.max() < 1e-6
+        if bkd.jacobian_implemented():
+            errors = model.check_apply_hessian(
+                sample, fd_eps=fd_eps, disp=False
+            )
+            assert errors.min() / errors.max() < 1e-6
 
     def test_forward_parameter_jacobian(self):
         bkd = self.get_backend()
@@ -256,6 +265,9 @@ class TestNewton:
             def __call__(self, iterate: Array) -> Array:
                 return iterate**2 - self._rhs
 
+            def _jacobian(self, iterate: Array) -> Array:
+                return self._bkd.diag(2 * iterate)
+
         residual = Residual(backend=bkd)
         bounds = (0, 1)
         bounded_residual = BoundedNewtonResidual(residual, bounds)
@@ -277,12 +289,13 @@ class TestNewton:
         assert bkd.allclose(
             bounded_residual._from_canonical(can_iterate), iterate
         )
-        assert bkd.allclose(
-            super(BoundedNewtonResidual, bounded_residual)._jacobian(
-                can_iterate
-            ),
-            bounded_residual.jacobian(can_iterate),
-        )
+        if bkd.jacobian_implemented():
+            assert bkd.allclose(
+                super(BoundedNewtonResidual, bounded_residual)._jacobian(
+                    can_iterate
+                ),
+                bounded_residual.jacobian(can_iterate),
+            )
         newton = NewtonSolver(verbosity=0, rtol=1e-10, atol=1e-10)
         newton.set_residual(bounded_residual)
         # iterate = bkd.sqrt(residual._rhs) + 0.1

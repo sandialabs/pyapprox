@@ -1125,7 +1125,7 @@ class TestBayesOED:
                 SampleAverageMean(bkd),
                 OEDStandardDeviationMeasure(nqoi, bkd),
                 "MC",
-                0.97,
+                0.95,
                 1e-2,
                 ConjugateGaussianOEDForLogNormalAVaRStdDev,
                 [0.5],

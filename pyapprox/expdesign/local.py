@@ -9,8 +9,8 @@ from pyapprox.interface.model import SingleSampleModel
 from pyapprox.optimization.minimize import (
     ConstrainedOptimizer,
     MiniMaxOptimizer,
-    AVaRSlackBasedOptimizer,
 )
+from pyapprox.optimization.avar import AVaRSlackBasedOptimizer
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
 
 

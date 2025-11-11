@@ -98,7 +98,9 @@ class LowDiscrepancySequence(ABC):
                 marginals, backend=variable._bkd
             )
 
-        if not self._bkd.bkd_equal(self._bkd, variable._bkd):
+        if variable is not None and not self._bkd.bkd_equal(
+            self._bkd, variable._bkd
+        ):
             raise ValueError(
                 "variable backend {0} and backend {1} are "
                 "inconsistent".format(

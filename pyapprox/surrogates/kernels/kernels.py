@@ -614,8 +614,8 @@ class SphericalCovarianceHyperParameter(CombinedHyperParameter):
     def __init__(self, hyper_params: list):
         super().__init__(hyper_params)
         self.cov_matrix = None
-        self.name = "spherical_covariance"
-        self.transform = IdentityHyperParameterTransform(backend=self._bkd)
+        self._name = "spherical_covariance"
+        self._transform = IdentityHyperParameterTransform(backend=self._bkd)
         noutputs = hyper_params[0].nvars()
         self._trans = SphericalCorrelationTransform(
             noutputs, backend=self._bkd
@@ -633,9 +633,9 @@ class SphericalCovarianceHyperParameter(CombinedHyperParameter):
     def __repr__(self) -> str:
         return "{0}(name={1}, nvars={2}, transform={3}, nactive={4})".format(
             self.__class__.__name__,
-            self.name,
+            self._name,
             self.nvars(),
-            self.transform,
+            self._transform,
             self.nactive_vars(),
         )
 

@@ -260,13 +260,13 @@ class TestActiveLearning:
         # than a point that is placed at the point of maximum variance
         kernels = [
             MaternKernel(
-                np.inf, 0.3, [1e-1, 1], nvars, fixed=True, backend=bkd
+                np.inf, 0.3, [1e-1, 1.0], nvars, fixed=True, backend=bkd
             )
             for nn in range(nmodels)
         ]
         scalings = [
-            self._init_monomial(nvars, degree, 2, [-1, 2], True, bkd),
-            self._init_monomial(nvars, degree, -3, [-3, 3], True, bkd),
+            self._init_monomial(nvars, degree, 2.0, [-1.0, 2.0], True, bkd),
+            self._init_monomial(nvars, degree, -3.0, [-3.0, 3.0], True, bkd),
         ]
         # todo test all multi-output kernels
         kernel = MultiLevelKernel(kernels, scalings)
@@ -339,31 +339,31 @@ class TestActiveLearning:
         gp.set_sampler(sampler)
         gp.build(fun)
         # import matplotlib.pyplot as plt
+
         # ax = plt.figure().gca()
         # gp.plot(ax, bounds=[-1, 1])
         # ax.plot(gp.get_train_samples()[0], gp.get_train_values(), "o")
-        train_samples = bkd.array(
-            [
-                -1.00000000e00,
-                9.96093750e-01,
-                -8.31658642e-04,
-                -5.39062500e-01,
-                6.11328125e-01,
-                -8.16406250e-01,
-                8.43750000e-01,
-                2.83132418e-01,
-                -2.95140740e-01,
-                -9.33593750e-01,
-                9.40039978e-01,
-            ]
-        )[None, :]
-        # regression test. Note when the last point added produces
-        # a matrix that is close to singular then there can be differences
-        # between numpy and torch train samples
-        print(gp.get_train_samples(), "ADAPTIVE GP TRAIN SAMPLES")
-        print(train_samples)
         # plt.show()
 
+        # Regression test
+        # Note when the last point added produces
+        # a matrix that is close to singular then there can be differences
+        # between numpy and torch train samples
+        # print(
+        #     np.array2string(
+        #         bkd.to_numpy(gp.get_train_samples()), separator=", "
+        #     )
+        # )
+        # fmt: off
+        train_samples = bkd.array(
+            [[-0.703125,  0.99804688,  0.14735897, -0.99977125,  0.64257812,
+              -0.29492188,  0.86132812, -0.88867188, 0.38464523, -0.4952666,
+              0.94756708]]
+        )[None, :]
+        # fmt: on
+
+        # print(gp.get_train_samples(), "ADAPTIVE GP TRAIN SAMPLES")
+        # print(train_samples)
         assert bkd.allclose(gp.get_train_samples(), train_samples)
 
 

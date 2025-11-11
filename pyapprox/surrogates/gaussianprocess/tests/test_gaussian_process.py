@@ -938,7 +938,7 @@ class TestGaussianProcess:
         # kernel = constant_kernel * kernel
         out_trans = GaussianProcessIdentityTransform()
         gp = ExactGaussianProcess(
-            benchmark.variable().nvars(),
+            benchmark.prior().nvars(),
             kernel,
             trend=None,
             kernel_reg=kernel_reg,
@@ -948,11 +948,11 @@ class TestGaussianProcess:
 
         # train gp
         ntrain_samples = 1000
-        seq = SobolSequence(benchmark.nvars(), 0, benchmark.variable())
+        seq = SobolSequence(benchmark.nvars(), 0, benchmark.prior(), bkd=bkd)
         samples = seq.rvs(ntrain_samples)
         values = benchmark.model()(samples)
         nvalidation_samples = 1000
-        validation_samples = benchmark.variable().rvs(nvalidation_samples)
+        validation_samples = benchmark.prior().rvs(nvalidation_samples)
         validation_values = benchmark.model()(validation_samples)
 
         gp.fit(samples, values)

@@ -26,19 +26,19 @@ class TestMultiOutputKernels:
 
     def _init_monomial(self, nvars, degree, val, bounds, bkd):
         return construct_tensor_product_monomial_scaling(
-            nvars, [degree + 1] * nvars, val, bounds, bkd
+            nvars, [degree + 1] * nvars, val, bounds, False, bkd
         )
 
     def _check_multilevel_kernel_scaling_matrix(self, noutputs):
         bkd = self.get_backend()
         nvars, degree = 1, 0
         kernels = [
-            MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+            MaternKernel(np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd)
             for ii in range(noutputs)
         ]
-        scaling_vals = bkd.arange(2, noutputs + 1)
+        scaling_vals = bkd.arange(2.0, noutputs + 1.0)
         scalings = [
-            self._init_monomial(1, degree, scaling, [0, 2 + noutputs], bkd)
+            self._init_monomial(1, degree, scaling, [0.0, 2.0 + noutputs], bkd)
             for ii, scaling in enumerate(scaling_vals)
         ]
         kernel = MultiLevelKernel(kernels, scalings)
@@ -103,12 +103,9 @@ class TestMultiOutputKernels:
 
         nsamples = int(5e6)
         DD_list_0 = [
-            bkd.asarray(
-                np.linalg.cholesky(
-                    kernel.kernels()[kk](samples_per_output[0])
-                ).dot(
-                    np.random.normal(0, 1, (nsamples_per_output[0], nsamples))
-                )
+            bkd.cholesky(kernel.kernels()[kk](samples_per_output[0]))
+            @ bkd.asarray(
+                np.random.normal(0, 1, (nsamples_per_output[0], nsamples))
             )
             for kk in range(kernel.nkernels())
         ]
@@ -117,7 +114,6 @@ class TestMultiOutputKernels:
             [DD[: nsamples_per_output[ii], :] for DD in DD_list_0]
             for ii in range(kernel.noutputs())
         ]
-
         for ii in range(kernel.noutputs()):
             vals = 0
             for kk in range(kernel.nkernels()):
@@ -162,29 +158,32 @@ class TestMultiOutputKernels:
                     False,
                     True,
                 )
-                kmat_iijj_mc = np.cov(vals_ii, vals_jj, ddof=1)[
-                    : nsamples_per_output[ii], nsamples_per_output[ii] :
-                ]
-                if np.abs(kmat_iijj).sum() > 0:
-                    assert np.allclose(kmat_iijj, kmat_iijj_mc, rtol=1e-2)
+                # must use np.cov because unlike torch it takes two args
+                kmat_iijj_mc = bkd.asarray(
+                    np.cov(vals_ii, vals_jj, ddof=1)[
+                        : nsamples_per_output[ii], nsamples_per_output[ii] :
+                    ]
+                )
+                if bkd.sum(bkd.abs(kmat_iijj)) > 0:
+                    assert bkd.allclose(kmat_iijj, kmat_iijj_mc, rtol=1e-2)
                 else:
-                    assert np.allclose(kmat_iijj, kmat_iijj_mc, atol=2e-3)
+                    assert bkd.allclose(kmat_iijj, kmat_iijj_mc, atol=2e-3)
 
     def _check_multioutput_kernel_3_outputs(self, nvars, degree, MOKernel):
         bkd = self.get_backend()
         nsamples_per_output = [4, 3, 2]
         kernels = [
-            MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd),
-            MaternKernel(np.inf, 2.0, [1e-2, 10], nvars, backend=bkd),
+            MaternKernel(np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd),
+            MaternKernel(np.inf, 2.0, [1e-2, 10.0], nvars, backend=bkd),
             MaternKernel(np.inf, 0.05, [1e-3, 0.1], nvars, backend=bkd),
         ]
         scalings = [
-            self._init_monomial(nvars, degree, 2, [-1, 2], bkd),
-            self._init_monomial(nvars, degree, -3, [-3, 3], bkd),
+            self._init_monomial(nvars, degree, 2.0, [-1.0, 2.0], bkd),
+            self._init_monomial(nvars, degree, -3.0, [-3.0, 3.0], bkd),
         ]
         kernel = MOKernel(kernels, scalings)
         base_training_samples = bkd.asarray(
-            np.random.uniform(-1, 1, (nvars, nsamples_per_output[0]))
+            np.random.uniform(-1.0, 1.0, (nvars, nsamples_per_output[0]))
         )
         # samples must be nested for tests to work
         samples_per_output = [
@@ -214,13 +213,13 @@ class TestMultiOutputKernels:
         bkd = self.get_backend()
         nvars = 1
         latent_kernel = MaternKernel(
-            np.inf, 1.0, [1e-1, 1], nvars, backend=bkd
+            np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd
         )
         nsamples_per_output_0 = bkd.array(
             np.arange(2, 2 + noutputs)[::-1].copy(), dtype=int
         )
-        radii = bkd.arange(1, noutputs + 1)
-        radii_bounds = [0.1, 10]
+        radii = bkd.arange(1.0, noutputs + 1.0)
+        radii_bounds = [0.1, 10.0]
         angles = np.pi / 4
         output_kernel = SphericalCovariance(
             noutputs,
@@ -240,14 +239,14 @@ class TestMultiOutputKernels:
         ]
         kmat_diag = kernel.diag(samples_per_output)
         kmat = kernel(samples_per_output)
-        assert np.allclose(bkd.get_diagonal(kmat), kmat_diag)
+        assert bkd.allclose(bkd.get_diagonal(kmat), kmat_diag)
 
         cnt = 0
         for nsamples, r in zip(nsamples_per_output_0, radii):
-            assert np.allclose(kmat_diag[cnt : cnt + nsamples], r**2)
+            assert bkd.allclose(kmat_diag[cnt : cnt + nsamples], r**2)
             cnt += nsamples
         cmat = kernel.output_kernels[0].get_covariance_matrix()
-        assert np.allclose(
+        assert bkd.allclose(
             kernel.get_output_kernel_correlations_from_psi(0),
             bkd.covariance_to_correlation(cmat)[0, 1:],
         )
@@ -265,7 +264,7 @@ class TestMultiOutputKernels:
         kernel = ICMKernel(latent_kernel, output_kernel, noutputs)
         kmat = kernel(samples_per_output)
         cmat = kernel.output_kernels[0].get_covariance_matrix()
-        assert np.allclose(
+        assert bkd.allclose(
             kmat,
             bkd.kron(cmat, latent_kernel(base_training_samples)),
             atol=1e-12,
@@ -278,28 +277,32 @@ class TestMultiOutputKernels:
     def _check_collaborative_kernel(self, noutputs, nlatent_kernels):
         bkd = self.get_backend()
         nvars = 1
-        nsamples_per_output_0 = np.arange(2, 2 + noutputs)[::-1]
+        nsamples_per_output_0 = bkd.flip(bkd.arange(2, 2 + noutputs))
         latent_kernels = [
-            MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+            MaternKernel(np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd)
             for kk in range(nlatent_kernels)
         ]
-        radii, radii_bounds = np.arange(1, noutputs + 1), [0.1, 10]
-        angles = np.pi / 4
+        radii, radii_bounds = bkd.arange(1.0, noutputs + 1.0), [0.1, 10.0]
+        angles = np.pi / 4.0
         output_kernels = [
             SphericalCovariance(
-                noutputs, radii=radii, radii_bounds=radii_bounds, angles=angles
+                noutputs,
+                radii=radii,
+                radii_bounds=radii_bounds,
+                angles=angles,
+                backend=bkd,
             )
             for kk in range(nlatent_kernels)
         ]
         discrepancy_kernels = [
-            MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+            MaternKernel(np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd)
             for ii in range(noutputs)
         ]
         kernel = CollaborativeKernel(
             latent_kernels, output_kernels, discrepancy_kernels, noutputs
         )
-        base_training_samples = np.random.uniform(
-            -1, 1, (nvars, nsamples_per_output_0[0])
+        base_training_samples = bkd.asarray(
+            np.random.uniform(-1.0, 1.0, (nvars, nsamples_per_output_0[0]))
         )
         # samples must be nested for tests to work
         samples_per_output = [
@@ -308,7 +311,7 @@ class TestMultiOutputKernels:
         ]
         kmat_diag = kernel.diag(samples_per_output)
         kmat = kernel(samples_per_output)
-        assert np.allclose(np.diag(kmat), kmat_diag)
+        assert bkd.allclose(bkd.diag(kmat), kmat_diag)
 
     def test_collaborative_kernel(self):
         test_cases = [
@@ -330,17 +333,17 @@ class TestMultiOutputKernels:
         # are only functions of a unique latent kernel
         noutputs, nvars = 3, 1
         peer_kernels = [
-            MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+            MaternKernel(np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd)
             for kk in range(noutputs)
         ]
         scalings = [
-            self._init_monomial(nvars, 0, 1, [-1, 2], bkd)
+            self._init_monomial(nvars, 0, 1.0, [-1.0, 2.0], bkd)
             for ii in range(noutputs - 1)
         ]
         peer_kernel = MultiPeerKernel(peer_kernels, scalings)
-        nsamples_per_output_0 = np.arange(2, 2 + noutputs)[::-1]
+        nsamples_per_output_0 = bkd.flip(bkd.arange(2, 2 + noutputs))
         base_training_samples = bkd.array(
-            np.random.uniform(-1, 1, (nvars, nsamples_per_output_0[0]))
+            np.random.uniform(-1.0, 1.0, (nvars, nsamples_per_output_0[0]))
         )
         # samples must be nested for tests to work
         samples_per_output = [
@@ -366,38 +369,38 @@ class TestMultiOutputKernels:
         #     SphericalCovariance(noutputs, radii, radii_bounds, angles=angles)
         #     for kk in range(nlatent_kernels)]
         cov_mats = [
-            np.array([[1.0, 0, 1], [0, 0, 0], [1, 0, 1]]),
-            np.array([[0.0, 0, 0], [0, 1, 1], [0, 1, 1]]),
+            bkd.array([[1.0, 0, 1], [0, 0, 0], [1, 0, 1]]),
+            bkd.array([[0.0, 0, 0], [0, 1, 1], [0, 1, 1]]),
         ]
         output_kernels = [
             HackKernel(noutputs, cov_mat) for cov_mat in cov_mats
         ]
         discrepancy_kernels = [
-            ConstantKernel(0, backend=bkd)
-            * MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+            ConstantKernel(0.0, backend=bkd)
+            * MaternKernel(np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd)
             for ii in range(noutputs - 1)
-        ] + [MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)]
+        ] + [MaternKernel(np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd)]
         co_kernel = CollaborativeKernel(
             latent_kernels, output_kernels, discrepancy_kernels, noutputs
         )
         co_kmat = co_kernel(samples_per_output)
-        assert np.allclose(peer_kmat, co_kmat)
+        assert bkd.allclose(peer_kmat, co_kmat)
 
     def test_block_cholesky(self):
         bkd = self.get_backend()
         noutputs, nvars, degree = 4, 1, 0
         nsamples_per_output = np.arange(2, 2 + noutputs)[::-1]
         kernels = [
-            MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+            MaternKernel(np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd)
             for ii in range(noutputs)
         ]
         scalings = [
-            self._init_monomial(nvars, degree, 2, [-1, 2], bkd)
+            self._init_monomial(nvars, degree, 2.0, [-1.0, 2.0], bkd)
             for ii in range(noutputs - 1)
         ]
         kernel = MultiPeerKernel(kernels, scalings)
         base_training_samples = bkd.asarray(
-            np.random.uniform(-1, 1, (nvars, nsamples_per_output[0]))
+            np.random.uniform(-1.0, 1.0, (nvars, nsamples_per_output[0]))
         )
         # samples must be nested for tests to work
         samples_per_output = [
@@ -416,20 +419,20 @@ class TestMultiOutputKernels:
             noutputs, blocks, block_format=True, bkd=bkd
         )
         L = kernel._cholesky_blocks_to_dense(*L_blocks, bkd=bkd)
-        assert np.allclose(L, L_true)
-        assert np.allclose(
-            kernel._logdet(*L_blocks, bkd=bkd), np.linalg.slogdet(kmat)[1]
+        assert bkd.allclose(L, L_true)
+        assert bkd.allclose(
+            kernel._logdet(*L_blocks, bkd=bkd), bkd.slogdet(kmat)[1]
         )
         values = bkd.array(np.random.normal(0, 1, (L.shape[1], 1)))
-        assert np.allclose(
+        assert bkd.allclose(
             kernel._lower_solve_triangular(*L_blocks, values, bkd=bkd),
-            scipy.linalg.solve_triangular(L, values, lower=True),
+            bkd.solve_triangular(L, values, lower=True),
         )
-        assert np.allclose(
+        assert bkd.allclose(
             kernel._upper_solve_triangular(*L_blocks, values, bkd=bkd),
-            scipy.linalg.solve_triangular(L.T, values, lower=False),
+            bkd.solve_triangular(L.T, values, lower=False),
         )
-        assert np.allclose(
+        assert bkd.allclose(
             kernel._cholesky_solve(*L_blocks, values, bkd=bkd),
             bkd.inv(kmat) @ values,
         )

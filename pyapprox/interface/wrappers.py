@@ -228,10 +228,15 @@ def create_active_set_variable_model(
                 "nqoi",
                 "jacobian_implemented",
                 "apply_jacobian_implemented",
-                "apply_hessian_implemented",
             ]
             for name in other_attributes:
                 setattr(self, name, getattr(self._model, name))
+
+        def apply_hessian_implemented(self) -> bool:
+            return (
+                self._model.apply_hessian_implemented
+                or self._model.hessian_implemented()
+            )
 
         def hessian_implemented(self) -> int:
             return False

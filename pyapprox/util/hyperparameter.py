@@ -178,7 +178,7 @@ class HyperParameter:
 
         return "{0}={1}".format(
             self._name,
-            "[" + ", ".join(map("{0:.2g}".format, self._values)) + "]",
+            "[" + ", ".join(map("{0:.2g}".format, self.get_values())) + "]",
         )
 
     def __repr__(self):

@@ -528,7 +528,7 @@ class TestGroupACV:
         cov, W, B, costs, funs, model = self._setup_variance_problem(
             nmodels, qoi_idx, bkd
         )
-        variable = model.variable()
+        variable = model.prior()
         pilot_quantities = {
             "mean": (cov,),
             "variance": (cov, W),
@@ -622,7 +622,7 @@ class TestGroupACV:
         #     mfmc_est._optimized_weights, mfmc_est._optimized_weights.shape, "W"
         # )
         samples_per_model = est.generate_samples_per_model(
-            benchmark.variable().rvs
+            benchmark.prior().rvs
         )
         values_per_model = [
             bkd.array(funs[ii](samples_per_model[ii]))
@@ -769,7 +769,7 @@ class TestGroupACV:
         mfmc_est.allocate_samples(target_cost)
 
         samples_per_model = mfmc_est.generate_samples_per_model(
-            lambda n: benchmark.variable().rvs(n)
+            lambda n: benchmark.prior().rvs(n)
         )
         values_per_model = [
             fun(samples) for fun, samples in zip(funs, samples_per_model)
@@ -788,7 +788,7 @@ class TestGroupACV:
         # )
 
         # self._check_sigma_matrix_of_estimator(
-        #     est, int(2e4), funs, benchmark.variable()
+        #     est, int(2e4), funs, benchmark.prior()
         # )
 
         # from pyapprox.multifidelity.factory import (
@@ -798,7 +798,7 @@ class TestGroupACV:
         # hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
         #     numerically_compute_estimator_variance(
         #         funs,
-        #         benchmark.variable(),
+        #         benchmark.prior(),
         #         mfmc_est,
         #         int(1e3),
         #         1,

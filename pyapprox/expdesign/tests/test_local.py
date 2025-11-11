@@ -16,10 +16,8 @@ from pyapprox.expdesign.local import (
 )
 from pyapprox.surrogates.univariate.base import Monomial1D
 from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
-from pyapprox.optimization.minimize import (
-    MiniMaxOptimizer,
-    AVaRSlackBasedOptimizer,
-)
+from pyapprox.optimization.minimize import MiniMaxOptimizer
+from pyapprox.optimization.avar import AVaRSlackBasedOptimizer
 from pyapprox.benchmarks.algebraic import MichaelisMentenModel
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin

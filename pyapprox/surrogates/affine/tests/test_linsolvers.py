@@ -188,8 +188,8 @@ class TestLinearSolvers:
         quantile = 0.8
         solver = QuantileRegressionCVXOPTSolver(quantile, backend=bkd)
         solver.set_options(solver.default_options())
-        basis_mat = bkd.array([1, 1, 1, 1, 1])[:, None]
-        values = bkd.array([2, 4, 6, 8, 10])[:, None]
+        basis_mat = bkd.array([1.0, 1.0, 1.0, 1.0, 1.0])[:, None]
+        values = bkd.array([2.0, 4.0, 6.0, 8.0, 10.0])[:, None]
         # Residuals are
         # [2, 4, 6, 8, 10] - [1, 1, 1, 1, 1] * 8 = [-6, -4, -2, 0, 2]
         # 0.8 quantile residual is zero

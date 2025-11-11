@@ -1348,6 +1348,25 @@ class MultiLevelCosineBenchmark(MultiIndexModelBenchmark):
         """
         self._models = MultiLevelCosineModelEnsemble([2], self._bkd)
 
+    def _validate_models(self):
+        """
+        Validate that the models are set correctly.
+
+        Raises
+        ------
+        ValueError
+            If the models are not set or are invalid.
+        """
+        if not hasattr(self, "_models") or self._models is None:
+            raise ValueError(
+                "The models are not set. Ensure `_set_models` is implemented "
+                "correctly."
+            )
+        if not isinstance(self._models, MultiIndexModelEnsemble):
+            raise ValueError(
+                "The models must be a MultiIndexModelEnsemble instance."
+            )
+
     def nmodels(self) -> int:
         """
         Return the number of models in the hierarchy.

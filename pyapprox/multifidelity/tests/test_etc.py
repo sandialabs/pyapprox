@@ -101,7 +101,7 @@ class TestETC(unittest.TestCase):
         # bkd = NumpyMixin
         bkd = TorchMixin
         target_cost = 300  # 1e3
-        shifts = bkd.array([1, 2])
+        shifts = bkd.array([1.0, 2.0])
         funs, cov, costs, variable = self._setup_model_ensemble_tunable(
             shifts, bkd=bkd
         )

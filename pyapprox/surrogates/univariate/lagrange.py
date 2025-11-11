@@ -93,7 +93,9 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
                 # compute deriv of kth component of product rule sum
                 if ii != jj:
                     numer_deriv += self._bkd.prod(
-                        self._bkd.delete(numers, (ii, jj), axis=1),
+                        self._bkd.delete(
+                            numers, self._bkd.asarray((ii, jj)), axis=1
+                        ),
                         axis=1,
                     )
             derivs[:, ii] = numer_deriv / denom
@@ -116,7 +118,9 @@ class UnivariateLagrangeBasis(UnivariateInterpolatingBasis):
                 for kk in range(nabscissa):
                     if ii != jj and ii != kk and jj != kk:
                         numer_deriv += self._bkd.prod(
-                            self._bkd.delete(numers, (ii, jj, kk), axis=1),
+                            self._bkd.delete(
+                                numers, self._bkd.asarray((ii, jj, kk)), axis=1
+                            ),
                             axis=1,
                         )
             derivs[:, ii] = numer_deriv / denom

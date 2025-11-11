@@ -206,11 +206,11 @@ class TestCombination:
             )
         )
         sg = LejaLagrangeAdaptiveCombinationSparseGrid(
-            benchmark.variable(), benchmark.model().nqoi()
+            benchmark.prior(), benchmark.model().nqoi()
         )
         sg.setup(admissibility_criteria)
         sg.build(benchmark.model())
-        test_samples = benchmark.variable().rvs(100)
+        test_samples = benchmark.prior().rvs(100)
         test_values = benchmark.model()(test_samples)
         assert bkd.allclose(sg(test_samples), test_values)
 
@@ -218,7 +218,7 @@ class TestCombination:
             nvars,
             [
                 GaussQuadratureRule(marginal, backend=bkd)
-                for marginal in benchmark.variable().marginals()
+                for marginal in benchmark.prior().marginals()
             ],
         )
         converter = SparseGridToOrthonormalPolynomialChaosExpansionConverter(
@@ -376,7 +376,7 @@ class TestCombination:
         benchmark = MultiLevelCosineBenchmark(backend=bkd)
 
         sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
-            benchmark.variable(),
+            benchmark.prior(),
             benchmark.nqoi(),
             benchmark.nrefinement_vars(),
             benchmark.models()._index_bounds,
@@ -432,7 +432,7 @@ class TestCombination:
         #         plt.plot(xx[0], sg(xx), "r:")
         #     print(sg._cand_subspace_queue, sg._subspace_errors)
 
-        test_samples = benchmark.variable().rvs(100)
+        test_samples = benchmark.prior().rvs(100)
         test_values = benchmark.models().highest_fidelity_model()(test_samples)
         assert bkd.allclose(sg(test_samples), test_values)
 

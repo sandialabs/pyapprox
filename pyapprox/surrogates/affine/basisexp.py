@@ -416,7 +416,7 @@ class MonomialExpansion(BasisExpansion):
                 key = 0
                 for dd in range(index.shape[0]):
                     key = 31 * key + int(index[dd])
-                    coef = coef1 * coefs2[jj]
+                coef = coef1 * coefs2[jj]
                 if key in indices_dict:
                     coefs[indices_dict[key]] += coef
                 else:
@@ -424,8 +424,8 @@ class MonomialExpansion(BasisExpansion):
                     indices.append(index)
                     coefs.append(coef)
                     kk += 1
-                    indices = self._bkd.stack(indices, axis=1)
-                    coefs = self._bkd.stack(coefs, axis=0)
+        indices = self._bkd.stack(indices, axis=1)
+        coefs = self._bkd.stack(coefs, axis=0)
         return indices, coefs
 
     def _mul_constant(self, other: float) -> "MonomialExpansion":
@@ -440,15 +440,15 @@ class MonomialExpansion(BasisExpansion):
         else:
             poly1 = other
             poly2 = self
-            indices, coefs = self._multiply_monomials(
-                poly1.basis().get_indices(),
-                poly1.get_coefficients(),
-                poly2.basis().get_indices(),
-                poly2.get_coefficients(),
-            )
-            poly = copy.deepcopy(self)
-            poly.basis().set_indices(indices)
-            poly.set_coefficients(coefs)
+        indices, coefs = self._multiply_monomials(
+            poly1.basis().get_indices(),
+            poly1.get_coefficients(),
+            poly2.basis().get_indices(),
+            poly2.get_coefficients(),
+        )
+        poly = copy.deepcopy(self)
+        poly.basis().set_indices(indices)
+        poly.set_coefficients(coefs)
         return poly
 
     def __mul__(
@@ -497,25 +497,23 @@ class MonomialExpansion(BasisExpansion):
                 and not marginal._name == "uniform"
             ):
                 raise ValueError("marginals must all be uniform")
-            bounds = self._bkd.stack(
-                [m.interval(1) for m in marginals], axis=0
-            )
-            indices = self.basis().get_indices()
-            L = self._bkd.prod(bounds[:, 1] - bounds[:, 0])
-            vals = (
-                self._bkd.prod(
-                    (
-                        bounds[:, 1:2] ** (indices + 1.0)
-                        - bounds[:, 0:1] ** (indices + 1.0)
-                    )
-                    / (indices + 1.0),
-                    axis=0,
+        bounds = self._bkd.stack([m.interval(1) for m in marginals], axis=0)
+        indices = self.basis().get_indices()
+        L = self._bkd.prod(bounds[:, 1] - bounds[:, 0])
+        vals = (
+            self._bkd.prod(
+                (
+                    bounds[:, 1:2] ** (indices + 1.0)
+                    - bounds[:, 0:1] ** (indices + 1.0)
                 )
-                / L
+                / (indices + 1.0),
+                axis=0,
             )
-            integral = self._bkd.sum(
-                vals[:, None] * self.get_coefficients(), axis=0
-            )
+            / L
+        )
+        integral = self._bkd.sum(
+            vals[:, None] * self.get_coefficients(), axis=0
+        )
         return integral
 
     def variance_iid_uniform_marginals(
@@ -638,13 +636,13 @@ class PolynomialChaosExpansion(MonomialExpansion):
         else:
             poly1 = other
             poly2 = self
-            poly1 = copy.deepcopy(poly1)
-            poly2 = copy.deepcopy(poly2)
-            max_degrees1 = self._bkd.max(poly1.basis().get_indices(), axis=1)
-            max_degrees2 = self._bkd.max(poly2.basis().get_indices(), axis=1)
-            product_coefs_1d = self._compute_product_coeffs_1d(
-                poly1, max_degrees1, max_degrees2
-            )
+        poly1 = copy.deepcopy(poly1)
+        poly2 = copy.deepcopy(poly2)
+        max_degrees1 = self._bkd.max(poly1.basis().get_indices(), axis=1)
+        max_degrees2 = self._bkd.max(poly2.basis().get_indices(), axis=1)
+        product_coefs_1d = self._compute_product_coeffs_1d(
+            poly1, max_degrees1, max_degrees2
+        )
 
         indices, coefs = (
             self._multiply_multivariate_orthonormal_polynomial_expansions(
@@ -689,26 +687,25 @@ class PolynomialChaosExpansion(MonomialExpansion):
                 and (not self._bkd.any(index[inactive_idx] > 0))
             ):
                 marginalized_array_indices.append(ii)
-                marginalized_basis.set_indices(
-                    self._basis.get_indices()[
-                        np.ix_(
-                            self._bkd.to_numpy(active_idx),
-                            np.array(marginalized_array_indices),
-                        )
-                    ]
+
+        marginalized_basis.set_indices(
+            self._basis.get_indices()[
+                np.ix_(
+                    self._bkd.to_numpy(active_idx),
+                    np.array(marginalized_array_indices),
                 )
-                marginalized_pce = PolynomialChaosExpansion(
-                    marginalized_basis,
-                    solver=(
-                        self._solver if hasattr(self, "_solver") else None
-                    ),
-                    nqoi=self.nqoi(),
-                )
-                marginalized_pce.set_coefficients(
-                    self._bkd.copy(
-                        self.get_coefficients()[marginalized_array_indices, :]
-                    )
-                )
+            ]
+        )
+        marginalized_pce = PolynomialChaosExpansion(
+            marginalized_basis,
+            solver=(self._solver if hasattr(self, "_solver") else None),
+            nqoi=self.nqoi(),
+        )
+        marginalized_pce.set_coefficients(
+            self._bkd.copy(
+                self.get_coefficients()[marginalized_array_indices, :]
+            )
+        )
         return marginalized_pce
 
     def _shift_momomial_expansion(
@@ -781,27 +778,25 @@ class PolynomialChaosExpansion(MonomialExpansion):
                     tmp = pjj
                     pjj = pii
                     pii = tmp
-                    kk = flattened_rectangular_lower_triangular_matrix_index(
-                        pii, pjj, max_degrees1[dd] + 1, max_degrees2[dd] + 1
-                    )
-                    coefs_1d.append(product_coefs_1d[dd][kk][:, 0])
-                    indices_1d = [
-                        self._bkd.arange(poly_index[dd] + 1, dtype=int)
-                        for dd in active_vars
-                    ]
-                    product_coefs = self._bkd.outer_product(coefs_1d)[:, None]
-                    active_product_indices = self._bkd.cartesian_product(
-                        indices_1d
-                    )
-                    II = self._bkd.where(self._bkd.abs(product_coefs) > tol)[0]
-                    active_product_indices = active_product_indices[:, II]
-                    product_coefs = product_coefs[II]
-                    product_indices = self._bkd.full(
-                        (nvars, active_product_indices.shape[1]),
-                        0.0,
-                        dtype=int,
-                    )
-                    # product_indices[active_vars] = active_product_indices
+                kk = flattened_rectangular_lower_triangular_matrix_index(
+                    pii, pjj, max_degrees1[dd] + 1, max_degrees2[dd] + 1
+                )
+                coefs_1d.append(product_coefs_1d[dd][kk][:, 0])
+            indices_1d = [
+                self._bkd.arange(poly_index[dd] + 1, dtype=int)
+                for dd in active_vars
+            ]
+            product_coefs = self._bkd.outer_product(coefs_1d)[:, None]
+            active_product_indices = self._bkd.cartesian_product(indices_1d)
+            II = self._bkd.where(self._bkd.abs(product_coefs) > tol)[0]
+            active_product_indices = active_product_indices[:, II]
+            product_coefs = product_coefs[II]
+            product_indices = self._bkd.full(
+                (nvars, active_product_indices.shape[1]),
+                0.0,
+                dtype=int,
+            )
+            # product_indices[active_vars] = active_product_indices
             product_indices = self._bkd.up(
                 product_indices, active_vars, active_product_indices
             )

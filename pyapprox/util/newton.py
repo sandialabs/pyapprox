@@ -25,7 +25,10 @@ class NewtonResidual(ABC):
     def jacobian(self, iterate: Array) -> Array:
         jac = self._jacobian(iterate)
         if jac.ndim != 2 or jac.shape[0] != iterate.shape[0]:
-            raise RuntimeError(f"jac has the wrong shape {jac.shape}")
+            raise RuntimeError(
+                "jac must be 2D with 1 column but has the wrong shape {0} "
+                "but iterate shape was {1}".format(jac.shape, iterate.shape)
+            )
         return jac
 
     def linsolve(self, iterate: Array, res: Array) -> Array:

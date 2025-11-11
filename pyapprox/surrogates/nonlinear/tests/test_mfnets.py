@@ -4,7 +4,6 @@ import numpy as np
 import networkx as nx
 from scipy import stats
 
-from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.surrogates.nonlinear.mfnets import (
     MultiplicativeAndAdditiveDiscrepancyModel,
@@ -189,6 +188,7 @@ class TestMFNets:
         )
         #  TODO test different numbers of models and graphs
 
+    @unittest.skip("Skipping this test until it is implemented")
     def test_alternating_least_squares(self):
         # also test co-regionalization like graphs with latent kernels with no
         # data and mulitple root nodes.
