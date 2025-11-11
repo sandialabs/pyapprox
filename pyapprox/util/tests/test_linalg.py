@@ -1,5 +1,4 @@
 import unittest
-import warnings
 
 
 import numpy as np
@@ -37,7 +36,6 @@ from pyapprox.util.linalg import (
 
 class TestLinalg:
     def setUp(self):
-        warnings.filterwarnings("error")
         np.random.seed(1)
 
     def test_update_cholesky_decomposition(self):

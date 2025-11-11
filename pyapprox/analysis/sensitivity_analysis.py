@@ -33,7 +33,7 @@ from pyapprox.surrogates.gaussianprocess.stats import (
 
 
 class VarianceBasedSensitivityAnalysis(ABC):
-    def __init__(self, nvars: int, backend: BackendMixin = NumpyMixin):
+    def __init__(self, nvars: int, backend: BackendMixin):
         self._nvars = nvars
         self._bkd = backend
 
@@ -46,7 +46,8 @@ class VarianceBasedSensitivityAnalysis(ABC):
         )
         interaction_terms = gen.get_indices()
         interaction_terms = interaction_terms[
-            :, self._bkd.where(interaction_terms.max(axis=0) == 1)[0]
+            :,
+            self._bkd.where(self._bkd.max(interaction_terms, axis=0) == 1)[0],
         ]
         return interaction_terms
 
@@ -169,7 +170,10 @@ class PolynomialChaosSensitivityAnalysis(VarianceBasedSensitivityAnalysis):
         )
         interaction_terms_dict = dict(
             zip(
-                [hash_array(index) for index in self._interaction_terms.T],
+                [
+                    hash_array(self._bkd.to_numpy(index))
+                    for index in self._interaction_terms.T
+                ],
                 self._bkd.arange(self._interaction_terms.shape[1], dtype=int),
             )
         )
@@ -179,7 +183,7 @@ class PolynomialChaosSensitivityAnalysis(VarianceBasedSensitivityAnalysis):
             non_constant_vars = self._bkd.where(basis_index > 0)[0]
             index = self._bkd.zeros((self.nvars(),), dtype=int)
             index[non_constant_vars] = 1
-            key = hash_array(index)
+            key = hash_array(self._bkd.to_numpy(index))
             if len(non_constant_vars) > 0:
                 variance += var_contribution
             if key in interaction_terms_dict:
@@ -231,7 +235,7 @@ class LagrangeSparseGridSensitivityAnalysis(
         pce_quad_rule = TensorProductQuadratureRule(
             self._variable.nvars(),
             [
-                GaussQuadratureRule(marginal)
+                GaussQuadratureRule(marginal, backend=self._variable._bkd)
                 for marginal in self._variable.marginals()
             ],
         )
@@ -550,7 +554,7 @@ class MorrisSensitivityAnalysis:
         trajectory = self._bkd.empty((self._nvars, self._nvars + 1))
         trajectory[:, 0] = initial_point
         for ii in range(self._nvars):
-            trajectory[:, ii + 1] = trajectory[:, ii].copy()
+            trajectory[:, ii + 1] = self._bkd.copy(trajectory[:, ii])
             if (trajectory[ii, ii] - delta) >= 0 and (
                 trajectory[ii, ii] + delta
             ) <= 1:
@@ -850,8 +854,10 @@ class SampleBasedSensitivityAnalysis(VarianceBasedSensitivityAnalysis):
         as possible
         """
         mask = self._bkd.asarray(sobol_index, dtype=bool)
-        samples = np.vstack([self._samplesA[~mask], self._samplesB[mask]])
-        idx = np.hstack([self._all_idx[~mask], self._all_idx[mask]])
+        samples = self._bkd.vstack(
+            [self._samplesA[~mask], self._samplesB[mask]]
+        )
+        idx = self._bkd.hstack([self._all_idx[~mask], self._all_idx[mask]])
         samples = samples[self._bkd.argsort(idx), :]
         return samples
 
@@ -956,7 +962,8 @@ class LowDiscrepancySequenceBasedSensitivityAnalysis(
         # need to create sobol sequence that is twice the dimenion of
         # the variable
         self._seq_variable = IndependentMarginalsVariable(
-            self._variable.marginals() + self._variable.marginals()
+            self._variable.marginals() + self._variable.marginals(),
+            backend=variable._bkd,
         )
         self._set_sequence(seq_start_idx)
 
@@ -1373,7 +1380,7 @@ class GaussianProcessSensitivityAnalysis(VarianceBasedSensitivityAnalysis):
         )
         total_effect_interaction_terms = self._bkd.ones(
             (self._gp.nvars(), self._gp.nvars()), dtype=int
-        ) - np.eye(self._gp.nvars(), dtype=int)
+        ) - self._bkd.eye(self._gp.nvars(), dtype=int)
         for ii in range(self._gp.nvars()):
             index = total_effect_interaction_terms[:, ii]
             total_effect_interaction_variances[ii] = (

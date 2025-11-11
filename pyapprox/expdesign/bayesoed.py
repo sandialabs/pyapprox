@@ -1566,7 +1566,7 @@ class RelaxedBayesianOED(BayesianOED):
         self._optimizer.set_bounds(
             self._bkd.stack(
                 (
-                    self._bkd.zeros(self._objective.nvars()),
+                    self._bkd.zeros(self._objective.nvars()) + 1e-6,
                     self._bkd.ones(self._objective.nvars()),
                 ),
                 axis=1,

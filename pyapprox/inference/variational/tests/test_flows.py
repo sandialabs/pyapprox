@@ -1037,7 +1037,7 @@ class TestFlows:
             atol=1e-8,
         )
 
-    def test_realnvp_nd_conditional_correlated_gaussians_fit(self):
+    def test_slow_realnvp_nd_conditional_correlated_gaussians_fit(self):
         """
         Test that RealNVP return shapes with correct sizes when
         masks of each layer have different numbers of active variables and

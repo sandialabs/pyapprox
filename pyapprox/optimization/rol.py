@@ -180,53 +180,51 @@ class ROLLinearConstraintWrapper(ROLLinearConstraint):
 
 
 class ROLConstrainedOptimizer(ConstrainedOptimizer):
-    def xdefault_parameters(self) -> ParameterList:
-        parameters = ParameterList()
-        parameters["General"] = ParameterList()
-        parameters["General"]["Output Level"] = 1
-        parameters["General"]["Polyhedral Projection"] = ParameterList()
-        parameters["General"]["Polyhedral Projection"]["Type"] = "Dai-Fletcher"
-        parameters["General"]["Polyhedral Projection"]["Iteration Limit"] = 100
-        parameters["General"]["Polyhedral Projection"][
+    def default_parameters(self) -> ParameterList:
+        params = ParameterList()
+        params["General"] = ParameterList()
+        params["General"]["Output Level"] = 1
+        params["General"]["Polyhedral Projection"] = ParameterList()
+        params["General"]["Polyhedral Projection"]["Type"] = "Dai-Fletcher"
+        params["General"]["Polyhedral Projection"]["Iteration Limit"] = 200
+        params["General"]["Polyhedral Projection"][
             "Absolute Tolerance"
         ] = 1e-14
-        parameters["General"]["Polyhedral Projection"][
+        params["General"]["Polyhedral Projection"][
             "Relative Tolerance"
         ] = 1e-14
-        parameters["General"]["Krylov"] = ParameterList()
-        parameters["General"]["Krylov"]["Iteration Limit"] = 400
-        parameters["General"]["Secant"] = ParameterList()
-        parameters["General"]["Secant"]["Type"] = "Limited-Memory BFGS"
-        parameters["General"]["Secant"]["Use as Hessian"] = False
-        parameters["General"]["Secant"]["Maximum Storage"] = 10
-        parameters["Status Test"] = ParameterList()
-        parameters["Status Test"]["Iteration Limit"] = 2000
-        parameters["Status Test"]["Use Relative Tolerances"] = True
-        parameters["Status Test"]["Gradient Tolerance"] = 1e-11
-        parameters["Status Test"]["Step Tolerance"] = 1e-14
-        parameters["Step"] = ParameterList()
-        parameters["Step"]["Type"] = "Trust Region"
-        parameters["Step"]["Line Search"] = ParameterList()
-        parameters["Step"]["Line Search"]["Descent Method"] = ParameterList()
-        parameters["Step"]["Line Search"]["Descent Method"][
+        params["General"]["Krylov"] = ParameterList()
+        params["General"]["Krylov"]["Iteration Limit"] = 400
+        params["General"]["Secant"] = ParameterList()
+        params["General"]["Secant"]["Type"] = "Limited-Memory BFGS"
+        params["General"]["Secant"]["Use as Hessian"] = True  # False
+        params["General"]["Secant"]["Maximum Storage"] = 10
+        params["Status Test"] = ParameterList()
+        params["Status Test"]["Iteration Limit"] = 2000
+        params["Status Test"]["Use Relative Tolerances"] = True
+        params["Status Test"]["Gradient Tolerance"] = 1e-11
+        params["Status Test"]["Step Tolerance"] = 1e-14
+        params["Step"] = ParameterList()
+        params["Step"]["Type"] = "Trust Region"
+        params["Step"]["Line Search"] = ParameterList()
+        params["Step"]["Line Search"]["Descent Method"] = ParameterList()
+        params["Step"]["Line Search"]["Descent Method"][
             "Type"
         ] = "Quasi-Newton"
-        parameters["Step"]["Augmented Lagrangian"] = ParameterList()
-        parameters["Step"]["Augmented Lagrangian"][
+        params["Step"]["Augmented Lagrangian"] = ParameterList()
+        params["Step"]["Augmented Lagrangian"][
             "Use Default Initial Penalty Parameter"
         ] = False
-        parameters["Step"]["Augmented Lagrangian"][
+        params["Step"]["Augmented Lagrangian"][
             "Initial Penalty Parameter"
         ] = 1e5
-        parameters["Step"]["Trust Region"] = ParameterList()
-        parameters["Step"]["Trust Region"][
-            "Subproblem Solver"
-        ] = "Truncated CG"
-        parameters["Step"]["Trust Region"]["Subproblem Model"] = "Lin-More"
-        parameters["Step"]["Trust Region"]["Initial Radius"] = 1.0
-        return parameters
+        params["Step"]["Trust Region"] = ParameterList()
+        params["Step"]["Trust Region"]["Subproblem Solver"] = "Truncated CG"
+        params["Step"]["Trust Region"]["Subproblem Model"] = "Lin-More"
+        params["Step"]["Trust Region"]["Initial Radius"] = 1.0
+        return params
 
-    def default_parameters(self) -> ParameterList:
+    def xdefault_parameters(self) -> ParameterList:
         params = ParameterList()
         params["General"] = ParameterList()
         params["General"]["Output Level"] = 1

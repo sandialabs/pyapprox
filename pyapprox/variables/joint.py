@@ -173,7 +173,12 @@ class IndependentMarginalsVariable(JointVariable):
         ]
         for marginal in marginals:
             if not self._bkd.bkd_equal(self._bkd, marginal._bkd):
-                raise ValueError("marginals and backend are inconsistent")
+                raise ValueError(
+                    "marginals backend {0} and backend {1} are "
+                    "inconsistent".format(
+                        marginal._bkd.__name__, self._bkd.__name__
+                    )
+                )
         if unique_indices is None:
             self._unique_marginals, self._unique_indices = (
                 self._get_unique_marginals(marginals)

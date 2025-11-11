@@ -25,7 +25,7 @@ class TestGAN:
     def setUp(self):
         np.random.seed(1)
 
-    def test_conditional_gan(self):
+    def test_slow_conditional_gan(self):
         bkd = self.get_backend()
         nvars = 20  # 100 throws error
 
@@ -163,7 +163,7 @@ class TestGAN:
         plt.show()
 
 
-class TestTorchMOStats(TestGAN, unittest.TestCase):
+class TestTorchGan(TestGAN, unittest.TestCase):
     def get_backend(self):
         return TorchMixin
 

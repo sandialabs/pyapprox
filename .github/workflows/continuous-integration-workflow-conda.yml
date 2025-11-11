@@ -49,5 +49,7 @@ jobs:
       - name: Test PyApprox
         shell: bash -l {0}
         run: |
-          python -m coverage run -m unittest discover pyapprox
-          python -m coverage report
+	  python run_tests.py
+	  # use of coverage slows down tests
+          # python -m coverage run -m unittest discover pyapprox
+	  # python -m coverage report

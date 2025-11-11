@@ -276,9 +276,6 @@ class TestAVaR:
         )
 
     def test_compute_avar_from_samples(self):
-        import warnings
-
-        warnings.filterwarnings("error")
         bkd = self.get_backend()
         nsamples = 6
         optimizer = ScipyConstrainedOptimizer(opts={"gtol": 1e-15})

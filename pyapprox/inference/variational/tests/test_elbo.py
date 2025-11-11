@@ -223,10 +223,10 @@ class TestVariationalInference:
 
     def test_beta_conjugate_prior(self):
         bkd = self.get_backend()
-        shape_args = bkd.array([[2], [6]])
+        shape_args = bkd.array([[2.0], [6.0]])
         nobs = 3
         post = BetaConjugatePriorPosterior(shape_args, nobs, backend=bkd)
-        obs = bkd.array([1, 0, 1])[None, :]
+        obs = bkd.array([1.0, 0.0, 1.0])[None, :]
         post.compute(obs)
 
         prior = IndependentMarginalsVariable(
@@ -238,7 +238,7 @@ class TestVariationalInference:
 
         ashapes = [marginal._a for marginal in prior.marginals()]
         bshapes = [marginal._b for marginal in prior.marginals()]
-        marginal = stats.uniform(0, 1)
+        marginal = stats.uniform(0.0, 1.0)
         quad_rule = TensorProductQuadratureRule(
             1, [GaussQuadratureRule(marginal, backend=bkd)]
         )
@@ -290,15 +290,18 @@ class TestVariationalInference:
 
     def test_dirichlet_conjugate_prior(self):
         bkd = self.get_backend()
-        shape_args = bkd.array([2, 3, 4])
-        nobs, ntrials = bkd.array([3, 10], dtype=int)
+        shape_args = bkd.array([2.0, 3.0, 4.0])
+        nobs, ntrials = bkd.array([3.0, 10.0], dtype=int)
         noptions = len(shape_args)
-        probs = bkd.array(np.random.uniform(0.5, 1, noptions))
+        probs = bkd.array(np.random.uniform(0.5, 1.0, noptions))
         probs /= probs.sum()
         post = DirichletConjugatePriorPosterior(
             shape_args, nobs, ntrials, noptions, backend=bkd
         )
-        obs = bkd.asarray(stats.multinomial(ntrials, probs).rvs(nobs)).T
+        obs = bkd.asarray(
+            stats.multinomial(float(ntrials), bkd.to_numpy(probs)).rvs(nobs),
+            dtype=float,
+        ).T
         post.compute(obs)
         prior = DirichletVariable(shape_args, backend=bkd)
         loglike = MultinomialLogLikelihood(noptions, ntrials, backend=bkd)
@@ -325,7 +328,7 @@ class TestVariationalInference:
             prior,
             nlatent_samples,
             shape_args,
-            ashape_bounds=(1, 30),
+            ashape_bounds=(1.0, 30.0),
             latent_generator=latent_generator,
             backend=bkd,
         )
@@ -359,18 +362,18 @@ class TestVariationalInference:
         noise_cov = noise_std**2 * bkd.eye(nobs)
         # values for testing variational inference with uniformative (uniform)
         # priors
-        a1, b1 = 2, 2
-        a2, b2 = 2, 2
+        a1, b1 = 2.0, 2.0
+        a2, b2 = 2.0, 2.0
         # values good for testing gradients
         # a1, b1 = 1.4444, 14.5701
         # a2, b2 = 3, 3
-        bounds = [0, 1]
+        bounds = [0.0, 1.0]
         marginals = [
             BetaMarginal(a1, b1, *bounds, backend=bkd),
             BetaMarginal(a2, b2, *bounds, backend=bkd),
         ]
-        xx = bkd.linspace(0, 1, 101)
-        assert bkd.all(marginals[0]._cdf_jacobian_diagonal(xx) >= 0)
+        xx = bkd.linspace(0.0, 1.0, 101)
+        assert bkd.all(marginals[0]._cdf_jacobian_diagonal(xx) >= 0.0)
         prior = IndependentMarginalsVariable(marginals, backend=bkd)
         loglike, obs, obs_model = self._setup_linear_model_gaussian_loglike(
             prior.nvars(), nobs, noise_cov
@@ -385,9 +388,9 @@ class TestVariationalInference:
             nlatent_samples,
             ashapes,
             bshapes,
-            prior.interval(1),
-            ashape_bounds=(1, 100),
-            bshape_bounds=(1, 100),
+            prior.interval(1.0),
+            ashape_bounds=(1.0, 100.0),
+            bshape_bounds=(1.0, 100.0),
             backend=bkd,
         )
         vi = VariationalInverseProblem(prior, loglike, variational_posterior)

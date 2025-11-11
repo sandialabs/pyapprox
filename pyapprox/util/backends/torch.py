@@ -494,10 +494,12 @@ class TorchMixin(BackendMixin):
         else:
             _arr = array
         skip = [i.item() for i in torch.arange(_arr.shape[axis])[inds]]
-        retained = [i.item() for i in torch.arange(_arr.shape[axis])
-                    if i not in skip]
-        indices = [slice(None) if i != axis else retained
-                   for i in range(_arr.ndim)]
+        retained = [
+            i.item() for i in torch.arange(_arr.shape[axis]) if i not in skip
+        ]
+        indices = [
+            slice(None) if i != axis else retained for i in range(_arr.ndim)
+        ]
         return _arr[tuple(indices)]
 
     @staticmethod
@@ -692,33 +694,37 @@ class TorchMixin(BackendMixin):
     @staticmethod
     def fft(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
         if mat.ndim < 3:
-            raise ValueError('mat must explicitly express channel and sample '
-                             'dimensions')
-        _axis = list(range(mat.ndim-2)) if axis is None else axis
+            raise ValueError(
+                "mat must explicitly express channel and sample " "dimensions"
+            )
+        _axis = list(range(mat.ndim - 2)) if axis is None else axis
         return torch.fft.fftn(mat, dim=_axis, **kwargs)
 
     @staticmethod
     def ifft(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
         if mat.ndim < 3:
-            raise ValueError('mat must explicitly express channel and sample '
-                             'dimensions')
-        _axis = list(range(mat.ndim-2)) if axis is None else axis
+            raise ValueError(
+                "mat must explicitly express channel and sample " "dimensions"
+            )
+        _axis = list(range(mat.ndim - 2)) if axis is None else axis
         return torch.fft.ifftn(mat, dim=_axis, **kwargs)
 
     @staticmethod
     def fftshift(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
         if mat.ndim < 3:
-            raise ValueError('mat must explicitly express channel and sample '
-                             'dimensions')
-        _axis = list(range(mat.ndim-2)) if axis is None else axis
+            raise ValueError(
+                "mat must explicitly express channel and sample " "dimensions"
+            )
+        _axis = list(range(mat.ndim - 2)) if axis is None else axis
         return torch.fft.fftshift(mat, dim=_axis, **kwargs)
 
     @staticmethod
     def ifftshift(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
         if mat.ndim < 3:
-            raise ValueError('mat must explicitly express channel and sample '
-                             'dimensions')
-        _axis = list(range(mat.ndim-2)) if axis is None else axis
+            raise ValueError(
+                "mat must explicitly express channel and sample " "dimensions"
+            )
+        _axis = list(range(mat.ndim - 2)) if axis is None else axis
         return torch.fft.ifftshift(mat, dim=_axis, **kwargs)
 
     @staticmethod
@@ -728,8 +734,8 @@ class TorchMixin(BackendMixin):
     @staticmethod
     def transpose(mat: torch.tensor, axis=None) -> torch.tensor:
         if axis is None:
-            axis = list(range(mat.ndim-1, -1, -1))
-        if not hasattr(axis, '__iter__'):
+            axis = list(range(mat.ndim - 1, -1, -1))
+        if not hasattr(axis, "__iter__"):
             axis = [axis]
         return torch.permute(mat, dims=axis)
 

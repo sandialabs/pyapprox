@@ -33,7 +33,10 @@ class CandidateSampler(ABC):
         # using inverse cdf to generate samples from probability
         # distributino
         seq = HaltonSequence(
-            self._variable.nvars(), variable=self._variable, start_idx=100
+            self._variable.nvars(),
+            variable=self._variable,
+            start_idx=100,
+            bkd=self._bkd,
         )
         halton_samples = seq.rvs(nhalton_candidates)
         random_samples = self._variable.rvs(nrandom_candidates)

@@ -54,7 +54,7 @@ class GenzUMBModel(umbridge.Model):
 class GenzIntegral(umbridge.Model):
     def __init__(self):
         super().__init__("genz-integral")
-        self._model = GenzModel("product_peak")
+        self._model = GenzModel("product_peak", NumpyMixin)
 
     def get_input_sizes(self, config):
         return [0]

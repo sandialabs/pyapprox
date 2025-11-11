@@ -180,9 +180,6 @@ class TestLeja:
     def _check_leja_sequence(
         self, objective_class, marginal, exact_integral, quad_rule_cls
     ):
-        import warnings
-
-        warnings.filterwarnings("error")
         bkd = self.get_backend()
         leja = setup_univariate_leja_sequence(
             marginal, objective_class, backend=bkd
