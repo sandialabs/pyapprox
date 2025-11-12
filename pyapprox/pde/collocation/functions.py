@@ -1,6 +1,6 @@
 import textwrap
 from abc import ABC, abstractmethod
-from typing import Union, List
+from typing import Union, List, Tuple
 
 import numpy as np
 import matplotlib as mpl
@@ -101,7 +101,7 @@ class ScalarOperator:
         if jac is not None:
             self.set_jacobian(jac)
 
-    def _jacobian_shape(self, basis, ninput_funs) -> tuple:
+    def _jacobian_shape(self, basis, ninput_funs) -> Tuple:
         return (
             basis.mesh().nmesh_pts(),
             basis.mesh().nmesh_pts() * ninput_funs,
@@ -551,7 +551,7 @@ class ScalarOperator:
             textwrap.indent("basis=" + str(self.basis()), prefix="    "),
         )
 
-    def values_shape(self) -> tuple:
+    def values_shape(self) -> Tuple:
         return (self.basis().mesh().nmesh_pts(),)
 
 
@@ -1148,7 +1148,7 @@ class MatrixOperator:
             raise RuntimeError("must call set_commponents()")
         return self._components
 
-    def values_shape(self) -> tuple:
+    def values_shape(self) -> Tuple:
         return (
             self.nrows(),
             self.ncols(),
@@ -1208,7 +1208,7 @@ class VectorOperator(MatrixOperator):
             raise RuntimeError("must call set_commponents()")
         return [row[0] for row in self._components]
 
-    def values_shape(self) -> tuple:
+    def values_shape(self) -> Tuple:
         return (
             self.nrows(),
             self.basis().mesh().nmesh_pts(),

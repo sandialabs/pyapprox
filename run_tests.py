@@ -1,6 +1,7 @@
 import unittest
-import argparse
 import warnings
+import argparse
+import time
 
 
 def collect_tests(suite, ignore_patterns):
@@ -20,6 +21,30 @@ def collect_tests(suite, ignore_patterns):
         else:
             filtered_suite.addTest(test)
     return filtered_suite
+
+
+class TimedTestResult(unittest.TextTestResult):
+    """
+    Custom TestResult class to report test timing and success.
+    """
+
+    def startTest(self, test):
+        self._start_time = time.time()  # Record the start time
+        super().startTest(test)
+
+    def stopTest(self, test):
+        elapsed_time = time.time() - self._start_time  # Calculate elapsed time
+        self.stream.write(f" ({elapsed_time:.3f}s)\n")  # Print elapsed time
+        super().stopTest(test)
+
+
+class TimedTestRunner(unittest.TextTestRunner):
+    """
+    Custom TestRunner class to use TimedTestResult.
+    """
+
+    def _makeResult(self):
+        return TimedTestResult(self.stream, self.descriptions, self.verbosity)
 
 
 if __name__ == "__main__":
@@ -59,6 +84,6 @@ if __name__ == "__main__":
     # Apply the custom filter to the discovered tests
     filtered_suite = collect_tests(suite, ignore_patterns)
 
-    # Run the filtered tests
-    runner = unittest.TextTestRunner(verbosity=2)
+    # Run the filtered tests with the custom runner
+    runner = TimedTestRunner(verbosity=2)
     runner.run(filtered_suite)

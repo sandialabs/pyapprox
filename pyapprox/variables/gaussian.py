@@ -1841,5 +1841,5 @@ class GaussCopulaVariable(JointVariable):
             return out[0]
         return out
 
-    def marginals(self) -> list:
+    def marginals(self) -> List:
         return self._xmarginals

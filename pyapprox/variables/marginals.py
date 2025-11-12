@@ -501,7 +501,7 @@ class ScipyMarginal(Marginal):
     def _check_values(self, vals: Array) -> Array:
         return self._bkd.asarray(super()._check_values(vals))
 
-    def _get_distribution_info(self) -> tuple[str, dict, dict]:
+    def _get_distribution_info(self) -> Tuple[str, dict, dict]:
         """
         Get important information from a scipy.stats variable.
 

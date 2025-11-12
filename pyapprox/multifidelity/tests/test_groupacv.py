@@ -302,7 +302,7 @@ class TestGroupACV:
             ]
         for test_case in test_cases:
             np.random.seed(1)
-            print(test_case)
+            # print(test_case)
             self._check_gradient_optimization(*test_case)
 
     def _check_mlblue_spd(self, nmodels, min_nhf_samples):
@@ -348,7 +348,7 @@ class TestGroupACV:
         ]
         for test_case in test_cases:
             np.random.seed(1)
-            print(test_case)
+            # print(test_case)
             self._check_mlblue_spd(*test_case)
 
     def _check_insert_pilot_samples(self, nmodels, min_nhf_samples, seed):
@@ -506,8 +506,8 @@ class TestGroupACV:
         Sigma = est._sigma(est._rounded_npartition_samples)
         atol, rtol = 4e-3, 3e-2
         # print(est._stat)
-        print(bkd.diag(mc_group_cov))
-        print(bkd.diag(Sigma), "S")
+        # print(bkd.diag(mc_group_cov))
+        # print(bkd.diag(Sigma), "S")
         # print(bkd.diag(mc_group_cov) - bkd.diag(Sigma))
         # print(
         #     (bkd.diag(mc_group_cov) - bkd.diag(Sigma)) / bkd.diag(mc_group_cov)
@@ -585,7 +585,7 @@ class TestGroupACV:
         ]
         for test_case in test_cases:
             np.random.seed(1)
-            print(test_case)
+            # print(test_case)
             self._check_sigma_matrix(*test_case)
 
     def _setup_variance_problem(self, nmodels, qoi_idx, bkd, psd=False):
@@ -643,18 +643,18 @@ class TestGroupACV:
         #     subset_ests, mfmc_est._optimized_weights
         # )
         nqoi = est._stat.nqoi()
-        print(subset_values[0].shape, subset_values[1].shape, nqoi)
-        print(
-            subset_values[0].mean(axis=0),
-            bkd.var(subset_values[0], axis=0, ddof=1),
-            "M0",
-        )
-        print(
-            subset_values[1].mean(axis=0),
-            bkd.var(subset_values[1], axis=0, ddof=1),
-            "M2",
-        )
-        print(subset_ests)
+        # print(subset_values[0].shape, subset_values[1].shape, nqoi)
+        # print(
+        #    subset_values[0].mean(axis=0),
+        #    bkd.var(subset_values[0], axis=0, ddof=1),
+        #    "M0",
+        # )
+        # print(
+        #    subset_values[1].mean(axis=0),
+        #    bkd.var(subset_values[1], axis=0, ddof=1),
+        #    "M2",
+        # )
+        # print(subset_ests)
         if est.nmodels() == 2:
             acv_values = [
                 bkd.zeros((0, nqoi)),
@@ -674,8 +674,8 @@ class TestGroupACV:
 
         # print(acv_values[0])
         # print(acv_values[1], subset_values[0], "a")
-        print(bkd.var(acv_values[1], axis=0, ddof=1))
-        print(mfmc_est)
+        # print(bkd.var(acv_values[1], axis=0, ddof=1))
+        # print(mfmc_est)
         Q0_acv = mfmc_est._stat.sample_estimate(acv_values[1])
         Qe_acv = bkd.stack(
             [
@@ -691,20 +691,20 @@ class TestGroupACV:
             ],
             axis=1,
         )
-        print(Q0, "Q0")
-        print(Q0_acv, "Q0_acv")
+        # print(Q0, "Q0")
+        # print(Q0_acv, "Q0_acv")
         assert bkd.allclose(Q0, Q0_acv)
-        print(Qe, "Qe")
-        print(Qe_acv, "Qe_acv")
-        print(Qu, "Qu")
-        print(Qu_acv, "Qu_acv")
-        print(bkd.hstack((Qe, Qu)))
-        print(bkd.hstack((Qe_acv, Qu_acv)))
+        # print(Qe, "Qe")
+        # print(Qe_acv, "Qe_acv")
+        # print(Qu, "Qu")
+        # print(Qu_acv, "Qu_acv")
+        # print(bkd.hstack((Qe, Qu)))
+        # print(bkd.hstack((Qe_acv, Qu_acv)))
         for ii in range(Qe.shape[0]):
-            print(
-                bkd.sort(bkd.hstack((Qe[ii], Qu[ii]))),
-                bkd.sort(bkd.hstack((Qe_acv[ii], Qu_acv[ii]))),
-            )
+            # print(
+            #     bkd.sort(bkd.hstack((Qe[ii], Qu[ii]))),
+            #     bkd.sort(bkd.hstack((Qe_acv[ii], Qu_acv[ii]))),
+            # )
             assert bkd.allclose(
                 bkd.sort(bkd.abs(bkd.hstack((Qe[ii], Qu[ii])))),
                 bkd.sort(bkd.abs(bkd.hstack((Qe_acv[ii], Qu_acv[ii])))),
@@ -712,8 +712,8 @@ class TestGroupACV:
         assert bkd.allclose(Qe, Qe_acv)
         assert bkd.allclose(Qu, Qu_acv)
         # weight conversion is only unqiue up to a sign
-        print(bkd.abs(est._traditional_acv_weights()))
-        print(bkd.abs(mfmc_est._optimized_weights))
+        # print(bkd.abs(est._traditional_acv_weights()))
+        # print(bkd.abs(mfmc_est._optimized_weights))
         assert bkd.allclose(
             bkd.abs(est._traditional_acv_weights()),
             bkd.abs(mfmc_est._optimized_weights),
@@ -860,7 +860,7 @@ class TestGroupACV:
 
         opt1 = GroupACVGradientOptimizer(
             ScipyConstrainedDifferentialEvolutionOptimizer(
-                opts={"maxiter": 20, "disp": False}
+                opts={"maxiter": 20}
             )
         )
         opt2 = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
