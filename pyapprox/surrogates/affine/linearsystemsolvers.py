@@ -6,7 +6,7 @@ an abstract base class (`LinearSystemSolver`) that defines the interface for sol
 systems, as well as specific implementations such as least squares regression (`LstSqSolver`).
 """
 
-from typing import Union
+from typing import Union, List
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -14,7 +14,7 @@ import scipy.sparse as sp
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.backends.numpy import NumpyMixin
-from scipy.optimize import linprog
+from scipy.optimize import linprog, LinearConstraint
 from pyapprox.optimization.risk import (
     AverageValueAtRisk,
     SafetyMarginRiskMeasure,
@@ -128,7 +128,7 @@ class LinearSystemSolver(ABC):
                     (values.shape[1], 1),
                 )
             )
-        print("cond", self._bkd.cond(self._sqrt_weights * basis_mat))
+        # print("cond", self._bkd.cond(self._sqrt_weights * basis_mat))
         # tmp = self._sqrt_weights * basis_mat
         # print(tmp.T @ tmp, tmp.shape)
         return self._solve(
@@ -1414,8 +1414,7 @@ class BasisPursuitDenoisingCVXRegressionSolver(
 
         hvec = matrix(np.zeros(3 * nbasis))
         self._set_cvxopt_options()
-        x0 = matrix(np.array([1, 0, 1, 0, 0, 0, 0, 0])[:, None])
-        from cvxopt.blas import dot
+        x0 = matrix(np.full((2 * basis_mat.shape[1], 1), 1.0))
 
         result = solvers.qp(
             Pmat,
@@ -1424,11 +1423,141 @@ class BasisPursuitDenoisingCVXRegressionSolver(
             hvec,
             initvals=x0,
         )
-        # print(x0.T * Pmat * x0 + qvec.T * x0, qvec.T * x0)
+        # print(0.5 * x0.T * Pmat * x0 + qvec.T * x0, "o")
+        # print(qvec.T * x0, "s")
         # c = result["x"]
-        # print(c.T * Pmat * c + qvec.T * c, qvec.T * c)
+        # print(0.5 * c.T * Pmat * c + qvec.T * c, qvec.T * c, "opt")
         self._sol = self._bkd.asarray(np.array(result["x"]))
         return self._sol[:nbasis]
+
+
+class BasisPursuitDenoisingObjective(SingleSampleModel):
+    def __init__(
+        self,
+        basis_mat: Array,
+        rhs_values: Array,
+        penalty: float,
+        backend: BackendMixin,
+    ):
+        super().__init__(backend)
+        self._penalty = penalty
+        self._basis_mat = self._bkd.to_numpy(basis_mat)
+        self._rhs_values = self._bkd.to_numpy(rhs_values)
+        self._nbasis = self._basis_mat.shape[1]
+        self._precompute()
+
+    def _precompute(self):
+        Gram = self._basis_mat.T @ self._basis_mat
+        diag_zeros = sp.csr_matrix((self._nbasis, self._nbasis))
+        self._Pmat = sp.block_diag([Gram, diag_zeros])
+        lam = self._bkd.full((self._nbasis,), self._penalty)
+        self._qvec = np.hstack(
+            (-self._basis_mat.T @ self._rhs_values[:, 0], lam)
+        )[:, None]
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nvars(self) -> int:
+        return self._nbasis * 2
+
+    def _evaluate(self, iterate: Array) -> Array:
+        iterate = self._bkd.to_numpy(iterate)
+        return self._bkd.asarray(
+            0.5 * iterate.T @ (self._Pmat @ iterate) + self._qvec.T @ iterate
+        )
+
+    def _jacobian(self, iterate: Array) -> Array:
+        iterate = self._bkd.to_numpy(iterate)
+        return self._bkd.asarray(self._Pmat @ iterate + self._qvec).T
+
+    def _apply_hessian(self, iterate: Array, vec: Array) -> Array:
+        return self._bkd.asarray(self._Pmat @ vec)
+
+    def jacobian_implemented(self) -> bool:
+        return True
+
+    def apply_hessian_implemented(self) -> bool:
+        return True
+
+
+class BasisPursuitDenoisingRegressionSolver(
+    LinearSystemSolver, OptimizerMixin
+):
+    """
+    Use general purpose nonlinear optimizer to solve BPDN problem.
+    It is more computationally efficient to use a quadratic program solver
+    e.g that wrapped but BasisPursuitDenoisingCVXRegressionSolver.
+    This implementation only exists incase cvx is not installed.
+    """
+
+    def __init__(self, penalty: float, backend: BackendMixin):
+        self._penalty = penalty
+        super().__init__(backend)
+
+    def set_iterate(self, iterate: Array):
+        self._iterate = iterate
+
+    def _get_constraints(self, nbasis: int) -> List[LinearConstraint]:
+        # iterate [x, u]. x: coefficients, u: slack variables
+
+        # # -u_i <= 0
+        vals = [-1.0 for ii in range(nbasis)]
+        rows = [ii for ii in range(nbasis)]
+        cols = [nbasis + ii for ii in range(nbasis)]
+        # -x_i -u_i <= 0
+        for ii in range(nbasis):
+            rows += [nbasis + ii, nbasis + ii]
+            cols += [ii, nbasis + ii]
+            vals += [-1.0, -1.0]
+        #  x_i -u_i <= 0
+        for ii in range(nbasis):
+            rows += [2 * nbasis + ii, 2 * nbasis + ii]
+            cols += [ii, nbasis + ii]
+            vals += [1.0, -1.0]
+        cols = np.asarray(cols)
+        vals = np.asarray(vals)
+        Gmat = sp.coo_matrix((vals, (rows, cols)))
+        # Convert to CSR format for efficient operations
+        Gmat = Gmat.tocsr()
+        Gmat = Gmat.toarray()
+        # setting keep_feasible to True stops the optimizer from converging
+        return [LinearConstraint(Gmat, -np.inf, 0.0, keep_feasible=False)]
+
+    def _setup_optimizer(self, basis_mat: Array, rhs_values: Array):
+        objective = BasisPursuitDenoisingObjective(
+            basis_mat, rhs_values, self._penalty, self._bkd
+        )
+        self._optimizer.set_objective_function(objective)
+        self._optimizer.set_constraints(
+            self._get_constraints(basis_mat.shape[1])
+        )
+        iterate_bounds = self._bkd.stack(
+            (
+                self._bkd.full((basis_mat.shape[1] * 2,), -np.inf),
+                self._bkd.full((basis_mat.shape[1] * 2,), np.inf),
+            ),
+            axis=1,
+        )
+        # Enforce slack variables are positive is done by constraints
+        # iterate_bounds[basis_mat.shape[1] :, 0] = 0
+        self._optimizer.set_bounds(iterate_bounds)
+
+    def _solve(self, basis_mat: Array, rhs_values: Array) -> Array:
+        """
+        Solve the Basis Pursuit Denosining (BPDN) problem using a general purpose
+        nonlinear optimizer
+        """
+        if not hasattr(self, "_optimizer"):
+            self.set_optimizer(self.default_optimizer())
+        if not hasattr(self, "_iterate"):
+            iterate = self._bkd.full((basis_mat.shape[1] * 2, 1), -1.0)
+            iterate[basis_mat.shape[1] :] = 1.0
+            self.set_iterate(iterate)
+        self._setup_optimizer(basis_mat, rhs_values)
+        result = self._optimizer.minimize(self._iterate)
+        self._sol = result.x
+        return self._sol[: basis_mat.shape[1]]
 
 
 class LinearlyConstrainedLstSqSolver(LinearSystemSolver):

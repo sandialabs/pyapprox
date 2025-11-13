@@ -8,6 +8,7 @@ from pyapprox.surrogates.affine.linearsystemsolvers import (
     LinearlyConstrainedLstSqSolver,
     OMPSolver,
     BasisPursuitRegressionSolver,
+    BasisPursuitDenoisingRegressionSolver,
     BasisPursuitDenoisingCVXRegressionSolver,
     QuantileRegressionSolver,
     EntropicLoss,
@@ -90,6 +91,40 @@ class TestLinearSolvers:
         # solver.set_options(options)
         coef = solver.solve(basis_matrix, vals)
         assert np.allclose(coef, true_coef)
+
+    def test_basis_pursuit_denoising(self):
+        bkd = self.get_backend()
+        # nsamples, degree, sparsity = 6, 7, 2
+        nsamples, degree, sparsity = 100, 3, 2
+        samples = bkd.array(np.random.uniform(0, 1, (1, nsamples)))
+        basis_matrix = samples.T ** bkd.arange(degree + 1)[None, :]
+
+        true_coef = bkd.zeros((basis_matrix.shape[1], 1))
+        true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.0
+        vals = basis_matrix @ true_coef
+
+        solver = BasisPursuitDenoisingRegressionSolver(0.001, backend=bkd)
+
+        # test gradients
+        iterate = bkd.full((basis_matrix.shape[1] * 2, 1), 1)
+        solver.set_optimizer(
+            solver.default_optimizer(maxiter=1000, gtol=1e-12)
+        )
+        solver._setup_optimizer(basis_matrix, vals)
+        errors = solver._optimizer._objective.check_apply_jacobian(iterate)
+        assert errors.min() / errors.max() <= 1e-6
+        errors = solver._optimizer._objective.check_apply_hessian(iterate)
+        assert errors.min() / errors.max() <= 1e-6
+
+        solver._optimizer.set_verbosity(3)
+        coef = solver.solve(basis_matrix, vals)
+        # slack variables will only equal abs(coef) up to default allclose tol
+        # if gtol is small enough
+        assert bkd.allclose(
+            solver._sol[coef.shape[0] :], bkd.abs(coef), atol=2e-7
+        )
+        # difference controled in part by penalty and gtol
+        assert np.allclose(coef, true_coef, atol=2e-3)
 
     @unittest.skipIf(not package_available("cvxpy"), "cvxpy not installed")
     def test_basis_pursuit_denoising_cvxopt(self):

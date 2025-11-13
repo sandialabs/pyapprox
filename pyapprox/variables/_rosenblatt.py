@@ -42,7 +42,7 @@ def invert_cdf(F, cdffun, x_limits, tol=1e-12, nbins=101, plot=False):
         import pylab
 
         pylab.plot(bin_xs, bin_Fs)
-        pylab.show()
+        # pylab.show()
     nsamples = F.shape[0]
     # Return the indices of the bins to which each value in input array
     # belongs

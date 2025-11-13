@@ -17,7 +17,7 @@ Where:
 - :math:`\vec{x} \in \mathbb{R}^n`: The sparse solution we want to find.
 - :math:`\vec{\epsilon}`: A tolerance for the noise level in the measurements.
 - :math:`\|\vec{x}\|_1`: The :math:`\ell_1`-norm of :math:`\vec{x}`, which promotes sparsity.
-- :math:`\|\mat{A}\vec{x} - \vec{b}\|_2`: :math:`\ell_2`-norm of the residual, which measures the error between the measurements and the reconstruction.
+- :math:`\|\mat{A}\vec{x} - \vec{y}\|_2`: :math:`\ell_2`-norm of the residual, which measures the error between the measurements and the reconstruction.
 
 
 Reformulating BPDN as a Quadratic Program
@@ -78,13 +78,13 @@ Where:
 
 Final Quadratic Program Formulation
 -----------------------------------
-Noting that :math:`\frac{1}{2} (\mat{A}\vec{x} - \vec{y})^\top (\mat{A}\vec{x} - \vec{y}) = \frac{1}{2} \vec{x}^\top \mat{A}^\top \mat{A} \vec{x} - b^\top \mat{A} \vec{x}  + \frac{1}{2} \vec{y}^\top \vec{y}` and that
+Noting that :math:`\frac{1}{2} (\mat{A}\vec{x} - \vec{y})^\top (\mat{A}\vec{x} - \vec{y}) = \frac{1}{2} \vec{x}^\top \mat{A}^\top \mat{A} \vec{x} - \vec{y}^\top \mat{A} \vec{x}  + \frac{1}{2} \vec{y}^\top \vec{y}` and that
 :math:`\frac{1}{2} \vec{y}^\top \vec{y}` does not effect the optimal solution so we can drop it from the optimization,
 the quadratic program is:
 
 Objective:
 
-.. math:: \min_{\vec{x}, \vec{u}} \quad \frac{1}{2} \vec{x}^\top \mat{A}^\top \mat{A} \vec{x} - b^\top \mat{A} \vec{x} + \lambda \sum_{i=1}^n u_i
+.. math:: \min_{\vec{x}, \vec{u}} \quad \frac{1}{2} \vec{x}^\top \mat{A}^\top \mat{A} \vec{x} - \vec{y}^\top \mat{A} \vec{x} + \lambda \sum_{i=1}^n u_i
 
 Constraints:
 
@@ -102,7 +102,8 @@ import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyMixin as bkd
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.affine.linearsystemsolvers import (
-    BasisPursuitDenoisingCVXRegressionSolver,
+    # BasisPursuitDenoisingCVXRegressionSolver,
+    BasisPursuitDenoisingRegressionSolver,
 )
 from pyapprox.surrogates.univariate.orthopoly import (
     setup_univariate_orthogonal_polynomial_from_marginal,
@@ -144,8 +145,10 @@ model = ModelFromVectorizedCallable(
 nsamples = 50
 train_samples = sampler(nsamples)
 train_values = model(train_samples)
-solver = BasisPursuitDenoisingCVXRegressionSolver(0.001, backend=bkd)
-solver.set_options({"abstol": 1e-14, "reltol": 1e-14, "feastol": 1e-14})
+# use cvx solver if cvx is installed it is more effective
+# solver = BasisPursuitDenoisingCVXRegressionSolver(0.001, backend=bkd)
+# solver.set_options({"abstol": 1e-14, "reltol": 1e-14, "feastol": 1e-14})
+solver = BasisPursuitDenoisingRegressionSolver(0.001, backend=bkd)
 solver.set_weights(sampler.christoffel_function(train_samples))
 bexp.set_solver(solver)
 bexp.fit(train_samples, train_values)

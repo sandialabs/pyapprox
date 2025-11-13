@@ -67,7 +67,7 @@ samples = benchmark.prior().rvs(nsamples)
 values = benchmark.model()(samples)
 pce.fit(samples, values)
 
-analyzer = PolynomialChaosSensitivityAnalysis(benchmark.prior().nvars())
+analyzer = PolynomialChaosSensitivityAnalysis(benchmark.prior().nvars(), bkd)
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()
 )
@@ -90,7 +90,6 @@ _ = plot_interaction_values(
 axs[0].set_title(r"$\mathrm{Main\;Effects}$")
 axs[1].set_title(r"$\mathrm{Total\;Effects}$")
 axs[2].set_title(r"$\mathrm{Sobol\;Indices}$")
-plt.show()
 
 
 # %%

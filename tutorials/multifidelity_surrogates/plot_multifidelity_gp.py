@@ -161,9 +161,9 @@ kernel = MultiLevelKernel(kernels, kernel_scalings)
 nsamples_per_model = [100, 50]
 train_samples_per_model = [
     bkd.sort(
-        HaltonSequence(nvars, start_idx=1000 * nn + 1, variable=variable).rvs(
-            nsamples_per_model[nn]
-        )
+        HaltonSequence(
+            nvars, start_idx=1000 * nn + 1, variable=variable, bkd=bkd
+        ).rvs(nsamples_per_model[nn])
     )
     for nn in range(nmodels)
 ]
@@ -213,9 +213,9 @@ def f1(degree, rho, x):
 nsamples_per_model = [8, 4]
 train_samples_per_model = [
     bkd.sort(
-        HaltonSequence(nvars, start_idx=1000 * nn + 1, variable=variable).rvs(
-            nsamples_per_model[nn]
-        ),
+        HaltonSequence(
+            nvars, start_idx=1000 * nn + 1, variable=variable, bkd=bkd
+        ).rvs(nsamples_per_model[nn]),
         axis=1,
     )
     for nn in range(nmodels)
@@ -363,7 +363,6 @@ _ = sml_gp.plot_1d(
     fill_kwargs={"color": "g", "alpha": 0.3},
 )
 ax.plot(train_samples_per_model[0][0], train_values_per_model[0], "ko")
-plt.show()
 
 
 # %%

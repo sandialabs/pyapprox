@@ -123,7 +123,6 @@ def compute_roots_of_exponential_kernel_characteristic_equation(
         plt.plot(omega, func(omega), "og", label="roots found")
         plt.ylim([-100, 100])
         plt.legend()
-        plt.show()
     if fail:
         raise Exception(msg)
     return omega

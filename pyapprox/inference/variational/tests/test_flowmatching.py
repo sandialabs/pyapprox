@@ -417,7 +417,6 @@ class TestFlows:
         axs[0].set_ylim(moon_bounds)
         axs[1].set_xlim(moon_bounds)
         axs[1].set_ylim(moon_bounds)
-        plt.show()
 
 
 class TestTorchFlows(TestFlows, unittest.TestCase):

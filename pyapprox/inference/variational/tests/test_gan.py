@@ -160,7 +160,6 @@ class TestGAN:
             )
         ax.legend()
         # plt.savefig("wgan-pf.pdf", transparent=True)
-        plt.show()
 
 
 class TestTorchGan(TestGAN, unittest.TestCase):

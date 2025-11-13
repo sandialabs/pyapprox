@@ -32,7 +32,9 @@ pce.fit(samples, values)
 
 # %%
 # Now compute the sensitivity indices
-analyzer = PolynomialChaosSensitivityAnalysis(benchmark.prior().nvars())
+analyzer = PolynomialChaosSensitivityAnalysis(
+    benchmark.prior().nvars(), backend=bkd
+)
 analyzer.set_interaction_terms_of_interest(
     benchmark.sobol_interaction_indices()
 )
@@ -43,9 +45,9 @@ analyzer.compute(pce)
 axs = plt.subplots(1, 2, figsize=(2 * 8, 6))[1]
 plot_main_effects(analyzer.main_effects(), axs[0])
 _ = plot_total_effects(analyzer.total_effects(), axs[1])
-# plt.show()
 
 # %%
 # The benchmark contains the exact values of these indices which can be used
 # to validate the answers obtained.
-# Change the number of training samples and PCE degree to explore their impact on the accuracy of the sensitivity indices.
+# Change the number of training samples and PCE degree to explore their impact
+# on the accuracy of the sensitivity indices.

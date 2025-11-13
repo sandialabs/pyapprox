@@ -64,7 +64,7 @@ from pyapprox.util.backends.numpy import NumpyMixin as bkd
 
 benchmark = MultiLevelCosineBenchmark(bkd)
 variable = IndependentMarginalsVariable([stats.uniform(-1, 2)])
-ranges = benchmark.variable().interval(1.0).flatten()
+ranges = benchmark.prior().interval(1.0).flatten()
 # Set the univariate quarature rules and bases
 quad_rule = ClenshawCurtisQuadratureRule(store=True, bounds=[-1, 1])
 # Set the univriate bases
@@ -153,7 +153,7 @@ fig, axs = plt.subplots(
 
 model_ensemble = benchmark.models()
 tp = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
-    benchmark.variable(),
+    benchmark.prior(),
     benchmark.nqoi(),
     benchmark.nrefinement_vars(),
     benchmark.models()._index_bounds,
@@ -206,7 +206,7 @@ _ = [[ax.set_ylim([-1, 1]), ax.set_xlabel(r"$z$")] for ax in axs.flatten()]
 # A level-one isotropic collocation algorithm uses top-left, bottom-left and bottom middle interpolants in the previous plot, i.e. :math:`f_{1, 0}, f_{0, 0}, f_{0, 1}`, respectively. The level 2 approximation is plotted below. Note it is not a true isotropic grid because it cannot reach level 2 in the configuration variable which only uses two models. This is not true if more than 2 models are provided.
 
 sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
-    benchmark.variable(),
+    benchmark.prior(),
     benchmark.nqoi(),
     benchmark.nrefinement_vars(),
     benchmark.models()._index_bounds,
@@ -225,7 +225,6 @@ sg.build(model_ensemble)
 
 ax = plt.subplots(figsize=(8, 6))[1]
 sg.plot_surface(ax, ranges, "--", label=r"$f_\mathcal{I}$")
-print(max_level_1d)
 for ll in range(max_level_1d[1] + 1):
     model_ll = benchmark.models().get_model(np.array([ll]))
     model_ll.plot_surface(
@@ -290,7 +289,7 @@ validation_samples = variable.rvs(100)
 validation_values = model_ensemble.highest_fidelity_model()(validation_samples)
 adaptive_callback = AdaptiveCallback(validation_samples, validation_values)
 sg = MultiIndexLejaLagrangeAdaptiveCombinationSparseGrid(
-    benchmark.variable(),
+    benchmark.prior(),
     benchmark.nqoi(),
     benchmark.nrefinement_vars(),
     benchmark.models()._index_bounds,
