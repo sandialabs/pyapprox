@@ -1,6 +1,7 @@
 from abc import abstractmethod, ABC
 import pickle
 import warnings
+from typing import Union
 
 from pyapprox.interface.model import Model
 from pyapprox.surrogates.loss import LossFunction
@@ -9,12 +10,16 @@ from pyapprox.optimization.minimize import (
     ChainedOptimizer,
     OptimizerIterateGenerator,
     RandomUniformOptimzerIterateGenerator,
+    OptimizerWithObjective,
 )
 from pyapprox.util.backends.template import Array, BackendMixin
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.transforms import Transform, IdentityTransform
 from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+from pyapprox.optimization.scipy import (
+    ScipyConstrainedOptimizer,
+    MultiStartScipyConstrainedOptimizer,
+)
 
 
 class Surrogate(Model):
@@ -169,8 +174,12 @@ class OptimizedRegressor(Regressor):
         self._optimizer.set_objective_function(loss)
         self._optimizer.set_bounds(self.hyp_list().get_active_opt_bounds())
 
-    def set_optimizer(self, optimizer: ChainedOptimizer):
-        if not isinstance(optimizer, (ChainedOptimizer, MultiStartOptimizer)):
+    def set_optimizer(
+        self, optimizer: Union[ChainedOptimizer, OptimizerWithObjective]
+    ):
+        if not isinstance(
+            optimizer, (ChainedOptimizer, OptimizerWithObjective)
+        ):
             raise ValueError(
                 "optimizer {0} must be instance of ChainedOptimizer or "
                 "MultiStartOptimizer".format(optimizer)
@@ -220,29 +229,25 @@ class OptimizedRegressor(Regressor):
         gtol: float = 1e-8,
         maxiter: int = 1000,
         iterate_gen: OptimizerIterateGenerator = None,
-        method: str = "L-BFGS-B",
+        method: str = "trust-constr",
     ) -> MultiStartOptimizer:
-        local_optimizer = ScipyConstrainedOptimizer()
-        # L-BFGS-Bseems to require less iterations than trust-constr when
-        # building GPs
+        optimizer = MultiStartScipyConstrainedOptimizer(ncandidates)
+        local_optimizer = optimizer.optimizer()
         local_optimizer.set_options(
             gtol=gtol,
             maxiter=maxiter,
             method=method,
         )
         local_optimizer.set_verbosity(verbosity - 1)
-        ms_optimizer = MultiStartOptimizer(
-            local_optimizer, ncandidates=ncandidates
-        )
         if iterate_gen is None:
             iterate_gen = self._default_iterator_gen()
         if not isinstance(iterate_gen, OptimizerIterateGenerator):
             raise ValueError(
                 "iterate_gen must be an instance of OptimizerIterateGenerator"
             )
-        ms_optimizer.set_initial_iterate_generator(iterate_gen)
-        ms_optimizer.set_verbosity(verbosity)
-        return ms_optimizer
+        optimizer.set_initial_iterate_generator(iterate_gen)
+        optimizer.set_verbosity(verbosity)
+        return optimizer
 
 
 def QuadratureRule(ABC):

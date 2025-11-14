@@ -7,6 +7,7 @@ from scipy.stats import _continuous_distns, _discrete_distns
 from scipy import stats
 from scipy import interpolate
 import numpy as np
+import matplotlib.pyplot as plt
 
 from pyapprox.util.backends.template import Array, BackendMixin
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -20,7 +21,7 @@ from pyapprox.util.misc import composite_gauss_legendre_rule
 
 class Marginal(ABC):
     """
-    A marginal distribution.
+    Abstract base class for marginal distributions.
 
     Parameters
     ----------
@@ -32,6 +33,19 @@ class Marginal(ABC):
         self._bkd = backend
 
     def _check_samples(self, samples: Array) -> Array:
+        """
+        Check if the input samples are valid.
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples.
+
+        Returns
+        -------
+        samples : Array
+            Validated samples.
+        """
         if samples.ndim != 1:
             raise ValueError(
                 "samples must be 1d array but had shape {0}".format(
@@ -41,6 +55,19 @@ class Marginal(ABC):
         return samples
 
     def _check_values(self, vals: Array) -> Array:
+        """
+        Check if the input values are valid.
+
+        Parameters
+        ----------
+        vals : Array
+            Input values.
+
+        Returns
+        -------
+        vals : Array
+            Validated values.
+        """
         if vals.ndim != 1:
             raise ValueError(
                 "vals must be a 1d array but had shape {0}".format(vals.shape)
@@ -49,24 +76,104 @@ class Marginal(ABC):
 
     @abstractmethod
     def _pdf(self, samples: Array) -> Array:
+        """
+        Abstract method to evaluate the PDF.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            Input samples.
+
+        Returns
+        -------
+        Array (nsamples,)
+            PDF values.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def _logpdf(self, samples: Array) -> Array:
+        """
+        Abstract method to evaluate the log PDF.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            Input samples.
+
+        Returns
+        -------
+        Array (nsamples,)
+            Log PDF values.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def _cdf(self, samples: Array) -> Array:
+        """
+        Abstract method to evaluate the CDF.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            Input samples.
+
+        Returns
+        -------
+        Array (nsamples,)
+            CDF values.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def _ppf(self, usamples: Array) -> Array:
+        """
+        Abstract method to evaluate the PPF (inverse CDF).
+
+        Parameters
+        ----------
+        usamples : Array (nsamples,)
+            Input samples.
+
+        Returns
+        -------
+        Array (nsamples,)
+            PPF values.
+        """
         raise NotImplementedError
 
     def _pdf_jacobian(self, samples: Array) -> Array:
+        """
+        Abstract method to compute the Jacobian of the PDF
+        with respect to its input.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            Input samples.
+
+        Returns
+        -------
+        jac : Array (1, nsamples)
+            The derivative of the PDF at each sample
+        """
         raise NotImplementedError
 
     def _logpdf_jacobian(self, samples: Array) -> Array:
+        """
+        Abstract method to compute the Jacobian of the log PDF
+        with respect to its input.
+
+        Parameters
+        ----------
+        samples : Array (nsamples,)
+            Input samples.
+
+        Returns
+        -------
+        jac : Array (1, nsamples)
+            The derivative of the log PDF at each sample
+        """
         raise NotImplementedError
 
     def mean(self) -> float:
@@ -142,6 +249,20 @@ class Marginal(ABC):
 
     @abstractmethod
     def _rvs(self, nsamples: int) -> Array:
+        """
+        Abstract function to generate random samples from the
+        marginal distribution.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples to generate.
+
+        Returns
+        -------
+        samples : Array (nsamples,)
+            Random samples from the marginal distribution.
+        """
         raise NotImplementedError
 
     def pdf(self, samples: Array) -> Array:
@@ -224,6 +345,19 @@ class Marginal(ABC):
         return vals
 
     def _check_jacobian(self, samples: Array, jac: Array) -> Array:
+        """
+        Validate the shape of the Jacobian array.
+
+        This method ensures that the Jacobian array is a 2D row vector
+        with the correct shape relative to the input samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples. Must be a 1D array.
+        jac : Array
+            Jacobian array to validate. Must be a 2D row vector.
+        """
         if jac.shape != (1, samples.shape[0]):
             raise ValueError(
                 "{0}: jacobian must be 2D row vector but had shape {1}".format(
@@ -249,7 +383,7 @@ class Marginal(ABC):
 
         Returns
         -------
-        jac : Array (nsamples, 1)
+        jac : Array (1, nsamples)
             The Jacobian of the PDF of the marginal distribution.
         """
         if not self.pdf_jacobian_implemented():
@@ -278,7 +412,7 @@ class Marginal(ABC):
 
         Returns
         -------
-        jac : Array (nsamples, 1)
+        jac : Array (1, nsamples)
             The Jacobian of the log of the PDF of the marginal distribution.
         """
         if not self.logpdf_jacobian_implemented():
@@ -331,9 +465,30 @@ class Marginal(ABC):
 
     @abstractmethod
     def __eq__(self, other: "Marginal") -> bool:
+        """
+        Check if two marginal distributions are equal.
+
+        This method compares the current marginal distribution with another marginal
+        distribution to determine if they are equivalent.
+
+        Parameters
+        ----------
+        other : Marginal
+            Another marginal distribution to compare with.
+
+        Returns
+        -------
+        bool
+            True if the two marginal distributions are equal, False otherwise.
+        """
         raise NotImplementedError
 
-    def plot_cdf(self, ax, npts: int = 101, alpha: Optional[float] = None):
+    def plot_cdf(
+        self,
+        ax: plt.Axes,
+        npts: int = 101,
+        alpha: Optional[float] = None,
+    ):
         """
         Plot the cumulative distribution function (CDF) of the marginal variable.
 
@@ -349,7 +504,12 @@ class Marginal(ABC):
         samples = self._bkd.linspace(*self.truncated_range(alpha), npts)
         ax.plot(samples, self.cdf(samples))
 
-    def plot_ppf(self, ax, npts: int = 101, alpha: Optional[float] = None):
+    def plot_ppf(
+        self,
+        ax: plt.Axes,
+        npts: int = 101,
+        alpha: Optional[float] = None,
+    ):
         """
         Plot the percent point function (PPF) of the marginal variable.
 
@@ -437,17 +597,72 @@ class Marginal(ABC):
 
 
 class ContinuousMarginalMixin:
-    def plot_pdf(self, ax, npts: int = 101, alpha: float = None):
+    """
+    Mixin class for continuous marginal distributions.
+
+    Provides additional functionality for plotting PDFs of continuous
+    distributions.
+    """
+
+    def plot_pdf(self, ax: plt.Axes, npts: int = 101, alpha: float = None):
+        """
+        Plot the probability density function (PDF) of the marginal variable.
+
+        Parameters
+        ----------
+        ax : matplotlib Axes
+            The axes to plot on.
+        npts : int, optional
+            The number of points to plot in the PDF. Defaults to 101.
+        alpha : float, optional
+            The confidence level used to define the bounds of the x-axis.
+        """
         samples = self._bkd.linspace(*self.truncated_range(alpha), npts)
         ax.plot(samples, self.pdf(samples))
 
 
 class DiscreteMarginalMixin:
-    def plot_pdf(self, ax, alpha=None):
+    """
+    Discrete marginal distribution based on SciPy random variables.
+
+    Provides additional functionality for plotting PDFs of discrete
+    distributions.
+
+    Parameters
+    ----------
+    scipy_rv : scipy.stats.rv_discrete
+        The SciPy discrete random variable representing the marginal
+        distribution.
+    backend : BackendMixin, optional
+        The backend to use for computations. Defaults to NumpyMixin.
+    """
+
+    def plot_pdf(self, ax: plt.Axes):
+        """
+        Plot the probability density function (PDF) of the marginal variable.
+
+        Parameters
+        ----------
+        ax : matplotlib Axes
+            The axes to plot on.
+        """
         xk, pk = self._probability_masses()
         ax.plot(xk, pk, "o")
         for s, w in zip(xk, pk):
             ax.vlines(x=s, ymin=0, ymax=w)
+
+    def probability_masses(self, alpha: float = None) -> Array:
+        """
+        Get the the locations and masses of a discrete random variable.
+
+        Parameters
+        ----------
+        tol : float
+            Fraction of total probability in (0, 1). Can be useful with
+            extracting masses when numerical precision becomes a problem
+        """
+        xk, pk = self._probability_masses(alpha)
+        return self._bkd.asarray(xk), self._bkd.asarray(pk)
 
 
 class ScipyMarginal(Marginal):
@@ -456,6 +671,16 @@ class ScipyMarginal(Marginal):
         scipy_rv,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Marginal distribution based on SciPy random variables.
+
+        Parameters
+        ----------
+        scipy_rv : scipy.stats.rv_continuous or scipy.stats.rv_discrete
+            The SciPy random variable representing the marginal distribution.
+        backend : BackendMixin, optional
+            The backend to use for computations. Defaults to NumpyMixin.
+        """
         self._scipy_rv = scipy_rv
         super().__init__(backend)
         self._check_marginal(scipy_rv)
@@ -593,6 +818,10 @@ class ScipyMarginal(Marginal):
 
 
 class ContinuousScipyMarginal(ContinuousMarginalMixin, ScipyMarginal):
+    """
+    Continuous marginal distribution based on SciPy random variables.
+    """
+
     def _check_marginal(self, marginal: stats.rv_continuous):
         if not self._is_continuous_variable():
             raise ValueError("marginal is not a continous scipy variable")
@@ -625,6 +854,10 @@ class ContinuousScipyMarginal(ContinuousMarginalMixin, ScipyMarginal):
 
 
 class DiscreteScipyMarginal(DiscreteMarginalMixin, ScipyMarginal):
+    """
+    Discrete marginal distribution based on SciPy random variables.
+    """
+
     def _check_marginal(self, marginal: stats.rv_discrete):
         if not (self._scipy_rv.dist.name in _discrete_distns._distn_names):
             raise ValueError("marginal is not a discrete scipy variable")
@@ -715,25 +948,81 @@ class DiscreteScipyMarginal(DiscreteMarginalMixin, ScipyMarginal):
 
 
 def pdf_under_affine_map(
-    pdf: callable, loc: float, scale: float, y: Array
+    pdf: callable,
+    loc: float,
+    scale: float,
+    y: Array,
 ) -> Array:
+    """
+    Transform a PDF under an affine map.
+
+    Parameters
+    ----------
+    pdf : callable
+        The original PDF function.
+    loc : float
+        Location parameter of the affine map.
+    scale : float
+        Scale parameter of the affine map.
+    y : Array
+        Points at which to evaluate the transformed PDF.
+
+    Returns
+    -------
+    Array
+        Transformed PDF values.
+    """
     return pdf((y - loc) / scale) / scale
 
 
 def pdf_derivative_under_affine_map(
     pdf_deriv: callable, loc: float, scale: float, y: Array
 ) -> Array:
-    r"""
-    Let y=g(x)=x*scale+loc and x = g^{-1}(y) = v(y) = (y-loc)/scale, scale>0
-    p_Y(y)=p_X(v(y))*|dv/dy(y)|=p_X((y-loc)/scale))/scale
-    dp_Y(y)/dy = dv/dy(y)*dp_X/dx(v(y))/scale = dp_X/dx(v(y))/scale**2
     """
+    Transform the derivative of a PDF under an affine map.
+
+    Parameters
+    ----------
+    pdf_deriv : callable
+        The derivative of the original PDF function.
+    loc : float
+        Location parameter of the affine map.
+    scale : float
+        Scale parameter of the affine map.
+    y : Array
+        Points at which to evaluate the transformed derivative.
+
+    Returns
+    -------
+    Array
+        Transformed derivative values.
+    """
+    # Let y=g(x)=x*scale+loc and x = g^{-1}(y) = v(y) = (y-loc)/scale, scale>0
+    # p_Y(y)=p_X(v(y))*|dv/dy(y)|=p_X((y-loc)/scale))/scale
+    # dp_Y(y)/dy = dv/dy(y)*dp_X/dx(v(y))/scale = dp_X/dx(v(y))/scale**2
     return pdf_deriv((y - loc) / scale) / scale**2
 
 
 def log_beta_function(
     alpha_stat: float, beta_stat: float, bkd: BackendMixin = NumpyMixin
 ):
+    """
+    Compute the logarithm of the Beta function.
+
+    Parameters
+    ----------
+    alpha_stat : float
+        Alpha parameter of the Beta function.
+    beta_stat : float
+        Beta parameter of the Beta function.
+    bkd : BackendMixin, optional
+        Backend for computations. Defaults to NumpyMixin.
+
+    Returns
+    -------
+    float
+        Logarithm of the Beta function.
+    """
     return (
         bkd.gammaln(alpha_stat)
         + bkd.gammaln(beta_stat)
@@ -744,6 +1033,23 @@ def log_beta_function(
 def beta_function(
     alpha_stat: float, beta_stat: float, bkd: BackendMixin = NumpyMixin
 ):
+    """
+    Compute the Beta function.
+
+    Parameters
+    ----------
+    alpha_stat : float
+        Alpha parameter of the Beta function.
+    beta_stat : float
+        Beta parameter of the Beta function.
+    bkd : BackendMixin, optional
+        Backend for computations. Defaults to NumpyMixin.
+
+    Returns
+    -------
+    float
+        Beta function value.
+    """
     return bkd.exp(log_beta_function(alpha_stat, beta_stat, bkd))
 
 
@@ -753,6 +1059,27 @@ def beta_pdf(
     x: Array,
     bkd: BackendMixin = NumpyMixin,
 ) -> Array:
+    """
+    Compute the PDF of a Beta distribution.
+
+    Useful when bkd is sympy.
+
+    Parameters
+    ----------
+    alpha_stat : float
+        Alpha parameter of the Beta distribution.
+    beta_stat : float
+        Beta parameter of the Beta distribution.
+    x : Array
+        Points at which to evaluate the PDF.
+    bkd : BackendMixin, optional
+        Backend for computations. Defaults to NumpyMixin.
+
+    Returns
+    -------
+    Array
+        PDF values.
+    """
     const = 1.0 / beta_function(alpha_stat, beta_stat, bkd)
     return const * (x ** (alpha_stat - 1) * (1 - x) ** (beta_stat - 1))
 
@@ -765,64 +1092,88 @@ def beta_pdf_on_ab(
     x: Array,
     bkd: BackendMixin = NumpyMixin,
 ) -> Array:
+    """
+    Compute the PDF of a Beta distribution on a specified interval.
+
+    Useful when bkd is sympy.
+
+    Parameters
+    ----------
+    alpha_stat : float
+        Alpha parameter of the Beta distribution.
+    beta_stat : float
+        Beta parameter of the Beta distribution.
+    a : float
+        Lower bound of the interval.
+    b : float
+        Upper bound of the interval.
+    x : Array
+        Points at which to evaluate the PDF.
+    bkd : BackendMixin, optional
+        Backend for computations. Defaults to NumpyMixin.
+
+    Returns
+    -------
+    Array
+        PDF values.
+    """
     # const = 1./beta_fn(alpha_stat,beta_stat)
     # const /= (b-a)**(alpha_stat+beta_stat-1)
     # return const*((x-a)**(alpha_stat-1)*(b-x)**(beta_stat-1))
-    pdf = partial(beta_pdf, alpha_stat, beta_stat)
+    pdf = partial(beta_pdf, alpha_stat, beta_stat, bkd=bkd)
     return pdf_under_affine_map(pdf, a, (b - a), x)
-
-
-def beta_pdf_derivative(
-    alpha_stat: float,
-    beta_stat: float,
-    x: Array,
-    bkd: BackendMixin = NumpyMixin,
-) -> Array:
-    r"""
-    x in [0, 1]
-    """
-    # beta_const = gamma_fn(alpha_stat+beta_stat)/(
-    # gamma_fn(alpha_stat)*gamma_fn(beta_stat))
-
-    beta_const = 1.0 / beta_function(alpha_stat, beta_stat, bkd)
-    deriv = 0
-    if alpha_stat > 1:
-        deriv += (alpha_stat - 1) * (
-            x ** (alpha_stat - 2) * (1 - x) ** (beta_stat - 1)
-        )
-    if beta_stat > 1:
-        deriv -= (beta_stat - 1) * (
-            x ** (alpha_stat - 1) * (1 - x) ** (beta_stat - 2)
-        )
-    deriv *= beta_const
-    return deriv
-
-
-def beta_pdf_derivative_on_ab(
-    alpha_stat: float,
-    beta_stat: float,
-    a: float,
-    b: float,
-    x: Array,
-    bkd: BackendMixin = NumpyMixin,
-) -> Array:
-
-    pdf_deriv = partial(beta_pdf_derivative, alpha_stat, beta_stat)
-    return pdf_derivative_under_affine_map(pdf_deriv, a, b - a, x)
 
 
 def gaussian_pdf(
     mean: float, var: float, x: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
-    r"""
-    set package=sympy if want to use for symbolic calculations
     """
+    Compute the PDF of a Gaussian distribution.
+
+    Useful when bkd is sympy.
+
+    Parameters
+    ----------
+    mean : float
+        Mean of the Gaussian distribution.
+    var : float
+        Variance of the Gaussian distribution.
+    x : Array
+        Points at which to evaluate the PDF.
+    bkd : BackendMixin, optional
+        Backend for computations. Defaults to NumpyMixin.
+
+    Returns
+    -------
+    Array
+        PDF values.
+    """
+    # set package=sympy if want to use for symbolic calculations
     return bkd.exp(-((x - mean) ** 2) / (2 * var)) / (2 * math.pi * var) ** 0.5
 
 
 def gaussian_pdf_derivative(
     mean: float, var: float, x: Array, bkd: BackendMixin = NumpyMixin
 ) -> Array:
+    """
+    Compute the derivative of the PDF of a Gaussian distribution.
+
+    Parameters
+    ----------
+    mean : float
+        Mean of the Gaussian distribution.
+    var : float
+        Variance of the Gaussian distribution.
+    x : Array
+        Points at which to evaluate the derivative.
+    bkd : BackendMixin, optional
+        Backend for computations. Defaults to NumpyMixin.
+
+    Returns
+    -------
+    Array
+        Derivative values.
+    """
     return -gaussian_pdf(mean, var, x, bkd) * (x - mean) / var
 
 
@@ -923,6 +1274,26 @@ class BetaMarginal(NewtonRVSMixin, ContinuousMarginalMixin, Marginal):
         nquad_samples: int = 501,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Beta distribution.
+
+        Parameters
+        ----------
+        alpha : float
+            Shape parameter alpha of the Beta distribution.
+        beta : float
+            Shape parameter beta of the Beta distribution.
+        lb : float
+            Lower bound of the distribution.
+        ub : float
+            Upper bound of the distribution.
+        nquad_samples : int, optional
+            Number of quadrature samples for numerical integration.
+            Defaults to 501.
+        backend : BackendMixin, optional
+            The backend to use for computations. Defaults to NumpyMixin.
+        """
+
         if alpha < 1:
             raise ValueError("alpha must be >= 1")
         if beta < 1:
@@ -1183,6 +1554,18 @@ class UniformMarginal(BetaMarginal):
         ub: float,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Uniform distribution.
+
+        Parameters
+        ----------
+        lb : float
+            Lower bound of the distribution.
+        ub : float
+            Upper bound of the distribution.
+        backend : BackendMixin, optional
+            The backend to use for computations. Defaults to NumpyMixin.
+        """
         super().__init__(1, 1, lb, ub, 100, backend)
 
     def _ppf(self, usamples: Array) -> Array:
@@ -1197,6 +1580,20 @@ class GammaMarginal(NewtonRVSMixin, Marginal):
         nquad_samples: int = 50,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Gamma distribution.
+
+        Parameters
+        ----------
+        shape : float
+            Shape parameter of the Gamma distribution.
+        rate : float, optional
+            Rate parameter of the Gamma distribution. Defaults to 1.0.
+        nquad_samples : int, optional
+            Number of quadrature samples for numerical integration. Defaults to 50.
+        backend : BackendMixin, optional
+            The backend to use for computations. Defaults to NumpyMixin.
+        """
         super().__init__(backend)
         self._shape = self._bkd.atleast1d(shape)[0]
         self._rate = self._bkd.asarray(rate)
@@ -1287,6 +1684,18 @@ class GaussianMarginal(Marginal):
         stdev: float,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Gaussian (normal) distribution.
+
+        Parameters
+        ----------
+        mean : float
+            Mean of the Gaussian distribution.
+        stdev : float
+            Standard deviation of the Gaussian distribution.
+        backend : BackendMixin, optional
+            The backend to use for computations. Defaults to NumpyMixin.
+        """
         super().__init__(backend)
         self._mean = mean
         self._stdev = stdev
@@ -1392,9 +1801,19 @@ class GaussianMarginal(Marginal):
 
 # TODO make this a function of a discrete variable from samples class
 class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
-    def __init__(
-        self, xk: Array, pk: Array, backend: BackendMixin = NumpyMixin
-    ):
+    def __init__(self, xk: Array, pk: Array, backend: BackendMixin):
+        """
+        Custom discrete distribution.
+
+        Parameters
+        ----------
+        xk : Array
+            Locations of the discrete probability masses.
+        pk : Array
+            Probabilities associated with each location.
+        backend : BackendMixin
+            The backend to use for computations.
+        """
         super().__init__(backend)
         if xk.ndim != 1 or pk.ndim != 1:
             raise ValueError("xk and pk must be 1D arrays")
@@ -1487,6 +1906,16 @@ class CustomDiscreteMarginal(DiscreteMarginalMixin, Marginal):
 
 class DiscreteChebyshevMarginal(CustomDiscreteMarginal):
     def __init__(self, nmasses: int, backend: BackendMixin = NumpyMixin):
+        """
+        Discrete Chebyshev distribution.
+
+        Parameters
+        ----------
+        nmasses : int
+            Number of discrete masses.
+        backend : BackendMixin, optional
+            The backend to use for computations. Defaults to NumpyMixin.
+        """
         xk = backend.arange(nmasses, dtype=float)
         pk = backend.ones((nmasses,), dtype=float) / nmasses
         super().__init__(xk, pk, backend)
@@ -1500,6 +1929,18 @@ class EmpiricalCDF:
         weights: Array = None,
         backend: BackendMixin = NumpyMixin,
     ):
+        """
+        Empirical cumulative distribution function (CDF).
+
+        Parameters
+        ----------
+        samples : Array
+            Samples used to construct the empirical CDF.
+        weights : Array, optional
+            Weights associated with each sample. Defaults to uniform weights.
+        backend : BackendMixin, optional
+            The backend to use for computations. Defaults to NumpyMixin.
+        """
         self._bkd = backend
         if samples.ndim != 1:
             raise ValueError("samples must be a 1d array")
@@ -1538,6 +1979,21 @@ class EmpiricalCDF:
 
 
 def parse_marginal(marginal, backend: BackendMixin):
+    """
+    Parse a marginal distribution object.
+
+    Parameters
+    ----------
+    marginal : Marginal or scipy.stats.rv_frozen
+        The marginal distribution object to parse.
+    backend : BackendMixin
+        The backend to use for computations.
+
+    Returns
+    -------
+    Marginal
+        Parsed marginal distribution object.
+    """
     if isinstance(marginal, Marginal):
         return marginal
 

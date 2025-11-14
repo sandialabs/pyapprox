@@ -1004,3 +1004,15 @@ class BackendMixin(ABC):
     @abstractmethod
     def concatenate(mats: List[Array], axis: int = 0) -> Array:
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def assert_allclose(
+        actual: Array,
+        desired: Array,
+        rtol: float = 1e-7,
+        atol: float = 0,
+        equal_nan: bool = True,
+        err_msg: str = None,
+    ) -> bool:
+        raise NotImplementedError

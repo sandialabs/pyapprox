@@ -17,12 +17,10 @@ from pyapprox.util.hyperparameter import (
 from pyapprox.surrogates.loss import LossFunction
 from pyapprox.optimization.minimize import (
     MultiStartOptimizer,
-    ChainedOptimizer,
     ConstrainedOptimizer,
 )
 from pyapprox.optimization.scipy import (
-    ScipyConstrainedOptimizer,
-    ScipyConstrainedDifferentialEvolutionOptimizer,
+    DifferentialEvolutionScipyConstrainedGlobalLocalOptimizer,
 )
 
 
@@ -256,25 +254,22 @@ class MFNetModel(OptimizedRegressor):
         global_search: bool = True,
         truncated_bounds: Tuple = None,
     ) -> ConstrainedOptimizer:
-
-        local_optimizer = ScipyConstrainedOptimizer()
-        local_optimizer.set_options(
+        optimizer = DifferentialEvolutionScipyConstrainedGlobalLocalOptimizer()
+        optimizer.local_optimizer().set_options(
             gtol=gtol,
             maxiter=maxiter,
             method=method,
         )
 
-        local_optimizer.set_verbosity(verbosity)
+        optimizer.local_optimizer().set_verbosity(verbosity)
         if not global_search:
-            return local_optimizer
-        global_optimizer = ScipyConstrainedDifferentialEvolutionOptimizer(
-            truncated_bounds=truncated_bounds
-        )
+            return optimizer.local_optimizer()
+        global_optimizer = optimizer.global_optimizer()
+        global_optimizer.set_truncated_bounds(truncated_bounds)
         global_optimizer.set_options(
             **{"maxiter": 10, "tol": 1e-2, "popsize": 15},
         )
         global_optimizer.set_verbosity(verbosity)
-        optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
         return optimizer
 
     def set_optimizer(self, optimizer: MultiStartOptimizer):

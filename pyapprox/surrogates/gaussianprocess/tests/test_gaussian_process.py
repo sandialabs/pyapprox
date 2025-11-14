@@ -63,6 +63,9 @@ from pyapprox.surrogates.affine.basis import (
 from pyapprox.benchmarks import IshigamiBenchmark
 from pyapprox.expdesign.sequences import SobolSequence
 from pyapprox.interface.model import ModelFromVectorizedCallable
+from pyapprox.optimization.scipy import (
+    DifferentialEvolutionScipyConstrainedGlobalLocalOptimizer,
+)
 
 
 class TestNystrom:
@@ -165,7 +168,7 @@ class TestGaussianProcess:
 
         gp = ExactGaussianProcess(nvars, kernel, trend=trend, kernel_reg=1e-8)
         gp.set_output_transform(out_trans)
-        gp.set_optimizer(ncandidates=2)
+        gp.set_optimizer(gp.default_optimizer(ncandidates=2))
 
         def fun(xx):
             return (xx**2).sum(axis=0)[:, None]
@@ -216,20 +219,12 @@ class TestGaussianProcess:
         nvars, ninducing_samples = 1, 5
         kernel = MaternKernel(np.inf, 0.5, [1e-1, 1], nvars, backend=bkd)
         inducing_samples = bkd.linspace(-1, 1, ninducing_samples)[None, :]
-        noise = HyperParameter(
-            "noise",
-            1,
-            1.0,
-            (1e-6, 1),
-            LogHyperParameterTransform(backend=bkd),
-            backend=bkd,
-        )
         inducing_samples = InducingSamples(
             nvars,
             ninducing_samples,
-            inducing_samples=inducing_samples,
-            noise=noise,
             backend=bkd,
+            inducing_samples=inducing_samples,
+            noise_std=1.0,
         )
         gp = InducingGaussianProcess(
             nvars,
@@ -257,8 +252,8 @@ class TestGaussianProcess:
         xx = bkd.linspace(-1, 1, 101)[None, :]
         plt.plot(xx[0], gp.evaluate(xx, False), "--")
         plt.plot(
-            gp.inducing_samples.get_samples(),
-            0 * gp.inducing_samples.get_samples(),
+            gp.inducing_samples().get_samples(),
+            0 * gp.inducing_samples().get_samples(),
             "s",
         )
         plt.plot(xx[0], fun(xx)[:, 0], "k-")
@@ -284,23 +279,26 @@ class TestGaussianProcess:
         assert bkd.allclose(gp_mu, test_vals, atol=6e-3)
 
     def test_variational_gp_collapse_to_exact_gp(self):
+        np.random.seed(4)
         bkd = self.get_backend()
         nvars = 1
         ntrain_samples = 6
         noise_var = 1e-8
-        kernel = MaternKernel(np.inf, 1.0, [1e-1, 1], nvars, backend=bkd)
+        kernel = MaternKernel(np.inf, 1.0, [1e-1, 1.0], nvars, backend=bkd)
 
         def fun(xx):
             return (xx**2).sum(axis=0)[:, None]
 
-        train_samples = bkd.linspace(-1, 1, ntrain_samples)[None, :]
+        train_samples = bkd.linspace(-1.0, 1.0, ntrain_samples)[None, :]
         train_values = fun(train_samples)
 
         ntest_samples = 6
         test_samples = bkd.asarray(
-            np.random.uniform(-1, 1, (nvars, ntest_samples))
+            np.random.uniform(-1.0, 1.0, (nvars, ntest_samples))
         )
 
+        # need to add noise to kernel here
+        # but no to vi_gp because the latter adds it internally
         exact_gp = ExactGaussianProcess(
             nvars,
             kernel
@@ -310,32 +308,32 @@ class TestGaussianProcess:
             trend=None,
             kernel_reg=0,
         )
+
+        # optimizer = DifferentialEvolutionScipyConstrainedGlobalLocalOptimizer()
+        # optimizer.local_optimizer().set_options(gtol=1e-12)
+        # optimizer.local_optimizer().set_verbosity(0)
+        # optimizer.global_optimizer().set_options(tol=1e-2, popsize=15)
+        # optimizer.global_optimizer().set_verbosity(0)
+        optimizer = exact_gp.default_optimizer(ncandidates=5, gtol=1e-8)
+        optimizer.set_verbosity(0)
+        exact_gp.set_optimizer(optimizer)
         exact_gp.fit(train_samples, train_values)
         exact_gp_vals, exact_gp_std = exact_gp.evaluate(
             test_samples, return_std=True
         )
 
-        inducing_samples = train_samples
+        inducing_samples = bkd.copy(train_samples)
         ninducing_samples = ntrain_samples
-        # fix hyperparameters so they are not changed from exact_gp
-        # or setting provided if not found in exact_gp
-        noise = HyperParameter(
-            "noise_std",
-            1,
-            np.sqrt(noise_var),
-            [0.1, 1],
-            LogHyperParameterTransform(backend=bkd),
-            fixed=True,
-            backend=bkd,
-        )
         inducing_samples = InducingSamples(
             nvars,
             ninducing_samples,
-            inducing_samples=inducing_samples,
-            inducing_sample_bounds=bkd.asarray([-1, 1]),
-            noise=noise,
             backend=bkd,
+            inducing_samples=inducing_samples,
+            inducing_sample_bounds=bkd.asarray([-1.0, 1.0]),
+            noise_std=np.sqrt(noise_var),
         )
+        # fix hyperparameters so they are not changed from exact_gp
+        # or setting provided if not found in exact_gp
         inducing_samples.hyp_list().set_all_inactive()
         # use correlation length learnt by exact gp
         vi_kernel = kernel
@@ -345,15 +343,32 @@ class TestGaussianProcess:
             inducing_samples,
             kernel_reg=0,
         )
-        vi_gp.set_optimizer(ncandidates=3)
+
+        # test values recovered with no optimization
+        # fixing kernel parameters to gp parameters
+        kernel.hyp_list().set_all_inactive()
+        # must set seed here so that optimizer visits the same initial
+        # guesses as when training the exact gp otherwise it may
+        # find a better result here that we could have obtained above
+        # but it will look like these two approaches do not collapse
+        np.random.seed(1)
         vi_gp.fit(train_samples, train_values)
         vi_gp_vals, vi_gp_std = vi_gp.evaluate(test_samples, return_std=True)
 
-        # print(vi_gp_vals-exact_gp_vals)
         assert bkd.allclose(vi_gp_vals, exact_gp_vals, atol=1e-12)
-        # print(vi_gp_std-exact_gp_std)
         # I think larger tolerance needed because sqrt of covariance
-        # is being taken inside funcitns
+        # is being taken inside functions
+        assert bkd.allclose(vi_gp_std, exact_gp_std, atol=5e-5)
+
+        # test values recovered with optimization of kernel hyperparameter
+        kernel.hyp_list().set_all_active()
+        # reset first initial guess so it is not the truth
+        kernel.hyp_list().set_values(bkd.array([0.5]))
+        vi_gp.set_optimizer(optimizer)
+        vi_gp.fit(train_samples, train_values)
+        vi_gp_vals, vi_gp_std = vi_gp.evaluate(test_samples, return_std=True)
+        # print(vi_gp_vals - exact_gp_vals)
+        assert bkd.allclose(vi_gp_vals, exact_gp_vals, atol=1e-12)
         assert bkd.allclose(vi_gp_std, exact_gp_std, atol=5e-5)
 
     def test_icm_gp(self):
@@ -402,7 +417,7 @@ class TestGaussianProcess:
             kernel,
             kernel_reg=1e-8,
         )
-        gp.set_optimizer(ncandidates=3)
+        gp.set_optimizer(gp.default_optimizer(ncandidates=3))
         gp.fit(samples_per_output, values_per_output)
 
         # check correlation between models is estimated correctly.
@@ -486,7 +501,7 @@ class TestGaussianProcess:
             kernel,
             kernel_reg=0,
         )
-        gp.set_optimizer(ncandidates=3)
+        gp.set_optimizer(gp.default_optimizer(ncandidates=3))
         gp.fit(samples_per_output, values_per_output)
 
         # test plots run
@@ -630,7 +645,7 @@ class TestGaussianProcess:
         gp = ExactGaussianProcess(
             variable.nvars(), kernel, trend=None, kernel_reg=1e-8
         )
-        gp.set_optimizer(ncandidates=4, verbosity=0)
+        gp.set_optimizer(gp.default_optimizer(ncandidates=4, verbosity=0))
         ntrain_samples = 25
         train_samples = (
             1 - bkd.cos(bkd.linspace(0, np.pi, ntrain_samples))[None, :]
@@ -638,8 +653,8 @@ class TestGaussianProcess:
         train_values = fun(train_samples)
         gp.fit(train_samples, train_values)
 
-        test_samples = variable.rvs(1000)
-        test_values = fun(test_samples)
+        # test_samples = variable.rvs(1000)
+        # test_values = fun(test_samples)
         # rel_l2_error = bkd.norm(gp(test_samples) - test_values) / bkd.norm(
         #     test_values
         # )
@@ -787,7 +802,7 @@ class TestGaussianProcess:
         )
         gp.set_output_transform(out_trans)
         gp.set_input_transform(in_trans)
-        gp.set_optimizer(ncandidates=4, verbosity=0)
+        gp.set_optimizer(gp.default_optimizer(ncandidates=4, verbosity=0))
         train_samples = bkd.cartesian_product(
             [(1 - bkd.cos(bkd.linspace(0, np.pi, ntrain_samples))) / 2]
             * variable.nvars()
@@ -944,7 +959,7 @@ class TestGaussianProcess:
             kernel_reg=kernel_reg,
         )
         gp.set_output_transform(out_trans)
-        gp.set_optimizer(ncandidates=3, verbosity=0)
+        gp.set_optimizer(gp.default_optimizer(ncandidates=3, verbosity=0))
 
         # train gp
         ntrain_samples = 1000
@@ -1027,7 +1042,7 @@ class TestGaussianProcess:
             sml_kernels, sml_scalings, kernel_reg=1e-10
         )
         for gp in sml_gp.gaussian_processes():
-            gp.set_optimizer(ncandidates=5, verbosity=0)
+            gp.set_optimizer(gp.default_optimizer(ncandidates=5, verbosity=0))
         return sml_gp, sml_kernels, sml_scalings
 
     def _check_multilevel_gaussian_process(self, nmodels, degree, tol):
@@ -1096,7 +1111,7 @@ class TestGaussianProcess:
 
         ml_kernel = MultiLevelKernel(sml_kernels, sml_scalings)
         ml_gp = MOExactGaussianProcess(nvars, ml_kernel, kernel_reg=1e-10)
-        ml_gp.set_optimizer(ncandidates=10)
+        ml_gp.set_optimizer(ml_gp.default_optimizer(ncandidates=10))
         ml_gp.fit(train_samples_per_model, train_values_per_model)
         ml_gp_values = ml_gp.evaluate(test_samples_per_model, False)
 

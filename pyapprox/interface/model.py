@@ -1784,6 +1784,45 @@ class Model(ABC):
         Z = self._bkd.reshape(vals[:, qoi], X.shape)
         return ax.contourf(X, Y, Z, **kwargs)
 
+    def plot(
+        self,
+        ax: matplotlib.axes.Axes,
+        plot_limits: Array,
+        qoi: int = 0,
+        npts_1d: Array = 51,
+        **kwargs,
+    ):
+        """
+        Plot contours or surface of the model in 1D or 2D.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axis on which to plot the contours. If axes is 3D then
+            surface will be plotted.
+        plot_limits : Array (2, 2)
+            The limits of the plot for each variable.
+        qoi : int, optional
+            The quantity of interest to plot. Defaults to 0.
+        npts_1d : int or Array, optional
+            The number of points to use for each variable. Defaults to 51.
+        **kwargs : dict
+            Additional arguments passed to the contourf function.
+
+        Returns
+        -------
+        contour : matplotlib.contour.QuadContourSet
+            The plotted contours.
+
+        Raises
+        ------
+        ValueError
+            If `nvars != 2`.
+        """
+        if ax.name == "3d" and self.nvars() != 1:
+            return self.plot_surface(ax, plot_limits, qoi, npts_1d, **kwargs)
+        return self.plot_contours(ax, plot_limits, qoi, npts_1d, **kwargs)
+
     def _2d_cross_section_values(
         self, nominal_sample: Array, id1: int, id2: int, pts: Array
     ) -> Array:
@@ -2028,11 +2067,12 @@ class SingleSampleModelMixin:
         t1 = time.time()
         times = [t1 - t0]
         if values_0.ndim != 2 or values_0.shape[0] != 1:
-            msg = "values returned by self._model has the wrong shape."
-            msg += " shape is {0} but must be 2D array with single row".format(
-                values_0.shape
+            raise ValueError(
+                "{0}: values returned by self._model has the wrong shape."
+                "shape is {1} but must be 2D array with single row".format(
+                    self, values_0.shape
+                )
             )
-            raise ValueError(msg)
         values = self._bkd.empty((nsamples, self.nqoi()))
         values[0, :] = values_0
         for ii in range(1, nsamples):

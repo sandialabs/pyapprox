@@ -12,7 +12,10 @@ from pyapprox.surrogates.kernels.kernels import (
 )
 from pyapprox.util.backends.template import Array
 from pyapprox.surrogates.loss import LossFunction
-from pyapprox.optimization.minimize import OptimizerIterateGenerator
+from pyapprox.optimization.minimize import (
+    ChainedOptimizer,
+    OptimizerWithObjective,
+)
 from pyapprox.util.transforms import (
     IdentityTransform,
     StandardDeviationTransform,
@@ -153,7 +156,7 @@ class ExactGaussianProcess(OptimizedRegressor):
         self._hyp_list = self._kernel.hyp_list()
         if trend is not None:
             self._hyp_list += self._trend.hyp_list()
-        self.set_optimizer()
+        self.set_optimizer(self.default_optimizer())
 
     def jacobian_implemented(self) -> bool:
         return (
@@ -195,22 +198,16 @@ class ExactGaussianProcess(OptimizedRegressor):
         return self._trend
 
     def get_loss(self):
-        return GPNegLogLikelihoodLoss()
+        loss = GPNegLogLikelihoodLoss()
+        loss.hessian_implemented = lambda: False
+        loss.apply_hessian_implemented = lambda: False
+        return loss
 
     def set_optimizer(
-        self,
-        ncandidates: int = 1,
-        verbosity: int = 0,
-        iterate_gen: OptimizerIterateGenerator = None,
+        self, optimizer: Union[ChainedOptimizer, OptimizerWithObjective]
     ):
-        ms_optimizer = self.default_optimizer(
-            ncandidates, verbosity, iterate_gen=iterate_gen
-        )
-        super().set_optimizer(ms_optimizer)
+        super().set_optimizer(optimizer)
         self.set_loss(self.get_loss())
-
-        self._loss.hessian_implemented = lambda: False
-        self._loss.apply_hessian_implemented = lambda: False
 
     def _set_coef(self):
         self._coef_args = self._factor_training_kernel_matrix()

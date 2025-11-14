@@ -40,6 +40,9 @@ from pyapprox.util.backends.torch import TorchMixin as bkd
 from pyapprox.inference.likelihood import LogLikelihoodFromModel
 from pyapprox.multifidelity.factory import multioutput_stats
 from pyapprox import multifidelity as mf
+from pyapprox.optimization.scipy import (
+    DifferentialEvolutionScipyConstrainedGlobalLocalOptimizer,
+)
 
 # import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -214,6 +217,8 @@ gp = AdaptiveGaussianProcess(
     kernel,
     sampling_schedule=sampling_schedule,
 )
+optimizer = DifferentialEvolutionScipyConstrainedGlobalLocalOptimizer()
+gp.set_optimizer(optimizer)
 # unlike paper example approximate loglikelihood not negative loglikelihood
 gp.set_sampler(sampler)
 callback = Callback(bkd)

@@ -62,7 +62,19 @@ omit = [
 skip_empty = true
 exclude_lines = [
 '@abstractmethod',
-'def __repr__'
+'def __repr__',
+]
+exclude_also = [
+'raise NotImplementedError',
+'raise ValueError',
+'raise TypeError',
+'raise RuntimeError',
+'jacobian_implemented',
+'apply_jacobian_implemented',
+'hessian_implemented',
+'apply_hessian_implemented',
+'apply_weighted_hessian_implemented',
+'def plot'
 ]
 
 [tool.black]

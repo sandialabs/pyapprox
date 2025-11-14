@@ -83,7 +83,6 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         zz_bounds = [eps, 1 - eps]
         zz = np.linspace(zz_bounds[0], zz_bounds[1], 10)
         z_pdf_vals = get_pdf_from_monomial_expansion(coef, lb, ub, x_pdf, zz)
-        print(z_pdf_vals)
         assert np.allclose(z_pdf_vals, np.ones(zz.shape[0]), atol=1e-8)
 
         def x_cdf(tt):
@@ -386,7 +385,6 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # plt.plot(zz,product_pdf, '--', label='True Product')
         # plt.legend()
         # plt.show()
-        # print(np.linalg.norm(true_pdf-product_pdf,ord=np.inf))
         assert np.linalg.norm(true_pdf - product_pdf, ord=np.inf) < 0.03
 
     def test_sum_of_independent_uniform_variables(self):
@@ -412,7 +410,6 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         #    lb2,ub2,nsamples)
         # plt.hist(vals,bins=100,density=True)
         # plt.legend();plt.show()
-        # print(np.linalg.norm(true_pdf-product_pdf,ord=np.inf))
         assert np.linalg.norm(true_pdf(zz) - product_pdf, ord=np.inf) < 0.03
 
     def test_weighted_sum_dependent_gaussian_variables(self):
@@ -425,7 +422,6 @@ class TestRandomVariableAlgebra(unittest.TestCase):
             mean, covariance, weights
         )
         assert np.allclose(sum_mean, np.sum(mean * weights))
-        print(sum_var, (weights[:, 0] ** 2 * np.diag(covariance)).sum())
         assert np.allclose(
             sum_var, (weights[:, 0] ** 2 * np.diag(covariance)).sum()
         )

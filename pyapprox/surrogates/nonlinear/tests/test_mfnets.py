@@ -192,8 +192,8 @@ class TestMFNets:
         # print(mfnet(test_samples))
         # print(test_values_per_model[-1])
         # print(mfnet(test_samples) - test_values_per_model[-1])
-        print(node_models[1]._delta.get_coefficients())
-        print(node_models[1]._scalings[0].get_coefficients())
+        # print(node_models[1]._delta.get_coefficients())
+        # print(node_models[1]._scalings[0].get_coefficients())
 
         assert bkd.allclose(
             mfnet._subgraph_values(test_samples, 0),

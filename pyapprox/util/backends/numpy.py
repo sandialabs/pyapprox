@@ -559,33 +559,37 @@ class NumpyMixin(BackendMixin):
     @staticmethod
     def fft(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
         if mat.ndim < 3:
-            raise ValueError('mat must explicitly express channel and sample '
-                             'dimensions')
-        _axis = list(range(mat.ndim-2)) if axis is None else axis
+            raise ValueError(
+                "mat must explicitly express channel and sample " "dimensions"
+            )
+        _axis = list(range(mat.ndim - 2)) if axis is None else axis
         return np.fft.fftn(mat, axes=_axis, **kwargs)
 
     @staticmethod
     def ifft(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
         if mat.ndim < 3:
-            raise ValueError('mat must explicitly express channel and sample '
-                             'dimensions')
-        _axis = list(range(mat.ndim-2)) if axis is None else axis
+            raise ValueError(
+                "mat must explicitly express channel and sample " "dimensions"
+            )
+        _axis = list(range(mat.ndim - 2)) if axis is None else axis
         return np.fft.ifftn(mat, axes=_axis, **kwargs)
 
     @staticmethod
     def fftshift(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
         if mat.ndim < 3:
-            raise ValueError('mat must explicitly express channel and sample '
-                             'dimensions')
-        _axis = list(range(mat.ndim-2)) if axis is None else axis
+            raise ValueError(
+                "mat must explicitly express channel and sample " "dimensions"
+            )
+        _axis = list(range(mat.ndim - 2)) if axis is None else axis
         return np.fft.fftshift(mat, axes=_axis, **kwargs)
 
     @staticmethod
     def ifftshift(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
         if mat.ndim < 3:
-            raise ValueError('mat must explicitly express channel and sample '
-                             'dimensions')
-        _axis = list(range(mat.ndim-2)) if axis is None else axis
+            raise ValueError(
+                "mat must explicitly express channel and sample " "dimensions"
+            )
+        _axis = list(range(mat.ndim - 2)) if axis is None else axis
         return np.fft.ifftshift(mat, axes=_axis, **kwargs)
 
     @staticmethod
@@ -611,3 +615,23 @@ class NumpyMixin(BackendMixin):
     @staticmethod
     def concatenate(mats: List[np.ndarray], axis: int = 0) -> np.ndarray:
         return np.concatenate(mats, axis=axis)
+
+    @staticmethod
+    def assert_allclose(
+        actual: np.ndarray,
+        desired: np.ndarray,
+        rtol: float = 1e-7,
+        atol: float = 0,
+        equal_nan: bool = True,
+        err_msg: str = None,
+    ) -> bool:
+        return np.testing.assert_allclose(
+            actual,
+            desired,
+            rtol,
+            atol,
+            equal_nan,
+            err_msg="" if err_msg is None else err_msg,
+            verbose=True,
+            strict=True,
+        )

@@ -336,12 +336,16 @@ class MultiStartOptimizer(OptimizerWithObjective):
         ncandidates : int
             Number of initial guesses used to comptue local optima
         """
-        self._ncandidates = ncandidates
+
+        self.set_ncandidates(ncandidates)
         self._optimizer = optimizer
         self._bounds = None
         self._initial_interate_gen = None
         self._exit_hard = exit_hard
         super().__init__(objective=optimizer._objective)
+
+    def set_ncandidates(self, ncandidates: int):
+        self._ncandidates = ncandidates
 
     def set_bounds(self, bounds):
         super().set_bounds(bounds)
@@ -389,6 +393,9 @@ class MultiStartOptimizer(OptimizerWithObjective):
         return "{0}(optimizer={1}, ncandidates={2})".format(
             self.__class__.__name__, self._optimizer, self._ncandidates
         )
+
+    def optimizer(self) -> Optimizer:
+        return self._optimizer
 
 
 class ConstrainedOptimizer(OptimizerWithObjective):

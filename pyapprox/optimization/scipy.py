@@ -16,6 +16,8 @@ from pyapprox.optimization.minimize import (
     ConstrainedOptimizer,
     ConstraintPenalizedObjective,
     Constraint,
+    ChainedOptimizer,
+    ConstrainedMultiStartOptimizer,
 )
 from pyapprox.interface.model import Model
 from pyapprox.interface.wrappers import ScipyModelWrapper
@@ -198,8 +200,11 @@ class ScipyConstrainedDifferentialEvolutionOptimizer(
     ):
         # set bounds to reduce inf to finite value# if not provided
         # and a bound is infeasiable then an error will be trown
-        self._truncated_bounds = truncated_bounds
+        self.set_truncated_bounds(truncated_bounds)
         super().__init__(objective, constraints, bounds, opts)
+
+    def set_truncated_bounds(self, bounds: Array):
+        self._truncated_bounds = bounds
 
     def _minimize(self, iterate: Array) -> NativeScipyOptimizationResult:
         return self._minimize_objective(
@@ -237,3 +242,24 @@ class ScipyConstrainedDifferentialEvolutionOptimizer(
         if not self._bkd.all(self._bkd.isfinite(bounds)):
             raise ValueError("Bounds must be finite")
         super().set_bounds(bounds)
+
+
+class DifferentialEvolutionScipyConstrainedGlobalLocalOptimizer(
+    ChainedOptimizer
+):
+    def __init__(self):
+        global_optimizer = ScipyConstrainedDifferentialEvolutionOptimizer()
+        local_optimizer = ScipyConstrainedOptimizer()
+        super().__init__(global_optimizer, local_optimizer)
+
+    def local_optimizer(self, **kwargs):
+        return self._optimizer2
+
+    def global_optimizer(self, **kwargs):
+        return self._optimizer1
+
+
+class MultiStartScipyConstrainedOptimizer(ConstrainedMultiStartOptimizer):
+    def __init__(self, ncandidates: int = 1, exit_hard: bool = True):
+        local_optimizer = ScipyConstrainedOptimizer()
+        super().__init__(local_optimizer, ncandidates, exit_hard)

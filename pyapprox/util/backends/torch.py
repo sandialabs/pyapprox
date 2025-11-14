@@ -755,3 +755,21 @@ class TorchMixin(BackendMixin):
     @staticmethod
     def concatenate(mats: List[torch.tensor], axis: int = 0) -> torch.tensor:
         return torch.cat(mats, dim=axis)
+
+    @staticmethod
+    def assert_allclose(
+        actual: torch.tensor,
+        desired: torch.tensor,
+        rtol: float = 1e-7,
+        atol: float = 0,
+        equal_nan: bool = True,
+        err_msg: str = None,
+    ) -> bool:
+        return torch.testing.assert_close(
+            actual,
+            desired,
+            rtol=rtol,
+            atol=atol,
+            equal_nan=equal_nan,
+            msg=err_msg,
+        )

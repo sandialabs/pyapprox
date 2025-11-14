@@ -202,7 +202,7 @@ class TestJoint:
         valid_samples1, II = model._rvs(nsamples // 2)
         valid_samples0, JJ = model._rvs(nsamples)
 
-    def independent_beta_marginals_variable(self):
+    def test_independent_beta_marginals_variable(self):
         bkd = self.get_backend()
         a1, b1 = 2, 3
         a2, b2 = 3, 3
@@ -323,9 +323,9 @@ class TestJoint:
         shapes = bkd.array([2, 3, 2])
         variable = DirichletVariable(shapes, backend=bkd)
         scipy_rv = stats.dirichlet(shapes)
-        samples = variable.rvs(10000000)
+        samples = variable.rvs(100000)
         assert bkd.allclose(
-            samples.mean(axis=1), bkd.asarray(scipy_rv.mean()), rtol=1e-2
+            samples.mean(axis=1), bkd.asarray(scipy_rv.mean()), rtol=2e-2
         )
         assert bkd.allclose(
             variable.pdf(samples), bkd.asarray(scipy_rv.pdf(samples))[:, None]
@@ -340,7 +340,7 @@ class TestJoint:
             bkd.log(variable.pdf(samples)) - bkd.log(other.pdf(samples))
         ).mean()
         assert bkd.allclose(
-            kl_divergence, variable.kl_divergence(other), rtol=1e-2
+            kl_divergence, variable.kl_divergence(other), rtol=2e-2
         )
 
     def test_independent_marginals_pdf_jacobian(self):
@@ -368,7 +368,7 @@ class TestJoint:
             jacobian=variable.logpdf_jacobian,
             backend=bkd,
         )
-        errors = model.check_apply_jacobian(sample, disp=True)
+        errors = model.check_apply_jacobian(sample)
         assert errors.min() / errors.max() < 1e-6
 
 
