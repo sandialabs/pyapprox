@@ -50,7 +50,12 @@ class LossFunction(SingleSampleModel):
     def _apply_hessian(self, active_opt_params: Array, vec: Array) -> Array:
         if active_opt_params.ndim != 2 or active_opt_params.shape[1] != 1:
             raise ValueError("active_opt_params must be a 2D column array")
-        val, grad = self._bkd.hvp(self._loss_values, active_opt_params, vec)
+        hvp = self._bkd.hvp(
+            lambda p: self._loss_values(p[:, None])[:, 0],
+            active_opt_params[:, 0],
+            vec[:, 0],
+        )[:, None]
+        return hvp
 
     def _evaluate(self, active_opt_params: Array) -> Array:
         if active_opt_params.ndim != 2 or active_opt_params.shape[1] != 1:

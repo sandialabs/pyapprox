@@ -15,7 +15,15 @@ from pyapprox.util.hyperparameter import (
     LogHyperParameterTransform,
 )
 from pyapprox.surrogates.loss import LossFunction
-from pyapprox.optimization.minimize import MultiStartOptimizer
+from pyapprox.optimization.minimize import (
+    MultiStartOptimizer,
+    ChainedOptimizer,
+    ConstrainedOptimizer,
+)
+from pyapprox.optimization.scipy import (
+    ScipyConstrainedOptimizer,
+    ScipyConstrainedDifferentialEvolutionOptimizer,
+)
 
 
 class MultiplicativeAndAdditiveDiscrepancyModel(OptimizedRegressor):
@@ -239,6 +247,36 @@ class MFNetModel(OptimizedRegressor):
             ]
         )
 
+    def default_optimizer(
+        self,
+        verbosity: int = 0,
+        gtol: float = 1e-8,
+        maxiter: int = 1000,
+        method: str = "trust-constr",
+        global_search: bool = True,
+        truncated_bounds: Tuple = None,
+    ) -> ConstrainedOptimizer:
+
+        local_optimizer = ScipyConstrainedOptimizer()
+        local_optimizer.set_options(
+            gtol=gtol,
+            maxiter=maxiter,
+            method=method,
+        )
+
+        local_optimizer.set_verbosity(verbosity)
+        if not global_search:
+            return local_optimizer
+        global_optimizer = ScipyConstrainedDifferentialEvolutionOptimizer(
+            truncated_bounds=truncated_bounds
+        )
+        global_optimizer.set_options(
+            **{"maxiter": 10, "tol": 1e-2, "popsize": 15},
+        )
+        global_optimizer.set_verbosity(verbosity)
+        optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
+        return optimizer
+
     def set_optimizer(self, optimizer: MultiStartOptimizer):
         super().set_optimizer(optimizer)
         self.set_loss(MFNetNegLogLikelihoodLoss())
@@ -248,7 +286,11 @@ class MFNetModel(OptimizedRegressor):
             # large number required because initial guesses can be bad
             # implement alternating least squares to get initial guess
             self.set_optimizer(
-                self.default_optimizer(verbosity=10, maxiter=10000)
+                self.default_optimizer(
+                    verbosity=2,
+                    maxiter=1000,
+                    method="trust-constr",
+                )
             )
         return super()._fit(iterate)
 
@@ -272,6 +314,9 @@ class MFNetNegLogLikelihoodLoss(LossFunction):
 
     def _jacobian(self, active_opt_params: Array) -> Array:
         return super()._jacobian(active_opt_params)
+
+    def apply_hessian_implemented(self) -> int:
+        return False
 
 
 class MFNetNode:

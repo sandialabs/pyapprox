@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import List, Union
+from typing import List, Union, Tuple
 
 import numpy as np
 from scipy.optimize import (
@@ -188,6 +188,19 @@ class ScipyConstrainedNelderMeadOptimizer(ScipyPenaltyConstrainedOptimizer):
 class ScipyConstrainedDifferentialEvolutionOptimizer(
     ScipyConstrainedOptimizer
 ):
+    def __init__(
+        self,
+        objective=None,
+        constraints=[],
+        bounds: Array = None,
+        opts: dict = {},
+        truncated_bounds: Tuple = None,
+    ):
+        # set bounds to reduce inf to finite value# if not provided
+        # and a bound is infeasiable then an error will be trown
+        self._truncated_bounds = truncated_bounds
+        super().__init__(objective, constraints, bounds, opts)
+
     def _minimize(self, iterate: Array) -> NativeScipyOptimizationResult:
         return self._minimize_objective(
             iterate, ScipyModelWrapper(self._objective), self._constraints
@@ -215,6 +228,12 @@ class ScipyConstrainedDifferentialEvolutionOptimizer(
         return result
 
     def set_bounds(self, bounds: Array):
+        if self._truncated_bounds is not None:
+            idx0 = self._bkd.where(~self._bkd.isfinite(bounds[:, 0]))[0]
+            idx1 = self._bkd.where(~self._bkd.isfinite(bounds[:, 1]))[0]
+            bounds = self._bkd.copy(bounds)
+            bounds[idx0, 0] = self._truncated_bounds[0]
+            bounds[idx1, 1] = self._truncated_bounds[1]
         if not self._bkd.all(self._bkd.isfinite(bounds)):
             raise ValueError("Bounds must be finite")
         super().set_bounds(bounds)

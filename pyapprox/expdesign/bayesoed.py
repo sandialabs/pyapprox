@@ -1510,7 +1510,6 @@ class RelaxedBayesianOED(BayesianOED):
 
     def default_optimizer(
         self,
-        ncandidates: int = 1,
         verbosity: int = 0,
         gtol: float = 1e-8,
         maxiter: int = 1000,

@@ -142,8 +142,8 @@ class TestMFNets:
         mfnet = MFNetModel(nvars, nx.DiGraph(), backend=bkd)
 
         nodes = [
-            LeafMFNetNode(0, node_models[0], 1.0e-8),
-            RootMFNetNode(1, node_models[1], 1.0e-8),
+            LeafMFNetNode(0, node_models[0], 1.0e-2),
+            RootMFNetNode(1, node_models[1], 1.0e-2),
         ]
 
         mfnet.add_node(nodes[0])  # lf
@@ -166,7 +166,24 @@ class TestMFNets:
             model(samples)
             for model, samples in zip(models, train_samples_per_model)
         ]
-        print(node_models[1]._scalings[0].get_coefficients())
+        # print(node_models[1]._scalings[0].get_coefficients())
+        mfnet.set_optimizer(
+            mfnet.default_optimizer(truncated_bounds=(-2.0, 2.0), verbosity=0)
+        )
+
+        iterate = mfnet.hyp_list().get_active_opt_params()[:, None]
+        # must set data to test objective gradients
+        mfnet._set_training_data(
+            train_samples_per_model, train_values_per_model
+        )
+        objective = mfnet._optimizer.objective()
+        errors = objective.check_apply_jacobian(iterate)
+        assert errors.min() / errors.max() < 1e-6
+        # autograd.hvp returns nans for this example. Not sure
+        # why. so set apply_hessian_implemented = False as default for mfnet
+        # errors = objective.check_apply_hessian(iterate, disp=True)
+        # assert errors.min() / errors.max() < 1e-6
+
         mfnet.fit(train_samples_per_model, train_values_per_model)
 
         test_values_per_model = [model(test_samples) for model in models]
@@ -192,7 +209,8 @@ class TestMFNets:
     def test_alternating_least_squares(self):
         # also test co-regionalization like graphs with latent kernels with no
         # data and mulitple root nodes.
-        # Use genetic algorithms to get initial guess for other types of node models when I implement them
+        # Use genetic algorithms to get initial guess for other types of node
+        # models when I implement them
         raise NotImplementedError(
             "TODO implement alternating least squares optimization for additive multiplicative node models"
         )

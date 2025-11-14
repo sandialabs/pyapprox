@@ -6,6 +6,7 @@ from pyapprox.interface.model import Model
 from pyapprox.surrogates.loss import LossFunction
 from pyapprox.optimization.minimize import (
     MultiStartOptimizer,
+    ChainedOptimizer,
     OptimizerIterateGenerator,
     RandomUniformOptimzerIterateGenerator,
 )
@@ -168,12 +169,11 @@ class OptimizedRegressor(Regressor):
         self._optimizer.set_objective_function(loss)
         self._optimizer.set_bounds(self.hyp_list().get_active_opt_bounds())
 
-    def set_optimizer(self, optimizer: MultiStartOptimizer):
-        if not isinstance(optimizer, MultiStartOptimizer):
+    def set_optimizer(self, optimizer: ChainedOptimizer):
+        if not isinstance(optimizer, (ChainedOptimizer, MultiStartOptimizer)):
             raise ValueError(
-                "optimizer {0} must be instance of MultiStartOptimizer".format(
-                    optimizer
-                )
+                "optimizer {0} must be instance of ChainedOptimizer or "
+                "MultiStartOptimizer".format(optimizer)
             )
         self._optimizer = optimizer
 

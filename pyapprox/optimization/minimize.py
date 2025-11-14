@@ -311,6 +311,11 @@ class OptimizerWithObjective(Optimizer):
             iterate >= bounds[:, 0], iterate <= bounds[:, 1]
         ).all()
 
+    def objective(self) -> Model:
+        if self._objective is None:
+            raise RuntimeError("set_objective_function ahs not been called")
+        return self._objective
+
 
 class MultiStartOptimizer(OptimizerWithObjective):
     def __init__(
@@ -514,6 +519,9 @@ class ChainedOptimizer(Optimizer):
         return "{0}({1}, {2})".format(
             self.__class__.__name__, self._optimizer1, self._optimizer2
         )
+
+    def objective(self) -> Model:
+        return self._optimizer1.objective()  # does not matter which one
 
 
 def approx_jacobian(
