@@ -75,7 +75,6 @@ where:
 - :math:`\mathbf{K}_{\text{noisy}} = \mathbf{K}_{\text{approx}} + \sigma^2 \mathbf{I}_n`,
 - :math:`\mathbf{K}_{\text{approx}} = \mathbf{K}_{nm} \mathbf{K}_{mm}^{-1} \mathbf{K}_{nm}^\top`.
 
----
 
 Compute the KL Divergence Term
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,6 +88,155 @@ The KL divergence term is:
 This term measures the difference between the variational posterior :math:`q(\mathbf{u})` and the prior :math:`p(\mathbf{u})`.
 
 
+Computational Complexity of Estimating the ELBO
+-----------------------------------------------
+
+The Evidence Lower Bound (ELBO) is a key quantity in Variational Gaussian Processes (VGPs). It provides a scalable approximation to the log marginal likelihood of exact Gaussian Processes (GPs). The ELBO is given by:
+
+.. math::
+
+    \mathcal{L} = \mathbb{E}_{q(\mathbf{f})}[\log p(\mathbf{y} | \mathbf{f})] - \text{KL}(q(\mathbf{u}) \| p(\mathbf{u})),
+
+where:
+
+- The first term is the likelihood term, computed using the Nyström approximation.
+- The second term is the KL divergence term, which measures the difference between the variational posterior :math:`q(\mathbf{u})` and the prior :math:`p(\mathbf{u})`.
+
+
+Breakdown of Complexity
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The computational complexity of estimating the ELBO can be broken down into the following components:
+
+1. **Covariance Matrix Approximation**:
+   Using the Nyström method, the covariance matrix :math:`\mathbf{K}_{\text{approx}}` is approximated as:
+
+   .. math::
+
+       \mathbf{K}_{\text{approx}} = \mathbf{K}_{nm} \mathbf{K}_{mm}^{-1} \mathbf{K}_{nm}^\top,
+
+   where:
+
+   - :math:`\mathbf{K}_{nm}` is the covariance matrix between the data points (:math:`\mathbf{X}`) and the inducing points (:math:`\mathbf{U}`),
+   - :math:`\mathbf{K}_{mm}` is the covariance matrix between the inducing points.
+
+   **Complexity**:
+
+   - Computing :math:`\mathbf{K}_{nm}` scales as :math:`\mathcal{O}(nm)`.
+   - Computing :math:`\mathbf{K}_{mm}^{-1}` using Cholesky decomposition scales as :math:`\mathcal{O}(m^3)`.
+   - Multiplying matrices to compute :math:`\mathbf{K}_{\text{approx}}` scales as :math:`\mathcal{O}(nm^2)`.
+
+   **Total Complexity**:
+
+   .. math::
+       \mathcal{O}(nm^2 + m^3).
+
+2. **Likelihood Term**:
+   The likelihood term involves computing the log determinant and inverse of the noisy covariance matrix:
+
+   .. math::
+
+       \mathbf{K}_{\text{noisy}} = \mathbf{K}_{\text{approx}} + \sigma^2 \mathbf{I}_n.
+
+   **Complexity**:
+
+   - Computing the Cholesky decomposition of :math:`\mathbf{K}_{\text{noisy}}` scales as :math:`\mathcal{O}(m^3)`.
+   - Solving triangular systems to compute :math:`\mathbf{K}_{\text{noisy}}^{-1}` scales as :math:`\mathcal{O}(nm)`.
+
+   **Total Complexity**:
+
+   .. math::
+       \mathcal{O}(nm + m^3).
+
+3. **KL Divergence Term**:
+   The KL divergence term is:
+
+   .. math::
+
+       \text{KL}(q(\mathbf{u}) \| p(\mathbf{u})) = \frac{1}{2} \left[ \text{tr}(\mathbf{K}_{mm}^{-1} \mathbf{S}) + \mathbf{m}^\top \mathbf{K}_{mm}^{-1} \mathbf{m} - \log |\mathbf{S}| + \log |\mathbf{K}_{mm}| - m \right].
+
+   **Complexity**:
+
+   - Computing :math:`\mathbf{K}_{mm}^{-1}` scales as :math:`\mathcal{O}(m^3)`.
+   - Matrix-vector multiplications scale as :math:`\mathcal{O}(m^2)`.
+
+   **Total Complexity**:
+
+   .. math::
+       \mathcal{O}(m^3).
+
+
+Log Marginal Likelihood for an Exact Gaussian Process
+-----------------------------------------------------
+
+For an exact Gaussian Process (GP), the log marginal likelihood quantifies how well the GP explains the observed data. It is derived from the joint Gaussian distribution of the observed outputs :math:`\mathbf{y}` and the latent function values :math:`\mathbf{f}`. The log marginal likelihood is given by:
+
+.. math::
+
+    \log p(\mathbf{y} | \mathbf{X}) = -\frac{1}{2} \mathbf{y}^\top \mathbf{K}^{-1} \mathbf{y} - \frac{1}{2} \log |\mathbf{K}| - \frac{n}{2} \log(2\pi),
+
+where:
+
+- :math:`\mathbf{K}` is the covariance matrix of the GP prior, computed using the kernel function :math:`k(\mathbf{x}_i, \mathbf{x}_j)`,
+- :math:`\mathbf{y}` is the vector of observed outputs,
+- :math:`n` is the number of data points.
+
+
+Components of the Log Marginal Likelihood
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The log marginal likelihood consists of three terms:
+
+1. **Data Fit Term**:
+
+   .. math::
+
+       -\frac{1}{2} \mathbf{y}^\top \mathbf{K}^{-1} \mathbf{y}
+
+   This term measures how well the GP explains the observed data. It penalizes deviations of the observed outputs :math:`\mathbf{y}` from the GP's predictions.
+
+2. **Complexity Penalty**:
+
+   .. math::
+
+       -\frac{1}{2} \log |\mathbf{K}|
+
+   This term penalizes overly complex models by incorporating the determinant of the covariance matrix :math:`\mathbf{K}`. Larger determinants correspond to simpler models.
+
+3. **Normalization Constant**:
+
+   .. math::
+
+       -\frac{n}{2} \log(2\pi)
+
+   This term ensures that the log marginal likelihood is properly normalized.
+
+
+Computational Complexity
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The computation of the log marginal likelihood involves:
+
+1. **Matrix Inversion**:
+   The term :math:`\mathbf{K}^{-1}` requires inverting the covariance matrix :math:`\mathbf{K}`, which scales as :math:`\mathcal{O}(n^3)`.
+
+2. **Log Determinant**:
+   The term :math:`\log |\mathbf{K}|` requires computing the determinant of :math:`\mathbf{K}`, which also scales as :math:`\mathcal{O}(n^3)`.
+
+Due to this cubic complexity, exact GPs become computationally expensive for large datasets.
+
+
+Comparison to Variational Gaussian Processes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In a **Variational Gaussian Process (VGP)**, the log marginal likelihood is approximated using inducing points and variational inference. The Evidence Lower Bound (ELBO) replaces the exact log marginal likelihood:
+
+.. math::
+
+    \mathcal{L} = \mathbb{E}_{q(\mathbf{f})}[\log p(\mathbf{y} | \mathbf{f})] - \text{KL}(q(\mathbf{u}) \| p(\mathbf{u})).
+
+This approximation reduces the computational complexity to :math:`\mathcal{O}(nm^2 + m^3)`, where :math:`m` is the number of inducing points (:math:`m \ll n`).
+
 
 Steps to Construct a GP with Inducing Points
 --------------------------------------------
@@ -100,16 +248,7 @@ This tutorial now demonstrates how to construct and optimize a GP with inducing 
 # Step 1: Define the Kernel
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# The kernel function defines the covariance structure of the GP. For example, we can use the **Matern Kernel**:
-#
-# .. math::
-#
-#    k(\mathbf{x}, \mathbf{x}') = \sigma^2 \left(1 + \frac{\sqrt{5} \|\mathbf{x} - \mathbf{x}'\|}{\ell} + \frac{5 \|\mathbf{x} - \mathbf{x}'\|^2}{3\ell^2}\right) \exp\left(-\frac{\sqrt{5} \|\mathbf{x} - \mathbf{x}'\|}{\ell}\right),
-#
-# where:
-#
-# - :math:`\sigma^2` is the variance,
-# - :math:`\ell` is the length scale.
+# The kernel function defines the covariance structure of the GP.
 
 
 import numpy as np
@@ -164,7 +303,7 @@ from pyapprox.optimization.scipy import (
 )
 
 optimizer = DifferentialEvolutionScipyConstrainedGlobalLocalOptimizer()
-optimizer.set_verbosity(3)
+optimizer.set_verbosity(0)
 optimizer.global_optimizer().set_options(maxiter=10)
 vi_gp.set_optimizer(optimizer)
 
@@ -233,6 +372,7 @@ fig, axs = plt.subplots(1, 3, figsize=(3 * 8, 6))
 model.plot(axs[0], prior.interval(1).flatten(), levels=31)
 exact_gp.plot(axs[1], prior.interval(1).flatten(), levels=31)
 vi_gp.plot(axs[2], prior.interval(1).flatten(), levels=31)
+
 
 # %%
 # Conclusion
