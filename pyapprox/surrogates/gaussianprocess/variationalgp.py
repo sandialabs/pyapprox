@@ -309,6 +309,15 @@ class InducingGaussianProcess(ExactGaussianProcess):
         Object managing inducing points and noise hyperparameters.
     kernel_reg : float, optional
         Regularization parameter for the kernel matrix (default: 0).
+
+    References
+    ----------
+    .. [Titsias2009] `Michalis Titsias. *Variational Learning of Inducing Variables in Sparse Gaussian Processes*. Proceedings of the Twelfth International Conference on Artificial Intelligence and Statistics, 567–574, 2009.  <https://proceedings.mlr.press/v5/titsias09a.html>`_.
+
+
+    .. [Vanderwilk2020] `Mark van der Wilk, Vincent Dutordoir, ST John, Artem Artemev, Vincent Adam, and James Hensman. *A Framework for Interdomain and Multioutput Gaussian Processes*. 2020. <https://arxiv.org/abs/2003.01115>`_.
+
+
     """
 
     def __init__(
@@ -389,7 +398,7 @@ class InducingGaussianProcess(ExactGaussianProcess):
 
     def _neg_log_like(self, active_opt_params: Array):
         """
-        Compute the negative log-likelihood for variational inference.
+        Compute the ELBO for variational inference.
 
         Parameters
         ----------
