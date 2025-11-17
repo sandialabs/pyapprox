@@ -565,6 +565,42 @@ def kl_divergence_of_two_gaussians(
     return 0.5 * val
 
 
+def kl_divergence_of_gaussian_and_standard_normal(
+    mean: Array,
+    chol: Array,
+    backend: BackendMixin,
+) -> float:
+    """
+    Compute KL divergence between N(mean, cov) and the standard normal N(0, I).
+    """
+    if mean.shape != (chol.shape[0], 1):
+        raise ValueError(
+            "mean has the wrong shape: {0} should be {1}".format(
+                mean.shape, (chol.shape[0], 1)
+            )
+        )
+
+    # Standard normal properties
+    chol_standard = backend.eye(
+        chol.shape[0]
+    )  # Cholesky factor of identity matrix is identity
+
+    # Compute the determinant of cov using its Cholesky factor
+    log_det_cov = log_determinant_from_cholesky_factor(chol, backend)
+
+    # Compute cov from chol
+    cov = chol @ chol.T
+
+    # Compute the KL divergence
+    nvars = mean.shape[0]
+    val = -log_det_cov - float(nvars)
+    val += backend.trace(
+        cov
+    )  # Trace of cov (since cov_standard_inv is identity)
+    val += (mean.T @ mean).squeeze()
+    return 0.5 * val
+
+
 class IndependentMultivariateGaussian(MultivariateGaussian):
     def __init__(
         self,

@@ -25,6 +25,7 @@ from pyapprox.variables.gaussian import (
     IndependentMultivariateGaussian,
     GaussCopulaVariable,
     kl_divergence_of_two_gaussians,
+    kl_divergence_of_gaussian_and_standard_normal,
 )
 from pyapprox.util.misc import correlation_to_covariance
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -629,11 +630,24 @@ class TestGaussian:
 
         # Check the kl_divergence_of_two_gaussians which does not require
         # infrastructure of these previous classes
+        kl_div = kl_divergence_of_two_gaussians(
+            mean1, bkd.cholesky(cov1), mean2, bkd.cholesky(cov2), bkd
+        )
         assert bkd.isclose(
-            kl_divergence_of_two_gaussians(
-                mean1, bkd.cholesky(cov1), mean2, bkd.cholesky(cov2), bkd
-            ),
+            kl_div,
             true_kl_div,
+        ), f"KL divergence mismatch: {kl_div} != {true_kl_div}"
+
+        # Check the kl divergence between a gaussian and a standard normal
+        gaussian3 = DenseCholeskyMultivariateGaussian(
+            mean2 * 0, bkd.eye(2), backend=bkd
+        )
+        kl_div = kl_divergence_of_gaussian_and_standard_normal(
+            mean1, bkd.cholesky(cov1), bkd
+        )
+        assert bkd.isclose(
+            kl_div,
+            gaussian1.kl_divergence(gaussian3),
         ), f"KL divergence mismatch: {kl_div} != {true_kl_div}"
 
 
