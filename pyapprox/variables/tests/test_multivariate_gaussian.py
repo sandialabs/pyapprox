@@ -589,7 +589,7 @@ class TestGaussian:
         bkd = self.get_backend()
         # Define mean and covariance for the first Gaussian
         mean1 = bkd.array([0.0, 0.0])[:, None]
-        cov1 = bkd.array([[1.0, 0.0], [0.0, 1.0]])
+        cov1 = bkd.array([[3.0, 0.0], [0.0, 1.0]])
 
         # Define mean and covariance for the second Gaussian
         mean2 = bkd.array([1.0, 1.0])[:, None]

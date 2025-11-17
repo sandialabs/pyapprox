@@ -441,7 +441,8 @@ class MultivariateGaussian(JointVariable):
         val = self._bkd.log(
             self._bkd.det(cov2) / self._bkd.det(self.covariance())
         ) - float(self.nvars())
-        val += self._bkd.trace(cov2_inv @ self.covariance())
+        # val += self._bkd.trace(cov2_inv @ self.covariance())
+        val += self._bkd.sum(cov2_inv * self.covariance())
         val += (
             (other.mean() - self.mean()).T
             @ (cov2_inv @ (other.mean() - self.mean()))
@@ -515,7 +516,8 @@ class DenseCholeskyMultivariateGaussian(MultivariateGaussian):
 
         # Compute the KL divergence
         val = log_det_cov2 - log_det_cov1 - float(self.nvars())
-        val += self._bkd.trace(cov2_inv @ self.covariance())
+        # val += self._bkd.trace(cov2_inv @ self.covariance())
+        val += self._bkd.sum(cov2_inv * self.covariance())
         val += (
             (mean2 - self.mean()).T @ (cov2_inv @ (mean2 - self.mean()))
         ).squeeze()
@@ -556,12 +558,19 @@ def kl_divergence_of_two_gaussians(
 
     # Compute cov1
     cov1 = chol1 @ chol1.T
+    chol2_inv = inverse_of_cholesky_factor(chol2, backend)
 
     # Compute the KL divergence
     nvars = mean1.shape[0]
     val = log_det_cov2 - log_det_cov1 - float(nvars)
-    val += backend.trace(cov2_inv @ cov1)
-    val += ((mean2 - mean1).T @ (cov2_inv @ (mean2 - mean1))).squeeze()
+    # val += backend.trace(cov2_inv @ cov1)
+    # trace can be written as sum of hadamard product
+    # val += backend.sum(cov2_inv * cov1)
+    # use the fact that cov2_inv * cov1 = ((inv(L2)@L1) * (inv(L2)@L1))
+    val += backend.sum((chol2_inv @ chol1) ** 2)
+    # val += ((mean2 - mean1).T @ (cov2_inv @ (mean2 - mean1))).squeeze()
+    temp = chol2_inv @ (mean2 - mean1)
+    val += (temp.T @ temp).squeeze()
     return 0.5 * val
 
 
@@ -580,23 +589,14 @@ def kl_divergence_of_gaussian_and_standard_normal(
             )
         )
 
-    # Standard normal properties
-    chol_standard = backend.eye(
-        chol.shape[0]
-    )  # Cholesky factor of identity matrix is identity
-
     # Compute the determinant of cov using its Cholesky factor
     log_det_cov = log_determinant_from_cholesky_factor(chol, backend)
-
-    # Compute cov from chol
-    cov = chol @ chol.T
 
     # Compute the KL divergence
     nvars = mean.shape[0]
     val = -log_det_cov - float(nvars)
-    val += backend.trace(
-        cov
-    )  # Trace of cov (since cov_standard_inv is identity)
+    # val += backend.trace(cov)
+    val += backend.sum(chol**2)
     val += (mean.T @ mean).squeeze()
     return 0.5 * val
 
