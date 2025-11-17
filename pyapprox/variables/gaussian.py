@@ -13,6 +13,7 @@ from pyapprox.util.linalg import (
     inverse_of_cholesky_factor,
     diag_of_mat_mat_product,
     log_determinant_from_cholesky_factor,
+    inverse_from_cholesky_factor,
 )
 from pyapprox.variables._nataf import (
     nataf_joint_density,
@@ -467,8 +468,11 @@ class DenseCholeskyMultivariateGaussian(MultivariateGaussian):
             cov, backend=self._bkd
         )
         self._log_cov_det = log_determinant_from_cholesky_factor(
-            self._cov_sqrt._cov_sqrt, self._bkd
+            self.covariance_sqrt(), self._bkd
         )
+
+    def covariance_sqrt(self) -> Array:
+        return self._cov_sqrt._cov_sqrt
 
     def covariance_inverse(self) -> Array:
         return self._cov_sqrt._cov_inv
@@ -476,8 +480,89 @@ class DenseCholeskyMultivariateGaussian(MultivariateGaussian):
     def covariance(self) -> Array:
         return self._cov_sqrt._cov
 
+    def log_covariance_determinant(self) -> float:
+        return self._log_cov_det
+
     def __repr__(self) -> str:
         return "{0}(mean={1})".format(self.__class__.__name__, self.mean())
+
+    def kl_divergence(
+        self, other: "DenseCholeskyMultivariateGaussian"
+    ) -> float:
+        r"""
+        Compute KL( N(mean1, cov1) || N(mean2, cov2) )
+
+        :math:`\int p_1(x)\log\left(\frac{p_1(x)}{p_2(x)}\right)dx`
+
+        :math:`p_2(x)` must dominate :math:`p_1(x)`, e.g. for Bayesian
+        inference
+        the :math:`p_2(x)` is the posterior and :math:`p_1(x)` is the prior.
+
+        This implementation uses the Cholesky factorization of the covariance
+        matrices for numerical stability and efficiency.
+        """
+        # Extract mean and covariance of the second Gaussian
+        mean2 = other.mean()
+
+        # Get the inverse of cov2 using its Cholesky factor
+        cov2_inv = other.covariance_inverse()
+
+        # Compute the determinant of cov2 using its Cholesky factor
+        log_det_cov2 = other.log_covariance_determinant()
+
+        # Compute the determinant of cov1 using its Cholesky factor
+        log_det_cov1 = self.log_covariance_determinant()
+
+        # Compute the KL divergence
+        val = log_det_cov2 - log_det_cov1 - float(self.nvars())
+        val += self._bkd.trace(cov2_inv @ self.covariance())
+        val += (
+            (mean2 - self.mean()).T @ (cov2_inv @ (mean2 - self.mean()))
+        ).squeeze()
+
+        return 0.5 * val
+
+
+def kl_divergence_of_two_gaussians(
+    mean1: Array,
+    chol1: Array,
+    mean2: Array,
+    chol2: Array,
+    backend: BackendMixin,
+) -> float:
+    if mean1.shape != (chol1.shape[0], 1):
+        raise ValueError(
+            "mean has the wrong shape: {0} should be {1}".format(
+                mean1.shape, (chol1.shape[0], 1)
+            )
+        )
+    if mean2.shape != (chol2.shape[0], 1):
+        raise ValueError(
+            "mean has the wrong shape: {0} should be {1}".format(
+                mean1.shape, (chol1.shape[0], 1)
+            )
+        )
+    if mean1.shape != mean2.shape:
+        raise ValueError("The means have different shapes")
+
+    # Get the inverse of cov2 using its Cholesky factor
+    cov2_inv = inverse_from_cholesky_factor(chol2, backend)
+
+    # Compute the determinant of cov2 using its Cholesky factor
+    log_det_cov2 = log_determinant_from_cholesky_factor(chol2, backend)
+
+    # Compute the determinant of cov1 using its Cholesky factor
+    log_det_cov1 = log_determinant_from_cholesky_factor(chol1, backend)
+
+    # Compute cov1
+    cov1 = chol1 @ chol1.T
+
+    # Compute the KL divergence
+    nvars = mean1.shape[0]
+    val = log_det_cov2 - log_det_cov1 - float(nvars)
+    val += backend.trace(cov2_inv @ cov1)
+    val += ((mean2 - mean1).T @ (cov2_inv @ (mean2 - mean1))).squeeze()
+    return 0.5 * val
 
 
 class IndependentMultivariateGaussian(MultivariateGaussian):

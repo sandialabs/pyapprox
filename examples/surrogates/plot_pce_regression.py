@@ -115,3 +115,20 @@ rmse = bkd.norm(test_values - pce(test_samples))
 print("The RMSE error of the PCE is", rmse)
 # Compare the RMSE error to the cross-validation error
 print("The CV error for the PCE is", bkd.sqrt(cv_search.best_cv_score()))
+
+
+# %%
+# Plot the PCE approximation
+# --------------------------
+# Plot the response surface of the PCE and the signed error surface
+import matplotlib.pyplot as plt
+from pyapprox.interface.model import ModelFromVectorizedCallable
+
+fig = plt.figure(figsize=(2 * 8, 6))
+ax1 = fig.add_subplot(121, projection="3d")
+pce.plot(ax1, benchmark.prior().interval(1).flatten(), cmap="coolwarm")
+ax2 = fig.add_subplot(122, projection="3d")
+diff = ModelFromVectorizedCallable(
+    pce.nqoi(), pce.nvars(), lambda x: benchmark.model()(x) - pce(x)
+)
+diff.plot(ax2, benchmark.prior().interval(1).flatten(), cmap="coolwarm")

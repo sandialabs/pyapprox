@@ -5,6 +5,7 @@ from scipy import stats
 
 from pyapprox.variables.marginals import ContinuousScipyMarginal
 from pyapprox.variables.gaussian import (
+    MultivariateGaussian,
     compute_gaussian_pdf_canonical_form_normalization,
     GaussianFactor,
     condition_gaussian_on_data,
@@ -23,6 +24,7 @@ from pyapprox.variables.gaussian import (
     DenseCholeskyMultivariateGaussian,
     IndependentMultivariateGaussian,
     GaussCopulaVariable,
+    kl_divergence_of_two_gaussians,
 )
 from pyapprox.util.misc import correlation_to_covariance
 from pyapprox.util.backends.numpy import NumpyMixin
@@ -581,6 +583,58 @@ class TestGaussian:
             x_correlation, bkd.asarray([m.std() for m in marginals])
         )
         assert bkd.allclose(true_x_covariance, x_sample_covariance, atol=1e-2)
+
+    def test_kl_divergence(self):
+        bkd = self.get_backend()
+        # Define mean and covariance for the first Gaussian
+        mean1 = bkd.array([0.0, 0.0])[:, None]
+        cov1 = bkd.array([[1.0, 0.0], [0.0, 1.0]])
+
+        # Define mean and covariance for the second Gaussian
+        mean2 = bkd.array([1.0, 1.0])[:, None]
+        cov2 = bkd.array([[2.0, 0.5], [0.5, 1.0]])
+
+        # Create instances of DenseCholeskyMultivariateGaussian
+        gaussian1 = DenseCholeskyMultivariateGaussian(mean1, cov1, backend=bkd)
+        gaussian2 = DenseCholeskyMultivariateGaussian(mean2, cov2, backend=bkd)
+
+        # Compute KL divergence using the method
+        kl_div = gaussian1.kl_divergence(gaussian2)
+
+        # Compute expected KL divergence manually for comparison
+        cov2_inv = bkd.inv(cov2)
+        log_det_cov2 = bkd.log(bkd.det(cov2))
+        log_det_cov1 = bkd.log(bkd.det(cov1))
+        nvars = len(mean1)
+
+        true_kl_div = 0.5 * (
+            log_det_cov2
+            - log_det_cov1
+            - nvars
+            + bkd.trace(cov2_inv @ cov1)
+            + (mean2 - mean1).T @ cov2_inv @ (mean2 - mean1)
+        )
+
+        # Assert that the computed KL divergence matches the expected value
+        assert bkd.isclose(
+            kl_div, true_kl_div
+        ), f"KL divergence mismatch: {kl_div} != {true_kl_div}"
+
+        # Check the parent kl_divergence function which does not use
+        # cholesky factor
+        assert bkd.isclose(
+            MultivariateGaussian.kl_divergence(gaussian1, gaussian2),
+            true_kl_div,
+        ), f"KL divergence mismatch: {kl_div} != {true_kl_div}"
+
+        # Check the kl_divergence_of_two_gaussians which does not require
+        # infrastructure of these previous classes
+        assert bkd.isclose(
+            kl_divergence_of_two_gaussians(
+                mean1, bkd.cholesky(cov1), mean2, bkd.cholesky(cov2), bkd
+            ),
+            true_kl_div,
+        ), f"KL divergence mismatch: {kl_div} != {true_kl_div}"
 
 
 class TestNumpyGaussian(TestGaussian, unittest.TestCase):

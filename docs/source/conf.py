@@ -93,7 +93,7 @@ example_filenames_in_order = [
     "plot_quantile_regression.py",
     "plot_quadrature_analysis.py",
     "plot_inducing_gp.py",
-    "plot_inducing_gp_gradient.py",
+    "plot_deep_gp.py",
     # 'plot_integrated_surrogates.py',
     # Multi-fidelity Stat Estimation
     "plot_monte_carlo.py",
