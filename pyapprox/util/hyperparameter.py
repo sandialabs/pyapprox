@@ -443,6 +443,9 @@ class CholeskyHyperParameter(HyperParameter):
         chol[self._mask] = self.get_values()
         return chol
 
+    def set_cholesky_factor(self, chol: Array):
+        self.set_values(chol[self._mask])
+
 
 def flattened_lower_diagonal_matrix_entries(
     matrix, bkd: BackendMixin = NumpyMixin

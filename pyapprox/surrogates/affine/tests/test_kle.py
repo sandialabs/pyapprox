@@ -2,7 +2,12 @@ import unittest
 
 import numpy as np
 
-from pyapprox.surrogates.affine.kle import KLE1D, MeshKLE, DataDrivenKLE
+from pyapprox.surrogates.affine.kle import (
+    KLE1D,
+    MeshKLE,
+    DataDrivenKLE,
+    PrincipalComponentAnalysis,
+)
 
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
@@ -202,6 +207,40 @@ class TestKLE:
         assert bkd.allclose(
             kle_data._sqrt_eig_vals, kle._sqrt_eig_vals, atol=1e-2, rtol=1e-2
         )
+
+    def test_PCA_low_rank_matrix_recovery(self):
+        """
+        Test PCA recovery of a low-rank matrix A = B.T @ B.
+
+        This test verifies that PCA can recover the low-rank matrix exactly
+        when the number of basis vectors is set to the rank of the matrix.
+        """
+        bkd = self.get_backend()
+        # Create an underdetermined matrix B (shape: 5x3)
+        B = bkd.asarray(np.random.rand(5, 3))
+
+        # Compute the low-rank matrix A = B.T @ B (shape: 3x3)
+        A = B.T @ B
+
+        # Compute the rank of A
+        rank_A = bkd.rank(A)
+
+        # Perform PCA on A
+        pca = PrincipalComponentAnalysis(A, rank_A, backend=bkd)
+
+        # Verify the reduced basis is orthogonal
+        bkd.assert_allclose(
+            pca.eigenvectors().T @ pca.eigenvectors(),
+            bkd.eye(rank_A),
+            atol=1e-14,
+        )
+
+        # Reduce and expand A using PCA
+        reduced_A = pca.reduce_state(A)
+        recovered_A = pca.expand_reduced_state(reduced_A)
+
+        # Verify that the recovered matrix matches the original matrix
+        bkd.assert_allclose(recovered_A, A, rtol=1e-6, atol=1e-8)
 
 
 class TestNumpyKLE(TestKLE, unittest.TestCase):

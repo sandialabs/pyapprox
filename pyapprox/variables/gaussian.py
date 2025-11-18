@@ -595,7 +595,6 @@ def kl_divergence_of_gaussian_and_standard_normal(
     # Compute the KL divergence
     nvars = mean.shape[0]
     val = -log_det_cov - float(nvars)
-    # val += backend.trace(cov)
     val += backend.sum(chol**2)
     val += (mean.T @ mean).squeeze()
     return 0.5 * val

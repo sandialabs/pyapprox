@@ -118,8 +118,8 @@ class InducingSamples:
         ninducing_samples: int,
         backend: BackendMixin,
         inducing_variable: IndependentMarginalsVariable = None,
-        inducing_samples=None,
-        inducing_sample_bounds=None,
+        inducing_samples: Array = None,
+        inducing_sample_bounds: Array = None,
         noise_std: float = 1e-2,
         noise_std_bounds: Tuple = (1e-6, 1.0),
     ):
