@@ -294,6 +294,7 @@ class LotkaVolterraModel(TransientAdjointModel):
         """
         if not hasattr(self, "_functional"):
             return self._residual.nvars()
+        print(self._functional)
         return (
             self._functional.nunique_functional_params()
             + self._residual.nvars()

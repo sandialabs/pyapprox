@@ -793,3 +793,6 @@ class PrincipalComponentAnalysis(DataDrivenKLE):
             Full-order state.
         """
         return self.eigenvectors() @ reduced_state
+
+    def snapshots(self) -> Array:
+        return self._field_samples

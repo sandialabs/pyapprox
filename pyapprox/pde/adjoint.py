@@ -204,7 +204,7 @@ class TransientAdjointModel(AdjointModel):
     def _jacobian_from_adjoint(self) -> Array:
         return self._time_int.gradient(self._sols, self._times)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(integrator={1})".format(
             self.__class__.__name__, self._time_int
         )
