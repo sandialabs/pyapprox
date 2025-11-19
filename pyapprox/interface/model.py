@@ -5358,3 +5358,113 @@ def expand_samples_from_indices(
         inactive_var_indices.shape[0] :
     ]
     return samples
+
+
+class SteadyStateSpaceModel(SingleSampleModel):
+    @abstractmethod
+    def nstates(self) -> int:
+        raise NotImplementedError
+
+    def nparams(self) -> int:
+        raise NotImplementedError
+
+    def __repr__(self) -> str:
+        """
+        String representation of the SteadyStateSpaceModel object.
+        """
+        return "{0}(nstates={1},nparams={2})".format(
+            self.__class__.__name__, self.nstates(), self.nparams()
+        )
+
+    def nqoi(self) -> int:
+        return self.nstates()
+
+    def __call__(self, samples: Array) -> Array:
+        """
+        Return the states at a set of random parameter realizations.
+
+        This class wrapper is useful because it invokes all the
+        parallelization, tests, etc implemented in Model base class.
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            The random parameter realizations.
+
+        Returns
+        -------
+        values: (nsamples, nstates)
+            The states at each sample.
+        """
+        return super().__call__(samples)
+
+
+class TransientStateSpaceModel(SingleSampleModel):
+    @abstractmethod
+    def nstates(self) -> int:
+        raise NotImplementedError
+
+    def nparams(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def nsteps(self) -> int:
+        raise NotImplementedError
+
+    def __repr__(self) -> str:
+        """
+        String representation of the TransientStateSpaceModel object.
+        """
+        return "{0}(nstates={1}, ntsteps={2}, nparams={3})".format(
+            self.__class__.__name__,
+            self.nstates(),
+            self.ntsteps(),
+            self.nparams(),
+        )
+
+    def nqoi(self) -> int:
+        return self.nstates() * self.ntsteps()
+
+    def __call__(self, samples: Array) -> Array:
+        """
+        Return the flattened trajectories at a set of
+        random parameter realizations.
+
+        This class wrapper is useful because it invokes all the
+        parallelization, tests, etc implemented in Model base class.
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            The random parameter realizations.
+
+        Returns
+        -------
+        values: (nsamples, nstates * ntsteps)
+            The flattened trajectories at each sample.
+            [t(0,p0), t(1, p1), ..., t(0, p1), t(1, p1) ...].
+        """
+        return super().__call__(samples)
+
+    def predict(self, samples: Array):
+        """
+        Light weight wrapper to return the trajectories
+        at a set of random parameter realizations as a 3D array.
+
+        Parameters
+        ----------
+        samples : Array (nvars, nsamples)
+            The initial conditions and random parameter realizations.
+
+        Returns
+        -------
+        trajectories: Array [nsamples, nstates, ntsteps]
+            The trajectories at each sample
+        """
+        flattened_trajectories = self(samples)
+        return self._bkd.stack(
+            [
+                self._bkd.reshape(trajectory, (self.nstates(), -1))
+                for trajectory in flattened_trajectories
+            ]
+        )

@@ -93,7 +93,7 @@ class TestOpInf:
         )
         states = opinf(test_samples)
         print(states.shape)
-        reduced_trajectories = opinf.simulate(test_samples)
+        reduced_trajectories = opinf.predict(test_samples)
         print(reduced_trajectories.shape)
 
         test_trajectories = bkd.stack(

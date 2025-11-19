@@ -298,6 +298,9 @@ class NewtonSolver:
             self._rtol,
         )
 
+    def residual(self) -> NewtonResidual:
+        return self._residual
+
 
 class Functional(ABC):
     def __init__(self, backend: BackendMixin = NumpyMixin):
