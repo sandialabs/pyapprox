@@ -41,10 +41,10 @@ class TestOpInf:
             )[:, None]
             return model.forward_solve(expanded_sample)[0]
 
-        ntrain_samples = 3
+        ntrain_samples = 500
         samples = prior.rvs(ntrain_samples)
         raw_snapshots = [solve(sample) for sample in samples.T]
-        opinf = DynamicOperatorInference(3, model.nvars(), backend=bkd)
+        opinf = DynamicOperatorInference(3, prior.nvars(), backend=bkd)
         snapshots, snapshot_samples, ntsteps = opinf.stack_raw_snapshots(
             raw_snapshots, samples
         )
@@ -55,7 +55,7 @@ class TestOpInf:
             bkd.assert_allclose(snapshot_sample, samples[:, 0])
         # do not compress. Use all states but invoking PCA with full rank
         # to test machinery
-        pca = PrincipalComponentAnalysis(snapshots, opinf.nqoi(), bkd)
+        pca = PrincipalComponentAnalysis(snapshots, opinf.nfull_states(), bkd)
         opinf.set_state_compressor(pca)
 
         state_basis = MultiIndexBasis(
@@ -69,10 +69,41 @@ class TestOpInf:
         ]
         param_basis = OrthonormalPolynomialBasis(param_bases_1d)
         opinf.set_time_derivative_operator_bases(state_basis, param_basis)
-        opinf.time_derivative_operator_basis().set_hyperbolic_indices(3, 1.0)
+        degree = 2
+        opinf.time_derivative_operator_basis().set_hyperbolic_indices(
+            degree, 1.0
+        )
         opinf.set_linear_system_solver(LstSqSolver(bkd))
         opinf.fit(snapshot_samples, ntsteps)
         print(opinf)
+
+        # predict trajectories at unseen test data
+        opinf.setup_time_integration(ForwardEulerResidual, benchmark._timestep)
+        ntest_samples = 10
+        # Verify trajectories at different random parameter realizations but
+        # the same initial condition
+        test_init_conds = bkd.repeat(
+            benchmark.model().get_initial_condition()[:, None],
+            (ntest_samples,),
+            axis=1,
+        )
+        test_params = prior.rvs(ntest_samples)
+        test_samples = opinf.stack_initial_conditions_and_parameters(
+            test_init_conds, test_params
+        )
+        states = opinf(test_samples)
+        print(states.shape)
+        reduced_trajectories = opinf.simulate(test_samples)
+        print(reduced_trajectories.shape)
+
+        test_trajectories = bkd.stack(
+            [solve(param) for param in test_params.T]
+        )
+        print(test_trajectories.shape)
+        np.set_printoptions(linewidth=1000)
+        print(test_trajectories[0])
+        print(reduced_trajectories[0])
+        print(pca.expand_reduced_state(reduced_trajectories[0]))
 
 
 class TestNumpyOpInf(TestOpInf, unittest.TestCase):

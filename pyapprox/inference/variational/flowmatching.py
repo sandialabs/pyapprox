@@ -61,7 +61,7 @@ class VelocityField(TransientNewtonResidual):
             )
         return values
 
-    def _expand_state(self, state) -> Array:
+    def _expand_state(self, state: Array) -> Array:
         if self.nlabels() > 0:
             return self._bkd.hstack(
                 (self._bkd.asarray(self._time)[None], state, self._label)
