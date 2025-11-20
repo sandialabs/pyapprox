@@ -383,6 +383,10 @@ class AdjointConstraintEquationWithHessian(AdjointConstraintEquation):
 class Functional(ABC):
     def __init__(self, backend: BackendMixin):
         self._bkd = backend
+        if self.nunique_vars() >= self.nvars():
+            raise ValueError(
+                f"{self._nunique_vars()=} must be smaller than {self.nvars()=}"
+            )
 
     @abstractmethod
     def nqoi(self) -> int:
@@ -529,7 +533,8 @@ class VectorAdjointFunctional(Functional, GradientCheckMixin):
 
 
 class ScalarAdjointFunctional(VectorAdjointFunctional):
-    pass
+    def nqoi(self) -> int:
+        return 1
 
 
 class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
@@ -604,7 +609,6 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         self, state: Array, param: Array, wvec: Array
     ) -> Array:
         hvp = self._state_state_hvp(state, param, wvec)
-        print(hvp, wvec)
         if hvp.shape != (state.shape[0],):
             raise RuntimeError(
                 f"_state_state_hvp had shape {hvp.shape} "
@@ -624,7 +628,6 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
 
         # weights linearly combine state entries so we can use check_apply
         # which requires fun return a scalar (vector with one entry)
-        print(self.state_jacobian(state, param))
         return self._check_apply(
             state[:, None],
             "H_yy",
@@ -636,10 +639,10 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
             disp,
         )
 
-    def _param_jvp(self, vvec, param, fwd_state):
-        return self._bkd.jvp(
-            partial(self._param_wrapper, fwd_state), self._param, vvec
-        )
+    # def _param_jvp(self, vvec, param, fwd_state):
+    #     return self._bkd.jvp(
+    #         partial(self._param_wrapper, fwd_state), self._param, vvec
+    #     )
 
     def _state_param_hvp(
         self, state: Array, param: Array, vvec: Array
@@ -650,14 +653,17 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
             lambda y: self.param_jacobian(y, param) @ vvec,
             # partial(self._param_jvp, vvec, self._param),
             state,
-        )
+        )[0]
 
     def state_param_hvp(
         self, state: Array, param: Array, vvec: Array
     ) -> Array:
         hvp = self._state_param_hvp(state, param, vvec)
         if hvp.ndim != 1:
-            raise RuntimeError("_state_param_hvp must return 1D array")
+            raise RuntimeError(
+                f"_state_param_hvp has shape {hvp.shape} "
+                f"but must have shape {(state.shape[0],)}"
+            )
         return hvp
 
     def check_state_param_hvp(
@@ -673,7 +679,7 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         # weights linearly combine state entries so we can use check_apply
         # which requires fun return a scalar (vector with one entry)
         return self._check_apply(
-            state[:, None],
+            param[:, None],
             "H_yp",
             lambda p: self.state_jacobian(state, p[:, 0]),
             lambda p, v: self.state_param_hvp(state, p[:, 0], v[:, 0]),
@@ -683,25 +689,54 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
             disp,
         )
 
-    def _state_jvp(self, wvec, fwd_state, param):
-        self.set_param(param)
-        return self._bkd.jvp(self._value, fwd_state, wvec)
+    # def _state_jvp(self, wvec, fwd_state, param):
+    #     self.set_param(param)
+    #     return self._bkd.jvp(self._value, fwd_state, wvec)
 
-    def _param_state_hvp(self, state: Array, wvec: Array) -> Array:
+    def _param_state_hvp(
+        self, state: Array, param: Array, wvec: Array
+    ) -> Array:
         if not self._bkd.jvp_implemented():
             raise NotImplementedError
+        # return self._bkd.jacobian(
+        #    partial(self._state_jvp, wvec, state), self._param
+        # )[0]
         return self._bkd.jacobian(
-            partial(self._state_jvp, wvec, state), self._param
+            lambda p: self.state_jacobian(state, p) @ wvec,
+            # partial(self._param_jvp, vvec, self._param),
+            param,
         )[0]
 
-    def param_state_hvp(self, state: Array, wvec: Array) -> Array:
-        hvp = self._param_state_hvp(state, wvec)
+    def param_state_hvp(
+        self, state: Array, param: Array, wvec: Array
+    ) -> Array:
+        hvp = self._param_state_hvp(state, param, wvec)
         if hvp.ndim != 1:
             raise RuntimeError("_param_state_hvp must return 1D array")
         return hvp
 
-    def nqoi(self) -> int:
-        return 1
+    def check_param_state_hvp(
+        self,
+        state: Array,
+        param: Array,
+        fd_eps: Array = None,
+        direction: Array = None,
+        relative: bool = True,
+        disp: bool = False,
+    ) -> Array:
+
+        # weights linearly combine state entries so we can use check_apply
+        # which requires fun return a scalar (vector with one entry)
+        return self._check_apply(
+            state[:, None],
+            "H_py",
+            lambda y: self.param_jacobian(y[:, 0], param),
+            lambda y, w: self.param_state_hvp(y[:, 0], param, w[:, 0]),
+            fd_eps,
+            direction,
+            relative,
+            disp,
+        )
 
 
 class AdjointOperatorData:
@@ -764,8 +799,13 @@ class AdjointOperatorData:
             raise AttributeError("must call set_constraint_eq_state_jacobian")
         return self._drdy
 
-    def get_constraint_eq_param_jacobian(self) -> Array:
+    def has_constraint_eq_param_jacobian(self) -> bool:
         if not hasattr(self, "_drdp"):
+            return False
+        return True
+
+    def get_constraint_eq_param_jacobian(self) -> Array:
+        if not self.has_constraint_eq_param_jacobian():
             raise AttributeError("must call set_constraint_eq_param_jacobian")
         return self._drdp
 
@@ -778,6 +818,11 @@ class AdjointOperatorData:
         if not hasattr(self, "_dqdp"):
             raise AttributeError("must call set_qoi_param_jacobian")
         return self._dqdp
+
+    def has_adjoint_state(self) -> bool:
+        if not hasattr(self, "_adj_state"):
+            return False
+        return True
 
     def get_adjoint_state(self) -> Array:
         if not hasattr(self, "_adj_state"):
@@ -811,6 +856,9 @@ class ScalarAdjointOperator(GradientCheckMixin):
     def adjoint_data(self) -> AdjointOperatorData:
         return self._adjoint_data
 
+    def nvars(self) -> int:
+        return self._constraint_eq.nvars()
+
     def solve_adjoint_equation(self, fwd_state: Array, param: Array) -> Array:
         drdy = self._constraint_eq.state_jacobian(fwd_state, param)
         dqdy = self._functional.state_jacobian(fwd_state, param)
@@ -819,17 +867,6 @@ class ScalarAdjointOperator(GradientCheckMixin):
         self._adjoint_data.set_constraint_eq_state_jacobian(drdy)
         self._adjoint_data.set_qoi_state_jacobian(dqdy)
         return adj_state
-
-    def jacobian(self, init_fwd_state: Array, param: Array) -> Array:
-        fwd_state = self._get_forward_state(init_fwd_state, param)
-        adj_state = self.solve_adjoint_equation(fwd_state, param)
-        drdp = self._constraint_eq.param_jacobian(fwd_state, param)
-        self._adjoint_data.set_constraint_eq_param_jacobian(drdp)
-        jacobian = (
-            self._functional.param_jacobian(fwd_state, param)[0]
-            + adj_state @ drdp
-        )[None, :]
-        return jacobian
 
     def _get_forward_state(self, init_fwd_state: Array, param: Array) -> Array:
         if (
@@ -840,6 +877,24 @@ class ScalarAdjointOperator(GradientCheckMixin):
             fwd_state = self._constraint_eq.solve(init_fwd_state, param)
             self._adjoint_data.set_forward_state(fwd_state)
         return self._adjoint_data.get_forward_state(fwd_state)
+
+    def _get_constraint_eq_param_jacobian(
+        self, fwd_state: Array, param: Array
+    ) -> Array:
+        if not self._adjoint_data.has_constraint_eq_param_jacobian():
+            drdp = self._constraint_eq.param_jacobian(fwd_state, param)
+            self._adjoint_data.set_constraint_eq_param_jacobian(drdp)
+        return self._adjoint_data.get_constraint_eq_param_jacobian()
+
+    def jacobian(self, init_fwd_state: Array, param: Array) -> Array:
+        fwd_state = self._get_forward_state(init_fwd_state, param)
+        adj_state = self.solve_adjoint_equation(fwd_state, param)
+        drdp = self._get_constraint_eq_param_jacobian(fwd_state, param)
+        jacobian = (
+            self._functional.param_jacobian(fwd_state, param)[0]
+            + adj_state @ drdp
+        )[None, :]
+        return jacobian
 
     def check_jacobian(
         self,
@@ -864,47 +919,61 @@ class ScalarAdjointOperator(GradientCheckMixin):
             disp,
         )
 
-    def _forward_hessian_solve(self, vvec: Array) -> Array:
-        self._drdp = self._constraint_eq.param_jacobian(self._fwd_state)
-        return self._bkd.solve(self._drdy, self._drdp @ vvec)
+    def _forward_hessian_solve(
+        self,
+        fwd_state: Array,
+        param: Array,
+        drdy: Array,
+        drdp: Array,
+        vvec: Array,
+    ) -> Array:
+        return self._bkd.solve(drdy, drdp @ vvec)
 
-    def _lagrangian_state_state_hvp(self, wvec: Array) -> Array:
+    def _lagrangian_state_state_hvp(
+        self, fwd_state: Array, param: Array, adj_state: Array, wvec: Array
+    ) -> Array:
         # L_yy.w, w = wvec
         return self._functional.state_state_hvp(
-            self._fwd_state, wvec
+            fwd_state, param, wvec
         ) + self._constraint_eq.state_state_hvp(
-            self._fwd_state, self._adj_state, wvec
+            fwd_state, param, adj_state, wvec
         )
 
-    def _lagrangian_state_param_hvp(self, vvec: Array) -> Array:
+    def _lagrangian_state_param_hvp(
+        self, fwd_state: Array, param: Array, adj_state: Array, vvec: Array
+    ) -> Array:
         # L_yp.v
         return self._functional.state_param_hvp(
-            self._fwd_state, vvec
+            fwd_state, param, vvec
         ) + self._constraint_eq.state_param_hvp(
-            self._fwd_state, self._adj_state, vvec
+            fwd_state, param, adj_state, vvec
         )
 
-    def _lagrangian_param_state_hvp(self, wvec: Array) -> Array:
+    def _lagrangian_param_state_hvp(
+        self, fwd_state: Array, param: Array, adj_state: Array, wvec: Array
+    ) -> Array:
         # L_py.w, w = wvec
 
-        qps_hvp = self._functional.param_state_hvp(self._fwd_state, wvec)
+        qps_hvp = self._functional.param_state_hvp(fwd_state, param, wvec)
         if qps_hvp.ndim != 1:
             raise RuntimeError("qps_hvp must be a 1D array")
         rps_hvp = self._constraint_eq.param_state_hvp(
-            self._fwd_state, self._adj_state, wvec
+            fwd_state, param, adj_state, wvec
         )
         if rps_hvp.ndim != 1:
             raise RuntimeError("rps_hvp must be a 1D array")
         return qps_hvp + rps_hvp
 
-    def _lagrangian_param_param_hvp(self, vvec: Array) -> Array:
+    def _lagrangian_param_param_hvp(
+        self, fwd_state: Array, param: Array, adj_state: Array, vvec: Array
+    ) -> Array:
         # L_pp.v
 
-        qpp_hvp = self._functional.param_param_hvp(self._fwd_state, vvec)
+        qpp_hvp = self._functional.param_param_hvp(fwd_state, param, vvec)
         if qpp_hvp.ndim != 1:
             raise RuntimeError("qpp_hvp must be a 1D array")
         rpp_hvp = self._constraint_eq.param_param_hvp(
-            self._fwd_state, self._adj_state, vvec
+            fwd_state, param, adj_state, vvec
         )
         if rpp_hvp.ndim != 1:
             raise RuntimeError(
@@ -914,25 +983,93 @@ class ScalarAdjointOperator(GradientCheckMixin):
             )
         return qpp_hvp + rpp_hvp
 
-    def _adjoint_hessian_solve(self, wvec: Array, vvec: Array) -> Array:
+    def _adjoint_hessian_solve(
+        self,
+        fwd_state: Array,
+        param: Array,
+        adj_state: Array,
+        drdy: Array,
+        wvec: Array,
+        vvec: Array,
+    ) -> Array:
         return self._bkd.solve(
-            self._drdy.T,
-            self._lagrangian_state_state_hvp(wvec)
-            - self._lagrangian_state_param_hvp(vvec),
+            drdy.T,
+            self._lagrangian_state_state_hvp(fwd_state, param, adj_state, wvec)
+            - self._lagrangian_state_param_hvp(
+                fwd_state, param, adj_state, vvec
+            ),
         )
 
-    def apply_hessian(self, vvec: Array) -> Array:
-        if self._adj_state_param is None or not self._bkd.allclose(
-            self._adj_state_param, self._param, atol=1e-15, rtol=1e-15
+    def _get_adjoint_state(self, init_fwd_state: Array, param: Array) -> Array:
+        if (
+            not self._adjoint_data.has_parameter(param)
+            or not self._adjoint_data.has_adjoint_state()
         ):
-            self.solve_adjoint()
+            fwd_state = self._get_forward_state(init_fwd_state, param)
+            adj_state = self.solve_adjoint_equation(fwd_state, param)
+            self._adjoint_data.set_adjoint_state(adj_state)
+        return self._adjoint_data.get_adjoint_state()
 
-        wvec = self._forward_hessian_solve(vvec)
-        svec = self._adjoint_hessian_solve(wvec, vvec)
-        lps_hvp = self._lagrangian_param_state_hvp(wvec)
-        lpp_hvp = self._lagrangian_param_param_hvp(vvec)
-        hvp = self._drdp.T @ svec - lps_hvp + lpp_hvp
+    def apply_hessian(
+        self, init_fwd_state: Array, param: Array, vvec: Array
+    ) -> Array:
+        self._constraint_eq._check_state_param_shapes(init_fwd_state, param)
+        if vvec.shape != (self.nvars(),):
+            raise ValueError(
+                "vvec has shape {vvec.shape} but must be {(self.nvars(),)}"
+            )
+
+        # load or compute forward state
+        fwd_state = self._get_forward_state(init_fwd_state, param)
+
+        # load or compute adj state
+        adj_state = self._get_adjoint_state(init_fwd_state, param)
+
+        # load drdy, which is guaranteed to be created here because
+        # solve_adjoint has been called by get_adjoint_state
+        drdy = self._adjoint_data.get_constraint_eq_state_jacobian()
+
+        # load or compute drdp, which may exist if jacobian previously called
+        drdp = self._get_constraint_eq_param_jacobian(fwd_state, param)
+
+        # Compute forward hessian state
+        wvec = self._forward_hessian_solve(fwd_state, param, drdy, drdp, vvec)
+
+        # Compute adjoint hessian state
+        svec = self._adjoint_hessian_solve(
+            fwd_state, param, adj_state, drdy, wvec, vvec
+        )
+        lps_hvp = self._lagrangian_param_state_hvp(
+            fwd_state, param, adj_state, wvec
+        )
+        lpp_hvp = self._lagrangian_param_param_hvp(
+            fwd_state, param, adj_state, vvec
+        )
+        hvp = drdp.T @ svec - lps_hvp + lpp_hvp
         return hvp
+
+    def check_apply_hessian(
+        self,
+        state: Array,
+        param: Array,
+        fd_eps: Array = None,
+        direction: Array = None,
+        relative: bool = True,
+        disp: bool = False,
+    ) -> Array:
+
+        return self._check_apply(
+            param[:, None],
+            "Hv",
+            lambda p: self.jacobian(
+                self._constraint_eq.solve(state, p[:, 0]), p[:, 0]
+            ),
+            lambda p, v: self.apply_hessian(state, p[:, 0], v[:, 0]),
+            fd_eps,
+            direction,
+            relative,
+            disp,
+        )
 
 
 class VectorAdjointOperator(GradientCheckMixin):

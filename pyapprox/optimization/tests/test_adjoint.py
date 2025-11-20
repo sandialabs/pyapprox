@@ -8,78 +8,13 @@ from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.optimization.adjoint import (
     ScalarAdjointFunctionalWithHessian,
-    VectorAdjointFunctional,
     AdjointConstraintEquationWithHessian,
     ScalarAdjointOperator,
 )
-
-
-class MSEFunctional(ScalarAdjointFunctionalWithHessian):
-    def __init__(self, nstates: int, nvars: int, backend: BackendMixin):
-        self._nstates = nstates
-        self._nvars = nvars
-        super().__init__(backend)
-
-    def set_observations(self, obs: Array):
-        if obs.shape != (self.nstates(),):
-            raise ValueError(
-                f"obs has shape {obs.shape} but must have "
-                f"shape {(self.nstates(),)}"
-            )
-        self._obs = obs
-
-    def nstates(self) -> int:
-        return self._nstates
-
-    def nvars(self) -> int:
-        return self._nvars
-
-    def nunique_vars(self) -> int:
-        return 0
-
-    def _value(self, state: Array, param: Array) -> float:
-        return self._bkd.sum((self._obs - state) ** 2) / 2.0
-
-    def _param_jacobian(self, state: Array, param: Array) -> Array:
-        return self._bkd.zeros((1, self.nvars()))
-
-    def _state_jacobian(self, state: Array, param: Array) -> Array:
-        return (state - self._obs)[None, :]
-
-
-class LinearConstraintEquation(AdjointConstraintEquationWithHessian):
-    def __init__(self, Amat: Array, bvec: Array, backend: BackendMixin):
-        super().__init__(backend)
-        if bvec.ndim != 1:
-            raise ValueError(
-                f"bvec must be a 1D array but has shape {bvec.shape}"
-            )
-        if Amat.shape[0] != bvec.shape[0]:
-            raise ValueError(
-                "Amat and bvec must have the same number of rows"
-                f"but had shapes {Amat.shape} and {bvec.shape}"
-            )
-        self._Amat = Amat
-        self._bvec = bvec
-
-    def nstates(self) -> int:
-        return self._Amat.shape[0]
-
-    def nvars(self) -> int:
-        return self._Amat.shape[1]
-
-    def _value(self, state: Array, param: Array) -> Array:
-        return state - self._Amat @ param
-
-    def _solve(self, init_state: Array, param: Array):
-        # init_state is ignored for this linear problem
-        return self._Amat @ param
-
-    def _param_jacobian(self, state: Array, param: Array):
-        return -self._Amat
-
-    def _state_jacobian(self, state: Array, param: Array):
-        return self._bkd.eye(self.nstates())
+from pyapprox.optimization.adjoint_constraint_registry import (
+    LinearConstraintEquation,
+)
+from pyapprox.optimization.functional_registry import MSEFunctional
 
 
 class TestAdjoint:
@@ -164,19 +99,22 @@ class TestAdjoint:
         )
         self.assertEqual(errors.min(), errors.max())
         self.assertEqual(errors.min(), 0.0)
-        errors = functional.check_state_state_hvp(
-            init_state, params, relative=False, disp=True
-        )
+        errors = functional.check_state_state_hvp(init_state, params)
         self.assertLessEqual(errors.min() / errors.max(), 2e-7)
         errors = functional.check_state_param_hvp(
             init_state, params, relative=False
         )
         self.assertEqual(errors.min(), errors.max())
         self.assertEqual(errors.min(), 0.0)
+        errors = functional.check_param_state_hvp(
+            init_state, params, relative=False
+        )
+        self.assertEqual(errors.min(), errors.max())
+        self.assertEqual(errors.min(), 0.0)
 
         # check Hessian
-        # errors = adjoint_op.check_apply_hessian(init_state, params)
-        # self.assertLessEqual(errors.min() / errors.max(), 2e-7)
+        errors = adjoint_op.check_apply_hessian(init_state, params)
+        self.assertLessEqual(errors.min() / errors.max(), 2e-7)
 
     def test_linear_least_squares(self):
         self._check_linear_least_squares(
