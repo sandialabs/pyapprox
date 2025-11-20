@@ -403,7 +403,105 @@ class ModelDataBase:
         return stored_values, stored_sample_idx, new_sample_idx
 
 
-class Model(ABC):
+class GradientCheckMixin:
+    def _check_apply(
+        self,
+        sample: Array,
+        symb: str,
+        fun: callable,
+        apply_fun: callable,
+        fd_eps: Array = None,
+        direction: Array = None,
+        relative: bool = True,
+        disp: bool = False,
+        args=[],
+    ) -> Array:
+        """
+        Compare the result of an apply function with finite difference approximations.
+
+        This function computes directional gradients using finite differences and compares them to the gradients computed by the provided `apply_fun`. It is useful for verifying the correctness of `apply_jacobian` or `apply_hessian`.
+
+        Parameters
+        ----------
+        sample : Array (nvars, 1)
+            The sample at which to compute the gradients.
+        symb : str
+            A symbol representing the type of gradient being checked (e.g., "J" for Jacobian, "H" for Hessian).
+        fun : callable
+            The function used to compute the values at the sample.
+        apply_fun : callable
+            The function used to compute the directional gradient.
+        fd_eps : Array, optional
+            The finite difference step sizes. Defaults to logarithmically spaced values.
+        direction : Array, optional
+            The direction vector for computing directional gradients. Defaults to a random normalized vector.
+        relative : bool, optional
+            Whether to compute relative errors. Defaults to True.
+        disp : bool, optional
+            Whether to display the errors during computation. Defaults to False.
+        args : list, optional
+            Additional arguments passed to `fun` and `apply_fun`.
+
+        Returns
+        -------
+        errors : Array
+            The computed errors between finite difference gradients and `apply_fun` gradients.
+        """
+        if sample.ndim != 2:
+            raise ValueError(
+                "sample with shape {0} must be 2D array".format(sample.shape)
+            )
+        if fd_eps is None:
+            fd_eps = self._bkd.flip(self._bkd.logspace(-13, 0, 14))
+        if direction is None:
+            nvars = sample.shape[0]
+            direction = np.random.normal(0, 1, (nvars, 1))
+            direction /= np.linalg.norm(direction)
+            direction = self._bkd.asarray(direction)
+
+        row_format = "{:<12} {:<25} {:<25} {:<25}"
+        headers = [
+            "Eps",
+            "norm({0}v)".format(symb),
+            "norm({0}v_fd)".format(symb),
+            "Rel. Errors" if relative else "Abs. Errors",
+        ]
+        if disp:
+            print(row_format.format(*headers))
+        row_format = "{:<12.2e} {:<25} {:<25} {:<25}"
+        errors = []
+        val = fun(sample, *args)
+        directional_grad = apply_fun(sample, direction, *args)
+        for ii in range(fd_eps.shape[0]):
+            sample_perturbed = self._bkd.copy(sample) + fd_eps[ii] * direction
+            perturbed_val = fun(sample_perturbed, *args)
+            fd_directional_grad = (perturbed_val - val) / fd_eps[ii]
+            errors.append(
+                self._bkd.norm(
+                    fd_directional_grad.reshape(directional_grad.shape)
+                    - directional_grad
+                )
+            )
+            if relative:
+                if self._bkd.norm(directional_grad) < 1e-16:
+                    raise RuntimeError(
+                        "directional grad is zero thus grad is likely zero. "
+                        "Set relative=False"
+                    )
+                errors[-1] /= self._bkd.norm(directional_grad)
+            if disp:
+                print(
+                    row_format.format(
+                        fd_eps[ii],
+                        self._bkd.norm(directional_grad),
+                        self._bkd.norm(fd_directional_grad),
+                        errors[ii],
+                    )
+                )
+        return self._bkd.asarray(errors)
+
+
+class Model(ABC, GradientCheckMixin):
     """
     Abstract base class for evaluating a model.
 
@@ -1295,97 +1393,6 @@ class Model(ABC):
             return whess
         hess = self.hessian(sample)
         return self._bkd.einsum("i,ijk->jk", weights[:, 0], hess)
-
-    def _check_apply(
-        self,
-        sample: Array,
-        symb: str,
-        fun: callable,
-        apply_fun: callable,
-        fd_eps: Array = None,
-        direction: Array = None,
-        relative: bool = True,
-        disp: bool = False,
-        args=[],
-    ) -> Array:
-        """
-        Compare the result of an apply function with finite difference approximations.
-
-        This function computes directional gradients using finite differences and compares them to the gradients computed by the provided `apply_fun`. It is useful for verifying the correctness of `apply_jacobian` or `apply_hessian`.
-
-        Parameters
-        ----------
-        sample : Array (nvars, 1)
-            The sample at which to compute the gradients.
-        symb : str
-            A symbol representing the type of gradient being checked (e.g., "J" for Jacobian, "H" for Hessian).
-        fun : callable
-            The function used to compute the values at the sample.
-        apply_fun : callable
-            The function used to compute the directional gradient.
-        fd_eps : Array, optional
-            The finite difference step sizes. Defaults to logarithmically spaced values.
-        direction : Array, optional
-            The direction vector for computing directional gradients. Defaults to a random normalized vector.
-        relative : bool, optional
-            Whether to compute relative errors. Defaults to True.
-        disp : bool, optional
-            Whether to display the errors during computation. Defaults to False.
-        args : list, optional
-            Additional arguments passed to `fun` and `apply_fun`.
-
-        Returns
-        -------
-        errors : Array
-            The computed errors between finite difference gradients and `apply_fun` gradients.
-        """
-        if sample.ndim != 2:
-            raise ValueError(
-                "sample with shape {0} must be 2D array".format(sample.shape)
-            )
-        if fd_eps is None:
-            fd_eps = self._bkd.flip(self._bkd.logspace(-13, 0, 14))
-        if direction is None:
-            nvars = sample.shape[0]
-            direction = np.random.normal(0, 1, (nvars, 1))
-            direction /= np.linalg.norm(direction)
-            direction = self._bkd.asarray(direction)
-
-        row_format = "{:<12} {:<25} {:<25} {:<25}"
-        headers = [
-            "Eps",
-            "norm({0}v)".format(symb),
-            "norm({0}v_fd)".format(symb),
-            "Rel. Errors" if relative else "Abs. Errors",
-        ]
-        if disp:
-            print(row_format.format(*headers))
-        row_format = "{:<12.2e} {:<25} {:<25} {:<25}"
-        errors = []
-        val = fun(sample, *args)
-        directional_grad = apply_fun(sample, direction, *args)
-        for ii in range(fd_eps.shape[0]):
-            sample_perturbed = self._bkd.copy(sample) + fd_eps[ii] * direction
-            perturbed_val = fun(sample_perturbed, *args)
-            fd_directional_grad = (perturbed_val - val) / fd_eps[ii]
-            errors.append(
-                self._bkd.norm(
-                    fd_directional_grad.reshape(directional_grad.shape)
-                    - directional_grad
-                )
-            )
-            if relative:
-                errors[-1] /= self._bkd.norm(directional_grad)
-            if disp:
-                print(
-                    row_format.format(
-                        fd_eps[ii],
-                        self._bkd.norm(directional_grad),
-                        self._bkd.norm(fd_directional_grad),
-                        errors[ii],
-                    )
-                )
-        return self._bkd.asarray(errors)
 
     def check_apply_jacobian(
         self,
