@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import partial
+import unittest  # for checking with good error messages
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.util.newnewton import ParameterizedNewtonResidual
@@ -96,7 +97,8 @@ class AdjointConstraintEquation(ABC, GradientCheckMixin):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
+        if disp:
+            print(f"{self}.check_state_jacobian")
         return self._check_apply(
             state[:, None],
             "J_y",
@@ -117,7 +119,8 @@ class AdjointConstraintEquation(ABC, GradientCheckMixin):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
+        if disp:
+            print(f"{self}.check_param_jacobian")
         return self._check_apply(
             param[:, None],
             "J_p",
@@ -127,6 +130,11 @@ class AdjointConstraintEquation(ABC, GradientCheckMixin):
             direction,
             relative,
             disp,
+        )
+
+    def __repr__(self) -> str:
+        return "{0}(nstates={1}, nvars={2})".format(
+            self.__class__.__name__, self.nstates(), self.nvars()
         )
 
 
@@ -180,9 +188,8 @@ class AdjointConstraintEquationWithHessian(AdjointConstraintEquation):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
-        # weights linearly combine state entries so we can use check_apply
-        # which requires fun return a scalar (vector with one entry)
+        if disp:
+            print(f"{self}.check_param_param_hvp")
         return self._check_apply(
             param[:, None],
             "H_pp",
@@ -231,9 +238,8 @@ class AdjointConstraintEquationWithHessian(AdjointConstraintEquation):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
-        # weights linearly combine state entries so we can use check_apply
-        # which requires fun return a scalar (vector with one entry)
+        if disp:
+            print(f"{self}.check_state_state_hvp")
         return self._check_apply(
             state[:, None],
             "H_yy",
@@ -298,9 +304,8 @@ class AdjointConstraintEquationWithHessian(AdjointConstraintEquation):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
-        # weights linearly combine state entries so we can use check_apply
-        # which requires fun return a scalar (vector with one entry)
+        if disp:
+            print(f"{self}.check_param_state_hvp")
         return self._check_apply(
             state[:, None],
             "H_py",
@@ -363,9 +368,8 @@ class AdjointConstraintEquationWithHessian(AdjointConstraintEquation):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
-        # weights linearly combine state entries so we can use check_apply
-        # which requires fun return a scalar (vector with one entry)
+        if disp:
+            print(f"{self}.check_state_param_hvp")
         return self._check_apply(
             param[:, None],
             "H_yp",
@@ -436,12 +440,6 @@ class Functional(ABC):
 
 
 class VectorAdjointFunctional(Functional, GradientCheckMixin):
-    def jacobian_implemented() -> bool:
-        return False
-
-    def apply_hessian_implemented() -> bool:
-        return False
-
     def _state_jacobian(self, state: Array, param: Array) -> Array:
         """
         The Jacobian of the QoI with respect to the state.
@@ -498,7 +496,8 @@ class VectorAdjointFunctional(Functional, GradientCheckMixin):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
+        if disp:
+            print(f"{self}.check_state_jacobian")
         return self._check_apply(
             state[:, None],
             "J_state",
@@ -519,7 +518,8 @@ class VectorAdjointFunctional(Functional, GradientCheckMixin):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
+        if disp:
+            print(f"{self}.check_param_jacobian")
         return self._check_apply(
             param[:, None],
             "J_param",
@@ -575,9 +575,8 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
-        # weights linearly combine state entries so we can use check_apply
-        # which requires fun return a scalar (vector with one entry)
+        if disp:
+            print(f"{self}.check_param_param_hvp")
         return self._check_apply(
             param[:, None],
             "H_pp",
@@ -625,9 +624,8 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
-        # weights linearly combine state entries so we can use check_apply
-        # which requires fun return a scalar (vector with one entry)
+        if disp:
+            print(f"{self}.check_state_state_hvp")
         return self._check_apply(
             state[:, None],
             "H_yy",
@@ -675,9 +673,8 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
-        # weights linearly combine state entries so we can use check_apply
-        # which requires fun return a scalar (vector with one entry)
+        if disp:
+            print(f"{self}.check_state_param_hvp")
         return self._check_apply(
             param[:, None],
             "H_yp",
@@ -724,9 +721,8 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
-        # weights linearly combine state entries so we can use check_apply
-        # which requires fun return a scalar (vector with one entry)
+        if disp:
+            print(f"{self}.check_param_state_hvp")
         return self._check_apply(
             state[:, None],
             "H_py",
@@ -829,6 +825,9 @@ class AdjointOperatorData:
             raise AttributeError("must call set_adjoint_state")
         return self._adj_state
 
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__())
+
 
 class ScalarAdjointOperator(GradientCheckMixin):
     def __init__(
@@ -859,6 +858,10 @@ class ScalarAdjointOperator(GradientCheckMixin):
     def nvars(self) -> int:
         return self._constraint_eq.nvars()
 
+    def value(self, init_fwd_state: Array, param: Array) -> Array:
+        fwd_state = self._get_forward_state(init_fwd_state, param)
+        return self._functional(fwd_state, param)
+
     def solve_adjoint_equation(self, fwd_state: Array, param: Array) -> Array:
         drdy = self._constraint_eq.state_jacobian(fwd_state, param)
         dqdy = self._functional.state_jacobian(fwd_state, param)
@@ -870,7 +873,8 @@ class ScalarAdjointOperator(GradientCheckMixin):
 
     def _get_forward_state(self, init_fwd_state: Array, param: Array) -> Array:
         if (
-            not self._adjoint_data.has_parameter(param)
+            True
+            or not self._adjoint_data.has_parameter(param)
             or not self._adjoint_data.has_fwd_state()
         ):
             self._adjoint_data._clear()
@@ -905,7 +909,8 @@ class ScalarAdjointOperator(GradientCheckMixin):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
+        if disp:
+            print(f"{self}.check_jacobian")
         return self._check_apply(
             param[:, None],
             "J",
@@ -1057,7 +1062,8 @@ class ScalarAdjointOperator(GradientCheckMixin):
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
+        if disp:
+            print(f"{self}.check_apply_hessian")
         return self._check_apply(
             param[:, None],
             "Hv",
@@ -1070,6 +1076,103 @@ class ScalarAdjointOperator(GradientCheckMixin):
             relative,
             disp,
         )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__, self._constraint_eq, self._functional
+        )
+
+    def _assert_derivatives_close(self, errors: Array, tol: float) -> None:
+        if errors.min() == errors.max():
+            assert errors.min() == 0.0
+        else:
+            self._unittest.assertLessEqual(errors.min() / errors.max(), tol)
+
+    def get_derivative_tolerances(self, tol: float) -> Array:
+        nchecks = 14
+        return self._bkd.full((nchecks,), 1e-8)
+
+    def check_derivatives(
+        self,
+        init_state: Array,
+        param: Array,
+        tols: Array,
+        disp: bool = False,
+    ) -> None:
+        # Create an instance of TestCase
+        self._unittest = unittest.TestCase()
+        # check first order derivatives of contraint equation
+        errors = self._constraint_eq.check_state_jacobian(
+            init_state, param, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[0])
+        errors = self._constraint_eq.check_param_jacobian(
+            init_state, param, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[1])
+
+        # check first order derivatives of functional
+        errors = self._functional.check_state_jacobian(
+            init_state, param, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[2])
+        # exact jac is zero so set relative to zero to avoid divide by zero
+        errors = self._functional.check_param_jacobian(
+            init_state, param, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[3])
+
+        # check Jacobian
+        errors = self.check_jacobian(init_state, param, disp=disp)
+        self._assert_derivatives_close(errors, tols[4])
+
+        if not isinstance(
+            self._constraint_eq, AdjointConstraintEquationWithHessian
+        ) or not isinstance(
+            self._functional, ScalarAdjointFunctionalWithHessian
+        ):
+            return
+
+        # check second order derivatives of contraint equation
+        adj_state = self.adjoint_data().get_adjoint_state()
+        errors = self._constraint_eq.check_param_param_hvp(
+            init_state, param, adj_state, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[5])
+        errors = self._constraint_eq.check_state_state_hvp(
+            init_state, param, adj_state, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[6])
+        errors = self._constraint_eq.check_param_state_hvp(
+            init_state, param, adj_state, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[7])
+        errors = self._constraint_eq.check_state_param_hvp(
+            init_state, param, adj_state, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[8])
+
+        # check second order derivaties of functional
+        errors = self._functional.check_param_param_hvp(
+            init_state, param, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[9])
+        errors = self._functional.check_state_state_hvp(
+            init_state, param, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[10])
+        errors = self._functional.check_state_param_hvp(
+            init_state, param, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[11])
+        errors = self._functional.check_param_state_hvp(
+            init_state, param, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[12])
+
+        # check Hessian
+        errors = self.check_apply_hessian(init_state, param, disp=disp)
+        self._assert_derivatives_close(errors, tols[13])
 
 
 class VectorAdjointOperator(GradientCheckMixin):

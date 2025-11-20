@@ -53,3 +53,16 @@ class MSEFunctional(ScalarAdjointFunctionalWithHessian):
         self, state: Array, param: Array, vvec: Array
     ) -> Array:
         return self._bkd.zeros((self.nstates(),))
+
+
+class TikhinovMSEFunctional(MSEFunctional):
+    def _value(self, state: Array, param: Array) -> float:
+        return super()._value(state, param) + self._bkd.sum(param**2) / 2.0
+
+    def _param_jacobian(self, state: Array, param: Array) -> Array:
+        return param[None, :]
+
+    def _param_param_hvp(
+        self, state: Array, param: Array, vvec: Array
+    ) -> Array:
+        return vvec

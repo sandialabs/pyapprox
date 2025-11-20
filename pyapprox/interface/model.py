@@ -459,6 +459,14 @@ class GradientCheckMixin:
             direction /= np.linalg.norm(direction)
             direction = self._bkd.asarray(direction)
 
+        errors = []
+        val = fun(sample, *args)
+        directional_grad = apply_fun(sample, direction, *args)
+        if self._bkd.norm(directional_grad) == 0:
+            if disp:
+                print("Gradient is zero so setting relative=False")
+            relative = False
+
         row_format = "{:<12} {:<25} {:<25} {:<25}"
         headers = [
             "Eps",
@@ -469,9 +477,7 @@ class GradientCheckMixin:
         if disp:
             print(row_format.format(*headers))
         row_format = "{:<12.2e} {:<25} {:<25} {:<25}"
-        errors = []
-        val = fun(sample, *args)
-        directional_grad = apply_fun(sample, direction, *args)
+
         for ii in range(fd_eps.shape[0]):
             sample_perturbed = self._bkd.copy(sample) + fd_eps[ii] * direction
             perturbed_val = fun(sample_perturbed, *args)
