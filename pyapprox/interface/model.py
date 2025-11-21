@@ -2066,12 +2066,7 @@ class Model(ABC, GradientCheckMixin):
         return axs, ims
 
 
-class SingleSampleModelMixin:
-    _bkd: BackendMixin
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+class SingleSampleModel(Model):
     @abstractmethod
     def _evaluate(self, sample):
         """
@@ -2243,6 +2238,10 @@ class ModelFromCallable(Model):
         self._sample_ndim = sample_ndim
         self._values_ndim = values_ndim
 
+    @abstractmethod
+    def _eval_fun(self, fun: Callable, sample: Array, *args) -> Array:
+        raise NotImplementedError
+
     def nqoi(self) -> int:
         return self._nqoi
 
@@ -2373,7 +2372,8 @@ class ModelFromVectorizedCallable(ModelFromCallable):
         return values
 
 
-class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
+# class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
+class ModelFromSingleSampleCallable(ModelFromCallable, SingleSampleModel):
     r"""
     A wrapper for creating a model from user-defined callable functions that operate on single samples.
 
@@ -2472,10 +2472,6 @@ class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
         if self._values_ndim != 2:
             return self._bkd.atleast2d(values)
         return values
-
-
-class SingleSampleModel(SingleSampleModelMixin, Model):
-    pass
 
 
 class UmbridgeModel(Model):
@@ -3022,7 +3018,7 @@ class UmbridgeIOModelEnsemble(UmbridgeModel):
         return self._model(parameters, config=config)[0]
 
 
-class IOModel(SingleSampleModelMixin, Model):
+class IOModel(SingleSampleModel):
     """
     Base class for models that require loading and/or writing of files.
 
