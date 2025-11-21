@@ -11,13 +11,8 @@ from pyapprox.util.newnewton import (
     BisectionSearch,
     BoundedNewtonResidual,
 )
-from pyapprox.pde.adjoint import (
-    SteadyAdjointModelFixedInitialIterate,
-)
-from pyapprox.pde.collocation.parameterized_pdes import (
+from pyapprox.optimization.adjoint_constraint_registry import (
     NonLinearCoupledEquationsResidual,
-    NonLinearCoupledEquationsResidualAuto,
-    NonLinearCoupledEquationsAffineParamResidual,
 )
 
 
@@ -25,14 +20,14 @@ class TestNewton:
     def setUp(self):
         np.random.seed(1)
 
-    def _check_nonlinear_coupled_residual(self, res):
+    def test_nonlinear_coupled_residual(self):
         bkd = self.get_backend()
         res = NonLinearCoupledEquationsResidual(bkd)
         sample = bkd.array([0.8, 1.1])[:, None]
         res.set_param(sample[:, 0])
         solver = NewtonSolver()
         solver.set_residual(res)
-        init_iterate = bkd.array([-1, -1.0])
+        init_iterate = bkd.array([-1.0, -1.0])
         sol = solver.solve(init_iterate)
 
         a, b = sample[:, 0]

@@ -5,16 +5,21 @@ import importlib
 import numpy as np
 
 
-def trace_error_with_msg(msg, e: Exception):
+def trace_error_with_msg(msg: str, e: Exception) -> None:
     exc_type, exc_obj, exc_tb = sys.exc_info()
-    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-    print(msg)
-    print(f'Failed with error: {e}')
-    details = f"""
-    Error type: {exc_type}
-    file/location: {fname} | {exc_tb.tb_lineno}
-    """
-    print(details)
+    if exc_tb is not None:  # Ensure traceback is not None
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(msg)
+        print(f"Failed with error: {e}")
+        details = f"""
+        Error type: {exc_type}
+        file/location: {fname} | {exc_tb.tb_lineno}
+        """
+        print(details)
+    else:
+        print(msg)
+        print(f"Failed with error: {e}")
+        print("No traceback available.")
 
 
 def hash_array(array, decimals=None):
@@ -72,7 +77,7 @@ def get_num_args(function):
     num_args = 0
     if args[0] is not None:
         num_args += len(args[0])
-        if 'self' in args[0]:
+        if "self" in args[0]:
             num_args -= 1
     if args[1] is not None:
         num_args += len(args[1])
@@ -82,7 +87,6 @@ def get_num_args(function):
     # if args[3] is not None:
     #    num_args += len(args[3])
     return num_args
-
 
 
 # Keyword-only arguments are not the same as normal keyword arguments.

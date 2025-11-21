@@ -1,8 +1,25 @@
 from abc import ABC, abstractmethod
 import itertools
-from typing import TypeVar, List
+from typing import List, Optional, Any, Tuple, Protocol, Iterable, Union
 
-Array = TypeVar("Array")
+
+# Array = TypeVar("Array")
+class Array(Protocol):
+    @property
+    def shape(self) -> Any:  # 1D arrays have a single dimension
+        ...
+
+    def __truediv__(self, other: Union[float, "Array"]) -> "Array": ...
+
+    def __rtruediv__(self, other: Union[float, "Array"]) -> "Array": ...
+
+    def __getitem__(self, index: Any) -> Any: ...
+
+    def __iter__(self) -> Any: ...
+
+
+# Define the axisarg type
+AxisArg = Union[int, Tuple[int, ...]]
 
 
 class BackendMixin(ABC):
@@ -10,84 +27,88 @@ class BackendMixin(ABC):
 
     Designed to not need a call to __init__."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         raise NotImplementedError("Do not instantiate this class")
 
     @staticmethod
     @abstractmethod
-    def dot(Amat: Array, Bmat: Array):
+    def dot(Amat: Array, Bmat: Array) -> Array:
         """Compute the dot product of two matrices."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def eye(nrows: int, ncols: int = None, dtype=None):
+    def eye(
+        nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
+    ) -> Array:
         """Return the identity matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def inv(mat):
+    def inv(mat: Array) -> Array:
         """Compute the inverse of a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def pinv(mat: Array):
+    def pinv(mat: Array) -> Array:
         """Compute the pseudo inverse of a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def solve(Amat: Array, Bmat: Array):
+    def solve(Amat: Array, Bmat: Array) -> Array:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def cholesky(mat: Array):
+    def cholesky(mat: Array) -> Array:
         """Compute the cholesky factorization of a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def cholesky_solve(chol: Array, bvec: Array, lower: bool = True):
+    def cholesky_solve(chol: Array, bvec: Array, lower: bool = True) -> Array:
         """Solve the linear equation A x = b for x,
         using the cholesky factorization of A."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def qr(mat: Array, mode: str = "complete"):
+    def qr(mat: Array, mode: str = "complete") -> Tuple[Array, Array]:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def solve_triangular(Amat: Array, bvec: Array, lower: bool = True):
+    def solve_triangular(
+        Amat: Array, bvec: Array, lower: bool = True
+    ) -> Array:
         """Solve the linear equation A x = b for x,
         when A is a triangular matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def full(*args, dtype=None):
+    def full(*args, dtype=None) -> Array:
         """Return a matrix with all values set to fill_value"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def zeros(*args, dtype=None):
+    def zeros(*args, dtype=None) -> Array:
         """Return a matrix with all values set to zero"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def ones(*args, dtype=None):
+    def ones(*args, dtype=None) -> Array:
         """Return a matrix with all values set to one"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def empty(*args):
+    def empty(*args) -> Array:
         """Return a matrix with uniitialized values"""
         raise NotImplementedError
 
@@ -98,123 +119,126 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def exp(matrix: Array):
+    def exp(matrix: Array) -> Array:
         """Apply exponential element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def sqrt(matrix: Array):
+    def sqrt(matrix: Array) -> Array:
         """Apply sqrt element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def cos(matrix: Array):
+    def cos(matrix: Array) -> Array:
         """Apply cos element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def arccos(matrix: Array):
+    def arccos(matrix: Array) -> Array:
         """Apply arccos element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def tan(matrix: Array):
+    def tan(matrix: Array) -> Array:
         """Apply tan element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def arctan(matrix: Array):
+    def arctan(matrix: Array) -> Array:
         """Apply arctan element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def arctan2(matrix1: Array, matrix2: Array):
+    def arctan2(matrix1: Array, matrix2: Array) -> Array:
         """Apply arctan2 element wise to two matrices."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def sin(matrix: Array):
+    def sin(matrix: Array) -> Array:
         """Apply sin element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def arcsin(matrix: Array):
+    def arcsin(matrix: Array) -> Array:
         """Apply arcasin element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def cosh(matrix: Array):
+    def cosh(matrix: Array) -> Array:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def sinh(matrix: Array):
+    def sinh(matrix: Array) -> Array:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def arccosh(matrix: Array):
+    def arccosh(matrix: Array) -> Array:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def arcsinh(matrix: Array):
+    def arcsinh(matrix: Array) -> Array:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def log(matrix: Array):
+    def log(matrix: Array) -> Array:
         """Apply log element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def log10(matrix: Array):
+    def log10(matrix: Array) -> Array:
         """Apply log base 10 element wise to a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def multidot(matrix_list):
+    def multidot(matrix_list: Iterable[Array]) -> Array:
         """Compute the dot product of multiple matrices."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def prod(matrix_list, axis=None):
+    def prod(
+        matrix_list: Iterable[Array],
+        axis: Optional[AxisArg] = None,
+    ) -> Array:
         """Compute the product of a matrix along a given axis."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def hstack(arrays):
+    def hstack(arrays: Iterable[Array]) -> Array:
         """Stack arrays horizontally (column wise)."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def vstack(arrays):
+    def vstack(arrays: Iterable[Array]) -> Array:
         """Stack arrays vertically (row wise)."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def stack(arrays, axis=0):
+    def stack(arrays: Iterable[Array], axis: AxisArg = 0) -> Array:
         """Stack arrays along a new axis."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def dstack(arrays):
+    def dstack(arrays: Iterable[Array]) -> Array:
         """Stack arrays along third axis."""
         raise NotImplementedError
 
@@ -244,19 +268,19 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def repeat(mat: Array, nreps: int):
+    def repeat(mat: Array, nreps: int) -> Array:
         """Makes repeated deep copies of a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def tile(mat: Array, nreps: int):
+    def tile(mat: Array, nreps: int) -> Array:
         "Construct an array by repeating A the number of times given by reps."
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def cdist(Amat: Array, Bmat: Array):
+    def cdist(Amat: Array, Bmat: Array) -> Array:
         """
         Return cthe euclidean distance between elements of two matrices.
         Should be equivalent to
@@ -272,169 +296,180 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def trace(mat: Array):
+    def trace(mat: Array) -> Array:
         """Compute the trace of a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def copy(mat: Array):
+    def copy(mat: Array) -> Array:
         """Return a deep copy of a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def get_diagonal(mat: Array):
+    def get_diagonal(mat: Array) -> Array:
         """Return the diagonal of a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def diag(array: Array, k: int = 0):
+    def diag(array: Array, k: int = 0) -> Array:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def isnan(mat: Array):
+    def isnan(mat: Array) -> bool:
         """Determine what entries are NAN."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def atleast1d(val: Array):
+    def atleast1d(val: Array) -> Array:
         """Make an object at least a 1D tensor."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def atleast2d(val: Array):
+    def atleast2d(val: Array) -> Array:
         """Make an object at least a 2D tensor."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def reshape(mat: Array, newshape: tuple):
+    def reshape(mat: Array, newshape: tuple) -> Array:
         """Reshape a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def where(cond, array1: Array = None, array2: Array = None) -> Array:
+    def where(
+        cond, array1: Optional[Array] = None, array2: Optional[Array] = None
+    ) -> Array:
         """Return whether elements of a matrix satisfy a condition."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def tointeger(mat: Array):
+    def tointeger(mat: Array) -> Array:
         """Cast a matrix to integers"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def inf():
+    def inf() -> float:
         """Return native representation of infinity."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def norm(mat: Array, axis: int = None):
+    def norm(mat: Array, axis: Optional[AxisArg] = None) -> Array:
         """Return the norm of a matrix along a given axis."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def any(mat: Array, axis: int = None):
+    def any(mat: Array, axis: Optional[AxisArg] = None) -> bool:
         """Find if any element of a matrix evaluates to True."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def all(mat: Array, axis: int = None):
+    def all(mat: Array, axis: Optional[AxisArg] = None) -> bool:
         """Find if all elements of a matrix evaluate to True."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def kron(Amat: Array, Bmat: Array):
+    def kron(Amat: Array, Bmat: Array) -> Array:
         """Compute the Kroneker product of two matrices"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def slogdet(Amat: Array):
+    def slogdet(Amat: Array) -> float:
         """Compute the log determinant of a matrix"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def mean(mat: Array, axis: int = None):
+    def mean(mat: Array, axis: Optional[AxisArg] = None) -> Array:
         """Compute the mean of a matrix"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def var(mat: Array, axis: int = None, ddof: int = 0):
+    def var(
+        mat: Array, axis: Optional[AxisArg] = None, ddof: int = 0
+    ) -> Array:
         """Compute the variance of a matrix"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def std(mat: Array, axis: int = None, ddof: int = 0):
+    def std(
+        mat: Array, axis: Optional[AxisArg] = None, ddof: int = 0
+    ) -> Array:
         """Compute the standard-deviation of a matrix"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
     def cov(
-        mat: Array, ddof: int = 0, rowvar: bool = True, aweights: Array = None
-    ):
+        mat: Array,
+        ddof: int = 0,
+        rowvar: bool = True,
+        aweights: Optional[Array] = None,
+    ) -> Array:
         """Compute the covariance matrix from samples of variables
         in a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def abs(mat: Array):
+    def abs(mat: Array) -> Array:
         """Compute the absolte values of each entry in a matrix"""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def to_numpy(mat: Array):
+    def to_numpy(mat: Array) -> Array:
         """Compute the matrix to a np.ndarray."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def argsort(mat: Array, axis: int = -1):
+    def argsort(mat: Array, axis: AxisArg = -1) -> Array:
         """Compute the indices that sort a matrix in ascending order."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def sort(mat: Array, axis: int = -1):
+    def sort(mat: Array, axis: AxisArg = -1) -> Array:
         """Return the matrix sorted in ascending order."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def flip(mat: Array, axis: int = None):
+    def flip(
+        mat: Array, axis: Optional[Union[Tuple[int, ...], int]] = None
+    ) -> Array:
         "Reverse the order of the elements in a matrix."
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def allclose(Amat: Array, Bmat: Array, **kwargs):
+    def allclose(Amat: Array, Bmat: Array, **kwargs) -> bool:
         "Check if two matries are close"
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def isclose(Amat: Array, Bmat: Array, **kwargs):
+    def isclose(Amat: Array, Bmat: Array, **kwargs) -> bool:
         raise NotImplementedError
 
     @staticmethod
-    def detach(mat):
+    def detach(mat: Array) -> Array:
         """Detach a matrix from the computational graph.
         Override for backends that support automatic differentiation."""
         return mat
@@ -462,59 +497,59 @@ class BackendMixin(ABC):
         return cls.block_cholesky_engine(L_A, L_A_inv_B, B, D, return_blocks)
 
     @classmethod
-    def covariance_to_correlation(cls, cov: Array):
+    def covariance_to_correlation(cls, cov: Array) -> Array:
         r"""
         Compute the correlation matrix from a covariance matrix
         """
-        stdev_inv = 1 / cls.sqrt(cls.get_diagonal(cov))
+        stdev_inv = 1.0 / cls.sqrt(cls.get_diagonal(cov))
         cor = stdev_inv[None, :] * cov * stdev_inv[:, None]
         return cor
 
     @staticmethod
     @abstractmethod
-    def lstsq(Amat: Array, Bmat: Array):
+    def lstsq(Amat: Array, Bmat: Array) -> Array:
         """Solve the linear system Ax=b."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def argmax(array: Array):
+    def argmax(array: Array) -> float:
         """Return the index of the maximum value in an array."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def argmin(array: Array):
+    def argmin(array: Array) -> float:
         """Return the index of the minimum value in an array."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def max(array: Array, axis: int = None):
+    def max(array: Array, axis: Optional[AxisArg] = None) -> Array:
         """Return the maximum value in an array."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def maximum(array1: Array, array2: Array):
+    def maximum(array1: Array, array2: Array) -> float:
         """Return the elementwise maximum values of two arrays."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def minimum(array1: Array, array2: Array):
+    def minimum(array1: Array, array2: Array) -> Array:
         """Return the elementwise minimum values of two arrays."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def min(array: Array, axis=None):
+    def min(array: Array, axis=None) -> Array:
         """Return the minimum value in an array."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def block(blocks):
+    def block(blocks) -> Array:
         """Assemble 2d-array from nested lists of blocks."""
         raise NotImplementedError
 
@@ -566,24 +601,24 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def sum(matrix: Array, axis=None):
+    def sum(matrix: Array, axis=None) -> Array:
         """Compute the sum of a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def count_nonzero(matrix: Array, axis: int = None):
+    def count_nonzero(matrix: Array, axis: Optional[AxisArg] = None) -> int:
         """Compute the number of non-zero entries in a matrix."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def array(array: Array, **kwargs):
+    def array(array: Iterable, **kwargs) -> Array:
         """Covert an array to native format."""
         raise NotImplementedError
 
     @classmethod
-    def cartesian_product(cls, input_sets):
+    def cartesian_product(cls, input_sets: List[Array]) -> Array:
         r"""
         Compute the cartesian product of an arbitray number of sets.
 
@@ -614,7 +649,7 @@ class BackendMixin(ABC):
         return cls.flip(cls.stack(out, axis=1), axis=(0,))
 
     @classmethod
-    def outer_product(cls, input_sets, axis=0):
+    def outer_product(cls, input_sets, axis=0) -> Array:
         r"""
         Construct the outer product of an arbitary number of sets.
 
@@ -714,7 +749,7 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def up(matrix: Array, indices: Array, submatrix: Array, axis: int = 0):
+    def up(matrix: Array, indices: Array, submatrix: Array, axis: AxisArg = 0):
         raise NotImplementedError
 
     @staticmethod
@@ -724,17 +759,17 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def floor(array: Array):
+    def floor(array: Array) -> Array:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def ceil(array: Array):
+    def ceil(array: Array) -> Array:
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def asarray(array: Array):
+    def asarray(array: Iterable) -> Array:
         raise NotImplementedError
 
     @staticmethod
@@ -784,12 +819,12 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def int():
+    def int_dtype():
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def cumsum(array: Array, axis: int = 0, **kwargs):
+    def cumsum(array: Array, axis: AxisArg = 0, **kwargs):
         raise NotImplementedError
 
     @staticmethod
@@ -850,12 +885,12 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def split(mat: Array, splits: Array, axis: int = 0):
+    def split(mat: Array, splits: Array, axis: AxisArg = 0):
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def chunks(mat: Array, nchunks: int, axis: int = 0) -> List[Array]:
+    def chunks(mat: Array, nchunks: int, axis: AxisArg = 0) -> List[Array]:
         raise NotImplementedError
 
     @staticmethod
@@ -884,7 +919,7 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def tril_indices(n: int, k: int = 0, m: int = None) -> Array:
+    def tril_indices(n: int, k: int = 0, m: Optional[int] = None) -> Array:
         raise NotImplementedError
 
     @staticmethod
@@ -894,7 +929,7 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def triu_indices(n: int, k: int = 0, m: int = None) -> Array:
+    def triu_indices(n: int, k: int = 0, m: Optional[int] = None) -> Array:
         raise NotImplementedError
 
     @staticmethod
@@ -1002,7 +1037,7 @@ class BackendMixin(ABC):
 
     @staticmethod
     @abstractmethod
-    def concatenate(mats: List[Array], axis: int = 0) -> Array:
+    def concatenate(mats: List[Array], axis: AxisArg = 0) -> Array:
         raise NotImplementedError
 
     @staticmethod
@@ -1013,6 +1048,6 @@ class BackendMixin(ABC):
         rtol: float = 1e-7,
         atol: float = 0,
         equal_nan: bool = True,
-        err_msg: str = None,
+        err_msg: Optional[str] = None,
     ) -> bool:
         raise NotImplementedError

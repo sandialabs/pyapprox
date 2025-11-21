@@ -15,13 +15,13 @@ class NewtonResidual(ABC):
     def __call__(self, iterate: Array) -> Array:
         raise NotImplementedError
 
-    def _jacobian(self, iterate: Array) -> Array:
+    def _state_jacobian(self, iterate: Array) -> Array:
         if not self._bkd.jacobian_implemented():
             raise NotImplementedError
         return self._bkd.jacobian(self.__call__, iterate)
 
-    def jacobian(self, iterate: Array) -> Array:
-        jac = self._jacobian(iterate)
+    def state_jacobian(self, iterate: Array) -> Array:
+        jac = self._state_jacobian(iterate)
         if jac.ndim != 2 or jac.shape[0] != iterate.shape[0]:
             raise RuntimeError(
                 "jac must be 2D with 1 column but has the wrong shape {0} "
@@ -30,7 +30,7 @@ class NewtonResidual(ABC):
         return jac
 
     def linsolve(self, iterate: Array, res: Array) -> Array:
-        jac = self.jacobian(iterate)
+        jac = self.state_jacobian(iterate)
         return self._bkd.solve(jac, res)
 
     def __repr__(self) -> str:

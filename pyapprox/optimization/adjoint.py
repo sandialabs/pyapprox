@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
-from functools import partial
-import unittest  # for checking with good error messages
+import unittest  # Enable check_derivatives with good error messages
 
 from pyapprox.util.backends.template import BackendMixin, Array
-from pyapprox.util.newnewton import ParameterizedNewtonResidual
 from pyapprox.interface.model import GradientCheckMixin
 
 
@@ -1246,158 +1244,34 @@ class VectorAdjointOperator(GradientCheckMixin):
         )
 
 
-class GradientEnabledParameterizedNewtonResidual(ParameterizedNewtonResidual):
-    def _residual_param_wrapper(self, state: Array, param: Array) -> Array:
-        self.set_param(param)
-        return self(state)
+from pyapprox.util.newton import NewtonResidual
 
-    def _param_jacobian(self, state: Array) -> Array:
-        """Gradient of residual with respect to parameters"""
-        if not self._bkd.jacobian_implemented():
-            raise NotImplementedError
-        return self._bkd.jacobian(
-            partial(self._constraint_eq_param_wrapper, state),
-            self._param,
-        )
 
-    def param_jacobian(self, state: Array) -> Array:
-        if state.ndim != 1:
-            raise ValueError("state must be a 1d Array")
-        jac = self._param_jacobian(state)
-        if jac.ndim != 2 or jac.shape != (
-            state.shape[0],
-            self._param.shape[0],
-        ):
-            raise RuntimeError(
-                "jac has the wrong shape {0} should be {1}".format(
-                    jac.shape, (state.shape[0], self._param.shape[0])
-                )
+class NewtonResidualWithGradient(NewtonResidual, AdjointConstraintEquation):
+    @abstractmethod
+    def _set_parameters(self, param: Array) -> None:
+        raise NotImplementedError
+
+    def set_parameters(self, param: Array) -> None:
+        if param.shape != (self.nvars(),):
+            raise ValueError(
+                f"param has shape {param.shape} but must have "
+                "shape {(self.nvars(),)}"
             )
-        return jac
+        self._param = param
+        self._set_parameters(param)
+
+    def get_parameters(self) -> Array:
+        if not hasattr(self, "_parameters"):
+            raise AttributeError("must call set_parameters")
+        return self._parameters
+
+    # def _solve(self, init_state: Array, param: Array) -> Array:
+    #     p
 
 
-class HVPEnabledParameterizedNewtonResidual(
-    GradientEnabledParameterizedNewtonResidual
-):
-    def _adjoint_dot_residual_param_wrapper(
-        self, adj_state: Array, fwd_state: Array, param: Array
-    ):
-        self.set_param(param)
-        return adj_state @ self(fwd_state)
-
-    def _adjoint_dot_residual_state_wrapper(
-        self, adj_state: Array, fwd_state: Array
-    ):
-        return adj_state @ self(fwd_state)
-
-    def _param_param_hvp(
-        self, fwd_state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
-        if not self._bkd.hvp_implemented():
-            raise NotImplementedError
-        return self._bkd.hvp(
-            partial(
-                self._adjoint_dot_residual_param_wrapper, adj_state, fwd_state
-            ),
-            self._param,
-            vvec,
-        )
-
-    def param_param_hvp(
-        self, fwd_state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
-        hvp = self._param_param_hvp(fwd_state, adj_state, vvec)
-        if hvp.ndim != 1:
-            raise RuntimeError("_param_param_hvp must return 1D array")
-        return hvp
-
-    def _state_state_hvp(
-        self, fwd_state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
-        if not self._bkd.hvp_implemented():
-            raise NotImplementedError
-        return self._bkd.hvp(
-            partial(self._adjoint_dot_residual_state_wrapper, adj_state),
-            fwd_state,
-            wvec,
-        )
-
-    def state_state_hvp(
-        self, fwd_state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
-        hvp = self._state_state_hvp(fwd_state, adj_state, wvec)
-        if hvp.ndim != 1 or hvp.shape[0] != fwd_state.shape[0]:
-            raise RuntimeError("_state_state_hvp must return 1D array")
-        return hvp
-
-    def _adjoint_dot_residual_state_jvp(
-        self, adj_state, wvec, fwd_state, param
-    ):
-        self.set_param(param)
-        return self._bkd.jvp(
-            partial(self._adjoint_dot_residual_state_wrapper, adj_state),
-            fwd_state,
-            wvec,
-        )
-
-    def _param_state_hvp(
-        self, fwd_state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
-        if not self._bkd.jvp_implemented():
-            raise NotImplementedError
-        # if using torch requires result of jvp to be differentiable
-        return self._bkd.jacobian(
-            partial(
-                self._adjoint_dot_residual_state_jvp,
-                adj_state,
-                wvec,
-                fwd_state,
-            ),
-            self._param,
-        )
-
-    def param_state_hvp(
-        self, fwd_state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
-        hvp = self._param_state_hvp(fwd_state, adj_state, wvec)
-        if hvp.ndim != 1:
-            raise RuntimeError("_param_state_hvp must return 1D array")
-        return hvp
-
-    def _adjoint_dot_residual_param_jvp(
-        self, adj_state, vvec, param, fwd_state
-    ):
-        return self._bkd.jvp(
-            partial(
-                self._adjoint_dot_residual_param_wrapper, adj_state, fwd_state
-            ),
-            param,
-            vvec,
-        )
-
-    def _state_param_hvp(
-        self, fwd_state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
-        if not self._bkd.jvp_implemented():
-            raise NotImplementedError
-        # if using torch requires result of jvp to be differentiable
-        return self._bkd.jacobian(
-            partial(
-                self._adjoint_dot_residual_param_jvp,
-                adj_state,
-                vvec,
-                self._param,
-            ),
-            fwd_state,
-        )
-
-    def state_param_hvp(
-        self, fwd_state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
-        hvp = self._state_param_hvp(fwd_state, adj_state, vvec)
-        if hvp.ndim != 1 or hvp.shape[0] != fwd_state.shape[0]:
-            raise RuntimeError("_state_param_hvp must return 1D array")
-        return hvp
+class NewtonResidualWithHessian(NewtonResidualWithGradient):
+    pass
 
 
 class AdjointNewtonSolver:
