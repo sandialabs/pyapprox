@@ -34,7 +34,6 @@ class ResidualEquation(ABC):
         return value
 
     def __call__(self, iterate: Array) -> Array:
-        print(self)
         return self.value(iterate)
 
     @abstractmethod
@@ -51,16 +50,29 @@ class ResidualEquation(ABC):
         return "{0}".format(self.__class__.__name__)
 
 
-class ResidualEquationWithStateJacobian(ResidualEquation):
+class ResidualEquationWithJacobian(ResidualEquation):
+    def use_auto_differentiation(self) -> bool:
+        return False
 
-    def _state_jacobian(self, iterate: Array) -> Array:
+    def _check_automatic_differentiation(self) -> None:
         if not self._bkd.jacobian_implemented():
-            raise NotImplementedError
+            raise NotImplementedError("Automatic differentiation not enabled")
+        if not self.use_auto_differentiation():
+            raise RuntimeError(
+                f"{self}.use_auto_differentiation() returns False.\n"
+                "Set it to return True if all functions this class"
+                "requires use a backend that supports auto diffentiation.\n"
+                "Otherwise, implement the jacobian with the anlaytical"
+                "expression."
+            )
+
+    def _jacobian(self, iterate: Array) -> Array:
+        self._check_automatic_differentiation()
         return self._bkd.jacobian(self.__call__, iterate)
 
-    def state_jacobian(self, iterate: Array) -> Array:
+    def jacobian(self, iterate: Array) -> Array:
         self._check_iterate(iterate)
-        jac = self._state_jacobian(iterate)
+        jac = self._jacobian(iterate)
         if jac.shape != (self.nstates(), self.nstates()):
             raise RuntimeError(
                 f"{jac.shape=} but must be {(self.nstates(), self.nstates())}"
@@ -68,10 +80,9 @@ class ResidualEquationWithStateJacobian(ResidualEquation):
         return jac
 
 
-class NewtonResidual(ResidualEquationWithStateJacobian):
-
+class NewtonResidual(ResidualEquationWithJacobian):
     def linsolve(self, iterate: Array, res: Array) -> Array:
-        jac = self.state_jacobian(iterate)
+        jac = self.jacobian(iterate)
         return self._bkd.solve(jac, res)
 
     def default_solver(self) -> "NewtonSolver":

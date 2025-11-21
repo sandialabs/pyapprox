@@ -8,7 +8,7 @@ import tempfile
 from abc import ABC, abstractmethod
 import multiprocessing
 from multiprocessing.pool import ThreadPool
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 import matplotlib
 
 import numpy as np
@@ -410,8 +410,8 @@ class GradientCheckMixin:
         symb: str,
         fun: callable,
         apply_fun: callable,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
         args=[],
@@ -1403,8 +1403,8 @@ class Model(ABC, GradientCheckMixin):
     def check_apply_jacobian(
         self,
         sample: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ):
@@ -1496,8 +1496,8 @@ class Model(ABC, GradientCheckMixin):
     def check_apply_hessian(
         self,
         sample: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
         weights: bool = None,
@@ -4093,7 +4093,7 @@ class DenseMatrixLinearModel(Model):
     def __init__(
         self,
         matrix: Array,
-        vec: Array = None,
+        vec: Optional[Array] = None,
         backend: BackendMixin = NumpyMixin,
     ):
         """
@@ -5148,7 +5148,7 @@ class ScalarElementwiseFunction(ABC):
         fun: callable,
         grad: callable,
         symb: str,
-        fd_eps: Array = None,
+        fd_eps: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ):
@@ -5218,7 +5218,7 @@ class ScalarElementwiseFunction(ABC):
     def check_first_derivative(
         self,
         samples: Array,
-        fd_eps: Array = None,
+        fd_eps: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ):
@@ -5254,7 +5254,7 @@ class ScalarElementwiseFunction(ABC):
     def check_second_derivative(
         self,
         samples: Array,
-        fd_eps: Array = None,
+        fd_eps: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ):
@@ -5290,7 +5290,7 @@ class ScalarElementwiseFunction(ABC):
     def check_third_derivative(
         self,
         samples: Array,
-        fd_eps: Array = None,
+        fd_eps: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ):

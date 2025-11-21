@@ -38,6 +38,8 @@ class Array(Protocol):
 
     def __le__(self, other: Union[float, "Array"]) -> Union[bool, "Array"]: ...
 
+    def __matmul__(self, other: "Array") -> "Array": ...
+
     # turn off warning It is recommended for "__eq__" to work with arbitrary
     # obejcts which arises because numpy for edxample returns an array not bool
     def __eq__(self, other: "Array") -> "Array": ...  # type: ignore

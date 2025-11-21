@@ -156,3 +156,5 @@ setuptools.setup(
 # mypy --follow-imports=skip  --strict ~/Desktop/ducktyping_example.py
 # to decend into imported files run in pypapprox root and run
 # mypy --strict ~/Desktop/ducktyping_example.py
+# using silent will check consistency with imports but not show error in those files
+# mypy --follow-imports=silent ../adjoint.py

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 import unittest  # Enable check_derivatives with good error messages
 
 from pyapprox.util.backends.template import BackendMixin, Array
@@ -15,43 +16,44 @@ class ParameterizedResidualEquation(ResidualEquation):
     def _set_parameters(self, param: Array) -> None:
         raise NotImplementedError
 
-    def set_parameters(self, param: Array) -> None:
+    def _check_parameters(self, param: Array) -> None:
         if param.shape != (self.nvars(),):
             raise ValueError(
                 f"param has shape {param.shape} but must have "
                 "shape {(self.nvars(),)}"
             )
+
+    def set_parameters(self, param: Array) -> None:
+        self._check_parameters(param)
         self._param = param
         self._set_parameters(param)
 
-    def get_parameters(self) -> Array:
-        if not hasattr(self, "_parameters"):
+    def _check_has_parameters(self) -> None:
+        if not hasattr(self, "_param"):
             raise AttributeError("must call set_parameters")
-        return self._parameters
 
-    @abstractmethod
-    def _solve(self, init_state: Array, param: Array) -> Array:
-        raise NotImplementedError
+    def get_parameters(self) -> Array:
+        self._check_has_parameters()
+        return self._param
 
-    @abstractmethod
-    def _value(self, init_state: Array, param: Array) -> Array:
-        raise NotImplementedError
-
-    def _check_state_param_shapes(self, init_state: Array, param: Array):
+    def _check_state_param_shapes(
+        self, init_state: Array, param: Array
+    ) -> None:
         if init_state.shape != (self.nstates(),):
             raise ValueError(
                 f"init_state had shape {init_state.shape} but "
                 f"must have shape {(self.nstates(),)}"
             )
-        if param.shape != (self.nvars(),):
-            raise ValueError(
-                f"param had shape {param.shape} but "
-                f"must have shape {(self.nvars(),)}"
-            )
+        self._check_parameters(param)
 
-    def value(self, init_state: Array, param: Array) -> Array:
-        self._check_state_param_shapes(init_state, param)
-        val = self._value(init_state, param)
+    @abstractmethod
+    def _value(self, iterate: Array, param: Array) -> Array:
+        raise NotImplementedError
+
+    def value(self, init_state: Array) -> Array:
+        self._check_has_parameters()
+        self._check_iterate(init_state)
+        val = self._value(init_state, self.get_parameters())
         if val.shape != (self.nstates(),):
             raise ValueError(
                 f"value has shape {val.shape} but must be {(self.nstates(),)}"
@@ -59,18 +61,39 @@ class ParameterizedResidualEquation(ResidualEquation):
         return val
 
     def solve(self, init_state: Array, param: Array) -> Array:
-        self._check_state_param_shapes(init_state, param)
-        return self._solve(init_state, param)
+        # used for checking derivatives
+        self._check_iterate(init_state)
+        self.set_parameters(param)
+        return self._solve(init_state)
 
 
 class AdjointResidualEquation(
     ParameterizedResidualEquation, GradientCheckMixin
 ):
+    def use_auto_differentiation(self) -> bool:
+        """
+        Set to true if the user wants to use automatic differentiation.
+        Even if this is true, an error will be thrown if the backend
+        does not support it.
+        """
+        return False
+
+    def _check_automatic_differentiation(self) -> None:
+        if not self._bkd.jacobian_implemented():
+            raise NotImplementedError("Automatic differentiation not enabled")
+        if not self.use_auto_differentiation():
+            raise RuntimeError(
+                f"{self}.use_auto_differentiation() returns False.\n"
+                "Set it to return True if all functions this class"
+                "requires use a backend that supports auto diffentiation.\n"
+                "Otherwise, implement the functions with the anlaytical"
+                "expressions."
+            )
+
     def _param_jacobian(self, state: Array, param: Array) -> Array:
         """Gradient of residual with respect to parameters"""
-        if not self._bkd.jacobian_implemented():
-            raise NotImplementedError
-        return self._bkd.jacobian(lambda p: self.value(state, p), param)
+        self._check_automatic_differentiation()
+        return self._bkd.jacobian(lambda p: self._value(state, p), param)
 
     def param_jacobian(self, state: Array, param: Array) -> Array:
         """Gradient of residual with respect to parameters"""
@@ -86,9 +109,8 @@ class AdjointResidualEquation(
 
     def _state_jacobian(self, state: Array, param: Array) -> Array:
         """Gradient of residual with respect to state"""
-        if not self._bkd.jacobian_implemented():
-            raise NotImplementedError
-        return self._bkd.jacobian(lambda y: self.value(y, param), state)
+        self._check_automatic_differentiation()
+        return self._bkd.jacobian(lambda y: self._value(y, param), state)
 
     def state_jacobian(self, state: Array, param: Array) -> Array:
         """Gradient of residual with respect to state"""
@@ -106,8 +128,8 @@ class AdjointResidualEquation(
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -116,8 +138,8 @@ class AdjointResidualEquation(
         return self._check_apply(
             state[:, None],
             "J_y",
-            lambda y: self.value(y[:, 0], param),
-            lambda y, v: self.state_jacobian(y[:, 0], param) @ v,
+            lambda y: self._value(y[:, 0], param),
+            lambda y, v: self._state_jacobian(y[:, 0], param) @ v,
             fd_eps,
             direction,
             relative,
@@ -128,8 +150,8 @@ class AdjointResidualEquation(
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -138,7 +160,7 @@ class AdjointResidualEquation(
         return self._check_apply(
             param[:, None],
             "J_p",
-            lambda p: self.value(state, p[:, 0]),
+            lambda p: self._value(state, p[:, 0]),
             lambda p, v: self.param_jacobian(state, p[:, 0]) @ v,
             fd_eps,
             direction,
@@ -156,7 +178,7 @@ class AdjointResidualEquationWithHessian(AdjointResidualEquation):
     def _adjoint_dot_residual_param_wrapper(
         self, fwd_state: Array, param: Array, adj_state: Array
     ) -> Array:
-        return adj_state @ self(fwd_state, param)
+        return adj_state @ self._value(fwd_state, param)
 
     def _adjoint_dot_residual_state_wrapper(
         self,
@@ -164,7 +186,7 @@ class AdjointResidualEquationWithHessian(AdjointResidualEquation):
         param: Array,
         adj_state: Array,
     ) -> Array:
-        return adj_state @ self.value(fwd_state, param)
+        return adj_state @ self._value(fwd_state, param)
 
     def _param_param_hvp(
         self, fwd_state: Array, param: Array, adj_state: Array, vvec: Array
@@ -179,7 +201,7 @@ class AdjointResidualEquationWithHessian(AdjointResidualEquation):
         # requires create_graph=True so only want to nest if user provides
         # the function without autograd
         return self._bkd.hvp(
-            lambda p: adj_state @ self.value(fwd_state, p),
+            lambda p: adj_state @ self._value(fwd_state, p),
             param,
             vvec,
         )
@@ -197,8 +219,8 @@ class AdjointResidualEquationWithHessian(AdjointResidualEquation):
         state: Array,
         param: Array,
         adj_state: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -229,7 +251,7 @@ class AdjointResidualEquationWithHessian(AdjointResidualEquation):
         # requires create_graph=True so only want to nest if user provides
         # the function without autograd
         return self._bkd.hvp(
-            lambda y: adj_state @ self.value(y, param),
+            lambda y: adj_state @ self._value(y, param),
             fwd_state,
             wvec,
         )
@@ -247,8 +269,8 @@ class AdjointResidualEquationWithHessian(AdjointResidualEquation):
         state: Array,
         param: Array,
         adj_state: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -313,8 +335,8 @@ class AdjointResidualEquationWithHessian(AdjointResidualEquation):
         state: Array,
         param: Array,
         adj_state: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -377,8 +399,8 @@ class AdjointResidualEquationWithHessian(AdjointResidualEquation):
         state: Array,
         param: Array,
         adj_state: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -403,7 +425,7 @@ class Functional(ABC):
         self._bkd = backend
         if self.nunique_vars() >= self.nvars():
             raise ValueError(
-                f"{self._nunique_vars()=} must be smaller than {self.nvars()=}"
+                f"{self.nunique_vars()=} must be smaller than {self.nvars()=}"
             )
 
     @abstractmethod
@@ -444,7 +466,7 @@ class Functional(ABC):
             )
         return val
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}(nstates={1}, nvars={2}, nqoi={3})".format(
             self.__class__.__name__,
             self.nstates(),
@@ -454,12 +476,31 @@ class Functional(ABC):
 
 
 class VectorAdjointFunctional(Functional, GradientCheckMixin):
+    def use_auto_differentiation(self) -> bool:
+        """
+        Set to true if the user wants to use automatic differentiation.
+        Even if this is true, an error will be thrown if the backend
+        does not support it.
+        """
+        return False
+
+    def _check_automatic_differentiation(self) -> None:
+        if not self._bkd.jacobian_implemented():
+            raise NotImplementedError("Automatic differentiation not enabled")
+        if not self.use_auto_differentiation():
+            raise RuntimeError(
+                f"{self}.use_auto_differentiation() returns False.\n"
+                "Set it to return True if all functions this class"
+                "requires use a backend that supports auto diffentiation.\n"
+                "Otherwise, implement the functions with the anlaytical"
+                "expressions."
+            )
+
     def _state_jacobian(self, state: Array, param: Array) -> Array:
         """
         The Jacobian of the QoI with respect to the state.
         """
-        if not self._bkd.jacobian_implemented():
-            raise NotImplementedError
+        self._check_automatic_differentiation()
         return self._bkd.jacobian(lambda y: self(y, param), state)
 
     def state_jacobian(self, state: Array, param: Array) -> Array:
@@ -481,8 +522,7 @@ class VectorAdjointFunctional(Functional, GradientCheckMixin):
         """
         The Jacobian of the QoI with respect to the parameters
         """
-        if not self._bkd.jacobian_implemented():
-            raise NotImplementedError
+        self._check_automatic_differentiation()
         return self._bkd.jacobian(lambda p: self(state, param), param)
 
     def param_jacobian(self, state: Array, param: Array) -> Array:
@@ -505,8 +545,8 @@ class VectorAdjointFunctional(Functional, GradientCheckMixin):
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -527,8 +567,8 @@ class VectorAdjointFunctional(Functional, GradientCheckMixin):
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -584,8 +624,8 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -633,8 +673,8 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -682,8 +722,8 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -730,8 +770,8 @@ class ScalarAdjointFunctionalWithHessian(ScalarAdjointFunctional):
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -769,7 +809,7 @@ class AdjointOperatorData:
             if hasattr(self, attr_name):
                 delattr(self, attr_name)
 
-    def has_parameter(self, param: Array):
+    def has_parameter(self, param: Array) -> bool:
         if not hasattr(self, "_param"):
             return False
         if self._bkd.allclose(param, self._param, atol=3e-16, rtol=3e-16):
@@ -784,7 +824,7 @@ class AdjointOperatorData:
             return False
         return True
 
-    def get_forward_state(self, fwd_state: Array) -> None:
+    def get_forward_state(self, fwd_state: Array) -> Array:
         if not self.has_forward_state():
             raise AttributeError("must call set_parameter")
         return self._fwd_state
@@ -840,7 +880,7 @@ class AdjointOperatorData:
         return self._adj_state
 
     def __repr__(self) -> str:
-        return "{0}".format(self.__class__.__name__())
+        return "{0}".format(self.__class__.__name__)
 
 
 class ScalarAdjointOperator(GradientCheckMixin):
@@ -849,21 +889,14 @@ class ScalarAdjointOperator(GradientCheckMixin):
         residual_eq: AdjointResidualEquation,
         functional: ScalarAdjointFunctional,
     ):
-        if not isinstance(residual_eq, AdjointResidualEquation):
-            raise TypeError(
-                "residual_eq must be an instance of " "AdjointResidualEquation"
-            )
         self._bkd = residual_eq._bkd
         self._residual_eq = residual_eq
-        self._adjoint_data = AdjointOperatorData(self._bkd)
-
-        if not isinstance(functional, ScalarAdjointFunctional):
-            raise TypeError("functional must be an instance AdjointFunctional")
         if not self._bkd.bkd_equal(self._bkd, functional._bkd):
             raise TypeError(
                 "residual_eq bkd does not match functional backend"
             )
         self._functional = functional
+        self._adjoint_data = AdjointOperatorData(self._bkd)
 
     def adjoint_data(self) -> AdjointOperatorData:
         return self._adjoint_data
@@ -917,8 +950,8 @@ class ScalarAdjointOperator(GradientCheckMixin):
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -936,6 +969,77 @@ class ScalarAdjointOperator(GradientCheckMixin):
             relative,
             disp,
         )
+
+    def _assert_derivatives_close(self, errors: Array, tol: float) -> None:
+        if self._bkd.min(errors) == self._bkd.max(errors):
+            assert self._bkd.min(errors) == 0.0
+        else:
+            self._unittest.assertLessEqual(
+                self._bkd.min(errors) / self._bkd.max(errors), tol
+            )
+
+    def get_derivative_tolerances(self, tol: float) -> Array:
+        nchecks = 5
+        return self._bkd.full((nchecks,), tol)
+
+    def check_derivatives(
+        self,
+        init_state: Array,
+        param: Array,
+        tols: Array,
+        fd_eps: Optional[Array] = None,
+        disp: bool = False,
+    ) -> None:
+        # Create an instance of TestCase
+        self._unittest = unittest.TestCase()
+        # check first order derivatives of contraint equation
+        errors = self._residual_eq.check_state_jacobian(
+            init_state, param, fd_eps, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[0])
+        errors = self._residual_eq.check_param_jacobian(
+            init_state, param, fd_eps, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[1])
+
+        # check first order derivatives of functional
+        errors = self._functional.check_state_jacobian(
+            init_state, param, fd_eps, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[2])
+        # exact jac is zero so set relative to zero to avoid divide by zero
+        errors = self._functional.check_param_jacobian(
+            init_state, param, fd_eps, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[3])
+
+        # check Jacobian
+        errors = self.check_jacobian(init_state, param, fd_eps, disp=disp)
+        self._assert_derivatives_close(errors, tols[4])
+
+
+class ScalarAdjointOperatorWithHessian(ScalarAdjointOperator):
+    def __init__(
+        self,
+        residual_eq: AdjointResidualEquationWithHessian,
+        functional: ScalarAdjointFunctionalWithHessian,
+    ):
+        # calling
+        # super().__init__(residual_eq, functional)
+        # causes type errors (see below) so have to use code below
+
+        self._bkd = residual_eq._bkd
+        # explicitly type residual_eq to avoid typing errors like:
+        # "AdjointResidualEquation" has no attribute "state_state_hvp"
+        self._residual_eq: AdjointResidualEquationWithHessian = residual_eq
+        if not self._bkd.bkd_equal(self._bkd, functional._bkd):
+            raise TypeError(
+                "residual_eq bkd does not match functional backend"
+            )
+        # explicitly type residual_eq to avoid typing errors like:
+        # "ScalarAdjointFunctional" has no attribute "param_param_hvp"
+        self._functional: ScalarAdjointFunctionalWithHessian = functional
+        self._adjoint_data = AdjointOperatorData(self._bkd)
 
     def _forward_hessian_solve(
         self,
@@ -1070,8 +1174,8 @@ class ScalarAdjointOperator(GradientCheckMixin):
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
@@ -1095,57 +1199,19 @@ class ScalarAdjointOperator(GradientCheckMixin):
             self.__class__.__name__, self._residual_eq, self._functional
         )
 
-    def _assert_derivatives_close(self, errors: Array, tol: float) -> None:
-        if errors.min() == errors.max():
-            assert errors.min() == 0.0
-        else:
-            self._unittest.assertLessEqual(errors.min() / errors.max(), tol)
-
     def get_derivative_tolerances(self, tol: float) -> Array:
         nchecks = 14
-        return self._bkd.full((nchecks,), 1e-8)
+        return self._bkd.full((nchecks,), tol)
 
     def check_derivatives(
         self,
         init_state: Array,
         param: Array,
         tols: Array,
+        fd_eps: Optional[Array] = None,
         disp: bool = False,
     ) -> None:
-        # Create an instance of TestCase
-        self._unittest = unittest.TestCase()
-        # check first order derivatives of contraint equation
-        errors = self._residual_eq.check_state_jacobian(
-            init_state, param, disp=disp
-        )
-        self._assert_derivatives_close(errors, tols[0])
-        errors = self._residual_eq.check_param_jacobian(
-            init_state, param, disp=disp
-        )
-        self._assert_derivatives_close(errors, tols[1])
-
-        # check first order derivatives of functional
-        errors = self._functional.check_state_jacobian(
-            init_state, param, disp=disp
-        )
-        self._assert_derivatives_close(errors, tols[2])
-        # exact jac is zero so set relative to zero to avoid divide by zero
-        errors = self._functional.check_param_jacobian(
-            init_state, param, disp=disp
-        )
-        self._assert_derivatives_close(errors, tols[3])
-
-        # check Jacobian
-        errors = self.check_jacobian(init_state, param, disp=disp)
-        self._assert_derivatives_close(errors, tols[4])
-
-        if not isinstance(
-            self._residual_eq, AdjointResidualEquationWithHessian
-        ) or not isinstance(
-            self._functional, ScalarAdjointFunctionalWithHessian
-        ):
-            return
-
+        super().check_derivatives(init_state, param, tols, fd_eps, disp)
         # check second order derivatives of contraint equation
         adj_state = self.adjoint_data().get_adjoint_state()
         errors = self._residual_eq.check_param_param_hvp(
@@ -1167,24 +1233,24 @@ class ScalarAdjointOperator(GradientCheckMixin):
 
         # check second order derivaties of functional
         errors = self._functional.check_param_param_hvp(
-            init_state, param, disp=disp
+            init_state, param, fd_eps, disp=disp
         )
         self._assert_derivatives_close(errors, tols[9])
         errors = self._functional.check_state_state_hvp(
-            init_state, param, disp=disp
+            init_state, param, fd_eps, disp=disp
         )
         self._assert_derivatives_close(errors, tols[10])
         errors = self._functional.check_state_param_hvp(
-            init_state, param, disp=disp
+            init_state, param, fd_eps, disp=disp
         )
         self._assert_derivatives_close(errors, tols[11])
         errors = self._functional.check_param_state_hvp(
-            init_state, param, disp=disp
+            init_state, param, fd_eps, disp=disp
         )
         self._assert_derivatives_close(errors, tols[12])
 
         # check Hessian
-        errors = self.check_apply_hessian(init_state, param, disp=disp)
+        errors = self.check_apply_hessian(init_state, param, fd_eps, disp=disp)
         self._assert_derivatives_close(errors, tols[13])
 
 
@@ -1213,7 +1279,7 @@ class VectorAdjointOperator(GradientCheckMixin):
     def _get_forward_state(self, init_fwd_state: Array, param: Array) -> Array:
         if (
             not self._adjoint_data.has_parameter(param)
-            or not self._adjoint_data.has_fwd_state()
+            or not self._adjoint_data.has_forward_state()
         ):
             self._adjoint_data._clear()
             fwd_state = self._residual_eq.solve(init_fwd_state, param)
@@ -1221,6 +1287,9 @@ class VectorAdjointOperator(GradientCheckMixin):
         return self._adjoint_data.get_forward_state(fwd_state)
 
     def _sensitivities(self, fwd_state: Array, param: Array) -> Array:
+        """
+        Jacobian of the state with respect the parameters
+        """
         drdy = self._residual_eq.state_jacobian(fwd_state, param)
         drdp = self._residual_eq.param_jacobian(fwd_state, param)
         sens = self._bkd.solve(drdy, -drdp)
@@ -1231,47 +1300,88 @@ class VectorAdjointOperator(GradientCheckMixin):
         # useful when then number of QoI is commensurate with the
         # number of parameters
         fwd_state = self._get_forward_state(init_fwd_state, param)
-        sens = self._sensitivities(init_fwd_state, param)
+        sens = self._sensitivities(fwd_state, param)
         dqdy = self._functional.state_jacobian(fwd_state, param)
         dqdp = self._functional.param_jacobian(fwd_state, param)
         return dqdy @ sens + dqdp
 
-    def check_sensitivities(
+    def check_jacobian(
         self,
         state: Array,
         param: Array,
-        fd_eps: Array = None,
-        direction: Array = None,
+        fd_eps: Optional[Array] = None,
+        direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
     ) -> Array:
-
+        if disp:
+            print(f"{self}.check_jacobian")
         return self._check_apply(
             param[:, None],
             "J",
-            lambda p: self._residual_eq.solve(state, p[:, 0]),
-            lambda p, v: self.sensitivities(state, p[:, 0]) @ v,
+            lambda p: self._functional(
+                self._residual_eq.solve(state, p[:, 0]), p[:, 0]
+            ),
+            lambda p, v: self.jacobian(state, p[:, 0]) @ v,
             fd_eps,
             direction,
             relative,
             disp,
         )
 
+    def _assert_derivatives_close(self, errors: Array, tol: float) -> None:
+        if self._bkd.min(errors) == self._bkd.max(errors):
+            assert self._bkd.min(errors) == 0.0
+        else:
+            self._unittest.assertLessEqual(
+                self._bkd.min(errors) / self._bkd.max(errors), tol
+            )
+
+    def get_derivative_tolerances(self, tol: float) -> Array:
+        nchecks = 4
+        return self._bkd.full((nchecks,), tol)
+
+    def check_derivatives(
+        self,
+        init_state: Array,
+        param: Array,
+        tols: Array,
+        fd_eps: Optional[Array] = None,
+        disp: bool = False,
+    ) -> None:
+        # Create an instance of TestCase
+        self._unittest = unittest.TestCase()
+        # check first order derivatives of contraint equation
+        errors = self._residual_eq.check_state_jacobian(
+            init_state, param, fd_eps, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[0])
+        errors = self._residual_eq.check_param_jacobian(
+            init_state, param, fd_eps, disp=disp
+        )
+        self._assert_derivatives_close(errors, tols[1])
+        errors = self.check_jacobian(init_state, param, fd_eps, disp=disp)
+        self._assert_derivatives_close(errors, tols[3])
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__, self._residual_eq, self._functional
+        )
+
 
 class NewtonResidualWithGradient(NewtonResidual, AdjointResidualEquation):
-
-    def _solve(self, init_state: Array, param: Array) -> Array:
-        self.set_parameters(param)
-        super()._solve(init_state)
-
-    def _value(self, init_state: Array) -> Array:
-        return super()._value(init_state, self.get_parameters())
+    def _jacobian(self, state: Array) -> Array:
+        """
+        jacobian used by solvers, e.g. NewtonSolver
+        """
+        return self.state_jacobian(state, self.get_parameters())
 
 
-class NewtonResidualWithHessian(NewtonResidualWithGradient):
-    pass
-
-
-class AdjointNewtonSolver:
-    def __init__(self):
-        raise NotImplementedError
+class NewtonResidualWithHessian(
+    NewtonResidual, AdjointResidualEquationWithHessian
+):
+    def _jacobian(self, state: Array) -> Array:
+        """
+        jacobian used by solvers, e.g. NewtonSolver
+        """
+        return self.state_jacobian(state, self.get_parameters())

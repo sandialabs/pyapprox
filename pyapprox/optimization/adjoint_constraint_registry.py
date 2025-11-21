@@ -26,12 +26,17 @@ class LinearResidualEquation(AdjointResidualEquationWithHessian):
     def nvars(self) -> int:
         return self._Amat.shape[1]
 
+    def _set_parameters(self, param: Array) -> None:
+        # self._param has been set already by set_parameters
+        # that calls this function
+        pass
+
     def _value(self, state: Array, param: Array) -> Array:
         return state - self._Amat @ param
 
-    def _solve(self, init_state: Array, param: Array):
+    def _solve(self, init_state: Array):
         # init_state is ignored for this linear problem
-        return self._Amat @ param
+        return self._Amat @ self._param
 
     def _param_jacobian(self, state: Array, param: Array):
         return -self._Amat
@@ -128,7 +133,7 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
         self._apow = 1
         self._bpow = 1
 
-    def _value(self, iterate: Array) -> Array:
+    def _value(self, iterate: Array, param: Array) -> Array:
         r"""
         Compute the residuals for the nonlinear coupled system.
 
@@ -150,10 +155,11 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
             f_1(x_1, x_2) = a^p \cdot x_1^2 + x_2^2 - 1 \\
             f_2(x_1, x_2) = x_1^2 - b^q \cdot x_2^2 - 1
         """
+        a, b = param
         return self._bkd.stack(
             [
-                self._a**self._apow * iterate[0] ** 2 + iterate[1] ** 2 - 1,
-                iterate[0] ** 2 - self._b**self._bpow * iterate[1] ** 2 - 1,
+                a**self._apow * iterate[0] ** 2 + iterate[1] ** 2 - 1,
+                iterate[0] ** 2 - b**self._bpow * iterate[1] ** 2 - 1,
             ],
             axis=0,
         )
@@ -167,8 +173,7 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
         param : Array
             Array containing the model parameters.
         """
-        self._param = param
-        self._a, self._b = self._param
+        self._a, self._b = param
 
     def nvars(self) -> int:
         """
@@ -196,7 +201,7 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
             self.__class__.__name__, self._a, self._b
         )
 
-    def _state_jacobian(self, iterate: Array) -> Array:
+    def _state_jacobian(self, iterate: Array, param: Array) -> Array:
         r"""
         Compute the Jacobian of the residuals with respect to the states.
 
@@ -220,19 +225,20 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
                 2 x_1 & -2 b^q x_2
             \end{bmatrix}
         """
+        a, b = param
         return self._bkd.stack(
             [
                 self._bkd.hstack(
-                    [2 * self._a**self._apow * iterate[0], 2 * iterate[1]]
+                    [2 * a**self._apow * iterate[0], 2 * iterate[1]]
                 ),
                 self._bkd.hstack(
-                    [2 * iterate[0], -2 * self._b**self._bpow * iterate[1]]
+                    [2 * iterate[0], -2 * b**self._bpow * iterate[1]]
                 ),
             ],
             axis=0,
         )
 
-    def _param_jacobian(self, iterate: Array) -> Array:
+    def _param_jacobian(self, iterate: Array, param: Array) -> Array:
         r"""
         Compute the Jacobian of the residuals with respect to the parameters.
 
@@ -257,22 +263,19 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
             \end{bmatrix}
         """
         zero = self._bkd.zeros((1,))
+        a, b = param
         return self._bkd.stack(
             [
                 self._bkd.hstack(
                     [
-                        self._apow
-                        * self._a ** (self._apow - 1)
-                        * iterate[0] ** 2,
+                        self._apow * a ** (self._apow - 1) * iterate[0] ** 2,
                         zero,
                     ]
                 ),
                 self._bkd.hstack(
                     [
                         zero,
-                        -self._bpow
-                        * self._b ** (self._bpow - 1)
-                        * iterate[1] ** 2,
+                        -self._bpow * b ** (self._bpow - 1) * iterate[1] ** 2,
                     ]
                 ),
             ],

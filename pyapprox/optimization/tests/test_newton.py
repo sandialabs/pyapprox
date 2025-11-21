@@ -1,4 +1,5 @@
 import unittest
+from typing import Type
 
 import numpy as np
 
@@ -13,6 +14,9 @@ from pyapprox.optimization.newton import (
 
 
 class TestNewton:
+    def get_backend(self):
+        raise NotImplementedError
+
     def setUp(self):
         np.random.seed(1)
 
@@ -27,7 +31,7 @@ class TestNewton:
                 # Residual function: f(x) = x^2 - 4 = 0
                 return self._bkd.array([iterate[0] ** 2 - 4])
 
-            def _state_jacobian(self, iterate: Array) -> Array:
+            def _jacobian(self, iterate: Array) -> Array:
                 # Compute the Jacobian of f(x) = x^2 - 4 = 0
                 return 2.0 * iterate[None, :]
 
@@ -51,7 +55,7 @@ class TestNewton:
                 x, y = iterate
                 return self._bkd.array([x**2 + y**2 - 1, x**2 - y])
 
-            def _state_jacobian(self, iterate: Array) -> Array:
+            def _jacobian(self, iterate: Array) -> Array:
                 x, y = iterate
                 return self._bkd.array([[2 * x, 2 * y], [2 * x, -1]])
 
@@ -87,12 +91,12 @@ class TestNewton:
 
 
 class TestNumpyNewton(TestNewton, unittest.TestCase):
-    def get_backend(self) -> NumpyMixin:
+    def get_backend(self) -> Type[NumpyMixin]:
         return NumpyMixin
 
 
 class TestTorchNewton(TestNewton, unittest.TestCase):
-    def get_backend(self) -> TorchMixin:
+    def get_backend(self) -> Type[TorchMixin]:
         return TorchMixin
 
 
