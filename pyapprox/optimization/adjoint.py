@@ -5,7 +5,7 @@ from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.interface.model import GradientCheckMixin
 
 
-class AdjointConstraintEquation(ABC, GradientCheckMixin):
+class AdjointResidualEquation(ABC, GradientCheckMixin):
     def __init__(self, backend: BackendMixin):
         self._bkd = backend
 
@@ -136,7 +136,7 @@ class AdjointConstraintEquation(ABC, GradientCheckMixin):
         )
 
 
-class AdjointConstraintEquationWithHessian(AdjointConstraintEquation):
+class AdjointResidualEquationWithHessian(AdjointResidualEquation):
     def _adjoint_dot_residual_param_wrapper(
         self, fwd_state: Array, param: Array, adj_state: Array
     ) -> Array:
@@ -773,10 +773,10 @@ class AdjointOperatorData:
             raise AttributeError("must call set_parameter")
         return self._fwd_state
 
-    def set_constraint_eq_state_jacobian(self, drdy: Array) -> None:
+    def set_residual_eq_state_jacobian(self, drdy: Array) -> None:
         self._drdy = drdy
 
-    def set_constraint_eq_param_jacobian(self, drdp: Array) -> None:
+    def set_residual_eq_param_jacobian(self, drdp: Array) -> None:
         self._drdp = drdp
 
     def set_qoi_state_jacobian(self, dqdy: Array) -> None:
@@ -788,19 +788,19 @@ class AdjointOperatorData:
     def set_adjoint_state(self, adj_state: Array) -> None:
         self._adj_state = adj_state
 
-    def get_constraint_eq_state_jacobian(self) -> Array:
+    def get_residual_eq_state_jacobian(self) -> Array:
         if not hasattr(self, "_drdy"):
-            raise AttributeError("must call set_constraint_eq_state_jacobian")
+            raise AttributeError("must call set_residual_eq_state_jacobian")
         return self._drdy
 
-    def has_constraint_eq_param_jacobian(self) -> bool:
+    def has_residual_eq_param_jacobian(self) -> bool:
         if not hasattr(self, "_drdp"):
             return False
         return True
 
-    def get_constraint_eq_param_jacobian(self) -> Array:
-        if not self.has_constraint_eq_param_jacobian():
-            raise AttributeError("must call set_constraint_eq_param_jacobian")
+    def get_residual_eq_param_jacobian(self) -> Array:
+        if not self.has_residual_eq_param_jacobian():
+            raise AttributeError("must call set_residual_eq_param_jacobian")
         return self._drdp
 
     def get_qoi_state_jacobian(self) -> Array:
@@ -830,23 +830,22 @@ class AdjointOperatorData:
 class ScalarAdjointOperator(GradientCheckMixin):
     def __init__(
         self,
-        constraint_eq: AdjointConstraintEquation,
+        residual_eq: AdjointResidualEquation,
         functional: ScalarAdjointFunctional,
     ):
-        if not isinstance(constraint_eq, AdjointConstraintEquation):
+        if not isinstance(residual_eq, AdjointResidualEquation):
             raise TypeError(
-                "constraint_eq must be an instance of "
-                "AdjointConstraintEquation"
+                "residual_eq must be an instance of " "AdjointResidualEquation"
             )
-        self._bkd = constraint_eq._bkd
-        self._constraint_eq = constraint_eq
+        self._bkd = residual_eq._bkd
+        self._residual_eq = residual_eq
         self._adjoint_data = AdjointOperatorData(self._bkd)
 
         if not isinstance(functional, ScalarAdjointFunctional):
             raise TypeError("functional must be an instance AdjointFunctional")
         if not self._bkd.bkd_equal(self._bkd, functional._bkd):
             raise TypeError(
-                "constraint_eq bkd does not match functional backend"
+                "residual_eq bkd does not match functional backend"
             )
         self._functional = functional
 
@@ -854,18 +853,18 @@ class ScalarAdjointOperator(GradientCheckMixin):
         return self._adjoint_data
 
     def nvars(self) -> int:
-        return self._constraint_eq.nvars()
+        return self._residual_eq.nvars()
 
     def value(self, init_fwd_state: Array, param: Array) -> Array:
         fwd_state = self._get_forward_state(init_fwd_state, param)
         return self._functional(fwd_state, param)
 
     def solve_adjoint_equation(self, fwd_state: Array, param: Array) -> Array:
-        drdy = self._constraint_eq.state_jacobian(fwd_state, param)
+        drdy = self._residual_eq.state_jacobian(fwd_state, param)
         dqdy = self._functional.state_jacobian(fwd_state, param)
         adj_state = self._bkd.solve(drdy.T, -dqdy[0])
         self._adjoint_data.set_adjoint_state(adj_state)
-        self._adjoint_data.set_constraint_eq_state_jacobian(drdy)
+        self._adjoint_data.set_residual_eq_state_jacobian(drdy)
         self._adjoint_data.set_qoi_state_jacobian(dqdy)
         return adj_state
 
@@ -876,22 +875,22 @@ class ScalarAdjointOperator(GradientCheckMixin):
             or not self._adjoint_data.has_fwd_state()
         ):
             self._adjoint_data._clear()
-            fwd_state = self._constraint_eq.solve(init_fwd_state, param)
+            fwd_state = self._residual_eq.solve(init_fwd_state, param)
             self._adjoint_data.set_forward_state(fwd_state)
         return self._adjoint_data.get_forward_state(fwd_state)
 
-    def _get_constraint_eq_param_jacobian(
+    def _get_residual_eq_param_jacobian(
         self, fwd_state: Array, param: Array
     ) -> Array:
-        if not self._adjoint_data.has_constraint_eq_param_jacobian():
-            drdp = self._constraint_eq.param_jacobian(fwd_state, param)
-            self._adjoint_data.set_constraint_eq_param_jacobian(drdp)
-        return self._adjoint_data.get_constraint_eq_param_jacobian()
+        if not self._adjoint_data.has_residual_eq_param_jacobian():
+            drdp = self._residual_eq.param_jacobian(fwd_state, param)
+            self._adjoint_data.set_residual_eq_param_jacobian(drdp)
+        return self._adjoint_data.get_residual_eq_param_jacobian()
 
     def jacobian(self, init_fwd_state: Array, param: Array) -> Array:
         fwd_state = self._get_forward_state(init_fwd_state, param)
         adj_state = self.solve_adjoint_equation(fwd_state, param)
-        drdp = self._get_constraint_eq_param_jacobian(fwd_state, param)
+        drdp = self._get_residual_eq_param_jacobian(fwd_state, param)
         jacobian = (
             self._functional.param_jacobian(fwd_state, param)[0]
             + adj_state @ drdp
@@ -913,7 +912,7 @@ class ScalarAdjointOperator(GradientCheckMixin):
             param[:, None],
             "J",
             lambda p: self._functional(
-                self._constraint_eq.solve(state, p[:, 0]), p[:, 0]
+                self._residual_eq.solve(state, p[:, 0]), p[:, 0]
             ),
             lambda p, v: self.jacobian(state, p[:, 0]) @ v,
             fd_eps,
@@ -938,7 +937,7 @@ class ScalarAdjointOperator(GradientCheckMixin):
         # L_yy.w, w = wvec
         return self._functional.state_state_hvp(
             fwd_state, param, wvec
-        ) + self._constraint_eq.state_state_hvp(
+        ) + self._residual_eq.state_state_hvp(
             fwd_state, param, adj_state, wvec
         )
 
@@ -948,7 +947,7 @@ class ScalarAdjointOperator(GradientCheckMixin):
         # L_yp.v
         return self._functional.state_param_hvp(
             fwd_state, param, vvec
-        ) + self._constraint_eq.state_param_hvp(
+        ) + self._residual_eq.state_param_hvp(
             fwd_state, param, adj_state, vvec
         )
 
@@ -960,7 +959,7 @@ class ScalarAdjointOperator(GradientCheckMixin):
         qps_hvp = self._functional.param_state_hvp(fwd_state, param, wvec)
         if qps_hvp.ndim != 1:
             raise RuntimeError("qps_hvp must be a 1D array")
-        rps_hvp = self._constraint_eq.param_state_hvp(
+        rps_hvp = self._residual_eq.param_state_hvp(
             fwd_state, param, adj_state, wvec
         )
         if rps_hvp.ndim != 1:
@@ -975,13 +974,13 @@ class ScalarAdjointOperator(GradientCheckMixin):
         qpp_hvp = self._functional.param_param_hvp(fwd_state, param, vvec)
         if qpp_hvp.ndim != 1:
             raise RuntimeError("qpp_hvp must be a 1D array")
-        rpp_hvp = self._constraint_eq.param_param_hvp(
+        rpp_hvp = self._residual_eq.param_param_hvp(
             fwd_state, param, adj_state, vvec
         )
         if rpp_hvp.ndim != 1:
             raise RuntimeError(
                 "rpp_hvp returned by {0} must be a 1D array".format(
-                    self._constraint_eq
+                    self._residual_eq
                 )
             )
         return qpp_hvp + rpp_hvp
@@ -1016,7 +1015,7 @@ class ScalarAdjointOperator(GradientCheckMixin):
     def apply_hessian(
         self, init_fwd_state: Array, param: Array, vvec: Array
     ) -> Array:
-        self._constraint_eq._check_state_param_shapes(init_fwd_state, param)
+        self._residual_eq._check_state_param_shapes(init_fwd_state, param)
         if vvec.shape != (self.nvars(),):
             raise ValueError(
                 "vvec has shape {vvec.shape} but must be {(self.nvars(),)}"
@@ -1030,10 +1029,10 @@ class ScalarAdjointOperator(GradientCheckMixin):
 
         # load drdy, which is guaranteed to be created here because
         # solve_adjoint has been called by get_adjoint_state
-        drdy = self._adjoint_data.get_constraint_eq_state_jacobian()
+        drdy = self._adjoint_data.get_residual_eq_state_jacobian()
 
         # load or compute drdp, which may exist if jacobian previously called
-        drdp = self._get_constraint_eq_param_jacobian(fwd_state, param)
+        drdp = self._get_residual_eq_param_jacobian(fwd_state, param)
 
         # Compute forward hessian state
         wvec = self._forward_hessian_solve(fwd_state, param, drdy, drdp, vvec)
@@ -1066,7 +1065,7 @@ class ScalarAdjointOperator(GradientCheckMixin):
             param[:, None],
             "Hv",
             lambda p: self.jacobian(
-                self._constraint_eq.solve(state, p[:, 0]), p[:, 0]
+                self._residual_eq.solve(state, p[:, 0]), p[:, 0]
             ),
             lambda p, v: self.apply_hessian(state, p[:, 0], v[:, 0]),
             fd_eps,
@@ -1077,7 +1076,7 @@ class ScalarAdjointOperator(GradientCheckMixin):
 
     def __repr__(self) -> str:
         return "{0}({1}, {2})".format(
-            self.__class__.__name__, self._constraint_eq, self._functional
+            self.__class__.__name__, self._residual_eq, self._functional
         )
 
     def _assert_derivatives_close(self, errors: Array, tol: float) -> None:
@@ -1100,11 +1099,11 @@ class ScalarAdjointOperator(GradientCheckMixin):
         # Create an instance of TestCase
         self._unittest = unittest.TestCase()
         # check first order derivatives of contraint equation
-        errors = self._constraint_eq.check_state_jacobian(
+        errors = self._residual_eq.check_state_jacobian(
             init_state, param, disp=disp
         )
         self._assert_derivatives_close(errors, tols[0])
-        errors = self._constraint_eq.check_param_jacobian(
+        errors = self._residual_eq.check_param_jacobian(
             init_state, param, disp=disp
         )
         self._assert_derivatives_close(errors, tols[1])
@@ -1125,7 +1124,7 @@ class ScalarAdjointOperator(GradientCheckMixin):
         self._assert_derivatives_close(errors, tols[4])
 
         if not isinstance(
-            self._constraint_eq, AdjointConstraintEquationWithHessian
+            self._residual_eq, AdjointResidualEquationWithHessian
         ) or not isinstance(
             self._functional, ScalarAdjointFunctionalWithHessian
         ):
@@ -1133,19 +1132,19 @@ class ScalarAdjointOperator(GradientCheckMixin):
 
         # check second order derivatives of contraint equation
         adj_state = self.adjoint_data().get_adjoint_state()
-        errors = self._constraint_eq.check_param_param_hvp(
+        errors = self._residual_eq.check_param_param_hvp(
             init_state, param, adj_state, disp=disp
         )
         self._assert_derivatives_close(errors, tols[5])
-        errors = self._constraint_eq.check_state_state_hvp(
+        errors = self._residual_eq.check_state_state_hvp(
             init_state, param, adj_state, disp=disp
         )
         self._assert_derivatives_close(errors, tols[6])
-        errors = self._constraint_eq.check_param_state_hvp(
+        errors = self._residual_eq.check_param_state_hvp(
             init_state, param, adj_state, disp=disp
         )
         self._assert_derivatives_close(errors, tols[7])
-        errors = self._constraint_eq.check_state_param_hvp(
+        errors = self._residual_eq.check_state_param_hvp(
             init_state, param, adj_state, disp=disp
         )
         self._assert_derivatives_close(errors, tols[8])
@@ -1176,23 +1175,22 @@ class ScalarAdjointOperator(GradientCheckMixin):
 class VectorAdjointOperator(GradientCheckMixin):
     def __init__(
         self,
-        constraint_eq: AdjointConstraintEquation,
+        residual_eq: AdjointResidualEquation,
         functional: VectorAdjointFunctional,
     ):
-        if not isinstance(constraint_eq, AdjointConstraintEquation):
+        if not isinstance(residual_eq, AdjointResidualEquation):
             raise TypeError(
-                "constraint_eq must be an instance of "
-                "AdjointConstraintEquation"
+                "residual_eq must be an instance of " "AdjointResidualEquation"
             )
-        self._bkd = constraint_eq._bkd
-        self._constraint_eq = constraint_eq
+        self._bkd = residual_eq._bkd
+        self._residual_eq = residual_eq
         self._adjoint_data = AdjointOperatorData(self._bkd)
 
         if not isinstance(functional, VectorAdjointFunctional):
             raise TypeError("functional must be an instance AdjointFunctional")
         if not self._bkd.bkd_equal(self._bkd, functional._bkd):
             raise TypeError(
-                "constraint_eq bkd does not match functional backend"
+                "residual_eq bkd does not match functional backend"
             )
         self._functional = functional
 
@@ -1202,13 +1200,13 @@ class VectorAdjointOperator(GradientCheckMixin):
             or not self._adjoint_data.has_fwd_state()
         ):
             self._adjoint_data._clear()
-            fwd_state = self._constraint_eq.solve(init_fwd_state, param)
+            fwd_state = self._residual_eq.solve(init_fwd_state, param)
             self._adjoint_data.set_forward_state(fwd_state)
         return self._adjoint_data.get_forward_state(fwd_state)
 
     def _sensitivities(self, fwd_state: Array, param: Array) -> Array:
-        drdy = self._constraint_eq.state_jacobian(fwd_state, param)
-        drdp = self._constraint_eq.param_jacobian(fwd_state, param)
+        drdy = self._residual_eq.state_jacobian(fwd_state, param)
+        drdp = self._residual_eq.param_jacobian(fwd_state, param)
         sens = self._bkd.solve(drdy, -drdp)
         return sens
 
@@ -1235,7 +1233,7 @@ class VectorAdjointOperator(GradientCheckMixin):
         return self._check_apply(
             param[:, None],
             "J",
-            lambda p: self._constraint_eq.solve(state, p[:, 0]),
+            lambda p: self._residual_eq.solve(state, p[:, 0]),
             lambda p, v: self.sensitivities(state, p[:, 0]) @ v,
             fd_eps,
             direction,
@@ -1247,7 +1245,7 @@ class VectorAdjointOperator(GradientCheckMixin):
 from pyapprox.util.newton import NewtonResidual
 
 
-class NewtonResidualWithGradient(NewtonResidual, AdjointConstraintEquation):
+class NewtonResidualWithGradient(NewtonResidual, AdjointResidualEquation):
     @abstractmethod
     def _set_parameters(self, param: Array) -> None:
         raise NotImplementedError

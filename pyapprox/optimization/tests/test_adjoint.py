@@ -8,13 +8,13 @@ from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.optimization.adjoint import (
     ScalarAdjointFunctionalWithHessian,
-    AdjointConstraintEquationWithHessian,
+    AdjointResidualEquationWithHessian,
     ScalarAdjointOperator,
-    AdjointConstraintEquation,
+    AdjointResidualEquation,
     ScalarAdjointFunctional,
 )
 from pyapprox.optimization.adjoint_constraint_registry import (
-    LinearConstraintEquation,
+    LinearResidualEquation,
 )
 from pyapprox.optimization.functional_registry import (
     MSEFunctional,
@@ -44,7 +44,7 @@ class TestAdjoint:
         self,
         nobs: int,
         nvars: int,
-        constraint_eq_type: Type[LinearConstraintEquation],
+        constraint_eq_type: Type[LinearResidualEquation],
         mse_functional_type: Type[MSEFunctional],
     ):
         # check constraint and functional derivatives for
@@ -61,10 +61,10 @@ class TestAdjoint:
 
     def test_linear_least_squares(self):
         self._check_linear_least_squares(
-            2, 3, LinearConstraintEquation, MSEFunctional
+            2, 3, LinearResidualEquation, MSEFunctional
         )
         self._check_linear_least_squares(
-            3, 2, LinearConstraintEquation, MSEFunctional
+            3, 2, LinearResidualEquation, MSEFunctional
         )
 
     def test_tikhinov_linear_least_squares(
@@ -73,7 +73,7 @@ class TestAdjoint:
         nobs, nvars = 3, 2
         constraint_eq, functional, param, init_state = (
             self._setup_linear_least_squares(
-                nobs, nvars, LinearConstraintEquation, TikhinovMSEFunctional
+                nobs, nvars, LinearResidualEquation, TikhinovMSEFunctional
             )
         )
         adjoint_op = ScalarAdjointOperator(constraint_eq, functional)
@@ -132,7 +132,7 @@ class TestAdjoint:
         nobs, nvars = 3, 2
         constraint_eq, tikhinov_functional, param, init_state = (
             self._setup_linear_least_squares(
-                nobs, nvars, LinearConstraintEquation, TikhinovMSEFunctional
+                nobs, nvars, LinearResidualEquation, TikhinovMSEFunctional
             )
         )
         functional = ModifiedTikhinovFunctional(
@@ -185,9 +185,7 @@ class TorchAutogradMSEFunctional(ScalarAdjointFunctionalWithHessian):
         return self._bkd.sum((self._obs - state) ** 2) / 2.0
 
 
-class TorchAutogradLinearConstraintEquation(
-    AdjointConstraintEquationWithHessian
-):
+class TorchAutogradLinearResidualEquation(AdjointResidualEquationWithHessian):
     """
     Call default autograd functions
     """
@@ -228,13 +226,13 @@ class TestTorchAdjoint(TestAdjoint, unittest.TestCase):
         self._check_linear_least_squares(
             2,
             3,
-            TorchAutogradLinearConstraintEquation,
+            TorchAutogradLinearResidualEquation,
             TorchAutogradMSEFunctional,
         )
         self._check_linear_least_squares(
             1,
             4,
-            TorchAutogradLinearConstraintEquation,
+            TorchAutogradLinearResidualEquation,
             TorchAutogradMSEFunctional,
         )
 

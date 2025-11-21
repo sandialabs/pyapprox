@@ -11,11 +11,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.util.backends.template import Array, BackendMixin
 from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.util.newton import (
-    NewtonResidual,
-    NewtonSolver,
-    BoundedNewtonResidual,
-)
+from pyapprox.util.newton import NewtonResidual, NewtonSolver
 from pyapprox.util.misc import composite_gauss_legendre_rule
 
 
@@ -1197,19 +1193,7 @@ class MarginalCDFNewtonResidual(NewtonResidual):
         return res / self._marginal._cdf_jacobian_diagonal(iterate)
 
 
-class BoundedMarginalCDFNewtonResidual(BoundedNewtonResidual):
-    def linsolve(self, can_iterate: Array, res: Array) -> Array:
-        iterate = self._from_canonical(can_iterate)
-        return res / (
-            self._residual._marginal._cdf_jacobian_diagonal(iterate)
-            * self._tranform_jacobian(can_iterate)
-        )
-
-
 class MarginalCDFNewtonSolver(NewtonSolver):
-    # def _update_sol(self, prev_sol: Array, delta: Array) -> Array:
-    #     sol = prev_sol - self._step_size * delta
-    #     return sol
     pass
 
 

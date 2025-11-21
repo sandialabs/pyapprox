@@ -1,19 +1,53 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
 
 from pyapprox.util.backends.template import BackendMixin, Array
 
 
-class NewtonResidual(ABC):
+class ResidualEquation(ABC):
     def __init__(self, backend: BackendMixin):
         self._bkd = backend
 
-    def adjoint_implemented():
-        return False
+    def bkd(self) -> BackendMixin:
+        return self._bkd
+
+    def _check_iterate(self, iterate: Array) -> None:
+        if iterate.shape != (self.nstates(),):
+            raise ValueError(
+                f"init_iterate has shape {iterate.shape} but must "
+                f"have shape {(self.nstates(), )}"
+            )
 
     @abstractmethod
-    def __call__(self, iterate: Array) -> Array:
+    def nstates(self) -> int:
         raise NotImplementedError
+
+    @abstractmethod
+    def _value(self, iterate) -> Array:
+        raise NotImplementedError
+
+    def __call__(self, iterate: Array) -> Array:
+        self._check_iterate(iterate)
+        value = self._value(iterate)
+        # value is not an iterate but must have the same size
+        # maybe relax this assumption
+        self._check_iterate(value)
+        return value
+
+    @abstractmethod
+    def _solve(self, init_iterate: Array) -> Array:
+        raise NotImplementedError
+
+    def solve(self, init_iterate: Array) -> Array:
+        self._check_iterate(init_iterate)
+        iterate = self._solve(init_iterate)
+        self._check_iterate(iterate)
+        return iterate
+
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
+
+class ResidualEquationWithStateJacobian(ResidualEquation):
 
     def _state_jacobian(self, iterate: Array) -> Array:
         if not self._bkd.jacobian_implemented():
@@ -21,39 +55,13 @@ class NewtonResidual(ABC):
         return self._bkd.jacobian(self.__call__, iterate)
 
     def state_jacobian(self, iterate: Array) -> Array:
+        self._check_iterate(iterate)
         jac = self._state_jacobian(iterate)
-        if jac.ndim != 2 or jac.shape[0] != iterate.shape[0]:
+        if jac.shape != (self.nstates(), self.nstates()):
             raise RuntimeError(
-                "jac must be 2D with 1 column but has the wrong shape {0} "
-                "but iterate shape was {1}".format(jac.shape, iterate.shape)
+                f"{jac.shape=} but must be {(self.nstates(), self.nstates())}"
             )
         return jac
-
-    def linsolve(self, iterate: Array, res: Array) -> Array:
-        jac = self.state_jacobian(iterate)
-        return self._bkd.solve(jac, res)
-
-    def __repr__(self) -> str:
-        return "{0}".format(self.__class__.__name__)
-
-
-class ParameterizedNewtonResidual(NewtonResidual):
-    @abstractmethod
-    def _set_parameters(self, param: Array) -> None:
-        raise NotImplementedError
-
-    def set_parameters(self, param: Array) -> None:
-        self._param = param
-        self._set_parameters(param)
-
-    @abstractmethod
-    def nvars(self) -> int:
-        raise NotImplementedError
-
-    def get_parameters(self) -> Array:
-        if not hasattr(self, "_parameters"):
-            raise AttributeError("must call set_parameters")
-        return self._parameters
 
 
 class NewtonSolver:
@@ -73,7 +81,7 @@ class NewtonSolver:
         self._rtol = rtol
         self._linesearch_maxiters = linesearch_maxiters
 
-    def set_residual(self, residual: NewtonResidual) -> None:
+    def set_residual(self, residual: "NewtonResidual") -> None:
         if not isinstance(residual, NewtonResidual):
             raise ValueError("residual must be an instance of NewtonResidual")
         self._residual = residual
@@ -138,8 +146,27 @@ class NewtonSolver:
             self._rtol,
         )
 
-    def residual(self) -> NewtonResidual:
+    def residual(self) -> "NewtonResidual":
         return self._residual
+
+
+class NewtonResidual(ResidualEquationWithStateJacobian):
+
+    def linsolve(self, iterate: Array, res: Array) -> Array:
+        jac = self.state_jacobian(iterate)
+        return self._bkd.solve(jac, res)
+
+    def default_solver(self) -> NewtonSolver:
+        return NewtonSolver()
+
+    def _solve(self, iterate: Array) -> Array:
+        if not hasattr(self, "_solver"):
+            self.set_solver(self.default_solver())
+        return self._solver.solve(iterate)
+
+    def set_solver(self, solver: NewtonSolver) -> None:
+        self._solver = solver
+        self._solver.set_residual(self)
 
 
 class BisectionSearch:
@@ -153,8 +180,8 @@ class BisectionSearch:
         self._verbosity = verbosity
         self._atol = atol
 
-    def set_residual(self, residual: NewtonResidual):
-        if not isinstance(residual, NewtonResidual):
+    def set_residual(self, residual: ResidualEquation):
+        if not isinstance(residual, ResidualEquation):
             raise ValueError("residual must be an instance of NewtonResidual")
         self._residual = residual
         self._bkd = residual._bkd
@@ -192,42 +219,15 @@ class BisectionSearch:
         return self._bisection_search(*bounds.T)
 
 
-class BoundedNewtonResidual(NewtonResidual):
-    def __init__(self, residual: NewtonResidual, bounds: Tuple[float, float]):
-        # for now assume same bounds on all elements of the residual
-        super().__init__(residual._bkd)
-        self._bounds = self._bkd.asarray(bounds)
-        self._residual = residual
+class BisectionResidual(ResidualEquation):
+    def default_solver(self) -> BisectionSearch:
+        return BisectionSearch()
 
-    def _to_canonical(self, iterate: Array) -> Array:
-        # x in [a, b]
-        # z = (x-a)/(b-a)
-        # y = -log(z-1)+log(z)
-        a, b = self._bounds
-        if self._bkd.any(iterate > b) or self._bkd.any(iterate < a):
-            raise RuntimeError("iterates exceed bounds")
-        z = (iterate - a) / (b - a)
-        return -self._bkd.log(1 - z) + self._bkd.log(z)
+    def _solve(self, iterate: Array) -> Array:
+        if not hasattr(self, "_solver"):
+            self.set_solver(self.default_solver())
+        return self._solver.solve(iterate)
 
-    def _from_canonical(self, can_iterate: Array) -> Array:
-        # canonical y in [-infty, infty]
-        # z = 1/(1+exp(-y)) in [0, 1]
-        # x = z * (b-a) + a in [a, b]
-        a, b = self._bounds
-        z = 1.0 / (1.0 + self._bkd.exp(-can_iterate))
-        return z * (b - a) + a
-
-    def _tranform_jacobian(self, can_iterate: Array) -> Array:
-        a, b = self._bounds
-        sigmoid = 1.0 / (1.0 + self._bkd.exp(-can_iterate))
-        return sigmoid * (1 - sigmoid) * (b - a)
-
-    def __call__(self, can_iterate: Array) -> Array:
-        iterate = self._from_canonical(can_iterate)
-        return self._residual(iterate)
-
-    def _jacobian(self, can_iterate: Array) -> Array:
-        iterate = self._from_canonical(can_iterate)
-        return self._residual.jacobian(iterate) * self._tranform_jacobian(
-            can_iterate
-        )
+    def set_solver(self, solver: BisectionSearch) -> None:
+        self._solver = solver
+        self._solver.set_residual(self)

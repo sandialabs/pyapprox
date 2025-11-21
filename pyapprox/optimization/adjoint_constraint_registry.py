@@ -1,11 +1,11 @@
 from pyapprox.util.backends.template import Array, BackendMixin
 from pyapprox.optimization.adjoint import (
-    AdjointConstraintEquationWithHessian,
+    AdjointResidualEquationWithHessian,
     NewtonResidualWithGradient,
 )
 
 
-class LinearConstraintEquation(AdjointConstraintEquationWithHessian):
+class LinearResidualEquation(AdjointResidualEquationWithHessian):
     def __init__(self, Amat: Array, bvec: Array, backend: BackendMixin):
         super().__init__(backend)
         if bvec.ndim != 1:

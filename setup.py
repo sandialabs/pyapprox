@@ -12,7 +12,8 @@ docs_extras = [
     "sphinx-gallery",
     "jupyter",
 ]
-lint_extras = ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8"]
+lint_extras = ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8", "mypy"]
+# mypy is for static type checking
 gpu_extras = ["torchaudio", "torchvision"]
 
 
@@ -35,12 +36,10 @@ setuptools.setup(
     include_dirs=[np.get_include()],
     setup_requires=[
         "setuptools",
-        # "numpy >= 1.20, <=1.26.4",
         "numpy >= 2.0",
         "scipy >= 1.0.0",
     ],
     install_requires=[
-        # "numpy >= 1.20, <=1.26.4",
         "numpy >= 2.0",
         "matplotlib",
         "scipy >= 1.0.0",
@@ -151,3 +150,9 @@ setuptools.setup(
 
 # build one file <plot_flows.py> in docs with html and put in directory called doc_html
 # sphinx-build -D sphinx_gallery_conf.filename_pattern=plot_flows\\.py -b html source/ doc_html
+
+
+# to only check this file use
+# mypy --follow-imports=skip  --strict ~/Desktop/ducktyping_example.py
+# to decend into imported files run in pypapprox root and run
+# mypy --strict ~/Desktop/ducktyping_example.py
