@@ -1,4 +1,4 @@
-import requests
+import requests  # type: ignore
 import os
 import subprocess
 import signal
@@ -8,11 +8,12 @@ import tempfile
 from abc import ABC, abstractmethod
 import multiprocessing
 from multiprocessing.pool import ThreadPool
-from typing import List, Tuple, Union, Optional
+from typing import List, Tuple, Union, Optional, Dict, Callable
 import matplotlib
+from mpl_toolkits.mplot3d import Axes3D  # type: ignore
 
 import numpy as np
-import umbridge
+import umbridge  # type: ignore
 import matplotlib.pyplot as plt
 
 from pyapprox.util.visualization import get_meshgrid_samples
@@ -39,16 +40,14 @@ class ModelWorkTracker:
         Whether to enable multiprocessing support. Defaults to `False`.
     """
 
-    def __init__(
-        self, backend: BackendMixin = NumpyMixin, multiproc: bool = False
-    ):
+    def __init__(self, backend: BackendMixin, multiproc: bool = False):
         """
         Initialize the ModelWorkTracker instance.
 
         Parameters
         ----------
-        backend : BackendMixin, optional
-            The backend used for array operations (e.g., `NumpyMixin`). Defaults to `NumpyMixin`.
+        backend : BackendMixin
+            The backend used for array operations.
         multiproc : bool, optional
             Whether to enable multiprocessing support. Defaults to `False`.
 
@@ -64,7 +63,7 @@ class ModelWorkTracker:
         # multiprocessing.pool
         if multiproc:
             manager = multiprocessing.Manager()
-            self._wall_times = manager.dict(
+            self._wall_times = manager.dict(  # type: ignore
                 {
                     "val": manager.list([]),
                     "jac": manager.list([]),
@@ -80,7 +79,7 @@ class ModelWorkTracker:
             # as  multiprocessing.Manager().dict slows down code substantially
             # I think because of lock it places on data access
         else:
-            self._wall_times = {
+            self._wall_times = {  # type: ignore
                 "val": [],
                 "jac": [],
                 "jvp": [],
@@ -122,7 +121,7 @@ class ModelWorkTracker:
         if self._active:
             self._wall_times[eval_name].append(times)
 
-    def average_wall_time(self, eval_name: str) -> float:
+    def average_wall_time(self, eval_name: str) -> Union[float, str]:
         """
         Compute the average wall time for a specific type of evaluation.
 
@@ -221,7 +220,7 @@ class ModelDataBase:
 
     # TODO Add option to save results to file at certain frequency
     # TODO support different file systems, e.g. pickle, HDF5 etc.
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    def __init__(self, backend: BackendMixin):
         """
         Initialize the ModelDataBase instance.
 
@@ -231,8 +230,8 @@ class ModelDataBase:
             The backend used for array operations (e.g., `NumpyMixin`). Defaults to `NumpyMixin`.
         """
         self._bkd = backend
-        self._samples_dict = {}
-        self._values_dict = {
+        self._samples_dict: Dict[str, int] = {}
+        self._values_dict: Dict[str, Dict] = {
             "val": {},
             "jac": {},
             "jvp": {},
@@ -241,7 +240,7 @@ class ModelDataBase:
             "whess": {},
             "whvp": {},
         }
-        self._samples = []
+        self._samples: List[Array] = []
         self._active = False
 
     def activate(self):
@@ -363,7 +362,9 @@ class ModelDataBase:
                     raise ValueError("Only supports adding one sample at time")
                 self._add_values(eval_name, key, values)
 
-    def get_data(self, eval_name: str, samples: Array) -> Tuple[List, List]:
+    def get_data(
+        self, eval_name: str, samples: Array
+    ) -> Tuple[Union[None, List], List, List]:
         """
         Retrieve stored evaluation results for a set of samples.
 
@@ -404,12 +405,14 @@ class ModelDataBase:
 
 
 class GradientCheckMixin:
+    _bkd: BackendMixin
+
     def _check_apply(
         self,
         sample: Array,
         symb: str,
-        fun: callable,
-        apply_fun: callable,
+        fun: Callable,
+        apply_fun: Callable,
         fd_eps: Optional[Array] = None,
         direction: Optional[Array] = None,
         relative: bool = True,
@@ -427,9 +430,9 @@ class GradientCheckMixin:
             The sample at which to compute the gradients.
         symb : str
             A symbol representing the type of gradient being checked (e.g., "J" for Jacobian, "H" for Hessian).
-        fun : callable
+        fun : Callable
             The function used to compute the values at the sample.
-        apply_fun : callable
+        apply_fun : Callable
             The function used to compute the directional gradient.
         fd_eps : Array, optional
             The finite difference step sizes. Defaults to logarithmically spaced values.
@@ -598,7 +601,7 @@ class Model(ABC, GradientCheckMixin):
         RuntimeError
             If the database and work tracker are inconsistent (i.e., they have different numbers of evaluations).
         """
-        for key in work_tracker._wt_dict:
+        for key in work_tracker._wall_times:
             if not work_tracker.nevaluations(key) != len(
                 database._values_dict[key]
             ):
@@ -969,6 +972,8 @@ class Model(ABC, GradientCheckMixin):
         self._check_sample_shape(sample)
         jac, stored_idx, new_idx = self._database.get_data("jac", sample)
         if len(stored_idx) == 1:
+            if jac is None:
+                raise ValueError("jac is None")
             self._check_jacobian_shape(jac[0], sample)
             return jac[0]
         t0 = time.time()
@@ -1035,6 +1040,8 @@ class Model(ABC, GradientCheckMixin):
         if self.apply_jacobian_implemented():
             jvp, stored_idx, new_idx = self._database.get_data("jvp", sample)
             if len(stored_idx) == 1:
+                if jvp is None:
+                    raise ValueError("jvp is None")
                 return jvp[0]
             t0 = time.time()
             jvp = self._apply_jacobian(sample, vec)
@@ -1145,6 +1152,8 @@ class Model(ABC, GradientCheckMixin):
         if self.apply_hessian_implemented():
             hvp, stored_idx, new_idx = self._database.get_data("hvp", sample)
             if len(stored_idx) == 1:
+                if hvp is None:
+                    raise ValueError("hvp is None")
                 return hvp[0]
             t0 = time.time()
             hvp = self._apply_hessian(sample, vec)
@@ -1222,6 +1231,8 @@ class Model(ABC, GradientCheckMixin):
 
         hess, stored_idx, new_idx = self._database.get_data("hess", sample)
         if len(stored_idx) == 1:
+            if hess is None:
+                raise ValueError("hess is None")
             return hess[0]
         t0 = time.time()
         hess = self._hessian(sample)
@@ -1330,6 +1341,8 @@ class Model(ABC, GradientCheckMixin):
         if self.apply_weighted_hessian_implemented():
             whvp, stored_idx, new_idx = self._database.get_data("whvp", sample)
             if len(stored_idx) == 1:
+                if whvp is None:
+                    raise ValueError("whvp is None")
                 return whvp[0]
             t0 = time.time()
             whvp = self._apply_weighted_hessian(sample, vec, weights)
@@ -1389,6 +1402,8 @@ class Model(ABC, GradientCheckMixin):
                 "whess", sample
             )
             if len(stored_idx) == 1:
+                if whess is None:
+                    raise ValueError("whess is None")
                 return whess[0]
             t0 = time.time()
             whess = self._weighted_hessian(sample, weights)
@@ -1500,7 +1515,7 @@ class Model(ABC, GradientCheckMixin):
         direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
-        weights: bool = None,
+        weights: Optional[Array] = None,
     ):
         """
         Compare `apply_hessian` or `apply_weighted_hessian` with finite difference approximations.
@@ -1600,7 +1615,7 @@ class Model(ABC, GradientCheckMixin):
         ax: matplotlib.axes.Axes,
         qoi: int,
         plot_limits: tuple,
-        npts_1d: int,
+        npts_1d: Array,
         **kwargs,
     ):
         """
@@ -1651,7 +1666,7 @@ class Model(ABC, GradientCheckMixin):
 
     def _plot_surface_2d(
         self,
-        ax: matplotlib.axes.Axes,
+        ax: Axes3D,
         qoi: int,
         plot_limits: Array,
         npts_1d: Array,
@@ -1970,7 +1985,7 @@ class Model(ABC, GradientCheckMixin):
         self,
         nominal_sample: Array,
         bounds: Array,
-        variable_pairs: List[Tuple[int, int]] = None,
+        variable_pairs: Optional[Array] = None,
         npts_1d=51,
         **kwargs,
     ):
@@ -1983,7 +1998,7 @@ class Model(ABC, GradientCheckMixin):
             The nominal sample used as a baseline for the cross-sections.
         bounds : Array (nvars, 2)
             The bounds for each variable.
-        variable_pairs : List[Tuple[int, int]], optional
+        variable_pairs : Array, optional
             The pairs of variables to plot. If `None`, all pairs are plotted. Defaults to `None`.
         npts_1d : int, optional
             The number of points to use for each variable. Defaults to 51.
@@ -2052,6 +2067,8 @@ class Model(ABC, GradientCheckMixin):
 
 
 class SingleSampleModelMixin:
+    _bkd: BackendMixin
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -2132,13 +2149,13 @@ class ModelFromCallable(Model):
         self,
         nqoi: int,
         nvars: int,
-        function: callable,
-        jacobian: callable = None,
-        apply_jacobian: callable = None,
-        apply_hessian: callable = None,
-        hessian: callable = None,
-        apply_weighted_hessian: callable = None,
-        weighted_hessian: callable = None,
+        function: Callable,
+        jacobian: Optional[Callable] = None,
+        apply_jacobian: Optional[Callable] = None,
+        apply_hessian: Optional[Callable] = None,
+        hessian: Optional[Callable] = None,
+        apply_weighted_hessian: Optional[Callable] = None,
+        weighted_hessian: Optional[Callable] = None,
         sample_ndim: int = 2,
         values_ndim: int = 2,
         backend: BackendMixin = NumpyMixin,
@@ -2152,19 +2169,19 @@ class ModelFromCallable(Model):
             The number of quantities of interest (QoI) in the model.
         nvars : int
             The number of variables in the model.
-        function : callable
+        function : Callable
             The user-defined function for evaluating the model's values.
-        jacobian : callable, optional
+        jacobian : Callable, optional
             The user-defined function for computing the Jacobian matrix.
-        apply_jacobian : callable, optional
+        apply_jacobian : Callable, optional
             The user-defined function for applying the Jacobian matrix to a vector.
-        apply_hessian : callable, optional
+        apply_hessian : Callable, optional
             The user-defined function for applying the Hessian matrix to a vector.
-        hessian : callable, optional
+        hessian : Callable, optional
             The user-defined function for computing the Hessian matrix.
-        apply_weighted_hessian : callable, optional
+        apply_weighted_hessian : Callable, optional
             The user-defined function for applying the weighted Hessian matrix to a vector.
-        weighted_hessian : callable, optional
+        weighted_hessian : Callable, optional
             The user-defined function for computing the weighted Hessian matrix.
         sample_ndim : int, optional
             The dimension of the array accepted by the user-defined function. Must be either 1 or 2. Defaults to 2.
@@ -2285,19 +2302,19 @@ class ModelFromVectorizedCallable(ModelFromCallable):
         The number of quantities of interest (QoI) in the model.
     nvars : int
         The number of variables in the model.
-    function : callable
+    function : Callable
         The user-defined function for evaluating the model's values. This function must accept a 2D array of samples (shape `(nvars, nsamples)`) and return a 2D array of values (shape `(nqoi, nsamples)`).
-    jacobian : callable, optional
+    jacobian : Callable, optional
         The user-defined function for computing the Jacobian matrix. This function must accept a 2D array of samples and return a 3D array representing the Jacobian matrices for all samples (shape `(nqoi, nvars, nsamples)`).
-    apply_jacobian : callable, optional
+    apply_jacobian : Callable, optional
         The user-defined function for applying the Jacobian matrix to a vector. This function must accept a 2D array of samples and a 2D array of vectors, and return the result of the matrix-vector multiplication for all samples (shape `(nqoi, nsamples)`).
-    apply_hessian : callable, optional
+    apply_hessian : Callable, optional
         The user-defined function for applying the Hessian matrix to a vector. This function must accept a 2D array of samples and a 2D array of vectors, and return the result of the matrix-vector multiplication for all samples (shape `(nqoi, nsamples)`).
-    hessian : callable, optional
+    hessian : Callable, optional
         The user-defined function for computing the Hessian matrix. This function must accept a 2D array of samples and return a 4D array representing the Hessian matrices for all samples (shape `(nqoi, nvars, nvars, nsamples)`).
-    apply_weighted_hessian : callable, optional
+    apply_weighted_hessian : Callable, optional
         The user-defined function for applying the weighted Hessian matrix to a vector. This function must accept a 2D array of samples, a 2D array of vectors, and a 2D array of weights, and return the result of the matrix-vector multiplication for all samples (shape `(nqoi, nsamples)`).
-    weighted_hessian : callable, optional
+    weighted_hessian : Callable, optional
         The user-defined function for computing the weighted Hessian matrix. This function must accept a 2D array of samples and a 2D array of weights, and return a 4D array representing the weighted Hessian matrices for all samples (shape `(nqoi, nvars, nvars, nsamples)`).
     values_ndim : int, optional
         The dimension of the array returned by the user-defined function. Must be 0, 1, or 2. Defaults to 2.
@@ -2315,13 +2332,13 @@ class ModelFromVectorizedCallable(ModelFromCallable):
         self,
         nqoi: int,
         nvars: int,
-        function: callable,
-        jacobian: callable = None,
-        apply_jacobian: callable = None,
-        apply_hessian: callable = None,
-        hessian: callable = None,
-        apply_weighted_hessian: callable = None,
-        weighted_hessian: callable = None,
+        function: Callable,
+        jacobian: Optional[Callable] = None,
+        apply_jacobian: Optional[Callable] = None,
+        apply_hessian: Optional[Callable] = None,
+        hessian: Optional[Callable] = None,
+        apply_weighted_hessian: Optional[Callable] = None,
+        weighted_hessian: Optional[Callable] = None,
         values_ndim: int = 2,
         backend: BackendMixin = NumpyMixin,
     ):
@@ -2340,7 +2357,7 @@ class ModelFromVectorizedCallable(ModelFromCallable):
             backend,
         )
 
-    def _eval_fun(self, fun: callable, sample: Array, *args) -> Array:
+    def _eval_fun(self, fun: Callable, sample: Array, *args) -> Array:
         if self._sample_ndim == 2:
             return fun(sample, *args)
         return fun(sample[:, 0], *args)
@@ -2368,15 +2385,15 @@ class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
         The number of quantities of interest (QoI) in the model.
     nvars : int
         The number of variables in the model.
-    function : callable
+    function : Callable
         The user-defined function for evaluating the model's values. This function must accept a 1D array representing a single sample (shape `(nvars,)`) and return a 1D array of values (shape `(nqoi,)`).
-    jacobian : callable, optional
+    jacobian : Callable, optional
         The user-defined function for computing the Jacobian matrix. This function must accept a 1D array representing a single sample and return a 2D array representing the Jacobian matrix (shape `(nqoi, nvars)`).
-    apply_jacobian : callable, optional
+    apply_jacobian : Callable, optional
         The user-defined function for applying the Jacobian matrix to a vector. This function must accept a 1D array representing a single sample and a 1D array representing a vector, and return a 1D array of results (shape `(nqoi,)`).
-    hessian : callable, optional
+    hessian : Callable, optional
         The user-defined function for computing the Hessian matrix. This function must accept a 1D array representing a single sample and return a 3D array representing the Hessian matrix (shape `(nqoi, nvars, nvars)`).
-    apply_hessian : callable, optional
+    apply_hessian : Callable, optional
         The user-defined function for applying the Hessian matrix to a vector. This function must accept a 1D array representing a single sample and a 1D array representing a vector, and return a 1D array of results (shape `(nqoi,)`).
     sample_ndim : int, optional
         The dimension of the array accepted by the user-defined function. Must be 1, as this class operates on single samples. Defaults to 1.
@@ -2440,7 +2457,7 @@ class ModelFromSingleSampleCallable(SingleSampleModelMixin, ModelFromCallable):
     [2. 2. 0.]
     """
 
-    def _eval_fun(self, fun: callable, sample: Array, *args) -> Array:
+    def _eval_fun(self, fun: Callable, sample: Array, *args) -> Array:
         if self._sample_ndim == 2:
             return fun(sample, *args)
         return fun(sample[:, 0], *args)
@@ -3038,9 +3055,9 @@ class IOModel(SingleSampleModelMixin, Model):
         nqoi: int,
         nvars: int,
         infilenames: List[str],
-        outdir_basename: str = None,
+        outdir_basename: Optional[str] = None,
         save: str = "no",
-        datafilename: str = None,
+        datafilename: Optional[str] = None,
         backend: BackendMixin = NumpyMixin,
     ):
         """
@@ -3352,9 +3369,9 @@ class SerialIOModel(IOModel):
         shell_command: str,
         params_filename: str = "params.in",
         results_filename: str = "results.out",
-        outdir_basename: str = None,
+        outdir_basename: Optional[str] = None,
         save: str = "no",
-        datafilename: str = None,
+        datafilename: Optional[str] = None,
         verbosity: int = 0,
         backend: BackendMixin = NumpyMixin,
     ):
@@ -3528,9 +3545,9 @@ class AsyncIOModel(SerialIOModel):
         shell_command: str,
         params_filename: str = "params.in",
         results_filename: str = "results.out",
-        outdir_basename: str = None,
+        outdir_basename: Optional[str] = None,
         save: str = "no",
-        datafilename: str = None,
+        datafilename: Optional[str] = None,
         verbosity: int = 0,
         nprocs: int = 1,
         backend: BackendMixin = NumpyMixin,
@@ -3786,10 +3803,10 @@ class AsyncIOModel(SerialIOModel):
         This method dispatches samples for evaluation, tracks running processes,
         and loads results asynchronously.
         """
-        self._running_workdirs = dict()
-        self._completed_vals = []
-        self._completed_sample_ids = []
-        self._completed_wall_times = []
+        self._running_workdirs: Dict[int, Tuple] = dict()
+        self._completed_vals: List[Array] = []
+        self._completed_sample_ids: List[int] = []
+        self._completed_wall_times: List[float] = []
         sample_id = 0
         while True:
             if (
@@ -3872,7 +3889,7 @@ class MultiIndexModelEnsemble(ABC):
         are included.
         """
         self._bkd = backend
-        self._models = dict()
+        self._models: Dict[int, Model] = dict()
         self._index_bounds = self._bkd.asarray(index_bounds, dtype=int)
         if self._index_bounds.min() < 1:
             raise ValueError("index bounds must have entries > 0")
@@ -5145,8 +5162,8 @@ class ScalarElementwiseFunction(ABC):
     def _check_derivative(
         self,
         samples: Array,
-        fun: callable,
-        grad: callable,
+        fun: Callable,
+        grad: Callable,
         symb: str,
         fd_eps: Optional[Array] = None,
         relative: bool = True,
@@ -5159,9 +5176,9 @@ class ScalarElementwiseFunction(ABC):
         ----------
         samples : Array
             Input samples as an array.
-        fun : callable
+        fun : Callable
             Function to evaluate.
-        grad : callable
+        grad : Callable
             Derivative function to evaluate.
         symb : str
             Symbol representing the derivative (e.g., "f", "g", "h").
