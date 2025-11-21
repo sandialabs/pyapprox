@@ -20,11 +20,31 @@ from pyapprox.optimization.functional_registry import (
     MSEFunctional,
     TikhinovMSEFunctional,
 )
+from pyapprox.optimization.adjoint_constraint_registry import (
+    NonLinearCoupledEquationsResidual,
+)
 
 
 class TestAdjoint:
     def setUp(self):
         np.random.seed(1)
+
+    def test_nonlinear_coupled_residual(self):
+        bkd = self.get_backend()
+        res = NonLinearCoupledEquationsResidual(bkd)
+        sample = bkd.array([0.8, 1.1])[:, None]
+        res.set_parameters(sample[:, 0])
+        init_iterate = bkd.array([-1.0, -1.0])
+        sol = res.solve(init_iterate, sample[:, 0])
+
+        a, b = sample[:, 0]
+        exact_sol = bkd.array(
+            [
+                -bkd.sqrt((b + 1) * (b**2 - b + 1) / (a**2 * b**3 + 1)),
+                -bkd.sqrt(-(a - 1) * (a + 1) / (a**2 * b**3 + 1)),
+            ]
+        )
+        assert bkd.allclose(sol, exact_sol)
 
     def _setup_linear_least_squares(
         self, nobs: int, nvars: int, constraint_eq_type, mse_functional_type

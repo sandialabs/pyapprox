@@ -87,7 +87,7 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
         Backend for numerical computations.
     """
 
-    def __init__(self, backend: BackendMixin):
+    def __init__(self, backend: BackendMixin) -> None:
         """
         Initialize the nonlinear coupled equations residual with automatic
         differentiation.
@@ -107,17 +107,28 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
         if self._apow < 1 or self._bpow < 1:
             raise RuntimeError("apow and bpow must be >= 1")
 
-    def _set_param_powers(self):
+    def nstates(self) -> int:
+        """
+        Returns the number of state variables in the residual equation.
+
+        Returns
+        -------
+        nstates: int
+            The number of state variables, which is 2 in this case.
+        """
+        return 2
+
+    def _set_param_powers(self) -> None:
         """
         Set the powers of the parameters.
 
         This method sets the powers of the parameters :math:`a` and :math:`b`
         to predefined values.
         """
-        self._apow = 2
-        self._bpow = 3
+        self._apow = 1
+        self._bpow = 1
 
-    def __call__(self, iterate: Array) -> Array:
+    def _value(self, iterate: Array) -> Array:
         r"""
         Compute the residuals for the nonlinear coupled system.
 
@@ -147,7 +158,7 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
             axis=0,
         )
 
-    def set_param(self, param: Array):
+    def _set_parameters(self, param: Array) -> None:
         """
         Set the model parameters.
 
@@ -185,7 +196,7 @@ class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
             self.__class__.__name__, self._a, self._b
         )
 
-    def _jacobian(self, iterate: Array) -> Array:
+    def _state_jacobian(self, iterate: Array) -> Array:
         r"""
         Compute the Jacobian of the residuals with respect to the states.
 

@@ -22,16 +22,20 @@ class ResidualEquation(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _value(self, iterate) -> Array:
+    def _value(self, iterate: Array) -> Array:
         raise NotImplementedError
 
-    def __call__(self, iterate: Array) -> Array:
+    def value(self, iterate: Array) -> Array:
         self._check_iterate(iterate)
         value = self._value(iterate)
         # value is not an iterate but must have the same size
         # maybe relax this assumption
         self._check_iterate(value)
         return value
+
+    def __call__(self, iterate: Array) -> Array:
+        print(self)
+        return self.value(iterate)
 
     @abstractmethod
     def _solve(self, init_iterate: Array) -> Array:
@@ -64,6 +68,25 @@ class ResidualEquationWithStateJacobian(ResidualEquation):
         return jac
 
 
+class NewtonResidual(ResidualEquationWithStateJacobian):
+
+    def linsolve(self, iterate: Array, res: Array) -> Array:
+        jac = self.state_jacobian(iterate)
+        return self._bkd.solve(jac, res)
+
+    def default_solver(self) -> "NewtonSolver":
+        return NewtonSolver()
+
+    def set_solver(self, solver: "NewtonSolver") -> None:
+        self._solver = solver
+        self._solver.set_residual(self)
+
+    def _solve(self, iterate: Array) -> Array:
+        if not hasattr(self, "_solver"):
+            self.set_solver(self.default_solver())
+        return self._solver.solve(iterate)
+
+
 class NewtonSolver:
     def __init__(
         self,
@@ -81,11 +104,14 @@ class NewtonSolver:
         self._rtol = rtol
         self._linesearch_maxiters = linesearch_maxiters
 
-    def set_residual(self, residual: "NewtonResidual") -> None:
+    def set_residual(self, residual: NewtonResidual) -> None:
         if not isinstance(residual, NewtonResidual):
             raise ValueError("residual must be an instance of NewtonResidual")
         self._residual = residual
         self._bkd = residual._bkd
+
+    def bkd(self) -> BackendMixin:
+        return self._bkd
 
     def _update_sol(self, prev_sol: Array, delta: Array) -> Array:
         return prev_sol - self._step_size * delta
@@ -146,27 +172,8 @@ class NewtonSolver:
             self._rtol,
         )
 
-    def residual(self) -> "NewtonResidual":
+    def residual(self) -> NewtonResidual:
         return self._residual
-
-
-class NewtonResidual(ResidualEquationWithStateJacobian):
-
-    def linsolve(self, iterate: Array, res: Array) -> Array:
-        jac = self.state_jacobian(iterate)
-        return self._bkd.solve(jac, res)
-
-    def default_solver(self) -> NewtonSolver:
-        return NewtonSolver()
-
-    def _solve(self, iterate: Array) -> Array:
-        if not hasattr(self, "_solver"):
-            self.set_solver(self.default_solver())
-        return self._solver.solve(iterate)
-
-    def set_solver(self, solver: NewtonSolver) -> None:
-        self._solver = solver
-        self._solver.set_residual(self)
 
 
 class BisectionSearch:
@@ -180,7 +187,7 @@ class BisectionSearch:
         self._verbosity = verbosity
         self._atol = atol
 
-    def set_residual(self, residual: ResidualEquation):
+    def set_residual(self, residual: ResidualEquation) -> None:
         if not isinstance(residual, ResidualEquation):
             raise ValueError("residual must be an instance of NewtonResidual")
         self._residual = residual
@@ -223,11 +230,11 @@ class BisectionResidual(ResidualEquation):
     def default_solver(self) -> BisectionSearch:
         return BisectionSearch()
 
+    def set_solver(self, solver: BisectionSearch) -> None:
+        self._solver = solver
+        self._solver.set_residual(self)
+
     def _solve(self, iterate: Array) -> Array:
         if not hasattr(self, "_solver"):
             self.set_solver(self.default_solver())
         return self._solver.solve(iterate)
-
-    def set_solver(self, solver: BisectionSearch) -> None:
-        self._solver = solver
-        self._solver.set_residual(self)

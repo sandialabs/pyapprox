@@ -6,14 +6,9 @@ from pyapprox.util.backends.template import Array
 from pyapprox.util.backends.numpy import NumpyMixin
 from pyapprox.util.backends.torch import TorchMixin
 from pyapprox.optimization.newton import (
-    NewtonSolver,
     NewtonResidual,
     BisectionSearch,
     BisectionResidual,
-    BoundedNewtonResidual,
-)
-from pyapprox.optimization.adjoint_constraint_registry import (
-    NonLinearCoupledEquationsResidual,
 )
 
 
@@ -21,7 +16,7 @@ class TestNewton:
     def setUp(self):
         np.random.seed(1)
 
-    def test_newton_solve_for_polynomial_roots(self):
+    def test_newton_solve_for_polynomial_roots(self) -> None:
         bkd = self.get_backend()
 
         class PolynomialEquation(NewtonResidual):
@@ -45,7 +40,7 @@ class TestNewton:
         solution = residual.solve(init_iterate)
         bkd.assert_allclose(solution, bkd.array([2.0]))
 
-    def test_newton_solve_coupled_parabola_circle_equations(self):
+    def test_newton_solve_coupled_parabola_circle_equations(self) -> None:
         bkd = self.get_backend()
 
         class ParabolaCircleEquations(NewtonResidual):
@@ -72,7 +67,7 @@ class TestNewton:
         solution = residual.solve(init_iterate)
         bkd.assert_allclose(solution, true_solution)
 
-    def test_bisection_search(self):
+    def test_bisection_search(self) -> None:
         bkd = self.get_backend()
 
         class Residual(BisectionResidual):
@@ -90,33 +85,14 @@ class TestNewton:
         roots = bisearch.solve(bounds)
         assert bkd.allclose(roots, bkd.sqrt(residual._rhs))
 
-    def test_nonlinear_coupled_residual(self):
-        bkd = self.get_backend()
-        res = NonLinearCoupledEquationsResidual(bkd)
-        sample = bkd.array([0.8, 1.1])[:, None]
-        res.set_param(sample[:, 0])
-        solver = NewtonSolver()
-        solver.set_residual(res)
-        init_iterate = bkd.array([-1.0, -1.0])
-        sol = solver.solve(init_iterate)
-
-        a, b = sample[:, 0]
-        exact_sol = bkd.array(
-            [
-                -bkd.sqrt((b + 1) * (b**2 - b + 1) / (a**2 * b**3 + 1)),
-                -bkd.sqrt(-(a - 1) * (a + 1) / (a**2 * b**3 + 1)),
-            ]
-        )
-        assert bkd.allclose(sol, exact_sol)
-
 
 class TestNumpyNewton(TestNewton, unittest.TestCase):
-    def get_backend(self):
+    def get_backend(self) -> NumpyMixin:
         return NumpyMixin
 
 
 class TestTorchNewton(TestNewton, unittest.TestCase):
-    def get_backend(self):
+    def get_backend(self) -> TorchMixin:
         return TorchMixin
 
 

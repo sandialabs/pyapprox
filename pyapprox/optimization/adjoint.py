@@ -3,19 +3,31 @@ import unittest  # Enable check_derivatives with good error messages
 
 from pyapprox.util.backends.template import BackendMixin, Array
 from pyapprox.interface.model import GradientCheckMixin
+from pyapprox.optimization.newton import ResidualEquation, NewtonResidual
 
 
-class AdjointResidualEquation(ABC, GradientCheckMixin):
-    def __init__(self, backend: BackendMixin):
-        self._bkd = backend
-
-    @abstractmethod
-    def nstates(self) -> int:
-        raise NotImplementedError
-
+class ParameterizedResidualEquation(ResidualEquation):
     @abstractmethod
     def nvars(self) -> int:
         raise NotImplementedError
+
+    @abstractmethod
+    def _set_parameters(self, param: Array) -> None:
+        raise NotImplementedError
+
+    def set_parameters(self, param: Array) -> None:
+        if param.shape != (self.nvars(),):
+            raise ValueError(
+                f"param has shape {param.shape} but must have "
+                "shape {(self.nvars(),)}"
+            )
+        self._param = param
+        self._set_parameters(param)
+
+    def get_parameters(self) -> Array:
+        if not hasattr(self, "_parameters"):
+            raise AttributeError("must call set_parameters")
+        return self._parameters
 
     @abstractmethod
     def _solve(self, init_state: Array, param: Array) -> Array:
@@ -50,6 +62,10 @@ class AdjointResidualEquation(ABC, GradientCheckMixin):
         self._check_state_param_shapes(init_state, param)
         return self._solve(init_state, param)
 
+
+class AdjointResidualEquation(
+    ParameterizedResidualEquation, GradientCheckMixin
+):
     def _param_jacobian(self, state: Array, param: Array) -> Array:
         """Gradient of residual with respect to parameters"""
         if not self._bkd.jacobian_implemented():
@@ -1242,30 +1258,14 @@ class VectorAdjointOperator(GradientCheckMixin):
         )
 
 
-from pyapprox.util.newton import NewtonResidual
-
-
 class NewtonResidualWithGradient(NewtonResidual, AdjointResidualEquation):
-    @abstractmethod
-    def _set_parameters(self, param: Array) -> None:
-        raise NotImplementedError
 
-    def set_parameters(self, param: Array) -> None:
-        if param.shape != (self.nvars(),):
-            raise ValueError(
-                f"param has shape {param.shape} but must have "
-                "shape {(self.nvars(),)}"
-            )
-        self._param = param
-        self._set_parameters(param)
+    def _solve(self, init_state: Array, param: Array) -> Array:
+        self.set_parameters(param)
+        super()._solve(init_state)
 
-    def get_parameters(self) -> Array:
-        if not hasattr(self, "_parameters"):
-            raise AttributeError("must call set_parameters")
-        return self._parameters
-
-    # def _solve(self, init_state: Array, param: Array) -> Array:
-    #     p
+    def _value(self, init_state: Array) -> Array:
+        return super()._value(init_state, self.get_parameters())
 
 
 class NewtonResidualWithHessian(NewtonResidualWithGradient):
