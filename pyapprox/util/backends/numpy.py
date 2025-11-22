@@ -1,9 +1,9 @@
-from typing import List
+from typing import List, Optional, Tuple, Any, Union, Sequence
 
 import numpy as np
-import scipy
+import scipy  # type: ignore
 
-from pyapprox.util.backends.template import BackendMixin
+from pyapprox.util.backends.template import BackendMixin, AxisArg
 
 
 class NumpyMixin(BackendMixin):
@@ -12,7 +12,7 @@ class NumpyMixin(BackendMixin):
         return np.dot(Amat, Bmat)
 
     @staticmethod
-    def eye(nrows: int, ncols: int = None, dtype=None) -> np.ndarray:
+    def eye(nrows: int, ncols: Optional[int] = None, dtype=None) -> np.ndarray:
         return np.eye(nrows, ncols, dtype=dtype)
 
     @staticmethod
@@ -158,11 +158,11 @@ class NumpyMixin(BackendMixin):
         return np.dstack(arrays)
 
     @staticmethod
-    def arange(*args, **kwargs) -> np.ndarray:
+    def arange(*args, **kwargs: Any) -> np.ndarray:
         return np.arange(*args, **kwargs)
 
     @staticmethod
-    def linspace(*args, **kwargs):
+    def linspace(*args, **kwargs: Any):
         return np.linspace(*args, **kwargs)
 
     @staticmethod
@@ -174,7 +174,9 @@ class NumpyMixin(BackendMixin):
         return mat.ndim
 
     @staticmethod
-    def repeat(mat: np.ndarray, nreps: int, axis: int = None) -> np.ndarray:
+    def repeat(
+        mat: np.ndarray, nreps: int, axis: Optional[AxisArg] = None
+    ) -> np.ndarray:
         return np.repeat(mat, nreps, axis=axis)
 
     @staticmethod
@@ -223,8 +225,10 @@ class NumpyMixin(BackendMixin):
 
     @staticmethod
     def where(
-        cond: np.ndarray, array1: np.ndarray = None, array2: np.ndarray = None
-    ) -> np.ndarray:
+        cond: np.ndarray,
+        array1: Optional[np.ndarray] = None,
+        array2: Optional[np.ndarray] = None,
+    ) -> Tuple[Any, ...]:
         if array1 is not None:
             return np.where(cond, array1, array2)
         return np.where(cond)
@@ -254,19 +258,25 @@ class NumpyMixin(BackendMixin):
         return np.kron(Amat, Bmat)
 
     @staticmethod
-    def slogdet(Amat: np.ndarray) -> np.ndarray:
+    def slogdet(Amat: np.ndarray) -> Any:
         return np.linalg.slogdet(Amat)
 
     @staticmethod
-    def mean(mat: np.ndarray, axis: int = None) -> np.ndarray:
+    def mean(
+        mat: np.ndarray, axis: Optional[AxisArg] = None
+    ) -> Union[Any, np.ndarray]:
         return np.mean(mat, axis=axis)
 
     @staticmethod
-    def var(mat: np.ndarray, axis: int = None, ddof: int = 0) -> np.ndarray:
+    def var(
+        mat: np.ndarray, axis: Optional[AxisArg] = None, ddof: int = 0
+    ) -> Union[Any, np.ndarray]:
         return np.var(mat, axis=axis, ddof=ddof)
 
     @staticmethod
-    def std(mat: np.ndarray, axis: int = None, ddof: int = 0) -> np.ndarray:
+    def std(
+        mat: np.ndarray, axis: Optional[AxisArg] = None, ddof: int = 0
+    ) -> Union[Any, np.ndarray]:
         return np.std(mat, axis=axis, ddof=ddof)
 
     @staticmethod
@@ -282,23 +292,25 @@ class NumpyMixin(BackendMixin):
         return mat
 
     @staticmethod
-    def argsort(mat: np.ndarray, axis: int = -1) -> np.ndarray:
+    def argsort(mat: np.ndarray, axis: AxisArg = -1) -> np.ndarray:
         return np.argsort(mat, axis=axis)
 
     @staticmethod
-    def sort(mat: np.ndarray, axis: int = -1) -> np.ndarray:
+    def sort(mat: np.ndarray, axis: AxisArg = -1) -> np.ndarray:
         return np.sort(mat, axis=axis)
 
     @staticmethod
-    def flip(mat, axis: int = None):
+    def flip(mat, axis: Optional[AxisArg] = None):
         return np.flip(mat, axis=axis)
 
     @staticmethod
-    def allclose(Amat: np.ndarray, Bmat: np.ndarray, **kwargs) -> bool:
+    def allclose(Amat: np.ndarray, Bmat: np.ndarray, **kwargs: Any) -> bool:
         return np.allclose(Amat, Bmat, **kwargs)
 
     @staticmethod
-    def isclose(Amat: np.ndarray, Bmat: np.ndarray, **kwargs) -> np.ndarray:
+    def isclose(
+        Amat: np.ndarray, Bmat: np.ndarray, **kwargs: Any
+    ) -> np.ndarray:
         return np.isclose(Amat, Bmat, **kwargs)
 
     @staticmethod
@@ -314,7 +326,7 @@ class NumpyMixin(BackendMixin):
         return np.argmin(array)
 
     @staticmethod
-    def max(array: np.ndarray, axis: int = None):
+    def max(array: np.ndarray, axis: Optional[AxisArg] = None):
         return np.max(array, axis=axis)
 
     @staticmethod
@@ -326,19 +338,19 @@ class NumpyMixin(BackendMixin):
         return np.minimum(array1, array2)
 
     @staticmethod
-    def min(array: np.ndarray, axis: int = None):
+    def min(array: np.ndarray, axis: Optional[AxisArg] = None):
         return np.min(array, axis=axis)
 
     @staticmethod
-    def block(blocks):
+    def block(blocks: Sequence[Sequence[np.ndarary]]) -> np.ndarray:
         return np.block(blocks)
 
     @staticmethod
-    def sum(matrix: np.ndarray, axis: int = None):
+    def sum(matrix: np.ndarray, axis: Optional[AxisArg] = None):
         return np.sum(matrix, axis=axis)
 
     @staticmethod
-    def count_nonzero(matrix: np.ndarray, axis: int = None):
+    def count_nonzero(matrix: np.ndarray, axis: Optional[AxisArg] = None):
         return np.count_nonzero(matrix, axis=axis)
 
     @staticmethod
@@ -368,7 +380,7 @@ class NumpyMixin(BackendMixin):
         return np.linalg.matrix_rank(matrix)
 
     @staticmethod
-    def up(matrix: np.ndarray, indices, submatrix, axis: int = 0):
+    def up(matrix: np.ndarray, indices, submatrix, axis: AxisArg = 0):
         if axis == 0:
             matrix[indices] = submatrix
             return matrix
@@ -397,11 +409,11 @@ class NumpyMixin(BackendMixin):
         return np.asarray(array, dtype=dtype)
 
     @staticmethod
-    def unique(array: np.ndarray, **kwargs):
+    def unique(array: np.ndarray, **kwargs: Any):
         return np.unique(array, **kwargs)
 
     @staticmethod
-    def delete(array: np.ndarray, obj, axis: int = None):
+    def delete(array: np.ndarray, obj, axis: Optional[AxisArg] = None):
         return np.delete(array, obj, axis=axis)
 
     @staticmethod
@@ -433,11 +445,11 @@ class NumpyMixin(BackendMixin):
         return np.diff(array)
 
     @staticmethod
-    def int():
+    def int_dtype():
         return int
 
     @staticmethod
-    def cumsum(array: np.ndarray, axis: int = 0, **kwargs):
+    def cumsum(array: np.ndarray, axis: AxisArg = 0, **kwargs: Any):
         assert axis is not None
         return np.cumsum(array, axis=axis, **kwargs)
 
@@ -478,11 +490,11 @@ class NumpyMixin(BackendMixin):
         return scipy.special.gammaln(mat)
 
     @staticmethod
-    def split(mat: np.ndarray, splits, axis: int = 0) -> List[np.ndarray]:
+    def split(mat: np.ndarray, splits, axis: AxisArg = 0) -> List[np.ndarray]:
         return np.split(max, splits, axis=axis)
 
     def chunks(
-        mat: np.ndarray, nchunks: int, axis: int = 0
+        mat: np.ndarray, nchunks: int, axis: AxisArg = 0
     ) -> List[np.ndarray]:
         return np.array_split(mat, nchunks, axis=axis)
 
@@ -495,7 +507,9 @@ class NumpyMixin(BackendMixin):
         return isinstance(array, np.ndarray) and array.ndim == 0
 
     @staticmethod
-    def quantile(array: np.ndarray, q: float, axis: int = None) -> np.ndarray:
+    def quantile(
+        array: np.ndarray, q: float, axis: Optional[AxisArg] = None
+    ) -> Union[Any, np.ndarray]:
         return np.quantile(array, q, axis)
 
     @staticmethod
@@ -503,7 +517,9 @@ class NumpyMixin(BackendMixin):
         return np.tril(array, k)
 
     @staticmethod
-    def tril_indices(n: int, k: int = 0, m: int = None) -> np.ndarray:
+    def tril_indices(
+        n: int, k: int = 0, m: Optional[int] = None
+    ) -> Tuple[Any, Any]:
         return np.tril_indices(n, k, m)
 
     @staticmethod
@@ -511,7 +527,9 @@ class NumpyMixin(BackendMixin):
         return np.triu(array, k)
 
     @staticmethod
-    def triu_indices(n: int, k: int = 0, m: int = None) -> np.ndarray:
+    def triu_indices(
+        n: int, k: int = 0, m: Optional[int] = None
+    ) -> Tuple[Any, Any]:
         return np.triu_indices(n, k, m)
 
     @staticmethod
@@ -554,10 +572,10 @@ class NumpyMixin(BackendMixin):
     def searchsorted(
         array: np.ndarray, values: np.ndarray, side: str = "left"
     ) -> np.ndarray:
-        return np.searchsorted(array, values, side)
+        return np.searchsorted(array, values, side=side)
 
     @staticmethod
-    def fft(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
+    def fft(mat: np.ndarray, axis=None, **kwargs: Any) -> np.ndarray:
         if mat.ndim < 3:
             raise ValueError(
                 "mat must explicitly express channel and sample " "dimensions"
@@ -566,7 +584,7 @@ class NumpyMixin(BackendMixin):
         return np.fft.fftn(mat, axes=_axis, **kwargs)
 
     @staticmethod
-    def ifft(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
+    def ifft(mat: np.ndarray, axis=None, **kwargs: Any) -> np.ndarray:
         if mat.ndim < 3:
             raise ValueError(
                 "mat must explicitly express channel and sample " "dimensions"
@@ -575,7 +593,7 @@ class NumpyMixin(BackendMixin):
         return np.fft.ifftn(mat, axes=_axis, **kwargs)
 
     @staticmethod
-    def fftshift(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
+    def fftshift(mat: np.ndarray, axis=None, **kwargs: Any) -> np.ndarray:
         if mat.ndim < 3:
             raise ValueError(
                 "mat must explicitly express channel and sample " "dimensions"
@@ -584,7 +602,7 @@ class NumpyMixin(BackendMixin):
         return np.fft.fftshift(mat, axes=_axis, **kwargs)
 
     @staticmethod
-    def ifftshift(mat: np.ndarray, axis=None, **kwargs) -> np.ndarray:
+    def ifftshift(mat: np.ndarray, axis=None, **kwargs: Any) -> np.ndarray:
         if mat.ndim < 3:
             raise ValueError(
                 "mat must explicitly express channel and sample " "dimensions"
@@ -613,7 +631,7 @@ class NumpyMixin(BackendMixin):
         return mat[tuple(slices)]
 
     @staticmethod
-    def concatenate(mats: List[np.ndarray], axis: int = 0) -> np.ndarray:
+    def concatenate(mats: List[np.ndarray], axis: AxisArg = 0) -> np.ndarray:
         return np.concatenate(mats, axis=axis)
 
     @staticmethod
@@ -623,9 +641,9 @@ class NumpyMixin(BackendMixin):
         rtol: float = 1e-7,
         atol: float = 0,
         equal_nan: bool = True,
-        err_msg: str = None,
-    ) -> bool:
-        return np.testing.assert_allclose(
+        err_msg: Optional[str] = None,
+    ) -> None:
+        np.testing.assert_allclose(
             actual,
             desired,
             rtol,

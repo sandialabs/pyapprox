@@ -1,8 +1,8 @@
 import itertools
-from typing import List, Iterable, Tuple
+from typing import List, Iterable, Tuple, Type
 
 import numpy as np
-from scipy.special import roots_hermitenorm
+from scipy.special import roots_hermitenorm  # type: ignore
 
 # from pyapprox.util.pya_numba import njit
 from pyapprox.util.backends.template import BackendMixin, Array
@@ -10,7 +10,7 @@ from pyapprox.util.backends.numpy import NumpyMixin
 
 
 def argsort_indices_leixographically(
-    indices: Array, bkd: BackendMixin = NumpyMixin
+    indices: Array, bkd: Type[BackendMixin] = NumpyMixin
 ) -> Array:
     r"""
     Argort a set of indices lexiographically. Sort by SUM of columns then
@@ -39,14 +39,16 @@ def argsort_indices_leixographically(
     return bkd.array(sorted_idx, dtype=int)
 
 
-def hash_array(matrix: Array, bkd: BackendMixin = NumpyMixin) -> int:
+def hash_array(matrix: Array, bkd: Type[BackendMixin] = NumpyMixin) -> int:
     if matrix.ndim != 1:
         raise ValueError("matrix must be 1D array")
     np_array = bkd.to_numpy(matrix)
     return hash(np_array.tobytes())
 
 
-def unique_matrix_row_indices(matrix: Array, bkd: BackendMixin = NumpyMixin):
+def unique_matrix_row_indices(
+    matrix: Array, bkd: Type[BackendMixin] = NumpyMixin
+):
     """Return the row numbers of the unique rows in a matrix"""
     if matrix.ndim != 2:
         raise ValueError("matrix must be 2D array")
@@ -67,18 +69,20 @@ def unique_matrix_row_indices(matrix: Array, bkd: BackendMixin = NumpyMixin):
     ]
 
 
-def unique_matrix_rows(matrix, bkd: BackendMixin = NumpyMixin) -> Array:
+def unique_matrix_rows(matrix, bkd: Type[BackendMixin] = NumpyMixin) -> Array:
     """Return all the unique rows of a matrix"""
     return matrix[unique_matrix_row_indices(matrix, bkd)[0]]
 
 
-def unique_matrix_columns(matrix, bkd: BackendMixin = NumpyMixin) -> Array:
+def unique_matrix_columns(
+    matrix, bkd: Type[BackendMixin] = NumpyMixin
+) -> Array:
     """Return all the unique columns of a matrix"""
     return matrix[:, unique_matrix_row_indices(matrix.T, bkd)[0]]
 
 
 def get_all_sample_combinations(
-    samples1: Array, samples2: Array, bkd: BackendMixin = NumpyMixin
+    samples1: Array, samples2: Array, bkd: Type[BackendMixin] = NumpyMixin
 ) -> Array:
     r"""
     For two sample sets of different random variables
@@ -93,7 +97,10 @@ def get_all_sample_combinations(
 
 
 def approx_jacobian_3D(
-    f, x0, epsilon=np.sqrt(np.finfo(float).eps), bkd: BackendMixin = NumpyMixin
+    f,
+    x0,
+    epsilon=np.sqrt(np.finfo(float).eps),
+    bkd: Type[BackendMixin] = NumpyMixin,
 ):
     fval = f(x0)
     jacobian = bkd.full((fval.shape[0], fval.shape[1], x0.shape[0]), 0.0)
@@ -108,7 +115,7 @@ def approx_jacobian_3D(
 
 
 def split_indices(
-    nelems: int, nsplits: int, bkd: BackendMixin = NumpyMixin
+    nelems: int, nsplits: int, bkd: Type[BackendMixin] = NumpyMixin
 ) -> Array:
     indices = bkd.hstack(
         (
@@ -176,7 +183,7 @@ def flatten_2D_list(list_2d: List[List]) -> List:
 
 
 def covariance_to_correlation(
-    cov: Array, bkd: BackendMixin = NumpyMixin
+    cov: Array, bkd: Type[BackendMixin] = NumpyMixin
 ) -> Array:
     r"""
     Compute the correlation matrix from a covariance matrix
@@ -236,7 +243,7 @@ def all_primes_less_than_or_equal_to_n(n: int) -> List:
     return primes
 
 
-def lists_of_arrays_equal(list1, list2, bkd: BackendMixin = NumpyMixin):
+def lists_of_arrays_equal(list1, list2, bkd: Type[BackendMixin] = NumpyMixin):
     if len(list1) != len(list2):
         return False
     for ll in range(len(list1)):
@@ -247,20 +254,20 @@ def lists_of_arrays_equal(list1, list2, bkd: BackendMixin = NumpyMixin):
     return True
 
 
-def scipy_gauss_hermite_pts_wts_1D(nn, bkd: BackendMixin = NumpyMixin):
+def scipy_gauss_hermite_pts_wts_1D(nn, bkd: Type[BackendMixin] = NumpyMixin):
     x, w = roots_hermitenorm(nn)
     w /= np.sqrt(2 * np.pi)
     return bkd.asarray(x), bkd.asarray(w)
 
 
-def scipy_gauss_legendre_pts_wts_1D(nn, bkd: BackendMixin = NumpyMixin):
+def scipy_gauss_legendre_pts_wts_1D(nn, bkd: Type[BackendMixin] = NumpyMixin):
     x, w = np.polynomial.legendre.leggauss(nn)
     w *= 0.5
     return bkd.asarray(x), bkd.asarray(w)
 
 
 def simpsons_rule(
-    bounds: Tuple, nquad: int, bkd: BackendMixin
+    bounds: Tuple, nquad: int, bkd: Type[BackendMixin]
 ) -> Tuple[Array, Array]:
     if nquad % 2 == 0:
         raise ValueError("nquad must be odd")
@@ -273,7 +280,7 @@ def simpsons_rule(
 
 
 def trapezoid_rule(
-    bounds: Tuple, nquad: int, bkd: BackendMixin
+    bounds: Tuple, nquad: int, bkd: Type[BackendMixin]
 ) -> Tuple[Array, Array]:
     if nquad % 2 == 0:
         raise ValueError("nquad must be odd")
@@ -286,7 +293,10 @@ def trapezoid_rule(
 
 
 def composite_gauss_legendre_rule(
-    bounds: Tuple, nquad_per_interval: int, nintervals: int, bkd: BackendMixin
+    bounds: Tuple,
+    nquad_per_interval: int,
+    nintervals: int,
+    bkd: Type[BackendMixin],
 ) -> Tuple[Array, Array]:
     quadx, quadw = np.polynomial.legendre.leggauss(nquad_per_interval)
     quadx_01 = bkd.asarray((quadx + 1) / 2)

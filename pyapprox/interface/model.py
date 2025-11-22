@@ -8,9 +8,20 @@ import tempfile
 from abc import ABC, abstractmethod
 import multiprocessing
 from multiprocessing.pool import ThreadPool
-from typing import List, Tuple, Union, Optional, Dict, Callable
+from typing import (
+    List,
+    Tuple,
+    Union,
+    Optional,
+    Dict,
+    Callable,
+    Iterable,
+    Type,
+    overload,
+)
 import matplotlib
 from mpl_toolkits.mplot3d import Axes3D  # type: ignore
+from collections.abc import Sequence
 
 import numpy as np
 import umbridge  # type: ignore
@@ -40,13 +51,13 @@ class ModelWorkTracker:
         Whether to enable multiprocessing support. Defaults to `False`.
     """
 
-    def __init__(self, backend: BackendMixin, multiproc: bool = False):
+    def __init__(self, backend: Type[BackendMixin], multiproc: bool = False):
         """
         Initialize the ModelWorkTracker instance.
 
         Parameters
         ----------
-        backend : BackendMixin
+        backend : Type[BackendMixin]
             The backend used for array operations.
         multiproc : bool, optional
             Whether to enable multiprocessing support. Defaults to `False`.
@@ -121,7 +132,7 @@ class ModelWorkTracker:
         if self._active:
             self._wall_times[eval_name].append(times)
 
-    def average_wall_time(self, eval_name: str) -> Union[float, str]:
+    def average_wall_time(self, eval_name: str) -> Union[float, str, Array]:
         """
         Compute the average wall time for a specific type of evaluation.
 
@@ -214,19 +225,19 @@ class ModelDataBase:
 
     Parameters
     ----------
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         The backend used for array operations (e.g., `NumpyMixin`). Defaults to `NumpyMixin`.
     """
 
     # TODO Add option to save results to file at certain frequency
     # TODO support different file systems, e.g. pickle, HDF5 etc.
-    def __init__(self, backend: BackendMixin):
+    def __init__(self, backend: Type[BackendMixin]):
         """
         Initialize the ModelDataBase instance.
 
         Parameters
         ----------
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             The backend used for array operations (e.g., `NumpyMixin`). Defaults to `NumpyMixin`.
         """
         self._bkd = backend
@@ -364,7 +375,7 @@ class ModelDataBase:
 
     def get_data(
         self, eval_name: str, samples: Array
-    ) -> Tuple[Union[None, List], List, List]:
+    ) -> Tuple[Union[None, List[Array]], List, List]:
         """
         Retrieve stored evaluation results for a set of samples.
 
@@ -405,7 +416,7 @@ class ModelDataBase:
 
 
 class GradientCheckMixin:
-    _bkd: BackendMixin
+    _bkd: Type[BackendMixin]
 
     def _check_apply(
         self,
@@ -458,9 +469,8 @@ class GradientCheckMixin:
             fd_eps = self._bkd.flip(self._bkd.logspace(-13, 0, 14))
         if direction is None:
             nvars = sample.shape[0]
-            direction = np.random.normal(0, 1, (nvars, 1))
-            direction /= np.linalg.norm(direction)
-            direction = self._bkd.asarray(direction)
+            direction = self._bkd.asarray(np.random.normal(0, 1, (nvars, 1)))
+            direction /= self._bkd.norm(direction)
 
         errors = []
         val = fun(sample, *args)
@@ -543,13 +553,13 @@ class Model(ABC, GradientCheckMixin):
     - `apply_weighted_hessian_implemented() -> bool`: Returns `True` if `_apply_weighted_hessian` is implemented.
     """
 
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    def __init__(self, backend: Type[BackendMixin]):
         """
         Initialize the Model instance.
 
         Parameters
         ----------
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             The backend used for array operations (e.g., `NumpyMixin`). Defaults to `NumpyMixin`.
         """
         if not hasattr(backend, "isbackend"):
@@ -797,11 +807,15 @@ class Model(ABC, GradientCheckMixin):
             return self._new_values(samples)
 
         if len(new_idx) == 0:
+            if stored_values is None:
+                raise ValueError("stored values is None")
             return self._bkd.vstack(stored_values)
 
         vals = self._bkd.empty((samples.shape[1], self.nqoi()))
         new_samples = samples[:, new_idx]
         vals[new_idx] = self._new_values(new_samples)
+        if stored_values is None:
+            raise ValueError("stored values is None")
         vals[stored_idx] = self._bkd.vstack(stored_values)
         return vals
 
@@ -923,7 +937,7 @@ class Model(ABC, GradientCheckMixin):
         """
         if not self._bkd.jacobian_implemented():
             raise NotImplementedError(
-                f"{self._bkd.__name__} does not support autodiff"
+                f"{self._bkd.name()} does not support autodiff"
             )
         return self._bkd.jacobian(
             lambda x: self._values(x[:, None])[0], sample[:, 0]
@@ -970,12 +984,14 @@ class Model(ABC, GradientCheckMixin):
             raise NotImplementedError(f"{self} _jacobian not implemented")
 
         self._check_sample_shape(sample)
-        jac, stored_idx, new_idx = self._database.get_data("jac", sample)
+        stored_jac, stored_idx, new_idx = self._database.get_data(
+            "jac", sample
+        )
         if len(stored_idx) == 1:
-            if jac is None:
+            if stored_jac is None:
                 raise ValueError("jac is None")
-            self._check_jacobian_shape(jac[0], sample)
-            return jac[0]
+            self._check_jacobian_shape(stored_jac[0], sample)
+            return stored_jac[0]
         t0 = time.time()
         jac = self._jacobian(sample)
         t1 = time.time()
@@ -1038,11 +1054,13 @@ class Model(ABC, GradientCheckMixin):
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
         if self.apply_jacobian_implemented():
-            jvp, stored_idx, new_idx = self._database.get_data("jvp", sample)
+            stored_jvp, stored_idx, new_idx = self._database.get_data(
+                "jvp", sample
+            )
             if len(stored_idx) == 1:
-                if jvp is None:
+                if stored_jvp is None:
                     raise ValueError("jvp is None")
-                return jvp[0]
+                return stored_jvp[0]
             t0 = time.time()
             jvp = self._apply_jacobian(sample, vec)
             t1 = time.time()
@@ -1150,11 +1168,13 @@ class Model(ABC, GradientCheckMixin):
         self._check_sample_shape(sample)
         self._check_vec_shape(sample, vec)
         if self.apply_hessian_implemented():
-            hvp, stored_idx, new_idx = self._database.get_data("hvp", sample)
+            stored_hvp, stored_idx, new_idx = self._database.get_data(
+                "hvp", sample
+            )
             if len(stored_idx) == 1:
-                if hvp is None:
-                    raise ValueError("hvp is None")
-                return hvp[0]
+                if stored_hvp is None:
+                    raise ValueError("stored_hvp is None")
+                return stored_hvp[0]
             t0 = time.time()
             hvp = self._apply_hessian(sample, vec)
             t1 = time.time()
@@ -1229,11 +1249,13 @@ class Model(ABC, GradientCheckMixin):
 
         self._check_sample_shape(sample)
 
-        hess, stored_idx, new_idx = self._database.get_data("hess", sample)
+        stored_hess, stored_idx, new_idx = self._database.get_data(
+            "hess", sample
+        )
         if len(stored_idx) == 1:
-            if hess is None:
-                raise ValueError("hess is None")
-            return hess[0]
+            if stored_hess is None:
+                raise ValueError("stored_hess is None")
+            return stored_hess[0]
         t0 = time.time()
         hess = self._hessian(sample)
         t1 = time.time()
@@ -1339,11 +1361,13 @@ class Model(ABC, GradientCheckMixin):
         self._check_vec_shape(sample, vec)
         self._check_weights_shape(weights)
         if self.apply_weighted_hessian_implemented():
-            whvp, stored_idx, new_idx = self._database.get_data("whvp", sample)
+            stored_whvp, stored_idx, new_idx = self._database.get_data(
+                "whvp", sample
+            )
             if len(stored_idx) == 1:
-                if whvp is None:
-                    raise ValueError("whvp is None")
-                return whvp[0]
+                if stored_whvp is None:
+                    raise ValueError("stored_whvp is None")
+                return stored_whvp[0]
             t0 = time.time()
             whvp = self._apply_weighted_hessian(sample, vec, weights)
             t1 = time.time()
@@ -1398,13 +1422,13 @@ class Model(ABC, GradientCheckMixin):
         self._check_sample_shape(sample)
         self._check_weights_shape(weights)
         if self.weighted_hessian_implemented():
-            whess, stored_idx, new_idx = self._database.get_data(
+            stored_whess, stored_idx, new_idx = self._database.get_data(
                 "whess", sample
             )
             if len(stored_idx) == 1:
-                if whess is None:
-                    raise ValueError("whess is None")
-                return whess[0]
+                if stored_whess is None:
+                    raise ValueError("stored_whess is None")
+                return stored_whess[0]
             t0 = time.time()
             whess = self._weighted_hessian(sample, weights)
             t1 = time.time()
@@ -1614,7 +1638,7 @@ class Model(ABC, GradientCheckMixin):
         self,
         ax: matplotlib.axes.Axes,
         qoi: int,
-        plot_limits: tuple,
+        plot_limits: Array,
         npts_1d: Array,
         **kwargs,
     ):
@@ -1635,11 +1659,15 @@ class Model(ABC, GradientCheckMixin):
             Additional arguments passed to the plot function.
         """
         plot_xx = self._bkd.linspace(*plot_limits, npts_1d[0])[None, :]
-        ax.plot(plot_xx[0], self.__call__(plot_xx), **kwargs)
+        ax.plot(
+            self._bkd.to_numpy(plot_xx[0]),
+            self._bkd.to_numpy(self.__call__(plot_xx)),
+            **kwargs,
+        )
 
     def meshgrid_samples(
         self, plot_limits: Array, npts_1d: Union[Array, int] = 51
-    ) -> Array:
+    ) -> Tuple[Array, Array, Array]:
         """
         Generate a meshgrid of samples for 2D plotting.
 
@@ -1708,7 +1736,7 @@ class Model(ABC, GradientCheckMixin):
         ax: matplotlib.axes.Axes,
         plot_limits: Array,
         qoi: int = 0,
-        npts_1d: Array = 51,
+        npts_1d: Union[int, Sequence, Array] = 51,
         **kwargs,
     ):
         """
@@ -1731,19 +1759,18 @@ class Model(ABC, GradientCheckMixin):
         if self.nvars() > 3:
             raise RuntimeError("Cannot plot indices when nvars >= 3.")
 
-        if not isinstance(npts_1d, list):
+        if isinstance(npts_1d, int):
             npts_1d = [npts_1d] * self.nvars()
+        npts_1d = self._bkd.asarray(npts_1d)
 
         if len(npts_1d) != self.nvars():
             raise ValueError("npts_1d must be a list")
 
-        plot_surface_funs = {
-            1: self._plot_surface_1d,
-            2: self._plot_surface_2d,
-        }
-        plot_surface_funs[self.nvars()](
-            ax, qoi, plot_limits, npts_1d, **kwargs
-        )
+        if self.nvars() == 1:
+            return self._plot_surface_1d(
+                ax, qoi, plot_limits, npts_1d, **kwargs
+            )
+        return self._plot_surface_2d(ax, qoi, plot_limits, npts_1d, **kwargs)
 
     def get_plot_axis(
         self, figsize: Tuple = (8, 6), surface: bool = False
@@ -1776,7 +1803,7 @@ class Model(ABC, GradientCheckMixin):
         ax: matplotlib.axes.Axes,
         plot_limits: Array,
         qoi: int = 0,
-        npts_1d: Array = 51,
+        npts_1d: Union[int, Array] = 51,
         **kwargs,
     ):
         """
@@ -1817,7 +1844,7 @@ class Model(ABC, GradientCheckMixin):
         ax: matplotlib.axes.Axes,
         plot_limits: Array,
         qoi: int = 0,
-        npts_1d: Array = 51,
+        npts_1d: Union[Array, int] = 51,
         **kwargs,
     ):
         """
@@ -1875,13 +1902,12 @@ class Model(ABC, GradientCheckMixin):
         vals : Array (npts, nqoi)
             The model values at the points in the cross-section.
         """
-        samples = []
+        samples_list = []
         for pt in pts.T:
             sample = self._bkd.copy(nominal_sample)
             sample[[id1, id2], 0] = pt
-            samples.append(sample)
-        np.set_printoptions(precision=16)
-        samples = self._bkd.hstack(samples)
+            samples_list.append(sample)
+        samples = self._bkd.hstack(samples_list)
         vals = self(samples)
         return vals
 
@@ -2116,6 +2142,9 @@ class SingleSampleModel(Model):
         if len(stored_idx) == 0:
             return self._new_values(samples)
 
+        if stored_vals is None:
+            raise ValueError("stored vals is None")
+
         if len(new_idx) == 0:
             return self._bkd.vstack(stored_vals)
 
@@ -2153,7 +2182,7 @@ class ModelFromCallable(Model):
         weighted_hessian: Optional[Callable] = None,
         sample_ndim: int = 2,
         values_ndim: int = 2,
-        backend: BackendMixin = NumpyMixin,
+        backend: Type[BackendMixin] = NumpyMixin,
     ):
         """
         Initialize the ModelFromCallable instance.
@@ -2182,7 +2211,7 @@ class ModelFromCallable(Model):
             The dimension of the array accepted by the user-defined function. Must be either 1 or 2. Defaults to 2.
         values_ndim : int, optional
             The dimension of the array returned by the user-defined function. Must be 0, 1, or 2. Defaults to 2.
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             The backend used for array operations. Defaults to NumpyMixin.
 
         Raises
@@ -2317,7 +2346,7 @@ class ModelFromVectorizedCallable(ModelFromCallable):
         The user-defined function for computing the weighted Hessian matrix. This function must accept a 2D array of samples and a 2D array of weights, and return a 4D array representing the weighted Hessian matrices for all samples (shape `(nqoi, nvars, nvars, nsamples)`).
     values_ndim : int, optional
         The dimension of the array returned by the user-defined function. Must be 0, 1, or 2. Defaults to 2.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         The backend used for array operations. Defaults to `NumpyMixin`.
 
     Notes
@@ -2339,7 +2368,7 @@ class ModelFromVectorizedCallable(ModelFromCallable):
         apply_weighted_hessian: Optional[Callable] = None,
         weighted_hessian: Optional[Callable] = None,
         values_ndim: int = 2,
-        backend: BackendMixin = NumpyMixin,
+        backend: Type[BackendMixin] = NumpyMixin,
     ):
         super().__init__(
             nqoi,
@@ -2399,7 +2428,7 @@ class ModelFromSingleSampleCallable(ModelFromCallable, SingleSampleModel):
         The dimension of the array accepted by the user-defined function. Must be 1, as this class operates on single samples. Defaults to 1.
     values_ndim : int, optional
         The dimension of the array returned by the user-defined function. Must be 0, 1, or 2. Defaults to 1.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         The backend used for array operations. Defaults to `NumpyMixin`.
 
     Notes
@@ -2493,7 +2522,7 @@ class UmbridgeModel(Model):
         Configuration dictionary for the UM-Bridge model. Default is an empty dictionary.
     nprocs : int, optional
         Number of processes for parallel evaluation. Default is 1.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
@@ -2509,7 +2538,7 @@ class UmbridgeModel(Model):
             Configuration dictionary for the UM-Bridge model. Default is an empty dictionary.
         nprocs : int, optional
             Number of processes for parallel evaluation. Default is 1.
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
 
         Raises
@@ -2867,7 +2896,7 @@ class UmbridgeIOModel(UmbridgeModel):
         Number of processes for parallel evaluation. Default is 1.
     outdir_basename : str, optional
         Base name for the output directories created for each model run. Default is "modelresults".
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
     """
 
     def __init__(
@@ -2891,7 +2920,7 @@ class UmbridgeIOModel(UmbridgeModel):
             Number of processes for parallel evaluation. Default is 1.
         outdir_basename : str, optional
             Base name for the output directories created for each model run. Default is "modelresults".
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
         """
         super().__init__(umb_model, config, nprocs, backend=backend)
@@ -2944,7 +2973,7 @@ class UmbridgeIOModelEnsemble(UmbridgeModel):
         Number of processes for parallel evaluation. Default is 1.
     outdir_basename : str, optional
         Base name for the output directories created for each model run. Default is "modelresults".
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
@@ -2969,7 +2998,7 @@ class UmbridgeIOModelEnsemble(UmbridgeModel):
             Number of processes for parallel evaluation. Default is 1.
         outdir_basename : str, optional
             Base name for the output directories created for each model run. Default is "modelresults".
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
         """
         super().__init__(umb_model, None, nprocs, backend=backend)
@@ -3042,7 +3071,7 @@ class IOModel(SingleSampleModel):
         ["full", "limited", "no"]. Default is "no".
     datafilename : str, optional
         Name of the file to save samples and values. Required if `save` is not "no".
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
@@ -3054,7 +3083,7 @@ class IOModel(SingleSampleModel):
         outdir_basename: Optional[str] = None,
         save: str = "no",
         datafilename: Optional[str] = None,
-        backend: BackendMixin = NumpyMixin,
+        backend: Type[BackendMixin] = NumpyMixin,
     ):
         """
         Initialize the IOModel.
@@ -3074,7 +3103,7 @@ class IOModel(SingleSampleModel):
             ["full", "limited", "no"]. Default is "no".
         datafilename : str, optional
             Name of the file to save samples and values. Required if save != "no".
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
 
         Raises
@@ -3353,7 +3382,7 @@ class SerialIOModel(IOModel):
         - 0: No output.
         - 1: Save output to a file.
         - 2: Print output to the console.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
@@ -3369,7 +3398,7 @@ class SerialIOModel(IOModel):
         save: str = "no",
         datafilename: Optional[str] = None,
         verbosity: int = 0,
-        backend: BackendMixin = NumpyMixin,
+        backend: Type[BackendMixin] = NumpyMixin,
     ):
         """
         Initialize the serial IO model.
@@ -3400,7 +3429,7 @@ class SerialIOModel(IOModel):
             - 0: No output.
             - 1: Save output to a file.
             - 2: Print output to the console.
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
 
         Raises
@@ -3486,7 +3515,7 @@ class SerialIOModel(IOModel):
         """
         curdirname = os.getcwd()
         os.chdir(outdirname)
-        np.savetxt(self._params_filename, sample)
+        np.savetxt(self._params_filename, self._bkd.to_numpy(sample))
         self._run_shell_command()
         vals = np.loadtxt(self._results_filename, usecols=[0])
         os.chdir(curdirname)
@@ -3529,7 +3558,7 @@ class AsyncIOModel(SerialIOModel):
         - 2: Print output to the console.
     nprocs : int, optional
         Number of processes for parallel evaluation. Default is 1.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
@@ -3546,7 +3575,7 @@ class AsyncIOModel(SerialIOModel):
         datafilename: Optional[str] = None,
         verbosity: int = 0,
         nprocs: int = 1,
-        backend: BackendMixin = NumpyMixin,
+        backend: Type[BackendMixin] = NumpyMixin,
     ):
         """
         Initialize the asynchronous IO model.
@@ -3579,7 +3608,7 @@ class AsyncIOModel(SerialIOModel):
             - 2: Print output to the console.
         nprocs : int, optional
             Number of processes for parallel evaluation. Default is 1.
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
         """
         self._nprocs = nprocs
@@ -3648,7 +3677,7 @@ class AsyncIOModel(SerialIOModel):
         t0 = time.time()
         self._link_files(outdirname)
         os.chdir(outdirname)
-        np.savetxt(self._params_filename, sample)
+        np.savetxt(self._params_filename, sample)  # type: ignore
         proc, writefile = self._run_shell_command()
         os.chdir(curdirname)
         self._running_workdirs[self._nmodel_evaluations] = (
@@ -3676,7 +3705,9 @@ class AsyncIOModel(SerialIOModel):
                 completed_sample_ids.append(sample_id)
         return completed_sample_ids
 
-    def _load_sample_result(self, sample_id: int) -> Array:
+    def _load_sample_result(
+        self, sample_id: int
+    ) -> Tuple[Array, Array, float]:
         """
         Load the results for a completed sample.
 
@@ -3706,10 +3737,15 @@ class AsyncIOModel(SerialIOModel):
         outdirname, tmpdir, proc, writefile, t0 = self._running_workdirs[
             sample_id
         ]
-        sample = np.loadtxt(os.path.join(outdirname, self._params_filename))
+        sample = self._bkd.asarray(
+            np.loadtxt(os.path.join(outdirname, self._params_filename))
+        )
         if os.path.exists(os.path.join(outdirname, self._results_filename)):
-            values = np.loadtxt(
-                os.path.join(outdirname, self._results_filename), usecols=[0]
+            values = self._bkd.asarray(
+                np.loadtxt(
+                    os.path.join(outdirname, self._results_filename),
+                    usecols=[0],
+                )
             )
             if values.shape[0] != self.nqoi():
                 raise RuntimeError(
@@ -3840,6 +3876,8 @@ class AsyncIOModel(SerialIOModel):
             new_samples = samples[:, new_idx]
             vals[new_idx] = self._values(new_samples)
         if len(stored_idx) > 0:
+            if stored_values is None:
+                raise ValueError("stored_values is None")
             vals[stored_idx] = self._bkd.vstack(stored_values)
         return vals
 
@@ -3857,12 +3895,12 @@ class MultiIndexModelEnsemble(ABC):
     ----------
     index_bounds : List[int]
         List specifying the bounds for each refinement variable. Each entry must be greater than 0.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
     def __init__(
-        self, index_bounds: List[int], backend: BackendMixin = NumpyMixin
+        self, index_bounds: List[int], backend: Type[BackendMixin] = NumpyMixin
     ):
         """
         Initialize the multi-index model ensemble.
@@ -3871,7 +3909,7 @@ class MultiIndexModelEnsemble(ABC):
         ----------
         index_bounds : List[int]
             List specifying the bounds for each refinement variable. Each entry must be greater than 0.
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
 
         Raises
@@ -3887,7 +3925,7 @@ class MultiIndexModelEnsemble(ABC):
         self._bkd = backend
         self._models: Dict[int, Model] = dict()
         self._index_bounds = self._bkd.asarray(index_bounds, dtype=int)
-        if self._index_bounds.min() < 1:
+        if self._bkd.min(self._index_bounds) < 1:
             raise ValueError("index bounds must have entries > 0")
 
     def _hash_model_id(self, model_id: Array) -> int:
@@ -3935,7 +3973,7 @@ class MultiIndexModelEnsemble(ABC):
         """
         if model_id.shape != (self.nrefinement_vars(),):
             raise ValueError("model_id does not match nrefinement_vars")
-        if self._bkd.any(model_id > self._index_bounds):
+        if self._bkd.any(model_id > self._index_bounds):  # type: ignore
             raise ValueError("model_id exceeds index_bounds")
         key = self._hash_model_id(model_id)
         if key in self._models:
@@ -3979,7 +4017,7 @@ class MultiIndexModelEnsemble(ABC):
         """
         return len(self._index_bounds)
 
-    def nmodels(self) -> int:
+    def nmodels(self) -> Array:
         """
         Return the total number of models in the ensemble.
 
@@ -4099,7 +4137,7 @@ class DenseMatrixLinearModel(Model):
         Dense matrix defining the linear transformation.
     vec : Array, optional
         Vector to be added to the linear transformation. Default is a zero vector.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
@@ -4107,7 +4145,7 @@ class DenseMatrixLinearModel(Model):
         self,
         matrix: Array,
         vec: Optional[Array] = None,
-        backend: BackendMixin = NumpyMixin,
+        backend: Type[BackendMixin] = NumpyMixin,
     ):
         """
         Initialize the dense matrix linear model.
@@ -4118,7 +4156,7 @@ class DenseMatrixLinearModel(Model):
             Dense matrix defining the linear transformation.
         vec : Array, optional
             Vector to be added to the linear transformation. Default is a zero vector.
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
         """
         self._nqoi, self._nvars = matrix.shape
@@ -4385,7 +4423,7 @@ class QuadraticMatrixModel(Model):
     ----------
     matrix : Array
         Dense matrix defining the quadratic transformation.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
@@ -4397,7 +4435,7 @@ class QuadraticMatrixModel(Model):
         ----------
         matrix : Array
             Dense matrix defining the quadratic transformation.
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
         """
         self._matrix = matrix
@@ -4532,14 +4570,18 @@ class QuadraticMatrixModel(Model):
         )
 
 
-class CostFunction:
+class CostFunctionBase(ABC):
     """
     Base class for cost functions.
 
-    This class defines a generic cost function interface that can be used to compute
-    the cost associated with a model or subspace index. Derived classes must implement
-    specific cost computation logic.
+    This class defines a generic cost function interface that can be used
+    to compute the cost associated with a model or subspace index.
+    Derived classes must implement specific cost computation logic.
     """
+
+    # Avoid errors like This violates the Liskov substitution principle
+    # that arises if base class defined def __call__(self, arg: Array)
+    # but derived class implements def __call__(self, arg: int)
 
     def set_nrefinement_vars(self, nrefinement_vars: int):
         """
@@ -4555,6 +4597,9 @@ class CostFunction:
         None
         """
         self._nrefinement_vars = nrefinement_vars
+
+
+class CostFunction(CostFunctionBase):
 
     def __call__(self, subspace_index: Array) -> float:
         """
@@ -4580,7 +4625,7 @@ class CostFunction:
         return 1
 
 
-class ModelListCostFunction(CostFunction):
+class ModelListCostFunction(CostFunctionBase):
     """
     Cost function for a list of models indexed by an integer.
 
@@ -4592,11 +4637,11 @@ class ModelListCostFunction(CostFunction):
     ----------
     costs : Array
         Array containing the cost of each model.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
-    def __init__(self, costs: Array, backend: BackendMixin = NumpyMixin):
+    def __init__(self, costs: Array, backend: Type[BackendMixin] = NumpyMixin):
         """
         Initialize the model list cost function.
 
@@ -4604,7 +4649,7 @@ class ModelListCostFunction(CostFunction):
         ----------
         costs : Array
             Array containing the cost of each model.
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
         """
         self._bkd = backend
@@ -4658,17 +4703,17 @@ class AdjointModel(SingleSampleModel, ABC):
 
     Parameters
     ----------
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
-    def __init__(self, backend: BackendMixin = NumpyMixin):
+    def __init__(self, backend: Type[BackendMixin] = NumpyMixin):
         """
         Initialize the adjoint model.
 
         Parameters
         ----------
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
         """
         super().__init__(backend)
@@ -4885,11 +4930,11 @@ class ScalarElementwiseFunction(ABC):
     ----------
     ndim : int
         Number of dimensions of the input samples.
-    backend : BackendMixin, optional
+    backend : Type[BackendMixin], optional
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
-    def __init__(self, ndim: int, backend: BackendMixin = NumpyMixin):
+    def __init__(self, ndim: int, backend: Type[BackendMixin] = NumpyMixin):
         """
         Initialize the scalar elementwise function.
 
@@ -4897,7 +4942,7 @@ class ScalarElementwiseFunction(ABC):
         ----------
         ndim : int
             Number of dimensions of the input samples.
-        backend : BackendMixin, optional
+        backend : Type[BackendMixin], optional
             Backend for numerical computations. Default is `NumpyMixin`.
         """
         self._ndim = ndim
@@ -5199,7 +5244,7 @@ class ScalarElementwiseFunction(ABC):
             fd_eps = self._bkd.flip(self._bkd.logspace(-13, 0, 14))
 
         vals = fun(samples)
-        grad = grad(samples)
+        grad_vals = grad(samples)
         errors = []
 
         row_format = "{:<12} {:<25} {:<25} {:<25}"
@@ -5216,12 +5261,12 @@ class ScalarElementwiseFunction(ABC):
             perturbed_samples = samples + fd_eps[ii]
             perturbed_vals = fun(perturbed_samples)
             fd = (perturbed_vals - vals) / fd_eps[ii]
-            errors.append(self._bkd.norm(fd - grad))
+            errors.append(self._bkd.norm(fd - grad_vals))
             if disp:
                 print(
                     row_format.format(
                         fd_eps[ii],
-                        self._bkd.norm(grad),
+                        self._bkd.norm(grad_vals),
                         self._bkd.norm(fd),
                         errors[ii],
                     )
@@ -5342,7 +5387,7 @@ def expand_samples_from_indices(
     active_var_indices: Array,
     inactive_var_indices: Array,
     inactive_var_values: Array,
-    bkd: BackendMixin = NumpyMixin,
+    bkd: Type[BackendMixin] = NumpyMixin,
 ):
     """
     Expand reduced samples into full samples by incorporating inactive variable values.
@@ -5359,7 +5404,7 @@ def expand_samples_from_indices(
         A 1D array specifying the indices of the inactive variables in the full set of variables.
     inactive_var_values : Array
         A 2D array specifying the fixed values for the inactive variables. The shape of this array must be `(num_inactive_vars, num_samples)`.
-    bkd : BackendMixin, optional
+    bkd : Type[BackendMixin], optional
         A backend for array operations, such as `NumpyMixin`. Defaults to `NumpyMixin`.
 
     Returns

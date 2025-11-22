@@ -4,7 +4,7 @@ import tempfile
 import glob
 
 import numpy as np
-import sympy as sp
+import sympy as sp  # type: ignore
 
 from pyapprox.interface.model import (
     ModelFromSingleSampleCallable,

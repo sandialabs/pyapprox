@@ -1,25 +1,28 @@
 import platform
 import warnings
-from typing import List
-
+from typing import List, Optional, Tuple, Any, Sequence, Callable, Iterable
 import torch
 
-from pyapprox.util.backends.template import BackendMixin
+from pyapprox.util.backends.template import BackendMixin, AxisArg
 
 torch.set_default_dtype(torch.double)
 
 
 class TorchMixin(BackendMixin):
-    def __init__(self):
-        # needed for autograd
-        self._inputs = None
+    # def __init__(self):
+    #     # needed for autograd
+    #     self._inputs = None
 
     @staticmethod
     def dot(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return Amat @ Bmat
 
     @staticmethod
-    def eye(nrows: int, ncols: int = None, dtype=None) -> torch.Tensor:
+    def eye(
+        nrows: int,
+        ncols: Optional[int] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> torch.Tensor:
         if ncols is not None:
             return torch.eye(nrows, ncols, dtype=dtype)
         return torch.eye(nrows, dtype=dtype)
@@ -41,7 +44,7 @@ class TorchMixin(BackendMixin):
         return torch.linalg.cholesky(matrix)
 
     @staticmethod
-    def det(matrix: torch.Tensor):
+    def det(matrix: torch.Tensor) -> torch.Tensor:
         return torch.linalg.det(matrix)
 
     @staticmethod
@@ -51,7 +54,7 @@ class TorchMixin(BackendMixin):
         return torch.cholesky_solve(bvec, chol, upper=(not lower))
 
     @staticmethod
-    def qr(mat: torch.Tensor, mode="complete"):
+    def qr(mat: torch.Tensor, mode: str = "complete") -> Any:
         return torch.linalg.qr(mat, mode=mode)
 
     @staticmethod
@@ -61,23 +64,23 @@ class TorchMixin(BackendMixin):
         return torch.linalg.solve_triangular(Amat, bvec, upper=(not lower))
 
     @staticmethod
-    def full(*args, dtype=None):
+    def full(*args: Any, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
         return torch.full(*args, dtype=dtype)
 
     @staticmethod
-    def zeros(*args, dtype=float):
+    def zeros(*args: Any, dtype: torch.dtype = float) -> torch.Tensor:
         return torch.zeros(*args, dtype=dtype)
 
     @staticmethod
-    def ones(*args, dtype=float):
+    def ones(*args: Any, dtype: torch.dtype = float) -> torch.Tensor:
         return torch.ones(*args, dtype=dtype)
 
     @staticmethod
-    def empty(*args, dtype=None):
+    def empty(*args: Any, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
         return torch.empty(*args, dtype=dtype)
 
     @staticmethod
-    def empty_like(*args, dtype=float):
+    def empty_like(*args: Any, dtype: torch.dtype = float) -> torch.Tensor:
         return torch.empty_like(*args, dtype=dtype)
 
     @staticmethod
@@ -145,46 +148,54 @@ class TorchMixin(BackendMixin):
         return torch.linalg.multi_dot(matrix_list)
 
     @staticmethod
-    def prod(matrix_list: torch.Tensor, axis=None) -> torch.Tensor:
+    def prod(
+        matrix_list: torch.Tensor, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         if axis is None:
             return torch.prod(matrix_list)
         return torch.prod(matrix_list, dim=axis)
 
     @staticmethod
-    def hstack(arrays) -> torch.Tensor:
+    def hstack(arrays: Sequence[torch.Tensor]) -> torch.Tensor:
         return torch.hstack(arrays)
 
     @staticmethod
-    def vstack(arrays) -> torch.Tensor:
+    def vstack(arrays: Sequence[torch.Tensor]) -> torch.Tensor:
         return torch.vstack(arrays)
 
     @staticmethod
-    def stack(arrays, axis=0) -> torch.Tensor:
+    def stack(
+        arrays: Sequence[torch.Tensor], axis: AxisArg = 0
+    ) -> torch.Tensor:
         return torch.stack(arrays, dim=axis)
 
     @staticmethod
-    def dstack(arrays) -> torch.Tensor:
+    def dstack(arrays: Sequence[torch.Tensor]) -> torch.Tensor:
         return torch.dstack(arrays)
 
     @staticmethod
-    def arange(*args, **kwargs) -> torch.Tensor:
+    def arange(*args: Any, **kwargs: Any) -> torch.Tensor:
         return torch.arange(*args, **kwargs)
 
     @staticmethod
-    def linspace(*args, dtype=None):
+    def linspace(
+        *args: Any, dtype: Optional[torch.dtype] = None
+    ) -> torch.Tensor:
         return torch.linspace(*args, dtype=dtype)
 
     @staticmethod
-    def logspace(*args, dtype=None):
+    def logspace(
+        *args: Any, dtype: Optional[torch.dtype] = None
+    ) -> torch.Tensor:
         return torch.logspace(*args, dtype=dtype)
 
     @staticmethod
-    def ndim(mat: torch.Tensor) -> int:
+    def ndim(mat: torch.Tensor) -> Any:
         return mat.ndim
 
     @staticmethod
     def repeat(
-        mat: torch.Tensor, nreps: int, axis: int = None
+        mat: torch.Tensor, nreps: int, axis: Optional[AxisArg] = None
     ) -> torch.Tensor:
         if mat.ndim == 1:
             return mat.repeat_interleave(nreps)
@@ -199,15 +210,15 @@ class TorchMixin(BackendMixin):
         raise ValueError("axis > 2 but mat.ndim == 2")
 
     @staticmethod
-    def tile(mat: torch.Tensor, nreps: tuple) -> torch.Tensor:
+    def tile(mat: torch.Tensor, nreps: Tuple[Any, ...]) -> torch.Tensor:
         return torch.tile(mat, nreps)
 
     @staticmethod
-    def cdist(Amat: torch.tensor, Bmat: torch.tensor) -> torch.Tensor:
+    def cdist(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return torch.cdist(Amat, Bmat, p=2)
 
     @staticmethod
-    def einsum(*args) -> torch.Tensor:
+    def einsum(*args: Any) -> torch.Tensor:
         return torch.einsum(*args)
 
     @staticmethod
@@ -224,23 +235,23 @@ class TorchMixin(BackendMixin):
         return torch.diagonal(mat)
 
     @staticmethod
-    def diag(array, k=0):
+    def diag(array: torch.Tensor, k: int = 0) -> torch.Tensor:
         return torch.diag(array, diagonal=k)
 
     @staticmethod
-    def isnan(mat) -> torch.Tensor:
+    def isnan(mat: torch.Tensor) -> torch.Tensor:
         return torch.isnan(mat)
 
     @staticmethod
-    def atleast1d(val) -> torch.Tensor:
+    def atleast1d(val: Any) -> torch.Tensor:
         return torch.atleast_1d(val)
 
     @staticmethod
-    def atleast2d(val) -> torch.Tensor:
+    def atleast2d(val: Any) -> torch.Tensor:
         return torch.atleast_2d(val)
 
     @staticmethod
-    def reshape(mat: torch.Tensor, newshape) -> torch.Tensor:
+    def reshape(mat: torch.Tensor, newshape: Tuple[Any, ...]) -> torch.Tensor:
         return torch.reshape(mat, newshape)
 
     @staticmethod
@@ -262,21 +273,23 @@ class TorchMixin(BackendMixin):
         return mat.int()
 
     @staticmethod
-    def inf():
+    def inf() -> torch.Tensor:
         return torch.inf
 
     @staticmethod
-    def norm(mat: torch.Tensor, axis=None) -> torch.Tensor:
+    def norm(
+        mat: torch.Tensor, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         return torch.linalg.norm(mat, dim=axis)
 
     @staticmethod
-    def any(mat: torch.Tensor, axis=None) -> torch.Tensor:
+    def any(mat: torch.Tensor, axis: Optional[AxisArg] = None) -> torch.Tensor:
         if axis is None:
             return torch.any(mat)
         return torch.any(mat, dim=axis)
 
     @staticmethod
-    def all(mat: torch.Tensor, axis=None) -> torch.Tensor:
+    def all(mat: torch.Tensor, axis: Optional[AxisArg] = None) -> torch.Tensor:
         if axis is None:
             return torch.all(mat)
         return torch.all(mat, dim=axis)
@@ -290,13 +303,15 @@ class TorchMixin(BackendMixin):
         return torch.linalg.slogdet(Amat)
 
     @staticmethod
-    def mean(mat: torch.Tensor, axis: int = None) -> torch.Tensor:
+    def mean(
+        mat: torch.Tensor, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         if axis is None:
             return torch.mean(mat)
         return torch.mean(mat, dim=axis)
 
     def var(
-        mat: torch.Tensor, axis: int = None, ddof: int = 0
+        mat: torch.Tensor, axis: Optional[AxisArg] = None, ddof: int = 0
     ) -> torch.Tensor:
         if axis is None:
             return torch.var(mat, correction=ddof)
@@ -304,7 +319,7 @@ class TorchMixin(BackendMixin):
 
     @staticmethod
     def std(
-        mat: torch.Tensor, axis: int = None, ddof: int = 0
+        mat: torch.Tensor, axis: Optional[AxisArg] = None, ddof: int = 0
     ) -> torch.Tensor:
         if axis is None:
             return torch.std(mat, correction=ddof)
@@ -312,7 +327,10 @@ class TorchMixin(BackendMixin):
 
     @staticmethod
     def cov(
-        mat: torch.Tensor, ddof=0, rowvar=True, aweights=None
+        mat: torch.Tensor,
+        ddof: int = 0,
+        rowvar: bool = True,
+        aweights: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if rowvar:
             return torch.cov(mat, correction=ddof, aweights=aweights)
@@ -323,19 +341,21 @@ class TorchMixin(BackendMixin):
         return torch.absolute(mat)
 
     @staticmethod
-    def to_numpy(mat: torch.Tensor):
+    def to_numpy(mat: torch.Tensor) -> Any:
         return mat.detach().numpy()
 
     @staticmethod
-    def argsort(mat: torch.Tensor, axis=-1) -> torch.Tensor:
+    def argsort(mat: torch.Tensor, axis: AxisArg = -1) -> torch.Tensor:
         return torch.argsort(mat, dim=axis)
 
     @staticmethod
-    def sort(mat: torch.Tensor, axis=-1) -> torch.Tensor:
+    def sort(mat: torch.Tensor, axis: AxisArg = -1) -> torch.Tensor:
         return torch.sort(mat, dim=axis)[0]
 
     @staticmethod
-    def flip(mat: torch.Tensor, axis=None) -> torch.Tensor:
+    def flip(
+        mat: torch.Tensor, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         if axis is None:
             _axis = (0,)
         elif type(axis) == int:
@@ -345,116 +365,147 @@ class TorchMixin(BackendMixin):
         return torch.flip(mat, dims=_axis)
 
     @staticmethod
-    def allclose(Amat: torch.Tensor, Bmat: torch.Tensor, **kwargs) -> bool:
+    def allclose(Amat: torch.Tensor, Bmat: torch.Tensor, **kwargs: Any) -> Any:
         return torch.allclose(Amat, Bmat, **kwargs)
 
     @staticmethod
     def isclose(
-        Amat: torch.Tensor, Bmat: torch.Tensor, **kwargs
-    ) -> torch.tensor:
+        Amat: torch.Tensor, Bmat: torch.Tensor, **kwargs: Any
+    ) -> torch.Tensor:
         return torch.isclose(Amat, Bmat, **kwargs)
 
     @staticmethod
-    def lstsq(Amat, Bmat):
+    def lstsq(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return torch.linalg.lstsq(Amat, Bmat, rcond=None)[0]
 
     @staticmethod
-    def argmax(array):
+    def argmax(array: torch.Tensor) -> torch.Tensor:
         return torch.argmax(array)
 
     @staticmethod
-    def argmin(array):
+    def argmin(array: torch.Tensor) -> torch.Tensor:
         return torch.argmin(array)
 
     @staticmethod
-    def max(array, axis=None):
+    def max(
+        array: torch.Tensor, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         if axis is None:
             return torch.max(array)
         # torch returns both max and indices
         return torch.max(array, dim=axis)[0]
 
     @staticmethod
-    def maximum(array1, array2):
+    def maximum(array1: torch.Tensor, array2: torch.Tensor) -> torch.Tensor:
         return torch.maximum(array1, array2)
 
     @staticmethod
-    def minimum(array1, array2):
+    def minimum(array1: torch.Tensor, array2: torch.Tensor) -> torch.Tensor:
         return torch.minimum(array1, array2)
 
     @staticmethod
-    def min(array, axis=None):
+    def min(
+        array: torch.Tensor, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         if axis is None:
             return torch.min(array)
         # torch returns both min and indices
         return torch.min(array, dim=axis)[0]
 
     @staticmethod
-    def block(blocks):
+    def block(blocks: Sequence[Sequence[torch.Tensor]]) -> torch.Tensor:
         return torch.cat([torch.cat(row, dim=1) for row in blocks], dim=0)
 
     @staticmethod
-    def sum(matrix, axis=None):
+    def sum(
+        matrix: torch.Tensor, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         return torch.sum(matrix, dim=axis)
 
     @staticmethod
-    def count_nonzero(matrix, axis=None):
+    def count_nonzero(
+        matrix: torch.Tensor, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         return torch.count_nonzero(matrix, dim=axis)
 
     @staticmethod
-    def array(array, dtype=None):
+    def array(
+        array: torch.Tensor, dtype: Optional[torch.dtype] = None
+    ) -> torch.Tensor:
         return torch.as_tensor(array, dtype=dtype)
 
     @staticmethod
-    def eigh(matrix):
+    def eigh(matrix: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         return torch.linalg.eigh(matrix)
 
     @staticmethod
-    def svd(matrix, full_matrices=True):
+    def svd(
+        matrix: torch.Tensor, full_matrices: bool = True
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return torch.linalg.svd(matrix, full_matrices=full_matrices)
 
     @staticmethod
-    def isfinite(matrix):
+    def isfinite(matrix: torch.Tensor) -> torch.Tensor:
         return torch.isfinite(matrix)
 
     @staticmethod
-    def cond(matrix):
+    def cond(matrix: torch.Tensor) -> torch.Tensor:
         return torch.linalg.cond(matrix)
 
     @staticmethod
-    def rank(matrix) -> int:
+    def rank(matrix: torch.Tensor) -> Any:
         return torch.linalg.matrix_rank(matrix)
 
     @staticmethod
-    def jacobian(fun, params):
+    def jacobian(
+        fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
+    ) -> torch.Tensor:
         return torch.autograd.functional.jacobian(fun, params)
 
     @staticmethod
-    def grad(fun, params):
+    def grad(
+        fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
+    ) -> torch.Tensor:
         params_copy = params.clone()
         params_copy.requires_grad = True
         val = fun(params_copy)
         val.backward()
-        grad = __class__.copy(params_copy.grad)
+        grad = TorchMixin.copy(params_copy.grad)
         params_copy.grad.zero_()
         # params.requires_grad = False
         return val, grad
 
     @staticmethod
-    def jvp(fun, params, vec):
+    def jvp(
+        fun: Callable[[torch.Tensor], torch.Tensor],
+        params: torch.Tensor,
+        vec: torch.Tensor,
+    ) -> torch.Tensor:
         # set create_graph=True so that result is differentiable.
         return torch.autograd.functional.jvp(
             fun, params, vec, create_graph=True
         )[1]
 
     @staticmethod
-    def hessian(fun, params):
+    def hessian(
+        fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
+    ) -> torch.Tensor:
         return torch.autograd.functional.hessian(fun, params)
 
-    def hvp(fun, params, vec):
+    def hvp(
+        fun: Callable[[torch.Tensor], torch.Tensor],
+        params: torch.Tensor,
+        vec: torch.Tensor,
+    ) -> torch.Tensor:
         return torch.autograd.functional.hvp(fun, params, vec)[1]
 
     @staticmethod
-    def up(matrix, indices, submatrix, axis=0):
+    def up(
+        matrix: torch.Tensor,
+        indices: torch.Tensor,
+        submatrix: torch.Tensor,
+        axis: AxisArg = 0,
+    ) -> torch.Tensor:
         if axis == 0:
             matrix[indices] = submatrix
             return matrix
@@ -467,27 +518,35 @@ class TorchMixin(BackendMixin):
         raise ValueError("axis must be in (0, 1, -1)")
 
     @staticmethod
-    def moveaxis(array, source, destination):
+    def moveaxis(
+        array: torch.Tensor, source: int, destination: int
+    ) -> torch.Tensor:
         return torch.moveaxis(array, source, destination)
 
     @staticmethod
-    def floor(array):
+    def floor(array: torch.Tensor) -> torch.Tensor:
         return torch.floor(array)
 
     @staticmethod
-    def ceil(array):
+    def ceil(array: torch.Tensor) -> torch.Tensor:
         return torch.ceil(array)
 
     @staticmethod
-    def asarray(array, dtype=None):
+    def asarray(
+        array: torch.Tensor, dtype: Optional[torch.dtype] = None
+    ) -> torch.Tensor:
         return torch.as_tensor(array, dtype=dtype)
 
     @staticmethod
-    def unique(array, axis=None, **kwargs):
+    def unique(
+        array: Iterable[Any], axis: Optional[AxisArg] = None, **kwargs: Any
+    ) -> torch.Tensor:
         return torch.unique(array, dim=axis, **kwargs)
 
     @staticmethod
-    def delete(array: torch.tensor, inds, axis=None):
+    def delete(
+        array: torch.Tensor, inds: torch.Tensor, axis: Optional[int] = None
+    ) -> torch.Tensor:
         if axis is None:
             _arr = array.flatten()
             axis = 0
@@ -520,56 +579,58 @@ class TorchMixin(BackendMixin):
         return True
 
     @staticmethod
-    def meshgrid(*arrays, indexing="xy"):
+    def meshgrid(*arrays: torch.Tensor, indexing: str = "xy") -> torch.Tensor:
         return torch.meshgrid(*arrays, indexing=indexing)
 
     @staticmethod
-    def tanh(array):
+    def tanh(array: torch.Tensor) -> torch.Tensor:
         return torch.tanh(array)
 
     @staticmethod
-    def diff(array):
+    def diff(array: torch.Tensor) -> torch.Tensor:
         return torch.diff(array)
 
     @staticmethod
-    def int():
+    def int_dtype() -> torch.dtype:
         return torch.int64
 
     @staticmethod
-    def cumsum(array, axis=0, **kwargs):
+    def cumsum(
+        array: torch.Tensor, axis: AxisArg = 0, **kwargs: Any
+    ) -> torch.Tensor:
         assert axis is not None
         return torch.cumsum(array, dim=axis, **kwargs)
 
     @staticmethod
-    def complex_dtype():
+    def complex_dtype() -> torch.dtype:
         return torch.cdouble
 
     @staticmethod
-    def array_type():
+    def array_type() -> torch.Tensor:
         return torch.Tensor
 
     @staticmethod
-    def real(array):
+    def real(array: torch.Tensor) -> torch.Tensor:
         return array.real
 
     @staticmethod
-    def imag(array):
+    def imag(array: torch.Tensor) -> torch.Tensor:
         return array.imag
 
     @staticmethod
-    def round(array):
+    def round(array: torch.Tensor) -> torch.Tensor:
         return torch.round(array)
 
     @staticmethod
-    def flatten(array: torch.Tensor):
+    def flatten(array: torch.Tensor) -> torch.Tensor:
         return array.flatten()
 
     @staticmethod
-    def double_type():
+    def double_type() -> torch.dtype:
         return torch.double
 
     @staticmethod
-    def bool_type():
+    def bool_type() -> torch.dtype:
         return torch.bool
 
     @staticmethod
@@ -577,80 +638,88 @@ class TorchMixin(BackendMixin):
         return torch.special.gammaln(mat)
 
     @staticmethod
-    def split(mat, splits, axis=0):
+    def split(
+        mat: torch.Tensor, splits: torch.Tensor, axis: AxisArg = 0
+    ) -> Any:
         return torch.tensor_split(mat, splits.tolist(), dim=axis)
 
-    def chunks(
-        mat: torch.tensor, nchunks: int, axis: int = 0
-    ) -> List[torch.tensor]:
+    def chunks(mat: torch.Tensor, nchunks: int, axis: AxisArg = 0) -> Any:
         return torch.chunk(mat, nchunks, dim=axis)
 
     @staticmethod
-    def sign(mat):
+    def sign(mat: torch.Tensor) -> torch.Tensor:
         return torch.sign(mat)
 
     @staticmethod
-    def is_scalar_array(array) -> bool:
+    def is_scalar_array(array: torch.Tensor) -> bool:
         return isinstance(array, torch.Tensor) and array.ndim == 0
 
     @staticmethod
-    def quantile(array: torch.tensor, q: float, axis=None) -> torch.tensor:
+    def quantile(
+        array: torch.Tensor, q: float, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         return torch.quantile(array, q, dim=axis)
 
     @staticmethod
-    def tril(array: torch.tensor, k: int = 0) -> torch.tensor:
+    def tril(array: torch.Tensor, k: int = 0) -> torch.Tensor:
         return torch.tril(array, diagonal=k)
 
     @staticmethod
-    def tril_indices(n: int, k: int = 0, m: int = None) -> torch.tensor:
+    def tril_indices(
+        n: int, k: int = 0, m: Optional[int] = None
+    ) -> torch.Tensor:
         if m is None:
             m = n
         return torch.tril_indices(n, m, k)
 
     @staticmethod
-    def triu(array: torch.tensor, k: int = 0) -> torch.tensor:
+    def triu(array: torch.Tensor, k: int = 0) -> torch.Tensor:
         return torch.triu(array, diagonal=k)
 
     @staticmethod
-    def triu_indices(n: int, k: int = 0, m: int = None) -> torch.tensor:
+    def triu_indices(
+        n: int, k: int = 0, m: Optional[int] = None
+    ) -> torch.Tensor:
         if m is None:
             m = n
         return torch.triu_indices(n, m, k)
 
     @staticmethod
-    def digamma(array: torch.tensor) -> torch.tensor:
+    def digamma(array: torch.Tensor) -> torch.Tensor:
         return torch.digamma(array)
 
     @staticmethod
-    def erf(array: torch.tensor) -> torch.tensor:
+    def erf(array: torch.Tensor) -> torch.Tensor:
         return torch.erf(array)
 
     @staticmethod
-    def erfinv(array: torch.tensor) -> torch.tensor:
+    def erfinv(array: torch.Tensor) -> torch.Tensor:
         return torch.erfinv(array)
 
     @staticmethod
-    def reshape_fortran(array: torch.tensor, shape) -> torch.tensor:
+    def reshape_fortran(
+        array: torch.Tensor, shape: Tuple[Any, ...]
+    ) -> torch.Tensor:
         array = array.permute(*reversed(range(len(array.shape))))
         array = array.reshape(*reversed(shape))
         return array.permute(*reversed(range(len(shape))))
 
     @staticmethod
-    def gammainc(a: torch.tensor, x: torch.tensor) -> torch.tensor:
+    def gammainc(a: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         return torch.special.gammainc(a, x)
 
     @staticmethod
-    def factorial(array: torch.tensor) -> torch.tensor:
+    def factorial(array: torch.Tensor) -> torch.Tensor:
         return torch.special.factorial(array)
 
     @staticmethod
     def clip(
-        array: torch.tensor, minval: float, maxval: float
-    ) -> torch.tensor:
+        array: torch.Tensor, minval: float, maxval: float
+    ) -> torch.Tensor:
         return torch.clip(array, minval, maxval)
 
     @staticmethod
-    def cartesian_product(input_sets):
+    def cartesian_product(input_sets: Sequence[torch.Tensor]) -> torch.Tensor:
         if len(input_sets) == 1:
             return input_sets[0][None, :]
         return TorchMixin.flip(
@@ -658,21 +727,21 @@ class TorchMixin(BackendMixin):
         )
 
     @staticmethod
-    def swapaxes(array: torch.tensor, axis1: int, axis2: int) -> torch.tensor:
+    def swapaxes(array: torch.Tensor, axis1: int, axis2: int) -> torch.Tensor:
         return torch.swapaxes(array, axis1, axis2)
 
     @staticmethod
-    def block_diag(arrays: List[torch.tensor]):
+    def block_diag(arrays: List[torch.Tensor]) -> torch.Tensor:
         return torch.block_diag(*arrays)
 
     @staticmethod
     def searchsorted(
-        array: torch.tensor, values: torch.tensor, side: str = "left"
-    ) -> torch.tensor:
+        array: torch.Tensor, values: torch.Tensor, side: str = "left"
+    ) -> torch.Tensor:
         return torch.searchsorted(array, values, side=side)
 
     @staticmethod
-    def set_gpu_as_default():
+    def set_gpu_as_default() -> None:
         if platform.system() == "Darwin":
             torch.set_default_device("mps")
             torch.set_default_dtype(torch.float)
@@ -684,7 +753,7 @@ class TorchMixin(BackendMixin):
             torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
     @staticmethod
-    def set_cpu_as_default():
+    def set_cpu_as_default() -> None:
         torch.set_default_device("cpu")
         torch.set_default_dtype(torch.double)
         warnings.warn(
@@ -693,7 +762,9 @@ class TorchMixin(BackendMixin):
         )
 
     @staticmethod
-    def fft(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
+    def fft(
+        mat: torch.Tensor, axis: Optional[AxisArg] = None, **kwargs: Any
+    ) -> torch.Tensor:
         if mat.ndim < 3:
             raise ValueError(
                 "mat must explicitly express channel and sample " "dimensions"
@@ -702,7 +773,9 @@ class TorchMixin(BackendMixin):
         return torch.fft.fftn(mat, dim=_axis, **kwargs)
 
     @staticmethod
-    def ifft(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
+    def ifft(
+        mat: torch.Tensor, axis: Optional[AxisArg] = None, **kwargs: Any
+    ) -> torch.Tensor:
         if mat.ndim < 3:
             raise ValueError(
                 "mat must explicitly express channel and sample " "dimensions"
@@ -711,7 +784,9 @@ class TorchMixin(BackendMixin):
         return torch.fft.ifftn(mat, dim=_axis, **kwargs)
 
     @staticmethod
-    def fftshift(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
+    def fftshift(
+        mat: torch.Tensor, axis: Optional[AxisArg] = None, **kwargs: Any
+    ) -> torch.Tensor:
         if mat.ndim < 3:
             raise ValueError(
                 "mat must explicitly express channel and sample " "dimensions"
@@ -720,7 +795,9 @@ class TorchMixin(BackendMixin):
         return torch.fft.fftshift(mat, dim=_axis, **kwargs)
 
     @staticmethod
-    def ifftshift(mat: torch.tensor, axis=None, **kwargs) -> torch.tensor:
+    def ifftshift(
+        mat: torch.Tensor, axis: Optional[AxisArg] = None, **kwargs: Any
+    ) -> torch.Tensor:
         if mat.ndim < 3:
             raise ValueError(
                 "mat must explicitly express channel and sample " "dimensions"
@@ -729,11 +806,13 @@ class TorchMixin(BackendMixin):
         return torch.fft.ifftshift(mat, dim=_axis, **kwargs)
 
     @staticmethod
-    def cfloat():
+    def cfloat() -> torch.dtype:
         return torch.complex128
 
     @staticmethod
-    def transpose(mat: torch.tensor, axis=None) -> torch.tensor:
+    def transpose(
+        mat: torch.Tensor, axis: Optional[AxisArg] = None
+    ) -> torch.Tensor:
         if axis is None:
             axis = list(range(mat.ndim - 1, -1, -1))
         if not hasattr(axis, "__iter__"):
@@ -741,31 +820,35 @@ class TorchMixin(BackendMixin):
         return torch.permute(mat, dims=axis)
 
     @staticmethod
-    def size(mat: torch.tensor) -> int:
+    def size(mat: torch.Tensor) -> Any:
         return torch.numel(mat)
 
     @staticmethod
-    def nan():
+    def nan() -> torch.Tensor:
         return torch.nan
 
     @staticmethod
-    def get_slices(mat: torch.tensor, slices) -> torch.tensor:
+    def get_slices(
+        mat: torch.Tensor, slices: Tuple[slice, ...]
+    ) -> torch.Tensor:
         return mat[tuple(slices)]
 
     @staticmethod
-    def concatenate(mats: List[torch.tensor], axis: int = 0) -> torch.tensor:
+    def concatenate(
+        mats: List[torch.tensor], axis: AxisArg = 0
+    ) -> torch.Tensor:
         return torch.cat(mats, dim=axis)
 
     @staticmethod
     def assert_allclose(
-        actual: torch.tensor,
-        desired: torch.tensor,
+        actual: torch.Tensor,
+        desired: torch.Tensor,
         rtol: float = 1e-7,
         atol: float = 0,
         equal_nan: bool = True,
-        err_msg: str = None,
-    ) -> bool:
-        return torch.testing.assert_close(
+        err_msg: Optional[str] = None,
+    ) -> None:
+        torch.testing.assert_close(
             actual,
             desired,
             rtol=rtol,
