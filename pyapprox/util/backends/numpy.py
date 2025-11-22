@@ -342,7 +342,7 @@ class NumpyMixin(BackendMixin):
         return np.min(array, axis=axis)
 
     @staticmethod
-    def block(blocks: Sequence[Sequence[np.ndarary]]) -> np.ndarray:
+    def block(blocks: Sequence[Sequence[np.ndarray]]) -> np.ndarray:
         return np.block(blocks)
 
     @staticmethod

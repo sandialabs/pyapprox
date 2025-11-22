@@ -11,15 +11,7 @@ from typing import (
     Sequence,
     Type,
     Callable,
-    TYPE_CHECKING,
 )
-from numpy.typing import NDArray
-
-#if TYPE_CHECKING:
-    import torch  # Import torch only for type checking
-
-
-Array = Union[NDArray[Any], torch.Tensor]
 
 
 class ArrayLike(Protocol):
@@ -38,7 +30,7 @@ class ArrayLike(Protocol):
         ...
 
 
-class ArrayDeprecated(Protocol):
+class Array(Protocol):
     @property
     def shape(self) -> Any: ...
 
