@@ -18,6 +18,7 @@ from typing import (
     Iterable,
     Type,
     overload,
+    Any,
 )
 import matplotlib
 from mpl_toolkits.mplot3d import Axes3D  # type: ignore
@@ -100,7 +101,7 @@ class ModelWorkTracker:
                 "whvp": [],
             }
 
-    def set_active(self, active: bool):
+    def set_active(self, active: bool) -> None:
         """
         Set whether tracking is active.
 
@@ -111,7 +112,7 @@ class ModelWorkTracker:
         """
         self._active = active
 
-    def update(self, eval_name: str, times: Array):
+    def update(self, eval_name: str, times: Array) -> None:
         """
         Update the wall times for a specific type of evaluation.
 
@@ -176,7 +177,7 @@ class ModelWorkTracker:
         """
         return self.wall_times()[eval_name].shape[0]
 
-    def wall_times(self) -> dict:
+    def wall_times(self) -> Dict[str, Array]:
         """
         Return the wall times for all types of evaluations.
 
@@ -242,7 +243,7 @@ class ModelDataBase:
         """
         self._bkd = backend
         self._samples_dict: Dict[str, int] = {}
-        self._values_dict: Dict[str, Dict] = {
+        self._values_dict: Dict[str, Dict[int, Array]] = {
             "val": {},
             "jac": {},
             "jvp": {},
@@ -254,7 +255,7 @@ class ModelDataBase:
         self._samples: List[Array] = []
         self._active = False
 
-    def activate(self):
+    def activate(self) -> None:
         """
         Activate the use of the database.
 
@@ -297,7 +298,7 @@ class ModelDataBase:
         """
         return hash(self._bkd.to_numpy(sample).tobytes())
 
-    def _add_sample(self, eval_name: str, key, sample):
+    def _add_sample(self, eval_name: str, key: str, sample: Array) -> None:
         """
         Add a sample to the database.
 
@@ -318,7 +319,7 @@ class ModelDataBase:
             self._samples_dict[key] = len(self._samples)
             self._samples.append(sample)
 
-    def _add_values(self, eval_name: str, key: int, values: Array):
+    def _add_values(self, eval_name: str, key: int, values: Array) -> None:
         """
         Add evaluation results to the database.
 
@@ -338,7 +339,7 @@ class ModelDataBase:
         # append values to a list
         self._values_dict[eval_name][key] = self._bkd.copy(values)
 
-    def add_data(self, eval_name: str, samples: Array, values: Array):
+    def add_data(self, eval_name: str, samples: Array, values: Array) -> None:
         """
         Add evaluation results for multiple samples to the database.
 
@@ -375,7 +376,7 @@ class ModelDataBase:
 
     def get_data(
         self, eval_name: str, samples: Array
-    ) -> Tuple[Union[None, List[Array]], List, List]:
+    ) -> Tuple[Union[None, List[Array]], List[int], List[int]]:
         """
         Retrieve stored evaluation results for a set of samples.
 
@@ -400,7 +401,12 @@ class ModelDataBase:
         - If the database is not active, all samples are treated as new samples.
         """
         if not self.isactive():
-            return None, [], self._bkd.arange(samples.shape[1])
+            return (
+                None,
+                [],
+                [ii for ii in range(samples.shape[1])],
+            )
+            # return None, [], self._bkd.arange(samples.shape[1])
         new_sample_idx = []
         stored_sample_idx = []
         stored_values = []
@@ -422,13 +428,13 @@ class GradientCheckMixin:
         self,
         sample: Array,
         symb: str,
-        fun: Callable,
-        apply_fun: Callable,
+        fun: Callable[[Array], Array],
+        apply_fun: Callable[[Array, Array], Array],
         fd_eps: Optional[Array] = None,
         direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
-        args=[],
+        args: List[Any] = [],
     ) -> Array:
         """
         Compare the result of an apply function with finite difference approximations.
@@ -568,7 +574,7 @@ class Model(ABC, GradientCheckMixin):
         self._work_tracker = ModelWorkTracker(self._bkd)
         self._database = ModelDataBase(self._bkd)
 
-    def activate_model_data_base(self):
+    def activate_model_data_base(self) -> None:
         """
         Activate the use of a database tracking evaluation meta data.
 
@@ -594,7 +600,7 @@ class Model(ABC, GradientCheckMixin):
 
     def set_model_history(
         self, database: ModelDataBase, work_tracker: ModelWorkTracker
-    ):
+    ) -> None:
         """
         Load a database and work tracker from a previous study to resume tracking
         of evaluation meta data.
@@ -733,7 +739,7 @@ class Model(ABC, GradientCheckMixin):
         """
         raise NotImplementedError("Must implement self._values")
 
-    def _check_values_shape(self, samples: Array, vals: Array):
+    def _check_values_shape(self, samples: Array, vals: Array) -> None:
         """
         Check that the shape of the values returned by the model is correct.
 
@@ -819,7 +825,7 @@ class Model(ABC, GradientCheckMixin):
         vals[stored_idx] = self._bkd.vstack(stored_values)
         return vals
 
-    def _check_sample_shape(self, sample: Array):
+    def _check_sample_shape(self, sample: Array) -> None:
         """
         Check that the shape of a single sample is correct.
 
@@ -840,7 +846,7 @@ class Model(ABC, GradientCheckMixin):
                 )
             )
 
-    def _check_samples_shape(self, sample: Array):
+    def _check_samples_shape(self, sample: Array) -> None:
         """
         Check that the shape of multiple samples is correct.
 
@@ -861,7 +867,7 @@ class Model(ABC, GradientCheckMixin):
                 )
             )
 
-    def _check_vec_shape(self, sample: Array, vec: Array):
+    def _check_vec_shape(self, sample: Array, vec: Array) -> None:
         """
         Check that the shape of a vector is consistent with the sample.
 
@@ -890,7 +896,7 @@ class Model(ABC, GradientCheckMixin):
                 )
             )
 
-    def _check_weights_shape(self, weights: Array):
+    def _check_weights_shape(self, weights: Array) -> None:
         """
         Check that the shape of weights is correct.
 
@@ -943,7 +949,7 @@ class Model(ABC, GradientCheckMixin):
             lambda x: self._values(x[:, None])[0], sample[:, 0]
         )
 
-    def _check_jacobian_shape(self, jac: Array, sample: Array):
+    def _check_jacobian_shape(self, jac: Array, sample: Array) -> None:
         """ "
         Check that the shape of the Jacobian matrix is correct.
 
@@ -1120,7 +1126,7 @@ class Model(ABC, GradientCheckMixin):
             vec[:, 0],
         )[:, None]
 
-    def _check_hvp_shape(self, hvp: Array, sample: Array):
+    def _check_hvp_shape(self, hvp: Array, sample: Array) -> None:
         """
         Check that the shape of the Hessian vector product is correct.
 
@@ -1209,7 +1215,7 @@ class Model(ABC, GradientCheckMixin):
             lambda x: self.__call__(x[:, None])[0], sample[:, 0]
         )[None]
 
-    def _check_hessian_shape(self, hess: Array, sample: Array):
+    def _check_hessian_shape(self, hess: Array, sample: Array) -> None:
         """
         Check that the shape of the Hessian matrix is correct.
 
@@ -1446,7 +1452,7 @@ class Model(ABC, GradientCheckMixin):
         direction: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
-    ):
+    ) -> Array:
         """
         Compare `apply_jacobian` with finite difference approximations.
 
@@ -1540,7 +1546,7 @@ class Model(ABC, GradientCheckMixin):
         relative: bool = True,
         disp: bool = False,
         weights: Optional[Array] = None,
-    ):
+    ) -> Array:
         """
         Compare `apply_hessian` or `apply_weighted_hessian` with finite difference approximations.
 
@@ -1640,8 +1646,8 @@ class Model(ABC, GradientCheckMixin):
         qoi: int,
         plot_limits: Array,
         npts_1d: Array,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> List[Any]:
         """
         Plot a 1D surface of the model.
 
@@ -1659,7 +1665,7 @@ class Model(ABC, GradientCheckMixin):
             Additional arguments passed to the plot function.
         """
         plot_xx = self._bkd.linspace(*plot_limits, npts_1d[0])[None, :]
-        ax.plot(
+        return ax.plot(
             self._bkd.to_numpy(plot_xx[0]),
             self._bkd.to_numpy(self.__call__(plot_xx)),
             **kwargs,
@@ -1698,8 +1704,8 @@ class Model(ABC, GradientCheckMixin):
         qoi: int,
         plot_limits: Array,
         npts_1d: Array,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> matplotlib.contour.QuadContourSet:
         """
         Plot a 2D surface of the model.
 
@@ -1737,8 +1743,8 @@ class Model(ABC, GradientCheckMixin):
         plot_limits: Array,
         qoi: int = 0,
         npts_1d: Union[int, Sequence, Array] = 51,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> matplotlib.contour.QuadContourSet:
         """
         Plot the surface of the model for 1D or 2D inputs.
 
@@ -1773,7 +1779,7 @@ class Model(ABC, GradientCheckMixin):
         return self._plot_surface_2d(ax, qoi, plot_limits, npts_1d, **kwargs)
 
     def get_plot_axis(
-        self, figsize: Tuple = (8, 6), surface: bool = False
+        self, figsize: Tuple[Any, Any] = (8, 6), surface: bool = False
     ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
         """
         Get the plot axis for 1D or 2D surfaces.
@@ -1804,8 +1810,8 @@ class Model(ABC, GradientCheckMixin):
         plot_limits: Array,
         qoi: int = 0,
         npts_1d: Union[int, Array] = 51,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> matplotlib.contour.QuadContourSet:
         """
         Plot contours of the model for 2D inputs.
 
@@ -1845,8 +1851,8 @@ class Model(ABC, GradientCheckMixin):
         plot_limits: Array,
         qoi: int = 0,
         npts_1d: Union[Array, int] = 51,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> matplotlib.contour.QuadContourSet:
         """
         Plot contours or surface of the model in 1D or 2D.
 
@@ -1941,12 +1947,12 @@ class Model(ABC, GradientCheckMixin):
         self,
         nominal_sample: Array,
         bounds: Array,
-        ax,
+        ax: matplotlib.axes.Axes,
         id1: int,
         id2: int,
-        npts_1d=51,
-        **kwargs,
-    ):
+        npts_1d: Union[int, Sequence[int]] = 51,
+        **kwargs: Any,
+    ) -> matplotlib.contour.QuadContourSet:
         """
         Plot a 2D cross-section of the model.
 
@@ -2012,9 +2018,9 @@ class Model(ABC, GradientCheckMixin):
         nominal_sample: Array,
         bounds: Array,
         variable_pairs: Optional[Array] = None,
-        npts_1d=51,
-        **kwargs,
-    ):
+        npts_1d: Union[int, Sequence[int]] = 51,
+        **kwargs: Any,
+    ) -> Tuple[Any, Any]:
         """
         Plot cross-sections of the model for all variable pairs.
 
@@ -2094,7 +2100,7 @@ class Model(ABC, GradientCheckMixin):
 
 class SingleSampleModel(Model):
     @abstractmethod
-    def _evaluate(self, sample):
+    def _evaluate(self, sample: Array) -> Array:
         """
         Evaluat the model at a single sample
 
@@ -2135,7 +2141,7 @@ class SingleSampleModel(Model):
         self._database.add_data("val", samples, values)
         return values
 
-    def _values(self, samples: Array):
+    def _values(self, samples: Array) -> Array:
         stored_vals, stored_idx, new_idx = self._database.get_data(
             "val", samples
         )
@@ -2173,13 +2179,15 @@ class ModelFromCallable(Model):
         self,
         nqoi: int,
         nvars: int,
-        function: Callable,
-        jacobian: Optional[Callable] = None,
-        apply_jacobian: Optional[Callable] = None,
-        apply_hessian: Optional[Callable] = None,
-        hessian: Optional[Callable] = None,
-        apply_weighted_hessian: Optional[Callable] = None,
-        weighted_hessian: Optional[Callable] = None,
+        function: Callable[[Array], Array],
+        jacobian: Optional[Callable[[Array], Array]] = None,
+        apply_jacobian: Optional[Callable[[Array, Array], Array]] = None,
+        apply_hessian: Optional[Callable[[Array, Array], Array]] = None,
+        hessian: Optional[Callable[[Array], Array]] = None,
+        apply_weighted_hessian: Optional[
+            Callable[[Array, Array, Array], Array]
+        ] = None,
+        weighted_hessian: Optional[Callable[[Array, Array], Array]] = None,
         sample_ndim: int = 2,
         values_ndim: int = 2,
         backend: Type[BackendMixin] = NumpyMixin,
@@ -2268,7 +2276,12 @@ class ModelFromCallable(Model):
         self._values_ndim = values_ndim
 
     @abstractmethod
-    def _eval_fun(self, fun: Callable, sample: Array, *args) -> Array:
+    def _eval_fun(
+        self,
+        fun: Callable[[Array], Array],
+        sample: Array,
+        *args: Any,
+    ) -> Array:
         raise NotImplementedError
 
     def nqoi(self) -> int:
@@ -2360,13 +2373,15 @@ class ModelFromVectorizedCallable(ModelFromCallable):
         self,
         nqoi: int,
         nvars: int,
-        function: Callable,
-        jacobian: Optional[Callable] = None,
-        apply_jacobian: Optional[Callable] = None,
-        apply_hessian: Optional[Callable] = None,
-        hessian: Optional[Callable] = None,
-        apply_weighted_hessian: Optional[Callable] = None,
-        weighted_hessian: Optional[Callable] = None,
+        function: Callable[[Array], Array],
+        jacobian: Optional[Callable[[Array], Array]] = None,
+        apply_jacobian: Optional[Callable[[Array, Array], Array]] = None,
+        apply_hessian: Optional[Callable[[Array, Array], Array]] = None,
+        hessian: Optional[Callable[[Array], Array]] = None,
+        apply_weighted_hessian: Optional[
+            Callable[[Array, Array, Array], Array]
+        ] = None,
+        weighted_hessian: Optional[Callable[[Array, Array], Array]] = None,
         values_ndim: int = 2,
         backend: Type[BackendMixin] = NumpyMixin,
     ):
@@ -2385,7 +2400,9 @@ class ModelFromVectorizedCallable(ModelFromCallable):
             backend,
         )
 
-    def _eval_fun(self, fun: Callable, sample: Array, *args) -> Array:
+    def _eval_fun(
+        self, fun: Callable[[Array], Array], sample: Array, *args: Any
+    ) -> Array:
         if self._sample_ndim == 2:
             return fun(sample, *args)
         return fun(sample[:, 0], *args)
@@ -2486,7 +2503,9 @@ class ModelFromSingleSampleCallable(ModelFromCallable, SingleSampleModel):
     [2. 2. 0.]
     """
 
-    def _eval_fun(self, fun: Callable, sample: Array, *args) -> Array:
+    def _eval_fun(
+        self, fun: Callable[[Array], Array], sample: Array, *args: Any
+    ) -> Array:
         if self._sample_ndim == 2:
             return fun(sample, *args)
         return fun(sample[:, 0], *args)
@@ -2526,7 +2545,13 @@ class UmbridgeModel(Model):
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
-    def __init__(self, umb_model, config={}, nprocs=1, backend=NumpyMixin):
+    def __init__(
+        self,
+        umb_model: umbridge.HTTPModel,
+        config: Dict[str, Any] = {},
+        nprocs: int = 1,
+        backend: Type[BackendMixin] = NumpyMixin,
+    ):
         """
         Initialize the UM-Bridge model wrapper.
 
@@ -2614,7 +2639,7 @@ class UmbridgeModel(Model):
         """
         return self._model.supports_apply_hessian()
 
-    def _check_sample(self, sample):
+    def _check_sample(self, sample: Array) -> List[List[float]]:
         """
         Validate the input sample and convert it to the required format.
 
@@ -2639,7 +2664,7 @@ class UmbridgeModel(Model):
             )
         return [sample[:, 0].tolist()]
 
-    def _jacobian(self, sample):
+    def _jacobian(self, sample: Array) -> Array:
         """
         Compute the Jacobian of the model at the given sample.
 
@@ -2662,7 +2687,7 @@ class UmbridgeModel(Model):
             self._model.gradient(0, 0, parameters, [1.0], config=self._config)
         ).T
 
-    def _apply_jacobian(self, sample, vec):
+    def _apply_jacobian(self, sample: Array, vec: Array) -> Array:
         """
         Apply the Jacobian to a vector.
 
@@ -2685,7 +2710,7 @@ class UmbridgeModel(Model):
             )
         )
 
-    def _apply_hessian(self, sample, vec):
+    def _apply_hessian(self, sample: Array, vec: Array) -> Array:
         """
         Apply the Hessian to a vector.
 
@@ -2708,7 +2733,7 @@ class UmbridgeModel(Model):
             )
         )
 
-    def _evaluate_single_thread(self, sample, sample_id):
+    def _evaluate_single_thread(self, sample: Array, sample_id: int) -> Array:
         """
         Evaluate the model for a single sample in a single thread.
 
@@ -2727,7 +2752,7 @@ class UmbridgeModel(Model):
         parameters = self._check_sample(sample)
         return self._model(parameters, config=self._config)[0]
 
-    def _evaluate_parallel(self, samples):
+    def _evaluate_parallel(self, samples: Array) -> Array:
         """
         Evaluate the model for multiple samples in parallel.
 
@@ -2754,7 +2779,7 @@ class UmbridgeModel(Model):
         self._nmodel_evaluations += nsamples
         return results
 
-    def _evaluate_serial(self, samples):
+    def _evaluate_serial(self, samples: Array) -> Array:
         """
         Evaluate the model for multiple samples serially.
 
@@ -2779,7 +2804,7 @@ class UmbridgeModel(Model):
         self._nmodel_evaluations += nsamples
         return results
 
-    def _values(self, samples):
+    def _values(self, samples: Array) -> Array:
         """
         Evaluate the model at the given samples.
 
@@ -2799,11 +2824,11 @@ class UmbridgeModel(Model):
 
     @staticmethod
     def start_server(
-        run_server_string,
-        url="http://localhost:4242",
-        out=None,
-        max_connection_time=20,
-    ):
+        run_server_string: str,
+        url: str = "http://localhost:4242",
+        out: Any = None,
+        max_connection_time: int = 20,
+    ) -> Tuple[Any, Any]:
         """
         Start the UM-Bridge server.
 
@@ -2858,7 +2883,9 @@ class UmbridgeModel(Model):
         return process, out
 
     @staticmethod
-    def kill_server(process, out=None):
+    def kill_server(
+        process: subprocess.Popen, out: Optional[Any] = None
+    ) -> None:
         """
         Kill the UM-Bridge server.
 
@@ -2901,11 +2928,11 @@ class UmbridgeIOModel(UmbridgeModel):
 
     def __init__(
         self,
-        umb_model,
-        config={},
-        nprocs=1,
-        outdir_basename="modelresults",
-        backend=NumpyMixin,
+        umb_model: umbridge.HTTPModel,
+        config: Dict[str, Any] = {},
+        nprocs: int = 1,
+        outdir_basename: str = "modelresults",
+        backend: Type[BackendMixin] = NumpyMixin,
     ):
         """
         Initialize the UM-Bridge model wrapper with directory creation support.
@@ -2926,7 +2953,7 @@ class UmbridgeIOModel(UmbridgeModel):
         super().__init__(umb_model, config, nprocs, backend=backend)
         self._outdir_basename = outdir_basename
 
-    def _evaluate_single_thread(self, sample, sample_id):
+    def _evaluate_single_thread(self, sample: Array, sample_id: int) -> Array:
         """
         Evaluate the model for a single sample in a single thread, creating a separate directory for the run.
 
@@ -2979,11 +3006,11 @@ class UmbridgeIOModelEnsemble(UmbridgeModel):
 
     def __init__(
         self,
-        umb_model,
-        model_configs={},
-        nprocs=1,
-        outdir_basename="modelresults",
-        backend=NumpyMixin,
+        umb_model: umbridge.HTTPModel,
+        model_configs: Dict[int, Any] = {},
+        nprocs: int = 1,
+        outdir_basename: str = "modelresults",
+        backend: Type[BackendMixin] = NumpyMixin,
     ):
         """
         Initialize the UM-Bridge model ensemble wrapper with directory creation support.
@@ -3005,7 +3032,9 @@ class UmbridgeIOModelEnsemble(UmbridgeModel):
         self._outdir_basename = outdir_basename
         self._model_configs = model_configs
 
-    def _evaluate_single_thread(self, full_sample, sample_id):
+    def _evaluate_single_thread(
+        self, full_sample: Array, sample_id: int
+    ) -> Array:
         """
         Evaluate the model for a single sample in a single thread, using the specified configuration and creating a separate directory for the run.
 
@@ -3160,7 +3189,7 @@ class IOModel(SingleSampleModel):
         """
         return self._nvars
 
-    def _create_outdir(self):
+    def _create_outdir(self) -> Tuple[str, Any]:
         """
         Create a directory for the model run.
 
@@ -3190,7 +3219,7 @@ class IOModel(SingleSampleModel):
         os.makedirs(outdirname)
         return outdirname, None
 
-    def _link_files(self, outdirname):
+    def _link_files(self, outdirname: str) -> List[str]:
         """
         Create soft links to input files in the output directory.
 
@@ -3223,7 +3252,7 @@ class IOModel(SingleSampleModel):
             linked_filenames.append(filename_w_target_path)
         return linked_filenames
 
-    def _cleanup_outdir(self, outdirname):
+    def _cleanup_outdir(self, outdirname: str) -> None:
         """
         Delete all files in the output directory.
 
@@ -3240,7 +3269,9 @@ class IOModel(SingleSampleModel):
         for filename in filenames_to_delete:
             os.remove(filename)
 
-    def _save_samples_and_values(self, sample, values, outdirname):
+    def _save_samples_and_values(
+        self, sample: Array, values: Array, outdirname: str
+    ) -> None:
         """
         Save the sample and values to a file in the output directory.
 
@@ -3259,9 +3290,19 @@ class IOModel(SingleSampleModel):
         """
         if self._datafilename is not None:
             filename = os.path.join(outdirname, self._datafilename)
-            np.savez(filename, sample=sample, values=values)
+            np.savez(
+                filename,
+                sample=self._bkd.to_numpy(sample),
+                values=self._bkd.to_numpy(values),
+            )
 
-    def _process_outdir(self, sample, values, outdirname, tmpdir):
+    def _process_outdir(
+        self,
+        sample: Array,
+        values: Array,
+        outdirname: str,
+        tmpdir: Union[tempfile.TemporaryDirectory, None],
+    ) -> None:
         """
         Process the output directory based on the saving behavior.
 
@@ -3319,7 +3360,7 @@ class IOModel(SingleSampleModel):
         """
         raise NotImplementedError
 
-    def _evaluate(self, sample: Array):
+    def _evaluate(self, sample: Array) -> Array:
         """
         Evaluate the model at the given sample.
 
@@ -3457,7 +3498,7 @@ class SerialIOModel(IOModel):
         self._params_filename = params_filename
         self._verbosity = verbosity
 
-    def _run_shell_command(self):
+    def _run_shell_command(self) -> None:
         """
         Execute the shell command to run the model simulation.
 
@@ -3626,7 +3667,7 @@ class AsyncIOModel(SerialIOModel):
             backend=backend,
         )
 
-    def _run_shell_command(self):
+    def _run_shell_command(self) -> Tuple[Any, Any]:
         """
         Execute the shell command to run the model simulation asynchronously.
 
@@ -3658,7 +3699,7 @@ class AsyncIOModel(SerialIOModel):
         )
         return proc, writefile
 
-    def _dispatch_sample(self, sample: Array):
+    def _dispatch_sample(self, sample: Array) -> None:
         """
         Dispatch a sample for evaluation, creating a separate directory for the run.
 
@@ -3689,7 +3730,7 @@ class AsyncIOModel(SerialIOModel):
         )
         self._nmodel_evaluations += 1
 
-    def _newly_completed_sample_ids(self) -> List:
+    def _newly_completed_sample_ids(self) -> List[int]:
         """
         Identify sample IDs for completed simulations.
 
@@ -3763,7 +3804,7 @@ class AsyncIOModel(SerialIOModel):
         self._process_outdir(sample, values, outdirname, tmpdir)
         return sample, values, walltime
 
-    def _close_completed_threads(self):
+    def _close_completed_threads(self) -> None:
         """
         Close completed threads and process their results.
 
@@ -3835,7 +3876,7 @@ class AsyncIOModel(SerialIOModel):
         This method dispatches samples for evaluation, tracks running processes,
         and loads results asynchronously.
         """
-        self._running_workdirs: Dict[int, Tuple] = dict()
+        self._running_workdirs: Dict[int, Tuple[Any, ...]] = dict()
         self._completed_vals: List[Array] = []
         self._completed_sample_ids: List[int] = []
         self._completed_wall_times: List[float] = []
@@ -3985,7 +4026,7 @@ class MultiIndexModelEnsemble(ABC):
         return model
 
     @abstractmethod
-    def setup_model(self, model_id: Array):
+    def setup_model(self, model_id: Array) -> None:
         """
         Abstract method to set up a model for the given `model_id`.
 
@@ -4427,7 +4468,9 @@ class QuadraticMatrixModel(Model):
         Backend for numerical computations. Default is `NumpyMixin`.
     """
 
-    def __init__(self, matrix: Array, backend=NumpyMixin):
+    def __init__(
+        self, matrix: Array, backend: Type[BackendMixin] = NumpyMixin
+    ):
         """
         Initialize the quadratic matrix model.
 
@@ -4441,7 +4484,7 @@ class QuadraticMatrixModel(Model):
         self._matrix = matrix
         super().__init__(backend)
 
-    def jacobian_implemented(self):
+    def jacobian_implemented(self) -> bool:
         """
         Check if the Jacobian is implemented.
 
@@ -4452,7 +4495,7 @@ class QuadraticMatrixModel(Model):
         """
         return True
 
-    def hessian_implemented(self):
+    def hessian_implemented(self) -> bool:
         """
         Check if the Hessian is implemented.
 
@@ -4463,7 +4506,7 @@ class QuadraticMatrixModel(Model):
         """
         return True
 
-    def apply_hessian_implemented(self):
+    def apply_hessian_implemented(self) -> bool:
         """
         Check if the apply Hessian method is implemented.
 
@@ -4583,7 +4626,7 @@ class CostFunctionBase(ABC):
     # that arises if base class defined def __call__(self, arg: Array)
     # but derived class implements def __call__(self, arg: int)
 
-    def set_nrefinement_vars(self, nrefinement_vars: int):
+    def set_nrefinement_vars(self, nrefinement_vars: int) -> None:
         """
         Set the number of refinement variables.
 
@@ -4758,7 +4801,7 @@ class AdjointModel(SingleSampleModel, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _fwd_solve(self):
+    def _fwd_solve(self) -> None:
         """
         Perform the forward solve.
 
@@ -4770,7 +4813,7 @@ class AdjointModel(SingleSampleModel, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def forward_solve(self, sample):
+    def forward_solve(self, sample: Array) -> None:
         """
         Perform the forward solve for the given sample.
 
@@ -4787,7 +4830,7 @@ class AdjointModel(SingleSampleModel, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def set_param(self, param: Array):
+    def set_param(self, param: Array) -> None:
         """
         Set the model parameters.
 
@@ -4948,7 +4991,7 @@ class ScalarElementwiseFunction(ABC):
         self._ndim = ndim
         self._bkd = backend
 
-    def _check_samples(self, samples: Array):
+    def _check_samples(self, samples: Array) -> None:
         """
         Validate the input samples.
 
@@ -4968,7 +5011,7 @@ class ScalarElementwiseFunction(ABC):
                 f"{samples.shape} but should have ndim={self._ndim}"
             )
 
-    def _check_values(self, samples: Array, values: Array):
+    def _check_values(self, samples: Array, values: Array) -> None:
         """
         Validate the output values.
 
@@ -5203,13 +5246,13 @@ class ScalarElementwiseFunction(ABC):
     def _check_derivative(
         self,
         samples: Array,
-        fun: Callable,
-        grad: Callable,
+        fun: Callable[[Array], Array],
+        grad: Callable[[Array], Array],
         symb: str,
         fd_eps: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
-    ):
+    ) -> Array:
         """
         Check the correctness of a derivative using finite differences.
 
@@ -5279,7 +5322,7 @@ class ScalarElementwiseFunction(ABC):
         fd_eps: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
-    ):
+    ) -> Array:
         """
         Check the correctness of the first derivative using finite differences.
 
@@ -5315,7 +5358,7 @@ class ScalarElementwiseFunction(ABC):
         fd_eps: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
-    ):
+    ) -> Array:
         """
         Check the correctness of the second derivative using finite differences.
 
@@ -5351,7 +5394,7 @@ class ScalarElementwiseFunction(ABC):
         fd_eps: Optional[Array] = None,
         relative: bool = True,
         disp: bool = False,
-    ):
+    ) -> Array:
         """
         Check the correctness of the third derivative using finite differences.
 
@@ -5388,7 +5431,7 @@ def expand_samples_from_indices(
     inactive_var_indices: Array,
     inactive_var_values: Array,
     bkd: Type[BackendMixin] = NumpyMixin,
-):
+) -> Array:
     """
     Expand reduced samples into full samples by incorporating inactive variable values.
 
@@ -5489,12 +5532,12 @@ class TransientStateSpaceModel(SingleSampleModel):
         return "{0}(nstates={1}, ntsteps={2}, nparams={3})".format(
             self.__class__.__name__,
             self.nstates(),
-            self.ntsteps(),
+            self.nsteps(),
             self.nparams(),
         )
 
     def nqoi(self) -> int:
-        return self.nstates() * self.ntsteps()
+        return self.nstates() * self.nsteps()
 
     def __call__(self, samples: Array) -> Array:
         """
@@ -5517,7 +5560,7 @@ class TransientStateSpaceModel(SingleSampleModel):
         """
         return super().__call__(samples)
 
-    def predict(self, samples: Array):
+    def predict(self, samples: Array) -> Array:
         """
         Light weight wrapper to return the trajectories
         at a set of random parameter realizations as a 3D array.
