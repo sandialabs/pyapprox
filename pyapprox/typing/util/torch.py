@@ -3,7 +3,7 @@ from typing import Any, Optional, Union, Sequence, List, Tuple
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.typing.util.backend import Backend, AxisArg
+from pyapprox.typing.util.backend import Backend
 
 
 # Implement the PyTorch backend
@@ -105,3 +105,35 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def reshape(array: torch.Tensor, newshape: Sequence[int]) -> torch.Tensor:
         return torch.reshape(array, newshape)
+
+    @staticmethod
+    def sum(
+        array: torch.Tensor, axis: Optional[Union[int, Tuple[int, ...]]] = None
+    ) -> torch.Tensor:
+        return torch.sum(array, dim=axis)
+
+    @staticmethod
+    def sin(array: torch.Tensor) -> torch.Tensor:
+        return torch.sin(array)
+
+    @staticmethod
+    def cos(array: torch.Tensor) -> torch.Tensor:
+        return torch.cos(array)
+
+    @staticmethod
+    def full(
+        shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
+    ) -> torch.Tensor:
+        return torch.full(shape, fill_value, dtype=dtype)
+
+    @staticmethod
+    def zeros(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> torch.Tensor:
+        return torch.zeros(shape, dtype=dtype)
+
+    @staticmethod
+    def ones(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> torch.Tensor:
+        return torch.ones(shape, dtype=dtype)
