@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import Dict
+from typing import Dict, Optional
 from functools import partial
 
 from pyapprox.util.backends.template import Array
@@ -154,7 +154,7 @@ class Physics(ABC):
         return flux.get_values()[:, component_id, :]
 
     def get_functions(self) -> Dict[str, ScalarOperator]:
-        funs = dict()
+        funs: Dict[str, ScalarOperator] = dict()
         return funs
 
     def __repr__(self):
@@ -257,10 +257,10 @@ class TransientPhysicsNewtonResidualMixin(TransientNewtonResidual):
 class AdvectionDiffusionReactionPhysics(ScalarPhysicsMixin, Physics):
     def __init__(
         self,
-        forcing: ScalarFunction = None,
-        diffusion: ScalarFunction = None,
+        forcing: Optional[ScalarFunction] = None,
+        diffusion: Optional[ScalarFunction] = None,
         reaction_op: ScalarOperatorOperation = None,
-        velocity_field: VectorFunction = None,
+        velocity_field: Optional[VectorFunction] = None,
     ):
         self._check_is_scalar_function(forcing, "forcing")
         self._check_is_scalar_function(diffusion, "diffusion")
@@ -295,7 +295,7 @@ class AdvectionDiffusionReactionPhysics(ScalarPhysicsMixin, Physics):
             residual += self._forcing
         if self._reaction_op is not None:
             residual += self._reaction_op(sol)
-        if self._flux_jacobian_from_array:
+        if self._flux_jacobian_implemented:
             residual += -div(self._flux(sol))
             # residual += div(self._diffusion * nabla(sol)) - div(sol *self._velocity_field)
         return residual
@@ -359,7 +359,7 @@ class ShallowIcePhysics(ScalarPhysicsMixin, Physics):
         friction: ScalarFunction,
         A: float,
         rho: float,
-        forcing: ScalarFunction = None,
+        forcing: Optional[ScalarFunction] = None,
         eps: float = 0.0,
     ):
         self._check_is_scalar_function(bed, "bed")
@@ -404,6 +404,7 @@ class ShallowIcePhysics(ScalarPhysicsMixin, Physics):
         funs = super().get_functions()
         if self._forcing is not None:
             funs["forcing"] = self._forcing
+        return funs
 
 
 class SteadyShallowIcePhysics(
@@ -423,7 +424,7 @@ class HelmholtzPhysics(AdvectionDiffusionReactionPhysics):
     def __init__(
         self,
         sq_wave_num: ScalarFunction,
-        forcing: ScalarFunction = None,
+        forcing: Optional[ScalarFunction] = None,
     ):
         basis = sq_wave_num.basis()
         diffusion = ScalarFunctionFromCallable(
@@ -448,7 +449,7 @@ class ShallowWavePhysics(VectorPhysicsMixin, Physics):
     def __init__(
         self,
         bed: ScalarOperator,
-        forcing: ScalarFunction = None,
+        forcing: Optional[ScalarFunction] = None,
     ):
         if forcing is not None and bed.ninput_funs() != forcing.ninput_funs():
             raise ValueError("bed and forcing are inconsistent")
@@ -488,14 +489,14 @@ class ShallowWavePhysics(VectorPhysicsMixin, Physics):
             h, uh = sol.get_components()
             if self._bkd.any(h.get_values() <= 0):
                 raise RuntimeError(
-                    f"Depth became negative {h.get_values().min()}"
+                    f"Depth became negative {self._bkd.min(h.get_values())}"
                 )
             components = [[uh, uh**2 / h + (0.5 * self._g) * h**2]]
         else:
             h, uh, vh = sol.get_components()
             if self._bkd.any(h.get_values() <= 0):
                 raise RuntimeError(
-                    f"Depth became negative {h.get_values().min()}"
+                    f"Depth became negative {self._bkd.min(h.get_values())}"
                 )
             uvh = uh * vh / h
             g_hsq = (0.5 * self._g) * h**2
@@ -534,8 +535,8 @@ class TransientShallowWavePhysics(
 class TwoSpeciesReactionDiffusionPhysics(VectorPhysicsMixin, Physics):
     def __init__(
         self,
-        forcing: VectorFunction = None,
-        diffusion: VectorFunction = None,
+        forcing: Optional[VectorFunction] = None,
+        diffusion: Optional[VectorFunction] = None,
         reaction_op: VectorOperatorOperation = None,
     ):
         self._check_is_vector_function(forcing, "forcing")
@@ -627,7 +628,7 @@ class FitzHughNagumoPhysics(TwoSpeciesReactionDiffusionPhysics):
     def __init__(
         self,
         basis,
-        forcing: VectorFunction = None,
+        forcing: Optional[VectorFunction] = None,
     ):
         diffusion_components = [
             ConstantScalarFunction(basis, 1e-3, 2),
@@ -660,7 +661,7 @@ class ShallowShelfVelocityPhysics(VectorPhysicsMixin, Physics):
         friction: ScalarFunction,
         A: float,
         rho: float,
-        velocity_forcing: VectorFunction = None,
+        velocity_forcing: Optional[VectorFunction] = None,
     ):
         self._check_is_scalar_function(bed, "bed")
         self._check_is_scalar_function(friction, "friction")
@@ -776,7 +777,7 @@ class SteadyShallowShelfVelocityPhysics(
 
 
 class ShallowShelfDepthPhysics(ScalarPhysicsMixin, Physics):
-    def __init__(self, depth_forcing: ScalarFunction = None):
+    def __init__(self, depth_forcing: Optional[ScalarFunction] = None):
         self._check_is_scalar_function(depth_forcing, "depth_forcing")
         super().__init__(depth_forcing.basis())
         self._depth_forcing = depth_forcing
@@ -878,8 +879,8 @@ class ShallowShelfDepthVelocityPhysics(
         friction: ScalarFunction,
         A: float,
         rho: float,
-        depth_forcing: ScalarFunction = None,
-        velocity_forcing: VectorFunction = None,
+        depth_forcing: Optional[ScalarFunction] = None,
+        velocity_forcing: Optional[VectorFunction] = None,
     ):
         super().__init__(bed.basis())
         # initialize depth to zero, it will be overwritten later
@@ -996,7 +997,7 @@ class Isotropic2DLinearElasticityPhysics(VectorPhysicsMixin, Physics):
         self,
         lamda: ScalarFunction,
         mu: ScalarFunction,
-        forcing: VectorFunction = None,
+        forcing: Optional[VectorFunction] = None,
     ):
         self._check_is_scalar_function(lamda, "lambda")
         self._check_is_scalar_function(mu, "mu")
@@ -1070,7 +1071,7 @@ class BurgersPhysics1D(ScalarPhysicsMixin, Physics):
     def __init__(
         self,
         viscosity: ScalarFunction,
-        forcing: ScalarFunction = None,
+        forcing: Optional[ScalarFunction] = None,
         conservative: bool = True,
     ):
         self._check_is_scalar_function(viscosity, "viscosity")
