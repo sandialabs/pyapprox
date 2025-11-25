@@ -56,7 +56,7 @@ class ParameterizedLotkaVolterraResidual(
         Backend for numerical computations.
     """
 
-    def set_time(self, time: float):
+    def set_time(self, time: float) -> None:
         """
         Set the current simulation time.
 
@@ -78,7 +78,7 @@ class ParameterizedLotkaVolterraResidual(
         """
         return 3
 
-    def set_param(self, param: Array):
+    def set_param(self, param: Array) -> None:
         """
         Set the model parameters.
 
@@ -294,7 +294,6 @@ class LotkaVolterraModel(TransientAdjointModel):
         """
         if not hasattr(self, "_functional"):
             return self._residual.nvars()
-        print(self._functional)
         return (
             self._functional.nunique_functional_params()
             + self._residual.nvars()
@@ -365,7 +364,7 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
         self._final_time, self._timestep = self._define_time()
         super().__init__(backend)
 
-    def set_noise_std(self, noise_std: float):
+    def set_noise_std(self, noise_std: float) -> None:
         """
         Set the standard deviation of the noise in the observations.
 
@@ -393,7 +392,7 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
         """
         return 10.0, 1.0
 
-    def _set_prior(self):
+    def _set_prior(self) -> None:
         """
         Define the prior distribution for the uncertain variables.
 
@@ -427,7 +426,7 @@ class LotkaVolterraBenchmark(SingleModelBenchmark):
         ]
         return obs_time_tuples
 
-    def _set_model(self):
+    def _set_model(self) -> None:
         """
         Set up the Lotka-Volterra model for the benchmark.
 
@@ -534,7 +533,7 @@ class LotkaVolterraOEDBenchmark(SingleModelBayesianGoalOrientedOEDBenchmark):
         self._final_time, self._timestep = self._define_time()
         super().__init__(backend)
 
-    def _set_prior(self):
+    def _set_prior(self) -> None:
         """
         Define the prior distribution for the uncertain variables.
 
@@ -641,7 +640,7 @@ class LotkaVolterraOEDBenchmark(SingleModelBayesianGoalOrientedOEDBenchmark):
             pred_times.append(self._times[time_idx])
         return self._bkd.stack(pred_times, axis=0)
 
-    def _set_obs_model(self):
+    def _set_obs_model(self) -> None:
         """
         Set up the observation model for the benchmark.
         """
@@ -667,7 +666,7 @@ class LotkaVolterraOEDBenchmark(SingleModelBayesianGoalOrientedOEDBenchmark):
         )
         self._obs_model.set_functional(obs_functional)
 
-    def _set_pred_model(self):
+    def _set_pred_model(self) -> None:
         """
         Set up the prediction model for the benchmark.
         """
@@ -734,7 +733,7 @@ class ParameterizedCoupledSpringsResidual(
         Backend for numerical computations.
     """
 
-    def set_time(self, time: float):
+    def set_time(self, time: float) -> None:
         """
         Set the current simulation time.
 
@@ -756,7 +755,7 @@ class ParameterizedCoupledSpringsResidual(
         """
         return 4
 
-    def set_param(self, param: Array):
+    def set_param(self, param: Array) -> None:
         """
         Set the model parameters.
 
@@ -1130,7 +1129,7 @@ class CoupledSpringsBenchmark(SingleModelBenchmark):
             ],
         )
 
-    def _set_prior(self):
+    def _set_prior(self) -> None:
         """
         Define the prior distribution for the uncertain variables.
 
@@ -1145,7 +1144,7 @@ class CoupledSpringsBenchmark(SingleModelBenchmark):
             marginals, backend=self._bkd
         )
 
-    def _set_model(self):
+    def _set_model(self) -> None:
         """
         Set up the coupled springs model for the benchmark.
 
@@ -1187,7 +1186,7 @@ class ParameterizedHastingsEcologyResidual(
         Backend for numerical computations.
     """
 
-    def set_time(self, time: float):
+    def set_time(self, time: float) -> Array:
         """
         Set the current simulation time.
 
@@ -1209,7 +1208,7 @@ class ParameterizedHastingsEcologyResidual(
         """
         return 3
 
-    def set_param(self, param: Array):
+    def set_param(self, param: Array) -> None:
         """
         Set the model parameters.
 
@@ -1567,7 +1566,7 @@ class HastingsEcologyBenchmark(SingleModelBenchmark):
     .. [Hastings1991] `Hastings, Alan, and Thomas Powell. "Chaos in a Three-Species Food Chain." Ecology 72, no. 3 (1991): 896–903. <https://doi.org/10.2307/1940591>`_
     """
 
-    def _prior_ranges(self):
+    def _prior_ranges(self) -> Array:
         """
         Compute the ranges for the prior distribution.
 
@@ -1587,7 +1586,7 @@ class HastingsEcologyBenchmark(SingleModelBenchmark):
         ranges[1::2] = nominal_values * 1.05
         return ranges
 
-    def _set_prior(self):
+    def _set_prior(self) -> None:
         """
         Define the prior distribution for the uncertain variables.
 
@@ -1602,7 +1601,7 @@ class HastingsEcologyBenchmark(SingleModelBenchmark):
             marginals, backend=self._bkd
         )
 
-    def _set_model(self):
+    def _set_model(self) -> None:
         """
         Set up the Hastings ecology model for the benchmark.
         """
@@ -1643,7 +1642,7 @@ class ParameterizedChemicalReactionResidual(
         Backend for numerical computations.
     """
 
-    def set_time(self, time: float):
+    def set_time(self, time: float) -> None:
         """
         Set the current simulation time.
 
@@ -1665,7 +1664,7 @@ class ParameterizedChemicalReactionResidual(
         """
         return 3
 
-    def set_param(self, param: Array):
+    def set_param(self, param: Array) -> None:
         """
         Set the model parameters.
 
@@ -1958,7 +1957,7 @@ class ChemicalReactionBenchmark(SingleModelBenchmark):
     bounds for each uncertain variable.
     """
 
-    def _prior_ranges(self):
+    def _prior_ranges(self) -> Array:
         """
         Compute the ranges for the prior distribution.
 
@@ -1979,7 +1978,7 @@ class ChemicalReactionBenchmark(SingleModelBenchmark):
         ranges[5::2] = nominal_vals[2:] * 1.1
         return ranges
 
-    def _set_prior(self):
+    def _set_prior(self) -> None:
         """
         Define the prior distribution for the uncertain variables.
 
@@ -1994,7 +1993,7 @@ class ChemicalReactionBenchmark(SingleModelBenchmark):
             marginals, backend=self._bkd
         )
 
-    def _set_model(self):
+    def _set_model(self) -> None:
         """
         Set up the chemical reaction model for the benchmark.
         """

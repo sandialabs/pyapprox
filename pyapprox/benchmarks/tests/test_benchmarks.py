@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import itertools
-
+from pyapprox.util.print_wrapper import *
 from pyapprox.benchmarks import (
     IshigamiBenchmark,
     OakleyBenchmark,
@@ -127,7 +127,6 @@ class TestBenchmarks:
         benchmark = CantileverBeamUncertainOptimizationBenchmark(bkd)
         objective = benchmark.objective()
         init_guess = bkd.ones((2, 1))
-        print(objective)
         errors = objective.check_apply_jacobian(init_guess)
         assert errors.min() / errors.max() < 1e-6
         errors = objective.check_apply_hessian(init_guess)
@@ -241,7 +240,7 @@ class TestBenchmarks:
         assert benchmark.nvars() == 12
 
         # regression test
-        print(np.array2string(bkd.to_numpy(obs), separator=", "))
+        # print(np.array2string(bkd.to_numpy(obs), separator=", "))
         # fmt: off
         ref_obs = bkd.array([
             [0.3       , 0.49916859, 0.67410872, 0.81292888, 0.92120916, 1.00752906,
@@ -257,7 +256,7 @@ class TestBenchmarks:
         ])
         assert bkd.allclose(obs, ref_obs)
 
-        print(np.array2string(bkd.to_numpy(preds), separator=", "))
+        # print(np.array2string(bkd.to_numpy(preds), separator=", "))
         ref_preds = bkd.array([
             [0.4       , 0.88978974, 1.06583232, 1.09380394, 1.08017557, 1.05804101,
              1.03634514, 1.01730436, 1.00124297, 0.98793399, 0.97700324, 0.96806452,

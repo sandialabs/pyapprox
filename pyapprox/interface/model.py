@@ -481,7 +481,7 @@ class GradientCheckMixin:
         errors = []
         val = fun(sample, *args)
         directional_grad = apply_fun(sample, direction, *args)
-        if self._bkd.norm(directional_grad) == 0:
+        if self._bkd.norm(directional_grad) < 1e-16:
             if disp:
                 print("Gradient is zero so setting relative=False")
             relative = False

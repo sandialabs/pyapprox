@@ -18,104 +18,104 @@ from abc import abstractmethod
 from functools import partial
 
 
-class SteadyStateSpaceNewtonModel(SteadyStateSpaceModel):
-    def __init__(
-        self,
-        residual: ParameterizedNewtonResidual,
-        newton_solver: NewtonSolver = None,
-    ):
-        """
-        Model that maps an initial iterate + parameters to all states
-        """
-        self._check_residual(residual)
-        super().__init__(residual._bkd)
-        self._residual = residual
-        if newton_solver is None:
-            # use default newton solver
-            newton_solver = NewtonSolver()
-        self.set_newton_solver(newton_solver)
+# class SteadyStateSpaceNewtonModel(SteadyStateSpaceModel):
+#     def __init__(
+#         self,
+#         residual: ParameterizedNewtonResidual,
+#         newton_solver: NewtonSolver = None,
+#     ):
+#         """
+#         Model that maps an initial iterate + parameters to all states
+#         """
+#         self._check_residual(residual)
+#         super().__init__(residual._bkd)
+#         self._residual = residual
+#         if newton_solver is None:
+#             # use default newton solver
+#             newton_solver = NewtonSolver()
+#         self.set_newton_solver(newton_solver)
 
-    def set_newton_solver(self, newton_solver: NewtonSolver) -> None:
-        if not isinstance(newton_solver, NewtonSolver):
-            raise ValueError(
-                "newton_solver must be an instance of NewtonSolver"
-            )
-        self._newton_solver = newton_solver
-        self._newton_solver.set_residual(self._residual)
+#     def set_newton_solver(self, newton_solver: NewtonSolver) -> None:
+#         if not isinstance(newton_solver, NewtonSolver):
+#             raise ValueError(
+#                 "newton_solver must be an instance of NewtonSolver"
+#             )
+#         self._newton_solver = newton_solver
+#         self._newton_solver.set_residual(self._residual)
 
-    def _check_residual(self, residual: ParameterizedNewtonResidual) -> None:
-        if not isinstance(residual, ParameterizedNewtonResidual):
-            raise ValueError(
-                "residual must be an instance of "
-                "ParameterizedNewtonResidual"
-            )
+#     def _check_residual(self, residual: ParameterizedNewtonResidual) -> None:
+#         if not isinstance(residual, ParameterizedNewtonResidual):
+#             raise ValueError(
+#                 "residual must be an instance of "
+#                 "ParameterizedNewtonResidual"
+#             )
 
-    def set_initial_newton_iterate(self, iterate: Array) -> None:
-        if iterate.ndim != 1:
-            raise ValueError("iterate must be 1D array")
-        self._init_iterate = iterate
+#     def set_initial_newton_iterate(self, iterate: Array) -> None:
+#         if iterate.ndim != 1:
+#             raise ValueError("iterate must be 1D array")
+#         self._init_iterate = iterate
 
-    def split_sample(self, sample: Array) -> Array:
-        if sample.ndim != 1:
-            raise ValueError(
-                f"sample must have shape {(self.nstates()+self.nparams())}"
-            )
-        init_iterate = sample[: self.nstates()]
-        params = sample[self.nstates() :]
-        return init_iterate, params
+#     def split_sample(self, sample: Array) -> Array:
+#         if sample.ndim != 1:
+#             raise ValueError(
+#                 f"sample must have shape {(self.nstates()+self.nparams())}"
+#             )
+#         init_iterate = sample[: self.nstates()]
+#         params = sample[self.nstates() :]
+#         return init_iterate, params
 
-    def _set_parameters(self, params: Array) -> None:
-        self._newton_solver.residual().set_parameters(params)
+#     def _set_parameters(self, params: Array) -> None:
+#         self._newton_solver.residual().set_parameters(params)
 
-    def _evaluate(self, sample: Array) -> Array:
-        init_iterate, params = self.split_sample(sample[:, 0])
-        self._set_parameters(params)
-        states = self._newton_solver.solve(init_iterate)
-        return states
+#     def _evaluate(self, sample: Array) -> Array:
+#         init_iterate, params = self.split_sample(sample[:, 0])
+#         self._set_parameters(params)
+#         states = self._newton_solver.solve(init_iterate)
+#         return states
 
-    def nvars(self) -> int:
-        return self.nstates() + self.nparams()
+#     def nvars(self) -> int:
+#         return self.nstates() + self.nparams()
 
-    def nqoi(self) -> int:
-        return self.nstates()
+#     def nqoi(self) -> int:
+#         return self.nstates()
 
 
-class TransientTimeIntegrationNewtonModel(TransientStateSpaceModel):
-    def __init__(
-        self,
-        time_integrator: ImplicitTimeIntegrator,
-    ):
-        """
-        Model that maps an initial condition + parameters to all states for all
-        timesteps
-        """
-        if not isinstance(time_integrator, ImplicitTimeIntegrator):
-            raise ValueError(
-                "time_residual must be an instance of "
-                "TimeIntegratorNewtonResidual"
-            )
-        super().__init__(time_integrator._bkd)
-        self._time_itegrator = time_integrator
+# class TransientTimeIntegrationNewtonModel(TransientStateSpaceModel):
+#     def __init__(
+#         self,
+#         time_integrator: ImplicitTimeIntegrator,
+#     ):
+#         """
+#         Model that maps an initial condition + parameters to all states for all
+#         timesteps
+#         """
+#         if not isinstance(time_integrator, ImplicitTimeIntegrator):
+#             raise ValueError(
+#                 "time_residual must be an instance of "
+#                 "TimeIntegratorNewtonResidual"
+#             )
+#         super().__init__(time_integrator._bkd)
+#         self._time_itegrator = time_integrator
 
-    def time_integrator(self) -> ImplicitTimeIntegrator:
-        return self._time_itegrator
+#     def time_integrator(self) -> ImplicitTimeIntegrator:
+#         return self._time_itegrator
 
-    def _set_parameters(self, params: Array) -> None:
-        self._time_itegrator.time_residual().state_residual().set_parameters(
-            params
-        )
+#     def _set_parameters(self, params: Array) -> None:
+#         self._time_itegrator.time_residual().state_residual().set_parameters(
+#             params
+#         )
 
-    def _evaluate(self, sample: Array) -> Array:
-        init_iterate, params = self.split_sample(sample[:, 0])
-        self._newton_solver.residual().set_parameters(params)
-        states = self._newton_solver.solve(init_iterate)
-        return states
+#     def _evaluate(self, sample: Array) -> Array:
+#         init_iterate, params = self.split_sample(sample[:, 0])
+#         self._newton_solver.residual().set_parameters(params)
+#         states = self._newton_solver.solve(init_iterate)
+#         return states
 
-    def nvars(self) -> int:
-        return self.nstates() + self.nparams()
+#     def nvars(self) -> int:
+#         return self.nstates() + self.nparams()
 
-    def nqoi(self) -> int:
-        return self.nstates() * self.ntsteps()
+#     def nqoi(self) -> int:
+#         return self.nstates() * self.ntsteps()
 
 
 class DynamicOperatorInferenceResidual(TransientNewtonResidual):

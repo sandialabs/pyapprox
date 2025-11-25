@@ -799,7 +799,7 @@ class TransientMSEAdjointFunctional(TransientAdjointFunctional):
         jac = self._bkd.zeros((self.nparams(),))
         # functional assumes parameters unique to functional are
         # first entries of param array
-        jac[0] = -2.0 / self._sigma * self(sol)
+        jac[0] = -2.0 / self._sigma * self(sol)[0]
         return jac
 
 

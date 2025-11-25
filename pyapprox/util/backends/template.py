@@ -67,8 +67,10 @@ class Array(Protocol):
     def __matmul__(self, other: "Array") -> "Array": ...
 
     # turn off warning It is recommended for "__eq__" to work with arbitrary
-    # obejcts which arises because numpy for edxample returns an array not bool
+    # obejcts which arises because numpy for example returns an array not bool
     def __eq__(self, other: "Array") -> "Array": ...  # type: ignore
+
+    def __ne__(self, other: "Array") -> "Array": ...  # type: ignore
 
     def __pow__(self, other: Union[float, int]) -> "Array": ...
 
