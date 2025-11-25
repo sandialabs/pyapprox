@@ -3,7 +3,10 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.tri import Triangulation
 from typing import Any
 from pyapprox.typing.util.backend import Array
-from pyapprox.typing.interface.functions.function import FunctionProtocol
+from pyapprox.typing.interface.functions.function import (
+    FunctionProtocol,
+    validate_function,
+)
 
 
 class Plotter2DGeneralDomain:
@@ -24,6 +27,7 @@ class Plotter2DGeneralDomain:
     """
 
     def __init__(self, function: FunctionProtocol):
+        validate_function(function)
         self._bkd = function._bkd
         self._function = function
 
@@ -56,9 +60,12 @@ class Plotter2DGeneralDomain:
         if not isinstance(ax, Axes3D):
             raise ValueError("ax must use 3d projection.")
 
+        if points.shape[0] != 2:
+            raise ValueError("points must have shape (2, npoints).")
+
         # Evaluate the function at the scattered points
         vals = self._function(points)
-        Z = vals[:, qoi]
+        Z = vals[qoi]
 
         # Create a triangulation object
         triangulation = Triangulation(points[0, :], points[1, :])
@@ -98,12 +105,12 @@ class Plotter2DGeneralDomain:
         Any
             The result of the tricontour plotting operation.
         """
-        if points.shape[1] != 2:
-            raise ValueError("points must have shape (n_points, 2).")
+        if points.shape[0] != 2:
+            raise ValueError("points must have shape (2, npoints).")
 
         # Evaluate the function at the scattered points
         vals = self._function(points)
-        Z = vals[:, qoi]
+        Z = vals[qoi]
 
         # Create a triangulation object
         triangulation = Triangulation(points[0, :], points[1, :])
@@ -113,6 +120,5 @@ class Plotter2DGeneralDomain:
             points[0, :],
             points[1, :],
             Z,
-            triangles=triangulation.triangles,
             **kwargs,
         )

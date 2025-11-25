@@ -2,7 +2,10 @@
 
 from matplotlib.axes import Axes
 from typing import Any, List, Sequence
-from pyapprox.typing.interface.functions.function import FunctionProtocol
+from pyapprox.typing.interface.functions.function import (
+    FunctionProtocol,
+    validate_function,
+)
 
 
 class Plotter1D:
@@ -18,6 +21,7 @@ class Plotter1D:
     """
 
     def __init__(self, function: FunctionProtocol, plot_limits: Sequence[Any]):
+        validate_function(function)
         self._bkd = function._bkd
         self._function = function
 
