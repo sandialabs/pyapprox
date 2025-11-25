@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d import Axes3D  # type: ignore
+from matplotlib.axes import Axes
 from matplotlib.tri import Triangulation
-from typing import Any
+from typing import Any, Generic
 from pyapprox.typing.util.backend import Array
 from pyapprox.typing.interface.functions.function import (
     FunctionProtocol,
@@ -9,7 +10,7 @@ from pyapprox.typing.interface.functions.function import (
 )
 
 
-class Plotter2DGeneralDomain:
+class Plotter2DGeneralDomain(Generic[Array]):
     """
     A specialized plotter for 2D data on general domains.
 
@@ -26,7 +27,7 @@ class Plotter2DGeneralDomain:
         The function to evaluate and plot.
     """
 
-    def __init__(self, function: FunctionProtocol):
+    def __init__(self, function: FunctionProtocol[Array]):
         validate_function(function)
         self._bkd = function._bkd
         self._function = function
@@ -81,7 +82,7 @@ class Plotter2DGeneralDomain:
 
     def plot_tricontour(
         self,
-        ax: plt.Axes,
+        ax: Axes,
         points: Array,
         qoi: int = 0,
         **kwargs: Any,

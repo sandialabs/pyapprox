@@ -1,8 +1,8 @@
 # plotter2d_rectangular.py
-from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d import Axes3D  # type: ignore
 from matplotlib.contour import QuadContourSet
 from matplotlib.axes import Axes
-from typing import Any, Sequence, Union, Tuple
+from typing import Any, Sequence, Union, Tuple, Generic
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.interface.functions.function import (
     FunctionProtocol,
@@ -55,7 +55,7 @@ def meshgrid_samples(
     return X, Y, pts
 
 
-class Plotter2DRectangularDomain:
+class Plotter2DRectangularDomain(Generic[Array]):
     """
     A plotter for 2D Function on rectangular domains.
 
@@ -74,7 +74,9 @@ class Plotter2DRectangularDomain:
         The function to evaluate and plot.
     """
 
-    def __init__(self, function: FunctionProtocol, plot_limits: Sequence[Any]):
+    def __init__(
+        self, function: FunctionProtocol[Array], plot_limits: Sequence[Any]
+    ):
         validate_function(function)
         self._bkd = function._bkd
 
@@ -93,7 +95,7 @@ class Plotter2DRectangularDomain:
         qoi: int,
         npts_1d: Union[int, Sequence[int]],
         **kwargs: Any,
-    ) -> QuadContourSet:
+    ) -> Any:
         """
         Plot a 2D surface of the function.
 
