@@ -2,7 +2,7 @@ from typing import Any, Optional, Union, Sequence, List, Tuple
 from numpy.typing import NDArray
 import numpy as np
 
-from pyapprox.typing.util.backend import Backend, AxisArg
+from pyapprox.typing.util.backend import Backend
 
 
 # Implement the NumPy backend
@@ -100,3 +100,35 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def reshape(array: NDArray[Any], newshape: Sequence[int]) -> NDArray[Any]:
         return np.reshape(array, newshape)
+
+    @staticmethod
+    def sum(
+        array: NDArray[Any], axis: Optional[Union[int, Tuple[int, ...]]] = None
+    ) -> NDArray[Any]:
+        return np.sum(array, axis=axis)
+
+    @staticmethod
+    def sin(array: NDArray[Any]) -> NDArray[Any]:
+        return np.sin(array)
+
+    @staticmethod
+    def cos(array: NDArray[Any]) -> NDArray[Any]:
+        return np.cos(array)
+
+    @staticmethod
+    def full(
+        shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.full(shape, fill_value, dtype=dtype)
+
+    @staticmethod
+    def zeros(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.zeros(shape, dtype=dtype)
+
+    @staticmethod
+    def ones(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.ones(shape, dtype=dtype)

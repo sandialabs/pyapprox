@@ -98,7 +98,10 @@ class Backend(Protocol, Generic[Array]):
     def inv(matrix: Array) -> Array: ...
 
     # @staticmethod
-    # def asarray(array: Array, dtype: Optional[Any] = None) -> Array: ...
+    def asarray(
+        array: Union[Sequence[Any], Array, float, int],
+        dtype: Optional[Any] = None,
+    ) -> Array: ...
 
     @staticmethod
     def array(
@@ -149,3 +152,27 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def reshape(array: Array, newshape: Sequence[int]) -> Array: ...
+
+    @staticmethod
+    def sum(
+        array: Array, axis: Optional[Union[int, Tuple[int, ...]]] = None
+    ) -> Array: ...
+
+    @staticmethod
+    def sin(array: Array) -> Array: ...
+
+    @staticmethod
+    def cos(array: Array) -> Array: ...
+
+    @staticmethod
+    def full(
+        shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
+    ) -> Array: ...
+
+    @staticmethod
+    def zeros(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> Array: ...
+
+    @staticmethod
+    def ones(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...

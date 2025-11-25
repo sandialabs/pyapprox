@@ -1,0 +1,64 @@
+from typing import Protocol, Callable, runtime_checkable
+
+from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.interface.functions.function import (
+    FunctionProtocol,
+    validate_sample,
+)
+from pyapprox.typing.interface.functions.jacobian import (
+    JacobianProtocol,
+    FunctionWithJacobianFromCallable,
+    validate_vector_for_apply,
+)
+
+
+class ApplyHessianProtocol(Protocol):
+    """
+    Protocol for functions with Hessian functionality.
+    """
+
+    def apply_hessian(self, sample: Array, vec: Array) -> Array: ...
+
+
+@runtime_checkable
+class FunctionWithJacobianApplyHessianProtocol(
+    FunctionProtocol, JacobianProtocol, ApplyHessianProtocol, Protocol
+):
+    pass
+
+
+def validate_hvp(nvars: int, hvp: Array) -> None:
+    if hvp.shape != (nvars, 1):
+        raise ValueError(
+            f"Hvp shape mismatch: expected " f"({nvars, 1}), got {hvp.shape}"
+        )
+
+
+class FunctionWithJacobianApplyHessianFromCallable(
+    FunctionWithJacobianFromCallable[Array]
+):
+    def __init__(
+        self,
+        nvars: int,
+        fun: Callable[[Array], Array],
+        jacobian: Callable[[Array], Array],
+        hvp: Callable[[Array, Array], Array],
+        bkd: Backend[Array],
+    ):
+        super().__init__(1, nvars, fun, jacobian, bkd)
+        if not callable(hvp):
+            raise ValueError(
+                "The provided 'hvp' object must be callable. "
+                "Expected a callable object that takes an input of type "
+                "'Array' and returns an output of type 'Array'. "
+                f"Got an object of type {type(hvp).__name__}. "
+                f"Object details: {self}"
+            )
+        self._hvp: Callable[[Array, Array], Array] = hvp
+
+    def apply_hessian(self, sample: Array, vec: Array) -> Array:
+        validate_sample(self.nvars(), sample)
+        validate_vector_for_apply(self.nvars(), vec)
+        hvp = self._hvp(sample, vec)
+        validate_hvp(self.nvars(), hvp)
+        return hvp

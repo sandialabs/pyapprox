@@ -1,13 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Generic
+from typing import Protocol, Generic, Callable, runtime_checkable
 
 from pyapprox.typing.util.backend import Array, Backend
 
 
-from typing import Protocol, Generic
-from pyapprox.interface.functions.backend import Array, Backend
-
-
+@runtime_checkable
 class FunctionProtocol(Protocol, Generic[Array]):
     """
     A protocol defining the required interface for a Function.
@@ -34,6 +31,20 @@ class FunctionProtocol(Protocol, Generic[Array]):
         ...
 
 
+def validate_sample(nvars: int, samples: Array) -> None:
+    """
+    Validate that the sample has shape (nvars, 1).
+    Some member functions may only use 1 sample.
+    """
+    expected_shape = (nvars, 1)
+    actual_shape = samples.shape
+    if actual_shape != expected_shape:
+        raise ValueError(
+            f"Invalid sample shape: expected {expected_shape}, "
+            f"got {actual_shape}."
+        )
+
+
 class Function(ABC, Generic[Array]):
     def __init__(self, bkd: Backend[Array]):
         self._bkd = bkd
@@ -47,28 +58,62 @@ class Function(ABC, Generic[Array]):
         raise NotImplementedError
 
     def validate_samples(self, samples: Array) -> None:
-        if samples.shape != (self.nvars(), self.nqoi()):
-            raise ValueError
+        expected_rows = self.nvars()
+        actual_rows, actual_cols = samples.shape
+        if actual_rows != expected_rows:
+            raise ValueError(
+                f"Invalid samples shape: expected {expected_rows} rows, "
+                f"got {actual_rows} rows. Object details: {self}"
+            )
 
     def validate_values(self, samples: Array, values: Array) -> None:
-        if values.shape != (samples.shape[1], self.nqoi()):
-            raise ValueError
+        expected_shape = (self.nqoi(), samples.shape[1])
+        if values.shape != expected_shape:
+            raise ValueError(
+                f"Invalid values shape: expected {expected_shape}, "
+                f"got {values.shape}. Object details: {self}"
+            )
 
     @abstractmethod
     def __call__(self, samples: Array) -> Array:
         raise NotImplementedError
 
+    def __repr__(self) -> str:
+        """
+        Return a detailed string representation of the object for debugging.
+        """
+        return (
+            f"{self.__class__.__name__}("
+            f"nvars={self.nvars()}, "
+            f"nqoi={self.nqoi()}, "
+            f"bkd={type(self._bkd).__name__})"
+        )
+
 
 class FunctionFromCallable(Function[Array]):
-    def __init__(self, nqoi: int, nvars: int, fun: Callable[[Array], Array]):
+    def __init__(
+        self,
+        nqoi: int,
+        nvars: int,
+        fun: Callable[[Array], Array],
+        bkd: Backend[Array],
+    ):
         self._nqoi = nqoi
         self._nvars = nvars
-        self._fun = fun
+        if not callable(fun):
+            raise ValueError(
+                "The provided 'fun' object must be callable. "
+                "Expected a callable object that takes an input of type "
+                "'Array' and returns an output of type 'Array'. "
+                f"Got an object of type {type(fun).__name__}. "
+                f"Object details: {str(fun)}"
+            )
+        super().__init__(bkd)
+        self._fun: Callable[[Array], Array] = fun
 
     def nvars(self) -> int:
         return self._nvars
 
-    @abstractmethod
     def nqoi(self) -> int:
         return self._nqoi
 
@@ -77,73 +122,3 @@ class FunctionFromCallable(Function[Array]):
         values = self._fun(samples)
         self.validate_values(samples, values)
         return values
-
-
-def validate_jacobian(nqoi: int, nvars: int, jac: Array) -> None:
-    if jac.shape != (nqoi, nvars):
-        raise ValueError(
-            f"Jacobian shape mismatch: expected ({nqoi, nvars}), "
-            f"got {jac.shape}"
-        )
-
-
-def validate_jacobians(
-    nqoi: int, nvars: int, samples: Array, jac: Array
-) -> None:
-    if jac.shape != (samples.shape[1], nqoi, nvars):
-        raise ValueError(
-            f"Jacobian shape mismatch: expected "
-            f"({samples.shape[1], nqoi, nvars}), got {jac.shape}"
-        )
-
-
-class FunctionWithJacobian(Function[Array]):
-    @abstractmethod
-    def jacobian(self, sample: Array) -> Array:
-        raise NotImplementedError
-
-    def jacobians(self, samples: Array) -> Array:
-        return self._bkd.stack(
-            [self.jacobian(samples) for sample in samples.T]
-        )
-
-
-class FunctionWithJacobianFromCallable(FunctionFromCallable[Array]):
-    def __init__(
-        self,
-        nqoi: int,
-        nvars: int,
-        fun: Callable[[Array], Array],
-        jacobian: Callable[[Array], Array],
-    ):
-        self._nqoi = nqoi
-        self._nvars = nvars
-        self._fun = fun
-        self._jacobian = jacobian
-
-    def nvars(self) -> int:
-        return self._nvars
-
-    @abstractmethod
-    def nqoi(self) -> int:
-        return self._nqoi
-
-    def jacobian(self, samples: Array) -> Array:
-        self.validate_samples(samples)
-        values = self._jacobian(samples)
-        validate_jacobian(self.nqoi(), self.nvars(), values)
-        return values
-
-    def jacobians(self, samples: Array) -> Array:
-        self.validate_samples(samples)
-        jacs = self._bkd.stack(
-            [self.jacobian(samples) for sample in samples.T]
-        )
-        validate_jacobians(self.nqoi(), self.nvars(), samples, jacs)
-        return jacs
-
-
-class FunctionWithHVP(FunctionWithJacobian[Array]):
-    @abstractmethod
-    def apply_hessian(self, samples: Array, vec: Array) -> Array:
-        raise NotImplementedError
