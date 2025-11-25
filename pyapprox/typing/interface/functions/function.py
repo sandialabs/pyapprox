@@ -31,6 +31,25 @@ class FunctionProtocol(Protocol, Generic[Array]):
         ...
 
 
+def validate_samples(nvars: int, samples: Array) -> None:
+    expected_rows = nvars
+    actual_rows, actual_cols = samples.shape
+    if actual_rows != expected_rows:
+        raise ValueError(
+            f"Invalid samples shape: expected {expected_rows} rows, "
+            f"got {actual_rows} rows."
+        )
+
+
+def validate_values(nqoi: int, samples: Array, values: Array) -> None:
+    expected_shape = (nqoi, samples.shape[1])
+    if values.shape != expected_shape:
+        raise ValueError(
+            f"Invalid values shape: expected {expected_shape}, "
+            f"got {values.shape}."
+        )
+
+
 def validate_sample(nvars: int, samples: Array) -> None:
     """
     Validate that the sample has shape (nvars, 1).
@@ -56,23 +75,6 @@ class Function(ABC, Generic[Array]):
     @abstractmethod
     def nqoi(self) -> int:
         raise NotImplementedError
-
-    def validate_samples(self, samples: Array) -> None:
-        expected_rows = self.nvars()
-        actual_rows, actual_cols = samples.shape
-        if actual_rows != expected_rows:
-            raise ValueError(
-                f"Invalid samples shape: expected {expected_rows} rows, "
-                f"got {actual_rows} rows. Object details: {self}"
-            )
-
-    def validate_values(self, samples: Array, values: Array) -> None:
-        expected_shape = (self.nqoi(), samples.shape[1])
-        if values.shape != expected_shape:
-            raise ValueError(
-                f"Invalid values shape: expected {expected_shape}, "
-                f"got {values.shape}. Object details: {self}"
-            )
 
     @abstractmethod
     def __call__(self, samples: Array) -> Array:
@@ -118,9 +120,9 @@ class FunctionFromCallable(Function[Array]):
         return self._nqoi
 
     def __call__(self, samples: Array) -> Array:
-        self.validate_samples(samples)
+        validate_samples(self.nvars(), samples)
         values = self._fun(samples)
-        self.validate_values(samples, values)
+        validate_values(self.nqoi(), samples, values)
         return values
 
 
