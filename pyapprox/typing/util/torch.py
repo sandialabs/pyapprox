@@ -137,3 +137,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         shape: Tuple[int, ...], dtype: Optional[Any] = None
     ) -> torch.Tensor:
         return torch.ones(shape, dtype=dtype)
+
+    @staticmethod
+    def arange(
+        start: Union[int, float],
+        stop: Union[int, float],
+        step: Union[int, float] = 1,
+        dtype: Optional[Any] = None,
+    ) -> torch.Tensor:
+        return torch.arange(start, stop, step, dtype=dtype)

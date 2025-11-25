@@ -132,3 +132,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         shape: Tuple[int, ...], dtype: Optional[Any] = None
     ) -> NDArray[Any]:
         return np.ones(shape, dtype=dtype)
+
+    @staticmethod
+    def arange(
+        start: Union[int, float],
+        stop: Union[int, float],
+        step: Union[int, float] = 1,
+        dtype: Optional[Any] = None,
+    ) -> NDArray[Any]:
+        return np.arange(start, stop, step, dtype=dtype)

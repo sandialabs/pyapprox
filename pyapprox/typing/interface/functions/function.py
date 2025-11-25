@@ -131,5 +131,4 @@ def validate_function(function: Any) -> None:
         raise TypeError(
             f"Invalid function type: expected an object implementing "
             f"FunctionProtocol, got {type(function).__name__}. "
-            f"Object details: {function}"
         )

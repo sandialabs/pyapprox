@@ -1,14 +1,15 @@
 # plotter1d.py
 
 from matplotlib.axes import Axes
-from typing import Any, List, Sequence
+from typing import Any, List, Sequence, Generic
 from pyapprox.typing.interface.functions.function import (
     FunctionProtocol,
     validate_function,
 )
+from pyapprox.typing.util.backend import Array
 
 
-class Plotter1D:
+class Plotter1D(Generic[Array]):
     """
     A plotter for 1D functions.
 
@@ -20,7 +21,9 @@ class Plotter1D:
         The limits of the plot (x_min, x_max).
     """
 
-    def __init__(self, function: FunctionProtocol, plot_limits: Sequence[Any]):
+    def __init__(
+        self, function: FunctionProtocol[Array], plot_limits: Sequence[Any]
+    ):
         validate_function(function)
         self._bkd = function._bkd
         self._function = function

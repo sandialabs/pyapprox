@@ -5,11 +5,11 @@ from pyapprox.typing.interface.functions.function import (
     Function,
     validate_samples,
 )
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backend import Array
 
 
 @runtime_checkable
-class ParameterizedFunctionProtocol(FunctionProtocol, Protocol):
+class ParameterizedFunctionProtocol(FunctionProtocol[Array], Protocol):
     def set_parameter(self, p: Array) -> None:
         """
         Set the parameter p.
@@ -21,10 +21,12 @@ class ParameterizedFunctionProtocol(FunctionProtocol, Protocol):
         """
         ...
 
+    def nparams(self) -> int: ...
+
 
 @runtime_checkable
 class ParameterizedFunctionWithJacobianProtocol(
-    ParameterizedFunctionProtocol, Protocol
+    ParameterizedFunctionProtocol[Array], Protocol
 ):
     def jacobian_wrt_parameters(self, x: Array) -> Array:
         """
@@ -45,7 +47,7 @@ class ParameterizedFunctionWithJacobianProtocol(
 
 @runtime_checkable
 class ParameterizedFunctionWithHVPProtocol(
-    ParameterizedFunctionWithJacobianProtocol, Protocol
+    ParameterizedFunctionWithJacobianProtocol[Array], Protocol
 ):
     def hvp_wrt_parameters(self, x: Array, vec: Array) -> Array:
         """

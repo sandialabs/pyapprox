@@ -1,14 +1,15 @@
-from typing import Protocol, Callable, runtime_checkable
+from typing import Protocol, Callable, Generic, runtime_checkable
 
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.interface.functions.function import (
     FunctionFromCallable,
     FunctionProtocol,
     validate_sample,
+    validate_samples,
 )
 
 
-class JacobianProtocol(Protocol):
+class JacobianProtocol(Protocol, Generic[Array]):
     """
     Protocol for functions with Jacobian functionality.
     """
@@ -17,7 +18,7 @@ class JacobianProtocol(Protocol):
         pass
 
 
-class ApplyJacobianProtocol(Protocol):
+class ApplyJacobianProtocol(Protocol, Generic[Array]):
     """
     Protocol for functions that implement Jacobian-vector product.
     """
@@ -43,14 +44,14 @@ class ApplyJacobianProtocol(Protocol):
 
 @runtime_checkable
 class FunctionWithJacobianProtocol(
-    FunctionProtocol, JacobianProtocol, Protocol
+    FunctionProtocol[Array], JacobianProtocol[Array], Protocol
 ):
     pass
 
 
 @runtime_checkable
 class FunctionWithApplyJacobianProtocol(
-    FunctionProtocol, ApplyJacobianProtocol, Protocol
+    FunctionProtocol[Array], ApplyJacobianProtocol[Array], Protocol
 ):
     pass
 
@@ -125,13 +126,12 @@ class FunctionWithJacobianFromCallable(FunctionFromCallable[Array]):
 
     def jacobian(self, sample: Array) -> Array:
         validate_sample(self.nvars(), sample)
-        self.validate_samples(sample)
         jac = self._jacobian(sample)
         validate_jacobian(self.nqoi(), self.nvars(), jac)
         return jac
 
     def jacobians(self, samples: Array) -> Array:
-        self.validate_samples(samples)
+        validate_samples(self.nvars(), samples)
         jacs = self._bkd.stack([self.jacobian(sample) for sample in samples.T])
         validate_jacobians(self.nqoi(), self.nvars(), samples, jacs)
         return jacs

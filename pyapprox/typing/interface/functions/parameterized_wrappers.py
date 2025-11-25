@@ -32,11 +32,12 @@ class FunctionOfParameters(Function[Array]):
     """
 
     def __init__(
-        self, param_fun: ParameterizedFunctionProtocol, fixed_x: Array
+        self, param_fun: ParameterizedFunctionProtocol[Array], fixed_x: Array
     ):
         validate_parameterized_function(param_fun)
         super().__init__(param_fun._bkd)
         self._param_fun = param_fun
+        validate_samples(self.nvars(), fixed_x)
         self._fixed_x = fixed_x
 
     def nvars(self) -> int:
@@ -44,6 +45,9 @@ class FunctionOfParameters(Function[Array]):
 
     def nqoi(self) -> int:
         return self._param_fun.nqoi()
+
+    def nparams(self) -> int:
+        return self._param_fun.nparams()
 
     def __call__(self, params: Array) -> Array:
         """
@@ -67,7 +71,7 @@ class FunctionOfParameters(Function[Array]):
         return self._bkd.stack(vals, axis=0)
 
 
-class FunctionOfParametersWithJacobian(FunctionOfParameters):
+class FunctionOfParametersWithJacobian(FunctionOfParameters[Array]):
     """
     Extends FunctionOfParameters to support Jacobian computation.
 
@@ -81,7 +85,7 @@ class FunctionOfParametersWithJacobian(FunctionOfParameters):
 
     def __init__(
         self,
-        param_fun: ParameterizedFunctionWithJacobianProtocol,
+        param_fun: ParameterizedFunctionWithJacobianProtocol[Array],
         fixed_x: Array,
     ):
         if not isinstance(
@@ -93,8 +97,10 @@ class FunctionOfParametersWithJacobian(FunctionOfParameters):
                 f"got {type(param_fun).__name__}."
             )
         validate_parameterized_function(param_fun)
-        super().__init__(param_fun._bkd)
-        self._param_fun = param_fun
+        self._bkd = param_fun._bkd
+        self._param_fun: ParameterizedFunctionWithJacobianProtocol[Array] = (
+            param_fun
+        )
         self._fixed_x = fixed_x
 
     def jacobian(self, param: Array) -> Array:
@@ -111,12 +117,12 @@ class FunctionOfParametersWithJacobian(FunctionOfParameters):
         Array
             The Jacobian matrix with respect to p.
         """
-        validate_sample(self.nvars(), param)
+        validate_sample(self.nparams(), param)
         self._param_fun.set_parameter(param)
         return self._param_fun.jacobian_wrt_parameters(self._fixed_x)
 
 
-class FunctionOfParametersWithHVP(FunctionOfParametersWithJacobian):
+class FunctionOfParametersWithHVP(FunctionOfParametersWithJacobian[Array]):
     """
     Extends FunctionOfParametersWithJacobian to support Hessian-vector
     product computation.
@@ -130,7 +136,9 @@ class FunctionOfParametersWithHVP(FunctionOfParametersWithJacobian):
     """
 
     def __init__(
-        self, param_fun: ParameterizedFunctionWithHVPProtocol, fixed_x: Array
+        self,
+        param_fun: ParameterizedFunctionWithHVPProtocol[Array],
+        fixed_x: Array,
     ):
         if not isinstance(param_fun, ParameterizedFunctionWithHVPProtocol):
             raise TypeError(
@@ -139,7 +147,7 @@ class FunctionOfParametersWithHVP(FunctionOfParametersWithJacobian):
                 f"{type(param_fun).__name__}."
             )
         validate_parameterized_function(param_fun)
-        super().__init__(param_fun._bkd)
+        self._bkd = param_fun._bkd
         self._param_fun = param_fun
         self._fixed_x = fixed_x
 
@@ -159,6 +167,6 @@ class FunctionOfParametersWithHVP(FunctionOfParametersWithJacobian):
         Array
             The Hessian-vector product with respect to p.
         """
-        validate_sample(self.nvars(), param)
+        validate_sample(self.nparams(), param)
         self._param_fun.set_parameter(param)
         return self._param_fun.hvp_wrt_parameters(self._fixed_x, vec)
