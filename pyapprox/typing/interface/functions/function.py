@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Protocol, Generic, Callable, runtime_checkable
+from typing import Protocol, Generic, Callable, runtime_checkable, Any
 
 from pyapprox.typing.util.backend import Array, Backend
 
@@ -122,3 +122,12 @@ class FunctionFromCallable(Function[Array]):
         values = self._fun(samples)
         self.validate_values(samples, values)
         return values
+
+
+def validate_function(function: Any) -> None:
+    if not isinstance(function, FunctionProtocol):
+        raise TypeError(
+            f"Invalid function type: expected an object implementing "
+            f"FunctionProtocol, got {type(function).__name__}. "
+            f"Object details: {function}"
+        )

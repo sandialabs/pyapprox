@@ -3,8 +3,56 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.contour import QuadContourSet
 from matplotlib.axes import Axes
 from typing import Any, Sequence, Union, Tuple
-from pyapprox.typing.util.backend import Array
-from pyapprox.typing.interface.functions.function import FunctionProtocol
+from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.interface.functions.function import (
+    FunctionProtocol,
+    validate_function,
+)
+
+
+def meshgrid_samples(
+    num_pts_1d: Union[int, Sequence[int]],
+    plot_limits: Sequence[Any],
+    bkd: Backend[Array],
+    logspace: bool = False,
+) -> Tuple[Array, Array, Array]:
+    """
+    Generate meshgrid samples for 2D plotting.
+
+    Parameters
+    ----------
+    num_pts_1d : int or Sequence[int]
+        The number of points to use for each variable.
+        If an integer is provided,
+        it will be applied to both dimensions.
+    plot_limits : Sequence[int]
+        The limits of the plot (x_min, x_max, y_min, y_max).
+    logspace : bool, optional
+        Whether to use logarithmic spacing. Defaults to False.
+
+    Returns
+    -------
+    X : Array
+        The meshgrid for the first variable.
+    Y : Array
+        The meshgrid for the second variable.
+    pts : Array
+        The flattened meshgrid samples.
+    """
+    if len(plot_limits) != 4:
+        raise ValueError(
+            "plot_limits must have exactly 4 entries: "
+            "[x_min, x_max, y_min, y_max]."
+        )
+    num_pts_1d = (
+        [num_pts_1d] * 2 if isinstance(num_pts_1d, int) else num_pts_1d
+    )
+    space_fn = bkd.logspace if logspace else bkd.linspace
+    x = space_fn(plot_limits[0], plot_limits[1], num_pts_1d[0])
+    y = space_fn(plot_limits[2], plot_limits[3], num_pts_1d[1])
+    X, Y = bkd.meshgrid(x, y)
+    pts = bkd.stack((bkd.flatten(X), bkd.flatten(Y)), axis=0)
+    return X, Y, pts
 
 
 class Plotter2DRectangularDomain:
@@ -27,7 +75,9 @@ class Plotter2DRectangularDomain:
     """
 
     def __init__(self, function: FunctionProtocol, plot_limits: Sequence[Any]):
+        validate_function(function)
         self._bkd = function._bkd
+
         self._function = function
 
         if len(plot_limits) != 4:
@@ -36,44 +86,6 @@ class Plotter2DRectangularDomain:
                 "[x_min, x_max, y_min, y_max]."
             )
         self._plot_limits = plot_limits
-
-    def meshgrid_samples(
-        self,
-        num_pts_1d: Union[int, Sequence[int]],
-        logspace: bool = False,
-    ) -> Tuple[Array, Array, Array]:
-        """
-        Generate meshgrid samples for 2D plotting.
-
-        Parameters
-        ----------
-        num_pts_1d : int or Sequence[int]
-            The number of points to use for each variable.
-            If an integer is provided,
-            it will be applied to both dimensions.
-        logspace : bool, optional
-            Whether to use logarithmic spacing. Defaults to False.
-
-        Returns
-        -------
-        X : Array
-            The meshgrid for the first variable.
-        Y : Array
-            The meshgrid for the second variable.
-        pts : Array
-            The flattened meshgrid samples.
-        """
-        num_pts_1d = (
-            [num_pts_1d] * 2 if isinstance(num_pts_1d, int) else num_pts_1d
-        )
-        space_fn = self._bkd.logspace if logspace else self._bkd.linspace
-        x = space_fn(self._plot_limits[0], self._plot_limits[1], num_pts_1d[0])
-        y = space_fn(self._plot_limits[2], self._plot_limits[3], num_pts_1d[1])
-        X, Y = self._bkd.meshgrid(x, y)
-        pts = self._bkd.stack(
-            (self._bkd.flatten(X), self._bkd.flatten(Y)), axis=0
-        )
-        return X, Y, pts
 
     def plot_surface(
         self,
@@ -103,9 +115,9 @@ class Plotter2DRectangularDomain:
         """
         if ax.name != "3d":
             raise ValueError("ax must use 3d projection.")
-        X, Y, pts = self.meshgrid_samples(npts_1d)
+        X, Y, pts = meshgrid_samples(npts_1d, self._plot_limits, self._bkd)
         vals = self._function(pts)
-        Z = self._bkd.reshape(vals[:, qoi], X.shape)
+        Z = self._bkd.reshape(vals[qoi], X.shape)
         return ax.plot_surface(X, Y, Z, **kwargs)
 
     def plot_contours(
@@ -136,9 +148,9 @@ class Plotter2DRectangularDomain:
         QuadContourSet
             The plotted contours.
         """
-        X, Y, pts = self.meshgrid_samples(npts_1d)
+        X, Y, pts = meshgrid_samples(npts_1d, self._plot_limits, self._bkd)
         vals = self._function(pts)
-        Z = self._bkd.reshape(vals[:, qoi], X.shape)
+        Z = self._bkd.reshape(vals[qoi], X.shape)
         return ax.contourf(X, Y, Z, **kwargs)
 
     def plot(
