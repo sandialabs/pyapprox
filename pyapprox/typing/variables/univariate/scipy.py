@@ -76,6 +76,9 @@ class ScipyRandomVariable1D(ABC, Generic[Array]):
             self._scipy_rv.pdf(self._bkd.to_numpy(samples))
         )
 
+    def __call__(self, samples: Array) -> Array:
+        return self.pdf(samples)
+
     def cdf(self, samples: Array) -> Array:
         """
         Evaluate the cumulative distribution function (CDF).

@@ -186,6 +186,9 @@ class Backend(Protocol, Generic[Array]):
         dtype: Optional[Any] = None,
     ) -> Array: ...
 
+    @staticmethod
+    def prod(array: Array, axis: Optional[int] = None) -> Array: ...
+
 
 def validate_backend(obj: Any) -> None:
     """
