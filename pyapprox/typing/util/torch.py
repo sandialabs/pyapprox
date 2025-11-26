@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union, Sequence, List, Tuple, overload
+from typing import Any, Optional, Union, Sequence, List, Tuple, overload, cast
 
 import torch
 from numpy.typing import NDArray
@@ -101,7 +101,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.logspace(start, stop, num)
 
     @staticmethod
-    def to_numpy(array: torch.Tensor) -> torch.Tensor:
+    def to_numpy(array: torch.Tensor) -> NDArray[Any]:
         return array.numpy()
 
     @staticmethod
@@ -110,7 +110,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def meshgrid(
-        *arrays: torch.Tensor, indexing: str = "xy"
+        arrays: Tuple[torch.Tensor, ...], indexing: str = "xy"
     ) -> Tuple[torch.Tensor, ...]:
         return torch.meshgrid(*arrays, indexing=indexing)
 
@@ -122,7 +122,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def sum(
         array: torch.Tensor,
         axis: Optional[Union[int, Tuple[int, ...]]] = None,
-        keepdims=False,
+        keepdims: bool = False,
     ) -> torch.Tensor:
         return torch.sum(array, dim=axis, keepdim=keepdims)
 
@@ -163,12 +163,23 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         keepdims: bool = False,
     ) -> torch.Tensor:
         if axis is None:
-            return torch.prod(array, keepdim=keepdims)
+            if keepdims is False:
+                return torch.prod(array)
+            return torch.prod(array, dim=None, keepdim=True)
         return torch.prod(array, dim=axis, keepdim=keepdims)
 
     @staticmethod
-    def any(
-        array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
+    def any_bool(
+        array: torch.Tensor,
+        keepdims: bool = False,
+    ) -> bool:
+        return bool(torch.any(array, keepdim=keepdims).item())
+
+    @staticmethod
+    def any_array(
+        array: torch.Tensor,
+        axis: int,
+        keepdims: bool = False,
     ) -> torch.Tensor:
         return torch.any(array, dim=axis, keepdim=keepdims)
 
@@ -195,3 +206,26 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def isfinite(array: torch.Tensor) -> torch.Tensor:
         return torch.isfinite(array)
+
+    @staticmethod
+    def nonzero(condition: torch.Tensor) -> torch.Tensor:
+        return torch.nonzero(condition, as_tuple=True)
+
+    @staticmethod
+    def norm(
+        array: torch.Tensor,
+        ord: Optional[Union[int, float, str]] = None,
+        axis: Optional[Union[int, Tuple[int, int]]] = None,
+        keepdims: bool = False,
+    ) -> torch.Tensor:
+        return cast(
+            torch.Tensor, torch.linalg.norm(array, ord, axis, keepdims)
+        )
+
+    @staticmethod
+    def sign(array: torch.Tensor) -> torch.Tensor:
+        return torch.sign(array)
+
+    @staticmethod
+    def sqrt(array: torch.Tensor) -> torch.Tensor:
+        return torch.sqrt(array)
