@@ -220,3 +220,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def sqrt(array: NDArray[Any]) -> NDArray[Any]:
         return np.sqrt(array)
+
+    @staticmethod
+    def solve(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.solve(Amat, Bmat)

@@ -324,6 +324,9 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def sqrt(array: Array) -> Array: ...
 
+    @staticmethod
+    def solve(Amat: Array, Bmat: Array) -> Array: ...
+
 
 def validate_backend(obj: Any) -> None:
     """
