@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union, Sequence, List, Tuple
+from typing import Any, Optional, Union, Sequence, List, Tuple, overload
 
 import torch
 from numpy.typing import NDArray
@@ -108,9 +108,11 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def sum(
-        array: torch.Tensor, axis: Optional[Union[int, Tuple[int, ...]]] = None
+        array: torch.Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims=False,
     ) -> torch.Tensor:
-        return torch.sum(array, dim=axis)
+        return torch.sum(array, dim=axis, keepdim=keepdims)
 
     @staticmethod
     def sin(array: torch.Tensor) -> torch.Tensor:
@@ -139,16 +141,29 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.ones(shape, dtype=dtype)
 
     @staticmethod
-    def arange(
-        start: Union[int, float],
-        stop: Union[int, float],
-        step: Union[int, float] = 1,
-        dtype: Optional[Any] = None,
-    ) -> torch.Tensor:
-        return torch.arange(start, stop, step, dtype=dtype)
+    def arange(*args: Any, **kwargs: Any) -> torch.Tensor:
+        return torch.arange(*args, **kwargs)
 
     @staticmethod
-    def prod(array: torch.Tensor, axis: Optional[int] = None) -> torch.Tensor:
+    def prod(
+        array: torch.Tensor,
+        axis: Optional[int] = None,
+        keepdims: bool = False,
+    ) -> torch.Tensor:
         if axis is None:
-            return torch.prod(array)
-        return torch.prod(array, dim=axis)
+            return torch.prod(array, keepdim=keepdims)
+        return torch.prod(array, dim=axis, keepdim=keepdims)
+
+    @staticmethod
+    def any(
+        array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
+    ) -> torch.Tensor:
+        return torch.any(array, dim=axis, keepdim=keepdims)
+
+    @staticmethod
+    def log(array: torch.Tensor) -> torch.Tensor:
+        return torch.log(array)
+
+    @staticmethod
+    def exp(array: torch.Tensor) -> torch.Tensor:
+        return torch.exp(array)

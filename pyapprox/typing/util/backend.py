@@ -9,6 +9,7 @@ from typing import (
     Sequence,
     Tuple,
     List,
+    overload,
 )
 
 # from typing_extensions import SupportsIndex
@@ -156,7 +157,9 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def sum(
-        array: Array, axis: Optional[Union[int, Tuple[int, ...]]] = None
+        array: Array,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
     ) -> Array: ...
 
     @staticmethod
@@ -178,16 +181,85 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def ones(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
 
+    # @staticmethod
+    # def arange(
+    #     start: Union[int, float],
+    #     stop: Union[int, float],
+    #     step: Union[int, float] = 1,
+    #     dtype: Optional[Any] = None,
+    # ) -> Array: ...
+
+    # Overload 1: arange(stop)
+    @overload
+    @staticmethod
+    def arange(stop: Union[int, float], /) -> Array:
+        """
+        Overload for when only `stop` is provided.
+        """
+        ...
+
+    # Overload 2: arange(start, stop)
+    @overload
+    @staticmethod
+    def arange(start: Union[int, float], stop: Union[int, float], /) -> Array:
+        """
+        Overload for when `start` and `stop` are provided.
+        """
+        ...
+
+    # Overload 3: arange(start, stop, step)
+    @overload
     @staticmethod
     def arange(
         start: Union[int, float],
         stop: Union[int, float],
-        step: Union[int, float] = 1,
+        step: Union[int, float],
+        /,
+    ) -> Array:
+        """
+        Overload for when `start`, `stop`, and `step` are provided.
+        """
+        ...
+
+    # Overload 4: Allow keyword arguments including dtype
+    @overload
+    @staticmethod
+    def arange(
+        *args: Union[int, float],
         dtype: Optional[Any] = None,
+    ) -> Array:
+        """
+        Overload for when keyword arguments like `dtype` are provided.
+        """
+        ...
+
+    # Runtime implementation
+    @staticmethod
+    def arange(*args: Any, **kwargs: Any) -> Array:
+        """
+        Runtime implementation of arange.
+
+        Handles all variations of arguments using *args and **kwargs.
+        """
+        ...
+
+    @staticmethod
+    def prod(
+        array: Array,
+        axis: Optional[int] = None,
+        keepdims: bool = False,
     ) -> Array: ...
 
     @staticmethod
-    def prod(array: Array, axis: Optional[int] = None) -> Array: ...
+    def any(
+        array: Array, axis: Optional[int] = None, keepdims: bool = False
+    ) -> Array: ...
+
+    @staticmethod
+    def log(array: Array) -> Array: ...
+
+    @staticmethod
+    def exp(array: Array) -> Array: ...
 
 
 def validate_backend(obj: Any) -> None:

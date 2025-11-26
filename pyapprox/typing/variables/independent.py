@@ -125,7 +125,7 @@ class IndependentRandomVariable(Generic[Array]):
             ],
             axis=0,
         )
-        return self._bkd.prod(marginal_vals, axis=0)[None, :]
+        return self._bkd.prod(marginal_vals, axis=0, keepdims=True)
 
     def logpdf(self, samples: Array) -> Array:
         """
@@ -149,7 +149,7 @@ class IndependentRandomVariable(Generic[Array]):
             ],
             axis=0,
         )
-        return self._bkd.sum(marginal_vals, axis=0)[None, :]
+        return self._bkd.sum(marginal_vals, axis=0, keepdims=True)
 
     def __repr__(self) -> str:
         """
@@ -223,7 +223,43 @@ class IndependentMarginalsVariableWithJacobian(Generic[Array]):
         self._base_random_variable = IndependentRandomVariable(
             univariate_marginals
         )
+        self._validate_univariate_marginals(univariate_marginals)
+        self._univariate_marginals = univariate_marginals
         self._bkd = self._base_random_variable._bkd
+
+    def _validate_univariate_marginals(
+        self,
+        univariate_marginals: Sequence[MarginalWithJacobianProtocol[Array]],
+    ) -> None:
+        """
+        Validate the univariate marginals.
+
+        Parameters
+        ----------
+        univariate_marginals : Sequence[MarginalWithJacobianProtocol[Array]]
+            The univariate marginals to validate.
+
+        Raises
+        ------
+        ValueError
+            If the marginals are empty or have inconsistent backends.
+        TypeError
+            If any marginal is not an instance of MarginalWithJacobianProtocol or uses an
+            invalid backend.
+        """
+        if len(univariate_marginals) == 0:
+            raise ValueError("Univariate marginals cannot be empty.")
+
+        # Validate that each marginal is an instance of MarginalWithJacobianProtocol
+        for marginal in univariate_marginals:
+            if not isinstance(marginal, MarginalWithJacobianProtocol):
+                raise TypeError(
+                    f"Invalid marginal type: expected an instance of "
+                    f"MarginalWithJacobianProtocol, got {type(marginal).__name__}."
+                )
+
+        # Validate backend consistency
+        validate_backends([marginal._bkd for marginal in univariate_marginals])
 
     def marginals(self) -> Sequence[MarginalWithJacobianProtocol[Array]]:
         """
@@ -234,7 +270,7 @@ class IndependentMarginalsVariableWithJacobian(Generic[Array]):
         marginals : Sequence[MarginalWithJacobianProtocol[Array]]
             The univariate marginals.
         """
-        return self._base_random_variable.marginals()
+        return self._univariate_marginals
 
     def nvars(self) -> int:
         """
@@ -306,7 +342,7 @@ class IndependentMarginalsVariableWithJacobian(Generic[Array]):
         """
         return self._base_random_variable.domain()
 
-    def pdf_jacobians(self, samples: Array) -> Array:
+    def jacobians(self, samples: Array) -> Array:
         """
         Compute the Jacobian of the joint PDF at multiple samples.
 
@@ -330,7 +366,7 @@ class IndependentMarginalsVariableWithJacobian(Generic[Array]):
         )
         return self._bkd.stack(
             [
-                marginal.pdf_jacobian(samples[ii])
+                marginal.jacobian(samples[ii])
                 * self._bkd.prod(pdf_vals[:ii], axis=0)
                 * self._bkd.prod(pdf_vals[ii + 1 :], axis=0)
                 for ii, marginal in enumerate(self.marginals())
