@@ -159,7 +159,7 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def meshgrid(
-        *arrays: Array, indexing: str = "xy"
+        arrays: Tuple[Array, ...], indexing: str = "xy"
     ) -> Tuple[Array, ...]: ...
 
     @staticmethod
@@ -200,8 +200,8 @@ class Backend(Protocol, Generic[Array]):
     # ) -> Array: ...
 
     # Overload 1: arange(stop)
-    @overload
     @staticmethod
+    @overload
     def arange(stop: Union[int, float], /) -> Array:
         """
         Overload for when only `stop` is provided.
@@ -209,8 +209,8 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     # Overload 2: arange(start, stop)
-    @overload
     @staticmethod
+    @overload
     def arange(start: Union[int, float], stop: Union[int, float], /) -> Array:
         """
         Overload for when `start` and `stop` are provided.
@@ -218,8 +218,8 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     # Overload 3: arange(start, stop, step)
-    @overload
     @staticmethod
+    @overload
     def arange(
         start: Union[int, float],
         stop: Union[int, float],
@@ -232,8 +232,8 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     # Overload 4: Allow keyword arguments including dtype
-    @overload
     @staticmethod
+    @overload
     def arange(
         *args: Union[int, float],
         dtype: Optional[Any] = None,
@@ -261,9 +261,33 @@ class Backend(Protocol, Generic[Array]):
     ) -> Array: ...
 
     @staticmethod
-    def any(
-        array: Array, axis: Optional[int] = None, keepdims: bool = False
-    ) -> Array: ...
+    def any_bool(
+        array: Array,
+        keepdims: bool = False,
+    ) -> bool:
+        """
+        Overload for any when `axis` is None. Returns a scalar boolean.
+        """
+        ...
+
+    @staticmethod
+    def any_array(
+        array: Array,
+        axis: int,
+        keepdims: bool = False,
+    ) -> Array:
+        """
+        Overload for any when `axis` is specified. Returns an array.
+        """
+        ...
+
+    # @staticmethod
+    # def any(
+    #     array: Array, axis: Optional[int] = None, **kwargs: Any
+    # ) -> Union[bool, Array]: ...
+
+    @staticmethod
+    def any(array: Array, *args: Any, **kwargs: Any) -> Union[bool, Array]: ...
 
     @staticmethod
     def log(array: Array) -> Array: ...
@@ -282,6 +306,23 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def isfinite(array: Array) -> Array: ...
+
+    @staticmethod
+    def nonzero(condition: Array) -> Array: ...
+
+    @staticmethod
+    def norm(
+        array: Array,
+        ord: Optional[Union[int, float, str]] = None,
+        axis: Optional[Union[int, Tuple[int, int]]] = None,
+        keepdims: bool = False,
+    ) -> Array: ...
+
+    @staticmethod
+    def sign(array: Array) -> Array: ...
+
+    @staticmethod
+    def sqrt(array: Array) -> Array: ...
 
 
 def validate_backend(obj: Any) -> None:

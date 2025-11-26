@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union, Sequence, List, Tuple, overload
+from typing import Any, Optional, Union, Sequence, List, Tuple, overload, cast
 
 from numpy.typing import NDArray
 import numpy as np
@@ -107,7 +107,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def meshgrid(
-        *arrays: NDArray[Any], indexing: str = "xy"
+        arrays: Tuple[NDArray[Any], ...], indexing: str = "xy"
     ) -> Tuple[NDArray[Any], ...]:
         return np.meshgrid(*arrays, indexing=indexing)
 
@@ -121,15 +121,15 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: Optional[Union[int, Tuple[int, ...]]] = None,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return np.sum(array, axis=axis, keepdims=keepdims)
+        return np.asarray(np.sum(array, axis=axis, keepdims=keepdims))
 
     @staticmethod
     def sin(array: NDArray[Any]) -> NDArray[Any]:
-        return np.sin(array)
+        return cast(NDArray[Any], np.sin(array))
 
     @staticmethod
     def cos(array: NDArray[Any]) -> NDArray[Any]:
-        return np.cos(array)
+        return cast(NDArray[Any], np.cos(array))
 
     @staticmethod
     def full(
@@ -159,21 +159,30 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: Optional[int] = None,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return np.prod(array, axis=axis, keepdims=keepdims)
+        return np.asarray(np.prod(array, axis=axis, keepdims=keepdims))
 
     @staticmethod
-    def any(
-        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+    def any_bool(
+        array: NDArray[Any],
+        keepdims: bool = False,
+    ) -> bool:
+        return np.any(array, axis=None, keepdims=keepdims)
+
+    @staticmethod
+    def any_array(
+        array: NDArray[Any],
+        axis: int,
+        keepdims: bool = False,
     ) -> NDArray[Any]:
         return np.any(array, axis=axis, keepdims=keepdims)
 
     @staticmethod
     def log(array: NDArray[Any]) -> NDArray[Any]:
-        return np.log(array)
+        return cast(NDArray[Any], np.log(array))
 
     @staticmethod
     def exp(array: NDArray[Any]) -> NDArray[Any]:
-        return np.exp(array)
+        return np.asarray(np.exp(array))
 
     @staticmethod
     def copy(array: NDArray[Any]) -> NDArray[Any]:
@@ -189,4 +198,25 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def isfinite(array: NDArray[Any]) -> NDArray[Any]:
-        return np.isfinite(array)
+        return cast(NDArray[Any], np.isfinite(array))
+
+    @staticmethod
+    def nonzero(condition: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.nonzero(condition))
+
+    @staticmethod
+    def norm(
+        array: NDArray[Any],
+        ord: Optional[Union[int, float, str]] = None,
+        axis: Optional[Union[int, Tuple[int, int]]] = None,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return np.asarray(np.linalg.norm(array, ord, axis, keepdims))
+
+    @staticmethod
+    def sign(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.sign(array))
+
+    @staticmethod
+    def sqrt(array: NDArray[Any]) -> NDArray[Any]:
+        return np.sqrt(array)

@@ -1,12 +1,13 @@
 import unittest
-from typing import Type
 
 import numpy as np
+from numpy.typing import NDArray
+import torch
 
-from pyapprox.util.backends.template import Array
-from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.util.backends.torch import TorchMixin
-from pyapprox.optimization.newton import (
+from pyapprox.typing.util.backends.template import Array, Backend
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBKd
+from pyapprox.typing.optimization.newton import (
     NewtonResidual,
     BisectionSearch,
     BisectionResidual,
@@ -90,15 +91,22 @@ class TestNewton:
         assert bkd.allclose(roots, bkd.sqrt(residual._rhs))
 
 
-class TestNumpyNewton(TestNewton, unittest.TestCase):
-    def get_backend(self) -> Type[NumpyMixin]:
-        return NumpyMixin
+# Derived test class for NumPy backend
+class TestNewtonNumpy(TestNewton[NDArray[Any]], unittest.TestCase):
+    def setUp(self) -> None:
+        self._bkd = NumpyBkd()
+        super().setUp()
+
+    def bkd(self) -> NumpyBkd:
+        return self._bkd
 
 
-class TestTorchNewton(TestNewton, unittest.TestCase):
-    def get_backend(self) -> Type[TorchMixin]:
-        return TorchMixin
+# Derived test class for PyTorch backend
+class TestNewtonTorch(TestNewton[torch.Tensor], unittest.TestCase):
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+        super().setUp()
 
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    def bkd(self) -> Backend[torch.Tensor]:
+        return self._bkd
