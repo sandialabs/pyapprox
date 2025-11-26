@@ -229,3 +229,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def sqrt(array: torch.Tensor) -> torch.Tensor:
         return torch.sqrt(array)
+
+    @staticmethod
+    def solve(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
+        return torch.linalg.solve(Amat, Bmat)
