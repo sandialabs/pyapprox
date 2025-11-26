@@ -78,6 +78,18 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.stack(arrays, axis=axis)
 
     @staticmethod
+    def hstack(
+        arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
+    ) -> NDArray[Any]:
+        return np.hstack(arrays)
+
+    @staticmethod
+    def vstack(
+        arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
+    ) -> NDArray[Any]:
+        return np.vstack(arrays)
+
+    @staticmethod
     def linspace(start: float, stop: float, num: int) -> NDArray[Any]:
         return np.linspace(start, stop, num)
 
@@ -174,3 +186,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def erfinv(array: NDArray[Any]) -> NDArray[Any]:
         return scipy.special.erfinv(array)
+
+    @staticmethod
+    def isfinite(array: NDArray[Any]) -> NDArray[Any]:
+        return np.isfinite(array)

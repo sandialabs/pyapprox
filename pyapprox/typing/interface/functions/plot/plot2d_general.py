@@ -1,8 +1,11 @@
+from typing import Any, Generic, Tuple
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # type: ignore
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.tri import Triangulation
-from typing import Any, Generic
+
 from pyapprox.typing.util.backend import Array
 from pyapprox.typing.interface.functions.function import (
     FunctionProtocol,
@@ -29,6 +32,8 @@ class Plotter2DGeneralDomain(Generic[Array]):
 
     def __init__(self, function: FunctionProtocol[Array]):
         validate_function(function)
+        if function.nvars() != 2:
+            raise ValueError("Can only plot functions with nvars() == 2")
         self._bkd = function._bkd
         self._function = function
 
@@ -123,3 +128,12 @@ class Plotter2DGeneralDomain(Generic[Array]):
             Z,
             **kwargs,
         )
+
+    def __repr__(self) -> str:
+        return "{0}".format(self.__class__.__name__)
+
+    def figure(self) -> Tuple[Figure, Axes]:
+        return plt.subplots(1, 1, figsize=(8, 6))
+
+    def show(self) -> None:
+        return plt.show()

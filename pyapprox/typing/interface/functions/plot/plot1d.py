@@ -1,7 +1,9 @@
-# plotter1d.py
+from typing import Any, List, Sequence, Generic, Union, Tuple
 
+import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
-from typing import Any, List, Sequence, Generic
+from matplotlib.figure import Figure
+
 from pyapprox.typing.interface.functions.function import (
     FunctionProtocol,
     validate_function,
@@ -22,17 +24,25 @@ class Plotter1D(Generic[Array]):
     """
 
     def __init__(
-        self, function: FunctionProtocol[Array], plot_limits: Sequence[Any]
+        self,
+        function: FunctionProtocol[Array],
+        plot_limits: Union[Sequence[Any], Array],
     ):
         validate_function(function)
+        if function.nvars() != 1:
+            raise ValueError("Can only plot functions with nvars() == 1")
         self._bkd = function._bkd
         self._function = function
+        self._validate_plot_limits(plot_limits)
+        self._plot_limits = plot_limits
 
+    def _validate_plot_limits(self, plot_limits: Union[Sequence[Any], Array]):
         if len(plot_limits) != 2:
             raise ValueError(
                 "plot_limits must have exactly 2 entries: [x_min, x_max]."
             )
-        self._plot_limits = plot_limits
+        if self._bkd.any(~self._bkd.isfinite(self._bkd.asarray(plot_limits))):
+            raise ValueError(f"plot limits {plot_limits} must be finite")
 
     def plot(
         self,
@@ -68,3 +78,9 @@ class Plotter1D(Generic[Array]):
             self._bkd.to_numpy(self._function(plot_xx))[qoi],
             **kwargs,
         )
+
+    def __repr__(self) -> str:
+        return "{0}({1})".format(self.__class__.__name__, self._plot_limits)
+
+    def figure(self) -> Tuple[Figure, Axes]:
+        return plt.subplots(1, 1, figsize=(8, 6))

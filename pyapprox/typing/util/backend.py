@@ -136,6 +136,16 @@ class Backend(Protocol, Generic[Array]):
     ) -> Array: ...
 
     @staticmethod
+    def hstack(
+        arrays: Union[List[Array], Tuple[Array, ...]],
+    ) -> Array: ...
+
+    @staticmethod
+    def vstack(
+        arrays: Union[List[Array], Tuple[Array, ...]],
+    ) -> Array: ...
+
+    @staticmethod
     def linspace(start: float, stop: float, num: int) -> Array: ...
 
     @staticmethod
@@ -269,6 +279,9 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def erfinv(array: Array) -> Array: ...
+
+    @staticmethod
+    def isfinite(array: Array) -> Array: ...
 
 
 def validate_backend(obj: Any) -> None:

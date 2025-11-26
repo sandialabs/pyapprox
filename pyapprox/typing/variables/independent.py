@@ -1,10 +1,21 @@
-from typing import Sequence, Generic, Protocol, runtime_checkable, Union
+from typing import (
+    Sequence,
+    Generic,
+    Protocol,
+    runtime_checkable,
+    Union,
+    Optional,
+)
 
 import numpy as np
 
 from pyapprox.typing.util.backend import Array, validate_backends
 from pyapprox.typing.interface.functions.function import validate_samples
 from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.interface.functions.plot.plot1d import Plotter1D
+from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
+    Plotter2DRectangularDomain,
+)
 
 
 @runtime_checkable
@@ -92,6 +103,12 @@ class IndependentRandomVariable(Generic[Array]):
         """
         return len(self._univariate_marginals)
 
+    def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest in the function.
+        """
+        return 1
+
     def marginals(self) -> Sequence[MarginalProtocol[Array]]:
         """
         Return the univariate marginals.
@@ -103,7 +120,7 @@ class IndependentRandomVariable(Generic[Array]):
         """
         return self._univariate_marginals
 
-    def pdf(self, samples: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate the joint probability distribution function.
 
@@ -205,8 +222,28 @@ class IndependentRandomVariable(Generic[Array]):
             axis=0,
         )
 
+    def plotter(
+        self, plot_limits: Optional[Array] = None
+    ) -> Union[Plotter1D[Array], Plotter2DRectangularDomain[Array]]:
+        if self.nvars() > 2:
+            raise NotImplementedError(
+                "Only 1D and 2D functions can be plotted"
+            )
+        if not self.is_bounded() and plot_limits is None:
+            raise ValueError(
+                "Must provide plot limits because variable is unbounded"
+            )
+        if plot_limits is None:
+            plot_limits = self._bkd.flatten(self.domain())
+        if self.nvars() == 1:
+            return Plotter1D(self, plot_limits)
+        return Plotter2DRectangularDomain(self, plot_limits)
 
-class IndependentMarginalsVariableWithJacobian(Generic[Array]):
+    def is_bounded(self) -> bool:
+        return all([marginal.is_bounded() for marginal in self.marginals()])
+
+
+class IndependentRandomVariableWithJacobian(Generic[Array]):
     """
     Represents a random variable with independent marginals and Jacobian functionality.
 
@@ -283,7 +320,13 @@ class IndependentMarginalsVariableWithJacobian(Generic[Array]):
         """
         return self._base_random_variable.nvars()
 
-    def pdf(self, samples: Array) -> Array:
+    def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest in the function.
+        """
+        return 1
+
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate the joint probability distribution function.
 
@@ -297,7 +340,7 @@ class IndependentMarginalsVariableWithJacobian(Generic[Array]):
         values : Array (1, nsamples)
             The values of the PDF at x.
         """
-        return self._base_random_variable.pdf(samples)
+        return self._base_random_variable(samples)
 
     def logpdf(self, samples: Array) -> Array:
         """
@@ -364,14 +407,13 @@ class IndependentMarginalsVariableWithJacobian(Generic[Array]):
             ],
             axis=0,
         )
-        return self._bkd.stack(
+        return self._bkd.hstack(
             [
                 marginal.jacobian(samples[ii])
                 * self._bkd.prod(pdf_vals[:ii], axis=0)
                 * self._bkd.prod(pdf_vals[ii + 1 :], axis=0)
                 for ii, marginal in enumerate(self.marginals())
-            ],
-            axis=0,
+            ]
         )
 
     def logpdf_jacobians(self, samples: Array) -> Array:
@@ -389,10 +431,28 @@ class IndependentMarginalsVariableWithJacobian(Generic[Array]):
             The Jacobian of the joint log PDF.
         """
         validate_samples(self.nvars(), samples)
-        return self._bkd.stack(
+        return self._bkd.hstack(
             [
                 marginal.logpdf_jacobian(samples[ii])
                 for ii, marginal in enumerate(self.marginals())
-            ],
-            axis=1,
+            ]
+        )
+
+    def plotter(
+        self, plot_limits: Optional[Array] = None
+    ) -> Union[Plotter1D[Array], Plotter2DRectangularDomain[Array]]:
+        return self._base_random_variable.plotter(plot_limits)
+
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the object.
+
+        Returns
+        -------
+        repr : str
+            A string representation of the object.
+        """
+        return (
+            f"{self.__class__.__name__}(nvars={self.nvars()}, "
+            f"backend={type(self._bkd).__name__})"
         )
