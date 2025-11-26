@@ -141,3 +141,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         dtype: Optional[Any] = None,
     ) -> NDArray[Any]:
         return np.arange(start, stop, step, dtype=dtype)
+
+    @staticmethod
+    def prod(array: NDArray[Any], axis: Optional[int] = None) -> NDArray[Any]:
+        return np.prod(array, axis=axis)

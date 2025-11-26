@@ -146,3 +146,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
         return torch.arange(start, stop, step, dtype=dtype)
+
+    @staticmethod
+    def prod(array: torch.Tensor, axis: Optional[int] = None) -> torch.Tensor:
+        if axis is None:
+            return torch.prod(array)
+        return torch.prod(array, dim=axis)
