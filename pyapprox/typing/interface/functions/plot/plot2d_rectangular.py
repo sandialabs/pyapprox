@@ -1,8 +1,10 @@
-# plotter2d_rectangular.py
+from typing import Any, Sequence, Union, Tuple, Generic
+
+import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # type: ignore
 from matplotlib.contour import QuadContourSet
 from matplotlib.axes import Axes
-from typing import Any, Sequence, Union, Tuple, Generic
+from matplotlib.figure import Figure
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.interface.functions.function import (
     FunctionProtocol,
@@ -12,7 +14,7 @@ from pyapprox.typing.interface.functions.function import (
 
 def meshgrid_samples(
     num_pts_1d: Union[int, Sequence[int]],
-    plot_limits: Sequence[Any],
+    plot_limits: Union[Array, Sequence[Any]],
     bkd: Backend[Array],
     logspace: bool = False,
 ) -> Tuple[Array, Array, Array]:
@@ -75,19 +77,26 @@ class Plotter2DRectangularDomain(Generic[Array]):
     """
 
     def __init__(
-        self, function: FunctionProtocol[Array], plot_limits: Sequence[Any]
+        self,
+        function: FunctionProtocol[Array],
+        plot_limits: Union[Sequence[Any], Array],
     ):
         validate_function(function)
+        if function.nvars() != 2:
+            raise ValueError("Can only plot functions with nvars() == 2")
         self._bkd = function._bkd
-
         self._function = function
+        self._validate_plot_limits(plot_limits)
+        self._plot_limits = plot_limits
 
+    def _validate_plot_limits(self, plot_limits: Union[Sequence[Any], Array]):
         if len(plot_limits) != 4:
             raise ValueError(
                 "plot_limits must have exactly 4 entries: "
                 "[x_min, x_max, y_min, y_max]."
             )
-        self._plot_limits = plot_limits
+        if self._bkd.any(~self._bkd.isfinite(self._bkd.asarray(plot_limits))):
+            raise ValueError(f"plot limits {plot_limits} must be finite")
 
     def plot_surface(
         self,
@@ -184,3 +193,9 @@ class Plotter2DRectangularDomain(Generic[Array]):
         if isinstance(ax, Axes3D):
             return self.plot_surface(ax, qoi, npts_1d, **kwargs)
         return self.plot_contours(ax, qoi, npts_1d, **kwargs)
+
+    def __repr__(self) -> str:
+        return "{0}({1})".format(self.__class__.__name__, self._plot_limits)
+
+    def figure(self) -> Tuple[Figure, Axes]:
+        return plt.subplots(1, 1, figsize=(8, 6))

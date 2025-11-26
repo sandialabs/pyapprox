@@ -63,7 +63,7 @@ class GaussianMarginal(Generic[Array]):
         """
         return False
 
-    def pdf(self, samples: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate the probability density function (PDF).
 
@@ -136,6 +136,29 @@ class GaussianMarginal(Generic[Array]):
             math.sqrt(2.0) * self._bkd.erfinv(2.0 * usamples - 1.0)
         ) * self._stdev + self._mean
 
+    def jacobian(self, samples: Array) -> Array:
+        """
+        Compute the Jacobian of the PDF.
+
+        Parameters
+        ----------
+        samples : Array
+            Points at which to compute the Jacobian.
+
+        Returns
+        -------
+        jacobian : Array
+            The Jacobian of the PDF.
+        """
+        # Compute the PDF values
+        pdf_vals = self(samples)
+
+        # Compute the log PDF Jacobian
+        logpdf_jacobian_vals = self.logpdf_jacobian(samples)
+
+        # Use the chain rule: PDF' = PDF * logPDF'
+        return self._bkd.reshape(pdf_vals * logpdf_jacobian_vals, (1, -1))
+
     def logpdf_jacobian(self, samples: Array) -> Array:
         """
         Compute the Jacobian of the log PDF.
@@ -153,28 +176,6 @@ class GaussianMarginal(Generic[Array]):
         return self._bkd.reshape(
             (-(samples - self._mean) / self._var), (1, -1)
         )
-
-    def pdf_jacobian_implemented(self) -> bool:
-        """
-        Check if the PDF Jacobian is implemented.
-
-        Returns
-        -------
-        implemented : bool
-            True for Gaussian distribution.
-        """
-        return True
-
-    def logpdf_jacobian_implemented(self) -> bool:
-        """
-        Check if the log PDF Jacobian is implemented.
-
-        Returns
-        -------
-        implemented : bool
-            True for Gaussian distribution.
-        """
-        return True
 
     def mean(self) -> float:
         """
@@ -256,6 +257,28 @@ class GaussianMarginal(Generic[Array]):
         """
         usamples = self._bkd.asarray(np.random.uniform(0, 1, nsamples))
         return self.ppf(usamples)
+
+    def interval(self, alpha: float) -> Array:
+        """
+        Compute the interval with a given probability content alpha.
+
+        Parameters
+        ----------
+        alpha : float
+            The probability content of the interval.
+
+        Returns
+        -------
+        interval : Array
+            The interval, represented as a pair of values.
+
+        Notes
+        -----
+        The interval is calculated using the formula for the interval with a
+        given probability content, based on the quantile function ppf.
+        """
+        eps = (1.0 - alpha) / 2.0
+        return self.ppf(self._bkd.array([eps, 1 - eps]))
 
     def __repr__(self) -> str:
         """

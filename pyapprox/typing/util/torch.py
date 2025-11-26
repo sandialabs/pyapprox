@@ -81,6 +81,18 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.stack(arrays, dim=axis)
 
     @staticmethod
+    def hstack(
+        arrays: Union[List[torch.Tensor], Tuple[torch.Tensor, ...]],
+    ) -> torch.Tensor:
+        return torch.hstack(arrays)
+
+    @staticmethod
+    def vstack(
+        arrays: Union[List[torch.Tensor], Tuple[torch.Tensor, ...]],
+    ) -> torch.Tensor:
+        return torch.vstack(arrays)
+
+    @staticmethod
     def linspace(start: float, stop: float, num: int) -> torch.Tensor:
         return torch.linspace(start, stop, num)
 
@@ -89,7 +101,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.logspace(start, stop, num)
 
     @staticmethod
-    def to_numpy(array: torch.Tensor) -> NDArray[Any]:
+    def to_numpy(array: torch.Tensor) -> torch.Tensor:
         return array.numpy()
 
     @staticmethod
@@ -179,3 +191,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def erfinv(array: torch.Tensor) -> torch.Tensor:
         return torch.erfinv(array)
+
+    @staticmethod
+    def isfinite(array: torch.Tensor) -> torch.Tensor:
+        return torch.isfinite(array)
