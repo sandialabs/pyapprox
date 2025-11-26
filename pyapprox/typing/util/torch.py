@@ -167,3 +167,15 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def exp(array: torch.Tensor) -> torch.Tensor:
         return torch.exp(array)
+
+    @staticmethod
+    def copy(array: torch.Tensor) -> torch.Tensor:
+        return array.clone()
+
+    @staticmethod
+    def erf(array: torch.Tensor) -> torch.Tensor:
+        return torch.erf(array)
+
+    @staticmethod
+    def erfinv(array: torch.Tensor) -> torch.Tensor:
+        return torch.erfinv(array)

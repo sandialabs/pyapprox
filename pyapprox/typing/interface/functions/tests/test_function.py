@@ -152,7 +152,9 @@ class TestFunction3D(Generic[Array], AbstractTestCase):
         """
         Example function: Z = sum(sin(x_i)) for i in 1, 2, 3
         """
-        return self.bkd().sum(self.bkd().sin(samples), axis=0)[None, :]
+        return self.bkd().reshape(
+            self.bkd().sum(self.bkd().sin(samples), axis=0), (1, -1)
+        )
 
     def example_jacobian(self, sample: Array) -> Array:
         """

@@ -1,6 +1,8 @@
 from typing import Any, Optional, Union, Sequence, List, Tuple, overload
+
 from numpy.typing import NDArray
 import numpy as np
+import scipy
 
 from pyapprox.typing.util.backend import Backend
 
@@ -160,3 +162,15 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def exp(array: NDArray[Any]) -> NDArray[Any]:
         return np.exp(array)
+
+    @staticmethod
+    def copy(array: NDArray[Any]) -> NDArray[Any]:
+        return array.copy()
+
+    @staticmethod
+    def erf(array: NDArray[Any]) -> NDArray[Any]:
+        return scipy.special.erf(array)
+
+    @staticmethod
+    def erfinv(array: NDArray[Any]) -> NDArray[Any]:
+        return scipy.special.erfinv(array)

@@ -261,6 +261,15 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def exp(array: Array) -> Array: ...
 
+    @staticmethod
+    def copy(array: Array) -> Array: ...
+
+    @staticmethod
+    def erf(array: Array) -> Array: ...
+
+    @staticmethod
+    def erfinv(array: Array) -> Array: ...
+
 
 def validate_backend(obj: Any) -> None:
     """
