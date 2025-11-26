@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union, Sequence, List, Tuple
+from typing import Any, Optional, Union, Sequence, List, Tuple, overload
 from numpy.typing import NDArray
 import numpy as np
 
@@ -103,9 +103,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def sum(
-        array: NDArray[Any], axis: Optional[Union[int, Tuple[int, ...]]] = None
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
     ) -> NDArray[Any]:
-        return np.sum(array, axis=axis)
+        return np.sum(array, axis=axis, keepdims=keepdims)
 
     @staticmethod
     def sin(array: NDArray[Any]) -> NDArray[Any]:
@@ -134,14 +136,27 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.ones(shape, dtype=dtype)
 
     @staticmethod
-    def arange(
-        start: Union[int, float],
-        stop: Union[int, float],
-        step: Union[int, float] = 1,
-        dtype: Optional[Any] = None,
-    ) -> NDArray[Any]:
-        return np.arange(start, stop, step, dtype=dtype)
+    def arange(*args: Any, **kwargs: Any) -> NDArray[Any]:
+        return np.arange(*args, **kwargs)
 
     @staticmethod
-    def prod(array: NDArray[Any], axis: Optional[int] = None) -> NDArray[Any]:
-        return np.prod(array, axis=axis)
+    def prod(
+        array: NDArray[Any],
+        axis: Optional[int] = None,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return np.prod(array, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def any(
+        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+    ) -> NDArray[Any]:
+        return np.any(array, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def log(array: NDArray[Any]) -> NDArray[Any]:
+        return np.log(array)
+
+    @staticmethod
+    def exp(array: NDArray[Any]) -> NDArray[Any]:
+        return np.exp(array)
