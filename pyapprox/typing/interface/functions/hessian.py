@@ -37,7 +37,7 @@ class FunctionWithJacobianApplyHessianFromCallable(
             )
         self._hvp: Callable[[Array, Array], Array] = hvp
 
-    def apply_hessian(self, sample: Array, vec: Array) -> Array:
+    def hvp(self, sample: Array, vec: Array) -> Array:
         validate_sample(self.nvars(), sample)
         validate_vector_for_apply(self.nvars(), vec)
         hvp = self._hvp(sample, vec)

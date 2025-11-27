@@ -9,7 +9,7 @@ from typing import (
 
 import numpy as np
 
-from pyapprox.typing.util.backend import Array, validate_backends
+from pyapprox.typing.util.validate_backend import validate_backends
 from pyapprox.typing.interface.functions.function import validate_samples
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.interface.functions.plot.plot1d import Plotter1D

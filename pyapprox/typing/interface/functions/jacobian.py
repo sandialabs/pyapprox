@@ -29,7 +29,7 @@ def validate_jacobians(
 def validate_vector_for_apply(nvars: int, vec: Array) -> None:
     """
     Validate that the vector has the correct shape for apply operations
-    (e.g., apply_jacobian).
+    (e.g., jvp).
 
     Parameters
     ----------

@@ -1,51 +1,43 @@
-from typing import Protocol, Generic, runtime_checkable
+from typing import Protocol, Generic, runtime_checkable, Union, Any
 
-from pyapprox.typing.util.backend import Array
-from pyapprox.typing.interface.functions.function import FunctionProtocol
-
-
-class JacobianProtocol(Protocol, Generic[Array]):
-    """
-    Protocol for functions with Jacobian functionality.
-    """
-
-    def jacobian(self, sample: Array) -> Array:
-        pass
-
-
-class ApplyJacobianProtocol(Protocol, Generic[Array]):
-    """
-    Protocol for functions that implement Jacobian-vector product.
-    """
-
-    def apply_jacobian(self, sample: Array, vec: Array) -> Array:
-        """
-        Apply the Jacobian to a vector.
-
-        Parameters
-        ----------
-        x : Array
-            Input array of shape (nvars,).
-        vce : Array
-            Vector to apply the Jacobian to, of shape (nvars,).
-
-        Returns
-        -------
-        Array
-            Result of Jacobian-vector product of shape (nqoi,).
-        """
-        ...
+from pyapprox.typing.util.backend import Array, Backend
 
 
 @runtime_checkable
-class FunctionWithJacobianProtocol(
-    FunctionProtocol[Array], JacobianProtocol[Array], Protocol
-):
-    pass
+class FunctionWithJacobianProtocol(Protocol, Generic[Array]):
+    def bkd(self) -> Backend[Array]: ...
+
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
+
+    def __call__(self, samples: Array) -> Array: ...
+
+    def jacobian(self, sample: Array) -> Array: ...
 
 
 @runtime_checkable
-class FunctionWithApplyJacobianProtocol(
-    FunctionProtocol[Array], ApplyJacobianProtocol[Array], Protocol
-):
-    pass
+class FunctionWithJVPProtocol(Protocol, Generic[Array]):
+    def bkd(self) -> Backend[Array]: ...
+
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
+
+    def __call__(self, samples: Array) -> Array: ...
+
+    def jvp(self, sample: Array, vec: Array) -> Array: ...
+
+
+FunctionWithJacobianOrJVPProtocol = Union[
+    FunctionWithJacobianProtocol[Array],
+    FunctionWithJVPProtocol[Array],
+]
+
+
+def function_has_jacobian_or_jvp(function: Any) -> bool:
+    if not isinstance(
+        function, FunctionWithJacobianProtocol
+    ) and not isinstance(function, FunctionWithJVPProtocol):
+        return False
+    return True

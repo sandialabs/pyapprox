@@ -224,7 +224,23 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.sqrt(array)
 
     @staticmethod
+    def solve(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.solve(Amat, Bmat)
+
+    @staticmethod
     def flip(
         array: NDArray[Any], axis: Optional[Tuple[int]] = None
     ) -> NDArray[Any]:
         return np.flip(array, axis=axis)
+
+    @staticmethod
+    def min(
+        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+    ) -> NDArray[Any]:
+        return np.min(array, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def max(
+        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+    ) -> NDArray[Any]:
+        return np.max(array, axis=axis, keepdims=keepdims)

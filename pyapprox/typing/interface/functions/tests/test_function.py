@@ -94,7 +94,7 @@ class TestFunction1D(Generic[Array], AbstractTestCase):
 
     def test_hvp(self) -> None:
         sample = self.samples[:, :1]
-        hvp = self.function_with_hessian.apply_hessian(sample, self.vec)
+        hvp = self.function_with_hessian.hvp(sample, self.vec)
         self.assertEqual(hvp.shape, (self.nvars,))
         self.bkd().assert_allclose(hvp, -self.bkd().sin(sample) * self.vec)
 
@@ -181,7 +181,7 @@ class TestFunction3D(Generic[Array], AbstractTestCase):
 
     def test_hvp(self) -> None:
         sample = self.samples[:, :1]
-        hvp = self.function_with_hessian.apply_hessian(sample, self.vec)
+        hvp = self.function_with_hessian.hvp(sample, self.vec)
         self.assertEqual(hvp.shape, (self.nvars,))
         self.bkd().assert_allclose(hvp, self.example_hvp(sample, self.vec))
 
