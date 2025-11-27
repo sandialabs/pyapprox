@@ -333,3 +333,13 @@ class Backend(Protocol, Generic[Array]):
     def max(
         array: Array, axis: Optional[int] = None, keepdims: bool = False
     ) -> Array: ...
+
+    @staticmethod
+    def einsum(subscripts: str, *operands: Array) -> Array: ...
+
+    @staticmethod
+    def moveaxis(
+        array: Array,
+        source: Union[int, tuple[int, ...]],
+        destination: Union[int, tuple[int, ...]],
+    ) -> Array: ...

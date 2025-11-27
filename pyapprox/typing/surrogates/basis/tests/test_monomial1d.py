@@ -64,6 +64,7 @@ class TestMonomialBasis1DTorch(
     TestMonomialBasis1D[torch.Tensor], unittest.TestCase
 ):
     def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         super().setUp()
 
