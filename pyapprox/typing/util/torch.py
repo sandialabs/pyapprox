@@ -208,7 +208,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.isfinite(array)
 
     @staticmethod
-    def nonzero(condition: torch.Tensor) -> torch.Tensor:
+    def nonzero(condition: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         return torch.nonzero(condition, as_tuple=True)
 
     @staticmethod
@@ -232,7 +232,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def solve(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
-        return torch.linalg.solve(Amat, Bmat)
+        return cast(torch.Tensor, torch.linalg.solve(Amat, Bmat))
 
     @staticmethod
     def flip(
