@@ -233,3 +233,15 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def solve(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return torch.linalg.solve(Amat, Bmat)
+
+    @staticmethod
+    def flip(
+        array: torch.Tensor, axis: Optional[Tuple[int]] = None
+    ) -> torch.Tensor:
+        if axis is None:
+            dims = (0,)
+        elif isinstance(axis, int):
+            dims = (axis,)
+        else:
+            dims = axis
+        return torch.flip(array, dims=dims)

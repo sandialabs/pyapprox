@@ -1,30 +1,11 @@
-from typing import Protocol, Callable, runtime_checkable
+from typing import Callable
 
 from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.interface.functions.function import (
-    FunctionProtocol,
-    validate_sample,
-)
+from pyapprox.typing.interface.functions.function import validate_sample
 from pyapprox.typing.interface.functions.jacobian import (
-    JacobianProtocol,
     FunctionWithJacobianFromCallable,
     validate_vector_for_apply,
 )
-
-
-class ApplyHessianProtocol(Protocol):
-    """
-    Protocol for functions with Hessian functionality.
-    """
-
-    def apply_hessian(self, sample: Array, vec: Array) -> Array: ...
-
-
-@runtime_checkable
-class FunctionWithJacobianApplyHessianProtocol(
-    FunctionProtocol, JacobianProtocol, ApplyHessianProtocol, Protocol
-):
-    pass
 
 
 def validate_hvp(nvars: int, hvp: Array) -> None:

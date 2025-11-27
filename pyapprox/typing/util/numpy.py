@@ -211,7 +211,9 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: Optional[Union[int, Tuple[int, int]]] = None,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return np.asarray(np.linalg.norm(array, ord, axis, keepdims))
+        return np.asarray(
+            np.linalg.norm(array, ord=ord, axis=axis, keepdims=keepdims)
+        )
 
     @staticmethod
     def sign(array: NDArray[Any]) -> NDArray[Any]:
@@ -222,5 +224,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.sqrt(array)
 
     @staticmethod
-    def solve(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
-        return np.linalg.solve(Amat, Bmat)
+    def flip(
+        array: NDArray[Any], axis: Optional[Tuple[int]] = None
+    ) -> NDArray[Any]:
+        return np.flip(array, axis=axis)

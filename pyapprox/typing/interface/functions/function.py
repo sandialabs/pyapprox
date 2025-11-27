@@ -10,7 +10,7 @@ class FunctionProtocol(Protocol, Generic[Array]):
     A protocol defining the required interface for a Function.
     """
 
-    _bkd: Backend[Array]
+    def bkd(self) -> Backend[Array]: ...
 
     def nvars(self) -> int:
         """
@@ -124,6 +124,9 @@ class FunctionFromCallable(Function[Array]):
         values = self._fun(samples)
         validate_values(self.nqoi(), samples, values)
         return values
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
 
 
 def validate_function(function: Any) -> None:

@@ -327,6 +327,9 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def solve(Amat: Array, Bmat: Array) -> Array: ...
 
+    @staticmethod
+    def flip(array: Array, axis: Optional[Tuple[int]] = None) -> Array: ...
+
 
 def validate_backend(obj: Any) -> None:
     """
