@@ -8,7 +8,9 @@ from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.util.numpy import NumpyBkd
 from pyapprox.typing.util.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
-from pyapprox.typing.surrogates.basis.multiindex_basis import MultiIndexBasis
+from pyapprox.typing.surrogates.basis.multiindex_basis_factory import (
+    multiindex_basis_factory,
+)
 from pyapprox.typing.surrogates.basis.monomial import MonomialBasis1D
 
 
@@ -33,7 +35,7 @@ class TestMultiIndexBasis(Generic[Array], AbstractTestCase):
 
         # Create multi-index basis
         indices = bkd.asarray([[0, 0], [1, 0], [0, 1], [1, 1]]).T
-        multi_index_basis = MultiIndexBasis([basis1, basis2], indices)
+        multi_index_basis = multiindex_basis_factory([basis1, basis2], indices)
 
         # Define samples
         samples = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -69,6 +71,7 @@ class TestMultiIndexBasisTorch(
     TestMultiIndexBasis[torch.Tensor], unittest.TestCase
 ):
     def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         super().setUp()
 

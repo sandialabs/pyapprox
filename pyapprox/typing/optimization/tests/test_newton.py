@@ -114,6 +114,7 @@ class TestNewtonSolverNumpy(TestNewtonSolver[Array], unittest.TestCase):
 # Derived test class for PyTorch backend
 class TestNewtonSolverTorch(TestNewtonSolver[torch.Tensor], unittest.TestCase):
     def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         super().setUp()
 

@@ -1,4 +1,12 @@
-from typing import Protocol, Generic, runtime_checkable, Sequence, List
+from typing import (
+    Protocol,
+    Generic,
+    runtime_checkable,
+    Sequence,
+    List,
+    Union,
+    overload,
+)
 
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.interface.functions.function import (
@@ -96,7 +104,7 @@ class MultiIndexBasis(Generic[Array]):
     def nvars(self) -> int:
         return len(self._bases_1d)
 
-    def _basis_vals_1d(self, samples: Array) -> List[Array]:
+    def _1d_basis_vals(self, samples: Array) -> List[Array]:
         return [
             basis_1d(samples[dd : dd + 1, :])
             for dd, basis_1d in enumerate(self._bases_1d)
@@ -104,7 +112,7 @@ class MultiIndexBasis(Generic[Array]):
 
     def __call__(self, samples: Array) -> Array:
         validate_samples(self.nvars(), samples)
-        basis_vals_1d = self._basis_vals_1d(samples)
+        basis_vals_1d = self._1d_basis_vals(samples)
         basis_matrix = basis_vals_1d[0][:, self._indices[0, :]]
         for dd in range(1, self.nvars()):
             basis_matrix *= basis_vals_1d[dd][:, self._indices[dd, :]]
@@ -114,3 +122,157 @@ class MultiIndexBasis(Generic[Array]):
         return "{0}(nvars={1}, nterms={2})".format(
             self.__class__.__name__, self.nvars(), self.nterms()
         )
+
+
+@runtime_checkable
+class Basis1DWithJacobiansProtocol(Protocol, Generic[Array]):
+    def bkd(self) -> Backend[Array]: ...
+
+    def set_nterms(self, nterms: int) -> None: ...
+
+    def nterms(self) -> int: ...
+
+    def __call__(self, samples: Array) -> Array: ...
+
+    def jacobians(self, samples: Array) -> Array: ...
+
+
+class MultiIndexBasisWithJacobian(Generic[Array]):
+    def __init__(
+        self,
+        univariate_bases: Sequence[Basis1DWithJacobiansProtocol[Array]],
+        indices: Array,
+    ):
+        self._basis = MultiIndexBasis(univariate_bases, indices)
+        self._univariate_bases = univariate_bases
+
+    def bkd(self) -> Backend[Array]:
+        return self._basis.bkd()
+
+    def set_indices(self, indices: Array) -> None:
+        self._basis.set_indices(indices)
+
+    def get_indices(self) -> Array:
+        return self._basis.get_indices()
+
+    def nterms(self) -> int:
+        return self._basis.nterms()
+
+    def nvars(self) -> int:
+        return self._basis.nvars()
+
+    def __call__(self, samples: Array) -> Array:
+        return self._basis(samples)
+
+    def __repr__(self) -> str:
+        return "{0}(nvars={1}, nterms={2})".format(
+            self.__class__.__name__, self.nvars(), self.nterms()
+        )
+
+    def _1d_basis_jacobians(self, samples: Array) -> List[Array]:
+        return [
+            basis1d.jacobians(samples[dd : dd + 1, :])
+            for dd, basis1d in enumerate(self._univariate_bases)
+        ]
+
+    def jacobians(self, samples: Array) -> Array:
+        indices = self.get_indices()
+        basis_vals_1d = self._basis._1d_basis_vals(samples)
+        basis_jacobians_1d = self._1d_basis_jacobians(samples)
+        jac = []
+        for dd in range(self.nvars()):
+            jac_dd = basis_jacobians_1d[dd][:, indices[dd, :]]
+            for kk in range(self.nvars()):
+                if kk != dd:
+                    jac_dd *= basis_vals_1d[kk][:, indices[kk, :]]
+            jac.append(jac_dd)
+        return self.bkd().moveaxis(self.bkd().stack(jac, axis=0), 0, -1)
+
+
+@runtime_checkable
+class Basis1DWithJacobiansAndHessiansProtocol(Protocol, Generic[Array]):
+    def bkd(self) -> Backend[Array]: ...
+
+    def set_nterms(self, nterms: int) -> None: ...
+
+    def nterms(self) -> int: ...
+
+    def __call__(self, samples: Array) -> Array: ...
+
+    def jacobians(self, samples: Array) -> Array: ...
+
+    def hessians(self, samples: Array) -> Array: ...
+
+
+class MultiIndexBasisWithJacobianAndHVP(Generic[Array]):
+    def __init__(
+        self,
+        univariate_bases: Sequence[
+            Basis1DWithJacobiansAndHessiansProtocol[Array]
+        ],
+        indices: Array,
+    ):
+        self._basis = MultiIndexBasisWithJacobian(univariate_bases, indices)
+        self._univariate_bases = univariate_bases
+
+    def bkd(self) -> Backend[Array]:
+        return self._basis.bkd()
+
+    def set_indices(self, indices: Array) -> None:
+        self._basis.set_indices(indices)
+
+    def get_indices(self) -> Array:
+        return self._basis.get_indices()
+
+    def nterms(self) -> int:
+        return self._basis.nterms()
+
+    def nvars(self) -> int:
+        return self._basis.nvars()
+
+    def __call__(self, samples: Array) -> Array:
+        return self._basis(samples)
+
+    def __repr__(self) -> str:
+        return "{0}(nvars={1}, nterms={2})".format(
+            self.__class__.__name__, self.nvars(), self.nterms()
+        )
+
+    def jacobians(self, samples: Array) -> Array:
+        return self._basis.jacobians(samples)
+
+    def _1d_basis_hessians(self, samples: Array) -> List[Array]:
+        return [
+            basis1d.hessians(samples[dd : dd + 1, :])
+            for dd, basis1d in enumerate(self._univariate_bases)
+        ]
+
+    def hessian(self, samples: Array) -> Array:
+        indices = self.get_indices()
+        basis_vals_1d = self._basis._basis._1d_basis_vals(samples)
+        fir_derivs_1d = self._basis._1d_basis_jacobians(samples)
+        sec_derivs_1d = self._basis._1d_basis_hessians(samples)
+        hess_items: List[List[Array]] = [
+            [[] for kk in range(self.nvars())] for dd in range(self.nvars())
+        ]
+        for dd in range(self.nvars()):
+            for kk in range(dd, self.nvars()):
+                if kk == dd:
+                    hess_dk = sec_derivs_1d[kk][:, indices[kk, :]]
+                else:
+                    hess_dk = fir_derivs_1d[dd][:, indices[dd, :]]
+                    hess_dk *= fir_derivs_1d[kk][:, indices[kk, :]]
+                for ll in range(self.nvars()):
+                    if ll == kk or ll == dd:
+                        continue
+                    hess_dk *= basis_vals_1d[ll][:, indices[ll, :]]
+                hess_items[dd][kk] = hess_dk
+                hess_items[kk][dd] = hess_dk
+        hess = self.bkd().stack(
+            [
+                self.bkd().stack(hess_items[dd], axis=-1)
+                for dd in range(self.nvars())
+            ],
+            axis=-1,
+        )
+        return hess

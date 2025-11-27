@@ -244,3 +244,15 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
     ) -> NDArray[Any]:
         return np.asarray(np.max(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def einsum(subscripts: str, *operands: NDArray[Any]) -> NDArray[Any]:
+        return np.einsum(subscripts, *operands)
+
+    @staticmethod
+    def moveaxis(
+        array: NDArray[Any],
+        source: Union[int, tuple[int, ...]],
+        destination: Union[int, tuple[int, ...]],
+    ) -> NDArray[Any]:
+        return np.moveaxis(array, source, destination)

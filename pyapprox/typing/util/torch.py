@@ -263,3 +263,15 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             return torch.max(array)
         values, _ = torch.max(array, dim=axis, keepdim=keepdims)
         return values
+
+    @staticmethod
+    def einsum(subscripts: str, *operands: torch.Tensor) -> torch.Tensor:
+        return torch.einsum(subscripts, *operands)
+
+    @staticmethod
+    def moveaxis(
+        array: torch.Tensor,
+        source: Union[int, tuple[int, ...]],
+        destination: Union[int, tuple[int, ...]],
+    ) -> torch.Tensor:
+        return torch.movedim(array, source, destination)
