@@ -1,7 +1,10 @@
 from typing import Tuple, Generic, Any
-import numpy as np
 import math
-from pyapprox.typing.util.backend import Array, Backend, validate_backend
+
+import numpy as np
+
+from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.validate_backend import validate_backend
 
 
 class GaussianMarginal(Generic[Array]):

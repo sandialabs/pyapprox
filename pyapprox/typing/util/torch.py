@@ -245,3 +245,21 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         else:
             dims = axis
         return torch.flip(array, dims=dims)
+
+    @staticmethod
+    def min(
+        array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
+    ) -> torch.Tensor:
+        if axis is None:
+            return torch.min(array)
+        values, _ = torch.min(array, dim=axis, keepdim=keepdims)
+        return values
+
+    @staticmethod
+    def max(
+        array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
+    ) -> torch.Tensor:
+        if axis is None:
+            return torch.max(array)
+        values, _ = torch.max(array, dim=axis, keepdim=keepdims)
+        return values

@@ -12,7 +12,7 @@ from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.interface.functions.hessian import (
     FunctionWithJacobianApplyHessianFromCallable,
 )
-from pyapprox.typing.interface.functions.derivative_checker import (
+from pyapprox.typing.interface.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 
@@ -34,14 +34,13 @@ class TestDerivativeChecker(Generic[Array], AbstractTestCase):
 
         # Define the value function
         def value_function(x: Array) -> Array:
-            print(x.shape)
-            return bkd.asarray([[x[0] ** 3 + x[1] ** 2]])
+            return bkd.reshape(x[0] ** 3 + x[1] ** 2, (1, x.shape[1]))
 
         def jacobian_function(x: Array) -> Array:
-            return bkd.asarray([[3 * x[0] ** 2, 2 * x[1]]])
+            return bkd.stack([3 * x[0] ** 2, 2 * x[1]], axis=1)
 
         def hvp_function(x: Array, v: Array) -> Array:
-            return bkd.asarray([[6 * x[0] * v[0], 2 * v[1]]]).T
+            return bkd.stack([6 * x[0] * v[0], 2 * v[1]], axis=0)
 
         # Wrap the function using FunctionWithJacobianApplyHessianFromCallable
         function_object = FunctionWithJacobianApplyHessianFromCallable(
@@ -62,10 +61,10 @@ class TestDerivativeChecker(Generic[Array], AbstractTestCase):
         errors = checker.check_derivatives(sample, verbosity=1)
 
         # Assert that the gradient errors are below a tolerance
-        self.assertTrue(errors[0].min() / errors[0].max() < 1e-7)
+        self.assertTrue(checker.error_ratios_satisfied(errors[0], 1e-7))
 
         # Assert that the Hessian errors are below a tolerance
-        self.assertTrue(errors[1].min() / errors[1].max() < 1e-7)
+        self.assertTrue(checker.error_ratios_satisfied(errors[1], 1e-7))
 
 
 # Derived test class for NumPy backend

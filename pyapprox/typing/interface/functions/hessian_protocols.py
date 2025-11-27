@@ -1,37 +1,47 @@
-from typing import Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable, Generic, Union, Any
 
-from pyapprox.typing.util.backend import Array
-from pyapprox.typing.interface.functions.function import FunctionProtocol
-from pyapprox.typing.interface.functions.jacobian_protocols import (
-    JacobianProtocol,
-    ApplyJacobianProtocol,
-)
-
-
-class ApplyHessianProtocol(Protocol):
-    """
-    Protocol for functions with Hessian functionality.
-    """
-
-    def apply_hessian(self, sample: Array, vec: Array) -> Array: ...
+from pyapprox.typing.util.backend import Array, Backend
 
 
 @runtime_checkable
-class FunctionWithJacobianApplyHessianProtocol(
-    FunctionProtocol, JacobianProtocol, ApplyHessianProtocol, Protocol
-):
-    pass
+class FunctionWithJacobianHVPProtocol(Protocol, Generic[Array]):
+    def bkd(self) -> Backend[Array]: ...
+
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
+
+    def __call__(self, samples: Array) -> Array: ...
+
+    def jacobian(self, sample: Array) -> Array: ...
+
+    def hvp(self, sample: Array, vec: Array) -> Array: ...
 
 
 @runtime_checkable
-class FunctionWithApplyJacobianApplyHessianProtocol(
-    FunctionProtocol, ApplyJacobianProtocol, ApplyHessianProtocol, Protocol
-):
-    pass
+class FunctionWithJVPHVPProtocol(Protocol, Generic[Array]):
+    def bkd(self) -> Backend[Array]: ...
+
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
+
+    def __call__(self, samples: Array) -> Array: ...
+
+    def jvp(self, sample: Array, vec: Array) -> Array: ...
+
+    def hvp(self, sample: Array, vec: Array) -> Array: ...
 
 
-def validate_hvp(nvars: int, hvp: Array) -> None:
-    if hvp.shape != (nvars, 1):
-        raise ValueError(
-            f"Hvp shape mismatch: expected " f"({nvars, 1}), got {hvp.shape}"
-        )
+FunctionWithHVPAndJacobianOrJVPProtocol = Union[
+    FunctionWithJacobianHVPProtocol[Array],
+    FunctionWithJVPHVPProtocol[Array],
+]
+
+
+def function_has_hvp_and_jacobian_or_jvp(function: Any) -> bool:
+    if not isinstance(
+        function, FunctionWithJacobianHVPProtocol
+    ) and not isinstance(function, FunctionWithJVPHVPProtocol):
+        return False
+    return True

@@ -3,7 +3,8 @@ from typing import Tuple, Dict, Any, Generic
 import numpy as np
 from scipy.stats import _discrete_distns
 
-from pyapprox.typing.util.backend import Array, Backend, validate_backend
+from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.validate_backend import validate_backend
 
 
 class DiscreteScipyRandomVariable1D(Generic[Array]):
