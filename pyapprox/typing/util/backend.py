@@ -50,6 +50,10 @@ class ArrayProtocol(Protocol):
 
     def __rsub__(self: Array, other: Union[float, Array]) -> Array: ...
 
+    def __pow__(self: Array, other: Union[float, Array]) -> Array: ...
+
+    def __rpow__(self: Array, other: Union[float, Array]) -> Array: ...
+
     def __gt__(
         self: Array, other: Union[float, Array]
     ) -> Union[bool, Array]: ...
@@ -71,8 +75,6 @@ class ArrayProtocol(Protocol):
     def __eq__(self: Array, other: object) -> Union[bool, Array]: ...  # type: ignore
 
     def __ne__(self: Array, other: object) -> Union[bool, Array]: ...  # type: ignore
-
-    def __pow__(self: Array, other: Union[float, int]) -> Array: ...
 
     def __setitem__(self: Array, index: Any, value: Any) -> None: ...
 
@@ -99,7 +101,7 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def inv(matrix: Array) -> Array: ...
 
-    # @staticmethod
+    @staticmethod
     def asarray(
         array: Union[Sequence[Any], Array, float, int],
         dtype: Optional[Any] = None,
@@ -300,7 +302,7 @@ class Backend(Protocol, Generic[Array]):
     def isfinite(array: Array) -> Array: ...
 
     @staticmethod
-    def nonzero(condition: Array) -> Array: ...
+    def nonzero(condition: Array) -> Tuple[Array, ...]: ...
 
     @staticmethod
     def norm(

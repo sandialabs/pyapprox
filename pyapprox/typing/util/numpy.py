@@ -109,7 +109,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def meshgrid(
         arrays: Tuple[NDArray[Any], ...], indexing: str = "xy"
     ) -> Tuple[NDArray[Any], ...]:
-        return np.meshgrid(*arrays, indexing=indexing)
+        return np.meshgrid(*arrays, indexing=indexing)  # type: ignore
 
     @staticmethod
     def reshape(array: NDArray[Any], newshape: Sequence[int]) -> NDArray[Any]:
@@ -166,7 +166,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         array: NDArray[Any],
         keepdims: bool = False,
     ) -> bool:
-        return np.any(array, axis=None, keepdims=keepdims)
+        return cast(bool, np.any(array, axis=None, keepdims=keepdims))
 
     @staticmethod
     def any_array(
@@ -174,7 +174,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: int,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return np.any(array, axis=axis, keepdims=keepdims)
+        return cast(NDArray[Any], np.any(array, axis=axis, keepdims=keepdims))
 
     @staticmethod
     def log(array: NDArray[Any]) -> NDArray[Any]:
@@ -201,8 +201,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return cast(NDArray[Any], np.isfinite(array))
 
     @staticmethod
-    def nonzero(condition: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.nonzero(condition))
+    def nonzero(condition: NDArray[Any]) -> Tuple[NDArray[Any], ...]:
+        return cast(Tuple[NDArray[Any], ...], np.nonzero(condition))
 
     @staticmethod
     def norm(
@@ -221,7 +221,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def sqrt(array: NDArray[Any]) -> NDArray[Any]:
-        return np.sqrt(array)
+        return cast(NDArray[Any], np.sqrt(array))
 
     @staticmethod
     def solve(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
@@ -237,10 +237,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def min(
         array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
     ) -> NDArray[Any]:
-        return np.min(array, axis=axis, keepdims=keepdims)
+        return np.asarray(np.min(array, axis=axis, keepdims=keepdims))
 
     @staticmethod
     def max(
         array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
     ) -> NDArray[Any]:
-        return np.max(array, axis=axis, keepdims=keepdims)
+        return np.asarray(np.max(array, axis=axis, keepdims=keepdims))
