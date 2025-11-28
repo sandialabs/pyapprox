@@ -16,6 +16,9 @@ from pyapprox.typing.interface.functions.hessian_protocols import (
 from pyapprox.typing.interface.functions.numpy.numpy_function_factory import (
     numpy_function_wrapper_factory,
 )
+from pyapprox.typing.optimization.scipy.scipy_constraint_factory import (
+    convert_constraints,
+)
 from pyapprox.typing.optimization.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
@@ -124,24 +127,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         # Validate and wrap the constraints using the factory if provided
         if constraints:
             validate_constraints(constraints)
-        self._constraints = (
-            [
-                (
-                    numpy_function_wrapper_factory(
-                        cast(
-                            UnionOfNonlinearConstraintProtocols[Array],
-                            constraint,
-                        ),
-                        sample_ndim=1,
-                    )
-                    if not isinstance(constraint, PyApproxLinearConstraint)
-                    else constraint.to_scipy()
-                )  # Convert PyApproxLinearConstraint to SciPy LinearConstraint
-                for constraint in constraints
-            ]
-            if constraints
-            else []
-        )
+        self._constraints = convert_constraints(constraints)
 
     def bkd(self) -> Backend[Array]:
         """

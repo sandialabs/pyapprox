@@ -95,6 +95,7 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
 
         # Perform optimization
         result = optimizer.minimize(init_guess)
+        print(result.get_raw_result())
 
         # Assert that the optimization was successful
         self.assertTrue(result.success())
