@@ -30,7 +30,7 @@ class FunctionWithJacobianAndHVPFromCallable(
         if not callable(hvp):
             raise ValueError(
                 "The provided 'hvp' object must be callable. "
-                "Expected a callable object that takes an input of type "
+                "Expected a callable object that takes two inputs of type "
                 "'Array' and returns an output of type 'Array'. "
                 f"Got an object of type {type(hvp).__name__}. "
                 f"Object details: {self}"
@@ -43,3 +43,37 @@ class FunctionWithJacobianAndHVPFromCallable(
         hvp = self._hvp(sample, vec)
         validate_hvp(self.nvars(), hvp)
         return hvp
+
+
+class FunctionWithJacobianAndWeightedHVPFromCallable(
+    FunctionWithJacobianFromCallable[Array]
+):
+    def __init__(
+        self,
+        nvars: int,
+        fun: Callable[[Array], Array],
+        jacobian: Callable[[Array], Array],
+        whvp: Callable[[Array, Array, Array], Array],
+        bkd: Backend[Array],
+    ):
+        super().__init__(1, nvars, fun, jacobian, bkd)
+        if not callable(whvp):
+            raise ValueError(
+                "The provided 'whvp' object must be callable. "
+                "Expected a callable object that takes three inputs of type "
+                "'Array' and returns an output of type 'Array'. "
+                f"Got an object of type {type(whvp).__name__}. "
+                f"Object details: {self}"
+            )
+        self._whvp: Callable[[Array, Array, Array], Array] = whvp
+
+    def weighted_hvp(self, sample: Array, vec: Array, weights: Array) -> Array:
+        validate_sample(self.nvars(), sample)
+        validate_vector_for_apply(self.nvars(), vec)
+        validate_sample(self.nqoi(), weights)
+        whvp = self._whvp(sample, vec, weights)
+        validate_hvp(self.nvars(), whvp)
+        return whvp
+
+    def hvp(self, sample: Array, vec: Array) -> Array:
+        return self.weighted_hvp(sample, vec, self.bkd().array([[1.0]]))
