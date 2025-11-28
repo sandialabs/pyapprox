@@ -4,7 +4,7 @@ from pyapprox.typing.util.backend import Array, Backend
 
 
 @runtime_checkable
-class FunctionWithJacobianHVPProtocol(Protocol, Generic[Array]):
+class FunctionWithJacobianAndHVPProtocol(Protocol, Generic[Array]):
     def bkd(self) -> Backend[Array]: ...
 
     def nvars(self) -> int: ...
@@ -19,7 +19,7 @@ class FunctionWithJacobianHVPProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class FunctionWithJVPHVPProtocol(Protocol, Generic[Array]):
+class FunctionWithJVPAndHVPProtocol(Protocol, Generic[Array]):
     def bkd(self) -> Backend[Array]: ...
 
     def nvars(self) -> int: ...
@@ -34,14 +34,14 @@ class FunctionWithJVPHVPProtocol(Protocol, Generic[Array]):
 
 
 FunctionWithHVPAndJacobianOrJVPProtocol = Union[
-    FunctionWithJacobianHVPProtocol[Array],
-    FunctionWithJVPHVPProtocol[Array],
+    FunctionWithJacobianAndHVPProtocol[Array],
+    FunctionWithJVPAndHVPProtocol[Array],
 ]
 
 
 def function_has_hvp_and_jacobian_or_jvp(function: Any) -> bool:
     if not isinstance(
-        function, FunctionWithJacobianHVPProtocol
-    ) and not isinstance(function, FunctionWithJVPHVPProtocol):
+        function, FunctionWithJacobianAndHVPProtocol
+    ) and not isinstance(function, FunctionWithJVPAndHVPProtocol):
         return False
     return True

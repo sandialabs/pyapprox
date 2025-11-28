@@ -63,8 +63,8 @@ class FunctionWithJVPFromHVP(Generic[Array]):
         if not function_has_hvp_and_jacobian_or_jvp(function):
             raise ValueError(
                 "The provided function must satisfy either "
-                "'FunctionWithJacobianHVPProtocol' or "
-                "'FunctionWithJVPHVPProtocol'. "
+                "'FunctionWithJacobianAndHVPProtocol' or "
+                "'FunctionWithJVPAndHVPProtocol'. "
                 f"Got an object of type {type(function).__name__}."
             )
         self._fun = function
