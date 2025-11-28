@@ -10,7 +10,7 @@ from pyapprox.typing.util.numpy import NumpyBkd
 from pyapprox.typing.util.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.interface.functions.hessian import (
-    FunctionWithJacobianApplyHessianFromCallable,
+    FunctionWithJacobianAndHVPFromCallable,
 )
 from pyapprox.typing.interface.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -42,8 +42,8 @@ class TestDerivativeChecker(Generic[Array], AbstractTestCase):
         def hvp_function(x: Array, v: Array) -> Array:
             return bkd.stack([6 * x[0] * v[0], 2 * v[1]], axis=0)
 
-        # Wrap the function using FunctionWithJacobianApplyHessianFromCallable
-        function_object = FunctionWithJacobianApplyHessianFromCallable(
+        # Wrap the function using FunctionWithJacobianAndHVPFromCallable
+        function_object = FunctionWithJacobianAndHVPFromCallable(
             nvars=2,
             fun=value_function,
             jacobian=jacobian_function,

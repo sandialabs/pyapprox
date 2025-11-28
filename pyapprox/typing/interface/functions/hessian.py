@@ -15,7 +15,7 @@ def validate_hvp(nvars: int, hvp: Array) -> None:
         )
 
 
-class FunctionWithJacobianApplyHessianFromCallable(
+class FunctionWithJacobianAndHVPFromCallable(
     FunctionWithJacobianFromCallable[Array]
 ):
     def __init__(

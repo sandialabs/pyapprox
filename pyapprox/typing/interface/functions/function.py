@@ -32,6 +32,30 @@ class FunctionProtocol(Protocol, Generic[Array]):
 
 
 def validate_samples(nvars: int, samples: Array) -> None:
+    """
+    Validate that the given samples are a 2D array with the correct number of rows.
+
+    Parameters
+    ----------
+    nvars : int
+        Number of variables (expected number of rows in the samples).
+    samples : Array
+        Input samples to validate.
+
+    Raises
+    ------
+    ValueError
+        If the samples do not have 2 dimensions or if the number of rows is
+        incorrect.
+    """
+    # Check if samples are 2D
+    if samples.ndim != 2:
+        raise ValueError(
+            "Invalid samples shape: expected 2 dimensions, "
+            f"got {samples.ndim} dimensions."
+        )
+
+    # Validate the number of rows
     expected_rows = nvars
     actual_rows, actual_cols = samples.shape
     if actual_rows != expected_rows:

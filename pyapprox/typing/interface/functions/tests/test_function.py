@@ -10,7 +10,7 @@ from pyapprox.typing.interface.functions.jacobian import (
     FunctionWithJacobianFromCallable,
 )
 from pyapprox.typing.interface.functions.hessian import (
-    FunctionWithJacobianApplyHessianFromCallable,
+    FunctionWithJacobianAndHVPFromCallable,
 )
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.util.numpy import NumpyBkd
@@ -53,14 +53,12 @@ class TestFunction1D(Generic[Array], AbstractTestCase):
         )
 
         # Define the function with Hessian
-        self.function_with_hessian = (
-            FunctionWithJacobianApplyHessianFromCallable(
-                nvars=self.nvars,
-                fun=self.example_function,
-                jacobian=self.example_jacobian,
-                hvp=self.example_hvp,
-                bkd=self.bkd(),
-            )
+        self.function_with_hessian = FunctionWithJacobianAndHVPFromCallable(
+            nvars=self.nvars,
+            fun=self.example_function,
+            jacobian=self.example_jacobian,
+            hvp=self.example_hvp,
+            bkd=self.bkd(),
         )
 
     def example_function(self, samples: Array) -> Array:
@@ -138,14 +136,12 @@ class TestFunction3D(Generic[Array], AbstractTestCase):
         )
 
         # Define the function with Hessian
-        self.function_with_hessian = (
-            FunctionWithJacobianApplyHessianFromCallable(
-                nvars=self.nvars,
-                fun=self.example_function,
-                jacobian=self.example_jacobian,
-                hvp=self.example_hvp,
-                bkd=self.bkd(),
-            )
+        self.function_with_hessian = FunctionWithJacobianAndHVPFromCallable(
+            nvars=self.nvars,
+            fun=self.example_function,
+            jacobian=self.example_jacobian,
+            hvp=self.example_hvp,
+            bkd=self.bkd(),
         )
 
     def example_function(self, samples: Array) -> Array:
