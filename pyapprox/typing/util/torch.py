@@ -184,6 +184,21 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.any(array, dim=axis, keepdim=keepdims)
 
     @staticmethod
+    def all_bool(
+        array: torch.Tensor,
+        keepdims: bool = False,
+    ) -> bool:
+        return bool(torch.all(array, keepdim=keepdims).item())
+
+    @staticmethod
+    def all_array(
+        array: torch.Tensor,
+        axis: int,
+        keepdims: bool = False,
+    ) -> torch.Tensor:
+        return torch.all(array, dim=axis, keepdim=keepdims)
+
+    @staticmethod
     def log(array: torch.Tensor) -> torch.Tensor:
         return torch.log(array)
 

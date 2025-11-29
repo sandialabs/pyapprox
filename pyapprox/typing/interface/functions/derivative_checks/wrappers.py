@@ -1,4 +1,4 @@
-from typing import Generic
+from typing import Generic, Optional, Union
 
 from pyapprox.typing.util.backend import Array, Backend
 
@@ -9,6 +9,7 @@ from pyapprox.typing.interface.functions.protocols.jacobian import (
 )
 from pyapprox.typing.interface.functions.protocols.hessian import (
     FunctionWithHVPAndJacobianOrJVPProtocol,
+    FunctionWithJacobianAndWHVPProtocol,
     function_has_hvp_and_jacobian_or_jvp,
 )
 
@@ -58,16 +59,27 @@ class FunctionWithJVPFromHVP(Generic[Array]):
 
     def __init__(
         self,
-        function: FunctionWithHVPAndJacobianOrJVPProtocol[Array],
+        function: Union[
+            FunctionWithHVPAndJacobianOrJVPProtocol[Array],
+            FunctionWithJacobianAndWHVPProtocol,
+        ],
+        weights: Optional[Array] = None,
     ):
         if not function_has_hvp_and_jacobian_or_jvp(function):
             raise ValueError(
                 "The provided function must satisfy either "
                 "'FunctionWithJacobianAndHVPProtocol' or "
-                "'FunctionWithJVPAndHVPProtocol'. "
+                "'FunctionWithJVPAndHVPProtocol' or "
+                "'FunctionWithJacobianAndWHVPProtocol'."
                 f"Got an object of type {type(function).__name__}."
             )
         self._fun = function
+        if weights is None and not hasattr(self._fun, "hvp"):
+            raise AttributeError(
+                "weights must be provided if testing the weighted hessian of "
+                "a function"
+            )
+        self._weights = weights
 
     def bkd(self) -> Backend[Array]:
         return self._fun.bkd()
@@ -90,10 +102,14 @@ class FunctionWithJVPFromHVP(Generic[Array]):
     def __call__(self, samples: Array) -> Array:
         if isinstance(self._fun, FunctionWithJVPProtocol):
             return self._jacobian_from_apply(samples)
-        return self._fun.jacobian(samples)
+        if self.nqoi() == 1:
+            return self._fun.jacobian(samples)
+        return self._weights @ self._fun.jacobian(samples)  # type: ignore
 
     def jvp(self, sample: Array, vec: Array) -> Array:
-        return self._fun.hvp(sample, vec)
+        if self.nqoi() == 1 and hasattr(self._fun, "hvp"):
+            return self._fun.hvp(sample, vec)
+        return self._fun.whvp(sample, vec, self._weights)
 
     def __repr__(self) -> str:
         """

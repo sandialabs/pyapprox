@@ -1,9 +1,9 @@
 from typing import Sequence, Any
 
-from pyapprox.typing.optimization.minimize.constraints.protocols.nonlinear import (
+from pyapprox.typing.optimization.minimize.constraints.protocols import (
     NonlinearConstraintProtocol,
     NonlinearConstraintProtocolWithJacobian,
-    NonlinearConstraintProtocolWithJacobianAndHVP,
+    NonlinearConstraintProtocolWithJacobianAndWHVP,
 )
 from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
@@ -29,15 +29,16 @@ def validate_nonlinear_constraint(obj: object) -> None:
         (
             NonlinearConstraintProtocol,
             NonlinearConstraintProtocolWithJacobian,
-            NonlinearConstraintProtocolWithJacobianAndHVP,
+            NonlinearConstraintProtocolWithJacobianAndWHVP,
         ),
     ):
         raise TypeError(
-            "The provided object must satisfy one of the following nonlinear constraint protocols: "
+            "The provided object must satisfy one of the following nonlinear "
+            "constraint protocols: "
             "'NonlinearConstraintProtocol', "
             "'NonlinearConstraintProtocolWithJacobian', or "
-            "'NonlinearConstraintProtocolWithJacobianAndHVP'. Got an object of"
-            f" type {type(obj).__name__}."
+            "'NonlinearConstraintProtocolWithJacobianAndWHVP'. Got an object "
+            f"of type {type(obj).__name__}."
         )
 
 
@@ -62,7 +63,7 @@ def validate_constraints(constraints: Sequence[Any]) -> None:
             (
                 NonlinearConstraintProtocol,
                 NonlinearConstraintProtocolWithJacobian,
-                NonlinearConstraintProtocolWithJacobianAndHVP,
+                NonlinearConstraintProtocolWithJacobianAndWHVP,
                 PyApproxLinearConstraint,
             ),
         ):

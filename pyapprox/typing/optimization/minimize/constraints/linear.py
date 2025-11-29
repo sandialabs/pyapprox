@@ -89,3 +89,17 @@ class PyApproxLinearConstraint(Generic[Array]):
             Backend used for computations.
         """
         return self._bkd
+
+    def __repr__(self) -> str:
+        """
+        Return a detailed string representation of the PyApproxLinearConstraint
+        object.
+
+        Returns
+        -------
+        str
+            String representation of the object.
+        """
+        return "{0}(nrows={1}, ncols={2})".format(
+            self.__class__.__name__, self._A.shape[0], self._A.shape[1]
+        )
