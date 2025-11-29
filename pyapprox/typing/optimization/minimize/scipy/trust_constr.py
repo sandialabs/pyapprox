@@ -1,6 +1,8 @@
 from typing import Generic, Union, Optional, cast
+
 import numpy as np
 from scipy.optimize import Bounds, minimize as scipy_minimize
+
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
@@ -96,7 +98,9 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         # Validate and wrap the constraints using the factory if provided
         if constraints:
             validate_constraints(constraints)
-        self._constraints = convert_constraints(constraints)
+            self._constraints = convert_constraints(constraints)
+        else:
+            self._constraints = None
 
     def bkd(self) -> Backend[Array]:
         """
