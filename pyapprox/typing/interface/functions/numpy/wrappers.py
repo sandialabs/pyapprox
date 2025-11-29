@@ -11,6 +11,7 @@ from pyapprox.typing.interface.functions.protocols.jacobian import (
 )
 from pyapprox.typing.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
+    FunctionWithJacobianAndWHVPProtocol,
 )
 
 
@@ -218,6 +219,100 @@ class NumpyFunctionWithJacobianAndHVPWrapper(Generic[Array]):
             )
         )
         return hvp
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(function={repr(self._function)})"
+
+
+class NumpyFunctionWithJacobianAndWHVPWrapper(Generic[Array]):
+    """
+    Wrapper for functions with Jacobian and Hessian-vector product when a numpy
+    interface is required, e.g., when using scipy.optimize.
+
+    This class ensures compatibility between functions that use different
+    backends and optimization frameworks. It provides methods for evaluating
+    the function, its Jacobian, and Hessian-vector products.
+    """
+
+    def __init__(self, function: FunctionWithJacobianAndWHVPProtocol[Array]):
+        self._bkd = function.bkd()
+        self._function = function
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return self._function.nvars()
+
+    def nqoi(self) -> int:
+        return self._function.nqoi()
+
+    def _convert_samples_from_numpy(self, samples: NDArray[Any]) -> Array:
+        return self._bkd.asarray(samples)
+
+    def __call__(self, samples: NDArray[Any]) -> NDArray[Any]:
+        """
+        Evaluate the function at the given samples.
+
+        Parameters
+        ----------
+        samples : NDArray[Any]
+            Input samples as a NumPy array.
+
+        Returns
+        -------
+        NDArray[Any]
+            Function evaluations as a NumPy array.
+        """
+        vals = self._bkd.to_numpy(
+            self._function(self._convert_samples_from_numpy(samples))
+        )
+        return vals
+
+    def jacobian(self, sample: NDArray[Any]) -> NDArray[Any]:
+        """
+        Compute the Jacobian of the function at the given sample.
+
+        Parameters
+        ----------
+        sample : NDArray[Any]
+            Input sample as a NumPy array.
+
+        Returns
+        -------
+        NDArray[Any]
+            Jacobian matrix as a NumPy array.
+        """
+        return self._bkd.to_numpy(
+            self._function.jacobian(self._convert_samples_from_numpy(sample))
+        )
+
+    def whvp(
+        self, sample: NDArray[Any], vec: NDArray[Any], weights: NDArray[Any]
+    ) -> NDArray[Any]:
+        """
+        Compute the Hessian-vector product of the function at the given sample.
+
+        Parameters
+        ----------
+        sample : NDArray[Any]
+            Input sample as a NumPy array.
+        vec : NDArray[Any]
+            Vector for the Hessian-vector product.
+
+        Returns
+        -------
+        NDArray[Any]
+            Hessian-vector product as a NumPy array.
+        """
+        bkd_vec = self._bkd.asarray(vec)
+        bkd_weights = self._bkd.asarray(weights)
+        whvp = self._bkd.to_numpy(
+            self._function.whvp(
+                self._convert_samples_from_numpy(sample), bkd_vec, bkd_weights
+            )
+        )
+        return whvp
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(function={repr(self._function)})"

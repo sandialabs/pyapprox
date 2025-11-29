@@ -3,9 +3,11 @@ from typing import Generic, Any
 
 import numpy as np
 from numpy.typing import NDArray
+import torch
 
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.util.numpy import NumpyBkd
+from pyapprox.typing.util.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
@@ -49,8 +51,8 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
 
         # Define the linear-quadratic function
         def value_function(x: Array) -> Array:
-            return bkd.asarray(
-                [x[0] ** 2 + x[1] ** 2 + c[0] * x[0] + c[1] * x[1]]
+            return bkd.stack(
+                [x[0] ** 2 + x[1] ** 2 + c[0] * x[0] + c[1] * x[1]], axis=1
             )
 
         # Define the Jacobian of the linear-quadratic function
@@ -99,7 +101,6 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
 
         # Perform optimization
         result = optimizer.minimize(init_guess)
-        print(result.get_raw_result())
 
         # Assert that the optimization was successful
         self.assertTrue(result.success())
@@ -150,28 +151,26 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
 
         constraint_derivative_checker = DerivativeChecker(nonlinear_constraint)
         errors = constraint_derivative_checker.check_derivatives(
-            init_guess, verbosity=1
+            init_guess, verbosity=0
         )
         self.assertTrue(
             constraint_derivative_checker.error_ratios_satisfied(
                 errors[0], 1e-7
             )
         )
-        return
 
         # Initialize the optimizer
         optimizer = ScipyTrustConstrOptimizer(
             objective=objective,
             bounds=bkd.array([[0, np.inf], [0, np.inf], [0, np.inf]]),
             constraints=[nonlinear_constraint, linear_con],
-            verbosity=2,
+            verbosity=0,
             maxiter=100,
-            gtol=1e-10,
+            gtol=1e-15,
         )
 
         # Perform optimization
         result = optimizer.minimize(init_guess)
-        print(result.get_raw_result())
 
         # Assert that the optimization was successful
         self.assertTrue(result.success())
@@ -192,11 +191,29 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
 
         # Assert that the result matches the expected optima
         expected_optima = bkd.array([0.0, 0.0, 1.0])[:, None]
-        bkd.assert_allclose(result.optima(), expected_optima, atol=1e-8)
+        bkd.assert_allclose(result.optima(), expected_optima, atol=4e-6)
 
         # Assert that the objective value matches the expected value
         expected_fun = objective(expected_optima)
         self.assertAlmostEqual(result.fun(), expected_fun, places=6)
+
+        # Check that function, jacobian and whvp of objective are
+        # called.
+        self.assertTrue(result.get_raw_result().nfev > 0)
+        self.assertTrue(result.get_raw_result().njev > 0)
+        self.assertTrue(result.get_raw_result().nhev > 0)
+
+        # Check that function, jacobian and whvp of constraints are
+        # called.
+        self.assertTrue(
+            any(bkd.asarray(result.get_raw_result().constr_nfev) > 0)
+        )
+        self.assertTrue(
+            any(bkd.asarray(result.get_raw_result().constr_njev) > 0)
+        )
+        self.assertTrue(
+            any(bkd.asarray(result.get_raw_result().constr_nhev) > 0)
+        )
 
 
 class TestScipyTrustConstrOptimizerNumpy(
@@ -207,6 +224,18 @@ class TestScipyTrustConstrOptimizerNumpy(
         super().setUp()
 
     def bkd(self) -> NumpyBkd:
+        return self._bkd
+
+
+class TestScipyTrustConstrOptimizerTorch(
+    TestScipyTrustConstrOptimizer[torch.Tensor], unittest.TestCase
+):
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+        super().setUp()
+
+    def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
 
 

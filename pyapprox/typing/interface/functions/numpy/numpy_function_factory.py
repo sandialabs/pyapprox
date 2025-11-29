@@ -9,11 +9,13 @@ from pyapprox.typing.interface.functions.protocols.jacobian import (
 )
 from pyapprox.typing.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
+    FunctionWithJacobianAndWHVPProtocol,
 )
 from pyapprox.typing.interface.functions.numpy.wrappers import (
     NumpyFunctionWrapper,
     NumpyFunctionWithJacobianWrapper,
     NumpyFunctionWithJacobianAndHVPWrapper,
+    NumpyFunctionWithJacobianAndWHVPWrapper,
 )
 
 
@@ -25,6 +27,12 @@ from pyapprox.typing.interface.functions.numpy.wrappers import (
 # Overloaded function signatures 1 and 2 overlap with incompatible return types
 # in this file. I need to resolve this but I stick with current convention
 # so that at least users will not see type errors in downstream files
+
+
+@overload
+def numpy_function_wrapper_factory(
+    function: FunctionWithJacobianAndHVPProtocol[Array],
+) -> NumpyFunctionWithJacobianAndWHVPWrapper[Array]: ...
 
 
 @overload
@@ -55,11 +63,7 @@ def numpy_function_wrapper_factory(function: FunctionProtocol[Array]) -> Union[
 
     Parameters
     ----------
-    function : Union[
-        FunctionProtocol[Array],
-        FunctionWithJacobianProtocol[Array],
-        FunctionWithJacobianAndHVPProtocol[Array],
-    ]
+    function : FunctionProtocol[Array]
         The function object.
 
     Returns
@@ -68,6 +72,7 @@ def numpy_function_wrapper_factory(function: FunctionProtocol[Array]) -> Union[
         NumpyFunctionWrapper[Array],
         NumpyFunctionWithJacobianWrapper[Array],
         NumpyFunctionWithJacobianAndHVPWrapper[Array],
+        NumpyFunctionWithJacobianAndWHVPWrapper[Array],
     ]
         The appropriate wrapper for the function.
 
@@ -76,6 +81,12 @@ def numpy_function_wrapper_factory(function: FunctionProtocol[Array]) -> Union[
     TypeError
         If the function does not satisfy any of the protocols.
     """
+    if isinstance(function, FunctionWithJacobianAndWHVPProtocol):
+        return cast(
+            NumpyFunctionWithJacobianAndWHVPWrapper[Array],
+            NumpyFunctionWithJacobianAndWHVPWrapper(function),
+        )
+
     if isinstance(function, FunctionWithJacobianAndHVPProtocol):
         return cast(
             NumpyFunctionWithJacobianAndHVPWrapper[Array],
