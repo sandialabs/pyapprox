@@ -2,12 +2,14 @@ from typing import Generic, Union, Optional, cast
 import numpy as np
 from scipy.optimize import Bounds, minimize as scipy_minimize
 from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.optimization.linear_constraint import (
+from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
-from pyapprox.typing.optimization.constraint_protocols import (
+from pyapprox.typing.optimization.minimize.constraints.protocols.nonlinear import (
     UnionOfNonlinearConstraintProtocols,
     SequenceOfUnionOfConstraintProtocols,
+)
+from pyapprox.typing.optimization.minimize.constraints.protocols.validation import (
     validate_constraints,
 )
 from pyapprox.typing.interface.functions.protocols.hessian import (
@@ -16,10 +18,10 @@ from pyapprox.typing.interface.functions.protocols.hessian import (
 from pyapprox.typing.interface.functions.numpy.numpy_function_factory import (
     numpy_function_wrapper_factory,
 )
-from pyapprox.typing.optimization.scipy.scipy_constraint_factory import (
+from pyapprox.typing.optimization.minimize.scipy.scipy_constraint_factory import (
     convert_constraints,
 )
-from pyapprox.typing.optimization.scipy.scipy_result import (
+from pyapprox.typing.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
 

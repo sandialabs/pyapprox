@@ -10,10 +10,10 @@ from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
-from pyapprox.typing.optimization.linear_constraint import (
+from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
-from pyapprox.typing.optimization.scipy.trust_constr import (
+from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (

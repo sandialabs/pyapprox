@@ -1,20 +1,3 @@
-from typing import List, Union, Optional, cast
-
-from scipy.optimize import LinearConstraint as ScipyLinearConstraint
-
-from pyapprox.typing.util.backend import Array
-from pyapprox.typing.optimization.linear_constraint import (
-    PyApproxLinearConstraint,
-)
-from pyapprox.typing.optimization.constraint_protocols import (
-    UnionOfNonlinearConstraintProtocols,
-    SequenceOfUnionOfConstraintProtocols,
-)
-from pyapprox.typing.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
-)
-
-
 from typing import Sequence, List, Union, cast
 import numpy as np
 from scipy.optimize import (
@@ -22,10 +5,10 @@ from scipy.optimize import (
     LinearConstraint as ScipyLinearConstraint,
 )
 from pyapprox.typing.util.backend import Array
-from pyapprox.typing.optimization.linear_constraint import (
+from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
-from pyapprox.typing.optimization.constraint_protocols import (
+from pyapprox.typing.optimization.minimize.constraints.protocols.nonlinear import (
     UnionOfNonlinearConstraintProtocols,
     SequenceOfUnionOfConstraintProtocols,
 )

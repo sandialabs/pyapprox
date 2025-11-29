@@ -7,7 +7,7 @@ from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.util.numpy import NumpyBkd
 from pyapprox.typing.util.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
-from pyapprox.typing.optimization.bisection import (
+from pyapprox.typing.optimization.rootfinding.bisection import (
     BisectionSearch,
     BisectionResidualProtocol,
 )
