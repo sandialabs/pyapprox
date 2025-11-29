@@ -10,7 +10,9 @@ from typing import (
 import numpy as np
 
 from pyapprox.typing.util.validate_backend import validate_backends
-from pyapprox.typing.interface.functions.function import validate_samples
+from pyapprox.typing.interface.functions.protocols.validation import (
+    validate_samples,
+)
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
@@ -242,6 +244,9 @@ class IndependentRandomVariable(Generic[Array]):
     def is_bounded(self) -> bool:
         return all([marginal.is_bounded() for marginal in self.marginals()])
 
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
 
 class IndependentRandomVariableWithJacobian(Generic[Array]):
     """
@@ -456,3 +461,6 @@ class IndependentRandomVariableWithJacobian(Generic[Array]):
             f"{self.__class__.__name__}(nvars={self.nvars()}, "
             f"backend={type(self._bkd).__name__})"
         )
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd

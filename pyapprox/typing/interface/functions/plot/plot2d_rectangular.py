@@ -6,8 +6,10 @@ from matplotlib.contour import QuadContourSet
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.interface.functions.function import (
+from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
+)
+from pyapprox.typing.interface.functions.protocols.validation import (
     validate_function,
 )
 
@@ -52,7 +54,7 @@ def meshgrid_samples(
     space_fn = bkd.logspace if logspace else bkd.linspace
     x = space_fn(plot_limits[0], plot_limits[1], num_pts_1d[0])
     y = space_fn(plot_limits[2], plot_limits[3], num_pts_1d[1])
-    X, Y = bkd.meshgrid(x, y)
+    X, Y = bkd.meshgrid((x, y))
     pts = bkd.stack((bkd.flatten(X), bkd.flatten(Y)), axis=0)
     return X, Y, pts
 
@@ -84,7 +86,7 @@ class Plotter2DRectangularDomain(Generic[Array]):
         validate_function(function)
         if function.nvars() != 2:
             raise ValueError("Can only plot functions with nvars() == 2")
-        self._bkd = function._bkd
+        self._bkd = function.bkd()
         self._function = function
         self._validate_plot_limits(plot_limits)
         self._plot_limits = plot_limits
@@ -95,7 +97,9 @@ class Plotter2DRectangularDomain(Generic[Array]):
                 "plot_limits must have exactly 4 entries: "
                 "[x_min, x_max, y_min, y_max]."
             )
-        if self._bkd.any(~self._bkd.isfinite(self._bkd.asarray(plot_limits))):
+        if self._bkd.any_bool(
+            ~self._bkd.isfinite(self._bkd.asarray(plot_limits))
+        ):
             raise ValueError(f"plot limits {plot_limits} must be finite")
 
     def plot_surface(

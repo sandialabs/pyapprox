@@ -3,13 +3,14 @@ from typing import Generic, Any
 
 from numpy.typing import NDArray
 import torch
-import numpy as np
 
-from pyapprox.typing.interface.functions.function import FunctionFromCallable
-from pyapprox.typing.interface.functions.jacobian import (
+from pyapprox.typing.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
+from pyapprox.typing.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.typing.interface.functions.hessian import (
+from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
 from pyapprox.typing.util.backend import Array, Backend
@@ -21,7 +22,8 @@ from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 class TestFunction1D(Generic[Array], AbstractTestCase):
     def bkd(self) -> Backend[Array]:
         """
-        Override this method in derived classes to provide the specific backend.
+        Override this method in derived classes to provide the specific
+        backend.
         """
         raise NotImplementedError(
             "Derived classes must implement this method."
@@ -100,7 +102,8 @@ class TestFunction1D(Generic[Array], AbstractTestCase):
 class TestFunction3D(Generic[Array], AbstractTestCase):
     def bkd(self) -> Backend[Array]:
         """
-        Override this method in derived classes to provide the specific backend.
+        Override this method in derived classes to provide the specific
+        backend.
         """
         raise NotImplementedError(
             "Derived classes must implement this method."
@@ -160,7 +163,8 @@ class TestFunction3D(Generic[Array], AbstractTestCase):
 
     def example_hvp(self, sample: Array, vec: Array) -> Array:
         """
-        Example Hessian-vector product: d^2(sum(sin(x_i)))/dx_i^2 * vec = -sin(x_i) * vec
+        Example Hessian-vector product:
+        d^2(sum(sin(x_i)))/dx_i^2 * vec = -sin(x_i) * vec
         """
         return -self.bkd().sin(sample) * vec
 

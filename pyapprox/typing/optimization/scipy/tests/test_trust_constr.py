@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.util.numpy import NumpyBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
-from pyapprox.typing.interface.functions.hessian import (
+from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
 from pyapprox.typing.optimization.linear_constraint import (
@@ -16,7 +16,7 @@ from pyapprox.typing.optimization.linear_constraint import (
 from pyapprox.typing.optimization.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.typing.interface.derivative_checks.derivative_checker import (
+from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 

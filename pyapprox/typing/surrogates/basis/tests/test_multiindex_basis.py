@@ -11,7 +11,7 @@ from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.surrogates.basis.multiindex_basis_factory import (
     multiindex_basis_factory,
 )
-from pyapprox.typing.surrogates.basis.monomial import MonomialBasis1D
+from pyapprox.typing.surrogates.basis.monomial1d import MonomialBasis1D
 
 
 class TestMultiIndexBasis(Generic[Array], AbstractTestCase):

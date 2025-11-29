@@ -7,8 +7,10 @@ from matplotlib.figure import Figure
 from matplotlib.tri import Triangulation
 
 from pyapprox.typing.util.backend import Array
-from pyapprox.typing.interface.functions.function import (
+from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
+)
+from pyapprox.typing.interface.functions.protocols.validation import (
     validate_function,
 )
 
@@ -34,7 +36,7 @@ class Plotter2DGeneralDomain(Generic[Array]):
         validate_function(function)
         if function.nvars() != 2:
             raise ValueError("Can only plot functions with nvars() == 2")
-        self._bkd = function._bkd
+        self._bkd = function.bkd()
         self._function = function
 
     def plot_trisurf(

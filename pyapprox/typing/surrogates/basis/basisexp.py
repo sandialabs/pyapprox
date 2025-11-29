@@ -1,7 +1,7 @@
 from typing import Protocol, Generic, runtime_checkable
 
 from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.interface.functions.function import (
+from pyapprox.typing.interface.functions.protocols.validation import (
     validate_samples,
     validate_sample,
 )

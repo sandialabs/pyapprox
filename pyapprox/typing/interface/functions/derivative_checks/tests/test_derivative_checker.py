@@ -9,10 +9,10 @@ from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.util.numpy import NumpyBkd
 from pyapprox.typing.util.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
-from pyapprox.typing.interface.functions.hessian import (
+from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
-from pyapprox.typing.interface.derivative_checks.derivative_checker import (
+from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 
@@ -58,7 +58,7 @@ class TestDerivativeChecker(Generic[Array], AbstractTestCase):
         sample = bkd.asarray([[2.0, 1.0]]).T
 
         # Check derivatives
-        errors = checker.check_derivatives(sample, verbosity=1)
+        errors = checker.check_derivatives(sample)
 
         # Assert that the gradient errors are below a tolerance
         self.assertTrue(checker.error_ratios_satisfied(errors[0], 1e-7))

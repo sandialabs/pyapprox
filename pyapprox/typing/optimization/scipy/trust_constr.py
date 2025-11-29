@@ -10,7 +10,7 @@ from pyapprox.typing.optimization.constraint_protocols import (
     SequenceOfUnionOfConstraintProtocols,
     validate_constraints,
 )
-from pyapprox.typing.interface.functions.hessian_protocols import (
+from pyapprox.typing.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
 )
 from pyapprox.typing.interface.functions.numpy.numpy_function_factory import (

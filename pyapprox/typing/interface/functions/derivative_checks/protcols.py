@@ -1,7 +1,7 @@
 from typing import Protocol, runtime_checkable, Generic
 
 from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.interface.functions.jacobian_protocols import (
+from pyapprox.typing.interface.protocols.jacobian import (
     FunctionWithJacobianProtocol,
     FunctionWithJVPProtocol,
 )

@@ -7,7 +7,9 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.contour import QuadContourSet
 
-from pyapprox.typing.interface.functions.function import FunctionFromCallable
+from pyapprox.typing.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
 from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
     meshgrid_samples,
