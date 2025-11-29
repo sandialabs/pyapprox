@@ -158,3 +158,6 @@ setuptools.setup(
 # mypy --strict ~/Desktop/ducktyping_example.py
 # using silent will check consistency with imports but not show error in those files
 # mypy --follow-imports=silent ../adjoint.py
+
+# List directoy tree structure:
+# tree --prune -I '*~' -I '*.pyc' ../
